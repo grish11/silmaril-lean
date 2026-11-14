@@ -98,8 +98,10 @@ jobs:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
           url="${PAGE_URL%/}/project.sqlite"
-          for i in 1 2 3 4 5 6; do
-            headers=$(curl -sS -D - -o /tmp/head.bin -r 0-99 -H 'Accept-Encoding: identity' "$url") && break
+          # Retry until the CDN answers 206: right after a deploy it can answer 503 for a while.
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            headers=$(curl -sS -D - -o /tmp/head.bin -r 0-99 -H 'Accept-Encoding: identity' "$url") &&
+              echo "$headers" | grep -qi '^HTTP/[0-9.]* 206' && break
             sleep 10
           done
           echo "$headers"
