@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Games.Abstract.Module.Defs
 import Silmaril.Proofs.Games.Abstract.Module.Basic
+import Silmaril.Proofs.Games.Abstract.Module.Congruence
 
 /-!
 # Abstract modules: theorems
@@ -38,10 +39,13 @@ graph (`RespectsCalls`), for example an acyclic static call graph over finitely
 many functions, `closeD = close`, so recursion cannot be a source of
 divergence.
 
+**Congruence.** `close_congr` and `closeD_congr`: open modules that are
+equivalent up to trap ≈ divergence, function by function, close (with or
+without divergence chains) to modules that are equivalent up to trap ≈
+divergence. Equality (the tagged notion) is trivially preserved.
+
 No theorem yet says that `closeD` agrees with an operational semantics with
-recursion, or that `close` / `closeD` are congruences for the
-outcome-sensitive equivalences. Results about outcome-sensitive equivalence
-of closed modules must not be inferred from these definitions.
+recursion. Agreement with Core 3.0 recursion is the next milestone.
 -/
 
 public section
@@ -108,5 +112,15 @@ theorem closeD_eq_close_of_wf {R : sh.F → sh.F → Prop} (hR : WellFounded R) 
 theorem respectsCalls_lift (R : sh.F → sh.F → Prop) (c : sh.ClosedMod) :
     RespectsCalls R (lift c) :=
   Silmaril.Proofs.Games.Abstract.Module.respectsCalls_lift R c
+
+/-- Trap ≈ divergence is a congruence for closing. -/
+theorem close_congr {m m' : sh.OpenMod} (h : OpenCollapseEquiv m m') :
+    ClosedCollapseEquiv (close m) (close m') :=
+  Silmaril.Proofs.Games.Abstract.Module.close_congr h
+
+/-- Trap ≈ divergence is a congruence for closing with divergence chains. -/
+theorem closeD_congr {m m' : sh.OpenMod} (h : OpenCollapseEquiv m m') :
+    ClosedCollapseEquiv (closeD m) (closeD m') :=
+  Silmaril.Proofs.Games.Abstract.Module.closeD_congr h
 
 end Silmaril.Games.Abstract.Shape

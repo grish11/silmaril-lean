@@ -187,6 +187,14 @@ it over-approximates every internal call. -/
 def RespectsCalls (R : sh.F → sh.F → Prop) (m : sh.OpenMod) : Prop :=
   ∀ f s a x, x ∈ m f s a → ∀ y ∈ x.1, ∀ c : sh.self.Op, y.1 = .inr c → R c.1 f
 
+/-- Open modules equivalent up to trap ≈ divergence, function by function. -/
+def OpenCollapseEquiv (m m' : sh.OpenMod) : Prop :=
+  ∀ f, AFun.ObsEquiv AFun.obsCollapse (m f) (m' f)
+
+/-- Closed modules equivalent up to trap ≈ divergence, function by function. -/
+def ClosedCollapseEquiv (c c' : sh.ClosedMod) : Prop :=
+  ∀ f, AFun.ObsEquiv AFun.obsCollapse (c f) (c' f)
+
 /-- The public view of a closed module through an interface. -/
 def view (I : Iface sh) (c : sh.ClosedMod) : (x : I.X) → AFun sh.E sh.S (sh.A (I.fn x)) (sh.B (I.fn x)) :=
   fun x => c (I.fn x)
