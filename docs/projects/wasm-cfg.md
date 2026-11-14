@@ -137,9 +137,10 @@ uniqueness) and that the executable extractors realize it.
      `bodyIfaces_typed` proves that every recorded interface is an `Instrs_ok` derivation.
      `bodyIfaces_lookup` proves that a recorded interface's instructions are the segment
      `lookup` names for its identity. The explorer shows these interfaces for all 3,125 blocks.
-   - **Open:**
-     - a proof that every block of a valid body gets an interface (completeness);
-     - a statement about runs.
+   - `bodyIfaces_complete` proves that, when the validator's expression check accepts the body
+     (as `funcCheck` runs it), every block gets an interface. So a validated body has one proved
+     typed interface per block.
+   - **Open:** a statement about runs.
    - The trap/throw effect marks and referenced indices stay syntactic.
 4. **Bytes**, valid serializer profile only (`encodeModule?`).
    - The encoded object is (locals, body). It is an *encoding* object only: semantically, a
