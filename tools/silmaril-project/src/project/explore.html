@@ -1102,12 +1102,13 @@ async function wasmFuncPage(arg) {
           (b.refs && Object.keys(b.refs).length ? "<br>references (syntactic, this block's own instructions): " +
             Object.entries(b.refs).map(([sp, xs]) => `${esc(sp)} ${xs.map((x) => sp === "func" && m.functions[x] && !m.functions[x].imported
               ? flink(s.slug, x, String(x)) : esc(x)).join(", ")}`).join("; ") : "") +
-          (b.typing ? "<br>operand stack (this block's frame; enclosing frames hidden, as in validation): entry <code>" + esc(b.typing.entry) +
-            "</code>" + (b.typing.beforeTerm != null ? `, before the terminator <code>${esc(b.typing.beforeTerm)}</code>` : "") +
-            (b.typing.end != null ? `, at the end <code>${esc(b.typing.end)}</code>` : "") +
+          (b.typing ? `<br>typing: <code>${esc(b.typing.in)} → ${esc(b.typing.out)}</code>` +
+            (b.typing.inits.length ? ` initialising locals ${b.typing.inits.map(esc).join(", ")}` : "") +
+            ` under labels <code>${esc(b.typing.labels || "(none)")}</code> <span class="muted">(this block's operand frame; local types and labels are the static context)</span>` +
             (b.typing.branch ? `<br>branch targets: <code>${esc(b.typing.branch)}</code>` : "") +
-            "<br>" + runBadge("the validator's instruction checker (Validation.checkInstr, as used by checkModule?) run along the body; not a typing theorem about this block")
-            : '<br><span class="muted">operand stack: not computed (the module context did not check)</span>');
+            "<br>" + runBadge("Cfg.bodyIfaces; each interface it records is an Instrs_ok derivation (bodyIfaces_typed), and its instructions were checked at build time to be this block's") +
+            ' <span class="muted">A typing fact, not a statement about runs.</span>'
+            : '<br><span class="muted">typing: no proved interface recorded for this block</span>');
       });
       wireZoom(typeof cfg.entry === "number" ? "b" + cfg.entry : null, true);
     };

@@ -129,10 +129,19 @@ uniqueness) and that the executable extractors realize it.
      initialisation state, and the operand stack in and out of the block's own frame.
    - This is shared with the abstract typed-body work (`docs/projects/component-semantics.md`),
      so there is one notion of interface.
-   - **Shown now (#220):** the explorer shows each block's stacks and branch label types, as the
-     validator's checker computes them at runtime. Its trap/throw effect marks and referenced
-     indices are syntactic.
-   - **Next:** a declarative `BlockTyping` relation, with the checker proved to compute it.
+   - **Local values are not in the context.** The context holds the local *types* and their
+     initialisation state. Local values belong to the activation frame of a run, apart from the
+     module store, as the abstract typed-body interface also has it.
+   - **Done** (`Silmaril.Wasm.Cfg.BlockTyping`): `bodyIfaces C body` records each block's
+     interface: static context, instructions, stack in → out, and local initialisations.
+     `bodyIfaces_typed` proves that every recorded interface is an `Instrs_ok` derivation.
+     The explorer shows these interfaces for all 3,125 blocks, each checked at build time to be
+     the block's own instructions.
+   - **Open:**
+     - a proof that a recorded interface's instructions are the segment `lookup` names;
+     - a proof that every block of a valid body gets an interface;
+     - a statement about runs.
+   - The trap/throw effect marks and referenced indices stay syntactic.
 4. **Bytes**, valid serializer profile only (`encodeModule?`).
    - The encoded object is (locals, body). It is an *encoding* object only: semantically, a
      function is (type index, body) under the module's context, and the explorer's function pages

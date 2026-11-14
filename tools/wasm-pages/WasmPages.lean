@@ -14,6 +14,7 @@ import Silmaril.Wasm.Tools.Meta.Demangle.Defs
 import Silmaril.Wasm.Wit.Binary.Embed.Defs
 import Silmaril.Wasm.Tools.CompValidate.Defs
 import Silmaril.Wasm.Validation.Check.Validate
+import Silmaril.Wasm.Cfg.BlockTyping.Defs
 
 /-!
 # `wasm-pages`: the data of the explorer's Wasm component, module and function pages
@@ -215,26 +216,6 @@ def funcContext? (C : Context) (f : Func) : Option (Context × List (Ty .val)) :
     pure (C.funcBody ps.toList rs.toList lts, rs.toList)
   | _ => none
 
-/-- The checker's state: the context, the stack (`none` once the checker fails), polymorphic. -/
-structure St where
-  C : Context
-  stk : Option (List (Ty .val))
-  poly : Bool
-
-def step (st : St) (i : Instr) : St :=
-  match st.stk with
-  | none => st
-  | some s =>
-    match checkInstr atomC tyOkC st.C (padStack (padFor st.C st.poly i) s) i with
-    | some (StepRes.normal n xs out) => { st with C := st.C.initLocals xs, stk := some (s.take (s.length - n) ++ out) }
-    | some (StepRes.poly _) => { st with stk := some [], poly := true }
-    | none => { st with stk := none }
-
-def describe (st : St) : String :=
-  match st.stk with
-  | none => "? (the checker rejects an earlier instruction)"
-  | some s => if st.poly then "polymorphic " ++ stackText s ++ " (after an unconditional branch)" else stackText s
-
 def labelText (C : Context) (l : LabelIdx) : String :=
   match C.labels[l.value.val]? with
   | some ts => s!"label {l.value.val}: {stackText ts}"
@@ -247,39 +228,18 @@ def branchText (C : Context) : Instr → Option String
   | .return_ => some (match C.return_ with | some ts => s!"return {stackText ts}" | none => "return")
   | _ => none
 
-/-- Per block `(path, position)`: entry stack, stack before the terminator, branch label types. -/
-partial def typeSeq (C : Context) (path : List Cfg.SeqStep) (s0 : List (Ty .val)) (is : List Instr) :
-    List ((List Cfg.SeqStep × Nat) × Json) := Id.run do
-  let mut st : St := { C, stk := some s0, poly := false }
-  let mut k := 0
-  let mut entry : Option String := none
-  let mut out : List ((List Cfg.SeqStep × Nat) × Json) := []
-  for i in is do
-    if entry.isNone then entry := some (describe st)
-    if Cfg.isTerminator i then
-      let before := describe st
-      -- the nested sequences, with their label and entry stack
-      let arms : List (Nat × List Instr) := match i with
-        | .block _ b | .loop _ b | .tryTable _ _ b => [(0, b)]
-        | .if_ _ t e => [(0, t), (1, e)]
-        | _ => []
-      let bt? : Option BlockType := match i with
-        | .block bt _ | .loop bt _ | .tryTable bt _ _ | .if_ bt _ _ => some bt | _ => none
-      if let some bt := bt? then
-        if let some (t1, t2) := CheckInstrs.blockType? tyOkC st.C bt then
-          let lbl := match i with | .loop .. => t1 | _ => t2
-          for (a, arm) in arms do
-            out := out ++ typeSeq (st.C.withLabel lbl) (path ++ [(k, a)]) t1 arm
-      let br := (branchText st.C i).getD ""
-      out := out ++ [((path, k), jobj [("entry", jstr entry.get!), ("beforeTerm", jstr before), ("branch", jstr br)])]
-      st := step st i
-      k := k + 1
-      entry := none
-    else
-      st := step st i
-  if let some e := entry then
-    out := out ++ [((path, k), jobj [("entry", jstr e), ("end", jstr (describe st))])]
-  return out
+/-- Per block `(path, position)`: its interface from `Cfg.bodyIfaces` (each one proved an
+`Instrs_ok` derivation, `bodyIfaces_typed`), shown when its instructions are the block's own. -/
+def ifaceJson (segOf : Cfg.BlockId → Option (List Instr)) (x : Cfg.BlockIface) : Option Json :=
+  if (segOf x.id).map (fun l => reprStr l) == some (reprStr x.instrs) then
+    let inS := List.replicate x.pad Ty.botv ++ x.inStk
+    let br := match x.instrs.getLast? with
+      | some t => if Cfg.isTerminator t then (branchText x.ctx t).getD "" else ""
+      | none => ""
+    some (jobj [("in", jstr (stackText inS)), ("out", jstr (stackText x.outStk)),
+      ("inits", jarr (x.inits.map jnat)), ("labels", jstr (" ".intercalate (x.ctx.labels.map stackText))),
+      ("branch", jstr br)])
+  else none
 
 end Typing
 
@@ -427,8 +387,10 @@ def doModule (id title : String) (src : Source) (m : Module) (bytes : Option Byt
   let mctx := Typing.moduleContext? m
   let cfgs := m.funcs.zipIdx.map fun (f, k) =>
     let idx := nImp + k
+    let segOf (b : Cfg.BlockId) := (Cfg.lookup f.body b).map (·.instrs)
     let typing := match mctx.bind (Typing.funcContext? · f) with
-      | some (Cf, _) => Typing.typeSeq Cf [] [] f.body
+      | some (Cf, _) => (Cfg.bodyIfaces Cf f.body).filterMap fun x =>
+          (Typing.ifaceJson segOf x).map fun j => ((x.id.seq, x.id.idx), j)
       | none => []
     jobj [("idx", jnat idx), ("wat", jstr (funcWat m idx (nameOf idx) f)), ("cfg", cfgJson f.body typing)]
   -- files
