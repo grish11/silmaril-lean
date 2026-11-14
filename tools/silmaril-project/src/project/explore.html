@@ -866,17 +866,30 @@ async function wasmPage() {
     ["inside", (m) => m.source.parent ? wlink("component", ix.components.find((c) => c.id === m.source.parent)?.slug || "", m.source.parent) : ""]];
   h += `<h2>Components (${top(ix.components).length} registered, ${sub(ix.components).length} nested)</h2>` + simpleTable(top(ix.components).concat(sub(ix.components)), compCols);
   h += `<h2>Core modules (${top(ix.modules).length} top-level, ${sub(ix.modules).length} inside components)</h2>` + simpleTable(top(ix.modules).concat(sub(ix.modules)), modCols);
-  return h;
+  h += '<h2>Functions</h2><div class="controls"><input type="text" id="wfq" placeholder="filter by name, export or module" size="40"> <span id="wfn" class="muted"></span></div><div id="wfl"></div>';
+  const init = async () => {
+    let fs;
+    try { fs = await wasmJson("functions.json"); } catch (e) { $("#wfl").innerHTML = wasmMissing(e); return; }
+    const title = new Map(ix.modules.map((m) => [m.slug, m.title]));
+    const show = () => {
+      const q = $("#wfq").value.toLowerCase();
+      const rows = fs.filter(([sl, , n, e]) => !q || [n, e, title.get(sl)].some((x) => x && x.toLowerCase().includes(q)));
+      $("#wfn").textContent = `${rows.length} of ${fs.length} defined functions` + (rows.length > 300 ? " (first 300 shown)" : "");
+      $("#wfl").innerHTML = simpleTable(rows.slice(0, 300), [["function", ([sl, i, n]) => flink(sl, i, n || `func ${i}`)],
+        ["export", ([, , , e]) => e ? `<code>${esc(e)}</code>` : ""], ["blocks", ([, , , , b]) => b],
+        ["module", ([sl]) => wlink("module", sl, title.get(sl) || sl)]]);
+    };
+    $("#wfq").addEventListener("input", show);
+    show();
+  };
+  return { html: h, init };
 }
 async function wasmComponentPage(slug) {
   let c, ix;
   try { [c, ix] = await Promise.all([wasmJson(`c/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
   const s = c.summary;
   let h = `<h2>${kindTag("component")} <code>${esc(s.title)}</code></h2>`;
-  if (s.source.parent) {
-    const p = ix.components.find((x) => x.id === s.source.parent);
-    h += `<p>inside ${p ? wlink("component", p.slug, p.title) : esc(s.source.parent)}</p>`;
-  }
+  h += crumbs(ix, s.source.parent);
   h += sourceDl(s.source, s.size) + filesBlock(s.slug, c);
   if (c.unsupported) return { html: h + `<p class="err">Unsupported: ${esc(c.unsupported)}</p>`, init: () => wireSha(s.slug) };
   h += `<p class="muted">Decoded by <code>Silmaril.Wasm.Component.Binary.parse</code> ${runBadge()}. Not validated as a component here: ` +
@@ -934,16 +947,24 @@ function wireZoom(focusId, top) {
   if (top) { const p = n.position(); wcy.pan({ x: wcy.width() / 2 - p.x * 0.85, y: 50 - p.y * 0.85 }); }
   else wcy.center(n);
 }
+// "inside A › B" links from a module or component up to its top-level component.
+function crumbs(ix, parentId) {
+  const out = [];
+  for (let id = parentId; id;) {
+    const c = ix.components.find((x) => x.id === id);
+    if (!c) { out.unshift(esc(id)); break; }
+    out.unshift(wlink("component", c.slug, c.title));
+    id = c.source.parent;
+  }
+  return out.length ? `<p>inside ${out.join(" › ")}</p>` : "";
+}
 function fname(f) { return f.display || f.name || (f.imported ? f.import : `func ${f.idx}`); }
 async function wasmModulePage(slug) {
   let m, ix;
   try { [m, ix] = await Promise.all([wasmJson(`m/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
   const s = m.summary;
   let h = `<h2>${kindTag("core module")} <code>${esc(s.title)}</code></h2>`;
-  if (s.source.parent) {
-    const p = ix.components.find((x) => x.id === s.source.parent);
-    h += `<p>inside ${p ? wlink("component", p.slug, p.title) : esc(s.source.parent)}</p>`;
-  }
+  h += crumbs(ix, s.source.parent);
   h += sourceDl(s.source, s.size) + filesBlock(s.slug, m);
   if (m.unsupported) return { html: h + `<p class="err">Unsupported: ${esc(m.unsupported)}</p>`, init: () => wireSha(s.slug) };
   const v = m.validity;
@@ -1003,12 +1024,13 @@ async function wasmModulePage(slug) {
 }
 async function wasmFuncPage(arg) {
   const k = arg.lastIndexOf("/"), slug = arg.slice(0, k), idx = Number(arg.slice(k + 1));
-  let m;
-  try { m = await wasmJson(`m/${slug}.json`); } catch (e) { return wasmMissing(e); }
+  let m, ix;
+  try { [m, ix] = await Promise.all([wasmJson(`m/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
   const f = m.functions[idx], body = (m.bodies || []).find((b) => b.idx === idx);
   if (!f || !body) return `<p class="err">no defined function ${esc(idx)} in ${esc(slug)}</p>`;
   const s = m.summary, cfg = body.cfg;
   let h = `<h2>${kindTag("function")} <code>${esc(fname(f))}</code> <span class="muted">(function ${idx} of ${wlink("module", s.slug, s.title)})</span></h2>`;
+  h += crumbs(ix, s.source.parent);
   h += "<dl>" + [["symbol", f.display ? f.name + " (demangled above by wasm-tools demangle in Lean)" : null], ["signature", f.sig], ["export", f.export], ["locals", f.locals], ["instructions", f.instrs], ["basic blocks", f.blocks],
     ["effect marks", (f.effects || []).join(", ") || "none"]].filter(([, v]) => v != null).map(([a, b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join("") + "</dl>";
   const callers = m.calls.filter((c) => c[1] === idx).map((c) => c[0]), callees = m.calls.filter((c) => c[0] === idx);

@@ -226,6 +226,7 @@ def sourceJson (s : Source) : Json := jobj [
 /-- The output of one processed item, accumulated. -/
 structure Out where
   modules : Array Json := #[]
+  functions : Array Json := #[]
   components : Array Json := #[]
   files : Array (String × ByteArray) := #[]
 
@@ -316,7 +317,12 @@ def doModule (id title : String) (src : Source) (m : Module) (bytes : Option Byt
     ("bodies", jarr cfgs),
     ("start", match m.start with | some s => jnat s.value.val | none => Json.null)]
   writeText s!"wasm/m/{sl}.json" full.compress
-  modify fun o => { o with modules := o.modules.push summary }
+  let fnIndex := m.funcs.zipIdx.map fun (f, k) =>
+    let idx := nImp + k
+    let n := nameOf idx
+    jarr [jstr sl, jnat idx, match n.bind demangled with | some d => jstr d | none => match n with | some x => jstr x | none => Json.null,
+      match exportName idx with | some e => jstr e | none => Json.null, jnat (Cfg.blocks f.body).length]
+  modify fun o => { o with modules := o.modules.push summary, functions := o.functions ++ fnIndex.toArray }
 
 /-! ## Components -/
 
@@ -491,6 +497,7 @@ def run (artifactsPath outDir : String) : IO UInt32 := do
   let ((), out) ← act.run {}
   let index := jobj [("components", jarr out.components.toList), ("modules", jarr out.modules.toList)]
   let files := out.files.push ("wasm/index.json", index.compress.toUTF8)
+    |>.push ("wasm/functions.json", (jarr out.functions.toList).compress.toUTF8)
   for (rel, b) in files do
     let p := System.FilePath.mk outDir / rel
     if let some d := p.parent then IO.FS.createDirAll d
