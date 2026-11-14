@@ -249,3 +249,30 @@ or region tree. Every semantic claim is a theorem against `Silmaril.Wasm.Executi
 serializer profile) is not started. Typing completeness for validated bodies is done
 (`bodyIfaces_complete`).
 
+## CFG variants: traps and raises
+
+The legacy graph (**L**, `Cfg.Edge`) is kept unchanged, with its APIs, examples and
+kernel-checked tables. The variants below are related to it by theorems, not by relabelling.
+
+- **TE: traps as an abrupt outcome, raises as control.** This is the proposed default.
+  - **Done** (`Silmaril.Wasm.Cfg.Variant`): `EdgeTE` is the legacy edges without the `trap`
+    sink. `mustTrap` marks a block ending in `unreachable`; that is a terminal, non-returning
+    outcome, not a state effect.
+  - `edge_iff_te`: a legacy edge is exactly a TE edge, or the `trap` edge of a must-trap block.
+  - `succOf_trap_iff`: only `unreachable` has a `trap` edge, because labels and continuations
+    never resolve to `trap`.
+  - `succTE_of_mustTrap`: a must-trap block has no TE successors.
+  - May-trap marks (`Effect.mayTrap`) stay distinct from `mustTrap`.
+  - **Next:** handler-resolved raise edges. A `throw`, or a call that may raise, gets edges to
+    the `catch` targets of enclosing `try_table`s, innermost first, with an escape edge unless
+    a `catch_all` covers it. A caught throw resumes; it is never terminal. These edges are to be
+    proved against Core's `HANDLER` rules in the operational bridge.
+- **E: traps and raises both as effects**, interpreted by abrupt-outcome and handler
+  semantics (the `BodyM` view, `handle`/`trap_bind`). Kept as a semantic view: as a graph it
+  hides where a caught exception goes.
+- **Graph analyses are per variant.** Removing a sink changes no dominator of the remaining
+  nodes, since a sink lies on no path to another node; this is to be proved as a graph lemma.
+  It does change postdominators and exit reachability, so those are stated per variant.
+- **Renderer:** TE's new edge kinds get IDs in `tools/wasm-pages/SCHEMA.md` with a version bump,
+  coordinated with the explorer's renderer, before any page switches its default.
+
