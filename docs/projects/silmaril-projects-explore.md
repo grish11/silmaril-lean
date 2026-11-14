@@ -32,12 +32,15 @@ version and how many bytes have been read so far.
 ## The published explorer
 
 `.github/workflows/pages.yml` publishes silmaril's own project at
-<https://hiloopai.github.io/silmaril-lean/>. It runs after CI succeeds on a push to `main` (and by
-hand), restores main's build from the shared Lake pool, runs `sil project dump`, `check`,
+<https://hiloopai.github.io/silmaril-lean/>. It runs on every push to `main` (and by hand), and
+builds on hiloop's prove service (`make pages`). It is not a `workflow_run` of CI, because the prove
+service refuses OIDC tokens of `workflow_run` events. The worker restores main's build from the
+shared Lake pool and runs `sil project dump`, `check`,
 `sqlite --httpvfs` and `explore --db _site/project.sqlite --out _site/index.html`, and deploys
 `_site` to GitHub Pages (repository setting: Pages source "GitHub Actions"). The site holds only
-what the public repository already contains. GitHub Pages answers Range requests, so the page
-reads the database lazily.
+what the public repository already contains. GitHub Pages answers Range requests with the
+identity bytes, so the page reads the database lazily (see below for why it ignores `HEAD`), and
+the deploy job checks a Range request on the deployed file.
 
 To view a local build instead:
 
@@ -61,23 +64,55 @@ whole database (see below).
 
 ### Lazy loading (HTTP Range)
 
-The page first requests the 100-byte SQLite header with `Range: bytes=0-99`.
+The page first requests the 100-byte SQLite header with `Range: bytes=0-99` (never from the cache).
 
-- **206 Partial Content:** the page opens the database with
-  [sql.js-httpvfs](https://github.com/phiresky/sql.js-httpvfs). SQLite runs in a web worker
-  and reads one page at a time with HTTP Range requests, so the browser downloads only the pages
-  that the queries touch. The chunk size is the database's page size (read from the header).
-- **200 OK:** the server ignored `Range`. That response is the whole file, which the page opens
-  in plain sql.js. `?load=full` forces this path even when Range works.
+- **206 Partial Content, identity bytes, `Content-Range: bytes 0-99/<length>`:** the page opens
+  the database with [sql.js-httpvfs](https://github.com/phiresky/sql.js-httpvfs). SQLite runs in
+  a web worker and reads one page at a time with HTTP Range requests, so the browser downloads
+  only the pages that the queries touch. The chunk size is the database's page size (read from
+  the header).
+- **Anything else** (200, a compressed body, no length): the page downloads the whole file and
+  opens it in plain sql.js. `?load=full` forces this path. When the page was generated next to
+  this database, a whole download is checked against the SHA-256 written into the page
+  (`SHA-256 verified` in the header).
+
+**The file length comes from the probe**, not from a `HEAD` request. GitHub Pages compresses
+`HEAD` and whole-file responses (`Content-Encoding: gzip`, with the compressed length), which made
+the library's own length check fail ("Length of the file not known"), while it answers Range
+requests with the identity bytes and the true length in `Content-Range`. The page passes that
+length to sql.js-httpvfs (its single-chunk mode).
+
+**Versions and caching.** Every range URL carries a version tag, `?v=<strong ETag or
+Last-Modified>-<length>&part=0`, taken from the probe. Pages of two versions of the database
+therefore never mix, whatever the HTTP caches hold. A service worker, `explore-sw.js`, which
+`sil project explore` writes next to the page, keeps the pages read across reloads in the browser's
+Cache Storage, keyed by path, version and range. When a new version of a file is read, it drops the
+entries of the other versions. `?cache=off` skips it. Within one visit, sql.js-httpvfs caches pages
+in memory either way. `tools/silmaril-project/tests/explore/range_cache.mjs` checks all of this in
+Chromium against `pages_server.py`, a server that compresses like GitHub Pages:
+
+- the first load is lazy and partial;
+- a reload transfers nothing;
+- a new version is fetched again under a new tag;
+- `?load=full` downloads the whole file and verifies its hash.
+
+`tools/silmaril-project/tests/explore/wasm_cfg.mjs` checks the Wasm function pages in Chromium
+on a small and a large block CFG: the legend's edge counts against the page data, may-edges kept
+but drawn only on selection, hover or request without moving any node, the inspector's exact
+edges, keyboard navigation, direct links to a node, the stated dominator basis and its agreement
+with the kernel-checked table, and that module call graphs and machine pages still draw. Run it on
+a `make pages` output: `node wasm_cfg.mjs _site [screenshots-dir]`. `wasm_cfg_variants.mjs` checks graph variants and named dominator
+bases (issue #231) on synthetic fixtures built from that output: the data's default variant, links,
+relations shown as unchecked metadata, outcomes as marks rather than edges, instruction-level graphs
+boxed by block with links between the two granularities, and that a kernel table is shown as evidence only for exactly
+the same nodes, entry and edges.
 
 Requirements on the server for lazy loading:
 
-- It must answer `Range: bytes=a-b` with `206` and a `Content-Range` header, and `HEAD` with a
-  `Content-Length`. `Accept-Ranges: bytes` should be set.
-- It must not compress the database (`Content-Encoding: gzip` breaks byte ranges; the page then
-  falls back to the whole file).
+- It must answer `Range: bytes=a-b` with `206`, the identity bytes and
+  `Content-Range: bytes a-b/<length>`.
 - For a database on another origin, CORS must allow the page's origin and expose
-  `Accept-Ranges`, `Content-Length`, `Content-Range` and `Content-Encoding`.
+  `Content-Range`, `Content-Encoding` and `ETag`.
 
 ### Indexes and `sil project sqlite --httpvfs`
 

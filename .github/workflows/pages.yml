@@ -5,12 +5,15 @@ name: Explorer on GitHub Pages
 # at https://hiloopai.github.io/silmaril-lean/. Everything in it comes from this public
 # repository: record names, Lean module and declaration names, docs, CIDs and verdicts.
 #
-# It runs after CI succeeds on a push to main (so the shared Lake pool holds main's build), and
-# by hand. Repository settings: Pages, source "GitHub Actions".
+# It runs on every push to main, and by hand. It cannot be a `workflow_run` of CI: hiloop's prove
+# service admits a GitHub OIDC token only for the events `pull_request`, `push`, `merge_group`,
+# `workflow_dispatch` and `schedule` (authz `githubOidc.events`; `workflow_run` runs with the base
+# repository's privileges on input a fork can control, so it is never admitted, and a
+# `workflow_run` run got HTTP 401 from /v1/prove/sessions). The build on prove restores what main's
+# CI already published and builds the rest with --wfail, and `make pages` runs the full project
+# check, so a broken main fails here too. Repository settings: Pages, source "GitHub Actions".
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -24,10 +27,7 @@ concurrency:
 
 jobs:
   build:
-    if: >-
-      github.repository == 'hiloopai/silmaril-lean' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    if: github.repository == 'hiloopai/silmaril-lean'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -41,7 +41,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           # The client diffs against the nearest commit main's CI published.
           fetch-depth: 65
       - name: Assume the Lean CAS role
@@ -71,7 +70,7 @@ jobs:
       - name: Dump, check and write the database and the page, on prove
         run: |
           hiloop-prove run --build Silmaril --build ProjectSelfTest --build SysVTvExample \
-            --build CompilesToExamples --out _site -- \
+            --build CompilesToExamples --build wasm-pages --out _site -- \
             env -u CARGO_TARGET_DIR make pages
           ls -l _site
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
@@ -91,3 +90,22 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      # The explorer reads the database with Range requests: check that the deployed site answers
+      # one with identity bytes, a Content-Range total and the SQLite header (the page also falls
+      # back to a whole download, so this checks the fast path, not correctness).
+      - name: Check Range requests on the deployed database
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          url="${PAGE_URL%/}/project.sqlite"
+          # Retry until the CDN answers 206: right after a deploy it can answer 503 for a while.
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            headers=$(curl -sS -D - -o /tmp/head.bin -r 0-99 -H 'Accept-Encoding: identity' "$url") &&
+              echo "$headers" | grep -qi '^HTTP/[0-9.]* 206' && break
+            sleep 10
+          done
+          echo "$headers"
+          echo "$headers" | grep -qi '^HTTP/[0-9.]* 206' || { echo "no 206 for a Range request"; exit 1; }
+          echo "$headers" | grep -qi '^content-range: bytes 0-99/[0-9]' || { echo "no Content-Range total"; exit 1; }
+          head -c 15 /tmp/head.bin | grep -q 'SQLite format 3' || { echo "not the SQLite header"; exit 1; }
+          curl -sSf -o /dev/null "${PAGE_URL%/}/explore-sw.js"
