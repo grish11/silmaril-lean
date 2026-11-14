@@ -682,7 +682,8 @@ async function machinePage(name) {
     `<span>deterministic: ${m.deterministic ? "yes" : "no"}</span> — initial: thick border; accepting: double border; rejecting: orange; error: red; ` +
     "↺ n: n self-loops. Click a state or an edge for its transitions.</p>";
   const big = doc.states.length > 12 || doc.edges.length > 40;
-  h += '<div class="controls"><button id="vflat">Flat graph</button><button id="vdom">Dominator tree</button> <span id="mprov"></span></div>';
+  h += '<div class="controls"><button id="vflat">Flat graph</button><button id="vdom">Dominator tree</button>' +
+    '<button id="mfit">fit</button> <span class="muted">scroll to zoom, drag to pan</span> <span id="mprov"></span></div>';
   h += `<div id="mcy" style="height:${big ? 78 : 62}vh;min-height:420px;border:1px solid var(--line);background:var(--panel)"></div>`;
   h += '<div id="mdetail" class="muted" style="margin:8px 0;min-height:1.5em">Click a state or an edge.</div>';
   h += "<h2>Bindings (typed machines proved equal to this document)</h2>" + await tableOf(await first(DETAIL,
@@ -722,6 +723,12 @@ async function machinePage(name) {
           "text-background-color": "#fbfbfa", "text-background-opacity": big ? 0.9 : 0.85, "text-background-padding": big ? 2 : 0,
           "text-rotation": big ? "autorotate" : "none", "control-point-step-size": big ? 60 : 40 } },
         { selector: ":selected", style: { "line-color": "#2f5d9e", "target-arrow-color": "#2f5d9e", "border-color": "#2f5d9e" } }] });
+    // A wide graph fitted to the box is unreadable: start at a readable zoom on the initial state.
+    if (mcy.zoom() < 0.5) {
+      const n = mcy.getElementById("s:" + ((ly.initial || [])[0] || doc.states[0]));
+      mcy.zoom(0.8);
+      if (n.length) { const p = n.position(); mcy.pan({ x: 40 - p.x * 0.8 + n.width() * 0.4, y: mcy.height() / 2 - p.y * 0.8 }); } else mcy.center();
+    }
     const show = (html) => { $("#mdetail").classList.remove("muted"); $("#mdetail").innerHTML = html; };
     // The dominator view: the kernel-checked table when the registry has one (one initial
     // state), otherwise computed here from the initial states (several: a synthetic root).
@@ -749,6 +756,7 @@ async function machinePage(name) {
       mcy = drawDomTree($("#mcy"), doc.states, idom, (s) => s);
     };
     $("#vdom").addEventListener("click", domView);
+    $("#mfit").addEventListener("click", () => mcy && mcy.fit(undefined, 30));
     $("#vflat").addEventListener("click", () => { route(); });
     $("#mprov").innerHTML = '<span class="muted">flat graph of the document</span>';
     const list = (ls) => "<ul style=\"margin:4px 0\">" + ls.map((l) => `<li><code>${esc(l)}</code></li>`).join("") + "</ul>";
