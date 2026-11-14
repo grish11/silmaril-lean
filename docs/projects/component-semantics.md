@@ -11,6 +11,36 @@ The generic layer lives in the `Games` region under `Silmaril.Games.Abstract`.
 Wasm-specific bridges go in the `Wasm` region. HTTP and TCP readings use the
 existing `Servers` modules and do not duplicate them.
 
+## Target: abstract Wasm bodies as a premonoidal Elgot category (λiter / LetIter semantics)
+
+**Statement of the target.** Typed abstract Wasm function bodies, under a fixed
+module environment, form a premonoidal Elgot category that is a lawful model of
+λiter and LetIter. Typed concrete bodies, quotiented by a chosen observational
+equivalence, form a premonoidal Elgot category isomorphic to a subcategory of
+it.
+
+**Choices (abstract half, `Silmaril.Wasm.Abstract.Body`):**
+- **Environment:** imports `E : Sig`, module state `S`, trap type `T`.
+- **Objects:** Lean types, i.e. typed stack and local interfaces as value types. Control interfaces with several exits are coproducts.
+- **Morphisms:** `A → BodyM E S T B`, where `BodyM := StateT S (ExceptT T (ITree (SigEv E)))`. These are arbitrary, possibly non-realisable bodies.
+- **Composition and premonoidal structure:** composition is Kleisli sequencing. The premonoidal structure is the Kleisli (Freyd) structure over `Type`: effects are ordered, and pure maps are central. This is *not* ordinary monoidal naturality.
+- **Iteration:** the Elgot iteration of the monad, with `inl` = exit and `inr` = loop.
+- **Behaviours:** divergence is ITree's (weak, tau-insensitive). Infinite import-call runs are infinite trees.
+- **Nondeterminism:** modelled as environment events, so bodies are strategy-deterministic relative to inputs.
+- **Two observations:** `BodyM` keeps traps, so trap and divergence are distinguished. `BodyC := StateT S (ITree (SigEv E))` with `collapse` gives trap ≈ divergence.
+- **Whole functions are not bodies:** a whole function is a body plus its frame and locals setup. Modules and internal calls are the `Shape` layer above.
+
+| Item | Status |
+|---|---|
+| `BodyM`, `BodyC` lawful Elgot monads (fixpoint, naturality, codiagonal, uniformity) | Proved: `bodyM_lawfulElgot`, `bodyC_lawfulElgot` (from the library's proved ITree, `ExceptT` and `StateT` layers) |
+| λiter's Elgot class | Proved: `thesisLawful` and instances (same laws) |
+| Kleisli category of `BodyM` is a lawful λiter model; initiality of syntax | Proved: `bodyM_lawfulModel` (instantiates `KleisliModel.kleisli_lawfulModel`); initiality via `KleisliModel.kleisli_initial` at `BodyM` |
+| `collapse` is a monad morphism, sending trap to divergence | Proved: `collapse_pure`, `collapse_bind`, `collapse_trap` |
+| `collapse` preserves iteration (an Elgot functor) | Open |
+| LetIter (`Silmaril.SSA.Isotope`) instantiation | Open |
+| Concrete half: typed Core 3.0 bodies with syntactic constructors (sequence, tensor, branch, loop); semantics preserving each; congruence; faithfulness or reflection on the chosen quotient; image closure; then the subcategory isomorphism | Open. An embedding of the quotient alone does **not** give closure under identities, composition, tensor or iteration, and it gives no representability of arbitrary abstract bodies. Each needs its own theorem |
+| Relation between `BodyM` and `AFun` / `Shape.closeD` | Open. `closeD` still has no operational agreement |
+
 ## Settled conventions
 
 These are conservative choices, recorded so later stages do not reopen them.
