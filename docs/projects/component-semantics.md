@@ -42,7 +42,8 @@ it.
 | `collapse` preserves iteration (an Elgot functor) | Open |
 | LetIter (`Silmaril.SSA.Isotope`) instantiation | Open |
 | Concrete half: typed Core 3.0 bodies with syntactic constructors (sequence, tensor, branch, loop); semantics preserving each; congruence; faithfulness or reflection on the chosen quotient; image closure; then the subcategory isomorphism | Open. An embedding of the quotient alone does **not** give closure under identities, composition, tensor or iteration, and it gives no representability of arbitrary abstract bodies. Each needs its own theorem |
-| Relation between `BodyM` and `AFun` / `Shape.closeD` | Open. `closeD` still has no operational agreement |
+| Relation between `BodyM` and `AFun` (trace sets) | `toAFun` (`Silmaril.Wasm.Abstract.BodyTrace`) reads the finite paths of a body as call behaviours. Proved: `toAFun_det` (denoted functions are deterministic given the history); `exists_not_denoted` (a nondeterministic `AFun` is not denoted). So bodies are a **restricted submodel**, not a replacement for the trace-set functions: in body form, nondeterminism becomes an environment event, which changes the interface and the placement of may/must quantifiers. Still open: preservation of composition (`toAFun (f ≫ g) = AFun.seq …`), the image characterisation, and the fact that it is not injective (trap payloads and infinite productive runs are forgotten). `closeD` still has no operational agreement |
+| Status note | #214 and #216 realise *one* body model (deterministic interaction-tree strategies with inputs) as a lawful premonoidal Elgot structure. The trace-set category of `AFun`s with a premonoidal Elgot structure, and its isomorphism with a game-parameterised instance, are **not** done. Concrete typed Core 3.0 bodies must reuse the actual `Instr`/validator/`Steps`, not a separate toy language |
 
 ## Settled conventions
 
