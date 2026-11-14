@@ -15,6 +15,7 @@ import Silmaril.Wasm.Wit.Binary.Embed.Defs
 import Silmaril.Wasm.Tools.CompValidate.Defs
 import Silmaril.Wasm.Validation.Check.Validate
 import Silmaril.Wasm.Cfg.BlockTyping.Defs
+import Silmaril.Wasm.Cfg.Variant.Defs
 
 /-!
 # `wasm-pages`: the data of the explorer's Wasm component, module and function pages
@@ -269,7 +270,41 @@ def refsJson (is : List Instr) : Json :=
 def effectName : Cfg.Effect → String
   | .mayTrap => "may-trap" | .call => "call" | .unresolvedHandler => "handler-unresolved"
 
-def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := []) : Json :=
+/-- A handler for the all-effects outcomes: a node index, `"caller"`, or `"unresolved"`. -/
+def handlerJson (node : Cfg.BlockId → Option Nat) : Cfg.Target → Json
+  | .block b => match node b with | some n => jnat n | none => jstr "unresolved"
+  | .raise => jstr "caller"
+  | _ => jstr "unresolved"
+
+/-- The all-effects outcomes of a block's instructions `is` (with terminator `term`) at `node`. -/
+def aeOutcomes (body : Expr) (b : Cfg.BlockId) (instrNode : Nat → Nat) (blockNode : Cfg.BlockId → Option Nat)
+    (s : Cfg.Segment) : List Json × List Json :=
+  let hs := Cfg.raiseHandlers body b.seq
+  let raiseOf (n : Nat) (eff : String) : List Json × List Json :=
+    (hs.map fun h => jarr [jnat n, jstr eff, handlerJson blockNode h],
+     hs.filterMap fun h => match h with
+       | .block hb => (blockNode hb).map fun t => jarr [jnat n, jnat t, jstr "handler"]
+       | _ => none)
+  let perInstr := s.body.zipIdx.map fun (i, k) =>
+    let es := Cfg.instrEffects i
+    let trap := if es.contains .mayTrap || es.contains .call then [jarr [jnat (instrNode k), jstr "may-trap"]] else []
+    let (ro, re) := if es.contains .call then raiseOf (instrNode k) "may-raise" else ([], [])
+    (trap ++ ro, re)
+  let termPart : List Json × List Json := match s.term with
+    | some t =>
+      let n := instrNode s.body.length
+      let es := Cfg.instrEffects t
+      let base := if es.contains .mayTrap || es.contains .call then [jarr [jnat n, jstr "may-trap"]] else []
+      let (cr, ce) := if es.contains .call then raiseOf n "may-raise" else ([], [])
+      match t with
+      | .unreachable => ([jarr [jnat n, jstr "trap"]], [])
+      | .throw _ | .throwRef => let (o, e) := raiseOf n "raise"; (base ++ o, e)
+      | _ => (base ++ cr, ce)
+    | none => ([], [])
+  ((perInstr.flatMap (·.1)) ++ termPart.1, (perInstr.flatMap (·.2)) ++ termPart.2)
+
+def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := [])
+    (kernelTable : Option String := none) : Json :=
   let bs := Cfg.blocks body
   let ids := bs.map (·.1)
   let flow := Cfg.blockCfg body
@@ -285,8 +320,60 @@ def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := 
     ts.map fun t => jarr [jnat (ids.idxOf b), targetJson ids t, jstr "flow"]
   let effJ := bs.flatMap fun (b, s) =>
     (Cfg.effectSucc body b s).map fun t => jarr [jnat (ids.idxOf b), targetJson ids t, jstr "effect"]
-  jobj [("entry", targetJson ids (Cfg.cfgEntry body)), ("blocks", jarr blocksJ),
-        ("edges", jarr (flowJ ++ effJ))]
+  let blockNode (b : Cfg.BlockId) : Option Nat := if ids.contains b then some (ids.idxOf b) else none
+  -- all-effects, block level: flow edges to neither sink; outcomes and handler edges
+  let aeFlow := bs.flatMap fun (b, s) =>
+    (Cfg.succAE body b s).map fun t => jarr [jnat (ids.idxOf b), targetJson ids t, jstr "flow"]
+  let aeParts := bs.map fun (b, s) => aeOutcomes body b (fun _ => ids.idxOf b) blockNode s
+  let aeOut := (aeParts.flatMap (·.1)).eraseDups
+  let aeHandler := (aeParts.flatMap (·.2)).eraseDups
+  let aeBases := jarr [
+    jobj [("id", jstr "flow"), ("kinds", jarr [jstr "flow"]), ("relation", jstr "Silmaril.Wasm.Cfg.EdgeAE")],
+    jobj [("id", jstr "flow+handler"), ("kinds", jarr [jstr "flow", jstr "handler"]),
+      ("relation", jstr "Silmaril.Wasm.Cfg.EdgeAE ∪ handler edges from Silmaril.Wasm.Cfg.raiseHandlers")]]
+  let aeBlock := jobj [("model", jstr "all-effects"), ("granularity", jstr "block"),
+    ("entry", targetJson ids (Cfg.cfgEntry body)), ("edges", jarr (aeFlow ++ aeHandler)),
+    ("outcomes", jarr aeOut), ("bases", aeBases),
+    ("relation", jstr "Silmaril.Wasm.Cfg.edge_iff_ae")]
+  -- all-effects, instruction level: node k = [block, position]; position = instrs.length is the terminator
+  let nodeLists := bs.map fun (_, s) => s.body.length + (if s.term.isSome then 1 else 0)
+  let offsets := (nodeLists.foldl (fun (acc : List Nat × Nat) n => (acc.1 ++ [acc.2], acc.2 + n)) ([], 0)).1
+  let nodesJ := (bs.zipIdx.flatMap fun ((_, _), n) =>
+    (List.range (nodeLists.getD n 0)).map fun p => jarr [jnat n, jnat p])
+  let firstNode (n : Nat) := offsets.getD n 0
+  let lastNode (n : Nat) := offsets.getD n 0 + nodeLists.getD n 1 - 1
+  let instrTarget : Cfg.Target → Json
+    | .block b => match blockNode b with | some n => jnat (firstNode n) | none => jstr "invalid"
+    | t => targetJson ids t
+  let seqEdges := bs.zipIdx.flatMap fun (_, n) =>
+    (List.range (nodeLists.getD n 0 - 1)).map fun p => jarr [jnat (firstNode n + p), jnat (firstNode n + p + 1), jstr "flow"]
+  let outEdges := bs.flatMap fun (b, s) =>
+    let n := ids.idxOf b
+    (Cfg.succAE body b s).map fun t => jarr [jnat (lastNode n), instrTarget t, jstr "flow"]
+  let instrParts := bs.zipIdx.map fun ((b, s), n) =>
+    aeOutcomes body b (fun k => firstNode n + k) (fun hb => (blockNode hb).map firstNode) s
+  let aeInstr := jobj [("model", jstr "all-effects"), ("granularity", jstr "instr"), ("nodes", jarr nodesJ),
+    ("entry", instrTarget (Cfg.cfgEntry body)), ("edges", jarr (seqEdges ++ outEdges ++ (instrParts.flatMap (·.2)).eraseDups)),
+    ("outcomes", jarr (instrParts.flatMap (·.1)).eraseDups), ("bases", aeBases),
+    ("relation", jstr "Silmaril.Wasm.Cfg.EdgeAE refined to instructions by wasm-pages (no separate theorem)")]
+  let legacyBases := jarr ([
+    jobj [("id", jstr "flow"), ("kinds", jarr [jstr "flow"]), ("relation", jstr "Silmaril.Wasm.Cfg.Edge")],
+    jobj ([("id", jstr "flow+effect"), ("kinds", jarr [jstr "flow", jstr "effect"]),
+      ("relation", jstr "Silmaril.Wasm.Cfg.Edge ∪ Silmaril.Wasm.Cfg.EffectEdge")] ++
+      (match kernelTable with | some k => [("kernelTable", jstr k)] | none => []))])
+  jobj [("model", jstr "explicit-sink"), ("entry", targetJson ids (Cfg.cfgEntry body)), ("blocks", jarr blocksJ),
+        ("edges", jarr (flowJ ++ effJ)), ("bases", legacyBases),
+        ("variants", jobj [("all-effects", aeBlock), ("all-effects-instr", aeInstr)]),
+        ("default", jstr "all-effects")]
+
+/-- The block CFGs whose dominator table is Lean kernel-checked (machine documents loaded by
+`examples/project/ProjectSelfTest/WasmBlockCfg.lean`, over flow and effect edges). -/
+def kernelTables : List (String × String) := [
+  ("silmaril.wasm.examples.verified.prog/3", "silmaril.wasm.blockcfg.verified.sum"),
+  ("silmaril.wasm.cfg.examples.mod/0", "silmaril.wasm.blockcfg.dispatch"),
+  ("silmaril.wasm.cfg.examples.mod/1", "silmaril.wasm.blockcfg.specials"),
+  ("silmaril.wasm.cfg.examples.effects/1", "silmaril.wasm.blockcfg.guarded"),
+  ("silmaril.wasm.examples.rust_door/5", "silmaril.wasm.blockcfg.rust_door.enter")]
 
 /-! ## Modules -/
 
@@ -392,7 +479,8 @@ def doModule (id title : String) (src : Source) (m : Module) (bytes : Option Byt
       | some (Cf, _) => (Cfg.bodyIfaces Cf f.body).filterMap fun x =>
           (Typing.ifaceJson segOf x).map fun j => ((x.id.seq, x.id.idx), j)
       | none => []
-    jobj [("idx", jnat idx), ("wat", jstr (funcWat m idx (nameOf idx) f)), ("cfg", cfgJson f.body typing)]
+    let kt := kernelTables.lookup s!"{sl}/{idx}"
+    jobj [("idx", jnat idx), ("wat", jstr (funcWat m idx (nameOf idx) f)), ("cfg", cfgJson f.body typing kt)]
   -- files
   if let some b := bytes then writeFile s!"wasm/blob/{sl}.wasm" b
   let watNote ← match bytes with

@@ -46,6 +46,46 @@ functions. `bodies[j].idx` uses the same index space.
 - **Typing.** `blocks[n].typing` is `{in, out, inits, labels, branch}` from `Cfg.bodyIfaces`
   (`bodyIfaces_typed`, `bodyIfaces_lookup`, `bodyIfaces_complete`), or `null`.
 
+## Graph variants (`cfg.model`, `cfg.bases`, `cfg.variants`, `cfg.default`)
+
+These fields are additive, agreed with the renderer on #231. The top-level `cfg.edges` is
+unchanged: it is the legacy **explicit-sink** graph (`cfg.model = "explicit-sink"`).
+
+- **`cfg.bases`**: `[{id, kinds, relation, kernelTable?}]`, the dominator bases of a graph.
+  - The legacy graph has `"flow"` (`Cfg.Edge`) and `"flow+effect"` (`Cfg.Edge ∪ Cfg.EffectEdge`).
+  - `kernelTable` names the machine document whose dominator table the Lean kernel checked over
+    that same basis. Only the five example functions have one.
+- **`cfg.variants["all-effects"]`**: block level (`granularity: "block"`, same block numbering).
+  - `edges` are `Cfg.succAE` as `"flow"` edges: the legacy edges without the `trap`/`raise`
+    sinks and without `try_table` catch edges.
+  - `"handler"` edges go from a raising block to its resolved handler block.
+  - `relation: "Silmaril.Wasm.Cfg.edge_iff_ae"`: the proved translation to the legacy graph.
+- **`cfg.variants["all-effects-instr"]`**: instruction level (`granularity: "instr"`).
+  - `nodes` holds `[block, position]`; `position = instrs.length` is the block's terminator.
+  - `entry` and edge endpoints index `nodes`.
+  - Instructions in a block are chained by `"flow"`. A block's last node has `"flow"` edges to
+    the first node of each AE successor.
+  - This refines AE by splitting blocks; there is no separate theorem.
+- **`outcomes`**: `[[node, effect, handler?]]`. These are what a node may do that is not an
+  edge, and they are in no dominator basis.
+
+  | `effect` | Meaning | Source |
+  | --- | --- | --- |
+  | `"trap"` | must trap: the node is `unreachable` | `Cfg.mustTrap` |
+  | `"may-trap"` | may trap (division, memory, table, null, cast, array, or a call) | `Cfg.instrEffects` |
+  | `"raise"` | must raise: `throw`/`throw_ref` | `Cfg.mustRaise` |
+  | `"may-raise"` | a call may raise | `Cfg.Effect.call` |
+
+  `handler` is given for `raise`/`may-raise`, one outcome per possible handler from
+  `Cfg.raiseHandlers`: the catch targets of enclosing `try_table`s, innermost first. It is a
+  node index, `"caller"` (escapes the function), or `"unresolved"`.
+- **`cfg.bases`** of both AE variants: `"flow"` (`Cfg.EdgeAE`) and `"flow+handler"`.
+- **`cfg.default`**: `"all-effects"`, the variant the page shows first. The legacy graph stays
+  selectable as the explicit-sink consilience view.
+
+Like the legacy graph, the AE graphs are syntactic: no theorem yet says that executions follow
+them (the operational bridge in `docs/projects/wasm-cfg.md`).
+
 ## Call graph (`calls`)
 
 `[caller, callee, kind, count]`:

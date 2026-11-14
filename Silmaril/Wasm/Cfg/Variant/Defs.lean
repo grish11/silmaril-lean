@@ -37,4 +37,59 @@ def mustTrap (body : Expr) (b : BlockId) : Prop :=
 def succTE (body : Expr) (b : BlockId) (s : Segment) : List Target :=
   (succOf body b s).filter (· != .trap)
 
+/-! ## Variant AE: traps and raises both as outcomes, with handlers
+
+The all-effects block graph keeps the edges that are neither `trap` nor `raise` nor a
+`try_table`'s catch edge. A block's abrupt endings are *outcomes*, not edges:
+- `mustTrap`: the block ends in `unreachable`;
+- `mustRaise`: the block ends in `throw`/`throw_ref`;
+- may-trap and call marks (`blockEffects`) for its other instructions.
+
+A raise is resolved to its possible handlers, `raiseHandlers body p`, for a raise in
+sequence `p`. These are the catch targets of the enclosing `try_table`s, innermost first, each
+resolved outside its `try_table` (as `Step/throw_ref-handler-catch*` branches there). The
+search stops at a `try_table` with a `catch_all`/`catch_all_ref`; otherwise `raise` (the caller)
+ends the list. Typed `catch` clauses match by tag at run time, so each listed handler is a
+possible one. -/
+
+/-- The AE successors of a block. A `try_table` block only enters its body: its catch targets
+are reached by raises, as handler outcomes of the raising blocks, not by an edge from the
+`try_table`. Otherwise these are the legacy successors without `trap` and `raise`. -/
+def succAE (body : Expr) (b : BlockId) (s : Segment) : List Target :=
+  match s.term with
+  | some (.tryTable ..) => [entry body (b.seq ++ [(b.idx, 0)]) 0]
+  | _ => (succOf body b s).filter fun t => t != .trap && t != .raise
+
+/-- **AE edges.** -/
+def EdgeAE (body : Expr) (b : BlockId) (t : Target) : Prop :=
+  ∃ s, lookup body b = some s ∧ t ∈ succAE body b s
+
+/-- A legacy catch edge: from a `try_table` block to one of its catch targets. -/
+def catchEdge (body : Expr) (b : BlockId) (t : Target) : Prop :=
+  ∃ s bt cs bd, lookup body b = some s ∧ s.term = some (.tryTable bt cs bd) ∧
+    t ∈ cs.map fun c => resolveT (labels body b.seq) (catchLabel c)
+
+/-- **Must-raise outcome**: the block's terminator is `throw` or `throw_ref`. -/
+def mustRaise (body : Expr) (b : BlockId) : Prop :=
+  ∃ s, lookup body b = some s ∧ ((∃ x, s.term = some (.throw x)) ∨ s.term = some .throwRef)
+
+/-- Whether a catch clause catches every exception. -/
+def Catch.catchesAll : Catch → Bool
+  | .catchAll _ | .catchAllRef _ => true
+  | _ => false
+
+/-- The possible handlers of a raise in the sequence at the reversed path `rp`. -/
+def handlersRev (body : Expr) : List SeqStep → List Target
+  | [] => [.raise]
+  | (m, _) :: rp =>
+    match lookup body ⟨rp.reverse, m⟩ with
+    | some ⟨_, some (.tryTable _ cs _)⟩ =>
+      let here := cs.map fun c => resolveT (labels body rp.reverse) (catchLabel c)
+      if cs.any Catch.catchesAll then here else here ++ handlersRev body rp
+    | _ => handlersRev body rp
+
+/-- **The possible handlers of a raise in sequence `p`**: catch targets, then `raise` (the
+caller) unless a `catch_all` intervenes. -/
+def raiseHandlers (body : Expr) (p : List SeqStep) : List Target := handlersRev body p.reverse
+
 end Silmaril.Wasm.Cfg

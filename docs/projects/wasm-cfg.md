@@ -267,9 +267,18 @@ kernel-checked tables. The variants below are related to it by theorems, not by 
     the `catch` targets of enclosing `try_table`s, innermost first, with an escape edge unless
     a `catch_all` covers it. A caught throw resumes; it is never terminal. These edges are to be
     proved against Core's `HANDLER` rules in the operational bridge.
-- **E: traps and raises both as effects**, interpreted by abrupt-outcome and handler
-  semantics (the `BodyM` view, `handle`/`trap_bind`). Kept as a semantic view: as a graph it
-  hides where a caught exception goes.
+- **AE: traps and raises both as outcomes, with resolved handlers.** This is the default the
+  user chose.
+  - **Done** (`Silmaril.Wasm.Cfg.Variant`): `succAE`/`EdgeAE` drop the `trap`/`raise` sinks and
+    the `try_table` catch edges. `mustTrap`/`mustRaise` mark the abrupt outcomes, and
+    `raiseHandlers` lists the possible handlers (enclosing catches, innermost first, then the
+    caller unless a `catch_all` intervenes).
+  - `edge_iff_ae`: a legacy edge is an AE edge, a must-trap `trap` edge, a must-raise `raise`
+    edge, or a catch edge.
+  - Explorer data: `variants["all-effects"]` and `variants["all-effects-instr"]`, with
+    `default: "all-effects"` (`tools/wasm-pages/SCHEMA.md`).
+  - The handler outcomes follow #230: a raise is control resumed by its handler, a trap is
+    abrupt. They are to be proved against Core's `HANDLER` rules in the operational bridge.
 - **Graph analyses are per variant.** Removing a sink changes no dominator of the remaining
   nodes, since a sink lies on no path to another node; this is to be proved as a graph lemma.
   It does change postdominators and exit reachability, so those are stated per variant.
