@@ -4,6 +4,7 @@ public import Silmaril.Games.Sig.Defs
 public import Silmaril.Semantics.ITree.Thms
 public import Silmaril.Semantics.ElgotMonads.Thms
 public import Silmaril.SSA.Thesis.Kleisli.Thms
+public import Silmaril.Semantics.IterOps.Defs
 
 /-!
 # Abstract Wasm function bodies: the body monad and its Elgot structure
@@ -62,6 +63,14 @@ universe u
 
 /-- The events of an import signature: an import, indexed by its answer type. -/
 def SigEv (E : Sig.{u}) : Type u → Type u := fun R => {m : E.Op // E.Ar m = R}
+
+/-- The general layer: bodies over an arbitrary event family `Ev` (a
+sequential call/answer game: each event is a call whose answer type is its
+index), with state `S` and traps `T`. The Wasm-facing `BodyM` is this at the
+events of an import signature. Asynchronous or interleaved games are *not*
+event families of this kind and are not covered. -/
+abbrev GBody (Ev : Type u → Type u) (S T : Type (u + 1)) : Type (u + 1) → Type (u + 1) :=
+  StateT S (ExceptT T (Silmaril.Elgot.ITree.Tree Ev))
 
 /-- The body monad: module state, traps of type `T`, and interaction with the
 imports `E` (with divergence and infinite runs). -/

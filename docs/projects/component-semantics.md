@@ -36,6 +36,9 @@ it.
 | λiter's Elgot class | Proved: `thesisLawful` and instances (same laws) |
 | Kleisli category of `BodyM` is a lawful λiter model; initiality of syntax | Proved: `bodyM_lawfulModel` (instantiates `KleisliModel.kleisli_lawfulModel`); initiality via `KleisliModel.kleisli_initial` at `BodyM` |
 | `collapse` is a monad morphism, sending trap to divergence | Proved: `collapse_pure`, `collapse_bind`, `collapse_trap` |
+| Premonoidal Elgot laws as a reusable structure: category, coproducts, complete Elgot laws, whiskering, centrality of pure maps | Proved: `Silmaril.IterOps.Ops.Lawful`, `kleisli_lawful`; for bodies, `bodyOps_lawful` and `bodyCOps_lawful` |
+| Structure transfer: laws reflect along faithful, operation-preserving maps | Proved: `IterOps.Hom.lawful`. This is the route for concrete bodies: give the concrete operations and a semantic map, then prove preservation and faithfulness on the quotient |
+| General game-parameterised layer | `GBody Ev S T` over any event family (sequential call/answer games); `bodyM_eq_gBody` (Wasm bodies are this at `SigEv E`, definitionally); `gBody_lawfulElgot`. Restriction: asynchronous or interleaved games are not event families and are not covered. Still open: relating `GBody` to strategies of `Games.Abstract` games |
 | `collapse` preserves iteration (an Elgot functor) | Open |
 | LetIter (`Silmaril.SSA.Isotope`) instantiation | Open |
 | Concrete half: typed Core 3.0 bodies with syntactic constructors (sequence, tensor, branch, loop); semantics preserving each; congruence; faithfulness or reflection on the chosen quotient; image closure; then the subcategory isomorphism | Open. An embedding of the quotient alone does **not** give closure under identities, composition, tensor or iteration, and it gives no representability of arbitrary abstract bodies. Each needs its own theorem |

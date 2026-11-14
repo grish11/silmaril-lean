@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Abstract.Body.Defs
+public import Silmaril.Semantics.IterOps.Thms
 import Silmaril.Proofs.Wasm.Abstract.Body.Basic
 
 /-!
@@ -46,6 +47,25 @@ theorem bodyM_lawfulElgot : Silmaril.Elgot.LawfulElgotMonad (BodyM E S T) := inf
 
 /-- The coarse body monad is a lawful Elgot monad. -/
 theorem bodyC_lawfulElgot : Silmaril.Elgot.LawfulElgotMonad (BodyC E S) := inferInstance
+
+/-- The Wasm body monad is the general one at the events of the import
+signature. -/
+theorem bodyM_eq_gBody : BodyM E S T = GBody (SigEv E) S T := rfl
+
+/-- The general bodies over any event family form a lawful Elgot monad. -/
+theorem gBody_lawfulElgot (Ev : Type u → Type u) :
+    Silmaril.Elgot.LawfulElgotMonad (GBody Ev S T) := inferInstance
+
+/-- **Abstract Wasm bodies form a premonoidal Elgot structure**: every law of
+`Silmaril.IterOps.Ops.Lawful` holds for the Kleisli operations of `BodyM`:
+category, coproducts, fixpoint, naturality, codiagonal, uniformity, whiskering
+and centrality of pure maps. -/
+theorem bodyOps_lawful : (Silmaril.IterOps.kleisliOps (BodyM E S T)).Lawful :=
+  Silmaril.IterOps.kleisli_lawful _
+
+/-- The same for the trap ≈ divergence quotient. -/
+theorem bodyCOps_lawful : (Silmaril.IterOps.kleisliOps (BodyC E S)).Lawful :=
+  Silmaril.IterOps.kleisli_lawful _
 
 /-- A lawful Elgot monad of the library satisfies λiter's lawful-Elgot class. -/
 theorem thesisLawful (m : Type u → Type u) [Monad m] [LawfulMonad m] [Silmaril.Elgot.Iterate m]
