@@ -201,3 +201,51 @@ Reading (these single runs only; no general complexity claim):
 - Each nested block's identity carries its full path, which is a plausible source of the depth
   sensitivity; this was not profiled.
 - These two synthetic families say nothing measured about other function shapes.
+
+## Plan: execution follows the CFG (operational bridge)
+
+**Goal.** Theorems about Core 3.0 runs of a function body, which remove the "syntactic,
+incomplete" caveat. Nothing here is assumed of a grouping of the graph, such as a dominator
+or region tree. Every semantic claim is a theorem against `Silmaril.Wasm.Execution.Core.Step`.
+
+**Audit of what can be reused:**
+- The target is the block CFG over `Instr` (`Cfg.Edge`, `lookup`, `entry`/`cont`/`labels`).
+- The proof tools are `Execution.Core.Sim.Context` (`Step.split_head`, `Exit`/`ExitShape`,
+  context lifting) and the `Logic.Core` decomposition (`labelPost`, `blockPost`, `loopPost`).
+  Both work on `Instr` against `Step`.
+- Three developments do not fit:
+  - the native interpreter (`Interp`, `native_adequacy`) and the structured fragment
+    (`SSA.Fragment`, `behaviours_eq_run`) work on `BExpr` or the fragment `Expr`, are
+    integer-only with no exceptions, and characterise only final outcomes, not the blocks a
+    run passes;
+  - the abstract `BodyM`/`IterOps` layer has no link to Core yet.
+
+**Milestones**, each a bounded PR with no `sorry` on `main`:
+1. **Position invariant.** `At body pos cfg` relates a reachable configuration of the body
+   (nested `LABEL_n{cont}` contexts around `val* rest`) to a position
+   `(BlockId, offset, value stack)`. Every `cont`/`rest` is a suffix of a nested sequence of
+   the body, and a loop continuation re-expands to its `loop`. Proved: the invocation
+   configuration is `At` the entry.
+2. **Straight-line steps.** A Core step from an `At` configuration whose next instruction is
+   not a terminator is `At` the next offset of the same block. A trapping step is a `trap`
+   effect edge of that block.
+3. **Control steps.** The steps of the terminators (`block`/`loop`/`if` entry, `br`,
+   `br_if`, `br_table`, `br_on_*`, `return`, label exit, `unreachable`) move from `b` to a
+   position at the entry of some `t` with `Edge body b t`, or to `exit`/`trap`.
+4. **Exceptions as control** (#230): a `throw`, or a raise out of a call, resolves to the
+   enclosing `try_table` catch target or leaves the function. The CFG gets resolved exception
+   edges for this, proved against the `HANDLER` rules. This replaces `handler-unresolved` and
+   the call → `raise` effect edge. Trap and raise stay distinct.
+5. **Path theorem.** Every finite run prefix, and every infinite run, of a call-free body
+   projects to an edge path from `cfgEntry`. Divergence is an infinite path.
+6. **Precise effects.** Each `trap` edge is justified by a step that traps (no generic "may").
+   The converse, that every such edge is reachable, is not claimed unless proved.
+7. **Adequacy.** The reverse direction (CFG paths realised by runs, under data conditions),
+   only if equivalence is claimed.
+8. **Calls**, through an explicit call interface: a call node whose callee behaviour is a
+   parameter (a `FRAME` run of the callee), first for direct calls.
+
+**Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
+serializer profile) is not started. Typing completeness for validated bodies is done
+(`bodyIfaces_complete`).
+
