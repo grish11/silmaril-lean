@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Cfg.Exec.Defs
+import Silmaril.Proofs.Wasm.Cfg.Exec
 
 @[expose] public section
 
@@ -11,6 +12,11 @@ public import Silmaril.Wasm.Cfg.Exec.Defs
 * `resid_done`: the values a sequence returns are at its end;
 * `inFrame_entry`: the code `Step/call_ref-func` produces for a call of the body is `InFrame`
   at the first instruction.
+* `parametric_res` … `aggregate_res`: every rule of the eight non-control reduction families
+  (`ParametricStep`, `NumericStep`, `VectorStep`, `VariableStep`, `TableStep`, `MemoryStep`,
+  `RefStep`, `AggregateStep`) leaves only values and non-control instructions, or a trap
+  (`SimpleRes`). This is the per-family half of milestone 2: a straight-line step never
+  creates a label, handler, frame, branch or exception.
 -/
 
 namespace Silmaril.Wasm.Cfg
@@ -26,5 +32,27 @@ theorem resid_done (is : List Instr) (vs : List Val) : Resid is (.at is.length) 
 theorem inFrame_entry (body : Expr) (n m : Nat) (fr : Frame) :
     InFrame body (.at 0) [.frame n fr [.label m [] (expression body)]] :=
   .frame (resid_start body)
+
+section
+variable {H : Type} {P : Numerics.Profile}
+
+theorem parametric_res {l is' : List Admin} (h : ParametricStep l is') : SimpleRes is' :=
+  Proofs.Exec.parametric_res h
+theorem numeric_res {l is' : List Admin} (h : NumericStep P l is') : SimpleRes is' :=
+  Proofs.Exec.numeric_res h
+theorem vector_res {l is' : List Admin} (h : VectorStep P l is') : SimpleRes is' :=
+  Proofs.Exec.vector_res h
+theorem variable_res {c c' : Config H} (h : VariableStep c c') : SimpleRes c'.code :=
+  Proofs.Exec.variable_res h
+theorem table_res {c c' : Config H} (h : TableStep P c c') : SimpleRes c'.code :=
+  Proofs.Exec.table_res h
+theorem memory_res {c c' : Config H} (h : MemoryStep P c c') : SimpleRes c'.code :=
+  Proofs.Exec.memory_res h
+theorem ref_res {c c' : Config H} (h : RefStep c c') : SimpleRes c'.code :=
+  Proofs.Exec.ref_res h
+theorem aggregate_res {c c' : Config H} (h : AggregateStep c c') : SimpleRes c'.code :=
+  Proofs.Exec.aggregate_res h
+
+end
 
 end Silmaril.Wasm.Cfg
