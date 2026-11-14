@@ -39,6 +39,18 @@ category `Type`: sequencing in the second argument of the premonoidal tensor
 fixes the order of effects, and pure maps are central. It is a lawful
 categorical model of λiter (`Silmaril.Wasm.Abstract.Body.Thms`).
 
+**Locals, operands and control (typed blocks).** The static typing context is
+the local type vector `L`, the operand-stack types and the label context. The
+values of the locals are activation (frame) state, threaded through bodies,
+and are not part of the persistent module store `S`, which holds memories,
+globals and tables only. A block of type `[t₁*] → [t₂*]` with locals `L` and
+labels `ℓ₀ … ℓₖ` is a morphism from `⟦L⟧ × ⟦t₁*⟧` to
+`(⟦L⟧ × ⟦t₂*⟧) ⊕ (⟦L⟧ × ⟦ℓ₀⟧) ⊕ … ⊕ (⟦L⟧ × ⟦ℓₖ⟧)`. `block`/`br` are
+copairing with the exit injections, `loop` is Elgot iteration on the loop
+label's summand, sequencing is Kleisli composition, and whiskering keeps a
+passive operand prefix. Calls push a new frame: that boundary is the module
+layer (`Silmaril.Games.Abstract.Module`).
+
 **Determinism and nondeterminism.** An interaction tree is deterministic given
 the environment's answers. Nondeterministic choices (NaN payloads, relaxed
 operations, scheduling) are modelled as import-like events answered by the
