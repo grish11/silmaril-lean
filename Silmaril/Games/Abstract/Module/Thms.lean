@@ -33,6 +33,11 @@ not detected:
 * Not represented: chains with infinitely many import calls, which are
   infinite productive runs.
 
+`closeD_eq_close_of_wf`: when the internal calls follow a well-founded call
+graph (`RespectsCalls`), for example an acyclic static call graph over finitely
+many functions, `closeD = close`, so recursion cannot be a source of
+divergence.
+
 No theorem yet says that `closeD` agrees with an operational semantics with
 recursion, or that `close` / `closeD` are congruences for the
 outcome-sensitive equivalences. Results about outcome-sensitive equivalence
@@ -91,5 +96,17 @@ theorem close_le_closeD (m : sh.OpenMod) : close m ≤ closeD m :=
 /-- Without internal calls, closing with divergence is the identity. -/
 theorem closeD_lift (c : sh.ClosedMod) : closeD (lift c) = c :=
   Silmaril.Proofs.Games.Abstract.Module.closeD_lift c
+
+/-- With a well-founded call graph (no infinite descending chain, so no
+recursion), closing with divergence adds nothing: divergence can only come
+from callees, not from recursion. -/
+theorem closeD_eq_close_of_wf {R : sh.F → sh.F → Prop} (hR : WellFounded R) {m : sh.OpenMod}
+    (hm : RespectsCalls R m) : closeD m = close m :=
+  Silmaril.Proofs.Games.Abstract.Module.closeD_eq_close_of_wf hR hm
+
+/-- A module without internal calls respects every call graph. -/
+theorem respectsCalls_lift (R : sh.F → sh.F → Prop) (c : sh.ClosedMod) :
+    RespectsCalls R (lift c) :=
+  Silmaril.Proofs.Games.Abstract.Module.respectsCalls_lift R c
 
 end Silmaril.Games.Abstract.Shape

@@ -164,4 +164,28 @@ theorem closeD_lift (c : sh.ClosedMod) : closeD (lift c) = c := by
   · intro h
     exact .inl (by rw [close_lift]; exact h)
 
+/-! ## Call graphs -/
+
+theorem closeD_eq_close_of_wf {R : sh.F → sh.F → Prop} (hR : WellFounded R) {m : sh.OpenMod}
+    (hm : RespectsCalls R m) : closeD m = close m := by
+  funext f s a
+  ext y
+  refine ⟨fun h => ?_, fun h => .inl h⟩
+  rcases h with h | ⟨-, g, q, N, -, hd, -, -⟩
+  · exact h
+  · exfalso
+    have step : ∀ n, R (g (n + 1)).1 (g n).1 := by
+      intro n
+      obtain ⟨z, hz, u, ans, rest, he, -⟩ := hd n
+      exact hm _ _ _ z hz ⟨.inr (g (n + 1)), ans⟩
+        (by rw [he]; exact List.mem_append_right _ List.mem_cons_self) (g (n + 1)) rfl
+    obtain ⟨n, hn⟩ := @WellFounded.not_rel_apply_succ _ R hR (fun n => (g n).1)
+    exact hn (step n)
+
+theorem respectsCalls_lift (R : sh.F → sh.F → Prop) (c : sh.ClosedMod) :
+    RespectsCalls R (lift c) := by
+  rintro f s a _ ⟨w, -, rfl⟩ y hy cc hc
+  obtain ⟨x, -, rfl⟩ := List.mem_map.1 hy
+  cases hc
+
 end Silmaril.Proofs.Games.Abstract.Module
