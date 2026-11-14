@@ -1048,7 +1048,7 @@ async function wasmModulePage(slug) {
 async function wasmFuncPage(arg) {
   // #/wasm-func/<module slug>/<function index>[/@<variant>][/<node>]: the graph variant (a key of
   // cfg.variants, or "top" for the top-level graph) and the selected node (b<k>, exit, trap, raise, invalid).
-  const am = /^(.*)\/(\d+)(?:\/@([A-Za-z0-9._-]+))?(?:\/(b\d+|exit|trap|raise|invalid))?$/.exec(arg) || [null, arg, "NaN", null, null];
+  const am = /^(.*)\/(\d+)(?:\/@([A-Za-z0-9._-]+))?(?:\/(b\d+|n\d+|exit|trap|raise|invalid))?$/.exec(arg) || [null, arg, "NaN", null, null];
   const slug = am[1], idx = Number(am[2]), askedVariant = am[3] || null, focusId = am[4] || null;
   let m, ix;
   try { [m, ix] = await Promise.all([wasmJson(`m/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
@@ -1064,8 +1064,22 @@ async function wasmFuncPage(arg) {
   // An unknown variant in a link falls back to the data's default, like no variant.
   const vname = askedVariant === "top" ? "top" : has(askedVariant) ? askedVariant : has(top.default) ? top.default : "top";
   const V = vname === "top" ? top : variants[vname];
+  // An instruction-level graph's nodes must each name an instruction (or the terminator slot) of a block.
+  function validNodes(v) {
+    const bs = v.blocks || top.blocks;
+    return Array.isArray(v.nodes) && v.nodes.every((nd) => Array.isArray(nd) && Number.isInteger(nd[0]) && Number.isInteger(nd[1]) &&
+      bs[nd[0]] && nd[1] >= 0 && nd[1] <= bs[nd[0]].instrs.length);
+  }
   const cfg = { model: V.model || (vname === "top" ? "explicit-sink" : "unspecified"), label: V.label, note: V.note, relation: V.relation,
-    entry: V.entry, blocks: V.blocks || top.blocks, edges: V.edges || [], bases: V.bases };
+    entry: V.entry, blocks: V.blocks || top.blocks, edges: V.edges || [], bases: V.bases,
+    granularity: V.granularity === "instr" && validNodes(V) ? "instr" : "block", nodes: V.nodes,
+    outcomes: Array.isArray(V.outcomes) ? V.outcomes : [] };
+  // Graphs at the other granularity over the same blocks: the "expand to instructions" and
+  // "back to blocks" links of the inspector (only when the data has such a graph).
+  const sameBlocks = (v) => !v.blocks || v.blocks === top.blocks;
+  const graphs = [["top", top]].concat(Object.entries(variants));
+  const instrGraph = graphs.find(([, v]) => v.granularity === "instr" && validNodes(v) && sameBlocks(v));
+  const blockGraph = graphs.find(([, v]) => v.granularity !== "instr" && sameBlocks(v));
   const legacy = vname === "top" && cfg.model === "explicit-sink";
   let h = `<h2>${kindTag("function")} <code>${esc(fname(f))}</code> <span class="muted">(function ${idx} of ${wlink("module", s.slug, s.title)})</span></h2>`;
   h += crumbs(ix, s.source.parent);
@@ -1079,8 +1093,22 @@ async function wasmFuncPage(arg) {
   // The edges as written by wasm-pages: `flow` edges are Cfg.Edge (blockCfg), `effect` edges are
   // the "may" edges of Cfg.EffectEdge. Every edge stays in `E`, whatever is drawn: the inspector,
   // the counts and the dominators read `E`, never the drawn graph.
-  const tid = (t) => typeof t === "number" ? "b" + t : t;
-  const E = cfg.edges.map(([a, t, kind], i) => ({ i, src: "b" + a, a, tgt: tid(t), may: kind === "effect", kind }));
+  // Nodes: one per block (b<k>), or, for an instruction-level graph, one per instruction (n<k>,
+  // nodes[k] = [block, position], the position after the last instruction being the terminator).
+  const instrG = cfg.granularity === "instr";
+  const nid = (k) => (instrG ? "n" : "b") + k;
+  const isNode = (id) => typeof id === "string" && /^[bn]\d+$/.test(id);
+  const nodeIds = Array.from({ length: instrG ? cfg.nodes.length : cfg.blocks.length }, (_, k) => nid(k));
+  const blockOf = (id) => instrG ? cfg.nodes[Number(id.slice(1))][0] : Number(id.slice(1));
+  const instrAt = (k) => { const [bi, at] = cfg.nodes[k], bl = cfg.blocks[bi]; return at < bl.instrs.length ? bl.instrs[at] : bl.term || "(falls through)"; };
+  const tid = (t) => typeof t === "number" ? nid(t) : t;
+  const E = cfg.edges.map(([a, t, kind], i) => ({ i, src: nid(a), a, tgt: tid(t), may: kind === "effect", kind }));
+  // Outcomes: what a node may do that is not an edge (all-effects models: trap, raise with its
+  // handler — a node, "caller" or "unresolved"). They are in no dominator basis.
+  const O = cfg.outcomes.filter((o) => Array.isArray(o) && typeof o[0] === "number" && typeof o[1] === "string")
+    .map(([n, effect, handler], i) => ({ i, src: nid(n), effect, handler: typeof handler === "number" ? nid(handler) : handler == null ? null : String(handler) }));
+  const outcomesOf = (id) => O.filter((o) => o.src === id);
+  const oText = (o) => o.effect + (o.handler ? " → " + o.handler : "");
   const flowE = E.filter((e) => !e.may), mayE = E.filter((e) => e.may);
   const kinds = [...new Set(E.map((e) => e.kind))];
   const outOf = new Map(), into = new Map();
@@ -1091,7 +1119,7 @@ async function wasmFuncPage(arg) {
   const mayTgts = (id) => (outOf.get(id) || []).filter((e) => e.may).map((e) => e.tgt);
   const cnt = (xs, t) => xs.filter((e) => e.tgt === t).length;
   const C = { flow: E.filter((e) => e.kind === "flow").length, may: mayE.length, flowTrap: cnt(flowE, "trap"), flowRaise: cnt(flowE, "raise"),
-    mayTrap: cnt(mayE, "trap"), mayRaise: cnt(mayE, "raise"), marked: cfg.blocks.filter((b) => b.effects.length).length,
+    mayTrap: cnt(mayE, "trap"), mayRaise: cnt(mayE, "raise"), marked: nodeIds.filter((id) => (!instrG && cfg.blocks[blockOf(id)].effects.length) || outcomesOf(id).length).length,
     mayFrom: new Set(mayE.map((e) => e.src)).size };
   const specials = ["exit", "trap", "raise", "invalid"].filter((t) => t === "exit" || into.has(t) || cfg.entry === t);
   // Dominator bases: named edge sets (by kind), from the data or, when it names none, flow edges
@@ -1103,12 +1131,12 @@ async function wasmFuncPage(arg) {
   const basisOf = (id) => BASES.find((b) => b.id === id);
   const basisEdges = (id) => E.filter((e) => basisOf(id).kinds.includes(e.kind));
   const basisText = (id) => { const b = basisOf(id); return b.label || b.kinds.join(" + ") + (b.kinds.length === 1 ? " edges" : ""); };
-  const domNodes = cfg.blocks.map((b, i) => "b" + i).concat(["exit", "trap", "raise", "invalid"]);
+  const domNodes = nodeIds.concat(["exit", "trap", "raise", "invalid"]);
   const domEntry = tid(cfg.entry);
   const DOM = Object.fromEntries(BASES.map((b) => [b.id, dominators(domNodes, basisEdges(b.id).map((e) => [e.src, e.tgt]), [domEntry])]));
   const domName = (n) => n === undefined ? "unreached" : n === null ? "root" : n;
   const vlabel = vname === "top" ? `top-level graph (${cfg.model})` : `${vname}${cfg.label ? " — " + cfg.label : ""} (${cfg.model})`;
-  h += `<h2 id="wcfg">Control-flow graph (basic blocks)</h2>`;
+  h += `<h2 id="wcfg">Control-flow graph (${instrG ? "one node per instruction, boxed by basic block" : "basic blocks"})</h2>`;
   if (Object.keys(variants).length) h += `<div class="controls"><label>graph <select id="wvariant" aria-label="Graph variant">` +
     [["top", `top-level graph (${top.model || "explicit-sink"})`]].concat(Object.entries(variants).map(([k, v]) => [k, `${k}${v.label ? " — " + v.label : ""} (${v.model || "unspecified"})`]))
       .map(([k, l]) => `<option value="${esc(k)}"${k === vname ? " selected" : ""}>${esc(l)}</option>`).join("") + "</select></label>" +
@@ -1131,22 +1159,27 @@ async function wasmFuncPage(arg) {
     `<span>${sw("stroke:#2f5d9e;stroke-width:2")} back edge (to an earlier block)</span>` +
     (C.flowTrap + C.flowRaise ? `<span>${sw("stroke:#b42318;stroke-width:2.5")} control edge to trap/raise <b data-c="flowSpecial">${C.flowTrap + C.flowRaise}</b>` +
       ` <span class="muted">(the terminator is <code>unreachable</code>, <code>throw</code> or <code>throw_ref</code>)</span></span>` : "") +
-    `<span>${sw("stroke:#d64545;stroke-width:1.2;stroke-dasharray:4 3")} may-edge <b data-c="may">${C.may}</b> ` +
+    (C.may || legacy ? `<span>${sw("stroke:#d64545;stroke-width:1.2;stroke-dasharray:4 3")} may-edge <b data-c="may">${C.may}</b> ` +
     `<span class="muted">(<span data-c="mayTrap">${C.mayTrap}</span> to trap, <span data-c="mayRaise">${C.mayRaise}</span> to raise, ` +
-    `from <span data-c="mayFrom">${C.mayFrom}</span> of ${cfg.blocks.length} blocks)</span></span>` +
+    `from <span data-c="mayFrom">${C.mayFrom}</span> of ${nodeIds.length} ${instrG ? "nodes" : "blocks"})</span></span>` : "") +
     kinds.filter((k) => k !== "flow" && k !== "effect").map((k) => `<span>${sw("stroke:#8a939c;stroke-width:1.5;stroke-dasharray:1 3")} ${esc(k)} ` +
       `<b data-c="kind:${esc(k)}">${E.filter((e) => e.kind === k).length}</b></span>`).join("") +
-    `<span><span class="wbadge">⚠</span> effect marks on <b data-c="marked">${C.marked}</b> blocks</span></div>`;
+    (O.length ? `<span>${sw("stroke:#7c3aed;stroke-width:1.2;stroke-dasharray:2 2")} outcomes <b data-c="outcomes">${O.length}</b> <span class="muted">(` +
+      [...new Set(O.map((o) => o.effect))].map((e) => `${O.filter((o) => o.effect === e).length} ${esc(e)}`).join(", ") +
+      `; ${O.filter((o) => isNode(o.handler)).length} to a handler, ${O.filter((o) => o.handler === "caller").length} to the caller, ` +
+      `${O.filter((o) => o.handler && !isNode(o.handler) && o.handler !== "caller").length} other; not edges, in no dominator basis)</span></span>` : "") +
+    `<span><span class="wbadge">⚠</span> marks on <b data-c="marked">${C.marked}</b> ${instrG ? "nodes" : "blocks"}</span></div>`;
   if (C.may || legacy) h += `<p class="muted" id="wmaynote">May-edges are conservative and syntactic: a block that contains an instruction that may trap ` +
     `(division, memory, table, cast, …) or a call gets one to <code>trap</code> (and a call one to <code>raise</code>). ` +
     `They are summarised as <span class="wbadge">⚠</span> marks on their blocks and drawn for the block you select or hover, or all at once. ` +
     `An unmarked block is not shown to be trap-free: no theorem about executions is recorded here.</p>`;
   h += `<div class="controls" role="toolbar" aria-label="Graph view"><button id="wflat" aria-pressed="true">Flat CFG</button><button id="wdom" aria-pressed="false">Dominator tree</button>` +
-    `<label title="Draw every may-edge (otherwise only the selected or hovered block's)"><input type="checkbox" id="weff"> draw all may-edges</label>` +
+    `<label title="Draw every may-edge${O.length ? " and handler link" : ""} (otherwise only the selected or hovered node's)"><input type="checkbox" id="weff"> draw all may-edges${O.length ? " and handler links" : ""}</label>` +
     `<label>dominator basis <select id="wbasis">` + BASES.map((b) => `<option value="${esc(b.id)}"${b.id === basisDefault ? " selected" : ""}>` +
       `${esc(basisText(b.id))} (${basisEdges(b.id).length})</option>`).join("") + `</select></label>` +
-    `<label>block <select id="wgo" aria-label="Select a block"><option value="">—</option>` +
-    cfg.blocks.map((b, i) => `<option value="b${i}">b${i}${b.effects.length ? " ⚠" : ""} → ${esc(b.term || "falls through")}</option>`).join("") +
+    `<label>${instrG ? "node" : "block"} <select id="wgo" aria-label="Select a node"><option value="">—</option>` +
+    nodeIds.map((id, k) => `<option value="${id}">${id}${instrG ? ` (b${cfg.nodes[k][0]}) ${esc(instrAt(k))}` :
+      `${cfg.blocks[k].effects.length ? " ⚠" : ""} → ${esc(cfg.blocks[k].term || "falls through")}`}${outcomesOf(id).length ? " ⚡" : ""}</option>`).join("") +
     specials.map((t) => `<option value="${t}">${t}</option>`).join("") + `</select></label>` +
     `${zoomControls()} <span id="wprov"></span></div>`;
   h += '<div id="wgraphwrap" style="display:flex;gap:12px;height:72vh;min-height:440px">' +
@@ -1172,14 +1205,17 @@ async function wasmFuncPage(arg) {
     "Open: no concrete Core 3.0 body is yet proved to realise either model, so this CFG is not connected to them.</li></ul>";
   const instrN = (b) => `${b.instrs.length} instr${b.instrs.length === 1 ? "" : "s"}`;
   // Node label: what the block is and how it ends; a second line only for blocks with marks.
+  const oLine = (id) => outcomesOf(id).length ? "\n⚡ " + outcomesOf(id).map(oText).join(", ") : "";
   const blockLabel = (b, i) => `b${i} · ${instrN(b)} → ${b.term || "falls through"}` +
-    (b.effects.length ? `\n⚠ ${b.effects.join(", ")}${mayTgts("b" + i).length ? " ⇢ " + mayTgts("b" + i).join("/") : ""}` : "");
+    (b.effects.length ? `\n⚠ ${b.effects.join(", ")}${mayTgts("b" + i).length ? " ⇢ " + mayTgts("b" + i).join("/") : ""}` : "") + oLine("b" + i);
+  const instrLabel = (k) => `n${k} ${instrAt(k)}` + (mayTgts("n" + k).length ? "\n⇢ " + mayTgts("n" + k).join("/") : "") + oLine("n" + k);
+  const nodeLabel = (id) => instrG ? instrLabel(Number(id.slice(1))) : blockLabel(cfg.blocks[Number(id.slice(1))], Number(id.slice(1)));
   const specialLabel = (t) => {
     if (t === "exit") return "exit";
     const f = (into.get(t) || []).filter((e) => !e.may).length, y = (into.get(t) || []).filter((e) => e.may).length;
     return t + (f || y ? `\n${[f ? f + " control" : "", y ? y + " may" : ""].filter(Boolean).join(" · ")}` : "");
   };
-  const labelOf = (n) => /^b\d+$/.test(n) ? blockLabel(cfg.blocks[Number(n.slice(1))], Number(n.slice(1))) : specialLabel(n);
+  const labelOf = (n) => isNode(n) ? (instrG ? `b${blockOf(n)}: ` : "") + nodeLabel(n) : specialLabel(n);
   const vpart = vname !== "top" || askedVariant === "top" ? "/@" + vname : "";
   const permalink = (id) => `#/wasm-func/${encodeURIComponent(s.slug)}/${idx}${vpart}${id ? "/" + id : ""}`;
   const init = async () => {
@@ -1213,7 +1249,7 @@ async function wasmFuncPage(arg) {
       const all = $("#weff").checked;
       wcy.batch(() => mayEls().forEach((e) => {
         const d = e.data();
-        e.toggleClass("show", all || d.source === sel || d.target === sel || d.source === hov);
+        e.toggleClass("show", all || d.source === sel || d.target === sel || d.source === hov || d.target === hov);
       }));
     };
     const nodeBtn = (n) => `<button type="button" class="wnode" data-n="${esc(n)}">${esc(n)}</button>`;
@@ -1226,7 +1262,20 @@ async function wasmFuncPage(arg) {
       let x = `<p style="margin:0 0 6px"><a href="${permalink(id)}" title="direct link to this node">#</a> `;
       const domLine = `immediate dominator (${esc(basisText(basis))}): ` +
         (di === undefined ? '<span class="muted">not reached from the entry on this basis</span>' : di === null ? "the entry itself" : nodeBtn(di));
-      if (/^b\d+$/.test(id)) {
+      const oc = outcomesOf(id), oi = O.filter((o) => o.handler === id);
+      const outcomeLines = (oc.length ? `<div>outcomes: <span class="woutc">${oc.map((o) => esc(o.effect) + (isNode(o.handler) ? " → " + nodeBtn(o.handler) : o.handler ? " → " + esc(o.handler) : "")).join(", ")}</span>` +
+          ' <span class="muted">(from the data; not edges, in no dominator basis)</span></div>' : "") +
+        (oi.length ? `<div>handler for: ${oi.map((o) => nodeBtn(o.src) + " " + esc(o.effect)).join(", ")}</div>` : "");
+      const go = (g, nodeId, text) => g ? ` <a class="wgran" href="#/wasm-func/${encodeURIComponent(s.slug)}/${idx}/@${g[0]}${nodeId ? "/" + nodeId : ""}">${esc(text)}</a>` : "";
+      if (isNode(id) && instrG) {
+        const k = Number(id.slice(1)), [bi, at] = cfg.nodes[k], b = cfg.blocks[bi];
+        const lines = b.instrs.concat(b.term ? [b.term] : []);
+        x += `<b>${id}</b> · <code>${esc(instrAt(k))}</code> <span class="muted">instruction ${at} of block b${bi}${cfg.entry === k ? " · entry" : ""}</span></p>` +
+          `<pre class="code">${lines.map((l, j) => (j === at ? "▶ " : "  ") + esc(l)).join("\n") || "(empty)"}</pre>` +
+          `<div>successors: ${edgeList(outs, "tgt")}</div><div>predecessors: ${edgeList(ins, "src")}</div>` + outcomeLines +
+          `<div>${domLine} ${provBadge("browser")}</div>` +
+          `<div class="muted">Typing is recorded per block${go(blockGraph, "b" + bi, "(block b" + bi + " at block level)")}.</div>`;
+      } else if (isNode(id)) {
         const i = Number(id.slice(1)), b = cfg.blocks[i], fo = outs.filter((e) => !e.may), mo = outs.filter((e) => e.may);
         x += `<b>b${i}</b> · ${esc(instrN(b))} → <code>${esc(b.term || "falls through")}</code>` +
           ` <span class="muted">at path [${esc(b.path)}] position ${esc(b.pos)}${cfg.entry === i ? " · entry" : ""}</span></p>` +
@@ -1235,7 +1284,9 @@ async function wasmFuncPage(arg) {
           `<div>flow predecessors: ${edgeList(ins.filter((e) => !e.may), "src")}</div>` +
           `<div>may-edges: ${mo.length ? edgeList(mo, "tgt") + ` <span class="muted">(conservative, from the marks ${esc(b.effects.join(", "))})</span>`
             : `<span class="muted">none${b.effects.length ? " (marks: " + esc(b.effects.join(", ")) + ")" : "; not a proof that this block cannot trap"}</span>`}</div>` +
-          `<div>${domLine} ${provBadge("browser")}</div>` +
+          outcomeLines + `<div>${domLine} ${provBadge("browser")}</div>` +
+          (instrGraph ? `<div>${go(instrGraph, (() => { const j = instrGraph[1].nodes.findIndex((nd) => nd[0] === i); return j < 0 ? "" : "n" + j; })(), "Expand: this block one node per instruction")}` +
+            ` <span class="muted">(${esc(instrGraph[0])})</span></div>` : "") +
           (b.refs && Object.keys(b.refs).length ? "<div>references (syntactic, this block's own instructions): " +
             Object.entries(b.refs).map(([sp, xs]) => `${esc(sp)} ${xs.map((r) => sp === "func" && m.functions[r] && !m.functions[r].imported
               ? flink(s.slug, r, String(r)) : esc(r)).join(", ")}`).join("; ") + "</div>" : "") +
@@ -1262,7 +1313,7 @@ async function wasmFuncPage(arg) {
       sel = id && domNodes.includes(id) && (view !== "flat" || wcy.getElementById(id).length) ? id : null;
       $("#wgo").value = sel || "";
       history.replaceState(null, "", permalink(sel));
-      if (!sel) { $("#wside").classList.add("muted"); $("#wside").innerHTML = "Click a block (or pick one above) for its instructions, edges and typing."; }
+      if (!sel) { $("#wside").classList.add("muted"); $("#wside").innerHTML = "Click a node (or pick one above) for its instructions, edges and typing."; }
       else inspect(sel);
       const cid = view === "flat" ? sel : sel && "d:" + sel;
       wcy.batch(() => { wcy.nodes(".sel").removeClass("sel"); wcy.edges(".hl").removeClass("hl");
@@ -1278,7 +1329,7 @@ async function wasmFuncPage(arg) {
       }
     };
     const wireNodes = () => {
-      wcy.on("tap", "node", (ev) => select(view === "flat" ? ev.target.id() : ev.target.id().slice(2), false));
+      wcy.on("tap", "node", (ev) => { if (ev.target.data("kind") === "group") return; select(view === "flat" ? ev.target.id() : ev.target.id().slice(2), false); });
       wcy.on("tap", (ev) => { if (ev.target === wcy) select(null); });
       wcy.on("mouseover", "node", (ev) => { if (view !== "flat") return; hov = ev.target.id(); ev.target.addClass("hov"); applyMay(); });
       wcy.on("mouseout", "node", (ev) => { if (view !== "flat") return; hov = null; ev.target.removeClass("hov"); applyMay(); });
@@ -1287,14 +1338,18 @@ async function wasmFuncPage(arg) {
       if (wcy) wcy.destroy();
       view = "flat";
       $("#wflat").setAttribute("aria-pressed", "true"); $("#wdom").setAttribute("aria-pressed", "false");
-      const els = cfg.blocks.map((b, i) => ({ data: { id: "b" + i, label: blockLabel(b, i), kind: "block",
-        entry: cfg.entry === i ? 1 : 0, marked: b.effects.length ? 1 : 0 } }));
+      // Instruction-level graphs keep block boundaries: each block is a box around its instructions.
+      const els = instrG ? [...new Set(cfg.nodes.map((nd) => nd[0]))].map((bi) => ({ data: { id: "g" + bi, label: "b" + bi, kind: "group" } })) : [];
+      nodeIds.forEach((id, k) => els.push({ data: { id, label: nodeLabel(id), kind: "block", entry: cfg.entry === k ? 1 : 0,
+        marked: (!instrG && cfg.blocks[k].effects.length) || outcomesOf(id).length ? 1 : 0, ...(instrG ? { parent: "g" + cfg.nodes[k][0] } : {}) } }));
       for (const t of specials) els.push({ data: { id: t, label: specialLabel(t), kind: t === "exit" ? "exit" : "special", entry: cfg.entry === t ? 1 : 0 } });
       for (const e of E) {
-        const back = /^b\d+$/.test(e.tgt) && Number(e.tgt.slice(1)) <= e.a ? 1 : 0;
-        els.push({ data: { id: "e" + e.i, source: e.src, target: e.tgt, kind: e.kind, back, special: !e.may && !/^b\d+$/.test(e.tgt) && e.tgt !== "exit" ? 1 : 0 },
+        const back = isNode(e.tgt) && Number(e.tgt.slice(1)) <= e.a ? 1 : 0;
+        els.push({ data: { id: "e" + e.i, source: e.src, target: e.tgt, kind: e.kind, back, special: !e.may && !isNode(e.tgt) && e.tgt !== "exit" ? 1 : 0 },
           classes: e.may ? "may" : "" });
       }
+      // Handler links of outcomes: drawn like may-edges (on selection, hover or request), never laid out.
+      for (const o of O) if (isNode(o.handler)) els.push({ data: { id: "o" + o.i, source: o.src, target: o.handler, kind: "outcome" }, classes: "may outc" });
       wcy = cytoscape({ container: $("#wcy"), elements: els, minZoom: 0.05, maxZoom: 3, wheelSensitivity: 0.25, style: graphStyle(WCFG_STYLE),
         layout: { name: "preset" } });
       // Lay out on the flow edges only, once: drawing or hiding may-edges never moves a node. Nodes
@@ -1310,7 +1365,7 @@ async function wasmFuncPage(arg) {
       wcy.fit(undefined, 30);
       $("#wprov").innerHTML = "";
       wireNodes();
-      wireZoom(typeof cfg.entry === "number" ? "b" + cfg.entry : null, true);
+      wireZoom(typeof cfg.entry === "number" ? nid(cfg.entry) : null, true);
       if (sel) select(sel, true); else applyMay();
     };
     const dom = () => {
@@ -1347,7 +1402,7 @@ async function wasmFuncPage(arg) {
       location.hash = `#/wasm-func/${encodeURIComponent(s.slug)}/${idx}/@${ev.target.value}${sel ? "/" + sel : ""}`; });
     $("#wgo").addEventListener("change", (ev) => select(ev.target.value || null, true));
     $("#wside").addEventListener("click", (ev) => { const b = ev.target.closest("button.wnode"); if (b) select(b.dataset.n, true); });
-    const order = cfg.blocks.map((b, i) => "b" + i).concat(specials);
+    const order = nodeIds.concat(specials);
     $("#wcy").addEventListener("keydown", (ev) => {
       if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
       const k = ev.key, at = order.indexOf(sel);
@@ -1382,7 +1437,10 @@ const WCFG_STYLE = [
   { selector: "node.hov", style: { "underlay-color": "#2f5d9e", "underlay-opacity": 0.18, "underlay-padding": 5 } },
   { selector: "node.sel", style: { "underlay-color": "#f2c94c", "underlay-opacity": 0.7, "underlay-padding": 6 } },
   { selector: "edge.hl", style: { width: 2.6, "z-index": 10 } },
-  { selector: "edge.may.hl", style: { width: 1.8 } }];
+  { selector: "edge.may.hl", style: { width: 1.8 } },
+  { selector: "edge.outc", style: { "line-color": "#7c3aed", "target-arrow-color": "#7c3aed", "line-style": "dashed", "line-dash-pattern": [2, 2] } },
+  { selector: "node[kind = 'group']", style: { shape: "round-rectangle", "background-color": "#f5f7fa", "background-opacity": 0.6, "border-color": "#9aa0a6",
+    "border-width": 1, "border-style": "dashed", label: "data(label)", "text-valign": "top", "text-halign": "left", "font-size": 12, color: "#4b5563", padding: 10 } }];
 
 // ---------- SQL: query, schema, about ----------
 function sqlTabs(on) {

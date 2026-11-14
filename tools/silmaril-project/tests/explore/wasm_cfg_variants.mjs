@@ -1,8 +1,13 @@
 // The Wasm function page's graph variants and named dominator bases (issue #231), on synthetic
 // fixtures only: no production data has variants yet, and nothing here is a semantic graph.
-// Builds a copy of SITE_DIR in which rust_door's `enter` (function 5) gets two variants:
-// * `fx-trap-effect`, the data's `default`: flow edges without those to trap, one basis, an
-//   intended relation (a made-up name; the page must show it as unchecked metadata);
+// Builds a copy of SITE_DIR in which rust_door's `enter` (function 5) gets four variants:
+// * `fx-all-effects`, the data's `default`: one node per block, flow edges only, and the old
+//   effect edges turned into outcomes (trap → caller, raise → unresolved): a stand-in for an
+//   all-effects model, not one;
+// * `fx-instr`: one node per instruction, chained within blocks, with outcomes and one raise
+//   whose handler is a node (a made-up handler link);
+// * `fx-trap-effect`: flow edges without those to trap, one basis, an intended relation (a
+//   made-up name; the page must show it as unchecked metadata);
 // * `fx-bad-kernel`: the explicit-sink edges minus one effect edge, naming rust_door's kernel
 //   table, which must then not be shown as evidence.
 // Checks the default, the selector and links, what is said about each, and that the top-level
@@ -28,7 +33,20 @@ cfg.variants = {
     relation: "Fixture.NotARelation" },
   "fx-bad-kernel": { model: "explicit-sink", entry: cfg.entry, edges: cfg.edges.filter((e, i) => i !== dropped),
     bases: [{ id: "fe", kinds: ["flow", "effect"], kernelTable: "silmaril.wasm.blockcfg.rust_door.enter", default: true }] } };
-cfg.default = "fx-trap-effect";
+const flowOnly = cfg.edges.filter((e) => e[2] === "flow");
+cfg.variants["fx-all-effects"] = { model: "all-effects (synthetic test fixture)", entry: cfg.entry, edges: flowOnly,
+  outcomes: cfg.edges.filter((e) => e[2] === "effect").map(([a, tg]) => [a, tg, tg === "trap" ? "caller" : "unresolved"]) };
+// Instruction level: node per instruction and terminator slot; block k's first node, last node.
+const nodes = [], first = [], last = [];
+cfg.blocks.forEach((bl, k) => { first[k] = nodes.length; const n = bl.instrs.length + (bl.term ? 1 : 0) || 1;
+  for (let j = 0; j < n; j++) nodes.push([k, j]); last[k] = nodes.length - 1; });
+const iedges = [];
+nodes.forEach(([k], i) => { if (i < last[k]) iedges.push([i, i + 1, "flow"]); });
+for (const [a, tg] of flowOnly) iedges.push([last[a], typeof tg === "number" ? first[tg] : tg, "flow"]);
+const ioutc = cfg.blocks.flatMap((bl, k) => bl.effects.length ? [[first[k], "trap", "caller"]] : []);
+ioutc.push([last[cfg.blocks.length - 1], "raise", 0]);
+cfg.variants["fx-instr"] = { model: "all-effects (synthetic test fixture)", granularity: "instr", nodes, entry: first[cfg.entry], edges: iedges, outcomes: ioutc };
+cfg.default = "fx-all-effects";
 fs.writeFileSync(path.join(fx, "wasm/m", slug + ".json"), JSON.stringify(mod));
 const port = 8797;
 const srv = spawn("python3", ["-I", path.join(path.dirname(new URL(import.meta.url).pathname), "pages_server.py"),
@@ -50,7 +68,28 @@ try {
   const domNote = async () => { await p.click("#wdom"); return p.evaluate(() => ({ t: document.querySelector("#wdomnote").textContent, lean: !!document.querySelector("#wprov .prov-lean") })); };
 
   await open("");
-  check(await p.evaluate(() => $("#wvariant").value) === "fx-trap-effect", "the data's default variant is shown first");
+  check(await p.evaluate(() => $("#wvariant").value) === "fx-all-effects", "the data's default variant is shown first");
+  const ae = cfg.variants["fx-all-effects"];
+  check(await p.evaluate(() => wcy.edges(".may").length) === 0 && await p.evaluate(() => Number(document.querySelector('[data-c="outcomes"]').textContent)) === ae.outcomes.length,
+    `all-effects (blocks): no may-edges, ${ae.outcomes.length} outcomes counted`);
+  check(await p.evaluate(() => /⚡ trap → caller/.test(wcy.getElementById("b0").data("label"))), "outcomes are marks on their nodes");
+  await p.selectOption("#wgo", "b1");
+  check(/outcomes: trap → caller/.test(await text("#wside")) && /not edges, in no dominator basis/.test(await text("#wside")), "the inspector lists a node's outcomes, not as edges");
+  const exp = await p.evaluate(() => document.querySelector("#wside a.wgran")?.getAttribute("href"));
+  check(exp && exp.endsWith(`/@fx-instr/n${first[1]}`), "a block offers its instruction-level expansion");
+  await shot("fixture-all-effects-blocks");
+  await open(`/@fx-instr/n${first[1]}`);
+  check(await p.evaluate((nb) => wcy.nodes('[kind = "group"]').length === nb && wcy.nodes('[kind = "block"]').every((n) => n.isChild()), cfg.blocks.length),
+    "instruction level: every instruction is inside its block's box");
+  check(await p.evaluate((id) => wcy.nodes(".sel").map((n) => n.id()).join() === id, "n" + first[1]), "the expansion selects the block's first instruction");
+  check((await p.evaluate(() => document.querySelector("#wside a.wgran")?.getAttribute("href")))?.endsWith("/@top/b1"), "and links back to the block level");
+  const hsrc = "n" + last[cfg.blocks.length - 1];
+  await p.selectOption("#wgo", hsrc);
+  check(await p.evaluate(() => wcy.edges(".outc").filter((e) => e.style("display") === "element").length) === 1, "a raise's handler link is drawn when its node is selected");
+  await shot("fixture-instr");
+  let dn = await domNote();
+  check(dn.t.startsWith("fx-instr") && dn.t.includes(`the ${iedges.length} edges of basis “flow edges”`) && !dn.lean, "instruction-level dominators: basis is the edges only, no kernel badge");
+  await open("/@fx-trap-effect");
   const info = await text("#wvariantinfo");
   check(/Fixture\.NotARelation/.test(info) && /not checked here/.test(info) && /No theorem shown on this page says that executions follow this graph/.test(info),
     "a variant's relation is shown as unchecked metadata");
@@ -59,7 +98,7 @@ try {
   check(await p.evaluate(() => wcy.edges().length) === want, `it draws exactly its ${want} edges`);
   let d = await domNote();
   check(d.t.startsWith("fx-trap-effect") && d.t.includes(`the ${want} edges of basis “flow edges”`) && !d.lean, "dominators name the variant and basis, with no kernel badge");
-  await shot("fixture-variant-default");
+  await shot("fixture-trap-effect");
 
   await open("/@fx-bad-kernel");
   d = await domNote();
@@ -80,7 +119,7 @@ try {
   check(await p.evaluate(() => location.hash.endsWith("/@top/b1")), "switching the variant keeps the selected node in the link");
 
   await open("/@nope");
-  check(await p.evaluate(() => $("#wvariant").value) === "fx-trap-effect", "an unknown variant falls back to the default");
+  check(await p.evaluate(() => $("#wvariant").value) === "fx-all-effects", "an unknown variant falls back to the default");
   check(errors.length === 0, `no page errors ${errors.join("; ")}`);
 } finally {
   await b.close(); srv.kill(); fs.rmSync(fx, { recursive: true, force: true });
