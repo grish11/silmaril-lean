@@ -1106,7 +1106,7 @@ async function wasmFuncPage(arg) {
             (b.typing.inits.length ? ` initialising locals ${b.typing.inits.map(esc).join(", ")}` : "") +
             ` under labels <code>${esc(b.typing.labels || "(none)")}</code> <span class="muted">(this block's operand frame; local types and labels are the static context)</span>` +
             (b.typing.branch ? `<br>branch targets: <code>${esc(b.typing.branch)}</code>` : "") +
-            "<br>" + runBadge("Cfg.bodyIfaces; each interface it records is an Instrs_ok derivation (bodyIfaces_typed), and its instructions were checked at build time to be this block's") +
+            "<br>" + runBadge("Cfg.bodyIfaces; each interface it records is an Instrs_ok derivation (bodyIfaces_typed) of this block's own instructions (bodyIfaces_lookup)") +
             ' <span class="muted">A typing fact, not a statement about runs.</span>'
             : '<br><span class="muted">typing: no proved interface recorded for this block</span>');
       });

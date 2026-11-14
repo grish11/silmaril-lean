@@ -21,7 +21,7 @@ Where each fact comes from, as the pages show it:
 | names | the `name` section; `wasm-tools demangle` in Lean | runtime |
 | basic blocks, flow edges | `Cfg.blocks`, `Cfg.blockCfg` | runtime; proved to compute `Cfg.Edge` (`blockCfg_eq`, `edge_iff`), a **syntactic, incomplete** relation |
 | effect marks and edges | `Cfg.blockEffects`, `Cfg.effectSucc` | runtime; syntactic "may" marks |
-| block interfaces (stack in → out, local inits, labels) | `Cfg.bodyIfaces` | runtime; every recorded interface is an `Instrs_ok` derivation (`bodyIfaces_typed`); matched to the block's instructions at build time |
+| block interfaces (stack in → out, local inits, labels) | `Cfg.bodyIfaces` | runtime; every recorded interface is an `Instrs_ok` derivation (`bodyIfaces_typed`) of the block's own instructions (`bodyIfaces_lookup`) |
 | call graph | the call instructions of each body | syntactic; `call_indirect`/`call_ref` go to explicit unknown-callee nodes; not proved to cover the calls of any run |
 | component structure | `Component.Binary.parse`, `Binary.encode` for nested components | runtime; not validated as a component |
 | component WAT, WIT | `Wit.Tool.printWat`, `Wit.Tool.witText` | runtime; the WIT printer is unverified |

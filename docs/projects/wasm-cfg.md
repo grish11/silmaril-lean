@@ -135,11 +135,10 @@ uniqueness) and that the executable extractors realize it.
    - **Done** (`Silmaril.Wasm.Cfg.BlockTyping`): `bodyIfaces C body` records each block's
      interface: static context, instructions, stack in → out, and local initialisations.
      `bodyIfaces_typed` proves that every recorded interface is an `Instrs_ok` derivation.
-     The explorer shows these interfaces for all 3,125 blocks, each checked at build time to be
-     the block's own instructions.
+     `bodyIfaces_lookup` proves that a recorded interface's instructions are the segment
+     `lookup` names for its identity. The explorer shows these interfaces for all 3,125 blocks.
    - **Open:**
-     - a proof that a recorded interface's instructions are the segment `lookup` names;
-     - a proof that every block of a valid body gets an interface;
+     - a proof that every block of a valid body gets an interface (completeness);
      - a statement about runs.
    - The trap/throw effect marks and referenced indices stay syntactic.
 4. **Bytes**, valid serializer profile only (`encodeModule?`).
