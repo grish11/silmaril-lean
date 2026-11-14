@@ -20,12 +20,12 @@ Where each fact comes from, as the pages show it:
 | function WAT | `Tools.Gen.Cmd.Print.bodyLines` on the AST | runtime, printer unverified |
 | names | the `name` section; `wasm-tools demangle` in Lean | runtime |
 | basic blocks, flow edges | `Cfg.blocks`, `Cfg.blockCfg` | runtime; proved to compute `Cfg.Edge` (`blockCfg_eq`, `edge_iff`), a **syntactic, incomplete** relation |
-| effect marks and edges | `Cfg.blockEffects`, `Cfg.effectSucc` | runtime; syntactic "may" marks |
+| effect marks and edges | `Cfg.blockEffects`, `Cfg.effectSucc` | runtime; syntactic "may" marks. The page draws the marks (⚠) on their blocks and the may-edges only for the selected or hovered node, or all on request; it counts every edge in its legend and lists the exact edges in the inspector. Hiding an edge from the drawing removes it from nothing else |
 | block interfaces (stack in → out, local inits, labels) | `Cfg.bodyIfaces` | runtime; every recorded interface is an `Instrs_ok` derivation (`bodyIfaces_typed`) of the block's own instructions (`bodyIfaces_lookup`) |
 | call graph | the call instructions of each body | syntactic; `call_indirect`/`call_ref` go to explicit unknown-callee nodes; not proved to cover the calls of any run |
 | component structure | `Component.Binary.parse`, `Binary.encode` for nested components | runtime; not validated as a component |
 | component WAT, WIT | `Wit.Tool.printWat`, `Wit.Tool.witText` | runtime; the WIT printer is unverified |
-| dominator trees | computed in the browser; five example functions also have a kernel-checked table (`ProjectSelfTest.WasmBlockCfg`) | browser, or Lean kernel-checked where linked |
+| dominator trees | computed in the browser on a stated basis: flow edges (the default) or flow + may-edges. Five example functions also have a kernel-checked table (`ProjectSelfTest.WasmBlockCfg`), over flow + may-edges; the page compares it node by node with its own tree on that basis | browser, or Lean kernel-checked where linked and equal |
 
 Nothing on these pages claims that an execution follows a drawn graph. Semantic properties
 (trap, divergence, determinism) are shown only as open statements.

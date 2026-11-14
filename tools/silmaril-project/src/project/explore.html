@@ -51,6 +51,15 @@ button { font:13px system-ui, sans-serif; padding:3px 10px; cursor:pointer; }
 #side { flex:0 0 380px; overflow:auto; border:1px solid var(--line); background:var(--panel); padding:8px 10px; }
 .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:8px; }
 .legend span { margin-right:10px; }
+.wlegend { display:flex; flex-wrap:wrap; gap:4px 16px; align-items:center; margin:6px 0; font-size:13px; }
+.wlegend svg { vertical-align:middle; }
+.wlegend span span { margin-right:0; }
+#wbasis, #wgo { max-width:16em; }
+.wbadge { display:inline-block; padding:0 4px; border-radius:3px; background:#fff4ef; border:1px solid #e8a090; color:#9a3412; font-size:12px; }
+button.wnode { font:12px ui-monospace, monospace; padding:0 6px; margin:1px 0; }
+#wside > div { margin:4px 0; }
+#wcy:focus-visible { outline:3px solid var(--accent); outline-offset:1px; }
+kbd { font:11px ui-monospace, monospace; border:1px solid var(--line); border-radius:3px; padding:0 3px; background:#f1f3f5; }
 #drop { position:fixed; inset:0; background:rgba(47,93,158,.15); border:4px dashed var(--accent); display:none; align-items:center; justify-content:center; font-size:20px; z-index:10; }
 #msg { padding:10px; max-width:860px; }
 .pick { border:2px dashed var(--line); border-radius:6px; padding:12px 16px; background:var(--panel); }
@@ -1037,7 +1046,9 @@ async function wasmModulePage(slug) {
   return { html: h, init };
 }
 async function wasmFuncPage(arg) {
-  const k = arg.lastIndexOf("/"), slug = arg.slice(0, k), idx = Number(arg.slice(k + 1));
+  // #/wasm-func/<module slug>/<function index>[/<node>]: the node (b<k>, exit, trap, raise, invalid) is selected.
+  const am = /^(.*)\/(\d+)(?:\/(b\d+|exit|trap|raise|invalid))?$/.exec(arg) || [null, arg, "NaN", null];
+  const slug = am[1], idx = Number(am[2]), focusId = am[3] || null;
   let m, ix;
   try { [m, ix] = await Promise.all([wasmJson(`m/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
   const f = m.functions[idx], body = (m.bodies || []).find((b) => b.idx === idx);
@@ -1052,14 +1063,66 @@ async function wasmFuncPage(arg) {
     (m.functions[b].imported ? `<code>${esc(m.functions[b].import)}</code>` : flink(s.slug, b, fname(m.functions[b]))) + (kind !== "direct" ? ` (${esc(kind)})` : "") + (n > 1 ? ` ×${n}` : "")).join(", ") : "none"}` +
     ` · called by: ${callers.length ? callers.map((a) => flink(s.slug, a, fname(m.functions[a]))).join(", ") : "no call instruction in this module"} <span class="muted">(syntactic)</span></p>`;
   const kc = KERNEL_CFG[`${s.slug}/${idx}`];
-  h += `<h2>Control-flow graph (basic blocks)</h2><p class="muted">${esc(SYNTAX_CFG)}</p>`;
+  // The edges as written by wasm-pages: `flow` edges are Cfg.Edge (blockCfg), `effect` edges are
+  // the "may" edges of Cfg.EffectEdge. Every edge stays in `E`, whatever is drawn: the inspector,
+  // the counts and the dominators read `E`, never the drawn graph.
+  const tid = (t) => typeof t === "number" ? "b" + t : t;
+  const E = cfg.edges.map(([a, t, kind], i) => ({ i, src: "b" + a, a, tgt: tid(t), may: kind === "effect", kind }));
+  const flowE = E.filter((e) => !e.may), mayE = E.filter((e) => e.may);
+  const outOf = new Map(), into = new Map();
+  for (const e of E) {
+    if (!outOf.has(e.src)) outOf.set(e.src, []); outOf.get(e.src).push(e);
+    if (!into.has(e.tgt)) into.set(e.tgt, []); into.get(e.tgt).push(e);
+  }
+  const mayTgts = (id) => (outOf.get(id) || []).filter((e) => e.may).map((e) => e.tgt);
+  const cnt = (xs, t) => xs.filter((e) => e.tgt === t).length;
+  const C = { flow: flowE.length, may: mayE.length, flowTrap: cnt(flowE, "trap"), flowRaise: cnt(flowE, "raise"),
+    mayTrap: cnt(mayE, "trap"), mayRaise: cnt(mayE, "raise"), marked: cfg.blocks.filter((b) => b.effects.length).length,
+    mayFrom: new Set(mayE.map((e) => e.src)).size };
+  const specials = ["exit", "trap", "raise", "invalid"].filter((t) => t === "exit" || into.has(t) || cfg.entry === t);
+  // Dominators on two explicit bases; the flow-only one is the default.
+  const domNodes = cfg.blocks.map((b, i) => "b" + i).concat(["exit", "trap", "raise", "invalid"]);
+  const domEntry = tid(cfg.entry);
+  const DOM = {
+    flow: dominators(domNodes, flowE.map((e) => [e.src, e.tgt]), [domEntry]),
+    all: dominators(domNodes, E.map((e) => [e.src, e.tgt]), [domEntry]) };
+  const domDiff = domNodes.filter((n) => DOM.flow.idom.get(n) !== DOM.all.idom.get(n));
+  const domName = (n) => n === undefined ? "unreached" : n === null ? "root" : n;
+  h += `<h2 id="wcfg">Control-flow graph (basic blocks)</h2><p class="muted">${esc(SYNTAX_CFG)}</p>`;
   h += `<p>blocks and flow edges: ${runBadge("Silmaril.Wasm.Cfg.blockCfg, proved to compute Edge (blockCfg_eq, edge_iff)")}` +
-    (kc ? ` · the same graph as the machine document ${link("machine", kc)}, whose dominator table is Lean kernel-checked` : "") + "</p>";
-  h += `<div class="controls"><button id="wflat">Flat CFG</button><button id="wdom">Dominator tree</button>` +
-    `<label><input type="checkbox" id="weff" checked> effect edges</label> ${zoomControls()} <span id="wprov"></span></div>`;
+    (kc ? ` · the same graph, flow and may-edges, as the machine document ${link("machine", kc)}, whose dominator table (over both kinds of edge) is Lean kernel-checked` : "") + "</p>";
+  // Legend with exact counts: what each mark means, and that the may-edges are not drawn by default.
+  const sw = (style) => `<svg width="34" height="10" aria-hidden="true"><line x1="1" y1="5" x2="33" y2="5" style="${style}"/></svg>`;
+  h += `<div class="legend wlegend" id="wlegend" role="note" aria-label="Legend and edge counts">` +
+    `<span>${sw("stroke:#8a939c;stroke-width:1.5")} flow <b data-c="flow">${C.flow}</b></span>` +
+    `<span>${sw("stroke:#2f5d9e;stroke-width:2")} back edge (to an earlier block)</span>` +
+    (C.flowTrap + C.flowRaise ? `<span>${sw("stroke:#b42318;stroke-width:2.5")} control edge to trap/raise <b data-c="flowSpecial">${C.flowTrap + C.flowRaise}</b>` +
+      ` <span class="muted">(the terminator is <code>unreachable</code>, <code>throw</code> or <code>throw_ref</code>)</span></span>` : "") +
+    `<span>${sw("stroke:#d64545;stroke-width:1.2;stroke-dasharray:4 3")} may-edge <b data-c="may">${C.may}</b> ` +
+    `<span class="muted">(<span data-c="mayTrap">${C.mayTrap}</span> to trap, <span data-c="mayRaise">${C.mayRaise}</span> to raise, ` +
+    `from <span data-c="mayFrom">${C.mayFrom}</span> of ${cfg.blocks.length} blocks)</span></span>` +
+    `<span><span class="wbadge">⚠</span> effect marks on <b data-c="marked">${C.marked}</b> blocks</span></div>`;
+  h += `<p class="muted" id="wmaynote">May-edges are conservative and syntactic: a block that contains an instruction that may trap ` +
+    `(division, memory, table, cast, …) or a call gets one to <code>trap</code> (and a call one to <code>raise</code>). ` +
+    `They are summarised as <span class="wbadge">⚠</span> marks on their blocks and drawn for the block you select or hover, or all at once. ` +
+    `An unmarked block is not shown to be trap-free: no theorem about executions is recorded here.</p>`;
+  h += `<div class="controls" role="toolbar" aria-label="Graph view"><button id="wflat" aria-pressed="true">Flat CFG</button><button id="wdom" aria-pressed="false">Dominator tree</button>` +
+    `<label title="Draw every may-edge (otherwise only the selected or hovered block's)"><input type="checkbox" id="weff"> draw all may-edges</label>` +
+    `<label>dominator basis <select id="wbasis"><option value="flow">flow edges (${C.flow})</option>` +
+    `<option value="all">flow + may-edges (${C.flow + C.may})</option></select></label>` +
+    `<label>block <select id="wgo" aria-label="Select a block"><option value="">—</option>` +
+    cfg.blocks.map((b, i) => `<option value="b${i}">b${i}${b.effects.length ? " ⚠" : ""} → ${esc(b.term || "falls through")}</option>`).join("") +
+    specials.map((t) => `<option value="${t}">${t}</option>`).join("") + `</select></label>` +
+    `${zoomControls()} <span id="wprov"></span></div>`;
   h += '<div id="wgraphwrap" style="display:flex;gap:12px;height:72vh;min-height:440px">' +
-    '<div id="wcy" style="flex:1 1 auto;border:1px solid var(--line);background:var(--panel);min-width:0"></div>' +
-    '<div id="wside" style="flex:0 0 340px;overflow:auto;border:1px solid var(--line);background:var(--panel);padding:8px 10px" class="muted">Click a block for its instructions.</div></div>';
+    '<div id="wcy" tabindex="0" role="application" aria-label="Control-flow graph. Keys: j or k next or previous block, ' +
+    'arrow down or up first successor or predecessor, e draws all may-edges, plus and minus zoom, 0 fits, Escape clears the selection." ' +
+    'aria-describedby="wkeys" style="flex:1 1 auto;border:1px solid var(--line);background:var(--panel);min-width:0"></div>' +
+    '<div id="wside" aria-live="polite" style="flex:0 0 360px;overflow:auto;border:1px solid var(--line);background:var(--panel);padding:8px 10px" class="muted">' +
+    'Click a block (or pick one above) for its instructions, edges and typing.</div></div>' +
+    '<p class="muted" id="wkeys" style="font-size:12px">Keys on the focused graph: <kbd>j</kbd>/<kbd>k</kbd> next/previous block, ' +
+    '<kbd>↓</kbd>/<kbd>↑</kbd> first successor/predecessor, <kbd>e</kbd> draw all may-edges, <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>0</kbd> fit, <kbd>Esc</kbd> clear. ' +
+    'Selecting a block updates the address bar to a direct link.</p>';
   h += `<h2>WAT</h2><p class="muted">printed from the decoded AST by Silmaril's printer (Silmaril.Wasm.Tools.Gen.Cmd.Print) ${runBadge()}</p><pre class="code">${esc(body.wat)}</pre>`;
   h += `<h2>Semantics (statements, not decided facts)</h2><ul class="muted">` +
     "<li>This function's behaviours are those of the Core 3.0 semantics. <code>Silmaril.Wasm.Abstract.WasmFunRef</code> " +
@@ -1072,68 +1135,200 @@ async function wasmFuncPage(arg) {
     "they are a deterministic-given-inputs submodel (<code>toAFun_det</code>; <code>exists_not_denoted</code>: some nondeterministic " +
     "trace-set functions are denoted by no body), so their facts are not facts about arbitrary trace-set semantics. " +
     "Open: no concrete Core 3.0 body is yet proved to realise either model, so this CFG is not connected to them.</li></ul>";
-  const nodeId = (t) => typeof t === "number" ? "b" + t : t;
-  const blockLabel = (b, i) => `b${i}${b.path ? " [" + b.path + "]" : ""}.${b.pos}: ${b.instrs.length} instrs → ${b.term || "falls through"}` +
-    (b.effects.length ? `\n{${b.effects.join(", ")}}` : "");
-  const init = () => {
-    const flat = () => {
-      if (wcy) wcy.destroy();
-      const withEff = $("#weff").checked;
-      const used = new Set(["exit"]);
-      for (const [, t, kind] of cfg.edges) if (kind === "flow" || withEff) used.add(nodeId(t));
-      const els = cfg.blocks.map((b, i) => ({ data: { id: "b" + i, label: blockLabel(b, i), kind: "block", entry: cfg.entry === i ? 1 : 0 } }));
-      for (const t of ["exit", "trap", "raise", "invalid"]) if (used.has(t)) els.push({ data: { id: t, label: t, kind: t === "exit" ? "exit" : "special" } });
-      cfg.edges.forEach(([a, t, kind], i) => {
-        if (kind === "effect" && !withEff) return;
-        const back = typeof t === "number" && t <= a ? 1 : 0;
-        els.push({ data: { id: "e" + i, source: "b" + a, target: nodeId(t), kind, back, label: kind === "effect" ? "may" : "" } });
-      });
-      wcy = cytoscape({ container: $("#wcy"), elements: els, minZoom: 0.05, maxZoom: 3, wheelSensitivity: 0.25, style: graphStyle(),
-        layout: { name: "dagre", rankDir: "TB", nodeSep: 25, rankSep: 45, animate: false } });
-      $("#wprov").innerHTML = '<span class="muted">flat CFG; back edges (to an earlier block) in blue, effect edges dashed red</span>';
-      wcy.on("tap", "node", (ev) => {
-        const id = ev.target.id();
-        if (!/^b\d+$/.test(id)) return;
-        const b = cfg.blocks[Number(id.slice(1))];
-        const out = cfg.edges.filter(([a]) => "b" + a === id).map(([, t, kind]) => `${kind} → ${typeof t === "number" ? "b" + t : t}`);
-        $("#wside").classList.remove("muted");
-        $("#wside").innerHTML = `<b>${esc(blockLabel(b, Number(id.slice(1))))}</b><pre class="code">${esc(b.instrs.concat(b.term ? [b.term] : []).join("\n") || "(empty)")}</pre>` +
-          `successors: ${out.map(esc).join(", ") || "none"}` +
-          (b.refs && Object.keys(b.refs).length ? "<br>references (syntactic, this block's own instructions): " +
-            Object.entries(b.refs).map(([sp, xs]) => `${esc(sp)} ${xs.map((x) => sp === "func" && m.functions[x] && !m.functions[x].imported
-              ? flink(s.slug, x, String(x)) : esc(x)).join(", ")}`).join("; ") : "") +
-          (b.typing ? `<br>typing: <code>${esc(b.typing.in)} → ${esc(b.typing.out)}</code>` +
+  const instrN = (b) => `${b.instrs.length} instr${b.instrs.length === 1 ? "" : "s"}`;
+  // Node label: what the block is and how it ends; a second line only for blocks with marks.
+  const blockLabel = (b, i) => `b${i} · ${instrN(b)} → ${b.term || "falls through"}` +
+    (b.effects.length ? `\n⚠ ${b.effects.join(", ")}${mayTgts("b" + i).length ? " ⇢ " + mayTgts("b" + i).join("/") : ""}` : "");
+  const specialLabel = (t) => {
+    if (t === "exit") return "exit";
+    const f = (into.get(t) || []).filter((e) => !e.may).length, y = (into.get(t) || []).filter((e) => e.may).length;
+    return t + (f || y ? `\n${[f ? f + " control" : "", y ? y + " may" : ""].filter(Boolean).join(" · ")}` : "");
+  };
+  const labelOf = (n) => /^b\d+$/.test(n) ? blockLabel(cfg.blocks[Number(n.slice(1))], Number(n.slice(1))) : specialLabel(n);
+  const permalink = (id) => `#/wasm-func/${encodeURIComponent(s.slug)}/${idx}${id ? "/" + id : ""}`;
+  const init = async () => {
+    // The kernel-checked table of the same graph (flow + may-edges), compared node by node with
+    // the browser's tree on that basis; only an exact match is reported as agreeing.
+    let kt = null;
+    if (kc) try {
+      const r = (await q("SELECT dominators, dominator_theorem FROM machines WHERE name = ?", [kc]))[0];
+      if (r && r.dominators) {
+        const short = (x) => x == null ? null : (/^(b\d+) /.exec(x) || [null, x])[1];
+        const t = new Map(Object.entries(JSON.parse(r.dominators)).map(([k, v]) => [short(k), short(v)]));
+        kt = { thm: r.dominator_theorem, same: t.size === domNodes.length && domNodes.every((n) => t.has(n) && t.get(n) === (DOM.all.idom.get(n) ?? null)) };
+      }
+    } catch (e) { kt = null; }
+    let view = "flat", sel = focusId && (domNodes.includes(focusId) ? focusId : null), hov = null, flatPos = null;
+    const mayEls = () => wcy.edges(".may");
+    // Which may-edges are drawn: all, or those of the selected and hovered node (in or out).
+    const applyMay = () => {
+      if (view !== "flat" || !wcy) return;
+      const all = $("#weff").checked;
+      wcy.batch(() => mayEls().forEach((e) => {
+        const d = e.data();
+        e.toggleClass("show", all || d.source === sel || d.target === sel || d.source === hov);
+      }));
+    };
+    const nodeBtn = (n) => `<button type="button" class="wnode" data-n="${esc(n)}">${esc(n)}</button>`;
+    const edgeList = (es, end) => es.length ? '<span class="wedges">' + es.map((e) => nodeBtn(e[end])).join(" ") + "</span>" : '<span class="muted">none</span>';
+    const inspect = (id) => {
+      const side = $("#wside");
+      side.classList.remove("muted");
+      const ins = into.get(id) || [], outs = outOf.get(id) || [];
+      const basis = $("#wbasis").value, di = DOM[basis].idom.get(id);
+      let x = `<p style="margin:0 0 6px"><a href="${permalink(id)}" title="direct link to this node">#</a> `;
+      const domLine = `immediate dominator (${basis === "flow" ? "flow edges" : "flow + may-edges"}): ` +
+        (di === undefined ? '<span class="muted">not reached from the entry on this basis</span>' : di === null ? "the entry itself" : nodeBtn(di));
+      if (/^b\d+$/.test(id)) {
+        const i = Number(id.slice(1)), b = cfg.blocks[i], fo = outs.filter((e) => !e.may), mo = outs.filter((e) => e.may);
+        x += `<b>b${i}</b> · ${esc(instrN(b))} → <code>${esc(b.term || "falls through")}</code>` +
+          ` <span class="muted">at path [${esc(b.path)}] position ${esc(b.pos)}${cfg.entry === i ? " · entry" : ""}</span></p>` +
+          `<pre class="code">${esc(b.instrs.concat(b.term ? [b.term] : []).join("\n") || "(empty)")}</pre>` +
+          `<div>flow successors: ${edgeList(fo, "tgt")}</div>` +
+          `<div>flow predecessors: ${edgeList(ins.filter((e) => !e.may), "src")}</div>` +
+          `<div>may-edges: ${mo.length ? edgeList(mo, "tgt") + ` <span class="muted">(conservative, from the marks ${esc(b.effects.join(", "))})</span>`
+            : `<span class="muted">none${b.effects.length ? " (marks: " + esc(b.effects.join(", ")) + ")" : "; not a proof that this block cannot trap"}</span>`}</div>` +
+          `<div>${domLine} ${provBadge("browser")}</div>` +
+          (b.refs && Object.keys(b.refs).length ? "<div>references (syntactic, this block's own instructions): " +
+            Object.entries(b.refs).map(([sp, xs]) => `${esc(sp)} ${xs.map((r) => sp === "func" && m.functions[r] && !m.functions[r].imported
+              ? flink(s.slug, r, String(r)) : esc(r)).join(", ")}`).join("; ") + "</div>" : "") +
+          (b.typing ? `<div>typing: <code>${esc(b.typing.in)} → ${esc(b.typing.out)}</code>` +
             (b.typing.inits.length ? ` initialising locals ${b.typing.inits.map(esc).join(", ")}` : "") +
             ` under labels <code>${esc(b.typing.labels || "(none)")}</code> <span class="muted">(this block's operand frame; local types and labels are the static context)</span>` +
             (b.typing.branch ? `<br>branch targets: <code>${esc(b.typing.branch)}</code>` : "") +
             "<br>" + runBadge("Cfg.bodyIfaces; each interface it records is an Instrs_ok derivation (bodyIfaces_typed) of this block's own instructions (bodyIfaces_lookup)") +
-            ' <span class="muted">A typing fact, not a statement about runs.</span>'
-            : '<br><span class="muted">typing: no proved interface recorded for this block</span>');
-      });
+            ' <span class="muted">A typing fact, not a statement about runs.</span></div>'
+            : '<div class="muted">typing: no proved interface recorded for this block</div>');
+      } else {
+        const fi = ins.filter((e) => !e.may), mi = ins.filter((e) => e.may);
+        x += `<b>${esc(id)}</b> <span class="muted">${esc({ exit: "the function returns", trap: "execution traps", raise: "an exception leaves the instruction (its handler is not resolved)",
+          invalid: "a branch to a label that does not exist" }[id] || "")}</span></p>` +
+          `<div>control (flow) edges in: <b>${fi.length}</b> ${edgeList(fi, "src")}</div>` +
+          (id === "exit" ? "" : `<div>may-edges in: <b>${mi.length}</b> ${edgeList(mi, "src")}` +
+            (mi.length ? ' <span class="muted">(drawn while this node is selected)</span>' : "") + "</div>") +
+          `<div>${domLine} ${provBadge("browser")}</div>`;
+      }
+      side.innerHTML = x;
+    };
+    // Select a node: inspector, highlight, its may-edges, the address bar; keeps the layout.
+    const select = (id, center) => {
+      sel = id && domNodes.includes(id) && (view !== "flat" || wcy.getElementById(id).length) ? id : null;
+      $("#wgo").value = sel || "";
+      history.replaceState(null, "", permalink(sel));
+      if (!sel) { $("#wside").classList.add("muted"); $("#wside").innerHTML = "Click a block (or pick one above) for its instructions, edges and typing."; }
+      else inspect(sel);
+      const cid = view === "flat" ? sel : sel && "d:" + sel;
+      wcy.batch(() => { wcy.nodes(".sel").removeClass("sel"); wcy.edges(".hl").removeClass("hl");
+        if (cid) { const n = wcy.getElementById(cid); n.addClass("sel"); n.connectedEdges().addClass("hl"); } });
+      applyMay();
+      if (center && cid) {
+        const n = wcy.getElementById(cid);
+        if (n.length) {
+          const bb = n.renderedBoundingBox(), w = wcy.width(), hgt = wcy.height();
+          if (wcy.zoom() < 0.5) wcy.zoom(0.85);
+          if (bb.x1 < 0 || bb.y1 < 0 || bb.x2 > w || bb.y2 > hgt || wcy.zoom() === 0.85) wcy.center(n);
+        }
+      }
+    };
+    const wireNodes = () => {
+      wcy.on("tap", "node", (ev) => select(view === "flat" ? ev.target.id() : ev.target.id().slice(2), false));
+      wcy.on("tap", (ev) => { if (ev.target === wcy) select(null); });
+      wcy.on("mouseover", "node", (ev) => { if (view !== "flat") return; hov = ev.target.id(); ev.target.addClass("hov"); applyMay(); });
+      wcy.on("mouseout", "node", (ev) => { if (view !== "flat") return; hov = null; ev.target.removeClass("hov"); applyMay(); });
+    };
+    const flat = () => {
+      if (wcy) wcy.destroy();
+      view = "flat";
+      $("#wflat").setAttribute("aria-pressed", "true"); $("#wdom").setAttribute("aria-pressed", "false");
+      const els = cfg.blocks.map((b, i) => ({ data: { id: "b" + i, label: blockLabel(b, i), kind: "block",
+        entry: cfg.entry === i ? 1 : 0, marked: b.effects.length ? 1 : 0 } }));
+      for (const t of specials) els.push({ data: { id: t, label: specialLabel(t), kind: t === "exit" ? "exit" : "special", entry: cfg.entry === t ? 1 : 0 } });
+      for (const e of E) {
+        const back = /^b\d+$/.test(e.tgt) && Number(e.tgt.slice(1)) <= e.a ? 1 : 0;
+        els.push({ data: { id: "e" + e.i, source: e.src, target: e.tgt, kind: e.kind, back, special: !e.may && !/^b\d+$/.test(e.tgt) && e.tgt !== "exit" ? 1 : 0 },
+          classes: e.may ? "may" : "" });
+      }
+      wcy = cytoscape({ container: $("#wcy"), elements: els, minZoom: 0.05, maxZoom: 3, wheelSensitivity: 0.25, style: graphStyle(WCFG_STYLE),
+        layout: { name: "preset" } });
+      // Lay out on the flow edges only, once: drawing or hiding may-edges never moves a node. Nodes
+      // reached only by may-edges (typically raise, often trap) go below the graph as sinks.
+      if (flatPos) wcy.nodes().forEach((n) => { if (flatPos[n.id()]) n.position(flatPos[n.id()]); });
+      else {
+        const sinks = wcy.nodes().filter((n) => n.data("kind") === "special" && !flowE.some((e) => e.tgt === n.id()));
+        wcy.elements().not(".may").not(sinks).layout({ name: "dagre", rankDir: "TB", nodeSep: 30, rankSep: 42, edgeSep: 12, animate: false, fit: false }).run();
+        const bb = wcy.elements().not(".may").not(sinks).boundingBox();
+        sinks.forEach((n, k) => n.position({ x: bb.x1 + bb.w / 2 + (k - (sinks.length - 1) / 2) * 140, y: bb.y2 + 70 }));
+        flatPos = {}; wcy.nodes().forEach((n) => { flatPos[n.id()] = Object.assign({}, n.position()); });
+      }
+      wcy.fit(undefined, 30);
+      $("#wprov").innerHTML = "";
+      wireNodes();
       wireZoom(typeof cfg.entry === "number" ? "b" + cfg.entry : null, true);
+      if (sel) select(sel, true); else applyMay();
     };
     const dom = () => {
       if (wcy) wcy.destroy();
-      const nodes = cfg.blocks.map((b, i) => "b" + i).concat(["exit", "trap", "raise", "invalid"]);
-      const edges = cfg.edges.filter(([, , kind]) => kind === "flow").map(([a, t]) => ["b" + a, nodeId(t)]);
-      const entry = nodeId(cfg.entry);
-      const r = dominators(nodes, edges, [entry]);
-      const labelOf = (n) => /^b\d+$/.test(n) ? blockLabel(cfg.blocks[Number(n.slice(1))], Number(n.slice(1))) : n;
-      wcy = drawDomTree($("#wcy"), nodes, r.idom, labelOf, { "font-size": 12, "text-wrap": "wrap", height: "label" });
-      const unreach = nodes.filter((n) => !r.idom.has(n));
-      $("#wprov").innerHTML = provBadge("browser") + ` <span class="muted">immediate dominators of the flow edges from ${esc(entry)}` +
-        (kc ? `; a Lean kernel-checked table for this graph: ${link("machine", kc)}` : "") +
-        `. A fact about the graph as drawn, not about execution.${unreach.length ? " Unreachable: " + esc(unreach.join(", ")) : ""}</span>`;
-      wireZoom(entry, true);
+      view = "dom";
+      $("#wflat").setAttribute("aria-pressed", "false"); $("#wdom").setAttribute("aria-pressed", "true");
+      const basis = $("#wbasis").value, r = DOM[basis];
+      wcy = drawDomTree($("#wcy"), domNodes, r.idom, labelOf, { "font-size": 12, "text-wrap": "wrap", height: "label" });
+      wcy.style().selector("node.sel").style({ "underlay-color": "#f2c94c", "underlay-opacity": 0.7, "underlay-padding": 6 }).update();
+      const unreach = domNodes.filter((n) => !r.idom.has(n));
+      const other = basis === "flow" ? "all" : "flow";
+      $("#wprov").innerHTML = provBadge("browser") + ` <span class="muted" id="wdomnote">immediate dominators from ${esc(domEntry)} over ` +
+        (basis === "flow" ? `the ${C.flow} flow edges only (the ${C.may} may-edges are not in this basis)` : `all ${C.flow + C.may} edges, flow and may`) +
+        (kt ? `; on flow + may-edges the Lean kernel-checked table of ${link("machine", kc)} ` +
+          (kt.same ? `is the same, compared here node by node ${provBadge("lean", kt.thm)}` : `<b>differs</b> from this tree`) : "") +
+        `. ${domDiff.length ? `With ${other === "all" ? "the may-edges added" : "the may-edges removed"}, the immediate dominator changes for ` +
+          domDiff.map((n) => `${esc(n)} (${esc(domName(DOM[other].idom.get(n)))})`).join(", ") : "Both bases give the same tree"}. ` +
+        `A fact about the graph as drawn, not about execution.${unreach.length ? " Not reached on this basis: " + esc(unreach.join(", ")) : ""}</span>`;
+      wireNodes();
+      wireZoom(domEntry ? "d:" + domEntry : null, true);
+      if (sel) select(sel, true);
     };
     wireZoomButtons();
     $("#wflat").addEventListener("click", flat);
     $("#wdom").addEventListener("click", dom);
-    $("#weff").addEventListener("change", flat);
+    $("#weff").addEventListener("change", applyMay);
+    $("#wbasis").addEventListener("change", () => { if (view === "dom") dom(); else if (sel) inspect(sel); });
+    $("#wgo").addEventListener("change", (ev) => select(ev.target.value || null, true));
+    $("#wside").addEventListener("click", (ev) => { const b = ev.target.closest("button.wnode"); if (b) select(b.dataset.n, true); });
+    const order = cfg.blocks.map((b, i) => "b" + i).concat(specials);
+    $("#wcy").addEventListener("keydown", (ev) => {
+      if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+      const k = ev.key, at = order.indexOf(sel);
+      const z = (f) => wcy.zoom({ level: wcy.zoom() * f, renderedPosition: { x: wcy.width() / 2, y: wcy.height() / 2 } });
+      const step = (es, end) => { const e = es.find((x) => !x.may) || es[0]; if (e) select(e[end], true); };
+      if (k === "j" || k === "ArrowRight") select(order[(at + 1) % order.length], true);
+      else if (k === "k" || k === "ArrowLeft") select(order[at <= 0 ? order.length - 1 : at - 1], true);
+      else if (k === "ArrowDown") { if (sel) step(outOf.get(sel) || [], "tgt"); else select(order[0], true); }
+      else if (k === "ArrowUp") { if (sel) step(into.get(sel) || [], "src"); else select(order[0], true); }
+      else if (k === "e") { $("#weff").checked = !$("#weff").checked; applyMay(); }
+      else if (k === "+" || k === "=") z(1.3);
+      else if (k === "-") z(1 / 1.3);
+      else if (k === "0") wcy.fit(undefined, 30);
+      else if (k === "Escape") select(null);
+      else return;
+      ev.preventDefault();
+    });
     flat();
+    if (sel) $("#wcfg").scrollIntoView();
   };
   return { html: h, init };
 }
+// The block CFG's own marks, on top of graphStyle: marked blocks get a warm fill; may-edges are
+// hidden unless shown (class "show"); control edges into trap/raise are solid and dark red.
+const WCFG_STYLE = [
+  { selector: "node[kind = 'block']", style: { "font-size": 13 } },
+  { selector: "node[marked = 1]", style: { "background-color": "#fff4ef" } },
+  { selector: "node[kind = 'special']", style: { "background-color": "#fdecec", "font-size": 11 } },
+  { selector: "edge.may", style: { display: "none", width: 1.1, "line-opacity": 0.75, "arrow-scale": 0.8 } },
+  { selector: "edge.may.show", style: { display: "element" } },
+  { selector: "edge[special = 1]", style: { "line-color": "#b42318", "target-arrow-color": "#b42318", width: 2.5 } },
+  { selector: "node.hov", style: { "underlay-color": "#2f5d9e", "underlay-opacity": 0.18, "underlay-padding": 5 } },
+  { selector: "node.sel", style: { "underlay-color": "#f2c94c", "underlay-opacity": 0.7, "underlay-padding": 6 } },
+  { selector: "edge.hl", style: { width: 2.6, "z-index": 10 } },
+  { selector: "edge.may.hl", style: { width: 1.8 } }];
 
 // ---------- SQL: query, schema, about ----------
 function sqlTabs(on) {

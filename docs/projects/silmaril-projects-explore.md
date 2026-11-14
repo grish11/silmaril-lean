@@ -96,6 +96,13 @@ Chromium against `pages_server.py`, a server that compresses like GitHub Pages:
 - a new version is fetched again under a new tag;
 - `?load=full` downloads the whole file and verifies its hash.
 
+`tools/silmaril-project/tests/explore/wasm_cfg.mjs` checks the Wasm function pages in Chromium
+on a small and a large block CFG: the legend's edge counts against the page data, may-edges kept
+but drawn only on selection, hover or request without moving any node, the inspector's exact
+edges, keyboard navigation, direct links to a node, the stated dominator basis and its agreement
+with the kernel-checked table, and that module call graphs and machine pages still draw. Run it on
+a `make pages` output: `node wasm_cfg.mjs _site [screenshots-dir]`.
+
 Requirements on the server for lazy loading:
 
 - It must answer `Range: bytes=a-b` with `206`, the identity bytes and
