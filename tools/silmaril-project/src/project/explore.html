@@ -37,6 +37,8 @@ code, .mono, td { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; fo
 .badge { display:inline-block; padding:0 6px; border-radius:3px; color:#fff; font-size:12px; font-family:ui-monospace, monospace; }
 .prov { display:inline-block; padding:0 6px; border-radius:3px; font-size:12px; border:1px solid; }
 .prov-lean { color:#1f7a3a; border-color:#2e9d4f; background:#eaf6ee; } .prov-gen { color:#8a5a00; border-color:#d9a400; background:#fff6dc; } .prov-browser { color:#555; border-color:#9aa0a6; background:#f1f3f5; }
+.prov-run { color:#1f4f8a; border-color:#5b7fb5; background:#eef3fa; }
+pre.code { background:var(--panel); border:1px solid var(--line); padding:8px 10px; max-height:60vh; overflow:auto; font:12px ui-monospace, monospace; white-space:pre; }
 .holds { background:var(--holds); } .fails { background:var(--fails); } .unknown { background:var(--unknown); }
 .muted { color:var(--muted); }
 .grid { display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
@@ -63,7 +65,7 @@ dt { color:var(--muted); } dd { margin:0; font-family:ui-monospace, monospace; f
   <h1 id="title">__TITLE__</h1>
   <nav id="nav">
     <a href="#/summary">Summary</a><a href="#/graph">Graph</a><a href="#/problems">Problems</a>
-    <a href="#/artifacts">Artifacts</a><a href="#/values">Values</a><a href="#/formats">Formats</a><a href="#/machines">Machines</a><a href="#/sql">SQL</a>
+    <a href="#/artifacts">Artifacts</a><a href="#/values">Values</a><a href="#/formats">Formats</a><a href="#/machines">Machines</a><a href="#/wasm">Wasm</a><a href="#/sql">SQL</a>
   </nav>
   <span id="source">loading…</span>
   <span id="stats"></span>
@@ -386,7 +388,8 @@ document.addEventListener("drop", (e) => {
 // ---------- routing ----------
 // A page returns its HTML, or {html, init} when it wires up controls after rendering.
 const PAGES = { summary, graph, problems, artifacts, values, formats, machines, sql: sqlPage, schema: schemaPage, about: aboutPage,
-  problem: problemPage, value: valuePage, format: formatPage, artifact: artifactPage, machine: machinePage };
+  problem: problemPage, value: valuePage, format: formatPage, artifact: artifactPage, machine: machinePage,
+  wasm: wasmPage, "wasm-component": wasmComponentPage, "wasm-module": wasmModulePage, "wasm-func": wasmFuncPage };
 let routeTok = 0;
 async function route() {
   if (!be) return;
@@ -394,10 +397,12 @@ async function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   const page = PAGES[parts[0]] ? parts[0] : "summary";
   const arg = decodeURIComponent(parts.slice(1).join("/"));
-  const tab = { problem: "problems", value: "values", format: "formats", artifact: "artifacts", machine: "machines", schema: "sql", about: "sql" }[page] || page;
+  const tab = { problem: "problems", value: "values", format: "formats", artifact: "artifacts", machine: "machines", schema: "sql", about: "sql",
+    "wasm-component": "wasm", "wasm-module": "wasm", "wasm-func": "wasm" }[page] || page;
   for (const a of document.querySelectorAll("#nav a")) a.classList.toggle("on", a.getAttribute("href") === "#/" + tab);
   if (page !== "graph" && cy) { cy.destroy(); cy = null; }
   if (page !== "machine" && mcy) { mcy.destroy(); mcy = null; }
+  if (wcy) { wcy.destroy(); wcy = null; }
   window.explore.busy = true;
   try {
     let r = await PAGES[page](arg);
@@ -770,6 +775,310 @@ async function artifactPage(key) {
   h += "<h2>Problems over it</h2>" + await tableOf(await first(DETAIL, "SELECT problem, pos, 'input' AS via FROM problem_inputs WHERE cid = ? " +
     "UNION ALL SELECT problem, pos, 'instance_arg' FROM instance_args WHERE cid = ?", [a.cid, a.cid]));
   return h;
+}
+
+// ---------- Wasm: components, modules, functions ----------
+// Static files written by `wasm-pages` (tools/wasm-pages) next to the page: wasm/index.json,
+// wasm/c/<slug>.json (components), wasm/m/<slug>.json (modules, with their functions), and the
+// downloads wasm/blob/<slug>.wasm and wasm/wat/<slug>.wat. Nothing here is read from the
+// database. Every fact says where it comes from: the Lean decoders, printers and validator ran
+// at build time ("Lean, runtime"); graphs drawn here are syntactic; dominators of the block CFGs
+// are computed in the browser, except where a Lean kernel-checked table exists for the same graph.
+let wcy = null;
+const wasmCache = new Map();
+async function wasmJson(rel) {
+  if (!wasmCache.has(rel)) wasmCache.set(rel, fetch("wasm/" + rel).then((r) => {
+    if (!r.ok) throw new Error(`wasm/${rel}: HTTP ${r.status}`);
+    return r.json();
+  }));
+  try { return await wasmCache.get(rel); } catch (e) { wasmCache.delete(rel); throw e; }
+}
+const wasmMissing = (e) => `<p class="err">The Wasm page data is not available here (${esc(e.message || e)}). ` +
+  "It is written by <code>wasm-pages</code> (<code>make pages</code>) next to the page.</p>";
+const wlink = (kind, slug, text) => `<a href="#/wasm-${kind}/${encodeURIComponent(slug)}">${esc(text)}</a>`;
+const flink = (slug, idx, text) => `<a href="#/wasm-func/${encodeURIComponent(slug)}/${idx}">${esc(text)}</a>`;
+const kindTag = (k) => `<span class="prov prov-browser" title="what this page is">${esc(k)}</span>`;
+function runBadge(detail) {
+  const t = "computed at build time by running Lean library code (not a kernel check)" + (detail ? ": " + detail : "");
+  return `<span class="prov prov-run" title="${esc(t)}">Lean, runtime${detail ? ": " + esc(detail) : ""}</span>`;
+}
+const SYNTAX_CFG = "Syntactic block CFG — incomplete, not an execution model: flow edges follow structured control " +
+  "(Silmaril.Wasm.Cfg.Edge, which the builder blockCfg is proved to compute), effect edges mark possible traps and raises; " +
+  "no theorem says executions follow this graph.";
+const SYNTAX_CALLS = "Syntactic call graph — read from the call instructions, not from execution: one edge per (caller, callee, kind), " +
+  "call_indirect and call_ref go to explicit “unknown callee” nodes. Not proved to cover all runtime calls; no theorem connects it to the semantics.";
+// The block CFGs with a Lean kernel-checked dominator table (machine documents loaded by
+// examples/project/ProjectSelfTest/WasmBlockCfg.lean), by module slug and function index.
+const KERNEL_CFG = {
+  "silmaril.wasm.examples.verified.prog/3": "silmaril.wasm.blockcfg.verified.sum",
+  "silmaril.wasm.cfg.examples.mod/0": "silmaril.wasm.blockcfg.dispatch",
+  "silmaril.wasm.cfg.examples.mod/1": "silmaril.wasm.blockcfg.specials",
+  "silmaril.wasm.cfg.examples.effects/1": "silmaril.wasm.blockcfg.guarded",
+  "silmaril.wasm.examples.rust_door/5": "silmaril.wasm.blockcfg.rust_door.enter",
+};
+function sourceDl(s, size) {
+  const rows = [["kind", s.kind], ["name", s.name], ["registered CID (BLAKE3)", s.cid], ["registered SHA-256", s.sha256],
+    ["path", s.path], ["size", size == null ? null : size + " B"], ["note", s.doc]];
+  return "<dl>" + rows.filter(([, v]) => v != null && v !== "").map(([k, v]) => `<dt>${esc(k)}</dt><dd>${
+    k === "registered CID (BLAKE3)" ? `<a href="${href("artifact", v)}">${esc(v)}</a>` : esc(v)}</dd>`).join("") + "</dl>";
+}
+// Downloads, the page's own SHA-256 of the downloaded bytes, and the WAT.
+function filesBlock(slug, d) {
+  let h = '<div class="controls">';
+  if (d.hasBlob) h += `<a href="wasm/blob/${encodeURIComponent(slug)}.wasm" download>download .wasm</a>` +
+    ` <button id="wsha">SHA-256 of the download</button> <span id="wshaout" class="muted"></span>`;
+  else h += '<span class="muted">no bytes</span>';
+  if (!/^not printed|^no WAT/.test(d.watNote || "")) h += ` · <a href="wasm/wat/${encodeURIComponent(slug)}.wat" target="_blank">WAT</a>`;
+  h += `</div><p class="muted">WAT: ${esc(d.watNote || "")}</p>`;
+  return h;
+}
+function wireSha(slug) {
+  const b = $("#wsha");
+  if (!b) return;
+  b.addEventListener("click", async () => {
+    $("#wshaout").textContent = "…";
+    try {
+      const buf = await (await fetch(`wasm/blob/${encodeURIComponent(slug)}.wasm`)).arrayBuffer();
+      const h = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))].map((x) => x.toString(16).padStart(2, "0")).join("");
+      $("#wshaout").innerHTML = `<code>${h}</code> (${buf.byteLength} B, ${provBadge("browser")})`;
+    } catch (e) { $("#wshaout").textContent = String(e.message || e); }
+  });
+}
+function simpleTable(rows, cols) {
+  if (!rows.length) return '<p class="muted">(none)</p>';
+  return '<div class="tablebox"><table><thead><tr>' + cols.map(([c]) => `<th>${esc(c)}</th>`).join("") + "</tr></thead><tbody>" +
+    rows.map((r) => "<tr>" + cols.map(([, f]) => `<td>${f(r)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>";
+}
+async function wasmPage() {
+  let ix;
+  try { ix = await wasmJson("index.json"); } catch (e) { return wasmMissing(e); }
+  const top = (xs) => xs.filter((x) => !x.source.parent);
+  const sub = (xs) => xs.filter((x) => x.source.parent);
+  let h = "<h2>Wasm</h2><p>Components, core modules and their functions: the Wasm blobs of the artifact registry " +
+    "(<code>silmaril/artifacts.toml</code>), the modules and components inside them, and example modules that are Lean values. " +
+    `Decoded, printed and validated at build time by the Lean library (${runBadge()}); see each page for what is proved.</p>`;
+  const compCols = [["component", (c) => wlink("component", c.slug, c.title)], ["size", (c) => c.size + " B"],
+    ["imports", (c) => c.imports ?? ""], ["exports", (c) => c.exports ?? ""], ["core modules", (c) => c.modules ?? ""],
+    ["components", (c) => c.components ?? ""], ["source", (c) => esc(c.source.kind)]];
+  const modCols = [["module", (m) => wlink("module", m.slug, m.title)], ["size", (m) => m.size == null ? "" : m.size + " B"],
+    ["functions", (m) => m.funcs ?? ""], ["defined", (m) => m.defined ?? ""], ["imports", (m) => m.imports ?? ""],
+    ["exports", (m) => m.exports ?? ""], ["source", (m) => esc(m.source.kind)],
+    ["inside", (m) => m.source.parent ? wlink("component", ix.components.find((c) => c.id === m.source.parent)?.slug || "", m.source.parent) : ""]];
+  h += `<h2>Components (${top(ix.components).length} registered, ${sub(ix.components).length} nested)</h2>` + simpleTable(top(ix.components).concat(sub(ix.components)), compCols);
+  h += `<h2>Core modules (${top(ix.modules).length} top-level, ${sub(ix.modules).length} inside components)</h2>` + simpleTable(top(ix.modules).concat(sub(ix.modules)), modCols);
+  return h;
+}
+async function wasmComponentPage(slug) {
+  let c, ix;
+  try { [c, ix] = await Promise.all([wasmJson(`c/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
+  const s = c.summary;
+  let h = `<h2>${kindTag("component")} <code>${esc(s.title)}</code></h2>`;
+  if (s.source.parent) {
+    const p = ix.components.find((x) => x.id === s.source.parent);
+    h += `<p>inside ${p ? wlink("component", p.slug, p.title) : esc(s.source.parent)}</p>`;
+  }
+  h += sourceDl(s.source, s.size) + filesBlock(s.slug, c);
+  if (c.unsupported) return { html: h + `<p class="err">Unsupported: ${esc(c.unsupported)}</p>`, init: () => wireSha(s.slug) };
+  h += `<p class="muted">Decoded by <code>Silmaril.Wasm.Component.Binary.parse</code> ${runBadge()}. Not validated as a component here: ` +
+    "the component validator is a tested transcription, not proved (see tools/wasm-tools/README.md).</p>";
+  h += "<h2>Children</h2>" + simpleTable(c.children, [["kind", (x) => esc(x.kind)], ["index", (x) => x.index],
+    ["page", (x) => x.unsupported ? `<span class="err">${esc(x.unsupported)}</span>` : wlink(x.kind, x.slug, x.id)]]);
+  const modSlug = (i) => (c.children.find((x) => x.kind === "module" && x.index === i) || {}).slug;
+  h += "<h2>Core instances</h2>" + simpleTable(c.coreInstances.map((x, i) => Object.assign({ i }, x)), [["#", (x) => x.i],
+    ["kind", (x) => esc(x.kind)],
+    ["what", (x) => x.kind === "instantiate"
+      ? "instantiate " + (modSlug(x.module) ? wlink("module", modSlug(x.module), "core module " + x.module) : "core module " + x.module) +
+        (x.args.length ? " with " + x.args.map(([n, i]) => `${esc(n)} = core instance ${i}`).join(", ") : "")
+      : "exports " + x.names.map(esc).join(", ")]]);
+  if (c.instances.length) h += "<h2>Component instances</h2>" + simpleTable(c.instances, [["kind", (x) => esc(x.kind)],
+    ["what", (x) => x.kind === "instantiate" ? `instantiate component ${x.component}` + (x.args.length ? " with " + x.args.map(esc).join(", ") : "") : "exports " + x.names.map(esc).join(", ")]]);
+  h += "<h2>Imports</h2>" + simpleTable(c.imports, [["name", (x) => `<code>${esc(x.name)}</code>`], ["kind", (x) => esc(x.kind)]]);
+  h += "<h2>Exports</h2>" + simpleTable(c.exports, [["name", (x) => `<code>${esc(x.name)}</code>`], ["sort", (x) => esc(x.kind)], ["index", (x) => x.idx]]);
+  if (c.canons.length) h += "<h2>Canonical functions</h2>" + simpleTable(c.canons.map((t) => ({ t })), [["canon", (x) => `<code>${esc(x.t)}</code>`]]);
+  h += "<h2>WIT</h2>" + (c.wit.text ? `<p class="muted">${esc(c.wit.note)}</p><pre class="code">${esc(c.wit.text)}</pre>`
+    : `<p class="muted">${esc(c.wit.note)}</p>`);
+  if (c.customs.length) h += `<p class="muted">custom sections: ${c.customs.map(esc).join(", ")}</p>`;
+  return { html: h, init: () => wireSha(s.slug) };
+}
+function graphStyle(extra) {
+  return [{ selector: "node", style: { label: "data(label)", "text-wrap": "wrap", "text-max-width": 260, "font-size": 12,
+      "text-valign": "center", "text-halign": "center", shape: "round-rectangle", width: "label", height: "label", padding: 8,
+      "background-color": "#fff", "border-width": 1.5, "border-color": "#2f5d9e", color: "#1d2329" } },
+    { selector: "node[kind = 'import']", style: { "border-style": "dashed", "border-color": "#8a939c", "background-color": "#f4f6f8" } },
+    { selector: "node[kind = 'unknown']", style: { shape: "diamond", "border-color": "#d9a400", "background-color": "#fff6dc", padding: 14 } },
+    { selector: "node[kind = 'special']", style: { "border-color": "#d64545" } },
+    { selector: "node[kind = 'exit']", style: { "border-color": "#2e9d4f", "border-width": 3 } },
+    { selector: "node[entry = 1]", style: { "border-width": 4 } },
+    { selector: "node[focus = 1]", style: { "underlay-color": "#f2c94c", "underlay-opacity": 0.6, "underlay-padding": 6 } },
+    { selector: "edge", style: { label: "data(label)", "font-size": 10, "curve-style": "bezier", "target-arrow-shape": "triangle", width: 1.3,
+      "line-color": "#8a939c", "target-arrow-color": "#8a939c", "text-background-color": "#fbfbfa", "text-background-opacity": 0.85 } },
+    { selector: "edge[kind = 'effect']", style: { "line-style": "dashed", "line-color": "#d64545", "target-arrow-color": "#d64545", color: "#b03030" } },
+    { selector: "edge[kind = 'tail']", style: { "line-style": "dotted" } },
+    { selector: "edge[back = 1]", style: { "line-color": "#2f5d9e", "target-arrow-color": "#2f5d9e", width: 2 } },
+    { selector: ":selected", style: { "overlay-color": "#2f5d9e", "overlay-opacity": 0.2 } }].concat(extra || []);
+}
+function zoomControls() {
+  return '<button id="wfit">fit</button><button id="wzin">+</button><button id="wzout">−</button>';
+}
+function wireZoomButtons() {
+  $("#wfit").addEventListener("click", () => wcy && wcy.fit(undefined, 30));
+  $("#wzin").addEventListener("click", () => wcy && wcy.zoom({ level: wcy.zoom() * 1.3, renderedPosition: { x: wcy.width() / 2, y: wcy.height() / 2 } }));
+  $("#wzout").addEventListener("click", () => wcy && wcy.zoom({ level: wcy.zoom() / 1.3, renderedPosition: { x: wcy.width() / 2, y: wcy.height() / 2 } }));
+}
+// A large graph fitted to the box is unreadable: then start at a readable zoom on the entry.
+function wireZoom(focusId, top) {
+  if (wcy.zoom() >= 0.55) return;
+  const n = focusId && wcy.getElementById(focusId);
+  wcy.zoom(0.85);
+  if (!n || !n.length) { wcy.center(); return; }
+  if (top) { const p = n.position(); wcy.pan({ x: wcy.width() / 2 - p.x * 0.85, y: 50 - p.y * 0.85 }); }
+  else wcy.center(n);
+}
+function fname(f) { return f.display || f.name || (f.imported ? f.import : `func ${f.idx}`); }
+async function wasmModulePage(slug) {
+  let m, ix;
+  try { [m, ix] = await Promise.all([wasmJson(`m/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
+  const s = m.summary;
+  let h = `<h2>${kindTag("core module")} <code>${esc(s.title)}</code></h2>`;
+  if (s.source.parent) {
+    const p = ix.components.find((x) => x.id === s.source.parent);
+    h += `<p>inside ${p ? wlink("component", p.slug, p.title) : esc(s.source.parent)}</p>`;
+  }
+  h += sourceDl(s.source, s.size) + filesBlock(s.slug, m);
+  if (m.unsupported) return { html: h + `<p class="err">Unsupported: ${esc(m.unsupported)}</p>`, init: () => wireSha(s.slug) };
+  const v = m.validity;
+  h += `<p>validation: <b>${esc(v.status)}</b> ${v.status === "valid" || v.status === "rejected" ? runBadge(v.note) : `<span class="muted">${esc(v.note)}</span>`}</p>`;
+  const nCalls = m.calls.length, unknown = m.calls.filter((c) => typeof c[1] === "string").length;
+  h += `<h2>Call graph</h2><p class="muted">${esc(SYNTAX_CALLS)}</p>`;
+  h += `<div class="controls"><label>focus <select id="wfocus" style="max-width:420px"><option value="">whole module</option>${m.functions.filter((f) => !f.imported).map((f) =>
+    `<option value="${f.idx}">${esc(f.idx + " " + fname(f))}</option>`).join("")}</select></label>` +
+    `<label><input type="checkbox" id="wimports" checked> imports</label> ${zoomControls()}` +
+    `<span class="muted">${nCalls} edges (${unknown} to unknown callees); click a function to open it. Dashed: imported; diamond: unknown callee.</span></div>`;
+  h += '<div id="wcy" style="height:70vh;min-height:420px;border:1px solid var(--line);background:var(--panel)"></div>';
+  if (m.addressTaken.length) h += `<p class="muted">Address-taken functions (element segments, <code>ref.func</code>), the syntactic candidates of indirect calls (not resolved): ${
+    m.addressTaken.map((i) => { const f = m.functions[i]; return f && !f.imported ? flink(s.slug, i, i + " " + fname(f)) : esc(i); }).join(", ")}</p>`;
+  h += "<h2>Functions</h2>" + simpleTable(m.functions, [["idx", (f) => f.idx],
+    ["name", (f) => f.imported ? `<span class="muted">import</span> <code>${esc(f.import)}</code>` : flink(s.slug, f.idx, fname(f))],
+    ["export", (f) => f.export ? `<code>${esc(f.export)}</code>` : ""], ["signature", (f) => `<code>${esc(f.sig)}</code>`],
+    ["instrs", (f) => f.instrs ?? ""], ["blocks", (f) => f.blocks ?? ""], ["effect marks", (f) => (f.effects || []).map(esc).join(", ")]]);
+  h += "<h2>Imports</h2>" + simpleTable(m.imports, [["module", (x) => `<code>${esc(x.module)}</code>`], ["name", (x) => `<code>${esc(x.name)}</code>`], ["kind", (x) => esc(x.kind)]]);
+  h += "<h2>Exports</h2>" + simpleTable(m.exports, [["name", (x) => `<code>${esc(x.name)}</code>`], ["kind", (x) => esc(x.kind)],
+    ["index", (x) => x.kind === "func" && m.functions[x.idx] && !m.functions[x.idx].imported ? flink(s.slug, x.idx, String(x.idx)) : x.idx]]);
+  if (m.start != null) h += `<p>start function: ${flink(s.slug, m.start, String(m.start))}</p>`;
+  const init = () => {
+    wireSha(s.slug);
+    const draw = () => {
+      if (wcy) wcy.destroy();
+      const focus = $("#wfocus").value, withImports = $("#wimports").checked;
+      let edges = m.calls.map(([a, b, kind, n]) => ({ a, b: typeof b === "string" ? "u:" + b : b, kind, n }));
+      if (!withImports) edges = edges.filter((e) => typeof e.b !== "number" || !m.functions[e.b].imported);
+      if (focus !== "") { const f = Number(focus); edges = edges.filter((e) => e.a === f || e.b === f); }
+      const ids = new Set(edges.flatMap((e) => [e.a, e.b]));
+      if (focus !== "") ids.add(Number(focus));
+      else for (const f of m.functions) if (!f.imported) ids.add(f.idx);
+      const els = [...ids].map((id) => {
+        if (typeof id === "string") return { data: { id: "n" + id, label: id.slice(2).replace(": ", "\n"), kind: "unknown" } };
+        const f = m.functions[id];
+        return { data: { id: "n" + id, idx: id, label: `${id} ${fname(f)}` + (f.export ? `\nexport ${f.export}` : ""),
+          kind: f.imported ? "import" : "defined", focus: String(id) === focus ? 1 : 0 } };
+      });
+      edges.forEach((e, i) => els.push({ data: { id: "e" + i, source: "n" + e.a, target: "n" + e.b, kind: e.kind,
+        label: (e.kind === "direct" ? "" : e.kind) + (e.n > 1 ? ` ×${e.n}` : "") } }));
+      wcy = cytoscape({ container: $("#wcy"), elements: els, minZoom: 0.05, maxZoom: 3, wheelSensitivity: 0.25, style: graphStyle(),
+        layout: { name: "dagre", rankDir: "LR", nodeSep: 18, rankSep: 70, animate: false } });
+      wcy.on("tap", "node", (ev) => { const i = ev.target.data("idx"); if (i != null && !m.functions[i].imported) location.hash = `#/wasm-func/${encodeURIComponent(s.slug)}/${i}`; });
+      wireZoom(focus !== "" ? "n" + focus : null);
+    };
+    wireZoomButtons();
+    $("#wfocus").addEventListener("change", draw);
+    $("#wimports").addEventListener("change", draw);
+    if (m.functions.length > 80) {
+      // large modules start focused on the first exported function
+      const f = m.functions.find((x) => !x.imported && x.export);
+      if (f) $("#wfocus").value = String(f.idx);
+    }
+    draw();
+  };
+  return { html: h, init };
+}
+async function wasmFuncPage(arg) {
+  const k = arg.lastIndexOf("/"), slug = arg.slice(0, k), idx = Number(arg.slice(k + 1));
+  let m;
+  try { m = await wasmJson(`m/${slug}.json`); } catch (e) { return wasmMissing(e); }
+  const f = m.functions[idx], body = (m.bodies || []).find((b) => b.idx === idx);
+  if (!f || !body) return `<p class="err">no defined function ${esc(idx)} in ${esc(slug)}</p>`;
+  const s = m.summary, cfg = body.cfg;
+  let h = `<h2>${kindTag("function")} <code>${esc(fname(f))}</code> <span class="muted">(function ${idx} of ${wlink("module", s.slug, s.title)})</span></h2>`;
+  h += "<dl>" + [["symbol", f.display ? f.name + " (demangled above by wasm-tools demangle in Lean)" : null], ["signature", f.sig], ["export", f.export], ["locals", f.locals], ["instructions", f.instrs], ["basic blocks", f.blocks],
+    ["effect marks", (f.effects || []).join(", ") || "none"]].filter(([, v]) => v != null).map(([a, b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join("") + "</dl>";
+  const callers = m.calls.filter((c) => c[1] === idx).map((c) => c[0]), callees = m.calls.filter((c) => c[0] === idx);
+  h += `<p>calls: ${callees.length ? callees.map(([, b, kind, n]) => typeof b === "string" ? `<span class="prov prov-gen">${esc(b)}</span>` :
+    (m.functions[b].imported ? `<code>${esc(m.functions[b].import)}</code>` : flink(s.slug, b, fname(m.functions[b]))) + (kind !== "direct" ? ` (${esc(kind)})` : "") + (n > 1 ? ` ×${n}` : "")).join(", ") : "none"}` +
+    ` · called by: ${callers.length ? callers.map((a) => flink(s.slug, a, fname(m.functions[a]))).join(", ") : "no call instruction in this module"} <span class="muted">(syntactic)</span></p>`;
+  const kc = KERNEL_CFG[`${s.slug}/${idx}`];
+  h += `<h2>Control-flow graph (basic blocks)</h2><p class="muted">${esc(SYNTAX_CFG)}</p>`;
+  h += `<p>blocks and flow edges: ${runBadge("Silmaril.Wasm.Cfg.blockCfg, proved to compute Edge (blockCfg_eq, edge_iff)")}` +
+    (kc ? ` · the same graph as the machine document ${link("machine", kc)}, whose dominator table is Lean kernel-checked` : "") + "</p>";
+  h += `<div class="controls"><button id="wflat">Flat CFG</button><button id="wdom">Dominator tree</button>` +
+    `<label><input type="checkbox" id="weff" checked> effect edges</label> ${zoomControls()} <span id="wprov"></span></div>`;
+  h += '<div id="wgraphwrap" style="display:flex;gap:12px;height:72vh;min-height:440px">' +
+    '<div id="wcy" style="flex:1 1 auto;border:1px solid var(--line);background:var(--panel);min-width:0"></div>' +
+    '<div id="wside" style="flex:0 0 340px;overflow:auto;border:1px solid var(--line);background:var(--panel);padding:8px 10px" class="muted">Click a block for its instructions.</div></div>';
+  h += `<h2>WAT</h2><p class="muted">printed from the decoded AST by Silmaril's printer (Silmaril.Wasm.Tools.Gen.Cmd.Print) ${runBadge()}</p><pre class="code">${esc(body.wat)}</pre>`;
+  h += `<h2>Semantics</h2><p class="muted">Statements, not decided facts. This function's behaviours are defined by the Core 3.0 semantics; ` +
+    "<code>Silmaril.Wasm.Abstract.wasmFun</code> is it as an abstract function (<code>image_wasmFun</code>). Whether it may trap, diverge or is " +
+    "deterministic are open statements for this function (no theorem about it is recorded here). The effect marks above are syntactic “may” marks.</p>";
+  const nodeId = (t) => typeof t === "number" ? "b" + t : t;
+  const blockLabel = (b, i) => `b${i}${b.path ? " [" + b.path + "]" : ""}.${b.pos}: ${b.instrs.length} instrs → ${b.term || "falls through"}` +
+    (b.effects.length ? `\n{${b.effects.join(", ")}}` : "");
+  const init = () => {
+    const flat = () => {
+      if (wcy) wcy.destroy();
+      const withEff = $("#weff").checked;
+      const used = new Set(["exit"]);
+      for (const [, t, kind] of cfg.edges) if (kind === "flow" || withEff) used.add(nodeId(t));
+      const els = cfg.blocks.map((b, i) => ({ data: { id: "b" + i, label: blockLabel(b, i), kind: "block", entry: cfg.entry === i ? 1 : 0 } }));
+      for (const t of ["exit", "trap", "raise", "invalid"]) if (used.has(t)) els.push({ data: { id: t, label: t, kind: t === "exit" ? "exit" : "special" } });
+      cfg.edges.forEach(([a, t, kind], i) => {
+        if (kind === "effect" && !withEff) return;
+        const back = typeof t === "number" && t <= a ? 1 : 0;
+        els.push({ data: { id: "e" + i, source: "b" + a, target: nodeId(t), kind, back, label: kind === "effect" ? "may" : "" } });
+      });
+      wcy = cytoscape({ container: $("#wcy"), elements: els, minZoom: 0.05, maxZoom: 3, wheelSensitivity: 0.25, style: graphStyle(),
+        layout: { name: "dagre", rankDir: "TB", nodeSep: 25, rankSep: 45, animate: false } });
+      $("#wprov").innerHTML = '<span class="muted">flat CFG; back edges (to an earlier block) in blue, effect edges dashed red</span>';
+      wcy.on("tap", "node", (ev) => {
+        const id = ev.target.id();
+        if (!/^b\d+$/.test(id)) return;
+        const b = cfg.blocks[Number(id.slice(1))];
+        const out = cfg.edges.filter(([a]) => "b" + a === id).map(([, t, kind]) => `${kind} → ${typeof t === "number" ? "b" + t : t}`);
+        $("#wside").classList.remove("muted");
+        $("#wside").innerHTML = `<b>${esc(blockLabel(b, Number(id.slice(1))))}</b><pre class="code">${esc(b.instrs.concat(b.term ? [b.term] : []).join("\n") || "(empty)")}</pre>` +
+          `successors: ${out.map(esc).join(", ") || "none"}`;
+      });
+      wireZoom(typeof cfg.entry === "number" ? "b" + cfg.entry : null, true);
+    };
+    const dom = () => {
+      if (wcy) wcy.destroy();
+      const nodes = cfg.blocks.map((b, i) => "b" + i).concat(["exit", "trap", "raise", "invalid"]);
+      const edges = cfg.edges.filter(([, , kind]) => kind === "flow").map(([a, t]) => ["b" + a, nodeId(t)]);
+      const entry = nodeId(cfg.entry);
+      const r = dominators(nodes, edges, [entry]);
+      const labelOf = (n) => /^b\d+$/.test(n) ? blockLabel(cfg.blocks[Number(n.slice(1))], Number(n.slice(1))) : n;
+      wcy = drawDomTree($("#wcy"), nodes, r.idom, labelOf, { "font-size": 12, "text-wrap": "wrap", height: "label" });
+      const unreach = nodes.filter((n) => !r.idom.has(n));
+      $("#wprov").innerHTML = provBadge("browser") + ` <span class="muted">immediate dominators of the flow edges from ${esc(entry)}` +
+        (kc ? `; a Lean kernel-checked table for this graph: ${link("machine", kc)}` : "") +
+        `. A fact about the graph as drawn, not about execution.${unreach.length ? " Unreachable: " + esc(unreach.join(", ")) : ""}</span>`;
+      wireZoom(entry, true);
+    };
+    wireZoomButtons();
+    $("#wflat").addEventListener("click", flat);
+    $("#wdom").addEventListener("click", dom);
+    $("#weff").addEventListener("change", flat);
+    flat();
+  };
+  return { html: h, init };
 }
 
 // ---------- SQL: query, schema, about ----------

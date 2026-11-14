@@ -33,7 +33,7 @@ CERBERUS_TARGETS := CerberusTests cerb-lean ail-lean core-lean core-elab cfront 
 	ci_cerberus_parameter_call
 # The C compiler's executables (docs/projects/ccomp.md).
 CCOMP_TARGETS := ccomp ccomp-legacy ccomp-verified csem decompile
-CHECK_TARGETS ?= Silmaril SilmarilSpecTec SilmarilSpecTecMeta SilmarilWasiWit SilmarilWasmProject ProjectSelfTest $(WASM_TOOLS) wasm-shell-lean $(CERBERUS_TARGETS) SysVTvExample CompilesToExamples $(CCOMP_TARGETS)
+CHECK_TARGETS ?= Silmaril SilmarilSpecTec SilmarilSpecTecMeta SilmarilWasiWit SilmarilWasmProject ProjectSelfTest wasm-pages $(WASM_TOOLS) wasm-shell-lean $(CERBERUS_TARGETS) SysVTvExample CompilesToExamples $(CCOMP_TARGETS)
 
 # Files Lake never reads; only the source gates in `make check` read them.
 SCOPE_EXCLUDE := 'docs/**' '**/*.md' 'scripts/**' 'apps/**' 'problems/**' 'specs/wasm/**' \
@@ -143,6 +143,9 @@ pages: project-tool
 	mkdir -p _site
 	cp .lake/silmaril/project.sqlite _site/project.sqlite
 	build/bin/silmaril-project explore --db _site/project.sqlite --out _site/index.html
+	# The Wasm component, module and function pages read static files next to the page.
+	lake build wasm-pages
+	.lake/build/bin/wasm-pages silmaril/artifacts.toml _site
 
 # The registry and records checks, without Lean (what CI runs when their inputs change).
 project-registry: project-tool

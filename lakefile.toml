@@ -462,6 +462,12 @@ name = "wasm-wit"
 root = "WasmWit"
 srcDir = "tools/wasm-wit"
 
+# The data of the explorer's Wasm component, module and function pages (`make pages`).
+[[lean_exe]]
+name = "wasm-pages"
+root = "WasmPages"
+srcDir = "tools/wasm-pages"
+
 [[lean_exe]]
 name = "wasm-perf"
 root = "WasmPerf"
