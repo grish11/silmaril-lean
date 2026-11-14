@@ -1060,8 +1060,10 @@ async function wasmFuncPage(arg) {
     "<code>reflects_trapDivEq</code>); <code>image_wasmFun</code> ties <code>wasmFun</code> to <code>behaviours</code>.</li>" +
     "<li>Whether this function may trap, diverge, or is deterministic (<code>AFun.MayTrap</code>, <code>MayDiv</code>, <code>Det</code>, …) " +
     "is an open statement here: no theorem about this function is recorded. The effect marks above are syntactic “may” marks.</li>" +
-    "<li>Abstract bodies <code>Silmaril.Wasm.Abstract.Body.BodyM</code> form a lawful Elgot monad (<code>bodyM_lawfulElgot</code>). " +
-    "Open: no concrete Core 3.0 body is yet proved to realise a <code>BodyM</code> morphism, so this CFG is not connected to it.</li></ul>";
+    "<li>Abstract bodies <code>Silmaril.Wasm.Abstract.Body.BodyM</code> form a lawful Elgot monad (<code>bodyM_lawfulElgot</code>); " +
+    "they are a deterministic-given-inputs submodel (<code>toAFun_det</code>; <code>exists_not_denoted</code>: some nondeterministic " +
+    "trace-set functions are denoted by no body), so their facts are not facts about arbitrary trace-set semantics. " +
+    "Open: no concrete Core 3.0 body is yet proved to realise either model, so this CFG is not connected to them.</li></ul>";
   const nodeId = (t) => typeof t === "number" ? "b" + t : t;
   const blockLabel = (b, i) => `b${i}${b.path ? " [" + b.path + "]" : ""}.${b.pos}: ${b.instrs.length} instrs → ${b.term || "falls through"}` +
     (b.effects.length ? `\n{${b.effects.join(", ")}}` : "");
