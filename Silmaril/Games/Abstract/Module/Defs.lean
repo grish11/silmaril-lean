@@ -182,8 +182,10 @@ def lift (c : sh.ClosedMod) : sh.OpenMod := fun f s a =>
   (fun y => (y.1.map fun x => (⟨.inl x.1, x.2⟩ : Call (sh.E ⊕ₛ sh.self)), y.2)) '' c f s a
 
 /-- `m` makes internal calls only along `R`: if a behaviour of `f` calls `g`,
-then `R g f` (read "`f` may call `g`"). A static call graph is such an `R` when
-it over-approximates every internal call. -/
+then `R g f` (read "`f` may call `g`"). An extracted call graph is such an `R`
+only once it is *proved* to contain every internal call the semantics makes. No
+extracted Wasm call graph has such a proof yet, so `RespectsCalls` is a
+hypothesis of the theorems that use it, never a fact about an extracted graph. -/
 def RespectsCalls (R : sh.F → sh.F → Prop) (m : sh.OpenMod) : Prop :=
   ∀ f s a x, x ∈ m f s a → ∀ y ∈ x.1, ∀ c : sh.self.Op, y.1 = .inr c → R c.1 f
 
