@@ -1046,14 +1046,27 @@ async function wasmModulePage(slug) {
   return { html: h, init };
 }
 async function wasmFuncPage(arg) {
-  // #/wasm-func/<module slug>/<function index>[/<node>]: the node (b<k>, exit, trap, raise, invalid) is selected.
-  const am = /^(.*)\/(\d+)(?:\/(b\d+|exit|trap|raise|invalid))?$/.exec(arg) || [null, arg, "NaN", null];
-  const slug = am[1], idx = Number(am[2]), focusId = am[3] || null;
+  // #/wasm-func/<module slug>/<function index>[/@<variant>][/<node>]: the graph variant (a key of
+  // cfg.variants, or "top" for the top-level graph) and the selected node (b<k>, exit, trap, raise, invalid).
+  const am = /^(.*)\/(\d+)(?:\/@([A-Za-z0-9._-]+))?(?:\/(b\d+|exit|trap|raise|invalid))?$/.exec(arg) || [null, arg, "NaN", null, null];
+  const slug = am[1], idx = Number(am[2]), askedVariant = am[3] || null, focusId = am[4] || null;
   let m, ix;
   try { [m, ix] = await Promise.all([wasmJson(`m/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
   const f = m.functions[idx], body = (m.bodies || []).find((b) => b.idx === idx);
   if (!f || !body) return `<p class="err">no defined function ${esc(idx)} in ${esc(slug)}</p>`;
-  const s = m.summary, cfg = body.cfg;
+  const s = m.summary, top = body.cfg;
+  // Graph variants (issue #231): the top-level graph is the explicit-sink model unless `model` says
+  // otherwise; `variants` are other graphs of the same body, `default` names the one shown first.
+  // Nothing here derives a variant: each is drawn exactly as the page data gives it.
+  const variants = Object.fromEntries(Object.entries(top.variants && typeof top.variants === "object" ? top.variants : {})
+    .filter(([k, v]) => k !== "top" && /^[A-Za-z0-9._-]+$/.test(k) && v && Array.isArray(v.edges)));
+  const has = (k) => k != null && Object.hasOwn(variants, k);
+  // An unknown variant in a link falls back to the data's default, like no variant.
+  const vname = askedVariant === "top" ? "top" : has(askedVariant) ? askedVariant : has(top.default) ? top.default : "top";
+  const V = vname === "top" ? top : variants[vname];
+  const cfg = { model: V.model || (vname === "top" ? "explicit-sink" : "unspecified"), label: V.label, note: V.note, relation: V.relation,
+    entry: V.entry, blocks: V.blocks || top.blocks, edges: V.edges || [], bases: V.bases };
+  const legacy = vname === "top" && cfg.model === "explicit-sink";
   let h = `<h2>${kindTag("function")} <code>${esc(fname(f))}</code> <span class="muted">(function ${idx} of ${wlink("module", s.slug, s.title)})</span></h2>`;
   h += crumbs(ix, s.source.parent);
   h += "<dl>" + [["symbol", f.display ? f.name + " (demangled above by wasm-tools demangle in Lean)" : null], ["signature", f.sig], ["export", f.export], ["locals", f.locals], ["instructions", f.instrs], ["basic blocks", f.blocks],
@@ -1062,13 +1075,14 @@ async function wasmFuncPage(arg) {
   h += `<p>calls: ${callees.length ? callees.map(([, b, kind, n]) => typeof b === "string" ? `<span class="prov prov-gen">${esc(b)}</span>` :
     (m.functions[b].imported ? `<code>${esc(m.functions[b].import)}</code>` : flink(s.slug, b, fname(m.functions[b]))) + (kind !== "direct" ? ` (${esc(kind)})` : "") + (n > 1 ? ` ×${n}` : "")).join(", ") : "none"}` +
     ` · called by: ${callers.length ? callers.map((a) => flink(s.slug, a, fname(m.functions[a]))).join(", ") : "no call instruction in this module"} <span class="muted">(syntactic)</span></p>`;
-  const kc = KERNEL_CFG[`${s.slug}/${idx}`];
+  const kc = legacy ? KERNEL_CFG[`${s.slug}/${idx}`] : null;
   // The edges as written by wasm-pages: `flow` edges are Cfg.Edge (blockCfg), `effect` edges are
   // the "may" edges of Cfg.EffectEdge. Every edge stays in `E`, whatever is drawn: the inspector,
   // the counts and the dominators read `E`, never the drawn graph.
   const tid = (t) => typeof t === "number" ? "b" + t : t;
   const E = cfg.edges.map(([a, t, kind], i) => ({ i, src: "b" + a, a, tgt: tid(t), may: kind === "effect", kind }));
   const flowE = E.filter((e) => !e.may), mayE = E.filter((e) => e.may);
+  const kinds = [...new Set(E.map((e) => e.kind))];
   const outOf = new Map(), into = new Map();
   for (const e of E) {
     if (!outOf.has(e.src)) outOf.set(e.src, []); outOf.get(e.src).push(e);
@@ -1076,21 +1090,40 @@ async function wasmFuncPage(arg) {
   }
   const mayTgts = (id) => (outOf.get(id) || []).filter((e) => e.may).map((e) => e.tgt);
   const cnt = (xs, t) => xs.filter((e) => e.tgt === t).length;
-  const C = { flow: flowE.length, may: mayE.length, flowTrap: cnt(flowE, "trap"), flowRaise: cnt(flowE, "raise"),
+  const C = { flow: E.filter((e) => e.kind === "flow").length, may: mayE.length, flowTrap: cnt(flowE, "trap"), flowRaise: cnt(flowE, "raise"),
     mayTrap: cnt(mayE, "trap"), mayRaise: cnt(mayE, "raise"), marked: cfg.blocks.filter((b) => b.effects.length).length,
     mayFrom: new Set(mayE.map((e) => e.src)).size };
   const specials = ["exit", "trap", "raise", "invalid"].filter((t) => t === "exit" || into.has(t) || cfg.entry === t);
-  // Dominators on two explicit bases; the flow-only one is the default.
+  // Dominator bases: named edge sets (by kind), from the data or, when it names none, flow edges
+  // (the default) and flow + effect. Each tree is computed on its own basis, whatever is drawn.
+  const BASES = (Array.isArray(cfg.bases) && cfg.bases.length ? cfg.bases : [{ id: "flow", kinds: ["flow"] },
+    { id: "flow+effect", kinds: ["flow", "effect"], kernelTable: kc || undefined }])
+    .filter((b) => b && typeof b.id === "string" && Array.isArray(b.kinds));
+  const basisDefault = (BASES.find((b) => b.default) || BASES[0]).id;
+  const basisOf = (id) => BASES.find((b) => b.id === id);
+  const basisEdges = (id) => E.filter((e) => basisOf(id).kinds.includes(e.kind));
+  const basisText = (id) => { const b = basisOf(id); return b.label || b.kinds.join(" + ") + (b.kinds.length === 1 ? " edges" : ""); };
   const domNodes = cfg.blocks.map((b, i) => "b" + i).concat(["exit", "trap", "raise", "invalid"]);
   const domEntry = tid(cfg.entry);
-  const DOM = {
-    flow: dominators(domNodes, flowE.map((e) => [e.src, e.tgt]), [domEntry]),
-    all: dominators(domNodes, E.map((e) => [e.src, e.tgt]), [domEntry]) };
-  const domDiff = domNodes.filter((n) => DOM.flow.idom.get(n) !== DOM.all.idom.get(n));
+  const DOM = Object.fromEntries(BASES.map((b) => [b.id, dominators(domNodes, basisEdges(b.id).map((e) => [e.src, e.tgt]), [domEntry])]));
   const domName = (n) => n === undefined ? "unreached" : n === null ? "root" : n;
-  h += `<h2 id="wcfg">Control-flow graph (basic blocks)</h2><p class="muted">${esc(SYNTAX_CFG)}</p>`;
-  h += `<p>blocks and flow edges: ${runBadge("Silmaril.Wasm.Cfg.blockCfg, proved to compute Edge (blockCfg_eq, edge_iff)")}` +
-    (kc ? ` · the same graph, flow and may-edges, as the machine document ${link("machine", kc)}, whose dominator table (over both kinds of edge) is Lean kernel-checked` : "") + "</p>";
+  const vlabel = vname === "top" ? `top-level graph (${cfg.model})` : `${vname}${cfg.label ? " — " + cfg.label : ""} (${cfg.model})`;
+  h += `<h2 id="wcfg">Control-flow graph (basic blocks)</h2>`;
+  if (Object.keys(variants).length) h += `<div class="controls"><label>graph <select id="wvariant" aria-label="Graph variant">` +
+    [["top", `top-level graph (${top.model || "explicit-sink"})`]].concat(Object.entries(variants).map(([k, v]) => [k, `${k}${v.label ? " — " + v.label : ""} (${v.model || "unspecified"})`]))
+      .map(([k, l]) => `<option value="${esc(k)}"${k === vname ? " selected" : ""}>${esc(l)}</option>`).join("") + "</select></label>" +
+    `<span class="muted" id="wvariantnote">${(has(top.default) ? esc(top.default) : "the top-level graph")} is shown first, as the page data says. ` +
+    `Each graph is drawn exactly as the data gives it; switching changes the drawn graph and its dominator bases.</span></div>`;
+  if (legacy) {
+    h += `<p class="muted">${esc(SYNTAX_CFG)}</p>`;
+    h += `<p>blocks and flow edges: ${runBadge("Silmaril.Wasm.Cfg.blockCfg, proved to compute Edge (blockCfg_eq, edge_iff)")}` +
+      (kc ? ` · machine document ${link("machine", kc)}: its kernel-checked dominator table is over flow + effect edges; the dominator view checks that it is this graph and compares it` : "") + "</p>";
+  } else {
+    h += `<p id="wvariantinfo">graph: <b>${esc(vlabel)}</b>, as written in the page data. ` +
+      (cfg.relation ? `Intended relation: <code>${esc(cfg.relation)}</code> <span class="muted">(metadata from the data, not checked here)</span>. ` : "") +
+      (cfg.note ? esc(cfg.note) + " " : "") +
+      `<span class="muted">No theorem shown on this page says that executions follow this graph.</span></p>`;
+  }
   // Legend with exact counts: what each mark means, and that the may-edges are not drawn by default.
   const sw = (style) => `<svg width="34" height="10" aria-hidden="true"><line x1="1" y1="5" x2="33" y2="5" style="${style}"/></svg>`;
   h += `<div class="legend wlegend" id="wlegend" role="note" aria-label="Legend and edge counts">` +
@@ -1101,15 +1134,17 @@ async function wasmFuncPage(arg) {
     `<span>${sw("stroke:#d64545;stroke-width:1.2;stroke-dasharray:4 3")} may-edge <b data-c="may">${C.may}</b> ` +
     `<span class="muted">(<span data-c="mayTrap">${C.mayTrap}</span> to trap, <span data-c="mayRaise">${C.mayRaise}</span> to raise, ` +
     `from <span data-c="mayFrom">${C.mayFrom}</span> of ${cfg.blocks.length} blocks)</span></span>` +
+    kinds.filter((k) => k !== "flow" && k !== "effect").map((k) => `<span>${sw("stroke:#8a939c;stroke-width:1.5;stroke-dasharray:1 3")} ${esc(k)} ` +
+      `<b data-c="kind:${esc(k)}">${E.filter((e) => e.kind === k).length}</b></span>`).join("") +
     `<span><span class="wbadge">⚠</span> effect marks on <b data-c="marked">${C.marked}</b> blocks</span></div>`;
-  h += `<p class="muted" id="wmaynote">May-edges are conservative and syntactic: a block that contains an instruction that may trap ` +
+  if (C.may || legacy) h += `<p class="muted" id="wmaynote">May-edges are conservative and syntactic: a block that contains an instruction that may trap ` +
     `(division, memory, table, cast, …) or a call gets one to <code>trap</code> (and a call one to <code>raise</code>). ` +
     `They are summarised as <span class="wbadge">⚠</span> marks on their blocks and drawn for the block you select or hover, or all at once. ` +
     `An unmarked block is not shown to be trap-free: no theorem about executions is recorded here.</p>`;
   h += `<div class="controls" role="toolbar" aria-label="Graph view"><button id="wflat" aria-pressed="true">Flat CFG</button><button id="wdom" aria-pressed="false">Dominator tree</button>` +
     `<label title="Draw every may-edge (otherwise only the selected or hovered block's)"><input type="checkbox" id="weff"> draw all may-edges</label>` +
-    `<label>dominator basis <select id="wbasis"><option value="flow">flow edges (${C.flow})</option>` +
-    `<option value="all">flow + may-edges (${C.flow + C.may})</option></select></label>` +
+    `<label>dominator basis <select id="wbasis">` + BASES.map((b) => `<option value="${esc(b.id)}"${b.id === basisDefault ? " selected" : ""}>` +
+      `${esc(basisText(b.id))} (${basisEdges(b.id).length})</option>`).join("") + `</select></label>` +
     `<label>block <select id="wgo" aria-label="Select a block"><option value="">—</option>` +
     cfg.blocks.map((b, i) => `<option value="b${i}">b${i}${b.effects.length ? " ⚠" : ""} → ${esc(b.term || "falls through")}</option>`).join("") +
     specials.map((t) => `<option value="${t}">${t}</option>`).join("") + `</select></label>` +
@@ -1145,19 +1180,31 @@ async function wasmFuncPage(arg) {
     return t + (f || y ? `\n${[f ? f + " control" : "", y ? y + " may" : ""].filter(Boolean).join(" · ")}` : "");
   };
   const labelOf = (n) => /^b\d+$/.test(n) ? blockLabel(cfg.blocks[Number(n.slice(1))], Number(n.slice(1))) : specialLabel(n);
-  const permalink = (id) => `#/wasm-func/${encodeURIComponent(s.slug)}/${idx}${id ? "/" + id : ""}`;
+  const vpart = vname !== "top" || askedVariant === "top" ? "/@" + vname : "";
+  const permalink = (id) => `#/wasm-func/${encodeURIComponent(s.slug)}/${idx}${vpart}${id ? "/" + id : ""}`;
   const init = async () => {
-    // The kernel-checked table of the same graph (flow + may-edges), compared node by node with
-    // the browser's tree on that basis; only an exact match is reported as agreeing.
-    let kt = null;
-    if (kc) try {
-      const r = (await q("SELECT dominators, dominator_theorem FROM machines WHERE name = ?", [kc]))[0];
-      if (r && r.dominators) {
-        const short = (x) => x == null ? null : (/^(b\d+) /.exec(x) || [null, x])[1];
-        const t = new Map(Object.entries(JSON.parse(r.dominators)).map(([k, v]) => [short(k), short(v)]));
-        kt = { thm: r.dominator_theorem, same: t.size === domNodes.length && domNodes.every((n) => t.has(n) && t.get(n) === (DOM.all.idom.get(n) ?? null)) };
-      }
-    } catch (e) { kt = null; }
+    // A basis's kernel-checked table (a machine document whose dominator table the registry proves)
+    // counts only if the document is this graph on this basis: the same nodes (a block's state
+    // name starts "b<k> [<path>].<pos>:"), the same entry, exactly the basis's edges (by kind),
+    // and a table equal node by node to the browser's tree. Otherwise the page says what differs.
+    const KT = {};
+    for (const b of BASES) if (b.kernelTable) try {
+      const r = (await q("SELECT canonical, dominators, dominator_theorem FROM machines WHERE name = ?", [b.kernelTable]))[0];
+      if (!r || !r.dominators) { KT[b.id] = { name: b.kernelTable, why: "no kernel-checked table in this database" }; continue; }
+      const doc = JSON.parse(r.canonical), names = new Map();
+      for (const st of doc.states) { const mm = /^(b\d+) \[([^\]]*)\]\.(\d+):/.exec(st); names.set(st, mm ? mm[1] : st);
+        if (mm) { const bl = cfg.blocks[Number(mm[1].slice(1))]; if (!bl || bl.path !== mm[2] || String(bl.pos) !== mm[3]) names.set(st, "?" + st); } }
+      const short = (x) => x == null ? null : names.has(x) ? names.get(x) : "?" + x;
+      const nodesOk = doc.states.length === domNodes.length && doc.states.every((x) => domNodes.includes(short(x)));
+      const entryOk = ((doc.layers || {}).initial || []).length === 1 && short(doc.layers.initial[0]) === domEntry;
+      const key = (a, k, c) => `${a}|${k}|${c}`;
+      const mine = new Set(basisEdges(b.id).map((e) => key(e.src, e.kind, e.tgt))), theirs = new Set(doc.edges.map(([a, k, c]) => key(short(a), k, short(c))));
+      const edgesOk = mine.size === theirs.size && [...mine].every((x) => theirs.has(x));
+      const t = new Map(Object.entries(JSON.parse(r.dominators)).map(([k, v]) => [short(k), short(v)]));
+      const tableOk = t.size === domNodes.length && domNodes.every((n) => t.has(n) && t.get(n) === (DOM[b.id].idom.get(n) ?? null));
+      const why = [!nodesOk && "its nodes", !entryOk && "its entry", !edgesOk && "its edges", !tableOk && "its table"].filter(Boolean);
+      KT[b.id] = { name: b.kernelTable, thm: r.dominator_theorem, same: !why.length, why: why.length ? "differs in " + why.join(", ") : "" };
+    } catch (e) { KT[b.id] = { name: b.kernelTable, why: "could not be read (" + (e.message || e) + ")" }; }
     let view = "flat", sel = focusId && (domNodes.includes(focusId) ? focusId : null), hov = null, flatPos = null;
     const mayEls = () => wcy.edges(".may");
     // Which may-edges are drawn: all, or those of the selected and hovered node (in or out).
@@ -1177,7 +1224,7 @@ async function wasmFuncPage(arg) {
       const ins = into.get(id) || [], outs = outOf.get(id) || [];
       const basis = $("#wbasis").value, di = DOM[basis].idom.get(id);
       let x = `<p style="margin:0 0 6px"><a href="${permalink(id)}" title="direct link to this node">#</a> `;
-      const domLine = `immediate dominator (${basis === "flow" ? "flow edges" : "flow + may-edges"}): ` +
+      const domLine = `immediate dominator (${esc(basisText(basis))}): ` +
         (di === undefined ? '<span class="muted">not reached from the entry on this basis</span>' : di === null ? "the entry itself" : nodeBtn(di));
       if (/^b\d+$/.test(id)) {
         const i = Number(id.slice(1)), b = cfg.blocks[i], fo = outs.filter((e) => !e.may), mo = outs.filter((e) => e.may);
@@ -1270,17 +1317,22 @@ async function wasmFuncPage(arg) {
       if (wcy) wcy.destroy();
       view = "dom";
       $("#wflat").setAttribute("aria-pressed", "false"); $("#wdom").setAttribute("aria-pressed", "true");
-      const basis = $("#wbasis").value, r = DOM[basis];
+      const basis = $("#wbasis").value, r = DOM[basis], kt = KT[basis];
       wcy = drawDomTree($("#wcy"), domNodes, r.idom, labelOf, { "font-size": 12, "text-wrap": "wrap", height: "label" });
       wcy.style().selector("node.sel").style({ "underlay-color": "#f2c94c", "underlay-opacity": 0.7, "underlay-padding": 6 }).update();
       const unreach = domNodes.filter((n) => !r.idom.has(n));
-      const other = basis === "flow" ? "all" : "flow";
-      $("#wprov").innerHTML = provBadge("browser") + ` <span class="muted" id="wdomnote">immediate dominators from ${esc(domEntry)} over ` +
-        (basis === "flow" ? `the ${C.flow} flow edges only (the ${C.may} may-edges are not in this basis)` : `all ${C.flow + C.may} edges, flow and may`) +
-        (kt ? `; on flow + may-edges the Lean kernel-checked table of ${link("machine", kc)} ` +
-          (kt.same ? `is the same, compared here node by node ${provBadge("lean", kt.thm)}` : `<b>differs</b> from this tree`) : "") +
-        `. ${domDiff.length ? `With ${other === "all" ? "the may-edges added" : "the may-edges removed"}, the immediate dominator changes for ` +
-          domDiff.map((n) => `${esc(n)} (${esc(domName(DOM[other].idom.get(n)))})`).join(", ") : "Both bases give the same tree"}. ` +
+      const inB = basisEdges(basis).length, outB = E.length - inB;
+      const diffs = BASES.filter((o) => o.id !== basis).map((o) => {
+        const d = domNodes.filter((n) => DOM[o.id].idom.get(n) !== r.idom.get(n));
+        return d.length ? `on ${esc(basisText(o.id))} the immediate dominator differs for ` + d.map((n) => `${esc(n)} (${esc(domName(DOM[o.id].idom.get(n)))})`).join(", ")
+          : `${esc(basisText(o.id))} gives the same tree`; });
+      $("#wprov").innerHTML = provBadge("browser") + ` <span class="muted" id="wdomnote">${esc(vlabel)}: immediate dominators from ${esc(domEntry)} over ` +
+        `the ${inB} edges of basis “${esc(basisText(basis))}” (kinds ${esc(basisOf(basis).kinds.join(", "))})` +
+        (outB ? `; the other ${outB} edges are not in this basis` : "") +
+        (basisOf(basis).relation ? `; intended relation <code>${esc(basisOf(basis).relation)}</code> (metadata, not checked here)` : "") +
+        (kt ? `; the Lean kernel-checked table of ${link("machine", kt.name)} ` +
+          (kt.same ? `is the same graph (nodes, entry, edges) and the same tree, compared here node by node ${provBadge("lean", kt.thm)}` : `<b>is not shown as evidence</b>: it ${esc(kt.why)}`) : "") +
+        `. ${diffs.length ? diffs.join("; ") + ". " : ""}` +
         `A fact about the graph as drawn, not about execution.${unreach.length ? " Not reached on this basis: " + esc(unreach.join(", ")) : ""}</span>`;
       wireNodes();
       wireZoom(domEntry ? "d:" + domEntry : null, true);
@@ -1291,6 +1343,8 @@ async function wasmFuncPage(arg) {
     $("#wdom").addEventListener("click", dom);
     $("#weff").addEventListener("change", applyMay);
     $("#wbasis").addEventListener("change", () => { if (view === "dom") dom(); else if (sel) inspect(sel); });
+    if ($("#wvariant")) $("#wvariant").addEventListener("change", (ev) => {
+      location.hash = `#/wasm-func/${encodeURIComponent(s.slug)}/${idx}/@${ev.target.value}${sel ? "/" + sel : ""}`; });
     $("#wgo").addEventListener("change", (ev) => select(ev.target.value || null, true));
     $("#wside").addEventListener("click", (ev) => { const b = ev.target.closest("button.wnode"); if (b) select(b.dataset.n, true); });
     const order = cfg.blocks.map((b, i) => "b" + i).concat(specials);

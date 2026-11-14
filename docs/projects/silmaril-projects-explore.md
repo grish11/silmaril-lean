@@ -101,7 +101,10 @@ on a small and a large block CFG: the legend's edge counts against the page data
 but drawn only on selection, hover or request without moving any node, the inspector's exact
 edges, keyboard navigation, direct links to a node, the stated dominator basis and its agreement
 with the kernel-checked table, and that module call graphs and machine pages still draw. Run it on
-a `make pages` output: `node wasm_cfg.mjs _site [screenshots-dir]`.
+a `make pages` output: `node wasm_cfg.mjs _site [screenshots-dir]`. `wasm_cfg_variants.mjs` checks graph variants and named dominator
+bases (issue #231) on synthetic fixtures built from that output: the data's default variant, links,
+relations shown as unchecked metadata, and that a kernel table is shown as evidence only for exactly
+the same nodes, entry and edges.
 
 Requirements on the server for lazy loading:
 

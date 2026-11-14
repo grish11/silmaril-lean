@@ -25,7 +25,9 @@ Where each fact comes from, as the pages show it:
 | call graph | the call instructions of each body | syntactic; `call_indirect`/`call_ref` go to explicit unknown-callee nodes; not proved to cover the calls of any run |
 | component structure | `Component.Binary.parse`, `Binary.encode` for nested components | runtime; not validated as a component |
 | component WAT, WIT | `Wit.Tool.printWat`, `Wit.Tool.witText` | runtime; the WIT printer is unverified |
-| dominator trees | computed in the browser on a stated basis: flow edges (the default) or flow + may-edges. Five example functions also have a kernel-checked table (`ProjectSelfTest.WasmBlockCfg`), over flow + may-edges; the page compares it node by node with its own tree on that basis | browser, or Lean kernel-checked where linked and equal |
+| dominator trees | computed in the browser on a stated basis: flow edges (the default) or flow + may-edges. Five example functions also have a kernel-checked table (`ProjectSelfTest.WasmBlockCfg`), over flow + may-edges; the page shows it as evidence only when the document has exactly this graph's nodes, entry and basis edges and its table equals the page's tree | browser, or Lean kernel-checked where linked and equal |
+
+The page also reads the optional `model`, `bases`, `variants` and `default` fields of a body's `cfg` (issue #231), for other graphs of the same body. `wasm-pages` writes none of them yet; the page draws a variant exactly as given, and shows its `relation` as metadata, not as a proof.
 
 Nothing on these pages claims that an execution follows a drawn graph. Semantic properties
 (trap, divergence, determinism) are shown only as open statements.

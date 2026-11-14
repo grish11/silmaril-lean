@@ -91,10 +91,10 @@ try {
     check(await p.evaluate(() => wcy.nodes(".sel").length === 0 && /\/\d+$/.test(location.hash)), `${name}: Escape clears the selection and the link`);
     // Dominator tree: the basis is explicit and switchable.
     await p.click("#wdom");
-    check(await p.evaluate((n) => document.querySelector("#wdomnote").textContent.includes(`the ${n} flow edges only`), want.flow), `${name}: dominator basis stated (flow edges only)`);
-    await p.selectOption("#wbasis", "all");
-    check(await p.evaluate((n) => document.querySelector("#wdomnote").textContent.includes(`all ${n} edges`), want.flow + want.may), `${name}: dominator basis switched to flow + may-edges`);
-    if (name === "door") check(await p.evaluate(() => /kernel-checked table of .* is the same, compared here node by node/.test(document.querySelector("#wdomnote").textContent)),
+    check(await p.evaluate((n) => document.querySelector("#wdomnote").textContent.includes(`the ${n} edges of basis “flow edges”`), want.flow), `${name}: dominator basis stated (flow edges only)`);
+    await p.selectOption("#wbasis", "flow+effect");
+    check(await p.evaluate((n) => document.querySelector("#wdomnote").textContent.includes(`the ${n} edges of basis “flow + effect”`), want.flow + want.may), `${name}: dominator basis switched to flow + may-edges`);
+    if (name === "door") check(await p.evaluate(() => /kernel-checked table of .* is the same graph \(nodes, entry, edges\) and the same tree, compared here node by node/.test(document.querySelector("#wdomnote").textContent)),
       "door: on flow + may-edges the browser tree equals the Lean kernel-checked table");
     else check(await p.evaluate(() => !/kernel-checked table/.test(document.querySelector("#wdomnote").textContent)), `${name}: no kernel table is claimed`);
     await shot(`${name}-dominators`);
