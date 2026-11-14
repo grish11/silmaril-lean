@@ -187,6 +187,30 @@ it over-approximates every internal call. -/
 def RespectsCalls (R : sh.F → sh.F → Prop) (m : sh.OpenMod) : Prop :=
   ∀ f s a x, x ∈ m f s a → ∀ y ∈ x.1, ∀ c : sh.self.Op, y.1 = .inr c → R c.1 f
 
+/-- The list `l` is a prefix of the stream `ω`. -/
+def StreamPrefix {α : Type u} (l : List α) (ω : Nat → α) : Prop :=
+  ∀ i (h : i < l.length), ω i = l[i]
+
+/-- An infinite chain of internal calls from `x` making infinitely many import
+calls, whose concatenation is the stream `ω`: an infinite productive run
+through unbounded recursion. -/
+def InfChain (m : sh.OpenMod) (c : sh.ClosedMod) (x : sh.self.Op) (ω : Nat → Call sh.E) :
+    Prop :=
+  ∃ (g : Nat → sh.self.Op) (q : Nat → List (Call sh.E)), g 0 = x ∧
+    (∀ n, Descends m c (g n) (q n) (g (n + 1))) ∧
+    (∀ n, StreamPrefix ((List.range n).flatMap q) ω) ∧
+    ∀ N, ∃ n, N ≤ ((List.range n).flatMap q).length
+
+/-- The infinite productive runs of a closed module that arise from unbounded
+internal recursion: the streams of import calls of `InfChain`s.
+
+**Scope.** Open functions are `AFun`s, which have no infinite behaviours of
+their own. So an infinite run *inside* one function without internal calls
+(a loop that keeps calling imports) is not represented here. Through internal
+recursion it is. -/
+def closeInf (m : sh.OpenMod) (f : sh.F) (s : sh.S) (a : sh.A f) : Set (Nat → Call sh.E) :=
+  {ω | InfChain m (close m) ⟨f, (a, s)⟩ ω}
+
 /-- Open modules equivalent up to trap ≈ divergence, function by function. -/
 def OpenCollapseEquiv (m m' : sh.OpenMod) : Prop :=
   ∀ f, AFun.ObsEquiv AFun.obsCollapse (m f) (m' f)

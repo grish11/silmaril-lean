@@ -3,6 +3,7 @@ module
 public import Silmaril.Games.Abstract.Module.Defs
 import Silmaril.Proofs.Games.Abstract.Module.Basic
 import Silmaril.Proofs.Games.Abstract.Module.Congruence
+import Silmaril.Proofs.Games.Abstract.Module.Infinite
 
 /-!
 # Abstract modules: theorems
@@ -31,8 +32,15 @@ not detected:
   chain with finitely many import calls. It observes that recursion
   (`exists_closeD_observes_rec_div`), extends `close` (`close_le_closeD`),
   and agrees with it when there are no internal calls (`closeD_lift`).
-* Not represented: chains with infinitely many import calls, which are
-  infinite productive runs.
+* Chains with infinitely many import calls are infinite productive runs.
+  `closeInf` collects their import-call streams.
+  `exists_rec_import_inf`: `f () = e (); f ()` has no finite behaviour and no
+  divergence, but one infinite run `e (), e (), …`. There are none without
+  internal calls (`closeInf_lift`) or with a well-founded call graph
+  (`closeInf_empty_of_wf`), and trap ≈ divergence equivalent open modules
+  have the same ones (`closeInf_congr`).
+* Still not represented: infinite runs *inside* one open function with no
+  internal call, because `AFun` has no infinite behaviours.
 
 `closeD_eq_close_of_wf`: when the internal calls follow a well-founded call
 graph (`RespectsCalls`), for example an acyclic static call graph over finitely
@@ -122,5 +130,28 @@ theorem close_congr {m m' : sh.OpenMod} (h : OpenCollapseEquiv m m') :
 theorem closeD_congr {m m' : sh.OpenMod} (h : OpenCollapseEquiv m m') :
     ClosedCollapseEquiv (closeD m) (closeD m') :=
   Silmaril.Proofs.Games.Abstract.Module.closeD_congr h
+
+open Silmaril.Proofs.Games.Abstract.Module in
+/-- Recursion through an import: no finite behaviour, no divergence, one
+infinite productive run. -/
+theorem exists_rec_import_inf :
+    ∃ (sh : Shape.{0}) (m : sh.OpenMod) (f : sh.F) (s : sh.S) (a : sh.A f)
+      (ω : Nat → Call sh.E), close m f s a = ∅ ∧ closeD m f s a = ∅ ∧ ω ∈ closeInf m f s a :=
+  ⟨shI, m₄, ⟨⟩, ⟨⟩, ⟨⟩, eStream, by rw [close_m₄]; rfl, closeD_m₄, eStream_mem⟩
+
+/-- No infinite runs without internal calls. -/
+theorem closeInf_lift (c : sh.ClosedMod) (f : sh.F) (s : sh.S) (a : sh.A f) :
+    closeInf (lift c) f s a = ∅ :=
+  Silmaril.Proofs.Games.Abstract.Module.closeInf_lift c f s a
+
+/-- No infinite runs through recursion with a well-founded call graph. -/
+theorem closeInf_empty_of_wf {R : sh.F → sh.F → Prop} (hR : WellFounded R) {m : sh.OpenMod}
+    (hm : RespectsCalls R m) (f : sh.F) (s : sh.S) (a : sh.A f) : closeInf m f s a = ∅ :=
+  Silmaril.Proofs.Games.Abstract.Module.closeInf_empty_of_wf hR hm f s a
+
+/-- Trap ≈ divergence equivalent open modules have the same infinite runs. -/
+theorem closeInf_congr {m m' : sh.OpenMod} (h : OpenCollapseEquiv m m') (f : sh.F) (s : sh.S)
+    (a : sh.A f) : closeInf m f s a = closeInf m' f s a :=
+  Silmaril.Proofs.Games.Abstract.Module.closeInf_congr h f s a
 
 end Silmaril.Games.Abstract.Shape

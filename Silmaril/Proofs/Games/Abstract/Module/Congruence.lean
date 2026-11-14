@@ -12,7 +12,7 @@ to trap ≈ divergence (`obsCollapse`), then so do their closures, with or
 without divergence chains.
 -/
 
-public section
+@[expose] public section
 
 namespace Silmaril.Proofs.Games.Abstract.Module
 
