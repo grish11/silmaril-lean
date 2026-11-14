@@ -12,6 +12,7 @@ import Silmaril.Wasm.Cfg.Examples.Defs
 import Silmaril.Wasm.Binaryen.Exe.Encode
 import Silmaril.Wasm.Tools.Meta.Demangle.Defs
 import Silmaril.Wasm.Wit.Binary.Embed.Defs
+import Silmaril.Wasm.Tools.CompValidate.Defs
 
 /-!
 # `wasm-pages`: the data of the explorer's Wasm component, module and function pages
@@ -174,6 +175,23 @@ def targetJson (ids : List Cfg.BlockId) : Cfg.Target → Json
   | .block b => jnat (ids.idxOf b)
   | .exit => jstr "exit" | .trap => jstr "trap" | .raise => jstr "raise" | .invalid => jstr "invalid"
 
+/-- The indices one instruction names: `(space, index)`, syntactically (nested bodies excluded). -/
+def instrRefs : Instr → List (String × Nat)
+  | .localGet i | .localSet i | .localTee i => [("local", i.value.val)]
+  | .globalGet i | .globalSet i => [("global", i.value.val)]
+  | .call f | .returnCall f | .refFunc f => [("func", f.value.val)]
+  | .callIndirect t _ | .returnCallIndirect t _ | .tableGet t | .tableSet t | .tableSize t
+  | .tableGrow t | .tableFill t | .tableInit t _ => [("table", t.value.val)]
+  | .throw t => [("tag", t.value.val)]
+  | _ => []
+
+/-- A block's referenced indices, by space, without repetition. -/
+def refsJson (is : List Instr) : Json :=
+  let rs := (is.flatMap instrRefs).eraseDups
+  jobj (["local", "global", "func", "table", "tag"].filterMap fun sp =>
+    let xs := (rs.filter (·.1 == sp)).map (·.2)
+    if xs.isEmpty then none else some (sp, jarr (xs.map jnat)))
+
 def effectName : Cfg.Effect → String
   | .mayTrap => "may-trap" | .call => "call" | .unresolvedHandler => "handler-unresolved"
 
@@ -186,7 +204,8 @@ def cfgJson (body : Expr) : Json :=
     ("pos", jnat b.idx),
     ("instrs", jarr (s.body.map (jstr ∘ instrText))),
     ("term", match s.term with | some t => jstr (instrText t) | none => Json.null),
-    ("effects", jarr ((Cfg.blockEffects body b s).map (jstr ∘ effectName)))]
+    ("effects", jarr ((Cfg.blockEffects body b s).map (jstr ∘ effectName))),
+    ("refs", refsJson s.instrs)]
   let flowJ := flow.flatMap fun (b, ts) =>
     ts.map fun t => jarr [jnat (ids.idxOf b), targetJson ids t, jstr "flow"]
   let effJ := bs.flatMap fun (b, s) =>
@@ -426,7 +445,11 @@ partial def doComponent (id title : String) (src : Source) (b : ByteArray) : M U
       ("source", sourceJson src), ("size", jnat b.size),
       ("imports", jnat imports.length), ("exports", jnat exports.length),
       ("modules", jnat modK), ("components", jnat compK)]
+    let validity := match Silmaril.Wasm.Tools.CompValidate.check Silmaril.Wasm.Tools.Features.WFeatures.dflt b with
+      | .ok () => jobj [("status", jstr "accepted"), ("note", jstr "Silmaril.Wasm.Tools.CompValidate.check (wasm-tools' default features): a tested transcription of wasmparser's component rules, not proved; only its core-module part is (check_core)")]
+      | .error e => jobj [("status", jstr "rejected"), ("note", jstr s!"Silmaril.Wasm.Tools.CompValidate.check (tested transcription, not proved): {e}")]
     let full := jobj [("summary", summary), ("hasBlob", Json.bool true), ("watNote", jstr watNote), ("wit", wit), ("world", world),
+      ("validity", validity),
       ("imports", jarr (imports.map fun i => jobj [("name", jstr i.name.name), ("kind", jstr (externDescText i.desc))])),
       ("exports", jarr (exports.map fun e => jobj [("name", jstr e.name.name), ("kind", jstr (sortText e.item.sort)), ("idx", jnat e.item.idx)])),
       ("children", jarr children), ("coreInstances", jarr coreInstJ), ("instances", jarr instJ),

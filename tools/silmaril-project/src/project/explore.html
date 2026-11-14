@@ -893,8 +893,8 @@ async function wasmComponentPage(slug) {
   h += crumbs(ix, s.source.parent);
   h += sourceDl(s.source, s.size) + filesBlock(s.slug, c);
   if (c.unsupported) return { html: h + `<p class="err">Unsupported: ${esc(c.unsupported)}</p>`, init: () => wireSha(s.slug) };
-  h += `<p class="muted">Decoded by <code>Silmaril.Wasm.Component.Binary.parse</code> ${runBadge()}. Not validated as a component here: ` +
-    "the component validator is a tested transcription, not proved (see tools/wasm-tools/README.md).</p>";
+  h += `<p class="muted">Decoded by <code>Silmaril.Wasm.Component.Binary.parse</code> ${runBadge()}.</p>`;
+  if (c.validity) h += `<p>component validation: <b>${esc(c.validity.status)}</b> ${runBadge()} <span class="muted">${esc(c.validity.note)}</span></p>`;
   h += "<h2>Children</h2>" + simpleTable(c.children, [["kind", (x) => esc(x.kind)], ["index", (x) => x.index],
     ["page", (x) => x.unsupported ? `<span class="err">${esc(x.unsupported)}</span>` : wlink(x.kind, x.slug, x.id)]]);
   const modSlug = (i) => (c.children.find((x) => x.kind === "module" && x.index === i) || {}).slug;
@@ -1090,7 +1090,11 @@ async function wasmFuncPage(arg) {
         const out = cfg.edges.filter(([a]) => "b" + a === id).map(([, t, kind]) => `${kind} → ${typeof t === "number" ? "b" + t : t}`);
         $("#wside").classList.remove("muted");
         $("#wside").innerHTML = `<b>${esc(blockLabel(b, Number(id.slice(1))))}</b><pre class="code">${esc(b.instrs.concat(b.term ? [b.term] : []).join("\n") || "(empty)")}</pre>` +
-          `successors: ${out.map(esc).join(", ") || "none"}`;
+          `successors: ${out.map(esc).join(", ") || "none"}` +
+          (b.refs && Object.keys(b.refs).length ? "<br>references (syntactic, this block's own instructions): " +
+            Object.entries(b.refs).map(([sp, xs]) => `${esc(sp)} ${xs.map((x) => sp === "func" && m.functions[x] && !m.functions[x].imported
+              ? flink(s.slug, x, String(x)) : esc(x)).join(", ")}`).join("; ") : "") +
+          '<br><span class="muted">Stack shapes and branch arities from validation typing: not yet shown.</span>';
       });
       wireZoom(typeof cfg.entry === "number" ? "b" + cfg.entry : null, true);
     };
