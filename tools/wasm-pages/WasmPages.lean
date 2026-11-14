@@ -11,6 +11,7 @@ import Silmaril.Wasm.Cfg.BlockCfg.Defs
 import Silmaril.Wasm.Cfg.Examples.Defs
 import Silmaril.Wasm.Binaryen.Exe.Encode
 import Silmaril.Wasm.Tools.Meta.Demangle.Defs
+import Silmaril.Wasm.Wit.Binary.Embed.Defs
 
 /-!
 # `wasm-pages`: the data of the explorer's Wasm component, module and function pages
@@ -303,6 +304,16 @@ def doModule (id title : String) (src : Source) (m : Module) (bytes : Option Byt
       match srcWat with
       | some t => do writeText s!"wasm/wat/{sl}.wat" t; pure "the WAT source of the Lean value (wat3!)"
       | none => pure "no WAT available"
+  -- the world the module embeds in a `component-type` custom section, as WIT text
+  let embedded : Json := match bytes with
+    | none => Json.null
+    | some b => match Silmaril.Wasm.Wit.Binary.extractPayload b with
+      | .error _ => Json.null
+      | .ok _ => match Silmaril.Wasm.Wit.Binary.extractWorldType b with
+        | .ok (p, n, w, _) =>
+          jobj [("text", jstr (Silmaril.Wasm.Wit.Binary.printPackage { name := p, worlds := [(n, w)] })),
+            ("note", jstr s!"world {n} of the component-type custom section (Wit.Binary.extractWorldType, as `wasm-wit extract`), printed by Wit.Binary.printPackage (printer unverified)")]
+        | .error e => jobj [("text", Json.null), ("note", jstr s!"a component-type custom section this decoder does not read: {e}")]
   let summary := jobj [("id", jstr id), ("slug", jstr sl), ("title", jstr title), ("kind", jstr "module"),
     ("source", sourceJson src), ("size", match bytes with | some b => jnat b.size | none => Json.null),
     ("imports", jnat imports.length), ("exports", jnat m.exports.length),
@@ -315,7 +326,8 @@ def doModule (id title : String) (src : Source) (m : Module) (bytes : Option Byt
     ("functions", jarr funcsJ), ("calls", jarr callsJ),
     ("addressTaken", jarr ((refFuncs ++ elemFuncs).eraseDups.map jnat)),
     ("bodies", jarr cfgs),
-    ("start", match m.start with | some s => jnat s.value.val | none => Json.null)]
+    ("start", match m.start with | some s => jnat s.value.val | none => Json.null),
+    ("embeddedWorld", embedded)]
   writeText s!"wasm/m/{sl}.json" full.compress
   let fnIndex := m.funcs.zipIdx.map fun (f, k) =>
     let idx := nImp + k
@@ -406,11 +418,15 @@ partial def doComponent (id title : String) (src : Source) (b : ByteArray) : M U
     let wit := match Silmaril.Wasm.Wit.Tool.witText b with
       | .ok t => jobj [("text", jstr t), ("note", jstr "Silmaril.Wasm.Wit.Tool.witText: the WIT package these bytes encode (printer unverified, tested against wasm-tools component wit)")]
       | .error e => jobj [("text", Json.null), ("note", jstr s!"not a WIT package this decoder reads: {e}")]
+    let world := match Silmaril.Wasm.Wit.Tool.projectBytes b with
+      | .ok w => jobj [("text", jstr (Wat.print (Silmaril.Wasm.Wit.Tool.worldAst w))),
+          ("note", jstr "Silmaril.Wasm.Wit.Project.project: the component's type (its world), as component WAT. Code does not change it (project_stripCode); validity of the result is not proved")]
+      | .error e => jobj [("text", Json.null), ("note", jstr s!"not projected: {e}")]
     let summary := jobj [("id", jstr id), ("slug", jstr sl), ("title", jstr title), ("kind", jstr "component"),
       ("source", sourceJson src), ("size", jnat b.size),
       ("imports", jnat imports.length), ("exports", jnat exports.length),
       ("modules", jnat modK), ("components", jnat compK)]
-    let full := jobj [("summary", summary), ("hasBlob", Json.bool true), ("watNote", jstr watNote), ("wit", wit),
+    let full := jobj [("summary", summary), ("hasBlob", Json.bool true), ("watNote", jstr watNote), ("wit", wit), ("world", world),
       ("imports", jarr (imports.map fun i => jobj [("name", jstr i.name.name), ("kind", jstr (externDescText i.desc))])),
       ("exports", jarr (exports.map fun e => jobj [("name", jstr e.name.name), ("kind", jstr (sortText e.item.sort)), ("idx", jnat e.item.idx)])),
       ("children", jarr children), ("coreInstances", jarr coreInstJ), ("instances", jarr instJ),

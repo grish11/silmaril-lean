@@ -806,7 +806,8 @@ const SYNTAX_CFG = "Syntactic block CFG — incomplete, not an execution model: 
   "(Silmaril.Wasm.Cfg.Edge, which the builder blockCfg is proved to compute), effect edges mark possible traps and raises; " +
   "no theorem says executions follow this graph.";
 const SYNTAX_CALLS = "Syntactic call graph — read from the call instructions, not from execution: one edge per (caller, callee, kind), " +
-  "call_indirect and call_ref go to explicit “unknown callee” nodes. Not proved to cover all runtime calls; no theorem connects it to the semantics.";
+  "call_indirect and call_ref go to explicit “unknown callee” nodes. Not proved to cover all runtime calls: no theorem links it to " +
+  "Shape.RespectsCalls (the hypothesis under which closeD_eq_close_of_wf rules out divergence by recursion).";
 // The block CFGs with a Lean kernel-checked dominator table (machine documents loaded by
 // examples/project/ProjectSelfTest/WasmBlockCfg.lean), by module slug and function index.
 const KERNEL_CFG = {
@@ -908,6 +909,8 @@ async function wasmComponentPage(slug) {
   h += "<h2>Imports</h2>" + simpleTable(c.imports, [["name", (x) => `<code>${esc(x.name)}</code>`], ["kind", (x) => esc(x.kind)]]);
   h += "<h2>Exports</h2>" + simpleTable(c.exports, [["name", (x) => `<code>${esc(x.name)}</code>`], ["sort", (x) => esc(x.kind)], ["index", (x) => x.idx]]);
   if (c.canons.length) h += "<h2>Canonical functions</h2>" + simpleTable(c.canons.map((t) => ({ t })), [["canon", (x) => `<code>${esc(x.t)}</code>`]]);
+  if (c.world) h += "<h2>Interface (world)</h2>" + (c.world.text ? `<p class="muted">${esc(c.world.note)} ${runBadge()}</p><pre class="code">${esc(c.world.text)}</pre>`
+    : `<p class="muted">${esc(c.world.note)}</p>`);
   h += "<h2>WIT</h2>" + (c.wit.text ? `<p class="muted">${esc(c.wit.note)}</p><pre class="code">${esc(c.wit.text)}</pre>`
     : `<p class="muted">${esc(c.wit.note)}</p>`);
   if (c.customs.length) h += `<p class="muted">custom sections: ${c.customs.map(esc).join(", ")}</p>`;
@@ -986,6 +989,9 @@ async function wasmModulePage(slug) {
   h += "<h2>Exports</h2>" + simpleTable(m.exports, [["name", (x) => `<code>${esc(x.name)}</code>`], ["kind", (x) => esc(x.kind)],
     ["index", (x) => x.kind === "func" && m.functions[x.idx] && !m.functions[x.idx].imported ? flink(s.slug, x.idx, String(x.idx)) : x.idx]]);
   if (m.start != null) h += `<p>start function: ${flink(s.slug, m.start, String(m.start))}</p>`;
+  if (m.embeddedWorld) h += "<h2>Embedded world (WIT)</h2>" + (m.embeddedWorld.text
+    ? `<p class="muted">${esc(m.embeddedWorld.note)} ${runBadge()}</p><pre class="code">${esc(m.embeddedWorld.text)}</pre>`
+    : `<p class="muted">${esc(m.embeddedWorld.note)}</p>`);
   const init = () => {
     wireSha(s.slug);
     const draw = () => {
@@ -1047,9 +1053,15 @@ async function wasmFuncPage(arg) {
     '<div id="wcy" style="flex:1 1 auto;border:1px solid var(--line);background:var(--panel);min-width:0"></div>' +
     '<div id="wside" style="flex:0 0 340px;overflow:auto;border:1px solid var(--line);background:var(--panel);padding:8px 10px" class="muted">Click a block for its instructions.</div></div>';
   h += `<h2>WAT</h2><p class="muted">printed from the decoded AST by Silmaril's printer (Silmaril.Wasm.Tools.Gen.Cmd.Print) ${runBadge()}</p><pre class="code">${esc(body.wat)}</pre>`;
-  h += `<h2>Semantics</h2><p class="muted">Statements, not decided facts. This function's behaviours are defined by the Core 3.0 semantics; ` +
-    "<code>Silmaril.Wasm.Abstract.wasmFun</code> is it as an abstract function (<code>image_wasmFun</code>). Whether it may trap, diverge or is " +
-    "deterministic are open statements for this function (no theorem about it is recorded here). The effect marks above are syntactic “may” marks.</p>";
+  h += `<h2>Semantics (statements, not decided facts)</h2><ul class="muted">` +
+    "<li>This function's behaviours are those of the Core 3.0 semantics. <code>Silmaril.Wasm.Abstract.WasmFunRef</code> " +
+    "(address, profile, host) is its projection to an abstract function, proved to preserve and reflect equal behaviours " +
+    "(<code>preserves_behEq</code>, <code>reflects_behEq</code>) and trap ≈ divergence (<code>preserves_trapDivEq</code>, " +
+    "<code>reflects_trapDivEq</code>); <code>image_wasmFun</code> ties <code>wasmFun</code> to <code>behaviours</code>.</li>" +
+    "<li>Whether this function may trap, diverge, or is deterministic (<code>AFun.MayTrap</code>, <code>MayDiv</code>, <code>Det</code>, …) " +
+    "is an open statement here: no theorem about this function is recorded. The effect marks above are syntactic “may” marks.</li>" +
+    "<li>Abstract bodies <code>Silmaril.Wasm.Abstract.Body.BodyM</code> form a lawful Elgot monad (<code>bodyM_lawfulElgot</code>). " +
+    "Open: no concrete Core 3.0 body is yet proved to realise a <code>BodyM</code> morphism, so this CFG is not connected to it.</li></ul>";
   const nodeId = (t) => typeof t === "number" ? "b" + t : t;
   const blockLabel = (b, i) => `b${i}${b.path ? " [" + b.path + "]" : ""}.${b.pos}: ${b.instrs.length} instrs → ${b.term || "falls through"}` +
     (b.effects.length ? `\n{${b.effects.join(", ")}}` : "");
