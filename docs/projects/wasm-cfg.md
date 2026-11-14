@@ -119,14 +119,24 @@ uniqueness) and that the executable extractors realize it.
      `ProjectSelfTest.WasmBlockCfg.*_blocks` proves that each document has exactly the builder's
      nodes, edges and entry, by node index. The instruction-level documents
      (`silmaril.wasm.cfg.*`) stay alongside for comparison.
-3. **Node interfaces.**
-   - Each block will carry its operand-stack input and output arity.
-   - Branch arguments are the label arity from the block type.
-   - Each block lists its trap and throw exits and the local, global and function indices it
-     references.
-   - The arities come from the existing validation typing, scoped to functions that validate.
+3. **Node interfaces**, relative to a fixed module environment.
+   - **The environment is not part of a body.** Every interface is under a `Validation.Context`
+     built as `checkModule?` builds it (`moduleCtx`: types, funcs, globals, tables, mems, tags,
+     elems, datas). A body never carries it.
+   - **Body interface:** `(params, locals, results)` under that context, as in
+     `Context.funcBody`.
+   - **Block interface:** the label stack (`withLabel` along the block's path), the local
+     initialisation state, and the operand stack in and out of the block's own frame.
+   - This is shared with the abstract typed-body work (`docs/projects/component-semantics.md`),
+     so there is one notion of interface.
+   - **Shown now (#220):** the explorer shows each block's stacks and branch label types, as the
+     validator's checker computes them at runtime. Its trap/throw effect marks and referenced
+     indices are syntactic.
+   - **Next:** a declarative `BlockTyping` relation, with the checker proved to compute it.
 4. **Bytes**, valid serializer profile only (`encodeModule?`).
-   - A standalone function object is (locals, body).
+   - The encoded object is (locals, body). It is an *encoding* object only: semantically, a
+     function is (type index, body) under the module's context, and the explorer's function pages
+     are (module, index).
    - Its *body encoding* is the locals vector, then the expression, then `end` (`0x0b`).
    - Its *code entry* is the body encoding with a u32 size prefix.
    - The code section lists entries in the order of defined functions; module function index `k`
