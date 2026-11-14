@@ -93,6 +93,27 @@ theorem collapse_trap {A : Type (u + 1)} (t : T) :
     collapse (trap t : BodyM E S T A) = fun _ => Silmaril.Elgot.ITree.diverge :=
   Silmaril.Proofs.Wasm.Abstract.Body.collapse_trap t
 
+/-- A trap absorbs every continuation: a trap node and a trap effect on the
+preceding edge denote the same body. -/
+theorem trap_bind {A B : Type (u + 1)} (t : T) (f : A → BodyM E S T B) :
+    (trap t >>= f : BodyM E S T B) = trap t :=
+  Silmaril.Proofs.Wasm.Abstract.Body.trap_bind t f
+
+/-- A handler resumes on a raised exception. -/
+theorem handle_raise {B X : Type (u + 1)} (h : X → BodyM E S T B) :
+    handle (fun x : X => (raise x : BodyM E S T (B ⊕ X))) h = h :=
+  Silmaril.Proofs.Wasm.Abstract.Body.handle_raise h
+
+/-- A handler does not catch a trap. -/
+theorem handle_trap {A B X : Type (u + 1)} (t : T) (h : X → BodyM E S T B) :
+    handle (fun _ : A => (trap t : BodyM E S T (B ⊕ X))) h = fun _ => trap t :=
+  Silmaril.Proofs.Wasm.Abstract.Body.handle_trap t h
+
+/-- The trap ≈ divergence observation keeps raised exceptions. -/
+theorem collapse_raise {B X : Type (u + 1)} (x : X) :
+    collapse (raise x : BodyM E S T (B ⊕ X)) = (pure (.inr x) : BodyC E S (B ⊕ X)) :=
+  Silmaril.Proofs.Wasm.Abstract.Body.collapse_raise x
+
 end Silmaril.Wasm.Abstract.Body
 
 namespace Silmaril.Wasm.Abstract.Body

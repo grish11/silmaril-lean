@@ -51,6 +51,17 @@ label's summand, sequencing is Kleisli composition, and whiskering keeps a
 passive operand prefix. Calls push a new frame: that boundary is the module
 layer (`Silmaril.Games.Abstract.Module`).
 
+**Traps against exceptions.** A trap is an abrupt, non-returning *effect*: the
+`ExceptT T` layer. Wasm code cannot catch it, and it is a left zero of
+sequencing (`trap_bind`). A Wasm exception (`throw`, `try_table`) is
+*control*: an exit summand `B ⊕ X`, so `raise` is a pure injection and a
+handler is copairing (`handle`), which can resume. At a function boundary an
+uncaught exception is a result, as in `wasmFun` (`List Val ⊕ Nat`). A CFG
+that draws a trap as an explicit node and one that draws it as an effect of
+the preceding edge denote the same body, because `trap` absorbs every
+continuation. The trap ≈ divergence observation merges traps with divergence
+but keeps raised exceptions (`collapse_raise`).
+
 **Determinism and nondeterminism.** An interaction tree is deterministic given
 the environment's answers. Nondeterministic choices (NaN payloads, relaxed
 operations, scheduling) are modelled as import-like events answered by the
@@ -104,6 +115,17 @@ noncomputable def callImport {E : Sig.{u}} {S T : Type (u + 1)} (m : E.Op) :
 
 /-- Trap with `t`. -/
 def trap {E : Sig.{u}} {S T A : Type (u + 1)} (t : T) : BodyM E S T A := throw t
+
+/-- Raise a catchable Wasm exception `x`: a control exit, the `inr` summand of
+the result. Unlike a trap, it is not an effect of the monad, so handlers can
+resume. -/
+def raise {E : Sig.{u}} {S T B X : Type (u + 1)} (x : X) : BodyM E S T (B ⊕ X) := pure (.inr x)
+
+/-- Handle the exceptions raised by `f` with `h`: copairing on the exception
+summand. A trap is not caught: it passes through (`handle_trap`). -/
+def handle {E : Sig.{u}} {S T A B X : Type (u + 1)} (f : A → BodyM E S T (B ⊕ X))
+    (h : X → BodyM E S T B) : A → BodyM E S T B :=
+  fun a => f a >>= Sum.elim pure h
 
 /-- Read the module state. -/
 def getState {E : Sig.{u}} {S T : Type (u + 1)} : BodyM E S T S := get

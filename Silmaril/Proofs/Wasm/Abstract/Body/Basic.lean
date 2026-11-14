@@ -57,4 +57,27 @@ theorem collapse_trap {A : Type (u + 1)} (t : T) :
   simp [collapse, trap, throw, throwThe, MonadExceptOf.throw, StateT.lift, ExceptT.run,
     ExceptT.mk, Functor.map, ExceptT.map]
 
+theorem trap_bind {A B : Type (u + 1)} (t : T) (f : A → BodyM E S T B) :
+    (trap t >>= f : BodyM E S T B) = trap t := by
+  funext s
+  change ((trap t >>= f : BodyM E S T B).run s) = (trap t : BodyM E S T B).run s
+  rw [StateT.run_bind]
+  simp only [trap, throw, throwThe, MonadExceptOf.throw]
+  apply ExceptT.ext
+  simp [ExceptT.run_bind, throwThe, MonadExceptOf.throw, ExceptT.run_mk]
+
+theorem handle_raise {B X : Type (u + 1)} (h : X → BodyM E S T B) :
+    handle (fun x : X => (raise x : BodyM E S T (B ⊕ X))) h = h := by
+  funext x
+  simp [handle, raise]
+
+theorem handle_trap {A B X : Type (u + 1)} (t : T) (h : X → BodyM E S T B) :
+    handle (fun _ : A => (trap t : BodyM E S T (B ⊕ X))) h = fun _ => trap t := by
+  funext a
+  exact trap_bind t _
+
+theorem collapse_raise {B X : Type (u + 1)} (x : X) :
+    collapse (raise x : BodyM E S T (B ⊕ X)) = (pure (.inr x) : BodyC E S (B ⊕ X)) :=
+  collapse_pure _
+
 end Silmaril.Proofs.Wasm.Abstract.Body
