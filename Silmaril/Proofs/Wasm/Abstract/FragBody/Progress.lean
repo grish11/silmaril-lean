@@ -317,6 +317,12 @@ theorem prog_s : (es : List Expr) → ∀ {Λ r ls r0}, SeqTy Γ ρ Λ es r → 
             · exact .inr (.tail h hd)
         | _ => exact .inl ⟨_, .abrupt h trivial⟩
       · exact .inr (.head hd)
+    | bot hb =>
+      rcases prog_e e (hb none) hls with ⟨out, h⟩ | hd
+      · cases out with
+        | ok ls₁ r₁ => exact absurd h (never_ok hb hls)
+        | _ => exact .inl ⟨_, .abrupt h trivial⟩
+      · exact .inr (.head hd)
 
 end
 

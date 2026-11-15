@@ -272,6 +272,10 @@ inductive SeqTy (Γ : List Silmaril.Wasm.IntType) (ρ : Option Silmaril.Wasm.Int
   | nil {Λ} : SeqTy Γ ρ Λ [] none
   | one {Λ e r} : Ty Γ ρ Λ e r → SeqTy Γ ρ Λ [e] r
   | cons {Λ e e' es r} : Ty Γ ρ Λ e none → SeqTy Γ ρ Λ (e' :: es) r → SeqTy Γ ρ Λ (e :: e' :: es) r
+  /-- After an element that never completes (`unreachable`, `br`, `return`: it has every
+  type), the rest of the body is dead code and unconstrained, as in Wasm validation (a
+  polymorphic stack) and the native arity check. -/
+  | bot {Λ e es r} : (∀ r', Ty Γ ρ Λ e r') → SeqTy Γ ρ Λ (e :: es) r
 
 end
 

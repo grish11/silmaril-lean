@@ -235,11 +235,24 @@ theorem exec_ty {ls : List WVal} {e : Expr} {o : Out (Option WVal)} (h : Exec ls
     | cons he hes =>
       cases ih₁ he hls with
       | ok hls₁ _ => exact ih₂ _ _ hes hls₁ (fun h => by cases h)
+    | bot hb =>
+      cases ih₁ (hb none) hls with
+      | ok _ hv₁ => cases ih₁ (hb (some .i32)) hls with
+        | ok _ hv₂ => exact absurd (hv₁.symm.trans hv₂) (by simp)
   case abrupt hab ih Λ r hty hls hr =>
     cases hty with
     | one he => exact OutTy.abrupt' (ih he hls) hab
     | cons he _ => exact OutTy.abrupt' (ih he hls) hab
+    | bot hb => exact OutTy.abrupt' (ih (hb none) hls) hab
 
+
+/-- Code with every type never completes normally. -/
+theorem never_ok {Λ : List (Option Silmaril.Wasm.IntType)} {e : Expr} {ls ls' : List WVal}
+    {v : Option WVal} (hb : ∀ r', Ty Γ ρ Λ e r') (hls : ValsTy Γ ls) :
+    ¬ Exec ls e (.ok ls' v) := fun he => by
+  cases exec_ty he (hb none) hls with
+  | ok _ hv₁ => cases exec_ty he (hb (some .i32)) hls with
+    | ok _ hv₂ => exact absurd (hv₁.symm.trans hv₂) (by simp)
 
 theorem seq_ty {Λ : List (Option Silmaril.Wasm.IntType)} :
     ∀ {es : List Expr} {ls : List WVal} {r0 : Option WVal} {o : Out (Option WVal)}
@@ -253,10 +266,12 @@ theorem seq_ty {Λ : List (Option Silmaril.Wasm.IntType)} :
       | one hte => cases exec_ty he hte hls with | ok hls₁ hv => cases hs; exact .ok hls₁ hv
       | cons hte htes => cases exec_ty he hte hls with
         | ok hls₁ _ => exact seq_ty hs htes hls₁ (fun h => by cases h)
+      | bot hb => exact absurd he (never_ok hb hls)
     | abrupt he hab =>
       cases hty with
       | one hte => exact OutTy.abrupt' (exec_ty he hte hls) hab
       | cons hte _ => exact OutTy.abrupt' (exec_ty he hte hls) hab
+      | bot hb => exact OutTy.abrupt' (exec_ty he (hb none) hls) hab
 
 /-- A typed fragment function on typed arguments returns a value of its
 result type. -/

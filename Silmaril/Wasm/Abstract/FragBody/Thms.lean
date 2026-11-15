@@ -63,8 +63,11 @@ diverges through a loop, `DivE`: never stuck), `exec_not_div`; hence
 **`den_diverge_iff_divE`**: on typed code the denotation diverges exactly when
 the run iterates a loop forever (or a component does), never because a
 configuration is stuck; for functions `func_progress`,
-**`denFunc_diverge_iff_divS`**. Not yet: the derivation of `funcTyped` from
-Core validation of a fragment site (on validated sites,
+**`denFunc_diverge_iff_divS`**. Typing covers dead code after `unreachable`,
+`br`, `return` (`SeqTy.bot`, witness `deadCode_typed`), which validated
+native fragment bodies may contain. Not yet: the derivation of `funcTyped`
+from Core validation of a fragment site (inversion of `InstrsOk` along
+`BExpr.lowerList` with the native arity check) (on validated sites,
 `den_diverges_iff_core` already makes divergence operational).
 
 **Faithful on the run quotient.** `denFunc_eq_iff`: two fragment functions
@@ -265,10 +268,19 @@ theorem denFunc_diverge_iff_divS {f : FragFunc} {args : List WVal} (hf : funcTyp
       DivS (f.initLocals args) none f.body :=
   Silmaril.Proofs.Wasm.Abstract.FragBody.denFunc_diverge_iff_divS hf ha s
 
+/-- Dead code after a non-completing element is typed (`SeqTy.bot`), as in Wasm
+validation (polymorphic stack) and the native arity check: `block (result
+i32) unreachable nop end` is valid Wasm and a native fragment body. Without
+`bot`, the typing would have rejected it, so `funcTyped` could not follow
+from validation; `bot` repairs that incompleteness. -/
+theorem deadCode_typed :
+    Ty [] none [] (.block (some .i32) [.unreachable, .nop]) (some .i32) :=
+  .block (.bot fun _ => .unreachable)
+
 /-- The counting loop is typed. -/
 theorem exampleSum_typed : funcTyped exampleSum := by
   unfold funcTyped exampleSum
-  repeat (first | rfl | constructor)
+  repeat (first | rfl | constructor!)
 
 /-! ## Examples -/
 
