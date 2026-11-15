@@ -131,4 +131,73 @@ theorem ofInstr_results (C : Context) {i : Instr} {es : List SSA.Expr} {e : SSA.
   split at h <;> simp_all [botInstr, flatResults]
   all_goals (subst h; first | exact absurd rfl (hnat _ _ rfl).2 | simp [SSA.Op.native] at hnat)
 
+/-! ## `br_if`, operand arities and `select`-freedom -/
+
+open Silmaril.Wasm.SSA in
+section
+variable {L : List Ar} {R : Ar} {n : Nat} {r : Option (Option Ar)}
+
+theorem ofInstr_brIf (C : Context) {l : LabelIdx} {es : List SSA.Expr} {ts : List CValType}
+    (hl : C.labels[l.toNat]? = some ts) (hlen : ts.length + 1 = es.length) :
+    botInstr (.brIf l) = false ∧ flatArity C (.brIf l) = some es.length ∧
+      flatResults C (.brIf l) = some ts := by
+  simp [botInstr, flatArity, flatResults, hl, hlen]
+
+theorem tyE_op_args {o : Op} {args : List SSA.Expr} (h : tyE L R n (.op o args) = some r) :
+    tyArgs L R n args = true := by
+  rw [tyE] at h; by_contra hn; simp [hn] at h
+theorem tyE_localSet {i : Nat} {e : SSA.Expr} (h : tyE L R n (.localSet i e) = some r) :
+    tyE L R n e = some (some .one) := by
+  rw [tyE] at h; by_contra hn; simp [hn] at h
+theorem tyE_localTee {i : Nat} {e : SSA.Expr} (h : tyE L R n (.localTee i e) = some r) :
+    tyE L R n e = some (some .one) := by
+  rw [tyE] at h; by_contra hn; simp [hn] at h
+theorem tyE_drop {e : SSA.Expr} (h : tyE L R n (.drop e) = some r) :
+    tyE L R n e = some (some .one) := by
+  rw [tyE] at h; by_contra hn; simp [hn] at h
+theorem tyE_br {l : Nat} {args : List SSA.Expr} (h : tyE L R n (.br l args) = some r) :
+    tyArgs L R n args = true := by
+  rw [tyE] at h; by_contra hn; simp [hn] at h
+theorem tyE_brIf {l : Nat} {args : List SSA.Expr} (h : tyE L R n (.brIf l args) = some r) :
+    tyArgs L R n args = true := by
+  rw [tyE] at h; by_contra hn; simp [hn] at h
+theorem tyE_return {args : List SSA.Expr} (h : tyE L R n (.return_ args) = some r) :
+    tyArgs L R n args = true := by
+  rw [tyE] at h; by_contra hn; simp [hn] at h
+theorem ofInstr_tyArgs {i : Instr} {es : List SSA.Expr} {e : SSA.Expr}
+    (h : Silmaril.Wasm.SSA.ofInstr? i es = some e) (hty : tyE L R n e = some r) : tyArgs L R n es = true := by
+  unfold Silmaril.Wasm.SSA.ofInstr? at h
+  split at h <;> (try split at h) <;> simp only [Option.some.injEq, reduceCtorEq] at h <;> subst h
+  all_goals first
+    | exact tyE_op_args hty
+    | exact tyE_br hty | exact tyE_brIf hty | exact tyE_return hty
+    | simp [tyArgs, tyE_localSet hty] | simp [tyArgs, tyE_localTee hty] | simp [tyArgs, tyE_drop hty]
+    | rfl
+
+mutual
+def noSel : SSA.Expr → Bool
+  | .op o args => (o != .select) && noSelL args
+  | .localSet _ e | .localTee _ e | .drop e => noSel e
+  | .if_ _ c _ _ => noSel c
+  | .br _ args | .brIf _ args | .return_ args => noSelL args
+  | _ => true
+def noSelL : List SSA.Expr → Bool
+  | [] => true
+  | e :: es => noSel e && noSelL es
+end
+
+def arLen : Ar → Nat
+  | .none => 0
+  | .one => 1
+
+theorem ofInstr_noSel {i : Instr} {es : List SSA.Expr} {e : SSA.Expr}
+    (h : Silmaril.Wasm.SSA.ofInstr? i es = some e) (hn : noSel e = true) :
+    noSelL es = true ∧ ∀ o args, e = .op o args → o ≠ .select := by
+  unfold Silmaril.Wasm.SSA.ofInstr? at h
+  split at h <;> (try split at h) <;> simp only [Option.some.injEq, reduceCtorEq] at h <;> subst h <;>
+    simp_all [noSel, noSelL]
+
+
+end
+
 end Silmaril.Proofs.Wasm.Abstract.FragBody
