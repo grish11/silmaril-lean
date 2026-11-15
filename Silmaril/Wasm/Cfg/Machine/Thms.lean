@@ -31,8 +31,15 @@ import Silmaril.Proofs.Wasm.Cfg.Machine
   `levelLoop_of_framesOk` discharges the CFG side condition of the non-loop branch theorems.
 
 `mstep_edge` is a graph fact, true by construction of `MStep` from `entry`/`labels`/`resolveT`.
-The step soundness theorems are per step: preservation of `FramesOk`, whole-run soundness,
-completeness and handler catching are not claimed here.
+* The state invariant `MInv` (coherent frames at blocks) is preserved by every step
+  (`mstep_inv`), and with it each step's soundness composes: **`run_sound`** (any run to a sink)
+  and **`run_sound_initial`** (from `cfgEntry`) prove machine runs are `Region.Run` runs of the
+  function body, ending as the sink says (`Ends`: values by fall-through or `return`, `trap`, or
+  the thrown exception).
+
+Not claimed here: completeness (every region run is a machine run), divergence, and handler
+catching (the machine's `raise` steps only without an enclosing `try_table`; under one it does
+not step). Calls, `br_table` and `br_on_*` terminators have no machine step yet.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -257,5 +264,61 @@ theorem brIfTaken_loop_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : Lis
     {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.brIfTaken_loop_step_sound hb ht hr hk hL harity hloop hbt hlen hok hX hY
+
+/-! ## The state invariant and whole runs -/
+
+/-- **The machine's steps preserve the state invariant** (`MInv`: coherent frames at blocks,
+no frames left at `exit` and `raise`). -/
+theorem mstep_inv {st st₁ : MState H} (h : MStep P host body st st₁) (hok : MInv body st) :
+    MInv body st₁ :=
+  have ⟨_, hX⟩ := Proofs.Machine.codeOf_of_ok hok
+  (Proofs.Machine.mstep_sound h hok hX).1
+
+/-- A state satisfying the invariant stands for region code. -/
+theorem codeOf_of_inv {st : MState H} (hok : MInv body st) : ∃ X, codeOf body st = some X :=
+  Proofs.Machine.codeOf_of_ok hok
+
+/-- **An `unreachable` terminator is sound**: the code traps, with the body's final store. -/
+theorem trap_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+    {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some .unreachable)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hX : codeAt body b stk ls = some X) : Region.Run P host s f [] X s₁ f₁ .trap :=
+  Proofs.Machine.trap_sound hb ht hr hX
+
+/-- **A trap in a block's straight-line body is sound.** -/
+theorem bodyTrap_sound {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame}
+    {s s₁ : Store H} {f f₁ : Frame} {X : List Admin} (hb : lookup body b = some sg)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ .trap)
+    (hX : codeAt body b stk ls = some X) : Region.Run P host s f [] X s₁ f₁ .trap :=
+  Proofs.Machine.bodyTrap_sound hb hr hX
+
+/-- **A `return` is sound**: the code returns the block's values, over the label frames' outer
+values (Core keeps the top values a function returns). -/
+theorem ret_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+    {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some .return_)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hX : codeAt body b stk ls = some X) :
+    ∃ W, Region.Run P host s f [] X s₁ f₁ (.ret (W ++ stk₁)) :=
+  Proofs.Machine.ret_sound hb ht hr hX
+
+/-- **Whole-run soundness**: a machine run from a state satisfying the invariant to a sink
+(`exit`, `trap`, `raise`) is a region run of the code that state stands for, from its store and
+frame to the sink's, ending as the sink says (`Ends`). -/
+theorem run_sound {st st' : MState H} (h : Relation.ReflTransGen (MStep P host body) st st')
+    (hs : st'.node.IsSink) (hok : MInv body st) {X : List Admin}
+    (hX : codeOf body st = some X) :
+    ∃ o, Ends st' o ∧ Region.Run P host st.store st.frame [] X st'.store st'.frame o :=
+  Proofs.Machine.run_sound h hs hok hX
+
+/-- **Whole-run soundness from the CFG entry**: a machine run of a function body from its
+initial state (`cfgEntry`, empty stack, no label frames) to a sink is a region run of the body
+(`Region.Run` of `expression body`, from the initial store and frame to the sink's). -/
+theorem run_sound_initial {s : Store H} {f : Frame} {st' : MState H}
+    (h : Relation.ReflTransGen (MStep P host body) (initial body s f) st')
+    (hs : st'.node.IsSink) :
+    ∃ o, Ends st' o ∧ Region.Run P host s f [] (expression body) st'.store st'.frame o :=
+  Proofs.Machine.run_sound_initial h hs
 
 end Silmaril.Wasm.Cfg.Machine

@@ -181,14 +181,17 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       {f f₁ : Frame} (hb : lookup body b = some sg)
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ .trap) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩
-  /-- `throw` and `throw_ref`: the terminator runs (allocating the exception for `throw`) and
-  the machine moves to the `raise` sink with the exception's address as its stack
-  (`[ref (exn a)]`) and the store after the throw. Catching is not modelled yet. -/
+  /-- `throw` and `throw_ref` with no enclosing `try_table`: the terminator runs (allocating
+  the exception for `throw`) and the machine moves to the `raise` sink with the exception's
+  address as its stack (`[ref (exn a)]`) and the store after the throw. Under a `try_table`
+  frame (`hT`) a handler may catch; the machine does not step there (catching is not modelled
+  yet). -/
   | raise {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat} (hb : lookup body b = some sg)
       (ht : sg.term = some i) (hi : i.IsThrow)
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-      (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a)) :
+      (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+      (hT : ∀ L ∈ ls, L.tryT = false) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.raise, [.ref (.exn a)], [], s₂, f₂⟩
 
 end Silmaril.Wasm.Cfg.Machine
@@ -284,5 +287,43 @@ def FramesOk (body : Expr) : List SeqStep → List LFrame → Prop
       sg.term = some t ∧ armOf t a = some c ∧ StructKind t L.bt L.loop L.tryT L.catches) ∧
     FramesOk body rp ls
   | _, _ => False
+
+end Silmaril.Wasm.Cfg.Machine
+
+namespace Silmaril.Wasm.Cfg.Machine
+
+open Silmaril.Wasm.Execution.Core
+
+/-- **The machine state invariant**: coherent frames at a block (`FramesOk` along its path);
+no label frame left at `exit` and `raise`, and the exception's address as `raise`'s stack. The
+`invalid` node (a branch to a missing label) is excluded. -/
+def MInv (body : Expr) {H : Type} (st : MState H) : Prop :=
+  match st.node with
+  | .block b => FramesOk body b.seq.reverse st.lbls
+  | .exit => st.lbls = []
+  | .trap => True
+  | .raise => st.lbls = [] ∧ ∃ a, st.stk = [.ref (.exn a)]
+  | .invalid => False
+
+/-- The sink nodes: `exit`, `trap` and `raise`. -/
+def _root_.Silmaril.Wasm.Cfg.Target.IsSink : Target → Prop
+  | .exit | .trap | .raise => True
+  | _ => False
+
+/-- **What a run ending in a sink state means**, as a region outcome: at `exit`, the final
+values, reached by falling off the end (`normal`) or by `return` (`ret`, the values under the
+returned ones are the label frames' outer values Core keeps); `trap`; at `raise`, the thrown
+exception whose address is the stack. -/
+def Ends {H : Type} (st : MState H) (o : Region.Out) : Prop :=
+  match st.node with
+  | .exit => o = .normal st.stk ∨ ∃ W, o = .ret (W ++ st.stk)
+  | .trap => o = .trap
+  | .raise => ∃ a, st.stk = [.ref (.exn a)] ∧ o = .throw a
+  | _ => False
+
+/-- The machine's initial state for a function body: the CFG entry (`cfgEntry`), empty stack,
+no label frames. -/
+def initial {H : Type} (body : Expr) (s : Store H) (f : Frame) : MState H :=
+  ⟨cfgEntry body, [], [], s, f⟩
 
 end Silmaril.Wasm.Cfg.Machine

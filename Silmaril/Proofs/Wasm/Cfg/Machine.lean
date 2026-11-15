@@ -1206,3 +1206,507 @@ theorem brIfTaken_loop_step_sound {body : Expr} {b : BlockId} {sg : Segment}
   exact br_lift_loop l.toNat _ ls hX hok hL hloop hbt hlen harity hin hY' h
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
+
+/-! ## The state invariant is preserved -/
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+theorem framesOk_length {body : Expr} :
+    ∀ (rp : List SeqStep) (ls : List LFrame), FramesOk body rp ls → ls.length = rp.length
+  | [], [], _ => rfl
+  | [], _ :: _, h => by simp [FramesOk] at h
+  | _ :: _, [], h => by simp [FramesOk] at h
+  | _ :: rp, _ :: ls, h => by simp [framesOk_length rp ls h.2]
+
+theorem framesOk_seqAt {body : Expr} :
+    ∀ (rp : List SeqStep) (ls : List LFrame), FramesOk body rp ls →
+      ∃ c, seqAt body rp.reverse = some c
+  | [], [], _ => ⟨body, rfl⟩
+  | [], _ :: _, h => by simp [FramesOk] at h
+  | _ :: _, [], h => by simp [FramesOk] at h
+  | (m, a) :: rp, _ :: ls, h => by
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, -⟩, -⟩ := h
+    exact ⟨c, by rw [List.reverse_cons, seqAt_append]; simp [hpc, hsg, ht, harm]⟩
+
+theorem framesOk_wrap {body : Expr} :
+    ∀ (rp : List SeqStep) (ls : List LFrame), FramesOk body rp ls →
+      ∀ inner : List Admin, ∃ X, wrap body rp ls inner = some X
+  | [], [], _, inner => ⟨inner, rfl⟩
+  | [], _ :: _, h, _ => by simp [FramesOk] at h
+  | _ :: _, [], h, _ => by simp [FramesOk] at h
+  | (m, a) :: rp, L :: ls, h, inner => by
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, -, -⟩, h'⟩ := h
+    simp only [wrap, hpc, hsg, ht, Option.bind_eq_bind, Option.bind_some]
+    exact framesOk_wrap rp ls h' _
+
+theorem framesOk_drop {body : Expr} :
+    ∀ (k : Nat) (rp : List SeqStep) (ls : List LFrame), FramesOk body rp ls →
+      FramesOk body (rp.drop k) (ls.drop k)
+  | 0, _, _, h => h
+  | _ + 1, [], [], _ => trivial
+  | _ + 1, [], _ :: _, h => by simp [FramesOk] at h
+  | _ + 1, _ :: _, [], h => by simp [FramesOk] at h
+  | k + 1, _ :: rp, _ :: ls, h => framesOk_drop k rp ls h.2
+
+theorem popL_fst : ∀ (k : Nat) (ls : List LFrame) (stk : List Val), (popL k ls stk).1 = ls.drop k
+  | 0, _, _ => rfl
+  | _ + 1, [], _ => rfl
+  | k + 1, _ :: ls, _ => popL_fst k ls _
+
+theorem goto_succ {t : Target} {d : Nat} {L : LFrame} {ls : List LFrame} {W : List Val}
+    {s : Store H} {f : Frame} (h : depthT t ≤ d) :
+    goto t (d + 1) (L :: ls) W s f = goto t d ls (L.outer ++ W) s f := by
+  unfold goto
+  rw [show d + 1 - depthT t = (d - depthT t) + 1 by omega]
+  rfl
+
+theorem depth_contRev_cons (body : Expr) (m a : Nat) (rp : List SeqStep) :
+    depthT (contRev body ((m, a) :: rp)) ≤ rp.length := by
+  unfold contRev
+  split
+  · simp [depthT]
+  · exact depth_contRev body rp
+
+/-- Going to a sequence's continuation keeps the state invariant. -/
+theorem contRev_ok {body : Expr} {s : Store H} {f : Frame} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) (W : List Val), FramesOk body rp ls →
+      MInv body (goto (contRev body rp) rp.length ls W s f)
+  | [], [], _, _ => by simp [MInv, goto, contRev, popL]
+  | [], _ :: _, _, h => by simp [FramesOk] at h
+  | _ :: _, [], _, h => by simp [FramesOk] at h
+  | (m, a) :: rp, L :: ls, W, h => by
+    rw [List.length_cons, goto_succ (depth_contRev_cons body m a rp)]
+    unfold contRev
+    split
+    · simp only [MInv, goto, depthT, List.length_reverse, Nat.sub_self, popL,
+        List.reverse_reverse]
+      exact h.2
+    · exact contRev_ok rp ls _ h.2
+
+/-- Going to the entry of a sequence position keeps the state invariant. -/
+theorem entry_ok {body : Expr} {s : Store H} {f : Frame} {p : List SeqStep} {i : Nat}
+    {ls : List LFrame} {W : List Val} (h : FramesOk body p.reverse ls) :
+    MInv body (goto (entry body p i) p.length ls W s f) := by
+  unfold entry
+  split
+  · simpa [MInv, goto, depthT, popL] using h
+  · have := contRev_ok (s := s) (f := f) p.reverse ls W h
+    simpa [cont] using this
+
+theorem labelsRev_getD {body : Expr} :
+    ∀ (k : Nat) (rp : List SeqStep) {m a : Nat} {rp' : List SeqStep},
+      rp.drop k = (m, a) :: rp' →
+      (labelsRev body rp).getD k .invalid =
+        if isLoopAt body rp'.reverse m then entry body (rp'.reverse ++ [(m, a)]) 0
+        else contRev body ((m, a) :: rp')
+  | 0, rp, _, _, _, h => by simp at h; subst h; simp [labelsRev]
+  | _ + 1, [], _, _, _, h => by simp at h
+  | k + 1, _ :: rp, _, _, _, h => by
+    simp only [List.drop_succ_cons] at h
+    simp only [labelsRev, List.getD_cons_succ]
+    exact labelsRev_getD k rp h
+
+theorem drop_cons_of {α : Type} {l : List α} {k : Nat} (hk : k < l.length) :
+    ∃ x l', l.drop k = x :: l' ∧ l.drop (k + 1) = l' :=
+  ⟨l[k], l.drop (k + 1), List.drop_eq_getElem_cons hk, rfl⟩
+
+/-- A branch to a non-loop label keeps the state invariant. -/
+theorem br_ok {body : Expr} {s : Store H} {f : Frame} {k : Nat} {rp : List SeqStep}
+    {ls : List LFrame} {L : LFrame} {W : List Val} (h : FramesOk body rp ls)
+    (hL : ls[k]? = some L) (hloop : L.loop = false) :
+    MInv body (goto ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1))
+      (ls.drop (k + 1)) W s f) := by
+  have hk : k < rp.length := by
+    rw [← framesOk_length rp ls h]; exact (List.getElem?_eq_some_iff.mp hL).1
+  obtain ⟨⟨m, a⟩, rp', hd, hd1⟩ := drop_cons_of hk
+  have hlev := levelLoop_of_framesOk k rp ls h hL
+  simp only [levelLoop, hd, hloop] at hlev
+  rw [labelsRev_getD k rp hd, hlev]
+  simp only [Bool.false_eq_true, ↓reduceIte]
+  have hlen : rp.length - (k + 1) = rp'.length := by rw [← hd1]; simp
+  have hok := framesOk_drop (k + 1) rp ls h
+  rw [hd1] at hok
+  rw [hlen]
+  unfold contRev
+  split
+  · simpa [MInv, goto, depthT, popL] using hok
+  · exact contRev_ok rp' _ W hok
+
+/-- Re-entering a `loop` keeps the state invariant. -/
+theorem br_loop_ok {body : Expr} {s : Store H} {f : Frame} {k : Nat} {rp : List SeqStep}
+    {ls : List LFrame} {L : LFrame} {W : List Val} (h : FramesOk body rp ls)
+    (hL : ls[k]? = some L) (hloop : L.loop = true) :
+    MInv body (goto ((labelsRev body rp).getD k .invalid) (rp.length - k)
+      (L :: ls.drop (k + 1)) W s f) := by
+  have hkl : k < ls.length := (List.getElem?_eq_some_iff.mp hL).1
+  have hk : k < rp.length := by rw [← framesOk_length rp ls h]; exact hkl
+  obtain ⟨⟨m, a⟩, rp', hd, hd1⟩ := drop_cons_of hk
+  have hlev := levelLoop_of_framesOk k rp ls h hL
+  simp only [levelLoop, hd, hloop] at hlev
+  rw [labelsRev_getD k rp hd, hlev]
+  have hlen : rp.length - k = (rp'.reverse ++ [(m, a)]).length := by
+    have := congrArg List.length hd; simp at this ⊢; omega
+  have hok := framesOk_drop k rp ls h
+  rw [hd, List.drop_eq_getElem_cons hkl] at hok
+  have hLk : ls[k] = L := by simpa using (List.getElem?_eq_some_iff.mp hL).2
+  rw [hLk] at hok
+  simp only [↓reduceIte]
+  rw [hlen]
+  exact entry_ok (by simpa using hok)
+
+/-- Entering a structured terminator keeps the state invariant. -/
+theorem enter_ok {body : Expr} {s : Store H} {f : Frame} {b : BlockId} {sg : Segment}
+    {i : Instr} {a : Nat} {c' : List Instr} {bt : BlockType} {loop tryT : Bool}
+    {cs : List Catch} {ls : List LFrame} {n : Nat} {ws us : List Val}
+    (h : FramesOk body b.seq.reverse ls) (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (harm : armOf i a = some c') (hkind : StructKind i bt loop tryT cs) :
+    MInv body (goto (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
+      (⟨n, ws, loop, tryT, cs, bt⟩ :: ls) us s f) := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  have hlen : b.seq.length + 1 = (b.seq ++ [(b.idx, a)]).length := by simp
+  rw [hlen]
+  refine entry_ok ?_
+  simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+    List.singleton_append, FramesOk]
+  exact ⟨⟨c, sg, i, c', by simpa using hc, hsg, ht, harm, hkind⟩, h⟩
+
+/-- A state satisfying the invariant stands for some region code. -/
+theorem codeOf_of_ok {body : Expr} {st : MState H} (h : MInv body st) :
+    ∃ Y, codeOf body st = some Y := by
+  obtain ⟨node, stk, ls, s, f⟩ := st
+  cases node with
+  | block b =>
+    simp only [MInv] at h
+    obtain ⟨c, hc⟩ := framesOk_seqAt _ _ h
+    obtain ⟨X, hX⟩ := framesOk_wrap _ _ h (vals stk ++ expression (restAt c b.idx))
+    rw [List.reverse_reverse] at hc
+    exact ⟨X, by simp [codeOf, codeAt, hc, hX]⟩
+  | exit => simp only [MInv] at h; subst h; exact ⟨vals stk, by simp [codeOf]⟩
+  | trap => exact ⟨_, rfl⟩
+  | raise =>
+    simp only [MInv] at h
+    obtain ⟨rfl, a, rfl⟩ := h
+    exact ⟨throwing a, by simp [codeOf]⟩
+  | invalid => simp [MInv] at h
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+/-! ## Sinks: traps and returns through the label frames -/
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- A trap propagates through every label frame (`label` and `handler` alike). -/
+theorem wrap_trap {body : Expr} {s s' : Store H} {f f' : Frame} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin},
+      wrap body rp ls inner = some X →
+      Run P host s f [] inner s' f' .trap → Run P host s f [] X s' f' .trap
+  | [], [], _, _, hX, h => by simp [wrap] at hX; subst hX; exact h
+  | [], _ :: _, _, _, hX, _ => by simp [wrap] at hX
+  | _ :: _, [], _, _, hX, _ => by simp [wrap] at hX
+  | (m, _) :: rp, L :: ls, inner, X, hX, h => by
+    simp only [wrap, Option.bind_eq_bind] at hX
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some] at hX
+          refine wrap_trap rp ls hX ?_
+          apply Proofs.Region.run_vals (vs := [])
+          cases L.tryT
+          · exact .labelTrap h
+          · exact .handlerTrap (by simpa using (RunC.labelTrap (C := noCall) (P := P)
+              (host := host) (vs := []) (code := []) (n := L.arity)
+              (cont := if L.loop then [t] else []) h))
+
+/-- A `return` propagates through every label frame, collecting the frames' outer values under
+the returned ones. -/
+theorem wrap_ret {body : Expr} {s s' : Store H} {f f' : Frame} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin} {us : List Val},
+      wrap body rp ls inner = some X →
+      Run P host s f [] inner s' f' (.ret us) → ∃ W, Run P host s f [] X s' f' (.ret (W ++ us))
+  | [], [], _, _, us, hX, h => by simp [wrap] at hX; subst hX; exact ⟨[], h⟩
+  | [], _ :: _, _, _, _, hX, _ => by simp [wrap] at hX
+  | _ :: _, [], _, _, _, hX, _ => by simp [wrap] at hX
+  | (m, _) :: rp, L :: ls, inner, X, us, hX, h => by
+    simp only [wrap, Option.bind_eq_bind] at hX
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some] at hX
+          have h1 : Run P host s f [] (vals L.outer ++
+              (if L.tryT then Admin.handler L.arity L.catches
+                [.label L.arity (if L.loop then [t] else []) inner]
+              else .label L.arity (if L.loop then [t] else []) inner) ::
+              expression (restAt pc (m + 1))) s' f' (.ret (L.outer ++ us)) := by
+            apply Proofs.Region.run_vals (vs := [])
+            cases L.tryT
+            · exact .labelRet h
+            · have h2 : Run P host s f [] [.label L.arity (if L.loop then [t] else []) inner]
+                  s' f' (.ret us) := by
+                simpa using (RunC.labelRet (C := noCall) (P := P) (host := host) (vs := [])
+                  (code := []) (n := L.arity) (cont := if L.loop then [t] else []) h)
+              exact .handlerRet h2
+          obtain ⟨W, hW⟩ := wrap_ret rp ls hX h1
+          exact ⟨W ++ L.outer, by simpa using hW⟩
+
+/-- The block's code, with its terminator `i` run after the body. -/
+theorem block_then {b : BlockId} {sg : Segment} {c : List Instr} {stk stk₁ : List Val}
+    {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {o : Out}
+    (hsg : (segment c)[b.idx]? = some sg) (ht : sg.term = some i)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hi : Run P host s₁ f₁ stk₁ (.plain i :: expression (restAt c (b.idx + 1))) s₂ f₂ o) :
+    Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ o := by
+  apply Proofs.Region.run_vals (vs := [])
+  rw [restAt_cons hsg]
+  simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append, List.map_cons,
+    List.map_nil, List.append_assoc, List.singleton_append, List.nil_append] at hi ⊢
+  exact Proofs.Region.run_append hr (by simp only [Then]; exact hi)
+
+theorem steps_unreachable {s : Store H} {f : Frame} (stk : List Val) :
+    Steps P host ⟨s, f, vals stk ++ [.plain .unreachable]⟩ ⟨s, f, [.trap]⟩ := by
+  have h0 : Step P host ⟨s, f, [.plain .unreachable]⟩ ⟨s, f, [.trap]⟩ :=
+    .parametric .unreachable
+  cases stk with
+  | nil => simpa using Relation.ReflTransGen.single h0
+  | cons v vs =>
+    have h1 := Step.ctxtInstrs (vs := v :: vs) (rest := []) h0 (Or.inl (by simp))
+    have h2 := Step.trapInstrs (P := P) (host := host) (s := s) (f := f) (vs := v :: vs)
+      (rest := []) (Or.inl (by simp))
+    simp only [List.append_nil] at h1 h2
+    exact Relation.ReflTransGen.head h1 (Relation.ReflTransGen.single h2)
+
+/-- **The `unreachable` terminator is sound**: the code traps. -/
+theorem trap_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some .unreachable)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hX : codeAt body b stk ls = some X) : Run P host s f [] X s₁ f₁ .trap := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  refine wrap_trap _ _ hX (block_then hsg ht hr ?_)
+  exact .simpleTrap (by simp [SingleThreaded.Det.famOf]) (steps_unreachable stk₁)
+
+/-- **A trap in the block's body is sound**. -/
+theorem bodyTrap_sound {body : Expr} {b : BlockId} {sg : Segment} {stk : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
+    (hb : lookup body b = some sg)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ .trap)
+    (hX : codeAt body b stk ls = some X) : Run P host s f [] X s₁ f₁ .trap := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  refine wrap_trap _ _ hX ?_
+  apply Proofs.Region.run_vals (vs := [])
+  rw [restAt_cons hsg]
+  simp only [Segment.instrs, expression, List.map_append, List.append_assoc, List.nil_append]
+  exact Proofs.Region.run_append hr (by simp [Then])
+
+/-- **A `return` is sound**: the code returns the block's values, over the frames' outer
+values. -/
+theorem ret_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some .return_)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hX : codeAt body b stk ls = some X) : ∃ W, Run P host s f [] X s₁ f₁ (.ret (W ++ stk₁)) := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  exact wrap_ret _ _ hX (block_then hsg ht hr .ret)
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+/-! ## Whole runs -/
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+theorem resolveT_labels (body : Expr) (p : List SeqStep) (l : LabelIdx) :
+    resolveT (labels body p) l = (labelsRev body p.reverse).getD l.toNat .invalid := by
+  simp [labels, resolveT, Idx.toNat]
+
+/-- What one machine step proves: the invariant holds after it, and either the next state's
+code runs as the current one's (`Y`), or the step reached a sink and the current code ends as
+that sink says (`Ends`). -/
+def StepOk (body : Expr) (st st₁ : MState H) (X : List Admin) : Prop :=
+  MInv body st₁ ∧
+    ((∃ Y, codeOf body st₁ = some Y ∧ ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+        Run P host st₁.store st₁.frame [] Y s₂ f₂ o → Run P host st.store st.frame [] X s₂ f₂ o) ∨
+      ∃ o, Ends st₁ o ∧ Run P host st.store st.frame [] X st₁.store st₁.frame o)
+
+theorem stepOk_back {body : Expr} {st st₁ : MState H} {X : List Admin} (hok₁ : MInv body st₁)
+    (hb : ∀ {Y : List Admin}, codeOf body st₁ = some Y → ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host st₁.store st₁.frame [] Y s₂ f₂ o → Run P host st.store st.frame [] X s₂ f₂ o) :
+    StepOk (P := P) (host := host) body st st₁ X := by
+  obtain ⟨Y, hY⟩ := codeOf_of_ok hok₁
+  exact ⟨hok₁, Or.inl ⟨Y, hY, hb hY⟩⟩
+
+/-- **Every machine step is sound** for the state invariant and the region code it stands for. -/
+theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁)
+    (hok : MInv body st) {X : List Admin} (hX : codeOf body st = some X) :
+    StepOk (P := P) (host := host) body st st₁ X := by
+  cases h with
+  | fall hb ht hr =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    exact stepOk_back (entry_ok hok) (fun hY => fall_step_sound hb ht hr hX hY)
+  | brIfNot hb ht hr =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    exact stepOk_back (entry_ok hok) (fun hY => brIfNot_step_sound hb ht hr hX hY)
+  | @br b sg stk stk₁ ls s s₁ f f₁ l L hb ht hr hL harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    cases hl : L.loop
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      refine stepOk_back ?_ (fun hY => br_step_sound hb ht hr hL harity hl
+        ((levelLoop_of_framesOk _ _ _ hok hL).trans hl) hX hY)
+      rw [resolveT_labels, ← List.length_reverse (as := b.seq)]
+      exact br_ok hok hL hl
+    · obtain ⟨t₁, t₂, hbt, hlen⟩ := hlbt hl
+      simp only [↓reduceIte]
+      refine stepOk_back ?_ (fun hY => br_loop_step_sound hb ht hr hL harity hl hbt hlen hok hX hY)
+      rw [resolveT_labels, ← List.length_reverse (as := b.seq)]
+      exact br_loop_ok hok hL hl
+  | @brIfTaken b sg stk stk₁ ls s s₁ f f₁ l L k hb ht hr hk hL harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    cases hl : L.loop
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      refine stepOk_back ?_ (fun hY => brIfTaken_step_sound hb ht hr hk hL harity hl
+        ((levelLoop_of_framesOk _ _ _ hok hL).trans hl) hX hY)
+      rw [resolveT_labels, ← List.length_reverse (as := b.seq)]
+      exact br_ok hok hL hl
+    · obtain ⟨t₁, t₂, hbt, hlen⟩ := hlbt hl
+      simp only [↓reduceIte]
+      refine stepOk_back ?_
+        (fun hY => brIfTaken_loop_step_sound hb ht hr hk hL harity hl hbt hlen hok hX hY)
+      rw [resolveT_labels, ← List.length_reverse (as := b.seq)]
+      exact br_loop_ok hok hL hl
+  | @enter b sg stk stk₁ ws us ls s s₁ f f₁ i a c bt t₁ t₂ loop tryT cs hb ht harm hkind hr hcond
+      hbt hm =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    obtain ⟨c₀, hc, hsg⟩ := seg_of_lookup hb
+    refine stepOk_back (enter_ok hok hb ht harm hkind) ?_
+    intro Y hY o s₂ f₂ hR
+    have hc' : seqAt body (b.seq ++ [(b.idx, a)]) = some c := by
+      rw [seqAt_append]; simp [hc, hsg, ht, harm]
+    by_cases hl : (lookup body ⟨b.seq ++ [(b.idx, a)], 0⟩).isSome
+    · simp only [entry, hl, ↓reduceIte, goto, depthT, List.length_append, List.length_cons,
+        List.length_nil, Nat.sub_self, popL, codeOf] at hY
+      exact enter_sound hc hsg ht harm hkind hr hcond hbt hm hX hY hR
+    · have hnil : c = [] := by
+        have := restAt_none hc' (by simpa using hl)
+        rwa [restAt_zero] at this
+      subst hnil
+      have hY' : codeOf body (goto (contRev body ((b.idx, a) :: b.seq.reverse))
+          (b.seq.length + 1) (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁) =
+          some Y := by
+        simpa [entry, hl, cont] using hY
+      exact enter_empty_sound hc hsg ht harm hkind hr hcond hbt hm hX hY' hR
+  | @ret b sg stk stk₁ ls s s₁ f f₁ hb ht hr =>
+    simp only [codeOf] at hX
+    obtain ⟨W, hW⟩ := ret_sound hb ht hr hX
+    exact ⟨by simp [MInv], Or.inr ⟨_, by simp only [Ends]; exact Or.inr ⟨W, rfl⟩, hW⟩⟩
+  | trap hb ht hr =>
+    simp only [codeOf] at hX
+    obtain ⟨stk₁, hr⟩ := hr
+    exact ⟨by simp [MInv], Or.inr ⟨.trap, by simp [Ends], trap_sound hb ht hr hX⟩⟩
+  | bodyTrap hb hr =>
+    simp only [codeOf] at hX
+    exact ⟨by simp [MInv], Or.inr ⟨.trap, by simp [Ends], bodyTrap_sound hb hr hX⟩⟩
+  | @raise b sg stk stk₁ ls s s₁ s₂ f f₁ f₂ i a hb ht hi hr hth hT =>
+    simp only [codeOf] at hX
+    exact ⟨by simp [MInv], Or.inr ⟨.throw a, by simp [Ends], raise_sound hb ht hr hth hT hX⟩⟩
+
+/-- A sink state's own code ends as the sink says. -/
+theorem sink_sound {body : Expr} {st : MState H} (hs : st.node.IsSink) {X : List Admin}
+    (hX : codeOf body st = some X) :
+    ∃ o, Ends st o ∧ Run P host st.store st.frame [] X st.store st.frame o := by
+  obtain ⟨node, stk, ls, s, f⟩ := st
+  cases node with
+  | exit =>
+    simp only [codeOf] at hX
+    split at hX
+    · cases hX; exact ⟨.normal stk, by simp [Ends], Proofs.Region.run_vals_normal stk⟩
+    · cases hX
+  | trap =>
+    simp only [codeOf] at hX; cases hX
+    exact ⟨.trap, by simp [Ends], .trap⟩
+  | raise =>
+    simp only [codeOf] at hX
+    split at hX
+    · rename_i _ a
+      split at hX
+      · cases hX
+        exact ⟨.throw a, by simp [Ends], .val (v := .ref (.exn a)) rfl (.throwRefExn (ws := []))⟩
+      · cases hX
+    · cases hX
+  | block b => simp [Target.IsSink] at hs
+  | invalid => simp [Target.IsSink] at hs
+
+theorem ends_not_block {st : MState H} {o : Out} (hE : Ends st o) {b : BlockId}
+    (hb : st.node = .block b) : False := by
+  obtain ⟨node, stk, ls, s, f⟩ := st
+  simp only at hb; subst hb
+  simp [Ends] at hE
+
+/-- **Whole-run soundness**: a machine run from a state satisfying the invariant to a sink is a
+region run of the code the state stands for, ending as the sink says. -/
+theorem run_sound {body : Expr} {st st' : MState H}
+    (h : Relation.ReflTransGen (MStep P host body) st st') (hs : st'.node.IsSink)
+    (hok : MInv body st) {X : List Admin} (hX : codeOf body st = some X) :
+    ∃ o, Ends st' o ∧ Run P host st.store st.frame [] X st'.store st'.frame o := by
+  induction h using Relation.ReflTransGen.head_induction_on generalizing X with
+  | refl => exact sink_sound hs hX
+  | head hstep hrest ih =>
+    obtain ⟨hok₁, ⟨Y, hY, hb⟩ | ⟨o, hE, hR⟩⟩ := mstep_sound hstep hok hX
+    · obtain ⟨o, hE, hR⟩ := ih hok₁ hY
+      exact ⟨o, hE, hb hR⟩
+    · rcases hrest.cases_head with rfl | ⟨c, hc, -⟩
+      · exact ⟨o, hE, hR⟩
+      · exfalso
+        obtain ⟨b, hb⟩ := mstep_from_block hc
+        exact ends_not_block hE hb
+
+/-- **Whole-run soundness from the CFG entry**: a machine run of a function body from its
+initial state (`cfgEntry`, empty stack, no frames) to a sink is a region run of the body. -/
+theorem run_sound_initial {body : Expr} {s : Store H} {f : Frame} {st' : MState H}
+    (h : Relation.ReflTransGen (MStep P host body) (initial body s f) st')
+    (hs : st'.node.IsSink) :
+    ∃ o, Ends st' o ∧ Run P host s f [] (expression body) st'.store st'.frame o := by
+  have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by
+    simp [initial, goto, popL, cfgEntry]
+  have hok : MInv body (initial body s f) := by
+    rw [hinit]; exact entry_ok (p := []) trivial
+  obtain ⟨Y, hY⟩ := codeOf_of_ok hok
+  obtain ⟨o, hE, hR⟩ := run_sound h hs hok hY
+  refine ⟨o, hE, ?_⟩
+  rw [hinit] at hY
+  exact entry_sound (p := []) (c := body) (i := 0) rfl (by simp [wrap, restAt_zero, vals]) hY hR
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
