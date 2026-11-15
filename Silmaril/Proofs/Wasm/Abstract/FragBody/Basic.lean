@@ -641,6 +641,10 @@ theorem denFunc_exact (f : FragFunc) (args : List WVal) (s : S) :
     · exact hd
     · exact absurd ho' (h o')
 
+theorem denFunc_diverge_iff' (f : FragFunc) (args : List WVal) (s : S) :
+    run' (denFunc f ⟨args⟩ : M E S _) s = diverge ↔ ∀ o, ¬ f.Run args o :=
+  (denFunc_exact f args s).2
+
 theorem toAFun_denFunc (f : FragFunc) (args : List WVal) (s : S) :
     toAFun (denFunc f : Hom E S PUnit.{2} _ _) s ⟨args⟩ =
       {x | (∃ o, f.Run args o ∧ x = ([], foutEnd o s)) ∨ (x = ([], .div) ∧ ∀ o, ¬ f.Run args o)} := by

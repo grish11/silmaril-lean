@@ -8,6 +8,7 @@ public import Silmaril.Wasm.SSA.Fragment.Thms
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Basic
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Core
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Examples
+import Silmaril.Proofs.Wasm.Abstract.FragBody.Diverge
 
 /-!
 # Concrete Wasm bodies as abstract bodies: theorems
@@ -40,6 +41,14 @@ as trace behaviours, divergence when there is none. `callSem_eq_den`: a Core
 3.0 call site holding the function (`IsFragmentSite`, the hypotheses of
 `behaviours_eq_run`) has exactly the behaviours read off the abstract body:
 the end-to-end bridge Core → fragment → `BodyM`.
+
+**Divergence is Core divergence on validated code.** The fragment semantics
+reads "no derivation" as divergence; that is the repository's behavioural
+convention, not by itself an operational fact. For a validated call site it
+becomes one: `den_diverges_iff_core` — the abstract body diverges exactly when
+the Core 3.0 invocation has an infinite run of steps (`Diverges`). Core type
+safety (behind `behaviours_eq_run`) excludes stuck runs, so on validated code
+the denotation's `stuck` branches never produce divergence of their own.
 
 **Faithful on the run quotient.** `denFunc_eq_iff`: two fragment functions
 have equal abstract bodies exactly when they have the same runs (for a
@@ -168,6 +177,19 @@ theorem callEquiv_of_denFunc_eq [Nonempty S] {H H' : Type} {x : CallSite H} {y :
       Silmaril.Wasm.Execution.Core.InvokeOk y.store y.addr vs)
     (h : (denFunc f : Hom E S PUnit.{2} _ _) = denFunc f') : CallEquiv x y :=
   callEquiv_of_run_iff hx hy hinv ((denFunc_eq_iff f f').1 h)
+
+/-- **Divergence is operational on validated code.** At a validated fragment
+call site, the abstract body diverges exactly when the Core 3.0 invocation
+runs forever. -/
+theorem den_diverges_iff_core {H : Type} {x : CallSite H} {ft : Silmaril.Wasm.FuncType}
+    {bf : Silmaril.Wasm.Binaryen.BFunc} {f : FragFunc} (hx : IsFragmentSite x ft bf f)
+    {vs : List Silmaril.Wasm.Execution.Core.Val}
+    (hok : Silmaril.Wasm.Execution.Core.InvokeOk x.store x.addr vs)
+    (P : Silmaril.Wasm.Numerics.Profile) {args : List WVal} (hv : vs = args.map WVal.toVal) (s : S) :
+    ((denFunc f ⟨args⟩ : M E S _).run s).run = Silmaril.Elgot.ITree.diverge ↔
+      Silmaril.Wasm.Execution.Core.Diverges P Silmaril.Wasm.Binaryen.closedHost
+        (Silmaril.Wasm.Execution.Core.invoke x.store x.addr vs) :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.den_diverges_iff_core hx hok P hv s
 
 /-! ## Examples -/
 
