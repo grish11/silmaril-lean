@@ -26,38 +26,6 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core
 
 variable {H : Type}
 
-/-- Function-list extension, as in Core's `Extend`. -/
-abbrev FuncsExt (F F' : List (FuncInst H)) : Prop := ExtendsList ExtendFunc F F'
-
-theorem extendFunc_eq {a b : FuncInst H} (h : ExtendFunc a b) : a = b := by
-  obtain ⟨ht, hm, hw, hh⟩ := h
-  rcases a with ⟨ta, ma, ca⟩
-  rcases b with ⟨tb, mb, cb⟩
-  dsimp only at ht hm hw hh
-  subst ht hm
-  rcases ca with c | k
-  · rw [hw c rfl]
-  · rw [hh k rfl]
-
-/-- Existing addresses keep their function instances. -/
-theorem get_of_funcsExt {F F' : List (FuncInst H)} (h : FuncsExt F F') {i : Nat} {fi : FuncInst H}
-    (hi : F[i]? = some fi) : F'[i]? = some fi := by
-  obtain ⟨fi', hi', he⟩ := h.2 i fi hi
-  rw [hi', extendFunc_eq he]
-
-theorem arities_of_funcsExt {F F' : List (FuncInst H)} (h : FuncsExt F F') (mi : ModuleInst) :
-    Arities F mi F' mi where
-  call x p hp := by
-    unfold callArity at hp ⊢
-    rcases ha : mi.funcs[x.toNat]? with _ | a
-    · simp [ha] at hp
-    · rcases hf : F[a]? with _ | fi
-      · simp [ha, hf] at hp
-      · simp only [ha, hf, Option.bind_eq_bind, Option.bind_some] at hp
-        simp only [Option.bind_eq_bind, Option.bind_some, get_of_funcsExt h hf]
-        exact hp
-  block _ _ hp := hp
-
 /-- **A passing arity check still passes after function extension.** -/
 theorem chk_of_funcsExt {F F' : List (FuncInst H)} (h : FuncsExt F F') {mi : ModuleInst}
     {nl ret : Nat} {labels : List Nat} {oh : Option Nat} {es : List Binaryen.BExpr} {o : Option Nat}

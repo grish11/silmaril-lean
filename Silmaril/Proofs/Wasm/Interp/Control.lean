@@ -907,8 +907,8 @@ theorem chk_after {labels : List Nat} {ret np nr : Nat} {out : Option Nat}
   have hlen : (vs.take nr ++ stk.drop np).length = stk.length - np + nr := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
-  rw [chk_inv inv1, hlen]
-  exact h2
+  rw [hlen]
+  exact chk_inv inv1 h2
 
 /-- What the arity check says about a checked body run. -/
 theorem body_facts {labels : List Nat} {ret n₀ nr : Nat} {stk₀ : List Val}
@@ -949,8 +949,8 @@ theorem core_opOk (hargs : ArityGood s f stk args (s₁, f₁, .normal stk₁))
   have inv12 : EvalInv s f (s₂, f₂, .normal stk₂) := inv1.trans inv2
   have h2' : chk s₂.funcs f₂.module f₂.locals.length ret labels (some stk₂.length) es =
       some out := by
-    rw [chk_inv inv12, ← ho]
-    exact h2
+    rw [← ho]
+    exact chk_inv inv12 h2
   have st := steps_flat_normal (P := P) (host := host) hi hf hflat
     (expression (Binaryen.BExpr.lowerList es))
   rw [code_op]
@@ -987,7 +987,7 @@ theorem call_facts {labels : List Nat} {ret : Nat} {out : Option Nat} (hS : Stor
         (calleeFrame fi fn stk₁ ps.length).locals.length rs.length [rs.length]
         (some ([] : List Val).length) (Binaryen.liftInstrs fn.body) = some ob ∧
       (ob = none ∨ ob = some rs.length) ∧ FlowOk [rs.length] rs.length ob fl ∧
-      EvalInv s f (s₁, f₁, .normal stk₁) ∧ s₂.funcs = s₁.funcs ∧ ps.length ≤ stk₁.length ∧
+      EvalInv s f (s₁, f₁, .normal stk₁) ∧ FuncsGood s₁.funcs s₂.funcs ∧ ps.length ≤ stk₁.length ∧
       chk s.funcs f.module f.locals.length ret labels
         (some (stk₁.length - ps.length + rs.length)) es = some out := by
   obtain ⟨inv1, hp, h2⟩ := arity_call_pre hS hargs hfi hty hc
@@ -1017,15 +1017,15 @@ theorem core_callOk (hargs : ArityGood s f stk args (s₁, f₁, .normal stk₁)
     rintro ws rfl
     exact length_of_ends hok hob
   have inv2 : EvalInv s f (s₂, f₁, .normal (vs.take rs.length ++ stk₁.drop ps.length)) :=
-    ⟨hfuncs.trans inv1.1, inv1.2.1, inv1.2.2⟩
+    ⟨inv1.1.trans hfuncs, inv1.2.1, inv1.2.2⟩
   have hlen : (vs.take rs.length ++ stk₁.drop ps.length).length =
       stk₁.length - ps.length + rs.length := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
   have h2' : chk s₂.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take rs.length ++ stk₁.drop ps.length).length) es = some out := by
-    rw [chk_inv inv2, hlen]
-    exact h2
+    rw [hlen]
+    exact chk_inv inv2 h2
   have hk := ihk (storeChk_inv inv2 hS) h2'
   have hwb := ihb (storeChk_inv inv1 hS) hb'
   rw [code_op]
@@ -1121,8 +1121,8 @@ theorem core_loopBack (har : Binaryen.arity f bt = some (np, nr))
     omega
   have hc' : chk s₁.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take np ++ stk.drop np).length) (.loop bt body :: es) = some out := by
-    rw [chk_inv inv1, hlen]
-    exact hc
+    rw [hlen]
+    exact chk_inv inv1 hc
   have hk := ihk (storeChk_inv inv1 hS) hc'
   rw [code_loop] at hk ⊢
   exact wp_loop_back har hp (ihb hS hbc) hnp hk
@@ -1171,7 +1171,8 @@ theorem if_facts {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool} {labels : 
       chk s₁.funcs f₁.module f₁.locals.length ret labels (some (stk₁.length - np + nr)) es =
         some out := by
   obtain ⟨inv1, hp, hbarm, h2⟩ := arity_if_pre (b := b) hS hcond har hc
-  rw [← chk_inv inv1] at hbarm h2
+  replace hbarm := chk_inv_endsAt inv1 hbarm
+  replace h2 := chk_inv inv1 h2
   obtain ⟨ob, hob, hbc, hok, inv2⟩ :=
     body_facts (storeChk_inv inv1 hS) harm hbarm (take_length_of_le hp)
   obtain ⟨o, h1, -⟩ := chk_cons.mp hc

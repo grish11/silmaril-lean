@@ -98,7 +98,7 @@ theorem block_good {P₀ : Config H} {bt : BlockType}
   have hrun₂ : Relation.ReflTransGen (Step (profile o₀) Det.noHost) P₀
       (pcfg s₁ f₁ (vs.take nr ++ stk.drop np) es) := hrun.trans htg.to_reflTransGen
   exact ⟨labels, ret, out, chk_after inv1 hp hnr h2, ContextTyped.steps ht hrun₂,
-    inv1.1 ▸ hF, storeChk_inv inv1 hS⟩
+    nativeFuncsOk_inv inv1 hF, storeChk_inv inv1 hS⟩
 
 /-- **Operators other than calls.** -/
 theorem bad_op {i : Instr} {args : List Binaryen.BExpr} (hi : ∀ x, i ≠ .call x)
@@ -121,7 +121,7 @@ theorem bad_op {i : Instr} {args : List Binaryen.BExpr} (hi : ∀ x, i ≠ .call
       ⟨s₁, f₁, vals stk₁.reverse ++ .plain i :: expression (Binaryen.BExpr.lowerList es)⟩ := by
     rw [pcfg_op]
     exact (sp_suffix _).steps (run_normal hargs hS ha)
-  have hF₁ : Binaryen.NativeFuncsOk s₁.funcs := inv1.1 ▸ hF
+  have hF₁ : Binaryen.NativeFuncsOk s₁.funcs := nativeFuncsOk_inv inv1 hF
   obtain ⟨⟨s₂, f₂, fl₂⟩, hflat⟩ := evalFlat_progress hf hi (ContextTyped.steps ht hrun) hF₁
   by_cases hn₂ : fl₂.IsNormal
   swap
@@ -135,9 +135,9 @@ theorem bad_op {i : Instr} {args : List Binaryen.BExpr} (hi : ∀ x, i ≠ .call
       (pcfg s f stk (.op i args :: es)) (pcfg s₂ f₂ stk₂ es) := hrun.trans hst
   have h2' : chk s₂.funcs f₂.module f₂.locals.length ret labels (some stk₂.length) es =
       some out := by
-    rw [chk_inv inv12, ← ho]
-    exact h2
-  rcases good_split ⟨labels, ret, out, h2', ContextTyped.steps ht hrun₂, inv12.1 ▸ hF,
+    rw [← ho]
+    exact chk_inv inv12 h2
+  rcases good_split ⟨labels, ret, out, h2', ContextTyped.steps ht hrun₂, nativeFuncsOk_inv inv12 hF,
     storeChk_inv inv12 hS⟩ with hb | ⟨r, hk⟩
   · exact .opK hi hargs hflat hb
   · exact absurd ⟨r, .opOk hi hargs hflat hk⟩ hne
@@ -162,7 +162,7 @@ theorem bad_call {x : FuncIdx} {args : List Binaryen.BExpr}
   obtain ⟨p, q, hpq, -, -⟩ := flatChk_call hf
   obtain ⟨a, fi, ps, rs, hfi, hty, -, -⟩ := callArity_func? hpq
   obtain ⟨-, hp, h2⟩ := arity_call_pre hS (flowOk_of_eval hargs) hfi hty hc
-  have hF₁ : Binaryen.NativeFuncsOk s₁.funcs := inv1.1 ▸ hF
+  have hF₁ : Binaryen.NativeFuncsOk s₁.funcs := nativeFuncsOk_inv inv1 hF
   have hS₁ : StoreChk s₁.funcs := storeChk_inv inv1 hS
   obtain ⟨fn, hcode, -⟩ := hF₁ fi (List.mem_of_getElem? (funcs_of_func? hfi))
   have hrun : Relation.ReflTransGen (Step (profile o₀) Det.noHost)
@@ -196,17 +196,17 @@ theorem bad_call {x : FuncIdx} {args : List Binaryen.BExpr}
     have htg₂ := Relation.TransGen.trans_right hrun
       (tg_call_ok hfi hcode hty hp hrunb' he hm hvs hrs hnorm)
     have inv2 : EvalInv s f (s₂, f₁, .normal (vs.take rs.length ++ stk₁.drop ps.length)) :=
-      ⟨hinvb.1.trans inv1.1, inv1.2.1, inv1.2.2⟩
+      ⟨inv1.1.trans hinvb.1, inv1.2.1, inv1.2.2⟩
     have hlen : (vs.take rs.length ++ stk₁.drop ps.length).length =
         stk₁.length - ps.length + rs.length := by
       simp only [List.length_append, List.length_take, List.length_drop]
       omega
     have h2' : chk s₂.funcs f₁.module f₁.locals.length ret labels
         (some (vs.take rs.length ++ stk₁.drop ps.length).length) es = some out := by
-      rw [chk_inv inv2, hlen]
-      exact h2
+      rw [hlen]
+      exact chk_inv inv2 h2
     rcases good_split ⟨labels, ret, out, h2', ContextTyped.steps ht htg₂.to_reflTransGen,
-      inv2.1 ▸ hF, storeChk_inv inv2 hS⟩ with hb | ⟨r, hk⟩
+      nativeFuncsOk_inv inv2 hF, storeChk_inv inv2 hS⟩ with hb | ⟨r, hk⟩
     · exact .callRet hargs hfi hcode hty hbody hvs hb
     · exact absurd ⟨r, .callOk hargs hfi hcode hty hbody hvs hk⟩ hne
   · exact absurd ⟨_, .callTrap hargs hfi hcode hty hbody⟩ hne
@@ -253,14 +253,15 @@ theorem bad_if {bt : BlockType} {c t el : List Binaryen.BExpr}
         (Binaryen.BExpr.lowerList el)) :: expression (Binaryen.BExpr.lowerList es)⟩ := by
     rw [pcfg_if]
     exact (sp_suffix _).steps (run_normal hcond hS hco)
-  obtain ⟨cv, stk₁, b, rfl, hb⟩ := truthy_progress (ContextTyped.steps ht hrun₁) (inv1.1 ▸ hF)
+  obtain ⟨cv, stk₁, b, rfl, hb⟩ := truthy_progress (ContextTyped.steps ht hrun₁) (nativeFuncsOk_inv inv1 hF)
   have har : Binaryen.arity f₁ bt = some (np, nr) := by
     rw [arity_eq, inv1.2.1]
     exact ha
   obtain ⟨inv1', hp, hbarm, h2⟩ := arity_if_pre (b := b) hS (flowOk_of_eval hcond) har hc
-  rw [← chk_inv inv1'] at hbarm h2
+  replace hbarm := chk_inv_endsAt inv1' hbarm
+  replace h2 := chk_inv inv1' h2
   have hrun₂ := hrun₁.tail (step_if_arm (o := o₀) (rest := expression (Binaryen.BExpr.lowerList es)) hb)
-  obtain ⟨hga, hgk⟩ := block_good hrun₂ har hp hbarm h2 ht (inv1'.1 ▸ hF) (storeChk_inv inv1' hS)
+  obtain ⟨hga, hgk⟩ := block_good hrun₂ har hp hbarm h2 ht (nativeFuncsOk_inv inv1' hF) (storeChk_inv inv1' hS)
   rcases good_split hga with hba | ⟨⟨s₂, f₂, fl⟩, harm⟩
   · exact .arm hcond hb har hba
   rcases flow_cases fl with ⟨vs, hvs⟩ | ⟨k, vs, rfl⟩ | hesc
@@ -303,7 +304,7 @@ theorem bad_loop {bt : BlockType} {body : List Binaryen.BExpr}
       hlen
     rw [← pcfg_loop] at htg
     rcases good_split ⟨labels, ret, out, chk_after inv1 hp hlen.ge h2,
-      ContextTyped.steps ht htg.to_reflTransGen, inv1.1 ▸ hF, storeChk_inv inv1 hS⟩ with hbk | ⟨r, hk⟩
+      ContextTyped.steps ht htg.to_reflTransGen, nativeFuncsOk_inv inv1 hF, storeChk_inv inv1 hS⟩ with hbk | ⟨r, hk⟩
     · exact .loopK har hbody hbk
     · exact absurd ⟨r, .loopOk har hbody hk⟩ hne
   · obtain ⟨m, hm', hle⟩ := hok
@@ -318,10 +319,10 @@ theorem bad_loop {bt : BlockType} {body : List Binaryen.BExpr}
       omega
     have hc' : chk s₁.funcs f₁.module f₁.locals.length ret labels
         (some (vs.take np ++ stk.drop np).length) (.loop bt body :: es) = some out := by
-      rw [chk_inv inv1, hlen]
-      exact hc
+      rw [hlen]
+      exact chk_inv inv1 hc
     rcases good_split ⟨labels, ret, out, hc', ContextTyped.steps ht htg.to_reflTransGen,
-      inv1.1 ▸ hF, storeChk_inv inv1 hS⟩ with hbk | ⟨r, hk⟩
+      nativeFuncsOk_inv inv1 hF, storeChk_inv inv1 hS⟩ with hbk | ⟨r, hk⟩
     · exact .loopBack har hbody hbk
     · exact absurd ⟨r, .loopBack har hbody hk⟩ hne
   · exact absurd ⟨_, .loopBrk har hbody⟩ hne

@@ -169,7 +169,7 @@ theorem term_flat {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {i : Instr
     (h2 : chk s.funcs f.module f.locals.length ret labels o₁ es = some out)
     (ht : ContextTyped (pcfg s f stk (.op i args :: es))) (hF : Binaryen.NativeFuncsOk s.funcs)
     (hS : StoreChk s.funcs) : ∃ r, Binaryen.Eval s f stk (.op i args :: es) r := by
-  have hF₁ : Binaryen.NativeFuncsOk s₁.funcs := inv1.1 ▸ hF
+  have hF₁ : Binaryen.NativeFuncsOk s₁.funcs := nativeFuncsOk_inv inv1 hF
   have ht₁ := ContextTyped.steps ht hrun
   obtain ⟨⟨s₂, f₂, fl₂⟩, hflat⟩ := evalFlat_progress hf hi ht₁ hF₁
   by_cases hn : fl₂.IsNormal
@@ -182,10 +182,10 @@ theorem term_flat {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {i : Instr
         (pcfg s f stk (.op i args :: es)) (pcfg s₂ f₂ stk₂ es) := hrun.trans hst
     have h2' : chk s₂.funcs f₂.module f₂.locals.length ret labels (some stk₂.length) es =
         some out := by
-      rw [chk_inv inv12, ← ho]
-      exact h2
+      rw [← ho]
+      exact chk_inv inv12 h2
     obtain ⟨r, hk⟩ := rec s₂ f₂ stk₂ es id SP.id hrun₂ (.inl size_tail) labels ret out h2'
-      (ContextTyped.steps ht hrun₂) (inv12.1 ▸ hF) (storeChk_inv inv12 hS)
+      (ContextTyped.steps ht hrun₂) (nativeFuncsOk_inv inv12 hF) (storeChk_inv inv12 hS)
     exact ⟨r, .opOk hi hargs hflat hk⟩
   · exact ⟨_, .opStop hi hargs hflat hn⟩
 
@@ -299,17 +299,17 @@ theorem term_call_ret {args : List Binaryen.BExpr} {s₁ s₂ : Store H} {f₁ f
   have htg := Relation.TransGen.trans_right hrun
     (tg_call_ok hfi hcode hty hp hrunb' he hm hvs hrs hnorm)
   have inv2 : EvalInv s f (s₂, f₁, .normal (vs.take rs.length ++ stk₁.drop ps.length)) :=
-    ⟨hinvb.1.trans inv1.1, inv1.2.1, inv1.2.2⟩
+    ⟨inv1.1.trans hinvb.1, inv1.2.1, inv1.2.2⟩
   have hlen : (vs.take rs.length ++ stk₁.drop ps.length).length =
       stk₁.length - ps.length + rs.length := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
   have h2' : chk s₂.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take rs.length ++ stk₁.drop ps.length).length) es = some out := by
-    rw [chk_inv inv2, hlen]
-    exact h2
+    rw [hlen]
+    exact chk_inv inv2 h2
   exact rec s₂ f₁ _ es id SP.id htg.to_reflTransGen (.inl size_tail) labels ret out h2'
-    (ContextTyped.steps ht htg.to_reflTransGen) (inv2.1 ▸ hF) (storeChk_inv inv2 hS)
+    (ContextTyped.steps ht htg.to_reflTransGen) (nativeFuncsOk_inv inv2 hF) (storeChk_inv inv2 hS)
 
 /-- A callee flow is a return, a trap or a throw (never a branch out of the body). -/
 theorem callee_flow {flb : Binaryen.Flow} {n : Nat} {ob : Option Nat}
@@ -344,7 +344,7 @@ theorem term_call {x : FuncIdx} {args : List Binaryen.BExpr}
     obtain ⟨p, q, hpq, -, -⟩ := flatChk_call hf
     obtain ⟨a, fi, ps, rs, hfi, hty, -, -⟩ := callArity_func? hpq
     obtain ⟨-, hp, h2⟩ := arity_call_pre hS (flowOk_of_eval hargs) hfi hty hc
-    have hF₁ : Binaryen.NativeFuncsOk s₁.funcs := inv1.1 ▸ hF
+    have hF₁ : Binaryen.NativeFuncsOk s₁.funcs := nativeFuncsOk_inv inv1 hF
     have hS₁ : StoreChk s₁.funcs := storeChk_inv inv1 hS
     obtain ⟨fn, hcode, -⟩ := hF₁ fi (List.mem_of_getElem? (funcs_of_func? hfi))
     have hrun : Relation.ReflTransGen (Step (profile o) Det.noHost)
@@ -418,7 +418,7 @@ theorem block_parts {P₀ : Config H} {n : Nat} (rec : RecFrom o P₀ n) {bt : B
   have hrun₂ : Relation.ReflTransGen (Step (profile o) Det.noHost) P₀
       (pcfg s₁ f₁ (vs.take nr ++ stk.drop np) es) := hrun.trans htg.to_reflTransGen
   exact rec s₁ f₁ _ es id SP.id hrun₂ (.inl hszes) labels ret out (chk_after inv1 hp hnr h2)
-    (ContextTyped.steps ht hrun₂) (inv1.1 ▸ hF) (storeChk_inv inv1 hS)
+    (ContextTyped.steps ht hrun₂) (nativeFuncsOk_inv inv1 hF) (storeChk_inv inv1 hS)
 
 theorem size_block {bt : BlockType} {body : List Binaryen.BExpr} :
     sizeOf body < sizeOf (Binaryen.BExpr.block bt body :: es) := by
@@ -509,10 +509,11 @@ theorem term_if_arm {bt : BlockType} {c t el : List Binaryen.BExpr} {s₁ : Stor
     (hF : Binaryen.NativeFuncsOk s.funcs) (hS : StoreChk s.funcs) :
     ∃ r, Binaryen.Eval s f stk (.if_ bt c t el :: es) r := by
   obtain ⟨inv1, hp, hbarm, h2⟩ := arity_if_pre (b := b) hS (flowOk_of_eval hcond) har hc
-  rw [← chk_inv inv1] at hbarm h2
+  replace hbarm := chk_inv_endsAt inv1 hbarm
+  replace h2 := chk_inv inv1 h2
   have hrun₂ := hrun.tail (step_if_arm (rest := expression (Binaryen.BExpr.lowerList es)) hb)
   obtain ⟨⟨s₂, f₂, fl⟩, harm, hk⟩ := block_parts rec hrun₂ (size_arm b) size_tail har hp hbarm
-    h2 ht (inv1.1 ▸ hF) (storeChk_inv inv1 hS)
+    h2 ht (nativeFuncsOk_inv inv1 hF) (storeChk_inv inv1 hS)
   rcases flow_cases fl with ⟨vs, hvs⟩ | ⟨k, vs, rfl⟩ | hesc
   · obtain ⟨r, hr⟩ := hk vs hvs
     exact ⟨r, .ifOk hcond hb har harm hvs hr⟩
@@ -544,7 +545,7 @@ theorem term_if {bt : BlockType} {c t el : List Binaryen.BExpr}
       rw [pcfg_if]
       exact (sp_suffix _).steps (run_normal hcond hS hco)
     obtain ⟨cv, stk₁, b, rfl, hb⟩ := truthy_progress (ContextTyped.steps ht hrun₁)
-      (inv1.1 ▸ hF)
+      (nativeFuncsOk_inv inv1 hF)
     have har : Binaryen.arity f₁ bt = some (np, nr) := by
       rw [arity_eq, inv1.2.1]
       exact ha
@@ -586,10 +587,10 @@ theorem term_loop_back {bt : BlockType} {body : List Binaryen.BExpr} {s₁ : Sto
     omega
   have hc' : chk s₁.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take np ++ stk.drop np).length) (.loop bt body :: es) = some out := by
-    rw [chk_inv inv1, hlen]
-    exact hc
+    rw [hlen]
+    exact chk_inv inv1 hc
   exact rec s₁ f₁ _ _ id SP.id htg.to_reflTransGen (.inr htg) labels ret out hc'
-    (ContextTyped.steps ht htg.to_reflTransGen) (inv1.1 ▸ hF) (storeChk_inv inv1 hS)
+    (ContextTyped.steps ht htg.to_reflTransGen) (nativeFuncsOk_inv inv1 hF) (storeChk_inv inv1 hS)
 
 /-- **Loops.** -/
 theorem term_loop {bt : BlockType} {body : List Binaryen.BExpr}
@@ -626,7 +627,7 @@ theorem term_loop {bt : BlockType} {body : List Binaryen.BExpr}
       hlen
     rw [← pcfg_loop] at htg
     obtain ⟨r, hk⟩ := rec s₁ f₁ _ es id SP.id htg.to_reflTransGen (.inl size_tail) labels ret out
-      (chk_after inv1 hp hlen.ge h2) (ContextTyped.steps ht htg.to_reflTransGen) (inv1.1 ▸ hF)
+      (chk_after inv1 hp hlen.ge h2) (ContextTyped.steps ht htg.to_reflTransGen) (nativeFuncsOk_inv inv1 hF)
       (storeChk_inv inv1 hS)
     exact ⟨r, .loopOk har hbody hk⟩
   · obtain ⟨m, hm', hle⟩ := hok

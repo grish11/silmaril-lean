@@ -16,7 +16,8 @@ cases use the oracle in place of the callee's derivation.
 An oracle is sound when each of its answers, for a call of a function with
 type `(ps, rs)` on `ps.length` arguments in an arity-checked store:
 
-* keeps the store's functions;
+* extends the store's functions (Core `Extend`), keeping the store check and the native
+  profile (`FuncsGood`);
 * returns at the callee's result arity (`FlowOk [rs.length] rs.length`), so it
   never branches out and never throws;
 * is matched by a Core run of `vals us ++ [ref.func a, call_ref]`, in any frame,
@@ -38,7 +39,7 @@ def OracleSound (P : Numerics.Profile) (host : HostSemantics H) (C : Abstract.Ca
     StoreChk s.funcs → s.funcs[a]? = some fi → Validation.DefType.funcType? fi.type = some (ps, rs) →
     us.length = ps.length → C s a us (s₂, fl) →
     (∃ ob, (ob = none ∨ ob = some rs.length) ∧ FlowOk [rs.length] rs.length ob fl ∧
-        s₂.funcs = s.funcs) ∧
+        FuncsGood s.funcs s₂.funcs) ∧
       (∀ vs, fl.retVals = some vs → Steps P host
         ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
         ⟨s₂, f, vals (vs.take rs.length).reverse⟩) ∧
@@ -72,7 +73,7 @@ theorem oracle_at (hC : OracleSound P host C) (hS : StoreChk s.funcs)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hp : ps.length ≤ stk₁.length)
     (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, fl)) (f' : Frame) :
     (∃ ob, (ob = none ∨ ob = some rs.length) ∧ FlowOk [rs.length] rs.length ob fl ∧
-        s₂.funcs = s₁.funcs) ∧
+        FuncsGood s₁.funcs s₂.funcs) ∧
       (∀ vs, fl.retVals = some vs → Steps P host
         ⟨s₁, f', vals (stk₁.take ps.length).reverse ++ [.ref (.func a), .callRefType fi.type]⟩
         ⟨s₂, f', vals (vs.take rs.length).reverse⟩) ∧
@@ -93,15 +94,15 @@ theorem arityO_callOk (hC : OracleSound P host C)
   obtain ⟨⟨ob, hob, hok, hfuncs⟩, -, -⟩ := oracle_at hC hS inv1 hfi hty hp hcall f₁
   have hrs : rs.length ≤ vs.length := retVals_length hok hob hvs
   have inv2 : EvalInv s f (s₂, f₁, .normal (vs.take rs.length ++ stk₁.drop ps.length)) :=
-    ⟨hfuncs.trans inv1.1, inv1.2.1, inv1.2.2⟩
+    ⟨inv1.1.trans hfuncs, inv1.2.1, inv1.2.2⟩
   have hlen : (vs.take rs.length ++ stk₁.drop ps.length).length =
       stk₁.length - ps.length + rs.length := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
   have h2' : chk s₂.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take rs.length ++ stk₁.drop ps.length).length) es = some out := by
-    rw [chk_inv inv2, hlen]
-    exact h2
+    rw [hlen]
+    exact chk_inv inv2 h2
   obtain ⟨hok', inv3⟩ := ihk (storeChk_inv inv2 hS) h2'
   exact ⟨hok', inv2.trans inv3⟩
 
@@ -113,7 +114,7 @@ theorem arityO_callTrap (hC : OracleSound P host C)
   intro labels ret out hS hc
   obtain ⟨inv1, hp, -⟩ := arity_call_pre hS iha hfi hty hc
   obtain ⟨⟨_, _, _, hfuncs⟩, -, -⟩ := oracle_at hC hS inv1 hfi hty hp hcall f₁
-  exact ⟨trivial, hfuncs.trans inv1.1, inv1.2.1, inv1.2.2⟩
+  exact ⟨trivial, inv1.1.trans hfuncs, inv1.2.1, inv1.2.2⟩
 
 theorem arityO_callThrow {t : Nat} (hC : OracleSound P host C)
     (iha : ArityGood s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
@@ -159,15 +160,15 @@ theorem coreO_callOk (hC : OracleSound P host C)
   obtain ⟨⟨ob, hob, hok, hfuncs⟩, hret, -⟩ := oracle_at hC hS inv1 hfi hty hp hcall f₁
   have hrs : rs.length ≤ vs.length := retVals_length hok hob hvs
   have inv2 : EvalInv s f (s₂, f₁, .normal (vs.take rs.length ++ stk₁.drop ps.length)) :=
-    ⟨hfuncs.trans inv1.1, inv1.2.1, inv1.2.2⟩
+    ⟨inv1.1.trans hfuncs, inv1.2.1, inv1.2.2⟩
   have hlen : (vs.take rs.length ++ stk₁.drop ps.length).length =
       stk₁.length - ps.length + rs.length := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
   have h2' : chk s₂.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take rs.length ++ stk₁.drop ps.length).length) es = some out := by
-    rw [chk_inv inv2, hlen]
-    exact h2
+    rw [hlen]
+    exact chk_inv inv2 h2
   have hk := ihk (storeChk_inv inv2 hS) h2'
   have st := steps_oracle_call (rest := expression (Binaryen.BExpr.lowerList es)) hfi (hret vs hvs)
   rw [code_op]

@@ -12,9 +12,11 @@ callees by the host. It is an `OracleSound` oracle (`hostCall_sound`), so
 `evalO_good` makes every `EvalH host` run a Core 3.0 run, **for hosts in the
 native host slice** `NativeHostSlice`:
 
-* a host answer keeps the store's functions (`s'.funcs = s.funcs`). So hosts
-  that allocate functions are **not** covered here; `HostOk` allows them
-  (`Extend`);
+* a host answer **extends** the store's functions as Core's `Extend` does
+  (existing addresses keep their functions; new ones may be appended), and the
+  appended functions keep the store native-profile and arity-checked
+  (`FuncsGood`). So hosts that allocate functions are covered, as long as what
+  they allocate is native code passing the check;
 * returned values have the callee's declared result arity (as `HostOk`'s
   `ResultTyped` gives on typed stores);
 * a host answer is not an exception (the native profile has no exceptions).
@@ -30,10 +32,11 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Logic.Core Silmari
 
 variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
 
-/-- **The native host slice**: hosts that keep the store's functions, answer
-values at the declared result arity, and do not throw. -/
+/-- **The native host slice**: hosts whose answers extend the store's functions
+(`FuncsGood`: Core extension, keeping the native profile and the arity check),
+answer values at the declared result arity, and do not throw. -/
 structure NativeHostSlice (host : HostSemantics H) : Prop where
-  funcs : ∀ h s vs s' r, host h s vs (.returned s' r) → s'.funcs = s.funcs
+  funcs : ∀ h s vs s' r, host h s vs (.returned s' r) → FuncsGood s.funcs s'.funcs
   arity : ∀ (s : Store H) (a : Nat) (fi : FuncInst H) (h : H) (ps rs : List Validation.CValType)
     (vs ws : List Val) (s' : Store H), s.funcs[a]? = some fi → fi.code = .host h →
     Validation.DefType.funcType? fi.type = some (ps, rs) →
@@ -46,7 +49,7 @@ def SoundAt (P : Numerics.Profile) (host : HostSemantics H) : CallRel H := fun s
     StoreChk s.funcs → s.funcs[a]? = some fi → Validation.DefType.funcType? fi.type = some (ps, rs) →
     us.length = ps.length →
     (∃ ob, (ob = none ∨ ob = some rs.length) ∧ FlowOk [rs.length] rs.length ob out.2 ∧
-        out.1.funcs = s.funcs) ∧
+        FuncsGood s.funcs out.1.funcs) ∧
       (∀ vs, out.2.retVals = some vs → Steps P host
         ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
         ⟨out.1, f, vals (vs.take rs.length).reverse⟩) ∧

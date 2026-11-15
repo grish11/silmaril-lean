@@ -26,9 +26,10 @@ import Silmaril.Proofs.Wasm.Abstract.HostEval.Basic
 **The whole forward simulation** is `Interp.evalH_good`
 (`Silmaril.Wasm.Interp.Thms`): every `EvalH host` run of arity-checked code is a
 Core 3.0 run with the same host, for hosts in `Interp.NativeHostSlice`. Those
-hosts keep the store's functions, answer values at the declared result arity,
-and never throw. Hosts that allocate functions (`HostOk` allows them, via
-`Extend`) are not covered yet.
+hosts extend the store's functions as Core's `Extend` does, with appended
+functions native and passing the arity check (`Interp.FuncsGood`), answer values
+at the declared result arity, and never throw. Not covered: hosts that append
+non-native or unchecked functions, and host exceptions.
 
 **Not yet proved.** The backward simulation and the decomposition of
 divergence with host calls.

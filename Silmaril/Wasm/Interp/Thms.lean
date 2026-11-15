@@ -37,9 +37,11 @@ straight-line integer instructions with in-range local writes (`BExpr.straightLi
 the callee's arity, and are Core runs of `call_ref` in any frame), every
 `Abstract.EvalO C` run of arity-checked code is a Core 3.0 run. `hostCall_sound`,
 `evalH_good`: the host-call oracle `Abstract.hostCall host` is sound for hosts in the
-**native host slice** `NativeHostSlice` (answers keep the functions, values at the declared
-result arity, no exceptions), so every `Abstract.EvalH host` run is a Core run with that host,
-every profile. Hosts that allocate functions are outside the slice.
+**native host slice** `NativeHostSlice`, so every `Abstract.EvalH host` run is a Core run with
+that host, every profile. The slice: answers extend the functions as Core's `Extend` does
+(`FuncsGood`: existing addresses keep their functions, appended ones are native and pass the
+check), values at the declared result arity, no exceptions. The native arity invariant
+`EvalInv` is stated up to this extension (`chk_inv`, `storeChk_inv`, `nativeFuncsOk_inv`).
 
 **Memory** (`Silmaril.Proofs.Wasm.Interp.Memory`). Native unpacked integer `load`/`store`
 are Core 3.0 `MemoryStep`s, through silmaril-lean's executable `Exec.Mem.loadInt`/`storeInt`
