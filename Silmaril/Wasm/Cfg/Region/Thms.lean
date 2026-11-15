@@ -12,6 +12,7 @@ import Silmaril.Proofs.Wasm.Cfg.RegionTailRes
 import Silmaril.Proofs.Wasm.Cfg.CtxSplit
 import Silmaril.Proofs.Wasm.Cfg.CallSeq
 import Silmaril.Proofs.Wasm.Cfg.RegionCallComplete
+import Silmaril.Proofs.Wasm.Cfg.RegionDivC
 public import Silmaril.Wasm.Abstract.CallX.Defs
 
 @[expose] public section
@@ -44,7 +45,15 @@ All results hold for every profile `P` and every host `host`. Proofs are in
   instruction's own Core reduction has no infinite run. Stuck states are leaves; this is
   not a claim of reaching a value or trap. `atomTerm` proves it for every profile and host
   (ranks on expansion level and the `fill`/`copy`/`init` counts), so **`div_iff`** is
-  unconditional.
+  unconditional. `RunDiv` is `RunDivC` with no call answered (`noCall`) or diverging (`noDiv`).
+
+* **Divergence with calls** (`RunDivC P host C D`): a direct call is answered by `C` with values
+  and the continuation diverges, or `D` names it (it diverges inside the callee).
+  `div_soundC` under `CallSound` and `DivCallSound`; **`div_completeC`**: on code of the
+  fragment with calls (`FragC`), a diverging Core run is a `RunDivC` run under complete `C` and
+  `D` (`CallCompleteG`, `DivCallComplete`) whose guard holds at every call the run reaches
+  (`GuardedCalls`). At a call, the run diverges in the callee (through any chain of tail calls
+  out of its frame) or returns and the continuation diverges.
 
 * **Calls** (`RunC P host C`): `call x` is answered by an oracle `C : Abstract.CallRel H`, in
   `EvalO`'s convention: arguments in parameter order, the callee's `Flow` results top first.
@@ -180,6 +189,23 @@ iff Core 3.0 diverges. -/
 theorem div_iff {vs : List Val} {code : List Admin} (hF : Frag code) :
     RunDiv P host s f vs code ↔ Diverges P host ⟨s, f, vals vs ++ code⟩ :=
   Proofs.Region.div_adequate atomTerm hF
+
+/-- **Divergence soundness with calls**: when `C` answers calls as Core runs them and the calls
+`D` names diverge in Core, a diverging region run with calls is an infinite Core 3.0 run. -/
+theorem div_soundC {C : Abstract.CallRel H} {D : Store H → Nat → List Val → Prop}
+    (hC : CallSound P host C) (hD : DivCallSound P host D) {vs : List Val} {code : List Admin}
+    (h : RunDivC P host C D s f vs code) : Diverges P host ⟨s, f, vals vs ++ code⟩ :=
+  Proofs.Region.div_soundC hC hD h
+
+/-- **Divergence completeness with direct calls**: under a complete oracle `C` and a complete
+divergence predicate `D`, their guard `G` holding at every call the run reaches, every infinite
+Core 3.0 run of code of the fragment with calls (`FragC`) is a diverging region run with calls. -/
+theorem div_completeC {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
+    {D : Store H → Nat → List Val → Prop} (hC : CallCompleteG P host G C)
+    (hD : DivCallComplete P host G D) {vs : List Val} {code : List Admin} (hF : FragC code)
+    (hG : GuardedCalls P host G ⟨s, f, vals vs ++ code⟩)
+    (hd : Diverges P host ⟨s, f, vals vs ++ code⟩) : RunDivC P host C D s f vs code :=
+  Proofs.Region.div_completeC atomTerm hC hD hF hG hd
 
 /-! ## Basic blocks -/
 

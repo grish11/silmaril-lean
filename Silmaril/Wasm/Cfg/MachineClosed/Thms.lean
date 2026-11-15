@@ -45,7 +45,9 @@ host, so the machine's Core soundness holds with **no oracle hypothesis**:
   the call on the slice, from every caller frame and annotation (`closedCall_none_iff_diverges`
   and the divergent transport `div_call_transport`). **`mdivC_core_closed`**: machine
   divergence `MDivC` with `closedCallOk` and `closedDiv`, from the CFG entry, is Core 3.0
-  divergence of the body, no hypothesis.
+  divergence of the body, no hypothesis. **`core_div_closed`**: conversely, on `FragC` bodies
+  whose calls are on the native slice, Core divergence is `MDivC`; **`mdivC_iff_core_closed_typed`**:
+  from a typed native start, `MDivC` with the closed oracle is exactly Core divergence.
 
 Not claimed here: host calls (the slice has no host); stores outside `NativeCallOk`; extended
 calls (`call_ref`, `call_indirect`) in block bodies.
@@ -154,5 +156,28 @@ theorem mdivC_core_closed (P : Profile) {s : Store H} {f : Frame}
     (h : MDivC P (fun _ _ _ _ => False) Abstract.closedCallOk closedDiv body (initial body s f)) :
     Diverges P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ :=
   mdivC_core_initial (Abstract.callSound_closedCallOk P _) (divCallSound_closedDiv P) h
+
+/-- **Completeness of machine divergence with the checked closed oracle** (no host, every
+profile, no oracle hypothesis): a diverging Core 3.0 run of a body of the fragment with direct
+calls (`FragC`) is `MDivC` with `closedCallOk` and `closedDiv` from the CFG entry, provided every
+call the run reaches is on the native slice. -/
+theorem core_div_closed (P : Profile) {s : Store H} {f : Frame}
+    (hF : Region.FragC (expression body))
+    (hG : Region.GuardedCalls P (fun _ _ _ _ => False) NativeCallOk ⟨s, f, expression body⟩)
+    (h : Diverges P (fun _ _ _ _ => False) ⟨s, f, expression body⟩) :
+    MDivC P (fun _ _ _ _ => False) Abstract.closedCallOk closedDiv body (initial body s f) :=
+  core_div_initialC (callCompleteG_closedCallOk P) (divCallComplete_closedDiv P) hF hG h
+
+/-- **Divergence adequacy of the machine with the checked closed oracle, from a typed native
+start** (no host, every profile, no oracle or guard hypothesis): on a typed (`ContextTyped`)
+body of the fragment with direct calls (`FragC`), over a store of native, arity-checked
+functions, machine divergence `MDivC` with `closedCallOk` and `closedDiv` from the CFG entry is
+exactly Core 3.0 divergence of the body, divergence inside a callee included. -/
+theorem mdivC_iff_core_closed_typed (P : Profile) {s : Store H} {f : Frame}
+    (hF : Region.FragC (expression body)) (hT : Sim.ContextTyped ⟨s, f, expression body⟩)
+    (hN : Binaryen.NativeFuncsOk s.funcs) (hS : Interp.StoreChk s.funcs) :
+    MDivC P (fun _ _ _ _ => False) Abstract.closedCallOk closedDiv body (initial body s f) ↔
+      Diverges P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ :=
+  ⟨mdivC_core_closed P, core_div_closed P hF (guardedCalls_of_typed hT hN hS)⟩
 
 end Silmaril.Wasm.Cfg.Machine

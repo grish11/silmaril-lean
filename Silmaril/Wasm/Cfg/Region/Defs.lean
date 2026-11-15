@@ -484,70 +484,97 @@ open Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validatio
 
 variable {H : Type}
 
-/-- One layer of a diverging region run, with the rest of the divergence in `R`. A label
-diverges inside, or its body ends (a terminating `Run`) and the continuation diverges. Every
-rule either takes at least one Core step or moves to a strictly smaller code (`val`,
-`labelIn`). -/
-inductive DivF (P : Profile) (host : HostSemantics H)
+/-- One layer of a diverging region run, with calls answered by the oracle `C` and diverging calls
+named by `D`, and the rest of the divergence in `R`. A label diverges inside, or its body ends (a
+terminating `RunC`) and the continuation diverges. A direct call is answered by `C` and the
+continuation diverges (`call`), or it is a call `D` names (`callDiv`, which ends the layer).
+Every rule other than `callDiv` either takes at least one Core step or moves to a strictly
+smaller code (`val`, `labelIn`, `handlerIn`). -/
+inductive DivFC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop)
     (R : Store H → Frame → List Val → List Admin → Prop) :
     Store H → Frame → List Val → List Admin → Prop where
   | val {s : Store H} {f : Frame} {vs : List Val} {a : Admin} {v : Val} {code : List Admin}
-      (hv : a.val? = some v) (h : R s f (vs ++ [v]) code) : DivF P host R s f vs (a :: code)
+      (hv : a.val? = some v) (h : R s f (vs ++ [v]) code) : DivFC P host C D R s f vs (a :: code)
   | simple {s s₁ : Store H} {f f₁ : Frame} {vs vs₁ : List Val} {i : Instr} {code : List Admin}
       (hi : SingleThreaded.Det.famOf (.plain i) ≠ .control)
       (h₁ : Steps P host ⟨s, f, vals vs ++ [.plain i]⟩ ⟨s₁, f₁, vals vs₁⟩)
-      (h : R s₁ f₁ vs₁ code) : DivF P host R s f vs (.plain i :: code)
+      (h : R s₁ f₁ vs₁ code) : DivFC P host C D R s f vs (.plain i :: code)
   | brIf {s : Store H} {f : Frame} {ws : List Val} {k : BitVec 32} {l : LabelIdx}
       {code : List Admin} (h : R s f ws ((if k = 0 then [] else [.plain (.br l)]) ++ code)) :
-      DivF P host R s f (ws ++ [.i32 k]) (.plain (.brIf l) :: code)
+      DivFC P host C D R s f (ws ++ [.i32 k]) (.plain (.brIf l) :: code)
   | brData {s : Store H} {f : Frame} {ws us us' : List Val} {i : Instr} {X code : List Admin}
       (hb : BrStep s f us i us' X) (h : R s f (ws ++ us') (X ++ code)) :
-      DivF P host R s f (ws ++ us) (.plain i :: code)
+      DivFC P host C D R s f (ws ++ us) (.plain i :: code)
   | block {s : Store H} {f : Frame} {ws us : List Val} {bt : BlockType} {b : List Instr}
       {t₁ t₂ : List CValType} {code : List Admin}
       (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
       (h : R s f ws (.label t₂.length [] (vals us ++ expression b) :: code)) :
-      DivF P host R s f (ws ++ us) (.plain (.block bt b) :: code)
+      DivFC P host C D R s f (ws ++ us) (.plain (.block bt b) :: code)
   | loop {s : Store H} {f : Frame} {ws us : List Val} {bt : BlockType} {b : List Instr}
       {t₁ t₂ : List CValType} {code : List Admin}
       (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
       (h : R s f ws (.label t₁.length [.loop bt b] (vals us ++ expression b) :: code)) :
-      DivF P host R s f (ws ++ us) (.plain (.loop bt b) :: code)
+      DivFC P host C D R s f (ws ++ us) (.plain (.loop bt b) :: code)
   | if_ {s : Store H} {f : Frame} {ws : List Val} {k : BitVec 32} {bt : BlockType}
       {t e : List Instr} {code : List Admin}
       (h : R s f ws (.plain (.block bt (if k = 0 then e else t)) :: code)) :
-      DivF P host R s f (ws ++ [.i32 k]) (.plain (.if_ bt t e) :: code)
+      DivFC P host C D R s f (ws ++ [.i32 k]) (.plain (.if_ bt t e) :: code)
   | tryTable {s : Store H} {f : Frame} {ws us : List Val} {bt : BlockType} {cs : List Catch}
       {b : List Instr} {t₁ t₂ : List CValType} {code : List Admin}
       (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
       (h : R s f ws (.handler t₂.length cs [.label t₂.length [] (vals us ++ expression b)] :: code)) :
-      DivF P host R s f (ws ++ us) (.plain (.tryTable bt cs b) :: code)
+      DivFC P host C D R s f (ws ++ us) (.plain (.tryTable bt cs b) :: code)
   | handlerIn {s : Store H} {f : Frame} {vs : List Val} {n : Nat} {cs : List Catch}
       {inner code : List Admin} (h : R s f [] inner) :
-      DivF P host R s f vs (.handler n cs inner :: code)
+      DivFC P host C D R s f vs (.handler n cs inner :: code)
   | handlerNormal {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat} {cs : List Catch}
-      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.normal us))
-      (h : R s₁ f₁ (vs ++ us) code) : DivF P host R s f vs (.handler n cs inner :: code)
+      {inner code : List Admin} (hin : RunC P host C s f [] inner s₁ f₁ (.normal us))
+      (h : R s₁ f₁ (vs ++ us) code) : DivFC P host C D R s f vs (.handler n cs inner :: code)
   /-- The label's body diverges. -/
   | labelIn {s : Store H} {f : Frame} {vs : List Val} {n : Nat} {cont : List Instr}
       {inner code : List Admin} (h : R s f [] inner) :
-      DivF P host R s f vs (.label n cont inner :: code)
+      DivFC P host C D R s f vs (.label n cont inner :: code)
   | labelNormal {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat}
       {cont : List Instr} {inner code : List Admin}
-      (hin : Run P host s f [] inner s₁ f₁ (.normal us)) (h : R s₁ f₁ (vs ++ us) code) :
-      DivF P host R s f vs (.label n cont inner :: code)
+      (hin : RunC P host C s f [] inner s₁ f₁ (.normal us)) (h : R s₁ f₁ (vs ++ us) code) :
+      DivFC P host C D R s f vs (.label n cont inner :: code)
   | labelBr0 {s s₁ : Store H} {f f₁ : Frame} {vs us₁ us₂ : List Val} {n : Nat}
       {cont : List Instr} {inner code : List Admin}
-      (hin : Run P host s f [] inner s₁ f₁ (.br 0 (us₁ ++ us₂))) (hn : us₂.length = n)
+      (hin : RunC P host C s f [] inner s₁ f₁ (.br 0 (us₁ ++ us₂))) (hn : us₂.length = n)
       (h : R s₁ f₁ vs (vals us₂ ++ expression cont ++ code)) :
-      DivF P host R s f vs (.label n cont inner :: code)
+      DivFC P host C D R s f vs (.label n cont inner :: code)
+  /-- A direct call answered by `C` with values; the continuation diverges. -/
+  | call {s s₁ : Store H} {f : Frame} {ws us vs : List Val} {x : FuncIdx} {a : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {fl : Binaryen.Flow} {code : List Admin}
+      (hfi : s.func? f x = some (a, fi)) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hcall : C s a us (s₁, fl)) (hvs : fl.retVals = some vs)
+      (h : R s₁ f (ws ++ (vs.take rs.length).reverse) code) :
+      DivFC P host C D R s f (ws ++ us) (.plain (.call x) :: code)
+  /-- A direct call that `D` says diverges. -/
+  | callDiv {s : Store H} {f : Frame} {ws us : List Val} {x : FuncIdx} {a : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {code : List Admin}
+      (hfi : s.func? f x = some (a, fi)) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hD : D s a us) :
+      DivFC P host C D R s f (ws ++ us) (.plain (.call x) :: code)
 
-/-- **Diverging region runs**: the greatest fixed point of `DivF`, as membership in some
-`DivF`-closed relation. -/
-def RunDiv (P : Profile) (host : HostSemantics H) (s : Store H) (f : Frame) (vs : List Val)
+/-- **Diverging region runs with calls**: the greatest fixed point of `DivFC`, as membership in
+some `DivFC`-closed relation. -/
+def RunDivC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (s : Store H) (f : Frame) (vs : List Val)
     (code : List Admin) : Prop :=
   ∃ R : Store H → Frame → List Val → List Admin → Prop,
-    (∀ s f vs code, R s f vs code → DivF P host R s f vs code) ∧ R s f vs code
+    (∀ s f vs code, R s f vs code → DivFC P host C D R s f vs code) ∧ R s f vs code
+
+/-- The divergence predicate that names no call. -/
+def noDiv : Store H → Nat → List Val → Prop := fun _ _ _ => False
+
+/-- One layer of a call-free diverging region run: `DivFC` with no call answered or diverging. -/
+abbrev DivF (P : Profile) (host : HostSemantics H) := DivFC P host noCall noDiv
+
+/-- **Diverging region runs**: `RunDivC` with no call answered or diverging. -/
+abbrev RunDiv (P : Profile) (host : HostSemantics H) := RunDivC P host noCall noDiv
+
 
 /-- **The atomic obligation**: the Core reduction of every non-control instruction, on any
 values, store and frame, terminates. Termination includes ending in a trap. This is a named

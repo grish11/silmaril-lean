@@ -7,6 +7,7 @@ import Silmaril.Proofs.Wasm.Cfg.MachineComplete
 import Silmaril.Proofs.Wasm.Cfg.MachineDiv
 import Silmaril.Proofs.Wasm.Cfg.MachineCore
 import Silmaril.Proofs.Wasm.Cfg.MachineDivC
+import Silmaril.Proofs.Wasm.Cfg.RegionDivC
 import Silmaril.Proofs.Wasm.Cfg.MachineTail
 public import Silmaril.Wasm.Cfg.Region.Thms
 public import Silmaril.Foundations.InfiniteTrace
@@ -83,7 +84,9 @@ public import Silmaril.Foundations.InfiniteTrace
   `MStepC` run, or a finite run to a block whose body reaches a call that `D` names
   (`BodyCallDiv`). `infinite_core_initialC` (under `Region.CallSound`) and
   `mdivC_core_initial` (also under `Region.DivCallSound`): from `cfgEntry` these are Core 3.0
-  divergence of the body (`Proofs/Wasm/Cfg/MachineDivC.lean`).
+  divergence of the body (`Proofs/Wasm/Cfg/MachineDivC.lean`). Conversely `run_divC_initial`: a
+  diverging region run with calls (`Region.RunDivC`) is `MDivC`; **`core_div_initialC`**: on
+  `FragC` bodies, Core divergence is `MDivC` under complete, guarded `C` and `D`.
 
 * **Tail calls of null** (`MStepC.tailNull`): a `return_call_ref`/`return_call_indirect` of a
   null reference goes to `trap`, whose `Ends` admits the region's pending tail call of null
@@ -659,6 +662,26 @@ theorem mdivC_core_initial {D : Store H → Nat → List Val → Prop} (hC : Reg
     (h : MDivC P host C D body (initial body s f)) :
     Diverges P host ⟨s, f, expression body⟩ :=
   Proofs.MachineDivC.mdivC_core_initial hC hD h
+
+/-- **A diverging region run with calls is machine divergence from the CFG entry**: a
+`RunDivC` run of the body is `MDivC` from the initial state (an infinite `MStepC` run, or a
+finite run to a block whose body reaches a call `D` names). No hypothesis on `C` or `D`. -/
+theorem run_divC_initial {D : Store H → Nat → List Val → Prop} {s : Store H} {f : Frame}
+    (h : Region.RunDivC P host C D s f [] (expression body)) :
+    MDivC P host C D body (initial body s f) :=
+  Proofs.MachineDiv.run_divC_initial h
+
+/-- **Core divergence of a body with direct calls is machine divergence** (completeness): under
+a complete oracle `C` and a complete divergence predicate `D` (`Region.CallCompleteG`,
+`Region.DivCallComplete`), their guard `G` holding at every call the run reaches, a diverging
+Core 3.0 run of a body of the fragment with calls (`FragC`) is `MDivC` from the CFG entry. -/
+theorem core_div_initialC {G : Store H → Nat → List Val → Prop}
+    {D : Store H → Nat → List Val → Prop} (hC : Region.CallCompleteG P host G C)
+    (hD : Region.DivCallComplete P host G D) {s : Store H} {f : Frame}
+    (hF : Region.FragC (expression body)) (hG : Region.GuardedCalls P host G ⟨s, f, expression body⟩)
+    (h : Diverges P host ⟨s, f, expression body⟩) :
+    MDivC P host C D body (initial body s f) :=
+  run_divC_initial (Region.div_completeC (vs := []) hC hD hF (by simpa using hG) (by simpa using h))
 
 /-- **The machine's tail step from `CallX.TailRes`**: a tail-call terminator whose call
 `Abstract.CallX.TailRes` resolves to the callee `a` (on the block's stack, top first), with an

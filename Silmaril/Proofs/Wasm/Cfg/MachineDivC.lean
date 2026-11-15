@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Cfg.MachineCore
+public import Silmaril.Proofs.Wasm.Cfg.RegionDiv
 
 @[expose] public section
 
@@ -24,30 +25,6 @@ open Silmaril.Wasm.Cfg.Proofs.MachineCore
 
 variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
-theorem div_in {s : Store H} {f : Frame} {X : List Admin} (vs : List Val) (code : List Admin)
-    (h : Diverges P host ⟨s, f, X⟩) : Diverges P host ⟨s, f, vals vs ++ X ++ code⟩ := by
-  have := InfiniteTrace.map (R := Step P host) (S := Step P host)
-    (fun c : Config H => (⟨c.store, c.frame, vals vs ++ c.code ++ code⟩ : Config H))
-    (fun a b hs => by
-      rcases a with ⟨_, _, _⟩; rcases b with ⟨_, _, _⟩; exact Proofs.Region.step_in vs code hs) h
-  exact this
-
-theorem div_label {s : Store H} {f : Frame} {X : List Admin} (n : Nat) (cont : List Instr)
-    (h : Diverges P host ⟨s, f, X⟩) : Diverges P host ⟨s, f, [.label n cont X]⟩ := by
-  have := InfiniteTrace.map (R := Step P host) (S := Step P host)
-    (fun c : Config H => (⟨c.store, c.frame, [.label n cont c.code]⟩ : Config H))
-    (fun a b hs => by
-      rcases a with ⟨_, _, _⟩; rcases b with ⟨_, _, _⟩; exact Step.ctxtLabel hs) h
-  exact this
-
-theorem div_handler {s : Store H} {f : Frame} {X : List Admin} (n : Nat) (cs : List Catch)
-    (h : Diverges P host ⟨s, f, X⟩) : Diverges P host ⟨s, f, [.handler n cs X]⟩ := by
-  have := InfiniteTrace.map (R := Step P host) (S := Step P host)
-    (fun c : Config H => (⟨c.store, c.frame, [.handler n cs c.code]⟩ : Config H))
-    (fun a b hs => by
-      rcases a with ⟨_, _, _⟩; rcases b with ⟨_, _, _⟩; exact Step.ctxtHandler hs) h
-  exact this
-
 /-- **Divergence lifts through the label frames** of the label invariant. -/
 theorem wrap_div {body : Expr} {s : Store H} {f : Frame} :
     ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin},
@@ -69,15 +46,15 @@ theorem wrap_div {body : Expr} {s : Store H} {f : Frame} :
         | some t =>
           simp only [hpc, hsg, ht, Option.bind_some] at hX
           refine wrap_div rp ls hX ?_
-          have hl := div_label (P := P) (host := host) L.arity (if L.loop then [t] else []) h
+          have hl := Proofs.Region.diverges_label (P := P) (host := host) L.arity (if L.loop then [t] else []) h
           have hx : Diverges P host
               ⟨s, f, [if L.tryT then Admin.handler L.arity L.catches
                 [.label L.arity (if L.loop then [t] else []) inner]
                 else .label L.arity (if L.loop then [t] else []) inner]⟩ := by
             cases L.tryT
             · simpa using hl
-            · simpa using div_handler (P := P) (host := host) L.arity L.catches hl
-          simpa using div_in (P := P) (host := host) L.outer (expression (restAt pc (m + 1))) hx
+            · simpa using Proofs.Region.diverges_handler (P := P) (host := host) L.arity L.catches hl
+          simpa using Proofs.Region.diverges_in (P := P) (host := host) L.outer (expression (restAt pc (m + 1))) hx
 
 /-- A machine state with a step is at a block, so it is not a sink. -/
 theorem not_sink_of_step {body : Expr} {st st₁ : MState H} (h : MStepC P host C body st st₁) :
@@ -130,7 +107,7 @@ theorem bodyCallDiv_core (hC : CallSound P host C) {D : Store H → Nat → List
   have h2 := Proofs.Region.call_head (P := P) (host := host) (ws := ws) (us := us) (code := R) hfi
   have h3 : Diverges P host ⟨s₁, f₁, vals ws ++ (vals us ++ [.ref (.func a),
       .callRefType fi.type]) ++ R⟩ :=
-    div_in ws R (hD s₁ f₁ a fi ps rs us _ trivial (Proofs.Region.func?_inv hfi).2 hty hlen hd)
+    Proofs.Region.diverges_in ws R (hD s₁ f₁ a fi ps rs us _ trivial (Proofs.Region.func?_inv hfi).2 hty hlen hd)
   have hdiv : Diverges P host ⟨s, f, vals stk ++ expression (restAt c b.idx)⟩ := by
     rw [hcode]; exact InfiniteTrace.of_steps h1 (InfiniteTrace.fold h2 h3)
   exact wrap_div _ _ hX hdiv
