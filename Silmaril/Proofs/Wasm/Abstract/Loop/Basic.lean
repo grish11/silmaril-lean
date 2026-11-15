@@ -123,6 +123,11 @@ theorem pollLoop_ne {m₁ m₂ : E.Op} (h : m₁ ≠ m₂) (a : A) (s : S) :
   rw [h₁, h₂]
   exact vis_ev_ne h k₁ k₂
 
+theorem mem_toPending_pollLoop (m : E.Op) (s : S) (a : A) :
+    ([], ULift.up m) ∈ toPending (pollLoop m : Hom E S T A B) s a := by
+  obtain ⟨k, hk⟩ := pollLoop_run (S := S) (T := T) (B := B) m a s
+  exact ⟨[], m, Pend.here hk, rfl⟩
+
 /-- Two bodies that trap with different payloads. -/
 noncomputable def trapWith (b : Bool) : Hom Sig.empty.{0} PUnit.{2} (ULift.{1} Bool) PUnit.{2} PUnit.{2} :=
   fun _ => trap ⟨b⟩

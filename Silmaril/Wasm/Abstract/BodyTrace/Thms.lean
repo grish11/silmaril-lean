@@ -6,6 +6,8 @@ public import Silmaril.Games.Abstract.FunctionIter.Thms
 import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Bind
 import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Iter
 import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Collapse
+import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Faithful
+public import Silmaril.Wasm.Abstract.Body.Thms
 
 /-!
 # From interaction-tree bodies to trace-set functions: theorems
@@ -42,7 +44,22 @@ import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Collapse
   from collapse-equal loop bodies (with `Body.collapse_iter`, the collapsed
   loops are then equal as bodies too).
 
-Not claimed: injectivity of `toAFun`. It is false: trap payloads are
+**A faithful observation.** Finished paths forget infinite productive runs
+(and calls whose answer type is empty). Adding the pending calls repairs that:
+
+* `tree_eq_of_obs`: two interaction trees with the same finished paths and
+  the same pending calls are equal. No assumption on answer types.
+* `faithful_iff`: `toAFun` and `toPending` together determine a body up to
+  trap payloads (`erasedRun`), and conversely. So the quotient of bodies by
+  this observation is exactly the quotient by trap payloads.
+* `fullCollapseEquiv_iff`: up to trap ≈ divergence, the same observation is
+  exactly equality of collapses. With `collapse_bind` and `collapse_iter`
+  this gives sound adequacy for composition and iteration:
+  `FullCollapseEquiv.comp`, `FullCollapseEquiv.iter`. The quotient of
+  bodies by `FullCollapseEquiv` is the image of `collapse` in the lawful
+  Elgot category of `BodyC`.
+
+Not claimed: injectivity of `toAFun` alone. It is false: trap payloads are
 forgotten (`Silmaril.Wasm.Abstract.BodyLoop.toAFun_not_injective`), and so
 are infinite productive runs. Nor the converse of `obsCollapse_of_collapse`,
 nor a characterisation of the image (deterministic functions that are
@@ -95,6 +112,37 @@ theorem toAFun_of_run_ret {E : Sig.{u}} {S T A B : Type (u + 1)} {f : Hom E S T 
     {a : A} {v : Except T (B × S)} (h : ((f a).run s).run = Silmaril.Elgot.ITree.ret v) :
     toAFun f s a = {([], endOf (.val v))} :=
   Silmaril.Proofs.Wasm.Abstract.BodyTrace.toAFun_of_run_ret h
+
+/-- Finished paths and pending calls determine an interaction tree. -/
+theorem tree_eq_of_obs {E : Sig.{u}} {Y : Type (u + 1)}
+    {t t' : Silmaril.Elgot.ITree.Tree (SigEv E) Y}
+    (hp : ∀ cs r, Path t cs r ↔ Path t' cs r) (hq : ∀ cs m, Pend t cs m ↔ Pend t' cs m) :
+    t = t' :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.eq_of_sameObs ⟨hp, hq⟩
+
+/-- Finished behaviours and pending calls are faithful up to trap payloads. -/
+theorem faithful_iff {E : Sig.{u}} {S T A B : Type (u + 1)} (f g : Hom E S T A B) :
+    (toAFun f = toAFun g ∧ toPending f = toPending g) ↔ erasedRun f = erasedRun g :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.faithful_iff f g
+
+/-- Up to trap ≈ divergence, they are faithful up to collapse. -/
+theorem fullCollapseEquiv_iff {E : Sig.{u}} {S T A B : Type (u + 1)} (f g : Hom E S T A B) :
+    FullCollapseEquiv f g ↔ ∀ a, collapse (f a) = collapse (g a) :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.collapse_faithful_iff f g
+
+/-- Full trap ≈ divergence equivalence is a congruence for composition. -/
+theorem FullCollapseEquiv.comp {E : Sig.{u}} {S T A B C : Type (u + 1)} {f f' : Hom E S T A B}
+    {g g' : Hom E S T B C} (hf : FullCollapseEquiv f f') (hg : FullCollapseEquiv g g') :
+    FullCollapseEquiv (fun a => f a >>= g) (fun a => f' a >>= g') := by
+  rw [fullCollapseEquiv_iff] at *
+  intro a; simp only [collapse_bind, hf a, hg]
+
+/-- Full trap ≈ divergence equivalence is a congruence for iteration. -/
+theorem FullCollapseEquiv.iter {E : Sig.{u}} {S T A B : Type (u + 1)}
+    {F G : Hom E S T A (B ⊕ A)} (h : FullCollapseEquiv F G) :
+    FullCollapseEquiv (Silmaril.Elgot.iter F) (Silmaril.Elgot.iter G) := by
+  rw [fullCollapseEquiv_iff] at *
+  intro a; simp only [collapse_iter, h]
 
 /-- The denotation maps body iteration to trace-set iteration. -/
 theorem toAFun_iter {E : Sig.{u}} {S T A B : Type (u + 1)} (F : Hom E S T A (B ⊕ A)) :

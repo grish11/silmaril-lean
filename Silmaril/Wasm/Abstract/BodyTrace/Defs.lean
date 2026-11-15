@@ -81,4 +81,49 @@ def toAFun {E : Sig.{u}} {S T A B : Type (u + 1)} (f : Hom E S T A B) :
     AFun (liftSig E) S A B := fun s a =>
   {x | ∃ cs r, Path ((f a).run s).run cs r ∧ x = (cs.map liftCall, endOf r)}
 
+/-! ## Pending calls: the observation that sees infinite productive runs
+
+`toAFun` reads only *finished* paths, so a body that calls imports forever
+has no behaviour there (`Silmaril.Wasm.Abstract.Loop.toAFun_pollLoop`). The
+pending-call observation records each import call as it is made, before its
+answer: "after the calls `cs`, the body calls `m`". This is the prefix
+observation of an outcome-tagged trace (`Silmaril.Games.Abstract.Obs.fin s .run`
+followed by the next move), and it sees every infinite productive run through
+its finite prefixes. It also sees a call to an import whose answer type is
+empty, which no finished path does. -/
+
+/-- `Pend t cs m`: the tree `t` performs the import calls `cs` (with their
+answers) and then calls `m`. -/
+inductive Pend {E : Sig.{u}} {A : Type (u + 1)} :
+    Silmaril.Elgot.ITree.Tree (SigEv E) A → List (Call E) → E.Op → Prop
+  /-- The next event is a call of `e.1`. -/
+  | here {t : Silmaril.Elgot.ITree.Tree (SigEv E) A} {R : Type u} {e : SigEv E R}
+      {k : R → Silmaril.Elgot.ITree.Tree (SigEv E) A} :
+      t = Silmaril.Elgot.ITree.vis e k → Pend t [] e.1
+  /-- An import call answered by `n`, then the rest. -/
+  | vis {t : Silmaril.Elgot.ITree.Tree (SigEv E) A} {R : Type u} {e : SigEv E R}
+      {k : R → Silmaril.Elgot.ITree.Tree (SigEv E) A} {n : R} {cs : List (Call E)} {m : E.Op} :
+      t = Silmaril.Elgot.ITree.vis e k → Pend (k n) cs m →
+      Pend t (⟨e.1, cast e.2.symm n⟩ :: cs) m
+
+/-- The pending calls of a body: after the (lifted) calls, the import called. -/
+def toPending {E : Sig.{u}} {S T A B : Type (u + 1)} (f : Hom E S T A B) :
+    S → A → Set (List (Call (liftSig E)) × (liftSig E).Op) := fun s a =>
+  {x | ∃ cs m, Pend ((f a).run s).run cs m ∧ x = (cs.map liftCall, ULift.up m)}
+
+/-- Full trap ≈ divergence equivalence: the same finished behaviours up to
+trap ≈ divergence, and the same pending calls. -/
+def FullCollapseEquiv {E : Sig.{u}} {S T A B : Type (u + 1)} (f g : Hom E S T A B) : Prop :=
+  AFun.ObsEquiv AFun.obsCollapse (toAFun f) (toAFun g) ∧ toPending f = toPending g
+
+/-- Forget a trap's payload. -/
+def eraseTrap {T X : Type (u + 1)} : Except T X → Except PUnit.{u + 2} X
+  | .ok x => .ok x
+  | .error _ => .error ⟨⟩
+
+/-- The interaction tree of a body with trap payloads forgotten. -/
+noncomputable def erasedRun {E : Sig.{u}} {S T A B : Type (u + 1)} (f : Hom E S T A B) (s : S)
+    (a : A) : Silmaril.Elgot.ITree.Tree (SigEv E) (Except PUnit.{u + 2} (B × S)) :=
+  ((f a).run s).run >>= fun r => pure (eraseTrap r)
+
 end Silmaril.Wasm.Abstract.BodyTrace

@@ -45,6 +45,12 @@ the body, nor its trap ≈ divergence collapse. `toAFun_iter` is exact *relative
 to finite observations*; it is not a behavioural equivalence of bodies, and
 `toAFun` is not a faithful functor on any quotient that keeps import streams.
 
+**Pending calls see them.** `mem_toPending_pollLoop`: the first pending call
+of `pollLoop m` is `m`. With pending calls the observation is faithful up to
+collapse (`BodyTrace.fullCollapseEquiv_iff`): `pollLoop_not_fullCollapseEquiv`
+separates the two forever-import loops, while `spin_fullCollapseEquiv_trapLoop`
+still identifies the silent and the trapping loop.
+
 **The denotation is not faithful.** `toAFun_not_injective`: two bodies that
 trap with different payloads are different bodies with the same denotation.
 Infinite productive runs are forgotten too (`toAFun_pollLoop`: every
@@ -150,5 +156,20 @@ theorem exists_obsCollapse_not_collapse :
       toAFun F = toAFun G ∧ ∀ a s, collapse (F a) s ≠ collapse (G a) s :=
   ⟨pollLoop (m := true), pollLoop (m := false), toAFun_pollLoop_eq _ _,
     fun a s => collapse_pollLoop_ne (E := twoImports) (by decide : true ≠ false) a s⟩
+
+/-- The first pending call of `pollLoop m` is `m`. -/
+theorem mem_toPending_pollLoop (m : E.Op) (s : S) (a : A) :
+    ([], ULift.up m) ∈ toPending (pollLoop m : Hom E S T A B) s a :=
+  Silmaril.Proofs.Wasm.Abstract.Loop.mem_toPending_pollLoop m s a
+
+/-- With pending calls, distinct forever-import loops are separated. -/
+theorem pollLoop_not_fullCollapseEquiv {m₁ m₂ : E.Op} (h : m₁ ≠ m₂) (a : A) (s : S) :
+    ¬ FullCollapseEquiv (pollLoop m₁ : Hom E S T A B) (pollLoop m₂) := fun he =>
+  collapse_pollLoop_ne h a s (congrFun ((fullCollapseEquiv_iff _ _).1 he a) s)
+
+/-- The silent and the trapping loop stay identified. -/
+theorem spin_fullCollapseEquiv_trapLoop (t : T) :
+    FullCollapseEquiv (spin : Hom E S T A B) (trapLoop t) :=
+  (fullCollapseEquiv_iff _ _).2 fun a => (collapse_trapLoop t a).symm
 
 end Silmaril.Wasm.Abstract.Loop
