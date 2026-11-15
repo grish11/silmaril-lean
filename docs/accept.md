@@ -152,6 +152,79 @@ failures. In particular `pullAll (succ f R) L` holds vacuously for inputs that a
 
 Examples: `Silmaril/Semantics/Accept/Success/Examples.lean`.
 
+### `Silmaril.Semantics.Accept.Session.Defs` / `Thms`
+
+Relational acceptance of export-driven client sessions. A host calls exported entrypoints
+`process(a)`/`input(a)` (returning nothing), `output() : Q` and `reset()`; answers are
+arbitrary values of `Q`. The Bool-answer specialisation, with `process`/`query`/`reset`
+acceptors and `Language` correctness, is the incremental-acceptor development of draft
+PR #255 (`Silmaril.Semantics.Acceptors`); this topic does not depend on it.
+
+| Name | Meaning |
+| --- | --- |
+| `Call A Q` | a returned top-level call: `feed a`, `query q` (answered `q`), `reset` |
+| `T : Set (List (Call A Q))` | session model: call sequences a fresh instance returns from |
+| `feeds w` | the fed values of `w`, in order |
+| `segments T` | reset-free `w` with `pre ++ w ∈ T`, `pre = []` or ending in `reset` |
+| `freshSegments T` | reset-free traces of `T` (`pre = []` only) |
+| `feedQuery T : A -|> Q` | (5) `[feed a, query q] ∈ segments T` |
+| `feedsQuery T : List A -|> Q` | (6) `as.map feed ++ [query q] ∈ segments T` (no intermediate queries) |
+| `feedsQueryAny T` | (6) with intermediate queries: `w ++ [query q] ∈ segments T`, `feeds w = as` |
+| `freshFeedQuery`, `freshFeedsQuery`, `freshFeedsQueryAny` | the same on `T` itself (from a fresh instance only) |
+| `PrefixClosed T` | `u ++ v ∈ T → u ∈ T` |
+| `QueryDrop T` | `u ++ query q :: v ∈ T → u ++ v ∈ T` |
+| `QueryInsert T` | `u ++ [query q] ∈ T → u ++ v ∈ T → u ++ query q :: v ∈ T` |
+| `QueryPure T` | `QueryDrop T ∧ QueryInsert T` |
+| `ResetSound T` | `pre ++ [reset] ∈ T → (pre ++ reset :: w ∈ T ↔ w ∈ T)` |
+| `ByteChunk` | `List UInt8`, one `process(bytes)` argument |
+| `flatRel R` | `{(xs, q) \| ∃ cs, cs.flatten = xs ∧ (cs, q) ∈ R}` (`flatRel_eq_image`) |
+| `FlatInvariant R` | `cs.flatten = cs'.flatten → ((cs, q) ∈ R ↔ (cs', q) ∈ R)` |
+| `chunksQuery T` / `flatQuery T` | (7) `feedsQuery T` on chunks / `flatRel (chunksQuery T)` |
+| `ChunkInvariant T` | `FlatInvariant (chunksQuery T)` |
+| `Machine S A Q`, `Machine.traces`, `Machine.respond` | deterministic model (init, step, answer), its traces, and the answer after feeds |
+| `Machine.chunked init step answer` | feeds each chunk element by element |
+
+Laws:
+
+* (5) is (6) at singletons: `mem_feedQuery_iff_feedsQuery`.
+* Resets: `freshFeedsQuery_subset_feedsQuery` always; `segments_eq_freshSegments` and
+  `feedQuery_eq_fresh`/`feedsQuery_eq_fresh`/`feedsQueryAny_eq_fresh` under `ResetSound` and
+  `PrefixClosed`; `segments_eq_freshSegments_of_resetFree` for models without resets.
+* Interleaving: `feedsQuery_subset_feedsQueryAny` always; `feedsQueryAny_eq` under
+  `QueryDrop` (only the drop direction is needed), `feedsQueryAny_eq_of_queryPure`;
+  `queryDrop_segments`.
+* Status filters (with `Success`): `mem_someVals_feedsQuery : (as, b) ∈ someVals (feedsQuery T)
+  ↔ as.map feed ++ [query (some b)] ∈ segments T`, `mem_okVals_feedsQuery` (`.ok b`),
+  `mem_inlVals_feedsQuery` (`inl b`), and the `feedQuery` versions.
+* Chunks: `mem_flatRel_of_mem`/`mem_flatQuery_of_mem_chunksQuery` always;
+  `FlatInvariant.mem_iff`/`ChunkInvariant.mem_chunksQuery_iff` (`(cs, q)` iff
+  `(cs.flatten, q)`), `flatInvariant_iff`, one chunk and element-at-a-time
+  (`FlatInvariant.flatRel_eq_single`/`_singletons`, `ChunkInvariant.flatQuery_eq_single`/
+  `_singletons`), empty chunks (`FlatInvariant.cons_nil`, `append_nil`); with resets,
+  `chunkInvariant_iff_fresh`.
+* Machines: `Machine.prefixClosed_traces`, `queryPure_traces`, `resetSound_traces`;
+  `Machine.feedsQuery_traces : feedsQuery m.traces = ofTotal m.respond` (also
+  `feedsQueryAny_traces`, `feedQuery_traces`); `Machine.chunkInvariant_chunked`.
+
+Counterexamples (`Examples`): `feedsQueryAny_ne_feedsQuery` (an `output()` that counts its own
+calls), `not_resetSound_badReset`/`feedsQuery_ne_fresh_badReset` (a reset that does not
+restore the fresh behaviour), `not_chunkInvariant_chunkCount` (answers count chunks; an empty
+chunk is still a call).
+
+Limitations:
+
+* Traps and non-returning calls are modelled by *absence*: `T` records only returned calls and
+  nothing follows a trap. Every relation here is a successful-return relation; there is no
+  trap/partial-call observation inside a session, and a session that traps before `output()`
+  contributes nothing.
+* No concurrency or reentrancy: calls are sequential top-level calls.
+* Every session starts from a fresh instance; host-visible state outside the component (and
+  any other exports) is not modelled.
+* `segments` ignores what happened before the last reset; it agrees with the fresh relations
+  only under `ResetSound` (and `PrefixClosed`).
+
+Examples: `Silmaril/Semantics/Accept/Session/Examples.lean`.
+
 Byte languages, simple WIT types and the inputs accepted by Wasm modules and components
 instantiate this vocabulary: see [accepted inputs](projects/accepted-inputs.md).
 
