@@ -19,10 +19,9 @@ a host. The host writes the input into the instance's memory and invokes the exp
 * **`exportRejected_inter_intText`**: no run of the embedding rejects (answers `0`) an integer
   text. So among inputs on which `accept` returns, it accepts exactly the integer texts.
 
-**Gap: termination.** The proofs are partial correctness. That every invocation *returns* is
-not proved here, so the converse inclusion (`intText ⊆ exportAccepted`) is not established.
-Proving it needs a total-correctness proof of the loop (`Silmaril.Wasm.Logic.Total`, a variant
-`len - i`).
+These statements use partial correctness. Termination and the converse inclusion (every
+admitted integer text is accepted) are in `Silmaril.Wasm.Examples.JsonAccept.Exact.Thms`
+(`exportAccepted_eq`).
 -/
 
 @[expose] public section
