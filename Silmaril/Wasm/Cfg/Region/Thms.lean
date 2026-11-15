@@ -11,6 +11,7 @@ import Silmaril.Proofs.Wasm.Cfg.CallTransport
 import Silmaril.Proofs.Wasm.Cfg.RegionTailRes
 import Silmaril.Proofs.Wasm.Cfg.CtxSplit
 import Silmaril.Proofs.Wasm.Cfg.CallSeq
+import Silmaril.Proofs.Wasm.Cfg.RegionCallComplete
 public import Silmaril.Wasm.Abstract.CallX.Defs
 
 @[expose] public section
@@ -407,5 +408,18 @@ theorem call_incl {G : Store H → Nat → List Val → Prop} {C : Abstract.Call
     (hr : RunC P host C s₁ f [] (vals ws ++ r.toAdmin ++ rest) s₂ f₂ o) :
     RunC P host C s f [] (vals (ws ++ us) ++ .plain (.call x) :: rest) s₂ f₂ o :=
   Proofs.Region.call_incl hC hx hfi he hn hG hcall hr
+
+/-! ## Core completeness with direct calls -/
+
+/-- **Core completeness for code with direct calls** (every profile and host): under a complete
+oracle (`CallCompleteG`) whose guard holds at every call the run reaches (`GuardedCalls`), every
+Core 3.0 run of code of the fragment with calls (`FragC`: direct calls anywhere, in blocks,
+loops, `if`s, `try_table`s, labels and handlers) to a final form of `o` is a `RunC` run. -/
+theorem run_completeC {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
+    (hC : CallCompleteG P host G C) {code c' : List Admin} {o : Out}
+    (hG : GuardedCalls P host G ⟨s, f, code⟩) (hF : FragC code)
+    (h : Steps P host ⟨s, f, code⟩ ⟨s', f', c'⟩) (he : o.Ends c') :
+    RunC P host C s f [] code s' f' o :=
+  Proofs.Region.completeC hC hG hF h he
 
 end Silmaril.Wasm.Cfg.Region

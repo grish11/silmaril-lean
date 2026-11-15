@@ -350,6 +350,27 @@ native store). Region runs with `C.guard G` carry `G` at every call they make. -
 def guardCall (G : Store H → Nat → List Val → Prop) (C : Abstract.CallRel H) : Abstract.CallRel H :=
   fun s a us r => G s a us ∧ C s a us r
 
+/-- Evaluation contexts of labels and handlers in sequences. -/
+inductive Ctx where
+  | hole
+  | label (ws : List Val) (n : Nat) (cont : List Instr) (E : Ctx) (rest : List Admin)
+  | handler (ws : List Val) (n : Nat) (cs : List Catch) (E : Ctx) (rest : List Admin)
+
+/-- Fill a context. -/
+def Ctx.fill : Ctx → List Admin → List Admin
+  | .hole, X => X
+  | .label ws n cont E rest, X => vals ws ++ .label n cont (E.fill X) :: rest
+  | .handler ws n cs E rest, X => vals ws ++ .handler n cs (E.fill X) :: rest
+
+/-- **The guard holds at every call the run reaches**: at every configuration reachable from
+`c₀` whose redex is a direct call `call x` (inside a context, on the arguments `us` under `ws`),
+resolving to the address `a`, the oracle's guard `G` holds for that call. -/
+def GuardedCalls (P : Profile) (host : HostSemantics H) (G : Store H → Nat → List Val → Prop)
+    (c₀ : Config H) : Prop :=
+  ∀ (c₂ : Config H) (E : Ctx) (ws us : List Val) (x : FuncIdx) (rest : List Admin) (a : Nat),
+    Steps P host c₀ c₂ → c₂.code = E.fill (vals (ws ++ us) ++ .plain (.call x) :: rest) →
+    c₂.frame.module.funcs[x.toNat]? = some a → G c₂.store a us
+
 /-- **Soundness of a call oracle for Core 3.0**: every answer of `C` for a Wasm-typed function
 is a Core run of the call (`ref.func a; call_ref`) on its arguments, in any caller frame, to
 the corresponding result: the top `rs.length` results (reversed into stack order), a trap, or a

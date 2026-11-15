@@ -78,4 +78,20 @@ theorem callCompleteG_closedCallOk (P : Profile) :
     Region.CallCompleteG P (fun _ _ _ _ => False) NativeCallOk (Abstract.closedCallOk (H := H)) :=
   Proofs.Region.callCompleteG_closedCallOk P
 
+/-- **Core completeness of the machine with the checked closed oracle** (native direct-call
+slice, no host, every profile): a Core 3.0 run of a function body of the fragment with direct
+calls (`FragC`) to a final form of `o` (not a branch out of the body, not a tail call of a
+function) is a run of the machine with `closedCallOk` from the CFG entry to a sink ending as
+`Ends` says, in the same store and frame, provided every call the run reaches is on the native
+slice (`GuardedCalls … NativeCallOk`: typed store, native Wasm functions, arity-checked
+functions, typed invocation). -/
+theorem core_complete_closed (P : Profile) {s s' : Store H} {f f' : Frame} {c' : List Admin}
+    {o : Region.Out} (hF : Region.FragC (expression body))
+    (hG : Region.GuardedCalls P (fun _ _ _ _ => False) NativeCallOk ⟨s, f, expression body⟩)
+    (h : Steps P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ ⟨s', f', c'⟩) (he : o.Ends c')
+    (ho : ∀ k us, o ≠ .br k us) (hto : ∀ W a c, o ≠ .tail W a c) :
+    ∃ st', Relation.ReflTransGen (MStepC P (fun _ _ _ _ => False) Abstract.closedCallOk body)
+        (initial body s f) st' ∧ Ends st' o ∧ st'.store = s' ∧ st'.frame = f' :=
+  run_complete_initialC (Region.run_completeC (callCompleteG_closedCallOk P) hG hF h he) ho hto
+
 end Silmaril.Wasm.Cfg.Machine
