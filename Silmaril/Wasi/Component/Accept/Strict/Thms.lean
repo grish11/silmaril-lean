@@ -19,6 +19,12 @@ public import Silmaril.Wasi.Component.Accept.Acceptor.Defs
   `Silmaril.Wasi.Accept.Examples` (`not_mono_refinement`, `not_anti_refinement`). The parts
   are one-sided: acceptance shrinks under refinement (`exportAccepted_mono`), and
   never-rejection grows (`neverFalse_anti`).
+* **One function for both verdicts**: an import used for both accepting and rejecting gives the
+  empty set (`importAcceptedNotRejected_self`, from `acceptsSafely_eq_empty_of_subset`). An
+  export used for both is different: its accepting and rejecting outcomes (returns of `true` and
+  `false`) never conflict (`retWith_conflicts`), so its combined set consists of the values on
+  which it returns `true` in some play and `false` in none.
+* **Wrappers**: `ComponentAcceptor.strictLang_eq_acceptsSafely_exp` and `…_imp`.
 -/
 
 @[expose] public section
@@ -140,5 +146,41 @@ theorem ComponentAcceptor.strictLang_imp (A : ComponentAcceptor) {r : FnName}
   simp [ComponentAcceptor.strictLang, ComponentAcceptor.lang, ComponentAcceptor.neverRejectedLang,
     hr, hm, importAcceptedNotRejected, bytesLang]
   rfl
+
+/-! ## One function for both verdicts -/
+
+/-- **One import for both verdicts**: nothing is accepted and never rejected. -/
+theorem importAcceptedNotRejected_self (σ : Strategy (nsig I) (nsig X)) :
+    importAcceptedNotRejected σ acc acc dec = ∅ := by
+  rw [importAcceptedNotRejected_eq_acceptsSafely]
+  exact Silmaril.Accept.acceptsSafely_eq_empty_of_subset subset_rfl
+
+/-- Returns of `true` and of `false` never conflict, even for the same export. -/
+theorem retWith_conflicts (f g : FnName) :
+    Silmaril.Accept.conflicts (retWith f true) (retWith g false) = ∅ := by
+  ext e
+  simp only [Silmaril.Accept.conflicts, retWith, Set.mem_inter_iff, Set.mem_ofPred_eq,
+    Set.mem_empty_iff_false, iff_false, not_and, forall_exists_index]
+  rintro args rfl ⟨args', h⟩
+  simp at h
+
+/-! ## Wrappers as `acceptsSafely` -/
+
+theorem ComponentAcceptor.strictLang_eq_acceptsSafely_exp (A : ComponentAcceptor) {r : FnName}
+    (hr : A.reject = some r) (hm : A.mode = .exp) :
+    A.strictLang = Silmaril.Accept.acceptsSafely (exportRun A.model (args1 bytes?))
+      (retWith A.accept true) (retWith r false) := by
+  rw [A.strictLang_exp hr hm, exportAcceptedNotRejected_eq_acceptsSafely]
+
+theorem ComponentAcceptor.strictLang_eq_acceptsSafely_imp (A : ComponentAcceptor) {r : FnName}
+    (hr : A.reject = some r) (hm : A.mode = .imp) :
+    A.strictLang = Silmaril.Accept.acceptsSafely (importRun A.model (args1 bytes?))
+      (reqOf A.accept) (reqOf r) := by
+  rw [A.strictLang_imp hr hm, importAcceptedNotRejected_eq_acceptsSafely]
+
+/-- An imported acceptor rejecting through its accepting import has an empty strict language. -/
+theorem ComponentAcceptor.strictLang_imp_self (A : ComponentAcceptor)
+    (hr : A.reject = some A.accept) (hm : A.mode = .imp) : A.strictLang = ⊥ := by
+  rw [A.strictLang_imp hr hm, importAcceptedNotRejected_self]; rfl
 
 end Silmaril.Wasi.Accept

@@ -20,6 +20,9 @@ The generic laws then apply:
   covers a value the module never passes to an import, including runs that diverge or trap
   first;
 * a value both accepted and rejected, possibly on different runs, is excluded;
+* one import for both verdicts gives the empty set (`acceptedNotRejected_self`, also
+  `ModuleAcceptor.strictLang_self`): every accepting outcome rejects
+  (`Silmaril.Accept.acceptsSafely_eq_empty_of_subset`);
 * the set is invariant under callout equivalence (`acceptedNotRejected_eq_of_calloutEquiv`,
   in `Reject`).
 
@@ -92,6 +95,12 @@ theorem strictLang_eq_acceptsSafely (A : ModuleAcceptor) {r : String × String}
   rw [← acceptedNotRejected_eq_acceptsSafely]
   simp [strictLang, neverRejectedLang, h, lang, acceptedNotRejected]
   rfl
+
+/-- An acceptor rejecting through its accepting import has an empty strict language. -/
+theorem strictLang_self (A : ModuleAcceptor) (h : A.reject = some A.accept) :
+    A.strictLang = ⊥ := by
+  rw [A.strictLang_eq_acceptsSafely h]
+  exact Silmaril.Accept.acceptsSafely_eq_empty_of_subset subset_rfl
 
 end ModuleAcceptor
 
