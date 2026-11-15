@@ -10,6 +10,7 @@ import Silmaril.Proofs.Wasm.Cfg.RegionTail
 import Silmaril.Proofs.Wasm.Cfg.CallTransport
 import Silmaril.Proofs.Wasm.Cfg.RegionTailRes
 import Silmaril.Proofs.Wasm.Cfg.CtxSplit
+import Silmaril.Proofs.Wasm.Cfg.CallSeq
 public import Silmaril.Wasm.Abstract.CallX.Defs
 
 @[expose] public section
@@ -351,5 +352,35 @@ theorem call_vals_cases {vs : List Val} {x : FuncIdx} {c : Config H}
                 ⟨s₁, f, out⟩ ∧
               Steps P host ⟨s₁, f, vals ws ++ out⟩ c)) :=
   Proofs.Region.call_vals_cases hw h
+
+/-! ## Direct calls, from Core runs to region runs -/
+
+/-- **A direct call in a sequence, run to a final form** (every profile and host, Wasm and host
+callees): the call resolves its callee `a`, whose `call_ref` runs on the top `ps.length` values
+`us` to a result `r` in the caller's frame (tail calls out of the callee's frame followed), and the
+sequence continues from `vals ws' ++ r ++ rest`. -/
+theorem call_seq_result {ws : List Val} {x : FuncIdx} {rest : List Admin} {c' : Config H}
+    (hfin : ∃ o : Out, o.Ends c'.code)
+    (h : Steps P host ⟨s, f, vals ws ++ .plain (.call x) :: rest⟩ c') :
+    ∃ (a : Nat) (fi : FuncInst H), f.module.funcs[x.toNat]? = some a ∧ s.funcs[a]? = some fi ∧
+      ∃ (ws' us : List Val) (ps rs : Validation.Ty (.list .val)) (s₁ : Store H) (r : Result),
+        ws = ws' ++ us ∧ Validation.Expand fi.type (.func ps rs) ∧ us.length = ps.length ∧
+        Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩ ⟨s₁, f, r.toAdmin⟩ ∧
+        Steps P host ⟨s₁, f, vals ws' ++ r.toAdmin ++ rest⟩ c' :=
+  Proofs.Region.call_seq_result hfin h
+
+/-- **A direct call, from Core to `RunC`** (every profile and host): under a complete oracle
+(`CallCompleteG`, its guard holding at the call's store), a Core run of
+`vals ws ++ call x :: rest` to a final form of `o` is a `RunC` run of `call x :: rest`, given that
+the continuation after the callee's values is one (`hk`). -/
+theorem run_call_complete {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
+    (hC : CallCompleteG P host G C) {ws : List Val} {x : FuncIdx} {rest c' : List Admin} {o : Out}
+    (hG : ∀ a us, G s a us)
+    (h : Steps P host ⟨s, f, vals ws ++ .plain (.call x) :: rest⟩ ⟨s', f', c'⟩) (ho : o.Ends c')
+    (hk : ∀ (s₁ : Store H) (ws' vs : List Val),
+      Steps P host ⟨s₁, f, vals (ws' ++ vs) ++ rest⟩ ⟨s', f', c'⟩ →
+        RunC P host C s₁ f (ws' ++ vs) rest s' f' o) :
+    RunC P host C s f ws (.plain (.call x) :: rest) s' f' o :=
+  Proofs.Region.run_call_complete hC hG h ho hk
 
 end Silmaril.Wasm.Cfg.Region

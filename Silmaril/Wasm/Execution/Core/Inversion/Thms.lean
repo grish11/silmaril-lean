@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Execution.Core.Inversion.Defs
 public import Silmaril.Wasm.Execution.Core.Sim.Context
 public import Silmaril.Wasm.SingleThreaded.Determinism.Family
 import Silmaril.Proofs.Wasm.Execution.Core.Inversion
+import Silmaril.Proofs.Wasm.Execution.Core.InversionSeq
 
 @[expose] public section
 
@@ -123,6 +124,24 @@ theorem Step.call_vals_inv {us : List Val} {x : FuncIdx}
     ∃ a fi, f.module.funcs[x.toNat]? = some a ∧ s.funcs[a]? = some fi ∧
       c = ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩ :=
   Proofs.Inversion.call_vals_inv h rfl
+
+/-- `call x` under values, in a sequence: it only resolves its callee; the continuation stays. -/
+theorem Step.call_vals_inv_seq {vs : List Val} {x : FuncIdx} {rest : List Admin}
+    (h : Step P host ⟨s, f, vals vs ++ .plain (.call x) :: rest⟩ c) :
+    ∃ a fi, f.module.funcs[x.toNat]? = some a ∧ s.funcs[a]? = some fi ∧
+      c = ⟨s, f, vals vs ++ .ref (.func a) :: .callRefType fi.type :: rest⟩ :=
+  Proofs.Inversion.call_vals_inv_seq h
+
+/-- A `call_ref` of Wasm code in a sequence only enters the callee's frame on the top
+`ps.length` values; the continuation stays. -/
+theorem Step.callRef_wasm_inv_seq {vs : List Val} {a : Nat} {r : Admin} {fi : FuncInst H}
+    {code : Func} {rest : List Admin} (hr : r.IsCallRef) (hf : s.funcs[a]? = some fi)
+    (hcode : fi.code = .wasm code)
+    (h : Step P host ⟨s, f, vals vs ++ .ref (.func a) :: r :: rest⟩ c) :
+    ∃ vs₁ vs₂ ps rs, vs = vs₁ ++ vs₂ ∧ Expand fi.type (.func ps rs) ∧ vs₂.length = ps.length ∧
+      c = ⟨s, f, vals vs₁ ++ .frame rs.length (Frame.forCall fi.module vs₂ code.locals)
+        [.label rs.length [] (expression code.body)] :: rest⟩ :=
+  Proofs.Inversion.callRef_wasm_inv_seq hr hf hcode h
 
 theorem Step.loop_vals_inv {us : List Val} {bt : BlockType} {body : List Instr}
     (h : Step P host ⟨s, f, vals us ++ [.plain (.loop bt body)]⟩ c) :
