@@ -97,34 +97,29 @@ theorem core_complete_closed (P : Profile) {s s' : Store H} {f f' : Frame} {c' :
   run_complete_initialC (Region.run_completeC (callCompleteG_closedCallOk P) hG hF h he) ho hto
 
 /-- **The native-slice guard from typing** (no host, every profile): from a typed start
-(`ContextTyped`) on a store of native, arity-checked functions, `NativeCallOk` holds at every
-reached call whose arguments are a typed invocation: the store stays typed and the functions are
-unchanged along host-free runs. -/
+(`ContextTyped`) on a store of native, arity-checked functions, every call a host-free run
+reaches is on the native slice (`NativeCallOk`). The store stays typed, the functions are
+unchanged, and each call's arguments are a typed invocation (the typed `call_ref` it resolves to
+types them at the callee's parameters, `PC.callRef_front`). -/
 theorem guardedCalls_of_typed {P : Profile} {c₀ : Config H} (hT : Sim.ContextTyped c₀)
-    (hN : Binaryen.NativeFuncsOk c₀.store.funcs) (hS : Interp.StoreChk c₀.store.funcs)
-    (hI : ∀ (c₂ : Config H) (E : Region.Ctx) (ws us : List Val) (x : FuncIdx)
-      (rest : List Admin) (a : Nat), Steps P (fun _ _ _ _ => False) c₀ c₂ →
-      c₂.code = E.fill (vals (ws ++ us) ++ .plain (.call x) :: rest) →
-      c₂.frame.module.funcs[x.toNat]? = some a → InvokeOk c₂.store a us) :
+    (hN : Binaryen.NativeFuncsOk c₀.store.funcs) (hS : Interp.StoreChk c₀.store.funcs) :
     Region.GuardedCalls P (fun _ _ _ _ => False) NativeCallOk c₀ :=
-  Proofs.Region.guardedCalls_of_typed hT hN hS hI
+  Proofs.Region.guardedCalls_of_typed hT hN hS
 
-/-- **Core completeness of the machine with `closedCallOk` from a typed native start**: as
-`core_complete_closed`, with the store typing, native functions and arity checks discharged
-from the start (`guardedCalls_of_typed`); what remains is that each reached call's arguments are
-a typed invocation (`hI`). -/
+/-- **Core completeness of the machine with the checked closed oracle, from a typed native
+start** (no host, every profile, no oracle or guard hypothesis): a Core 3.0 run of a typed
+(`ContextTyped`) function body of the fragment with direct calls (`FragC`), on a store of native,
+arity-checked functions, to a final form of `o` (not a branch out of the body, not a tail call of
+a function) is a run of the machine with `closedCallOk` from the CFG entry to a sink ending as
+`Ends` says, in the same store and frame. -/
 theorem core_complete_closed_typed (P : Profile) {s s' : Store H} {f f' : Frame}
     {c' : List Admin} {o : Region.Out} (hF : Region.FragC (expression body))
     (hT : Sim.ContextTyped ⟨s, f, expression body⟩) (hN : Binaryen.NativeFuncsOk s.funcs)
     (hS : Interp.StoreChk s.funcs)
-    (hI : ∀ (c₂ : Config H) (E : Region.Ctx) (ws us : List Val) (x : FuncIdx)
-      (rest : List Admin) (a : Nat), Steps P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ c₂ →
-      c₂.code = E.fill (vals (ws ++ us) ++ .plain (.call x) :: rest) →
-      c₂.frame.module.funcs[x.toNat]? = some a → InvokeOk c₂.store a us)
     (h : Steps P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ ⟨s', f', c'⟩) (he : o.Ends c')
     (ho : ∀ k us, o ≠ .br k us) (hto : ∀ W a c, o ≠ .tail W a c) :
     ∃ st', Relation.ReflTransGen (MStepC P (fun _ _ _ _ => False) Abstract.closedCallOk body)
         (initial body s f) st' ∧ Ends st' o ∧ st'.store = s' ∧ st'.frame = f' :=
-  core_complete_closed P hF (guardedCalls_of_typed hT hN hS hI) h he ho hto
+  core_complete_closed P hF (guardedCalls_of_typed hT hN hS) h he ho hto
 
 end Silmaril.Wasm.Cfg.Machine

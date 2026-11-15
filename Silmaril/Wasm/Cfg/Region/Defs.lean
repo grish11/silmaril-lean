@@ -363,13 +363,16 @@ def Ctx.fill : Ctx → List Admin → List Admin
   | .handler ws n cs E rest, X => vals ws ++ .handler n cs (E.fill X) :: rest
 
 /-- **The guard holds at every call the run reaches**: at every configuration reachable from
-`c₀` whose redex is a direct call `call x` (inside a context, on the arguments `us` under `ws`),
-resolving to the address `a`, the oracle's guard `G` holds for that call. -/
+`c₀` whose redex is a direct call `call x` (inside a context), resolving to the function `fi` at
+address `a`, on its `ps.length` arguments `us` (under `ws`), the oracle's guard `G` holds for that
+call. -/
 def GuardedCalls (P : Profile) (host : HostSemantics H) (G : Store H → Nat → List Val → Prop)
     (c₀ : Config H) : Prop :=
-  ∀ (c₂ : Config H) (E : Ctx) (ws us : List Val) (x : FuncIdx) (rest : List Admin) (a : Nat),
+  ∀ (c₂ : Config H) (E : Ctx) (ws us : List Val) (x : FuncIdx) (rest : List Admin) (a : Nat)
+    (fi : FuncInst H) (ps rs : Ty (.list .val)),
     Steps P host c₀ c₂ → c₂.code = E.fill (vals (ws ++ us) ++ .plain (.call x) :: rest) →
-    c₂.frame.module.funcs[x.toNat]? = some a → G c₂.store a us
+    c₂.frame.module.funcs[x.toNat]? = some a → c₂.store.funcs[a]? = some fi →
+    Expand fi.type (.func ps rs) → us.length = ps.length → G c₂.store a us
 
 /-- **Soundness of a call oracle for Core 3.0**: every answer of `C` for a Wasm-typed function
 is a Core run of the call (`ref.func a; call_ref`) on its arguments, in any caller frame, to

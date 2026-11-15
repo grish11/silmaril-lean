@@ -300,7 +300,8 @@ theorem complete_core {G : Store H → Nat → List Val → Prop} (hC : CallComp
         ⟨ws, _, rest, rfl, .inr (.inr (.inl ⟨_, _, _, rfl⟩))⟩)).elim
   | @head c₀ c₁ hstep hrest ih =>
     intro hG
-    have ih := ih (fun c₂ E ws us x rest a h₂ hc hx => hG c₂ E ws us x rest a (.head hstep h₂) hc hx)
+    have ih := ih (fun c₂ E ws us x rest a fi ps rs h₂ hc hx hfi he hn =>
+      hG c₂ E ws us x rest a fi ps rs (.head hstep h₂) hc hx hfi he hn)
     obtain ⟨s, f, code⟩ := c₀
     obtain ⟨s₁', f₁', code₁⟩ := c₁
     refine ⟨fun hF => ?_, ?_, ?_⟩
@@ -314,7 +315,7 @@ theorem complete_core {G : Store H → Nat → List Val → Prop} (hC : CallComp
         obtain ⟨ws', us, ps, rs, s₂, r, rfl, he, hn, hcall, hrun⟩ :=
           ih.2.1 E ws a _ rest fi hE hr hc₁ trivial hfi
         exact run_fill_back E (fun hh => call_incl hC hx hfi he hn
-          (hG _ E ws' us x rest a .refl rfl hx) hcall hh) hrun
+          (hG _ E ws' us x rest a fi ps rs .refl rfl hx hfi he hn) hcall hh) hrun
       · obtain ⟨hF₁, hb⟩ := expandB (C := C) hstep hF hca
         exact hb (ih.1 hF₁)
     · -- (B)
