@@ -322,3 +322,48 @@ directly. The decoder must tag every scope-opening and -closing event (`enter no
 unobserved entry points). Within a scope, the window reading attributes an output to the most
 recent input; a protocol with another causal structure needs its own decoder. Examples:
 `Silmaril/Semantics/Accept/IO/Examples.lean`.
+
+### `Silmaril.Wasi.IOAccept.Defs` / `Thms`: I/O acceptance of component traces
+
+Namespace `Silmaril.Wasi.IOAccept`. The bridge from the named traces of a WASI component
+(`Silmaril.Wasi.World`: `WEv`, `wtrace`; `Silmaril.Wasi.Accept.Traces σ = wtrace '' σ.plays`)
+to the scoped runs above. A component is `σ : Strategy (nsig Im) (nsig Ex)` (imports `Im`,
+exports `Ex`).
+
+| Name | Meaning |
+| --- | --- |
+| `Roles X I O C` | role decoders: `entry f args` (export call observed as an entry; `none` = unobserved scope), `result f args r` (successful return), `callIn f args` (import call carrying an input), `answerIn f args r` (host answer carrying an input), `callOut f args` (import call issuing an output; wins over `callIn`) |
+| `tag ρ : WEv → Option (Tag …)` | `call` is always `enter`, `ret … (some r)` is `exit (result …)`, `ret … none` (trap) is `exit none`; `req` is `out` or `inp`; `imp … (some r)` is `inp` or nothing; host traps `imp … none` are never tagged |
+| `ioRuns σ ρ` / `entryIORuns σ ρ` | `inputRunsOf` / `entryRunsOf` of `decode (tag ρ) '' Traces σ` |
+| `importIO inp out decI decO` | input = answer of import `inp`, output = argument of a call to import `out`; entries and results `()` |
+| `exportFn f decX decC` | the export `f(x) -> c`, no inputs or outputs (`Empty`) |
+| `Shallow b ts` | depth-one bracketing automaton on tags (`b` = inside a scope) |
+| `blocks ts`, `wblocks t` | each `enter` (export `call`) with what follows up to the next one |
+
+Key laws: `ioRuns_mono`/`entryIORuns_mono` (refinement), `ioRuns_eq_of_traces`/
+`entryIORuns_eq_of_traces` (equal `Traces`, any worlds); the structural bridge
+`shallow_of_legal` (legal plays have shallow tags), `ret_after_call` (the next export event
+after `call f a` is `ret f a r`), `localView_bracket_of_shallow`/`exists_localView_bracket`
+(the scopes of a shallow tag list are its blocks), `blocks_filterMap_tag`, and so
+`mem_ioRuns`/`mem_entryIORuns`: the runs of a component are the windows (entry runs) of the
+decoded call blocks of its plays, i.e. every import event belongs to the scope of the most
+recent export call. Soundness: `triggers_ioRuns_sound`, `returns_ioRuns_sound`,
+`returns_entryIORuns_sound` (a related pair comes from an ordered pair of events of one play),
+`locOf_eq_out`, `locOf_eq_exit`; the unary link `mem_importAccepted_of_triggers` (triggered
+outputs are accepted through the output import, `Silmaril.Wasi.Accept.importAccepted`).
+
+Examples (`Silmaril/Wasi/IOAccept/Examples.lean`): `echo` (`run` reads `input()`, calls
+`output(a)`, returns) triggers exactly `a ↦ a` with episode `([a], ())`; `echoTrap` (the call
+traps) triggers its output but has no episode; `checked` (`f(x) -> result<u32>`) with
+`returns` restricted to `ok` values by `inlVals` (`Silmaril.Accept.succ`).
+
+Limits. What is modelled: single-threaded, synchronous components of the game model
+(`Silmaril.Games.Play`), whose legal plays answer each export call before the next and make
+import calls only inside an export call. The model has no callbacks from imports into exports,
+so **no reentrancy occurs**: scopes have depth one and the nesting support of `bracket` is
+unused. Import events outside any export call cannot occur in legal plays; `bracket` would drop
+them. A host trap (`imp … none`) is not an event of any run; the component's own trap
+(`ret … none`) ends the scope with `exit none` (outputs triggered, no episode). Inputs and
+outputs are decoded per event (`Val` lists); typing is the decoders' job. Asynchronous
+components (component-model `async`, futures, streams, overlapping calls) are out of scope:
+they need call IDs supplied by the decoder and `Ev` directly.
