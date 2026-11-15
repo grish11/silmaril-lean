@@ -407,4 +407,163 @@ theorem back_op_call_host {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H
     · exact .inr hp'
   · exact .inl ⟨_, .callTrap hev hfi hty hcall, hends⟩
 
+/-! ## Blocks -/
+
+/-- The first non-value of a pending call is the call itself, a label or a frame. -/
+theorem pending_head {s : Store H} {es : List Admin} (h : Pending host s es) :
+    ∃ (vs : List Val) (a : Admin) (r : List Admin), es = vals vs ++ a :: r ∧ a.val? = none ∧
+      ((∃ d, a = .callRefType d) ∨ (∃ n cont b, a = .label n cont b) ∨
+        ∃ n F b, a = .frame n F b) := by
+  cases h with
+  | @call ws us a fi hh ps rs rest =>
+    exact ⟨ws ++ us ++ [.ref (.func a)], .callRefType fi.type, rest,
+      by simp [vals, Val.toAdmin], rfl, .inl ⟨_, rfl⟩⟩
+  | @label ws n cont es rest => exact ⟨ws, _, rest, rfl, rfl, .inr (.inl ⟨_, _, _, rfl⟩)⟩
+  | @frame ws n F es rest => exact ⟨ws, _, rest, rfl, rfl, .inr (.inr ⟨_, _, _, rfl⟩)⟩
+
+/-- **A pending call is not a label exit form.** -/
+theorem pending_not_labelExit {s : Store H} {es out : List Admin} {n : Nat} {cont : List Instr}
+    (hp : Pending host s es) (hx : LabelExit n cont es out) : False := by
+  obtain ⟨vs, a, r, hes, ha, hk⟩ := pending_head hp
+  have key : ∀ (ws : List Val) (b : Admin) (r' : List Admin), b.val? = none →
+      es = vals ws ++ b :: r' → a = b := fun ws b r' hb he =>
+    (Sim.vals_append_cons_inj ha hb (hes.symm.trans he)).2.1
+  have nk : ∀ b, (b = .plain .return_ ∨ (∃ l, b = .plain (.br l)) ∨ b.IsReturnCallRef) → a ≠ b := by
+    rintro b hb rfl
+    rcases hk with ⟨d, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ <;>
+      rcases hb with h | ⟨l, h⟩ | h <;> cases h
+  cases hx with
+  | vals ws => exact pending_ne_vals hp ws rfl
+  | @brZero vs' ws l rest' _ _ =>
+    exact nk _ (.inr (.inl ⟨l, rfl⟩)) (key (vs' ++ ws) _ rest' rfl (by simp))
+  | @brSucc ws l rest' _ =>
+    exact nk _ (.inr (.inl ⟨l, rfl⟩)) (key ws _ rest' rfl (by simp))
+  | @ret ws rest' =>
+    exact nk _ (.inl rfl) (key ws _ rest' rfl (by simp))
+  | @returnCall ws c' rest' hc =>
+    exact nk _ (.inr (.inr hc)) (key ws c' rest' (Admin.val?_of_isReturnCallRef hc) (by simp))
+  | throw x => exact pending_ne_throwing hp x rfl
+  | trap => exact pending_ne_trap hp rfl
+
+/-- A label around a stuck pending call is stuck, and pending. -/
+theorem pending_label {s : Store H} {f : Frame} {ws : List Val} {n : Nat} {cont : List Instr}
+    {b rest : List Admin} (hp : Pending host s b) (hb : ∀ c', ¬ Step P host ⟨s, f, b⟩ c') :
+    (∀ c', ¬ Step P host ⟨s, f, vals ws ++ [.label n cont b] ++ rest⟩ c') ∧
+      Pending host s (vals ws ++ [.label n cont b] ++ rest) := by
+  have hpe : Pending host s (vals ws ++ [.label n cont b] ++ rest) := by
+    simpa using Pending.label (ws := ws) (n := n) (cont := cont) (rest := rest) hp
+  refine ⟨fun c' h => ?_, hpe⟩
+  obtain ⟨c₀, h₀, -⟩ := Step.ctx_in_seq (X := .label n cont b) trivial (by simpa using h)
+  rcases Step.label_inv h₀ with ⟨s', f', b', hin, -⟩ | ⟨out, hex, -⟩
+  · exact hb _ hin
+  · exact pending_not_labelExit hp hex
+
+/-- **The backward case of a block**, deterministic profile. Entering the block is
+host-free; the body runs in its label to a stuck end (`stepsN_label_seq_split`),
+given by the body's case `ihbody` on a no longer run; a blocked body blocks the
+block; otherwise the label is left by host-free steps, as the native block is
+left. The block arity facts of the body's results are the hypothesis `hblk`. -/
+theorem back_block {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} {f : Frame}
+    {stk : List Val} {bt : BlockType} {body : List Binaryen.BExpr} {np nr : Nat}
+    {rest : List Admin} {c : Config H}
+    (har : Binaryen.arity f bt = some (np, nr)) (hp : np ≤ stk.length)
+    (hrun : StepsN (SingleThreaded.profile o) host n
+      ⟨s, f, vals stk.reverse ++ .plain (.block bt (Binaryen.BExpr.lowerList body)) :: rest⟩ c)
+    (hend : ∀ c', ¬ Step (SingleThreaded.profile o) host c c')
+    (ihbody : ∀ m ≤ n, ∀ cb, StepsN (SingleThreaded.profile o) host m
+        ⟨s, f, vals (stk.take np).reverse ++ expression (Binaryen.BExpr.lowerList body)⟩ cb →
+      (∀ c', ¬ Step (SingleThreaded.profile o) host cb c') →
+      BackOut host s f (stk.take np) body cb)
+    (hblk : ∀ r, EvalH host s f (stk.take np) body r → ∀ vs, r.2.2.blockVals = some vs →
+      nr ≤ vs.length ∧ ∀ ws, r.2.2 = .normal ws → ws.length = nr) :
+    Pending host c.store c.code ∨
+      ∃ s₁ f₁ fl, EvalH host s f (stk.take np) body (s₁, f₁, fl) ∧
+        ((∃ vs m, m ≤ n ∧ fl.blockVals = some vs ∧
+            StepsN (SingleThreaded.profile o) host m
+              ⟨s₁, f₁, vals (vs.take nr ++ stk.drop np).reverse ++ rest⟩ c) ∨
+          (∃ k vs, fl = .brk (k + 1) vs ∧ EndsAs (s₁, f₁, .brk k vs) c) ∨
+          (fl.Escapes ∧ EndsAs (s₁, f₁, fl) c)) := by
+  -- entering the block is host-free
+  have henter := Interp.steps_enter (P := SingleThreaded.profile o)
+    (host := SingleThreaded.Det.noHost) (s := s) (f := f)
+    (B := Binaryen.BExpr.lowerList body) hp (Interp.step_block har) rest
+  obtain ⟨m₁, hm₁, hrun₁⟩ := stepsN_through_steps henter hrun hend
+  obtain ⟨cb, N₁, hN₁, hb, hsb, hk⟩ := stepsN_label_seq_split hrun₁ hend
+  rcases ihbody N₁ (by omega) cb hb hsb with ⟨⟨s₁, f₁, fl⟩, hev, oc, he, hst, hfr, hm⟩ | hpend
+  · right
+    dsimp only at hst hfr hm
+    obtain ⟨rcs, rcf, rcc⟩ := cb
+    dsimp only at hst hfr he hk
+    subst hst hfr
+    refine ⟨rcs, rcf, fl, hev, ?_⟩
+    cases hvs : fl.blockVals with
+    | some vs =>
+      obtain ⟨hnr, hnorm⟩ := hblk _ hev vs hvs
+      have hx := Interp.exit_blockVals (P := SingleThreaded.profile o)
+        (host := SingleThreaded.Det.noHost) (s₁ := rcs) (f₁ := rcf)
+        (pre := (stk.drop np).reverse) (rest := rest) he hm hvs hnr hnorm
+      obtain ⟨m, hm', h⟩ := stepsN_through_steps hx hk hend
+      refine .inl ⟨vs, m, by omega, rfl, ?_⟩
+      rwa [Interp.stack_after]
+    | none =>
+      have hfl : (∃ k vs, fl = Binaryen.Flow.brk (k + 1) vs) ∨ fl.Escapes := by
+        rcases fl with _ | ⟨_ | k, vs⟩ | _ | _ | _ <;>
+          simp_all [Binaryen.Flow.blockVals, Binaryen.Flow.Escapes]
+      rcases hfl with ⟨k, vs, rfl⟩ | hesc
+      · have hw := Interp.exit_abrupt (P := SingleThreaded.profile o)
+          (host := SingleThreaded.Det.noHost) (s₁ := rcs) (f₁ := rcf) (n := nr) (cont := [])
+          (fl' := .brk k vs) he hm (.inl ⟨k, vs, rfl, rfl⟩) (stk.drop np).reverse rest
+        obtain ⟨c'', o'', hst', he'', hm''⟩ := Interp.run_of_wp hw
+        obtain ⟨m, -, h⟩ := stepsN_through_steps hst' hk hend
+        have := stepsN_of_stuck (ends_abrupt_stuck (P := SingleThreaded.profile o) (host := host)
+          (s := rcs) (f := rcf) he'' hm'' id) h
+        subst this
+        exact .inr (.inl ⟨k, vs, rfl, o'', he'', rfl, rfl, hm''⟩)
+      · have hw := Interp.exit_abrupt (P := SingleThreaded.profile o)
+          (host := SingleThreaded.Det.noHost) (s₁ := rcs) (f₁ := rcf) (n := nr) (cont := [])
+          (fl' := fl) he hm (.inr ⟨hesc, rfl⟩) (stk.drop np).reverse rest
+        obtain ⟨c'', o'', hst', he'', hm''⟩ := Interp.run_of_wp hw
+        obtain ⟨m, -, h⟩ := stepsN_through_steps hst' hk hend
+        have hn : ¬ fl.IsNormal := by
+          rcases fl <;> simp_all [Binaryen.Flow.Escapes, Binaryen.Flow.IsNormal]
+        have := stepsN_of_stuck (ends_abrupt_stuck (P := SingleThreaded.profile o) (host := host)
+          (s := rcs) (f := rcf) he'' hm'' hn) h
+        subst this
+        exact .inr (.inr ⟨hesc, o'', he'', rfl, rfl, hm''⟩)
+  · left
+    obtain ⟨hstk, hpe⟩ := pending_label (P := SingleThreaded.profile o) (ws := (stk.drop np).reverse)
+      (n := nr) (cont := []) (rest := rest) (f := cb.frame) hpend hsb
+    have := stepsN_of_stuck hstk hk
+    subst this
+    exact hpe
+
+/-- **A block tree** (deterministic profile): `back_block`, then the following
+trees by `ihes`. -/
+theorem back_block_tree {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} {f : Frame}
+    {stk : List Val} {bt : BlockType} {body es : List Binaryen.BExpr} {np nr : Nat} {c : Config H}
+    (har : Binaryen.arity f bt = some (np, nr)) (hp : np ≤ stk.length)
+    (hrun : StepsN (SingleThreaded.profile o) host n
+      ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList (.block bt body :: es))⟩ c)
+    (hend : ∀ c', ¬ Step (SingleThreaded.profile o) host c c')
+    (ihbody : ∀ m ≤ n, ∀ cb, StepsN (SingleThreaded.profile o) host m
+        ⟨s, f, vals (stk.take np).reverse ++ expression (Binaryen.BExpr.lowerList body)⟩ cb →
+      (∀ c', ¬ Step (SingleThreaded.profile o) host cb c') →
+      BackOut host s f (stk.take np) body cb)
+    (hblk : ∀ r, EvalH host s f (stk.take np) body r → ∀ vs, r.2.2.blockVals = some vs →
+      nr ≤ vs.length ∧ ∀ ws, r.2.2 = .normal ws → ws.length = nr)
+    (ihes : ∀ s₁ f₁ stk₁ m, m ≤ n →
+      StepsN (SingleThreaded.profile o) host m
+        ⟨s₁, f₁, vals stk₁.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ c →
+      BackOut host s₁ f₁ stk₁ es c) :
+    BackOut host s f stk (.block bt body :: es) c := by
+  rw [Interp.code_block] at hrun
+  rcases back_block har hp hrun hend ihbody hblk with hpend |
+      ⟨s₁, f₁, fl, hev, ⟨vs, m, hm, hvs, hk⟩ | ⟨k, vs, rfl, hends⟩ | ⟨hesc, hends⟩⟩
+  · exact .inr hpend
+  · rcases ihes s₁ f₁ _ m hm hk with ⟨r, hev', hr⟩ | hp'
+    · exact .inl ⟨r, .blockOk har hev hvs hev', hr⟩
+    · exact .inr hp'
+  · exact .inl ⟨_, .blockBrk har hev, hends⟩
+  · exact .inl ⟨_, .blockEsc har hev hesc, hends⟩
+
 end Silmaril.Proofs.Wasm.Abstract.HostEval

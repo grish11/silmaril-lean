@@ -69,8 +69,15 @@ The flat and composed cases are stated for the deterministic profile
   steps) or a trap. Result arity and no exceptions are hypotheses (the host
   slice, `Interp.NativeHostSlice`).
 
+* `back_block`, `back_block_tree`: a block. Entering it is host-free; the body runs
+  in its label to a stuck end (`HostCall.stepsN_label_seq_split`), given by the
+  body's case on a no longer run; a blocked body blocks the block (a pending call
+  is no label exit form); otherwise the label is left by host-free steps as the
+  native block is left (`blockOk`, `blockBrk`, `blockEsc`). The block arity of the
+  body's results is a hypothesis (`hblk`, from the forward arity invariants).
+
 **Not yet proved.** Discharging the hypotheses in the whole theorem, calls of
-Wasm functions, blocks, loops and `if`,
+Wasm functions, loops and `if`,
 hence the whole backward simulation, and the decomposition of divergence with
 host calls.
 -/
@@ -233,5 +240,25 @@ theorem back_op_call_host {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H
       BackOut host s₂ f₁ stk₂ es c) :
     BackOut host s f stk (.op (.call x) args :: es) c :=
   Silmaril.Proofs.Wasm.Abstract.HostEval.back_op_call_host hrun hend ihargs hcallee ihes
+
+/-- **A block tree** (deterministic profile). -/
+theorem back_block_tree {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} {f : Frame}
+    {stk : List Val} {bt : BlockType} {body es : List Binaryen.BExpr} {np nr : Nat} {c : Config H}
+    (har : Binaryen.arity f bt = some (np, nr)) (hp : np ≤ stk.length)
+    (hrun : StepsN (SingleThreaded.profile o) host n
+      ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList (.block bt body :: es))⟩ c)
+    (hend : ∀ c', ¬ Step (SingleThreaded.profile o) host c c')
+    (ihbody : ∀ m ≤ n, ∀ cb, StepsN (SingleThreaded.profile o) host m
+        ⟨s, f, vals (stk.take np).reverse ++ expression (Binaryen.BExpr.lowerList body)⟩ cb →
+      (∀ c', ¬ Step (SingleThreaded.profile o) host cb c') →
+      BackOut host s f (stk.take np) body cb)
+    (hblk : ∀ r, EvalH host s f (stk.take np) body r → ∀ vs, r.2.2.blockVals = some vs →
+      nr ≤ vs.length ∧ ∀ ws, r.2.2 = .normal ws → ws.length = nr)
+    (ihes : ∀ s₁ f₁ stk₁ m, m ≤ n →
+      StepsN (SingleThreaded.profile o) host m
+        ⟨s₁, f₁, vals stk₁.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ c →
+      BackOut host s₁ f₁ stk₁ es c) :
+    BackOut host s f stk (.block bt body :: es) c :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.back_block_tree har hp hrun hend ihbody hblk ihes
 
 end Silmaril.Wasm.Abstract
