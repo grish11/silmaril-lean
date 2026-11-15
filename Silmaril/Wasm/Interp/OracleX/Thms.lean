@@ -188,4 +188,32 @@ theorem evalOX_closed_typed_goodT {s : Store H} {f : Frame} {stk : List Val}
         s f stk es r :=
   Silmaril.Wasm.Interp.evalOX_closed_typed_goodT h ht
 
+/-! ### Tail calls: the stable shapes for other semantics (regions, CFGs) -/
+
+/-- A `return_call_ref` leaving a frame calls by `call_ref` (`Admin.retToCallIn`). -/
+theorem isCallRef_retToCallIn {c : Admin} (hc : c.IsReturnCallRef) (m : ModuleInst) :
+    (c.retToCallIn m).IsCallRef :=
+  Silmaril.Wasm.Interp.isCallRef_retToCallIn hc m
+
+/-- **A resolved tail call runs in Core 3.0 to `return_call_ref` on the callee**, within the
+caller's frame (`return_call`: its `return_call_ref`-typed form; the indirect forms: the
+annotated `return_call_ref y`). The frame replacement happens only when the frame is left. -/
+theorem tailRes_steps {s : Store H} {f : Frame} {i : Instr} {stk : List Val} {a : Nat}
+    (hres : Abstract.CallX.TailRes s f i stk (some (a, stk.drop (Abstract.CallX.tailPop i)))) :
+    ∃ c : Admin, c.IsReturnCallRef ∧
+      (∀ d, c = .returnCallRefType d → ∃ fi', s.funcs[a]? = some fi' ∧ d = fi'.type) ∧
+      Steps P host ⟨s, f, vals (stk.take (Abstract.CallX.tailPop i)).reverse ++ [.plain i]⟩
+        ⟨s, f, [.ref (.func a), c]⟩ :=
+  Silmaril.Wasm.Interp.tailRes_steps hres
+
+/-- **An unresolved tail call** runs to a trap, or, on a null reference, to `return_call_ref`
+on `ref.null`, a null tail that traps only when the frame is left (`frame_tailNull`). -/
+theorem tailRes_none_steps {s : Store H} {f : Frame} {i : Instr} {stk : List Val}
+    (hres : Abstract.CallX.TailRes s f i stk none) :
+    ∃ (top : Val) (stk' : List Val) (y : TypeIdx), stk = top :: stk' ∧
+      (Steps P host ⟨s, f, vals [top] ++ [.plain i]⟩ ⟨s, f, [.trap]⟩ ∨
+        Steps P host ⟨s, f, vals [top] ++ [.plain i]⟩
+          ⟨s, f, [.ref .null, .plain (.returnCallRef y)]⟩) :=
+  Silmaril.Wasm.Interp.tailRes_none_steps hres
+
 end Silmaril.Wasm.Interp.OracleX

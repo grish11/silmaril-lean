@@ -358,6 +358,18 @@ theorem tailRes_steps {i : Instr} (hres : TailRes s₁ f₁ i stk₁ (some (a, s
     refine ⟨.plain (.returnCallRef y), trivial, ⟨fun _ h => ?_, .refl⟩⟩
     cases h
 
+/-- An unresolved tail call runs in Core 3.0 to a trap, or, on a null reference, to
+`return_call_ref` on `ref.null` (which traps only when the frame is left). -/
+theorem tailRes_none_steps {i : Instr} (hres : TailRes s₁ f₁ i stk₁ none) :
+    ∃ (top : Val) (stk : List Val) (y : TypeIdx), stk₁ = top :: stk ∧
+      (Steps P host ⟨s₁, f₁, vals [top] ++ [.plain i]⟩ ⟨s₁, f₁, [.trap]⟩ ∨
+        Steps P host ⟨s₁, f₁, vals [top] ++ [.plain i]⟩
+          ⟨s₁, f₁, [.ref .null, .plain (.returnCallRef y)]⟩) := by
+  cases hres with
+  | @indirectTrap x y _ _ _ hres' =>
+    exact ⟨_, _, y, rfl, Silmaril.Wasm.Abstract.CallRes.steps_returnCallIndirect_trap hres'⟩
+  | @refNull y _ => exact ⟨_, _, y, rfl, .inr .refl⟩
+
 theorem arityT_tail {i : Instr} (hC : OracleSoundT P host C)
     (iha : ArityGoodE tExt s f stk args (s₁, f₁, .normal stk₁))
     (hres : TailRes s₁ f₁ i stk₁ (some (a, stk₁.drop (tailPop i))))
