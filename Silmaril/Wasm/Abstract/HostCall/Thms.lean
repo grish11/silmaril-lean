@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.HostCall.Defs
 public import Silmaril.Wasm.Execution.Core.InversionHost.Thms
 import Silmaril.Proofs.Wasm.Abstract.HostCall.Basic
+import Silmaril.Proofs.Wasm.Abstract.HostCall.Backward
 
 /-!
 # Core 3.0 host calls as a relational host: theorems (stage H2, first step)
@@ -29,8 +30,15 @@ In context, for a direct `call` (the shape the native relation will produce):
   steps to `vals ws ++ r.toAdmin ++ rest` in the host's store `s'`;
 * `coreHost_call_diverge`: it diverges when the host may diverge.
 
-**Not yet proved.** The native relation with a host-call log, and its forward
-and backward simulation through these steps.
+**Backward, first step** (`coreHost_call_run`): a Core run from a host call,
+on exactly its arguments, to a configuration with no step is either **blocked**
+(it never left the call, and the host has no outcome) or **answered**: the
+host returned `(s', r)` and the run continues from `vals ws ++ r.toAdmin` in
+`s'`. Divergence of the host only stutters, so it never ends a run. The answer
+is read off the run; nothing is assumed about the host.
+
+**Not yet proved.** The same with a continuation after the call (inversion in
+a sequence context), and the backward simulation of whole native runs.
 -/
 
 public section
@@ -92,5 +100,25 @@ theorem coreHost_call_diverge {s : Store H} {f : Frame} {x : Silmaril.Wasm.FuncI
     (hdiv : coreHostRel host ⟨h, s, us⟩ .diverge) :
     Diverges P host ⟨s, f, vals ws ++ vals us ++ .plain (.call x) :: rest⟩ :=
   Silmaril.Proofs.Wasm.Abstract.HostCall.diverges_call hx hf he hn hcode hdiv
+
+/-- **The host answer of a Core host call, read off a run to a stuck
+configuration**: blocked, or answered and continuing from the host's result. -/
+theorem coreHost_call_run {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} {hh : H}
+    {ps rs : Ty (.list .val)} {ws us : List Val} {c : Config H}
+    (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh) (he : Expand fi.type (.func ps rs))
+    (hn : us.length = ps.length)
+    (hrun : Steps P host ⟨s, f, vals ws ++ vals us ++ [.ref (.func a), .callRefType fi.type]⟩ c)
+    (hend : ∀ c', ¬ Step P host c c') :
+    (c = ⟨s, f, vals ws ++ vals us ++ [.ref (.func a), .callRefType fi.type]⟩ ∧
+        ∀ ans, ¬ coreHostRel host ⟨hh, s, us⟩ ans) ∨
+      ∃ s' r, coreHostRel host ⟨hh, s, us⟩ (.answer (s', r)) ∧
+        Steps P host ⟨s', f, vals ws ++ r.toAdmin⟩ c := by
+  rcases Silmaril.Proofs.Wasm.Abstract.HostCall.host_call_run hf hcode he hn hrun hend with
+    ⟨hc, hno⟩ | ⟨s', r, hh', hst⟩
+  · refine .inl ⟨hc, fun ans hans => ?_⟩
+    rcases ans with ⟨s', r⟩ | _
+    · exact hno _ hans
+    · exact hno _ hans
+  · exact .inr ⟨s', r, hh', hst⟩
 
 end Silmaril.Wasm.Abstract
