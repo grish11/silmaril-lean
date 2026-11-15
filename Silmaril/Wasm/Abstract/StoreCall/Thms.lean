@@ -3,8 +3,11 @@ module
 public import Silmaril.Wasm.Abstract.StoreCall.Defs
 public import Silmaril.Wasm.Abstract.Recursion.Thms
 public import Silmaril.Wasm.Abstract.Oracle.Thms
+public import Silmaril.Wasm.Abstract.Decomp.Thms
+public import Silmaril.Wasm.Interp.Diverge.Thms
 import Silmaril.Proofs.Wasm.Abstract.StoreCall.Expose
 import Silmaril.Proofs.Wasm.Abstract.StoreCall.Answer
+import Silmaril.Proofs.Wasm.Abstract.StoreCall.Descent
 
 /-!
 # Store bodies with internal calls as events: theorems (F4, exposure)
@@ -33,8 +36,24 @@ events of `CallSig H`:
   and `evalO_trap_iff` (traps); with `closedCall`, `eval_iff`/`eval_trap_iff`
   for the recursive semantics.
 
-**Not yet.** Divergence through calls (unbounded recursion; the coinductive
-closing `Shape.closeD`), `try_table` (F5) and imports (host events).
+* **Divergence through calls, on the existing divergence.** The native descent
+  relation `Decomp.Reach`/`BodyReach` (a problem reaches an internal call after
+  a terminating prefix: the descents of `Interp.EvalDiv` and of
+  `Shape.closeDL`) is exactly a *pending call event* of the exposed body after
+  `closedCall`-answered events: `reach_iff_pend`, `bodyReach_iff_exposed`,
+  `bodyPath_iff_exposed`. So divergence of a call (`Interp.FunDiv`, the
+  coinductive `EvalDiv` of #319/#322) is exactly a finite chain of exposed
+  descents to a locally diverging call, or an infinite chain of exposed
+  descents (`funDiv_iff_exposed`, with `funDiv_of_chain`), and on typed,
+  native, arity-checked stores at every profile so is Core 3.0 divergence
+  (`core_diverges_iff_exposed`).
+
+**Not yet.** Local divergence (`Decomp.wasmLocalDiv`, `Interp.LocalDiv`: the
+function diverges while every call it makes returns) is used as defined there;
+its reading on the exposed body (silent divergence or an infinite stream of
+`closedCall`-answered events) is not yet proved. Also not covered:
+`try_table` (F5), imports (host events), indirect calls and tail calls (only
+direct `call` is exposed).
 -/
 
 public section
@@ -153,5 +172,68 @@ theorem eval_trap_iff {s : Store H} {f : Frame} {stk : List Val} {es : List BExp
         Path (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs (.val (.error ⟨⟩)) := by
   rw [← evalO_trap_iff]
   simp only [evalO_closed_iff]
+
+/-! ## Divergence through calls -/
+
+/-- **Descents are pending calls.** A problem reaches an internal call after a
+terminating prefix exactly when the exposed body makes that call event after
+call events answered by `closedCall`. -/
+theorem reach_iff_pend {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {y : (wasmOShape H).self.Op} :
+    Reach s f stk es y ↔ ∃ cs, Answered closedCall cs ∧
+      Pend (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs (callOp y) :=
+  ⟨Silmaril.Proofs.Wasm.Abstract.StoreCall.reach_pend,
+    fun ⟨cs, hA, hp⟩ => Silmaril.Proofs.Wasm.Abstract.StoreCall.list_pend es s f stk cs _ hA hp⟩
+
+/-- Native descents of calls are exposed descents. -/
+theorem bodyReach_iff_exposed {x y : (wasmOShape H).self.Op} : BodyReach x y ↔ ExposedReach x y := by
+  constructor
+  · rintro ⟨fi, fn, hfi, hcode, hr⟩
+    exact ⟨fi, fn, hfi, hcode, reach_iff_pend.1 hr⟩
+  · rintro ⟨fi, fn, hfi, hcode, hp⟩
+    exact ⟨fi, fn, hfi, hcode, reach_iff_pend.2 hp⟩
+
+theorem bodyPath_iff_exposed {x z : (wasmOShape H).self.Op} : BodyPath x z ↔ ExposedPath x z := by
+  constructor
+  · intro h
+    induction h with
+    | refl x => exact .refl x
+    | step h _ ih => exact .step (bodyReach_iff_exposed.1 h) ih
+  · intro h
+    induction h with
+    | refl x => exact .refl x
+    | step h _ ih => exact .step (bodyReach_iff_exposed.2 h) ih
+
+/-- **Divergence of a call, through call events.** A call diverges (the
+coinductive `Interp.EvalDiv` of its body) exactly when a finite chain of
+exposed descents reaches a locally diverging call, or an infinite chain of
+exposed descents starts at it. Any store. -/
+theorem funDiv_iff_exposed (x : (wasmOShape H).self.Op) :
+    Interp.FunDiv x.2.2 x.1 x.2.1 ↔
+      (∃ z, ExposedPath x z ∧ wasmLocalDiv z) ∨
+        ∃ g : Nat → (wasmOShape H).self.Op, g 0 = x ∧ ∀ n, ExposedReach (g n) (g (n + 1)) := by
+  constructor
+  · intro h
+    rcases funDiv_path_or_chain h with ⟨z, hp, hz⟩ | ⟨g, hg0, hg⟩
+    · exact .inl ⟨z, bodyPath_iff_exposed.1 hp, hz⟩
+    · exact .inr ⟨g, hg0, fun n => bodyReach_iff_exposed.1 (hg n)⟩
+  · rintro (⟨z, hp, hz⟩ | ⟨g, rfl, hg⟩)
+    · exact funDiv_of_path (bodyPath_iff_exposed.2 hp) hz
+    · exact Silmaril.Proofs.Wasm.Abstract.StoreCall.funDiv_of_chain
+        fun n => bodyReach_iff_exposed.2 (hg n)
+
+/-- **Core 3.0 divergence, through call events.** On a typed invocation of a
+native, arity-checked store, at every profile: the invocation diverges exactly
+when a finite chain of exposed descents reaches a locally diverging call, or an
+infinite chain of exposed descents starts at it. -/
+theorem core_diverges_iff_exposed {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+    (hF : NativeFuncsOk s.funcs) (hS : Silmaril.Wasm.Interp.StoreChk s.funcs)
+    (hok : InvokeOk s a vs) (P : Numerics.Profile) :
+    Diverges P closedHost (invoke s a vs) ↔
+      (∃ z, ExposedPath ⟨a, (vs, s)⟩ z ∧ wasmLocalDiv z) ∨
+        ∃ g : Nat → (wasmOShape H).self.Op, g 0 = ⟨a, (vs, s)⟩ ∧
+          ∀ n, ExposedReach (g n) (g (n + 1)) :=
+  (Silmaril.Wasm.Interp.core_diverges_iff_funDiv hs hF hS hok P).trans
+    (funDiv_iff_exposed ⟨a, (vs, s)⟩)
 
 end Silmaril.Wasm.Abstract.StoreCall

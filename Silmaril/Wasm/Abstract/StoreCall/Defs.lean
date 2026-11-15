@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.StoreBody.Defs
 public import Silmaril.Wasm.Abstract.Recursion.Defs
 public import Silmaril.Wasm.Abstract.BodyTrace.Defs
+public import Silmaril.Wasm.Abstract.Closing.Defs
 
 /-!
 # Store bodies with internal calls as events (F4, exposure)
@@ -135,5 +136,24 @@ def endR : Store H × Frame × Flow →
     Silmaril.Wasm.Abstract.BodyTrace.PathEnd (Except PUnit.{2} (Res × St H))
   | (_, _, .trap) => .val (.error ⟨⟩)
   | (s', f', fl) => .val (.ok (⟨(f', fl)⟩, ⟨s'⟩))
+
+/-! ## Descents through call events -/
+
+/-- The call event of a call of the open module (callee, arguments, store). -/
+def callOp (y : (wasmOShape H).self.Op) : (CallSig H).Op := (y.1, y.2.1, y.2.2)
+
+/-- **An exposed descent**: the exposed body of the call `x` makes the pending
+call event of `y` after call events answered by `closedCall`. -/
+def ExposedReach (x y : (wasmOShape H).self.Op) : Prop :=
+  ∃ (fi : FuncInst H) (fn : Func), x.2.2.funcs[x.1]? = some fi ∧ fi.code = .wasm fn ∧
+    ∃ cs, Answered closedCall cs ∧
+      Silmaril.Wasm.Abstract.BodyTrace.Pend
+        (((denListE (liftInstrs fn.body) (Frame.forCall fi.module x.2.1 fn.locals) [] :
+          M (CallSig H) H Res).run ⟨x.2.2⟩).run) cs (callOp y)
+
+/-- Finite chains of exposed descents. -/
+inductive ExposedPath : (wasmOShape H).self.Op → (wasmOShape H).self.Op → Prop
+  | refl (x : (wasmOShape H).self.Op) : ExposedPath x x
+  | step {x y z : (wasmOShape H).self.Op} : ExposedReach x y → ExposedPath y z → ExposedPath x z
 
 end Silmaril.Wasm.Abstract.StoreCall

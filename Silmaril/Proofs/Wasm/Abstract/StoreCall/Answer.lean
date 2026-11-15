@@ -373,6 +373,53 @@ def IfHead (C : CallRel H) (s : Store H) (f : Frame) (stk : List Val) (bt : Bloc
     EvalO C s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl) ∧
     r₀ = (s₂, f₂, blockFlow np nr stk₁ fl)
 
+theorem ifHead_ans {bt : BlockType} {c t el : List BExpr} (hc : LAns C c) (ht : LAns C t)
+    (hel : LAns C el) {s : Store H} {f : Frame} {stk : List Val} (cs₁ : List (Call (CallSig H)))
+    (v : Except PUnit.{2} (Res × St H)) (hA₁ : Answered C cs₁)
+    (h₁ : Path (run' (denListC callEv c f stk >>= fun r =>
+        match r with
+        | ⟨(f₁, .normal (cv :: stk₁))⟩ =>
+          match truthy cv, arity f₁ bt with
+          | some b, some (np, nr) =>
+            (if b then denListC callEv t f₁ (stk₁.take np) else
+              denListC callEv el f₁ (stk₁.take np)) >>= blockK np nr stk₁
+          | _, _ => stuck
+        | ⟨(_, .normal [])⟩ => stuck
+        | r => pure r : M (CallSig H) H Res) ⟨s⟩) cs₁ (.val v)) :
+    ∃ r₀, IfHead C s f stk bt c t el r₀ ∧ endR r₀ = .val v := by
+  rcases path_run_bind_inv h₁ (by simp) with ⟨c₁, c₂, a, t', rfl, h₁, h₂⟩ | ⟨h₁, hv⟩
+  · obtain ⟨⟨s₁, f₁, fl⟩, hev, hend⟩ := hc s f stk c₁ _ (answered_left hA₁) h₁ (by simp)
+    obtain ⟨hnt, rfl, rfl⟩ := endR_ok_inv hend
+    by_cases hn : fl.IsNormal
+    · obtain ⟨stk₁, rfl⟩ : ∃ stk₁, fl = .normal stk₁ := by
+        cases fl <;> first | exact ⟨_, rfl⟩ | exact absurd hn id
+      rcases stk₁ with _ | ⟨cv, stk₁⟩
+      · exact absurd (path_stuck_inv h₂) (by simp)
+      cases hb : truthy cv with
+      | none => simp only [hb] at h₂; exact absurd (path_stuck_inv h₂) (by simp)
+      | some b =>
+        cases har : arity f₁ bt with
+        | none => simp only [hb, har] at h₂; exact absurd (path_stuck_inv h₂) (by simp)
+        | some p =>
+          obtain ⟨np, nr⟩ := p
+          simp only [hb, har] at h₂
+          have hL : LAns C (if b then t else el) := by cases b <;> assumption
+          have h₂' : Path (run' (denListC callEv (if b then t else el) f₁ (stk₁.take np) >>=
+              blockK np nr stk₁ : M (CallSig H) H Res) ⟨s₁⟩) c₂ (.val v) := by
+            cases b <;> exact h₂
+          obtain ⟨s₂, f₂, fl, hev₂, hend₂⟩ := blockArm_ans hL c₂ v (answered_right hA₁) h₂'
+          exact ⟨_, .inr ⟨s₁, f₁, cv, stk₁, b, np, nr, s₂, f₂, fl, hev, hb, har, hev₂, rfl⟩,
+            hend₂⟩
+    · have h₂' : Path (run' (pure ⟨(f₁, fl)⟩ : M (CallSig H) H Res) ⟨s₁⟩) c₂ (.val v) := by
+        cases fl <;> first | exact absurd trivial hn | exact h₂
+      obtain ⟨-, hv⟩ := path_pure_inv h₂'
+      cases hv
+      exact ⟨_, .inl ⟨hn, hev⟩, hend⟩
+  · obtain ⟨⟨s₁, f₁, fl⟩, hev, hend⟩ := hc s f stk cs₁ _ hA₁ h₁ (by simp)
+    obtain rfl := endR_err_inv hend
+    cases hv
+    exact ⟨_, .inl ⟨Flow.notNormal_trap, hev⟩, hend⟩
+
 theorem if_ans {bt : BlockType} {c t el es : List BExpr} (hc : LAns C c) (ht : LAns C t)
     (hel : LAns C el) (hes : LAns C es)
     {s : Store H} {f : Frame} {stk : List Val} {cs : List (Call (CallSig H))}
@@ -381,39 +428,7 @@ theorem if_ans {bt : BlockType} {c t el es : List BExpr} (hc : LAns C c) (ht : L
     (he : ee ≠ .div) : ∃ r, EvalO C s f stk (.if_ bt c t el :: es) r ∧ endR r = ee := by
   rw [denC_if] at h
   obtain ⟨r₀, hQ, hnorm, hnon⟩ := cont_ans (Q := IfHead C s f stk bt c t el) hes hA h he
-    fun cs₁ v hA₁ h₁ => by
-      rcases path_run_bind_inv h₁ (by simp) with ⟨c₁, c₂, a, t', rfl, h₁, h₂⟩ | ⟨h₁, hv⟩
-      · obtain ⟨⟨s₁, f₁, fl⟩, hev, hend⟩ := hc s f stk c₁ _ (answered_left hA₁) h₁ (by simp)
-        obtain ⟨hnt, rfl, rfl⟩ := endR_ok_inv hend
-        by_cases hn : fl.IsNormal
-        · obtain ⟨stk₁, rfl⟩ : ∃ stk₁, fl = .normal stk₁ := by
-            cases fl <;> first | exact ⟨_, rfl⟩ | exact absurd hn id
-          rcases stk₁ with _ | ⟨cv, stk₁⟩
-          · exact absurd (path_stuck_inv h₂) (by simp)
-          cases hb : truthy cv with
-          | none => simp only [hb] at h₂; exact absurd (path_stuck_inv h₂) (by simp)
-          | some b =>
-            cases har : arity f₁ bt with
-            | none => simp only [hb, har] at h₂; exact absurd (path_stuck_inv h₂) (by simp)
-            | some p =>
-              obtain ⟨np, nr⟩ := p
-              simp only [hb, har] at h₂
-              have hL : LAns C (if b then t else el) := by cases b <;> assumption
-              have h₂' : Path (run' (denListC callEv (if b then t else el) f₁ (stk₁.take np) >>=
-                  blockK np nr stk₁ : M (CallSig H) H Res) ⟨s₁⟩) c₂ (.val v) := by
-                cases b <;> exact h₂
-              obtain ⟨s₂, f₂, fl, hev₂, hend₂⟩ := blockArm_ans hL c₂ v (answered_right hA₁) h₂'
-              exact ⟨_, .inr ⟨s₁, f₁, cv, stk₁, b, np, nr, s₂, f₂, fl, hev, hb, har, hev₂, rfl⟩,
-                hend₂⟩
-        · have h₂' : Path (run' (pure ⟨(f₁, fl)⟩ : M (CallSig H) H Res) ⟨s₁⟩) c₂ (.val v) := by
-            cases fl <;> first | exact absurd trivial hn | exact h₂
-          obtain ⟨-, hv⟩ := path_pure_inv h₂'
-          cases hv
-          exact ⟨_, .inl ⟨hn, hev⟩, hend⟩
-      · obtain ⟨⟨s₁, f₁, fl⟩, hev, hend⟩ := hc s f stk cs₁ _ hA₁ h₁ (by simp)
-        obtain rfl := endR_err_inv hend
-        cases hv
-        exact ⟨_, .inl ⟨Flow.notNormal_trap, hev⟩, hend⟩
+    (ifHead_ans hc ht hel)
   rcases hQ with ⟨hn, hev⟩ | ⟨s₁, f₁, cv, stk₁, b, np, nr, s₂, f₂, fl, hev, hb, har, hev₂, rfl⟩
   · exact ⟨r₀, .ifAbort hev hn, (hnon hn).symm⟩
   · cases fl with
