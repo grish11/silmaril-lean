@@ -18,6 +18,7 @@ It reuses Mathlib's `Language α` (`Set (List α)`) and CSLib's `ωSequence α`,
 | `Silmaril.Semantics.StreamAcceptors.Defs` / `Thms` | Acceptor answers on unbounded chunk sessions, equal to the monitor verdicts |
 | `Silmaril.Semantics.Tokens.Defs` / `Thms` | Streaming transducers from symbols to tokens, token chunk streams, and lexer-plus-token-acceptor composition |
 | `Silmaril.Semantics.StreamMonitors.Defs` / `Thms` | Safety and liveness verdicts of chunk-boundary monitors, compared with the limit word |
+| `Silmaril.Semantics.StreamBounds.Defs` / `Thms` | Whole-input, per-item and nesting-depth bounds; completeness relative to an explicit bound; per-chunk transport limits |
 
 ### `Silmaril.Semantics.Streams` (namespace `Silmaril.Streams`)
 
@@ -144,6 +145,46 @@ Stable API:
     `lex T B` is correct for `pull T L` on every interleaving.
 - `Tokens/Examples.lean` has `lines sep`, generic item framing for line-delimited
   streams. It does not interpret the items.
+### `Silmaril.Semantics.StreamBounds` (namespaces `Silmaril.Streams`, `Silmaril.Acceptor`)
+
+Stable API:
+
+- `RunBound f n : Language α` is the set of words all of whose prefixes `p` have
+  `f p ≤ n`. It is prefix-closed (`RunBound.of_isPrefix`), monotone (`runBound_mono`),
+  decidable (`RunBound.decidableMem`), and exhausts all finite words (`iUnion_runBound`).
+  Three instances are kept apart:
+  - whole-input bound: `RunBound List.length n`, equal to
+    `Accept.upTo List.length n Set.univ` (`runBound_length_eq_upTo`);
+  - per-item bound: `ItemBound isSep n := RunBound (gap isSep) n`, where `gap` counts the
+    symbols since the last separator;
+  - depth bound: `DepthBound kind d := RunBound (depth kind) d`, where
+    `kind : τ → BracketKind` classifies tokens as `opening`, `closing` or `neutral` and
+    `depth` is the nesting depth with unmatched closes floored at `0`. `netDepth` and
+    `Balanced` give the untruncated count; `depth_eq_netDepth` relates them.
+- `Acceptor.SoundFold A L` and `Acceptor.CompleteFoldOn A L B` split `CorrectFold`
+  (`correctFold_iff`). Completeness is antitone in `B` (`CompleteFoldOn.mono`), and
+  completeness at every bound is full completeness on finite inputs
+  (`completeFoldOn_univ_of_runBound`, `completeFoldOn_univ_of_iUnion`).
+  `Acceptor.boundedReference L B` is sound for `L`, complete on `B`, `CorrectFold` for
+  `L ⊓ B`, and not complete as soon as a word of `L` is outside `B`.
+- Infinite words: `safetyω (RunBound f n)` is a safety property. No infinite word meets a
+  whole-input bound (`safetyω_runBound_length`). Recurring separators meet an item bound
+  (`mem_safetyω_itemBound_of_window`, `const_mem_safetyω_itemBound`,
+  `repeatItem_mem_safetyω_itemBound`, `exists_mem_safetyω_itemBound_not_length`). A word
+  that only opens leaves every depth bound (`not_mem_safetyω_depthBound`).
+- `ChunkBound k cs` bounds every chunk by `k` symbols. For `k ≥ 1` every finite or infinite
+  word is delivered by such a stream (`exists_chunkBound_limit`); for `k = 0` only the
+  empty word is (`limit_of_chunkBound_zero`).
+
+Assumptions, each a parameter rather than a fact:
+
+- Soundness is unbounded. Completeness is relative to an explicit bound language `B`; a
+  streaming acceptor need not have one.
+- Per-chunk transport limits (for example WIT `list<u8>` lengths, 32-bit in the wasm32
+  canonical ABI) are the parameter `k` of `ChunkBound`. They do not restrict the language.
+- Acceptor state memory is not modelled. Which languages a bounded-state acceptor can be
+  complete on is out of scope.
+- Nothing here proves anything about concrete Wasm execution.
 
 ## Scope and limits
 
