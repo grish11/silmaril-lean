@@ -189,4 +189,23 @@ def evalCall : CallRel H := fun s a args out =>
     Validation.DefType.funcType? fi.type = some (ps, rs) ∧
     Eval s (Frame.forCall fi.module args fn.locals) [] (liftInstrs fn.body) (out.1, f₂, out.2)
 
+/-- The flow a call hands back for a final flow of its body, as `invokeRun`
+does: values (from a normal end, a `return` or a branch out of the body), a
+trap or an uncaught exception. -/
+def exitFlow (n : Nat) : Flow → Option Flow
+  | .normal ws | .ret ws | .brk 0 ws => some (.normal (ws.take n).reverse)
+  | .trap => some .trap
+  | .throw x => some (.throw x)
+  | _ => none
+
+/-- The closed outcomes of an invocation: the body evaluated in the open
+semantics with internal calls answered by the closure, and the flow it hands
+back. -/
+def ClosedOutcome (s : Store H) (a : Nat) (vs : List Val) (s' : Store H) (fl : Flow) : Prop :=
+  ∃ (fi : FuncInst H) (fn : Func) (ps rs : List Validation.CValType) (f₂ : Frame) (bfl : Flow),
+    s.funcs[a]? = some fi ∧ fi.code = .wasm fn ∧
+    Validation.DefType.funcType? fi.type = some (ps, rs) ∧
+    EvalO closedCall s (Frame.forCall fi.module vs fn.locals) [] (liftInstrs fn.body) (s', f₂, bfl) ∧
+    exitFlow rs.length bfl = some fl
+
 end Silmaril.Wasm.Abstract
