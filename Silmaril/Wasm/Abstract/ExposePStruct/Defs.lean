@@ -31,7 +31,13 @@ of a sequence and of a tree.
 * `whiskP rest`, `trimP labels ret`: the stack tensor. `whiskP rest` appends a passive stack
   `rest` below a fallthrough; `trimP` reads a branch and a return at the arity of their
   target, the only part of their stack their target reads (`blockKP`, `loopKP` and the frame
-  take that many values).
+  take that many values). `wcfg rest` appends `rest` below a configuration's stack.
+* `Lands P x`: the computation `x` factors through the subtype of `P` (every result satisfies
+  `P`); `GoodR env o` is the result invariant of code checked in `env` ending at `o`;
+  `LoopInv`, `BrkOk`: the invariant of a loop's states and what its body ensures on `br 0`.
+* `stackPure`: code whose stack effect is static (no call form, tail call, `throw` or
+  `try_table`): the fragment on which the stack tensor holds as an equation of computations
+  (`ExposePStruct.Thms` states exactly where it fails beyond it).
 
 **The typed subcategory.** The objects are interfaces `Iface`: the static context `Env`
 (module instance, number of locals, function result arity, label arities) and a stack height.
@@ -237,6 +243,16 @@ def GoodR (env : Env) (o : Option Nat) : ResP → Prop
   | ⟨(f, .flow (.brk l vs))⟩ => f.module = env.mi ∧ ∃ n, env.labels[l]? = some n ∧ n ≤ vs.length
   | ⟨(f, .flow (.ret vs))⟩ => f.module = env.mi ∧ env.ret ≤ vs.length
   | _ => True
+
+/-- The loop invariant of the stack tensor: the frame satisfies `Q`, the parameters are present
+and the block type has the arity `(np, nr)` in the frame. -/
+def LoopInv (Q : Frame → Prop) (bt : BlockType) (np nr : Nat) (c : Cfg) : Prop :=
+  Q c.down.1 ∧ arity c.down.1 bt = some (np, nr) ∧ np ≤ c.down.2.length
+
+/-- What a loop body must ensure of its `br 0`: the parameters are carried, and the frame
+keeps the block type's arity. -/
+def BrkOk (Q : Frame → Prop) (bt : BlockType) (np nr : Nat) (r : ResP) : Prop :=
+  ∀ f vs, r = ⟨(f, .flow (.brk 0 vs))⟩ → Q f ∧ arity f bt = some (np, nr) ∧ np ≤ vs.length
 
 /-- The operators whose stack effect does not depend on the store or on call answers: every
 operator but the call forms (`call`, `call_indirect`, `call_ref`), the tail calls and `throw`. -/

@@ -6,6 +6,7 @@ public import Silmaril.Wasm.Abstract.BodyTrace.Thms
 import Silmaril.Proofs.Wasm.Abstract.ExposePStruct.Basic
 import Silmaril.Proofs.Wasm.Abstract.ExposePStruct.Check
 import Silmaril.Proofs.Wasm.Abstract.ExposePStruct.Image
+import Silmaril.Proofs.Wasm.Abstract.ExposePStruct.Whisker
 
 /-!
 # The structure of the exact F5 denotation, and its typed subcategory: theorems
@@ -48,6 +49,36 @@ composition), `opP_mem`, `blockP_mem`, `ifP_mem`, `tryP_mem` (exit copairing), `
 naturality, code after a loop is the loop's exit continuation; `loopP_uniform`: uniformity);
 every law of `Body.bodyOps_lawful` holds for the denoted morphisms, which are morphisms of
 `BodyM`. No closure hypothesis is assumed: the code witnessing each image is given.
+
+**The stack tensor (whiskering).** On the operations: a passive stack below the parameters of a
+block, an `if` arm or a loop is appended to their fallthrough and loop states, whatever the body
+(`blockP_whisk`, `ifKP_whisk`; `loopP_whisk` for a body that carries the loop's parameters on
+`br 0`, `tryP_whisk` for a body that does not throw), by conjugating the Elgot iteration
+(`iter_conj`, from uniformity and naturality; `lands_iter`: iteration preserves an invariant).
+On syntax, for **stack-pure** checked code (`stackPure`: no `call`, `call_indirect`, `call_ref`,
+tail call, `throw` or `try_table`; `throw_ref` and every checked flat instruction allowed):
+`denListXP_whisker` — running on `stk ++ rest`, with `stk` at the checked height in a frame of
+the checked instance, is running on `stk` with `rest` appended below the fallthrough
+(`whiskP`), every result read at its target's arity (`trimP`: a branch at its label's arity, a
+return at the result arity); returns, branches, traps, exceptions and pending tail calls are
+otherwise unchanged. `denListXP_lands`: the results satisfy `GoodR` (a fallthrough at the
+checked height, branches and returns with at least their target's arity, the frame's instance
+kept). `mor_whisker` states it for typed morphisms.
+
+**Where stack-polymorphism fails, exactly.** Without `trimP` it fails for every `br`, `br_if`,
+`br_table` and `return`: their stack carries `rest` below the target's values, while a branch out
+of a nested block does not (the nested body runs on the parameters only). For the excluded
+forms it fails as an equation of `BodyM` computations, because their stack effect is read from
+the run-time store or from the environment's answer, not from the checker's context: a call's
+answer is `CallSig H`'s arbitrary `Store H × Flow` and `callAns` keeps `vs.take rs.length` of
+its values, so an answer with fewer values than the callee's declared results leaves the stack
+below the checked height and the code after it reads into `rest` (for `[call x, drop]` with one
+declared result and an answer with none, the run on `stk` is stuck at `drop`, the run on
+`stk ++ [v]` falls through); `call x` and `return_call x` pop the arity of the run-time store's
+function (`StoreCall.callEv`, `ExposeP.tailPendEv`), `throw x` the field count of its tag, and a
+`try_table` clause pushes the fields of the run-time exception (`ExposeE.resolveCatch`). These
+hold only for arity-respecting answers and stores (the oracles of `Interp.PProgress`), not
+pointwise in the monad.
 -/
 
 public section
@@ -421,5 +452,83 @@ theorem loopP_uniform (bt : BlockType) (g : PHom H Cfg ResP) {C : Type 1}
       (Silmaril.Elgot.liftPure h >=> G)) :
     loopP bt g = (Silmaril.Elgot.liftPure h >=> Silmaril.Elgot.iter G) :=
   Silmaril.Proofs.Wasm.Abstract.ExposePStruct.loopP_uniform bt g G h comm
+
+/-! ## The stack tensor -/
+
+/-- **Conjugating an Elgot iteration** (uniformity and naturality): if every state of `PA` steps
+into `PA` or exits, and the step at `wA a` is the step at `a` mapped by `wB` and `wA`, the
+iteration from `wA a` is the iteration from `a` mapped by `wB`. -/
+theorem iter_conj {A B : Type 1} (F : A → M (CallSig H) H (B ⊕ A)) (PA : A → Prop)
+    (wA : A → A) (wB : B → B) (hF : ∀ a, PA a → Lands (Sum.elim (fun _ => True) PA) (F a))
+    (hw : ∀ a, PA a → F (wA a) = Sum.map wB wA <$> F a) (a : A) (ha : PA a) :
+    Silmaril.Elgot.iter F (wA a) = wB <$> Silmaril.Elgot.iter F a :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePStruct.iter_conj F PA wA wB hF hw a ha
+
+/-- **Iteration keeps an invariant.** -/
+theorem lands_iter {A B : Type 1} (F : A → M (CallSig H) H (B ⊕ A)) (PA : A → Prop)
+    (PB : B → Prop) (hF : ∀ a, PA a → Lands (Sum.elim PB PA) (F a)) (a : A) (ha : PA a) :
+    Lands PB (Silmaril.Elgot.iter F a) :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePStruct.lands_iter F PA PB hF a ha
+
+/-- **Blocks are stack-polymorphic**, whatever the body. -/
+theorem blockP_whisk (bt : BlockType) (g : PHom H Cfg ResP) (rest : List Val) (c : Cfg)
+    {np nr : Nat} (hc : arity c.down.1 bt = some (np, nr)) (hle : np ≤ c.down.2.length) :
+    blockP bt g (wcfg rest c) = whiskP rest <$> blockP bt g c :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePStruct.blockP_whisk bt g rest c hc hle
+
+/-- **Loops are stack-polymorphic** when the body carries the loop's parameters on `br 0` in a
+frame keeping the block type's arity. -/
+theorem loopP_whisk (Q : Frame → Prop) (bt : BlockType) (g : PHom H Cfg ResP) (rest : List Val)
+    {np nr : Nat}
+    (hg : ∀ c : Cfg, LoopInv Q bt np nr c →
+      Lands (BrkOk Q bt np nr) (g ⟨(c.down.1, c.down.2.take np)⟩))
+    (c : Cfg) (hc : LoopInv Q bt np nr c) :
+    loopP bt g (wcfg rest c) = whiskP rest <$> loopP bt g c :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePStruct.loopP_whisk Q bt g rest hg c hc
+
+/-- A `try_table` whose body does not throw is stack-polymorphic. -/
+theorem tryP_whisk (bt : BlockType) (cs : List Catch) (g : PHom H Cfg ResP) (rest : List Val)
+    (c : Cfg) {np nr : Nat} (hc : arity c.down.1 bt = some (np, nr)) (hle : np ≤ c.down.2.length)
+    (hg : Lands (fun r : ResP => ∀ f a, r ≠ ⟨(f, .flow (.throw a))⟩)
+      (g ⟨(c.down.1, c.down.2.take np)⟩)) :
+    tryP bt cs g (wcfg rest c) = whiskP rest <$> tryP bt cs g c :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePStruct.tryP_whisk bt cs g rest c hc hle hg
+
+/-- The arms of an `if` are stack-polymorphic below the condition's remaining stack. -/
+theorem ifKP_whisk (bt : BlockType) (gt ge : PHom H Cfg ResP) (rest : List Val) (f₁ : Frame)
+    (cv : Val) (stk₁ : List Val) {np nr : Nat} (hc : arity f₁ bt = some (np, nr))
+    (hle : np ≤ stk₁.length) :
+    ifKP bt gt ge ⟨(f₁, .flow (.normal (cv :: (stk₁ ++ rest))))⟩ =
+      whiskP rest <$> ifKP bt gt ge ⟨(f₁, .flow (.normal (cv :: stk₁)))⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePStruct.ifKP_whisk bt gt ge rest f₁ cv stk₁ hc hle
+
+/-- **Checked stack-pure code satisfies the result invariant.** -/
+theorem denListXP_lands {tags : List TagInst} {F : List (FuncInst H)} {env : Env}
+    {es : List BExpr} {o : Option Nat} {f : Frame} {stk : List Val}
+    (hp : stackPureL es = true)
+    (hc : chkE (ehExt tags) F env.mi env.nl env.ret env.labels (some stk.length) es = some o)
+    (hf : f.module = env.mi) :
+    Lands (GoodR env o) (denListXP (H := H) es f stk) :=
+  (Silmaril.Proofs.Wasm.Abstract.ExposePStruct.listW env es _ o f stk hp hc hf rfl).1
+
+/-- **The stack tensor on checked stack-pure code.** Running on `stk ++ rest`, with `stk` at the
+checked height in a frame of the checked instance, is running on `stk` with `rest` appended below
+the fallthrough, each result read at its target's arity (`trimP`). -/
+theorem denListXP_whisker {tags : List TagInst} {F : List (FuncInst H)} {env : Env}
+    {es : List BExpr} {o : Option Nat} {f : Frame} {stk : List Val}
+    (hp : stackPureL es = true)
+    (hc : chkE (ehExt tags) F env.mi env.nl env.ret env.labels (some stk.length) es = some o)
+    (hf : f.module = env.mi) (rest : List Val) :
+    obsP env.labels env.ret (denListXP (H := H) es f (stk ++ rest)) =
+      denListXP es f stk >>= fun r => pure (trimP env.labels env.ret (whiskP rest r)) :=
+  (Silmaril.Proofs.Wasm.Abstract.ExposePStruct.listW env es _ o f stk hp hc hf rfl).2 rest
+
+/-- **Whiskering a typed morphism** is the stack tensor of its denotation. -/
+theorem mor_whisker {I : Iface} {o : Option Nat} {es : List BExpr}
+    (hm : Mor Γ I o es) (hp : stackPureL es = true) {f : Frame} {stk : List Val}
+    (hf : f.module = I.env.mi) (hs : stk.length = I.h) (rest : List Val) :
+    obsP I.env.labels I.env.ret (denL (H := H) es (wcfg rest ⟨(f, stk)⟩)) =
+      denL es ⟨(f, stk)⟩ >>= fun r => pure (trimP I.env.labels I.env.ret (whiskP rest r)) :=
+  denListXP_whisker hp (by rw [hs]; exact hm) hf rest
 
 end Silmaril.Wasm.Abstract.ExposePStruct

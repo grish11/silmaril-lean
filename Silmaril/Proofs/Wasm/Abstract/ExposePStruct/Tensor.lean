@@ -58,7 +58,10 @@ theorem tryKP_whisk {np nr : Nat} {stk : List Val} {cs : List Catch} (rest : Lis
   rcases r with ⟨f, (fl | ⟨a, args, n⟩)⟩
   · cases fl with
     | throw a => exact absurd rfl (hr f a)
-    | _ => first | exact blockKP_whisk rest hle _ | (simp only [tryKP]; exact blockKP_whisk rest hle _)
+    | _ =>
+      first
+        | exact blockKP_whisk rest hle _
+        | (simp only [tryKP]; exact blockKP_whisk rest hle _)
   · simp only [tryKP]; exact blockKP_whisk rest hle _
 
 /-! ## Operations -/
@@ -87,47 +90,41 @@ theorem tryP_whisk (bt : BlockType) (cs : List Catch) (g : PHom H Cfg ResP) (res
   simp only [tryP, wcfg, hc, List.take_append_of_le_length hle, map_bind]
   exact bind_congr_lands hg fun r hr => tryKP_whisk rest hle r hr
 
-/-- The loop invariant of the stack tensor: the parameters are present and the block type has
-the arity `(np, nr)` in the frame. -/
-def LoopInv (bt : BlockType) (np nr : Nat) (c : Cfg) : Prop :=
-  arity c.down.1 bt = some (np, nr) ∧ np ≤ c.down.2.length
-
-/-- What a loop body must ensure of its `br 0`: the parameters are carried, and the frame
-keeps the block type's arity. -/
-def BrkOk (bt : BlockType) (np nr : Nat) (r : ResP) : Prop :=
-  ∀ f vs, r = ⟨(f, .flow (.brk 0 vs))⟩ → arity f bt = some (np, nr) ∧ np ≤ vs.length
-
-theorem loopKP_lands {bt : BlockType} {np nr : Nat} {stk : List Val} (r : ResP)
-    (hr : BrkOk bt np nr r) :
-    Lands (H := H) (Sum.elim (fun _ => True) (LoopInv bt np nr)) (loopKP np nr stk r) := by
+theorem loopKP_lands {Q : Frame → Prop} {bt : BlockType} {np nr : Nat} {stk : List Val} (r : ResP)
+    (hr : BrkOk Q bt np nr r) :
+    Lands (H := H) (Sum.elim (fun _ => True) (LoopInv Q bt np nr)) (loopKP np nr stk r) := by
   rcases r with ⟨f, (fl | ⟨a, args, n⟩)⟩
   · cases fl with
     | brk k vs =>
       cases k with
       | zero =>
-        obtain ⟨ha, hle⟩ := hr f vs rfl
-        refine lands_pure ⟨ha, ?_⟩
+        obtain ⟨hq, ha, hle⟩ := hr f vs rfl
+        refine lands_pure ⟨hq, ha, ?_⟩
         simp only [List.length_append, List.length_take, List.length_drop]
         omega
       | succ k => exact lands_pure trivial
     | _ => exact lands_pure trivial
   · exact lands_pure trivial
 
-theorem loopStepP_lands (bt : BlockType) (g : PHom H Cfg ResP) {np nr : Nat}
-    (hg : ∀ c : Cfg, LoopInv bt np nr c → Lands (BrkOk bt np nr) (g ⟨(c.down.1, c.down.2.take np)⟩))
-    (c : Cfg) (hc : LoopInv bt np nr c) :
-    Lands (Sum.elim (fun _ => True) (LoopInv bt np nr)) (loopStepP bt g c) := by
-  simp only [loopStepP, hc.1]
+theorem loopStepP_lands (Q : Frame → Prop) (bt : BlockType) (g : PHom H Cfg ResP)
+    {np nr : Nat}
+    (hg : ∀ c : Cfg, LoopInv Q bt np nr c →
+      Lands (BrkOk Q bt np nr) (g ⟨(c.down.1, c.down.2.take np)⟩))
+    (c : Cfg) (hc : LoopInv Q bt np nr c) :
+    Lands (Sum.elim (fun _ => True) (LoopInv Q bt np nr)) (loopStepP bt g c) := by
+  simp only [loopStepP, hc.2.1]
   exact lands_bind (hg c hc) fun r hr => loopKP_lands r hr
 
 /-- **Loops are stack-polymorphic**: if the body carries its parameters on `br 0` and keeps
 the block type's arity, a passive stack below the loop's parameters is appended to its exits. -/
-theorem loopP_whisk (bt : BlockType) (g : PHom H Cfg ResP) (rest : List Val) {np nr : Nat}
-    (hg : ∀ c : Cfg, LoopInv bt np nr c → Lands (BrkOk bt np nr) (g ⟨(c.down.1, c.down.2.take np)⟩))
-    (c : Cfg) (hc : LoopInv bt np nr c) :
+theorem loopP_whisk (Q : Frame → Prop) (bt : BlockType) (g : PHom H Cfg ResP) (rest : List Val)
+    {np nr : Nat}
+    (hg : ∀ c : Cfg, LoopInv Q bt np nr c →
+      Lands (BrkOk Q bt np nr) (g ⟨(c.down.1, c.down.2.take np)⟩))
+    (c : Cfg) (hc : LoopInv Q bt np nr c) :
     loopP bt g (wcfg rest c) = whiskP rest <$> loopP bt g c :=
-  iter_conj (loopStepP bt g) (LoopInv bt np nr) (wcfg rest) (whiskP rest)
-    (loopStepP_lands bt g hg) (fun c hc => loopStepP_whisk bt g rest c hc.1 hc.2) c hc
+  iter_conj (loopStepP bt g) (LoopInv Q bt np nr) (wcfg rest) (whiskP rest)
+    (loopStepP_lands Q bt g hg) (fun c hc => loopStepP_whisk bt g rest c hc.2.1 hc.2.2) c hc
 
 /-- The arms of an `if` with a passive stack below the condition's remaining stack. -/
 theorem ifKP_whisk (bt : BlockType) (gt ge : PHom H Cfg ResP) (rest : List Val) (f₁ : Frame)
