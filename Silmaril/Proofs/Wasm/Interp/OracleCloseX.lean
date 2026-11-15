@@ -33,7 +33,7 @@ open Silmaril.Wasm.Abstract.CallX Silmaril.Wasm.Abstract.CallXT Silmaril.Wasm.Ab
 variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
 
 /-- Stores whose functions have valid types, and whose bodies have valid instance types
-and only indirect calls naming instance types (no `call_ref`). Depends only on the
+and only indirect calls naming instance types (no `call_ref`/`return_call_ref`). Depends only on the
 store's functions. -/
 def GoodStoreX (s : Store H) : Prop :=
   TyFuncs s ∧ ∀ (a : Nat) (fi : FuncInst H) (fn : Func), s.funcs[a]? = some fi →

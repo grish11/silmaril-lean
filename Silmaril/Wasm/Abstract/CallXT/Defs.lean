@@ -13,9 +13,10 @@ typing fact about the reference on the stack.
 
 `EvalOXT C` is `EvalOX C` whose indirect and reference calls additionally
 record that agreement (`typeArity f.module y = some (ps.length, rs.length)` for
-the callee's type `(ps, rs)`). It is a *stronger derivation*, not another
+the callee's type `(ps, rs)`; for the tail forms `return_call_indirect x y` and
+`return_call_ref y` the same, `tailAnn`). It is a *stronger derivation*, not another
 semantics: every `EvalOXT` run is an `EvalOX` run with the same outcome
-(`EvalOXT.forget`), and on code without `call_indirect`/`call_ref` the two are
+(`EvalOXT.forget`), and on code without these forms (`irFree`) the two are
 the same (`Silmaril.Wasm.Abstract.CallXT.Thms`). That typed, validated code
 runs in `EvalOXT` is the discharge of the premise, from typing.
 -/
@@ -34,6 +35,11 @@ variable {H : Type}
 def typeArity (mi : ModuleInst) (y : TypeIdx) : Option (Nat × Nat) :=
   (mi.types[y.toNat]?).bind fun d =>
     (Validation.DefType.funcType? d).map fun p => (p.1.length, p.2.length)
+
+/-- The type annotation of an indirect or reference tail call. -/
+def tailAnn : Instr → Option TypeIdx
+  | .returnCallIndirect _ y | .returnCallRef y => some y
+  | _ => none
 
 /-- **The extended oracle relation, with typed callee arities**: `EvalOX`'s
 rules, where an indirect or reference call additionally records that its
@@ -199,6 +205,7 @@ inductive EvalOXT (C : CallRel H) : Store H → Frame → List Val → List BExp
       (hargs : EvalOXT C s f stk args (s₁, f₁, .normal stk₁))
       (hres : TailRes s₁ f₁ i stk₁ (some (fa, stk₁.drop (tailPop i))))
       (hfi : s₁.funcs[fa]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+      (hy : ∀ y, tailAnn i = some y → typeArity f₁.module y = some (ps.length, rs.length))
       (hcall : C s₁ fa ((stk₁.drop (tailPop i)).take ps.length).reverse (s₂, fl))
       (hfl : (∃ vs, fl.retVals = some vs) ∨ fl.Abrupt) :
       EvalOXT C s f stk (.op i args :: es) (s₂, f₁, tailFlow rs.length fl)
@@ -208,14 +215,14 @@ inductive EvalOXT (C : CallRel H) : Store H → Frame → List Val → List BExp
       (hargs : EvalOXT C s f stk args (s₁, f₁, .normal stk₁)) (hres : TailRes s₁ f₁ i stk₁ none) :
       EvalOXT C s f stk (.op i args :: es) (s₁, f₁, .trap)
 
-/-- No `call_indirect` or `call_ref` in the tree. -/
+/-- An indirect or reference call, tail or not. -/
 def irCall : Instr → Bool
-  | .callIndirect _ _ | .callRef _ => true
+  | .callIndirect _ _ | .callRef _ | .returnCallIndirect _ _ | .returnCallRef _ => true
   | _ => false
 
 mutual
 
-/-- No `call_indirect` or `call_ref` in the tree. -/
+/-- No `call_indirect`, `call_ref`, `return_call_indirect` or `return_call_ref` in the tree. -/
 def irFree : BExpr → Bool
   | .op i args => !irCall i && irFreeL args
   | .block _ body => irFreeL body
@@ -241,11 +248,11 @@ def KeepsTy (C : CallRel H) : Prop := ∀ s a args out, C s a args out → TyFun
 def TyTypes (mi : ModuleInst) : Prop :=
   ∀ (y : Nat) (d : Validation.DefType), mi.types[y]? = some d → Validation.TyOk {} d
 
-/-- The code of an instance's function: no `call_ref`, and every `call_indirect`
-names a type of the instance. -/
+/-- The code of an instance's function: no `call_ref`/`return_call_ref`, and every
+`call_indirect`/`return_call_indirect` names a type of the instance. -/
 def indInstr (mi : ModuleInst) : Instr → Bool
-  | .callRef _ => false
-  | .callIndirect _ y => (mi.types[y.toNat]?).isSome
+  | .callRef _ | .returnCallRef _ => false
+  | .callIndirect _ y | .returnCallIndirect _ y => (mi.types[y.toNat]?).isSome
   | _ => true
 
 mutual

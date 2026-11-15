@@ -12,8 +12,8 @@ public import Silmaril.Wasm.Abstract.XRecursion.Thms
 
 * `EvalOXT.forget`: every `EvalOXT C` run is an `EvalOX C` run with the same
   outcome. The arity premises only strengthen the derivation.
-* `evalOXT_iff_evalOX`: on code without `call_indirect`/`call_ref`
-  (`irFreeL`), the two are the same.
+* `evalOXT_iff_evalOX`: on code without indirect or reference calls, tail
+  forms included (`irFreeL`), the two are the same.
 
 * **Counts from reference typing.** `typeArity_of_refOk`: a function reference
   typed (`RefOk`) at `ref null? y`, for a valid `y`, has the parameter and
@@ -22,8 +22,8 @@ public import Silmaril.Wasm.Abstract.XRecursion.Thms
   `ref.cast` of `call_indirect` types the callee so.
 * **The `call_indirect` premise from typing.** `evalOXT_of_evalOX_ind`: with
   valid function types (`TyFuncs`) and instance types (`TyTypes`), code
-  without `call_ref` whose `call_indirect`s name instance types (`indOkL`) runs
-  in `EvalOXT` whenever it runs in `EvalOX`, for an oracle keeping function
+  without `call_ref`/`return_call_ref` whose (tail) indirect calls name
+  instance types (`indOkL`) runs in `EvalOXT` whenever it runs in `EvalOX`, for an oracle keeping function
   types valid; `evalOXT_of_evalOX_closed` for `XRecursion.closedCallX`.
 
 * **The `call_ref` premise at a typed site.** `typeArity_of_callRef_site`: if

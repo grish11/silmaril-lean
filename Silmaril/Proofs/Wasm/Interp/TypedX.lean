@@ -356,8 +356,12 @@ theorem evalOXT_of_typed {s : Store H} {f : Frame} {stk : List Val} {es : List B
     have dA := iha (args_typedX ht)
     obtain ⟨rest, hsite, hTF, hTM, -⟩ := site_typedX (P := P) hC hCk dA ht
     exact .callRefStop dA hfi hty (typeArity_of_callRef_site hsite hTM hfi hty (hTF _ _ hfi)) hcall hfl
-  | tail _ hres hfi hty hcall hfl iha =>
-    exact fun ht => .tail (iha (args_typedX ht)) hres hfi hty hcall hfl
+  | tail _ hres _ _ _ _ iha =>
+    intro ht
+    have dA := iha (args_typedX ht)
+    obtain ⟨_, -, -, -, _, _, _, -, hf⟩ := site_typedX (P := P) hC hCk dA ht
+    rw [flatChk_tail hres] at hf
+    cases hf
   | tailRes _ hres iha => exact fun ht => .tailRes (iha (args_typedX ht)) hres
 
 end

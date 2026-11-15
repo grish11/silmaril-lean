@@ -4,7 +4,7 @@ public import Silmaril.Wasm.Abstract.CallXT.Defs
 
 /-!
 Proofs for `Silmaril.Wasm.Abstract.CallXT.Thms`: forgetting the arity premises
-(`forget`), and their redundancy on code without `call_indirect`/`call_ref`
+(`forget`), and their redundancy on code without indirect or reference calls (`irFree`)
 (`of_irFree`). Both are inductions on the derivation.
 -/
 
@@ -45,8 +45,12 @@ theorem forget {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val} {es : 
   | callRefOk _ hfi hty _ hcall hvs _ ih₁ ih₂ => exact .callRefOk ih₁ hfi hty hcall hvs ih₂
   | callRefNull _ ih => exact .callRefNull ih
   | callRefStop _ hfi hty _ hcall hfl ih => exact .callRefStop ih hfi hty hcall hfl
-  | tail _ hres hfi hty hcall hfl ih => exact .tail ih hres hfi hty hcall hfl
+  | tail _ hres hfi hty _ hcall hfl ih => exact .tail ih hres hfi hty hcall hfl
   | tailRes _ hres ih => exact .tailRes ih hres
+
+/-- A tail call outside `irCall` has no type annotation. -/
+theorem tailAnn_of_irCall {i : Instr} (h : irCall i = false) : tailAnn i = none := by
+  cases i <;> first | rfl | cases h
 
 theorem of_irFree {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
     {r : Store H × Frame × Flow} (h : EvalOX C s f stk es r) :
@@ -114,7 +118,9 @@ theorem of_irFree {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val} {es
   | callRefStop => intro hx; simp [irFreeL, irFree, irCall] at hx
   | tail hargs hres hfi hty hcall hfl ih =>
     intro hx; simp only [irFreeL, irFree, Bool.and_eq_true] at hx
-    exact .tail (ih hx.1.2) hres hfi hty hcall hfl
+    refine .tail (ih hx.1.2) hres hfi hty (fun y h => ?_) hcall hfl
+    rw [tailAnn_of_irCall (by simpa using hx.1.1)] at h
+    cases h
   | tailRes hargs hres ih =>
     intro hx; simp only [irFreeL, irFree, Bool.and_eq_true] at hx
     exact .tailRes (ih hx.1.2) hres

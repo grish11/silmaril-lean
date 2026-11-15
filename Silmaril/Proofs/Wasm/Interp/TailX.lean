@@ -506,7 +506,7 @@ theorem evalOXT_goodT {C : Abstract.CallRel H} (hC : OracleSoundT P host C) {s :
     exact ⟨arityX_irStopT hC (.inr rfl) iha.1 hfi hty hy hcall hfl,
       coreT_of_core (coreX_irStopT hC (.inr rfl) iha.1 (core_of_coreT_normal iha.2) .refl
         hfi hty hy hcall hfl)⟩
-  | @tail s s₁ s₂ f f₁ stk stk₁ i args es fa fi ps rs fl _ hres hfi hty hcall hfl iha =>
+  | @tail s s₁ s₂ f f₁ stk stk₁ i args es fa fi ps rs fl _ hres hfi hty _ hcall hfl iha =>
     cases hres with
     | @direct x _ fi₀ _ hfi₀ =>
       obtain rfl : fi₀ = fi := Option.some.inj ((funcs_of_func? hfi₀).symm.trans hfi)

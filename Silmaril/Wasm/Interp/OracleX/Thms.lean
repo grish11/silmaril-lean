@@ -14,7 +14,7 @@ public import Silmaril.Proofs.Wasm.Interp.TailCloseX
 callee's Core run stated for every `call_ref` form), every
 `Abstract.CallXT.EvalOXT C` run of code passing the arity check extended by
 `irExt` is a Core 3.0 run, with the arity invariants, at every profile and
-host. `EvalOXT` is `CallX.EvalOX` whose `call_indirect`/`call_ref` callees have
+host. `EvalOXT` is `CallX.EvalOX` whose indirect and reference callees (tail forms included) have
 the annotated type's counts; it forgets to `EvalOX` (`CallXT.EvalOXT.forget`).
 
 **Scope (intermediate).**
@@ -39,7 +39,7 @@ the annotated type's counts; it forgets to `EvalOX` (`CallXT.EvalOXT.forget`).
   (for `call_indirect` from the successful `ref.cast`, for `call_ref` from the
   reference's type).
 * **The oracle is closed** on good stores (`GoodStoreX`: valid function and
-  instance types, bodies without `call_ref` whose indirect calls name instance
+  instance types, bodies without `call_ref`/`return_call_ref` whose indirect calls name instance
   types): `oracleSoundX_closedX`, by least-fixpoint induction. Hence
   `evalOX_closed_good`: closed extended runs are Core 3.0 runs, no oracle
   assumed. For typed runs (`TypedX`), `call_ref` is included in callee bodies too:

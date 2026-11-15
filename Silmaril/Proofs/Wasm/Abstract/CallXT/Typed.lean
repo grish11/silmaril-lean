@@ -6,7 +6,7 @@ public import Silmaril.Proofs.Wasm.Abstract.XRecursion.Basic
 /-!
 Proofs for `Silmaril.Wasm.Abstract.CallXT.Thms`: **the arity premise of
 `call_indirect` from typing.** On a store with valid function types, in an
-instance with valid types, code without `call_ref` whose `call_indirect`s name
+instance with valid types, code without `call_ref`/`return_call_ref` whose (tail) indirect calls name
 types of the instance (`indOkL`) runs in `EvalOXT` whenever it runs in `EvalOX`,
 for an oracle that keeps function types valid (`evalOXT_of_evalOX_ind`). The
 premise of each indirect call is the cast fact `typeArity_of_cast`: frames keep
@@ -215,9 +215,20 @@ theorem evalOXT_of_evalOX_ind {C : CallRel H} (hC : KeepsTy C) {s : Store H} {f 
   | callRefOk => intro _ _ hx; simp [indOkL, indOk, indInstr] at hx
   | callRefNull => intro _ _ hx; simp [indOkL, indOk, indInstr] at hx
   | callRefStop => intro _ _ hx; simp [indOkL, indOk, indInstr] at hx
-  | tail _ hres hfi hty hcall hfl ih =>
+  | tail hargs hres hfi hty hcall hfl ih =>
     intro hs hm hx; simp only [indOkL, indOk, Bool.and_eq_true] at hx
-    exact .tail (ih hs hm hx.1.2) hres hfi hty hcall hfl
+    have he := evalOX_module hargs
+    have hs₁ := evalOX_tyFuncs hC hargs hs
+    refine .tail (ih hs hm hx.1.2) hres hfi hty (fun y hy => ?_) hcall hfl
+    have hi := hx.1.1
+    cases hres with
+    | direct => cases hy
+    | indirect hres' =>
+      simp only [tailAnn, Option.some.injEq] at hy
+      subst hy
+      simp only [indInstr] at hi
+      exact typeArity_of_indRes hres' hfi hty hs₁ (he ▸ hm) (he ▸ hi)
+    | ref => simp [indInstr] at hi
   | tailRes _ hres ih =>
     intro hs hm hx; simp only [indOkL, indOk, Bool.and_eq_true] at hx
     exact .tailRes (ih hs hm hx.1.2) hres

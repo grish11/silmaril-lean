@@ -370,7 +370,7 @@ theorem evalOXT_goodE {C : Abstract.CallRel H} (hC : OracleSoundX P host C) {s :
   | callRefStop _ hfi hty hy hcall hfl iha =>
     exact ⟨arityX_irStop hC (.inr rfl) iha.1 hfi hty hy hcall hfl,
       coreX_irStop hC (.inr rfl) iha.1 iha.2 .refl hfi hty hy hcall hfl⟩
-  | tail _ hres _ _ _ _ iha => exact ⟨arityX_tail iha.1 hres, coreX_tail iha.1 hres⟩
+  | tail _ hres _ _ _ _ _ iha => exact ⟨arityX_tail iha.1 hres, coreX_tail iha.1 hres⟩
   | tailRes _ hres iha => exact ⟨arityX_tail iha.1 hres, coreX_tail iha.1 hres⟩
 
 end Silmaril.Wasm.Interp
