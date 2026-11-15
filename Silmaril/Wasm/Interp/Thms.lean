@@ -68,6 +68,11 @@ check), values at the declared result arity, no exceptions. The native arity inv
 extension `ext` that is stable under function extension (`ExtStable`): `ArityGoodE ext`,
 `CoreGoodE ext`, the `arity_*`/`core_*`/`arityO_*`/`coreO_*` lemmas, and `evalO_goodE`. The
 native forms (`ArityGood`, `CoreGood`, `evalO_good`) are the `noExt` instances.
+**Throwing callees** (exceptions on, `eh = true`): `Match` relates a native `.throw a` to
+Core's `REF.EXN_ADDR a; THROW_REF` (`FlowMatch`). With an oracle sound at `eh = true` whose
+thrown exceptions are Core throws (`OracleThrowsE`), every `EvalO C` run is a Core run whose
+exceptions propagate through the caller's blocks, loops and conditionals (`evalO_goodEH`); a
+native callee's throw leaves its label and frame (`wp_call_throw`, `core_callThrow`).
 `chkE_of_chk`: the native check implies every extended check. `flatChkE_eq_flatChk`: off the
 five non-native call forms, every extension is the native check.
 

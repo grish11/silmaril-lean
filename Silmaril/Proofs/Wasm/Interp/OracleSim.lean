@@ -33,18 +33,31 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Logic.Core
 variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
 
 /-- **A sound call oracle**, for the store check with the extension `ext`. -/
-def OracleSoundE (ext : ExtArity H) (P : Numerics.Profile) (host : HostSemantics H) (C : Abstract.CallRel H) : Prop :=
+def OracleSoundE (ext : ExtArity H) (P : Numerics.Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (eh : Bool := false) : Prop :=
   ∀ (s s₂ : Store H) (f : Frame) (a : Nat) (fi : FuncInst H) (ps rs : List Validation.CValType)
     (us : List Val) (fl : Binaryen.Flow),
     StoreChkE ext s.funcs → s.funcs[a]? = some fi → Validation.DefType.funcType? fi.type = some (ps, rs) →
     us.length = ps.length → C s a us (s₂, fl) →
-    (∃ ob, (ob = none ∨ ob = some rs.length) ∧ FlowOk [rs.length] rs.length ob fl ∧
+    (∃ ob, (ob = none ∨ ob = some rs.length) ∧ FlowOkE eh [rs.length] rs.length ob fl ∧
         FuncsGoodE ext s.funcs s₂.funcs) ∧
       (∀ vs, fl.retVals = some vs → Steps P host
         ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
         ⟨s₂, f, vals (vs.take rs.length).reverse⟩) ∧
       (fl = .trap → Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
         ⟨s₂, f, [.trap]⟩)
+
+/-- **A sound oracle's thrown exceptions**: a callee the oracle answers with the exception at
+address `t` runs in Core, in every `call_ref` form `c`, to that exception's final form
+`REF.EXN_ADDR t; THROW_REF` in the oracle's store. With exceptions off (`OracleSoundE … false`)
+a sound oracle never throws, so this is only needed with exceptions on. -/
+def OracleThrowsE (ext : ExtArity H) (P : Numerics.Profile) (host : HostSemantics H)
+    (C : Abstract.CallRel H) : Prop :=
+  ∀ (s s₂ : Store H) (f : Frame) (a : Nat) (fi : FuncInst H) (ps rs : List Validation.CValType)
+    (us : List Val) (t : Nat) (c : Admin),
+    StoreChkE ext s.funcs → s.funcs[a]? = some fi → Validation.DefType.funcType? fi.type = some (ps, rs) →
+    us.length = ps.length → c.IsCallRef → C s a us (s₂, .throw t) →
+    Steps P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ ⟨s₂, f, throwing t⟩
 
 /-- A sound call oracle, for the native store check. -/
 abbrev OracleSound (P : Numerics.Profile) (host : HostSemantics H) (C : Abstract.CallRel H) : Prop :=
@@ -54,7 +67,7 @@ section OCases
 
 set_option linter.unusedSectionVars false
 
-variable {ext : ExtArity H} [ExtStable ext]
+variable {ext : ExtArity H} [ExtStable ext] {eh : Bool}
 
 variable {C : Abstract.CallRel H} {s s₁ s₂ : Store H} {f f₁ : Frame} {stk stk₁ vs : List Val}
   {es args : List Binaryen.BExpr} {r : Store H × Frame × Binaryen.Flow} {fl : Binaryen.Flow}
@@ -76,11 +89,11 @@ theorem take_rev_length (hp : ps.length ≤ stk₁.length) :
   omega
 
 /-- The oracle's facts at a call. -/
-theorem oracle_at (hC : OracleSoundE ext P host C) (hS : StoreChkE ext s.funcs)
+theorem oracle_at (hC : OracleSoundE ext P host C eh) (hS : StoreChkE ext s.funcs)
     (inv1 : EvalInvE ext s f (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hp : ps.length ≤ stk₁.length)
     (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, fl)) (f' : Frame) :
-    (∃ ob, (ob = none ∨ ob = some rs.length) ∧ FlowOk [rs.length] rs.length ob fl ∧
+    (∃ ob, (ob = none ∨ ob = some rs.length) ∧ FlowOkE eh [rs.length] rs.length ob fl ∧
         FuncsGoodE ext s₁.funcs s₂.funcs) ∧
       (∀ vs, fl.retVals = some vs → Steps P host
         ⟨s₁, f', vals (stk₁.take ps.length).reverse ++ [.ref (.func a), .callRefType fi.type]⟩
@@ -91,12 +104,12 @@ theorem oracle_at (hC : OracleSoundE ext P host C) (hS : StoreChkE ext s.funcs)
   hC s₁ s₂ f' a fi ps rs _ fl (storeChk_inv inv1 hS) (funcs_of_func? hfi) hty
     (take_rev_length hp) hcall
 
-theorem arityO_callOk (hC : OracleSoundE ext P host C)
-    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
+theorem arityO_callOk (hC : OracleSoundE ext P host C eh)
+    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh) (hfi : s₁.func? f₁ x = some (a, fi))
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, fl)) (hvs : fl.retVals = some vs)
-    (ihk : ArityGoodE ext s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es r) :
-    ArityGoodE ext s f stk (.op (.call x) args :: es) r := by
+    (ihk : ArityGoodE ext s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es r eh) :
+    ArityGoodE ext s f stk (.op (.call x) args :: es) r eh := by
   intro labels ret out hS hc
   obtain ⟨inv1, hp, h2⟩ := arity_call_pre hS iha hfi hty hc
   obtain ⟨⟨ob, hob, hok, hfuncs⟩, -, -⟩ := oracle_at hC hS inv1 hfi hty hp hcall f₁
@@ -114,25 +127,25 @@ theorem arityO_callOk (hC : OracleSoundE ext P host C)
   obtain ⟨hok', inv3⟩ := ihk (storeChk_inv inv2 hS) h2'
   exact ⟨hok', inv2.trans inv3⟩
 
-theorem arityO_callTrap (hC : OracleSoundE ext P host C)
-    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
+theorem arityO_callTrap (hC : OracleSoundE ext P host C eh)
+    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh) (hfi : s₁.func? f₁ x = some (a, fi))
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, .trap)) :
-    ArityGoodE ext s f stk (.op (.call x) args :: es) (s₂, f₁, .trap) := by
+    ArityGoodE ext s f stk (.op (.call x) args :: es) (s₂, f₁, .trap) eh := by
   intro labels ret out hS hc
   obtain ⟨inv1, hp, -⟩ := arity_call_pre hS iha hfi hty hc
   obtain ⟨⟨_, _, _, hfuncs⟩, -, -⟩ := oracle_at hC hS inv1 hfi hty hp hcall f₁
   exact ⟨trivial, inv1.1.trans hfuncs, inv1.2.1, inv1.2.2⟩
 
-theorem arityO_callThrow {t : Nat} (hC : OracleSoundE ext P host C)
-    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
+theorem arityO_callThrow {t : Nat} (hC : OracleSoundE ext P host C eh)
+    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh) (hfi : s₁.func? f₁ x = some (a, fi))
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, .throw t)) :
-    ArityGoodE ext s f stk (.op (.call x) args :: es) (s₂, f₁, .throw t) := by
+    ArityGoodE ext s f stk (.op (.call x) args :: es) (s₂, f₁, .throw t) eh := by
   intro labels ret out hS hc
   obtain ⟨inv1, hp, -⟩ := arity_call_pre hS iha hfi hty hc
-  obtain ⟨⟨_, _, hok, _⟩, -, -⟩ := oracle_at hC hS inv1 hfi hty hp hcall f₁
-  exact absurd hok id
+  obtain ⟨⟨_, _, hok, hfuncs⟩, -, -⟩ := oracle_at hC hS inv1 hfi hty hp hcall f₁
+  exact ⟨FlowOkE.throw_any hok, inv1.1.trans hfuncs, inv1.2.1, inv1.2.2⟩
 
 /-- The Core run of a call answered by the oracle, in context. -/
 theorem steps_oracle_call {rest : List Admin} {fin : List Admin}
@@ -154,8 +167,8 @@ theorem steps_oracle_call {rest : List Admin} {fin : List Admin}
   simp only [vals_append, List.append_assoc, List.singleton_append] at h₁ h₂ ⊢
   exact Relation.ReflTransGen.head h₁ h₂
 
-theorem coreO_callOk (hC : OracleSoundE ext P host C)
-    (aha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁))
+theorem coreO_callOk (hC : OracleSoundE ext P host C eh)
+    (aha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
     (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, fl)) (hvs : fl.retVals = some vs)
@@ -183,8 +196,8 @@ theorem coreO_callOk (hC : OracleSoundE ext P host C)
   refine wp_append_normal (iha hS ha) (WP.steps st ?_)
   simpa [vals, List.reverse_append, List.append_assoc] using hk
 
-theorem coreO_callTrap (hC : OracleSoundE ext P host C)
-    (aha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁))
+theorem coreO_callTrap (hC : OracleSoundE ext P host C eh)
+    (aha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
     (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, .trap)) :
@@ -209,6 +222,24 @@ theorem coreO_callThrow {t : Nat} (hC : OracleSoundE ext P host C)
   obtain ⟨⟨_, _, hok, _⟩, -, -⟩ := oracle_at hC hS inv1 hfi hty hp hcall f₁
   exact absurd hok id
 
+/-- **A throwing callee**, with exceptions on: the call throws the callee's exception, a Core
+throw in the oracle's store. -/
+theorem coreO_callThrowE {t : Nat} (hT : OracleThrowsE ext P host C)
+    (aha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
+    (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁))
+    (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, .throw t)) :
+    CoreGoodE ext P host s f stk (.op (.call x) args :: es) (s₂, f₁, .throw t) := by
+  intro labels ret out hS hc
+  obtain ⟨inv1, hp, -⟩ := arity_call_pre hS aha hfi hty hc
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
+  obtain ⟨oa, ha, -⟩ := chk1_opE h1
+  have hth := hT s₁ s₂ f₁ a fi ps rs _ t (.callRefType fi.type) (storeChk_inv inv1 hS)
+    (funcs_of_func? hfi) hty (take_rev_length hp) trivial hcall
+  have st := steps_oracle_call (rest := expression (Binaryen.BExpr.lowerList es)) hfi hth
+  rw [code_op]
+  exact wp_append_normal (iha hS ha) (WP.steps st (wp_throwing ⟨rfl, rfl, rfl⟩))
+
 end OCases
 
 /-- **Forward simulation with a sound oracle**: every `EvalO C` run of
@@ -228,6 +259,55 @@ theorem evalO_goodE {ext : ExtArity H} [ExtStable ext] {C : Abstract.CallRel H}
     exact ⟨arityO_callTrap hC iha.1 hfi hty hcall, coreO_callTrap hC iha.1 iha.2 hfi hty hcall⟩
   | callThrow _ hfi hty hcall iha =>
     exact ⟨arityO_callThrow hC iha.1 hfi hty hcall, coreO_callThrow hC iha.1 hfi hty hcall⟩
+  | opOk hi _ hflat _ iha ihk =>
+    exact ⟨arity_opOk iha.1 hflat ihk.1, core_opOk iha.1 iha.2 hi hflat ihk.2⟩
+  | opStop _ _ hflat hfl iha =>
+    exact ⟨arity_opStop iha.1 hflat hfl, core_opStop iha.1 iha.2 hflat hfl⟩
+  | blockOk har _ hvs _ ihb ihk =>
+    exact ⟨arity_blockOk har ihb.1 hvs ihk.1, core_blockOk har ihb.1 ihb.2 hvs ihk.2⟩
+  | blockBrk har _ ihb =>
+    exact ⟨arity_blockBrk har ihb.1, core_blockAbrupt har ihb.1 ihb.2 (.inl ⟨_, _, rfl, rfl⟩)⟩
+  | blockEsc har _ hfl ihb =>
+    exact ⟨arity_blockEsc har ihb.1 hfl, core_blockAbrupt har ihb.1 ihb.2 (.inr ⟨hfl, rfl⟩)⟩
+  | loopOk har _ _ ihb ihk =>
+    exact ⟨arity_loopOk har ihb.1 ihk.1, core_loopOk har ihb.1 ihb.2 ihk.2⟩
+  | loopBack har _ _ ihb ihk =>
+    exact ⟨arity_loopBack har ihb.1 ihk.1, core_loopBack har ihb.1 ihb.2 ihk.2⟩
+  | loopBrk har _ ihb =>
+    exact ⟨arity_loopBrk har ihb.1, core_loopAbrupt har ihb.1 ihb.2 (.inl ⟨_, _, rfl, rfl⟩)⟩
+  | loopEsc har _ hfl ihb =>
+    exact ⟨arity_loopEsc har ihb.1 hfl, core_loopAbrupt har ihb.1 ihb.2 (.inr ⟨hfl, rfl⟩)⟩
+  | ifOk _ hb har _ hvs _ ihc iharm ihk =>
+    exact ⟨arity_ifOk ihc.1 har iharm.1 hvs ihk.1,
+      core_ifOk ihc.1 ihc.2 hb har iharm.1 iharm.2 hvs ihk.2⟩
+  | ifBrk _ hb har _ ihc iharm =>
+    exact ⟨arity_ifBrk ihc.1 har iharm.1,
+      core_ifAbrupt ihc.1 ihc.2 hb har iharm.1 iharm.2 (.inl ⟨_, _, rfl, rfl⟩)⟩
+  | ifEsc _ hb har _ hfl ihc iharm =>
+    exact ⟨arity_ifEsc ihc.1 har iharm.1 hfl,
+      core_ifAbrupt ihc.1 ihc.2 hb har iharm.1 iharm.2 (.inr ⟨hfl, rfl⟩)⟩
+  | ifAbort _ hfl ihc => exact ⟨arity_ifAbort ihc.1 hfl, core_ifAbort ihc.2 hfl⟩
+
+/-- **Forward simulation with throwing callees**: with exceptions on, every `EvalO C` run of
+arity-checked code is a Core 3.0 run, with the arity invariants. A callee may throw
+(`OracleThrowsE`); its exception propagates through the caller's blocks, loops and conditionals
+as a Core throw, and the run ends in `REF.EXN_ADDR t; THROW_REF` in the oracle's store. -/
+theorem evalO_goodEH {ext : ExtArity H} [ExtStable ext] {C : Abstract.CallRel H}
+    (hC : OracleSoundE ext P host C true) (hT : OracleThrowsE ext P host C) {s : Store H} {f : Frame}
+    {stk : List Val} {es : List Binaryen.BExpr} {r : Store H × Frame × Binaryen.Flow}
+    (h : Abstract.EvalO C s f stk es r) :
+    ArityGoodE ext s f stk es r true ∧ CoreGoodE ext P host s f stk es r := by
+  induction h with
+  | nil => exact ⟨arity_nil, core_nil⟩
+  | argsAbort _ hfl iha => exact ⟨arity_argsAbort iha.1 hfl, core_argsAbort iha.2 hfl⟩
+  | callOk _ hfi hty hcall hvs _ iha ihk =>
+    exact ⟨arityO_callOk hC iha.1 hfi hty hcall hvs ihk.1,
+      coreO_callOk hC iha.1 iha.2 hfi hty hcall hvs ihk.2⟩
+  | callTrap _ hfi hty hcall iha =>
+    exact ⟨arityO_callTrap hC iha.1 hfi hty hcall, coreO_callTrap hC iha.1 iha.2 hfi hty hcall⟩
+  | callThrow _ hfi hty hcall iha =>
+    exact ⟨arityO_callThrow hC iha.1 hfi hty hcall,
+      coreO_callThrowE hT iha.1 iha.2 hfi hty hcall⟩
   | opOk hi _ hflat _ iha ihk =>
     exact ⟨arity_opOk iha.1 hflat ihk.1, core_opOk iha.1 iha.2 hi hflat ihk.2⟩
   | opStop _ _ hflat hfl iha =>
