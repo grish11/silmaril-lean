@@ -378,4 +378,20 @@ theorem catch_step_sound {b : BlockId} {sg : Segment} {stk stk₁ us : List Val}
     Region.Run P host s₂ f₂ [] Y s₃ f₃ o → Region.Run P host s f [] X s₃ f₃ o :=
   Proofs.Machine.catch_step_sound hb ht hr hth hpass hL hT hc hL' harity hlbt hok hX hY
 
+/-- **A terminator that traps when it runs is sound** (`MStep.termTrap`: `throw_ref` on a null
+reference, `unreachable`). -/
+theorem termTrap_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+    {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : Region.Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ .trap)
+    (hX : codeAt body b stk ls = some X) : Region.Run P host s f [] X s₂ f₂ .trap :=
+  Proofs.Machine.termTrap_sound hb ht hr hth hX
+
+/-- **A region run keeps the frame's module instance**, so a block type resolves the same way
+when a `loop` is entered and when a branch re-enters it. -/
+theorem run_module {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List Admin}
+    {o : Region.Out} (h : Region.Run P host s f vs code s' f' o) : f'.module = f.module :=
+  Proofs.Machine.run_module h
+
 end Silmaril.Wasm.Cfg.Machine

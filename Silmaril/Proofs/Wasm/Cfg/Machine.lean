@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Cfg.Machine.Defs
 public import Silmaril.Wasm.Cfg.Block.Thms
 public import Silmaril.Proofs.Wasm.Cfg.Region
+import Silmaril.Wasm.Execution.Core.Properties
 
 @[expose] public section
 
@@ -1513,6 +1514,20 @@ theorem bodyTrap_sound {body : Expr} {b : BlockId} {sg : Segment} {stk : List Va
   simp only [Segment.instrs, expression, List.map_append, List.append_assoc, List.nil_append]
   exact Proofs.Region.run_append hr (by simp [Then])
 
+/-- **A terminator that traps is sound**: the code traps, with the terminator's final store. -/
+theorem termTrap_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ .trap)
+    (hX : codeAt body b stk ls = some X) : Run P host s f [] X s₂ f₂ .trap := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  refine wrap_trap _ _ hX (block_then hsg ht hr ?_)
+  have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c (b.idx + 1)))
+    (o := .trap) (s' := s₂) (f' := f₂) hth (by simp [Then])
+  simpa [expression] using h2
+
 /-- **A `return` is sound**: the code returns the block's values, over the frames' outer
 values. -/
 theorem ret_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
@@ -1853,6 +1868,9 @@ theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStep P host body s
   | bodyTrap hb hr =>
     simp only [codeOf] at hX
     exact ⟨by simp [MInv], Or.inr ⟨.trap, by simp [Ends], bodyTrap_sound hb hr hX⟩⟩
+  | termTrap hb ht hr hth =>
+    simp only [codeOf] at hX
+    exact ⟨by simp [MInv], Or.inr ⟨.trap, by simp [Ends], termTrap_sound hb ht hr hth hX⟩⟩
   | @catch_ b sg stk stk₁ us ls s s₁ s₂ f f₁ f₂ i a j L L' l hb ht hi hr hth hpass hL hT hc hL'
       harity hlbt =>
     simp only [MInv] at hok; simp only [codeOf] at hX
@@ -1988,6 +2006,7 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStep P host body st s
   | ret hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
   | trap hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
   | bodyTrap => right; left; rfl
+  | termTrap => right; left; rfl
   | @raise _ _ _ _ _ _ _ _ _ _ _ i _ hb ht hi =>
     left; cases hn; refine ⟨_, hb, ?_⟩
     cases i <;> simp_all [Instr.IsThrow, succOf]
@@ -2018,5 +2037,28 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStep P host body st s
       rw [labelsRev_getD_drop body (j + 1) _ l.toNat (by omega), hd1]
       simp [resolveT, labels, hcle, Idx.toNat]
     split <;> simpa [labels] using key
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+/-! ## Region runs keep the frame's module -/
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Region Silmaril.Wasm.Execution.Core
+  Silmaril.Wasm.Numerics
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- **A region run keeps the frame's module instance** (only locals change), so block types
+resolve the same way all along a run. -/
+theorem run_module {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List Admin}
+    {o : Out} (h : Run P host s f vs code s' f' o) : f'.module = f.module := by
+  induction h with
+  | simple _ h₁ _ ih => exact ih.trans (Steps.frame_module h₁)
+  | simpleTrap _ h₁ => exact Steps.frame_module h₁
+  | call _ _ _ hcall => exact hcall.elim
+  | callTrap _ _ _ hcall => exact hcall.elim
+  | callThrow _ _ _ hcall => exact hcall.elim
+  | _ => simp_all
 
 end Silmaril.Wasm.Cfg.Proofs.Machine

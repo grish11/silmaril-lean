@@ -190,6 +190,13 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .unreachable)
       (hr : ∃ stk₁, Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩
+  /-- A terminator that traps when it runs (`throw_ref` on a null reference, or `unreachable`). -/
+  | termTrap {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+      {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} (hb : lookup body b = some sg)
+      (ht : sg.term = some i)
+      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ .trap) :
+      MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₂, f₂⟩
   /-- A trap in the block's straight-line body (an effect of one of its instructions). -/
   | bodyTrap {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg)
