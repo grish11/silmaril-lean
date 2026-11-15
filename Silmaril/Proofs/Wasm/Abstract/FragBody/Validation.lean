@@ -596,4 +596,37 @@ theorem instrOk_if_body {D : Context} {bt : BlockType} {b₁ b₂ : List Instr} 
     | exact ⟨_, _, _, _, by assumption, by assumption, by assumption, rfl⟩
     | (rename_i h; cases h)
 
+/-! ## Context fit -/
+
+/-- `D` fits the fragment typing context: local, label and return types are the
+numeric images of `Γ`, `Λ`, `ρ`. -/
+structure Fit (D : Context) (Γ : List IntType) (ρ : Option IntType) (Λ : List (Option IntType)) :
+    Prop where
+  loc : ∀ x : Nat, (D.locals[x]?).map LocalType.type = (Γ[x]?).map numInt
+  lab : D.labels = Λ.map fun lt => lt.toList.map numInt
+  ret : D.return_ = some (ρ.toList.map numInt)
+
+theorem Fit.initLocals {D : Context} {Γ ρ Λ} (h : Fit D Γ ρ Λ) (ys : List Nat) :
+    Fit (D.initLocals ys) Γ ρ Λ :=
+  ⟨fun x => (initLocals_localType D ys x).trans (h.loc x), by simp [h.lab], by simp [h.ret]⟩
+
+theorem Fit.withLabel {D : Context} {Γ ρ Λ} (h : Fit D Γ ρ Λ) (lt : Option IntType) :
+    Fit (D.withLabel (lt.toList.map numInt)) Γ ρ (lt :: Λ) :=
+  ⟨h.loc, by simp [Context.withLabel, h.lab], h.ret⟩
+
+theorem Fit.local_type {D : Context} {Γ ρ Λ} (h : Fit D Γ ρ Λ) {x : Nat} {lt : LocalType}
+    (hx : D.locals[x]? = some lt) : ∃ t, Γ[x]? = some t ∧ lt.type = numInt t := by
+  have := h.loc x
+  rw [hx] at this
+  rcases hg : Γ[x]? with _ | t
+  · rw [hg] at this; cases this
+  · rw [hg] at this; exact ⟨t, rfl, Option.some.inj this⟩
+
+theorem Fit.label {D : Context} {Γ ρ Λ} (h : Fit D Γ ρ Λ) {l : Nat} {ts : List CValType}
+    (hl : D.labels[l]? = some ts) : ∃ lt, Λ[l]? = some lt ∧ ts = lt.toList.map numInt := by
+  rw [h.lab, List.getElem?_map] at hl
+  rcases hg : Λ[l]? with _ | lt
+  · rw [hg] at hl; cases hl
+  · rw [hg] at hl; exact ⟨lt, rfl, (Option.some.inj hl).symm⟩
+
 end Silmaril.Proofs.Wasm.Abstract.FragBody
