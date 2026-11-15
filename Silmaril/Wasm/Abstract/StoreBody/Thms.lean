@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Abstract.StoreBody.Defs
 import Silmaril.Proofs.Wasm.Abstract.StoreBody.Basic
+import Silmaril.Proofs.Wasm.Abstract.StoreBody.Complete
 
 /-!
 # Folded Wasm bodies over the actual store: theorems
@@ -21,10 +22,14 @@ store (`Silmaril.Wasm.Abstract.StoreBody.Defs`):
   abstract body's outcome, with the same final store, frame and flow (a trap
   as the trap effect).
 
-**Not yet.** The converse (an abstract outcome is reached by the interpreter
-with some fuel, and abstract divergence is exhaustion of every fuel), calls
-(F4) and `try_table` (F5), and the connection to Core 3.0 through the
-interpreter's adequacy.
+* **Exact for the native interpreter.** `eval_den`: every derivation of the
+  interpreter's fuel-free big-step relation `Binaryen.Eval` is computed by the
+  abstract body; `den_cases`: the abstract body either diverges or computes an
+  `Eval` outcome; `den_diverge_iff`: it diverges exactly when `Binaryen.run`
+  has no result at any fuel.
+
+**Not yet.** Calls (F4) and `try_table` (F5), and the connection to Core 3.0
+through the interpreter's adequacy.
 -/
 
 public section
@@ -63,5 +68,42 @@ theorem run_sound {n : Nat} {s : Store H} {f : Frame} {stk : List Val} {es : Lis
     {r : Store H × Frame × Flow} (hc : callFreeL es = true) (h : run n s f stk es = some r) :
     ((denList es f stk : M E H Res).run ⟨s⟩).run = evalTree (some r) :=
   Silmaril.Proofs.Wasm.Abstract.StoreBody.run_sound n hc h
+
+/-- Every big-step derivation of the interpreter is computed by the abstract body. -/
+theorem eval_den {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {r : Store H × Frame × Flow} (hc : callFreeL es = true) (h : Eval s f stk es r) :
+    ((denList es f stk : M E H Res).run ⟨s⟩).run = evalTree (some r) := by
+  obtain ⟨n, hn⟩ := run_of_eval h
+  exact run_sound hc hn
+
+/-- **Complete.** The abstract body of a call-free list diverges, or computes the
+outcome of a big-step derivation of the interpreter. -/
+theorem den_cases {es : List BExpr} (hc : callFreeL es = true) (s : Store H) (f : Frame)
+    (stk : List Val) :
+    ((denList es f stk : M E H Res).run ⟨s⟩).run = Silmaril.Elgot.ITree.diverge ∨
+      ∃ r, Eval s f stk es r ∧ ((denList es f stk : M E H Res).run ⟨s⟩).run = evalTree (some r) :=
+  Silmaril.Proofs.Wasm.Abstract.StoreBody.list_good es hc s f stk
+
+theorem evalTree_ne_diverge (r : Store H × Frame × Flow) :
+    (evalTree (E := E) (some r)) ≠ Silmaril.Elgot.ITree.diverge := by
+  obtain ⟨s', f', fl⟩ := r
+  cases fl <;> exact Silmaril.Elgot.ITree.ret_ne_diverge _
+
+/-- **Divergence is fuel exhaustion.** The abstract body of a call-free list
+diverges exactly when the native interpreter has no result at any fuel. -/
+theorem den_diverge_iff {es : List BExpr} (hc : callFreeL es = true) (s : Store H) (f : Frame)
+    (stk : List Val) :
+    ((denList es f stk : M E H Res).run ⟨s⟩).run = Silmaril.Elgot.ITree.diverge ↔
+      ∀ n, run n s f stk es = none := by
+  constructor
+  · intro hd n
+    cases hn : run n s f stk es with
+    | none => rfl
+    | some r => exact absurd ((run_sound hc hn).symm.trans hd) (evalTree_ne_diverge r)
+  · intro hn
+    rcases den_cases (E := E) hc s f stk with hd | ⟨r, hr, -⟩
+    · exact hd
+    · obtain ⟨m, hm⟩ := run_of_eval hr
+      rw [hn m] at hm; cases hm
 
 end Silmaril.Wasm.Abstract.StoreBody
