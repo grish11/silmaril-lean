@@ -6,12 +6,14 @@ public import Silmaril.Wasm.SingleThreaded.Determinism.HeadDet
 public import Silmaril.Wasm.Execution.Core.Soundness.Defs
 public import Silmaril.Wasm.Execution.Core.Sim.TypedContext
 public import Silmaril.Wasm.Execution.Core.InversionHost.Thms
+public import Silmaril.Wasm.Execution.Core.Inversion.Thms
 import Silmaril.Proofs.Wasm.Abstract.HostCall.Basic
 import Silmaril.Proofs.Wasm.Abstract.HostCall.Backward
 import Silmaril.Proofs.Wasm.Abstract.HostCall.Split
 import Silmaril.Proofs.Wasm.Abstract.HostCall.Runs
 import Silmaril.Proofs.Wasm.Abstract.HostCall.Through
 import Silmaril.Proofs.Wasm.Abstract.HostCall.Typed
+import Silmaril.Proofs.Wasm.Abstract.HostCall.Ctx
 
 /-!
 # Core 3.0 host calls as a relational host: theorems (stage H2, first step)
@@ -74,6 +76,11 @@ one step, and a configuration with a host-free step is not at a host call.
 are monotone in the host, every profile), `hostOk_totalize` (the host that also
 diverges where it has no outcome is lawful), `Step.preservation_typed`,
 `ContextTyped.steps_typed`.
+
+**Runs in a label or a call frame**: `labelExit_stuck` (every label exit form is
+stuck, any host), `frameExit_label`, `stepsN_label_seq_split`,
+`stepsN_frame_seq_split` (the body runs alone, counted, to a stuck end; then the
+context around it goes on).
 
 `coreHost_call_run_seq` is the same **under a continuation** `rest` after the
 call. It uses the sequence-context inversion `Step.callRef_host_inv_seq`, built
@@ -283,5 +290,38 @@ theorem host_call_runN_seq {n : Nat} {s : Store H} {f : Frame} {a : Nat} {fi : F
       ∃ s' r m, m < n ∧ host hh s us (.returned s' r) ∧
         StepsN P host m ⟨s', f, vals ws ++ r.toAdmin ++ rest⟩ c :=
   Silmaril.Proofs.Wasm.Abstract.HostCall.host_call_runN_seq hf hcode he hn hrun hend
+
+/-- **Every label exit form is stuck**, whatever the host. -/
+theorem labelExit_stuck {s : Store H} {f : Frame} {n : Nat} {cont : List Instr} {b out : List Admin}
+    (h : LabelExit n cont b out) (c : Config H) : ¬ Step P host ⟨s, f, b⟩ c :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.labelExit_stuck h c
+
+/-- A frame around a single label does not exit. -/
+theorem frameExit_label {s : Store H} {fi : Frame} {n k : Nat} {cont : List Instr}
+    {b code out : List Admin} (h : FrameExit s fi n code out) (hc : code = [.label k cont b]) :
+    False :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.frameExit_label h hc
+
+/-- **A run in a label**: the body runs alone to a stuck end, then the label goes on. -/
+theorem stepsN_label_seq_split {N : Nat} {s : Store H} {f : Frame} {ws : List Val} {n : Nat}
+    {cont : List Instr} {b rest : List Admin} {c : Config H}
+    (hrun : StepsN P host N ⟨s, f, vals ws ++ [.label n cont b] ++ rest⟩ c)
+    (hend : ∀ c', ¬ Step P host c c') :
+    ∃ (cb : Config H) (N₁ : Nat), N₁ ≤ N ∧ StepsN P host N₁ ⟨s, f, b⟩ cb ∧
+      (∀ c', ¬ Step P host cb c') ∧
+      StepsN P host (N - N₁) ⟨cb.store, cb.frame, vals ws ++ [.label n cont cb.code] ++ rest⟩ c :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.stepsN_label_seq_split hrun hend
+
+/-- **A run in a call frame**: the callee body runs alone, in its frame, to a stuck
+end; then the frame and label go on. -/
+theorem stepsN_frame_seq_split {N : Nat} {s : Store H} {f F : Frame} {ws : List Val} {n : Nat}
+    {b rest : List Admin} {c : Config H}
+    (hrun : StepsN P host N ⟨s, f, vals ws ++ [.frame n F [.label n [] b]] ++ rest⟩ c)
+    (hend : ∀ c', ¬ Step P host c c') :
+    ∃ (cb : Config H) (N₁ : Nat), N₁ ≤ N ∧ StepsN P host N₁ ⟨s, F, b⟩ cb ∧
+      (∀ c', ¬ Step P host cb c') ∧
+      StepsN P host (N - N₁)
+        ⟨cb.store, f, vals ws ++ [.frame n cb.frame [.label n [] cb.code]] ++ rest⟩ c :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.stepsN_frame_seq_split hrun hend
 
 end Silmaril.Wasm.Abstract
