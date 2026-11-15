@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Interp.ExampleEH.Defs
 public import Silmaril.Wasm.Interp.EHSim.Thms
+public import Silmaril.Wasm.Interp.EHClose.Thms
 import Silmaril.Proofs.Wasm.Interp.ExampleEH
 
 /-!
@@ -14,7 +15,8 @@ from the code to the value `7` in the store holding the exception. The code pass
 checker `ehExt ehTags` (`eh_chk`). `eh2_run`/`eh2_steps`: a rethrow, `catch_ref` then
 `throw_ref`, ends natively and in Core in the thrown exception `0`. `eh3_run`/`eh3_steps`: two
 parameters into an `if` and into a `try_table` whose body throws one of them; the block
-produces `3`.
+produces `3`. `eh4_run`/`eh4_steps`: the exception of a callee answered by the closure with
+exceptions (`EHClose.evalOXE_closed_good`) is caught around the call; the block produces `9`.
 -/
 
 public section
@@ -59,5 +61,17 @@ theorem eh3_run : Abstract.CallXE.EvalOXE ehC ehStore ehFrame3 [] ehBody3
 theorem eh3_steps : Steps P host ⟨ehStore, ehFrame3, expression (Binaryen.BExpr.lowerList ehBody3)⟩
     ⟨ehStore3, ehFrame3, vals [v3]⟩ :=
   Silmaril.Proofs.Wasm.Interp.ExampleEH.eh3_steps
+
+/-- **A throwing callee, natively**: the closure answers the call with the callee's exception;
+the clause catches it, and the block produces `9`. -/
+theorem eh4_run : Abstract.CallXE.EvalOXE Abstract.XRecursionE.closedCallXE ehStore4 ehFrame4 []
+    ehBody4 (ehStore4', ehFrame4, .normal [v9]) :=
+  Silmaril.Proofs.Wasm.Interp.ExampleEH.eh4_run
+
+/-- **A throwing callee, in Core 3.0**: the exception leaves the callee's frame and is caught; the
+run produces `9`, no oracle assumed. -/
+theorem eh4_steps : Steps P host ⟨ehStore4, ehFrame4, expression (Binaryen.BExpr.lowerList ehBody4)⟩
+    ⟨ehStore4', ehFrame4, vals [v9]⟩ :=
+  Silmaril.Proofs.Wasm.Interp.ExampleEH.eh4_steps
 
 end Silmaril.Wasm.Interp.ExampleEH

@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Interp.ExampleEH.Defs
 public import Silmaril.Proofs.Wasm.Interp.EHSim
+public import Silmaril.Proofs.Wasm.Interp.EHClose
 
 /-!
 # A caught exception (proofs)
@@ -144,6 +145,67 @@ theorem eh3_steps : Steps P host ⟨ehStore, ehFrame3, expression (Binaryen.BExp
     ⟨ehStore3, ehFrame3, vals [v3]⟩ := by
   obtain ⟨-, -, hc⟩ := evalOXE_goodEH ehC_sound ehC_throws ehC_tags eh3_run rfl eh_tagsOk
   obtain ⟨c', o, hst, he, hm⟩ := run_of_wp (hc eh_storeChk eh3_chk)
+  rw [ends_normal hm he] at hst
+  simpa using hst
+
+/-! ## A throwing callee, answered by the closure -/
+
+open Silmaril.Wasm.Abstract.XRecursionE in
+/-- The callee's body throws the exception `0` with the field `9`. -/
+theorem eh4_callee : EvalOXE closedCallXE ehStore4 (Frame.forCall ehMod4 [] []) []
+    (Binaryen.liftInstrs ehCallee.body) (ehStore4', Frame.forCall ehMod4 [] [], .throw 0) := by
+  obtain ⟨ts, he, hn⟩ := ehTag_expand
+  have h := EvalOXE.throw (C := closedCallXE) (s := ehStore4) (f := Frame.forCall ehMod4 [] [])
+    (stk := [v9]) (x := ⟨0⟩) (ta := 0) (ti := ehTag) (es := []) .nil (by rfl) he (by simp [hn])
+  simp only [hn] at h
+  exact .opOk (fun _ h => by cases h) .nil rfl h
+
+open Silmaril.Wasm.Abstract.XRecursionE in
+/-- The closure answers the call with the callee's exception. -/
+theorem eh4_answer : closedCallXE ehStore4 0 [] (ehStore4', .throw 0) := by
+  rw [closedCallXE_fixpoint]
+  exact ⟨_, ehCallee, [], [], _, rfl, rfl, rfl, eh4_callee⟩
+
+open Silmaril.Wasm.Abstract.XRecursionE in
+/-- **The native run**: the call throws the callee's exception, the clause catches it, and the
+block produces `9`. -/
+theorem eh4_run : EvalOXE closedCallXE ehStore4 ehFrame4 [] ehBody4
+    (ehStore4', ehFrame4, .normal [v9]) :=
+  .blockOk (np := 0) (nr := 1) rfl
+    (.tryCatch (np := 0) (nr := 0) rfl
+      (.callThrow (ps := []) (rs := []) .nil rfl rfl eh4_answer)
+      (.catch_ (e := ⟨0, [v9]⟩) rfl rfl))
+    rfl .nil
+
+theorem eh4_good : GoodStoreE ehTags ehStore4 := by
+  refine ⟨fun a fi fn h₁ h₂ => ?_, rfl, fun a e h => by simp [ehStore4] at h⟩
+  rcases a with _ | a
+  · simp only [ehStore4, List.getElem?_cons_zero, Option.some.injEq] at h₁
+    subst h₁
+    cases h₂
+    decide
+  · simp [ehStore4] at h₁
+
+theorem eh4_storeChk : StoreChkE (ehExt ehTags) ehStore4.funcs := by
+  intro a fi fn ps rs h₁ h₂ h₃
+  rcases a with _ | a
+  · simp only [ehStore4, List.getElem?_cons_zero, Option.some.injEq] at h₁
+    subst h₁
+    cases h₂
+    have : (ps, rs) = ([], []) := Option.some.inj (h₃.symm.trans rfl)
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj this
+    decide
+  · simp [ehStore4] at h₁
+
+theorem eh4_chk : chkE (ehExt ehTags) ehStore4.funcs ehMod4 0 0 [] (some 0) ehBody4 = some (some 1) := by
+  decide
+
+/-- **The Core 3.0 run**: the call enters the callee's frame, its exception leaves the frame and
+is caught by the handler; the block produces `9`, at every profile and host, no oracle assumed. -/
+theorem eh4_steps : Steps P host ⟨ehStore4, ehFrame4, expression (Binaryen.BExpr.lowerList ehBody4)⟩
+    ⟨ehStore4', ehFrame4, vals [v9]⟩ := by
+  obtain ⟨-, -, hc⟩ := evalOXE_closed_good (P := P) (host := host) eh4_run eh4_good rfl
+  obtain ⟨c', o, hst, he, hm⟩ := run_of_wp (hc eh4_storeChk eh4_chk)
   rw [ends_normal hm he] at hst
   simpa using hst
 

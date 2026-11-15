@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Interp.EHExt.Defs
 public import Silmaril.Wasm.Abstract.CallXE.Defs
 public import Silmaril.Wasm.V2.ToCore.Types
+public import Silmaril.Wasm.Abstract.XRecursionE.Defs
 
 /-!
 # A caught exception
@@ -20,7 +21,8 @@ Validated example for the exception simulation (`Silmaril.Wasm.Interp.EHSim`):
 The `throw` allocates the exception `0` with the field `7`; the clause `catch $t 0` branches to the
 block's label with that field, so the block produces `7`. A second program (`ehBody2`) catches
 with `catch_ref` and rethrows with `throw_ref`; a third (`ehBody3`) passes two parameters into an
-`if` and into a `try_table` whose body throws one of them. The store has the one tag and no
+`if` and into a `try_table` whose body throws one of them; a fourth (`ehBody4`) catches the
+exception of a callee answered by the closure `XRecursionE.closedCallXE`. The store has the one tag and no
 functions; nothing is called (`ehC`, the empty oracle).
 
 Theorems in `Silmaril.Wasm.Interp.ExampleEH.Thms`. New definitions.
@@ -113,6 +115,42 @@ def v3 : Val := Binaryen.ofInt .i32 3
 
 /-- The store after the multi-value run: the exception `0` with the field `3`. -/
 def ehStore3 : Store Empty := ehStore.addExn ⟨0, [v3]⟩
+
+/-- The type `[] → []` of the throwing callee. -/
+def ehUnit : Validation.DefType := V2.FuncType.toDefType ⟨[], []⟩
+
+/-- The module instance of the call example: the type `0` is `ehUnit`, the function `0` is the
+store's function `0`, the tag as before. -/
+def ehMod4 : ModuleInst := { types := [ehUnit], tags := [0], funcs := [0] }
+
+/-- **A throwing callee**: `(func (type 0) (throw $t (i32.const 9)))`. -/
+def ehCallee : Func := ⟨⟨0⟩, [], [.intConst .i32 9, .throw ⟨0⟩]⟩
+
+/-- The store of the call example: the tag and the throwing callee. -/
+def ehStore4 : Store Empty :=
+  { tags := ehTags, funcs := [⟨ehUnit, ehMod4, .wasm ehCallee⟩] }
+
+/-- The frame of the call example. -/
+def ehFrame4 : Frame := { module := ehMod4 }
+
+/-- **Catching a callee's exception**, the callee answered by the closure with exceptions:
+
+```wat
+(block (result i32)
+  (try_table (catch $t 0)
+    (call $f))          ;; $f throws $t 9
+  unreachable)          ;; the block produces 9
+```
+-/
+def ehBody4 : List Binaryen.BExpr :=
+  [.block (.value (.num (.int .i32)))
+    [.tryTable .empty [.catch_ ⟨0⟩ ⟨0⟩] [.op (.call ⟨0⟩) []], .op .unreachable []]]
+
+/-- The value `9`. -/
+def v9 : Val := Binaryen.ofInt .i32 9
+
+/-- The store after the call example: the exception `0` with the field `9`. -/
+def ehStore4' : Store Empty := ehStore4.addExn ⟨0, [v9]⟩
 
 /-- The empty oracle: nothing is called. -/
 def ehC : Abstract.CallRel Empty := fun _ _ _ _ => False
