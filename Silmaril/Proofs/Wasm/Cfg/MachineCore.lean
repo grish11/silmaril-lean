@@ -496,4 +496,139 @@ theorem enter_step {s : Store H} {f : Frame} {i : Instr} {bt : BlockType} {loop 
       exact .head h1 (by simpa [labelArity, List.append_assoc] using
         Relation.TransGen.single (lift (Step.block (body := ee) hbt hm)))
 
+
+theorem steps_trans_of_ne {c c' : Config H} (h : Steps P host c c') (hne : c ≠ c') :
+    Relation.TransGen (Step P host) c c' := by
+  rcases h.cases_head with rfl | ⟨d, hd, hdc⟩
+  · exact absurd rfl hne
+  · exact Relation.TransGen.head' hd hdc
+
+/-- Throwing with code after it: the rest is discarded (`throw_ref-instrs`). -/
+theorem throwing_rest {s : Store H} {f : Frame} (a : Nat) (vs : List Val) (rest : List Admin) :
+    Steps P host ⟨s, f, vals vs ++ throwing a ++ rest⟩ ⟨s, f, throwing a⟩ := by
+  by_cases hne : vs ≠ [] ∨ rest ≠ []
+  · exact .single (Step.throwRefInstrs hne)
+  · simp only [ne_eq, not_or, not_not] at hne
+    obtain ⟨rfl, rfl⟩ := hne
+    simpa [vals] using (Relation.ReflTransGen.refl : Steps P host ⟨s, f, throwing a⟩ _)
+
+open Silmaril.Wasm.Cfg.Proofs.Machine in
+/-- **A caught exception is a Core run of at least one step** to the code of the machine's
+catch target: `throw_ref` propagates out of the frames below the catching handler (`label`,
+passing handlers), the handler's first matching clause branches, and the branch continues as in
+`br_core`. -/
+theorem throw_core {body : Expr} {s : Store H} {f : Frame} {a : Nat} {us : List Val}
+    {l : LabelIdx} :
+    ∀ (j : Nat) (rp : List SeqStep) (ls : List LFrame) {rest X Y : List Admin} {L L' : LFrame},
+      wrap body rp ls (throwing a ++ rest) = some X → FramesOk body rp ls →
+      (∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+        Catches s f a L.catches none) →
+      ls[j]? = some L → L.tryT = true → Catches s f a L.catches (some (us, l)) →
+      ls[j + 1 + l.toNat]? = some L' →
+      L'.arity ≤ (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)).length →
+      (L'.loop = true → ∃ t₁ t₂, f.module.blockType? L'.bt = some (t₁, t₂) ∧
+        t₁.length = L'.arity) →
+      codeOf body (if L'.loop then
+          goto ((labelsRev body rp).getD (j + 1 + l.toNat) .invalid) (rp.length - (j + 1 + l.toNat))
+            (L' :: ls.drop (j + 1 + l.toNat + 1))
+            (topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s f
+        else
+          goto ((labelsRev body rp).getD (j + 1 + l.toNat) .invalid)
+            (rp.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
+            (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s f) =
+        some Y →
+      Relation.TransGen (Step P host) ⟨s, f, X⟩ ⟨s, f, Y⟩
+  | _, [], [], _, _, _, _, _, _, _, _, hL, _, _, _, _, _, _ => by simp at hL
+  | _, [], _ :: _, _, _, _, _, _, _, hok, _, _, _, _, _, _, _, _ => by simp [FramesOk] at hok
+  | _, _ :: _, [], _, _, _, _, _, _, _, _, hL, _, _, _, _, _, _ => by simp at hL
+  | j, (m, a') :: rp, L₀ :: ls, rest, X, Y, L, L', hX, hok, hpass, hL, hT, hc, hL', har, hlbt,
+      hY => by
+    obtain ⟨⟨pc, sg, t, c', hpc, hsg, ht, harm', hkind'⟩, hok'⟩ := hok
+    have hX0 := hX
+    simp only [wrap, hpc, hsg, ht, Option.bind_eq_bind, Option.bind_some] at hX0
+    set R := expression (restAt pc (m + 1)) with hR
+    have hin : Steps P host ⟨s, f, throwing a ++ rest⟩ ⟨s, f, throwing a⟩ := by
+      simpa using throwing_rest (P := P) (host := host) (s := s) (f := f) a [] rest
+    have hlab : Steps P host
+        ⟨s, f, [.label L₀.arity (if L₀.loop then [t] else []) (throwing a ++ rest)]⟩
+        ⟨s, f, throwing a⟩ :=
+      (steps_label (P := P) (host := host) _ _ hin).trans (.single .throwRefLabel)
+    cases j with
+    | zero =>
+      simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
+      subst hL
+      have hlp : L₀.loop = false := by rw [hT] at hkind'; exact kind_loop_false' hkind'
+      simp only [hT, hlp, ↓reduceIte, Bool.false_eq_true] at hX0 hlab
+      have hh : Steps P host ⟨s, f, [.handler L₀.arity L₀.catches
+            [.label L₀.arity [] (throwing a ++ rest)]]⟩ ⟨s, f, vals us ++ [.plain (.br l)]⟩ :=
+        (steps_handler (P := P) (host := host) _ _ hlab).trans
+          (by simpa [Proofs.Region.catchCode] using Proofs.Region.catches_steps (n := L₀.arity) hc)
+      have hh' : Relation.TransGen (Step P host) ⟨s, f, [.handler L₀.arity L₀.catches
+            [.label L₀.arity [] (throwing a ++ rest)]]⟩ ⟨s, f, vals us ++ [.plain (.br l)]⟩ := by
+        refine steps_trans_of_ne hh ?_
+        intro he
+        have := congrArg (fun c : Config H => c.code.getLast?) he
+        simp at this
+      have h1 := trans_in (P := P) (host := host) L₀.outer R hh'
+      cases hw : wrap body rp ls (vals (L₀.outer ++ us) ++ .plain (.br l) :: R) with
+      | none =>
+        have := (wrap_isSome body rp ls (vals (L₀.outer ++ us) ++ .plain (.br l) :: R) _).trans
+          (congrArg Option.isSome hX0)
+        rw [hw] at this; simp at this
+      | some Z =>
+        have h2 := wrap_trans (P := P) (host := host) rp ls hX0 hw
+          (by simpa [List.append_assoc] using h1)
+        have hL'' : ls[l.toNat]? = some L' := by
+          simpa [show 0 + 1 + l.toNat = l.toNat + 1 by omega] using hL'
+        have hY' := hY
+        rw [show 0 + 1 + l.toNat = l.toNat + 1 by omega] at hY'
+        simp only [labelsRev, List.getD_cons_succ, List.length_cons, List.drop_succ_cons,
+          List.drop_zero] at hY' har
+        rw [show rp.length + 1 - (l.toNat + 1 + 1) = rp.length - (l.toNat + 1) by omega,
+          show rp.length + 1 - (l.toNat + 1) = rp.length - l.toNat by omega] at hY'
+        exact Relation.TransGen.trans_left h2
+          (br_core l.toNat rp ls rfl hw hok' hL'' (by simpa using har) hlbt hY').to_reflTransGen
+    | succ j =>
+      simp only [List.getElem?_cons_succ] at hL
+      -- frame 0 lets the exception pass
+      have hpass0 : Steps P host
+          ⟨s, f, [if L₀.tryT then Admin.handler L₀.arity L₀.catches
+            [.label L₀.arity (if L₀.loop then [t] else []) (throwing a ++ rest)]
+            else .label L₀.arity (if L₀.loop then [t] else []) (throwing a ++ rest)]⟩
+          ⟨s, f, throwing a⟩ := by
+        cases hT0 : L₀.tryT
+        · simpa using hlab
+        · have hcn := hpass 0 L₀ (by omega) (by simp) hT0
+          simpa [Proofs.Region.catchCode] using
+            (steps_handler (P := P) (host := host) _ _ hlab).trans
+              (Proofs.Region.catches_steps (n := L₀.arity) hcn)
+      have hne : (⟨s, f, [if L₀.tryT then Admin.handler L₀.arity L₀.catches
+            [.label L₀.arity (if L₀.loop then [t] else []) (throwing a ++ rest)]
+            else .label L₀.arity (if L₀.loop then [t] else []) (throwing a ++ rest)]⟩ :
+            Config H) ≠ ⟨s, f, throwing a⟩ := by
+        intro he; have := congrArg (fun c : Config H => c.code.length) he
+        simp at this
+      have h1 := trans_in (P := P) (host := host) L₀.outer R (steps_trans_of_ne hpass0 hne)
+      have h1' := Relation.TransGen.trans_left h1
+        (throwing_rest (P := P) (host := host) (s := s) (f := f) a L₀.outer R)
+      cases hw : wrap body rp ls (throwing a ++ []) with
+      | none =>
+        have := (wrap_isSome body rp ls (throwing a ++ []) _).trans (congrArg Option.isSome hX0)
+        rw [hw] at this; simp at this
+      | some Z =>
+        have h2 := wrap_trans (P := P) (host := host) rp ls hX0 hw
+          (by simpa [List.append_assoc] using h1')
+        have hY' := hY
+        rw [show j + 1 + 1 + l.toNat = (j + 1 + l.toNat) + 1 by omega] at hY' hL'
+        simp only [labelsRev, List.getD_cons_succ, List.length_cons,
+          List.drop_succ_cons] at hY' har hL'
+        have e1 : rp.length + 1 - (j + 1 + l.toNat + 1 + 1) = rp.length - (j + 1 + l.toNat + 1) := by
+          omega
+        have e2 : rp.length + 1 - (j + 1 + l.toNat + 1) = rp.length - (j + 1 + l.toNat) := by
+          omega
+        rw [e1, e2] at hY'
+        exact Relation.TransGen.trans_left h2 (throw_core j rp ls hw hok'
+          (fun k L₁ hk hL₁ hT₁ => hpass (k + 1) L₁ (by omega) (by simpa using hL₁) hT₁)
+          hL hT hc hL' (by simpa using har) hlbt hY').to_reflTransGen
+
 end Silmaril.Wasm.Cfg.Proofs.MachineCore
