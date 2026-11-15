@@ -220,6 +220,22 @@ or region tree. Every semantic claim is a theorem against `Silmaril.Wasm.Executi
     run passes;
   - the abstract `BodyM`/`IterOps` layer has no link to Core yet.
 
+**Scope: coverage is not equivalence.** A forward simulation (every Core step from a
+position moves along a CFG edge) shows that the graph *covers* execution: every run projects
+to a graph path. It does not give equality with the function's behaviours, for two reasons:
+- **Infeasible paths.** The graph's `if`, `br_if` and `br_table` edges ignore the data
+  conditions, so many graph paths are not runs.
+- **Conservative marks.** The effect marks and edges are conservative, so they include
+  outcomes no run reaches.
+
+Behavioural equivalence needs more:
+- an *executable* CFG semantics: typed blocks carrying values, locals and the store, whose
+  branches read the data;
+- a reverse simulation, or adequacy (every run of that semantics is a Core run);
+- matching treatment of initialisation, termination and divergence.
+
+The plain graph stays an over-approximation, and claims about it say so.
+
 **Milestones**, each a bounded PR with no `sorry` on `main`:
 1. **Position invariant.** `At body pos cfg` relates a reachable configuration of the body
    (nested `LABEL_n{cont}` contexts around `val* rest`) to a position
@@ -240,8 +256,10 @@ or region tree. Every semantic claim is a theorem against `Silmaril.Wasm.Executi
    projects to an edge path from `cfgEntry`. Divergence is an infinite path.
 6. **Precise effects.** Each `trap` edge is justified by a step that traps (no generic "may").
    The converse, that every such edge is reachable, is not claimed unless proved.
-7. **Adequacy.** The reverse direction (CFG paths realised by runs, under data conditions),
-   only if equivalence is claimed.
+7. **Executable block semantics and adequacy.** A typed block semantics (values, locals,
+   store; branches read the data) and the reverse simulation. Only with both may equivalence
+   with `behaviours` be claimed. For the structured native fragment, equality of its runs with
+   the fragment's `Run` then gives Core 3.0 call-equivalence (`callEquiv_of_run_iff`).
 8. **Calls**, through an explicit call interface: a call node whose callee behaviour is a
    parameter (a `FRAME` run of the callee), first for direct calls.
 
