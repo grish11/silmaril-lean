@@ -254,6 +254,11 @@ inductive RunC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) :
 /-- The oracle that answers no call. -/
 def noCall : Abstract.CallRel H := fun _ _ _ _ => False
 
+/-- An oracle restricted to the calls satisfying `G` (for example typed arguments on a typed
+native store). Region runs with `C.guard G` carry `G` at every call they make. -/
+def guardCall (G : Store H → Nat → List Val → Prop) (C : Abstract.CallRel H) : Abstract.CallRel H :=
+  fun s a us r => G s a us ∧ C s a us r
+
 /-- **Soundness of a call oracle for Core 3.0**: every answer of `C` for a Wasm-typed function
 is a Core run of the call (`ref.func a; call_ref`) on its arguments, in any caller frame, to
 the corresponding result: the top `rs.length` results (reversed into stack order), a trap, or a
