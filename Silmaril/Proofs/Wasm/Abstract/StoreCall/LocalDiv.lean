@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Abstract.StoreCall.Descent
 public import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Inf
+public import Silmaril.Proofs.Wasm.Abstract.StoreBody.Invoke
 
 /-!
 Proofs for `Silmaril.Wasm.Abstract.StoreCall.Thms`: local divergence. An
@@ -849,5 +850,95 @@ theorem exposed_of_localDiv {s : Store H} {f : Frame} {stk : List Val} {es : Lis
         rw [hN0]
         refine ⟨cs ++ [⟨mm, out⟩], e'.1, by simp [hl], hAns, ?_⟩
         simpa using pend_of_treach hr' (Pend.here hv)
+
+/-! ## Silent divergence against terminating runs -/
+
+/-- Two finished paths of one tree with `closedCall`-answered events end alike
+(answers are functional). -/
+theorem path_unique {X : Type 1} {t : Tree (SigEv (CallSig H)) X} {cs₁ : List (Call (CallSig H))}
+    {e₁ : PathEnd X} (h₁ : Path t cs₁ e₁) :
+    ∀ {cs₂ : List (Call (CallSig H))} {e₂ : PathEnd X}, Path t cs₂ e₂ →
+      Answered closedCall cs₁ → Answered closedCall cs₂ → e₁ = e₂ := by
+  induction h₁ with
+  | ret ht => intro _ _ h₂ _ _; exact ((path_ret_inv ht h₂).2).symm
+  | div ht => intro _ _ h₂ _ _; rw [ht] at h₂; exact ((path_diverge_inv h₂).2).symm
+  | @vis t R e k n cs r ht hp ih =>
+    intro cs₂ e₂ h₂ hA hA'
+    rw [ht] at h₂
+    obtain ⟨n', cs', rfl, hp'⟩ := Silmaril.Wasm.Abstract.BodyTrace.path_vis_inv h₂
+    have e1 := hA _ (List.mem_cons_self ..)
+    have e2 := hA' _ (List.mem_cons_self ..)
+    have hn : n = n' := by
+      have := closedCall_fun e1 e2
+      have h3 := congrArg (cast e.2) this
+      simpa using h3
+    subst hn
+    exact ih hp' (fun c hc => hA c (List.mem_cons_of_mem _ hc))
+      (fun c hc => hA' c (List.mem_cons_of_mem _ hc))
+
+/-- A call whose body evaluates has no silent exposed divergence. -/
+theorem not_silent_of_eval {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {r : Store H × Frame × Flow} (hev : Eval s f stk es r) {cs : List (Call (CallSig H))}
+    (hA : Answered closedCall cs)
+    (hp : Path (run' (denListC callEv es f stk : M (CallSig H) H Res) ⟨s⟩) cs .div) : False := by
+  obtain ⟨cs', hA', hp'⟩ := eval_path' hev
+  have := path_unique hp hp' hA hA'
+  cases r with
+  | mk s' rest =>
+    obtain ⟨f', fl⟩ := rest
+    cases fl <;> simp [endR] at this
+
+/-- A call whose body evaluates has no infinite exposed run. -/
+theorem not_inf_of_eval {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {r : Store H × Frame × Flow} (hev : Eval s f stk es r) (hp : ProdE s f stk es) : False :=
+  notEval_of_localDiv (localDiv_of_prod hp) hev
+
+/-- Descents from an evaluating call reach evaluating calls. -/
+theorem eval_of_bodyReach {x y : (wasmOShape H).self.Op} (h : BodyReach x y)
+    (hx : ∃ fi fn r, x.2.2.funcs[x.1]? = some fi ∧ fi.code = .wasm fn ∧
+      Eval x.2.2 (Frame.forCall fi.module x.2.1 fn.locals) [] (liftInstrs fn.body) r) :
+    ∃ fi fn r, y.2.2.funcs[y.1]? = some fi ∧ fi.code = .wasm fn ∧
+      Eval y.2.2 (Frame.forCall fi.module y.2.1 fn.locals) [] (liftInstrs fn.body) r := by
+  obtain ⟨fi, fn, hfi, hcode, hR⟩ := h
+  obtain ⟨fi', fn', r, hfi', hcode', hev⟩ := hx
+  rw [hfi] at hfi'; cases hfi'
+  rw [hcode] at hcode'; cases hcode'
+  obtain ⟨out, hout⟩ := reach_eval_call hR hev
+  rw [closedCall_eq] at hout
+  obtain ⟨fi₂, fn₂, ps, rs, f₂, hf₂, hc₂, -, hb⟩ := hout
+  exact ⟨fi₂, fn₂, _, hf₂, hc₂, hb⟩
+
+theorem eval_of_bodyPath {x z : (wasmOShape H).self.Op} (h : BodyPath x z)
+    (hx : ∃ fi fn r, x.2.2.funcs[x.1]? = some fi ∧ fi.code = .wasm fn ∧
+      Eval x.2.2 (Frame.forCall fi.module x.2.1 fn.locals) [] (liftInstrs fn.body) r) :
+    ∃ fi fn r, z.2.2.funcs[z.1]? = some fi ∧ fi.code = .wasm fn ∧
+      Eval z.2.2 (Frame.forCall fi.module z.2.1 fn.locals) [] (liftInstrs fn.body) r := by
+  induction h with
+  | refl => exact hx
+  | step hr _ ih => exact ih (eval_of_bodyReach hr hx)
+
+/-- A terminating native invocation evaluates its body. -/
+theorem eval_of_invokeRun {s : Store H} {a : Nat} {vs : List Val} {fuel : Nat}
+    {r : Store H × Flow} (hF : NativeFuncsOk s.funcs) (h : invokeRun fuel s a vs = some r) :
+    ∃ fi fn r', s.funcs[a]? = some fi ∧ fi.code = .wasm fn ∧
+      Eval s (Frame.forCall fi.module vs fn.locals) [] (liftInstrs fn.body) r' := by
+  cases hfi : s.funcs[a]? with
+  | none =>
+    rw [Silmaril.Proofs.Wasm.Abstract.StoreBody.invokeRun_none
+      (fun _ _ _ _ h' => by rw [hfi] at h'; cases h')] at h
+    cases h
+  | some fi =>
+    obtain ⟨fn, hcode, -⟩ := hF fi (List.mem_of_getElem? hfi)
+    cases hty : Validation.DefType.funcType? fi.type with
+    | none =>
+      rw [Silmaril.Proofs.Wasm.Abstract.StoreBody.invokeRun_none
+        (fun _ _ _ _ h' _ ht' => by rw [hfi] at h'; cases h'; rw [hty] at ht'; cases ht')] at h
+      cases h
+    | some p =>
+      obtain ⟨ps, rs⟩ := p
+      rw [Silmaril.Proofs.Wasm.Abstract.StoreBody.invokeRun_of hfi hcode hty] at h
+      cases hr : run fuel s (Frame.forCall fi.module vs fn.locals) [] (liftInstrs fn.body) with
+      | none => rw [hr] at h; cases h
+      | some r' => exact ⟨fi, fn, r', rfl, hcode, eval_of_run hr⟩
 
 end Silmaril.Proofs.Wasm.Abstract.StoreCall

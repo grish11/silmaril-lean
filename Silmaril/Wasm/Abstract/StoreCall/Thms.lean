@@ -61,12 +61,22 @@ events of `CallSig H`:
   exposed body diverges silently or runs forever answered, or an infinite chain)
   and `core_diverges_of_exposed` (the productive and chain cases ⇒ divergence).
 
-**Not yet.** The converse for *silent* exposed divergence: the exposed body
-diverges silently also at configurations the interpreter is stuck on (no
-`Eval` and no `EvalDiv`), so `ExposedSilent` alone does not give `LocalDiv`
-without typed progress at this layer. Also not covered: `try_table` (F5),
-imports (host events), indirect calls and tail calls (only direct `call` is
-exposed).
+* **Silent divergence, on typed stores.** On typed (`InvokeOk`), native,
+  arity-checked stores, *silent* exposed divergence is not a stuck
+  configuration: `core_diverges_iff_exposed_local` is the exact statement,
+  Core 3.0 divergence ⇔ finitely many exposed descents to a call whose exposed
+  body diverges silently (after answered events) **or** runs forever answered
+  (infinitely many returning calls), or an infinite exposed chain. The silent
+  case is proved against typed progress of the native interpreter
+  (`Interp.funDiv_iff_invokeRun_none`): a terminating invocation evaluates every
+  descendant call's body (`reach_eval_call`), and an evaluating body has no
+  silent exposed divergence (answers are functional, so its finished answered
+  paths are unique).
+
+**Not yet.** At the level of arbitrary (untyped) problems, silent exposed
+divergence also covers stuck configurations, so it is not `LocalDiv` there.
+Also not covered: `try_table` (F5), imports (host events), indirect calls and
+tail calls (only direct `call` is exposed).
 -/
 
 public section
@@ -316,5 +326,39 @@ theorem core_diverges_of_exposed {s : Store H} {a : Nat} {vs : List Val} (hs : S
   rcases h with ⟨z, hp, hz⟩ | hc
   · exact .inl ⟨z, hp, wasmLocalDiv_of_exposedInf hz⟩
   · exact .inr hc
+
+/-- **Core 3.0 divergence, exactly, on exposed bodies.** On a typed invocation of
+a native, arity-checked store, at every profile: the invocation diverges exactly
+when finitely many exposed descents reach a call whose exposed body diverges
+silently (no unanswered call) or has an infinite run answered by `closedCall`
+(infinitely many returning calls), or an infinite chain of exposed descents
+starts at it. -/
+theorem core_diverges_iff_exposed_local {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+    (hF : NativeFuncsOk s.funcs) (hS : Silmaril.Wasm.Interp.StoreChk s.funcs)
+    (hok : InvokeOk s a vs) (P : Numerics.Profile) :
+    Diverges P closedHost (invoke s a vs) ↔
+      (∃ z, ExposedPath ⟨a, (vs, s)⟩ z ∧ (ExposedSilent z ∨ ExposedInf z)) ∨
+        ∃ g : Nat → (wasmOShape H).self.Op, g 0 = ⟨a, (vs, s)⟩ ∧
+          ∀ n, ExposedReach (g n) (g (n + 1)) := by
+  refine ⟨core_diverges_exposed hs hF hS hok P, fun h => ?_⟩
+  rcases h with ⟨z, hp, hsil | hinf⟩ | hc
+  · by_contra hnd
+    have hnf : ¬ Silmaril.Wasm.Interp.FunDiv s a vs :=
+      fun hd => hnd ((Silmaril.Wasm.Interp.core_diverges_iff_funDiv hs hF hS hok P).2 hd)
+    rw [Silmaril.Wasm.Interp.funDiv_iff_invokeRun_none hs hF hS hok] at hnf
+    push Not at hnf
+    obtain ⟨fuel, hfuel⟩ := hnf
+    obtain ⟨r, hr⟩ := Option.ne_none_iff_exists'.1 hfuel
+    obtain ⟨fi, fn, r', hfi, hcode, hev⟩ :=
+      Silmaril.Proofs.Wasm.Abstract.StoreCall.eval_of_invokeRun hF hr
+    obtain ⟨fi₂, fn₂, r₂, hfi₂, hcode₂, hev₂⟩ :=
+      Silmaril.Proofs.Wasm.Abstract.StoreCall.eval_of_bodyPath (bodyPath_iff_exposed.2 hp)
+        ⟨fi, fn, r', hfi, hcode, hev⟩
+    obtain ⟨fi₃, fn₃, hfi₃, hcode₃, cs, hA, hpath⟩ := hsil
+    rw [hfi₂] at hfi₃; cases hfi₃
+    rw [hcode₂] at hcode₃; cases hcode₃
+    exact Silmaril.Proofs.Wasm.Abstract.StoreCall.not_silent_of_eval hev₂ hA hpath
+  · exact core_diverges_of_exposed hs hF hS hok P (.inl ⟨z, hp, hinf⟩)
+  · exact core_diverges_of_exposed hs hF hS hok P (.inr hc)
 
 end Silmaril.Wasm.Abstract.StoreCall
