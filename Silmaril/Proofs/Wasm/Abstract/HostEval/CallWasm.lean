@@ -271,16 +271,22 @@ theorem back_op_call {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} {f 
                 ⟨s₂, f₁, vals (vs.take rs.length ++ stk₁.drop ps.length).reverse ++
                   expression (Binaryen.BExpr.lowerList es)⟩ c) ∨
             (fl = .trap ∧ EndsAs (s₂, f₁, .trap) c)))
-    (ihes : ∀ s₂ f₁ stk₂ m, m ≤ n →
+    (ihes : ∀ (s₁ : Store H) (f₁ : Frame) (stk₁ : List Val) (a : Nat) (fi : FuncInst H)
+      (ps rs : List Validation.CValType) (s₂ : Store H) (fl : Binaryen.Flow) (vs : List Val)
+      (m : Nat), m ≤ n → EvalH host s f stk args (s₁, f₁, .normal stk₁) →
+      s₁.func? f₁ x = some (a, fi) → Validation.DefType.funcType? fi.type = some (ps, rs) →
+      hostCall host s₁ a (stk₁.take ps.length).reverse (s₂, fl) → fl.retVals = some vs →
       StepsN (SingleThreaded.profile o) host m
-        ⟨s₂, f₁, vals stk₂.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ c →
-      BackOut host s₂ f₁ stk₂ es c) :
+        ⟨s₂, f₁, vals (vs.take rs.length ++ stk₁.drop ps.length).reverse ++
+          expression (Binaryen.BExpr.lowerList es)⟩ c →
+      BackOut host s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es c) :
     BackOut host s f stk (.op (.call x) args :: es) c := by
   refine back_op_args hrun hend ihargs fun s₁ f₁ stk₁ m hm hev hrun₁ => ?_
   rcases hcase s₁ f₁ stk₁ m hm hev hrun₁ with hpend |
       ⟨a, fi, ps, rs, s₂, fl, hfi, hty, hcall, ⟨vs, m', hm', hvs, hk⟩ | ⟨rfl, hends⟩⟩
   · exact .inr hpend
-  · rcases ihes s₂ f₁ _ m' hm' hk with ⟨r, hev', hr⟩ | hp'
+  · rcases ihes s₁ f₁ stk₁ a fi ps rs s₂ fl vs m' hm' hev hfi hty hcall hvs hk with
+        ⟨r, hev', hr⟩ | hp'
     · exact .inl ⟨r, .callOk hev hfi hty hcall hvs hev', hr⟩
     · exact .inr hp'
   · exact .inl ⟨_, .callTrap hev hfi hty hcall, hends⟩

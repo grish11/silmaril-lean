@@ -551,16 +551,18 @@ theorem back_block_tree {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} 
       BackOut host s f (stk.take np) body cb)
     (hblk : ∀ r, EvalH host s f (stk.take np) body r → ∀ vs, r.2.2.blockVals = some vs →
       nr ≤ vs.length ∧ ∀ ws, r.2.2 = .normal ws → ws.length = nr)
-    (ihes : ∀ s₁ f₁ stk₁ m, m ≤ n →
+    (ihes : ∀ s₁ f₁ fl vs m, m ≤ n → EvalH host s f (stk.take np) body (s₁, f₁, fl) →
+      fl.blockVals = some vs →
       StepsN (SingleThreaded.profile o) host m
-        ⟨s₁, f₁, vals stk₁.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ c →
-      BackOut host s₁ f₁ stk₁ es c) :
+        ⟨s₁, f₁, vals (vs.take nr ++ stk.drop np).reverse ++
+          expression (Binaryen.BExpr.lowerList es)⟩ c →
+      BackOut host s₁ f₁ (vs.take nr ++ stk.drop np) es c) :
     BackOut host s f stk (.block bt body :: es) c := by
   rw [Interp.code_block] at hrun
   rcases back_block har hp hrun hend ihbody hblk with hpend |
       ⟨s₁, f₁, fl, hev, ⟨vs, m, hm, hvs, hk⟩ | ⟨k, vs, rfl, hends⟩ | ⟨hesc, hends⟩⟩
   · exact .inr hpend
-  · rcases ihes s₁ f₁ _ m hm hk with ⟨r, hev', hr⟩ | hp'
+  · rcases ihes s₁ f₁ fl vs m hm hev hvs hk with ⟨r, hev', hr⟩ | hp'
     · exact .inl ⟨r, .blockOk har hev hvs hev', hr⟩
     · exact .inr hp'
   · exact .inl ⟨_, .blockBrk har hev, hends⟩
@@ -726,25 +728,26 @@ theorem back_loop_tree {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} {
       BackOut host s f (stk.take np) body cb)
     (hlp : ∀ r, EvalH host s f (stk.take np) body r →
       (∀ ws, r.2.2 = .normal ws → ws.length = nr) ∧ ∀ vs, r.2.2 = .brk 0 vs → np ≤ vs.length)
-    (ihes : ∀ s₁ f₁ stk₁ m, m < n →
+    (ihes : ∀ s₁ f₁ vs m, m < n → EvalH host s f (stk.take np) body (s₁, f₁, .normal vs) →
       StepsN (SingleThreaded.profile o) host m
-        ⟨s₁, f₁, vals stk₁.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ c →
-      BackOut host s₁ f₁ stk₁ es c)
-    (ihloop : ∀ s₁ f₁ stk₁ m, m < n →
+        ⟨s₁, f₁, vals (vs.take nr ++ stk.drop np).reverse ++
+          expression (Binaryen.BExpr.lowerList es)⟩ c →
+      BackOut host s₁ f₁ (vs.take nr ++ stk.drop np) es c)
+    (ihloop : ∀ s₁ f₁ vs m, m < n → EvalH host s f (stk.take np) body (s₁, f₁, .brk 0 vs) →
       StepsN (SingleThreaded.profile o) host m
-        ⟨s₁, f₁, vals stk₁.reverse ++
+        ⟨s₁, f₁, vals (vs.take np ++ stk.drop np).reverse ++
           expression (Binaryen.BExpr.lowerList (.loop bt body :: es))⟩ c →
-      BackOut host s₁ f₁ stk₁ (.loop bt body :: es) c) :
+      BackOut host s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) c) :
     BackOut host s f stk (.loop bt body :: es) c := by
   rw [Interp.code_loop] at hrun
   rcases back_loop har hp hrun hend ihbody hlp with hpend |
       ⟨s₁, f₁, fl, hev, ⟨vs, m, hm, rfl, hk⟩ | ⟨vs, m, hm, rfl, hk⟩ | ⟨k, vs, rfl, hends⟩ |
         ⟨hesc, hends⟩⟩
   · exact .inr hpend
-  · rcases ihes s₁ f₁ _ m hm hk with ⟨r, hev', hr⟩ | hp'
+  · rcases ihes s₁ f₁ vs m hm hev hk with ⟨r, hev', hr⟩ | hp'
     · exact .inl ⟨r, .loopOk har hev hev', hr⟩
     · exact .inr hp'
-  · rcases ihloop s₁ f₁ _ m hm (by rw [Interp.code_loop]; exact hk) with ⟨r, hev', hr⟩ | hp'
+  · rcases ihloop s₁ f₁ vs m hm hev (by rw [Interp.code_loop]; exact hk) with ⟨r, hev', hr⟩ | hp'
     · exact .inl ⟨r, .loopBack har hev hev', hr⟩
     · exact .inr hp'
   · exact .inl ⟨_, .loopBrk har hev, hends⟩
@@ -841,17 +844,24 @@ theorem back_if_tree {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} {f 
         (∀ r, EvalH host s₁ f₁ (stk₁.take np) (if b then t else el) r →
           ∀ vs, r.2.2.blockVals = some vs → nr ≤ vs.length ∧
             ∀ ws, r.2.2 = .normal ws → ws.length = nr))
-    (iharm : ∀ (s₁ : Store H) (f₁ : Frame) (stk₁ : List Val) (b : Bool) (np : Nat) (m : Nat),
-      m ≤ n → ∀ cb,
+    (iharm : ∀ (s₁ : Store H) (f₁ : Frame) (cv : Val) (stk₁ : List Val) (b : Bool) (np nr : Nat)
+      (m : Nat), m ≤ n → EvalH host s f stk cnd (s₁, f₁, .normal (cv :: stk₁)) →
+      Binaryen.truthy cv = some b → Binaryen.arity f₁ bt = some (np, nr) → ∀ cb,
       StepsN (SingleThreaded.profile o) host m
         ⟨s₁, f₁, vals (stk₁.take np).reverse ++
           expression (Binaryen.BExpr.lowerList (if b then t else el))⟩ cb →
       (∀ c', ¬ Step (SingleThreaded.profile o) host cb c') →
       BackOut host s₁ f₁ (stk₁.take np) (if b then t else el) cb)
-    (ihes : ∀ s₂ f₂ stk₂ m, m ≤ n →
+    (ihes : ∀ (s₁ : Store H) (f₁ : Frame) (cv : Val) (stk₁ : List Val) (b : Bool) (np nr : Nat)
+      (s₂ : Store H) (f₂ : Frame) (fl : Binaryen.Flow) (vs : List Val) (m : Nat), m ≤ n →
+      EvalH host s f stk cnd (s₁, f₁, .normal (cv :: stk₁)) → Binaryen.truthy cv = some b →
+      Binaryen.arity f₁ bt = some (np, nr) →
+      EvalH host s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl) →
+      fl.blockVals = some vs →
       StepsN (SingleThreaded.profile o) host m
-        ⟨s₂, f₂, vals stk₂.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ c →
-      BackOut host s₂ f₂ stk₂ es c) :
+        ⟨s₂, f₂, vals (vs.take nr ++ stk₁.drop np).reverse ++
+          expression (Binaryen.BExpr.lowerList es)⟩ c →
+      BackOut host s₂ f₂ (vs.take nr ++ stk₁.drop np) es c) :
     BackOut host s f stk (.if_ bt cnd t el :: es) c := by
   rw [Interp.code_if] at hrun
   rcases back_prefix (by simp) hrun hend ihcond with hpend | ⟨r₁, hev, hn, hends⟩ |
@@ -864,10 +874,12 @@ theorem back_if_tree {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} {f 
       (el := el) (rest := expression (Binaryen.BExpr.lowerList es)) hb
     obtain ⟨m₁, hm₁, hrun₂⟩ := stepsN_through hrun₁ hend hd
     rcases back_block har hp hrun₂ hend
-        (fun m' hm' cb h hs => iharm s₁ f₁ stk₁ b np m' (by omega) cb h hs) hblk with hpend |
+        (fun m' hm' cb h hs => iharm s₁ f₁ cv stk₁ b np nr m' (by omega) hev hb har cb h hs) hblk with
+      hpend |
       ⟨s₂, f₂, fl, hevb, ⟨vs, m', hm', hvs, hk⟩ | ⟨k, vs, rfl, hends⟩ | ⟨hesc, hends⟩⟩
     · exact .inr hpend
-    · rcases ihes s₂ f₂ _ m' (by omega) hk with ⟨r, hev', hr⟩ | hp'
+    · rcases ihes s₁ f₁ cv stk₁ b np nr s₂ f₂ fl vs m' (by omega) hev hb har hevb hvs hk with
+          ⟨r, hev', hr⟩ | hp'
       · exact .inl ⟨r, .ifOk hev hb har hevb hvs hev', hr⟩
       · exact .inr hp'
     · exact .inl ⟨_, .ifBrk hev hb har hevb, hends⟩
