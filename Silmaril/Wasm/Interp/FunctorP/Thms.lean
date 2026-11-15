@@ -31,6 +31,24 @@ memory before trapping). This is soundness of the equational theory for the **cl
 deterministic, no-host** setting only: the oracle is the closure `closedCallXP`. Host calls,
 observations of host interaction and infinite traces (`HostSquare`, `HostClosingInf`) are out of
 scope here (another owner).
+
+**Hosts: the bridge to H2 is not yet proved.** The H2 square (`Abstract.HostSquare.hostSquare`,
+`hostSquare_profile`, #527/#528) is stated for the native checker (`Interp.StoreChk`: no extended
+call forms), hosts in `Interp.NativeHostSlice` (no host exceptions) and
+`EvalH = EvalO (hostCall host)` (direct calls), so it does **not** cover the canonical `CallXP`
+semantics with exceptions and pending tail calls. The missing bridge, precisely:
+1. a host oracle for `CallXP.EvalOXP` (callees by body with pending tails answered at the frame,
+   host callees by the host, including a tail call to a host function) and its soundness for
+   `ehExt` (`OracleSoundTE … true`, `OracleThrowsE`, `OracleTagsE`), generalizing
+   `Interp.hostCall_sound`/`evalH_good`;
+2. the logged host observations of `EvalOXP` (the call-log observations `FunctorP.EvalLXP`,
+   `ReachXP` at the host oracle) and their square with `CoreObsL` on
+   `StoreChkE (ehExt tags)` stores;
+3. coincidence with H2's `NatObs` on stores the native checker accepts (via
+   `CallXP.evalOXP_iff_evalOXE` and `CallX.EvalOX.of_evalO`).
+The generic observation-pair structure (`FullObs`, `PInf`, coherent productive paths and their
+laws) is the H2 owner's; this module provides only the concrete denotation, its checked category
+and the closed corollaries.
 -/
 
 public section
