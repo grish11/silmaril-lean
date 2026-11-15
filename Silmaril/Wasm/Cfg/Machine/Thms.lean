@@ -24,8 +24,15 @@ import Silmaril.Proofs.Wasm.Cfg.Machine
   `seqAt body seq`), `restAt_cons`, `restAt_zero`, and `fall_sound`/`fall_complete` (a
   fall-through step agrees with `Region.Run` on the rest of the sequence).
 
-These are graph facts, true by construction of `MStep` from `entry`/`labels`/`resolveT`.
-Adequacy of the machine for `Region.Run` and Core 3.0 is the next obligation, not claimed here.
+* Loop re-entry: label frames carry their block type (`LFrame.bt`); a branch to a `loop` label
+  checks at run time that it resolves to the label's arity of parameters. Under frame coherence
+  (`FramesOk`: each frame describes the structured instruction at its level),
+  `br_loop_step_sound`/`brIfTaken_loop_step_sound` prove re-entry sound, and
+  `levelLoop_of_framesOk` discharges the CFG side condition of the non-loop branch theorems.
+
+`mstep_edge` is a graph fact, true by construction of `MStep` from `entry`/`labels`/`resolveT`.
+The step soundness theorems are per step: preservation of `FramesOk`, whole-run soundness,
+completeness and handler catching are not claimed here.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -93,7 +100,7 @@ theorem enter_block_sound {b : BlockId} {sg : Segment} {c c' : List Instr} {bt :
     (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
     (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
     (hX : codeAt body b stk ls = some X)
-    (hX' : codeAt body ⟨b.seq ++ [(b.idx, 0)], 0⟩ us (⟨t₂.length, ws, false, false, []⟩ :: ls) =
+    (hX' : codeAt body ⟨b.seq ++ [(b.idx, 0)], 0⟩ us (⟨t₂.length, ws, false, false, [], bt⟩ :: ls) =
       some X')
     {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
     Region.Run P host s₁ f₁ [] X' s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
@@ -113,7 +120,7 @@ theorem enter_sound {b : BlockId} {sg : Segment} {c c' : List Instr} {i : Instr}
     (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
     (hX : codeAt body b stk ls = some X)
     (hX' : codeAt body ⟨b.seq ++ [(b.idx, a)], 0⟩ us
-      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls) = some X')
+      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) = some X')
     {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
     Region.Run P host s₁ f₁ [] X' s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.enter_sound hc hsg ht harm hkind hr hcond hbt hm hX hX'
@@ -205,9 +212,50 @@ theorem enter_empty_sound {b : BlockId} {sg : Segment} {c : List Instr} {i : Ins
     (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (contRev body ((b.idx, a) :: b.seq.reverse)) (b.seq.length + 1)
-      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls) us s₁ f₁) = some Y)
+      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁) = some Y)
     {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.enter_empty_sound hc hsg ht harm hkind hr hcond hbt hm hX hY
+
+/-! ## Loop re-entry and frame coherence -/
+
+/-- **Under coherent frames** (`FramesOk`), the CFG's `loop` flag of an enclosing level is the
+frame's: this discharges the `levelLoop` side condition of `br_step_sound`. -/
+theorem levelLoop_of_framesOk {k : Nat} {rp : List SeqStep} {ls : List LFrame} {L : LFrame}
+    (hok : FramesOk body rp ls) (hL : ls[k]? = some L) : levelLoop body rp k = L.loop :=
+  Proofs.Machine.levelLoop_of_framesOk k rp ls hok hL
+
+/-- **A machine `br` step to a `loop` label is sound for the label invariant** (loop
+re-entry), under coherent frames, with the step's run-time checks: the stack holds the label's
+arity, and the frame's block type resolves to that many parameters (`MStep.br`'s `hlbt`). -/
+theorem br_loop_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame}
+    {t₁ t₂ : List Validation.CValType} {X Y : List Admin} (hb : lookup body b = some sg)
+    (ht : sg.term = some (.br l))
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) (hloop : L.loop = true)
+    (hbt : f₁.module.blockType? L.bt = some (t₁, t₂)) (hlen : t₁.length = L.arity)
+    (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
+      (L :: ls.drop (l.toNat + 1)) (stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.br_loop_step_sound hb ht hr hL harity hloop hbt hlen hok hX hY
+
+/-- **A taken `br_if` to a `loop` label is sound** (loop re-entry), under coherent frames. -/
+theorem brIfTaken_loop_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame}
+    {k : BitVec 32} {t₁ t₂ : List Validation.CValType} {X Y : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
+    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+    (hloop : L.loop = true) (hbt : f₁.module.blockType? L.bt = some (t₁, t₂))
+    (hlen : t₁.length = L.arity) (hok : FramesOk body b.seq.reverse ls)
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
+      (L :: ls.drop (l.toNat + 1)) (stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.brIfTaken_loop_step_sound hb ht hr hk hL harity hloop hbt hlen hok hX hY
 
 end Silmaril.Wasm.Cfg.Machine

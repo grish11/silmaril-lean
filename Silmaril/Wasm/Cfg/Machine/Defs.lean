@@ -13,12 +13,14 @@ public import Silmaril.Wasm.Cfg.Region.Defs
 (`Segment`): its simple body by the region semantics (`Region.Run`, call-free, straight-line),
 then its terminator. The terminator moves to a node computed by the same functions the CFG
 uses (`entry`, `labels`, `resolveT`), so that every machine step follows a `Cfg.Edge`
-(`Machine/Thms.lean`). This is a graph fact only. Agreement of machine runs with `Region.Run`
-and Core 3.0 is a separate obligation and is not proved here.
+(`Machine/Thms.lean`). That is a graph fact only. Agreement with `Region.Run` is proved step by
+step for the label invariant (`codeAt`, below) in `Machine/Thms.lean`; whole-run adequacy is a
+separate obligation.
 
 The data state is the value stack, the store, the frame and a stack of label frames
 (`LFrame`), one per enclosing structured instruction: its branch arity, the values held
-outside it, whether it is a `loop`, and its `catch` clauses. Leaving sequences pops label
+outside it, whether it is a `loop`, its `catch` clauses and its block type (a branch to a
+`loop` re-enters it, looking the block type up again as Core's `loop` rule does). Leaving sequences pops label
 frames as Core's `label-vals` does (`popL`). Exceptions, returns and traps go to the sink nodes
 `raise`, `exit` and `trap`. Catching (handler resolution against `catches`), `br_table`,
 `br_on_*` and calls are not modelled yet.
@@ -43,6 +45,9 @@ structure LFrame where
   tryT : Bool
   /-- The `catch` clauses of a `try_table` (empty otherwise). -/
   catches : List Catch
+  /-- The block type of the structured instruction. A branch to a `loop` label re-enters the
+  `loop`, which looks this block type up again (Core's `loop` rule). -/
+  bt : BlockType
   deriving Repr
 
 /-- A machine state. -/
@@ -109,12 +114,16 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
         (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁)
   /-- `br l`: keep the label's top values; re-enter a loop, or leave the label's sequence. The
   step checks at run time that the stack holds the label's arity (`harity`); on a shorter stack
-  the machine does not step (Core has no branch rule there either). -/
+  the machine does not step (Core has no branch rule there either). Re-entering a `loop` also
+  checks that the frame's block type resolves in the current module with as many parameters as
+  the label's arity (`hlbt`), which Core's `loop` rule needs. -/
   | br {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} {l : LabelIdx} {L : LFrame} (hb : lookup body b = some sg)
       (ht : sg.term = some (.br l))
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-      (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) :
+      (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+      (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
+        t₁.length = L.arity) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩
         (if L.loop then
           goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
@@ -127,7 +136,9 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame} {k : BitVec 32}
       (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
-      (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) :
+      (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+      (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
+        t₁.length = L.arity) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩
         (if L.loop then
           goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
@@ -154,7 +165,7 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩
         (goto (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
-          (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls) us s₁ f₁)
+          (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁)
   /-- `return` leaves the function. -/
   | ret {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .return_)
@@ -257,5 +268,21 @@ def levelLoop (body : Expr) (rp : List SeqStep) (k : Nat) : Bool :=
   match rp.drop k with
   | (m, _) :: rp' => isLoopAt body rp'.reverse m
   | [] => false
+
+end Silmaril.Wasm.Cfg.Machine
+
+namespace Silmaril.Wasm.Cfg.Machine
+
+/-- **Frame coherence**: each label frame describes the structured terminator at its level of
+the (reversed) path: its block type, `loop` and `try_table` flags and `catch` clauses are those
+of that instruction (`StructKind`), and the path's arm exists. The machine's steps preserve it
+(`Machine/Thms.lean`). -/
+def FramesOk (body : Expr) : List SeqStep → List LFrame → Prop
+  | [], [] => True
+  | (m, a) :: rp, L :: ls =>
+    (∃ pc sg t c, seqAt body rp.reverse = some pc ∧ (segment pc)[m]? = some sg ∧
+      sg.term = some t ∧ armOf t a = some c ∧ StructKind t L.bt L.loop L.tryT L.catches) ∧
+    FramesOk body rp ls
+  | _, _ => False
 
 end Silmaril.Wasm.Cfg.Machine
