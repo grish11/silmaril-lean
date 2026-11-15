@@ -3,6 +3,7 @@ module
 public import Silmaril.Proofs.Wasm.Interp.OracleSimX
 public import Silmaril.Proofs.Wasm.Interp.OracleCloseX
 public import Silmaril.Proofs.Wasm.Interp.TypedX
+public import Silmaril.Proofs.Wasm.Interp.TypedCloseX
 
 /-!
 # Core 3.0 adequacy of the indirect and reference calls (F4, call forms)
@@ -34,7 +35,9 @@ the annotated type's counts; it forgets to `EvalOX` (`CallXT.EvalOXT.forget`).
   instance types, bodies without `call_ref` whose indirect calls name instance
   types): `oracleSoundX_closedX`, by least-fixpoint induction. Hence
   `evalOX_closed_good`: closed extended runs are Core 3.0 runs, no oracle
-  assumed. `call_ref` waits on its typed discharge.
+  assumed. For typed runs (`TypedX`), `call_ref` is included in callee bodies too:
+  `oracleSoundX_typedClosed` (the closure, restricted to typed calls, is sound) and
+  `evalOX_closed_typed_good`.
 -/
 
 public section
@@ -93,5 +96,21 @@ theorem evalOX_typed_good {C : Abstract.CallRel H}
     (ht : Silmaril.Wasm.Interp.TypedX s f stk es) :
     ArityGoodE irExt s f stk es r ∧ CoreGoodE irExt P Silmaril.Wasm.Interp.noHostX s f stk es r :=
   Silmaril.Wasm.Interp.evalOXT_goodE hC (Silmaril.Wasm.Interp.evalOXT_of_typed hC hCk h ht)
+
+/-- **The closure is a sound oracle for typed calls** (callee bodies typed in context,
+`TypedEntry`), every call form in callee bodies included. -/
+theorem oracleSoundX_typedClosed :
+    OracleSoundX P Silmaril.Wasm.Interp.noHostX
+      (Silmaril.Wasm.Interp.CX (Abstract.XRecursion.closedCallX : Abstract.CallRel H)) :=
+  Silmaril.Wasm.Interp.oracleSoundX_typedClosed
+
+/-- **Typed closed extended runs are Core 3.0 runs**: `call_indirect` and `call_ref` in the
+running code and in every callee, no oracle assumed. -/
+theorem evalOX_closed_typed_good {s : Store H} {f : Frame} {stk : List Val}
+    {es : List Binaryen.BExpr} {r : Store H × Frame × Binaryen.Flow}
+    (h : Abstract.CallX.EvalOX Abstract.XRecursion.closedCallX s f stk es r)
+    (ht : Silmaril.Wasm.Interp.TypedX s f stk es) :
+    ArityGoodE irExt s f stk es r ∧ CoreGoodE irExt P Silmaril.Wasm.Interp.noHostX s f stk es r :=
+  Silmaril.Wasm.Interp.evalOX_closed_typed_good h ht
 
 end Silmaril.Wasm.Interp.OracleX

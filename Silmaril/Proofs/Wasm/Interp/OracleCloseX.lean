@@ -115,18 +115,16 @@ def SoundAns (P : Numerics.Profile) (host : HostSemantics H) (s : Store H) (a : 
         ⟨s, f, vals us ++ [.ref (.func a), c]⟩ ⟨out.1, f, vals (vs.take rs.length).reverse⟩) ∧
       (out.2 = .trap → Steps P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ ⟨out.1, f, [.trap]⟩)
 
-/-- **A callee whose body runs soundly answers soundly.** -/
-theorem soundAns_of_body {C : Abstract.CallRel H} (hC : OracleSoundX P host C)
-    (hCk : KeepsTy C) {s s₂ : Store H} {a : Nat} {us : List Val} {fi : FuncInst H} {fn : Func}
-    {f₂ : Frame} {fl : Binaryen.Flow} (hG : GoodStoreX s) (hfi : s.funcs[a]? = some fi)
+/-- **A callee whose body has a sound `EvalOXT` run answers soundly.** -/
+theorem soundAns_of_bodyT {C : Abstract.CallRel H} (hC : OracleSoundX P host C)
+    {s s₂ : Store H} {a : Nat} {us : List Val} {fi : FuncInst H} {fn : Func}
+    {f₂ : Frame} {fl : Binaryen.Flow} (hfi : s.funcs[a]? = some fi)
     (hcode : fi.code = .wasm fn)
-    (d : EvalOX C s (Frame.forCall fi.module us fn.locals) [] (Binaryen.liftInstrs fn.body)
+    (dT : EvalOXT C s (Frame.forCall fi.module us fn.locals) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, fl)) :
     SoundAns P host s a us (s₂, fl) := by
   intro f fi' ps rs c hS hfi' hty hn hcr
   rw [hfi] at hfi'; cases hfi'
-  obtain ⟨hTm, hind⟩ := hG.2 a fi fn hfi hcode
-  have dT := evalOXT_of_evalOX_ind hCk d hG.1 hTm hind
   obtain ⟨hA, hCore⟩ := evalOXT_goodE (P := P) (host := host) hC dT
   -- the body's check
   have hend := hS a fi fn ps rs hfi hcode hty
@@ -169,6 +167,17 @@ theorem soundAns_of_body {C : Abstract.CallRel H} (hC : OracleSoundX P host C)
         ⟨s₂, f, [.trap]⟩ :=
       (Relation.ReflTransGen.single (Step.ctxtFrame Step.trapLabel)).tail Step.trapFrame
     exact enter.trans (inner.trans out)
+
+/-- **A callee whose body runs soundly answers soundly.** -/
+theorem soundAns_of_body {C : Abstract.CallRel H} (hC : OracleSoundX P host C)
+    (hCk : KeepsTy C) {s s₂ : Store H} {a : Nat} {us : List Val} {fi : FuncInst H} {fn : Func}
+    {f₂ : Frame} {fl : Binaryen.Flow} (hG : GoodStoreX s) (hfi : s.funcs[a]? = some fi)
+    (hcode : fi.code = .wasm fn)
+    (d : EvalOX C s (Frame.forCall fi.module us fn.locals) [] (Binaryen.liftInstrs fn.body)
+      (s₂, f₂, fl)) :
+    SoundAns P host s a us (s₂, fl) := by
+  obtain ⟨hTm, hind⟩ := hG.2 a fi fn hfi hcode
+  exact soundAns_of_bodyT hC hfi hcode (evalOXT_of_evalOX_ind hCk d hG.1 hTm hind)
 
 /-- **The closure on good stores is a sound oracle**, for every `call_ref` form. -/
 theorem oracleSoundX_closedX : OracleSoundX P host (closedX (H := H)) := by
