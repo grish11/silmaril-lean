@@ -23,6 +23,12 @@ block type, `if` and `try_table` included).
 It is a **conservative** extension: every `EvalOX` run is an `EvalOXE` run (`EvalOXE.of_evalOX`),
 and on code without `throw`, `throw_ref` and `try_table` the two are the same
 (`Silmaril.Wasm.Abstract.CallXE.Thms`).
+
+**Caveat: tail calls inside handlers.** The `tail` rule (from `EvalOX`) answers a tail call where it
+is made; under a `try_table` the tail callee's exception is then caught by `tryCatch`, unlike
+Core 3.0, where the tail call leaves the handler first. The faithful relation is
+`Silmaril.Wasm.Abstract.CallXP.EvalOXP` (pending tail calls, answered at the frame); the two agree
+on code without the extended call forms.
 -/
 
 @[expose] public section

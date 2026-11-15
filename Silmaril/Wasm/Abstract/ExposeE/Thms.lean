@@ -26,6 +26,13 @@ Exactness:
 * `path_evalOXE`: conversely, every finished answered path is an `EvalOXE C` derivation;
 * so `evalOXE_iff` (non-trap outcomes) and `evalOXE_trap_iff` (traps);
 * `denListXE_eq_denListX`: on exception-free code (`ehFreeL`) the body is `CallX`'s.
+
+**Caveat: tail calls inside handlers.** This exposure is exact for `CallXE.EvalOXE`, whose `tail`
+rule answers a tail call where it is made, so under a `try_table` a tail callee's exception is
+caught. Core 3.0 leaves the handler first (`return_call_ref-handler`). The faithful semantics is
+`Silmaril.Wasm.Abstract.CallXP` (pending tail calls, answered when the frame is left), which agrees
+with `EvalOXE` on code without the extended call forms (`CallXP.evalOXP_iff_evalOXE`). This
+exposure is not the general functor's denotation; a pending-tail exposure is to follow.
 -/
 
 public section
