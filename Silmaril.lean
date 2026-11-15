@@ -74,6 +74,7 @@ public import Silmaril.Semantics.Accept.Order.Thms
 public import Silmaril.Semantics.Accept.Bounded.Thms
 public import Silmaril.Semantics.Accept.Items.Thms
 public import Silmaril.Semantics.Accept.Thms
+public import Silmaril.Semantics.Acceptors.Thms
 public import Silmaril.Semantics.Behaviour.Thms
 public import Silmaril.Semantics.Categories.Thms
 public import Silmaril.Semantics.Elgot.Thms
