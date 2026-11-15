@@ -105,4 +105,30 @@ theorem select_not_saturated (C : Context) (a b c : BExpr)
     (BExpr.op (.select none) [a, b, c]).saturated C = false := by
   simp [BExpr.saturated, inferList, ha, hb, hc, botInstr, flatArity]
 
+/-- **Arity of recognised operators.** An instruction recognised by
+`ofInstr?` as a native, non-`select` fragment operator (other than `br_if`,
+whose arity depends on the label) either never completes, or has
+`flatArity` equal to the number of its operand trees. -/
+theorem ofInstr_arity (C : Context) {i : Instr} {es : List SSA.Expr} {e : SSA.Expr}
+    (h : SSA.ofInstr? i es = some e)
+    (hnat : ∀ o args, e = .op o args → o.native = true ∧ o ≠ .select)
+    (hbr : ∀ l, i ≠ .brIf l) :
+    botInstr i = true ∨ (botInstr i = false ∧ flatArity C i = some es.length) := by
+  unfold SSA.ofInstr? at h
+  split at h <;> simp_all [botInstr, flatArity]
+  all_goals (subst h; first | exact absurd rfl (hnat _ _ rfl).2 | simp [SSA.Op.native] at hnat)
+
+/-- **Results of recognised operators.** With the locals it reads present in the
+context, a recognised native non-`select` operator other than `br_if` that
+completes has inferable results. -/
+theorem ofInstr_results (C : Context) {i : Instr} {es : List SSA.Expr} {e : SSA.Expr}
+    (h : SSA.ofInstr? i es = some e)
+    (hnat : ∀ o args, e = .op o args → o.native = true ∧ o ≠ .select)
+    (hbr : ∀ l, i ≠ .brIf l)
+    (hloc : ∀ x, (i = .localGet x ∨ i = .localTee x) → (C.locals[x.toNat]?).isSome) :
+    botInstr i = true ∨ ∃ rs, flatResults C i = some rs := by
+  unfold SSA.ofInstr? at h
+  split at h <;> simp_all [botInstr, flatResults]
+  all_goals (subst h; first | exact absurd rfl (hnat _ _ rfl).2 | simp [SSA.Op.native] at hnat)
+
 end Silmaril.Proofs.Wasm.Abstract.FragBody
