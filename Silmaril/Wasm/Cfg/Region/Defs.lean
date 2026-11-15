@@ -375,3 +375,28 @@ def AtomTerm (P : Profile) (host : HostSemantics H) : Prop :=
       Acc (fun a b => Step P host b a) (⟨s, f, vals vs ++ [.plain i]⟩ : Config H)
 
 end Silmaril.Wasm.Cfg.Region
+
+/-! ## Runs along the basic blocks of a sequence -/
+
+namespace Silmaril.Wasm.Cfg.Region
+
+open Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
+
+variable {H : Type}
+
+/-- A run along a list of basic blocks (`Cfg.Segment`): each block runs (`Run` of its
+instructions); falling through moves to the next block with the values it leaves; any other
+outcome (a branch, return, trap or exception, decided by the block's terminator) ends the
+sequence. -/
+inductive SegRun (P : Profile) (host : HostSemantics H) :
+    Store H → Frame → List Val → List Segment → Store H → Frame → Out → Prop where
+  | nil {s : Store H} {f : Frame} {vs : List Val} : SegRun P host s f vs [] s f (.normal vs)
+  | next {s s₁ s' : Store H} {f f₁ f' : Frame} {vs us : List Val} {sg : Segment}
+      {segs : List Segment} {o : Out}
+      (h : Run P host s f vs (expression sg.instrs) s₁ f₁ (.normal us))
+      (hk : SegRun P host s₁ f₁ us segs s' f' o) : SegRun P host s f vs (sg :: segs) s' f' o
+  | exit {s s' : Store H} {f f' : Frame} {vs : List Val} {sg : Segment} {segs : List Segment}
+      {o : Out} (h : Run P host s f vs (expression sg.instrs) s' f' o) (ho : ∀ us, o ≠ .normal us) :
+      SegRun P host s f vs (sg :: segs) s' f' o
+
+end Silmaril.Wasm.Cfg.Region

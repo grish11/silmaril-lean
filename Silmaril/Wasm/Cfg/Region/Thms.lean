@@ -1,9 +1,11 @@
 module
 
 public import Silmaril.Wasm.Cfg.Region.Defs
+public import Silmaril.Wasm.Cfg.Block.Defs
 import Silmaril.Proofs.Wasm.Cfg.Region
 import Silmaril.Proofs.Wasm.Cfg.RegionDiv
 import Silmaril.Proofs.Wasm.Cfg.RegionAtom
+import Silmaril.Proofs.Wasm.Cfg.RegionBlocks
 
 @[expose] public section
 
@@ -157,5 +159,15 @@ iff Core 3.0 diverges. -/
 theorem div_iff {vs : List Val} {code : List Admin} (hF : Frag code) :
     RunDiv P host s f vs code ↔ Diverges P host ⟨s, f, vals vs ++ code⟩ :=
   Proofs.Region.div_adequate atomTerm hF
+
+/-! ## Basic blocks -/
+
+/-- **A sequence runs exactly along its canonical basic blocks** (`Cfg.segment`, the blocks of
+the extracted block CFG): each block runs in turn, falling through to the next with the values it
+leaves, until a block's outcome (branch, return, trap or exception, from its terminator) ends
+the sequence. -/
+theorem run_iff_blocks {is : List Instr} {vs : List Val} {o : Out} :
+    Run P host s f vs (expression is) s' f' o ↔ SegRun P host s f vs (segment is) s' f' o :=
+  Proofs.Region.run_iff_blocks
 
 end Silmaril.Wasm.Cfg.Region
