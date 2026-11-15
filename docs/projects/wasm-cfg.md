@@ -279,6 +279,10 @@ kernel-checked tables. The variants below are related to it by theorems, not by 
     `default: "all-effects"` (`tools/wasm-pages/SCHEMA.md`).
   - The handler outcomes follow #230: a raise is control resumed by its handler, a trap is
     abrupt. They are to be proved against Core's `HANDLER` rules in the operational bridge.
+- **Maximal blocks** (`Cfg.canMerge`, `canMerge_succ`, `canMerge_pred`,
+  `canMerge_not_entry`): AE blocks are merged along a fallthrough whose target has no other AE
+  or handler predecessor and is not the entry. The explorer's default is
+  `variants["all-effects-max"]`, which keeps each member's identity (`members`).
 - **Graph analyses are per variant.** Removing a sink changes no dominator of the remaining
   nodes, since a sink lies on no path to another node; this is to be proved as a graph lemma.
   It does change postdominators and exit reachability, so those are stated per variant.
