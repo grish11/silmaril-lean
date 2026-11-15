@@ -598,21 +598,26 @@ theorem instrOk_if_body {D : Context} {bt : BlockType} {b₁ b₂ : List Instr} 
 
 /-! ## Context fit -/
 
-/-- `D` fits the fragment typing context: local, label and return types are the
-numeric images of `Γ`, `Λ`, `ρ`. -/
+/-- `D` fits the fragment typing context: the local types are the numeric images
+of `Γ`, and the label and return types are subtypes of the numeric images of `Λ`
+and `ρ`. (Subtypes, not equal: a function's body context carries the results of
+its declared type, which validation only bounds above by the instance's type;
+numeric bounds leave only numeric operands, so the inversions are unaffected.) -/
 structure Fit (D : Context) (Γ : List IntType) (ρ : Option IntType) (Λ : List (Option IntType)) :
     Prop where
   loc : ∀ x : Nat, (D.locals[x]?).map LocalType.type = (Γ[x]?).map numInt
-  lab : D.labels = Λ.map fun lt => lt.toList.map numInt
-  ret : D.return_ = some (ρ.toList.map numInt)
+  lab : List.Forall₂ (fun ts lt => ResultSub D.toTypeCtx ts (Option.toList lt |>.map numInt))
+    D.labels Λ
+  ret : ∃ ts, D.return_ = some ts ∧ ResultSub D.toTypeCtx ts (ρ.toList.map numInt)
 
 theorem Fit.initLocals {D : Context} {Γ ρ Λ} (h : Fit D Γ ρ Λ) (ys : List Nat) :
     Fit (D.initLocals ys) Γ ρ Λ :=
-  ⟨fun x => (initLocals_localType D ys x).trans (h.loc x), by simp [h.lab], by simp [h.ret]⟩
+  ⟨fun x => (initLocals_localType D ys x).trans (h.loc x), by simpa using h.lab,
+    by simpa using h.ret⟩
 
 theorem Fit.withLabel {D : Context} {Γ ρ Λ} (h : Fit D Γ ρ Λ) (lt : Option IntType) :
     Fit (D.withLabel (lt.toList.map numInt)) Γ ρ (lt :: Λ) :=
-  ⟨h.loc, by simp [Context.withLabel, h.lab], h.ret⟩
+  ⟨h.loc, .cons (ResultSub.refl _ _) h.lab, h.ret⟩
 
 theorem Fit.local_type {D : Context} {Γ ρ Λ} (h : Fit D Γ ρ Λ) {x : Nat} {lt : LocalType}
     (hx : D.locals[x]? = some lt) : ∃ t, Γ[x]? = some t ∧ lt.type = numInt t := by
@@ -622,11 +627,16 @@ theorem Fit.local_type {D : Context} {Γ ρ Λ} (h : Fit D Γ ρ Λ) {x : Nat} {
   · rw [hg] at this; cases this
   · rw [hg] at this; exact ⟨t, rfl, Option.some.inj this⟩
 
+theorem forall₂_getElem?_left {α β : Type} {R : α → β → Prop} :
+    ∀ {l : List α} {m : List β}, List.Forall₂ R l m → ∀ {x : Nat} {a : α}, l[x]? = some a →
+      ∃ b, m[x]? = some b ∧ R a b
+  | _, _, .nil, _, _, h => by simp at h
+  | _, _, .cons hab _, 0, _, h => by simp at h; subst h; exact ⟨_, rfl, hab⟩
+  | _, _, .cons _ hr, x + 1, _, h => by simpa using forall₂_getElem?_left hr (by simpa using h)
+
 theorem Fit.label {D : Context} {Γ ρ Λ} (h : Fit D Γ ρ Λ) {l : Nat} {ts : List CValType}
-    (hl : D.labels[l]? = some ts) : ∃ lt, Λ[l]? = some lt ∧ ts = lt.toList.map numInt := by
-  rw [h.lab, List.getElem?_map] at hl
-  rcases hg : Λ[l]? with _ | lt
-  · rw [hg] at hl; cases hl
-  · rw [hg] at hl; exact ⟨lt, rfl, (Option.some.inj hl).symm⟩
+    (hl : D.labels[l]? = some ts) :
+    ∃ lt, Λ[l]? = some lt ∧ ResultSub D.toTypeCtx ts (lt.toList.map numInt) :=
+  forall₂_getElem?_left h.lab hl
 
 end Silmaril.Proofs.Wasm.Abstract.FragBody

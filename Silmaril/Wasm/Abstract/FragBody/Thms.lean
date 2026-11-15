@@ -11,6 +11,7 @@ import Silmaril.Proofs.Wasm.Abstract.FragBody.Examples
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Diverge
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Typed
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Progress
+import Silmaril.Proofs.Wasm.Abstract.FragBody.Site
 
 /-!
 # Concrete Wasm bodies as abstract bodies: theorems
@@ -65,10 +66,19 @@ the run iterates a loop forever (or a component does), never because a
 configuration is stuck; for functions `func_progress`,
 **`denFunc_diverge_iff_divS`**. Typing covers dead code after `unreachable`,
 `br`, `return` (`SeqTy.bot`, witness `deadCode_typed`), which validated
-native fragment bodies may contain. Not yet: the derivation of `funcTyped`
-from Core validation of a fragment site (inversion of `InstrsOk` along
-`BExpr.lowerList` with the native arity check) (on validated sites,
-`den_diverges_iff_core` already makes divergence operational).
+native fragment bodies may contain.
+
+**Validation gives the typing.** `funcTyped_of_site`: the function of every
+validated fragment call site (`IsFragmentSite`: a typed store holding the Core
+lowering of the recognised, native-arity-checked function) is `funcTyped`.
+Proved by inverting Core 3.0 validation of the lowering (`InstrsOk` along
+`BExpr.lowerList`) tree by tree, with the principal typing of each operand
+tree, including `select` and dead code after `unreachable`/`br`/`return`. So
+on validated sites: `site_progress` (typed progress, no stuck run),
+`site_run_ty` (returns have the result type), `site_diverge_iff_divS` (abstract
+divergence is divergence through a loop) and `core_diverges_iff_divS` (the
+Core 3.0 invocation runs forever exactly when the fragment run iterates a loop
+forever).
 
 **Faithful on the run quotient.** `denFunc_eq_iff`: two fragment functions
 have equal abstract bodies exactly when they have the same runs (for a
@@ -267,6 +277,54 @@ theorem denFunc_diverge_iff_divS {f : FragFunc} {args : List WVal} (hf : funcTyp
     ((denFunc f ⟨args⟩ : M E S _).run s).run = Silmaril.Elgot.ITree.diverge ↔
       DivS (f.initLocals args) none f.body :=
   Silmaril.Proofs.Wasm.Abstract.FragBody.denFunc_diverge_iff_divS hf ha s
+
+/-! ## The validation link -/
+
+/-- **Validated sites are typed.** The function of a validated fragment call site
+is typed: Core 3.0 validation of its lowering gives the fragment typing. -/
+theorem funcTyped_of_site {H : Type} {x : CallSite H} {ft : Silmaril.Wasm.FuncType}
+    {bf : Silmaril.Wasm.Binaryen.BFunc} {f : FragFunc} (hx : IsFragmentSite x ft bf f) :
+    funcTyped f :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.funcTyped_of_site hx
+
+/-- On a validated site, a run's returned value has the function's result type. -/
+theorem site_run_ty {H : Type} {x : CallSite H} {ft : Silmaril.Wasm.FuncType}
+    {bf : Silmaril.Wasm.Binaryen.BFunc} {f : FragFunc} (hx : IsFragmentSite x ft bf f)
+    {args : List WVal} {r : Option WVal} (h : f.Run args (.ret r)) : ValTy f.result r :=
+  run_ty (funcTyped_of_site hx) h
+
+/-- **Progress on validated sites.** On arguments of the parameter types, the
+function of a validated site runs, or its body diverges through a loop. -/
+theorem site_progress {H : Type} {x : CallSite H} {ft : Silmaril.Wasm.FuncType}
+    {bf : Silmaril.Wasm.Binaryen.BFunc} {f : FragFunc} (hx : IsFragmentSite x ft bf f)
+    {args : List WVal} (ha : args.map WVal.type = f.params) :
+    (∃ o, f.Run args o) ∨ DivS (f.initLocals args) none f.body :=
+  func_progress (funcTyped_of_site hx) ha
+
+/-- On a validated site, the abstract body diverges exactly when the run iterates
+a loop forever. -/
+theorem site_diverge_iff_divS {H : Type} {x : CallSite H} {ft : Silmaril.Wasm.FuncType}
+    {bf : Silmaril.Wasm.Binaryen.BFunc} {f : FragFunc} (hx : IsFragmentSite x ft bf f)
+    {args : List WVal} (ha : args.map WVal.type = f.params) (s : S) :
+    ((denFunc f ⟨args⟩ : M E S _).run s).run = Silmaril.Elgot.ITree.diverge ↔
+      DivS (f.initLocals args) none f.body :=
+  denFunc_diverge_iff_divS (funcTyped_of_site hx) ha s
+
+/-- **Core divergence is loop divergence.** At a validated fragment call site, on
+integer arguments of the parameter types, the Core 3.0 invocation has an infinite
+run exactly when the fragment run iterates a loop forever (never a stuck
+configuration). -/
+theorem core_diverges_iff_divS {H : Type} {x : CallSite H} {ft : Silmaril.Wasm.FuncType}
+    {bf : Silmaril.Wasm.Binaryen.BFunc} {f : FragFunc} (hx : IsFragmentSite x ft bf f)
+    {vs : List Silmaril.Wasm.Execution.Core.Val}
+    (hok : Silmaril.Wasm.Execution.Core.InvokeOk x.store x.addr vs)
+    (P : Silmaril.Wasm.Numerics.Profile) {args : List WVal} (hv : vs = args.map WVal.toVal)
+    (ha : args.map WVal.type = f.params) :
+    Silmaril.Wasm.Execution.Core.Diverges P Silmaril.Wasm.Binaryen.closedHost
+        (Silmaril.Wasm.Execution.Core.invoke x.store x.addr vs) ↔
+      DivS (f.initLocals args) none f.body :=
+  (den_diverges_iff_core (E := Sig.empty.{0}) (S := ULift.{1} PUnit.{1}) hx hok P hv ⟨⟨⟩⟩).symm.trans
+    (site_diverge_iff_divS hx ha _)
 
 /-- Dead code after a non-completing element is typed (`SeqTy.bot`), as in Wasm
 validation (polymorphic stack) and the native arity check: `block (result
