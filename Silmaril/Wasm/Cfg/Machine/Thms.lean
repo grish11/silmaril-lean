@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Cfg.Region.Defs
 import Silmaril.Proofs.Wasm.Cfg.Machine
 import Silmaril.Proofs.Wasm.Cfg.MachineComplete
 import Silmaril.Proofs.Wasm.Cfg.MachineDiv
+import Silmaril.Proofs.Wasm.Cfg.MachineCore
 public import Silmaril.Wasm.Cfg.Region.Thms
 public import Silmaril.Foundations.InfiniteTrace
 
@@ -62,9 +63,13 @@ public import Silmaril.Foundations.InfiniteTrace
   `cfgEntry` (`Proofs/Wasm/Cfg/MachineDiv.lean`: the states standing for diverging code always
   make progress).
 
-Not claimed here: the converse of divergence (an infinite machine run is a diverging region
-run). Call terminators (`return_call*`) have no region rule (`Region.Run` is call-free) and no
-machine step.
+* **Divergence, converse** (`infinite_core_initial`, `infinite_iff_core_div`): an infinite
+  machine run from `cfgEntry` is a diverging Core run of the body
+  (`Proofs/Wasm/Cfg/MachineCore.lean`: every machine step is a Core run of at least one step, or an
+  administrative fall-through bounded by a measure).
+
+Not claimed here: call terminators (`return_call*`) have no region rule (`Region.Run` is
+call-free) and no machine step.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -483,5 +488,22 @@ theorem core_div_initial {s : Store H} {f : Frame} (hF : Region.Frag (expression
     (h : Diverges P host ⟨s, f, expression body⟩) :
     InfiniteTrace (MStep P host body) (initial body s f) :=
   run_div_initial ((Region.div_iff (vs := []) hF).mpr (by simpa using h))
+
+/-- **An infinite machine run from the CFG entry is a diverging Core 3.0 run of the body.**
+Each machine step is a Core run of at least one step, except fall-throughs to the next block
+of the same sequence, which a measure (blocks left in the sequence) bounds, so the infinite
+machine run gives infinitely many Core steps. -/
+theorem infinite_core_initial {s : Store H} {f : Frame}
+    (h : InfiniteTrace (MStep P host body) (initial body s f)) :
+    Diverges P host ⟨s, f, expression body⟩ :=
+  Proofs.MachineCore.core_infinite_initial h
+
+/-- **Divergence adequacy for the extracted-CFG machine**: on fragment code, the machine has an
+infinite run from the CFG entry iff Core 3.0 diverges on the body (and iff the region semantics
+does, `Region.div_iff`). -/
+theorem infinite_iff_core_div {s : Store H} {f : Frame} (hF : Region.Frag (expression body)) :
+    InfiniteTrace (MStep P host body) (initial body s f) ↔
+      Diverges P host ⟨s, f, expression body⟩ :=
+  ⟨infinite_core_initial, core_div_initial hF⟩
 
 end Silmaril.Wasm.Cfg.Machine

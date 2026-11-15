@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Cfg.Machine
+public import Silmaril.Foundations.InfiniteTrace
 import Silmaril.Wasm.Execution.Core.Properties
 
 @[expose] public section
@@ -835,5 +836,77 @@ theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁
   | termTrap => exact absurd (by simp [Target.IsSink]) hns
   | bodyTrap => exact absurd (by simp [Target.IsSink]) hns
   | raise => exact absurd (by simp [Target.IsSink]) hns
+
+
+/-- The administrative measure: the blocks left in the current sequence. -/
+def mu (body : Expr) (st : MState H) : Nat :=
+  match st.node with
+  | .block b => ((seqAt body b.seq).map fun c => (segment c).length).getD 0 - b.idx
+  | _ => 0
+
+theorem mstep_lookup {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁)
+    {b : BlockId} (hn : st.node = .block b) : ∃ sg, lookup body b = some sg := by
+  cases h <;> (cases hn; exact ⟨_, ‹_›⟩)
+
+open Silmaril.Wasm.Cfg.Proofs.Machine in
+theorem mu_lt {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁) {b : BlockId}
+    (hn : st.node = .block b) (hn₁ : st₁.node = .block ⟨b.seq, b.idx + 1⟩) :
+    mu body st₁ < mu body st := by
+  obtain ⟨sg, hb⟩ := mstep_lookup h hn
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  have hlt : b.idx < (segment c).length := (List.getElem?_eq_some_iff.mp hsg).1
+  simp only [mu, hn, hn₁, hc, Option.map_some, Option.getD_some]
+  omega
+
+theorem not_sink_of_infinite {body : Expr} {st : MState H}
+    (h : InfiniteTrace (MStep P host body) st) : ¬ st.node.IsSink := by
+  obtain ⟨st₁, hs, -⟩ := h.unfold
+  obtain ⟨b, hb⟩ := Proofs.Machine.mstep_from_block hs
+  rw [hb]; simp [Target.IsSink]
+
+/-- **An infinite machine run is an infinite Core 3.0 run** of the code its start state stands
+for. Each machine step is at least one Core step, except administrative fall-throughs to the
+next block of the same sequence, which the measure `mu` bounds: no zero-step cycle. -/
+theorem core_infinite {body : Expr} {st : MState H} {X : List Admin} (hok : MInv body st)
+    (hX : codeOf body st = some X) (h : InfiniteTrace (MStep P host body) st) :
+    InfiniteTrace (Step P host) ⟨st.store, st.frame, X⟩ := by
+  refine InfiniteTrace.coinduct (fun c => ∃ (st : MState H) (X : List Admin), MInv body st ∧
+      codeOf body st = some X ∧ InfiniteTrace (MStep P host body) st ∧
+      Steps P host c ⟨st.store, st.frame, X⟩) ?_ ⟨st, X, hok, hX, h, .refl⟩
+  intro c ⟨st, X, hok, hX, h, hc⟩
+  induction hmu : mu body st using Nat.strong_induction_on generalizing st X with
+  | _ n ih =>
+    rcases hc.cases_head with rfl | ⟨d, hd, hdc⟩
+    · obtain ⟨st₁, hs, h₁⟩ := h.unfold
+      have hok₁ := (Proofs.Machine.mstep_sound hs hok hX).1
+      obtain ⟨Y, hY⟩ := Proofs.Machine.codeOf_of_ok hok₁
+      obtain ⟨hsteps, hpos | ⟨b, hn, hn₁⟩⟩ := msim hs hok hX hY (not_sink_of_infinite h₁)
+      · obtain ⟨d, hd, hdY⟩ := Relation.TransGen.head'_iff.mp hpos
+        exact ⟨d, hd, st₁, Y, hok₁, hY, h₁, hdY⟩
+      · exact ih (mu body st₁) (hmu ▸ mu_lt hs hn hn₁) st₁ Y hok₁ hY h₁ hsteps rfl
+    · exact ⟨d, hd, st, X, hok, hX, h, hdc⟩
+
+
+open Silmaril.Wasm.Cfg.Proofs.Machine in
+/-- **An infinite machine run from the CFG entry is a diverging Core 3.0 run of the body.** -/
+theorem core_infinite_initial {body : Expr} {s : Store H} {f : Frame}
+    (h : InfiniteTrace (MStep P host body) (initial body s f)) :
+    Diverges P host ⟨s, f, expression body⟩ := by
+  have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by
+    simp [initial, goto, popL, cfgEntry]
+  have hok : MInv body (initial body s f) := by rw [hinit]; exact entry_ok (p := []) trivial
+  obtain ⟨Y, hY⟩ := codeOf_of_ok hok
+  have hns := not_sink_of_infinite h
+  have hYe : Y = expression body := by
+    rw [hinit] at hY hns
+    unfold entry at hY hns
+    split at hY
+    · simp [goto, depthT, popL, codeOf, codeAt, seqAt, restAt_zero, wrap, vals] at hY
+      exact hY.symm
+    · rename_i hl
+      exfalso; apply hns; simp [goto, cont, contRev, Target.IsSink, hl]
+  subst hYe
+  have := core_infinite hok hY h
+  simpa [initial, Diverges] using this
 
 end Silmaril.Wasm.Cfg.Proofs.MachineCore
