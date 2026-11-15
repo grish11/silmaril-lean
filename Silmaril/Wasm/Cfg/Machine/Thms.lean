@@ -16,6 +16,10 @@ import Silmaril.Proofs.Wasm.Cfg.Machine
   (`bodyTrap`). Body traps are not flow edges of `succOf`: in the CFG they are instruction
   effects (`instrEffects`, the conservative trap effect edges), not control successors. The
   statement keeps the two apart.
+* The label invariant `codeAt` (Defs): the region code a machine state stands for, with each
+  label frame as Core's `LABEL` (and `HANDLER` for `try_table`, by the explicit `tryT` flag).
+  `wrap_mono` lifts region-run inclusion through it; `enter_block_sound` proves entering a
+  `block` sound.
 * The sequence layer of adequacy: `lookup_eq` (a `BlockId` names block `idx` of the sequence
   `seqAt body seq`), `restAt_cons`, `restAt_zero`, and `fall_sound`/`fall_complete` (a
   fall-through step agrees with `Region.Run` on the rest of the sequence).
@@ -66,5 +70,33 @@ theorem fall_complete {c : List Instr} {i : Nat} {sg : Segment} (hsg : (segment 
     ∃ s₁ f₁ o₁, Region.Run P host s f stk (expression sg.body) s₁ f₁ o₁ ∧
       Region.Then P host s₁ f₁ o₁ (expression (restAt c (i + 1))) s' f' o :=
   Proofs.Machine.fall_complete hsg ht h
+
+/-! ## The label invariant -/
+
+/-- **Context lifting**: region-run inclusion of inner codes lifts through the label frames. -/
+theorem wrap_mono {s s₁ : Store H} {f f₁ : Frame} (rp : List SeqStep) (ls : List LFrame)
+    {inner inner' X X' : List Admin} (hX : wrap body rp ls inner = some X)
+    (hX' : wrap body rp ls inner' = some X')
+    (hb : ∀ {o : Region.Out} {s₂ : Store H} {f₂ : Frame},
+      Region.Run P host s₁ f₁ [] inner' s₂ f₂ o → Region.Run P host s f [] inner s₂ f₂ o)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] X' s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.wrap_mono rp ls hX hX' hb
+
+/-- **Entering a `block` is sound for the label invariant** (`codeAt`): every region run of the
+code after entering a non-empty arm is a region run of the code before. -/
+theorem enter_block_sound {b : BlockId} {sg : Segment} {c c' : List Instr} {bt : BlockType}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {stk ws us : List Val}
+    {t₁ t₂ : List Validation.CValType} {X X' : List Admin}
+    (hc : seqAt body b.seq = some c) (hsg : (segment c)[b.idx]? = some sg)
+    (ht : sg.term = some (.block bt c'))
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+    (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+    (hX : codeAt body b stk ls = some X)
+    (hX' : codeAt body ⟨b.seq ++ [(b.idx, 0)], 0⟩ us (⟨t₂.length, ws, false, false, []⟩ :: ls) =
+      some X')
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] X' s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.enter_block_sound hc hsg ht hr hbt hm hX hX'
 
 end Silmaril.Wasm.Cfg.Machine

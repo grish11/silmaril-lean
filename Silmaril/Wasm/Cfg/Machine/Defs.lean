@@ -39,6 +39,8 @@ structure LFrame where
   outer : List Val
   /-- A `loop`: a branch re-enters it. -/
   loop : Bool
+  /-- A `try_table`: its label sits inside a `HANDLER` (even with no clauses). -/
+  tryT : Bool
   /-- The `catch` clauses of a `try_table` (empty otherwise). -/
   catches : List Catch
   deriving Repr
@@ -73,12 +75,12 @@ def goto (t : Target) (d : Nat) (ls : List LFrame) (stk : List Val) (s : Store H
 def labelArity (loop : Bool) (t₁ t₂ : List CValType) : Nat := if loop then t₁.length else t₂.length
 
 /-- The structured terminators, with block type, `loop` flag and `catch` clauses. -/
-inductive StructKind : Instr → BlockType → Bool → List Catch → Prop where
-  | block {bt : BlockType} {b : List Instr} : StructKind (.block bt b) bt false []
-  | loop {bt : BlockType} {b : List Instr} : StructKind (.loop bt b) bt true []
-  | if_ {bt : BlockType} {t e : List Instr} : StructKind (.if_ bt t e) bt false []
+inductive StructKind : Instr → BlockType → Bool → Bool → List Catch → Prop where
+  | block {bt : BlockType} {b : List Instr} : StructKind (.block bt b) bt false false []
+  | loop {bt : BlockType} {b : List Instr} : StructKind (.loop bt b) bt true false []
+  | if_ {bt : BlockType} {t e : List Instr} : StructKind (.if_ bt t e) bt false false []
   | tryTable {bt : BlockType} {cs : List Catch} {b : List Instr} :
-      StructKind (.tryTable bt cs b) bt false cs
+      StructKind (.tryTable bt cs b) bt false true cs
 
 /-- Which arm of a structured terminator runs, and the stack split into the values outside it
 (`ws`) and its parameters (`us`): `if` pops its `i32` condition first. -/
@@ -142,15 +144,15 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
   `try_table`): push its label frame on the parameters. -/
   | enter {b : BlockId} {sg : Segment} {stk stk₁ ws us : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {a : Nat} {c : List Instr} {bt : BlockType}
-      {t₁ t₂ : List CValType} {loop : Bool} {cs : List Catch}
+      {t₁ t₂ : List CValType} {loop tryT : Bool} {cs : List Catch}
       (hb : lookup body b = some sg) (ht : sg.term = some i) (harm : armOf i a = some c)
-      (hkind : StructKind i bt loop cs)
+      (hkind : StructKind i bt loop tryT cs)
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
       (hcond : CondArm i stk₁ a ws us)
       (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩
         (goto (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
-          (⟨labelArity loop t₁ t₂, ws, loop, cs⟩ :: ls) us s₁ f₁)
+          (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls) us s₁ f₁)
   /-- `return` leaves the function. -/
   | ret {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .return_)
@@ -189,5 +191,35 @@ def seqAt : List Instr → List SeqStep → Option (List Instr)
 
 /-- The instructions of sequence `c` from its block `i` on: what is left to run there. -/
 def restAt (c : List Instr) (i : Nat) : List Instr := ((segment c).drop i).flatMap Segment.instrs
+
+end Silmaril.Wasm.Cfg.Machine
+
+namespace Silmaril.Wasm.Cfg.Machine
+
+open Silmaril.Wasm.Execution.Core
+
+/-! ## The label invariant: the region code a machine state stands for -/
+
+/-- The region code of the context at reversed path `rp` with label frames `ls` (innermost
+first) around inner code `inner`. Each frame becomes Core's `LABEL` (with the `loop` itself as
+continuation for a loop), inside a `HANDLER` for a `try_table`, under its outer values and
+before the rest of the parent sequence. `none` when path and frames do not match. -/
+def wrap (body : Expr) : List SeqStep → List LFrame → List Admin → Option (List Admin)
+  | [], [], inner => some inner
+  | (m, _) :: rp, L :: ls, inner => do
+    let pc ← seqAt body rp.reverse
+    let sg ← (segment pc)[m]?
+    let t ← sg.term
+    let lab := Admin.label L.arity (if L.loop then [t] else []) inner
+    let x := if L.tryT then Admin.handler L.arity L.catches [lab] else lab
+    wrap body rp ls (vals L.outer ++ x :: expression (restAt pc (m + 1)))
+  | _, _, _ => none
+
+/-- **The region code a machine state at a block stands for**: its stack and the rest of its
+sequence, wrapped by its label frames. -/
+def codeAt (body : Expr) (b : BlockId) (stk : List Val) (ls : List LFrame) : Option (List Admin) :=
+  do
+    let c ← seqAt body b.seq
+    wrap body b.seq.reverse ls (vals stk ++ expression (restAt c b.idx))
 
 end Silmaril.Wasm.Cfg.Machine

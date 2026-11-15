@@ -8,8 +8,12 @@ public import Silmaril.Proofs.Wasm.Cfg.Region
 
 namespace Silmaril.Wasm.Cfg.Proofs.Machine
 
+set_option linter.unusedSimpArgs false
+
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Execution.Core
   Silmaril.Wasm.Numerics
+
+set_option linter.unusedSimpArgs false
 
 variable {H : Type} {P : Profile} {host : HostSemantics H}
 
@@ -27,7 +31,7 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStep P host body st s
     left; cases hn; refine ⟨_, hb, ?_⟩
     split <;> simp [succOf, ht]
   | brIfNot hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
-  | @enter _ sg _ _ _ _ _ _ _ _ _ i a c bt _ _ _ _ hb ht harm hkind =>
+  | @enter _ sg _ _ _ _ _ _ _ _ _ i a c bt _ _ _ _ _ hb ht harm hkind =>
     left; cases hn; refine ⟨_, hb, ?_⟩
     cases hkind <;> rcases a with _ | _ | a <;> simp_all [armOf, succOf]
   | ret hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
@@ -42,6 +46,8 @@ end Silmaril.Wasm.Cfg.Proofs.Machine
 
 namespace Silmaril.Wasm.Cfg.Proofs.Machine
 
+set_option linter.unusedSimpArgs false
+
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Execution.Core
   Silmaril.Wasm.Numerics
 
@@ -54,6 +60,8 @@ theorem mstep_from_block {body : Expr} {st st' : MState H} (h : MStep P host bod
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
 namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
 
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Execution.Core
   Silmaril.Wasm.Numerics
@@ -102,6 +110,8 @@ end Silmaril.Wasm.Cfg.Proofs.Machine
 
 namespace Silmaril.Wasm.Cfg.Proofs.Machine
 
+set_option linter.unusedSimpArgs false
+
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
 
@@ -138,5 +148,118 @@ theorem fall_complete {c : List Instr} {i : Nat} {sg : Segment} (hsg : (segment 
   have e : sg.instrs = sg.body := by simp [Segment.instrs, ht]
   rw [e] at h
   exact Proofs.Region.run_split h (by simp [expression])
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- **Context lifting through the label invariant**: if every region run of `inner'` (from
+`s₁, f₁`) is a run of `inner` (from `s, f`), the same holds for their code under the same
+label frames. -/
+theorem wrap_mono {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) {inner inner' X X' : List Admin},
+      wrap body rp ls inner = some X → wrap body rp ls inner' = some X' →
+      (∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+        Run P host s₁ f₁ [] inner' s₂ f₂ o → Run P host s f [] inner s₂ f₂ o) →
+      ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+        Run P host s₁ f₁ [] X' s₂ f₂ o → Run P host s f [] X s₂ f₂ o
+  | [], [], inner, inner', X, X', hX, hX', hb => by
+    simp only [wrap, Option.some.injEq] at hX hX'
+    subst hX hX'; exact hb
+  | [], _ :: _, _, _, _, _, hX, _, _ => by simp [wrap] at hX
+  | _ :: _, [], _, _, _, _, hX, _, _ => by simp [wrap] at hX
+  | (m, a) :: rp, L :: ls, inner, inner', X, X', hX, hX', hb => by
+    simp only [wrap, Option.bind_eq_bind] at hX hX'
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some] at hX hX'
+          refine wrap_mono rp ls hX hX' ?_
+          intro o s₂ f₂ hr
+          have hr' := Proofs.Region.run_vals_inv (vs := []) hr
+          apply Proofs.Region.run_vals (vs := [])
+          have hl : ∀ {o₁ : Out} {s₃ : Store H} {f₃ : Frame},
+              Run P host s₁ f₁ [] [.label L.arity (if L.loop then [t] else []) inner'] s₃ f₃ o₁ →
+                Run P host s f [] [.label L.arity (if L.loop then [t] else []) inner] s₃ f₃ o₁ :=
+            fun h => Proofs.Region.label_back hb h
+          cases hT : L.tryT
+          · simp only [hT, Bool.false_eq_true, ↓reduceIte] at hr' ⊢
+            exact Proofs.Region.label_back hb hr'
+          · simp only [hT, ↓reduceIte] at hr' ⊢
+            exact Proofs.Region.handler_back hl hr'
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+theorem seqAt_append : ∀ (p : List SeqStep) (is : List Instr) (m a : Nat),
+    seqAt is (p ++ [(m, a)]) = (seqAt is p).bind fun pc => do
+      let s ← (segment pc)[m]?
+      let t ← s.term
+      armOf t a
+  | [], is, m, a => by
+    simp only [List.nil_append, seqAt]
+    cases h1 : (segment is)[m]? with
+    | none => simp [h1]
+    | some s =>
+      cases h2 : s.term with
+      | none => simp [h1, h2]
+      | some t => cases h3 : armOf t a <;> simp [h1, h2, h3, seqAt]
+  | (m', a') :: p, is, m, a => by
+    simp only [List.cons_append, seqAt]
+    cases h1 : (segment is)[m']? with
+    | none => simp [h1]
+    | some s =>
+      cases h2 : s.term with
+      | none => simp [h1, h2]
+      | some t =>
+        cases h3 : armOf t a' with
+        | none => simp [h1, h2, h3]
+        | some c => simp [h1, h2, h3, seqAt_append p c m a]
+
+/-- **Entering a `block` is sound for the label invariant**: if the block's arm is not empty,
+every region run of the code the machine stands for after entering is a run of the code before. -/
+theorem enter_block_sound {body : Expr} {b : BlockId} {sg : Segment} {c c' : List Instr}
+    {bt : BlockType} {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {stk ws us : List Val}
+    {t₁ t₂ : List CValType} {X X' : List Admin}
+    (hc : seqAt body b.seq = some c) (hsg : (segment c)[b.idx]? = some sg)
+    (ht : sg.term = some (.block bt c'))
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+    (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+    (hX : codeAt body b stk ls = some X)
+    (hX' : codeAt body ⟨b.seq ++ [(b.idx, 0)], 0⟩ us (⟨t₂.length, ws, false, false, []⟩ :: ls) =
+      some X') :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host s₁ f₁ [] X' s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+  simp only [codeAt, hc, Option.bind_some] at hX
+  simp [codeAt, seqAt_append, hc, hsg, ht, armOf, restAt_zero, wrap] at hX'
+  refine wrap_mono b.seq.reverse ls hX hX' ?_
+  intro o s₂ f₂ h
+  have h' := Proofs.Region.run_vals_inv (vs := []) h
+  apply Proofs.Region.run_vals (vs := [])
+  rw [restAt_cons hsg]
+  simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append,
+    List.map_cons, List.map_nil, List.append_assoc, List.singleton_append, List.nil_append] at h' ⊢
+  exact Proofs.Region.run_append hr (RunC.block hbt hm h')
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
