@@ -7,6 +7,9 @@ import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Bind
 import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Iter
 import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Collapse
 import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Faithful
+import Silmaril.Proofs.Wasm.Abstract.BodyTrace.Inf
+public import Silmaril.Games.Abstract.Module.Defs
+public import Mathlib.Data.Stream.Init
 public import Silmaril.Wasm.Abstract.Body.Thms
 
 /-!
@@ -59,7 +62,33 @@ public import Silmaril.Wasm.Abstract.Body.Thms
   bodies by `FullCollapseEquiv` is the image of `collapse` in the lawful
   Elgot category of `BodyC`.
 
-Not claimed: injectivity of `toAFun` alone. It is false: trap payloads are
+**Infinite import streams.** `toInf` collects the infinite productive runs of
+a body as streams `Nat → Call`, the representation of the module layer's
+`Shape.closeInf`.
+
+* `infPath_iff_pend`, `infPath_iff_streamPrefix`: a stream is an infinite
+  run of a tree **iff** each of its finite prefixes (`Shape.StreamPrefix`) is
+  pending. No receptivity, compactness or productivity hypothesis: the limit
+  exists because partial paths of a tree are unique (determinism given the
+  answers). `mem_toInf_iff`, `mem_toInf_iff_streamPrefix`: the same for
+  bodies against `toPending`.
+* `exists_pend_limit_not_infPath`: determinism is necessary. A family of
+  trees (call `i` times, then return), read as one nondeterministic body,
+  has every prefix of the forever-calling stream pending, and no member runs
+  it.
+* Hence the infinite streams are determined by the pending calls
+  (`toInf_eq_of_toPending`), so by the faithful observation
+  (`toInf_eq_of_faithful`) and by trap ≈ divergence equivalence
+  (`FullCollapseEquiv.toInf`).
+* `infPath_bind_iff`, `toInf_comp`: compositional lifting through
+  sequencing. An infinite run of `f >=> g` is one of `f`, or a finished
+  return of `f` (`toAFun f`) followed by an infinite run of `g`, joined with
+  `Stream'.appendStream`.
+
+Not claimed: injectivity of `toAFun` alone; a lifting of `toInf` through
+iteration (infinitely many iterations, finitely many calls each); and an
+operational agreement of `Shape.closeInf` with bodies, which needs the
+module-level recursion semantics. It is false: trap payloads are
 forgotten (`Silmaril.Wasm.Abstract.BodyLoop.toAFun_not_injective`), and so
 are infinite productive runs. Nor the converse of `obsCollapse_of_collapse`,
 nor a characterisation of the image (deterministic functions that are
@@ -130,6 +159,11 @@ theorem fullCollapseEquiv_iff {E : Sig.{u}} {S T A B : Type (u + 1)} (f g : Hom 
     FullCollapseEquiv f g ↔ ∀ a, collapse (f a) = collapse (g a) :=
   Silmaril.Proofs.Wasm.Abstract.BodyTrace.collapse_faithful_iff f g
 
+/-- The faithful observation determines infinite runs. -/
+theorem toInf_eq_of_faithful {E : Sig.{u}} {S T A B : Type (u + 1)} {f g : Hom E S T A B}
+    (h : erasedRun f = erasedRun g) : toInf f = toInf g :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.toInf_eq_of_toPending ((faithful_iff f g).2 h).2
+
 /-- Full trap ≈ divergence equivalence is a congruence for composition. -/
 theorem FullCollapseEquiv.comp {E : Sig.{u}} {S T A B C : Type (u + 1)} {f f' : Hom E S T A B}
     {g g' : Hom E S T B C} (hf : FullCollapseEquiv f f') (hg : FullCollapseEquiv g g') :
@@ -143,6 +177,65 @@ theorem FullCollapseEquiv.iter {E : Sig.{u}} {S T A B : Type (u + 1)}
     FullCollapseEquiv (Silmaril.Elgot.iter F) (Silmaril.Elgot.iter G) := by
   rw [fullCollapseEquiv_iff] at *
   intro a; simp only [collapse_iter, h]
+
+/-- A stream is an infinite run iff every finite prefix is pending. -/
+theorem infPath_iff_pend {E : Sig.{u}} {Y : Type (u + 1)}
+    {t : Silmaril.Elgot.ITree.Tree (SigEv E) Y} {ω : Stream' (Call E)} :
+    InfPath t ω ↔ ∀ n, ∃ m, Pend t (ω.take n) m :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.infPath_iff_pend
+
+/-- The same, with the module layer's `StreamPrefix`. -/
+theorem infPath_iff_streamPrefix {E : Sig.{u}} {Y : Type (u + 1)}
+    {t : Silmaril.Elgot.ITree.Tree (SigEv E) Y} {ω : Stream' (Call E)} :
+    InfPath t ω ↔ ∀ l, Shape.StreamPrefix l ω → ∃ m, Pend t l m :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.infPath_iff_streamPrefix
+
+/-- Determinism is necessary: for a family of trees (a nondeterministic body),
+pending prefixes have a limit that no member runs. -/
+theorem exists_pend_limit_not_infPath :
+    ∃ (E : Sig.{0}) (b : Nat → Silmaril.Elgot.ITree.Tree (SigEv E) PUnit.{2})
+      (ω : Stream' (Call E)),
+      (∀ n, ∃ i m, Pend (b i) (ω.take n) m) ∧ ∀ i ω', ¬ InfPath (b i) ω' :=
+  ⟨_, _, _, Silmaril.Proofs.Wasm.Abstract.BodyTrace.union_counterexample⟩
+
+/-- Infinite runs through a bind. -/
+theorem infPath_bind_iff {E : Sig.{u}} {Y Z : Type (u + 1)}
+    {t : Silmaril.Elgot.ITree.Tree (SigEv E) Z} {k : Z → Silmaril.Elgot.ITree.Tree (SigEv E) Y}
+    {ω : Stream' (Call E)} :
+    InfPath (t >>= k) ω ↔ InfPath t ω ∨
+      ∃ (cs : List (Call E)) (v : Z) (ω' : Stream' (Call E)),
+        Path t cs (.val v) ∧ InfPath (k v) ω' ∧ ω = cs ++ₛ ω' :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.infPath_bind_iff
+
+/-- The infinite runs of a body are the limits of its pending calls. -/
+theorem mem_toInf_iff {E : Sig.{u}} {S T A B : Type (u + 1)} (f : Hom E S T A B) (s : S) (a : A)
+    (ω : Nat → Call (liftSig E)) :
+    ω ∈ toInf f s a ↔ ∀ n, ∃ m, (Stream'.take n ω, m) ∈ toPending f s a :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.mem_toInf_iff f s a ω
+
+/-- The same, with the module layer's `StreamPrefix`. -/
+theorem mem_toInf_iff_streamPrefix {E : Sig.{u}} {S T A B : Type (u + 1)} (f : Hom E S T A B)
+    (s : S) (a : A) (ω : Nat → Call (liftSig E)) :
+    ω ∈ toInf f s a ↔ ∀ l, Shape.StreamPrefix l ω → ∃ m, (l, m) ∈ toPending f s a :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.mem_toInf_iff_streamPrefix f s a ω
+
+/-- Pending calls determine infinite runs. -/
+theorem toInf_eq_of_toPending {E : Sig.{u}} {S T A B : Type (u + 1)} {f g : Hom E S T A B}
+    (h : toPending f = toPending g) : toInf f = toInf g :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.toInf_eq_of_toPending h
+
+/-- Infinite runs through composition. -/
+theorem toInf_comp {E : Sig.{u}} {S T A B C : Type (u + 1)} (f : Hom E S T A B)
+    (g : Hom E S T B C) (s : S) (a : A) :
+    toInf (fun a => f a >>= g) s a = toInf f s a ∪
+      {ω | ∃ (c : List (Call (liftSig E))) (b : B) (s₁ : S) (ω' : Stream' (Call (liftSig E))),
+        (c, End.ret b s₁) ∈ toAFun f s a ∧ ω' ∈ toInf g s₁ b ∧ ω = c ++ₛ ω'} :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.toInf_comp f g s a
+
+/-- Trap ≈ divergence equivalent bodies have the same infinite runs. -/
+theorem FullCollapseEquiv.toInf {E : Sig.{u}} {S T A B : Type (u + 1)} {f g : Hom E S T A B}
+    (h : FullCollapseEquiv f g) : BodyTrace.toInf f = BodyTrace.toInf g :=
+  toInf_eq_of_toPending h.2
 
 /-- The denotation maps body iteration to trace-set iteration. -/
 theorem toAFun_iter {E : Sig.{u}} {S T A B : Type (u + 1)} (F : Hom E S T A (B ⊕ A)) :

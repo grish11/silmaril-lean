@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.Loop.Defs
 public import Silmaril.Wasm.Abstract.BodyTrace.Thms
 public import Silmaril.Wasm.Abstract.Body.Thms
+public import Silmaril.Games.Abstract.Module.Thms
 import Silmaril.Proofs.Wasm.Abstract.Loop.Basic
 
 /-!
@@ -50,6 +51,16 @@ of `pollLoop m` is `m`. With pending calls the observation is faithful up to
 collapse (`BodyTrace.fullCollapseEquiv_iff`): `pollLoop_not_fullCollapseEquiv`
 separates the two forever-import loops, while `spin_fullCollapseEquiv_trapLoop`
 still identifies the silent and the trapping loop.
+
+**Infinite streams.** `toInf_pollLoop`: the infinite runs of `pollLoop m` are
+exactly the streams calling `m` at every step (any answers); `toInf_spin`,
+`toInf_trapLoop`: the silent and the trapping loop have none.
+`closeInf_lift_pollLoop`: the module layer's `Shape.closeInf` sees only
+infinite runs made through internal recursion, so the closed module whose one
+function denotes `pollLoop m` (no internal calls) has none there, while
+`toInf` has them. A module semantics that includes infinite runs *inside* a
+function needs `toInf` (or the pending calls) of its bodies; that combination
+with internal recursion is not defined here.
 
 **The denotation is not faithful.** `toAFun_not_injective`: two bodies that
 trap with different payloads are different bodies with the same denotation.
@@ -171,5 +182,30 @@ theorem pollLoop_not_fullCollapseEquiv {m₁ m₂ : E.Op} (h : m₁ ≠ m₂) (a
 theorem spin_fullCollapseEquiv_trapLoop (t : T) :
     FullCollapseEquiv (spin : Hom E S T A B) (trapLoop t) :=
   (fullCollapseEquiv_iff _ _).2 fun a => (collapse_trapLoop t a).symm
+
+/-- The infinite runs of `pollLoop m`: every call is `m`. -/
+theorem toInf_pollLoop (m : E.Op) (s : S) (a : A) :
+    toInf (pollLoop m : Hom E S T A B) s a = {ω | ∀ n, (ω n).1 = ULift.up m} :=
+  Silmaril.Proofs.Wasm.Abstract.Loop.toInf_pollLoop m s a
+
+/-- The trapping loop has no infinite run. -/
+theorem toInf_trapLoop (t : T) (s : S) (a : A) :
+    toInf (trapLoop t : Hom E S T A B) s a = ∅ :=
+  Silmaril.Proofs.Wasm.Abstract.Loop.toInf_trapLoop t s a
+
+/-- The silent loop has no infinite (productive) run. -/
+theorem toInf_spin (t : T) (s : S) (a : A) : toInf (spin : Hom E S T A B) s a = ∅ := by
+  rw [(spin_fullCollapseEquiv_trapLoop t).toInf, toInf_trapLoop]
+
+/-- `Shape.closeInf` of the closed module whose one function denotes
+`pollLoop m` is empty, while `toInf` of the body is not (when `m` can be
+answered). -/
+theorem closeInf_lift_pollLoop (m : E.Op) [Nonempty (E.Ar m)] (s : S) (a : A) :
+    Shape.closeInf (sh := ⟨liftSig E, S, PUnit, fun _ => A, fun _ => B⟩)
+        (Shape.lift fun _ => toAFun (pollLoop m : Hom E S T A B)) ⟨⟩ s a = ∅ ∧
+      (toInf (pollLoop m : Hom E S T A B) s a).Nonempty := by
+  refine ⟨Shape.closeInf_lift _ _ _ _, ?_⟩
+  obtain ⟨r⟩ := (inferInstance : Nonempty (E.Ar m))
+  exact ⟨fun _ => ⟨⟨m⟩, ⟨r⟩⟩, by rw [toInf_pollLoop]; exact fun _ => rfl⟩
 
 end Silmaril.Wasm.Abstract.Loop

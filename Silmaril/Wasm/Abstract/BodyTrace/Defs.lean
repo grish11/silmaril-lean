@@ -116,6 +116,25 @@ trap ≈ divergence, and the same pending calls. -/
 def FullCollapseEquiv {E : Sig.{u}} {S T A B : Type (u + 1)} (f g : Hom E S T A B) : Prop :=
   AFun.ObsEquiv AFun.obsCollapse (toAFun f) (toAFun g) ∧ toPending f = toPending g
 
+/-! ## Infinite import streams
+
+An infinite productive run is a stream of answered import calls, in the
+representation the module layer uses for `Shape.closeInf` (`Nat → Call`). -/
+
+/-- `InfPath t ω`: the tree `t` performs the infinite stream of answered
+import calls `ω`. -/
+def InfPath {E : Sig.{u}} {A : Type (u + 1)} (t : Silmaril.Elgot.ITree.Tree (SigEv E) A)
+    (ω : Nat → Call E) : Prop :=
+  ∃ τ : Nat → Silmaril.Elgot.ITree.Tree (SigEv E) A, τ 0 = t ∧ ∀ n, ∃ (R : Type u)
+    (e : SigEv E R) (k : R → Silmaril.Elgot.ITree.Tree (SigEv E) A) (r : R),
+    τ n = Silmaril.Elgot.ITree.vis e k ∧ ω n = ⟨e.1, cast e.2.symm r⟩ ∧ τ (n + 1) = k r
+
+/-- The infinite productive runs of a body: their streams of (lifted) import
+calls. -/
+def toInf {E : Sig.{u}} {S T A B : Type (u + 1)} (f : Hom E S T A B) :
+    S → A → Set (Nat → Call (liftSig E)) := fun s a =>
+  {ω | ∃ ω', InfPath ((f a).run s).run ω' ∧ ω = liftCall ∘ ω'}
+
 /-- Forget a trap's payload. -/
 def eraseTrap {T X : Type (u + 1)} : Except T X → Except PUnit.{u + 2} X
   | .ok x => .ok x

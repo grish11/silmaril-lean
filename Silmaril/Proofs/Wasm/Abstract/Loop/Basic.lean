@@ -128,6 +128,76 @@ theorem mem_toPending_pollLoop (m : E.Op) (s : S) (a : A) :
   obtain ⟨k, hk⟩ := pollLoop_run (S := S) (T := T) (B := B) m a s
   exact ⟨[], m, Pend.here hk, rfl⟩
 
+theorem pollLoop_run_eq (m : E.Op) (a : A) (s : S) :
+    ((pollLoop m a : BodyM E S T B).run s).run =
+      vis (E := SigEv E) (R := E.Ar m) ⟨m, rfl⟩ fun _ => ((pollLoop m a : BodyM E S T B).run s).run := by
+  conv_lhs => rw [pollLoop, loop, congrFun (Silmaril.Elgot.LawfulElgotMonad.fixpoint _) a,
+    StateT.run_bind, ExceptT.run_bind, run_poll]
+  refine (vis_bind (E := SigEv E) (R := E.Ar m) ⟨m, rfl⟩ _ _).trans ?_
+  congr 1
+  funext r
+  exact (pure_bind (m := Tree (SigEv E)) _ _).trans rfl
+
+theorem vis_heq' {Y : Type (u + 1)} {R R' : Type u} {e : SigEv E R} {e' : SigEv E R'}
+    {k : R → Tree (SigEv E) Y} {k' : R' → Tree (SigEv E) Y} (h : vis e k = vis e' k') :
+    R = R' ∧ HEq e e' ∧ HEq k k' := by
+  have := congrArg out h
+  simp only [out_vis, Part.some_inj, Visible.vis.injEq] at this
+  exact this
+
+theorem infPath_self_loop {Y : Type (u + 1)} {t : Tree (SigEv E) Y} {m : E.Op}
+    (ht : t = vis (E := SigEv E) (R := E.Ar m) ⟨m, rfl⟩ fun _ => t) (ω : Nat → Call E) :
+    InfPath t ω ↔ ∀ n, (ω n).1 = m := by
+  constructor
+  · rintro ⟨τ, h0, hτ⟩
+    have hall : ∀ n, τ n = t := by
+      intro n
+      induction n with
+      | zero => exact h0
+      | succ n ih =>
+        obtain ⟨R, e, k, r, h₁, -, h₃⟩ := hτ n
+        rw [ih, ht] at h₁
+        obtain ⟨rfl, -, hk⟩ := vis_heq' h₁
+        rw [h₃, ← eq_of_heq hk]
+    intro n
+    obtain ⟨R, e, k, r, h₁, h₂, -⟩ := hτ n
+    rw [hall n, ht] at h₁
+    obtain ⟨hR, he, -⟩ := vis_heq' h₁
+    rw [h₂]
+    exact (sigEv_val_eq hR he).symm
+  · intro h
+    refine ⟨fun _ => t, rfl, fun n => ?_⟩
+    have hn := h n
+    generalize ω n = c at hn ⊢
+    obtain ⟨m', r⟩ := c
+    change m' = m at hn
+    subst hn
+    exact ⟨E.Ar m', ⟨m', rfl⟩, fun _ => t, r, ht, rfl, rfl⟩
+
+theorem toInf_pollLoop (m : E.Op) (s : S) (a : A) :
+    toInf (pollLoop m : Hom E S T A B) s a = {ω | ∀ n, (ω n).1 = ULift.up m} := by
+  ext ω
+  constructor
+  · rintro ⟨ω', hω', rfl⟩ n
+    exact congrArg ULift.up (((infPath_self_loop (pollLoop_run_eq m a s) ω').1 hω') n)
+  · intro h
+    refine ⟨fun n => ⟨(ω n).1.down, (ω n).2.down⟩, ?_, rfl⟩
+    exact (infPath_self_loop (pollLoop_run_eq m a s) _).2 fun n => congrArg ULift.down (h n)
+
+theorem trapLoop_run (t : T) (a : A) (s : S) :
+    ((trapLoop t a : BodyM E S T B).run s).run = ret (.error t) := by
+  rw [trapLoop, loop, congrFun (Silmaril.Elgot.LawfulElgotMonad.fixpoint _) a, trap_bind,
+    run_trap]
+
+theorem toInf_trapLoop (t : T) (s : S) (a : A) :
+    toInf (trapLoop t : Hom E S T A B) s a = ∅ := by
+  ext ω
+  simp only [Set.mem_empty_iff_false, iff_false]
+  rintro ⟨ω', ⟨τ, h0, hτ⟩, -⟩
+  obtain ⟨R, e, k, r, h₁, -, -⟩ := hτ 0
+  rw [h0, trapLoop_run] at h₁
+  exact ret_ne_vis _ _ _ h₁
+
 /-- Two bodies that trap with different payloads. -/
 noncomputable def trapWith (b : Bool) : Hom Sig.empty.{0} PUnit.{2} (ULift.{1} Bool) PUnit.{2} PUnit.{2} :=
   fun _ => trap ⟨b⟩
