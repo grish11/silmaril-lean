@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Cfg.Machine.Defs
 public import Silmaril.Wasm.Cfg.Region.Defs
 import Silmaril.Proofs.Wasm.Cfg.Machine
+import Silmaril.Proofs.Wasm.Cfg.MachineComplete
 
 @[expose] public section
 
@@ -47,8 +48,14 @@ import Silmaril.Proofs.Wasm.Cfg.Machine
   branch (`brDataTaken_step_sound`) or fall through (`brDataNot_step_sound`); both are part of
   `run_sound`.
 
-Not claimed here: completeness (every region run is a machine run) and divergence. Call
-terminators (`return_call*`) have no machine step yet.
+* **Completeness** (`run_complete_initial`): every region run of the body, other than one ending
+  in a branch out of the body, is a machine run from `cfgEntry` to a sink with the same outcome,
+  store and frame. The proof (`Proofs/Wasm/Cfg/MachineComplete.lean`) is by induction on the
+  `Region.Run` derivation, against a relation between region codes and the machine states they
+  stand for at each level of label nesting.
+
+Not claimed here: divergence (infinite region runs as infinite machine runs). Call terminators
+(`return_call*`) have no region rule (`Region.Run` is call-free) and no machine step.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -433,5 +440,23 @@ theorem brDataNot_step_sound {b : BlockId} {sg : Segment} {stk ws us us' : List 
     {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.brDataNot_step_sound hb ht hr hbs hX hY
+
+/-! ## Completeness -/
+
+/-- `Ends` holds only at the sinks. -/
+theorem isSink_of_ends {st : MState H} {o : Region.Out} (h : Ends st o) : st.node.IsSink := by
+  obtain ⟨node, stk, ls, s, f⟩ := st
+  cases node <;> simp_all [Ends, Target.IsSink]
+
+/-- **Completeness from the CFG entry**: every region run of a function body (`Region.Run` of
+`expression body` from the initial store and frame, not ending in a branch out of the body) is a
+machine run from the initial state (`cfgEntry`) to a sink, ending as `Ends` says (the run's
+values by fall-through or `return`, its trap, or its exception), in the run's final store and
+frame. With `run_sound_initial`, machine runs to sinks and region runs of the body agree. -/
+theorem run_complete_initial {s s' : Store H} {f f' : Frame} {o : Region.Out}
+    (h : Region.Run P host s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us) :
+    ∃ st', Relation.ReflTransGen (MStep P host body) (initial body s f) st' ∧ Ends st' o ∧
+      st'.store = s' ∧ st'.frame = f' :=
+  Proofs.MachineComplete.run_complete_initial h ho
 
 end Silmaril.Wasm.Cfg.Machine
