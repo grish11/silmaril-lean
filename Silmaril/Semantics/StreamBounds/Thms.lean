@@ -3,10 +3,12 @@ module
 public import Silmaril.Semantics.StreamBounds.Defs
 public import Silmaril.Semantics.Accept.Defs
 public import Silmaril.Semantics.Accept.Bounded.Defs
+public import Silmaril.Semantics.Accept.Items.Defs
 public import Silmaril.Semantics.Streams.Thms
 public import Silmaril.Semantics.StreamMonitors.Thms
 import Silmaril.Proofs.Semantics.StreamBounds.Finite
 import Silmaril.Proofs.Semantics.StreamBounds.Infinite
+import Silmaril.Proofs.Semantics.StreamBounds.Items
 
 /-!
 # Resource bounds for streaming languages: theorems
@@ -25,6 +27,9 @@ Statements about `Silmaril.Semantics.StreamBounds.Defs`; longer proofs are in
   `Acceptor.completeFoldOn_iff_completeOn` restate the fold notions as `Accept.Sound` and
   `Accept.CompleteOn` of the fold checker on chunk lists, so the `Accept.Bounded` laws
   apply.
+* **Item lists.** For separator-free items, `frameItems_mem_itemBound_iff` and
+  `frameItems_mem_runBound_length_iff` identify the symbol-level bounds of framed lists
+  with `Accept.itemsWithin` and `Accept.totalWithin` of `Silmaril.Accept.Items`.
 * **Completeness relative to a bound.** `CorrectFold` is soundness plus completeness on
   `Set.univ` (`Acceptor.correctFold_iff`); completeness is antitone in the bound
   (`Acceptor.CompleteFoldOn.mono`), and completeness at every bound of an exhaustive family
@@ -228,6 +233,28 @@ theorem exists_chunkBound_limit {k : ℕ} (hk : 1 ≤ k) (t : Word α) :
 /-- Chunks of `0` symbols only deliver the empty word. -/
 theorem limit_of_chunkBound_zero {cs : Chunks α} (h : ChunkBound 0 cs) : cs.limit = .fin [] :=
   Silmaril.Proofs.Semantics.StreamBounds.limit_of_chunkBound_zero h
+
+/-! ## Framed item lists and `Silmaril.Accept.Items`
+
+`frameItems sep items` writes a finite list of separator-free items as one symbol word.
+Item-level bounds of `Silmaril.Accept.Items` and symbol-level bounds here then agree. -/
+
+/-- A framed list meets the symbol-level item bound iff every item is short enough. -/
+theorem frameItems_mem_itemBound_iff {isSep : α → Bool} {sep : α} {n : ℕ}
+    (h : isSep sep = true) (items : List (List α))
+    (hs : ∀ x ∈ items, ∀ a ∈ x, isSep a = false) :
+    frameItems sep items ∈ ItemBound isSep n ↔
+      items ∈ Silmaril.Accept.itemsWithin List.length n :=
+  Silmaril.Proofs.Semantics.StreamBounds.frameItems_mem_itemBound_iff h items hs
+
+/-- A framed list meets a whole-input bound iff its items, each counted with its separator,
+meet the item-level whole-list bound. -/
+theorem frameItems_mem_runBound_length_iff (sep : α) (items : List (List α)) (m : ℕ) :
+    frameItems sep items ∈ RunBound List.length m ↔
+      items ∈ Silmaril.Accept.totalWithin (fun x => x.length + 1) m := by
+  rw [runBound_length]
+  show (frameItems sep items).length ≤ m ↔ (items.map fun x => x.length + 1).sum ≤ m
+  simp [frameItems, List.length_flatMap]
 
 end Silmaril.Streams
 

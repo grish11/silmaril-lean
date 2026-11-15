@@ -128,6 +128,10 @@ def ChunkBound (k : ℕ) (cs : Chunks α) : Prop := ∀ n, (cs n).length ≤ k
 def repeatItem (item : List α) (sep : α) : ωSequence α :=
   fun i => (item ++ [sep]).getD (i % (item.length + 1)) sep
 
+/-- Frame a finite list of items as one symbol word, each item terminated by `sep` (as in
+line-delimited formats). Items are uninterpreted. -/
+def frameItems (sep : α) (items : List (List α)) : List α := items.flatMap (· ++ [sep])
+
 end Silmaril.Streams
 
 namespace Silmaril.Acceptor

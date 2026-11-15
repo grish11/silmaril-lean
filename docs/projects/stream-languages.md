@@ -175,6 +175,12 @@ Stable API:
   (`mem_safetyω_itemBound_of_window`, `const_mem_safetyω_itemBound`,
   `repeatItem_mem_safetyω_itemBound`, `exists_mem_safetyω_itemBound_not_length`). A word
   that only opens leaves every depth bound (`not_mem_safetyω_depthBound`).
+- `frameItems sep items` frames a finite item list, with each item terminated by `sep`.
+  For separator-free items, `frameItems_mem_itemBound_iff` says the per-item bound is
+  `Silmaril.Accept.itemsWithin List.length n`. `frameItems_mem_runBound_length_iff` says
+  the whole-input bound is `Silmaril.Accept.totalWithin (length + 1) m`.
+  `Silmaril.Accept.Items` owns item-level lists; this lemma connects them to symbol
+  streams.
 - `ChunkBound k cs` bounds every chunk by `k` symbols. For `k ≥ 1` every finite or infinite
   word is delivered by such a stream (`exists_chunkBound_limit`); for `k = 0` only the
   empty word is (`limit_of_chunkBound_zero`).
