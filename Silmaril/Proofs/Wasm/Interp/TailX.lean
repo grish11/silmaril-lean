@@ -341,16 +341,22 @@ theorem tail_preT {i : Instr} {labels : List Nat} {ret : Nat} {out : Option Nat}
 
 /-- A resolved tail call runs in Core 3.0 to a `return_call_ref` on the callee. -/
 theorem tailRes_steps {i : Instr} (hres : TailRes s₁ f₁ i stk₁ (some (a, stk₁.drop (tailPop i)))) :
-    ∃ c : Admin, c.IsReturnCallRef ∧ Steps P host
-      ⟨s₁, f₁, vals (stk₁.take (tailPop i)).reverse ++ [.plain i]⟩ ⟨s₁, f₁, [.ref (.func a), c]⟩ := by
+    ∃ c : Admin, c.IsReturnCallRef ∧
+      (∀ d, c = .returnCallRefType d → ∃ fi', s₁.funcs[a]? = some fi' ∧ d = fi'.type) ∧
+      Steps P host ⟨s₁, f₁, vals (stk₁.take (tailPop i)).reverse ++ [.plain i]⟩
+        ⟨s₁, f₁, [.ref (.func a), c]⟩ := by
   cases hres with
   | @direct x _ fi₀ _ hfi₀ =>
     exact ⟨.returnCallRefType fi₀.type, trivial,
+      fun d hd => ⟨fi₀, funcs_of_func? hfi₀, by cases hd; rfl⟩,
       .single (Step.returnCall (module_of_func? hfi₀) (funcs_of_func? hfi₀))⟩
   | @indirect x y _ _ _ _ hres' =>
-    exact ⟨.plain (.returnCallRef y), trivial,
-      Silmaril.Wasm.Abstract.CallRes.steps_returnCallIndirect_func hres'⟩
-  | @ref y _ _ => exact ⟨.plain (.returnCallRef y), trivial, .refl⟩
+    refine ⟨.plain (.returnCallRef y), trivial, ⟨fun _ h => ?_,
+      Silmaril.Wasm.Abstract.CallRes.steps_returnCallIndirect_func hres'⟩⟩
+    cases h
+  | @ref y _ _ =>
+    refine ⟨.plain (.returnCallRef y), trivial, ⟨fun _ h => ?_, .refl⟩⟩
+    cases h
 
 theorem arityT_tail {i : Instr} (hC : OracleSoundT P host C)
     (iha : ArityGoodE tExt s f stk args (s₁, f₁, .normal stk₁))
@@ -397,7 +403,7 @@ theorem coreT_tail {i : Instr} (hC : OracleSoundT P host C)
   obtain ⟨oa, ha, -⟩ := chk1_opE h1
   have hS₁ : StoreChkE tExt s₁.funcs := storeChk_inv inv1 hS
   obtain ⟨ps', rs', hex, hpl, -⟩ := expand_of_funcType hty
-  obtain ⟨c, hcr, hpre⟩ := tailRes_steps (P := P) (host := host) hres
+  obtain ⟨c, hcr, -, hpre⟩ := tailRes_steps (P := P) (host := host) hres
   have hlen : ((stk₁.drop (tailPop i)).take ps.length).reverse.length = ps.length := by
     simp only [List.length_reverse, List.length_take, List.length_drop]; omega
   have hT : TailRun P host ret (s₂, f₁, tailFlow rs.length fl) s₁ f₁

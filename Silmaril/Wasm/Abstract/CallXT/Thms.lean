@@ -28,7 +28,8 @@ public import Silmaril.Wasm.Abstract.XRecursion.Thms
 
 * **The `call_ref` premise at a typed site.** `typeArity_of_callRef_site`: if
   the Core configuration at `call_ref y` on a function reference is typed in
-  context (`Sim.ContextTyped`), the referenced function has the counts of `y`.
+  context (`Sim.ContextTyped`), the referenced function has the counts of `y`;
+  the same at `return_call_ref y` (`typeArity_of_returnCallRef_site`).
 
 **Not yet.** Carrying `ContextTyped` along `EvalOX` runs (Core preservation of
 the arguments' Core runs), which turns the site lemma into the `call_ref`
@@ -106,6 +107,16 @@ theorem typeArity_of_callRef_site {s : Store H} {f : Frame} {stk : List Val} {fa
     (hty : DefType.funcType? fi.type = some (ps, rs)) (hfiok : TyOk {} fi.type) :
     typeArity f.module y = some (ps.length, rs.length) :=
   Silmaril.Proofs.Wasm.Abstract.CallXT.typeArity_of_callRef_site ht hm hfi hty hfiok
+
+/-- **The `return_call_ref` premise at a typed site.** -/
+theorem typeArity_of_returnCallRef_site {s : Store H} {f : Frame} {stk : List Val} {fa : Nat}
+    {y : TypeIdx} {rest : List Admin} {fi : FuncInst H} {ps rs : List CValType}
+    (ht : Silmaril.Wasm.Execution.Core.Sim.ContextTyped
+      ⟨s, f, vals (.ref (.func fa) :: stk).reverse ++ .plain (.returnCallRef y) :: rest⟩)
+    (hm : TyTypes f.module) (hfi : s.funcs[fa]? = some fi)
+    (hty : DefType.funcType? fi.type = some (ps, rs)) (hfiok : TyOk {} fi.type) :
+    typeArity f.module y = some (ps.length, rs.length) :=
+  Silmaril.Proofs.Wasm.Abstract.CallXT.typeArity_of_returnCallRef_site ht hm hfi hty hfiok
 
 /-- Runs keep the frame's instance. -/
 theorem evalOX_module {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val}

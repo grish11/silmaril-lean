@@ -6,6 +6,8 @@ public import Silmaril.Proofs.Wasm.Interp.TypedX
 public import Silmaril.Proofs.Wasm.Interp.TypedCloseX
 public import Silmaril.Proofs.Wasm.Interp.TailX
 public import Silmaril.Proofs.Wasm.Interp.TailCloseX
+public import Silmaril.Proofs.Wasm.Interp.TypedT
+public import Silmaril.Proofs.Wasm.Interp.TypedCloseT
 
 /-!
 # Core 3.0 adequacy of the indirect and reference calls (F4, call forms)
@@ -38,7 +40,11 @@ the annotated type's counts; it forgets to `EvalOX` (`CallXT.EvalOXT.forget`).
   a pending (null) tail call, whose frame exit is closed by
   `funcPost_of_tailRun`/`frame_tail_exit`/`frame_tailNull`. Hence
   `evalOX_closed_goodT`. Callee bodies on good stores have no
-  `return_call_ref` (`GoodStoreX`); the typed tail closure is still open.
+  `return_call_ref` (`GoodStoreX`). For typed runs (`TypedT`, checker
+  `tExt`) every form is included in callee bodies too:
+  `oracleSoundT_typedClosed` and `evalOX_closed_typed_goodT`; a tail
+  callee's body is typed from the site's argument types (`retRef_args`,
+  `entry_of_invokeOk`), as it runs only after the caller's frame is left.
 * The arity premises of `EvalOXT` are discharged from typing in a follow-up
   (for `call_indirect` from the successful `ref.cast`, for `call_ref` from the
   reference's type).
@@ -153,5 +159,33 @@ theorem evalOX_closed_goodT {s : Store H} {f : Frame} {stk : List Val}
     ArityGoodE Silmaril.Wasm.Interp.tExt s f stk es r ∧
       Silmaril.Wasm.Interp.CoreGoodT Silmaril.Wasm.Interp.tExt P host s f stk es r :=
   Silmaril.Wasm.Interp.evalOX_closed_goodT h hG hm hx
+
+/-- **Typed runs carry their arity premises, tail calls included** (`tExt`). -/
+theorem evalOXT_of_typedT {C : Abstract.CallRel H}
+    (hC : Silmaril.Wasm.Interp.OracleSoundT P Silmaril.Wasm.Interp.noHostX C)
+    (hCk : Abstract.CallXT.KeepsTy C) {s : Store H} {f : Frame} {stk : List Val}
+    {es : List Binaryen.BExpr} {r : Store H × Frame × Binaryen.Flow}
+    (h : Abstract.CallX.EvalOX C s f stk es r) (ht : Silmaril.Wasm.Interp.TypedT s f stk es) :
+    Abstract.CallXT.EvalOXT C s f stk es r :=
+  Silmaril.Wasm.Interp.evalOXT_of_typedT hC hCk h ht
+
+/-- **The closure is a sound oracle for typed calls with tail calls** (`tExt`): every call
+form in callee bodies included. -/
+theorem oracleSoundT_typedClosed :
+    Silmaril.Wasm.Interp.OracleSoundT P Silmaril.Wasm.Interp.noHostX
+      (Silmaril.Wasm.Interp.CX (Abstract.XRecursion.closedCallX : Abstract.CallRel H)) :=
+  Silmaril.Wasm.Interp.oracleSoundT_typedClosed
+
+/-- **Typed closed extended runs are Core 3.0 runs, every call form included**: indirect,
+reference and the three tail forms, in the running code and in every callee, no oracle
+assumed, under the tail-aware postcondition. -/
+theorem evalOX_closed_typed_goodT {s : Store H} {f : Frame} {stk : List Val}
+    {es : List Binaryen.BExpr} {r : Store H × Frame × Binaryen.Flow}
+    (h : Abstract.CallX.EvalOX Abstract.XRecursion.closedCallX s f stk es r)
+    (ht : Silmaril.Wasm.Interp.TypedT s f stk es) :
+    ArityGoodE Silmaril.Wasm.Interp.tExt s f stk es r ∧
+      Silmaril.Wasm.Interp.CoreGoodT Silmaril.Wasm.Interp.tExt P Silmaril.Wasm.Interp.noHostX
+        s f stk es r :=
+  Silmaril.Wasm.Interp.evalOX_closed_typed_goodT h ht
 
 end Silmaril.Wasm.Interp.OracleX
