@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Abstract.Decomp.Defs
 public import Silmaril.Wasm.Abstract.XDiverge.Defs
+public import Silmaril.Wasm.Abstract.BodyTrace.Defs
 
 /-!
 # Decomposing divergence through every call form (F4, call forms)
@@ -167,5 +168,22 @@ def wasmLocalDivX (z : (wasmOShape H).self.Op) : Prop :=
 
 /-- The call `y` diverges. -/
 def CallDivX (y : (wasmOShape H).self.Op) : Prop := FunDivX y.2.2 y.1 y.2.1
+
+open Silmaril.Wasm.Abstract.StoreCall (Answered callOp CallSig) in
+/-- **An exposed descent through every call form**: the exposed body
+`CallX.denListX` of the call `x` makes the pending call event of `y` after call
+events answered by `closedCallX`. -/
+def ExposedReachX (x y : (wasmOShape H).self.Op) : Prop :=
+  ∃ (fi : FuncInst H) (fn : Func), x.2.2.funcs[x.1]? = some fi ∧ fi.code = .wasm fn ∧
+    ∃ cs, Answered closedCallX cs ∧
+      Silmaril.Wasm.Abstract.BodyTrace.Pend
+        (((denListX (liftInstrs fn.body) (Frame.forCall fi.module x.2.1 fn.locals) [] :
+          Silmaril.Wasm.Abstract.StoreBody.M (CallSig H) H Silmaril.Wasm.Abstract.StoreBody.Res).run
+            ⟨x.2.2⟩).run) cs (callOp y)
+
+/-- Finite chains of exposed descents. -/
+inductive ExposedPathX : (wasmOShape H).self.Op → (wasmOShape H).self.Op → Prop
+  | refl (x : (wasmOShape H).self.Op) : ExposedPathX x x
+  | step {x y z : (wasmOShape H).self.Op} : ExposedReachX x y → ExposedPathX y z → ExposedPathX x z
 
 end Silmaril.Wasm.Abstract.XDecomp

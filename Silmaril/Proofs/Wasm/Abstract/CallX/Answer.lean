@@ -587,31 +587,7 @@ end
 section
 variable {C : CallRel H}
 
-theorem loopOut_inl {np nr : Nat} {stk : List Val} {f₁ : Frame} {fl : Flow} {b : Res}
-    (h : loopOut np nr stk f₁ fl = .inl b) :
-    (∃ vs, fl = .normal vs ∧ b = ⟨(f₁, .normal (vs.take nr ++ stk.drop np))⟩) ∨
-      (∃ k vs, fl = .brk (k + 1) vs ∧ b = ⟨(f₁, .brk k vs)⟩) ∨ (fl.Escapes ∧ b = ⟨(f₁, fl)⟩) := by
-  cases fl with
-  | normal vs => cases h; exact .inl ⟨vs, rfl, rfl⟩
-  | brk k vs =>
-    cases k with
-    | zero => cases h
-    | succ k => cases h; exact .inr (.inl ⟨k, vs, rfl, rfl⟩)
-  | ret vs => cases h; exact .inr (.inr ⟨trivial, rfl⟩)
-  | trap => cases h; exact .inr (.inr ⟨trivial, rfl⟩)
-  | throw a => cases h; exact .inr (.inr ⟨trivial, rfl⟩)
-
-theorem loopOut_inr {np nr : Nat} {stk : List Val} {f₁ : Frame} {fl : Flow}
-    {c : ULift.{1} (Frame × List Val)} (h : loopOut np nr stk f₁ fl = .inr c) :
-    ∃ vs, fl = .brk 0 vs ∧ c = ⟨(f₁, vs.take np ++ stk.drop np)⟩ := by
-  cases fl with
-  | brk k vs =>
-    cases k with
-    | zero => cases h; exact ⟨vs, rfl, rfl⟩
-    | succ k => cases h
-  | _ => cases h
-
-/-- One loop iteration's path, inverted: the body runs to an `EvalO` outcome. -/
+/-- One loop iteration's path, inverted: the body runs to an `EvalOX` outcome. -/
 theorem loopIter_ansX {bt : BlockType} {body : List BExpr} (hbody : LAnsX C body)
     {p : ULift.{1} (Frame × List Val) × St H} {cs : List (Call (CallSig H))}
     {r' : PathEnd (Except PUnit.{2} ((Res ⊕ ULift.{1} (Frame × List Val)) × St H))}
