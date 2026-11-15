@@ -438,4 +438,45 @@ theorem operands_params {D : Context} (hD : D.Wf) {args : List Instr} {i : Instr
   rw [h1] at s2b
   exact resultSub_nums s2b hvs
 
+/-! ## Per-instruction typing inversions -/
+
+theorem instrOk_intUnOp_inv {D : Context} {t : IntType} {op : IntUnOp} {it : InstrType}
+    (h : InstrOk D (.intUnOp t op) it) : it = .plain [.num (.int t)] [.num (.int t)] := by
+  cases h
+  all_goals (rename_i h; cases h)
+  rfl
+
+theorem instrOk_intTestOp_inv {D : Context} {t : IntType} {op : IntTestOp} {it : InstrType}
+    (h : InstrOk D (.intTestOp t op) it) : it = .plain [.num (.int t)] [.num (.int .i32)] := by
+  cases h
+  all_goals (rename_i h; cases h)
+  rfl
+
+theorem instrOk_intBinOp_inv {D : Context} {t : IntType} {op : IntBinOp} {it : InstrType}
+    (h : InstrOk D (.intBinOp t op) it) :
+    it = .plain [.num (.int t), .num (.int t)] [.num (.int t)] := by
+  cases h
+  all_goals (rename_i h; cases h)
+  rfl
+
+theorem instrOk_intRelOp_inv {D : Context} {t : IntType} {op : IntRelOp} {it : InstrType}
+    (h : InstrOk D (.intRelOp t op) it) :
+    it = .plain [.num (.int t), .num (.int t)] [.num (.int .i32)] := by
+  cases h
+  all_goals (rename_i h; cases h)
+  rfl
+
+theorem instrOk_select_inv {D : Context} {it : InstrType} (h : InstrOk D (.select none) it) :
+    ∃ t, it = .plain [t, t, .num (.int .i32)] [t] := by
+  cases h
+  all_goals (rename_i h; cases h)
+  exact ⟨_, rfl⟩
+
+theorem instrOk_selectT_inv {D : Context} {vt : ValType} {it : InstrType}
+    (h : InstrOk D (.select (some [vt])) it) :
+    ∃ t, it = .plain [t, t, .num (.int .i32)] [t] := by
+  cases h
+  all_goals (rename_i h; cases h)
+  exact ⟨_, rfl⟩
+
 end Silmaril.Proofs.Wasm.Abstract.FragBody
