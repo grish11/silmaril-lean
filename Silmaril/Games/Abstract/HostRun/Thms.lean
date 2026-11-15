@@ -19,6 +19,11 @@ import Silmaril.Proofs.Games.Abstract.HostRun.Basic
 No totality or determinism of the host is assumed elsewhere. `hostObs` is
 defined for every relation: a host may allow several answers, divergence, or
 nothing.
+
+`DetP` is determinism given the answers to *every* event of `E`. If `E` mixes
+public imports with internal choice events (numeric nondeterminism,
+`memory.grow`), then `hostObs_unique` needs a functional relation on all of
+them. Hiding the internal events first does not preserve `DetP`.
 -/
 
 public section

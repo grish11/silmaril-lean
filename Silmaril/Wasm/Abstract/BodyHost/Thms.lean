@@ -22,6 +22,21 @@ the host observations of `Silmaril.Games.Abstract.HostRun`. A body's inputs to
 A host may be any relation; only `body_hostObs_unique` assumes it
 functional. Nothing here relates bodies to Core 3.0 host calls; that is the
 simulation stage.
+
+**Scope of `DetP`.** It is a property of *raw* bodies only. A body is
+deterministic given the answers to **all** of its events, including events
+that model internal choices: a nondeterministic numeric result such as a NaN
+payload, or the outcome of `memory.grow`. It says nothing once such events are
+hidden or quantified away. It also says nothing about a Region `Run` or Core
+3.0 under a nondeterministic numerics profile. Core with a relational host may
+be nondeterministic even when every body is `DetP`.
+
+Public imports and internal choices are different. A use of `hostObs` should
+treat only the public import events as host calls. Internal choice events
+should be resolved or quantified separately, under the numerics profile in
+force. Uniqueness of a Core observation needs that profile to be deterministic
+(the Core lemmas assume `profile o` or a closed native profile). It does not
+follow from `body_detP` alone.
 -/
 
 public section
