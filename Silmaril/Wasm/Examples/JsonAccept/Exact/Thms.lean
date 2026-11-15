@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Examples.JsonAccept.Instance.Thms
 public import Silmaril.Wasm.Logic.Total.Thms
+public import Silmaril.Wasm.Game.Accept.Export.Thms
 import Silmaril.Proofs.Wasm.Examples.JsonAccept.Total
 
 /-! # The JSON-subset acceptor: total correctness and exact acceptance
@@ -27,6 +28,10 @@ the loop (`Silmaril.Wasm.Logic.VC.wpc_sound_total`).
   address space. Inputs of every admitted length are decided, and the embedded acceptor is sound
   for JSON (`exportAccepted_subset_json`). The subset is `intText` (one integer with whitespace),
   **not all of JSON**: every other JSON text is rejected.
+
+* **The combined reading** (`exportAcceptedNotRejected_eq`, `acceptsSafely_eq`): some run
+  answers `1` and no run answers `0`, over the same runs and hosts, exactly on the same set.
+  Accepted inputs are never also rejected (`exportAccepted_disjoint_rejected`).
 
 The embedding is that of `Silmaril.Wasm.Game.Accept.Export`: the spec instance (unique,
 `spec_instance_eq`), the input written into memory `0`, `accept(ptr, len)` invoked.
@@ -103,5 +108,27 @@ theorem exportAccepted_union_rejected {P : Profile} {Hosts : Set (HostSemantics 
   ext w
   simp only [Set.mem_union, Set.mem_ofPred_eq]
   tauto
+
+/-- No input is both accepted and rejected. -/
+theorem exportAccepted_disjoint_rejected {P : Profile} {Hosts : Set (HostSemantics Nat)}
+    {host : HostSemantics Nat} (hh : host ∈ Hosts) :
+    Disjoint (exportAccepted P Hosts prog "accept") (exportRejected P Hosts prog "accept") := by
+  rw [exportAccepted_eq hh, exportRejected_eq hh]
+  exact Set.disjoint_left.2 fun _ ha hr => hr.1 ha.1
+
+/-- **Accepted and never rejected**: exactly the integer texts shorter than `2 ^ 32`. -/
+theorem exportAcceptedNotRejected_eq {P : Profile} {Hosts : Set (HostSemantics Nat)}
+    {host : HostSemantics Nat} (hh : host ∈ Hosts) :
+    exportAcceptedNotRejected P Hosts prog "accept" = {w | w ∈ intText ∧ w.length < 2 ^ 32} := by
+  rw [exportAcceptedNotRejected, Set.inter_eq_left.2
+    (Set.subset_compl_iff_disjoint_right.2 (exportAccepted_disjoint_rejected hh)),
+    exportAccepted_eq hh]
+
+/-- The same, as the generic combined verdict `Silmaril.Accept.acceptsSafely`. -/
+theorem acceptsSafely_eq {P : Profile} {Hosts : Set (HostSemantics Nat)}
+    {host : HostSemantics Nat} (hh : host ∈ Hosts) :
+    Silmaril.Accept.acceptsSafely (exportRun P Hosts prog "accept") {1} {0} =
+      {w | w ∈ intText ∧ w.length < 2 ^ 32} := by
+  rw [← exportAcceptedNotRejected_eq_acceptsSafely, exportAcceptedNotRejected_eq hh]
 
 end Silmaril.Wasm.Examples.JsonAccept

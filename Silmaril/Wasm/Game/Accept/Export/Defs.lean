@@ -19,7 +19,9 @@ The **embedding** is the standard one of a host calling a validator:
    (`ptr + len < 2 ^ 32`).
 
 An input is accepted when some such run returns `[i32 1]` (`exportAccepted`). It is rejected
-when one returns `[i32 0]` (`exportRejected`). The host relation `host` resolves the module's
+when one returns `[i32 0]` (`exportRejected`). It is **accepted and never rejected**
+(`exportAcceptedNotRejected`) when some run returns `1` and no run returns `0`; both quantifiers
+range over the same runs (`exportRun`, the results of the embedding's runs on the input). The host relation `host` resolves the module's
 import calls during both runs. The admitted hosts are a parameter (`Hosts`).
 
 This is one environment class, not every context: hosts that also ran other exports first, or
@@ -68,5 +70,15 @@ def exportAccepted (P : Profile) (Hosts : Set (HostSemantics Nat)) (m : Module)
 def exportRejected (P : Profile) (Hosts : Set (HostSemantics Nat)) (m : Module)
     (name : String) : Set (List UInt8) :=
   exportAnswered P Hosts m name 0
+
+/-- **The runner of the export embedding**: the `i32` results of the runs on an input. -/
+def exportRun (P : Profile) (Hosts : Set (HostSemantics Nat)) (m : Module) (name : String)
+    (w : List UInt8) : Set (BitVec 32) :=
+  {r | w ∈ exportAnswered P Hosts m name r}
+
+/-- Some run of the embedding answers `1`, and none answers `0`. -/
+def exportAcceptedNotRejected (P : Profile) (Hosts : Set (HostSemantics Nat)) (m : Module)
+    (name : String) : Set (List UInt8) :=
+  exportAccepted P Hosts m name ∩ (exportRejected P Hosts m name)ᶜ
 
 end Silmaril.Wasm.Game.Accept
