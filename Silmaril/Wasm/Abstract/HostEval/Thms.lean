@@ -1,0 +1,75 @@
+module
+
+public import Silmaril.Wasm.Abstract.HostEval.Defs
+public import Silmaril.Wasm.Abstract.HostCall.Thms
+public import Silmaril.Wasm.Logic.Core.Thms
+import Silmaril.Proofs.Wasm.Abstract.HostEval.Basic
+
+/-!
+# The native semantics with host calls: theorems (stage H2)
+
+* `hostCall_fixpoint`: the closure answers Wasm callees by their bodies and
+  host callees by the host.
+* `hostCall_closedHost`: with the closed host it is `closedCall`. So `EvalH
+  closedHost` is the closed native semantics of `Silmaril.Wasm.Abstract.Recursion`,
+  and every closed-host result applies to it.
+
+**First forward-simulation cases**, any frame, every profile and host:
+
+* `wp_host_callOk`: a native call of a host function answered `values vs`
+  (with the declared result arity) continues in Core at exactly the native
+  continuation stack `vs.reverse ++ stk₁.drop ps.length`, in the store the host
+  returned;
+* `steps_host_callTrap`: an answer `trap` is a Core run to `[trap]` in the
+  host's store.
+
+**Not yet proved.** The whole forward simulation of `EvalH` (the remaining
+cases are those of `wp_of_eval`; its arity invariants need the host to
+preserve the store's functions, an explicit hypothesis to come). Also the
+backward simulation and the decomposition of divergence with host calls.
+-/
+
+public section
+
+namespace Silmaril.Wasm.Abstract
+
+open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
+open Silmaril.Wasm.Logic.Core
+
+variable {H : Type}
+
+theorem hostCall_fixpoint (host : HostSemantics H) :
+    hostCall host = bodyCall (hostCall host) ⊔ hostAns host :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.hostCall_fixpoint host
+
+/-- With the closed host, closing with host calls is plain closing. -/
+theorem hostCall_closedHost : hostCall (closedHost : HostSemantics H) = closedCall :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.hostCall_closedHost
+
+variable {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H}
+
+/-- **Host call answered with values**: the native continuation is the Core one. -/
+theorem wp_host_callOk {s₁ s₂ : Store H} {f₁ : Frame} {stk₁ : List Val} {x : Silmaril.Wasm.FuncIdx}
+    {a : Nat} {fi : FuncInst H} {h : H} {ps rs : Ty (.list .val)} {vs : List Val}
+    {rest : List Admin} {Q : Post H}
+    (hx : f₁.module.funcs[x.toNat]? = some a) (hf : s₁.funcs[a]? = some fi)
+    (he : Expand fi.type (.func ps rs)) (hcode : fi.code = .host h)
+    (hlen : ps.length ≤ stk₁.length) (hres : vs.length = rs.length)
+    (hans : host h s₁ (stk₁.take ps.length).reverse (.returned s₂ (.values vs)))
+    (hk : WP P host s₂ f₁
+      (vals ((vs.reverse.take rs.length) ++ stk₁.drop ps.length).reverse ++ rest) Q) :
+    WP P host s₁ f₁ (vals stk₁.reverse ++ .plain (.call x) :: rest) Q :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.wp_host_callOk hx hf he hcode hlen hres hans hk
+
+/-- **Host call answered with a trap.** -/
+theorem steps_host_callTrap {s₁ s₂ : Store H} {f₁ : Frame} {stk₁ : List Val}
+    {x : Silmaril.Wasm.FuncIdx} {a : Nat} {fi : FuncInst H} {h : H} {ps rs : Ty (.list .val)}
+    {rest : List Admin}
+    (hx : f₁.module.funcs[x.toNat]? = some a) (hf : s₁.funcs[a]? = some fi)
+    (he : Expand fi.type (.func ps rs)) (hcode : fi.code = .host h)
+    (hlen : ps.length ≤ stk₁.length)
+    (hans : host h s₁ (stk₁.take ps.length).reverse (.returned s₂ .trap)) :
+    Steps P host ⟨s₁, f₁, vals stk₁.reverse ++ .plain (.call x) :: rest⟩ ⟨s₂, f₁, [.trap]⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.steps_host_callTrap hx hf he hcode hlen hans
+
+end Silmaril.Wasm.Abstract
