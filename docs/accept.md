@@ -181,3 +181,46 @@ with `Injective`; subsets preserve `SingleValued` and `Injective`, supersets `To
 
 Examples (total but not single-valued, single-valued but not total, injective but not
 surjective, surjective but not total): `Silmaril/Semantics/Accept/Func/Examples.lean`.
+
+### `Silmaril.Semantics.Accept.IO.Defs` / `Thms`: relational I/O acceptance
+
+Namespace `Silmaril.Accept.IO`. A program that reads inputs and writes outputs accepts a
+*relation*. "Input `a` triggers output `b`" is defined by **scopes** (call IDs or protocol
+boundaries), not by temporal order: only events of the same scope are related, so outputs of
+interleaved invocations, of nested/reentrant calls, and outputs before the input are not
+attributed to it.
+
+| Name | Meaning |
+| --- | --- |
+| `Ev K X I O C` | role-decoded event of scope `k : K`: `enter k x` (entry point invoked, `x : Option X`, `none` = unobserved), `inp k i`, `out k o`, `exit k c` (`c : Option C`, `none` = trap/abort/undecoded) |
+| `localView k t` | the events of scope `k`, in order (`Loc X I O C`) |
+| `Run I O C` | `input`, `outputs` (in order), `result : Option C` |
+| `windows l` | one run per input occurrence: outputs after it up to the next input or the exit; result the exit's value when the scope exits first |
+| `entryRun l` | the run of an observed entry: argument as input, all outputs of the scope, return value |
+| `inputRuns t` / `entryRuns t` | runs over all scopes of a trace (computable) |
+| `inputRunsOf T` / `entryRunsOf T` | runs of a trace model `T : Set (List (Ev …))` |
+| `ScopeViews T` | the local views of `T`; runs depend only on it (`inputRunsOf_congr`) |
+| `triggers S` | (1) `(a, b)`: some run with input `a` outputs `b` (every occurrence, returned or not) |
+| `episodes S` | (2) `(a, (bs, c))`: a run with input `a` output exactly `bs` then returned `c` |
+| `retTriggers S` | (3) `(a, b, c)`: `b ∈ bs` for an episode `(a, (bs, c))` |
+| `returns S` | (4) `(a, c)`: classic input/return relation (outputs forgotten) |
+| `Tag`, `bracket`, `decode dec` | scope assignment for well-bracketed traces by a stack (IDs = position of `enter`) |
+
+Key laws: `mem_windows`, `mem_inputRuns`, `mem_entryRuns`, `localView_insert_other`,
+`inputRuns_congr` (interleavings with equal local views have equal runs), `returns_eq_image`,
+`triggers_of_mem_retTriggers`, `image_retTriggers_eq` (needs every run to return; a trapped run
+is a counterexample in `Examples`), `mem_episodes_iff_run`, transport `triggers_image_map`,
+`episodes_image_map`, `returns_image_map`, monotonicity.
+
+Choosing the reading: an *imported* `input()` (or `input(a)`) whose value drives later
+imported `output(b)` calls is the window reading (`inputRunsOf`); an *exported* `f(a)` is the
+entry reading (`entryRunsOf`). The decoder decides which raw events have which role, so both
+call directions are explicit in the decoded data. Successful-value projections of `Option` or
+`result`-like returns compose with a partial function (`SetRel.comp R (ofPartial f)`).
+
+Limits: `bracket` assumes well-bracketed traces (nested calls close before their callers);
+asynchronous or overlapping calls need a decoder that supplies call IDs and uses `Ev`
+directly. The decoder must tag every scope-opening and -closing event (`enter none` for
+unobserved entry points). Within a scope, the window reading attributes an output to the most
+recent input; a protocol with another causal structure needs its own decoder. Examples:
+`Silmaril/Semantics/Accept/IO/Examples.lean`.
