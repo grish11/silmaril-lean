@@ -631,4 +631,209 @@ theorem throw_core {body : Expr} {s : Store H} {f : Frame} {a : Nat} {us : List 
           (fun k L₁ hk hL₁ hT₁ => hpass (k + 1) L₁ (by omega) (by simpa using hL₁) hT₁)
           hL hT hc hL' (by simpa using har) hlbt hY').to_reflTransGen
 
+
+open Silmaril.Wasm.Cfg.Proofs.Machine in
+/-- A block whose code runs in Core to a branch takes a Core run of at least one step to the
+branch's target. -/
+theorem branch_sim {body : Expr} {b : BlockId} {c : List Instr} {stk V : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame}
+    {X Y : List Admin} (hc : seqAt body b.seq = some c)
+    (hin : Steps P host ⟨s, f, vals stk ++ expression (restAt c b.idx)⟩
+      ⟨s₁, f₁, vals V ++ .plain (.br l) :: expression (restAt c (b.idx + 1))⟩)
+    (hok : FramesOk body b.seq.reverse ls) (hL : ls[l.toNat]? = some L)
+    (har : L.arity ≤ (brVals l.toNat ls V).length)
+    (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
+      t₁.length = L.arity)
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (if L.loop then
+          goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
+            (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls V)) s₁ f₁
+        else
+          goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
+            (ls.drop (l.toNat + 1)) (L.outer ++ topVals L.arity (brVals l.toNat ls V)) s₁ f₁) =
+      some Y) :
+    Relation.TransGen (Step P host) ⟨s, f, X⟩ ⟨s₁, f₁, Y⟩ := by
+  simp only [codeAt, hc, Option.bind_some] at hX
+  cases hw : wrap body b.seq.reverse ls (vals V ++ .plain (.br l) :: expression (restAt c (b.idx + 1))) with
+  | none =>
+    have := (wrap_isSome body b.seq.reverse ls
+      (vals V ++ .plain (.br l) :: expression (restAt c (b.idx + 1))) _).trans
+      (congrArg Option.isSome hX)
+    rw [hw] at this; simp at this
+  | some Z =>
+    have h1 := wrap_steps (P := P) (host := host) _ _ hX hw hin
+    have hY' := hY
+    rw [resolveT_labels, ← List.length_reverse (as := b.seq)] at hY'
+    exact Relation.TransGen.trans_right h1 (br_core l.toNat _ ls rfl hw hok hL har hlbt hY')
+
+
+/-- What a machine step is in Core: a run between the codes the two states stand for, of at
+least one step, or an administrative stutter to the next block of the same sequence. -/
+def CSim (P : Profile) (host : HostSemantics H) (st st₁ : MState H) (X Y : List Admin) : Prop :=
+  Steps P host ⟨st.store, st.frame, X⟩ ⟨st₁.store, st₁.frame, Y⟩ ∧
+    (Relation.TransGen (Step P host) ⟨st.store, st.frame, X⟩ ⟨st₁.store, st₁.frame, Y⟩ ∨
+      ∃ b, st.node = .block b ∧ st₁.node = .block ⟨b.seq, b.idx + 1⟩)
+
+theorem csim_trans {st st₁ : MState H} {X Y : List Admin}
+    (h : Relation.TransGen (Step P host) ⟨st.store, st.frame, X⟩ ⟨st₁.store, st₁.frame, Y⟩) :
+    CSim P host st st₁ X Y := ⟨h.to_reflTransGen, Or.inl h⟩
+
+theorem ite_store_frame (c : Bool) (A B : MState H) (s : Store H) (f : Frame)
+    (hA : A.store = s ∧ A.frame = f) (hB : B.store = s ∧ B.frame = f) :
+    (if c then A else B).store = s ∧ (if c then A else B).frame = f := by
+  cases c <;> simpa
+
+open Silmaril.Wasm.Cfg.Proofs.Machine in
+/-- **Every machine step to a non-sink state is a Core run** between the codes the states stand
+for: at least one Core step, except an administrative fall-through to the next block of the
+same sequence. -/
+theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁)
+    (hok : MInv body st) {X Y : List Admin} (hX : codeOf body st = some X)
+    (hY : codeOf body st₁ = some Y) (hns : ¬ st₁.node.IsSink) : CSim P host st st₁ X Y := by
+  cases h with
+  | @fall b sg stk stk₁ ls s s₁ f f₁ hb ht hr =>
+    simp only [codeOf] at hX
+    obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+    have hin := body_steps (P := P) (host := host) hsg hr
+    simp only [ht, Option.toList_none, List.nil_append] at hin
+    obtain ⟨h1, h2 | h2 | h2⟩ := advance_core hc hin hX hY
+    · exact ⟨h1, Or.inl h2⟩
+    · exact ⟨h1, Or.inr ⟨b, rfl, h2⟩⟩
+    · exact absurd (by simp [goto_node, h2, Target.IsSink]) hns
+  | @brIfNot b sg stk stk₁ ls s s₁ f f₁ l hb ht hr =>
+    simp only [codeOf] at hX
+    obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+    have hin := body_steps (P := P) (host := host) hsg hr
+    simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
+    have h0 : Step P host ⟨s₁, f₁, vals (stk₁ ++ [.i32 0]) ++ .plain (.brIf l) ::
+        expression (restAt c (b.idx + 1))⟩ ⟨s₁, f₁, vals stk₁ ++ expression (restAt c (b.idx + 1))⟩ := by
+      simpa [List.append_assoc, constI32] using
+        Proofs.Region.step_in stk₁ (expression (restAt c (b.idx + 1)))
+          (Step.brIfFalse (P := P) (host := host) (s := s₁) (f := f₁) (l := l))
+    obtain ⟨h1, h2 | h2 | h2⟩ := advance_core hc (hin.tail (by simpa [expression] using h0)) hX hY
+    · exact ⟨h1, Or.inl h2⟩
+    · exact ⟨h1, Or.inr ⟨b, rfl, h2⟩⟩
+    · exact absurd (by simp [goto_node, h2, Target.IsSink]) hns
+  | @brDataNot b sg stk ws us us' ls s s₁ f f₁ i hb ht hr hbs =>
+    simp only [codeOf] at hX
+    obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+    have hin := body_steps (P := P) (host := host) hsg hr
+    simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
+    have h0 : Step P host ⟨s₁, f₁, vals (ws ++ us) ++ .plain i ::
+        expression (restAt c (b.idx + 1))⟩ ⟨s₁, f₁, vals (ws ++ us') ++ expression (restAt c (b.idx + 1))⟩ := by
+      simpa [List.append_assoc] using
+        Proofs.Region.step_in ws (expression (restAt c (b.idx + 1))) (BrStep.step (P := P) (host := host) hbs)
+    obtain ⟨h1, h2 | h2 | h2⟩ := advance_core hc (hin.tail (by simpa [expression] using h0)) hX hY
+    · exact ⟨h1, Or.inl h2⟩
+    · exact ⟨h1, Or.inr ⟨b, rfl, h2⟩⟩
+    · exact absurd (by simp [goto_node, h2, Target.IsSink]) hns
+  | @br b sg stk stk₁ ls s s₁ f f₁ l L hb ht hr hL harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+    have hin := body_steps (P := P) (host := host) hsg hr
+    simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
+    refine csim_trans ?_
+    split <;> exact branch_sim (s₁ := s₁) (f₁ := f₁) hc (by simpa [expression] using hin) hok hL harity hlbt hX hY
+  | @brIfTaken b sg stk stk₁ ls s s₁ f f₁ l L k hb ht hr hk hL harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+    have hin := body_steps (P := P) (host := host) hsg hr
+    simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
+    have h0 : Step P host ⟨s₁, f₁, vals (stk₁ ++ [.i32 k]) ++ .plain (.brIf l) ::
+        expression (restAt c (b.idx + 1))⟩
+        ⟨s₁, f₁, vals stk₁ ++ .plain (.br l) :: expression (restAt c (b.idx + 1))⟩ := by
+      simpa [List.append_assoc, constI32] using
+        Proofs.Region.step_in stk₁ (expression (restAt c (b.idx + 1)))
+          (Step.brIfTrue (P := P) (host := host) (s := s₁) (f := f₁) (l := l) hk)
+    refine csim_trans ?_
+    split <;> exact branch_sim (s₁ := s₁) (f₁ := f₁) hc (hin.tail (by simpa [expression] using h0)) hok hL harity hlbt hX hY
+  | @brDataTaken b sg stk ws us us' ls s s₁ f f₁ i l L hb ht hr hbs hL harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+    have hin := body_steps (P := P) (host := host) hsg hr
+    simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
+    have h0 : Step P host ⟨s₁, f₁, vals (ws ++ us) ++ .plain i ::
+        expression (restAt c (b.idx + 1))⟩
+        ⟨s₁, f₁, vals (ws ++ us') ++ .plain (.br l) :: expression (restAt c (b.idx + 1))⟩ := by
+      simpa [List.append_assoc] using
+        Proofs.Region.step_in ws (expression (restAt c (b.idx + 1))) (BrStep.step (P := P) (host := host) hbs)
+    refine csim_trans ?_
+    split <;> exact branch_sim (s₁ := s₁) (f₁ := f₁) hc (hin.tail (by simpa [expression] using h0)) hok hL harity hlbt hX hY
+  | @enter b sg stk stk₁ ws us ls s s₁ f f₁ i a c' bt t₁ t₂ loop tryT cs hb ht harm hkind hr hcond
+      hbt hm =>
+    simp only [codeOf] at hX
+    obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+    have hin := body_steps (P := P) (host := host) hsg hr
+    simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
+    simp only [codeAt, hc, Option.bind_some] at hX
+    set R := expression (restAt c (b.idx + 1)) with hR
+    set X₀ : Admin := if tryT then Admin.handler (labelArity loop t₁ t₂) cs
+        [.label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us ++ expression c')]
+      else .label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us ++ expression c')
+    have hweq : wrap body ((b.idx, a) :: b.seq.reverse)
+        (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls)
+        (vals us ++ expression (restAt c' 0)) = wrap body b.seq.reverse ls (vals ws ++ X₀ :: R) := by
+      simp [wrap, hc, hsg, ht, restAt_zero, X₀, hR]
+    cases hw1 : wrap body b.seq.reverse ls (vals stk₁ ++ .plain i :: R) with
+    | none =>
+      have := (wrap_isSome body b.seq.reverse ls (vals stk₁ ++ .plain i :: R) _).trans
+        (congrArg Option.isSome hX)
+      rw [hw1] at this; simp at this
+    | some W1 =>
+      cases hw2 : wrap body b.seq.reverse ls (vals ws ++ X₀ :: R) with
+      | none =>
+        have := (wrap_isSome body b.seq.reverse ls (vals ws ++ X₀ :: R) _).trans
+          (congrArg Option.isSome hX)
+        rw [hw2] at this; simp at this
+      | some Z =>
+        have h1 := wrap_steps (P := P) (host := host) _ _ hX hw1 (by rw [hR]; simpa [expression] using hin)
+        have h2 := wrap_trans (P := P) (host := host) _ _ hw1 hw2
+          (enter_step (P := P) (host := host) (s := s₁) (R := R) hkind harm hcond hbt hm)
+        have hq : seqAt body (b.seq ++ [(b.idx, a)]) = some c' := by
+          rw [seqAt_append]; simp [hc, hsg, ht, harm]
+        have h3 := entry_core (P := P) (host := host) (q := b.seq ++ [(b.idx, a)]) (i := 0)
+          (ls := ⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) (W := us) hq
+          (by simpa [hweq] using hw2) (by simpa using hY)
+        exact csim_trans (Relation.TransGen.trans_left (Relation.TransGen.trans_right h1 h2) h3)
+  | @catch_ b sg stk stk₁ us ls s s₁ s₂ f f₁ f₂ i a j L L' l hb ht hi hr hth hpass hL hT hc hL'
+      harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    obtain ⟨c, hc0, hsg⟩ := seg_of_lookup hb
+    have hin := body_steps (P := P) (host := host) hsg hr
+    simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
+    obtain ⟨c'', hs, he⟩ := Proofs.Region.sound hth
+    simp only [Out.Ends] at he; subst he
+    set R := expression (restAt c (b.idx + 1)) with hR
+    have hs' : Steps P host ⟨s₁, f₁, vals stk₁ ++ .plain i :: R⟩ ⟨s₂, f₂, throwing a ++ R⟩ := by
+      have := Proofs.Region.steps_in [] R (by simpa using hs)
+      simpa [List.append_assoc, throwing] using this
+    simp only [codeAt, hc0, Option.bind_some] at hX
+    cases hw : wrap body b.seq.reverse ls (throwing a ++ R) with
+    | none =>
+      have := (wrap_isSome body b.seq.reverse ls (throwing a ++ R) _).trans
+        (congrArg Option.isSome hX)
+      rw [hw] at this; simp at this
+    | some Z =>
+      have h1 := wrap_steps (P := P) (host := host) _ _ hX hw
+        ((show Steps P host _ _ by rw [hR]; simpa [expression] using hin).trans hs')
+      refine csim_trans ?_
+      split
+      · rename_i hl
+        have hY' := hY
+        simp only [hl, ↓reduceIte, labels] at hY'
+        rw [← List.length_reverse (as := b.seq)] at hY'
+        exact Relation.TransGen.trans_right h1 (throw_core j _ ls hw hok hpass hL hT hc hL'
+          harity hlbt (by simpa [hl] using hY'))
+      · rename_i hl
+        have hY' := hY
+        simp only [hl, Bool.false_eq_true, ↓reduceIte, labels] at hY'
+        rw [← List.length_reverse (as := b.seq)] at hY'
+        exact Relation.TransGen.trans_right h1 (throw_core j _ ls hw hok hpass hL hT hc hL'
+          harity hlbt (by simpa [hl] using hY'))
+  | ret => exact absurd (by simp [Target.IsSink]) hns
+  | trap => exact absurd (by simp [Target.IsSink]) hns
+  | termTrap => exact absurd (by simp [Target.IsSink]) hns
+  | bodyTrap => exact absurd (by simp [Target.IsSink]) hns
+  | raise => exact absurd (by simp [Target.IsSink]) hns
+
 end Silmaril.Wasm.Cfg.Proofs.MachineCore
