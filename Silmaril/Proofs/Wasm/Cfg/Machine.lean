@@ -263,3 +263,104 @@ theorem enter_block_sound {body : Expr} {b : BlockId} {sg : Segment} {c c' : Lis
   exact Proofs.Region.run_append hr (RunC.block hbt hm h')
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- The region step of a structured terminator into its arm: from the stack after the block's
+body, running the terminator then the rest is implied by running the label (and handler) the
+machine pushes. -/
+theorem struct_step {s : Store H} {f : Frame} {i : Instr} {bt : BlockType} {loop tryT : Bool}
+    {cs : List Catch} {stk₁ ws us : List Val} {a : Nat} {c' : List Instr}
+    {t₁ t₂ : List CValType} {rest : List Admin} {s₂ : Store H} {f₂ : Frame} {o : Out}
+    (hkind : StructKind i bt loop tryT cs) (harm : armOf i a = some c')
+    (hcond : CondArm i stk₁ a ws us)
+    (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+    (h : Run P host s f ws
+      ((if tryT then Admin.handler (labelArity loop t₁ t₂) cs
+          [.label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us ++ expression c')]
+        else .label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us ++ expression c'))
+        :: rest) s₂ f₂ o) :
+    Run P host s f stk₁ (.plain i :: rest) s₂ f₂ o := by
+  cases hkind with
+  | block =>
+    cases hcond with
+    | plain _ =>
+      simp [armOf] at harm
+      subst harm
+      exact .block hbt hm (by simpa [Machine.labelArity] using h)
+  | loop =>
+    cases hcond with
+    | plain _ =>
+      simp [armOf] at harm
+      subst harm
+      exact .loop hbt hm (by simpa [Machine.labelArity] using h)
+  | tryTable =>
+    cases hcond with
+    | plain _ =>
+      simp [armOf] at harm
+      subst harm
+      exact .tryTable hbt hm (by simpa [Machine.labelArity] using h)
+  | @if_ _ t e =>
+    cases hcond with
+    | plain hi => exact absurd rfl (hi _ _ _)
+    | ifTrue hk =>
+      simp [armOf] at harm
+      subst harm
+      refine .if_ (k := _) ?_
+      split
+      · rename_i h0; exact absurd h0 hk
+      exact .block hbt hm (by simpa [Machine.labelArity] using h)
+    | ifFalse =>
+      simp [armOf] at harm
+      subst harm
+      refine .if_ (k := 0) ?_
+      simp only [↓reduceIte]
+      exact .block hbt hm (by simpa [Machine.labelArity] using h)
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- **Entering any structured terminator is sound for the label invariant** (`block`, `loop`,
+`if` with its condition, `try_table`), for a non-empty arm. -/
+theorem enter_sound {body : Expr} {b : BlockId} {sg : Segment} {c c' : List Instr} {i : Instr}
+    {a : Nat} {bt : BlockType} {loop tryT : Bool} {cs : List Catch} {ls : List LFrame}
+    {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ ws us : List Val} {t₁ t₂ : List CValType}
+    {X X' : List Admin}
+    (hc : seqAt body b.seq = some c) (hsg : (segment c)[b.idx]? = some sg)
+    (ht : sg.term = some i) (harm : armOf i a = some c') (hkind : StructKind i bt loop tryT cs)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hcond : CondArm i stk₁ a ws us)
+    (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+    (hX : codeAt body b stk ls = some X)
+    (hX' : codeAt body ⟨b.seq ++ [(b.idx, a)], 0⟩ us
+      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls) = some X') :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host s₁ f₁ [] X' s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+  simp only [codeAt, hc, Option.bind_some] at hX
+  simp [codeAt, seqAt_append, hc, hsg, ht, harm, restAt_zero, wrap] at hX'
+  refine wrap_mono b.seq.reverse ls hX hX' ?_
+  intro o s₂ f₂ h
+  have h' := Proofs.Region.run_vals_inv (vs := []) h
+  apply Proofs.Region.run_vals (vs := [])
+  rw [restAt_cons hsg]
+  simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append,
+    List.map_cons, List.map_nil, List.append_assoc, List.singleton_append, List.nil_append] at h' ⊢
+  refine Proofs.Region.run_append hr (struct_step hkind harm hcond hbt hm ?_)
+  cases tryT <;> simpa [expression] using h'
+
+end Silmaril.Wasm.Cfg.Proofs.Machine

@@ -99,4 +99,23 @@ theorem enter_block_sound {b : BlockId} {sg : Segment} {c c' : List Instr} {bt :
     Region.Run P host s₁ f₁ [] X' s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.enter_block_sound hc hsg ht hr hbt hm hX hX'
 
+/-- **Entering any structured terminator is sound for the label invariant**: `block`, `loop`,
+`if` (its condition picks the arm), `try_table` (its frame sits in a `HANDLER`), for a
+non-empty arm. -/
+theorem enter_sound {b : BlockId} {sg : Segment} {c c' : List Instr} {i : Instr} {a : Nat}
+    {bt : BlockType} {loop tryT : Bool} {cs : List Catch} {ls : List LFrame} {s s₁ : Store H}
+    {f f₁ : Frame} {stk stk₁ ws us : List Val} {t₁ t₂ : List Validation.CValType}
+    {X X' : List Admin}
+    (hc : seqAt body b.seq = some c) (hsg : (segment c)[b.idx]? = some sg)
+    (ht : sg.term = some i) (harm : armOf i a = some c') (hkind : StructKind i bt loop tryT cs)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hcond : CondArm i stk₁ a ws us)
+    (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+    (hX : codeAt body b stk ls = some X)
+    (hX' : codeAt body ⟨b.seq ++ [(b.idx, a)], 0⟩ us
+      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls) = some X')
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] X' s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.enter_sound hc hsg ht harm hkind hr hcond hbt hm hX hX'
+
 end Silmaril.Wasm.Cfg.Machine
