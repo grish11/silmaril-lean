@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Abstract.HostCall.Defs
+public import Silmaril.Wasm.Execution.Core.InversionHost.Thms
 import Silmaril.Proofs.Wasm.Abstract.HostCall.Basic
 
 /-!
@@ -18,10 +19,12 @@ caller frame, every profile and every host:
   the Core host semantics is deterministic. Only then does `hostObs_unique`
   apply.
 
-**Not yet proved.** A call the host has no outcome for is stuck in Core: no
-host rule applies. That needs the Core inversion of `call_ref` on a host
-function. Also not yet proved: the native relation with a host-call log, and
-its forward and backward simulation through these steps.
+* `coreHost_blocked_stuck`: a call the host has **no** outcome for (`blocked`)
+  has no Core step at all (by `Step.callRef_host_stuck`). It is stuck: not
+  divergence, not a trap.
+
+**Not yet proved.** The native relation with a host-call log, and its forward
+and backward simulation through these steps.
 -/
 
 public section
@@ -53,5 +56,16 @@ theorem coreHost_functional_iff :
     (coreHostRel host).Functional ↔
       ∀ h s vs (o o' : HostOutcome H), host h s vs o → host h s vs o' → o = o' :=
   Silmaril.Proofs.Wasm.Abstract.HostCall.functional_iff
+
+/-- **A blocked host call is stuck in Core**, any frame. -/
+theorem coreHost_blocked_stuck {s : Store H} {f : Frame} {c : Config H} {a : Nat} {fi : FuncInst H}
+    {ps rs : Ty (.list .val)} {h : H} {us : List Val}
+    (hf : s.funcs[a]? = some fi) (he : Expand fi.type (.func ps rs)) (hn : us.length = ps.length)
+    (hcode : fi.code = .host h) (hno : ∀ ans, ¬ coreHostRel host ⟨h, s, us⟩ ans) :
+    ¬ Step P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩ c := by
+  refine Step.callRef_host_stuck trivial hf hcode he hn fun o ho => ?_
+  rcases o with ⟨s', r⟩ | _
+  · exact hno (.answer (s', r)) ho
+  · exact hno .diverge ho
 
 end Silmaril.Wasm.Abstract
