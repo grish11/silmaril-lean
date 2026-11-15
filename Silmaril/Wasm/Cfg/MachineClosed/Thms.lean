@@ -2,6 +2,8 @@ module
 
 public import Silmaril.Wasm.Cfg.Machine.Thms
 public import Silmaril.Wasm.Abstract.RegionCall.Thms
+public import Silmaril.Wasm.Cfg.MachineClosed.Defs
+import Silmaril.Proofs.Wasm.Cfg.CallClosed
 
 @[expose] public section
 
@@ -24,7 +26,17 @@ host, so the machine's Core soundness holds with **no oracle hypothesis**:
   by a tail call is a Core 3.0 run of the function's `FRAME` to the sink's code (frame
   replacement), with no oracle hypothesis.
 
-Not claimed here: completeness for Core runs (Core to the machine needs callee adequacy).
+* **`callCompleteG_closedCallOk`**: `closedCallOk` is complete for Core calls
+  (`Region.CallCompleteG`) on the native slice `NativeCallOk` (typed store, native Wasm functions,
+  arity-checked functions, typed invocation), with no host, every profile: every Core run of a
+  call, in any caller frame and with any `call_ref` annotation, to a result (values, trap, or
+  exception) is answered by it. From `Abstract.closedCall_core_iff` and the host-free transport
+  of call runs to `invoke` (`Region.call_transport`). With `Region.call_of_core`, such a Core
+  call is a `RunC` call of the machine's oracle.
+
+Not claimed here: Core completeness of whole bodies with calls (Core runs to `RunC`): it needs the
+decomposition of a Core run of a body around each call's frame, coordinated on #207; host calls
+(the slice has no host); stores outside `NativeCallOk`.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -59,5 +71,11 @@ theorem frame_tail_closed {s : Store H} {fi : Frame} {st' : MState H} {s₂ : St
     (n : Nat) (f : Frame) {X : List Admin} (hX : codeOf body st' = some X) :
     Steps P host ⟨s, f, [.frame n fi [.label n [] (expression body)]]⟩ ⟨st'.store, f, X⟩ :=
   frame_tail_initialC (callSoundA_closedCallOk P host) hE hR n f hX
+
+/-- **The checked closed oracle is complete for Core calls on the native slice**, every profile,
+no host. -/
+theorem callCompleteG_closedCallOk (P : Profile) :
+    Region.CallCompleteG P (fun _ _ _ _ => False) NativeCallOk (Abstract.closedCallOk (H := H)) :=
+  Proofs.Region.callCompleteG_closedCallOk P
 
 end Silmaril.Wasm.Cfg.Machine

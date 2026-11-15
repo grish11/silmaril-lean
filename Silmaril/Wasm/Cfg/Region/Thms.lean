@@ -7,6 +7,7 @@ import Silmaril.Proofs.Wasm.Cfg.RegionDiv
 import Silmaril.Proofs.Wasm.Cfg.RegionAtom
 import Silmaril.Proofs.Wasm.Cfg.RegionBlocks
 import Silmaril.Proofs.Wasm.Cfg.RegionTail
+import Silmaril.Proofs.Wasm.Cfg.CallTransport
 
 @[expose] public section
 
@@ -198,5 +199,28 @@ theorem frame_tail_sound {C : Abstract.CallRel H} (hC : CallSoundA P host C) {s�
     (fl = .trap → Steps P host ⟨s, f, [.frame n fi inner]⟩ ⟨s₃, f, [.trap]⟩) ∧
     (∀ t, fl = .throw t → Steps P host ⟨s, f, [.frame n fi inner]⟩ ⟨s₃, f, throwing t⟩) :=
   Proofs.Region.frame_tail_sound hC h hfn hty hW hn hcall
+
+/-! ## Calls from Core runs -/
+
+/-- **A complete oracle turns a Core call into a region call**: under `CallCompleteG` (a named
+hypothesis, guarded by `G`), a Core run of the callee of `call x` to a result ends in the caller's
+frame, and `call x` runs as `RunC.call` (continuing on the results), `RunC.callTrap` or
+`RunC.callThrow`. -/
+theorem call_of_core {C : Abstract.CallRel H} {G : Store H → Nat → List Val → Prop}
+    (hC : CallCompleteG P host G C) {s₁ : Store H} {f₁ : Frame} {ws us : List Val} {x : FuncIdx}
+    {a : Nat} {fi : FuncInst H} {ps rs : List Validation.CValType} {code : List Admin}
+    {r : Result} (hfi : s.func? f x = some (a, fi))
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+    (hG : G s a us)
+    (hs : Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+      ⟨s₁, f₁, r.toAdmin⟩) :
+    f₁ = f ∧
+      (∀ vs, r = .values vs → ∀ {s' : Store H} {f' : Frame} {o : Out},
+        RunC P host C s₁ f (ws ++ vs) code s' f' o →
+          RunC P host C s f (ws ++ us) (.plain (.call x) :: code) s' f' o) ∧
+      (r = .trap → RunC P host C s f (ws ++ us) (.plain (.call x) :: code) s₁ f .trap) ∧
+      (∀ t, r = .throw t →
+        RunC P host C s f (ws ++ us) (.plain (.call x) :: code) s₁ f (.throw t)) :=
+  Proofs.Region.call_of_core hC hfi hty hn hG hs
 
 end Silmaril.Wasm.Cfg.Region

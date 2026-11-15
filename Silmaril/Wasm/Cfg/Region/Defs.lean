@@ -352,6 +352,26 @@ def CallSoundA (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) :
     (∀ t, fl = .throw t → Steps P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩
         ⟨s₁, f, throwing t⟩)
 
+/-- How an oracle flow `fl` answers a Core call result `r`, for `n` result types: the top `n`
+returned values (reversed into stack order), a trap, or the exception. -/
+def FlowRes (n : Nat) (fl : Binaryen.Flow) : Result → Prop
+  | .values vs => ∃ ws, fl.retVals = some ws ∧ (ws.take n).reverse = vs
+  | .trap => fl = .trap
+  | .throw t => fl = .throw t
+
+/-- **Completeness of a call oracle for Core 3.0, for every `CALL_REF` form, under a guard `G`**:
+every Core run of a call of a Wasm-typed function (`vals us ++ [ref.func a, c]`, any annotation
+`c`, any caller frame) to a result, from a store and arguments satisfying `G`, ends in the
+caller's frame and is answered by `C` with that result (`FlowRes`). A named hypothesis; the
+instance on the checked native slice is `Machine.callCompleteG_closedCallOk`. -/
+def CallCompleteG (P : Profile) (host : HostSemantics H) (G : Store H → Nat → List Val → Prop)
+    (C : Abstract.CallRel H) : Prop :=
+  ∀ (s s' : Store H) (f f' : Frame) (a : Nat) (fi : FuncInst H) (ps rs : List CValType)
+    (us : List Val) (c : Admin) (r : Result), G s a us → c.IsCallRef →
+    s.funcs[a]? = some fi → DefType.funcType? fi.type = some (ps, rs) → us.length = ps.length →
+    Steps P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ ⟨s', f', r.toAdmin⟩ →
+    f' = f ∧ ∃ fl, C s a us (s', fl) ∧ FlowRes rs.length fl r
+
 /-- **The call-free region semantics**: `RunC` with no call answered. -/
 abbrev Run (P : Profile) (host : HostSemantics H) := RunC P host noCall
 
