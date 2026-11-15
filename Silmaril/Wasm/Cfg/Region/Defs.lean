@@ -425,6 +425,29 @@ def CallCompleteG (P : Profile) (host : HostSemantics H) (G : Store H → Nat �
     Steps P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ ⟨s', f', r.toAdmin⟩ →
     f' = f ∧ ∃ fl, C s a us (s', fl) ∧ FlowRes rs.length fl r
 
+/-- **Soundness of a callee-divergence predicate for Core 3.0**: whenever `D s a us` holds for
+a Wasm-typed function at `a` on its arguments `us`, the Core call (`vals us ++ [ref.func a, c]`,
+any `call_ref` annotation `c`, any caller frame) diverges. The terminating answers of a call
+oracle `C` miss the calls that diverge inside the callee; `D` names those. A named hypothesis;
+the instance on the checked native slice is `Machine.divCallSound_closedDiv`. -/
+def DivCallSound (P : Profile) (host : HostSemantics H) (D : Store H → Nat → List Val → Prop) :
+    Prop :=
+  ∀ (s : Store H) (f : Frame) (a : Nat) (fi : FuncInst H) (ps rs : List CValType)
+    (us : List Val) (c : Admin), c.IsCallRef →
+    s.funcs[a]? = some fi → DefType.funcType? fi.type = some (ps, rs) → us.length = ps.length →
+    D s a us → Diverges P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩
+
+/-- **Completeness of a callee-divergence predicate for Core 3.0, under a guard `G`**: every
+diverging Core call of a Wasm-typed function (any annotation, any caller frame), from a store and
+arguments satisfying `G`, satisfies `D`. A named hypothesis; the instance on the checked native
+slice is `Machine.divCallComplete_closedDiv`. -/
+def DivCallComplete (P : Profile) (host : HostSemantics H)
+    (G : Store H → Nat → List Val → Prop) (D : Store H → Nat → List Val → Prop) : Prop :=
+  ∀ (s : Store H) (f : Frame) (a : Nat) (fi : FuncInst H) (ps rs : List CValType)
+    (us : List Val) (c : Admin), G s a us → c.IsCallRef →
+    s.funcs[a]? = some fi → DefType.funcType? fi.type = some (ps, rs) → us.length = ps.length →
+    Diverges P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ → D s a us
+
 /-- **The call-free region semantics**: `RunC` with no call answered. -/
 abbrev Run (P : Profile) (host : HostSemantics H) := RunC P host noCall
 

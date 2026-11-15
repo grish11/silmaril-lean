@@ -36,9 +36,19 @@ host, so the machine's Core soundness holds with **no oracle hypothesis**:
   of call runs to `invoke` (`Region.call_transport`). With `Region.call_of_core`, such a Core
   call is a `RunC` call of the machine's oracle.
 
-Not claimed here: Core completeness of whole bodies with calls (Core runs to `RunC`): it needs the
-decomposition of a Core run of a body around each call's frame, coordinated on #207; host calls
-(the slice has no host); stores outside `NativeCallOk`.
+* **`core_complete_closed`**, **`core_complete_closed_typed`**: Core runs of `FragC` bodies to
+  final forms are machine runs with `closedCallOk` (guarded by `NativeCallOk`, discharged from a
+  typed native start by `guardedCalls_of_typed`).
+
+* **Divergence.** `closedDiv`: a call on the native slice with no terminating closed-oracle
+  entry. `divCallSound_closedDiv`, `divCallComplete_closedDiv`: it is exactly Core divergence of
+  the call on the slice, from every caller frame and annotation (`closedCall_none_iff_diverges`
+  and the divergent transport `div_call_transport`). **`mdivC_core_closed`**: machine
+  divergence `MDivC` with `closedCallOk` and `closedDiv`, from the CFG entry, is Core 3.0
+  divergence of the body, no hypothesis.
+
+Not claimed here: host calls (the slice has no host); stores outside `NativeCallOk`; extended
+calls (`call_ref`, `call_indirect`) in block bodies.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -121,5 +131,28 @@ theorem core_complete_closed_typed (P : Profile) {s s' : Store H} {f f' : Frame}
     ∃ st', Relation.ReflTransGen (MStepC P (fun _ _ _ _ => False) Abstract.closedCallOk body)
         (initial body s f) st' ∧ Ends st' o ∧ st'.store = s' ∧ st'.frame = f' :=
   core_complete_closed P hF (guardedCalls_of_typed hT hN hS) h he ho hto
+
+/-! ## Divergence -/
+
+/-- **The checked closed divergence predicate is Core-sound** (no host, every profile): a call on
+the native slice with no terminating closed-oracle entry diverges in Core, from every caller
+frame and with every `call_ref` annotation. -/
+theorem divCallSound_closedDiv (P : Profile) :
+    Region.DivCallSound P (fun _ _ _ _ => False) (closedDiv (H := H)) :=
+  Proofs.Region.divCallSound_closedDiv P
+
+/-- **The checked closed divergence predicate is complete for Core on the native slice** (no
+host, every profile): a call on the slice that diverges in Core satisfies `closedDiv`. -/
+theorem divCallComplete_closedDiv (P : Profile) :
+    Region.DivCallComplete P (fun _ _ _ _ => False) NativeCallOk (closedDiv (H := H)) :=
+  Proofs.Region.divCallComplete_closedDiv P
+
+/-- **Soundness of machine divergence with the checked closed oracle** (no host, every profile,
+no oracle hypothesis): `MDivC` with `closedCallOk` answering terminating calls and `closedDiv`
+naming diverging ones, from the CFG entry, is Core 3.0 divergence of the body. -/
+theorem mdivC_core_closed (P : Profile) {s : Store H} {f : Frame}
+    (h : MDivC P (fun _ _ _ _ => False) Abstract.closedCallOk closedDiv body (initial body s f)) :
+    Diverges P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ :=
+  mdivC_core_initial (Abstract.callSound_closedCallOk P _) (divCallSound_closedDiv P) h
 
 end Silmaril.Wasm.Cfg.Machine

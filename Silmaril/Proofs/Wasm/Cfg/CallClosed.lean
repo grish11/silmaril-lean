@@ -65,4 +65,39 @@ theorem callCompleteG_closedCallOk (P : Profile) :
   rw [hty] at hty'; cases hty'
   exact ⟨bfl, ⟨hcl, hS, hok⟩, flowRes_of_exit hex hbeh⟩
 
+/-- **The checked closed divergence predicate is Core-sound**, every profile, no host: a call
+with no terminating closed-oracle entry on the native slice diverges in Core, from every caller
+frame and with every `call_ref` annotation (`closedCall_none_iff_diverges`, then
+`div_call_transport`). -/
+theorem divCallSound_closedDiv (P : Profile) :
+    DivCallSound P (fun _ _ _ _ => False) (Machine.closedDiv (H := H)) := by
+  intro s f a fi ps rs us c hc hfi hty hn hD
+  obtain ⟨⟨hs, hF, hS, hok⟩, hnone⟩ := hD
+  have hw : WasmFuncs s := fun fi' hm => by
+    obtain ⟨fn, hcode, -⟩ := hF fi' hm
+    exact ⟨fn, hcode⟩
+  have hdiv := (Abstract.closedCall_none_iff_diverges hs hF hS hok P).1 hnone
+  have hdiv' : Diverges P closedHost
+      ⟨s, {}, vals us ++ [.ref (.func a), .callRefType fi.type]⟩ := by
+    simpa [invoke, hfi] using hdiv
+  exact div_call_transport hw (cr := .callRefType fi.type) trivial hfi (expand_of_funcType hty)
+    (by simp [Ty.length_ofList, hn]) hdiv' f hc
+
+/-- **The checked closed divergence predicate is complete for Core on the native slice**,
+every profile, no host: a call on the slice (`NativeCallOk`) that diverges in Core, from any
+caller frame and with any annotation, has no terminating closed-oracle entry. -/
+theorem divCallComplete_closedDiv (P : Profile) :
+    DivCallComplete P (fun _ _ _ _ => False) Machine.NativeCallOk (Machine.closedDiv (H := H)) := by
+  intro s f a fi ps rs us c hG hc hfi hty hn hdiv
+  obtain ⟨hs, hF, hS, hok⟩ := hG
+  have hw : WasmFuncs s := fun fi' hm => by
+    obtain ⟨fn, hcode, -⟩ := hF fi' hm
+    exact ⟨fn, hcode⟩
+  have h' := div_call_transport hw hc hfi (expand_of_funcType hty)
+    (by simp [Ty.length_ofList, hn]) hdiv {} (cr' := .callRefType fi.type) trivial
+  have h'' : Diverges P closedHost
+      ⟨s, {}, vals us ++ [.ref (.func a), .callRefType fi.type]⟩ := h'
+  refine ⟨⟨hs, hF, hS, hok⟩, (Abstract.closedCall_none_iff_diverges hs hF hS hok P).2 ?_⟩
+  simpa [invoke, hfi] using h''
+
 end Silmaril.Wasm.Cfg.Proofs.Region

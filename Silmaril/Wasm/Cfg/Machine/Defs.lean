@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Cfg.BlockCfg.Defs
 public import Silmaril.Wasm.Cfg.Region.Defs
+public import Silmaril.Foundations.InfiniteTrace
 
 @[expose] public section
 
@@ -513,5 +514,37 @@ def CatchEdge (body : Expr) (b : BlockId) (t : Target) : Prop :=
     (cs : List Catch) (c : List Instr) (cl : Catch),
     b.seq = tb.seq ++ (tb.idx, a) :: rest ∧ lookup body tb = some sg ∧
     sg.term = some (.tryTable bt cs c) ∧ cl ∈ cs ∧ t = resolveT (labels body tb.seq) (catchLabel cl)
+
+end Silmaril.Wasm.Cfg.Machine
+
+namespace Silmaril.Wasm.Cfg.Machine
+
+open Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+open Silmaril.Wasm.Cfg.Region
+
+/-! ## Divergence with calls -/
+
+/-- **A block whose body reaches a diverging call**: the state is at block `b`, whose
+straight-line body is `pre ++ call x :: post`; the prefix `pre` runs (`RunC`, its own calls
+answered by `C`) to values `ws ++ us`, and `call x` resolves to the function at `a` (of type
+`ps → rs`) on its arguments `us`, a call that `D` says diverges. The oracle `C` answers only
+terminating calls; this is the machine's divergence inside a single callee. -/
+def BodyCallDiv {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  ∃ (b : BlockId) (sg : Segment) (pre post : List Instr) (x : FuncIdx) (s₁ : Store H)
+    (f₁ : Frame) (ws us : List Val) (a : Nat) (fi : FuncInst H) (ps rs : List CValType),
+    st.node = .block b ∧ lookup body b = some sg ∧ sg.body = pre ++ .call x :: post ∧
+    RunC P host C st.store st.frame st.stk (expression pre) s₁ f₁ (.normal (ws ++ us)) ∧
+    s₁.func? f₁ x = some (a, fi) ∧ DefType.funcType? fi.type = some (ps, rs) ∧
+    us.length = ps.length ∧ D s₁ a us
+
+/-- **Divergence of the machine with calls**: an infinite run of `MStepC`, or a finite run to a
+block whose body reaches a call that `D` says diverges (`BodyCallDiv`). An infinite `MStepC`
+run alone is not Core divergence's counterpart: its oracle answers only terminating calls, so it
+misses divergence inside a single callee. -/
+def MDivC {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  InfiniteTrace (MStepC P host C body) st ∨
+    ∃ st', Relation.ReflTransGen (MStepC P host C body) st st' ∧ BodyCallDiv P host C D body st'
 
 end Silmaril.Wasm.Cfg.Machine

@@ -156,4 +156,66 @@ theorem call_of_core {host : HostSemantics H} {G : Store H → Nat → List Val 
     simp only [FlowRes] at hres; subst hres
     exact .callThrow hfi hty hn hcall
 
+/-- The configurations of a diverging host-free call, up to the caller's frame and the
+`call_ref` annotation: a `FRAME` that diverges from some outer frame, or a call that diverges
+from some caller frame with some annotation. -/
+def DivCall (c : Config H) : Prop :=
+  WasmFuncs c.store ∧
+    ((∃ (m : Nat) (F : Frame) (X : List Admin) (f : Frame), c.code = [.frame m F X] ∧
+        Diverges P (fun _ _ _ _ => False) ⟨c.store, f, [.frame m F X]⟩) ∨
+      ∃ (us : List Val) (a : Nat) (cr : Admin) (fi : FuncInst H) (ps rs : Ty (.list .val))
+        (f : Frame) (cr' : Admin), c.code = vals us ++ [.ref (.func a), cr] ∧
+        cr.IsCallRef ∧ c.store.funcs[a]? = some fi ∧ Expand fi.type (.func ps rs) ∧
+        us.length = ps.length ∧ cr'.IsCallRef ∧
+        Diverges P (fun _ _ _ _ => False) ⟨c.store, f, vals us ++ [.ref (.func a), cr']⟩)
+
+theorem divCall_step {c : Config H} (h : DivCall (P := P) c) :
+    ∃ d, Step P (fun _ _ _ _ => False) c d ∧ DivCall (P := P) d := by
+  obtain ⟨s, g, code⟩ := c
+  obtain ⟨hw, ⟨m, F, X, f, hc, hd⟩ | ⟨us, a, cr, fi, ps, rs, f, cr', hc, hcr, hfi, he, hn, hcr',
+    hd⟩⟩ := h
+  · simp only at hc hd hw; subst hc
+    obtain ⟨c₁, hs, hd₁⟩ := hd.unfold
+    rcases Step.frame_inv hs with ⟨s₁, F', X', hin, rfl⟩ | ⟨out, hx, rfl⟩
+    · exact ⟨⟨s₁, g, [.frame m F' X']⟩, Step.ctxtFrame hin,
+        wasmFuncs_step (c := ⟨s, F, X⟩) (c' := ⟨s₁, F', X'⟩) hin hw, .inl ⟨m, F', X', f, rfl, hd₁⟩⟩
+    · cases hx with
+      | returnCallAddr hc' hf' he' hn' =>
+        exact ⟨_, frameExit_step (.returnCallAddr hc' hf' he' hn') g, hw,
+          .inr ⟨_, _, _, _, _, _, f, _, rfl, isCallRef_retToCallIn hc' F.module, hf', he', hn',
+            isCallRef_retToCallIn hc' F.module, hd₁⟩⟩
+      | vals hn' =>
+        obtain ⟨_, h₂, -⟩ := hd₁.unfold
+        exact absurd h₂ (Step.result_stuck (.values _))
+      | ret hn' =>
+        obtain ⟨_, h₂, -⟩ := hd₁.unfold
+        exact absurd h₂ (Step.result_stuck (.values _))
+      | trap =>
+        obtain ⟨_, h₂, -⟩ := hd₁.unfold
+        exact absurd h₂ (Step.result_stuck .trap)
+      | throw a =>
+        obtain ⟨_, h₂, -⟩ := hd₁.unfold
+        exact absurd h₂ (Step.result_stuck (.throw a))
+      | returnCallNull hc' =>
+        obtain ⟨_, h₂, -⟩ := hd₁.unfold
+        exact absurd h₂ (Step.result_stuck .trap)
+  · simp only at hc hd hw hfi; subst hc
+    obtain ⟨fn, hcode⟩ := hw fi (List.mem_of_getElem? hfi)
+    obtain ⟨c₁, hs, hd₁⟩ := hd.unfold
+    have hc₁ := Step.callRef_wasm_inv_exact hcr' hfi hcode he hn hs
+    subst hc₁
+    exact ⟨_, Step.callRefFunc hcr hfi he hn hcode, hw, .inl ⟨_, _, _, f, rfl, hd₁⟩⟩
+
+/-- **Transport of diverging host-free calls**: on a store of Wasm functions, a call of a typed
+function that diverges from one caller frame with one `call_ref` annotation diverges from every
+caller frame with every annotation. Tail calls out of the callee's frame are calls again. -/
+theorem div_call_transport {s : Store H} {f : Frame} {us : List Val} {a : Nat} {cr : Admin}
+    {fi : FuncInst H} {ps rs : Ty (.list .val)} (hw : WasmFuncs s) (hcr : cr.IsCallRef)
+    (hfi : s.funcs[a]? = some fi) (he : Expand fi.type (.func ps rs)) (hn : us.length = ps.length)
+    (h : Diverges P (fun _ _ _ _ => False) ⟨s, f, vals us ++ [.ref (.func a), cr]⟩)
+    (g : Frame) {cr' : Admin} (hcr' : cr'.IsCallRef) :
+    Diverges P (fun _ _ _ _ => False) ⟨s, g, vals us ++ [.ref (.func a), cr']⟩ :=
+  InfiniteTrace.coinduct (DivCall (P := P)) (fun _ hc => divCall_step hc)
+    ⟨hw, .inr ⟨us, a, cr', fi, ps, rs, f, cr, rfl, hcr', hfi, he, hn, hcr, h⟩⟩
+
 end Silmaril.Wasm.Cfg.Proofs.Region

@@ -21,7 +21,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 theorem steps_handler {s s' : Store H} {f f' : Frame} {X Y : List Admin} (n : Nat)
     (cs : List Catch) (h : Steps P host ⟨s, f, X⟩ ⟨s', f', Y⟩) :
@@ -68,13 +68,14 @@ theorem wrap_steps {body : Expr} {s s' : Store H} {f f' : Frame} :
             · simpa using steps_handler (P := P) (host := host) L.arity L.catches hl
           simpa using Steps.ctxtInstrs (vs := L.outer) (rest := expression (restAt pc (m + 1))) hx
 
-/-- **A block's body run is a Core run of its code up to the terminator.** -/
-theorem body_steps {c : List Instr} {i : Nat} {sg : Segment} {s s₁ : Store H} {f f₁ : Frame}
-    {stk stk₁ : List Val} (hsg : (segment c)[i]? = some sg)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
+/-- **A block's body run is a Core run of its code up to the terminator**, with its calls
+answered by a Core-sound oracle. -/
+theorem body_steps (hC : CallSound P host C) {c : List Instr} {i : Nat} {sg : Segment}
+    {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ : List Val} (hsg : (segment c)[i]? = some sg)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
     Steps P host ⟨s, f, vals stk ++ expression (restAt c i)⟩
       ⟨s₁, f₁, vals stk₁ ++ expression (sg.term.toList ++ restAt c (i + 1))⟩ := by
-  obtain ⟨c', hs, he⟩ := Proofs.Region.sound hr
+  obtain ⟨c', hs, he⟩ := Proofs.Region.soundC hC hr
   simp only [Out.Ends] at he; subst he
   rw [Proofs.Machine.restAt_cons hsg]
   have h2 := Steps.ctxtInstrs (vs := []) (rest := expression (sg.term.toList ++ restAt c (i + 1)))
@@ -688,14 +689,15 @@ open Silmaril.Wasm.Cfg.Proofs.Machine in
 /-- **Every machine step to a non-sink state is a Core run** between the codes the states stand
 for: at least one Core step, except an administrative fall-through to the next block of the
 same sequence. -/
-theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁)
+theorem msim (hC : CallSound P host C) {body : Expr} {st st₁ : MState H}
+    (h : MStepC P host C body st st₁)
     (hok : MInv body st) {X Y : List Admin} (hX : codeOf body st = some X)
     (hY : codeOf body st₁ = some Y) (hns : ¬ st₁.node.IsSink) : CSim P host st st₁ X Y := by
   cases h with
   | @fall b sg stk stk₁ ls s s₁ f f₁ hb ht hr =>
     simp only [codeOf] at hX
     obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
-    have hin := body_steps (P := P) (host := host) hsg hr
+    have hin := body_steps (P := P) (host := host) hC hsg hr
     simp only [ht, Option.toList_none, List.nil_append] at hin
     obtain ⟨h1, h2 | h2 | h2⟩ := advance_core hc hin hX hY
     · exact ⟨h1, Or.inl h2⟩
@@ -704,7 +706,7 @@ theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁
   | @brIfNot b sg stk stk₁ ls s s₁ f f₁ l hb ht hr =>
     simp only [codeOf] at hX
     obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
-    have hin := body_steps (P := P) (host := host) hsg hr
+    have hin := body_steps (P := P) (host := host) hC hsg hr
     simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
     have h0 : Step P host ⟨s₁, f₁, vals (stk₁ ++ [.i32 0]) ++ .plain (.brIf l) ::
         expression (restAt c (b.idx + 1))⟩ ⟨s₁, f₁, vals stk₁ ++ expression (restAt c (b.idx + 1))⟩ := by
@@ -718,7 +720,7 @@ theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁
   | @brDataNot b sg stk ws us us' ls s s₁ f f₁ i hb ht hr hbs =>
     simp only [codeOf] at hX
     obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
-    have hin := body_steps (P := P) (host := host) hsg hr
+    have hin := body_steps (P := P) (host := host) hC hsg hr
     simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
     have h0 : Step P host ⟨s₁, f₁, vals (ws ++ us) ++ .plain i ::
         expression (restAt c (b.idx + 1))⟩ ⟨s₁, f₁, vals (ws ++ us') ++ expression (restAt c (b.idx + 1))⟩ := by
@@ -731,14 +733,14 @@ theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁
   | @br b sg stk stk₁ ls s s₁ f f₁ l L hb ht hr hL harity hlbt =>
     simp only [MInv] at hok; simp only [codeOf] at hX
     obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
-    have hin := body_steps (P := P) (host := host) hsg hr
+    have hin := body_steps (P := P) (host := host) hC hsg hr
     simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
     refine csim_trans ?_
     split <;> exact branch_sim (s₁ := s₁) (f₁ := f₁) hc (by simpa [expression] using hin) hok hL harity hlbt hX hY
   | @brIfTaken b sg stk stk₁ ls s s₁ f f₁ l L k hb ht hr hk hL harity hlbt =>
     simp only [MInv] at hok; simp only [codeOf] at hX
     obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
-    have hin := body_steps (P := P) (host := host) hsg hr
+    have hin := body_steps (P := P) (host := host) hC hsg hr
     simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
     have h0 : Step P host ⟨s₁, f₁, vals (stk₁ ++ [.i32 k]) ++ .plain (.brIf l) ::
         expression (restAt c (b.idx + 1))⟩
@@ -751,7 +753,7 @@ theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁
   | @brDataTaken b sg stk ws us us' ls s s₁ f f₁ i l L hb ht hr hbs hL harity hlbt =>
     simp only [MInv] at hok; simp only [codeOf] at hX
     obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
-    have hin := body_steps (P := P) (host := host) hsg hr
+    have hin := body_steps (P := P) (host := host) hC hsg hr
     simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
     have h0 : Step P host ⟨s₁, f₁, vals (ws ++ us) ++ .plain i ::
         expression (restAt c (b.idx + 1))⟩
@@ -764,7 +766,7 @@ theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁
       hbt hm =>
     simp only [codeOf] at hX
     obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
-    have hin := body_steps (P := P) (host := host) hsg hr
+    have hin := body_steps (P := P) (host := host) hC hsg hr
     simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
     simp only [codeAt, hc, Option.bind_some] at hX
     set R := expression (restAt c (b.idx + 1)) with hR
@@ -800,9 +802,9 @@ theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁
       harity hlbt =>
     simp only [MInv] at hok; simp only [codeOf] at hX
     obtain ⟨c, hc0, hsg⟩ := seg_of_lookup hb
-    have hin := body_steps (P := P) (host := host) hsg hr
+    have hin := body_steps (P := P) (host := host) hC hsg hr
     simp only [ht, Option.toList_some, expression, List.map_cons, List.singleton_append] at hin
-    obtain ⟨c'', hs, he⟩ := Proofs.Region.sound hth
+    obtain ⟨c'', hs, he⟩ := Proofs.Region.soundC hC hth
     simp only [Out.Ends] at he; subst he
     set R := expression (restAt c (b.idx + 1)) with hR
     have hs' : Steps P host ⟨s₁, f₁, vals stk₁ ++ .plain i :: R⟩ ⟨s₂, f₂, throwing a ++ R⟩ := by
@@ -840,10 +842,39 @@ theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁
   | tailNull => exact absurd (by simp [Target.IsSink]) hns
   | tail hb ht hi hr hth hfi hty hargs hn hcall hend =>
     exact absurd (tailEnd_sink (body := body) hend).2 hns
-  | bodyCatch hb hr =>
-    obtain ⟨c, -, hsg⟩ := seg_of_lookup hb
-    obtain ⟨-, _, _, _, _, hC⟩ := run_body_throw (body_nonterm hsg) hr
-    exact hC.elim
+  | @bodyCatch b sg stk us ls s s₁ f f₁ a j L L' l hb hr hpass hL hT hc hL' harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    obtain ⟨c, hc0, hsg⟩ := seg_of_lookup hb
+    obtain ⟨c'', hs, he⟩ := Proofs.Region.soundC hC hr
+    simp only [Out.Ends] at he; subst he
+    set R := expression (sg.term.toList ++ restAt c (b.idx + 1)) with hR
+    have hs' : Steps P host ⟨s, f, vals stk ++ expression (restAt c b.idx)⟩
+        ⟨s₁, f₁, throwing a ++ R⟩ := by
+      rw [Proofs.Machine.restAt_cons hsg]
+      have h2 := Steps.ctxtInstrs (vs := []) (rest := R) (by simpa using hs)
+      simpa [Segment.instrs, expression, List.append_assoc, hR] using h2
+    simp only [codeAt, hc0, Option.bind_some] at hX
+    cases hw : wrap body b.seq.reverse ls (throwing a ++ R) with
+    | none =>
+      have := (wrap_isSome body b.seq.reverse ls (throwing a ++ R) _).trans
+        (congrArg Option.isSome hX)
+      rw [hw] at this; simp at this
+    | some Z =>
+      have h1 := wrap_steps (P := P) (host := host) _ _ hX hw hs'
+      refine csim_trans ?_
+      split
+      · rename_i hl
+        have hY' := hY
+        simp only [hl, ↓reduceIte, labels] at hY'
+        rw [← List.length_reverse (as := b.seq)] at hY'
+        exact Relation.TransGen.trans_right h1 (throw_core j _ ls hw hok hpass hL hT hc hL'
+          harity hlbt (by simpa [hl] using hY'))
+      · rename_i hl
+        have hY' := hY
+        simp only [hl, Bool.false_eq_true, ↓reduceIte, labels] at hY'
+        rw [← List.length_reverse (as := b.seq)] at hY'
+        exact Relation.TransGen.trans_right h1 (throw_core j _ ls hw hok hpass hL hT hc hL'
+          harity hlbt (by simpa [hl] using hY'))
 
 
 /-- The administrative measure: the blocks left in the current sequence. -/
@@ -852,12 +883,12 @@ def mu (body : Expr) (st : MState H) : Nat :=
   | .block b => ((seqAt body b.seq).map fun c => (segment c).length).getD 0 - b.idx
   | _ => 0
 
-theorem mstep_lookup {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁)
+theorem mstep_lookup {body : Expr} {st st₁ : MState H} (h : MStepC P host C body st st₁)
     {b : BlockId} (hn : st.node = .block b) : ∃ sg, lookup body b = some sg := by
   cases h <;> (cases hn; exact ⟨_, ‹_›⟩)
 
 open Silmaril.Wasm.Cfg.Proofs.Machine in
-theorem mu_lt {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁) {b : BlockId}
+theorem mu_lt {body : Expr} {st st₁ : MState H} (h : MStepC P host C body st st₁) {b : BlockId}
     (hn : st.node = .block b) (hn₁ : st₁.node = .block ⟨b.seq, b.idx + 1⟩) :
     mu body st₁ < mu body st := by
   obtain ⟨sg, hb⟩ := mstep_lookup h hn
@@ -867,7 +898,7 @@ theorem mu_lt {body : Expr} {st st₁ : MState H} (h : MStep P host body st st�
   omega
 
 theorem not_sink_of_infinite {body : Expr} {st : MState H}
-    (h : InfiniteTrace (MStep P host body) st) : ¬ st.node.IsSink := by
+    (h : InfiniteTrace (MStepC P host C body) st) : ¬ st.node.IsSink := by
   obtain ⟨st₁, hs, -⟩ := h.unfold
   obtain ⟨b, hb⟩ := Proofs.Machine.mstep_from_block hs
   rw [hb]; simp [Target.IsSink]
@@ -875,11 +906,12 @@ theorem not_sink_of_infinite {body : Expr} {st : MState H}
 /-- **An infinite machine run is an infinite Core 3.0 run** of the code its start state stands
 for. Each machine step is at least one Core step, except administrative fall-throughs to the
 next block of the same sequence, which the measure `mu` bounds: no zero-step cycle. -/
-theorem core_infinite {body : Expr} {st : MState H} {X : List Admin} (hok : MInv body st)
-    (hX : codeOf body st = some X) (h : InfiniteTrace (MStep P host body) st) :
+theorem core_infinite (hC : CallSound P host C) {body : Expr} {st : MState H} {X : List Admin}
+    (hok : MInv body st) (hX : codeOf body st = some X)
+    (h : InfiniteTrace (MStepC P host C body) st) :
     InfiniteTrace (Step P host) ⟨st.store, st.frame, X⟩ := by
   refine InfiniteTrace.coinduct (fun c => ∃ (st : MState H) (X : List Admin), MInv body st ∧
-      codeOf body st = some X ∧ InfiniteTrace (MStep P host body) st ∧
+      codeOf body st = some X ∧ InfiniteTrace (MStepC P host C body) st ∧
       Steps P host c ⟨st.store, st.frame, X⟩) ?_ ⟨st, X, hok, hX, h, .refl⟩
   intro c ⟨st, X, hok, hX, h, hc⟩
   induction hmu : mu body st using Nat.strong_induction_on generalizing st X with
@@ -888,7 +920,7 @@ theorem core_infinite {body : Expr} {st : MState H} {X : List Admin} (hok : MInv
     · obtain ⟨st₁, hs, h₁⟩ := h.unfold
       have hok₁ := (Proofs.Machine.mstep_sound hs hok hX).1
       obtain ⟨Y, hY⟩ := Proofs.Machine.codeOf_of_ok hok₁
-      obtain ⟨hsteps, hpos | ⟨b, hn, hn₁⟩⟩ := msim hs hok hX hY (not_sink_of_infinite h₁)
+      obtain ⟨hsteps, hpos | ⟨b, hn, hn₁⟩⟩ := msim hC hs hok hX hY (not_sink_of_infinite h₁)
       · obtain ⟨d, hd, hdY⟩ := Relation.TransGen.head'_iff.mp hpos
         exact ⟨d, hd, st₁, Y, hok₁, hY, h₁, hdY⟩
       · exact ih (mu body st₁) (hmu ▸ mu_lt hs hn hn₁) st₁ Y hok₁ hY h₁ hsteps rfl
@@ -897,8 +929,8 @@ theorem core_infinite {body : Expr} {st : MState H} {X : List Admin} (hok : MInv
 
 open Silmaril.Wasm.Cfg.Proofs.Machine in
 /-- **An infinite machine run from the CFG entry is a diverging Core 3.0 run of the body.** -/
-theorem core_infinite_initial {body : Expr} {s : Store H} {f : Frame}
-    (h : InfiniteTrace (MStep P host body) (initial body s f)) :
+theorem core_infinite_initial (hC : CallSound P host C) {body : Expr} {s : Store H}
+    {f : Frame} (h : InfiniteTrace (MStepC P host C body) (initial body s f)) :
     Diverges P host ⟨s, f, expression body⟩ := by
   have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by
     simp [initial, goto, popL, cfgEntry]
@@ -914,7 +946,7 @@ theorem core_infinite_initial {body : Expr} {s : Store H} {f : Frame}
     · rename_i hl
       exfalso; apply hns; simp [goto, cont, contRev, Target.IsSink, hl]
   subst hYe
-  have := core_infinite hok hY h
+  have := core_infinite hC hok hY h
   simpa [initial, Diverges] using this
 
 end Silmaril.Wasm.Cfg.Proofs.MachineCore
