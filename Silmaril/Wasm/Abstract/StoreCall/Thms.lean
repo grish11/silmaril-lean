@@ -8,6 +8,7 @@ public import Silmaril.Wasm.Interp.Diverge.Thms
 import Silmaril.Proofs.Wasm.Abstract.StoreCall.Expose
 import Silmaril.Proofs.Wasm.Abstract.StoreCall.Answer
 import Silmaril.Proofs.Wasm.Abstract.StoreCall.Descent
+import Silmaril.Proofs.Wasm.Abstract.StoreCall.LocalDiv
 
 /-!
 # Store bodies with internal calls as events: theorems (F4, exposure)
@@ -48,12 +49,24 @@ events of `CallSig H`:
   native, arity-checked stores at every profile so is Core 3.0 divergence
   (`core_diverges_iff_exposed`).
 
-**Not yet.** Local divergence (`Decomp.wasmLocalDiv`, `Interp.LocalDiv`: the
-function diverges while every call it makes returns) is used as defined there;
-its reading on the exposed body (silent divergence or an infinite stream of
-`closedCall`-answered events) is not yet proved. Also not covered:
-`try_table` (F5), imports (host events), indirect calls and tail calls (only
-direct `call` is exposed).
+* **Local divergence, exposed.** `Interp.LocalDiv` (the function diverges while
+  every call it makes returns, including infinitely many returning calls) is
+  read on the exposed body: `localDiv_reach_call` (every call reached under
+  local divergence returns in `closedCall`), `exposed_of_localDiv` (local
+  divergence is silent divergence after `closedCall`-answered events, or an
+  infinite `closedCall`-answered run) and, conversely, `localDiv_of_exposedInf`
+  (an infinite answered run is local divergence). At the level of calls:
+  `exposed_of_wasmLocalDiv`, `wasmLocalDiv_of_exposedInf`, and for Core 3.0
+  `core_diverges_exposed` (divergence ⇒ finite exposed descents to a call whose
+  exposed body diverges silently or runs forever answered, or an infinite chain)
+  and `core_diverges_of_exposed` (the productive and chain cases ⇒ divergence).
+
+**Not yet.** The converse for *silent* exposed divergence: the exposed body
+diverges silently also at configurations the interpreter is stuck on (no
+`Eval` and no `EvalDiv`), so `ExposedSilent` alone does not give `LocalDiv`
+without typed progress at this layer. Also not covered: `try_table` (F5),
+imports (host events), indirect calls and tail calls (only direct `call` is
+exposed).
 -/
 
 public section
@@ -235,5 +248,73 @@ theorem core_diverges_iff_exposed {s : Store H} {a : Nat} {vs : List Val} (hs : 
           ∀ n, ExposedReach (g n) (g (n + 1)) :=
   (Silmaril.Wasm.Interp.core_diverges_iff_funDiv hs hF hS hok P).trans
     (funDiv_iff_exposed ⟨a, (vs, s)⟩)
+
+/-! ## Local divergence -/
+
+/-- Under local divergence, every reached internal call returns (or traps or
+throws) in `closedCall`. -/
+theorem localDiv_reach_call {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {y : (wasmOShape H).self.Op} (hR : Reach s f stk es y) (hL : Interp.LocalDiv s f stk es) :
+    ∃ out, closedCall y.2.2 y.1 y.2.1 out :=
+  Silmaril.Proofs.Wasm.Abstract.StoreCall.localDiv_reach_call hR hL
+
+/-- **Local divergence on the exposed body.** -/
+theorem exposed_of_localDiv {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    (hL : Interp.LocalDiv s f stk es) :
+    (∃ cs, Answered closedCall cs ∧
+        Path (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs .div) ∨
+      ∃ ω, AnsweredS closedCall ω ∧
+        InfPath (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) ω :=
+  Silmaril.Proofs.Wasm.Abstract.StoreCall.exposed_of_localDiv hL
+
+/-- **Productive local divergence.** An infinite run of the exposed body with
+every call event answered by `closedCall` is local divergence. -/
+theorem localDiv_of_exposedInf {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {ω : Nat → Call (CallSig H)} (hA : AnsweredS closedCall ω)
+    (h : InfPath (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) ω) :
+    Interp.LocalDiv s f stk es :=
+  Silmaril.Proofs.Wasm.Abstract.StoreCall.localDiv_of_prod ⟨ω, hA, h⟩
+
+theorem exposed_of_wasmLocalDiv {z : (wasmOShape H).self.Op} (h : wasmLocalDiv z) :
+    ExposedSilent z ∨ ExposedInf z := by
+  obtain ⟨fi, fn, hfi, hcode, hL⟩ := h
+  rcases exposed_of_localDiv hL with ⟨cs, hA, hp⟩ | ⟨ω, hA, hp⟩
+  · exact .inl ⟨fi, fn, hfi, hcode, cs, hA, hp⟩
+  · exact .inr ⟨fi, fn, hfi, hcode, ω, hA, hp⟩
+
+theorem wasmLocalDiv_of_exposedInf {z : (wasmOShape H).self.Op} (h : ExposedInf z) :
+    wasmLocalDiv z := by
+  obtain ⟨fi, fn, hfi, hcode, ω, hA, hp⟩ := h
+  exact ⟨fi, fn, hfi, hcode, localDiv_of_exposedInf hA hp⟩
+
+/-- **Core 3.0 divergence, on exposed bodies.** A diverging typed invocation of a
+native, arity-checked store reaches, by finitely many exposed descents, a call
+whose exposed body diverges silently or runs forever answered, or starts an
+infinite chain of exposed descents. Every profile. -/
+theorem core_diverges_exposed {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+    (hF : NativeFuncsOk s.funcs) (hS : Silmaril.Wasm.Interp.StoreChk s.funcs)
+    (hok : InvokeOk s a vs) (P : Numerics.Profile)
+    (h : Diverges P closedHost (invoke s a vs)) :
+    (∃ z, ExposedPath ⟨a, (vs, s)⟩ z ∧ (ExposedSilent z ∨ ExposedInf z)) ∨
+      ∃ g : Nat → (wasmOShape H).self.Op, g 0 = ⟨a, (vs, s)⟩ ∧
+        ∀ n, ExposedReach (g n) (g (n + 1)) := by
+  rcases (core_diverges_iff_exposed hs hF hS hok P).1 h with ⟨z, hp, hz⟩ | hc
+  · exact .inl ⟨z, hp, exposed_of_wasmLocalDiv hz⟩
+  · exact .inr hc
+
+/-- **Conversely**, finitely many exposed descents to a call whose exposed body
+runs forever answered, or an infinite chain of exposed descents, is Core 3.0
+divergence. -/
+theorem core_diverges_of_exposed {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+    (hF : NativeFuncsOk s.funcs) (hS : Silmaril.Wasm.Interp.StoreChk s.funcs)
+    (hok : InvokeOk s a vs) (P : Numerics.Profile)
+    (h : (∃ z, ExposedPath ⟨a, (vs, s)⟩ z ∧ ExposedInf z) ∨
+      ∃ g : Nat → (wasmOShape H).self.Op, g 0 = ⟨a, (vs, s)⟩ ∧
+        ∀ n, ExposedReach (g n) (g (n + 1))) :
+    Diverges P closedHost (invoke s a vs) := by
+  refine (core_diverges_iff_exposed hs hF hS hok P).2 ?_
+  rcases h with ⟨z, hp, hz⟩ | hc
+  · exact .inl ⟨z, hp, wasmLocalDiv_of_exposedInf hz⟩
+  · exact .inr hc
 
 end Silmaril.Wasm.Abstract.StoreCall

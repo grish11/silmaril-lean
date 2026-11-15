@@ -156,4 +156,28 @@ inductive ExposedPath : (wasmOShape H).self.Op → (wasmOShape H).self.Op → Pr
   | refl (x : (wasmOShape H).self.Op) : ExposedPath x x
   | step {x y z : (wasmOShape H).self.Op} : ExposedReach x y → ExposedPath y z → ExposedPath x z
 
+/-- Every call event of the stream is answered as `C` allows. -/
+def AnsweredS (C : CallRel H) (ω : Nat → Silmaril.Games.Abstract.Call (CallSig H)) : Prop :=
+  ∀ n, C (ω n).1.2.2 (ω n).1.1 (ω n).1.2.1 (ω n).2
+
+/-- The exposed body of the call `z` (its function's code, callee frame). -/
+noncomputable def exposedTree (z : (wasmOShape H).self.Op) (fn : Func) (fi : FuncInst H) :
+    Silmaril.Elgot.ITree.Tree (Silmaril.Wasm.Abstract.Body.SigEv (CallSig H))
+      (Except PUnit.{2} (Res × St H)) :=
+  ((denListE (liftInstrs fn.body) (Frame.forCall fi.module z.2.1 fn.locals) [] :
+    M (CallSig H) H Res).run ⟨z.2.2⟩).run
+
+/-- **Productive local divergence, exposed**: the exposed body of `z` has an
+infinite run whose call events are all answered by `closedCall` (infinitely many
+returning internal calls). -/
+def ExposedInf (z : (wasmOShape H).self.Op) : Prop :=
+  ∃ (fi : FuncInst H) (fn : Func), z.2.2.funcs[z.1]? = some fi ∧ fi.code = .wasm fn ∧
+    ∃ ω, AnsweredS closedCall ω ∧ Silmaril.Wasm.Abstract.BodyTrace.InfPath (exposedTree z fn fi) ω
+
+/-- **Silent divergence, exposed**: after `closedCall`-answered call events, the
+exposed body of `z` diverges silently. -/
+def ExposedSilent (z : (wasmOShape H).self.Op) : Prop :=
+  ∃ (fi : FuncInst H) (fn : Func), z.2.2.funcs[z.1]? = some fi ∧ fi.code = .wasm fn ∧
+    ∃ cs, Answered closedCall cs ∧ Silmaril.Wasm.Abstract.BodyTrace.Path (exposedTree z fn fi) cs .div
+
 end Silmaril.Wasm.Abstract.StoreCall
