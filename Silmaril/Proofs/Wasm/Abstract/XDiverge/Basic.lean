@@ -23,7 +23,7 @@ open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core
 open Silmaril.Wasm.Interp (Problem DivStep EvalDiv LocalDiv)
 open Silmaril.Wasm.Abstract (EvalO closedCall)
 open Silmaril.Wasm.Abstract.CallX Silmaril.Wasm.Abstract.XRecursion Silmaril.Wasm.Abstract.XDiverge
-open Silmaril.Proofs.Wasm.Abstract.XRecursion (evalOX_funcs evalFlat_funcs storeXFree_of_funcs)
+open Silmaril.Proofs.Wasm.Abstract.XRecursion (storeXFree_of_funcs)
 
 variable {H : Type}
 
