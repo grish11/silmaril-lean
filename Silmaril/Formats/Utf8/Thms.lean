@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Utf8.Defs
 import Silmaril.Proofs.Formats.Utf8.Basic
+import Silmaril.Proofs.Formats.Utf8.Core
 
 /-!
 # The language of well-formed UTF-8 bytes: lemmas
@@ -11,6 +12,13 @@ import Silmaril.Proofs.Formats.Utf8.Basic
   instances `IsWellFormed.decidable` and `Bytes.IsUtf8.decidable`;
 * `isWellFormed_iff_flatten`: a well-formed sequence is a concatenation of encoded scalars;
 * `isWellFormed_nil`, `isWellFormed_append`, `isWellFormed_of_ascii`: closure properties;
+* the bridge to Lean core's UTF-8 (`String.utf8EncodeChar`, `List.utf8Encode`,
+  `ByteArray.IsValidUTF8`, `ByteArray.validateUTF8`, `String.fromUTF8?`): `scalar` is exactly
+  the image of `String.utf8EncodeChar` (`utf8EncodeChar_mem_scalar`,
+  `exists_char_of_mem_scalar`) and the language is exactly the image of
+  `List.flatMap String.utf8EncodeChar` (`isWellFormed_iff_exists_chars`), hence
+  `isValidUTF8_iff`, `validateUTF8_iff`, `fromUTF8?_isSome_iff`, `toUTF8_isWellFormed` and
+  `Bytes.isUtf8_iff_isValidUTF8`;
 * worked examples, accepted and rejected, for every row of Table 3-7.
 -/
 
@@ -63,6 +71,44 @@ theorem scalar_isWellFormed {w : List UInt8} (h : w ∈ scalar.matches') : IsWel
 theorem isWellFormed_of_ascii {w : List UInt8} (h : ∀ b ∈ w, b < 0x80) : IsWellFormed w :=
   Silmaril.Proofs.Formats.Utf8.isWellFormed_of_ascii h
 
+
+/-! ## The bridge to Lean core's UTF-8 -/
+
+/-- Lean core encodes every character as one row of Table 3-7. -/
+theorem utf8EncodeChar_mem_scalar (c : Char) : String.utf8EncodeChar c ∈ scalar.matches' :=
+  Silmaril.Proofs.Formats.Utf8.Core.utf8EncodeChar_mem_scalar c
+
+/-- Every row of Table 3-7 is Lean core's encoding of some character. -/
+theorem exists_char_of_mem_scalar {w : List UInt8} (h : w ∈ scalar.matches') :
+    ∃ c : Char, String.utf8EncodeChar c = w :=
+  Silmaril.Proofs.Formats.Utf8.Core.exists_char_of_mem_scalar h
+
+/-- The language is exactly the set of encodings of character lists. -/
+theorem isWellFormed_iff_exists_chars {w : List UInt8} :
+    IsWellFormed w ↔ ∃ cs : List Char, w = cs.flatMap String.utf8EncodeChar :=
+  Silmaril.Proofs.Formats.Utf8.Core.isWellFormed_iff_exists_chars
+
+/-- Lean core's `ByteArray.IsValidUTF8` is this language on the list view. -/
+theorem isValidUTF8_iff {b : ByteArray} : b.IsValidUTF8 ↔ IsWellFormed b.data.toList :=
+  Silmaril.Proofs.Formats.Utf8.Core.isValidUTF8_iff
+
+/-- Lean core's executable validator `ByteArray.validateUTF8` decides this language. -/
+theorem validateUTF8_iff {b : ByteArray} : b.validateUTF8 = true ↔ IsWellFormed b.data.toList :=
+  ByteArray.validateUTF8_eq_true_iff.trans isValidUTF8_iff
+
+/-- `String.fromUTF8?` succeeds exactly on this language. -/
+theorem fromUTF8?_isSome_iff {b : ByteArray} :
+    (String.fromUTF8? b).isSome ↔ IsWellFormed b.data.toList :=
+  Silmaril.Proofs.Formats.Utf8.Core.fromUTF8?_isSome_iff
+
+/-- The bytes of every Lean `String` are well-formed UTF-8. -/
+theorem toUTF8_isWellFormed (s : String) : IsWellFormed s.toUTF8.data.toList :=
+  isValidUTF8_iff.mp s.isValidUTF8
+
+theorem _root_.Silmaril.Formats.Bytes.isUtf8_iff_isValidUTF8 (b : Bytes) :
+    b.IsUtf8 ↔ b.data.IsValidUTF8 :=
+  isValidUTF8_iff.symm
+
 /-! ## Examples: one accepted and one rejected sequence per row of Table 3-7 -/
 
 section Examples
@@ -105,6 +151,14 @@ example : ¬ IsWellFormed [0xC3, 0x41] := by decide +kernel
 
 -- The same check on a `Bytes` value.
 example : (Bytes.ofList [0x68, 0xC3, 0xA9]).IsUtf8 := by decide +kernel
+
+-- Lean core's validator agrees, here derived from the decision procedure of this language.
+example : [0xC0, 0x80].toByteArray.validateUTF8 = false := by
+  rw [Bool.eq_false_iff, ne_eq, validateUTF8_iff]; decide +kernel
+example : [0xF0, 0x9F, 0x98, 0x80].toByteArray.validateUTF8 = true := by
+  rw [validateUTF8_iff]; decide +kernel
+example : (String.fromUTF8? [0xED, 0xA0, 0x80].toByteArray).isSome = false := by
+  rw [Bool.eq_false_iff, ne_eq, fromUTF8?_isSome_iff]; decide +kernel
 
 end Examples
 
