@@ -84,6 +84,7 @@ public import Silmaril.Semantics.ElgotMonads.Thms
 public import Silmaril.Semantics.Streams.Thms
 public import Silmaril.Semantics.StreamMonitors.Thms
 public import Silmaril.Semantics.StreamAcceptors.Thms
+public import Silmaril.Semantics.Tokens.Thms
 public import Silmaril.SSA.Isotope.Institution.Thms
 public import Silmaril.SSA.Isotope.Bridge.Thms
 public import Silmaril.SSA.Thesis.Thms

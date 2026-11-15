@@ -16,6 +16,7 @@ It reuses Mathlib's `Language α` (`Set (List α)`) and CSLib's `ωSequence α`,
 | `Silmaril.Semantics.Streams.Defs` / `Thms` | Finite-or-infinite words (`Word α`), ∞-languages (`Lang α`), chunk streams (`Chunks α`), their limits and progress |
 | `Silmaril.Semantics.Acceptors.Defs` / `Thms` | Incremental acceptors (`process`/`accepted`/`reset`) specified against a `Language α` over arbitrary client traces |
 | `Silmaril.Semantics.StreamAcceptors.Defs` / `Thms` | Acceptor answers on unbounded chunk sessions, equal to the monitor verdicts |
+| `Silmaril.Semantics.Tokens.Defs` / `Thms` | Streaming transducers from symbols to tokens, token chunk streams, and lexer-plus-token-acceptor composition |
 | `Silmaril.Semantics.StreamMonitors.Defs` / `Thms` | Safety and liveness verdicts of chunk-boundary monitors, compared with the limit word |
 
 ### `Silmaril.Semantics.Streams` (namespace `Silmaril.Streams`)
@@ -115,6 +116,34 @@ Stable API:
     verdicts are the monitor verdicts.
   - `mem_omegaLim_of_answers`, and `answers_of_limit_fin`, which is the
     no-progress caveat.
+
+### `Silmaril.Semantics.Tokens` (namespaces `Silmaril.Streams.Transducer`, `Silmaril.Acceptor`)
+
+This is the generic bridge from a symbol alphabet (bytes, characters) to a token or event
+alphabet. Format-specific token types and grammars instantiate it elsewhere.
+
+Stable API:
+
+- `Transducer ρ α τ` has fields `init`, `step : ρ → α → ρ × List τ` (which commits
+  tokens) and `flush : ρ → List τ` (pending tokens at end of input, not committed).
+- `emitted w` is the committed tokens, which are monotone in `w`. `tokenize w` is
+  `emitted w ++ flush (state w)`, the tokenization of the whole input. `pull T L` is the
+  set of words whose tokenization is in `L`; it equals `Accept.pullSome` along
+  `Accept.ofTotal tokenize` (`pull_eq_pullSome`).
+- `tokenChunks T cs` is the tokens committed per input chunk. `Productive T cs` holds
+  when infinitely many chunks commit a token.
+- `Acceptor.lex T B` composes a transducer with a token acceptor. `query` flushes on a
+  copy, so it is pure.
+- Main theorems:
+  - `emitted_mono`, `prefixAt_tokenChunks` and `tokenLimit_eq_of_cofinal`: rechunking
+    the input does not change the tokens.
+  - `tokenLimit_ofList`: a terminating stream delivers only the committed tokens.
+    Flushed tokens need an explicit end of input.
+  - `not_productive_silent`: input progress does not imply token progress.
+  - `symbolCorrect_lex` and `correctInterleaved_lex`: if `B` is correct for `L`, then
+    `lex T B` is correct for `pull T L` on every interleaving.
+- `Tokens/Examples.lean` has `lines sep`, generic item framing for line-delimited
+  streams. It does not interpret the items.
 
 ## Scope and limits
 
