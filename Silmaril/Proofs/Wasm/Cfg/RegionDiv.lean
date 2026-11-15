@@ -606,7 +606,7 @@ theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admi
             exact (throwForm_not_div ⟨ws ++ w, b, code, by simp⟩ hd₁).elim
         · cases h
         · exact (throwForm_not_div ⟨ws, x, r', by simp⟩ hd₁).elim)
-    | @tryTable bt cs b hb =>
+    | @tryTable _ bt cs b hb =>
       obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
       obtain ⟨ws, us, is', rfl, hs', rfl⟩ := Proofs.Exec.head_of rfl (by simp) hs
       obtain ⟨ws', us', t₁, t₂, rfl, hbt, hm, he⟩ := Step.tryTable_vals_inv hs'
@@ -630,7 +630,7 @@ theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admi
     | const h =>
       obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.1 h
       exact val_case v hv
-    | @block bt b hb =>
+    | @block _ bt b hb =>
       obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
       obtain ⟨ws, us, is', rfl, hs', rfl⟩ := Proofs.Exec.head_of rfl (by simp) hs
       obtain ⟨ws', us', t₁, t₂, rfl, hbt, hm, he⟩ := Step.block_vals_inv hs'
@@ -646,7 +646,7 @@ theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admi
         (R := fun s f vs code => Frag code ∧ Diverges P host ⟨s, f, vals vs ++ code⟩)
         (ws := ws ++ ws') (code := code) hbt hm ⟨hFl, by unfold Diverges; simpa using hd₁⟩
       simpa using this
-    | @loop bt b hb =>
+    | @loop _ bt b hb =>
       obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
       obtain ⟨ws, us, is', rfl, hs', rfl⟩ := Proofs.Exec.head_of rfl (by simp) hs
       obtain ⟨ws', us', t₁, t₂, rfl, hbt, hm, he⟩ := Step.loop_vals_inv hs'
@@ -656,13 +656,13 @@ theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admi
         intro x hx
         simp only [List.mem_cons] at hx
         rcases hx with rfl | hx
-        · exact .label (by simp [FragI.loop hb]) (frag_append.2 ⟨frag_vals _, frag_expression hb⟩)
+        · exact .label (by simp [FragIB.loop hb]) (frag_append.2 ⟨frag_vals _, frag_expression hb⟩)
         · exact hF' x hx
       have := DivF.loop (P := P) (host := host)
         (R := fun s f vs code => Frag code ∧ Diverges P host ⟨s, f, vals vs ++ code⟩)
         (ws := ws ++ ws') (code := code) hbt hm ⟨hFl, by unfold Diverges; simpa using hd₁⟩
       simpa using this
-    | @if_ bt t e ht he' =>
+    | @if_ _ bt t e ht he' =>
       obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
       obtain ⟨ws, us, is', rfl, hs', rfl⟩ := Proofs.Exec.head_of rfl (by simp) hs
       obtain ⟨ws', k, rfl, he⟩ := Step.if_vals_inv hs'
@@ -680,7 +680,7 @@ theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admi
         (R := fun s f vs code => Frag code ∧ Diverges P host ⟨s, f, vals vs ++ code⟩)
         (ws := ws ++ ws') (k := k) (t := t) (e := e) (code := code) ⟨hFl, by unfold Diverges; simpa using hd₁⟩
       simpa using this
-    | @brData i hb =>
+    | @brData _ i hb =>
       obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
       have hv : (Admin.plain i).val? = none := by cases i <;> simp_all [Instr.IsBrData, Admin.val?]
       have hnt : i ≠ .throwRef := by rintro rfl; simp [Instr.IsBrData] at hb

@@ -91,6 +91,16 @@ theorem run_expand {c c₁ : Config H} (h : Step P host c c₁) (hF : Frag c.cod
         Run P host c.store c.frame vs c.code s' f' o :=
   Proofs.Region.expand h hF
 
+/-- **Expansion in the fragment with calls** (`FragB cf`, `cf = true` allowing direct calls),
+for any call oracle: a Core step whose redex is not a direct call (`¬ CallAt`)
+stays in the fragment, and region runs of the successor are region runs of the predecessor. -/
+theorem run_expandB {cf : Bool} {C : Abstract.CallRel H} {c c₁ : Config H}
+    (h : Step P host c c₁) (hF : FragB cf c.code) (hnc : ¬ CallAt c.code) :
+    FragB cf c₁.code ∧ ∀ {vs : List Val} {s' : Store H} {f' : Frame} {o : Out},
+      RunC P host C c₁.store c₁.frame vs c₁.code s' f' o →
+        RunC P host C c.store c.frame vs c.code s' f' o :=
+  Proofs.Region.expandB h hF hnc
+
 /-- **Adequacy** of the region semantics for Core 3.0 on the fragment. -/
 theorem run_adequate {vs : List Val} {code : List Admin} {o : Out} (hF : Frag code) :
     Run P host s f vs code s' f' o ↔

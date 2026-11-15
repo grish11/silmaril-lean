@@ -40,7 +40,8 @@ The rules follow the structure of the code:
 
 Outcomes carry values, store and frame, and every branch reads data.
 
-The fragment (`Frag`) is call-free: values, non-control instructions,
+The fragment `Frag` (`FragB false`) is call-free; `FragC` (`FragB true`) also allows direct calls
+`call x`. The call-free fragment is: values, non-control instructions,
 `block`, `loop`, `if`, `br`, `br_if`, `br_table`, `br_on_null`, `br_on_non_null`, `br_on_cast`,
 `br_on_cast_fail`, `return`, `throw`, `throw_ref`, `try_table`, `TRAP`, `LABEL` and `HANDLER`. On it the semantics is
 **adequate in both directions** for every profile and host (`Region/Thms.lean`): `Run`
@@ -82,36 +83,64 @@ def Out.Ends : Out → List Admin → Prop
   | .tailNull vs r, c => r.IsReturnCallRef ∧ ∃ rest : List Admin,
       c = vals vs ++ .ref .null :: r :: rest
 
-/-- Source instructions of the fragment. -/
-inductive FragI : Instr → Prop where
-  | simple {i : Instr} (h : SingleThreaded.Det.famOf (.plain i) ≠ .control) : FragI i
-  | const {i : Instr} (h : (Admin.plain i).val? ≠ none) : FragI i
-  | block {bt : BlockType} {b : List Instr} (h : ∀ i ∈ b, FragI i) : FragI (.block bt b)
-  | loop {bt : BlockType} {b : List Instr} (h : ∀ i ∈ b, FragI i) : FragI (.loop bt b)
-  | if_ {bt : BlockType} {t e : List Instr} (ht : ∀ i ∈ t, FragI i) (he : ∀ i ∈ e, FragI i) :
-      FragI (.if_ bt t e)
-  | br (l : LabelIdx) : FragI (.br l)
-  | brIf (l : LabelIdx) : FragI (.brIf l)
-  | return_ : FragI .return_
+/-- Source instructions of the fragment, with direct calls allowed when `cf = true`. -/
+inductive FragIB : Bool → Instr → Prop where
+  | simple {cf : Bool} {i : Instr} (h : SingleThreaded.Det.famOf (.plain i) ≠ .control) :
+      FragIB cf i
+  | const {cf : Bool} {i : Instr} (h : (Admin.plain i).val? ≠ none) : FragIB cf i
+  | block {cf : Bool} {bt : BlockType} {b : List Instr} (h : ∀ i ∈ b, FragIB cf i) :
+      FragIB cf (.block bt b)
+  | loop {cf : Bool} {bt : BlockType} {b : List Instr} (h : ∀ i ∈ b, FragIB cf i) :
+      FragIB cf (.loop bt b)
+  | if_ {cf : Bool} {bt : BlockType} {t e : List Instr} (ht : ∀ i ∈ t, FragIB cf i)
+      (he : ∀ i ∈ e, FragIB cf i) : FragIB cf (.if_ bt t e)
+  | br {cf : Bool} (l : LabelIdx) : FragIB cf (.br l)
+  | brIf {cf : Bool} (l : LabelIdx) : FragIB cf (.brIf l)
+  | return_ {cf : Bool} : FragIB cf .return_
   /-- `br_table`, `br_on_null`, `br_on_non_null`, `br_on_cast`, `br_on_cast_fail`. -/
-  | brData {i : Instr} (h : i.IsBrData) : FragI i
-  | throw (x : TagIdx) : FragI (.throw x)
-  | throwRef : FragI .throwRef
-  | tryTable {bt : BlockType} {cs : List Catch} {b : List Instr} (h : ∀ i ∈ b, FragI i) :
-      FragI (.tryTable bt cs b)
+  | brData {cf : Bool} {i : Instr} (h : i.IsBrData) : FragIB cf i
+  | throw {cf : Bool} (x : TagIdx) : FragIB cf (.throw x)
+  | throwRef {cf : Bool} : FragIB cf .throwRef
+  | tryTable {cf : Bool} {bt : BlockType} {cs : List Catch} {b : List Instr}
+      (h : ∀ i ∈ b, FragIB cf i) : FragIB cf (.tryTable bt cs b)
+  /-- A direct call (only in the fragment with calls). -/
+  | call (x : FuncIdx) : FragIB true (.call x)
 
-/-- Runtime instructions of the fragment. -/
-inductive FragA : Admin → Prop where
-  | val {a : Admin} (h : a.val? ≠ none) : FragA a
-  | plain {i : Instr} (h : FragI i) : FragA (.plain i)
-  | trap : FragA .trap
-  | label {n : Nat} {cont : List Instr} {inner : List Admin} (hc : ∀ i ∈ cont, FragI i)
-      (hi : ∀ a ∈ inner, FragA a) : FragA (.label n cont inner)
-  | handler {n : Nat} {cs : List Catch} {inner : List Admin} (hi : ∀ a ∈ inner, FragA a) :
-      FragA (.handler n cs inner)
+/-- Source instructions of the call-free fragment. -/
+abbrev FragI := FragIB false
 
-/-- Runtime code of the fragment. -/
-def Frag (code : List Admin) : Prop := ∀ a ∈ code, FragA a
+/-- Runtime instructions of the fragment, with direct calls allowed when `cf = true`. -/
+inductive FragAB : Bool → Admin → Prop where
+  | val {cf : Bool} {a : Admin} (h : a.val? ≠ none) : FragAB cf a
+  | plain {cf : Bool} {i : Instr} (h : FragIB cf i) : FragAB cf (.plain i)
+  | trap {cf : Bool} : FragAB cf .trap
+  | label {cf : Bool} {n : Nat} {cont : List Instr} {inner : List Admin}
+      (hc : ∀ i ∈ cont, FragIB cf i) (hi : ∀ a ∈ inner, FragAB cf a) :
+      FragAB cf (.label n cont inner)
+  | handler {cf : Bool} {n : Nat} {cs : List Catch} {inner : List Admin}
+      (hi : ∀ a ∈ inner, FragAB cf a) : FragAB cf (.handler n cs inner)
+
+/-- Runtime instructions of the call-free fragment. -/
+abbrev FragA := FragAB false
+
+/-- Runtime code of the fragment, with direct calls allowed when `cf = true`. -/
+def FragB (cf : Bool) (code : List Admin) : Prop := ∀ a ∈ code, FragAB cf a
+
+/-- Runtime code of the call-free fragment. -/
+abbrev Frag := FragB false
+
+/-- Runtime code of the fragment with direct calls. -/
+abbrev FragC := FragB true
+
+/-- **The redex of a code is a direct call**: `call x` is the first non-value instruction,
+possibly inside labels and handlers. -/
+inductive CallAt : List Admin → Prop where
+  | here {ws : List Val} {x : FuncIdx} {rest : List Admin} :
+      CallAt (vals ws ++ .plain (.call x) :: rest)
+  | label {ws : List Val} {n : Nat} {cont : List Instr} {X rest : List Admin} (h : CallAt X) :
+      CallAt (vals ws ++ .label n cont X :: rest)
+  | handler {ws : List Val} {n : Nat} {cs : List Catch} {X rest : List Admin} (h : CallAt X) :
+      CallAt (vals ws ++ .handler n cs X :: rest)
 
 variable {H : Type}
 
