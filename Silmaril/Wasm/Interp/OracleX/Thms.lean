@@ -4,6 +4,7 @@ public import Silmaril.Proofs.Wasm.Interp.OracleSimX
 public import Silmaril.Proofs.Wasm.Interp.OracleCloseX
 public import Silmaril.Proofs.Wasm.Interp.TypedX
 public import Silmaril.Proofs.Wasm.Interp.TypedCloseX
+public import Silmaril.Proofs.Wasm.Interp.TailX
 
 /-!
 # Core 3.0 adequacy of the indirect and reference calls (F4, call forms)
@@ -25,7 +26,11 @@ the annotated type's counts; it forgets to `EvalOX` (`CallXT.EvalOXT.forget`).
   `StoreChkE irExt` (`FuncsGoodE irExt`); old functions transfer
   (`storeChk_of_funcsExtE`).
 * Tail calls: `irExt` does not describe `return_call*`, so `chkE irExt`
-  rejects code containing them and nothing is claimed for it. A tail call
+  rejects code containing them and nothing is claimed for it there. With the
+  checker `tExt` (adds `return_call x`), `evalOXT_goodT` covers direct tail
+  calls under the tail-aware postcondition (`MatchT`, shared step 4);
+  `return_call_indirect`/`return_call_ref` stay rejected until the shared
+  repair for null tails (`Outcome.tailNull`). A tail call
   replaces the caller's frame in Core 3.0; its adequacy is a frame-level
   statement, still to come.
 * The arity premises of `EvalOXT` are discharged from typing in a follow-up
@@ -112,5 +117,17 @@ theorem evalOX_closed_typed_good {s : Store H} {f : Frame} {stk : List Val}
     (ht : Silmaril.Wasm.Interp.TypedX s f stk es) :
     ArityGoodE irExt s f stk es r ∧ CoreGoodE irExt P Silmaril.Wasm.Interp.noHostX s f stk es r :=
   Silmaril.Wasm.Interp.evalOX_closed_typed_good h ht
+
+/-- **Forward simulation with direct tail calls** (`return_call x`, checker `tExt`): every
+`EvalOXT C` run of `tExt`-checked code, with an oracle sound for `tExt`, is a Core 3.0 run
+under the tail-aware postcondition `MatchT` (a `return_call` ends the body in a pending tail
+call whose callee ends as the caller's `.ret` does). `return_call_indirect` and
+`return_call_ref` stay rejected: their null case traps only after the frame exits. -/
+theorem evalOXT_goodT {C : Abstract.CallRel H} (hC : Silmaril.Wasm.Interp.OracleSoundT P host C)
+    {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
+    {r : Store H × Frame × Binaryen.Flow} (h : Abstract.CallXT.EvalOXT C s f stk es r) :
+    ArityGoodE Silmaril.Wasm.Interp.tExt s f stk es r ∧
+      Silmaril.Wasm.Interp.CoreGoodT Silmaril.Wasm.Interp.tExt P host s f stk es r :=
+  Silmaril.Wasm.Interp.evalOXT_goodT hC h
 
 end Silmaril.Wasm.Interp.OracleX
