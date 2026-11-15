@@ -15,6 +15,7 @@ completeness here agree with its Bool-checker forms (`Lang.sound_ofBool_iff`,
 | `Silmaril.Games.Accept.{Defs,Thms}` | Acceptance over any trace model or strategy (`observed`, `Strategy.accepted`). It is monotone in refinement. Observable-trace equivalence (`ObsEquiv`) preserves it, and so do move maps that commute with the observation. A generated strategy accepts exactly what its generating plays observe (`accepted_generate`). |
 | `Silmaril.Wasm.Component.Reference.WIT.Interp.{Defs,Thms,Examples}` | Simple WIT types: the existing `WIT.ValType` with no `future` or `stream` (`ValType.simple`, `SimpleType`). `ValType.Interp E t` interprets them as Lean types (`u32 ↦ UInt32`, `s64 ↦ Int64`, `list ↦ List`, records ↦ products, variants ↦ sums, `flags ↦ BitVec n`, …); handles and names come from an environment `Env`. `ValLang E t` is the acceptor set at a type; `list<u8>` acceptors are definitionally byte languages; UTF-8 transports string acceptors faithfully. The canonical-ABI core signatures of the `accept` functions (`flattenFunc_accept_*`) and `layout_u8` are here too. |
 | `Silmaril.Wasm.Game.Accept.{Defs,Thms,Examples}` | Core modules: `Callouts P Envs memIdx m` is the set of reachable import calls. A call records the import's name, its arguments and the bytes of memory `memIdx` at the call. Calls are collected after the specification's instantiation (`IsSpecInstance`), in sessions of the untyped game semantics (`UStep`) against every environment of the class `Envs`, which may also invoke exports with typed arguments. Accepted values come from decoders: `bytesLang` (`accept(ptr: i32, len: i32)`), `bytes64Lang` (memory64), `i32Lang` and `i64Lang`. `CalloutEquiv` is exactly the equivalence under which every decoder accepts the same values (`calloutEquiv_iff`). |
+| `Silmaril.Wasm.Game.IOAccept.{Defs,Thms,Examples}` | Traced sessions of core modules (`TSession`): `Session`'s runs recording role tags (`Silmaril.Accept.IO.Tag`) decoded by `Roles` (export entry, result, `callIn`/`callOut` at a callout, `answerIn` on the host's answer). `ioRuns`/`entryIORuns` are the input-window and entry runs of `bracket '' tagTraces`, so `triggers`, `episodes`, `retTriggers` and `returns` apply to modules. See [I/O relations of modules](#io-relations-of-modules). |
 | `Silmaril.Wasi.Component.Accept.{Defs,Thms,Examples}` | Components as WASI world models (`Strategy (nsig I) (nsig X)`, named events `WEv`). `bytesLang σ f` covers an imported `accept: func(list<u8>)`; `exportBytesLang σ f` covers an exported `accept: func(list<u8>) -> bool` that may return `true`. `valLang` and `exportValLang` do the same at any closed WIT type, through a strict decoder (`decode`) that follows the WASI value encodings. Acceptance is invariant under equality of named traces, monotone in refinement, and `CompEquiv` / `CompRefines` IR components (under any `Layout`) have equal / included acceptor sets. Every byte language is exactly accepted by a specification component (`importAcceptor`, `exportAcceptor`). |
 | `Silmaril.Wasi.Component.Accept.Canon.{Defs,Thms}` | `CanonLowerAccept`: the correspondence a canonical-ABI adapter must establish between a module's `accept(ptr, len)` callouts and a component's `accept(list<u8>)` calls. Given it, the two byte languages are equal. |
 | `Silmaril.Formats.Accept.Bounded.{Defs,Thms}` | Set-level `SoundWithin`, `CompleteWithin` and `ExactWithin` on a domain `D` (a length, depth or per-item bound, via `Silmaril.Accept.within`). They agree with the checker forms `SoundOn` and `CompleteOn`, and transport along injective encodings. A finite acceptor set is complete for no infinite specification. |
@@ -69,10 +70,51 @@ completeness here agree with its Bool-checker forms (`Lang.sound_ofBool_iff`,
 - **Component bounds are hypotheses.** No adapter is proved to satisfy `CanonLowerAcceptBy`
   or `ListLiftChecked`.
 
+## I/O relations of modules
+
+`Callouts` is a set read off a reachability predicate, so it forgets which callouts happen in
+which export invocation, in which order, and which host answer was the input.
+`Silmaril.Wasm.Game.IOAccept` keeps that information:
+
+- `TSession P L m memAddr R c₀ q₀ addrs p w x ts` has the constructors of `Session` (a
+  host-free step, a host answer, an invocation) plus `call` (tag the callout at a host-call
+  redex, once) and `ret` (tag the end of an invocation). Tags: `enter (entry a args)` at an
+  invocation; `inp (callIn o)` then `out (callOut o)` at a callout `o`; `inp (answerIn o w)`
+  at the host's answer, where `w` holds the raw `Result` and the memory bytes after the
+  answer (`UStep.answer` exposes the reply, so nothing is parameterised beyond the decoders);
+  `exit (result vs mem)` for returned values, `exit none` for a trap or uncaught exception.
+- Erasure: `TSession.toSession` and `Session.exists_tsession`; hence `callouts_eq_traced`.
+  Traced acceptance refines `Callouts`: every output of a run is the `callOut` of a reachable
+  callout (`exists_callout_of_mem_ioRuns`, `exists_callout_of_mem_entryIORuns`), every window
+  input is read off one (`exists_callout_of_input_ioRuns`), and with
+  `callOut = outputVia imp dec` a triggered output is in `accepted dec … imp m`
+  (`mem_accepted_of_mem_triggers`). Monotone in `Envs` (`ioRuns_mono`, `entryIORuns_mono`).
+- Example: `exStart`'s export `"run"` triggers its call of `"env" "f"`
+  (`(1, ("env", "f")) ∈ triggers (entryIORuns P UEnvOk 0 exStart runRoles)`), while the same
+  call made by the start function is outside every scope.
+
+Limitations:
+
+- **Internal outputs outside any invocation.** Callouts of the instantiation phase (segment
+  initialisation, start function) come before any `enter` and are dropped by `bracket`
+  (`TSession.bracket_eq`); they remain `Callouts` (and so `accepted`) but trigger nothing.
+- **No reentrancy.** The environment invokes exports only after a run has finished, and a host
+  answer is a single relation step, so a host call cannot call back into the module; traced
+  sessions are flat (`TSession.openScan_eq`). Reentrant hosts need another semantics.
+- **Untagged calls.** A redex whose host code is not an import index (a host function added by
+  the environment and called by reference) is not a `CalloutOf` and is not tagged. A host
+  divergence (`UStep.silent`) is a self-loop and adds no tag.
+- **Reading order of a call.** A call that is both an input and an output is tagged input
+  first, so its own input triggers its output; another causal structure needs other roles.
+- **Finite prefixes.** Runs of an unfinished invocation have result `none`; divergence is not
+  observed.
+- Only modules whose imports are all functions (`IsSpecInstance`), as for `Callouts`.
+
 ## Checking
 
 ```
 lake build --wfail Silmaril.Formats.Accept.Examples Silmaril.Games.Accept.Thms \
   Silmaril.Wasm.Component.Reference.WIT.Interp.Examples Silmaril.Wasm.Game.Accept.Examples \
-  Silmaril.Wasi.Component.Accept.Examples Silmaril.Wasi.Component.Accept.Canon.Thms
+  Silmaril.Wasi.Component.Accept.Examples Silmaril.Wasi.Component.Accept.Canon.Thms \
+  Silmaril.Wasm.Game.IOAccept.Examples
 ```
