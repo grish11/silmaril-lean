@@ -139,4 +139,17 @@ theorem fall_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.fall_step_sound hb ht hr hX hY
 
+/-- **A raise step is sound when no enclosing frame is a `try_table` handler**: the code the
+machine stood for throws the same exception (its address is the `raise` state's stack), with the
+same final store and frame. Under a handler frame the region semantics may catch, which the
+machine does not model yet. -/
+theorem raise_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+    {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : Region.Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hT : ∀ L ∈ ls, L.tryT = false) (hX : codeAt body b stk ls = some X) :
+    Region.Run P host s f [] X s₂ f₂ (.throw a) :=
+  Proofs.Machine.raise_sound hb ht hr hth hT hX
+
 end Silmaril.Wasm.Cfg.Machine

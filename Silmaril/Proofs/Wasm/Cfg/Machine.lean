@@ -37,9 +37,8 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStep P host body st s
   | ret hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
   | trap hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
   | bodyTrap => right; rfl
-  | raise hb ht hi =>
+  | @raise _ _ _ _ _ _ _ _ _ _ _ i _ hb ht hi =>
     left; cases hn; refine ⟨_, hb, ?_⟩
-    rename_i i _
     cases i <;> simp_all [Instr.IsThrow, succOf]
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
@@ -556,5 +555,61 @@ theorem fall_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ :
           some Y := by simpa [cont] using hY
       have h1 := cont_sound (P := P) (host := host) b.seq.reverse ls stk₁ hw hY' h
       exact wrap_mono _ _ hX hw (fun h => inner (by simpa [expression] using h)) h1
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- An exception propagates through label frames that are not `try_table` handlers. -/
+theorem wrap_throw {body : Expr} {s s' : Store H} {f f' : Frame} {a : Nat} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin},
+      (∀ L ∈ ls, L.tryT = false) → wrap body rp ls inner = some X →
+      Run P host s f [] inner s' f' (.throw a) → Run P host s f [] X s' f' (.throw a)
+  | [], [], _, _, _, hX, h => by simp [wrap] at hX; subst hX; exact h
+  | [], _ :: _, _, _, _, hX, _ => by simp [wrap] at hX
+  | _ :: _, [], _, _, _, hX, _ => by simp [wrap] at hX
+  | (m, _) :: rp, L :: ls, inner, X, hT, hX, h => by
+    simp only [wrap, Option.bind_eq_bind] at hX
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some, hT L (by simp), Bool.false_eq_true,
+            ↓reduceIte] at hX
+          refine wrap_throw rp ls (fun L' hL' => hT L' (by simp [hL'])) hX ?_
+          exact Proofs.Region.run_vals (vs := []) (.labelThrow h)
+
+/-- **A raise step is sound when no enclosing frame is a handler**: the code the machine stood
+for throws the same exception, with the same final store and frame. (Under a `try_table`
+frame the region semantics may catch; catching is not modelled by the machine yet.) -/
+theorem raise_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hT : ∀ L ∈ ls, L.tryT = false) (hX : codeAt body b stk ls = some X) :
+    Run P host s f [] X s₂ f₂ (.throw a) := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  refine wrap_throw _ _ hT hX ?_
+  apply Proofs.Region.run_vals (vs := [])
+  rw [restAt_cons hsg]
+  simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append, List.map_cons,
+    List.map_nil, List.append_assoc, List.singleton_append, List.nil_append]
+  have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c (b.idx + 1))) hth
+    ⟨rfl, rfl, rfl⟩
+  exact Proofs.Region.run_append hr (by simp only [Then]; simpa using h2)
 
 end Silmaril.Wasm.Cfg.Proofs.Machine

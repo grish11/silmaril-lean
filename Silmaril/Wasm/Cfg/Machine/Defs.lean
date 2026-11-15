@@ -168,12 +168,15 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       {f f₁ : Frame} (hb : lookup body b = some sg)
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ .trap) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩
-  /-- `throw` and `throw_ref` raise (sink model; catching is not modelled yet). -/
-  | raise {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
-      {f f₁ : Frame} {i : Instr} (hb : lookup body b = some sg) (ht : sg.term = some i)
-      (hi : i.IsThrow)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.raise, stk₁, [], s₁, f₁⟩
+  /-- `throw` and `throw_ref`: the terminator runs (allocating the exception for `throw`) and
+  the machine moves to the `raise` sink with the exception's address as its stack
+  (`[ref (exn a)]`) and the store after the throw. Catching is not modelled yet. -/
+  | raise {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+      {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat} (hb : lookup body b = some sg)
+      (ht : sg.term = some i) (hi : i.IsThrow)
+      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a)) :
+      MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.raise, [.ref (.exn a)], [], s₂, f₂⟩
 
 end Silmaril.Wasm.Cfg.Machine
 
@@ -229,13 +232,17 @@ namespace Silmaril.Wasm.Cfg.Machine
 open Silmaril.Wasm.Execution.Core
 
 /-- **The region code a machine state stands for**: `codeAt` at a block; the final values at
-`exit` (with no label left); `[TRAP]` at `trap`. `raise` is a sink without region code yet
-(the exception's address is not part of the state). -/
+`exit` (with no label left); `[TRAP]` at `trap`; the thrown exception `throwing a` at `raise`,
+whose stack holds its address `[ref (exn a)]`. -/
 def codeOf (body : Expr) {H : Type} (st : MState H) : Option (List Admin) :=
   match st.node with
   | .block b => codeAt body b st.stk st.lbls
   | .exit => if st.lbls = [] then some (vals st.stk) else none
   | .trap => some [.trap]
+  | .raise =>
+    match st.stk with
+    | [.ref (.exn a)] => if st.lbls = [] then some (throwing a) else none
+    | _ => none
   | _ => none
 
 end Silmaril.Wasm.Cfg.Machine
