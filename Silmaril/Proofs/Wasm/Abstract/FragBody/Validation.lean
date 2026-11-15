@@ -571,4 +571,29 @@ theorem ofInstr_params_len {i : Instr} {es : List Silmaril.Wasm.SSA.Expr} {o : S
 
 end
 
+/-! ## Structured instructions: inversions exposing the body -/
+
+theorem instrOk_block_body {D : Context} {bt : BlockType} {b : List Instr} {it : InstrType}
+    (h : InstrOk D (.block bt b) it) :
+    ∃ t₁ t₂ xs, BlockTypeOk D bt t₁ t₂ ∧ InstrsOk (D.withLabel t₂) b ⟨t₁, xs, t₂⟩ ∧
+      it = .plain t₁ t₂ := by
+  cases h
+  all_goals first | exact ⟨_, _, _, by assumption, by assumption, rfl⟩ | (rename_i h; cases h)
+
+theorem instrOk_loop_body {D : Context} {bt : BlockType} {b : List Instr} {it : InstrType}
+    (h : InstrOk D (.loop bt b) it) :
+    ∃ t₁ t₂ xs, BlockTypeOk D bt t₁ t₂ ∧ InstrsOk (D.withLabel t₁) b ⟨t₁, xs, t₂⟩ ∧
+      it = .plain t₁ t₂ := by
+  cases h
+  all_goals first | exact ⟨_, _, _, by assumption, by assumption, rfl⟩ | (rename_i h; cases h)
+
+theorem instrOk_if_body {D : Context} {bt : BlockType} {b₁ b₂ : List Instr} {it : InstrType}
+    (h : InstrOk D (.if_ bt b₁ b₂) it) :
+    ∃ t₁ t₂ xs₁ xs₂, BlockTypeOk D bt t₁ t₂ ∧ InstrsOk (D.withLabel t₂) b₁ ⟨t₁, xs₁, t₂⟩ ∧
+      InstrsOk (D.withLabel t₂) b₂ ⟨t₁, xs₂, t₂⟩ ∧ it = .plain (t₁ ++ [.i32]) t₂ := by
+  cases h
+  all_goals first
+    | exact ⟨_, _, _, _, by assumption, by assumption, by assumption, rfl⟩
+    | (rename_i h; cases h)
+
 end Silmaril.Proofs.Wasm.Abstract.FragBody
