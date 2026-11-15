@@ -20,7 +20,8 @@ const srv = spawn("python3", ["-I", path.join(path.dirname(new URL(import.meta.u
   "--root", site, "--port", String(port), "--log", "/tmp/wasm_cfg_requests.jsonl"], { stdio: "ignore" });
 const fails = [];
 const check = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (!ok) fails.push(what); };
-const b = await pw.chromium.launch({ executablePath: process.env.CHROME || "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" });
+const b = await pw.chromium.launch({ executablePath: process.env.CHROME ||
+  (fs.existsSync("/opt/ms-playwright/chromium-1248/chrome-linux64/chrome") ? "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" : undefined) });
 try {
   await new Promise((r) => setTimeout(r, 800));
   const p = await b.newPage({ viewport: { width: 1500, height: 1000 } });

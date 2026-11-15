@@ -367,33 +367,12 @@ def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := 
   -- (AE edges that are not merged fall-throughs, `mem_maxFlow`) and `Cfg.maxHandler`
   -- (`mem_maxHandler`), mapped to their maximal blocks; nothing else is dropped, so a loop back
   -- into its own maximal block stays an edge. Outcomes stay per member, in member order.
-  let nextOf (i : Nat) : Option Nat :=
-    match bs[i]? with
-    | some (b, s) =>
-      match Cfg.succAE body b s with
-      | [.block c] => if Cfg.canMerge body b c then blockNode c else none
-      | _ => none
-    | none => none
-  let nexts := (List.range bs.length).map nextOf
-  let merged := nexts.filterMap id
-  let heads := (List.range bs.length).filter fun j => !merged.contains j
-  let chainOf (h : Nat) : List Nat := Id.run do
-    let mut out := [h]
-    let mut cur := h
-    for _ in [0:bs.length] do
-      match nexts.getD cur none with
-      | some j => out := out ++ [j]; cur := j
-      | none => break
-    return out
-  let groups := heads.map chainOf
-  -- Checked here, on every body: the groups partition the blocks, and each consecutive pair is a
-  -- `canMerge`. If not (a merge cycle no head reaches), no maximal graph is published.
-  let flatG := groups.flatten
-  let partitionOk := flatG.length == bs.length && (List.range bs.length).all (flatG.contains ·)
-  let chainsOk := groups.all fun ms => (ms.zip ms.tail).all fun (i, j) =>
-    match bs[i]?, bs[j]? with
-    | some (b, _), some (c, _) => Cfg.canMerge body b c
-    | _, _ => false
+  -- The grouping is `Cfg.maxGroups`, accepted by the checker `Cfg.groupsOk` (`groupsOk_sound`:
+  -- every block in exactly one group, each group a maximal merge chain). If the checker rejects
+  -- it, no maximal graph is published.
+  let groupsB := Cfg.maxGroups body
+  let maxOk := Cfg.groupsOk body groupsB
+  let groups := groupsB.map (·.map ids.idxOf)
   let groupOf (i : Nat) : Nat := (groups.findIdx? (·.contains i)).getD i
   let gOfBlock (b : Cfg.BlockId) : Option Nat := (blockNode b).map groupOf
   let gTargetJ : Cfg.Target → Json
@@ -424,9 +403,12 @@ def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := 
       ("instrs", jarr instrs),
       ("term", match mem.getLast? with | some (_, s) => (match s.term with | some t => jstr (instrText t) | none => Json.null) | none => Json.null),
       ("effects", jarr ((mem.flatMap fun (b, s) => Cfg.blockEffects body b s).eraseDups.map (jstr ∘ effectName))),
+      -- Typing stays per member: entering a `block`/`loop`/`if`/`try_table` between members changes
+      -- the label context, so the members' instructions are not one instruction sequence.
+      ("typing", Json.null),
+      ("memberTyping", jarr (mem.map fun (b, _) => match typing.lookup (b.seq, b.idx) with | some j => j | none => Json.null)),
       ("members", jarr (ms.map jnat))]
   let maxEdges := (maxFlowJ ++ maxHandlerJ).eraseDups
-  let maxOk := partitionOk && chainsOk
   let maxBlock := jobj [("model", jstr "all-effects"), ("granularity", jstr "block"),
     ("blocks", jarr gBlocks), ("members", jarr (groups.map fun ms => jarr (ms.map jnat))),
     ("entry", gTargetJ (Cfg.cfgEntry body)), ("edges", jarr maxEdges),
@@ -434,7 +416,7 @@ def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := 
     ("note", jstr "Outcomes are [maximal block, effect, handler or null, member block]: each member keeps its own outcomes, in member order."),
     ("relation", jstr ("Silmaril.Wasm.Cfg.mem_maxFlow, mem_maxHandler (the kept edges, by member); " ++
       "canMerge_functional, canMerge_inj, canMerge_not_entry (merges form disjoint chains); " ++
-      "the partition into chains is checked when the data is written"))]
+      "maxGroups accepted by groupsOk (groupsOk_sound, groupOk_spec: every block in exactly one maximal merge chain)"))]
   let maxVariants := if maxOk then [("all-effects-max", maxBlock)] else []
   jobj [("model", jstr "explicit-sink"), ("entry", targetJson ids (Cfg.cfgEntry body)), ("blocks", jarr blocksJ),
         ("edges", jarr (flowJ ++ effJ)), ("bases", legacyBases),

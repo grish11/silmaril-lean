@@ -18,6 +18,11 @@ import Silmaril.Proofs.Wasm.Cfg.Maximal
 - `mem_maxHandler`: the handler edges are kept exactly.
 - `internal_only`: a merged fall-through is its block's only AE edge, so dropping it removes no
   other edge of that block.
+- `groupsOk_sound`, `groupOk_spec`: a grouping the checker accepts lists every block exactly once,
+  and each group is a merge chain that starts at a block no merge reaches and ends at a block
+  that merges into none: a maximal block. (`wasm-pages` runs the checker on `maxGroups`.)
+
+These are facts about the syntactic graph and its grouping; none of them is about executions.
 -/
 
 namespace Silmaril.Wasm.Cfg
@@ -53,5 +58,21 @@ theorem internal_only {body : Expr} {b : BlockId} {t : Target} (h : internal bod
     (t' : Target) : EdgeAE body b t' ↔ t' = t := by
   obtain ⟨c, rfl, hc⟩ := (internal_iff body b t).1 h
   exact canMerge_succ hc t'
+
+/-- **An accepted grouping is a partition into maximal blocks**: every block is in exactly one
+group (the flattened groups are the blocks, without repetition), and each group is a maximal
+block (`groupOk_spec`). -/
+theorem groupsOk_sound {body : Expr} {gs : List (List BlockId)} (h : groupsOk body gs = true) :
+    (∀ b, b ∈ gs.flatten ↔ b ∈ (blocks body).map (·.1)) ∧ gs.flatten.Nodup ∧
+      ∀ g ∈ gs, groupOk body g = true :=
+  Proofs.Maximal.groupsOk_sound h
+
+/-- **An accepted group is a maximal block**: consecutive members merge, no block merges into
+its first member, and its last member merges into no block. -/
+theorem groupOk_spec {body : Expr} {g : List BlockId} (h : groupOk body g = true) :
+    (∀ p ∈ g.zip g.tail, canMerge body p.1 p.2 = true) ∧
+    (∃ hd, g.head? = some hd ∧ ∀ p ∈ blocks body, canMerge body p.1 hd = false) ∧
+    (∃ l, g.getLast? = some l ∧ ∀ p ∈ blocks body, canMerge body l p.1 = false) :=
+  Proofs.Maximal.groupOk_spec h
 
 end Silmaril.Wasm.Cfg

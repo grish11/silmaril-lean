@@ -57,7 +57,8 @@ cfg.variants["fx-instr"] = { model: "all-effects (synthetic test fixture)", gran
   for (let a = 0; a < n; a++) if (!absorbed.has(a)) { const ms = [a]; for (let x = next(a); x !== null; x = next(x)) ms.push(x); members.push(ms); }
   const at = new Map(); members.forEach((ms, k) => ms.forEach((b) => at.set(b, k)));
   const blocks = members.map((ms) => ({ instrs: ms.flatMap((b, j) => cfg.blocks[b].instrs.concat(j < ms.length - 1 && cfg.blocks[b].term ? [cfg.blocks[b].term] : [])),
-    term: cfg.blocks[ms[ms.length - 1]].term, effects: [...new Set(ms.flatMap((b) => cfg.blocks[b].effects))] }));
+    term: cfg.blocks[ms[ms.length - 1]].term, effects: [...new Set(ms.flatMap((b) => cfg.blocks[b].effects))],
+    typing: null, memberTyping: ms.map((b) => cfg.blocks[b].typing || null) }));
   const edges = flowOnly.filter(([a, tg]) => !(typeof tg === "number" && at.get(tg) === at.get(a) && next(a) === tg))
     .map(([a, tg]) => [at.get(a), typeof tg === "number" ? at.get(tg) : tg, "flow"]);
   cfg.variants["fx-maximal"] = { model: "all-effects (synthetic test fixture)", entry: at.get(cfg.entry), blocks, members, edges };
@@ -69,7 +70,8 @@ const srv = spawn("python3", ["-I", path.join(path.dirname(new URL(import.meta.u
   "--root", fx, "--port", String(port), "--log", path.join(fx, "requests.jsonl")], { stdio: "ignore" });
 const fails = [];
 const check = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (!ok) fails.push(what); };
-const b = await pw.chromium.launch({ executablePath: process.env.CHROME || "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" });
+const b = await pw.chromium.launch({ executablePath: process.env.CHROME ||
+  (fs.existsSync("/opt/ms-playwright/chromium-1248/chrome-linux64/chrome") ? "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" : undefined) });
 try {
   await new Promise((r) => setTimeout(r, 800));
   const p = await b.newPage({ viewport: { width: 1400, height: 1000 } });
@@ -112,6 +114,7 @@ try {
   await p.selectOption("#wgo", "b" + big);
   const side = await text("#wside");
   check(side.includes("contains blocks " + mx.members[big].map((k) => "b" + k).join(" ")) && !/undefined/.test(side), "a block with members lists them");
+  check(/typing, per member block:/.test(side) && /No interface is composed for the merged block/.test(side), "a merged block shows its members' typing, not a composed one");
   check((await p.evaluate(() => document.querySelector("#wside a.wmember")?.getAttribute("href")))?.endsWith(`/@fx-all-effects/b${mx.members[big][0]}`), "and links to them");
   await shot("fixture-maximal");
   await open(`/@fx-all-effects/b${mx.members[big][1]}`);

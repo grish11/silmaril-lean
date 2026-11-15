@@ -1314,6 +1314,13 @@ async function wasmFuncPage(arg) {
             (b.typing.branch ? `<br>branch targets: <code>${esc(b.typing.branch)}</code>` : "") +
             "<br>" + runBadge("Cfg.bodyIfaces; each interface it records is an Instrs_ok derivation (bodyIfaces_typed) of this block's own instructions (bodyIfaces_lookup); for a validated body every block has one (bodyIfaces_complete)") +
             ' <span class="muted">A typing fact, not a statement about runs.</span></div>'
+            : Array.isArray(b.memberTyping) && cfg.members && cfg.members[i] ? `<div class="wmtyping">typing, per member block: ` +
+              b.memberTyping.map((ty, j) => `<br>${go(blockGraph, "b" + cfg.members[i][j], "b" + cfg.members[i][j], "wmember")}: ` + (ty
+                ? `<code>${esc(ty.in)} → ${esc(ty.out)}</code> under labels <code>${esc(ty.labels || "(none)")}</code>`
+                : '<span class="muted">no proved interface recorded</span>')).join("") +
+              "<br>" + runBadge("Cfg.bodyIfaces per member; each is an Instrs_ok derivation (bodyIfaces_typed) of that member's own instructions") +
+              ' <span class="muted">No interface is composed for the merged block: entering a structured instruction between members changes the label context, ' +
+              "so the members' instructions are not one instruction sequence.</span></div>"
             : '<div class="muted">typing: no proved interface recorded for this block</div>');
       } else {
         const fi = ins.filter((e) => !e.may), mi = ins.filter((e) => e.may);

@@ -91,8 +91,13 @@ unchanged: it is the legacy **explicit-sink** graph (`cfg.model = "explicit-sink
     So a loop back into its own maximal block, including a one-block loop, stays a self-loop.
   - Outcomes are `[group, effect, handler or null, member]`. They are the member's AE outcomes,
     member by member and in order, so no effect's position is lost.
-  - `wasm-pages` checks on every body that the groups partition the blocks into `canMerge`
-    chains. If they do not, it publishes no `all-effects-max` and the default is `all-effects`.
+  - The groups are `Cfg.maxGroups`. They are published only if the checker `Cfg.groupsOk`
+    accepts them. `groupsOk_sound` and `groupOk_spec` prove what acceptance means: every block
+    is in exactly one group, and each group is a maximal merge chain. If the checker rejects
+    the groups, no `all-effects-max` is published and the default is `all-effects`.
+  - Typing stays per member: `blocks[k].typing` is `null`, and `memberTyping` holds each member's
+    interface (or `null`). No interface is composed for the merged block, because entering a
+    structured instruction between members changes the label context.
   - Chains are merged by `Cfg.canMerge`:
     - `canMerge_succ`: the earlier block's only AE successor is the next one;
     - `canMerge_pred`: no other AE or handler edge enters the next one, so label targets, loop

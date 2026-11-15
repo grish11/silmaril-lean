@@ -77,6 +77,46 @@ jobs:
         with:
           path: _site
 
+  # The explorer's browser tests on the site just built (tools/silmaril-project/tests/explore):
+  # the Wasm function pages' graphs, counts, links and keys, and the variant fixtures. Deploying
+  # does not wait for them; a failure marks the run red.
+  browser-tests:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/pages
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Install Chromium for Playwright
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm install --no-save --no-audit --no-fund playwright-core@1.64.1
+          npx playwright-core install --with-deps chromium
+      - name: Run the explorer's Wasm page tests
+        env:
+          PLAYWRIGHT_CORE: ${{ runner.temp }}/pw/node_modules/playwright-core/index.mjs
+        run: |
+          mkdir -p "$RUNNER_TEMP/site" && tar -xf "$RUNNER_TEMP/pages/artifact.tar" -C "$RUNNER_TEMP/site"
+          cd tools/silmaril-project/tests/explore
+          node wasm_cfg.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node wasm_cfg_variants.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: explorer-screenshots
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: ignore
+
   deploy:
     needs: build
     runs-on: ubuntu-24.04

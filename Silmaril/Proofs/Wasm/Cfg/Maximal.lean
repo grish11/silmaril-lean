@@ -42,4 +42,45 @@ theorem internal_iff (body : Expr) (b : BlockId) (t : Target) :
     internal body b t = true ↔ ∃ c, t = .block c ∧ canMerge body b c = true := by
   cases t <;> simp [internal]
 
+theorem nodupB_sound : ∀ {l : List BlockId}, nodupB l = true → l.Nodup
+  | [], _ => List.nodup_nil
+  | a :: l, h => by
+    simp only [nodupB, Bool.and_eq_true] at h
+    exact List.nodup_cons.2 ⟨by simpa [List.contains_iff_mem] using h.1, nodupB_sound h.2⟩
+
+theorem groupsOk_sound {body : Expr} {gs : List (List BlockId)} (h : groupsOk body gs = true) :
+    (∀ b, b ∈ gs.flatten ↔ b ∈ (blocks body).map (·.1)) ∧ gs.flatten.Nodup ∧
+      ∀ g ∈ gs, groupOk body g = true := by
+  unfold groupsOk at h
+  simp only [Bool.and_eq_true, List.all_eq_true] at h
+  obtain ⟨⟨⟨hn, hc⟩, hs⟩, hg⟩ := h
+  refine ⟨fun b => ⟨fun hb => ?_, fun hb => ?_⟩, nodupB_sound hn, hg⟩
+  · simpa [List.contains_iff_mem] using hs b hb
+  · simpa [List.contains_iff_mem] using hc b hb
+
+theorem groupOk_spec {body : Expr} {g : List BlockId} (h : groupOk body g = true) :
+    (∀ p ∈ g.zip g.tail, canMerge body p.1 p.2 = true) ∧
+    (∃ hd, g.head? = some hd ∧ ∀ p ∈ blocks body, canMerge body p.1 hd = false) ∧
+    (∃ l, g.getLast? = some l ∧ ∀ p ∈ blocks body, canMerge body l p.1 = false) := by
+  unfold groupOk chainOk at h
+  simp only [Bool.and_eq_true] at h
+  obtain ⟨⟨hc, hh⟩, hl⟩ := h
+  refine ⟨List.all_eq_true.1 hc, ?_, ?_⟩
+  · revert hh
+    cases g.head? with
+    | none => intro hh; simp at hh
+    | some x =>
+      intro hh
+      change isHead body x = true at hh
+      unfold isHead at hh
+      exact ⟨x, rfl, fun p hp => by simpa using List.all_eq_true.1 hh p hp⟩
+  · revert hl
+    cases g.getLast? with
+    | none => intro hl; simp at hl
+    | some x =>
+      intro hl
+      change isLast body x = true at hl
+      unfold isLast at hl
+      exact ⟨x, rfl, fun p hp => by simpa using List.all_eq_true.1 hl p hp⟩
+
 end Silmaril.Wasm.Cfg.Proofs.Maximal
