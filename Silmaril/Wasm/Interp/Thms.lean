@@ -6,6 +6,7 @@ public import Silmaril.Proofs.Wasm.Interp.Trap
 public import Silmaril.Proofs.Wasm.Interp.Div
 public import Silmaril.Proofs.Wasm.Interp.Check
 public import Silmaril.Proofs.Wasm.Interp.Replace
+public import Silmaril.Proofs.Wasm.Interp.Store
 
 @[expose] public section
 
@@ -179,5 +180,36 @@ theorem storeChk_of_check {F : List (FuncInst H)} (h : storeChkB F = true) : Sto
 theorem nativeFuncsOk_of_check {F : List (FuncInst H)} (h : nativeFuncsB F = true) :
     Binaryen.NativeFuncsOk F :=
   nativeFuncsOk_of_nativeFuncsB h
+
+/-! ## Store-level adequacy
+
+`native_adequacy` relates behaviours, which forget the store. The native
+interpreter also computes the final store, and it is Core's. Forward
+(`fwd_invoke_store`): a terminating native run is a Core run to a result
+configuration whose store is the interpreter's. Backward (`bwd_store`, every
+profile, from determinism at the closed deterministic profile and the
+existing divergence and termination lemmas): every Core run of an invocation
+to a result is found by the interpreter with that configuration's store. -/
+
+/-- **Store-level native adequacy**, on typed, native, arity-checked stores at
+every profile: the Core 3.0 runs of an invocation to a result are exactly the
+native interpreter's terminating runs, final store included. -/
+theorem native_store_adequacy {a : Nat} {vs : List Val} (hs : StoreOk s) (hF : Binaryen.NativeFuncsOk s.funcs)
+    (hS : StoreChk s.funcs) (hok : InvokeOk s a vs) (P : Profile) (r : Result) (s' : Store H) :
+    (∃ c : Config H, Steps P Binaryen.closedHost (invoke s a vs) c ∧ c.code = r.toAdmin ∧
+        c.store = s') ↔
+      ∃ fuel fl, Binaryen.invokeRun fuel s a vs = some (s', fl) ∧
+        Binaryen.flowBeh fl = some r.toBehaviour := by
+  constructor
+  · rintro ⟨c, hst, hc, rfl⟩
+    exact bwd_store hs hF hS hok hst hc
+  · rintro ⟨fuel, fl, hrun, hb⟩
+    obtain ⟨c, r', hst, hc, hcs, hb'⟩ :=
+      fwd_invoke_store (P := P) (host := Binaryen.closedHost) hS hok hrun
+    rw [hb, Option.some.injEq] at hb'
+    have hr : r = r' := by
+      cases r <;> cases r' <;> simp_all [Result.toBehaviour]
+    subst hr
+    exact ⟨c, hst, hc, hcs⟩
 
 end Silmaril.Wasm.Interp
