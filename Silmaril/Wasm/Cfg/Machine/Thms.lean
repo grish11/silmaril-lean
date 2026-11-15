@@ -152,4 +152,20 @@ theorem raise_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : L
     Region.Run P host s f [] X s₂ f₂ (.throw a) :=
   Proofs.Machine.raise_sound hb ht hr hth hT hX
 
+/-- **A machine `br` step to a non-loop label is sound for the label invariant.** The step
+carries its run-time arity check (`harity`); `hloop`/`hlev` say the target label is not a `loop`,
+both in the frame and in the extracted CFG (`levelLoop`). Loop re-entry is not covered yet. -/
+theorem br_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+    {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame} {X Y : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some (.br l))
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) (hloop : L.loop = false)
+    (hlev : Proofs.Machine.levelLoop body b.seq.reverse l.toNat = false)
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
+      (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.br_step_sound hb ht hr hL harity hloop hlev hX hY
+
 end Silmaril.Wasm.Cfg.Machine

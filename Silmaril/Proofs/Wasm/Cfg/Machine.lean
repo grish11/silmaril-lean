@@ -613,3 +613,173 @@ theorem raise_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : Lis
   exact Proofs.Region.run_append hr (by simp only [Then]; simpa using h2)
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- Whether the `k`-th enclosing structured instruction (at reversed path `rp`) is a `loop` in the
+extracted CFG. -/
+def levelLoop (body : Expr) (rp : List SeqStep) (k : Nat) : Bool :=
+  match rp.drop k with
+  | (m, _) :: rp' => isLoopAt body rp'.reverse m
+  | [] => false
+
+theorem drop_top {us W : List Val} {n : Nat} (h : n ≤ us.length) :
+    (W ++ us).drop ((W ++ us).length - n) = us.drop (us.length - n) := by
+  rw [List.length_append, show W.length + us.length - n = W.length + (us.length - n) by omega,
+    List.drop_append]
+  simp [List.drop_eq_nil_of_le]
+
+/-- **Branching out of label frames to a non-loop label is sound.** The inner code branches to
+the `k`-th enclosing label with values `us` (holding the label's arity). Going, as the machine
+does, to that label's CFG target with its outer values under the top values is region-run
+sound. -/
+theorem br_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
+    ∀ (k : Nat) (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin} {us : List Val}
+      {L : LFrame},
+      wrap body rp ls inner = some X → ls[k]? = some L → L.loop = false →
+      levelLoop body rp k = false → L.arity ≤ us.length →
+      Run P host s f [] inner s₁ f₁ (.br k us) →
+      ∀ {Y : List Admin},
+        codeOf body (goto ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1))
+          (ls.drop (k + 1)) (L.outer ++ us.drop (us.length - L.arity)) s₁ f₁) = some Y →
+        ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+          Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o
+  | _, [], [], _, _, _, _, _, hL, _, _, _, _, _, _ => by simp at hL
+  | _, [], _ :: _, _, _, _, _, hX, _, _, _, _, _, _, _ => by simp [wrap] at hX
+  | _, _ :: _, [], _, _, _, _, _, hL, _, _, _, _, _, _ => by simp at hL
+  | k, (m, a) :: rp, L₀ :: ls, inner, X, us, L, hX, hL, hloop, hlev, har, hin, Y, hY => by
+    have hX0 := hX
+    simp only [wrap, Option.bind_eq_bind] at hX0
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX0
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX0
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX0
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some] at hX0
+          cases k with
+          | zero =>
+            simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
+            subst hL
+            simp only [levelLoop, List.drop_zero] at hlev
+            simp only [labelsRev, hlev, Bool.false_eq_true, ↓reduceIte, List.getD_cons_zero,
+              List.length_cons, Nat.add_sub_cancel, List.drop_one, List.tail_cons] at hY
+            -- the label's own continuation, as in `cont_sound`, from the parent context
+            have key : ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+                Run P host s₁ f₁ [] (vals (L₀.outer ++ us.drop (us.length - L₀.arity)) ++
+                  expression (restAt pc (m + 1))) s₂ f₂ o →
+                Run P host s f [] (vals L₀.outer ++
+                  (if L₀.tryT then Admin.handler L₀.arity L₀.catches
+                    [.label L₀.arity (if L₀.loop then [t] else []) inner]
+                  else .label L₀.arity (if L₀.loop then [t] else []) inner) ::
+                  expression (restAt pc (m + 1))) s₂ f₂ o := by
+              intro o s₂ f₂ h
+              have h' := Proofs.Region.run_vals_inv (vs := []) h
+              simp only [List.nil_append] at h'
+              apply Proofs.Region.run_vals (vs := [])
+              have hsplit : us = us.take (us.length - L₀.arity) ++ us.drop (us.length - L₀.arity) :=
+                (List.take_append_drop _ _).symm
+              have hlen : (us.drop (us.length - L₀.arity)).length = L₀.arity := by
+                simp; omega
+              have hin' : Run P host s f [] inner s₁ f₁
+                  (.br 0 (us.take (us.length - L₀.arity) ++ us.drop (us.length - L₀.arity))) := by
+                rw [← hsplit]; exact hin
+              simp only [hloop, Bool.false_eq_true, ↓reduceIte]
+              have hk : Run P host s₁ f₁ L₀.outer (vals (us.drop (us.length - L₀.arity)) ++
+                  expression (restAt pc (m + 1))) s₂ f₂ o := Proofs.Region.run_vals (by simpa using h')
+              have hn : Run P host s₁ f₁ [] (vals (us.drop (us.length - L₀.arity)) ++
+                  expression [] ++ []) s₁ f₁ (.normal (us.drop (us.length - L₀.arity))) := by
+                simpa [expression] using Proofs.Region.run_vals_normal (P := P) (host := host)
+                  (s := s₁) (f := f₁) (us.drop (us.length - L₀.arity))
+              cases L₀.tryT
+              · exact .labelBr0 hin' hlen (by simpa [expression] using hk)
+              · exact .handlerNormal (.labelBr0 hin' hlen hn) (by simpa using h')
+            unfold contRev at hY
+            split at hY
+            · simp only [goto, depthT, List.length_reverse, Nat.sub_self, popL, codeOf, codeAt,
+                List.reverse_reverse, hpc, Option.bind_some] at hY
+              exact wrap_mono rp ls hX0 hY key
+            · rename_i hl
+              have hrest := restAt_none hpc (by simpa using hl)
+              rw [hrest] at key hX0
+              cases hw : wrap body rp ls (vals (L₀.outer ++ us.drop (us.length - L₀.arity))) with
+              | none =>
+                have := wrap_parent_isSome hpc hX (vals (L₀.outer ++ us.drop (us.length - L₀.arity)))
+                rw [hw] at this; simp at this
+              | some Z =>
+                exact fun h => wrap_mono rp ls hX0 hw (fun h => key (by simpa [expression] using h))
+                  (cont_sound (P := P) (host := host) rp ls _ hw hY h)
+          | succ k =>
+            simp only [List.getElem?_cons_succ] at hL
+            simp only [levelLoop, List.drop_succ_cons] at hlev
+            have hlev' : levelLoop body rp k = false := hlev
+            -- the branch leaves this frame with its outer values in front
+            have hin' : Run P host s f [] (vals L₀.outer ++
+                (if L₀.tryT then Admin.handler L₀.arity L₀.catches
+                  [.label L₀.arity (if L₀.loop then [t] else []) inner]
+                else .label L₀.arity (if L₀.loop then [t] else []) inner) ::
+                expression (restAt pc (m + 1))) s₁ f₁ (.br k (L₀.outer ++ us)) := by
+              apply Proofs.Region.run_vals (vs := [])
+              cases L₀.tryT
+              · exact .labelBrSucc hin
+              · have h1 : Run P host s f [] [.label L₀.arity (if L₀.loop then [t] else []) inner]
+                    s₁ f₁ (.br k us) := by
+                  simpa using (RunC.labelBrSucc (C := noCall) (P := P) (host := host) (vs := [])
+                    (code := []) (n := L₀.arity) (cont := if L₀.loop then [t] else []) hin)
+                exact .handlerBr h1
+            have har' : L.arity ≤ (L₀.outer ++ us).length := by simp; omega
+            have hY' := hY
+            simp only [labelsRev, List.getD_cons_succ, List.length_cons, List.drop_succ_cons] at hY'
+            rw [show rp.length + 1 - (k + 1 + 1) = rp.length - (k + 1) by omega] at hY'
+            exact br_lift k rp ls hX0 hL hloop hlev' har' hin' (by rw [drop_top har]; exact hY')
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- **A machine `br` step to a non-loop label is sound for the label invariant**, with the
+step's run-time arity check. -/
+theorem br_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame}
+    {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some (.br l))
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) (hloop : L.loop = false)
+    (hlev : levelLoop body b.seq.reverse l.toNat = false)
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
+      (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y) :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  have hin : Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
+      (.br l.toNat stk₁) := by
+    apply Proofs.Region.run_vals (vs := [])
+    rw [restAt_cons hsg]
+    simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append, List.map_cons,
+      List.map_nil, List.append_assoc, List.singleton_append, List.nil_append]
+    exact Proofs.Region.run_append hr (by simp only [Then]; exact .br)
+  have hY' : codeOf body (goto ((labelsRev body b.seq.reverse).getD l.toNat .invalid)
+      (b.seq.reverse.length - (l.toNat + 1)) (ls.drop (l.toNat + 1))
+      (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y := by
+    simpa [labels, resolveT, Idx.toNat] using hY
+  intro o s₂ f₂ h; exact br_lift l.toNat _ ls hX hL hloop hlev harity hin hY' h
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
