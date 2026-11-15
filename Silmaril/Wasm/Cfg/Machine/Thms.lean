@@ -168,4 +168,29 @@ theorem br_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls :
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.br_step_sound hb ht hr hL harity hloop hlev hX hY
 
+/-- **A `br_if` not taken is sound** for the label invariant. -/
+theorem brIfNot_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+    {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {X Y : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 0])))
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁) = some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.brIfNot_step_sound hb ht hr hX hY
+
+/-- **A `br_if` taken to a non-loop label is sound**, with the run-time arity check. -/
+theorem brIfTaken_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame} {k : BitVec 32}
+    {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
+    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+    (hloop : L.loop = false) (hlev : levelLoop body b.seq.reverse l.toNat = false)
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
+      (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.brIfTaken_step_sound hb ht hr hk hL harity hloop hlev hX hY
+
 end Silmaril.Wasm.Cfg.Machine
