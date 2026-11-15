@@ -230,4 +230,39 @@ def irFreeL : List BExpr → Bool
 
 end
 
+/-- The function types of a store are valid. -/
+def TyFuncs (s : Store H) : Prop :=
+  ∀ (a : Nat) (fi : FuncInst H), s.funcs[a]? = some fi → Validation.TyOk {} fi.type
+
+/-- An oracle whose answers keep function types valid. -/
+def KeepsTy (C : CallRel H) : Prop := ∀ s a args out, C s a args out → TyFuncs s → TyFuncs out.1
+
+/-- The defined types of a module instance are valid. -/
+def TyTypes (mi : ModuleInst) : Prop :=
+  ∀ (y : Nat) (d : Validation.DefType), mi.types[y]? = some d → Validation.TyOk {} d
+
+/-- The code of an instance's function: no `call_ref`, and every `call_indirect`
+names a type of the instance. -/
+def indInstr (mi : ModuleInst) : Instr → Bool
+  | .callRef _ => false
+  | .callIndirect _ y => (mi.types[y.toNat]?).isSome
+  | _ => true
+
+mutual
+
+/-- `indInstr` on every instruction of the tree. -/
+def indOk (mi : ModuleInst) : BExpr → Bool
+  | .op i args => indInstr mi i && indOkL mi args
+  | .block _ body => indOkL mi body
+  | .loop _ body => indOkL mi body
+  | .if_ _ c t e => indOkL mi c && indOkL mi t && indOkL mi e
+  | .tryTable _ _ body => indOkL mi body
+
+/-- `indOk` on every tree of a list. -/
+def indOkL (mi : ModuleInst) : List BExpr → Bool
+  | [] => true
+  | e :: es => indOk mi e && indOkL mi es
+
+end
+
 end Silmaril.Wasm.Abstract.CallXT
