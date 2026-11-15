@@ -156,6 +156,11 @@ theorem Step.brIf_vals_inv {us : List Val} {l : LabelIdx}
       c = ⟨s, f, vals ws ++ (if k = 0 then [] else [.plain (.br l)])⟩ :=
   Proofs.Inversion.brIf_vals_inv h rfl
 
+/-- A trap under values only collapses (`trap-instrs`), keeping fewer values. -/
+theorem Step.trap_vals_inv {us : List Val} (h : Step P host ⟨s, f, vals us ++ [.trap]⟩ c) :
+    ∃ w, c = ⟨s, f, vals w ++ [.trap]⟩ ∧ w.length < us.length :=
+  Proofs.Inversion.trap_vals_inv h rfl
+
 /-! ## Contexts -/
 
 /-- A label steps inside (`ctxt-label`) or by an exit rule. -/

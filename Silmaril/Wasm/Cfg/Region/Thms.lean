@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Cfg.Region.Defs
 import Silmaril.Proofs.Wasm.Cfg.Region
+import Silmaril.Proofs.Wasm.Cfg.RegionDiv
 
 @[expose] public section
 
@@ -27,8 +28,13 @@ All results hold for every profile `P` and every host `host`. Proofs are in
 * **`frame_adequate`**: the same for a `FRAME` around fragment code (function bodies), to
   results.
 
-Not covered: divergence (infinite runs), calls inside the body, exceptions, `br_table`
-and `br_on_*`.
+* **Divergence**: `RunDiv` is the greatest fixed point of `DivF`, defined structurally with no
+  appeal to Core divergence. `div_sound` needs no hypothesis. `div_complete` and
+  `div_adequate` take the named atomic obligation `AtomTerm`: every non-control
+  instruction's own Core reduction terminates, possibly in a trap. `AtomTerm` is not proved
+  here; that is the next step, by ranks on the `fill`/`copy`/`init` counts.
+
+Not covered: calls inside the body, exceptions, `br_table` and `br_on_*`.
 -/
 
 namespace Silmaril.Wasm.Cfg.Region
@@ -102,5 +108,25 @@ theorem frame_adequate {fi : Frame} {n : Nat} {inner c' : List Admin} (hF : Frag
   · exact fun h => Proofs.Region.frame_complete hF h hc
   · rintro ⟨rfl, fi', o, h, ho⟩
     exact Proofs.Region.frame_sound h ho
+
+/-! ## Divergence -/
+
+/-- **Divergence soundness** (no hypothesis): a diverging region run is an infinite Core 3.0
+run. -/
+theorem div_sound {vs : List Val} {code : List Admin} (h : RunDiv P host s f vs code) :
+    Diverges P host ⟨s, f, vals vs ++ code⟩ :=
+  Proofs.Region.div_sound h
+
+/-- **Divergence completeness**, given the named atomic obligation `AtomTerm`: every infinite
+Core 3.0 run of fragment code is a diverging region run. -/
+theorem div_complete {vs : List Val} {code : List Admin} (hA : AtomTerm P host)
+    (hF : Frag code) (hd : Diverges P host ⟨s, f, vals vs ++ code⟩) :
+    RunDiv P host s f vs code :=
+  Proofs.Region.div_complete hA hF hd
+
+/-- **Divergence adequacy**, given `AtomTerm`. -/
+theorem div_adequate {vs : List Val} {code : List Admin} (hA : AtomTerm P host)
+    (hF : Frag code) : RunDiv P host s f vs code ↔ Diverges P host ⟨s, f, vals vs ++ code⟩ :=
+  Proofs.Region.div_adequate hA hF
 
 end Silmaril.Wasm.Cfg.Region

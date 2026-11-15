@@ -782,6 +782,35 @@ theorem brIf_vals_inv {c c' : Config H} (h : Step P host c c') {l : LabelIdx} :
   | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
   | _ => intro us hc; head_close hc
 
+/-- A trap under values only collapses (`trap-instrs`), keeping fewer values. -/
+theorem trap_vals_inv {c c' : Config H} (h : Step P host c c') :
+    ∀ {us : List Val}, c.code = vals us ++ [.trap] →
+      ∃ w, c' = ⟨c.store, c.frame, vals w ++ [.trap]⟩ ∧ w.length < us.length := by
+  induction h with
+  | @trapInstrs s f vs rest hne =>
+    intro us hc
+    have hc' : vals vs ++ Admin.trap :: rest = vals us ++ Admin.trap :: [] := by simpa using hc
+    obtain ⟨rfl, -, rfl⟩ := Sim.vals_append_cons_inj rfl rfl hc'
+    refine ⟨[], by simp [vals], ?_⟩
+    rcases hne with h | h
+    · exact List.length_pos_iff.2 h
+    · exact absurd rfl h
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    obtain ⟨w', hc'', hw⟩ := ih rfl
+    simp only [Config.mk.injEq] at hc''
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    refine ⟨vs₀ ++ w', by simp, by simp; omega⟩
+  | @throwRefInstrs s f vs a rest _ =>
+    intro us hc
+    have hc' : vals (vs ++ [.ref (.exn a)]) ++ Admin.plain .throwRef :: rest =
+        vals us ++ Admin.trap :: [] := by
+      simpa [throwing, vals, Val.toAdmin] using hc
+    exact absurd (Sim.vals_append_cons_inj rfl rfl hc').2.1 (by simp)
+  | _ => intro us hc; head_close hc
+
 /-! ## Contexts under values -/
 
 theorem ctx_val_none {X : Admin} (hX : X.IsCtx) : X.val? = none := by

@@ -165,3 +165,73 @@ def FrameOut (n : Nat) : Out → List Admin → Prop
   | .br _ _, _ => False
 
 end Silmaril.Wasm.Cfg.Region
+
+/-! ## Divergence -/
+
+namespace Silmaril.Wasm.Cfg.Region
+
+open Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type}
+
+/-- One layer of a diverging region run, with the rest of the divergence in `R`. A label
+diverges inside, or its body ends (a terminating `Run`) and the continuation diverges. Every
+rule either takes at least one Core step or moves to a strictly smaller code (`val`,
+`labelIn`). -/
+inductive DivF (P : Profile) (host : HostSemantics H)
+    (R : Store H → Frame → List Val → List Admin → Prop) :
+    Store H → Frame → List Val → List Admin → Prop where
+  | val {s : Store H} {f : Frame} {vs : List Val} {a : Admin} {v : Val} {code : List Admin}
+      (hv : a.val? = some v) (h : R s f (vs ++ [v]) code) : DivF P host R s f vs (a :: code)
+  | simple {s s₁ : Store H} {f f₁ : Frame} {vs vs₁ : List Val} {i : Instr} {code : List Admin}
+      (hi : SingleThreaded.Det.famOf (.plain i) ≠ .control)
+      (h₁ : Steps P host ⟨s, f, vals vs ++ [.plain i]⟩ ⟨s₁, f₁, vals vs₁⟩)
+      (h : R s₁ f₁ vs₁ code) : DivF P host R s f vs (.plain i :: code)
+  | brIf {s : Store H} {f : Frame} {ws : List Val} {k : BitVec 32} {l : LabelIdx}
+      {code : List Admin} (h : R s f ws ((if k = 0 then [] else [.plain (.br l)]) ++ code)) :
+      DivF P host R s f (ws ++ [.i32 k]) (.plain (.brIf l) :: code)
+  | block {s : Store H} {f : Frame} {ws us : List Val} {bt : BlockType} {b : List Instr}
+      {t₁ t₂ : List CValType} {code : List Admin}
+      (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+      (h : R s f ws (.label t₂.length [] (vals us ++ expression b) :: code)) :
+      DivF P host R s f (ws ++ us) (.plain (.block bt b) :: code)
+  | loop {s : Store H} {f : Frame} {ws us : List Val} {bt : BlockType} {b : List Instr}
+      {t₁ t₂ : List CValType} {code : List Admin}
+      (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+      (h : R s f ws (.label t₁.length [.loop bt b] (vals us ++ expression b) :: code)) :
+      DivF P host R s f (ws ++ us) (.plain (.loop bt b) :: code)
+  | if_ {s : Store H} {f : Frame} {ws : List Val} {k : BitVec 32} {bt : BlockType}
+      {t e : List Instr} {code : List Admin}
+      (h : R s f ws (.plain (.block bt (if k = 0 then e else t)) :: code)) :
+      DivF P host R s f (ws ++ [.i32 k]) (.plain (.if_ bt t e) :: code)
+  /-- The label's body diverges. -/
+  | labelIn {s : Store H} {f : Frame} {vs : List Val} {n : Nat} {cont : List Instr}
+      {inner code : List Admin} (h : R s f [] inner) :
+      DivF P host R s f vs (.label n cont inner :: code)
+  | labelNormal {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat}
+      {cont : List Instr} {inner code : List Admin}
+      (hin : Run P host s f [] inner s₁ f₁ (.normal us)) (h : R s₁ f₁ (vs ++ us) code) :
+      DivF P host R s f vs (.label n cont inner :: code)
+  | labelBr0 {s s₁ : Store H} {f f₁ : Frame} {vs us₁ us₂ : List Val} {n : Nat}
+      {cont : List Instr} {inner code : List Admin}
+      (hin : Run P host s f [] inner s₁ f₁ (.br 0 (us₁ ++ us₂))) (hn : us₂.length = n)
+      (h : R s₁ f₁ vs (vals us₂ ++ expression cont ++ code)) :
+      DivF P host R s f vs (.label n cont inner :: code)
+
+/-- **Diverging region runs**: the greatest fixed point of `DivF`, as membership in some
+`DivF`-closed relation. -/
+def RunDiv (P : Profile) (host : HostSemantics H) (s : Store H) (f : Frame) (vs : List Val)
+    (code : List Admin) : Prop :=
+  ∃ R : Store H → Frame → List Val → List Admin → Prop,
+    (∀ s f vs code, R s f vs code → DivF P host R s f vs code) ∧ R s f vs code
+
+/-- **The atomic obligation**: the Core reduction of every non-control instruction, on any
+values, store and frame, terminates. Termination includes ending in a trap. This is a named
+hypothesis of completeness for divergence, not part of `RunDiv`: `RunDiv` itself never
+appeals to Core divergence. -/
+def AtomTerm (P : Profile) (host : HostSemantics H) : Prop :=
+  ∀ (s : Store H) (f : Frame) (vs : List Val) (i : Instr),
+    SingleThreaded.Det.famOf (.plain i) ≠ .control →
+      Acc (fun a b => Step P host b a) (⟨s, f, vals vs ++ [.plain i]⟩ : Config H)
+
+end Silmaril.Wasm.Cfg.Region
