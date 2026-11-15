@@ -138,6 +138,24 @@ theorem Step.if_vals_inv {us : List Val} {bt : BlockType} {b₁ b₂ : List Inst
       c = ⟨s, f, vals ws ++ [.plain (.block bt (if k = 0 then b₂ else b₁))]⟩ :=
   Proofs.Inversion.if_vals_inv h rfl
 
+/-- `br l` under values does not step: only an enclosing label or handler removes it. -/
+theorem Step.br_vals_stuck {us : List Val} {l : LabelIdx} :
+    ¬ Step P host ⟨s, f, vals us ++ [.plain (.br l)]⟩ c :=
+  fun h => Proofs.Inversion.br_vals_stuck h rfl
+
+/-- `return` under values does not step: only an enclosing label, handler or frame removes it. -/
+theorem Step.return_vals_stuck {us : List Val} :
+    ¬ Step P host ⟨s, f, vals us ++ [.plain .return_]⟩ c :=
+  fun h => Proofs.Inversion.return_vals_stuck h rfl
+
+/-- `br_if` pops its `i32` condition: it branches when it is nonzero and falls through
+otherwise. -/
+theorem Step.brIf_vals_inv {us : List Val} {l : LabelIdx}
+    (h : Step P host ⟨s, f, vals us ++ [.plain (.brIf l)]⟩ c) :
+    ∃ ws k, us = ws ++ [.i32 k] ∧
+      c = ⟨s, f, vals ws ++ (if k = 0 then [] else [.plain (.br l)])⟩ :=
+  Proofs.Inversion.brIf_vals_inv h rfl
+
 /-! ## Contexts -/
 
 /-- A label steps inside (`ctxt-label`) or by an exit rule. -/

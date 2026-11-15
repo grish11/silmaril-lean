@@ -720,6 +720,68 @@ theorem if_vals_inv {c c' : Config H} (h : Step P host c c') {bt : BlockType}
   | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
   | _ => intro us hc; head_close hc
 
+/-! ## Branches under values -/
+
+theorem br_vals_stuck {c c' : Config H} (h : Step P host c c') {l : LabelIdx} :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain (.br l)] → False := by
+  induction h with
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    exact ih rfl
+  | trapInstrs => intro us hc; exact bubble_vals_single rfl (by simp) (.inl hc)
+  | throwRefInstrs => intro us hc; exact bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)
+  | _ => intro us hc; head_close hc
+
+theorem return_vals_stuck {c c' : Config H} (h : Step P host c c') :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain .return_] → False := by
+  induction h with
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    exact ih rfl
+  | trapInstrs => intro us hc; exact bubble_vals_single rfl (by simp) (.inl hc)
+  | throwRefInstrs => intro us hc; exact bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)
+  | _ => intro us hc; head_close hc
+
+theorem brIf_vals_inv {c c' : Config H} (h : Step P host c c') {l : LabelIdx} :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain (.brIf l)] →
+      ∃ ws k, us = ws ++ [.i32 k] ∧
+        c' = ⟨c.store, c.frame, vals ws ++ (if k = 0 then [] else [.plain (.br l)])⟩ := by
+  induction h with
+  | @brIfTrue s f k l' hk =>
+    intro us hc
+    have hc'' : vals [Val.i32 k] ++ (Admin.plain (.brIf l')) :: [] =
+        vals us ++ .plain (.brIf l) :: [] := by
+      simpa [vals, Val.toAdmin, constI32, Val.i32] using hc
+    obtain ⟨rfl, hx, -⟩ := Sim.vals_append_cons_inj rfl rfl hc''
+    simp only [Admin.plain.injEq, Instr.brIf.injEq] at hx
+    subst hx
+    exact ⟨[], k, rfl, by simp [vals]; intro h0; exact absurd h0 hk⟩
+  | @brIfFalse s f l' =>
+    intro us hc
+    have hc'' : vals [Val.i32 0] ++ (Admin.plain (.brIf l')) :: [] =
+        vals us ++ .plain (.brIf l) :: [] := by
+      simpa [vals, Val.toAdmin, constI32, Val.i32] using hc
+    obtain ⟨rfl, hx, -⟩ := Sim.vals_append_cons_inj rfl rfl hc''
+    simp only [Admin.plain.injEq, Instr.brIf.injEq] at hx
+    subst hx
+    exact ⟨[], 0, rfl, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    obtain ⟨ws, k, rfl, hc''⟩ := ih rfl
+    refine ⟨vs₀ ++ ws, k, by simp, ?_⟩
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
 /-! ## Contexts under values -/
 
 theorem ctx_val_none {X : Admin} (hX : X.IsCtx) : X.val? = none := by

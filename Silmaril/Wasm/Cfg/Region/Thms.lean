@@ -1,0 +1,106 @@
+module
+
+public import Silmaril.Wasm.Cfg.Region.Defs
+import Silmaril.Proofs.Wasm.Cfg.Region
+
+@[expose] public section
+
+/-!
+# The region semantics is adequate for Core 3.0
+
+All results hold for every profile `P` and every host `host`. Proofs are in
+`Silmaril.Proofs.Wasm.Cfg.Region`.
+
+* **`run_adequate`**: on fragment code, a region run to `(s', f', o)` exists **iff** Core 3.0
+  runs `vals vs ++ code` to a final form of `o` in store `s'` and frame `f'`. Soundness
+  (`run_sound`) needs no fragment hypothesis. Completeness (`run_complete`) is proved by
+  *expansion*: a region run of a Core successor is a region run of its predecessor
+  (`run_expand`). That proof uses the Core inversions of `Execution.Core.Inversion` and the
+  straight-line step classification of `Cfg.Exec`. No determinism is assumed, so every
+  non-deterministic Core run is covered.
+* **Compositionality**:
+  * sequencing: `run_append_iff`, through `Then`;
+  * values push: `run_vals_iff`;
+  * structured instructions: by the rules of `Run` themselves, `block`, `loop`, `if` and the
+    label continuation.
+* `body_adequate`: the statement for a source body (`expression is`).
+* **`frame_adequate`**: the same for a `FRAME` around fragment code (function bodies), to
+  results.
+
+Not covered: divergence (infinite runs), calls inside the body, exceptions, `br_table`
+and `br_on_*`.
+-/
+
+namespace Silmaril.Wasm.Cfg.Region
+
+open Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
+
+variable {H : Type} {P : Profile} {host : HostSemantics H} {s s' : Store H} {f f' : Frame}
+
+/-- **Soundness**: a region run is a Core 3.0 run to a final form of its outcome. -/
+theorem run_sound {vs : List Val} {code : List Admin} {o : Out}
+    (h : Run P host s f vs code s' f' o) :
+    ∃ c', Steps P host ⟨s, f, vals vs ++ code⟩ ⟨s', f', c'⟩ ∧ o.Ends c' :=
+  Proofs.Region.sound h
+
+/-- **Completeness**: every Core 3.0 run of fragment code to a final form is a region run. -/
+theorem run_complete {code c' : List Admin} {o : Out} (hF : Frag code)
+    (h : Steps P host ⟨s, f, code⟩ ⟨s', f', c'⟩) (he : o.Ends c') :
+    Run P host s f [] code s' f' o :=
+  Proofs.Region.complete hF h he
+
+/-- **Expansion**: a Core step of fragment code stays in the fragment, and region runs of the
+successor are region runs of the predecessor. -/
+theorem run_expand {c c₁ : Config H} (h : Step P host c c₁) (hF : Frag c.code) :
+    Frag c₁.code ∧ ∀ {vs : List Val} {s' : Store H} {f' : Frame} {o : Out},
+      Run P host c₁.store c₁.frame vs c₁.code s' f' o →
+        Run P host c.store c.frame vs c.code s' f' o :=
+  Proofs.Region.expand h hF
+
+/-- **Adequacy** of the region semantics for Core 3.0 on the fragment. -/
+theorem run_adequate {vs : List Val} {code : List Admin} {o : Out} (hF : Frag code) :
+    Run P host s f vs code s' f' o ↔
+      ∃ c', Steps P host ⟨s, f, vals vs ++ code⟩ ⟨s', f', c'⟩ ∧ o.Ends c' :=
+  Proofs.Region.adequate hF
+
+/-- Adequacy for a source body. -/
+theorem body_adequate {vs : List Val} {is : List Instr} {o : Out} (hF : ∀ i ∈ is, FragI i) :
+    Run P host s f vs (expression is) s' f' o ↔
+      ∃ c', Steps P host ⟨s, f, vals vs ++ expression is⟩ ⟨s', f', c'⟩ ∧ o.Ends c' :=
+  Proofs.Region.adequate (Proofs.Region.frag_expression hF)
+
+/-- **Sequencing**: a run of `A ++ B` is a run of `A` followed, on fall-through, by a run of
+`B`. -/
+theorem run_append_iff {vs : List Val} {A B : List Admin} {o : Out} :
+    Run P host s f vs (A ++ B) s' f' o ↔
+      ∃ s₁ f₁ o₁, Run P host s f vs A s₁ f₁ o₁ ∧ Then P host s₁ f₁ o₁ B s' f' o :=
+  ⟨fun h => Proofs.Region.run_split h rfl,
+    fun ⟨_, _, _, h₁, h₂⟩ => Proofs.Region.run_append h₁ h₂⟩
+
+/-- Values in the code are pushed on the stack. -/
+theorem run_vals_iff {vs ws : List Val} {code : List Admin} {o : Out} :
+    Run P host s f vs (vals ws ++ code) s' f' o ↔ Run P host s f (vs ++ ws) code s' f' o :=
+  Proofs.Region.run_vals_iff
+
+/-- A source body under its function label is fragment code. -/
+theorem frag_body {m : Nat} {body : List Instr} (hF : ∀ i ∈ body, FragI i) :
+    Frag [.label m [] (expression body)] := by
+  intro a ha
+  simp only [List.mem_singleton] at ha
+  subst ha
+  exact .label (by simp) (Proofs.Region.frag_expression hF)
+
+/-- **Frames**: a `FRAME_n{fi}` of fragment code runs to a result exactly when its body has a
+region run, in the frame's own frame `fi`, whose outcome the frame returns (`FrameOut`). The
+outer frame is unchanged. With `inner = [LABEL_n{} (expression body)]` (`frag_body`), this is
+the code `call_ref` enters (`Step.callRef_wasm_inv_exact`). -/
+theorem frame_adequate {fi : Frame} {n : Nat} {inner c' : List Admin} (hF : Frag inner)
+    (hc : ∃ r : Result, c' = r.toAdmin) :
+    Steps P host ⟨s, f, [.frame n fi inner]⟩ ⟨s', f', c'⟩ ↔
+      f' = f ∧ ∃ fi' o, Run P host s fi [] inner s' fi' o ∧ FrameOut n o c' := by
+  constructor
+  · exact fun h => Proofs.Region.frame_complete hF h hc
+  · rintro ⟨rfl, fi', o, h, ho⟩
+    exact Proofs.Region.frame_sound h ho
+
+end Silmaril.Wasm.Cfg.Region

@@ -267,6 +267,12 @@ The plain graph stays an over-approximation, and claims about it say so.
    store; branches read the data) and the reverse simulation. Only with both may equivalence
    with `behaviours` be claimed. For the structured native fragment, equality of its runs with
    the fragment's `Run` then gives Core 3.0 call-equivalence (`callEquiv_of_run_iff`).
+   *First slice done* (`Cfg.Region`): a compositional big-step region semantics `Run` on Core
+   runtime code (values, non-control instructions, `block`/`loop`/`if`/`br`/`br_if`/`return`,
+   `LABEL`, `TRAP`) with outcomes `normal`/`br`/`ret`/`trap`. It is adequate for Core 3.0 in
+   both directions, for every profile and host, on terminating runs: `run_adequate`,
+   `body_adequate`, and `frame_adequate` for function frames. Sequencing is
+   `run_append_iff`. Divergence, calls inside bodies, exceptions and `br_table` remain.
 8. **Calls**, through an explicit call interface: a call node whose callee behaviour is a
    parameter (a `FRAME` run of the callee), first for direct calls.
 
