@@ -39,6 +39,8 @@ theorem run_iff_segRun : ∀ {segs : List Segment} {s s' : Store H} {f f' : Fram
       | ret us => obtain ⟨rfl, rfl, rfl⟩ := h₂; exact .exit h₁ (by simp)
       | trap => obtain ⟨rfl, rfl, rfl⟩ := h₂; exact .exit h₁ (by simp)
       | throw a => obtain ⟨rfl, rfl, rfl⟩ := h₂; exact .exit h₁ (by simp)
+      | tail vs a c => obtain ⟨rfl, rfl, rfl⟩ := h₂; exact .exit h₁ (by simp)
+      | tailNull vs c => obtain ⟨rfl, rfl, rfl⟩ := h₂; exact .exit h₁ (by simp)
     · intro h
       cases h with
       | next h₁ hk => exact run_append h₁ (run_iff_segRun.2 hk)

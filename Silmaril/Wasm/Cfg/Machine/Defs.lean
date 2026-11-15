@@ -32,7 +32,8 @@ by an oracle `C : Abstract.CallRel H`, as `Region.RunC P host C` answers them: t
 entered, and its answer is pushed (or traps, or throws). An exception thrown by a call in a
 block's body is raised (`bodyRaise`) or caught by a `try_table` frame (`bodyCatch`), as one
 thrown by a `throw` terminator is. `MStep P host body := MStepC P host noCall body` is the
-call-free machine. Tail-call terminators (`return_call*`) are not modelled yet.
+call-free machine. A tail call of null traps (`tailNull`); tail calls of functions are not
+modelled yet.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -307,6 +308,17 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
             (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
             (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₁ f₁)
 
+  /-- A tail call of a null reference (`return_call_ref` or `return_call_indirect` on null):
+  the terminator ends in a pending tail call of null (`Region.Out.tailNull`), which traps when
+  it leaves the function's frame (`return_call_ref-frame-null`). The machine moves to `trap`,
+  with the store and frame after the terminator. -/
+  | tailNull {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+      {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {W : List Val} {c : Admin}
+      (hb : lookup body b = some sg) (ht : sg.term = some i)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.tailNull W c)) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₂, f₂⟩
+
 /-- **The call-free machine**: `MStepC` with no call answered. -/
 abbrev MStep (P : Profile) (host : HostSemantics H) (body : Expr) := MStepC P host noCall body
 
@@ -428,12 +440,13 @@ def _root_.Silmaril.Wasm.Cfg.Target.IsSink : Target → Prop
 
 /-- **What a run ending in a sink state means**, as a region outcome: at `exit`, the final
 values, reached by falling off the end (`normal`) or by `return` (`ret`, the values under the
-returned ones are the label frames' outer values Core keeps); `trap`; at `raise`, the thrown
-exception whose address is the stack. -/
+returned ones are the label frames' outer values Core keeps); at `trap`, a trap or a pending
+tail call of null (which traps at the function's frame); at `raise`, the thrown exception whose
+address is the stack. -/
 def Ends {H : Type} (st : MState H) (o : Region.Out) : Prop :=
   match st.node with
   | .exit => o = .normal st.stk ∨ ∃ W, o = .ret (W ++ st.stk)
-  | .trap => o = .trap
+  | .trap => o = .trap ∨ ∃ W c, o = .tailNull W c
   | .raise => ∃ a, st.stk = [.ref (.exn a)] ∧ o = .throw a
   | _ => False
 

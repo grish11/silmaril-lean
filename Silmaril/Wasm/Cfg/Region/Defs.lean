@@ -17,7 +17,10 @@ runs from store `s` and frame `f` to store `s'`, frame `f'` and outcome `o`:
 * `br l vs'`: branching to the `l`-th enclosing label, with stack `vs'`;
 * `ret vs'`: returning, with stack `vs'`;
 * `trap`;
-* `throw a`: throwing the exception at address `a`.
+* `throw a`: throwing the exception at address `a`;
+* `tail vs a c`: a pending tail call of the function at address `a` (`REF.FUNC_ADDR a` and the
+  `RETURN_CALL_REF` form `c`, over `vs`), as `Logic.Core.Outcome.tail`; `tailNull vs c`: a
+  pending tail call of a null reference.
 
 The rules follow the structure of the code:
 * a value is pushed;
@@ -28,7 +31,12 @@ The rules follow the structure of the code:
 * `block`, `loop` and `if` push a `LABEL` exactly as Core does;
 * a `LABEL` runs its body to an outcome and then continues according to it: fall through,
   run the continuation on a branch to the label itself, or pass an outer branch, a return or
-  a trap outwards.
+  a trap outwards;
+* `return_call`, `return_call_ref` and `return_call_indirect` end the region in a pending tail
+  call, which passes outwards through labels and handlers as Core's `return_call_ref-label` and
+  `-handler` rules do. The call is made when the enclosing `FRAME` is left (frame replacement,
+  `return_call_ref-frame-addr`); a region never answers it, and a handler does not catch the
+  callee's exceptions. A pending tail call of null traps at the frame (`FrameOut`).
 
 Outcomes carry values, store and frame, and every branch reads data.
 
@@ -52,7 +60,14 @@ inductive Out where
   | trap
   /-- Throwing the exception at address `a` (`REF.EXN_ADDR a; THROW_REF`). -/
   | throw (a : Nat)
-  deriving DecidableEq, Repr
+  /-- About to tail-call the function at address `a` (`REF.FUNC_ADDR a` followed by the
+  `RETURN_CALL_REF` form `c`), with the values `vs` below the reference. The enclosing `FRAME`
+  is replaced by the call (`return_call_ref-frame-addr`); a region does not make the call. -/
+  | tail (vs : List Val) (a : Nat) (c : Admin)
+  /-- About to tail-call a null reference (`REF.NULL` followed by the `RETURN_CALL_REF` form `c`),
+  with the values `vs` below it: the enclosing `FRAME` traps (`return_call_ref-frame-null`). -/
+  | tailNull (vs : List Val) (c : Admin)
+  deriving Repr
 
 /-- The Core final forms of an outcome. Anything after a `br` or `return` is dead. -/
 def Out.Ends : Out → List Admin → Prop
@@ -62,6 +77,10 @@ def Out.Ends : Out → List Admin → Prop
   | .ret vs, c => ∃ rest : List Admin, c = vals vs ++ .plain .return_ :: rest
   | .trap, c => c = [.trap]
   | .throw a, c => c = throwing a
+  | .tail vs a r, c => r.IsReturnCallRef ∧ ∃ rest : List Admin,
+      c = vals vs ++ .ref (.func a) :: r :: rest
+  | .tailNull vs r, c => r.IsReturnCallRef ∧ ∃ rest : List Admin,
+      c = vals vs ++ .ref .null :: r :: rest
 
 /-- Source instructions of the fragment. -/
 inductive FragI : Instr → Prop where
@@ -231,6 +250,49 @@ inductive RunC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) :
       (hin : RunC P host C s f [] inner s₁ f₁ .trap) :
       RunC P host C s f vs (.label n cont inner :: code) s₁ f₁ .trap
 
+  /-- `return_call x` resolves its callee and ends the region in a pending tail call: Core's
+  `return_call` step to `REF.FUNC_ADDR a; RETURN_CALL_REF`. The call itself is made when the
+  enclosing `FRAME` is replaced. -/
+  | returnCall {s : Store H} {f : Frame} {vs : List Val} {x : FuncIdx} {a : Nat}
+      {fi : FuncInst H} {code : List Admin} (hfi : s.func? f x = some (a, fi)) :
+      RunC P host C s f vs (.plain (.returnCall x) :: code) s f
+        (.tail vs a (.returnCallRefType fi.type))
+  /-- `return_call_ref` (in either representation `c`) on a function reference: a pending tail
+  call. -/
+  | returnCallRef {s : Store H} {f : Frame} {ws : List Val} {a : Nat} {c : Admin}
+      {code : List Admin} (hc : c.IsReturnCallRef) :
+      RunC P host C s f (ws ++ [.ref (.func a)]) (c :: code) s f (.tail ws a c)
+  /-- `return_call_ref` on a null reference: a pending tail call of null. -/
+  | returnCallRefNull {s : Store H} {f : Frame} {ws : List Val} {c : Admin} {code : List Admin}
+      (hc : c.IsReturnCallRef) :
+      RunC P host C s f (ws ++ [.ref .null]) (c :: code) s f (.tailNull ws c)
+  /-- `return_call_indirect x y` runs as `table.get x; ref.cast (ref null y);
+  return_call_ref y`, the code Core's step rewrites it to. -/
+  | returnCallIndirect {s s' : Store H} {f f' : Frame} {vs : List Val} {x : TableIdx}
+      {y : TypeIdx} {code : List Admin} {o : Out}
+      (h : RunC P host C s f vs (.plain (.tableGet x) :: .plain (.refCast ⟨true, .typeIdx y⟩) ::
+        .plain (.returnCallRef y) :: code) s' f' o) :
+      RunC P host C s f vs (.plain (.returnCallIndirect x y) :: code) s' f' o
+  /-- A pending tail call passes through a label (`return_call_ref-label`). -/
+  | labelTail {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat}
+      {cont : List Instr} {inner code : List Admin} {a : Nat} {c : Admin}
+      (hin : RunC P host C s f [] inner s₁ f₁ (.tail us a c)) :
+      RunC P host C s f vs (.label n cont inner :: code) s₁ f₁ (.tail (vs ++ us) a c)
+  | labelTailNull {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat}
+      {cont : List Instr} {inner code : List Admin} {c : Admin}
+      (hin : RunC P host C s f [] inner s₁ f₁ (.tailNull us c)) :
+      RunC P host C s f vs (.label n cont inner :: code) s₁ f₁ (.tailNull (vs ++ us) c)
+  /-- A pending tail call passes through a handler (`return_call_ref-handler`): the callee
+  runs outside it, so the handler does not catch its exceptions. -/
+  | handlerTail {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat}
+      {cs : List Catch} {inner code : List Admin} {a : Nat} {c : Admin}
+      (hin : RunC P host C s f [] inner s₁ f₁ (.tail us a c)) :
+      RunC P host C s f vs (.handler n cs inner :: code) s₁ f₁ (.tail (vs ++ us) a c)
+  | handlerTailNull {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat}
+      {cs : List Catch} {inner code : List Admin} {c : Admin}
+      (hin : RunC P host C s f [] inner s₁ f₁ (.tailNull us c)) :
+      RunC P host C s f vs (.handler n cs inner :: code) s₁ f₁ (.tailNull (vs ++ us) c)
+
   /-- `call x` asks the oracle `C` for the callee's run, on the top `ps.length` values in
   parameter order. The callee's flow lists its results top first (`Binaryen.Flow`); the top
   `rs.length` of them are pushed. The frame is the caller's. -/
@@ -290,13 +352,16 @@ abbrev Then (P : Profile) (host : HostSemantics H) := ThenC P host noCall
 
 /-- What a `FRAME_n` returns for a body outcome. Falling through needs exactly `n` values; a
 `return` keeps the top `n`. A branch out of the frame does not happen in validated code and
-has no result. -/
+has no result. A pending tail call of null traps (`return_call_ref-frame-null`); a pending tail
+call of a function replaces the frame by the callee's, so it has no result of this frame. -/
 def FrameOut (n : Nat) : Out → List Admin → Prop
   | .normal us, c => us.length = n ∧ c = vals us
   | .ret us, c => ∃ us₁ ws, us = us₁ ++ ws ∧ ws.length = n ∧ c = vals ws
   | .trap, c => c = [.trap]
   | .throw a, c => c = throwing a
+  | .tailNull _ _, c => c = [.trap]
   | .br _ _, _ => False
+  | .tail _ _ _, _ => False
 
 end Silmaril.Wasm.Cfg.Region
 

@@ -76,8 +76,14 @@ public import Silmaril.Foundations.InfiniteTrace
   hypothesis `Region.CallSound P host C`. The `noCall` statements above are the instances
   `C := noCall`. Divergence is stated for `noCall` only.
 
-Not claimed here: tail-call terminators (`return_call*`) have no region rule and no machine
-step; Core completeness with calls (Core to `RunC`) needs callee adequacy, not proved here.
+* **Tail calls of null** (`MStepC.tailNull`): a `return_call_ref`/`return_call_indirect` of a
+  null reference goes to `trap`, whose `Ends` admits the region's pending tail call of null
+  (it traps at the function's frame). Completeness excludes runs ending in a pending tail call
+  of a function (`hto`).
+
+Not claimed here: machine steps for tail calls of functions (the frame replacement, answered at
+the function's frame); Core completeness with calls (Core to `RunC`) needs callee adequacy, not
+proved here.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -480,10 +486,11 @@ machine run from the initial state (`cfgEntry`) to a sink, ending as `Ends` says
 values by fall-through or `return`, its trap, or its exception), in the run's final store and
 frame. With `run_sound_initial`, machine runs to sinks and region runs of the body agree. -/
 theorem run_complete_initial {s s' : Store H} {f f' : Frame} {o : Region.Out}
-    (h : Region.Run P host s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us) :
+    (h : Region.Run P host s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us)
+    (hto : ∀ W a c, o ≠ .tail W a c) :
     ∃ st', Relation.ReflTransGen (MStep P host body) (initial body s f) st' ∧ Ends st' o ∧
       st'.store = s' ∧ st'.frame = f' :=
-  Proofs.MachineComplete.run_complete_initial h ho
+  Proofs.MachineComplete.run_complete_initial h ho hto
 
 /-! ## Divergence -/
 
@@ -561,10 +568,11 @@ theorem run_sound_initialC {s : Store H} {f : Frame} {st' : MState H}
 the initial state to a sink, ending as `Ends` says, in the run's final store and frame. A call
 that throws in a block's body is a `bodyRaise` or `bodyCatch` step. No hypothesis on `C`. -/
 theorem run_complete_initialC {s s' : Store H} {f f' : Frame} {o : Region.Out}
-    (h : Region.RunC P host C s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us) :
+    (h : Region.RunC P host C s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us)
+    (hto : ∀ W a c, o ≠ .tail W a c) :
     ∃ st', Relation.ReflTransGen (MStepC P host C body) (initial body s f) st' ∧ Ends st' o ∧
       st'.store = s' ∧ st'.frame = f' :=
-  Proofs.MachineComplete.run_complete_initial h ho
+  Proofs.MachineComplete.run_complete_initial h ho hto
 
 /-- **Core soundness from the CFG entry, with a Core-sound oracle**: when `C` answers calls as
 Core 3.0 runs them (`Region.CallSound`, a named hypothesis), a run of the machine with calls from

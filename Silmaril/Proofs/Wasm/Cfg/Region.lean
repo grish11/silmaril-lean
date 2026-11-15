@@ -25,6 +25,15 @@ theorem famOf_val {a : Admin} {v : Val} (h : a.val? = some v) : Det.famOf a = .c
   have := Proofs.Exec.val_none_of_noncontrol hk
   simp [h] at this
 
+theorem isRetCallRef_val {c : Admin} (hc : c.IsReturnCallRef) : c.val? = none := by
+  unfold Admin.IsReturnCallRef at hc
+  split at hc <;> first | rfl | exact hc.elim
+
+theorem isRetCallRef_plain {i : Instr} (hc : (Admin.plain i).IsReturnCallRef) :
+    ∃ y, i = .returnCallRef y := by
+  unfold Admin.IsReturnCallRef at hc
+  split at hc <;> simp_all
+
 /-- Values push. -/
 theorem run_vals {s s' : Store H} {f f' : Frame} {vs : List Val} :
     ∀ {ws : List Val} {code : List Admin} {o : Out},
@@ -38,6 +47,8 @@ theorem run_val_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {a : Admin} 
     {code : List Admin} {o : Out} (hv : a.val? = some v)
     (h : RunC P host C s f vs (a :: code) s' f' o) : RunC P host C s f (vs ++ [v]) code s' f' o := by
   cases h with
+  | returnCallRef hc => simp [isRetCallRef_val hc] at hv
+  | returnCallRefNull hc => simp [isRetCallRef_val hc] at hv
   | val hv' h => rw [hv] at hv'; cases hv'; exact h
   | simple hi => exact absurd (famOf_val hv) hi
   | simpleTrap hi => exact absurd (famOf_val hv) hi
@@ -66,6 +77,8 @@ theorem run_trap_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {code : Lis
     {o : Out} (h : RunC P host C s f vs (.trap :: code) s' f' o) :
     o = .trap ∧ s' = s ∧ f' = f := by
   cases h with
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
   | trap => exact ⟨rfl, rfl, rfl⟩
   | val hv => simp [Admin.val?] at hv
 
@@ -73,6 +86,8 @@ theorem run_br_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {l : LabelIdx
     {code : List Admin} {o : Out} (h : RunC P host C s f vs (.plain (.br l) :: code) s' f' o) :
     o = .br l.toNat vs ∧ s' = s ∧ f' = f := by
   cases h with
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
   | br => exact ⟨rfl, rfl, rfl⟩
   | val hv => simp [Admin.val?] at hv
   | simple hi => simp [Det.famOf] at hi
@@ -83,6 +98,8 @@ theorem run_ret_inv {s s' : Store H} {f f' : Frame} {vs : List Val}
     {code : List Admin} {o : Out} (h : RunC P host C s f vs (.plain .return_ :: code) s' f' o) :
     o = .ret vs ∧ s' = s ∧ f' = f := by
   cases h with
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
   | ret => exact ⟨rfl, rfl, rfl⟩
   | val hv => simp [Admin.val?] at hv
   | simple hi => simp [Det.famOf] at hi
@@ -390,6 +407,58 @@ theorem soundC {C : Abstract.CallRel H} (hC : CallSound P host C) {s s' : Store 
     have h2 := steps_in vs code (catches_steps (P := P) (host := host) (n := n) hc)
     have := (h1.trans h2).trans (steps_throwing (P := P) (host := host) s₁ f₁ vs a code)
     simpa [catchCode] using this
+  | @labelTail s s₁ f f₁ vs us n cont inner code a c _ ihin =>
+    obtain ⟨c₁, hs₁, hc, rest, rfl⟩ := ihin
+    refine ⟨vals vs ++ (vals us ++ [.ref (.func a), c]) ++ code, ?_, hc, code, by simp⟩
+    have h1 := steps_in vs code (steps_label n cont hs₁)
+    have h2 := step_in (P := P) (host := host) vs code
+      (Step.returnCallRefLabel (s := s₁) (f := f₁) (k := n) (cont := cont) (vs := us ++ [Val.ref (.func a)]) (c := c)
+        (rest := rest) hc)
+    simp only [vals, List.map_append, List.map_cons, List.map_nil, Val.toAdmin, List.append_assoc, List.cons_append, List.singleton_append, List.nil_append] at h1 h2 ⊢
+    exact h1.tail h2
+  | @labelTailNull s s₁ f f₁ vs us n cont inner code c _ ihin =>
+    obtain ⟨c₁, hs₁, hc, rest, rfl⟩ := ihin
+    refine ⟨vals vs ++ (vals us ++ [.ref .null, c]) ++ code, ?_, hc, code, by simp⟩
+    have h1 := steps_in vs code (steps_label n cont hs₁)
+    have h2 := step_in (P := P) (host := host) vs code
+      (Step.returnCallRefLabel (s := s₁) (f := f₁) (k := n) (cont := cont) (vs := us ++ [Val.ref .null]) (c := c)
+        (rest := rest) hc)
+    simp only [vals, List.map_append, List.map_cons, List.map_nil, Val.toAdmin, List.append_assoc, List.cons_append, List.singleton_append, List.nil_append] at h1 h2 ⊢
+    exact h1.tail h2
+  | @handlerTail s s₁ f f₁ vs us n cs inner code a c _ ihin =>
+    obtain ⟨c₁, hs₁, hc, rest, rfl⟩ := ihin
+    refine ⟨vals vs ++ (vals us ++ [.ref (.func a), c]) ++ code, ?_, hc, code, by simp⟩
+    have h1 := steps_in vs code (steps_handler n cs hs₁)
+    have h2 := step_in (P := P) (host := host) vs code
+      (Step.returnCallRefHandler (s := s₁) (f := f₁) (k := n) (cs := cs) (vs := us ++ [Val.ref (.func a)]) (c := c)
+        (rest := rest) hc)
+    simp only [vals, List.map_append, List.map_cons, List.map_nil, Val.toAdmin, List.append_assoc, List.cons_append, List.singleton_append, List.nil_append] at h1 h2 ⊢
+    exact h1.tail h2
+  | @handlerTailNull s s₁ f f₁ vs us n cs inner code c _ ihin =>
+    obtain ⟨c₁, hs₁, hc, rest, rfl⟩ := ihin
+    refine ⟨vals vs ++ (vals us ++ [.ref .null, c]) ++ code, ?_, hc, code, by simp⟩
+    have h1 := steps_in vs code (steps_handler n cs hs₁)
+    have h2 := step_in (P := P) (host := host) vs code
+      (Step.returnCallRefHandler (s := s₁) (f := f₁) (k := n) (cs := cs) (vs := us ++ [Val.ref .null]) (c := c)
+        (rest := rest) hc)
+    simp only [vals, List.map_append, List.map_cons, List.map_nil, Val.toAdmin, List.append_assoc, List.cons_append, List.singleton_append, List.nil_append] at h1 h2 ⊢
+    exact h1.tail h2
+  | @returnCall s f vs x a fi code hfi =>
+    refine ⟨vals vs ++ [.ref (.func a), .returnCallRefType fi.type] ++ code, .single ?_, trivial, code,
+      by simp⟩
+    have := step_in (P := P) (host := host) vs code
+      (Step.returnCall (s := s) (f := f) (func?_inv hfi).1 (func?_inv hfi).2)
+    simpa using this
+  | @returnCallRef s f ws a c code hc =>
+    exact ⟨_, .refl, hc, code, by simp [vals, Val.toAdmin]⟩
+  | @returnCallRefNull s f ws c code hc =>
+    exact ⟨_, .refl, hc, code, by simp [vals, Val.toAdmin]⟩
+  | @returnCallIndirect s s' f f' vs x y code o _ ih =>
+    obtain ⟨c', hs, he⟩ := ih
+    refine ⟨c', .head ?_ hs, he⟩
+    have := step_in (P := P) (host := host) vs code
+      (Step.returnCallIndirect (s := s) (f := f) (x := x) (y := y))
+    simpa using this
 
 theorem noCall_sound : CallSound P host (noCall (H := H)) :=
   fun _ _ _ _ _ _ _ _ _ _ _ _ h => h.elim
@@ -436,6 +505,14 @@ theorem run_append {s s₁ s' : Store H} {f f₁ f' : Frame} {vs : List Val} {A 
   | handlerTrap hin => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .handlerTrap hin
   | handlerCatch hin hc => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .handlerCatch hin hc
   | handlerRethrow hin hc => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .handlerRethrow hin hc
+  | returnCall hfi => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .returnCall hfi
+  | returnCallRef hc => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .returnCallRef hc
+  | returnCallRefNull hc => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .returnCallRefNull hc
+  | returnCallIndirect _ ih => exact .returnCallIndirect (ih hB)
+  | labelTail hin => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .labelTail hin
+  | labelTailNull hin => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .labelTailNull hin
+  | handlerTail hin => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .handlerTail hin
+  | handlerTailNull hin => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .handlerTailNull hin
 
 theorem run_split {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List Admin} {o : Out}
     (h : RunC P host C s f vs code s' f' o) :
@@ -668,6 +745,63 @@ theorem run_split {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List A
       obtain ⟨rfl, rfl⟩ := hA
       obtain ⟨_, _, _, h₁, h₂⟩ := ih rfl
       exact ⟨_, _, _, .handlerNormal hin h₁, h₂⟩
+  | returnCall hfi =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .returnCall hfi⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .returnCall hfi, rfl, rfl, rfl⟩
+  | returnCallRef hc =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .returnCallRef hc⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .returnCallRef hc, rfl, rfl, rfl⟩
+  | returnCallRefNull hc =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .returnCallRefNull hc⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .returnCallRefNull hc, rfl, rfl, rfl⟩
+  | labelTail hin =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .labelTail hin⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .labelTail hin, rfl, rfl, rfl⟩
+  | labelTailNull hin =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .labelTailNull hin⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .labelTailNull hin, rfl, rfl, rfl⟩
+  | handlerTail hin =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .handlerTail hin⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .handlerTail hin, rfl, rfl, rfl⟩
+  | handlerTailNull hin =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .handlerTailNull hin⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .handlerTailNull hin, rfl, rfl, rfl⟩
+  | returnCallIndirect h ih =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .returnCallIndirect h⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      obtain ⟨_, _, _, h₁, h₂⟩ := ih (A := _ :: _ :: _ :: A) rfl
+      exact ⟨_, _, _, .returnCallIndirect h₁, h₂⟩
 
 /-! ## The fragment -/
 
@@ -770,6 +904,8 @@ theorem run_simple_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {i : Inst
         Run P host s₁ f₁ vs₁ code s' f' o) ∨
       (o = .trap ∧ Steps P host ⟨s, f, vals vs ++ [.plain i]⟩ ⟨s', f', [.trap]⟩) := by
   cases h with
+  | returnCallRef hc => obtain ⟨y, rfl⟩ := isRetCallRef_plain hc; simp [Det.famOf] at hi
+  | returnCallRefNull hc => obtain ⟨y, rfl⟩ := isRetCallRef_plain hc; simp [Det.famOf] at hi
   | val hv => exact absurd (Proofs.Exec.val_none_of_noncontrol hi) (by simp [hv])
   | simple _ h₁ h => exact .inl ⟨_, _, _, h₁, h⟩
   | simpleTrap _ h₁ => exact .inr ⟨rfl, h₁⟩
@@ -881,6 +1017,8 @@ theorem label_back {s s₁ s' : Store H} {f f₁ f' : Frame} {vs : List Val} {n 
     (h : RunC P host C s₁ f₁ vs (.label n cont inner' :: code) s' f' o) :
     RunC P host C s f vs (.label n cont inner :: code) s' f' o := by
   cases h with
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
   | val hv => simp [Admin.val?] at hv
   | labelNormal hin h => exact .labelNormal (hb hin) h
   | labelBr0 hin hn h => exact .labelBr0 (hb hin) hn h
@@ -888,6 +1026,8 @@ theorem label_back {s s₁ s' : Store H} {f f₁ f' : Frame} {vs : List Val} {n 
   | labelRet hin => exact .labelRet (hb hin)
   | labelTrap hin => exact .labelTrap (hb hin)
   | labelThrow hin => exact .labelThrow (hb hin)
+  | labelTail hin => exact .labelTail (hb hin)
+  | labelTailNull hin => exact .labelTailNull (hb hin)
 
 theorem fragA_handler {n : Nat} {cs : List Catch} {inner : List Admin}
     (h : FragA (.handler n cs inner)) : Frag inner := by
@@ -905,6 +1045,8 @@ theorem run_throwing_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {a : Na
   have h' := run_val_inv (v := .ref (.exn a)) rfl h
   generalize hst : vs ++ [Val.ref (.exn a)] = st at h'
   cases h' with
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
   | val hv => simp [Admin.val?] at hv
   | simple hi => simp [Det.famOf] at hi
   | simpleTrap hi => simp [Det.famOf] at hi
@@ -922,6 +1064,8 @@ theorem handler_back {s s₁ s' : Store H} {f f₁ f' : Frame} {vs : List Val} {
     (h : RunC P host C s₁ f₁ vs (.handler n cs inner' :: code) s' f' o) :
     RunC P host C s f vs (.handler n cs inner :: code) s' f' o := by
   cases h with
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
   | val hv => simp [Admin.val?] at hv
   | handlerNormal hin h => exact .handlerNormal (hb hin) h
   | handlerBr hin => exact .handlerBr (hb hin)
@@ -929,6 +1073,8 @@ theorem handler_back {s s₁ s' : Store H} {f f₁ f' : Frame} {vs : List Val} {
   | handlerTrap hin => exact .handlerTrap (hb hin)
   | handlerCatch hin hc => exact .handlerCatch (hb hin) hc
   | handlerRethrow hin hc => exact .handlerRethrow (hb hin) hc
+  | handlerTail hin => exact .handlerTail (hb hin)
+  | handlerTailNull hin => exact .handlerTailNull (hb hin)
 
 /-- A handler around a thrown exception resolves it by `Catches`. -/
 theorem handler_throwing_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {n a : Nat}
@@ -937,11 +1083,16 @@ theorem handler_throwing_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {n 
     s' = s ∧ f' = f ∧ ((∃ us l, Catches s f a cs (some (us, l)) ∧ o = .br l.toNat (vs ++ us)) ∨
       (Catches s f a cs none ∧ o = .throw a)) := by
   cases h with
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
   | val hv => simp [Admin.val?] at hv
   | handlerNormal hin => have := (run_throwing_inv (rest := []) (by simpa using hin)).1; cases this
   | handlerBr hin => have := (run_throwing_inv (rest := []) (by simpa using hin)).1; cases this
   | handlerRet hin => have := (run_throwing_inv (rest := []) (by simpa using hin)).1; cases this
   | handlerTrap hin => have := (run_throwing_inv (rest := []) (by simpa using hin)).1; cases this
+  | handlerTail hin => have := (run_throwing_inv (rest := []) (by simpa using hin)).1; cases this
+  | handlerTailNull hin =>
+    have := (run_throwing_inv (rest := []) (by simpa using hin)).1; cases this
   | handlerCatch hin hc =>
     obtain ⟨he, rfl, rfl⟩ := run_throwing_inv (rest := []) (by simpa using hin)
     cases he
@@ -1315,6 +1466,16 @@ theorem run_of_ends {s : Store H} {f : Frame} {c : List Admin} {o : Out} (he : o
     exact run_ret_at vs rest
   | trap => rw [show c = [.trap] from he]; exact .trap
   | throw a => rw [show c = throwing a from he]; simpa using run_throwing_at (P := P) (host := host) (C := noCall) (s := s) (f := f) [] a []
+  | tail vs a r =>
+    obtain ⟨hr, rest, rfl⟩ := he
+    exact run_vals (by simpa [vals, Val.toAdmin] using
+      (RunC.val (C := noCall) (P := P) (host := host) (s := s) (f := f) (vs := vs)
+        (v := .ref (.func a)) rfl (RunC.returnCallRef (code := rest) hr)))
+  | tailNull vs r =>
+    obtain ⟨hr, rest, rfl⟩ := he
+    exact run_vals (by simpa [vals, Val.toAdmin] using
+      (RunC.val (C := noCall) (P := P) (host := host) (s := s) (f := f) (vs := vs)
+        (v := .ref .null) rfl (RunC.returnCallRefNull (code := rest) hr)))
 
 theorem complete {s s' : Store H} {f f' : Frame} {code c' : List Admin} {o : Out}
     (hF : Frag code) (h : Steps P host ⟨s, f, code⟩ ⟨s', f', c'⟩) (he : o.Ends c') :
@@ -1380,6 +1541,13 @@ theorem frame_sound {s s' : Store H} {f fi fi' : Frame} {n : Nat} {inner c' : Li
     simp only [Out.Ends] at he; subst he
     exact h1.tail Step.throwRefFrame
   | br => exact ho.elim
+  | tail => exact ho.elim
+  | tailNull vs r =>
+    simp only [FrameOut] at ho; subst ho
+    obtain ⟨hr, rest, rfl⟩ := he
+    have h2 := Step.returnCallRefFrameNull (P := P) (host := host) (s := s') (f := f) (fi := fi')
+      (k := n) (vs := vs) (rest := rest) hr
+    exact h1.tail (by simpa using h2)
 
 theorem frame_complete {s s' : Store H} {f f' fi : Frame} {n : Nat} {inner c' : List Admin}
     (hF : Frag inner) (h : Steps P host ⟨s, f, [.frame n fi inner]⟩ ⟨s', f', c'⟩)

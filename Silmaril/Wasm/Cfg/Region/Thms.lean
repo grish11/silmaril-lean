@@ -43,8 +43,12 @@ All results hold for every profile `P` and every host `host`. Proofs are in
   `EvalO`'s convention: arguments in parameter order, the callee's `Flow` results top first.
   `Run P host = RunC P host noCall` is the call-free semantics, and every statement above is
   about it. `run_soundC` holds under the named hypothesis `CallSound P host C`. Not yet:
-  `CallSound` for `Abstract.closedCall`, completeness with calls, `call_ref`/`call_indirect`, and
-  tail calls.
+  `CallSound` for `Abstract.closedCall`, completeness with calls, `call_ref`/`call_indirect`.
+
+* **Tail calls**: `return_call*` end a region in a pending tail call (`Out.tail`, `Out.tailNull`,
+  the final forms `vals vs ++ REF.FUNC_ADDR a :: c :: rest` and its null analogue), which needs
+  no oracle; `run_sound` and `run_soundC` cover them. They are outside the fragment, so the
+  adequacy statements above are unchanged.
 -/
 
 namespace Silmaril.Wasm.Cfg.Region

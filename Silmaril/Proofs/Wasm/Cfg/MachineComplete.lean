@@ -153,6 +153,8 @@ def Reach (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) (body 
       Relation.TransGen (MStepC P host C body) st (brTarget body lv.tq (j + 1 + l.toNat) L' lv.tls
         (brVals l.toNat (lv.tls.drop (j + 1)) (L.outer ++ us)) s' f')) ∧
     (AllPass s' f' a lv.tls → MRun P host C body st ⟨.raise, [.ref (.exn a)], [], s', f'⟩)
+  | .tail _ _ _ => True
+  | .tailNull _ _ => MRun P host C body st ⟨.trap, [], [], s', f'⟩
 
 /-- **The machine state a region code stands for**, at a level, for a run of the code from
 `s, f` on stack `vs`. -/
@@ -271,6 +273,8 @@ theorem reach_mono {body : Expr} {lv : Lv H} {st st₁ : MState H} {s' : Store H
     exact ⟨fun j L us l L' h1 h2 h3 h4 h5 h6 h7 =>
       Relation.TransGen.trans_right hm (h.1 j L us l L' h1 h2 h3 h4 h5 h6 h7),
       fun h1 => hm.trans (h.2 h1)⟩
+  | tail => trivial
+  | tailNull => exact hm.trans h
 
 theorem reach_step {body : Expr} {lv : Lv H} {st st₁ : MState H} {s' : Store H} {f' : Frame}
     {o : Out} (hs : MStepC P host C body st st₁) (h : Reach P host C body lv st₁ s' f' o) :
@@ -324,6 +328,8 @@ theorem run_head_val {s s' : Store H} {f f' : Frame} {vs : List Val} {a : Admin}
   | simple hi => rw [val_none_of_noncontrol hi] at hv; cases hv
   | simpleTrap hi => rw [val_none_of_noncontrol hi] at hv; cases hv
   | brData hb => rw [brStep_val_none hb] at hv; cases hv
+  | returnCallRef hc => rw [Proofs.Region.isRetCallRef_val hc] at hv; cases hv
+  | returnCallRefNull hc => rw [Proofs.Region.isRetCallRef_val hc] at hv; cases hv
   | _ => simp [Admin.val?] at hv
 
 /-- A run of values only pushes them. -/
@@ -550,6 +556,50 @@ theorem run_br_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {l : LabelIdx
   | simpleTrap hi => simp [SingleThreaded.Det.famOf] at hi
   | brData hb => cases hb
   | val hv => simp [Admin.val?] at hv
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
+
+/-- A `return_call_indirect` runs on its own: to a trap (of its `table.get` or `ref.cast`) or a
+pending tail call, never falling through, whatever follows it. -/
+theorem run_rci {s s' : Store H} {f f' : Frame} {vs : List Val} {x : TableIdx} {y : TypeIdx}
+    {code : List Admin} {o : Out}
+    (h : RunC P host C s f vs (.plain (.returnCallIndirect x y) :: code) s' f' o) :
+    RunC P host C s f vs [.plain (.returnCallIndirect x y)] s' f' o ∧
+      (o = .trap ∨ (∃ W a c, o = .tail W a c) ∨ ∃ W c, o = .tailNull W c) := by
+  cases h with
+  | returnCallIndirect h =>
+    cases h with
+    | simple hi h₁ h =>
+      cases h with
+      | simple hi' h₁' h' =>
+        cases h' with
+        | returnCallRef hc =>
+          exact ⟨.returnCallIndirect (.simple hi h₁ (.simple hi' h₁' (.returnCallRef hc))),
+            Or.inr (Or.inl ⟨_, _, _, rfl⟩)⟩
+        | returnCallRefNull hc =>
+          exact ⟨.returnCallIndirect (.simple hi h₁ (.simple hi' h₁' (.returnCallRefNull hc))),
+            Or.inr (Or.inr ⟨_, _, rfl⟩)⟩
+        | val hv => simp [Admin.val?] at hv
+        | simple hi'' => simp [SingleThreaded.Det.famOf] at hi''
+        | simpleTrap hi'' => simp [SingleThreaded.Det.famOf] at hi''
+        | brData hb => cases hb
+      | simpleTrap hi' h₁' =>
+        exact ⟨.returnCallIndirect (.simple hi h₁ (.simpleTrap hi' h₁')), Or.inl rfl⟩
+      | val hv => simp [Admin.val?] at hv
+      | brData hb => cases hb
+      | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+      | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
+    | simpleTrap hi h₁ => exact ⟨.returnCallIndirect (.simpleTrap hi h₁), Or.inl rfl⟩
+    | val hv => simp [Admin.val?] at hv
+    | brData hb => cases hb
+    | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+    | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
+  | val hv => simp [Admin.val?] at hv
+  | simple hi => simp [SingleThreaded.Det.famOf] at hi
+  | simpleTrap hi => simp [SingleThreaded.Det.famOf] at hi
+  | brData hb => cases hb
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
 
 theorem brStep_X {s : Store H} {f : Frame} {us us' : List Val} {i : Instr} {X : List Admin}
     (h : BrStep s f us i us' X) : X = [] ∨ ∃ l, X = [.plain (.br l)] := by
@@ -1076,6 +1126,53 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
         exact .single (MStepC.bodyCatch (lookup_of hc hsg) hbr hpass hL hT hc' hL' har hlo)
       · exact .single (MStepC.bodyRaise (lookup_of hc hsg) hbr hall)
     | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | returnCall =>
+    intro lv st vs₀ code₀ hvs hcd hr
+    trivial
+  | returnCallRef =>
+    intro lv st vs₀ code₀ hvs hcd hr
+    trivial
+  | labelTail =>
+    intro lv st vs₀ code₀ hvs hcd hr
+    trivial
+  | handlerTail =>
+    intro lv st vs₀ code₀ hvs hcd hr
+    trivial
+  | @returnCallRefNull s f ws c code hc =>
+    intro lv st vs₀ code₀ hvs hcd hr
+    subst hvs hcd
+    cases rep_head hr (Proofs.Region.isRetCallRef_val hc) with
+    | term hc' hsg ht hpre =>
+      exact .single (MStepC.tailNull (lookup_of hc' hsg) ht hpre (.returnCallRefNull (code := []) hc))
+    | body hc' hsg hbody hx =>
+      obtain ⟨y, rfl⟩ := Proofs.Region.isRetCallRef_plain hc
+      simp [isTerminator] at hx
+    | _ => simp [Admin.IsReturnCallRef] at hc
+  | @returnCallIndirect s s' f f' vs x y code o h _ =>
+    intro lv st vs₀ code₀ hvs hcd hr
+    subst hvs hcd
+    obtain ⟨hth, ho⟩ := run_rci (.returnCallIndirect h)
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx => simp [isTerminator] at hx
+    | term hc hsg ht hpre =>
+      rcases ho with rfl | ⟨W, a, c, rfl⟩ | ⟨W, c, rfl⟩
+      · exact .single (MStepC.termTrap (lookup_of hc hsg) ht hpre hth)
+      · trivial
+      · exact .single (MStepC.tailNull (lookup_of hc hsg) ht hpre hth)
+  | labelTailNull hin ih_in =>
+    intro lv st vs₀ code₀ hvs hcd hr
+    subst hvs hcd
+    cases rep_head hr rfl with
+    | lab hc hsg ht harm hkind hT hlo hW hrin =>
+      have := ih_in _ _ _ _ rfl rfl hrin; exact this
+    | hlab hv hcode hnl hloop hrin =>
+      have := ih_in _ _ _ _ rfl rfl hrin; exact this
+  | handlerTailNull hin ih_in =>
+    intro lv st vs₀ code₀ hvs hcd hr
+    subst hvs hcd
+    cases rep_head hr rfl with
+    | hnd hc hsg ht harm hkind hT hW hrin =>
+      have := ih_in _ _ _ _ rfl rfl hrin; exact this
 
 end Silmaril.Wasm.Cfg.Proofs.MachineComplete
 
@@ -1090,7 +1187,8 @@ variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel
 in a branch out of the body is a machine run from the initial state to a sink, ending as `Ends`
 says, in the same final store and frame. -/
 theorem run_complete_initial {body : Expr} {s s' : Store H} {f f' : Frame} {o : Out}
-    (h : RunC P host C s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us) :
+    (h : RunC P host C s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us)
+    (hto : ∀ W a c, o ≠ .tail W a c) :
     ∃ st', MRun P host C body (initial body s f) st' ∧ Ends st' o ∧ st'.store = s' ∧
       st'.frame = f' := by
   have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by
@@ -1108,8 +1206,10 @@ theorem run_complete_initial {body : Expr} {s s' : Store H} {f f' : Frame} {o : 
   | ret us =>
     obtain ⟨W, stk, rfl, hm⟩ := hr
     exact ⟨_, hm, Or.inr ⟨W, rfl⟩, rfl, rfl⟩
-  | trap => exact ⟨_, hr, rfl, rfl, rfl⟩
+  | trap => exact ⟨_, hr, Or.inl rfl, rfl, rfl⟩
   | throw a =>
     exact ⟨_, hr.2 (fun k L hL => by simp [seqLv] at hL), ⟨a, rfl, rfl⟩, rfl, rfl⟩
+  | tail W a c => exact absurd rfl (hto W a c)
+  | tailNull W c => exact ⟨_, hr, Or.inr ⟨W, c, rfl⟩, rfl, rfl⟩
 
 end Silmaril.Wasm.Cfg.Proofs.MachineComplete

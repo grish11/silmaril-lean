@@ -1426,6 +1426,39 @@ theorem wrap_trap {body : Expr} {s s' : Store H} {f f' : Frame} :
               (host := host) (vs := []) (code := []) (n := L.arity)
               (cont := if L.loop then [t] else []) h))
 
+/-- A pending tail call of null propagates through every label frame, collecting the frames'
+outer values under its own. -/
+theorem wrap_tailNull {body : Expr} {s s' : Store H} {f f' : Frame} {c : Admin} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin} {W : List Val},
+      wrap body rp ls inner = some X →
+      RunC P host C s f [] inner s' f' (.tailNull W c) →
+        ∃ W', RunC P host C s f [] X s' f' (.tailNull W' c)
+  | [], [], _, _, W, hX, h => by simp [wrap] at hX; subst hX; exact ⟨W, h⟩
+  | [], _ :: _, _, _, _, hX, _ => by simp [wrap] at hX
+  | _ :: _, [], _, _, _, hX, _ => by simp [wrap] at hX
+  | (m, _) :: rp, L :: ls, inner, X, W, hX, h => by
+    simp only [wrap, Option.bind_eq_bind] at hX
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some] at hX
+          refine wrap_tailNull rp ls hX (W := L.outer ++ W) ?_
+          apply Proofs.Region.run_vals (vs := [])
+          cases L.tryT
+          · simpa using (RunC.labelTailNull (C := C) (P := P) (host := host) (vs := L.outer)
+              (code := expression (restAt pc (m + 1))) (n := L.arity)
+              (cont := if L.loop then [t] else []) h)
+          · simpa using (RunC.handlerTailNull (C := C) (P := P) (host := host) (vs := L.outer)
+              (code := expression (restAt pc (m + 1))) (n := L.arity) (cs := L.catches)
+              (by simpa using (RunC.labelTailNull (C := C) (P := P) (host := host) (vs := [])
+                (code := []) (n := L.arity) (cont := if L.loop then [t] else []) h)))
+
 /-- A `return` propagates through every label frame, collecting the frames' outer values under
 the returned ones. -/
 theorem wrap_ret {body : Expr} {s s' : Store H} {f f' : Frame} :
@@ -1526,6 +1559,22 @@ theorem termTrap_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : 
   refine wrap_trap _ _ hX (block_then hsg ht hr ?_)
   have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c (b.idx + 1)))
     (o := .trap) (s' := s₂) (f' := f₂) hth (by simp [ThenC])
+  simpa [expression] using h2
+
+/-- **A tail call of null is sound**: the code ends in a pending tail call of null, with the
+terminator's final store. -/
+theorem tailNull_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {W : List Val}
+    {c : Admin} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.tailNull W c))
+    (hX : codeAt body b stk ls = some X) : ∃ W', RunC P host C s f [] X s₂ f₂ (.tailNull W' c) := by
+  obtain ⟨c', hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  refine wrap_tailNull _ _ hX (W := W) (block_then (o := .tailNull W c) hsg ht hr ?_)
+  have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c' (b.idx + 1)))
+    (o := .tailNull W c) (s' := s₂) (f' := f₂) hth (by simp [ThenC])
   simpa [expression] using h2
 
 /-- **A `return` is sound**: the code returns the block's values, over the frames' outer
@@ -1805,6 +1854,8 @@ theorem run_body_throw {is : List Instr} (hnt : ∀ x ∈ is, isTerminator x = f
   | simpleTrap => cases ho
   | trap => cases ho
   | callTrap => cases ho
+  | returnCallRef => cases ho
+  | returnCallRefNull => cases ho
   | val _ _ ih =>
     obtain ⟨i, is', rfl, -, hc'⟩ := expression_cons hc
     obtain ⟨⟨x, hx⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
@@ -2089,6 +2140,10 @@ theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStepC P host C bod
   | @raise b sg stk stk₁ ls s s₁ s₂ f f₁ f₂ i a hb ht hi hr hth hT =>
     simp only [codeOf] at hX
     exact ⟨by simp [MInv], Or.inr ⟨.throw a, by simp [Ends], raise_pass_sound hb ht hr hth hT hX⟩⟩
+  | tailNull hb ht hr hth =>
+    simp only [codeOf] at hX
+    obtain ⟨W', hW⟩ := tailNull_sound hb ht hr hth hX
+    exact ⟨by simp [MInv], Or.inr ⟨_, by simp only [Ends]; exact Or.inr ⟨W', _, rfl⟩, hW⟩⟩
   | @bodyRaise b sg stk ls s s₁ f f₁ a hb hr hT =>
     simp only [codeOf] at hX
     exact ⟨by simp [MInv], Or.inr ⟨.throw a, by simp [Ends], bodyRaise_sound hb hr hT hX⟩⟩
@@ -2276,6 +2331,7 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStepC P host C body s
   | trap hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
   | bodyTrap => right; left; rfl
   | termTrap => right; left; rfl
+  | tailNull => right; left; rfl
   | @raise _ _ _ _ _ _ _ _ _ _ _ i _ hb ht hi =>
     left; cases hn; refine ⟨_, hb, ?_⟩
     cases i <;> simp_all [Instr.IsThrow, succOf]
