@@ -9,8 +9,8 @@ public import Silmaril.Wasm.Binaryen.NativeProfile
 The F4 adequacy theorems (`Silmaril.Wasm.Interp.OracleX`) are not gated by the native profile
 `Binaryen.NativeFuncsOk`. Their gate is the extended store and body check `StoreChkE ext`/`chkE
 ext`. `xInstr` lists the flat instructions that `flatChkE ext` can accept, for any extension:
-the native profile's instructions (`Binaryen.nativeInstr`), the annotated `select`, and the five
-call forms the extension describes. Every other flat instruction (floats, vectors, references,
+the native profile's instructions (`Binaryen.nativeInstr`), the annotated `select`, and the
+instructions the extension describes (the five call forms and `throw`/`throw_ref`). Every other flat instruction (floats, vectors, references,
 tables, memory size/grow/bulk, `throw`) is rejected, and so is `try_table` (`chk1E`). Code after
 an instruction that never falls through is not checked (it never runs).
 
@@ -31,12 +31,14 @@ def xInstr : Instr → Bool
   | .intLoad _ none _ _ | .intStore _ none _ _ => true
   | .callIndirect _ _ | .callRef _ | .returnCall _ | .returnCallRef _ | .returnCallIndirect _ _ =>
     true
+  | .throw _ | .throwRef => true
   | _ => false
 
-/-- The five call forms the extension describes. -/
+/-- The flat instructions the extension describes: the five call forms and `throw`/`throw_ref`. -/
 def xCallForm : Instr → Bool
   | .callIndirect _ _ | .callRef _ | .returnCall _ | .returnCallRef _ | .returnCallIndirect _ _ =>
     true
+  | .throw _ | .throwRef => true
   | _ => false
 
 end Silmaril.Wasm.Interp.XProfile

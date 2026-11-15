@@ -155,13 +155,18 @@ be the function's own results (`tail`, for tail calls). -/
 inductive ExtEff where
   | fall (p q : Nat)
   | tail (p r : Nat)
+  /-- Never falls through after popping `p` values (`throw`, `throw_ref`). -/
+  | stop (p : Nat)
+  /-- A `try_table`'s clauses push `ns` values each (consulted by `chk1E` only). -/
+  | catches (ns : List Nat)
 
 /-- An extension of the arity check: the effects of the non-native call forms
 (`call_indirect`, `call_ref`, `return_call`, `return_call_ref`,
 `return_call_indirect`), read in the store's functions and the module instance.
-`flatChkE` consults it **only** for those five instructions, so on every other
-instruction any extension agrees with the native check, and the native check
-rejects all five. The extension is static. That the callee resolved at run time
+`flatChkE` consults it **only** for those five instructions and the exception
+instructions `throw`/`throw_ref` (and `chk1E` for `try_table`'s clauses, `.catches`), so on
+every other instruction any extension agrees with the native check, and the native check
+rejects all of them. The extension is static. That the callee resolved at run time
 has the arity it describes is a hypothesis of the call cases of the simulation,
 discharged from typing. -/
 abbrev ExtArity (H : Type) : Type :=
@@ -175,6 +180,8 @@ def extStep (e : Option ExtEff) (ret h : Nat) : Option (Option Nat) :=
   match e with
   | some (.fall p q) => if p ≤ h then some (some (h - p + q)) else none
   | some (.tail p r) => if p ≤ h ∧ r = ret then some none else none
+  | some (.stop p) => if p ≤ h then some none else none
+  | some (.catches _) => none
   | none => none
 
 /-- The arity check of a flat instruction at stack height `h`, under labels of arities
@@ -197,6 +204,8 @@ def flatChkE (ext : ExtArity H) (F : List (Execution.Core.FuncInst H))
   | .returnCall x => extStep (ext F mi (.returnCall x)) ret h
   | .returnCallRef y => extStep (ext F mi (.returnCallRef y)) ret h
   | .returnCallIndirect x y => extStep (ext F mi (.returnCallIndirect x y)) ret h
+  | .throw x => extStep (ext F mi (.throw x)) ret h
+  | .throwRef => extStep (ext F mi .throwRef) ret h
   | i => match flatEff F mi nl i with
     | some (p, q) => if p ≤ h then some (some (h - p + q)) else none
     | none => none
@@ -205,6 +214,16 @@ def flatChkE (ext : ExtArity H) (F : List (Execution.Core.FuncInst H))
 abbrev flatChk (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleInst)
     (nl ret : Nat) (labels : List Nat) (h : Nat) : Instr → Option (Option Nat) :=
   flatChkE noExt F mi nl ret labels h
+
+/-- The label of a handler clause. -/
+def catchLabel : Catch → LabelIdx
+  | .catch_ _ l | .catchRef _ l | .catchAll l | .catchAllRef l => l
+
+/-- Every clause branches to a label whose arity is at most the number of values it pushes. -/
+def catchOk (labels : List Nat) (cs : List Catch) (ns : List Nat) : Bool :=
+  cs.length == ns.length && (List.zip cs ns).all fun p => match labels[(catchLabel p.1).toNat]? with
+    | some m => decide (m ≤ p.2)
+    | none => false
 
 /-- A body check result ends at arity `n` (or never falls through). -/
 def endsAt : Option (Option Nat) → Nat → Bool
@@ -248,7 +267,13 @@ def chk1E (ext : ExtArity H) (F : List (Execution.Core.FuncInst H)) (mi : Execut
           some (some (h₁ - 1 - np + nr))
         else none
       | none => none
-  | .tryTable .. => none
+  | .tryTable bt cs body => match ext F mi (.tryTable bt cs []), blockArity mi bt with
+    | some (.catches ns), some (np, nr) =>
+      if decide (np ≤ h) && catchOk labels cs ns &&
+          endsAt (chkE ext F mi nl ret (nr :: labels) (some np) body) nr then
+        some (some (h - np + nr))
+      else none
+    | _, _ => none
 end
 
 /-- **The native arity check** of a sequence of trees. -/

@@ -474,6 +474,6 @@ theorem back_whole (hT : HostTyped host) (hH : Interp.NativeHostSlice host) :
     · exact case_if hT hH ihle
     · intro s f stk labels ret out c _ hc
       obtain ⟨o₁, h1, -⟩ := Interp.chk_consE.mp hc
-      simp [Interp.chk1E] at h1
+      simp [Interp.chk1E, Interp.noExt] at h1
 
 end Silmaril.Proofs.Wasm.Abstract.HostEval

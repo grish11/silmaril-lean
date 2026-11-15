@@ -695,7 +695,7 @@ theorem div_step (hT : HostTyped host) (hH : Interp.NativeHostSlice host) :
     · exfalso
       obtain ⟨⟨labels, ret, out, -, hc, -⟩, -⟩ := h
       obtain ⟨o₁, h1, -⟩ := Interp.chk_consE.mp hc
-      simp [Interp.chk1E] at h1
+      simp [Interp.chk1E, Interp.noExt] at h1
 
 /-- **Divergent runs with host calls**, deterministic profile `profile o`, for a host with
 typed answers (`HostTyped`) in the native host slice: a divergent Core run of arity-checked,

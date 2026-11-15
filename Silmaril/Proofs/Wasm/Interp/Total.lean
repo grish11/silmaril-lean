@@ -657,7 +657,7 @@ theorem term_step (rec : RecFrom o (pcfg s f stk es) (sizeOf es)) : Term s f stk
     | tryTable bt cs body =>
       intro labels ret out hc
       obtain ⟨o₁, h1, -⟩ := chk_cons.mp hc
-      simp[chk1, chk1E] at h1
+      simp[chk1, chk1E, noExt] at h1
 
 end Cases
 

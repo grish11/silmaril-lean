@@ -337,9 +337,11 @@ theorem FlowOk.escape {labels : List Nat} {ret n : Nat} {o o' : Option Nat} {fl 
 
 /-! ## The extension parameter is conservative -/
 
-/-- The five call forms an extension may describe. -/
+/-- The flat instructions an extension may describe: the five call forms and the exception
+instructions `throw`/`throw_ref`. -/
 def Instr.IsExtCall : Instr → Prop
-  | .callIndirect .. | .callRef _ | .returnCall _ | .returnCallRef _ | .returnCallIndirect .. => True
+  | .callIndirect .. | .callRef _ | .returnCall _ | .returnCallRef _ | .returnCallIndirect ..
+  | .throw _ | .throwRef => True
   | _ => False
 
 /-- **Off the extension's call forms, every extension is the native check.** -/
@@ -347,6 +349,31 @@ theorem flatChkE_eq_flatChk (ext : ExtArity H) {F : List (FuncInst H)} {mi : Mod
     {nl ret : Nat} {labels : List Nat} {h : Nat} {i : Instr} (hi : ¬ Instr.IsExtCall i) :
     flatChkE ext F mi nl ret labels h i = flatChk F mi nl ret labels h i := by
   cases i <;> first | rfl | exact absurd trivial hi
+
+/-- **Exceptions are off unless the extension describes them**: an extension answering `none`
+on `throw x` rejects it, as the native check does. -/
+theorem flatChkE_throw_of_none {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst}
+    {nl ret : Nat} {labels : List Nat} {h : Nat} {x : TagIdx} (he : ext F mi (.throw x) = none) :
+    flatChkE ext F mi nl ret labels h (.throw x) = none := by
+  simp [flatChkE, he, extStep]
+
+/-- The same for `throw_ref`. -/
+theorem flatChkE_throwRef_of_none {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst}
+    {nl ret : Nat} {labels : List Nat} {h : Nat} (he : ext F mi .throwRef = none) :
+    flatChkE ext F mi nl ret labels h .throwRef = none := by
+  simp [flatChkE, he, extStep]
+
+/-- The same for `try_table`: unless the extension gives its clauses' value counts, it is
+rejected. -/
+theorem chk1E_tryTable_of_none {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst}
+    {nl ret : Nat} {labels : List Nat} {h : Nat} {bt : BlockType} {cs : List Catch}
+    {body : List Binaryen.BExpr} (he : ∀ ns, ext F mi (.tryTable bt cs []) ≠ some (.catches ns)) :
+    chk1E ext F mi nl ret labels h (.tryTable bt cs body) = none := by
+  simp only [chk1E]
+  split
+  · rename_i ns np nr hx _
+    exact absurd hx (he ns)
+  · rfl
 
 /-- The native check rejects the extension's call forms. -/
 theorem flatChk_extCall {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat}
@@ -710,7 +737,7 @@ theorem chk1_transfer (hA : Arities F₁ mi₁ F₂ mi₂) {labels : List Nat} :
       simp only [hA.block bt _ hbt, hle, decide_true,
         endsAt_transfer (fun _ => chk_transfer hA (some np) t) ht,
         endsAt_transfer (fun _ => chk_transfer hA (some np) el) he, Bool.and_self, ite_true]
-  | h, .tryTable .., o, hc => by simp[chk1, chk1E] at hc
+  | h, .tryTable .., o, hc => by simp[chk1, chk1E, noExt] at hc
 end
 
 end Transfer
@@ -765,6 +792,8 @@ theorem flatChkE_ext (h : FuncsExt F F') {labels : List Nat} {k : Nat} {i : Inst
   case returnCall x => exact extStep_ext h hc
   case returnCallRef y => exact extStep_ext h hc
   case returnCallIndirect x y => exact extStep_ext h hc
+  case throw x => exact extStep_ext h hc
+  case throwRef => exact extStep_ext h hc
   case intLoad t p x arg => rcases p with _ | p <;> exact hc
   case intStore t p x arg => rcases p with _ | p <;> exact hc
   all_goals exact hc
@@ -814,7 +843,23 @@ theorem chk1E_ext (h : FuncsExt F F') {labels : List Nat} :
       simp only [hbt, hle, decide_true,
         endsAt_transfer (fun _ => chkE_ext h (some np) t) ht,
         endsAt_transfer (fun _ => chkE_ext h (some np) el) he, Bool.and_self, ite_true]
-  | k, .tryTable .., o, hc => by simp [chk1E] at hc
+  | k, .tryTable bt cs body, o, hc => by
+    simp only [chk1E] at hc ⊢
+    split at hc
+    · rename_i ns np nr hx hbt
+      rw [hext.stable h hx, hbt]
+      simp only at hc ⊢
+      split at hc
+      · rename_i hcond
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
+        have hc' : (decide (np ≤ k) && catchOk labels cs ns &&
+            endsAt (chkE ext F' mi nl ret (nr :: labels) (some np) body) nr) = true := by
+          simp only [hcond.1.1, hcond.1.2, decide_true, Bool.true_and,
+            endsAt_transfer (fun _ => chkE_ext h (some np) body) hcond.2]
+        simp only [hc', ite_true]
+        exact hc
+      · cases hc
+    · cases hc
 end
 
 end TransferE
@@ -876,7 +921,7 @@ theorem chk1E_of_chk1 {labels : List Nat} :
       simp only [hbt, hle, decide_true,
         endsAt_transfer (fun _ => chkE_of_chk (some np) t) ht,
         endsAt_transfer (fun _ => chkE_of_chk (some np) el) he, Bool.and_self, ite_true]
-  | k, .tryTable .., o, hc => by simp [chk1E] at hc
+  | k, .tryTable .., o, hc => by simp [chk1, chk1E, noExt] at hc
 end
 
 /-- **A natively checked store passes every extended check** (`chkE_of_chk`). -/

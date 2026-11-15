@@ -89,7 +89,7 @@ theorem callee_split {s₁ : Store H} {a : Nat} {us : List Val} {fi : FuncInst H
 theorem instr_cases (i : Instr) :
     (∃ x, i = .call x) ∨ (∃ x y, i = .callIndirect x y) ∨ (∃ y, i = .callRef y) ∨
       (∃ x, i = .returnCall x) ∨ (∃ x y, i = .returnCallIndirect x y) ∨ (∃ y, i = .returnCallRef y) ∨
-      ((∀ x, i ≠ .call x) ∧ ¬ Instr.IsExtCall i) := by
+      ((∃ x, i = .throw x) ∨ i = .throwRef) ∨ ((∀ x, i ≠ .call x) ∧ ¬ Instr.IsExtCall i) := by
   cases i <;> simp [Instr.IsExtCall]
 
 end Cases
@@ -148,7 +148,13 @@ theorem badX_op {i : Instr} {args : List Binaryen.BExpr} (hbad : BadX s f stk (.
   have hW₁ : WasmFuncsT s₁ := wasmFuncsT_run hargs hW
   have hg : GoodX s f stk (.op i args :: es) := ⟨ht, hW⟩
   rcases instr_cases i with ⟨x, rfl⟩ | ⟨x, y, rfl⟩ | ⟨y, rfl⟩ | ⟨x, rfl⟩ | ⟨x, y, rfl⟩ | ⟨y, rfl⟩ |
-    ⟨hi, hx⟩
+    (⟨x, rfl⟩ | rfl) | ⟨hi, hx⟩
+  rotate_left 6
+  · -- `tExt` rejects `throw`
+    simp [flatChkE, tExt, extStep] at hf
+  · -- and `throw_ref`
+    simp [flatChkE, tExt, extStep] at hf
+  rotate_right 6
   · -- call
     obtain ⟨p, q, hpq, hp, -⟩ := flatChk_call (flatChkE_call hf)
     obtain ⟨a, fi, ps, rs, hfi, hty, rfl, rfl⟩ := callArity_func? hpq
@@ -342,7 +348,7 @@ theorem badX_step (hbad : BadX s f stk es) : DivStepX BadX BadX s f stk es := by
     | tryTable bt cs body =>
       obtain ⟨⟨⟨rest, labels, ret, out, -, hc, -⟩, -⟩, -⟩ := hbad
       obtain ⟨o₁, h1, -⟩ := chk_consE.mp hc
-      simp [chk1E] at h1
+      simp [chk1E, tExt] at h1
 
 end Ctl
 
