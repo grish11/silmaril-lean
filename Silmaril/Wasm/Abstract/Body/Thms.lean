@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.Body.Defs
 public import Silmaril.Semantics.IterOps.Thms
 import Silmaril.Proofs.Wasm.Abstract.Body.Basic
+import Silmaril.Proofs.Wasm.Abstract.Body.Iter
 
 /-!
 # Abstract Wasm function bodies: theorems
@@ -23,9 +24,12 @@ import Silmaril.Proofs.Wasm.Abstract.Body.Basic
 * `collapse_pure`, `collapse_bind`, `collapse_trap`: collapsing traps into
   divergence is a monad morphism `BodyM → BodyC` that sends a trap to
   `diverge`.
+* `collapse_iter`: it preserves iteration, so it is an Elgot monad morphism,
+  an identity-on-objects functor of the two Kleisli categories that preserves
+  composition and iteration. A trap inside a loop leaves the loop in `BodyM`;
+  after collapsing, the trapping iteration diverges, and so does the loop.
 
-**Not yet proved.** That `collapse` preserves iteration, which would make it an
-Elgot (identity-on-objects) functor between the two categories. The concrete
+**Not yet proved.** The concrete
 half of the target: typed concrete Wasm bodies, their syntactic constructors,
 preservation, congruence, faithfulness on the chosen quotient, image closure,
 and only then the subcategory isomorphism. LetIter (`Silmaril.SSA.Isotope`)
@@ -87,6 +91,11 @@ theorem collapse_pure {A : Type (u + 1)} (a : A) :
 theorem collapse_bind {A B : Type (u + 1)} (x : BodyM E S T A) (f : A → BodyM E S T B) :
     collapse (x >>= f) = (collapse x >>= fun a => collapse (f a)) :=
   Silmaril.Proofs.Wasm.Abstract.Body.collapse_bind x f
+
+/-- Collapsing preserves iteration: it is an Elgot monad morphism. -/
+theorem collapse_iter {A B : Type (u + 1)} (F : A → BodyM E S T (B ⊕ A)) (a : A) :
+    collapse (Silmaril.Elgot.iter F a) = Silmaril.Elgot.iter (fun a => collapse (F a)) a :=
+  Silmaril.Proofs.Wasm.Abstract.Body.collapse_iter F a
 
 /-- Collapsing sends a trap to divergence. -/
 theorem collapse_trap {A : Type (u + 1)} (t : T) :
