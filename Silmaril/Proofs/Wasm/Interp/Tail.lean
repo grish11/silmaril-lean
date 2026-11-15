@@ -328,7 +328,7 @@ section TCases
 
 set_option linter.unusedSectionVars false
 
-variable {ext : ExtArity H} [ExtStable ext] {s₂ : Store H} {f₂ : Frame} {stk₁ vs : List Val}
+variable {ext : ExtArity H} [ExtStable ext] {eh : Bool} {s₂ : Store H} {f₂ : Frame} {stk₁ vs : List Val}
   {es args body : List Binaryen.BExpr} {i : Instr} {fl fl' : Binaryen.Flow}
   {r : Store H × Frame × Binaryen.Flow}
 
@@ -362,7 +362,7 @@ theorem coreT_argsAbort (iha : CoreGoodT ext P host s f stk args (s₁, f₁, fl
   exact wp_append_abruptT (iha hS ha) hfl
 
 theorem coreT_blockAbrupt (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl))
+    (hbody : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl) eh)
     (ihb : CoreGoodT ext P host s f (stk.take np) body (s₁, f₁, fl))
     (hfl : (∃ k vs, fl = .brk (k + 1) vs ∧ fl' = .brk k vs) ∨ (fl.Escapes ∧ fl' = fl)) :
     CoreGoodT ext P host s f stk (.block bt body :: es) (s₁, f₁, fl') := by
@@ -373,7 +373,7 @@ theorem coreT_blockAbrupt (har : Binaryen.arity f bt = some (np, nr))
   exact wp_block_abruptT har hp (ihb hS hbc) hfl
 
 theorem coreT_loopAbrupt (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl))
+    (hbody : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl) eh)
     (ihb : CoreGoodT ext P host s f (stk.take np) body (s₁, f₁, fl))
     (hfl : (∃ k vs, fl = .brk (k + 1) vs ∧ fl' = .brk k vs) ∨ (fl.Escapes ∧ fl' = fl)) :
     CoreGoodT ext P host s f stk (.loop bt body :: es) (s₁, f₁, fl') := by
@@ -384,10 +384,10 @@ theorem coreT_loopAbrupt (har : Binaryen.arity f bt = some (np, nr))
   exact wp_loop_abruptT har hp (ihb hS hbc) hfl
 
 theorem coreT_ifAbrupt {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
-    (hcond : ArityGoodE ext s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    (hcond : ArityGoodE ext s f stk c (s₁, f₁, .normal (cv :: stk₁)) eh)
     (ihc : CoreGoodE ext P host s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (hb : Binaryen.truthy cv = some b) (har : Binaryen.arity f₁ bt = some (np, nr))
-    (harm : ArityGoodE ext s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
+    (harm : ArityGoodE ext s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl) eh)
     (iharm : CoreGoodT ext P host s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
     (hfl : (∃ k vs, fl = .brk (k + 1) vs ∧ fl' = .brk k vs) ∨ (fl.Escapes ∧ fl' = fl)) :
     CoreGoodT ext P host s f stk (.if_ bt c t el :: es) (s₂, f₂, fl') := by
@@ -414,12 +414,12 @@ variable {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func} {ps rs : List Val
 
 /-- **A call whose callee hands back values**, the callee body under `CoreGoodT`
 (it may end in a tail call). -/
-theorem coreT_callOk (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁))
+theorem coreT_callOk (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
     (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hbody : ArityGoodE ext s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
-      (s₂, f₂, fl))
+      (s₂, f₂, fl) eh)
     (ihb : CoreGoodT ext P host s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, fl))
     (hvs : fl.retVals = some vs)
@@ -449,12 +449,12 @@ theorem coreT_callOk (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal s
 
 /-- **A call whose callee traps**, the callee body under `CoreGoodT` (it may trap
 in a tail-called function). -/
-theorem coreT_callTrap (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁))
+theorem coreT_callTrap (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
     (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hbody : ArityGoodE ext s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
-      (s₂, f₂, .trap))
+      (s₂, f₂, .trap) eh)
     (ihb : CoreGoodT ext P host s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, .trap)) :
     CoreGoodE ext P host s f stk (.op (.call x) args :: es) (s₂, f₁, .trap) := by
