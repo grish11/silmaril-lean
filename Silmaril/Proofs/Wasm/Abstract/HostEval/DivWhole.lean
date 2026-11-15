@@ -602,7 +602,8 @@ theorem div_loop (hT : HostTyped host) (hH : Interp.NativeHostSlice host)
       (by simp [Binaryen.Flow.IsNormal]) htL hd₁).elim
   · exact (div_label_abrupt he hm (.inr ⟨by simp [Binaryen.Flow.Escapes], rfl⟩)
       (by simp [Binaryen.Flow.IsNormal]) htL hd₁).elim
-  · rcases oc <;> simp only [Interp.FlowMatch] at hm
+  · exact (div_label_abrupt he hm (.inr ⟨by simp [Binaryen.Flow.Escapes], rfl⟩)
+      (by simp [Binaryen.Flow.IsNormal]) htL hd₁).elim
 
 /-- **The `if` case.** -/
 theorem div_if (hT : HostTyped host) (hH : Interp.NativeHostSlice host)

@@ -320,7 +320,18 @@ theorem back_loopL {o : GrowOracle} {n : Nat} {s : Store H} {f : Frame}
         (s := rcs) (f := rcf) he'' hm'' (by simp [Binaryen.Flow.IsNormal])) h
       subst this
       exact .inr (.inr (.inr ⟨hesc, ⟨o'', he'', rfl, rfl, hm''⟩, rfl⟩))
-    · rcases oc <;> simp_all [Interp.FlowMatch]
+    · -- throws
+      have hesc : (Binaryen.Flow.throw t).Escapes := by simp [Binaryen.Flow.Escapes]
+      have hw := Interp.exit_abrupt (P := profile o)
+        (host := Det.noHost) (s₁ := rcs) (f₁ := rcf) (n := np)
+        (cont := [.loop bt (Binaryen.BExpr.lowerList body)])
+        he hm (.inr ⟨hesc, rfl⟩) (stk.drop np).reverse rest
+      obtain ⟨c'', o'', hst', he'', hm''⟩ := Interp.run_of_wp hw
+      obtain ⟨m, -, h⟩ := evRunN_through_steps hst' hk hend
+      obtain ⟨this, rfl⟩ := evRunN_of_stuck (ends_abrupt_stuck (P := profile o) (host := host)
+        (s := rcs) (f := rcf) he'' hm'' (by simp [Binaryen.Flow.IsNormal])) h
+      subst this
+      exact .inr (.inr (.inr ⟨hesc, ⟨o'', he'', rfl, rfl, hm''⟩, rfl⟩))
   · left
     obtain ⟨rfl, rfl⟩ := hx (atHost_isSome hat)
     obtain ⟨rcs, rcf, rcc⟩ := cb
@@ -450,7 +461,13 @@ theorem back_prefixL {P : Silmaril.Wasm.Numerics.Profile} {n : Nat} {s : Store H
           obtain ⟨k₀, K', rfl⟩ := List.exists_cons_of_ne_nil hK
           simpa using Step.trapInstrs (P := P) (host := Det.noHost) (s := c₁.store)
             (f := c₁.frame) (vs := []) (rest := k₀ :: K') (.inr (by simp))
-        · rcases fl <;> simp_all [Interp.FlowMatch, Binaryen.Flow.IsNormal]
+        · have he' : c₁.code = throwing _ := he
+          exfalso
+          apply hend ⟨c₁.store, c₁.frame, throwing _⟩
+          rw [he']
+          obtain ⟨k₀, K', rfl⟩ := List.exists_cons_of_ne_nil hK
+          simpa using Step.throwRefInstrs (P := P) (host := Det.noHost) (s := c₁.store)
+            (f := c₁.frame) (vs := []) (rest := k₀ :: K') (.inr (by simp))
         · rcases fl <;> simp_all [Interp.FlowMatch, Binaryen.Flow.IsNormal]
         · rcases fl <;> simp_all [Interp.FlowMatch, Binaryen.Flow.IsNormal]
   · left

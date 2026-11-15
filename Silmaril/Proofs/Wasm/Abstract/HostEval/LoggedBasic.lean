@@ -299,7 +299,14 @@ theorem back_op_argsL {n : Nat} {s : Store H} {f : Frame} {stk : List Val} {i : 
             simpa using Step.trapInstrs (P := P) (host := Det.noHost) (s := c₁.store)
               (f := c₁.frame) (vs := []) (rest := .plain i ::
                 expression (Binaryen.BExpr.lowerList es)) (.inr (by simp))
-          · rcases fl <;> simp_all [Interp.FlowMatch, Binaryen.Flow.IsNormal]
+          · -- a throw before more code has a host-free step
+            have he' : c₁.code = throwing _ := he
+            exfalso
+            apply hend ⟨c₁.store, c₁.frame, throwing _⟩
+            rw [he']
+            simpa using Step.throwRefInstrs (P := P) (host := Det.noHost) (s := c₁.store)
+              (f := c₁.frame) (vs := []) (rest := .plain i ::
+                expression (Binaryen.BExpr.lowerList es)) (.inr (by simp))
           · rcases fl <;> simp_all [Interp.FlowMatch, Binaryen.Flow.IsNormal]
           · rcases fl <;> simp_all [Interp.FlowMatch, Binaryen.Flow.IsNormal]
       · obtain ⟨l, d, hl⟩ := hlog hnt

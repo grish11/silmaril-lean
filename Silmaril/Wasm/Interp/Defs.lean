@@ -360,6 +360,7 @@ def FlowMatch : Binaryen.Flow → Logic.Core.Outcome → Prop
   | .brk l vs, .br l' ws => l' = l ∧ ∃ junk, ws = junk ++ vs.reverse
   | .ret vs, .ret ws => ∃ junk, ws = junk ++ vs.reverse
   | .trap, .trap => True
+  | .throw a, .throw a' => a' = a
   | _, _ => False
 
 /-- The Core postcondition of a native result. -/

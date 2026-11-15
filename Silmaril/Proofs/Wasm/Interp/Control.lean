@@ -91,7 +91,11 @@ theorem wp_abrupt {c' : List Admin} {o : Outcome} {fl : Binaryen.Flow} (he : o.E
   · exact wp_abrupt_br he hm pre rest
   · exact wp_abrupt_ret he hm pre rest
   · exact wp_abrupt_trap he hm pre rest
-  · rcases o <;> simp only [FlowMatch] at hm
+  · rcases o with _ | _ | _ | _ | a' | _ | _ <;> simp only [FlowMatch] at hm
+    subst hm
+    have hc : c' = throwing _ := he
+    subst hc
+    exact wp_throwing ⟨rfl, rfl, rfl⟩
 
 /-- A sequence whose first part ends abruptly. -/
 theorem wp_append_abrupt' {c rest : List Admin} {s₁ : Store H} {f₁ : Frame} {fl : Binaryen.Flow}
@@ -437,7 +441,11 @@ theorem label_step_abrupt {fl fl' : Binaryen.Flow} (he : o.Ends c') (hm : FlowMa
     rcases fl with _ | _ | vs | _ | _ <;> simp only [Binaryen.Flow.Escapes] at hesc
     · exact label_step_ret he hm
     · exact label_step_trap he hm
-    · rcases o <;> simp only [FlowMatch] at hm
+    · rcases o with _ | _ | _ | _ | a' | _ | _ <;> simp only [FlowMatch] at hm
+      subst hm
+      have hc : c' = throwing _ := he
+      subst hc
+      exact ⟨_, .throw _, .throwRefLabel, rfl, rfl⟩
 
 /-- Leaving a label for a branch to an outer label, a return or a trap. -/
 theorem exit_abrupt {fl fl' : Binaryen.Flow} (he : o.Ends c') (hm : FlowMatch fl o)

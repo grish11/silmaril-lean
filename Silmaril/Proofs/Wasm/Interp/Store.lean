@@ -41,7 +41,7 @@ theorem fwd_invoke_store {fuel : Nat} {fl : Binaryen.Flow} (hS : StoreChk s.func
     obtain ⟨rfl, rfl⟩ := hK
     exact ⟨_, .values _, hst.trans hret, rfl, rfl, rfl⟩
   · exact ⟨_, .trap, hst.trans (frame_trap he hm), rfl, rfl, rfl⟩
-  · rcases o <;> simp only [FlowMatch] at hm
+  · exact absurd hok' id
 
 /-- Backward simulation with the final store, at the closed deterministic
 profile. -/
