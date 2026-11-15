@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Cfg.Exec.Defs
 public import Silmaril.Wasm.Execution.Core.Inversion.Defs
+public import Silmaril.Wasm.Abstract.Recursion.Defs
 
 @[expose] public section
 
@@ -113,122 +114,164 @@ inductive Catches (s : Store H) (f : Frame) (a : Nat) : List Catch → Option (L
   | empty : Catches s f a [] none
 
 /-- **The region semantics.** -/
-inductive Run (P : Profile) (host : HostSemantics H) :
+inductive RunC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) :
     Store H → Frame → List Val → List Admin → Store H → Frame → Out → Prop where
-  | nil {s : Store H} {f : Frame} {vs : List Val} : Run P host s f vs [] s f (.normal vs)
+  | nil {s : Store H} {f : Frame} {vs : List Val} : RunC P host C s f vs [] s f (.normal vs)
   | val {s s' : Store H} {f f' : Frame} {vs : List Val} {a : Admin} {v : Val}
       {code : List Admin} {o : Out} (hv : a.val? = some v)
-      (h : Run P host s f (vs ++ [v]) code s' f' o) : Run P host s f vs (a :: code) s' f' o
+      (h : RunC P host C s f (vs ++ [v]) code s' f' o) : RunC P host C s f vs (a :: code) s' f' o
   /-- A non-control instruction runs by Core reduction to values. -/
   | simple {s s₁ s' : Store H} {f f₁ f' : Frame} {vs vs₁ : List Val} {i : Instr}
       {code : List Admin} {o : Out} (hi : SingleThreaded.Det.famOf (.plain i) ≠ .control)
       (h₁ : Steps P host ⟨s, f, vals vs ++ [.plain i]⟩ ⟨s₁, f₁, vals vs₁⟩)
-      (h : Run P host s₁ f₁ vs₁ code s' f' o) : Run P host s f vs (.plain i :: code) s' f' o
+      (h : RunC P host C s₁ f₁ vs₁ code s' f' o) : RunC P host C s f vs (.plain i :: code) s' f' o
   /-- A non-control instruction traps. -/
   | simpleTrap {s s₁ : Store H} {f f₁ : Frame} {vs : List Val} {i : Instr} {code : List Admin}
       (hi : SingleThreaded.Det.famOf (.plain i) ≠ .control)
       (h₁ : Steps P host ⟨s, f, vals vs ++ [.plain i]⟩ ⟨s₁, f₁, [.trap]⟩) :
-      Run P host s f vs (.plain i :: code) s₁ f₁ .trap
+      RunC P host C s f vs (.plain i :: code) s₁ f₁ .trap
   | trap {s : Store H} {f : Frame} {vs : List Val} {code : List Admin} :
-      Run P host s f vs (.trap :: code) s f .trap
+      RunC P host C s f vs (.trap :: code) s f .trap
   | br {s : Store H} {f : Frame} {vs : List Val} {l : LabelIdx} {code : List Admin} :
-      Run P host s f vs (.plain (.br l) :: code) s f (.br l.toNat vs)
+      RunC P host C s f vs (.plain (.br l) :: code) s f (.br l.toNat vs)
   | ret {s : Store H} {f : Frame} {vs : List Val} {code : List Admin} :
-      Run P host s f vs (.plain .return_ :: code) s f (.ret vs)
+      RunC P host C s f vs (.plain .return_ :: code) s f (.ret vs)
   | brIf {s s' : Store H} {f f' : Frame} {ws : List Val} {k : BitVec 32} {l : LabelIdx}
       {code : List Admin} {o : Out}
-      (h : Run P host s f ws ((if k = 0 then [] else [.plain (.br l)]) ++ code) s' f' o) :
-      Run P host s f (ws ++ [.i32 k]) (.plain (.brIf l) :: code) s' f' o
+      (h : RunC P host C s f ws ((if k = 0 then [] else [.plain (.br l)]) ++ code) s' f' o) :
+      RunC P host C s f (ws ++ [.i32 k]) (.plain (.brIf l) :: code) s' f' o
   /-- `throw x` allocates the exception and throws it. -/
   | throw {s : Store H} {f : Frame} {ws vs : List Val} {x : TagIdx} {ta : Nat} {ti : TagInst}
       {ts : Ty (.list .val)} {code : List Admin} (ht : s.tag? f x = some (ta, ti))
       (he : Expand ti.type (.func ts .nil)) (hn : vs.length = ts.length) :
-      Run P host s f (ws ++ vs) (.plain (.throw x) :: code) (s.addExn ⟨ta, vs⟩) f
+      RunC P host C s f (ws ++ vs) (.plain (.throw x) :: code) (s.addExn ⟨ta, vs⟩) f
         (.throw s.exns.length)
   | throwRefNull {s : Store H} {f : Frame} {ws : List Val} {code : List Admin} :
-      Run P host s f (ws ++ [.ref .null]) (.plain .throwRef :: code) s f .trap
+      RunC P host C s f (ws ++ [.ref .null]) (.plain .throwRef :: code) s f .trap
   | throwRefExn {s : Store H} {f : Frame} {ws : List Val} {a : Nat} {code : List Admin} :
-      Run P host s f (ws ++ [.ref (.exn a)]) (.plain .throwRef :: code) s f (.throw a)
+      RunC P host C s f (ws ++ [.ref (.exn a)]) (.plain .throwRef :: code) s f (.throw a)
   | tryTable {s s' : Store H} {f f' : Frame} {ws us : List Val} {bt : BlockType}
       {cs : List Catch} {b : List Instr} {t₁ t₂ : List CValType} {code : List Admin} {o : Out}
       (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
-      (h : Run P host s f ws
+      (h : RunC P host C s f ws
         (.handler t₂.length cs [.label t₂.length [] (vals us ++ expression b)] :: code) s' f' o) :
-      Run P host s f (ws ++ us) (.plain (.tryTable bt cs b) :: code) s' f' o
+      RunC P host C s f (ws ++ us) (.plain (.tryTable bt cs b) :: code) s' f' o
   | labelThrow {s s₁ : Store H} {f f₁ : Frame} {vs : List Val} {n : Nat}
       {cont : List Instr} {inner code : List Admin} {a : Nat}
-      (hin : Run P host s f [] inner s₁ f₁ (.throw a)) :
-      Run P host s f vs (.label n cont inner :: code) s₁ f₁ (.throw a)
+      (hin : RunC P host C s f [] inner s₁ f₁ (.throw a)) :
+      RunC P host C s f vs (.label n cont inner :: code) s₁ f₁ (.throw a)
   /-- The handler's body falls through. -/
   | handlerNormal {s s₁ s' : Store H} {f f₁ f' : Frame} {vs us : List Val} {n : Nat}
       {cs : List Catch} {inner code : List Admin} {o : Out}
-      (hin : Run P host s f [] inner s₁ f₁ (.normal us))
-      (h : Run P host s₁ f₁ (vs ++ us) code s' f' o) :
-      Run P host s f vs (.handler n cs inner :: code) s' f' o
+      (hin : RunC P host C s f [] inner s₁ f₁ (.normal us))
+      (h : RunC P host C s₁ f₁ (vs ++ us) code s' f' o) :
+      RunC P host C s f vs (.handler n cs inner :: code) s' f' o
   /-- A branch, a return or a trap passes through a handler. -/
   | handlerBr {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n l : Nat} {cs : List Catch}
-      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.br l us)) :
-      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ (.br l (vs ++ us))
+      {inner code : List Admin} (hin : RunC P host C s f [] inner s₁ f₁ (.br l us)) :
+      RunC P host C s f vs (.handler n cs inner :: code) s₁ f₁ (.br l (vs ++ us))
   | handlerRet {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat} {cs : List Catch}
-      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.ret us)) :
-      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ (.ret (vs ++ us))
+      {inner code : List Admin} (hin : RunC P host C s f [] inner s₁ f₁ (.ret us)) :
+      RunC P host C s f vs (.handler n cs inner :: code) s₁ f₁ (.ret (vs ++ us))
   | handlerTrap {s s₁ : Store H} {f f₁ : Frame} {vs : List Val} {n : Nat} {cs : List Catch}
-      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ .trap) :
-      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ .trap
+      {inner code : List Admin} (hin : RunC P host C s f [] inner s₁ f₁ .trap) :
+      RunC P host C s f vs (.handler n cs inner :: code) s₁ f₁ .trap
   /-- A thrown exception is caught by the first matching clause: a branch to its label. -/
   | handlerCatch {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n a : Nat} {l : LabelIdx}
-      {cs : List Catch} {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.throw a))
+      {cs : List Catch} {inner code : List Admin} (hin : RunC P host C s f [] inner s₁ f₁ (.throw a))
       (hc : Catches s₁ f₁ a cs (some (us, l))) :
-      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ (.br l.toNat (vs ++ us))
+      RunC P host C s f vs (.handler n cs inner :: code) s₁ f₁ (.br l.toNat (vs ++ us))
   /-- No clause matches: the exception propagates. -/
   | handlerRethrow {s s₁ : Store H} {f f₁ : Frame} {vs : List Val} {n a : Nat} {cs : List Catch}
-      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.throw a))
+      {inner code : List Admin} (hin : RunC P host C s f [] inner s₁ f₁ (.throw a))
       (hc : Catches s₁ f₁ a cs none) :
-      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ (.throw a)
+      RunC P host C s f vs (.handler n cs inner :: code) s₁ f₁ (.throw a)
   /-- A data-dependent branch reads its operands (`BrStep`). -/
   | brData {s s' : Store H} {f f' : Frame} {ws us us' : List Val} {i : Instr} {X : List Admin}
       {code : List Admin} {o : Out} (hb : BrStep s f us i us' X)
-      (h : Run P host s f (ws ++ us') (X ++ code) s' f' o) :
-      Run P host s f (ws ++ us) (.plain i :: code) s' f' o
+      (h : RunC P host C s f (ws ++ us') (X ++ code) s' f' o) :
+      RunC P host C s f (ws ++ us) (.plain i :: code) s' f' o
   | block {s s' : Store H} {f f' : Frame} {ws us : List Val} {bt : BlockType} {b : List Instr}
       {t₁ t₂ : List CValType} {code : List Admin} {o : Out}
       (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
-      (h : Run P host s f ws (.label t₂.length [] (vals us ++ expression b) :: code) s' f' o) :
-      Run P host s f (ws ++ us) (.plain (.block bt b) :: code) s' f' o
+      (h : RunC P host C s f ws (.label t₂.length [] (vals us ++ expression b) :: code) s' f' o) :
+      RunC P host C s f (ws ++ us) (.plain (.block bt b) :: code) s' f' o
   | loop {s s' : Store H} {f f' : Frame} {ws us : List Val} {bt : BlockType} {b : List Instr}
       {t₁ t₂ : List CValType} {code : List Admin} {o : Out}
       (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
-      (h : Run P host s f ws (.label t₁.length [.loop bt b] (vals us ++ expression b) :: code)
+      (h : RunC P host C s f ws (.label t₁.length [.loop bt b] (vals us ++ expression b) :: code)
         s' f' o) :
-      Run P host s f (ws ++ us) (.plain (.loop bt b) :: code) s' f' o
+      RunC P host C s f (ws ++ us) (.plain (.loop bt b) :: code) s' f' o
   | if_ {s s' : Store H} {f f' : Frame} {ws : List Val} {k : BitVec 32} {bt : BlockType}
       {t e : List Instr} {code : List Admin} {o : Out}
-      (h : Run P host s f ws (.plain (.block bt (if k = 0 then e else t)) :: code) s' f' o) :
-      Run P host s f (ws ++ [.i32 k]) (.plain (.if_ bt t e) :: code) s' f' o
+      (h : RunC P host C s f ws (.plain (.block bt (if k = 0 then e else t)) :: code) s' f' o) :
+      RunC P host C s f (ws ++ [.i32 k]) (.plain (.if_ bt t e) :: code) s' f' o
   /-- The label's body falls through: its values are pushed. -/
   | labelNormal {s s₁ s' : Store H} {f f₁ f' : Frame} {vs us : List Val} {n : Nat}
       {cont : List Instr} {inner code : List Admin} {o : Out}
-      (hin : Run P host s f [] inner s₁ f₁ (.normal us))
-      (h : Run P host s₁ f₁ (vs ++ us) code s' f' o) :
-      Run P host s f vs (.label n cont inner :: code) s' f' o
+      (hin : RunC P host C s f [] inner s₁ f₁ (.normal us))
+      (h : RunC P host C s₁ f₁ (vs ++ us) code s' f' o) :
+      RunC P host C s f vs (.label n cont inner :: code) s' f' o
   /-- The body branches to the label itself: the continuation runs on the top `n` values. -/
   | labelBr0 {s s₁ s' : Store H} {f f₁ f' : Frame} {vs us₁ us₂ : List Val} {n : Nat}
       {cont : List Instr} {inner code : List Admin} {o : Out}
-      (hin : Run P host s f [] inner s₁ f₁ (.br 0 (us₁ ++ us₂))) (hn : us₂.length = n)
-      (h : Run P host s₁ f₁ vs (vals us₂ ++ expression cont ++ code) s' f' o) :
-      Run P host s f vs (.label n cont inner :: code) s' f' o
+      (hin : RunC P host C s f [] inner s₁ f₁ (.br 0 (us₁ ++ us₂))) (hn : us₂.length = n)
+      (h : RunC P host C s₁ f₁ vs (vals us₂ ++ expression cont ++ code) s' f' o) :
+      RunC P host C s f vs (.label n cont inner :: code) s' f' o
   | labelBrSucc {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n l : Nat}
       {cont : List Instr} {inner code : List Admin}
-      (hin : Run P host s f [] inner s₁ f₁ (.br (l + 1) us)) :
-      Run P host s f vs (.label n cont inner :: code) s₁ f₁ (.br l (vs ++ us))
+      (hin : RunC P host C s f [] inner s₁ f₁ (.br (l + 1) us)) :
+      RunC P host C s f vs (.label n cont inner :: code) s₁ f₁ (.br l (vs ++ us))
   | labelRet {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat}
       {cont : List Instr} {inner code : List Admin}
-      (hin : Run P host s f [] inner s₁ f₁ (.ret us)) :
-      Run P host s f vs (.label n cont inner :: code) s₁ f₁ (.ret (vs ++ us))
+      (hin : RunC P host C s f [] inner s₁ f₁ (.ret us)) :
+      RunC P host C s f vs (.label n cont inner :: code) s₁ f₁ (.ret (vs ++ us))
   | labelTrap {s s₁ : Store H} {f f₁ : Frame} {vs : List Val} {n : Nat}
       {cont : List Instr} {inner code : List Admin}
-      (hin : Run P host s f [] inner s₁ f₁ .trap) :
-      Run P host s f vs (.label n cont inner :: code) s₁ f₁ .trap
+      (hin : RunC P host C s f [] inner s₁ f₁ .trap) :
+      RunC P host C s f vs (.label n cont inner :: code) s₁ f₁ .trap
+
+  /-- `call x` asks the oracle `C` for the callee's run, on the top `ps.length` values in
+  parameter order. The callee's flow lists its results top first (`Binaryen.Flow`); the top
+  `rs.length` of them are pushed. The frame is the caller's. -/
+  | call {s s₁ s' : Store H} {f f' : Frame} {ws us vs : List Val} {x : FuncIdx} {a : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {fl : Binaryen.Flow} {code : List Admin}
+      {o : Out} (hfi : s.func? f x = some (a, fi)) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hcall : C s a us (s₁, fl)) (hvs : fl.retVals = some vs)
+      (h : RunC P host C s₁ f (ws ++ (vs.take rs.length).reverse) code s' f' o) :
+      RunC P host C s f (ws ++ us) (.plain (.call x) :: code) s' f' o
+  | callTrap {s s₁ : Store H} {f : Frame} {ws us : List Val} {x : FuncIdx} {a : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {code : List Admin}
+      (hfi : s.func? f x = some (a, fi)) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hcall : C s a us (s₁, .trap)) :
+      RunC P host C s f (ws ++ us) (.plain (.call x) :: code) s₁ f .trap
+  | callThrow {s s₁ : Store H} {f : Frame} {ws us : List Val} {x : FuncIdx} {a t : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {code : List Admin}
+      (hfi : s.func? f x = some (a, fi)) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hcall : C s a us (s₁, .throw t)) :
+      RunC P host C s f (ws ++ us) (.plain (.call x) :: code) s₁ f (.throw t)
+
+/-- The oracle that answers no call. -/
+def noCall : Abstract.CallRel H := fun _ _ _ _ => False
+
+/-- **Soundness of a call oracle for Core 3.0**: every answer of `C` for a Wasm-typed function
+is a Core run of the call (`ref.func a; call_ref`) on its arguments, in any caller frame, to
+the corresponding result: the top `rs.length` results (reversed into stack order), a trap, or a
+thrown exception. A named hypothesis; the intended instance is `Abstract.closedCall`. -/
+def CallSound (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) : Prop :=
+  ∀ (s s₁ : Store H) (f : Frame) (a : Nat) (fi : FuncInst H) (ps rs : List CValType)
+    (us : List Val) (fl : Binaryen.Flow),
+    s.funcs[a]? = some fi → DefType.funcType? fi.type = some (ps, rs) → us.length = ps.length →
+    C s a us (s₁, fl) →
+    (∀ vs, fl.retVals = some vs → Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+        ⟨s₁, f, vals (vs.take rs.length).reverse⟩) ∧
+    (fl = .trap → Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+        ⟨s₁, f, [.trap]⟩) ∧
+    (∀ t, fl = .throw t → Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+        ⟨s₁, f, throwing t⟩)
+
+/-- **The call-free region semantics**: `RunC` with no call answered. -/
+abbrev Run (P : Profile) (host : HostSemantics H) := RunC P host noCall
 
 /-- Sequencing: after a first part ends in state `s₁, f₁` with outcome `o₁`, the second part
 `B` runs on fall-through; any other outcome skips `B`. -/

@@ -37,7 +37,12 @@ All results hold for every profile `P` and every host `host`. Proofs are in
   (ranks on expansion level and the `fill`/`copy`/`init` counts), so **`div_iff`** is
   unconditional.
 
-Not covered: calls inside the body (`call`, `call_ref`, `call_indirect`, tail calls).
+* **Calls** (`RunC P host C`): `call x` is answered by an oracle `C : Abstract.CallRel H`, in
+  `EvalO`'s convention: arguments in parameter order, the callee's `Flow` results top first.
+  `Run P host = RunC P host noCall` is the call-free semantics, and every statement above is
+  about it. `run_soundC` holds under the named hypothesis `CallSound P host C`. Not yet:
+  `CallSound` for `Abstract.closedCall`, completeness with calls, `call_ref`/`call_indirect`, and
+  tail calls.
 -/
 
 namespace Silmaril.Wasm.Cfg.Region
@@ -51,6 +56,14 @@ theorem run_sound {vs : List Val} {code : List Admin} {o : Out}
     (h : Run P host s f vs code s' f' o) :
     ∃ c', Steps P host ⟨s, f, vals vs ++ code⟩ ⟨s', f', c'⟩ ∧ o.Ends c' :=
   Proofs.Region.sound h
+
+/-- **Soundness with calls**: with calls answered by an oracle `C` that is Core-sound
+(`CallSound`, a named hypothesis), a region run is a Core 3.0 run to a final form of its
+outcome. -/
+theorem run_soundC {C : Abstract.CallRel H} (hC : CallSound P host C) {vs : List Val}
+    {code : List Admin} {o : Out} (h : RunC P host C s f vs code s' f' o) :
+    ∃ c', Steps P host ⟨s, f, vals vs ++ code⟩ ⟨s', f', c'⟩ ∧ o.Ends c' :=
+  Proofs.Region.soundC hC h
 
 /-- **Completeness**: every Core 3.0 run of fragment code to a final form is a region run. -/
 theorem run_complete {code c' : List Admin} {o : Out} (hF : Frag code)
