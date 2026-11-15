@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Abstract.HostCall.Defs
+public import Silmaril.Wasm.Logic.Core.Thms
 
 /-!
 # Core 3.0 host calls as a relational host (proofs)
@@ -52,5 +53,41 @@ theorem functional_iff :
     · cases hD _ _ _ _ _ ho ho'
     · cases hD _ _ _ _ _ ho ho'
     · rfl
+
+/-- A direct `call` of a host function answered by the host, under values `ws`
+and before `rest`: two Core steps (`call`, then `call_ref-hostfunc`). -/
+theorem steps_call_answer {s s' : Store H} {f : Frame} {x : Silmaril.Wasm.FuncIdx} {a : Nat} {fi : FuncInst H}
+    {ps rs : Ty (.list .val)} {h : H} {us ws : List Val} {r : Result} {rest : List Admin}
+    (hx : f.module.funcs[x.toNat]? = some a) (hf : s.funcs[a]? = some fi)
+    (he : Expand fi.type (.func ps rs)) (hn : us.length = ps.length) (hcode : fi.code = .host h)
+    (hans : coreHostRel host ⟨h, s, us⟩ (.answer (s', r))) :
+    Steps P host ⟨s, f, vals ws ++ vals us ++ .plain (.call x) :: rest⟩
+      ⟨s', f, vals ws ++ r.toAdmin ++ rest⟩ := by
+  have h₁ := Silmaril.Wasm.Logic.Core.Step.ctx (P := P) (host := host) (ws ++ us) rest
+    (Step.call (s := s) (f := f) hx hf)
+  have h₂ := Silmaril.Wasm.Logic.Core.Step.ctx (P := P) (host := host) ws rest
+    (answer_step (f := f) hf he hn hcode hans)
+  simp only [vals_append, List.append_assoc, List.singleton_append] at h₁ h₂ ⊢
+  exact Relation.ReflTransGen.head h₁ (Relation.ReflTransGen.single (by simpa using h₂))
+
+/-- A direct `call` of a host function on which the host may diverge diverges in
+Core, under values `ws` and before `rest`. -/
+theorem diverges_call {s : Store H} {f : Frame} {x : Silmaril.Wasm.FuncIdx} {a : Nat} {fi : FuncInst H}
+    {ps rs : Ty (.list .val)} {h : H} {us ws : List Val} {rest : List Admin}
+    (hx : f.module.funcs[x.toNat]? = some a) (hf : s.funcs[a]? = some fi)
+    (he : Expand fi.type (.func ps rs)) (hn : us.length = ps.length) (hcode : fi.code = .host h)
+    (hdiv : coreHostRel host ⟨h, s, us⟩ .diverge) :
+    Diverges P host ⟨s, f, vals ws ++ vals us ++ .plain (.call x) :: rest⟩ := by
+  have h₁ := Silmaril.Wasm.Logic.Core.Step.ctx (P := P) (host := host) (ws ++ us) rest
+    (Step.call (s := s) (f := f) hx hf)
+  have h₂ := Silmaril.Wasm.Logic.Core.Step.ctx (P := P) (host := host) ws rest
+    (Step.callRefHostDiv (f := f) (c := .callRefType fi.type) trivial hf he hn hcode hdiv)
+  simp only [vals_append, List.append_assoc, List.singleton_append] at h₁ h₂ ⊢
+  let L : Config H := ⟨s, f, vals ws ++ (vals us ++ .ref (.func a) :: .callRefType fi.type :: rest)⟩
+  refine ⟨fun n => if n = 0 then ⟨s, f, vals ws ++ (vals us ++ .plain (.call x) :: rest)⟩ else L,
+    rfl, fun n => ?_⟩
+  rcases n with _ | n
+  · simpa [L] using h₁
+  · simpa [L] using h₂
 
 end Silmaril.Proofs.Wasm.Abstract.HostCall

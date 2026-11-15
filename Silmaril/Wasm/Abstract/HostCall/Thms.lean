@@ -23,6 +23,12 @@ caller frame, every profile and every host:
   has no Core step at all (by `Step.callRef_host_stuck`). It is stuck: not
   divergence, not a trap.
 
+In context, for a direct `call` (the shape the native relation will produce):
+
+* `coreHost_call_answer`: `vals ws ++ vals us ++ call x :: rest` runs in two
+  steps to `vals ws ++ r.toAdmin ++ rest` in the host's store `s'`;
+* `coreHost_call_diverge`: it diverges when the host may diverge.
+
 **Not yet proved.** The native relation with a host-call log, and its forward
 and backward simulation through these steps.
 -/
@@ -67,5 +73,24 @@ theorem coreHost_blocked_stuck {s : Store H} {f : Frame} {c : Config H} {a : Nat
   rcases o with ⟨s', r⟩ | _
   · exact hno (.answer (s', r)) ho
   · exact hno .diverge ho
+
+/-- **A direct call of a host function, answered**, under values and before a continuation. -/
+theorem coreHost_call_answer {s s' : Store H} {f : Frame} {x : Silmaril.Wasm.FuncIdx} {a : Nat}
+    {fi : FuncInst H} {ps rs : Ty (.list .val)} {h : H} {us ws : List Val} {r : Result}
+    {rest : List Admin} (hx : f.module.funcs[x.toNat]? = some a) (hf : s.funcs[a]? = some fi)
+    (he : Expand fi.type (.func ps rs)) (hn : us.length = ps.length) (hcode : fi.code = .host h)
+    (hans : coreHostRel host ⟨h, s, us⟩ (.answer (s', r))) :
+    Steps P host ⟨s, f, vals ws ++ vals us ++ .plain (.call x) :: rest⟩
+      ⟨s', f, vals ws ++ r.toAdmin ++ rest⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.steps_call_answer hx hf he hn hcode hans
+
+/-- **A direct call of a host function that may diverge diverges.** -/
+theorem coreHost_call_diverge {s : Store H} {f : Frame} {x : Silmaril.Wasm.FuncIdx} {a : Nat}
+    {fi : FuncInst H} {ps rs : Ty (.list .val)} {h : H} {us ws : List Val} {rest : List Admin}
+    (hx : f.module.funcs[x.toNat]? = some a) (hf : s.funcs[a]? = some fi)
+    (he : Expand fi.type (.func ps rs)) (hn : us.length = ps.length) (hcode : fi.code = .host h)
+    (hdiv : coreHostRel host ⟨h, s, us⟩ .diverge) :
+    Diverges P host ⟨s, f, vals ws ++ vals us ++ .plain (.call x) :: rest⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.diverges_call hx hf he hn hcode hdiv
 
 end Silmaril.Wasm.Abstract
