@@ -2,6 +2,8 @@ module
 
 public import Silmaril.Wasm.Abstract.FunctorP.Defs
 public import Silmaril.Wasm.Abstract.ExposeP.Thms
+public import Silmaril.Wasm.Abstract.ExposeE.Thms
+public import Silmaril.Wasm.Abstract.CallX.Thms
 import Silmaril.Proofs.Wasm.Abstract.FunctorP.Faithful
 
 /-!
@@ -255,5 +257,18 @@ theorem denFunctor_try {I : Iface} {bt : BlockType} {cls : List Catch} {body : L
     rw [denL_singleton, denT_try]⟩
 
 end
+
+
+/-! ## Coincidence with the native exposed body on the shared fragment -/
+
+/-- **On direct-call, exception-free code the canonical denotation is the native one**: without the
+extended call forms (`xFreeL`) and without `throw`/`throw_ref`/`try_table` (`ehFreeL`), `denListXP`
+is `StoreCall.denListE` (the exposed body of the native `EvalO`) with its flow results read as
+`ResP` flows (`liftP`). Composed from `ExposeP.denListXP_eq_liftP`, `ExposeE.denListXE_eq_denListX`
+and `CallX.denListX_eq_denListE`. -/
+theorem denListXP_native {es : List BExpr} (hx : CallX.xFreeL es = true) (he : CallXE.ehFreeL es = true)
+    (f : Frame) (stk : List Val) :
+    (denListXP (H := H) es f stk : M (CallSig H) H ResP) = liftP (denListE es f stk) := by
+  rw [denListXP_eq_liftP hx, ExposeE.denListXE_eq_denListX he, CallX.denListX_eq_denListE hx]
 
 end Silmaril.Wasm.Abstract.FunctorP
