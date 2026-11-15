@@ -38,6 +38,11 @@ open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core
 
 variable {H : Type}
 
+/-- A function looked up through a frame is in the store at its address. -/
+theorem funcs_of_func? {s : Store H} {f : Frame} {x : FuncIdx} {a : Nat} {fi : FuncInst H}
+    (h : s.func? f x = some (a, fi)) : s.funcs[a]? = some fi :=
+  Silmaril.Proofs.Wasm.Abstract.Recursion.funcs_of_func? h
+
 /-- Closing is the recursive callee relation. -/
 theorem closedCall_eq : (closedCall : CallRel H) = evalCall :=
   Silmaril.Proofs.Wasm.Abstract.Recursion.closedCall_eq

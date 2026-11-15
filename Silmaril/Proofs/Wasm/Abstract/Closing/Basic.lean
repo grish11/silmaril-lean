@@ -2,7 +2,6 @@ module
 
 public import Silmaril.Wasm.Abstract.Closing.Defs
 public import Silmaril.Wasm.Abstract.Recursion.Thms
-import Silmaril.Proofs.Wasm.Abstract.Recursion.Basic
 
 /-!
 # Wasm functions as an open abstract module: proofs
@@ -24,7 +23,6 @@ namespace Silmaril.Proofs.Wasm.Abstract.Closing
 
 open Silmaril.Games Silmaril.Games.Abstract
 open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core Silmaril.Wasm.Abstract
-open Silmaril.Proofs.Wasm.Abstract.Recursion (funcs_of_func? closedCall_eq_bodyCall)
 
 variable {H : Type}
 
@@ -334,7 +332,7 @@ theorem close_le : Shape.close (wasmOpen (H := H)) ≤ toClosed closedCall := by
   rintro a s vs y ⟨x, ⟨fi, fn, ps, rs, s', f₂, bfl, fl, hfi, hc, hty, hE, hx, he⟩, hS⟩
   have close : ∀ {s'' f'' bfl'}, EvalO closedCall s (Frame.forCall fi.module vs fn.locals) []
       (liftInstrs fn.body) (s'', f'', bfl') → closedCall s a vs (s'', bfl') := fun d => by
-    rw [closedCall_eq_bodyCall]
+    rw [closedCall_fixpoint]
     exact ⟨fi, fn, ps, rs, _, hfi, hc, hty, d⟩
   rcases subst_cases hS with ⟨h, rfl⟩ | ⟨h, rfl⟩ | ⟨rfl, z, -, hz⟩
   · exact ⟨fi, ps, rs, s', bfl, fl, hfi, hty, close ((evalO_of_evalL hE).1 h), hx, by rw [he]⟩
@@ -523,14 +521,14 @@ theorem close_wasmOpen (a : Nat) (s : Store H) (vs : List Val) :
   ext y
   constructor
   · rintro ⟨fi, ps, rs, s', bfl, fl, hfi, hty, hC, hx, rfl⟩
-    rw [closedCall_eq_bodyCall] at hC
+    rw [closedCall_fixpoint] at hC
     obtain ⟨fi', fn, ps', rs', f₂, hfi', hc, hty', d⟩ := hC
     obtain rfl : fi = fi' := Option.some.inj (hfi.symm.trans hfi')
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj (hty.symm.trans hty'))
     exact ⟨s', fl, ⟨fi, fn, ps, rs, f₂, bfl, hfi, hc, hty, d, hx⟩, rfl⟩
   · rintro ⟨s', fl, ⟨fi, fn, ps, rs, f₂, bfl, hfi, hc, hty, d, hx⟩, rfl⟩
     refine ⟨fi, ps, rs, s', bfl, fl, hfi, hty, ?_, hx, rfl⟩
-    rw [closedCall_eq_bodyCall]
+    rw [closedCall_fixpoint]
     exact ⟨fi, fn, ps, rs, f₂, hfi, hc, hty, d⟩
 
 end Silmaril.Proofs.Wasm.Abstract.Closing

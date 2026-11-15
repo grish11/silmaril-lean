@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Abstract.Function.Defs
 public import Silmaril.Wasm.Abstract.Recursion.Thms
 import Silmaril.Proofs.Wasm.Abstract.Closing.Basic
 import Silmaril.Proofs.Wasm.Abstract.Closing.Core
+import Silmaril.Proofs.Wasm.Abstract.Closing.Descent
 
 /-!
 # Wasm functions as an open abstract module: theorems
@@ -25,10 +26,13 @@ of an invocation is the absence of closed outcomes.
 
 **Scope.**
 
-* `Shape.closeD` is not related here. It adds `div` along infinite
-  internal-call chains, so it could be finer than "no closed outcome". For a
-  deterministic store it would give the same set of ends, but that is not
-  proved.
+* **`closeD` is sound, not complete.** An infinite internal-call chain
+  rules out every closed outcome of its first call
+  (`no_closedOutcome_of_divChain`, any store). So the `div` that `closeD` adds
+  is Core divergence, and under the Core hypotheses
+  `closeD wasmOpen ⊆ wasmFun` (`closeD_subset_wasmFun`). The converse fails
+  for loops without calls, which have no chain (see
+  `Silmaril.Wasm.Abstract.SelfLoop` for a recursion where the two agree).
 * Imports are absent (`Sig.empty`); the host is `closedHost`.
 * Only direct `call`s are exposed as internal calls. The Core results hold
   on the native profile (`NativeFuncsOk`: every function in the store is Wasm
@@ -67,5 +71,30 @@ theorem wasmFun_eq_close {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s
     wasmFun P closedHost a s vs =
       Shape.close wasmOpen a s vs ∪ {x | x = ([], .div) ∧ Shape.close wasmOpen a s vs = ∅} :=
   Silmaril.Proofs.Wasm.Abstract.Closing.wasmFun_eq_close hs hF hS hok P
+
+/-- **An infinite internal-call chain has no closed outcome.** The proof is
+by induction on the recursive derivation; the semantics is deterministic. -/
+theorem no_closedOutcome_of_divChain {s : Store H} {a : Nat} {vs : List Val}
+    {qs : List (Call Sig.empty)}
+    (h : Shape.DivChain wasmOpen (Shape.close wasmOpen) ⟨a, (vs, s)⟩ qs) (s' : Store H) (fl : Flow) :
+    ¬ ClosedOutcome s a vs s' fl :=
+  Silmaril.Proofs.Wasm.Abstract.Closing.no_closedOutcome_of_divChain h s' fl
+
+/-- So a call starting an infinite internal-call chain has nothing in `close`. -/
+theorem close_eq_empty_of_divChain {s : Store H} {a : Nat} {vs : List Val}
+    {qs : List (Call Sig.empty)}
+    (h : Shape.DivChain wasmOpen (Shape.close wasmOpen) ⟨a, (vs, s)⟩ qs) :
+    Shape.close wasmOpen a s vs = ∅ := by
+  rw [close_wasmOpen, Set.eq_empty_iff_forall_notMem]
+  rintro _ ⟨s', fl, hc, -⟩
+  exact no_closedOutcome_of_divChain h s' fl hc
+
+/-- **`closeD` is sound for Core 3.0**: under the Core hypotheses, every
+behaviour it gives is a behaviour of `wasmFun`. -/
+theorem closeD_subset_wasmFun {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+    (hF : NativeFuncsOk s.funcs) (hS : Silmaril.Wasm.Interp.StoreChk s.funcs)
+    (hok : InvokeOk s a vs) (P : Numerics.Profile) :
+    Shape.closeD wasmOpen a s vs ⊆ wasmFun P closedHost a s vs :=
+  Silmaril.Proofs.Wasm.Abstract.Closing.closeD_subset_wasmFun hs hF hS hok P
 
 end Silmaril.Wasm.Abstract
