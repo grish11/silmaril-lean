@@ -5,6 +5,7 @@ public import Silmaril.Proofs.Wasm.Interp.OracleCloseX
 public import Silmaril.Proofs.Wasm.Interp.TypedX
 public import Silmaril.Proofs.Wasm.Interp.TypedCloseX
 public import Silmaril.Proofs.Wasm.Interp.TailX
+public import Silmaril.Proofs.Wasm.Interp.TailCloseX
 
 /-!
 # Core 3.0 adequacy of the indirect and reference calls (F4, call forms)
@@ -30,9 +31,10 @@ the annotated type's counts; it forgets to `EvalOX` (`CallXT.EvalOXT.forget`).
   checker `tExt` (adds `return_call x`), `evalOXT_goodT` covers direct tail
   calls under the tail-aware postcondition (`MatchT`, shared step 4);
   `return_call_indirect`/`return_call_ref` stay rejected until the shared
-  repair for null tails (`Outcome.tailNull`). A tail call
-  replaces the caller's frame in Core 3.0; its adequacy is a frame-level
-  statement, still to come.
+  repair for null tails (`Outcome.tailNull`). At the frame level, the closure
+  on good stores is a sound oracle for `tExt` (`oracleSoundT_closedX`): a
+  callee body may end in a direct tail call, whose frame exit is closed by
+  `funcPost_of_tailRun`/`frame_tail_exit`. Hence `evalOX_closed_goodT`.
 * The arity premises of `EvalOXT` are discharged from typing in a follow-up
   (for `call_indirect` from the successful `ref.cast`, for `call_ref` from the
   reference's type).
@@ -129,5 +131,22 @@ theorem evalOXT_goodT {C : Abstract.CallRel H} (hC : Silmaril.Wasm.Interp.Oracle
     ArityGoodE Silmaril.Wasm.Interp.tExt s f stk es r ∧
       Silmaril.Wasm.Interp.CoreGoodT Silmaril.Wasm.Interp.tExt P host s f stk es r :=
   Silmaril.Wasm.Interp.evalOXT_goodT hC h
+
+/-- **The closure on good stores is a sound oracle for `tExt`**: callee bodies may end in a
+direct tail call (`return_call x`). -/
+theorem oracleSoundT_closedX :
+    Silmaril.Wasm.Interp.OracleSoundT P host (Silmaril.Wasm.Interp.closedX (H := H)) :=
+  Silmaril.Wasm.Interp.oracleSoundT_closedX
+
+/-- **Closed extended runs with direct tail calls are Core 3.0 runs** (good stores,
+`tExt`-checked code, tail-aware postcondition), no oracle assumed. -/
+theorem evalOX_closed_goodT {s : Store H} {f : Frame} {stk : List Val}
+    {es : List Binaryen.BExpr} {r : Store H × Frame × Binaryen.Flow}
+    (h : Abstract.CallX.EvalOX Abstract.XRecursion.closedCallX s f stk es r)
+    (hG : Silmaril.Wasm.Interp.GoodStoreX s) (hm : Abstract.CallXT.TyTypes f.module)
+    (hx : Abstract.CallXT.indOkL f.module es = true) :
+    ArityGoodE Silmaril.Wasm.Interp.tExt s f stk es r ∧
+      Silmaril.Wasm.Interp.CoreGoodT Silmaril.Wasm.Interp.tExt P host s f stk es r :=
+  Silmaril.Wasm.Interp.evalOX_closed_goodT h hG hm hx
 
 end Silmaril.Wasm.Interp.OracleX
