@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Wasm.Abstract.HostClosing.Defs
-import Silmaril.Proofs.Wasm.Abstract.HostClosing.Backward
+import Silmaril.Proofs.Wasm.Abstract.HostClosing.Pending
 
 /-!
 # Wasm functions with host calls as an open module: theorems
@@ -16,6 +16,10 @@ once the host answers in the log are those the host allows (`HostRel.Consistent`
 * `hostCall_wasmEv`: every `hostCall` outcome is a finished behaviour with a consistent log.
 
 Internal Wasm calls never appear in the log; host calls appear in execution order.
+
+**The pending links.** `wasmEvPend_iff`: a host call is pending after a consistent log exactly
+when it is the invocation of a host function itself, or a host call reached by
+`PendO (hostCall host)` from the invocation (`Silmaril.Wasm.Abstract.HostEval`).
 -/
 
 public section
@@ -45,5 +49,20 @@ theorem hostCall_wasmEv {s s₂ : Store H} {a : Nat} {vs : List Val} {fi : FuncI
     (h : hostCall host s a vs (s₂, bfl)) (hx : exitFlow rs.length bfl = some fl) :
     ∃ cs, (coreHostRel host).Consistent cs ∧ (cs, endOfFlow fl s₂) ∈ wasmEvFun s (a, vs) :=
   Silmaril.Proofs.Wasm.Abstract.HostClosing.hostCall_le_ofClosedH s a vs _ h fi ps rs fl hfi hty hx
+
+/-- **Pending replay**: a pending host call after a consistent log is the invocation of a host
+function itself or a `PendO (hostCall host)` host call, and conversely. -/
+theorem wasmEvPend_iff {s : Store H} {a : Nat} {vs : List Val} {m : (wasmHostSig H).Op} :
+    (∃ cs, (cs, m) ∈ wasmEvPend s (a, vs) ∧ (coreHostRel host).Consistent cs) ↔
+      ∃ (y : (wasmOShape H).self.Op) (fi : FuncInst H) (hh : H),
+        (y = ⟨a, (vs, s)⟩ ∨ PendO (hostCall host) ⟨a, (vs, s)⟩ y) ∧
+          y.2.2.funcs[y.1]? = some fi ∧ fi.code = .host hh ∧ m = (hh, y.2.2, y.2.1) := by
+  constructor
+  · rintro ⟨cs, h, hc⟩
+    exact Silmaril.Proofs.Wasm.Abstract.HostClosing.pendO_of_pendL h hc
+  · rintro ⟨y, fi, hh, hy | hy, hfi, hcode, rfl⟩
+    · subst hy
+      exact ⟨[], .self hfi hcode, fun _ h => nomatch h⟩
+    · exact Silmaril.Proofs.Wasm.Abstract.HostClosing.pendL_of_pendO hy hfi hcode
 
 end Silmaril.Wasm.Abstract
