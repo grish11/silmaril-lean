@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Semantics.StreamBounds.Defs
 public import Silmaril.Semantics.Accept.Defs
+public import Silmaril.Semantics.Accept.Bounded.Defs
 public import Silmaril.Semantics.Streams.Thms
 public import Silmaril.Semantics.StreamMonitors.Thms
 import Silmaril.Proofs.Semantics.StreamBounds.Finite
@@ -20,6 +21,10 @@ Statements about `Silmaril.Semantics.StreamBounds.Defs`; longer proofs are in
   depth bounds (`runBound_length_le_itemBound`, `runBound_length_le_depthBound`), but item
   bounds hold for words of every length (`replicate_mem_itemBound`). Without underflow the
   truncated depth is the net depth (`depth_eq_netDepth`).
+* **Bridge to `Silmaril.Accept`.** `Acceptor.soundFold_iff_sound` and
+  `Acceptor.completeFoldOn_iff_completeOn` restate the fold notions as `Accept.Sound` and
+  `Accept.CompleteOn` of the fold checker on chunk lists, so the `Accept.Bounded` laws
+  apply.
 * **Completeness relative to a bound.** `CorrectFold` is soundness plus completeness on
   `Set.univ` (`Acceptor.correctFold_iff`); completeness is antitone in the bound
   (`Acceptor.CompleteFoldOn.mono`), and completeness at every bound of an exhaustive family
@@ -273,5 +278,24 @@ theorem boundedReference_not_completeFoldOn_univ {L B : Language α} [DecidableP
     [DecidablePred (· ∈ B)] {w : List α} (hL : w ∈ L) (hB : w ∉ B) :
     ¬ (boundedReference (χ := List α) L B).CompleteFoldOn L Set.univ :=
   Silmaril.Proofs.Semantics.StreamBounds.boundedReference_not_completeFoldOn_univ hL hB
+
+/-! ## Bridge to `Silmaril.Accept` checkers
+
+Read on chunk lists, "process everything from `init`, then query" is a Bool checker, and
+the fold notions here are the checker notions of `Silmaril.Accept` and
+`Silmaril.Accept.Bounded`, with the domain `D` given by the bound on the concatenation. -/
+
+/-- `SoundFold` is `Accept.Sound` of the fold checker. -/
+theorem soundFold_iff_sound (A : Acceptor σ χ) (L : Language α) :
+    A.SoundFold L ↔ Silmaril.Accept.Sound
+      (fun cs : List χ => (A.query (cs.foldl A.process A.init)).1)
+      {cs | cs.flatMap ChunkView.toList ∈ L} := Iff.rfl
+
+/-- `CompleteFoldOn` is `Accept.CompleteOn` of the fold checker, on the inputs within `B`. -/
+theorem completeFoldOn_iff_completeOn (A : Acceptor σ χ) (L B : Language α) :
+    A.CompleteFoldOn L B ↔ Silmaril.Accept.CompleteOn {cs | cs.flatMap ChunkView.toList ∈ B}
+      (fun cs : List χ => (A.query (cs.foldl A.process A.init)).1)
+      {cs | cs.flatMap ChunkView.toList ∈ L} :=
+  ⟨fun h cs hB hL => h cs hL hB, fun h cs hL hB => h cs hB hL⟩
 
 end Silmaril.Acceptor

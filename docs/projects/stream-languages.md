@@ -167,6 +167,9 @@ Stable API:
   (`completeFoldOn_univ_of_runBound`, `completeFoldOn_univ_of_iUnion`).
   `Acceptor.boundedReference L B` is sound for `L`, complete on `B`, `CorrectFold` for
   `L ⊓ B`, and not complete as soon as a word of `L` is outside `B`.
+  `soundFold_iff_sound` and `completeFoldOn_iff_completeOn` restate `SoundFold` and
+  `CompleteFoldOn` as `Silmaril.Accept.Sound` and `Silmaril.Accept.CompleteOn` (from
+  `Accept.Bounded`) of the fold checker on chunk lists.
 - Infinite words: `safetyω (RunBound f n)` is a safety property. No infinite word meets a
   whole-input bound (`safetyω_runBound_length`). Recurring separators meet an item bound
   (`mem_safetyω_itemBound_of_window`, `const_mem_safetyω_itemBound`,
