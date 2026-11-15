@@ -11,7 +11,10 @@ import Silmaril.Proofs.Wasm.Interp.ExampleEH
 it with the existing first-match resolution, and the block produces `7`. `eh_steps`: by the
 exception simulation (`EHSim.evalOXE_good`), that is a Core 3.0 run, at every profile and host,
 from the code to the value `7` in the store holding the exception. The code passes the exception
-checker `ehExt ehTags` (`eh_chk`).
+checker `ehExt ehTags` (`eh_chk`). `eh2_run`/`eh2_steps`: a rethrow, `catch_ref` then
+`throw_ref`, ends natively and in Core in the thrown exception `0`. `eh3_run`/`eh3_steps`: two
+parameters into an `if` and into a `try_table` whose body throws one of them; the block
+produces `3`.
 -/
 
 public section
@@ -35,5 +38,26 @@ theorem eh_chk : chkE (ehExt ehTags) ehStore.funcs ehMod 0 0 [] (some 0) ehBody 
 theorem eh_steps : Steps P host ⟨ehStore, ehFrame, expression (Binaryen.BExpr.lowerList ehBody)⟩
     ⟨ehStore', ehFrame, vals [v7]⟩ :=
   Silmaril.Proofs.Wasm.Interp.ExampleEH.eh_steps
+
+/-- **The rethrow, natively**: `catch_ref`, then `throw_ref`, throws the exception `0` again. -/
+theorem eh2_run : Abstract.CallXE.EvalOXE ehC ehStore ehFrame [] ehBody2
+    (ehStore', ehFrame, .throw 0) :=
+  Silmaril.Proofs.Wasm.Interp.ExampleEH.eh2_run
+
+/-- **The rethrow, in Core 3.0**: the run ends in the thrown exception `0`. -/
+theorem eh2_steps : Steps P host ⟨ehStore, ehFrame, expression (Binaryen.BExpr.lowerList ehBody2)⟩
+    ⟨ehStore', ehFrame, throwing 0⟩ :=
+  Silmaril.Proofs.Wasm.Interp.ExampleEH.eh2_steps
+
+/-- **Multi-value parameters, natively**: the `if` and the `try_table` each take two parameters;
+the `try_table`'s body throws one of them, and the clause branches out of the block with it. -/
+theorem eh3_run : Abstract.CallXE.EvalOXE ehC ehStore ehFrame3 [] ehBody3
+    (ehStore3, ehFrame3, .normal [v3]) :=
+  Silmaril.Proofs.Wasm.Interp.ExampleEH.eh3_run
+
+/-- **Multi-value parameters, in Core 3.0**: the run produces `3`. -/
+theorem eh3_steps : Steps P host ⟨ehStore, ehFrame3, expression (Binaryen.BExpr.lowerList ehBody3)⟩
+    ⟨ehStore3, ehFrame3, vals [v3]⟩ :=
+  Silmaril.Proofs.Wasm.Interp.ExampleEH.eh3_steps
 
 end Silmaril.Wasm.Interp.ExampleEH
