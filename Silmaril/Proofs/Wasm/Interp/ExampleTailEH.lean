@@ -42,7 +42,8 @@ theorem tailer_body : EvalOXP closedCallXP tStore (Frame.forCall tMod [] []) []
     (liftInstrs tailer.body) (tStore, Frame.forCall tMod [] [], .tail 0 [] 1) :=
   .blockEsc (np := 0) (nr := 1) rfl
     (.tryEsc (np := 0) (nr := 0) rfl
-      (.tail (ps := []) (rs := [.num (.int .i32)]) .nil (.direct rfl) rfl rfl) trivial trivial)
+      (.tail (ps := []) (rs := [.num (.int .i32)]) .nil (.direct rfl) rfl rfl
+        (fun _ h => by cases h)) trivial trivial)
     trivial
 
 /-- **`$tailer` throws `$thrower`'s exception**: the tail call is answered only when `$tailer`'s

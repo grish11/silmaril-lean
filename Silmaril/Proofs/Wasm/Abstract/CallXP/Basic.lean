@@ -41,16 +41,17 @@ theorem mono {C C' : CallRel H} (hC : C ≤ C') {s : Store H} {f : Frame} {stk :
   | ifBrk _ hb har _ ih₁ ih₂ => exact .ifBrk ih₁ hb har ih₂
   | ifEsc _ hb har _ ho ih₁ ih₂ => exact .ifEsc ih₁ hb har ih₂ ho
   | ifAbort _ ho ih => exact .ifAbort ih ho
-  | callIndOk _ hres hfi hty hcall hvs _ ih₁ ih₂ =>
-    exact .callIndOk ih₁ hres hfi hty (hC _ _ _ _ hcall) hvs ih₂
+  | callIndOk _ hres hfi hty hy hcall hvs _ ih₁ ih₂ =>
+    exact .callIndOk ih₁ hres hfi hty hy (hC _ _ _ _ hcall) hvs ih₂
   | callIndRes _ hres ih => exact .callIndRes ih hres
-  | callIndStop _ hres hfi hty hcall hfl ih =>
-    exact .callIndStop ih hres hfi hty (hC _ _ _ _ hcall) hfl
-  | callRefOk _ hfi hty hcall hvs _ ih₁ ih₂ =>
-    exact .callRefOk ih₁ hfi hty (hC _ _ _ _ hcall) hvs ih₂
+  | callIndStop _ hres hfi hty hy hcall hfl ih =>
+    exact .callIndStop ih hres hfi hty hy (hC _ _ _ _ hcall) hfl
+  | callRefOk _ hfi hty hy hcall hvs _ ih₁ ih₂ =>
+    exact .callRefOk ih₁ hfi hty hy (hC _ _ _ _ hcall) hvs ih₂
   | callRefNull _ ih => exact .callRefNull ih
-  | callRefStop _ hfi hty hcall hfl ih => exact .callRefStop ih hfi hty (hC _ _ _ _ hcall) hfl
-  | tail _ hres hfi hty ih => exact .tail ih hres hfi hty
+  | callRefStop _ hfi hty hy hcall hfl ih =>
+    exact .callRefStop ih hfi hty hy (hC _ _ _ _ hcall) hfl
+  | tail _ hres hfi hty hy ih => exact .tail ih hres hfi hty hy
   | tailRes _ hres ih => exact .tailRes ih hres
   | throw _ ht he hn ih => exact .throw ih ht he hn
   | throwRefNull _ ih => exact .throwRefNull ih

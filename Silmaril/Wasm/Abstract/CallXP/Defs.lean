@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Abstract.CallXE.Defs
+public import Silmaril.Wasm.Abstract.CallXT.Defs
 
 /-!
 # Pending tail calls (F5, semantics)
@@ -17,7 +18,8 @@ changed):
 
 * `POut`: a body result is a flow or a **pending tail call** `tail a args n` (the callee's
   address, its arguments bottom first, its result arity), as `Cfg.Region.Out.tail`;
-* `EvalOXP C`: `EvalOXE`'s rules, where a resolved tail call ends the body in the pending tail
+* `EvalOXP C`: `EvalOXE`'s rules (with `CallXT.EvalOXT`'s typed callee arities for the indirect,
+  reference and tail call forms, `typeArity`/`tailAnn`: facts of validated code), where a resolved tail call ends the body in the pending tail
   call, **not** answered; a pending tail call passes every `block`, `loop`, `if` and `try_table`
   untouched (`Escapes`), and a handler catches only a thrown exception (`.flow (.throw a)`);
 * `FrameP C`: leaving the frame, and only there, a pending tail call is answered by `C`, ending
@@ -38,6 +40,7 @@ namespace Silmaril.Wasm.Abstract.CallXP
 open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core
 open Silmaril.Wasm.Abstract (CallRel)
 open Silmaril.Wasm.Abstract.CallX
+open Silmaril.Wasm.Abstract.CallXT (typeArity tailAnn)
 
 variable {H : Type}
 
@@ -172,6 +175,7 @@ inductive EvalOXP (C : CallRel H) :
       (hargs : EvalOXP C s f stk args (s₁, f₁, .flow (.normal (.num ⟨.int ad.intType, i⟩ :: stk₁))))
       (hres : CallRes.IndRes s₁ f₁ x y ad i (some fa)) (hfi : s₁.funcs[fa]? = some fi)
       (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+      (hy : typeArity f₁.module y = some (ps.length, rs.length))
       (hcall : C s₁ fa (stk₁.take ps.length).reverse (s₂, fl)) (hvs : fl.retVals = some vs)
       (hk : EvalOXP C s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es r) :
       EvalOXP C s f stk (.op (.callIndirect x y) args :: es) r
@@ -186,6 +190,7 @@ inductive EvalOXP (C : CallRel H) :
       (hargs : EvalOXP C s f stk args (s₁, f₁, .flow (.normal (.num ⟨.int ad.intType, i⟩ :: stk₁))))
       (hres : CallRes.IndRes s₁ f₁ x y ad i (some fa)) (hfi : s₁.funcs[fa]? = some fi)
       (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+      (hy : typeArity f₁.module y = some (ps.length, rs.length))
       (hcall : C s₁ fa (stk₁.take ps.length).reverse (s₂, fl)) (hfl : fl.Abrupt) :
       EvalOXP C s f stk (.op (.callIndirect x y) args :: es) (s₂, f₁, .flow fl)
   | callRefOk {s s₁ s₂ : Store H} {f f₁ : Frame} {stk stk₁ vs : List Val} {y : TypeIdx}
@@ -193,6 +198,7 @@ inductive EvalOXP (C : CallRel H) :
       {fl : Flow} {r : Store H × Frame × POut}
       (hargs : EvalOXP C s f stk args (s₁, f₁, .flow (.normal (.ref (.func fa) :: stk₁))))
       (hfi : s₁.funcs[fa]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+      (hy : typeArity f₁.module y = some (ps.length, rs.length))
       (hcall : C s₁ fa (stk₁.take ps.length).reverse (s₂, fl)) (hvs : fl.retVals = some vs)
       (hk : EvalOXP C s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es r) :
       EvalOXP C s f stk (.op (.callRef y) args :: es) r
@@ -205,6 +211,7 @@ inductive EvalOXP (C : CallRel H) :
       {fl : Flow}
       (hargs : EvalOXP C s f stk args (s₁, f₁, .flow (.normal (.ref (.func fa) :: stk₁))))
       (hfi : s₁.funcs[fa]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+      (hy : typeArity f₁.module y = some (ps.length, rs.length))
       (hcall : C s₁ fa (stk₁.take ps.length).reverse (s₂, fl)) (hfl : fl.Abrupt) :
       EvalOXP C s f stk (.op (.callRef y) args :: es) (s₂, f₁, .flow fl)
   /-- **A tail call** (`return_call`, `return_call_indirect`, `return_call_ref`) to a resolved
@@ -213,7 +220,8 @@ inductive EvalOXP (C : CallRel H) :
       {args es : List BExpr} {fa : Nat} {fi : FuncInst H} {ps rs : List Validation.CValType}
       (hargs : EvalOXP C s f stk args (s₁, f₁, .flow (.normal stk₁)))
       (hres : TailRes s₁ f₁ i stk₁ (some (fa, stk₁.drop (tailPop i))))
-      (hfi : s₁.funcs[fa]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) :
+      (hfi : s₁.funcs[fa]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+      (hy : ∀ y, tailAnn i = some y → typeArity f₁.module y = some (ps.length, rs.length)) :
       EvalOXP C s f stk (.op i args :: es)
         (s₁, f₁, .tail fa ((stk₁.drop (tailPop i)).take ps.length).reverse rs.length)
   /-- A tail call that does not resolve: a trap (on null, Core's pending null tail call, which
