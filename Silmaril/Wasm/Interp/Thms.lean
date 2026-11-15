@@ -7,6 +7,7 @@ public import Silmaril.Proofs.Wasm.Interp.Div
 public import Silmaril.Proofs.Wasm.Interp.Check
 public import Silmaril.Proofs.Wasm.Interp.Replace
 public import Silmaril.Proofs.Wasm.Interp.Store
+public import Silmaril.Proofs.Wasm.Interp.CallFrame
 
 @[expose] public section
 
