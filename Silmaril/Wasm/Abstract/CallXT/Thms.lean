@@ -3,6 +3,8 @@ module
 public import Silmaril.Wasm.Abstract.CallXT.Defs
 import Silmaril.Proofs.Wasm.Abstract.CallXT.Basic
 import Silmaril.Proofs.Wasm.Abstract.CallXT.Typed
+import Silmaril.Proofs.Wasm.Abstract.CallXT.RefSite
+public import Silmaril.Wasm.Execution.Core.Sim.TypedContext
 public import Silmaril.Wasm.Abstract.XRecursion.Thms
 
 /-!
@@ -24,8 +26,13 @@ public import Silmaril.Wasm.Abstract.XRecursion.Thms
   in `EvalOXT` whenever it runs in `EvalOX`, for an oracle keeping function
   types valid; `evalOXT_of_evalOX_closed` for `XRecursion.closedCallX`.
 
-**Not yet.** The `call_ref` premise from typing: it needs the type of the
-reference on the stack, a typing invariant of the run (Core preservation).
+* **The `call_ref` premise at a typed site.** `typeArity_of_callRef_site`: if
+  the Core configuration at `call_ref y` on a function reference is typed in
+  context (`Sim.ContextTyped`), the referenced function has the counts of `y`.
+
+**Not yet.** Carrying `ContextTyped` along `EvalOX` runs (Core preservation of
+the arguments' Core runs), which turns the site lemma into the `call_ref`
+premise for whole runs.
 -/
 
 public section
@@ -89,5 +96,15 @@ theorem evalOXT_of_evalOX_closed {s : Store H} {f : Frame} {stk : List Val} {es 
     (hs : TyFuncs s) (hm : TyTypes f.module) (hx : indOkL f.module es = true) :
     EvalOXT Silmaril.Wasm.Abstract.XRecursion.closedCallX s f stk es r :=
   evalOXT_of_evalOX_ind closedCallX_keepsTy h hs hm hx
+
+/-- **The `call_ref` premise at a typed site.** -/
+theorem typeArity_of_callRef_site {s : Store H} {f : Frame} {stk : List Val} {fa : Nat}
+    {y : TypeIdx} {rest : List Admin} {fi : FuncInst H} {ps rs : List CValType}
+    (ht : Silmaril.Wasm.Execution.Core.Sim.ContextTyped
+      ⟨s, f, vals (.ref (.func fa) :: stk).reverse ++ .plain (.callRef y) :: rest⟩)
+    (hm : TyTypes f.module) (hfi : s.funcs[fa]? = some fi)
+    (hty : DefType.funcType? fi.type = some (ps, rs)) (hfiok : TyOk {} fi.type) :
+    typeArity f.module y = some (ps.length, rs.length) :=
+  Silmaril.Proofs.Wasm.Abstract.CallXT.typeArity_of_callRef_site ht hm hfi hty hfiok
 
 end Silmaril.Wasm.Abstract.CallXT

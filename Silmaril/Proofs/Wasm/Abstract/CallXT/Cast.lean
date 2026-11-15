@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Abstract.CallXT.Defs
 public import Silmaril.Wasm.Validation.Subtyping.DefInv
 public import Silmaril.Wasm.Execution.Core.Soundness.RefRetype
 public import Silmaril.Wasm.Binaryen.Pass.DirectizeCast
+public import Silmaril.Wasm.Execution.Core.Soundness.CallRefDef
 
 /-!
 Proofs for `Silmaril.Wasm.Abstract.CallXT.Thms`: **a function reference typed at
@@ -103,5 +104,28 @@ theorem typeArity_of_cast {s : Store H} {a : Nat} {fi : FuncInst H} {mi : Module
   rw [show Silmaril.Wasm.Abstract.CallRes.castTo y = ⟨true, .typeIdx y⟩ from rfl,
     Silmaril.Wasm.Binaryen.DirectizeCast.instRef_typeIdx hd] at h
   exact typeArity_of_refOk hd hfi hty hfiok hdok h
+
+/-- **Counts along a subtyping chain in a closed context.** A chain of
+heap subtypings in a context of closed valid types, from a valid defined function
+type into a valid defined type, keeps the function counts. The chain is
+translated along the closure substitution and collapsed to one empty-context
+subtyping (`CallRefDef.chain_heap_drop`). -/
+theorem counts_of_ctx_chain {Δ : TypeCtx} (hE : Δ.EmptyOk) {d₁ d : DefType}
+    (hd₁ : TyOk {} d₁) (hd : TyOk {} d)
+    (hc : Relation.ReflTransGen (Sub Δ) (Ty.defHeap d₁) (Ty.defHeap d)) {ps rs : List CValType}
+    (hty : DefType.funcType? d₁ = some (ps, rs)) :
+    ∃ ps₂ rs₂, DefType.funcType? d = some (ps₂, rs₂) ∧ ps₂.length = ps.length ∧
+      rs₂.length = rs.length := by
+  have h1 : Relation.ReflTransGen (Sub (SubClosed.trCtx Δ.types Δ))
+      ((Ty.defHeap d₁).subst (SubClosed.σT Δ.types)) ((Ty.defHeap d).subst (SubClosed.σT Δ.types)) :=
+    hc.lift (fun t : CHeapType => t.subst (SubClosed.σT Δ.types)) (fun _ _ hs => SubClosed.Sub.tr hE hs rfl)
+  have e1 : (Ty.defHeap d₁).subst (SubClosed.σT Δ.types) = Ty.defHeap d₁ :=
+    SubClosed.closed_σT (SubClosed.closed_of_empty (.use (.dt hd₁)))
+  have e2 : (Ty.defHeap d).subst (SubClosed.σT Δ.types) = Ty.defHeap d :=
+    SubClosed.closed_σT (SubClosed.closed_of_empty (.use (.dt hd)))
+  rw [e1, e2] at h1
+  obtain ⟨-, hs⟩ := Silmaril.Wasm.Execution.Core.CallRefDef.chain_heap_drop rfl h1
+    (hd₁ : SubClosed.Good (Ty.use (Ty.dt d₁)))
+  exact counts_of_sub hs hd₁ hd hty
 
 end Silmaril.Proofs.Wasm.Abstract.CallXT
