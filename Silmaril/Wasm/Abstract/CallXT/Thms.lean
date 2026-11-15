@@ -107,4 +107,25 @@ theorem typeArity_of_callRef_site {s : Store H} {f : Frame} {stk : List Val} {fa
     typeArity f.module y = some (ps.length, rs.length) :=
   Silmaril.Proofs.Wasm.Abstract.CallXT.typeArity_of_callRef_site ht hm hfi hty hfiok
 
+/-- Runs keep the frame's instance. -/
+theorem evalOX_module {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List BExpr} {r : Store H × Frame × Flow} (h : EvalOX C s f stk es r) :
+    r.2.1.module = f.module :=
+  Silmaril.Proofs.Wasm.Abstract.CallXT.evalOX_module h
+
+/-- Runs keep function types valid, when their oracle does. -/
+theorem evalOX_tyFuncs {C : CallRel H} (hC : KeepsTy C) {s : Store H} {f : Frame}
+    {stk : List Val} {es : List BExpr} {r : Store H × Frame × Flow} (h : EvalOX C s f stk es r)
+    (hs : TyFuncs s) : TyFuncs r.1 :=
+  Silmaril.Proofs.Wasm.Abstract.CallXT.evalOX_tyFuncs hC h hs
+
+/-- The arity premise of a resolved indirect call, from its cast. -/
+theorem typeArity_of_indRes {s : Store H} {f : Frame} {x : TableIdx} {y : TypeIdx} {ad : AddrType}
+    {i : BitVec ad.intType.width} {fa : Nat} {fi : FuncInst H} {ps rs : List CValType}
+    (hres : Silmaril.Wasm.Abstract.CallRes.IndRes s f x y ad i (some fa))
+    (hfi : s.funcs[fa]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+    (hs : TyFuncs s) (hm : TyTypes f.module) (hy : (f.module.types[y.toNat]?).isSome = true) :
+    typeArity f.module y = some (ps.length, rs.length) :=
+  Silmaril.Proofs.Wasm.Abstract.CallXT.typeArity_of_indRes hres hfi hty hs hm hy
+
 end Silmaril.Wasm.Abstract.CallXT

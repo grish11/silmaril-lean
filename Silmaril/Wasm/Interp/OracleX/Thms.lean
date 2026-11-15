@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Interp.OracleSimX
 public import Silmaril.Proofs.Wasm.Interp.OracleCloseX
+public import Silmaril.Proofs.Wasm.Interp.TypedX
 
 /-!
 # Core 3.0 adequacy of the indirect and reference calls (F4, call forms)
@@ -72,5 +73,25 @@ theorem evalOX_closed_good {s : Store H} {f : Frame} {stk : List Val} {es : List
     (hx : Abstract.CallXT.indOkL f.module es = true) :
     ArityGoodE irExt s f stk es r ∧ CoreGoodE irExt P host s f stk es r :=
   Silmaril.Wasm.Interp.evalOX_closed_goodE h hG hm hx
+
+/-- **Typed runs carry their arity premises** (both `call_indirect` and `call_ref`):
+a run of `irExt`-checked code in an `irExt`-checked store, whose Core configuration is
+typed in context, with valid function and instance types and an oracle keeping them, is
+an `EvalOXT` run. -/
+theorem evalOXT_of_typed {C : Abstract.CallRel H}
+    (hC : OracleSoundX P Silmaril.Wasm.Interp.noHostX C) (hCk : Abstract.CallXT.KeepsTy C)
+    {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
+    {r : Store H × Frame × Binaryen.Flow} (h : Abstract.CallX.EvalOX C s f stk es r)
+    (ht : Silmaril.Wasm.Interp.TypedX s f stk es) : Abstract.CallXT.EvalOXT C s f stk es r :=
+  Silmaril.Wasm.Interp.evalOXT_of_typed hC hCk h ht
+
+/-- **Typed extended runs are Core 3.0 runs**, `call_indirect` and `call_ref` included. -/
+theorem evalOX_typed_good {C : Abstract.CallRel H}
+    (hC : OracleSoundX P Silmaril.Wasm.Interp.noHostX C) (hCk : Abstract.CallXT.KeepsTy C)
+    {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
+    {r : Store H × Frame × Binaryen.Flow} (h : Abstract.CallX.EvalOX C s f stk es r)
+    (ht : Silmaril.Wasm.Interp.TypedX s f stk es) :
+    ArityGoodE irExt s f stk es r ∧ CoreGoodE irExt P Silmaril.Wasm.Interp.noHostX s f stk es r :=
+  Silmaril.Wasm.Interp.evalOXT_goodE hC (Silmaril.Wasm.Interp.evalOXT_of_typed hC hCk h ht)
 
 end Silmaril.Wasm.Interp.OracleX
