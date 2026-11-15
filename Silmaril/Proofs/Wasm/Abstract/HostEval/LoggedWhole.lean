@@ -373,7 +373,7 @@ theorem case_callL (hT : HostTyped host) (hH : Interp.NativeHostSlice host) {n :
             refine ⟨fun vs hvs => ⟨Interp.retVals_length hok hob hvs, fun ws hws => by
               rw [hws] at hok; exact Interp.length_of_ends hok hob⟩, fun hn => ?_⟩
             rcases hfl : r.2.2 with ws | ⟨_ | k, ws⟩ | ws | _ | t <;> rw [hfl] at hok hn <;>
-              simp_all [Binaryen.Flow.retVals, Interp.FlowOk])
+              simp_all [Binaryen.Flow.retVals, Interp.FlowOkE])
   · intro s₁ f₁ stk₁ a fi ps rs s₂ fl vs m cs' hm hev hfi hty hcall hvs hk
     obtain ⟨a', fi', ps', rs', hfi', hty', inv1, hp, h2'⟩ := hinfo s₁ f₁ stk₁ hev
     rw [hfi] at hfi'
@@ -540,7 +540,7 @@ theorem invoke_pendL (hT : HostTyped host) (hH : Interp.NativeHostSlice host) {n
           refine ⟨fun ws hws => ⟨Interp.retVals_length hok' hob hws, fun ws' hws' => by
             rw [hws'] at hok'; exact Interp.length_of_ends hok' hob⟩, fun hn => ?_⟩
           rcases hfl : r.2.2 with ws | ⟨_ | k, ws⟩ | ws | _ | t <;> rw [hfl] at hok' hn <;>
-            simp_all [Binaryen.Flow.retVals, Interp.FlowOk]) with ⟨mm, hat', hpl⟩ |
+            simp_all [Binaryen.Flow.retVals, Interp.FlowOkE]) with ⟨mm, hat', hpl⟩ |
       ⟨s₂, fl, q, cs', -, -, -, ⟨ws, m', -, hws, hk⟩ | ⟨rfl, hends, -⟩⟩
     · rw [htake] at hpl
       obtain rfl := atHost_unique hat hat'
