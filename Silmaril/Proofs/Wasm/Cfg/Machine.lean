@@ -364,3 +364,197 @@ theorem enter_sound {body : Expr} {b : BlockId} {sg : Segment} {c c' : List Inst
   cases tryT <;> simpa [expression] using h'
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- **Leaving a finished sequence is sound** (one `popL` step, Core's `label-vals` and
+`handler-vals`): a region run of the parent context, with the label frame's outer values under
+the finished values and the rest of the parent sequence, is a run of the context still inside
+the label. -/
+theorem pop_sound {body : Expr} {m a : Nat} {rp : List SeqStep} {L : LFrame} {ls : List LFrame}
+    {pc : List Instr} {W : List Val} {X Y : List Admin} {s : Store H} {f : Frame}
+    (hpc : seqAt body rp.reverse = some pc)
+    (hX : wrap body ((m, a) :: rp) (L :: ls) (vals W) = some X)
+    (hY : wrap body rp ls (vals (L.outer ++ W) ++ expression (restAt pc (m + 1))) = some Y) :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host s f [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+  simp only [wrap, hpc, Option.bind_eq_bind, Option.bind_some] at hX
+  cases hsg : (segment pc)[m]? with
+  | none => simp [hsg] at hX
+  | some sg =>
+    cases ht : sg.term with
+    | none => simp [hsg, ht] at hX
+    | some t =>
+      simp only [hsg, ht, Option.bind_some] at hX
+      refine wrap_mono rp ls hX hY ?_
+      intro o s₂ f₂ h
+      have h' := Proofs.Region.run_vals_inv (vs := []) h
+      simp only [List.nil_append] at h'
+      apply Proofs.Region.run_vals (vs := [])
+      cases L.tryT
+      · exact .labelNormal (Proofs.Region.run_vals_normal W) h'
+      · exact .handlerNormal (.labelNormal (Proofs.Region.run_vals_normal W) .nil) (by simpa using h')
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+theorem wrap_isSome (body : Expr) : ∀ (rp : List SeqStep) (ls : List LFrame) (i i' : List Admin),
+    (wrap body rp ls i).isSome = (wrap body rp ls i').isSome
+  | [], [], _, _ => rfl
+  | [], _ :: _, _, _ => rfl
+  | _ :: _, [], _, _ => rfl
+  | (m, _) :: rp, L :: ls, i, i' => by
+    simp only [wrap, Option.bind_eq_bind]
+    cases seqAt body rp.reverse with
+    | none => rfl
+    | some pc =>
+      simp only [Option.bind_some]
+      cases (segment pc)[m]? with
+      | none => rfl
+      | some sg =>
+        simp only [Option.bind_some]
+        cases sg.term with
+        | none => rfl
+        | some t => simp only [Option.bind_some]; exact wrap_isSome body rp ls _ _
+
+theorem wrap_parent_isSome {body : Expr} {m a : Nat} {rp : List SeqStep} {L : LFrame}
+    {ls : List LFrame} {pc : List Instr} {i X : List Admin} (hpc : seqAt body rp.reverse = some pc)
+    (hX : wrap body ((m, a) :: rp) (L :: ls) i = some X) (j : List Admin) :
+    (wrap body rp ls j).isSome := by
+  simp only [wrap, hpc, Option.bind_eq_bind, Option.bind_some] at hX
+  cases hsg : (segment pc)[m]? with
+  | none => simp [hsg] at hX
+  | some sg =>
+    cases ht : sg.term with
+    | none => simp [hsg, ht] at hX
+    | some t =>
+      simp only [hsg, ht, Option.bind_some] at hX
+      have := (wrap_isSome body rp ls j _).trans (congrArg Option.isSome hX)
+      simpa using this
+
+theorem depth_contRev (body : Expr) : ∀ rp : List SeqStep, depthT (contRev body rp) ≤ rp.length
+  | [] => by simp [contRev, depthT]
+  | (m, _) :: rp => by
+    unfold contRev
+    split
+    · simp [depthT]
+    · have := depth_contRev body rp; simp; omega
+
+theorem restAt_none {body : Expr} {q : List SeqStep} {j : Nat} {pc : List Instr}
+    (hpc : seqAt body q = some pc) (hl : (lookup body ⟨q, j⟩).isSome = false) : restAt pc j = [] := by
+  rw [lookup_eq] at hl
+  simp only [hpc, Option.bind_some, Option.isSome_eq_false_iff, Option.isNone_iff_eq_none] at hl
+  exact restAt_end hl
+
+/-- **Leaving finished sequences up to their continuation is sound**: from a context whose inner
+sequence is finished (only values `W` left), going to `contRev` and popping the label frames in
+between (`popL`, as `goto` does) lands on code whose region runs are runs of the context. -/
+theorem cont_sound {body : Expr} {s : Store H} {f : Frame} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) (W : List Val) {X Y : List Admin},
+      wrap body rp ls (vals W) = some X →
+      codeOf body (goto (contRev body rp) rp.length ls W s f) = some Y →
+      ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+        Run P host s f [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o
+  | [], [], W, X, Y, hX, hY => by
+    simp [wrap] at hX; subst hX
+    simp [codeOf, goto, contRev, depthT, popL] at hY; subst hY
+    exact id
+  | [], _ :: _, _, _, _, hX, _ => by simp [wrap] at hX
+  | _ :: _, [], _, _, _, hX, _ => by simp [wrap] at hX
+  | (m, a) :: rp, L :: ls, W, X, Y, hX, hY => by
+    have hX0 := hX
+    simp only [wrap, Option.bind_eq_bind] at hX0
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX0
+    | some pc =>
+      have hcont := depth_contRev body rp
+      unfold contRev at hY
+      split at hY
+      · rename_i hl
+        -- one pop: the next block of the parent sequence exists
+        simp only [goto, depthT, List.length_cons, codeOf, codeAt, List.reverse_reverse,
+          List.length_reverse] at hY
+        rw [show rp.length + 1 - rp.length = 1 by omega] at hY
+        simp only [popL, hpc, Option.bind_some] at hY
+        exact pop_sound hpc hX hY
+      · rename_i hl
+        have hrest := restAt_none hpc (by simpa using hl)
+        -- the parent sequence is finished too: pop, then continue upwards
+        have hX1 : wrap body rp ls (vals (L.outer ++ W) ++ expression (restAt pc (m + 1))) =
+            wrap body rp ls (vals (L.outer ++ W)) := by rw [hrest]; simp [expression]
+        cases hw : wrap body rp ls (vals (L.outer ++ W)) with
+        | none =>
+          exfalso
+          have := wrap_parent_isSome hpc hX (vals (L.outer ++ W))
+          rw [hw] at this; simp at this
+        | some Z =>
+          intro h
+          refine pop_sound hpc hX (by rw [hX1, hw]) (cont_sound rp ls (L.outer ++ W) hw ?_ h)
+          simp only [goto, List.length_cons] at hY ⊢
+          rw [show rp.length + 1 - depthT (contRev body rp) =
+            (rp.length - depthT (contRev body rp)) + 1 by omega] at hY
+          simpa [popL] using hY
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- **A fall-through step is sound for the label invariant**, including leaving finished
+sequences (to the next block of the sequence, or up through `cont` with `popL`). -/
+theorem fall_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {X Y : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = none)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁) = some Y) :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  have inner : ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host s₁ f₁ [] (vals stk₁ ++ expression (restAt c (b.idx + 1))) s₂ f₂ o →
+        Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ o := by
+    intro o s₂ f₂ h
+    exact Proofs.Region.run_vals (vs := [])
+      (fall_sound hsg ht hr (by simpa using Proofs.Region.run_vals_inv (vs := []) h))
+  unfold entry at hY
+  split at hY
+  · simp only [goto, depthT, Nat.sub_self, popL, codeOf, codeAt, hc, Option.bind_some] at hY
+    intro o s₂ f₂ h; exact wrap_mono _ _ hX hY inner h
+  · rename_i hl
+    have hrest := restAt_none hc (by simpa using hl)
+    rw [hrest] at inner
+    cases hw : wrap body b.seq.reverse ls (vals stk₁) with
+    | none =>
+      have := (wrap_isSome body b.seq.reverse ls (vals stk₁) _).trans (congrArg Option.isSome hX)
+      rw [hw] at this; simp at this
+    | some Z =>
+      intro o s₂ f₂ h
+      have hY' : codeOf body (goto (contRev body b.seq.reverse) b.seq.reverse.length ls stk₁ s₁ f₁) =
+          some Y := by simpa [cont] using hY
+      have h1 := cont_sound (P := P) (host := host) b.seq.reverse ls stk₁ hw hY' h
+      exact wrap_mono _ _ hX hw (fun h => inner (by simpa [expression] using h)) h1
+
+end Silmaril.Wasm.Cfg.Proofs.Machine

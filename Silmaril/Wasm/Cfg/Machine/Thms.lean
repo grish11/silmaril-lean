@@ -118,4 +118,25 @@ theorem enter_sound {b : BlockId} {sg : Segment} {c c' : List Instr} {i : Instr}
     Region.Run P host s₁ f₁ [] X' s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.enter_sound hc hsg ht harm hkind hr hcond hbt hm hX hX'
 
+/-- **Leaving finished sequences up to their continuation is sound** (`goto` to `contRev`,
+popping label frames with `popL`, against Core's `label-vals`/`handler-vals`). -/
+theorem cont_sound {s : Store H} {f : Frame} (rp : List SeqStep) (ls : List LFrame)
+    (W : List Val) {X Y : List Admin} (hX : wrap body rp ls (vals W) = some X)
+    (hY : codeOf body (goto (contRev body rp) rp.length ls W s f) = some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s f [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.cont_sound rp ls W hX hY
+
+/-- **A machine fall-through step is sound for the label invariant** (`codeAt`/`codeOf`),
+including leaving finished sequences. -/
+theorem fall_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+    {s s₁ : Store H} {f f₁ : Frame} {X Y : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = none)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁) = some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.fall_step_sound hb ht hr hX hY
+
 end Silmaril.Wasm.Cfg.Machine

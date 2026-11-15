@@ -223,3 +223,19 @@ def codeAt (body : Expr) (b : BlockId) (stk : List Val) (ls : List LFrame) : Opt
     wrap body b.seq.reverse ls (vals stk ++ expression (restAt c b.idx))
 
 end Silmaril.Wasm.Cfg.Machine
+
+namespace Silmaril.Wasm.Cfg.Machine
+
+open Silmaril.Wasm.Execution.Core
+
+/-- **The region code a machine state stands for**: `codeAt` at a block; the final values at
+`exit` (with no label left); `[TRAP]` at `trap`. `raise` is a sink without region code yet
+(the exception's address is not part of the state). -/
+def codeOf (body : Expr) {H : Type} (st : MState H) : Option (List Admin) :=
+  match st.node with
+  | .block b => codeAt body b st.stk st.lbls
+  | .exit => if st.lbls = [] then some (vals st.stk) else none
+  | .trap => some [.trap]
+  | _ => none
+
+end Silmaril.Wasm.Cfg.Machine
