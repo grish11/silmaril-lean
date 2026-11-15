@@ -178,7 +178,7 @@ theorem bad_call {x : FuncIdx} {args : List Binaryen.BExpr}
   have htg := Relation.TransGen.trans_right hrun enter
   have hct : ContextTyped (pcfg s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)) :=
     ContextTyped.label (ContextTyped.frame (ContextTyped.steps ht htg.to_reflTransGen))
-  obtain ⟨ob, hob, hb'⟩ := callee_chk hS₁ hfi hcode hty hp
+  obtain ⟨ob, hob, hb'⟩ := callee_chk (ext := noExt) hS₁ hfi hcode hty hp
   rcases good_split ⟨_, _, _, hb', hct, hF₁, hS₁⟩ with hb | ⟨⟨s₂, f₂, flb⟩, hbody⟩
   · exact .callee hargs hfi hcode hty hb
   obtain ⟨hok, hinvb⟩ := flowOk_of_eval hbody hS₁ hb'

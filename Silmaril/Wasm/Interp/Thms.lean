@@ -43,6 +43,14 @@ that host, every profile. The slice: answers extend the functions as Core's `Ext
 check), values at the declared result arity, no exceptions. The native arity invariant
 `EvalInv` is stated up to this extension (`chk_inv`, `storeChk_inv`, `nativeFuncsOk_inv`).
 
+**Checker extensions** (`Silmaril.Wasm.Interp.Defs`: `ExtArity`, `chkE`; proofs in `Arity`,
+`Control`, `OracleSim`). The arity and Core-run invariants and their case lemmas hold for every
+extension `ext` that is stable under function extension (`ExtStable`): `ArityGoodE ext`,
+`CoreGoodE ext`, the `arity_*`/`core_*`/`arityO_*`/`coreO_*` lemmas, and `evalO_goodE`. The
+native forms (`ArityGood`, `CoreGood`, `evalO_good`) are the `noExt` instances.
+`chkE_of_chk`: the native check implies every extended check. `flatChkE_eq_flatChk`: off the
+five non-native call forms, every extension is the native check.
+
 **Memory** (`Silmaril.Proofs.Wasm.Interp.Memory`). Native unpacked integer `load`/`store`
 are Core 3.0 `MemoryStep`s, through silmaril-lean's executable `Exec.Mem.loadInt`/`storeInt`
 (`load_exec`, `store_exec`): normal results with the same store update (`steps_mem_normal`),

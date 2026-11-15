@@ -261,7 +261,7 @@ theorem term_callee {i : Instr} {args : List Binaryen.BExpr} {s₁ : Store H} {f
   have htg := Relation.TransGen.trans_right hrun enter
   have hct : ContextTyped (pcfg s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)) :=
     ContextTyped.label (ContextTyped.frame (ContextTyped.steps ht htg.to_reflTransGen))
-  obtain ⟨ob, -, hb'⟩ := callee_chk hS₁ hfi hcode hty hp
+  obtain ⟨ob, -, hb'⟩ := callee_chk (ext := noExt) hS₁ hfi hcode hty hp
   exact rec _ _ _ _ _ hmap htg.to_reflTransGen (.inr htg) _ _ _ hb' hct hF₁ hS₁
 
 /-- After the callee: return to the caller and continue. -/
@@ -285,7 +285,7 @@ theorem term_call_ret {args : List Binaryen.BExpr} {s₁ s₂ : Store H} {f₁ f
     (hF : Binaryen.NativeFuncsOk s.funcs) (hS : StoreChk s.funcs) :
     ∃ r, Binaryen.Eval s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es r := by
   have hS₁ : StoreChk s₁.funcs := storeChk_inv inv1 hS
-  obtain ⟨ob, hob, hb'⟩ := callee_chk hS₁ hfi hcode hty hp
+  obtain ⟨ob, hob, hb'⟩ := callee_chk (ext := noExt) hS₁ hfi hcode hty hp
   obtain ⟨hok, hinvb⟩ := flowOk_of_eval hbody hS₁ hb'
   have hrs : rs.length ≤ vs.length := retVals_length hok hob hvs
   have hnorm : ∀ ws, flb = .normal ws → ws.length = rs.length := by
@@ -354,7 +354,7 @@ theorem term_call {x : FuncIdx} {args : List Binaryen.BExpr}
       rw [pcfg_op]
       exact (sp_suffix _).steps (run_normal hargs hS ha)
     obtain ⟨⟨s₂, f₂, flb⟩, hbody⟩ := term_callee rec hrun hfi hcode hty hp ht hF₁ hS₁
-    obtain ⟨ob, hob, hb'⟩ := callee_chk hS₁ hfi hcode hty hp
+    obtain ⟨ob, hob, hb'⟩ := callee_chk (ext := noExt) hS₁ hfi hcode hty hp
     obtain ⟨hok, -⟩ := flowOk_of_eval hbody hS₁ hb'
     rcases callee_flow hok with
       ⟨vs, hvs⟩ | rfl | ⟨t, rfl⟩

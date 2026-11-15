@@ -99,6 +99,91 @@ theorem FlowOk.abrupt {labels : List Nat} {ret : Nat} {o o' : Option Nat} {fl : 
 
 /-! ## The check, unfolded -/
 
+section UnfoldE
+
+variable {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat} {labels : List Nat}
+
+@[simp] theorem chk_noneE (es : List Binaryen.BExpr) : chkE ext F mi nl ret labels none es = some none := by
+  cases es <;> rfl
+
+@[simp] theorem chk_nilE (h : Nat) : chkE ext F mi nl ret labels (some h) [] = some (some h) := rfl
+
+theorem chk_consE {h : Nat} {e : Binaryen.BExpr} {es : List Binaryen.BExpr} {out : Option Nat} :
+    chkE ext F mi nl ret labels (some h) (e :: es) = some out ↔
+      ∃ o, chk1E ext F mi nl ret labels h e = some o ∧ chkE ext F mi nl ret labels o es = some out := by
+  simp only[chkE, Option.bind_eq_some_iff]
+
+theorem chk1_opE {h : Nat} {i : Instr} {args : List Binaryen.BExpr} {o : Option Nat}
+    (hc : chk1E ext F mi nl ret labels h (.op i args) = some o) :
+    ∃ oa, chkE ext F mi nl ret labels (some h) args = some oa ∧
+      ∀ h₁, oa = some h₁ → flatChkE ext F mi nl ret labels h₁ i = some o := by
+  simp only[chk1E, Option.bind_eq_some_iff] at hc
+  obtain ⟨oa, ha, hb⟩ := hc
+  refine ⟨oa, ha, ?_⟩
+  rintro h₁ rfl
+  exact hb
+
+theorem chk1_blockE {h : Nat} {bt : BlockType} {body : List Binaryen.BExpr} {o : Option Nat}
+    (hc : chk1E ext F mi nl ret labels h (.block bt body) = some o) :
+    ∃ np nr, blockArity mi bt = some (np, nr) ∧ np ≤ h ∧
+      endsAt (chkE ext F mi nl ret (nr :: labels) (some np) body) nr = true ∧
+      o = some (h - np + nr) := by
+  simp only[chk1E] at hc
+  split at hc
+  · rename_i np nr ha
+    split at hc
+    · rename_i hcond
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
+      exact ⟨np, nr, ha, hcond.1, hcond.2, (Option.some.inj hc).symm⟩
+    · cases hc
+  · cases hc
+
+theorem chk1_loopE {h : Nat} {bt : BlockType} {body : List Binaryen.BExpr} {o : Option Nat}
+    (hc : chk1E ext F mi nl ret labels h (.loop bt body) = some o) :
+    ∃ np nr, blockArity mi bt = some (np, nr) ∧ np ≤ h ∧
+      endsAt (chkE ext F mi nl ret (np :: labels) (some np) body) nr = true ∧
+      o = some (h - np + nr) := by
+  simp only[chk1E] at hc
+  split at hc
+  · rename_i np nr ha
+    split at hc
+    · rename_i hcond
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
+      exact ⟨np, nr, ha, hcond.1, hcond.2, (Option.some.inj hc).symm⟩
+    · cases hc
+  · cases hc
+
+theorem chk1_ifE {h : Nat} {bt : BlockType} {c t e : List Binaryen.BExpr} {o : Option Nat}
+    (hc : chk1E ext F mi nl ret labels h (.if_ bt c t e) = some o) :
+    ∃ oc, chkE ext F mi nl ret labels (some h) c = some oc ∧ ∀ h₁, oc = some h₁ →
+      ∃ np nr, blockArity mi bt = some (np, nr) ∧ np + 1 ≤ h₁ ∧
+        endsAt (chkE ext F mi nl ret (nr :: labels) (some np) t) nr = true ∧
+        endsAt (chkE ext F mi nl ret (nr :: labels) (some np) e) nr = true ∧
+        o = some (h₁ - 1 - np + nr) := by
+  simp only[chk1E, Option.bind_eq_some_iff] at hc
+  obtain ⟨oc, hco, hb⟩ := hc
+  refine ⟨oc, hco, ?_⟩
+  rintro h₁ rfl
+  simp only at hb
+  split at hb
+  · rename_i np nr ha
+    split at hb
+    · rename_i hcond
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
+      exact ⟨np, nr, ha, hcond.1.1, hcond.1.2, hcond.2, (Option.some.inj hb).symm⟩
+    · cases hb
+  · cases hb
+
+theorem endsAt_eqE {x : Option (Option Nat)} {n : Nat} (h : endsAt x n = true) :
+    ∃ o, x = some o ∧ (o = none ∨ o = some n) := by
+  rcases x with _ | _ | k
+  · cases h
+  · exact ⟨none, rfl, .inl rfl⟩
+  · simp only [endsAt, beq_iff_eq] at h
+    exact ⟨some k, rfl, .inr (by rw [h])⟩
+
+end UnfoldE
+
 section Unfold
 
 variable {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat} {labels : List Nat}
@@ -597,6 +682,172 @@ end
 
 end Transfer
 
+/-! ## Extensions stable under function extension -/
+
+/-- An extension whose answers survive a function-list extension. -/
+class ExtStable (ext : ExtArity H) : Prop where
+  stable : ∀ {F F' : List (FuncInst H)} {mi : ModuleInst} {i : Instr} {e : ExtEff},
+    FuncsExt F F' → ext F mi i = some e → ext F' mi i = some e
+
+instance : ExtStable (noExt (H := H)) := ⟨fun _ h => by simp [noExt] at h⟩
+
+section TransferE
+
+variable {ext : ExtArity H} [hext : ExtStable ext] {F F' : List (FuncInst H)} {mi : ModuleInst}
+  {nl ret : Nat}
+
+theorem callArity_ext (h : FuncsExt F F') {x : FuncIdx} {p : Nat × Nat}
+    (hp : callArity F mi x = some p) : callArity F' mi x = some p := by
+  unfold callArity at hp ⊢
+  rcases ha : mi.funcs[x.toNat]? with _ | a
+  · simp [ha] at hp
+  · rcases hf : F[a]? with _ | fi
+    · simp [ha, hf] at hp
+    · simp only [ha, hf, Option.bind_eq_bind, Option.bind_some] at hp
+      simp only [Option.bind_eq_bind, Option.bind_some, get_of_funcsExt h hf]
+      exact hp
+
+theorem extStep_ext (h : FuncsExt F F') {i : Instr} {o : Option Nat} {k : Nat}
+    (hc : extStep (ext F mi i) ret k = some o) : extStep (ext F' mi i) ret k = some o := by
+  rcases he : ext F mi i with _ | e
+  · rw [he] at hc
+    simp [extStep] at hc
+  · rw [he] at hc
+    rw [hext.stable h he]
+    exact hc
+
+theorem flatChkE_ext (h : FuncsExt F F') {labels : List Nat} {k : Nat} {i : Instr}
+    {o : Option Nat} (hc : flatChkE ext F mi nl ret labels k i = some o) :
+    flatChkE ext F' mi nl ret labels k i = some o := by
+  cases i
+  case call x =>
+    simp only [flatChkE, flatEff] at hc ⊢
+    split at hc
+    · rename_i p q hpq
+      rw [callArity_ext h hpq]
+      exact hc
+    · cases hc
+  case callIndirect x y => exact extStep_ext h hc
+  case callRef y => exact extStep_ext h hc
+  case returnCall x => exact extStep_ext h hc
+  case returnCallRef y => exact extStep_ext h hc
+  case returnCallIndirect x y => exact extStep_ext h hc
+  case intLoad t p x arg => rcases p with _ | p <;> exact hc
+  case intStore t p x arg => rcases p with _ | p <;> exact hc
+  all_goals exact hc
+
+set_option linter.unusedSectionVars false in
+mutual
+/-- **A passing extended check still passes after a function extension.** -/
+theorem chkE_ext (h : FuncsExt F F') {labels : List Nat} :
+    ∀ (oh : Option Nat) (es : List Binaryen.BExpr) {o : Option Nat},
+      chkE ext F mi nl ret labels oh es = some o → chkE ext F' mi nl ret labels oh es = some o
+  | none, es, o, hc => by
+    rw [chk_noneE] at hc ⊢
+    exact hc
+  | some k, [], o, hc => hc
+  | some k, e :: es, o, hc => by
+    obtain ⟨o₁, h1, h2⟩ := chk_consE.mp hc
+    exact chk_consE.mpr ⟨o₁, chk1E_ext h k e h1, chkE_ext h o₁ es h2⟩
+
+theorem chk1E_ext (h : FuncsExt F F') {labels : List Nat} :
+    ∀ (k : Nat) (e : Binaryen.BExpr) {o : Option Nat},
+      chk1E ext F mi nl ret labels k e = some o → chk1E ext F' mi nl ret labels k e = some o
+  | k, .op i args, o, hc => by
+    simp only [chk1E, Option.bind_eq_some_iff] at hc ⊢
+    obtain ⟨oa, ha, hk⟩ := hc
+    refine ⟨oa, chkE_ext h (some k) args ha, ?_⟩
+    rcases oa with _ | h₁
+    · exact hk
+    · exact flatChkE_ext h hk
+  | k, .block bt body, o, hc => by
+    obtain ⟨np, nr, hbt, hle, hends, rfl⟩ := chk1_blockE hc
+    simp only [chk1E, hbt, hle, decide_true, Bool.true_and,
+      endsAt_transfer (fun _ => chkE_ext h (some np) body) hends, ite_true]
+  | k, .loop bt body, o, hc => by
+    obtain ⟨np, nr, hbt, hle, hends, rfl⟩ := chk1_loopE hc
+    simp only [chk1E, hbt, hle, decide_true, Bool.true_and,
+      endsAt_transfer (fun _ => chkE_ext h (some np) body) hends, ite_true]
+  | k, .if_ bt c t el, o, hc => by
+    obtain ⟨oc, hco, hk⟩ := chk1_ifE hc
+    simp only [chk1E, Option.bind_eq_some_iff]
+    refine ⟨oc, chkE_ext h (some k) c hco, ?_⟩
+    rcases oc with _ | h₁
+    · simp only [chk1E, Option.bind_eq_some_iff, hco] at hc
+      obtain ⟨_, hx, hy⟩ := hc
+      cases hx
+      exact hy
+    · obtain ⟨np, nr, hbt, hle, ht, he, rfl⟩ := hk h₁ rfl
+      simp only [hbt, hle, decide_true,
+        endsAt_transfer (fun _ => chkE_ext h (some np) t) ht,
+        endsAt_transfer (fun _ => chkE_ext h (some np) el) he, Bool.and_self, ite_true]
+  | k, .tryTable .., o, hc => by simp [chk1E] at hc
+end
+
+end TransferE
+
+section Conserv
+
+variable {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat}
+
+theorem flatChkE_of_flatChk {labels : List Nat} {k : Nat} {i : Instr} {o : Option Nat}
+    (hc : flatChk F mi nl ret labels k i = some o) : flatChkE ext F mi nl ret labels k i = some o := by
+  by_cases hi : Instr.IsExtCall i
+  · rw [flatChk_extCall hi] at hc
+    cases hc
+  · rwa [flatChkE_eq_flatChk ext hi]
+
+set_option linter.unusedSectionVars false in
+mutual
+/-- **The native check implies every extended check** (conservativity). -/
+theorem chkE_of_chk {labels : List Nat} :
+    ∀ (oh : Option Nat) (es : List Binaryen.BExpr) {o : Option Nat},
+      chk F mi nl ret labels oh es = some o → chkE ext F mi nl ret labels oh es = some o
+  | none, es, o, hc => by
+    rw [chk_none] at hc
+    rw [chk_noneE]
+    exact hc
+  | some k, [], o, hc => hc
+  | some k, e :: es, o, hc => by
+    obtain ⟨o₁, h1, h2⟩ := chk_consE.mp hc
+    exact chk_consE.mpr ⟨o₁, chk1E_of_chk1 k e h1, chkE_of_chk o₁ es h2⟩
+
+theorem chk1E_of_chk1 {labels : List Nat} :
+    ∀ (k : Nat) (e : Binaryen.BExpr) {o : Option Nat},
+      chk1 F mi nl ret labels k e = some o → chk1E ext F mi nl ret labels k e = some o
+  | k, .op i args, o, hc => by
+    simp only [chk1E, Option.bind_eq_some_iff] at hc ⊢
+    obtain ⟨oa, ha, hk⟩ := hc
+    refine ⟨oa, chkE_of_chk (some k) args ha, ?_⟩
+    rcases oa with _ | h₁
+    · exact hk
+    · exact flatChkE_of_flatChk hk
+  | k, .block bt body, o, hc => by
+    obtain ⟨np, nr, hbt, hle, hends, rfl⟩ := chk1_blockE hc
+    simp only [chk1E, hbt, hle, decide_true, Bool.true_and,
+      endsAt_transfer (fun _ => chkE_of_chk (some np) body) hends, ite_true]
+  | k, .loop bt body, o, hc => by
+    obtain ⟨np, nr, hbt, hle, hends, rfl⟩ := chk1_loopE hc
+    simp only [chk1E, hbt, hle, decide_true, Bool.true_and,
+      endsAt_transfer (fun _ => chkE_of_chk (some np) body) hends, ite_true]
+  | k, .if_ bt c t el, o, hc => by
+    obtain ⟨oc, hco, hk⟩ := chk1_ifE hc
+    simp only [chk1E, Option.bind_eq_some_iff]
+    refine ⟨oc, chkE_of_chk (some k) c hco, ?_⟩
+    rcases oc with _ | h₁
+    · simp only [chk1E, Option.bind_eq_some_iff, hco] at hc
+      obtain ⟨_, hx, hy⟩ := hc
+      cases hx
+      exact hy
+    · obtain ⟨np, nr, hbt, hle, ht, he, rfl⟩ := hk h₁ rfl
+      simp only [hbt, hle, decide_true,
+        endsAt_transfer (fun _ => chkE_of_chk (some np) t) ht,
+        endsAt_transfer (fun _ => chkE_of_chk (some np) el) he, Bool.and_self, ite_true]
+  | k, .tryTable .., o, hc => by simp [chk1E] at hc
+end
+
+end Conserv
+
 theorem arities_of_funcsExt {F F' : List (FuncInst H)} (h : FuncsExt F F') (mi : ModuleInst) :
     Arities F mi F' mi where
   call x p hp := by
@@ -613,93 +864,122 @@ theorem arities_of_funcsExt {F F' : List (FuncInst H)} (h : FuncsExt F F') (mi :
 /-! ## Soundness of the check -/
 
 /-- The statement of `flowOk_of_eval` for one evaluation. -/
-def ArityGood (s : Store H) (f : Frame) (stk : List Val) (es : List Binaryen.BExpr)
-    (r : Store H × Frame × Binaryen.Flow) : Prop :=
+def ArityGoodE (ext : ExtArity H) (s : Store H) (f : Frame) (stk : List Val)
+    (es : List Binaryen.BExpr) (r : Store H × Frame × Binaryen.Flow) : Prop :=
   ∀ {labels : List Nat} {ret : Nat} {out : Option Nat}, StoreChk s.funcs →
-    chk s.funcs f.module f.locals.length ret labels (some stk.length) es = some out →
+    chkE ext s.funcs f.module f.locals.length ret labels (some stk.length) es = some out →
     FlowOk labels ret out r.2.2 ∧ EvalInv s f r
 
+/-- What the native arity check says about a native run. -/
+abbrev ArityGood (s : Store H) (f : Frame) (stk : List Val) (es : List Binaryen.BExpr)
+    (r : Store H × Frame × Binaryen.Flow) : Prop :=
+  ArityGoodE noExt s f stk es r
+
 section Cases
+
+theorem storeChk_inv {s s₁ : Store H} {f f₁ : Frame} {fl : Binaryen.Flow}
+    (h : EvalInv s f (s₁, f₁, fl)) (hS : StoreChk s.funcs) : StoreChk s₁.funcs := h.1.2.1 hS
+
+theorem nativeFuncsOk_inv {s s₁ : Store H} {f f₁ : Frame} {fl : Binaryen.Flow}
+    (h : EvalInv s f (s₁, f₁, fl)) (hF : Binaryen.NativeFuncsOk s.funcs) :
+    Binaryen.NativeFuncsOk s₁.funcs := h.1.2.2 hF
+
+set_option linter.unusedSectionVars false
+
+variable {ext : ExtArity H} [ExtStable ext]
 
 variable {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {stk stk₁ stk₂ vs : List Val}
   {es args body : List Binaryen.BExpr} {i : Instr} {fl : Binaryen.Flow}
   {r : Store H × Frame × Binaryen.Flow}
 
+theorem not_extCall_of_evalFlat {s s' : Store H} {f f' : Frame} {stk : List Val} {i : Instr}
+    {fl : Binaryen.Flow} (h : Binaryen.evalFlat s f stk i = some (s', f', fl)) :
+    ¬ Instr.IsExtCall i := by
+  cases i <;> simp_all [Binaryen.evalFlat, Instr.IsExtCall]
+
+theorem flatChk_of_evalFlat {s' : Store H} {f' : Frame} {stk' : List Val} {i : Instr}
+    {fl : Binaryen.Flow} {ret : Nat} {labels : List Nat} {k : Nat} {o : Option Nat}
+    (h : Binaryen.evalFlat s₁ f₁ stk' i = some (s', f', fl))
+    (hc : flatChkE ext s₁.funcs f₁.module f₁.locals.length ret labels k i = some o) :
+    flatChk s₁.funcs f₁.module f₁.locals.length ret labels k i = some o := by
+  rwa [flatChkE_eq_flatChk ext (not_extCall_of_evalFlat h)] at hc
+
+theorem flatChkE_call {x : FuncIdx} {ret : Nat} {labels : List Nat} {k : Nat} {o : Option Nat}
+    (hc : flatChkE ext s₁.funcs f₁.module f₁.locals.length ret labels k (.call x) = some o) :
+    flatChk s₁.funcs f₁.module f₁.locals.length ret labels k (.call x) = some o := by
+  rwa [flatChkE_eq_flatChk ext (by simp [Instr.IsExtCall])] at hc
+
 /-- A passing check still passes after a run (functions extended, module and
 locals kept). -/
 theorem chk_inv (h : EvalInv s f (s₁, f₁, fl)) {ret : Nat} {labels : List Nat} {oh : Option Nat}
     {es : List Binaryen.BExpr} {o : Option Nat}
-    (hc : chk s.funcs f.module f.locals.length ret labels oh es = some o) :
-    chk s₁.funcs f₁.module f₁.locals.length ret labels oh es = some o := by
+    (hc : chkE ext s.funcs f.module f.locals.length ret labels oh es = some o) :
+    chkE ext s₁.funcs f₁.module f₁.locals.length ret labels oh es = some o := by
   rw [h.2.1, h.2.2]
-  exact chk_transfer (arities_of_funcsExt h.1.1 _) oh es hc
+  exact chkE_ext h.1.1 oh es hc
 
 theorem chk_inv_endsAt (h : EvalInv s f (s₁, f₁, fl)) {ret : Nat} {labels : List Nat}
     {oh : Option Nat} {es : List Binaryen.BExpr} {n : Nat}
-    (hc : endsAt (chk s.funcs f.module f.locals.length ret labels oh es) n = true) :
-    endsAt (chk s₁.funcs f₁.module f₁.locals.length ret labels oh es) n = true :=
+    (hc : endsAt (chkE ext s.funcs f.module f.locals.length ret labels oh es) n = true) :
+    endsAt (chkE ext s₁.funcs f₁.module f₁.locals.length ret labels oh es) n = true :=
   endsAt_transfer (fun _ => chk_inv h) hc
 
 theorem flatChk_inv (h : EvalInv s f (s₁, f₁, fl)) {ret : Nat} {labels : List Nat} {k : Nat}
     {i : Instr} {o : Option Nat}
-    (hc : flatChk s.funcs f.module f.locals.length ret labels k i = some o) :
-    flatChk s₁.funcs f₁.module f₁.locals.length ret labels k i = some o := by
+    (hc : flatChkE ext s.funcs f.module f.locals.length ret labels k i = some o) :
+    flatChkE ext s₁.funcs f₁.module f₁.locals.length ret labels k i = some o := by
   rw [h.2.1, h.2.2]
-  exact flatChk_transfer (arities_of_funcsExt h.1.1 _) hc
+  exact flatChkE_ext h.1.1 hc
 
-theorem storeChk_inv (h : EvalInv s f (s₁, f₁, fl)) (hS : StoreChk s.funcs) :
-    StoreChk s₁.funcs := h.1.2.1 hS
 
-theorem nativeFuncsOk_inv (h : EvalInv s f (s₁, f₁, fl)) (hF : Binaryen.NativeFuncsOk s.funcs) :
-    Binaryen.NativeFuncsOk s₁.funcs := h.1.2.2 hF
 
-theorem arity_nil : ArityGood s f stk [] (s, f, .normal stk) := by
+theorem arity_nil : ArityGoodE ext s f stk [] (s, f, .normal stk) := by
   intro labels ret out _ hc
-  rw [chk_nil] at hc
+  rw [chk_nilE] at hc
   exact ⟨(Option.some.inj hc).symm, EvalInv.refl _ _ _⟩
 
-theorem arity_argsAbort (iha : ArityGood s f stk args (s₁, f₁, fl)) (hfl : ¬ fl.IsNormal) :
-    ArityGood s f stk (.op i args :: es) (s₁, f₁, fl) := by
+theorem arity_argsAbort (iha : ArityGoodE ext s f stk args (s₁, f₁, fl)) (hfl : ¬ fl.IsNormal) :
+    ArityGoodE ext s f stk (.op i args :: es) (s₁, f₁, fl) := by
   intro labels ret out hS hc
-  obtain ⟨o, h1, -⟩ := chk_cons.mp hc
-  obtain ⟨oa, ha, -⟩ := chk1_op h1
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
+  obtain ⟨oa, ha, -⟩ := chk1_opE h1
   obtain ⟨hok, hinv⟩ := iha hS ha
   exact ⟨hok.abrupt hfl, hinv⟩
 
 /-- Checked arguments evaluated normally reach the checked height of the operator. -/
 theorem arity_args {labels : List Nat} {ret : Nat} {o : Option Nat}
-    (hS : StoreChk s.funcs) (iha : ArityGood s f stk args (s₁, f₁, .normal stk₁))
-    (hc : chk1 s.funcs f.module f.locals.length ret labels stk.length (.op i args) = some o) :
-    flatChk s₁.funcs f₁.module f₁.locals.length ret labels stk₁.length i = some o ∧
+    (hS : StoreChk s.funcs) (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁))
+    (hc : chk1E ext s.funcs f.module f.locals.length ret labels stk.length (.op i args) = some o) :
+    flatChkE ext s₁.funcs f₁.module f₁.locals.length ret labels stk₁.length i = some o ∧
       EvalInv s f (s₁, f₁, .normal stk₁) := by
-  obtain ⟨oa, ha, hf⟩ := chk1_op hc
+  obtain ⟨oa, ha, hf⟩ := chk1_opE hc
   obtain ⟨hoa, hinv⟩ := iha hS ha
-  have hfc : flatChk s.funcs f.module f.locals.length ret labels stk₁.length i = some o :=
+  have hfc : flatChkE ext s.funcs f.module f.locals.length ret labels stk₁.length i = some o :=
     hf _ hoa
   exact ⟨flatChk_inv hinv hfc, hinv⟩
 
-theorem arity_opOk (iha : ArityGood s f stk args (s₁, f₁, .normal stk₁))
+theorem arity_opOk (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁))
     (hflat : Binaryen.evalFlat s₁ f₁ stk₁ i = some (s₂, f₂, .normal stk₂))
-    (ihk : ArityGood s₂ f₂ stk₂ es r) : ArityGood s f stk (.op i args :: es) r := by
+    (ihk : ArityGoodE ext s₂ f₂ stk₂ es r) : ArityGoodE ext s f stk (.op i args :: es) r := by
   intro labels ret out hS hc
-  obtain ⟨o, h1, h2⟩ := chk_cons.mp hc
+  obtain ⟨o, h1, h2⟩ := chk_consE.mp hc
   obtain ⟨hf, inv1⟩ := arity_args hS iha h1
-  obtain ⟨ho, inv2⟩ := flat_normal hflat hf
+  obtain ⟨ho, inv2⟩ := flat_normal hflat (flatChk_of_evalFlat hflat hf)
   have inv12 : EvalInv s f (s₂, f₂, .normal stk₂) := inv1.trans inv2
-  have h2' : chk s₂.funcs f₂.module f₂.locals.length ret labels (some stk₂.length) es =
+  have h2' : chkE ext s₂.funcs f₂.module f₂.locals.length ret labels (some stk₂.length) es =
       some out := by
     rw [← ho]
     exact chk_inv inv12 h2
   obtain ⟨hok, inv3⟩ := ihk (storeChk_inv inv12 hS) h2'
   exact ⟨hok, inv12.trans inv3⟩
 
-theorem arity_opStop (iha : ArityGood s f stk args (s₁, f₁, .normal stk₁))
+theorem arity_opStop (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁))
     (hflat : Binaryen.evalFlat s₁ f₁ stk₁ i = some (s₂, f₂, fl)) (hfl : ¬ fl.IsNormal) :
-    ArityGood s f stk (.op i args :: es) (s₂, f₂, fl) := by
+    ArityGoodE ext s f stk (.op i args :: es) (s₂, f₂, fl) := by
   intro labels ret out hS hc
-  obtain ⟨o, h1, -⟩ := chk_cons.mp hc
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
   obtain ⟨hf, inv1⟩ := arity_args hS iha h1
-  obtain ⟨hok, inv2⟩ := flat_abrupt hflat hfl hf out
+  obtain ⟨hok, inv2⟩ := flat_abrupt hflat hfl (flatChk_of_evalFlat hflat hf) out
   exact ⟨hok, inv1.trans inv2⟩
 
 /-! ### Calls -/
@@ -729,7 +1009,7 @@ theorem callee_chk {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hp : ps.length ≤ stk₁.length) :
     ∃ ob, (ob = none ∨ ob = some rs.length) ∧
-      chk s₁.funcs (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals).module
+      chkE ext s₁.funcs (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals).module
         (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals).locals.length
         rs.length [rs.length] (some ([] : List Val).length) (Binaryen.liftInstrs fn.body) =
         some ob := by
@@ -740,7 +1020,7 @@ theorem callee_chk {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
     forCall_length _ _ (by simp only [List.length_reverse, List.length_take]; omega)
   refine ⟨ob, hob, ?_⟩
   rw [hlen]
-  exact hb
+  exact chkE_of_chk _ _ hb
 
 /-- A checked callee body satisfies the check at its own label and result arity. -/
 theorem arity_callee {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
@@ -748,28 +1028,28 @@ theorem arity_callee {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
     (inv1 : EvalInv s f (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
     (hcode : fi.code = .wasm fn) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hp : ps.length ≤ stk₁.length)
-    (ihb : ArityGood s₁ (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals) []
+    (ihb : ArityGoodE ext s₁ (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals) []
       (Binaryen.liftInstrs fn.body) (s₂, f₂, fl)) :
     ∃ ob, (ob = none ∨ ob = some rs.length) ∧ FlowOk [rs.length] rs.length ob fl ∧
       FuncsGood s₁.funcs s₂.funcs := by
   have hS1 : StoreChk s₁.funcs := storeChk_inv inv1 hS
-  obtain ⟨ob, hob, hb'⟩ := callee_chk hS1 hfi hcode hty hp
+  obtain ⟨ob, hob, hb'⟩ := callee_chk (ext := ext) hS1 hfi hcode hty hp
   obtain ⟨hok, hinv⟩ := ihb hS1 hb'
   exact ⟨ob, hob, hok, hinv.1⟩
 
 /-- What the check of a call says before the callee runs. -/
 theorem arity_call_pre {x : FuncIdx} {a : Nat} {fi : FuncInst H} {ps rs : List Validation.CValType}
     {labels : List Nat} {ret : Nat} {out : Option Nat} (hS : StoreChk s.funcs)
-    (iha : ArityGood s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
+    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hc : chk s.funcs f.module f.locals.length ret labels (some stk.length)
+    (hc : chkE ext s.funcs f.module f.locals.length ret labels (some stk.length)
       (.op (.call x) args :: es) = some out) :
     EvalInv s f (s₁, f₁, .normal stk₁) ∧ ps.length ≤ stk₁.length ∧
-      chk s.funcs f.module f.locals.length ret labels
+      chkE ext s.funcs f.module f.locals.length ret labels
         (some (stk₁.length - ps.length + rs.length)) es = some out := by
-  obtain ⟨o, h1, h2⟩ := chk_cons.mp hc
+  obtain ⟨o, h1, h2⟩ := chk_consE.mp hc
   obtain ⟨hf, inv1⟩ := arity_args hS iha h1
-  obtain ⟨p, q, hpq, hp, ho⟩ := flatChk_call hf
+  obtain ⟨p, q, hpq, hp, ho⟩ := flatChk_call (flatChkE_call hf)
   have hca : callArity s₁.funcs f₁.module x = some (ps.length, rs.length) := callArity_eq hfi hty
   obtain ⟨rfl, rfl⟩ : p = ps.length ∧ q = rs.length := by
     rw [hca, Option.some.injEq, Prod.mk.injEq] at hpq
@@ -778,12 +1058,12 @@ theorem arity_call_pre {x : FuncIdx} {a : Nat} {fi : FuncInst H} {ps rs : List V
 
 theorem arity_callOk {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
     {ps rs : List Validation.CValType}
-    (iha : ArityGood s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
+    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
     (hcode : fi.code = .wasm fn) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (ihb : ArityGood s₁ (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals) []
+    (ihb : ArityGoodE ext s₁ (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals) []
       (Binaryen.liftInstrs fn.body) (s₂, f₂, fl)) (hvs : fl.retVals = some vs)
-    (ihk : ArityGood s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es r) :
-    ArityGood s f stk (.op (.call x) args :: es) r := by
+    (ihk : ArityGoodE ext s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es r) :
+    ArityGoodE ext s f stk (.op (.call x) args :: es) r := by
   intro labels ret out hS hc
   obtain ⟨inv1, hp, h2⟩ := arity_call_pre hS iha hfi hty hc
   obtain ⟨ob, hob, hok, hfuncs⟩ := arity_callee hS inv1 hfi hcode hty hp ihb
@@ -794,7 +1074,7 @@ theorem arity_callOk {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
       stk₁.length - ps.length + rs.length := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
-  have h2' : chk s₂.funcs f₁.module f₁.locals.length ret labels
+  have h2' : chkE ext s₂.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take rs.length ++ stk₁.drop ps.length).length) es = some out := by
     rw [hlen]
     exact chk_inv inv2 h2
@@ -803,11 +1083,11 @@ theorem arity_callOk {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
 
 theorem arity_callTrap {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
     {ps rs : List Validation.CValType}
-    (iha : ArityGood s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
+    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
     (hcode : fi.code = .wasm fn) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (ihb : ArityGood s₁ (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals) []
+    (ihb : ArityGoodE ext s₁ (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals) []
       (Binaryen.liftInstrs fn.body) (s₂, f₂, .trap)) :
-    ArityGood s f stk (.op (.call x) args :: es) (s₂, f₁, .trap) := by
+    ArityGoodE ext s f stk (.op (.call x) args :: es) (s₂, f₁, .trap) := by
   intro labels ret out hS hc
   obtain ⟨inv1, hp, -⟩ := arity_call_pre hS iha hfi hty hc
   obtain ⟨-, -, -, hfuncs⟩ := arity_callee hS inv1 hfi hcode hty hp ihb
@@ -815,11 +1095,11 @@ theorem arity_callTrap {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
 
 theorem arity_callThrow {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
     {ps rs : List Validation.CValType} {t : Nat}
-    (iha : ArityGood s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
+    (iha : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁)) (hfi : s₁.func? f₁ x = some (a, fi))
     (hcode : fi.code = .wasm fn) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (ihb : ArityGood s₁ (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals) []
+    (ihb : ArityGoodE ext s₁ (Frame.forCall fi.module (stk₁.take ps.length).reverse fn.locals) []
       (Binaryen.liftInstrs fn.body) (s₂, f₂, .throw t)) :
-    ArityGood s f stk (.op (.call x) args :: es) (s₂, f₁, .throw t) := by
+    ArityGoodE ext s f stk (.op (.call x) args :: es) (s₂, f₁, .throw t) := by
   intro labels ret out hS hc
   obtain ⟨inv1, hp, -⟩ := arity_call_pre hS iha hfi hty hc
   obtain ⟨_, _, hok, _⟩ := arity_callee hS inv1 hfi hcode hty hp ihb
@@ -829,8 +1109,8 @@ theorem arity_callThrow {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
 
 /-- A checked body satisfies the check. -/
 theorem arity_body {L : List Nat} {ret n₀ nr : Nat} {stk₀ : List Val} (hS : StoreChk s.funcs)
-    (hb : endsAt (chk s.funcs f.module f.locals.length ret L (some n₀) body) nr = true)
-    (hlen : stk₀.length = n₀) (ihb : ArityGood s f stk₀ body (s₁, f₁, fl)) :
+    (hb : endsAt (chkE ext s.funcs f.module f.locals.length ret L (some n₀) body) nr = true)
+    (hlen : stk₀.length = n₀) (ihb : ArityGoodE ext s f stk₀ body (s₁, f₁, fl)) :
     ∃ ob, (ob = none ∨ ob = some nr) ∧ FlowOk L ret ob fl ∧ EvalInv s f (s₁, f₁, fl) := by
   obtain ⟨ob, hb', hob⟩ := endsAt_eq hb
   obtain ⟨hok, hinv⟩ := ihb hS (hlen ▸ hb')
@@ -840,14 +1120,14 @@ theorem arity_body {L : List Nat} {ret n₀ nr : Nat} {stk₀ : List Val} (hS : 
 theorem arity_after {labels : List Nat} {ret np nr : Nat} {out : Option Nat}
     (hS : StoreChk s.funcs) (inv1 : EvalInv s f (s₁, f₁, fl)) (hnp : np ≤ stk.length)
     (hnr : nr ≤ vs.length)
-    (h2 : chk s.funcs f.module f.locals.length ret labels (some (stk.length - np + nr)) es =
+    (h2 : chkE ext s.funcs f.module f.locals.length ret labels (some (stk.length - np + nr)) es =
       some out)
-    (ihk : ArityGood s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
+    (ihk : ArityGoodE ext s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
     FlowOk labels ret out r.2.2 ∧ EvalInv s f r := by
   have hlen : (vs.take nr ++ stk.drop np).length = stk.length - np + nr := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
-  have h2' : chk s₁.funcs f₁.module f₁.locals.length ret labels
+  have h2' : chkE ext s₁.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take nr ++ stk.drop np).length) es = some out := by
     rw [hlen]
     exact chk_inv inv1 h2
@@ -857,14 +1137,14 @@ theorem arity_after {labels : List Nat} {ret np nr : Nat} {out : Option Nat}
 /-- What the check of a block says. -/
 theorem arity_block_pre {bt : BlockType} {np nr : Nat} {labels : List Nat} {ret : Nat}
     {out : Option Nat} (har : Binaryen.arity f bt = some (np, nr))
-    (hc : chk s.funcs f.module f.locals.length ret labels (some stk.length)
+    (hc : chkE ext s.funcs f.module f.locals.length ret labels (some stk.length)
       (.block bt body :: es) = some out) :
     np ≤ stk.length ∧
-      endsAt (chk s.funcs f.module f.locals.length ret (nr :: labels) (some np) body) nr = true ∧
-      chk s.funcs f.module f.locals.length ret labels (some (stk.length - np + nr)) es =
+      endsAt (chkE ext s.funcs f.module f.locals.length ret (nr :: labels) (some np) body) nr = true ∧
+      chkE ext s.funcs f.module f.locals.length ret labels (some (stk.length - np + nr)) es =
         some out := by
-  obtain ⟨o, h1, h2⟩ := chk_cons.mp hc
-  obtain ⟨np', nr', ha, hp, hb, ho⟩ := chk1_block h1
+  obtain ⟨o, h1, h2⟩ := chk_consE.mp hc
+  obtain ⟨np', nr', ha, hp, hb, ho⟩ := chk1_blockE h1
   rw [← arity_eq, har, Option.some.injEq, Prod.mk.injEq] at ha
   obtain ⟨rfl, rfl⟩ := ha
   exact ⟨hp, hb, ho ▸ h2⟩
@@ -872,14 +1152,14 @@ theorem arity_block_pre {bt : BlockType} {np nr : Nat} {labels : List Nat} {ret 
 /-- What the check of a loop says. -/
 theorem arity_loop_pre {bt : BlockType} {np nr : Nat} {labels : List Nat} {ret : Nat}
     {out : Option Nat} (har : Binaryen.arity f bt = some (np, nr))
-    (hc : chk s.funcs f.module f.locals.length ret labels (some stk.length)
+    (hc : chkE ext s.funcs f.module f.locals.length ret labels (some stk.length)
       (.loop bt body :: es) = some out) :
     np ≤ stk.length ∧
-      endsAt (chk s.funcs f.module f.locals.length ret (np :: labels) (some np) body) nr = true ∧
-      chk s.funcs f.module f.locals.length ret labels (some (stk.length - np + nr)) es =
+      endsAt (chkE ext s.funcs f.module f.locals.length ret (np :: labels) (some np) body) nr = true ∧
+      chkE ext s.funcs f.module f.locals.length ret labels (some (stk.length - np + nr)) es =
         some out := by
-  obtain ⟨o, h1, h2⟩ := chk_cons.mp hc
-  obtain ⟨np', nr', ha, hp, hb, ho⟩ := chk1_loop h1
+  obtain ⟨o, h1, h2⟩ := chk_consE.mp hc
+  obtain ⟨np', nr', ha, hp, hb, ho⟩ := chk1_loopE h1
   rw [← arity_eq, har, Option.some.injEq, Prod.mk.injEq] at ha
   obtain ⟨rfl, rfl⟩ := ha
   exact ⟨hp, hb, ho ▸ h2⟩
@@ -889,9 +1169,9 @@ theorem take_length_of_le {np : Nat} (h : np ≤ stk.length) : (stk.take np).len
   omega
 
 theorem arity_blockOk {bt : BlockType} {np nr : Nat} (har : Binaryen.arity f bt = some (np, nr))
-    (ihb : ArityGood s f (stk.take np) body (s₁, f₁, fl)) (hvs : fl.blockVals = some vs)
-    (ihk : ArityGood s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
-    ArityGood s f stk (.block bt body :: es) r := by
+    (ihb : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl)) (hvs : fl.blockVals = some vs)
+    (ihk : ArityGoodE ext s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
+    ArityGoodE ext s f stk (.block bt body :: es) r := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, h2⟩ := arity_block_pre har hc
   obtain ⟨ob, hob, hok, inv1⟩ := arity_body hS hb (take_length_of_le hp) ihb
@@ -899,8 +1179,8 @@ theorem arity_blockOk {bt : BlockType} {np nr : Nat} (har : Binaryen.arity f bt 
 
 theorem arity_blockBrk {bt : BlockType} {np nr k : Nat}
     (har : Binaryen.arity f bt = some (np, nr))
-    (ihb : ArityGood s f (stk.take np) body (s₁, f₁, .brk (k + 1) vs)) :
-    ArityGood s f stk (.block bt body :: es) (s₁, f₁, .brk k vs) := by
+    (ihb : ArityGoodE ext s f (stk.take np) body (s₁, f₁, .brk (k + 1) vs)) :
+    ArityGoodE ext s f stk (.block bt body :: es) (s₁, f₁, .brk k vs) := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, -⟩ := arity_block_pre har hc
   obtain ⟨_, _, hok, inv1⟩ := arity_body hS hb (take_length_of_le hp) ihb
@@ -908,26 +1188,26 @@ theorem arity_blockBrk {bt : BlockType} {np nr k : Nat}
 
 theorem arity_blockEsc {bt : BlockType} {np nr : Nat}
     (har : Binaryen.arity f bt = some (np, nr))
-    (ihb : ArityGood s f (stk.take np) body (s₁, f₁, fl)) (hfl : fl.Escapes) :
-    ArityGood s f stk (.block bt body :: es) (s₁, f₁, fl) := by
+    (ihb : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl)) (hfl : fl.Escapes) :
+    ArityGoodE ext s f stk (.block bt body :: es) (s₁, f₁, fl) := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, -⟩ := arity_block_pre har hc
   obtain ⟨_, _, hok, inv1⟩ := arity_body hS hb (take_length_of_le hp) ihb
   exact ⟨hok.escape hfl, inv1⟩
 
 theorem arity_loopOk {bt : BlockType} {np nr : Nat} (har : Binaryen.arity f bt = some (np, nr))
-    (ihb : ArityGood s f (stk.take np) body (s₁, f₁, .normal vs))
-    (ihk : ArityGood s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
-    ArityGood s f stk (.loop bt body :: es) r := by
+    (ihb : ArityGoodE ext s f (stk.take np) body (s₁, f₁, .normal vs))
+    (ihk : ArityGoodE ext s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
+    ArityGoodE ext s f stk (.loop bt body :: es) r := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, h2⟩ := arity_loop_pre har hc
   obtain ⟨ob, hob, hok, inv1⟩ := arity_body hS hb (take_length_of_le hp) ihb
   exact arity_after hS inv1 hp (length_of_ends hok hob).ge h2 ihk
 
 theorem arity_loopBack {bt : BlockType} {np nr : Nat} (har : Binaryen.arity f bt = some (np, nr))
-    (ihb : ArityGood s f (stk.take np) body (s₁, f₁, .brk 0 vs))
-    (ihk : ArityGood s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) r) :
-    ArityGood s f stk (.loop bt body :: es) r := by
+    (ihb : ArityGoodE ext s f (stk.take np) body (s₁, f₁, .brk 0 vs))
+    (ihk : ArityGoodE ext s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) r) :
+    ArityGoodE ext s f stk (.loop bt body :: es) r := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
   obtain ⟨_, _, hok, inv1⟩ := arity_body hS hb (take_length_of_le hp) ihb
@@ -938,7 +1218,7 @@ theorem arity_loopBack {bt : BlockType} {np nr : Nat} (har : Binaryen.arity f bt
   have hlen : (vs.take np ++ stk.drop np).length = stk.length := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
-  have hc' : chk s₁.funcs f₁.module f₁.locals.length ret labels
+  have hc' : chkE ext s₁.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take np ++ stk.drop np).length) (.loop bt body :: es) = some out := by
     rw [hlen]
     exact chk_inv inv1 hc
@@ -947,8 +1227,8 @@ theorem arity_loopBack {bt : BlockType} {np nr : Nat} (har : Binaryen.arity f bt
 
 theorem arity_loopBrk {bt : BlockType} {np nr k : Nat}
     (har : Binaryen.arity f bt = some (np, nr))
-    (ihb : ArityGood s f (stk.take np) body (s₁, f₁, .brk (k + 1) vs)) :
-    ArityGood s f stk (.loop bt body :: es) (s₁, f₁, .brk k vs) := by
+    (ihb : ArityGoodE ext s f (stk.take np) body (s₁, f₁, .brk (k + 1) vs)) :
+    ArityGoodE ext s f stk (.loop bt body :: es) (s₁, f₁, .brk k vs) := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
   obtain ⟨_, _, hok, inv1⟩ := arity_body hS hb (take_length_of_le hp) ihb
@@ -956,8 +1236,8 @@ theorem arity_loopBrk {bt : BlockType} {np nr k : Nat}
 
 theorem arity_loopEsc {bt : BlockType} {np nr : Nat}
     (har : Binaryen.arity f bt = some (np, nr))
-    (ihb : ArityGood s f (stk.take np) body (s₁, f₁, fl)) (hfl : fl.Escapes) :
-    ArityGood s f stk (.loop bt body :: es) (s₁, f₁, fl) := by
+    (ihb : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl)) (hfl : fl.Escapes) :
+    ArityGoodE ext s f stk (.loop bt body :: es) (s₁, f₁, fl) := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
   obtain ⟨_, _, hok, inv1⟩ := arity_body hS hb (take_length_of_le hp) ihb
@@ -966,17 +1246,17 @@ theorem arity_loopEsc {bt : BlockType} {np nr : Nat}
 /-- What the check of an `if` says once its condition has run. -/
 theorem arity_if_pre {bt : BlockType} {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
     {np nr : Nat} {labels : List Nat} {ret : Nat} {out : Option Nat} (hS : StoreChk s.funcs)
-    (ihc : ArityGood s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    (ihc : ArityGoodE ext s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (har : Binaryen.arity f₁ bt = some (np, nr))
-    (hc : chk s.funcs f.module f.locals.length ret labels (some stk.length)
+    (hc : chkE ext s.funcs f.module f.locals.length ret labels (some stk.length)
       (.if_ bt c t el :: es) = some out) :
     EvalInv s f (s₁, f₁, .normal (cv :: stk₁)) ∧ np ≤ stk₁.length ∧
-      endsAt (chk s.funcs f.module f.locals.length ret (nr :: labels) (some np)
+      endsAt (chkE ext s.funcs f.module f.locals.length ret (nr :: labels) (some np)
         (if b then t else el)) nr = true ∧
-      chk s.funcs f.module f.locals.length ret labels (some (stk₁.length - np + nr)) es =
+      chkE ext s.funcs f.module f.locals.length ret labels (some (stk₁.length - np + nr)) es =
         some out := by
-  obtain ⟨o, h1, h2⟩ := chk_cons.mp hc
-  obtain ⟨oc, hco, hk1⟩ := chk1_if h1
+  obtain ⟨o, h1, h2⟩ := chk_consE.mp hc
+  obtain ⟨oc, hco, hk1⟩ := chk1_ifE h1
   obtain ⟨hoc, inv1⟩ := ihc hS hco
   obtain ⟨np', nr', ha, hp, ht, he, ho⟩ := hk1 _ hoc
   rw [← inv1.2.1, ← arity_eq, har, Option.some.injEq, Prod.mk.injEq] at ha
@@ -990,11 +1270,11 @@ theorem arity_if_pre {bt : BlockType} {c t el : List Binaryen.BExpr} {cv : Val} 
   · exact ht
 
 theorem arity_ifOk {bt : BlockType} {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
-    {np nr : Nat} (ihc : ArityGood s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    {np nr : Nat} (ihc : ArityGoodE ext s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (har : Binaryen.arity f₁ bt = some (np, nr))
-    (iharm : ArityGood s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
-    (hvs : fl.blockVals = some vs) (ihk : ArityGood s₂ f₂ (vs.take nr ++ stk₁.drop np) es r) :
-    ArityGood s f stk (.if_ bt c t el :: es) r := by
+    (iharm : ArityGoodE ext s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
+    (hvs : fl.blockVals = some vs) (ihk : ArityGoodE ext s₂ f₂ (vs.take nr ++ stk₁.drop np) es r) :
+    ArityGoodE ext s f stk (.if_ bt c t el :: es) r := by
   intro labels ret out hS hc
   obtain ⟨inv1, hp, hb, h2⟩ := arity_if_pre (b := b) hS ihc har hc
   replace hb := chk_inv_endsAt inv1 hb
@@ -1006,10 +1286,10 @@ theorem arity_ifOk {bt : BlockType} {c t el : List Binaryen.BExpr} {cv : Val} {b
   exact ⟨hok', inv1.trans inv3⟩
 
 theorem arity_ifBrk {bt : BlockType} {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
-    {np nr k : Nat} (ihc : ArityGood s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    {np nr k : Nat} (ihc : ArityGoodE ext s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (har : Binaryen.arity f₁ bt = some (np, nr))
-    (iharm : ArityGood s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, .brk (k + 1) vs)) :
-    ArityGood s f stk (.if_ bt c t el :: es) (s₂, f₂, .brk k vs) := by
+    (iharm : ArityGoodE ext s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, .brk (k + 1) vs)) :
+    ArityGoodE ext s f stk (.if_ bt c t el :: es) (s₂, f₂, .brk k vs) := by
   intro labels ret out hS hc
   obtain ⟨inv1, hp, hb, -⟩ := arity_if_pre (b := b) hS ihc har hc
   replace hb := chk_inv_endsAt inv1 hb
@@ -1017,11 +1297,11 @@ theorem arity_ifBrk {bt : BlockType} {c t el : List Binaryen.BExpr} {cv : Val} {
   exact ⟨hok.brk_succ, inv1.trans inv2⟩
 
 theorem arity_ifEsc {bt : BlockType} {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
-    {np nr : Nat} (ihc : ArityGood s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    {np nr : Nat} (ihc : ArityGoodE ext s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (har : Binaryen.arity f₁ bt = some (np, nr))
-    (iharm : ArityGood s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
+    (iharm : ArityGoodE ext s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
     (hfl : fl.Escapes) :
-    ArityGood s f stk (.if_ bt c t el :: es) (s₂, f₂, fl) := by
+    ArityGoodE ext s f stk (.if_ bt c t el :: es) (s₂, f₂, fl) := by
   intro labels ret out hS hc
   obtain ⟨inv1, hp, hb, -⟩ := arity_if_pre (b := b) hS ihc har hc
   replace hb := chk_inv_endsAt inv1 hb
@@ -1029,11 +1309,11 @@ theorem arity_ifEsc {bt : BlockType} {c t el : List Binaryen.BExpr} {cv : Val} {
   exact ⟨hok.escape hfl, inv1.trans inv2⟩
 
 theorem arity_ifAbort {bt : BlockType} {c t el : List Binaryen.BExpr}
-    (ihc : ArityGood s f stk c (s₁, f₁, fl)) (hfl : ¬ fl.IsNormal) :
-    ArityGood s f stk (.if_ bt c t el :: es) (s₁, f₁, fl) := by
+    (ihc : ArityGoodE ext s f stk c (s₁, f₁, fl)) (hfl : ¬ fl.IsNormal) :
+    ArityGoodE ext s f stk (.if_ bt c t el :: es) (s₁, f₁, fl) := by
   intro labels ret out hS hc
-  obtain ⟨o, h1, -⟩ := chk_cons.mp hc
-  obtain ⟨oc, hco, -⟩ := chk1_if h1
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
+  obtain ⟨oc, hco, -⟩ := chk1_ifE h1
   obtain ⟨hok, inv1⟩ := ihc hS hco
   exact ⟨hok.abrupt hfl, inv1⟩
 
