@@ -10,6 +10,13 @@ every call by running the callee's body in `CallXE.EvalOXE`: a callee may throw,
 and its answer may be a thrown exception (`.throw a`), which the caller propagates or catches.
 
 Theorems in `Silmaril.Wasm.Abstract.XRecursionE.Thms`. New definitions.
+
+**Status: legacy, restricted scope.** The canonical F5 semantics is `Abstract.CallXP` (pending
+tail calls answered only at the frame, faithful under handlers), with closure
+`Abstract.XRecursionP.closedCallXP`, Core adequacy `Interp.PendSim` and exact BodyM denotation
+`Abstract.ExposeP`. The statements here are for code without the extended call forms (`xFreeL`),
+where `CallXP.evalOXP_iff_evalOXE` makes them coincide with the canonical ones; they are not the
+factory default for code with tail calls.
 -/
 
 @[expose] public section

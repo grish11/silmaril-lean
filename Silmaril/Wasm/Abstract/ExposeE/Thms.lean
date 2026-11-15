@@ -33,6 +33,13 @@ caught. Core 3.0 leaves the handler first (`return_call_ref-handler`). The faith
 `Silmaril.Wasm.Abstract.CallXP` (pending tail calls, answered when the frame is left), which agrees
 with `EvalOXE` on code without the extended call forms (`CallXP.evalOXP_iff_evalOXE`). This
 exposure is not the general functor's denotation; a pending-tail exposure is to follow.
+
+**Status: legacy, restricted scope.** The canonical F5 semantics is `Abstract.CallXP` (pending
+tail calls answered only at the frame, faithful under handlers), with closure
+`Abstract.XRecursionP.closedCallXP`, Core adequacy `Interp.PendSim` and exact BodyM denotation
+`Abstract.ExposeP`. The statements here are for code without the extended call forms (`xFreeL`),
+where `CallXP.evalOXP_iff_evalOXE` makes them coincide with the canonical ones; they are not the
+factory default for code with tail calls.
 -/
 
 public section

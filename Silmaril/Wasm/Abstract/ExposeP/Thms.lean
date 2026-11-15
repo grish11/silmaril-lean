@@ -33,6 +33,13 @@ Exactness:
 
 A trap is the trap effect of the monad, so it forgets its store (`endRP`, `endF`), as in
 `ExposeE.evalOXE_trap_iff`.
+
+**Status: canonical F5 semantics.** Exceptions and every call form, tail calls pending until the
+frame is left. Together with `Abstract.XRecursionP` (closure), `Abstract.ExposeP` (exact BodyM
+denotation, body and frame level) and `Interp.PendSim` (Core 3.0 forward simulation and closure
+soundness), this is the API the structure-preserving functor (F7) builds on. The older
+`CallXE`/`XRecursionE`/`ExposeE`/`EHSim`/`EHClose` forms are legacy, valid on code without the
+extended call forms.
 -/
 
 public section

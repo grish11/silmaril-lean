@@ -20,6 +20,13 @@ The proof is a least-fixpoint induction: a callee body is a Core run by the exce
 
 Hence **`evalOXE_closed_good`**: on a good store, closed runs with exceptions of `ehExt`-checked
 code without the extended call forms are Core 3.0 runs, every profile and host, no oracle assumed.
+
+**Status: legacy, restricted scope.** The canonical F5 semantics is `Abstract.CallXP` (pending
+tail calls answered only at the frame, faithful under handlers), with closure
+`Abstract.XRecursionP.closedCallXP`, Core adequacy `Interp.PendSim` and exact BodyM denotation
+`Abstract.ExposeP`. The statements here are for code without the extended call forms (`xFreeL`),
+where `CallXP.evalOXP_iff_evalOXE` makes them coincide with the canonical ones; they are not the
+factory default for code with tail calls.
 -/
 
 public section

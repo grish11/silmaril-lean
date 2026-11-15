@@ -29,6 +29,13 @@ is made; under a `try_table` the tail callee's exception is then caught by `tryC
 Core 3.0, where the tail call leaves the handler first. The faithful relation is
 `Silmaril.Wasm.Abstract.CallXP.EvalOXP` (pending tail calls, answered at the frame); the two agree
 on code without the extended call forms.
+
+**Status: legacy, restricted scope.** The canonical F5 semantics is `Abstract.CallXP` (pending
+tail calls answered only at the frame, faithful under handlers), with closure
+`Abstract.XRecursionP.closedCallXP`, Core adequacy `Interp.PendSim` and exact BodyM denotation
+`Abstract.ExposeP`. The statements here are for code without the extended call forms (`xFreeL`),
+where `CallXP.evalOXP_iff_evalOXE` makes them coincide with the canonical ones; they are not the
+factory default for code with tail calls.
 -/
 
 @[expose] public section

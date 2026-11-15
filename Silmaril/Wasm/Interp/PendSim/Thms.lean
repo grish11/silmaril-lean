@@ -31,6 +31,13 @@ every oracle premise (`oracleSoundTE_closedP`, `oracleThrowsE_closedP`, `oracleT
 so closed runs are Core 3.0 runs, no oracle assumed (`evalOXP_closed_good`).
 
 Definitions in `Silmaril.Proofs.Wasm.Interp.PendSim` and `Silmaril.Proofs.Wasm.Interp.PendClose`.
+
+**Status: canonical F5 semantics.** Exceptions and every call form, tail calls pending until the
+frame is left. Together with `Abstract.XRecursionP` (closure), `Abstract.ExposeP` (exact BodyM
+denotation, body and frame level) and `Interp.PendSim` (Core 3.0 forward simulation and closure
+soundness), this is the API the structure-preserving functor (F7) builds on. The older
+`CallXE`/`XRecursionE`/`ExposeE`/`EHSim`/`EHClose` forms are legacy, valid on code without the
+extended call forms.
 -/
 
 public section

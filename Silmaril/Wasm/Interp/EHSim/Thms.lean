@@ -37,6 +37,13 @@ frame (`FlowMatch`).
 their typed cases are stated for `tExt` (`evalOXT_goodT`) and are not yet generalized to
 `ehExt`. The oracle premises are not yet discharged by a closure with exceptions.
 `evalO_goodEH` covers `EvalO` runs with throwing callees for every stable extension.
+
+**Status: legacy, restricted scope.** The canonical F5 semantics is `Abstract.CallXP` (pending
+tail calls answered only at the frame, faithful under handlers), with closure
+`Abstract.XRecursionP.closedCallXP`, Core adequacy `Interp.PendSim` and exact BodyM denotation
+`Abstract.ExposeP`. The statements here are for code without the extended call forms (`xFreeL`),
+where `CallXP.evalOXP_iff_evalOXE` makes them coincide with the canonical ones; they are not the
+factory default for code with tail calls.
 -/
 
 public section

@@ -31,6 +31,13 @@ On code without the extended call forms the new relation is `EvalOXE`
 (`Silmaril.Wasm.Abstract.CallXP.Thms`). A tail call of null still traps where it is made, as in
 `EvalOXE`: a trap passes every label and handler, which is Core's pending null tail call trapping
 at the frame (`Cfg.Region.Out.tailNull`, `Logic.Core.Outcome.tailNull`), in the same store.
+
+**Status: canonical F5 semantics.** Exceptions and every call form, tail calls pending until the
+frame is left. Together with `Abstract.XRecursionP` (closure), `Abstract.ExposeP` (exact BodyM
+denotation, body and frame level) and `Interp.PendSim` (Core 3.0 forward simulation and closure
+soundness), this is the API the structure-preserving functor (F7) builds on. The older
+`CallXE`/`XRecursionE`/`ExposeE`/`EHSim`/`EHClose` forms are legacy, valid on code without the
+extended call forms.
 -/
 
 @[expose] public section
