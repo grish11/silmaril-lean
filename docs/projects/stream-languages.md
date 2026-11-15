@@ -15,6 +15,7 @@ It reuses Mathlib's `Language α` (`Set (List α)`) and CSLib's `ωSequence α`,
 | --- | --- |
 | `Silmaril.Semantics.Streams.Defs` / `Thms` | Finite-or-infinite words (`Word α`), ∞-languages (`Lang α`), chunk streams (`Chunks α`), their limits and progress |
 | `Silmaril.Semantics.Acceptors.Defs` / `Thms` | Incremental acceptors (`process`/`accepted`/`reset`) specified against a `Language α` over arbitrary client traces |
+| `Silmaril.Semantics.StreamAcceptors.Defs` / `Thms` | Acceptor answers on unbounded chunk sessions, equal to the monitor verdicts |
 | `Silmaril.Semantics.StreamMonitors.Defs` / `Thms` | Safety and liveness verdicts of chunk-boundary monitors, compared with the limit word |
 
 ### `Silmaril.Semantics.Streams` (namespace `Silmaril.Streams`)
@@ -98,6 +99,22 @@ Stable API:
     `symbolCorrect_toSymbols`.
   - `reference` and `exists_correctInterleaved`: every decidable language has a correct
     acceptor, possibly with infinitely many states.
+
+### `Silmaril.Semantics.StreamAcceptors` (namespace `Silmaril.Acceptor`)
+
+Stable API:
+
+- `boundaryAnswer A cs n` is the answer of `accepted()` after the first `n` chunks of
+  `cs : ωSequence χ`.
+- `boundaryTrace cs n` is the client trace of `n` process/query rounds.
+- `view cs : Chunks α` is the stream of symbol chunks.
+- Main theorems:
+  - `boundaryAnswer_eq` (assumes `CorrectFold`), `run_boundaryTrace` (assumes `Pure`)
+    and `run_boundaryTrace_eq` (assumes `Pure` and `CorrectInterleaved`).
+  - `alwaysAt_iff`, `infOftenAt_iff` and `eventuallyAlwaysAt_iff`: an acceptor's
+    verdicts are the monitor verdicts.
+  - `mem_omegaLim_of_answers`, and `answers_of_limit_fin`, which is the
+    no-progress caveat.
 
 ## Scope and limits
 
