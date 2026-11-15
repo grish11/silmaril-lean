@@ -49,7 +49,7 @@ All results hold for every profile `P` and every host `host`. Proofs are in
 
 * **Divergence with calls** (`RunDivC P host C D`): a direct call is answered by `C` with values
   and the continuation diverges, or `D` names it (it diverges inside the callee).
-  `div_soundC` under `CallSound` and `DivCallSound`; **`div_completeC`**: on code of the
+  `div_soundC` under `CallSoundA` and `DivCallSound`; **`div_completeC`**: on code of the
   fragment with calls (`FragC`), a diverging Core run is a `RunDivC` run under complete `C` and
   `D` (`CallCompleteG`, `DivCallComplete`) whose guard holds at every call the run reaches
   (`GuardedCalls`). At a call, the run diverges in the callee (through any chain of tail calls
@@ -58,8 +58,11 @@ All results hold for every profile `P` and every host `host`. Proofs are in
 * **Calls** (`RunC P host C`): `call x` is answered by an oracle `C : Abstract.CallRel H`, in
   `EvalO`'s convention: arguments in parameter order, the callee's `Flow` results top first.
   `Run P host = RunC P host noCall` is the call-free semantics, and every statement above is
-  about it. `run_soundC` holds under the named hypothesis `CallSound P host C`. Not yet:
-  `CallSound` for `Abstract.closedCall`, completeness with calls, `call_ref`/`call_indirect`.
+  about it. `run_soundC` holds under the named hypothesis `CallSoundA P host C` (every
+  `call_ref` form). `call_indirect` and `call_ref` are answered by the same oracle after their
+  resolution (`CallRes.IndRes`; the function reference on the stack), as `CallX.EvalOX` resolves
+  them (`RunC.callInd*`, `RunC.callRef*`); they are outside `Frag`/`FragC`, so completeness does
+  not cover them.
 
 * **Tail calls**: `return_call*` end a region in a pending tail call (`Out.tail`, `Out.tailNull`,
   the final forms `vals vs ++ REF.FUNC_ADDR a :: c :: rest` and its null analogue), which needs
@@ -80,9 +83,9 @@ theorem run_sound {vs : List Val} {code : List Admin} {o : Out}
   Proofs.Region.sound h
 
 /-- **Soundness with calls**: with calls answered by an oracle `C` that is Core-sound
-(`CallSound`, a named hypothesis), a region run is a Core 3.0 run to a final form of its
+(`CallSoundA`, a named hypothesis), a region run is a Core 3.0 run to a final form of its
 outcome. -/
-theorem run_soundC {C : Abstract.CallRel H} (hC : CallSound P host C) {vs : List Val}
+theorem run_soundC {C : Abstract.CallRel H} (hC : CallSoundA P host C) {vs : List Val}
     {code : List Admin} {o : Out} (h : RunC P host C s f vs code s' f' o) :
     ∃ c', Steps P host ⟨s, f, vals vs ++ code⟩ ⟨s', f', c'⟩ ∧ o.Ends c' :=
   Proofs.Region.soundC hC h
@@ -193,7 +196,7 @@ theorem div_iff {vs : List Val} {code : List Admin} (hF : Frag code) :
 /-- **Divergence soundness with calls**: when `C` answers calls as Core runs them and the calls
 `D` names diverge in Core, a diverging region run with calls is an infinite Core 3.0 run. -/
 theorem div_soundC {C : Abstract.CallRel H} {D : Store H → Nat → List Val → Prop}
-    (hC : CallSound P host C) (hD : DivCallSound P host D) {vs : List Val} {code : List Admin}
+    (hC : CallSoundA P host C) (hD : DivCallSound P host D) {vs : List Val} {code : List Admin}
     (h : RunDivC P host C D s f vs code) : Diverges P host ⟨s, f, vals vs ++ code⟩ :=
   Proofs.Region.div_soundC hC hD h
 

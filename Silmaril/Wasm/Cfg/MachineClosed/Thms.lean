@@ -15,7 +15,7 @@ public import Silmaril.Wasm.Execution.Core.Sim.TypedContext
 The machine with calls (`MStepC`) instantiated with the actual oracle `Abstract.closedCallOk`:
 calls answered by the closed native semantics (`closedCall`, the least fixpoint of running
 callees), restricted to arity-checked stores (`StoreChk`) and typed invocations (`InvokeOk`).
-`Abstract.callSound_closedCallOk` proves it Core-sound (`Region.CallSound`) for every profile and
+`Abstract.callSoundAnn_closedCallOk` proves it Core-sound (`Region.CallSoundA`) for every profile and
 host, so the machine's Core soundness holds with **no oracle hypothesis**:
 
 * **`core_sound_closed`**: a run of the machine with `closedCallOk` from the CFG entry to a sink
@@ -59,6 +59,12 @@ open Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
 
 variable {H : Type} {P : Profile} {host : HostSemantics H} {body : Expr}
 
+/-- The checked closed oracle is Core-sound for every `call_ref` annotation. -/
+theorem callSoundA_closedCallOk (P : Profile) (host : HostSemantics H) :
+    Region.CallSoundA P host (Abstract.closedCallOk (H := H)) :=
+  fun s s₁ f a fi ps rs us fl c hc hfi hty hn hcall =>
+    Abstract.callSoundAnn_closedCallOk P host s s₁ f a fi ps rs us fl c hc hfi hty hn hcall
+
 /-- **Core soundness of the machine with the checked closed oracle**, every profile and host,
 no oracle hypothesis: a run from the CFG entry to a sink is a Core 3.0 run of the body to a final
 form of the region outcome the sink completes. -/
@@ -67,13 +73,7 @@ theorem core_sound_closed {s : Store H} {f : Frame} {st' : MState H}
     (hs : st'.node.IsSink) :
     ∃ o s₂ f₂ c', EndsC Abstract.closedCallOk st' s₂ f₂ o ∧
       Steps P host ⟨s, f, expression body⟩ ⟨s₂, f₂, c'⟩ ∧ o.Ends c' :=
-  core_sound_initialC (Abstract.callSound_closedCallOk P host) h hs
-
-/-- The checked closed oracle is Core-sound for every `call_ref` annotation. -/
-theorem callSoundA_closedCallOk (P : Profile) (host : HostSemantics H) :
-    Region.CallSoundA P host (Abstract.closedCallOk (H := H)) :=
-  fun s s₁ f a fi ps rs us fl c hc hfi hty hn hcall =>
-    Abstract.callSoundAnn_closedCallOk P host s s₁ f a fi ps rs us fl c hc hfi hty hn hcall
+  core_sound_initialC (callSoundA_closedCallOk P host) h hs
 
 /-- **Tail calls at the frame with the checked closed oracle**, no oracle hypothesis: a run from
 the CFG entry ending by a tail call is a Core 3.0 run of `FRAME_n{fi} (LABEL_n{} body)`, in any
@@ -155,7 +155,7 @@ naming diverging ones, from the CFG entry, is Core 3.0 divergence of the body. -
 theorem mdivC_core_closed (P : Profile) {s : Store H} {f : Frame}
     (h : MDivC P (fun _ _ _ _ => False) Abstract.closedCallOk closedDiv body (initial body s f)) :
     Diverges P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ :=
-  mdivC_core_initial (Abstract.callSound_closedCallOk P _) (divCallSound_closedDiv P) h
+  mdivC_core_initial (callSoundA_closedCallOk P _) (divCallSound_closedDiv P) h
 
 /-- **Completeness of machine divergence with the checked closed oracle** (no host, every
 profile, no oracle hypothesis): a diverging Core 3.0 run of a body of the fragment with direct

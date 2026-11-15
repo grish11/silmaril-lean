@@ -70,7 +70,7 @@ theorem wrap_steps {body : Expr} {s s' : Store H} {f f' : Frame} :
 
 /-- **A block's body run is a Core run of its code up to the terminator**, with its calls
 answered by a Core-sound oracle. -/
-theorem body_steps (hC : CallSound P host C) {c : List Instr} {i : Nat} {sg : Segment}
+theorem body_steps (hC : CallSoundA P host C) {c : List Instr} {i : Nat} {sg : Segment}
     {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ : List Val} (hsg : (segment c)[i]? = some sg)
     (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
     Steps P host ⟨s, f, vals stk ++ expression (restAt c i)⟩
@@ -689,7 +689,7 @@ open Silmaril.Wasm.Cfg.Proofs.Machine in
 /-- **Every machine step to a non-sink state is a Core run** between the codes the states stand
 for: at least one Core step, except an administrative fall-through to the next block of the
 same sequence. -/
-theorem msim (hC : CallSound P host C) {body : Expr} {st st₁ : MState H}
+theorem msim (hC : CallSoundA P host C) {body : Expr} {st st₁ : MState H}
     (h : MStepC P host C body st st₁)
     (hok : MInv body st) {X Y : List Admin} (hX : codeOf body st = some X)
     (hY : codeOf body st₁ = some Y) (hns : ¬ st₁.node.IsSink) : CSim P host st st₁ X Y := by
@@ -906,7 +906,7 @@ theorem not_sink_of_infinite {body : Expr} {st : MState H}
 /-- **An infinite machine run is an infinite Core 3.0 run** of the code its start state stands
 for. Each machine step is at least one Core step, except administrative fall-throughs to the
 next block of the same sequence, which the measure `mu` bounds: no zero-step cycle. -/
-theorem core_infinite (hC : CallSound P host C) {body : Expr} {st : MState H} {X : List Admin}
+theorem core_infinite (hC : CallSoundA P host C) {body : Expr} {st : MState H} {X : List Admin}
     (hok : MInv body st) (hX : codeOf body st = some X)
     (h : InfiniteTrace (MStepC P host C body) st) :
     InfiniteTrace (Step P host) ⟨st.store, st.frame, X⟩ := by
@@ -929,7 +929,7 @@ theorem core_infinite (hC : CallSound P host C) {body : Expr} {st : MState H} {X
 
 open Silmaril.Wasm.Cfg.Proofs.Machine in
 /-- **An infinite machine run from the CFG entry is a diverging Core 3.0 run of the body.** -/
-theorem core_infinite_initial (hC : CallSound P host C) {body : Expr} {s : Store H}
+theorem core_infinite_initial (hC : CallSoundA P host C) {body : Expr} {s : Store H}
     {f : Frame} (h : InfiniteTrace (MStepC P host C body) (initial body s f)) :
     Diverges P host ⟨s, f, expression body⟩ := by
   have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by

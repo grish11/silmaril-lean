@@ -1131,6 +1131,90 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
         exact .single (MStepC.bodyCatch (lookup_of hc hsg) hbr hpass hL hT hc' hL' har hlo)
       · exact .single (MStepC.bodyRaise (lookup_of hc hsg) hbr hall)
     | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | callInd hres hfi hty hn hcall hvs h ih =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx hpre =>
+      exact blk_adv hc hsg hbody hpre (.callInd hres hfi hty hn hcall hvs .nil)
+        (fun lv st hr => ih lv st _ _ rfl rfl hr)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | callIndTrap hres hfi hty hn hcall =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx hpre =>
+      refine .single (MStepC.bodyTrap (lookup_of hc hsg) ?_)
+      rw [hbody]
+      simpa [expression] using Proofs.Region.run_append hpre (by
+        simp only [ThenC]; exact .callIndTrap hres hfi hty hn hcall)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | @callIndThrow s s₁ f ws us x y ad i fa t fi ps rs code hres hfi hty hn hcall =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | @body p ls c i sg pre sfx x' stk₀ s₀ f₀ _ hc hsg hbody hx hpre =>
+      have hbr : RunC P host C s₀ f₀ stk₀ (expression sg.body) s₁ f (.throw t) := by
+        rw [hbody]
+        simpa [expression] using Proofs.Region.run_append hpre (by
+          simp only [ThenC]; exact .callIndThrow hres hfi hty hn hcall)
+      refine ⟨fun j L us l L' hpass hL hT hc' hL' har hlo => ?_, fun hall => ?_⟩
+      · rw [brTarget_eq']
+        exact .single (MStepC.bodyCatch (lookup_of hc hsg) hbr hpass hL hT hc' hL' har hlo)
+      · exact .single (MStepC.bodyRaise (lookup_of hc hsg) hbr hall)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | callIndRes hres =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx hpre =>
+      refine .single (MStepC.bodyTrap (lookup_of hc hsg) ?_)
+      rw [hbody]
+      simpa [expression] using Proofs.Region.run_append hpre (by
+        simp only [ThenC]; exact .callIndRes hres)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | callRef hfi hty hn hcall hvs h ih =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx hpre =>
+      exact blk_adv hc hsg hbody hpre (.callRef hfi hty hn hcall hvs .nil)
+        (fun lv st hr => ih lv st _ _ rfl rfl hr)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | callRefTrap hfi hty hn hcall =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx hpre =>
+      refine .single (MStepC.bodyTrap (lookup_of hc hsg) ?_)
+      rw [hbody]
+      simpa [expression] using Proofs.Region.run_append hpre (by
+        simp only [ThenC]; exact .callRefTrap hfi hty hn hcall)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | @callRefThrow s s₁ f ws us y fa t fi ps rs code hfi hty hn hcall =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | @body p ls c i sg pre sfx x' stk₀ s₀ f₀ _ hc hsg hbody hx hpre =>
+      have hbr : RunC P host C s₀ f₀ stk₀ (expression sg.body) s₁ f (.throw t) := by
+        rw [hbody]
+        simpa [expression] using Proofs.Region.run_append hpre (by
+          simp only [ThenC]; exact .callRefThrow hfi hty hn hcall)
+      refine ⟨fun j L us l L' hpass hL hT hc' hL' har hlo => ?_, fun hall => ?_⟩
+      · rw [brTarget_eq']
+        exact .single (MStepC.bodyCatch (lookup_of hc hsg) hbr hpass hL hT hc' hL' har hlo)
+      · exact .single (MStepC.bodyRaise (lookup_of hc hsg) hbr hall)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | callRefNull =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx hpre =>
+      refine .single (MStepC.bodyTrap (lookup_of hc hsg) ?_)
+      rw [hbody]
+      simpa [expression] using Proofs.Region.run_append hpre (by
+        simp only [ThenC]; exact .callRefNull)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
   | returnCall hfi₀ =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd

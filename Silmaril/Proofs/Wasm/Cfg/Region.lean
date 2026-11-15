@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Cfg.Region.Defs
 public import Silmaril.Proofs.Wasm.Cfg.Exec
 public import Silmaril.Wasm.Execution.Core.Inversion.Thms
+public import Silmaril.Wasm.Abstract.CallRes.Thms
 
 @[expose] public section
 
@@ -198,24 +199,108 @@ theorem call_head {s : Store H} {f : Frame} {ws us : List Val} {x : FuncIdx} {a 
   have := step_in (P := P) (host := host) (ws ++ us) code (Step.call (s := s) hx hf)
   simpa using this
 
+theorem vals_snoc_num (W : List Val) (ad : AddrType) (i : BitVec ad.intType.width) :
+    vals (W ++ [.num ⟨.int ad.intType, i⟩]) = vals W ++ [aconst ad i] := by
+  rw [vals_append]; rfl
+
+theorem vals_snoc_ref (W : List Val) (r : Ref) : vals (W ++ [.ref r]) = vals W ++ [.ref r] := by
+  rw [vals_append]; rfl
+
+/-- `call_indirect` on a resolved index is `call_ref y` on the callee, in place. -/
+theorem callInd_head {s : Store H} {f : Frame} {ws us : List Val} {x : TableIdx} {y : TypeIdx}
+    {ad : AddrType} {i : BitVec ad.intType.width} {fa : Nat} {code : List Admin}
+    (hres : Abstract.CallRes.IndRes s f x y ad i (some fa)) :
+    Steps P host ⟨s, f, vals (ws ++ us ++ [.num ⟨.int ad.intType, i⟩]) ++
+        .plain (.callIndirect x y) :: code⟩
+      ⟨s, f, vals ws ++ (vals us ++ [.ref (.func fa), .plain (.callRef y)]) ++ code⟩ := by
+  have := steps_in (P := P) (host := host) (ws ++ us) code
+    (Abstract.CallRes.steps_callIndirect_func (P := P) (host := host) hres)
+  rw [vals_snoc_num]
+  simpa [List.append_assoc] using this
+
+/-- `call_indirect` on an unresolved index traps. -/
+theorem callIndRes_steps {s : Store H} {f : Frame} {ws : List Val} {x : TableIdx} {y : TypeIdx}
+    {ad : AddrType} {i : BitVec ad.intType.width} {code : List Admin}
+    (hres : Abstract.CallRes.IndRes s f x y ad i none) :
+    Steps P host ⟨s, f, vals (ws ++ [.num ⟨.int ad.intType, i⟩]) ++
+        .plain (.callIndirect x y) :: code⟩ ⟨s, f, [.trap]⟩ := by
+  have := steps_in (P := P) (host := host) ws code
+    (Abstract.CallRes.steps_callIndirect_trap (P := P) (host := host) hres)
+  rw [vals_snoc_num]
+  exact (by simpa [List.append_assoc] using this : Steps P host _ _).trans
+    (by simpa using steps_trap (P := P) (host := host) s f ws code)
+
+/-- A `call_ref` on a function reference is the call `vals us ++ [ref.func fa, call_ref y]`. -/
+theorem callRef_code (ws us : List Val) (fa : Nat) (y : TypeIdx) (code : List Admin) :
+    vals (ws ++ us ++ [.ref (.func fa)]) ++ .plain (.callRef y) :: code =
+      vals ws ++ (vals us ++ [.ref (.func fa), .plain (.callRef y)]) ++ code := by
+  rw [vals_snoc_ref]; simp [List.append_assoc]
+
+theorem callRefNull_steps (s : Store H) (f : Frame) (ws : List Val) (y : TypeIdx)
+    (code : List Admin) :
+    Steps P host ⟨s, f, vals (ws ++ [.ref .null]) ++ .plain (.callRef y) :: code⟩
+      ⟨s, f, [.trap]⟩ := by
+  have := step_in (P := P) (host := host) ws code
+    (Step.callRefNull (s := s) (f := f) (c := .plain (.callRef y)) trivial)
+  rw [vals_snoc_ref]
+  exact .head (by simpa [List.append_assoc] using this)
+    (by simpa using steps_trap (P := P) (host := host) s f ws code)
+
 /-- **Soundness, with calls answered by a Core-sound oracle.** -/
-theorem soundC {C : Abstract.CallRel H} (hC : CallSound P host C) {s s' : Store H} {f f' : Frame}
+theorem soundC {C : Abstract.CallRel H} (hC : CallSoundA P host C) {s s' : Store H} {f f' : Frame}
     {vs : List Val} {code : List Admin} {o : Out} (h : RunC P host C s f vs code s' f' o) :
     ∃ c', Steps P host ⟨s, f, vals vs ++ code⟩ ⟨s', f', c'⟩ ∧ o.Ends c' := by
   induction h with
   | @call s s₁ s' f f' ws us vs x a fi ps rs fl code o hfi hty hn hcall hvs _ ih =>
     obtain ⟨c', hs, he⟩ := ih
     refine ⟨c', .head (call_head hfi) ?_, he⟩
-    have h1 := steps_in ws code ((hC s s₁ f a fi ps rs us fl (func?_inv hfi).2 hty hn hcall).1 vs hvs)
+    have h1 := steps_in ws code ((hC s s₁ f a fi ps rs us fl (.callRefType fi.type) trivial (func?_inv hfi).2 hty hn hcall).1 vs hvs)
     exact h1.trans (by simpa using hs)
   | @callTrap s s₁ f ws us x a fi ps rs code hfi hty hn hcall =>
     refine ⟨[.trap], .head (call_head hfi) ?_, rfl⟩
-    have h1 := steps_in ws code ((hC s s₁ f a fi ps rs us _ (func?_inv hfi).2 hty hn hcall).2.1 rfl)
+    have h1 := steps_in ws code ((hC s s₁ f a fi ps rs us _ (.callRefType fi.type) trivial (func?_inv hfi).2 hty hn hcall).2.1 rfl)
     exact h1.trans (by simpa using steps_trap (P := P) (host := host) s₁ f ws code)
   | @callThrow s s₁ f ws us x a t fi ps rs code hfi hty hn hcall =>
     refine ⟨throwing t, .head (call_head hfi) ?_, rfl⟩
-    have h1 := steps_in ws code ((hC s s₁ f a fi ps rs us _ (func?_inv hfi).2 hty hn hcall).2.2 t rfl)
+    have h1 := steps_in ws code ((hC s s₁ f a fi ps rs us _ (.callRefType fi.type) trivial (func?_inv hfi).2 hty hn hcall).2.2 t rfl)
     exact h1.trans (steps_throwing (P := P) (host := host) s₁ f ws t code)
+  | @callInd s s₁ s' f f' ws us vs x y ad i fa fi ps rs fl code o hres hfi hty hn hcall hvs _ ih =>
+    obtain ⟨c', hs, he⟩ := ih
+    refine ⟨c', (callInd_head hres).trans ?_, he⟩
+    have h1 := steps_in ws code
+      ((hC s s₁ f fa fi ps rs us fl (.plain (.callRef y)) trivial hfi hty hn hcall).1 vs hvs)
+    exact h1.trans (by simpa using hs)
+  | @callIndTrap s s₁ f ws us x y ad i fa fi ps rs code hres hfi hty hn hcall =>
+    refine ⟨[.trap], (callInd_head hres).trans ?_, rfl⟩
+    have h1 := steps_in ws code
+      ((hC s s₁ f fa fi ps rs us _ (.plain (.callRef y)) trivial hfi hty hn hcall).2.1 rfl)
+    exact h1.trans (by simpa using steps_trap (P := P) (host := host) s₁ f ws code)
+  | @callIndThrow s s₁ f ws us x y ad i fa t fi ps rs code hres hfi hty hn hcall =>
+    refine ⟨throwing t, (callInd_head hres).trans ?_, rfl⟩
+    have h1 := steps_in ws code
+      ((hC s s₁ f fa fi ps rs us _ (.plain (.callRef y)) trivial hfi hty hn hcall).2.2 t rfl)
+    exact h1.trans (steps_throwing (P := P) (host := host) s₁ f ws t code)
+  | callIndRes hres => exact ⟨[.trap], callIndRes_steps hres, rfl⟩
+  | @callRef s s₁ s' f f' ws us vs y fa fi ps rs fl code o hfi hty hn hcall hvs _ ih =>
+    obtain ⟨c', hs, he⟩ := ih
+    refine ⟨c', ?_, he⟩
+    rw [callRef_code]
+    have h1 := steps_in ws code
+      ((hC s s₁ f fa fi ps rs us fl (.plain (.callRef y)) trivial hfi hty hn hcall).1 vs hvs)
+    exact h1.trans (by simpa using hs)
+  | @callRefTrap s s₁ f ws us y fa fi ps rs code hfi hty hn hcall =>
+    refine ⟨[.trap], ?_, rfl⟩
+    rw [callRef_code]
+    have h1 := steps_in ws code
+      ((hC s s₁ f fa fi ps rs us _ (.plain (.callRef y)) trivial hfi hty hn hcall).2.1 rfl)
+    exact h1.trans (by simpa using steps_trap (P := P) (host := host) s₁ f ws code)
+  | @callRefThrow s s₁ f ws us y fa t fi ps rs code hfi hty hn hcall =>
+    refine ⟨throwing t, ?_, rfl⟩
+    rw [callRef_code]
+    have h1 := steps_in ws code
+      ((hC s s₁ f fa fi ps rs us _ (.plain (.callRef y)) trivial hfi hty hn hcall).2.2 t rfl)
+    exact h1.trans (steps_throwing (P := P) (host := host) s₁ f ws t code)
+  | @callRefNull s f ws y code => exact ⟨[.trap], callRefNull_steps s f ws y code, rfl⟩
   | nil => exact ⟨_, .refl, by simp [Out.Ends]⟩
   | @val s s' f f' vs a v code o hv _ ih =>
     obtain ⟨c', hs, he⟩ := ih
@@ -460,8 +545,8 @@ theorem soundC {C : Abstract.CallRel H} (hC : CallSound P host C) {s s' : Store 
       (Step.returnCallIndirect (s := s) (f := f) (x := x) (y := y))
     simpa using this
 
-theorem noCall_sound : CallSound P host (noCall (H := H)) :=
-  fun _ _ _ _ _ _ _ _ _ _ _ _ h => h.elim
+theorem noCall_sound : CallSoundA P host (noCall (H := H)) :=
+  fun _ _ _ _ _ _ _ _ _ _ _ _ _ _ h => h.elim
 
 theorem sound {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List Admin} {o : Out}
     (h : Run P host s f vs code s' f' o) :
@@ -477,6 +562,17 @@ theorem run_append {s s₁ s' : Store H} {f f₁ f' : Frame} {vs : List Val} {A 
   | call hfi hty hn hcall hvs _ ih => exact .call hfi hty hn hcall hvs (ih hB)
   | callTrap hfi hty hn hcall => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .callTrap hfi hty hn hcall
   | callThrow hfi hty hn hcall => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .callThrow hfi hty hn hcall
+  | callInd hres hfi hty hn hcall hvs _ ih => exact .callInd hres hfi hty hn hcall hvs (ih hB)
+  | callIndTrap hres hfi hty hn hcall =>
+    obtain ⟨rfl, rfl, rfl⟩ := hB; exact .callIndTrap hres hfi hty hn hcall
+  | callIndThrow hres hfi hty hn hcall =>
+    obtain ⟨rfl, rfl, rfl⟩ := hB; exact .callIndThrow hres hfi hty hn hcall
+  | callIndRes hres => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .callIndRes hres
+  | callRef hfi hty hn hcall hvs _ ih => exact .callRef hfi hty hn hcall hvs (ih hB)
+  | callRefTrap hfi hty hn hcall => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .callRefTrap hfi hty hn hcall
+  | callRefThrow hfi hty hn hcall =>
+    obtain ⟨rfl, rfl, rfl⟩ := hB; exact .callRefThrow hfi hty hn hcall
+  | callRefNull => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .callRefNull
   | nil => exact hB
   | val hv _ ih => exact .val hv (ih hB)
   | simple hi h₁ _ ih => exact .simple hi h₁ (ih hB)
@@ -541,6 +637,64 @@ theorem run_split {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List A
     · simp only [List.cons_append, List.cons.injEq] at hA
       obtain ⟨rfl, rfl⟩ := hA
       exact ⟨_, _, _, .callThrow hfi hty hn hcall, rfl, rfl, rfl⟩
+  | callInd hres hfi hty hn hcall hvs h ih =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .callInd hres hfi hty hn hcall hvs h⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      obtain ⟨_, _, _, h₁', h₂⟩ := ih rfl
+      exact ⟨_, _, _, .callInd hres hfi hty hn hcall hvs h₁', h₂⟩
+  | callIndTrap hres hfi hty hn hcall =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .callIndTrap hres hfi hty hn hcall⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .callIndTrap hres hfi hty hn hcall, rfl, rfl, rfl⟩
+  | callIndThrow hres hfi hty hn hcall =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .callIndThrow hres hfi hty hn hcall⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .callIndThrow hres hfi hty hn hcall, rfl, rfl, rfl⟩
+  | callIndRes hres =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .callIndRes hres⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .callIndRes hres, rfl, rfl, rfl⟩
+  | callRef hfi hty hn hcall hvs h ih =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .callRef hfi hty hn hcall hvs h⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      obtain ⟨_, _, _, h₁', h₂⟩ := ih rfl
+      exact ⟨_, _, _, .callRef hfi hty hn hcall hvs h₁', h₂⟩
+  | callRefTrap hfi hty hn hcall =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .callRefTrap hfi hty hn hcall⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .callRefTrap hfi hty hn hcall, rfl, rfl, rfl⟩
+  | callRefThrow hfi hty hn hcall =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .callRefThrow hfi hty hn hcall⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .callRefThrow hfi hty hn hcall, rfl, rfl, rfl⟩
+  | callRefNull =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .callRefNull⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      exact ⟨_, _, _, .callRefNull, rfl, rfl, rfl⟩
   | nil =>
     intro A B hA
     obtain ⟨rfl, rfl⟩ := List.append_eq_nil_iff.1 hA.symm

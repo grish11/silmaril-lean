@@ -76,13 +76,13 @@ public import Silmaril.Foundations.InfiniteTrace
   `run_sound_initialC`: machine runs are `RunC` runs. `run_complete_initialC`: `RunC` runs are
   machine runs. `mstep_edgeC`: steps follow the CFG, with the effect edge to `raise` for an
   exception a body call raises. Core 3.0 soundness `core_sound_initialC` takes the named
-  hypothesis `Region.CallSound P host C`. The `noCall` statements above are the instances
+  hypothesis `Region.CallSoundA P host C` (every `call_ref` form, as the indirect and reference calls of block bodies and tail calls need). The `noCall` statements above are the instances
   `C := noCall`.
 
 * **Divergence with calls** (`MDivC`): `C` answers terminating calls only, so an infinite
   `MStepC` run alone misses divergence inside a single callee. `MDivC P host C D` is an infinite
   `MStepC` run, or a finite run to a block whose body reaches a call that `D` names
-  (`BodyCallDiv`). `infinite_core_initialC` (under `Region.CallSound`) and
+  (`BodyCallDiv`). `infinite_core_initialC` (under `Region.CallSoundA`) and
   `mdivC_core_initial` (also under `Region.DivCallSound`): from `cfgEntry` these are Core 3.0
   divergence of the body (`Proofs/Wasm/Cfg/MachineDivC.lean`). Conversely `run_divC_initial`: a
   diverging region run with calls (`Region.RunDivC`) is `MDivC`; **`core_div_initialC`**: on
@@ -539,7 +539,7 @@ machine run gives infinitely many Core steps. -/
 theorem infinite_core_initial {s : Store H} {f : Frame}
     (h : InfiniteTrace (MStep P host body) (initial body s f)) :
     Diverges P host ⟨s, f, expression body⟩ :=
-  Proofs.MachineCore.core_infinite_initial (fun _ _ _ _ _ _ _ _ _ _ _ _ hc => hc.elim) h
+  Proofs.MachineCore.core_infinite_initial (fun _ _ _ _ _ _ _ _ _ _ _ _ _ _ hc => hc.elim) h
 
 /-- **Divergence adequacy for the extracted-CFG machine**: on fragment code, the machine has an
 infinite run from the CFG entry iff Core 3.0 diverges on the body (and iff the region semantics
@@ -618,10 +618,10 @@ theorem run_complete_tail_initialC {s s' s₃ : Store H} {f f' : Frame} {W W₀ 
   Proofs.MachineComplete.run_complete_tail_initial h hfi hty hW hn hcall hend
 
 /-- **Core soundness from the CFG entry, with a Core-sound oracle**: when `C` answers calls as
-Core 3.0 runs them (`Region.CallSound`, a named hypothesis), a run of the machine with calls from
+Core 3.0 runs them (`Region.CallSoundA`, a named hypothesis), a run of the machine with calls from
 the initial state to a sink is a Core 3.0 run of the body to a final form of the sink's
 outcome. -/
-theorem core_sound_initialC (hC : Region.CallSound P host C) {s : Store H} {f : Frame}
+theorem core_sound_initialC (hC : Region.CallSoundA P host C) {s : Store H} {f : Frame}
     {st' : MState H} (h : Relation.ReflTransGen (MStepC P host C body) (initial body s f) st')
     (hs : st'.node.IsSink) :
     ∃ o s₂ f₂ c', EndsC C st' s₂ f₂ o ∧ Steps P host ⟨s, f, expression body⟩ ⟨s₂, f₂, c'⟩ ∧
@@ -645,19 +645,19 @@ theorem frame_tail_initialC (hC : Region.CallSoundA P host C) {s : Store H} {fi 
   Proofs.Machine.frame_tail_initial hC hE hR n f hX
 
 /-- **An infinite run of the machine with calls is a diverging Core 3.0 run of the body**, when
-`C` answers calls as Core runs them (`Region.CallSound`). As for the call-free machine
+`C` answers calls as Core runs them (`Region.CallSoundA`). As for the call-free machine
 (`infinite_core_initial`), each step is at least one Core step except the bounded
 fall-throughs; an answered call only adds Core steps. -/
-theorem infinite_core_initialC (hC : Region.CallSound P host C) {s : Store H} {f : Frame}
+theorem infinite_core_initialC (hC : Region.CallSoundA P host C) {s : Store H} {f : Frame}
     (h : InfiniteTrace (MStepC P host C body) (initial body s f)) :
     Diverges P host ⟨s, f, expression body⟩ :=
   Proofs.MachineCore.core_infinite_initial hC h
 
 /-- **Soundness of machine divergence with calls, from the CFG entry**: when `C` is Core-sound
-(`Region.CallSound`) and `D` is (`Region.DivCallSound`: the calls it names diverge in Core),
+(`Region.CallSoundA`) and `D` is (`Region.DivCallSound`: the calls it names diverge in Core),
 `MDivC` from the initial state (an infinite `MStepC` run, or a finite run to a block whose body
 reaches a call `D` names) is Core 3.0 divergence of the body. -/
-theorem mdivC_core_initial {D : Store H → Nat → List Val → Prop} (hC : Region.CallSound P host C)
+theorem mdivC_core_initial {D : Store H → Nat → List Val → Prop} (hC : Region.CallSoundA P host C)
     (hD : Region.DivCallSound P host D) {s : Store H} {f : Frame}
     (h : MDivC P host C D body (initial body s f)) :
     Diverges P host ⟨s, f, expression body⟩ :=

@@ -64,7 +64,7 @@ theorem not_sink_of_step {body : Expr} {st st₁ : MState H} (h : MStepC P host 
 
 /-- **A finite machine run to a non-sink state is a Core run** between the codes the two states
 stand for, the invariant kept. -/
-theorem run_core (hC : CallSound P host C) {body : Expr} {st st' : MState H}
+theorem run_core (hC : CallSoundA P host C) {body : Expr} {st st' : MState H}
     (h : Relation.ReflTransGen (MStepC P host C body) st st') (hns : ¬ st'.node.IsSink) :
     ∀ {X : List Admin}, MInv body st → codeOf body st = some X →
       MInv body st' ∧ ∃ Y, codeOf body st' = some Y ∧
@@ -84,7 +84,7 @@ theorem run_core (hC : CallSound P host C) {body : Expr} {st st' : MState H}
 
 /-- **A block whose body reaches a diverging call diverges in Core**: the code its state stands
 for runs to the call, which diverges, inside the block's continuation and label frames. -/
-theorem bodyCallDiv_core (hC : CallSound P host C) {D : Store H → Nat → List Val → Prop}
+theorem bodyCallDiv_core (hC : CallSoundA P host C) {D : Store H → Nat → List Val → Prop}
     (hD : DivCallSound P host D) {body : Expr} {st : MState H} {X : List Admin}
     (hX : codeOf body st = some X) (h : BodyCallDiv P host C D body st) :
     Diverges P host ⟨st.store, st.frame, X⟩ := by
@@ -114,7 +114,7 @@ theorem bodyCallDiv_core (hC : CallSound P host C) {D : Store H → Nat → List
 
 /-- **Soundness of machine divergence with calls**: from a state satisfying the invariant,
 `MDivC` is Core 3.0 divergence of the code the state stands for. -/
-theorem mdivC_core (hC : CallSound P host C) {D : Store H → Nat → List Val → Prop}
+theorem mdivC_core (hC : CallSoundA P host C) {D : Store H → Nat → List Val → Prop}
     (hD : DivCallSound P host D) {body : Expr} {st : MState H} {X : List Admin}
     (hok : MInv body st) (hX : codeOf body st = some X) (h : MDivC P host C D body st) :
     Diverges P host ⟨st.store, st.frame, X⟩ := by
@@ -129,7 +129,7 @@ theorem mdivC_core (hC : CallSound P host C) {D : Store H → Nat → List Val �
 open Silmaril.Wasm.Cfg.Proofs.Machine in
 /-- **Soundness from the CFG entry**: `MDivC` from the initial state is Core 3.0 divergence of
 the body. -/
-theorem mdivC_core_initial (hC : CallSound P host C) {D : Store H → Nat → List Val → Prop}
+theorem mdivC_core_initial (hC : CallSoundA P host C) {D : Store H → Nat → List Val → Prop}
     (hD : DivCallSound P host D) {body : Expr} {s : Store H} {f : Frame}
     (h : MDivC P host C D body (initial body s f)) :
     Diverges P host ⟨s, f, expression body⟩ := by

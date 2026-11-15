@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Cfg.Exec.Defs
 public import Silmaril.Wasm.Execution.Core.Inversion.Defs
 public import Silmaril.Wasm.Abstract.Recursion.Defs
+public import Silmaril.Wasm.Abstract.CallRes.Defs
 
 @[expose] public section
 
@@ -41,7 +42,9 @@ The rules follow the structure of the code:
 Outcomes carry values, store and frame, and every branch reads data.
 
 The fragment `Frag` (`FragB false`) is call-free; `FragC` (`FragB true`) also allows direct calls
-`call x`. The call-free fragment is: values, non-control instructions,
+`call x`. With an oracle, `RunC` also runs `call_indirect` and `call_ref` (resolved by
+`CallRes.IndRes` and the reference on the stack, as `CallX.EvalOX` does); they are in neither
+fragment. The call-free fragment is: values, non-control instructions,
 `block`, `loop`, `if`, `br`, `br_if`, `br_table`, `br_on_null`, `br_on_non_null`, `br_on_cast`,
 `br_on_cast_fail`, `return`, `throw`, `throw_ref`, `try_table`, `TRAP`, `LABEL` and `HANDLER`. On it the semantics is
 **adequate in both directions** for every profile and host (`Region/Thms.lean`): `Run`
@@ -341,6 +344,67 @@ inductive RunC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) :
       (hfi : s.func? f x = some (a, fi)) (hty : DefType.funcType? fi.type = some (ps, rs))
       (hn : us.length = ps.length) (hcall : C s a us (s₁, .throw t)) :
       RunC P host C s f (ws ++ us) (.plain (.call x) :: code) s₁ f (.throw t)
+
+  /-- `call_indirect x y`: the table index on top resolves to the callee `fa`
+  (`CallRes.IndRes`, Core's `table.get; ref.cast (ref null y)`), which is called at its own type
+  as `call_ref y` does, on the `ps.length` values under the index; `C` answers it with values. -/
+  | callInd {s s₁ s' : Store H} {f f' : Frame} {ws us vs : List Val} {x : TableIdx} {y : TypeIdx}
+      {ad : AddrType} {i : BitVec ad.intType.width} {fa : Nat} {fi : FuncInst H}
+      {ps rs : List CValType} {fl : Binaryen.Flow} {code : List Admin} {o : Out}
+      (hres : Abstract.CallRes.IndRes s f x y ad i (some fa)) (hfi : s.funcs[fa]? = some fi)
+      (hty : DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+      (hcall : C s fa us (s₁, fl)) (hvs : fl.retVals = some vs)
+      (h : RunC P host C s₁ f (ws ++ (vs.take rs.length).reverse) code s' f' o) :
+      RunC P host C s f (ws ++ us ++ [.num ⟨.int ad.intType, i⟩])
+        (.plain (.callIndirect x y) :: code) s' f' o
+  /-- `call_indirect x y` whose callee `C` answers with a trap. -/
+  | callIndTrap {s s₁ : Store H} {f : Frame} {ws us : List Val} {x : TableIdx} {y : TypeIdx}
+      {ad : AddrType} {i : BitVec ad.intType.width} {fa : Nat} {fi : FuncInst H}
+      {ps rs : List CValType} {code : List Admin}
+      (hres : Abstract.CallRes.IndRes s f x y ad i (some fa)) (hfi : s.funcs[fa]? = some fi)
+      (hty : DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+      (hcall : C s fa us (s₁, .trap)) :
+      RunC P host C s f (ws ++ us ++ [.num ⟨.int ad.intType, i⟩])
+        (.plain (.callIndirect x y) :: code) s₁ f .trap
+  /-- `call_indirect x y` whose callee `C` answers with an exception. -/
+  | callIndThrow {s s₁ : Store H} {f : Frame} {ws us : List Val} {x : TableIdx} {y : TypeIdx}
+      {ad : AddrType} {i : BitVec ad.intType.width} {fa t : Nat} {fi : FuncInst H}
+      {ps rs : List CValType} {code : List Admin}
+      (hres : Abstract.CallRes.IndRes s f x y ad i (some fa)) (hfi : s.funcs[fa]? = some fi)
+      (hty : DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+      (hcall : C s fa us (s₁, .throw t)) :
+      RunC P host C s f (ws ++ us ++ [.num ⟨.int ad.intType, i⟩])
+        (.plain (.callIndirect x y) :: code) s₁ f (.throw t)
+  /-- `call_indirect x y` whose index does not resolve (`IndRes … none`): a trap. -/
+  | callIndRes {s : Store H} {f : Frame} {ws : List Val} {x : TableIdx} {y : TypeIdx}
+      {ad : AddrType} {i : BitVec ad.intType.width} {code : List Admin}
+      (hres : Abstract.CallRes.IndRes s f x y ad i none) :
+      RunC P host C s f (ws ++ [.num ⟨.int ad.intType, i⟩]) (.plain (.callIndirect x y) :: code)
+        s f .trap
+  /-- `call_ref y` on a function reference: the callee `fa`, at its own type, on the
+  `ps.length` values under the reference; `C` answers it with values. -/
+  | callRef {s s₁ s' : Store H} {f f' : Frame} {ws us vs : List Val} {y : TypeIdx} {fa : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {fl : Binaryen.Flow} {code : List Admin} {o : Out}
+      (hfi : s.funcs[fa]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hcall : C s fa us (s₁, fl)) (hvs : fl.retVals = some vs)
+      (h : RunC P host C s₁ f (ws ++ (vs.take rs.length).reverse) code s' f' o) :
+      RunC P host C s f (ws ++ us ++ [.ref (.func fa)]) (.plain (.callRef y) :: code) s' f' o
+  /-- `call_ref y` whose callee `C` answers with a trap. -/
+  | callRefTrap {s s₁ : Store H} {f : Frame} {ws us : List Val} {y : TypeIdx} {fa : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {code : List Admin}
+      (hfi : s.funcs[fa]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hcall : C s fa us (s₁, .trap)) :
+      RunC P host C s f (ws ++ us ++ [.ref (.func fa)]) (.plain (.callRef y) :: code) s₁ f .trap
+  /-- `call_ref y` whose callee `C` answers with an exception. -/
+  | callRefThrow {s s₁ : Store H} {f : Frame} {ws us : List Val} {y : TypeIdx} {fa t : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {code : List Admin}
+      (hfi : s.funcs[fa]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hcall : C s fa us (s₁, .throw t)) :
+      RunC P host C s f (ws ++ us ++ [.ref (.func fa)]) (.plain (.callRef y) :: code) s₁ f
+        (.throw t)
+  /-- `call_ref y` on null: a trap (`call_ref-null`). -/
+  | callRefNull {s : Store H} {f : Frame} {ws : List Val} {y : TypeIdx} {code : List Admin} :
+      RunC P host C s f (ws ++ [.ref .null]) (.plain (.callRef y) :: code) s f .trap
 
 /-- The oracle that answers no call. -/
 def noCall : Abstract.CallRel H := fun _ _ _ _ => False

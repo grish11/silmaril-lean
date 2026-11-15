@@ -1894,11 +1894,12 @@ theorem expression_cons {is : List Instr} {a : Admin} {code : List Admin}
 
 set_option linter.unusedTactic false in
 /-- **Only calls throw in a straight-line body**: a region run of terminator-free code that
-throws `a` contains a `call`, and the oracle answered some call with that exception. -/
+throws `a` contains a call instruction (one the CFG marks with the `call` effect: `call`,
+`call_indirect`, `call_ref`), and the oracle answered some call with that exception. -/
 theorem run_body_throw {is : List Instr} (hnt : ∀ x ∈ is, isTerminator x = false)
     {s s' : Store H} {f f' : Frame} {vs : List Val} {a : Nat}
     (h : RunC P host C s f vs (expression is) s' f' (.throw a)) :
-    (∃ x, Instr.call x ∈ is) ∧ ∃ s₀ a₀ us₀ s₁, C s₀ a₀ us₀ (s₁, .throw a) := by
+    (∃ x ∈ is, Effect.call ∈ instrEffects x) ∧ ∃ s₀ a₀ us₀ s₁, C s₀ a₀ us₀ (s₁, .throw a) := by
   generalize hc : expression is = code at h
   generalize ho : Out.throw a = o at h
   induction h generalizing is with
@@ -1906,24 +1907,44 @@ theorem run_body_throw {is : List Instr} (hnt : ∀ x ∈ is, isTerminator x = f
   | simpleTrap => cases ho
   | trap => cases ho
   | callTrap => cases ho
+  | callIndTrap => cases ho
+  | callIndRes => cases ho
+  | callRefTrap => cases ho
+  | callRefNull => cases ho
   | returnCallRef => cases ho
   | returnCallRefNull => cases ho
   | val _ _ ih =>
     obtain ⟨i, is', rfl, -, hc'⟩ := expression_cons hc
-    obtain ⟨⟨x, hx⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
-    exact ⟨⟨x, List.mem_cons_of_mem _ hx⟩, h2⟩
+    obtain ⟨⟨x, hx, hx'⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
+    exact ⟨⟨x, List.mem_cons_of_mem _ hx, hx'⟩, h2⟩
   | simple _ _ _ ih =>
     obtain ⟨i, is', rfl, -, hc'⟩ := expression_cons hc
-    obtain ⟨⟨x, hx⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
-    exact ⟨⟨x, List.mem_cons_of_mem _ hx⟩, h2⟩
+    obtain ⟨⟨x, hx, hx'⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
+    exact ⟨⟨x, List.mem_cons_of_mem _ hx, hx'⟩, h2⟩
   | call _ _ _ _ _ _ ih =>
     obtain ⟨i, is', rfl, -, hc'⟩ := expression_cons hc
-    obtain ⟨⟨x, hx⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
-    exact ⟨⟨x, List.mem_cons_of_mem _ hx⟩, h2⟩
+    obtain ⟨⟨x, hx, hx'⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
+    exact ⟨⟨x, List.mem_cons_of_mem _ hx, hx'⟩, h2⟩
+  | callInd _ _ _ _ _ _ _ ih =>
+    obtain ⟨i, is', rfl, -, hc'⟩ := expression_cons hc
+    obtain ⟨⟨x, hx, hx'⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
+    exact ⟨⟨x, List.mem_cons_of_mem _ hx, hx'⟩, h2⟩
+  | callRef _ _ _ _ _ _ ih =>
+    obtain ⟨i, is', rfl, -, hc'⟩ := expression_cons hc
+    obtain ⟨⟨x, hx, hx'⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
+    exact ⟨⟨x, List.mem_cons_of_mem _ hx, hx'⟩, h2⟩
   | callThrow _ _ _ hcall =>
     obtain ⟨i, is', rfl, hi, -⟩ := expression_cons hc
     cases hi; cases ho
-    exact ⟨⟨_, List.mem_cons_self ..⟩, _, _, _, _, hcall⟩
+    exact ⟨⟨_, List.mem_cons_self .., by simp [instrEffects]⟩, _, _, _, _, hcall⟩
+  | callIndThrow _ _ _ _ hcall =>
+    obtain ⟨i, is', rfl, hi, -⟩ := expression_cons hc
+    cases hi; cases ho
+    exact ⟨⟨_, List.mem_cons_self .., by simp [instrEffects]⟩, _, _, _, _, hcall⟩
+  | callRefThrow _ _ _ hcall =>
+    obtain ⟨i, is', rfl, hi, -⟩ := expression_cons hc
+    cases hi; cases ho
+    exact ⟨⟨_, List.mem_cons_self .., by simp [instrEffects]⟩, _, _, _, _, hcall⟩
   | brData hb =>
     obtain ⟨i, is', rfl, hi, -⟩ := expression_cons hc
     cases hi
@@ -2386,10 +2407,11 @@ theorem catch_edge {body : Expr} {b : BlockId} {ls : List LFrame} {j : Nat} {L :
   simpa [labels] using key
 
 /-- A block whose body holds a `call` has the effect edge to `raise`. -/
-theorem effect_raise {body : Expr} {b : BlockId} {sg : Segment} {x : FuncIdx}
-    (hb : lookup body b = some sg) (hx : Instr.call x ∈ sg.body) : EffectEdge body b .raise := by
+theorem effect_raise {body : Expr} {b : BlockId} {sg : Segment} {x : Instr}
+    (hb : lookup body b = some sg) (hx : x ∈ sg.body) (hx' : Effect.call ∈ instrEffects x) :
+    EffectEdge body b .raise := by
   have hm : Effect.call ∈ sg.instrs.flatMap instrEffects :=
-    List.mem_flatMap.2 ⟨.call x, by simp [Segment.instrs, hx], by simp [instrEffects]⟩
+    List.mem_flatMap.2 ⟨x, by simp [Segment.instrs, hx], hx'⟩
   exact ⟨sg, hb, by simp [effectSucc, blockEffects, hm]⟩
 
 /-- **Every machine step from a state satisfying the invariant follows the extracted CFG**: an
@@ -2462,9 +2484,9 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStepC P host C body s
   | bodyRaise hb hr =>
     right; right; right; cases hn
     obtain ⟨c, -, hsg⟩ := seg_of_lookup hb
-    obtain ⟨⟨x, hx⟩, hC⟩ := run_body_throw (body_nonterm hsg) hr
+    obtain ⟨⟨x, hx, hx'⟩, hC⟩ := run_body_throw (body_nonterm hsg) hr
     obtain ⟨s₀, a₀, us₀, s₁, hC⟩ := hC
-    exact ⟨effect_raise hb hx, s₀, a₀, us₀, s₁, _, hC⟩
+    exact ⟨effect_raise hb hx hx', s₀, a₀, us₀, s₁, _, hC⟩
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
 

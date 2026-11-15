@@ -59,7 +59,7 @@ theorem frame_tail_sound (hC : CallSoundA P host C) {s s₂ s₃ : Store H} {f f
     (fl = .trap → Steps P host ⟨s, f, [.frame n fi inner]⟩ ⟨s₃, f, [.trap]⟩) ∧
     (∀ t, fl = .throw t → Steps P host ⟨s, f, [.frame n fi inner]⟩ ⟨s₃, f, throwing t⟩) := by
   subst hW
-  obtain ⟨c', hs, hc, rest, rfl⟩ := soundC (callSound_of_A hC) h
+  obtain ⟨c', hs, hc, rest, rfl⟩ := soundC hC h
   have h1 := steps_frame (f := f) n (by simpa [vals] using hs)
   have h2 : Step P host
       ⟨s₂, f, [.frame n fi₂ (vals W₀ ++ vals args ++ [.ref (.func a), c] ++ rest)]⟩

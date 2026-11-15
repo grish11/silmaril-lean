@@ -144,7 +144,7 @@ theorem diverges_handler {s : Store H} {f : Frame} {X : List Admin} (n : Nat) (c
 
 /-- **Progress**: a diverging region run takes at least one Core step to another diverging
 region run, or (at a call `D` names) its code diverges in Core. -/
-theorem progress (hC : CallSound P host C) (hD : DivCallSound P host D) {s : Store H} {f : Frame}
+theorem progress (hC : CallSoundA P host C) (hD : DivCallSound P host D) {s : Store H} {f : Frame}
     {vs : List Val} {code : List Admin} (h : RunDivC P host C D s f vs code) :
     (∃ s' f' vs' code', Relation.TransGen (Step P host) ⟨s, f, vals vs ++ code⟩
       ⟨s', f', vals vs' ++ code'⟩ ∧ RunDivC P host C D s' f' vs' code') ∨
@@ -241,7 +241,7 @@ theorem progress (hC : CallSound P host C) (hD : DivCallSound P host D) {s : Sto
   | @call s₁ _ ws us vs₁ x a fi ps rs fl code' hfi hty hn hcall hvs hd =>
     refine .inl ⟨s₁, f, ws ++ (vs₁.take rs.length).reverse, code', ?_, hd⟩
     have h1 := steps_in ws code'
-      ((hC s s₁ f a fi ps rs us fl (func?_inv hfi).2 hty hn hcall).1 vs₁ hvs)
+      ((hC s s₁ f a fi ps rs us fl (.callRefType fi.type) trivial (func?_inv hfi).2 hty hn hcall).1 vs₁ hvs)
     exact Relation.TransGen.head' (call_head hfi) (by simpa using h1)
   | @callDiv _ ws us x a fi ps rs code' hfi hty hn hd =>
     refine .inr (InfiniteTrace.fold (call_head hfi) ?_)
@@ -249,7 +249,7 @@ theorem progress (hC : CallSound P host C) (hD : DivCallSound P host D) {s : Sto
 
 /-- **Soundness for divergence**: a diverging region run is an infinite Core 3.0 run, when `C`
 answers calls as Core runs them and the calls `D` names diverge in Core. -/
-theorem div_soundC (hC : CallSound P host C) (hD : DivCallSound P host D) {s : Store H}
+theorem div_soundC (hC : CallSoundA P host C) (hD : DivCallSound P host D) {s : Store H}
     {f : Frame} {vs : List Val} {code : List Admin} (h : RunDivC P host C D s f vs code) :
     Diverges P host ⟨s, f, vals vs ++ code⟩ := by
   refine InfiniteTrace.coinduct (fun c => (∃ s f vs code, RunDivC P host C D s f vs code ∧
@@ -269,7 +269,7 @@ theorem div_soundC (hC : CallSound P host C) (hD : DivCallSound P host D) {s : S
 /-- **Soundness for call-free divergence.** -/
 theorem div_sound {s : Store H} {f : Frame} {vs : List Val} {code : List Admin}
     (h : RunDiv P host s f vs code) : Diverges P host ⟨s, f, vals vs ++ code⟩ :=
-  div_soundC (fun _ _ _ _ _ _ _ _ _ _ _ _ hc => hc.elim)
+  div_soundC (fun _ _ _ _ _ _ _ _ _ _ _ _ _ _ hc => hc.elim)
     (fun _ _ _ _ _ _ _ _ _ _ _ _ hd => hd.elim) h
 
 /-! ## Codes that cannot diverge -/
