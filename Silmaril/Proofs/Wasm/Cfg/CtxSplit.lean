@@ -120,3 +120,79 @@ theorem frame_seq_result {s : Store H} {f F : Frame} {ws : List Val} {n : Nat}
     exact .inr ⟨s₁, _, _, _, isCallRef_retToCallIn hc F₁.module, hin.tail hex, h3⟩
 
 end Silmaril.Wasm.Cfg.Proofs.Region
+
+namespace Silmaril.Wasm.Cfg.Proofs.Region
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Region Silmaril.Wasm.Execution.Core
+  Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- **A frame in a sequence is still running, or has exited**: every Core run of
+`vals ws ++ FRAME_n{F} X :: rest` reaches either the same sequence with the frame's body advanced
+(in its own frame), or, after the frame's first exit, a run from `vals ws ++ out ++ rest`. -/
+theorem frame_seq_cases {ws : List Val} {n : Nat} {rest : List Admin} {c' : Config H} :
+    ∀ {c₀ : Config H}, Steps P host c₀ c' → ∀ (s : Store H) (f F : Frame) (X : List Admin),
+      c₀ = ⟨s, f, vals ws ++ .frame n F X :: rest⟩ →
+      (∃ F' X', c' = ⟨c'.store, f, vals ws ++ .frame n F' X' :: rest⟩ ∧
+          Steps P host ⟨s, F, X⟩ ⟨c'.store, F', X'⟩) ∨
+      ∃ (s₁ : Store H) (F₁ : Frame) (X₁ out : List Admin),
+        Steps P host ⟨s, F, X⟩ ⟨s₁, F₁, X₁⟩ ∧ FrameExit s₁ F₁ n X₁ out ∧
+        Steps P host ⟨s₁, f, vals ws ++ out ++ rest⟩ c' := by
+  intro c₀ h
+  induction h using Relation.ReflTransGen.head_induction_on with
+  | refl =>
+    intro s f F X hc
+    subst hc
+    exact .inl ⟨F, X, rfl, .refl⟩
+  | @head c₀ c₁ hstep _ ih =>
+    intro s f F X hc
+    subst hc
+    obtain ⟨d, hd, rfl⟩ := Step.ctx_in_seq (X := .frame n F X) trivial hstep
+    rcases Step.frame_inv hd with ⟨s', F', X', hin, rfl⟩ | ⟨out, hx, rfl⟩
+    · rcases ih s' f F' X' (by simp) with ⟨F'', X'', he, hs⟩ | ⟨s₁, F₁, X₁, out, h1, h2, h3⟩
+      · exact .inl ⟨F'', X'', he, .head hin hs⟩
+      · exact .inr ⟨s₁, F₁, X₁, out, .head hin h1, h2, h3⟩
+    · exact .inr ⟨s, F, X, out, .refl, hx, by assumption⟩
+
+/-- **A direct call under values, run alone** (Wasm callee): every Core run of
+`vals vs ++ [call x]` is still at the call, at the resolved `call_ref`, inside the callee's frame
+(on the top `ps.length` values), or past the frame's first exit. In the last case the callee's
+`call_ref` itself runs to the exit's code. -/
+theorem call_vals_cases {s : Store H} {f : Frame} {vs : List Val} {x : FuncIdx} {c : Config H}
+    (hw : WasmFuncs s) (h : Steps P host ⟨s, f, vals vs ++ [.plain (.call x)]⟩ c) :
+    c = ⟨s, f, vals vs ++ [.plain (.call x)]⟩ ∨
+    ∃ a fi, f.module.funcs[x.toNat]? = some a ∧ s.funcs[a]? = some fi ∧
+      (c = ⟨s, f, vals vs ++ [.ref (.func a), .callRefType fi.type]⟩ ∨
+        ∃ (ws us : List Val) (ps rs : Ty (.list .val)) (code : Func),
+          vs = ws ++ us ∧ fi.code = .wasm code ∧ Expand fi.type (.func ps rs) ∧
+          us.length = ps.length ∧
+          ((∃ F' X', c = ⟨c.store, f, vals ws ++ [.frame rs.length F' X']⟩ ∧
+              Steps P host ⟨s, Frame.forCall fi.module us code.locals,
+                [.label rs.length [] (expression code.body)]⟩ ⟨c.store, F', X'⟩) ∨
+            ∃ (s₁ : Store H) (F₁ : Frame) (X₁ out : List Admin),
+              FrameExit s₁ F₁ rs.length X₁ out ∧
+              Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+                ⟨s₁, f, out⟩ ∧
+              Steps P host ⟨s₁, f, vals ws ++ out⟩ c)) := by
+  rcases h.cases_head with rfl | ⟨c₁, h₁, hr⟩
+  · exact .inl rfl
+  obtain ⟨a, fi, hx, hfi, rfl⟩ := Step.call_vals_inv h₁
+  refine .inr ⟨a, fi, hx, hfi, ?_⟩
+  rcases hr.cases_head with rfl | ⟨c₂, h₂, hr₂⟩
+  · exact .inl rfl
+  obtain ⟨code, hcode⟩ := hw fi (List.mem_of_getElem? hfi)
+  obtain ⟨ws, us, ps, rs, rfl, he, hn, rfl⟩ := Step.callRef_wasm_inv (r := .callRefType fi.type) trivial hfi hcode h₂
+  refine .inr ⟨ws, us, ps, rs, code, rfl, hcode, he, hn, ?_⟩
+  rcases frame_seq_cases (ws := ws) (n := rs.length) (rest := []) hr₂ s f
+      (Frame.forCall fi.module us code.locals) [.label rs.length [] (expression code.body)] rfl with
+    ⟨F', X', he', hs⟩ | ⟨s₁, F₁, X₁, out, h1, hx', h3⟩
+  · exact .inl ⟨F', X', by simpa using he', hs⟩
+  · refine .inr ⟨s₁, F₁, X₁, out, hx', ?_, by simpa using h3⟩
+    have hent : Step P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+        ⟨s, f, [.frame rs.length (Frame.forCall fi.module us code.locals)
+          [.label rs.length [] (expression code.body)]]⟩ :=
+      Step.callRefFunc trivial hfi he hn hcode
+    exact .head hent ((steps_frame rs.length h1).tail (frameExit_step hx' f))
+
+end Silmaril.Wasm.Cfg.Proofs.Region

@@ -318,4 +318,38 @@ theorem frame_seq_result {ws : List Val} {n : Nat} {F : Frame} {X rest : List Ad
         Steps P host ⟨s₁, f, vals ws ++ (vals args ++ [.ref (.func a), c]) ++ rest⟩ c' :=
   Proofs.Region.frame_seq_result h hfin
 
+/-- **A frame in a sequence is still running, or has exited** (every profile and host). -/
+theorem frame_seq_cases {ws : List Val} {n : Nat} {F : Frame} {X rest : List Admin}
+    {c' : Config H} (h : Steps P host ⟨s, f, vals ws ++ .frame n F X :: rest⟩ c') :
+    (∃ F' X', c' = ⟨c'.store, f, vals ws ++ .frame n F' X' :: rest⟩ ∧
+        Steps P host ⟨s, F, X⟩ ⟨c'.store, F', X'⟩) ∨
+      ∃ (s₁ : Store H) (F₁ : Frame) (X₁ out : List Admin),
+        Steps P host ⟨s, F, X⟩ ⟨s₁, F₁, X₁⟩ ∧ FrameExit s₁ F₁ n X₁ out ∧
+        Steps P host ⟨s₁, f, vals ws ++ out ++ rest⟩ c' :=
+  Proofs.Region.frame_seq_cases h s f F X rfl
+
+/-- **A direct call under values, run alone** (every profile and host, Wasm callees): every
+Core run of `vals vs ++ [call x]` is still at the call, at the resolved `call_ref`, inside the
+callee's frame on the top `ps.length` values `us` (`vs = ws ++ us`), or past the frame's first
+exit (`FrameExit`), in which case the callee's `call_ref` itself runs to the exit's code and the
+run continues from `vals ws ++ out`. -/
+theorem call_vals_cases {vs : List Val} {x : FuncIdx} {c : Config H}
+    (hw : ∀ fi ∈ s.funcs, ∃ fn, fi.code = .wasm fn)
+    (h : Steps P host ⟨s, f, vals vs ++ [.plain (.call x)]⟩ c) :
+    c = ⟨s, f, vals vs ++ [.plain (.call x)]⟩ ∨
+    ∃ a fi, f.module.funcs[x.toNat]? = some a ∧ s.funcs[a]? = some fi ∧
+      (c = ⟨s, f, vals vs ++ [.ref (.func a), .callRefType fi.type]⟩ ∨
+        ∃ (ws us : List Val) (ps rs : Validation.Ty (.list .val)) (code : Func),
+          vs = ws ++ us ∧ fi.code = .wasm code ∧ Validation.Expand fi.type (.func ps rs) ∧
+          us.length = ps.length ∧
+          ((∃ F' X', c = ⟨c.store, f, vals ws ++ [.frame rs.length F' X']⟩ ∧
+              Steps P host ⟨s, Frame.forCall fi.module us code.locals,
+                [.label rs.length [] (expression code.body)]⟩ ⟨c.store, F', X'⟩) ∨
+            ∃ (s₁ : Store H) (F₁ : Frame) (X₁ out : List Admin),
+              FrameExit s₁ F₁ rs.length X₁ out ∧
+              Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+                ⟨s₁, f, out⟩ ∧
+              Steps P host ⟨s₁, f, vals ws ++ out⟩ c)) :=
+  Proofs.Region.call_vals_cases hw h
+
 end Silmaril.Wasm.Cfg.Region
