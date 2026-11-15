@@ -109,6 +109,23 @@ theorem close_le_closeD (m : sh.OpenMod) : close m ≤ closeD m :=
 theorem closeD_lift (c : sh.ClosedMod) : closeD (lift c) = c :=
   Silmaril.Proofs.Games.Abstract.Module.closeD_lift c
 
+/-- `closeDL` extends `closeD`. -/
+theorem closeD_le_closeDL (m : sh.OpenMod) (LD : sh.self.Op → Prop) : closeD m ≤ closeDL m LD :=
+  fun _ _ _ _ h => .inl h
+
+/-- Without local divergence, `closeDL` is `closeD`. -/
+theorem closeDL_bot (m : sh.OpenMod) : closeDL m (fun _ => False) = closeD m := by
+  funext f s a
+  ext y
+  exact ⟨fun h => h.elim id fun ⟨_, _, _, h⟩ => h.elim, fun h => .inl h⟩
+
+/-- **`closeDL` keeps the finite behaviours of `close`**: off `div`, they agree. -/
+theorem mem_closeDL_of_ne_div {m : sh.OpenMod} {LD : sh.self.Op → Prop} {f : sh.F} {s : sh.S}
+    {a : sh.A f} {y : CallBeh sh.E sh.S (sh.B f)} (hy : y.2 ≠ .div) :
+    y ∈ closeDL m LD f s a ↔ y ∈ close m f s a :=
+  ⟨fun h => h.elim (fun h => h.elim id fun h => absurd h.1 hy) fun h => absurd h.1 hy,
+    fun h => .inl (.inl h)⟩
+
 /-- With a well-founded call graph (no infinite descending chain, so no
 recursion), closing with divergence adds nothing: divergence can only come
 from callees, not from recursion. -/
