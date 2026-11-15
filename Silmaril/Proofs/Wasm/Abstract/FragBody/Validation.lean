@@ -135,7 +135,7 @@ theorem ofInstr_results (C : Context) {i : Instr} {es : List SSA.Expr} {e : SSA.
 
 open Silmaril.Wasm.SSA in
 section
-variable {L : List Ar} {R : Ar} {n : Nat} {r : Option (Option Ar)}
+variable {L : List Ar} {R : Ar} {n : Nat} {r : Option Ar}
 
 theorem ofInstr_brIf (C : Context) {l : LabelIdx} {es : List SSA.Expr} {ts : List CValType}
     (hl : C.labels[l.toNat]? = some ts) (hlen : ts.length + 1 = es.length) :
@@ -197,6 +197,37 @@ theorem ofInstr_noSel {i : Instr} {es : List SSA.Expr} {e : SSA.Expr}
   split at h <;> (try split at h) <;> simp only [Option.some.injEq, reduceCtorEq] at h <;> subst h <;>
     simp_all [noSel, noSelL]
 
+
+/-- A recognised tree whose native check is bottom has a bottom root (an
+operand never is bottom: `tyArgs` requires arity one). -/
+theorem ofInstr_bot_of_none {i : Instr} {es : List SSA.Expr} {e : SSA.Expr}
+    (h : Silmaril.Wasm.SSA.ofInstr? i es = some e) (hty : tyE L R n e = some none) : botInstr i = true := by
+  unfold Silmaril.Wasm.SSA.ofInstr? at h
+  split at h <;> (try split at h) <;> simp only [Option.some.injEq, reduceCtorEq] at h <;> subst h
+  all_goals first
+    | rfl
+    | (rw [tyE] at hty; simp at hty)
+
+theorem ofInstr_none_of_bot {i : Instr} {es : List SSA.Expr} {e : SSA.Expr} {r : Option Ar}
+    (h : Silmaril.Wasm.SSA.ofInstr? i es = some e) (hb : botInstr i = true) (hty : tyE L R n e = some r) :
+    r = none := by
+  unfold Silmaril.Wasm.SSA.ofInstr? at h
+  split at h <;> (try split at h) <;> simp only [Option.some.injEq, reduceCtorEq] at h <;> subst h
+  all_goals first
+    | (simp [tyE] at hty; first | exact hty.symm | exact hty.2.symm)
+    | (simp [botInstr] at hb)
+
+theorem ofInstr_len (C : Context) {i : Instr} {es : List SSA.Expr} {e : SSA.Expr}
+    {rs : List CValType} {a : Ar} (h : Silmaril.Wasm.SSA.ofInstr? i es = some e) (hbr : ∀ l, i ≠ .brIf l)
+    (hr : flatResults C i = some rs) (hty : tyE L R n e = some (some a)) :
+    rs.length = arLen a := by
+  unfold Silmaril.Wasm.SSA.ofInstr? at h
+  split at h <;> (try split at h) <;> simp only [Option.some.injEq, reduceCtorEq] at h <;> subst h
+  all_goals (simp only [flatResults, Option.some.injEq, Option.map_eq_some_iff, reduceCtorEq] at hr)
+  all_goals (simp [tyE] at hty)
+  all_goals (try obtain ⟨_, _, hr⟩ := hr)
+  all_goals (first | exact absurd rfl (hbr _) | (cases a <;> simp_all [arLen]))
+  all_goals (subst hr; rfl)
 
 end
 
