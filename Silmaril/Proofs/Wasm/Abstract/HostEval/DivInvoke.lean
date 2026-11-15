@@ -139,7 +139,7 @@ theorem invoke_div {o : GrowOracle} (hT : HostTyped host) (hH : Interp.NativeHos
       | none =>
         have hfl : fl = .trap := by
           rcases hfl : fl with ws | ⟨_ | k, ws⟩ | ws | _ | t <;> rw [hfl] at hok' hvs <;>
-            simp_all [Binaryen.Flow.retVals, Interp.FlowOk]
+            simp_all [Binaryen.Flow.retVals, Interp.FlowOkE]
         subst hfl
         have hc' : rcc = [.trap] := by
           rcases oc with _ | _ | _ | _ | _ | _ | _ <;> simp only [Interp.FlowMatch] at hm

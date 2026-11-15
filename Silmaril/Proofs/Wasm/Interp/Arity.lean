@@ -23,12 +23,33 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core
 variable {H : Type}
 
 /-- What the arity check says about a native flow. -/
-def FlowOk (labels : List Nat) (ret : Nat) (out : Option Nat) : Binaryen.Flow → Prop
+def FlowOkE (eh : Bool) (labels : List Nat) (ret : Nat) (out : Option Nat) : Binaryen.Flow → Prop
   | .normal vs => out = some vs.length
   | .brk l vs => ∃ n, labels[l]? = some n ∧ n ≤ vs.length
   | .ret vs => ret ≤ vs.length
   | .trap => True
-  | .throw _ => False
+  | .throw _ => match eh with
+    | true => True
+    | false => False
+
+/-- The arity invariant of a result flow, exceptions off: a thrown exception is excluded. -/
+abbrev FlowOk (labels : List Nat) (ret : Nat) (out : Option Nat) : Binaryen.Flow → Prop :=
+  FlowOkE false labels ret out
+
+/-- **Exceptions off is the old invariant**, flow by flow; a throw is excluded. -/
+theorem flowOk_throw {labels : List Nat} {ret : Nat} {out : Option Nat} {t : Nat} :
+    ¬ FlowOk labels ret out (.throw t) := id
+
+/-- Exceptions on: a thrown exception satisfies the invariant. -/
+theorem flowOkE_throw {labels : List Nat} {ret : Nat} {out : Option Nat} {t : Nat} :
+    FlowOkE true labels ret out (.throw t) := trivial
+
+/-- Off the throws, the invariant does not depend on the exception capability. -/
+theorem flowOkE_of_not_throw {eh : Bool} {labels : List Nat} {ret : Nat} {out : Option Nat}
+    {fl : Binaryen.Flow} (hfl : ∀ t, fl ≠ .throw t) :
+    FlowOkE eh labels ret out fl ↔ FlowOk labels ret out fl := by
+  rcases fl with _ | _ | _ | _ | t
+  all_goals first | exact Iff.rfl | exact absurd rfl (hfl t)
 
 /-! ## Function-list extension -/
 
@@ -125,9 +146,14 @@ theorem EvalInv.trans {s s₁ : Store H} {f f₁ : Frame} {fl : Binaryen.Flow}
   EvalInvE.trans h₁ h₂
 
 /-- An abrupt flow's check does not depend on the fall-through height. -/
-theorem FlowOk.abrupt {labels : List Nat} {ret : Nat} {o o' : Option Nat} {fl : Binaryen.Flow}
-    (h : FlowOk labels ret o fl) (hn : ¬ fl.IsNormal) : FlowOk labels ret o' fl := by
+theorem FlowOkE.abrupt {eh : Bool} {labels : List Nat} {ret : Nat} {o o' : Option Nat}
+    {fl : Binaryen.Flow} (h : FlowOkE eh labels ret o fl) (hn : ¬ fl.IsNormal) :
+    FlowOkE eh labels ret o' fl := by
   cases fl <;> first | exact absurd trivial hn | exact h
+
+theorem FlowOk.abrupt {labels : List Nat} {ret : Nat} {o o' : Option Nat} {fl : Binaryen.Flow}
+    (h : FlowOk labels ret o fl) (hn : ¬ fl.IsNormal) : FlowOk labels ret o' fl :=
+  FlowOkE.abrupt h hn
 
 /-! ## The check, unfolded -/
 
@@ -591,7 +617,7 @@ theorem flat_abrupt_plain {i : Instr} {fl : Binaryen.Flow} (hsel : ¬ ∃ t, i =
     · simp[flatChk, flatChkE, flatEff] at hc
   all_goals simp only[Binaryen.evalFlat, flatChk, flatChkE, extStep, noExt, flatEff] at h hc
   all_goals (repeat' split at h) <;> (repeat' split at hc)
-  all_goals simp_all [EvalInvE, FlowOk, Option.map_eq_some_iff, Option.bind_eq_some_iff,
+  all_goals simp_all [EvalInvE, FlowOk, FlowOkE, Option.map_eq_some_iff, Option.bind_eq_some_iff,
     Frame.setLocal, Store.setGlobal, Binaryen.Flow.IsNormal]
   all_goals (try obtain ⟨_, _, _, _, rfl, rfl, rfl⟩ := h)
   all_goals (try (obtain ⟨_, _, _, _, h⟩ := h; split at h <;>
@@ -948,10 +974,10 @@ theorem arities_of_funcsExt {F F' : List (FuncInst H)} (h : FuncsExt F F') (mi :
 
 /-- The statement of `flowOk_of_eval` for one evaluation. -/
 def ArityGoodE (ext : ExtArity H) (s : Store H) (f : Frame) (stk : List Val)
-    (es : List Binaryen.BExpr) (r : Store H × Frame × Binaryen.Flow) : Prop :=
+    (es : List Binaryen.BExpr) (r : Store H × Frame × Binaryen.Flow) (eh : Bool := false) : Prop :=
   ∀ {labels : List Nat} {ret : Nat} {out : Option Nat}, StoreChkE ext s.funcs →
     chkE ext s.funcs f.module f.locals.length ret labels (some stk.length) es = some out →
-    FlowOk labels ret out r.2.2 ∧ EvalInvE ext s f r
+    FlowOkE eh labels ret out r.2.2 ∧ EvalInvE ext s f r
 
 /-- What the native arity check says about a native run. -/
 abbrev ArityGood (s : Store H) (f : Frame) (stk : List Val) (es : List Binaryen.BExpr)

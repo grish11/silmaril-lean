@@ -111,7 +111,7 @@ theorem back_invoke_core {o : GrowOracle} (hT : HostTyped host) (hH : Interp.Nat
           refine ⟨fun ws hws => ⟨Interp.retVals_length hok' hob hws, fun ws' hws' => by
             rw [hws'] at hok'; exact Interp.length_of_ends hok' hob⟩, fun hn => ?_⟩
           rcases hfl : r.2.2 with ws | ⟨_ | k, ws⟩ | ws | _ | t <;> rw [hfl] at hok' hn <;>
-            simp_all [Binaryen.Flow.retVals, Interp.FlowOk]) with ⟨hpend, y, hy, hb⟩ |
+            simp_all [Binaryen.Flow.retVals, Interp.FlowOkE]) with ⟨hpend, y, hy, hb⟩ |
       ⟨s₂, fl, hcall, ⟨ws, m, -, hws, hk⟩ | ⟨rfl, hends⟩⟩
     · rw [htake] at hy
       exact .inl ⟨hpend, y, .inr hy, hb⟩

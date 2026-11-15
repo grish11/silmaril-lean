@@ -87,7 +87,7 @@ theorem hostCallOp_le_soundAt (hH : NativeHostSlice host) :
     have hF := hH.funcs _ _ _ _ _ hhost
     rcases r with ws | t | _
     · have hw := hH.arity s a fi h ps rs us ws s₂ hfi hcode hty hhost
-      refine ⟨⟨some rs.length, .inr rfl, by simp [FlowOk, resFlow, hw], hF⟩, fun vs hvs => ?_, ?_⟩
+      refine ⟨⟨some rs.length, .inr rfl, by simp [FlowOk, FlowOkE, resFlow, hw], hF⟩, fun vs hvs => ?_, ?_⟩
       · simp only [resFlow, Binaryen.Flow.retVals, Option.some.injEq] at hvs
         subst hvs
         have : (ws.reverse.take rs.length).reverse = ws := by
