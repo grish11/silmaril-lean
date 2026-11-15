@@ -633,6 +633,33 @@ theorem frame_tail_initialC (hC : Region.CallSoundA P host C) {s : Store H} {fi 
     Steps P host ⟨s, f, [.frame n fi [.label n [] (expression body)]]⟩ ⟨st'.store, f, X⟩ :=
   Proofs.Machine.frame_tail_initial hC hE hR n f hX
 
+/-- **The machine's tail step from `CallX.TailRes`**: a tail-call terminator whose call
+`Abstract.CallX.TailRes` resolves to the callee `a` (on the block's stack, top first), with an
+answer of `C` on the top `ps.length` values of the whole stack, steps to the answer's sink. -/
+theorem mstep_tail_of_tailRes {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ s₃ : Store H} {f f₁ : Frame} {i : Instr} {W₀ args : List Val}
+    {a : Nat} {fi : FuncInst H} {ps rs : List Validation.CValType} {fl : Binaryen.Flow}
+    {st' : MState H}
+    (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsTailCall)
+    (hr : Region.RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hres : Abstract.CallX.TailRes s₁ f₁ i stk₁.reverse
+      (some (a, stk₁.reverse.drop (Abstract.CallX.tailPop i))))
+    (hfi : s₁.funcs[a]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hargs : brVals ls.length ls (stk₁.reverse.drop (Abstract.CallX.tailPop i)).reverse =
+      W₀ ++ args) (hn : args.length = ps.length) (hcall : C s₁ a args (s₃, fl))
+    (hend : tailEnd rs.length s₃ f₁ fl = some st') :
+    MStepC P host C body ⟨.block b, stk, ls, s, f⟩ st' :=
+  Proofs.Machine.mstep_tail_of_tailRes hb ht hi hr hres hfi hty hargs hn hcall hend
+
+/-- **An unresolved tail call (`TailRes … none`) is a machine step to `trap`.** -/
+theorem mstep_trap_of_tailRes {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {i : Instr}
+    (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsTailCall)
+    (hr : Region.RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hres : Abstract.CallX.TailRes s₁ f₁ i stk₁.reverse none) :
+    MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩ :=
+  Proofs.Machine.mstep_trap_of_tailRes hb ht hi hr hres
+
 end Calls
 
 end Silmaril.Wasm.Cfg.Machine

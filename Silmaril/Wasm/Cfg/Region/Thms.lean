@@ -8,6 +8,8 @@ import Silmaril.Proofs.Wasm.Cfg.RegionAtom
 import Silmaril.Proofs.Wasm.Cfg.RegionBlocks
 import Silmaril.Proofs.Wasm.Cfg.RegionTail
 import Silmaril.Proofs.Wasm.Cfg.CallTransport
+import Silmaril.Proofs.Wasm.Cfg.RegionTailRes
+public import Silmaril.Wasm.Abstract.CallX.Defs
 
 @[expose] public section
 
@@ -222,5 +224,26 @@ theorem call_of_core {C : Abstract.CallRel H} {G : Store H → Nat → List Val 
       (∀ t, r = .throw t →
         RunC P host C s f (ws ++ us) (.plain (.call x) :: code) s₁ f (.throw t)) :=
   Proofs.Region.call_of_core hC hfi hty hn hG hs
+
+/-! ## Tail calls resolved as `CallX` resolves them -/
+
+/-- **The region semantics resolves tail calls as `Abstract.CallX.TailRes` does**: a tail call
+that `TailRes` resolves to the callee `a` (on the stack `stk`, top first; `return_call`,
+`return_call_indirect` through the table and the cast, `return_call_ref`) runs to a pending tail
+call of `a` over the values `W` under its operands. -/
+theorem run_of_tailRes {C : Abstract.CallRel H} {i : Instr} {stk : List Val} {a : Nat}
+    (W : List Val)
+    (h : Abstract.CallX.TailRes s f i stk (some (a, stk.drop (Abstract.CallX.tailPop i)))) :
+    ∃ c, c.IsReturnCallRef ∧ RunC P host C s f (W ++ (stk.take (Abstract.CallX.tailPop i)).reverse)
+      [.plain i] s f (.tail W a c) :=
+  Proofs.Region.run_of_tailRes W h
+
+/-- An unresolved tail call (`TailRes … none`) traps, or is a pending tail call of null. -/
+theorem run_of_tailRes_none {C : Abstract.CallRel H} {i : Instr} {stk : List Val}
+    (W : List Val) (h : Abstract.CallX.TailRes s f i stk none) :
+    RunC P host C s f (W ++ (stk.take (Abstract.CallX.tailPop i)).reverse) [.plain i] s f .trap ∨
+      ∃ c, c.IsReturnCallRef ∧ RunC P host C s f
+        (W ++ (stk.take (Abstract.CallX.tailPop i)).reverse) [.plain i] s f (.tailNull W c) :=
+  Proofs.Region.run_of_tailRes_none W h
 
 end Silmaril.Wasm.Cfg.Region

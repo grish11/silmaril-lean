@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Cfg.Machine
 public import Silmaril.Proofs.Wasm.Cfg.RegionTail
+public import Silmaril.Proofs.Wasm.Cfg.RegionTailRes
 
 @[expose] public section
 
@@ -65,5 +66,42 @@ theorem frame_tail_initial (hC : CallSoundA P host C) {body : Expr} {s : Store H
   · rw [hX] at hc; cases hc; rw [hs]; exact h1 vs hv
   · rw [hX] at hc; cases hc; rw [hs]; exact h2 ht
   · rw [hX] at hc; cases hc; rw [hs]; exact h3 t ht
+
+theorem stack_split (l : List Val) (n : Nat) :
+    (l.reverse.drop n).reverse ++ (l.reverse.take n).reverse = l := by
+  rw [← List.reverse_append, List.take_append_drop, List.reverse_reverse]
+
+/-- **The machine's tail step from `CallX.TailRes`**: a tail-call terminator whose call
+`TailRes` resolves (on the block's stack, top first) to the callee `a`, with an answer of `C` on
+its top `ps.length` values of the whole stack, is a machine step to the answer's sink. -/
+theorem mstep_tail_of_tailRes {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ s₃ : Store H} {f f₁ : Frame} {i : Instr} {W₀ args : List Val}
+    {a : Nat} {fi : FuncInst H} {ps rs : List CValType} {fl : Binaryen.Flow} {st' : MState H}
+    (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsTailCall)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hres : Abstract.CallX.TailRes s₁ f₁ i stk₁.reverse
+      (some (a, stk₁.reverse.drop (Abstract.CallX.tailPop i))))
+    (hfi : s₁.funcs[a]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+    (hargs : brVals ls.length ls (stk₁.reverse.drop (Abstract.CallX.tailPop i)).reverse =
+      W₀ ++ args) (hn : args.length = ps.length) (hcall : C s₁ a args (s₃, fl))
+    (hend : tailEnd rs.length s₃ f₁ fl = some st') :
+    MStepC P host C body ⟨.block b, stk, ls, s, f⟩ st' := by
+  obtain ⟨c, -, hth⟩ := Proofs.Region.run_of_tailRes (P := P) (host := host) (C := C)
+    (stk₁.reverse.drop (Abstract.CallX.tailPop i)).reverse hres
+  rw [stack_split] at hth
+  exact .tail hb ht hi hr hth hfi hty hargs hn hcall hend
+
+/-- **An unresolved tail call is a machine step to `trap`** (a trap of its resolution, or a
+tail call of null). -/
+theorem mstep_trap_of_tailRes {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {i : Instr}
+    (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsTailCall)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hres : Abstract.CallX.TailRes s₁ f₁ i stk₁.reverse none) :
+    MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩ := by
+  rcases Proofs.Region.run_of_tailRes_none (P := P) (host := host) (C := C)
+    (stk₁.reverse.drop (Abstract.CallX.tailPop i)).reverse hres with h | ⟨c, -, h⟩
+  · rw [stack_split] at h; exact .termTrap hb ht hr h
+  · rw [stack_split] at h; exact .tailNull hb ht hi hr h
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
