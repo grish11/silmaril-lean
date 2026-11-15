@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Cfg.BlockTree.Defs
 public import Silmaril.Wasm.Execution.Core.Step
+public import Silmaril.Wasm.SingleThreaded.Determinism.Family
 
 @[expose] public section
 
@@ -75,5 +76,18 @@ inductive Resid : List Instr → Loc → List Admin → Prop where
 inductive InFrame (body : Expr) : Loc → List Admin → Prop where
   | frame {n m : Nat} {fr : Frame} {l : Loc} {inner : List Admin} (h : Resid body l inner) :
       InFrame body l [.frame n fr [.label m [] inner]]
+
+/-! ## Non-control steps (milestone 2, first part) -/
+
+/-- An administrative instruction that is a value, or a plain instruction of a non-control
+reduction family (`Det.famOf`: parametric, numeric, vector, variable, table, memory, reference,
+aggregate). -/
+def SimpleAdmin (a : Admin) : Prop :=
+  a.val? ≠ none ∨ ∃ i, a = .plain i ∧ SingleThreaded.Det.famOf (.plain i) ≠ .control
+
+/-- What a non-control reduction may leave: simple administrative instructions only, or a
+trap. Some non-control rules expand into further instructions (`memory.fill`, `table.copy`,
+…), hence the second disjunct of `SimpleAdmin`. -/
+def SimpleRes (is' : List Admin) : Prop := (∀ a ∈ is', SimpleAdmin a) ∨ is' = [.trap]
 
 end Silmaril.Wasm.Cfg

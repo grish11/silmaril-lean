@@ -46,6 +46,22 @@ for (const [a, tg] of flowOnly) iedges.push([last[a], typeof tg === "number" ? f
 const ioutc = cfg.blocks.flatMap((bl, k) => bl.effects.length ? [[first[k], "trap", "caller"]] : []);
 ioutc.push([last[cfg.blocks.length - 1], "raise", 0]);
 cfg.variants["fx-instr"] = { model: "all-effects (synthetic test fixture)", granularity: "instr", nodes, entry: first[cfg.entry], edges: iedges, outcomes: ioutc };
+// Maximal blocks: chains merged where a block has one flow successor, a block, with one flow
+// predecessor (not the entry). A fixture for the `members` links only; the page never merges.
+{
+  const n = cfg.blocks.length, succ = Array.from({ length: n }, () => []), pred = new Array(n).fill(0);
+  for (const [a, tg] of flowOnly) { succ[a].push(tg); if (typeof tg === "number") pred[tg]++; }
+  const next = (a) => succ[a].length === 1 && typeof succ[a][0] === "number" && pred[succ[a][0]] === 1 && succ[a][0] !== cfg.entry ? succ[a][0] : null;
+  const absorbed = new Set(); for (let a = 0; a < n; a++) if (next(a) !== null) absorbed.add(next(a));
+  const members = [];
+  for (let a = 0; a < n; a++) if (!absorbed.has(a)) { const ms = [a]; for (let x = next(a); x !== null; x = next(x)) ms.push(x); members.push(ms); }
+  const at = new Map(); members.forEach((ms, k) => ms.forEach((b) => at.set(b, k)));
+  const blocks = members.map((ms) => ({ instrs: ms.flatMap((b, j) => cfg.blocks[b].instrs.concat(j < ms.length - 1 && cfg.blocks[b].term ? [cfg.blocks[b].term] : [])),
+    term: cfg.blocks[ms[ms.length - 1]].term, effects: [...new Set(ms.flatMap((b) => cfg.blocks[b].effects))] }));
+  const edges = flowOnly.filter(([a, tg]) => !(typeof tg === "number" && at.get(tg) === at.get(a) && next(a) === tg))
+    .map(([a, tg]) => [at.get(a), typeof tg === "number" ? at.get(tg) : tg, "flow"]);
+  cfg.variants["fx-maximal"] = { model: "all-effects (synthetic test fixture)", entry: at.get(cfg.entry), blocks, members, edges };
+}
 cfg.default = "fx-all-effects";
 fs.writeFileSync(path.join(fx, "wasm/m", slug + ".json"), JSON.stringify(mod));
 const port = 8797;
@@ -64,7 +80,7 @@ try {
     await p.waitForFunction(() => window.explore && window.explore.ready && !window.explore.busy, null, { timeout: 60000 });
   };
   const shot = async (name) => { if (shots) { fs.mkdirSync(shots, { recursive: true }); await p.locator("#wcfg").scrollIntoViewIfNeeded(); await p.screenshot({ path: path.join(shots, name + ".png") }); } };
-  const text = (sel) => p.evaluate((s) => document.querySelector(s)?.textContent ?? null, sel);
+  const text = (sel) => p.evaluate((s) => document.querySelector(s)?.textContent.replace(/\s+/g, " ") ?? null, sel);
   const domNote = async () => { await p.click("#wdom"); return p.evaluate(() => ({ t: document.querySelector("#wdomnote").textContent, lean: !!document.querySelector("#wprov .prov-lean") })); };
 
   await open("");
@@ -82,13 +98,24 @@ try {
   check(await p.evaluate((nb) => wcy.nodes('[kind = "group"]').length === nb && wcy.nodes('[kind = "block"]').every((n) => n.isChild()), cfg.blocks.length),
     "instruction level: every instruction is inside its block's box");
   check(await p.evaluate((id) => wcy.nodes(".sel").map((n) => n.id()).join() === id, "n" + first[1]), "the expansion selects the block's first instruction");
-  check((await p.evaluate(() => document.querySelector("#wside a.wgran")?.getAttribute("href")))?.endsWith("/@top/b1"), "and links back to the block level");
+  check((await p.evaluate(() => document.querySelector("#wside a.wgran")?.getAttribute("href")))?.endsWith("/@fx-all-effects/b1"), "and links back to the block level of the same model");
   const hsrc = "n" + last[cfg.blocks.length - 1];
   await p.selectOption("#wgo", hsrc);
   check(await p.evaluate(() => wcy.edges(".outc").filter((e) => e.style("display") === "element").length) === 1, "a raise's handler link is drawn when its node is selected");
   await shot("fixture-instr");
   let dn = await domNote();
   check(dn.t.startsWith("fx-instr") && dn.t.includes(`the ${iedges.length} edges of basis “flow edges”`) && !dn.lean, "instruction-level dominators: basis is the edges only, no kernel badge");
+  // members: a merged block lists its blocks; a member links to its merged block.
+  await open("/@fx-maximal");
+  const mx = cfg.variants["fx-maximal"], big = mx.members.findIndex((ms) => ms.length > 1);
+  check(await p.evaluate(() => wcy.nodes('[kind = "block"]').length) === mx.blocks.length, `fx-maximal: ${mx.blocks.length} blocks drawn as given`);
+  await p.selectOption("#wgo", "b" + big);
+  const side = await text("#wside");
+  check(side.includes("contains blocks " + mx.members[big].map((k) => "b" + k).join(" ")) && !/undefined/.test(side), "a block with members lists them");
+  check((await p.evaluate(() => document.querySelector("#wside a.wmember")?.getAttribute("href")))?.endsWith(`/@fx-all-effects/b${mx.members[big][0]}`), "and links to them");
+  await shot("fixture-maximal");
+  await open(`/@fx-all-effects/b${mx.members[big][1]}`);
+  check((await text("#wside")).includes(`part of block b${big} of fx-maximal`), "a member links to its merged block");
   await open("/@fx-trap-effect");
   const info = await text("#wvariantinfo");
   check(/Fixture\.NotARelation/.test(info) && /not checked here/.test(info) && /No theorem shown on this page says that executions follow this graph/.test(info),
