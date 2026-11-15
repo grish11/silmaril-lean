@@ -37,7 +37,7 @@ All results hold for every profile `P` and every host `host`. Proofs are in
   (ranks on expansion level and the `fill`/`copy`/`init` counts), so **`div_iff`** is
   unconditional.
 
-Not covered: calls inside the body, exceptions, `br_table` and `br_on_*`.
+Not covered: calls inside the body and exceptions.
 -/
 
 namespace Silmaril.Wasm.Cfg.Region

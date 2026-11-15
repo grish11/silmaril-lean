@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Cfg.Exec.Defs
+public import Silmaril.Wasm.Execution.Core.Inversion.Defs
 
 @[expose] public section
 
@@ -30,7 +31,8 @@ The rules follow the structure of the code:
 Outcomes carry values, store and frame, and every branch reads data.
 
 The fragment (`Frag`) is call-free and exception-free: values, non-control instructions,
-`block`, `loop`, `if`, `br`, `br_if`, `return`, `TRAP` and `LABEL`. On it the semantics is
+`block`, `loop`, `if`, `br`, `br_if`, `br_table`, `br_on_null`, `br_on_non_null`, `br_on_cast`,
+`br_on_cast_fail`, `return`, `TRAP` and `LABEL`. On it the semantics is
 **adequate in both directions** for every profile and host (`Region/Thms.lean`): `Run`
 holds exactly when Core 3.0 runs the code to a final form of that outcome. This covers
 terminating runs only; divergence is not treated yet.
@@ -67,6 +69,8 @@ inductive FragI : Instr → Prop where
   | br (l : LabelIdx) : FragI (.br l)
   | brIf (l : LabelIdx) : FragI (.brIf l)
   | return_ : FragI .return_
+  /-- `br_table`, `br_on_null`, `br_on_non_null`, `br_on_cast`, `br_on_cast_fail`. -/
+  | brData {i : Instr} (h : i.IsBrData) : FragI i
 
 /-- Runtime instructions of the fragment. -/
 inductive FragA : Admin → Prop where
@@ -108,6 +112,11 @@ inductive Run (P : Profile) (host : HostSemantics H) :
       {code : List Admin} {o : Out}
       (h : Run P host s f ws ((if k = 0 then [] else [.plain (.br l)]) ++ code) s' f' o) :
       Run P host s f (ws ++ [.i32 k]) (.plain (.brIf l) :: code) s' f' o
+  /-- A data-dependent branch reads its operands (`BrStep`). -/
+  | brData {s s' : Store H} {f f' : Frame} {ws us us' : List Val} {i : Instr} {X : List Admin}
+      {code : List Admin} {o : Out} (hb : BrStep s f us i us' X)
+      (h : Run P host s f (ws ++ us') (X ++ code) s' f' o) :
+      Run P host s f (ws ++ us) (.plain i :: code) s' f' o
   | block {s s' : Store H} {f f' : Frame} {ws us : List Val} {bt : BlockType} {b : List Instr}
       {t₁ t₂ : List CValType} {code : List Admin} {o : Out}
       (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
@@ -190,6 +199,9 @@ inductive DivF (P : Profile) (host : HostSemantics H)
   | brIf {s : Store H} {f : Frame} {ws : List Val} {k : BitVec 32} {l : LabelIdx}
       {code : List Admin} (h : R s f ws ((if k = 0 then [] else [.plain (.br l)]) ++ code)) :
       DivF P host R s f (ws ++ [.i32 k]) (.plain (.brIf l) :: code)
+  | brData {s : Store H} {f : Frame} {ws us us' : List Val} {i : Instr} {X code : List Admin}
+      (hb : BrStep s f us i us' X) (h : R s f (ws ++ us') (X ++ code)) :
+      DivF P host R s f (ws ++ us) (.plain i :: code)
   | block {s : Store H} {f : Frame} {ws us : List Val} {bt : BlockType} {b : List Instr}
       {t₁ t₂ : List CValType} {code : List Admin}
       (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)

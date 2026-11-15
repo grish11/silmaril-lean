@@ -871,6 +871,114 @@ theorem noncontrol_vals_inv {c c' : Config H} (h : Step P host c c') {i : Instr}
       | (simp at hl; subst hl; exact hk (isCallRef_control ‹_›))
       | (simp at hl; subst hl; simp [Admin.IsReturnCallRef] at *; done)
 
+/-! ## Data-dependent branches -/
+
+theorem pair_inv {x : Admin} {v : Val} {i i' : Instr} {vs : List Val} (hx : x.val? = some v)
+    (hi : (Admin.plain i).val? = none) (h : [x, .plain i'] = vals vs ++ [.plain i]) :
+    vs = [v] ∧ i' = i := by
+  have hl := congrArg List.length h
+  simp only [List.length_cons, List.length_nil, List.length_append, vals_length] at hl
+  obtain ⟨w, rfl⟩ : ∃ w, vs = [w] := by
+    rcases vs with _ | ⟨w, _ | ⟨_, _⟩⟩ <;> simp at hl
+    exact ⟨w, rfl⟩
+  simp only [vals, List.map_cons, List.map_nil, List.cons_append, List.nil_append,
+    List.cons.injEq, Admin.plain.injEq, and_true] at h
+  obtain ⟨rfl, rfl⟩ := h
+  simp at hx
+  exact ⟨by rw [hx], rfl⟩
+
+theorem brStep_step {s : Store H} {f : Frame} {us us' : List Val} {i : Instr} {X : List Admin}
+    (h : BrStep s f us i us' X) :
+    Step P host ⟨s, f, vals us ++ [.plain i]⟩ ⟨s, f, vals us' ++ X⟩ := by
+  cases h with
+  | tableLt hi => simpa [vals, Val.toAdmin, constI32, Val.i32] using Step.brTableLt (P := P) (host := host) (s := s) (f := f) hi
+  | tableGe hi => simpa [vals, Val.toAdmin, constI32, Val.i32] using Step.brTableGe (P := P) (host := host) (s := s) (f := f) hi
+  | onNullNull => simpa [vals, Val.toAdmin] using Step.brOnNullNull (P := P) (host := host) (s := s) (f := f)
+  | onNullAddr hv => simpa [vals] using Step.brOnNullAddr (P := P) (host := host) (s := s) (f := f) hv
+  | onNonNullNull => simpa [vals, Val.toAdmin] using Step.brOnNonNullNull (P := P) (host := host) (s := s) (f := f)
+  | onNonNullAddr hv => simpa [vals] using Step.brOnNonNullAddr (P := P) (host := host) (s := s) (f := f) hv
+  | onCastSucceed h => simpa [vals, Val.toAdmin] using Step.brOnCastSucceed (P := P) (host := host) h
+  | onCastFail h => simpa [vals, Val.toAdmin] using Step.brOnCastFail (P := P) (host := host) h
+  | onCastFailSucceed h => simpa [vals, Val.toAdmin] using Step.brOnCastFailSucceed (P := P) (host := host) h
+  | onCastFailFail h => simpa [vals, Val.toAdmin] using Step.brOnCastFailFail (P := P) (host := host) h
+
+theorem brData_vals_inv {c c' : Config H} (h : Step P host c c') {i : Instr}
+    (hb : i.IsBrData) :
+    ∀ {vs : List Val}, c.code = vals vs ++ [.plain i] →
+      ∃ ws us us' X, vs = ws ++ us ∧ BrStep c.store c.frame us i us' X ∧
+        c' = ⟨c.store, c.frame, vals ws ++ (vals us' ++ X)⟩ := by
+  have hv : (Admin.plain i).val? = none := by cases i <;> simp_all [Instr.IsBrData, Admin.val?]
+  have hk : Det.famOf (.plain i) = .control := by cases i <;> simp_all [Instr.IsBrData, Det.famOf]
+  have hcr : ¬ (Admin.plain i).IsCallRef := by
+    cases i <;> simp_all [Instr.IsBrData, Admin.IsCallRef]
+  have hrcr : ¬ (Admin.plain i).IsReturnCallRef := by
+    cases i <;> simp_all [Instr.IsBrData, Admin.IsReturnCallRef]
+  induction h with
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro vs hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single hv hs.not_all_isVal hc
+    obtain ⟨ws, us, us', X, rfl, hB, he⟩ := ih rfl
+    simp only [Config.mk.injEq] at he
+    obtain ⟨rfl, rfl, rfl⟩ := he
+    exact ⟨vs₀ ++ ws, us, us', X, by simp, hB, by simp⟩
+  | trapInstrs =>
+    intro vs hc
+    exact (bubble_vals_single hv ⟨by simp, by rintro ⟨⟩; simp [Instr.IsBrData] at hb⟩ (.inl hc)).elim
+  | throwRefInstrs =>
+    intro vs hc
+    exact (bubble_vals_single hv ⟨by simp, by rintro ⟨⟩; simp [Instr.IsBrData] at hb⟩
+      (.inr ⟨_, hc⟩)).elim
+  | @brTableLt s f k ls l' l hi =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv rfl hv hc
+    exact ⟨[], _, _, _, rfl, .tableLt hi, by simp [vals]⟩
+  | @brTableGe s f k ls l' hi =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv rfl hv hc
+    exact ⟨[], _, _, _, rfl, .tableGe hi, by simp [vals]⟩
+  | @brOnNullNull s f l =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv (v := .ref .null) rfl hv hc
+    exact ⟨[], _, _, _, rfl, .onNullNull, by simp [vals]⟩
+  | @brOnNullAddr s f v l hv' =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv (Admin.val?_toAdmin v) hv hc
+    exact ⟨[], _, _, _, rfl, .onNullAddr hv', by simp [vals]⟩
+  | @brOnNonNullNull s f l =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv (v := .ref .null) rfl hv hc
+    exact ⟨[], _, _, _, rfl, .onNonNullNull, by simp [vals]⟩
+  | @brOnNonNullAddr s f v l hv' =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv (Admin.val?_toAdmin v) hv hc
+    exact ⟨[], _, _, _, rfl, .onNonNullAddr hv', by simp [vals]⟩
+  | @brOnCastSucceed s f r l rt₁ rt₂ h =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv (v := .ref r) rfl hv hc
+    exact ⟨[], _, _, _, rfl, .onCastSucceed h, by simp [vals, Val.toAdmin]⟩
+  | @brOnCastFail s f r l rt₁ rt₂ h =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv (v := .ref r) rfl hv hc
+    exact ⟨[], _, _, _, rfl, .onCastFail h, by simp [vals, Val.toAdmin]⟩
+  | @brOnCastFailSucceed s f r l rt₁ rt₂ h =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv (v := .ref r) rfl hv hc
+    exact ⟨[], _, _, _, rfl, .onCastFailSucceed h, by simp [vals, Val.toAdmin]⟩
+  | @brOnCastFailFail s f r l rt₁ rt₂ h =>
+    intro vs hc; obtain ⟨rfl, rfl⟩ := pair_inv (v := .ref r) rfl hv hc
+    exact ⟨[], _, _, _, rfl, .onCastFailFail h, by simp [vals, Val.toAdmin]⟩
+  | _ =>
+    intro vs hc
+    exfalso
+    have hl := congrArg List.getLast? hc
+    simp only [List.getLast?_append, List.getLast?_singleton, List.getLast?_cons_cons,
+      Option.some_or, List.getLast?_cons] at hl
+    first
+      | (have := fam_parametric ‹_› hl; simp [hk] at this; done)
+      | (have := fam_numeric ‹_› hl; simp [hk] at this; done)
+      | (have := fam_vector ‹_› hl; simp [hk] at this; done)
+      | (have := fam_variable ‹_› hl; simp [hk] at this; done)
+      | (have := fam_table ‹_› hl; simp [hk] at this; done)
+      | (have := fam_memory ‹_› hl; simp [hk] at this; done)
+      | (have := fam_reference ‹_› hl; simp [hk] at this; done)
+      | (have := fam_aggregate ‹_› hl; simp [hk] at this; done)
+      | (simp at hl; done)
+      | (simp at hl; subst hl; simp [Instr.IsBrData] at hb; done)
+      | (simp at hl; subst hl; exact hcr ‹_›)
+      | (simp at hl; subst hl; exact hrcr ‹_›)
+
 /-! ## Contexts under values -/
 
 theorem ctx_val_none {X : Admin} (hX : X.IsCtx) : X.val? = none := by

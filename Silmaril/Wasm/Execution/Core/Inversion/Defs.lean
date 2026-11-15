@@ -133,3 +133,44 @@ inductive FamStep (P : Profile) : Config H → Config H → Prop where
   | aggregate {c c' : Config H} (h : AggregateStep c c') : FamStep P c c'
 
 end Silmaril.Wasm.Execution.Core
+
+namespace Silmaril.Wasm.Execution.Core
+
+open Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type}
+
+/-- The data-dependent branch instructions `br_table`, `br_on_null`, `br_on_non_null`,
+`br_on_cast`, `br_on_cast_fail`. -/
+def _root_.Silmaril.Wasm.Instr.IsBrData : Instr → Prop
+  | .brTable .. | .brOnNull _ | .brOnNonNull _ | .brOnCast .. | .brOnCastFail .. => True
+  | _ => False
+
+/-- One rule of a data-dependent branch: it pops `us`, pushes `us'` and leaves `X`, either a
+`br l` or nothing. These are exactly the `Step` rules `br_table-lt/ge`, `br_on_null-*`,
+`br_on_non_null-*`, `br_on_cast-*` and `br_on_cast_fail-*`, with store and frame unchanged. -/
+inductive BrStep (s : Store H) (f : Frame) : List Val → Instr → List Val → List Admin → Prop where
+  | tableLt {i : BitVec 32} {ls : List LabelIdx} {l' l : LabelIdx} (hi : ls[i.toNat]? = some l) :
+      BrStep s f [.i32 i] (.brTable ls l') [] [.plain (.br l)]
+  | tableGe {i : BitVec 32} {ls : List LabelIdx} {l' : LabelIdx} (hi : ls.length ≤ i.toNat) :
+      BrStep s f [.i32 i] (.brTable ls l') [] [.plain (.br l')]
+  | onNullNull {l : LabelIdx} : BrStep s f [.ref .null] (.brOnNull l) [] [.plain (.br l)]
+  | onNullAddr {v : Val} {l : LabelIdx} (hv : v ≠ .ref .null) :
+      BrStep s f [v] (.brOnNull l) [v] []
+  | onNonNullNull {l : LabelIdx} : BrStep s f [.ref .null] (.brOnNonNull l) [] []
+  | onNonNullAddr {v : Val} {l : LabelIdx} (hv : v ≠ .ref .null) :
+      BrStep s f [v] (.brOnNonNull l) [v] [.plain (.br l)]
+  | onCastSucceed {r : Ref} {l : LabelIdx} {rt₁ rt₂ : RefType}
+      (h : RefOk s r (f.module.instRef rt₂)) :
+      BrStep s f [.ref r] (.brOnCast l rt₁ rt₂) [.ref r] [.plain (.br l)]
+  | onCastFail {r : Ref} {l : LabelIdx} {rt₁ rt₂ : RefType}
+      (h : ¬ RefOk s r (f.module.instRef rt₂)) :
+      BrStep s f [.ref r] (.brOnCast l rt₁ rt₂) [.ref r] []
+  | onCastFailSucceed {r : Ref} {l : LabelIdx} {rt₁ rt₂ : RefType}
+      (h : RefOk s r (f.module.instRef rt₂)) :
+      BrStep s f [.ref r] (.brOnCastFail l rt₁ rt₂) [.ref r] []
+  | onCastFailFail {r : Ref} {l : LabelIdx} {rt₁ rt₂ : RefType}
+      (h : ¬ RefOk s r (f.module.instRef rt₂)) :
+      BrStep s f [.ref r] (.brOnCastFail l rt₁ rt₂) [.ref r] [.plain (.br l)]
+
+end Silmaril.Wasm.Execution.Core

@@ -171,6 +171,19 @@ theorem Step.noncontrol_vals_inv {us : List Val} {i : Instr}
       c = ⟨c₀.store, c₀.frame, vals ws ++ c₀.code⟩ :=
   Proofs.Inversion.noncontrol_vals_inv h hk rfl
 
+/-- A data-dependent branch rule is a Core step. -/
+theorem BrStep.step {us us' : List Val} {i : Instr} {X : List Admin} (h : BrStep s f us i us' X) :
+    Step P host ⟨s, f, vals us ++ [.plain i]⟩ ⟨s, f, vals us' ++ X⟩ :=
+  Proofs.Inversion.brStep_step h
+
+/-- A data-dependent branch under values steps by exactly one of its rules (`BrStep`), on its
+top operands. -/
+theorem Step.brData_vals_inv {vs : List Val} {i : Instr} (hb : i.IsBrData)
+    (h : Step P host ⟨s, f, vals vs ++ [.plain i]⟩ c) :
+    ∃ ws us us' X, vs = ws ++ us ∧ BrStep s f us i us' X ∧
+      c = ⟨s, f, vals ws ++ (vals us' ++ X)⟩ :=
+  Proofs.Inversion.brData_vals_inv h hb rfl
+
 /-! ## Contexts -/
 
 /-- A label steps inside (`ctxt-label`) or by an exit rule. -/

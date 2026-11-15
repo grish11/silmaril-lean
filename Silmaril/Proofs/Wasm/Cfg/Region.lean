@@ -41,6 +41,7 @@ theorem run_val_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {a : Admin} 
   | val hv' h => rw [hv] at hv'; cases hv'; exact h
   | simple hi => exact absurd (famOf_val hv) hi
   | simpleTrap hi => exact absurd (famOf_val hv) hi
+  | brData hb => cases hb <;> simp [Admin.val?] at hv
   | _ => simp [Admin.val?] at hv
 
 theorem run_vals_inv {s s' : Store H} {f f' : Frame} {vs : List Val} :
@@ -76,6 +77,7 @@ theorem run_br_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {l : LabelIdx
   | val hv => simp [Admin.val?] at hv
   | simple hi => simp [Det.famOf] at hi
   | simpleTrap hi => simp [Det.famOf] at hi
+  | brData hb => cases hb
 
 theorem run_ret_inv {s s' : Store H} {f f' : Frame} {vs : List Val}
     {code : List Admin} {o : Out} (h : Run P host s f vs (.plain .return_ :: code) s' f' o) :
@@ -85,6 +87,7 @@ theorem run_ret_inv {s s' : Store H} {f f' : Frame} {vs : List Val}
   | val hv => simp [Admin.val?] at hv
   | simple hi => simp [Det.famOf] at hi
   | simpleTrap hi => simp [Det.famOf] at hi
+  | brData hb => cases hb
 
 /-! ## Runs in contexts -/
 
@@ -156,6 +159,11 @@ theorem sound {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List Admin
     · rename_i hk
       have := step_in (P := P) (host := host) ws code (Step.brIfTrue (s := s) (f := f) (l := l) hk)
       simpa [vals, Val.toAdmin, constI32, Val.i32] using this
+  | @brData s s' f f' ws us us' i X code o hb _ ih =>
+    obtain ⟨c', hs, he⟩ := ih
+    refine ⟨c', .head ?_ (by simpa using hs), he⟩
+    have := step_in (P := P) (host := host) ws code (BrStep.step (P := P) (host := host) hb)
+    simpa using this
   | @block s s' f f' ws us bt b t₁ t₂ code o hbt hm _ ih =>
     obtain ⟨c', hs, he⟩ := ih
     refine ⟨c', .head ?_ (by simpa using hs), he⟩
@@ -243,6 +251,7 @@ theorem run_append {s s₁ s' : Store H} {f f₁ f' : Frame} {vs : List Val} {A 
   | br => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .br
   | ret => obtain ⟨rfl, rfl, rfl⟩ := hB; exact .ret
   | brIf _ ih => exact .brIf (by simpa using ih hB)
+  | brData hb _ ih => exact .brData hb (by simpa using ih hB)
   | block hbt hm _ ih => exact .block hbt hm (ih hB)
   | loop hbt hm _ ih => exact .loop hbt hm (ih hB)
   | if_ _ ih => exact .if_ (ih hB)
@@ -313,6 +322,14 @@ theorem run_split {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List A
       obtain ⟨rfl, rfl⟩ := hA
       obtain ⟨_, _, _, h₁, h₂⟩ := ih (List.append_assoc _ _ _).symm
       exact ⟨_, _, _, .brIf h₁, h₂⟩
+  | @brData _ _ _ _ _ _ _ _ X _ _ hb h ih =>
+    intro A B hA
+    rcases A with _ | ⟨a, A⟩
+    · subst hA; exact ⟨_, _, _, .nil, .brData hb h⟩
+    · simp only [List.cons_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl⟩ := hA
+      obtain ⟨_, _, _, h₁, h₂⟩ := ih (A := X ++ A) (B := B) (List.append_assoc _ _ _).symm
+      exact ⟨_, _, _, .brData hb h₁, h₂⟩
   | block hbt hm h ih =>
     intro A B hA
     rcases A with _ | ⟨a, A⟩
@@ -387,6 +404,7 @@ theorem fragI_block {bt : BlockType} {b : List Instr} (h : FragI (.block bt b)) 
   cases h with
   | simple h => simp [Det.famOf] at h
   | const h => simp [Admin.val?] at h
+  | brData h => simp [Instr.IsBrData] at h
   | block h => exact h
 
 theorem fragI_loop {bt : BlockType} {b : List Instr} (h : FragI (.loop bt b)) :
@@ -394,6 +412,7 @@ theorem fragI_loop {bt : BlockType} {b : List Instr} (h : FragI (.loop bt b)) :
   cases h with
   | simple h => simp [Det.famOf] at h
   | const h => simp [Admin.val?] at h
+  | brData h => simp [Instr.IsBrData] at h
   | loop h => exact h
 
 theorem fragI_if {bt : BlockType} {t e : List Instr} (h : FragI (.if_ bt t e)) :
@@ -401,6 +420,7 @@ theorem fragI_if {bt : BlockType} {t e : List Instr} (h : FragI (.if_ bt t e)) :
   cases h with
   | simple h => simp [Det.famOf] at h
   | const h => simp [Admin.val?] at h
+  | brData h => simp [Instr.IsBrData] at h
   | if_ ht he => exact ⟨ht, he⟩
 
 theorem fragA_label {n : Nat} {cont : List Instr} {inner : List Admin}
@@ -418,6 +438,7 @@ theorem fragA_callRef {c : Admin} (h : FragA c) (hc : c.IsCallRef) : False := by
     cases h with
     | simple h => exact h hk
     | const h => exact h hv
+    | brData h => rename_i i; cases i <;> simp_all [Instr.IsBrData, Admin.IsCallRef]
     | _ => simp [Admin.IsCallRef] at hc
   | trap => simp [Admin.IsCallRef] at hc
   | label => simp [Admin.IsCallRef] at hc
@@ -432,6 +453,7 @@ theorem fragA_retCallRef {c : Admin} (h : FragA c) (hc : c.IsReturnCallRef) : Fa
     cases h with
     | simple h => simp [Det.famOf] at h
     | const h => simp [Admin.val?] at h
+    | brData h => simp [Instr.IsBrData] at h
   | trap => simp [Admin.IsReturnCallRef] at hc
   | label => simp [Admin.IsReturnCallRef] at hc
 
@@ -458,7 +480,7 @@ local macro "frag_contra" hF:ident : tactic => `(tactic| (
   simp only [Frag, List.forall_mem_cons, List.forall_mem_append, List.forall_mem_nil, and_true,
     throwing, List.cons_append, List.nil_append, List.append_assoc] at $hF:ident
   casesm* _ ∧ _
-  cases_type* FragA FragI <;> simp_all [Det.famOf, Admin.val?]))
+  cases_type* FragA FragI <;> simp_all [Det.famOf, Admin.val?, Instr.IsBrData]))
 
 /-! ## Straight-line code -/
 
@@ -472,6 +494,7 @@ theorem run_simple_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {i : Inst
   | val hv => exact absurd (Proofs.Exec.val_none_of_noncontrol hi) (by simp [hv])
   | simple _ h₁ h => exact .inl ⟨_, _, _, h₁, h⟩
   | simpleTrap _ h₁ => exact .inr ⟨rfl, h₁⟩
+  | brData hb => cases hb <;> simp [Det.famOf] at hi
   | _ => simp [Det.famOf] at hi
 
 /-- A run of simple code followed by `es` runs the simple code by Core reduction first. -/
@@ -563,7 +586,18 @@ theorem fragA_throwRef : ¬ FragA (.plain .throwRef) := by
   intro h
   cases h with
   | val h => simp [Admin.val?] at h
-  | plain h => cases h <;> simp_all [Det.famOf, Admin.val?]
+  | plain h => cases h <;> simp_all [Det.famOf, Admin.val?, Instr.IsBrData]
+
+theorem expand_br {s : Store H} {f : Frame} {us us' : List Val} {i : Instr} {X : List Admin}
+    (hb : BrStep s f us i us' X) :
+    Frag (vals us' ++ X) ∧ ∀ {vs : List Val} {s' : Store H} {f' : Frame} {o : Out},
+      Run P host s f vs (vals us' ++ X) s' f' o →
+        Run P host s f vs (vals us ++ [.plain i]) s' f' o := by
+  refine ⟨frag_append.2 ⟨frag_vals _, ?_⟩, ?_⟩
+  · cases hb <;> intro a ha <;> simp at ha <;> subst ha <;> exact .plain (.br _)
+  · intro vs s' f' o hr
+    apply run_vals
+    exact .brData (ws := vs) (code := []) hb (by simpa using run_vals_inv hr)
 
 /-- Rebuild a label run from a run of its body's successor. -/
 theorem label_back {s s₁ s' : Store H} {f f₁ f' : Frame} {vs : List Val} {n : Nat}
@@ -754,18 +788,34 @@ theorem expand {c c₁ : Config H} (h : Step P host c c₁) : Frag c.code →
   | @callRefFunc _ _ c _ _ _ _ _ _ hc => intro hF; exact (fragA_callRef (hF c (by simp)) hc).elim
   | @callRefHost _ _ _ c _ _ _ _ _ _ _ hc => intro hF; exact (fragA_callRef (hF c (by simp)) hc).elim
   | @callRefHostDiv _ _ c _ _ _ _ _ _ hc => intro hF; exact (fragA_callRef (hF c (by simp)) hc).elim
-  | @brOnNullAddr _ _ v l _ =>
-    intro hF
-    have := hF (.plain (.brOnNull l)) (by simp)
-    cases this with
-    | val h => simp [Admin.val?] at h
-    | plain h => cases h <;> simp_all [Det.famOf, Admin.val?]
-  | @brOnNonNullAddr _ _ v l _ =>
-    intro hF
-    have := hF (.plain (.brOnNonNull l)) (by simp)
-    cases this with
-    | val h => simp [Admin.val?] at h
-    | plain h => cases h <;> simp_all [Det.famOf, Admin.val?]
+  | @brTableLt s f k ls l' l hi =>
+    intro _; simpa [vals, Val.toAdmin, constI32, Val.i32] using
+      expand_br (P := P) (host := host) (BrStep.tableLt (s := s) (f := f) (l' := l') hi)
+  | @brTableGe s f k ls l' hi =>
+    intro _; simpa [vals, Val.toAdmin, constI32, Val.i32] using
+      expand_br (P := P) (host := host) (BrStep.tableGe (s := s) (f := f) (l' := l') hi)
+  | @brOnNullNull s f l =>
+    intro _; simpa [vals, Val.toAdmin] using
+      expand_br (P := P) (host := host) (BrStep.onNullNull (s := s) (f := f) (l := l))
+  | @brOnNullAddr s f v l hv =>
+    intro _; simpa [vals] using
+      expand_br (P := P) (host := host) (BrStep.onNullAddr (s := s) (f := f) (l := l) hv)
+  | @brOnNonNullNull s f l =>
+    intro _; simpa [vals, Val.toAdmin] using
+      expand_br (P := P) (host := host) (BrStep.onNonNullNull (s := s) (f := f) (l := l))
+  | @brOnNonNullAddr s f v l hv =>
+    intro _; simpa [vals] using
+      expand_br (P := P) (host := host) (BrStep.onNonNullAddr (s := s) (f := f) (l := l) hv)
+  | brOnCastSucceed h =>
+    intro _; simpa [vals, Val.toAdmin] using expand_br (P := P) (host := host) (BrStep.onCastSucceed h)
+  | brOnCastFail h =>
+    intro _; simpa [vals, Val.toAdmin] using expand_br (P := P) (host := host) (BrStep.onCastFail h)
+  | brOnCastFailSucceed h =>
+    intro _; simpa [vals, Val.toAdmin] using
+      expand_br (P := P) (host := host) (BrStep.onCastFailSucceed h)
+  | brOnCastFailFail h =>
+    intro _; simpa [vals, Val.toAdmin] using
+      expand_br (P := P) (host := host) (BrStep.onCastFailFail h)
   | _ => intro hF; frag_contra hF
 
 /-! ## Completeness and adequacy -/

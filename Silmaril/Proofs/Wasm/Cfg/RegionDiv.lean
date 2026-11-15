@@ -27,6 +27,7 @@ theorem DivF.mono {R S : Rel4 H} (hRS : ∀ s f vs c, R s f vs c → S s f vs c)
   | val hv h => exact .val hv (hRS _ _ _ _ h)
   | simple hi h₁ h => exact .simple hi h₁ (hRS _ _ _ _ h)
   | brIf h => exact .brIf (hRS _ _ _ _ h)
+  | brData hb h => exact .brData hb (hRS _ _ _ _ h)
   | block hbt hm h => exact .block hbt hm (hRS _ _ _ _ h)
   | loop hbt hm h => exact .loop hbt hm (hRS _ _ _ _ h)
   | if_ h => exact .if_ (hRS _ _ _ _ h)
@@ -125,6 +126,9 @@ theorem progress {s : Store H} {f : Frame} {vs : List Val} {code : List Admin}
       have := step_in (P := P) (host := host) ws code'
         (Step.brIfTrue (s := s) (f := f) (l := l) hk)
       simpa [vals, Val.toAdmin, constI32, Val.i32] using this
+  | @brData _ ws us us' i X code' hb hd =>
+    refine ⟨_, _, ws ++ us', _, .single ?_, hd⟩
+    simpa using step_in (P := P) (host := host) ws code' (BrStep.step (P := P) (host := host) hb)
   | @block _ ws us bt b t₁ t₂ code' hbt hm hd =>
     refine ⟨_, _, ws, _, .single ?_, hd⟩
     simpa using step_in (P := P) (host := host) ws code' (Step.block (s := s) (body := b) hbt hm)
@@ -455,6 +459,20 @@ theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admi
       have := DivF.if_ (P := P) (host := host)
         (R := fun s f vs code => Frag code ∧ Diverges P host ⟨s, f, vals vs ++ code⟩)
         (ws := ws ++ ws') (k := k) (t := t) (e := e) (code := code) ⟨hFl, by unfold Diverges; simpa using hd₁⟩
+      simpa using this
+    | @brData i hb =>
+      obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
+      have hv : (Admin.plain i).val? = none := by cases i <;> simp_all [Instr.IsBrData, Admin.val?]
+      have hnt : i ≠ .throwRef := by rintro rfl; simp [Instr.IsBrData] at hb
+      obtain ⟨ws, us, is', rfl, hs', rfl⟩ := Proofs.Exec.head_of hv hnt hs
+      obtain ⟨ws', us', us'', X, rfl, hB, he⟩ := Step.brData_vals_inv hb hs'
+      simp only [Config.mk.injEq] at he
+      obtain ⟨rfl, rfl, rfl⟩ := he
+      have hFl : Frag (X ++ code) := frag_append.2 ⟨(frag_append.1 (expand_br (P := P)
+        (host := host) hB).1).2, hF'⟩
+      have := DivF.brData (P := P) (host := host)
+        (R := fun s f vs code => Frag code ∧ Diverges P host ⟨s, f, vals vs ++ code⟩)
+        (ws := ws ++ ws') (code := code) hB ⟨hFl, by unfold Diverges; simpa using hd₁⟩
       simpa using this
     | br l =>
       obtain ⟨c', hs, -⟩ := hd.unfold
