@@ -2,7 +2,7 @@ module
 
 public import Silmaril.Wasm.Abstract.CallX.Defs
 public import Silmaril.Wasm.Abstract.BodyTrace.Defs
-import Silmaril.Proofs.Wasm.Abstract.CallX.Expose
+import Silmaril.Proofs.Wasm.Abstract.CallX.Answer
 
 /-!
 # Indirect, reference and tail calls: theorems
@@ -18,9 +18,13 @@ import Silmaril.Proofs.Wasm.Abstract.CallX.Expose
   `denListX_eq_denListE`: on code without the extended forms it is exactly
   `StoreCall`'s exposed body.
 
-**Not yet.** The converse (answered paths are `EvalOX` derivations), and Core
-3.0 adequacy of the new rules (pending the export of the forward simulation
-for oracles, #372, coordinated with its owner).
+* **The converse.** `path_evalOX`: every finished path of `denListX` with all
+  call events answered by `C` is an `EvalOX C` derivation ending as the path
+  does. So exposure is exact: `evalOX_iff` (values), `evalOX_trap_iff` (traps).
+
+**Not yet.** Divergence through the extended call forms, and Core 3.0 adequacy
+of the new rules (the native arity check does not yet admit the extended
+forms; coordinated with its owner).
 -/
 
 public section
@@ -117,7 +121,8 @@ theorem evalOX_iff_evalO {C : CallRel H} {s : Store H} {f : Frame} {stk : List V
   ⟨fun h => evalO_of_xFree h hx, EvalOX.of_evalO⟩
 
 open Silmaril.Wasm.Abstract.StoreBody Silmaril.Wasm.Abstract.StoreCall
-open Silmaril.Wasm.Abstract.BodyTrace (Path)
+open Silmaril.Wasm.Abstract.BodyTrace (Path PathEnd)
+open Silmaril.Games.Abstract (Call)
 
 /-- **Exposure of the extended relation.** Every `EvalOX C` derivation is a path
 of the exposed body with every call event answered by `C`. -/
@@ -130,5 +135,51 @@ theorem evalOX_path {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val}
 theorem denListX_eq_denListE {es : List BExpr} (h : xFreeL es = true) :
     (denListX (H := H) es : Frame → List Val → M (CallSig H) H Res) = denListE es :=
   Silmaril.Proofs.Wasm.Abstract.CallX.denListX_eq_denC es h
+
+/-- **The converse.** Every finished path of the exposed body whose call events
+are answered by `C` is an `EvalOX C` derivation, ending as the path does. -/
+theorem path_evalOX {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List BExpr} {cs : List (Call (CallSig H))}
+    {e : PathEnd (Except PUnit.{2} (Res × St H))} (hA : Answered C cs)
+    (h : Path (((denListX es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs e) (he : e ≠ .div) :
+    ∃ r, EvalOX C s f stk es r ∧ endR r = e :=
+  Silmaril.Proofs.Wasm.Abstract.CallX.list_ansX es s f stk cs e hA h he
+
+/-- **Exposure of the extended relation is exact (values).** An `EvalOX C`
+outcome that is not a trap is exactly a finished answered path of the exposed
+body with that store, frame and flow. -/
+theorem evalOX_iff {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {s' : Store H} {f' : Frame} {fl : Flow} (hfl : fl ≠ .trap) :
+    EvalOX C s f stk es (s', f', fl) ↔
+      ∃ cs, Answered C cs ∧ Path (((denListX es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs
+        (.val (.ok (⟨(f', fl)⟩, ⟨s'⟩))) := by
+  have hend : endR (s', f', fl) = .val (.ok (⟨(f', fl)⟩, ⟨s'⟩)) := by
+    cases fl <;> first | exact absurd rfl hfl | rfl
+  constructor
+  · intro h
+    obtain ⟨cs, hA, hp⟩ := evalOX_path h
+    exact ⟨cs, hA, hend ▸ hp⟩
+  · rintro ⟨cs, hA, hp⟩
+    obtain ⟨⟨s₁, f₁, fl₁⟩, hev, he⟩ := path_evalOX hA hp (by simp)
+    obtain ⟨-, h1, h2⟩ := Silmaril.Proofs.Wasm.Abstract.StoreCall.endR_ok_inv he
+    simp only [ULift.up.injEq, Prod.mk.injEq] at h1 h2
+    obtain ⟨rfl, rfl⟩ := h1
+    subst h2
+    exact hev
+
+/-- **Exposure of the extended relation is exact (traps).** `EvalOX C` traps
+exactly when the exposed body has a finished answered path to the trap. -/
+theorem evalOX_trap_iff {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List BExpr} :
+    (∃ s' f', EvalOX C s f stk es (s', f', .trap)) ↔
+      ∃ cs, Answered C cs ∧ Path (((denListX es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs
+        (.val (.error ⟨⟩)) := by
+  constructor
+  · rintro ⟨s', f', h⟩
+    exact evalOX_path h
+  · rintro ⟨cs, hA, hp⟩
+    obtain ⟨⟨s₁, f₁, fl₁⟩, hev, he⟩ := path_evalOX hA hp (by simp)
+    obtain rfl := Silmaril.Proofs.Wasm.Abstract.StoreCall.endR_err_inv he
+    exact ⟨s₁, f₁, hev⟩
 
 end Silmaril.Wasm.Abstract.CallX
