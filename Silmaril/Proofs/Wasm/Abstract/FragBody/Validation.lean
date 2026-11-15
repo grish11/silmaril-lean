@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Binaryen.Typing
 public import Silmaril.Wasm.SSA.Native.Defs
+public import Silmaril.Proofs.Wasm.Abstract.FragBody.Typed
 
 /-!
 # Fragment trees and the principal typing of their lowering (step 1)
@@ -478,5 +479,53 @@ theorem instrOk_selectT_inv {D : Context} {vt : ValType} {it : InstrType}
   cases h
   all_goals (rename_i h; cases h)
   exact ⟨_, rfl⟩
+
+/-! ## Operator signatures from validation -/
+
+open Silmaril.Wasm.Abstract.FragBody in
+section
+
+/-- An integer type as a Core value type. -/
+abbrev numInt (t : IntType) : CValType := .num (.int t)
+
+theorem opSig_of_instr {i : Instr} {es args : List Silmaril.Wasm.SSA.Expr} {o : Silmaril.Wasm.SSA.Op} {D : Context}
+    {it₀ : InstrType} {τs : List IntType}
+    (h : Silmaril.Wasm.SSA.ofInstr? i es = some (.op o args)) (hi : InstrOk D i it₀)
+    (hp : it₀.params = τs.map numInt) (hnat : o.native = true) :
+    ∃ t, OpSig o τs t ∧ it₀.results = [numInt t] := by
+  unfold Silmaril.Wasm.SSA.ofInstr? at h
+  split at h <;> (try split at h) <;> simp only [Option.some.injEq, reduceCtorEq, Silmaril.Wasm.SSA.Expr.op.injEq] at h
+  all_goals (obtain ⟨rfl, rfl⟩ := h)
+  all_goals first
+    | (rw [instrOk_intConst_inv hi] at hp ⊢
+       obtain rfl : τs = [] := by simpa using hp.symm
+       exact ⟨_, ofInt_type _ _ ▸ OpSig.const _, by simp⟩)
+    | (rw [instrOk_intUnOp_inv hi] at hp ⊢
+       obtain ⟨t', rfl⟩ : ∃ t', τs = [t'] := by
+         rcases τs with _ | ⟨a, _ | _⟩ <;> simp at hp; exact ⟨a, rfl⟩
+       simp at hp; subst hp; exact ⟨_, .unInt _ _, rfl⟩)
+    | (rw [instrOk_intTestOp_inv hi] at hp ⊢
+       obtain ⟨t', rfl⟩ : ∃ t', τs = [t'] := by
+         rcases τs with _ | ⟨a, _ | _⟩ <;> simp at hp; exact ⟨a, rfl⟩
+       simp at hp; subst hp; exact ⟨_, .test _, rfl⟩)
+    | (rw [instrOk_intBinOp_inv hi] at hp ⊢
+       rcases τs with _ | ⟨a, _ | ⟨b, _ | _⟩⟩ <;> simp at hp
+       obtain ⟨rfl, rfl⟩ := hp; exact ⟨_, .binInt _ _, rfl⟩)
+    | (rw [instrOk_intRelOp_inv hi] at hp ⊢
+       rcases τs with _ | ⟨a, _ | ⟨b, _ | _⟩⟩ <;> simp at hp
+       obtain ⟨rfl, rfl⟩ := hp; exact ⟨_, .rel _ _, rfl⟩)
+    | (obtain ⟨t, ht⟩ := instrOk_select_inv hi
+       rw [ht] at hp ⊢
+       rcases τs with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | _⟩⟩⟩ <;> simp at hp
+       obtain ⟨rfl, h2, h3⟩ := hp
+       simp at h2 h3; subst h2; subst h3; exact ⟨_, .select _, rfl⟩)
+    | (obtain ⟨t, ht⟩ := instrOk_selectT_inv hi
+       rw [ht] at hp ⊢
+       rcases τs with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | _⟩⟩⟩ <;> simp at hp
+       obtain ⟨rfl, h2, h3⟩ := hp
+       simp at h2 h3; subst h2; subst h3; exact ⟨_, .select _, rfl⟩)
+    | (simp [Silmaril.Wasm.SSA.Op.native] at hnat)
+
+end
 
 end Silmaril.Proofs.Wasm.Abstract.FragBody
