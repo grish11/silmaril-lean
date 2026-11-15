@@ -193,4 +193,21 @@ theorem brIfTaken_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.brIfTaken_step_sound hb ht hr hk hL harity hloop hlev hX hY
 
+/-- **Entering an empty arm is sound**: the frame is pushed and immediately left. -/
+theorem enter_empty_sound {b : BlockId} {sg : Segment} {c : List Instr} {i : Instr} {a : Nat}
+    {bt : BlockType} {loop tryT : Bool} {cs : List Catch} {ls : List LFrame} {s s₁ : Store H}
+    {f f₁ : Frame} {stk stk₁ ws us : List Val} {t₁ t₂ : List Validation.CValType}
+    {X Y : List Admin}
+    (hc : seqAt body b.seq = some c) (hsg : (segment c)[b.idx]? = some sg)
+    (ht : sg.term = some i) (harm : armOf i a = some []) (hkind : StructKind i bt loop tryT cs)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hcond : CondArm i stk₁ a ws us)
+    (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (contRev body ((b.idx, a) :: b.seq.reverse)) (b.seq.length + 1)
+      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls) us s₁ f₁) = some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.enter_empty_sound hc hsg ht harm hkind hr hcond hbt hm hX hY
+
 end Silmaril.Wasm.Cfg.Machine

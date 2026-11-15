@@ -872,3 +872,68 @@ theorem brIfTaken_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk
   intro o s₂ f₂ h; exact br_lift l.toNat _ ls hX hL hloop hlev harity hin hY' h
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- **Entering an empty arm is sound**: the machine pushes the frame and immediately leaves it
+(`goto` to the arm sequence's continuation), as Core enters the label and leaves it with its
+values (`label-vals`, `handler-vals`). -/
+theorem enter_empty_sound {body : Expr} {b : BlockId} {sg : Segment} {c : List Instr} {i : Instr}
+    {a : Nat} {bt : BlockType} {loop tryT : Bool} {cs : List Catch} {ls : List LFrame}
+    {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ ws us : List Val} {t₁ t₂ : List CValType}
+    {X Y : List Admin}
+    (hc : seqAt body b.seq = some c) (hsg : (segment c)[b.idx]? = some sg)
+    (ht : sg.term = some i) (harm : armOf i a = some []) (hkind : StructKind i bt loop tryT cs)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hcond : CondArm i stk₁ a ws us)
+    (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (contRev body ((b.idx, a) :: b.seq.reverse)) (b.seq.length + 1)
+      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls) us s₁ f₁) = some Y) :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+  simp only [codeAt, hc, Option.bind_some] at hX
+  -- the context with the new frame around the finished (empty) arm
+  have hW : wrap body ((b.idx, a) :: b.seq.reverse) (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls)
+      (vals us) = wrap body b.seq.reverse ls (vals ws ++
+        (if tryT then Admin.handler (labelArity loop t₁ t₂) cs
+            [.label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us)]
+          else .label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us)) ::
+        expression (restAt c (b.idx + 1))) := by
+    simp [wrap, hc, hsg, ht]
+  cases hw : wrap body b.seq.reverse ls (vals ws ++
+        (if tryT then Admin.handler (labelArity loop t₁ t₂) cs
+            [.label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us)]
+          else .label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us)) ::
+        expression (restAt c (b.idx + 1))) with
+  | none =>
+    have := (wrap_isSome body b.seq.reverse ls (vals ws ++
+        (if tryT then Admin.handler (labelArity loop t₁ t₂) cs
+            [.label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us)]
+          else .label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us)) ::
+        expression (restAt c (b.idx + 1))) _).trans (congrArg Option.isSome hX)
+    rw [hw] at this; simp at this
+  | some Z =>
+    intro o s₂ f₂ h
+    have hY' : codeOf body (goto (contRev body ((b.idx, a) :: b.seq.reverse))
+        ((b.idx, a) :: b.seq.reverse).length (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs⟩ :: ls)
+        us s₁ f₁) = some Y := by simpa using hY
+    have h1 := cont_sound (P := P) (host := host) _ _ us (by rw [hW, hw]) hY' h
+    refine wrap_mono _ _ hX hw ?_ h1
+    intro o' s₃ f₃ h'
+    apply Proofs.Region.run_vals (vs := [])
+    rw [restAt_cons hsg]
+    simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append, List.map_cons,
+      List.map_nil, List.append_assoc, List.singleton_append, List.nil_append]
+    refine Proofs.Region.run_append hr (struct_step hkind harm hcond hbt hm ?_)
+    have h'' := Proofs.Region.run_vals_inv (vs := []) h'
+    cases tryT <;> simpa [expression] using h''
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
