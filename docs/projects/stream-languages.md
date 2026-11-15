@@ -14,6 +14,7 @@ It reuses Mathlib's `Language α` (`Set (List α)`) and CSLib's `ωSequence α`,
 | Module | Contents |
 | --- | --- |
 | `Silmaril.Semantics.Streams.Defs` / `Thms` | Finite-or-infinite words (`Word α`), ∞-languages (`Lang α`), chunk streams (`Chunks α`), their limits and progress |
+| `Silmaril.Semantics.StreamMonitors.Defs` / `Thms` | Safety and liveness verdicts of chunk-boundary monitors, compared with the limit word |
 
 ### `Silmaril.Semantics.Streams` (namespace `Silmaril.Streams`)
 
@@ -42,6 +43,27 @@ Stable API:
   - `limit_ofList`, `limit_ofω` and `limit_eq_flatten` (relates to CSLib's `flatten`
     when all chunks are nonempty).
   - `accepts_ofList`, `accepts_ofω` and `accepts_of_not_progressive`.
+
+### `Silmaril.Semantics.StreamMonitors` (namespace `Silmaril.Streams`)
+
+Stable API:
+
+- `safetyω L : ωLanguage α` is the set of infinite words whose finite prefixes are all
+  in `L`. It is a safety property: `isSafety_safetyω`, in CSLib's topological sense.
+- CSLib's `L↗ω` is "infinitely many prefixes in `L`". `isLiveness_omegaLim` shows it is
+  a liveness property when every word extends by a nonempty word into `L`.
+- `Chunks.AlwaysAt`, `Chunks.InfOftenAt` and `Chunks.EventuallyAlwaysAt` are the
+  safety, Büchi and co-Büchi verdicts of a monitor queried after every chunk.
+- Main theorems:
+  - With one letter per chunk the verdicts are exact: `alwaysAt_ofω_iff` and
+    `infOftenAt_ofω_iff`.
+  - With coarser chunks, safety of the limit implies the boundary verdict
+    (`alwaysAt_of_mem_safetyω`) but not conversely (`alwaysAt_coarse_counterexample`).
+    For liveness, the boundary verdict implies `L↗ω` (`mem_omegaLim_of_infOftenAt`).
+  - On a finite limit `w`, the liveness verdicts only decide `w ∈ L`
+    (`verdicts_of_limit_fin`, `eventuallyAlwaysAt_ofList_iff`). A stalled stream
+    answers yes infinitely often without delivering an infinite word
+    (`infOftenAt_stall`).
 
 ## Scope and limits
 
