@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Execution.Core.Inversion
+public import Silmaril.Wasm.Execution.Core.Sim.Context
 
 /-!
 # Inversion of `call_ref` on a host function (proofs)
@@ -138,5 +139,45 @@ theorem callRef_host_stuck {s : Store H} {f : Frame} {c : Config H} {vs : List V
   rcases hres with ⟨s', res, hhost, -⟩ | ⟨hhost, -⟩
   · exact hno _ hhost
   · exact hno _ hhost
+
+/-- **`call_ref` on a host function in a sequence context.** A step of
+`vals vs ++ [ref.func a, call_ref] ++ rest` with a host function at `a` takes a
+host answer, or stutters on host divergence, on the top `ps.length` values,
+leaving the values below and `rest` untouched. By the head decomposition
+`Step.split_head` (the call is the first non-value, and not a trap or a
+`throw_ref`) and `callRef_host_inv`. -/
+theorem callRef_host_inv_seq {s : Store H} {f : Frame} {c : Config H} {vs : List Val} {a : Nat}
+    {r : Admin} {fi : FuncInst H} {hh : H} {rest : List Admin} (hr : r.IsCallRef)
+    (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh)
+    (h : Step P host ⟨s, f, vals vs ++ .ref (.func a) :: r :: rest⟩ c) :
+    ∃ vs₁ vs₂ ps rs, vs = vs₁ ++ vs₂ ∧ Expand fi.type (.func ps rs) ∧ vs₂.length = ps.length ∧
+      ((∃ s' res, host hh s vs₂ (.returned s' res) ∧
+          c = ⟨s', f, vals vs₁ ++ res.toAdmin ++ rest⟩) ∨
+        (host hh s vs₂ .diverged ∧
+          c = ⟨s, f, vals vs₁ ++ vals vs₂ ++ .ref (.func a) :: r :: rest⟩)) := by
+  obtain ⟨s', f', es'⟩ := c
+  have hcode' : vals vs ++ .ref (.func a) :: r :: rest =
+      vals (vs ++ [Val.ref (.func a)]) ++ r :: rest := by simp [vals, Val.toAdmin]
+  rw [hcode'] at h
+  rcases Sim.Step.split_head (Admin.val?_of_isCallRef hr) h with
+    ⟨ws', us', is', hsplit, hstep, rfl⟩ | ⟨rfl, -⟩ | ⟨rfl, -⟩
+  · rcases List.eq_nil_or_concat us' with rfl | ⟨us'', x, rfl⟩
+    · exact (callRef_stuck hstep hr (by simp [vals])).elim
+    · rw [List.concat_eq_append, ← List.append_assoc] at hsplit
+      obtain ⟨rfl, hx⟩ := List.append_inj' hsplit rfl
+      obtain rfl := (List.singleton_inj.1 hx).symm
+      have hstep' : Step P host ⟨s, f, vals us'' ++ [.ref (.func a), r]⟩ ⟨s', f', is'⟩ := by
+        simpa [vals, Val.toAdmin] using hstep
+      obtain ⟨vs₁, vs₂, ps, rs, rfl, he, hn, hres⟩ := callRef_host_inv hstep' hr hf hcode rfl
+      refine ⟨ws' ++ vs₁, vs₂, ps, rs, by simp, he, hn, ?_⟩
+      rcases hres with ⟨s'', res, hhost, hc⟩ | ⟨hhost, hc⟩
+      · simp only [Config.mk.injEq] at hc
+        obtain ⟨rfl, rfl, rfl⟩ := hc
+        exact .inl ⟨_, _, hhost, by simp⟩
+      · simp only [Config.mk.injEq] at hc
+        obtain ⟨rfl, rfl, rfl⟩ := hc
+        exact .inr ⟨hhost, by simp [vals]⟩
+  · simp [Admin.IsCallRef] at hr
+  · simp [Admin.IsCallRef] at hr
 
 end Silmaril.Wasm.Execution.Core.Proofs.Inversion

@@ -37,8 +37,11 @@ host returned `(s', r)` and the run continues from `vals ws ++ r.toAdmin` in
 `s'`. Divergence of the host only stutters, so it never ends a run. The answer
 is read off the run; nothing is assumed about the host.
 
-**Not yet proved.** The same with a continuation after the call (inversion in
-a sequence context), and the backward simulation of whole native runs.
+`coreHost_call_run_seq` is the same **under a continuation** `rest` after the
+call. It uses the sequence-context inversion `Step.callRef_host_inv_seq`, built
+on the existing head decomposition `Sim.Step.split_head`.
+
+**Not yet proved.** The backward simulation of whole native runs.
 -/
 
 public section
@@ -114,6 +117,28 @@ theorem coreHost_call_run {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} 
       ∃ s' r, coreHostRel host ⟨hh, s, us⟩ (.answer (s', r)) ∧
         Steps P host ⟨s', f, vals ws ++ r.toAdmin⟩ c := by
   rcases Silmaril.Proofs.Wasm.Abstract.HostCall.host_call_run hf hcode he hn hrun hend with
+    ⟨hc, hno⟩ | ⟨s', r, hh', hst⟩
+  · refine .inl ⟨hc, fun ans hans => ?_⟩
+    rcases ans with ⟨s', r⟩ | _
+    · exact hno _ hans
+    · exact hno _ hans
+  · exact .inr ⟨s', r, hh', hst⟩
+
+/-- **A Core host call under a continuation, read off a run to a stuck
+configuration**: blocked at the call, or answered and continuing from the host's
+result followed by the continuation. -/
+theorem coreHost_call_run_seq {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} {hh : H}
+    {ps rs : Ty (.list .val)} {ws us : List Val} {rest : List Admin} {c : Config H}
+    (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh) (he : Expand fi.type (.func ps rs))
+    (hn : us.length = ps.length)
+    (hrun : Steps P host
+      ⟨s, f, vals ws ++ vals us ++ .ref (.func a) :: .callRefType fi.type :: rest⟩ c)
+    (hend : ∀ c', ¬ Step P host c c') :
+    (c = ⟨s, f, vals ws ++ vals us ++ .ref (.func a) :: .callRefType fi.type :: rest⟩ ∧
+        ∀ ans, ¬ coreHostRel host ⟨hh, s, us⟩ ans) ∨
+      ∃ s' r, coreHostRel host ⟨hh, s, us⟩ (.answer (s', r)) ∧
+        Steps P host ⟨s', f, vals ws ++ r.toAdmin ++ rest⟩ c := by
+  rcases Silmaril.Proofs.Wasm.Abstract.HostCall.host_call_run_seq hf hcode he hn hrun hend with
     ⟨hc, hno⟩ | ⟨s', r, hh', hst⟩
   · refine .inl ⟨hc, fun ans hans => ?_⟩
     rcases ans with ⟨s', r⟩ | _

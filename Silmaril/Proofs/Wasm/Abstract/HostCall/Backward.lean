@@ -42,22 +42,27 @@ theorem split_args {ws us vs₁ vs₂ : List Val} (h : ws ++ us = vs₁ ++ vs₂
 
 /-- **The host answer of a Core host call, read off a run to a stuck
 configuration.** -/
-theorem host_call_run {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} {hh : H}
-    {ps rs : Ty (.list .val)} {ws us : List Val} {c : Config H}
+theorem host_call_run_seq {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} {hh : H}
+    {ps rs : Ty (.list .val)} {ws us : List Val} {rest : List Admin} {c : Config H}
     (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh) (he : Expand fi.type (.func ps rs))
     (hn : us.length = ps.length)
-    (hrun : Steps P host ⟨s, f, vals ws ++ vals us ++ [.ref (.func a), .callRefType fi.type]⟩ c)
+    (hrun : Steps P host
+      ⟨s, f, vals ws ++ vals us ++ .ref (.func a) :: .callRefType fi.type :: rest⟩ c)
     (hend : ∀ c', ¬ Step P host c c') :
-    (c = ⟨s, f, vals ws ++ vals us ++ [.ref (.func a), .callRefType fi.type]⟩ ∧
+    (c = ⟨s, f, vals ws ++ vals us ++ .ref (.func a) :: .callRefType fi.type :: rest⟩ ∧
         ∀ o, ¬ host hh s us o) ∨
-      ∃ s' r, host hh s us (.returned s' r) ∧ Steps P host ⟨s', f, vals ws ++ r.toAdmin⟩ c := by
-  let start : Config H := ⟨s, f, vals ws ++ vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+      ∃ s' r, host hh s us (.returned s' r) ∧
+        Steps P host ⟨s', f, vals ws ++ r.toAdmin ++ rest⟩ c := by
+  let start : Config H := ⟨s, f, vals ws ++ vals us ++ .ref (.func a) :: .callRefType fi.type :: rest⟩
   have hstart : ∀ c₁, Step P host start c₁ →
-      (∃ s' r, host hh s us (.returned s' r) ∧ c₁ = ⟨s', f, vals ws ++ r.toAdmin⟩) ∨ c₁ = start := by
+      (∃ s' r, host hh s us (.returned s' r) ∧ c₁ = ⟨s', f, vals ws ++ r.toAdmin ++ rest⟩) ∨
+        c₁ = start := by
     intro c₁ h
-    have h' : Step P host ⟨s, f, vals (ws ++ us) ++ [.ref (.func a), .callRefType fi.type]⟩ c₁ := by
+    have h' : Step P host ⟨s, f, vals (ws ++ us) ++ .ref (.func a) :: .callRefType fi.type :: rest⟩
+        c₁ := by
       simpa [start, vals_append, List.append_assoc] using h
-    obtain ⟨vs₁, vs₂, ps', rs', hsplit, he', hn', hres⟩ := Step.callRef_host_inv (r := .callRefType fi.type) trivial hf hcode h'
+    obtain ⟨vs₁, vs₂, ps', rs', hsplit, he', hn', hres⟩ :=
+      Step.callRef_host_inv_seq (r := .callRefType fi.type) trivial hf hcode h'
     have := (Expand.iff.1 he).symm.trans (Expand.iff.1 he')
     simp only [Option.some.injEq, Ty.func.injEq] at this
     obtain ⟨rfl, rfl⟩ := this
@@ -68,7 +73,8 @@ theorem host_call_run {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} {hh 
   -- induction on the run from `start`
   suffices key : ∀ x, Steps P host x c → x = start →
       (c = start ∧ ∀ o, ¬ host hh s us o) ∨
-        ∃ s' r, host hh s us (.returned s' r) ∧ Steps P host ⟨s', f, vals ws ++ r.toAdmin⟩ c from
+        ∃ s' r, host hh s us (.returned s' r) ∧
+          Steps P host ⟨s', f, vals ws ++ r.toAdmin ++ rest⟩ c from
     key _ hrun rfl
   intro x hx
   induction hx using Relation.ReflTransGen.head_induction_on with
@@ -77,12 +83,12 @@ theorem host_call_run {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} {hh 
     refine .inl ⟨hxs, fun o ho => ?_⟩
     subst hxs
     rcases o with ⟨s', r⟩ | _
-    · apply hend ⟨s', f, vals ws ++ r.toAdmin⟩
-      have := Silmaril.Wasm.Logic.Core.Step.ctx (P := P) (host := host) ws []
+    · apply hend ⟨s', f, vals ws ++ r.toAdmin ++ rest⟩
+      have := Silmaril.Wasm.Logic.Core.Step.ctx (P := P) (host := host) ws rest
         (Step.callRefHost (f := f) (c := .callRefType fi.type) trivial hf he hn hcode ho)
       simpa [start, vals_append, List.append_assoc] using this
     · apply hend start
-      have := Silmaril.Wasm.Logic.Core.Step.ctx (P := P) (host := host) ws []
+      have := Silmaril.Wasm.Logic.Core.Step.ctx (P := P) (host := host) ws rest
         (Step.callRefHostDiv (f := f) (c := .callRefType fi.type) trivial hf he hn hcode ho)
       simpa [start, vals_append, List.append_assoc] using this
   | head hstep hrest ih =>
@@ -91,5 +97,17 @@ theorem host_call_run {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} {hh 
     rcases hstart _ hstep with ⟨s', r, hhost, rfl⟩ | rfl
     · exact .inr ⟨s', r, hhost, hrest⟩
     · exact ih rfl
+
+/-- `host_call_run_seq` with nothing after the call. -/
+theorem host_call_run {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} {hh : H}
+    {ps rs : Ty (.list .val)} {ws us : List Val} {c : Config H}
+    (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh) (he : Expand fi.type (.func ps rs))
+    (hn : us.length = ps.length)
+    (hrun : Steps P host ⟨s, f, vals ws ++ vals us ++ [.ref (.func a), .callRefType fi.type]⟩ c)
+    (hend : ∀ c', ¬ Step P host c c') :
+    (c = ⟨s, f, vals ws ++ vals us ++ [.ref (.func a), .callRefType fi.type]⟩ ∧
+        ∀ o, ¬ host hh s us o) ∨
+      ∃ s' r, host hh s us (.returned s' r) ∧ Steps P host ⟨s', f, vals ws ++ r.toAdmin⟩ c := by
+  simpa using host_call_run_seq (rest := []) hf hcode he hn hrun hend
 
 end Silmaril.Proofs.Wasm.Abstract.HostCall

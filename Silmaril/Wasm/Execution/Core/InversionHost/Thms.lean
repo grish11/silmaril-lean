@@ -41,4 +41,16 @@ theorem Step.callRef_host_stuck {vs : List Val} {a : Nat} {r : Admin} {fi : Func
     (hno : ∀ o, ¬ host hh s vs o) : ¬ Step P host ⟨s, f, vals vs ++ [.ref (.func a), r]⟩ c :=
   Proofs.Inversion.callRef_host_stuck hr hf hcode he hn hno
 
+/-- **A host `call_ref` in a sequence context**: a host answer or a stutter on
+the top arguments, the values below and the continuation untouched. -/
+theorem Step.callRef_host_inv_seq {vs : List Val} {a : Nat} {r : Admin} {fi : FuncInst H} {hh : H}
+    {rest : List Admin} (hr : r.IsCallRef) (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh)
+    (h : Step P host ⟨s, f, vals vs ++ .ref (.func a) :: r :: rest⟩ c) :
+    ∃ vs₁ vs₂ ps rs, vs = vs₁ ++ vs₂ ∧ Expand fi.type (.func ps rs) ∧ vs₂.length = ps.length ∧
+      ((∃ s' res, host hh s vs₂ (.returned s' res) ∧
+          c = ⟨s', f, vals vs₁ ++ res.toAdmin ++ rest⟩) ∨
+        (host hh s vs₂ .diverged ∧
+          c = ⟨s, f, vals vs₁ ++ vals vs₂ ++ .ref (.func a) :: r :: rest⟩)) :=
+  Proofs.Inversion.callRef_host_inv_seq hr hf hcode h
+
 end Silmaril.Wasm.Execution.Core
