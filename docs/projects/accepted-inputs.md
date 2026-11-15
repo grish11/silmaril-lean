@@ -29,6 +29,7 @@ completeness here agree with its Bool-checker forms (`Lang.sound_ofBool_iff`,
 | `Silmaril.Wasm.Examples.JsonAccept.{Defs,Thms}` | **A concrete Wasm acceptor for a JSON subset**, verified against Core 3.0 execution at every profile and host. `accept(ptr, len)` scans memory with `i32.load8_u` and runs a branch-free 6-state automaton. A returning run answers `1` iff the segment is an integer text (`ws* -? (0\|[1-9][0-9]*) ws*`), so it is sound for JSON and exact for that subset; it is **not** a full JSON validator. It is also sound as an abstract `wasmFun` export acceptor and for the JSON `Format`. Partial correctness: termination is not proved. |
 | `Silmaril.Wasm.Abstract.Accept.{Defs,Thms}` | First-class acceptor sets of abstract modules and components (`Silmaril.Games.Abstract`). On trace models and machines: `tmAccepted`/`mAccepted`, the one-runner verdicts `tmAcceptsSome`/`tmNeverRejects`/`tmAcceptsSafely`, and `tmIndexed`. On abstract functions: the export verdicts `retAccepts*` over `endRun`, the import reading `callAccepted`, and the per-invocation relation `callRel`. A machine and its denotation agree on Proponent observations. Monotone/antitone one-sided verdicts, bisimulation and `ObsEquiv` invariance. |
 | `Silmaril.Wasm.Abstract.AcceptWasm.{Defs,Thms}` | Exact commuting diagrams for the abstraction maps on main. `wasmFun`: abstract endings map onto Core `behaviours`, so export verdicts on behaviour-defined sets commute. Scalar instances (`machine`) and untyped instances (`uMachine`): concrete strategy acceptance = abstract machine acceptance for Proponent observations. Not related: spec sessions (`Callouts`) vs instance strategies. |
+| `Silmaril.Wasm.Abstract.AcceptExport.{Defs,Thms}` | The export embedding (`Silmaril.Wasm.Game.Accept.Export`) through `wasmFun`, exactly. `ExportCall` records one admitted call: host, export address, the host-written store `s₀.setMem ma ⟨mt', B⟩` after spec instantiation, `ptr`/`len` (in bounds, `ptr + len < 2 ^ 32`) and the input bytes. `absExportRun` is the endings of `wasmFun` over those calls; `retI32 r` reads `returns [i32 r]`. Proved: `exportRun_eq`, `exportAccepted_eq_abs`, `exportRejected_eq_abs`, `exportAcceptedNotRejected_eq_abs` (equalities, one runner); instance `JsonAccept.absAcceptsSafely_eq`. |
 | `Silmaril.Wasi.Component.Accept.Abstract.Thms` | Components through `SigBridge.strategyIso`. Every import/export, rejection and combined verdict is the abstract one on the trace model, exactly; refinement transports through the isomorphism. |
 | `Silmaril.Wasm.Component.Reference.WIT.Repr.Func.Thms` | A WIT representation is a one-to-one relation (`Silmaril.Accept.OneToOne`, #270), and so is its inverse: the relational form of a Lean type being isomorphic to a WIT type. |
 | `Silmaril.Wasm.Component.Reference.WIT.JsonDecide.Thms` | The JSON decider (#266) is exact for the JSON byte language. The language is infinite (proved), so no one-call module acceptor is complete for JSON (`ModuleAcceptor.not_complete_json`, unconditional). A `StreamCorrect` component with JSON as its specification answers each stream prefix by JSON validity. |
@@ -90,6 +91,30 @@ completeness here agree with its Bool-checker forms (`Lang.sound_ofBool_iff`,
   - The memory's own size gives `ptr + len ≤ size`.
 - **Component bounds are hypotheses.** No adapter is proved to satisfy `CanonLowerAcceptBy`
   or `ListLiftChecked`.
+
+## Concrete versus abstract: what commutes
+
+"Exact" means an equality between the concrete reading and the same generic verdict of the
+abstract model (both inclusions). "Invariance" means only that the reading is equal for
+equivalent concrete models. "Generic" means only transport lemmas for arbitrary maps exist.
+
+| Reading | Abstract model | Status | Theorems |
+| --- | --- | --- | --- |
+| Function export verdicts on behaviours (accept, never reject, combined) | `wasmFun` endings | Exact | `endRun_wasmFun`, `retAcceptsSome_wasmFun`, `retNeverRejects_wasmFun`, `retAcceptsSafely_wasmFun` |
+| Module export embedding `accept(ptr, len) -> i32` (accept, reject, combined) | `wasmFun` over the admitted calls (`absExportRun`) | Exact | `exportRun_eq`, `exportAccepted_eq_abs`, `exportRejected_eq_abs`, `exportAcceptedNotRejected_eq_abs`; JSON instance `absAcceptsSafely_eq` |
+| Scalar and untyped instance strategies, observations of Proponent moves, runners | `machine`, `uMachine` | Exact | `strategy_accepted_eq`, `strategy_tmRun_eq`, `uStrategy_accepted_eq` |
+| Component import/export acceptance, rejection, `neverCalled`/`neverFalse`, combined verdicts | trace model `strategyIso σ` | Exact | `importAccepted_eq_tm`, `exportAccepted_eq_tm`, `exportRejected_eq_tm`, `neverCalled_eq_tm`, `neverFalse_eq_tm`, `export`/`importAcceptedNotRejected_eq_tm`, `exportRun_eq_image`, `importRun_eq_image` |
+| Module import callouts (`Callouts`, `accepted`, `acceptedNotRejected`) of the spec-instantiated sessions | instance strategies / machines | **Not related** | Obstruction: `uAdequacy` (`Silmaril.Wasm.Game.Untyped`) is for behaviours, not reachable callout sets. Invariance only: `*_eq_of_calloutEquiv` |
+| Module traced I/O relations (`Silmaril.Wasm.Game.IOAccept`, `TSession`) | none | **Not related** | Same obstruction; erasure to `Callouts` (`callouts_eq_traced`) is concrete only |
+| Component I/O relations (`Silmaril.Wasi.IOAccept`) | none stated | Invariance | `ioRuns_eq_of_traces`, `entryIORuns_eq_of_traces`; monotone under refinement |
+| Client sessions of incremental components (`sessionTraces`, #328) | none stated | Invariance (by definition: a function of `Traces σ`) | `freshFeedsQuery_sound`, `feedsQuery_sound` are stated on strategies |
+| Import readings of abstract functions (`callAccepted`, `callRel`) | `AFun` | Generic | `callAccepted_eq_range`; `wasmFun` has no import interface (`Sig.empty`), so they are empty for it |
+| Verdicts reading the final store | `wasmFun` endings | Not related | `endToBehaviour` forgets the store |
+
+Generic transport for any map of outcomes: `acceptsSome_image`, `neverRejects_image`,
+`acceptsSafely_image`, `acceptsSafely_congr`; bisimulation: `mAccepted_eq_of_bisim`,
+`tmAccepted_denote_eq_of_bisim`; observational equivalence: `endRun_eq_of_obsEquiv`,
+`retAcceptsSafely_eq_of_obsEquiv`.
 
 ## I/O relations of modules
 

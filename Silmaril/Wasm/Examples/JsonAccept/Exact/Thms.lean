@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Examples.JsonAccept.Instance.Thms
 public import Silmaril.Wasm.Logic.Total.Thms
 public import Silmaril.Wasm.Game.Accept.Export.Thms
+public import Silmaril.Wasm.Abstract.AcceptExport.Thms
 import Silmaril.Proofs.Wasm.Examples.JsonAccept.Total
 
 /-! # The JSON-subset acceptor: total correctness and exact acceptance
@@ -32,6 +33,9 @@ the loop (`Silmaril.Wasm.Logic.VC.wpc_sound_total`).
 * **The combined reading** (`exportAcceptedNotRejected_eq`, `acceptsSafely_eq`): some run
   answers `1` and no run answers `0`, over the same runs and hosts, exactly on the same set.
   Accepted inputs are never also rejected (`exportAccepted_disjoint_rejected`).
+* **Through the abstract function semantics** (`absAcceptsSafely_eq`): the same set is the
+  combined verdict of the abstract runner `absExportRun` (endings of `wasmFun` over the admitted
+  calls), by `Silmaril.Wasm.Abstract.Accept.exportAcceptedNotRejected_eq_abs`.
 
 The embedding is that of `Silmaril.Wasm.Game.Accept.Export`: the spec instance (unique,
 `spec_instance_eq`), the input written into memory `0`, `accept(ptr, len)` invoked.
@@ -130,5 +134,14 @@ theorem acceptsSafely_eq {P : Profile} {Hosts : Set (HostSemantics Nat)}
     Silmaril.Accept.acceptsSafely (exportRun P Hosts prog "accept") {1} {0} =
       {w | w ∈ intText ∧ w.length < 2 ^ 32} := by
   rw [← exportAcceptedNotRejected_eq_acceptsSafely, exportAcceptedNotRejected_eq hh]
+
+/-- **The same through the abstract function semantics.** -/
+theorem absAcceptsSafely_eq {P : Profile} {Hosts : Set (HostSemantics Nat)}
+    {host : HostSemantics Nat} (hh : host ∈ Hosts) :
+    Silmaril.Accept.acceptsSafely (Silmaril.Wasm.Abstract.Accept.absExportRun P Hosts prog "accept")
+        (Silmaril.Wasm.Abstract.Accept.retI32 1) (Silmaril.Wasm.Abstract.Accept.retI32 0) =
+      {w | w ∈ intText ∧ w.length < 2 ^ 32} := by
+  rw [← Silmaril.Wasm.Abstract.Accept.exportAcceptedNotRejected_eq_abs,
+    exportAcceptedNotRejected_eq hh]
 
 end Silmaril.Wasm.Examples.JsonAccept
