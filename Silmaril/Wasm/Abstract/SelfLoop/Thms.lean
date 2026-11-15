@@ -29,7 +29,8 @@ formalised here.
 **Non-vacuity.** `recMod`, `(module (type (func)) (func (type 0) (call 0)))`,
 validates and instantiates (`rec_instantiate`, every profile and host). Every
 hypothesis holds on its store (`recStore_ok`, `rec_invokeOk`; the native and
-arity checks and `selfLoopB` by kernel evaluation). Its function is exactly
+arity checks `recStore_nativeFuncsOk`, `recStore_storeChk` and `selfLoopB` by kernel
+evaluation). Its function is exactly
 `div` in Core 3.0 at every profile (`rec_wasmFun`), and in `closeD`
 (`rec_closeD`), and has nothing in `close` (`rec_close`).
 -/
@@ -75,6 +76,16 @@ theorem rec_instantiate (P : Numerics.Profile) (host : HostSemantics Empty) :
   Silmaril.Proofs.Wasm.Abstract.SelfLoop.Example.rec_instantiate P host
 
 theorem recStore_ok : StoreOk recStore := Silmaril.Proofs.Wasm.Abstract.SelfLoop.Example.recStore_ok
+
+theorem recStore_nativeFuncsOk : NativeFuncsOk recStore.funcs :=
+  Silmaril.Wasm.Interp.nativeFuncsOk_of_check Silmaril.Proofs.Wasm.Abstract.SelfLoop.Example.recStore_native
+
+theorem recStore_storeChk : Silmaril.Wasm.Interp.StoreChk recStore.funcs :=
+  Silmaril.Wasm.Interp.storeChk_of_check Silmaril.Proofs.Wasm.Abstract.SelfLoop.Example.recStore_chk
+
+theorem recStore_funcType : (recStore.funcs[0]?.bind fun fi => Validation.DefType.funcType? fi.type) =
+    some ([], []) :=
+  Silmaril.Proofs.Wasm.Abstract.SelfLoop.Example.recStore_type
 
 theorem rec_invokeOk : InvokeOk recStore 0 [] :=
   Silmaril.Proofs.Wasm.Abstract.SelfLoop.Example.rec_invokeOk
