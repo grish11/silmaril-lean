@@ -566,4 +566,188 @@ theorem back_block_tree {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} 
   · exact .inl ⟨_, .blockBrk har hev, hends⟩
   · exact .inl ⟨_, .blockEsc har hev hesc, hends⟩
 
+/-! ## Loops -/
+
+/-- A run from a configuration whose only step is to `d` goes through `d`, one step
+shorter. -/
+theorem stepsN_unique {n : Nat} {K d c : Config H}
+    (huniq : ∀ c₁, Step P host K c₁ → c₁ = d) (hK : Step P host K d)
+    (hrun : StepsN P host n K c) (hend : ∀ c', ¬ Step P host c c') :
+    ∃ m, n = m + 1 ∧ StepsN P host m d c := by
+  cases hrun with
+  | refl => exact (hend d hK).elim
+  | @head m _ c₁ _ h hrest =>
+    obtain rfl := huniq c₁ h
+    exact ⟨m, rfl, hrest⟩
+
+/-- **Entering a loop is the only step of a loop under values.** -/
+theorem loop_step_unique {s : Store H} {f : Frame} {stk : List Val} {bt : BlockType}
+    {B : List Instr} {np nr : Nat} {rest : List Admin} {c₁ : Config H}
+    (har : Binaryen.arity f bt = some (np, nr)) (hp : np ≤ stk.length)
+    (h : Step P host ⟨s, f, vals stk.reverse ++ .plain (.loop bt B) :: rest⟩ c₁) :
+    c₁ = ⟨s, f, vals (stk.drop np).reverse ++
+      [.label np [.loop bt B] (vals (stk.take np).reverse ++ expression B)] ++ rest⟩ := by
+  rcases c₁ with ⟨s', f', es'⟩
+  rcases Sim.Step.split_head (a := .plain (.loop bt B)) rfl h with
+      ⟨ws, us, is', hsplit, hst, rfl⟩ | ⟨hx, -⟩ | ⟨hx, -⟩
+  · obtain ⟨ws', vs, t₁, t₂, rfl, hbt, hvl, hc⟩ := Step.loop_vals_inv hst
+    simp only [Config.mk.injEq] at hc
+    obtain ⟨rfl, rfl, rfl⟩ := hc
+    obtain ⟨t₁', t₂', hbt', hl₁, -⟩ := Interp.blockType_of_arity har
+    rw [hbt] at hbt'
+    simp only [Option.some.injEq, Prod.mk.injEq] at hbt'
+    obtain ⟨rfl, rfl⟩ := hbt'
+    have e : stk.reverse = (stk.drop np).reverse ++ (stk.take np).reverse := by
+      rw [← List.reverse_append, List.take_append_drop]
+    rw [e, ← List.append_assoc] at hsplit
+    have hlen : vs.length = (stk.take np).reverse.length := by
+      simp only [List.length_reverse, List.length_take]; omega
+    obtain ⟨h₁, rfl⟩ := List.append_inj' hsplit hlen.symm
+    rw [hl₁, h₁]
+    simp
+  · cases hx
+  · cases hx
+
+/-- **The backward case of a loop**, deterministic profile. Entering is the loop's
+only step; the body runs in its label to a stuck end, given by `ihbody`; a
+blocked body blocks the loop. Otherwise the label is left by host-free steps:
+falling through continues after the loop, a branch to the loop re-enters it with
+a strictly shorter run, an outer branch, a return or a trap leaves it. The loop's
+arity facts on the body's results are the hypothesis `hlp`. -/
+theorem back_loop {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} {f : Frame}
+    {stk : List Val} {bt : BlockType} {body : List Binaryen.BExpr} {np nr : Nat}
+    {rest : List Admin} {c : Config H}
+    (har : Binaryen.arity f bt = some (np, nr)) (hp : np ≤ stk.length)
+    (hrun : StepsN (SingleThreaded.profile o) host n
+      ⟨s, f, vals stk.reverse ++ .plain (.loop bt (Binaryen.BExpr.lowerList body)) :: rest⟩ c)
+    (hend : ∀ c', ¬ Step (SingleThreaded.profile o) host c c')
+    (ihbody : ∀ m < n, ∀ cb, StepsN (SingleThreaded.profile o) host m
+        ⟨s, f, vals (stk.take np).reverse ++ expression (Binaryen.BExpr.lowerList body)⟩ cb →
+      (∀ c', ¬ Step (SingleThreaded.profile o) host cb c') →
+      BackOut host s f (stk.take np) body cb)
+    (hlp : ∀ r, EvalH host s f (stk.take np) body r →
+      (∀ ws, r.2.2 = .normal ws → ws.length = nr) ∧ ∀ vs, r.2.2 = .brk 0 vs → np ≤ vs.length) :
+    Pending host c.store c.code ∨
+      ∃ s₁ f₁ fl, EvalH host s f (stk.take np) body (s₁, f₁, fl) ∧
+        ((∃ vs m, m < n ∧ fl = .normal vs ∧
+            StepsN (SingleThreaded.profile o) host m
+              ⟨s₁, f₁, vals (vs.take nr ++ stk.drop np).reverse ++ rest⟩ c) ∨
+          (∃ vs m, m < n ∧ fl = .brk 0 vs ∧
+            StepsN (SingleThreaded.profile o) host m
+              ⟨s₁, f₁, vals (vs.take np ++ stk.drop np).reverse ++
+                .plain (.loop bt (Binaryen.BExpr.lowerList body)) :: rest⟩ c) ∨
+          (∃ k vs, fl = .brk (k + 1) vs ∧ EndsAs (s₁, f₁, .brk k vs) c) ∨
+          (fl.Escapes ∧ EndsAs (s₁, f₁, fl) c)) := by
+  have hstep := Interp.step_enter (P := SingleThreaded.profile o) (host := host) (s := s) (f := f)
+    (B := Binaryen.BExpr.lowerList body) hp (Interp.step_loop har) rest
+  obtain ⟨m₀, rfl, hrun₁⟩ := stepsN_unique (fun c₁ h => loop_step_unique har hp h) hstep hrun hend
+  obtain ⟨cb, N₁, hN₁, hb, hsb, hk⟩ := stepsN_label_seq_split hrun₁ hend
+  rcases ihbody N₁ (by omega) cb hb hsb with ⟨⟨s₁, f₁, fl⟩, hev, oc, he, hst, hfr, hm⟩ | hpend
+  · right
+    dsimp only at hst hfr hm
+    obtain ⟨rcs, rcf, rcc⟩ := cb
+    dsimp only at hst hfr he hk
+    subst hst hfr
+    refine ⟨rcs, rcf, fl, hev, ?_⟩
+    obtain ⟨hnorm, hbr0⟩ := hlp _ hev
+    rcases fl with ws | ⟨_ | k, vs⟩ | ws | _ | t
+    · -- falls through
+      have hx := Interp.exit_normal (P := SingleThreaded.profile o)
+        (host := SingleThreaded.Det.noHost) (s₁ := rcs) (f₁ := rcf) (n := np)
+        (cont := [.loop bt (Binaryen.BExpr.lowerList body)]) he hm (stk.drop np).reverse rest
+      obtain ⟨m, hm', h⟩ := stepsN_through_steps hx hk hend
+      refine .inl ⟨ws, m, by omega, rfl, ?_⟩
+      have htake : ws.take nr = ws := List.take_of_length_le (hnorm ws rfl).le
+      rw [htake]
+      simpa [Interp.stack_after] using h
+    · -- branches back to the loop
+      have hx := Interp.exit_br0 (P := SingleThreaded.profile o)
+        (host := SingleThreaded.Det.noHost) (s₁ := rcs) (f₁ := rcf) (n := np)
+        (cont := [.loop bt (Binaryen.BExpr.lowerList body)]) he hm (hbr0 vs rfl)
+        (stk.drop np).reverse rest
+      obtain ⟨m, hm', h⟩ := stepsN_through_steps hx hk hend
+      refine .inr (.inl ⟨vs, m, by omega, rfl, ?_⟩)
+      simpa [Interp.stack_after, expression] using h
+    · -- an outer branch
+      have hw := Interp.exit_abrupt (P := SingleThreaded.profile o)
+        (host := SingleThreaded.Det.noHost) (s₁ := rcs) (f₁ := rcf) (n := np)
+        (cont := [.loop bt (Binaryen.BExpr.lowerList body)])
+        (fl' := .brk k vs) he hm (.inl ⟨k, vs, rfl, rfl⟩) (stk.drop np).reverse rest
+      obtain ⟨c'', o'', hst', he'', hm''⟩ := Interp.run_of_wp hw
+      obtain ⟨m, -, h⟩ := stepsN_through_steps hst' hk hend
+      have := stepsN_of_stuck (ends_abrupt_stuck (P := SingleThreaded.profile o) (host := host)
+        (s := rcs) (f := rcf) he'' hm'' id) h
+      subst this
+      exact .inr (.inr (.inl ⟨k, vs, rfl, o'', he'', rfl, rfl, hm''⟩))
+    · -- returns
+      have hesc : (Binaryen.Flow.ret ws).Escapes := by simp [Binaryen.Flow.Escapes]
+      have hw := Interp.exit_abrupt (P := SingleThreaded.profile o)
+        (host := SingleThreaded.Det.noHost) (s₁ := rcs) (f₁ := rcf) (n := np)
+        (cont := [.loop bt (Binaryen.BExpr.lowerList body)])
+        he hm (.inr ⟨hesc, rfl⟩) (stk.drop np).reverse rest
+      obtain ⟨c'', o'', hst', he'', hm''⟩ := Interp.run_of_wp hw
+      obtain ⟨m, -, h⟩ := stepsN_through_steps hst' hk hend
+      have := stepsN_of_stuck (ends_abrupt_stuck (P := SingleThreaded.profile o) (host := host)
+        (s := rcs) (f := rcf) he'' hm'' (by simp [Binaryen.Flow.IsNormal])) h
+      subst this
+      exact .inr (.inr (.inr ⟨hesc, o'', he'', rfl, rfl, hm''⟩))
+    · -- traps
+      have hesc : (Binaryen.Flow.trap).Escapes := by simp [Binaryen.Flow.Escapes]
+      have hw := Interp.exit_abrupt (P := SingleThreaded.profile o)
+        (host := SingleThreaded.Det.noHost) (s₁ := rcs) (f₁ := rcf) (n := np)
+        (cont := [.loop bt (Binaryen.BExpr.lowerList body)])
+        he hm (.inr ⟨hesc, rfl⟩) (stk.drop np).reverse rest
+      obtain ⟨c'', o'', hst', he'', hm''⟩ := Interp.run_of_wp hw
+      obtain ⟨m, -, h⟩ := stepsN_through_steps hst' hk hend
+      have := stepsN_of_stuck (ends_abrupt_stuck (P := SingleThreaded.profile o) (host := host)
+        (s := rcs) (f := rcf) he'' hm'' (by simp [Binaryen.Flow.IsNormal])) h
+      subst this
+      exact .inr (.inr (.inr ⟨hesc, o'', he'', rfl, rfl, hm''⟩))
+    · rcases oc <;> simp_all [Interp.FlowMatch]
+  · left
+    obtain ⟨hstk, hpe⟩ := pending_label (P := SingleThreaded.profile o) (ws := (stk.drop np).reverse)
+      (n := np) (cont := [.loop bt (Binaryen.BExpr.lowerList body)]) (rest := rest)
+      (f := cb.frame) hpend hsb
+    have := stepsN_of_stuck hstk hk
+    subst this
+    exact hpe
+
+/-- **A loop tree** (deterministic profile): `back_loop`, then the following trees
+by `ihes`, and a re-entry by `ihloop` on a strictly shorter run. -/
+theorem back_loop_tree {o : SingleThreaded.GrowOracle} {n : Nat} {s : Store H} {f : Frame}
+    {stk : List Val} {bt : BlockType} {body es : List Binaryen.BExpr} {np nr : Nat} {c : Config H}
+    (har : Binaryen.arity f bt = some (np, nr)) (hp : np ≤ stk.length)
+    (hrun : StepsN (SingleThreaded.profile o) host n
+      ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList (.loop bt body :: es))⟩ c)
+    (hend : ∀ c', ¬ Step (SingleThreaded.profile o) host c c')
+    (ihbody : ∀ m < n, ∀ cb, StepsN (SingleThreaded.profile o) host m
+        ⟨s, f, vals (stk.take np).reverse ++ expression (Binaryen.BExpr.lowerList body)⟩ cb →
+      (∀ c', ¬ Step (SingleThreaded.profile o) host cb c') →
+      BackOut host s f (stk.take np) body cb)
+    (hlp : ∀ r, EvalH host s f (stk.take np) body r →
+      (∀ ws, r.2.2 = .normal ws → ws.length = nr) ∧ ∀ vs, r.2.2 = .brk 0 vs → np ≤ vs.length)
+    (ihes : ∀ s₁ f₁ stk₁ m, m < n →
+      StepsN (SingleThreaded.profile o) host m
+        ⟨s₁, f₁, vals stk₁.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ c →
+      BackOut host s₁ f₁ stk₁ es c)
+    (ihloop : ∀ s₁ f₁ stk₁ m, m < n →
+      StepsN (SingleThreaded.profile o) host m
+        ⟨s₁, f₁, vals stk₁.reverse ++
+          expression (Binaryen.BExpr.lowerList (.loop bt body :: es))⟩ c →
+      BackOut host s₁ f₁ stk₁ (.loop bt body :: es) c) :
+    BackOut host s f stk (.loop bt body :: es) c := by
+  rw [Interp.code_loop] at hrun
+  rcases back_loop har hp hrun hend ihbody hlp with hpend |
+      ⟨s₁, f₁, fl, hev, ⟨vs, m, hm, rfl, hk⟩ | ⟨vs, m, hm, rfl, hk⟩ | ⟨k, vs, rfl, hends⟩ |
+        ⟨hesc, hends⟩⟩
+  · exact .inr hpend
+  · rcases ihes s₁ f₁ _ m hm hk with ⟨r, hev', hr⟩ | hp'
+    · exact .inl ⟨r, .loopOk har hev hev', hr⟩
+    · exact .inr hp'
+  · rcases ihloop s₁ f₁ _ m hm (by rw [Interp.code_loop]; exact hk) with ⟨r, hev', hr⟩ | hp'
+    · exact .inl ⟨r, .loopBack har hev hev', hr⟩
+    · exact .inr hp'
+  · exact .inl ⟨_, .loopBrk har hev, hends⟩
+  · exact .inl ⟨_, .loopEsc har hev hesc, hends⟩
+
 end Silmaril.Proofs.Wasm.Abstract.HostEval
