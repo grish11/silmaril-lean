@@ -11,11 +11,13 @@ import Silmaril.Proofs.Wasm.Cfg.Machine
 
 * `mstep_from_block`: the machine steps only from block nodes; `exit`, `trap` and `raise` are
   sinks.
-* **`mstep_edge`**: every step from block `b` goes to a `Cfg.Edge` successor of `b`
-  (`succOf`), **or** to the `trap` sink because the block's straight-line body trapped
-  (`bodyTrap`). Body traps are not flow edges of `succOf`: in the CFG they are instruction
-  effects (`instrEffects`, the conservative trap effect edges), not control successors. The
-  statement keeps the two apart.
+* **`mstep_edge`**: every step from block `b` (of a state satisfying `MInv`) goes to a
+  `Cfg.Edge` successor of `b` (`succOf`), **or** to the `trap` sink because the block's
+  straight-line body trapped (`bodyTrap`), **or**, for a caught exception, along a catch edge
+  of an enclosing `try_table` block (`CatchEdge`). Body traps are not flow edges of `succOf`:
+  in the CFG they are instruction effects (`instrEffects`), not control successors; caught
+  exceptions are edges of the `try_table` block, not of the throwing one. The statement keeps
+  the three apart.
 * The label invariant `codeAt` (Defs): the region code a machine state stands for, with each
   label frame as Core's `LABEL` (and `HANDLER` for `try_table`, by the explicit `tryT` flag).
   `wrap_mono` lifts region-run inclusion through it; `enter_block_sound` proves entering a
@@ -37,9 +39,12 @@ import Silmaril.Proofs.Wasm.Cfg.Machine
   function body, ending as the sink says (`Ends`: values by fall-through or `return`, `trap`, or
   the thrown exception).
 
-Not claimed here: completeness (every region run is a machine run), divergence, and handler
-catching (the machine's `raise` steps only without an enclosing `try_table`; under one it does
-not step). Calls, `br_table` and `br_on_*` terminators have no machine step yet.
+* Handler catching: a throw caught by the first `try_table` frame whose clauses match branches
+  to the clause's label (`MStep.catch_`, `catch_step_sound`); an exception that every handler
+  lets pass raises (`raise_pass_sound`). Both are part of `run_sound`.
+
+Not claimed here: completeness (every region run is a machine run) and divergence. Calls,
+`br_table` and `br_on_*` terminators have no machine step yet.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -52,11 +57,13 @@ theorem mstep_from_block {st st' : MState H} (h : MStep P host body st st') :
     ∃ b, st.node = .block b :=
   Proofs.Machine.mstep_from_block h
 
-/-- **Every machine step follows an edge of the extracted block CFG**, or is a trap of the
-block's body. -/
-theorem mstep_edge {st st' : MState H} (h : MStep P host body st st') {b : BlockId}
-    (hn : st.node = .block b) : Edge body b st'.node ∨ st'.node = .trap :=
-  Proofs.Machine.mstep_edge h hn
+/-- **Every machine step from a state satisfying the invariant follows the extracted block
+CFG**: an edge of its block, a trap of the block's body (an instruction effect, not a flow
+edge), or a catch edge of an enclosing `try_table` (a caught exception). -/
+theorem mstep_edge {st st' : MState H} (h : MStep P host body st st') (hok : MInv body st)
+    {b : BlockId} (hn : st.node = .block b) :
+    Edge body b st'.node ∨ st'.node = .trap ∨ CatchEdge body b st'.node :=
+  Proofs.Machine.mstep_edge h hok hn
 
 theorem lookup_eq (b : BlockId) :
     lookup body b = (seqAt body b.seq).bind fun c => (segment c)[b.idx]? :=
@@ -155,8 +162,8 @@ theorem fall_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls
 
 /-- **A raise step is sound when no enclosing frame is a `try_table` handler**: the code the
 machine stood for throws the same exception (its address is the `raise` state's stack), with the
-same final store and frame. Under a handler frame the region semantics may catch, which the
-machine does not model yet. -/
+same final store and frame. The general case, where handlers let the exception pass, is
+`raise_pass_sound`. -/
 theorem raise_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
     {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat} {X : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some i)
@@ -320,5 +327,51 @@ theorem run_sound_initial {s : Store H} {f : Frame} {st' : MState H}
     (hs : st'.node.IsSink) :
     ∃ o, Ends st' o ∧ Region.Run P host s f [] (expression body) st'.store st'.frame o :=
   Proofs.Machine.run_sound_initial h hs
+
+/-! ## Handler catching -/
+
+/-- **An uncaught raise step is sound**: when every enclosing handler lets the exception pass
+(no clause matches), the code throws it, with the same final store and frame. -/
+theorem raise_pass_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat}
+    {X : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : Region.Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hT : ∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true →
+      Region.Catches s₂ f₂ a L.catches none)
+    (hX : codeAt body b stk ls = some X) :
+    Region.Run P host s f [] X s₂ f₂ (.throw a) :=
+  Proofs.Machine.raise_pass_sound hb ht hr hth hT hX
+
+/-- **A caught throw is sound** (`MStep.catch_`): frames below `j` let the exception pass, the
+`try_table` frame `j` catches it with its first matching clause (values `us`, label `l`), and
+the machine branches to label `j + 1 + l` with the handler's outer values under `us`, as Core's
+`handler` does, under coherent frames and the branch's run-time checks. -/
+theorem catch_step_sound {b : BlockId} {sg : Segment} {stk stk₁ us : List Val}
+    {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a j : Nat}
+    {L L' : LFrame} {l : LabelIdx} {X Y : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : Region.Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+      Region.Catches s₂ f₂ a L.catches none)
+    (hL : ls[j]? = some L) (hT : L.tryT = true)
+    (hc : Region.Catches s₂ f₂ a L.catches (some (us, l)))
+    (hL' : ls[j + 1 + l.toNat]? = some L') (harity : L'.arity ≤ (L.outer ++ us).length)
+    (hlbt : L'.loop = true → ∃ t₁ t₂, f₂.module.blockType? L'.bt = some (t₁, t₂) ∧
+      t₁.length = L'.arity)
+    (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (if L'.loop then
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat)) (L' :: ls.drop (j + 1 + l.toNat + 1))
+            ((L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂
+        else
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
+            (L'.outer ++ (L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂) =
+        some Y)
+    {o : Region.Out} {s₃ : Store H} {f₃ : Frame} :
+    Region.Run P host s₂ f₂ [] Y s₃ f₃ o → Region.Run P host s f [] X s₃ f₃ o :=
+  Proofs.Machine.catch_step_sound hb ht hr hth hpass hL hT hc hL' harity hlbt hok hX hY
 
 end Silmaril.Wasm.Cfg.Machine

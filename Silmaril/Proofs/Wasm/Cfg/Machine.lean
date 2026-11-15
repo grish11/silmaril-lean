@@ -20,27 +20,6 @@ variable {H : Type} {P : Profile} {host : HostSemantics H}
 @[simp] theorem goto_node (t : Target) (d : Nat) (ls : List LFrame) (stk : List Val) (s : Store H)
     (f : Frame) : (goto t d ls stk s f).node = t := rfl
 
-theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStep P host body st st') {b : BlockId}
-    (hn : st.node = .block b) : Edge body b st'.node ∨ st'.node = .trap := by
-  cases h with
-  | fall hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
-  | br hb ht =>
-    left; cases hn; refine ⟨_, hb, ?_⟩
-    split <;> simp [succOf, ht]
-  | brIfTaken hb ht =>
-    left; cases hn; refine ⟨_, hb, ?_⟩
-    split <;> simp [succOf, ht]
-  | brIfNot hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
-  | @enter _ sg _ _ _ _ _ _ _ _ _ i a c bt _ _ _ _ _ hb ht harm hkind =>
-    left; cases hn; refine ⟨_, hb, ?_⟩
-    cases hkind <;> rcases a with _ | _ | a <;> simp_all [armOf, succOf]
-  | ret hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
-  | trap hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
-  | bodyTrap => right; rfl
-  | @raise _ _ _ _ _ _ _ _ _ _ _ i _ hb ht hi =>
-    left; cases hn; refine ⟨_, hb, ?_⟩
-    cases i <;> simp_all [Instr.IsThrow, succOf]
-
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
 namespace Silmaril.Wasm.Cfg.Proofs.Machine
@@ -592,8 +571,8 @@ theorem wrap_throw {body : Expr} {s s' : Store H} {f f' : Frame} {a : Nat} :
           exact Proofs.Region.run_vals (vs := []) (.labelThrow h)
 
 /-- **A raise step is sound when no enclosing frame is a handler**: the code the machine stood
-for throws the same exception, with the same final store and frame. (Under a `try_table`
-frame the region semantics may catch; catching is not modelled by the machine yet.) -/
+for throws the same exception, with the same final store and frame. (Handlers that let the
+exception pass: `raise_pass_sound`.) -/
 theorem raise_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat} {X : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some i)
@@ -1538,6 +1517,229 @@ theorem ret_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List 
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
+/-! ## Handler catching -/
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- An exception propagates through label frames whose handlers all let it pass. -/
+theorem wrap_throw_pass {body : Expr} {s s' : Store H} {f f' : Frame} {a : Nat} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin},
+      (∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true →
+        Catches s' f' a L.catches none) →
+      wrap body rp ls inner = some X →
+      Run P host s f [] inner s' f' (.throw a) → Run P host s f [] X s' f' (.throw a)
+  | [], [], _, _, _, hX, h => by simp [wrap] at hX; subst hX; exact h
+  | [], _ :: _, _, _, _, hX, _ => by simp [wrap] at hX
+  | _ :: _, [], _, _, _, hX, _ => by simp [wrap] at hX
+  | (m, _) :: rp, L :: ls, inner, X, hT, hX, h => by
+    simp only [wrap, Option.bind_eq_bind] at hX
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some] at hX
+          refine wrap_throw_pass rp ls (fun k L' hk => hT (k + 1) L' (by simpa using hk)) hX ?_
+          apply Proofs.Region.run_vals (vs := [])
+          cases hL : L.tryT
+          · simp only [Bool.false_eq_true, ↓reduceIte]
+            exact .labelThrow h
+          · simp only [↓reduceIte]
+            exact .handlerRethrow (by simpa using (RunC.labelThrow (C := noCall) (P := P)
+              (host := host) (vs := []) (code := []) (n := L.arity)
+              (cont := if L.loop then [t] else []) h)) (hT 0 L (by simp) hL)
+
+/-- **An uncaught raise step is sound**: the code throws the same exception, with the same final
+store and frame, when every enclosing handler lets it pass. -/
+theorem raise_pass_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat}
+    {X : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hT : ∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true →
+      Catches s₂ f₂ a L.catches none)
+    (hX : codeAt body b stk ls = some X) :
+    Run P host s f [] X s₂ f₂ (.throw a) := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  refine wrap_throw_pass _ _ hT hX (block_then hsg ht hr ?_)
+  have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c (b.idx + 1))) hth
+    ⟨rfl, rfl, rfl⟩
+  simpa [expression] using h2
+
+/-- What a branch to the `k`-th label with values `V` out of the context `rp, ls` (code `X`)
+proves: for the label's frame, under the machine's run-time checks, going where the machine
+goes is region-run sound. -/
+def BrOut (P : Profile) (host : HostSemantics H) (body : Expr) (rp : List SeqStep)
+    (ls : List LFrame) (X : List Admin) (s : Store H) (f : Frame) (k : Nat) (V : List Val)
+    (s₁ : Store H) (f₁ : Frame) : Prop :=
+  ∀ L : LFrame, ls[k]? = some L → L.arity ≤ V.length →
+    (L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
+      t₁.length = L.arity) →
+    ∀ {Y : List Admin},
+      codeOf body (if L.loop then
+          goto ((labelsRev body rp).getD k .invalid) (rp.length - k) (L :: ls.drop (k + 1))
+            (V.drop (V.length - L.arity)) s₁ f₁
+        else
+          goto ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1)) (ls.drop (k + 1))
+            (L.outer ++ V.drop (V.length - L.arity)) s₁ f₁) = some Y →
+      ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+        Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o
+
+/-- A branch out of coherent frames, to a loop or not, is sound. -/
+theorem br_out {body : Expr} {rp : List SeqStep} {ls : List LFrame} {inner X : List Admin}
+    {s s₁ : Store H} {f f₁ : Frame} {k : Nat} {V : List Val} (hok : FramesOk body rp ls)
+    (hX : wrap body rp ls inner = some X) (hin : Run P host s f [] inner s₁ f₁ (.br k V)) :
+    BrOut P host body rp ls X s f k V s₁ f₁ := by
+  intro L hL har hlbt Y hY o s₂ f₂ h
+  cases hl : L.loop
+  · simp only [hl, Bool.false_eq_true, ↓reduceIte] at hY
+    exact br_lift k rp ls hX hL hl ((levelLoop_of_framesOk k rp ls hok hL).trans hl) har hin hY h
+  · simp only [hl, ↓reduceIte] at hY
+    obtain ⟨t₁, t₂, hbt, hlen⟩ := hlbt hl
+    exact br_lift_loop k rp ls hX hok hL hl hbt hlen har hin hY h
+
+theorem brOut_succ {body : Expr} {rp : List SeqStep} {ls : List LFrame} {X : List Admin}
+    {s s₁ : Store H} {f f₁ : Frame} {k : Nat} {V : List Val} {m a : Nat} {L₀ : LFrame}
+    (h : BrOut P host body rp ls X s f k V s₁ f₁) :
+    BrOut P host body ((m, a) :: rp) (L₀ :: ls) X s f (k + 1) V s₁ f₁ := by
+  intro L hL har hlbt Y hY
+  simp only [List.getElem?_cons_succ] at hL
+  refine h L hL har hlbt ?_
+  have e1 : ((m, a) :: rp).length - (k + 1) = rp.length - k := by simp
+  have e2 : ((m, a) :: rp).length - (k + 1 + 1) = rp.length - (k + 1) := by simp
+  simpa only [labelsRev, List.getD_cons_succ, e1, e2, List.drop_succ_cons] using hY
+
+/-- **A thrown exception caught by the `j`-th frame branches**: the frames below `j` let it
+pass, frame `j`'s handler catches it with values `us` to label `l`; that is a branch to label
+`j + 1 + l` of the context, with the handler's outer values under `us`. -/
+theorem throw_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} {a : Nat} {us : List Val}
+    {l : LabelIdx} :
+    ∀ (j : Nat) (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin} {L : LFrame},
+      FramesOk body rp ls → wrap body rp ls inner = some X →
+      Run P host s f [] inner s₁ f₁ (.throw a) →
+      (∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+        Catches s₁ f₁ a L.catches none) →
+      ls[j]? = some L → L.tryT = true → Catches s₁ f₁ a L.catches (some (us, l)) →
+      BrOut P host body rp ls X s f (j + 1 + l.toNat) (L.outer ++ us) s₁ f₁
+  | _, [], [], _, _, _, _, _, _, _, hL, _, _ => by simp at hL
+  | _, [], _ :: _, _, _, _, hok, _, _, _, _, _, _ => by simp [FramesOk] at hok
+  | _, _ :: _, [], _, _, _, _, _, _, _, hL, _, _ => by simp at hL
+  | j, (m, a') :: rp, L₀ :: ls, inner, X, L, hok, hX, hin, hpass, hL, hT, hc => by
+    have hX0 := hX
+    simp only [wrap, Option.bind_eq_bind] at hX0
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX0
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX0
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX0
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some] at hX0
+          have hlab : Run P host s f [] [.label L₀.arity (if L₀.loop then [t] else []) inner]
+              s₁ f₁ (.throw a) := by
+            simpa using (RunC.labelThrow (C := noCall) (P := P) (host := host) (vs := [])
+              (code := []) (n := L₀.arity) (cont := if L₀.loop then [t] else []) hin)
+          cases j with
+          | zero =>
+            simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
+            subst hL
+            simp only [hT, ↓reduceIte] at hX0
+            have hrun : Run P host s f [] (vals L₀.outer ++
+                Admin.handler L₀.arity L₀.catches
+                  [.label L₀.arity (if L₀.loop then [t] else []) inner] ::
+                expression (restAt pc (m + 1))) s₁ f₁ (.br l.toNat (L₀.outer ++ us)) := by
+              apply Proofs.Region.run_vals (vs := [])
+              simpa using (RunC.handlerCatch (C := noCall) (P := P) (host := host)
+                (vs := L₀.outer) (code := expression (restAt pc (m + 1))) hlab hc)
+            have := brOut_succ (m := m) (a := a') (L₀ := L₀) (br_out hok.2 hX0 hrun)
+            simpa [Nat.add_comm] using this
+          | succ j =>
+            simp only [List.getElem?_cons_succ] at hL
+            have hrun : Run P host s f [] (vals L₀.outer ++
+                (if L₀.tryT then Admin.handler L₀.arity L₀.catches
+                  [.label L₀.arity (if L₀.loop then [t] else []) inner]
+                else .label L₀.arity (if L₀.loop then [t] else []) inner) ::
+                expression (restAt pc (m + 1))) s₁ f₁ (.throw a) := by
+              apply Proofs.Region.run_vals (vs := [])
+              cases hT0 : L₀.tryT
+              · simp only [Bool.false_eq_true, ↓reduceIte]
+                exact .labelThrow hin
+              · simp only [↓reduceIte]
+                exact .handlerRethrow hlab (hpass 0 L₀ (by omega) (by simp) hT0)
+            have := brOut_succ (m := m) (a := a') (L₀ := L₀)
+              (throw_lift j rp ls hok.2 hX0 hrun
+                (fun k L' hk hL' hT' => hpass (k + 1) L' (by omega) (by simpa using hL') hT')
+                hL hT hc)
+            have e : j + 1 + l.toNat + 1 = j + 1 + 1 + l.toNat := by omega
+            rw [e] at this
+            exact this
+
+/-- **A caught throw is sound**: the machine's branch to the catching clause's label runs as the
+code the block stood for. -/
+theorem catch_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ us : List Val}
+    {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a j : Nat}
+    {L L' : LFrame} {l : LabelIdx} {X Y : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+      Catches s₂ f₂ a L.catches none)
+    (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
+    (hL' : ls[j + 1 + l.toNat]? = some L') (harity : L'.arity ≤ (L.outer ++ us).length)
+    (hlbt : L'.loop = true → ∃ t₁ t₂, f₂.module.blockType? L'.bt = some (t₁, t₂) ∧
+      t₁.length = L'.arity)
+    (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (if L'.loop then
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat)) (L' :: ls.drop (j + 1 + l.toNat + 1))
+            ((L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂
+        else
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
+            (L'.outer ++ (L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂) =
+        some Y) :
+    ∀ {o : Out} {s₃ : Store H} {f₃ : Frame},
+      Run P host s₂ f₂ [] Y s₃ f₃ o → Run P host s f [] X s₃ f₃ o := by
+  obtain ⟨c, hc', hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc', Option.bind_some] at hX
+  have hin : Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ (.throw a) := by
+    refine block_then hsg ht hr ?_
+    have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c (b.idx + 1))) hth
+      ⟨rfl, rfl, rfl⟩
+    simpa [expression] using h2
+  have hbo := throw_lift j _ ls hok hX hin hpass hL hT hc
+  intro o s₃ f₃ h
+  exact hbo L' hL' harity hlbt (by simpa [labels] using hY) h
+
+theorem catches_label {s : Store H} {f : Frame} {a : Nat} {cs : List Catch} {us : List Val}
+    {l : LabelIdx} (h : Catches s f a cs (some (us, l))) : ∃ cl ∈ cs, catchLabel cl = l := by
+  generalize hr : (some (us, l) : Option (List Val × LabelIdx)) = r at h
+  induction h with
+  | catch_ => cases hr; exact ⟨_, List.mem_cons_self .., rfl⟩
+  | catchRef => cases hr; exact ⟨_, List.mem_cons_self .., rfl⟩
+  | catchAll => cases hr; exact ⟨_, List.mem_cons_self .., rfl⟩
+  | catchAllRef => cases hr; exact ⟨_, List.mem_cons_self .., rfl⟩
+  | next _ _ ih =>
+    obtain ⟨cl, hcl, he⟩ := ih hr
+    exact ⟨cl, List.mem_cons_of_mem _ hcl, he⟩
+  | empty => cases hr
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
 /-! ## Whole runs -/
 
 namespace Silmaril.Wasm.Cfg.Proofs.Machine
@@ -1639,9 +1841,25 @@ theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStep P host body s
   | bodyTrap hb hr =>
     simp only [codeOf] at hX
     exact ⟨by simp [MInv], Or.inr ⟨.trap, by simp [Ends], bodyTrap_sound hb hr hX⟩⟩
+  | @catch_ b sg stk stk₁ us ls s s₁ s₂ f f₁ f₂ i a j L L' l hb ht hi hr hth hpass hL hT hc hL'
+      harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    cases hl : L'.loop
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      refine stepOk_back ?_ (fun hY => catch_step_sound hb ht hr hth hpass hL hT hc hL' harity hlbt
+        hok hX (by simp only [hl, Bool.false_eq_true, ↓reduceIte]; exact hY))
+      simp only [labels]
+      rw [← List.length_reverse (as := b.seq)]
+      exact br_ok hok hL' hl
+    · simp only [↓reduceIte]
+      refine stepOk_back ?_ (fun hY => catch_step_sound hb ht hr hth hpass hL hT hc hL' harity hlbt
+        hok hX (by simp only [hl, ↓reduceIte]; exact hY))
+      simp only [labels]
+      rw [← List.length_reverse (as := b.seq)]
+      exact br_loop_ok hok hL' hl
   | @raise b sg stk stk₁ ls s s₁ s₂ f f₁ f₂ i a hb ht hi hr hth hT =>
     simp only [codeOf] at hX
-    exact ⟨by simp [MInv], Or.inr ⟨.throw a, by simp [Ends], raise_sound hb ht hr hth hT hX⟩⟩
+    exact ⟨by simp [MInv], Or.inr ⟨.throw a, by simp [Ends], raise_pass_sound hb ht hr hth hT hX⟩⟩
 
 /-- A sink state's own code ends as the sink says. -/
 theorem sink_sound {body : Expr} {st : MState H} (hs : st.node.IsSink) {X : List Admin}
@@ -1708,5 +1926,85 @@ theorem run_sound_initial {body : Expr} {s : Store H} {f : Frame} {st' : MState 
   refine ⟨o, hE, ?_⟩
   rw [hinit] at hY
   exact entry_sound (p := []) (c := body) (i := 0) rfl (by simp [wrap, restAt_zero, vals]) hY hR
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
+
+/-! ## Machine steps follow the extracted CFG -/
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+theorem structKind_tryT {t : Instr} {bt : BlockType} {lp : Bool} {cs : List Catch}
+    (h : StructKind t bt lp true cs) : ∃ c, t = .tryTable bt cs c := by
+  cases h; exact ⟨_, rfl⟩
+
+theorem labelsRev_getD_drop (body : Expr) :
+    ∀ (n : Nat) (rp : List SeqStep) (k : Nat), n ≤ rp.length →
+      (labelsRev body rp).getD (n + k) .invalid = (labelsRev body (rp.drop n)).getD k .invalid
+  | 0, _, _, _ => by simp
+  | _ + 1, [], _, h => by simp at h
+  | n + 1, _ :: rp, k, h => by
+    rw [show n + 1 + k = (n + k) + 1 by omega]
+    simp only [labelsRev, List.getD_cons_succ, List.drop_succ_cons]
+    exact labelsRev_getD_drop body n rp k (by simp at h; omega)
+
+/-- **Every machine step from a state satisfying the invariant follows the extracted CFG**: an
+edge of its block, a trap of the block's body (an instruction effect, not a flow edge), or a
+catch edge of an enclosing `try_table` (`CatchEdge`). -/
+theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStep P host body st st')
+    (hok : MInv body st) {b : BlockId} (hn : st.node = .block b) :
+    Edge body b st'.node ∨ st'.node = .trap ∨ CatchEdge body b st'.node := by
+  cases h with
+  | fall hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
+  | br hb ht =>
+    left; cases hn; refine ⟨_, hb, ?_⟩
+    split <;> simp [succOf, ht]
+  | brIfTaken hb ht =>
+    left; cases hn; refine ⟨_, hb, ?_⟩
+    split <;> simp [succOf, ht]
+  | brIfNot hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
+  | @enter _ sg _ _ _ _ _ _ _ _ _ i a c bt _ _ _ _ _ hb ht harm hkind =>
+    left; cases hn; refine ⟨_, hb, ?_⟩
+    cases hkind <;> rcases a with _ | _ | a <;> simp_all [armOf, succOf]
+  | ret hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
+  | trap hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
+  | bodyTrap => right; left; rfl
+  | @raise _ _ _ _ _ _ _ _ _ _ _ i _ hb ht hi =>
+    left; cases hn; refine ⟨_, hb, ?_⟩
+    cases i <;> simp_all [Instr.IsThrow, succOf]
+  | @catch_ b' sg stk stk₁ us ls s s₁ s₂ f f₁ f₂ i a j L L' l hb ht hi hr hth hpass hL hT hc hL'
+      harity hlbt =>
+    right; right; cases hn
+    simp only [MInv] at hok
+    have hjl : j < ls.length := (List.getElem?_eq_some_iff.mp hL).1
+    have hk : j < b.seq.reverse.length := by rw [← framesOk_length _ _ hok]; exact hjl
+    obtain ⟨⟨m, a'⟩, rp, hd, hd1⟩ := drop_cons_of hk
+    have hokj := framesOk_drop j _ _ hok
+    have hLj : ls[j] = L := by simpa using (List.getElem?_eq_some_iff.mp hL).2
+    rw [hd, List.drop_eq_getElem_cons hjl, hLj] at hokj
+    obtain ⟨⟨pc, sg', t, c', hpc, hsg', ht', -, hkind⟩, -⟩ := hokj
+    rw [hT] at hkind
+    obtain ⟨cb, rfl⟩ := structKind_tryT hkind
+    obtain ⟨cl, hcl, hcle⟩ := catches_label hc
+    have hseq : b.seq = rp.reverse ++ (m, a') :: (b.seq.reverse.take j).reverse := by
+      have := List.take_append_drop j b.seq.reverse
+      rw [hd] at this
+      have h2 := congrArg List.reverse this
+      simp only [List.reverse_reverse, List.reverse_append, List.reverse_cons] at h2
+      simpa using h2.symm
+    have hlk : lookup body ⟨rp.reverse, m⟩ = some sg' := by rw [lookup_eq]; simp [hpc, hsg']
+    refine ⟨⟨rp.reverse, m⟩, a', _, sg', L.bt, L.catches, cb, cl, hseq, hlk, ht', hcl, ?_⟩
+    have key : (labelsRev body b.seq.reverse).getD (j + 1 + l.toNat) .invalid =
+        resolveT (labels body rp.reverse) (catchLabel cl) := by
+      rw [labelsRev_getD_drop body (j + 1) _ l.toNat (by omega), hd1]
+      simp [resolveT, labels, hcle, Idx.toNat]
+    split <;> simpa [labels] using key
 
 end Silmaril.Wasm.Cfg.Proofs.Machine

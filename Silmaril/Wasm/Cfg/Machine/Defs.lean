@@ -22,8 +22,9 @@ The data state is the value stack, the store, the frame and a stack of label fra
 outside it, whether it is a `loop`, its `catch` clauses and its block type (a branch to a
 `loop` re-enters it, looking the block type up again as Core's `loop` rule does). Leaving sequences pops label
 frames as Core's `label-vals` does (`popL`). Exceptions, returns and traps go to the sink nodes
-`raise`, `exit` and `trap`. Catching (handler resolution against `catches`), `br_table`,
-`br_on_*` and calls are not modelled yet.
+`raise`, `exit` and `trap`; an exception that a `try_table` frame catches (its first matching
+`catch` clause) branches to the clause's label instead. `br_table`, `br_on_*` and calls as
+terminators are not modelled yet.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -181,18 +182,43 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       {f f₁ : Frame} (hb : lookup body b = some sg)
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ .trap) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩
-  /-- `throw` and `throw_ref` with no enclosing `try_table`: the terminator runs (allocating
-  the exception for `throw`) and the machine moves to the `raise` sink with the exception's
-  address as its stack (`[ref (exn a)]`) and the store after the throw. Under a `try_table`
-  frame (`hT`) a handler may catch; the machine does not step there (catching is not modelled
-  yet). -/
+  /-- `throw` and `throw_ref`, uncaught: the terminator runs (allocating the exception for
+  `throw`), every enclosing `try_table` frame lets the exception pass (no clause matches,
+  `hT`), and the machine moves to the `raise` sink with the exception's address as its stack
+  (`[ref (exn a)]`) and the store after the throw. -/
   | raise {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat} (hb : lookup body b = some sg)
       (ht : sg.term = some i) (hi : i.IsThrow)
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
       (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
-      (hT : ∀ L ∈ ls, L.tryT = false) :
+      (hT : ∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true →
+        Catches s₂ f₂ a L.catches none) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.raise, [.ref (.exn a)], [], s₂, f₂⟩
+  /-- `throw` and `throw_ref`, caught: the frames below `j` let the exception pass (`hpass`),
+  and the `try_table` frame `j` catches it with the first matching clause (`Catches`: values
+  `us`, label `l`). As Core's `handler` does, this branches to `l` from outside the
+  `try_table`, which is label `j + 1 + l` here, with the handler's outer values under `us`.
+  The branch is taken as `br` takes it, with the same run-time checks. -/
+  | catch_ {b : BlockId} {sg : Segment} {stk stk₁ us : List Val} {ls : List LFrame}
+      {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a j : Nat} {L L' : LFrame}
+      {l : LabelIdx} (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsThrow)
+      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+      (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+        Catches s₂ f₂ a L.catches none)
+      (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
+      (hL' : ls[j + 1 + l.toNat]? = some L') (harity : L'.arity ≤ (L.outer ++ us).length)
+      (hlbt : L'.loop = true → ∃ t₁ t₂, f₂.module.blockType? L'.bt = some (t₁, t₂) ∧
+        t₁.length = L'.arity) :
+      MStep P host body ⟨.block b, stk, ls, s, f⟩
+        (if L'.loop then
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat)) (L' :: ls.drop (j + 1 + l.toNat + 1))
+            ((L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂
+        else
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
+            (L'.outer ++ (L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂)
 
 end Silmaril.Wasm.Cfg.Machine
 
@@ -325,5 +351,19 @@ def Ends {H : Type} (st : MState H) (o : Region.Out) : Prop :=
 no label frames. -/
 def initial {H : Type} (body : Expr) (s : Store H) (f : Frame) : MState H :=
   ⟨cfgEntry body, [], [], s, f⟩
+
+end Silmaril.Wasm.Cfg.Machine
+
+namespace Silmaril.Wasm.Cfg.Machine
+
+/-- **A catch edge of `b`**: an edge of an enclosing `try_table` block `tb` (one whose arm holds
+`b`'s sequence) to the label of one of its `catch` clauses. A caught exception thrown in `b`
+goes there; the extracted CFG keeps it on the `try_table` block (`succOf`) and marks the
+throwing block `unresolvedHandler`. -/
+def CatchEdge (body : Expr) (b : BlockId) (t : Target) : Prop :=
+  ∃ (tb : BlockId) (a : Nat) (rest : List SeqStep) (sg : Segment) (bt : BlockType)
+    (cs : List Catch) (c : List Instr) (cl : Catch),
+    b.seq = tb.seq ++ (tb.idx, a) :: rest ∧ lookup body tb = some sg ∧
+    sg.term = some (.tryTable bt cs c) ∧ cl ∈ cs ∧ t = resolveT (labels body tb.seq) (catchLabel cl)
 
 end Silmaril.Wasm.Cfg.Machine
