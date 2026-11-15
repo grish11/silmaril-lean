@@ -20,9 +20,10 @@ separate obligation.
 The data state is the value stack, the store, the frame and a stack of label frames
 (`LFrame`), one per enclosing structured instruction: its branch arity, the values held
 outside it, whether it is a `loop`, its `catch` clauses and its block type (a branch to a
-`loop` re-enters it, looking the block type up again as Core's `loop` rule does). Leaving sequences pops label
-frames as Core's `label-vals` does (`popL`). Exceptions, returns and traps go to the sink nodes
-`raise`, `exit` and `trap`; an exception that a `try_table` frame catches (its first matching
+`loop` re-enters it, looking the block type up again as Core's `loop` rule does). Leaving
+sequences pops label frames as Core's `label-vals` does (`popL`). A branch carries the stack
+under the outer values of the frames it leaves (`brVals`), as Core's labels collect them.
+Exceptions, returns and traps go to the sink nodes `raise`, `exit` and `trap`; an exception that a `try_table` frame catches (its first matching
 `catch` clause) branches to the clause's label instead. `br_table`, `br_on_*` and calls as
 terminators are not modelled yet.
 -/
@@ -80,6 +81,17 @@ def goto (t : Target) (d : Nat) (ls : List LFrame) (stk : List Val) (s : Store H
 `try_table`, parameters for `loop`. -/
 def labelArity (loop : Bool) (t₁ t₂ : List CValType) : Nat := if loop then t₁.length else t₂.length
 
+/-- The top `n` values of a stack (all of it if shorter). -/
+abbrev topVals (n : Nat) (V : List Val) : List Val := V.drop (V.length - n)
+
+/-- **The values a branch to the `k`-th label carries**: the stack, under the outer values of the
+`k` frames it leaves (innermost nearest), as Core's `label` collects them (`labelBrSucc`). The
+target label keeps the top values of these. -/
+def brVals : Nat → List LFrame → List Val → List Val
+  | 0, _, stk => stk
+  | _ + 1, [], stk => stk
+  | k + 1, L :: ls, stk => brVals k ls (L.outer ++ stk)
+
 /-- The structured terminators, with block type, `loop` flag and `catch` clauses. -/
 inductive StructKind : Instr → BlockType → Bool → Bool → List Catch → Prop where
   | block {bt : BlockType} {b : List Instr} : StructKind (.block bt b) bt false false []
@@ -114,39 +126,40 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩
         (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁)
   /-- `br l`: keep the label's top values; re-enter a loop, or leave the label's sequence. The
-  step checks at run time that the stack holds the label's arity (`harity`); on a shorter stack
-  the machine does not step (Core has no branch rule there either). Re-entering a `loop` also
+  values carried are the stack under the left frames' outer values (`brVals`), as in Core; the
+  step checks at run time that they hold the label's arity (`harity`); with fewer the machine
+  does not step (Core has no branch rule there either). Re-entering a `loop` also
   checks that the frame's block type resolves in the current module with as many parameters as
   the label's arity (`hlbt`), which Core's `loop` rule needs. -/
   | br {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} {l : LabelIdx} {L : LFrame} (hb : lookup body b = some sg)
       (ht : sg.term = some (.br l))
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-      (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+      (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
       (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
         t₁.length = L.arity) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩
         (if L.loop then
           goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
-            (L :: ls.drop (l.toNat + 1)) (stk₁.drop (stk₁.length - L.arity)) s₁ f₁
+            (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁
         else
           goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
-            (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁)
+            (ls.drop (l.toNat + 1)) (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁)
   /-- `br_if l` with a nonzero condition branches like `br l`. -/
   | brIfTaken {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame} {k : BitVec 32}
       (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
-      (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+      (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
       (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
         t₁.length = L.arity) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩
         (if L.loop then
           goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
-            (L :: ls.drop (l.toNat + 1)) (stk₁.drop (stk₁.length - L.arity)) s₁ f₁
+            (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁
         else
           goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
-            (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁)
+            (ls.drop (l.toNat + 1)) (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁)
   /-- `br_if l` with a zero condition falls through. -/
   | brIfNot {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} (hb : lookup body b = some sg)
@@ -207,18 +220,19 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
         Catches s₂ f₂ a L.catches none)
       (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
-      (hL' : ls[j + 1 + l.toNat]? = some L') (harity : L'.arity ≤ (L.outer ++ us).length)
+      (hL' : ls[j + 1 + l.toNat]? = some L')
+      (harity : L'.arity ≤ (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)).length)
       (hlbt : L'.loop = true → ∃ t₁ t₂, f₂.module.blockType? L'.bt = some (t₁, t₂) ∧
         t₁.length = L'.arity) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩
         (if L'.loop then
           goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
             (b.seq.length - (j + 1 + l.toNat)) (L' :: ls.drop (j + 1 + l.toNat + 1))
-            ((L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂
+            (topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₂ f₂
         else
           goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
             (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
-            (L'.outer ++ (L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂)
+            (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₂ f₂)
 
 end Silmaril.Wasm.Cfg.Machine
 

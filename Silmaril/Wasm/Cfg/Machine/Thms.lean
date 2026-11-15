@@ -180,11 +180,12 @@ theorem br_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls :
     {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame} {X Y : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some (.br l))
     (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) (hloop : L.loop = false)
+    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
+    (hloop : L.loop = false)
     (hlev : levelLoop body b.seq.reverse l.toNat = false)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
-      (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y)
+      (ls.drop (l.toNat + 1)) (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y)
     {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.br_step_sound hb ht hr hL harity hloop hlev hX hY
@@ -205,11 +206,11 @@ theorem brIfTaken_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame} {k : BitVec 32}
     {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
     (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
-    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
     (hloop : L.loop = false) (hlev : levelLoop body b.seq.reverse l.toNat = false)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
-      (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y)
+      (ls.drop (l.toNat + 1)) (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y)
     {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.brIfTaken_step_sound hb ht hr hk hL harity hloop hlev hX hY
@@ -247,11 +248,12 @@ theorem br_loop_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {t₁ t₂ : List Validation.CValType} {X Y : List Admin} (hb : lookup body b = some sg)
     (ht : sg.term = some (.br l))
     (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) (hloop : L.loop = true)
+    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
+    (hloop : L.loop = true)
     (hbt : f₁.module.blockType? L.bt = some (t₁, t₂)) (hlen : t₁.length = L.arity)
     (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
-      (L :: ls.drop (l.toNat + 1)) (stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y)
+      (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y)
     {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.br_loop_step_sound hb ht hr hL harity hloop hbt hlen hok hX hY
@@ -262,12 +264,12 @@ theorem brIfTaken_loop_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : Lis
     {k : BitVec 32} {t₁ t₂ : List Validation.CValType} {X Y : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
     (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
-    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
     (hloop : L.loop = true) (hbt : f₁.module.blockType? L.bt = some (t₁, t₂))
     (hlen : t₁.length = L.arity) (hok : FramesOk body b.seq.reverse ls)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
-      (L :: ls.drop (l.toNat + 1)) (stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y)
+      (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y)
     {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
     Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
   Proofs.Machine.brIfTaken_loop_step_sound hb ht hr hk hL harity hloop hbt hlen hok hX hY
@@ -357,18 +359,20 @@ theorem catch_step_sound {b : BlockId} {sg : Segment} {stk stk₁ us : List Val}
       Region.Catches s₂ f₂ a L.catches none)
     (hL : ls[j]? = some L) (hT : L.tryT = true)
     (hc : Region.Catches s₂ f₂ a L.catches (some (us, l)))
-    (hL' : ls[j + 1 + l.toNat]? = some L') (harity : L'.arity ≤ (L.outer ++ us).length)
+    (hL' : ls[j + 1 + l.toNat]? = some L')
+    (harity : L'.arity ≤ (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)).length)
     (hlbt : L'.loop = true → ∃ t₁ t₂, f₂.module.blockType? L'.bt = some (t₁, t₂) ∧
       t₁.length = L'.arity)
     (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (if L'.loop then
           goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
             (b.seq.length - (j + 1 + l.toNat)) (L' :: ls.drop (j + 1 + l.toNat + 1))
-            ((L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂
+            (topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₂ f₂
         else
           goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
             (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
-            (L'.outer ++ (L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂) =
+            (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)))
+            s₂ f₂) =
         some Y)
     {o : Region.Out} {s₃ : Store H} {f₃ : Frame} :
     Region.Run P host s₂ f₂ [] Y s₃ f₃ o → Region.Run P host s f [] X s₃ f₃ o :=

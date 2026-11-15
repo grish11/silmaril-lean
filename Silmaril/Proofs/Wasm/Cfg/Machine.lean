@@ -616,11 +616,12 @@ theorem br_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
     ∀ (k : Nat) (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin} {us : List Val}
       {L : LFrame},
       wrap body rp ls inner = some X → ls[k]? = some L → L.loop = false →
-      levelLoop body rp k = false → L.arity ≤ us.length →
+      levelLoop body rp k = false → L.arity ≤ (brVals k ls us).length →
       Run P host s f [] inner s₁ f₁ (.br k us) →
       ∀ {Y : List Admin},
         codeOf body (goto ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1))
-          (ls.drop (k + 1)) (L.outer ++ us.drop (us.length - L.arity)) s₁ f₁) = some Y →
+          (ls.drop (k + 1)) (L.outer ++ topVals L.arity (brVals k ls us))
+          s₁ f₁) = some Y →
         ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
           Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o
   | _, [], [], _, _, _, _, _, hL, _, _, _, _, _, _ => by simp at hL
@@ -643,6 +644,7 @@ theorem br_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
           | zero =>
             simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
             subst hL
+            simp only [brVals] at har hY
             simp only [levelLoop, List.drop_zero] at hlev
             simp only [labelsRev, hlev, Bool.false_eq_true, ↓reduceIte, List.getD_cons_zero,
               List.length_cons, Nat.add_sub_cancel, List.drop_one, List.tail_cons] at hY
@@ -709,11 +711,13 @@ theorem br_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
                   simpa using (RunC.labelBrSucc (C := noCall) (P := P) (host := host) (vs := [])
                     (code := []) (n := L₀.arity) (cont := if L₀.loop then [t] else []) hin)
                 exact .handlerBr h1
-            have har' : L.arity ≤ (L₀.outer ++ us).length := by simp; omega
+            have har' : L.arity ≤ (brVals k ls (L₀.outer ++ us)).length := by
+              simpa only [brVals] using har
             have hY' := hY
-            simp only [labelsRev, List.getD_cons_succ, List.length_cons, List.drop_succ_cons] at hY'
+            simp only [labelsRev, List.getD_cons_succ, List.length_cons, List.drop_succ_cons,
+              brVals] at hY'
             rw [show rp.length + 1 - (k + 1 + 1) = rp.length - (k + 1) by omega] at hY'
-            exact br_lift k rp ls hX0 hL hloop hlev' har' hin' (by rw [drop_top har]; exact hY')
+            exact br_lift k rp ls hX0 hL hloop hlev' har' hin' hY'
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
@@ -732,11 +736,12 @@ theorem br_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : L
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame}
     {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some (.br l))
     (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) (hloop : L.loop = false)
+    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
+    (hloop : L.loop = false)
     (hlev : levelLoop body b.seq.reverse l.toNat = false)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
-      (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y) :
+      (ls.drop (l.toNat + 1)) (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
       Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
@@ -750,7 +755,7 @@ theorem br_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : L
     exact Proofs.Region.run_append hr (by simp only [Then]; exact .br)
   have hY' : codeOf body (goto ((labelsRev body b.seq.reverse).getD l.toNat .invalid)
       (b.seq.reverse.length - (l.toNat + 1)) (ls.drop (l.toNat + 1))
-      (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y := by
+      (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y := by
     simpa [labels, resolveT, Idx.toNat] using hY
   intro o s₂ f₂ h; exact br_lift l.toNat _ ls hX hL hloop hlev harity hin hY' h
 
@@ -823,11 +828,11 @@ theorem brIfTaken_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame} {k : BitVec 32}
     {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
     (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
-    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
     (hloop : L.loop = false) (hlev : levelLoop body b.seq.reverse l.toNat = false)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
-      (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y) :
+      (ls.drop (l.toNat + 1)) (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
       Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
@@ -846,7 +851,7 @@ theorem brIfTaken_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk
     · exact .br
   have hY' : codeOf body (goto ((labelsRev body b.seq.reverse).getD l.toNat .invalid)
       (b.seq.reverse.length - (l.toNat + 1)) (ls.drop (l.toNat + 1))
-      (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y := by
+      (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y := by
     simpa [labels, resolveT, Idx.toNat] using hY
   intro o s₂ f₂ h; exact br_lift l.toNat _ ls hX hL hloop hlev harity hin hY' h
 
@@ -974,11 +979,12 @@ theorem br_lift_loop {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
       {L : LFrame} {t₁ t₂ : List CValType},
       wrap body rp ls inner = some X → FramesOk body rp ls → ls[k]? = some L →
       L.loop = true → f₁.module.blockType? L.bt = some (t₁, t₂) → t₁.length = L.arity →
-      L.arity ≤ us.length →
+      L.arity ≤ (brVals k ls us).length →
       Run P host s f [] inner s₁ f₁ (.br k us) →
       ∀ {Y : List Admin},
         codeOf body (goto ((labelsRev body rp).getD k .invalid) (rp.length - k)
-          (L :: ls.drop (k + 1)) (us.drop (us.length - L.arity)) s₁ f₁) = some Y →
+          (L :: ls.drop (k + 1)) (topVals L.arity (brVals k ls us)) s₁ f₁) =
+          some Y →
         ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
           Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o
   | _, [], [], _, _, _, _, _, _, _, _, hL, _, _, _, _, _, _, _ => by simp at hL
@@ -1003,6 +1009,7 @@ theorem br_lift_loop {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
           | zero =>
             simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
             subst hL
+            simp only [brVals] at har hY
             rw [hpc] at hpc'; cases hpc'
             rw [hsg] at hsg'; cases hsg'
             rw [ht] at ht'; cases ht'
@@ -1069,12 +1076,13 @@ theorem br_lift_loop {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
                   simpa using (RunC.labelBrSucc (C := noCall) (P := P) (host := host) (vs := [])
                     (code := []) (n := L₀.arity) (cont := if L₀.loop then [t] else []) hin)
                 exact .handlerBr h1
-            have har' : L.arity ≤ (L₀.outer ++ us).length := by simp; omega
+            have har' : L.arity ≤ (brVals k ls (L₀.outer ++ us)).length := by
+              simpa only [brVals] using har
             have hY' := hY
-            simp only [labelsRev, List.getD_cons_succ, List.length_cons, List.drop_succ_cons] at hY'
+            simp only [labelsRev, List.getD_cons_succ, List.length_cons, List.drop_succ_cons,
+              brVals] at hY'
             rw [show rp.length + 1 - (k + 1) = rp.length - k by omega] at hY'
-            exact br_lift_loop k rp ls hX0 hok' hL hloop hbt hlen1 har' hin'
-              (by rw [drop_top har]; exact hY')
+            exact br_lift_loop k rp ls hX0 hok' hL hloop hbt hlen1 har' hin' hY'
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
@@ -1130,11 +1138,12 @@ theorem br_loop_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk�
     {t₁ t₂ : List CValType} {X Y : List Admin} (hb : lookup body b = some sg)
     (ht : sg.term = some (.br l))
     (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) (hloop : L.loop = true)
+    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
+    (hloop : L.loop = true)
     (hbt : f₁.module.blockType? L.bt = some (t₁, t₂)) (hlen : t₁.length = L.arity)
     (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
-      (L :: ls.drop (l.toNat + 1)) (stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y) :
+      (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
       Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
@@ -1144,7 +1153,7 @@ theorem br_loop_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk�
       (code := expression (restAt c (b.idx + 1)))))
   have hY' : codeOf body (goto ((labelsRev body b.seq.reverse).getD l.toNat .invalid)
       (b.seq.reverse.length - l.toNat) (L :: ls.drop (l.toNat + 1))
-      (stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y := by
+      (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y := by
     simpa [labels, resolveT, Idx.toNat] using hY
   intro o s₂ f₂ h
   exact br_lift_loop l.toNat _ ls hX hok hL hloop hbt hlen harity hin hY' h
@@ -1155,12 +1164,12 @@ theorem brIfTaken_loop_step_sound {body : Expr} {b : BlockId} {sg : Segment}
     {L : LFrame} {k : BitVec 32} {t₁ t₂ : List CValType} {X Y : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
     (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
-    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length)
+    (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
     (hloop : L.loop = true) (hbt : f₁.module.blockType? L.bt = some (t₁, t₂))
     (hlen : t₁.length = L.arity) (hok : FramesOk body b.seq.reverse ls)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
-      (L :: ls.drop (l.toNat + 1)) (stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y) :
+      (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
       Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
@@ -1179,7 +1188,7 @@ theorem brIfTaken_loop_step_sound {body : Expr} {b : BlockId} {sg : Segment}
     · exact .br
   have hY' : codeOf body (goto ((labelsRev body b.seq.reverse).getD l.toNat .invalid)
       (b.seq.reverse.length - l.toNat) (L :: ls.drop (l.toNat + 1))
-      (stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y := by
+      (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y := by
     simpa [labels, resolveT, Idx.toNat] using hY
   intro o s₂ f₂ h
   exact br_lift_loop l.toNat _ ls hX hok hL hloop hbt hlen harity hin hY' h
@@ -1601,7 +1610,7 @@ def BrOut (P : Profile) (host : HostSemantics H) (body : Expr) (rp : List SeqSte
 theorem br_out {body : Expr} {rp : List SeqStep} {ls : List LFrame} {inner X : List Admin}
     {s s₁ : Store H} {f f₁ : Frame} {k : Nat} {V : List Val} (hok : FramesOk body rp ls)
     (hX : wrap body rp ls inner = some X) (hin : Run P host s f [] inner s₁ f₁ (.br k V)) :
-    BrOut P host body rp ls X s f k V s₁ f₁ := by
+    BrOut P host body rp ls X s f k (brVals k ls V) s₁ f₁ := by
   intro L hL har hlbt Y hY o s₂ f₂ h
   cases hl : L.loop
   · simp only [hl, Bool.false_eq_true, ↓reduceIte] at hY
@@ -1632,7 +1641,8 @@ theorem throw_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} {a : Nat} {
       (∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
         Catches s₁ f₁ a L.catches none) →
       ls[j]? = some L → L.tryT = true → Catches s₁ f₁ a L.catches (some (us, l)) →
-      BrOut P host body rp ls X s f (j + 1 + l.toNat) (L.outer ++ us) s₁ f₁
+      BrOut P host body rp ls X s f (j + 1 + l.toNat) (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))
+        s₁ f₁
   | _, [], [], _, _, _, _, _, _, _, hL, _, _ => by simp at hL
   | _, [], _ :: _, _, _, _, hok, _, _, _, _, _, _ => by simp [FramesOk] at hok
   | _, _ :: _, [], _, _, _, _, _, _, _, hL, _, _ => by simp at hL
@@ -1686,7 +1696,7 @@ theorem throw_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} {a : Nat} {
                 hL hT hc)
             have e : j + 1 + l.toNat + 1 = j + 1 + 1 + l.toNat := by omega
             rw [e] at this
-            exact this
+            simpa only [List.drop_succ_cons] using this
 
 /-- **A caught throw is sound**: the machine's branch to the catching clause's label runs as the
 code the block stood for. -/
@@ -1699,18 +1709,20 @@ theorem catch_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ 
     (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
       Catches s₂ f₂ a L.catches none)
     (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
-    (hL' : ls[j + 1 + l.toNat]? = some L') (harity : L'.arity ≤ (L.outer ++ us).length)
+    (hL' : ls[j + 1 + l.toNat]? = some L')
+    (harity : L'.arity ≤ (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)).length)
     (hlbt : L'.loop = true → ∃ t₁ t₂, f₂.module.blockType? L'.bt = some (t₁, t₂) ∧
       t₁.length = L'.arity)
     (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (if L'.loop then
           goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
             (b.seq.length - (j + 1 + l.toNat)) (L' :: ls.drop (j + 1 + l.toNat + 1))
-            ((L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂
+            (topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₂ f₂
         else
           goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
             (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
-            (L'.outer ++ (L.outer ++ us).drop ((L.outer ++ us).length - L'.arity)) s₂ f₂) =
+            (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)))
+            s₂ f₂) =
         some Y) :
     ∀ {o : Out} {s₃ : Store H} {f₃ : Frame},
       Run P host s₂ f₂ [] Y s₃ f₃ o → Run P host s f [] X s₃ f₃ o := by
