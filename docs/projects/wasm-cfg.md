@@ -301,6 +301,10 @@ kernel-checked tables. The variants below are related to it by theorems, not by 
   `canMerge_not_entry`): AE blocks are merged along a fallthrough whose target has no other AE
   or handler predecessor and is not the entry. The explorer's default is
   `variants["all-effects-max"]`, which keeps each member's identity (`members`).
+  `Cfg.Maximal`: merges are functional and injective (`canMerge_functional`, `canMerge_inj`),
+  so the merged blocks are disjoint chains. The contracted graph's edges are exactly the AE
+  edges other than the merged fall-throughs (`mem_maxFlow`), plus every handler edge
+  (`mem_maxHandler`). This is a graph construction, not an execution theorem.
 - **Graph analyses are per variant.** Removing a sink changes no dominator of the remaining
   nodes, since a sink lies on no path to another node; this is to be proved as a graph lemma.
   It does change postdominators and exit reachability, so those are stated per variant.

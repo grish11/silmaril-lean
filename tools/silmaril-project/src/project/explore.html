@@ -1112,7 +1112,8 @@ async function wasmFuncPage(arg) {
   // Outcomes: what a node may do that is not an edge (all-effects models: trap, raise with its
   // handler — a node, "caller" or "unresolved"). They are in no dominator basis.
   const O = cfg.outcomes.filter((o) => Array.isArray(o) && typeof o[0] === "number" && typeof o[1] === "string")
-    .map(([n, effect, handler], i) => ({ i, src: nid(n), effect, handler: typeof handler === "number" ? nid(handler) : handler == null ? null : String(handler) }));
+    .map(([n, effect, handler, member], i) => ({ i, src: nid(n), effect, handler: typeof handler === "number" ? nid(handler) : handler == null ? null : String(handler),
+      member: typeof member === "number" ? member : null }));
   const outcomesOf = (id) => O.filter((o) => o.src === id);
   const oText = (o) => o.effect + (o.handler ? " → " + o.handler : "");
   const flowE = E.filter((e) => !e.may), mayE = E.filter((e) => e.may);
@@ -1213,7 +1214,12 @@ async function wasmFuncPage(arg) {
     "Open: no concrete Core 3.0 body is yet proved to realise either model, so this CFG is not connected to them.</li></ul>";
   const instrN = (b) => `${b.instrs.length} instr${b.instrs.length === 1 ? "" : "s"}`;
   // Node label: what the block is and how it ends; a second line only for blocks with marks.
-  const oLine = (id) => outcomesOf(id).length ? "\n⚡ " + outcomesOf(id).map(oText).join(", ") : "";
+  // One line per node: each distinct outcome once, with its count when it repeats.
+  const oLine = (id) => {
+    const os = outcomesOf(id); if (!os.length) return "";
+    const c = new Map(); for (const o of os) c.set(oText(o), (c.get(oText(o)) || 0) + 1);
+    return "\n⚡ " + [...c].map(([k, n]) => (n > 1 ? n + "× " : "") + k).join(", ");
+  };
   const blockLabel = (b, i) => `b${i} · ${instrN(b)} → ${b.term || "falls through"}` +
     (b.effects.length && !(outcomesOf("b" + i).length && !legacy) ? `\n⚠ ${b.effects.join(", ")}${mayTgts("b" + i).length ? " ⇢ " + mayTgts("b" + i).join("/") : ""}` : "") + oLine("b" + i);
   const instrLabel = (k) => `n${k} ${instrAt(k)}` + (mayTgts("n" + k).length ? "\n⇢ " + mayTgts("n" + k).join("/") : "") + oLine("n" + k);
@@ -1270,11 +1276,12 @@ async function wasmFuncPage(arg) {
       let x = `<p style="margin:0 0 6px"><a href="${permalink(id)}" title="direct link to this node">#</a> `;
       const domLine = `immediate dominator (${esc(basisText(basis))}): ` +
         (di === undefined ? '<span class="muted">not reached from the entry on this basis</span>' : di === null ? "the entry itself" : nodeBtn(di));
+      const go = (g, nodeId, text, cls = "wgran") => g ? ` <a class="${cls}" href="#/wasm-func/${encodeURIComponent(s.slug)}/${idx}/@${g[0]}${nodeId ? "/" + nodeId : ""}">${esc(text)}</a>` : "";
       const oc = outcomesOf(id), oi = O.filter((o) => o.handler === id);
-      const outcomeLines = (oc.length ? `<div>outcomes: <span class="woutc">${oc.map((o) => esc(o.effect) + (isNode(o.handler) ? " → " + nodeBtn(o.handler) : o.handler ? " → " + esc(o.handler) : "")).join(", ")}</span>` +
+      const outcomeLines = (oc.length ? `<div>outcomes: <span class="woutc">${oc.map((o) => esc(o.effect) + (isNode(o.handler) ? " → " + nodeBtn(o.handler) : o.handler ? " → " + esc(o.handler) : "") +
+          (o.member != null ? ` <span class="muted">(in${go(blockGraph, "b" + o.member, "b" + o.member, "wmember")})</span>` : "")).join(", ")}</span>` +
           ' <span class="muted">(from the data; not edges, in no dominator basis)</span></div>' : "") +
         (oi.length ? `<div>handler for: ${oi.map((o) => nodeBtn(o.src) + " " + esc(o.effect)).join(", ")}</div>` : "");
-      const go = (g, nodeId, text, cls = "wgran") => g ? ` <a class="${cls}" href="#/wasm-func/${encodeURIComponent(s.slug)}/${idx}/@${g[0]}${nodeId ? "/" + nodeId : ""}">${esc(text)}</a>` : "";
       if (isNode(id) && instrG) {
         const k = Number(id.slice(1)), [bi, at] = cfg.nodes[k], b = cfg.blocks[bi];
         const lines = b.instrs.concat(b.term ? [b.term] : []);

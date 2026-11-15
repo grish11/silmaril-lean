@@ -110,6 +110,18 @@ try {
     const top = expect(slug, idx).cfg;
     if (!top.default || !top.variants || !top.variants[top.default]) { console.log(`     ${slug}/${idx}: the data names no default variant`); continue; }
     const v = top.variants[top.default];
+    // A contracted graph (members) must be the quotient of the all-effects graph: every AE edge but
+    // the merged fall-throughs (consecutive members), mapped to groups; every outcome kept per member.
+    const ae = top.variants["all-effects"];
+    if (Array.isArray(v.members) && ae) {
+      const grp = new Map(); v.members.forEach((ms, gi) => ms.forEach((k) => grp.set(k, gi)));
+      const inner = new Set(v.members.flatMap((ms) => ms.slice(1).map((k, j) => ms[j] + ">" + k)));
+      const G = (x) => typeof x === "number" ? grp.get(x) : x;
+      const want = new Set(ae.edges.filter(([a, x, k]) => !(k === "flow" && typeof x === "number" && inner.has(a + ">" + x))).map(([a, x, k]) => `${G(a)}|${G(x)}|${k}`));
+      const got = new Set(v.edges.map(([a, x, k]) => `${a}|${x}|${k}`));
+      check(want.size === got.size && [...want].every((x) => got.has(x)), `${slug}/${idx}: ${top.default} edges are the quotient of all-effects (${got.size} edges)`);
+      check((v.outcomes || []).length === (ae.outcomes || []).length, `${slug}/${idx}: every all-effects outcome is kept, per member`);
+    }
     await open(`/wasm-func/${slug}/${idx}`);
     const g = await p.evaluate(() => ({ variant: $("#wvariant").value, nodes: wcy.nodes('[kind = "block"]').length, edges: wcy.edges().not(".may").length,
       outcomes: Number(document.querySelector('[data-c="outcomes"]')?.textContent ?? 0), may: wcy.edges(".may").not(".outc").length }));

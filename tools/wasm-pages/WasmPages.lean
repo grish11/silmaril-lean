@@ -16,6 +16,7 @@ import Silmaril.Wasm.Tools.CompValidate.Defs
 import Silmaril.Wasm.Validation.Check.Validate
 import Silmaril.Wasm.Cfg.BlockTyping.Defs
 import Silmaril.Wasm.Cfg.Variant.Defs
+import Silmaril.Wasm.Cfg.Maximal.Defs
 
 /-!
 # `wasm-pages`: the data of the explorer's Wasm component, module and function pages
@@ -361,13 +362,16 @@ def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := 
     jobj ([("id", jstr "flow+effect"), ("kinds", jarr [jstr "flow", jstr "effect"]),
       ("relation", jstr "Silmaril.Wasm.Cfg.Edge ∪ Silmaril.Wasm.Cfg.EffectEdge")] ++
       (match kernelTable with | some k => [("kernelTable", jstr k)] | none => []))])
-  -- maximal blocks: chains merged by `Cfg.canMerge` (checked only along a unique AE successor)
+  -- maximal blocks: chains of `Cfg.canMerge` (functional and injective: `canMerge_functional`,
+  -- `canMerge_inj`), starting at the blocks no merge reaches. The edges are exactly `Cfg.maxFlow`
+  -- (AE edges that are not merged fall-throughs, `mem_maxFlow`) and `Cfg.maxHandler`
+  -- (`mem_maxHandler`), mapped to their maximal blocks; nothing else is dropped, so a loop back
+  -- into its own maximal block stays an edge. Outcomes stay per member, in member order.
   let nextOf (i : Nat) : Option Nat :=
     match bs[i]? with
     | some (b, s) =>
       match Cfg.succAE body b s with
-      | [.block c] => if Cfg.canMerge body b c then
-          (match blockNode c with | some j => some j | none => none) else none
+      | [.block c] => if Cfg.canMerge body b c then blockNode c else none
       | _ => none
     | none => none
   let nexts := (List.range bs.length).map nextOf
@@ -382,23 +386,34 @@ def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := 
       | none => break
     return out
   let groups := heads.map chainOf
+  -- Checked here, on every body: the groups partition the blocks, and each consecutive pair is a
+  -- `canMerge`. If not (a merge cycle no head reaches), no maximal graph is published.
+  let flatG := groups.flatten
+  let partitionOk := flatG.length == bs.length && (List.range bs.length).all (flatG.contains ·)
+  let chainsOk := groups.all fun ms => (ms.zip ms.tail).all fun (i, j) =>
+    match bs[i]?, bs[j]? with
+    | some (b, _), some (c, _) => Cfg.canMerge body b c
+    | _, _ => false
   let groupOf (i : Nat) : Nat := (groups.findIdx? (·.contains i)).getD i
-  let gTarget : Json → Json := fun j => match j with
-    | .num n => match n.mantissa.toNat? with
-      | some k => jnat (groupOf k) | none => j
-    | _ => j
-  let mapEdge (e : Json) : Option Json := match e with
-    | .arr #[.num a, t, k] =>
-      let ga := groupOf a.mantissa.toNat
-      let gt := gTarget t
-      if (match t with | .num _ => gt == jnat ga && k == jstr "flow" | _ => false) then none
-      else some (jarr [jnat ga, gt, k])
-    | _ => some e
-  let mapOutcome (o : Json) : Json := match o with
-    | .arr xs => match xs.toList with
-      | .num a :: rest => jarr (jnat (groupOf a.mantissa.toNat) :: rest.map gTarget)
+  let gOfBlock (b : Cfg.BlockId) : Option Nat := (blockNode b).map groupOf
+  let gTargetJ : Cfg.Target → Json
+    | .block c => match gOfBlock c with | some g => jnat g | none => jstr "invalid"
+    | t => targetJson ids t
+  let maxFlowJ := (Cfg.maxFlow body).map fun (b, t) => jarr [jnat (groupOf (ids.idxOf b)), gTargetJ t, jstr "flow"]
+  let maxHandlerJ := (Cfg.maxHandler body).filterMap fun (b, t) => match t with
+    | .block c => (gOfBlock c).map fun g => jarr [jnat (groupOf (ids.idxOf b)), jnat g, jstr "handler"]
+    | _ => none
+  let maxOutcomes := groups.zipIdx.flatMap fun (ms, g) => ms.flatMap fun m =>
+    ((aeParts.getD m ([], [])).1.eraseDups).map fun o => match o with
+      | .arr xs => match xs.toList with
+        | _ :: eff :: rest =>
+          let h := match rest.head? with
+            | some (.num n) => match n.mantissa.toNat? with | some k => jnat (groupOf k) | none => Json.null
+            | some j => j
+            | none => Json.null
+          jarr [jnat g, eff, h, jnat m]
+        | _ => o
       | _ => o
-    | _ => o
   let gBlocks := groups.map fun ms =>
     let mem := ms.filterMap fun i => bs[i]?
     let instrs := mem.zipIdx.flatMap fun ((_, s), k) =>
@@ -410,16 +425,21 @@ def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := 
       ("term", match mem.getLast? with | some (_, s) => (match s.term with | some t => jstr (instrText t) | none => Json.null) | none => Json.null),
       ("effects", jarr ((mem.flatMap fun (b, s) => Cfg.blockEffects body b s).eraseDups.map (jstr ∘ effectName))),
       ("members", jarr (ms.map jnat))]
-  let maxEdges := ((aeFlow ++ aeHandler).filterMap mapEdge).eraseDups
+  let maxEdges := (maxFlowJ ++ maxHandlerJ).eraseDups
+  let maxOk := partitionOk && chainsOk
   let maxBlock := jobj [("model", jstr "all-effects"), ("granularity", jstr "block"),
     ("blocks", jarr gBlocks), ("members", jarr (groups.map fun ms => jarr (ms.map jnat))),
-    ("entry", gTarget (targetJson ids (Cfg.cfgEntry body))), ("edges", jarr maxEdges),
-    ("outcomes", jarr (aeOut.map mapOutcome).eraseDups), ("bases", aeBases),
-    ("relation", jstr "Silmaril.Wasm.Cfg.canMerge (canMerge_succ, canMerge_pred, canMerge_not_entry) over Silmaril.Wasm.Cfg.EdgeAE")]
+    ("entry", gTargetJ (Cfg.cfgEntry body)), ("edges", jarr maxEdges),
+    ("outcomes", jarr maxOutcomes), ("bases", aeBases),
+    ("note", jstr "Outcomes are [maximal block, effect, handler or null, member block]: each member keeps its own outcomes, in member order."),
+    ("relation", jstr ("Silmaril.Wasm.Cfg.mem_maxFlow, mem_maxHandler (the kept edges, by member); " ++
+      "canMerge_functional, canMerge_inj, canMerge_not_entry (merges form disjoint chains); " ++
+      "the partition into chains is checked when the data is written"))]
+  let maxVariants := if maxOk then [("all-effects-max", maxBlock)] else []
   jobj [("model", jstr "explicit-sink"), ("entry", targetJson ids (Cfg.cfgEntry body)), ("blocks", jarr blocksJ),
         ("edges", jarr (flowJ ++ effJ)), ("bases", legacyBases),
-        ("variants", jobj [("all-effects-max", maxBlock), ("all-effects", aeBlock), ("all-effects-instr", aeInstr)]),
-        ("default", jstr "all-effects-max")]
+        ("variants", jobj (maxVariants ++ [("all-effects", aeBlock), ("all-effects-instr", aeInstr)])),
+        ("default", jstr (if maxOk then "all-effects-max" else "all-effects"))]
 
 /-- The block CFGs whose dominator table is Lean kernel-checked (machine documents loaded by
 `examples/project/ProjectSelfTest/WasmBlockCfg.lean`, over flow and effect edges). -/

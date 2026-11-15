@@ -85,13 +85,20 @@ unchanged: it is the legacy **explicit-sink** graph (`cfg.model = "explicit-sink
     with inner terminators inline), the last member's `term`, the union of `effects`, and
     `members`, the shared-numbering blocks it contains, in order.
   - The variant-level `members` holds the same lists.
-  - Edges and outcomes are the AE ones mapped to the groups, without the internal fallthrough
-    edges.
+  - Edges are exactly `Cfg.maxFlow` and `Cfg.maxHandler` mapped to the groups:
+    - every AE edge except the merged fall-throughs (`mem_maxFlow`, `internal_iff`);
+    - every handler edge (`mem_maxHandler`).
+    So a loop back into its own maximal block, including a one-block loop, stays a self-loop.
+  - Outcomes are `[group, effect, handler or null, member]`. They are the member's AE outcomes,
+    member by member and in order, so no effect's position is lost.
+  - `wasm-pages` checks on every body that the groups partition the blocks into `canMerge`
+    chains. If they do not, it publishes no `all-effects-max` and the default is `all-effects`.
   - Chains are merged by `Cfg.canMerge`:
     - `canMerge_succ`: the earlier block's only AE successor is the next one;
     - `canMerge_pred`: no other AE or handler edge enters the next one, so label targets, loop
       heads and handler entries stay boundaries;
-    - `canMerge_not_entry`.
+    - `canMerge_not_entry`;
+    - `canMerge_functional`, `canMerge_inj` (`Cfg.Maximal`): merges form disjoint chains.
   - `relation` names these theorems.
 - **`cfg.default`**: `"all-effects-max"`, the variant the page shows first. The legacy graph stays
   selectable as the explicit-sink consilience view.
