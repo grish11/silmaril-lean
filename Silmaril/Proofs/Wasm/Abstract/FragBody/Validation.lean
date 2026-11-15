@@ -229,6 +229,169 @@ theorem ofInstr_len (C : Context) {i : Instr} {es : List SSA.Expr} {e : SSA.Expr
   all_goals (first | exact absurd rfl (hbr _) | (cases a <;> simp_all [arLen]))
   all_goals (subst hr; rfl)
 
+/-! ## The saturation induction -/
+
+theorem ofInstr_local {i : Instr} {es : List SSA.Expr} {e : SSA.Expr} {r : Option Ar} {x : LocalIdx}
+    (h : Silmaril.Wasm.SSA.ofInstr? i es = some e) (hty : tyE L R n e = some r)
+    (hx : i = .localGet x ∨ i = .localTee x) : x.toNat < n := by
+  rcases hx with rfl | rfl
+  · rcases es with _ | ⟨a, _ | _⟩ <;> simp [Silmaril.Wasm.SSA.ofInstr?] at h
+    subst h; simp [tyE] at hty; exact hty.1
+  · rcases es with _ | ⟨a, _ | _⟩ <;> simp [Silmaril.Wasm.SSA.ofInstr?] at h
+    subst h; simp [tyE] at hty; exact hty.1.1
+
+theorem ofInstr_brIf_shape {l : LabelIdx} {es : List SSA.Expr} {e : SSA.Expr}
+    (h : Silmaril.Wasm.SSA.ofInstr? (.brIf l) es = some e) : e = .brIf l.toNat es := by
+  unfold Silmaril.Wasm.SSA.ofInstr? at h
+  split at h <;> simp_all
+
+theorem tyE_brIf_some {l : Nat} {es : List SSA.Expr} {a : Ar}
+    (h : tyE L R n (.brIf l es) = some (some a)) :
+    L[l]? = some a ∧ (es.length = 1 ∨ es.length = 2) ∧ a = (if es.length = 2 then .one else .none) := by
+  simp [tyE] at h
+  obtain ⟨⟨⟨-, h1⟩, h2⟩, rfl⟩ := h
+  exact ⟨h2, h1, rfl⟩
+
+variable (C : Context)
+  (hloc : ∀ x : LocalIdx, x.toNat < n → (C.locals[x.toNat]?).isSome)
+  (hlab : ∀ (l : LabelIdx) a, L[l.toNat]? = some a → ∃ ts, C.labels[l.toNat]? = some ts ∧ ts.length = arLen a)
+
+theorem resultTypes_len (ty : Option IntType) : ((Silmaril.Wasm.SSA.resultTypes ty).map C.closeVal).length = arLen (arOf ty) := by
+  cases ty <;> rfl
+
+set_option linter.unusedSectionVars false in
+include hloc hlab in
+mutual
+/-- **Step 1.** A recognised, native-arity-checked, `select`-free tree is saturated, and
+`infer` gives its native arity (results of that length, or bottom). -/
+theorem sat_tree : ∀ (b : BExpr) (e : SSA.Expr) (r : Option Ar), Silmaril.Wasm.SSA.ofBExpr? b = some e →
+    noSel e = true → tyE L R n e = some r →
+    BExpr.saturated C b = true ∧ (∀ a, r = some a → ∃ ts, infer C b = some (.vals ts) ∧ ts.length = arLen a) ∧
+      (r = none → infer C b = some .bot)
+  | .op i args, e, r, h, hn, hty => by
+    cases hes : Silmaril.Wasm.SSA.ofBExprs? args with
+    | none => simp [Silmaril.Wasm.SSA.ofBExpr?, hes] at h
+    | some es =>
+      simp only [Silmaril.Wasm.SSA.ofBExpr?, hes] at h
+      have hta := ofInstr_tyArgs h hty
+      obtain ⟨hnl, hns⟩ := ofInstr_noSel h hn
+      obtain ⟨hsl, ts, hts, htl⟩ := sat_list args es hes hnl hta
+      by_cases hb : botInstr i = true
+      · have hr := ofInstr_none_of_bot h hb hty
+        subst hr
+        obtain ⟨h1, h2⟩ := infer_bot_of_args C hts hsl hb
+        exact ⟨h2, fun a ha => absurd ha (by simp), fun _ => h1⟩
+      · have hb' : botInstr i = false := by simpa using hb
+        cases r with
+        | none => exact absurd (ofInstr_bot_of_none h hty) hb
+        | some a =>
+          by_cases hbr : ∃ l, i = .brIf l
+          · obtain ⟨l, rfl⟩ := hbr
+            have he := ofInstr_brIf_shape h
+            subst he
+            obtain ⟨hL, hlen, rfl⟩ := tyE_brIf_some hty
+            obtain ⟨ls, hls, hll⟩ := hlab l _ hL
+            obtain ⟨-, har, hres⟩ := ofInstr_brIf C (es := es) hls (by
+              rcases hlen with h1 | h1 <;> simp [hll, h1, arLen])
+            obtain ⟨h1, h2⟩ := infer_op_of_args C hts hsl hb' (by rw [har, htl]) hres
+            exact ⟨h2, fun a' ha => ⟨ls, h1, by cases ha; exact hll⟩, fun ha => absurd ha (by simp)⟩
+          · push Not at hbr
+            have hnat : ∀ o args', e = .op o args' → o.native = true ∧ o ≠ .select := by
+              intro o args' he
+              refine ⟨?_, hns o args' he⟩
+              subst he
+              simp [tyE] at hty
+              exact hty.1.1.1
+            rcases ofInstr_arity C h hnat hbr with hb2 | ⟨-, har⟩
+            · exact absurd hb2 hb
+            rcases ofInstr_results C h hnat hbr (fun x hx => hloc x (ofInstr_local h hty hx)) with
+              hb2 | ⟨rs, hrs⟩
+            · exact absurd hb2 hb
+            obtain ⟨h1, h2⟩ := infer_op_of_args C hts hsl hb' (by rw [har, htl]) hrs
+            exact ⟨h2, fun a' ha => ⟨rs, h1, by cases ha; exact ofInstr_len C h hbr hrs hty⟩,
+              fun ha => absurd ha (by simp)⟩
+  | .block bt body, e, r, h, hn, hty => by
+    cases hty' : Silmaril.Wasm.SSA.ofBlockType? bt with
+    | none => simp [Silmaril.Wasm.SSA.ofBExpr?, hty'] at h
+    | some ty =>
+    cases hb : Silmaril.Wasm.SSA.ofBExprs? body with
+    | none => simp [Silmaril.Wasm.SSA.ofBExpr?, hty', hb] at h
+    | some body' =>
+    simp [Silmaril.Wasm.SSA.ofBExpr?, hty', hb] at h
+    subst h
+    obtain ⟨hp, hr⟩ := blockType_frag C hty'
+    obtain ⟨h1, h2⟩ := infer_block C (body := body) hr hp
+    refine ⟨h2, fun a ha => ⟨_, h1, ?_⟩, fun ha => ?_⟩
+    · rw [resultTypes_len]; subst ha; simp [tyE] at hty; rw [hty.2]
+    · subst ha; simp [tyE] at hty
+  | .loop bt body, e, r, h, hn, hty => by
+    cases hty' : Silmaril.Wasm.SSA.ofBlockType? bt with
+    | none => simp [Silmaril.Wasm.SSA.ofBExpr?, hty'] at h
+    | some ty =>
+    cases hb : Silmaril.Wasm.SSA.ofBExprs? body with
+    | none => simp [Silmaril.Wasm.SSA.ofBExpr?, hty', hb] at h
+    | some body' =>
+    simp [Silmaril.Wasm.SSA.ofBExpr?, hty', hb] at h
+    subst h
+    obtain ⟨hp, hr⟩ := blockType_frag C hty'
+    obtain ⟨h1, h2⟩ := infer_loop C (body := body) hr hp
+    refine ⟨h2, fun a ha => ⟨_, h1, ?_⟩, fun ha => ?_⟩
+    · rw [resultTypes_len]; subst ha; simp [tyE] at hty; rw [hty.2]
+    · subst ha; simp [tyE] at hty
+  | .if_ bt cond t el, e, r, h, hn, hty => by
+    rcases cond with _ | ⟨c, _ | ⟨c₂, cs⟩⟩
+    · simp [Silmaril.Wasm.SSA.ofBExpr?] at h
+    swap
+    · simp [Silmaril.Wasm.SSA.ofBExpr?] at h
+    cases hty' : Silmaril.Wasm.SSA.ofBlockType? bt with
+    | none => simp [Silmaril.Wasm.SSA.ofBExpr?, hty'] at h
+    | some ty =>
+    cases hc : Silmaril.Wasm.SSA.ofBExpr? c with
+    | none => simp [Silmaril.Wasm.SSA.ofBExpr?, hty', hc] at h
+    | some c' =>
+    cases ht : Silmaril.Wasm.SSA.ofBExprs? t with
+    | none => simp [Silmaril.Wasm.SSA.ofBExpr?, hty', hc, ht] at h
+    | some t' =>
+    cases he : Silmaril.Wasm.SSA.ofBExprs? el with
+    | none => simp [Silmaril.Wasm.SSA.ofBExpr?, hty', hc, ht, he] at h
+    | some e' =>
+    simp [Silmaril.Wasm.SSA.ofBExpr?, hty', hc, ht, he] at h
+    subst h
+    simp only [noSel] at hn
+    have hty₂ := hty
+    simp [tyE] at hty₂
+    obtain ⟨⟨⟨hcty, -⟩, -⟩, rfl⟩ := hty₂
+    obtain ⟨hs, hv, -⟩ := sat_tree c c' _ hc hn hcty
+    obtain ⟨ts, hts, hlt⟩ := hv _ rfl
+    obtain ⟨hp, hr⟩ := blockType_frag C hty'
+    have hil : inferList C [c] = some (.vals ts) := by simpa using inferList_cons_of C hts (es := []) rfl
+    refine ⟨?_, fun a ha => ⟨(Silmaril.Wasm.SSA.resultTypes ty).map C.closeVal, ?_, ?_⟩, fun ha => absurd ha (by simp)⟩
+    · simp [BExpr.saturated, BExpr.saturatedList, hs, hil, hp, hlt, arLen]
+    · simp [infer, hil, hr]
+    · cases ha; exact resultTypes_len C ty
+  | .tryTable .., e, r, h, hn, hty => by simp [Silmaril.Wasm.SSA.ofBExpr?] at h
+theorem sat_list : ∀ (bs : List BExpr) (es : List SSA.Expr), Silmaril.Wasm.SSA.ofBExprs? bs = some es →
+    noSelL es = true → tyArgs L R n es = true →
+    BExpr.saturatedList C bs = true ∧ ∃ ts, inferList C bs = some (.vals ts) ∧ ts.length = es.length
+  | [], es, h, _, _ => by simp [Silmaril.Wasm.SSA.ofBExprs?] at h; subst h; simp [BExpr.saturatedList, inferList]
+  | b :: bs, es, h, hn, ht => by
+    cases hb : Silmaril.Wasm.SSA.ofBExpr? b with
+    | none => simp [Silmaril.Wasm.SSA.ofBExprs?, hb] at h
+    | some e =>
+    cases hbs : Silmaril.Wasm.SSA.ofBExprs? bs with
+    | none => simp [Silmaril.Wasm.SSA.ofBExprs?, hb, hbs] at h
+    | some es' =>
+    simp [Silmaril.Wasm.SSA.ofBExprs?, hb, hbs] at h
+    subst h
+    simp only [noSelL, Bool.and_eq_true] at hn
+    simp only [tyArgs, Bool.and_eq_true, beq_iff_eq] at ht
+    obtain ⟨hs₁, hv₁, -⟩ := sat_tree b e _ hb hn.1 ht.1
+    obtain ⟨ts, hts, hlt⟩ := hv₁ _ rfl
+    obtain ⟨hs₂, us, hus, hlu⟩ := sat_list bs es' hbs hn.2 ht.2
+    refine ⟨by simp [BExpr.saturatedList, hs₁, hs₂], ts ++ us, inferList_cons_of C hts hus, ?_⟩
+    simp [hlt, hlu, arLen]; omega
+end
+
 end
 
 end Silmaril.Proofs.Wasm.Abstract.FragBody
