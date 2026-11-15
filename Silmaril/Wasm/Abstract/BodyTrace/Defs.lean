@@ -81,6 +81,27 @@ def toAFun {E : Sig.{u}} {S T A B : Type (u + 1)} (f : Hom E S T A B) :
     AFun (liftSig E) S A B := fun s a =>
   {x | ∃ cs r, Path ((f a).run s).run cs r ∧ x = (cs.map liftCall, endOf r)}
 
+/-! ## Loops at the tree level -/
+
+/-- Where one iteration of a body leaves the loop: trap or exit (left), or
+continue (right). -/
+def loopEnd {S T A B : Type (u + 1)} : Except T ((B ⊕ A) × S) → Except T (B × S) ⊕ (A × S)
+  | .error e => .inl (.error e)
+  | .ok (.inl b, s) => .inl (.ok (b, s))
+  | .ok (.inr a, s) => .inr (a, s)
+
+/-- One iteration of a body, as an interaction tree on argument and state. -/
+noncomputable def loopTree {E : Sig.{u}} {S T A B : Type (u + 1)} (F : Hom E S T A (B ⊕ A))
+    (p : A × S) : Silmaril.Elgot.ITree.Tree (SigEv E) (Except T (B × S) ⊕ (A × S)) :=
+  ((F p.1).run p.2).run >>= fun r => pure (loopEnd r)
+
+/-- A finite chain of silent continuations of a loop tree `G` from `x` to the
+exit `y`. -/
+inductive PureReach {E : Sig.{u}} {X Y : Type (u + 1)}
+    (G : X → Silmaril.Elgot.ITree.Tree (SigEv E) (Y ⊕ X)) : X → Y → Prop
+  | done {x y} : G x = Silmaril.Elgot.ITree.ret (.inl y) → PureReach G x y
+  | step {x x' y} : G x = Silmaril.Elgot.ITree.ret (.inr x') → PureReach G x' y → PureReach G x y
+
 /-! ## Pending calls: the observation that sees infinite productive runs
 
 `toAFun` reads only *finished* paths, so a body that calls imports forever

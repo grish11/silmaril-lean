@@ -29,8 +29,9 @@ import Silmaril.Proofs.Wasm.Abstract.Body.Iter
   composition and iteration. A trap inside a loop leaves the loop in `BodyM`;
   after collapsing, the trapping iteration diverges, and so does the loop.
 
-**Not yet proved.** The concrete
-half of the target: typed concrete Wasm bodies, their syntactic constructors,
+**Not yet proved.** Beyond the structured integer fragment
+(`Silmaril.Wasm.Abstract.FragBody`, proved adequate, structure-preserving and
+faithful on runs), the concrete half of the target: typed concrete Wasm bodies, their syntactic constructors,
 preservation, congruence, faithfulness on the chosen quotient, image closure,
 and only then the subcategory isomorphism. LetIter (`Silmaril.SSA.Isotope`)
 instantiation.

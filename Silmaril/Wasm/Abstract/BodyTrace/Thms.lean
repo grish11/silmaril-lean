@@ -237,6 +237,31 @@ theorem FullCollapseEquiv.toInf {E : Sig.{u}} {S T A B : Type (u + 1)} {f g : Ho
     (h : FullCollapseEquiv f g) : BodyTrace.toInf f = BodyTrace.toInf g :=
   toInf_eq_of_toPending h.2
 
+/-- A body loop at the tree level. -/
+theorem run_iter {E : Sig.{u}} {S T A B : Type (u + 1)} (F : Hom E S T A (B ⊕ A)) (a : A) (s : S) :
+    ((Silmaril.Elgot.iter F a).run s).run =
+      (Silmaril.Elgot.iter (loopTree F) (a, s) : Silmaril.Elgot.ITree.Tree (SigEv E) _) :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.run_iter F a s
+
+/-- Iterating a tree without events returns along a finite chain of silent
+continuations, or diverges. -/
+theorem iter_pure {E : Sig.{u}} {X Y : Type (u + 1)}
+    {G : X → Silmaril.Elgot.ITree.Tree (SigEv E) (Y ⊕ X)}
+    (hG : ∀ x, G x = Silmaril.Elgot.ITree.diverge ∨ ∃ v, G x = Silmaril.Elgot.ITree.ret v)
+    (x : X) :
+    (∃ y, PureReach G x y ∧
+        (Silmaril.Elgot.iter G x : Silmaril.Elgot.ITree.Tree (SigEv E) Y) =
+          Silmaril.Elgot.ITree.ret y) ∨
+      ((Silmaril.Elgot.iter G x : Silmaril.Elgot.ITree.Tree (SigEv E) Y) =
+          Silmaril.Elgot.ITree.diverge ∧ ∀ y : Y, ¬ PureReach G x y) :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.iter_pure hG x
+
+/-- A body that diverges silently at once denotes exactly that. -/
+theorem toAFun_of_run_diverge {E : Sig.{u}} {S T A B : Type (u + 1)} {f : Hom E S T A B} {s : S}
+    {a : A} (h : ((f a).run s).run = Silmaril.Elgot.ITree.diverge) :
+    toAFun f s a = {([], .div)} :=
+  Silmaril.Proofs.Wasm.Abstract.BodyTrace.toAFun_of_run_diverge h
+
 /-- The denotation maps body iteration to trace-set iteration. -/
 theorem toAFun_iter {E : Sig.{u}} {S T A B : Type (u + 1)} (F : Hom E S T A (B ⊕ A)) :
     toAFun (Silmaril.Elgot.iter F) = AFun.iter (toAFun F) :=

@@ -191,6 +191,57 @@ theorem path_iter_iff {G : X → Tree (SigEv E) (Y ⊕ X)} {x : X} {cs : List (C
     {r : PathEnd Y} : Path (iterT G x) cs r ↔ IterPath G x cs r :=
   ⟨path_iterPath, iterPath_path⟩
 
+/-! ## Iterating trees without events -/
+
+theorem iter_ret_of_pureReach {G : X → Tree (SigEv E) (Y ⊕ X)} {x : X} {y : Y}
+    (h : PureReach G x y) : iterT G x = ret y := by
+  induction h with
+  | done hx => rw [iter_unfold, hx]; exact pure_bind _ _
+  | step hx _ ih => rw [iter_unfold, hx]; exact (pure_bind _ _).trans ih
+
+theorem iter_pure_aux {G : X → Tree (SigEv E) (Y ⊕ X)}
+    (hG : ∀ x, G x = diverge ∨ ∃ v, G x = ret v) (n : Nat) :
+    ∀ x : X, ¬ IterSilent G ((iterNext G)^[n] x) → (∀ y : Y, ¬ PureReach G x y) →
+      iterT G x = (diverge : Tree (SigEv E) Y) := by
+  induction n with
+  | zero =>
+    intro x hs hn
+    rcases hG x with hx | ⟨(y | x'), hx⟩
+    · rw [iter_unfold, hx, diverge_bind]
+    · exact absurd (PureReach.done hx) (hn y)
+    · exact absurd ⟨x', hx⟩ hs
+  | succ n ih =>
+    intro x hs hn
+    by_cases hx : IterSilent G x
+    · have hG' := iterNext_spec hx
+      have e : (G x >>= Sum.elim pure (iterT G)) = iterT G (iterNext G x) := by
+        rw [hG']; exact pure_bind _ _
+      rw [iter_unfold, e]
+      exact ih _ (by rwa [Function.iterate_succ_apply] at hs) fun y hy => hn y (.step hG' hy)
+    · rcases hG x with hx' | ⟨(y | x'), hx'⟩
+      · rw [iter_unfold, hx', diverge_bind]
+      · exact absurd (PureReach.done hx') (hn y)
+      · exact absurd ⟨x', hx'⟩ hx
+
+/-- Iterating a body without events: a finite chain of silent continuations
+to an exit returns, and otherwise the iteration diverges. -/
+theorem iter_pure {G : X → Tree (SigEv E) (Y ⊕ X)}
+    (hG : ∀ x, G x = diverge ∨ ∃ v, G x = ret v) (x : X) :
+    (∃ y, PureReach G x y ∧ iterT G x = ret y) ∨ (iterT G x = diverge ∧ ∀ y : Y, ¬ PureReach G x y) := by
+  by_cases h : ∃ y, PureReach G x y
+  · obtain ⟨y, hy⟩ := h
+    exact .inl ⟨y, hy, iter_ret_of_pureReach hy⟩
+  · push Not at h
+    refine .inr ⟨?_, h⟩
+    by_cases hall : ∀ n, IterSilent G ((iterNext G)^[n] x)
+    · have hσ : ∀ n, G ((iterNext G)^[n] x) = ret (.inr ((iterNext G)^[n + 1] x)) := fun n => by
+        rw [Function.iterate_succ_apply']; exact iterNext_spec (hall n)
+      have hd := iter_eq_diverge G (fun n => (iterNext G)^[n] x) hσ
+      simpa using hd
+    · push Not at hall
+      obtain ⟨n, hn⟩ := hall
+      exact iter_pure_aux hG n x hn h
+
 /-! ## Bodies -/
 
 /-- Map the end of a path. -/
@@ -216,18 +267,6 @@ theorem path_map {Y Z : Type (u + 1)} {t : Tree (SigEv E) Y} {d : Y → Z} {cs :
   | div => exact path_bind_div h
 
 variable {S T A B : Type (u + 1)}
-
-/-- Where one iteration of a body leaves the loop: trap or exit (left), or
-continue (right). -/
-def loopEnd : Except T ((B ⊕ A) × S) → Except T (B × S) ⊕ (A × S)
-  | .error e => .inl (.error e)
-  | .ok (.inl b, s) => .inl (.ok (b, s))
-  | .ok (.inr a, s) => .inr (a, s)
-
-/-- One iteration of a body, as an interaction tree on argument and state. -/
-noncomputable def loopTree (F : Hom E S T A (B ⊕ A)) (p : A × S) :
-    Tree (SigEv E) (Except T (B × S) ⊕ (A × S)) :=
-  ((F p.1).run p.2).run >>= fun r => pure (loopEnd r)
 
 theorem run_iter (F : Hom E S T A (B ⊕ A)) (a : A) (s : S) :
     ((Silmaril.Elgot.iter F a).run s).run = iterT (loopTree F) (a, s) := by
@@ -329,6 +368,17 @@ theorem toAFun_of_run_ret {B : Type (u + 1)} {f : Hom E S T A B} {s : S} {a : A}
     rfl
   · rintro rfl
     exact ⟨[], _, .ret h, rfl⟩
+
+theorem toAFun_of_run_diverge {B : Type (u + 1)} {f : Hom E S T A B} {s : S} {a : A}
+    (h : ((f a).run s).run = diverge) : toAFun f s a = {([], .div)} := by
+  ext x
+  constructor
+  · rintro ⟨cs, r, hp, rfl⟩
+    rw [h] at hp
+    obtain ⟨rfl, rfl⟩ := path_diverge_inv hp
+    rfl
+  · rintro rfl
+    exact ⟨[], _, .div h, rfl⟩
 
 theorem toAFun_iter (F : Hom E S T A (B ⊕ A)) :
     toAFun (Silmaril.Elgot.iter F) = AFun.iter (toAFun F) := by
