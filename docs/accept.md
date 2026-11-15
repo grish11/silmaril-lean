@@ -96,5 +96,36 @@ relate them through `pdom`. `not_mem_eraseSome` (rejected at every index) and
 
 Examples: `Silmaril/Semantics/Accept/Rel/Examples.lean`.
 
+### `Silmaril.Semantics.Accept.Success.Defs` / `Thms`
+
+Successful-value projections of relations whose outputs carry a status (`Option`, `Except`,
+or a sum with `inl` = `ok`, the convention of the WIT `result<T, E> ↦ T ⊕ E` interpretation
+in `Silmaril/Wasm/Component/Reference/WIT/Interp/Defs.lean`).
+
+| Name | Meaning |
+| --- | --- |
+| `succ f R` | `R ○ ofPartial f` for an extractor `f : γ → Option β`: outputs `c` with `f c = some b`, as `b` |
+| `optionOk` | `id : Option β → Option β` |
+| `exceptOk` / `exceptErr` | `.ok b ↦ some b` / `.error e ↦ some e` (`exceptOk_eq_toOption`) |
+| `sumOk` / `sumErr` | `inl b ↦ some b` / `inr e ↦ some e` (`sumOk_eq_getLeft?`) |
+| `someVals R` | `succ optionOk R`; `mem_someVals : (a, b) ∈ someVals R ↔ (a, some b) ∈ R` |
+| `okVals R` / `errVals R` | `succ exceptOk R` / `succ exceptErr R`; `mem_okVals`, `mem_errVals` |
+| `inlVals R` / `inrVals R` | `succ sumOk R` / `succ sumErr R`; `mem_inlVals`, `mem_inrVals` |
+
+Laws: failures are dropped (`not_mem_dom_succ`: an input whose outputs all fail is outside
+`(succ f R).dom`; `not_mem_dom_someVals`/`okVals`/`inlVals`; `mem_dom_succ`); functoriality
+`succ_comp : succ g (succ f R) = succ (partialComp f g) R`, `succ_some`, `succ_mono`,
+`succ_union`, `succ_empty`; `succ_ofPartial : succ f (ofPartial g) = ofPartial (partialComp g f)`,
+`succ_ofTotal : succ f (ofTotal g) = ofPartial (f ∘ g)`; pullbacks
+`pullSome_succ : pullSome (succ f R) L = pullSome R {c | ∃ b ∈ L, f c = some b}` and
+`pullAll_succ`; `succ_single` (single-valued `R` gives single-valued `succ f R`, stated
+directly).
+
+Limitations: `succ` only *drops* failures. Whether an input fails on every run, on some run,
+or has no run at all is not distinguished by `succ f R`; keep `R` (or use `errVals`) to see
+failures. In particular `pullAll (succ f R) L` holds vacuously for inputs that always fail.
+
+Examples: `Silmaril/Semantics/Accept/Success/Examples.lean`.
+
 Byte languages, simple WIT types and the inputs accepted by Wasm modules and components
 instantiate this vocabulary: see [accepted inputs](projects/accepted-inputs.md).
