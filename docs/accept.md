@@ -310,6 +310,13 @@ Key laws: `mem_windows`, `mem_inputRuns`, `mem_entryRuns`, `localView_insert_oth
 is a counterexample in `Examples`), `mem_episodes_iff_run`, transport `triggers_image_map`,
 `episodes_image_map`, `returns_image_map`, monotonicity.
 
+Provenance and scope assignment, for bridges that trace runs back to raw events:
+`out_mem_of_collect`, `exit_mem_of_collect`, `out_mem_of_windows`, `inp_mem_of_windows`,
+`sublist_of_windows`, `out_mem_of_entryRun`, `loc_of_at`, `exists_out_of_mem_localView`,
+`exists_inp_of_mem_localView`, `localView_sublist`; `Tag.loc`, `Ev.tag` (with simp lemmas),
+`tag_mem_of_mem_assign`, `assign_scope`, `localView_assign_lt`, `assign_nil_append` (tags
+before any `enter` are dropped), `map_loc_assign_sublist`.
+
 Choosing the reading: an *imported* `input()` (or `input(a)`) whose value drives later
 imported `output(b)` calls is the window reading (`inputRunsOf`); an *exported* `f(a)` is the
 entry reading (`entryRunsOf`). The decoder decides which raw events have which role, so both

@@ -247,6 +247,20 @@ inductive Tag (X : Type u₂) (I : Type u₃) (O : Type u₄) (C : Type u₅) wh
   | exit (c : Option C)
   deriving DecidableEq, Repr
 
+/-- The local event of a tag. -/
+def Tag.loc : Tag X I O C → Loc X I O C
+  | .enter x => .enter x
+  | .inp i => .inp i
+  | .out o => .out o
+  | .exit c => .exit c
+
+/-- The tag of a scoped event: its role, without its scope. -/
+def Ev.tag : Ev K X I O C → Tag X I O C
+  | .enter _ x => .enter x
+  | .inp _ i => .inp i
+  | .out _ o => .out o
+  | .exit _ c => .exit c
+
 /-- Assign scope IDs with a stack of open scopes: a scope's ID is the position of its `enter`
 in the tag list (`n` counts tags). Inputs and outputs belong to the innermost open scope; with
 no open scope they are dropped (events outside any invocation, such as start-up code), and so

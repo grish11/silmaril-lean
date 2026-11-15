@@ -89,41 +89,6 @@ theorem assign_body {body : List (Tag X I O C)} (hb : ∀ t ∈ body, IsBody t) 
       simp only [List.cons_append, assign, List.map_cons, List.length_cons, ih hb', hn]
       rfl
 
-theorem assign_scope : ∀ (st : List ℕ) (n : ℕ) (ts : List (Tag X I O C)),
-    ∀ e ∈ assign st n ts, e.scope ∈ st ∨ n ≤ e.scope
-  | _, _, [] => by simp [assign]
-  | st, n, .enter x :: ts => by
-    intro e he
-    simp only [assign, List.mem_cons] at he
-    rcases he with rfl | he
-    · exact .inr le_rfl
-    · rcases assign_scope _ _ ts e he with h | h
-      · rcases List.mem_cons.1 h with h | h
-        · exact .inr h.ge
-        · exact .inl h
-      · exact .inr (by omega)
-  | k :: st, n, .inp i :: ts | k :: st, n, .out i :: ts => by
-    intro e he
-    simp only [assign, List.mem_cons] at he
-    rcases he with rfl | he
-    · exact .inl List.mem_cons_self
-    · rcases assign_scope _ _ ts e he with h | h
-      · exact .inl h
-      · exact .inr (by omega)
-  | k :: st, n, .exit c :: ts => by
-    intro e he
-    simp only [assign, List.mem_cons] at he
-    rcases he with rfl | he
-    · exact .inl List.mem_cons_self
-    · rcases assign_scope _ _ ts e he with h | h
-      · exact .inl (List.mem_cons_of_mem _ h)
-      · exact .inr (by omega)
-  | [], n, .inp _ :: ts | [], n, .out _ :: ts | [], n, .exit _ :: ts => by
-    intro e he
-    rcases assign_scope _ _ ts e he with h | h
-    · exact .inl h
-    · exact .inr (by omega)
-
 theorem localView_map_scoped (j k : ℕ) (l : List (Tag X I O C)) :
     localView j (l.map (atScope k)) = if j = k then l.map tagLoc else [] := by
   induction l with
@@ -137,14 +102,6 @@ theorem localView_map_scoped (j k : ℕ) (l : List (Tag X I O C)) :
       simp [h₂]
     · rw [List.map_cons, localView_cons_of_ne _ (by rw [h₁]; exact Ne.symm hjk), ih]
       simp [hjk]
-
-theorem localView_assign_lt {k n : ℕ} (hk : k < n) (ts : List (Tag X I O C)) :
-    localView k (assign [] n ts) = [] := by
-  refine List.filterMap_eq_nil_iff.2 fun e he => ?_
-  have h := assign_scope [] n ts e he
-  simp only [List.not_mem_nil, false_or] at h
-  simp only [Ev.at, ite_eq_right_iff, reduceCtorEq, imp_false]
-  omega
 
 theorem shallow_true_split {l : List (Tag X I O C)} (h : Shallow true l) :
     ∃ body, (∀ t ∈ body, IsBody t) ∧
@@ -426,61 +383,11 @@ theorem ret_after_call {Im Ex : Set FnName} {s : List (Move (nsig Im) (nsig Ex))
 
 /-! ## Runs are read off ordered pairs of events -/
 
-theorem map_loc_assign_sublist : ∀ (st : List ℕ) (n : ℕ) (ts : List (Tag X I O C)),
-    (assign st n ts).map Ev.loc <+ ts.map tagLoc
-  | _, _, [] => by simp [assign]
-  | st, n, .enter x :: ts => (map_loc_assign_sublist _ _ ts).cons_cons _
-  | k :: st, n, .inp i :: ts => (map_loc_assign_sublist _ _ ts).cons_cons _
-  | k :: st, n, .out o :: ts => (map_loc_assign_sublist _ _ ts).cons_cons _
-  | k :: st, n, .exit c :: ts => (map_loc_assign_sublist _ _ ts).cons_cons _
-  | [], n, .inp _ :: ts | [], n, .out _ :: ts | [], n, .exit _ :: ts =>
-    (map_loc_assign_sublist _ _ ts).cons _
-
-theorem localView_sublist (k : ℕ) (evs : List (Ev ℕ X I O C)) :
-    localView k evs <+ evs.map Ev.loc := by
-  induction evs with
-  | nil => simp [localView]
-  | cons e evs ih =>
-    by_cases h : e.scope = k
-    · rw [localView_cons_of_eq _ h]; exact ih.cons_cons _
-    · rw [localView_cons_of_ne _ h]; exact ih.cons _
-
 theorem localView_decode_sublist (ρ : Roles X I O C) (k : ℕ) (t : List WEv) :
     localView k (decode (tag ρ) t) <+ t.filterMap (locOf ρ) := by
   refine (localView_sublist k _).trans ?_
   have := map_loc_assign_sublist [] 0 (t.filterMap (tag ρ))
   rwa [List.map_filterMap] at this
-
-theorem out_mem_collect {stop : Bool} {o : O} :
-    ∀ {l : List (Loc X I O C)}, o ∈ (collect stop l).1 → .out o ∈ l
-  | [], h => by simp [collect] at h
-  | .out o' :: l, h => by
-    rcases List.mem_cons.1 h with rfl | h
-    · exact List.mem_cons_self
-    · exact List.mem_cons_of_mem _ (out_mem_collect h)
-  | .exit _ :: _, h => by simp [collect] at h
-  | .inp _ :: l, h => by
-    cases stop
-    · exact List.mem_cons_of_mem _ (out_mem_collect (stop := false) h)
-    · simp [collect] at h
-  | .enter _ :: l, h => List.mem_cons_of_mem _ (out_mem_collect h)
-
-theorem exit_mem_collect {stop : Bool} {c : C} :
-    ∀ {l : List (Loc X I O C)}, (collect stop l).2 = some c → .exit (some c) ∈ l
-  | [], h => by simp [collect] at h
-  | .out _ :: l, h => List.mem_cons_of_mem _ (exit_mem_collect h)
-  | .exit _ :: _, h => by simp only [collect] at h; subst h; exact List.mem_cons_self
-  | .inp _ :: l, h => by
-    cases stop
-    · exact List.mem_cons_of_mem _ (exit_mem_collect (stop := false) h)
-    · simp [collect] at h
-  | .enter _ :: l, h => List.mem_cons_of_mem _ (exit_mem_collect h)
-
-theorem sublist_of_windows {l : List (Loc X I O C)} {r : Run I O C} (hr : r ∈ windows l) :
-    ∃ post, [.inp r.input] ++ post <+ l ∧ r.outputs = (collect true post).1 ∧
-      r.result = (collect true post).2 := by
-  obtain ⟨pre, i, post, rfl, -, rfl⟩ := mem_windows.1 hr
-  exact ⟨post, List.sublist_append_right _ _, rfl, rfl⟩
 
 theorem pair_of_sublist_filterMap {α β : Type} {g : α → Option β} {x y : β} :
     ∀ {t : List α}, [x, y] <+ t.filterMap g →
@@ -509,7 +416,7 @@ theorem triggers_sound (ρ : Roles X I O C) {t : List WEv} {r : Run I O C}
   obtain ⟨post, hpost, ho, -⟩ := sublist_of_windows hk
   rw [ho] at hb
   have h : [Loc.inp r.input, .out b] <+ t.filterMap (locOf ρ) :=
-    (List.Sublist.cons_cons _ (List.singleton_sublist.2 (out_mem_collect hb))).trans
+    (List.Sublist.cons_cons _ (List.singleton_sublist.2 (out_mem_of_collect hb))).trans
       (hpost.trans (localView_decode_sublist ρ k t))
   exact pair_of_sublist_filterMap h
 
@@ -523,7 +430,7 @@ theorem result_sound (ρ : Roles X I O C) {t : List WEv} {r : Run I O C}
   obtain ⟨post, hpost, -, hres⟩ := sublist_of_windows hk
   rw [hres] at hc
   have h : [Loc.inp r.input, .exit (some c)] <+ t.filterMap (locOf ρ) :=
-    (List.Sublist.cons_cons _ (List.singleton_sublist.2 (exit_mem_collect hc))).trans
+    (List.Sublist.cons_cons _ (List.singleton_sublist.2 (exit_mem_of_collect hc))).trans
       (hpost.trans (localView_decode_sublist ρ k t))
   exact pair_of_sublist_filterMap h
 
@@ -536,7 +443,7 @@ theorem locOf_eq_out {ρ : Roles X I O C} {e : WEv} {b : O} (h : locOf ρ e = so
     simp only [locOf, tag] at h
     rcases ho : ρ.callOut f a with _ | o
     · rcases hi : ρ.callIn f a with _ | i <;> simp [ho, hi, tagLoc] at h
-    · simp only [ho, Option.map_some, tagLoc, Option.some.injEq, Loc.out.injEq] at h
+    · simp only [ho, Option.map_some, tagLoc, Tag.loc, Option.some.injEq, Loc.out.injEq] at h
       exact ⟨f, a, rfl, h ▸ ho⟩
   | imp f a r =>
     rcases r with _ | r
@@ -552,7 +459,8 @@ theorem locOf_eq_exit {ρ : Roles X I O C} {e : WEv} {c : C}
   | ret f a r =>
     rcases r with _ | r
     · simp [locOf, tag, tagLoc] at h
-    · simp only [locOf, tag, Option.map_some, tagLoc, Option.some.injEq, Loc.exit.injEq] at h
+    · simp only [locOf, tag, Option.map_some, tagLoc, Tag.loc, Option.some.injEq,
+        Loc.exit.injEq] at h
       exact ⟨f, a, r, rfl, h⟩
   | req f a =>
     simp only [locOf, tag] at h
@@ -613,7 +521,7 @@ theorem entry_result_sound (ρ : Roles X I O C) {t : List WEv} {r : Run X O C}
     simp only [entryRun, Option.some.injEq] at hk
     subst hk
     have h : [Loc.enter (some x), .exit (some c)] <+ t.filterMap (locOf ρ) :=
-      (List.Sublist.cons_cons _ (List.singleton_sublist.2 (exit_mem_collect hc))).trans hsub
+      (List.Sublist.cons_cons _ (List.singleton_sublist.2 (exit_mem_of_collect hc))).trans hsub
     exact pair_of_sublist_filterMap h
 
 theorem returns_entryIORuns_sound {Im Ex : Set FnName} {σ : Strategy (nsig Im) (nsig Ex)}

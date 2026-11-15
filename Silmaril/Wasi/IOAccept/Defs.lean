@@ -99,11 +99,7 @@ def tag (ρ : Roles X I O C) : WEv → Option (Tag X I O C)
   | .imp _ _ none => none
 
 /-- The local (scope-free) event of a tag. -/
-def tagLoc : Tag X I O C → Loc X I O C
-  | .enter x => .enter x
-  | .inp i => .inp i
-  | .out o => .out o
-  | .exit c => .exit c
+abbrev tagLoc : Tag X I O C → Loc X I O C := Tag.loc
 
 /-! ## Runs of a component -/
 

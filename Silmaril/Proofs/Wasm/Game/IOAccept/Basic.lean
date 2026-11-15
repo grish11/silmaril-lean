@@ -11,8 +11,8 @@ public import Silmaril.Semantics.Accept.IO.Thms
   is traced, with some trace);
 * provenance of tags: `exists_of_out`, `exists_of_inp` (each output and input tag comes from a
   reachable callout);
-* scoped events back to tags: `out_mem_of_windows`, `out_mem_of_entryRun`,
-  `inp_mem_of_windows`, `exists_out_of_mem_localView`, `evTag_mem_of_mem_assign`;
+* scoped events back to tags use the generic provenance lemmas of
+  `Silmaril.Semantics.Accept.IO.Thms` (`out_mem_of_windows`, `tag_mem_of_mem_assign`, …);
 * scope facts: `openScan_eq` (flatness), `no_enter_of_inst`, `split` and `bracket_eq`
   (instantiation-phase tags are dropped by `bracket`).
 
@@ -176,121 +176,6 @@ theorem exists_of_inp {p : Phase} {w : Bool} {x : Config Nat × L.S} {ts : List 
   | invoke _ _ _ _ _ ih => exact ih (by simpa using hi)
   | ret _ _ ih => exact ih (by simpa using hi)
 
-/-! ## Scoped events back to tags -/
-
-theorem out_mem_of_collect {stop : Bool} {l : List (Loc X I O C)} {b : O}
-    (h : b ∈ (collect stop l).1) : Loc.out b ∈ l := by
-  induction l with
-  | nil => simp [collect] at h
-  | cons e l ih =>
-    cases e with
-    | out o =>
-      simp only [collect, List.mem_cons] at h
-      rcases h with rfl | h
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (ih h)
-    | exit c => simp [collect] at h
-    | inp i =>
-      cases stop with
-      | true => simp [collect] at h
-      | false => exact List.mem_cons_of_mem _ (ih (by simpa [collect] using h))
-    | enter x => exact List.mem_cons_of_mem _ (ih (by simpa [collect] using h))
-
-theorem out_mem_of_windows {l : List (Loc X I O C)} {r : Run I O C} {b : O}
-    (hr : r ∈ windows l) (hb : b ∈ r.outputs) : Loc.out b ∈ l := by
-  obtain ⟨pre, i, post, rfl, -, rfl⟩ := mem_windows.1 hr
-  exact List.mem_append_right _ (List.mem_cons_of_mem _ (out_mem_of_collect hb))
-
-theorem inp_mem_of_windows {l : List (Loc X I O C)} {r : Run I O C} (hr : r ∈ windows l) :
-    Loc.inp r.input ∈ l := by
-  obtain ⟨pre, i, post, rfl, -, rfl⟩ := mem_windows.1 hr
-  simp
-
-theorem out_mem_of_entryRun {l : List (Loc X I O C)} {r : Run X O C} {b : O}
-    (hr : entryRun l = some r) (hb : b ∈ r.outputs) : Loc.out b ∈ l := by
-  unfold entryRun at hr
-  split at hr
-  · cases hr
-    exact List.mem_cons_of_mem _ (out_mem_of_collect hb)
-  · cases hr
-
-theorem loc_of_at {K : Type} [DecidableEq K] {k : K} {e : Ev K X I O C} {l : Loc X I O C}
-    (h : Ev.at k e = some l) : e.loc = l := by
-  unfold Ev.at at h
-  split at h
-  · exact Option.some.inj h
-  · cases h
-
-theorem exists_out_of_mem_localView {K : Type} [DecidableEq K] {k : K}
-    {t : List (Ev K X I O C)} {b : O} (h : Loc.out b ∈ localView k t) : ∃ k', Ev.out k' b ∈ t := by
-  obtain ⟨e, he, hk⟩ := List.mem_filterMap.1 h
-  cases e with
-  | out k' o =>
-    have hl := loc_of_at hk
-    simp only [Ev.loc] at hl
-    cases hl
-    exact ⟨k', he⟩
-  | _ =>
-    have hl := loc_of_at hk
-    simp [Ev.loc] at hl
-
-theorem exists_inp_of_mem_localView {K : Type} [DecidableEq K] {k : K}
-    {t : List (Ev K X I O C)} {i : I} (h : Loc.inp i ∈ localView k t) : ∃ k', Ev.inp k' i ∈ t := by
-  obtain ⟨e, he, hk⟩ := List.mem_filterMap.1 h
-  cases e with
-  | inp k' o =>
-    have hl := loc_of_at hk
-    simp only [Ev.loc] at hl
-    cases hl
-    exact ⟨k', he⟩
-  | _ =>
-    have hl := loc_of_at hk
-    simp [Ev.loc] at hl
-
-/-- The tag of a scoped event. -/
-def evTag {K : Type} : Ev K X I O C → Tag X I O C
-  | .enter _ x => .enter x
-  | .inp _ i => .inp i
-  | .out _ o => .out o
-  | .exit _ c => .exit c
-
-/-- Every event assigned by `assign` comes from a tag of the list. -/
-theorem evTag_mem_of_mem_assign {st : List ℕ} {n : ℕ} {ts : List (Tag X I O C)}
-    {e : Ev ℕ X I O C} (h : e ∈ assign st n ts) : evTag e ∈ ts := by
-  induction ts generalizing st n with
-  | nil => simp [assign] at h
-  | cons t ts ih =>
-    cases t with
-    | enter x =>
-      simp only [assign, List.mem_cons] at h
-      rcases h with rfl | h
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (ih h)
-    | inp i =>
-      cases st with
-      | nil => exact List.mem_cons_of_mem _ (ih (by simpa [assign] using h))
-      | cons k st =>
-        simp only [assign, List.mem_cons] at h
-        rcases h with rfl | h
-        · exact List.mem_cons_self
-        · exact List.mem_cons_of_mem _ (ih h)
-    | out o =>
-      cases st with
-      | nil => exact List.mem_cons_of_mem _ (ih (by simpa [assign] using h))
-      | cons k st =>
-        simp only [assign, List.mem_cons] at h
-        rcases h with rfl | h
-        · exact List.mem_cons_self
-        · exact List.mem_cons_of_mem _ (ih h)
-    | exit c =>
-      cases st with
-      | nil => exact List.mem_cons_of_mem _ (ih (by simpa [assign] using h))
-      | cons k st =>
-        simp only [assign, List.mem_cons] at h
-        rcases h with rfl | h
-        · exact List.mem_cons_self
-        · exact List.mem_cons_of_mem _ (ih h)
-
 /-! ## Scope facts -/
 
 theorem openScan_append (b : Bool) (ts us : List (Tag X I O C)) :
@@ -379,20 +264,6 @@ theorem split {p : Phase} {w : Bool} {x : Config Nat × L.S} {ts : List (Tag X I
     · cases hp
     · exact ⟨pre, _, List.append_assoc _ _ _, hpre, .inr ⟨by decide, y, _, rfl⟩⟩
 
-/-- Tags before any `enter` are dropped by the scope assignment. -/
-theorem assign_nil_append {pre post : List (Tag X I O C)} (hpre : ∀ y, Tag.enter y ∉ pre)
-    (n : ℕ) : assign [] n (pre ++ post) = assign [] (n + pre.length) post := by
-  induction pre generalizing n with
-  | nil => rfl
-  | cons t pre ih =>
-    have hpre' : ∀ y, Tag.enter y ∉ pre := fun y hy => hpre y (List.mem_cons_of_mem _ hy)
-    cases t with
-    | enter y => exact absurd List.mem_cons_self (hpre y)
-    | _ =>
-      simp only [List.cons_append, assign, ih hpre', List.length_cons]
-      congr 1
-      omega
-
 /-- The scope assignment of a traced session drops its instantiation-phase prefix. -/
 theorem bracket_eq {p : Phase} {w : Bool} {x : Config Nat × L.S} {ts : List (Tag X I O C)}
     (h : TSession P L m memAddr R c₀ q₀ addrs p w x ts) :
@@ -432,7 +303,7 @@ theorem exists_callout_of_mem_ioRuns {r : Run I O C} {b : O}
   obtain ⟨_, ⟨ts, hts, rfl⟩, hr⟩ := hr
   obtain ⟨k, hk⟩ := mem_inputRuns.1 hr
   obtain ⟨k', hk'⟩ := exists_out_of_mem_localView (out_mem_of_windows hk hb)
-  exact exists_callout_of_out hts (evTag_mem_of_mem_assign (e := .out k' b) hk')
+  exact exists_callout_of_out hts (tag_mem_of_mem_assign (e := .out k' b) hk')
 
 /-- Every output of an entry run is the `callOut` of a reachable callout. -/
 theorem exists_callout_of_mem_entryIORuns {r : Run X O C} {b : O}
@@ -441,7 +312,7 @@ theorem exists_callout_of_mem_entryIORuns {r : Run X O C} {b : O}
   obtain ⟨_, ⟨ts, hts, rfl⟩, hr⟩ := hr
   obtain ⟨k, hk⟩ := mem_entryRuns.1 hr
   obtain ⟨k', hk'⟩ := exists_out_of_mem_localView (out_mem_of_entryRun hk hb)
-  exact exists_callout_of_out hts (evTag_mem_of_mem_assign (e := .out k' b) hk')
+  exact exists_callout_of_out hts (tag_mem_of_mem_assign (e := .out k' b) hk')
 
 /-- The input of an input-window run is read off a reachable callout. -/
 theorem exists_callout_of_input_ioRuns {r : Run I O C} (hr : r ∈ ioRuns P Envs memIdx m R) :
@@ -450,7 +321,7 @@ theorem exists_callout_of_input_ioRuns {r : Run I O C} (hr : r ∈ ioRuns P Envs
   obtain ⟨_, ⟨ts, hts, rfl⟩, hr⟩ := hr
   obtain ⟨k, hk⟩ := mem_inputRuns.1 hr
   obtain ⟨k', hk'⟩ := exists_inp_of_mem_localView (inp_mem_of_windows hk)
-  exact exists_callout_of_inp hts (evTag_mem_of_mem_assign (e := .inp k' r.input) hk')
+  exact exists_callout_of_inp hts (tag_mem_of_mem_assign (e := .inp k' r.input) hk')
 
 /-- The callouts of a module are those reachable in its traced sessions. -/
 theorem callouts_eq_traced :

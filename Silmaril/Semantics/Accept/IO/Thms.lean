@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Semantics.Accept.IO.Defs
 import Silmaril.Proofs.Semantics.Accept.IO.Basic
+import Silmaril.Proofs.Semantics.Accept.IO.Scope
 
 /-!
 # Relational I/O acceptance: laws
@@ -19,7 +20,13 @@ import Silmaril.Proofs.Semantics.Accept.IO.Basic
   (`image_retTriggers_eq`), and failed runs contribute to `triggers` only
   (`mem_episodes_iff_run`);
 * transport along renamings of inputs, outputs and results (`triggers_image_map`,
-  `episodes_image_map`, `returns_image_map`), and monotonicity.
+  `episodes_image_map`, `returns_image_map`), and monotonicity;
+* provenance (runs back to the events and tags they were read from): `out_mem_of_collect`,
+  `exit_mem_of_collect`, `out_mem_of_windows`, `inp_mem_of_windows`, `sublist_of_windows`,
+  `out_mem_of_entryRun`, `loc_of_at`, `exists_out_of_mem_localView`,
+  `exists_inp_of_mem_localView`, `localView_sublist`;
+* scope assignment: `tag_mem_of_mem_assign`, `assign_scope`, `localView_assign_lt`,
+  `assign_nil_append`, `map_loc_assign_sublist`.
 -/
 
 @[expose] public section
@@ -190,5 +197,117 @@ theorem returns_image_map : returns (Run.map f g h '' S) = Prod.map f h '' retur
   rfl
 
 end Rel
+
+/-! ## Provenance: runs back to events -/
+
+section Provenance
+
+open scoped List
+
+/-- An output collected from a view is an output event of the view. -/
+theorem out_mem_of_collect {stop : Bool} {o : O} {l : List (Loc X I O C)}
+    (h : o ∈ (collect stop l).1) : .out o ∈ l :=
+  Proofs.Semantics.Accept.IO.out_mem_of_collect h
+
+/-- A collected result is an exit event of the view. -/
+theorem exit_mem_of_collect {stop : Bool} {c : C} {l : List (Loc X I O C)}
+    (h : (collect stop l).2 = some c) : .exit (some c) ∈ l :=
+  Proofs.Semantics.Accept.IO.exit_mem_of_collect h
+
+/-- An output of a window is an output event of the view. -/
+theorem out_mem_of_windows {l : List (Loc X I O C)} {r : Run I O C} {b : O}
+    (hr : r ∈ windows l) (hb : b ∈ r.outputs) : Loc.out b ∈ l :=
+  Proofs.Semantics.Accept.IO.out_mem_of_windows hr hb
+
+/-- The input of a window is an input event of the view. -/
+theorem inp_mem_of_windows {l : List (Loc X I O C)} {r : Run I O C} (hr : r ∈ windows l) :
+    Loc.inp r.input ∈ l :=
+  Proofs.Semantics.Accept.IO.inp_mem_of_windows hr
+
+/-- A window is read off the events after its input, which come in order in the view. -/
+theorem sublist_of_windows {l : List (Loc X I O C)} {r : Run I O C} (hr : r ∈ windows l) :
+    ∃ post, [.inp r.input] ++ post <+ l ∧ r.outputs = (collect true post).1 ∧
+      r.result = (collect true post).2 :=
+  Proofs.Semantics.Accept.IO.sublist_of_windows hr
+
+/-- An output of an entry run is an output event of the view. -/
+theorem out_mem_of_entryRun {l : List (Loc X I O C)} {r : Run X O C} {b : O}
+    (hr : entryRun l = some r) (hb : b ∈ r.outputs) : Loc.out b ∈ l :=
+  Proofs.Semantics.Accept.IO.out_mem_of_entryRun hr hb
+
+/-- The local event of a scoped event is its `loc`. -/
+theorem loc_of_at {k : K} {e : Ev K X I O C} {l : Loc X I O C} (h : Ev.at k e = some l) :
+    e.loc = l :=
+  Proofs.Semantics.Accept.IO.loc_of_at h
+
+/-- An output of a local view is an output event of the trace. -/
+theorem exists_out_of_mem_localView {k : K} {t : List (Ev K X I O C)} {b : O}
+    (h : Loc.out b ∈ localView k t) : ∃ k', Ev.out k' b ∈ t :=
+  Proofs.Semantics.Accept.IO.exists_out_of_mem_localView h
+
+/-- An input of a local view is an input event of the trace. -/
+theorem exists_inp_of_mem_localView {k : K} {t : List (Ev K X I O C)} {i : I}
+    (h : Loc.inp i ∈ localView k t) : ∃ k', Ev.inp k' i ∈ t :=
+  Proofs.Semantics.Accept.IO.exists_inp_of_mem_localView h
+
+/-- A local view is a sublist of the trace's events. -/
+theorem localView_sublist (k : K) (evs : List (Ev K X I O C)) :
+    localView k evs <+ evs.map Ev.loc :=
+  Proofs.Semantics.Accept.IO.localView_sublist k evs
+
+end Provenance
+
+/-! ## Scope assignment -/
+
+section Assign
+
+@[simp] theorem Tag.loc_enter (x : Option X) : (Tag.enter x : Tag X I O C).loc = .enter x := rfl
+@[simp] theorem Tag.loc_inp (i : I) : (Tag.inp i : Tag X I O C).loc = .inp i := rfl
+@[simp] theorem Tag.loc_out (o : O) : (Tag.out o : Tag X I O C).loc = .out o := rfl
+@[simp] theorem Tag.loc_exit (c : Option C) : (Tag.exit c : Tag X I O C).loc = .exit c := rfl
+
+omit [DecidableEq K] in
+@[simp] theorem Ev.tag_enter (k : K) (x : Option X) :
+    (Ev.enter k x : Ev K X I O C).tag = .enter x := rfl
+omit [DecidableEq K] in
+@[simp] theorem Ev.tag_inp (k : K) (i : I) : (Ev.inp k i : Ev K X I O C).tag = .inp i := rfl
+omit [DecidableEq K] in
+@[simp] theorem Ev.tag_out (k : K) (o : O) : (Ev.out k o : Ev K X I O C).tag = .out o := rfl
+omit [DecidableEq K] in
+@[simp] theorem Ev.tag_exit (k : K) (c : Option C) :
+    (Ev.exit k c : Ev K X I O C).tag = .exit c := rfl
+
+omit [DecidableEq K] in
+/-- A scoped event's local event is the local event of its tag. -/
+@[simp] theorem Ev.tag_loc (e : Ev K X I O C) : e.tag.loc = e.loc := by cases e <;> rfl
+
+open scoped List
+
+/-- Every assigned event comes from a tag of the list. -/
+theorem tag_mem_of_mem_assign {st : List ℕ} {n : ℕ} {ts : List (Tag X I O C)}
+    {e : Ev ℕ X I O C} (h : e ∈ assign st n ts) : e.tag ∈ ts :=
+  Proofs.Semantics.Accept.IO.tag_mem_of_mem_assign h
+
+/-- Assigned scopes are open scopes or fresh (at least the position counter). -/
+theorem assign_scope (st : List ℕ) (n : ℕ) (ts : List (Tag X I O C)) :
+    ∀ e ∈ assign st n ts, e.scope ∈ st ∨ n ≤ e.scope :=
+  Proofs.Semantics.Accept.IO.assign_scope st n ts
+
+/-- With no open scope, scopes below the position counter have empty views. -/
+theorem localView_assign_lt {k n : ℕ} (hk : k < n) (ts : List (Tag X I O C)) :
+    localView k (assign [] n ts) = [] :=
+  Proofs.Semantics.Accept.IO.localView_assign_lt hk ts
+
+/-- Tags before any `enter` (outside every invocation) are dropped. -/
+theorem assign_nil_append {pre post : List (Tag X I O C)} (hpre : ∀ y, Tag.enter y ∉ pre)
+    (n : ℕ) : assign [] n (pre ++ post) = assign [] (n + pre.length) post :=
+  Proofs.Semantics.Accept.IO.assign_nil_append hpre n
+
+/-- Scope assignment keeps (a sublist of) the tags, in order. -/
+theorem map_loc_assign_sublist (st : List ℕ) (n : ℕ) (ts : List (Tag X I O C)) :
+    (assign st n ts).map Ev.loc <+ ts.map Tag.loc :=
+  Proofs.Semantics.Accept.IO.map_loc_assign_sublist st n ts
+
+end Assign
 
 end Silmaril.Accept.IO
