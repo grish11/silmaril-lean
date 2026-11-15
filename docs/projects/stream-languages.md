@@ -14,6 +14,7 @@ It reuses Mathlib's `Language α` (`Set (List α)`) and CSLib's `ωSequence α`,
 | Module | Contents |
 | --- | --- |
 | `Silmaril.Semantics.Streams.Defs` / `Thms` | Finite-or-infinite words (`Word α`), ∞-languages (`Lang α`), chunk streams (`Chunks α`), their limits and progress |
+| `Silmaril.Semantics.Acceptors.Defs` / `Thms` | Incremental acceptors (`process`/`accepted`/`reset`) specified against a `Language α` over arbitrary client traces |
 | `Silmaril.Semantics.StreamMonitors.Defs` / `Thms` | Safety and liveness verdicts of chunk-boundary monitors, compared with the limit word |
 
 ### `Silmaril.Semantics.Streams` (namespace `Silmaril.Streams`)
@@ -66,6 +67,37 @@ Stable API:
     (`verdicts_of_limit_fin`, `eventuallyAlwaysAt_ofList_iff`). A stalled stream
     answers yes infinitely often without delivering an infinite word
     (`infOftenAt_stall`).
+
+### `Silmaril.Semantics.Acceptors` (namespace `Silmaril`, `Silmaril.Acceptor`)
+
+Stable API:
+
+- `ChunkView χ α` says how a chunk reads as a list of symbols. Instances exist for
+  `List α`, `Array α` and `ByteArray` (symbols `UInt8`).
+- `Acceptor σ χ` has fields `init`, `process`, `query : σ → Bool × σ` and `reset`.
+  A query may change the state, which models a finalising `accepted()`. `Pure` says it
+  does not.
+- Traces are `List (Event χ)` built from `process c`, `query` and `reset`. The API:
+  - `run A s tr` gives the answers.
+  - `specObs L tr` is the specified answers: membership of the input since the last
+    reset.
+  - `ResetSound` (reset is observationally equivalent to `init`).
+- Correctness notions:
+  - `CorrectInterleaved`: arbitrary interleavings.
+  - `CorrectImmediate`: each `process` is followed by one `query`.
+  - `CorrectFold`: process everything, then query once. `correctFold_iff_decides`
+    restates it as `Silmaril.Accept.Decides`.
+- Main theorems:
+  - `correctInterleaved_iff_correctFold` and `correctInterleaved_iff_correctImmediate`,
+    assuming `Pure` and `ResetSound`.
+  - Purity is necessary: `answerOnce_not_correctInterleaved` and
+    `finalizing_not_correctImmediate`.
+  - `CorrectInterleaved.run_process_nil`: empty chunks change no answer.
+    `specObs_eq_of_toSymbolTrace_eq`: rechunking changes no specified answer.
+  - Symbol-at-a-time: `ofSymbols`, `toSymbols`, `correctInterleaved_ofSymbols` and
+    `symbolCorrect_toSymbols`.
+  - `reference` and `exists_correctInterleaved`: every decidable language has a correct
+    acceptor, possibly with infinitely many states.
 
 ## Scope and limits
 

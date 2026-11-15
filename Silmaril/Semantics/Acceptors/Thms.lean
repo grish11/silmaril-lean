@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Semantics.Acceptors.Defs
+public import Silmaril.Semantics.Accept.Defs
 import Silmaril.Proofs.Semantics.Acceptors.Basic
 import Silmaril.Proofs.Semantics.Acceptors.Chunks
 
@@ -215,6 +216,17 @@ theorem reference_correctInterleaved : (reference (χ := χ) L).CorrectInterleav
 theorem exists_correctInterleaved (L : Language α) [DecidablePred (· ∈ L)] :
     ∃ A : Acceptor (List α) χ, A.CorrectInterleaved L :=
   ⟨reference L, reference_correctInterleaved⟩
+
+/-- `CorrectFold` says that "process all chunks from `init`, then query" is a Bool
+checker deciding (in the sense of `Silmaril.Accept.Decides`) the chunk lists whose
+concatenation is in `L`. -/
+theorem correctFold_iff_decides (A : Acceptor σ χ) :
+    A.CorrectFold L ↔ Silmaril.Accept.Decides
+      (fun cs : List χ => (A.query (cs.foldl A.process A.init)).1)
+      {cs | cs.flatMap ChunkView.toList ∈ L} := by
+  refine forall_congr' fun cs => ?_
+  cases h : (A.query (cs.foldl A.process A.init)).1 <;>
+    cases hm : member L (cs.flatMap ChunkView.toList) <;> simp_all [member]
 
 end Acceptor
 
