@@ -136,20 +136,20 @@ theorem pending_frame {s : Store H} {f F : Frame} {ws : List Val} {n : Nat}
     · exact pending_not_labelExit hp hex
   · exact frameExit_label hex rfl
 
-/-- **The backward case of a direct call of a Wasm function**, deterministic
-profile. `call x` and `call_ref` are the only steps into the callee, so its body
-runs strictly shorter than the whole run, in its frame and label
+/-- **The backward case of `call_ref` of a Wasm function** on the top `ps.length`
+values, deterministic profile. `call_ref` is the only step into the callee, so its
+body runs strictly shorter than the whole run, in its frame and label
 (`stepsN_frame_seq_split`), as `ihbody` says. A blocked body blocks the call;
 otherwise the body ran natively (`bodyCall`, hence `hostCall`), and the frame is
 left by host-free steps: with the callee's results, or by a trap. The callee's
 result arity and that it returns or traps are the hypothesis `hret`. -/
-theorem back_call_wasm {o : SingleThreaded.GrowOracle} {n : Nat} {s₁ : Store H} {f₁ : Frame}
-    {stk₁ : List Val} {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
+theorem back_callRef_wasm {o : SingleThreaded.GrowOracle} {n : Nat} {s₁ : Store H} {f₁ : Frame}
+    {stk₁ : List Val} {a : Nat} {fi : FuncInst H} {fn : Func}
     {ps rs : List Validation.CValType} {rest : List Admin} {c : Config H}
-    (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
+    (hf : s₁.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hp : ps.length ≤ stk₁.length)
-    (hrun : StepsN (SingleThreaded.profile o) host n
-      ⟨s₁, f₁, vals stk₁.reverse ++ .plain (.call x) :: rest⟩ c)
+    (hrun₁ : StepsN (SingleThreaded.profile o) host n
+      ⟨s₁, f₁, vals stk₁.reverse ++ ([.ref (.func a), .callRefType fi.type] ++ rest)⟩ c)
     (hend : ∀ c', ¬ Step (SingleThreaded.profile o) host c c')
     (ihbody : ∀ m < n, ∀ cb, StepsN (SingleThreaded.profile o) host m
         ⟨s₁, Interp.calleeFrame fi fn stk₁ ps.length,
@@ -168,15 +168,7 @@ theorem back_call_wasm {o : SingleThreaded.GrowOracle} {n : Nat} {s₁ : Store H
             StepsN (SingleThreaded.profile o) host m
               ⟨s₂, f₁, vals (vs.take rs.length ++ stk₁.drop ps.length).reverse ++ rest⟩ c) ∨
           (fl = .trap ∧ EndsAs (s₂, f₁, .trap) c)) := by
-  obtain ⟨hx, hf⟩ := Interp.func?_inv hfi
   obtain ⟨ps', rs', hex, hpl, hrl⟩ := Interp.expand_of_funcType hty
-  -- `call x`, the only step
-  have hs₁ : Step (SingleThreaded.profile o) host
-      ⟨s₁, f₁, vals stk₁.reverse ++ .plain (.call x) :: rest⟩
-      ⟨s₁, f₁, vals stk₁.reverse ++ ([.ref (.func a), .callRefType fi.type] ++ rest)⟩ := by
-    simpa using Silmaril.Wasm.Logic.Core.Step.ctx (P := SingleThreaded.profile o) (host := host)
-      stk₁.reverse rest (Step.call hx hf)
-  obtain ⟨n₁, rfl, hrun₁⟩ := stepsN_unique (fun c₁ h => call_step_unique hfi h) hs₁ hrun hend
   -- `call_ref`, the only step, enters the frame
   have hp' : ps'.length ≤ stk₁.length := by omega
   have hs₂ : Step (SingleThreaded.profile o) host
@@ -246,6 +238,48 @@ theorem back_call_wasm {o : SingleThreaded.GrowOracle} {n : Nat} {s₁ : Store H
     have := stepsN_of_stuck hstk hk
     subst this
     exact hpe
+
+
+/-- **The backward case of a direct call of a Wasm function**, deterministic
+profile: `call x` is the only step, then `back_callRef_wasm`. -/
+theorem back_call_wasm {o : SingleThreaded.GrowOracle} {n : Nat} {s₁ : Store H} {f₁ : Frame}
+    {stk₁ : List Val} {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func}
+    {ps rs : List Validation.CValType} {rest : List Admin} {c : Config H}
+    (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hp : ps.length ≤ stk₁.length)
+    (hrun : StepsN (SingleThreaded.profile o) host n
+      ⟨s₁, f₁, vals stk₁.reverse ++ .plain (.call x) :: rest⟩ c)
+    (hend : ∀ c', ¬ Step (SingleThreaded.profile o) host c c')
+    (ihbody : ∀ m < n, ∀ cb, StepsN (SingleThreaded.profile o) host m
+        ⟨s₁, Interp.calleeFrame fi fn stk₁ ps.length,
+          vals ([] : List Val).reverse ++
+            expression (Binaryen.BExpr.lowerList (Binaryen.liftInstrs fn.body))⟩ cb →
+      (∀ c', ¬ Step (SingleThreaded.profile o) host cb c') →
+      BackOut host s₁ (Interp.calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body) cb)
+    (hret : ∀ r, EvalH host s₁ (Interp.calleeFrame fi fn stk₁ ps.length) []
+        (Binaryen.liftInstrs fn.body) r →
+      (∀ vs, r.2.2.retVals = some vs →
+        rs.length ≤ vs.length ∧ ∀ ws, r.2.2 = .normal ws → ws.length = rs.length) ∧
+      (r.2.2.retVals = none → r.2.2 = .trap)) :
+    Pending host c.store c.code ∨
+      ∃ s₂ fl, hostCall host s₁ a (stk₁.take ps.length).reverse (s₂, fl) ∧
+        ((∃ vs m, m < n ∧ fl.retVals = some vs ∧
+            StepsN (SingleThreaded.profile o) host m
+              ⟨s₂, f₁, vals (vs.take rs.length ++ stk₁.drop ps.length).reverse ++ rest⟩ c) ∨
+          (fl = .trap ∧ EndsAs (s₂, f₁, .trap) c)) := by
+  obtain ⟨hx, hf⟩ := Interp.func?_inv hfi
+  have hs₁ : Step (SingleThreaded.profile o) host
+      ⟨s₁, f₁, vals stk₁.reverse ++ .plain (.call x) :: rest⟩
+      ⟨s₁, f₁, vals stk₁.reverse ++ ([.ref (.func a), .callRefType fi.type] ++ rest)⟩ := by
+    simpa using Silmaril.Wasm.Logic.Core.Step.ctx (P := SingleThreaded.profile o) (host := host)
+      stk₁.reverse rest (Step.call hx hf)
+  obtain ⟨n₁, rfl, hrun₁⟩ := stepsN_unique (fun c₁ h => call_step_unique hfi h) hs₁ hrun hend
+  rcases back_callRef_wasm hf hcode hty hp hrun₁ hend
+      (fun m hm cb h hs => ihbody m (by omega) cb h hs) hret with hp' |
+    ⟨s₂, fl, hcall, ⟨vs, m, hm, hvs, hk⟩ | htr⟩
+  · exact .inl hp'
+  · exact .inr ⟨s₂, fl, hcall, .inl ⟨vs, m, by omega, hvs, hk⟩⟩
+  · exact .inr ⟨s₂, fl, hcall, .inr htr⟩
 
 /-- **A direct call, as a tree**, for any callee: the arguments by `back_op_args`,
 the call by `hcase` (`back_call_host` for a host function, `back_call_wasm` for a

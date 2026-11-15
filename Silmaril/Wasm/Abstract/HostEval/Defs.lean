@@ -90,4 +90,18 @@ def BackOut (host : HostSemantics H) (s : Store H) (f : Frame) (stk : List Val)
     (es : List BExpr) (c : Config H) : Prop :=
   (∃ r, EvalH host s f stk es r ∧ EndsAs r c) ∨ Pending host c.store c.code
 
+/-- **A pending host call the host may diverge on** somewhere in the code, under
+values and labels or frames: the `hostDiv` observation, seen in Core. -/
+inductive PendingDiv (host : HostSemantics H) (s : Store H) : List Admin → Prop where
+  | call {ws us : List Val} {a : Nat} {fi : FuncInst H} {hh : H}
+      {ps rs : Validation.Ty (.list .val)} {rest : List Admin}
+      (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh)
+      (he : Validation.Expand fi.type (.func ps rs)) (hn : us.length = ps.length)
+      (hdiv : host hh s us .diverged) :
+      PendingDiv host s (vals ws ++ vals us ++ .ref (.func a) :: .callRefType fi.type :: rest)
+  | label {ws : List Val} {n : Nat} {cont : List Instr} {es rest : List Admin} :
+      PendingDiv host s es → PendingDiv host s (vals ws ++ .label n cont es :: rest)
+  | frame {ws : List Val} {n : Nat} {F : Frame} {es rest : List Admin} :
+      PendingDiv host s es → PendingDiv host s (vals ws ++ .frame n F es :: rest)
+
 end Silmaril.Wasm.Abstract

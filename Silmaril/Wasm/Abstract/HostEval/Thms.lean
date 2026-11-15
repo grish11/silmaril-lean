@@ -8,6 +8,8 @@ import Silmaril.Proofs.Wasm.Abstract.HostEval.Basic
 import Silmaril.Proofs.Wasm.Abstract.HostEval.Backward
 import Silmaril.Proofs.Wasm.Abstract.HostEval.CallWasm
 import Silmaril.Proofs.Wasm.Abstract.HostEval.Whole
+import Silmaril.Proofs.Wasm.Abstract.HostEval.Obs
+import Silmaril.Proofs.Wasm.Abstract.HostEval.Invoke
 
 /-!
 # The native semantics with host calls: theorems (stage H2)
@@ -114,8 +116,21 @@ above, their hypotheses discharged from the forward simulation
 (`Interp.evalH_good`: `FlowOk`, `EvalInv`, and Core runs carrying typing), typed
 native progress and the host slice. Nothing is claimed for other profiles.
 
-**Not yet proved.** Host divergence and blocking as whole-run observations, and
-an invocation-level form.-/
+**The host observations in Core.** `pending_stuck`: a configuration at a blocked
+host call (`Pending`) has no step, in any frame and profile, so `blocked` is Core
+stuckness. `stuck_iff` (deterministic profile): for typed native code, the stuck
+ends of a Core run are exactly the ends of `EvalH` runs and the blocked host calls.
+`pendingDiv_diverges`: at a pending call the host may diverge on (`PendingDiv`),
+Core diverges by stuttering at the call, in any frame and profile, so `hostDiv` is
+Core divergence.
+
+**Invocations** (`back_invoke`, deterministic profile): a Core run of a typed
+invocation `invoke s a vs` (`StoreOk`, `InvokeOk`, functions passing the check)
+to a stuck end is blocked at a host call, or ends exactly as a native answer
+`hostCall host s a vs (s₂, fl)` does: the callee's results, or a trap, in `s₂`.
+
+**Not yet proved.** The commuting square with the eventful-body observations
+(`HostRun.hostObs`), and other profiles.-/
 
 public section
 
@@ -450,5 +465,47 @@ theorem back_whole_steps {o : SingleThreaded.GrowOracle} (hT : HostTyped host)
     BackOut host s f stk es c := by
   obtain ⟨n, hn⟩ := stepsN_of_steps hrun
   exact back_whole hT hH hS hc ht hn hend
+
+/-- **A blocked host call is stuck**, in any frame and profile. -/
+theorem pending_stuck {P : Silmaril.Wasm.Numerics.Profile} {s : Store H} {es : List Admin}
+    (hp : Pending host s es) (f : Frame) (c : Config H) : ¬ Step P host ⟨s, f, es⟩ c :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.pending_stuck hp f c
+
+/-- **A host call the host may diverge on makes Core diverge**, in any frame and profile. -/
+theorem pendingDiv_diverges {P : Silmaril.Wasm.Numerics.Profile} {s : Store H} {f : Frame}
+    {es : List Admin} (hp : PendingDiv host s es) : Diverges P host ⟨s, f, es⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.pendingDiv_diverges hp
+
+/-- The end of a native run is stuck. -/
+theorem endsAs_stuck {P : Silmaril.Wasm.Numerics.Profile} {r : Store H × Frame × Binaryen.Flow}
+    {c : Config H} (h : EndsAs r c) : ∀ c', ¬ Step P host c c' :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.endsAs_stuck h
+
+/-- **The stuck ends of a Core run of typed native code** (deterministic profile):
+exactly the ends of `EvalH` runs and the blocked host calls. -/
+theorem stuck_iff {o : SingleThreaded.GrowOracle} (hT : HostTyped host)
+    (hH : Interp.NativeHostSlice host) {n : Nat} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List Binaryen.BExpr} {labels : List Nat} {ret : Nat} {out : Option Nat} {c : Config H}
+    (hS : Interp.StoreChk s.funcs)
+    (hc : Interp.chk s.funcs f.module f.locals.length ret labels (some stk.length) es = some out)
+    (ht : Sim.ContextTyped ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩)
+    (hrun : StepsN (SingleThreaded.profile o) host n
+      ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ c) :
+    (∀ c', ¬ Step (SingleThreaded.profile o) host c c') ↔ BackOut host s f stk es c :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.stuck_iff hT hH hS hc ht hrun
+
+/-- **The backward simulation of an invocation** (deterministic profile). -/
+theorem back_invoke {o : SingleThreaded.GrowOracle} (hT : HostTyped host)
+    (hH : Interp.NativeHostSlice host) {n : Nat} {s : Store H} {a : Nat} {vs : List Val}
+    {c : Config H} (hs : StoreOk s) (hS : Interp.StoreChk s.funcs) (hok : InvokeOk s a vs)
+    (hrun : StepsN (SingleThreaded.profile o) host n (invoke s a vs) c)
+    (hend : ∀ c', ¬ Step (SingleThreaded.profile o) host c c') :
+    Pending host c.store c.code ∨
+      ∃ (fi : FuncInst H) (ps rs : List Validation.CValType) (s₂ : Store H) (fl : Binaryen.Flow),
+        s.funcs[a]? = some fi ∧ Validation.DefType.funcType? fi.type = some (ps, rs) ∧
+        hostCall host s a vs (s₂, fl) ∧
+        ((∃ ws, fl.retVals = some ws ∧ c = ⟨s₂, {}, vals (ws.take rs.length).reverse⟩) ∨
+          (fl = .trap ∧ c = ⟨s₂, {}, [.trap]⟩)) :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.back_invoke hT hH hs hS hok hrun hend
 
 end Silmaril.Wasm.Abstract
