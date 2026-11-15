@@ -264,4 +264,176 @@ theorem advance_core {body : Expr} {b : BlockId} {c : List Instr} {stk stk₁ : 
         left
         exact Relation.TransGen.trans_right h1 (h3 (by simp [hq]))
 
+
+open Silmaril.Wasm.Cfg.Proofs.Machine in
+/-- The code at a sequence position runs in Core to the code of the state `goto (entry …)`
+lands on (the block there, or the continuation of a finished sequence). -/
+theorem entry_core {body : Expr} {q : List SeqStep} {c : List Instr} {i : Nat}
+    {ls : List LFrame} {W : List Val} {s : Store H} {f : Frame} {Z Y : List Admin}
+    (hc : seqAt body q = some c)
+    (hZ : wrap body q.reverse ls (vals W ++ expression (restAt c i)) = some Z)
+    (hY : codeOf body (goto (entry body q i) q.length ls W s f) = some Y) :
+    Steps P host ⟨s, f, Z⟩ ⟨s, f, Y⟩ := by
+  unfold entry at hY
+  split at hY
+  · simp [goto, depthT, popL, codeOf, codeAt, hc] at hY
+    rw [hY] at hZ; cases hZ; exact .refl
+  · rename_i hl
+    rw [restAt_none hc (by simpa using hl)] at hZ
+    exact (cont_core (P := P) (host := host) q.reverse ls W (by simpa [expression] using hZ)
+      (by simpa [cont] using hY)).1
+
+theorem labelPred_toNat (x : LabelIdx) : (labelPred x).toNat = x.toNat - 1 := rfl
+
+
+theorem kind_loop_false' {t : Instr} {bt : BlockType} {lp : Bool} {cs : List Catch}
+    (h : StructKind t bt lp true cs) : lp = false := by
+  cases h; rfl
+
+open Silmaril.Wasm.Cfg.Proofs.Machine in
+/-- **A branch is a Core run of at least one step** to the code of the state the machine's
+branch steps go to: `br-label-succ`/`br-handler` leave the frames below the target, carrying
+the frames' outer values (`brVals`), and `br-label-zero` (with `handler-vals`, and Core's
+`loop` rule for a `loop` label) ends at the target. -/
+theorem br_core {body : Expr} {s : Store H} {f : Frame} :
+    ∀ (k : Nat) (rp : List SeqStep) (ls : List LFrame) {U : List Val} {rest X Y : List Admin}
+      {L : LFrame} {x : LabelIdx}, x.toNat = k →
+      wrap body rp ls (vals U ++ .plain (.br x) :: rest) = some X → FramesOk body rp ls →
+      ls[k]? = some L → L.arity ≤ (brVals k ls U).length →
+      (L.loop = true → ∃ t₁ t₂, f.module.blockType? L.bt = some (t₁, t₂) ∧ t₁.length = L.arity) →
+      codeOf body (if L.loop then
+          goto ((labelsRev body rp).getD k .invalid) (rp.length - k) (L :: ls.drop (k + 1))
+            (topVals L.arity (brVals k ls U)) s f
+        else
+          goto ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1)) (ls.drop (k + 1))
+            (L.outer ++ topVals L.arity (brVals k ls U)) s f) = some Y →
+      Relation.TransGen (Step P host) ⟨s, f, X⟩ ⟨s, f, Y⟩
+  | _, [], [], _, _, _, _, _, _, _, _, _, hL, _, _, _ => by simp at hL
+  | _, [], _ :: _, _, _, _, _, _, _, _, _, hok, _, _, _, _ => by simp [FramesOk] at hok
+  | _, _ :: _, [], _, _, _, _, _, _, _, _, _, hL, _, _, _ => by simp at hL
+  | k, (m, a) :: rp, L₀ :: ls, U, rest, X, Y, L, x, hx, hX, hok, hL, har, hlbt, hY => by
+    have hok0 := hok
+    obtain ⟨⟨pc, sg, t, c', hpc, hsg, ht, harm', hkind'⟩, hok'⟩ := hok
+    have hX0 := hX
+    simp only [wrap, hpc, hsg, ht, Option.bind_eq_bind, Option.bind_some] at hX0
+    set R := expression (restAt pc (m + 1)) with hR
+    cases k with
+    | zero =>
+      simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
+      subst hL
+      simp only [brVals] at har hY
+      set U₂ := topVals L₀.arity U with hU₂
+      have hsplit : vals U = vals (U.take (U.length - L₀.arity)) ++ vals U₂ := by
+        rw [← vals_append, hU₂, topVals, List.take_append_drop]
+      have hn : U₂.length = L₀.arity := by simp [hU₂, topVals]; omega
+      have hz : Step P host
+          ⟨s, f, [.label L₀.arity (if L₀.loop then [t] else []) (vals U ++ .plain (.br x) :: rest)]⟩
+          ⟨s, f, vals U₂ ++ expression (if L₀.loop then [t] else [])⟩ := by
+        have := Step.brLabelZero (P := P) (host := host) (s := s) (f := f) (n := L₀.arity)
+          (cont := if L₀.loop then [t] else []) (vs' := U.take (U.length - L₀.arity))
+          (vs := U₂) (l := x) (rest := rest) hx hn
+        simpa [hsplit, List.append_assoc] using this
+      have hframe : Relation.TransGen (Step P host)
+          ⟨s, f, [if L₀.tryT then Admin.handler L₀.arity L₀.catches
+            [.label L₀.arity (if L₀.loop then [t] else []) (vals U ++ .plain (.br x) :: rest)]
+            else .label L₀.arity (if L₀.loop then [t] else []) (vals U ++ .plain (.br x) :: rest)]⟩
+          ⟨s, f, vals U₂ ++ expression (if L₀.loop then [t] else [])⟩ := by
+        cases hT : L₀.tryT
+        · simpa using Relation.TransGen.single hz
+        · have hlp : L₀.loop = false := by rw [hT] at hkind'; exact kind_loop_false' hkind'
+          simp only [hlp, Bool.false_eq_true, ↓reduceIte, expression, List.map_nil,
+            List.append_nil] at hz ⊢
+          exact .head (Step.ctxtHandler hz) (.single .handlerVals)
+      have h1 := trans_in (P := P) (host := host) L₀.outer R hframe
+      have hlev := levelLoop_of_framesOk (L := L₀) 0 ((m, a) :: rp) (L₀ :: ls) hok0 (by simp)
+      simp only [levelLoop, List.drop_zero] at hlev
+      cases hlp : L₀.loop
+      · simp only [hlp, Bool.false_eq_true, ↓reduceIte, expression, List.map_nil,
+          List.append_nil] at h1 hY hX0
+        cases hw : wrap body rp ls (vals (L₀.outer ++ U₂) ++ R) with
+        | none =>
+          have := (wrap_isSome body rp ls (vals (L₀.outer ++ U₂) ++ R) _).trans
+            (congrArg Option.isSome hX0)
+          rw [hw] at this; simp at this
+        | some Z =>
+          have h2 := wrap_trans (P := P) (host := host) rp ls hX0 hw
+            (by simpa [List.append_assoc] using h1)
+          simp only [labelsRev, hlev, hlp, Bool.false_eq_true, ↓reduceIte,
+            List.getD_cons_zero, List.length_cons, Nat.add_sub_cancel, List.drop_one,
+            List.tail_cons] at hY
+          rw [show contRev body ((m, a) :: rp) = entry body rp.reverse (m + 1) by
+            simp [contRev, entry, cont]] at hY
+          have h3 := entry_core (P := P) (host := host) (q := rp.reverse) (i := m + 1)
+            (W := L₀.outer ++ U₂) hpc (by rw [List.reverse_reverse]; exact hw)
+            (by simpa using hY)
+          exact Relation.TransGen.trans_left h2 h3
+      · obtain ⟨cb, rfl, hT, -⟩ := Proofs.Machine.structKind_loop (hlp ▸ hkind')
+        have ha : a = 0 := by rcases a with _ | _ | a <;> simp_all [armOf]
+        subst ha
+        obtain ⟨t₁, t₂, hbt, hlen⟩ := hlbt hlp
+        simp only [hlp, hT, ↓reduceIte, Bool.false_eq_true] at h1 hY hX0
+        have hloop : Step P host ⟨s, f, vals U₂ ++ [.plain (.loop L₀.bt cb)]⟩
+            ⟨s, f, [.label L₀.arity [.loop L₀.bt cb] (vals U₂ ++ expression cb)]⟩ := by
+          simpa [hlen] using Step.loop (P := P) (host := host) (s := s) (f := f)
+            (body := cb) hbt (by rw [hn, hlen])
+        have h1' := Relation.TransGen.tail h1 (Proofs.Region.step_in L₀.outer R hloop)
+        have hq : seqAt body (rp.reverse ++ [(m, 0)]) = some cb := by
+          rw [seqAt_append]; simp [hpc, hsg, ht, armOf]
+        have hweq : wrap body ((m, 0) :: rp) (L₀ :: ls) (vals U₂ ++ expression (restAt cb 0)) =
+            wrap body rp ls (vals L₀.outer ++
+              .label L₀.arity [.loop L₀.bt cb] (vals U₂ ++ expression cb) :: R) := by
+          simp [wrap, hpc, hsg, ht, hT, hlp, restAt_zero, hR]
+        cases hw : wrap body rp ls (vals L₀.outer ++
+              .label L₀.arity [.loop L₀.bt cb] (vals U₂ ++ expression cb) :: R) with
+        | none =>
+          have := (wrap_isSome body rp ls (vals L₀.outer ++
+              .label L₀.arity [.loop L₀.bt cb] (vals U₂ ++ expression cb) :: R) _).trans
+            (congrArg Option.isSome hX0)
+          rw [hw] at this; simp at this
+        | some Z =>
+          have h2 := wrap_trans (P := P) (host := host) rp ls hX0 hw
+            (by simpa [List.append_assoc] using h1')
+          have hil : isLoopAt body rp.reverse m = true := hlev.trans hlp
+          simp only [labelsRev, hil, ↓reduceIte, List.getD_cons_zero, List.length_cons,
+            Nat.sub_zero, List.drop_one, List.tail_cons] at hY
+          have h3 := entry_core (P := P) (host := host) (q := rp.reverse ++ [(m, 0)]) (i := 0)
+            (ls := L₀ :: ls) (W := U₂) hq (by simpa [hweq] using hw) (by simpa using hY)
+          exact Relation.TransGen.trans_left h2 h3
+    | succ k =>
+      simp only [List.getElem?_cons_succ] at hL
+      have hx0 : 0 < x.toNat := by omega
+      have hx' : (labelPred x).toNat = k := by simp [labelPred_toNat, hx]
+      have hz : Step P host
+          ⟨s, f, [.label L₀.arity (if L₀.loop then [t] else []) (vals U ++ .plain (.br x) :: rest)]⟩
+          ⟨s, f, vals U ++ [.plain (.br (labelPred x))]⟩ := by
+        simpa [List.append_assoc] using Step.brLabelSucc (P := P) (host := host) (s := s) (f := f)
+          (n := L₀.arity) (cont := if L₀.loop then [t] else []) (vs := U) (rest := rest) hx0
+      have hframe : Relation.TransGen (Step P host)
+          ⟨s, f, [if L₀.tryT then Admin.handler L₀.arity L₀.catches
+            [.label L₀.arity (if L₀.loop then [t] else []) (vals U ++ .plain (.br x) :: rest)]
+            else .label L₀.arity (if L₀.loop then [t] else []) (vals U ++ .plain (.br x) :: rest)]⟩
+          ⟨s, f, vals U ++ [.plain (.br (labelPred x))]⟩ := by
+        cases L₀.tryT
+        · simpa using Relation.TransGen.single hz
+        · have hb := Step.brHandler (P := P) (host := host) (s := s) (f := f)
+            (n := L₀.arity) (cs := L₀.catches) (vs := U) (l := labelPred x) (rest := [])
+          simp only [List.append_nil] at hb
+          exact .head (Step.ctxtHandler hz) (.single hb)
+      have h1 := trans_in (P := P) (host := host) L₀.outer R hframe
+      cases hw : wrap body rp ls (vals (L₀.outer ++ U) ++ .plain (.br (labelPred x)) :: R) with
+      | none =>
+        have := (wrap_isSome body rp ls (vals (L₀.outer ++ U) ++ .plain (.br (labelPred x)) :: R)
+          _).trans (congrArg Option.isSome hX0)
+        rw [hw] at this; simp at this
+      | some Z =>
+        have h2 := wrap_trans (P := P) (host := host) rp ls hX0 hw
+          (by simpa [List.append_assoc] using h1)
+        have hY' := hY
+        simp only [labelsRev, List.getD_cons_succ, List.length_cons, List.drop_succ_cons,
+          brVals] at hY'
+        rw [show rp.length + 1 - (k + 1 + 1) = rp.length - (k + 1) by omega,
+          show rp.length + 1 - (k + 1) = rp.length - k by omega] at hY'
+        exact Relation.TransGen.trans_left h2 (br_core k rp ls hx' hw hok' hL
+          (by simpa [brVals] using har) hlbt hY').to_reflTransGen
+
 end Silmaril.Wasm.Cfg.Proofs.MachineCore
