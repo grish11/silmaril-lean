@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.ExposeP.Defs
 public import Silmaril.Wasm.Abstract.BodyTrace.Defs
 import Silmaril.Proofs.Wasm.Abstract.ExposeP.Frame
+import Silmaril.Proofs.Wasm.Abstract.ExposeP.Legacy
 
 /-!
 # The exposed body of the relation with pending tail calls: theorems
@@ -25,7 +26,10 @@ Exactness:
 * so `evalOXP_iff` (non-trap results, pending tail calls included) and `evalOXP_trap_iff`;
 * the frame: `bodyCallXP_path`, `path_bodyCallXP`, and so `bodyCallXP_iff` and
   `bodyCallXP_trap_iff`: `CallXP.bodyCallXP C` is exactly the finished answered paths of
-  `frameXP`, whose events are the body's and then the pending tail call's, made at the frame.
+  `frameXP`, whose events are the body's and then the pending tail call's, made at the frame;
+* `denListXP_eq_liftP`: on code without the extended call forms (`CallX.xFreeL`) the body is
+  `ExposeE.denListXE`'s, its flows read as body results (`liftP`), as
+  `CallXP.evalOXP_iff_evalOXE` says of the relations.
 
 A trap is the trap effect of the monad, so it forgets its store (`endRP`, `endF`), as in
 `ExposeE.evalOXE_trap_iff`.
@@ -38,7 +42,7 @@ namespace Silmaril.Wasm.Abstract.ExposeP
 open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core
 open Silmaril.Wasm.Abstract (CallRel)
 open Silmaril.Wasm.Abstract.StoreBody Silmaril.Wasm.Abstract.StoreCall
-open Silmaril.Wasm.Abstract.CallX Silmaril.Wasm.Abstract.CallXP
+open Silmaril.Wasm.Abstract.CallX Silmaril.Wasm.Abstract.CallXP Silmaril.Wasm.Abstract.ExposeE
 open Silmaril.Wasm.Abstract.BodyTrace (Path PathEnd)
 open Silmaril.Games.Abstract (Call)
 
@@ -116,5 +120,12 @@ theorem bodyCallXP_trap_iff {C : CallRel H} {s : Store H} {a : Nat} {args : List
         Path (((frameXP a args : M (CallSig H) H (ULift.{1} Flow)).run ⟨s⟩).run) cs
           (.val (.error ⟨⟩)) :=
   Silmaril.Proofs.Wasm.Abstract.ExposeP.bodyCallXP_trap_iff
+
+/-- **Legacy coincidence.** On code without the extended call forms, the exposed body with pending
+tail calls is `ExposeE`'s, read with body results. -/
+theorem denListXP_eq_liftP {es : List BExpr} (h : xFreeL es = true) (f : Frame)
+    (stk : List Val) :
+    (denListXP (H := H) es f stk : M (CallSig H) H ResP) = liftP (denListXE es f stk) :=
+  congrFun (congrFun (Silmaril.Proofs.Wasm.Abstract.ExposeP.denListXP_eq_liftP es h) f) stk
 
 end Silmaril.Wasm.Abstract.ExposeP
