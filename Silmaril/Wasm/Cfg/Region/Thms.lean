@@ -9,6 +9,7 @@ import Silmaril.Proofs.Wasm.Cfg.RegionBlocks
 import Silmaril.Proofs.Wasm.Cfg.RegionTail
 import Silmaril.Proofs.Wasm.Cfg.CallTransport
 import Silmaril.Proofs.Wasm.Cfg.RegionTailRes
+import Silmaril.Proofs.Wasm.Cfg.CtxSplit
 public import Silmaril.Wasm.Abstract.CallX.Defs
 
 @[expose] public section
@@ -271,5 +272,50 @@ theorem catches_total (s : Store H) (f : Frame) (a : Nat) (cs : List Catch) :
 theorem catches_unique {a : Nat} {cs : List Catch} {r r' : Option (List Val × LabelIdx)}
     (h : Catches s f a cs r) (h' : Catches s f a cs r') : r = r' :=
   Proofs.Region.catches_unique h h'
+
+/-! ## Runs through a context in a sequence -/
+
+/-- **The first exit of a frame in a sequence** (every profile and host): a Core run of
+`vals ws ++ FRAME_n{F} X :: rest` to a code with no `FRAME_n` at its top first runs `X` alone, in
+its own frame, then leaves the frame by a Core exit rule (`FrameExit`), and the sequence
+continues from `vals ws ++ out ++ rest`. -/
+theorem frame_seq_exit {ws : List Val} {n : Nat} {F : Frame} {X rest : List Admin}
+    {c' : Config H} (h : Steps P host ⟨s, f, vals ws ++ .frame n F X :: rest⟩ c')
+    (hfin : ∀ F' X', Admin.frame n F' X' ∉ c'.code) :
+    ∃ (s₁ : Store H) (F₁ : Frame) (X₁ out : List Admin),
+      Steps P host ⟨s, F, X⟩ ⟨s₁, F₁, X₁⟩ ∧ FrameExit s₁ F₁ n X₁ out ∧
+      Steps P host ⟨s₁, f, vals ws ++ out ++ rest⟩ c' :=
+  Proofs.Region.frame_seq_exit h s f F X rfl hfin
+
+/-- **The first exit of a handler in a sequence** (`HandlerExit`, catching included). -/
+theorem handler_seq_exit {ws : List Val} {n : Nat} {cs : List Catch} {X rest : List Admin}
+    {c' : Config H} (h : Steps P host ⟨s, f, vals ws ++ .handler n cs X :: rest⟩ c')
+    (hfin : ∀ X', Admin.handler n cs X' ∉ c'.code) :
+    ∃ (s₁ : Store H) (f₁ : Frame) (X₁ out : List Admin),
+      Steps P host ⟨s, f, X⟩ ⟨s₁, f₁, X₁⟩ ∧ HandlerExit s₁ f₁ n cs X₁ out ∧
+      Steps P host ⟨s₁, f₁, vals ws ++ out ++ rest⟩ c' :=
+  Proofs.Region.handler_seq_exit h s f X rfl hfin
+
+/-- **The first exit of a label in a sequence** (`LabelExit`). -/
+theorem label_seq_exit {ws : List Val} {n : Nat} {cont : List Instr} {X rest : List Admin}
+    {c' : Config H} (h : Steps P host ⟨s, f, vals ws ++ .label n cont X :: rest⟩ c')
+    (hfin : ∀ X', Admin.label n cont X' ∉ c'.code) :
+    ∃ (s₁ : Store H) (f₁ : Frame) (X₁ out : List Admin),
+      Steps P host ⟨s, f, X⟩ ⟨s₁, f₁, X₁⟩ ∧ LabelExit n cont X₁ out ∧
+      Steps P host ⟨s₁, f₁, vals ws ++ out ++ rest⟩ c' :=
+  Proofs.Region.label_seq_exit h s f X rfl hfin
+
+/-- **A frame in a sequence runs to a result, or leaves by a tail call**: the frame alone runs
+in the outer frame to a result `r` and the sequence continues from `vals ws ++ r ++ rest`, or it
+is left by `return_call_ref-frame-addr` to a `call_ref` of `a` on `args`. -/
+theorem frame_seq_result {ws : List Val} {n : Nat} {F : Frame} {X rest : List Admin}
+    {c' : Config H} (h : Steps P host ⟨s, f, vals ws ++ .frame n F X :: rest⟩ c')
+    (hfin : ∀ F' X', Admin.frame n F' X' ∉ c'.code) :
+    (∃ (s₁ : Store H) (r : Result), Steps P host ⟨s, f, [.frame n F X]⟩ ⟨s₁, f, r.toAdmin⟩ ∧
+        Steps P host ⟨s₁, f, vals ws ++ r.toAdmin ++ rest⟩ c') ∨
+      ∃ (s₁ : Store H) (args : List Val) (a : Nat) (c : Admin), c.IsCallRef ∧
+        Steps P host ⟨s, f, [.frame n F X]⟩ ⟨s₁, f, vals args ++ [.ref (.func a), c]⟩ ∧
+        Steps P host ⟨s₁, f, vals ws ++ (vals args ++ [.ref (.func a), c]) ++ rest⟩ c' :=
+  Proofs.Region.frame_seq_result h hfin
 
 end Silmaril.Wasm.Cfg.Region
