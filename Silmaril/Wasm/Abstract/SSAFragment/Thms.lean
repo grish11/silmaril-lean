@@ -155,4 +155,25 @@ theorem callEquiv_store_of_run_iff {H' : Type} {x : CallSite H} {y : CallSite H'
   ⟨callEquiv_of_run_iff hx hy hinv hrun, fun P _ hok _ _ _ hm => hx.ret_store hok P hm,
     fun P vs hok _ _ _ hm => hy.ret_store (hinv vs hok) P hm⟩
 
+/-- **Certified optimisations are store-preserving call equivalences.** If the
+checked λSSA optimiser accepts function `g` of `m` with replacement `bf'`, then
+in the allocated stores of `m` and of the replaced module, `g` has the same
+Core 3.0 behaviours on every typed invocation, every profile, divergence
+included, and in both stores every return leaves the store unchanged. -/
+theorem optimize_callEquiv_store {m : BModule} {g : Nat} {bf' : BFunc}
+    (h : optimizeFuncCoreChecked m g = some bf') :
+    ∃ s s' : Store Empty, allocStore? m = some s ∧ allocStore? (m.setFunc g bf') = some s' ∧
+      CallEquiv (⟨s, g⟩ : CallSite Empty) (⟨s', g⟩ : CallSite Empty) ∧
+      (∀ P vs, InvokeOk s g vs → ∀ c b st,
+        (c, Silmaril.Games.Abstract.End.ret b st) ∈ wasmFun P closedHost g s vs → st = s) ∧
+      (∀ P vs, InvokeOk s g vs → ∀ c b st,
+        (c, Silmaril.Games.Abstract.End.ret b st) ∈ wasmFun P closedHost g s' vs → st = s') := by
+  obtain ⟨bf, ft, f, f', s, s', hs, hs', ⟨h₁, h₂, h₃, h₄⟩, ⟨h₁', h₂', h₃', h₄'⟩, hf, hn, hst,
+    hf', hn', hst', hinv, hrun⟩ := coreChecked_sites h
+  have hx : IsFragmentSite (⟨s, g⟩ : CallSite Empty) ft bf f := ⟨h₁, h₂, h₃, h₄, hf, hn, hst⟩
+  have hy : IsFragmentSite (⟨s', g⟩ : CallSite Empty) ft bf' f' :=
+    ⟨h₁', h₂', h₃', h₄', hf', hn', hst'⟩
+  obtain ⟨he, hrx, hry⟩ := callEquiv_store_of_run_iff hx hy hinv hrun
+  exact ⟨s, s', hs, hs', he, hrx, hry⟩
+
 end Silmaril.Wasm.Abstract
