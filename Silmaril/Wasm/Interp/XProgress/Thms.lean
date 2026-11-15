@@ -3,6 +3,7 @@ module
 public import Silmaril.Proofs.Wasm.Interp.XClassify
 public import Silmaril.Proofs.Wasm.Interp.XIndRes
 public import Silmaril.Proofs.Wasm.Interp.XNoOutcome
+public import Silmaril.Proofs.Wasm.Interp.XDivIff
 
 /-!
 # Typed progress for the extended semantics: theorems
@@ -24,9 +25,19 @@ Facts towards the converse (Core → `EvalOX`) for the new call forms:
   `bad_le_evalDiv`, by coinduction (`badX_step`); typing rules out every way of getting stuck.
   `WasmFuncsT` is necessary: with the closed host, a host callee has neither an outcome nor a
   divergence.
+
+**The converse, for invocations** (typed invocation, `tExt`-checked typed store of Wasm functions,
+every deterministic profile `profile o`):
+
+* **`invoke_diverges_iff_funDivX`**: Core 3.0 divergence is exactly `FunDivX`, the coinductive
+  divergence of the callee body in the closed extended semantics, every call form included.
+* **`invoke_terminal_closedCallX`**: a Core 3.0 run to a terminal configuration ends as a closed
+  extended outcome of the callee does (its values, or a trap).
 -/
 
 public section
+
+open Silmaril.Wasm.SingleThreaded
 
 namespace Silmaril.Wasm.Interp.XProgress
 
@@ -75,5 +86,22 @@ theorem evalDivX_of_noOutcome {s : Store H} {f : Frame} {stk : List Val}
     (hne : ¬ ∃ r, Abstract.CallX.EvalOX Abstract.XRecursion.closedCallX s f stk es r) :
     Abstract.XDiverge.EvalDivX s f stk es :=
   Silmaril.Wasm.Interp.evalDivX_of_noOutcome ht hW hne
+
+/-- **Core 3.0 divergence is extended divergence, both ways.** -/
+theorem invoke_diverges_iff_funDivX {o : GrowOracle} {s : Store H} {a : Nat} {vs : List Val}
+    (hs : StoreOk s) (hok : InvokeOk s a vs) (hS : StoreChkE tExt s.funcs) (hW : WasmFuncsT s) :
+    Diverges (profile o) noHostX (invoke s a vs) ↔ Abstract.XDiverge.FunDivX s a vs :=
+  Silmaril.Wasm.Interp.invoke_diverges_iff_funDivX hs hok hS hW
+
+/-- **Completeness for terminating runs.** -/
+theorem invoke_terminal_closedCallX {o : GrowOracle} {s : Store H} {a : Nat} {vs : List Val}
+    {fi : FuncInst H} {ps rs : List Validation.CValType} {c' : Config H}
+    (hs : StoreOk s) (hok : InvokeOk s a vs) (hS : StoreChkE tExt s.funcs) (hW : WasmFuncsT s)
+    (hfi : s.funcs[a]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hst : Steps (profile o) noHostX (invoke s a vs) c') (hterm : c'.Terminal) :
+    ∃ (s₂ : Store H) (fl : Binaryen.Flow), Abstract.XRecursion.closedCallX s a vs (s₂, fl) ∧
+      ((∃ ws, fl.retVals = some ws ∧ c' = ⟨s₂, {}, vals (ws.take rs.length).reverse⟩) ∨
+        (fl = .trap ∧ c' = ⟨s₂, {}, [.trap]⟩)) :=
+  Silmaril.Wasm.Interp.invoke_terminal_closedCallX hs hok hS hW hfi hty hst hterm
 
 end Silmaril.Wasm.Interp.XProgress
