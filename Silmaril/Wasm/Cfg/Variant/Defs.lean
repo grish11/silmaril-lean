@@ -92,4 +92,34 @@ def handlersRev (body : Expr) : List SeqStep → List Target
 caller) unless a `catch_all` intervenes. -/
 def raiseHandlers (body : Expr) (p : List SeqStep) : List Target := handlersRev body p.reverse
 
+/-! ## Maximal basic blocks: contracting eligible fallthrough
+
+The segmentation (`Cfg.Block`) ends a block at every terminator, including the `block`,
+`loop`, `if` and `try_table` that only open a nested sequence. A *maximal* block merges such
+chains. Block `c` is merged into its predecessor `b` (`canMerge body b c`) exactly when:
+- `b`'s only AE successor is `c` (`succAE`);
+- no other block has an AE or handler edge into `c` (labels, loop heads and handler entries
+  are reached from elsewhere, so they stay block boundaries);
+- `c` is not the entry.
+
+`canMerge_succ` and `canMerge_pred` (in `Thms`) state these facts. The merge only regroups
+blocks: every member keeps its own identity, instructions and outcome positions. -/
+
+/-- The handler edges of a block: to the possible handlers of a raise it may perform. -/
+def handlerSucc (body : Expr) (b : BlockId) (s : Segment) : List Target :=
+  let raises := (match s.term with | some (.throw _) | some .throwRef => true | _ => false) ||
+    (blockEffects body b s).contains .call
+  if raises then raiseHandlers body b.seq else []
+
+/-- Every AE or handler edge into `c` comes from `b`. -/
+def onlyPred (body : Expr) (b c : BlockId) : Bool :=
+  (blocks body).all fun (b', s') =>
+    b' == b || !((succAE body b' s' ++ handlerSucc body b' s').contains (.block c))
+
+/-- **Merge eligibility**: `c` continues `b` in one maximal block. -/
+def canMerge (body : Expr) (b c : BlockId) : Bool :=
+  match lookup body b with
+  | some s => succAE body b s == [.block c] && cfgEntry body != .block c && onlyPred body b c
+  | none => false
+
 end Silmaril.Wasm.Cfg

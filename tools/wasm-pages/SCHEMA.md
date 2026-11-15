@@ -80,7 +80,20 @@ unchanged: it is the legacy **explicit-sink** graph (`cfg.model = "explicit-sink
   `Cfg.raiseHandlers`: the catch targets of enclosing `try_table`s, innermost first. It is a
   node index, `"caller"` (escapes the function), or `"unresolved"`.
 - **`cfg.bases`** of both AE variants: `"flow"` (`Cfg.EdgeAE`) and `"flow+handler"`.
-- **`cfg.default`**: `"all-effects"`, the variant the page shows first. The legacy graph stays
+- **`cfg.variants["all-effects-max"]`**: maximal basic blocks, with their own block numbering.
+  - `blocks[k]` holds `path`/`pos` of its first member, `instrs` (the members' instructions,
+    with inner terminators inline), the last member's `term`, the union of `effects`, and
+    `members`, the shared-numbering blocks it contains, in order.
+  - The variant-level `members` holds the same lists.
+  - Edges and outcomes are the AE ones mapped to the groups, without the internal fallthrough
+    edges.
+  - Chains are merged by `Cfg.canMerge`:
+    - `canMerge_succ`: the earlier block's only AE successor is the next one;
+    - `canMerge_pred`: no other AE or handler edge enters the next one, so label targets, loop
+      heads and handler entries stay boundaries;
+    - `canMerge_not_entry`.
+  - `relation` names these theorems.
+- **`cfg.default`**: `"all-effects-max"`, the variant the page shows first. The legacy graph stays
   selectable as the explicit-sink consilience view.
 
 Like the legacy graph, the AE graphs are syntactic: no theorem yet says that executions follow

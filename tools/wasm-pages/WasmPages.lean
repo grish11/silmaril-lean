@@ -361,10 +361,65 @@ def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := 
     jobj ([("id", jstr "flow+effect"), ("kinds", jarr [jstr "flow", jstr "effect"]),
       ("relation", jstr "Silmaril.Wasm.Cfg.Edge ∪ Silmaril.Wasm.Cfg.EffectEdge")] ++
       (match kernelTable with | some k => [("kernelTable", jstr k)] | none => []))])
+  -- maximal blocks: chains merged by `Cfg.canMerge` (checked only along a unique AE successor)
+  let nextOf (i : Nat) : Option Nat :=
+    match bs[i]? with
+    | some (b, s) =>
+      match Cfg.succAE body b s with
+      | [.block c] => if Cfg.canMerge body b c then
+          (match blockNode c with | some j => some j | none => none) else none
+      | _ => none
+    | none => none
+  let nexts := (List.range bs.length).map nextOf
+  let merged := nexts.filterMap id
+  let heads := (List.range bs.length).filter fun j => !merged.contains j
+  let chainOf (h : Nat) : List Nat := Id.run do
+    let mut out := [h]
+    let mut cur := h
+    for _ in [0:bs.length] do
+      match nexts.getD cur none with
+      | some j => out := out ++ [j]; cur := j
+      | none => break
+    return out
+  let groups := heads.map chainOf
+  let groupOf (i : Nat) : Nat := (groups.findIdx? (·.contains i)).getD i
+  let gTarget : Json → Json := fun j => match j with
+    | .num n => match n.mantissa.toNat? with
+      | some k => jnat (groupOf k) | none => j
+    | _ => j
+  let mapEdge (e : Json) : Option Json := match e with
+    | .arr #[.num a, t, k] =>
+      let ga := groupOf a.mantissa.toNat
+      let gt := gTarget t
+      if (match t with | .num _ => gt == jnat ga && k == jstr "flow" | _ => false) then none
+      else some (jarr [jnat ga, gt, k])
+    | _ => some e
+  let mapOutcome (o : Json) : Json := match o with
+    | .arr xs => match xs.toList with
+      | .num a :: rest => jarr (jnat (groupOf a.mantissa.toNat) :: rest.map gTarget)
+      | _ => o
+    | _ => o
+  let gBlocks := groups.map fun ms =>
+    let mem := ms.filterMap fun i => bs[i]?
+    let instrs := mem.zipIdx.flatMap fun ((_, s), k) =>
+      s.body.map (jstr ∘ instrText) ++
+        (if k + 1 < mem.length then (s.term.map (jstr ∘ instrText)).toList else [])
+    let hb : Cfg.BlockId := match mem.head? with | some (b, _) => b | none => ⟨[], 0⟩
+    jobj [("path", jstr (".".intercalate (hb.seq.map fun (m, a) => s!"{m}/{a}"))), ("pos", jnat hb.idx),
+      ("instrs", jarr instrs),
+      ("term", match mem.getLast? with | some (_, s) => (match s.term with | some t => jstr (instrText t) | none => Json.null) | none => Json.null),
+      ("effects", jarr ((mem.flatMap fun (b, s) => Cfg.blockEffects body b s).eraseDups.map (jstr ∘ effectName))),
+      ("members", jarr (ms.map jnat))]
+  let maxEdges := ((aeFlow ++ aeHandler).filterMap mapEdge).eraseDups
+  let maxBlock := jobj [("model", jstr "all-effects"), ("granularity", jstr "block"),
+    ("blocks", jarr gBlocks), ("members", jarr (groups.map fun ms => jarr (ms.map jnat))),
+    ("entry", gTarget (targetJson ids (Cfg.cfgEntry body))), ("edges", jarr maxEdges),
+    ("outcomes", jarr (aeOut.map mapOutcome).eraseDups), ("bases", aeBases),
+    ("relation", jstr "Silmaril.Wasm.Cfg.canMerge (canMerge_succ, canMerge_pred, canMerge_not_entry) over Silmaril.Wasm.Cfg.EdgeAE")]
   jobj [("model", jstr "explicit-sink"), ("entry", targetJson ids (Cfg.cfgEntry body)), ("blocks", jarr blocksJ),
         ("edges", jarr (flowJ ++ effJ)), ("bases", legacyBases),
-        ("variants", jobj [("all-effects", aeBlock), ("all-effects-instr", aeInstr)]),
-        ("default", jstr "all-effects")]
+        ("variants", jobj [("all-effects-max", maxBlock), ("all-effects", aeBlock), ("all-effects-instr", aeInstr)]),
+        ("default", jstr "all-effects-max")]
 
 /-- The block CFGs whose dominator table is Lean kernel-checked (machine documents loaded by
 `examples/project/ProjectSelfTest/WasmBlockCfg.lean`, over flow and effect edges). -/
