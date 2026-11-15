@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Interp.PendSim
+public import Silmaril.Proofs.Wasm.Interp.PendClose
 
 /-!
 # Forward simulation with pending tail calls (F5)
@@ -21,7 +22,15 @@ checker `ehExt tags`, with exceptions on, every such run of checked code is a Co
 * `CoreGoodP`: the Core run under `MatchP`;
 * `OracleSoundTE`: a call oracle sound in every `call_ref` form.
 
-Definitions in `Silmaril.Proofs.Wasm.Interp.PendSim`.
+**The closure.** `closedP tags` answers calls by `Abstract.XRecursionP.closedCallXP` on stores
+with the tag invariants (`TagsOk tags`); callee bodies may contain every call form. A callee's
+frame is left as Core leaves it: a pending tail call by `return_call_ref-label` and
+`return_call_ref-frame-addr`, the tail callee then answering in the caller's frame; a pending null
+tail call by `return_call_ref-frame-null`. By least-fixpoint induction the closure discharges
+every oracle premise (`oracleSoundTE_closedP`, `oracleThrowsE_closedP`, `oracleTagsE_closedP`),
+so closed runs are Core 3.0 runs, no oracle assumed (`evalOXP_closed_good`).
+
+Definitions in `Silmaril.Proofs.Wasm.Interp.PendSim` and `Silmaril.Proofs.Wasm.Interp.PendClose`.
 -/
 
 public section
@@ -29,7 +38,8 @@ public section
 namespace Silmaril.Wasm.Interp.PendSim
 
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core
-open Silmaril.Wasm.Interp (ehExt OracleSoundTE OracleThrowsE OracleTagsE TagsOk ArityGoodP CoreGoodP)
+open Silmaril.Wasm.Interp (ehExt OracleSoundTE OracleThrowsE OracleTagsE TagsOk ArityGoodP CoreGoodP
+  SoundAnsE closedP)
 
 variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
 
@@ -42,5 +52,36 @@ theorem evalOXP_goodP {tags : List TagInst} {C : Abstract.CallRel H}
     TagsOk tags r.1 ∧ ArityGoodP (ehExt tags) s f stk es r true ∧
       CoreGoodP (ehExt tags) P host s f stk es r :=
   Silmaril.Wasm.Interp.evalOXP_goodP hC hT hG h hts
+
+/-- **The closure's answers are sound** on stores with the tag invariants, in every `call_ref`
+form: values, traps and thrown exceptions are those of Core runs of the call. -/
+theorem closedCallXP_sound (tags : List TagInst) (s : Store H) (a : Nat) (us : List Val)
+    (out : Store H × Binaryen.Flow) (h : Abstract.XRecursionP.closedCallXP s a us out)
+    (hts : TagsOk tags s) : SoundAnsE tags P host s a us out :=
+  Silmaril.Wasm.Interp.closedCallXP_sound tags s a us out h hts
+
+/-- The closure is a sound oracle, exceptions on, in every `call_ref` form. -/
+theorem oracleSoundTE_closedP (tags : List TagInst) :
+    OracleSoundTE (ehExt tags) P host (closedP (H := H) tags) true :=
+  Silmaril.Wasm.Interp.oracleSoundTE_closedP tags
+
+/-- Its thrown exceptions are Core throws. -/
+theorem oracleThrowsE_closedP (tags : List TagInst) :
+    OracleThrowsE (ehExt tags) P host (closedP (H := H) tags) :=
+  Silmaril.Wasm.Interp.oracleThrowsE_closedP tags
+
+/-- Its answers keep the tag invariants. -/
+theorem oracleTagsE_closedP (tags : List TagInst) : OracleTagsE tags (closedP (H := H) tags) :=
+  Silmaril.Wasm.Interp.oracleTagsE_closedP tags
+
+/-- **Closed runs with pending tail calls are Core 3.0 runs**, all call forms, no oracle
+assumed. -/
+theorem evalOXP_closed_good {tags : List TagInst} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List Binaryen.BExpr} {r : Store H × Frame × Abstract.CallXP.POut}
+    (h : Abstract.CallXP.EvalOXP Abstract.XRecursionP.closedCallXP s f stk es r)
+    (hg : TagsOk tags s) :
+    TagsOk tags r.1 ∧ ArityGoodP (ehExt tags) s f stk es r true ∧
+      CoreGoodP (ehExt tags) P host s f stk es r :=
+  Silmaril.Wasm.Interp.evalOXP_closed_good h hg
 
 end Silmaril.Wasm.Interp.PendSim
