@@ -184,6 +184,23 @@ theorem Step.brData_vals_inv {vs : List Val} {i : Instr} (hb : i.IsBrData)
       c = ⟨s, f, vals ws ++ (vals us' ++ X)⟩ :=
   Proofs.Inversion.brData_vals_inv h hb rfl
 
+/-- `throw x` under values allocates the exception from its top operands and throws it. -/
+theorem Step.throw_vals_inv {us : List Val} {x : TagIdx}
+    (h : Step P host ⟨s, f, vals us ++ [.plain (.throw x)]⟩ c) :
+    ∃ ws vs ta ti ts, us = ws ++ vs ∧ s.tag? f x = some (ta, ti) ∧
+      Expand ti.type (.func ts .nil) ∧ vs.length = ts.length ∧
+      c = ⟨s.addExn ⟨ta, vs⟩, f, vals ws ++ throwing s.exns.length⟩ :=
+  Proofs.Inversion.throw_vals_inv h rfl
+
+/-- `throw_ref` under values: a null reference traps; an exception reference is thrown after
+dropping some values below it. -/
+theorem Step.throwRef_vals_inv {us : List Val}
+    (h : Step P host ⟨s, f, vals us ++ [.plain .throwRef]⟩ c) :
+    (∃ ws, us = ws ++ [.ref .null] ∧ c = ⟨s, f, vals ws ++ [.trap]⟩) ∨
+      ∃ ws ws' a, us = ws ++ ws' ++ [.ref (.exn a)] ∧ ws' ≠ [] ∧
+        c = ⟨s, f, vals ws ++ throwing a⟩ :=
+  Proofs.Inversion.throwRef_vals_inv h rfl
+
 /-! ## Contexts -/
 
 /-- A label steps inside (`ctxt-label`) or by an exit rule. -/

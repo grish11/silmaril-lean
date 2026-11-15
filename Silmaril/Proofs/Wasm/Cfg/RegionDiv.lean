@@ -32,6 +32,9 @@ theorem DivF.mono {R S : Rel4 H} (hRS : ∀ s f vs c, R s f vs c → S s f vs c)
   | loop hbt hm h => exact .loop hbt hm (hRS _ _ _ _ h)
   | if_ h => exact .if_ (hRS _ _ _ _ h)
   | labelIn h => exact .labelIn (hRS _ _ _ _ h)
+  | tryTable hbt hm h => exact .tryTable hbt hm (hRS _ _ _ _ h)
+  | handlerIn h => exact .handlerIn (hRS _ _ _ _ h)
+  | handlerNormal hin h => exact .handlerNormal hin (hRS _ _ _ _ h)
   | labelNormal hin h => exact .labelNormal hin (hRS _ _ _ _ h)
   | labelBr0 hin hn h => exact .labelBr0 hin hn (hRS _ _ _ _ h)
 
@@ -71,6 +74,14 @@ theorem runDiv_label {s : Store H} {f : Frame} {vs : List Val} {n : Nat} {cont :
   rintro _ _ _ _ ⟨rfl, rfl, rfl, rfl⟩
   exact .labelIn (.inr h)
 
+theorem runDiv_handler {s : Store H} {f : Frame} {vs : List Val} {n : Nat} {cs : List Catch}
+    {inner code : List Admin} (h : RunDiv P host s f [] inner) :
+    RunDiv P host s f vs (.handler n cs inner :: code) := by
+  refine runDiv_coind (fun s' f' vs' c => s' = s ∧ f' = f ∧ vs' = vs ∧
+    c = .handler n cs inner :: code) ?_ ⟨rfl, rfl, rfl, rfl⟩
+  rintro _ _ _ _ ⟨rfl, rfl, rfl, rfl⟩
+  exact .handlerIn (.inr h)
+
 /-! ## Soundness: a diverging region run is an infinite Core run -/
 
 theorem transGen_of_steps {c c' : Config H} (h : Steps P host c c') (hne : c ≠ c') :
@@ -90,6 +101,12 @@ theorem transGen_label {s s' : Store H} {f f' : Frame} {X Y : List Admin} (n : N
     Relation.TransGen (Step P host) ⟨s, f, [.label n cont X]⟩ ⟨s', f', [.label n cont Y]⟩ :=
   Relation.TransGen.lift (fun c : Config H => (⟨c.store, c.frame, [.label n cont c.code]⟩ : Config H))
     (fun a b st => by rcases a with ⟨_, _, _⟩; rcases b with ⟨_, _, _⟩; exact Step.ctxtLabel st) _ _ h
+
+theorem transGen_handler {s s' : Store H} {f f' : Frame} {X Y : List Admin} (n : Nat)
+    (cs : List Catch) (h : Relation.TransGen (Step P host) ⟨s, f, X⟩ ⟨s', f', Y⟩) :
+    Relation.TransGen (Step P host) ⟨s, f, [.handler n cs X]⟩ ⟨s', f', [.handler n cs Y]⟩ :=
+  Relation.TransGen.lift (fun c : Config H => (⟨c.store, c.frame, [.handler n cs c.code]⟩ : Config H))
+    (fun a b st => by rcases a with ⟨_, _, _⟩; rcases b with ⟨_, _, _⟩; exact Step.ctxtHandler st) _ _ h
 
 /-- A run of a non-value to values takes at least one step. -/
 theorem atom_transGen {s s₁ : Store H} {f f₁ : Frame} {vs vs₁ : List Val} {a : Admin}
@@ -150,6 +167,25 @@ theorem progress {s : Store H} {f : Frame} {vs : List Val} {code : List Admin}
     obtain ⟨s', f', vs', c', hs, hd⟩ := ih (sizeOf inner) (by simp; omega) hd rfl
     refine ⟨s', f', vs, .label n cont (vals vs' ++ c') :: code', ?_, runDiv_label (runDiv_vals hd)⟩
     have := transGen_in vs code' (transGen_label n cont (X := inner) (Y := vals vs' ++ c') hs)
+    simpa using this
+  | @tryTable _ ws us bt cs b t₁ t₂ code' hbt hm hd =>
+    refine ⟨_, _, ws, _, .single ?_, hd⟩
+    simpa using step_in (P := P) (host := host) ws code'
+      (Step.tryTable (s := s) (cs := cs) (body := b) hbt hm)
+  | @handlerIn _ _ n cs inner code' hd =>
+    obtain ⟨s', f', vs', c', hs, hd⟩ := ih (sizeOf inner) (by simp; omega) hd rfl
+    refine ⟨s', f', vs, .handler n cs (vals vs' ++ c') :: code', ?_,
+      runDiv_handler (runDiv_vals hd)⟩
+    have := transGen_in vs code' (transGen_handler n cs (X := inner) (Y := vals vs' ++ c') hs)
+    simpa using this
+  | @handlerNormal s₁ _ f₁ _ us n cs inner code' hin hd =>
+    refine ⟨s₁, f₁, vs ++ us, code', ?_, hd⟩
+    obtain ⟨c₁, hs₁, he₁⟩ := sound hin
+    simp only [Out.Ends] at he₁; subst he₁
+    have h1 := steps_in vs code' (steps_handler n cs hs₁)
+    have h2 := step_in (P := P) (host := host) vs code'
+      (Step.handlerVals (s := s₁) (f := f₁) (n := n) (cs := cs) (vs := us))
+    have := Relation.TransGen.tail' h1 h2
     simpa using this
   | @labelNormal s₁ _ f₁ _ us n cont inner code' hin hd =>
     refine ⟨s₁, f₁, vs ++ us, code', ?_, hd⟩
@@ -357,6 +393,122 @@ theorem frag_steps {c c' : Config H} (h : Steps P host c c') (hF : Frag c.code) 
   | refl => exact hF
   | tail _ st ih => exact (Proofs.Region.expand st ih).1
 
+/-! ## Exceptions cannot diverge -/
+
+/-- A thrown exception after values. -/
+def ThrowForm (c : List Admin) : Prop := ∃ ws a rest, c = vals ws ++ throwing a ++ rest
+
+theorem throwForm_step {c c' : Config H} (h : Step P host c c') (ht : ThrowForm c.code) :
+    ThrowForm c'.code ∧ c'.code.length < c.code.length := by
+  obtain ⟨ws, a, rest, hc⟩ := ht
+  rcases c with ⟨s, f, x⟩
+  rcases c' with ⟨s', f', x'⟩
+  dsimp only at hc ⊢
+  subst hc
+  have e : vals ws ++ throwing a ++ rest = vals (ws ++ [.ref (.exn a)]) ++ .plain .throwRef :: rest := by
+    simp [throwing, vals, Val.toAdmin]
+  rw [e] at h ⊢
+  rcases Sim.Step.split_head rfl h with ⟨ws₁, us, is', hus, hs, rfl⟩ | ⟨h, -⟩ |
+      ⟨-, -, -, ws₁, us, x, r, r', hus, rfl, hne, rfl⟩
+  · rcases Step.throwRef_vals_inv hs with ⟨w, hw, he⟩ | ⟨w, w', b, hw, hne, he⟩
+    · rw [hw] at hus
+      have := congrArg List.getLast? hus; simp at this
+    · simp only [Config.mk.injEq] at he
+      obtain ⟨-, -, rfl⟩ := he
+      rw [hw] at hus
+      have hl := congrArg List.length hus
+      have := congrArg List.getLast? hus
+      simp at this; subst this
+      refine ⟨⟨ws₁ ++ w, a, rest, by simp⟩, ?_⟩
+      simp [throwing] at hl ⊢
+      have := List.length_pos_iff.2 hne
+      omega
+  · cases h
+  · have hl := congrArg List.length hus
+    have hx := congrArg List.getLast? hus
+    simp at hx; subst hx
+    refine ⟨⟨ws₁, _, r', rfl⟩, ?_⟩
+    simp [throwing] at hl ⊢
+    rcases hne with h | h
+    · have := List.length_pos_iff.2 h; omega
+    · have := List.length_pos_iff.2 h; omega
+
+theorem throwForm_not_div {c : Config H} (ht : ThrowForm c.code) : ¬ Diverges P host c := by
+  induction hn : c.code.length using Nat.strong_induction_on generalizing c with
+  | _ N ih =>
+  intro hd
+  obtain ⟨c', hs, hd'⟩ := hd.unfold
+  obtain ⟨ht', hl⟩ := throwForm_step hs ht
+  exact ih _ (hn ▸ hl) ht' rfl hd'
+
+/-- A handler around a thrown exception walks its clauses and leaves: it never diverges. -/
+theorem handler_throwing_not_div {s : Store H} {f : Frame} {vs : List Val} {n a : Nat}
+    {code : List Admin} :
+    ∀ {cs : List Catch}, ¬ Diverges P host ⟨s, f, vals vs ++ .handler n cs (throwing a) :: code⟩
+  | cs, hd => by
+    obtain ⟨⟨s', f', x'⟩, hs, hd'⟩ := hd.unfold
+    obtain ⟨c₀, h₀, he⟩ := Step.ctx_in_seq (by simp [Admin.IsCtx]) hs
+    rcases Step.handler_inv h₀ with ⟨_, _, _, hs', -⟩ | ⟨out, hx, rfl⟩
+    · exact Step.throwing_stuck hs'
+    · simp only [Config.mk.injEq] at he
+      obtain ⟨rfl, rfl, rfl⟩ := he
+      generalize hw : throwing a = w at hx
+      cases hx with
+      | vals => exact SingleThreaded.Det.mem_vals (a := .plain .throwRef) (by rw [← hw]; simp [throwing]) rfl
+      | @br _ _ l _ =>
+        have : Admin.plain (.br l) ∈ throwing a := by rw [hw]; simp
+        simp [throwing] at this
+      | ret =>
+        have : Admin.plain .return_ ∈ throwing a := by rw [hw]; simp
+        simp [throwing] at this
+      | @returnCall _ _ c _ hc =>
+        have : c ∈ throwing a := by rw [hw]; simp
+        simp [throwing] at this
+        rcases this with rfl | rfl <;> simp [Admin.IsReturnCallRef] at hc
+      | trap => simp [throwing] at hw
+      | throwEmpty b =>
+        exact throwForm_not_div ⟨vs, b, code, by simp⟩ hd'
+      | catch_ =>
+        obtain ⟨c', hs, -⟩ := hd'.unfold
+        exact br_stuck_seq (vs := vs ++ _) (rest := code) (by simpa using hs)
+      | catchRef =>
+        obtain ⟨c', hs, -⟩ := hd'.unfold
+        exact br_stuck_seq (vs := vs ++ (_ ++ [.ref (.exn _)])) (rest := code)
+          (by simpa [vals, Val.toAdmin] using hs)
+      | catchAll =>
+        obtain ⟨c', hs, -⟩ := hd'.unfold
+        exact br_stuck_seq (vs := vs) (rest := code) (by simpa using hs)
+      | catchAllRef =>
+        obtain ⟨c', hs, -⟩ := hd'.unfold
+        exact br_stuck_seq (vs := vs ++ [.ref (.exn _)]) (rest := code)
+          (by simpa [vals, Val.toAdmin] using hs)
+      | @next c cs' b _ =>
+        simp [throwing] at hw; obtain ⟨-, rfl⟩ := hw
+        exact handler_throwing_not_div (cs := cs') (by unfold Diverges; simpa using hd')
+
+theorem handler_exit {s : Store H} {f : Frame} {vs : List Val} {n : Nat} {cs : List Catch}
+    {inner code : List Admin}
+    (hd : Diverges P host ⟨s, f, vals vs ++ .handler n cs inner :: code⟩) :
+    Diverges P host ⟨s, f, inner⟩ ∨
+      ∃ a : Config H, Steps P host ⟨s, f, inner⟩ a ∧ ∃ out,
+        HandlerExit a.store a.frame n cs a.code out ∧
+        Diverges P host ⟨a.store, a.frame, vals vs ++ out ++ code⟩ := by
+  let plug : Config H → Config H := fun x => ⟨x.store, x.frame, vals vs ++ .handler n cs x.code :: code⟩
+  let bd : Config H → Config H → Prop := fun a b =>
+    ∃ out, HandlerExit a.store a.frame n cs a.code out ∧ b = ⟨a.store, a.frame, vals vs ++ out ++ code⟩
+  have peel : ∀ a b, Step P host (plug a) b → (∃ next, Step P host a next ∧ b = plug next) ∨ bd a b := by
+    intro a b hs
+    rcases a with ⟨sa, fa, xa⟩
+    obtain ⟨c₀, h₀, rfl⟩ := Step.ctx_in_seq (by simp [Admin.IsCtx]) hs
+    rcases Step.handler_inv h₀ with ⟨s', f', is', hs', rfl⟩ | ⟨out, hx, rfl⟩
+    · exact .inl ⟨⟨s', f', is'⟩, hs', by simp [plug]⟩
+    · exact .inr ⟨out, hx, rfl⟩
+  have hd' : InfiniteTrace (Step P host) (plug ⟨s, f, inner⟩) := hd
+  rcases InfiniteTrace.context_decompose (Step P host) (Step P host) plug bd peel hd' with
+    hin | ⟨a, b, hr, ⟨out, hx, rfl⟩, hb⟩
+  · exact .inl hin
+  · exact .inr ⟨a, hr, out, hx, hb⟩
+
 /-! ## Completeness for divergence -/
 
 theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admin}
@@ -399,11 +551,79 @@ theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admi
         exact (ret_stuck_seq (vs := vs ++ us) (rest := code) (by simpa using hs)).elim
       | @returnCall us c rest hc' =>
         exact (fragA_retCallRef (hFa c (by simp)) hc').elim
-      | throw a =>
-        exact (fragA_throwRef (hFa (.plain .throwRef) (by simp [throwing]))).elim
+      | throw a => exact (throwForm_not_div ⟨vs, a, code, by simp⟩ hb).elim
       | trap => exact (trapForm_not_div ⟨vs, code, by simp⟩ hb).elim
+  | @handler n cs inner hi =>
+    rcases handler_exit hd with hin | ⟨⟨sa, fa, xa⟩, hr, out, hx, hb⟩
+    · exact .handlerIn ⟨hi, by simpa [vals] using hin⟩
+    · have hFa : Frag xa := frag_steps hr hi
+      cases hx with
+      | vals ws =>
+        have hin : Run P host s f [] inner sa fa (.normal ws) := Proofs.Region.complete hi hr rfl
+        exact .handlerNormal hin ⟨hF', by simpa using hb⟩
+      | @br _ us l rest =>
+        obtain ⟨c', hs, -⟩ := hb.unfold
+        exact (br_stuck_seq (vs := vs ++ us) (rest := code) (by simpa using hs)).elim
+      | @ret _ us rest =>
+        obtain ⟨c', hs, -⟩ := hb.unfold
+        exact (ret_stuck_seq (vs := vs ++ us) (rest := code) (by simpa using hs)).elim
+      | @returnCall _ us c rest hc' => exact (fragA_retCallRef (hFa c (by simp)) hc').elim
+      | trap => exact (trapForm_not_div ⟨vs, code, by simp⟩ hb).elim
+      | throwEmpty a => exact (throwForm_not_div ⟨vs, a, code, by simp⟩ hb).elim
+      | catch_ =>
+        obtain ⟨c', hs, -⟩ := hb.unfold
+        exact (br_stuck_seq (vs := vs ++ _) (rest := code) (by simpa using hs)).elim
+      | catchRef =>
+        obtain ⟨c', hs, -⟩ := hb.unfold
+        exact (br_stuck_seq (vs := vs ++ (_ ++ [.ref (.exn _)])) (rest := code)
+          (by simpa [vals, Val.toAdmin] using hs)).elim
+      | catchAll =>
+        obtain ⟨c', hs, -⟩ := hb.unfold
+        exact (br_stuck_seq (vs := vs) (rest := code) (by simpa using hs)).elim
+      | catchAllRef =>
+        obtain ⟨c', hs, -⟩ := hb.unfold
+        exact (br_stuck_seq (vs := vs ++ [.ref (.exn _)]) (rest := code)
+          (by simpa [vals, Val.toAdmin] using hs)).elim
+      | next => exact (handler_throwing_not_div (by simpa using hb)).elim
   | @plain i hI =>
     cases hI with
+    | throw x =>
+      obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
+      obtain ⟨ws, us, is', rfl, hs', rfl⟩ := Proofs.Exec.head_of rfl (by simp) hs
+      obtain ⟨ws', vs', ta, ti, ts, rfl, -, -, -, he⟩ := Step.throw_vals_inv hs'
+      simp only [Config.mk.injEq] at he
+      obtain ⟨rfl, rfl, rfl⟩ := he
+      exact (throwForm_not_div ⟨ws ++ ws', s.exns.length, code, by simp⟩ hd₁).elim
+    | throwRef =>
+      exact (by
+        obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
+        rcases Sim.Step.split_head rfl hs with ⟨ws, us, is', rfl, hs', rfl⟩ | ⟨h, -⟩ |
+            ⟨-, -, -, ws, us, x, r, r', hus, rfl, hne, rfl⟩
+        · rcases Step.throwRef_vals_inv hs' with ⟨w, rfl, he⟩ | ⟨w, w', b, rfl, -, he⟩
+          · simp only [Config.mk.injEq] at he; obtain ⟨rfl, rfl, rfl⟩ := he
+            exact (trapForm_not_div ⟨ws ++ w, code, by simp⟩ hd₁).elim
+          · simp only [Config.mk.injEq] at he; obtain ⟨rfl, rfl, rfl⟩ := he
+            exact (throwForm_not_div ⟨ws ++ w, b, code, by simp⟩ hd₁).elim
+        · cases h
+        · exact (throwForm_not_div ⟨ws, x, r', by simp⟩ hd₁).elim)
+    | @tryTable bt cs b hb =>
+      obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
+      obtain ⟨ws, us, is', rfl, hs', rfl⟩ := Proofs.Exec.head_of rfl (by simp) hs
+      obtain ⟨ws', us', t₁, t₂, rfl, hbt, hm, he⟩ := Step.tryTable_vals_inv hs'
+      simp only [Config.mk.injEq] at he
+      obtain ⟨rfl, rfl, rfl⟩ := he
+      have hFl : Frag (.handler t₂.length cs [.label t₂.length [] (vals us' ++ expression b)] :: code) := by
+        intro x hx
+        simp only [List.mem_cons] at hx
+        rcases hx with rfl | hx
+        · exact .handler (fun y hy => by
+            simp at hy; subst hy
+            exact .label (by simp) (frag_append.2 ⟨frag_vals _, frag_expression hb⟩))
+        · exact hF' x hx
+      have := DivF.tryTable (P := P) (host := host)
+        (R := fun s f vs code => Frag code ∧ Diverges P host ⟨s, f, vals vs ++ code⟩)
+        (ws := ws ++ ws') (code := code) hbt hm ⟨hFl, by unfold Diverges; simpa using hd₁⟩
+      simpa using this
     | simple hk =>
       obtain ⟨s₁, f₁, vs₁, h₁, hd₁⟩ := atom_exit hk (hA s f vs i hk) hd
       exact .simple hk h₁ ⟨hF', hd₁⟩

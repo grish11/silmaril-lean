@@ -275,7 +275,8 @@ The plain graph stays an over-approximation, and claims about it say so.
    `run_append_iff`. Divergence: `RunDiv` (structural greatest fixed point) with `div_iff`
    (`RunDiv ↔ Core Diverges` on the fragment), using `atomTerm` (every non-control instruction's
    reduction is strongly normalising, by expansion level and bulk counts). `br_table` and
-   `br_on_*` are in the fragment (`BrStep`). Calls inside bodies and exceptions remain.
+   `br_on_*` are in the fragment (`BrStep`), and so are exceptions (`throw`, `throw_ref`,
+   `try_table`, `HANDLER`, clause resolution `Catches`; outcome `throw a`). Calls inside bodies remain.
 8. **Calls**, through an explicit call interface: a call node whose callee behaviour is a
    parameter (a `FRAME` run of the callee), first for direct calls.
 

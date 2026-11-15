@@ -15,7 +15,8 @@ runs from store `s` and frame `f` to store `s'`, frame `f'` and outcome `o`:
 * `normal vs'`: fell through, leaving the stack `vs'`;
 * `br l vs'`: branching to the `l`-th enclosing label, with stack `vs'`;
 * `ret vs'`: returning, with stack `vs'`;
-* `trap`.
+* `trap`;
+* `throw a`: throwing the exception at address `a`.
 
 The rules follow the structure of the code:
 * a value is pushed;
@@ -30,9 +31,9 @@ The rules follow the structure of the code:
 
 Outcomes carry values, store and frame, and every branch reads data.
 
-The fragment (`Frag`) is call-free and exception-free: values, non-control instructions,
+The fragment (`Frag`) is call-free: values, non-control instructions,
 `block`, `loop`, `if`, `br`, `br_if`, `br_table`, `br_on_null`, `br_on_non_null`, `br_on_cast`,
-`br_on_cast_fail`, `return`, `TRAP` and `LABEL`. On it the semantics is
+`br_on_cast_fail`, `return`, `throw`, `throw_ref`, `try_table`, `TRAP`, `LABEL` and `HANDLER`. On it the semantics is
 **adequate in both directions** for every profile and host (`Region/Thms.lean`): `Run`
 holds exactly when Core 3.0 runs the code to a final form of that outcome. This covers
 terminating runs only; divergence is not treated yet.
@@ -48,6 +49,8 @@ inductive Out where
   | br (l : Nat) (vs : List Val)
   | ret (vs : List Val)
   | trap
+  /-- Throwing the exception at address `a` (`REF.EXN_ADDR a; THROW_REF`). -/
+  | throw (a : Nat)
   deriving DecidableEq, Repr
 
 /-- The Core final forms of an outcome. Anything after a `br` or `return` is dead. -/
@@ -57,6 +60,7 @@ def Out.Ends : Out → List Admin → Prop
       c = vals vs ++ .plain (.br x) :: rest
   | .ret vs, c => ∃ rest : List Admin, c = vals vs ++ .plain .return_ :: rest
   | .trap, c => c = [.trap]
+  | .throw a, c => c = throwing a
 
 /-- Source instructions of the fragment. -/
 inductive FragI : Instr → Prop where
@@ -71,6 +75,10 @@ inductive FragI : Instr → Prop where
   | return_ : FragI .return_
   /-- `br_table`, `br_on_null`, `br_on_non_null`, `br_on_cast`, `br_on_cast_fail`. -/
   | brData {i : Instr} (h : i.IsBrData) : FragI i
+  | throw (x : TagIdx) : FragI (.throw x)
+  | throwRef : FragI .throwRef
+  | tryTable {bt : BlockType} {cs : List Catch} {b : List Instr} (h : ∀ i ∈ b, FragI i) :
+      FragI (.tryTable bt cs b)
 
 /-- Runtime instructions of the fragment. -/
 inductive FragA : Admin → Prop where
@@ -79,11 +87,30 @@ inductive FragA : Admin → Prop where
   | trap : FragA .trap
   | label {n : Nat} {cont : List Instr} {inner : List Admin} (hc : ∀ i ∈ cont, FragI i)
       (hi : ∀ a ∈ inner, FragA a) : FragA (.label n cont inner)
+  | handler {n : Nat} {cs : List Catch} {inner : List Admin} (hi : ∀ a ∈ inner, FragA a) :
+      FragA (.handler n cs inner)
 
 /-- Runtime code of the fragment. -/
 def Frag (code : List Admin) : Prop := ∀ a ∈ code, FragA a
 
 variable {H : Type}
+
+/-- How the clauses `cs` of a handler treat the exception at address `a`: the first clause that
+matches branches to its label with the values it pushes (`some (us, l)`); if none matches, the
+exception propagates (`none`). These are the `throw_ref-handler-*` rules. -/
+inductive Catches (s : Store H) (f : Frame) (a : Nat) : List Catch → Option (List Val × LabelIdx) → Prop where
+  | catch_ {x : TagIdx} {l : LabelIdx} {cs : List Catch} {e : ExnInst}
+      (he : s.exns[a]? = some e) (ht : f.module.tags[x.toNat]? = some e.tag) :
+      Catches s f a (.catch_ x l :: cs) (some (e.fields, l))
+  | catchRef {x : TagIdx} {l : LabelIdx} {cs : List Catch} {e : ExnInst}
+      (he : s.exns[a]? = some e) (ht : f.module.tags[x.toNat]? = some e.tag) :
+      Catches s f a (.catchRef x l :: cs) (some (e.fields ++ [.ref (.exn a)], l))
+  | catchAll {l : LabelIdx} {cs : List Catch} : Catches s f a (.catchAll l :: cs) (some ([], l))
+  | catchAllRef {l : LabelIdx} {cs : List Catch} :
+      Catches s f a (.catchAllRef l :: cs) (some ([.ref (.exn a)], l))
+  | next {c : Catch} {cs : List Catch} {r : Option (List Val × LabelIdx)}
+      (h : ¬ CatchMatches s f a c) (hr : Catches s f a cs r) : Catches s f a (c :: cs) r
+  | empty : Catches s f a [] none
 
 /-- **The region semantics.** -/
 inductive Run (P : Profile) (host : HostSemantics H) :
@@ -112,6 +139,52 @@ inductive Run (P : Profile) (host : HostSemantics H) :
       {code : List Admin} {o : Out}
       (h : Run P host s f ws ((if k = 0 then [] else [.plain (.br l)]) ++ code) s' f' o) :
       Run P host s f (ws ++ [.i32 k]) (.plain (.brIf l) :: code) s' f' o
+  /-- `throw x` allocates the exception and throws it. -/
+  | throw {s : Store H} {f : Frame} {ws vs : List Val} {x : TagIdx} {ta : Nat} {ti : TagInst}
+      {ts : Ty (.list .val)} {code : List Admin} (ht : s.tag? f x = some (ta, ti))
+      (he : Expand ti.type (.func ts .nil)) (hn : vs.length = ts.length) :
+      Run P host s f (ws ++ vs) (.plain (.throw x) :: code) (s.addExn ⟨ta, vs⟩) f
+        (.throw s.exns.length)
+  | throwRefNull {s : Store H} {f : Frame} {ws : List Val} {code : List Admin} :
+      Run P host s f (ws ++ [.ref .null]) (.plain .throwRef :: code) s f .trap
+  | throwRefExn {s : Store H} {f : Frame} {ws : List Val} {a : Nat} {code : List Admin} :
+      Run P host s f (ws ++ [.ref (.exn a)]) (.plain .throwRef :: code) s f (.throw a)
+  | tryTable {s s' : Store H} {f f' : Frame} {ws us : List Val} {bt : BlockType}
+      {cs : List Catch} {b : List Instr} {t₁ t₂ : List CValType} {code : List Admin} {o : Out}
+      (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+      (h : Run P host s f ws
+        (.handler t₂.length cs [.label t₂.length [] (vals us ++ expression b)] :: code) s' f' o) :
+      Run P host s f (ws ++ us) (.plain (.tryTable bt cs b) :: code) s' f' o
+  | labelThrow {s s₁ : Store H} {f f₁ : Frame} {vs : List Val} {n : Nat}
+      {cont : List Instr} {inner code : List Admin} {a : Nat}
+      (hin : Run P host s f [] inner s₁ f₁ (.throw a)) :
+      Run P host s f vs (.label n cont inner :: code) s₁ f₁ (.throw a)
+  /-- The handler's body falls through. -/
+  | handlerNormal {s s₁ s' : Store H} {f f₁ f' : Frame} {vs us : List Val} {n : Nat}
+      {cs : List Catch} {inner code : List Admin} {o : Out}
+      (hin : Run P host s f [] inner s₁ f₁ (.normal us))
+      (h : Run P host s₁ f₁ (vs ++ us) code s' f' o) :
+      Run P host s f vs (.handler n cs inner :: code) s' f' o
+  /-- A branch, a return or a trap passes through a handler. -/
+  | handlerBr {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n l : Nat} {cs : List Catch}
+      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.br l us)) :
+      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ (.br l (vs ++ us))
+  | handlerRet {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat} {cs : List Catch}
+      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.ret us)) :
+      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ (.ret (vs ++ us))
+  | handlerTrap {s s₁ : Store H} {f f₁ : Frame} {vs : List Val} {n : Nat} {cs : List Catch}
+      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ .trap) :
+      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ .trap
+  /-- A thrown exception is caught by the first matching clause: a branch to its label. -/
+  | handlerCatch {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n a : Nat} {l : LabelIdx}
+      {cs : List Catch} {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.throw a))
+      (hc : Catches s₁ f₁ a cs (some (us, l))) :
+      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ (.br l.toNat (vs ++ us))
+  /-- No clause matches: the exception propagates. -/
+  | handlerRethrow {s s₁ : Store H} {f f₁ : Frame} {vs : List Val} {n a : Nat} {cs : List Catch}
+      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.throw a))
+      (hc : Catches s₁ f₁ a cs none) :
+      Run P host s f vs (.handler n cs inner :: code) s₁ f₁ (.throw a)
   /-- A data-dependent branch reads its operands (`BrStep`). -/
   | brData {s s' : Store H} {f f' : Frame} {ws us us' : List Val} {i : Instr} {X : List Admin}
       {code : List Admin} {o : Out} (hb : BrStep s f us i us' X)
@@ -171,6 +244,7 @@ def FrameOut (n : Nat) : Out → List Admin → Prop
   | .normal us, c => us.length = n ∧ c = vals us
   | .ret us, c => ∃ us₁ ws, us = us₁ ++ ws ∧ ws.length = n ∧ c = vals ws
   | .trap, c => c = [.trap]
+  | .throw a, c => c = throwing a
   | .br _ _, _ => False
 
 end Silmaril.Wasm.Cfg.Region
@@ -216,6 +290,17 @@ inductive DivF (P : Profile) (host : HostSemantics H)
       {t e : List Instr} {code : List Admin}
       (h : R s f ws (.plain (.block bt (if k = 0 then e else t)) :: code)) :
       DivF P host R s f (ws ++ [.i32 k]) (.plain (.if_ bt t e) :: code)
+  | tryTable {s : Store H} {f : Frame} {ws us : List Val} {bt : BlockType} {cs : List Catch}
+      {b : List Instr} {t₁ t₂ : List CValType} {code : List Admin}
+      (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+      (h : R s f ws (.handler t₂.length cs [.label t₂.length [] (vals us ++ expression b)] :: code)) :
+      DivF P host R s f (ws ++ us) (.plain (.tryTable bt cs b) :: code)
+  | handlerIn {s : Store H} {f : Frame} {vs : List Val} {n : Nat} {cs : List Catch}
+      {inner code : List Admin} (h : R s f [] inner) :
+      DivF P host R s f vs (.handler n cs inner :: code)
+  | handlerNormal {s s₁ : Store H} {f f₁ : Frame} {vs us : List Val} {n : Nat} {cs : List Catch}
+      {inner code : List Admin} (hin : Run P host s f [] inner s₁ f₁ (.normal us))
+      (h : R s₁ f₁ (vs ++ us) code) : DivF P host R s f vs (.handler n cs inner :: code)
   /-- The label's body diverges. -/
   | labelIn {s : Store H} {f : Frame} {vs : List Val} {n : Nat} {cont : List Instr}
       {inner code : List Admin} (h : R s f [] inner) :

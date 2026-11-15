@@ -979,6 +979,71 @@ theorem brData_vals_inv {c c' : Config H} (h : Step P host c c') {i : Instr}
       | (simp at hl; subst hl; exact hcr ‹_›)
       | (simp at hl; subst hl; exact hrcr ‹_›)
 
+/-! ## Exceptions under values -/
+
+theorem throw_vals_inv {c c' : Config H} (h : Step P host c c') {x : TagIdx} :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain (.throw x)] →
+      ∃ ws vs ta ti ts, us = ws ++ vs ∧ c.store.tag? c.frame x = some (ta, ti) ∧
+        Expand ti.type (.func ts .nil) ∧ vs.length = ts.length ∧
+        c' = ⟨c.store.addExn ⟨ta, vs⟩, c.frame, vals ws ++ throwing c.store.exns.length⟩ := by
+  induction h with
+  | @throw s f x' vs ta ti ts ht he hn =>
+    intro us hc
+    obtain ⟨rfl, hx, -⟩ := Sim.vals_append_cons_inj rfl rfl hc
+    simp only [Admin.plain.injEq, Instr.throw.injEq] at hx
+    subst hx
+    exact ⟨[], _, _, _, _, rfl, ht, he, hn, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    obtain ⟨ws, vs, ta, ti, ts, rfl, ht, he, hn, hc''⟩ := ih rfl
+    refine ⟨vs₀ ++ ws, vs, ta, ti, ts, by simp, ht, he, hn, ?_⟩
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
+/-- `throw_ref` under values: a null reference traps; an exception reference is thrown, after
+the values below it are dropped (`throw_ref-instrs`). -/
+theorem throwRef_vals_inv {c c' : Config H} (h : Step P host c c') :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain .throwRef] →
+      (∃ ws, us = ws ++ [.ref .null] ∧ c' = ⟨c.store, c.frame, vals ws ++ [.trap]⟩) ∨
+        ∃ ws ws' a, us = ws ++ ws' ++ [.ref (.exn a)] ∧ ws' ≠ [] ∧
+          c' = ⟨c.store, c.frame, vals ws ++ throwing a⟩ := by
+  induction h with
+  | @throwRefNull s f =>
+    intro us hc
+    obtain ⟨rfl, -⟩ := pair_inv (v := .ref .null) rfl rfl hc
+    exact .inl ⟨[], rfl, by simp [vals]⟩
+  | @throwRefInstrs s f vs a rest hne =>
+    intro us hc
+    have hc' : vals (vs ++ [.ref (.exn a)]) ++ Admin.plain .throwRef :: rest =
+        vals us ++ Admin.plain .throwRef :: [] := by
+      simpa [throwing, vals, Val.toAdmin] using hc
+    obtain ⟨rfl, -, rfl⟩ := Sim.vals_append_cons_inj rfl rfl hc'
+    refine .inr ⟨[], vs, a, by simp, ?_, by simp [vals]⟩
+    simpa using hne
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    rcases ih rfl with ⟨ws, rfl, hc''⟩ | ⟨ws, ws', a, rfl, hne', hc''⟩
+    · simp only [Config.mk.injEq] at hc''
+      obtain ⟨rfl, rfl, rfl⟩ := hc''
+      exact .inl ⟨vs₀ ++ ws, by simp, by simp⟩
+    · simp only [Config.mk.injEq] at hc''
+      obtain ⟨rfl, rfl, rfl⟩ := hc''
+      exact .inr ⟨vs₀ ++ ws, ws', a, by simp, hne', by simp⟩
+  | @trapInstrs s f vs rest _ =>
+    intro us hc
+    have hc' : vals vs ++ Admin.trap :: rest = vals us ++ Admin.plain .throwRef :: [] := by
+      simpa using hc
+    exact absurd (Sim.vals_append_cons_inj rfl rfl hc').2.1 (by simp)
+  | _ => intro us hc; head_close hc
+
 /-! ## Contexts under values -/
 
 theorem ctx_val_none {X : Admin} (hX : X.IsCtx) : X.val? = none := by
