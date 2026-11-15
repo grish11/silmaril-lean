@@ -219,4 +219,45 @@ def DenMor (Γ : Ctx H) (I : Iface) (o : Option Nat) : Set (PHom H Cfg ResP) :=
 def ifaceOf (f : Frame) (ret : Nat) (labels : List Nat) (stk : List Val) : Iface :=
   ⟨⟨f.module, f.locals.length, ret, labels⟩, stk.length⟩
 
+/-! ## Stack-polymorphic code and result invariants -/
+
+/-- Append the passive stack `rest` below a configuration's stack. -/
+def wcfg (rest : List Val) (c : Cfg) : Cfg := ⟨(c.down.1, c.down.2 ++ rest)⟩
+
+/-- A computation lands in `P`: it factors through the subtype of `P`. -/
+def Lands {X : Type 1} (P : X → Prop) (x : M (CallSig H) H X) : Prop :=
+  ∃ y : M (CallSig H) H {a // P a}, x = Subtype.val <$> y
+
+/-- The result invariant of code checked in `env` ending at `o`: a fallthrough is at height
+`o` in a frame of the module instance; a branch carries at least its label's arity and a return
+at least the result arity, in such a frame. Traps, exceptions and pending tail calls are
+unconstrained. -/
+def GoodR (env : Env) (o : Option Nat) : ResP → Prop
+  | ⟨(f, .flow (.normal vs))⟩ => f.module = env.mi ∧ o = some vs.length
+  | ⟨(f, .flow (.brk l vs))⟩ => f.module = env.mi ∧ ∃ n, env.labels[l]? = some n ∧ n ≤ vs.length
+  | ⟨(f, .flow (.ret vs))⟩ => f.module = env.mi ∧ env.ret ≤ vs.length
+  | _ => True
+
+/-- The operators whose stack effect does not depend on the store or on call answers: every
+operator but the call forms (`call`, `call_indirect`, `call_ref`), the tail calls and `throw`. -/
+def instrStackPure : Instr → Bool
+  | .call _ | .callIndirect _ _ | .callRef _ | .returnCall _ | .returnCallIndirect _ _
+  | .returnCallRef _ | .throw _ => false
+  | _ => true
+
+mutual
+/-- Stack-pure code: stack-pure operators, `block`, `loop` and `if`; no `try_table`. -/
+def stackPure : BExpr → Bool
+  | .op i args => instrStackPure i && stackPureL args
+  | .block _ body => stackPureL body
+  | .loop _ body => stackPureL body
+  | .if_ _ c t e => stackPureL c && stackPureL t && stackPureL e
+  | .tryTable .. => false
+
+/-- Stack-pure sequences. -/
+def stackPureL : List BExpr → Bool
+  | [] => true
+  | e :: es => stackPure e && stackPureL es
+end
+
 end Silmaril.Wasm.Abstract.ExposePStruct
