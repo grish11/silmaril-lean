@@ -436,4 +436,64 @@ theorem br_core {body : Expr} {s : Store H} {f : Frame} :
         exact Relation.TransGen.trans_left h2 (br_core k rp ls hx' hw hok' hL
           (by simpa [brVals] using har) hlbt hY').to_reflTransGen
 
+
+/-- **Entering a structured terminator is at least one Core step** (`block`, `loop`,
+`try_table`; `if` first picks its arm): the label frame the machine pushes. -/
+theorem enter_step {s : Store H} {f : Frame} {i : Instr} {bt : BlockType} {loop tryT : Bool}
+    {cs : List Catch} {stk₁ ws us : List Val} {a : Nat} {c' : List Instr}
+    {t₁ t₂ : List Validation.CValType} {R : List Admin}
+    (hkind : StructKind i bt loop tryT cs) (harm : armOf i a = some c')
+    (hcond : CondArm i stk₁ a ws us)
+    (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length) :
+    Relation.TransGen (Step P host) ⟨s, f, vals stk₁ ++ .plain i :: R⟩
+      ⟨s, f, vals ws ++
+        (if tryT then Admin.handler (labelArity loop t₁ t₂) cs
+            [.label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us ++ expression c')]
+          else .label (labelArity loop t₁ t₂) (if loop then [i] else [])
+            (vals us ++ expression c')) :: R⟩ := by
+  have lift : ∀ {X Y : List Admin}, Step P host ⟨s, f, vals us ++ X⟩ ⟨s, f, Y⟩ →
+      Step P host ⟨s, f, vals (ws ++ us) ++ X ++ R⟩ ⟨s, f, vals ws ++ Y ++ R⟩ := by
+    intro X Y h
+    simpa [List.append_assoc] using Proofs.Region.step_in ws R h
+  cases hkind with
+  | @block _ b =>
+    cases hcond with
+    | plain _ =>
+      simp only [armOf, Option.some.injEq] at harm; subst harm
+      simpa [labelArity, List.append_assoc] using
+        Relation.TransGen.single (lift (Step.block (body := b) hbt hm))
+  | @loop _ b =>
+    cases hcond with
+    | plain _ =>
+      simp only [armOf, Option.some.injEq] at harm; subst harm
+      simpa [labelArity, List.append_assoc] using
+        Relation.TransGen.single (lift (Step.loop (body := b) hbt hm))
+  | @tryTable _ _ b =>
+    cases hcond with
+    | plain _ =>
+      simp only [armOf, Option.some.injEq] at harm; subst harm
+      simpa [labelArity, List.append_assoc] using
+        Relation.TransGen.single (lift (Step.tryTable (body := b) hbt hm))
+  | @if_ _ te ee =>
+    cases hcond with
+    | plain hi => exact absurd rfl (hi _ _ _)
+    | @ifTrue _ _ _ _ _ k hk =>
+      simp only [armOf, Option.some.injEq] at harm; subst harm
+      have h1 : Step P host ⟨s, f, vals (ws ++ us ++ [.i32 k]) ++ .plain (.if_ bt te ee) :: R⟩
+          ⟨s, f, vals (ws ++ us) ++ [.plain (.block bt te)] ++ R⟩ := by
+        simpa [List.append_assoc, constI32] using
+          Proofs.Region.step_in (ws ++ us) R (Step.ifTrue (P := P) (host := host) (s := s) (f := f)
+            (bt := bt) (b₁ := te) (b₂ := ee) hk)
+      exact .head h1 (by simpa [labelArity, List.append_assoc] using
+        Relation.TransGen.single (lift (Step.block (body := te) hbt hm)))
+    | ifFalse =>
+      simp only [armOf, Option.some.injEq] at harm; subst harm
+      have h1 : Step P host ⟨s, f, vals (ws ++ us ++ [.i32 0]) ++ .plain (.if_ bt te ee) :: R⟩
+          ⟨s, f, vals (ws ++ us) ++ [.plain (.block bt ee)] ++ R⟩ := by
+        simpa [List.append_assoc, constI32] using
+          Proofs.Region.step_in (ws ++ us) R (Step.ifFalse (P := P) (host := host) (s := s) (f := f)
+            (bt := bt) (b₁ := te) (b₂ := ee))
+      exact .head h1 (by simpa [labelArity, List.append_assoc] using
+        Relation.TransGen.single (lift (Step.block (body := ee) hbt hm)))
+
 end Silmaril.Wasm.Cfg.Proofs.MachineCore
