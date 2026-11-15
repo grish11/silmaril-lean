@@ -67,6 +67,7 @@ public import Silmaril.SSA.LambdaRTL.Quotient.Defs
 public import Silmaril.SSA.LambdaRTL.Thms
 public import Silmaril.SSA.LambdaRTL.Version.Institution.Defs
 public import Silmaril.SSA.LambdaRTL.Version.Thms
+public import Silmaril.Semantics.Accept.Func.Thms
 public import Silmaril.Semantics.Accept.Rel.Thms
 public import Silmaril.Semantics.Accept.Order.Thms
 public import Silmaril.Semantics.Accept.Bounded.Thms

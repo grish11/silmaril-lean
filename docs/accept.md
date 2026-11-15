@@ -123,3 +123,30 @@ Examples: `Silmaril/Semantics/Accept/Rel/Examples.lean`.
 
 Byte languages, simple WIT types and the inputs accepted by Wasm modules and components
 instantiate this vocabulary: see [accepted inputs](projects/accepted-inputs.md).
+
+### `Silmaril.Semantics.Accept.Func.Defs` / `Thms`
+
+The functional shape of a relation `R : α -|> β`, for example the (input, output) pairs
+observed from program traces.
+
+| Name | Meaning | Mathlib / CSLib bridge |
+| --- | --- | --- |
+| `Total R` | every input has an output (left-total) | `Relator.LeftTotal`, `R.dom = univ`, CSLib `Relation.Serial` (homogeneous) |
+| `SingleValued R` | at most one output per input (right-unique) | `Relator.RightUnique`, `∃ f : α →. β, f.graph' = R` |
+| `Surjective R` | every output is produced (right-total) | `Relator.RightTotal`, `R.cod = univ` |
+| `Injective R` | an output determines its input (left-unique) | `Relator.LeftUnique`, `SingleValued R.inv` |
+| `Functional R` | `Total R ∧ SingleValued R` | `∀ a, ∃! b, a ~[R] b`, `∃! f, Function.graph f = R` |
+| `OneToOne R` | `Functional R ∧ Injective R ∧ Surjective R` | `OneToOne (ofTotal f) ↔ Function.Bijective f` |
+| `toPartial R` | classical choice of an output, `none` if there is none | `ofPartial (toPartial R) = R` if single-valued; `toPartial (ofPartial f) = f` |
+| `toFun h` | classical choice of an output, for `h : Total R` | `Function.graph (toFun h) = R` if single-valued; `toFun_ofTotal` |
+
+`SingleValued R ∧ Injective R ↔ Relator.BiUnique`. `ofPartial f` is single-valued, total iff
+`pdom f = univ`, and injective iff `Set.InjOn f (pdom f)`; `ofTotal f` is functional,
+surjective iff `Function.Surjective f`, injective iff `Function.Injective f`. Composition
+(`○`) preserves all four notions; `R.inv` swaps `Total` with `Surjective` and `SingleValued`
+with `Injective`; subsets preserve `SingleValued` and `Injective`, supersets `Total` and
+`Surjective`. Pullbacks: `SingleValued.pullSome_subset_pullAll`,
+`Total.pullAll_subset_pullSome`, `Functional.pullSome_eq_pullAll`.
+
+Examples (total but not single-valued, single-valued but not total, injective but not
+surjective, surjective but not total): `Silmaril/Semantics/Accept/Func/Examples.lean`.
