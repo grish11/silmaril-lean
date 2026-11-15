@@ -635,6 +635,31 @@ theorem block_vals_inv {c c' : Config H} (h : Step P host c c') {bt : BlockType}
   | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
   | _ => intro us hc; head_close hc
 
+/-- `call x` under values resolves its callee and leaves the values in place. -/
+theorem call_vals_inv {c c' : Config H} (h : Step P host c c') {x : FuncIdx} :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain (.call x)] →
+      ∃ a fi, c.frame.module.funcs[x.toNat]? = some a ∧ c.store.funcs[a]? = some fi ∧
+        c' = ⟨c.store, c.frame, vals us ++ [.ref (.func a), .callRefType fi.type]⟩ := by
+  induction h with
+  | call hx hf =>
+    intro us hc
+    obtain ⟨rfl, -, hx'⟩ := mid_single (rest := []) (by simpa using hc.symm)
+    simp only [Admin.plain.injEq, Instr.call.injEq] at hx'
+    subst hx'
+    exact ⟨_, _, hx, hf, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    obtain ⟨a, fi, hx, hf, hc''⟩ := ih rfl
+    refine ⟨a, fi, hx, hf, ?_⟩
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
 theorem loop_vals_inv {c c' : Config H} (h : Step P host c c') {bt : BlockType} {body : List Instr} :
     ∀ {us : List Val}, c.code = vals us ++ [.plain (.loop bt body)] →
       ∃ ws vs t₁ t₂, us = ws ++ vs ∧ c.frame.module.blockType? bt = some (t₁, t₂) ∧

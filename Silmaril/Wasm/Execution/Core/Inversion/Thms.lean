@@ -117,6 +117,13 @@ theorem Step.block_vals_inv {us : List Val} {bt : BlockType} {body : List Instr}
       c = ⟨s, f, vals ws ++ [.label t₂.length [] (vals vs ++ expression body)]⟩ :=
   Proofs.Inversion.block_vals_inv h rfl
 
+/-- `call x` under values resolves its callee (`call`, under `ctxt-instrs`), leaving the values. -/
+theorem Step.call_vals_inv {us : List Val} {x : FuncIdx}
+    (h : Step P host ⟨s, f, vals us ++ [.plain (.call x)]⟩ c) :
+    ∃ a fi, f.module.funcs[x.toNat]? = some a ∧ s.funcs[a]? = some fi ∧
+      c = ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩ :=
+  Proofs.Inversion.call_vals_inv h rfl
+
 theorem Step.loop_vals_inv {us : List Val} {bt : BlockType} {body : List Instr}
     (h : Step P host ⟨s, f, vals us ++ [.plain (.loop bt body)]⟩ c) :
     ∃ ws vs t₁ t₂, us = ws ++ vs ∧ f.module.blockType? bt = some (t₁, t₂) ∧
