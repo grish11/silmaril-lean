@@ -140,7 +140,8 @@ def Reach (P : Profile) (host : HostSemantics H) (body : Expr) (lv : Lv H) (st :
   | .normal us => MRun P host body st (lv.cont us s' f')
   | .br k us => ∀ L, lv.ls[k]? = some L →
       L.arity ≤ (brVals k lv.ls (lv.pre ++ us)).length → LoopOk f' L →
-      MRun P host body st (brTarget body lv.p k L lv.ls (brVals k lv.ls (lv.pre ++ us)) s' f')
+      Relation.TransGen (MStep P host body) st
+        (brTarget body lv.p k L lv.ls (brVals k lv.ls (lv.pre ++ us)) s' f')
   | .ret us => ∃ W stk, us = W ++ stk ∧ MRun P host body st ⟨.exit, stk, [], s', f'⟩
   | .trap => MRun P host body st ⟨.trap, [], [], s', f'⟩
   | .throw a =>
@@ -149,7 +150,7 @@ def Reach (P : Profile) (host : HostSemantics H) (body : Expr) (lv : Lv H) (st :
       Catches s' f' a L.catches (some (us, l)) → lv.tls[j + 1 + l.toNat]? = some L' →
       L'.arity ≤ (brVals l.toNat (lv.tls.drop (j + 1)) (L.outer ++ us)).length →
       LoopOk f' L' →
-      MRun P host body st (brTarget body lv.tq (j + 1 + l.toNat) L' lv.tls
+      Relation.TransGen (MStep P host body) st (brTarget body lv.tq (j + 1 + l.toNat) L' lv.tls
         (brVals l.toNat (lv.tls.drop (j + 1)) (L.outer ++ us)) s' f')) ∧
     (AllPass s' f' a lv.tls → MRun P host body st ⟨.raise, [.ref (.exn a)], [], s', f'⟩)
 
@@ -259,21 +260,22 @@ theorem rep_entry {body : Expr} {q : List SeqStep} {c : List Instr} (i : Nat) (l
         (vs := vs) (V := V))
 
 theorem reach_mono {body : Expr} {lv : Lv H} {st st₁ : MState H} {s' : Store H} {f' : Frame}
-    {o : Out} (hm : ∀ {X : MState H}, MRun P host body st₁ X → MRun P host body st X)
+    {o : Out} (hm : MRun P host body st st₁)
     (h : Reach P host body lv st₁ s' f' o) : Reach P host body lv st s' f' o := by
   cases o with
-  | normal us => exact hm h
-  | br k us => exact fun L hL har hlo => hm (h L hL har hlo)
-  | ret us => obtain ⟨W, stk, he, hr⟩ := h; exact ⟨W, stk, he, hm hr⟩
-  | trap => exact hm h
-  | throw a => exact ⟨fun j L us l L' h1 h2 h3 h4 h5 h6 h7 =>
-      hm (h.1 j L us l L' h1 h2 h3 h4 h5 h6 h7),
-      fun h1 => hm (h.2 h1)⟩
+  | normal us => exact hm.trans h
+  | br k us => exact fun L hL har hlo => Relation.TransGen.trans_right hm (h L hL har hlo)
+  | ret us => obtain ⟨W, stk, he, hr⟩ := h; exact ⟨W, stk, he, hm.trans hr⟩
+  | trap => exact hm.trans h
+  | throw a =>
+    exact ⟨fun j L us l L' h1 h2 h3 h4 h5 h6 h7 =>
+      Relation.TransGen.trans_right hm (h.1 j L us l L' h1 h2 h3 h4 h5 h6 h7),
+      fun h1 => hm.trans (h.2 h1)⟩
 
 theorem reach_step {body : Expr} {lv : Lv H} {st st₁ : MState H} {s' : Store H} {f' : Frame}
     {o : Out} (hs : MStep P host body st st₁) (h : Reach P host body lv st₁ s' f' o) :
     Reach P host body lv st s' f' o :=
-  reach_mono (fun hr => Relation.ReflTransGen.head hs hr) h
+  reach_mono (.single hs) h
 
 theorem brTarget_succ (body : Expr) (p : List SeqStep) (m a k : Nat) (L' L : LFrame)
     (ls : List LFrame) (V : List Val) (s : Store H) (f : Frame) :
@@ -865,7 +867,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
         seqLv_cont_arm body p m a L ls us s₁ f₁] at h1
       have hre := rep_entry (P := P) (host := host) (s := s₁) (f := f₁) (m + 1) ls
         (L.outer ++ us) [] hc
-      exact reach_mono (fun h2 => h1.trans h2) (ih _ _ _ _ rfl rfl (by simpa using hre))
+      exact reach_mono h1 (ih _ _ _ _ rfl rfl (by simpa using hre))
     | @hlab p ls m a L _ _ _ hv _ hcode hnl hloop hrin =>
       subst hv hcode
       have h1 : MRun P host body st _ := ih_in _ _ _ _ rfl rfl hrin
@@ -892,7 +894,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
         simp only [hlp, Bool.false_eq_true, ↓reduceIte, expression, List.map_nil,
           List.append_nil] at h ih
         have hre := rep_entry (P := P) (host := host) (s := s₁) (f := f₁) (m + 1) ls L.outer us₂ hc
-        exact reach_mono (fun h2 => hb.trans h2) (ih _ _ _ _ rfl rfl hre)
+        exact reach_mono hb.to_reflTransGen (ih _ _ _ _ rfl rfl hre)
       · rw [brTarget_zero_loop body p m a L ls _ s₁ f₁ (hnl.trans hlp) hlp, htop] at hb
         obtain ⟨cb, rfl, -, -⟩ := Proofs.Machine.structKind_loop (hlp ▸ hkind)
         cases kind_arm_loop harm
@@ -901,7 +903,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
         have hre := Rep.loopRe (P := P) (host := host) (s := s₁) (ls := ls) (vs := L.outer)
           (V := us₂)
           (W := us₂) hc hsg ht hkind (loopOk_of_module hmod hlo) rfl (by omega)
-        exact reach_mono (fun h2 => hb.trans h2)
+        exact reach_mono hb.to_reflTransGen
           (ih _ _ _ _ rfl rfl (by simpa [expression] using hre))
     | @hlab p ls m a L _ _ _ hv _ hcode hnl hloop hrin =>
       subst hv hcode
@@ -911,7 +913,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
       rw [brTarget_zero_out body p m a L ls _ s₁ f₁ hnl hloop, htop] at hb
       obtain ⟨rfl, rfl, rfl⟩ := run_vals_only (by simpa [expression] using h)
       show MRun P host body st ((hlLv body p m a L ls).cont us₂ _ _)
-      rw [hlLv_cont]; simpa using hb
+      rw [hlLv_cont]; simpa using hb.to_reflTransGen
   | @labelBrSucc s s₁ f f₁ vs us n l cont inner code hin ih_in =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd
@@ -979,7 +981,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
       rw [hlLv_cont] at h1
       have hre := rep_entry (P := P) (host := host) (s := s₁) (f := f₁) (m + 1) ls
         (L.outer ++ us) [] hc
-      exact reach_mono (fun h2 => h1.trans h2) (ih _ _ _ _ rfl rfl (by simpa using hre))
+      exact reach_mono h1 (ih _ _ _ _ rfl rfl (by simpa using hre))
   | @handlerBr s s₁ f f₁ vs us n l cs inner code hin ih_in =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd
