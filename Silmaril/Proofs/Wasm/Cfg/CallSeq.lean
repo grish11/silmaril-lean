@@ -342,4 +342,37 @@ theorem run_call_complete {G : Store H → Nat → List Val → Prop} {C : Abstr
     obtain ⟨rfl, rfl, -⟩ := hc
     exact hth t rfl
 
+/-- **A Core-answered call is a region-run inclusion**: when the callee's `call_ref` (on the top
+values `us`) runs in Core to a result `r` and a complete oracle answers it, every region run of
+the continuation `vals ws ++ r ++ rest` is a region run of `vals (ws ++ us) ++ call x :: rest`,
+whatever its outcome. This lifts through labels and handlers (`label_back`, `handler_back`). -/
+theorem call_incl {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
+    (hC : CallCompleteG P host G C) {s s₁ : Store H} {f : Frame} {ws us : List Val}
+    {x : FuncIdx} {a : Nat} {fi : FuncInst H} {ps rs : Ty (.list .val)} {rest : List Admin}
+    {r : Result} (hx : f.module.funcs[x.toNat]? = some a) (hfi : s.funcs[a]? = some fi)
+    (he : Expand fi.type (.func ps rs)) (hn : us.length = ps.length) (hG : G s a us)
+    (hcall : Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+      ⟨s₁, f, r.toAdmin⟩) :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      RunC P host C s₁ f [] (vals ws ++ r.toAdmin ++ rest) s₂ f₂ o →
+        RunC P host C s f [] (vals (ws ++ us) ++ .plain (.call x) :: rest) s₂ f₂ o := by
+  intro o s₂ f₂ hr
+  have hfunc : s.func? f x = some (a, fi) := by simp [Store.func?, hx, hfi]
+  obtain ⟨-, hv, htr, hth⟩ := call_of_core (ws := ws) (code := rest) hC hfunc
+    (funcType_of_expand he) hn hG hcall
+  apply run_vals (vs := [])
+  have hr' := run_vals_inv (vs := []) (ws := ws) (by simpa [List.append_assoc] using hr)
+  simp only [List.nil_append] at hr' ⊢
+  cases r with
+  | values vs =>
+    have h1 : RunC P host C s₁ f ws (vals vs ++ rest) s₂ f₂ o := by
+      simpa [Result.toAdmin] using hr'
+    exact hv vs rfl (run_vals_inv h1)
+  | trap =>
+    obtain ⟨rfl, rfl, rfl⟩ := run_trap_inv (by simpa [Result.toAdmin] using hr')
+    exact htr rfl
+  | throw t =>
+    obtain ⟨rfl, rfl, rfl⟩ := run_throwing_inv (by simpa [Result.toAdmin] using hr')
+    exact hth t rfl
+
 end Silmaril.Wasm.Cfg.Proofs.Region

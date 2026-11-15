@@ -383,4 +383,19 @@ theorem run_call_complete {G : Store H → Nat → List Val → Prop} {C : Abstr
     RunC P host C s f ws (.plain (.call x) :: rest) s' f' o :=
   Proofs.Region.run_call_complete hC hG h ho hk
 
+/-- **A Core-answered call is a region-run inclusion** (every outcome): when the callee's
+`call_ref` on the top values `us` runs in Core to `r` and a complete oracle answers it, every
+`RunC` run of `vals ws ++ r ++ rest` is one of `vals (ws ++ us) ++ call x :: rest`. With
+`label_back`/`handler_back` it lifts through labels and handlers. -/
+theorem call_incl {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
+    (hC : CallCompleteG P host G C) {s₁ : Store H} {ws us : List Val} {x : FuncIdx} {a : Nat}
+    {fi : FuncInst H} {ps rs : Validation.Ty (.list .val)} {rest : List Admin} {r : Result}
+    (hx : f.module.funcs[x.toNat]? = some a) (hfi : s.funcs[a]? = some fi)
+    (he : Validation.Expand fi.type (.func ps rs)) (hn : us.length = ps.length) (hG : G s a us)
+    (hcall : Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
+      ⟨s₁, f, r.toAdmin⟩) {o : Out} {s₂ : Store H} {f₂ : Frame}
+    (hr : RunC P host C s₁ f [] (vals ws ++ r.toAdmin ++ rest) s₂ f₂ o) :
+    RunC P host C s f [] (vals (ws ++ us) ++ .plain (.call x) :: rest) s₂ f₂ o :=
+  Proofs.Region.call_incl hC hx hfi he hn hG hcall hr
+
 end Silmaril.Wasm.Cfg.Region
