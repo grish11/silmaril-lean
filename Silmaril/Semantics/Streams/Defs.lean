@@ -3,6 +3,7 @@ module
 public import Cslib.Computability.Languages.OmegaLanguage
 public import Mathlib.Computability.Language
 public import Mathlib.Logic.Embedding.Basic
+public import Mathlib.Data.Seq.Defs
 
 /-!
 # Finite, infinite and chunked streams
@@ -17,6 +18,8 @@ sets of them), and adds:
   (`Word.ofω`) both embed into it, with disjoint ranges that cover it.
   There is no injection the other way round from infinite into finite words for an
   arbitrary alphabet, so `Word α` is where finite and infinite inputs meet.
+  `Word.toSeq` and `Word.ofSeq` translate to and from Mathlib's `Stream'.Seq α`
+  (`Word.equivSeq` in the theorems), which encodes the same notion as a stream of options.
 * `Lang α`: an ∞-language, a set of finite or infinite words. It is equivalent to a
   pair of a `Language α` (its finite part) and an `ωLanguage α` (its infinite part).
 * `Chunks α = ωSequence (List α)`: an unbounded stream of chunks, as delivered by a
@@ -90,6 +93,17 @@ def prepend (p : List α) : Word α → Word α
 def map {β : Type*} (f : α → β) : Word α → Word β
   | fin w => fin (w.map f)
   | inf s => inf (s.map f)
+
+/-- A word as a Mathlib `Stream'.Seq` (possibly terminating sequence). -/
+def toSeq : Word α → Stream'.Seq α
+  | fin w => Stream'.Seq.ofList w
+  | inf s => Stream'.Seq.ofStream s.get
+
+/-- A Mathlib `Stream'.Seq` as a word. Classical: whether a `Seq` terminates is not
+decidable in general. -/
+noncomputable def ofSeq (s : Stream'.Seq α) : Word α :=
+  open scoped Classical in
+  if h : s.Terminates then fin (s.toList h) else inf ⟨s.toStream h⟩
 
 end Word
 

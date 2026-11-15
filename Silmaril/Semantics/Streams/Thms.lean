@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Semantics.Streams.Defs
 import Silmaril.Proofs.Semantics.Streams.Limit
+import Silmaril.Proofs.Semantics.Streams.Seq
 
 /-!
 # Finite, infinite and chunked streams: theorems
@@ -12,6 +13,8 @@ Statements about `Silmaril.Semantics.Streams.Defs`; longer proofs are in
 * Finite and infinite words embed into `Word α` with complementary ranges
   (`Word.isCompl_range`). Infinite words do not inject into finite words
   (`Word.not_injective_ωSequence_list`), so the direction of the embedding matters.
+* `Word α` is equivalent to Mathlib's `Stream'.Seq α` (`Word.equivSeq`), so results
+  about either representation transfer.
 * Every chunk stream has exactly one limit (`Chunks.limit_spec`, `Chunks.Limit.unique`).
   The limit is infinite exactly when the stream is progressive
   (`Chunks.isInfinite_limit_iff`). This is the empty-chunk caveat: a stream may run
@@ -47,6 +50,20 @@ theorem not_injective_ωSequence_list (f : ωSequence Bool → List Bool) : ¬ f
 theorem HasPrefix.of_isPrefix {t : Word α} {p q : List α} (hp : t.HasPrefix p)
     (hq : q <+: p) : t.HasPrefix q :=
   Silmaril.Proofs.Semantics.Streams.hasPrefix_of_isPrefix hp hq
+
+theorem toSeq_ofSeq (s : Stream'.Seq α) : (ofSeq s).toSeq = s :=
+  Silmaril.Proofs.Semantics.Streams.toSeq_ofSeq s
+
+theorem ofSeq_toSeq (t : Word α) : ofSeq t.toSeq = t :=
+  Silmaril.Proofs.Semantics.Streams.ofSeq_toSeq t
+
+/-- Finite-or-infinite words are Mathlib's possibly terminating sequences. -/
+noncomputable def equivSeq : Word α ≃ Stream'.Seq α :=
+  ⟨toSeq, ofSeq, ofSeq_toSeq, toSeq_ofSeq⟩
+
+/-- Finite words are exactly the terminating sequences. -/
+theorem terminates_toSeq_iff (t : Word α) : t.toSeq.Terminates ↔ t.IsFinite :=
+  Silmaril.Proofs.Semantics.Streams.terminates_toSeq_iff t
 
 end Word
 
