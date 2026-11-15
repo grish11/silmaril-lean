@@ -153,7 +153,11 @@ def Reach (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) (body 
       Relation.TransGen (MStepC P host C body) st (brTarget body lv.tq (j + 1 + l.toNat) L' lv.tls
         (brVals l.toNat (lv.tls.drop (j + 1)) (L.outer ++ us)) s' f')) ∧
     (AllPass s' f' a lv.tls → MRun P host C body st ⟨.raise, [.ref (.exn a)], [], s', f'⟩)
-  | .tail _ _ _ => True
+  | .tail W a _ => ∀ (fi : FuncInst H) (ps rs : List CValType) (W₀ args : List Val)
+      (fl : Binaryen.Flow) (s₃ : Store H) (st' : MState H), s'.funcs[a]? = some fi →
+      DefType.funcType? fi.type = some (ps, rs) →
+      brVals lv.ls.length lv.ls (lv.pre ++ W) = W₀ ++ args → args.length = ps.length →
+      C s' a args (s₃, fl) → tailEnd rs.length s₃ f' fl = some st' → MRun P host C body st st'
   | .tailNull _ _ => MRun P host C body st ⟨.trap, [], [], s', f'⟩
 
 /-- **The machine state a region code stands for**, at a level, for a run of the code from
@@ -273,7 +277,8 @@ theorem reach_mono {body : Expr} {lv : Lv H} {st st₁ : MState H} {s' : Store H
     exact ⟨fun j L us l L' h1 h2 h3 h4 h5 h6 h7 =>
       Relation.TransGen.trans_right hm (h.1 j L us l L' h1 h2 h3 h4 h5 h6 h7),
       fun h1 => hm.trans (h.2 h1)⟩
-  | tail => trivial
+  | tail => exact fun fi ps rs W₀ args fl s₃ st' h1 h2 h3 h4 h5 h6 =>
+      hm.trans (h fi ps rs W₀ args fl s₃ st' h1 h2 h3 h4 h5 h6)
   | tailNull => exact hm.trans h
 
 theorem reach_step {body : Expr} {lv : Lv H} {st st₁ : MState H} {s' : Store H} {f' : Frame}
@@ -1126,18 +1131,51 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
         exact .single (MStepC.bodyCatch (lookup_of hc hsg) hbr hpass hL hT hc' hL' har hlo)
       · exact .single (MStepC.bodyRaise (lookup_of hc hsg) hbr hall)
     | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
-  | returnCall =>
+  | returnCall hfi₀ =>
     intro lv st vs₀ code₀ hvs hcd hr
-    trivial
-  | returnCallRef =>
+    subst hvs hcd
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx => simp [isTerminator] at hx
+    | term hc hsg ht hpre =>
+      intro fi ps rs W₀ args fl s₃ st' hfi hty hargs hn hcall hend
+      exact .single (MStepC.tail (lookup_of hc hsg) ht trivial hpre (.returnCall (code := []) hfi₀)
+        hfi hty (by simpa [seqLv] using hargs) hn hcall hend)
+  | @returnCallRef s f ws a₀ c code hc =>
     intro lv st vs₀ code₀ hvs hcd hr
-    trivial
-  | labelTail =>
+    subst hvs hcd
+    cases rep_head hr (Proofs.Region.isRetCallRef_val hc) with
+    | term hc' hsg ht hpre =>
+      obtain ⟨y, rfl⟩ := Proofs.Region.isRetCallRef_plain hc
+      intro fi ps rs W₀ args fl s₃ st' hfi hty hargs hn hcall hend
+      exact .single (MStepC.tail (lookup_of hc' hsg) ht trivial hpre
+        (.returnCallRef (code := []) hc) hfi hty (by simpa [seqLv] using hargs) hn hcall hend)
+    | body hc' hsg hbody hx =>
+      obtain ⟨y, rfl⟩ := Proofs.Region.isRetCallRef_plain hc
+      simp [isTerminator] at hx
+    | _ => simp [Admin.IsReturnCallRef] at hc
+  | @labelTail s s₁ f f₁ vs us n cont inner code a₀ c hin ih_in =>
     intro lv st vs₀ code₀ hvs hcd hr
-    trivial
-  | handlerTail =>
+    subst hvs hcd
+    cases rep_head hr rfl with
+    | lab hc hsg ht harm hkind hT hlo hW hrin =>
+      subst hW
+      intro fi ps rs W₀ args fl s₃ st' hfi hty hargs hn hcall hend
+      exact ih_in _ _ _ _ rfl rfl hrin fi ps rs W₀ args fl s₃ st' hfi hty
+        (by simpa [seqLv, brVals] using hargs) hn hcall hend
+    | hlab hv hcode hnl hloop hrin =>
+      subst hv
+      intro fi ps rs W₀ args fl s₃ st' hfi hty hargs hn hcall hend
+      exact ih_in _ _ _ _ rfl rfl hrin fi ps rs W₀ args fl s₃ st' hfi hty
+        (by simpa [seqLv, hlLv, brVals] using hargs) hn hcall hend
+  | @handlerTail s s₁ f f₁ vs us n cs inner code a₀ c hin ih_in =>
     intro lv st vs₀ code₀ hvs hcd hr
-    trivial
+    subst hvs hcd
+    cases rep_head hr rfl with
+    | hnd hc hsg ht harm hkind hT hW hrin =>
+      subst hW
+      intro fi ps rs W₀ args fl s₃ st' hfi hty hargs hn hcall hend
+      exact ih_in _ _ _ _ rfl rfl hrin fi ps rs W₀ args fl s₃ st' hfi hty
+        (by simpa [seqLv, hlLv] using hargs) hn hcall hend
   | @returnCallRefNull s f ws c code hc =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd
@@ -1159,7 +1197,9 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     | term hc hsg ht hpre =>
       rcases ho with rfl | ⟨W, a, c, rfl⟩ | ⟨W, c, rfl⟩
       · exact .single (MStepC.termTrap (lookup_of hc hsg) ht hpre hth)
-      · trivial
+      · intro fi ps rs W₀ args fl s₃ st' hfi hty hargs hn hcall hend
+        exact .single (MStepC.tail (lookup_of hc hsg) ht trivial hpre hth hfi hty
+          (by simpa [seqLv] using hargs) hn hcall hend)
       · exact .single (MStepC.tailNull (lookup_of hc hsg) ht trivial hpre hth)
   | labelTailNull hin ih_in =>
     intro lv st vs₀ code₀ hvs hcd hr
@@ -1213,5 +1253,25 @@ theorem run_complete_initial {body : Expr} {s s' : Store H} {f f' : Frame} {o : 
     exact ⟨_, hr.2 (fun k L hL => by simp [seqLv] at hL), ⟨a, rfl, rfl⟩, rfl, rfl⟩
   | tail W a c => exact absurd rfl (hto W a c)
   | tailNull W c => exact ⟨_, hr, Or.inr ⟨W, c, rfl⟩, rfl, rfl⟩
+
+/-- **Completeness for a tail call, from the CFG entry**: a region run of a function body that
+ends in a pending tail call of `a`, together with an answer of `C` to that call (on the top
+`ps.length` values), is a machine run from the initial state to the sink of the answer. -/
+theorem run_complete_tail_initial {body : Expr} {s s' s₃ : Store H} {f f' : Frame}
+    {W W₀ args : List Val} {a : Nat} {c : Admin} {fi : FuncInst H} {ps rs : List Validation.CValType}
+    {fl : Binaryen.Flow} {st' : MState H}
+    (h : RunC P host C s f [] (expression body) s' f' (.tail W a c))
+    (hfi : s'.funcs[a]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hW : W = W₀ ++ args) (hn : args.length = ps.length) (hcall : C s' a args (s₃, fl))
+    (hend : tailEnd rs.length s₃ f' fl = some st') :
+    MRun P host C body (initial body s f) st' := by
+  have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by
+    simp [initial, goto, popL, cfgEntry]
+  have hrep := rep_entry (P := P) (host := host) (C := C) (body := body) (s := s) (f := f) 0 [] []
+    [] (q := []) (c := body) rfl
+  simp only [Proofs.Machine.restAt_zero, vals, List.map_nil, List.nil_append] at hrep
+  have hr := complete h _ _ _ _ rfl rfl hrep
+  rw [hinit]
+  exact hr fi ps rs W₀ args fl s₃ st' hfi hty (by simpa [seqLv, brVals] using hW) hn hcall hend
 
 end Silmaril.Wasm.Cfg.Proofs.MachineComplete

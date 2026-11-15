@@ -88,8 +88,11 @@ public import Silmaril.Foundations.InfiniteTrace
   completes a pending tail call by `C`'s answer. `frame_tail_initialC`: under
   `Region.CallSoundA`, such a run is a Core 3.0 run of the function's `FRAME` to the sink's code.
 
-Not claimed here: completeness for runs ending in a tail call of a function; Core completeness
-with calls (Core to `RunC`) needs callee adequacy, not proved here.
+  `run_complete_tail_initialC`: a `RunC` run ending in a pending tail call, with an answer of
+  `C`, is a machine run to the answer's sink.
+
+Not claimed here: Core completeness with calls (Core to `RunC`) needs callee adequacy, not
+proved here.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -586,6 +589,22 @@ theorem run_complete_initialC {s s' : Store H} {f f' : Frame} {o : Region.Out}
     ∃ st', Relation.ReflTransGen (MStepC P host C body) (initial body s f) st' ∧ Ends st' o ∧
       st'.store = s' ∧ st'.frame = f' :=
   Proofs.MachineComplete.run_complete_initial h ho hto
+
+/-- **Completeness for a tail call, from the CFG entry**: a `RunC` run of the body ending in a
+pending tail call of the function at `a` (its region outcome over the values `W`), with an answer
+of `C` to that call on the top `ps.length` values of `W`, is a run of the machine with the same
+oracle from the initial state to the sink of the answer (`tailEnd`). With
+`run_complete_initialC` (the other outcomes) and `run_soundC`, machine runs to sinks are
+exactly `RunC` runs of the body completed by `EndsC`. -/
+theorem run_complete_tail_initialC {s s' s₃ : Store H} {f f' : Frame} {W W₀ args : List Val}
+    {a : Nat} {c : Admin} {fi : FuncInst H} {ps rs : List Validation.CValType}
+    {fl : Binaryen.Flow} {st' : MState H}
+    (h : Region.RunC P host C s f [] (expression body) s' f' (.tail W a c))
+    (hfi : s'.funcs[a]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hW : W = W₀ ++ args) (hn : args.length = ps.length) (hcall : C s' a args (s₃, fl))
+    (hend : tailEnd rs.length s₃ f' fl = some st') :
+    Relation.ReflTransGen (MStepC P host C body) (initial body s f) st' :=
+  Proofs.MachineComplete.run_complete_tail_initial h hfi hty hW hn hcall hend
 
 /-- **Core soundness from the CFG entry, with a Core-sound oracle**: when `C` answers calls as
 Core 3.0 runs them (`Region.CallSound`, a named hypothesis), a run of the machine with calls from
