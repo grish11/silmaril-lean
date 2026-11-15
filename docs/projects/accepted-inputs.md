@@ -17,6 +17,12 @@ completeness here agree with its Bool-checker forms (`Lang.sound_ofBool_iff`,
 | `Silmaril.Wasm.Game.Accept.{Defs,Thms,Examples}` | Core modules: `Callouts P Envs memIdx m` is the set of reachable import calls. A call records the import's name, its arguments and the bytes of memory `memIdx` at the call. Calls are collected after the specification's instantiation (`IsSpecInstance`), in sessions of the untyped game semantics (`UStep`) against every environment of the class `Envs`, which may also invoke exports with typed arguments. Accepted values come from decoders: `bytesLang` (`accept(ptr: i32, len: i32)`), `bytes64Lang` (memory64), `i32Lang` and `i64Lang`. `CalloutEquiv` is exactly the equivalence under which every decoder accepts the same values (`calloutEquiv_iff`). |
 | `Silmaril.Wasi.Component.Accept.{Defs,Thms,Examples}` | Components as WASI world models (`Strategy (nsig I) (nsig X)`, named events `WEv`). `bytesLang σ f` covers an imported `accept: func(list<u8>)`; `exportBytesLang σ f` covers an exported `accept: func(list<u8>) -> bool` that may return `true`. `valLang` and `exportValLang` do the same at any closed WIT type, through a strict decoder (`decode`) that follows the WASI value encodings. Acceptance is invariant under equality of named traces, monotone in refinement, and `CompEquiv` / `CompRefines` IR components (under any `Layout`) have equal / included acceptor sets. Every byte language is exactly accepted by a specification component (`importAcceptor`, `exportAcceptor`). |
 | `Silmaril.Wasi.Component.Accept.Canon.{Defs,Thms}` | `CanonLowerAccept`: the correspondence a canonical-ABI adapter must establish between a module's `accept(ptr, len)` callouts and a component's `accept(list<u8>)` calls. Given it, the two byte languages are equal. |
+| `Silmaril.Formats.Accept.Bounds.Thms` | `Finite UInt8`. A byte language with a length bound is finite. Size slices (`Silmaril.Accept.upTo List.length n`) are finite, and a language whose strings are all `≤ n` long is its own slice at `n`. |
+| `Silmaril.Wasm.Game.Accept.Bounds.Thms` | Exact module bounds. The `i32` encoding gives `< 2^32` (`≤ 2^32 - 1`), and `memory64` gives `< 2^64`. Separately, `ptr + len ≤ memory size`; for a 65536-page memory this alone would allow `2^32` bytes. Zero length: `accept(ptr, 0)` observes `[]` iff `ptr ≤ size`. The decoder is complete. Every module byte language is finite. |
+| `Silmaril.Wasm.Game.Accept.Reject.{Defs,Thms}` | `rejected` and `neverRejected` (the latter is `Silmaril.Accept.neverRejects` of the rejecting callouts, and is antitone in the environments). `acceptedNotRejected`. `Calls`: callouts with their import index. `indexed`: an `IndexedLang` per index, whose erasure is acceptance through any import. |
+| `Silmaril.Wasi.Component.Accept.Reject.{Defs,Thms}` | `neverCalled` (an import `reject(v)` is never called) and `neverFalse` (an export `reject(v) -> bool` never returns `false`). Both are safety properties that hold vacuously (`⊥` never-rejects everything), grow under refinement, and are invariant under equal traces and `CompEquiv`. Indexed sets by WIT name (`importIndexed`) and by layout position (`layoutIndexed`). |
+| `Silmaril.Wasi.Component.Accept.Bounds.{Defs,Thms,Examples}` | Component bounds hold only under explicit canonical-ABI assumptions. `CanonLowerAcceptBy obs` gives `< 2^32` (32-bit memory) or `< 2^64` (`memory64`). `ListLiftChecked lim` (the `listTooLong` check) gives `≤ lim.maxListBytes`: `2^28 - 1` under `Limits.spec`, `2^32 - 1` under `Limits.wasmtime`. Without an assumption, the component accepting all byte strings has an infinite language. |
+| `Silmaril.Wasm.Game.Accept.Acceptor`, `Silmaril.Wasi.Component.Accept.Acceptor.{Defs,Thms,Examples,Quot}` | Wrappers. `ModuleAcceptor` bundles a module with its `accept`/`reject` imports, memory, address width and environments. `ComponentAcceptor` bundles a model with `accept`/`reject` and an import or export `Mode`, and `ofIR` builds one from an IR component. `ByteAcceptor` is the sum of the two (`Silmaril.Accept.langSum`). All are CSLib `Acceptor`s. `CanonPair` relates a module and a component: they accept the same language and lie in one `LangEq` class. Semantic setoids (`calloutSetoid`, `traceSetoid`) respect every language. |
 
 ## Assumptions and scope
 
@@ -49,6 +55,15 @@ completeness here agree with its Bool-checker forms (`Lang.sound_ofBool_iff`,
   - Non-vacuity on a real module: `exStart`'s start function calls its import, and that call
     is a reachable callout for every profile.
   - `bytesLang (importAcceptor L run) = L`.
+
+- **Bounds: `<` versus `≤`.**
+  - Address-width bounds are strict, from fixed-width integers: `< 2^32` for `i32`, `< 2^64`
+    for `i64`.
+  - Canonical-ABI lift checks are non-strict, since they compare with a maximum:
+    `≤ MAX_LIST_BYTE_LENGTH`.
+  - The memory's own size gives `ptr + len ≤ size`.
+- **Component bounds are hypotheses.** No adapter is proved to satisfy `CanonLowerAcceptBy`
+  or `ListLiftChecked`.
 
 ## Checking
 
