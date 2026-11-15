@@ -838,6 +838,8 @@ theorem msim {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁
   | raise => exact absurd (by simp [Target.IsSink]) hns
   | bodyRaise => exact absurd (by simp [Target.IsSink]) hns
   | tailNull => exact absurd (by simp [Target.IsSink]) hns
+  | tail hb ht hi hr hth hfi hty hargs hn hcall hend =>
+    exact absurd (tailEnd_sink (body := body) hend).2 hns
   | bodyCatch hb hr =>
     obtain ⟨c, -, hsg⟩ := seg_of_lookup hb
     obtain ⟨-, _, _, _, _, hC⟩ := run_body_throw (body_nonterm hsg) hr

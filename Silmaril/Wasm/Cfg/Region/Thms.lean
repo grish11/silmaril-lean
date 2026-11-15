@@ -6,6 +6,7 @@ import Silmaril.Proofs.Wasm.Cfg.Region
 import Silmaril.Proofs.Wasm.Cfg.RegionDiv
 import Silmaril.Proofs.Wasm.Cfg.RegionAtom
 import Silmaril.Proofs.Wasm.Cfg.RegionBlocks
+import Silmaril.Proofs.Wasm.Cfg.RegionTail
 
 @[expose] public section
 
@@ -173,5 +174,29 @@ the sequence. -/
 theorem run_iff_blocks {is : List Instr} {vs : List Val} {o : Out} :
     Run P host s f vs (expression is) s' f' o ↔ SegRun P host s f vs (segment is) s' f' o :=
   Proofs.Region.run_iff_blocks
+
+/-! ## Tail calls at the frame -/
+
+/-- An oracle sound for every `call_ref` form is sound for `call`. -/
+theorem callSound_of_callSoundA {C : Abstract.CallRel H} (h : CallSoundA P host C) :
+    CallSound P host C :=
+  Proofs.Region.callSound_of_A h
+
+/-- **A pending tail call is completed by the frame** (frame replacement): a frame whose body
+ends in a pending tail call of the function at `a` runs, as Core leaves the frame and calls the
+callee on the top `ps.length` values (`return_call_ref-frame-addr`), to the oracle's answer for
+that call: the callee's top `rs.length` results, its trap or its exception, in the callee's final
+store and the outer frame. Under the named hypothesis `CallSoundA`. -/
+theorem frame_tail_sound {C : Abstract.CallRel H} (hC : CallSoundA P host C) {s₂ s₃ : Store H}
+    {fi fi₂ : Frame} {n : Nat} {inner : List Admin} {W W₀ args : List Val} {a : Nat} {c : Admin}
+    {fn : FuncInst H} {ps rs : List Validation.CValType} {fl : Binaryen.Flow}
+    (h : RunC P host C s fi [] inner s₂ fi₂ (.tail W a c))
+    (hfn : s₂.funcs[a]? = some fn) (hty : Validation.DefType.funcType? fn.type = some (ps, rs))
+    (hW : W = W₀ ++ args) (hn : args.length = ps.length) (hcall : C s₂ a args (s₃, fl)) :
+    (∀ vs, fl.retVals = some vs → Steps P host ⟨s, f, [.frame n fi inner]⟩
+        ⟨s₃, f, vals (vs.take rs.length).reverse⟩) ∧
+    (fl = .trap → Steps P host ⟨s, f, [.frame n fi inner]⟩ ⟨s₃, f, [.trap]⟩) ∧
+    (∀ t, fl = .throw t → Steps P host ⟨s, f, [.frame n fi inner]⟩ ⟨s₃, f, throwing t⟩) :=
+  Proofs.Region.frame_tail_sound hC h hfn hty hW hn hcall
 
 end Silmaril.Wasm.Cfg.Region

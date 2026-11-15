@@ -6,6 +6,7 @@ import Silmaril.Proofs.Wasm.Cfg.Machine
 import Silmaril.Proofs.Wasm.Cfg.MachineComplete
 import Silmaril.Proofs.Wasm.Cfg.MachineDiv
 import Silmaril.Proofs.Wasm.Cfg.MachineCore
+import Silmaril.Proofs.Wasm.Cfg.MachineTail
 public import Silmaril.Wasm.Cfg.Region.Thms
 public import Silmaril.Foundations.InfiniteTrace
 
@@ -81,9 +82,14 @@ public import Silmaril.Foundations.InfiniteTrace
   (it traps at the function's frame). Completeness excludes runs ending in a pending tail call
   of a function (`hto`).
 
-Not claimed here: machine steps for tail calls of functions (the frame replacement, answered at
-the function's frame); Core completeness with calls (Core to `RunC`) needs callee adequacy, not
-proved here.
+* **Tail calls of functions** (`MStepC.tail`): the call is answered by `C` at the function's
+  frame, on the top `ps.length` values of the whole stack, and the machine moves to the sink of
+  the answer (`tailEnd`) with no frame left. Soundness with calls is stated with `EndsC`, which
+  completes a pending tail call by `C`'s answer. `frame_tail_initialC`: under
+  `Region.CallSoundA`, such a run is a Core 3.0 run of the function's `FRAME` to the sink's code.
+
+Not claimed here: completeness for runs ending in a tail call of a function; Core completeness
+with calls (Core to `RunC`) needs callee adequacy, not proved here.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -361,8 +367,10 @@ frame to the sink's, ending as the sink says (`Ends`). -/
 theorem run_sound {st st' : MState H} (h : Relation.ReflTransGen (MStep P host body) st st')
     (hs : st'.node.IsSink) (hok : MInv body st) {X : List Admin}
     (hX : codeOf body st = some X) :
-    ∃ o, Ends st' o ∧ Region.Run P host st.store st.frame [] X st'.store st'.frame o :=
-  Proofs.Machine.run_sound h hs hok hX
+    ∃ o, Ends st' o ∧ Region.Run P host st.store st.frame [] X st'.store st'.frame o := by
+  obtain ⟨o, s₂, f₂, hE, hR⟩ := Proofs.Machine.run_sound h hs hok hX
+  obtain ⟨hE', rfl, rfl⟩ := Proofs.Machine.endsC_noCall hE
+  exact ⟨o, hE', hR⟩
 
 /-- **Whole-run soundness from the CFG entry**: a machine run of a function body from its
 initial state (`cfgEntry`, empty stack, no label frames) to a sink is a region run of the body
@@ -370,8 +378,10 @@ initial state (`cfgEntry`, empty stack, no label frames) to a sink is a region r
 theorem run_sound_initial {s : Store H} {f : Frame} {st' : MState H}
     (h : Relation.ReflTransGen (MStep P host body) (initial body s f) st')
     (hs : st'.node.IsSink) :
-    ∃ o, Ends st' o ∧ Region.Run P host s f [] (expression body) st'.store st'.frame o :=
-  Proofs.Machine.run_sound_initial h hs
+    ∃ o, Ends st' o ∧ Region.Run P host s f [] (expression body) st'.store st'.frame o := by
+  obtain ⟨o, s₂, f₂, hE, hR⟩ := Proofs.Machine.run_sound_initial h hs
+  obtain ⟨hE', rfl, rfl⟩ := Proofs.Machine.endsC_noCall hE
+  exact ⟨o, hE', hR⟩
 
 /-! ## Handler catching -/
 
@@ -548,19 +558,22 @@ theorem mstep_invC {st st₁ : MState H} (h : MStepC P host C body st st₁) (ho
 
 /-- **Whole-run soundness with calls**: a run of the machine with calls answered by `C`, from a
 state satisfying the invariant to a sink, is a region run (`RunC` with the same oracle) of the
-code that state stands for, ending as the sink says. No hypothesis on `C`. -/
+code that state stands for, to some store `s₂`, frame `f₂` and outcome `o` that the sink
+completes (`EndsC`): as `Ends` says in the sink's own store and frame, or, for a pending tail
+call, by `C`'s answer to that call at the function's frame. No hypothesis on `C`. -/
 theorem run_soundC {st st' : MState H} (h : Relation.ReflTransGen (MStepC P host C body) st st')
     (hs : st'.node.IsSink) (hok : MInv body st) {X : List Admin}
     (hX : codeOf body st = some X) :
-    ∃ o, Ends st' o ∧ Region.RunC P host C st.store st.frame [] X st'.store st'.frame o :=
+    ∃ o s₂ f₂, EndsC C st' s₂ f₂ o ∧ Region.RunC P host C st.store st.frame [] X s₂ f₂ o :=
   Proofs.Machine.run_sound h hs hok hX
 
 /-- **Soundness from the CFG entry, with calls**: a run of the machine with calls from the
-initial state to a sink is a `RunC` run of the body with the same oracle. -/
+initial state to a sink is a `RunC` run of the body with the same oracle, completed by the sink
+(`EndsC`). -/
 theorem run_sound_initialC {s : Store H} {f : Frame} {st' : MState H}
     (h : Relation.ReflTransGen (MStepC P host C body) (initial body s f) st')
     (hs : st'.node.IsSink) :
-    ∃ o, Ends st' o ∧ Region.RunC P host C s f [] (expression body) st'.store st'.frame o :=
+    ∃ o s₂ f₂, EndsC C st' s₂ f₂ o ∧ Region.RunC P host C s f [] (expression body) s₂ f₂ o :=
   Proofs.Machine.run_sound_initial h hs
 
 /-- **Completeness from the CFG entry, with calls**: every `RunC` run of the body with oracle
@@ -581,11 +594,25 @@ outcome. -/
 theorem core_sound_initialC (hC : Region.CallSound P host C) {s : Store H} {f : Frame}
     {st' : MState H} (h : Relation.ReflTransGen (MStepC P host C body) (initial body s f) st')
     (hs : st'.node.IsSink) :
-    ∃ o c', Ends st' o ∧ Steps P host ⟨s, f, expression body⟩ ⟨st'.store, st'.frame, c'⟩ ∧
+    ∃ o s₂ f₂ c', EndsC C st' s₂ f₂ o ∧ Steps P host ⟨s, f, expression body⟩ ⟨s₂, f₂, c'⟩ ∧
       o.Ends c' := by
-  obtain ⟨o, hE, hR⟩ := run_sound_initialC h hs
+  obtain ⟨o, s₂, f₂, hE, hR⟩ := run_sound_initialC h hs
   obtain ⟨c', hc, he⟩ := Region.run_soundC hC hR
-  exact ⟨o, c', hE, by simpa using hc, he⟩
+  exact ⟨o, s₂, f₂, c', hE, by simpa using hc, he⟩
+
+/-- **Tail calls at the function's frame (frame replacement), against Core 3.0**: a run of the
+machine with calls from the CFG entry that ends by a tail call (its body's region outcome is a
+pending tail call) is a Core 3.0 run of the function's frame `FRAME_n{fi} (LABEL_n{} body)`, in
+any outer frame `f`, to the code of the sink it reached: the callee's results, its trap, or its
+exception. The function's handlers do not see the callee's exception. Under the named hypothesis
+`Region.CallSoundA` (the oracle is Core-sound for every `call_ref` form). -/
+theorem frame_tail_initialC (hC : Region.CallSoundA P host C) {s : Store H} {fi : Frame}
+    {st' : MState H} {s₂ : Store H} {f₂ : Frame} {W : List Val} {a : Nat} {c : Admin}
+    (hE : EndsC C st' s₂ f₂ (.tail W a c))
+    (hR : Region.RunC P host C s fi [] (expression body) s₂ f₂ (.tail W a c)) (n : Nat)
+    (f : Frame) {X : List Admin} (hX : codeOf body st' = some X) :
+    Steps P host ⟨s, f, [.frame n fi [.label n [] (expression body)]]⟩ ⟨st'.store, f, X⟩ :=
+  Proofs.Machine.frame_tail_initial hC hE hR n f hX
 
 end Calls
 

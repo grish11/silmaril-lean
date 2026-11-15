@@ -337,6 +337,21 @@ def CallSound (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) : 
     (∀ t, fl = .throw t → Steps P host ⟨s, f, vals us ++ [.ref (.func a), .callRefType fi.type]⟩
         ⟨s₁, f, throwing t⟩)
 
+/-- **Soundness of a call oracle for Core 3.0, for every `CALL_REF` form**: `CallSound` with any
+annotation `c` of the `call_ref` (Core's `call_ref` rules read only the reference and the
+callee). A tail call needs it: leaving the frame, Core calls the callee with the annotation
+`c.retToCallIn fi.module` (`return_call_ref-frame-addr`). A named hypothesis. -/
+def CallSoundA (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) : Prop :=
+  ∀ (s s₁ : Store H) (f : Frame) (a : Nat) (fi : FuncInst H) (ps rs : List CValType)
+    (us : List Val) (fl : Binaryen.Flow) (c : Admin), c.IsCallRef →
+    s.funcs[a]? = some fi → DefType.funcType? fi.type = some (ps, rs) → us.length = ps.length →
+    C s a us (s₁, fl) →
+    (∀ vs, fl.retVals = some vs → Steps P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩
+        ⟨s₁, f, vals (vs.take rs.length).reverse⟩) ∧
+    (fl = .trap → Steps P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ ⟨s₁, f, [.trap]⟩) ∧
+    (∀ t, fl = .throw t → Steps P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩
+        ⟨s₁, f, throwing t⟩)
+
 /-- **The call-free region semantics**: `RunC` with no call answered. -/
 abbrev Run (P : Profile) (host : HostSemantics H) := RunC P host noCall
 

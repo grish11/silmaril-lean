@@ -32,8 +32,9 @@ by an oracle `C : Abstract.CallRel H`, as `Region.RunC P host C` answers them: t
 entered, and its answer is pushed (or traps, or throws). An exception thrown by a call in a
 block's body is raised (`bodyRaise`) or caught by a `try_table` frame (`bodyCatch`), as one
 thrown by a `throw` terminator is. `MStep P host body := MStepC P host noCall body` is the
-call-free machine. A tail call of null traps (`tailNull`); tail calls of functions are not
-modelled yet.
+call-free machine. A tail call of null traps (`tailNull`). A tail call of a function (`tail`)
+is answered by `C` at the function's frame, which Core replaces by the callee's: the machine
+moves to the sink of the answer (`tailEnd`).
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -122,6 +123,19 @@ inductive CondArm : Instr → List Val → Nat → List Val → List Val → Pro
 def _root_.Silmaril.Wasm.Instr.IsThrow : Instr → Prop
   | .throw _ | .throwRef => True
   | _ => False
+
+/-- `return_call`, `return_call_ref` and `return_call_indirect`. -/
+def _root_.Silmaril.Wasm.Instr.IsTailCall : Instr → Prop
+  | .returnCall _ | .returnCallRef _ | .returnCallIndirect .. => True
+  | _ => False
+
+/-- **The state a function ends in after a tail call**, from the callee's flow `fl` (its final
+store `s`, the caller's frame `f`): its top `rs` results at `exit`, `trap`, or its exception at
+`raise`. The function's label frames are gone: Core replaced its frame by the callee's. -/
+def tailEnd (rs : Nat) (s : Store H) (f : Frame) : Binaryen.Flow → Option (MState H)
+  | .trap => some ⟨.trap, [], [], s, f⟩
+  | .throw t => some ⟨.raise, [.ref (.exn t)], [], s, f⟩
+  | fl => fl.retVals.map fun vs => ⟨.exit, (vs.take rs).reverse, [], s, f⟩
 
 /-- **One block step**, with calls answered by the oracle `C`. From block `b`, run its simple
 body (`Region.RunC P host C`, to values; a `call` in it is answered by `C` as `RunC.call` does),
@@ -314,10 +328,28 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
   with the store and frame after the terminator. -/
   | tailNull {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {W : List Val} {c : Admin}
-      (hb : lookup body b = some sg) (ht : sg.term = some i)
+      (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsTailCall)
       (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
       (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.tailNull W c)) :
       MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₂, f₂⟩
+
+  /-- **A tail call of a function, answered at the function's frame.** The terminator
+  (`return_call*`) ends in a pending tail call of the function at `a` (`Region.Out.tail`, over
+  the values `W`). As Core's `return_call_ref-frame-addr` does, the call is made on the top
+  `ps.length` values of the whole stack (under `W`, the label frames' outer values, as
+  `brVals` collects them), replacing the function's frame: the oracle `C` answers it, and the
+  machine moves to the sink of the answer (`tailEnd`), with no label frame left. The callee's
+  exception is not caught by the function's handlers. -/
+  | tail {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+      {s s₁ s₂ s₃ : Store H} {f f₁ f₂ : Frame} {i : Instr} {W W₀ args : List Val} {a : Nat}
+      {c : Admin} {fi : FuncInst H} {ps rs : List CValType} {fl : Binaryen.Flow} {st' : MState H}
+      (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsTailCall)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.tail W a c))
+      (hfi : s₂.funcs[a]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hargs : brVals ls.length ls W = W₀ ++ args) (hn : args.length = ps.length)
+      (hcall : C s₂ a args (s₃, fl)) (hend : tailEnd rs.length s₃ f₂ fl = some st') :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ st'
 
 /-- **The call-free machine**: `MStepC` with no call answered. -/
 abbrev MStep (P : Profile) (host : HostSemantics H) (body : Expr) := MStepC P host noCall body
@@ -449,6 +481,19 @@ def Ends {H : Type} (st : MState H) (o : Region.Out) : Prop :=
   | .trap => o = .trap ∨ ∃ W c, o = .tailNull W c
   | .raise => ∃ a, st.stk = [.ref (.exn a)] ∧ o = .throw a
   | _ => False
+
+/-- **What a run ending in a sink state means, with tail calls answered by `C`**: a region
+outcome `o` reached in store `s₂` and frame `f₂`. A pending tail call (`Out.tail W a c`) is
+completed at the function's frame: `C` answers the call of `a` on the top `ps.length` values of
+`W` from `s₂`, and the state is the sink of that answer (`tailEnd`). Any other outcome ends as
+`Ends` says, in the state's own store and frame. -/
+def EndsC {H : Type} (C : Abstract.CallRel H) (st : MState H) (s₂ : Store H) (f₂ : Frame) :
+    Region.Out → Prop
+  | .tail W a _ => ∃ (fi : FuncInst H) (ps rs : List Validation.CValType) (W₀ args : List Val)
+      (fl : Binaryen.Flow) (s₃ : Store H), s₂.funcs[a]? = some fi ∧
+      Validation.DefType.funcType? fi.type = some (ps, rs) ∧ W = W₀ ++ args ∧
+      args.length = ps.length ∧ C s₂ a args (s₃, fl) ∧ tailEnd rs.length s₃ f₂ fl = some st
+  | o => Ends st o ∧ st.store = s₂ ∧ st.frame = f₂
 
 /-- The machine's initial state for a function body: the CFG entry (`cfgEntry`), empty stack,
 no label frames. -/

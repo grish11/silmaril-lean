@@ -1143,7 +1143,9 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     subst hvs hcd
     cases rep_head hr (Proofs.Region.isRetCallRef_val hc) with
     | term hc' hsg ht hpre =>
-      exact .single (MStepC.tailNull (lookup_of hc' hsg) ht hpre (.returnCallRefNull (code := []) hc))
+      obtain ⟨y, rfl⟩ := Proofs.Region.isRetCallRef_plain hc
+      exact .single (MStepC.tailNull (lookup_of hc' hsg) ht trivial hpre
+        (.returnCallRefNull (code := []) hc))
     | body hc' hsg hbody hx =>
       obtain ⟨y, rfl⟩ := Proofs.Region.isRetCallRef_plain hc
       simp [isTerminator] at hx
@@ -1158,7 +1160,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
       rcases ho with rfl | ⟨W, a, c, rfl⟩ | ⟨W, c, rfl⟩
       · exact .single (MStepC.termTrap (lookup_of hc hsg) ht hpre hth)
       · trivial
-      · exact .single (MStepC.tailNull (lookup_of hc hsg) ht hpre hth)
+      · exact .single (MStepC.tailNull (lookup_of hc hsg) ht trivial hpre hth)
   | labelTailNull hin ih_in =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd

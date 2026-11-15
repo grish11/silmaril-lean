@@ -1577,6 +1577,58 @@ theorem tailNull_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : 
     (o := .tailNull W c) (s' := s₂) (f' := f₂) hth (by simp [ThenC])
   simpa [expression] using h2
 
+/-- A pending tail call propagates through every label frame, collecting the frames' outer
+values under its own (`brVals`, innermost nearest). -/
+theorem wrap_tail {body : Expr} {s s' : Store H} {f f' : Frame} {a : Nat} {c : Admin} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin} {W : List Val},
+      wrap body rp ls inner = some X →
+      RunC P host C s f [] inner s' f' (.tail W a c) →
+        RunC P host C s f [] X s' f' (.tail (brVals ls.length ls W) a c)
+  | [], [], _, _, W, hX, h => by simp [wrap] at hX; subst hX; simpa [brVals] using h
+  | [], _ :: _, _, _, _, hX, _ => by simp [wrap] at hX
+  | _ :: _, [], _, _, _, hX, _ => by simp [wrap] at hX
+  | (m, _) :: rp, L :: ls, inner, X, W, hX, h => by
+    simp only [wrap, Option.bind_eq_bind] at hX
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some] at hX
+          have := wrap_tail (s := s) (s' := s') (f := f) (f' := f') (a := a) (c := c) rp ls hX
+            (W := L.outer ++ W) ?_
+          · simpa [brVals] using this
+          apply Proofs.Region.run_vals (vs := [])
+          cases L.tryT
+          · simpa using (RunC.labelTail (C := C) (P := P) (host := host) (vs := L.outer)
+              (code := expression (restAt pc (m + 1))) (n := L.arity)
+              (cont := if L.loop then [t] else []) h)
+          · simpa using (RunC.handlerTail (C := C) (P := P) (host := host) (vs := L.outer)
+              (code := expression (restAt pc (m + 1))) (n := L.arity) (cs := L.catches)
+              (by simpa using (RunC.labelTail (C := C) (P := P) (host := host) (vs := [])
+                (code := []) (n := L.arity) (cont := if L.loop then [t] else []) h)))
+
+/-- **A tail call terminator is sound**: the code ends in the pending tail call, over the whole
+stack (the frames' outer values under the terminator's), with the terminator's final store. -/
+theorem tail_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
+    {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {W : List Val}
+    {a : Nat} {c : Admin} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.tail W a c))
+    (hX : codeAt body b stk ls = some X) :
+    RunC P host C s f [] X s₂ f₂ (.tail (brVals ls.length ls W) a c) := by
+  obtain ⟨c', hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  refine wrap_tail _ _ hX (W := W) (block_then (o := .tail W a c) hsg ht hr ?_)
+  have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c' (b.idx + 1)))
+    (o := .tail W a c) (s' := s₂) (f' := f₂) hth (by simp [ThenC])
+  simpa [expression] using h2
+
 /-- **A `return` is sound**: the code returns the block's values, over the frames' outer
 values. -/
 theorem ret_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
@@ -2016,6 +2068,42 @@ theorem resolveT_labels (body : Expr) (p : List SeqStep) (l : LabelIdx) :
     resolveT (labels body p) l = (labelsRev body p.reverse).getD l.toNat .invalid := by
   simp [labels, resolveT, Idx.toNat]
 
+theorem endsC_of_ends {st : MState H} {o : Out} (h : Ends st o) :
+    EndsC C st st.store st.frame o := by
+  cases o with
+  | tail W a c =>
+    obtain ⟨node, stk, ls, s, f⟩ := st
+    cases node <;> simp [Ends] at h
+  | _ => exact ⟨h, rfl, rfl⟩
+
+theorem sinkOk {st st₁ : MState H} {X : List Admin} {o : Out} (hE : Ends st₁ o)
+    (hR : RunC P host C st.store st.frame [] X st₁.store st₁.frame o) :
+    ∃ o s₂ f₂, EndsC C st₁ s₂ f₂ o ∧ RunC P host C st.store st.frame [] X s₂ f₂ o :=
+  ⟨o, _, _, endsC_of_ends hE, hR⟩
+
+theorem tailEnd_sink {body : Expr} {rs : Nat} {s : Store H} {f : Frame} {fl : Binaryen.Flow}
+    {st : MState H} (h : tailEnd rs s f fl = some st) : MInv body st ∧ st.node.IsSink := by
+  unfold tailEnd at h
+  split at h
+  · cases h; exact ⟨trivial, trivial⟩
+  · cases h; exact ⟨⟨rfl, _, rfl⟩, trivial⟩
+  · simp only [Option.map_eq_some_iff] at h
+    obtain ⟨vs, -, rfl⟩ := h
+    exact ⟨rfl, trivial⟩
+
+theorem endsC_not_block {st : MState H} {s₂ : Store H} {f₂ : Frame} {o : Out}
+    (hE : EndsC C st s₂ f₂ o) {b : BlockId} (hb : st.node = .block b) : False := by
+  cases o with
+  | tail W a c =>
+    obtain ⟨_, _, _, _, _, _, _, -, -, -, -, -, hend⟩ := hE
+    have := (tailEnd_sink (body := []) hend).2
+    rw [hb] at this
+    exact this
+  | _ =>
+    obtain ⟨node, stk, ls, s, f⟩ := st
+    simp only at hb; subst hb
+    simp [EndsC, Ends] at hE
+
 /-- What one machine step proves: the invariant holds after it, and either the next state's
 code runs as the current one's (`Y`), or the step reached a sink and the current code ends as
 that sink says (`Ends`). -/
@@ -2023,7 +2111,7 @@ def StepOk (body : Expr) (st st₁ : MState H) (X : List Admin) : Prop :=
   MInv body st₁ ∧
     ((∃ Y, codeOf body st₁ = some Y ∧ ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
         RunC P host C st₁.store st₁.frame [] Y s₂ f₂ o → RunC P host C st.store st.frame [] X s₂ f₂ o) ∨
-      ∃ o, Ends st₁ o ∧ RunC P host C st.store st.frame [] X st₁.store st₁.frame o)
+      ∃ o s₂ f₂, EndsC C st₁ s₂ f₂ o ∧ RunC P host C st.store st.frame [] X s₂ f₂ o)
 
 theorem stepOk_back {body : Expr} {st st₁ : MState H} {X : List Admin} (hok₁ : MInv body st₁)
     (hb : ∀ {Y : List Admin}, codeOf body st₁ = some Y → ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
@@ -2110,17 +2198,18 @@ theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStepC P host C bod
   | @ret b sg stk stk₁ ls s s₁ f f₁ hb ht hr =>
     simp only [codeOf] at hX
     obtain ⟨W, hW⟩ := ret_sound hb ht hr hX
-    exact ⟨by simp [MInv], Or.inr ⟨_, by simp only [Ends]; exact Or.inr ⟨W, rfl⟩, hW⟩⟩
+    exact ⟨by simp [MInv], Or.inr (sinkOk (by simp only [Ends]; exact Or.inr ⟨W, rfl⟩) hW)⟩
   | trap hb ht hr =>
     simp only [codeOf] at hX
     obtain ⟨stk₁, hr⟩ := hr
-    exact ⟨by simp [MInv], Or.inr ⟨.trap, by simp [Ends], trap_sound hb ht hr hX⟩⟩
+    exact ⟨by simp [MInv], Or.inr (sinkOk (o := .trap) (by simp [Ends]) (trap_sound hb ht hr hX))⟩
   | bodyTrap hb hr =>
     simp only [codeOf] at hX
-    exact ⟨by simp [MInv], Or.inr ⟨.trap, by simp [Ends], bodyTrap_sound hb hr hX⟩⟩
+    exact ⟨by simp [MInv], Or.inr (sinkOk (o := .trap) (by simp [Ends]) (bodyTrap_sound hb hr hX))⟩
   | termTrap hb ht hr hth =>
     simp only [codeOf] at hX
-    exact ⟨by simp [MInv], Or.inr ⟨.trap, by simp [Ends], termTrap_sound hb ht hr hth hX⟩⟩
+    exact ⟨by simp [MInv], Or.inr (sinkOk (o := .trap) (by simp [Ends])
+      (termTrap_sound hb ht hr hth hX))⟩
   | @catch_ b sg stk stk₁ us ls s s₁ s₂ f f₁ f₂ i a j L L' l hb ht hi hr hth hpass hL hT hc hL'
       harity hlbt =>
     simp only [MInv] at hok; simp only [codeOf] at hX
@@ -2139,14 +2228,22 @@ theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStepC P host C bod
       exact br_loop_ok hok hL' hl
   | @raise b sg stk stk₁ ls s s₁ s₂ f f₁ f₂ i a hb ht hi hr hth hT =>
     simp only [codeOf] at hX
-    exact ⟨by simp [MInv], Or.inr ⟨.throw a, by simp [Ends], raise_pass_sound hb ht hr hth hT hX⟩⟩
-  | tailNull hb ht hr hth =>
+    exact ⟨by simp [MInv], Or.inr (sinkOk (o := .throw a) (by simp [Ends])
+      (raise_pass_sound hb ht hr hth hT hX))⟩
+  | tailNull hb ht _ hr hth =>
     simp only [codeOf] at hX
     obtain ⟨W', hW⟩ := tailNull_sound hb ht hr hth hX
-    exact ⟨by simp [MInv], Or.inr ⟨_, by simp only [Ends]; exact Or.inr ⟨W', _, rfl⟩, hW⟩⟩
+    exact ⟨by simp [MInv], Or.inr (sinkOk (by simp only [Ends]; exact Or.inr ⟨W', _, rfl⟩) hW)⟩
+  | @tail b sg stk stk₁ ls s s₁ s₂ s₃ f f₁ f₂ i W W₀ args a c fi ps rs fl st' hb ht hi hr hth hfi
+      hty hargs hn hcall hend =>
+    simp only [codeOf] at hX
+    have hW := tail_sound hb ht hr hth hX
+    refine ⟨(tailEnd_sink hend).1, Or.inr ⟨_, _, _, ?_, hW⟩⟩
+    exact ⟨fi, ps, rs, W₀, args, fl, s₃, hfi, hty, hargs, hn, hcall, hend⟩
   | @bodyRaise b sg stk ls s s₁ f f₁ a hb hr hT =>
     simp only [codeOf] at hX
-    exact ⟨by simp [MInv], Or.inr ⟨.throw a, by simp [Ends], bodyRaise_sound hb hr hT hX⟩⟩
+    exact ⟨by simp [MInv], Or.inr (sinkOk (o := .throw a) (by simp [Ends])
+      (bodyRaise_sound hb hr hT hX))⟩
   | @bodyCatch b sg stk us ls s s₁ f f₁ a j L L' l hb hr hpass hL hT hc hL' harity hlbt =>
     simp only [MInv] at hok; simp only [codeOf] at hX
     cases hl : L'.loop
@@ -2200,32 +2297,32 @@ region run of the code the state stands for, ending as the sink says. -/
 theorem run_sound {body : Expr} {st st' : MState H}
     (h : Relation.ReflTransGen (MStepC P host C body) st st') (hs : st'.node.IsSink)
     (hok : MInv body st) {X : List Admin} (hX : codeOf body st = some X) :
-    ∃ o, Ends st' o ∧ RunC P host C st.store st.frame [] X st'.store st'.frame o := by
+    ∃ o s₂ f₂, EndsC C st' s₂ f₂ o ∧ RunC P host C st.store st.frame [] X s₂ f₂ o := by
   induction h using Relation.ReflTransGen.head_induction_on generalizing X with
-  | refl => exact sink_sound hs hX
+  | refl => obtain ⟨o, hE, hR⟩ := sink_sound hs hX; exact sinkOk hE hR
   | head hstep hrest ih =>
-    obtain ⟨hok₁, ⟨Y, hY, hb⟩ | ⟨o, hE, hR⟩⟩ := mstep_sound hstep hok hX
-    · obtain ⟨o, hE, hR⟩ := ih hok₁ hY
-      exact ⟨o, hE, hb hR⟩
+    obtain ⟨hok₁, ⟨Y, hY, hb⟩ | ⟨o, s₂, f₂, hE, hR⟩⟩ := mstep_sound hstep hok hX
+    · obtain ⟨o, s₂, f₂, hE, hR⟩ := ih hok₁ hY
+      exact ⟨o, s₂, f₂, hE, hb hR⟩
     · rcases hrest.cases_head with rfl | ⟨c, hc, -⟩
-      · exact ⟨o, hE, hR⟩
+      · exact ⟨o, s₂, f₂, hE, hR⟩
       · exfalso
         obtain ⟨b, hb⟩ := mstep_from_block hc
-        exact ends_not_block hE hb
+        exact endsC_not_block hE hb
 
 /-- **Whole-run soundness from the CFG entry**: a machine run of a function body from its
 initial state (`cfgEntry`, empty stack, no frames) to a sink is a region run of the body. -/
 theorem run_sound_initial {body : Expr} {s : Store H} {f : Frame} {st' : MState H}
     (h : Relation.ReflTransGen (MStepC P host C body) (initial body s f) st')
     (hs : st'.node.IsSink) :
-    ∃ o, Ends st' o ∧ RunC P host C s f [] (expression body) st'.store st'.frame o := by
+    ∃ o s₂ f₂, EndsC C st' s₂ f₂ o ∧ RunC P host C s f [] (expression body) s₂ f₂ o := by
   have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by
     simp [initial, goto, popL, cfgEntry]
   have hok : MInv body (initial body s f) := by
     rw [hinit]; exact entry_ok (p := []) trivial
   obtain ⟨Y, hY⟩ := codeOf_of_ok hok
-  obtain ⟨o, hE, hR⟩ := run_sound h hs hok hY
-  refine ⟨o, hE, ?_⟩
+  obtain ⟨o, s₂, f₂, hE, hR⟩ := run_sound h hs hok hY
+  refine ⟨o, s₂, f₂, hE, ?_⟩
   rw [hinit] at hY
   exact entry_sound (p := []) (c := body) (i := 0) rfl (by simp [wrap, restAt_zero, vals]) hY hR
 
@@ -2332,6 +2429,23 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStepC P host C body s
   | bodyTrap => right; left; rfl
   | termTrap => right; left; rfl
   | tailNull => right; left; rfl
+  | @tail _ sg _ _ _ _ _ _ _ _ _ _ i _ _ _ _ _ _ _ _ fl _ hb ht hi hr hth hfi hty hargs hlen hcall
+      hend =>
+    cases hn
+    unfold tailEnd at hend
+    split at hend
+    · cases hend; right; left; rfl
+    · cases hend
+      right; right; right
+      refine ⟨⟨sg, hb, ?_⟩, _, _, _, _, _, hcall⟩
+      have hm : Effect.call ∈ sg.instrs.flatMap instrEffects :=
+        List.mem_flatMap.2 ⟨i, by simp [Segment.instrs, ht], by
+          cases i <;> simp_all [Instr.IsTailCall, instrEffects]⟩
+      simp [effectSucc, blockEffects, hm]
+    · simp only [Option.map_eq_some_iff] at hend
+      obtain ⟨vs, -, rfl⟩ := hend
+      left; refine ⟨_, hb, ?_⟩
+      cases i <;> simp_all [Instr.IsTailCall, succOf]
   | @raise _ _ _ _ _ _ _ _ _ _ _ i _ hb ht hi =>
     left; cases hn; refine ⟨_, hb, ?_⟩
     cases i <;> simp_all [Instr.IsThrow, succOf]
