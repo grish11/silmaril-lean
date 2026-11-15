@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Abstract.Recursion.Defs
 public import Silmaril.Wasm.Abstract.CallRes.Defs
+public import Silmaril.Wasm.Abstract.StoreCall.Defs
 
 /-!
 # Indirect, reference and tail calls, with an oracle (F4, call forms)
@@ -295,5 +296,149 @@ def xFreeL : List BExpr → Bool
   | e :: es => xFree e && xFreeL es
 
 end
+
+/-! ## The exposed body of the extended call forms
+
+As in `StoreCall`, a call is a visible event `(callee, args, store)` of
+`CallSig H`. The extended forms first resolve their callee as `EvalOX` does,
+classically (`resolveInd`, `resolveTail`: the unique resolution, or none), then
+make the same call event; a tail call ends the caller with the callee's result
+(`tailAns`). -/
+
+section Exposed
+
+open Silmaril.Wasm.Abstract.StoreBody Silmaril.Wasm.Abstract.StoreCall
+open Silmaril.Wasm.Abstract.Body (getState setState trap callImport)
+
+/-- The indirect-call resolution of a stack (top first): the resolution and the
+stack below the index. -/
+def IndResS (s : Store H) (f : Frame) (x : TableIdx) (y : TypeIdx) (stk : List Val) :
+    Option Nat × List Val → Prop := fun p =>
+  ∃ (ad : AddrType) (i : BitVec ad.intType.width), stk = .num ⟨.int ad.intType, i⟩ :: p.2 ∧
+    CallRes.IndRes s f x y ad i p.1
+
+open Classical in
+/-- The resolution of `call_indirect x y` on a stack, if any. -/
+noncomputable def resolveInd (s : Store H) (f : Frame) (x : TableIdx) (y : TypeIdx)
+    (stk : List Val) : Option (Option Nat × List Val) :=
+  if h : ∃ p, IndResS s f x y stk p then some (Classical.choose h) else none
+
+open Classical in
+/-- The resolution of a tail call on a stack, if any. -/
+noncomputable def resolveTail (s : Store H) (f : Frame) (i : Instr) (stk : List Val) :
+    Option (Option (Nat × List Val)) :=
+  if h : ∃ o, TailRes s f i stk o then some (Classical.choose h) else none
+
+/-- A call event to the function at address `fa`, its answer read as `EvalO`'s
+call rules read their oracle. -/
+noncomputable def callAt (fa : Nat) (f : Frame) (stk : List Val) : M (CallSig H) H Res :=
+  getState >>= fun s =>
+    match s.down.funcs[fa]? with
+    | some fi =>
+      match Validation.DefType.funcType? fi.type with
+      | some (ps, rs) =>
+        callImport (E := CallSig H) (fa, (stk.take ps.length).reverse, s.down) >>= fun ans =>
+          callAns f stk ps rs ans.down
+      | none => stuck
+    | none => stuck
+
+/-- The answer of a tail call: the callee's result values return from the caller. -/
+noncomputable def tailAns (f : Frame) (rs : List Validation.CValType) :
+    Store H × Flow → M (CallSig H) H Res
+  | (_, .trap) => trap ⟨⟩
+  | (s₂, .throw t) => setState ⟨s₂⟩ >>= fun _ => pure ⟨(f, .throw t)⟩
+  | (s₂, fl) =>
+    match fl.retVals with
+    | some vs => setState ⟨s₂⟩ >>= fun _ => pure ⟨(f, .ret (vs.take rs.length))⟩
+    | none => stuck
+
+/-- A tail call event to the function at address `fa`. -/
+noncomputable def tailAt (fa : Nat) (f : Frame) (stk : List Val) : M (CallSig H) H Res :=
+  getState >>= fun s =>
+    match s.down.funcs[fa]? with
+    | some fi =>
+      match Validation.DefType.funcType? fi.type with
+      | some (ps, rs) =>
+        callImport (E := CallSig H) (fa, (stk.take ps.length).reverse, s.down) >>= fun ans =>
+          tailAns f rs ans.down
+      | none => stuck
+    | none => stuck
+
+/-- `call_indirect x y`, exposed. -/
+noncomputable def indEv (x : TableIdx) (y : TypeIdx) (f : Frame) (stk : List Val) :
+    M (CallSig H) H Res :=
+  getState >>= fun s =>
+    match resolveInd s.down f x y stk with
+    | some (some fa, stk₁) => callAt fa f stk₁
+    | some (none, _) => trap ⟨⟩
+    | none => stuck
+
+/-- `call_ref y`, exposed. -/
+noncomputable def refEv (f : Frame) : List Val → M (CallSig H) H Res
+  | .ref (.func fa) :: stk₁ => callAt fa f stk₁
+  | .ref .null :: _ => trap ⟨⟩
+  | _ => stuck
+
+/-- A tail call, exposed. -/
+noncomputable def tailEv (i : Instr) (f : Frame) (stk : List Val) : M (CallSig H) H Res :=
+  getState >>= fun s =>
+    match resolveTail s.down f i stk with
+    | some (some (fa, stk₁)) => tailAt fa f stk₁
+    | some none => trap ⟨⟩
+    | none => stuck
+
+/-- An operator, exposed: every call form makes a call event, other operators are
+the lifted primitive. -/
+noncomputable def opCX (i : Instr) (f : Frame) (stk : List Val) : M (CallSig H) H Res :=
+  match i with
+  | .call x => callEv x f stk
+  | .callIndirect x y => indEv x y f stk
+  | .callRef _ => refEv f stk
+  | .returnCall _ | .returnCallIndirect _ _ | .returnCallRef _ => tailEv i f stk
+  | _ => flatK i f stk
+
+mutual
+
+/-- The exposed abstract body of a folded tree, all call forms as events. -/
+noncomputable def denX : BExpr → Frame → List Val → M (CallSig H) H Res
+  | .op i args, f, stk => denListX args f stk >>= thenK (opCX i)
+  | .block bt body, f, stk =>
+    match arity f bt with
+    | some (np, nr) => denListX body f (stk.take np) >>= blockK np nr stk
+    | none => stuck
+  | .loop bt body, f, stk =>
+    Silmaril.Elgot.iter (fun c : ULift.{1} (Frame × List Val) =>
+      match arity c.down.1 bt with
+      | some (np, nr) => denListX body c.down.1 (c.down.2.take np) >>= loopK np nr c.down.2
+      | none => stuck) ⟨(f, stk)⟩
+  | .if_ bt c t el, f, stk =>
+    denListX c f stk >>= fun r =>
+      match r with
+      | ⟨(f₁, .normal (cv :: stk₁))⟩ =>
+        match truthy cv, arity f₁ bt with
+        | some b, some (np, nr) =>
+          (if b then denListX t f₁ (stk₁.take np) else denListX el f₁ (stk₁.take np)) >>=
+            blockK np nr stk₁
+        | _, _ => stuck
+      | ⟨(_, .normal [])⟩ => stuck
+      | r => pure r
+  | .tryTable .., _, _ => stuck
+
+/-- The exposed abstract body of a list of trees. -/
+noncomputable def denListX : List BExpr → Frame → List Val → M (CallSig H) H Res
+  | [], f, stk => pure ⟨(f, .normal stk)⟩
+  | e :: es, f, stk => denX e f stk >>= thenK (denListX es)
+
+end
+
+/-- The body of one loop iteration, exposed. -/
+noncomputable def loopBodyX (bt : BlockType) (body : List BExpr) :
+    ULift.{1} (Frame × List Val) → M (CallSig H) H (Res ⊕ ULift.{1} (Frame × List Val)) :=
+  fun c =>
+    match arity c.down.1 bt with
+    | some (np, nr) => denListX body c.down.1 (c.down.2.take np) >>= loopK np nr c.down.2
+    | none => stuck
+
+end Exposed
 
 end Silmaril.Wasm.Abstract.CallX

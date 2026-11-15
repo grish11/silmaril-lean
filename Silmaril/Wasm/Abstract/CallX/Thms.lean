@@ -1,6 +1,8 @@
 module
 
 public import Silmaril.Wasm.Abstract.CallX.Defs
+public import Silmaril.Wasm.Abstract.BodyTrace.Defs
+import Silmaril.Proofs.Wasm.Abstract.CallX.Expose
 
 /-!
 # Indirect, reference and tail calls: theorems
@@ -9,6 +11,16 @@ public import Silmaril.Wasm.Abstract.CallX.Defs
 * `evalO_of_xFree`, `evalOX_iff_evalO`: on code without the extended call forms
   (`xFreeL`), `EvalOX C` is exactly `EvalO C`. The direct-call part of the
   extended relation is the existing oracle semantics.
+* **Exposure.** `denListX` (Defs) is the exposed body with *every* call form a
+  call event: indirect, reference and tail calls resolve their callee as
+  `EvalOX` does, then make `StoreCall`'s call event. `evalOX_path`: every
+  `EvalOX C` derivation is a path of it with all call events answered by `C`.
+  `denListX_eq_denListE`: on code without the extended forms it is exactly
+  `StoreCall`'s exposed body.
+
+**Not yet.** The converse (answered paths are `EvalOX` derivations), and Core
+3.0 adequacy of the new rules (pending the export of the forward simulation
+for oracles, #372, coordinated with its owner).
 -/
 
 public section
@@ -103,5 +115,20 @@ theorem evalOX_iff_evalO {C : CallRel H} {s : Store H} {f : Frame} {stk : List V
     {es : List BExpr} {r : Store H × Frame × Flow} (hx : xFreeL es = true) :
     EvalOX C s f stk es r ↔ EvalO C s f stk es r :=
   ⟨fun h => evalO_of_xFree h hx, EvalOX.of_evalO⟩
+
+open Silmaril.Wasm.Abstract.StoreBody Silmaril.Wasm.Abstract.StoreCall
+open Silmaril.Wasm.Abstract.BodyTrace (Path)
+
+/-- **Exposure of the extended relation.** Every `EvalOX C` derivation is a path
+of the exposed body with every call event answered by `C`. -/
+theorem evalOX_path {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List BExpr} {r : Store H × Frame × Flow} (h : EvalOX C s f stk es r) :
+    ∃ cs, Answered C cs ∧ Path (((denListX es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs (endR r) :=
+  Silmaril.Proofs.Wasm.Abstract.CallX.evalOX_path h
+
+/-- **The direct part of the exposed body is `StoreCall`'s.** -/
+theorem denListX_eq_denListE {es : List BExpr} (h : xFreeL es = true) :
+    (denListX (H := H) es : Frame → List Val → M (CallSig H) H Res) = denListE es :=
+  Silmaril.Proofs.Wasm.Abstract.CallX.denListX_eq_denC es h
 
 end Silmaril.Wasm.Abstract.CallX
