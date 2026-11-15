@@ -2,12 +2,17 @@ module
 
 public import Silmaril.Wasm.Interp.ExampleTailEH.Defs
 public import Silmaril.Wasm.Abstract.XRecursionP.Thms
+public import Silmaril.Proofs.Wasm.Interp.PendClose
+public import Silmaril.Wasm.Validation.Check.ValidateFinal
 
 /-!
 # Tail calls inside handlers (proofs)
 
 The answers of the closure with pending tail calls (`XRecursionP.closedCallXP`) for the four
-functions of `ExampleTailEH`.
+functions of `ExampleTailEH`, on the original store and on the corrected one; the validation of
+the corrected module `tModuleV` and the rejection of the original one (by the validator and by
+the arity checker); and the Core 3.0 runs of the calls of the corrected store's functions, from
+the soundness of the closure (`Interp.closedCallXP_sound`).
 -/
 
 @[expose] public section
@@ -292,5 +297,159 @@ theorem caller_answer_inv {out : Store Empty × Flow} (h : closedCallXP tStore 2
     simp only [Prod.mk.injEq] at e
     obtain ⟨-, -, rfl⟩ := e
     exact ho.elim
+
+
+/-! ## Validation: the original module is rejected, the corrected one is valid -/
+
+/-- The original module is rejected by the validator. -/
+theorem tModuleOld_invalid : Validation.validate? tModuleOld = none := by decide +kernel
+
+/-- Its `$caller` alone is ill-typed (the empty-typed `try_table` leaves an `i32`). -/
+theorem tModule_caller_invalid :
+    Validation.validate? (tModule [thrower, tailer, caller, nullerV]) = none := by decide +kernel
+
+/-- Its `$nuller` alone is ill-typed (`return_call_ref $r` on a `funcref`). -/
+theorem tModule_nuller_invalid :
+    Validation.validate? (tModule [thrower, tailer, callerV, nuller]) = none := by decide +kernel
+
+/-- The corrected module passes the validator. -/
+theorem tModuleV_valid : (Validation.validate? tModuleV).isSome = true := by decide +kernel
+
+/-- **The corrected module is valid.** -/
+theorem tModuleV_moduleValid : Validation.ModuleValid tModuleV :=
+  Validation.validate_sound tModuleV_valid
+
+/-- **The original module is not valid** (by the completeness of the validator). -/
+theorem tModuleOld_not_moduleValid : ¬ Validation.ModuleValid tModuleOld := fun h => by
+  have := Validation.validate?_isSome_iff.mpr h
+  rw [tModuleOld_invalid] at this
+  cases this
+
+section Check
+
+open Silmaril.Wasm.Interp
+
+theorem tTy_funcType : Validation.DefType.funcType? tTy = some ([], [.num (.int .i32)]) := rfl
+
+/-- **The original store fails the arity checker**, on `$caller`. -/
+theorem tStore_not_storeChk : ¬ StoreChkE (ehExt [tTag]) tStore.funcs := fun h => by
+  have := h 2 _ caller [] [.num (.int .i32)] rfl rfl tTy_funcType
+  revert this
+  decide
+
+/-- The corrected store has the tag invariants: its tag is `$t`, and no exception yet. -/
+theorem tStoreV_tagsOk : TagsOk [tTag] tStoreV :=
+  ⟨rfl, fun a e h => by simp [tStoreV] at h⟩
+
+/-- The corrected store's four bodies pass the exception checker. -/
+theorem tStoreV_storeChk : StoreChkE (ehExt [tTag]) tStoreV.funcs := by
+  intro a fi fn ps rs h₁ h₂ h₃
+  rcases a with _ | _ | _ | _ | a
+  rotate_left 4
+  · simp [tStoreV] at h₁
+  all_goals simp only [tStoreV, List.getElem?_cons_zero, List.getElem?_cons_succ,
+    Option.some.injEq] at h₁
+  all_goals
+    subst h₁
+    cases h₂
+    have : (ps, rs) = ([], [.num (.int .i32)]) := Option.some.inj (h₃.symm.trans rfl)
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj this
+    decide
+
+end Check
+
+/-! ## The closure's answers on the corrected store -/
+
+theorem thrower_bodyV : EvalOXP closedCallXP tStoreV (Frame.forCall tMod [] []) []
+    (liftInstrs thrower.body) (tStoreV', Frame.forCall tMod [] [], .flow (.throw 0)) := by
+  obtain ⟨ts, he, hn⟩ := tTag_expand
+  have h := EvalOXP.throw (C := closedCallXP) (s := tStoreV) (f := Frame.forCall tMod [] [])
+    (stk := [v9]) (x := ⟨0⟩) (ta := 0) (ti := tTag) (es := []) .nil (by rfl) he (by simp [hn])
+  simp only [hn] at h
+  exact .opOk (fun _ h => by cases h) .nil rfl h
+
+/-- `$thrower` throws, in the corrected store. -/
+theorem thrower_answerV : closedCallXP tStoreV 0 [] (tStoreV', .throw 0) := by
+  rw [closedCallXP_fixpoint]
+  exact ⟨_, thrower, [], _, _, _, _, rfl, rfl, rfl, thrower_bodyV, .flow⟩
+
+theorem tailer_bodyV : EvalOXP closedCallXP tStoreV (Frame.forCall tMod [] []) []
+    (liftInstrs tailer.body) (tStoreV, Frame.forCall tMod [] [], .tail 0 [] 1) :=
+  .blockEsc (np := 0) (nr := 1) rfl
+    (.tryEsc (np := 0) (nr := 0) rfl
+      (.tail (ps := []) (rs := [.num (.int .i32)]) .nil (.direct rfl) rfl rfl
+        (fun _ h => by cases h)) trivial trivial)
+    trivial
+
+/-- `$tailer` throws `$thrower`'s exception, in the corrected store. -/
+theorem tailer_answerV : closedCallXP tStoreV 1 [] (tStoreV', .throw 0) := by
+  rw [closedCallXP_fixpoint]
+  exact ⟨_, tailer, [], _, _, _, _, rfl, rfl, rfl, tailer_bodyV,
+    .tail (n := 1) thrower_answerV (.inr trivial)⟩
+
+/-- `$caller`'s body in the corrected store: the call throws inside the handler, the clause
+`catch $t 0` branches to the block with the field `9` (the `try_table` has result `i32`), and the
+block produces `9`. -/
+theorem caller_bodyV : EvalOXP closedCallXP tStoreV (Frame.forCall tMod [] []) []
+    (liftInstrs callerV.body) (tStoreV', Frame.forCall tMod [] [], .flow (.normal [v9])) :=
+  .blockOk (np := 0) (nr := 1) rfl
+    (.tryCatch (np := 0) (nr := 1) rfl
+      (.callThrow (ps := []) (rs := [.num (.int .i32)]) .nil rfl rfl thrower_answerV)
+      (.catch_ (e := ⟨0, [v9]⟩) rfl rfl))
+    rfl .nil
+
+/-- `$caller` returns `9`, in the corrected store. -/
+theorem caller_answerV : closedCallXP tStoreV 2 [] (tStoreV', .normal [v9]) := by
+  rw [closedCallXP_fixpoint]
+  exact ⟨_, callerV, [], _, _, _, _, rfl, rfl, rfl, caller_bodyV, .flow⟩
+
+theorem nuller_bodyV : EvalOXP closedCallXP tStoreV (Frame.forCall tMod [] nullerV.locals) []
+    (liftInstrs nullerV.body) (tStoreV, Frame.forCall tMod [] nullerV.locals, .flow .trap) :=
+  .blockEsc (np := 0) (nr := 1) rfl
+    (.tryEsc (np := 0) (nr := 0) rfl
+      (.opOk (fun _ h => by cases h) .nil rfl (.tailRes .nil .refNull)) trivial trivial)
+    trivial
+
+/-- `$nuller` traps, in the corrected store. -/
+theorem nuller_answerV : closedCallXP tStoreV 3 [] (tStoreV, .trap) := by
+  rw [closedCallXP_fixpoint]
+  exact ⟨_, nullerV, [], _, _, _, _, rfl, rfl, rfl, nuller_bodyV, .flow⟩
+
+/-! ## The Core runs -/
+
+section Core
+
+open Silmaril.Wasm.Interp
+
+variable {P : Numerics.Profile} {host : HostSemantics Empty}
+
+/-- **`$tailer` throws `$thrower`'s exception in Core 3.0**, called in any `call_ref` form from
+any frame: its tail call leaves the handler by `return_call_ref-handler` and the frame by
+`return_call_ref-frame-addr` before `$thrower` runs, so the clause `catch $t 0` never sees the
+exception. -/
+theorem tailer_steps (f : Frame) (c : Admin) (hc : c.IsCallRef) :
+    Steps P host ⟨tStoreV, f, vals [] ++ [.ref (.func 1), c]⟩ ⟨tStoreV', f, throwing 0⟩ :=
+  ((closedCallXP_sound (P := P) (host := host) [tTag] tStoreV 1 [] _ tailer_answerV
+    tStoreV_tagsOk).2 f _ [] [.num (.int .i32)] c tStoreV_storeChk rfl tTy_funcType rfl
+    hc).2.2.2 0 rfl
+
+/-- **`$caller` returns `9` in Core 3.0**: the ordinary call throws inside the handler, which
+catches the exception. -/
+theorem caller_steps (f : Frame) (c : Admin) (hc : c.IsCallRef) :
+    Steps P host ⟨tStoreV, f, vals [] ++ [.ref (.func 2), c]⟩ ⟨tStoreV', f, vals [v9]⟩ := by
+  have h := ((closedCallXP_sound (P := P) (host := host) [tTag] tStoreV 2 [] _ caller_answerV
+    tStoreV_tagsOk).2 f _ [] [.num (.int .i32)] c tStoreV_storeChk rfl tTy_funcType rfl hc).2.1
+    [v9] rfl
+  simpa using h
+
+/-- **`$nuller` traps in Core 3.0**: its tail call of null is pending through the handler and
+the block, and traps when the frame is left (`return_call_ref-frame-null`). -/
+theorem nuller_steps (f : Frame) (c : Admin) (hc : c.IsCallRef) :
+    Steps P host ⟨tStoreV, f, vals [] ++ [.ref (.func 3), c]⟩ ⟨tStoreV, f, [.trap]⟩ :=
+  ((closedCallXP_sound (P := P) (host := host) [tTag] tStoreV 3 [] _ nuller_answerV
+    tStoreV_tagsOk).2 f _ [] [.num (.int .i32)] c tStoreV_storeChk rfl tTy_funcType rfl
+    hc).2.2.1 rfl
+
+end Core
 
 end Silmaril.Proofs.Wasm.Interp.ExampleTailEH
