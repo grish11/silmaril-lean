@@ -528,4 +528,47 @@ theorem opSig_of_instr {i : Instr} {es args : List Silmaril.Wasm.SSA.Expr} {o : 
 
 end
 
+/-! ## Operator nodes from validation -/
+
+open Silmaril.Wasm.Abstract.FragBody in
+section
+
+/-- **An operator node, inverted.** Operands typed at `τs` with principal results
+`τs.map numInt`, followed by a native recognised operator, in a valid sequence:
+the operator node is typed, at the operator's result. -/
+theorem ty_op_node {D : Context} (hD : D.Wf) {Γ : List IntType} {ρ : Option IntType}
+    {Λ : List (Option IntType)} {i : Instr} {args : List BExpr} {es : List Silmaril.Wasm.SSA.Expr}
+    {o : Silmaril.Wasm.SSA.Op} {τs : List IntType} {ps rs : List CValType} {xs : List Nat}
+    (hofi : Silmaril.Wasm.SSA.ofInstr? i es = some (.op o es)) (hnat : o.native = true)
+    (hargs : ArgsTy Γ ρ Λ es τs) (hp : Principal D (BExpr.lowerList args) (τs.map numInt))
+    (hlen : τs.length = es.length)
+    (har : ∀ D' it₀, InstrOk D' i it₀ → it₀.params.length = es.length)
+    (h : InstrsOk D (BExpr.lowerList args ++ [i]) ⟨ps, xs, rs⟩) :
+    ∃ t, Ty Γ ρ Λ (.op o es) (some t) := by
+  obtain ⟨ya, it₀, hi, hpar⟩ := operands_params hD hp (fun v hv => by
+    simp only [List.mem_map] at hv; obtain ⟨t, -, rfl⟩ := hv; exact ⟨_, rfl⟩) h
+  have hpe := hpar (by rw [har _ _ hi, List.length_map, hlen])
+  obtain ⟨t, hs, -⟩ := opSig_of_instr hofi hi hpe hnat
+  exact ⟨t, .op hs hargs⟩
+
+theorem ofInstr_params_len {i : Instr} {es : List Silmaril.Wasm.SSA.Expr} {o : Silmaril.Wasm.SSA.Op} {args : List Silmaril.Wasm.SSA.Expr}
+    (hofi : Silmaril.Wasm.SSA.ofInstr? i es = some (.op o args)) (hnat : o.native = true) :
+    ∀ D' it₀, InstrOk D' i it₀ → it₀.params.length = es.length := by
+  intro D' it₀ hi
+  unfold Silmaril.Wasm.SSA.ofInstr? at hofi
+  split at hofi <;> (try split at hofi) <;>
+    simp only [Option.some.injEq, reduceCtorEq, Silmaril.Wasm.SSA.Expr.op.injEq] at hofi
+  all_goals (obtain ⟨rfl, rfl⟩ := hofi)
+  all_goals first
+    | (rw [instrOk_intConst_inv hi]; rfl)
+    | (rw [instrOk_intUnOp_inv hi]; rfl)
+    | (rw [instrOk_intTestOp_inv hi]; rfl)
+    | (rw [instrOk_intBinOp_inv hi]; rfl)
+    | (rw [instrOk_intRelOp_inv hi]; rfl)
+    | (obtain ⟨t, ht⟩ := instrOk_select_inv hi; rw [ht]; rfl)
+    | (obtain ⟨t, ht⟩ := instrOk_selectT_inv hi; rw [ht]; rfl)
+    | (simp [Silmaril.Wasm.SSA.Op.native] at hnat)
+
+end
+
 end Silmaril.Proofs.Wasm.Abstract.FragBody
