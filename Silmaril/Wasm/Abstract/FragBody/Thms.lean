@@ -10,6 +10,7 @@ import Silmaril.Proofs.Wasm.Abstract.FragBody.Core
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Examples
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Diverge
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Typed
+import Silmaril.Proofs.Wasm.Abstract.FragBody.Progress
 
 /-!
 # Concrete Wasm bodies as abstract bodies: theorems
@@ -57,9 +58,14 @@ on it; `OutTy` types outcomes. Preservation: `exec_ty`, `seq_ty` (typed code
 on typed locals has typed outcomes: locals keep their types, results and
 branch values have the types of their targets), `run_ty` (a typed function's
 return value has its result type). Example: `exampleSum_typed`.
-Not yet: progress for typed code at the expression level (that the
-denotation of typed code never takes a `stuck` branch), and the derivation of
-`funcTyped` from Core validation of a fragment site.
+Progress: `typed_progress` (typed code on typed locals has an outcome or
+diverges through a loop, `DivE`: never stuck), `exec_not_div`; hence
+**`den_diverge_iff_divE`**: on typed code the denotation diverges exactly when
+the run iterates a loop forever (or a component does), never because a
+configuration is stuck; for functions `func_progress`,
+**`denFunc_diverge_iff_divS`**. Not yet: the derivation of `funcTyped` from
+Core validation of a fragment site (on validated sites,
+`den_diverges_iff_core` already makes divergence operational).
 
 **Faithful on the run quotient.** `denFunc_eq_iff`: two fragment functions
 have equal abstract bodies exactly when they have the same runs (for a
@@ -223,6 +229,41 @@ theorem seq_ty {Γ : List Silmaril.Wasm.IntType} {ρ : Option Silmaril.Wasm.IntT
 theorem run_ty {f : FragFunc} {args : List WVal} {r : Option WVal} (hf : funcTyped f)
     (h : f.Run args (.ret r)) : ValTy f.result r :=
   Silmaril.Proofs.Wasm.Abstract.FragBody.run_ty hf h
+
+/-- **Progress.** Typed code on typed locals has an outcome or diverges
+through a loop. -/
+theorem typed_progress {Γ : List Silmaril.Wasm.IntType} {ρ : Option Silmaril.Wasm.IntType}
+    {Λ : List (Option Silmaril.Wasm.IntType)} {e : SSA.Expr} {r : Option Silmaril.Wasm.IntType}
+    {ls : List WVal} (hty : Ty Γ ρ Λ e r) (hls : ValsTy Γ ls) :
+    (∃ o, Exec ls e o) ∨ DivE ls e :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.prog_e e hty hls
+
+/-- A run with an outcome does not diverge. -/
+theorem exec_not_div {ls : List WVal} {e : SSA.Expr} {o : Out (Option WVal)} (h : Exec ls e o) :
+    ¬ DivE ls e :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.exec_not_div h
+
+/-- **No stuck divergence.** On typed code the denotation diverges exactly when
+the run diverges through a loop. -/
+theorem den_diverge_iff_divE {Γ : List Silmaril.Wasm.IntType} {ρ : Option Silmaril.Wasm.IntType}
+    {Λ : List (Option Silmaril.Wasm.IntType)} {e : SSA.Expr} {r : Option Silmaril.Wasm.IntType}
+    {ls : List WVal} (hty : Ty Γ ρ Λ e r) (hls : ValsTy Γ ls) (s : S) :
+    ((den e ls : M E S OutE).run s).run = Silmaril.Elgot.ITree.diverge ↔ DivE ls e :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.den_diverge_iff_divE hty hls s
+
+/-- A typed function on typed arguments runs, or its body diverges through a
+loop. -/
+theorem func_progress {f : FragFunc} {args : List WVal} (hf : funcTyped f)
+    (ha : args.map WVal.type = f.params) :
+    (∃ o, f.Run args o) ∨ DivS (f.initLocals args) none f.body :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.func_progress hf ha
+
+/-- On typed functions, abstract divergence is divergence through a loop. -/
+theorem denFunc_diverge_iff_divS {f : FragFunc} {args : List WVal} (hf : funcTyped f)
+    (ha : args.map WVal.type = f.params) (s : S) :
+    ((denFunc f ⟨args⟩ : M E S _).run s).run = Silmaril.Elgot.ITree.diverge ↔
+      DivS (f.initLocals args) none f.body :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.denFunc_diverge_iff_divS hf ha s
 
 /-- The counting loop is typed. -/
 theorem exampleSum_typed : funcTyped exampleSum := by

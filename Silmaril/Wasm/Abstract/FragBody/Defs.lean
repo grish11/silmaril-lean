@@ -289,6 +289,48 @@ parameters and locals, with the function label carrying the result. -/
 def funcTyped (f : FragFunc) : Prop :=
   SeqTy (f.params ++ f.locals) f.result [f.result] f.body f.result
 
+/-! ## Divergence without stuck configurations
+
+`DivE ls e`: the run of `e` from `ls` diverges, and only through infinitely
+many iterations of a loop: either one loop iterates forever (`loopInf`, an
+infinite chain of `br 0`s), or a component diverges. Unlike "no
+derivation", it never holds of a stuck configuration. -/
+
+mutual
+
+/-- An expression diverges through a loop. -/
+inductive DivE : List WVal → Expr → Prop
+  | op {ls o args} : DivA ls args → DivE ls (.op o args)
+  | localSet {ls i e} : DivE ls e → DivE ls (.localSet i e)
+  | localTee {ls i e} : DivE ls e → DivE ls (.localTee i e)
+  | drop {ls e} : DivE ls e → DivE ls (.drop e)
+  | block {ls ty body} : DivS ls none body → DivE ls (.block ty body)
+  | loopBody {ls ty body} : DivS ls none body → DivE ls (.loop ty body)
+  | loopBack {ls ls' ty body r} : Seq ls none body (.brk 0 ls' r) → DivE ls' (.loop ty body) →
+      DivE ls (.loop ty body)
+  | loopInf {ls ty body} (σ : Nat → List WVal) (rs : Nat → Option WVal) : σ 0 = ls →
+      (∀ n, Seq (σ n) none body (.brk 0 (σ (n + 1)) (rs n))) → DivE ls (.loop ty body)
+  | ifCond {ls ty c t e} : DivE ls c → DivE ls (.if_ ty c t e)
+  | ifThen {ls ls₁ ty c t e cv} : Exec ls c (.ok ls₁ (some cv)) → cv.truthy = some true →
+      DivS ls₁ none t → DivE ls (.if_ ty c t e)
+  | ifElse {ls ls₁ ty c t e cv} : Exec ls c (.ok ls₁ (some cv)) → cv.truthy = some false →
+      DivS ls₁ none e → DivE ls (.if_ ty c t e)
+  | br {ls l args} : DivA ls args → DivE ls (.br l args)
+  | brIf {ls l args} : DivA ls args → DivE ls (.brIf l args)
+  | return_ {ls args} : DivA ls args → DivE ls (.return_ args)
+
+/-- Operands diverge. -/
+inductive DivA : List WVal → List Expr → Prop
+  | head {ls e es} : DivE ls e → DivA ls (e :: es)
+  | tail {ls ls₁ e es v} : Exec ls e (.ok ls₁ (some v)) → DivA ls₁ es → DivA ls (e :: es)
+
+/-- A body diverges. -/
+inductive DivS : List WVal → Option WVal → List Expr → Prop
+  | head {ls r e es} : DivE ls e → DivS ls r (e :: es)
+  | tail {ls ls₁ r r₁ e es} : Exec ls e (.ok ls₁ r₁) → DivS ls₁ r₁ es → DivS ls r (e :: es)
+
+end
+
 /-- `loop br 0 end`: a fragment function that loops forever. -/
 def spinFunc : FragFunc where
   params := []
