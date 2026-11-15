@@ -347,7 +347,7 @@ theorem bad_step (hbad : Bad s f stk es) : DivStep Bad Bad s f stk es := by
     | tryTable bt cs body =>
       obtain ⟨⟨labels, ret, out, hc, -⟩, -⟩ := hbad
       obtain ⟨o₁, h1, -⟩ := chk_cons.mp hc
-      simp [chk1] at h1
+      simp[chk1, chk1E] at h1
 
 end Cases
 

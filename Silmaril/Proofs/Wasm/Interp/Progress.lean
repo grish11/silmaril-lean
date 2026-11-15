@@ -326,7 +326,7 @@ theorem evalFlat_progress {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Na
   cases i
   all_goals try first
     | exact absurd rfl (hi _)
-    | (simp [flatChk, flatEff] at hc; done)
+    | (simp[flatChk, flatChkE, extStep, noExt, flatEff] at hc; done)
     | (exact ⟨_, rfl⟩)
   case intUnOp t op =>
     obtain ⟨x, hx⟩ : ∃ x, interpHead o s f stk.reverse (.plain (.intUnOp t op)) = some x :=
@@ -364,7 +364,7 @@ theorem evalFlat_progress {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Na
       (by plain_side)
     have hne : stk ≠ [] := by
       rintro rfl
-      simp [flatChk, flatEff] at hc
+      simp[flatChk, flatChkE, flatEff] at hc
     exact interp_globalSet hne hx
   case select t =>
     obtain ⟨x, hx⟩ : ∃ x, interpHead o s f stk.reverse (.plain (.select t)) = some x :=
@@ -387,17 +387,17 @@ theorem evalFlat_progress {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Na
         interp_at (o := o) ht hF (by plain_side) (by plain_side) (by plain_side)
         (by plain_side)
       exact interp_load hx
-    · simp [flatChk, flatEff] at hc
+    · simp[flatChk, flatChkE, flatEff] at hc
   case intStore t p x arg =>
     rcases p with _ | p
     · obtain ⟨xx, hx⟩ : ∃ xx, interpHead o s f stk.reverse (.plain (.intStore t none x arg)) = some xx :=
         interp_at (o := o) ht hF (by plain_side) (by plain_side) (by plain_side)
         (by plain_side)
       exact interp_store hx
-    · simp [flatChk, flatEff] at hc
+    · simp[flatChk, flatChkE, flatEff] at hc
   all_goals
     rcases stk with _ | ⟨v, r⟩
-    · simp only [flatChk, flatEff] at hc
+    · simp only[flatChk, flatChkE, flatEff] at hc
       split at hc <;> simp_all ; all_goals omega
     · exact ⟨_, rfl⟩
 

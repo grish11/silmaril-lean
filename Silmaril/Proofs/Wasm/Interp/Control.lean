@@ -144,12 +144,12 @@ theorem straight_of_flatChk {nl : Nat} {h₀ : Nat} {o : Option Nat} {i : Instr}
   case intLoad t p x arg =>
     rcases p with _ | p
     · exact absurd (.inl ⟨_, _, _, rfl⟩) hmem
-    · simp [flatChk, flatEff] at hc
+    · simp[flatChk, flatChkE, flatEff] at hc
   case intStore t p x arg =>
     rcases p with _ | p
     · exact absurd (.inr ⟨_, _, _, rfl⟩) hmem
-    · simp [flatChk, flatEff] at hc
-  all_goals simp only [flatChk, flatEff] at hc
+    · simp[flatChk, flatChkE, flatEff] at hc
+  all_goals simp only[flatChk, flatChkE, extStep, noExt, flatEff] at hc
   all_goals (repeat' split at hc) <;> simp_all [Instr.straight, Instr.setsBelow, Instr.setIdx?,
     Binaryen.evalFlat]
 
@@ -335,14 +335,14 @@ theorem wp_flat_abrupt {h₀ : Nat} {o : Option Nat} {i : Instr} {fl : Binaryen.
       rcases p with _ | p
       · obtain ⟨rfl, st⟩ := steps_mem_abrupt (P := P) (host := host) (.inl ⟨_, _, _, rfl⟩) h hn rest
         exact ⟨s', f', [.trap], .trap, st, rfl, rfl, rfl, trivial⟩
-      · exfalso; simp [flatChk, flatEff] at hc
+      · exfalso; simp[flatChk, flatChkE, flatEff] at hc
     case intStore t p x arg =>
       rcases p with _ | p
       · obtain ⟨rfl, st⟩ := steps_mem_abrupt (P := P) (host := host) (.inr ⟨_, _, _, rfl⟩) h hn rest
         exact ⟨s', f', [.trap], .trap, st, rfl, rfl, rfl, trivial⟩
-      · exfalso; simp [flatChk, flatEff] at hc
+      · exfalso; simp[flatChk, flatChkE, flatEff] at hc
     all_goals exfalso
-    all_goals first | (simp [flatChk, flatEff] at hc; done) | simp [Binaryen.evalFlat] at h
+    all_goals first | (simp[flatChk, flatChkE, extStep, noExt, flatEff] at hc; done) | simp [Binaryen.evalFlat] at h
 
 end Flat
 

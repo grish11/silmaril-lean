@@ -111,13 +111,13 @@ variable {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat} {labels : List
 theorem chk_cons {h : Nat} {e : Binaryen.BExpr} {es : List Binaryen.BExpr} {out : Option Nat} :
     chk F mi nl ret labels (some h) (e :: es) = some out ↔
       ∃ o, chk1 F mi nl ret labels h e = some o ∧ chk F mi nl ret labels o es = some out := by
-  simp only [chk, Option.bind_eq_some_iff]
+  simp only[chk, chkE, Option.bind_eq_some_iff]
 
 theorem chk1_op {h : Nat} {i : Instr} {args : List Binaryen.BExpr} {o : Option Nat}
     (hc : chk1 F mi nl ret labels h (.op i args) = some o) :
     ∃ oa, chk F mi nl ret labels (some h) args = some oa ∧
       ∀ h₁, oa = some h₁ → flatChk F mi nl ret labels h₁ i = some o := by
-  simp only [chk1, Option.bind_eq_some_iff] at hc
+  simp only[chk1, chk1E, Option.bind_eq_some_iff] at hc
   obtain ⟨oa, ha, hb⟩ := hc
   refine ⟨oa, ha, ?_⟩
   rintro h₁ rfl
@@ -128,7 +128,7 @@ theorem chk1_block {h : Nat} {bt : BlockType} {body : List Binaryen.BExpr} {o : 
     ∃ np nr, blockArity mi bt = some (np, nr) ∧ np ≤ h ∧
       endsAt (chk F mi nl ret (nr :: labels) (some np) body) nr = true ∧
       o = some (h - np + nr) := by
-  simp only [chk1] at hc
+  simp only[chk1, chk1E] at hc
   split at hc
   · rename_i np nr ha
     split at hc
@@ -143,7 +143,7 @@ theorem chk1_loop {h : Nat} {bt : BlockType} {body : List Binaryen.BExpr} {o : O
     ∃ np nr, blockArity mi bt = some (np, nr) ∧ np ≤ h ∧
       endsAt (chk F mi nl ret (np :: labels) (some np) body) nr = true ∧
       o = some (h - np + nr) := by
-  simp only [chk1] at hc
+  simp only[chk1, chk1E] at hc
   split at hc
   · rename_i np nr ha
     split at hc
@@ -160,7 +160,7 @@ theorem chk1_if {h : Nat} {bt : BlockType} {c t e : List Binaryen.BExpr} {o : Op
         endsAt (chk F mi nl ret (nr :: labels) (some np) t) nr = true ∧
         endsAt (chk F mi nl ret (nr :: labels) (some np) e) nr = true ∧
         o = some (h₁ - 1 - np + nr) := by
-  simp only [chk1, Option.bind_eq_some_iff] at hc
+  simp only[chk1, chk1E, Option.bind_eq_some_iff] at hc
   obtain ⟨oc, hco, hb⟩ := hc
   refine ⟨oc, hco, ?_⟩
   rintro h₁ rfl
@@ -218,6 +218,25 @@ theorem FlowOk.escape {labels : List Nat} {ret n : Nat} {o o' : Option Nat} {fl 
     (h : FlowOk (n :: labels) ret o fl) (he : fl.Escapes) : FlowOk labels ret o' fl := by
   cases fl <;> first | exact absurd he id | exact h
 
+/-! ## The extension parameter is conservative -/
+
+/-- The five call forms an extension may describe. -/
+def Instr.IsExtCall : Instr → Prop
+  | .callIndirect .. | .callRef _ | .returnCall _ | .returnCallRef _ | .returnCallIndirect .. => True
+  | _ => False
+
+/-- **Off the extension's call forms, every extension is the native check.** -/
+theorem flatChkE_eq_flatChk (ext : ExtArity H) {F : List (FuncInst H)} {mi : ModuleInst}
+    {nl ret : Nat} {labels : List Nat} {h : Nat} {i : Instr} (hi : ¬ Instr.IsExtCall i) :
+    flatChkE ext F mi nl ret labels h i = flatChk F mi nl ret labels h i := by
+  cases i <;> first | rfl | exact absurd trivial hi
+
+/-- The native check rejects the extension's call forms. -/
+theorem flatChk_extCall {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat}
+    {labels : List Nat} {h : Nat} {i : Instr} (hi : Instr.IsExtCall i) :
+    flatChk F mi nl ret labels h i = none := by
+  cases i <;> first | rfl | exact absurd hi id
+
 /-! ## Flat instructions -/
 
 section Flat
@@ -252,7 +271,7 @@ theorem evalFlat_brTable {ls : List LabelIdx} {d : LabelIdx} {fl : Binaryen.Flow
 /-- The check of `select`. -/
 theorem flatChk_select {h : Nat} {t : Option (List ValType)} {o : Option Nat}
     (hc : flatChk F mi nl ret labels h (.select t) = some o) : 3 ≤ h ∧ o = some (h - 3 + 1) := by
-  simp only [flatChk, flatEff] at hc
+  simp only[flatChk, flatChkE, flatEff] at hc
   split at hc
   · exact ⟨‹_›, (Option.some.inj hc).symm⟩
   · cases hc
@@ -261,7 +280,7 @@ theorem flatChk_select {h : Nat} {t : Option (List ValType)} {o : Option Nat}
 theorem flatChk_brTable {h : Nat} {ls : List LabelIdx} {d : LabelIdx} {o : Option Nat}
     (hc : flatChk F mi nl ret labels h (.brTable ls d) = some o) :
     1 ≤ h ∧ tableOk labels (h - 1) (d :: ls) = true ∧ o = none := by
-  simp only [flatChk] at hc
+  simp only[flatChk, flatChkE] at hc
   split at hc
   · rename_i hcond
     simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
@@ -361,12 +380,12 @@ theorem flat_normal_plain {i : Instr} (hsel : ¬ ∃ t, i = .select t)
   case intLoad t p x arg =>
     rcases p with _ | p
     · exact absurd ⟨_, _, _, rfl⟩ hld
-    · simp [flatChk, flatEff] at hc
+    · simp[flatChk, flatChkE, flatEff] at hc
   case intStore t p x arg =>
     rcases p with _ | p
     · exact absurd ⟨_, _, _, rfl⟩ hst
-    · simp [flatChk, flatEff] at hc
-  all_goals simp only [Binaryen.evalFlat, flatChk, flatEff] at h hc
+    · simp[flatChk, flatChkE, flatEff] at hc
+  all_goals simp only[Binaryen.evalFlat, flatChk, flatChkE, extStep, noExt, flatEff] at h hc
   all_goals (repeat' split at h) <;> (repeat' split at hc)
   all_goals simp_all [EvalInv, Option.map_eq_some_iff, Option.bind_eq_some_iff, Frame.setLocal,
     Store.setGlobal]
@@ -395,7 +414,7 @@ theorem flat_normal {i : Instr} (h : Binaryen.evalFlat s f stk i = some (s', f',
     obtain ⟨rfl, rfl, v, r, rfl, hfl | ⟨w, hfl⟩⟩ := flat_load h
     · cases hfl
     · cases hfl
-      simp only [flatChk, flatEff, List.length_cons] at hc
+      simp only[flatChk, flatChkE, flatEff, List.length_cons] at hc
       refine ⟨?_, EvalInv.refl _ _ _⟩
       split at hc <;> simp_all
   by_cases hst : ∃ t x arg, i = .intStore t none x arg
@@ -403,7 +422,7 @@ theorem flat_normal {i : Instr} (h : Binaryen.evalFlat s f stk i = some (s', f',
     obtain ⟨hfs, rfl, w, v, r, rfl, hfl | hfl⟩ := flat_store h
     · cases hfl
     · cases hfl
-      simp only [flatChk, flatEff, List.length_cons] at hc
+      simp only[flatChk, flatChkE, flatEff, List.length_cons] at hc
       refine ⟨?_, FuncsGood.of_eq hfs, rfl, rfl⟩
       split at hc <;> simp_all
   exact flat_normal_plain hsel hld hst hbt h hc
@@ -420,12 +439,12 @@ theorem flat_abrupt_plain {i : Instr} {fl : Binaryen.Flow} (hsel : ¬ ∃ t, i =
   case intLoad t p x arg =>
     rcases p with _ | p
     · exact absurd ⟨_, _, _, rfl⟩ hld
-    · simp [flatChk, flatEff] at hc
+    · simp[flatChk, flatChkE, flatEff] at hc
   case intStore t p x arg =>
     rcases p with _ | p
     · exact absurd ⟨_, _, _, rfl⟩ hst
-    · simp [flatChk, flatEff] at hc
-  all_goals simp only [Binaryen.evalFlat, flatChk, flatEff] at h hc
+    · simp[flatChk, flatChkE, flatEff] at hc
+  all_goals simp only[Binaryen.evalFlat, flatChk, flatChkE, extStep, noExt, flatEff] at h hc
   all_goals (repeat' split at h) <;> (repeat' split at hc)
   all_goals simp_all [EvalInv, FlowOk, Option.map_eq_some_iff, Option.bind_eq_some_iff,
     Frame.setLocal, Store.setGlobal, Binaryen.Flow.IsNormal]
@@ -465,7 +484,7 @@ theorem flat_abrupt {i : Instr} {fl : Binaryen.Flow}
 theorem flatChk_call {h : Nat} {x : FuncIdx} {o : Option Nat}
     (hc : flatChk F mi nl ret labels h (.call x) = some o) :
     ∃ p q, callArity F mi x = some (p, q) ∧ p ≤ h ∧ o = some (h - p + q) := by
-  simp only [flatChk, flatEff] at hc
+  simp only[flatChk, flatChkE, flatEff] at hc
   split at hc
   · rename_i p q hpq
     split at hc
@@ -514,7 +533,7 @@ theorem flatChk_transfer (hA : Arities F₁ mi₁ F₂ mi₂) {labels : List Nat
     flatChk F₂ mi₂ nl ret labels h i = some o := by
   cases i
   case call x =>
-    simp only [flatChk, flatEff] at hc ⊢
+    simp only[flatChk, flatChkE, flatEff] at hc ⊢
     split at hc
     · rename_i p q hpq
       rw [hA.call x (p, q) hpq]
@@ -548,7 +567,7 @@ theorem chk1_transfer (hA : Arities F₁ mi₁ F₂ mi₂) {labels : List Nat} :
     ∀ (h : Nat) (e : Binaryen.BExpr) {o : Option Nat},
       chk1 F₁ mi₁ nl ret labels h e = some o → chk1 F₂ mi₂ nl ret labels h e = some o
   | h, .op i args, o, hc => by
-    simp only [chk1, Option.bind_eq_some_iff] at hc ⊢
+    simp only[chk1, chk1E, Option.bind_eq_some_iff] at hc ⊢
     obtain ⟨oa, ha, hk⟩ := hc
     refine ⟨oa, chk_transfer hA (some h) args ha, ?_⟩
     rcases oa with _ | h₁
@@ -556,18 +575,16 @@ theorem chk1_transfer (hA : Arities F₁ mi₁ F₂ mi₂) {labels : List Nat} :
     · exact flatChk_transfer hA hk
   | h, .block bt body, o, hc => by
     obtain ⟨np, nr, hbt, hle, hends, rfl⟩ := chk1_block hc
-    simp only [chk1, hA.block bt _ hbt, hle, decide_true, Bool.true_and,
-      endsAt_transfer (fun _ => chk_transfer hA (some np) body) hends, ite_true]
+    simp only[chk1, chk1E, hA.block bt _ hbt, hle, decide_true, Bool.true_and, endsAt_transfer (fun _ => chk_transfer hA (some np) body) hends, ite_true]
   | h, .loop bt body, o, hc => by
     obtain ⟨np, nr, hbt, hle, hends, rfl⟩ := chk1_loop hc
-    simp only [chk1, hA.block bt _ hbt, hle, decide_true, Bool.true_and,
-      endsAt_transfer (fun _ => chk_transfer hA (some np) body) hends, ite_true]
+    simp only[chk1, chk1E, hA.block bt _ hbt, hle, decide_true, Bool.true_and, endsAt_transfer (fun _ => chk_transfer hA (some np) body) hends, ite_true]
   | h, .if_ bt c t el, o, hc => by
     obtain ⟨oc, hco, hk⟩ := chk1_if hc
-    simp only [chk1, Option.bind_eq_some_iff]
+    simp only[chk1, chk1E, Option.bind_eq_some_iff]
     refine ⟨oc, chk_transfer hA (some h) c hco, ?_⟩
     rcases oc with _ | h₁
-    · simp only [chk1, Option.bind_eq_some_iff, hco] at hc
+    · simp only[chk1, chk1E, Option.bind_eq_some_iff, hco] at hc
       obtain ⟨_, hx, hy⟩ := hc
       cases hx
       exact hy
@@ -575,7 +592,7 @@ theorem chk1_transfer (hA : Arities F₁ mi₁ F₂ mi₂) {labels : List Nat} :
       simp only [hA.block bt _ hbt, hle, decide_true,
         endsAt_transfer (fun _ => chk_transfer hA (some np) t) ht,
         endsAt_transfer (fun _ => chk_transfer hA (some np) el) he, Bool.and_self, ite_true]
-  | h, .tryTable .., o, hc => by simp [chk1] at hc
+  | h, .tryTable .., o, hc => by simp[chk1, chk1E] at hc
 end
 
 end Transfer

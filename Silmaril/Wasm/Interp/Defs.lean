@@ -148,11 +148,41 @@ def tableOk (labels : List Nat) (h : Nat) (ls : List LabelIdx) : Bool :=
     | some n => decide (n ≤ h)
     | none => false
 
+/-- The effect of a call form the native checker does not know, as an extension
+gives it: falls through after popping `p` and pushing `q` values (`fall`), or never
+falls through after popping `p` values, its callee returning `r` values that must
+be the function's own results (`tail`, for tail calls). -/
+inductive ExtEff where
+  | fall (p q : Nat)
+  | tail (p r : Nat)
+
+/-- An extension of the arity check: the effects of the non-native call forms
+(`call_indirect`, `call_ref`, `return_call`, `return_call_ref`,
+`return_call_indirect`), read in the store's functions and the module instance.
+`flatChkE` consults it **only** for those five instructions, so on every other
+instruction any extension agrees with the native check, and the native check
+rejects all five. The extension is static. That the callee resolved at run time
+has the arity it describes is a hypothesis of the call cases of the simulation,
+discharged from typing. -/
+abbrev ExtArity (H : Type) : Type :=
+  List (Execution.Core.FuncInst H) → Execution.Core.ModuleInst → Instr → Option ExtEff
+
+/-- The native checker: no extension. -/
+def noExt {H : Type} : ExtArity H := fun _ _ _ => none
+
+/-- The check of an extension effect at height `h`, function result arity `ret`. -/
+def extStep (e : Option ExtEff) (ret h : Nat) : Option (Option Nat) :=
+  match e with
+  | some (.fall p q) => if p ≤ h then some (some (h - p + q)) else none
+  | some (.tail p r) => if p ≤ h ∧ r = ret then some none else none
+  | none => none
+
 /-- The arity check of a flat instruction at stack height `h`, under labels of arities
-`labels` and a function result arity `ret`: `some (some h')` falls through at height `h'`,
-`some none` never falls through, `none` fails. -/
-def flatChk (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleInst) (nl ret : Nat)
-    (labels : List Nat) (h : Nat) : Instr → Option (Option Nat)
+`labels` and a function result arity `ret`, with the extension `ext`: `some (some h')`
+falls through at height `h'`, `some none` never falls through, `none` fails. -/
+def flatChkE (ext : ExtArity H) (F : List (Execution.Core.FuncInst H))
+    (mi : Execution.Core.ModuleInst) (nl ret : Nat) (labels : List Nat) (h : Nat) :
+    Instr → Option (Option Nat)
   | .unreachable => some none
   | .br l => match labels[l.toNat]? with
     | some n => if n ≤ h then some none else none
@@ -162,9 +192,19 @@ def flatChk (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleIn
     | none => none
   | .brTable ls d => if decide (1 ≤ h) && tableOk labels (h - 1) (d :: ls) then some none else none
   | .return_ => if ret ≤ h then some none else none
+  | .callIndirect x y => extStep (ext F mi (.callIndirect x y)) ret h
+  | .callRef y => extStep (ext F mi (.callRef y)) ret h
+  | .returnCall x => extStep (ext F mi (.returnCall x)) ret h
+  | .returnCallRef y => extStep (ext F mi (.returnCallRef y)) ret h
+  | .returnCallIndirect x y => extStep (ext F mi (.returnCallIndirect x y)) ret h
   | i => match flatEff F mi nl i with
     | some (p, q) => if p ≤ h then some (some (h - p + q)) else none
     | none => none
+
+/-- The native arity check of a flat instruction. -/
+abbrev flatChk (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleInst)
+    (nl ret : Nat) (labels : List Nat) (h : Nat) : Instr → Option (Option Nat) :=
+  flatChkE noExt F mi nl ret labels h
 
 /-- A body check result ends at arity `n` (or never falls through). -/
 def endsAt : Option (Option Nat) → Nat → Bool
@@ -175,41 +215,51 @@ def endsAt : Option (Option Nat) → Nat → Bool
 mutual
 /-- **The arity check** of a sequence of trees from height `h` (`none`: unreachable code,
 accepted). -/
-def chk (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleInst) (nl ret : Nat) (labels : List Nat) :
+def chkE (ext : ExtArity H) (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleInst) (nl ret : Nat) (labels : List Nat) :
     Option Nat → List Binaryen.BExpr → Option (Option Nat)
   | none, _ => some none
   | some h, [] => some (some h)
-  | some h, e :: es => (chk1 F mi nl ret labels h e).bind fun o => chk F mi nl ret labels o es
+  | some h, e :: es => (chk1E ext F mi nl ret labels h e).bind fun o => chkE ext F mi nl ret labels o es
 
 /-- The arity check of one tree from height `h`. -/
-def chk1 (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleInst) (nl ret : Nat) (labels : List Nat)
+def chk1E (ext : ExtArity H) (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleInst) (nl ret : Nat) (labels : List Nat)
     (h : Nat) : Binaryen.BExpr → Option (Option Nat)
-  | .op i args => (chk F mi nl ret labels (some h) args).bind fun
+  | .op i args => (chkE ext F mi nl ret labels (some h) args).bind fun
     | none => some none
-    | some h₁ => flatChk F mi nl ret labels h₁ i
+    | some h₁ => flatChkE ext F mi nl ret labels h₁ i
   | .block bt body => match blockArity mi bt with
     | some (np, nr) =>
-      if decide (np ≤ h) && endsAt (chk F mi nl ret (nr :: labels) (some np) body) nr then
+      if decide (np ≤ h) && endsAt (chkE ext F mi nl ret (nr :: labels) (some np) body) nr then
         some (some (h - np + nr))
       else none
     | none => none
   | .loop bt body => match blockArity mi bt with
     | some (np, nr) =>
-      if decide (np ≤ h) && endsAt (chk F mi nl ret (np :: labels) (some np) body) nr then
+      if decide (np ≤ h) && endsAt (chkE ext F mi nl ret (np :: labels) (some np) body) nr then
         some (some (h - np + nr))
       else none
     | none => none
-  | .if_ bt c t e => (chk F mi nl ret labels (some h) c).bind fun
+  | .if_ bt c t e => (chkE ext F mi nl ret labels (some h) c).bind fun
     | none => some none
     | some h₁ => match blockArity mi bt with
       | some (np, nr) =>
-        if decide (np + 1 ≤ h₁) && endsAt (chk F mi nl ret (nr :: labels) (some np) t) nr &&
-            endsAt (chk F mi nl ret (nr :: labels) (some np) e) nr then
+        if decide (np + 1 ≤ h₁) && endsAt (chkE ext F mi nl ret (nr :: labels) (some np) t) nr &&
+            endsAt (chkE ext F mi nl ret (nr :: labels) (some np) e) nr then
           some (some (h₁ - 1 - np + nr))
         else none
       | none => none
   | .tryTable .. => none
 end
+
+/-- **The native arity check** of a sequence of trees. -/
+abbrev chk (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleInst) (nl ret : Nat)
+    (labels : List Nat) : Option Nat → List Binaryen.BExpr → Option (Option Nat) :=
+  chkE noExt F mi nl ret labels
+
+/-- The native arity check of one tree. -/
+abbrev chk1 (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleInst) (nl ret : Nat)
+    (labels : List Nat) (h : Nat) : Binaryen.BExpr → Option (Option Nat) :=
+  chk1E noExt F mi nl ret labels h
 
 /-- **Every function of the store passes the arity check** in its own module: from the empty
 stack, with its parameters and declared locals, its body falls through (or branches to its
