@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Interp.XClassify
 public import Silmaril.Proofs.Wasm.Interp.XIndRes
+public import Silmaril.Proofs.Wasm.Interp.XNoOutcome
 
 /-!
 # Typed progress for the extended semantics: theorems
@@ -17,6 +18,12 @@ Facts towards the converse (Core → `EvalOX`) for the new call forms:
   the top of the stack is an index that resolves (`CallRes.IndRes`): the table exists (the site's
   frame is typed), and an entry passing the cast is null or a function reference, so the stuck
   case of `indRes_cases` cannot occur.
+* **`evalDivX_of_noOutcome`**: a typed problem (`TypedT`, every call form) in a store whose
+  functions are all Wasm functions with function types (`WasmFuncsT`), with no outcome in the
+  closed extended semantics, diverges in it (`EvalDivX`). The extended analog of
+  `bad_le_evalDiv`, by coinduction (`badX_step`); typing rules out every way of getting stuck.
+  `WasmFuncsT` is necessary: with the closed host, a host callee has neither an outcome nor a
+  divergence.
 -/
 
 public section
@@ -60,5 +67,13 @@ theorem indirect_res {s : Store H} {f : Frame} {stk : List Val} {x : TableIdx} {
     ∃ (ad : AddrType) (j : BitVec ad.intType.width) (stk' : List Val) (o : Option Nat),
       stk = .num ⟨.int ad.intType, j⟩ :: stk' ∧ Abstract.CallRes.IndRes s f x y ad j o :=
   Silmaril.Wasm.Interp.indirect_res hi ht
+
+/-- **No closed extended outcome means extended divergence**, for typed problems in a store of
+Wasm functions. -/
+theorem evalDivX_of_noOutcome {s : Store H} {f : Frame} {stk : List Val}
+    {es : List Binaryen.BExpr} (ht : TypedT s f stk es) (hW : WasmFuncsT s)
+    (hne : ¬ ∃ r, Abstract.CallX.EvalOX Abstract.XRecursion.closedCallX s f stk es r) :
+    Abstract.XDiverge.EvalDivX s f stk es :=
+  Silmaril.Wasm.Interp.evalDivX_of_noOutcome ht hW hne
 
 end Silmaril.Wasm.Interp.XProgress
