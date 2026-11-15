@@ -1593,3 +1593,56 @@ theorem frame_complete {s s' : Store H} {f f' fi : Frame} {n : Nat} {inner c' : 
         exact (fragA_retCallRef (hF c (by simp)) hc).elim
 
 end Silmaril.Wasm.Cfg.Proofs.Region
+
+namespace Silmaril.Wasm.Cfg.Proofs.Region
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Region Silmaril.Wasm.Execution.Core
+
+variable {H : Type}
+
+theorem catches_total (s : Store H) (f : Frame) (a : Nat) :
+    ∀ cs : List Catch, ∃ r, Catches s f a cs r
+  | [] => ⟨none, .empty⟩
+  | c :: cs => by
+    by_cases hm : CatchMatches s f a c
+    · cases c with
+      | catch_ x l =>
+        obtain ⟨e, ta, he, ht, rfl⟩ := hm
+        exact ⟨_, .catch_ he ht⟩
+      | catchRef x l =>
+        obtain ⟨e, ta, he, ht, rfl⟩ := hm
+        exact ⟨_, .catchRef he ht⟩
+      | catchAll l => exact ⟨_, .catchAll⟩
+      | catchAllRef l => exact ⟨_, .catchAllRef⟩
+    · obtain ⟨r, hr⟩ := catches_total s f a cs
+      exact ⟨r, .next hm hr⟩
+
+theorem catches_unique {s : Store H} {f : Frame} {a : Nat} :
+    ∀ {cs : List Catch} {r r' : Option (List Val × LabelIdx)},
+      Catches s f a cs r → Catches s f a cs r' → r = r'
+  | _, _, _, .empty, h' => by cases h'; rfl
+  | _, _, _, .catch_ he ht, h' => by
+    cases h' with
+    | catch_ he' ht' => rw [he] at he'; cases he'; rfl
+    | next hn _ => exact absurd ⟨_, _, he, ht, rfl⟩ hn
+  | _, _, _, .catchRef he ht, h' => by
+    cases h' with
+    | catchRef he' ht' => rw [he] at he'; cases he'; rfl
+    | next hn _ => exact absurd ⟨_, _, he, ht, rfl⟩ hn
+  | _, _, _, .catchAll, h' => by
+    cases h' with
+    | catchAll => rfl
+    | next hn _ => exact absurd trivial hn
+  | _, _, _, .catchAllRef, h' => by
+    cases h' with
+    | catchAllRef => rfl
+    | next hn _ => exact absurd trivial hn
+  | _, _, _, .next hn hr, h' => by
+    cases h' with
+    | catch_ he ht => exact absurd ⟨_, _, he, ht, rfl⟩ hn
+    | catchRef he ht => exact absurd ⟨_, _, he, ht, rfl⟩ hn
+    | catchAll => exact absurd trivial hn
+    | catchAllRef => exact absurd trivial hn
+    | next _ hr' => exact catches_unique hr hr'
+
+end Silmaril.Wasm.Cfg.Proofs.Region

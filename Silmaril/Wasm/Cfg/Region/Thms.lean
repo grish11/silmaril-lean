@@ -246,4 +246,30 @@ theorem run_of_tailRes_none {C : Abstract.CallRel H} {i : Instr} {stk : List Val
         (W ++ (stk.take (Abstract.CallX.tailPop i)).reverse) [.plain i] s f (.tailNull W c) :=
   Proofs.Region.run_of_tailRes_none W h
 
+/-! ## Handler clauses -/
+
+/-- **`Catches` is Core's handler resolution**: a handler around a thrown exception runs, in
+Core 3.0, to the first matching clause's branch with the values it pushes
+(`vals us ++ [br l]`, values bottom first: the exception's fields in tag order, then
+`ref.exn a` for `catch_ref`/`catch_all_ref`), or rethrows when no clause matches. -/
+theorem catches_steps {a n : Nat} {cs : List Catch} {us : List Val} {l : LabelIdx}
+    (hc : Catches s f a cs (some (us, l))) :
+    Steps P host ⟨s, f, [.handler n cs (throwing a)]⟩ ⟨s, f, vals us ++ [.plain (.br l)]⟩ :=
+  Proofs.Region.catches_steps (r := some (us, l)) hc
+
+/-- No clause matches: the handler rethrows. -/
+theorem catches_steps_none {a n : Nat} {cs : List Catch} (hc : Catches s f a cs none) :
+    Steps P host ⟨s, f, [.handler n cs (throwing a)]⟩ ⟨s, f, throwing a⟩ :=
+  Proofs.Region.catches_steps (r := none) hc
+
+/-- Every clause list resolves an exception (first match, or none). -/
+theorem catches_total (s : Store H) (f : Frame) (a : Nat) (cs : List Catch) :
+    ∃ r, Catches s f a cs r :=
+  Proofs.Region.catches_total s f a cs
+
+/-- The resolution is unique (first match). -/
+theorem catches_unique {a : Nat} {cs : List Catch} {r r' : Option (List Val × LabelIdx)}
+    (h : Catches s f a cs r) (h' : Catches s f a cs r') : r = r' :=
+  Proofs.Region.catches_unique h h'
+
 end Silmaril.Wasm.Cfg.Region
