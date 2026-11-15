@@ -338,4 +338,19 @@ theorem opCollapseEquivP_iff (es es' : List BExpr) :
         (((h topRel s.down c.down.1 c.down.2 cs).2 m).trans
           (pend_iff_reach_top es' _ _ _ cs m).symm)
 
+/-! ## Frames of equivalent bodies -/
+
+theorem frameXP_run_eq {s : Store H} {a b : Nat} {args : List Val} {fi fi' : FuncInst H}
+    {fn fn' : Func} {ps rs ps' rs' : List Validation.CValType}
+    (hfa : s.funcs[a]? = some fi) (hca : fi.code = .wasm fn)
+    (htya : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hfb : s.funcs[b]? = some fi') (hcb : fi'.code = .wasm fn')
+    (htyb : Validation.DefType.funcType? fi'.type = some (ps', rs'))
+    (hmod : fi.module = fi'.module) (hloc : fn.locals = fn'.locals)
+    (hbody : OpEquivP H (liftInstrs fn.body) (liftInstrs fn'.body)) :
+    run' (frameXP a args : M (CallSig H) H (ULift.{1} Flow)) ⟨s⟩ =
+      run' (frameXP b args : M (CallSig H) H (ULift.{1} Flow)) ⟨s⟩ := by
+  rw [run_frameXP hfa hca htya, run_frameXP hfb hcb htyb, StoreBody.run_bind, StoreBody.run_bind,
+    hmod, hloc, run_eq_of_opEquivP hbody]
+
 end Silmaril.Proofs.Wasm.Abstract.FunctorP

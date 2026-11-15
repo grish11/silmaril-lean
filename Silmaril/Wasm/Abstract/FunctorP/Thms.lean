@@ -169,6 +169,22 @@ theorem OpEquivP.evalOXP {es es' : List BExpr} (h : OpEquivP H es es') (C : Call
   rw [evalOXP_iff_log ho, evalOXP_iff_log ho]
   exact exists_congr fun cs => (h C s f stk cs).1 s' f' o ho
 
+/-- **Frames of operationally equivalent bodies are equal**: two Wasm functions of a store with
+the same module instance and locals and operationally equivalent bodies have the same exposed
+frame (`ExposeP.frameXP`) at every argument list, so the same `bodyCallXP C` answers for every
+oracle (`bodyCallXP_iff`, `bodyCallXP_trap_iff`). -/
+theorem frameXP_run_eq {s : Store H} {a b : Nat} {args : List Val} {fi fi' : FuncInst H}
+    {fn fn' : Func} {ps rs ps' rs' : List Validation.CValType}
+    (hfa : s.funcs[a]? = some fi) (hca : fi.code = .wasm fn)
+    (htya : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hfb : s.funcs[b]? = some fi') (hcb : fi'.code = .wasm fn')
+    (htyb : Validation.DefType.funcType? fi'.type = some (ps', rs'))
+    (hmod : fi.module = fi'.module) (hloc : fn.locals = fn'.locals)
+    (hbody : OpEquivP H (liftInstrs fn.body) (liftInstrs fn'.body)) :
+    ((frameXP a args : M (CallSig H) H (ULift.{1} Flow)).run ⟨s⟩).run =
+      ((frameXP b args : M (CallSig H) H (ULift.{1} Flow)).run ⟨s⟩).run :=
+  Silmaril.Proofs.Wasm.Abstract.FunctorP.frameXP_run_eq hfa hca htya hfb hcb htyb hmod hloc hbody
+
 /-! ## 3. The functor -/
 
 section
