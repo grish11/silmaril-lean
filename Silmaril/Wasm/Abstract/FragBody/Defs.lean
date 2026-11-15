@@ -214,6 +214,81 @@ noncomputable def denFunc (f : FragFunc) : Hom E S PUnit.{2} (ULift.{1} (List WV
     denSeq f.body (f.initLocals args.down) none >>= fun r => funcK f.result r.down
   else stuck
 
+/-! ## Typed interface
+
+The typing of the fragment, Wasm's validation rules restricted to it: a local
+context `Γ` (the local types), a label context `Λ` (the value type each label
+carries, innermost first; a `loop` label carries none) and the function's
+result type `ρ`. An expression of type `r` completes with a value of type `r`
+(none: no value). Code that never completes (`unreachable`, `br`, `return`)
+has every type. Non-final elements of a body produce no value. Conversions
+(`wrap`, `extend`) are not typed here, as for native fragment functions. -/
+
+/-- Operator signatures. -/
+inductive OpSig : Op → List Silmaril.Wasm.IntType → Silmaril.Wasm.IntType → Prop
+  | const (v : WVal) : OpSig (.const v) [] v.type
+  | unInt (t op) : OpSig (.un (.int t op)) [t] t
+  | test (t) : OpSig (.un (.test t)) [t] .i32
+  | binInt (t op) : OpSig (.bin (.int t op)) [t, t] t
+  | rel (t op) : OpSig (.bin (.rel t op)) [t, t] .i32
+  | select (t) : OpSig .select [t, t, .i32] t
+
+/-- Values of the types `ts`. -/
+def ValsTy (ts : List Silmaril.Wasm.IntType) (vs : List WVal) : Prop := vs.map WVal.type = ts
+
+/-- An optional value of the optional type `r`. -/
+def ValTy (r : Option Silmaril.Wasm.IntType) (v : Option WVal) : Prop := v.map WVal.type = r
+
+mutual
+
+/-- `Ty Γ ρ Λ e r`: under locals `Γ`, result `ρ` and labels `Λ`, `e` has type `r`. -/
+inductive Ty (Γ : List Silmaril.Wasm.IntType) (ρ : Option Silmaril.Wasm.IntType) :
+    List (Option Silmaril.Wasm.IntType) → Expr → Option Silmaril.Wasm.IntType → Prop
+  | op {Λ o args ts t} : OpSig o ts t → ArgsTy Γ ρ Λ args ts → Ty Γ ρ Λ (.op o args) (some t)
+  | localGet {Λ i t} : Γ[i]? = some t → Ty Γ ρ Λ (.localGet i) (some t)
+  | localSet {Λ i e t} : Γ[i]? = some t → Ty Γ ρ Λ e (some t) → Ty Γ ρ Λ (.localSet i e) none
+  | localTee {Λ i e t} : Γ[i]? = some t → Ty Γ ρ Λ e (some t) → Ty Γ ρ Λ (.localTee i e) (some t)
+  | drop {Λ e t} : Ty Γ ρ Λ e (some t) → Ty Γ ρ Λ (.drop e) none
+  | nop {Λ} : Ty Γ ρ Λ .nop none
+  | unreachable {Λ r} : Ty Γ ρ Λ .unreachable r
+  | block {Λ ty body} : SeqTy Γ ρ (ty :: Λ) body ty → Ty Γ ρ Λ (.block ty body) ty
+  | loop {Λ ty body} : SeqTy Γ ρ (none :: Λ) body ty → Ty Γ ρ Λ (.loop ty body) ty
+  | if_ {Λ ty c t e} : Ty Γ ρ Λ c (some .i32) → SeqTy Γ ρ (ty :: Λ) t ty →
+      SeqTy Γ ρ (ty :: Λ) e ty → Ty Γ ρ Λ (.if_ ty c t e) ty
+  | br {Λ l args lt r} : Λ[l]? = some lt → ArgsTy Γ ρ Λ args lt.toList → Ty Γ ρ Λ (.br l args) r
+  | brIf {Λ l args lt} : Λ[l]? = some lt → ArgsTy Γ ρ Λ args (lt.toList ++ [.i32]) →
+      Ty Γ ρ Λ (.brIf l args) lt
+  | return_ {Λ args r} : ArgsTy Γ ρ Λ args ρ.toList → Ty Γ ρ Λ (.return_ args) r
+
+/-- Operands of the types `ts`. -/
+inductive ArgsTy (Γ : List Silmaril.Wasm.IntType) (ρ : Option Silmaril.Wasm.IntType) :
+    List (Option Silmaril.Wasm.IntType) → List Expr → List Silmaril.Wasm.IntType → Prop
+  | nil {Λ} : ArgsTy Γ ρ Λ [] []
+  | cons {Λ e es t ts} : Ty Γ ρ Λ e (some t) → ArgsTy Γ ρ Λ es ts → ArgsTy Γ ρ Λ (e :: es) (t :: ts)
+
+/-- A body of type `r`: non-final elements produce no value. -/
+inductive SeqTy (Γ : List Silmaril.Wasm.IntType) (ρ : Option Silmaril.Wasm.IntType) :
+    List (Option Silmaril.Wasm.IntType) → List Expr → Option Silmaril.Wasm.IntType → Prop
+  | nil {Λ} : SeqTy Γ ρ Λ [] none
+  | one {Λ e r} : Ty Γ ρ Λ e r → SeqTy Γ ρ Λ [e] r
+  | cons {Λ e e' es r} : Ty Γ ρ Λ e none → SeqTy Γ ρ Λ (e' :: es) r → SeqTy Γ ρ Λ (e :: e' :: es) r
+
+end
+
+/-- A typed outcome: the locals keep their types, normal completion and
+branches carry values of their types, a return carries the result type. -/
+inductive OutTy (Γ : List Silmaril.Wasm.IntType) (ρ : Option Silmaril.Wasm.IntType)
+    (Λ : List (Option Silmaril.Wasm.IntType)) {α : Type} (P : α → Prop) : Out α → Prop
+  | ok {ls a} : ValsTy Γ ls → P a → OutTy Γ ρ Λ P (.ok ls a)
+  | brk {l ls v lt} : Λ[l]? = some lt → ValsTy Γ ls → ValTy lt v → OutTy Γ ρ Λ P (.brk l ls v)
+  | ret {v} : ValTy ρ v → OutTy Γ ρ Λ P (.ret v)
+  | trap : OutTy Γ ρ Λ P .trap
+
+/-- A fragment function is typed: its body has its result type under its
+parameters and locals, with the function label carrying the result. -/
+def funcTyped (f : FragFunc) : Prop :=
+  SeqTy (f.params ++ f.locals) f.result [f.result] f.body f.result
+
 /-- `loop br 0 end`: a fragment function that loops forever. -/
 def spinFunc : FragFunc where
   params := []

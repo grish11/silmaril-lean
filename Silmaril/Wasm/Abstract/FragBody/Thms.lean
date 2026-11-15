@@ -9,6 +9,7 @@ import Silmaril.Proofs.Wasm.Abstract.FragBody.Basic
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Core
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Examples
 import Silmaril.Proofs.Wasm.Abstract.FragBody.Diverge
+import Silmaril.Proofs.Wasm.Abstract.FragBody.Typed
 
 /-!
 # Concrete Wasm bodies as abstract bodies: theorems
@@ -49,6 +50,16 @@ becomes one: `den_diverges_iff_core` — the abstract body diverges exactly when
 the Core 3.0 invocation has an infinite run of steps (`Diverges`). Core type
 safety (behind `behaviours_eq_run`) excludes stuck runs, so on validated code
 the denotation's `stuck` branches never produce divergence of their own.
+
+**Typed interface.** `Ty`, `ArgsTy`, `SeqTy` (Defs) type the fragment with a
+local context, a label context and the result type, as Wasm validation does
+on it; `OutTy` types outcomes. Preservation: `exec_ty`, `seq_ty` (typed code
+on typed locals has typed outcomes: locals keep their types, results and
+branch values have the types of their targets), `run_ty` (a typed function's
+return value has its result type). Example: `exampleSum_typed`.
+Not yet: progress for typed code at the expression level (that the
+denotation of typed code never takes a `stuck` branch), and the derivation of
+`funcTyped` from Core validation of a fragment site.
 
 **Faithful on the run quotient.** `denFunc_eq_iff`: two fragment functions
 have equal abstract bodies exactly when they have the same runs (for a
@@ -190,6 +201,33 @@ theorem den_diverges_iff_core {H : Type} {x : CallSite H} {ft : Silmaril.Wasm.Fu
       Silmaril.Wasm.Execution.Core.Diverges P Silmaril.Wasm.Binaryen.closedHost
         (Silmaril.Wasm.Execution.Core.invoke x.store x.addr vs) :=
   Silmaril.Proofs.Wasm.Abstract.FragBody.den_diverges_iff_core hx hok P hv s
+
+/-! ## Typed interface -/
+
+/-- Preservation for expressions. -/
+theorem exec_ty {Γ : List Silmaril.Wasm.IntType} {ρ : Option Silmaril.Wasm.IntType}
+    {ls : List WVal} {e : SSA.Expr} {o : Out (Option WVal)} (h : Exec ls e o)
+    {Λ : List (Option Silmaril.Wasm.IntType)} {r : Option Silmaril.Wasm.IntType}
+    (hty : Ty Γ ρ Λ e r) (hls : ValsTy Γ ls) : OutTy Γ ρ Λ (ValTy r) o :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.exec_ty h hty hls
+
+/-- Preservation for bodies. -/
+theorem seq_ty {Γ : List Silmaril.Wasm.IntType} {ρ : Option Silmaril.Wasm.IntType}
+    {Λ : List (Option Silmaril.Wasm.IntType)} {es : List SSA.Expr} {ls : List WVal}
+    {r0 : Option WVal} {o : Out (Option WVal)} {r : Option Silmaril.Wasm.IntType}
+    (h : Seq ls r0 es o) (hty : SeqTy Γ ρ Λ es r) (hls : ValsTy Γ ls)
+    (hr : es = [] → ValTy r r0) : OutTy Γ ρ Λ (ValTy r) o :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.seq_ty h hty hls hr
+
+/-- A typed function returns a value of its result type. -/
+theorem run_ty {f : FragFunc} {args : List WVal} {r : Option WVal} (hf : funcTyped f)
+    (h : f.Run args (.ret r)) : ValTy f.result r :=
+  Silmaril.Proofs.Wasm.Abstract.FragBody.run_ty hf h
+
+/-- The counting loop is typed. -/
+theorem exampleSum_typed : funcTyped exampleSum := by
+  unfold funcTyped exampleSum
+  repeat (first | rfl | constructor)
 
 /-! ## Examples -/
 
