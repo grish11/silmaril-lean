@@ -24,7 +24,9 @@ Stable API:
   `Word.ofList` and `Word.ofω` are its embeddings (`Function.Embedding`), and
   `Word.isCompl_range` says that their ranges are complementary.
   `Word.not_injective_ωSequence_list` (Cantor) shows there is no injection the other
-  way. `Word.HasPrefix`, `Word.prepend` and `Word.map` are also provided.
+  way. `Word.equivSeq : Word α ≃ Stream'.Seq α` (with `Word.toSeq`, `Word.ofSeq` and
+  `Word.terminates_toSeq_iff`) connects it with Mathlib's possibly terminating sequences.
+  `Word.HasPrefix`, `Word.prepend` and `Word.map` are also provided.
 - `Lang α := Set (Word α)`, with `Lang.finPart : Lang α → Language α`,
   `Lang.ωPart : Lang α → ωLanguage α`, `Lang.mk`, and
   `Lang.equiv : Lang α ≃ Language α × ωLanguage α`.
