@@ -3,6 +3,7 @@ module
 public import Silmaril.Formats.JsonBytes.Defs
 public import Silmaril.Formats.Utf8.Thms
 import Silmaril.Proofs.Formats.JsonBytes.Basic
+import Silmaril.Proofs.Formats.JsonBytes.Profile
 
 /-!
 # The language of JSON texts over bytes: lemmas
@@ -209,6 +210,33 @@ example : (Bytes.ofList [0x5B, 0x5B, 0x5D, 0x5D]).IsJson .rfc8259 := by
     mem_of_rmatch (by decide +kernel), rfl⟩
 
 end Examples
+
+end Silmaril.Formats.JsonBytes
+
+/-! ## The scalar-escape profile refines the RFC 8259 profile
+
+Every text that is valid under `Profile.scalarEscapes` is valid under `Profile.rfc8259`. The
+inclusion is strict: the lone high surrogate escape `"\uD800"` above is in `language .rfc8259`
+and not in `language .scalarEscapes`. -/
+
+namespace Silmaril.Formats.JsonBytes
+
+open scoped Computability
+
+/-- One scalar-escape `char` is a sequence of RFC 8259 `char`s (a surrogate pair is two). -/
+theorem strChar_scalarEscapes_le :
+    (strChar .scalarEscapes).matches' ≤ (strChar .rfc8259).matches'∗ :=
+  Silmaril.Proofs.Formats.JsonBytes.Profile.strChar_le
+
+theorem string_scalarEscapes_le : (string .scalarEscapes).matches' ≤ (string .rfc8259).matches' :=
+  Silmaril.Proofs.Formats.JsonBytes.Profile.string_le
+
+theorem value_rfc8259_of_scalarEscapes {w : List UInt8} (h : Value .scalarEscapes w) :
+    Value .rfc8259 w :=
+  Silmaril.Proofs.Formats.JsonBytes.Profile.value_rfc8259 h
+
+theorem language_scalarEscapes_le : language .scalarEscapes ≤ language .rfc8259 :=
+  Silmaril.Proofs.Formats.JsonBytes.Profile.language_le
 
 end Silmaril.Formats.JsonBytes
 
