@@ -28,13 +28,17 @@ the annotated type's counts; it forgets to `EvalOX` (`CallXT.EvalOXT.forget`).
   (`storeChk_of_funcsExtE`).
 * Tail calls: `irExt` does not describe `return_call*`, so `chkE irExt`
   rejects code containing them and nothing is claimed for it there. With the
-  checker `tExt` (adds `return_call x`), `evalOXT_goodT` covers direct tail
-  calls under the tail-aware postcondition (`MatchT`, shared step 4);
-  `return_call_indirect`/`return_call_ref` stay rejected until the shared
-  repair for null tails (`Outcome.tailNull`). At the frame level, the closure
-  on good stores is a sound oracle for `tExt` (`oracleSoundT_closedX`): a
-  callee body may end in a direct tail call, whose frame exit is closed by
-  `funcPost_of_tailRun`/`frame_tail_exit`. Hence `evalOX_closed_goodT`.
+  checker `tExt` (adds the three tail forms, `return_call_indirect` and
+  `return_call_ref` by their annotated type), `evalOXT_goodT` covers tail
+  calls under the tail-aware postcondition (`MatchT`): a resolved tail call
+  ends the body in a pending tail call; an unresolved one traps at once or,
+  on a null reference, as a pending null tail trapping at the frame
+  (`Outcome.tailNull`). At the frame level, the closure on good stores is a
+  sound oracle for `tExt` (`oracleSoundT_closedX`): a callee body may end in
+  a pending (null) tail call, whose frame exit is closed by
+  `funcPost_of_tailRun`/`frame_tail_exit`/`frame_tailNull`. Hence
+  `evalOX_closed_goodT`. Callee bodies on good stores have no
+  `return_call_ref` (`GoodStoreX`); the typed tail closure is still open.
 * The arity premises of `EvalOXT` are discharged from typing in a follow-up
   (for `call_indirect` from the successful `ref.cast`, for `call_ref` from the
   reference's type).
@@ -120,11 +124,12 @@ theorem evalOX_closed_typed_good {s : Store H} {f : Frame} {stk : List Val}
     ArityGoodE irExt s f stk es r ∧ CoreGoodE irExt P Silmaril.Wasm.Interp.noHostX s f stk es r :=
   Silmaril.Wasm.Interp.evalOX_closed_typed_good h ht
 
-/-- **Forward simulation with direct tail calls** (`return_call x`, checker `tExt`): every
-`EvalOXT C` run of `tExt`-checked code, with an oracle sound for `tExt`, is a Core 3.0 run
-under the tail-aware postcondition `MatchT` (a `return_call` ends the body in a pending tail
-call whose callee ends as the caller's `.ret` does). `return_call_indirect` and
-`return_call_ref` stay rejected: their null case traps only after the frame exits. -/
+/-- **Forward simulation with tail calls** (`return_call`, `return_call_indirect`,
+`return_call_ref`, checker `tExt`): every `EvalOXT C` run of `tExt`-checked code, with an
+oracle sound for `tExt`, is a Core 3.0 run under the tail-aware postcondition `MatchT`. A
+resolved tail call ends the body in a pending tail call whose callee ends as the caller's
+`.ret` does; an unresolved one is the native trap, reached at once or, on a null reference,
+when the frame is left. -/
 theorem evalOXT_goodT {C : Abstract.CallRel H} (hC : Silmaril.Wasm.Interp.OracleSoundT P host C)
     {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
     {r : Store H × Frame × Binaryen.Flow} (h : Abstract.CallXT.EvalOXT C s f stk es r) :

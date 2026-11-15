@@ -7,14 +7,15 @@ public import Silmaril.Proofs.Wasm.Interp.OracleCloseX
 # The closure as a sound oracle with direct tail calls (proofs)
 
 `OracleCloseX.oracleSoundX_closedX` closes the oracle for `irExt`. This module does the same for
-the tail checker `tExt` (`return_call x` admitted): on good stores, `XRecursion.closedCallX` is a
+the tail checker `tExt` (the three tail forms admitted): on good stores, `XRecursion.closedCallX` is a
 sound oracle for `tExt` (`oracleSoundT_closedX`), by the same least-fixpoint induction. A callee
 body now runs under the tail-aware postcondition (`evalOXT_goodT`): it ends matched, or at a
-pending tail call; the frame is left by `frame_ends` with `funcPost_of_tailRun` (a returning
-tail callee) or by `frame_tail_exit` (a trapping one), as in `wp_call_okT`/`wp_call_trapT`.
+pending tail call, or at a pending null tail; the frame is left by `frame_ends` with
+`funcPost_of_tailRun` (a returning tail callee), by `frame_tail_exit` (a trapping one) or by
+`frame_tailNull`, as in `wp_call_okT`/`wp_call_trapT`.
 
-**Scope.** As `TailX`: `return_call_indirect`/`return_call_ref` are rejected by `tExt` (null
-tails), and callee bodies have no `call_ref` (`GoodStoreX`).
+**Scope.** Callee bodies have no `call_ref`/`return_call_ref`, and their (tail) indirect calls
+name instance types (`GoodStoreX`).
 -/
 
 @[expose] public section

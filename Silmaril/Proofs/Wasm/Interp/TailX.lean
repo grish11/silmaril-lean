@@ -12,9 +12,13 @@ tail-aware postcondition `MatchT` (`evalOXT_goodT`): a `return_call` ends the bo
 pending tail call whose callee, answered by the oracle, ends as the caller's `.ret` does
 (`TailRun`), and that is the frame-level behaviour of Core 3.0 (`frame_tail_exit`).
 
-**Scope.** `return_call_indirect` and `return_call_ref` stay rejected by `tExt`: their null
-case (`return_call_ref` on `ref.null`) traps only after the frame exits, which no body-level
-outcome describes yet (the shared `Outcome.tailNull` repair).
+All three tail forms are checked: `return_call_indirect x y` and `return_call_ref y` by the
+annotated type's counts (one more value popped, the index or the reference). A resolved
+indirect or reference tail call ends the body in a pending tail call as `return_call` does
+(`coreT_tail`). An unresolved one traps (`coreT_tailRes`): at once (`table.get` out of bounds,
+a failed cast), or, on a null reference (`return_call_ref` on `ref.null`, a null table entry),
+as a pending null tail, which traps only when the frame is left (`Outcome.tailNull`, the third
+`MatchT` case); either way the native result is the trap in the same store.
 -/
 
 @[expose] public section
@@ -32,6 +36,7 @@ def tExt : ExtArity H := fun F mi i =>
   match i with
   | .callIndirect _ y | .callRef y => (typeArity mi y).map fun p => .fall (p.1 + 1) p.2
   | .returnCall x => (callArity F mi x).map fun p => .tail p.1 p.2
+  | .returnCallIndirect _ y | .returnCallRef y => (typeArity mi y).map fun p => .tail (p.1 + 1) p.2
   | _ => none
 
 instance : ExtStable (tExt (H := H)) := ⟨fun {F F' mi i e} hF h => by
@@ -162,37 +167,6 @@ theorem arityX_irTrapT {i : Instr} {top : Val}
   obtain ⟨-, inv1⟩ := arity_args hS iha h1
   exact ⟨trivial, inv1⟩
 
-/-- A tail call is not checked by `tExt`. -/
-theorem flatChk_tailT {i : Instr} {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat}
-    {labels : List Nat} {h : Nat} {stk' : List Val} {o' : Option (Nat × List Val)}
-    (hres : TailRes s₁ f₁ i stk' o') (hnd : ∀ x, i ≠ .returnCall x) :
-    flatChkE tExt F mi nl ret labels h i = none := by
-  cases hres with
-  | direct => exact absurd rfl (hnd _)
-  | _ => rfl
-
-theorem arityX_tailT {i : Instr} {r' : Store H × Frame × Binaryen.Flow}
-    {o' : Option (Nat × List Val)}
-    (iha : ArityGoodE tExt s f stk args (s₁, f₁, .normal stk₁)) (hres : TailRes s₁ f₁ i stk₁ o')
-    (hnd : ∀ x, i ≠ .returnCall x) :
-    ArityGoodE tExt s f stk (.op i args :: es) r' := by
-  intro labels ret out hS hc
-  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
-  obtain ⟨hf, -⟩ := arity_args hS iha h1
-  rw [flatChk_tailT hres hnd] at hf
-  cases hf
-
-theorem coreX_tailT {i : Instr} {r' : Store H × Frame × Binaryen.Flow}
-    {o' : Option (Nat × List Val)}
-    (iha : ArityGoodE tExt s f stk args (s₁, f₁, .normal stk₁)) (hres : TailRes s₁ f₁ i stk₁ o')
-    (hnd : ∀ x, i ≠ .returnCall x) :
-    CoreGoodE tExt P host s f stk (.op i args :: es) r' := by
-  intro labels ret out hS hc
-  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
-  obtain ⟨hf, -⟩ := arity_args hS iha h1
-  rw [flatChk_tailT hres hnd] at hf
-  cases hf
-
 /-- The Core run of an indirect or reference call answered by the oracle, from the
 callee reference and call form on top of the arguments, in context. -/
 theorem steps_oracle_irT {rest : List Admin} {fin : List Admin} {c : Admin}
@@ -314,39 +288,84 @@ theorem tailFlow_of_retValsT {n : Nat} {fl : Binaryen.Flow} {vs : List Val}
     (h : fl.retVals = some vs) : tailFlow n fl = .ret (vs.take n) := by
   rcases fl with w | ⟨_ | k, w⟩ | w | _ | _ <;> simp_all [Binaryen.Flow.retVals, tailFlow]
 
-/-- The check of `return_call x`. -/
-theorem flatChk_returnCall {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat}
-    {labels : List Nat} {h : Nat} {o : Option Nat}
-    (hca : callArity F mi x = some (ps.length, rs.length))
-    (hc : flatChkE tExt F mi nl ret labels h (.returnCall x) = some o) :
-    ps.length ≤ h ∧ rs.length = ret ∧ o = none := by
-  simp only [flatChkE, tExt, hca, Option.map_some, extStep] at hc
+/-- A `return_call_ref` leaving a frame calls by `call_ref`. -/
+theorem isCallRef_retToCallIn {c : Admin} (hc : c.IsReturnCallRef) (m : ModuleInst) :
+    (c.retToCallIn m).IsCallRef := by
+  unfold Admin.IsReturnCallRef at hc
+  split at hc
+  · simp only [Admin.retToCallIn]; split <;> trivial
+  · trivial
+  · exact hc.elim
+
+/-- The effect `tExt` gives a resolved tail call: the callee's counts, with the index or
+reference popped too. -/
+theorem tExt_tail {i : Instr} {stk' : List Val}
+    (hres : TailRes s₁ f₁ i stk₁ (some (a, stk'))) (hfi : s₁.funcs[a]? = some fi)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hy : ∀ y, tailAnn i = some y → typeArity f₁.module y = some (ps.length, rs.length)) :
+    tExt s₁.funcs f₁.module i = some (.tail (ps.length + tailPop i) rs.length) := by
+  cases hres with
+  | @direct x _ fi₀ _ hfi₀ =>
+    obtain rfl : fi₀ = fi := Option.some.inj ((funcs_of_func? hfi₀).symm.trans hfi)
+    simp [tExt, callArity_eq hfi₀ hty, tailPop]
+  | indirect _ => simp [tExt, hy _ rfl, tailPop]
+  | ref => simp [tExt, hy _ rfl, tailPop]
+
+/-- The check of a tail form, read off its effect. -/
+theorem flatChk_tailForm {i : Instr} {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat}
+    {labels : List Nat} {h p q : Nat} {o : Option Nat} (he : tExt F mi i = some (.tail p q))
+    (hc : flatChkE tExt F mi nl ret labels h i = some o) : p ≤ h ∧ q = ret ∧ o = none := by
+  have e : flatChkE tExt F mi nl ret labels h i = extStep (tExt F mi i) ret h := by
+    cases i <;> first | rfl | simp [tExt] at he
+  rw [e, he] at hc
+  simp only [extStep] at hc
   split at hc
   · rename_i hh
     exact ⟨hh.1, hh.2, (Option.some.inj hc).symm⟩
   · cases hc
 
-/-- The pre-call facts of `return_call x`. -/
-theorem returnCall_pre {labels : List Nat} {ret : Nat} {out : Option Nat}
+/-- The pre-call facts of a resolved tail call. -/
+theorem tail_preT {i : Instr} {labels : List Nat} {ret : Nat} {out : Option Nat} {stk' : List Val}
     (hS : StoreChkE tExt s.funcs) (iha : ArityGoodE tExt s f stk args (s₁, f₁, .normal stk₁))
-    (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hres : TailRes s₁ f₁ i stk₁ (some (a, stk'))) (hfi : s₁.funcs[a]? = some fi)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hy : ∀ y, tailAnn i = some y → typeArity f₁.module y = some (ps.length, rs.length))
     (hc : chkE tExt s.funcs f.module f.locals.length ret labels (some stk.length)
-      (.op (.returnCall x) args :: es) = some out) :
-    EvalInvE tExt s f (s₁, f₁, .normal stk₁) ∧ ps.length ≤ stk₁.length ∧ rs.length = ret := by
+      (.op i args :: es) = some out) :
+    EvalInvE tExt s f (s₁, f₁, .normal stk₁) ∧ ps.length + tailPop i ≤ stk₁.length ∧
+      rs.length = ret := by
   obtain ⟨o, h1, -⟩ := chk_consE.mp hc
   obtain ⟨hf, inv1⟩ := arity_args hS iha h1
-  obtain ⟨hp, hr, -⟩ := flatChk_returnCall (callArity_eq hfi hty) hf
+  obtain ⟨hp, hr, -⟩ := flatChk_tailForm (tExt_tail hres hfi hty hy) hf
   exact ⟨inv1, hp, hr⟩
 
-theorem arityT_returnCall (hC : OracleSoundT P host C)
+/-- A resolved tail call runs in Core 3.0 to a `return_call_ref` on the callee. -/
+theorem tailRes_steps {i : Instr} (hres : TailRes s₁ f₁ i stk₁ (some (a, stk₁.drop (tailPop i)))) :
+    ∃ c : Admin, c.IsReturnCallRef ∧ Steps P host
+      ⟨s₁, f₁, vals (stk₁.take (tailPop i)).reverse ++ [.plain i]⟩ ⟨s₁, f₁, [.ref (.func a), c]⟩ := by
+  cases hres with
+  | @direct x _ fi₀ _ hfi₀ =>
+    exact ⟨.returnCallRefType fi₀.type, trivial,
+      .single (Step.returnCall (module_of_func? hfi₀) (funcs_of_func? hfi₀))⟩
+  | @indirect x y _ _ _ _ hres' =>
+    exact ⟨.plain (.returnCallRef y), trivial,
+      Silmaril.Wasm.Abstract.CallRes.steps_returnCallIndirect_func hres'⟩
+  | @ref y _ _ => exact ⟨.plain (.returnCallRef y), trivial, .refl⟩
+
+theorem arityT_tail {i : Instr} (hC : OracleSoundT P host C)
     (iha : ArityGoodE tExt s f stk args (s₁, f₁, .normal stk₁))
-    (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, fl))
+    (hres : TailRes s₁ f₁ i stk₁ (some (a, stk₁.drop (tailPop i))))
+    (hfi : s₁.funcs[a]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hy : ∀ y, tailAnn i = some y → typeArity f₁.module y = some (ps.length, rs.length))
+    (hcall : C s₁ a ((stk₁.drop (tailPop i)).take ps.length).reverse (s₂, fl))
     (hfl : (∃ vs, fl.retVals = some vs) ∨ fl.Abrupt) :
-    ArityGoodE tExt s f stk (.op (.returnCall x) args :: es) (s₂, f₁, tailFlow rs.length fl) := by
+    ArityGoodE tExt s f stk (.op i args :: es) (s₂, f₁, tailFlow rs.length fl) := by
   intro labels ret out hS hc
-  obtain ⟨inv1, hp, hret⟩ := returnCall_pre hS iha hfi hty hc
-  obtain ⟨⟨ob, hob, hok, hfuncs⟩, -, -⟩ := oracle_at hC.soundE hS inv1 hfi hty hp hcall f₁
+  obtain ⟨inv1, hp, hret⟩ := tail_preT hS iha hres hfi hty hy hc
+  have hlen : ((stk₁.drop (tailPop i)).take ps.length).reverse.length = ps.length := by
+    simp only [List.length_reverse, List.length_take, List.length_drop]; omega
+  obtain ⟨⟨ob, hob, hok, hfuncs⟩, -, -⟩ := hC s₁ s₂ f₁ a fi ps rs _ fl (.callRefType fi.type)
+    (storeChk_inv inv1 hS) hfi hty hlen trivial hcall
   have inv2 : EvalInvE tExt s f (s₂, f₁, tailFlow rs.length fl) :=
     ⟨inv1.1.trans hfuncs, inv1.2.1, inv1.2.2⟩
   refine ⟨?_, inv2⟩
@@ -360,31 +379,34 @@ theorem arityT_returnCall (hC : OracleSoundT P host C)
     | throw t => exact absurd hok id
     | _ => exact absurd hab id
 
-/-- **A direct tail call ends the body in a pending tail call** whose callee, answered by
-the oracle, ends as the caller does. -/
-theorem coreT_returnCall (hC : OracleSoundT P host C)
+/-- **A resolved tail call ends the body in a pending tail call** (`return_call`,
+`return_call_indirect`, `return_call_ref`) whose callee, answered by the oracle, ends as the
+caller does. -/
+theorem coreT_tail {i : Instr} (hC : OracleSoundT P host C)
     (aha : ArityGoodE tExt s f stk args (s₁, f₁, .normal stk₁))
     (iha : CoreGoodE tExt P host s f stk args (s₁, f₁, .normal stk₁))
-    (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, fl))
+    (hres : TailRes s₁ f₁ i stk₁ (some (a, stk₁.drop (tailPop i))))
+    (hfi : s₁.funcs[a]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hy : ∀ y, tailAnn i = some y → typeArity f₁.module y = some (ps.length, rs.length))
+    (hcall : C s₁ a ((stk₁.drop (tailPop i)).take ps.length).reverse (s₂, fl))
     (hfl : (∃ vs, fl.retVals = some vs) ∨ fl.Abrupt) :
-    CoreGoodT tExt P host s f stk (.op (.returnCall x) args :: es)
-      (s₂, f₁, tailFlow rs.length fl) := by
+    CoreGoodT tExt P host s f stk (.op i args :: es) (s₂, f₁, tailFlow rs.length fl) := by
   intro labels ret out hS hc
-  obtain ⟨inv1, hp, hret⟩ := returnCall_pre hS aha hfi hty hc
+  obtain ⟨inv1, hp, hret⟩ := tail_preT hS aha hres hfi hty hy hc
   obtain ⟨o, h1, -⟩ := chk_consE.mp hc
   obtain ⟨oa, ha, -⟩ := chk1_opE h1
   have hS₁ : StoreChkE tExt s₁.funcs := storeChk_inv inv1 hS
   obtain ⟨ps', rs', hex, hpl, -⟩ := expand_of_funcType hty
-  have hpp : ps.length = ps'.length := by rw [← hpl]
-  have hlen : (stk₁.take ps.length).reverse.length = ps.length := by
-    simp only [List.length_reverse, List.length_take]; omega
-  have hT : TailRun P host ret (s₂, f₁, tailFlow rs.length fl) s₁ f₁ stk₁.reverse a
-      (.returnCallRefType fi.type) := by
-    refine ⟨trivial, rfl, (stk₁.drop ps.length).reverse, (stk₁.take ps.length).reverse, fi, ps', rs',
-      rev_take_drop stk₁ ps.length, funcs_of_func? hfi, hex, by rw [hlen, hpp], fun g => ?_⟩
+  obtain ⟨c, hcr, hpre⟩ := tailRes_steps (P := P) (host := host) hres
+  have hlen : ((stk₁.drop (tailPop i)).take ps.length).reverse.length = ps.length := by
+    simp only [List.length_reverse, List.length_take, List.length_drop]; omega
+  have hT : TailRun P host ret (s₂, f₁, tailFlow rs.length fl) s₁ f₁
+      (stk₁.drop (tailPop i)).reverse a c := by
+    refine ⟨hcr, rfl, ((stk₁.drop (tailPop i)).drop ps.length).reverse,
+      ((stk₁.drop (tailPop i)).take ps.length).reverse, fi, ps', rs',
+      rev_take_drop _ ps.length, hfi, hex, by rw [hlen, hpl], fun g => ?_⟩
     obtain ⟨⟨_, _, hok, _⟩, hretS, htr⟩ :=
-      hC s₁ s₂ g a fi ps rs _ fl (.callRefType fi.type) hS₁ (funcs_of_func? hfi) hty hlen trivial hcall
+      hC s₁ s₂ g a fi ps rs _ fl _ hS₁ hfi hty hlen (isCallRef_retToCallIn hcr f₁.module) hcall
     rcases hfl with ⟨vs, hvs⟩ | hab
     · refine .inl ⟨vs.take rs.length, tailFlow_of_retValsT hvs, ?_⟩
       rw [← hret, List.take_take, Nat.min_self]
@@ -393,13 +415,56 @@ theorem coreT_returnCall (hC : OracleSoundT P host C)
       | trap => exact .inr ⟨rfl, htr rfl⟩
       | throw t => exact absurd hok id
       | _ => exact absurd hab id
-  have hw := wp_tail (P := P) (host := host) (n := ret) hT []
-    (expression (Binaryen.BExpr.lowerList es)) []
-  have st := Step.ctx (P := P) (host := host) stk₁.reverse (expression (Binaryen.BExpr.lowerList es))
-    (Step.returnCall (s := s₁) (f := f₁) (module_of_func? hfi) (funcs_of_func? hfi))
+  let E := expression (Binaryen.BExpr.lowerList es)
+  have hw := wp_tail (P := P) (host := host) (n := ret) hT [] E []
+  have st := Steps.ctx (P := P) (host := host) (stk₁.drop (tailPop i)).reverse E hpre
+  have e : vals stk₁.reverse ++ .plain i :: E = vals (stk₁.drop (tailPop i)).reverse ++
+      (vals (stk₁.take (tailPop i)).reverse ++ [.plain i]) ++ E := by
+    rw [rev_take_drop stk₁ (tailPop i)]; simp [vals]
   rw [code_op]
-  refine wp_append_normal (iha hS ha) (WP.step (by simpa using st) ?_)
+  refine wp_append_normal (iha hS ha) ?_
+  rw [e]
+  refine WP.steps st ?_
   simpa using hw
+
+theorem arityT_tailRes {i : Instr} (iha : ArityGoodE tExt s f stk args (s₁, f₁, .normal stk₁))
+    (hres : TailRes s₁ f₁ i stk₁ none) :
+    ArityGoodE tExt s f stk (.op i args :: es) (s₁, f₁, .trap) := by
+  cases hres with
+  | indirectTrap _ => exact arityX_irTrapT iha
+  | refNull => exact arityX_irTrapT iha
+
+/-- **An unresolved tail call traps**: at once (out-of-bounds index, failed cast), or, on a
+null reference, as a pending null tail that traps when the frame is left. -/
+theorem coreT_tailRes {i : Instr} (iha : CoreGoodE tExt P host s f stk args (s₁, f₁, .normal stk₁))
+    (hres : TailRes s₁ f₁ i stk₁ none) :
+    CoreGoodT tExt P host s f stk (.op i args :: es) (s₁, f₁, .trap) := by
+  intro labels ret out hS hc
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
+  obtain ⟨oa, ha, -⟩ := chk1_opE h1
+  let E := expression (Binaryen.BExpr.lowerList es)
+  rw [code_op]
+  refine wp_append_normal (iha hS ha) ?_
+  cases hres with
+  | @indirectTrap x y ad j stk hres' =>
+    have e : vals (Val.num ⟨.int ad.intType, j⟩ :: stk).reverse ++
+        .plain (.returnCallIndirect x y) :: E =
+        vals stk.reverse ++ [aconst ad j, .plain (.returnCallIndirect x y)] ++ E := by
+      rw [List.reverse_cons, vals_append, Silmaril.Wasm.Abstract.CallRes.aconst_eq]
+      simp
+    rw [e]
+    rcases Silmaril.Wasm.Abstract.CallRes.steps_returnCallIndirect_trap (P := P) (host := host)
+      hres' with st | st
+    · have st₁ := Steps.ctx (P := P) (host := host) stk.reverse E st
+      refine wp_matchT_of_match ⟨s₁, f₁, [.trap], .trap, st₁.trans ?_, rfl, rfl, rfl, trivial⟩
+      simpa using steps_trap (P := P) (host := host) s₁ f₁ stk.reverse E
+    · have st₁ := Steps.ctx (P := P) (host := host) stk.reverse E st
+      refine WP.steps st₁ ?_
+      simpa [vals] using wp_tailNull (P := P) (host := host) (n := ret) (r := (s₁, f₁, .trap))
+        (vs := stk.reverse) (c := .plain (.returnCallRef y)) trivial rfl [] E []
+  | @refNull y stk =>
+    simpa [vals, Val.toAdmin] using wp_tailNull (P := P) (host := host) (n := ret)
+      (r := (s₁, f₁, .trap)) (vs := stk.reverse) (c := .plain (.returnCallRef y)) trivial rfl [] E []
 
 /-- **An oracle call under any postcondition.** -/
 theorem coreOQ_callOk {M : Nat → Store H × Frame × Binaryen.Flow → Post H}
@@ -506,20 +571,10 @@ theorem evalOXT_goodT {C : Abstract.CallRel H} (hC : OracleSoundT P host C) {s :
     exact ⟨arityX_irStopT hC (.inr rfl) iha.1 hfi hty hy hcall hfl,
       coreT_of_core (coreX_irStopT hC (.inr rfl) iha.1 (core_of_coreT_normal iha.2) .refl
         hfi hty hy hcall hfl)⟩
-  | @tail s s₁ s₂ f f₁ stk stk₁ i args es fa fi ps rs fl _ hres hfi hty _ hcall hfl iha =>
-    cases hres with
-    | @direct x _ fi₀ _ hfi₀ =>
-      obtain rfl : fi₀ = fi := Option.some.inj ((funcs_of_func? hfi₀).symm.trans hfi)
-      exact ⟨arityT_returnCall hC iha.1 hfi₀ hty hcall hfl,
-        coreT_returnCall hC iha.1 (core_of_coreT_normal iha.2) hfi₀ hty hcall hfl⟩
-    | indirect hres' =>
-      exact ⟨arityX_tailT iha.1 (.indirect hres') (fun _ h => by cases h),
-        coreT_of_core (coreX_tailT iha.1 (.indirect hres') (fun _ h => by cases h))⟩
-    | ref =>
-      exact ⟨arityX_tailT iha.1 .ref (fun _ h => by cases h),
-        coreT_of_core (coreX_tailT iha.1 .ref (fun _ h => by cases h))⟩
-  | @tailRes s s₁ f f₁ stk stk₁ i args es _ hres iha =>
-    have hnd : ∀ x, i ≠ Instr.returnCall x := fun x h => by subst h; cases hres
-    exact ⟨arityX_tailT iha.1 hres hnd, coreT_of_core (coreX_tailT iha.1 hres hnd)⟩
+  | tail _ hres hfi hty hy hcall hfl iha =>
+    exact ⟨arityT_tail hC iha.1 hres hfi hty hy hcall hfl,
+      coreT_tail hC iha.1 (core_of_coreT_normal iha.2) hres hfi hty hy hcall hfl⟩
+  | tailRes _ hres iha =>
+    exact ⟨arityT_tailRes iha.1 hres, coreT_tailRes (core_of_coreT_normal iha.2) hres⟩
 
 end Silmaril.Wasm.Interp
