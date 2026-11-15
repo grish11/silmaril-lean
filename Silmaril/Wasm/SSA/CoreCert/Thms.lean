@@ -356,6 +356,22 @@ end Silmaril.Wasm.SSA
 
 /-! ## Runs of store-free leaf code -/
 
+namespace Silmaril.Wasm.SSA
+
+open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core
+
+/-- **A fragment function's native run ends in the store it started from**:
+fragment code (integers, locals, control) writes no memory, global or table. -/
+theorem invokeRun_store {H : Type} {s : Store H} {a : Nat} {fi : FuncInst H} {ft : FuncType}
+    {bf : BFunc} {f : FragFunc} {ps rs : List Validation.CValType} (hfi : s.funcs[a]? = some fi)
+    (hcode : fi.code = .wasm (coreFunc bf)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hf : ofBFunc? ft bf = some f) (hn : f.native = true) (hst : BExpr.structuredList bf.body = true)
+    {args : List WVal} {fuel : Nat} {s' : Store H} {fl : Flow}
+    (h : invokeRun fuel s a (args.map WVal.toVal) = some (s', fl)) : s' = s :=
+  Silmaril.Proofs.Wasm.SSA.CoreCert.invokeRun_store hfi hcode hty hf hn hst h
+
+end Silmaril.Wasm.SSA
+
 namespace Silmaril.Wasm.SSA.CoreCert
 
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core
