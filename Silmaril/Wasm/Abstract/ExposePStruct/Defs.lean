@@ -52,15 +52,17 @@ falls through at height `h'` (a morphism `I ⟶ ⟨I.env, h'⟩`, `Hom`), `none`
 target, which composition absorbs). `DenMor Γ I o` is the image: the denotations of such code.
 
 **Scope of the fragment.** The checker and interpreter (`Interp.flatEff`, `Interp.flatChkE`,
-`Binaryen.evalFlat`) accept: integer constants and unary, test, binary and comparison operators;
-`nop`, `drop`, `select`; `local.get/set/tee`, `global.get/set`; unpacked integer `load`/`store`
-(no `memarg` packing); `unreachable`, `block`, `loop`, `if`, `br`, `br_if`, `br_table`,
-`return`; `call`, `call_indirect`, `call_ref`, `return_call`, `return_call_indirect`,
-`return_call_ref`; `throw`, `throw_ref`, `try_table`. Every other instruction is rejected by the
-checker (`flatEff` is `none`): float constants and float operators, vector instructions,
-conversions, reinterpretations and extensions, reference instructions (`ref.null`, `ref.func`,
-`ref.is_null`, `ref.as_non_null`, `br_on_null`, …), table instructions, `memory.size`,
-`memory.grow`, bulk memory, packed loads and stores, the GC and the legacy exception
+`Binaryen.evalFlat`) accept: integer constants and the integer unary (`clz`, `ctz`, `popcnt`,
+in-type sign extension `extendN_s`), test, binary and comparison operators; `nop`, `drop`,
+`select`; `local.get/set/tee` (below the local count), `global.get/set`; unpacked integer
+`load`/`store`; `unreachable`, `block`, `loop`, `if`, `br`, `br_if`, `br_table`, `return`;
+`call`, `call_indirect`, `call_ref`, `return_call`, `return_call_indirect`, `return_call_ref`;
+`throw`, `throw_ref`, `try_table`. Every other instruction is rejected by the checker
+(`flatEff` is `none`): float constants, loads, stores and operators; vector instructions;
+conversions (`convert`: wrapping, extension between `i32` and `i64`, truncations,
+reinterpretations); reference instructions (`ref.null`, `ref.func`, `ref.is_null`, `ref.test`,
+`ref.cast`, `br_on_null`, `br_on_cast`, …); table instructions; `memory.size`, `memory.grow`,
+bulk memory and `data.drop`/`elem.drop`; packed loads and stores; GC struct and array
 instructions. So this is **not** full Wasm: it is the checked integer/control/call/exception
 fragment of the native interpreter.
 -/
