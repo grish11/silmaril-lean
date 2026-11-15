@@ -114,3 +114,100 @@ theorem step_noncontrol {H P} {host : HostSemantics H} {c c' : Config H} (h : St
          simp [Det.famOf] at hk)
 
 end Silmaril.Wasm.Cfg.Proofs.Exec
+
+namespace Silmaril.Wasm.Cfg.Proofs.Exec
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Execution.Core
+open Silmaril.Wasm.SingleThreaded (Det.famOf Det.Fam)
+
+/-! ## Simple code followed by anything (milestone 2c) -/
+
+theorem simpleAdmin_nonval {a : Admin} (h : SimpleAdmin a) (hv : a.val? = none) :
+    Det.famOf a ≠ .control := by
+  rcases h with h | ⟨i, rfl, hk⟩
+  · exact absurd hv h
+  · exact hk
+
+/-- A step of `val* a A' ++ R`, with `a` non-control, leaves simple code before `A' ++ R`, or a
+trap after values. -/
+theorem simple_step {H : Type} {P : Numerics.Profile} {host : HostSemantics H} {c c' : Config H}
+    (h : Step P host c c') {vs : List Val} {a : Admin} {A' R : List Admin}
+    (hk : Det.famOf a ≠ .control) (hc : c.code = vals vs ++ a :: (A' ++ R)) :
+    (∃ B, (∀ b ∈ B, SimpleAdmin b) ∧ c'.code = B ++ (A' ++ R)) ∨
+      (∃ ws, c'.code = vals ws ++ [.trap] ++ (A' ++ R)) := by
+  have ha := val_none_of_noncontrol hk
+  rcases c with ⟨s, f, code⟩
+  rcases c' with ⟨s', f', code'⟩
+  simp only at hc
+  subst hc
+  rcases Sim.Step.split_head ha h with ⟨ws, us, is', rfl, hst, he⟩ | ⟨rfl, -⟩ | ⟨rfl, -⟩
+  · simp only at he ⊢
+    rcases step_noncontrol hst us a rfl hk with hall | ⟨ws', rfl⟩
+    · left
+      refine ⟨vals ws ++ is', ?_, by rw [he]⟩
+      intro b hb
+      rcases List.mem_append.1 hb with hb | hb
+      · exact Or.inl (Silmaril.Wasm.SingleThreaded.Det.mem_vals hb)
+      · exact hall b hb
+    · right; exact ⟨ws ++ ws', by rw [he]; simp⟩
+  · simp [Det.famOf] at hk
+  · simp [Det.famOf] at hk
+
+/-- A list of simple administrative instructions is all values, or has a first non-value, which
+is a non-control instruction. -/
+theorem simple_split {B : List Admin} (hB : ∀ b ∈ B, SimpleAdmin b) :
+    (∃ vs, B = vals vs) ∨ ∃ vs a A', B = vals vs ++ a :: A' ∧ Det.famOf a ≠ .control ∧
+      ∀ b ∈ A', SimpleAdmin b := by
+  by_cases hall : B.all Admin.isVal = true
+  · left
+    refine ⟨B.filterMap Admin.val?, Silmaril.Wasm.SingleThreaded.Det.eq_vals_of_all ?_⟩
+    intro x hx
+    have := List.all_eq_true.1 hall x hx
+    simpa [Admin.isVal, Option.isSome_iff_ne_none] using this
+  · right
+    obtain ⟨vs, a, A', ha, rfl⟩ := Sim.exists_head_of_not_all (by simpa using hall)
+    exact ⟨vs, a, A', rfl, simpleAdmin_nonval (hB a (by simp)) ha,
+      fun b hb => hB b (by simp [hb])⟩
+
+/-- At position `j`, a step of a non-control instruction stays mid-instruction or exits by trap. -/
+theorem resid_at_step {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
+    {c c' : Config H} (h : Step P host c c') {is : List Instr} {j : Nat} {i : Instr}
+    (hi : is[j]? = some i) (hk : Det.famOf (.plain i) ≠ .control) (hr : Resid is (.at j) c.code) :
+    Resid is (.mid j) c'.code ∨ Resid is .exiting c'.code := by
+  generalize hcode : c.code = code at hr
+  cases hr with
+  | «at» vs hj =>
+    have hjl : j < is.length := by
+      rcases Nat.lt_or_ge j is.length with h' | h'
+      · exact h'
+      · simp [List.getElem?_eq_none h'] at hi
+    have hd : is.drop j = i :: is.drop (j + 1) := by
+      rw [List.drop_eq_getElem_cons hjl]; simp [List.getElem?_eq_getElem hjl] at hi; rw [hi]
+    have hc : c.code = vals vs ++ Admin.plain i :: ([] ++ expression (is.drop (j + 1))) := by
+      rw [hcode, hd]; simp [expression]
+    rcases simple_step h hk hc with ⟨B, hB, he⟩ | ⟨ws, he⟩
+    · left; rw [he]; simpa using Resid.mid B hB hjl
+    · right; rw [he]; exact Resid.exiting (is := is) ws .trap
+
+/-- Mid-instruction, either only values are left (so the position is the next instruction), or a
+step stays mid-instruction or exits by trap. -/
+theorem resid_mid_step {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
+    {is : List Instr} {j : Nat} {code : List Admin} (hr : Resid is (.mid j) code) :
+    Resid is (.at (j + 1)) code ∨
+      ∀ {c c' : Config H}, c.code = code → Step P host c c' →
+        Resid is (.mid j) c'.code ∨ Resid is .exiting c'.code := by
+  cases hr with
+  | mid B hB hj =>
+    rcases simple_split hB with ⟨vs, rfl⟩ | ⟨vs, a, A', rfl, hk, hA'⟩
+    · left; exact Resid.at vs hj
+    · right
+      intro c c' hc h
+      have hc' : c.code = vals vs ++ a :: (A' ++ expression (is.drop (j + 1))) := by
+        rw [hc]; simp
+      rcases simple_step h hk hc' with ⟨B', hB', he⟩ | ⟨ws, he⟩
+      · left
+        rw [he, ← List.append_assoc]
+        exact Resid.mid (B' ++ A') (fun b hb => (List.mem_append.1 hb).elim (hB' b) (hA' b)) hj
+      · right; rw [he]; exact Resid.exiting ws .trap
+
+end Silmaril.Wasm.Cfg.Proofs.Exec

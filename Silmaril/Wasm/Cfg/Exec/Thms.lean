@@ -17,6 +17,14 @@ import Silmaril.Proofs.Wasm.Cfg.Exec
   `RefStep`, `AggregateStep`) leaves only values and non-control instructions, or a trap
   (`SimpleRes`). This is the per-family half of milestone 2: a straight-line step never
   creates a label, handler, frame, branch or exception.
+* `resid_at_step`: at position `j` of a sequence whose instruction `j` is non-control, a Core
+  step stays at `j` mid-instruction or exits by trap.
+* `resid_mid_step`: mid-instruction, either only values are left (the position is `j + 1`), or a
+  step stays mid-instruction or exits by trap.
+
+  These two are stated for code that *is* the sequence's residual. Lifting them through
+  enclosing `LABEL`/`HANDLER` contexts, and the control instructions, is the rest of
+  milestone 2.
 * `step_noncontrol`: lifted to `Step` itself (every rule, any host): a Core step from
   `val* a`, `a` of a non-control family, leaves simple code or `val* trap` (`StepRes`).
 -/
@@ -61,6 +69,23 @@ theorem step_noncontrol {host : HostSemantics H} {c c' : Config H} (h : Step P h
     (us : List Val) (a : Admin) (hc : c.code = vals us ++ [a])
     (hk : SingleThreaded.Det.famOf a ≠ .control) : StepRes c'.code :=
   Proofs.Exec.step_noncontrol h us a hc hk
+
+/-- **Straight-line progress at a position**: a step of non-control instruction `j` stays at `j`
+(mid-instruction) or exits by trap. -/
+theorem resid_at_step {host : HostSemantics H} {c c' : Config H} (h : Step P host c c')
+    {is : List Instr} {j : Nat} {i : Instr} (hi : is[j]? = some i)
+    (hk : SingleThreaded.Det.famOf (.plain i) ≠ .control) (hr : Resid is (.at j) c.code) :
+    Resid is (.mid j) c'.code ∨ Resid is .exiting c'.code :=
+  Proofs.Exec.resid_at_step h hi hk hr
+
+/-- **Mid-instruction**: only values left (the position is `j + 1`), or a step stays
+mid-instruction or exits by trap. -/
+theorem resid_mid_step {host : HostSemantics H} {is : List Instr} {j : Nat} {code : List Admin}
+    (hr : Resid is (.mid j) code) :
+    Resid is (.at (j + 1)) code ∨
+      ∀ {c c' : Config H}, c.code = code → Step P host c c' →
+        Resid is (.mid j) c'.code ∨ Resid is .exiting c'.code :=
+  Proofs.Exec.resid_mid_step hr
 
 end
 

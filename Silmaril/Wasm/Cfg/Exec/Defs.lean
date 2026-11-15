@@ -18,6 +18,8 @@ says that `code` is a configuration's code *while running the sequence `is` at l
 * `.inArm k a l` — inside arm `a` of the structured instruction at index `k`, at `l` there,
   with the rest of `is` after `k` waiting outside the label;
 * `.ifArm k a` — the `if` at `k` has chosen arm `a` and is about to enter it as a `block`;
+* `.mid j` — instruction `j` has started and left simple code `B` (values and non-control
+  instructions, as expanding rules such as `memory.fill` do) before the rest of `is`;
 * `.exiting` — an exit kernel (`br`, `return`, `trap`, a thrown exception) is bubbling out,
   followed by code it discards.
 
@@ -36,6 +38,7 @@ inductive Loc where
   | at (j : Nat)
   | inArm (k a : Nat) (l : Loc)
   | ifArm (k a : Nat)
+  | mid (j : Nat)
   | exiting
   deriving DecidableEq, Repr
 
@@ -45,6 +48,14 @@ inductive ExitKernel : List Admin → Prop where
   | ret : ExitKernel [.plain .return_]
   | trap : ExitKernel [.trap]
   | throw (a : Nat) : ExitKernel (throwing a)
+
+/-! ## Non-control steps (milestone 2, first part) -/
+
+/-- An administrative instruction that is a value, or a plain instruction of a non-control
+reduction family (`Det.famOf`: parametric, numeric, vector, variable, table, memory, reference,
+aggregate). -/
+def SimpleAdmin (a : Admin) : Prop :=
+  a.val? ≠ none ∨ ∃ i, a = .plain i ∧ SingleThreaded.Det.famOf (.plain i) ≠ .control
 
 /-- **The position invariant**: `code` runs the sequence `is` at location `l`. -/
 inductive Resid : List Instr → Loc → List Admin → Prop where
@@ -71,19 +82,14 @@ inductive Resid : List Instr → Loc → List Admin → Prop where
       Resid is (.ifArm k a) (vals vs ++ [.plain (.block bt c)] ++ expression (is.drop (k + 1)))
   | exiting {is : List Instr} {x rest : List Admin} (vs : List Val) (hx : ExitKernel x) :
       Resid is .exiting (vals vs ++ x ++ rest)
+  | mid {is : List Instr} {j : Nat} (B : List Admin) (hB : ∀ b ∈ B, SimpleAdmin b)
+      (hj : j < is.length) :
+      Resid is (.mid j) (B ++ expression (is.drop (j + 1)))
 
 /-- A body's code inside its call frame: `FRAME_n{f} (LABEL_n{} …)` around a residual. -/
 inductive InFrame (body : Expr) : Loc → List Admin → Prop where
   | frame {n m : Nat} {fr : Frame} {l : Loc} {inner : List Admin} (h : Resid body l inner) :
       InFrame body l [.frame n fr [.label m [] inner]]
-
-/-! ## Non-control steps (milestone 2, first part) -/
-
-/-- An administrative instruction that is a value, or a plain instruction of a non-control
-reduction family (`Det.famOf`: parametric, numeric, vector, variable, table, memory, reference,
-aggregate). -/
-def SimpleAdmin (a : Admin) : Prop :=
-  a.val? ≠ none ∨ ∃ i, a = .plain i ∧ SingleThreaded.Det.famOf (.plain i) ≠ .control
 
 /-- What a non-control reduction may leave: simple administrative instructions only, or a
 trap. Some non-control rules expand into further instructions (`memory.fill`, `table.copy`,
