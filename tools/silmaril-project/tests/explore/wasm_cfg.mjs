@@ -46,7 +46,8 @@ try {
 
   for (const [slug, idx, name] of [["silmaril.wasm.examples.rust_door", 5, "door"], ["silmaril.wasm_components.adapter.reactor.blob", 127, "large"]]) {
     const t0 = Date.now();
-    await open(`/wasm-func/${slug}/${idx}`);
+    // The explicit-sink graph (@top), whatever the data's default view is.
+    await open(`/wasm-func/${slug}/${idx}/@top`);
     const ms = Date.now() - t0;
     const want = expect(slug, idx), got = await legend();
     check(["flow", "may", "mayTrap", "mayRaise", "marked", "mayFrom"].every((k) => got[k] === want[k]), `${name}: legend counts ${JSON.stringify(got)}`);
@@ -74,7 +75,7 @@ try {
     const listed = await p.evaluate(() => document.querySelectorAll("#wside .wedges button.wnode").length);
     check(listed === intoTrap.length, `${name}: trap's inspector lists ${listed}/${intoTrap.length} edges in`);
     check((await drawn()).may === want.mayTrap, `${name}: selecting trap draws its ${want.mayTrap} may-edges`);
-    check((await p.evaluate(() => location.hash)).endsWith(`/${idx}/trap`), `${name}: the address bar links to the selected node`);
+    check((await p.evaluate(() => location.hash)).endsWith(`/${idx}/@top/trap`), `${name}: the address bar links to the selected node`);
     await shot(`${name}-trap-selected`);
     // Keyboard: focus the graph, j selects b0, ArrowDown its first flow successor, Escape clears.
     await p.keyboard.press("Escape");
@@ -88,7 +89,7 @@ try {
     check(s1 === (typeof succ0[1] === "number" ? "b" + succ0[1] : succ0[1]), `${name}: ArrowDown follows a flow edge to ${s1}`);
     check(await p.evaluate(() => /flow successors/.test(document.querySelector("#wside").textContent)), `${name}: the inspector shows the block's edges`);
     await p.keyboard.press("Escape");
-    check(await p.evaluate(() => wcy.nodes(".sel").length === 0 && /\/\d+$/.test(location.hash)), `${name}: Escape clears the selection and the link`);
+    check(await p.evaluate(() => wcy.nodes(".sel").length === 0 && /\/@top$/.test(location.hash)), `${name}: Escape clears the selection and the link`);
     // Dominator tree: the basis is explicit and switchable.
     await p.click("#wdom");
     check(await p.evaluate((n) => document.querySelector("#wdomnote").textContent.includes(`the ${n} edges of basis “flow edges”`), want.flow), `${name}: dominator basis stated (flow edges only)`);
@@ -103,8 +104,25 @@ try {
     check(await positions() === before, `${name}: returning to the flat CFG keeps the layout`);
     console.log(`     ${name}: page ready in ${ms} ms`);
   }
+  // The data's default graph (when it names one, e.g. all-effects): shown first, with its own
+  // counts; outcomes are marks, not may-edges; no special node it does not have.
+  for (const [slug, idx] of [["silmaril.wasm.examples.rust_door", 5], ["silmaril.wasm_components.adapter.reactor.blob", 127]]) {
+    const top = expect(slug, idx).cfg;
+    if (!top.default || !top.variants || !top.variants[top.default]) { console.log(`     ${slug}/${idx}: the data names no default variant`); continue; }
+    const v = top.variants[top.default];
+    await open(`/wasm-func/${slug}/${idx}`);
+    const g = await p.evaluate(() => ({ variant: $("#wvariant").value, nodes: wcy.nodes('[kind = "block"]').length, edges: wcy.edges().not(".may").length,
+      outcomes: Number(document.querySelector('[data-c="outcomes"]')?.textContent ?? 0), may: wcy.edges(".may").not(".outc").length }));
+    const nn = v.granularity === "instr" ? v.nodes.length : (v.blocks || top.blocks).length;
+    check(g.variant === top.default && g.nodes === nn && g.edges === v.edges.length && g.outcomes === (v.outcomes || []).length && g.may === 0,
+      `${slug}/${idx}: default graph ${top.default} drawn as given (${g.nodes} nodes, ${g.edges} edges, ${g.outcomes} outcomes)`);
+    await p.click("#wdom");
+    const unreached = await p.evaluate(() => (/Not reached on this basis: ([^.]*)/.exec(document.querySelector("#wdomnote").textContent) || [, ""])[1]);
+    check(!/\b(trap|raise)\b/.test(unreached) || v.edges.some((e) => e[1] === "trap" || e[1] === "raise"), `${slug}/${idx}: no absent sink is listed as unreached`);
+    await shot(`default-${idx}`);
+  }
   // Direct link to a block of the large graph: selected, inspected, in view.
-  await open("/wasm-func/silmaril.wasm_components.adapter.reactor.blob/127/b7");
+  await open("/wasm-func/silmaril.wasm_components.adapter.reactor.blob/127/@top/b7");
   check(await p.evaluate(() => wcy.nodes(".sel").map((n) => n.id()).join() === "b7" && /\bb7\b/.test(document.querySelector("#wside").textContent)),
     "direct link #/…/127/b7 selects and inspects b7");
   check(await p.evaluate(() => { const bb = wcy.getElementById("b7").renderedBoundingBox(); return bb.x1 >= 0 && bb.y1 >= 0 && bb.x2 <= wcy.width() && bb.y2 <= wcy.height(); }),

@@ -1071,7 +1071,8 @@ async function wasmFuncPage(arg) {
       bs[nd[0]] && nd[1] >= 0 && nd[1] <= bs[nd[0]].instrs.length);
   }
   const cfg = { model: V.model || (vname === "top" ? "explicit-sink" : "unspecified"), label: V.label, note: V.note, relation: V.relation,
-    entry: V.entry, blocks: V.blocks || top.blocks, edges: V.edges || [], bases: V.bases,
+    entry: V.entry, blocks: (V.blocks || top.blocks).map((b) => ({ instrs: [], effects: [], ...b })), edges: V.edges || [], bases: V.bases,
+    members: Array.isArray(V.blocks) && Array.isArray(V.members) ? V.members : null,
     granularity: V.granularity === "instr" && validNodes(V) ? "instr" : "block", nodes: V.nodes,
     outcomes: Array.isArray(V.outcomes) ? V.outcomes : [] };
   // Graphs at the other granularity over the same blocks: the "expand to instructions" and
@@ -1079,7 +1080,12 @@ async function wasmFuncPage(arg) {
   const sameBlocks = (v) => !v.blocks || v.blocks === top.blocks;
   const graphs = [["top", top]].concat(Object.entries(variants));
   const instrGraph = graphs.find(([, v]) => v.granularity === "instr" && validNodes(v) && sameBlocks(v));
-  const blockGraph = graphs.find(([, v]) => v.granularity !== "instr" && sameBlocks(v));
+  const blockGraph = graphs.find(([, v]) => v.granularity !== "instr" && sameBlocks(v) && (v.model || "explicit-sink") === cfg.model)
+    || graphs.find(([, v]) => v.granularity !== "instr" && sameBlocks(v));
+  // A graph with its own blocks may say which shared-numbering blocks each of its blocks contains
+  // (`members`, e.g. maximal basic blocks); the inspector links both ways. Nothing is merged here.
+  const memberGraph = graphs.find(([, v]) => Array.isArray(v.blocks) && Array.isArray(v.members) && v.granularity !== "instr");
+  const containerOf = (bi) => memberGraph && sameBlocks(V) ? memberGraph[1].members.findIndex((ms) => Array.isArray(ms) && ms.includes(bi)) : -1;
   const legacy = vname === "top" && cfg.model === "explicit-sink";
   let h = `<h2>${kindTag("function")} <code>${esc(fname(f))}</code> <span class="muted">(function ${idx} of ${wlink("module", s.slug, s.title)})</span></h2>`;
   h += crumbs(ix, s.source.parent);
@@ -1122,6 +1128,8 @@ async function wasmFuncPage(arg) {
     mayTrap: cnt(mayE, "trap"), mayRaise: cnt(mayE, "raise"), marked: nodeIds.filter((id) => (!instrG && cfg.blocks[blockOf(id)].effects.length) || outcomesOf(id).length).length,
     mayFrom: new Set(mayE.map((e) => e.src)).size };
   const specials = ["exit", "trap", "raise", "invalid"].filter((t) => t === "exit" || into.has(t) || cfg.entry === t);
+  // Special nodes in dominator trees: all four for the explicit-sink graph (as its kernel tables),
+  // otherwise only those the graph has.
   // Dominator bases: named edge sets (by kind), from the data or, when it names none, flow edges
   // (the default) and flow + effect. Each tree is computed on its own basis, whatever is drawn.
   const BASES = (Array.isArray(cfg.bases) && cfg.bases.length ? cfg.bases : [{ id: "flow", kinds: ["flow"] },
@@ -1131,7 +1139,7 @@ async function wasmFuncPage(arg) {
   const basisOf = (id) => BASES.find((b) => b.id === id);
   const basisEdges = (id) => E.filter((e) => basisOf(id).kinds.includes(e.kind));
   const basisText = (id) => { const b = basisOf(id); return b.label || b.kinds.join(" + ") + (b.kinds.length === 1 ? " edges" : ""); };
-  const domNodes = nodeIds.concat(["exit", "trap", "raise", "invalid"]);
+  const domNodes = nodeIds.concat(legacy ? ["exit", "trap", "raise", "invalid"] : specials);
   const domEntry = tid(cfg.entry);
   const DOM = Object.fromEntries(BASES.map((b) => [b.id, dominators(domNodes, basisEdges(b.id).map((e) => [e.src, e.tgt]), [domEntry])]));
   const domName = (n) => n === undefined ? "unreached" : n === null ? "root" : n;
@@ -1207,7 +1215,7 @@ async function wasmFuncPage(arg) {
   // Node label: what the block is and how it ends; a second line only for blocks with marks.
   const oLine = (id) => outcomesOf(id).length ? "\n⚡ " + outcomesOf(id).map(oText).join(", ") : "";
   const blockLabel = (b, i) => `b${i} · ${instrN(b)} → ${b.term || "falls through"}` +
-    (b.effects.length ? `\n⚠ ${b.effects.join(", ")}${mayTgts("b" + i).length ? " ⇢ " + mayTgts("b" + i).join("/") : ""}` : "") + oLine("b" + i);
+    (b.effects.length && !(outcomesOf("b" + i).length && !legacy) ? `\n⚠ ${b.effects.join(", ")}${mayTgts("b" + i).length ? " ⇢ " + mayTgts("b" + i).join("/") : ""}` : "") + oLine("b" + i);
   const instrLabel = (k) => `n${k} ${instrAt(k)}` + (mayTgts("n" + k).length ? "\n⇢ " + mayTgts("n" + k).join("/") : "") + oLine("n" + k);
   const nodeLabel = (id) => instrG ? instrLabel(Number(id.slice(1))) : blockLabel(cfg.blocks[Number(id.slice(1))], Number(id.slice(1)));
   const specialLabel = (t) => {
@@ -1266,7 +1274,7 @@ async function wasmFuncPage(arg) {
       const outcomeLines = (oc.length ? `<div>outcomes: <span class="woutc">${oc.map((o) => esc(o.effect) + (isNode(o.handler) ? " → " + nodeBtn(o.handler) : o.handler ? " → " + esc(o.handler) : "")).join(", ")}</span>` +
           ' <span class="muted">(from the data; not edges, in no dominator basis)</span></div>' : "") +
         (oi.length ? `<div>handler for: ${oi.map((o) => nodeBtn(o.src) + " " + esc(o.effect)).join(", ")}</div>` : "");
-      const go = (g, nodeId, text) => g ? ` <a class="wgran" href="#/wasm-func/${encodeURIComponent(s.slug)}/${idx}/@${g[0]}${nodeId ? "/" + nodeId : ""}">${esc(text)}</a>` : "";
+      const go = (g, nodeId, text, cls = "wgran") => g ? ` <a class="${cls}" href="#/wasm-func/${encodeURIComponent(s.slug)}/${idx}/@${g[0]}${nodeId ? "/" + nodeId : ""}">${esc(text)}</a>` : "";
       if (isNode(id) && instrG) {
         const k = Number(id.slice(1)), [bi, at] = cfg.nodes[k], b = cfg.blocks[bi];
         const lines = b.instrs.concat(b.term ? [b.term] : []);
@@ -1278,14 +1286,17 @@ async function wasmFuncPage(arg) {
       } else if (isNode(id)) {
         const i = Number(id.slice(1)), b = cfg.blocks[i], fo = outs.filter((e) => !e.may), mo = outs.filter((e) => e.may);
         x += `<b>b${i}</b> · ${esc(instrN(b))} → <code>${esc(b.term || "falls through")}</code>` +
-          ` <span class="muted">at path [${esc(b.path)}] position ${esc(b.pos)}${cfg.entry === i ? " · entry" : ""}</span></p>` +
+          ` <span class="muted">${b.path != null ? `at path [${esc(b.path)}] position ${esc(b.pos)}` : ""}${cfg.entry === i ? " · entry" : ""}</span></p>` +
           `<pre class="code">${esc(b.instrs.concat(b.term ? [b.term] : []).join("\n") || "(empty)")}</pre>` +
           `<div>flow successors: ${edgeList(fo, "tgt")}</div>` +
           `<div>flow predecessors: ${edgeList(ins.filter((e) => !e.may), "src")}</div>` +
-          `<div>may-edges: ${mo.length ? edgeList(mo, "tgt") + ` <span class="muted">(conservative, from the marks ${esc(b.effects.join(", "))})</span>`
-            : `<span class="muted">none${b.effects.length ? " (marks: " + esc(b.effects.join(", ")) + ")" : "; not a proof that this block cannot trap"}</span>`}</div>` +
+          (!legacy && !mo.length ? "" : `<div>may-edges: ${mo.length ? edgeList(mo, "tgt") + ` <span class="muted">(conservative, from the marks ${esc(b.effects.join(", "))})</span>`
+            : `<span class="muted">none${b.effects.length ? " (marks: " + esc(b.effects.join(", ")) + ")" : "; not a proof that this block cannot trap"}</span>`}</div>`) +
           outcomeLines + `<div>${domLine} ${provBadge("browser")}</div>` +
-          (instrGraph ? `<div>${go(instrGraph, (() => { const j = instrGraph[1].nodes.findIndex((nd) => nd[0] === i); return j < 0 ? "" : "n" + j; })(), "Expand: this block one node per instruction")}` +
+          (cfg.members && Array.isArray(cfg.members[i]) ? `<div>contains blocks ${cfg.members[i].map((k) => go(blockGraph, "b" + k, "b" + k, "wmember")).join(" ")}` +
+            ` <span class="muted">(of ${esc(blockGraph ? blockGraph[0] : "the top-level numbering")}, as the data's <code>members</code> says)</span></div>` : "") +
+          (containerOf(i) >= 0 ? `<div>part of ${go(memberGraph, "b" + containerOf(i), "block b" + containerOf(i), "wcontainer")} <span class="muted">of ${esc(memberGraph[0])}</span></div>` : "") +
+          (instrGraph && (sameBlocks(V) || cfg.members) ? `<div>${go(instrGraph, (() => { const first = cfg.members ? (cfg.members[i] || [])[0] : i; const j = instrGraph[1].nodes.findIndex((nd) => nd[0] === first); return j < 0 ? "" : "n" + j; })(), "Expand: this block one node per instruction")}` +
             ` <span class="muted">(${esc(instrGraph[0])})</span></div>` : "") +
           (b.refs && Object.keys(b.refs).length ? "<div>references (syntactic, this block's own instructions): " +
             Object.entries(b.refs).map(([sp, xs]) => `${esc(sp)} ${xs.map((r) => sp === "func" && m.functions[r] && !m.functions[r].imported
