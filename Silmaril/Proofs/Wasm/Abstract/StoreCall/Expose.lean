@@ -106,14 +106,12 @@ theorem run_callEv {x : FuncIdx} {f : Frame} {stk : List Val} {s : Store H} {a :
   simp only [hfi, hty]
   rfl
 
-/-- A call event answered by `ans`, then the answer's continuation. -/
-theorem path_callEv {x : FuncIdx} {f : Frame} {stk : List Val} {s : Store H} {a : Nat}
+theorem run_callEv_vis {x : FuncIdx} {f : Frame} {stk : List Val} {s : Store H} {a : Nat}
     {fi : FuncInst H} {ps rs : List Validation.CValType} (hfi : s.func? f x = some (a, fi))
-    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (ans : Store H × Flow)
-    {cs : List (Call (CallSig H))} {e : PathEnd (Except PUnit.{2} (Res × St H))}
-    (h : Path (run' (callAns f stk ps rs ans) ⟨s⟩) cs e) :
-    Path (run' (callEv x f stk : M (CallSig H) H Res) ⟨s⟩)
-      (⟨(a, (stk.take ps.length).reverse, s), ans⟩ :: cs) e := by
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) :
+    run' (callEv x f stk : M (CallSig H) H Res) ⟨s⟩ =
+      vis (⟨(a, (stk.take ps.length).reverse, s), rfl⟩ : SigEv (CallSig H) (Store H × Flow))
+        (fun n => run' (callAns f stk ps rs n) ⟨s⟩) := by
   rw [run_callEv hfi hty]
   have ht : run' (callImport (E := CallSig H) (S := St H) (T := PUnit.{2})
         (a, (stk.take ps.length).reverse, s) >>= fun ans => callAns f stk ps rs ans.down) ⟨s⟩ =
@@ -124,7 +122,17 @@ theorem path_callEv {x : FuncIdx} {f : Frame} {stk : List Val} {s : Store H} {a 
     congr 1
     funext n
     exact pure_bind _ _
-  rw [ht]
+  exact ht
+
+/-- A call event answered by `ans`, then the answer's continuation. -/
+theorem path_callEv {x : FuncIdx} {f : Frame} {stk : List Val} {s : Store H} {a : Nat}
+    {fi : FuncInst H} {ps rs : List Validation.CValType} (hfi : s.func? f x = some (a, fi))
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (ans : Store H × Flow)
+    {cs : List (Call (CallSig H))} {e : PathEnd (Except PUnit.{2} (Res × St H))}
+    (h : Path (run' (callAns f stk ps rs ans) ⟨s⟩) cs e) :
+    Path (run' (callEv x f stk : M (CallSig H) H Res) ⟨s⟩)
+      (⟨(a, (stk.take ps.length).reverse, s), ans⟩ :: cs) e := by
+  rw [run_callEv_vis hfi hty]
   exact .vis rfl h
 
 theorem path_callAns_vals {f : Frame} {stk : List Val} {ps rs : List Validation.CValType}

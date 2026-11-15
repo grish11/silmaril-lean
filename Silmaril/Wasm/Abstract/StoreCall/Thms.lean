@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Abstract.StoreCall.Defs
 public import Silmaril.Wasm.Abstract.Recursion.Thms
 public import Silmaril.Wasm.Abstract.Oracle.Thms
 import Silmaril.Proofs.Wasm.Abstract.StoreCall.Expose
+import Silmaril.Proofs.Wasm.Abstract.StoreCall.Answer
 
 /-!
 # Store bodies with internal calls as events: theorems (F4, exposure)
@@ -26,8 +27,14 @@ events of `CallSig H`:
   the exposed abstract body of the callee's code, with the answers of
   `closedCall`, which is Core 3.0's call semantics (`Oracle.closedCall_core_iff`).
 
-**Not yet.** The converse (every answered path is an `EvalO` derivation),
-divergence through calls, `try_table` (F5) and imports (host events).
+* **Exposure is exact.** `path_evalO`: conversely, every finished path of the
+  exposed body whose call events are answered by `C` is an `EvalO C`
+  derivation. So `evalO_iff` (value outcomes, final store and frame included)
+  and `evalO_trap_iff` (traps); with `closedCall`, `eval_iff`/`eval_trap_iff`
+  for the recursive semantics.
+
+**Not yet.** Divergence through calls (unbounded recursion; the coinductive
+closing `Shape.closeD`), `try_table` (F5) and imports (host events).
 -/
 
 public section
@@ -82,5 +89,69 @@ theorem core_call_path {s : Store H} {a : Nat} {us : List Val} (hs : StoreOk s)
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hty')
   obtain ⟨cs, hA, hp⟩ := evalO_path hev
   exact ⟨fi, fn, ps, rs, f₂, bfl, fl, cs, hfi, hcode, hty, hA, hp, hex, hb⟩
+
+/-- **Conversely**, every finished path of the exposed body whose call events
+are answered by `C` is an `EvalO C` derivation. -/
+theorem path_evalO {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List BExpr} {cs : List (Call (CallSig H))}
+    {e : PathEnd (Except PUnit.{2} (Res × St H))} (hA : Answered C cs)
+    (h : Path (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs e) (he : e ≠ .div) :
+    ∃ r, EvalO C s f stk es r ∧ endR r = e :=
+  Silmaril.Proofs.Wasm.Abstract.StoreCall.list_ans es s f stk cs e hA h he
+
+/-- **Exposure is exact (values).** An `EvalO C` outcome that is not a trap is
+exactly a finished answered path of the exposed body with that store, frame
+and flow. -/
+theorem evalO_iff {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {s' : Store H} {f' : Frame} {fl : Flow} (hfl : fl ≠ .trap) :
+    EvalO C s f stk es (s', f', fl) ↔
+      ∃ cs, Answered C cs ∧ Path (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs
+        (.val (.ok (⟨(f', fl)⟩, ⟨s'⟩))) := by
+  have hend : endR (s', f', fl) = .val (.ok (⟨(f', fl)⟩, ⟨s'⟩)) := by
+    cases fl <;> first | exact absurd rfl hfl | rfl
+  constructor
+  · intro h
+    obtain ⟨cs, hA, hp⟩ := evalO_path h
+    exact ⟨cs, hA, hend ▸ hp⟩
+  · rintro ⟨cs, hA, hp⟩
+    obtain ⟨⟨s₁, f₁, fl₁⟩, hev, he⟩ := path_evalO hA hp (by simp)
+    obtain ⟨-, h1, h2⟩ := Silmaril.Proofs.Wasm.Abstract.StoreCall.endR_ok_inv he
+    simp only [ULift.up.injEq, Prod.mk.injEq] at h1 h2
+    obtain ⟨rfl, rfl⟩ := h1
+    subst h2
+    exact hev
+
+/-- **Exposure is exact (traps).** `EvalO C` traps exactly when the exposed body
+has a finished answered path to the trap. -/
+theorem evalO_trap_iff {C : CallRel H} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List BExpr} :
+    (∃ s' f', EvalO C s f stk es (s', f', .trap)) ↔
+      ∃ cs, Answered C cs ∧ Path (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs
+        (.val (.error ⟨⟩)) := by
+  constructor
+  · rintro ⟨s', f', h⟩
+    exact evalO_path h
+  · rintro ⟨cs, hA, hp⟩
+    obtain ⟨⟨s₁, f₁, fl₁⟩, hev, he⟩ := path_evalO hA hp (by simp)
+    obtain rfl := Silmaril.Proofs.Wasm.Abstract.StoreCall.endR_err_inv he
+    exact ⟨s₁, f₁, hev⟩
+
+/-- **Recursion, exactly.** Value outcomes of the recursive native semantics are
+exactly the finished paths of the exposed body answered by `closedCall`. -/
+theorem eval_iff {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {s' : Store H} {f' : Frame} {fl : Flow} (hfl : fl ≠ .trap) :
+    Eval s f stk es (s', f', fl) ↔
+      ∃ cs, Answered closedCall cs ∧
+        Path (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs
+          (.val (.ok (⟨(f', fl)⟩, ⟨s'⟩))) :=
+  evalO_closed_iff.symm.trans (evalO_iff hfl)
+
+/-- Traps of the recursive native semantics, exactly. -/
+theorem eval_trap_iff {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr} :
+    (∃ s' f', Eval s f stk es (s', f', .trap)) ↔
+      ∃ cs, Answered closedCall cs ∧
+        Path (((denListE es f stk : M (CallSig H) H Res).run ⟨s⟩).run) cs (.val (.error ⟨⟩)) := by
+  rw [← evalO_trap_iff]
+  simp only [evalO_closed_iff]
 
 end Silmaril.Wasm.Abstract.StoreCall
