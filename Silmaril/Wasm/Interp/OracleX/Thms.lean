@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Interp.OracleSimX
+public import Silmaril.Proofs.Wasm.Interp.OracleCloseX
 
 /-!
 # Core 3.0 adequacy of the indirect and reference calls (F4, call forms)
@@ -29,9 +30,11 @@ the annotated type's counts; it forgets to `EvalOX` (`CallXT.EvalOXT.forget`).
 * The arity premises of `EvalOXT` are discharged from typing in a follow-up
   (for `call_indirect` from the successful `ref.cast`, for `call_ref` from the
   reference's type).
-* The oracle is still an oracle: closing it by `XRecursion.closedCallX` and
-  showing `OracleSoundX` for the closure on typed stores is part of the same
-  completion criterion.
+* **The oracle is closed** on good stores (`GoodStoreX`: valid function and
+  instance types, bodies without `call_ref` whose indirect calls name instance
+  types): `oracleSoundX_closedX`, by least-fixpoint induction. Hence
+  `evalOX_closed_good`: closed extended runs are Core 3.0 runs, no oracle
+  assumed. `call_ref` waits on its typed discharge.
 -/
 
 public section
@@ -54,5 +57,20 @@ theorem evalOXT_good {C : Abstract.CallRel H} (hC : OracleSoundX P host C) {s : 
 theorem oracleSound_of_X {C : Abstract.CallRel H} (hC : OracleSoundX P host C) :
     Silmaril.Wasm.Interp.OracleSound P host C :=
   hC.sound
+
+/-- **The closure on good stores is a sound oracle.** -/
+theorem oracleSoundX_closedX :
+    OracleSoundX P host (Silmaril.Wasm.Interp.closedX (H := H)) :=
+  Silmaril.Wasm.Interp.oracleSoundX_closedX
+
+/-- **Closed extended runs are Core 3.0 runs** (indirect calls, good stores, native store
+check as above). -/
+theorem evalOX_closed_good {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
+    {r : Store H × Frame × Binaryen.Flow}
+    (h : Abstract.CallX.EvalOX Abstract.XRecursion.closedCallX s f stk es r)
+    (hG : Silmaril.Wasm.Interp.GoodStoreX s) (hm : Abstract.CallXT.TyTypes f.module)
+    (hx : Abstract.CallXT.indOkL f.module es = true) :
+    ArityGoodE irExt s f stk es r ∧ CoreGoodE irExt P host s f stk es r :=
+  Silmaril.Wasm.Interp.evalOX_closed_goodE h hG hm hx
 
 end Silmaril.Wasm.Interp.OracleX

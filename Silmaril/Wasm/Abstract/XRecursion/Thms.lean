@@ -41,6 +41,17 @@ theorem closedCallX_funcs {s : Store H} {a : Nat} {args : List Val} {out : Store
     (h : closedCallX s a args out) : out.1.funcs = s.funcs :=
   Silmaril.Proofs.Wasm.Abstract.XRecursion.closedCallX_funcs s a args out h
 
+/-- Flat instructions keep the store's functions. -/
+theorem evalFlat_funcs {s s' : Store H} {f f' : Frame} {stk : List Val} {i : Instr} {fl : Flow}
+    (h : evalFlat s f stk i = some (s', f', fl)) : s'.funcs = s.funcs :=
+  Silmaril.Proofs.Wasm.Abstract.XRecursion.evalFlat_funcs h
+
+/-- Runs keep the store's functions when their oracle does. -/
+theorem evalOX_funcs {C : CallRel H} (hC : ∀ s a args out, C s a args out → out.1.funcs = s.funcs)
+    {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr} {r : Store H × Frame × Flow}
+    (h : EvalOX C s f stk es r) : r.1.funcs = s.funcs :=
+  Silmaril.Proofs.Wasm.Abstract.XRecursion.evalOX_funcs hC h
+
 theorem closedCall_le_closedCallX : (closedCall : CallRel H) ≤ closedCallX :=
   Silmaril.Proofs.Wasm.Abstract.XRecursion.closedCall_le_closedCallX
 
