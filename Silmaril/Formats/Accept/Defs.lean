@@ -11,7 +11,10 @@ An *acceptor set* is the set of inputs some program accepts. This module fixes t
 that the Wasm and component acceptors (`Silmaril.Wasm.Game.Accept`,
 `Silmaril.Wasi.Component.Accept`) share.
 
-* `Lang α := Set α`: an acceptor set over any input type `α`. A **specification** is another
+* `Lang α := Set α`: an acceptor set over any input type `α` (a language in the sense of
+  `Silmaril.Semantics.Accept`, which supplies the Bool-checker and outcome-quantifier
+  vocabulary; the set-level `Sound`/`Complete` below agree with its checker-level ones on
+  `Silmaril.Accept.ofBool`, `Lang.sound_ofBool_iff`). A **specification** is another
   `Lang α`. An acceptor set `A` is **sound** for `S` when `A ⊆ S` (everything accepted is
   allowed), **complete** when `S ⊆ A` (everything allowed is accepted) and **exact** when
   `A = S`.

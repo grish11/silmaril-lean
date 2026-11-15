@@ -53,6 +53,16 @@ example (t : KBytes) (h : even.Accepts t) : even.Accepts t.toByteArray :=
 example : even.Accepts (Formats.Bytes.ofList [0, 0]) := by
   rw [ByteLang.accepts_bytes, Formats.Bytes.toList_ofList]; decide
 
+/-- The even-length checker decides `even` (the Bool-checker vocabulary of
+`Silmaril.Semantics.Accept`). -/
+def evenCheck (bs : List UInt8) : Bool := bs.length % 2 == 0
+
+example : Silmaril.Accept.Decides evenCheck even :=
+  Lang.exact_ofBool_iff.1 (by ext bs; simp [evenCheck, even, Silmaril.Accept.ofBool])
+
+example : ByteLang.Accepts (Silmaril.Accept.ofBool evenCheck) (KBytes.leaf 4 0) := by
+  rw [ByteLang.accepts_ofBool]; decide +kernel
+
 /-! ## A DFA over bytes -/
 
 /-- Strings without a `NUL` byte: state `true` until a `0` is read. -/

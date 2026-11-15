@@ -71,3 +71,6 @@ relate them through `pdom`. `not_mem_eraseSome` (rejected at every index) and
 `Decides.optionAny`, `Decides.optionAll`, `Decides.sigma`, `Decides.fiber`.
 
 Examples: `Silmaril/Semantics/Accept/Rel/Examples.lean`.
+
+Byte languages, simple WIT types and the inputs accepted by Wasm modules and components
+instantiate this vocabulary: see [accepted inputs](projects/accepted-inputs.md).

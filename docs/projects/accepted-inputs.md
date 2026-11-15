@@ -2,7 +2,10 @@
 
 What does a WebAssembly module or component *accept*? This development defines the set of
 inputs a program accepts, as a language. It reuses the repository's Wasm and WIT semantics
-and equivalences, and keeps every assumption explicit.
+and equivalences, and keeps every assumption explicit. Languages are sets, as in the generic
+vocabulary of [`Silmaril.Semantics.Accept`](../accept.md); the set-level soundness and
+completeness here agree with its Bool-checker forms (`Lang.sound_ofBool_iff`,
+`Lang.complete_ofBool_iff`, `Lang.exact_ofBool_iff`).
 
 ## Modules
 

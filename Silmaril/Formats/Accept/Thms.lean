@@ -2,12 +2,15 @@ module
 
 public import Silmaril.Formats.Accept.Defs
 public import Silmaril.Prelude.Bytes.Digits.Thms
+public import Silmaril.Semantics.Accept.Thms
 
 /-! # Accepted sets: theorems
 
 Soundness and completeness of acceptor sets against specifications, their transport along
 encodings and decodings, the closure of soundness and completeness under the Kleene
-operations of Mathlib's `Language`, the bytes-like membership API (`KBytes`, `ByteArray`,
+operations of Mathlib's `Language`, the agreement with the Bool-checker vocabulary of
+`Silmaril.Semantics.Accept` (`sound_ofBool_iff`, `complete_ofBool_iff`, `exact_ofBool_iff`),
+the bytes-like membership API (`KBytes`, `ByteArray`,
 `Array UInt8`, `Formats.Bytes`) and the CSLib `Acceptor` reading of byte languages.
 -/
 
@@ -61,6 +64,23 @@ theorem Sound.inter (h₁ : Sound A S) (h₂ : Sound B T) : Sound (A ∩ B) (S �
 
 theorem Complete.inter (h₁ : Complete A S) (h₂ : Complete B T) : Complete (A ∩ B) (S ∩ T) :=
   inter_subset_inter h₁ h₂
+
+/-! ### Bool checkers (`Silmaril.Semantics.Accept`) -/
+
+/-- A checker is sound for `S` iff the language it accepts is. -/
+theorem sound_ofBool_iff {check : α → Bool} :
+    Sound (Silmaril.Accept.ofBool check) S ↔ Silmaril.Accept.Sound check S :=
+  Silmaril.Accept.sound_iff_ofBool_subset.symm
+
+/-- A checker is complete for `S` iff the language it accepts is. -/
+theorem complete_ofBool_iff {check : α → Bool} :
+    Complete (Silmaril.Accept.ofBool check) S ↔ Silmaril.Accept.Complete check S :=
+  Silmaril.Accept.complete_iff_subset_ofBool.symm
+
+/-- A checker decides `S` iff the language it accepts is exactly `S`. -/
+theorem exact_ofBool_iff {check : α → Bool} :
+    Exact (Silmaril.Accept.ofBool check) S ↔ Silmaril.Accept.Decides check S :=
+  Silmaril.Accept.decides_iff_ofBool_eq.symm
 
 /-! ### Transport -/
 
@@ -185,6 +205,10 @@ theorem sound_kstar {L' : ByteLang} (h : Lang.Sound L L') : Lang.Sound (L∗ : B
 /-- Completeness is preserved by the Kleene star. -/
 theorem complete_kstar {L' : ByteLang} (h : Lang.Complete L L') : Lang.Complete (L∗ : ByteLang) (L'∗ : ByteLang) :=
   (kstar_mono (show L' ≤ L from h) : L'∗ ≤ L∗)
+
+/-- A byte checker accepts a bytes-like value when it accepts its bytes. -/
+@[simp] theorem accepts_ofBool (check : List UInt8 → Bool) (b : β) :
+    ByteLang.Accepts (Silmaril.Accept.ofBool check) b ↔ check (toBytes b) = true := Iff.rfl
 
 /-! ### CSLib acceptors -/
 
