@@ -8,6 +8,9 @@ import Silmaril.Proofs.Wasm.Abstract.Loop.Basic
 /-!
 # Abstract Wasm loops: theorems
 
+All statements are about abstract body loops and their finite trace-and-outcome
+denotation `toAFun`, not about Core Wasm execution.
+
 **The bridge for loops.**
 
 * `toAFun_loop`: the trace denotation of a loop is the trace-set iteration of
@@ -30,6 +33,17 @@ import Silmaril.Proofs.Wasm.Abstract.Loop.Basic
   sensitive observation separates the silent loop from the trapping one; the
   trap ≈ divergence observation identifies them, both at the trace level and
   as collapsed bodies.
+
+**Productive runs are forgotten, even up to trap ≈ divergence.** For distinct
+imports `m₁ ≠ m₂`, `pollLoop m₁` and `pollLoop m₂` run different forever-import
+streams (`m₁ m₁ …` against `m₂ m₂ …`): they are different bodies, and even their
+collapses differ (`collapse_pollLoop_ne`), yet both denote `∅`
+(`toAFun_pollLoop_eq`). So the converse of `obsCollapse_of_collapse` is false
+(`obsCollapse_not_collapse`, `exists_obsCollapse_not_collapse`): equality of
+the finite trace-and-outcome denotation, even sensitive, does not determine
+the body, nor its trap ≈ divergence collapse. `toAFun_iter` is exact *relative
+to finite observations*; it is not a behavioural equivalence of bodies, and
+`toAFun` is not a faithful functor on any quotient that keeps import streams.
 
 **The denotation is not faithful.** `toAFun_not_injective`: two bodies that
 trap with different payloads are different bodies with the same denotation.
@@ -104,5 +118,37 @@ theorem toAFun_not_injective :
     ∃ f g : Hom Sig.empty.{0} PUnit.{2} (ULift.{1} Bool) PUnit.{2} PUnit.{2},
       f ≠ g ∧ toAFun f = toAFun g :=
   ⟨_, _, Silmaril.Proofs.Wasm.Abstract.Loop.toAFun_not_injective⟩
+
+/-- Loops calling different imports forever are different bodies. -/
+theorem pollLoop_ne {m₁ m₂ : E.Op} (h : m₁ ≠ m₂) (a : A) (s : S) :
+    ((pollLoop m₁ a : BodyM E S T B).run s).run ≠ ((pollLoop m₂ a : BodyM E S T B).run s).run :=
+  Silmaril.Proofs.Wasm.Abstract.Loop.pollLoop_ne h a s
+
+/-- Their trap ≈ divergence collapses differ too. -/
+theorem collapse_pollLoop_ne {m₁ m₂ : E.Op} (h : m₁ ≠ m₂) (a : A) (s : S) :
+    collapse (pollLoop m₁ a : BodyM E S T B) s ≠ collapse (pollLoop m₂ a : BodyM E S T B) s :=
+  Silmaril.Proofs.Wasm.Abstract.Loop.collapse_pollLoop_ne h a s
+
+/-- All forever-import loops have the same (empty) denotation. -/
+theorem toAFun_pollLoop_eq (m₁ m₂ : E.Op) :
+    toAFun (pollLoop m₁ : Hom E S T A B) = toAFun (pollLoop m₂ : Hom E S T A B) := by
+  funext s a; rw [toAFun_pollLoop, toAFun_pollLoop]
+
+/-- The converse of `obsCollapse_of_collapse` fails: trap ≈ divergence
+equivalent denotations, different collapses. -/
+theorem obsCollapse_not_collapse {m₁ m₂ : E.Op} (h : m₁ ≠ m₂) (a : A) (s : S) :
+    AFun.ObsEquiv AFun.obsCollapse (toAFun (pollLoop m₁ : Hom E S T A B))
+        (toAFun (pollLoop m₂ : Hom E S T A B)) ∧
+      collapse (pollLoop m₁ a : BodyM E S T B) ≠ collapse (pollLoop m₂ a : BodyM E S T B) := by
+  refine ⟨fun s a => by rw [toAFun_pollLoop_eq m₁ m₂], fun he => ?_⟩
+  exact collapse_pollLoop_ne h a s (congrFun he s)
+
+/-- A concrete instance: two loops over `twoImports` with equal denotations
+whose collapses differ at every argument and state. -/
+theorem exists_obsCollapse_not_collapse :
+    ∃ F G : Hom twoImports PUnit.{2} PUnit.{2} PUnit.{2} PUnit.{2},
+      toAFun F = toAFun G ∧ ∀ a s, collapse (F a) s ≠ collapse (G a) s :=
+  ⟨pollLoop (m := true), pollLoop (m := false), toAFun_pollLoop_eq _ _,
+    fun a s => collapse_pollLoop_ne (E := twoImports) (by decide : true ≠ false) a s⟩
 
 end Silmaril.Wasm.Abstract.Loop

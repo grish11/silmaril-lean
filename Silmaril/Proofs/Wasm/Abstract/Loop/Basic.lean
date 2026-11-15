@@ -79,6 +79,50 @@ theorem collapse_trapLoop (t : T) (a : A) :
     rfl
   rw [this, iterate_forever]
 
+/-! ## Distinct forever-import loops -/
+
+theorem sigEv_val_eq {R R' : Type u} {e : SigEv E R} {e' : SigEv E R'} (hR : R = R')
+    (h : HEq e e') : e.1 = e'.1 := by
+  subst hR; rw [eq_of_heq h]
+
+theorem vis_ev_ne {Y : Type (u + 1)} {R₁ R₂ : Type u} {e₁ : SigEv E R₁} {e₂ : SigEv E R₂}
+    (h : e₁.1 ≠ e₂.1) (k₁ : R₁ → Tree (SigEv E) Y) (k₂ : R₂ → Tree (SigEv E) Y) :
+    vis e₁ k₁ ≠ vis e₂ k₂ := by
+  intro hv
+  have := congrArg out hv
+  simp only [out_vis, Part.some_inj, Visible.vis.injEq] at this
+  obtain ⟨hR, he, -⟩ := this
+  exact h (sigEv_val_eq hR he)
+
+theorem pollLoop_run (m : E.Op) (a : A) (s : S) :
+    ∃ k, ((pollLoop m a : BodyM E S T B).run s).run =
+      vis (E := SigEv E) (R := E.Ar m) ⟨m, rfl⟩ k := by
+  rw [pollLoop, loop, congrFun (Silmaril.Elgot.LawfulElgotMonad.fixpoint _) a, StateT.run_bind,
+    ExceptT.run_bind, run_poll]
+  exact ⟨_, vis_bind (E := SigEv E) (R := E.Ar m) ⟨m, rfl⟩ _ _⟩
+
+theorem collapse_pollLoop_run (m : E.Op) (a : A) (s : S) :
+    ∃ k, collapse (pollLoop m a : BodyM E S T B) s =
+      vis (E := SigEv E) (R := E.Ar m) ⟨m, rfl⟩ k := by
+  obtain ⟨k, hk⟩ := pollLoop_run (S := S) (T := T) (B := B) m a s
+  unfold collapse
+  rw [show (pollLoop m a : BodyM E S T B) s = StateT.run (pollLoop m a) s from rfl, hk]
+  exact ⟨_, vis_bind (E := SigEv E) (R := E.Ar m) ⟨m, rfl⟩ _ _⟩
+
+theorem collapse_pollLoop_ne {m₁ m₂ : E.Op} (h : m₁ ≠ m₂) (a : A) (s : S) :
+    collapse (pollLoop m₁ a : BodyM E S T B) s ≠ collapse (pollLoop m₂ a : BodyM E S T B) s := by
+  obtain ⟨k₁, h₁⟩ := collapse_pollLoop_run (S := S) (T := T) (B := B) m₁ a s
+  obtain ⟨k₂, h₂⟩ := collapse_pollLoop_run (S := S) (T := T) (B := B) m₂ a s
+  rw [h₁, h₂]
+  exact vis_ev_ne h k₁ k₂
+
+theorem pollLoop_ne {m₁ m₂ : E.Op} (h : m₁ ≠ m₂) (a : A) (s : S) :
+    ((pollLoop m₁ a : BodyM E S T B).run s).run ≠ ((pollLoop m₂ a : BodyM E S T B).run s).run := by
+  obtain ⟨k₁, h₁⟩ := pollLoop_run (S := S) (T := T) (B := B) m₁ a s
+  obtain ⟨k₂, h₂⟩ := pollLoop_run (S := S) (T := T) (B := B) m₂ a s
+  rw [h₁, h₂]
+  exact vis_ev_ne h k₁ k₂
+
 /-- Two bodies that trap with different payloads. -/
 noncomputable def trapWith (b : Bool) : Hom Sig.empty.{0} PUnit.{2} (ULift.{1} Bool) PUnit.{2} PUnit.{2} :=
   fun _ => trap ⟨b⟩
