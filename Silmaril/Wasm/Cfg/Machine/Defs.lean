@@ -248,3 +248,14 @@ def codeOf (body : Expr) {H : Type} (st : MState H) : Option (List Admin) :=
   | _ => none
 
 end Silmaril.Wasm.Cfg.Machine
+
+namespace Silmaril.Wasm.Cfg.Machine
+
+/-- Whether the `k`-th enclosing structured instruction (at reversed path `rp`) is a `loop` in the
+extracted CFG. -/
+def levelLoop (body : Expr) (rp : List SeqStep) (k : Nat) : Bool :=
+  match rp.drop k with
+  | (m, _) :: rp' => isLoopAt body rp'.reverse m
+  | [] => false
+
+end Silmaril.Wasm.Cfg.Machine

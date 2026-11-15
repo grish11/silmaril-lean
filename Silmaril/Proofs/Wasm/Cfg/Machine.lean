@@ -623,13 +623,6 @@ open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg
 
 variable {H : Type} {P : Profile} {host : HostSemantics H}
 
-/-- Whether the `k`-th enclosing structured instruction (at reversed path `rp`) is a `loop` in the
-extracted CFG. -/
-def levelLoop (body : Expr) (rp : List SeqStep) (k : Nat) : Bool :=
-  match rp.drop k with
-  | (m, _) :: rp' => isLoopAt body rp'.reverse m
-  | [] => false
-
 theorem drop_top {us W : List Val} {n : Nat} (h : n ≤ us.length) :
     (W ++ us).drop ((W ++ us).length - n) = us.drop (us.length - n) := by
   rw [List.length_append, show W.length + us.length - n = W.length + (us.length - n) by omega,

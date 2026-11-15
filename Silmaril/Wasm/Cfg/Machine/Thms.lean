@@ -160,7 +160,7 @@ theorem br_step_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls :
     (hb : lookup body b = some sg) (ht : sg.term = some (.br l))
     (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
     (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ stk₁.length) (hloop : L.loop = false)
-    (hlev : Proofs.Machine.levelLoop body b.seq.reverse l.toNat = false)
+    (hlev : levelLoop body b.seq.reverse l.toNat = false)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
       (ls.drop (l.toNat + 1)) (L.outer ++ stk₁.drop (stk₁.length - L.arity)) s₁ f₁) = some Y)
