@@ -68,8 +68,16 @@ public import Silmaril.Foundations.InfiniteTrace
   (`Proofs/Wasm/Cfg/MachineCore.lean`: every machine step is a Core run of at least one step, or an
   administrative fall-through bounded by a measure).
 
-Not claimed here: call terminators (`return_call*`) have no region rule (`Region.Run` is
-call-free) and no machine step.
+* **Calls** (`MStepC P host C`, block bodies run by `Region.RunC P host C`): every
+  statement above about runs has a `C`-generic form, for any oracle `C`. `run_soundC` and
+  `run_sound_initialC`: machine runs are `RunC` runs. `run_complete_initialC`: `RunC` runs are
+  machine runs. `mstep_edgeC`: steps follow the CFG, with the effect edge to `raise` for an
+  exception a body call raises. Core 3.0 soundness `core_sound_initialC` takes the named
+  hypothesis `Region.CallSound P host C`. The `noCall` statements above are the instances
+  `C := noCall`. Divergence is stated for `noCall` only.
+
+Not claimed here: tail-call terminators (`return_call*`) have no region rule and no machine
+step; Core completeness with calls (Core to `RunC`) needs callee adequacy, not proved here.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -87,8 +95,12 @@ CFG**: an edge of its block, a trap of the block's body (an instruction effect, 
 edge), or a catch edge of an enclosing `try_table` (a caught exception). -/
 theorem mstep_edge {st st' : MState H} (h : MStep P host body st st') (hok : MInv body st)
     {b : BlockId} (hn : st.node = .block b) :
-    Edge body b st'.node ∨ st'.node = .trap ∨ CatchEdge body b st'.node :=
-  Proofs.Machine.mstep_edge h hok hn
+    Edge body b st'.node ∨ st'.node = .trap ∨ CatchEdge body b st'.node := by
+  rcases Proofs.Machine.mstep_edge h hok hn with h | h | h | ⟨-, _, _, _, _, _, hC⟩
+  · exact Or.inl h
+  · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr h)
+  · exact hC.elim
 
 theorem lookup_eq (b : BlockId) :
     lookup body b = (seqAt body b.seq).bind fun c => (segment c)[b.idx]? :=
@@ -505,5 +517,68 @@ theorem infinite_iff_core_div {s : Store H} {f : Frame} (hF : Region.Frag (expre
     InfiniteTrace (MStep P host body) (initial body s f) ↔
       Diverges P host ⟨s, f, expression body⟩ :=
   ⟨infinite_core_initial, core_div_initial hF⟩
+
+/-! ## Calls answered by an oracle -/
+
+section Calls
+
+variable {C : Abstract.CallRel H}
+
+/-- **Every step of the machine with calls follows the extracted CFG**: as `mstep_edge`, plus
+the block's effect edge (to `raise`) for an exception that a `call` of its body raises, which
+needs the oracle to answer some call with an exception. -/
+theorem mstep_edgeC {st st' : MState H} (h : MStepC P host C body st st') (hok : MInv body st)
+    {b : BlockId} (hn : st.node = .block b) :
+    Edge body b st'.node ∨ st'.node = .trap ∨ CatchEdge body b st'.node ∨
+      (EffectEdge body b st'.node ∧ ∃ s₀ a₀ us₀ s₁ t, C s₀ a₀ us₀ (s₁, .throw t)) :=
+  Proofs.Machine.mstep_edge h hok hn
+
+/-- The steps of the machine with calls preserve the state invariant. -/
+theorem mstep_invC {st st₁ : MState H} (h : MStepC P host C body st st₁) (hok : MInv body st) :
+    MInv body st₁ :=
+  have ⟨_, hX⟩ := Proofs.Machine.codeOf_of_ok hok
+  (Proofs.Machine.mstep_sound h hok hX).1
+
+/-- **Whole-run soundness with calls**: a run of the machine with calls answered by `C`, from a
+state satisfying the invariant to a sink, is a region run (`RunC` with the same oracle) of the
+code that state stands for, ending as the sink says. No hypothesis on `C`. -/
+theorem run_soundC {st st' : MState H} (h : Relation.ReflTransGen (MStepC P host C body) st st')
+    (hs : st'.node.IsSink) (hok : MInv body st) {X : List Admin}
+    (hX : codeOf body st = some X) :
+    ∃ o, Ends st' o ∧ Region.RunC P host C st.store st.frame [] X st'.store st'.frame o :=
+  Proofs.Machine.run_sound h hs hok hX
+
+/-- **Soundness from the CFG entry, with calls**: a run of the machine with calls from the
+initial state to a sink is a `RunC` run of the body with the same oracle. -/
+theorem run_sound_initialC {s : Store H} {f : Frame} {st' : MState H}
+    (h : Relation.ReflTransGen (MStepC P host C body) (initial body s f) st')
+    (hs : st'.node.IsSink) :
+    ∃ o, Ends st' o ∧ Region.RunC P host C s f [] (expression body) st'.store st'.frame o :=
+  Proofs.Machine.run_sound_initial h hs
+
+/-- **Completeness from the CFG entry, with calls**: every `RunC` run of the body with oracle
+`C`, not ending in a branch out of the body, is a run of the machine with the same oracle from
+the initial state to a sink, ending as `Ends` says, in the run's final store and frame. A call
+that throws in a block's body is a `bodyRaise` or `bodyCatch` step. No hypothesis on `C`. -/
+theorem run_complete_initialC {s s' : Store H} {f f' : Frame} {o : Region.Out}
+    (h : Region.RunC P host C s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us) :
+    ∃ st', Relation.ReflTransGen (MStepC P host C body) (initial body s f) st' ∧ Ends st' o ∧
+      st'.store = s' ∧ st'.frame = f' :=
+  Proofs.MachineComplete.run_complete_initial h ho
+
+/-- **Core soundness from the CFG entry, with a Core-sound oracle**: when `C` answers calls as
+Core 3.0 runs them (`Region.CallSound`, a named hypothesis), a run of the machine with calls from
+the initial state to a sink is a Core 3.0 run of the body to a final form of the sink's
+outcome. -/
+theorem core_sound_initialC (hC : Region.CallSound P host C) {s : Store H} {f : Frame}
+    {st' : MState H} (h : Relation.ReflTransGen (MStepC P host C body) (initial body s f) st')
+    (hs : st'.node.IsSink) :
+    ∃ o c', Ends st' o ∧ Steps P host ⟨s, f, expression body⟩ ⟨st'.store, st'.frame, c'⟩ ∧
+      o.Ends c' := by
+  obtain ⟨o, hE, hR⟩ := run_sound_initialC h hs
+  obtain ⟨c', hc, he⟩ := Region.run_soundC hC hR
+  exact ⟨o, c', hE, by simpa using hc, he⟩
+
+end Calls
 
 end Silmaril.Wasm.Cfg.Machine

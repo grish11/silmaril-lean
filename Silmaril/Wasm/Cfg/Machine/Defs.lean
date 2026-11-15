@@ -25,8 +25,14 @@ sequences pops label frames as Core's `label-vals` does (`popL`). A branch carri
 under the outer values of the frames it leaves (`brVals`), as Core's labels collect them.
 Exceptions, returns and traps go to the sink nodes `raise`, `exit` and `trap`; an exception that a `try_table` frame catches (its first matching
 `catch` clause) branches to the clause's label instead. `br_table` and `br_on_*` read their
-operands as Core does (`BrStep`) and then branch or fall through. Calls as terminators are not
-modelled yet.
+operands as Core does (`BrStep`) and then branch or fall through.
+
+**Calls.** `MStepC P host C body` is the same machine with the `call`s of block bodies answered
+by an oracle `C : Abstract.CallRel H`, as `Region.RunC P host C` answers them: the callee is not
+entered, and its answer is pushed (or traps, or throws). An exception thrown by a call in a
+block's body is raised (`bodyRaise`) or caught by a `try_table` frame (`bodyCatch`), as one
+thrown by a `throw` terminator is. `MStep P host body := MStepC P host noCall body` is the
+call-free machine. Tail-call terminators (`return_call*`) are not modelled yet.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -116,15 +122,16 @@ def _root_.Silmaril.Wasm.Instr.IsThrow : Instr → Prop
   | .throw _ | .throwRef => True
   | _ => False
 
-/-- **One block step.** From block `b`, run its simple body (`Region.Run`, to values), then its
-terminator. -/
-inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
+/-- **One block step**, with calls answered by the oracle `C`. From block `b`, run its simple
+body (`Region.RunC P host C`, to values; a `call` in it is answered by `C` as `RunC.call` does),
+then its terminator. -/
+inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) (body : Expr) :
     MState H → MState H → Prop where
   /-- No terminator: fall through to the next position of the sequence. -/
   | fall {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = none)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
         (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁)
   /-- `br l`: keep the label's top values; re-enter a loop, or leave the label's sequence. The
   values carried are the stack under the left frames' outer values (`brVals`), as in Core; the
@@ -135,11 +142,11 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
   | br {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} {l : LabelIdx} {L : LFrame} (hb : lookup body b = some sg)
       (ht : sg.term = some (.br l))
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
       (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
       (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
         t₁.length = L.arity) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
         (if L.loop then
           goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
             (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁
@@ -150,11 +157,11 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
   | brIfTaken {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame} {k : BitVec 32}
       (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
       (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
       (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
         t₁.length = L.arity) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
         (if L.loop then
           goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
             (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁
@@ -165,20 +172,20 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
   | brIfNot {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} (hb : lookup body b = some sg)
       (ht : sg.term = some (.brIf l))
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 0]))) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 0]))) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
         (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁)
   /-- A data-dependent branch terminator (`br_table`, `br_on_*`) that branches: it reads its
   operands (`BrStep`) and then branches like `br l`. -/
   | brDataTaken {b : BlockId} {sg : Segment} {stk ws us us' : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {l : LabelIdx} {L : LFrame}
       (hb : lookup body b = some sg) (ht : sg.term = some i)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
       (hbs : BrStep s₁ f₁ us i us' [.plain (.br l)])
       (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls (ws ++ us')).length)
       (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
         t₁.length = L.arity) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
         (if L.loop then
           goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
             (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls (ws ++ us'))) s₁ f₁
@@ -191,9 +198,9 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
   | brDataNot {b : BlockId} {sg : Segment} {stk ws us us' : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {i : Instr} (hb : lookup body b = some sg)
       (ht : sg.term = some i)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
       (hbs : BrStep s₁ f₁ us i us' []) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
         (goto (entry body b.seq (b.idx + 1)) b.seq.length ls (ws ++ us') s₁ f₁)
   /-- Entering arm `a` of a structured terminator (`block`, `loop`, `if` with its condition,
   `try_table`): push its label frame on the parameters. -/
@@ -202,34 +209,34 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       {t₁ t₂ : List CValType} {loop tryT : Bool} {cs : List Catch}
       (hb : lookup body b = some sg) (ht : sg.term = some i) (harm : armOf i a = some c)
       (hkind : StructKind i bt loop tryT cs)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
       (hcond : CondArm i stk₁ a ws us)
       (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
         (goto (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
           (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁)
   /-- `return` leaves the function. -/
   | ret {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .return_)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
   /-- `unreachable`, or a trap in the block's body. -/
   | trap {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .unreachable)
-      (hr : ∃ stk₁, Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩
+      (hr : ∃ stk₁, RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩
   /-- A terminator that traps when it runs (`throw_ref` on a null reference, or `unreachable`). -/
   | termTrap {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} (hb : lookup body b = some sg)
       (ht : sg.term = some i)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-      (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ .trap) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₂, f₂⟩
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ .trap) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₂, f₂⟩
   /-- A trap in the block's straight-line body (an effect of one of its instructions). -/
   | bodyTrap {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ .trap) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ .trap) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.trap, [], [], s₁, f₁⟩
   /-- `throw` and `throw_ref`, uncaught: the terminator runs (allocating the exception for
   `throw`), every enclosing `try_table` frame lets the exception pass (no clause matches,
   `hT`), and the machine moves to the `raise` sink with the exception's address as its stack
@@ -237,11 +244,11 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
   | raise {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat} (hb : lookup body b = some sg)
       (ht : sg.term = some i) (hi : i.IsThrow)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-      (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
       (hT : ∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true →
         Catches s₂ f₂ a L.catches none) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.raise, [.ref (.exn a)], [], s₂, f₂⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.raise, [.ref (.exn a)], [], s₂, f₂⟩
   /-- `throw` and `throw_ref`, caught: the frames below `j` let the exception pass (`hpass`),
   and the `try_table` frame `j` catches it with the first matching clause (`Catches`: values
   `us`, label `l`). As Core's `handler` does, this branches to `l` from outside the
@@ -250,8 +257,8 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
   | catch_ {b : BlockId} {sg : Segment} {stk stk₁ us : List Val} {ls : List LFrame}
       {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a j : Nat} {L L' : LFrame}
       {l : LabelIdx} (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsThrow)
-      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-      (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
       (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
         Catches s₂ f₂ a L.catches none)
       (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
@@ -259,7 +266,7 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       (harity : L'.arity ≤ (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)).length)
       (hlbt : L'.loop = true → ∃ t₁ t₂, f₂.module.blockType? L'.bt = some (t₁, t₂) ∧
         t₁.length = L'.arity) :
-      MStep P host body ⟨.block b, stk, ls, s, f⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
         (if L'.loop then
           goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
             (b.seq.length - (j + 1 + l.toNat)) (L' :: ls.drop (j + 1 + l.toNat + 1))
@@ -268,6 +275,40 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
           goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
             (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
             (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₂ f₂)
+  /-- An exception thrown in the block's straight-line body (by a `call` the oracle answers
+  with `throw`), uncaught: every enclosing `try_table` frame lets it pass (`hT`), and the machine
+  moves to the `raise` sink as for an uncaught `throw` terminator. -/
+  | bodyRaise {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {a : Nat} (hb : lookup body b = some sg)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.throw a))
+      (hT : ∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true →
+        Catches s₁ f₁ a L.catches none) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.raise, [.ref (.exn a)], [], s₁, f₁⟩
+  /-- An exception thrown in the block's straight-line body, caught by the `try_table` frame `j`
+  as for a caught `throw` terminator (`catch_`), with the same run-time checks. -/
+  | bodyCatch {b : BlockId} {sg : Segment} {stk us : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {a j : Nat} {L L' : LFrame} {l : LabelIdx}
+      (hb : lookup body b = some sg)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.throw a))
+      (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+        Catches s₁ f₁ a L.catches none)
+      (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₁ f₁ a L.catches (some (us, l)))
+      (hL' : ls[j + 1 + l.toNat]? = some L')
+      (harity : L'.arity ≤ (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)).length)
+      (hlbt : L'.loop = true → ∃ t₁ t₂, f₁.module.blockType? L'.bt = some (t₁, t₂) ∧
+        t₁.length = L'.arity) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
+        (if L'.loop then
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat)) (L' :: ls.drop (j + 1 + l.toNat + 1))
+            (topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₁ f₁
+        else
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
+            (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₁ f₁)
+
+/-- **The call-free machine**: `MStepC` with no call answered. -/
+abbrev MStep (P : Profile) (host : HostSemantics H) (body : Expr) := MStepC P host noCall body
 
 end Silmaril.Wasm.Cfg.Machine
 

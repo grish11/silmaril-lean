@@ -56,7 +56,7 @@ theorem div_br {s : Store H} {f : Frame} {vs : List Val} {l : LabelIdx} {code : 
 /-- The machine states standing for a diverging code. -/
 def S (P : Profile) (host : HostSemantics H) (body : Expr) (st : MState H) : Prop :=
   ∃ (lv : Lv H) (s : Store H) (f : Frame) (vs : List Val) (code : List Admin),
-    Rep P host body lv s f vs code st ∧ RunDiv P host s f vs code
+    Rep P host noCall body lv s f vs code st ∧ RunDiv P host s f vs code
 
 /-- Progress. -/
 abbrev Prog (P : Profile) (host : HostSemantics H) (body : Expr) (st : MState H) : Prop :=
@@ -66,7 +66,7 @@ theorem prog_entry_step {body : Expr} {st : MState H} {p : List SeqStep} {c : Li
     {i : Nat} {ls : List LFrame} {s : Store H} {f : Frame} {vs : List Val}
     (hc : seqAt body p = some c) (hs : MStep P host body st (goto (entry body p i) p.length ls vs s f))
     (hd : RunDiv P host s f vs (expression (restAt c i))) : Prog P host body st := by
-  have hr := rep_entry (P := P) (host := host) (s := s) (f := f) i ls vs [] hc
+  have hr := rep_entry (P := P) (host := host) (C := noCall) (s := s) (f := f) i ls vs [] hc
   exact ⟨_, .single hs, _, _, _, _, _, by simpa using hr, hd⟩
 
 
@@ -86,25 +86,25 @@ theorem prog_term {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List 
   | @brIf _ ws k l _ h =>
     by_cases hk : k = 0
     · subst hk
-      exact prog_entry_step hc (MStep.brIfNot hb ht hpre) (by simpa using h)
+      exact prog_entry_step hc (MStepC.brIfNot hb ht hpre) (by simpa using h)
     · simp only [hk, ↓reduceIte, List.singleton_append] at h
       exact (div_br h).elim
   | @brData _ ws us us' _ X _ hbs h =>
     rcases brStep_X hbs with rfl | ⟨l, rfl⟩
-    · exact prog_entry_step hc (MStep.brDataNot (ws := ws) (us := us) (us' := us') hb ht hpre hbs)
+    · exact prog_entry_step hc (MStepC.brDataNot (ws := ws) (us := us) (us' := us') hb ht hpre hbs)
         (by simpa using h)
     · exact (div_br (by simpa using h)).elim
   | @block _ ws us bt b t₁ t₂ _ hbt hm h =>
-    have hs := MStep.enter (ls := ls) (a := 0) hb ht rfl .block hpre (.plain (by intros; simp)) hbt hm
+    have hs := MStepC.enter (ls := ls) (a := 0) hb ht rfl .block hpre (.plain (by intros; simp)) hbt hm
     exact ⟨_, .single hs, _, _, _, _, _, Rep.lab (V := []) (L := ⟨t₂.length, ws, false, false, [], bt⟩)
       hc hsg ht rfl .block rfl (by simp [LoopOk]) (by simp) (rep_arm ls _ us hc hsg ht rfl), h⟩
   | @loop _ ws us bt b t₁ t₂ _ hbt hm h =>
-    have hs := MStep.enter (ls := ls) (a := 0) hb ht rfl .loop hpre (.plain (by intros; simp)) hbt hm
+    have hs := MStepC.enter (ls := ls) (a := 0) hb ht rfl .loop hpre (.plain (by intros; simp)) hbt hm
     exact ⟨_, .single hs, _, _, _, _, _, Rep.lab (V := []) (L := ⟨t₁.length, ws, true, false, [], bt⟩)
       hc hsg ht rfl .loop rfl (fun _ => ⟨t₁, t₂, hbt, rfl⟩) (by simp)
       (rep_arm ls _ us hc hsg ht rfl), h⟩
   | @tryTable _ ws us bt cs b t₁ t₂ _ hbt hm h =>
-    have hs := MStep.enter (ls := ls) (a := 0) hb ht rfl .tryTable hpre (.plain (by intros; simp)) hbt hm
+    have hs := MStepC.enter (ls := ls) (a := 0) hb ht rfl .tryTable hpre (.plain (by intros; simp)) hbt hm
     exact ⟨_, .single hs, _, _, _, _, _, Rep.hnd (V := []) (L := ⟨t₂.length, ws, false, true, cs, bt⟩)
       hc hsg ht rfl .tryTable rfl (by simp)
       (Rep.hlab (isLoopAt_kind hc hsg ht .tryTable) rfl (rep_arm ls _ us hc hsg ht rfl)), h⟩
@@ -117,12 +117,12 @@ theorem prog_term {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List 
       by_cases hk : k = 0
       · subst hk
         simp only [↓reduceIte] at h'
-        have hs := MStep.enter (ls := ls) (a := 1) hb ht rfl .if_ hpre CondArm.ifFalse hbt hm
+        have hs := MStepC.enter (ls := ls) (a := 1) hb ht rfl .if_ hpre CondArm.ifFalse hbt hm
         exact ⟨_, .single hs, _, _, _, _, _,
           Rep.lab (V := []) (L := ⟨t₂.length, ws', false, false, [], bt⟩)
           hc hsg ht rfl .if_ rfl (by simp [LoopOk]) (by simp) (rep_arm ls _ us hc hsg ht rfl), h'⟩
       · simp only [hk, ↓reduceIte] at h'
-        have hs := MStep.enter (ls := ls) (a := 0) hb ht rfl .if_ hpre (CondArm.ifTrue hk) hbt hm
+        have hs := MStepC.enter (ls := ls) (a := 0) hb ht rfl .if_ hpre (CondArm.ifTrue hk) hbt hm
         exact ⟨_, .single hs, _, _, _, _, _,
           Rep.lab (V := []) (L := ⟨t₂.length, ws', false, false, [], bt⟩)
           hc hsg ht rfl .if_ rfl (by simp [LoopOk]) (by simp) (rep_arm ls _ us hc hsg ht rfl), h'⟩
@@ -169,7 +169,7 @@ theorem prog_blk {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List I
         intro s₁ f₁ vs₁ hx1 hd1
         have hpre' : Run P host s₀ f₀ stk₀ (expression (pre ++ [x])) s₁ f₁ (.normal vs₁) := by
           have hp : Run P host s₀ f₀ stk₀ (expression pre) s f (.normal vs) := by simpa using hpre
-          simpa [expression] using Proofs.Region.run_append hp (by simp only [Then]; exact hx1)
+          simpa [expression] using Proofs.Region.run_append hp (by simp only [ThenC]; exact hx1)
         by_cases hne' : sfx ≠ [] ∨ sg.term.isSome
         · exact ihs (pre ++ [x]) [] vs₁ s₁ f₁ (by simp [hbody]) hne' (by simpa using hpre')
             (by simpa using hd1)
@@ -181,7 +181,7 @@ theorem prog_blk {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List I
           subst hsfx
           have hr : Run P host s₀ f₀ stk₀ (expression sg.body) s₁ f₁ (.normal vs₁) := by
             rw [hbody]; simpa using hpre'
-          exact prog_entry_step hc (MStep.fall (b := ⟨p, i⟩) (lookup_of hc hsg) hterm hr)
+          exact prog_entry_step hc (MStepC.fall (b := ⟨p, i⟩) (lookup_of hc hsg) hterm hr)
             (by simpa [hterm] using hd1)
       simp only [vals, List.map_nil, List.nil_append, List.cons_append, expression,
         List.map_cons] at hd
@@ -249,12 +249,12 @@ theorem prog_blkIf {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List
       by_cases hk : k = 0
       · subst hk
         simp only [↓reduceIte] at h'
-        have hs := MStep.enter (ls := ls) (a := 1) hb ht rfl .if_ hpre CondArm.ifFalse hbt hm
+        have hs := MStepC.enter (ls := ls) (a := 1) hb ht rfl .if_ hpre CondArm.ifFalse hbt hm
         exact ⟨_, .single hs, _, _, _, _, _,
           Rep.lab (V := []) (L := ⟨t₂.length, ws', false, false, [], bt⟩)
           hc hsg ht rfl .if_ rfl (by simp [LoopOk]) (by simp) (rep_arm ls _ us hc hsg ht rfl), h'⟩
       · simp only [hk, ↓reduceIte] at h'
-        have hs := MStep.enter (ls := ls) (a := 0) hb ht rfl .if_ hpre (CondArm.ifTrue hk) hbt hm
+        have hs := MStepC.enter (ls := ls) (a := 0) hb ht rfl .if_ hpre (CondArm.ifTrue hk) hbt hm
         exact ⟨_, .single hs, _, _, _, _, _,
           Rep.lab (V := []) (L := ⟨t₂.length, ws', false, false, [], bt⟩)
           hc hsg ht rfl .if_ rfl (by simp [LoopOk]) (by simp) (rep_arm ls _ us hc hsg ht rfl), h'⟩
@@ -285,14 +285,14 @@ theorem br0_state {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List 
   · rw [brTarget_zero_out body p m a L ls _ s₁ f₁ (hnl.trans hlp) hlp, htop] at hb
     simp only [hlp, Bool.false_eq_true, ↓reduceIte, expression, List.map_nil,
       List.append_nil] at h
-    have hr := rep_entry (P := P) (host := host) (s := s₁) (f := f₁) (m + 1) ls L.outer us₂ hc
+    have hr := rep_entry (P := P) (host := host) (C := noCall) (s := s₁) (f := f₁) (m + 1) ls L.outer us₂ hc
     exact ⟨_, hb, _, _, _, _, _, hr, by simpa [expression] using h⟩
   · rw [brTarget_zero_loop body p m a L ls _ s₁ f₁ (hnl.trans hlp) hlp, htop] at hb
     obtain ⟨cb, rfl, -, -⟩ := Proofs.Machine.structKind_loop (hlp ▸ hkind)
     cases kind_arm_loop harm
     simp only [hlp, ↓reduceIte, expression, List.map_cons, List.map_nil,
       List.singleton_append, List.append_assoc] at h
-    have hre := Rep.loopRe (P := P) (host := host) (s := s₁) (ls := ls) (vs := L.outer)
+    have hre := Rep.loopRe (P := P) (host := host) (C := noCall) (s := s₁) (ls := ls) (vs := L.outer)
       (V := us₂) (W := us₂) hc hsg ht hkind hlo rfl hn
     exact ⟨_, hb, _, _, _, _, _, hre, by simpa [expression] using h⟩
 
@@ -302,7 +302,7 @@ another such state. By induction on the size of the code: between machine steps 
 shrinks, except inside one block (`prog_blk`) and on re-entering a loop. -/
 theorem prog {body : Expr} : ∀ (n : Nat) (lv : Lv H) (s : Store H) (f : Frame) (vs : List Val)
     (code : List Admin) (st : MState H), sizeOf code < n →
-    Rep P host body lv s f vs code st → RunDiv P host s f vs code → Prog P host body st
+    Rep P host noCall body lv s f vs code st → RunDiv P host s f vs code → Prog P host body st
   | 0, _, _, _, _, _, _, hn, _, _ => absurd hn (Nat.not_lt_zero _)
   | n + 1, lv, s, f, vs, code, st, hn, hr, hd => by
     cases hr with
@@ -324,10 +324,10 @@ theorem prog {body : Expr} : ∀ (n : Nat) (lv : Lv H) (s : Store H) (f : Frame)
         | labelIn h => exact prog n _ _ _ _ _ _ (by simp at hn ⊢; omega) hin h
         | labelNormal hrun h =>
           subst hvs
-          have h1 : MRun P host body st _ := complete hrun _ _ _ _ rfl rfl hin
+          have h1 : MRun P host noCall body st _ := complete hrun _ _ _ _ rfl rfl hin
           rw [show (seqLv body (p ++ [(m, a)]) (L :: ls)).cont _ _ _ = _ from
             seqLv_cont_arm body p m a L ls _ _ _] at h1
-          have hre := rep_entry (P := P) (host := host) (s := ‹_›) (f := ‹_›) (m + 1) ls
+          have hre := rep_entry (P := P) (host := host) (C := noCall) (s := ‹_›) (f := ‹_›) (m + 1) ls
             (L.outer ++ ‹List Val›) [] hc
           obtain ⟨st₂, h2, hS⟩ := prog n _ _ _ _ _ _ (by simp at hn ⊢; omega)
             (by simpa using hre) h
@@ -355,9 +355,9 @@ theorem prog {body : Expr} : ∀ (n : Nat) (lv : Lv H) (s : Store H) (f : Frame)
         | handlerIn h => exact prog n _ _ _ _ _ _ (by simp at hn ⊢; omega) hin h
         | handlerNormal hrun h =>
           subst hvs
-          have h1 : MRun P host body st _ := complete hrun _ _ _ _ rfl rfl hin
+          have h1 : MRun P host noCall body st _ := complete hrun _ _ _ _ rfl rfl hin
           rw [hlLv_cont] at h1
-          have hre := rep_entry (P := P) (host := host) (s := ‹_›) (f := ‹_›) (m + 1) ls
+          have hre := rep_entry (P := P) (host := host) (C := noCall) (s := ‹_›) (f := ‹_›) (m + 1) ls
             (L.outer ++ ‹List Val›) [] hc
           obtain ⟨st₂, h2, hS⟩ := prog n _ _ _ _ _ _ (by simp at hn ⊢; omega)
             (by simpa using hre) h
@@ -397,7 +397,7 @@ theorem prog {body : Expr} : ∀ (n : Nat) (lv : Lv H) (s : Store H) (f : Frame)
           obtain ⟨rfl, rfl⟩ := hbt'
           have hl2 : us.length = W.length := by rw [hm, hlen, hWl]
           obtain ⟨rfl, rfl⟩ := List.append_inj' hvs hl2.symm
-          have hin := rep_arm (P := P) (host := host) (s := s) (f := f) (a := 0) ls L W hc hsg ht rfl
+          have hin := rep_arm (P := P) (host := host) (C := noCall) (s := s) (f := f) (a := 0) ls L W hc hsg ht rfl
           rw [hlen] at h
           generalize hvs2 : L.outer = vs1 at h
           cases div_unfold h with
@@ -409,10 +409,10 @@ theorem prog {body : Expr} : ∀ (n : Nat) (lv : Lv H) (s : Store H) (f : Frame)
             simpa using this
           | labelNormal hrun h' =>
             subst hvs2
-            have h1 : MRun P host body _ _ := complete hrun _ _ _ _ rfl rfl hin
+            have h1 : MRun P host noCall body _ _ := complete hrun _ _ _ _ rfl rfl hin
             rw [show (seqLv body (p ++ [(m, 0)]) (L :: ls)).cont _ _ _ = _ from
               seqLv_cont_arm body p m 0 L ls _ _ _] at h1
-            have hre := rep_entry (P := P) (host := host) (s := ‹_›) (f := ‹_›) (m + 1) ls
+            have hre := rep_entry (P := P) (host := host) (C := noCall) (s := ‹_›) (f := ‹_›) (m + 1) ls
               (L.outer ++ ‹List Val›) [] hc
             obtain ⟨st₂, h2, hS⟩ := prog n _ _ _ _ _ _ (by simp at hn ⊢; omega)
               (by simpa using hre) h'
@@ -456,7 +456,7 @@ theorem run_div_initial {body : Expr} {s : Store H} {f : Frame}
     InfiniteTrace (MStep P host body) (initial body s f) := by
   have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by
     simp [initial, goto, popL, cfgEntry]
-  have hrep := rep_entry (P := P) (host := host) (body := body) (s := s) (f := f) 0 [] [] []
+  have hrep := rep_entry (P := P) (host := host) (C := noCall) (body := body) (s := s) (f := f) 0 [] [] []
     (q := []) (c := body) rfl
   simp only [Proofs.Machine.restAt_zero, vals, List.map_nil, List.nil_append] at hrep
   rw [hinit]

@@ -278,12 +278,15 @@ def CallSound (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) : 
 /-- **The call-free region semantics**: `RunC` with no call answered. -/
 abbrev Run (P : Profile) (host : HostSemantics H) := RunC P host noCall
 
-/-- Sequencing: after a first part ends in state `s₁, f₁` with outcome `o₁`, the second part
-`B` runs on fall-through; any other outcome skips `B`. -/
-def Then (P : Profile) (host : HostSemantics H) (s₁ : Store H) (f₁ : Frame) :
-    Out → List Admin → Store H → Frame → Out → Prop
-  | .normal us, B, s', f', o => Run P host s₁ f₁ us B s' f' o
+/-- Sequencing with calls answered by `C`: after a first part ends in state `s₁, f₁` with
+outcome `o₁`, the second part `B` runs on fall-through; any other outcome skips `B`. -/
+def ThenC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) (s₁ : Store H)
+    (f₁ : Frame) : Out → List Admin → Store H → Frame → Out → Prop
+  | .normal us, B, s', f', o => RunC P host C s₁ f₁ us B s' f' o
   | o₁, _, s', f', o => o = o₁ ∧ s' = s₁ ∧ f' = f₁
+
+/-- Call-free sequencing: `ThenC` with no call answered. -/
+abbrev Then (P : Profile) (host : HostSemantics H) := ThenC P host noCall
 
 /-- What a `FRAME_n` returns for a body outcome. Falling through needs exactly `n` values; a
 `return` keeps the top `n`. A branch out of the frame does not happen in validated code and

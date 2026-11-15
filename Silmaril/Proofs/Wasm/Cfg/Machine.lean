@@ -16,7 +16,7 @@ open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Exe
 
 set_option linter.unusedSimpArgs false
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 @[simp] theorem goto_node (t : Target) (d : Nat) (ls : List LFrame) (stk : List Val) (s : Store H)
     (f : Frame) : (goto t d ls stk s f).node = t := rfl
@@ -30,9 +30,9 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Execution.Core
   Silmaril.Wasm.Numerics
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
-theorem mstep_from_block {body : Expr} {st st' : MState H} (h : MStep P host body st st') :
+theorem mstep_from_block {body : Expr} {st st' : MState H} (h : MStepC P host C body st st') :
     ∃ b, st.node = .block b := by
   cases h <;> exact ⟨_, rfl⟩
 
@@ -94,7 +94,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 theorem seg_of_lookup {body : Expr} {b : BlockId} {sg : Segment} (hb : lookup body b = some sg) :
     ∃ c, seqAt body b.seq = some c ∧ (segment c)[b.idx]? = some sg := by
@@ -108,9 +108,9 @@ block `i` (no terminator) after its body ran, then running the rest of the seque
 `i + 1`, is a run of the rest from block `i`. -/
 theorem fall_sound {c : List Instr} {i : Nat} {sg : Segment} (hsg : (segment c)[i]? = some sg)
     (ht : sg.term = none) {s s₁ s' : Store H} {f f₁ f' : Frame} {stk stk₁ : List Val} {o : Out}
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hk : Run P host s₁ f₁ stk₁ (expression (restAt c (i + 1))) s' f' o) :
-    Run P host s f stk (expression (restAt c i)) s' f' o := by
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hk : RunC P host C s₁ f₁ stk₁ (expression (restAt c (i + 1))) s' f' o) :
+    RunC P host C s f stk (expression (restAt c i)) s' f' o := by
   rw [restAt_cons hsg]
   have e : sg.instrs = sg.body := by simp [Segment.instrs, ht]
   rw [e]
@@ -120,9 +120,9 @@ theorem fall_sound {c : List Instr} {i : Nat} {sg : Segment} (hsg : (segment c)[
 block's body to values, then the rest from the next block, or ends inside the body. -/
 theorem fall_complete {c : List Instr} {i : Nat} {sg : Segment} (hsg : (segment c)[i]? = some sg)
     (ht : sg.term = none) {s s' : Store H} {f f' : Frame} {stk : List Val} {o : Out}
-    (h : Run P host s f stk (expression (restAt c i)) s' f' o) :
-    ∃ s₁ f₁ o₁, Run P host s f stk (expression sg.body) s₁ f₁ o₁ ∧
-      Then P host s₁ f₁ o₁ (expression (restAt c (i + 1))) s' f' o := by
+    (h : RunC P host C s f stk (expression (restAt c i)) s' f' o) :
+    ∃ s₁ f₁ o₁, RunC P host C s f stk (expression sg.body) s₁ f₁ o₁ ∧
+      ThenC P host C s₁ f₁ o₁ (expression (restAt c (i + 1))) s' f' o := by
   rw [restAt_cons hsg] at h
   have e : sg.instrs = sg.body := by simp [Segment.instrs, ht]
   rw [e] at h
@@ -137,7 +137,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **Context lifting through the label invariant**: if every region run of `inner'` (from
 `s₁, f₁`) is a run of `inner` (from `s, f`), the same holds for their code under the same
@@ -146,9 +146,9 @@ theorem wrap_mono {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
     ∀ (rp : List SeqStep) (ls : List LFrame) {inner inner' X X' : List Admin},
       wrap body rp ls inner = some X → wrap body rp ls inner' = some X' →
       (∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-        Run P host s₁ f₁ [] inner' s₂ f₂ o → Run P host s f [] inner s₂ f₂ o) →
+        RunC P host C s₁ f₁ [] inner' s₂ f₂ o → RunC P host C s f [] inner s₂ f₂ o) →
       ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-        Run P host s₁ f₁ [] X' s₂ f₂ o → Run P host s f [] X s₂ f₂ o
+        RunC P host C s₁ f₁ [] X' s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o
   | [], [], inner, inner', X, X', hX, hX', hb => by
     simp only [wrap, Option.some.injEq] at hX hX'
     subst hX hX'; exact hb
@@ -171,8 +171,8 @@ theorem wrap_mono {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
           have hr' := Proofs.Region.run_vals_inv (vs := []) hr
           apply Proofs.Region.run_vals (vs := [])
           have hl : ∀ {o₁ : Out} {s₃ : Store H} {f₃ : Frame},
-              Run P host s₁ f₁ [] [.label L.arity (if L.loop then [t] else []) inner'] s₃ f₃ o₁ →
-                Run P host s f [] [.label L.arity (if L.loop then [t] else []) inner] s₃ f₃ o₁ :=
+              RunC P host C s₁ f₁ [] [.label L.arity (if L.loop then [t] else []) inner'] s₃ f₃ o₁ →
+                RunC P host C s f [] [.label L.arity (if L.loop then [t] else []) inner] s₃ f₃ o₁ :=
             fun h => Proofs.Region.label_back hb h
           cases hT : L.tryT
           · simp only [hT, Bool.false_eq_true, ↓reduceIte] at hr' ⊢
@@ -189,7 +189,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 theorem seqAt_append : ∀ (p : List SeqStep) (is : List Instr) (m a : Nat),
     seqAt is (p ++ [(m, a)]) = (seqAt is p).bind fun pc => do
@@ -223,13 +223,13 @@ theorem enter_block_sound {body : Expr} {b : BlockId} {sg : Segment} {c c' : Lis
     {t₁ t₂ : List CValType} {X X' : List Admin}
     (hc : seqAt body b.seq = some c) (hsg : (segment c)[b.idx]? = some sg)
     (ht : sg.term = some (.block bt c'))
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
     (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
     (hX : codeAt body b stk ls = some X)
     (hX' : codeAt body ⟨b.seq ++ [(b.idx, 0)], 0⟩ us (⟨t₂.length, ws, false, false, [], bt⟩ :: ls) =
       some X') :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] X' s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] X' s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   simp only [codeAt, hc, Option.bind_some] at hX
   simp [codeAt, seqAt_append, hc, hsg, ht, armOf, restAt_zero, wrap] at hX'
   refine wrap_mono b.seq.reverse ls hX hX' ?_
@@ -250,7 +250,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- The region step of a structured terminator into its arm: from the stack after the block's
 body, running the terminator then the rest is implied by running the label (and handler) the
@@ -261,12 +261,12 @@ theorem struct_step {s : Store H} {f : Frame} {i : Instr} {bt : BlockType} {loop
     (hkind : StructKind i bt loop tryT cs) (harm : armOf i a = some c')
     (hcond : CondArm i stk₁ a ws us)
     (hbt : f.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
-    (h : Run P host s f ws
+    (h : RunC P host C s f ws
       ((if tryT then Admin.handler (labelArity loop t₁ t₂) cs
           [.label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us ++ expression c')]
         else .label (labelArity loop t₁ t₂) (if loop then [i] else []) (vals us ++ expression c'))
         :: rest) s₂ f₂ o) :
-    Run P host s f stk₁ (.plain i :: rest) s₂ f₂ o := by
+    RunC P host C s f stk₁ (.plain i :: rest) s₂ f₂ o := by
   cases hkind with
   | block =>
     cases hcond with
@@ -312,7 +312,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **Entering any structured terminator is sound for the label invariant** (`block`, `loop`,
 `if` with its condition, `try_table`), for a non-empty arm. -/
@@ -322,14 +322,14 @@ theorem enter_sound {body : Expr} {b : BlockId} {sg : Segment} {c c' : List Inst
     {X X' : List Admin}
     (hc : seqAt body b.seq = some c) (hsg : (segment c)[b.idx]? = some sg)
     (ht : sg.term = some i) (harm : armOf i a = some c') (hkind : StructKind i bt loop tryT cs)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
     (hcond : CondArm i stk₁ a ws us)
     (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
     (hX : codeAt body b stk ls = some X)
     (hX' : codeAt body ⟨b.seq ++ [(b.idx, a)], 0⟩ us
       (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) = some X') :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] X' s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] X' s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   simp only [codeAt, hc, Option.bind_some] at hX
   simp [codeAt, seqAt_append, hc, hsg, ht, harm, restAt_zero, wrap] at hX'
   refine wrap_mono b.seq.reverse ls hX hX' ?_
@@ -351,7 +351,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **Leaving a finished sequence is sound** (one `popL` step, Core's `label-vals` and
 `handler-vals`): a region run of the parent context, with the label frame's outer values under
@@ -363,7 +363,7 @@ theorem pop_sound {body : Expr} {m a : Nat} {rp : List SeqStep} {L : LFrame} {ls
     (hX : wrap body ((m, a) :: rp) (L :: ls) (vals W) = some X)
     (hY : wrap body rp ls (vals (L.outer ++ W) ++ expression (restAt pc (m + 1))) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s f [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s f [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   simp only [wrap, hpc, Option.bind_eq_bind, Option.bind_some] at hX
   cases hsg : (segment pc)[m]? with
   | none => simp [hsg] at hX
@@ -390,7 +390,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 theorem wrap_isSome (body : Expr) : ∀ (rp : List SeqStep) (ls : List LFrame) (i i' : List Admin),
     (wrap body rp ls i).isSome = (wrap body rp ls i').isSome
@@ -448,7 +448,7 @@ theorem cont_sound {body : Expr} {s : Store H} {f : Frame} :
       wrap body rp ls (vals W) = some X →
       codeOf body (goto (contRev body rp) rp.length ls W s f) = some Y →
       ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-        Run P host s f [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o
+        RunC P host C s f [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o
   | [], [], W, X, Y, hX, hY => by
     simp [wrap] at hX; subst hX
     simp [codeOf, goto, contRev, depthT, popL] at hY; subst hY
@@ -498,23 +498,23 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **A fall-through step is sound for the label invariant**, including leaving finished
 sequences (to the next block of the sequence, or up through `cont` with `popL`). -/
 theorem fall_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {X Y : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = none)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
   have inner : ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] (vals stk₁ ++ expression (restAt c (b.idx + 1))) s₂ f₂ o →
-        Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] (vals stk₁ ++ expression (restAt c (b.idx + 1))) s₂ f₂ o →
+        RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ o := by
     intro o s₂ f₂ h
     exact Proofs.Region.run_vals (vs := [])
       (fall_sound hsg ht hr (by simpa using Proofs.Region.run_vals_inv (vs := []) h))
@@ -545,13 +545,13 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- An exception propagates through label frames that are not `try_table` handlers. -/
 theorem wrap_throw {body : Expr} {s s' : Store H} {f f' : Frame} {a : Nat} :
     ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin},
       (∀ L ∈ ls, L.tryT = false) → wrap body rp ls inner = some X →
-      Run P host s f [] inner s' f' (.throw a) → Run P host s f [] X s' f' (.throw a)
+      RunC P host C s f [] inner s' f' (.throw a) → RunC P host C s f [] X s' f' (.throw a)
   | [], [], _, _, _, hX, h => by simp [wrap] at hX; subst hX; exact h
   | [], _ :: _, _, _, _, hX, _ => by simp [wrap] at hX
   | _ :: _, [], _, _, _, hX, _ => by simp [wrap] at hX
@@ -577,10 +577,10 @@ exception pass: `raise_pass_sound`.) -/
 theorem raise_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat} {X : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some i)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
     (hT : ∀ L ∈ ls, L.tryT = false) (hX : codeAt body b stk ls = some X) :
-    Run P host s f [] X s₂ f₂ (.throw a) := by
+    RunC P host C s f [] X s₂ f₂ (.throw a) := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
   refine wrap_throw _ _ hT hX ?_
@@ -590,7 +590,7 @@ theorem raise_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : Lis
     List.map_nil, List.append_assoc, List.singleton_append, List.nil_append]
   have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c (b.idx + 1))) hth
     ⟨rfl, rfl, rfl⟩
-  exact Proofs.Region.run_append hr (by simp only [Then]; simpa using h2)
+  exact Proofs.Region.run_append hr (by simp only [ThenC]; simpa using h2)
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
@@ -601,7 +601,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 theorem drop_top {us W : List Val} {n : Nat} (h : n ≤ us.length) :
     (W ++ us).drop ((W ++ us).length - n) = us.drop (us.length - n) := by
@@ -618,13 +618,13 @@ theorem br_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
       {L : LFrame},
       wrap body rp ls inner = some X → ls[k]? = some L → L.loop = false →
       levelLoop body rp k = false → L.arity ≤ (brVals k ls us).length →
-      Run P host s f [] inner s₁ f₁ (.br k us) →
+      RunC P host C s f [] inner s₁ f₁ (.br k us) →
       ∀ {Y : List Admin},
         codeOf body (goto ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1))
           (ls.drop (k + 1)) (L.outer ++ topVals L.arity (brVals k ls us))
           s₁ f₁) = some Y →
         ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-          Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o
+          RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o
   | _, [], [], _, _, _, _, _, hL, _, _, _, _, _, _ => by simp at hL
   | _, [], _ :: _, _, _, _, _, hX, _, _, _, _, _, _, _ => by simp [wrap] at hX
   | _, _ :: _, [], _, _, _, _, _, hL, _, _, _, _, _, _ => by simp at hL
@@ -651,9 +651,9 @@ theorem br_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
               List.length_cons, Nat.add_sub_cancel, List.drop_one, List.tail_cons] at hY
             -- the label's own continuation, as in `cont_sound`, from the parent context
             have key : ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-                Run P host s₁ f₁ [] (vals (L₀.outer ++ us.drop (us.length - L₀.arity)) ++
+                RunC P host C s₁ f₁ [] (vals (L₀.outer ++ us.drop (us.length - L₀.arity)) ++
                   expression (restAt pc (m + 1))) s₂ f₂ o →
-                Run P host s f [] (vals L₀.outer ++
+                RunC P host C s f [] (vals L₀.outer ++
                   (if L₀.tryT then Admin.handler L₀.arity L₀.catches
                     [.label L₀.arity (if L₀.loop then [t] else []) inner]
                   else .label L₀.arity (if L₀.loop then [t] else []) inner) ::
@@ -666,13 +666,13 @@ theorem br_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
                 (List.take_append_drop _ _).symm
               have hlen : (us.drop (us.length - L₀.arity)).length = L₀.arity := by
                 simp; omega
-              have hin' : Run P host s f [] inner s₁ f₁
+              have hin' : RunC P host C s f [] inner s₁ f₁
                   (.br 0 (us.take (us.length - L₀.arity) ++ us.drop (us.length - L₀.arity))) := by
                 rw [← hsplit]; exact hin
               simp only [hloop, Bool.false_eq_true, ↓reduceIte]
-              have hk : Run P host s₁ f₁ L₀.outer (vals (us.drop (us.length - L₀.arity)) ++
+              have hk : RunC P host C s₁ f₁ L₀.outer (vals (us.drop (us.length - L₀.arity)) ++
                   expression (restAt pc (m + 1))) s₂ f₂ o := Proofs.Region.run_vals (by simpa using h')
-              have hn : Run P host s₁ f₁ [] (vals (us.drop (us.length - L₀.arity)) ++
+              have hn : RunC P host C s₁ f₁ [] (vals (us.drop (us.length - L₀.arity)) ++
                   expression [] ++ []) s₁ f₁ (.normal (us.drop (us.length - L₀.arity))) := by
                 simpa [expression] using Proofs.Region.run_vals_normal (P := P) (host := host)
                   (s := s₁) (f := f₁) (us.drop (us.length - L₀.arity))
@@ -699,7 +699,7 @@ theorem br_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
             simp only [levelLoop, List.drop_succ_cons] at hlev
             have hlev' : levelLoop body rp k = false := hlev
             -- the branch leaves this frame with its outer values in front
-            have hin' : Run P host s f [] (vals L₀.outer ++
+            have hin' : RunC P host C s f [] (vals L₀.outer ++
                 (if L₀.tryT then Admin.handler L₀.arity L₀.catches
                   [.label L₀.arity (if L₀.loop then [t] else []) inner]
                 else .label L₀.arity (if L₀.loop then [t] else []) inner) ::
@@ -707,9 +707,9 @@ theorem br_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
               apply Proofs.Region.run_vals (vs := [])
               cases L₀.tryT
               · exact .labelBrSucc hin
-              · have h1 : Run P host s f [] [.label L₀.arity (if L₀.loop then [t] else []) inner]
+              · have h1 : RunC P host C s f [] [.label L₀.arity (if L₀.loop then [t] else []) inner]
                     s₁ f₁ (.br k us) := by
-                  simpa using (RunC.labelBrSucc (C := noCall) (P := P) (host := host) (vs := [])
+                  simpa using (RunC.labelBrSucc (C := C) (P := P) (host := host) (vs := [])
                     (code := []) (n := L₀.arity) (cont := if L₀.loop then [t] else []) hin)
                 exact .handlerBr h1
             have har' : L.arity ≤ (brVals k ls (L₀.outer ++ us)).length := by
@@ -729,14 +729,14 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **A machine `br` step to a non-loop label is sound for the label invariant**, with the
 step's run-time arity check. -/
 theorem br_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame}
     {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some (.br l))
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
     (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
     (hloop : L.loop = false)
     (hlev : levelLoop body b.seq.reverse l.toNat = false)
@@ -744,16 +744,16 @@ theorem br_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : L
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
       (ls.drop (l.toNat + 1)) (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
-  have hin : Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
+  have hin : RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
       (.br l.toNat stk₁) := by
     apply Proofs.Region.run_vals (vs := [])
     rw [restAt_cons hsg]
     simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append, List.map_cons,
       List.map_nil, List.append_assoc, List.singleton_append, List.nil_append]
-    exact Proofs.Region.run_append hr (by simp only [Then]; exact .br)
+    exact Proofs.Region.run_append hr (by simp only [ThenC]; exact .br)
   have hY' : codeOf body (goto ((labelsRev body b.seq.reverse).getD l.toNat .invalid)
       (b.seq.reverse.length - (l.toNat + 1)) (ls.drop (l.toNat + 1))
       (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y := by
@@ -769,7 +769,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **Advancing to the next position of a sequence is sound**, given that the block's own
 region code reaches the rest of the sequence from `i + 1` with stack `stk₁` (`hinner`). Covers
@@ -778,12 +778,12 @@ theorem advance_sound {body : Expr} {b : BlockId} {c : List Instr} {stk stk₁ :
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {X Y : List Admin}
     (hc : seqAt body b.seq = some c)
     (hinner : ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] (vals stk₁ ++ expression (restAt c (b.idx + 1))) s₂ f₂ o →
-        Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ o)
+      RunC P host C s₁ f₁ [] (vals stk₁ ++ expression (restAt c (b.idx + 1))) s₂ f₂ o →
+        RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ o)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   simp only [codeAt, hc, Option.bind_some] at hX
   unfold entry at hY
   split at hY
@@ -807,11 +807,11 @@ theorem advance_sound {body : Expr} {b : BlockId} {c : List Instr} {stk stk₁ :
 theorem brIfNot_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {X Y : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 0])))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 0])))
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   refine advance_sound hc ?_ hX hY
   intro o s₂ f₂ h
@@ -820,7 +820,7 @@ theorem brIfNot_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk�
   simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append, List.map_cons,
     List.map_nil, List.append_assoc, List.singleton_append, List.nil_append]
   refine Proofs.Region.run_append hr ?_
-  simp only [Then]
+  simp only [ThenC]
   exact .brIf (k := 0) (by simpa [expression] using Proofs.Region.run_vals_inv (vs := []) h)
 
 /-- **A `br_if` taken (nonzero condition) to a non-loop label is sound**, with the step's
@@ -828,24 +828,24 @@ run-time arity check. -/
 theorem brIfTaken_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame} {k : BitVec 32}
     {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
     (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
     (hloop : L.loop = false) (hlev : levelLoop body b.seq.reverse l.toNat = false)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
       (ls.drop (l.toNat + 1)) (L.outer ++ topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
-  have hin : Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
+  have hin : RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
       (.br l.toNat stk₁) := by
     apply Proofs.Region.run_vals (vs := [])
     rw [restAt_cons hsg]
     simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append, List.map_cons,
       List.map_nil, List.append_assoc, List.singleton_append, List.nil_append]
     refine Proofs.Region.run_append hr ?_
-    simp only [Then]
+    simp only [ThenC]
     refine .brIf (k := k) ?_
     split
     · rename_i h0; exact absurd h0 hk
@@ -865,7 +865,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **Entering an empty arm is sound**: the machine pushes the frame and immediately leaves it
 (`goto` to the arm sequence's continuation), as Core enters the label and leaves it with its
@@ -876,14 +876,14 @@ theorem enter_empty_sound {body : Expr} {b : BlockId} {sg : Segment} {c : List I
     {X Y : List Admin}
     (hc : seqAt body b.seq = some c) (hsg : (segment c)[b.idx]? = some sg)
     (ht : sg.term = some i) (harm : armOf i a = some []) (hkind : StructKind i bt loop tryT cs)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
     (hcond : CondArm i stk₁ a ws us)
     (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (contRev body ((b.idx, a) :: b.seq.reverse)) (b.seq.length + 1)
       (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   simp only [codeAt, hc, Option.bind_some] at hX
   -- the context with the new frame around the finished (empty) arm
   have hW : wrap body ((b.idx, a) :: b.seq.reverse) (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls)
@@ -930,7 +930,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **Going to the entry of a sequence position is sound**: the code of the state `goto` lands on
 (the block there, or the continuation of a finished sequence) runs as the context with the rest
@@ -941,7 +941,7 @@ theorem entry_sound {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat}
     (hZ : wrap body p.reverse ls (vals W ++ expression (restAt c i)) = some Z)
     (hY : codeOf body (goto (entry body p i) p.length ls W s f) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s f [] Y s₂ f₂ o → Run P host s f [] Z s₂ f₂ o := by
+      RunC P host C s f [] Y s₂ f₂ o → RunC P host C s f [] Z s₂ f₂ o := by
   unfold entry at hY
   split at hY
   · simp [goto, depthT, popL, codeOf, codeAt, hc] at hY
@@ -981,13 +981,13 @@ theorem br_lift_loop {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
       wrap body rp ls inner = some X → FramesOk body rp ls → ls[k]? = some L →
       L.loop = true → f₁.module.blockType? L.bt = some (t₁, t₂) → t₁.length = L.arity →
       L.arity ≤ (brVals k ls us).length →
-      Run P host s f [] inner s₁ f₁ (.br k us) →
+      RunC P host C s f [] inner s₁ f₁ (.br k us) →
       ∀ {Y : List Admin},
         codeOf body (goto ((labelsRev body rp).getD k .invalid) (rp.length - k)
           (L :: ls.drop (k + 1)) (topVals L.arity (brVals k ls us)) s₁ f₁) =
           some Y →
         ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-          Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o
+          RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o
   | _, [], [], _, _, _, _, _, _, _, _, hL, _, _, _, _, _, _, _ => by simp at hL
   | _, [], _ :: _, _, _, _, _, _, _, _, hok, _, _, _, _, _, _, _, _ => by simp [FramesOk] at hok
   | _, _ :: _, [], _, _, _, _, _, _, _, _, hL, _, _, _, _, _, _, _ => by simp at hL
@@ -1054,17 +1054,17 @@ theorem br_lift_loop {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
               have hsplit : us = us.take (us.length - L₀.arity) ++ W :=
                 (List.take_append_drop _ _).symm
               have hWl : W.length = L₀.arity := by simp [hW]; omega
-              have hin' : Run P host s f [] inner s₁ f₁
+              have hin' : RunC P host C s f [] inner s₁ f₁
                   (.br 0 (us.take (us.length - L₀.arity) ++ W)) := by
                 rw [← hsplit]; exact hin
               refine .labelBr0 hin' hWl ?_
               rw [← hlen1] at h''
-              have hl := RunC.loop (C := noCall) (ws := L₀.outer) (us := W) hbt (by omega) h''
+              have hl := RunC.loop (C := C) (ws := L₀.outer) (us := W) hbt (by omega) h''
               simpa [expression, List.append_assoc] using
                 Proofs.Region.run_vals (P := P) (host := host) (vs := L₀.outer) hl
           | succ k =>
             simp only [List.getElem?_cons_succ] at hL
-            have hin' : Run P host s f [] (vals L₀.outer ++
+            have hin' : RunC P host C s f [] (vals L₀.outer ++
                 (if L₀.tryT then Admin.handler L₀.arity L₀.catches
                   [.label L₀.arity (if L₀.loop then [t] else []) inner]
                 else .label L₀.arity (if L₀.loop then [t] else []) inner) ::
@@ -1072,9 +1072,9 @@ theorem br_lift_loop {body : Expr} {s s₁ : Store H} {f f₁ : Frame} :
               apply Proofs.Region.run_vals (vs := [])
               cases L₀.tryT
               · exact .labelBrSucc hin
-              · have h1 : Run P host s f [] [.label L₀.arity (if L₀.loop then [t] else []) inner]
+              · have h1 : RunC P host C s f [] [.label L₀.arity (if L₀.loop then [t] else []) inner]
                     s₁ f₁ (.br k us) := by
-                  simpa using (RunC.labelBrSucc (C := noCall) (P := P) (host := host) (vs := [])
+                  simpa using (RunC.labelBrSucc (C := C) (P := P) (host := host) (vs := [])
                     (code := []) (n := L₀.arity) (cont := if L₀.loop then [t] else []) hin)
                 exact .handlerBr h1
             have har' : L.arity ≤ (brVals k ls (L₀.outer ++ us)).length := by
@@ -1094,7 +1094,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- Under coherent frames, the CFG's `loop` flag of a level is the frame's. -/
 theorem levelLoop_of_framesOk {body : Expr} :
@@ -1122,15 +1122,15 @@ theorem levelLoop_of_framesOk {body : Expr} :
 theorem br_code {b : BlockId} {sg : Segment} {c : List Instr} {stk stk₁ : List Val}
     {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {i : Instr}
     (hsg : (segment c)[b.idx]? = some sg) (ht : sg.term = some i)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hbr : Run P host s₁ f₁ stk₁ ([.plain i] ++ expression (restAt c (b.idx + 1))) s₁ f₁
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hbr : RunC P host C s₁ f₁ stk₁ ([.plain i] ++ expression (restAt c (b.idx + 1))) s₁ f₁
       (.br l.toNat stk₁)) :
-    Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁ (.br l.toNat stk₁) := by
+    RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁ (.br l.toNat stk₁) := by
   apply Proofs.Region.run_vals (vs := [])
   rw [restAt_cons hsg]
   simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append,
     List.append_assoc] at hbr ⊢
-  exact Proofs.Region.run_append hr (by simp only [Then]; simpa using hbr)
+  exact Proofs.Region.run_append hr (by simp only [ThenC]; simpa using hbr)
 
 /-- **A machine `br` step to a `loop` label is sound for the label invariant** (loop re-entry),
 under coherent frames, with the step's run-time arity and block-type checks. -/
@@ -1138,7 +1138,7 @@ theorem br_loop_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk�
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {L : LFrame}
     {t₁ t₂ : List CValType} {X Y : List Admin} (hb : lookup body b = some sg)
     (ht : sg.term = some (.br l))
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
     (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
     (hloop : L.loop = true)
     (hbt : f₁.module.blockType? L.bt = some (t₁, t₂)) (hlen : t₁.length = L.arity)
@@ -1146,11 +1146,11 @@ theorem br_loop_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk�
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
       (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
   have hin := br_code (l := l) hsg ht hr (by simpa [expression] using
-    (RunC.br (C := noCall) (P := P) (host := host) (s := s₁) (f := f₁) (vs := stk₁) (l := l)
+    (RunC.br (C := C) (P := P) (host := host) (s := s₁) (f := f₁) (vs := stk₁) (l := l)
       (code := expression (restAt c (b.idx + 1)))))
   have hY' : codeOf body (goto ((labelsRev body b.seq.reverse).getD l.toNat .invalid)
       (b.seq.reverse.length - l.toNat) (L :: ls.drop (l.toNat + 1))
@@ -1164,7 +1164,7 @@ theorem brIfTaken_loop_step_sound {body : Expr} {b : BlockId} {sg : Segment}
     {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx}
     {L : LFrame} {k : BitVec 32} {t₁ t₂ : List CValType} {X Y : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
     (hk : k ≠ 0) (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls stk₁).length)
     (hloop : L.loop = true) (hbt : f₁.module.blockType? L.bt = some (t₁, t₂))
     (hlen : t₁.length = L.arity) (hok : FramesOk body b.seq.reverse ls)
@@ -1172,17 +1172,17 @@ theorem brIfTaken_loop_step_sound {body : Expr} {b : BlockId} {sg : Segment}
     (hY : codeOf body (goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
       (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls stk₁)) s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
-  have hin : Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
+  have hin : RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
       (.br l.toNat stk₁) := by
     apply Proofs.Region.run_vals (vs := [])
     rw [restAt_cons hsg]
     simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append, List.map_cons,
       List.map_nil, List.append_assoc, List.singleton_append, List.nil_append]
     refine Proofs.Region.run_append hr ?_
-    simp only [Then]
+    simp only [ThenC]
     refine .brIf (k := k) ?_
     split
     · rename_i h0; exact absurd h0 hk
@@ -1205,7 +1205,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 theorem framesOk_length {body : Expr} :
     ∀ (rp : List SeqStep) (ls : List LFrame), FramesOk body rp ls → ls.length = rp.length
@@ -1396,13 +1396,13 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- A trap propagates through every label frame (`label` and `handler` alike). -/
 theorem wrap_trap {body : Expr} {s s' : Store H} {f f' : Frame} :
     ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin},
       wrap body rp ls inner = some X →
-      Run P host s f [] inner s' f' .trap → Run P host s f [] X s' f' .trap
+      RunC P host C s f [] inner s' f' .trap → RunC P host C s f [] X s' f' .trap
   | [], [], _, _, hX, h => by simp [wrap] at hX; subst hX; exact h
   | [], _ :: _, _, _, hX, _ => by simp [wrap] at hX
   | _ :: _, [], _, _, hX, _ => by simp [wrap] at hX
@@ -1422,7 +1422,7 @@ theorem wrap_trap {body : Expr} {s s' : Store H} {f f' : Frame} :
           apply Proofs.Region.run_vals (vs := [])
           cases L.tryT
           · exact .labelTrap h
-          · exact .handlerTrap (by simpa using (RunC.labelTrap (C := noCall) (P := P)
+          · exact .handlerTrap (by simpa using (RunC.labelTrap (C := C) (P := P)
               (host := host) (vs := []) (code := []) (n := L.arity)
               (cont := if L.loop then [t] else []) h))
 
@@ -1431,7 +1431,7 @@ the returned ones. -/
 theorem wrap_ret {body : Expr} {s s' : Store H} {f f' : Frame} :
     ∀ (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin} {us : List Val},
       wrap body rp ls inner = some X →
-      Run P host s f [] inner s' f' (.ret us) → ∃ W, Run P host s f [] X s' f' (.ret (W ++ us))
+      RunC P host C s f [] inner s' f' (.ret us) → ∃ W, RunC P host C s f [] X s' f' (.ret (W ++ us))
   | [], [], _, _, us, hX, h => by simp [wrap] at hX; subst hX; exact ⟨[], h⟩
   | [], _ :: _, _, _, _, hX, _ => by simp [wrap] at hX
   | _ :: _, [], _, _, _, hX, _ => by simp [wrap] at hX
@@ -1447,7 +1447,7 @@ theorem wrap_ret {body : Expr} {s s' : Store H} {f f' : Frame} :
         | none => simp [hpc, hsg, ht] at hX
         | some t =>
           simp only [hpc, hsg, ht, Option.bind_some] at hX
-          have h1 : Run P host s f [] (vals L.outer ++
+          have h1 : RunC P host C s f [] (vals L.outer ++
               (if L.tryT then Admin.handler L.arity L.catches
                 [.label L.arity (if L.loop then [t] else []) inner]
               else .label L.arity (if L.loop then [t] else []) inner) ::
@@ -1455,9 +1455,9 @@ theorem wrap_ret {body : Expr} {s s' : Store H} {f f' : Frame} :
             apply Proofs.Region.run_vals (vs := [])
             cases L.tryT
             · exact .labelRet h
-            · have h2 : Run P host s f [] [.label L.arity (if L.loop then [t] else []) inner]
+            · have h2 : RunC P host C s f [] [.label L.arity (if L.loop then [t] else []) inner]
                   s' f' (.ret us) := by
-                simpa using (RunC.labelRet (C := noCall) (P := P) (host := host) (vs := [])
+                simpa using (RunC.labelRet (C := C) (P := P) (host := host) (vs := [])
                   (code := []) (n := L.arity) (cont := if L.loop then [t] else []) h)
               exact .handlerRet h2
           obtain ⟨W, hW⟩ := wrap_ret rp ls hX h1
@@ -1467,14 +1467,14 @@ theorem wrap_ret {body : Expr} {s s' : Store H} {f f' : Frame} :
 theorem block_then {b : BlockId} {sg : Segment} {c : List Instr} {stk stk₁ : List Val}
     {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {o : Out}
     (hsg : (segment c)[b.idx]? = some sg) (ht : sg.term = some i)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hi : Run P host s₁ f₁ stk₁ (.plain i :: expression (restAt c (b.idx + 1))) s₂ f₂ o) :
-    Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ o := by
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hi : RunC P host C s₁ f₁ stk₁ (.plain i :: expression (restAt c (b.idx + 1))) s₂ f₂ o) :
+    RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ o := by
   apply Proofs.Region.run_vals (vs := [])
   rw [restAt_cons hsg]
   simp only [Segment.instrs, ht, Option.toList_some, expression, List.map_append, List.map_cons,
     List.map_nil, List.append_assoc, List.singleton_append, List.nil_append] at hi ⊢
-  exact Proofs.Region.run_append hr (by simp only [Then]; exact hi)
+  exact Proofs.Region.run_append hr (by simp only [ThenC]; exact hi)
 
 theorem steps_unreachable {s : Store H} {f : Frame} (stk : List Val) :
     Steps P host ⟨s, f, vals stk ++ [.plain .unreachable]⟩ ⟨s, f, [.trap]⟩ := by
@@ -1493,8 +1493,8 @@ theorem steps_unreachable {s : Store H} {f : Frame} (stk : List Val) :
 theorem trap_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some .unreachable)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hX : codeAt body b stk ls = some X) : Run P host s f [] X s₁ f₁ .trap := by
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hX : codeAt body b stk ls = some X) : RunC P host C s f [] X s₁ f₁ .trap := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
   refine wrap_trap _ _ hX (block_then hsg ht hr ?_)
@@ -1504,28 +1504,28 @@ theorem trap_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List
 theorem bodyTrap_sound {body : Expr} {b : BlockId} {sg : Segment} {stk : List Val}
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
     (hb : lookup body b = some sg)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ .trap)
-    (hX : codeAt body b stk ls = some X) : Run P host s f [] X s₁ f₁ .trap := by
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ .trap)
+    (hX : codeAt body b stk ls = some X) : RunC P host C s f [] X s₁ f₁ .trap := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
   refine wrap_trap _ _ hX ?_
   apply Proofs.Region.run_vals (vs := [])
   rw [restAt_cons hsg]
   simp only [Segment.instrs, expression, List.map_append, List.append_assoc, List.nil_append]
-  exact Proofs.Region.run_append hr (by simp [Then])
+  exact Proofs.Region.run_append hr (by simp [ThenC])
 
 /-- **A terminator that traps is sound**: the code traps, with the terminator's final store. -/
 theorem termTrap_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {X : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some i)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ .trap)
-    (hX : codeAt body b stk ls = some X) : Run P host s f [] X s₂ f₂ .trap := by
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ .trap)
+    (hX : codeAt body b stk ls = some X) : RunC P host C s f [] X s₂ f₂ .trap := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
   refine wrap_trap _ _ hX (block_then hsg ht hr ?_)
   have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c (b.idx + 1)))
-    (o := .trap) (s' := s₂) (f' := f₂) hth (by simp [Then])
+    (o := .trap) (s' := s₂) (f' := f₂) hth (by simp [ThenC])
   simpa [expression] using h2
 
 /-- **A `return` is sound**: the code returns the block's values, over the frames' outer
@@ -1533,8 +1533,8 @@ values. -/
 theorem ret_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some .return_)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hX : codeAt body b stk ls = some X) : ∃ W, Run P host s f [] X s₁ f₁ (.ret (W ++ stk₁)) := by
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hX : codeAt body b stk ls = some X) : ∃ W, RunC P host C s f [] X s₁ f₁ (.ret (W ++ stk₁)) := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
   exact wrap_ret _ _ hX (block_then hsg ht hr .ret)
@@ -1550,7 +1550,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- An exception propagates through label frames whose handlers all let it pass. -/
 theorem wrap_throw_pass {body : Expr} {s s' : Store H} {f f' : Frame} {a : Nat} :
@@ -1558,7 +1558,7 @@ theorem wrap_throw_pass {body : Expr} {s s' : Store H} {f f' : Frame} {a : Nat} 
       (∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true →
         Catches s' f' a L.catches none) →
       wrap body rp ls inner = some X →
-      Run P host s f [] inner s' f' (.throw a) → Run P host s f [] X s' f' (.throw a)
+      RunC P host C s f [] inner s' f' (.throw a) → RunC P host C s f [] X s' f' (.throw a)
   | [], [], _, _, _, hX, h => by simp [wrap] at hX; subst hX; exact h
   | [], _ :: _, _, _, _, hX, _ => by simp [wrap] at hX
   | _ :: _, [], _, _, _, hX, _ => by simp [wrap] at hX
@@ -1580,7 +1580,7 @@ theorem wrap_throw_pass {body : Expr} {s s' : Store H} {f f' : Frame} {a : Nat} 
           · simp only [Bool.false_eq_true, ↓reduceIte]
             exact .labelThrow h
           · simp only [↓reduceIte]
-            exact .handlerRethrow (by simpa using (RunC.labelThrow (C := noCall) (P := P)
+            exact .handlerRethrow (by simpa using (RunC.labelThrow (C := C) (P := P)
               (host := host) (vs := []) (code := []) (n := L.arity)
               (cont := if L.loop then [t] else []) h)) (hT 0 L (by simp) hL)
 
@@ -1589,12 +1589,12 @@ store and frame, when every enclosing handler lets it pass. -/
 theorem raise_pass_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ : List Val}
     {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a : Nat}
     {X : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some i)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
     (hT : ∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true →
       Catches s₂ f₂ a L.catches none)
     (hX : codeAt body b stk ls = some X) :
-    Run P host s f [] X s₂ f₂ (.throw a) := by
+    RunC P host C s f [] X s₂ f₂ (.throw a) := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
   refine wrap_throw_pass _ _ hT hX (block_then hsg ht hr ?_)
@@ -1605,7 +1605,7 @@ theorem raise_pass_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ 
 /-- What a branch to the `k`-th label with values `V` out of the context `rp, ls` (code `X`)
 proves: for the label's frame, under the machine's run-time checks, going where the machine
 goes is region-run sound. -/
-def BrOut (P : Profile) (host : HostSemantics H) (body : Expr) (rp : List SeqStep)
+def BrOut (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) (body : Expr) (rp : List SeqStep)
     (ls : List LFrame) (X : List Admin) (s : Store H) (f : Frame) (k : Nat) (V : List Val)
     (s₁ : Store H) (f₁ : Frame) : Prop :=
   ∀ L : LFrame, ls[k]? = some L → L.arity ≤ V.length →
@@ -1619,13 +1619,13 @@ def BrOut (P : Profile) (host : HostSemantics H) (body : Expr) (rp : List SeqSte
           goto ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1)) (ls.drop (k + 1))
             (L.outer ++ V.drop (V.length - L.arity)) s₁ f₁) = some Y →
       ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-        Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o
+        RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o
 
 /-- A branch out of coherent frames, to a loop or not, is sound. -/
 theorem br_out {body : Expr} {rp : List SeqStep} {ls : List LFrame} {inner X : List Admin}
     {s s₁ : Store H} {f f₁ : Frame} {k : Nat} {V : List Val} (hok : FramesOk body rp ls)
-    (hX : wrap body rp ls inner = some X) (hin : Run P host s f [] inner s₁ f₁ (.br k V)) :
-    BrOut P host body rp ls X s f k (brVals k ls V) s₁ f₁ := by
+    (hX : wrap body rp ls inner = some X) (hin : RunC P host C s f [] inner s₁ f₁ (.br k V)) :
+    BrOut P host C body rp ls X s f k (brVals k ls V) s₁ f₁ := by
   intro L hL har hlbt Y hY o s₂ f₂ h
   cases hl : L.loop
   · simp only [hl, Bool.false_eq_true, ↓reduceIte] at hY
@@ -1636,8 +1636,8 @@ theorem br_out {body : Expr} {rp : List SeqStep} {ls : List LFrame} {inner X : L
 
 theorem brOut_succ {body : Expr} {rp : List SeqStep} {ls : List LFrame} {X : List Admin}
     {s s₁ : Store H} {f f₁ : Frame} {k : Nat} {V : List Val} {m a : Nat} {L₀ : LFrame}
-    (h : BrOut P host body rp ls X s f k V s₁ f₁) :
-    BrOut P host body ((m, a) :: rp) (L₀ :: ls) X s f (k + 1) V s₁ f₁ := by
+    (h : BrOut P host C body rp ls X s f k V s₁ f₁) :
+    BrOut P host C body ((m, a) :: rp) (L₀ :: ls) X s f (k + 1) V s₁ f₁ := by
   intro L hL har hlbt Y hY
   simp only [List.getElem?_cons_succ] at hL
   refine h L hL har hlbt ?_
@@ -1652,11 +1652,11 @@ theorem throw_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} {a : Nat} {
     {l : LabelIdx} :
     ∀ (j : Nat) (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin} {L : LFrame},
       FramesOk body rp ls → wrap body rp ls inner = some X →
-      Run P host s f [] inner s₁ f₁ (.throw a) →
+      RunC P host C s f [] inner s₁ f₁ (.throw a) →
       (∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
         Catches s₁ f₁ a L.catches none) →
       ls[j]? = some L → L.tryT = true → Catches s₁ f₁ a L.catches (some (us, l)) →
-      BrOut P host body rp ls X s f (j + 1 + l.toNat) (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))
+      BrOut P host C body rp ls X s f (j + 1 + l.toNat) (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))
         s₁ f₁
   | _, [], [], _, _, _, _, _, _, _, hL, _, _ => by simp at hL
   | _, [], _ :: _, _, _, _, hok, _, _, _, _, _, _ => by simp [FramesOk] at hok
@@ -1674,27 +1674,27 @@ theorem throw_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} {a : Nat} {
         | none => simp [hpc, hsg, ht] at hX0
         | some t =>
           simp only [hpc, hsg, ht, Option.bind_some] at hX0
-          have hlab : Run P host s f [] [.label L₀.arity (if L₀.loop then [t] else []) inner]
+          have hlab : RunC P host C s f [] [.label L₀.arity (if L₀.loop then [t] else []) inner]
               s₁ f₁ (.throw a) := by
-            simpa using (RunC.labelThrow (C := noCall) (P := P) (host := host) (vs := [])
+            simpa using (RunC.labelThrow (C := C) (P := P) (host := host) (vs := [])
               (code := []) (n := L₀.arity) (cont := if L₀.loop then [t] else []) hin)
           cases j with
           | zero =>
             simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
             subst hL
             simp only [hT, ↓reduceIte] at hX0
-            have hrun : Run P host s f [] (vals L₀.outer ++
+            have hrun : RunC P host C s f [] (vals L₀.outer ++
                 Admin.handler L₀.arity L₀.catches
                   [.label L₀.arity (if L₀.loop then [t] else []) inner] ::
                 expression (restAt pc (m + 1))) s₁ f₁ (.br l.toNat (L₀.outer ++ us)) := by
               apply Proofs.Region.run_vals (vs := [])
-              simpa using (RunC.handlerCatch (C := noCall) (P := P) (host := host)
+              simpa using (RunC.handlerCatch (C := C) (P := P) (host := host)
                 (vs := L₀.outer) (code := expression (restAt pc (m + 1))) hlab hc)
             have := brOut_succ (m := m) (a := a') (L₀ := L₀) (br_out hok.2 hX0 hrun)
             simpa [Nat.add_comm] using this
           | succ j =>
             simp only [List.getElem?_cons_succ] at hL
-            have hrun : Run P host s f [] (vals L₀.outer ++
+            have hrun : RunC P host C s f [] (vals L₀.outer ++
                 (if L₀.tryT then Admin.handler L₀.arity L₀.catches
                   [.label L₀.arity (if L₀.loop then [t] else []) inner]
                 else .label L₀.arity (if L₀.loop then [t] else []) inner) ::
@@ -1719,8 +1719,8 @@ theorem catch_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ 
     {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a j : Nat}
     {L L' : LFrame} {l : LabelIdx} {X Y : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some i)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
-    (hth : Run P host s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
     (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
       Catches s₂ f₂ a L.catches none)
     (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
@@ -1740,10 +1740,10 @@ theorem catch_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ 
             s₂ f₂) =
         some Y) :
     ∀ {o : Out} {s₃ : Store H} {f₃ : Frame},
-      Run P host s₂ f₂ [] Y s₃ f₃ o → Run P host s f [] X s₃ f₃ o := by
+      RunC P host C s₂ f₂ [] Y s₃ f₃ o → RunC P host C s f [] X s₃ f₃ o := by
   obtain ⟨c, hc', hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc', Option.bind_some] at hX
-  have hin : Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ (.throw a) := by
+  have hin : RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ (.throw a) := by
     refine block_then hsg ht hr ?_
     have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c (b.idx + 1))) hth
       ⟨rfl, rfl, rfl⟩
@@ -1767,6 +1767,127 @@ theorem catches_label {s : Store H} {f : Frame} {a : Nat} {cs : List Catch} {us 
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
+/-! ## Exceptions thrown in a block's straight-line body -/
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+
+/-- The straight-line body of a block has no terminator. -/
+theorem body_nonterm {c : List Instr} {i : Nat} {sg : Segment} (hsg : (segment c)[i]? = some sg) :
+    ∀ x ∈ sg.body, isTerminator x = false :=
+  ((segment_isSegmentation c).2.1 sg (List.mem_of_getElem? hsg)).1
+
+theorem expression_cons {is : List Instr} {a : Admin} {code : List Admin}
+    (h : expression is = a :: code) : ∃ i is', is = i :: is' ∧ a = .plain i ∧ code = expression is' := by
+  cases is with
+  | nil => simp [expression] at h
+  | cons i is' =>
+    simp only [expression, List.map_cons, List.cons.injEq] at h
+    exact ⟨i, is', rfl, h.1.symm, h.2.symm⟩
+
+set_option linter.unusedTactic false in
+/-- **Only calls throw in a straight-line body**: a region run of terminator-free code that
+throws `a` contains a `call`, and the oracle answered some call with that exception. -/
+theorem run_body_throw {is : List Instr} (hnt : ∀ x ∈ is, isTerminator x = false)
+    {s s' : Store H} {f f' : Frame} {vs : List Val} {a : Nat}
+    (h : RunC P host C s f vs (expression is) s' f' (.throw a)) :
+    (∃ x, Instr.call x ∈ is) ∧ ∃ s₀ a₀ us₀ s₁, C s₀ a₀ us₀ (s₁, .throw a) := by
+  generalize hc : expression is = code at h
+  generalize ho : Out.throw a = o at h
+  induction h generalizing is with
+  | nil => cases ho
+  | simpleTrap => cases ho
+  | trap => cases ho
+  | callTrap => cases ho
+  | val _ _ ih =>
+    obtain ⟨i, is', rfl, -, hc'⟩ := expression_cons hc
+    obtain ⟨⟨x, hx⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
+    exact ⟨⟨x, List.mem_cons_of_mem _ hx⟩, h2⟩
+  | simple _ _ _ ih =>
+    obtain ⟨i, is', rfl, -, hc'⟩ := expression_cons hc
+    obtain ⟨⟨x, hx⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
+    exact ⟨⟨x, List.mem_cons_of_mem _ hx⟩, h2⟩
+  | call _ _ _ _ _ _ ih =>
+    obtain ⟨i, is', rfl, -, hc'⟩ := expression_cons hc
+    obtain ⟨⟨x, hx⟩, h2⟩ := ih (fun y hy => hnt y (List.mem_cons_of_mem _ hy)) hc'.symm ho
+    exact ⟨⟨x, List.mem_cons_of_mem _ hx⟩, h2⟩
+  | callThrow _ _ _ hcall =>
+    obtain ⟨i, is', rfl, hi, -⟩ := expression_cons hc
+    cases hi; cases ho
+    exact ⟨⟨_, List.mem_cons_self ..⟩, _, _, _, _, hcall⟩
+  | brData hb =>
+    obtain ⟨i, is', rfl, hi, -⟩ := expression_cons hc
+    cases hi
+    have := hnt _ List.mem_cons_self
+    cases hb <;> simp [isTerminator] at this
+  | _ =>
+    obtain ⟨i, is', rfl, hi, -⟩ := expression_cons hc
+    cases hi
+    all_goals (have := hnt _ List.mem_cons_self; simp [isTerminator] at this)
+
+/-- A block body that throws: the code the block stands for, from its stack, throws too. -/
+theorem body_throw_run {c : List Instr} {i : Nat} {sg : Segment} {stk : List Val}
+    {s s₁ : Store H} {f f₁ : Frame} {a : Nat} (hsg : (segment c)[i]? = some sg)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.throw a)) :
+    RunC P host C s f [] (vals stk ++ expression (restAt c i)) s₁ f₁ (.throw a) := by
+  apply Proofs.Region.run_vals (vs := [])
+  rw [restAt_cons hsg]
+  simp only [Segment.instrs, expression, List.map_append, List.append_assoc, List.nil_append]
+  exact Proofs.Region.run_append hr ⟨rfl, rfl, rfl⟩
+
+/-- **An uncaught exception from a block's body is sound.** -/
+theorem bodyRaise_sound {body : Expr} {b : BlockId} {sg : Segment} {stk : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {a : Nat} {X : List Admin}
+    (hb : lookup body b = some sg)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.throw a))
+    (hT : ∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true →
+      Catches s₁ f₁ a L.catches none)
+    (hX : codeAt body b stk ls = some X) :
+    RunC P host C s f [] X s₁ f₁ (.throw a) := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  exact wrap_throw_pass _ _ hT hX (body_throw_run hsg hr)
+
+/-- **A caught exception from a block's body is sound**, as a caught `throw` terminator is. -/
+theorem bodyCatch_sound {body : Expr} {b : BlockId} {sg : Segment} {stk us : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {a j : Nat}
+    {L L' : LFrame} {l : LabelIdx} {X Y : List Admin}
+    (hb : lookup body b = some sg)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.throw a))
+    (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+      Catches s₁ f₁ a L.catches none)
+    (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₁ f₁ a L.catches (some (us, l)))
+    (hL' : ls[j + 1 + l.toNat]? = some L')
+    (harity : L'.arity ≤ (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)).length)
+    (hlbt : L'.loop = true → ∃ t₁ t₂, f₁.module.blockType? L'.bt = some (t₁, t₂) ∧
+      t₁.length = L'.arity)
+    (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (if L'.loop then
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat)) (L' :: ls.drop (j + 1 + l.toNat + 1))
+            (topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₁ f₁
+        else
+          goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
+            (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
+            (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us)))
+            s₁ f₁) =
+        some Y) :
+    ∀ {o : Out} {s₃ : Store H} {f₃ : Frame},
+      RunC P host C s₁ f₁ [] Y s₃ f₃ o → RunC P host C s f [] X s₃ f₃ o := by
+  obtain ⟨c, hc', hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc', Option.bind_some] at hX
+  have hbo := throw_lift j _ ls hok hX (body_throw_run hsg hr) hpass hL hT hc
+  intro o s₃ f₃ h
+  exact hbo L' hL' harity hlbt (by simpa [labels] using hY) h
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
 /-! ## Data-dependent branches -/
 
 namespace Silmaril.Wasm.Cfg.Proofs.Machine
@@ -1776,7 +1897,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **A taken data-dependent branch is sound** (`br_table`, `br_on_*` branching), under
 coherent frames and the branch's run-time checks. -/
@@ -1784,7 +1905,7 @@ theorem brDataTaken_step_sound {body : Expr} {b : BlockId} {sg : Segment}
     {stk ws us us' : List Val} {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {i : Instr}
     {l : LabelIdx} {L : LFrame} {X Y : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some i)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
     (hbs : BrStep s₁ f₁ us i us' [.plain (.br l)])
     (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls (ws ++ us')).length)
     (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
@@ -1798,12 +1919,12 @@ theorem brDataTaken_step_sound {body : Expr} {b : BlockId} {sg : Segment}
             (ls.drop (l.toNat + 1))
             (L.outer ++ topVals L.arity (brVals l.toNat ls (ws ++ us'))) s₁ f₁) = some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   simp only [codeAt, hc, Option.bind_some] at hX
-  have hin : Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
+  have hin : RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
       (.br l.toNat (ws ++ us')) :=
-    block_then hsg ht hr (.brData hbs (by simpa using (RunC.br (C := noCall) (P := P)
+    block_then hsg ht hr (.brData hbs (by simpa using (RunC.br (C := C) (P := P)
       (host := host) (s := s₁) (f := f₁) (vs := ws ++ us') (l := l)
       (code := expression (restAt c (b.idx + 1))))))
   intro o s₂ f₂ h
@@ -1814,13 +1935,13 @@ theorem brDataTaken_step_sound {body : Expr} {b : BlockId} {sg : Segment}
 theorem brDataNot_step_sound {body : Expr} {b : BlockId} {sg : Segment}
     {stk ws us us' : List Val} {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {i : Instr}
     {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some i)
-    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
     (hbs : BrStep s₁ f₁ us i us' [])
     (hX : codeAt body b stk ls = some X)
     (hY : codeOf body (goto (entry body b.seq (b.idx + 1)) b.seq.length ls (ws ++ us') s₁ f₁) =
       some Y) :
     ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+      RunC P host C s₁ f₁ [] Y s₂ f₂ o → RunC P host C s f [] X s₂ f₂ o := by
   obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
   refine advance_sound hc ?_ hX hY
   intro o s₂ f₂ h
@@ -1838,7 +1959,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 theorem resolveT_labels (body : Expr) (p : List SeqStep) (l : LabelIdx) :
     resolveT (labels body p) l = (labelsRev body p.reverse).getD l.toNat .invalid := by
@@ -1850,20 +1971,20 @@ that sink says (`Ends`). -/
 def StepOk (body : Expr) (st st₁ : MState H) (X : List Admin) : Prop :=
   MInv body st₁ ∧
     ((∃ Y, codeOf body st₁ = some Y ∧ ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-        Run P host st₁.store st₁.frame [] Y s₂ f₂ o → Run P host st.store st.frame [] X s₂ f₂ o) ∨
-      ∃ o, Ends st₁ o ∧ Run P host st.store st.frame [] X st₁.store st₁.frame o)
+        RunC P host C st₁.store st₁.frame [] Y s₂ f₂ o → RunC P host C st.store st.frame [] X s₂ f₂ o) ∨
+      ∃ o, Ends st₁ o ∧ RunC P host C st.store st.frame [] X st₁.store st₁.frame o)
 
 theorem stepOk_back {body : Expr} {st st₁ : MState H} {X : List Admin} (hok₁ : MInv body st₁)
     (hb : ∀ {Y : List Admin}, codeOf body st₁ = some Y → ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
-      Run P host st₁.store st₁.frame [] Y s₂ f₂ o → Run P host st.store st.frame [] X s₂ f₂ o) :
-    StepOk (P := P) (host := host) body st st₁ X := by
+      RunC P host C st₁.store st₁.frame [] Y s₂ f₂ o → RunC P host C st.store st.frame [] X s₂ f₂ o) :
+    StepOk (P := P) (host := host) (C := C) body st st₁ X := by
   obtain ⟨Y, hY⟩ := codeOf_of_ok hok₁
   exact ⟨hok₁, Or.inl ⟨Y, hY, hb hY⟩⟩
 
 /-- **Every machine step is sound** for the state invariant and the region code it stands for. -/
-theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStep P host body st st₁)
+theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStepC P host C body st st₁)
     (hok : MInv body st) {X : List Admin} (hX : codeOf body st = some X) :
-    StepOk (P := P) (host := host) body st st₁ X := by
+    StepOk (P := P) (host := host) (C := C) body st st₁ X := by
   cases h with
   | fall hb ht hr =>
     simp only [MInv] at hok; simp only [codeOf] at hX
@@ -1968,11 +2089,29 @@ theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStep P host body s
   | @raise b sg stk stk₁ ls s s₁ s₂ f f₁ f₂ i a hb ht hi hr hth hT =>
     simp only [codeOf] at hX
     exact ⟨by simp [MInv], Or.inr ⟨.throw a, by simp [Ends], raise_pass_sound hb ht hr hth hT hX⟩⟩
+  | @bodyRaise b sg stk ls s s₁ f f₁ a hb hr hT =>
+    simp only [codeOf] at hX
+    exact ⟨by simp [MInv], Or.inr ⟨.throw a, by simp [Ends], bodyRaise_sound hb hr hT hX⟩⟩
+  | @bodyCatch b sg stk us ls s s₁ f f₁ a j L L' l hb hr hpass hL hT hc hL' harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    cases hl : L'.loop
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      refine stepOk_back ?_ (fun hY => bodyCatch_sound hb hr hpass hL hT hc hL' harity hlbt
+        hok hX (by simp only [hl, Bool.false_eq_true, ↓reduceIte]; exact hY))
+      simp only [labels]
+      rw [← List.length_reverse (as := b.seq)]
+      exact br_ok hok hL' hl
+    · simp only [↓reduceIte]
+      refine stepOk_back ?_ (fun hY => bodyCatch_sound hb hr hpass hL hT hc hL' harity hlbt
+        hok hX (by simp only [hl, ↓reduceIte]; exact hY))
+      simp only [labels]
+      rw [← List.length_reverse (as := b.seq)]
+      exact br_loop_ok hok hL' hl
 
 /-- A sink state's own code ends as the sink says. -/
 theorem sink_sound {body : Expr} {st : MState H} (hs : st.node.IsSink) {X : List Admin}
     (hX : codeOf body st = some X) :
-    ∃ o, Ends st o ∧ Run P host st.store st.frame [] X st.store st.frame o := by
+    ∃ o, Ends st o ∧ RunC P host C st.store st.frame [] X st.store st.frame o := by
   obtain ⟨node, stk, ls, s, f⟩ := st
   cases node with
   | exit =>
@@ -2004,9 +2143,9 @@ theorem ends_not_block {st : MState H} {o : Out} (hE : Ends st o) {b : BlockId}
 /-- **Whole-run soundness**: a machine run from a state satisfying the invariant to a sink is a
 region run of the code the state stands for, ending as the sink says. -/
 theorem run_sound {body : Expr} {st st' : MState H}
-    (h : Relation.ReflTransGen (MStep P host body) st st') (hs : st'.node.IsSink)
+    (h : Relation.ReflTransGen (MStepC P host C body) st st') (hs : st'.node.IsSink)
     (hok : MInv body st) {X : List Admin} (hX : codeOf body st = some X) :
-    ∃ o, Ends st' o ∧ Run P host st.store st.frame [] X st'.store st'.frame o := by
+    ∃ o, Ends st' o ∧ RunC P host C st.store st.frame [] X st'.store st'.frame o := by
   induction h using Relation.ReflTransGen.head_induction_on generalizing X with
   | refl => exact sink_sound hs hX
   | head hstep hrest ih =>
@@ -2022,9 +2161,9 @@ theorem run_sound {body : Expr} {st st' : MState H}
 /-- **Whole-run soundness from the CFG entry**: a machine run of a function body from its
 initial state (`cfgEntry`, empty stack, no frames) to a sink is a region run of the body. -/
 theorem run_sound_initial {body : Expr} {s : Store H} {f : Frame} {st' : MState H}
-    (h : Relation.ReflTransGen (MStep P host body) (initial body s f) st')
+    (h : Relation.ReflTransGen (MStepC P host C body) (initial body s f) st')
     (hs : st'.node.IsSink) :
-    ∃ o, Ends st' o ∧ Run P host s f [] (expression body) st'.store st'.frame o := by
+    ∃ o, Ends st' o ∧ RunC P host C s f [] (expression body) st'.store st'.frame o := by
   have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by
     simp [initial, goto, popL, cfgEntry]
   have hok : MInv body (initial body s f) := by
@@ -2047,7 +2186,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 theorem structKind_tryT {t : Instr} {bt : BlockType} {lp : Bool} {cs : List Catch}
     (h : StructKind t bt lp true cs) : ∃ c, t = .tryTable bt cs c := by
@@ -2063,12 +2202,53 @@ theorem labelsRev_getD_drop (body : Expr) :
     simp only [labelsRev, List.getD_cons_succ, List.drop_succ_cons]
     exact labelsRev_getD_drop body n rp k (by simp at h; omega)
 
+/-- The target of a caught exception, from block `b` under coherent frames, is a catch edge of
+an enclosing `try_table` block. -/
+theorem catch_edge {body : Expr} {b : BlockId} {ls : List LFrame} {j : Nat} {L : LFrame}
+    {s : Store H} {f : Frame} {a : Nat} {us : List Val} {l : LabelIdx}
+    (hok : FramesOk body b.seq.reverse ls) (hL : ls[j]? = some L) (hT : L.tryT = true)
+    (hc : Catches s f a L.catches (some (us, l))) :
+    CatchEdge body b ((labels body b.seq).getD (j + 1 + l.toNat) .invalid) := by
+  have hjl : j < ls.length := (List.getElem?_eq_some_iff.mp hL).1
+  have hk : j < b.seq.reverse.length := by rw [← framesOk_length _ _ hok]; exact hjl
+  obtain ⟨⟨m, a'⟩, rp, hd, hd1⟩ := drop_cons_of hk
+  have hokj := framesOk_drop j _ _ hok
+  have hLj : ls[j] = L := by simpa using (List.getElem?_eq_some_iff.mp hL).2
+  rw [hd, List.drop_eq_getElem_cons hjl, hLj] at hokj
+  obtain ⟨⟨pc, sg', t, c', hpc, hsg', ht', -, hkind⟩, -⟩ := hokj
+  rw [hT] at hkind
+  obtain ⟨cb, rfl⟩ := structKind_tryT hkind
+  obtain ⟨cl, hcl, hcle⟩ := catches_label hc
+  have hseq : b.seq = rp.reverse ++ (m, a') :: (b.seq.reverse.take j).reverse := by
+    have := List.take_append_drop j b.seq.reverse
+    rw [hd] at this
+    have h2 := congrArg List.reverse this
+    simp only [List.reverse_reverse, List.reverse_append, List.reverse_cons] at h2
+    simpa using h2.symm
+  have hlk : lookup body ⟨rp.reverse, m⟩ = some sg' := by rw [lookup_eq]; simp [hpc, hsg']
+  refine ⟨⟨rp.reverse, m⟩, a', _, sg', L.bt, L.catches, cb, cl, hseq, hlk, ht', hcl, ?_⟩
+  have key : (labelsRev body b.seq.reverse).getD (j + 1 + l.toNat) .invalid =
+      resolveT (labels body rp.reverse) (catchLabel cl) := by
+    rw [labelsRev_getD_drop body (j + 1) _ l.toNat (by omega), hd1]
+    simp [resolveT, labels, hcle, Idx.toNat]
+  simpa [labels] using key
+
+/-- A block whose body holds a `call` has the effect edge to `raise`. -/
+theorem effect_raise {body : Expr} {b : BlockId} {sg : Segment} {x : FuncIdx}
+    (hb : lookup body b = some sg) (hx : Instr.call x ∈ sg.body) : EffectEdge body b .raise := by
+  have hm : Effect.call ∈ sg.instrs.flatMap instrEffects :=
+    List.mem_flatMap.2 ⟨.call x, by simp [Segment.instrs, hx], by simp [instrEffects]⟩
+  exact ⟨sg, hb, by simp [effectSucc, blockEffects, hm]⟩
+
 /-- **Every machine step from a state satisfying the invariant follows the extracted CFG**: an
-edge of its block, a trap of the block's body (an instruction effect, not a flow edge), or a
-catch edge of an enclosing `try_table` (`CatchEdge`). -/
-theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStep P host body st st')
+edge of its block, a trap of the block's body (an instruction effect, not a flow edge), a
+catch edge of an enclosing `try_table` (`CatchEdge`), or, for an exception that a `call` of the
+body raises (the oracle answered a call with an exception), the block's effect edge to
+`raise`. -/
+theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStepC P host C body st st')
     (hok : MInv body st) {b : BlockId} (hn : st.node = .block b) :
-    Edge body b st'.node ∨ st'.node = .trap ∨ CatchEdge body b st'.node := by
+    Edge body b st'.node ∨ st'.node = .trap ∨ CatchEdge body b st'.node ∨
+      (EffectEdge body b st'.node ∧ ∃ s₀ a₀ us₀ s₁ t, C s₀ a₀ us₀ (s₁, .throw t)) := by
   cases h with
   | fall hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
   | br hb ht =>
@@ -2099,33 +2279,22 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStep P host body st s
   | @raise _ _ _ _ _ _ _ _ _ _ _ i _ hb ht hi =>
     left; cases hn; refine ⟨_, hb, ?_⟩
     cases i <;> simp_all [Instr.IsThrow, succOf]
-  | @catch_ b' sg stk stk₁ us ls s s₁ s₂ f f₁ f₂ i a j L L' l hb ht hi hr hth hpass hL hT hc hL'
-      harity hlbt =>
-    right; right; cases hn
+  | catch_ hb ht hi hr hth hpass hL hT hc =>
+    right; right; left; cases hn
     simp only [MInv] at hok
-    have hjl : j < ls.length := (List.getElem?_eq_some_iff.mp hL).1
-    have hk : j < b.seq.reverse.length := by rw [← framesOk_length _ _ hok]; exact hjl
-    obtain ⟨⟨m, a'⟩, rp, hd, hd1⟩ := drop_cons_of hk
-    have hokj := framesOk_drop j _ _ hok
-    have hLj : ls[j] = L := by simpa using (List.getElem?_eq_some_iff.mp hL).2
-    rw [hd, List.drop_eq_getElem_cons hjl, hLj] at hokj
-    obtain ⟨⟨pc, sg', t, c', hpc, hsg', ht', -, hkind⟩, -⟩ := hokj
-    rw [hT] at hkind
-    obtain ⟨cb, rfl⟩ := structKind_tryT hkind
-    obtain ⟨cl, hcl, hcle⟩ := catches_label hc
-    have hseq : b.seq = rp.reverse ++ (m, a') :: (b.seq.reverse.take j).reverse := by
-      have := List.take_append_drop j b.seq.reverse
-      rw [hd] at this
-      have h2 := congrArg List.reverse this
-      simp only [List.reverse_reverse, List.reverse_append, List.reverse_cons] at h2
-      simpa using h2.symm
-    have hlk : lookup body ⟨rp.reverse, m⟩ = some sg' := by rw [lookup_eq]; simp [hpc, hsg']
-    refine ⟨⟨rp.reverse, m⟩, a', _, sg', L.bt, L.catches, cb, cl, hseq, hlk, ht', hcl, ?_⟩
-    have key : (labelsRev body b.seq.reverse).getD (j + 1 + l.toNat) .invalid =
-        resolveT (labels body rp.reverse) (catchLabel cl) := by
-      rw [labelsRev_getD_drop body (j + 1) _ l.toNat (by omega), hd1]
-      simp [resolveT, labels, hcle, Idx.toNat]
-    split <;> simpa [labels] using key
+    have := catch_edge hok hL hT hc
+    split <;> simpa [goto] using this
+  | bodyCatch hb hr hpass hL hT hc =>
+    right; right; left; cases hn
+    simp only [MInv] at hok
+    have := catch_edge hok hL hT hc
+    split <;> simpa [goto] using this
+  | bodyRaise hb hr =>
+    right; right; right; cases hn
+    obtain ⟨c, -, hsg⟩ := seg_of_lookup hb
+    obtain ⟨⟨x, hx⟩, hC⟩ := run_body_throw (body_nonterm hsg) hr
+    obtain ⟨s₀, a₀, us₀, s₁, hC⟩ := hC
+    exact ⟨effect_raise hb hx, s₀, a₀, us₀, s₁, _, hC⟩
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
@@ -2136,18 +2305,15 @@ namespace Silmaril.Wasm.Cfg.Proofs.Machine
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Region Silmaril.Wasm.Execution.Core
   Silmaril.Wasm.Numerics
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **A region run keeps the frame's module instance** (only locals change), so block types
 resolve the same way all along a run. -/
 theorem run_module {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List Admin}
-    {o : Out} (h : Run P host s f vs code s' f' o) : f'.module = f.module := by
+    {o : Out} (h : RunC P host C s f vs code s' f' o) : f'.module = f.module := by
   induction h with
   | simple _ h₁ _ ih => exact ih.trans (Steps.frame_module h₁)
   | simpleTrap _ h₁ => exact Steps.frame_module h₁
-  | call _ _ _ hcall => exact hcall.elim
-  | callTrap _ _ _ hcall => exact hcall.elim
-  | callThrow _ _ _ hcall => exact hcall.elim
   | _ => simp_all
 
 end Silmaril.Wasm.Cfg.Proofs.Machine

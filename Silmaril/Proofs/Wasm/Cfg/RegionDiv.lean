@@ -688,7 +688,7 @@ theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admi
       obtain ⟨ws', us', us'', X, rfl, hB, he⟩ := Step.brData_vals_inv hb hs'
       simp only [Config.mk.injEq] at he
       obtain ⟨rfl, rfl, rfl⟩ := he
-      have hFl : Frag (X ++ code) := frag_append.2 ⟨(frag_append.1 (expand_br (P := P)
+      have hFl : Frag (X ++ code) := frag_append.2 ⟨(frag_append.1 (expand_br (P := P) (C := noCall)
         (host := host) hB).1).2, hF'⟩
       have := DivF.brData (P := P) (host := host)
         (R := fun s f vs code => Frag code ∧ Diverges P host ⟨s, f, vals vs ++ code⟩)

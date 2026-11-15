@@ -23,7 +23,7 @@ set_option linter.unusedSimpArgs false
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-! ## `unreachable` never runs to values -/
 
@@ -131,40 +131,40 @@ def AllPass (s : Store H) (f : Frame) (a : Nat) (ls : List LFrame) : Prop :=
   ∀ (k : Nat) (L : LFrame), ls[k]? = some L → L.tryT = true → Catches s f a L.catches none
 
 /-- Machine runs. -/
-abbrev MRun (P : Profile) (host : HostSemantics H) (body : Expr) :=
-  Relation.ReflTransGen (MStep P host body)
+abbrev MRun (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) (body : Expr) :=
+  Relation.ReflTransGen (MStepC P host C body)
 
 /-- **What a region outcome at a level asks of the machine from `st`.** -/
-def Reach (P : Profile) (host : HostSemantics H) (body : Expr) (lv : Lv H) (st : MState H)
+def Reach (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) (body : Expr) (lv : Lv H) (st : MState H)
     (s' : Store H) (f' : Frame) : Out → Prop
-  | .normal us => MRun P host body st (lv.cont us s' f')
+  | .normal us => MRun P host C body st (lv.cont us s' f')
   | .br k us => ∀ L, lv.ls[k]? = some L →
       L.arity ≤ (brVals k lv.ls (lv.pre ++ us)).length → LoopOk f' L →
-      Relation.TransGen (MStep P host body) st
+      Relation.TransGen (MStepC P host C body) st
         (brTarget body lv.p k L lv.ls (brVals k lv.ls (lv.pre ++ us)) s' f')
-  | .ret us => ∃ W stk, us = W ++ stk ∧ MRun P host body st ⟨.exit, stk, [], s', f'⟩
-  | .trap => MRun P host body st ⟨.trap, [], [], s', f'⟩
+  | .ret us => ∃ W stk, us = W ++ stk ∧ MRun P host C body st ⟨.exit, stk, [], s', f'⟩
+  | .trap => MRun P host C body st ⟨.trap, [], [], s', f'⟩
   | .throw a =>
     (∀ (j : Nat) (L : LFrame) (us : List Val) (l : LabelIdx) (L' : LFrame),
       Pass s' f' a lv.tls j → lv.tls[j]? = some L → L.tryT = true →
       Catches s' f' a L.catches (some (us, l)) → lv.tls[j + 1 + l.toNat]? = some L' →
       L'.arity ≤ (brVals l.toNat (lv.tls.drop (j + 1)) (L.outer ++ us)).length →
       LoopOk f' L' →
-      Relation.TransGen (MStep P host body) st (brTarget body lv.tq (j + 1 + l.toNat) L' lv.tls
+      Relation.TransGen (MStepC P host C body) st (brTarget body lv.tq (j + 1 + l.toNat) L' lv.tls
         (brVals l.toNat (lv.tls.drop (j + 1)) (L.outer ++ us)) s' f')) ∧
-    (AllPass s' f' a lv.tls → MRun P host body st ⟨.raise, [.ref (.exn a)], [], s', f'⟩)
+    (AllPass s' f' a lv.tls → MRun P host C body st ⟨.raise, [.ref (.exn a)], [], s', f'⟩)
 
 /-- **The machine state a region code stands for**, at a level, for a run of the code from
 `s, f` on stack `vs`. -/
-inductive Rep (P : Profile) (host : HostSemantics H) (body : Expr) :
+inductive Rep (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) (body : Expr) :
     Lv H → Store H → Frame → List Val → List Admin → MState H → Prop where
   /-- Inside block `i` of sequence `p`: the body prefix `pre` ran from the block's state. -/
   | blk {p : List SeqStep} {ls : List LFrame} {c : List Instr} {i : Nat} {sg : Segment}
       {pre sfx : List Instr} {stk₀ : List Val} {s₀ s : Store H} {f₀ f : Frame} {vs V : List Val}
       (hc : seqAt body p = some c) (hsg : (segment c)[i]? = some sg)
       (hbody : sg.body = pre ++ sfx) (hne : sfx ≠ [] ∨ sg.term.isSome)
-      (hpre : Run P host s₀ f₀ stk₀ (expression pre) s f (.normal (vs ++ V))) :
-      Rep P host body (seqLv body p ls) s f vs
+      (hpre : RunC P host C s₀ f₀ stk₀ (expression pre) s f (.normal (vs ++ V))) :
+      Rep P host C body (seqLv body p ls) s f vs
         (vals V ++ expression (sfx ++ sg.term.toList ++ restAt c (i + 1)))
         ⟨.block ⟨p, i⟩, stk₀, ls, s₀, f₀⟩
   /-- At an `if` terminator, after Core chose the arm (`block bt arm`). -/
@@ -173,14 +173,14 @@ inductive Rep (P : Profile) (host : HostSemantics H) (body : Expr) :
       {s₀ s : Store H} {f₀ f : Frame} {vs V : List Val}
       (hc : seqAt body p = some c) (hsg : (segment c)[i]? = some sg)
       (ht : sg.term = some (.if_ bt t e))
-      (hpre : Run P host s₀ f₀ stk₀ (expression sg.body) s f (.normal (ws ++ [.i32 k])))
+      (hpre : RunC P host C s₀ f₀ stk₀ (expression sg.body) s f (.normal (ws ++ [.i32 k])))
       (hstk : vs ++ V = ws) :
-      Rep P host body (seqLv body p ls) s f vs
+      Rep P host C body (seqLv body p ls) s f vs
         (vals V ++ .plain (.block bt (if k = 0 then e else t)) :: expression (restAt c (i + 1)))
         ⟨.block ⟨p, i⟩, stk₀, ls, s₀, f₀⟩
   /-- The sequence is finished. -/
   | fin {p : List SeqStep} {ls : List LFrame} {s : Store H} {f : Frame} {vs V : List Val} :
-      Rep P host body (seqLv body p ls) s f vs (vals V)
+      Rep P host C body (seqLv body p ls) s f vs (vals V)
         (goto (contRev body p.reverse) p.length ls (vs ++ V) s f)
   /-- Inside the label of a structured terminator at `(m, a)` (not a `try_table`). -/
   | lab {p : List SeqStep} {ls : List LFrame} {c : List Instr} {m a : Nat} {sg : Segment}
@@ -189,8 +189,8 @@ inductive Rep (P : Profile) (host : HostSemantics H) (body : Expr) :
       (hc : seqAt body p = some c) (hsg : (segment c)[m]? = some sg) (ht : sg.term = some t)
       (harm : armOf t a = some c') (hkind : StructKind t L.bt L.loop L.tryT L.catches)
       (hT : L.tryT = false) (hlo : LoopOk f L) (hW : vs ++ V = L.outer)
-      (hin : Rep P host body (seqLv body (p ++ [(m, a)]) (L :: ls)) s f [] inner st) :
-      Rep P host body (seqLv body p ls) s f vs
+      (hin : Rep P host C body (seqLv body (p ++ [(m, a)]) (L :: ls)) s f [] inner st) :
+      Rep P host C body (seqLv body p ls) s f vs
         (vals V ++ .label L.arity (if L.loop then [t] else []) inner ::
           expression (restAt c (m + 1))) st
   /-- Inside the handler of a `try_table` at `(m, a)`. -/
@@ -200,16 +200,16 @@ inductive Rep (P : Profile) (host : HostSemantics H) (body : Expr) :
       (hc : seqAt body p = some c) (hsg : (segment c)[m]? = some sg) (ht : sg.term = some t)
       (harm : armOf t a = some c') (hkind : StructKind t L.bt L.loop L.tryT L.catches)
       (hT : L.tryT = true) (hW : vs ++ V = L.outer)
-      (hin : Rep P host body (hlLv body p m a L ls) s f [] [.label L.arity [] inner] st) :
-      Rep P host body (seqLv body p ls) s f vs
+      (hin : Rep P host C body (hlLv body p m a L ls) s f [] [.label L.arity [] inner] st) :
+      Rep P host C body (seqLv body p ls) s f vs
         (vals V ++ .handler L.arity L.catches [.label L.arity [] inner] ::
           expression (restAt c (m + 1))) st
   /-- The label inside a `try_table`'s handler. -/
   | hlab {p : List SeqStep} {ls : List LFrame} {m a : Nat} {L : LFrame} {inner : List Admin}
       {s : Store H} {f : Frame} {st : MState H}
       (hnl : isLoopAt body p m = false) (hloop : L.loop = false)
-      (hin : Rep P host body (seqLv body (p ++ [(m, a)]) (L :: ls)) s f [] inner st) :
-      Rep P host body (hlLv body p m a L ls) s f [] [.label L.arity [] inner] st
+      (hin : Rep P host C body (seqLv body (p ++ [(m, a)]) (L :: ls)) s f [] inner st) :
+      Rep P host C body (hlLv body p m a L ls) s f [] [.label L.arity [] inner] st
   /-- About to re-enter a `loop` after a branch to its label: the machine is already at the
   loop body's entry. -/
   | loopRe {p : List SeqStep} {ls : List LFrame} {c : List Instr} {m : Nat} {sg : Segment}
@@ -219,7 +219,7 @@ inductive Rep (P : Profile) (host : HostSemantics H) (body : Expr) :
       (ht : sg.term = some (.loop bt b))
       (hkind : StructKind (.loop bt b) L.bt L.loop L.tryT L.catches) (hlo : LoopOk f L)
       (hW : vs ++ V = L.outer ++ W) (hWl : W.length = L.arity) :
-      Rep P host body (seqLv body p ls) s f vs
+      Rep P host C body (seqLv body p ls) s f vs
         (vals V ++ .plain (.loop bt b) :: expression (restAt c (m + 1)))
         (goto (entry body (p ++ [(m, 0)]) 0) (p.length + 1) (L :: ls) W s f)
 
@@ -237,7 +237,7 @@ open Silmaril.Wasm.Cfg.Proofs.Machine in
 /-- **The machine state at a sequence position stands for the rest of the sequence.** -/
 theorem rep_entry {body : Expr} {q : List SeqStep} {c : List Instr} (i : Nat) (ls : List LFrame)
     {s : Store H} {f : Frame} (vs V : List Val) (hc : seqAt body q = some c) :
-    Rep P host body (seqLv body q ls) s f vs (vals V ++ expression (restAt c i))
+    Rep P host C body (seqLv body q ls) s f vs (vals V ++ expression (restAt c i))
       (goto (entry body q i) q.length ls (vs ++ V) s f) := by
   unfold entry
   split
@@ -249,19 +249,19 @@ theorem rep_entry {body : Expr} {q : List SeqStep} {c : List Instr} (i : Nat) (l
       by_contra hn
       simp only [not_or, ne_eq, not_not, Option.not_isSome_iff_eq_none] at hn
       exact (seg_wf hsg).1 (by simp [Segment.instrs, hn.1, hn.2])
-    have := Rep.blk (P := P) (host := host) (ls := ls) (pre := []) (sfx := sg.body) (V := V)
+    have := Rep.blk (P := P) (host := host) (C := C) (ls := ls) (pre := []) (sfx := sg.body) (V := V)
       (vs := vs) (s₀ := s) (f₀ := f) (stk₀ := vs ++ V) hc hsg (by simp) hne .nil
     rw [restAt_cons hsg]
     simpa [goto, depthT, popL, Segment.instrs] using this
   · rename_i hl
     rw [restAt_none hc (by simpa using hl)]
     simpa [cont, expression] using
-      (Rep.fin (P := P) (host := host) (body := body) (p := q) (ls := ls) (s := s) (f := f)
+      (Rep.fin (P := P) (host := host) (C := C) (body := body) (p := q) (ls := ls) (s := s) (f := f)
         (vs := vs) (V := V))
 
 theorem reach_mono {body : Expr} {lv : Lv H} {st st₁ : MState H} {s' : Store H} {f' : Frame}
-    {o : Out} (hm : MRun P host body st st₁)
-    (h : Reach P host body lv st₁ s' f' o) : Reach P host body lv st s' f' o := by
+    {o : Out} (hm : MRun P host C body st st₁)
+    (h : Reach P host C body lv st₁ s' f' o) : Reach P host C body lv st s' f' o := by
   cases o with
   | normal us => exact hm.trans h
   | br k us => exact fun L hL har hlo => Relation.TransGen.trans_right hm (h L hL har hlo)
@@ -273,8 +273,8 @@ theorem reach_mono {body : Expr} {lv : Lv H} {st st₁ : MState H} {s' : Store H
       fun h1 => hm.trans (h.2 h1)⟩
 
 theorem reach_step {body : Expr} {lv : Lv H} {st st₁ : MState H} {s' : Store H} {f' : Frame}
-    {o : Out} (hs : MStep P host body st st₁) (h : Reach P host body lv st₁ s' f' o) :
-    Reach P host body lv st s' f' o :=
+    {o : Out} (hs : MStepC P host C body st st₁) (h : Reach P host C body lv st₁ s' f' o) :
+    Reach P host C body lv st s' f' o :=
   reach_mono (.single hs) h
 
 theorem brTarget_succ (body : Expr) (p : List SeqStep) (m a k : Nat) (L' L : LFrame)
@@ -317,8 +317,8 @@ theorem brStep_val_none {s : Store H} {f : Frame} {us us' : List Val} {i : Instr
 
 /-- **The only rule for a value at the head pushes it.** -/
 theorem run_head_val {s s' : Store H} {f f' : Frame} {vs : List Val} {a : Admin} {v : Val}
-    {code : List Admin} {o : Out} (h : Run P host s f vs (a :: code) s' f' o)
-    (hv : a.val? = some v) : Run P host s f (vs ++ [v]) code s' f' o := by
+    {code : List Admin} {o : Out} (h : RunC P host C s f vs (a :: code) s' f' o)
+    (hv : a.val? = some v) : RunC P host C s f (vs ++ [v]) code s' f' o := by
   cases h with
   | val hv' h' => rw [hv] at hv'; cases hv'; exact h'
   | simple hi => rw [val_none_of_noncontrol hi] at hv; cases hv
@@ -328,7 +328,7 @@ theorem run_head_val {s s' : Store H} {f f' : Frame} {vs : List Val} {a : Admin}
 
 /-- A run of values only pushes them. -/
 theorem run_vals_only {s s' : Store H} {f f' : Frame} :
-    ∀ {vs W : List Val} {o : Out}, Run P host s f vs (vals W) s' f' o →
+    ∀ {vs W : List Val} {o : Out}, RunC P host C s f vs (vals W) s' f' o →
       o = .normal (vs ++ W) ∧ s' = s ∧ f' = f
   | _, [], o, h => by cases h; simp
   | vs, w :: W, o, h => by
@@ -385,16 +385,16 @@ theorem blk_adv {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List In
     {f₀ f f₁ f' : Frame} {vs vs₁ : List Val} {o : Out}
     (hc : seqAt body p = some c) (hsg : (segment c)[i]? = some sg)
     (hbody : sg.body = pre ++ x :: sfx')
-    (hpre : Run P host s₀ f₀ stk₀ (expression pre) s f (.normal vs))
-    (hx : Run P host s f vs [.plain x] s₁ f₁ (.normal vs₁))
+    (hpre : RunC P host C s₀ f₀ stk₀ (expression pre) s f (.normal vs))
+    (hx : RunC P host C s f vs [.plain x] s₁ f₁ (.normal vs₁))
     (ih : ∀ (lv : Lv H) (st : MState H),
-      Rep P host body lv s₁ f₁ vs₁ (expression (sfx' ++ sg.term.toList ++ restAt c (i + 1))) st →
-        Reach P host body lv st s' f' o) :
-    Reach P host body (seqLv body p ls) ⟨.block ⟨p, i⟩, stk₀, ls, s₀, f₀⟩ s' f' o := by
-  have hpre' : Run P host s₀ f₀ stk₀ (expression (pre ++ [x])) s₁ f₁ (.normal vs₁) := by
-    simpa [expression] using Proofs.Region.run_append hpre (by simp only [Then]; exact hx)
+      Rep P host C body lv s₁ f₁ vs₁ (expression (sfx' ++ sg.term.toList ++ restAt c (i + 1))) st →
+        Reach P host C body lv st s' f' o) :
+    Reach P host C body (seqLv body p ls) ⟨.block ⟨p, i⟩, stk₀, ls, s₀, f₀⟩ s' f' o := by
+  have hpre' : RunC P host C s₀ f₀ stk₀ (expression (pre ++ [x])) s₁ f₁ (.normal vs₁) := by
+    simpa [expression] using Proofs.Region.run_append hpre (by simp only [ThenC]; exact hx)
   by_cases hne : sfx' ≠ [] ∨ sg.term.isSome
-  · have hr := Rep.blk (P := P) (host := host) (ls := ls) (V := []) (vs := vs₁)
+  · have hr := Rep.blk (P := P) (host := host) (C := C) (ls := ls) (V := []) (vs := vs₁)
       (pre := pre ++ [x]) hc hsg (by simp [hbody]) hne (by simpa using hpre')
     exact ih _ _ (by simpa using hr)
   · have hsfx : sfx' = [] := by by_contra h'; exact hne (Or.inl h')
@@ -403,73 +403,73 @@ theorem blk_adv {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List In
       | none => rfl
       | some t => exact absurd (Or.inr (by simp [ht])) hne
     subst hsfx
-    have hr : Run P host s₀ f₀ stk₀ (expression sg.body) s₁ f₁ (.normal vs₁) := by
+    have hr : RunC P host C s₀ f₀ stk₀ (expression sg.body) s₁ f₁ (.normal vs₁) := by
       rw [hbody]; simpa using hpre'
-    refine reach_step (MStep.fall (b := ⟨p, i⟩) (lookup_of hc hsg) hterm hr) ?_
-    exact ih _ _ (by simpa [hterm] using rep_entry (P := P) (host := host) (i + 1) ls vs₁ [] hc)
+    refine reach_step (MStepC.fall (b := ⟨p, i⟩) (lookup_of hc hsg) hterm hr) ?_
+    exact ih _ _ (by simpa [hterm] using rep_entry (P := P) (host := host) (C := C) (i + 1) ls vs₁ [] hc)
 
 /-- **What a code with a non-value head stands for.** -/
-inductive HeadRep (P : Profile) (host : HostSemantics H) (body : Expr) (s : Store H) (f : Frame) :
+inductive HeadRep (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H) (body : Expr) (s : Store H) (f : Frame) :
     Lv H → List Val → Admin → List Admin → MState H → Prop where
   | body {p : List SeqStep} {ls : List LFrame} {c : List Instr} {i : Nat} {sg : Segment}
       {pre sfx : List Instr} {x : Instr} {stk₀ : List Val} {s₀ : Store H} {f₀ : Frame}
       {vs : List Val}
       (hc : seqAt body p = some c) (hsg : (segment c)[i]? = some sg)
       (hbody : sg.body = pre ++ x :: sfx) (hx : isTerminator x = false)
-      (hpre : Run P host s₀ f₀ stk₀ (expression pre) s f (.normal vs)) :
-      HeadRep P host body s f (seqLv body p ls) vs (.plain x)
+      (hpre : RunC P host C s₀ f₀ stk₀ (expression pre) s f (.normal vs)) :
+      HeadRep P host C body s f (seqLv body p ls) vs (.plain x)
         (expression (sfx ++ sg.term.toList ++ restAt c (i + 1)))
         ⟨.block ⟨p, i⟩, stk₀, ls, s₀, f₀⟩
   | term {p : List SeqStep} {ls : List LFrame} {c : List Instr} {i : Nat} {sg : Segment}
       {t : Instr} {stk₀ : List Val} {s₀ : Store H} {f₀ : Frame} {vs : List Val}
       (hc : seqAt body p = some c) (hsg : (segment c)[i]? = some sg) (ht : sg.term = some t)
-      (hpre : Run P host s₀ f₀ stk₀ (expression sg.body) s f (.normal vs)) :
-      HeadRep P host body s f (seqLv body p ls) vs (.plain t) (expression (restAt c (i + 1)))
+      (hpre : RunC P host C s₀ f₀ stk₀ (expression sg.body) s f (.normal vs)) :
+      HeadRep P host C body s f (seqLv body p ls) vs (.plain t) (expression (restAt c (i + 1)))
         ⟨.block ⟨p, i⟩, stk₀, ls, s₀, f₀⟩
   | blkIf {p : List SeqStep} {ls : List LFrame} {c : List Instr} {i : Nat} {sg : Segment}
       {bt : BlockType} {t e : List Instr} {k : BitVec 32} {stk₀ ws : List Val}
       {s₀ : Store H} {f₀ : Frame}
       (hc : seqAt body p = some c) (hsg : (segment c)[i]? = some sg)
       (ht : sg.term = some (.if_ bt t e))
-      (hpre : Run P host s₀ f₀ stk₀ (expression sg.body) s f (.normal (ws ++ [.i32 k]))) :
-      HeadRep P host body s f (seqLv body p ls) ws (.plain (.block bt (if k = 0 then e else t)))
+      (hpre : RunC P host C s₀ f₀ stk₀ (expression sg.body) s f (.normal (ws ++ [.i32 k]))) :
+      HeadRep P host C body s f (seqLv body p ls) ws (.plain (.block bt (if k = 0 then e else t)))
         (expression (restAt c (i + 1))) ⟨.block ⟨p, i⟩, stk₀, ls, s₀, f₀⟩
   | lab {p : List SeqStep} {ls : List LFrame} {c : List Instr} {m a : Nat} {sg : Segment}
       {t : Instr} {c' : List Instr} {L : LFrame} {inner : List Admin} {st : MState H}
       (hc : seqAt body p = some c) (hsg : (segment c)[m]? = some sg) (ht : sg.term = some t)
       (harm : armOf t a = some c') (hkind : StructKind t L.bt L.loop L.tryT L.catches)
       (hT : L.tryT = false) (hlo : LoopOk f L) {vs : List Val} (hW : vs = L.outer)
-      (hin : Rep P host body (seqLv body (p ++ [(m, a)]) (L :: ls)) s f [] inner st) :
-      HeadRep P host body s f (seqLv body p ls) vs
+      (hin : Rep P host C body (seqLv body (p ++ [(m, a)]) (L :: ls)) s f [] inner st) :
+      HeadRep P host C body s f (seqLv body p ls) vs
         (.label L.arity (if L.loop then [t] else []) inner) (expression (restAt c (m + 1))) st
   | hnd {p : List SeqStep} {ls : List LFrame} {c : List Instr} {m a : Nat} {sg : Segment}
       {t : Instr} {c' : List Instr} {L : LFrame} {inner : List Admin} {st : MState H}
       (hc : seqAt body p = some c) (hsg : (segment c)[m]? = some sg) (ht : sg.term = some t)
       (harm : armOf t a = some c') (hkind : StructKind t L.bt L.loop L.tryT L.catches)
       (hT : L.tryT = true) {vs : List Val} (hW : vs = L.outer)
-      (hin : Rep P host body (hlLv body p m a L ls) s f [] [.label L.arity [] inner] st) :
-      HeadRep P host body s f (seqLv body p ls) vs
+      (hin : Rep P host C body (hlLv body p m a L ls) s f [] [.label L.arity [] inner] st) :
+      HeadRep P host C body s f (seqLv body p ls) vs
         (.handler L.arity L.catches [.label L.arity [] inner]) (expression (restAt c (m + 1))) st
   | hlab {p : List SeqStep} {ls : List LFrame} {m a : Nat} {L : LFrame} {inner : List Admin}
       {st : MState H}
       {vs : List Val} (hv : vs = []) {code : List Admin} (hcode : code = [])
       (hnl : isLoopAt body p m = false) (hloop : L.loop = false)
-      (hin : Rep P host body (seqLv body (p ++ [(m, a)]) (L :: ls)) s f [] inner st) :
-      HeadRep P host body s f (hlLv body p m a L ls) vs (.label L.arity [] inner) code st
+      (hin : Rep P host C body (seqLv body (p ++ [(m, a)]) (L :: ls)) s f [] inner st) :
+      HeadRep P host C body s f (hlLv body p m a L ls) vs (.label L.arity [] inner) code st
   | loopRe {p : List SeqStep} {ls : List LFrame} {c : List Instr} {m : Nat} {sg : Segment}
       {bt : BlockType} {b : List Instr} {L : LFrame} {W : List Val}
       (hc : seqAt body p = some c) (hsg : (segment c)[m]? = some sg)
       (ht : sg.term = some (.loop bt b))
       (hkind : StructKind (.loop bt b) L.bt L.loop L.tryT L.catches) (hlo : LoopOk f L)
       (hWl : W.length = L.arity) {vs : List Val} (hW : vs = L.outer ++ W) :
-      HeadRep P host body s f (seqLv body p ls) vs (.plain (.loop bt b))
+      HeadRep P host C body s f (seqLv body p ls) vs (.plain (.loop bt b))
         (expression (restAt c (m + 1)))
         (goto (entry body (p ++ [(m, 0)]) 0) (p.length + 1) (L :: ls) W s f)
 
 theorem rep_head {body : Expr} {lv : Lv H} {s : Store H} {f : Frame} {vs : List Val}
     {a : Admin} {code : List Admin} {st : MState H}
-    (hr : Rep P host body lv s f vs (a :: code) st) (ha : a.val? = none) :
-    HeadRep P host body s f lv vs a code st := by
+    (hr : Rep P host C body lv s f vs (a :: code) st) (ha : a.val? = none) :
+    HeadRep P host C body s f lv vs a code st := by
   generalize hcd : a :: code = code₀ at hr
   cases hr with
   | blk hc hsg hbody hne hpre =>
@@ -503,6 +503,10 @@ theorem rep_head {body : Expr} {lv : Lv H} {s : Store H} {f : Frame} {vs : List 
     · simp at ha
     · simp at hX; obtain ⟨rfl, rfl⟩ := hX; simp at hW
       exact .loopRe hc hsg ht hkind hlo hWl hW
+
+theorem term_isTerminator {c : List Instr} {i : Nat} {sg : Segment} {t : Instr}
+    (hsg : (segment c)[i]? = some sg) (ht : sg.term = some t) : isTerminator t = true :=
+  ((segment_isSegmentation c).2.1 sg (List.mem_of_getElem? hsg)).2 t (by simp [ht])
 
 theorem term_noncontrol {c : List Instr} {i : Nat} {sg : Segment} {t : Instr}
     (hsg : (segment c)[i]? = some sg) (ht : sg.term = some t)
@@ -538,7 +542,7 @@ theorem brTarget_eq' (body : Expr) (p : List SeqStep) (k : Nat) (L : LFrame)
 
 /-- The only rule for `br` at the head. -/
 theorem run_br_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {l : LabelIdx}
-    {code : List Admin} {o : Out} (h : Run P host s f vs (.plain (.br l) :: code) s' f' o) :
+    {code : List Admin} {o : Out} (h : RunC P host C s f vs (.plain (.br l) :: code) s' f' o) :
     o = .br l.toNat vs ∧ s' = s ∧ f' = f := by
   cases h with
   | br => exact ⟨rfl, rfl, rfl⟩
@@ -563,9 +567,9 @@ theorem rep_arm {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {sg 
     {t : Instr} {a : Nat} {c' : List Instr} (ls : List LFrame) (L : LFrame) {s : Store H}
     {f : Frame} (us : List Val) (hc : seqAt body p = some c)
     (hsg : (segment c)[i]? = some sg) (ht : sg.term = some t) (harm : armOf t a = some c') :
-    Rep P host body (seqLv body (p ++ [(i, a)]) (L :: ls)) s f [] (vals us ++ expression c')
+    Rep P host C body (seqLv body (p ++ [(i, a)]) (L :: ls)) s f [] (vals us ++ expression c')
       (goto (entry body (p ++ [(i, a)]) 0) (p.length + 1) (L :: ls) us s f) := by
-  have := rep_entry (P := P) (host := host) (s := s) (f := f) 0 (L :: ls) [] us
+  have := rep_entry (P := P) (host := host) (C := C) (s := s) (f := f) 0 (L :: ls) [] us
     (seqAt_arm hc hsg ht harm)
   simpa [Proofs.Machine.restAt_zero] using this
 
@@ -611,9 +615,9 @@ theorem brTarget_zero_loop (body : Expr) (p : List SeqStep) (m a : Nat) (L : LFr
 /-- **Completeness at every level**: a region run of a code that stands for machine state `st`
 is matched by machine runs from `st`, as `Reach` says. -/
 theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
-    {code : List Admin} {o : Out} (h : Run P host s f vs code s' f' o) :
+    {code : List Admin} {o : Out} (h : RunC P host C s f vs code s' f' o) :
     ∀ (lv : Lv H) (st : MState H) (vs₀ : List Val) (code₀ : List Admin), vs₀ = vs →
-      code₀ = code → Rep P host body lv s f vs₀ code₀ st → Reach P host body lv st s' f' o := by
+      code₀ = code → Rep P host C body lv s f vs₀ code₀ st → Reach P host C body lv st s' f' o := by
   induction h with
   | nil =>
     intro lv st vs₀ code₀ hvs hcd hr
@@ -649,7 +653,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
       | cons w V' =>
         simp [vals] at hcd; obtain ⟨rfl, rfl⟩ := hcd
         simp at hv; subst hv
-        simpa using ih _ _ _ _ rfl rfl (Rep.fin (P := P) (host := host) (body := body) (p := p)
+        simpa using ih _ _ _ _ rfl rfl (Rep.fin (P := P) (host := host) (C := C) (body := body) (p := p)
           (ls := ls) (V := V'))
     | lab hc hsg ht harm hkind hT hlo hW hin =>
       rcases vals_cons_eq hcd with ⟨w, V', rfl, rfl, rfl⟩ | ⟨rfl, hX⟩
@@ -683,12 +687,12 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     subst hvs hcd
     cases rep_head hr (val_none_of_noncontrol hi) with
     | body hc hsg hbody hx hpre =>
-      refine .single (MStep.bodyTrap (lookup_of hc hsg) ?_)
+      refine .single (MStepC.bodyTrap (lookup_of hc hsg) ?_)
       rw [hbody]
       simpa [expression] using Proofs.Region.run_append hpre (by
-        simp only [Then]; exact .simpleTrap hi h₁)
+        simp only [ThenC]; exact .simpleTrap hi h₁)
     | term hc hsg ht hpre =>
-      exact .single (MStep.termTrap (lookup_of hc hsg) ht hpre (.simpleTrap hi h₁))
+      exact .single (MStepC.termTrap (lookup_of hc hsg) ht hpre (.simpleTrap hi h₁))
     | blkIf => simp [SingleThreaded.Det.famOf] at hi
     | loopRe => simp [SingleThreaded.Det.famOf] at hi
   | trap =>
@@ -703,13 +707,13 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     | term hc hsg ht hpre =>
       intro L hL har hlo
       rw [brTarget_eq]
-      exact .single (MStep.br (lookup_of hc hsg) ht hpre hL (by simpa [seqLv] using har) hlo)
+      exact .single (MStepC.br (lookup_of hc hsg) ht hpre hL (by simpa [seqLv] using har) hlo)
   | ret =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd
     cases rep_head hr rfl with
     | body hc hsg hbody hx => simp [isTerminator] at hx
-    | term hc hsg ht hpre => exact ⟨[], _, rfl, .single (MStep.ret (lookup_of hc hsg) ht hpre)⟩
+    | term hc hsg ht hpre => exact ⟨[], _, rfl, .single (MStepC.ret (lookup_of hc hsg) ht hpre)⟩
   | @brIf s s' f f' ws k l code o h ih =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd
@@ -719,14 +723,14 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
       by_cases hk : k = 0
       · subst hk
         simp only [↓reduceIte, List.nil_append] at h
-        refine reach_step (MStep.brIfNot (lookup_of hc hsg) ht hpre) ?_
-        have hre := rep_entry (P := P) (host := host) (s := s) (f := f) (i + 1) ls ws [] hc
+        refine reach_step (MStepC.brIfNot (lookup_of hc hsg) ht hpre) ?_
+        have hre := rep_entry (P := P) (host := host) (C := C) (s := s) (f := f) (i + 1) ls ws [] hc
         exact ih _ _ _ _ rfl rfl (by simpa using hre)
       · simp only [hk, ↓reduceIte, List.singleton_append] at h
         obtain ⟨rfl, rfl, rfl⟩ := run_br_inv h
         intro L hL har hlo
         rw [brTarget_eq]
-        exact .single (MStep.brIfTaken (lookup_of hc hsg) ht hpre hk hL
+        exact .single (MStepC.brIfTaken (lookup_of hc hsg) ht hpre hk hL
           (by simpa [seqLv] using har) hlo)
   | @throw s f ws vs x ta ti ts code ht he hn =>
     intro lv st vs₀ code₀ hvs hcd hr
@@ -734,33 +738,33 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     cases rep_head hr rfl with
     | body hc hsg hbody hx => simp [isTerminator] at hx
     | term hc hsg htm hpre =>
-      have hth : Run P host s f (ws ++ vs) [.plain (.throw x)] (s.addExn ⟨ta, vs⟩) f
+      have hth : RunC P host C s f (ws ++ vs) [.plain (.throw x)] (s.addExn ⟨ta, vs⟩) f
           (.throw s.exns.length) := RunC.throw ht he hn
       refine ⟨fun j L us l L' hpass hL hT hc' hL' har hlo => ?_, fun hall => ?_⟩
       · rw [brTarget_eq']
-        exact .single (MStep.catch_ (lookup_of hc hsg) htm trivial hpre hth hpass hL hT hc' hL'
+        exact .single (MStepC.catch_ (lookup_of hc hsg) htm trivial hpre hth hpass hL hT hc' hL'
           har hlo)
-      · exact .single (MStep.raise (lookup_of hc hsg) htm trivial hpre hth hall)
+      · exact .single (MStepC.raise (lookup_of hc hsg) htm trivial hpre hth hall)
   | throwRefNull =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd
     cases rep_head hr rfl with
     | body hc hsg hbody hx => simp [isTerminator] at hx
     | term hc hsg htm hpre =>
-      exact .single (MStep.termTrap (lookup_of hc hsg) htm hpre (.throwRefNull (code := [])))
+      exact .single (MStepC.termTrap (lookup_of hc hsg) htm hpre (.throwRefNull (code := [])))
   | @throwRefExn s f ws a code =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd
     cases rep_head hr rfl with
     | body hc hsg hbody hx => simp [isTerminator] at hx
     | term hc hsg htm hpre =>
-      have hth : Run P host s f (ws ++ [.ref (.exn a)]) [.plain .throwRef] s f (.throw a) :=
+      have hth : RunC P host C s f (ws ++ [.ref (.exn a)]) [.plain .throwRef] s f (.throw a) :=
         RunC.throwRefExn
       refine ⟨fun j L us l L' hpass hL hT hc' hL' har hlo => ?_, fun hall => ?_⟩
       · rw [brTarget_eq']
-        exact .single (MStep.catch_ (lookup_of hc hsg) htm trivial hpre hth hpass hL hT hc' hL'
+        exact .single (MStepC.catch_ (lookup_of hc hsg) htm trivial hpre hth hpass hL hT hc' hL'
           har hlo)
-      · exact .single (MStep.raise (lookup_of hc hsg) htm trivial hpre hth hall)
+      · exact .single (MStepC.raise (lookup_of hc hsg) htm trivial hpre hth hall)
   | @brData s s' f f' ws us us' i X code o hb h ih =>
     intro lv st vs₀ code₀ hvs hcd hr
     subst hvs hcd
@@ -768,15 +772,15 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     | body hc hsg hbody hx => cases hb <;> simp [isTerminator] at hx
     | @term p ls c i' sg t stk₀ s₀ f₀ _ hc hsg ht hpre =>
       rcases brStep_X hb with rfl | ⟨l, rfl⟩
-      · refine reach_step (MStep.brDataNot (lookup_of hc hsg) ht hpre hb) ?_
-        have hre := rep_entry (P := P) (host := host) (s := s) (f := f) (i' + 1) ls
+      · refine reach_step (MStepC.brDataNot (lookup_of hc hsg) ht hpre hb) ?_
+        have hre := rep_entry (P := P) (host := host) (C := C) (s := s) (f := f) (i' + 1) ls
           (ws ++ us') [] hc
         exact ih _ _ _ _ rfl rfl (by simpa using hre)
       · simp only [List.singleton_append] at h
         obtain ⟨rfl, rfl, rfl⟩ := run_br_inv h
         intro L hL har hlo
         rw [brTarget_eq]
-        exact .single (MStep.brDataTaken (ws := ws) (us := us) (us' := us') (lookup_of hc hsg) ht
+        exact .single (MStepC.brDataTaken (ws := ws) (us := us) (us' := us') (lookup_of hc hsg) ht
           hpre hb hL
           (by simpa [seqLv] using har) hlo)
     | blkIf => cases hb
@@ -787,7 +791,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     cases rep_head hr rfl with
     | body hc hsg hbody hx => simp [isTerminator] at hx
     | @term p ls c i sg t stk₀ s₀ f₀ _ hc hsg ht hpre =>
-      refine reach_step (MStep.enter (a := 0) (lookup_of hc hsg) ht rfl .block hpre
+      refine reach_step (MStepC.enter (a := 0) (lookup_of hc hsg) ht rfl .block hpre
         (.plain (by intros; simp)) hbt hm) ?_
       exact ih _ _ _ _ rfl rfl (Rep.lab (V := []) (L := ⟨t₂.length, ws, false, false, [], bt⟩)
         hc hsg ht rfl .block rfl (by simp [LoopOk]) (by simp)
@@ -796,13 +800,13 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
       by_cases hk : k = 0
       · subst hk
         simp only [↓reduceIte] at ih ⊢
-        refine reach_step (MStep.enter (a := 1) (lookup_of hc hsg) ht rfl .if_ hpre
+        refine reach_step (MStepC.enter (a := 1) (lookup_of hc hsg) ht rfl .if_ hpre
           CondArm.ifFalse hbt hm) ?_
         exact ih _ _ _ _ rfl rfl (Rep.lab (V := []) (L := ⟨t₂.length, ws, false, false, [], bt⟩)
           hc hsg ht rfl .if_ rfl (by simp [LoopOk]) (by simp)
           (rep_arm ls _ us hc hsg ht rfl))
       · simp only [hk, ↓reduceIte] at ih ⊢
-        refine reach_step (MStep.enter (a := 0) (lookup_of hc hsg) ht rfl .if_ hpre
+        refine reach_step (MStepC.enter (a := 0) (lookup_of hc hsg) ht rfl .if_ hpre
           (CondArm.ifTrue hk) hbt hm) ?_
         exact ih _ _ _ _ rfl rfl (Rep.lab (V := []) (L := ⟨t₂.length, ws, false, false, [], bt⟩)
           hc hsg ht rfl .if_ rfl (by simp [LoopOk]) (by simp)
@@ -820,7 +824,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     cases rep_head hr rfl with
     | body hc hsg hbody hx => simp [isTerminator] at hx
     | @term p ls c i sg t stk₀ s₀ f₀ _ hc hsg ht hpre =>
-      refine reach_step (MStep.enter (a := 0) (lookup_of hc hsg) ht rfl .tryTable hpre
+      refine reach_step (MStepC.enter (a := 0) (lookup_of hc hsg) ht rfl .tryTable hpre
         (.plain (by intros; simp)) hbt hm) ?_
       exact ih _ _ _ _ rfl rfl (Rep.hnd (V := []) (L := ⟨t₂.length, ws, false, true, cs, bt⟩)
         hc hsg ht rfl .tryTable rfl (by simp)
@@ -831,7 +835,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     cases rep_head hr rfl with
     | body hc hsg hbody hx => simp [isTerminator] at hx
     | @term p ls c i sg t stk₀ s₀ f₀ _ hc hsg ht hpre =>
-      refine reach_step (MStep.enter (a := 0) (lookup_of hc hsg) ht rfl .loop hpre
+      refine reach_step (MStepC.enter (a := 0) (lookup_of hc hsg) ht rfl .loop hpre
         (.plain (by intros; simp)) hbt hm) ?_
       exact ih _ _ _ _ rfl rfl (Rep.lab (V := []) (L := ⟨t₁.length, ws, true, false, [], bt⟩)
         hc hsg ht rfl .loop rfl (fun _ => ⟨t₁, t₂, hbt, rfl⟩) (by simp)
@@ -850,7 +854,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
       obtain ⟨rfl, rfl⟩ := hbt'
       have hl2 : us.length = W.length := by rw [hm, hlen, hWl]
       obtain ⟨rfl, rfl⟩ := List.append_inj' hW hl2
-      have hin := rep_arm (P := P) (host := host) (s := s) (f := f) (a := 0) ls L us hc hsg ht rfl
+      have hin := rep_arm (P := P) (host := host) (C := C) (s := s) (f := f) (a := 0) ls L us hc hsg ht rfl
       have := Rep.lab (V := []) (vs := L.outer) hc hsg ht rfl hkind hty hlo (by simp) hin
       rw [hlp] at this
       simp only [↓reduceIte] at this
@@ -862,19 +866,19 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     cases rep_head hr rfl with
     | @lab p ls c m a sg t c' L _ _ hc hsg ht harm hkind hT hlo _ hW hrin =>
       subst hW
-      have h1 : MRun P host body st _ := ih_in _ _ _ _ rfl rfl hrin
+      have h1 : MRun P host C body st _ := ih_in _ _ _ _ rfl rfl hrin
       rw [show (seqLv body (p ++ [(m, a)]) (L :: ls)).cont us s₁ f₁ = _ from
         seqLv_cont_arm body p m a L ls us s₁ f₁] at h1
-      have hre := rep_entry (P := P) (host := host) (s := s₁) (f := f₁) (m + 1) ls
+      have hre := rep_entry (P := P) (host := host) (C := C) (s := s₁) (f := f₁) (m + 1) ls
         (L.outer ++ us) [] hc
       exact reach_mono h1 (ih _ _ _ _ rfl rfl (by simpa using hre))
     | @hlab p ls m a L _ _ _ hv _ hcode hnl hloop hrin =>
       subst hv hcode
-      have h1 : MRun P host body st _ := ih_in _ _ _ _ rfl rfl hrin
+      have h1 : MRun P host C body st _ := ih_in _ _ _ _ rfl rfl hrin
       rw [show (seqLv body (p ++ [(m, a)]) (L :: ls)).cont us s₁ f₁ = _ from
         seqLv_cont_arm body p m a L ls us s₁ f₁] at h1
       cases h
-      show MRun P host body st ((hlLv body p m a L ls).cont us s₁ f₁)
+      show MRun P host C body st ((hlLv body p m a L ls).cont us s₁ f₁)
       rw [hlLv_cont]; simpa using h1
   | @labelBr0 s s₁ s' f f₁ f' vs us₁ us₂ n cont inner code o hin hn h ih_in ih =>
     intro lv st vs₀ code₀ hvs hcd hr
@@ -893,14 +897,14 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
       · rw [brTarget_zero_out body p m a L ls _ s₁ f₁ (hnl.trans hlp) hlp, htop] at hb
         simp only [hlp, Bool.false_eq_true, ↓reduceIte, expression, List.map_nil,
           List.append_nil] at h ih
-        have hre := rep_entry (P := P) (host := host) (s := s₁) (f := f₁) (m + 1) ls L.outer us₂ hc
+        have hre := rep_entry (P := P) (host := host) (C := C) (s := s₁) (f := f₁) (m + 1) ls L.outer us₂ hc
         exact reach_mono hb.to_reflTransGen (ih _ _ _ _ rfl rfl hre)
       · rw [brTarget_zero_loop body p m a L ls _ s₁ f₁ (hnl.trans hlp) hlp, htop] at hb
         obtain ⟨cb, rfl, -, -⟩ := Proofs.Machine.structKind_loop (hlp ▸ hkind)
         cases kind_arm_loop harm
         simp only [hlp, ↓reduceIte, expression, List.map_cons, List.map_nil,
           List.singleton_append, List.append_assoc] at h ih
-        have hre := Rep.loopRe (P := P) (host := host) (s := s₁) (ls := ls) (vs := L.outer)
+        have hre := Rep.loopRe (P := P) (host := host) (C := C) (s := s₁) (ls := ls) (vs := L.outer)
           (V := us₂)
           (W := us₂) hc hsg ht hkind (loopOk_of_module hmod hlo) rfl (by omega)
         exact reach_mono hb.to_reflTransGen
@@ -912,7 +916,7 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
       simp only [seqLv, List.nil_append, brVals] at hb
       rw [brTarget_zero_out body p m a L ls _ s₁ f₁ hnl hloop, htop] at hb
       obtain ⟨rfl, rfl, rfl⟩ := run_vals_only (by simpa [expression] using h)
-      show MRun P host body st ((hlLv body p m a L ls).cont us₂ _ _)
+      show MRun P host C body st ((hlLv body p m a L ls).cont us₂ _ _)
       rw [hlLv_cont]; simpa using hb.to_reflTransGen
   | @labelBrSucc s s₁ f f₁ vs us n l cont inner code hin ih_in =>
     intro lv st vs₀ code₀ hvs hcd hr
@@ -977,9 +981,9 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
     cases rep_head hr rfl with
     | @hnd p ls c m a sg t c' L _ _ hc hsg ht harm hkind hT _ hW hrin =>
       subst hW
-      have h1 : MRun P host body st _ := ih_in _ _ _ _ rfl rfl hrin
+      have h1 : MRun P host C body st _ := ih_in _ _ _ _ rfl rfl hrin
       rw [hlLv_cont] at h1
-      have hre := rep_entry (P := P) (host := host) (s := s₁) (f := f₁) (m + 1) ls
+      have hre := rep_entry (P := P) (host := host) (C := C) (s := s₁) (f := f₁) (m + 1) ls
         (L.outer ++ us) [] hc
       exact reach_mono h1 (ih _ _ _ _ rfl rfl (by simpa using hre))
   | @handlerBr s s₁ f f₁ vs us n l cs inner code hin ih_in =>
@@ -1040,9 +1044,38 @@ theorem complete {body : Expr} {s s' : Store H} {f f' : Frame} {vs : List Val}
         cases k with
         | zero => simp [hlLv, seqLv] at hL₁; subst hL₁; exact hc'
         | succ k => exact hall k L₁ (by simpa [hlLv, seqLv] using hL₁) hT₁
-  | call _ _ _ hcall => exact hcall.elim
-  | callTrap _ _ _ hcall => exact hcall.elim
-  | callThrow _ _ _ hcall => exact hcall.elim
+  | call hfi hty hn hcall hvs h ih =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx hpre =>
+      exact blk_adv hc hsg hbody hpre (.call hfi hty hn hcall hvs .nil)
+        (fun lv st hr => ih lv st _ _ rfl rfl hr)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | callTrap hfi hty hn hcall =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | body hc hsg hbody hx hpre =>
+      refine .single (MStepC.bodyTrap (lookup_of hc hsg) ?_)
+      rw [hbody]
+      simpa [expression] using Proofs.Region.run_append hpre (by
+        simp only [ThenC]; exact .callTrap hfi hty hn hcall)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
+  | @callThrow s s₁ f ws us x a t fi ps rs code hfi hty hn hcall =>
+    intro lv st vs₀ code₀ hvs₀ hcd hr
+    subst hvs₀ hcd
+    cases rep_head hr rfl with
+    | @body p ls c i sg pre sfx x' stk₀ s₀ f₀ _ hc hsg hbody hx hpre =>
+      have hbr : RunC P host C s₀ f₀ stk₀ (expression sg.body) s₁ f (.throw t) := by
+        rw [hbody]
+        simpa [expression] using Proofs.Region.run_append hpre (by
+          simp only [ThenC]; exact .callThrow hfi hty hn hcall)
+      refine ⟨fun j L us l L' hpass hL hT hc' hL' har hlo => ?_, fun hall => ?_⟩
+      · rw [brTarget_eq']
+        exact .single (MStepC.bodyCatch (lookup_of hc hsg) hbr hpass hL hT hc' hL' har hlo)
+      · exact .single (MStepC.bodyRaise (lookup_of hc hsg) hbr hall)
+    | term hc hsg ht hpre => exact absurd (term_isTerminator hsg ht) (by simp [isTerminator])
 
 end Silmaril.Wasm.Cfg.Proofs.MachineComplete
 
@@ -1051,18 +1084,18 @@ namespace Silmaril.Wasm.Cfg.Proofs.MachineComplete
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
   Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
 
-variable {H : Type} {P : Profile} {host : HostSemantics H}
+variable {H : Type} {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
 
 /-- **Completeness from the CFG entry**: every region run of a function body that does not end
 in a branch out of the body is a machine run from the initial state to a sink, ending as `Ends`
 says, in the same final store and frame. -/
 theorem run_complete_initial {body : Expr} {s s' : Store H} {f f' : Frame} {o : Out}
-    (h : Run P host s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us) :
-    ∃ st', MRun P host body (initial body s f) st' ∧ Ends st' o ∧ st'.store = s' ∧
+    (h : RunC P host C s f [] (expression body) s' f' o) (ho : ∀ k us, o ≠ .br k us) :
+    ∃ st', MRun P host C body (initial body s f) st' ∧ Ends st' o ∧ st'.store = s' ∧
       st'.frame = f' := by
   have hinit : initial body s f = goto (entry body [] 0) ([] : List SeqStep).length [] [] s f := by
     simp [initial, goto, popL, cfgEntry]
-  have hrep := rep_entry (P := P) (host := host) (body := body) (s := s) (f := f) 0 [] [] []
+  have hrep := rep_entry (P := P) (host := host) (C := C) (body := body) (s := s) (f := f) 0 [] [] []
     (q := []) (c := body) rfl
   simp only [Proofs.Machine.restAt_zero, vals, List.map_nil, List.nil_append] at hrep
   have hr := complete h _ _ _ _ rfl rfl hrep
