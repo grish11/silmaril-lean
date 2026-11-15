@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Cfg.Exec.Defs
 public import Silmaril.Wasm.SingleThreaded.Determinism.Basic
 public import Silmaril.Wasm.Execution.Core.Sim.Context
 public import Silmaril.Wasm.Execution.Core.Properties
+public import Silmaril.Wasm.Execution.Core.Inversion.Thms
 
 @[expose] public section
 
@@ -209,5 +210,183 @@ theorem resid_mid_step {H : Type} {P : Numerics.Profile} {host : HostSemantics H
         rw [he, ← List.append_assoc]
         exact Resid.mid (B' ++ A') (fun b hb => (List.mem_append.1 hb).elim (hB' b) (hA' b)) hj
       · right; rw [he]; exact Resid.exiting ws .trap
+
+end Silmaril.Wasm.Cfg.Proofs.Exec
+
+namespace Silmaril.Wasm.Cfg.Proofs.Exec
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Execution.Core
+
+/-! ## Entering structured instructions (milestone 3a) -/
+
+variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
+
+theorem drop_cons {is : List Instr} {j : Nat} {i : Instr} (hi : is[j]? = some i) :
+    expression (is.drop j) = .plain i :: expression (is.drop (j + 1)) := by
+  have hjl : j < is.length := by
+    rcases Nat.lt_or_ge j is.length with h' | h'
+    · exact h'
+    · simp [List.getElem?_eq_none h'] at hi
+  rw [List.drop_eq_getElem_cons hjl]
+  simp [List.getElem?_eq_getElem hjl] at hi
+  simp [expression, hi]
+
+/-- A step of `val* i rest`, `i` a structured instruction, is a step of `val* i` in context. -/
+theorem head_of {s s' : Store H} {f f' : Frame} {vs : List Val} {i : Instr} {es es' : List Admin}
+    (hv : (Admin.plain i).val? = none) (hi : i ≠ .throwRef)
+    (h : Step P host ⟨s, f, vals vs ++ .plain i :: es⟩ ⟨s', f', es'⟩) :
+    ∃ ws us is', vs = ws ++ us ∧ Step P host ⟨s, f, vals us ++ [.plain i]⟩ ⟨s', f', is'⟩ ∧
+      es' = vals ws ++ is' ++ es := by
+  rcases Sim.Step.split_head hv h with h | ⟨h, -⟩ | ⟨h, -⟩
+  · exact h
+  · cases h
+  · simp only [Admin.plain.injEq] at h; exact absurd h hi
+
+/-- Resolve a step at position `j` whose instruction is `i` to a step of `val* i`. -/
+theorem at_head {c c' : Config H} (h : Step P host c c') {is : List Instr} {j : Nat} {i : Instr}
+    (hi : is[j]? = some i) (hv : (Admin.plain i).val? = none) (hne : i ≠ .throwRef)
+    (hr : Resid is (.at j) c.code) :
+    ∃ vs ws us is', vs = ws ++ us ∧ Step P host ⟨c.store, c.frame, vals us ++ [.plain i]⟩
+      ⟨c'.store, c'.frame, is'⟩ ∧ c'.code = vals ws ++ is' ++ expression (is.drop (j + 1)) := by
+  generalize hcode : c.code = code at hr
+  cases hr with
+  | «at» vs hj =>
+    rcases c with ⟨s, f, cc⟩
+    rcases c' with ⟨s', f', cc'⟩
+    dsimp only at hcode ⊢
+    subst hcode
+    rw [drop_cons hi] at h
+    obtain ⟨ws, us, is', rfl, hs, rfl⟩ := head_of hv hne h
+    exact ⟨_, ws, us, is', rfl, hs, rfl⟩
+
+theorem resid_at_block_step {c c' : Config H} (h : Step P host c c') {is b : List Instr}
+    {j : Nat} {bt : BlockType} (hi : is[j]? = some (.block bt b)) (hr : Resid is (.at j) c.code) :
+    Resid is (.inArm j 0 (.at 0)) c'.code ∧ c'.store = c.store ∧ c'.frame = c.frame := by
+  obtain ⟨-, ws, us, is', -, hs, hc⟩ := at_head h hi rfl (by simp) hr
+  obtain ⟨ws', vs, t₁, t₂, rfl, -, -, he⟩ := Step.block_vals_inv hs
+  simp only [Config.mk.injEq] at he
+  obtain ⟨hs', hf', rfl⟩ := he
+  refine ⟨?_, hs', hf'⟩
+  rw [hc]
+  have := Resid.inBlock (ws ++ ws') t₂.length hi (Resid.at (is := b) (j := 0) vs (Nat.zero_le _))
+  simpa using this
+
+theorem resid_at_loop_step {c c' : Config H} (h : Step P host c c') {is b : List Instr}
+    {j : Nat} {bt : BlockType} (hi : is[j]? = some (.loop bt b)) (hr : Resid is (.at j) c.code) :
+    Resid is (.inArm j 0 (.at 0)) c'.code ∧ c'.store = c.store ∧ c'.frame = c.frame := by
+  obtain ⟨-, ws, us, is', -, hs, hc⟩ := at_head h hi rfl (by simp) hr
+  obtain ⟨ws', vs, t₁, t₂, rfl, -, -, he⟩ := Step.loop_vals_inv hs
+  simp only [Config.mk.injEq] at he
+  obtain ⟨hs', hf', rfl⟩ := he
+  refine ⟨?_, hs', hf'⟩
+  rw [hc]
+  have := Resid.inLoop (ws ++ ws') t₁.length hi (Resid.at (is := b) (j := 0) vs (Nat.zero_le _))
+  simpa using this
+
+theorem resid_at_tryTable_step {c c' : Config H} (h : Step P host c c') {is b : List Instr}
+    {j : Nat} {bt : BlockType} {cs : List Catch} (hi : is[j]? = some (.tryTable bt cs b))
+    (hr : Resid is (.at j) c.code) :
+    Resid is (.inArm j 0 (.at 0)) c'.code ∧ c'.store = c.store ∧ c'.frame = c.frame := by
+  obtain ⟨-, ws, us, is', -, hs, hc⟩ := at_head h hi rfl (by simp) hr
+  obtain ⟨ws', vs, t₁, t₂, rfl, -, -, he⟩ := Step.tryTable_vals_inv hs
+  simp only [Config.mk.injEq] at he
+  obtain ⟨hs', hf', rfl⟩ := he
+  refine ⟨?_, hs', hf'⟩
+  rw [hc]
+  have := Resid.inTry (ws ++ ws') t₂.length t₂.length hi
+    (Resid.at (is := b) (j := 0) vs (Nat.zero_le _))
+  simpa using this
+
+theorem resid_at_if_step {c c' : Config H} (h : Step P host c c') {is t e : List Instr}
+    {j : Nat} {bt : BlockType} (hi : is[j]? = some (.if_ bt t e)) (hr : Resid is (.at j) c.code) :
+    ∃ a, Resid is (.ifArm j a) c'.code ∧ c'.store = c.store ∧ c'.frame = c.frame := by
+  obtain ⟨-, ws, us, is', -, hs, hc⟩ := at_head h hi rfl (by simp) hr
+  obtain ⟨ws', k, rfl, he⟩ := Step.if_vals_inv hs
+  simp only [Config.mk.injEq] at he
+  obtain ⟨hs', hf', rfl⟩ := he
+  refine ⟨if k = 0 then 1 else 0, ?_, hs', hf'⟩
+  rw [hc]
+  split_ifs
+  · simpa using Resid.ifArm (ws ++ ws') hi (a := 1) (c := e) rfl
+  · simpa using Resid.ifArm (ws ++ ws') hi (a := 0) (c := t) rfl
+
+theorem resid_ifArm_step {c c' : Config H} (h : Step P host c c') {is : List Instr} {k a : Nat}
+    (hr : Resid is (.ifArm k a) c.code) :
+    Resid is (.inArm k a (.at 0)) c'.code ∧ c'.store = c.store ∧ c'.frame = c.frame := by
+  generalize hcode : c.code = code at hr
+  cases hr with
+  | @ifArm _ cc t e _ _ bt vs hk ha =>
+    rcases c with ⟨s, f, x⟩
+    rcases c' with ⟨s', f', x'⟩
+    dsimp only at hcode ⊢
+    subst hcode
+    rw [List.append_assoc, List.singleton_append] at h
+    obtain ⟨ws, us, is', rfl, hs, rfl⟩ := head_of rfl (by simp) h
+    obtain ⟨ws', vs, t₁, t₂, rfl, -, -, he⟩ := Step.block_vals_inv hs
+    simp only [Config.mk.injEq] at he
+    obtain ⟨rfl, rfl, rfl⟩ := he
+    refine ⟨?_, rfl, rfl⟩
+    have := Resid.inIf (ws ++ ws') t₂.length hk ha (Resid.at (is := cc) (j := 0) vs (Nat.zero_le _))
+    simpa using this
+
+/-- Leaving a `LABEL` whose body is only values (`label-vals`, under the sequence context). -/
+theorem label_vals_step {c c' : Config H} (h : Step P host c c') {vs ws : List Val} {n : Nat}
+    {cont : List Instr} {rest : List Admin}
+    (hc : c.code = vals vs ++ [.label n cont (vals ws)] ++ rest) :
+    c' = ⟨c.store, c.frame, vals (vs ++ ws) ++ rest⟩ := by
+  rcases c with ⟨s, f, x⟩
+  dsimp only at hc
+  subst hc
+  rw [List.append_assoc, List.singleton_append] at h
+  obtain ⟨c₀, h₀, rfl⟩ := Step.ctx_in_seq (by simp [Admin.IsCtx]) h
+  rcases Step.label_inv h₀ with ⟨_, _, _, hs, -⟩ | ⟨out, hx, rfl⟩
+  · exact (Step.not_vals hs).elim
+  · rw [labelExit_of_vals hx]; simp
+
+/-- **Falling out of a block, loop or `if` arm**: when the arm has run to its end, the next step
+leaves the label with its values, at the instruction after the structured one. -/
+theorem resid_inArm_done_step {c c' : Config H} (h : Step P host c c') {is : List Instr}
+    {k a m : Nat} (hlen : ∀ i b, is[k]? = some i → armOf i a = some b → m = b.length)
+    (hnt : ∀ bt cs b, is[k]? ≠ some (.tryTable bt cs b))
+    (hr : Resid is (.inArm k a (.at m)) c.code) :
+    Resid is (.at (k + 1)) c'.code ∧ c'.store = c.store ∧ c'.frame = c.frame := by
+  have hkl : ∀ {i}, is[k]? = some i → k + 1 ≤ is.length := fun {i} hk => by
+    rcases Nat.lt_or_ge k is.length with h' | h'
+    · omega
+    · simp [List.getElem?_eq_none h'] at hk
+  have fin : ∀ {vs ws : List Val} {n : Nat} {cont : List Instr},
+      k + 1 ≤ is.length →
+      c.code = vals vs ++ [.label n cont (vals ws)] ++ expression (is.drop (k + 1)) →
+      Resid is (.at (k + 1)) c'.code ∧ c'.store = c.store ∧ c'.frame = c.frame := by
+    intro vs ws n cont hk hc
+    rw [label_vals_step h hc]
+    exact ⟨Resid.at _ hk, rfl, rfl⟩
+  generalize hcode : c.code = code at hr
+  cases hr with
+  | @inBlock _ b _ _ _ inner vs n hk hin =>
+    have hm := hlen _ b hk rfl
+    generalize hl : Loc.at m = l at hin
+    cases hin with
+    | «at» ws _ =>
+      cases hl; subst hm
+      exact fin (vs := vs) (ws := ws) (n := n) (cont := []) (hkl hk) (by rw [hcode]; simp [expression])
+    | _ => cases hl
+  | @inLoop _ b _ bt _ inner vs n hk hin =>
+    have hm := hlen _ b hk rfl
+    generalize hl : Loc.at m = l at hin
+    cases hin with
+    | «at» ws _ =>
+      cases hl; subst hm
+      exact fin (vs := vs) (ws := ws) (n := n) (cont := [.loop bt b]) (hkl hk) (by rw [hcode]; simp [expression])
+    | _ => cases hl
+  | @inIf _ cc t e _ _ _ _ inner vs n hk ha hin =>
+    have hm := hlen _ cc hk ha
+    generalize hl : Loc.at m = l at hin
+    cases hin with
+    | «at» ws _ =>
+      cases hl; subst hm
+      exact fin (vs := vs) (ws := ws) (n := n) (cont := []) (hkl hk) (by rw [hcode]; simp [expression])
+    | _ => cases hl
+  | inTry _ _ _ hk _ => exact (hnt _ _ _ hk).elim
 
 end Silmaril.Wasm.Cfg.Proofs.Exec

@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Execution.Core.Inversion.Defs
+public import Silmaril.Wasm.Execution.Core.Sim.Context
 import Silmaril.Proofs.Wasm.Execution.Core.Inversion
 
 @[expose] public section
@@ -101,6 +102,42 @@ theorem Step.callRef_wasm_inv_exact {vs : List Val} {a : Nat} {r : Admin} {fi : 
       [.label rs.length [] (expression code.body)]]⟩ :=
   Proofs.Inversion.callRef_wasm_inv_exact hr hf hcode he hn h
 
+/-! ## Structured instructions under values
+
+Under a value prefix the rule may take only the top values (`ctxt-instrs`): the prefix splits
+as `ws ++ vs`, the instruction consumes `vs`, and `ws` stays in front. Store and frame are
+unchanged.
+-/
+
+theorem Step.block_vals_inv {us : List Val} {bt : BlockType} {body : List Instr}
+    (h : Step P host ⟨s, f, vals us ++ [.plain (.block bt body)]⟩ c) :
+    ∃ ws vs t₁ t₂, us = ws ++ vs ∧ f.module.blockType? bt = some (t₁, t₂) ∧
+      vs.length = t₁.length ∧
+      c = ⟨s, f, vals ws ++ [.label t₂.length [] (vals vs ++ expression body)]⟩ :=
+  Proofs.Inversion.block_vals_inv h rfl
+
+theorem Step.loop_vals_inv {us : List Val} {bt : BlockType} {body : List Instr}
+    (h : Step P host ⟨s, f, vals us ++ [.plain (.loop bt body)]⟩ c) :
+    ∃ ws vs t₁ t₂, us = ws ++ vs ∧ f.module.blockType? bt = some (t₁, t₂) ∧
+      vs.length = t₁.length ∧
+      c = ⟨s, f, vals ws ++ [.label t₁.length [.loop bt body] (vals vs ++ expression body)]⟩ :=
+  Proofs.Inversion.loop_vals_inv h rfl
+
+theorem Step.tryTable_vals_inv {us : List Val} {bt : BlockType} {cs : List Catch}
+    {body : List Instr} (h : Step P host ⟨s, f, vals us ++ [.plain (.tryTable bt cs body)]⟩ c) :
+    ∃ ws vs t₁ t₂, us = ws ++ vs ∧ f.module.blockType? bt = some (t₁, t₂) ∧
+      vs.length = t₁.length ∧
+      c = ⟨s, f, vals ws ++
+        [.handler t₂.length cs [.label t₂.length [] (vals vs ++ expression body)]]⟩ :=
+  Proofs.Inversion.tryTable_vals_inv h rfl
+
+/-- `if` pops its `i32` condition and becomes a `block` of the chosen arm. -/
+theorem Step.if_vals_inv {us : List Val} {bt : BlockType} {b₁ b₂ : List Instr}
+    (h : Step P host ⟨s, f, vals us ++ [.plain (.if_ bt b₁ b₂)]⟩ c) :
+    ∃ ws k, us = ws ++ [.i32 k] ∧
+      c = ⟨s, f, vals ws ++ [.plain (.block bt (if k = 0 then b₂ else b₁))]⟩ :=
+  Proofs.Inversion.if_vals_inv h rfl
+
 /-! ## Contexts -/
 
 /-- A label steps inside (`ctxt-label`) or by an exit rule. -/
@@ -124,6 +161,18 @@ theorem Step.frame_inv {n : Nat} {fi : Frame} {is : List Admin}
     (∃ s' fi' is', Step P host ⟨s, fi, is⟩ ⟨s', fi', is'⟩ ∧ c = ⟨s', f, [.frame n fi' is']⟩) ∨
       ∃ out, FrameExit s fi n is out ∧ c = ⟨s, f, out⟩ :=
   Proofs.Inversion.frame_inv h rfl
+
+/-- A `LABEL`, `HANDLER` or `FRAME` in the middle of a sequence steps as itself, in place. -/
+theorem Step.ctx_in_seq {vs : List Val} {X : Admin} {rest : List Admin} (hX : X.IsCtx)
+    (h : Step P host ⟨s, f, vals vs ++ X :: rest⟩ c) :
+    ∃ c₀ : Config H, Step P host ⟨s, f, [X]⟩ c₀ ∧
+      c = ⟨c₀.store, c₀.frame, vals vs ++ c₀.code ++ rest⟩ :=
+  Proofs.Inversion.ctx_in_seq hX h
+
+/-- A label around values only leaves with them (`label-vals`). -/
+theorem labelExit_of_vals {n : Nat} {cont : List Instr} {ws : List Val} {out : List Admin}
+    (h : LabelExit n cont (vals ws) out) : out = vals ws :=
+  Proofs.Inversion.labelExit_vals h
 
 /-- `LABEL_n{cont} (br 0)` only branches: `n = 0` and the continuation runs. -/
 theorem Step.label_br_zero_inv {n : Nat} {cont : List Instr} {l : LabelIdx} (hl : l.toNat = 0)

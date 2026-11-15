@@ -566,4 +566,258 @@ theorem loopBr0_not_terminal {s : Store H} {f : Frame} {bt : BlockType} {c : Con
     simp [Result.toAdmin, throwing] at hr <;>
     exact SingleThreaded.Det.mem_vals (hr ▸ List.mem_singleton_self _) rfl
 
+/-! ## Structured instructions under values -/
+
+/-- Closes the cases of a `Step` that cannot apply to `vals us ++ [X]` (`hc`), `X` a
+non-value control instruction that is no call. -/
+local macro "head_close" hc:ident : tactic => `(tactic| (
+  have hl := congrArg List.getLast? $hc:ident
+  simp only [List.getLast?_append, List.getLast?_singleton, List.getLast?_cons_cons,
+    Option.some_or, List.getLast?_cons] at hl
+  first
+    | (exact absurd (fam_parametric ‹_› hl) (by simp [Det.famOf]))
+    | (exact absurd (fam_numeric ‹_› hl) (by simp [Det.famOf]))
+    | (exact absurd (fam_vector ‹_› hl) (by simp [Det.famOf]))
+    | (exact absurd (fam_variable ‹_› hl) (by simp [Det.famOf]))
+    | (exact absurd (fam_table ‹_› hl) (by simp [Det.famOf]))
+    | (exact absurd (fam_memory ‹_› hl) (by simp [Det.famOf]))
+    | (exact absurd (fam_reference ‹_› hl) (by simp [Det.famOf]))
+    | (exact absurd (fam_aggregate ‹_› hl) (by simp [Det.famOf]))
+    | (simp at hl; done)
+    | (simp at hl; subst hl; simp_all [Admin.IsCallRef, Admin.IsReturnCallRef]; done)))
+
+/-- The `ctxt-instrs` case of an inversion of `vals us ++ [X]`: the inner code is
+`vals w ++ [X]` with `us = vs₀ ++ w`. -/
+theorem ctxt_vals_single {vs₀ us : List Val} {X : Admin} {is rest : List Admin}
+    (hX : X.val? = none) (his : is.all Admin.isVal = false)
+    (hc : vals vs₀ ++ is ++ rest = vals us ++ [X]) :
+    ∃ w, us = vs₀ ++ w ∧ is = vals w ++ [X] ∧ rest = [] := by
+  obtain ⟨w, b, t, hb, rfl⟩ := Sim.exists_head_of_not_all his
+  have hc' : vals (vs₀ ++ w) ++ b :: (t ++ rest) = vals us ++ X :: [] := by simpa using hc
+  obtain ⟨h1, rfl, h3⟩ := Sim.vals_append_cons_inj hb hX hc'
+  obtain ⟨rfl, rfl⟩ := List.append_eq_nil_iff.1 h3
+  exact ⟨w, h1.symm, rfl, rfl⟩
+
+/-- `trap-instrs` and `throw_ref-instrs` do not apply to `vals us ++ [X]`, `X` neither `TRAP`
+nor `THROW_REF`. -/
+theorem bubble_vals_single {vs us : List Val} {X : Admin} {rest : List Admin} (hX : X.val? = none)
+    (hne : X ≠ .trap ∧ X ≠ .plain .throwRef)
+    (hc : vals vs ++ [Admin.trap] ++ rest = vals us ++ [X] ∨
+      ∃ a, vals vs ++ throwing a ++ rest = vals us ++ [X]) : False := by
+  rcases hc with hc | ⟨a, hc⟩
+  · have hc' : vals vs ++ Admin.trap :: rest = vals us ++ X :: [] := by simpa using hc
+    exact hne.1 (Sim.vals_append_cons_inj rfl hX hc').2.1.symm
+  · have hc' : vals (vs ++ [.ref (.exn a)]) ++ Admin.plain .throwRef :: rest = vals us ++ X :: [] := by
+      simpa [throwing, vals, Val.toAdmin] using hc
+    exact hne.2 (Sim.vals_append_cons_inj rfl hX hc').2.1.symm
+
+theorem block_vals_inv {c c' : Config H} (h : Step P host c c') {bt : BlockType} {body : List Instr} :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain (.block bt body)] →
+      ∃ ws vs t₁ t₂, us = ws ++ vs ∧ c.frame.module.blockType? bt = some (t₁, t₂) ∧
+        vs.length = t₁.length ∧ c' = ⟨c.store, c.frame, vals ws ++ [.label t₂.length [] (vals vs ++ expression body)]⟩ := by
+  induction h with
+  | block hbt hm =>
+    intro us hc
+    obtain ⟨rfl, hx, -⟩ := Sim.vals_append_cons_inj rfl rfl hc
+    simp only [Admin.plain.injEq, Instr.block.injEq] at hx
+    obtain ⟨rfl, rfl⟩ := hx
+    exact ⟨[], _, _, _, rfl, hbt, hm, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    obtain ⟨ws, vs, t₁, t₂, rfl, hbt, hm, hc''⟩ := ih rfl
+    refine ⟨vs₀ ++ ws, vs, t₁, t₂, by simp, hbt, hm, ?_⟩
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
+theorem loop_vals_inv {c c' : Config H} (h : Step P host c c') {bt : BlockType} {body : List Instr} :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain (.loop bt body)] →
+      ∃ ws vs t₁ t₂, us = ws ++ vs ∧ c.frame.module.blockType? bt = some (t₁, t₂) ∧
+        vs.length = t₁.length ∧ c' = ⟨c.store, c.frame, vals ws ++ [.label t₁.length [.loop bt body] (vals vs ++ expression body)]⟩ := by
+  induction h with
+  | loop hbt hm =>
+    intro us hc
+    obtain ⟨rfl, hx, -⟩ := Sim.vals_append_cons_inj rfl rfl hc
+    simp only [Admin.plain.injEq, Instr.loop.injEq] at hx
+    obtain ⟨rfl, rfl⟩ := hx
+    exact ⟨[], _, _, _, rfl, hbt, hm, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    obtain ⟨ws, vs, t₁, t₂, rfl, hbt, hm, hc''⟩ := ih rfl
+    refine ⟨vs₀ ++ ws, vs, t₁, t₂, by simp, hbt, hm, ?_⟩
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
+theorem tryTable_vals_inv {c c' : Config H} (h : Step P host c c') {bt : BlockType} {cs : List Catch} {body : List Instr} :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain (.tryTable bt cs body)] →
+      ∃ ws vs t₁ t₂, us = ws ++ vs ∧ c.frame.module.blockType? bt = some (t₁, t₂) ∧
+        vs.length = t₁.length ∧ c' = ⟨c.store, c.frame, vals ws ++ [.handler t₂.length cs [.label t₂.length [] (vals vs ++ expression body)]]⟩ := by
+  induction h with
+  | tryTable hbt hm =>
+    intro us hc
+    obtain ⟨rfl, hx, -⟩ := Sim.vals_append_cons_inj rfl rfl hc
+    simp only [Admin.plain.injEq, Instr.tryTable.injEq] at hx
+    obtain ⟨rfl, rfl, rfl⟩ := hx
+    exact ⟨[], _, _, _, rfl, hbt, hm, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    obtain ⟨ws, vs, t₁, t₂, rfl, hbt, hm, hc''⟩ := ih rfl
+    refine ⟨vs₀ ++ ws, vs, t₁, t₂, by simp, hbt, hm, ?_⟩
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
+theorem if_vals_inv {c c' : Config H} (h : Step P host c c') {bt : BlockType}
+    {b₁ b₂ : List Instr} :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain (.if_ bt b₁ b₂)] →
+      ∃ ws k, us = ws ++ [.i32 k] ∧
+        c' = ⟨c.store, c.frame, vals ws ++ [.plain (.block bt (if k = 0 then b₂ else b₁))]⟩ := by
+  induction h with
+  | @ifTrue s f k bt' b₁' b₂' hk =>
+    intro us hc
+    have hc'' : vals [Val.i32 k] ++ (Admin.plain (.if_ bt' b₁' b₂')) :: [] =
+        vals us ++ .plain (.if_ bt b₁ b₂) :: [] := by
+      simpa [vals, Val.toAdmin, constI32, Val.i32] using hc
+    obtain ⟨rfl, hx, -⟩ := Sim.vals_append_cons_inj rfl rfl hc''
+    simp only [Admin.plain.injEq, Instr.if_.injEq] at hx
+    obtain ⟨rfl, rfl, rfl⟩ := hx
+    exact ⟨[], k, rfl, by simp [vals]; intro h0; exact absurd h0 hk⟩
+  | @ifFalse s f bt' b₁' b₂' =>
+    intro us hc
+    have hc'' : vals [Val.i32 0] ++ (Admin.plain (.if_ bt' b₁' b₂')) :: [] =
+        vals us ++ .plain (.if_ bt b₁ b₂) :: [] := by
+      simpa [vals, Val.toAdmin, constI32, Val.i32] using hc
+    obtain ⟨rfl, hx, -⟩ := Sim.vals_append_cons_inj rfl rfl hc''
+    simp only [Admin.plain.injEq, Instr.if_.injEq] at hx
+    obtain ⟨rfl, rfl, rfl⟩ := hx
+    exact ⟨[], 0, rfl, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    obtain ⟨ws, k, rfl, hc''⟩ := ih rfl
+    refine ⟨vs₀ ++ ws, k, by simp, ?_⟩
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
+/-! ## Contexts under values -/
+
+theorem ctx_val_none {X : Admin} (hX : X.IsCtx) : X.val? = none := by
+  cases X <;> simp_all [Admin.IsCtx, Admin.val?]
+
+theorem ctx_control {X : Admin} (hX : X.IsCtx) : Det.famOf X = .control := by
+  cases X <;> simp_all [Admin.IsCtx, Det.famOf]
+
+theorem not_ctx_callRef {r : Admin} (h : r.IsCallRef) : ¬ r.IsCtx := by
+  cases r <;> simp_all [Admin.IsCtx, Admin.IsCallRef]
+
+theorem not_ctx_retCallRef {r : Admin} (h : r.IsReturnCallRef) : ¬ r.IsCtx := by
+  cases r <;> simp_all [Admin.IsCtx, Admin.IsReturnCallRef]
+
+theorem ctx_vals_inv_aux {c c' : Config H} (h : Step P host c c') {X : Admin} (hX : X.IsCtx) :
+    ∀ {us : List Val}, c.code = vals us ++ [X] → us ≠ [] →
+      ∃ c₀ : Config H, Step P host ⟨c.store, c.frame, [X]⟩ c₀ ∧
+        c' = ⟨c₀.store, c₀.frame, vals us ++ c₀.code⟩ := by
+  have hv := ctx_val_none hX
+  have hk := ctx_control hX
+  induction h with
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc hus
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single hv hs.not_all_isVal hc
+    rcases w with _ | ⟨v, w⟩
+    · exact ⟨_, by simpa [vals] using hs, by simp⟩
+    · obtain ⟨c₀, h₀, he⟩ := ih rfl (List.cons_ne_nil _ _)
+      simp only [Config.mk.injEq] at he
+      obtain ⟨rfl, rfl, rfl⟩ := he
+      exact ⟨c₀, h₀, by simp⟩
+  | trapInstrs =>
+    intro us hc _
+    exact (bubble_vals_single hv ⟨by rintro rfl; simp [Admin.IsCtx] at hX,
+      by rintro rfl; simp [Admin.IsCtx] at hX⟩ (.inl hc)).elim
+  | throwRefInstrs =>
+    intro us hc _
+    exact (bubble_vals_single hv ⟨by rintro rfl; simp [Admin.IsCtx] at hX,
+      by rintro rfl; simp [Admin.IsCtx] at hX⟩ (.inr ⟨_, hc⟩)).elim
+  | _ =>
+    intro us hc hus
+    exfalso
+    first
+      | (have hl := congrArg List.length hc
+         simp only [List.length_append, vals_length, List.length_cons, List.length_nil] at hl
+         exact hus (List.eq_nil_of_length_eq_zero (by omega)))
+      | (have hl := congrArg List.getLast? hc
+         simp only [List.getLast?_append, List.getLast?_singleton, List.getLast?_cons_cons,
+           Option.some_or, List.getLast?_cons] at hl
+         first
+           | (have := fam_parametric ‹_› hl; simp [hk] at this; done)
+           | (have := fam_numeric ‹_› hl; simp [hk] at this; done)
+           | (have := fam_vector ‹_› hl; simp [hk] at this; done)
+           | (have := fam_variable ‹_› hl; simp [hk] at this; done)
+           | (have := fam_table ‹_› hl; simp [hk] at this; done)
+           | (have := fam_memory ‹_› hl; simp [hk] at this; done)
+           | (have := fam_reference ‹_› hl; simp [hk] at this; done)
+           | (have := fam_aggregate ‹_› hl; simp [hk] at this; done)
+           | (simp at hl; subst hl; simp [Admin.IsCtx] at hX; done)
+           | (simp at hl; subst hl; exact not_ctx_callRef ‹_› hX)
+           | (simp at hl; subst hl; exact not_ctx_retCallRef ‹_› hX))
+
+/-- A `LABEL`, `HANDLER` or `FRAME` under values steps as itself, under those values. -/
+theorem ctx_vals_inv {s : Store H} {f : Frame} {c : Config H} {us : List Val} {X : Admin}
+    (hX : X.IsCtx) (h : Step P host ⟨s, f, vals us ++ [X]⟩ c) :
+    ∃ c₀ : Config H, Step P host ⟨s, f, [X]⟩ c₀ ∧ c = ⟨c₀.store, c₀.frame, vals us ++ c₀.code⟩ := by
+  rcases us with _ | ⟨v, us⟩
+  · exact ⟨c, by simpa [vals] using h, by simp [vals]⟩
+  · exact ctx_vals_inv_aux h hX rfl (List.cons_ne_nil _ _)
+
+/-- A context instruction in the middle of a sequence steps as itself, in place. -/
+theorem ctx_in_seq {s : Store H} {f : Frame} {c : Config H} {vs : List Val} {X : Admin}
+    {rest : List Admin} (hX : X.IsCtx) (h : Step P host ⟨s, f, vals vs ++ X :: rest⟩ c) :
+    ∃ c₀ : Config H, Step P host ⟨s, f, [X]⟩ c₀ ∧
+      c = ⟨c₀.store, c₀.frame, vals vs ++ c₀.code ++ rest⟩ := by
+  rcases c with ⟨s', f', code'⟩
+  rcases Sim.Step.split_head (ctx_val_none hX) h with ⟨ws, us, is', rfl, hs, rfl⟩ | ⟨rfl, -⟩ |
+      ⟨rfl, -⟩
+  · obtain ⟨c₀, h₀, he⟩ := ctx_vals_inv hX hs
+    simp only [Config.mk.injEq] at he
+    obtain ⟨rfl, rfl, rfl⟩ := he
+    exact ⟨c₀, h₀, by simp⟩
+  · simp [Admin.IsCtx] at hX
+  · simp [Admin.IsCtx] at hX
+
+/-- A label around values only leaves with them (`label-vals`). -/
+theorem labelExit_vals {n : Nat} {cont : List Instr} {ws : List Val} {out : List Admin}
+    (h : LabelExit n cont (vals ws) out) : out = vals ws := by
+  generalize hw : vals ws = is at h
+  have hm : ∀ x, x ∈ is → x.val? = none → False := fun x hx hv =>
+    SingleThreaded.Det.mem_vals (hw ▸ hx) hv
+  cases h with
+  | vals vs => simp_all
+  | @brZero _ _ l _ _ _ => exact (hm (.plain (.br l)) (by simp) rfl).elim
+  | @brSucc _ l _ _ => exact (hm (.plain (.br l)) (by simp) rfl).elim
+  | ret => exact (hm (.plain .return_) (by simp) rfl).elim
+  | returnCall hc => exact (hm _ (by simp) (Admin.val?_of_isReturnCallRef hc)).elim
+  | throw => exact (hm (.plain .throwRef) (by simp [throwing]) rfl).elim
+  | trap => exact (hm .trap (by simp) rfl).elim
+
 end Silmaril.Wasm.Execution.Core.Proofs.Inversion

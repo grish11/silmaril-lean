@@ -248,6 +248,13 @@ The plain graph stays an over-approximation, and claims about it say so.
 3. **Control steps.** The steps of the terminators (`block`/`loop`/`if` entry, `br`,
    `br_if`, `br_table`, `br_on_*`, `return`, label exit, `unreachable`) move from `b` to a
    position at the entry of some `t` with `Edge body b t`, or to `exit`/`trap`.
+   *Done so far* (positions in `Cfg.Exec`, against `Step`): entering `block`, `loop`,
+   `try_table` and the chosen `if` arm, and falling out of a `block`/`loop`/`if` arm
+   (`resid_at_block_step` … `resid_inArm_done_step`). These use the shared Core inversions in
+   `Execution.Core.Inversion` (stuck codes, `call`/`call_ref`, `LabelExit`/`HandlerExit`/
+   `FrameExit`). Still to do: steps inside a label (lifting a body step through
+   `ctxt-label`), branches and their bubbling, `try_table` fall-through and catches, and the
+   projection of positions to `Cfg.Edge`.
 4. **Exceptions as control** (#230): a `throw`, or a raise out of a call, resolves to the
    enclosing `try_table` catch target or leaves the function. The CFG gets resolved exception
    edges for this, proved against the `HANDLER` rules. This replaces `handler-unresolved` and
