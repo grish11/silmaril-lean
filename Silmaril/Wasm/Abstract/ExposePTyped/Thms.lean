@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Abstract.ExposePTyped.Defs
 public import Silmaril.Wasm.Abstract.ExposePStruct.Thms
 import Silmaril.Proofs.Wasm.Abstract.ExposePTyped.Cat
 import Silmaril.Proofs.Wasm.Abstract.ExposePTyped.Realize
+import Silmaril.Proofs.Wasm.Abstract.ExposePTyped.Tensor
 
 /-!
 # The Core-typed subcategory of the exact F5 denotation, and the answered stack tensor: theorems
@@ -33,6 +34,28 @@ lowering is Core-typed between them and which passes #529's arity check.
   the check, and its Core configuration typed in context.
 * **Image closure.** `DenTMor` is closed under the operations on bodies: `idP_tmem`, `seqP_tmem`,
   `seqP_stop_tmem`, `opP_tmem`, `blockP_tmem`, `loopP_tmem`, `ifP_tmem`, `tryP_tmem`.
+
+**The answered stack tensor** (`ArityResp`, `whiskO`, `trimO`, `GoodO`; see Defs). #529's
+`denListXP_whisker` is an equation of `BodyM` computations for stack-pure code; for the call
+forms, `throw` and `try_table` no such equation holds pointwise in the monad (#529's
+`ExposePStruct.Thms` gives the counterexample `[call x, drop]` with an answer short of the
+callee's results). With an oracle `C` that respects arities (from a store agreeing with `Γ` its
+answers agree with `Γ`: functions, tags, well-formed exceptions; and return at least the
+callee's declared result count) the tensor holds for the answered semantics `CallXP.EvalOXP C`
+relationally, on **all** checked code:
+
+* `evalOXP_goodO`, `mor_goodO`: a checked run keeps `Γ`, its frame's instance and local count, and
+  ends as its check says (a fallthrough at the checked height, branches and returns with at least
+  their target's arity);
+* `evalOXP_tensor`, `mor_tensor`, `tmor_tensor`: the runs on `stk ++ rest` (to a store `s'`, a
+  frame `f'`, read through `trimO`) are exactly the runs on `stk` to the same `s'` and `f'`, their
+  result whiskered by `whiskO rest` and read through `trimO`. The hypotheses used, exactly: the
+  arity-respecting oracle (a call's continuation stack is at the checked height only when the
+  answer has the callee's result count), the store's tag instances being `Γ`'s with exceptions of
+  their tag's field count (`TagsOk`, so `throw` pops the checked field count and a caught
+  exception pushes at least its label's arity), and the store's functions being `Γ`'s (so a
+  call pops the checked parameter count). `throw`, `try_table` and the tail calls need no
+  hypothesis on the answers.
 -/
 
 public section
@@ -43,8 +66,9 @@ open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core Silmaril.
 open Silmaril.Wasm.Interp Silmaril.Wasm.Abstract.ExposePStruct
 open Silmaril.Wasm.Abstract.CallXT (typeArity)
 open Silmaril.Wasm.Abstract.ExposeP (ResP)
+open Silmaril.Wasm.Abstract.CallXP (EvalOXP POut)
 
-variable {H : Type} {Γ : Ctx H}
+variable {H : Type} {Γ : Ctx H} {C : Abstract.CallRel H}
 
 /-! ## The typed subcategory: closure -/
 
@@ -243,5 +267,63 @@ theorem tmor_typedP {I J : TIface} {ft : Bool} {es : List BExpr} {s : Store H} {
     {stk : List Val} (h : TMor Γ I J ft es) (hr : Realizes Γ I s f stk) (hI : I.Ok)
     (hJ : J.Ok) : TypedP Γ.tags s f stk es :=
   Silmaril.Proofs.Wasm.Abstract.ExposePTyped.tmor_typedP h hr hI hJ
+
+/-! ## The answered stack tensor -/
+
+/-- **The result invariant of an answered run** of checked code under an arity-respecting
+oracle: the store keeps agreeing with `Γ`, the frame keeps its instance and local count, and
+the result ends as the check says (`GoodO`). -/
+theorem evalOXP_goodO (hC : ArityResp Γ C) {s s' : Store H} {f f' : Frame} {stk : List Val}
+    {es : List BExpr} {o : POut} {labels : List Nat} {ret : Nat} {oc : Option Nat}
+    (d : EvalOXP C s f stk es (s', f', o)) (hg : Γ.Good s)
+    (hc : chkE (ehExt Γ.tags) s.funcs f.module f.locals.length ret labels (some stk.length) es =
+      some oc) :
+    Γ.Good s' ∧ f'.module = f.module ∧ f'.locals.length = f.locals.length ∧
+      GoodO labels ret oc o :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePTyped.evalOXP_goodO hC d hg hc
+
+/-- **The answered stack tensor.** Under an arity-respecting oracle, for checked code (every
+form: calls, tail calls, `throw`, `throw_ref`, `try_table` included), the runs on `stk ++ rest`
+read at their target's arity are exactly the runs on `stk` with `rest` appended below the
+fallthrough (`whiskO`), read at their target's arity (`trimO`): the same stores and frames, in
+both directions. -/
+theorem evalOXP_tensor (hC : ArityResp Γ C) {s : Store H} {f : Frame} {stk : List Val}
+    {es : List BExpr} {labels : List Nat} {ret : Nat} {oc : Option Nat} (hg : Γ.Good s)
+    (hc : chkE (ehExt Γ.tags) s.funcs f.module f.locals.length ret labels (some stk.length) es =
+      some oc)
+    (rest : List Val) (s' : Store H) (f' : Frame) (X : POut) :
+    (∃ o', EvalOXP C s f (stk ++ rest) es (s', f', o') ∧ trimO labels ret o' = X) ↔
+      ∃ o, EvalOXP C s f stk es (s', f', o) ∧ trimO labels ret (whiskO rest o) = X :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePTyped.evalOXP_tensor hC hg hc rest s' f' X
+
+/-- The result invariant for #529's checked morphisms. -/
+theorem mor_goodO (hC : ArityResp Γ C) {I : Iface} {oc : Option Nat} {es : List BExpr}
+    (hm : Mor Γ I oc es) {s s' : Store H} {f f' : Frame} {stk : List Val} {o : POut}
+    (d : EvalOXP C s f stk es (s', f', o)) (hg : Γ.Good s)
+    (hf : f.module = I.env.mi) (hn : f.locals.length = I.env.nl) (hs : stk.length = I.h) :
+    Γ.Good s' ∧ f'.module = f.module ∧ f'.locals.length = f.locals.length ∧
+      GoodO I.env.labels I.env.ret oc o :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePTyped.mor_goodO hC hm d hg hf hn hs
+
+/-- **The answered stack tensor for #529's checked morphisms** (`mor_whisker` beyond stack-pure
+code). -/
+theorem mor_tensor (hC : ArityResp Γ C) {I : Iface} {oc : Option Nat} {es : List BExpr}
+    (hm : Mor Γ I oc es) {s : Store H} {f : Frame} {stk : List Val} (hg : Γ.Good s)
+    (hf : f.module = I.env.mi) (hn : f.locals.length = I.env.nl) (hs : stk.length = I.h)
+    (rest : List Val) (s' : Store H) (f' : Frame) (X : POut) :
+    (∃ o', EvalOXP C s f (stk ++ rest) es (s', f', o') ∧ trimO I.env.labels I.env.ret o' = X) ↔
+      ∃ o, EvalOXP C s f stk es (s', f', o) ∧
+        trimO I.env.labels I.env.ret (whiskO rest o) = X :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePTyped.mor_tensor hC hm hg hf hn hs rest s' f' X
+
+/-- **The answered stack tensor for typed morphisms**, at every run state the interface
+describes. -/
+theorem tmor_tensor (hC : ArityResp Γ C) {I J : TIface} {ft : Bool} {es : List BExpr}
+    (hm : TMor Γ I J ft es) {s : Store H} {f : Frame} {stk : List Val}
+    (hr : Realizes Γ I s f stk) (rest : List Val) (s' : Store H) (f' : Frame) (X : POut) :
+    (∃ o', EvalOXP C s f (stk ++ rest) es (s', f', o') ∧ trimO I.env.labels I.env.ret o' = X) ↔
+      ∃ o, EvalOXP C s f stk es (s', f', o) ∧
+        trimO I.env.labels I.env.ret (whiskO rest o) = X :=
+  Silmaril.Proofs.Wasm.Abstract.ExposePTyped.tmor_tensor hC hm hr rest s' f' X
 
 end Silmaril.Wasm.Abstract.ExposePTyped

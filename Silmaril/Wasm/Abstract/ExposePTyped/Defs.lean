@@ -129,13 +129,13 @@ def trimO (labels : List Nat) (ret : Nat) : POut → POut
   | .flow (.ret vs) => .flow (.ret (vs.take ret))
   | o => o
 
-/-- The result invariant of code checked in `env` ending at `o` (`GoodR` on body results): a
-fallthrough at height `o`, a branch with at least its label's arity, a return with at least the
-result arity. -/
-def GoodO (env : Env) (o : Option Nat) : POut → Prop
+/-- The result invariant of code checked under labels of arities `labels` and result arity `ret`,
+ending at `o` (`GoodR` on body results): a fallthrough at height `o`, a branch with at least its
+label's arity, a return with at least the result arity. -/
+def GoodO (labels : List Nat) (ret : Nat) (o : Option Nat) : POut → Prop
   | .flow (.normal vs) => o = some vs.length
-  | .flow (.brk l vs) => ∃ n, env.labels[l]? = some n ∧ n ≤ vs.length
-  | .flow (.ret vs) => env.ret ≤ vs.length
+  | .flow (.brk l vs) => ∃ n, labels[l]? = some n ∧ n ≤ vs.length
+  | .flow (.ret vs) => ret ≤ vs.length
   | _ => True
 
 /-- **An arity-respecting oracle** for the context `Γ`: from a store agreeing with `Γ`
