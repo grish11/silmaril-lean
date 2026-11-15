@@ -90,4 +90,8 @@ trap. Some non-control rules expand into further instructions (`memory.fill`, `t
 …), hence the second disjunct of `SimpleAdmin`. -/
 def SimpleRes (is' : List Admin) : Prop := (∀ a ∈ is', SimpleAdmin a) ∨ is' = [.trap]
 
+/-- What a Core step from `val* a` (with `a` non-control) leaves: simple code, or values
+followed by a trap. -/
+def StepRes (x : List Admin) : Prop := (∀ a ∈ x, SimpleAdmin a) ∨ ∃ ws, x = vals ws ++ [.trap]
+
 end Silmaril.Wasm.Cfg

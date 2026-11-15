@@ -17,6 +17,8 @@ import Silmaril.Proofs.Wasm.Cfg.Exec
   `RefStep`, `AggregateStep`) leaves only values and non-control instructions, or a trap
   (`SimpleRes`). This is the per-family half of milestone 2: a straight-line step never
   creates a label, handler, frame, branch or exception.
+* `step_noncontrol`: lifted to `Step` itself (every rule, any host): a Core step from
+  `val* a`, `a` of a non-control family, leaves simple code or `val* trap` (`StepRes`).
 -/
 
 namespace Silmaril.Wasm.Cfg
@@ -52,6 +54,13 @@ theorem ref_res {c c' : Config H} (h : RefStep c c') : SimpleRes c'.code :=
   Proofs.Exec.ref_res h
 theorem aggregate_res {c c' : Config H} (h : AggregateStep c c') : SimpleRes c'.code :=
   Proofs.Exec.aggregate_res h
+
+/-- **A straight-line step leaves straight-line code or a trap**: any Core 3.0 step (any host)
+from `val* a` with `a` of a non-control family. -/
+theorem step_noncontrol {host : HostSemantics H} {c c' : Config H} (h : Step P host c c')
+    (us : List Val) (a : Admin) (hc : c.code = vals us ++ [a])
+    (hk : SingleThreaded.Det.famOf a ≠ .control) : StepRes c'.code :=
+  Proofs.Exec.step_noncontrol h us a hc hk
 
 end
 
