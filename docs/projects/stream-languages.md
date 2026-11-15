@@ -189,6 +189,16 @@ Assumptions, each a parameter rather than a fact:
   complete on is out of scope.
 - Nothing here proves anything about concrete Wasm execution.
 
+### `Silmaril.Formats.ByteStreams` (bridge to `Silmaril.Formats.Accept`)
+
+- `ChunkView` instances for `KBytes` and `Formats.Bytes`, through `BytesLike.toBytes`.
+  The `toList_eq_toBytes_*` lemmas show that every byte chunk view agrees with
+  `toBytes`.
+- `answer_iff_of_correctFold`: a `CorrectFold` acceptor answers yes iff the concatenated
+  bytes of its chunks are in the byte language.
+- `answer_single_iff`: fed one value as a single chunk, it answers yes iff `b ∈ᴮ L`.
+- `exact_over`: as a Bool checker on single values it is `Lang.Exact` for `L.over β`.
+
 ## Scope and limits
 
 - These are statements about data and languages. They do not show that any program
