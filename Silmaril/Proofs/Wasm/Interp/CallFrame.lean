@@ -28,11 +28,13 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Logic.Core
 variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H} {s s' : Store H} {a : Nat}
   {vs : List Val}
 
-theorem steps_callRef_of_eval {fi : FuncInst H} {fn : Func} {ps rs : List Validation.CValType}
-    {F' : Frame} {flb : Binaryen.Flow} (hS : StoreChk s.funcs) (hok : InvokeOk s a vs)
+theorem steps_callRef_of_good {fi : FuncInst H} {fn : Func} {ps rs : List Validation.CValType}
+    {F' : Frame} {flb : Binaryen.Flow} (hS : StoreChk s.funcs) (hlen : vs.length = ps.length)
     (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hev : Binaryen.Eval s (Frame.forCall fi.module vs fn.locals) [] (Binaryen.liftInstrs fn.body)
+    (aga : ArityGood s (Frame.forCall fi.module vs fn.locals) [] (Binaryen.liftInstrs fn.body)
+      (s', F', flb))
+    (cga : CoreGood P host s (Frame.forCall fi.module vs fn.locals) [] (Binaryen.liftInstrs fn.body)
       (s', F', flb)) (f : Frame) :
     (∀ ws, flb.retVals = some ws → Steps P host
         ⟨s, f, vals vs ++ [.ref (.func a), .callRefType fi.type]⟩
@@ -40,7 +42,6 @@ theorem steps_callRef_of_eval {fi : FuncInst H} {fn : Func} {ps rs : List Valida
       (flb = .trap → Steps P host ⟨s, f, vals vs ++ [.ref (.func a), .callRefType fi.type]⟩
         ⟨s', f, [.trap]⟩) ∧
       ∀ t, flb ≠ .throw t := by
-  have hlen : vs.length = ps.length := args_length hok hfi hty
   have hlocals : (Frame.forCall fi.module vs fn.locals).locals.length =
       ps.length + fn.locals.length := forCall_length _ _ hlen
   obtain ⟨ob, hb, hob⟩ := endsAt_eq (hS a fi fn ps rs hfi hcode hty)
@@ -49,8 +50,8 @@ theorem steps_callRef_of_eval {fi : FuncInst H} {fn : Func} {ps rs : List Valida
       (some ([] : List Val).length) (Binaryen.liftInstrs fn.body) = some ob := by
     rw [hlocals]
     exact hb
-  obtain ⟨hok', -⟩ := flowOk_of_eval hev hS hbc
-  have hwp := wp_of_eval (P := P) (host := host) hev hS hbc
+  obtain ⟨hok', -⟩ := aga hS hbc
+  have hwp := cga hS hbc
   rw [Binaryen.lowerList_liftInstrs] at hwp
   obtain ⟨c', o, hbody, he, hm⟩ := run_of_wp hwp
   have enter : Steps P host ⟨s, f, vals vs ++ [.ref (.func a), .callRefType fi.type]⟩
@@ -78,5 +79,20 @@ theorem steps_callRef_of_eval {fi : FuncInst H} {fn : Func} {ps rs : List Valida
     exact hst.trans ((Relation.ReflTransGen.single (Step.ctxtFrame Step.trapLabel)).tail Step.trapFrame)
   · subst ht
     exact hok'
+
+theorem steps_callRef_of_eval {fi : FuncInst H} {fn : Func} {ps rs : List Validation.CValType}
+    {F' : Frame} {flb : Binaryen.Flow} (hS : StoreChk s.funcs) (hok : InvokeOk s a vs)
+    (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hev : Binaryen.Eval s (Frame.forCall fi.module vs fn.locals) [] (Binaryen.liftInstrs fn.body)
+      (s', F', flb)) (f : Frame) :
+    (∀ ws, flb.retVals = some ws → Steps P host
+        ⟨s, f, vals vs ++ [.ref (.func a), .callRefType fi.type]⟩
+        ⟨s', f, vals (ws.take rs.length).reverse⟩) ∧
+      (flb = .trap → Steps P host ⟨s, f, vals vs ++ [.ref (.func a), .callRefType fi.type]⟩
+        ⟨s', f, [.trap]⟩) ∧
+      ∀ t, flb ≠ .throw t :=
+  steps_callRef_of_good hS (args_length hok hfi hty) hfi hcode hty (flowOk_of_eval hev)
+    (wp_of_eval hev) f
 
 end Silmaril.Wasm.Interp

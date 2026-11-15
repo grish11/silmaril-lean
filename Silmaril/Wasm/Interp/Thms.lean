@@ -8,6 +8,7 @@ public import Silmaril.Proofs.Wasm.Interp.Check
 public import Silmaril.Proofs.Wasm.Interp.Replace
 public import Silmaril.Proofs.Wasm.Interp.Store
 public import Silmaril.Proofs.Wasm.Interp.CallFrame
+public import Silmaril.Proofs.Wasm.Interp.HostOracle
 
 @[expose] public section
 
@@ -29,6 +30,15 @@ straight-line integer instructions with in-range local writes (`BExpr.straightLi
 * `steps_trap_of_eval`, `steps_trap_of_run`: a native evaluation or run ending in a trap
   (division/remainder by zero, signed overflow) is a Core 3.0 run of the lowered code, in any
   code context `rest`, to `[trap]`, every profile and host.
+
+**Call oracles and host calls** (`Silmaril.Proofs.Wasm.Interp.OracleSim`, `HostOracle`).
+`evalO_good`: with a sound oracle (`OracleSound`: answers keep the store's functions, return at
+the callee's arity, and are Core runs of `call_ref` in any frame), every
+`Abstract.EvalO C` run of arity-checked code is a Core 3.0 run. `hostCall_sound`,
+`evalH_good`: the host-call oracle `Abstract.hostCall host` is sound for hosts in the
+**native host slice** `NativeHostSlice` (answers keep the functions, values at the declared
+result arity, no exceptions), so every `Abstract.EvalH host` run is a Core run with that host,
+every profile. Hosts that allocate functions are outside the slice.
 
 **Memory** (`Silmaril.Proofs.Wasm.Interp.Memory`). Native unpacked integer `load`/`store`
 are Core 3.0 `MemoryStep`s, through silmaril-lean's executable `Exec.Mem.loadInt`/`storeInt`

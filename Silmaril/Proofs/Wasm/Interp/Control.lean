@@ -912,7 +912,7 @@ theorem chk_after {labels : List Nat} {ret np nr : Nat} {out : Option Nat}
 
 /-- What the arity check says about a checked body run. -/
 theorem body_facts {labels : List Nat} {ret n₀ nr : Nat} {stk₀ : List Val}
-    (hS : StoreChk s.funcs) (hbody : Binaryen.Eval s f stk₀ body (s₁, f₁, fl))
+    (hS : StoreChk s.funcs) (hbody : ArityGood s f stk₀ body (s₁, f₁, fl))
     (hb : endsAt (chk s.funcs f.module f.locals.length ret labels (some n₀) body) nr = true)
     (hlen : stk₀.length = n₀) :
     ∃ ob, (ob = none ∨ ob = some nr) ∧
@@ -921,7 +921,7 @@ theorem body_facts {labels : List Nat} {ret n₀ nr : Nat} {stk₀ : List Val}
   obtain ⟨ob, hb', hob⟩ := endsAt_eq hb
   have hbc : chk s.funcs f.module f.locals.length ret labels (some stk₀.length) body = some ob :=
     hlen ▸ hb'
-  obtain ⟨hok, inv1⟩ := flowOk_of_eval hbody hS hbc
+  obtain ⟨hok, inv1⟩ := hbody hS hbc
   exact ⟨ob, hob, hbc, hok, inv1⟩
 
 theorem core_nil : CoreGood P host s f stk [] (s, f, .normal stk) := by
@@ -937,13 +937,13 @@ theorem core_argsAbort (iha : CoreGood P host s f stk args (s₁, f₁, fl)) (hf
   rw [code_op]
   exact wp_append_abrupt' (iha hS ha) hfl
 
-theorem core_opOk (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
+theorem core_opOk (hargs : ArityGood s f stk args (s₁, f₁, .normal stk₁))
     (iha : CoreGood P host s f stk args (s₁, f₁, .normal stk₁)) (hi : ∀ x, i ≠ .call x)
     (hflat : Binaryen.evalFlat s₁ f₁ stk₁ i = some (s₂, f₂, .normal stk₂))
     (ihk : CoreGood P host s₂ f₂ stk₂ es r) : CoreGood P host s f stk (.op i args :: es) r := by
   intro labels ret out hS hc
   obtain ⟨o, h1, h2⟩ := chk_cons.mp hc
-  obtain ⟨hf, inv1⟩ := arity_args hS (flowOk_of_eval hargs) h1
+  obtain ⟨hf, inv1⟩ := arity_args hS hargs h1
   obtain ⟨oa, ha, -⟩ := chk1_op h1
   obtain ⟨ho, inv2⟩ := flat_normal hflat hf
   have inv12 : EvalInv s f (s₂, f₂, .normal stk₂) := inv1.trans inv2
@@ -956,13 +956,13 @@ theorem core_opOk (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk�
   rw [code_op]
   exact wp_append_normal (iha hS ha) (WP.steps st (ihk (storeChk_inv inv12 hS) h2'))
 
-theorem core_opStop (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
+theorem core_opStop (hargs : ArityGood s f stk args (s₁, f₁, .normal stk₁))
     (iha : CoreGood P host s f stk args (s₁, f₁, .normal stk₁))
     (hflat : Binaryen.evalFlat s₁ f₁ stk₁ i = some (s₂, f₂, fl)) (hfl : ¬ fl.IsNormal) :
     CoreGood P host s f stk (.op i args :: es) (s₂, f₂, fl) := by
   intro labels ret out hS hc
   obtain ⟨o, h1, -⟩ := chk_cons.mp hc
-  obtain ⟨hf, -⟩ := arity_args hS (flowOk_of_eval hargs) h1
+  obtain ⟨hf, -⟩ := arity_args hS hargs h1
   obtain ⟨oa, ha, -⟩ := chk1_op h1
   rw [code_op]
   exact wp_append_normal (iha hS ha) (wp_flat_abrupt hf hflat hfl _)
@@ -975,10 +975,10 @@ variable {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func} {ps rs : List Val
 
 /-- What the arity check says about a checked call before and after its callee. -/
 theorem call_facts {labels : List Nat} {ret : Nat} {out : Option Nat} (hS : StoreChk s.funcs)
-    (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
+    (hargs : ArityGood s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hbody : Binaryen.Eval s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+    (hbody : ArityGood s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, fl))
     (hc : chk s.funcs f.module f.locals.length ret labels (some stk.length)
       (.op (.call x) args :: es) = some out) :
@@ -990,19 +990,19 @@ theorem call_facts {labels : List Nat} {ret : Nat} {out : Option Nat} (hS : Stor
       EvalInv s f (s₁, f₁, .normal stk₁) ∧ s₂.funcs = s₁.funcs ∧ ps.length ≤ stk₁.length ∧
       chk s.funcs f.module f.locals.length ret labels
         (some (stk₁.length - ps.length + rs.length)) es = some out := by
-  obtain ⟨inv1, hp, h2⟩ := arity_call_pre hS (flowOk_of_eval hargs) hfi hty hc
+  obtain ⟨inv1, hp, h2⟩ := arity_call_pre hS hargs hfi hty hc
   obtain ⟨o, h1, -⟩ := chk_cons.mp hc
   obtain ⟨oa, ha, -⟩ := chk1_op h1
   have hS1 : StoreChk s₁.funcs := storeChk_inv inv1 hS
   obtain ⟨ob, hob, hb'⟩ := callee_chk hS1 hfi hcode hty hp
-  obtain ⟨hok, hinvb⟩ := flowOk_of_eval hbody hS1 hb'
+  obtain ⟨hok, hinvb⟩ := hbody hS1 hb'
   exact ⟨oa, ob, ha, hb', hob, hok, inv1, hinvb.1, hp, h2⟩
 
-theorem core_callOk (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
+theorem core_callOk (hargs : ArityGood s f stk args (s₁, f₁, .normal stk₁))
     (iha : CoreGood P host s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hbody : Binaryen.Eval s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+    (hbody : ArityGood s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, fl))
     (ihb : CoreGood P host s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, fl))
@@ -1031,11 +1031,11 @@ theorem core_callOk (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk
   rw [code_op]
   exact wp_append_normal (iha hS ha) (wp_call_ok hfi hcode hty hp hwb hvs hrs hnorm hk)
 
-theorem core_callTrap (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
+theorem core_callTrap (hargs : ArityGood s f stk args (s₁, f₁, .normal stk₁))
     (iha : CoreGood P host s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hbody : Binaryen.Eval s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+    (hbody : ArityGood s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, .trap))
     (ihb : CoreGood P host s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, .trap)) :
@@ -1046,10 +1046,10 @@ theorem core_callTrap (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal s
   rw [code_op]
   exact wp_append_normal (iha hS ha) (wp_call_trap hfi hcode hty hp hwb)
 
-theorem core_callThrow {t : Nat} (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
+theorem core_callThrow {t : Nat} (hargs : ArityGood s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hbody : Binaryen.Eval s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+    (hbody : ArityGood s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, .throw t)) :
     CoreGood P host s f stk (.op (.call x) args :: es) (s₂, f₁, .throw t) := by
   intro labels ret out hS hc
@@ -1065,7 +1065,7 @@ section BlockCases
 variable {bt : BlockType} {np nr : Nat}
 
 theorem core_blockOk (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, fl))
+    (hbody : ArityGood s f (stk.take np) body (s₁, f₁, fl))
     (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, fl)) (hvs : fl.blockVals = some vs)
     (ihk : CoreGood P host s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
     CoreGood P host s f stk (.block bt body :: es) r := by
@@ -1081,7 +1081,7 @@ theorem core_blockOk (har : Binaryen.arity f bt = some (np, nr))
   exact wp_block_vals har hp (ihb hS hbc) hvs hnr hnorm hk
 
 theorem core_blockAbrupt {fl' : Binaryen.Flow} (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, fl))
+    (hbody : ArityGood s f (stk.take np) body (s₁, f₁, fl))
     (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, fl))
     (hfl : (∃ k vs, fl = .brk (k + 1) vs ∧ fl' = .brk k vs) ∨ (fl.Escapes ∧ fl' = fl)) :
     CoreGood P host s f stk (.block bt body :: es) (s₁, f₁, fl') := by
@@ -1092,7 +1092,7 @@ theorem core_blockAbrupt {fl' : Binaryen.Flow} (har : Binaryen.arity f bt = some
   exact wp_block_abrupt har hp (ihb hS hbc) hfl
 
 theorem core_loopOk (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, .normal vs))
+    (hbody : ArityGood s f (stk.take np) body (s₁, f₁, .normal vs))
     (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, .normal vs))
     (ihk : CoreGood P host s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
     CoreGood P host s f stk (.loop bt body :: es) r := by
@@ -1105,7 +1105,7 @@ theorem core_loopOk (har : Binaryen.arity f bt = some (np, nr))
   exact wp_loop_normal har hp (ihb hS hbc) hlen hk
 
 theorem core_loopBack (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, .brk 0 vs))
+    (hbody : ArityGood s f (stk.take np) body (s₁, f₁, .brk 0 vs))
     (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, .brk 0 vs))
     (ihk : CoreGood P host s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) r) :
     CoreGood P host s f stk (.loop bt body :: es) r := by
@@ -1128,7 +1128,7 @@ theorem core_loopBack (har : Binaryen.arity f bt = some (np, nr))
   exact wp_loop_back har hp (ihb hS hbc) hnp hk
 
 theorem core_loopAbrupt {fl' : Binaryen.Flow} (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, fl))
+    (hbody : ArityGood s f (stk.take np) body (s₁, f₁, fl))
     (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, fl))
     (hfl : (∃ k vs, fl = .brk (k + 1) vs ∧ fl' = .brk k vs) ∨ (fl.Escapes ∧ fl' = fl)) :
     CoreGood P host s f stk (.loop bt body :: es) (s₁, f₁, fl') := by
@@ -1158,9 +1158,9 @@ theorem wp_if_arm {cv : Val} {b : Bool} {t el : List Binaryen.BExpr} {rest : Lis
 /-- What the arity check says about a checked `if` arm run. -/
 theorem if_facts {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool} {labels : List Nat}
     {ret : Nat} {out : Option Nat} (hS : StoreChk s.funcs)
-    (hcond : Binaryen.Eval s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    (hcond : ArityGood s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (har : Binaryen.arity f₁ bt = some (np, nr))
-    (harm : Binaryen.Eval s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
+    (harm : ArityGood s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
     (hc : chk s.funcs f.module f.locals.length ret labels (some stk.length)
       (.if_ bt c t el :: es) = some out) :
     ∃ oc ob, chk s.funcs f.module f.locals.length ret labels (some stk.length) c = some oc ∧
@@ -1170,7 +1170,7 @@ theorem if_facts {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool} {labels : 
       EvalInv s₁ f₁ (s₂, f₂, fl) ∧ np ≤ stk₁.length ∧
       chk s₁.funcs f₁.module f₁.locals.length ret labels (some (stk₁.length - np + nr)) es =
         some out := by
-  obtain ⟨inv1, hp, hbarm, h2⟩ := arity_if_pre (b := b) hS (flowOk_of_eval hcond) har hc
+  obtain ⟨inv1, hp, hbarm, h2⟩ := arity_if_pre (b := b) hS hcond har hc
   rw [← chk_inv inv1] at hbarm h2
   obtain ⟨ob, hob, hbc, hok, inv2⟩ :=
     body_facts (storeChk_inv inv1 hS) harm hbarm (take_length_of_le hp)
@@ -1179,10 +1179,10 @@ theorem if_facts {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool} {labels : 
   exact ⟨oc, ob, hco, hbc, hob, hok, inv1, inv2, hp, h2⟩
 
 theorem core_ifOk {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
-    (hcond : Binaryen.Eval s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    (hcond : ArityGood s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (ihc : CoreGood P host s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (hb : Binaryen.truthy cv = some b) (har : Binaryen.arity f₁ bt = some (np, nr))
-    (harm : Binaryen.Eval s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
+    (harm : ArityGood s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
     (iharm : CoreGood P host s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
     (hvs : fl.blockVals = some vs) (ihk : CoreGood P host s₂ f₂ (vs.take nr ++ stk₁.drop np) es r) :
     CoreGood P host s f stk (.if_ bt c t el :: es) r := by
@@ -1199,10 +1199,10 @@ theorem core_ifOk {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
   exact wp_append_normal (ihc hS hco) (wp_if_arm hb hwb)
 
 theorem core_ifAbrupt {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool} {fl' : Binaryen.Flow}
-    (hcond : Binaryen.Eval s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    (hcond : ArityGood s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (ihc : CoreGood P host s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (hb : Binaryen.truthy cv = some b) (har : Binaryen.arity f₁ bt = some (np, nr))
-    (harm : Binaryen.Eval s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
+    (harm : ArityGood s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
     (iharm : CoreGood P host s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
     (hfl : (∃ k vs, fl = .brk (k + 1) vs ∧ fl' = .brk k vs) ∨ (fl.Escapes ∧ fl' = fl)) :
     CoreGood P host s f stk (.if_ bt c t el :: es) (s₂, f₂, fl') := by
@@ -1234,25 +1234,25 @@ theorem wp_of_eval {s : Store H} {f : Frame} {stk : List Val} {es : List Binarye
   | nil => exact core_nil
   | argsAbort _ hfl iha => exact core_argsAbort iha hfl
   | callOk hargs hfi hcode hty hbody hvs _ iha ihb ihk =>
-    exact core_callOk hargs iha hfi hcode hty hbody ihb hvs ihk
+    exact core_callOk (flowOk_of_eval hargs) iha hfi hcode hty (flowOk_of_eval hbody) ihb hvs ihk
   | callTrap hargs hfi hcode hty hbody iha ihb =>
-    exact core_callTrap hargs iha hfi hcode hty hbody ihb
-  | callThrow hargs hfi hcode hty hbody => exact core_callThrow hargs hfi hcode hty hbody
-  | opOk hi hargs hflat _ iha ihk => exact core_opOk hargs iha hi hflat ihk
-  | opStop _ hargs hflat hfl iha => exact core_opStop hargs iha hflat hfl
-  | blockOk har hbody hvs _ ihb ihk => exact core_blockOk har hbody ihb hvs ihk
-  | blockBrk har hbody ihb => exact core_blockAbrupt har hbody ihb (.inl ⟨_, _, rfl, rfl⟩)
-  | blockEsc har hbody hfl ihb => exact core_blockAbrupt har hbody ihb (.inr ⟨hfl, rfl⟩)
-  | loopOk har hbody _ ihb ihk => exact core_loopOk har hbody ihb ihk
-  | loopBack har hbody _ ihb ihk => exact core_loopBack har hbody ihb ihk
-  | loopBrk har hbody ihb => exact core_loopAbrupt har hbody ihb (.inl ⟨_, _, rfl, rfl⟩)
-  | loopEsc har hbody hfl ihb => exact core_loopAbrupt har hbody ihb (.inr ⟨hfl, rfl⟩)
+    exact core_callTrap (flowOk_of_eval hargs) iha hfi hcode hty (flowOk_of_eval hbody) ihb
+  | callThrow hargs hfi hcode hty hbody => exact core_callThrow (flowOk_of_eval hargs) hfi hcode hty (flowOk_of_eval hbody)
+  | opOk hi hargs hflat _ iha ihk => exact core_opOk (flowOk_of_eval hargs) iha hi hflat ihk
+  | opStop _ hargs hflat hfl iha => exact core_opStop (flowOk_of_eval hargs) iha hflat hfl
+  | blockOk har hbody hvs _ ihb ihk => exact core_blockOk har (flowOk_of_eval hbody) ihb hvs ihk
+  | blockBrk har hbody ihb => exact core_blockAbrupt har (flowOk_of_eval hbody) ihb (.inl ⟨_, _, rfl, rfl⟩)
+  | blockEsc har hbody hfl ihb => exact core_blockAbrupt har (flowOk_of_eval hbody) ihb (.inr ⟨hfl, rfl⟩)
+  | loopOk har hbody _ ihb ihk => exact core_loopOk har (flowOk_of_eval hbody) ihb ihk
+  | loopBack har hbody _ ihb ihk => exact core_loopBack har (flowOk_of_eval hbody) ihb ihk
+  | loopBrk har hbody ihb => exact core_loopAbrupt har (flowOk_of_eval hbody) ihb (.inl ⟨_, _, rfl, rfl⟩)
+  | loopEsc har hbody hfl ihb => exact core_loopAbrupt har (flowOk_of_eval hbody) ihb (.inr ⟨hfl, rfl⟩)
   | ifOk hcond hb har harm hvs _ ihc iharm ihk =>
-    exact core_ifOk hcond ihc hb har harm iharm hvs ihk
+    exact core_ifOk (flowOk_of_eval hcond) ihc hb har (flowOk_of_eval harm) iharm hvs ihk
   | ifBrk hcond hb har harm ihc iharm =>
-    exact core_ifAbrupt hcond ihc hb har harm iharm (.inl ⟨_, _, rfl, rfl⟩)
+    exact core_ifAbrupt (flowOk_of_eval hcond) ihc hb har (flowOk_of_eval harm) iharm (.inl ⟨_, _, rfl, rfl⟩)
   | ifEsc hcond hb har harm hfl ihc iharm =>
-    exact core_ifAbrupt hcond ihc hb har harm iharm (.inr ⟨hfl, rfl⟩)
+    exact core_ifAbrupt (flowOk_of_eval hcond) ihc hb har (flowOk_of_eval harm) iharm (.inr ⟨hfl, rfl⟩)
   | ifAbort _ hfl ihc => exact core_ifAbort ihc hfl
 
 end Silmaril.Wasm.Interp
