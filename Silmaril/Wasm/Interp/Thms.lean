@@ -9,6 +9,7 @@ public import Silmaril.Proofs.Wasm.Interp.Replace
 public import Silmaril.Proofs.Wasm.Interp.Store
 public import Silmaril.Proofs.Wasm.Interp.CallFrame
 public import Silmaril.Proofs.Wasm.Interp.HostOracle
+public import Silmaril.Proofs.Wasm.Interp.FuncsExt
 
 @[expose] public section
 
