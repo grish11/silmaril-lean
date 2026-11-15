@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Execution.Core.Inversion.Defs
 public import Silmaril.Wasm.Execution.Core.Sim.Context
+public import Silmaril.Wasm.SingleThreaded.Determinism.Family
 import Silmaril.Proofs.Wasm.Execution.Core.Inversion
 
 @[expose] public section
@@ -160,6 +161,15 @@ theorem Step.brIf_vals_inv {us : List Val} {l : LabelIdx}
 theorem Step.trap_vals_inv {us : List Val} (h : Step P host ⟨s, f, vals us ++ [.trap]⟩ c) :
     ∃ w, c = ⟨s, f, vals w ++ [.trap]⟩ ∧ w.length < us.length :=
   Proofs.Inversion.trap_vals_inv h rfl
+
+/-- A non-control instruction under values steps by one of its family's rules, on its top
+operands, under the values below them. -/
+theorem Step.noncontrol_vals_inv {us : List Val} {i : Instr}
+    (hk : SingleThreaded.Det.famOf (.plain i) ≠ .control)
+    (h : Step P host ⟨s, f, vals us ++ [.plain i]⟩ c) :
+    ∃ ws vs c₀, us = ws ++ vs ∧ FamStep P ⟨s, f, vals vs ++ [.plain i]⟩ c₀ ∧
+      c = ⟨c₀.store, c₀.frame, vals ws ++ c₀.code⟩ :=
+  Proofs.Inversion.noncontrol_vals_inv h hk rfl
 
 /-! ## Contexts -/
 

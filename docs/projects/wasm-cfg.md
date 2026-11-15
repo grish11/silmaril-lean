@@ -272,7 +272,10 @@ The plain graph stays an over-approximation, and claims about it say so.
    `LABEL`, `TRAP`) with outcomes `normal`/`br`/`ret`/`trap`. It is adequate for Core 3.0 in
    both directions, for every profile and host, on terminating runs: `run_adequate`,
    `body_adequate`, and `frame_adequate` for function frames. Sequencing is
-   `run_append_iff`. Divergence, calls inside bodies, exceptions and `br_table` remain.
+   `run_append_iff`. Divergence: `RunDiv` (structural greatest fixed point) with `div_iff`
+   (`RunDiv ↔ Core Diverges` on the fragment), using `atomTerm` (every non-control instruction's
+   reduction is strongly normalising, by expansion level and bulk counts). Calls inside bodies,
+   exceptions and `br_table` remain.
 8. **Calls**, through an explicit call interface: a call node whose callee behaviour is a
    parameter (a `FRAME` run of the callee), first for direct calls.
 

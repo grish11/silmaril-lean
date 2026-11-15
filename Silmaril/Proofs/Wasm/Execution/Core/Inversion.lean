@@ -811,6 +811,66 @@ theorem trap_vals_inv {c c' : Config H} (h : Step P host c c') :
     exact absurd (Sim.vals_append_cons_inj rfl rfl hc').2.1 (by simp)
   | _ => intro us hc; head_close hc
 
+/-! ## Non-control instructions under values -/
+
+theorem val_none_of_noncontrol {a : Admin} (h : Det.famOf a ≠ .control) : a.val? = none := by
+  cases a with
+  | plain i => cases i <;> simp_all [Det.famOf, Admin.val?]
+  | _ => simp_all [Det.famOf]
+
+theorem noncontrol_vals_inv {c c' : Config H} (h : Step P host c c') {i : Instr}
+    (hk : Det.famOf (.plain i) ≠ .control) :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain i] →
+      ∃ ws vs c₀, us = ws ++ vs ∧ FamStep P ⟨c.store, c.frame, vals vs ++ [.plain i]⟩ c₀ ∧
+        c' = ⟨c₀.store, c₀.frame, vals ws ++ c₀.code⟩ := by
+  have hv := val_none_of_noncontrol hk
+  induction h with
+  | parametric h => intro us hc; subst hc; exact ⟨[], us, _, rfl, .parametric h, by simp [vals]⟩
+  | numeric h => intro us hc; subst hc; exact ⟨[], us, _, rfl, .numeric h, by simp [vals]⟩
+  | vector h => intro us hc; subst hc; exact ⟨[], us, _, rfl, .vector h, by simp [vals]⟩
+  | @«variable» c c' h =>
+    intro us hc; rcases c with ⟨s, f, x⟩; dsimp only at hc; subst hc
+    exact ⟨[], us, _, rfl, .variable h, by simp [vals]⟩
+  | @table c c' h =>
+    intro us hc; rcases c with ⟨s, f, x⟩; dsimp only at hc; subst hc
+    exact ⟨[], us, _, rfl, .table h, by simp [vals]⟩
+  | @memory c c' h =>
+    intro us hc; rcases c with ⟨s, f, x⟩; dsimp only at hc; subst hc
+    exact ⟨[], us, _, rfl, .memory h, by simp [vals]⟩
+  | @reference c c' h =>
+    intro us hc; rcases c with ⟨s, f, x⟩; dsimp only at hc; subst hc
+    exact ⟨[], us, _, rfl, .reference h, by simp [vals]⟩
+  | @aggregate c c' h =>
+    intro us hc; rcases c with ⟨s, f, x⟩; dsimp only at hc; subst hc
+    exact ⟨[], us, _, rfl, .aggregate h, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single hv hs.not_all_isVal hc
+    obtain ⟨ws, vs, c₀, rfl, h₀, he⟩ := ih rfl
+    refine ⟨vs₀ ++ ws, vs, c₀, by simp, h₀, ?_⟩
+    simp only [Config.mk.injEq] at he ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := he
+    simp
+  | trapInstrs =>
+    intro us hc
+    exact (bubble_vals_single hv ⟨by simp, by rintro ⟨⟩; simp [Det.famOf] at hk⟩ (.inl hc)).elim
+  | throwRefInstrs =>
+    intro us hc
+    exact (bubble_vals_single hv ⟨by simp, by rintro ⟨⟩; simp [Det.famOf] at hk⟩
+      (.inr ⟨_, hc⟩)).elim
+  | _ =>
+    intro us hc
+    exfalso
+    have hl := congrArg List.getLast? hc
+    simp only [List.getLast?_append, List.getLast?_singleton, List.getLast?_cons_cons,
+      Option.some_or, List.getLast?_cons] at hl
+    first
+      | (simp at hl; done)
+      | (simp at hl; subst hl; simp [Det.famOf] at hk; done)
+      | (simp at hl; subst hl; exact hk (isCallRef_control ‹_›))
+      | (simp at hl; subst hl; simp [Admin.IsReturnCallRef] at *; done)
+
 /-! ## Contexts under values -/
 
 theorem ctx_val_none {X : Admin} (hX : X.IsCtx) : X.val? = none := by

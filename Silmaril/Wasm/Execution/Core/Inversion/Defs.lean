@@ -111,3 +111,25 @@ abbrev labelBr0 (s : Store H) (f : Frame) (bt : BlockType) : Config H :=
   ⟨s, f, [.label 0 [.loop bt [.br ⟨0⟩]] [.plain (.br ⟨0⟩)]]⟩
 
 end Silmaril.Wasm.Execution.Core
+
+namespace Silmaril.Wasm.Execution.Core
+
+open Silmaril.Wasm.Numerics
+
+variable {H : Type}
+
+/-- A step by one of the eight non-control reduction families of `Step` (no context rule). -/
+inductive FamStep (P : Profile) : Config H → Config H → Prop where
+  | parametric {s : Store H} {f : Frame} {is is' : List Admin} (h : ParametricStep is is') :
+      FamStep P ⟨s, f, is⟩ ⟨s, f, is'⟩
+  | numeric {s : Store H} {f : Frame} {is is' : List Admin} (h : NumericStep P is is') :
+      FamStep P ⟨s, f, is⟩ ⟨s, f, is'⟩
+  | vector {s : Store H} {f : Frame} {is is' : List Admin} (h : VectorStep P is is') :
+      FamStep P ⟨s, f, is⟩ ⟨s, f, is'⟩
+  | «variable» {c c' : Config H} (h : VariableStep c c') : FamStep P c c'
+  | table {c c' : Config H} (h : TableStep P c c') : FamStep P c c'
+  | memory {c c' : Config H} (h : MemoryStep P c c') : FamStep P c c'
+  | reference {c c' : Config H} (h : RefStep c c') : FamStep P c c'
+  | aggregate {c c' : Config H} (h : AggregateStep c c') : FamStep P c c'
+
+end Silmaril.Wasm.Execution.Core
