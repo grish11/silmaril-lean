@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.Recursion.Defs
 public import Silmaril.Wasm.Abstract.HostCall.Defs
 public import Silmaril.Wasm.Interp.Defs
+public import Silmaril.Wasm.Abstract.Closing.Defs
 
 /-!
 # The native semantics with host calls (stage H2)
@@ -103,5 +104,98 @@ inductive PendingDiv (host : HostSemantics H) (s : Store H) : List Admin → Pro
       PendingDiv host s es → PendingDiv host s (vals ws ++ .label n cont es :: rest)
   | frame {ws : List Val} {n : Nat} {F : Frame} {es rest : List Admin} :
       PendingDiv host s es → PendingDiv host s (vals ws ++ .frame n F es :: rest)
+
+/-! ## Reaching a call with answered calls -/
+
+/-- **The trees reach the call `y`** (callee address, arguments, store) after a
+prefix that terminates in `EvalO C`: the oracle analog of `Decomp.Reach`, every
+completed call answered by `C`. -/
+inductive ReachO (C : CallRel H) : Store H → Frame → List Val → List BExpr →
+    (wasmOShape H).self.Op → Prop where
+  | here {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ : List Val} {x : FuncIdx}
+      {args es : List BExpr} {a : Nat} {fi : FuncInst H} {ps rs : List Validation.CValType}
+      (hargs : EvalO C s f stk args (s₁, f₁, .normal stk₁))
+      (hfi : s₁.func? f₁ x = some (a, fi))
+      (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) :
+      ReachO C s f stk (.op (.call x) args :: es) ⟨a, ((stk₁.take ps.length).reverse, s₁)⟩
+  | args {s : Store H} {f : Frame} {stk : List Val} {i : Instr} {args es : List BExpr}
+      {y : (wasmOShape H).self.Op} :
+      ReachO C s f stk args y → ReachO C s f stk (.op i args :: es) y
+  | callK {s s₁ s₂ : Store H} {f f₁ : Frame} {stk stk₁ vs : List Val} {x : FuncIdx}
+      {args es : List BExpr} {a : Nat} {fi : FuncInst H}
+      {ps rs : List Validation.CValType} {fl : Flow} {y : (wasmOShape H).self.Op}
+      (hargs : EvalO C s f stk args (s₁, f₁, .normal stk₁))
+      (hfi : s₁.func? f₁ x = some (a, fi))
+      (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+      (hcall : C s₁ a (stk₁.take ps.length).reverse (s₂, fl))
+      (hvs : fl.retVals = some vs) :
+      ReachO C s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es y →
+      ReachO C s f stk (.op (.call x) args :: es) y
+  | opK {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {stk stk₁ stk₂ : List Val} {i : Instr}
+      {args es : List BExpr} {y : (wasmOShape H).self.Op} (hi : ∀ x, i ≠ .call x)
+      (hargs : EvalO C s f stk args (s₁, f₁, .normal stk₁))
+      (hflat : evalFlat s₁ f₁ stk₁ i = some (s₂, f₂, .normal stk₂)) :
+      ReachO C s₂ f₂ stk₂ es y → ReachO C s f stk (.op i args :: es) y
+  | block {s : Store H} {f : Frame} {stk : List Val} {bt : BlockType} {body es : List BExpr}
+      {np nr : Nat} {y : (wasmOShape H).self.Op} (har : arity f bt = some (np, nr)) :
+      ReachO C s f (stk.take np) body y → ReachO C s f stk (.block bt body :: es) y
+  | blockK {s s₁ : Store H} {f f₁ : Frame} {stk vs : List Val} {bt : BlockType}
+      {body es : List BExpr} {np nr : Nat} {fl : Flow} {y : (wasmOShape H).self.Op}
+      (har : arity f bt = some (np, nr)) (hbody : EvalO C s f (stk.take np) body (s₁, f₁, fl))
+      (hvs : fl.blockVals = some vs) :
+      ReachO C s₁ f₁ (vs.take nr ++ stk.drop np) es y → ReachO C s f stk (.block bt body :: es) y
+  | loop {s : Store H} {f : Frame} {stk : List Val} {bt : BlockType} {body es : List BExpr}
+      {np nr : Nat} {y : (wasmOShape H).self.Op} (har : arity f bt = some (np, nr)) :
+      ReachO C s f (stk.take np) body y → ReachO C s f stk (.loop bt body :: es) y
+  | loopK {s s₁ : Store H} {f f₁ : Frame} {stk vs : List Val} {bt : BlockType}
+      {body es : List BExpr} {np nr : Nat} {y : (wasmOShape H).self.Op}
+      (har : arity f bt = some (np, nr))
+      (hbody : EvalO C s f (stk.take np) body (s₁, f₁, .normal vs)) :
+      ReachO C s₁ f₁ (vs.take nr ++ stk.drop np) es y → ReachO C s f stk (.loop bt body :: es) y
+  | loopBack {s s₁ : Store H} {f f₁ : Frame} {stk vs : List Val} {bt : BlockType}
+      {body es : List BExpr} {np nr : Nat} {y : (wasmOShape H).self.Op}
+      (har : arity f bt = some (np, nr))
+      (hbody : EvalO C s f (stk.take np) body (s₁, f₁, .brk 0 vs)) :
+      ReachO C s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) y →
+      ReachO C s f stk (.loop bt body :: es) y
+  | cond {s : Store H} {f : Frame} {stk : List Val} {bt : BlockType} {c t el es : List BExpr}
+      {y : (wasmOShape H).self.Op} :
+      ReachO C s f stk c y → ReachO C s f stk (.if_ bt c t el :: es) y
+  | arm {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ : List Val} {cv : Val} {b : Bool}
+      {bt : BlockType} {c t el es : List BExpr} {np nr : Nat} {y : (wasmOShape H).self.Op}
+      (hc : EvalO C s f stk c (s₁, f₁, .normal (cv :: stk₁))) (hb : truthy cv = some b)
+      (har : arity f₁ bt = some (np, nr)) :
+      ReachO C s₁ f₁ (stk₁.take np) (if b then t else el) y →
+      ReachO C s f stk (.if_ bt c t el :: es) y
+  | ifK {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {stk stk₁ vs : List Val} {cv : Val} {b : Bool}
+      {bt : BlockType} {c t el es : List BExpr} {np nr : Nat} {fl : Flow}
+      {y : (wasmOShape H).self.Op}
+      (hc : EvalO C s f stk c (s₁, f₁, .normal (cv :: stk₁))) (hb : truthy cv = some b)
+      (har : arity f₁ bt = some (np, nr))
+      (harm : EvalO C s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
+      (hvs : fl.blockVals = some vs) :
+      ReachO C s₂ f₂ (vs.take nr ++ stk₁.drop np) es y → ReachO C s f stk (.if_ bt c t el :: es) y
+
+/-- **A pending call of an invocation** `x`: the call `y` is reached in the body of
+`x`, or of a Wasm function the body reaches, finitely deep. -/
+inductive PendO (C : CallRel H) : (wasmOShape H).self.Op → (wasmOShape H).self.Op → Prop where
+  | body {x y : (wasmOShape H).self.Op} {fi : FuncInst H} {fn : Func}
+      (hf : x.2.2.funcs[x.1]? = some fi) (hcode : fi.code = .wasm fn)
+      (hr : ReachO C x.2.2 (Frame.forCall fi.module x.2.1 fn.locals) [] (liftInstrs fn.body) y) :
+      PendO C x y
+  | desc {x z y : (wasmOShape H).self.Op} {fi : FuncInst H} {fn : Func}
+      (hf : x.2.2.funcs[x.1]? = some fi) (hcode : fi.code = .wasm fn)
+      (hr : ReachO C x.2.2 (Frame.forCall fi.module x.2.1 fn.locals) [] (liftInstrs fn.body) z) :
+      PendO C z y → PendO C x y
+
+/-- **At the call `a` on `us`** in store `s`: the code is `vals us ++ [ref.func a,
+call_ref]` (with the function's type), under values and labels or frames. -/
+inductive AtCall (s : Store H) (a : Nat) (us : List Val) : List Admin → Prop where
+  | here {ws : List Val} {fi : FuncInst H} {rest : List Admin} (hf : s.funcs[a]? = some fi) :
+      AtCall s a us (vals ws ++ vals us ++ .ref (.func a) :: .callRefType fi.type :: rest)
+  | label {ws : List Val} {n : Nat} {cont : List Instr} {es rest : List Admin} :
+      AtCall s a us es → AtCall s a us (vals ws ++ .label n cont es :: rest)
+  | frame {ws : List Val} {n : Nat} {F : Frame} {es rest : List Admin} :
+      AtCall s a us es → AtCall s a us (vals ws ++ .frame n F es :: rest)
 
 end Silmaril.Wasm.Abstract

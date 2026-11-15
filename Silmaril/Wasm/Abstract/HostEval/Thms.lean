@@ -10,6 +10,7 @@ import Silmaril.Proofs.Wasm.Abstract.HostEval.CallWasm
 import Silmaril.Proofs.Wasm.Abstract.HostEval.Whole
 import Silmaril.Proofs.Wasm.Abstract.HostEval.Obs
 import Silmaril.Proofs.Wasm.Abstract.HostEval.Invoke
+import Silmaril.Proofs.Wasm.Abstract.HostEval.Reach
 
 /-!
 # The native semantics with host calls: theorems (stage H2)
@@ -129,8 +130,15 @@ invocation `invoke s a vs` (`StoreOk`, `InvokeOk`, functions passing the check)
 to a stuck end is blocked at a host call, or ends exactly as a native answer
 `hostCall host s a vs (s₂, fl)` does: the callee's results, or a trap, in `s₂`.
 
-**Not yet proved.** The commuting square with the eventful-body observations
-(`HostRun.hostObs`), and other profiles.-/
+**Forward reachability of pending calls**, every profile: `reach_atCall`: a reach
+of a call after answered calls (`ReachO (hostCall host)`, the oracle analog of
+`Decomp.Reach`) of arity-checked trees, for a host in the native host slice, is a
+Core run to a configuration at that call (`AtCall`), in the call's store. At a
+host function, `atCall_pending` (no outcome: `Pending`, so Core is blocked) and
+`atCall_pendingDiv` (the host may diverge: `PendingDiv`, so Core diverges).
+
+**Not yet proved.** Chaining reaches through Wasm callee bodies (`PendO`) to an
+invocation, the commuting square with `HostRun.hostObs`, and other profiles.-/
 
 public section
 
@@ -507,5 +515,32 @@ theorem back_invoke {o : SingleThreaded.GrowOracle} (hT : HostTyped host)
         ((∃ ws, fl.retVals = some ws ∧ c = ⟨s₂, {}, vals (ws.take rs.length).reverse⟩) ∨
           (fl = .trap ∧ c = ⟨s₂, {}, [.trap]⟩)) :=
   Silmaril.Proofs.Wasm.Abstract.HostEval.back_invoke hT hH hs hS hok hrun hend
+
+/-- **At a host call with no outcome, Core is blocked.** -/
+theorem atCall_pending {s : Store H} {a : Nat} {us : List Val} {es : List Admin}
+    {fi : FuncInst H} {hh : H} {ps rs : Validation.Ty (.list .val)}
+    (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh)
+    (he : Validation.Expand fi.type (.func ps rs)) (hn : us.length = ps.length)
+    (hno : ∀ o, ¬ host hh s us o) (h : AtCall s a us es) : Pending host s es :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.atCall_pending hf hcode he hn hno h
+
+/-- **At a host call the host may diverge on, Core diverges.** -/
+theorem atCall_pendingDiv {s : Store H} {a : Nat} {us : List Val} {es : List Admin}
+    {fi : FuncInst H} {hh : H} {ps rs : Validation.Ty (.list .val)}
+    (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh)
+    (he : Validation.Expand fi.type (.func ps rs)) (hn : us.length = ps.length)
+    (hdiv : host hh s us .diverged) (h : AtCall s a us es) : PendingDiv host s es :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.atCall_pendingDiv hf hcode he hn hdiv h
+
+/-- **Forward reachability of a call**, every profile. -/
+theorem reach_atCall {P : Silmaril.Wasm.Numerics.Profile} (hH : Interp.NativeHostSlice host)
+    {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
+    {y : (wasmOShape H).self.Op} {labels : List Nat} {ret : Nat} {out : Option Nat}
+    (hr : ReachO (hostCall host) s f stk es y) (hS : Interp.StoreChk s.funcs)
+    (hc : Interp.chk s.funcs f.module f.locals.length ret labels (some stk.length) es = some out) :
+    ∃ (f' : Frame) (c : List Admin),
+      Steps P host ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩
+        ⟨y.2.2, f', c⟩ ∧ AtCall y.2.2 y.1 y.2.1 c :=
+  Silmaril.Proofs.Wasm.Abstract.HostEval.reach_atCall hH hr hS hc
 
 end Silmaril.Wasm.Abstract
