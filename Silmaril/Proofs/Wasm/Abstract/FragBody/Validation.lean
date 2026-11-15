@@ -394,4 +394,48 @@ end
 
 end
 
+/-! ## Step 2: inverting Core validation -/
+
+theorem Sub.num_up {Δ : TypeCtx} {n : NumType} {b : CValType} (h : Sub Δ (.num n) b) :
+    b = .num n := by
+  cases h; rfl
+
+theorem resultSub_nums {Δ : TypeCtx} :
+    ∀ {vs ws : List CValType}, ResultSub Δ vs ws → (∀ v ∈ vs, ∃ n, v = .num n) → ws = vs
+  | [], [], _, _ => rfl
+  | v :: vs, w :: ws, h, hv => by
+    simp only [ResultSub, List.forall₂_cons] at h
+    obtain ⟨n, rfl⟩ := hv v (by simp)
+    rw [Sub.num_up h.1, resultSub_nums h.2 fun v hv' => hv v (by simp [hv'])]
+  | [], _ :: _, h, _ => by cases h
+  | _ :: _, [], h, _ => by cases h
+
+/-- **Operands against the operator.** If operands with numeric principal results
+`vs` are followed by an instruction, every typing of the whole sequence types the
+instruction with parameters exactly `vs` (when it takes that many). -/
+theorem operands_params {D : Context} (hD : D.Wf) {args : List Instr} {i : Instr}
+    {vs ps rs : List CValType} {xs : List Nat}
+    (hp : Principal D args vs) (hvs : ∀ v ∈ vs, ∃ n, v = .num n)
+    (h : InstrsOk D (args ++ [i]) ⟨ps, xs, rs⟩) :
+    ∃ ya it₀, InstrOk (D.initLocals ya) i it₀ ∧
+      (it₀.params.length = vs.length → it₀.params = vs) := by
+  obtain ⟨m, ya, yb, ha, hb, -⟩ := InstrsOk.split hD h rfl
+  obtain ⟨s1, -⟩ := hp ps ya m ha
+  obtain ⟨ts, it₀, hi, hsub⟩ := InstrsOk.single_inv (hD.initLocals ya) hb
+  refine ⟨ya, it₀, hi, fun hlen => ?_⟩
+  have s2 : ResultSub _ m (ts ++ it₀.params) := hsub.1
+  have hm := List.Forall₂.length_eq s1
+  have hm2 := List.Forall₂.length_eq s2
+  simp only [List.length_append] at hm hm2
+  have e1 := List.take_append_drop ps.length m
+  rw [← e1] at s1 s2
+  have hl1 : (m.take ps.length).length = ps.length := by simp; omega
+  have hl2 : (m.drop ps.length).length = vs.length := by simp; omega
+  obtain ⟨-, s1b⟩ := Silmaril.Wasm.Binaryen.resultSub_append_split (by rw [hl2]) s1
+  have : (m.take ps.length).length = ts.length := by omega
+  obtain ⟨-, s2b⟩ := Silmaril.Wasm.Binaryen.resultSub_append_split (by omega) s2
+  have h1 := resultSub_nums s1b hvs
+  rw [h1] at s2b
+  exact resultSub_nums s2b hvs
+
 end Silmaril.Proofs.Wasm.Abstract.FragBody
