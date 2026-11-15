@@ -43,8 +43,12 @@ import Silmaril.Proofs.Wasm.Cfg.Machine
   to the clause's label (`MStep.catch_`, `catch_step_sound`); an exception that every handler
   lets pass raises (`raise_pass_sound`). Both are part of `run_sound`.
 
-Not claimed here: completeness (every region run is a machine run) and divergence. Calls,
-`br_table` and `br_on_*` terminators have no machine step yet.
+* Data-dependent branches: `br_table` and `br_on_*` read their operands by Core's `BrStep`, then
+  branch (`brDataTaken_step_sound`) or fall through (`brDataNot_step_sound`); both are part of
+  `run_sound`.
+
+Not claimed here: completeness (every region run is a machine run) and divergence. Call
+terminators (`return_call*`) have no machine step yet.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -393,5 +397,41 @@ when a `loop` is entered and when a branch re-enters it. -/
 theorem run_module {s s' : Store H} {f f' : Frame} {vs : List Val} {code : List Admin}
     {o : Region.Out} (h : Region.Run P host s f vs code s' f' o) : f'.module = f.module :=
   Proofs.Machine.run_module h
+
+/-! ## Data-dependent branches (`br_table`, `br_on_*`) -/
+
+/-- **A taken data-dependent branch is sound** (`MStep.brDataTaken`): the terminator reads its
+operands as Core does (`BrStep`) and branches like `br`, under coherent frames. -/
+theorem brDataTaken_step_sound {b : BlockId} {sg : Segment} {stk ws us us' : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {l : LabelIdx} {L : LFrame}
+    {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+    (hbs : BrStep s₁ f₁ us i us' [.plain (.br l)])
+    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls (ws ++ us')).length)
+    (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
+      t₁.length = L.arity)
+    (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (if L.loop then
+          goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
+            (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls (ws ++ us'))) s₁ f₁
+        else
+          goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
+            (ls.drop (l.toNat + 1))
+            (L.outer ++ topVals L.arity (brVals l.toNat ls (ws ++ us'))) s₁ f₁) = some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.brDataTaken_step_sound hb ht hr hbs hL harity hlbt hok hX hY
+
+/-- **A data-dependent branch not taken is sound** (`MStep.brDataNot`). -/
+theorem brDataNot_step_sound {b : BlockId} {sg : Segment} {stk ws us us' : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {X Y : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+    (hbs : BrStep s₁ f₁ us i us' []) (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (entry body b.seq (b.idx + 1)) b.seq.length ls (ws ++ us') s₁ f₁) =
+      some Y)
+    {o : Region.Out} {s₂ : Store H} {f₂ : Frame} :
+    Region.Run P host s₁ f₁ [] Y s₂ f₂ o → Region.Run P host s f [] X s₂ f₂ o :=
+  Proofs.Machine.brDataNot_step_sound hb ht hr hbs hX hY
 
 end Silmaril.Wasm.Cfg.Machine

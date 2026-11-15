@@ -1767,6 +1767,68 @@ theorem catches_label {s : Store H} {f : Frame} {a : Nat} {cs : List Catch} {us 
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
+/-! ## Data-dependent branches -/
+
+namespace Silmaril.Wasm.Cfg.Proofs.Machine
+
+set_option linter.unusedSimpArgs false
+
+open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Cfg.Region
+  Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics Silmaril.Wasm.Validation
+
+variable {H : Type} {P : Profile} {host : HostSemantics H}
+
+/-- **A taken data-dependent branch is sound** (`br_table`, `br_on_*` branching), under
+coherent frames and the branch's run-time checks. -/
+theorem brDataTaken_step_sound {body : Expr} {b : BlockId} {sg : Segment}
+    {stk ws us us' : List Val} {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {i : Instr}
+    {l : LabelIdx} {L : LFrame} {X Y : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+    (hbs : BrStep s₁ f₁ us i us' [.plain (.br l)])
+    (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls (ws ++ us')).length)
+    (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
+      t₁.length = L.arity)
+    (hok : FramesOk body b.seq.reverse ls) (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (if L.loop then
+          goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
+            (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls (ws ++ us'))) s₁ f₁
+        else
+          goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
+            (ls.drop (l.toNat + 1))
+            (L.outer ++ topVals L.arity (brVals l.toNat ls (ws ++ us'))) s₁ f₁) = some Y) :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc, Option.bind_some] at hX
+  have hin : Run P host s f [] (vals stk ++ expression (restAt c b.idx)) s₁ f₁
+      (.br l.toNat (ws ++ us')) :=
+    block_then hsg ht hr (.brData hbs (by simpa using (RunC.br (C := noCall) (P := P)
+      (host := host) (s := s₁) (f := f₁) (vs := ws ++ us') (l := l)
+      (code := expression (restAt c (b.idx + 1))))))
+  intro o s₂ f₂ h
+  refine br_out hok hX hin L hL harity hlbt ?_ h
+  simpa [labels, resolveT, Idx.toNat] using hY
+
+/-- **A data-dependent branch not taken is sound** (`br_on_*` falling through). -/
+theorem brDataNot_step_sound {body : Expr} {b : BlockId} {sg : Segment}
+    {stk ws us us' : List Val} {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {i : Instr}
+    {X Y : List Admin} (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+    (hbs : BrStep s₁ f₁ us i us' [])
+    (hX : codeAt body b stk ls = some X)
+    (hY : codeOf body (goto (entry body b.seq (b.idx + 1)) b.seq.length ls (ws ++ us') s₁ f₁) =
+      some Y) :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      Run P host s₁ f₁ [] Y s₂ f₂ o → Run P host s f [] X s₂ f₂ o := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  refine advance_sound hc ?_ hX hY
+  intro o s₂ f₂ h
+  refine block_then hsg ht hr (.brData hbs ?_)
+  simpa [expression] using Proofs.Region.run_vals_inv (vs := []) h
+
+end Silmaril.Wasm.Cfg.Proofs.Machine
+
 /-! ## Whole runs -/
 
 namespace Silmaril.Wasm.Cfg.Proofs.Machine
@@ -1836,6 +1898,22 @@ theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStep P host body s
         (fun hY => brIfTaken_loop_step_sound hb ht hr hk hL harity hl hbt hlen hok hX hY)
       rw [resolveT_labels, ← List.length_reverse (as := b.seq)]
       exact br_loop_ok hok hL hl
+  | @brDataTaken b sg stk ws us us' ls s s₁ f f₁ i l L hb ht hr hbs hL harity hlbt =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    cases hl : L.loop
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      refine stepOk_back ?_ (fun hY => brDataTaken_step_sound hb ht hr hbs hL harity hlbt hok hX
+        (by simp only [hl, Bool.false_eq_true, ↓reduceIte]; exact hY))
+      rw [resolveT_labels, ← List.length_reverse (as := b.seq)]
+      exact br_ok hok hL hl
+    · simp only [↓reduceIte]
+      refine stepOk_back ?_ (fun hY => brDataTaken_step_sound hb ht hr hbs hL harity hlbt hok hX
+        (by simp only [hl, ↓reduceIte]; exact hY))
+      rw [resolveT_labels, ← List.length_reverse (as := b.seq)]
+      exact br_loop_ok hok hL hl
+  | brDataNot hb ht hr hbs =>
+    simp only [MInv] at hok; simp only [codeOf] at hX
+    exact stepOk_back (entry_ok hok) (fun hY => brDataNot_step_sound hb ht hr hbs hX hY)
   | @enter b sg stk stk₁ ws us ls s s₁ f f₁ i a c bt t₁ t₂ loop tryT cs hb ht harm hkind hr hcond
       hbt hm =>
     simp only [MInv] at hok; simp only [codeOf] at hX
@@ -2000,6 +2078,17 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStep P host body st s
     left; cases hn; refine ⟨_, hb, ?_⟩
     split <;> simp [succOf, ht]
   | brIfNot hb ht => left; cases hn; exact ⟨_, hb, by simp [succOf, ht]⟩
+  | @brDataTaken _ sg _ _ _ _ _ _ _ _ _ i l L hb ht hr hbs =>
+    left; cases hn; refine ⟨_, hb, ?_⟩
+    have key : resolveT (labels body b.seq) l ∈ succOf body b sg := by
+      cases hbs with
+      | tableLt hi => simp only [succOf, ht]; simp; exact Or.inl ⟨l, List.mem_of_getElem? hi, rfl⟩
+      | tableGe => simp [succOf, ht]
+      | _ => simp [succOf, ht]
+    split <;> simpa using key
+  | brDataNot hb ht hr hbs =>
+    left; cases hn; refine ⟨_, hb, ?_⟩
+    cases hbs <;> simp [succOf, ht]
   | @enter _ sg _ _ _ _ _ _ _ _ _ i a c bt _ _ _ _ _ hb ht harm hkind =>
     left; cases hn; refine ⟨_, hb, ?_⟩
     cases hkind <;> rcases a with _ | _ | a <;> simp_all [armOf, succOf]

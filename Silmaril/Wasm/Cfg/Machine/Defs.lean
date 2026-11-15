@@ -24,8 +24,9 @@ outside it, whether it is a `loop`, its `catch` clauses and its block type (a br
 sequences pops label frames as Core's `label-vals` does (`popL`). A branch carries the stack
 under the outer values of the frames it leaves (`brVals`), as Core's labels collect them.
 Exceptions, returns and traps go to the sink nodes `raise`, `exit` and `trap`; an exception that a `try_table` frame catches (its first matching
-`catch` clause) branches to the clause's label instead. `br_table`, `br_on_*` and calls as
-terminators are not modelled yet.
+`catch` clause) branches to the clause's label instead. `br_table` and `br_on_*` read their
+operands as Core does (`BrStep`) and then branch or fall through. Calls as terminators are not
+modelled yet.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine
@@ -167,6 +168,33 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 0]))) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩
         (goto (entry body b.seq (b.idx + 1)) b.seq.length ls stk₁ s₁ f₁)
+  /-- A data-dependent branch terminator (`br_table`, `br_on_*`) that branches: it reads its
+  operands (`BrStep`) and then branches like `br l`. -/
+  | brDataTaken {b : BlockId} {sg : Segment} {stk ws us us' : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {l : LabelIdx} {L : LFrame}
+      (hb : lookup body b = some sg) (ht : sg.term = some i)
+      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+      (hbs : BrStep s₁ f₁ us i us' [.plain (.br l)])
+      (hL : ls[l.toNat]? = some L) (harity : L.arity ≤ (brVals l.toNat ls (ws ++ us')).length)
+      (hlbt : L.loop = true → ∃ t₁ t₂, f₁.module.blockType? L.bt = some (t₁, t₂) ∧
+        t₁.length = L.arity) :
+      MStep P host body ⟨.block b, stk, ls, s, f⟩
+        (if L.loop then
+          goto (resolveT (labels body b.seq) l) (b.seq.length - l.toNat)
+            (L :: ls.drop (l.toNat + 1)) (topVals L.arity (brVals l.toNat ls (ws ++ us'))) s₁ f₁
+        else
+          goto (resolveT (labels body b.seq) l) (b.seq.length - (l.toNat + 1))
+            (ls.drop (l.toNat + 1))
+            (L.outer ++ topVals L.arity (brVals l.toNat ls (ws ++ us'))) s₁ f₁)
+  /-- A data-dependent branch terminator (`br_on_*`) that does not branch: fall through with the
+  values it leaves. -/
+  | brDataNot {b : BlockId} {sg : Segment} {stk ws us us' : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {i : Instr} (hb : lookup body b = some sg)
+      (ht : sg.term = some i)
+      (hr : Run P host s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+      (hbs : BrStep s₁ f₁ us i us' []) :
+      MStep P host body ⟨.block b, stk, ls, s, f⟩
+        (goto (entry body b.seq (b.idx + 1)) b.seq.length ls (ws ++ us') s₁ f₁)
   /-- Entering arm `a` of a structured terminator (`block`, `loop`, `if` with its condition,
   `try_table`): push its label frame on the parameters. -/
   | enter {b : BlockId} {sg : Segment} {stk stk₁ ws us : List Val} {ls : List LFrame}
