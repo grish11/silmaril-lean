@@ -246,6 +246,45 @@ theorem interp_if {bt : BlockType} {b₁ b₂ : List Instr} {x : Nat × Config H
     · cases h
   · simp [adminStep?] at h
 
+theorem interp_load {t : IntType} {x : MemIdx} {arg : MemArg} {xx : Nat × Config H}
+    (h : interpHead o s f stk.reverse (.plain (.intLoad t none x arg)) = some xx) :
+    ∃ r, Binaryen.evalFlat s f stk (.intLoad t none x arg) = some r := by
+  simp only [interpHead, famOf, memoryStep?, Mem.arity] at h
+  split at h
+  · obtain ⟨c, hc, -⟩ := Option.map_eq_some_iff.mp h
+    rcases stk with _ | ⟨v, r⟩
+    · simp at *
+    have hd : (v :: r).reverse.drop ((v :: r).reverse.length - 1) = [v] := by simp
+    rw [hd] at hc
+    simp only [Mem.stepArgs, Mem.loadInt] at hc
+    rcases ha : Mem.addrOf? v with _ | ⟨a, j⟩ <;> rcases hm : s.mem? f x with _ | ⟨ma, mi⟩ <;>
+      simp only [ha, hm, reduceCtorEq] at hc
+    have hn := addrNat_of_addrOf ha
+    rcases hl : Execution.Memory.load mi.bytes (effAddr j.toNat arg) (t.width / 8) with _ | b <;>
+      (simp only [Binaryen.evalFlat, hn, hm, hl]; exact ⟨_, rfl⟩)
+  · cases h
+
+theorem interp_store {t : IntType} {x : MemIdx} {arg : MemArg} {xx : Nat × Config H}
+    (h : interpHead o s f stk.reverse (.plain (.intStore t none x arg)) = some xx) :
+    ∃ r, Binaryen.evalFlat s f stk (.intStore t none x arg) = some r := by
+  simp only [interpHead, famOf, memoryStep?, Mem.arity] at h
+  split at h
+  · obtain ⟨c, hc, -⟩ := Option.map_eq_some_iff.mp h
+    rcases stk with _ | ⟨w, _ | ⟨v, r⟩⟩
+    · simp at *
+    · simp at *
+    have hd : (w :: v :: r).reverse.drop ((w :: v :: r).reverse.length - 2) = [v, w] := by simp
+    rw [hd] at hc
+    simp only [Mem.stepArgs, Mem.storeInt] at hc
+    rcases ha : Mem.addrOf? v with _ | ⟨a, j⟩ <;> rcases hw : Mem.intOf? t w with _ | c' <;>
+      rcases hm : s.mem? f x with _ | ⟨ma, mi⟩ <;> simp only [ha, hw, hm, reduceCtorEq] at hc
+    have hn := addrNat_of_addrOf ha
+    obtain ⟨c'', hc''⟩ := asInt_of_intOf hw
+    rcases hs : Execution.Memory.store mi.bytes (effAddr j.toNat arg) (count := t.width / 8)
+        (c''.setWidth _) with _ | b <;>
+      (simp only [Binaryen.evalFlat, hn, hc'', hm, hs]; exact ⟨_, rfl⟩)
+  · cases h
+
 /-! ## Progress -/
 
 theorem iHeadInv_of {i : Instr} (h₁ : ∀ rt, i ≠ .refTest rt ∧ i ≠ .refCast rt)
@@ -342,6 +381,20 @@ theorem evalFlat_progress {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Na
       interp_at (o := o) ht hF (by plain_side) (by plain_side) (by plain_side)
       (by plain_side)
     exact interp_brIf hx
+  case intLoad t p x arg =>
+    rcases p with _ | p
+    · obtain ⟨xx, hx⟩ : ∃ xx, interpHead o s f stk.reverse (.plain (.intLoad t none x arg)) = some xx :=
+        interp_at (o := o) ht hF (by plain_side) (by plain_side) (by plain_side)
+        (by plain_side)
+      exact interp_load hx
+    · simp [flatChk, flatEff] at hc
+  case intStore t p x arg =>
+    rcases p with _ | p
+    · obtain ⟨xx, hx⟩ : ∃ xx, interpHead o s f stk.reverse (.plain (.intStore t none x arg)) = some xx :=
+        interp_at (o := o) ht hF (by plain_side) (by plain_side) (by plain_side)
+        (by plain_side)
+      exact interp_store hx
+    · simp [flatChk, flatEff] at hc
   all_goals
     rcases stk with _ | ⟨v, r⟩
     · simp only [flatChk, flatEff] at hc

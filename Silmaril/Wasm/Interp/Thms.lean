@@ -29,6 +29,14 @@ straight-line integer instructions with in-range local writes (`BExpr.straightLi
   (division/remainder by zero, signed overflow) is a Core 3.0 run of the lowered code, in any
   code context `rest`, to `[trap]`, every profile and host.
 
+**Memory** (`Silmaril.Proofs.Wasm.Interp.Memory`). Native unpacked integer `load`/`store`
+are Core 3.0 `MemoryStep`s, through silmaril-lean's executable `Exec.Mem.loadInt`/`storeInt`
+(`load_exec`, `store_exec`): normal results with the same store update (`steps_mem_normal`),
+and traps exactly out of bounds (`steps_mem_abrupt`). Typed progress covers them
+(`interp_load`, `interp_store`). So every theorem below holds with memory accesses in the
+native profile; `Silmaril.Wasm.Interp.MemExample` checks the hypotheses on a module with a
+memory.
+
 **Profile independence** (`Silmaril.Proofs.Wasm.Interp.Profile`). `NAdmins` (native-profile code:
 silmaril-lean's `instrInNativeProfile` instructions, constants of any type, references and traps,
 through labels, handlers and frames) with `Binaryen.NativeFuncsOk` on the store is closed under

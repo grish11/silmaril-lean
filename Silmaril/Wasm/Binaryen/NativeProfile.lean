@@ -7,12 +7,17 @@ public import Silmaril.Wasm.Binaryen.Profile
 /-! # The scalar profile supported by the native interpreter
 
 i32/i64 integer numerics, locals, globals, direct `call`/`return`,
-`block`/`loop`/`if`/`br`/`br_if`/`br_table`, `drop`/`select`/`nop`/`unreachable`.
-Excluded: memory, tables, references, exceptions, tail calls, floats, SIMD.
+`block`/`loop`/`if`/`br`/`br_if`/`br_table`, `drop`/`select`/`nop`/`unreachable`,
+and unpacked integer memory accesses `i32`/`i64` `load`/`store` (any memory index,
+`i32` or `i64` addresses).
+Excluded: `memory.grow` (its outcome depends on the numerics profile), `memory.size`,
+packed, float and bulk memory operations, tables, references, exceptions, tail calls,
+floats, SIMD.
 
-This is the restricted integer, memory-free profile. It is deliberately
-independent of the optimizer profile: native `run` has no float, conversion,
-memory or indirect-call cases. Adequacy requires this smaller profile.
+This is the restricted integer native profile. It is deliberately independent of
+the optimizer profile: native `run` has no float, conversion or indirect-call cases.
+Adequacy requires this smaller profile. The module-level `InNativeProfile` below
+still requires no memories.
 -/
 
 namespace Silmaril.Wasm.Binaryen
@@ -33,6 +38,7 @@ def nativeInstr : Instr → Bool
   | .nop | .unreachable | .drop | .select none | .br _ | .brIf _ | .brTable _ _ | .call _
   | .return_ | .localGet _ | .localSet _ | .localTee _ | .globalGet _ | .globalSet _
   | .intConst _ _ | .intUnOp _ _ | .intBinOp _ _ | .intTestOp _ _ | .intRelOp _ _ => true
+  | .intLoad _ none _ _ | .intStore _ none _ _ => true
   | _ => false
 
 mutual

@@ -42,6 +42,8 @@ theorem flatChk_transfer (hA : Arities F₁ mi₁ F₂ mi₂) {labels : List Nat
       rw [hA.call x (p, q) hpq]
       exact hc
     · cases hc
+  case intLoad t p x arg => rcases p with _ | p <;> exact hc
+  case intStore t p x arg => rcases p with _ | p <;> exact hc
   all_goals exact hc
 
 theorem endsAt_transfer {x y : Option (Option Nat)} {n : Nat}

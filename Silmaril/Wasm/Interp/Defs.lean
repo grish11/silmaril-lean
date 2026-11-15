@@ -17,7 +17,9 @@ reduces it to `FwdSim`, `BwdSim` and `NoDivOfTerm`, none of which is proved ther
 **What the interpreter assumes.** It implements integer instructions by silmaril's
 `Numerics.intUnOp`/`intBinOp`/`intTestOp`/`intRelOp` (profile-independent), locals, globals,
 structured control, `br`/`br_if`/`br_table`/`return`, `select` (ignoring its type annotation),
-and direct calls; it does not implement floats, memory, tables, references or `memory.grow`.
+direct calls, and unpacked integer memory `load`/`store` (trapping out of bounds, as Core's
+`MemoryStep`); it does not implement floats, packed or bulk memory operations, `memory.size`,
+`memory.grow`, tables or references.
 Nothing in it depends
 on a numeric profile, so adequacy is to be stated for **every** profile `P` and host. It does
 not check typing: blocks truncate stacks with `take`, `local.set` out of range is a no-op, so
@@ -135,6 +137,8 @@ def flatEff (F : List (Execution.Core.FuncInst H)) (mi : Execution.Core.ModuleIn
   | .globalSet _ => some (1, 0)
   | .select _ => some (3, 1)
   | .call x => callArity F mi x
+  | .intLoad _ none _ _ => some (1, 1)
+  | .intStore _ none _ _ => some (2, 0)
   | _ => none
 
 /-- Every target of a `br_table` exists and finds its label's arity at height `h` (the height

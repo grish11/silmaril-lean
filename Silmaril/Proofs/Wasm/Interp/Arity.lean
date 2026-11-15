@@ -256,14 +256,65 @@ theorem flat_normal_select {t : Option (List ValType)}
   subst hs
   exact ⟨by simp, EvalInv.refl _ _ _⟩
 
+/-- A memory load: results and invariants. -/
+theorem flat_load {t : IntType} {x : MemIdx} {arg : MemArg} {fl : Binaryen.Flow}
+    (h : Binaryen.evalFlat s f stk (.intLoad t none x arg) = some (s', f', fl)) :
+    s' = s ∧ f' = f ∧ ∃ v r, stk = v :: r ∧ (fl = .trap ∨ ∃ w, fl = .normal (w :: r)) := by
+  rcases stk with _ | ⟨v, r⟩
+  · simp [Binaryen.evalFlat] at h
+  simp only [Binaryen.evalFlat] at h
+  rcases ha : Binaryen.addrNat? v with _ | i
+  · simp [ha] at h
+  rcases hm : s.mem? f x with _ | ⟨ma, mi'⟩
+  · simp [ha, hm] at h
+  rcases hl : Execution.Memory.load mi'.bytes (effAddr i arg) (t.width / 8) with _ | c
+  · simp only [ha, hm, hl, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    exact ⟨rfl, rfl, v, r, rfl, .inl rfl⟩
+  · simp only [ha, hm, hl, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    exact ⟨rfl, rfl, v, r, rfl, .inr ⟨_, rfl⟩⟩
+
+/-- A memory store: results and invariants. -/
+theorem flat_store {t : IntType} {x : MemIdx} {arg : MemArg} {fl : Binaryen.Flow}
+    (h : Binaryen.evalFlat s f stk (.intStore t none x arg) = some (s', f', fl)) :
+    s'.funcs = s.funcs ∧ f' = f ∧ ∃ w v r, stk = w :: v :: r ∧ (fl = .trap ∨ fl = .normal r) := by
+  rcases stk with _ | ⟨w, _ | ⟨v, r⟩⟩
+  · simp [Binaryen.evalFlat] at h
+  · simp [Binaryen.evalFlat] at h
+  simp only [Binaryen.evalFlat] at h
+  rcases ha : Binaryen.addrNat? v with _ | i
+  · simp [ha] at h
+  rcases hw : Binaryen.asInt t w with _ | c
+  · simp [ha, hw] at h
+  rcases hm : s.mem? f x with _ | ⟨ma, mi'⟩
+  · simp [ha, hw, hm] at h
+  rcases hs : Execution.Memory.store mi'.bytes (effAddr i arg) (count := t.width / 8)
+      (c.setWidth _) with _ | b
+  · simp only [ha, hw, hm, hs, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    exact ⟨rfl, rfl, w, v, r, rfl, .inl rfl⟩
+  · simp only [ha, hw, hm, hs, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    exact ⟨rfl, rfl, w, v, r, rfl, .inr rfl⟩
+
 /-- `flat_normal` for instructions other than `select` and `br_table`. -/
 theorem flat_normal_plain {i : Instr} (hsel : ¬ ∃ t, i = .select t)
+    (hld : ¬ ∃ t x arg, i = .intLoad t none x arg) (hst : ¬ ∃ t x arg, i = .intStore t none x arg)
     (hbt : ¬ ∃ ls d, i = .brTable ls d)
     (h : Binaryen.evalFlat s f stk i = some (s', f', .normal stk'))
     {o : Option Nat} (hc : flatChk F mi nl ret labels stk.length i = some o) :
     o = some stk'.length ∧ EvalInv s f (s', f', .normal stk') := by
   cases i
   all_goals try first | exact absurd ⟨_, rfl⟩ hsel | exact absurd ⟨_, _, rfl⟩ hbt
+  case intLoad t p x arg =>
+    rcases p with _ | p
+    · exact absurd ⟨_, _, _, rfl⟩ hld
+    · simp [flatChk, flatEff] at hc
+  case intStore t p x arg =>
+    rcases p with _ | p
+    · exact absurd ⟨_, _, _, rfl⟩ hst
+    · simp [flatChk, flatEff] at hc
   all_goals simp only [Binaryen.evalFlat, flatChk, flatEff] at h hc
   all_goals (repeat' split at h) <;> (repeat' split at hc)
   all_goals simp_all [EvalInv, Option.map_eq_some_iff, Option.bind_eq_some_iff, Frame.setLocal,
@@ -288,16 +339,41 @@ theorem flat_normal {i : Instr} (h : Binaryen.evalFlat s f stk i = some (s', f',
   · obtain ⟨ls, d, rfl⟩ := hbt
     obtain ⟨_, _, _, -, -, -, -, hfl⟩ := evalFlat_brTable h
     cases hfl
-  exact flat_normal_plain hsel hbt h hc
+  by_cases hld : ∃ t x arg, i = .intLoad t none x arg
+  · obtain ⟨t, x, arg, rfl⟩ := hld
+    obtain ⟨rfl, rfl, v, r, rfl, hfl | ⟨w, hfl⟩⟩ := flat_load h
+    · cases hfl
+    · cases hfl
+      simp only [flatChk, flatEff, List.length_cons] at hc
+      refine ⟨?_, EvalInv.refl _ _ _⟩
+      split at hc <;> simp_all
+  by_cases hst : ∃ t x arg, i = .intStore t none x arg
+  · obtain ⟨t, x, arg, rfl⟩ := hst
+    obtain ⟨hfs, rfl, w, v, r, rfl, hfl | hfl⟩ := flat_store h
+    · cases hfl
+    · cases hfl
+      simp only [flatChk, flatEff, List.length_cons] at hc
+      refine ⟨?_, hfs, rfl, rfl⟩
+      split at hc <;> simp_all
+  exact flat_normal_plain hsel hld hst hbt h hc
 
 /-- `flat_abrupt` for instructions other than `select` and `br_table`. -/
 theorem flat_abrupt_plain {i : Instr} {fl : Binaryen.Flow} (hsel : ¬ ∃ t, i = .select t)
+    (hld : ¬ ∃ t x arg, i = .intLoad t none x arg) (hst : ¬ ∃ t x arg, i = .intStore t none x arg)
     (hbt : ¬ ∃ ls d, i = .brTable ls d)
     (h : Binaryen.evalFlat s f stk i = some (s', f', fl)) (hn : ¬ fl.IsNormal)
     {o : Option Nat} (hc : flatChk F mi nl ret labels stk.length i = some o) (o' : Option Nat) :
     FlowOk labels ret o' fl ∧ EvalInv s f (s', f', fl) := by
   cases i
   all_goals try first | exact absurd ⟨_, rfl⟩ hsel | exact absurd ⟨_, _, rfl⟩ hbt
+  case intLoad t p x arg =>
+    rcases p with _ | p
+    · exact absurd ⟨_, _, _, rfl⟩ hld
+    · simp [flatChk, flatEff] at hc
+  case intStore t p x arg =>
+    rcases p with _ | p
+    · exact absurd ⟨_, _, _, rfl⟩ hst
+    · simp [flatChk, flatEff] at hc
   all_goals simp only [Binaryen.evalFlat, flatChk, flatEff] at h hc
   all_goals (repeat' split at h) <;> (repeat' split at hc)
   all_goals simp_all [EvalInv, FlowOk, Option.map_eq_some_iff, Option.bind_eq_some_iff,
@@ -322,7 +398,17 @@ theorem flat_abrupt {i : Instr} {fl : Binaryen.Flow}
   by_cases hbt : ∃ ls d, i = .brTable ls d
   · obtain ⟨ls, d, rfl⟩ := hbt
     exact flowOk_brTable h hc o'
-  exact flat_abrupt_plain hsel hbt h hn hc o'
+  by_cases hld : ∃ t x arg, i = .intLoad t none x arg
+  · obtain ⟨t, x, arg, rfl⟩ := hld
+    obtain ⟨rfl, rfl, v, r, rfl, rfl | ⟨w, rfl⟩⟩ := flat_load h
+    · exact ⟨trivial, EvalInv.refl _ _ _⟩
+    · exact absurd trivial hn
+  by_cases hst : ∃ t x arg, i = .intStore t none x arg
+  · obtain ⟨t, x, arg, rfl⟩ := hst
+    obtain ⟨hfs, rfl, w, v, r, rfl, rfl | rfl⟩ := flat_store h
+    · exact ⟨trivial, hfs, rfl, rfl⟩
+    · exact absurd trivial hn
+  exact flat_abrupt_plain hsel hld hst hbt h hn hc o'
 
 /-- The check of a direct call. -/
 theorem flatChk_call {h : Nat} {x : FuncIdx} {o : Option Nat}

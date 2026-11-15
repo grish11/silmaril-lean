@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Interp.Arity
 public import Silmaril.Proofs.Wasm.Interp.Trap
+public import Silmaril.Proofs.Wasm.Interp.Memory
 
 @[expose] public section
 
@@ -130,6 +131,7 @@ theorem truthy_eq {v : Val} {b : Bool} (h : Binaryen.truthy v = some b) :
 `call`, is a straight-line one. -/
 theorem straight_of_flatChk {nl : Nat} {h₀ : Nat} {o : Option Nat} {i : Instr}
     (hi : ∀ x, i ≠ .call x) (hb : ∀ l, i ≠ .brIf l) (hsel : ∀ t, i ≠ .select t)
+    (hmem : ¬ IsMem i)
     (hc : flatChk F mi nl ret labels h₀ i = some o)
     (h : Binaryen.evalFlat s f stk i = some (s', f', .normal stk')) :
     Instr.straight i = true ∧ Instr.setsBelow nl i = true := by
@@ -139,6 +141,14 @@ theorem straight_of_flatChk {nl : Nat} {h₀ : Nat} {o : Option Nat} {i : Instr}
     cases hfl
   cases i
   all_goals try first | exact absurd rfl (hsel _) | exact absurd ⟨_, _, rfl⟩ hbt
+  case intLoad t p x arg =>
+    rcases p with _ | p
+    · exact absurd (.inl ⟨_, _, _, rfl⟩) hmem
+    · simp [flatChk, flatEff] at hc
+  case intStore t p x arg =>
+    rcases p with _ | p
+    · exact absurd (.inr ⟨_, _, _, rfl⟩) hmem
+    · simp [flatChk, flatEff] at hc
   all_goals simp only [flatChk, flatEff] at hc
   all_goals (repeat' split at hc) <;> simp_all [Instr.straight, Instr.setsBelow, Instr.setIdx?,
     Binaryen.evalFlat]
@@ -205,9 +215,11 @@ theorem steps_flat_normal {h₀ : Nat} {o : Option Nat} {i : Instr} (hi : ∀ x,
   by_cases hsel : ∃ t, i = .select t
   · obtain ⟨t, rfl⟩ := hsel
     exact steps_select h rest
+  by_cases hmem : IsMem i
+  · exact steps_mem_normal hmem h rest
   · have hb' : ∀ l, i ≠ .brIf l := fun l hl => hb ⟨l, hl⟩
     have hsel' : ∀ t, i ≠ .select t := fun t ht => hsel ⟨t, ht⟩
-    obtain ⟨hs, hsb⟩ := straight_of_flatChk hi hb' hsel' hc h
+    obtain ⟨hs, hsb⟩ := straight_of_flatChk hi hb' hsel' hmem hc h
     have e1 : exec1 s f stk i = some (s', f', stk') := (exec1_of_evalFlat hs hsb h).1
     have e2 : exec s f stk [i] = some (s', f', stk') := by
       rw [exec_cons_of_some e1]
@@ -319,6 +331,16 @@ theorem wp_flat_abrupt {h₀ : Nat} {o : Option Nat} {i : Instr} {fl : Binaryen.
       obtain ⟨_, _, _, _, _, -, -, -, -, rfl⟩ := evalFlat_select h
       exact absurd trivial hn
     case return_ => exact wp_flat_return h rest
+    case intLoad t p x arg =>
+      rcases p with _ | p
+      · obtain ⟨rfl, st⟩ := steps_mem_abrupt (P := P) (host := host) (.inl ⟨_, _, _, rfl⟩) h hn rest
+        exact ⟨s', f', [.trap], .trap, st, rfl, rfl, rfl, trivial⟩
+      · exfalso; simp [flatChk, flatEff] at hc
+    case intStore t p x arg =>
+      rcases p with _ | p
+      · obtain ⟨rfl, st⟩ := steps_mem_abrupt (P := P) (host := host) (.inr ⟨_, _, _, rfl⟩) h hn rest
+        exact ⟨s', f', [.trap], .trap, st, rfl, rfl, rfl, trivial⟩
+      · exfalso; simp [flatChk, flatEff] at hc
     all_goals exfalso
     all_goals first | (simp [flatChk, flatEff] at hc; done) | simp [Binaryen.evalFlat] at h
 
