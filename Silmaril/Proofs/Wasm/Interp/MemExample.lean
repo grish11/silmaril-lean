@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Interp.MemExample.Defs
 public import Silmaril.Proofs.Wasm.Interp.Example
+public import Silmaril.Wasm.Binaryen.AdequacyModule
 
 /-!
 # A module with memory for native adequacy (proofs)
@@ -82,5 +83,21 @@ theorem mem_invokeOk (a : Nat) (ha : a < 2) (x : BitVec 32) : InvokeOk memStore 
     rw [hty.1]
     exact .cons (ValOk.num _) .nil
   · cases hty
+
+/-- The module-level executable profile check accepts `memMod` (it has a memory). -/
+theorem memMod_check : (Binaryen.BModule.lift memMod).inNativeProfile = true := by decide +kernel
+
+/-- `memMod` is ready (instantiated, no start function) with store `memStore`. -/
+theorem mem_ready (P : Numerics.Profile) :
+    Binaryen.Ready P Binaryen.closedHost ({} : Store Empty) (Binaryen.BModule.lift memMod).lower []
+      memStore memPrep.1.frame.module := by
+  rw [Binaryen.lower_lift]
+  have hcode : memPrep.1.code = [] := List.isEmpty_iff.mp memPrep_shape.1
+  exact ⟨memPrep.1, memPrep.1, mem_instantiate P _, .refl, hcode, rfl, rfl⟩
+
+/-- Through the module-level check: the instantiated store is native. -/
+theorem memStore_native_of_module : Binaryen.NativeFuncsOk memStore.funcs :=
+  Binaryen.ready_nativeFuncsOk (Binaryen.BModule.inNativeProfile_sound memMod_check)
+    (mem_ready (SingleThreaded.profile fun _ _ _ _ => false))
 
 end Silmaril.Proofs.Wasm.Interp.MemExample

@@ -14,6 +14,10 @@ Non-vacuity of native adequacy with memory instructions in the native profile.
   every profile and host.
 * `mem_storeOk`, `mem_nativeFuncsOk`, `mem_storeChk`, `mem_invokeOk`: every
   hypothesis of `native_adequacy` holds.
+* `mem_module_check`, `mem_nativeFuncsOk_of_module`: the module-level executable
+  profile check (`BModule.inNativeProfile`) accepts the module, and via
+  `ready_nativeFuncsOk` gives the native store hypothesis. So the standard module
+  pipeline reaches memory code.
 * `mem_behaviours_f`, `mem_behaviours_g`: the Core 3.0 behaviours at every
   profile are exactly `traps`. `f(7)`'s `i32.store` and `g(0)`'s `i32.load` are
   out of bounds. This is computed by the native interpreter and transferred by
@@ -39,6 +43,15 @@ theorem mem_storeOk : StoreOk memStore := Silmaril.Proofs.Wasm.Interp.MemExample
 
 theorem mem_nativeFuncsOk : Binaryen.NativeFuncsOk memStore.funcs :=
   nativeFuncsOk_of_check Silmaril.Proofs.Wasm.Interp.MemExample.memStore_native
+
+/-- **The module-level native-profile check accepts a module with a memory.** -/
+theorem mem_module_check : (Binaryen.BModule.lift memMod).inNativeProfile = true :=
+  Silmaril.Proofs.Wasm.Interp.MemExample.memMod_check
+
+/-- The same native store, obtained through the module-level check and
+`ready_nativeFuncsOk` rather than the store-level check. -/
+theorem mem_nativeFuncsOk_of_module : Binaryen.NativeFuncsOk memStore.funcs :=
+  Silmaril.Proofs.Wasm.Interp.MemExample.memStore_native_of_module
 
 theorem mem_storeChk : StoreChk memStore.funcs :=
   storeChk_of_check Silmaril.Proofs.Wasm.Interp.MemExample.memStore_chk
