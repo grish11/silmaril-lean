@@ -161,4 +161,42 @@ def evalTree (o : Option (Store H × Frame × Flow)) :
   | some (s', f', fl) => Silmaril.Elgot.ITree.ret (.ok (⟨(f', fl)⟩, ⟨s'⟩))
   | none => Silmaril.Elgot.ITree.diverge
 
+/-! ## Invocations -/
+
+/-- The call outcome of a function body: fallthrough, `return` and `br 0`
+deliver the last `nr` values (bottom-first), a thrown exception passes, other
+branches are stuck. As `Binaryen.invokeRun`. -/
+noncomputable def invokeK (nr : Nat) : Res → M E H (ULift.{1} Flow)
+  | ⟨(_, .normal ws)⟩ => pure ⟨.normal (ws.take nr).reverse⟩
+  | ⟨(_, .ret ws)⟩ => pure ⟨.normal (ws.take nr).reverse⟩
+  | ⟨(_, .brk 0 ws)⟩ => pure ⟨.normal (ws.take nr).reverse⟩
+  | ⟨(_, .throw x)⟩ => pure ⟨.throw x⟩
+  | _ => stuck
+
+/-- **The abstract invocation** of the function at address `a` of the current
+store on bottom-first arguments `vs`: its body's abstract body in the callee
+frame (`Frame.forCall`), then the call outcome. -/
+noncomputable def denInvoke (a : Nat) (vs : List Val) : M E H (ULift.{1} Flow) :=
+  getState >>= fun s =>
+    match s.down.funcs[a]? with
+    | some fi =>
+      match fi.code, Validation.DefType.funcType? fi.type with
+      | .wasm fn, some (_, rs) =>
+        denList (liftInstrs fn.body) (Frame.forCall fi.module vs fn.locals) [] >>=
+          invokeK rs.length
+      | _, _ => stuck
+    | none => stuck
+
+/-- The interaction tree of an invocation outcome. -/
+def invTree (o : Option (Store H × Flow)) :
+    Silmaril.Elgot.ITree.Tree (SigEv E) (Except PUnit.{2} (ULift.{1} Flow × St H)) :=
+  match o with
+  | some (_, .trap) => Silmaril.Elgot.ITree.ret (.error ⟨⟩)
+  | some (s', fl) => Silmaril.Elgot.ITree.ret (.ok (⟨fl⟩, ⟨s'⟩))
+  | none => Silmaril.Elgot.ITree.diverge
+
+/-- The function at `a` is Wasm code with a call-free body (the F3 scope). -/
+def CallFreeAt (s : Store H) (a : Nat) : Prop :=
+  ∀ fi fn, s.funcs[a]? = some fi → fi.code = .wasm fn → callFreeL (liftInstrs fn.body) = true
+
 end Silmaril.Wasm.Abstract.StoreBody
