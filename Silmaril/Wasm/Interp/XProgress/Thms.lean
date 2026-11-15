@@ -33,6 +33,10 @@ every deterministic profile `profile o`):
   divergence of the callee body in the closed extended semantics, every call form included.
 * **`invoke_terminal_closedCallX`**: a Core 3.0 run to a terminal configuration ends as a closed
   extended outcome of the callee does (its values, or a trap).
+* **`invoke_nf_terminal`**: no stuck ends: a Core 3.0 run that reaches a normal form reaches a
+  terminal configuration.
+* **`invoke_closedX_adequacy`**: the bundle: divergence both ways, every stopping run is a
+  closed extended outcome, and every closed extended outcome is a Core run.
 -/
 
 public section
@@ -103,5 +107,29 @@ theorem invoke_terminal_closedCallX {o : GrowOracle} {s : Store H} {a : Nat} {vs
       ((∃ ws, fl.retVals = some ws ∧ c' = ⟨s₂, {}, vals (ws.take rs.length).reverse⟩) ∨
         (fl = .trap ∧ c' = ⟨s₂, {}, [.trap]⟩)) :=
   Silmaril.Wasm.Interp.invoke_terminal_closedCallX hs hok hS hW hfi hty hst hterm
+
+/-- **No stuck ends.** -/
+theorem invoke_nf_terminal {o : GrowOracle} {s : Store H} {a : Nat} {vs : List Val}
+    {c' : Config H} (hs : StoreOk s) (hok : InvokeOk s a vs) (hS : StoreChkE tExt s.funcs)
+    (hW : WasmFuncsT s) (hst : Steps (profile o) noHostX (invoke s a vs) c')
+    (hnf : ∀ x, ¬ Step (profile o) noHostX c' x) : c'.Terminal :=
+  Silmaril.Wasm.Interp.invoke_nf_terminal hs hok hS hW hst hnf
+
+/-- **Core 3.0 adequacy of the closed extended semantics**, every call form included. -/
+theorem invoke_closedX_adequacy {o : GrowOracle} {s : Store H} {a : Nat} {vs : List Val}
+    {fi : FuncInst H} {ps rs : List Validation.CValType}
+    (hs : StoreOk s) (hok : InvokeOk s a vs) (hS : StoreChkE tExt s.funcs) (hW : WasmFuncsT s)
+    (hfi : s.funcs[a]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) :
+    (Diverges (profile o) noHostX (invoke s a vs) ↔ Abstract.XDiverge.FunDivX s a vs) ∧
+    (∀ c', Steps (profile o) noHostX (invoke s a vs) c' → (∀ x, ¬ Step (profile o) noHostX c' x) →
+      c'.Terminal ∧ ∃ (s₂ : Store H) (fl : Binaryen.Flow),
+        Abstract.XRecursion.closedCallX s a vs (s₂, fl) ∧
+        ((∃ ws, fl.retVals = some ws ∧ c' = ⟨s₂, {}, vals (ws.take rs.length).reverse⟩) ∨
+          (fl = .trap ∧ c' = ⟨s₂, {}, [.trap]⟩))) ∧
+    (∀ (s₂ : Store H) (fl : Binaryen.Flow), Abstract.XRecursion.closedCallX s a vs (s₂, fl) →
+      (∀ ws, fl.retVals = some ws →
+        Steps (profile o) noHostX (invoke s a vs) ⟨s₂, {}, vals (ws.take rs.length).reverse⟩) ∧
+      (fl = .trap → Steps (profile o) noHostX (invoke s a vs) ⟨s₂, {}, [.trap]⟩)) :=
+  Silmaril.Wasm.Interp.invoke_closedX_adequacy hs hok hS hW hfi hty
 
 end Silmaril.Wasm.Interp.XProgress
