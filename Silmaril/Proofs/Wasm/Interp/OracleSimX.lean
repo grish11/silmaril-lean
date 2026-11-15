@@ -13,7 +13,10 @@ its runs of code checked by the extension `irExt` are Core 3.0 runs
 (`evalOXT_goodE`), with the arity invariants, at every profile and host, given
 a sound oracle (`OracleSoundX`).
 
-**Scope.** `irExt` describes `call_indirect x y` and `call_ref y` by the type
+**Scope.** The invariants assume the native store check `StoreChk s.funcs`:
+the store's functions pass `chk`, which rejects `call_indirect`/`call_ref`, so
+only the running code may contain them (see `Silmaril.Wasm.Interp.OracleX.Thms`).
+`irExt` describes `call_indirect x y` and `call_ref y` by the type
 `y` (`.fall (p + 1) q`). It does not describe the tail calls, so `chkE irExt`
 rejects them: for code with a tail call nothing is claimed here. A tail call
 replaces the caller's frame (`return_call_ref-frame-addr`), so its adequacy is

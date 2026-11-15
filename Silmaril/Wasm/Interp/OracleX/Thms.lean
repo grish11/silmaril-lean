@@ -14,6 +14,14 @@ the annotated type's counts; it forgets to `EvalOX` (`CallXT.EvalOXT.forget`).
 
 **Scope (intermediate).**
 
+* **Store check.** `ArityGoodE`, `CoreGoodE` and `OracleSoundX` assume
+  `StoreChk s.funcs`, the *native* store check: every function of the store
+  passes `chk`, which rejects `call_indirect` and `call_ref`. So the theorem is
+  non-vacuous only when the running code holds the indirect and reference
+  calls and the store's functions do not. Real programs, whose indirect calls
+  sit in store functions, are not covered until the store check is
+  parameterized by the extension (`StoreChkE irExt`, the shared checker's
+  next step).
 * Tail calls: `irExt` does not describe `return_call*`, so `chkE irExt`
   rejects code containing them and nothing is claimed for it. A tail call
   replaces the caller's frame in Core 3.0; its adequacy is a frame-level
