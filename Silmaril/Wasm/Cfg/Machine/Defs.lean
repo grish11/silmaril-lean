@@ -174,3 +174,20 @@ inductive MStep (P : Profile) (host : HostSemantics H) (body : Expr) :
       MStep P host body ⟨.block b, stk, ls, s, f⟩ ⟨.raise, stk₁, [], s₁, f₁⟩
 
 end Silmaril.Wasm.Cfg.Machine
+
+namespace Silmaril.Wasm.Cfg.Machine
+
+/-- The nested sequence at sequence path `q` of `is`: follow each step's segment terminator and
+arm, as `blockAt` does. -/
+def seqAt : List Instr → List SeqStep → Option (List Instr)
+  | is, [] => some is
+  | is, (m, a) :: q => do
+    let s ← (segment is)[m]?
+    let t ← s.term
+    let c ← armOf t a
+    seqAt c q
+
+/-- The instructions of sequence `c` from its block `i` on: what is left to run there. -/
+def restAt (c : List Instr) (i : Nat) : List Instr := ((segment c).drop i).flatMap Segment.instrs
+
+end Silmaril.Wasm.Cfg.Machine
