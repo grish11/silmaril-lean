@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Abstract.HostSquare.Defs
 public import Silmaril.Games.Abstract.StratObs.Defs
+public import Silmaril.Games.Abstract.StratSession.Defs
 
 /-!
 # Invocations against a host as canonical strategies: definitions
@@ -34,6 +35,14 @@ function at `a` in the store `s`, on the interface `funSig Unit (List Val) (List
 question is an argument list, an answer returns values or an exception tag, or traps, and the final
 store is hidden (`endHide`). The host callouts in the plays still carry the store at the callout:
 that is Core's host interface, where a host function may read the store.
+
+**Sessions.** `obsTriple Ok (CoreObsL …)` erases the store of a trap (`End.trap`), so
+threading it (`StratThread.threadT`) would end the session at a trap. In Wasm a trap aborts only
+the current invocation and the store persists. `coreTripleS P host Ok` is the store-retaining
+Core triple: a trap round ends `.ret (.inr ()) s₂`, where `s₂` is the store of the Core trap
+configuration `⟨s₂, {}, [.trap]⟩`; it has no plain `End.trap`. Erasing the trap stores gives the
+Core triple back (`eraseTrap_coreTripleS`). `coreSession P host Ok s₀` is its session threading
+(`StratSession.threadS`) from `s₀`: after a trap the next invocation starts at the trap store.
 
 Theorems in `Silmaril.Wasm.Abstract.HostStrat.Thms`.
 -/
@@ -100,5 +109,35 @@ def coreStratAt (P : Numerics.Profile) (host : HostSemantics H)
     (Ok : Store H → Nat × List Val → Prop) (s : Store H) (a : Nat) :
     DStrategy (wasmHostSig H) (funSig Unit (List Val) (List Val ⊕ Nat)) :=
   StratObs.toDStrat (atTriple (obsTriple Ok fun s q => CoreObsL P host s q.1 q.2) s a)
+
+/-! ## Sessions: traps keep the store -/
+
+/-- The Core behaviours of one invocation with the store of a trap kept: values in the empty
+frame, a trap configuration with its store (`.ret (.inr ()) s₂`), or host-free divergence. A thrown
+exception and a plain `End.trap` are no behaviour. -/
+def CoreBehS (P : Numerics.Profile) (host : HostSemantics H) (s : Store H) (q : Nat × List Val) :
+    CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit) → Prop
+  | (cs, .ret (.inl r) s₂) => CoreObsL P host s q.1 q.2 (.done cs (.ret r s₂))
+  | (cs, .ret (.inr _) s₂) => EvRun P host (invoke s q.1 q.2) cs ⟨s₂, {}, [.trap]⟩
+  | (_, .trap) => False
+  | (cs, .div) => CoreObsL P host s q.1 q.2 (.div cs)
+
+/-- **The store-retaining Core triple** on the questions `Ok`: as
+`obsTriple Ok (fun s q => CoreObsL P host s q.1 q.2)`, except that a trap round keeps the store
+of the Core trap configuration. -/
+def coreTripleS (P : Numerics.Profile) (host : HostSemantics H)
+    (Ok : Store H → Nat × List Val → Prop) :
+    ObsTriple (wasmHostSig H) (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit) :=
+  (fun s q => {x | Ok s q ∧ CoreBehS P host s q x},
+    fun s q => {x | Ok s q ∧
+      (CoreObsL P host s q.1 q.2 (.blocked x.1 x.2) ∨ CoreObsL P host s q.1 q.2 (.hostDiv x.1 x.2))},
+    fun s q => {ω | Ok s q ∧ CoreObsL P host s q.1 q.2 (.prod ω)})
+
+/-- **The Core session** from the store `s₀`: invocations on the stateless interface, the store
+threaded through returns and traps. -/
+def coreSession (P : Numerics.Profile) (host : HostSemantics H)
+    (Ok : Store H → Nat × List Val → Prop) (s₀ : Store H) :
+    DStrategy (wasmHostSig H) (sig1 (Nat × List Val) (List Val ⊕ Nat)) :=
+  StratSession.threadS (coreTripleS P host Ok) s₀
 
 end Silmaril.Wasm.Abstract

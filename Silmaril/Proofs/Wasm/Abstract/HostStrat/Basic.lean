@@ -73,4 +73,28 @@ theorem coreStratAt_mem_trap (s : Store H) (a : Nat) (vs : List Val)
   · rintro ⟨hq, h⟩
     exact ⟨(cs, .trap), ⟨hq, .inl h⟩, rfl⟩
 
+/-! ## Sessions -/
+
+theorem eraseTrap_coreTripleS :
+    StratSession.eraseTrap (coreTripleS P host Ok) =
+      obsTriple Ok (fun s q => CoreObsL P host s q.1 q.2) := by
+  refine Prod.ext (funext fun s => funext fun q => Set.ext fun ⟨cs, e⟩ => ?_) rfl
+  constructor
+  · rintro ⟨⟨c, e'⟩, ⟨hq, h⟩, he⟩
+    simp only [Prod.mk.injEq] at he
+    obtain ⟨rfl, rfl⟩ := he
+    refine ⟨hq, ?_⟩
+    rcases e' with (r | _) | s₂ | _ | _
+    · exact .inl h
+    · exact .inl ⟨_, h⟩
+    · exact h.elim
+    · exact .inr ⟨rfl, h⟩
+  · rintro ⟨hq, h | ⟨rfl, h⟩⟩
+    · rcases e with ⟨r, s₂⟩ | _ | _
+      · exact ⟨(cs, .ret (.inl r) s₂), ⟨hq, h⟩, rfl⟩
+      · obtain ⟨s₂, h⟩ := h
+        exact ⟨(cs, .ret (.inr PUnit.unit) s₂), ⟨hq, h⟩, rfl⟩
+      · exact h.elim
+    · exact ⟨(cs, .div), ⟨hq, h⟩, rfl⟩
+
 end Silmaril.Proofs.Wasm.Abstract.HostStrat

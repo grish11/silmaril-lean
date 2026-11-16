@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.HostStrat.Defs
 public import Silmaril.Wasm.Abstract.HostSquare.Thms
 public import Silmaril.Games.Abstract.StratObs.Thms
+public import Silmaril.Games.Abstract.StratSession.Thms
 import Silmaril.Proofs.Wasm.Abstract.HostStrat.Basic
 
 /-!
@@ -20,6 +21,10 @@ import Silmaril.Proofs.Wasm.Abstract.HostStrat.Basic
   host-free divergence (`coreStrat_mem_div`); a one-round infinite play is a productive Core run
   (`coreStrat_mem_inf`). A completed round that answers a thrown tag (`.inr t`) is never a Core
   play (`coreStrat_not_mem_throw`): Core 3.0 has no finished end for an uncaught exception.
+* sessions: erasing the trap stores of the store-retaining Core triple gives the Core triple
+  (`eraseTrap_coreTripleS`); it has no plain traps (`noPlainTrap_coreTripleS`); and in the Core
+  session a trap round followed by a value round is a Core run to a trap leaving `s₁`, then a
+  Core run from `s₁` to the values (`coreSession_mem_trap_ret`).
 -/
 
 @[expose] public section
@@ -145,5 +150,28 @@ theorem coreStratAt_mem_inf (s : Store H) (a : Nat) (vs : List Val)
     StratObs.streamPlay [] ((), vs) ω ∈ (coreStratAt P host Ok s a).inf ↔
       Ok s (a, vs) ∧ CoreInf P host (invoke s a vs) ω :=
   (StratObs.mem_inf ((), vs) ω).trans (by simp [atTriple, obsTriple, CoreObsL])
+
+/-! ## Sessions -/
+
+/-- **Erasing the trap stores of the store-retaining Core triple gives the Core triple.** -/
+theorem eraseTrap_coreTripleS :
+    StratSession.eraseTrap (coreTripleS P host Ok) =
+      obsTriple Ok (fun s q => CoreObsL P host s q.1 q.2) :=
+  Silmaril.Proofs.Wasm.Abstract.HostStrat.eraseTrap_coreTripleS
+
+/-- The store-retaining Core triple has no plain traps. -/
+theorem noPlainTrap_coreTripleS : StratSession.NoPlainTrap (coreTripleS P host Ok) :=
+  fun _ _ _ h => h.2
+
+/-- **The Core session continues after a trap**: a round trapping at `q` then a round returning
+the values `ws` at `q'` is a play from `s₀` iff `q` runs (with the host calls `c₁`) to a trap
+configuration in some store `s₁`, and `q'` runs from `s₁` (with the host calls `c₂`) to `ws`. -/
+theorem coreSession_mem_trap_ret {s₀ : Store H} {q q' : Nat × List Val}
+    {c₁ c₂ : List (Call (wasmHostSig H))} {ws : List Val} :
+    StratSession.sroundMoves (q, c₁, .inr PUnit.unit) ++
+        StratSession.sroundMoves (q', c₂, .inl (.inl ws)) ∈ (coreSession P host Ok s₀).toStrategy ↔
+      ∃ s₁, (Ok s₀ q ∧ EvRun P host (invoke s₀ q.1 q.2) c₁ ⟨s₁, {}, [.trap]⟩) ∧
+        ∃ s₂, Ok s₁ q' ∧ EvRun P host (invoke s₁ q'.1 q'.2) c₂ ⟨s₂, {}, vals ws⟩ :=
+  StratSession.mem_trap_ret
 
 end Silmaril.Wasm.Abstract
