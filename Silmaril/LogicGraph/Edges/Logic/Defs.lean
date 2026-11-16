@@ -278,6 +278,175 @@ public import Silmaril.Logic.Institution.Structured.Theories.ModelComparison
 public import Silmaril.Logic.Institution.Structured.Theories.Models
 public import Silmaril.Logic.Institution.Structured.Theories.Thms
 public import Silmaril.Logic.Institution.Structured.Thms
+public import Silmaril.Logic.Kore.FirstOrder.Defs
+public import Silmaril.Logic.Kore.FirstOrder.Examples
+public import Silmaril.Logic.Kore.FirstOrder.Hets
+public import Silmaril.Logic.Kore.FirstOrder.Institution
+public import Silmaril.Logic.Kore.FirstOrder.Thms
+public import Silmaril.Logic.Kore.FixedPoint.Audits
+public import Silmaril.Logic.Kore.FixedPoint.Checking.Defs
+public import Silmaril.Logic.Kore.FixedPoint.Controls
+public import Silmaril.Logic.Kore.FixedPoint.Examples
+public import Silmaril.Logic.Kore.FixedPoint.Institution.Defs
+public import Silmaril.Logic.Kore.FixedPoint.Modules.Audits
+public import Silmaril.Logic.Kore.FixedPoint.Modules.Controls
+public import Silmaril.Logic.Kore.FixedPoint.Modules.Defs
+public import Silmaril.Logic.Kore.FixedPoint.Modules.Examples
+public import Silmaril.Logic.Kore.FixedPoint.Modules.Thms
+public import Silmaril.Logic.Kore.FixedPoint.Semantics.Defs
+public import Silmaril.Logic.Kore.FixedPoint.Semantics.Thms
+public import Silmaril.Logic.Kore.FixedPoint.Syntax.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Checking.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Expansion.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Institution.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Modules.Audits
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Modules.Controls
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Modules.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Modules.Examples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Modules.SemanticExamples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Modules.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Semantics.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Semantics.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Syntax.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.BooleanRuntime.Modules.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.BooleanRuntime.Syntax.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Rooms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Syntax
+public import Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Checking.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Institution.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Lowering.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Model.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Modules.Audits
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Modules.Canonical
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Modules.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Modules.Examples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Modules.SemanticExamples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Semantics.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Semantics.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Audits
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Checking
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.ConcreteExamples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Examples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Graph
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Institution
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Noncanonical
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.RawExamples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.RawInstitution
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Renaming
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Source
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.AliasBridge
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Audits
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.AliasValidity.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Aliases.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Collections.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Contexts.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Contexts.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Elaboration.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Elaboration.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Examples.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Institution.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.LiteralOperations.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.LiteralProfiles.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Lookup.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.LoweringProfiles.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Naturality.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Paths.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Paths.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Receipts.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Receipts.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Controls
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Forgetful
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Functor
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Institution
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Models
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.NativeControls
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.OperationControls
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.PopulatedControls
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Raw
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.RawControls
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Surface
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.SurfaceControl
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.SurfaceThms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Usage.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Syntax.Controls
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Syntax.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Examples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.Audits
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.CaptureExamples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.Claim.Audits
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.Claim.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.Claim.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.Examples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.ParsedExamples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.SemanticExamples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.Syntax
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Source.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.CheckedRewrites.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Checking.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Hets
+public import Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.External.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.Modules.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.Modules.ExampleModel
+public import Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.Modules.Examples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.Modules.SemanticExamples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.Syntax.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Institution.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Modules.Audits
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Modules.Controls
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Modules.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Modules.Examples
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Modules.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Predicates.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Predicates.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Semantics.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Semantics.Thms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Syntax.Defs
+public import Silmaril.Logic.Kore.Modules.Checking.Defs
+public import Silmaril.Logic.Kore.Modules.Checking.Thms
+public import Silmaril.Logic.Kore.Modules.Fuel.Audits
+public import Silmaril.Logic.Kore.Modules.Fuel.Examples
+public import Silmaril.Logic.Kore.Modules.Fuel.Thms
+public import Silmaril.Logic.Kore.Modules.Semantics.Defs
+public import Silmaril.Logic.Kore.Modules.Semantics.Modules.Audits
+public import Silmaril.Logic.Kore.Modules.Semantics.Modules.Defs
+public import Silmaril.Logic.Kore.Modules.Semantics.Modules.Examples
+public import Silmaril.Logic.Kore.Modules.Semantics.Modules.Thms
+public import Silmaril.Logic.Kore.Modules.Semantics.Thms
+public import Silmaril.Logic.Kore.Modules.Syntax.Defs
+public import Silmaril.Logic.Kore.Modules.Theory.Audits
+public import Silmaril.Logic.Kore.Modules.Theory.Defs
+public import Silmaril.Logic.Kore.Modules.Theory.Examples
+public import Silmaril.Logic.Kore.Modules.Theory.Thms
+public import Silmaril.Logic.Kore.Operational
+public import Silmaril.Logic.Kore.Operational.Audits
+public import Silmaril.Logic.Kore.Operational.Conditional.AllPath.Defs
+public import Silmaril.Logic.Kore.Operational.Conditional.AllPath.Thms
+public import Silmaril.Logic.Kore.Operational.Conditional.Defs
+public import Silmaril.Logic.Kore.Operational.Conditional.Execution.Defs
+public import Silmaril.Logic.Kore.Operational.Conditional.Execution.Thms
+public import Silmaril.Logic.Kore.Operational.Conditional.FirstOrder.Audits
+public import Silmaril.Logic.Kore.Operational.Conditional.FirstOrder.Defs
+public import Silmaril.Logic.Kore.Operational.Conditional.FirstOrder.Examples
+public import Silmaril.Logic.Kore.Operational.Conditional.FirstOrder.Thms
+public import Silmaril.Logic.Kore.Operational.Conditional.Modules.Defs
+public import Silmaril.Logic.Kore.Operational.Conditional.Modules.Thms
+public import Silmaril.Logic.Kore.Operational.Conditional.RuleSystem.Defs
+public import Silmaril.Logic.Kore.Operational.Conditional.RuleSystem.Thms
+public import Silmaril.Logic.Kore.Operational.Conditional.Thms
+public import Silmaril.Logic.Kore.Operational.Defs
+public import Silmaril.Logic.Kore.Operational.Examples
+public import Silmaril.Logic.Kore.Operational.Text
+public import Silmaril.Logic.Kore.Operational.Text.Defs
+public import Silmaril.Logic.Kore.Operational.Text.Thms
+public import Silmaril.Logic.Kore.Operational.Thms
 public import Silmaril.Logic.Matching.FirstOrder.Algebraic
 public import Silmaril.Logic.Matching.FirstOrder.Defs
 public import Silmaril.Logic.Matching.FirstOrder.Examples
@@ -389,8 +558,31 @@ public import Silmaril.Logic.PDL.Thms
 public import Silmaril.Logic.Prolog.Definite.Defs
 public import Silmaril.Logic.Prolog.Definite.Thms
 public import Silmaril.Logic.Reachability
+public import Silmaril.Logic.Reachability.AllPath.Defs
+public import Silmaril.Logic.Reachability.AllPath.Thms
 public import Silmaril.Logic.Reachability.Defs
+public import Silmaril.Logic.Reachability.Derivation.Defs
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Calculus.Defs
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Calculus.Thms
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Defs
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Edge.Defs
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Edge.Thms
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.RuleBlocks.Defs
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.RuleBlocks.Thms
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Soundness.Thms
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Step.Defs
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Step.Thms
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Stock.Defs
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Stock.Extension.Defs
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Stock.Extension.Thms
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Stock.Rebinding.Defs
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Stock.Rebinding.Thms
+public import Silmaril.Logic.Reachability.Derivation.FirstOrder.Stock.Thms
+public import Silmaril.Logic.Reachability.Derivation.Thms
+public import Silmaril.Logic.Reachability.Finite.Thms
 public import Silmaril.Logic.Reachability.Relational
+public import Silmaril.Logic.Reachability.RuleSystem.Defs
+public import Silmaril.Logic.Reachability.RuleSystem.Thms
 public import Silmaril.Logic.Reachability.Thms
 public import Silmaril.Logic.Rewriting
 public import Silmaril.Logic.Rewriting.Defs
@@ -581,6 +773,10 @@ silmaril comorphism logic.hybrid_polyadic.matching.hybrid_to_constrained_matchin
 silmaril comorphism logic.hybrid_polyadic.modal_to_hybrid_polyadic := Silmaril.Logic.HybridPolyadic.modalToHybridPolyadic
 silmaril comorphism logic.institution.examples.eq_to_fol := Silmaril.Logic.Institution.Examples.eqToFol (facts := [Silmaril.Logic.Institution.Examples.eqToFol_modelExpansive])
 silmaril comorphism logic.institution.examples.pl_to_fol := Silmaril.Logic.Institution.Examples.plToFol (hets := "Prop2CASL") (hets_relation := related) (facts := [Silmaril.Logic.Institution.Examples.plToFol_modelExpansive])
+silmaril comorphism logic.kore.first_order.lowering_comorphism := Silmaril.Logic.Kore.FirstOrder.loweringComorphism (facts := [Silmaril.Logic.Kore.FirstOrder.lowering_modelExpansive])
+silmaril comorphism logic.kore.fixed_point.lowering_comorphism := Silmaril.Logic.Kore.FixedPoint.loweringComorphism (facts := [Silmaril.Logic.Kore.FixedPoint.lowering_modelExpansive])
+silmaril comorphism logic.kore.general_fixed_point.aliases.lowering_comorphism := Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.loweringComorphism (facts := [Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.lowering_modelExpansive])
+silmaril comorphism logic.kore.general_fixed_point.lowering_comorphism := Silmaril.Logic.Kore.GeneralFixedPoint.loweringComorphism (facts := [Silmaril.Logic.Kore.GeneralFixedPoint.lowering_modelExpansive])
 silmaril comorphism logic.matching.first_order.pointed.propositional_to_pointed_matching := Silmaril.Logic.Matching.FirstOrder.Pointed.propositionalToPointedMatching (facts := [Silmaril.Logic.Matching.FirstOrder.Pointed.propositionalToPointedMatching_modelExpansive])
 silmaril comorphism logic.matching.fixed_point.first_order_pointed_to_fixed_point := Silmaril.Logic.Matching.FixedPoint.firstOrderPointedToFixedPoint (facts := [Silmaril.Logic.Matching.FixedPoint.firstOrderPointedToFixedPoint_modelExpansive])
 silmaril comorphism logic.matching.fixed_point.first_order_to_fixed_point := Silmaril.Logic.Matching.FixedPoint.firstOrderToFixedPoint (facts := [Silmaril.Logic.Matching.FixedPoint.firstOrderToFixedPoint_modelExpansive])
@@ -619,3 +815,10 @@ silmaril morphism logic.algebraic.dependent_family.equational.morphism := Silmar
 silmaril morphism logic.algebraic.order_sorted.to_equational := Silmaril.Logic.Algebraic.OrderSorted.toEquational
 silmaril morphism logic.common_logic.many_sorted.institution.typed_forget := Silmaril.Logic.CommonLogic.ManySorted.Institution.typedForget
 silmaril morphism logic.institution.examples.fol_to_eq := Silmaril.Logic.Institution.Examples.folToEq (facts := [Silmaril.Logic.Institution.Examples.folToEq_sound])
+silmaril morphism logic.kore.general_fixed_point.builtins.sort_maps.forgetful := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.forgetful
+silmaril corridor logic.kore.general_fixed_point.boolean_runtime.package.lowering_corridor := Silmaril.Logic.Kore.GeneralFixedPoint.BooleanRuntime.Package.loweringCorridor (facts := [Silmaril.Logic.Kore.GeneralFixedPoint.BooleanRuntime.Package.lowering_modelExpansive])
+silmaril corridor logic.kore.general_fixed_point.boolean_theory.package.lowering := Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Package.lowering (facts := [Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Package.lowering_modelExpansive])
+silmaril corridor logic.kore.general_fixed_point.builtins.smt.raw_corridor := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.rawCorridor (facts := [Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.raw_modelExpansive])
+silmaril corridor logic.kore.general_fixed_point.builtins.smt.typed_corridor := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.typedCorridor (facts := [Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.typed_modelExpansive])
+silmaril corridor logic.kore.general_fixed_point.builtins.lowering_corridor := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.loweringCorridor (facts := [Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.lowering_modelExpansive])
+silmaril corridor logic.kore.general_fixed_point.hooked_sorts.external.package.lowering := Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.External.Package.lowering (facts := [Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.External.Package.lowering_modelExpansive])

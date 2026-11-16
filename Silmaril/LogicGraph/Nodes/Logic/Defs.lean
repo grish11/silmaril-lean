@@ -70,7 +70,19 @@ public import Silmaril.Logic.Institution.Grothendieck.Examples.Het
 public import Silmaril.Logic.Institution.Metatheory.Consilience
 public import Silmaril.Logic.Institution.Metatheory.HOL
 public import Silmaril.Logic.Institution.Metatheory.Metamath
-public import Silmaril.Logic.Matching.FirstOrder.Defs
+public import Silmaril.Logic.Kore.FirstOrder.Institution
+public import Silmaril.Logic.Kore.FixedPoint.Institution.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Institution.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.BooleanRuntime.Modules.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Rooms
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Institution.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Model.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.Institution
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.RawInstitution
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Checker.Institution.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Institution
+public import Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.External.Defs
+public import Silmaril.Logic.Kore.GeneralFixedPoint.Institution.Defs
 public import Silmaril.Logic.Matching.FirstOrder.Pointed.Defs
 public import Silmaril.Logic.Matching.FixedPoint.Thms
 public import Silmaril.Logic.Matching.GeneralFixedPoint.Institution
@@ -94,6 +106,8 @@ public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Institution.Def
 public import Silmaril.Logic.Separation.Parameterized.Institution.Defs
 public import Silmaril.Logic.Separation.Parameterized.Matching.Institution.Defs
 public import Silmaril.Logic.Separation.Thms
+public import Silmaril.Logic.Smt.Uflia.Quantified.Thms
+public import Silmaril.Logic.Smt.Uflia.Thms
 public import Silmaril.Logic.Temporal.CTLStar.Thms
 public import Silmaril.Logic.Temporal.LTL.Defs
 public import Silmaril.Project.Registry.Institution.Defs
@@ -137,8 +151,6 @@ silmaril institution logic.egglog.source.named.families.inst := Silmaril.Logic.E
 silmaril institution logic.first_order.finite_lists.inst := Silmaril.Logic.FirstOrder.FiniteLists.inst
 silmaril institution logic.hoare.first_order.canonical_inst := Silmaril.Logic.Hoare.FirstOrder.canonicalInst
 silmaril institution logic.hoare.first_order.source_inst := Silmaril.Logic.Hoare.FirstOrder.sourceInst
-silmaril institution logic.hoare.canonical_inst := Silmaril.Logic.Hoare.canonicalInst
-silmaril institution logic.hoare.inst := Silmaril.Logic.Hoare.inst
 silmaril institution logic.hybrid_polyadic.matching.inst := Silmaril.Logic.HybridPolyadic.Matching.inst
 silmaril institution logic.hybrid_polyadic.inst := Silmaril.Logic.HybridPolyadic.inst
 silmaril institution logic.institution.examples.eq.inst := Silmaril.Logic.Institution.Examples.EQ.inst (hets := "CASL") (hets_relation := fragment)
@@ -146,6 +158,8 @@ silmaril institution logic.institution.examples.fol.inst := Silmaril.Logic.Insti
 silmaril institution logic.institution.examples.pl.inst := Silmaril.Logic.Institution.Examples.PL.inst (hets := "Propositional") (hets_relation := corresponds)
 silmaril institution logic.institution.examples.ufol.inst := Silmaril.Logic.Institution.Examples.UFOL.inst (hets := "CASL") (hets_relation := related)
 silmaril institution logic.institution.het_inst := Silmaril.Logic.Institution.hetInst
+silmaril institution logic.kore.first_order.inst := Silmaril.Logic.Kore.FirstOrder.inst
+silmaril institution logic.kore.first_order.matching_inst := Silmaril.Logic.Kore.FirstOrder.matchingInst
 silmaril institution logic.matching.guarded_fol.fixed_inst := Silmaril.Logic.Matching.GuardedFOL.fixedInst
 silmaril institution logic.matching.guarded_fol.inst := Silmaril.Logic.Matching.GuardedFOL.inst
 silmaril institution logic.matching.guarded_lfp.inst := Silmaril.Logic.Matching.GuardedLFP.inst
@@ -165,13 +179,21 @@ silmaril institution logic.separation.parameterized.inst := Silmaril.Logic.Separ
 silmaril institution logic.separation.base_inst := Silmaril.Logic.Separation.baseInst
 silmaril institution logic.separation.canonical_inst := Silmaril.Logic.Separation.canonicalInst
 silmaril institution logic.separation.recursive_inst := Silmaril.Logic.Separation.recursiveInst
+silmaril institution logic.smt.uflia.quantified.institution := Silmaril.Logic.Smt.Uflia.Quantified.institution
+silmaril institution logic.smt.uflia.institution := Silmaril.Logic.Smt.Uflia.institution
 silmaril institution logic.temporal.ltl.inst := Silmaril.Logic.Temporal.LTL.inst
 silmaril institution logic.algebraic.dependent_family.inst := Silmaril.Logic.Algebraic.DependentFamily.inst
 silmaril institution logic.ctl.inst := Silmaril.Logic.CTL.inst
 silmaril institution logic.first_order_lfp.boolean.inst := Silmaril.Logic.FirstOrderLFP.Boolean.inst
 silmaril institution logic.first_order_lfp.inst := Silmaril.Logic.FirstOrderLFP.inst
+silmaril institution logic.hoare.canonical_inst := Silmaril.Logic.Hoare.canonicalInst
+silmaril institution logic.hoare.inst := Silmaril.Logic.Hoare.inst
+silmaril institution logic.kore.fixed_point.inst := Silmaril.Logic.Kore.FixedPoint.inst
+silmaril institution logic.kore.general_fixed_point.aliases.inst := Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.inst
+silmaril institution logic.kore.general_fixed_point.builtins.sort_maps.surface.source_inst := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Surface.sourceInst
+silmaril institution logic.kore.general_fixed_point.builtins.sort_maps.native_inst := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.nativeInst
+silmaril institution logic.kore.general_fixed_point.inst := Silmaril.Logic.Kore.GeneralFixedPoint.inst
 silmaril institution logic.matching.first_order.pointed.inst := Silmaril.Logic.Matching.FirstOrder.Pointed.inst
-silmaril institution logic.matching.first_order.inst := Silmaril.Logic.Matching.FirstOrder.inst
 silmaril institution logic.matching.fixed_point.inst := Silmaril.Logic.Matching.FixedPoint.inst
 silmaril institution logic.matching.fixed_point.pointed_inst := Silmaril.Logic.Matching.FixedPoint.pointedInst
 silmaril institution logic.matching.general_fixed_point.inst := Silmaril.Logic.Matching.GeneralFixedPoint.inst
@@ -215,9 +237,25 @@ silmaril room logic.institution.examples.ufol.room := Silmaril.Logic.Institution
 silmaril room logic.institution.metatheory.hol.room := Silmaril.Logic.Institution.Metatheory.HOL.room
 silmaril room logic.institution.metatheory.hol_consilience.room := Silmaril.Logic.Institution.Metatheory.HOLConsilience.room
 silmaril room logic.institution.metatheory.metamath.room := Silmaril.Logic.Institution.Metatheory.Metamath.room
+silmaril room logic.kore.general_fixed_point.boolean_runtime.package.native_room := Silmaril.Logic.Kore.GeneralFixedPoint.BooleanRuntime.Package.nativeRoom
+silmaril room logic.kore.general_fixed_point.boolean_runtime.package.source_room := Silmaril.Logic.Kore.GeneralFixedPoint.BooleanRuntime.Package.sourceRoom
+silmaril room logic.kore.general_fixed_point.boolean_theory.package.native_room := Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Package.nativeRoom
+silmaril room logic.kore.general_fixed_point.boolean_theory.package.source_room := Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Package.sourceRoom
+silmaril room logic.kore.general_fixed_point.builtins.smt.paired_target_room := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.pairedTargetRoom
+silmaril room logic.kore.general_fixed_point.builtins.smt.raw_paired_target_room := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.rawPairedTargetRoom
+silmaril room logic.kore.general_fixed_point.builtins.smt.raw_source_room := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.rawSourceRoom
+silmaril room logic.kore.general_fixed_point.builtins.smt.typed_source_room := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.Smt.typedSourceRoom
+silmaril room logic.kore.general_fixed_point.builtins.sort_maps.surface.source_room := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.Surface.sourceRoom
+silmaril room logic.kore.general_fixed_point.builtins.sort_maps.native_room := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.SortMaps.nativeRoom
+silmaril room logic.kore.general_fixed_point.builtins.native_room := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.nativeRoom
+silmaril room logic.kore.general_fixed_point.builtins.source_room := Silmaril.Logic.Kore.GeneralFixedPoint.Builtins.sourceRoom
+silmaril room logic.kore.general_fixed_point.hooked_sorts.external.package.native_room := Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.External.Package.nativeRoom
+silmaril room logic.kore.general_fixed_point.hooked_sorts.external.package.source_room := Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.External.Package.sourceRoom
 silmaril room logic.prolog.definite.room := Silmaril.Logic.Prolog.Definite.room
 silmaril room logic.stlc_equations.room := Silmaril.Logic.STLCEquations.room
 silmaril room logic.stlc_matching.source_room := Silmaril.Logic.STLCMatching.sourceRoom
 silmaril room logic.stlc_matching.target_room := Silmaril.Logic.STLCMatching.targetRoom
 silmaril room logic.separation.first_order.canonical_room := Silmaril.Logic.Separation.FirstOrder.canonicalRoom
+silmaril room logic.smt.uflia.quantified.room := Silmaril.Logic.Smt.Uflia.Quantified.room
+silmaril room logic.smt.uflia.room := Silmaril.Logic.Smt.Uflia.room
 silmaril room logic.temporal.ltl.room := Silmaril.Logic.Temporal.LTL.room

@@ -384,13 +384,15 @@ def moduleLayer (m : Name) : String :=
       if info matches .inductInfo _ then continue
       if isAuxRecursor env n || isNoConfusion env n then continue
       let some m := env.getModuleIdxFor? n | continue
-      let r? ← try
+      -- deep types (large inductive signatures) get a higher recursion limit; a type that still
+      -- cannot be unfolded is not classified (not a node or an edge of a known kind)
+      let r? ← tryCatchRuntimeEx (withTheReader Core.Context (fun c => { c with maxRecDepth := 8192 }) <|
           forallTelescopeReducing info.type fun xs body => do
             let body ← whnfR body
             let some k := body.getAppFn.constName?.bind logicKindOf? | return none
             let g ← xs.anyM fun x => do genericBinder (← inferType x)
-            return some (k, xs.size, g)
-        catch _ => pure none
+            return some (k, xs.size, g))
+        fun _ => pure none
       if let some (k, arity, g) := r? then
         found := found.push (n, k, arity, g, env.header.moduleNames[m.toNat]!)
     found := found.qsort fun a b => a.1.toString < b.1.toString

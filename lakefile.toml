@@ -127,7 +127,7 @@ globs = [
   "Silmaril.Proofs.Wasm.Models.+", "Silmaril.Proofs.Wasm.Perf.+",
   "Silmaril.Proofs.Wasm.Resource.+", "Silmaril.Proofs.Wasm.Wac.+", "Silmaril.Proofs.Wasm.Wit.+",
   "Silmaril.Raw.Wasm.Component.+", "Silmaril.Raw.Wasm.Tools.+", "Silmaril.Raw.Wasm.Versions.+",
-  "Silmaril.Raw.Wasm.Wit.+", "Silmaril.Wasm.Atlas.+", "Silmaril.Wasm.Category.+",
+  "Silmaril.Raw.Wasm.Wit.+", "Silmaril.Raw.Wasm.Logic.+", "Silmaril.Wasm.Atlas.+", "Silmaril.Wasm.Category.+",
   "Silmaril.Wasm.InstObs.+", "Silmaril.Wasm.Instantiation.+", "Silmaril.Wasm.Jco.+",
   "Silmaril.Wasm.JcoTool.+", "Silmaril.Wasm.LimeCompile.+", "Silmaril.Wasm.Perf.+",
   "Silmaril.Wasm.Resource.+", "Silmaril.Wasm.Versions.+", "Silmaril.Wasm.Wit.+",

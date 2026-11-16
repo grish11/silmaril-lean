@@ -7,7 +7,7 @@ schema = "silmaril.records.v0.2"
 [[logic_pending]]
 name = "pending.smt"
 title = "SMT-LIB theories and solver institutions"
-nodes = 26
+nodes = 25
 edges = 23
 status = "pending-port"
 
@@ -30,11 +30,4 @@ name = "pending.prolog"
 title = "Prolog and Horn-clause programs"
 nodes = 2
 edges = 8
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.kore"
-title = "K framework Kore"
-nodes = 1
-edges = 1
 status = "pending-port"
