@@ -236,9 +236,8 @@ theorem Reach.of_prefix {c d : List (Call (E ⊕ₛ F))} (h : Reach t s a d) (hc
   obtain ⟨u, rfl⟩ := hc
   exact h c₀ μ ⟨n, e ++ u, by rw [he, List.append_assoc, List.cons_append]⟩
 
-theorem run_callMoves {f : AFun (E ⊕ₛ F) S A B} {P : Pending (E ⊕ₛ F) S A}
-    (d : List (Call (E ⊕ₛ F)))
-    {c₀ : List (Call (E ⊕ₛ F))} (hd : ∀ c m, CallPre c m (c₀ ++ d) → (c, m) ∈ P s a) :
+theorem run_callMoves {X : Sig.{u}} {f : AFun X S A B} {P : Pending X S A} (d : List (Call X))
+    {c₀ : List (Call X)} (hd : ∀ c m, CallPre c m (c₀ ++ d) → (c, m) ∈ P s a) :
     TRun f P (.run s a c₀) (callMoves d) (.run s a (c₀ ++ d)) := by
   induction d generalizing c₀ with
   | nil => simpa using TRun.nil _

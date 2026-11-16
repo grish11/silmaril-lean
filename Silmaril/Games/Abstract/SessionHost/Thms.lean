@@ -6,6 +6,7 @@ public import Silmaril.Games.DPair.Defs
 public import Silmaril.Games.DivComp.Defs
 import Silmaril.Proofs.Games.Abstract.SessionHost.Pair
 import Silmaril.Proofs.Games.Abstract.SessionHost.Plays
+import Silmaril.Proofs.Games.Abstract.SessionHost.Div
 
 /-!
 # A session with host imports beside component imports: theorems
@@ -22,6 +23,13 @@ time (it is the pairing). A play of the composite is the visible part of a play 
 the linked automaton on its visible part, the stores unchanged. Conversely a run of the linked
 automaton is built back from its end: the call prefix of `t` witnessing the last visible call
 fixes the hidden host calls before it.
+
+**Divergence** (`pair_comp_threadS_div`, no hypothesis): the composite diverges exactly where the
+linked session does. A divergence of `t` after allowed host answers, and the host diverging at a
+call prefix, are local divergences. Hidden chatter of the composite (`DStrategy.comp`) is an
+infinite interaction with a constant visible part: the session of `t` then streams inside one
+round (it cannot complete infinitely many rounds, each of which is visible), with boundedly, hence
+finitely, many component calls, every host answer allowed; that is the linked chatter divergence.
 
 Proofs are in `Silmaril.Proofs.Games.Abstract.SessionHost`.
 -/
@@ -44,5 +52,14 @@ theorem pair_comp_threadS_toStrategy (R : HostRel E)
       (threadS (hostLinkS R t) s₀).toStrategy := by
   rw [Silmaril.Proofs.Games.Abstract.SessionHost.pair_eq]
   exact Strategy.ext fun _ => Silmaril.Proofs.Games.Abstract.SessionHost.mem_comp_iff
+
+/-- **The divergences of a session with host imports**: the composite of the host beside copycat
+and the session of `t` diverges exactly where the linked session does. -/
+theorem pair_comp_threadS_div (R : HostRel E) (t : ObsTriple (E ⊕ₛ F) S A (B ⊕ PUnit.{u + 1}))
+    (s₀ : S) :
+    (((hostDOn F R).pair (DStrategy.id F)).comp (threadS t s₀)).div =
+      (threadS (hostLinkS R t) s₀).div := by
+  rw [Silmaril.Proofs.Games.Abstract.SessionHost.pair_eq]
+  exact Silmaril.Proofs.Games.Abstract.SessionHost.comp_div
 
 end Silmaril.Games.Abstract.SessionHost
