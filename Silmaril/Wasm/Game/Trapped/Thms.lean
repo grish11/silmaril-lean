@@ -13,8 +13,11 @@ topic. Every profile `P`:
   `TRAP` under a callout context) strictly decreases the size of the code. With
   `Choice.step_doomed` (such steps keep the configuration trapped, in the same store and frame)
   this is the measure excluding infinite host-free runs from a trapped configuration.
+* `trapped_step`: every host-free Core step from a trapped configuration keeps the store and the
+  frame and stays trapped (`Choice.step_doomed`).
+* `trapped_eq_toAdmin`: a trapped code is the code of a result only if that result is a trap.
 
-Proofs: `Silmaril.Proofs.Wasm.Game.Machine.Doomed`.
+Proofs: `Silmaril.Proofs.Wasm.Game.Machine.Doomed` and `Silmaril.Proofs.Wasm.Game.Machine.SoftAt`.
 -/
 
 public section
@@ -30,5 +33,18 @@ theorem trapped_step_lt {H : Type} {P : Profile} {E : Silmaril.Wasm.SingleThread
     (h : Step P Silmaril.Wasm.SingleThreaded.Det.noHost ⟨s, f, E.fill [.trap]⟩ d) :
     sizeOf d.code < sizeOf (E.fill [.trap]) :=
   Silmaril.Proofs.Wasm.Game.Choice.trapped_step_lt h
+
+/-- **Every host-free step of a trapped configuration keeps it trapped**, in the same store and
+frame. -/
+theorem trapped_step {H : Type} {P : Profile} {E : Silmaril.Wasm.SingleThreaded.Ctx}
+    {s : Store H} {f : Frame} {d : Config H}
+    (h : Step P Silmaril.Wasm.SingleThreaded.Det.noHost ⟨s, f, E.fill [.trap]⟩ d) :
+    d.store = s ∧ d.frame = f ∧ ∃ E' : Silmaril.Wasm.SingleThreaded.Ctx, d.code = E'.fill [.trap] :=
+  Silmaril.Proofs.Wasm.Game.Choice.step_doomed h
+
+/-- **A trapped code is the code of a result only if that result is a trap.** -/
+theorem trapped_eq_toAdmin {E : Silmaril.Wasm.SingleThreaded.Ctx}
+    {r : Silmaril.Wasm.Execution.Core.Result} (h : E.fill [.trap] = r.toAdmin) : r = .trap :=
+  Silmaril.Proofs.Wasm.Game.Choice.fill_trap_toAdmin h
 
 end Silmaril.Wasm.Game

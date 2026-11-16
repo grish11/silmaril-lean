@@ -54,11 +54,8 @@ Core triple (`instSession_eq_view`), and the node sessions of the divergence-obs
   it, `g 1` returns `1` and `g 2` returns `2`. Any host relation on `I.E` answers the same
   question `import0 ()` the same way at both calls, so the composite with `instSession` cannot
   return both.
-* `TrapAbortsRound`/`TrapPropagating` for `core3SemD` nodes. The triple equality reduces them to
-  a Core fact that is missing: from `⟨s, f, E.fill [.trap]⟩` every host-free run keeps the store,
-  reaches no callout, terminates, and ends only at `⟨s, f, [.trap]⟩`.
-  `SingleThreaded.Ctx.fill_trap_step` (progress) and `Ctx.decompose?_fill_trap` (no callout)
-  exist. The inversion of `Step` on `E.fill [.trap]` does not.
+* `TrapAbortsRound`/`TrapPropagating` for `core3SemD` nodes: proved in `Wasm.Abstract.NodeTrap`
+  (`instTripleS_trapAbortsRound`, `trapPropagating_core3SemD`), directly on instance paths.
 * The node strategies on `sigS` (`toU`/`ofU`). `core3SemD_eq_view` identifies the session
   object of each node, which `semOfSD` then wraps in the `core3Sem` coercions (`importH`,
   `exportH`). These theorems do not relate those coercions to `toU`/`ofU`.
