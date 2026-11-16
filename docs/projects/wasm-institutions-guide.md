@@ -233,9 +233,19 @@ The Wasm institutions come in two families, built the same way (an observational
 `fullGraph₃ P host Env` with the core-module graph beside it, with borrowing along wrapping and
 flattening (`valid_wrap_iff`, `valid_flatten_iff`) and along every path (`pathModelExpansive`).
 
-**What is not there.** No comorphism connects the two families yet: inside `fullGraph₃` the
+**Where they meet.** `Wasm.Institution.CoreComp` sends both families into the institution of
+game semantics `Silmaril.Games.GInst`: `reductionToGInst P host` (Wasm instances under the
+Core 3.0 reduction), `core3ModuleToGInst P` (numeric Core 3.0 instances as components' core
+modules) and `componentToGInst P` (components). All three are model-expansive, so validity and
+entailment borrow both ways (`reduction_valid_iff`, `core3Module_valid_iff`,
+`component_valid_iff`, `core3Module_entails_iff`). `CoreComp.Examples` carries the refinement
+`x ⊑ x` of the module logic into `GInst` and back.
+
+**What is not there.** No direct comorphism between the two families: inside `fullGraph₃` the
 core-module logics (export signatures with behaviours, `exportSig`) and the component logics
-(the IR's game signatures, `sigU`) have no edges between them. Component-level adequacy is proved only for `Simple` components
+(the IR's game signatures, `sigU`) have no edges between them, and in `GInst` their sentences
+live over different games. Relating a Wasm instance to the numeric instance built from it needs a
+game morphism between those signatures and an adequacy argument. Component-level adequacy is proved only for `Simple` components
 ([component-caveats.md](component-caveats.md)).
 
 ## Check and locate the claims
