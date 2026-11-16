@@ -160,6 +160,15 @@ theorem mdivC_core_closed (P : Profile) {s : Store H} {f : Frame}
     Diverges P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ :=
   mdivC_core_initial (callSoundA_closedCallOk P _) (divCallSound_closedDiv P) h
 
+/-- **Frame divergence with the checked closed oracle, through tail callees** (no host, every
+profile, no hypothesis): `MDivT` with `closedCallOk` and `closedDiv` from the CFG entry is Core
+3.0 divergence of the function's frame, in any outer frame. -/
+theorem mdivT_frame_closed (P : Profile) {s : Store H} {fi : Frame}
+    (h : MDivT P (fun _ _ _ _ => False) Abstract.closedCallOk closedDiv body (initial body s fi))
+    (n : Nat) (f : Frame) :
+    Diverges P (fun _ _ _ _ => False) ⟨s, f, [.frame n fi [.label n [] (expression body)]]⟩ :=
+  mdivT_frame_initial (callSoundA_closedCallOk P _) (divCallSound_closedDiv P) h n f
+
 /-- **Completeness of machine divergence with the checked closed oracle** (no host, every
 profile, no oracle hypothesis): a diverging Core 3.0 run of a body of the fragment with
 calls (`FragC`) is `MDivC` with `closedCallOk` and `closedDiv` from the CFG entry, provided every

@@ -9,6 +9,7 @@ import Silmaril.Proofs.Wasm.Cfg.MachineCore
 import Silmaril.Proofs.Wasm.Cfg.MachineDivC
 import Silmaril.Proofs.Wasm.Cfg.RegionDivC
 import Silmaril.Proofs.Wasm.Cfg.MachineTail
+import Silmaril.Proofs.Wasm.Cfg.MachineTailDiv
 public import Silmaril.Wasm.Cfg.Region.Thms
 public import Silmaril.Foundations.InfiniteTrace
 
@@ -90,6 +91,12 @@ public import Silmaril.Foundations.InfiniteTrace
   diverging region run with calls (`Region.RunDivC`) is `MDivC`; **`core_div_initialC`**: on
   `FragC` bodies (direct, indirect and reference calls), Core divergence is `MDivC` under
   complete, guarded `C` and `D`.
+
+* **Divergence through tail callees** (`MDivT`): a tail call replaces the function's frame, so
+  a diverging tail callee is divergence of the frame, not of the body. `MDivT` is `MDivC` or a
+  finite run to a block ending in a tail call of a callee `D` names (`TailCallDiv`).
+  `mdivT_frame_initial`: under `CallSoundA` and `DivCallSound`, `MDivT` from the CFG entry is
+  Core 3.0 divergence of `FRAME_n{fi} (LABEL_n{} body)` (soundness only).
 
 * **Tail calls of null** (`MStepC.tailNull`): a `return_call_ref`/`return_call_indirect` of a
   null reference goes to `trap`, whose `Ends` admits the region's pending tail call of null
@@ -677,6 +684,18 @@ theorem mdivC_core_initial {D : Store H → Nat → List Val → Prop} (hC : Reg
     (h : MDivC P host C D body (initial body s f)) :
     Diverges P host ⟨s, f, expression body⟩ :=
   Proofs.MachineDivC.mdivC_core_initial hC hD h
+
+/-- **Soundness of frame divergence, through tail callees, from the CFG entry**: under
+`Region.CallSoundA` and `Region.DivCallSound`, `MDivT` from the initial state (body divergence
+`MDivC`, or a finite run to a block ending in a tail call of a callee `D` names) is Core 3.0
+divergence of the function's frame `FRAME_n{fi} (LABEL_n{} body)`, in any outer frame `f`. The
+tail call replaces the frame (`return_call_ref-frame-addr`): the body's pending code and
+handlers are not run. -/
+theorem mdivT_frame_initial {D : Store H → Nat → List Val → Prop} (hC : Region.CallSoundA P host C)
+    (hD : Region.DivCallSound P host D) {s : Store H} {fi : Frame}
+    (h : MDivT P host C D body (initial body s fi)) (n : Nat) (f : Frame) :
+    Diverges P host ⟨s, f, [.frame n fi [.label n [] (expression body)]]⟩ :=
+  Proofs.MachineTailDiv.mdivT_frame_initial hC hD h n f
 
 /-- **A diverging region run with calls is machine divergence from the CFG entry**: a
 `RunDivC` run of the body is `MDivC` from the initial state (an infinite `MStepC` run, or a

@@ -390,15 +390,22 @@ The plain graph stays an over-approximation, and claims about it say so.
       `mdivC_iff_core_closed_typed`) has `div_callInd`/`div_callRef`: the call diverges in the
       callee (`D`), or is answered with values and the continuation diverges. An unresolved index
       or null reference traps and never diverges. New Core inversions: `Step.callRef_top_inv(_seq)`
-      and `Step.callIndirect_vals_inv_seq`. **Open:** divergence through a tail callee (frame
-      replacement, bypassing the caller's handlers and pending code; `FragC` has no `return_call*`),
-      a `call_indirect` fixture (needs a store with a table), and the function-level corollary via
-      `invoke_diverges_iff_funDivX`.
+      and `Step.callIndirect_vals_inv_seq`. **Open:** completeness of divergence through a tail
+      callee (`FragC` has no `return_call*`), a `call_indirect` fixture (needs a store with a
+      table), and the function-level corollary via `invoke_diverges_iff_funDivX`.
     - **`call_ref` fixtures (`Wasm/Cfg/ExampleRef`):** `ref_machine_div`: in the frame of the
       validated self-call of `recMod`, `ref.func x; call_ref y` has no infinite machine run, yet
       `MDivC` with `closedCallOk`/`closedDiv` holds through `BodyCallDivRef`, and Core 3.0 diverges.
       `null_machine_trap`, `null_not_diverges`, `null_not_mdivC`: `ref.null; call_ref` moves to the
       `trap` sink in one step, and never diverges.
+    - **Divergence through tail callees, soundness side:** `MDivT` is `MDivC` or a finite run to a
+      block ending in a tail call of a callee `D` names (`TailCallDiv`, read as `MStepC.tail` reads
+      it, with no answer). `mdivT_frame_initial` (and `mdivT_frame_closed`): from the CFG entry it
+      is Core 3.0 divergence of the function's frame `FRAME_n{fi} (LABEL_n{} body)` in any outer
+      frame. The tail call replaces the frame (`return_call_ref-frame-addr`, `frame_tail_div`), so
+      the body's pending code and handlers are bypassed. Fixture `Wasm/Cfg/ExampleTail`:
+      `block (return_call x); unreachable` in the frame of `recMod`'s self-call (`tail_machine_div`).
+      **Open:** the converse (Core frame divergence is `MDivT`).
     - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
       `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
       Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the

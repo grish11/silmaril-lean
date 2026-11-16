@@ -627,4 +627,29 @@ def MDivC {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRe
   InfiniteTrace (MStepC P host C body) st ∨
     ∃ st', Relation.ReflTransGen (MStepC P host C body) st st' ∧ BodyCallDiv P host C D body st'
 
+/-- **A block ending in a tail call of a diverging callee**: its body runs to values, and its
+terminator, a tail call (`return_call`, `return_call_indirect`, `return_call_ref`), ends in a
+pending tail call (`Out.tail`) of a function that `D` says diverges on the top `ps.length`
+values of the whole stack, the label frames' outer values under the terminator's (`brVals`), as
+`MStepC.tail` reads them. The tail call replaces the function's frame, so this is divergence of
+the function's `FRAME`, not of its body: the caller's pending code and handlers are bypassed. -/
+def TailCallDiv {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  ∃ (b : BlockId) (sg : Segment) (i : Instr) (stk₁ : List Val) (s₁ s₂ : Store H) (f₁ f₂ : Frame)
+    (W : List Val) (a : Nat) (c : Admin) (fi : FuncInst H) (ps rs : List CValType)
+    (W₀ args : List Val),
+    st.node = .block b ∧ lookup body b = some sg ∧ sg.term = some i ∧ i.IsTailCall ∧
+    RunC P host C st.store st.frame st.stk (expression sg.body) s₁ f₁ (.normal stk₁) ∧
+    RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.tail W a c) ∧
+    s₂.funcs[a]? = some fi ∧ DefType.funcType? fi.type = some (ps, rs) ∧
+    brVals st.lbls.length st.lbls W = W₀ ++ args ∧ args.length = ps.length ∧ D s₂ a args
+
+/-- **Divergence of a function's frame in the machine with calls**: divergence of the body
+(`MDivC`), or a finite run to a block ending in a tail call of a callee that `D` says diverges
+(`TailCallDiv`). -/
+def MDivT {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  MDivC P host C D body st ∨
+    ∃ st', Relation.ReflTransGen (MStepC P host C body) st st' ∧ TailCallDiv P host C D body st'
+
 end Silmaril.Wasm.Cfg.Machine
