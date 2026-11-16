@@ -52,7 +52,9 @@ that exists under the project's source directories. Problems and answers then li
 modules at that commit. **view** fetches the file from `raw.githubusercontent.com` (at most 1 MiB)
 and shows the lines where a text search finds the declaration, escaped. The dialog says that the
 line was found by a text search. That the declaration was kernel-checked is what the database's
-tier says, not the source view. `make pages` passes the repository and the checked-out commit.
+tier says, not the source view. `make pages PAGES_SOURCE_REV=<commit>` passes the repository and
+that commit (the Pages workflow passes the pushed commit). The commit is never guessed from a
+checkout, whose HEAD may be one GitHub does not have.
 Without these options the page has no source links.
 
 **Bytes.** An artifact of the local package has a **view** button. It reads at most 64 KiB of the

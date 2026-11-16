@@ -135,10 +135,12 @@ project-tool:
 	chmod +x build/bin/sil
 
 # The explorer page and its database in _site (.github/workflows/pages.yml), from the built
-# libraries of the project's modules (silmaril.toml). In a Git checkout, the page links problems
-# and answers to their Lean sources on GitHub at the checked-out commit.
+# libraries of the project's modules (silmaril.toml). With PAGES_SOURCE_REV, a commit of
+# PAGES_SOURCE_URL that holds these sources (the Pages workflow passes the pushed commit), the page
+# links problems and answers to their Lean sources there. It is not guessed from the checkout: a
+# local or build-service HEAD may be a commit GitHub does not have, and its links would be broken.
 PAGES_SOURCE_URL ?= https://github.com/hiloopai/silmaril-lean
-PAGES_SOURCE_REV ?= $(shell git rev-parse HEAD 2>/dev/null)
+PAGES_SOURCE_REV ?=
 pages: project-tool
 	build/bin/silmaril-project dump --lake lake
 	build/bin/silmaril-project check
