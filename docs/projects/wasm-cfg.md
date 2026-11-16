@@ -361,6 +361,26 @@ The plain graph stays an over-approximation, and claims about it say so.
       extended.
     - `native_machine` now excludes only branches past the function label.
 
+11. **A defined function's CFG execution against its Core invocation** (`Cfg.Function`).
+    Fragment, stated explicitly: a typed invocation (`StoreOk`, `InvokeOk`) of a Wasm function in
+    a store of Wasm functions with function types (`WasmFuncsT`) passing the tail-aware check
+    (`StoreChkE tExt`: every call form, no `throw` or `try_table`), the deterministic profile, no
+    host (closed: no observable call log). The machine runs the function's body in its call frame
+    with calls answered by the typed closed extended oracle `CX closedCallX`.
+    - **Finite runs, both directions, done:** `machine_core` (a machine run from the CFG entry to a
+      sink is a native body run whose flow is a closed outcome of the invocation, and Core runs
+      the invocation to the matching values or trap in the same final store) and `core_machine`
+      (a stopping Core run of the invocation is terminal, a closed outcome, and the body's native
+      run to it is a machine run from the CFG entry to a sink ending as that run; branches past
+      the function label are ruled out by the body check).
+    - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
+      `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
+      Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the
+      store-retaining session target (b): the CFG-instance session triple denotes the same
+      `DStrategy` as `instSession`/`core3SemD`, with finite done/pending plays, quiescent
+      divergence and coherent productive infinite interaction. None of these is claimed by the
+      OX results above, which are store-erasing at nested callee boundaries.
+
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
 (`bodyIfaces_complete`).
