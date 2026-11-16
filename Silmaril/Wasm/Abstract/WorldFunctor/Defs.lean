@@ -82,6 +82,10 @@ def trapR (g : ORel H) : ORel H := fun s f stk s' f' o =>
   | .flow .trap => ∃ s'' f'', g s f stk s'' f'' (.flow .trap)
   | o => g s f stk s' f' o
 
+/-- A relation whose traps do not record their store and frame. -/
+def TrapClosed (g : ORel H) : Prop :=
+  ∀ s f stk s' f' s'' f'', g s f stk s' f' (.flow .trap) → g s f stk s'' f'' (.flow .trap)
+
 /-- The objects of the codomain: those of the world category. -/
 def RObj (Γ : Ctx H) : Type := {I : TIface // I.Ok ∧ Coh Γ I}
 
@@ -95,7 +99,7 @@ of `I`, landing in the world states of `J`, trap-closed. -/
   /-- Fallthroughs land in the world states of `J`. -/
   lands : ∀ s f stk s' f' vs, rel s f stk s' f' (.flow (.normal vs)) → WSt Γ J s' f' vs
   /-- A trap does not record its store and frame. -/
-  trap : ∀ s f stk s' f' s'' f'', rel s f stk s' f' (.flow .trap) → rel s f stk s'' f'' (.flow .trap)
+  trap : TrapClosed rel
 
 /-! ## Answering -/
 

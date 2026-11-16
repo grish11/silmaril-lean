@@ -81,7 +81,8 @@ theorem gRel_trap {I : TIface} {k : Cfg → PX H Cfg} :
   fun _ _ _ _ _ _ _ h => h
 
 theorem gRel_eq {I : TIface} (es : List BExpr) :
-    resR (WSt Γ I) (Ans closedCallXP (denK es)) = resR (WSt Γ I) (trapR (denR closedCallXP es)) := by
+    resR (WSt Γ I) (Ans closedCallXP (denK es)) =
+      resR (WSt Γ I) (trapR (denR closedCallXP es)) := by
   rw [ans_denK]
 
 theorem gRel_nil (I : TIface) :
@@ -134,10 +135,8 @@ theorem seqR_lands {Q : Store H → Frame → List Val → Prop} (g₁ : ORel H)
   · exact absurd trivial hn
 
 theorem seqR_trap {g₁ g₂ : ORel H}
-    (h₁ : ∀ s f stk s' f' s'' f'', g₁ s f stk s' f' (.flow .trap) → g₁ s f stk s'' f'' (.flow .trap))
-    (h₂ : ∀ s f stk s' f' s'' f'', g₂ s f stk s' f' (.flow .trap) → g₂ s f stk s'' f'' (.flow .trap)) :
-    ∀ s f stk s' f' s'' f'', seqR g₁ g₂ s f stk s' f' (.flow .trap) →
-      seqR g₁ g₂ s f stk s'' f'' (.flow .trap) := by
+    (h₁ : TrapClosed g₁) (h₂ : TrapClosed g₂) :
+    TrapClosed (seqR g₁ g₂) := by
   rintro s f stk s' f' s'' f'' (⟨a, b, c, h, h'⟩ | ⟨h, hn⟩)
   · exact .inl ⟨a, b, c, h, h₂ _ _ _ _ _ _ _ h'⟩
   · exact .inr ⟨h₁ _ _ _ _ _ _ _ h, hn⟩
@@ -241,13 +240,63 @@ theorem whisk_lands {I J : TIface} (R : List CValType) {g : ORel H}
   omega
 
 theorem whisk_trap {I : TIface} (R : List CValType) (n : Nat) {g : ORel H}
-    (ht : ∀ s f stk s' f' s'' f'', g s f stk s' f' (.flow .trap) → g s f stk s'' f'' (.flow .trap)) :
-    ∀ s f stk s' f' s'' f'', resR (WSt Γ (I.withBelow R)) (leftR n g) s f stk s' f' (.flow .trap) →
-      resR (WSt Γ (I.withBelow R)) (leftR n g) s f stk s'' f'' (.flow .trap) := by
+    (ht : TrapClosed g) :
+    TrapClosed (resR (WSt Γ (I.withBelow R)) (leftR n g)) := by
   rintro s f stk s' f' s'' f'' ⟨hw, hn, o, h, ho⟩
   have hot : o = .flow .trap := whiskO_eq_trap.1 ho.symm
   subst hot
   exact ⟨hw, hn, _, ht _ _ _ _ _ _ _ h, ho⟩
+
+theorem whiskO_isNormal {rest : List Val} {o : POut} : (whiskO rest o).IsNormal ↔ o.IsNormal := by
+  rcases o with (_ | _ | _ | _ | _) | _ <;> exact Iff.rfl
+
+/-- **The codomain's whiskering keeps identities.** -/
+theorem whisk_idR (I : TIface) (R : List CValType) :
+    resR (WSt Γ (I.withBelow R)) (leftR I.ts.length (resR (WSt Γ I) idR)) =
+      resR (WSt Γ (I.withBelow R)) idR := by
+  funext s f stk' s' f' o'
+  apply propext
+  by_cases hw : WSt Γ (I.withBelow R) s f stk'
+  swap
+  · exact ⟨fun h => absurd h.1 hw, fun h => absurd h.1 hw⟩
+  obtain ⟨hn, hwI, -⟩ := wst_withBelow hw
+  constructor
+  · rintro ⟨-, -, o, ⟨-, rfl, rfl, rfl⟩, rfl⟩
+    exact ⟨hw, rfl, rfl, by simp [whiskO]⟩
+  · rintro ⟨-, rfl, rfl, rfl⟩
+    exact ⟨hw, hn, _, ⟨hwI, rfl, rfl, rfl⟩, by simp [whiskO]⟩
+
+/-- **The codomain's whiskering keeps composition**, for a first relation landing in the world
+states of `J`. -/
+theorem whisk_seqR {I J : TIface} (R : List CValType) {g₁ : ORel H} (g₂ : ORel H)
+    (hl : ∀ s f stk s' f' vs, g₁ s f stk s' f' (.flow (.normal vs)) → WSt Γ J s' f' vs) :
+    resR (WSt Γ (I.withBelow R)) (leftR I.ts.length (seqR g₁ g₂)) =
+      seqR (resR (WSt Γ (I.withBelow R)) (leftR I.ts.length g₁))
+        (resR (WSt Γ (J.withBelow R)) (leftR J.ts.length g₂)) := by
+  funext s f stk' s' f' o'
+  apply propext
+  by_cases hw : WSt Γ (I.withBelow R) s f stk'
+  swap
+  · refine ⟨fun h => absurd h.1 hw, ?_⟩
+    rintro (⟨_, _, _, h, -⟩ | ⟨h, -⟩) <;> exact absurd h.1 hw
+  obtain ⟨hn, -, hd⟩ := wst_withBelow hw
+  constructor
+  · rintro ⟨-, -, o, (⟨s₁, f₁, vs, h₁, h₂⟩ | ⟨h₁, hno⟩), rfl⟩
+    · obtain ⟨hg, hmod, hloc, hlen⟩ := hl _ _ _ _ _ _ h₁
+      refine .inl ⟨s₁, f₁, vs ++ stk'.drop I.ts.length, ⟨hw, hn, _, h₁, rfl⟩,
+        ⟨⟨hg, hmod, hloc, ?_⟩, ?_, o, ?_, ?_⟩⟩
+      · simp only [TIface.withBelow, List.length_append, hlen, hd]; omega
+      · simp only [List.length_append]; omega
+      · rw [List.take_left' hlen]; exact h₂
+      · rw [List.drop_left' hlen]
+    · exact .inr ⟨⟨hw, hn, o, h₁, rfl⟩, fun h => hno (whiskO_isNormal.1 h)⟩
+  · rintro (⟨s₁, f₁, vs', ⟨-, -, o₁, h₁, ho₁⟩, ⟨-, -, o₂, h₂, rfl⟩⟩ | ⟨⟨-, -, o, h₁, rfl⟩, hno⟩)
+    · obtain ⟨us, rfl, rfl⟩ := whiskO_eq_normal ho₁.symm
+      have hlen := (hl _ _ _ _ _ _ h₁).2.2.2
+      rw [List.take_left' hlen] at h₂
+      refine ⟨hw, hn, o₂, .inl ⟨s₁, f₁, us, h₁, h₂⟩, ?_⟩
+      rw [List.drop_left' hlen]
+    · exact ⟨hw, hn, o, .inr ⟨h₁, fun h => hno (whiskO_isNormal.2 h)⟩, rfl⟩
 
 /-! ## Pure code -/
 

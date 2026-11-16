@@ -31,7 +31,8 @@ theorem trapR_ne {g : ORel H} {s : Store H} {f : Frame} {stk : List Val} {s' : S
   rcases o with (_ | _ | _ | _ | _) | _ <;> first | exact Iff.rfl | exact absurd rfl ho
 
 theorem trapR_trap {g : ORel H} {s : Store H} {f : Frame} {stk : List Val} {s' : Store H}
-    {f' : Frame} : trapR g s f stk s' f' (.flow .trap) ↔ ∃ s'' f'', g s f stk s'' f'' (.flow .trap) :=
+    {f' : Frame} :
+    trapR g s f stk s' f' (.flow .trap) ↔ ∃ s'' f'', g s f stk s'' f'' (.flow .trap) :=
   Iff.rfl
 
 theorem not_isNormal_trap : ¬ (POut.flow .trap).IsNormal := fun h => h
@@ -78,7 +79,7 @@ theorem trapR_trap_closed (g : ORel H) {s : Store H} {f : Frame} {stk : List Val
 
 /-- A trap-closed relation is its own trap forgetting. -/
 theorem trapR_of_closed {g : ORel H}
-    (hg : ∀ s f stk s' f' s'' f'', g s f stk s' f' (.flow .trap) → g s f stk s'' f'' (.flow .trap)) :
+    (hg : TrapClosed g) :
     trapR g = g := by
   funext s f stk s' f' o
   apply propext
