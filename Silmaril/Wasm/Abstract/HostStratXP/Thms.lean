@@ -13,8 +13,7 @@ public import Silmaril.Wasm.Abstract.HostSquareXP.Thms
   `hostSquareXP_of` (`hdiv`: host-free Core divergence after a log is a divergent canonical
   behaviour; `hinf`: a productive Core run is a productive canonical run) for every question of
   `InvOkXP`. These hypotheses are explicit here; `hdiv` is
-  `HostClosingInfXPBack.backDivXP` (with `coreStratXP_eq_natStratXP_of_inf` there), `hinf` is not
-  proved yet;
+  `HostClosingInfXPBack.backDivXP`, `hinf` is not proved yet;
 * `coreStratXP_mem_throw`, `coreStratXP_mem_ret`: reading Core runs back from completed rounds,
   every profile: an answer `.inl (.inr t, s₂)` is a Core run to the uncaught exception
   `throwing t`, an answer `.inl (.inl ws, s₂)` to the values `ws`.

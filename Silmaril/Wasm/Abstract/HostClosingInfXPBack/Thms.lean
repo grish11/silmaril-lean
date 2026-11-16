@@ -73,9 +73,7 @@ deterministic profile, a host with typed answers in the host slices):
   determinism. With no event left, the empty-log case above;
 * `wasmEvFunDXP_div_iff`: with `wasmEvFunDXP_div_evRun`, both directions at exactly the log;
 * `hostSquareXP_div`: the divergence corner of the exact-log square, unconditionally;
-* `backDivXP`: the backward divergence direction `BackDivXP` of `HostStratXP`, so
-  `coreStratXP_eq_natStratXP_of_inf`, `coreStratAtXP_eq_natStratAtXP_of_inf`: the Core strategy
-  with exceptions is the native one given only the productive direction `BackInfXP`.
+* `backDivXP`: the backward divergence direction `BackDivXP` of `HostStratXP`, discharged.
 
 Not yet: productive runs, Core to `wasmEvInfNXP` (`BackInfXP`).
 -/
@@ -200,19 +198,6 @@ theorem hostSquareXP_div (hT : HostTyped host) (hH : NativeHostSlice host)
 theorem backDivXP (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host) :
     BackDivXP o host tags :=
   fun _ _ hq _ _ h hd => evRun_wasmEvFunDXP_div hT hH hE hq.1 hq.2.1 hq.2.2.1 hq.2.2.2 h hd
-
-/-- **The Core strategy with exceptions is the native one** (deterministic profile), given the
-productive backward direction only. -/
-theorem coreStratXP_eq_natStratXP_of_inf (hT : HostTyped host) (hH : NativeHostSlice host)
-    (hE : HostSliceE tags host) (hinf : BackInfXP o host tags) :
-    coreStratXP (profile o) host (InvOkXP tags) = natStratXP host (InvOkXP tags) :=
-  coreStratXP_eq_natStratXP_of hT hH hE (backDivXP hT hH hE) hinf
-
-/-- **Per function**, final store hidden, given the productive backward direction only. -/
-theorem coreStratAtXP_eq_natStratAtXP_of_inf (hT : HostTyped host) (hH : NativeHostSlice host)
-    (hE : HostSliceE tags host) (hinf : BackInfXP o host tags) (s : Store H) (a : Nat) :
-    coreStratAtXP (profile o) host (InvOkXP tags) s a = natStratAtXP host (InvOkXP tags) s a :=
-  coreStratAtXP_eq_natStratAtXP_of hT hH hE (backDivXP hT hH hE) hinf s a
 
 end Div
 
