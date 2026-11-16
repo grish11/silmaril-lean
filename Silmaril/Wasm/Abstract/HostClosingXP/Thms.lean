@@ -14,6 +14,7 @@ import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackWhole
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackPub
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.PendRun
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackRes
+import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.TrapExact
 
 /-!
 # The canonical relation with host calls as an open module: theorems
@@ -622,6 +623,105 @@ theorem wasmEvFunXP_evRun_call (hH : NativeHostSlice host) (hE : HostSliceE tags
     hcr
 
 end Runs
+
+/-! ## Traps in the exact store of the trap -/
+
+section TrapExact
+
+open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.Abstract.CallXP (POut)
+
+variable {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H} {tags : List TagInst}
+  {s : Store H} {a : Nat} {us : List Val} {fi : FuncInst H} {ps rs : List Validation.CValType}
+
+/-- **A Wasm body trapping itself traps in the store its logged run ends in** (every profile):
+its calls resolved by the closure to a log the host allows, the call is a Core run to a trap in
+exactly that store, in any frame and any `call_ref` form. -/
+theorem evalLXPh_trap_exact (hH : NativeHostSlice host) (hE : HostSliceE tags host) {fn : Func}
+    {s' : Store H} {f₂ : Frame} {l : List (OCall H)} {q : List (Call (wasmHostSig H))}
+    (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+    (hts : TagsOk tags s) (hSt : StoreChkE (ehExt tags) s.funcs)
+    (hE' : EvalLXPh s (Frame.forCall fi.module us fn.locals) [] (liftInstrs fn.body) l
+      (s', f₂, .flow .trap))
+    (hp : Shape.SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) q)
+    (hq : (coreHostRel host).Consistent q) (f : Frame) (c : Admin) (hcr : c.IsCallRef) :
+    EvRun P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ q ⟨s', f, [.trap]⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.evalLXPh_trap_exact hH hE hfi hcode hty hn hts hSt
+    hE' hp hq f c hcr
+
+/-- **A Wasm body whose call's callee traps in `s₂` traps in `s₂`** (every profile): the calls
+before it resolved by the closure to `q`, the callee's Core run to a trap in exactly `s₂` with the
+host events `c₁`, the call is a Core run to a trap in exactly `s₂`: the trap leaves every label,
+handler and frame without changing the store. -/
+theorem evalLXPh_cut_exact (hH : NativeHostSlice host) (hE : HostSliceE tags host) {fn : Func}
+    {l l₁ l₂ : List (OCall H)} {r : Store H × Frame × POut} {g : Nat} {args : List Val}
+    {s₁ s₂ s₂' : Store H} {b : List Val ⊕ Nat} {q c₁ : List (Call (wasmHostSig H))}
+    (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+    (hts : TagsOk tags s) (hSt : StoreChkE (ehExt tags) s.funcs)
+    (hE' : EvalLXPh s (Frame.forCall fi.module us fn.locals) [] (liftInstrs fn.body) l r)
+    (hl : l = l₁ ++ OCall.mk g args s₁ b s₂' :: l₂)
+    (hp : Shape.SubstPre (Shape.close wasmHOpenXP) (l₁.map OCall.lift) q)
+    (hz : ∀ (fi' : FuncInst H) (ps' rs' : List Validation.CValType), s₁.funcs[g]? = some fi' →
+      Validation.DefType.funcType? fi'.type = some (ps', rs') → TagsOk tags s₁ →
+      StoreChkE (ehExt tags) s₁.funcs → args.length = ps'.length →
+      ∀ (f : Frame) (c : Admin), c.IsCallRef →
+        EvRun P host ⟨s₁, f, vals args ++ [.ref (.func g), c]⟩ c₁ ⟨s₂, f, [.trap]⟩)
+    (hq : (coreHostRel host).Consistent (q ++ c₁)) (f : Frame) (c : Admin) (hcr : c.IsCallRef) :
+    EvRun P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ (q ++ c₁) ⟨s₂, f, [.trap]⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.evalLXPh_cut_exact hH hE hfi hcode hty hn hts hSt
+    hE' hl hp hz hq f c hcr
+
+/-- **A Wasm body whose pending tail call's callee traps in `s₂` traps in `s₂`** (every profile):
+the body's run to the pending tail call, its calls resolved by the closure to `q`, the frame
+left, and the tail callee's Core run to a trap in exactly `s₂`. -/
+theorem evalLXPh_tail_exact (hH : NativeHostSlice host) (hE : HostSliceE tags host) {fn : Func}
+    {l : List (OCall H)} {s₁ s₂ : Store H} {f₂ : Frame} {a' n : Nat} {args : List Val}
+    {q c₁ : List (Call (wasmHostSig H))}
+    (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+    (hts : TagsOk tags s) (hSt : StoreChkE (ehExt tags) s.funcs)
+    (hE' : EvalLXPh s (Frame.forCall fi.module us fn.locals) [] (liftInstrs fn.body) l
+      (s₁, f₂, .tail a' args n))
+    (hp : Shape.SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) q)
+    (hz : ∀ (fi' : FuncInst H) (ps' rs' : List Validation.CValType), s₁.funcs[a']? = some fi' →
+      Validation.DefType.funcType? fi'.type = some (ps', rs') → TagsOk tags s₁ →
+      StoreChkE (ehExt tags) s₁.funcs → args.length = ps'.length →
+      ∀ (f : Frame) (c : Admin), c.IsCallRef →
+        EvRun P host ⟨s₁, f, vals args ++ [.ref (.func a'), c]⟩ c₁ ⟨s₂, f, [.trap]⟩)
+    (hq : (coreHostRel host).Consistent (q ++ c₁)) (f : Frame) (c : Admin) (hcr : c.IsCallRef) :
+    EvRun P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ (q ++ c₁) ⟨s₂, f, [.trap]⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.evalLXPh_tail_exact hH hE hfi hcode hty hn hts hSt
+    hE' hp hz hq f c hcr
+
+/-- **A host function answering a trap that leaves `s'` traps in `s'`**: its one event. -/
+theorem host_trap_exact {hh : H} {s' : Store H} (hfi : s.funcs[a]? = some fi)
+    (hcode : fi.code = .host hh) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hn : us.length = ps.length) (hm : host hh s us (.returned s' .trap)) (f : Frame) (c : Admin)
+    (hcr : c.IsCallRef) :
+    EvRun P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ [⟨(hh, s, us), (s', .trap)⟩]
+      ⟨s', f, [.trap]⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.host_trap_exact hfi hcode hty hn hm f c hcr
+
+/-- **An invocation of a function trapping in `s₂`** is a Core run to a trap in `s₂`. -/
+theorem invoke_trap_exact {vs : List Val} {s₂ : Store H} {cs : List (Call (wasmHostSig H))}
+    (hfi : s.funcs[a]? = some fi)
+    (h : ∀ (f : Frame) (c : Admin), c.IsCallRef →
+      EvRun P host ⟨s, f, vals vs ++ [.ref (.func a), c]⟩ cs ⟨s₂, f, [.trap]⟩) :
+    EvRun P host (invoke s a vs) cs ⟨s₂, {}, [.trap]⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.invoke_trap_exact hfi h
+
+/-- **Two runs with the same log to a trap trap in the same store and frame** (deterministic
+profile). -/
+theorem evRun_trap_det {o : Silmaril.Wasm.SingleThreaded.GrowOracle} {K : Config H}
+    {q : List (Call (wasmHostSig H))} {s₁ s₂ : Store H} {f₁ f₂ : Frame}
+    (h₁ : EvRun (Silmaril.Wasm.SingleThreaded.profile o) host K q ⟨s₁, f₁, [.trap]⟩)
+    (h₂ : EvRun (Silmaril.Wasm.SingleThreaded.profile o) host K q ⟨s₂, f₂, [.trap]⟩) :
+    s₁ = s₂ ∧ f₁ = f₂ :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.evRun_trap_det h₁ h₂
+
+end TrapExact
 
 /-- **Every logged call is reached**, after the calls logged before it. -/
 theorem reachLXP_of_evalLXPh {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
