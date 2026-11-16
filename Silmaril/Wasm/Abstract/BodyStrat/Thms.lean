@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.BodyStrat.Defs
 public import Silmaril.Wasm.Abstract.BodyTrace.Thms
 public import Silmaril.Games.Abstract.StratObs.Thms
+public import Silmaril.Games.Abstract.StratLegal.Thms
 public import Silmaril.Wasm.Abstract.FunctorP.Thms
 import Silmaril.Proofs.Wasm.Abstract.BodyStrat.Basic
 
@@ -43,6 +44,9 @@ No coarser game equivalence is claimed: not trace or testing equivalence forgett
 infinite plays, and not contextual equivalence or full abstraction. The bodies are deterministic
 given answers, but this file proves no determinism of the play object.
 
+**Legal interfaces.** `toDStratBodyL_eq_iff`: on a legal interface `L` (`StratLegal`), equal
+play objects is equality of the triples restricted to legally answered logs.
+
 Proofs are in `Silmaril.Proofs.Wasm.Abstract.BodyStrat.Basic`.
 -/
 
@@ -78,6 +82,14 @@ theorem toDStratBody_eq_iff {f g : Hom E S T A B} :
   refine ⟨fun h => ⟨congrArg (·.1) h, congrArg (·.2.1) h⟩, fun h => ?_⟩
   have hi := toInf_eq_of_toPending h.2
   simp only [toTriple, h.1, h.2, hi]
+
+/-- **On a legal interface, bodies have the same play object exactly when their triples agree on
+legally answered logs.** -/
+theorem toDStratBodyL_eq_iff (L : (m : (liftSig E).Op) → (liftSig E).Ar m → Prop)
+    (f g : Hom E S T A B) :
+    toDStratBodyL L f = toDStratBodyL L g ↔
+      StratLegal.restrict L (toTriple f) = StratLegal.restrict L (toTriple g) :=
+  StratLegal.toDStratL_injective (toTriple_admissible f) (toTriple_admissible g)
 
 end Silmaril.Wasm.Abstract.BodyStrat
 

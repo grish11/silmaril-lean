@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Abstract.BodyTrace.Defs
 public import Silmaril.Games.Abstract.StratObs.Defs
+public import Silmaril.Games.Abstract.StratLegal.Defs
 
 /-!
 # Bodies into the canonical play object
@@ -37,5 +38,12 @@ def toTriple {E : Sig.{u}} {S T A B : Type (u + 1)} (f : Hom E S T A B) :
 def toDStratBody {E : Sig.{u}} {S T A B : Type (u + 1)} (f : Hom E S T A B) :
     DStrategy (liftSig E) (funSig S A B) :=
   StratObs.toDStrat (toTriple f)
+
+/-- **The play object of a body on a legal interface** `L` (`StratLegal`): only legally answered
+import calls are played. -/
+def toDStratBodyL {E : Sig.{u}} {S T A B : Type (u + 1)}
+    (L : (m : (liftSig E).Op) → (liftSig E).Ar m → Prop) (f : Hom E S T A B) :
+    DStrategy (StratLegal.legalSig (liftSig E) L) (funSig S A B) :=
+  StratLegal.toDStratL L (toTriple f)
 
 end Silmaril.Wasm.Abstract.BodyStrat
