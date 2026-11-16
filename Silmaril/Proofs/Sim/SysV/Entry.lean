@@ -22,7 +22,7 @@ namespace Silmaril.Sim.SysV
 open Silmaril.X86 (Reg State MState Word Byte)
 open Silmaril.Process (Memory)
 open Silmaril.Machine.LittleEndian (encodeWords)
-open Silmaril.Machine.X86.FnContract (AbiEntry)
+open Silmaril.X86.FnContract (AbiEntry)
 
 theorem write_write (σ : State) (r : Reg) (v w : Word) : (σ.write r v).write r w = σ.write r w := by
   simp [State.write, Silmaril.Machine.RegisterFile.write_shadow]
@@ -158,8 +158,8 @@ theorem entryCore_rsp (d : SysVCall) (σ : State) :
 
 theorem setup_retOf {d : SysVCall} {m e : MState} (h : setup d m = some e)
     (hr : m.memory.Permitted .read (entrySp d.stackArgs.length (m.core.read .rsp)).toNat 8) :
-    Silmaril.Machine.X86.Open.retOf e.core e.memory = SENTINEL := by
-  rw [Silmaril.Machine.X86.Open.retOf, setup_core h, entryCore_rsp, setup_ret h hr]
+    Silmaril.X86.FnContract.retOf e.core e.memory = SENTINEL := by
+  rw [Silmaril.X86.FnContract.retOf, setup_core h, entryCore_rsp, setup_ret h hr]
   simp
 
 /-- **The set-up state meets the System V entry obligations.** -/

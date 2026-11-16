@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Sim.Reduce.Defs
-public import Silmaril.Machine.X86.Open9.Thms
+public import Silmaril.X86.Open9.Thms
 public import Silmaril.Sim.X86.Toy.Defs
 
 /-!
@@ -28,8 +28,8 @@ and the problem DAG whose nodes name the constants below.
 namespace Silmaril.Sim.Reduce.Toy
 
 open Silmaril.X86 (MState Word Byte)
-open Silmaril.Machine.X86.FnContract (Spec)
-open Silmaril.Machine.X86 (Open9.isa)
+open Silmaril.X86.FnContract (Spec)
+open Silmaril.X86 (Open9.isa)
 
 /-- `.text` of `examples/wasm-sim/reduce/toy/toy.elf` (`sum_to` at 0, `dbl` at `0x10`, `f` at
 `0x17`). -/
@@ -83,7 +83,7 @@ def spec : Fn → Word → Spec MState
         32 ≤ (s.core.read .rsp).toNat ∧ (s.core.read .rsp).toNat + 8 ≤ 2 ^ 64 ∧
         (base.toNat + 0x3c ≤ (s.core.read .rsp).toNat - 32 ∨
           (s.core.read .rsp).toNat + 8 ≤ base.toNat) ∧
-        0x3c ≤ (Silmaril.Machine.X86.Open.retOf s.core s.memory - base).toNat
+        0x3c ≤ (Silmaril.X86.FnContract.retOf s.core s.memory - base).toNat
       footprint := fun s a => (Silmaril.Sim.X86.Toy.toyWin (s.core.read .rsp)).Mem a
       post := fun s t =>
         t.core.read .rax = tri (s.core.read .rdi) + (s.core.read .rsi + s.core.read .rsi) }

@@ -5,7 +5,7 @@ public import Silmaril.Sim.Reduce.Loop.Thms
 public import Silmaril.Sim.Reduce.Toy.Defs
 public import Silmaril.Sim.Reduce.Toy.SumTo.Thms
 public import Silmaril.Sim.Reduce.Toy.Dbl.Thms
-public import Silmaril.Machine.X86.BlockCert.Store.Thms
+public import Silmaril.X86.BlockCert.Store.Thms
 
 /-!
 # The toy's `f`, decomposed: three Wasm pieces and the callees' contracts
@@ -781,13 +781,13 @@ theorem fprog (b sp : Word) : ∀ σ mem i n, True → lookupI (fTab b) σ.rip =
 
 /-! ## Composition: `f`'s pieces with the callees' contracts -/
 
-open Silmaril.Machine.X86 Silmaril.Sim.Reduce.Toy in
+open Silmaril.X86 Silmaril.Sim.Reduce.Toy in
 theorem retOf_eq {core : State} {memory : Silmaril.Process.Memory} {x : Word}
     (h : memory.readBytes (core.read .rsp).toNat 8 =
-      some (Silmaril.Machine.LittleEndian.encodeWords [x])) : Open.retOf core memory = x := by
-  simp [Open.retOf, h, Silmaril.X86.wordOfBytes?_encodeWords]
+      some (Silmaril.Machine.LittleEndian.encodeWords [x])) : Silmaril.X86.FnContract.retOf core memory = x := by
+  simp [Silmaril.X86.FnContract.retOf, h, Silmaril.X86.wordOfBytes?_encodeWords]
 
-open Silmaril.Machine.X86 in
+open Silmaril.X86 in
 theorem abiEntry_of {core : State} {memory : Silmaril.Process.Memory} {x : Word}
     (al : (core.read .rsp).toNat % 16 = 8)
     (h : memory.readBytes (core.read .rsp).toNat 8 =
@@ -812,7 +812,7 @@ theorem segment {b sp : Word} (_h32 : 32 ≤ sp.toNat) (_h8 : sp.toNat + 8 ≤ 2
       ∃ k, J k (encStoreM σ mem (toyWin sp)))
     (htab : TabAtM mem (toyWin sp) (fTab b)) :
     ∃ (n : Nat) (σ' : State) (mem' : Silmaril.Process.Memory),
-      Silmaril.Machine.Execution.run Silmaril.Machine.X86.Open.step n ⟨σ, mem⟩ = some ⟨σ', mem'⟩ ∧
+      Silmaril.Machine.Execution.run Silmaril.X86.Open.step n ⟨σ, mem⟩ = some ⟨σ', mem'⟩ ∧
       mem.WritesWithin mem' (toyWin sp).Mem ∧ WinOK mem' (toyWin sp) ∧
       ∃ B', (∀ o v, o + 8 ≤ 40 → Ld B' o v →
         Silmaril.X86.Ext.loadN mem' ((toyWin sp).lo + BitVec.ofNat 64 o) 8 = some v) ∧
@@ -834,7 +834,7 @@ theorem segment {b sp : Word} (_h32 : 32 ≤ sp.toNat) (_h8 : sp.toNat + 8 ≤ 2
   obtain ⟨hrun, hww⟩ := run_of_xrunM (supported b sp) hx htab
   exact ⟨n, σ', mem', hrun, hww, hwin', B', hag, hpost⟩
 
-open Silmaril.Machine.X86 in
+open Silmaril.X86 in
 /-- **The toy ISA goal for `f`, decomposed**: `f`'s three Wasm pieces (segments of its dispatcher;
 the calls leave the dispatcher) composed with the **already solved callee contracts**
 `isa_sumTo` and `isa_dbl` (assume-guarantee at the ISA level). -/
@@ -856,14 +856,14 @@ theorem isa_f_of (hA : EntriesA) (hB : EntriesB) (hC : EntriesC)
   have htab0 : TabAtM mem (toyWin (σ.read .rsp)) (fTab base) := tabAt_of_loaded hload h32 hdisj
   have hlo : ∀ o : Nat, (toyWin (σ.read .rsp)).lo + BitVec.ofNat 64 o =
       σ.read .rsp - 32 + BitVec.ofNat 64 o := fun _ => rfl
-  have hretLd : Ld (winBytes mem (toyWin (σ.read .rsp))) 32 (Open.retOf σ mem) := by
+  have hretLd : Ld (winBytes mem (toyWin (σ.read .rsp))) 32 (Silmaril.X86.FnContract.retOf σ mem) := by
     refine ld_of_loadN σ hwin (by simp [toyWin]) ?_
     have : (toyWin (σ.read .rsp)).lo + BitVec.ofNat 64 32 = σ.read .rsp := by
       simp [toyWin]
     rw [this]; exact Silmaril.Sim.X86.Toy.loadN_of_readBytes habi.returnAddress
   -- segment A
   obtain ⟨n1, σ1, mem1, hrun1, hww1, hwin1, B1, hag1, hA⟩ :=
-    segment h32 h8 (J := JA base (σ.read .rsp) (Open.retOf σ mem) encFrameM σ.read)
+    segment h32 h8 (J := JA base (σ.read .rsp) (Silmaril.X86.FnContract.retOf σ mem) encFrameM σ.read)
       (fun k s hk => hA Nat encFrameM base _ _ σ.read h32 h8 k s hk) (pieceA hA base _ _ h32 h8) hwin
       ⟨hripf, rfl, hretLd⟩
       (fun zf hV => ⟨5, _, _, _, _, _, _, _, _, hV, hretLd, rfl, rfl, .inl ⟨hripf, rfl, rfl, rfl, rfl⟩⟩)
@@ -876,7 +876,7 @@ theorem isa_f_of (hA : EntriesA) (hB : EntriesB) (hC : EntriesC)
     simpa [toyWin] using hag1 0 _ (by decide) l1_0
   obtain ⟨⟨σ2, mem2⟩, hr2, res2⟩ := hsum base ⟨σ1, mem1⟩ trivial
     (abiEntry_of (by rw [e1rsp]; have := habi.aligned; bv_omega) hrb1)
-    ⟨Silmaril.Machine.X86.BlockCert.loaded_of_writesWithin hload hww1 hcode, by rw [e1rip]; simp; rfl⟩
+    ⟨Silmaril.X86.BlockCert.loaded_of_writesWithin hload hww1 hcode, by rw [e1rip]; simp; rfl⟩
   obtain ⟨-, ⟨pc2, st2, cs2⟩, fr2, po2⟩ := res2
   simp only at pc2 st2 cs2 fr2 po2
   have pc2' : σ2.rip = base + 0x26 := pc2.trans (retOf_eq hrb1)
@@ -887,7 +887,7 @@ theorem isa_f_of (hA : EntriesA) (hB : EntriesB) (hC : EntriesC)
   have htab2 : TabAtM mem2 (toyWin (σ.read .rsp)) (fTab base) := (htab0.preserve hww1).preserve (fr2.mono fun _ h => h.elim)
   -- segment B
   obtain ⟨n3, σ3, mem3, hrun3, hww3, hwin3, B3, hag3, hB⟩ :=
-    segment h32 h8 (J := JB base (σ.read .rsp) (Open.retOf σ mem) (σ.read .r12) (σ.read .rbx)
+    segment h32 h8 (J := JB base (σ.read .rsp) (Silmaril.X86.FnContract.retOf σ mem) (σ.read .r12) (σ.read .rbx)
       encFrameM σ2.read)
       (fun k s hk => hB Nat encFrameM base _ _ _ _ σ2.read h32 h8 k s hk) (pieceB hB base _ _ _ _ h32 h8) hwin2
       ⟨pc2', e2rsp, ld2 _ _ (by decide) l1_32, ld2 _ _ (by decide) l1_24, ld2 _ _ (by decide) l1_16⟩
@@ -901,11 +901,11 @@ theorem isa_f_of (hA : EntriesA) (hB : EntriesB) (hC : EntriesC)
     rw [e3rsp]; refine readBytes_of_loadN ?_
     simpa [toyWin] using hag3 0 _ (by decide) l3_0
   have hload2 : Silmaril.X86.Ext.Loaded mem2 base Silmaril.Sim.Reduce.Toy.code :=
-    Silmaril.Machine.X86.BlockCert.loaded_of_writesWithin
-      (Silmaril.Machine.X86.BlockCert.loaded_of_writesWithin hload hww1 hcode) fr2 (fun _ _ h => h)
+    Silmaril.X86.BlockCert.loaded_of_writesWithin
+      (Silmaril.X86.BlockCert.loaded_of_writesWithin hload hww1 hcode) fr2 (fun _ _ h => h)
   obtain ⟨⟨σ4, mem4⟩, hr4, res4⟩ := hdbl base ⟨σ3, mem3⟩ trivial
     (abiEntry_of (by rw [e3rsp]; have := habi.aligned; bv_omega) hrb3)
-    ⟨Silmaril.Machine.X86.BlockCert.loaded_of_writesWithin hload2 hww3 hcode, by rw [e3rip]; rfl⟩
+    ⟨Silmaril.X86.BlockCert.loaded_of_writesWithin hload2 hww3 hcode, by rw [e3rip]; rfl⟩
   obtain ⟨-, ⟨pc4, st4, cs4⟩, fr4, po4⟩ := res4
   simp only at pc4 st4 cs4 fr4 po4
   have pc4' : σ4.rip = base + 0x31 := pc4.trans (retOf_eq hrb3)
@@ -916,7 +916,7 @@ theorem isa_f_of (hA : EntriesA) (hB : EntriesB) (hC : EntriesC)
   have htab4 : TabAtM mem4 (toyWin (σ.read .rsp)) (fTab base) := (htab2.preserve hww3).preserve (fr4.mono fun _ h => h.elim)
   -- segment C
   obtain ⟨n5, σ5, mem5, hrun5, hww5, _, B5, _, hC⟩ :=
-    segment h32 h8 (J := JC base (σ.read .rsp) (Open.retOf σ mem) (σ.read .r12) (σ.read .rbx)
+    segment h32 h8 (J := JC base (σ.read .rsp) (Silmaril.X86.FnContract.retOf σ mem) (σ.read .r12) (σ.read .rbx)
       encFrameM σ4.read)
       (fun k s hk => hC Nat encFrameM base _ _ _ _ σ4.read h32 h8 hret k s hk) (pieceC hC base _ _ _ _ h32 h8 hret)
       hwin4

@@ -2,8 +2,8 @@ module
 
 public import Silmaril.Sim.Reduce.Toy.SumTo.Defs
 public import Silmaril.Sim.X86.SumTo.Thms
-public import Silmaril.Machine.X86.FnContract.Thms
-public import Silmaril.Machine.X86.Open9.Thms
+public import Silmaril.X86.FnContract.Thms
+public import Silmaril.X86.Open9.Thms
 public import Silmaril.Sim.Reduce.Loop.Thms
 
 /-!
@@ -89,12 +89,22 @@ theorem triN_eq : ∀ n, Silmaril.Sim.Reduce.Toy.triN n = Silmaril.Sim.X86.SumTo
   | 0 => rfl
   | n + 1 => by simp [Silmaril.Sim.Reduce.Toy.triN, Silmaril.Sim.X86.SumTo.tri, triN_eq n]
 
-open Silmaril.Machine.X86 Silmaril.Sim.X86.G in
+/-- `Open.total_of_returns` from `Ext.Returns` runs (through `Ext8.returns_of_ext`). -/
+private theorem total_of_ext_returns' (S : Silmaril.X86.FnContract.Spec Silmaril.X86.MState)
+    (h : ∀ m, Silmaril.X86.FnContract.AbiEntry m.core m.memory → S.entry m →
+      ∃ fin, Silmaril.X86.Ext.Returns (Silmaril.X86.FnContract.retOf m.core m.memory) m fin ∧
+        Silmaril.X86.FnContract.ReturnsPost S m fin) :
+    S.Total Silmaril.X86.Open.isa :=
+  Silmaril.X86.Open.total_of_returns S fun m ha he =>
+    let ⟨fin, hret, hp⟩ := h m ha he
+    ⟨fin, Silmaril.X86.Ext8.returns_of_ext hret, hp⟩
+
+open Silmaril.X86 Silmaril.Sim.X86.G in
 /-- **The ISA goal from the pieces**: the x86 problem (functional post) and termination/frame,
 through the bytes (`decide`), the final `ret`, and the open machine. -/
 theorem isa_of (hx86 : X86Stmt) (hterm : TermStmt) : Silmaril.Sim.Reduce.Toy.isaGoal .sumTo := by
   intro base
-  refine FnContract.Spec.Total.toOpen9 (FnContract.total_of_ext_returns _ fun m ha he => ?_)
+  refine FnContract.Spec.Total.toOpen9 (total_of_ext_returns' _ fun m ha he => ?_)
   obtain ⟨hload, hrip⟩ := he
   obtain ⟨σ, mem⟩ := m
   simp only at hload hrip ha ⊢
@@ -104,8 +114,8 @@ theorem isa_of (hx86 : X86Stmt) (hterm : TermStmt) : Silmaril.Sim.Reduce.Toy.isa
   obtain ⟨k, σ', hrun, hfr⟩ := hterm σ.rip mem σ rfl
   obtain ⟨hrax, hfr', hrip'⟩ := hx86 σ.rip σ σ' mem k rfl hrun
   have hrsp : σ'.read .rsp = σ.read .rsp := hfr' .rsp (by decide) (by decide)
-  have hstep : Silmaril.X86.Ext.step (Open.retOf σ mem) ⟨σ', mem⟩ =
-      .returned ⟨{ σ'.write .rsp (σ'.read .rsp + 8#64) with rip := Open.retOf σ mem }, mem⟩ := ret_step (exit := Open.retOf σ mem) (τ := σ') (by rw [hrip']; exact hret)
+  have hstep : Silmaril.X86.Ext.step (Silmaril.X86.FnContract.retOf σ mem) ⟨σ', mem⟩ =
+      .returned ⟨{ σ'.write .rsp (σ'.read .rsp + 8#64) with rip := Silmaril.X86.FnContract.retOf σ mem }, mem⟩ := ret_step (exit := Silmaril.X86.FnContract.retOf σ mem) (τ := σ') (by rw [hrip']; exact hret)
     (by rw [hrsp]; exact ha.returnAddress) (Silmaril.X86.wordOfBytes?_encodeWords _)
   refine ⟨_, ⟨k, ⟨σ', mem⟩, Silmaril.Sim.Reduce.Loop.run_of_xrun (supported σ.rip) htab _ hrun, hstep⟩, ?_, ?_, ?_, ?_⟩
   · show (σ'.write .rsp (σ'.read .rsp + 8#64)).read .rsp = _

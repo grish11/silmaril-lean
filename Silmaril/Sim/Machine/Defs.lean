@@ -1,12 +1,12 @@
 module
 
 public import Silmaril.Sim.Core.Defs
-public import Silmaril.Machine.X86.RelIsa.Defs
+public import Silmaril.X86.RelIsa.Defs
 
 /-!
 # Bridges to Silmaril's machine models (header)
 
-* `ofRelIsa A view`: a relational machine `Silmaril.Machine.X86.RelIsa σ` (explicit `stop`
+* `ofRelIsa A view`: a relational machine `Silmaril.X86.RelIsa σ` (explicit `stop`
   outcome) as a `Silmaril.Sim.Machine` with one command, its `ok`-steps as the step relation,
   and `relStop A` (the states that may stop) as the stop predicate of `Machine.Must`.
 
@@ -19,7 +19,7 @@ complete simulator), the shape of `Silmaril.Problems.FnCorrect`.
 
 namespace Silmaril.Sim
 
-open Silmaril.Machine.X86 (RelIsa)
+open Silmaril.X86 (RelIsa)
 
 variable {σ L V : Type}
 

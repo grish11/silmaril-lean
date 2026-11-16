@@ -71,9 +71,9 @@ flags are defined. -/
 theorem add2_sysv (d : SysVCall) (hd : d.Valid) (m e : MState) (hs : setup d m = some e)
     (hr : m.memory.Permitted .read (entrySp d.stackArgs.length (m.core.read .rsp)).toNat 8)
     (hb : BytesAt e.memory d.target add2Bytes) (hf : FlagsDef m.core) :
-    Silmaril.Machine.X86.FnContract.AbiEntry e.core e.memory ∧ ∃ final : MState,
+    Silmaril.X86.FnContract.AbiEntry e.core e.memory ∧ ∃ final : MState,
       Silmaril.X86.Ext.Returns SENTINEL e final ∧
-      Silmaril.Machine.X86.FnContract.AbiReturn e.core e.memory final.core ∧
+      Silmaril.X86.FnContract.AbiReturn e.core e.memory final.core ∧
       Add2CallPost d (final.core.read .rax) :=
   XGoal.of_flags add2_emit (add2_xgoal _) d m e hd rfl hd.1 hs hr
     (codeAt_of_bytesAt rfl add2Bytes_decode hb) hf

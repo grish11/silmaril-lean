@@ -30,7 +30,7 @@ theorem wasmTotal_of_runSpec {step : S → Option S} {view : S → PState L V}
 
 section X86
 
-open Silmaril.Machine.X86.FnContract (Spec)
+open Silmaril.X86.FnContract (Spec)
 open Silmaril.X86.SegVC (Isa)
 
 /-- **The x86 contract reduction to a call-level Wasm problem**: the System V contract `S` on

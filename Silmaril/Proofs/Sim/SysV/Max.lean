@@ -27,7 +27,7 @@ open Silmaril.X86 (Reg State MState Word)
 open Silmaril.Process (Memory)
 open Silmaril.Sim.X86.G
 open Silmaril.Sim.X86.Max
-open Silmaril.Machine.X86.FnContract (AbiEntry AbiReturn)
+open Silmaril.X86.FnContract (AbiEntry AbiReturn)
 
 theorem entryCore_args (d : SysVCall) (σ : State) (hk : d.intArgs.length ≤ 6) :
     (entryCore d σ).read .rdi = d.regArgs.getD 0 0 ∧ (entryCore d σ).read .rsi = d.regArgs.getD 1 0 := by

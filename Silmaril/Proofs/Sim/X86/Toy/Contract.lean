@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Proofs.Sim.X86.Toy.X86
-public import Silmaril.Machine.X86.Open9.Thms
+public import Silmaril.X86.Open9.Thms
 public import Silmaril.Sim.X86.G.Thms
 
 /-!
@@ -28,7 +28,7 @@ open Silmaril.X86 (Reg Word State MState Byte sysv64)
 open Silmaril.X86.Ext (Sz RM Result retire readRM writeRM aluStep)
 open Silmaril.Sim.X86.G Silmaril.Sim.X86.GM Silmaril.Sim.X86.Loop
 open Silmaril.Sim.X86.SumTo (tri)
-open Silmaril.Machine.X86
+open Silmaril.X86
 
 /-- `push r` retires from any state whose push slot is in the window. -/
 private theorem toy_push_exec {sp : Word} {σ : State} {mem : Silmaril.Process.Memory} {s : Store Nat}
@@ -133,7 +133,7 @@ def toySpec : FnContract.Spec MState where
       (s.core.rip - 0x1d).toNat + 0x42 ≤ 2 ^ 64 ∧
       ((s.core.rip - 0x1d).toNat + 0x42 ≤ (s.core.read .rsp).toNat - 32 ∨
         (s.core.read .rsp).toNat + 8 ≤ (s.core.rip - 0x1d).toNat) ∧
-      0x42 ≤ (Open.retOf s.core s.memory - (s.core.rip - 0x1d)).toNat
+      0x42 ≤ (Silmaril.X86.FnContract.retOf s.core s.memory - (s.core.rip - 0x1d)).toNat
   footprint s a := (toyWin (s.core.read .rsp)).Mem a
   post s t := t.core.read .rax =
     BitVec.ofNat 64 (tri (s.core.read .rdi).toNat) + 2 * s.core.read .rsi
@@ -145,7 +145,7 @@ theorem toySpec_total : toySpec.Total Open9.isa := by
   obtain ⟨hb, hwin, h32, h8, hbw, hdisj, hret⟩ := hent
   set sp := σ.read .rsp with hsp
   set b := σ.rip - 0x1d with hbdef
-  set ret := Open.retOf σ mem
+  set ret := Silmaril.X86.FnContract.retOf σ mem
   have hrip : σ.rip = b + 0x1d := by rw [hbdef]; simp
   have htab : TabAtM mem (toyWin sp) (toyTab b) := toy_tabAt hb hbw h32 hdisj
   -- the initial store and its first cut point

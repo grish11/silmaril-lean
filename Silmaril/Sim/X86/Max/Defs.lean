@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Sim.X86.G.Defs
-public import Silmaril.Machine.X86.FnContract.Defs
+public import Silmaril.X86.FnContract.Defs
 
 /-!
 # Example: signed `max` in x86-64, posed as a Wasm problem
@@ -62,7 +62,7 @@ def MaxPost (R R' : Reg → BitVec 64) : Prop :=
   R' .rax = (if (R .rdi).slt (R .rsi) then R .rsi else R .rdi) ∧ ∀ r, r ≠ .rax → R' r = R r
 
 /-- The contract's spec. -/
-def maxSpec : Silmaril.Machine.X86.FnContract.Spec Silmaril.X86.MState where
+def maxSpec : Silmaril.X86.FnContract.Spec Silmaril.X86.MState where
   entry s := BytesAt s.memory s.core.rip maxBytes
   footprint _ _ := False
   post s t := t.core.read .rax =

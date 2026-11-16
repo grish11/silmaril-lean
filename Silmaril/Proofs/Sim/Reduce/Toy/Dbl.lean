@@ -3,8 +3,8 @@ module
 public import Silmaril.Sim.Reduce.Toy.Dbl.Defs
 public import Silmaril.Sim.Reduce.PCalls.Thms
 public import Silmaril.Sim.X86.G.Thms
-public import Silmaril.Machine.X86.FnContract.Thms
-public import Silmaril.Machine.X86.Open9.Thms
+public import Silmaril.X86.FnContract.Thms
+public import Silmaril.X86.Open9.Thms
 
 /-!
 # The toy's `dbl`, end to end: proofs
@@ -135,12 +135,22 @@ theorem dbl_returns (hx86 : X86Stmt) (m : MState) (exit : Word) (hb : BytesAt m.
     rw [State.read_write_other σ' .rsp r _ h₂]
     exact hframe r h₁
 
-open Silmaril.Machine.X86 in
+/-- `Open.total_of_returns` from `Ext.Returns` runs (through `Ext8.returns_of_ext`). -/
+private theorem total_of_ext_returns' (S : Silmaril.X86.FnContract.Spec Silmaril.X86.MState)
+    (h : ∀ m, Silmaril.X86.FnContract.AbiEntry m.core m.memory → S.entry m →
+      ∃ fin, Silmaril.X86.Ext.Returns (Silmaril.X86.FnContract.retOf m.core m.memory) m fin ∧
+        Silmaril.X86.FnContract.ReturnsPost S m fin) :
+    S.Total Silmaril.X86.Open.isa :=
+  Silmaril.X86.Open.total_of_returns S fun m ha he =>
+    let ⟨fin, hret, hp⟩ := h m ha he
+    ⟨fin, Silmaril.X86.Ext8.returns_of_ext hret, hp⟩
+
+open Silmaril.X86 in
 /-- **The ISA goal from the x86 problem**: decoding the bytes (`decide`), the `ret`, and the
 System V contract on the open machine (`total_of_ext_returns`, `Spec.Total.toOpen9`). -/
 theorem isa_of_x86 (hx86 : X86Stmt) : Silmaril.Sim.Reduce.Toy.isaGoal .dbl := by
   intro base
-  refine FnContract.Spec.Total.toOpen9 (FnContract.total_of_ext_returns _ fun m ha he => ?_)
+  refine FnContract.Spec.Total.toOpen9 (total_of_ext_returns' _ fun m ha he => ?_)
   obtain ⟨hload, hrip⟩ := he
   have hb : BytesAt m.memory m.core.rip dblBytes := by
     have e₁ : base + BitVec.ofNat 64 16 + BitVec.ofNat 64 3 = base + BitVec.ofNat 64 19 := by

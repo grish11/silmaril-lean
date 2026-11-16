@@ -2,7 +2,7 @@ module
 
 public import Silmaril.Proofs.Sim.X86.SumTo.X86
 public import Silmaril.Sim.X86.Loop.Thms
-public import Silmaril.Machine.X86.Open9.Thms
+public import Silmaril.X86.Open9.Thms
 
 /-!
 # `sum_to`: termination from a Wasm measure, and the `Open9.isa` contract
@@ -24,7 +24,7 @@ namespace Silmaril.Sim.X86.SumTo
 open Silmaril.Wasm Silmaril.Wasm.Execution Silmaril.Wasm.Execution.Core Silmaril.Wasm.Numerics
 open Silmaril.X86 (Reg Word State MState Byte sysv64)
 open Silmaril.Sim.X86.G Silmaril.Sim.X86.Loop
-open Silmaril.Machine.X86
+open Silmaril.X86
 
 variable {H : Type} {f : Frame}
 
@@ -150,7 +150,7 @@ def sumSpec : FnContract.Spec MState where
 theorem sumSpec_total : sumSpec.Total Open9.isa := by
   rintro ⟨σ, mem⟩ _ habi hentry
   simp only [Open9.isa] at habi hentry ⊢
-  set exit := Open.retOf σ mem
+  set exit := Silmaril.X86.FnContract.retOf σ mem
   obtain ⟨htab, hret⟩ := tabAt (codeAt_of_bytesAt rfl sumBytes_decode hentry)
   obtain ⟨n, σe, hx⟩ := sum_exists σ mem
   obtain ⟨hrax, hoth, hrip⟩ := x86_solution σ.rip σ σe mem n rfl hx

@@ -3,11 +3,10 @@
 Status: experimental. The Lean framework (simulators, certificates, transfer) is described in
 [wasm-sim.md](wasm-sim.md); the simulator ABI in [wasm-sim-abi.md](wasm-sim-abi.md).
 
-**Not in this repository yet:** the problem-catalogue registrations (`Problems.WasmSim`). They
-state the toy's problems with `Silmaril.Problems.FnCorrectDet`, which is over
-`Silmaril.X86.FnContract`, while this development uses the parallel copy
-`Silmaril.Machine.X86.FnContract`; the two copies must be unified first. The RV64 problem DAGs
-are not here either (the RV64 simulators are not). Statements about them below are marked.
+**Not in this repository yet:** the RV64 problem DAGs (the RV64 simulators are not here).
+
+The x86 statements use the open machine and function contracts of `Silmaril.X86`
+(`Silmaril.X86.Open9`, `Silmaril.X86.FnContract`), the same ones as `Silmaril.Problems.Core`.
 
 An x86-64 (later RISC-V, C, HOL) problem is **posed as one or many Wasm problems** about a
 simulator, and Wasm solutions are transported back by proved theorems. This page states what
@@ -42,7 +41,7 @@ FnCorrectDet I S                │
 3. **Decomposition.** The emitter splits the Wasm problem into many small ones (below), each
    self-contained (WAT + statement + suggested solvers), with a composition theorem per edge.
 4. **Transport back.** `specReduction` / `specRunReduction` (for `FnCorrectDet`, every
-   placement: `Problems.WasmSim.fnCorrectDetReductionStmt_sol`, not in this repository yet).
+   placement: `Silmaril.Problems.WasmSim.fnCorrectDetReductionStmt_sol`).
 
 ## What is proved (Lean, standard axioms, audited by `#guard_msgs`)
 
@@ -52,7 +51,7 @@ FnCorrectDet I S                │
 | theorem | statement |
 |---|---|
 | `isaReach_of_wasmTotal` | sound simulator + `Encodes` (every ISA entry state is represented by a loadable simulator state) ⇒ (Wasm problem ⇒ ISA problem) |
-| `specReduction` | the same for `FnContract.Spec.Total` (the `Problems.FnCorrectDet` form is not in this repository yet) |
+| `specReduction`, `Problems.WasmSim.fnCorrectDetReductionStmt_sol` | the same for `FnContract.Spec.Total` and `Silmaril.Problems.FnCorrectDet` |
 | `Wasm.wasmTotal_of_runSpec`, `Wasm.specRunReduction` | the call-level `FuncSpec` of a certified simulator's export (Core 3 small-step semantics, any profile/host) solves the run-level Wasm problem, hence the x86 contract |
 | `wasmTotal_of_isaReach`, `reachExact`, `specExact` | completeness on the modelled fragment (`RunComplete`, also `Complete`) ⇒ exact reduction (silmaril `refutation_route`) |
 | `isaCex_of_wasmCex`, `not_isaReach_of_isaCex` | a Wasm counterexample gives an ISA counterexample at a state it represents (given `Complete`) |
@@ -155,9 +154,11 @@ preserved); the run-time simulator is tested, not proved.
 
 ### In the problem catalogue
 
-Not in this repository yet (see the status note at the top): the `@[problem]` registrations of the
-transfer principles and the toy's Wasm pieces wait for the unification of the two
-`FnContract` copies.
+`Silmaril.Problems.WasmSim` registers (`@[problem]`) the transfer principles
+`wasm-sim/reduce/{spec-reduction, fncorrectdet-reduction, cex-transfer, ag-compose}` and the toy's
+Wasm pieces `wasm-sim/toy/insn/{dbl-piece, dbl-isa-of-piece}`, all with `@[solves]` solutions.
+The toy's ISA statements (`isaF`, … = `FnCorrectDet Open9.isa (Toy.spec g)`) are stated but not
+registered: a `function` problem needs an artifact record and a nonvacuity companion.
 
 ## End to end: the toy's `dbl` solved through Wasm (P-calls soundness)
 
@@ -184,8 +185,8 @@ is **proved from a solved Wasm piece** (standard axioms only):
 
 DAG (`examples/wasm-sim/reduce/toy/out/dag.json`): `isa/dbl ⇐ x86/dbl` (`isa_of_x86`),
 `x86/dbl ⇐ wasm-insn/dbl, tv-insn/dbl, method/s_*` (`x86_of_piece`), all proved, all pieces
-solved; `wasm-sim dag check` reports `isa/dbl` solved. (The catalogue registration of these two
-pieces is not in this repository yet.)
+solved; `wasm-sim dag check` reports `isa/dbl` solved. Catalogue: `wasm-sim/toy/insn/
+{dbl-piece, dbl-isa-of-piece}` (solved; `Problems.WasmSim.isaDbl_sol`).
 
 **`sum_to` (a loop)** is solved too (`Silmaril.Sim.Reduce.Toy.SumTo.isa_sumTo`), through the x86
 dispatcher route (`Silmaril.Sim.X86.Loop`) (P-inline with control flow, certified `emitX` methods with jumps, cut-point

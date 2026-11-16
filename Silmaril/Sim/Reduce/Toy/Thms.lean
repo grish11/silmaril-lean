@@ -18,7 +18,7 @@ the pieces, `K`'s soundness and `Encodes` are the open leaves of the problem DAG
 namespace Silmaril.Sim.Reduce.Toy
 
 open Silmaril.X86 (MState)
-open Silmaril.Machine.X86 (Open9.isa)
+open Silmaril.X86 (Open9.isa)
 
 theorem ranked : Ranked callees rank := by
   intro i j hj

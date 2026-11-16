@@ -2,7 +2,7 @@ module
 
 public import Silmaril.Proofs.Sim.X86.GM.Progress
 public import Silmaril.Sim.X86.Loop.Thms
-public import Silmaril.Machine.X86.Open9.Thms
+public import Silmaril.X86.Open9.Thms
 
 /-!
 # GM: programs with memory — reduction, termination, machine runs
@@ -14,7 +14,7 @@ public import Silmaril.Machine.X86.Open9.Thms
   window-respecting run (termination; the window side condition comes from the Wasm side,
   `emitM_holds`);
 * **`reaches_of_xrunM`**: such a run, of code placed in memory outside the window (`TabAtM`), is
-  a run of the open machine `Silmaril.Machine.X86.Open.step` (every `ret` an ordinary step).
+  a run of the open machine `Silmaril.X86.Open.step` (every `ret` an ordinary step).
 -/
 
 @[expose] public section
@@ -176,7 +176,7 @@ theorem TabAtM.preserve {mem mem' : Silmaril.Process.Memory} {W : Win} {tab : XT
 /-- **A window-respecting run of code in memory is a run of the open machine.** -/
 theorem run_of_xrunM {W : Win} {tab : XTab} (hs : SupportedM W tab) :
     ∀ {k σ mem σ' mem'}, XRunM tab W k σ mem σ' mem' → TabAtM mem W tab →
-      Silmaril.Machine.Execution.run Silmaril.Machine.X86.Open.step k ⟨σ, mem⟩ =
+      Silmaril.Machine.Execution.run Silmaril.X86.Open.step k ⟨σ, mem⟩ =
         some ⟨σ', mem'⟩ ∧ mem.WritesWithin mem' W.Mem
   | _, _, _, _, _, .done _, _ => ⟨rfl, Silmaril.Process.Memory.WritesWithin.refl _ _⟩
   | _, σ, mem, _, _, .step (i := i) (n := n) (σ₁ := σ₁) (mem₁ := mem₁) hi hx _ hww hr, hcode => by
@@ -185,10 +185,10 @@ theorem run_of_xrunM {W : Win} {tab : XTab} (hs : SupportedM W tab) :
     have hf : Silmaril.X86.Ext.fetch mem σ.rip.toNat = .decoded i n :=
       Silmaril.X86.Ext.fetch_eq_decoded_iff.mpr ⟨bytes, hfb, hdec⟩
     have hlen := Silmaril.X86.Ext.fetch_length hf
-    have hstep : Silmaril.Machine.X86.Open.step ⟨σ, mem⟩ = some ⟨σ₁, mem₁⟩ := by
-      simp only [Silmaril.Machine.X86.Open.step]
+    have hstep : Silmaril.X86.Open.step ⟨σ, mem⟩ = some ⟨σ₁, mem₁⟩ := by
+      simp only [Silmaril.X86.Open.step]
       rw [Silmaril.X86.Ext8.fetch_of_ne_undecodable (by rw [hf]; simp), hf]
-      simp only [Silmaril.Machine.X86.Open.ofResult]
+      simp only [Silmaril.X86.Open.ofResult]
       rw [← hlen, hx]
     obtain ⟨hrun, hw'⟩ := run_of_xrunM hs hr (hcode.preserve hww)
     refine ⟨?_, hww.trans hw'⟩

@@ -22,7 +22,7 @@ Proofs in `Silmaril.Proofs.Sim.X86.GM.*`; every profile, every host relation.
   checks it, trapping otherwise); `emitM_progress`;
 * dispatcher with memory: `xrun_twpM`, **`xlproblemM_of_lproblemM`** (`LProblemM` ⇒ `XLProblemM`),
   **`xrun_existsM`** (termination from a Wasm measure), **`run_of_xrunM`** (runs of the open
-  machine `Silmaril.Machine.X86.Open.step`, `ret` included);
+  machine `Silmaril.X86.Open.step`, `ret` included);
 * Wasm-level stack methods: `push_wstep`, `pop_wstep`, `call_wstep`, `ret_wstep`.
 -/
 
