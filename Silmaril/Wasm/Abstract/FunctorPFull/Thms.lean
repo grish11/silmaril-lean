@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Abstract.ExposePStruct.Thms
 public import Silmaril.Wasm.Abstract.FullObs.Thms
+public import Silmaril.Wasm.Abstract.FunctorP.Thms
 
 /-!
 # The canonical denotation and the full observation
@@ -41,5 +42,25 @@ theorem toFull_denT_loop (bt : BlockType) (body : List Binaryen.BExpr) :
 /-- **Identity**: the empty code is observed as `idP`. -/
 theorem toFull_denL_nil : toFull (denL (H := H) []) = toFull (idP (H := H)) := by
   rw [denL_nil]
+
+
+/-- The native exposed body (`StoreCall.denListE`, of native `EvalO`) as a morphism on
+configurations. -/
+noncomputable def denE (es : List Binaryen.BExpr) :
+    Body.Hom (StoreCall.CallSig H) (StoreBody.St H) PUnit Cfg StoreBody.Res :=
+  fun c => StoreCall.denListE es c.down.1 c.down.2
+
+/-- **The canonical denotation is the native one, observed fully**: on direct-call,
+exception-free code, the full observation of `denL es` is the native exposed body's, with its
+flow results read as `ResP` flows (`FullFun.map ExposeP.ofRes`). From `FunctorP.denListXP_native`
+and `FullObs.toFull_map`; the H2 `toFull` results about `denListE` transfer to `denL` along it. -/
+theorem toFull_denL_native {es : List Binaryen.BExpr} (hx : CallX.xFreeL es = true)
+    (he : CallXE.ehFreeL es = true) :
+    toFull (denL (H := H) es) = (toFull (denE (H := H) es)).map ExposeP.ofRes := by
+  have h : (denL (H := H) es) = fun c => ExposeP.ofRes <$> denE es c := by
+    funext c
+    exact (FunctorP.denListXP_native hx he c.down.1 c.down.2).trans
+      (map_eq_bind_pure_comp _ _ _).symm
+  rw [h]; exact toFull_map _ _
 
 end Silmaril.Wasm.Abstract.FunctorPFull
