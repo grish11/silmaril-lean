@@ -265,6 +265,13 @@ CREATE TABLE consequence_systems(
   witness TEXT,
   value TEXT,
   interpretation TEXT,
+  ctx_kind TEXT CHECK(ctx_kind IN ('unit','list','finset','set','other')),
+  ctx_elem TEXT,
+  ctx_signed INTEGER,
+  concl_kind TEXT CHECK(concl_kind IN ('unit','list','finset','set','other')),
+  concl_elem TEXT,
+  concl_signed INTEGER,
+  raw_sequent INTEGER,
   title TEXT,
   doc TEXT,
   source TEXT,
@@ -496,6 +503,14 @@ INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.co
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 3, 'T');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 4, 'ctx');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 5, 'phi');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 3, 'T');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 4, 'mu');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 5, 'b');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 6, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 7, 'phi');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_universal', 0, 'type');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_universal', 1, 'type');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_universal', 2, 'S');
@@ -510,6 +525,9 @@ INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.co
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives_bottom', 2, 'S');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives_bottom', 3, 'ff');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives_bottom', 4, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.gentzen_closed', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.gentzen_closed', 1, 'rules');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.gentzen_closed', 2, 'S');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 0, 'type');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 1, 'type');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 2, 'type');

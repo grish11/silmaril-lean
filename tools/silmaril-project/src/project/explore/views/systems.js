@@ -57,6 +57,12 @@
       "ctx phi": { THM: "{S} is complete for {T}: every consequence of {T} is one of {S}", CSA: "{S} is not complete for {T}: a counterexample" },
       "": { THM: "if {ctx} ⊢ {phi} in {T}, then in {S}", CSA: "{ctx} ⊢ {phi} in {T} but not in {S}" },
     },
+    complete_within_at: {
+      "ctx phi": { THM: "{S} is complete for {T} on the pairs with {mu} ≤ {b}", CSA: "a pair within {mu} ≤ {b} is in {T} and not in {S}" },
+    },
+    gentzen_closed: {
+      "": { THM: "{S} is closed under the Gentzen rules {rules}", CSA: "{S} is not closed under {rules}" },
+    },
     translates_at: {
       "ctx phi": { THM: "({f}, {g}) preserves consequence from {S} to {T}", CSA: "({f}, {g}) does not preserve consequence from {S} to {T}: a counterexample" },
     },
@@ -77,7 +83,7 @@
   const ESTABLISHED = "(SELECT group_concat(st.status, ',') FROM statuses st WHERE st.problem = p.name) AS established";
 
   function fill(t, args) {
-    return t.replace(/\{(S|T|ctx|phi|ff|f|g)\}/g, (_, k) => args[k] || ({ S: "S", T: "T", ctx: "Γ", phi: "φ", ff: "ff", f: "f", g: "g" })[k]);
+    return t.replace(/\{(S|T|ctx|phi|ff|f|g|mu|b|rules)\}/g, (_, k) => args[k] || ({ S: "S", T: "T", ctx: "Γ", phi: "φ", ff: "ff", f: "f", g: "g", mu: "μ", b: "b", rules: "rs" })[k]);
   }
   function reading(p, args) {
     const sh = READING[SHAPE(p.shape)];
@@ -124,12 +130,98 @@
 refutation that is refuted counts as met.</span></p>`;
   }
 
+  // The views of the index: each a test on the typed shape Lean recorded (never on printed
+  // types), on the construction, or on an established certification.
+  const VIEWS = [
+    ["all", "all", () => true],
+    ["artifact", "artifacts", (r) => r.op === "artifact"],
+    ["acceptor", "acceptors (unit contexts)", (r) => r.ctx_kind === "unit"],
+    ["rejector", "rejectors (unit conclusions)", (r) => r.concl_kind === "unit"],
+    ["list", "list contexts", (r) => r.ctx_kind === "list"],
+    ["finset", "finset contexts", (r) => r.ctx_kind === "finset"],
+    ["set", "set contexts", (r) => r.ctx_kind === "set"],
+    ["multi", "multiple conclusions", (r) => r.concl_kind === "list"],
+    ["signed", "signed formulas", (r) => !!(r.ctx_signed || r.concl_signed)],
+    ["raw-sequent", "raw sequents", (r) => !!r.raw_sequent],
+    ["gentzen", "Gentzen-closed (certified)", (r, g) => g.has(r.name)],
+  ];
+  // One side of a system's typed shape: kind, element type, polarity.
+  const side = (k, e, sg) => k == null ? "" : `${ui.esc(k)}${k === "other" || k === "unit" ? "" : " of"} ${k === "unit" ? "" : term(e)}${sg ? ' <span class="pill">signed</span>' : ""}`;
+  const shapeText = (r) => r.ctx_kind == null ? '<span class="muted">not recorded</span>'
+    : `${side(r.ctx_kind, r.ctx_elem, r.ctx_signed)} → ${side(r.concl_kind, r.concl_elem, r.concl_signed)}${r.raw_sequent ? ' <span class="pill">raw sequent</span>' : ""}`;
+  // The Gentzen certifications: system -> [{ rules, summary, problem }] from gentzen_closed problems.
+  async function gentzenOf(ctx) {
+    const out = new Map();
+    const rows = await ctx.q("SELECT cp.system, cp.problem, cp.summary, " +
+      "(SELECT i.term FROM instance_args i JOIN consequence_shape_roles r ON r.shape = cp.shape AND r.pos = i.pos WHERE i.problem = cp.problem AND r.role = 'rules') AS rules " +
+      "FROM consequence_problems cp WHERE cp.shape = ? AND cp.role = 'S' LIMIT 5000", [PREFIX + "gentzen_closed"]);
+    for (const r of rows) { if (!out.has(r.system)) out.set(r.system, []); out.get(r.system).push(r); }
+    return out;
+  }
+
+  // Relations between systems stated as problems: soundness, completeness (also within a
+  // bound), translations, and Gentzen closure. Each with both systems, the other fixed arguments
+  // (measure, bound, maps, rule profile) and where it stands: established (the universal or
+  // closed statement is proved), counterevidence (a counterexample or refutation, kept),
+  // partial (only an instance, SAT), or unknown. A SAT answer is never shown as established.
+  const REL_SHAPES = ["sound_at", "complete_at", "complete_within_at", "translates_at", "reflects_at", "gentzen_closed"];
+  const REL_TEXT = { sound_at: "{S} ≤ {T} (sound)", complete_at: "{T} ≤ {S} (complete)", complete_within_at: "{T} ≤ {S} where {mu} ≤ {b}",
+    translates_at: "{S} → {T} along ({f}, {g}) preserves", reflects_at: "{T} → {S} along ({f}, {g}) reflects", gentzen_closed: "{S} closed under {rules}" };
+  function standing(p) {
+    const s = p.summary || "OPN";
+    if (s === "THM") return "established";
+    if (s === "OPN" || s === "UNK") return "unknown";
+    if (s === "SAT") return "partial";
+    return "counterevidence";   // CSA, UNS, contingent (which includes CSA)
+  }
+  async function relations(ctx, system) {
+    const shapes = REL_SHAPES.map((x) => PREFIX + x);
+    const marks = shapes.map(() => "?").join(",");
+    const rows = await ctx.q(
+      "SELECT DISTINCT cp.problem, cp.shape, cp.expect, cp.summary, cp.verdict, cp.title, p.arity, " + ESTABLISHED + ", " +
+      "(SELECT group_concat(a.status || coalesce(': ' || a.witness, ''), '; ') FROM answers a WHERE a.problem = cp.problem) AS answers, " +
+      "(SELECT a.decl FROM answers a WHERE a.problem = cp.problem LIMIT 1) AS proof, (SELECT a.module FROM answers a WHERE a.problem = cp.problem LIMIT 1) AS module " +
+      `FROM consequence_problems cp JOIN problems p ON p.name = cp.problem WHERE cp.shape IN (${marks})` +
+      (system ? " AND cp.problem IN (SELECT problem FROM consequence_problems WHERE system = ?)" : "") +
+      " ORDER BY cp.shape, cp.problem LIMIT 2000", system ? [...shapes, system] : shapes);
+    const args = await argsOf(ctx, rows.map((r) => r.problem));
+    return rows.map((r) => Object.assign(r, { args: args.get(r.problem) || {}, standing: standing(r) }));
+  }
+  function relationRow(r, base) {
+    const a = r.args, plain = Object.fromEntries(Object.entries(a).map(([k, v]) => [k, v.system ? rel(v.system, base) : compactText(v.text)]));
+    const lk = (k) => a[k] ? (a[k].system ? sysLink(a[k].system) : term(a[k].text)) : "";
+    const what = REL_TEXT[SHAPE(r.shape)] || SHAPE(r.shape);
+    const html = ui.esc(what).replace(/\{(S|T|mu|b|f|g|rules)\}/g, (_, k) => lk(k) || k);
+    const sl = r.proof && typeof sourceLink === "function" ? sourceLink(r.module, r.proof) : "";
+    return `<tr data-standing="${r.standing}"><td>${html}</td><td>${ui.link("problem", r.problem)}</td><td class="nw">${outcome(r)}</td>` +
+      `<td>${ui.esc(r.standing)}</td><td>${r.answers ? ui.esc(compactText(r.answers)) : '<span class="muted">none</span>'}${r.proof ? ` by ${code(r.proof)}${sl ? " " + sl : ""}` : ""}</td></tr>`;
+  }
+  async function relationsTable(ctx, only) {
+    let rs = await relations(ctx, null);
+    if (only) rs = rs.filter((r) => Object.values(r.args).some((v) => v.system && only.has(v.system)));
+    const cons = await ctx.q("SELECT o.system, o.operand, c.op FROM consequence_operands o JOIN consequence_systems c ON c.name = o.system ORDER BY o.system, o.pos LIMIT 2000");
+    const arts = await ctx.q("SELECT name, value, interpretation FROM consequence_systems WHERE op = 'artifact' ORDER BY name LIMIT 2000").catch(() => []);
+    let h = `<h3>Relations</h3><p class="muted">How the systems are related: constructions and artifacts by definition, and every
+soundness, completeness (also within a measure bound), translation and Gentzen-closure problem, with where it stands —
+<b>established</b> (proved), <b>counterevidence</b> (a counterexample or refutation, kept with its answer), <b>partial</b> (only an instance)
+or <b>unknown</b>.</p><div class="tablebox"><table id="systems-relations"><thead><tr><th>relation</th><th>problem</th><th>outcome</th><th>standing</th><th>answers (witness), proof</th></tr></thead><tbody>`;
+    for (const c of cons) if (!only || only.has(c.system)) h += `<tr data-standing="definition"><td>${sysLink(c.system)} is a ${ui.esc(c.op)} with operand ${sysLink(c.operand)}</td><td></td><td></td><td>by definition</td><td></td></tr>`;
+    for (const c of arts) if (!only || only.has(c.name)) h += `<tr data-standing="definition"><td>${sysLink(c.name)} is ${ui.link("value", c.value)} read by ${ui.esc(c.interpretation)}</td><td></td><td></td><td>by definition</td><td></td></tr>`;
+    h += rs.map((r) => relationRow(r, "")).join("");
+    return h + `</tbody></table></div>`;
+  }
+
   async function listPage(arg, ctx) {
     if (!has()) return `<h2>Consequence systems</h2>${missing}`;
-    const rows = await ctx.q(
+    const view = new URLSearchParams((arg || "").replace(/^\?/, "")).get("view") || "all";
+    const all = await ctx.q(
       "SELECT c.*, " +
       "(SELECT count(*) FROM consequence_operands o WHERE o.system = c.name) AS n_operands " +
       "FROM consequence_systems c ORDER BY c.name LIMIT " + (LIMIT + 1));
+    const gz = await gentzenOf(ctx);
+    const certified = new Set([...gz].filter(([, l]) => l.some((x) => x.summary === "THM")).map(([k]) => k));
+    const test = (VIEWS.find((v) => v[0] === view) || VIEWS[0])[2];
+    const rows = all.filter((r) => test(r, certified));
     // the problems of each system, once each (a problem naming it as S and as T counts once)
     const probs = new Map();
     for (const r of await ctx.q("SELECT DISTINCT cp.system, cp.problem, cp.expect, cp.summary, cp.verdict, p.arity, " + ESTABLISHED + " " +
@@ -142,7 +234,12 @@ refutation that is refuted counts as met.</span></p>`;
 <code>Γ ⊢ φ</code>. A context may be a finite list <code>C₁, …, Cₙ</code>, a set or anything else, and <b>no structural rule is
 implicit</b>: a system is reflexive, monotone or closed under cut only if a proof below says so. Every property is a problem
 with Lean answers; a problem with no answer is <b>unknown</b>, not false.</p>
-<div class="tablebox"><table id="systems-table"><thead><tr><th>system</th><th>title</th><th>construction</th><th>contexts → conclusions</th>
+<div class="views" id="systems-views">${VIEWS.map(([id, label, t]) => { const n = all.filter((r) => t(r, certified)).length;
+  return `<a class="viewbtn${id === view ? " on" : ""}" data-view="${id}" href="#/systems/?view=${id}">${ui.esc(label)} <span class="muted">${n}</span></a>`; }).join("")}</div>
+<p class="muted">Views read the shape Lean recorded from each system's types (unit, list, finset, set or a scalar carrier, the element type,
+<code>Signed</code> polarity on each side). <b>Raw sequents</b> are list-to-list relations of one formula type; <b>Gentzen-closed</b> are those with a
+proved <code>gentzen_closed</code> certificate for a named rule profile.</p>
+<div class="tablebox"><table id="systems-table"><thead><tr><th>system</th><th>title</th><th>construction</th><th>shape (contexts → conclusions)</th>
 <th title="closed judgments: true / false / unknown">judgments</th><th title="problems with free arguments">questions</th><th title="expected statuses met / problems (unknown or unset is not met)">expectations</th></tr></thead><tbody>`;
     for (const r of rows.slice(0, LIMIT)) {
       const how = r.op === "erase" ? `erase of ${term(r.witness)}` : r.op === "decl" ? term(r.decl)
@@ -154,13 +251,14 @@ with Lean answers; a problem with no answer is <b>unknown</b>, not false.</p>
       const fal = cl.filter((p) => p.summary === "UNS" || p.summary === "CSA").length;
       const n = summarize(ps), bad = n.mismatch + n.error;
       h += `<tr><td>${sysLink(r.name)}</td><td>${ui.esc(r.title || "")}</td><td>${how}</td>` +
-        `<td>${term(r.contexts)} → ${term(r.conclusions)}</td>` +
+        `<td>${shapeText(r)}${gz.has(r.name) ? gz.get(r.name).filter((x) => x.summary === "THM").map((x) => ` <span class="pill" title="${ui.esc(x.problem)}">closed: ${ui.esc(compactText(x.rules || "rules"))}</span>`).join("") : ""}</td>` +
         `<td>${cl.length ? `${tru} / ${fal} / ${cl.length - tru - fal}` : ""}</td><td>${ps.length - cl.length || ""}</td>` +
         `<td>${n.total ? `${n.met} / ${n.total}${bad ? ` <b>(${bad} unexpected)</b>` : ""}` : ""}</td></tr>`;
     }
     h += `</tbody></table></div>`;
     if (rows.length > LIMIT) h += `<p class="muted">showing the first ${LIMIT}; use the SQL tab for the rest</p>`;
-    if (!rows.length) h += `<p class="muted">No consequence system is registered (<code>silmaril consequence_system</code>).</p>`;
+    if (!rows.length) h += `<p class="muted">${all.length ? "No system in this view." : "No consequence system is registered (<code>silmaril consequence_system</code>)."}</p>`;
+    h += await relationsTable(ctx, view === "all" ? null : new Set(rows.map((r) => r.name)));
     h += `<h3>The standard questions</h3>
 <p class="muted">Each is a shape <code>${ui.esc(PREFIX)}…</code> whose last arguments are the context Γ and the conclusion φ; an instance
 fixes the systems and asks about the arguments left free. The statuses mean (for <code>S</code> fixed, Γ and φ free):</p>
@@ -194,6 +292,7 @@ met, which is not the same as true. Constructions name their operands on the sys
     const src = typeof sourceLink === "function" ? sourceLink(c.module, c.decl) : "";
     const rows = [
       ["relates", `contexts ${term(c.contexts)} to conclusions ${term(c.conclusions)}`],
+      ["shape", shapeText(c)],
       ["construction", ui.esc(OPS[c.op] || c.op)],
       ["Lean definition", code(c.decl) + ` <span class="muted">in ${ui.esc(c.module)}</span>${src ? " " + src : ""}`],
     ];
@@ -222,6 +321,19 @@ met, which is not the same as true. Constructions name their operands on the sys
       for (const a of await ctx.q(`SELECT problem, status, witness, decl, module FROM answers WHERE problem IN (${marks}) ORDER BY problem, status LIMIT 2000`, ps.map((p) => p.problem))) {
         if (!answers.has(a.problem)) answers.set(a.problem, []);
         answers.get(a.problem).push(a);
+      }
+    }
+    const rs = await relations(ctx, name);
+    if (rs.length) {
+      const groups = [["established", "Established"], ["counterevidence", "Counterevidence (kept)"], ["partial", "Partial (an instance only)"], ["unknown", "Unknown"]];
+      h += `<h3>Evidence</h3><p class="muted">Soundness, completeness (exact measure and bound when bounded), translations and Gentzen closure
+involving this system, grouped by where they stand. Established means the universal (or closed) statement is proved; a counterexample
+or refutation is counterevidence; an instance alone is partial.</p>`;
+      for (const [k, title] of groups) {
+        const g = rs.filter((r) => r.standing === k);
+        if (!g.length) continue;
+        h += `<h4>${title}</h4><div class="tablebox"><table class="system-evidence" data-standing="${k}"><thead><tr><th>relation</th><th>problem</th><th>outcome</th><th>standing</th><th>answers (witness), proof</th></tr></thead><tbody>` +
+          g.map((r) => relationRow(r, base)).join("") + `</tbody></table></div>`;
       }
     }
     h += `<h3>Problems</h3><p class="muted">Every standard consequence problem that names this system, as <b>S</b> (the system asked about)
@@ -308,6 +420,53 @@ environment as Lean definitions). Problems without a Lean answer are unknown. No
   Explorer.registerSection({ id: "consequence-systems", title: "Consequence systems", on: ["artifact", "wasm-module"], order: 55,
     render: artifactSection });
 
+  // The Interpretations pane: every registered interpretation of a value as a language
+  // (`language_interpretation`, `V → Set T`) or as a consequence system
+  // (`consequence_interpretation`, `V → System Ax C`), from the existing tables, with what uses it.
+  async function interpretationsPage(arg, ctx) {
+    const t = Explorer.tables();
+    let h = `<h2>Interpretations</h2>
+<p class="muted">How a registered value (an artifact's decoded bytes) denotes a language or a consequence system. Each is a Lean definition
+over the value's type; its ABI and environment, when declared, occur in that definition (a check of the metadata, not a proof that the
+definition models execution). <b>Definedness</b> is the declaration's: <i>total</i> means the definition gives a result for every value.
+Applying it to an artifact can still fail earlier, when the bytes do not decode; a system's or language's page shows its decode evidence.</p>`;
+    const rows = [];
+    if (t.has("language_interpretations")) {
+      for (const r of await ctx.q("SELECT i.name, i.decl, i.input, i.carrier AS output, i.abi, i.environment, i.doc, i.domain, " +
+          "(SELECT group_concat(l.name, ' ') FROM languages l WHERE l.interpretation = i.name) AS users FROM language_interpretations i ORDER BY i.name LIMIT 500"))
+        rows.push(Object.assign(r, { kind: "language", output: `Set (${r.output})` }));
+    }
+    if (t.has("consequence_interpretations")) {
+      for (const r of await ctx.q("SELECT i.name, i.decl, i.input, i.contexts, i.conclusions, i.abi, i.environment, i.doc, " +
+          "(SELECT group_concat(c.name, ' ') FROM consequence_systems c WHERE c.interpretation = i.name) AS users FROM consequence_interpretations i ORDER BY i.name LIMIT 500"))
+        rows.push(Object.assign(r, { kind: "system", output: `System (${r.contexts}) (${r.conclusions})` }));
+    }
+    if (!rows.length) return h + `<p class="muted">No interpretation is registered.</p>`;
+    h += `<div class="tablebox"><table id="interpretations-table"><thead><tr><th>interpretation</th><th>kind</th><th>reads</th><th>gives</th><th>ABI</th><th>environment</th><th>definedness</th><th>used by</th></tr></thead><tbody>`;
+    for (const r of rows) {
+      const users = (r.users || "").split(" ").filter(Boolean);
+      const userLink = (n) => r.kind === "system" ? sysLink(n) : `<a href="#/language/${encodeURIComponent(n)}">${ui.esc(n)}</a>`;
+      h += `<tr data-kind="${r.kind}"><td>${ui.esc(r.name)}<div class="muted">${term(r.decl)}</div></td><td>${r.kind === "system" ? "consequence system" : "language"}</td>` +
+        `<td>${term(r.input)}</td><td>${term(r.output)}</td><td>${term(r.abi) || '<span class="muted">none declared</span>'}</td>` +
+        `<td>${term(r.environment) || '<span class="muted">none declared</span>'}</td><td>total</td>` +
+        `<td>${users.length ? users.map(userLink).join("<br>") : '<span class="muted">unused</span>'}</td></tr>` +
+        (r.doc ? `<tr class="doc"><td></td><td colspan="7" class="muted">${ui.esc(r.doc)}</td></tr>` : "");
+    }
+    h += `</tbody></table></div><h3>Usage</h3><pre class="usage">${ui.esc(`silmaril language_interpretation N := I (domain := D) (abi := A) (environment := E)   -- I : V → Set T
+silmaril language L (domain := D) (op := artifact) (value := X) (interpretation := N)
+silmaril consequence_interpretation N := I (abi := A) (environment := E)            -- I : V → System Ax C
+silmaril consequence_system S (op := artifact) (value := X) (interpretation := N)`)}</pre>`;
+    return h;
+  }
+
+  const style = document.createElement("style");
+  style.textContent = ".views { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; } " +
+    ".viewbtn { border:1px solid var(--line); border-radius:4px; padding:2px 8px; text-decoration:none; } .viewbtn.on { background:var(--panel); font-weight:600; } " +
+    ".pill { font-size:11px; border:1px solid var(--line); border-radius:8px; padding:0 5px; white-space:nowrap; } " +
+    "pre.usage { background:var(--panel); border:1px solid var(--line); padding:8px 10px; font:12px ui-monospace, monospace; overflow:auto; }";
+  document.head.appendChild(style);
+
+  Explorer.registerView({ id: "interpretations", title: "Interpretations", nav: 67, render: interpretationsPage });
   Explorer.registerView({ id: "systems", title: "Systems", nav: 66, render: listPage });
   Explorer.registerView({ id: "system", title: "System", tab: "systems", render: detailPage });
 })();

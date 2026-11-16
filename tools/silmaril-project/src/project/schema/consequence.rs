@@ -15,7 +15,8 @@ pub const CONSEQUENCE_OPS: [&str; 6] = ["decl", "union", "inter", "diff", "erase
 /// The standard consequence shapes: `(problem, role of each argument position)`. The roles
 /// name what an instance argument is: a type (`type`), the system asked about (`S`), the
 /// system it is compared with or translated into (`T`), a translation on contexts (`f`) or
-/// conclusions (`g`), the chosen conclusion (`ff`), a context (`ctx`) or a conclusion (`phi`).
+/// conclusions (`g`), the chosen conclusion (`ff`), a context (`ctx`) or a conclusion (`phi`),
+/// a measure (`mu`) and its bound (`b`), or a Gentzen rule profile (`rules`).
 pub const CONSEQUENCE_SHAPES: &[(&str, &[&str])] = &[
     (
         "silmaril.shapes.consequence.derives",
@@ -38,6 +39,14 @@ pub const CONSEQUENCE_SHAPES: &[(&str, &[&str])] = &[
         &["type", "type", "S", "T", "ctx", "phi"],
     ),
     (
+        "silmaril.shapes.consequence.complete_within_at",
+        &["type", "type", "S", "T", "mu", "b", "ctx", "phi"],
+    ),
+    (
+        "silmaril.shapes.consequence.gentzen_closed",
+        &["type", "rules", "S"],
+    ),
+    (
         "silmaril.shapes.consequence.translates_at",
         &[
             "type", "type", "type", "type", "S", "T", "f", "g", "ctx", "phi",
@@ -53,6 +62,8 @@ pub const CONSEQUENCE_SHAPES: &[(&str, &[&str])] = &[
 
 table! {
     /// `silmaril consequence_system NAME …`; Lean generates or checks `decl` and fills `term`
+    /// and the typed shape (`ctx_kind`, `ctx_elem`, `ctx_signed`, the same for conclusions, and
+    /// `raw_sequent`; null in a dump written before they existed)
     /// (`decl` as instance arguments print it) and `contexts` and `conclusions` (the types `Ax`
     /// and `C`, printed).
     ConsequenceSystem = "consequence_systems", key("sid"), unique("name") {
@@ -66,6 +77,13 @@ table! {
         witness: Option<String> = "TEXT",
         value: Option<String> = "TEXT",
         interpretation: Option<String> = "TEXT",
+        ctx_kind: Option<String> = "TEXT CHECK(ctx_kind IN ('unit','list','finset','set','other'))",
+        ctx_elem: Option<String> = "TEXT",
+        ctx_signed: Option<bool> = "INTEGER",
+        concl_kind: Option<String> = "TEXT CHECK(concl_kind IN ('unit','list','finset','set','other'))",
+        concl_elem: Option<String> = "TEXT",
+        concl_signed: Option<bool> = "INTEGER",
+        raw_sequent: Option<bool> = "INTEGER",
         title: Option<String> = "TEXT",
         doc: Option<String> = "TEXT",
         source: Option<String> = "TEXT",

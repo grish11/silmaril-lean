@@ -86,6 +86,25 @@ silmaril instance silmaril.selftest.consequence.gentzen.pairs_complete (expect :
 public theorem pairs_complete_at : ∀ Γ Δ, CompleteAt viaUnsatPairs valid Γ Δ :=
   fun Γ Δ h => (viaUnsat_pairs_eq ▸ h : viaUnsat pairs lneg Γ Δ)
 
+-- certified Gentzen closure: the pair test is closed under the default rules; the bounded test
+-- is not (no cut)
+silmaril instance silmaril.selftest.consequence.gentzen.pairs_closed (expect := THM)
+  (title := "The pair test is closed under the default Gentzen rules (refl, ⊆-weakening, cut)") :=
+  silmaril.shapes.consequence.gentzen_closed (rs := Silmaril.Consequence.Gentzen.defaultRules)
+  (S := ProjectSelfTest.Consequence.Gentzen.viaUnsatPairs)
+
+@[answers "silmaril.selftest.consequence.gentzen.pairs_closed" thm]
+public theorem pairs_closed : GentzenClosed defaultRules viaUnsatPairs := viaUnsat_pairs_closed
+
+silmaril instance silmaril.selftest.consequence.gentzen.bounded3_closed (expect := UNS)
+  (title := "The bounded test is closed under the default Gentzen rules (fails: not cut-closed)") :=
+  silmaril.shapes.consequence.gentzen_closed (rs := Silmaril.Consequence.Gentzen.defaultRules)
+  (S := ProjectSelfTest.Consequence.Gentzen.viaUnsatBounded3)
+
+@[answers "silmaril.selftest.consequence.gentzen.bounded3_closed" csa]
+public theorem bounded3_closed : ¬ GentzenClosed defaultRules viaUnsatBounded3 :=
+  fun h => bounded_not_cut (h.cut trivial)
+
 silmaril instance silmaril.selftest.consequence.gentzen.p_qp (expect := THM)
   (title := "p ⊢ q, p is valid") := silmaril.shapes.consequence.derives
   (S := ProjectSelfTest.Consequence.Gentzen.valid) (Γ := [(true, 0)]) (φ := [(true, 1), (true, 0)])
@@ -153,7 +172,8 @@ public theorem chain_p_r : ¬ Derives chainRaw [(true, 0)] [(true, 2)] := by
 end
 
 silmaril group silmaril.selftest.consequence.gentzen (title := "Consequence systems: literal sequents (Gentzen)")
-  (children := [silmaril.selftest.consequence.gentzen.pairs_sound,
+  (children := [silmaril.selftest.consequence.gentzen.pairs_closed,
+    silmaril.selftest.consequence.gentzen.bounded3_closed, silmaril.selftest.consequence.gentzen.pairs_sound,
     silmaril.selftest.consequence.gentzen.pairs_complete, silmaril.selftest.consequence.gentzen.p_qp,
     silmaril.selftest.consequence.gentzen.p_q, silmaril.selftest.consequence.gentzen.bounded3_sound,
     silmaril.selftest.consequence.gentzen.bounded3_closure_sound,

@@ -3,6 +3,7 @@ module
 public import Silmaril.Project.Defs
 public import Silmaril.Project.Registry.Consequence.Defs
 public import Silmaril.Logic.Consequence.Defs
+public import Silmaril.Logic.Consequence.Gentzen.Defs
 
 /-!
 # Standard problem shapes: consequence systems
@@ -23,8 +24,15 @@ UNS of `derives S` both hold, and SAT and CSA both fail — nothing is assumed n
 | `silmaril.shapes.consequence.derives_bottom` | `DerivesBottom S ff Γ`: `S Γ ff` | every context derives `ff` | some context derives `ff` | no context derives `ff` | some context does not derive `ff` |
 | `silmaril.shapes.consequence.sound_at` | `SoundAt S T Γ φ`: `S Γ φ → T Γ φ` | `S` is sound for `T`: `S ≤ T` | | | a counterexample: `S Γ φ`, not `T Γ φ` |
 | `silmaril.shapes.consequence.complete_at` | `CompleteAt S T Γ φ`: `T Γ φ → S Γ φ` | `S` is complete for `T`: `T ≤ S` | | | a counterexample: `T Γ φ`, not `S Γ φ` |
+| `silmaril.shapes.consequence.complete_within_at` | `CompleteWithinAt S T μ b Γ φ`: `μ Γ φ ≤ b → T Γ φ → S Γ φ` | `S` is complete for `T` on the pairs with `μ Γ φ ≤ b` | | | a counterexample within the bound |
 | `silmaril.shapes.consequence.translates_at` | `TranslatesAt S T f g Γ φ`: `S Γ φ → T (f Γ) (g φ)` | `(f, g)` preserves consequence | | | a consequence it does not preserve |
 | `silmaril.shapes.consequence.reflects_at` | `ReflectsAt S T f g Γ φ`: `T (f Γ) (g φ) → S Γ φ` | `(f, g)` reflects consequence (conservativity) | | | a translated consequence whose source is not one |
+
+`silmaril.shapes.consequence.gentzen_closed rs S` (`Gentzen.Closed rs S`, closed once `rs` and
+`S` are fixed) certifies that a sequent relation `S : Gentzen.Seq C` is closed under the rule
+profile `rs` (`Gentzen.defaultRules`, `withWeakening W`, …): THM certified, UNS (a closed
+refutation) not closed. A list-to-list system is only a *raw* sequent relation until such a
+problem is proved.
 
 Fixing `Γ` too (`derives S (Γ := …)`) asks about one context: THM says `Γ` derives every
 conclusion (`Γ` is **context-universal**), CSA that some conclusion is not derived. Fixing `φ`
@@ -74,6 +82,19 @@ def SoundAt {Ax C : Type} (S T : System Ax C) (Γ : Ax) (φ : C) : Prop := S Γ 
 /-- **Completeness at `(Γ, φ)`**: if `Γ ⊢ φ` in `T` then in `S`. -/
 @[problem "silmaril.shapes.consequence.complete_at" (title := "A system is complete for another")]
 def CompleteAt {Ax C : Type} (S T : System Ax C) (Γ : Ax) (φ : C) : Prop := T Γ φ → S Γ φ
+
+/-- **Bounded completeness at `(Γ, φ)`**: if `μ Γ φ ≤ b` and `Γ ⊢ φ` in `T`, then in `S`. -/
+@[problem "silmaril.shapes.consequence.complete_within_at"
+  (title := "A system is complete for another within a measure bound")]
+def CompleteWithinAt {Ax C : Type} (S T : System Ax C) (μ : Ax → C → ℕ) (b : ℕ) (Γ : Ax) (φ : C) :
+    Prop := μ Γ φ ≤ b → T Γ φ → S Γ φ
+
+/-- **A sequent relation is closed under a Gentzen rule profile.** -/
+@[problem "silmaril.shapes.consequence.gentzen_closed"
+  (title := "A sequent relation is closed under a Gentzen rule profile")]
+def GentzenClosed {C : Type} (rs : Silmaril.Consequence.Gentzen.Rules C)
+    (S : Silmaril.Consequence.Gentzen.Seq C) : Prop :=
+  Silmaril.Consequence.Gentzen.Closed rs S
 
 /-- **A translation preserves `Γ ⊢ φ`**: from `S` to `T` along `f` on contexts and `g` on
 conclusions. -/

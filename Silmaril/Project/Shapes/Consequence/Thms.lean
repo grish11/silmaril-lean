@@ -20,6 +20,9 @@ system and `⊥` the empty one.
   context is `S.ConsistentWrt ff`;
 * `sound_at S T`: `thm` ↔ `S.Sound T`, `csa` ↔ `¬ S.Sound T`; `complete_at S T`: `thm` ↔
   `S.Complete T`, `csa` ↔ `¬ S.Complete T`;
+* `complete_within_at S T μ b`: `thm` ↔ completeness on the pairs with `μ Γ φ ≤ b`, `csa` ↔ a
+  counterexample within the bound;
+* `gentzen_closed rs S` (closed): `thm` ↔ `Gentzen.Closed rs S`;
 * `translates_at S T f g`: `thm` ↔ `S ≤ T.pullback f g`; `reflects_at`: `T.pullback f g ≤ S`.
 
 Nothing is assumed inhabited: over an empty type of contexts `derives S` is THM and UNS at once
@@ -72,6 +75,17 @@ theorem completeAt_thm_iff : (∀ Γ φ, CompleteAt S T Γ φ) ↔ S.Complete T 
 
 theorem completeAt_csa_iff : (∃ Γ φ, ¬ CompleteAt S T Γ φ) ↔ ¬ S.Complete T := by
   rw [← completeAt_thm_iff]; simp only [not_forall]
+
+theorem completeWithinAt_thm_iff {μ : Ax → C → ℕ} {b : ℕ} :
+    (∀ Γ φ, CompleteWithinAt S T μ b Γ φ) ↔ ∀ Γ φ, μ Γ φ ≤ b → T Γ φ → S Γ φ := Iff.rfl
+
+theorem completeWithinAt_csa_iff {μ : Ax → C → ℕ} {b : ℕ} :
+    (∃ Γ φ, ¬ CompleteWithinAt S T μ b Γ φ) ↔ ∃ Γ φ, μ Γ φ ≤ b ∧ T Γ φ ∧ ¬ S Γ φ := by
+  simp only [CompleteWithinAt, Classical.not_imp]
+
+theorem gentzenClosed_iff {C : Type} {rs : Silmaril.Consequence.Gentzen.Rules C}
+    {S : Silmaril.Consequence.Gentzen.Seq C} : GentzenClosed rs S ↔ Silmaril.Consequence.Gentzen.Closed rs S :=
+  Iff.rfl
 
 theorem translatesAt_thm_iff {U : System Bx D} :
     (∀ Γ φ, TranslatesAt S U f g Γ φ) ↔ S ≤ U.pullback f g := Iff.rfl

@@ -47,9 +47,23 @@ try {
   check(/^erase of Consequence\.Deriv$/.test(byName[S + "derivable"][2]), "derivable is the erasure of Deriv (compact)");
   check(byName[S + "raw_or_hyp"][2] === "union of 2 systems" && byName[S + "gap"][2] === "diff of 2 systems",
     "the index names a construction without its operands");
-  check(/^List Consequence\.Atom → Consequence\.Atom$/.test(byName[S + "raw"][3]) &&
-    await p.evaluate(() => document.querySelector("#systems-table tbody tr td:nth-child(4) code").title === "List ProjectSelfTest.Consequence.Atom"),
-    "contexts → conclusions, compact, with the full term as the title");
+  check(/^list of Consequence\.Atom → other Consequence\.Atom$/.test(byName[S + "raw"][3]) &&
+    await p.evaluate(() => document.querySelector("#systems-table tbody tr td:nth-child(4) code").title === "ProjectSelfTest.Consequence.Atom"),
+    `the typed shape: list contexts, a scalar conclusion, compact, full term as the title (${byName[S + "raw"][3]})`);
+  check(/^list of Consequence\.Signed Unit signed → list of Consequence\.Signed Unit signed raw sequent$/.test(byName[S + "multi.lit"][3]),
+    `multi.lit: signed lists on both sides, a raw sequent (${byName[S + "multi.lit"][3]})`);
+  // the view buttons: counts and filters from the typed shape and certifications
+  const views = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("#systems-views a")].map((a) => [a.dataset.view, +a.querySelector("span").textContent])));
+  check(views.all === list.length && views.acceptor === 2 && views.rejector === 1 && views.signed === 2 && views["raw-sequent"] === 8 && views.gentzen === 1 && views.artifact === 4,
+    `view counts ${JSON.stringify(views)}`);
+  await open("/systems/?view=gentzen");
+  const gv = await rows("#systems-table");
+  check(gv.length === 1 && gv[0][0] === S + "gentzen.via_unsat_pairs" && /closed: Gentzen\.defaultRules/.test(gv[0][3]), `the Gentzen view: certified systems only, with the rule profile (${gv.map((r) => r[0] + " " + r[3])})`);
+  await open("/systems/?view=raw-sequent");
+  check((await rows("#systems-table")).some((r) => r[0] === S + "gentzen.via_unsat_bounded3"), "raw sequents include the uncertified bounded test");
+  const rel = await p.evaluate(() => [...document.querySelectorAll("#systems-relations tbody tr")].map((tr) => [tr.dataset.standing, tr.textContent]));
+  check(rel.some(([st, t]) => st === "counterevidence" && /bounded3_closed/.test(t)), "the relations table keeps the refuted Gentzen closure as counterevidence");
+  await open("/systems");
   check(byName[S + "derivable"][4] === "1 / 2 / 0" && byName[S + "derivable"][5] === "9",
     `derivable: 1 true / 2 false / 0 unknown judgments, 9 questions (${byName[S + "derivable"].slice(4)})`);
   check(/^\d+ \/ \d+$/.test(byName[S + "derivable"][6]) && byName[S + "derivable"][6].split(" / ")[0] === byName[S + "derivable"][6].split(" / ")[1],
@@ -122,6 +136,19 @@ try {
   check(/UNS/.test(mrow("p_nil")[4]) && /does not derive \[\]/.test(mrow("p_nil")[5]), "multi: p ⊢ fails");
   const mo = await rows("#system-problems");
   check(mo.some((r) => r[0] === S + "multi.right_ext_complete" && r[2] === "T" && /CSA/.test(r[4])), "multi: rightExt is not complete for it (as T)");
+
+  // the evidence panel and the bounded completeness
+  await open("/system/" + encodeURIComponent(S + "wasm.member_check"));
+  const ev = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("table.system-evidence")].map((t) => [t.dataset.standing, [...t.querySelectorAll("tbody tr")].map((tr) => tr.textContent)])));
+  check((ev.established || []).some((t) => /where \(fun as x => as\.length \+ 1\) ≤ 2 \^ 32 - 1/.test(t) || /≤ 2 \^ 32 - 1/.test(t)) && !ev.counterevidence,
+    `member_check: bounded completeness established with its exact measure and bound (${(ev.established || []).find((t) => /2 \^ 32/.test(t))})`);
+  // the interpretations pane
+  await open("/interpretations");
+  const ip = await p.evaluate(() => [...document.querySelectorAll("#interpretations-table tbody tr[data-kind]")].map((tr) => [tr.dataset.kind, tr.children[0].firstChild.textContent, tr.children[7].textContent]));
+  check(ip.some(([k, n, u]) => k === "system" && n === "wasm.core.check_rel" && u.includes("wasm.member_check") && u.includes("wasm.empty_check")) &&
+    ip.some(([k, n, u]) => k === "system" && n === "wasm.core.check_acceptor" && u.includes("member_check.acceptor")) &&
+    ip.some(([k, n, u]) => k === "language" && n === "wasm.core.check_accept" && u.includes("member_check.accepted")), `the interpretations pane lists both kinds with their users (${ip.length})`);
+  await shot("interpretations");
 
   // registered Wasm artifacts as systems (op := artifact, wasm.core.check_rel)
   await open("/systems");

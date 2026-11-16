@@ -16,13 +16,21 @@ is implicit** — a system is reflexive, monotone or closed under cut only if a 
 
 | kind | Lean checks | Lean fills |
 |---|---|---|
-| `consequence_system N := S` | `S : Ax → C → Prop` (universe-monomorphic) | `contexts` (`Ax`), `conclusions` (`C`), `term` |
+| `consequence_system N := S` | `S : Ax → C → Prop` (universe-monomorphic) | `contexts` (`Ax`), `conclusions` (`C`), `term`, the typed shape (below) |
 | `consequence_system N (op := union) (args := [A, B, …])` | two or more operands, over the same `Ax` and `C` (definitionally) | `decl := A ⊔ B ⊔ …` |
 | `consequence_system N (op := inter) (args := [A, B, …])` | as for `union` | `decl := A ⊓ B ⊓ …` |
 | `consequence_system N (op := diff) (args := [A, B])` | exactly two operands | `decl := A \ B` |
 | `consequence_interpretation N := I (abi := A) (environment := E)` | `I : V → System Ax C`; `A` and `E`, when given, occur in `I`'s definition | `input` (`V`), `contexts`, `conclusions` |
 | `consequence_system N (op := artifact) (value := X) (interpretation := I)` | `X` a registered `Value V`, `I` a registered `consequence_interpretation` reading `V` | `decl := ConsequenceSystems.artifactSystem X I` |
 | `consequence_system N := W (op := erase)` | `W : Ax → C → Type` (a `WSystem`: a type of derivations of each `Γ ⊢ φ`) | `witness := W`, `decl := WSystem.erase W` (`Nonempty (W Γ φ)`) |
+
+**Typed shape.** Lean classifies each side from its type (the `Expr`, up to reducible
+unfolding): `ctx_kind`/`concl_kind` is `unit`, `list`, `finset`, `set` or `other` (a scalar
+carrier), with the element type (`ctx_elem`/`concl_elem`) and whether that element type is
+`Signed A` (`ctx_signed`/`concl_signed`, separately: mixed polarity is visible as such).
+`raw_sequent` says both sides are lists of definitionally equal element types — a raw sequent
+relation; that it is closed under any Gentzen rules is a separate problem
+(`silmaril.shapes.consequence.gentzen_closed`).
 
 `term` is the defining constant as the arguments of an instance print it, so that the database
 can relate a problem to the system it names. Except for `op := decl` (the default), Lean *generates* the definition `N` in the current
@@ -99,6 +107,38 @@ def consequenceOperand (kind name : String) (expected : Option (Expr × Expr)) :
       throwError "silmaril {kind}: system {name} has conclusions{indentExpr c}\nnot{indentExpr C}\n\
         the operands of a construction must have the same conclusion type"
   return (d, ax, c)
+
+/-- The carrier kind of one side of a system, read from its type `T` (up to reducible
+unfolding, from the `Expr`, never from printed text): `unit` (`Unit` or `PUnit`), `list`, `finset`
+or `set` with their element type, else `other` (a scalar carrier, the type itself as element).
+Also whether the element type is `Silmaril.Consequence.Signed A`. -/
+def carrierKind (T : Expr) : MetaM (String × Expr × Bool) := do
+  let T ← whnfR T
+  let (k, e) :=
+    if T.isConstOf ``Unit || T.isAppOfArity ``PUnit 0 || T.isConstOf ``PUnit then ("unit", T)
+    else if T.isAppOfArity ``List 1 then ("list", T.getArg! 0)
+    else if T.isAppOfArity `Finset 1 then ("finset", T.getArg! 0)
+    else if T.isAppOfArity ``Set 1 then ("set", T.getArg! 0)
+    else ("other", T)
+  let e ← whnfR e
+  return (k, e, e.isAppOfArity `Silmaril.Consequence.Signed 1)
+
+/-- The typed shape of a system `Ax → C → Prop`, as fields: each side's kind, element type and
+polarity (`ctx_signed`, `concl_signed`, separately), and `raw_sequent` (both sides lists of
+definitionally equal element types: a raw sequent relation, not a claim that any rule is
+closed). -/
+def systemShapeFields (kind : String) (fs : Fields) (Ax C : Expr) : TermElabM Fields := do
+  let (ck, ce, cs) ← carrierKind Ax
+  let (dk, de, ds) ← carrierKind C
+  let seq ← if ck == "list" && dk == "list" then isDefEq ce de else pure false
+  let mut fs := fs
+  fs ← fs.push kind "ctx_kind" (.str ck)
+  fs ← fs.push kind "ctx_elem" (.str (← ppOneLine ce))
+  fs ← fs.push kind "ctx_signed" (.bool cs)
+  fs ← fs.push kind "concl_kind" (.str dk)
+  fs ← fs.push kind "concl_elem" (.str (← ppOneLine de))
+  fs ← fs.push kind "concl_signed" (.bool ds)
+  fs.push kind "raw_sequent" (.bool seq)
 
 /-- Add the public, exposed definition `n : type := value`. -/
 def addConsequenceDef (n : Name) (value : Expr) : TermElabM Unit := do
@@ -222,6 +262,7 @@ def addConsequenceDef (n : Name) (value : Expr) : TermElabM Unit := do
     fs ← fs.push kind "term" (.str (← ppOneLine (mkConst d)))
     fs ← fs.push kind "contexts" (.str (← ppOneLine Ax))
     fs ← fs.push kind "conclusions" (.str (← ppOneLine C))
+    fs ← systemShapeFields kind fs Ax C
     return #[(name, fs)]
 
 end Silmaril.Project

@@ -98,6 +98,44 @@ systems its bytes denote.
 
 Statements and assumptions are bytes (`UInt8`); no component wraps either module.
 
+## Typed shapes, views and the Gentzen view
+
+Lean records each system's shape from its types (the `Expr`, never printed text): for contexts
+and conclusions separately, `unit`, `list`, `finset`, `set` or `other` (a scalar carrier), the
+element type, and whether that element type is `Signed A`; `raw_sequent` when both sides are
+lists of one formula type. The Systems page filters by these: **artifacts**, **acceptors**
+(unit contexts), **rejectors** (unit conclusions), **list/finset/set contexts**, **multiple
+conclusions**, **signed formulas** (either side; each side is shown), **raw sequents**, and
+**Gentzen-closed**: the raw sequents with a *proved*
+`silmaril.shapes.consequence.gentzen_closed rs S` for a named rule profile `rs`
+(`Gentzen.defaultRules`, …), shown with the profile. A raw sequent relation is not called
+Gentzen-closed without that proof; a refuted closure stays visible as counterevidence. There is
+no separate Gentzen registry: the view is a filter on the same systems.
+
+Acceptors and rejectors of a module are core adapters applied to the module's export
+languages: `wasm.core.check_acceptor m := liftTTC () (checkAccept m)` and
+`wasm.core.check_rejector m := liftAxFF (checkReject m) ()`. The self-test proves the acceptor
+of `member_check.wasm` equal to its registered language `lang.member_check.accepted` read
+through `liftTTC ()`.
+
+**Bounded completeness.** `silmaril.shapes.consequence.complete_within_at S T μ b Γ φ :=
+μ Γ φ ≤ b → T Γ φ → S Γ φ`: `S` is complete for `T` on the pairs with `μ Γ φ ≤ b`, the measure
+`μ : Ax → C → ℕ` and the bound shown exactly. `member_check.wasm` is complete for `c ∈ as`
+within `as.length + 1 ≤ 2 ^ 32 - 1`.
+
+**Evidence and relations.** A system's page groups every soundness, completeness (bounded or
+not), translation and Gentzen-closure problem about it: **established** (the universal or closed
+statement is proved), **counterevidence** (a counterexample or refutation, kept with its
+witness), **partial** (only an instance), **unknown**. The Systems page lists the same relations
+for all systems, with constructions and artifacts by definition.
+
+**Interpretations.** The Interpretations page lists every `language_interpretation` (`V → Set T`)
+and `consequence_interpretation` (`V → System Ax C`): what it reads and gives, its ABI and
+environment, its definedness (both kinds are total definitions today; applying one to an
+artifact can still fail when the bytes do not decode, which the decode evidence shows), and the
+languages and systems built from it. Partial and environment-parametrised interpretations will
+follow the core's interpretation API.
+
 ## The standard problems
 
 Each shape keeps the context `Γ` and the conclusion `φ` last; an instance fixes the systems
@@ -114,6 +152,8 @@ once).
 | `sound_at S T Γ φ` | `S Γ φ → T Γ φ` | `S.Sound T` (`S ≤ T`) | | | a counterexample |
 | `complete_at S T Γ φ` | `T Γ φ → S Γ φ` | `S.Complete T` (`T ≤ S`) | | | a counterexample |
 | `translates_at S T f g Γ φ` | `S Γ φ → T (f Γ) (g φ)` | `S ≤ T.pullback f g`: the translation preserves consequence | | | a consequence not preserved |
+| `complete_within_at S T μ b Γ φ` | `μ Γ φ ≤ b → T Γ φ → S Γ φ` | complete on `μ ≤ b` | | | a counterexample within the bound |
+| `gentzen_closed rs S` (closed) | `Gentzen.Closed rs S` | closed under `rs` | | false: not closed | |
 | `reflects_at S T f g Γ φ` | `T (f Γ) (g φ) → S Γ φ` | `T.pullback f g ≤ S`: the translation reflects consequence | | | a translated consequence not reflected |
 
 (all named `silmaril.shapes.consequence.<shape>`; THM of `translates_at S T f g` is exactly

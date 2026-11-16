@@ -40,9 +40,17 @@ open Silmaril.Project.ConsequenceSystems Silmaril.Project.Languages.WasmExport
 def memberAccepted : Silmaril.Consequence.System (List UInt8) UInt8 :=
   Silmaril.Wasm.Examples.MemberCheck.accepted Silmaril.Wasm.Numerics.Profile.spec allHosts
 
+/-- Membership of the conclusion in the assumptions, unbounded. -/
+def memAll : Silmaril.Consequence.System (List UInt8) UInt8 := fun as c => c ∈ as
+
 /-- Membership, for assumption lists that fit the ABI with the conclusion: `as.length + 1 < 2 ^ 32`. -/
 def memBelow : Silmaril.Consequence.System (List UInt8) UInt8 :=
   fun as c => c ∈ as ∧ as.length + 1 < 2 ^ 32
+
+/-- The registered language `silmaril.selftest.lang.member_check.accepted` (an artifact language
+of the same value), as an acceptor with unit contexts. -/
+def acceptedLang : Silmaril.Consequence.System Unit (List UInt8) :=
+  Silmaril.Consequence.liftTTC () silmaril.selftest.lang.member_check.accepted
 
 end
 
@@ -57,9 +65,21 @@ silmaril consequence_system silmaril.selftest.consequence.wasm.empty_check (op :
 silmaril consequence_system silmaril.selftest.consequence.wasm.member_accepted :=
   ProjectSelfTest.Consequence.Wasm.memberAccepted
   (title := "MemberCheck.accepted Profile.spec allHosts: the Lean module's relation")
+silmaril consequence_system silmaril.selftest.consequence.wasm.mem_all :=
+  ProjectSelfTest.Consequence.Wasm.memAll (title := "c ∈ as (bytes, no bound)")
 silmaril consequence_system silmaril.selftest.consequence.wasm.mem_below :=
   ProjectSelfTest.Consequence.Wasm.memBelow
   (title := "c ∈ as, for as.length + 1 < 2^32 (bytes)")
+
+silmaril consequence_system silmaril.selftest.consequence.wasm.member_check.acceptor (op := artifact)
+  (value := silmaril.selftest.wasm_acceptors.member_check) (interpretation := wasm.core.check_acceptor)
+  (title := "member_check.wasm as an acceptor: () ⊢ w iff check answers 1 on w")
+silmaril consequence_system silmaril.selftest.consequence.wasm.member_check.rejector (op := artifact)
+  (value := silmaril.selftest.wasm_acceptors.member_check) (interpretation := wasm.core.check_rejector)
+  (title := "member_check.wasm as a rejector: w ⊢ () iff check answers 0 on w")
+silmaril consequence_system silmaril.selftest.consequence.wasm.member_check.accepted_lang :=
+  ProjectSelfTest.Consequence.Wasm.acceptedLang
+  (title := "liftTTC () of the registered language silmaril.selftest.lang.member_check.accepted")
 
 namespace ProjectSelfTest.Consequence.Wasm
 
@@ -128,6 +148,78 @@ public theorem member_check_complete_mem : ∀ Γ φ,
   rw [member_check_eq]
   exact (Silmaril.Wasm.Examples.MemberCheck.accepted_iff_mem _ allHosts_nonempty hl c).2 hm
 
+silmaril instance silmaril.selftest.consequence.wasm.member_check_complete_within (expect := THM)
+  (title := "member_check.wasm is complete for MemberCheck's c ∈ as within as.length + 1 ≤ 2^32 - 1 (nonempty hosts)") :=
+  silmaril.shapes.consequence.complete_within_at (S := silmaril.selftest.consequence.wasm.member_check)
+  (T := ProjectSelfTest.Consequence.Wasm.memAll)
+  (μ := fun (as : List UInt8) (_ : UInt8) => as.length + 1) (b := 2 ^ 32 - 1)
+
+@[answers "silmaril.selftest.consequence.wasm.member_check_complete_within" thm]
+public theorem member_check_complete_within : ∀ Γ φ,
+    CompleteWithinAt silmaril.selftest.consequence.wasm.member_check memAll
+      (fun (as : List UInt8) (_ : UInt8) => as.length + 1) (2 ^ 32 - 1) Γ φ := by
+  intro as c hb hm
+  exact member_check_complete_mem as c ⟨hm, by simp only at hb; omega⟩
+
+-- the acceptor is the registered language, as a system; the rejector rejects [1]
+silmaril instance silmaril.selftest.consequence.wasm.acceptor_is_language (expect := THM)
+  (title := "member_check.wasm's acceptor ⊆ its registered language (as liftTTC ())") :=
+  silmaril.shapes.consequence.sound_at (S := silmaril.selftest.consequence.wasm.member_check.acceptor)
+  (T := ProjectSelfTest.Consequence.Wasm.acceptedLang)
+
+@[answers "silmaril.selftest.consequence.wasm.acceptor_is_language" thm]
+public theorem acceptor_is_language : ∀ Γ φ, SoundAt silmaril.selftest.consequence.wasm.member_check.acceptor
+    acceptedLang Γ φ := by
+  intro u w h
+  rw [show silmaril.selftest.consequence.wasm.member_check.acceptor =
+    Silmaril.Project.ConsequenceSystems.WasmExport.checkAcceptor Silmaril.Wasm.Examples.MemberCheck.prog from
+      artifactSystem_of_is ProjectSelfTest.WasmAcceptors.member_check_is_prog] at h
+  exact ⟨h.1, (ProjectSelfTest.WasmAcceptors.mem_artifactLang_of_is
+    ProjectSelfTest.WasmAcceptors.member_check_is_prog w).2 h.2⟩
+
+silmaril instance silmaril.selftest.consequence.wasm.language_is_acceptor (expect := THM)
+  (title := "member_check.wasm's registered language (as liftTTC ()) ⊆ its acceptor") :=
+  silmaril.shapes.consequence.complete_at (S := silmaril.selftest.consequence.wasm.member_check.acceptor)
+  (T := ProjectSelfTest.Consequence.Wasm.acceptedLang)
+
+@[answers "silmaril.selftest.consequence.wasm.language_is_acceptor" thm]
+public theorem language_is_acceptor : ∀ Γ φ, CompleteAt silmaril.selftest.consequence.wasm.member_check.acceptor
+    acceptedLang Γ φ := by
+  intro u w h
+  rw [show silmaril.selftest.consequence.wasm.member_check.acceptor =
+    Silmaril.Project.ConsequenceSystems.WasmExport.checkAcceptor Silmaril.Wasm.Examples.MemberCheck.prog from
+      artifactSystem_of_is ProjectSelfTest.WasmAcceptors.member_check_is_prog]
+  exact ⟨h.1, (ProjectSelfTest.WasmAcceptors.mem_artifactLang_of_is
+    ProjectSelfTest.WasmAcceptors.member_check_is_prog w).1 h.2⟩
+
+silmaril instance silmaril.selftest.consequence.wasm.acceptor_212 (expect := THM)
+  (title := "() ⊢ [2, 1, 2]: member_check.wasm accepts 2, 1, 2") := silmaril.shapes.consequence.derives
+  (S := silmaril.selftest.consequence.wasm.member_check.acceptor) (Γ := ()) (φ := [2, 1, 2])
+
+@[answers "silmaril.selftest.consequence.wasm.acceptor_212" thm]
+public theorem acceptor_212 : Derives silmaril.selftest.consequence.wasm.member_check.acceptor () [2, 1, 2] := by
+  rw [show silmaril.selftest.consequence.wasm.member_check.acceptor =
+    Silmaril.Project.ConsequenceSystems.WasmExport.checkAcceptor Silmaril.Wasm.Examples.MemberCheck.prog from
+      artifactSystem_of_is ProjectSelfTest.WasmAcceptors.member_check_is_prog]
+  refine ⟨rfl, ?_⟩
+  show [2, 1, 2] ∈ checkAccept Silmaril.Wasm.Examples.MemberCheck.prog
+  rw [memberCheck_checkAccept]
+  exact ⟨⟨2, [1, 2], rfl, by decide⟩, by decide⟩
+
+silmaril instance silmaril.selftest.consequence.wasm.rejector_1 (expect := THM)
+  (title := "[1] ⊢ (): member_check.wasm rejects 1 (nonempty hosts)") := silmaril.shapes.consequence.derives
+  (S := silmaril.selftest.consequence.wasm.member_check.rejector) (Γ := [1]) (φ := ())
+
+@[answers "silmaril.selftest.consequence.wasm.rejector_1" thm]
+public theorem rejector_1 : Derives silmaril.selftest.consequence.wasm.member_check.rejector [1] () := by
+  rw [show silmaril.selftest.consequence.wasm.member_check.rejector =
+    Silmaril.Project.ConsequenceSystems.WasmExport.checkRejector Silmaril.Wasm.Examples.MemberCheck.prog from
+      artifactSystem_of_is ProjectSelfTest.WasmAcceptors.member_check_is_prog]
+  refine ⟨?_, rfl⟩
+  show [1] ∈ checkReject Silmaril.Wasm.Examples.MemberCheck.prog
+  rw [memberCheck_checkReject]
+  exact ⟨fun ⟨_, _, h, hm⟩ => by cases h; simp at hm, by decide⟩
+
 silmaril instance silmaril.selftest.consequence.wasm.member_check_12_2 (expect := THM)
   (title := "1, 2 ⊢ 2 in member_check.wasm") := silmaril.shapes.consequence.derives
   (S := silmaril.selftest.consequence.wasm.member_check) (Γ := [1, 2]) (φ := 2)
@@ -165,6 +257,10 @@ silmaril group silmaril.selftest.consequence.wasm
     silmaril.selftest.consequence.wasm.member_check_complete_lean,
     silmaril.selftest.consequence.wasm.member_check_sound_mem,
     silmaril.selftest.consequence.wasm.member_check_complete_mem,
+    silmaril.selftest.consequence.wasm.member_check_complete_within,
+    silmaril.selftest.consequence.wasm.acceptor_is_language,
+    silmaril.selftest.consequence.wasm.language_is_acceptor,
+    silmaril.selftest.consequence.wasm.acceptor_212, silmaril.selftest.consequence.wasm.rejector_1,
     silmaril.selftest.consequence.wasm.member_check_12_2,
     silmaril.selftest.consequence.wasm.member_check_1_2,
     silmaril.selftest.consequence.wasm.empty_check_empty])

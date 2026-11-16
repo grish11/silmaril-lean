@@ -2,9 +2,18 @@ module
 
 public import Silmaril.Project.Shapes.Consequence.Defs
 public import Silmaril.Project.Languages.WasmExport.Defs
+public import Silmaril.Logic.Consequence.Accept.Defs
 
 /-!
 # Consequence systems of Wasm modules: the export `check` as a relation
+
+Three interpretations through the same export; each is a `consequence_interpretation`:
+
+* `wasm.core.check_acceptor`: unit contexts, `() ⊢ w` iff the module accepts `w` — the core
+  adapter `liftTTC ()` of the language that `wasm.core.check_accept` reads (an acceptor);
+* `wasm.core.check_rejector`: unit conclusions, `w ⊢ ()` iff the module rejects `w` —
+  `liftAxFF · ()` of `wasm.core.check_reject`'s language (a rejector);
+* `wasm.core.check_rel`, below.
 
 `wasm.core.check_rel` reads a module as a consequence system between byte lists and bytes:
 `as ⊢ c` iff some run of the export `check(ptr: i32, len: i32) -> i32` on the input
@@ -32,6 +41,18 @@ open Silmaril.Project.Languages.WasmExport Silmaril.Wasm.Game Silmaril.Wasm.Game
 def checkRel (m : Silmaril.Wasm.Module) : Silmaril.Consequence.System (List UInt8) UInt8 :=
   fun as c => c :: as ∈ exportAccepted Silmaril.Wasm.Numerics.Profile.spec allHosts m checkExport
 
+/-- **The acceptor of the export `check`**, with unit contexts: `() ⊢ w` iff some run answers `1`
+on `w` (the core adapter `liftTTC ()` of the language `WasmExport.checkAccept m`). -/
+def checkAcceptor (m : Silmaril.Wasm.Module) : Silmaril.Consequence.System Unit (List UInt8) :=
+  Silmaril.Consequence.liftTTC ()
+    (exportAccepted Silmaril.Wasm.Numerics.Profile.spec allHosts m checkExport)
+
+/-- **The rejector of the export `check`**, with unit conclusions: `w ⊢ ()` iff some run answers
+`0` on `w` (the core adapter `liftAxFF · ()` of `WasmExport.checkReject m`). -/
+def checkRejector (m : Silmaril.Wasm.Module) : Silmaril.Consequence.System (List UInt8) Unit :=
+  Silmaril.Consequence.liftAxFF
+    (exportRejected Silmaril.Wasm.Numerics.Profile.spec allHosts m checkExport) ()
+
 end Silmaril.Project.ConsequenceSystems.WasmExport
 
 silmaril consequence_interpretation wasm.core.check_rel :=
@@ -39,3 +60,15 @@ silmaril consequence_interpretation wasm.core.check_rel :=
   (abi := Silmaril.Project.Languages.WasmExport.checkExport)
   (environment := Silmaril.Project.Languages.WasmExport.allHosts)
   (doc := "as ⊢ c iff some run of the export check(ptr: i32, len: i32) -> i32 answers 1 on the input c :: as written into memory 0, after spec instantiation, Profile.spec, every Core host (Silmaril.Wasm.Game.Accept.exportAccepted)")
+
+silmaril consequence_interpretation wasm.core.check_acceptor :=
+  Silmaril.Project.ConsequenceSystems.WasmExport.checkAcceptor
+  (abi := Silmaril.Project.Languages.WasmExport.checkExport)
+  (environment := Silmaril.Project.Languages.WasmExport.allHosts)
+  (doc := "() ⊢ w iff some run of the export check(ptr: i32, len: i32) -> i32 answers 1 on w: liftTTC () of the language wasm.core.check_accept reads (Profile.spec, every Core host)")
+
+silmaril consequence_interpretation wasm.core.check_rejector :=
+  Silmaril.Project.ConsequenceSystems.WasmExport.checkRejector
+  (abi := Silmaril.Project.Languages.WasmExport.checkExport)
+  (environment := Silmaril.Project.Languages.WasmExport.allHosts)
+  (doc := "w ⊢ () iff some run of the export check(ptr: i32, len: i32) -> i32 answers 0 on w: liftAxFF · () of the language wasm.core.check_reject reads (Profile.spec, every Core host)")
