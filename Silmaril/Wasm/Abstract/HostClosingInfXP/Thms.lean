@@ -49,6 +49,9 @@ theorems of `HostClosingXP`):
   observations of `wasmEvInfNXP` against such a host are productive Core runs, productive
   observations of the Core witness `wasmEvInf P`.
 
+For reuse, `reachLXP_of_descends`: a descent of `wasmHOpenXP` is a logged reach in a Wasm body
+(`ReachLXP`), or the body's run to a pending tail call to the callee.
+
 Not here: the converse directions (Core runs to `wasmEvFunDXP` and `wasmEvInfNXP`).
 -/
 
@@ -146,5 +149,18 @@ theorem hostObsInf_wasmEvInfNXP_le (hH : NativeHostSlice host) (hE : HostSliceE 
   fun _ hω => wasmEvInf_hostObsInf.mpr (hostObsInf_wasmEvInfNXP_coreInf hH hE hts hS hok hω)
 
 end Fwd
+
+/-! ## Descents, for reuse -/
+
+/-- **A descent of `wasmHOpenXP` is a logged reach in a Wasm body, or the body's run to a pending
+tail call to the callee**, after the calls the descent resolves. -/
+theorem reachLXP_of_descends {c : (wasmHShape H).ClosedMod} {x y : (wasmHShape H).self.Op}
+    {q : List (Call (wasmHostSig H))} (h : Shape.Descends wasmHOpenXP c x q y) :
+    ∃ (fi : FuncInst H) (fn : Func) (l : List (OCall H)), x.2.2.funcs[x.1]? = some fi ∧
+      fi.code = .wasm fn ∧ Shape.SubstPre c (l.map OCall.lift) q ∧
+      (ReachLXP x.2.2 (Frame.forCall fi.module x.2.1 fn.locals) [] (liftInstrs fn.body) l y ∨
+        ∃ (f₂ : Frame) (n : Nat), EvalLXPh x.2.2 (Frame.forCall fi.module x.2.1 fn.locals) []
+          (liftInstrs fn.body) l (y.2.2, f₂, .tail y.1 y.2.1 n)) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXP.descends_unwrap h
 
 end Silmaril.Wasm.Abstract
