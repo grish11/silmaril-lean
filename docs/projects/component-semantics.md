@@ -200,6 +200,9 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Pending plays of a threaded loop with a total body; iteration preserves totality | `SessionIter3.total_iterT`, `mem_satP_iterS_of_total`, `mem_pending_iterS_of_total`, `satP_iterS_subset` (no hypothesis) | `Total t` | #748 |
 | Literal associativity and units of linking; coherence | `SessionLinkAssoc.linkS_assoc` (no hypotheses), `linkS_idS`, `idS_linkS` (after `sat`/`dropTrap`), `linkS_idS_eq_iff`, `idS_linkS_eq_iff`; `SessionLinkCoh.linkS_mapStore_left/right`, `mapStore_trans`, `linkS_assoc4_two`/`three` (pentagon), `linkS_linkS_idS` (triangle) | none (bare unit forms: `NoPlainTrap`, `Saturated`) | #751, #753 |
 | `ext` chatter and infinite plays routed by `splitH`; infinite plays of any composite | `DWiringChatter2.chatter_ext_iff`, `copycat_silent_extTop`, `div_ext_eq_routed`; `DWiringChatter3.inf_comp_eq`, `inf_ext_routed`, `copycat_bounded_of_stop` | none | #756, #759 |
+| Generic pull of strategies along a move map | `Games.DPull`: `PullData`, `DStrategy.pull`, `toStrategy_pull`, `mem_div_pull`, `mem_inf_pull`, `pull_id`, `pull_comp` | `PullData f pf` | #762 |
+| Host hiding for sessions (host imports beside component imports) | `SessionHost.hostDOn`, `hostLinkS`, `pair_comp_threadS`, `pair_comp_threadS_of_det`, `pair_comp_threadS_empty` | `StoreDet (hostLinkS R t)` (no `NoPlainTrap`) | #765 |
+| Environment extension of sessions (`Comp.denU`'s `ext`) | `SessionRoute.threadS_comp_callH`, `SessionExt.extS_threadS`, `AnsPull.ofHandler_ansH_comp_pair`, `comp_ansH_comp_ansH_comp`; `ExtSessionFull.ext_threadS` (full, on `sigU`) | `NoPlainTrap`, `RetDet` | #766, #769 |
 
 ### Counterexamples (why a hypothesis cannot be dropped)
 
