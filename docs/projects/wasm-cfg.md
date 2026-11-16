@@ -298,9 +298,15 @@ The plain graph stays an over-approximation, and claims about it say so.
      by induction on their region run (`loop_aux`), re-entering at each branch back.
    - **Backward, open:** the extended call forms (`call_indirect`, `call_ref`, and tail calls,
      whose pending region outcome is answered at the frame), replacing the remaining goal of the
-     draft #494, whose `sorry`s are not merged. Then the CFG corollaries: machine runs from
-     `cfgEntry` against native runs of the function body, through `run_complete_initialC` and
-     `run_sound_initialC`.
+     draft #494, whose `sorry`s are not merged.
+   - **CFG corollaries, done** (`Cfg.BridgeCfg`): `machine_native` (a machine run from
+     `cfgEntry` of typed trees without extended calls to a sink is a native run with the same
+     oracle, the sink's `EndsC` and the native result related by `ResOut`) and `native_machine`
+     (a typed checked native run from the empty stack is a machine run from `cfgEntry` to a sink
+     completing its region outcome, unless that outcome is a branch out of the body; pending tail
+     calls are completed by the oracle answer `ResOut` carries), with the `closedXOk` instances
+     `machine_native_closedX`, `native_machine_closedX` (no oracle hypothesis). These are about the
+     block-CFG machine as an executable semantics; the plain graph stays an over-approximation.
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
