@@ -28,9 +28,9 @@ import Silmaril.Proofs.Wasm.Abstract.OpenStrat.Basic
   open triple at the questions `Ok`, restricted by `coreHostRel host`. This is an equality of
   triples, before `toDStrat`;
 * `natStrat_eq_hostRestrict`: the same, exception-free;
-* `coreStratXP_eq_hostRestrict_of` (deterministic profile, the explicit backward hypotheses of
-  `coreStratXP_eq_natStratXP_of`), `coreStrat_eq_hostRestrict`: the Core strategies are host
-  restrictions of the open native triples.
+* `coreStrat_eq_hostRestrict` (deterministic profile, exception-free): the Core strategy is the
+  host restriction of the open native triple. The exception-aware Core form follows once the
+  productive backward direction `BackInfXP` is proved.
 
 **Linking with the host** (`comp_hostD_openStratXP`): composing the open strategy with the host
 `coreHostRel host` as a strategy without imports (`StratHost.hostD`), host interaction hidden, is
@@ -163,15 +163,6 @@ theorem natStrat_eq_hostRestrict (host : HostSemantics H)
     (Ok : Store H → Nat × List Val → Prop) :
     natStrat host Ok = StratObs.toDStrat (hostRestrict (coreHostRel host) (guardT Ok openTriple)) :=
   congrArg StratObs.toDStrat (Silmaril.Proofs.Wasm.Abstract.OpenStrat.obsTriple_nat host Ok)
-
-/-- **The Core strategy with exceptions is the host-restricted open native one** (deterministic
-profile), given the backward directions of `coreStratXP_eq_natStratXP_of`. -/
-theorem coreStratXP_eq_hostRestrict_of {o : GrowOracle} {host : HostSemantics H}
-    {tags : List TagInst} (hT : HostTyped host) (hH : NativeHostSlice host)
-    (hE : HostSliceE tags host) (hdiv : BackDivXP o host tags) (hinf : BackInfXP o host tags) :
-    coreStratXP (profile o) host (InvOkXP tags) =
-      StratObs.toDStrat (hostRestrict (coreHostRel host) (guardT (InvOkXP tags) openTripleXP)) :=
-  (coreStratXP_eq_natStratXP_of hT hH hE hdiv hinf).trans (natStratXP_eq_hostRestrict host _)
 
 /-- **The Core strategy is the host-restricted open native one** (deterministic profile, checked
 typed invocations). -/
