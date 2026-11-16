@@ -23,7 +23,8 @@
   // The outcome of a problem against its expected status: a negative result that was expected
   // is not a failure, and no answer is unknown, never false.
   function outcome(p) {
-    const s = p.summary, e = p.expect;
+    // at arity 0 a refutation is recorded as UNS; for a closed statement it is CSA (false)
+    const s = p.arity === 0 && p.summary === "UNS" ? "CSA" : p.summary, e = p.expect;
     if (!s || s === "OPN" || s === "UNK") {
       return e && e !== "OPN" ? ui.badge("unknown", "unknown (expected " + e + ")") : ui.badge("unknown", "unknown");
     }
@@ -35,7 +36,7 @@
   function reading(p) {
     const r = READING[SHAPE(p.shape)];
     const closed = p.arity === 0;
-    if (closed && SHAPE(p.shape) === "member") return { THM: "member", CSA: "not a member", UNS: "not a member" }[p.summary] || "";
+    if (closed && ["member", "bytes_member"].includes(SHAPE(p.shape))) return { THM: "member", CSA: "not a member", UNS: "not a member" }[p.summary] || "";
     return (r && r[p.summary]) || "";
   }
   const code = (s) => s == null ? "" : `<code>${ui.esc(s)}</code>`;
