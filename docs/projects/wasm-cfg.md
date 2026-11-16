@@ -300,10 +300,16 @@ The plain graph stays an over-approximation, and claims about it say so.
      `bridge_bwd_tailFree_closedX` add `call_indirect` and `call_ref` (resolved as the native
      evaluator resolves them, answered by the same oracle entry); `bridge_bwd` is its
      `xFreeL` case.
-   - **Backward, open:** tail calls, whose pending region outcome (`Out.tail`) is answered at the
-     frame while the native evaluator answers it at once: the statement for that outcome is
-     about every oracle answer. This replaces the remaining goal of the draft #494, whose
-     `sorry`s are not merged.
+   - **Backward, every outcome but a pending tail call, done**: `bridge_bwd_nonTail` and
+     `bridge_bwd_nonTail_closedX` cover every typed tree, tail calls included, when the region
+     outcome is not `Out.tail`: `return_call_ref` on null and `return_call_indirect` without a
+     callee trap natively. `return_call_indirect`'s `table.get; ref.cast` Core runs are forced at
+     the deterministic profile without host (unique host-free normal forms,
+     `BridgeBwdRci.run_rci_inv`).
+   - **Backward, open:** a region run ending in a pending tail call of a function (`Out.tail`),
+     answered at the frame while the native evaluator answers it at once: the statement for
+     that outcome is about every oracle answer. This replaces the last goal of the draft #494,
+     whose `sorry`s are not merged.
    - **CFG corollaries, done** (`Cfg.BridgeCfg`): `machine_native` (a machine run from
      `cfgEntry` of typed trees without tail calls to a sink is a native run with the same
      oracle, the sink's `EndsC` and the native result related by `ResOut`) and `native_machine`
