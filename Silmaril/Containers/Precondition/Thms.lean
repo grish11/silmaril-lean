@@ -14,7 +14,8 @@ PROVED (standard axioms); every proof is short and stays inline.
 * `wp_wlp`: a total precondition is a liberal one;
 * `vpre_noUB`, `vpre_iff`, `not_vpre_of_undefined`, `not_wlp_of_undefined`: every
   verification precondition requires that no run has undefined behaviour, and one run with
-  undefined behaviour refutes it;
+  undefined behaviour refutes it; `not_vpre_of_preservesUB`: the same under any model that
+  preserves the undefined behaviour of `R` (`Runtime.restrict`, `mayKill`, `enforce`);
 * `pre_antitone`: a model with more runs has a stronger precondition (runtime kills, a weaker
   account of the runtime), and a model with stronger assumptions a weaker one;
 * `pre_of_infeasible`: an image with no run satisfies every specification (a miracle):
@@ -63,6 +64,14 @@ theorem not_vpre_of_undefined {R : Runtime I P E} {i : I} {t : List E} {u : UB}
 theorem not_wlp_of_undefined {R : Runtime I P E} {i : I} {t : List E} {u : UB}
     (h : R.beh i (.done t (.undefined u))) (post : List E → UInt8 → Prop) : ¬ wlp R post i :=
   not_vpre_of_undefined h _
+
+/-- A model that preserves the undefined behaviour of `R` refutes every verification
+precondition `R` refutes through a run with undefined behaviour: runtime assumptions, kills and
+enforcement cannot certify an image with reachable undefined behaviour. -/
+theorem not_vpre_of_preservesUB {P' : Type} {R' : Runtime I P' E} {R : Runtime I P E}
+    (h : R'.PreservesUB R) {i : I} {t : List E} {u : UB}
+    (hb : R.beh i (.done t (.undefined u))) (φ : Spec E) : ¬ vpre R' φ i :=
+  not_vpre_of_undefined (h i _ hb id) φ
 
 theorem pre_antitone {R : Runtime I P E} {R' : Runtime I P' E} (h : R.Le R') {φ : Spec E}
     {i : I} (hi : pre R' φ i) : pre R φ i := Runtime.sat_of_le h hi

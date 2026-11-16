@@ -19,6 +19,12 @@ separate action so that the policy for it is visible and replaceable: a parallel
 handles it in its own steps; the sequential reading (`MachineSem.runs`) makes thread creation
 undefined behaviour.
 
+**In a runtime.** `MachRuntime I P E` names the parameters of a runtime over a machine: the
+loader, the machine and what the runtime adds; `MachRuntime.toRuntime` is the runtime model, and
+`MachRuntime.withMachine` replaces the machine and nothing else. The construction is
+compositional and exact: the runs of an image are the loader's refusal, or the machine's runs of
+the loaded program transformed by what the runtime adds (`Thms.MachRuntime.beh_iff`).
+
 **Runs** (`MachineSem.Run`), from an initial state and a finite execution of `ev` and `tau`
 steps with events `t`:
 
@@ -203,10 +209,30 @@ def ClonesExplicit (creates : M.State → Act E → M.State → Prop) : Prop :=
 
 end MachineSem
 
+/-- **A runtime model over a named machine.** The three parameters a runtime is built from: the
+loader (images to programs), the machine (its memory, concurrency and scheduling model inside
+its states and steps), and what the runtime adds to the machine's runs. -/
+structure MachRuntime (I P E : Type) where
+  load : I → Except Refusal P
+  machine : MachineSem P E
+  obs : Beh E → Beh E → Prop := Eq
+
+/-- **The runtime model of a machine runtime**: `beh i b` exactly when the loader gives `p`, the
+machine has the run `b₀` of `p` (`MachineSem.Run`), and the runtime turns `b₀` into `b`; or the
+loader refuses (`Thms.MachRuntime.beh_iff`). -/
+def MachRuntime.toRuntime {I P E : Type} (R : MachRuntime I P E) : Runtime I P E :=
+  ⟨R.load, R.machine.runs, R.obs⟩
+
+/-- **The same runtime over another machine** (for example a parallel one in place of a
+sequential one): the loader and what the runtime adds are kept. -/
+def MachRuntime.withMachine {I P E : Type} (R : MachRuntime I P E) (M : MachineSem P E) :
+    MachRuntime I P E :=
+  { R with machine := M }
+
 /-- **A runtime model over a machine**: a loader to programs, and the machine's runs. -/
 def _root_.Silmaril.Containers.Runtime.ofMachine {I P E : Type} (load : I → Except Refusal P)
     (M : MachineSem P E) (obs : Beh E → Beh E → Prop := Eq) : Runtime I P E :=
-  ⟨load, M.runs, obs⟩
+  (MachRuntime.mk load M obs).toRuntime
 
 /-- **Sequential agreement** (the transfer obligation from a sequential machine to another,
 for example a parallel one): on the image `i`, every run under `Rpar` is a run under `Rseq`. -/

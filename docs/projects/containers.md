@@ -95,7 +95,8 @@ found by a shape, and the runtime is a parameter with its own behaviours.
 | A program's own crash vs a runtime kill vs a refusal | `Stop.signaled`, `Stop.killed`, `Stop.refused` | `pre_refused`: a refused image satisfies every `wlp` |
 | Environmental vs internal nondeterminism | `Ev.isInput`, `Model.DetUpToInputs` | `Fixtures.echoOnce_det`, `coin_not_det` |
 | Noninterference is relational | `Model.Noninterference` | `noninterference_not_trace_property`; `trace_property_not_noninterference`: memory safety, no-ACE or profile confinement (all trace properties) do not imply it |
-| Profile proved of a program vs enforced by a runtime | `Confined`, `Runtime.enforce` | `enforce_confined`, `enforce_eq_of_confined`; `Fixtures.http_enforce_vsock` |
+| Profile proved of a program vs enforced by a runtime | `Confined`, `Runtime.enforce` | `enforce_confined` (for runs without undefined behaviour), `enforce_eq_of_confined`; `Fixtures.http_enforce_vsock` |
+| Runtime-added behaviours never hide undefined behaviour | `Runtime.ObsKeepsUB`, `Runtime.PreservesUB`; `restrict` and `enforce` keep every run with undefined behaviour | `preservesUB_restrict`, `preservesUB_mayKill`, `preservesUB_enforce`; `noUB_restrict_iff`, `noUB_mayKill_iff`, `noUB_enforce_iff`; `not_vpre_of_preservesUB`; `Mini.threadSpawn_not_wlp_restrict`, `_mayKill`, `_enforce`, `_restrict_noUB` |
 | A digest names content; it does not prove it | `Store.Sound`, `Store.InjOn`, `Store.checked` | `sound_checked`, `agree_of_sound` (needs binding), `digest_not_binding`; `Fixtures.Examples`: a tampered store runs the wrong program unless checked |
 | Undefined behaviour is an outcome, not an absence of runs | `Stop.undefined`, `UB`, `Mach.MachineSem.Run` (stuck, `noInit`, `clone` give runs) | `not_wlp_of_stuck`, `not_wlp_of_clone`, `not_wlp_of_noInit`; `Mini.fallOff_not_wlp` |
 | Every verification precondition excludes undefined behaviour | `vpre R φ := pre R (noUB ∧ φ)`; `wlp`, `wp` | `not_vpre_of_undefined`; `Mini.wlp_iff` (exact: `noUB ∧ partialCorrect`); `Mini.threadSpawn_partial` shows partial correctness alone holds of a thread-creating program |
@@ -107,7 +108,11 @@ found by a shape, and the runtime is a parameter with its own behaviours.
 
 ## Machines, undefined behaviour and concurrency
 
-**The machine is a parameter.** `Mach.MachineSem P E` has states, the initial states of a
+**The machine is a named parameter of the runtime.** `Mach.MachRuntime I P E` has three
+fields: `load` (images to programs), `machine : MachineSem P E`, and `obs` (what the runtime
+adds, `Eq` by default); `toRuntime` is its runtime model and `withMachine M` swaps the machine and
+nothing else. The construction is exact (`MachRuntime.beh_iff`): the runs of an image are the
+loader's refusal, or `obs` applied to the machine's runs of the loaded program. `Mach.MachineSem P E` has states, the initial states of a
 program (a relation: layout randomisation and initial memory are nondeterministic), steps labelled
 by actions (`ev e` with the environment, `tau`, `clone r` for task creation) and final states.
 `Runtime.ofMachine load M` is a runtime model over it. The runs (`MachineSem.Run`) are read from
@@ -117,6 +122,29 @@ no final outcome gives `undefined stuck`, a program with no initial state gives
 always produces a run**, so it cannot make a precondition hold vacuously. Infinite runs with
 infinitely many events are the limit closure of finite executions; this can only add runs, which
 makes preconditions stronger, never weaker.
+
+**Undefined behaviour under runtime-added behaviours.** "No undefined behaviour" is a property of
+the runs the environment sees, which are program (machine) runs transformed by what the runtime
+adds. The runtime may add runs, for example a kill truncating a program run (that run ends in
+`killed`, which is not undefined behaviour), but it must not remove a program run that has
+undefined behaviour. This is required, not assumed: `Runtime.ObsKeepsUB` for what a runtime adds,
+`Runtime.PreservesUB` between models, and all three transformers satisfy it:
+
+* `restrict A` (strengthening an assumption) keeps the runs satisfying `A` **and every run with
+  undefined behaviour**: an assumption about the environment or the runtime never excuses the
+  program, so even `restrict Spec.noUB` certifies nothing new (`Mini.threadSpawn_not_wlp_restrict_noUB`);
+* `mayKill` adds truncated runs and keeps the original ones;
+* `enforce` stops a run at its first event outside the profile, **except a run with undefined
+  behaviour, which is kept as it is**: in reality a faithful enforcer may stop the process before
+  the undefined behaviour, but certifying an image must not depend on that, and a run with undefined
+  behaviour may do things the filter does not observe. So `enforce_confined` is stated for runs
+  without undefined behaviour.
+
+Hence `noUB_restrict_iff`, `noUB_mayKill_iff`, `noUB_enforce_iff`: no undefined behaviour holds
+after each transformer exactly when it holds before. A runtime-defined `obs` outside these
+transformers must be shown to keep undefined behaviour (`ObsKeepsUB`) before
+`MachRuntime.not_vpre_of_run` applies. Undefined behaviour of the container runtime itself (a
+runtime bug) is outside these models and is an assumption about the runtime.
 
 **"No undefined behaviour" is part of every verification precondition.** `vpre R φ` requires
 that *every* run of the image under `R` (every admissible execution: every environment input,
@@ -260,6 +288,26 @@ consequence-system registry already are:
 
 A container check can be a consequence system: `Γ ⊢ φ` with `Γ` the image's contents and `φ` a
 specification, interpreted by `pre R φ` (planned `consequence_interpretation containers.pre`).
+
+## Requested and not yet done
+
+These are part of the original request and remain open after this pull request:
+
+* **Real images and real execution.** No OCI image is parsed and no ELF file is loaded or run under
+  `Process.LPS` in this development; nothing is executed in a container runtime, and no fixture has
+  been compared with Docker. The fixtures are models (`Fixtures.small`, `Mini.machR`).
+* **A sequential x86-64 machine instance** with `ClonesExplicit` proved for system calls 56, 57, 58
+  and 435, and LPS's `unmodeled`, fault and stuck outcomes mapped to `UB`.
+* **The parallel x86-64 machine** (threads, scheduler, x86-TSO, atomics) and `SeqAgrees` proofs.
+* **Acceptors, consequence systems and tables.** Only the institution and its room are registered
+  (`LogicGraph.Nodes.Containers`). Not done: a `consequence_interpretation` reading
+  `vpre R φ` as `Γ ⊢ φ` over image contents; an `Acceptor` for decidable content checkers such as
+  `Fixtures.noopCheck` with `CorrectInterleaved`; record kinds and problem shapes
+  (`silmaril.shapes.containers.*`) for profiles, shapes, runtime models and obligations; and the
+  database tables of the "Tables" section. These need a decision on placement: the registry lives
+  in the `Project` region, whose `deps` do not include `Containers`.
+* **Nitro Enclaves** (EIF, PCRs, attestation), **Redis**, **Kubernetes**: designed above, not
+  implemented.
 
 ## Next steps
 

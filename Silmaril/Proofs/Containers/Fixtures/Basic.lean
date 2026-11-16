@@ -188,7 +188,7 @@ theorem http_enforce_vsock (b : Beh Ev) :
   constructor
   · rintro ⟨b₀, hs, b₁, rfl, he⟩
     have hrun : small.beh http b₀ := (beh_image _ _ _).2 hs
-    rcases he with ⟨ha, -⟩ | ⟨t, e, hp, hc, -, rfl⟩
+    rcases he with ⟨ha, -⟩ | ⟨hu, -⟩ | ⟨t, e, hp, hc, -, rfl⟩
     · have hp : b₀.Prefix [.socket (lsock .inet4)] := by
         cases hs with
         | waitAccept reqs => simp [Beh.Prefix, httpTrace, httpSetup]
@@ -200,6 +200,8 @@ theorem http_enforce_vsock (b : Beh Ev) :
           simp [Beh.Prefix, h0]
       have := ha _ hp _ (List.mem_singleton_self _)
       cases this
+    · -- the HTTP fixture has no run with undefined behaviour
+      exact (hu (by cases hs <;> trivial)).elim
     · cases t with
       | nil => rfl
       | cons x t =>
@@ -208,7 +210,8 @@ theorem http_enforce_vsock (b : Beh Ev) :
           (.head _)).tcp] at hx
         cases hx
   · rintro rfl
-    refine ⟨_, HttpRun.waitAccept [], _, rfl, .inr ⟨[], .socket (lsock .inet4), ?_, ?_, rfl, rfl⟩⟩
+    refine ⟨_, HttpRun.waitAccept [], _, rfl,
+      .inr (.inr ⟨[], .socket (lsock .inet4), ?_, ?_, rfl, rfl⟩)⟩
     · simp [Beh.Prefix, httpTrace, httpSetup]
     · exact fun _ h => nomatch h
 

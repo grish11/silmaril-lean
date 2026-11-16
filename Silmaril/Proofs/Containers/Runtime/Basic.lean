@@ -106,16 +106,18 @@ theorem always_done_nil {ok : E → Prop} (s : Stop) : Spec.always ok (.done [] 
   cases he
 
 theorem enforce_confined {R : Runtime I P Ev} {Pr : Profile} {i : I} :
-    ((R.enforce Pr).beh i).Sat (Spec.always fun e => Pr e.cap = true) := by
-  intro b hb
+    ((R.enforce Pr).beh i).Sat
+      (Spec.under Spec.noUB (Spec.always fun e => Pr e.cap = true)) := by
+  intro b hb hnu
   cases hl : R.load i with
   | error r =>
     rw [(beh_error (R := R.enforce Pr) hl b).1 hb]
     exact always_done_nil _
   | ok p =>
     obtain ⟨b₀, -, b₁, -, he⟩ := (beh_ok (R := R.enforce Pr) hl b).1 hb
-    rcases he with ⟨ha, rfl⟩ | ⟨t, e, -, hc, -, rfl⟩
+    rcases he with ⟨ha, rfl⟩ | ⟨hu, rfl⟩ | ⟨t, e, -, hc, -, rfl⟩
     · exact ha
+    · exact (hu hnu).elim
     · intro u hu x hx
       exact hc x (hu.subset hx)
 
@@ -129,11 +131,71 @@ theorem enforce_eq_of_confined {R : Runtime I P Ev} {Pr : Profile} {i : I}
     constructor
     · rintro ⟨b₀, hs, b₁, ho, he⟩
       have ha := h b₁ ((beh_ok hl b₁).2 ⟨b₀, hs, ho⟩)
-      rcases he with ⟨-, rfl⟩ | ⟨t, e, hp, -, hf, -⟩
+      rcases he with ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨t, e, hp, -, hf, -⟩
+      · exact ⟨b₀, hs, ho⟩
       · exact ⟨b₀, hs, ho⟩
       · have h' : Pr e.cap = true := ha (t ++ [e]) hp e (by simp)
         rw [hf] at h'; cases h'
     · rintro ⟨b₀, hs, ho⟩
       exact ⟨b₀, hs, b, ho, .inl ⟨h b ((beh_ok hl b).2 ⟨b₀, hs, ho⟩), rfl⟩⟩
+
+/-! ## Undefined behaviour is preserved -/
+
+/-- A transformer of what the runtime adds that keeps every run (with or without undefined
+behaviour) preserves the undefined behaviour of the model. -/
+theorem preservesUB_withObs {R : Runtime I P E} {o : Beh E → Beh E → Prop}
+    (h : ∀ b₀ b, R.obs b₀ b → ¬ Spec.noUB b → o b₀ b) : (R.withObs o).PreservesUB R := by
+  intro i b hb hu
+  cases hl : R.load i with
+  | error r => exact (beh_error (R := R.withObs o) hl b).2 ((beh_error hl b).1 hb)
+  | ok p =>
+    obtain ⟨b₀, hs, ho⟩ := (beh_ok hl b).1 hb
+    exact (beh_ok (R := R.withObs o) hl b).2 ⟨b₀, hs, h b₀ b ho hu⟩
+
+theorem preservesUB_restrict (R : Runtime I P E) (A : Spec E) : (R.restrict A).PreservesUB R :=
+  preservesUB_withObs fun _ _ ho hu => ⟨ho, .inr hu⟩
+
+theorem preservesUB_mayKill (R : Runtime I P E) (ks : Kill → Prop) :
+    (R.mayKill ks).PreservesUB R :=
+  preservesUB_withObs fun _ b ho _ => ⟨b, ho, .inl rfl⟩
+
+theorem preservesUB_enforce (R : Runtime I P Ev) (Pr : Profile) :
+    (R.enforce Pr).PreservesUB R :=
+  preservesUB_withObs fun _ b ho hu => ⟨b, ho, .inr (.inl ⟨hu, rfl⟩)⟩
+
+theorem noUB_of_preservesUB {P' : Type} {R' : Runtime I P' E} {R : Runtime I P E}
+    (h : R'.PreservesUB R) {i : I} (h' : (R'.beh i).Sat Spec.noUB) : (R.beh i).Sat Spec.noUB := by
+  intro b hb
+  by_cases hu : Spec.noUB b
+  · exact hu
+  · exact h' b (h i b hb hu)
+
+/-- The runs of a model whose runtime additions are only kills or stops of runs of `R`. -/
+theorem noUB_of_runs {P' : Type} {R' : Runtime I P' E} {R : Runtime I P E} {i : I}
+    (h : ∀ b, R'.beh i b → R.beh i b ∨ ∃ t k, b = .done t (.killed k))
+    (hR : (R.beh i).Sat Spec.noUB) : (R'.beh i).Sat Spec.noUB := by
+  intro b hb
+  rcases h b hb with h₁ | ⟨t, k, rfl⟩
+  · exact hR b h₁
+  · trivial
+
+theorem enforce_runs {R : Runtime I P Ev} {Pr : Profile} {i : I} {b : Beh Ev}
+    (hb : (R.enforce Pr).beh i b) : R.beh i b ∨ ∃ t k, b = .done t (.killed k) := by
+  cases hl : R.load i with
+  | error r => exact .inl ((beh_error hl b).2 ((beh_error (R := R.enforce Pr) hl b).1 hb))
+  | ok p =>
+    obtain ⟨b₀, hs, b₁, ho, he⟩ := (beh_ok (R := R.enforce Pr) hl b).1 hb
+    have h₁ : R.beh i b₁ := (beh_ok hl b₁).2 ⟨b₀, hs, ho⟩
+    rcases he with ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨t, -, -, -, -, rfl⟩
+    · exact .inl h₁
+    · exact .inl h₁
+    · exact .inr ⟨t, .policy, rfl⟩
+
+/-- A program run with undefined behaviour is a run the environment sees, when what the
+runtime adds keeps undefined behaviour. -/
+theorem beh_of_sem_undefined {R : Runtime I P E} (hobs : Runtime.ObsKeepsUB R.obs) {i : I}
+    {p : P} (hl : R.load i = .ok p) {b : Beh E} (hs : R.sem p b) (hu : ¬ Spec.noUB b) :
+    R.beh i b :=
+  (beh_ok hl b).2 ⟨b, hs, hobs b hu⟩
 
 end Silmaril.Proofs.Containers.Runtime

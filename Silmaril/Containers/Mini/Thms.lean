@@ -24,6 +24,8 @@ the same with total correctness. **No undefined behaviour is a conjunct of both.
 * `threadSpawn_run`, `threadSpawn_not_wlp`: `clone` with `pthread_create`'s flags is
   `undefined threadCreate`, and no `wlp` holds; `threadSpawn_partial`: yet it satisfies every
   partial-correctness specification taken alone, which is why `wlp` includes `noUB`;
+  `threadSpawn_not_wlp_restrict`, `_mayKill`, `_enforce`, `_restrict_noUB`: no runtime
+  assumption (not even "no undefined behaviour"), kill or enforcement hides it;
 * `vforkExit_run`, `vforkExit_not_wlp`: `vfork` shares the address space: `threadCreate`;
 * `forkExit_run`, `forkExit_not_wlp`: `fork` creates a process, which this model does not give
   a semantics: `unmodeled`, and no `wlp` holds;
@@ -81,6 +83,27 @@ theorem threadSpawn_not_wlp (post : List Ev → UInt8 → Prop) :
 theorem threadSpawn_partial (post : List Ev → UInt8 → Prop) :
     pre machRT (Spec.partialCorrect post) (mimage threadSpawn) :=
   (pre_iff threadSpawn_out _).2 trivial
+
+/-- No runtime assumption hides the thread creation. -/
+theorem threadSpawn_not_wlp_restrict (A : Spec Ev) (post : List Ev → UInt8 → Prop) :
+    ¬ wlp (machRT.restrict A) post (mimage threadSpawn) :=
+  not_vpre_of_preservesUB (Runtime.preservesUB_restrict _ A) ((threadSpawn_run _).2 rfl) _
+
+/-- Runtime kills do not hide it. -/
+theorem threadSpawn_not_wlp_mayKill (ks : Kill → Prop) (post : List Ev → UInt8 → Prop) :
+    ¬ wlp (machRT.mayKill ks) post (mimage threadSpawn) :=
+  not_vpre_of_preservesUB (Runtime.preservesUB_mayKill _ ks) ((threadSpawn_run _).2 rfl) _
+
+/-- Enforcing a profile does not hide it. -/
+theorem threadSpawn_not_wlp_enforce (Pr : Profile) (post : List Ev → UInt8 → Prop) :
+    ¬ wlp (machRT.enforce Pr) post (mimage threadSpawn) :=
+  not_vpre_of_preservesUB (Runtime.preservesUB_enforce _ Pr) ((threadSpawn_run _).2 rfl) _
+
+/-- Assuming away undefined behaviour itself does not hide it either: `restrict` keeps every
+run with undefined behaviour, whatever the assumption. -/
+theorem threadSpawn_not_wlp_restrict_noUB (post : List Ev → UInt8 → Prop) :
+    ¬ wlp (machRT.restrict Spec.noUB) post (mimage threadSpawn) :=
+  threadSpawn_not_wlp_restrict _ post
 
 theorem vforkExit_run (b : Beh Ev) :
     machRT.beh (mimage vforkExit) b ↔ b = .done [] (.undefined .threadCreate) :=

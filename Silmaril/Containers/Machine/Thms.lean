@@ -24,7 +24,15 @@ image to `p`:
 * `not_wlp_of_stuck`: if some execution reaches a stuck state, no `wlp` holds;
 * `not_wlp_of_noInit`: if `p` has no initial state, no `wlp` holds.
 
-**Transfer.** `wlp_transfer`: a `wlp` proved under a sequential runtime holds under another
+**The machine in the runtime.** `MachRuntime.beh_iff`: the runs of an image under a machine
+runtime are exactly the refusal of the loader, or the machine's runs of the loaded program
+transformed by what the runtime adds. `MachRuntime.not_vpre_of_run`,
+`not_vpre_restrict_of_run`, `not_vpre_mayKill_of_run`: a machine run with undefined behaviour
+refutes every verification precondition, under the runtime and under assumptions or kills
+added to it (when what the runtime adds keeps undefined behaviour, `Runtime.ObsKeepsUB`).
+
+**Transfer.** `MachRuntime.wlp_withMachine`: replacing the machine keeps a `wlp` given
+`SeqAgrees`; `wlp_transfer`: a `wlp` proved under a sequential runtime holds under another
 (for example a parallel one) **given** `SeqAgrees`; without it nothing transfers.
 -/
 
@@ -80,6 +88,54 @@ theorem not_wlp_of_noInit {load : I → Except Refusal P} {M : MachineSem P E} {
     (hl : load i = .ok p) (h : ∀ s, ¬ M.load p s) (post : List E → UInt8 → Prop) :
     ¬ wlp (Runtime.ofMachine load M) post i :=
   not_wlp_of_undefined ((beh_ofMachine hl _).2 (.noInit h)) post
+
+namespace MachRuntime
+
+theorem beh_iff (R : MachRuntime I P E) (i : I) (b : Beh E) :
+    R.toRuntime.beh i b ↔
+      (∃ r, R.load i = .error r ∧ b = .done [] (.refused r)) ∨
+        ∃ p, R.load i = .ok p ∧ ∃ b₀, R.machine.Run p b₀ ∧ R.obs b₀ b := by
+  cases hl : R.load i with
+  | error r =>
+    rw [Runtime.beh_error (R := R.toRuntime) hl]
+    exact ⟨fun h => .inl ⟨r, rfl, h⟩, fun h => h.elim (fun ⟨_, he, hb⟩ => by cases he; exact hb)
+      fun ⟨_, he, _⟩ => nomatch he⟩
+  | ok p =>
+    rw [Runtime.beh_ok (R := R.toRuntime) hl]
+    exact ⟨fun h => .inr ⟨p, rfl, h⟩, fun h => h.elim (fun ⟨_, he, _⟩ => nomatch he)
+      fun ⟨_, he, hb⟩ => by cases he; exact hb⟩
+
+/-- **Undefined behaviour of the machine is seen**: if the machine has a run of the loaded
+program with undefined behaviour, and what the runtime adds keeps undefined behaviour, no
+verification precondition holds, under the runtime or under any restriction, kill or
+enforcement of it. -/
+theorem not_vpre_of_run {R : MachRuntime I P E} (hobs : Runtime.ObsKeepsUB R.obs) {i : I}
+    {p : P} (hl : R.load i = .ok p) {t : List E} {u : UB}
+    (hr : R.machine.Run p (.done t (.undefined u))) (φ : Spec E) : ¬ vpre R.toRuntime φ i :=
+  not_vpre_of_undefined (Runtime.beh_of_sem_undefined (R := R.toRuntime) hobs hl hr id) φ
+
+theorem not_vpre_restrict_of_run {R : MachRuntime I P E} (hobs : Runtime.ObsKeepsUB R.obs)
+    {i : I} {p : P} (hl : R.load i = .ok p) {t : List E} {u : UB}
+    (hr : R.machine.Run p (.done t (.undefined u))) (A : Spec E) (φ : Spec E) :
+    ¬ vpre (R.toRuntime.restrict A) φ i :=
+  not_vpre_of_preservesUB (Runtime.preservesUB_restrict _ A)
+    (Runtime.beh_of_sem_undefined (R := R.toRuntime) hobs hl hr id) φ
+
+theorem not_vpre_mayKill_of_run {R : MachRuntime I P E} (hobs : Runtime.ObsKeepsUB R.obs)
+    {i : I} {p : P} (hl : R.load i = .ok p) {t : List E} {u : UB}
+    (hr : R.machine.Run p (.done t (.undefined u))) (ks : Kill → Prop) (φ : Spec E) :
+    ¬ vpre (R.toRuntime.mayKill ks) φ i :=
+  not_vpre_of_preservesUB (Runtime.preservesUB_mayKill _ ks)
+    (Runtime.beh_of_sem_undefined (R := R.toRuntime) hobs hl hr id) φ
+
+/-- **Replacing the machine**: a `wlp` proved over one machine holds over another given
+`SeqAgrees` between the two runtimes. Without such an agreement nothing is claimed. -/
+theorem wlp_withMachine {R : MachRuntime I P E} {M : MachineSem P E} {i : I}
+    (hagree : SeqAgrees (R.withMachine M).toRuntime R.toRuntime i)
+    {post : List E → UInt8 → Prop} (h : wlp R.toRuntime post i) :
+    wlp (R.withMachine M).toRuntime post i := fun b hb => h b (hagree b hb)
+
+end MachRuntime
 
 theorem wlp_transfer {P' : Type} {Rpar : Runtime I P' E} {Rseq : Runtime I P E} {i : I}
     (hagree : SeqAgrees Rpar Rseq i) {post : List E → UInt8 → Prop} (h : wlp Rseq post i) :

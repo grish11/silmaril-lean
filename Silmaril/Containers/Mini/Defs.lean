@@ -12,7 +12,8 @@ the rest of the program. Running off the end of a program is a **stuck** state, 
 undefined behaviour, not an absence of runs; a `clone` request is undefined behaviour or
 `unmodeled` under the sequential policy (`CloneReq.ub`).
 
-`machRT` is the runtime model: the entry-point shape over images whose files are programs, and
+`machR` is the machine runtime (`MachRuntime`: loader, machine, what the runtime adds) and
+`machRT` its runtime model: the entry-point shape over images whose files are programs, and
 `mini`'s runs. Like `Fixtures.small`, it is a model, not a system: no instruction set, no system
 call numbers are decoded; a `clone` instruction stands for whichever system call an instance
 maps to it.
@@ -80,9 +81,16 @@ def result : List Instr → Beh Ev
 /-- The program emits no input event. -/
 def OutputOnly (p : List Instr) : Prop := ∀ e, Instr.emit e ∈ p → e.isInput = false
 
-/-- **The runtime model over the minimal machine**: the program at the entry point. -/
-def machRT : Runtime (Flat (List Instr)) (List Instr) Ev :=
-  Runtime.ofShape (Shape.entry .static some) mini.runs
+/-- **The machine runtime over the minimal machine**: the loader reads the program at the entry
+point, the machine is `mini`, and the runtime adds nothing. -/
+def machR : MachRuntime (Flat (List Instr)) (List Instr) Ev where
+  load img := match (Shape.entry .static some).program img with
+    | some p => .ok p
+    | none => .error .noShape
+  machine := mini
+
+/-- **The runtime model over the minimal machine.** -/
+def machRT : Runtime (Flat (List Instr)) (List Instr) Ev := machR.toRuntime
 
 /-- An image with the program `p` at `/app`. -/
 def mimage (p : List Instr) : Flat (List Instr) where

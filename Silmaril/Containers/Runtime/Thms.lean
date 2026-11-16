@@ -29,9 +29,25 @@ loaded one.
 
 **Enforcement.**
 
-* `Runtime.enforce_confined`: under an enforcing runtime every run is confined to the profile;
+* `Runtime.enforce_confined`: under an enforcing runtime every run without undefined behaviour
+  is confined to the profile (a run with undefined behaviour is kept as it was);
 * `Runtime.enforce_eq_of_confined`: for a program whose runs are confined, enforcement changes
   nothing.
+
+**Runtime additions never hide undefined behaviour.**
+
+* `Runtime.obsKeepsUB_eq`, `ObsKeepsUB.restrict`, `ObsKeepsUB.mayKill`, `ObsKeepsUB.enforce`:
+  adding nothing keeps every program run with undefined behaviour, and so do the three
+  transformers;
+* `Runtime.preservesUB_restrict`, `preservesUB_mayKill`, `preservesUB_enforce`: each keeps every
+  run of the model it starts from that has undefined behaviour;
+* `Runtime.noUB_of_preservesUB`: so no undefined behaviour under the transformed model implies
+  none under the original one;
+* `Runtime.noUB_restrict_iff`, `noUB_mayKill_iff`, `noUB_enforce_iff`: no undefined behaviour is
+  exactly the same property before and after each transformer: a runtime assumption, a kill or
+  enforcement neither creates nor hides it;
+* `Runtime.beh_of_sem_undefined`: a program run with undefined behaviour is a run the environment
+  sees under any runtime whose additions keep undefined behaviour.
 
 **Prefixes.** `Beh.prefix_of_prefix`: a prefix of a prefix of a run is a prefix of it.
 -/
@@ -91,13 +107,65 @@ theorem totalCorrect_not_mayKill :
   Silmaril.Proofs.Containers.Runtime.totalCorrect_not_mayKill
 
 theorem enforce_confined {R : Runtime I P Ev} {Pr : Profile} {i : I} :
-    ((R.enforce Pr).beh i).Sat (Spec.always fun e => Pr e.cap = true) :=
+    ((R.enforce Pr).beh i).Sat
+      (Spec.under Spec.noUB (Spec.always fun e => Pr e.cap = true)) :=
   Silmaril.Proofs.Containers.Runtime.enforce_confined
 
 theorem enforce_eq_of_confined {R : Runtime I P Ev} {Pr : Profile} {i : I}
     (h : (R.beh i).Sat (Spec.always fun e => Pr e.cap = true)) (b : Beh Ev) :
     (R.enforce Pr).beh i b ↔ R.beh i b :=
   Silmaril.Proofs.Containers.Runtime.enforce_eq_of_confined h b
+
+/-! ## Runtime additions keep undefined behaviour -/
+
+theorem obsKeepsUB_eq : ObsKeepsUB (E := E) Eq := fun _ _ => rfl
+
+theorem ObsKeepsUB.restrict {R : Runtime I P E} (h : ObsKeepsUB R.obs) (A : Spec E) :
+    ObsKeepsUB (R.restrict A).obs := fun b₀ hu => ⟨h b₀ hu, .inr hu⟩
+
+theorem ObsKeepsUB.mayKill {R : Runtime I P E} (h : ObsKeepsUB R.obs) (ks : Kill → Prop) :
+    ObsKeepsUB (R.mayKill ks).obs := fun b₀ hu => ⟨b₀, h b₀ hu, .inl rfl⟩
+
+theorem ObsKeepsUB.enforce {R : Runtime I P Ev} (h : ObsKeepsUB R.obs) (Pr : Profile) :
+    ObsKeepsUB (R.enforce Pr).obs := fun b₀ hu => ⟨b₀, h b₀ hu, .inr (.inl ⟨hu, rfl⟩)⟩
+
+theorem preservesUB_restrict (R : Runtime I P E) (A : Spec E) : (R.restrict A).PreservesUB R :=
+  Silmaril.Proofs.Containers.Runtime.preservesUB_restrict R A
+
+theorem preservesUB_mayKill (R : Runtime I P E) (ks : Kill → Prop) :
+    (R.mayKill ks).PreservesUB R :=
+  Silmaril.Proofs.Containers.Runtime.preservesUB_mayKill R ks
+
+theorem preservesUB_enforce (R : Runtime I P Ev) (Pr : Profile) :
+    (R.enforce Pr).PreservesUB R :=
+  Silmaril.Proofs.Containers.Runtime.preservesUB_enforce R Pr
+
+theorem noUB_of_preservesUB {R' : Runtime I P' E} {R : Runtime I P E} (h : R'.PreservesUB R)
+    {i : I} (h' : (R'.beh i).Sat Spec.noUB) : (R.beh i).Sat Spec.noUB :=
+  Silmaril.Proofs.Containers.Runtime.noUB_of_preservesUB h h'
+
+theorem noUB_restrict_iff (R : Runtime I P E) (A : Spec E) (i : I) :
+    ((R.restrict A).beh i).Sat Spec.noUB ↔ (R.beh i).Sat Spec.noUB :=
+  ⟨noUB_of_preservesUB (preservesUB_restrict R A), sat_of_le (restrict_le R A)⟩
+
+theorem noUB_mayKill_iff (R : Runtime I P E) (ks : Kill → Prop) (i : I) :
+    ((R.mayKill ks).beh i).Sat Spec.noUB ↔ (R.beh i).Sat Spec.noUB :=
+  ⟨noUB_of_preservesUB (preservesUB_mayKill R ks), fun h =>
+    Silmaril.Proofs.Containers.Runtime.noUB_of_runs (fun _ hb =>
+      (Silmaril.Proofs.Containers.Runtime.beh_mayKill hb).imp id
+        fun ⟨_, t, k, _, _, _, he⟩ => ⟨t, k, he⟩) h⟩
+
+theorem noUB_enforce_iff (R : Runtime I P Ev) (Pr : Profile) (i : I) :
+    ((R.enforce Pr).beh i).Sat Spec.noUB ↔ (R.beh i).Sat Spec.noUB :=
+  ⟨noUB_of_preservesUB (preservesUB_enforce R Pr), fun h =>
+    Silmaril.Proofs.Containers.Runtime.noUB_of_runs
+      (fun _ hb => Silmaril.Proofs.Containers.Runtime.enforce_runs hb) h⟩
+
+/-- A program run with undefined behaviour is seen by the environment, when what the runtime adds
+keeps undefined behaviour. -/
+theorem beh_of_sem_undefined {R : Runtime I P E} (hobs : ObsKeepsUB R.obs) {i : I} {p : P}
+    (hl : R.load i = .ok p) {b : Beh E} (hs : R.sem p b) (hu : ¬ Spec.noUB b) : R.beh i b :=
+  Silmaril.Proofs.Containers.Runtime.beh_of_sem_undefined hobs hl hs hu
 
 end Runtime
 
