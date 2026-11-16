@@ -185,6 +185,16 @@ derivation = "silmaril.wasm_components.gen.recipe"
 meta = { wasm = { custom = [], exports = ["func get"], imports = [], layer = "module", license = "LicenseRef-silmaril-lean", version = 1 } }
 
 [[artifact]]
+cid = "bafkr4idoj3jthgktqxbftz44w246p3wdpidf2ovoow33snorjmipg7akay"
+type = "blob"
+name = "silmaril.wasm.examples.empty_check.prog"
+paths = ["examples/wasm-acceptors/empty_check.wasm"]
+size = 45
+sha256 = "54c4c74e6990f39b6cd1a5c7c1af7eae3a4dd6a725acd2eb7de2c21b1b0ce9ce"
+git_sha1 = "2282fc103b615d71c4b38f6ef89047419214b321"
+meta = { wasm = { custom = [], exports = ["func check"], imports = [], layer = "module", license = "LicenseRef-silmaril-lean", version = 1 } }
+
+[[artifact]]
 cid = "bafkr4ie2cya46wczkn5es7olssvrgbd6czastr2k7kbqpv3ehslchsocge"
 type = "blob"
 name = "silmaril.wasm_components.gen.toy_split.blob"
@@ -264,6 +274,16 @@ sha256 = "e8f7e2796fdf49e5ab68ef7ef68014d8ab064a042cab4bf293b69e6c98737e58"
 git_sha1 = "ad8a9a88c1dd4ec5c3d0402d841ac01f0db4d5b3"
 derivation = "silmaril.wasm_components.gen.linked.world.project"
 meta = { wasm = { layer = "component", version = 13, world_of = "silmaril.wasm_components.gen.linked.blob" } }
+
+[[artifact]]
+cid = "bafkr4igey43jzn5rh4ji7q2uib4g6bzs3ammrmur7eds3nlp6xjdul6jfi"
+type = "blob"
+name = "silmaril.wasm.examples.member_check.prog"
+paths = ["examples/wasm-acceptors/member_check.wasm"]
+size = 108
+sha256 = "8afda6952213be3482ebb31dc2240433d1921021c9dcb00fa3205774903e11f9"
+git_sha1 = "e8d7b1a4b7eef943d0916d0eee09ceedc472bc8e"
+meta = { wasm = { custom = [], exports = ["func check"], imports = [], layer = "module", license = "LicenseRef-silmaril-lean", version = 1 } }
 
 [[artifact]]
 cid = "bafkr4igulxj2rvkhkohnqu54m63jomq7anzzitot7w3qet5p55evslf3aa"

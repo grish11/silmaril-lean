@@ -18,6 +18,8 @@ admitted environments; the artifact's bytes alone do not determine a language.
 | `wasm.core.export_accept` | `exportAccepted Profile.spec allHosts m acceptExport` | `acceptExport`: the host writes the input into memory 0 and invokes the export `accept(ptr: i32, len: i32) -> i32`; `[i32 1]` accepts | `allHosts`: every Core host relation |
 | `wasm.core.export_reject` | `exportRejected Profile.spec allHosts m acceptExport` | the same export; `[i32 0]` rejects | `allHosts` |
 | `wasm.core.export_accept_safely` | `exportAcceptedNotRejected Profile.spec allHosts m acceptExport` | the same export; some run answers `1` and none answers `0` | `allHosts` |
+| `wasm.core.check_accept` | `exportAccepted Profile.spec allHosts m checkExport` | `checkExport`: the same embedding through the export `check(ptr: i32, len: i32) -> i32`; `[i32 1]` accepts | `allHosts` |
+| `wasm.core.check_reject` | `exportRejected Profile.spec allHosts m checkExport` | the export `check`; `[i32 0]` rejects | `allHosts` |
 | `wasm.core.accept_bytes64` | `accepted Callout.bytes64 Profile.spec UEnvOk 0 acceptImport m` | `Callout.bytes64`: `env.accept(ptr: i64, len: i64)`, bytes of a 64-bit memory 0 | `UEnvOk`: every host meeting Core's host contract |
 | `wasm.core.accept_safely_bytes32` | `acceptedNotRejected Callout.bytes32 Profile.spec UEnvOk 0 acceptImport rejectImport m` | `Callout.bytes32` at `env.accept`, and at `env.reject` (`rejectImport`, part of the definition) | `UEnvOk` |
 
@@ -46,6 +48,11 @@ open Silmaril.Wasm.Execution.Core (HostSemantics)
 (accept) or `[i32 0]` (reject). -/
 def acceptExport : String := "accept"
 
+/-- The export ABI of the checkers (`Examples.EmptyCheck`, `Examples.MemberCheck`): as
+`acceptExport`, through the export named `"check"`. A different export name is a different
+interpretation. -/
+def checkExport : String := "check"
+
 /-- The rejecting import: `"env" "reject"`. -/
 def rejectImport : String × String := ("env", "reject")
 
@@ -63,6 +70,14 @@ def exportReject (m : Silmaril.Wasm.Module) : Set (List UInt8) :=
 /-- **Accepted and never rejected through the export**, over the same runs. -/
 def exportAcceptSafely (m : Silmaril.Wasm.Module) : Set (List UInt8) :=
   exportAcceptedNotRejected (Silmaril.Wasm.Numerics.Profile.spec) allHosts m acceptExport
+
+/-- **Accepted through the export `check`**: some run of the embedding answers `1`. -/
+def checkAccept (m : Silmaril.Wasm.Module) : Set (List UInt8) :=
+  exportAccepted (Silmaril.Wasm.Numerics.Profile.spec) allHosts m checkExport
+
+/-- **Rejected through the export `check`**: some run of the embedding answers `0`. -/
+def checkReject (m : Silmaril.Wasm.Module) : Set (List UInt8) :=
+  exportRejected (Silmaril.Wasm.Numerics.Profile.spec) allHosts m checkExport
 
 /-- **The bytes a core module passes to `env.accept(ptr: i64, len: i64)`** (memory64). -/
 def acceptBytes64 (m : Silmaril.Wasm.Module) : Set (List UInt8) :=
@@ -92,6 +107,18 @@ silmaril language_interpretation wasm.core.export_accept_safely :=
   (abi := Silmaril.Project.Languages.WasmExport.acceptExport)
   (environment := Silmaril.Project.Languages.WasmExport.allHosts)
   (doc := "Inputs on which some run of the export accept(ptr: i32, len: i32) -> i32 returns 1 and none returns 0, Profile.spec, every Core host (Silmaril.Wasm.Game.Accept.exportAcceptedNotRejected)")
+
+silmaril language_interpretation wasm.core.check_accept :=
+  Silmaril.Project.Languages.WasmExport.checkAccept (domain := bytes)
+  (abi := Silmaril.Project.Languages.WasmExport.checkExport)
+  (environment := Silmaril.Project.Languages.WasmExport.allHosts)
+  (doc := "Inputs written into memory 0 on which some run of the export check(ptr: i32, len: i32) -> i32 returns 1, after spec instantiation, Profile.spec, every Core host (Silmaril.Wasm.Game.Accept.exportAccepted)")
+
+silmaril language_interpretation wasm.core.check_reject :=
+  Silmaril.Project.Languages.WasmExport.checkReject (domain := bytes)
+  (abi := Silmaril.Project.Languages.WasmExport.checkExport)
+  (environment := Silmaril.Project.Languages.WasmExport.allHosts)
+  (doc := "Inputs written into memory 0 on which some run of the export check(ptr: i32, len: i32) -> i32 returns 0, after spec instantiation, Profile.spec, every Core host (Silmaril.Wasm.Game.Accept.exportRejected)")
 
 silmaril language_interpretation wasm.core.accept_bytes64 :=
   Silmaril.Project.Languages.WasmExport.acceptBytes64 (domain := bytes)

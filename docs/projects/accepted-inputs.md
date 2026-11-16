@@ -116,7 +116,14 @@ Lean over exactly those bytes. The theorems are about the module value.
 The two concrete modules are also registered artifacts, with exactly those bytes:
 `examples/wasm-acceptors/json_accept.wasm` (`silmaril.wasm.examples.json_accept.prog`, 213 B,
 SHA-256 `f86b7fc9…`) and `examples/wasm-acceptors/ex_start.wasm`
-(`silmaril.wasm.game.examples.ex_start`, 49 B, SHA-256 `bb4323bd…`). When a Lean module's
+(`silmaril.wasm.game.examples.ex_start`, 49 B, SHA-256 `bb4323bd…`). So are the verified checkers
+`examples/wasm-acceptors/empty_check.wasm` (`Silmaril.Wasm.Examples.EmptyCheck.prog`, 45 B,
+SHA-256 `54c4c74e…`) and `examples/wasm-acceptors/member_check.wasm`
+(`Silmaril.Wasm.Examples.MemberCheck.prog`, 108 B, SHA-256 `8afda695…`). Both are read through
+the export `check`, with the interpretations `wasm.core.check_accept` and `check_reject`. The
+empty checker accepts nothing at every host set. Its rejections, and the membership checker's
+exact languages, assume a nonempty host set and inputs shorter than `2 ^ 32` bytes. They are core
+modules: no component wraps them. When a Lean module's
 SHA-256 is that of exactly one registered module, `wasm-pages` publishes it once, under the Lean
 example's id, with the artifact's CID and path. The registry's languages then reach the bytes
 through interpretations (`Silmaril.Project.Languages.WasmExport`: `wasm.core.export_accept`,

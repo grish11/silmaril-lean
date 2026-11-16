@@ -2,6 +2,8 @@ module
 
 public import Silmaril.Project.Languages.WasmExport.Defs
 public import Silmaril.Wasm.Examples.JsonAccept.Exact.Thms
+public import Silmaril.Wasm.Examples.EmptyCheck.Thms
+public import Silmaril.Wasm.Examples.MemberCheck.Thms
 
 /-!
 # Languages of Wasm modules: laws of the export interpretations, and the JSON-subset acceptor
@@ -15,6 +17,14 @@ public import Silmaril.Wasm.Examples.JsonAccept.Exact.Thms
   strings shorter than `2 ^ 32`, and the integer texts again. These restate
   `Silmaril.Wasm.Examples.JsonAccept.exportAccepted_eq` and its companions at the admitted hosts
   `allHosts`.
+
+* For the checkers, through the export `check`: `EmptyCheck.prog` accepts nothing, at every
+  host set (`emptyCheck_checkAccept`, no host assumption), and rejects every string shorter than
+  `2 ^ 32` (`emptyCheck_checkReject`, which uses that the host set is nonempty).
+  `MemberCheck.prog` accepts a subset of `memberLang` (`memberCheck_checkAccept_subset`, every
+  host set), and exactly `memberLang` below `2 ^ 32`, rejecting exactly the rest below `2 ^ 32`
+  (`memberCheck_checkAccept`, `memberCheck_checkReject`; nonempty host set). Inputs are byte
+  strings (`UInt8`).
 
 These are facts about the module AST. A registered artifact inherits them only through a
 checked claim that its bytes decode to that AST (a value's `.is` problem).
@@ -48,5 +58,27 @@ theorem jsonAccept_exportReject :
 theorem jsonAccept_exportAcceptSafely :
     exportAcceptSafely prog = {w | w ∈ intText ∧ w.length < 2 ^ 32} :=
   exportAcceptedNotRejected_eq nohost_mem_allHosts
+
+theorem allHosts_nonempty : allHosts.Nonempty := ⟨_, nohost_mem_allHosts⟩
+
+theorem emptyCheck_checkAccept : checkAccept Silmaril.Wasm.Examples.EmptyCheck.prog = ∅ :=
+  Silmaril.Wasm.Examples.EmptyCheck.exportAccepted_eq_empty _ _
+
+theorem emptyCheck_checkReject :
+    checkReject Silmaril.Wasm.Examples.EmptyCheck.prog = {w | w.length < 2 ^ 32} :=
+  Silmaril.Wasm.Examples.EmptyCheck.exportRejected_eq _ allHosts_nonempty
+
+theorem memberCheck_checkAccept_subset :
+    checkAccept Silmaril.Wasm.Examples.MemberCheck.prog ⊆
+      Silmaril.Wasm.Examples.MemberCheck.memberLang :=
+  Silmaril.Wasm.Examples.MemberCheck.exportAccepted_subset _ _
+
+theorem memberCheck_checkAccept : checkAccept Silmaril.Wasm.Examples.MemberCheck.prog =
+    {w | w ∈ Silmaril.Wasm.Examples.MemberCheck.memberLang ∧ w.length < 2 ^ 32} :=
+  Silmaril.Wasm.Examples.MemberCheck.exportAccepted_eq _ allHosts_nonempty
+
+theorem memberCheck_checkReject : checkReject Silmaril.Wasm.Examples.MemberCheck.prog =
+    {w | w ∉ Silmaril.Wasm.Examples.MemberCheck.memberLang ∧ w.length < 2 ^ 32} :=
+  Silmaril.Wasm.Examples.MemberCheck.exportRejected_eq _ allHosts_nonempty
 
 end Silmaril.Project.Languages.WasmExport

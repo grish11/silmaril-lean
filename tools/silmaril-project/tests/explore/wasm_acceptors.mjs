@@ -25,7 +25,9 @@ const check = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (
 // The catalog's concrete modules: slug, Lean declaration, export to expect.
 const modules = [
   ["silmaril.wasm.examples.json_accept.prog", "Silmaril.Wasm.Examples.JsonAccept.prog", "accept"],
-  ["silmaril.wasm.game.examples.ex_start", "Silmaril.Wasm.Game.Examples.exStart", "run"]];
+  ["silmaril.wasm.game.examples.ex_start", "Silmaril.Wasm.Game.Examples.exStart", "run"],
+  ["silmaril.wasm.examples.empty_check.prog", "Silmaril.Wasm.Examples.EmptyCheck.prog", "check"],
+  ["silmaril.wasm.examples.member_check.prog", "Silmaril.Wasm.Examples.MemberCheck.prog", "check"]];
 // The registry: name -> { cid, sha256, path } (its machine-written layout, one key per line).
 const registry = {};
 { let cur = null;
@@ -35,7 +37,9 @@ const registry = {};
     if (cur && m) { cur[m[1]] = m[2]; if (m[1] === "name") registry[m[2]] = cur; } } }
 // The languages registered over json_accept.wasm (ProjectSelfTest.WasmAcceptors).
 const languages = { "silmaril.wasm.examples.json_accept.prog": ["silmaril.selftest.lang.json_accept.accepted",
-  "silmaril.selftest.lang.json_accept.rejected", "silmaril.selftest.lang.json_accept.safe"] };
+  "silmaril.selftest.lang.json_accept.rejected", "silmaril.selftest.lang.json_accept.safe"],
+  "silmaril.wasm.examples.empty_check.prog": ["silmaril.selftest.lang.empty_check.accepted", "silmaril.selftest.lang.empty_check.rejected"],
+  "silmaril.wasm.examples.member_check.prog": ["silmaril.selftest.lang.member_check.accepted", "silmaril.selftest.lang.member_check.rejected"] };
 const b = await pw.chromium.launch({ executablePath: process.env.CHROME ||
   (fs.existsSync("/opt/ms-playwright/chromium-1248/chrome-linux64/chrome") ? "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" : undefined) });
 try {

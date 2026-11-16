@@ -7,6 +7,8 @@ public import Silmaril.Wasm.Game.IOAccept.Examples
 public import Silmaril.Wasm.Examples.JsonAccept.Exact.Thms
 public import Silmaril.Wasm.Examples.JsonAccept.Automaton.Thms
 public import Silmaril.Wasm.Examples.JsonAccept.Stream.Thms
+public import Silmaril.Wasm.Examples.EmptyCheck.Defs
+public import Silmaril.Wasm.Examples.MemberCheck.Defs
 public import Silmaril.Wasm.Abstract.AcceptExport.Thms
 public import Silmaril.Wasi.Component.Accept.Examples
 public import Silmaril.Wasi.Component.Accept.Strict.Examples
@@ -178,13 +180,23 @@ def jsonAcceptSlug : String := "silmaril.wasm.examples.json_accept.prog"
 /-- The explorer slug of `exStart` (`tools/wasm-pages`). -/
 def exStartSlug : String := "silmaril.wasm.game.examples.ex_start"
 
+/-- The explorer slug of the empty checker `Examples.EmptyCheck.prog`. -/
+def emptyCheckSlug : String := "silmaril.wasm.examples.empty_check.prog"
+
+/-- The explorer slug of the membership checker `Examples.MemberCheck.prog`. -/
+def memberCheckSlug : String := "silmaril.wasm.examples.member_check.prog"
+
 /-- **The concrete modules of the catalog**, with their explorer slugs: `tools/wasm-pages` encodes
 and publishes exactly these (and its other examples). -/
 def concreteModules : List (String × String × Name × Silmaril.Wasm.Module) := [
   (jsonAcceptSlug, "Examples.JsonAccept.prog (verified acceptor: JSON integer texts)",
     ``Silmaril.Wasm.Examples.JsonAccept.prog, Silmaril.Wasm.Examples.JsonAccept.prog),
   (exStartSlug, "Game.Examples.exStart (start function calls its import)",
-    ``Silmaril.Wasm.Game.Examples.exStart, Silmaril.Wasm.Game.Examples.exStart)]
+    ``Silmaril.Wasm.Game.Examples.exStart, Silmaril.Wasm.Game.Examples.exStart),
+  (emptyCheckSlug, "Examples.EmptyCheck.prog (verified checker: check(ptr, len) answers 0)",
+    ``Silmaril.Wasm.Examples.EmptyCheck.prog, Silmaril.Wasm.Examples.EmptyCheck.prog),
+  (memberCheckSlug, "Examples.MemberCheck.prog (verified checker: first byte occurs in the rest)",
+    ``Silmaril.Wasm.Examples.MemberCheck.prog, Silmaril.Wasm.Examples.MemberCheck.prog)]
 
 /-- The explorer slug of a subject, when it is a concrete module. -/
 def Subject.slug? : Subject → Option String
