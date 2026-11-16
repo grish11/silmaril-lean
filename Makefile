@@ -80,7 +80,7 @@ check:
 elf-check:
 	examples/elf/pin.sh --check
 	$(LAKE) build --wfail elf-staged elf-pages Silmaril.Elf.Staged.Reader.Examples \
-		Silmaril.Elf.Staged.Pinned.HelloGcc.Thms Silmaril.Elf.Staged.Pinned.Sha256sum.Thms
+		Silmaril.Elf.Staged.Pinned.HelloGcc.Thms Silmaril.Elf.Staged.Pinned.HelloClang.Thms Silmaril.Elf.Staged.Pinned.Sha256sum.Thms
 	scripts/elf-reader/gen.sh --check
 	scripts/elf-reader/test-pages.sh
 
@@ -165,7 +165,7 @@ pages: project-tool
 	lake build wasm-pages
 	.lake/build/bin/wasm-pages silmaril/artifacts.toml _site
 	# The ELF pages read the checked theorem modules of the pinned files (tools/elf-pages).
-	lake build --wfail elf-pages Silmaril.Elf.Staged.Pinned.HelloGcc.Thms Silmaril.Elf.Staged.Pinned.Sha256sum.Thms
+	lake build --wfail elf-pages Silmaril.Elf.Staged.Pinned.HelloGcc.Thms Silmaril.Elf.Staged.Pinned.HelloClang.Thms Silmaril.Elf.Staged.Pinned.Sha256sum.Thms
 	lake env .lake/build/bin/elf-pages _site
 
 # The registry and records checks, without Lean (what CI runs when their inputs change).

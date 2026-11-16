@@ -12,7 +12,7 @@ check() { echo "$2  $1" | sha256sum --check --quiet; }
 case "${1:-}" in
   --check)
     check pinned/gnu-sha256sum "$SHA256SUM_SHA"
-    check ../dyn/pinned/hello-gcc "$(awk '$1 == "hello-gcc" {print $2}' ../dyn/pins.txt)"
+    for h in hello-gcc hello-clang; do check "../dyn/pinned/$h" "$(awk -v h="$h" '$1 == h {print $2}' ../dyn/pins.txt)"; done
     echo "pin.sh: ok" ;;
   --fetch)
     tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

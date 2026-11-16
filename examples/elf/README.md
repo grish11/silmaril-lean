@@ -8,7 +8,8 @@ kernel on the file's `include_bytes`.
 | file | what | size | SHA-256 |
 |---|---|---|---|
 | `pinned/gnu-sha256sum` | GNU coreutils 9.4 `sha256sum`, `/usr/bin/sha256sum` of Ubuntu `coreutils` 9.4-3ubuntu6.3 (amd64), unmodified: a stripped x86-64 PIE, dynamically linked (glibc, OpenSSL `libcrypto`) | 39336 | `4d2db56c867e5324e0084c9e897f6360d37517de77ac96f2bd31494223d69a60` |
-| `../dyn/pinned/hello-gcc` | `examples/dyn/hello/hello.c`, gcc 13.3 `-O2` (pinned and reproducible: [examples/dyn](../dyn/README.md)) | 15960 | `6964f3f23e27cfd2b6c26bd469cb210ff000dd359fc9988138cadc96683065c7` |
+| `../dyn/pinned/hello-gcc` | hello world (`examples/dyn/hello/hello.c`), gcc 13.3 `-O2`, dynamically linked against glibc 2.39 (`PT_INTERP` `/lib64/ld-linux-x86-64.so.2`, `DT_NEEDED` `libc.so.6`); pinned and reproducible: [examples/dyn](../dyn/README.md) | 15960 | `6964f3f23e27cfd2b6c26bd469cb210ff000dd359fc9988138cadc96683065c7` |
+| `../dyn/pinned/hello-clang` | the same hello world, clang 18.1 `-O2`, dynamically linked against glibc 2.39 (same interpreter and `DT_NEEDED`); pinned and reproducible as above | 16008 | `ecad1a19e6e63e4828e9386a9c831dc6beb635c6858dc42d2c248e6397eaa713` |
 
     examples/elf/pin.sh --check   # the committed files have the pinned SHA-256
     examples/elf/pin.sh --fetch   # download the Ubuntu package, check it, extract sha256sum

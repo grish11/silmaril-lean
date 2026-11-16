@@ -36,6 +36,7 @@ emit() {  # emit FILE NAME TITLE SLUG
   fi
   listing "$1" "$4"
 }
-emit examples/dyn/pinned/hello-gcc HelloGcc '`hello` (gcc 13.3 -O2, glibc 2.39, `examples/dyn/hello/hello.c`)' hello-gcc
+emit examples/dyn/pinned/hello-gcc HelloGcc '`hello` (gcc 13.3 -O2, dynamically linked against glibc 2.39: `PT_INTERP` ld-linux-x86-64.so.2, `DT_NEEDED` libc.so.6)' hello-gcc
+emit examples/dyn/pinned/hello-clang HelloClang '`hello` (clang 18.1 -O2, dynamically linked against glibc 2.39: `PT_INTERP` ld-linux-x86-64.so.2, `DT_NEEDED` libc.so.6)' hello-clang
 emit examples/elf/pinned/gnu-sha256sum Sha256sum 'GNU coreutils 9.4 (Ubuntu 9.4-3ubuntu6.3) `sha256sum`' gnu-sha256sum
 echo "gen.sh: ok"

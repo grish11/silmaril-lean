@@ -68,6 +68,12 @@ try {
     const bss = d.sections.find((s) => s.name === ".bss");
     if (bss) check(ov.text.includes(`none (${bss.size} B in memory)`) && /zero-filled/.test(ov.text), `${f.slug}: .bss is memory only (${bss.size} B), the RW segment's zero fill is shown`);
     check(ov.text.includes("ELFCLASS32") && ov.text.includes("unsupported"), `${f.slug}: unsupported variants are listed`);
+    if (f.slug.startsWith("hello-")) {
+      check(d.loader.interp === "/lib64/ld-linux-x86-64.so.2" && d.loader.needed.includes("libc.so.6") && d.loader.theorem,
+        `${f.slug}: glibc-linked: PT_INTERP ld-linux-x86-64.so.2 and DT_NEEDED libc.so.6, from the checked loader view`);
+      check(ov.text.includes("/lib64/ld-linux-x86-64.so.2") && ov.text.includes("libc.so.6"), `${f.slug}: the overview shows the interpreter and libc.so.6`);
+      await shot(`elf-${f.slug}-overview`);
+    }
     await p.click("#elf-sha");
     await p.waitForFunction(() => /matches|differs/.test(document.querySelector("#elf-shaout").textContent), null, { timeout: 20000 });
     check(await p.evaluate(() => document.querySelector("#elf-shaout").textContent.includes("matches")), `${f.slug}: the browser's SHA-256 of the bytes matches ${d.sha256.slice(0, 12)}…`);

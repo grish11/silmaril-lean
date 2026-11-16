@@ -1,6 +1,7 @@
 import Lean
 import Silmaril.Elf.Staged.Reader.Defs
 import Silmaril.Elf.Staged.Pinned.HelloGcc.Defs
+import Silmaril.Elf.Staged.Pinned.HelloClang.Defs
 import Silmaril.Elf.Staged.Pinned.Sha256sum.Defs
 import Silmaril.Crypto.SHA256
 
@@ -57,12 +58,22 @@ structure Pinned where
 
 def pinned : List Pinned := [
   { slug := "hello-gcc", ns := `Silmaril.Elf.Staged.Pinned.HelloGcc
-    title := "hello (gcc 13.3 -O2, glibc 2.39)"
+    title := "hello world (gcc 13.3 -O2), dynamically linked against glibc 2.39"
     path := Pinned.HelloGcc.path, sha256 := Pinned.HelloGcc.sha256, size := Pinned.HelloGcc.size
     L := Pinned.HelloGcc.L, bodies := Pinned.HelloGcc.bodies, ld := Pinned.HelloGcc.ld
     provenance := [
       ("source", "examples/dyn/hello/hello.c (written for this repository)"),
+      ("linked", "dynamically against glibc 2.39: PT_INTERP /lib64/ld-linux-x86-64.so.2, DT_NEEDED libc.so.6 (both read by the checked loader-view theorem)"),
       ("build", "gcc 13.3.0-6ubuntu2~24.04.1 -O2, default PIE, dynamic glibc 2.39; byte-for-byte reproducible (examples/dyn/pins.txt, examples/dyn/pin.sh --build)"),
+      ("licence", "toolchain start-up objects: glibc crt (LGPL-2.1-or-later with the linking exception), GCC crtbeginS/crtendS (GPL-3.0-or-later with the GCC Runtime Library Exception); examples/dyn/README.md")] },
+  { slug := "hello-clang", ns := `Silmaril.Elf.Staged.Pinned.HelloClang
+    title := "hello world (clang 18.1 -O2), dynamically linked against glibc 2.39"
+    path := Pinned.HelloClang.path, sha256 := Pinned.HelloClang.sha256, size := Pinned.HelloClang.size
+    L := Pinned.HelloClang.L, bodies := Pinned.HelloClang.bodies, ld := Pinned.HelloClang.ld
+    provenance := [
+      ("source", "examples/dyn/hello/hello.c (written for this repository)"),
+      ("linked", "dynamically against glibc 2.39: PT_INTERP /lib64/ld-linux-x86-64.so.2, DT_NEEDED libc.so.6 (both read by the checked loader-view theorem)"),
+      ("build", "clang 18.1.3 (1:18.1.3-1ubuntu1) -O2 with GCC 13's crt objects, default PIE; byte-for-byte reproducible (examples/dyn/pins.txt, examples/dyn/pin.sh --build)"),
       ("licence", "toolchain start-up objects: glibc crt (LGPL-2.1-or-later with the linking exception), GCC crtbeginS/crtendS (GPL-3.0-or-later with the GCC Runtime Library Exception); examples/dyn/README.md")] },
   { slug := "gnu-sha256sum", ns := `Silmaril.Elf.Staged.Pinned.Sha256sum
     title := "GNU coreutils 9.4 sha256sum (Ubuntu 9.4-3ubuntu6.3, amd64)"
