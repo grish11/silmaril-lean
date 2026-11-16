@@ -405,7 +405,16 @@ The plain graph stays an over-approximation, and claims about it say so.
       frame. The tail call replaces the frame (`return_call_ref-frame-addr`, `frame_tail_div`), so
       the body's pending code and handlers are bypassed. Fixture `Wasm/Cfg/ExampleTail`:
       `block (return_call x); unreachable` in the frame of `recMod`'s self-call (`tail_machine_div`).
-      **Open:** the converse (Core frame divergence is `MDivT`).
+      **Converse (Core route, step 2):** `frame_div_complete`: a diverging Core frame either
+      diverges inside, which is body divergence through the function label (`MDivC` by
+      `core_div_initialC`; a label exit stops outside any frame), or is left; every frame exit stops
+      except a tail call of a function (`return_call_ref-frame-addr`), whose call diverges: the body
+      runs to the pending tail call (`run_completeC`), the machine reaches its block without an
+      oracle answer (`run_complete_tail_block`, via `Reach`'s tail clause, now the block itself:
+      `TailAt`), and `D` names the callee (`DivCallComplete`, guard by `Region.TailGuarded`).
+      `mdivT_iff_frame` combines both directions. **Open:** the `CX closedCallX` instances
+      (`CallCompleteG`, `DivCallComplete`, `GuardedCalls`, `TailGuarded`, `TailsOk` on the tExt
+      fragment) and the function-level two-way theorem.
     - **Host-free function-list preservation** (`Wasm/Cfg/Restrict`): without a host, a region or
       machine run keeps the store's whole function list `F` (instances with types, modules and
       code), so every call and every `F`-only check (`StoreChkE`) sees `F`. Oracles agreeing on
