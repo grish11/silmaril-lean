@@ -224,6 +224,11 @@ programs. It does **not** yet give `"hi!"` in `refBytesSystem` unconditionally.
   hypotheses for `core3Sim neverFail KMem` give `refBytesSystem first.prof acceptHiBytes hi` from
   `acceptedK_hi`.
 
+* **Pilot of the obligations** (`Reference/Canon/Transfer/Thms.lean`). The `Canon.Context`
+  programs that touch the core store, `ptrType`, `memLen`, `readMem` and `writeMem`, are
+  `ProgRel S`-related to themselves for every `S`. The proofs use only the memory laws of the
+  store simulation.
+
 ### What remains
 
 The two hypotheses are a parametricity statement: the REF programs reachable from
@@ -231,6 +236,13 @@ The two hypotheses are a parametricity statement: the REF programs reachable fro
 has no internal parametricity, so each generic definition needs its own proof. That means about
 500 definitions in `Canon` and `Instantiate`, plus the `Runtime` helpers they use. Two ways to
 discharge them:
+
+Only 11 program definitions read or write `CStore.core`. In `Canon.Context` these are
+`ptrTypeIn`, `memBytes?`, `memLen`, `readMem`, `writeMemSt` and `writeMem`; the four programs
+among them are related by the pilot. The others are `threadNewIndirect` (`Canon.Builtins.Thread`)
+and `setCoreSt`, `allocHostSt`, `addrTypesOf`, `allocCoreHost` and `instantiateCore`
+(`Instantiate`). Every other program only reads or writes fields that `mapStore` keeps, but
+still needs its own `ProgRel` proof, because the program terms differ between the two engines.
 
 1. Prove `ProgRel` compositionally for each program, using `ProgRel.bind` and the primitive
    lemmas. Pure store reads that do not touch `core` commute by definition (`kernel_rfl`). Reads

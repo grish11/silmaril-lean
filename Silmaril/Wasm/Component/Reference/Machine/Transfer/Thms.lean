@@ -15,7 +15,8 @@ For a store simulation `S : E.StoreSim I` (`Engine.Sim`):
   (`rel_invokeProg`, `rel_tickProg`, `rel_cancelProg`, `rel_runProg`), so they need no
   hypothesis.
 * `steps_sim`: the same for runs with related traces.
-* `ProgRel.bind`: the relation is closed under sequencing.
+* `ProgRel.bind`: the relation is closed under sequencing; `rel_getStore_bind`,
+  `rel_modifyStore`, `rel_callRet`: the primitive operations.
 * For traces without `run` events, `labelOf` gives related labels (`forall₂_labelOf`) with the
   same observations (`traceObs_map_labelOf`).
 
@@ -37,6 +38,20 @@ theorem ProgRel.bind {α β : Type} {p' : P (E.withStore I) σ α} {p : P E σ �
     (h : ProgRel S p' p) {f' : α → P (E.withStore I) σ β} {f : α → P E σ β}
     (hf : ∀ a, ProgRel S (f' a) (f a)) : ProgRel S (p' >>= f') (p >>= f) :=
   Silmaril.Proofs.Wasm.Component.Reference.Transfer.ProgRel.bind S h hf
+
+theorem rel_getStore_bind {α : Type} {k' : CStore (E.withStore I) → P (E.withStore I) σ α}
+    {k : CStore E → P E σ α} (h : ∀ s, ProgRel S (k' s) (k (mapStore S s))) :
+    ProgRel S (getStore >>= k') (getStore >>= k) :=
+  Silmaril.Proofs.Wasm.Component.Reference.Transfer.rel_getStore_bind S h
+
+theorem rel_modifyStore {f' : CStore (E.withStore I) → CStore (E.withStore I)}
+    {f : CStore E → CStore E} (h : ∀ s, mapStore S (f' s) = f (mapStore S s)) :
+    ProgRel S (modifyStore f' : P (E.withStore I) σ Unit) (modifyStore f) :=
+  Silmaril.Proofs.Wasm.Component.Reference.Transfer.rel_modifyStore S h
+
+theorem rel_callRet (c : Call E) :
+    ProgRel S (callRet c : P (E.withStore I) σ (Ret (E.withStore I))) (callRet c : P E σ (Ret E)) :=
+  Silmaril.Proofs.Wasm.Component.Reference.Transfer.rel_callRet S c
 
 theorem rel_invokeProg (c : CallId) (f : FuncId) (args : List Val) :
     ProgRel S (invokeProg c f args : P (E.withStore I) σ (Ret (E.withStore I)))
