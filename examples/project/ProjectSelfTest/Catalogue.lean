@@ -17,7 +17,13 @@ problems over the registered definitions:
 * `THM` answers: inclusions, each the merged library theorem (named in the doc);
 * `CSA` answers: non-inclusions, each with the witness the answer records.
 
-Every claim is a theorem: there is no row without a proof. Scope notes kept in the titles:
+Every claim is a theorem: there is no row without a proof. The CBOR rows are qualified as the
+format task states them: `Cbor.ModelValid` is validity relative to the `Cbor.Value` model
+(shortest definite encodings, map-key uniqueness by representation), not RFC 8949 validity, and
+no inclusion with RFC-valid CBOR is claimed; `Cbor.Deterministic` is deterministic encoding
+relative to an explicit `FloatRule` (`none`, `only64`, `any`), none of which is proved to be
+RFC 8949 preferred-float serialization. Neither is called "canonical" or "valid" CBOR without
+these qualifiers. Scope notes kept in the titles:
 `safeInteger` is only I-JSON's integer range (not I-JSON); the Python spellings are not JSON;
 `atprotoCoreExactCid` is the CBOR-level core of the atproto data model (no floats, signed
 64-bit integers, DASL CIDs (12, 32)), not atproto record, blob, reserved-field or Lexicon validity. Every
@@ -323,6 +329,54 @@ silmaril instance formats.relations.drisl_bdasl_prefix_sub_cbor (expect := THM) 
 public theorem relation_drisl_bdasl_prefix_sub_cbor : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_cid_prefix ProjectSelfTest.Languages.cborWellFormed x :=
   fun _ h => Silmaril.Formats.Cbor.Drisl.language_le_wellFormed .drislBdaslCidPrefix h
 
+silmaril instance formats.relations.cbor_model_valid_sub_cbor (expect := THM) (title := "CBOR valid relative to the Cbor.Value model (shortest definite encodings; key uniqueness by representation, not RFC 8949 key equality) ⊆ well-formed CBOR")
+  (doc := "Silmaril.Formats.Cbor.ModelValid.language_le_wellFormed") := silmaril.shapes.language.subset_at
+  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language) (K := ProjectSelfTest.Languages.cborWellFormed)
+
+@[answers "formats.relations.cbor_model_valid_sub_cbor" thm]
+public theorem relation_cbor_model_valid_sub_cbor : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language ProjectSelfTest.Languages.cborWellFormed x :=
+  fun _ h => Silmaril.Formats.Cbor.ModelValid.language_le_wellFormed h
+
+silmaril instance formats.relations.cbor_det_none_sub_only64 (expect := THM) (title := "deterministic CBOR relative to FloatRule.none (no floats, UTF-8 text) ⊆ deterministic CBOR relative to FloatRule.only64 (64-bit floats only, UTF-8 text; not RFC 8949 preferred serialization)")
+  (doc := "Silmaril.Formats.Cbor.Deterministic.language_mono") := silmaril.shapes.language.subset_at
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats) (K := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64)
+
+@[answers "formats.relations.cbor_det_none_sub_only64" thm]
+public theorem relation_cbor_det_none_sub_only64 : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 x :=
+  fun _ h => Silmaril.Formats.Cbor.Deterministic.language_mono (P := Silmaril.Formats.Cbor.Deterministic.noFloats) (Q := Silmaril.Formats.Cbor.Deterministic.only64) (fun _ _ h => by simp [Silmaril.Formats.Cbor.Deterministic.noFloats, Silmaril.Formats.Cbor.Deterministic.FloatRule.none] at h) (fun h => h) h
+
+silmaril instance formats.relations.cbor_det_only64_sub_any (expect := THM) (title := "deterministic CBOR relative to FloatRule.only64 (64-bit floats only, UTF-8 text; not RFC 8949 preferred serialization) ⊆ deterministic CBOR relative to FloatRule.any (any float width, UTF-8 text; not RFC 8949 deterministic)")
+  (doc := "Silmaril.Formats.Cbor.Deterministic.language_mono") := silmaril.shapes.language.subset_at
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64) (K := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float)
+
+@[answers "formats.relations.cbor_det_only64_sub_any" thm]
+public theorem relation_cbor_det_only64_sub_any : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float x :=
+  fun _ h => Silmaril.Formats.Cbor.Deterministic.language_mono (P := Silmaril.Formats.Cbor.Deterministic.only64) (Q := Silmaril.Formats.Cbor.Deterministic.anyFloat) (fun _ _ _ => rfl) (fun h => h) h
+
+silmaril instance formats.relations.cbor_det_none_sub_none_raw (expect := THM) (title := "deterministic CBOR relative to FloatRule.none (no floats, UTF-8 text) ⊆ deterministic CBOR relative to FloatRule.none, text not checked for UTF-8")
+  (doc := "Silmaril.Formats.Cbor.Deterministic.language_mono") := silmaril.shapes.language.subset_at
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats) (K := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_float_rule_none_false)
+
+@[answers "formats.relations.cbor_det_none_sub_none_raw" thm]
+public theorem relation_cbor_det_none_sub_none_raw : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_float_rule_none_false x :=
+  fun _ h => Silmaril.Formats.Cbor.Deterministic.language_mono (P := Silmaril.Formats.Cbor.Deterministic.noFloats) (Q := ⟨Silmaril.Formats.Cbor.Deterministic.FloatRule.none, false⟩) (fun _ _ h => h) (fun h => by cases h) h
+
+silmaril instance formats.relations.cbor_det_any_sub_cbor (expect := THM) (title := "deterministic CBOR relative to FloatRule.any (any float width, UTF-8 text; not RFC 8949 deterministic) ⊆ well-formed CBOR")
+  (doc := "Silmaril.Formats.Cbor.Deterministic.language_le_wellFormed") := silmaril.shapes.language.subset_at
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float) (K := ProjectSelfTest.Languages.cborWellFormed)
+
+@[answers "formats.relations.cbor_det_any_sub_cbor" thm]
+public theorem relation_cbor_det_any_sub_cbor : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float ProjectSelfTest.Languages.cborWellFormed x :=
+  fun _ h => Silmaril.Formats.Cbor.Deterministic.language_le_wellFormed Silmaril.Formats.Cbor.Deterministic.anyFloat h
+
+silmaril instance formats.relations.drisl_sub_det_only64 (expect := THM) (title := "DRISL (DASL CIDs (12, 32), exact CID boundary) ⊆ deterministic CBOR relative to FloatRule.only64 (64-bit floats only, UTF-8 text; not RFC 8949 preferred serialization)")
+  (doc := "Silmaril.Formats.Cbor.Deterministic.drisl_le") := silmaril.shapes.language.subset_at
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (K := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64)
+
+@[answers "formats.relations.drisl_sub_det_only64" thm]
+public theorem relation_drisl_sub_det_only64 : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 x :=
+  fun _ h => Silmaril.Formats.Cbor.Deterministic.drisl_le .drislExactCid h
+
 silmaril instance formats.relations.utf8_sub_ascii (expect := CSA) (title := "UTF-8 ⊆ ASCII (fails: é)") :=
   silmaril.shapes.language.subset_at (L := ProjectSelfTest.Languages.utf8) (K := Silmaril.Project.Languages.FormatExamples.Ascii.lang_language)
 
@@ -522,5 +576,45 @@ silmaril instance formats.relations.spki_sub_utf8 (expect := CSA) (title := "Can
 public theorem relation_spki_sub_utf8 : ∃ x, ¬ SubsetAt Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical ProjectSelfTest.Languages.utf8 x :=
   ⟨[0x32, 0x3A, 0x00, 0xFF], fun h => (show ([0x32, 0x3A, 0x00, 0xFF] : List UInt8) ∉ ProjectSelfTest.Languages.utf8 from fun h => absurd (Silmaril.Formats.Utf8.isWellFormed_iff.mpr h) (by decide +kernel))
     (h (show ([0x32, 0x3A, 0x00, 0xFF] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical from (by decide +kernel : ([0x32, 0x3A, 0x00, 0xFF] : List UInt8) ∈ Silmaril.Formats.Spki.canonical)))⟩
+
+silmaril instance formats.relations.cbor_det_only64_sub_none (expect := CSA) (title := "deterministic CBOR relative to FloatRule.only64 (64-bit floats only, UTF-8 text; not RFC 8949 preferred serialization) ⊆ deterministic CBOR relative to FloatRule.none (no floats, UTF-8 text) (fails: the 64-bit float 1.0)") :=
+  silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64) (K := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats)
+
+@[answers "formats.relations.cbor_det_only64_sub_none" csa]
+public theorem relation_cbor_det_only64_sub_none : ∃ x, ¬ SubsetAt Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats x :=
+  ⟨[0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0], fun h => (show ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats from (by decide +kernel : ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Formats.Cbor.Deterministic.language Silmaril.Formats.Cbor.Deterministic.noFloats))
+    (h (show ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 from (by decide +kernel : ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∈ Silmaril.Formats.Cbor.Deterministic.language Silmaril.Formats.Cbor.Deterministic.only64)))⟩
+
+silmaril instance formats.relations.cbor_det_any_sub_only64 (expect := CSA) (title := "deterministic CBOR relative to FloatRule.any (any float width, UTF-8 text; not RFC 8949 deterministic) ⊆ deterministic CBOR relative to FloatRule.only64 (64-bit floats only, UTF-8 text; not RFC 8949 preferred serialization) (fails: the 16-bit float 1.0)") :=
+  silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float) (K := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64)
+
+@[answers "formats.relations.cbor_det_any_sub_only64" csa]
+public theorem relation_cbor_det_any_sub_only64 : ∃ x, ¬ SubsetAt Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 x :=
+  ⟨[0xF9, 0x3C, 0x00], fun h => (show ([0xF9, 0x3C, 0x00] : List UInt8) ∉ Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 from (by decide +kernel : ([0xF9, 0x3C, 0x00] : List UInt8) ∉ Silmaril.Formats.Cbor.Deterministic.language Silmaril.Formats.Cbor.Deterministic.only64))
+    (h (show ([0xF9, 0x3C, 0x00] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float from (by decide +kernel : ([0xF9, 0x3C, 0x00] : List UInt8) ∈ Silmaril.Formats.Cbor.Deterministic.language Silmaril.Formats.Cbor.Deterministic.anyFloat)))⟩
+
+silmaril instance formats.relations.cbor_det_none_raw_sub_none (expect := CSA) (title := "deterministic CBOR relative to FloatRule.none, text not checked for UTF-8 ⊆ deterministic CBOR relative to FloatRule.none (no floats, UTF-8 text) (fails: a text string that is not UTF-8)") :=
+  silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_float_rule_none_false) (K := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats)
+
+@[answers "formats.relations.cbor_det_none_raw_sub_none" csa]
+public theorem relation_cbor_det_none_raw_sub_none : ∃ x, ¬ SubsetAt Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_float_rule_none_false Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats x :=
+  ⟨[0x62, 0xC3, 0x28], fun h => (show ([0x62, 0xC3, 0x28] : List UInt8) ∉ Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats from (by decide +kernel : ([0x62, 0xC3, 0x28] : List UInt8) ∉ Silmaril.Formats.Cbor.Deterministic.language Silmaril.Formats.Cbor.Deterministic.noFloats))
+    (h (show ([0x62, 0xC3, 0x28] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_float_rule_none_false from (by decide +kernel : ([0x62, 0xC3, 0x28] : List UInt8) ∈ Silmaril.Formats.Cbor.Deterministic.language ⟨Silmaril.Formats.Cbor.Deterministic.FloatRule.none, false⟩)))⟩
+
+silmaril instance formats.relations.cbor_det_only64_sub_drisl (expect := CSA) (title := "deterministic CBOR relative to FloatRule.only64 (64-bit floats only, UTF-8 text; not RFC 8949 preferred serialization) ⊆ DRISL (DASL CIDs (12, 32), exact CID boundary) (fails: tag 1)") :=
+  silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid)
+
+@[answers "formats.relations.cbor_det_only64_sub_drisl" csa]
+public theorem relation_cbor_det_only64_sub_drisl : ∃ x, ¬ SubsetAt Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid x :=
+  ⟨[0xC1, 0x00], fun h => (show ([0xC1, 0x00] : List UInt8) ∉ Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid from (by decide +kernel : ([0xC1, 0x00] : List UInt8) ∉ Silmaril.Formats.Cbor.Drisl.language .drislExactCid))
+    (h (show ([0xC1, 0x00] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 from (by decide +kernel : ([0xC1, 0x00] : List UInt8) ∈ Silmaril.Formats.Cbor.Deterministic.language Silmaril.Formats.Cbor.Deterministic.only64)))⟩
+
+silmaril instance formats.relations.cbor_model_valid_sub_det_any (expect := CSA) (title := "CBOR valid relative to the Cbor.Value model (shortest definite encodings; key uniqueness by representation, not RFC 8949 key equality) ⊆ deterministic CBOR relative to FloatRule.any (any float width, UTF-8 text; not RFC 8949 deterministic) (fails: unsorted map keys)") :=
+  silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language) (K := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float)
+
+@[answers "formats.relations.cbor_model_valid_sub_det_any" csa]
+public theorem relation_cbor_model_valid_sub_det_any : ∃ x, ¬ SubsetAt Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float x :=
+  ⟨[0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02], fun h => (show ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8) ∉ Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float from (by decide +kernel : ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8) ∉ Silmaril.Formats.Cbor.Deterministic.language Silmaril.Formats.Cbor.Deterministic.anyFloat))
+    (h (show ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language from (by decide +kernel : ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8) ∈ Silmaril.Formats.Cbor.ModelValid.language)))⟩
 
 end
