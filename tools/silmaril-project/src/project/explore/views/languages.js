@@ -23,29 +23,27 @@
   // The status of a problem as the shared neutral badge (ui.statusBadge), with the stored SZS
   // code: marked only when it fails unexpectedly or misses its expected status. A closed
   // refutation is stored as UNS (false); no answer is OPN (unknown), never false.
+  // a problem row as the shared status helpers read it; `established` (when the query has it) are
+  // the problem's established statuses, so an expectation is met exactly as `sil project check` says
   const statusOfRow = (p) => ({ summary: p.summary || "OPN", verdict: p.verdict || "unknown", expect: p.expect || null,
-    arity: p.arity, deprecated: p.deprecated || null, finding: p.finding || null });
+    arity: p.arity, deprecated: p.deprecated || null, finding: p.finding || null,
+    established: p.established != null ? String(p.established).split(",").filter(Boolean) : undefined });
+  const ESTABLISHED = () => Explorer.tables().has("statuses")
+    ? "(SELECT group_concat(st.status) FROM statuses st WHERE st.problem = lp.problem) AS established, " : "";
   function outcome(p) { return ui.statusBadge(statusOfRow(p)); }
-  // Expectations of a set of problems, by the shared outcome (ui.statusInfo: a closed problem meets
-  // an expectation of the same truth value). This is an aggregate of the stored statuses, not a
-  // status and not a proof: "all met" needs every problem to have an expectation that is met; a
-  // problem with no expectation, or one not established yet, never counts as met.
+  // Expectations of a set of problems (ui.expectationSummary): an aggregate of the stored statuses
+  // against `expect`, not a status and not a proof. "all met" only when every problem has an
+  // expectation and meets it; unset or not-established ones never pass.
   function expectations(rows) {
-    const n = { match: 0, mismatch: 0, pending: 0, none: 0 };
     rows = [...new Map(rows.map((r) => [r.problem, r])).values()];   // a problem counts once
-    for (const r of rows) {
-      const i = ui.statusInfo(statusOfRow(r));
-      const o = i ? i.outcome : "none";
-      n[o === "error" ? "mismatch" : o] = (n[o === "error" ? "mismatch" : o] || 0) + 1;
-    }
-    const all = rows.length > 0 && n.match === rows.length;
-    const parts = [`${n.match} met`];
-    if (n.mismatch) parts.push(`${n.mismatch} unmet`);
+    const n = ui.expectationSummary(rows.map(statusOfRow));
+    const parts = [`${n.met} met`];
+    if (n.mismatch + n.error) parts.push(`${n.mismatch + n.error} unmet`);
     if (n.pending) parts.push(`${n.pending} not established`);
-    if (n.none) parts.push(`${n.none} without expectation`);
-    const cls = n.mismatch ? "st st-bad" : all ? "st st-ok" : "st";
-    const head = n.mismatch ? "unmet" : all ? "all met" : rows.length ? "incomplete" : "none";
-    return { all, n, html: rows.length ? `<span class="${cls}" data-expectations="${head}" title="${ui.esc(parts.join(", "))}">${head}</span> ` +
+    if (n.unset) parts.push(`${n.unset} without expectation`);
+    const bad = n.mismatch + n.error > 0;
+    const head = bad ? "unmet" : n.allMet ? "all met" : n.total ? "incomplete" : "none";
+    return { n, html: n.total ? `<span class="${bad ? "st st-bad" : n.allMet ? "st st-ok" : "st"}" data-expectations="${head}" title="${ui.esc(parts.join(", "))}">${head}</span> ` +
       `<span class="muted">${ui.esc(parts.join(" · "))}</span>` : "" };
   }
   // A sentence as recorded (the pretty-printed Lean term). A list of byte values is also shown as
@@ -105,7 +103,7 @@
     // the problems of the listed constructions, for the expectations column (bounded)
     const hashes = [...new Set(rows.slice(0, LIMIT).map((r) => r.identity_hash))];
     const probs = hashes.length ? await ctx.q(
-      "SELECT DISTINCT l.identity_hash, lp.problem, lp.expect, lp.summary, lp.verdict, p.arity FROM language_problems lp " +
+      "SELECT DISTINCT l.identity_hash, lp.problem, lp.expect, lp.summary, lp.verdict, p.arity, " + ESTABLISHED() + "1 AS _ FROM language_problems lp " +
       "JOIN languages l ON l.name = lp.language JOIN problems p ON p.name = lp.problem " +
       `WHERE l.identity_hash IN (${hashes.map(() => "?").join(",")}) LIMIT 5000`, hashes) : [];
     const byHash = new Map();
@@ -201,7 +199,7 @@ Equal sets built differently have different identities; their equality is a prob
 <p>BLAKE3 <code>${ui.esc(l.identity_hash)}</code>${same.length ? ` — the same construction as ${same.map((s) => langLink(s.name)).join(", ")}` : ""}</p>
 <pre class="code">${ui.esc(JSON.stringify(JSON.parse(l.identity), null, 2))}</pre>`;
     const ps = await ctx.q(
-      "SELECT lp.problem, lp.shape, lp.role, lp.expect, lp.title, lp.summary, lp.verdict, p.arity, " +
+      "SELECT lp.problem, lp.shape, lp.role, lp.expect, lp.title, lp.summary, lp.verdict, p.arity, " + ESTABLISHED() +
       (Explorer.tables().has("deprecated_problems") ? "(SELECT via_kind FROM deprecated_problems d WHERE d.problem = lp.problem) AS deprecated, " : "") +
       (Explorer.tables().has("findings") ? "(SELECT classification FROM findings f WHERE f.problem = lp.problem) AS finding, " : "") +
       "(SELECT ia.term FROM instance_args ia JOIN language_shape_roles r ON r.shape = lp.shape AND r.pos = ia.pos AND r.role = 'x' WHERE ia.problem = lp.problem) AS sentence, " +
