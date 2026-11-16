@@ -1,10 +1,55 @@
 {
- "schema": "silmaril.wasm-wast.oracle.v0.1",
+ "schema": "silmaril.wasm-wast.oracle.v0.2",
+ "generated_at": "2026-11-16T21:57:56Z",
+ "host": "Linux x86_64",
  "oracle": {
   "tool": "wasmtime",
   "version": "50.0.0",
+  "url": "https://github.com/bytecodealliance/wasmtime/releases/download/v50.0.0/wasmtime-v50.0.0-x86_64-linux.tar.xz",
+  "archive_sha256": "77c19ee0437991f9ac7837b9c269d9c7076744f85dad263fea5214cc2723c7ff",
   "sha256": "f95e5beba6d176b447c2939607bae968ea47f87b156ddf559762f1bb3c00e9b7",
-  "command": "wasmtime wast"
+  "command": "wasmtime wast SCRIPT",
+  "pins": "tools/wasm-jco/tests/pins.sh",
+  "version_output": "wasmtime 50.0.0 (ebe5e8df1 2026-10-20)"
+ },
+ "inputs": {
+  "spec": {
+   "repo": "https://github.com/WebAssembly/spec",
+   "rev": "608711107b7f1edb13efd57b7d79b49477462d36",
+   "archive_sha256": "22ef0dd9dd9603474c6a58fa644752a3e9b887b4043d5480490290f748acda1b"
+  },
+  "converter": {
+   "tool": "wasm-tools json-from-wast",
+   "version": "1.262.0",
+   "sha256": "fe6a056dc03269b06f53e0cff926101c17d4f4ea37fbaa077d049c0d18acb211"
+  },
+  "report_sha256": "883d8c5dd86398e817760989e8128e44ac39fd0d9af5ade5ad8226b968822841",
+  "files": [
+   {
+    "file": "test/core/i32.wast",
+    "sha256": "f3b7e8fd641893ea0989a8ab801fce0654d276d27b5cad9cf482291a422cffe8"
+   },
+   {
+    "file": "test/core/i64.wast",
+    "sha256": "7d0e27a617565e0685aef56cee01b2b4890084068e3989168c41d14c56b1945e"
+   },
+   {
+    "file": "test/core/int_exprs.wast",
+    "sha256": "e8b884e16bdbed0270e9b912eaa60a0e8688831e7574be98c00a60dcc667ed2b"
+   },
+   {
+    "file": "test/core/fac.wast",
+    "sha256": "160f50dd99afe4c87f9a49424887e6fd94baa79b20f0e07567b867e866b583d2"
+   },
+   {
+    "file": "test/core/traps.wast",
+    "sha256": "3c0615dd26ee186c9a8138e933ff068fd6679e4fc34756b4ab1605d1fc7f1ede"
+   },
+   {
+    "file": "test/core/address.wast",
+    "sha256": "108586531ce4b9445342a1f7c25880fd7deacb6e330b8a9f4430f7de7bd67f32"
+   }
+  ]
  },
  "results": [
   {
@@ -6861,13 +6906,13 @@
    "file": "test/core/i32.wast",
    "sha256": "f3b7e8fd641893ea0989a8ab801fce0654d276d27b5cad9cf482291a422cffe8",
    "oracle": "fail",
-   "stderr": "57b7d79b49477462d36/test/core/i32.wast'\n\nCaused by:\n    0: failed directive on /root/.cache/silmaril-tools/src/wasm-spec-608711107b/spec-608711107b7f1edb13efd57b7d79b49477462d36/test/core/i32.wast:979\n    1: assert_invalid: expected \"unexpected token\", got \"expected a i32\n     --> <anon>:1:31\n      |\n    1 | (func (result i32) (i32.const nan:arithmetic)) \n      |                               ^\"\n\n"
+   "stderr": "Error: failed to run script file 'test/core/i32.wast'\n\nCaused by:\n    0: failed directive on test/core/i32.wast:979\n    1: assert_invalid: expected \"unexpected token\", got \"expected a i32\n     --> <anon>:1:31\n      |\n    1 | (func (result i32) (i32.const nan:arithmetic)) \n      |                               ^\"\n\n"
   },
   {
    "file": "test/core/i64.wast",
    "sha256": "7d0e27a617565e0685aef56cee01b2b4890084068e3989168c41d14c56b1945e",
    "oracle": "fail",
-   "stderr": "57b7d79b49477462d36/test/core/i64.wast'\n\nCaused by:\n    0: failed directive on /root/.cache/silmaril-tools/src/wasm-spec-608711107b/spec-608711107b7f1edb13efd57b7d79b49477462d36/test/core/i64.wast:488\n    1: assert_invalid: expected \"unexpected token\", got \"expected a i64\n     --> <anon>:1:31\n      |\n    1 | (func (result i64) (i64.const nan:arithmetic)) \n      |                               ^\"\n\n"
+   "stderr": "Error: failed to run script file 'test/core/i64.wast'\n\nCaused by:\n    0: failed directive on test/core/i64.wast:488\n    1: assert_invalid: expected \"unexpected token\", got \"expected a i64\n     --> <anon>:1:31\n      |\n    1 | (func (result i64) (i64.const nan:arithmetic)) \n      |                               ^\"\n\n"
   },
   {
    "file": "test/core/int_exprs.wast",

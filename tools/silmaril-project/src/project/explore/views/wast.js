@@ -15,8 +15,8 @@ const WastModel = (() => {
     action: "an action of the script (no claim)",
   };
   const STRENGTH = {
-    "silmaril.shapes.wasm.wast.returns_only": "returns, and nothing else (every host-free normal form returns these values)",
-    "silmaril.shapes.wasm.wast.traps_only": "traps, and nothing else (every host-free normal form is a trap)",
+    "silmaril.shapes.wasm.wast.returns_only": "returns these values at every host-free normal form; no host-free run diverges (theorem ReturnsOnly.always)",
+    "silmaril.shapes.wasm.wast.traps_only": "traps at every host-free normal form; no host-free run diverges (theorem TrapsOnly.always)",
   };
   // The oracle result of each command, by id.
   function oracleIndex(oracle) {

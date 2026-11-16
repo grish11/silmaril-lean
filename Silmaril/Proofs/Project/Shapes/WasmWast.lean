@@ -18,7 +18,9 @@ public import Silmaril.Wasm.Verify.Kernel.Thms
   store is well typed (`runInvoke?_steps_noHost`, `runInvoke?_stopped`, `runInvoke?_sound`);
 * `invokeNF_unique`: host-free normal forms of an invocation are unique (`DStep.join'`,
   `nf_unique_of_join`), hence `scriptAt_unique`: a script reaches at most one state;
-* `scriptHolds_of_kernel`: `scriptK … = true` gives `ScriptHolds`.
+* `scriptHolds_of_kernel`: `scriptK … = true` gives `ScriptHolds`;
+* `reaches_always`: at `profile o` one run of a command to a result rules out infinite runs of
+  it and extends every finite run to that result (`Det.DStep.join'`, `Det.DStep.shrink`).
 -/
 
 @[expose] public section
@@ -225,6 +227,98 @@ theorem scriptHolds_of_kernel {o : GrowOracle} {fuel : Nat} {m : Module} {cmds :
       simpa using cmdsK_holds hs hS h k cmd hk
     · cases h
   · cases h
+
+/-! ## Termination
+
+Core reduction at `profile o` is not a function (a trap bubbles out at several context depths),
+but two different successors of a configuration are joinable in at most one step each
+(`Det.DStep.join'`), and both have strictly smaller code (`Det.DStep.shrink`). Then a
+configuration with a run to a normal form has no infinite run (`nsteps_normal_not_infinite`,
+the abstract argument of `Silmaril.Proofs.Wasm.Game.nsteps_normal_not_infinite`, restated here
+because it lives in another topic's proof modules), and every finite run extends to that normal
+form (`nsteps_of_steps`). -/
+
+/-- If peaks of `R` are joinable in at most one step on each side and the two sides of a
+non-trivial peak are strictly smaller than its top under `μ`, then a configuration with a
+counted path to a normal form has no infinite trace. Lexicographic induction on (path length,
+`μ`). -/
+theorem nsteps_normal_not_infinite {α : Type _} {R : α → α → Prop} (μ : α → Nat)
+    (hj : ∀ {x a b : α}, R x a → R x b → Det.Join R a b)
+    (hs : ∀ {x a b : α}, R x a → R x b → a = b ∨ μ a < μ x)
+    {y : α} (hy : ∀ z, ¬ R y z) :
+    ∀ (k : Nat) (x : α), NSteps R k x y → ¬ InfiniteTrace R x := by
+  intro k
+  induction k using Nat.strong_induction_on with
+  | _ k ihk =>
+  suffices h : ∀ (n : Nat) (x : α), μ x = n → NSteps R k x y → ¬ InfiniteTrace R x from
+    fun x => h _ x rfl
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ihn =>
+  intro x hn hpath hinf
+  obtain ⟨x₁, hx₁, hinf₁⟩ := hinf.unfold
+  obtain ⟨m, hm, hpath₁⟩ := NSteps.of_step_join hj hy hpath hx₁
+  cases hpath with
+  | refl => exact hy _ hx₁
+  | @head _ a _ k' hxa hrest =>
+    rcases hs hx₁ hxa with heq | hlt
+    · exact ihk k' (Nat.lt_succ_self k') _ (heq ▸ hrest) hinf₁
+    · rcases Nat.lt_or_ge m (k' + 1) with hlt' | hge
+      · exact ihk m hlt' x₁ hpath₁ hinf₁
+      · have hmk : m = k' + 1 := le_antisymm hm hge
+        exact ihn (μ x₁) (by omega) x₁ rfl (hmk ▸ hpath₁) hinf₁
+
+/-- Under the `Join` diamond, every configuration reachable from one with a counted path to a
+normal form still has a counted path to it. -/
+theorem nsteps_of_steps {α : Type _} {R : α → α → Prop}
+    (hj : ∀ {x a b : α}, R x a → R x b → Det.Join R a b) {y : α} (hy : ∀ z, ¬ R y z)
+    {k : Nat} {x x' : α} (hk : NSteps R k x y) (h : Relation.ReflTransGen R x x') :
+    ∃ m, NSteps R m x' y := by
+  induction h with
+  | refl => exact ⟨k, hk⟩
+  | tail _ hs ih =>
+    obtain ⟨m, hm⟩ := ih
+    obtain ⟨m', -, hm'⟩ := NSteps.of_step_join hj hy hm hs
+    exact ⟨m', hm'⟩
+
+theorem nsteps_to_rtg {α : Type _} {R : α → α → Prop} {k : Nat} {x y : α}
+    (h : NSteps R k x y) : Relation.ReflTransGen R x y := by
+  induction h with
+  | refl => exact .refl
+  | head hxy _ ih => exact .head hxy ih
+
+theorem dstep_shrink {o : GrowOracle} {x a b : Config Nat} (ha : Det.DStep o x a)
+    (hb : Det.DStep o x b) : a = b ∨ sizeOf a.code < sizeOf x.code := by
+  rcases x with ⟨s, f, code⟩
+  rcases Det.DStep.shrink _ s f code a b rfl ha hb with h | ⟨-, -, hl, -⟩
+  · exact .inl h
+  · exact .inr hl
+
+/-- A host-free normal form of an invocation excludes infinite runs of it, and every finite run
+of it extends to that normal form. -/
+theorem invokeNF_always {o : GrowOracle} {s : Store Nat} {a : Nat} {args : List Val}
+    {c : Config Nat} (h : InvokeNF o s a args c) :
+    ¬ Diverges (profile o) Det.noHost (invoke s a args) ∧
+      ∀ c', Steps (profile o) Det.noHost (invoke s a args) c' →
+        Steps (profile o) Det.noHost c' c := by
+  obtain ⟨k, hk⟩ := NSteps.of_rtg (R := Det.DStep o) h.1
+  refine ⟨nsteps_normal_not_infinite (R := Det.DStep o) (fun c : Config Nat => sizeOf c.code)
+    (fun ha hb => Det.DStep.join' ha hb) (fun ha hb => dstep_shrink ha hb) h.2 k _ hk,
+    fun c' hc' => ?_⟩
+  obtain ⟨m, hm⟩ := nsteps_of_steps (R := Det.DStep o) (fun ha hb => Det.DStep.join' ha hb)
+    h.2 hk hc'
+  exact nsteps_to_rtg hm
+
+/-- **At `profile o`, one run to a normal form decides every run.** -/
+theorem reaches_always {o : GrowOracle} {m : Module} {pre : List Action} {act : Action}
+    {r : Result} (h : Reaches o m pre act r) : Always o m pre act r := by
+  obtain ⟨mi, s, a, c, hS, ha, hc, hr⟩ := h
+  intro mi' s' a' hS' ha'
+  obtain ⟨rfl, rfl⟩ := scriptAt_unique hS hS'
+  rw [ha] at ha'
+  cases ha'
+  obtain ⟨hdiv, hext⟩ := invokeNF_always hc
+  exact ⟨hdiv, fun c' hc' => ⟨c, hext c' hc', hc, hr⟩⟩
 
 end Silmaril.Proofs.Project.Shapes.WasmWast
 

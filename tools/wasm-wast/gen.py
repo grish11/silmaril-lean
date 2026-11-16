@@ -4,8 +4,10 @@
     python3 -I tools/wasm-wast/gen.py convert   # pinned wasm-tools json-from-wast on FILES
     python3 -I tools/wasm-wast/gen.py probe     # classify every command (one native Lean run)
     python3 -I tools/wasm-wast/gen.py emit      # write the Lean modules and the report
+    python3 -I tools/wasm-wast/gen.py fetch-wasmtime  # download the pinned wasmtime, SHA-256 checked
     python3 -I tools/wasm-wast/gen.py oracle    # run the pinned wasmtime on every command
-    python3 -I tools/wasm-wast/gen.py all       # the four, in order
+    python3 -I tools/wasm-wast/gen.py verify    # re-check oracle.json's provenance (no wasmtime)
+    python3 -I tools/wasm-wast/gen.py all       # convert, probe, emit, oracle, in order
     python3 -I tools/wasm-wast/gen.py site DIR  # copy report.json, oracle.json to DIR/wast/ (explorer)
 
 Inputs are pinned: the spec test suite and wasm-tools by tools/wasm-tools/tests/pins.sh
@@ -16,15 +18,27 @@ generated JSON are data: this script parses them and never executes anything ins
 The probe runs silmaril-lean's interpreter natively (`lake env lean` on a generated file) only to
 decide which commands to give to the kernel; nothing it prints is a proof. The proofs are the
 `decide +kernel` evaluations of `scriptK` in the emitted modules (docs/projects/wasm-wast.md).
+
+The oracle is test-wise agreement with an independent implementation, not a proof. `oracle`
+records its provenance in oracle.json (wasmtime version, archive and binary SHA-256, the
+SHA-256 of report.json, of the spec files and of every generated script, and a UTC timestamp).
+`verify` re-checks that record against the current pins and report.json without running
+wasmtime, and, when the converted JSON of `convert` is present, regenerates every script and
+compares its SHA-256.
 """
+import datetime
 import hashlib
 import json
 import os
 import pathlib
+import platform
 import re
+import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
+import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORK = pathlib.Path(os.environ.get("WASM_WAST_WORK", pathlib.Path.home() / ".cache/silmaril-tools/wasm-wast"))
@@ -591,61 +605,179 @@ def float_hex(t, bits):
     return x.hex()
 
 
+def fetch_wasmtime():
+    """Install the pinned wasmtime 50.0.0 binary at its pins.sh path: download the release archive
+    into a fresh empty directory, check the archive's SHA-256, extract only the `wasmtime` member
+    (nothing in the archive is run), check the binary's SHA-256, then copy it into place."""
+    dest = pathlib.Path(JCO["WASMTIME"])
+    if dest.is_file():
+        need(dest, JCO["WASMTIME_SHA256"], "wasmtime")
+        print(f"fetch-wasmtime: {dest} present, SHA-256 {JCO['WASMTIME_SHA256']}")
+        return
+    member = f"wasmtime-v{JCO['WASMTIME_VERSION']}-x86_64-linux/wasmtime"
+    with tempfile.TemporaryDirectory(prefix="wasm-wast-dl-") as td:
+        arc = pathlib.Path(td) / "wasmtime.tar.xz"
+        with urllib.request.urlopen(JCO["WASMTIME_URL"]) as r, open(arc, "wb") as out:
+            shutil.copyfileobj(r, out)
+        if sha256(arc) != JCO["WASMTIME_ARCHIVE_SHA256"]:
+            sys.exit(f"gen.py: {JCO['WASMTIME_URL']} does not match its pinned SHA-256")
+        with tarfile.open(arc, "r:xz") as t:
+            m = t.getmember(member)
+            if not m.isfile():
+                sys.exit(f"gen.py: {member} is not a regular file in the archive")
+            src = t.extractfile(m)
+            binp = pathlib.Path(td) / "wasmtime"
+            with open(binp, "wb") as out:
+                shutil.copyfileobj(src, out)
+        need(binp, JCO["WASMTIME_SHA256"], "the extracted wasmtime")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(binp, dest)
+        dest.chmod(0o755)
+    print(f"fetch-wasmtime: {dest}, SHA-256 {JCO['WASMTIME_SHA256']}")
+
+
+def oracle_scripts(rep):
+    """The oracle's script for every command it runs, in order: (id, script text). The command's
+    module (the same binary, as `(module binary …)`), the actions before it in the same module,
+    then the command. Deterministic in report.json and the converted JSON."""
+    status = {c["id"]: c for c in rep["commands"]}
+    for f, _ in FILES:
+        segs, rows = load(f)
+        for seg in segs:
+            prev = []
+            mod = None
+            for r in seg["cmds"]:
+                if r["type"] not in ("assert_return", "assert_trap", "action") or "lean_args" not in r:
+                    continue
+                c = status[r["id"]]
+                if c["status"] not in ("proved", "mismatch") and "observed" not in c:
+                    prev.append(r)
+                    continue
+                if mod is None:
+                    data = (WORK / "json" / f / seg["wasm"]).read_bytes()
+                    mod = '(module binary "' + "".join(f"\\{b:02x}" for b in data) + '")'
+                lines = [mod]
+                for p in prev:
+                    lines.append(f"(invoke {lean_str(p['action']['field'])} {' '.join(wast_val(show_val(v)) for v in p['action']['args'])})"
+                                 if p["type"] == "action" else wast_cmd(p))
+                lines.append(wast_cmd(r))
+                yield r["id"], "\n".join(lines) + "\n"
+                prev.append(r)
+
+
+def text_sha256(t):
+    return hashlib.sha256(t.encode()).hexdigest()
+
+
+def oracle_counts(results):
+    proved = [x for x in results if x["silmaril"] == "proved"]
+    native = [x for x in results if x["silmaril"] != "proved"]
+    return {"run": len(results), "oracle_pass": sum(x["oracle"] == "pass" for x in results),
+            "kernel_proved": len(proved), "agree_with_kernel": sum(x["oracle"] == "pass" for x in proved),
+            "native_only": len(native), "agree_with_native_run": sum(x["oracle"] == "pass" for x in native)}
+
+
+def provenance():
+    """What the oracle run depends on, from the pins (checked against the installed files)."""
+    return {"tool": "wasmtime", "version": JCO["WASMTIME_VERSION"], "url": JCO["WASMTIME_URL"],
+            "archive_sha256": JCO["WASMTIME_ARCHIVE_SHA256"], "sha256": JCO["WASMTIME_SHA256"],
+            "command": "wasmtime wast SCRIPT", "pins": "tools/wasm-jco/tests/pins.sh"}
+
+
+def inputs(rep):
+    return {"spec": rep["spec"], "converter": rep["converter"], "report_sha256": sha256(REPORT),
+            "files": [{"file": x["file"], "sha256": x["sha256"]} for x in rep["files"]]}
+
+
+def scrub(err):
+    """Drop local paths from wasmtime's messages."""
+    return err.replace(str(SPEC_CORE), "test/core").replace(str(pathlib.Path.home()), "~")
+
+
 def oracle():
-    """Run wasmtime 50.0.0 `wast` on one small script per command: the command's module (the
-    same binary, as `(module binary …)`), the actions before it in the same module, then the
-    command itself. A command passes when wasmtime accepts the script."""
+    """Run wasmtime 50.0.0 `wast` on one small script per command (`oracle_scripts`). A command
+    passes when wasmtime accepts the script."""
+    if not pathlib.Path(JCO["WASMTIME"]).is_file():
+        fetch_wasmtime()
     need(JCO["WASMTIME"], JCO["WASMTIME_SHA256"], "wasmtime")
     rep = json.loads(REPORT.read_text())
-    res = {"schema": "silmaril.wasm-wast.oracle.v0.1", "oracle": {"tool": "wasmtime", "version": JCO["WASMTIME_VERSION"],
-           "sha256": JCO["WASMTIME_SHA256"], "command": "wasmtime wast"}, "results": []}
-    with tempfile.TemporaryDirectory() as td:
-        td = pathlib.Path(td)
-        cache = {}
-        for f, _ in FILES:
-            segs, rows = load(f)
-            for seg in segs:
-                prev = []
-                for r in seg["cmds"]:
-                    if r["type"] not in ("assert_return", "assert_trap", "action") or "lean_args" not in r:
-                        continue
-                    c = next(x for x in rep["commands"] if x["id"] == r["id"])
-                    if c["status"] not in ("proved", "mismatch") and "observed" not in c:
-                        prev.append(r)
-                        continue
-                    key = (f, seg["index"])
-                    if key not in cache:
-                        data = (WORK / "json" / f / seg["wasm"]).read_bytes()
-                        cache[key] = '(module binary "' + "".join(f"\\{b:02x}" for b in data) + '")'
-                    lines = [cache[key]]
-                    for p in prev:
-                        lines.append(f"(invoke {lean_str(p['action']['field'])} {' '.join(wast_val(show_val(v)) for v in p['action']['args'])})"
-                                     if p["type"] == "action" else wast_cmd(p))
-                    lines.append(wast_cmd(r))
-                    script = td / "t.wast"
-                    script.write_text("\n".join(lines) + "\n")
-                    pr = subprocess.run([JCO["WASMTIME"], "wast", str(script)], capture_output=True, text=True)
-                    res["results"].append({"id": r["id"], "oracle": "pass" if pr.returncode == 0 else "fail",
-                                           "script_sha256": sha256(script),
-                                           **({"stderr": pr.stderr[-400:]} if pr.returncode else {})})
-                    prev.append(r)
+    ver = subprocess.run([JCO["WASMTIME"], "--version"], capture_output=True, text=True, check=True).stdout.strip()
+    res = {"schema": "silmaril.wasm-wast.oracle.v0.2",
+           "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "host": f"{platform.system()} {platform.machine()}",
+           "oracle": {**provenance(), "version_output": ver}, "inputs": inputs(rep), "results": []}
     status = {c["id"]: c["status"] for c in rep["commands"]}
-    for x in res["results"]:
-        x["silmaril"] = status[x["id"]]
-    proved = [x for x in res["results"] if x["silmaril"] == "proved"]
-    native = [x for x in res["results"] if x["silmaril"] != "proved"]
-    res["counts"] = {"run": len(res["results"]), "oracle_pass": sum(x["oracle"] == "pass" for x in res["results"]),
-                     "kernel_proved": len(proved), "agree_with_kernel": sum(x["oracle"] == "pass" for x in proved),
-                     "native_only": len(native), "agree_with_native_run": sum(x["oracle"] == "pass" for x in native)}
+    with tempfile.TemporaryDirectory() as td:
+        script = pathlib.Path(td) / "t.wast"
+        for cid, text in oracle_scripts(rep):
+            script.write_text(text)
+            pr = subprocess.run([JCO["WASMTIME"], "wast", str(script)], capture_output=True, text=True)
+            res["results"].append({"id": cid, "oracle": "pass" if pr.returncode == 0 else "fail",
+                                   "script_sha256": text_sha256(text), "silmaril": status[cid],
+                                   **({"stderr": scrub(pr.stderr)[-400:]} if pr.returncode else {})})
+    res["counts"] = oracle_counts(res["results"])
     # The whole upstream files, unmodified, as a baseline of the oracle itself.
     res["files"] = []
     for f, _ in FILES:
         pr = subprocess.run([JCO["WASMTIME"], "wast", str(SPEC_CORE / f"{f}.wast")], capture_output=True, text=True)
         res["files"].append({"file": f"test/core/{f}.wast", "sha256": sha256(SPEC_CORE / f"{f}.wast"),
                              "oracle": "pass" if pr.returncode == 0 else "fail",
-                             **({"stderr": pr.stderr[-400:]} if pr.returncode else {})})
+                             **({"stderr": scrub(pr.stderr)[-400:]} if pr.returncode else {})})
     ORACLE.write_text(json.dumps(res, indent=1) + "\n")
     print(json.dumps(res["counts"]), file=sys.stderr)
+
+
+def verify():
+    """Re-check oracle.json against the current pins and report.json, without running wasmtime:
+    the recorded tool provenance equals the pins; report.json and the spec files have the
+    recorded SHA-256; the commands run are exactly those the report selects for the oracle, with
+    the report's statuses; the counts follow from the results. With the converted JSON of
+    `convert` present (or required by `--scripts`), every script is regenerated and its SHA-256
+    compared. Exits 1 on any difference."""
+    rep = json.loads(REPORT.read_text())
+    orc = json.loads(ORACLE.read_text())
+    bad = []
+
+    def check(ok, what):
+        if not ok:
+            bad.append(what)
+
+    check(orc.get("schema") == "silmaril.wasm-wast.oracle.v0.2", f"schema {orc.get('schema')}")
+    for k, v in provenance().items():
+        check(orc.get("oracle", {}).get(k) == v, f"oracle.{k}: recorded {orc.get('oracle', {}).get(k)!r}, pinned {v!r}")
+    check(orc.get("oracle", {}).get("version_output", "").startswith(f"wasmtime {JCO['WASMTIME_VERSION']}"),
+          "oracle.version_output")
+    check(orc.get("inputs") == inputs(rep), "inputs (report.json SHA-256, spec pin, converter or file SHA-256 differ)")
+    check([f["sha256"] for f in orc.get("files", [])] == [f["sha256"] for f in rep["files"]], "files: spec file SHA-256")
+    status = {c["id"]: c["status"] for c in rep["commands"]}
+    want = [c["id"] for c in rep["commands"] if c["status"] in ("proved", "mismatch") or "observed" in c]
+    got = [x["id"] for x in orc["results"]]
+    check(sorted(got) == sorted(want) and len(set(got)) == len(got),
+          f"results: {len(got)} ids recorded, {len(want)} selected by report.json")
+    for x in orc["results"]:
+        check(status.get(x["id"]) == x["silmaril"], f"{x['id']}: silmaril status {x['silmaril']} vs report {status.get(x['id'])}")
+    check(orc.get("counts") == oracle_counts(orc["results"]), "counts do not follow from the results")
+    have_json = all((WORK / "json" / f / f"{f}.json").is_file() for f, _ in FILES)
+    if "--scripts" in sys.argv and not have_json:
+        bad.append(f"--scripts: converted JSON missing under {WORK / 'json'} (run `gen.py convert`)")
+    scripts = "skipped (no converted JSON; `gen.py convert` enables it)"
+    if have_json:
+        rec = {x["id"]: x["script_sha256"] for x in orc["results"]}
+        n = 0
+        for cid, text in oracle_scripts(rep):
+            n += 1
+            check(rec.get(cid) == text_sha256(text), f"{cid}: script SHA-256 differs")
+        check(n == len(rec), f"scripts: {n} regenerated, {len(rec)} recorded")
+        scripts = f"{n} regenerated, SHA-256 compared"
+    c = orc["counts"]
+    print(f"verify: oracle.json of {orc.get('generated_at')}, wasmtime {orc['oracle']['version']} "
+          f"(binary SHA-256 {orc['oracle']['sha256']}); {c['run']} commands, "
+          f"{c['agree_with_kernel']}/{c['kernel_proved']} kernel-proved agree, "
+          f"{c['agree_with_native_run']}/{c['native_only']} native-only agree; scripts: {scripts}")
+    if bad:
+        print("\n".join(f"verify: MISMATCH {b}" for b in bad[:50]), file=sys.stderr)
+        sys.exit(1)
+    print("verify: ok")
 
 
 def wast_cmd(r):
@@ -674,6 +806,7 @@ def main():
     if cmd == "site":
         return site()
     steps = {"convert": [convert], "probe": [probe], "emit": [emit], "oracle": [oracle],
+             "fetch-wasmtime": [fetch_wasmtime], "verify": [verify],
              "all": [convert, probe, emit, oracle]}
     if cmd not in steps:
         sys.exit(__doc__)

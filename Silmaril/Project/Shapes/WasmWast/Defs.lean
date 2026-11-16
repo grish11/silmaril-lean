@@ -18,28 +18,43 @@ over the Core semantics `Silmaril.Wasm.Execution.Core.Step` and not over an inte
 | name | statement |
 |---|---|
 | `silmaril.shapes.wasm.wast.returns` | `Returns o m pre act vs`: some host-free normal form of `act` returns `vs` |
-| `silmaril.shapes.wasm.wast.returns_only` | `ReturnsOnly o m pre act vs`: `Returns`, and every host-free normal form of `act` returns `vs` |
+| `silmaril.shapes.wasm.wast.returns_only` | `ReturnsOnly o m pre act vs`: `Returns`, and every host-free normal form of `act` returns `vs` (no divergence: theorem `ReturnsOnly.always`) |
 | `silmaril.shapes.wasm.wast.traps` | `Traps o m pre act`: some host-free normal form of `act` is a trap |
-| `silmaril.shapes.wasm.wast.traps_only` | `TrapsOnly o m pre act`: `Traps`, and every host-free normal form of `act` is a trap |
+| `silmaril.shapes.wasm.wast.traps_only` | `TrapsOnly o m pre act`: `Traps`, and every host-free normal form of `act` is a trap (no divergence: theorem `TrapsOnly.always`) |
 
 **Script state.** `m` is the script's current module: it must be valid (`ModuleOk m ⟨[], _⟩`),
 have no imports and no start function. Its instance and initial store are those of
 `instantiateOnce?` from the empty store (`Instance`, which runs the element and data segment
 initialisation). `pre` lists the actions of the script that come before the command, after
-`m`, in order. Each action `invoke name args` calls the function export `name` and runs to a
+`m`, in order: every earlier action, whether it was a bare `invoke`, an `assert_return` or an
+`assert_trap`. Each action `invoke name args` calls the function export `name` and runs to a
 host-free normal form (`InvokeNF`) whose code is a result (values, a trap or an exception).
 The store of that normal form is the next state (`Run`), so stores persist across calls, also
 after a trap, as in the reference interpreter. `ScriptAt o m pre mi s` relates the script to
-every state it can reach. `register`, named modules, `get` and other modules are not part of
-this fragment.
+every state it can reach; at `profile o` there is at most one (`ScriptAt.unique`).
+
+A command's claim is therefore relative to the *actual* run of the earlier actions, not to their
+expected outcomes: `pre` records only the actions, and the state is whatever their runs leave,
+whatever their outcomes were. The expectations of earlier assertions are separate claims (their
+own rows). The `Reaches` part of a claim does require every earlier action to end at a result
+(values, trap or exception); if one of them had no such normal form, `ScriptAt` would be empty,
+`Only` vacuous and `Reaches` false. `register`, named modules, `get` and other modules are not
+part of this fragment.
 
 **Profile.** Every step is a Core step `Step (profile o) noHost`: the deterministic profile
 (canonical NaNs, `$ND = false`, `memory.grow`/`table.grow` failing exactly when the grow oracle
 `o` says so) and no host function. A "normal form" is a configuration with no such step: a
 result, a stuck configuration, or a call to a host function. Under `profile o` the machine is
 deterministic up to bubbling, so the `…_only` shapes are the meaningful ones; the plain shapes
-are the weaker existence claims. Neither claims termination of other runs: by determinism,
-every run that reaches a normal form reaches the witnessed one.
+are the weaker existence claims.
+
+**What the quantifiers cover.** `Only` quantifies over host-free *normal forms* only: "every
+normal outcome is `r`". By itself it says nothing about infinite runs. Divergence is excluded
+by a theorem, not by the shapes: `Reaches.always` (`….Thms`) derives `Always` (no infinite
+host-free run, and every finite run extends to a normal form with the outcome `r`) from the
+existence part, by the one-step diamond `Det.DStep.join'` and the fact that the two sides of a
+non-trivial peak have smaller code (`Det.DStep.shrink`). So every `returns_only`/`traps_only` row
+also excludes divergence at `profile o` (`ScriptHolds.always`).
 
 The NaN payload, relaxed SIMD and grow nondeterminism of the specification profile
 `Profile.spec`, `assert_exhaustion` (no resource bounds are modelled), `assert_invalid`,
@@ -79,7 +94,8 @@ def Instance (m : Module) (s : Store Nat) (mi : ModuleInst) : Prop :=
   (∃ xtE, ModuleOk m ⟨[], xtE⟩) ∧
     ∃ f : Frame, instantiateOnce? (Game.importStore []) m [] = some (s, f, none) ∧ f.module = mi
 
-/-- `c` is a host-free normal form of `$invoke(s, a, args)` under `profile o`. -/
+/-- `c` is a host-free normal form of `$invoke(s, a, args)` under `profile o`: reachable by host-free
+steps and with no host-free step (a result, a stuck configuration or a pending host call). -/
 def InvokeNF (o : GrowOracle) (s : Store Nat) (a : Nat) (args : List Val) (c : Config Nat) :
     Prop :=
   Steps (profile o) Det.noHost (invoke s a args) c ∧ ∀ x, ¬ Step (profile o) Det.noHost c x
@@ -104,7 +120,9 @@ def Reaches (o : GrowOracle) (m : Module) (pre : List Action) (act : Action) (r 
   ∃ mi s a c, ScriptAt o m pre mi s ∧ exportFunc? mi act.name = some a ∧
     InvokeNF o s a act.args c ∧ c.outcome? = some r
 
-/-- After the script `m`, `pre`, every host-free normal form of `act` has the outcome `r`. -/
+/-- After the script `m`, `pre`, every host-free normal form of `act` has the outcome `r`. This
+quantifies over normal forms only and is vacuous if there are none; it does not exclude infinite
+runs (for those, `Always` and `Reaches.always`). -/
 def Only (o : GrowOracle) (m : Module) (pre : List Action) (act : Action) (r : Result) :
     Prop :=
   ∀ mi s a c, ScriptAt o m pre mi s → exportFunc? mi act.name = some a →
@@ -119,10 +137,11 @@ def Returns (o : GrowOracle) (m : Module) (pre : List Action) (act : Action) (vs
   Reaches o m pre act (.values vs)
 
 /-- **`assert_return`**: after the script `m`, `pre`, some host-free run of `act` under
-`profile o` returns `vs`, and every host-free normal form of `act` returns `vs` (no trap, no
-other values, no stuck or host-call state). -/
+`profile o` returns `vs`, and every host-free normal form of `act` returns `vs` (no normal form
+is a trap, other values, a stuck or a host-call state). The statement is about normal forms;
+that no run of `act` diverges is the theorem `ReturnsOnly.always`. -/
 @[problem "silmaril.shapes.wasm.wast.returns_only"
-  (title := "A WAST action returns given values, and nothing else")]
+  (title := "A WAST action returns given values, at every host-free normal form")]
 def ReturnsOnly (o : GrowOracle) (m : Module) (pre : List Action) (act : Action)
     (vs : List Val) : Prop :=
   Reaches o m pre act (.values vs) ∧ Only o m pre act (.values vs)
@@ -136,11 +155,24 @@ def Traps (o : GrowOracle) (m : Module) (pre : List Action) (act : Action) : Pro
 
 /-- **`assert_trap`**: after the script `m`, `pre`, some host-free run of `act` under
 `profile o` traps, and every host-free normal form of `act` is a trap. The trap message is not
-part of the claim. -/
+part of the claim. The statement is about normal forms; that no run of `act` diverges is the
+theorem `TrapsOnly.always`. -/
 @[problem "silmaril.shapes.wasm.wast.traps_only"
-  (title := "A WAST action traps, and does nothing else")]
+  (title := "A WAST action traps, at every host-free normal form")]
 def TrapsOnly (o : GrowOracle) (m : Module) (pre : List Action) (act : Action) : Prop :=
   Reaches o m pre act .trap ∧ Only o m pre act .trap
+
+/-- **Termination and determinacy of the outcome.** After the script `m`, `pre`, no host-free
+run of `act` under `profile o` is infinite, and every finite host-free run of `act` extends to a
+host-free normal form whose outcome is `r`. Not a problem shape: by
+`Reaches.always` (`….Thms`) it follows from `Reaches o m pre act r` at `profile o`, so every
+`returns_only`/`traps_only` row has it. -/
+def Always (o : GrowOracle) (m : Module) (pre : List Action) (act : Action) (r : Result) :
+    Prop :=
+  ∀ mi s a, ScriptAt o m pre mi s → exportFunc? mi act.name = some a →
+    ¬ Diverges (profile o) Det.noHost (invoke s a act.args) ∧
+    ∀ c', Steps (profile o) Det.noHost (invoke s a act.args) c' →
+      ∃ c, Steps (profile o) Det.noHost c' c ∧ InvokeNF o s a act.args c ∧ c.outcome? = some r
 
 /-! ## Scripts -/
 

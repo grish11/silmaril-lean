@@ -49,7 +49,8 @@ test("rows: inputs, expectation, claim strength and filters", () => {
   assert.equal(rs.length, 4);
   assert.equal(rs[0].input, "add(i32:1, i32:1)");
   assert.equal(rs[0].expected, "i32:2");
-  assert.match(rs[0].strength, /nothing else/);
+  assert.match(rs[0].strength, /every host-free normal form/);
+  assert.match(rs[0].strength, /no host-free run diverges/);
   assert.match(rs[1].strength, /trap/);
   assert.equal(rs[2].problem, null);
   assert.equal(rs[3].oracle, "fail");

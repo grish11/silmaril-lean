@@ -7,7 +7,9 @@ were also run by a pinned independent implementation (wasmtime 50.0.0), outside 
 
 Tests establish agreement only on the cases tested. A row says what silmaril-lean's Core
 semantics does on one command; it does not say that the Core semantics is the specification
-(see [Trust boundary](#trust-boundary)).
+(see [Trust boundary](#trust-boundary)). The roadmap towards that, with the theorem status of
+each implementation-to-specification bridge and staged acceptance criteria, is
+[Confidence in the Wasm semantics](wasm-confidence.md).
 
 ## The shapes
 
@@ -16,9 +18,13 @@ semantics does on one command; it does not say that the Core semantics is the sp
 | shape | Lean | statement |
 |---|---|---|
 | `silmaril.shapes.wasm.wast.returns` | `Returns o m pre act vs` | after the script `m`, `pre`, **some** host-free run of `act` under `profile o` reaches a normal form returning `vs` |
-| `silmaril.shapes.wasm.wast.returns_only` | `ReturnsOnly o m pre act vs` | `Returns`, and **every** host-free normal form of `act` returns `vs`: no trap, no other values, no stuck or host-call state |
+| `silmaril.shapes.wasm.wast.returns_only` | `ReturnsOnly o m pre act vs` | `Returns`, and **every** host-free **normal form** of `act` returns `vs`: no normal form is a trap, other values, a stuck or a host-call state |
 | `silmaril.shapes.wasm.wast.traps` | `Traps o m pre act` | some host-free run of `act` traps |
 | `silmaril.shapes.wasm.wast.traps_only` | `TrapsOnly o m pre act` | `Traps`, and every host-free normal form of `act` is a trap (the trap message is not part of the claim) |
+
+The `…_only` statements quantify over **normal forms** only ("every normal outcome is `r`"), not
+over runs: on their own they do not exclude an infinite run. Divergence is excluded by a
+theorem about the shapes, not by their statements (see [Termination](#termination)).
 
 The definitions:
 
@@ -33,11 +39,27 @@ The definitions:
 * `ScriptAt o m pre mi s := ∃ s₀, Instance m s₀ mi ∧ Run o mi s₀ pre s`.
 * `Reaches`/`Only o m pre act r`: some/every `InvokeNF` of `act` at some/every `ScriptAt` state has
   the outcome `r`.
+* `Always o m pre act r`: at every `ScriptAt` state, no host-free run of `act` is infinite
+  (`¬ Diverges (profile o) noHost (invoke s a args)`), and every finite host-free run extends to
+  an `InvokeNF` with the outcome `r`.
+
+**Script state, exactly.** `pre cmds k` is the list of the *actions* of the first `k` commands:
+bare `invoke`s and the actions of `assert_return`/`assert_trap` alike (also those of assertions
+outside the fragment, kept as actions). The store after each is the store of its normal form,
+whatever its outcome: values, a trap or an exception. So a store write made before a trap is
+visible to later commands, as in the reference interpreter. A command's claim is stated
+relative to the **actual** run of the earlier actions, not to their expected outcomes: the
+expectations of earlier assertions are their own rows and are not premises of later rows. The
+`Reaches` part of a row does require every earlier action to end at a result (otherwise
+`ScriptAt` is empty and `Reaches` is false), and at `profile o` the earlier actions leave at most
+one state (`ScriptAt.unique`), so a row speaks about exactly one store.
 
 Transfer lemmas (`….Thms`): `ScriptHolds.of_kernel` (below); `ScriptHolds.returnsOnly`,
 `ScriptHolds.trapsOnly` (the row of command `k`); `ReturnsOnly.returns`, `TrapsOnly.traps`
 (the weaker existence shapes); `Only.unique`, `ReturnsOnly.not_traps`,
-`TrapsOnly.not_returns` (an `…_only` row excludes every other outcome).
+`TrapsOnly.not_returns` (an `…_only` row excludes every other normal outcome);
+`ScriptAt.unique`; `Reaches.always`, `ReturnsOnly.always`, `TrapsOnly.always`,
+`ScriptHolds.always` (termination, below).
 
 **Profile.** `profile o` is the deterministic profile: canonical NaNs, `$ND = false`, and
 `memory.grow`/`table.grow` failing exactly when the oracle `o` says so. Every row of the slice
@@ -47,9 +69,28 @@ deterministic up to bubbling (`Det.DStep.join'`), so host-free normal forms are 
 specification profile `Profile.spec` (nondeterministic NaN payloads, relaxed SIMD, grow
 failure) uniqueness does not hold and an allowed-set shape is needed. None is implemented yet.
 
-**Termination.** A row's existence part is witnessed by the kernel run. Other runs are not
-claimed to terminate, but by determinism every run that reaches a normal form reaches the same
-one.
+### Termination
+
+The shapes do not mention divergence, but at `profile o` it is excluded by a theorem:
+
+```lean
+theorem Reaches.always (h : Reaches o m pre act r) : Always o m pre act r
+theorem ScriptHolds.always (h : ScriptHolds o m cmds) (k : Nat)
+    (hk : cmds[k]? = some ⟨act, some e⟩) :
+    Reaches o m (pre cmds k) act e.result ∧ Only o m (pre cmds k) act e.result ∧
+      Always o m (pre cmds k) act e.result
+```
+
+So every proved row also says: no host-free run of the command is infinite, and every finite
+host-free run extends to a normal form with the expected outcome. Proof
+(`Silmaril.Proofs.Project.Shapes.WasmWast.invokeNF_always`): Core reduction at `profile o` is
+not a function (a trap bubbles out at several context depths), but two successors of a
+configuration are joinable in at most one step each (`Det.DStep.join'`), and when they differ
+both have strictly smaller code (`Det.DStep.shrink`). A lexicographic induction on (distance to
+the normal form, code size) then rules out an infinite run from a configuration with a run to a
+normal form, and the diamond carries every finite run to that normal form. All of this is for
+host-free runs: a run that calls a host function stops at a normal form (a host call), which
+the `…_only` rows exclude as an outcome.
 
 ## The proof route
 
@@ -69,7 +110,7 @@ result, and the expected outcome. The proof (`Silmaril.Proofs.Project.Shapes.Was
 
 Every answer depends only on `propext`, `Classical.choice` and `Quot.sound`
 (`#print axioms Silmaril.Project.WasmWast.I32.l37`, `….Traps.l17`, `….I32.script0`,
-`ScriptHolds.of_kernel`).
+`ScriptHolds.of_kernel`, `Reaches.always`, `ScriptHolds.always`, `ScriptAt.unique`).
 
 ## The slice and its counts
 
@@ -112,8 +153,38 @@ Kernel time (one `lake build` of each generated module, one core): `I32.Thms` 36
 `gen.py oracle` runs the pinned wasmtime 50.0.0 (`tools/wasm-jco/tests/pins.sh`, binary SHA-256
 `f95e5beba6d176b447c2939607bae968ea47f87b156ddf559762f1bb3c00e9b7`) as `wasmtime wast` on one
 small script per command: the same module binary as `(module binary …)`, the actions before the
-command in that module, then the command. Results are in `examples/wasm-wast/oracle.json`, with
-the SHA-256 of each script:
+command in that module, then the command. Results are in `examples/wasm-wast/oracle.json`
+(schema `silmaril.wasm-wast.oracle.v0.2`), with their provenance:
+
+* `oracle`: tool, version, release URL, archive SHA-256
+  (`77c19ee0437991f9ac7837b9c269d9c7076744f85dad263fea5214cc2723c7ff`), binary SHA-256, the
+  output of `wasmtime --version` (`wasmtime 50.0.0 (ebe5e8df1 2026-10-20)`);
+* `inputs`: the spec pin, the converter pin, the SHA-256 of `report.json` and of each spec file;
+* `generated_at` (UTC) and `host`;
+* per command: `script_sha256` (the exact script given to wasmtime), the oracle verdict, the
+  kernel status, and wasmtime's error message on failure (local paths removed).
+
+Reproducing and checking it:
+
+```sh
+python3 -I tools/wasm-wast/gen.py fetch-wasmtime   # pinned archive, SHA-256 checked, binary SHA-256 checked
+python3 -I tools/wasm-wast/gen.py convert          # needs the spec and wasm-tools pins (below)
+python3 -I tools/wasm-wast/gen.py oracle           # rewrites oracle.json (fetches wasmtime if absent)
+python3 -I tools/wasm-wast/gen.py verify --scripts # no wasmtime: re-checks oracle.json
+```
+
+`fetch-wasmtime` downloads the release archive into a fresh temporary directory, checks its
+SHA-256, extracts only the `wasmtime` member, checks the binary's SHA-256, and installs it at
+the pinned path (`$SIL_TOOLS/wasmtime-50.0.0/wasmtime`). `verify` does not run wasmtime. It
+checks that the recorded tool provenance equals the pins, that `report.json` and the spec files
+have the recorded SHA-256, that the commands run are exactly those the report selects (with the
+report's statuses), and that the counts follow from the results. With the converted JSON present
+(`--scripts` requires it) it regenerates all 1140 scripts and compares their SHA-256; a fresh
+`convert` into an empty `WASM_WAST_WORK` reproduces all 1140. `verify` checks consistency of the
+record, not wasmtime's verdicts: those are re-obtained only by running `oracle` again. The
+whole `oracle` run takes about 10 s on one core (1140 scripts and the 6 upstream files).
+
+Results:
 
 * 1140 commands run: the 885 proved ones, and the 255 of `address.wast` with a native
   interpreter observation;
@@ -122,7 +193,8 @@ the SHA-256 of each script:
   fail on an `assert_invalid` text-parser message (`nan:arithmetic` in an `i32.const`), not on
   an execution command.
 
-The oracle is not run in CI.
+The oracle is not run in CI. A bounded CI job is proposed in
+[Confidence in the Wasm semantics](wasm-confidence.md#5-a-bounded-ci-oracle-job-proposal).
 
 ## Trust boundary
 
@@ -135,6 +207,9 @@ The oracle is not run in CI.
   `register`, named modules and the spectest host are not in this fragment.
 * **The binaries** are wasm-tools' output for the WAST text. The text-to-binary step is the
   pinned upstream tool's, not silmaril-lean's.
+* **The oracle** is test-wise agreement of an independent implementation on the scripts it was
+  given, not a proof; what it relies on is listed in
+  [Confidence in the Wasm semantics](wasm-confidence.md#4-external-oracle-trust-boundary).
 * **The generator** (`tools/wasm-wast/gen.py`) chooses which commands to give to the kernel from
   a native interpreter run. It cannot make a wrong row pass: every row is a kernel-checked
   theorem whose statement carries the module, the earlier actions, the action and the expected
@@ -157,11 +232,12 @@ The oracle is not run in CI.
 
 ```sh
 tools/wasm-tools/tests/fetch-pins.sh wasm-tools spec      # pinned, SHA-256 checked
-tools/wasm-jco/tests/install.sh                           # wasmtime 50.0.0 (only for `oracle`)
+python3 -I tools/wasm-wast/gen.py fetch-wasmtime          # wasmtime 50.0.0 only (for `oracle`)
 python3 -I tools/wasm-wast/gen.py convert                 # wasm-tools json-from-wast
 python3 -I tools/wasm-wast/gen.py probe                   # native classification (not a proof)
 python3 -I tools/wasm-wast/gen.py emit                    # Lean modules and report.json
-python3 -I tools/wasm-wast/gen.py oracle                  # oracle.json
+python3 -I tools/wasm-wast/gen.py oracle                  # oracle.json (fetches wasmtime if absent)
+python3 -I tools/wasm-wast/gen.py verify --scripts        # re-check oracle.json's provenance
 lake build --wfail Silmaril.Project.WasmWast.Thms         # the kernel checks
 python3 -I tools/wasm-wast/gen.py site .lake/silmaril     # report next to explore.html
 ```
