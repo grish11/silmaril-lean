@@ -88,8 +88,8 @@ public import Silmaril.Foundations.InfiniteTrace
   `mdivC_core_initial` (also under `Region.DivCallSound`): from `cfgEntry` these are Core 3.0
   divergence of the body (`Proofs/Wasm/Cfg/MachineDivC.lean`). Conversely `run_divC_initial`: a
   diverging region run with calls (`Region.RunDivC`) is `MDivC`; **`core_div_initialC`**: on
-  `FragC` bodies (direct calls only), Core divergence is `MDivC` under complete, guarded `C`
-  and `D`.
+  `FragC` bodies (direct, indirect and reference calls), Core divergence is `MDivC` under
+  complete, guarded `C` and `D`.
 
 * **Tail calls of null** (`MStepC.tailNull`): a `return_call_ref`/`return_call_indirect` of a
   null reference goes to `trap`, whose `Ends` admits the region's pending tail call of null
@@ -686,7 +686,7 @@ theorem run_divC_initial {D : Store H → Nat → List Val → Prop} {s : Store 
     MDivC P host C D body (initial body s f) :=
   Proofs.MachineDiv.run_divC_initial h
 
-/-- **Core divergence of a body with direct calls is machine divergence** (completeness): under
+/-- **Core divergence of a body with calls is machine divergence** (completeness): under
 a complete oracle `C` and a complete divergence predicate `D` (`Region.CallCompleteG`,
 `Region.DivCallComplete`), their guard `G` holding at every call the run reaches, a diverging
 Core 3.0 run of a body of the fragment with calls (`FragC`) is `MDivC` from the CFG entry. -/

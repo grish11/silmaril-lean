@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Cfg.Region.Defs
 public import Silmaril.Proofs.Wasm.Cfg.Exec
 public import Silmaril.Wasm.Execution.Core.Inversion.Thms
 public import Silmaril.Wasm.Abstract.CallRes.Thms
+public import Silmaril.Proofs.Wasm.Cfg.IndSteps
 
 @[expose] public section
 
@@ -994,16 +995,19 @@ theorem fragA_label {n : Nat} {cont : List Instr} {inner : List Admin}
   | val h => simp [Admin.val?] at h
   | label hc hi => exact ⟨hc, hi⟩
 
-theorem fragA_callRef {c : Admin} (h : FragAB cf c) (hc : c.IsCallRef) : False := by
+/-- The only `call_ref` form in the fragment is `call_ref y` (with calls). -/
+theorem fragA_callRef {c : Admin} (h : FragAB cf c) (hc : c.IsCallRef) :
+    ∃ y, cf = true ∧ c = .plain (.callRef y) := by
   have hv := Admin.val?_of_isCallRef hc
   have hk := Proofs.Exec.isCallRef_control hc
   cases h with
-  | val h => exact h hv
+  | val h => exact (h hv).elim
   | plain h =>
     cases h with
-    | simple h => exact h hk
-    | const h => exact h hv
+    | simple h => exact (h hk).elim
+    | const h => exact (h hv).elim
     | brData h => rename_i i; cases i <;> simp_all [Instr.IsBrData, Admin.IsCallRef]
+    | callRef y => exact ⟨y, rfl, rfl⟩
     | _ => simp [Admin.IsCallRef] at hc
   | trap => simp [Admin.IsCallRef] at hc
   | label => simp [Admin.IsCallRef] at hc
@@ -1065,6 +1069,59 @@ theorem run_simple_inv {s s' : Store H} {f f' : Frame} {vs : List Val} {i : Inst
   | simpleTrap _ h₁ => exact .inr ⟨rfl, h₁⟩
   | brData hb => cases hb <;> simp [Det.famOf] at hi
   | _ => simp [Det.famOf] at hi
+
+/-- **`call_indirect` from its unfolding** (every profile and host): a region run of
+`table.get x; ref.cast (ref null y); call_ref y` is a region run of `call_indirect x y`. The two
+first instructions run by Core reduction, as `CallRes.IndRes` predicts (`tableGet_vals_inv`,
+`refCast_vals_inv`, …); the `call_ref` is answered by the oracle as `RunC.callInd` answers it, or
+traps on null. -/
+theorem callInd_back {s s' : Store H} {f f' : Frame} {vs : List Val} {x : TableIdx}
+    {y : TypeIdx} {rest : List Admin} {o : Out}
+    (h : RunC P host C s f vs (.plain (.tableGet x) :: .plain (.refCast ⟨true, .typeIdx y⟩) ::
+      .plain (.callRef y) :: rest) s' f' o) :
+    RunC P host C s f vs (.plain (.callIndirect x y) :: rest) s' f' o := by
+  rcases run_simple_inv (famOf_tableGet' x) h with ⟨s₁, f₁, vs₁, hst, h₂⟩ | ⟨rfl, hst⟩
+  · obtain ⟨W, a, i, ta, ti, r, rfl, ht, hr, rfl, rfl, rfl⟩ := tableGet_vals_inv hst
+    rcases run_simple_inv (famOf_refCast' _) h₂ with ⟨s₂, f₂, vs₂, hst₂, h₃⟩ | ⟨rfl, hst₂⟩
+    · obtain ⟨W', r', he, hok, rfl, rfl, rfl⟩ := refCast_vals_inv hst₂
+      obtain ⟨rfl, hrr⟩ := List.append_inj' he rfl
+      simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
+      subst hrr
+      generalize hW : W ++ [Val.ref r] = St at h₃
+      cases h₃ with
+      | callRef hfi hty hn hcall hvs hk =>
+        obtain ⟨rfl, hrr⟩ := List.append_inj' hW rfl
+        simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
+        subst hrr
+        exact .callInd (.func ht hr hok) hfi hty hn hcall hvs hk
+      | callRefTrap hfi hty hn hcall =>
+        obtain ⟨rfl, hrr⟩ := List.append_inj' hW rfl
+        simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
+        subst hrr
+        exact .callIndTrap (.func ht hr hok) hfi hty hn hcall
+      | callRefThrow hfi hty hn hcall =>
+        obtain ⟨rfl, hrr⟩ := List.append_inj' hW rfl
+        simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
+        subst hrr
+        exact .callIndThrow (.func ht hr hok) hfi hty hn hcall
+      | callRefNull =>
+        obtain ⟨rfl, hrr⟩ := List.append_inj' hW rfl
+        simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
+        subst hrr
+        exact .callIndRes (.null ht hr hok)
+      | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+      | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
+      | val hv => simp [Admin.val?] at hv
+      | simple hi => simp [Det.famOf] at hi
+      | simpleTrap hi => simp [Det.famOf] at hi
+      | brData hb => cases hb
+    · obtain ⟨W', r', he, hok, rfl, rfl⟩ := refCast_trap_inv hst₂
+      obtain ⟨rfl, hrr⟩ := List.append_inj' he rfl
+      simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
+      subst hrr
+      exact .callIndRes (.castFail ht hr hok)
+  · obtain ⟨W, a, i, ta, ti, rfl, ht, hl, rfl, rfl⟩ := tableGet_trap_inv hst
+    exact .callIndRes (.oob ht hl)
 
 /-- A run of simple code followed by `es` runs the simple code by Core reduction first. -/
 theorem run_simple_split {es : List Admin} :
@@ -1260,6 +1317,7 @@ theorem callAt_seq {vs : List Val} {is rest : List Admin} (h : CallAt is) :
     CallAt (vals vs ++ is ++ rest) := by
   cases h with
   | here => simpa using CallAt.here (ws := vs ++ _) (rest := _ ++ rest)
+  | hereRef => simpa using CallAt.hereRef (ws := vs ++ _) (rest := _ ++ rest)
   | label h => simpa using CallAt.label (ws := vs ++ _) (rest := _ ++ rest) h
   | handler h => simpa using CallAt.handler (ws := vs ++ _) (rest := _ ++ rest) h
 
@@ -1579,10 +1637,41 @@ theorem expandB {c c₁ : Config H} (h : Step P host c c₁) : FragB cf c.code �
     intro hF hnc
     have hi := fragA_handler (frag_single hF)
     exact (fragA_retCallRef (hi _ (by simp)) hc).elim
-  | @callRefNull _ _ c hc => intro hF hnc; exact (fragA_callRef (hF c (by simp)) hc).elim
-  | @callRefFunc _ _ c _ _ _ _ _ _ hc => intro hF hnc; exact (fragA_callRef (hF c (by simp)) hc).elim
-  | @callRefHost _ _ _ c _ _ _ _ _ _ _ hc => intro hF hnc; exact (fragA_callRef (hF c (by simp)) hc).elim
-  | @callRefHostDiv _ _ c _ _ _ _ _ _ hc => intro hF hnc; exact (fragA_callRef (hF c (by simp)) hc).elim
+  | @callRefNull s f c hc =>
+    intro hF hnc
+    obtain ⟨y, -, rfl⟩ := fragA_callRef (hF c (by simp)) hc
+    refine ⟨fun a ha => by simp at ha; subst ha; exact .trap, ?_⟩
+    intro vs s' f' o hr
+    obtain ⟨rfl, rfl, rfl⟩ := run_trap_inv hr
+    exact .val (v := .ref .null) rfl (RunC.callRefNull (ws := vs) (code := []))
+  | @callRefFunc _ _ c vs _ _ _ _ _ hc =>
+    intro hF hnc
+    obtain ⟨y, -, rfl⟩ := fragA_callRef (hF c (by simp)) hc
+    exact (hnc (by simpa using CallAt.hereRef (ws := vs) (y := y) (rest := []))).elim
+  | @callRefHost _ _ _ c vs _ _ _ _ _ _ hc =>
+    intro hF hnc
+    obtain ⟨y, -, rfl⟩ := fragA_callRef (hF c (by simp)) hc
+    exact (hnc (by simpa using CallAt.hereRef (ws := vs) (y := y) (rest := []))).elim
+  | @callRefHostDiv _ _ c vs _ _ _ _ _ hc =>
+    intro hF hnc
+    obtain ⟨y, -, rfl⟩ := fragA_callRef (hF c (by simp)) hc
+    exact (hnc (by simpa using CallAt.hereRef (ws := vs) (y := y) (rest := []))).elim
+  | @callIndirect s f x y =>
+    intro hF hnc
+    have hI := fragA_plain (frag_single hF)
+    cases hI with
+    | simple h => simp [Det.famOf] at h
+    | const h => simp [Admin.val?] at h
+    | brData h => simp [Instr.IsBrData] at h
+    | callIndirect =>
+      refine ⟨fun a ha => by
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with rfl | rfl | rfl
+        · exact .plain (.simple (famOf_tableGet' x))
+        · exact .plain (.simple (famOf_refCast' _))
+        · exact .plain (.callRef y), ?_⟩
+      intro vs s' f' o hr
+      exact callInd_back hr
   | @brTableLt s f k ls l' l hi =>
     intro _ hnc; simpa [vals, Val.toAdmin, constI32, Val.i32] using
       expand_br (P := P) (host := host) (BrStep.tableLt (s := s) (f := f) (l' := l') hi)
@@ -1621,6 +1710,15 @@ theorem frag_not_callAt {code : List Admin} (h : CallAt code) : ¬ Frag code := 
   | @here ws x rest =>
     intro hF
     have := hF (.plain (.call x)) (by simp)
+    cases this with
+    | val h => simp [Admin.val?] at h
+    | plain h => cases h with
+      | simple h => simp [Det.famOf] at h
+      | const h => simp [Admin.val?] at h
+      | brData h => simp [Instr.IsBrData] at h
+  | @hereRef ws a y rest =>
+    intro hF
+    have := hF (.plain (.callRef y)) (by simp)
     cases this with
     | val h => simp [Admin.val?] at h
     | plain h => cases h with
@@ -1785,6 +1883,37 @@ theorem frame_complete {s s' : Store H} {f f' fi : Frame} {n : Nat} {inner c' : 
         exact (fragA_retCallRef (hF c (by simp)) hc).elim
       | @returnCallAddr vs' vs a c rest fn ps rs hc =>
         exact (fragA_retCallRef (hF c (by simp)) hc).elim
+
+
+/-- A step of the hole lifts through a context. -/
+theorem step_fill_lift {host : HostSemantics H} :
+    ∀ (E : Ctx) {s s' : Store H} {f f' : Frame} {X X' : List Admin},
+      Step P host ⟨s, f, X⟩ ⟨s', f', X'⟩ → Step P host ⟨s, f, E.fill X⟩ ⟨s', f', E.fill X'⟩
+  | .hole, _, _, _, _, _, _, h => h
+  | .label ws n cont E rest, _, _, _, _, _, _, h => by
+    simpa [Ctx.fill] using step_in (P := P) (host := host) ws rest (Step.ctxtLabel (step_fill_lift E h))
+  | .handler ws n cs E rest, _, _, _, _, _, _, h => by
+    simpa [Ctx.fill] using step_in (P := P) (host := host) ws rest
+      (Step.ctxtHandler (step_fill_lift E h))
+
+/-- **The guard at a direct call**: a direct call steps to the `call_ref` of its callee's type,
+which the guard covers. -/
+theorem guarded_call {G : Store H → Nat → List Val → Prop} {c₀ : Config H}
+    (hG : GuardedCalls P host G c₀) {c₂ : Config H} {E : Ctx} {ws us : List Val} {x : FuncIdx}
+    {rest : List Admin} {a : Nat} {fi : FuncInst H} {ps rs : Ty (.list .val)}
+    (h : Steps P host c₀ c₂) (hc : c₂.code = E.fill (vals (ws ++ us) ++ .plain (.call x) :: rest))
+    (hx : c₂.frame.module.funcs[x.toNat]? = some a) (hfi : c₂.store.funcs[a]? = some fi)
+    (he : Expand fi.type (.func ps rs)) (hn : us.length = ps.length) : G c₂.store a us := by
+  obtain ⟨s₂, f₂, code₂⟩ := c₂
+  simp only at hc hx hfi ⊢
+  subst hc
+  have hstep : Step P host
+      ⟨s₂, f₂, E.fill (vals (ws ++ us) ++ .plain (.call x) :: rest)⟩
+      ⟨s₂, f₂, E.fill (vals (ws ++ us) ++ .ref (.func a) :: .callRefType fi.type :: rest)⟩ :=
+    step_fill_lift E (by
+      simpa using step_in (P := P) (host := host) (ws ++ us) rest (Step.call (s := s₂) (f := f₂) hx hfi))
+  exact hG _ E ws us a _ rest fi ps rs (h.tail hstep) rfl trivial (fun d hd => by cases hd; rfl) hfi
+    he hn
 
 end Silmaril.Wasm.Cfg.Proofs.Region
 

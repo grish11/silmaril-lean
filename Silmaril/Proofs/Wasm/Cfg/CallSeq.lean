@@ -375,4 +375,40 @@ theorem call_incl {G : Store H → Nat → List Val → Prop} {C : Abstract.Call
     obtain ⟨rfl, rfl, rfl⟩ := run_throwing_inv (by simpa [Result.toAdmin] using hr')
     exact hth t rfl
 
+/-- **A Core-answered call by reference is a region-run inclusion**: the analogue of `call_incl`
+for `ref.func a; call_ref y`. -/
+theorem callRef_incl {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
+    (hC : CallCompleteG P host G C) {s s₁ : Store H} {f : Frame} {ws us : List Val}
+    {a : Nat} {y : TypeIdx} {fi : FuncInst H} {ps rs : Ty (.list .val)} {rest : List Admin}
+    {r : Result} (hfi : s.funcs[a]? = some fi) (he : Expand fi.type (.func ps rs))
+    (hn : us.length = ps.length) (hG : G s a us)
+    (hcall : Steps P host ⟨s, f, vals us ++ [.ref (.func a), .plain (.callRef y)]⟩
+      ⟨s₁, f, r.toAdmin⟩) :
+    ∀ {o : Out} {s₂ : Store H} {f₂ : Frame},
+      RunC P host C s₁ f [] (vals ws ++ r.toAdmin ++ rest) s₂ f₂ o →
+        RunC P host C s f [] (vals (ws ++ us) ++ .ref (.func a) :: .plain (.callRef y) :: rest)
+          s₂ f₂ o := by
+  intro o s₂ f₂ hr
+  have hty := funcType_of_expand he
+  obtain ⟨-, fl, hc, hres⟩ := hC s s₁ f f a fi _ _ us (.plain (.callRef y)) r hG trivial hfi hty hn
+    hcall
+  apply run_vals (vs := [])
+  have hr' := run_vals_inv (vs := []) (ws := ws) (by simpa [List.append_assoc] using hr)
+  simp only [List.nil_append] at hr' ⊢
+  refine .val (v := .ref (.func a)) rfl ?_
+  cases r with
+  | values vs =>
+    obtain ⟨w, hw, rfl⟩ := hres
+    have h1 : RunC P host C s₁ f ws (vals (w.take rs.toList.length).reverse ++ rest) s₂ f₂ o := by
+      simpa [Result.toAdmin] using hr'
+    exact .callRef hfi hty hn hc hw (run_vals_inv h1)
+  | trap =>
+    obtain ⟨rfl, rfl, rfl⟩ := run_trap_inv (by simpa [Result.toAdmin] using hr')
+    simp only [FlowRes] at hres; subst hres
+    exact .callRefTrap hfi hty hn hc
+  | throw t =>
+    obtain ⟨rfl, rfl, rfl⟩ := run_throwing_inv (by simpa [Result.toAdmin] using hr')
+    simp only [FlowRes] at hres; subst hres
+    exact .callRefThrow hfi hty hn hc
+
 end Silmaril.Wasm.Cfg.Proofs.Region

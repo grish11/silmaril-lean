@@ -16,7 +16,7 @@ In the region semantics `return_call_indirect x y` runs as `table.get x; ref.cas
 return_call_ref y`, the first two by Core reduction. At the deterministic profile without host,
 host-free normal forms are unique (`eq_of_steps_of_nf`), so the Core runs of `table.get` and
 `ref.cast` are the ones `CallRes` predicts (`tableGet_steps`, `refCast_steps`, …): the first Core
-step is inverted (`famStep_tableGet_inv`, `famStep_refCast_inv`) and the rest is forced.
+step is inverted (`Proofs.Region.famStep_tableGet_inv`, `Proofs.Region.famStep_refCast_inv`) and the rest is forced.
 
 `run_rci_inv`: a region run of `return_call_indirect` whose outcome is not a pending tail call of a
 function resolves the index to no callee (`CallRes.IndRes … none`) and ends in a trap or a
@@ -30,94 +30,7 @@ open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Region Silmaril.Wasm.Exec
 
 variable {H : Type} {C : Abstract.CallRel H}
 
-theorem vals_snoc_two {vs : List Val} {p q d : Admin} (h : vals vs ++ [p] = [q, d]) :
-    ∃ v, vs = [v] ∧ v.toAdmin = q ∧ p = d := by
-  rcases vs with _ | ⟨v, _ | ⟨w, vs⟩⟩
-  · simp [vals] at h
-  · simp only [vals, List.map_cons, List.map_nil, List.cons_append, List.nil_append,
-      List.cons.injEq, and_true] at h
-    exact ⟨v, rfl, h.1, h.2⟩
-  · simp only [vals, List.map_cons, List.cons_append, List.cons.injEq] at h
-    obtain ⟨-, -, h3⟩ := h
-    cases vs <;> simp at h3
-
-theorem toAdmin_aconst {v : Val} {a : AddrType} {i : BitVec a.intType.width}
-    (h : v.toAdmin = aconst a i) : v = .num ⟨.int a.intType, i⟩ := by
-  have h1 := congrArg Admin.val? h
-  rw [Admin.val?_toAdmin] at h1
-  exact Option.some.inj h1
-
-theorem toAdmin_ref {v : Val} {r : Ref} (h : v.toAdmin = .ref r) : v = .ref r := by
-  have h1 := congrArg Admin.val? h
-  rw [Admin.val?_toAdmin] at h1
-  exact Option.some.inj h1
-
 variable {P : Profile}
-
-set_option linter.unusedTactic false in
-/-- **The first step of `table.get`**, inverted. -/
-theorem famStep_tableGet_inv {s : Store H} {f : Frame} {vs : List Val} {x : TableIdx}
-    {c₀ : Config H} (h : FamStep P ⟨s, f, vals vs ++ [.plain (.tableGet x)]⟩ c₀) :
-    ∃ a i ta ti, vs = [.num ⟨.int (AddrType.intType a), i⟩] ∧ s.table? f x = some (ta, ti) ∧
-      ((∃ r, ti.refs[i.toNat]? = some r ∧ c₀ = ⟨s, f, [.ref r]⟩) ∨
-        (ti.refs.length ≤ i.toNat ∧ c₀ = ⟨s, f, [.trap]⟩)) := by
-  generalize hc : (⟨s, f, vals vs ++ [.plain (.tableGet x)]⟩ : Config H) = c at h
-  cases h with
-  | table h =>
-    cases h <;> simp only [Config.mk.injEq] at hc <;>
-      first
-        | (have h2 := congrArg List.getLast? hc.2.2; simp at h2; done)
-        | skip
-    · rename_i a i ta ti ht hl
-      obtain ⟨rfl, rfl, hc⟩ := hc
-      obtain ⟨v, rfl, hv, hx⟩ := vals_snoc_two hc
-      simp only [Admin.plain.injEq, Instr.tableGet.injEq] at hx
-      subst hx
-      exact ⟨a, i, ta, ti, by rw [toAdmin_aconst hv], ht, .inr ⟨hl, rfl⟩⟩
-    · rename_i a i ta ti r ht hr
-      obtain ⟨rfl, rfl, hc⟩ := hc
-      obtain ⟨v, rfl, hv, hx⟩ := vals_snoc_two hc
-      simp only [Admin.plain.injEq, Instr.tableGet.injEq] at hx
-      subst hx
-      exact ⟨a, i, ta, ti, by rw [toAdmin_aconst hv], ht, .inl ⟨r, hr, rfl⟩⟩
-  | _ =>
-    rename_i h
-    cases h <;>
-    (simp only [Config.mk.injEq] at hc
-     have h2 := congrArg List.getLast? hc.2.2
-     simp at h2)
-
-set_option linter.unusedTactic false in
-/-- **The first step of `ref.cast`**, inverted. -/
-theorem famStep_refCast_inv {s : Store H} {f : Frame} {vs : List Val} {rt : RefType}
-    {c₀ : Config H} (h : FamStep P ⟨s, f, vals vs ++ [.plain (.refCast rt)]⟩ c₀) :
-    ∃ r, vs = [.ref r] ∧ ((RefOk s r (f.module.instRef rt) ∧ c₀ = ⟨s, f, [.ref r]⟩) ∨
-      (¬ RefOk s r (f.module.instRef rt) ∧ c₀ = ⟨s, f, [.trap]⟩)) := by
-  generalize hc : (⟨s, f, vals vs ++ [.plain (.refCast rt)]⟩ : Config H) = c at h
-  cases h with
-  | reference h =>
-    cases h <;> simp only [Config.mk.injEq] at hc <;>
-      first
-        | (have h2 := congrArg List.getLast? hc.2.2; simp at h2; done)
-        | skip
-    · rename_i r rt' hok
-      obtain ⟨rfl, rfl, hc⟩ := hc
-      obtain ⟨v, rfl, hv, hx⟩ := vals_snoc_two hc
-      simp only [Admin.plain.injEq, Instr.refCast.injEq] at hx
-      subst hx
-      exact ⟨r, by rw [toAdmin_ref hv], .inl ⟨hok, rfl⟩⟩
-    · rename_i r rt' hok
-      obtain ⟨rfl, rfl, hc⟩ := hc
-      obtain ⟨v, rfl, hv, hx⟩ := vals_snoc_two hc
-      simp only [Admin.plain.injEq, Instr.refCast.injEq] at hx
-      subst hx
-      exact ⟨r, by rw [toAdmin_ref hv], .inr ⟨hok, rfl⟩⟩
-  | _ =>
-    rename_i h
-    cases h <;>
-    (simp only [Config.mk.injEq] at hc
-     have h2 := congrArg List.getLast? hc.2.2
-     simp at h2)
 
 /-! ## Forced Core runs -/
 
@@ -203,7 +116,7 @@ theorem run_rci_cases {s s' : Store H} {f f' : Frame} {us : List Val} {x : Table
       ⟨s₁, f₁, vs₁, hst, h₂⟩ | ⟨rfl, hst⟩
     · obtain ⟨ws, vs, c₀, rfl, hf, hrest⟩ := first_step (Proofs.Region.famOf_tableGet x) hst
         (vals_ne_snoc_plain (by simp [Admin.val?]))
-      obtain ⟨a, i, ta, ti, rfl, ht, ⟨r, hr, rfl⟩ | ⟨hl, rfl⟩⟩ := famStep_tableGet_inv hf
+      obtain ⟨a, i, ta, ti, rfl, ht, ⟨r, hr, rfl⟩ | ⟨hl, rfl⟩⟩ := Proofs.Region.famStep_tableGet_inv hf
       · have he := steps_nf_eq (by rw [← Proofs.Region.vals_snoc_ref]; exact vals_nf (o := o) s f (ws ++ [.ref r])) hrest
         simp only [Config.mk.injEq] at he
         obtain ⟨hs, hf, hv⟩ := he
@@ -214,7 +127,7 @@ theorem run_rci_cases {s s' : Store H} {f f' : Frame} {us : List Val} {x : Table
           ⟨s₂, f₂, vs₂, hst₂, h₃⟩ | ⟨rfl, hst₂⟩
         · obtain ⟨ws', vs', c₀', he', hf', hrest'⟩ := first_step (Proofs.Region.famOf_refCast _)
             hst₂ (vals_ne_snoc_plain (by simp [Admin.val?]))
-          obtain ⟨r', rfl, ⟨hok, rfl⟩ | ⟨hok, rfl⟩⟩ := famStep_refCast_inv hf'
+          obtain ⟨r', rfl, ⟨hok, rfl⟩ | ⟨hok, rfl⟩⟩ := Proofs.Region.famStep_refCast_inv hf'
           · obtain ⟨rfl, hrr⟩ := List.append_inj' he' rfl
             simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
             subst hrr
@@ -248,7 +161,7 @@ theorem run_rci_cases {s s' : Store H} {f f' : Frame} {us : List Val} {x : Table
               (vals_nf (o := o) _ _ _) (trap_nf (o := o) _ _))) vals_ne_trap
         · obtain ⟨ws', vs', c₀', he', hf', hrest'⟩ := first_step (Proofs.Region.famOf_refCast _)
             hst₂ trap_ne_snoc_plain
-          obtain ⟨r', rfl, ⟨hok, rfl⟩ | ⟨hok, rfl⟩⟩ := famStep_refCast_inv hf'
+          obtain ⟨r', rfl, ⟨hok, rfl⟩ | ⟨hok, rfl⟩⟩ := Proofs.Region.famStep_refCast_inv hf'
           · obtain ⟨rfl, hrr⟩ := List.append_inj' he' rfl
             simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
             subst hrr
@@ -268,7 +181,7 @@ theorem run_rci_cases {s s' : Store H} {f f' : Frame} {us : List Val} {x : Table
           (vals_nf (o := o) _ _ _) (trap_nf (o := o) _ _))) vals_ne_trap
     · obtain ⟨ws, vs, c₀, rfl, hf, hrest⟩ := first_step (Proofs.Region.famOf_tableGet x) hst
         trap_ne_snoc_plain
-      obtain ⟨a, i, ta, ti, rfl, ht, ⟨r, hr, rfl⟩ | ⟨hl, rfl⟩⟩ := famStep_tableGet_inv hf
+      obtain ⟨a, i, ta, ti, rfl, ht, ⟨r, hr, rfl⟩ | ⟨hl, rfl⟩⟩ := Proofs.Region.famStep_tableGet_inv hf
       · have he := steps_nf_eq (by rw [← Proofs.Region.vals_snoc_ref]; exact vals_nf (o := o) s f (ws ++ [.ref r])) hrest
         exact absurd (congrArg Config.code he).symm (snoc_ref_ne_trap ws r)
       · have he := uniq hrest

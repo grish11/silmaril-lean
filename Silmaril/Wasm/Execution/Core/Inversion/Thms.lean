@@ -95,6 +95,14 @@ theorem Step.callRef_wasm_inv {vs : List Val} {a : Nat} {r : Admin} {fi : FuncIn
         [.label rs.length [] (expression code.body)]]⟩ :=
   Proofs.Inversion.callRef_wasm_inv h hr hf hcode rfl
 
+/-- **A `call_ref` step, by its reference**: on null it traps in place (`call_ref-null`, under the
+values below); otherwise the reference is to a function in the store. -/
+theorem Step.callRef_top_inv {vs : List Val} {r : Admin} (hr : r.IsCallRef)
+    (h : Step P host ⟨s, f, vals vs ++ [r]⟩ c) :
+    (∃ ws, vs = ws ++ [.ref .null] ∧ c = ⟨s, f, vals ws ++ [.trap]⟩) ∨
+      ∃ ws a fi, vs = ws ++ [.ref (.func a)] ∧ s.funcs[a]? = some fi :=
+  Proofs.Inversion.callRef_top_inv h hr rfl
+
 /-- With exactly the callee's arguments, the step is the `call_ref-func` rule. -/
 theorem Step.callRef_wasm_inv_exact {vs : List Val} {a : Nat} {r : Admin} {fi : FuncInst H}
     {code : Func} {ps rs : Ty (.list .val)} (hr : r.IsCallRef) (hf : s.funcs[a]? = some fi)
@@ -142,6 +150,21 @@ theorem Step.callRef_wasm_inv_seq {vs : List Val} {a : Nat} {r : Admin} {fi : Fu
       c = ⟨s, f, vals vs₁ ++ .frame rs.length (Frame.forCall fi.module vs₂ code.locals)
         [.label rs.length [] (expression code.body)] :: rest⟩ :=
   Proofs.Inversion.callRef_wasm_inv_seq hr hf hcode h
+
+/-- The sequence form of `Step.callRef_top_inv`, with a continuation `rest` left untouched. -/
+theorem Step.callRef_top_inv_seq {vs : List Val} {r : Admin} {rest : List Admin}
+    (hr : r.IsCallRef) (h : Step P host ⟨s, f, vals vs ++ r :: rest⟩ c) :
+    (∃ ws, vs = ws ++ [.ref .null] ∧ c = ⟨s, f, vals ws ++ .trap :: rest⟩) ∨
+      ∃ ws a fi, vs = ws ++ [.ref (.func a)] ∧ s.funcs[a]? = some fi :=
+  Proofs.Inversion.callRef_top_inv_seq hr h
+
+/-- `call_indirect` in a sequence only unfolds into `table.get; ref.cast (ref null y);
+call_ref y` (`Step_pure/call_indirect`, under the values and before the continuation). -/
+theorem Step.callIndirect_vals_inv_seq {vs : List Val} {x : TableIdx} {y : TypeIdx}
+    {rest : List Admin} (h : Step P host ⟨s, f, vals vs ++ .plain (.callIndirect x y) :: rest⟩ c) :
+    c = ⟨s, f, vals vs ++ .plain (.tableGet x) :: .plain (.refCast ⟨true, .typeIdx y⟩) ::
+      .plain (.callRef y) :: rest⟩ :=
+  Proofs.Inversion.callIndirect_vals_inv_seq h
 
 theorem Step.loop_vals_inv {us : List Val} {bt : BlockType} {body : List Instr}
     (h : Step P host ⟨s, f, vals us ++ [.plain (.loop bt body)]⟩ c) :

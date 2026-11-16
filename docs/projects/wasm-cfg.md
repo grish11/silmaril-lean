@@ -379,11 +379,20 @@ The plain graph stays an over-approximation, and claims about it say so.
       to direct calls. `div_soundC`, `bodyCallDiv_core` and `mdivC_core_initial` cover them under the
       same hypotheses (`CallSoundA`, `DivCallSound`, both stated for every `call_ref` form). A null
       table entry, null reference or failed cast traps (`RunC.callIndRes`, `RunC.callRefNull`) and
-      has no divergence constructor. **Open:** the completeness side (`div_completeC`,
-      `core_div_initialC`) is on `FragC`, direct calls only; extending it needs `FragC`,
-      `GuardedCalls` and finite `completeC` for the indirect and reference forms. Divergence
-      through a tail callee (frame replacement, bypassing the caller's handlers and pending code)
-      is also open.
+      has no divergence constructor.
+    - **Callee divergence of every call form, completeness side:** `FragC` now has `call_indirect`
+      and `call_ref`. `GuardedCalls` guards every `call_ref` of a function reference the run
+      reaches, and a direct call's guard follows in one step (`guarded_call`). Finite completeness
+      (`completeC`, `run_completeC`) rebuilds `call_indirect` from its Core unfolding
+      `table.get; ref.cast; call_ref` (`callInd_back`, via the profile-generic inversions in
+      `Proofs/Wasm/Cfg/IndSteps.lean`), and answers `call_ref` of a function by `callRef_incl`.
+      Divergence completeness (`div_completeC`, hence `core_div_initialC`, `core_div_closed` and
+      `mdivC_iff_core_closed_typed`) has `div_callInd`/`div_callRef`: the call diverges in the
+      callee (`D`), or is answered with values and the continuation diverges. An unresolved index
+      or null reference traps and never diverges. New Core inversions: `Step.callRef_top_inv(_seq)`
+      and `Step.callIndirect_vals_inv_seq`. **Open:** divergence through a tail callee (frame
+      replacement, bypassing the caller's handlers and pending code; `FragC` has no `return_call*`),
+      regression examples, and the function-level corollary via `invoke_diverges_iff_funDivX`.
     - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
       `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
       Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the

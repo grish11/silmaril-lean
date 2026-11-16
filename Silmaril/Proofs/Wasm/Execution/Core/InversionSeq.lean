@@ -60,4 +60,37 @@ theorem callRef_wasm_inv_seq {s : Store H} {f : Frame} {c : Config H} {vs : List
   · simp [Admin.IsCallRef] at hr
   · simp [Admin.IsCallRef] at hr
 
+/-- **A `call_ref` step in a sequence, by its reference**: on null it traps in place, before the
+untouched continuation; otherwise the reference is to a function in the store. -/
+theorem callRef_top_inv_seq {s : Store H} {f : Frame} {c : Config H} {vs : List Val} {r : Admin}
+    {rest : List Admin} (hr : r.IsCallRef) (h : Step P host ⟨s, f, vals vs ++ r :: rest⟩ c) :
+    (∃ ws, vs = ws ++ [.ref .null] ∧ c = ⟨s, f, vals ws ++ .trap :: rest⟩) ∨
+      ∃ ws a fi, vs = ws ++ [.ref (.func a)] ∧ s.funcs[a]? = some fi := by
+  obtain ⟨s', f', es'⟩ := c
+  rcases Sim.Step.split_head (Admin.val?_of_isCallRef hr) h with
+    ⟨ws', us', is', rfl, hstep, rfl⟩ | ⟨rfl, -⟩ | ⟨rfl, -⟩
+  · rcases callRef_top_inv hstep hr rfl with ⟨ws, rfl, he⟩ | ⟨ws, a, fi, rfl, hf⟩
+    · simp only [Config.mk.injEq] at he
+      obtain ⟨rfl, rfl, rfl⟩ := he
+      exact .inl ⟨ws' ++ ws, by simp, by simp⟩
+    · exact .inr ⟨ws' ++ ws, a, fi, by simp, hf⟩
+  · simp [Admin.IsCallRef] at hr
+  · simp [Admin.IsCallRef] at hr
+
+/-- The sequence form of `callIndirect_vals_inv`. -/
+theorem callIndirect_vals_inv_seq {s : Store H} {f : Frame} {c : Config H} {vs : List Val}
+    {x : TableIdx} {y : TypeIdx} {rest : List Admin}
+    (h : Step P host ⟨s, f, vals vs ++ .plain (.callIndirect x y) :: rest⟩ c) :
+    c = ⟨s, f, vals vs ++ .plain (.tableGet x) :: .plain (.refCast ⟨true, .typeIdx y⟩) ::
+      .plain (.callRef y) :: rest⟩ := by
+  obtain ⟨s', f', es'⟩ := c
+  rcases Sim.Step.split_head (a := .plain (.callIndirect x y)) rfl h with
+    ⟨ws, us, is', rfl, hstep, rfl⟩ | ⟨h1, -⟩ | ⟨h1, -⟩
+  · have hc := callIndirect_vals_inv hstep rfl
+    simp only [Config.mk.injEq] at hc
+    obtain ⟨rfl, rfl, rfl⟩ := hc
+    simp
+  · cases h1
+  · cases h1
+
 end Silmaril.Wasm.Execution.Core.Proofs.Inversion
