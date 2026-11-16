@@ -20,12 +20,15 @@ problems over the registered definitions:
 Every claim is a theorem: there is no row without a proof. Scope notes kept in the titles:
 `safeInteger` is only I-JSON's integer range (not I-JSON); the Python spellings are not JSON;
 `atprotoCoreExactCid` is the CBOR-level core of the atproto data model (no floats, signed
-64-bit integers, DASL CIDs), not atproto record, blob, reserved-field or Lexicon validity. Every
+64-bit integers, DASL CIDs (12, 32)), not atproto record, blob, reserved-field or Lexicon validity. Every
 DRISL title names its CID rule and its **CID boundary**: whether bytes may follow a CID's digest
 inside tag 42 is not settled by the pinned DASL CID text, so `exact` (none) and `prefix`
 (allowed) are explicit assumptions (`Silmaril.Formats.Cbor.Drisl.CidBoundary`). The CID rules pair codecs
-`55, 71` with the (multihash, length) pairs `(12, 32)` for DASL and `(12, 32), (1E, 32)` for
-BDASL (`Silmaril.Formats.Cbor.Drisl.LinkRule`).
+`55, 71` with an allowlist of (multihash code, digest length in bytes) **pairs**, not hash
+functions alone: `(12, 32)` for DASL and `(12, 32), (1E, 32)` for BDASL; a CID's declared
+length must be one of the pairs together with its code, and the digest has exactly that many
+bytes; the empty pair list (`drislNoLinks`) admits no tag 42. Titles write the pairs as
+`(code, length)`, hexadecimal code and decimal length (`Silmaril.Formats.Cbor.Drisl.LinkRule`).
 -/
 
 namespace Silmaril.Project.Languages.Catalogue
@@ -34,7 +37,7 @@ namespace Silmaril.Project.Languages.Catalogue
 
 /-- RFC 8259 §6 number tokens (`Silmaril.Formats.JsonNumbers.rfc`). -/
 def jsonNumberRfc : Set (List UInt8) := Silmaril.Formats.JsonNumbers.rfc
-/-- DRISL without floats, DASL CIDs, exact CID boundary
+/-- DRISL without floats, DASL CIDs (12, 32), exact CID boundary
 (`Silmaril.Formats.Cbor.Drisl.language .drislNoFloatsExactCid`). -/
 def drislNoFloatsExactCid : Set (List UInt8) :=
   Silmaril.Formats.Cbor.Drisl.language .drislNoFloatsExactCid
@@ -48,8 +51,8 @@ silmaril language formats.json.numbers.rfc := Silmaril.Project.Languages.Catalog
   (doc := "The number rule of RFC 8259 §6: [ minus ] int [ frac ] [ exp ]; no range or precision limit")
 silmaril language formats.cbor.drisl.language_drisl_no_floats_exact_cid :=
   Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid (domain := bytes) (op := decl)
-  (title := "DRISL without floats (DASL CIDs, exact CID boundary)") (source := drisl)
-  (doc := "Profile.drislNoFloatsExactCid: DRISL with major type 7 floats excluded; CIDs: codecs 55, 71 with (multihash 12, 32 bytes)")
+  (title := "DRISL without floats (DASL CIDs (12, 32), exact CID boundary)") (source := drisl)
+  (doc := "Profile.drislNoFloatsExactCid: DRISL with major type 7 floats excluded; CIDs: codecs 55, 71 with the (multihash code, digest length) pair (12, 32)")
 
 open Silmaril.Project.Shapes in
 section
@@ -75,21 +78,21 @@ silmaril instance formats.catalogue.json_number_rfc_leading_zero (expect := CSA)
 public theorem catalogue_json_number_rfc_leading_zero : ¬ Member Silmaril.Project.Languages.Catalogue.jsonNumberRfc ("01".toUTF8.toList : List UInt8) :=
   (show ("01".toUTF8.toList : List UInt8) ∉ Silmaril.Project.Languages.Catalogue.jsonNumberRfc from (by decide +kernel : ("01".toUTF8.toList : List UInt8) ∉ Silmaril.Formats.JsonNumbers.rfc))
 
-silmaril instance formats.catalogue.drisl_no_floats_int (expect := THM) (title := "[0x01] ∈ DRISL without floats (DASL CIDs, exact CID boundary)") :=
+silmaril instance formats.catalogue.drisl_no_floats_int (expect := THM) (title := "[0x01] ∈ DRISL without floats (DASL CIDs (12, 32), exact CID boundary)") :=
   silmaril.shapes.language.member (L := Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid) (x := ([0x01] : List UInt8))
 
 @[answers "formats.catalogue.drisl_no_floats_int" thm]
 public theorem catalogue_drisl_no_floats_int : Member Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid ([0x01] : List UInt8) :=
   (show ([0x01] : List UInt8) ∈ Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid from (by decide +kernel : ([0x01] : List UInt8) ∈ Silmaril.Formats.Cbor.Drisl.language .drislNoFloatsExactCid))
 
-silmaril instance formats.catalogue.drisl_no_floats_float (expect := CSA) (title := "[0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] ∉ DRISL without floats (DASL CIDs, exact CID boundary)") :=
+silmaril instance formats.catalogue.drisl_no_floats_float (expect := CSA) (title := "[0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] ∉ DRISL without floats (DASL CIDs (12, 32), exact CID boundary)") :=
   silmaril.shapes.language.member (L := Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid) (x := ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8))
 
 @[answers "formats.catalogue.drisl_no_floats_float" csa]
 public theorem catalogue_drisl_no_floats_float : ¬ Member Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) :=
   (show ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid from (by decide +kernel : ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Formats.Cbor.Drisl.language .drislNoFloatsExactCid))
 
-silmaril instance formats.catalogue.drisl_no_floats_uint_2_63 (expect := THM) (title := "[0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] ∈ DRISL without floats (DASL CIDs, exact CID boundary)") :=
+silmaril instance formats.catalogue.drisl_no_floats_uint_2_63 (expect := THM) (title := "[0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] ∈ DRISL without floats (DASL CIDs (12, 32), exact CID boundary)") :=
   silmaril.shapes.language.member (L := Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid) (x := ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8))
 
 @[answers "formats.catalogue.drisl_no_floats_uint_2_63" thm]
@@ -256,7 +259,7 @@ silmaril instance formats.relations.json_python_infinity_text_sub_nonfinite (exp
 public theorem relation_json_python_infinity_text_sub_nonfinite : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_with_python_infinity Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_with_python_non_finite x :=
   fun _ h => Silmaril.Formats.JsonNumbers.withPythonInfinity_text_le .rfc8259 h
 
-silmaril instance formats.relations.drisl_atproto_core_sub_no_floats (expect := THM) (title := "atproto CBOR core (no floats, int64, DASL CIDs, exact CID boundary) ⊆ DRISL without floats (DASL CIDs, exact CID boundary)")
+silmaril instance formats.relations.drisl_atproto_core_sub_no_floats (expect := THM) (title := "atproto CBOR core (no floats, int64, DASL CIDs (12, 32), exact CID boundary) ⊆ DRISL without floats (DASL CIDs (12, 32), exact CID boundary)")
   (doc := "Silmaril.Formats.Cbor.Drisl.atprotoCore_le_drislNoFloats") := silmaril.shapes.language.subset_at
   (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid) (K := Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid)
 
@@ -264,7 +267,7 @@ silmaril instance formats.relations.drisl_atproto_core_sub_no_floats (expect := 
 public theorem relation_drisl_atproto_core_sub_no_floats : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid x :=
   fun _ h => Silmaril.Formats.Cbor.Drisl.atprotoCore_le_drislNoFloats h
 
-silmaril instance formats.relations.drisl_no_floats_sub_drisl (expect := THM) (title := "DRISL without floats (DASL CIDs, exact CID boundary) ⊆ DRISL (DASL CIDs, exact CID boundary)")
+silmaril instance formats.relations.drisl_no_floats_sub_drisl (expect := THM) (title := "DRISL without floats (DASL CIDs (12, 32), exact CID boundary) ⊆ DRISL (DASL CIDs (12, 32), exact CID boundary)")
   (doc := "Silmaril.Formats.Cbor.Drisl.drislNoFloats_le_drisl") := silmaril.shapes.language.subset_at
   (L := Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid)
 
@@ -272,7 +275,7 @@ silmaril instance formats.relations.drisl_no_floats_sub_drisl (expect := THM) (t
 public theorem relation_drisl_no_floats_sub_drisl : ∀ x, SubsetAt Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid x :=
   fun _ h => Silmaril.Formats.Cbor.Drisl.drislNoFloats_le_drisl h
 
-silmaril instance formats.relations.drisl_exact_sub_prefix (expect := THM) (title := "DRISL (DASL CIDs, exact CID boundary) ⊆ DRISL (DASL CIDs, CID prefix boundary)")
+silmaril instance formats.relations.drisl_exact_sub_prefix (expect := THM) (title := "DRISL (DASL CIDs (12, 32), exact CID boundary) ⊆ DRISL (DASL CIDs (12, 32), CID prefix boundary)")
   (doc := "Silmaril.Formats.Cbor.Drisl.drislExactCid_le_drislCidPrefix") := silmaril.shapes.language.subset_at
   (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_cid_prefix)
 
@@ -280,7 +283,7 @@ silmaril instance formats.relations.drisl_exact_sub_prefix (expect := THM) (titl
 public theorem relation_drisl_exact_sub_prefix : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_cid_prefix x :=
   fun _ h => Silmaril.Formats.Cbor.Drisl.drislExactCid_le_drislCidPrefix h
 
-silmaril instance formats.relations.drisl_sub_bdasl (expect := THM) (title := "DRISL (DASL CIDs, exact CID boundary) ⊆ DRISL (BDASL CIDs, exact CID boundary)")
+silmaril instance formats.relations.drisl_sub_bdasl (expect := THM) (title := "DRISL (DASL CIDs (12, 32), exact CID boundary) ⊆ DRISL (BDASL CIDs (12, 32) or (1E, 32), exact CID boundary)")
   (doc := "Silmaril.Formats.Cbor.Drisl.drisl_le_drislBdasl") := silmaril.shapes.language.subset_at
   (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid)
 
@@ -288,7 +291,7 @@ silmaril instance formats.relations.drisl_sub_bdasl (expect := THM) (title := "D
 public theorem relation_drisl_sub_bdasl : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid x :=
   fun _ h => Silmaril.Formats.Cbor.Drisl.drisl_le_drislBdasl h
 
-silmaril instance formats.relations.drisl_bdasl_exact_sub_prefix (expect := THM) (title := "DRISL (BDASL CIDs, exact CID boundary) ⊆ DRISL (BDASL CIDs, CID prefix boundary)")
+silmaril instance formats.relations.drisl_bdasl_exact_sub_prefix (expect := THM) (title := "DRISL (BDASL CIDs (12, 32) or (1E, 32), exact CID boundary) ⊆ DRISL (BDASL CIDs (12, 32) or (1E, 32), CID prefix boundary)")
   (doc := "Silmaril.Formats.Cbor.Drisl.drislBdaslExactCid_le_drislBdaslCidPrefix") := silmaril.shapes.language.subset_at
   (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_cid_prefix)
 
@@ -296,7 +299,7 @@ silmaril instance formats.relations.drisl_bdasl_exact_sub_prefix (expect := THM)
 public theorem relation_drisl_bdasl_exact_sub_prefix : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_cid_prefix x :=
   fun _ h => Silmaril.Formats.Cbor.Drisl.drislBdaslExactCid_le_drislBdaslCidPrefix h
 
-silmaril instance formats.relations.drisl_no_links_sub_drisl (expect := THM) (title := "DRISL without links (no tag 42) ⊆ DRISL (DASL CIDs, exact CID boundary)")
+silmaril instance formats.relations.drisl_no_links_sub_drisl (expect := THM) (title := "DRISL without links (no tag 42) ⊆ DRISL (DASL CIDs (12, 32), exact CID boundary)")
   (doc := "Silmaril.Formats.Cbor.Drisl.drislNoLinks_le_drisl") := silmaril.shapes.language.subset_at
   (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_no_links) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid)
 
@@ -304,7 +307,7 @@ silmaril instance formats.relations.drisl_no_links_sub_drisl (expect := THM) (ti
 public theorem relation_drisl_no_links_sub_drisl : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_no_links Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid x :=
   fun _ h => Silmaril.Formats.Cbor.Drisl.drislNoLinks_le_drisl h
 
-silmaril instance formats.relations.drisl_sub_cbor (expect := THM) (title := "DRISL (DASL CIDs, exact CID boundary) ⊆ well-formed CBOR")
+silmaril instance formats.relations.drisl_sub_cbor (expect := THM) (title := "DRISL (DASL CIDs (12, 32), exact CID boundary) ⊆ well-formed CBOR")
   (doc := "Silmaril.Formats.Cbor.Drisl.language_le_wellFormed") := silmaril.shapes.language.subset_at
   (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (K := ProjectSelfTest.Languages.cborWellFormed)
 
@@ -312,7 +315,7 @@ silmaril instance formats.relations.drisl_sub_cbor (expect := THM) (title := "DR
 public theorem relation_drisl_sub_cbor : ∀ x, SubsetAt Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid ProjectSelfTest.Languages.cborWellFormed x :=
   fun _ h => Silmaril.Formats.Cbor.Drisl.language_le_wellFormed .drislExactCid h
 
-silmaril instance formats.relations.drisl_bdasl_prefix_sub_cbor (expect := THM) (title := "DRISL (BDASL CIDs, CID prefix boundary) ⊆ well-formed CBOR")
+silmaril instance formats.relations.drisl_bdasl_prefix_sub_cbor (expect := THM) (title := "DRISL (BDASL CIDs (12, 32) or (1E, 32), CID prefix boundary) ⊆ well-formed CBOR")
   (doc := "Silmaril.Formats.Cbor.Drisl.language_le_wellFormed") := silmaril.shapes.language.subset_at
   (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_cid_prefix) (K := ProjectSelfTest.Languages.cborWellFormed)
 
@@ -464,7 +467,7 @@ public theorem relation_json_python_nonfinite_text_sub_json : ∃ x, ¬ SubsetAt
   ⟨"[NaN]".toUTF8.toList, fun h => (show ("[NaN]".toUTF8.toList : List UInt8) ∉ ProjectSelfTest.Languages.jsonRfc8259 from (by decide +kernel : ("[NaN]".toUTF8.toList : List UInt8) ∉ Silmaril.Formats.JsonBytes.language .rfc8259))
     (h (show ("[NaN]".toUTF8.toList : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_with_python_non_finite from (by decide +kernel : ("[NaN]".toUTF8.toList : List UInt8) ∈ Silmaril.Formats.JsonNumbers.language .rfc8259 Silmaril.Formats.JsonNumbers.withPythonNonFinite)))⟩
 
-silmaril instance formats.relations.drisl_sub_atproto_core (expect := CSA) (title := "DRISL (DASL CIDs, exact CID boundary) ⊆ atproto CBOR core (fails: the float 1.0)") :=
+silmaril instance formats.relations.drisl_sub_atproto_core (expect := CSA) (title := "DRISL (DASL CIDs (12, 32), exact CID boundary) ⊆ atproto CBOR core (fails: the float 1.0)") :=
   silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid)
 
 @[answers "formats.relations.drisl_sub_atproto_core" csa]
@@ -472,7 +475,7 @@ public theorem relation_drisl_sub_atproto_core : ∃ x, ¬ SubsetAt Silmaril.Pro
   ⟨[0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0], fun h => (show ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid from (by decide +kernel : ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Formats.Cbor.Drisl.language .atprotoCoreExactCid))
     (h (show ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid from (by decide +kernel : ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∈ Silmaril.Formats.Cbor.Drisl.language .drislExactCid)))⟩
 
-silmaril instance formats.relations.drisl_sub_no_floats (expect := CSA) (title := "DRISL (DASL CIDs, exact CID boundary) ⊆ DRISL without floats (fails: the float 1.0)") :=
+silmaril instance formats.relations.drisl_sub_no_floats (expect := CSA) (title := "DRISL (DASL CIDs (12, 32), exact CID boundary) ⊆ DRISL without floats (fails: the float 1.0)") :=
   silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (K := Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid)
 
 @[answers "formats.relations.drisl_sub_no_floats" csa]
@@ -480,7 +483,7 @@ public theorem relation_drisl_sub_no_floats : ∃ x, ¬ SubsetAt Silmaril.Projec
   ⟨[0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0], fun h => (show ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid from (by decide +kernel : ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Formats.Cbor.Drisl.language .drislNoFloatsExactCid))
     (h (show ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid from (by decide +kernel : ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) ∈ Silmaril.Formats.Cbor.Drisl.language .drislExactCid)))⟩
 
-silmaril instance formats.relations.drisl_no_floats_sub_atproto_core (expect := CSA) (title := "DRISL without floats (DASL CIDs, exact CID boundary) ⊆ atproto CBOR core (fails: 2^63, outside int64)") :=
+silmaril instance formats.relations.drisl_no_floats_sub_atproto_core (expect := CSA) (title := "DRISL without floats (DASL CIDs (12, 32), exact CID boundary) ⊆ atproto CBOR core (fails: 2^63, outside int64)") :=
   silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid)
 
 @[answers "formats.relations.drisl_no_floats_sub_atproto_core" csa]
@@ -488,7 +491,7 @@ public theorem relation_drisl_no_floats_sub_atproto_core : ∃ x, ¬ SubsetAt Si
   ⟨[0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0], fun h => (show ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid from (by decide +kernel : ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) ∉ Silmaril.Formats.Cbor.Drisl.language .atprotoCoreExactCid))
     (h (show ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) ∈ Silmaril.Project.Languages.Catalogue.drislNoFloatsExactCid from (by decide +kernel : ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) ∈ Silmaril.Formats.Cbor.Drisl.language .drislNoFloatsExactCid)))⟩
 
-silmaril instance formats.relations.drisl_bdasl_sub_drisl (expect := CSA) (title := "DRISL (BDASL CIDs, exact CID boundary) ⊆ DRISL (DASL CIDs, exact CID boundary) (fails: a BLAKE3 CID, multihash 1E)") :=
+silmaril instance formats.relations.drisl_bdasl_sub_drisl (expect := CSA) (title := "DRISL (BDASL CIDs (12, 32) or (1E, 32), exact CID boundary) ⊆ DRISL (DASL CIDs (12, 32), exact CID boundary) (fails: a CID with the pair (1E, 32))") :=
   silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid)
 
 @[answers "formats.relations.drisl_bdasl_sub_drisl" csa]
@@ -496,7 +499,7 @@ public theorem relation_drisl_bdasl_sub_drisl : ∃ x, ¬ SubsetAt Silmaril.Proj
   ⟨[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], fun h => (show ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) ∉ Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid from (by decide +kernel : ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) ∉ Silmaril.Formats.Cbor.Drisl.language .drislExactCid))
     (h (show ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid from (by decide +kernel : ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) ∈ Silmaril.Formats.Cbor.Drisl.language .drislBdaslExactCid)))⟩
 
-silmaril instance formats.relations.drisl_prefix_sub_exact (expect := CSA) (title := "DRISL (DASL CIDs, CID prefix boundary) ⊆ DRISL (DASL CIDs, exact CID boundary) (fails: a byte after the digest)") :=
+silmaril instance formats.relations.drisl_prefix_sub_exact (expect := CSA) (title := "DRISL (DASL CIDs (12, 32), CID prefix boundary) ⊆ DRISL (DASL CIDs (12, 32), exact CID boundary) (fails: a byte after the digest)") :=
   silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_cid_prefix) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid)
 
 @[answers "formats.relations.drisl_prefix_sub_exact" csa]
@@ -504,7 +507,7 @@ public theorem relation_drisl_prefix_sub_exact : ∃ x, ¬ SubsetAt Silmaril.Pro
   ⟨[0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], fun h => (show ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) ∉ Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid from (by decide +kernel : ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) ∉ Silmaril.Formats.Cbor.Drisl.language .drislExactCid))
     (h (show ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) ∈ Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_cid_prefix from (by decide +kernel : ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) ∈ Silmaril.Formats.Cbor.Drisl.language .drislCidPrefix)))⟩
 
-silmaril instance formats.relations.drisl_sub_no_links (expect := CSA) (title := "DRISL (DASL CIDs, exact CID boundary) ⊆ DRISL without links (fails: a tag-42 CID)") :=
+silmaril instance formats.relations.drisl_sub_no_links (expect := CSA) (title := "DRISL (DASL CIDs (12, 32), exact CID boundary) ⊆ DRISL without links (fails: a tag-42 CID)") :=
   silmaril.shapes.language.subset_at (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (K := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_no_links)
 
 @[answers "formats.relations.drisl_sub_no_links" csa]
