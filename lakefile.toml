@@ -738,3 +738,9 @@ srcDir = "tools/elf-staged"
 name = "elf-pages"
 root = "ElfPages"
 srcDir = "tools/elf-pages"
+
+# Assembly functions as JSON, evidence read from theorem statements (tools/elf-asm, docs/projects/elf-asm.md).
+[[lean_exe]]
+name = "elf-asm"
+root = "ElfAsm"
+srcDir = "tools/elf-asm"
