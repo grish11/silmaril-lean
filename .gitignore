@@ -12,3 +12,4 @@ __pycache__/
 /tools/x86-difftest/out/
 /target/
 /tools/wasm-vc/target/
+/tools/wasm-spec-fuzz/target/

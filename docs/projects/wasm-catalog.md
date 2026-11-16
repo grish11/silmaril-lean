@@ -112,7 +112,7 @@ dependency or the open problem.
 | Further simulator programs (litmus emulators for SC/TSO/PSO, problem shapes for emulated vs compiled functions, `sha256sum` running in the x86 simulator) | still in development elsewhere |
 | VC-generation benchmarks (`VCGenBench`, `VCGen2Bench`, `VCGenAdler`) and the `wasm-vc reflect` tests | their specifications come from a benchmark suite that is not public |
 | SMT-backed loop benchmarks and a WASI `sha256sum` example | need projects that are not public |
-| Difftests of the `Ext9`/SSE models and of the allocator; `wasmi` property tests of the spec-library programs | not ported yet |
+| Difftests of the `Ext9`/SSE models and of the allocator | not ported yet (the `Ext9`/SSE difftest needs an SSE floating-point model that is not here) |
 | A direct translation between the core-module and component institutions | open: both meet in `GInst` (`Silmaril.Wasm.Institution.CoreComp`), but relating them needs a game morphism between their signatures and an adequacy argument |
 | Component adequacy beyond `Simple` components | open ([component-caveats.md](component-caveats.md)) |
 | Two copies of the x86 function-contract layer (`Silmaril.X86` and `Silmaril.Machine.X86`) | the simulators use `Silmaril.X86`; merging the copies is a separate cleanup |

@@ -58,6 +58,11 @@ checks, so the Lean build fails when a proof's axioms change.
 
 ## Checking
 
+`tools/wasm-spec-fuzz` runs the array programs (`IsSorted`, `InsertionSort`, `MergeSort`) and the
+B-tree library (`BTree` v1 and v2) on the `wasmi` interpreter with random inputs, checks the
+specified results, and checks that each `.wasm` file it runs is the byte list the Lean tests use
+(`cargo test --release` in `tools/wasm-spec-fuzz`). These are tests, not proofs.
+
 ```sh
 python3 -I scripts/check-wasm-spec.py
 lake build --wfail Silmaril.WasmSpec.BTree.V2.Thms Silmaril.WasmSpec.IsSorted.Thms   # any entry's Thms
