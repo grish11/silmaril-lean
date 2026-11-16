@@ -2,7 +2,7 @@
 # file with `silmaril load`): values, instances of an attribute-form problem and of two standard
 # shapes, a finding, the groups and the root.
 schema = "silmaril.records.v0.2"
-root = "silmaril.selftest.all"
+root = "silmaril.all"
 
 [[value]]
 name = "silmaril.selftest.hello_toml"
@@ -43,8 +43,8 @@ classification = "spec_bug"
 note = "5 is not below 3 (small_csa): the statement, not the code, is wrong"
 
 [[group]]
-name = "silmaril.selftest.all"
-title = "The sil project self-test"
+name = "silmaril.all"
+title = "silmaril: every problem of the library and its self-test"
 children = ["silmaril.selftest.truth", "silmaril.selftest.small", "silmaril.selftest.small_le",
   "silmaril.selftest.open",
   "silmaril.selftest.hello.six", "silmaril.selftest.square", "silmaril.selftest.hello.six_row",

@@ -139,7 +139,7 @@ try {
   // 3. a replacement while a query is in flight
   replace(v1);
   await open();
-  await p.evaluate(() => { location.hash = "#/graph/" + encodeURIComponent("silmaril.selftest.all"); });
+  await p.evaluate(() => { location.hash = "#/graph/" + encodeURIComponent("silmaril.all"); });
   replace(v2);
   await settle();
   await walk(names.slice(32, 40));
