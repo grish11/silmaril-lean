@@ -105,6 +105,15 @@ lists as contexts, and the rules `p ⇒ q`, `q ⇒ r`:
 | `gap`, `checked` | `diff`, `inter` | something is entailed but not derivable; `checked` is complete for `derivable` (by soundness) |
 | `empty` | `decl` | derives nothing (UNS) |
 
+`examples/project/ProjectSelfTest/Consequence/Gentzen.lean` registers the literal sequents of
+`Silmaril.Consequence.Gentzen.Examples` (`Γ ⊢ Δ` over lists of literals), answered by that
+module's theorems: validity and the complementary-pair UNSAT test are sound and complete for
+each other; `p ⊢ q, p` is valid and `p ⊢ q` is not; a test bounded to three literals and its
+closure under the default Gentzen rules are sound for validity, while the bounded test is
+**not complete for its own closure** (the cut of `p, r ⊢ p` and `p, q ⊢ p` is the kept
+counterexample); `p ⊢ r` holds in the cut closure of `p ⊢ q, q ⊢ r` and not in the raw
+sequents. Closures are registered as `op := decl` of the library's `Derives rules S`.
+
 ## Database and explorer
 
 `sil project sqlite` writes `consequence_systems` (name, op, decl, term, contexts,

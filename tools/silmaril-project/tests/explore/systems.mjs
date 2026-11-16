@@ -92,6 +92,14 @@ try {
   await open("/system/no.such.system");
   check(await p.evaluate(() => /no consequence system/.test(document.querySelector("#main").textContent)), "an unknown system is reported");
 
+  // the Gentzen fixture: a raw checker that is not complete for its own closure under cut
+  await open("/system/" + encodeURIComponent(S + "gentzen.via_unsat_bounded3"));
+  const gs = await rows("#system-problems");
+  const gc = gs.find((r) => r[0] === S + "gentzen.bounded3_complete_closure") || [];
+  check(/CSA/.test(gc[4] || "") && /not complete for/.test(gc[5] || "") && /Bool\.true, 2\)/.test(gc[6] || ""),
+    "Gentzen: the bounded checker is not complete for its cut closure, with the cut counterexample");
+  check(gs.some((r) => r[0] === S + "gentzen.bounded3_sound" && /THM/.test(r[4])), "Gentzen: the bounded checker is sound for validity");
+
   check(errors.length === 0, `no page error${errors.length ? ": " + errors.join("; ") : ""}`);
 } finally {
   await b.close();

@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Project.Shapes.Consequence.Thms
+public import ProjectSelfTest.Consequence.Gentzen
 
 /-!
 # The `sil project` self-test: consequence systems
@@ -326,4 +327,4 @@ silmaril group silmaril.selftest.consequence (title := "Consequence systems")
     silmaril.selftest.consequence.derivable_universal, silmaril.selftest.consequence.empty_derives,
     silmaril.selftest.consequence.gap_nonempty, silmaril.selftest.consequence.checked_complete,
     silmaril.selftest.consequence.shift_preserves, silmaril.selftest.consequence.shift_reflects,
-    silmaril.shapes.consequence])
+    silmaril.shapes.consequence, silmaril.selftest.consequence.gentzen])
