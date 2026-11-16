@@ -116,6 +116,37 @@ containing some `x` and `-x`. It is sound both as an UNSAT checker and as a TAUT
 different reasons, so both of its readings are valid. Its UNSAT reading is `Reflexive`. Its
 execution status for a list (`STH` or `SCT`) is about plays, not the SZS status of the formula.
 
+## Signed and two-sided protocols
+
+`Silmaril.Wasi.Component.Consequence.Signed.{Defs,Thms}` reads three more protocols as lists of
+signed formulas or as Gentzen sequents.
+
+- **Imported `pos(v)`, `neg(v)`, `done()`, optional `reset()`** (`importBatch`). Each `done`
+  claims the batch emitted since startup, the previous `done`, or the last `reset`. The batch is
+  the state *before* the `done`, and `done` then starts the next one. A trailing batch with no
+  `done` is never emitted. At `Boundary.call` the reading records the component's requests; at
+  `Boundary.answer` it records only non-trapping host answers. The two are different projections
+  and agree only under hypotheses on the hosts. Whether a trapped `done` closes the batch is the
+  explicit `TrapDone` policy.
+  - `batchUnsat` and `batchTaut` are the raw Gentzen UNSAT and TAUTO readings of the batches.
+    Their validity needs a soundness hypothesis on the emitter and the matching negation law
+    (`batchUnsat_le_valid`, `batchTaut_le_valid`).
+  - `batchFinset` is an existential finite-set reading (some emitted list has these members).
+    Soundness transfers to it (`batchFinset_unsat`); equality with the list reading would need
+    invariance hypotheses that are not assumed.
+- **Exported `check(conj: list v, disj: list v) -> bool`** (`seqCheck`, `seqOf`); its signed
+  variant is the same reading over `Signed W`.
+  - Core modules are read through an explicit, partial byte codec (`coreSeq`), with the profile
+    and host set as separate runtime quantifiers.
+  - Through `memberEnc`, `MemberCheck` derives exactly `Γ ⊢ [c]` with `c ∈ Γ`: sound for every
+    host set, and exact below the ABI bound for a nonempty host set (`coreSeq_member_sound`,
+    `coreSeq_member_iff`). It encodes no other succedent, so it is not complete for them.
+  - `EmptyCheck` derives nothing (`coreSeq_empty`).
+- **Exported `assume(v)`, `assert(v)`, `check() -> bool`, optional `reset()`**
+  (`exportAssumeAssert`, `pairSeqOf`). Both sides accumulate, `reset` starts a new epoch, and the
+  snapshot a `check` reads is explicit (`SnapshotAt.ret` or `.call`). `assert` names an
+  observation that adds to the succedent, not a proof.
+
 ## Scope and gaps
 
 - No compiled component binary implements any protocol. The catalog's `compiledComponent` shape
@@ -152,5 +183,6 @@ lake build Silmaril.Wasi.Component.Consequence.Thms \
   Silmaril.Wasi.Component.Consequence.Checkers.Thms \
   Silmaril.Wasi.Component.Consequence.Stateful.Thms \
   Silmaril.Wasi.Component.Consequence.Gentzen.Thms \
+  Silmaril.Wasi.Component.Consequence.Signed.Thms \
   Silmaril.Wasi.Component.Consequence.Matrix.Examples
 ```
