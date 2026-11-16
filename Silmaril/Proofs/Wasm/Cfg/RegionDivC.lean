@@ -81,6 +81,33 @@ theorem guarded_handler {s : Store H} {f : Frame} {n : Nat} {cs : List Catch} {X
   exact hG ⟨s₂, f₂, [.handler n cs X₂]⟩ (.handler [] n cs E []) ws us a cr rest fi ps rs
     (steps_handler n cs h₂) (by simp [Ctx.fill, hc]) hcr hd hfi he hn
 
+/-- The guard and the placement of pending tail calls, along the run. -/
+def GT (P : Profile) (host : HostSemantics H) (G : Store H → Nat → List Val → Prop)
+    (c₀ : Config H) : Prop :=
+  GuardedCalls P host G c₀ ∧ TailsOk P host c₀
+
+theorem gt_steps {c₀ c₁ : Config H} (hG : GT P host G c₀) (h : Steps P host c₀ c₁) :
+    GT P host G c₁ :=
+  ⟨guarded_steps hG.1 h, fun c₂ h₂ => hG.2 c₂ (h.trans h₂)⟩
+
+theorem gt_seq {s : Store H} {f : Frame} {vs : List Val} {X code : List Admin}
+    (hG : GT P host G ⟨s, f, vals vs ++ X ++ code⟩) : GT P host G ⟨s, f, X⟩ := by
+  refine ⟨guarded_seq hG.1, fun c₂ h₂ => ?_⟩
+  obtain ⟨s₂, f₂, X₂⟩ := c₂
+  exact Proofs.Region.tailWF_seq (hG.2 _ (steps_in vs code h₂))
+
+theorem gt_label {s : Store H} {f : Frame} {n : Nat} {cont : List Instr} {X : List Admin}
+    (hG : GT P host G ⟨s, f, [.label n cont X]⟩) : GT P host G ⟨s, f, X⟩ := by
+  refine ⟨guarded_label hG.1, fun c₂ h₂ => ?_⟩
+  obtain ⟨s₂, f₂, X₂⟩ := c₂
+  exact Proofs.Region.tailWF_label (hG.2 _ (steps_label n cont h₂))
+
+theorem gt_handler {s : Store H} {f : Frame} {n : Nat} {cs : List Catch} {X : List Admin}
+    (hG : GT P host G ⟨s, f, [.handler n cs X]⟩) : GT P host G ⟨s, f, X⟩ := by
+  refine ⟨guarded_handler hG.1, fun c₂ h₂ => ?_⟩
+  obtain ⟨s₂, f₂, X₂⟩ := c₂
+  exact Proofs.Region.tailWF_handler (hG.2 _ (steps_handler n cs h₂))
+
 /-! ## Codes that cannot diverge -/
 
 /-- A pending tail call outside any frame is stuck. -/
@@ -204,14 +231,14 @@ theorem callRef_split {s : Store H} {f : Frame} {vs : List Val} {a : Nat} {cr : 
 /-- The invariant of the coinduction: fragment code with calls, diverging, guarded. -/
 def DivInv (P : Profile) (host : HostSemantics H) (G : Store H → Nat → List Val → Prop)
     (s : Store H) (f : Frame) (vs : List Val) (code : List Admin) : Prop :=
-  FragC code ∧ Diverges P host ⟨s, f, vals vs ++ code⟩ ∧ GuardedCalls P host G ⟨s, f, vals vs ++ code⟩
+  FragC code ∧ Diverges P host ⟨s, f, vals vs ++ code⟩ ∧ GT P host G ⟨s, f, vals vs ++ code⟩
 
 /-- **A diverging direct call is one layer of a diverging region run**: `D` names it (it
 diverges inside the callee), or `C` answers it with values and the continuation diverges. -/
 theorem div_call (hC : CallCompleteG P host G C) (hD : DivCallComplete P host G D)
     {s : Store H} {f : Frame} {vs : List Val} {x : FuncIdx} {code : List Admin}
     (hF : FragC code) (hd : Diverges P host ⟨s, f, vals vs ++ .plain (.call x) :: code⟩)
-    (hG : GuardedCalls P host G ⟨s, f, vals vs ++ .plain (.call x) :: code⟩) :
+    (hG : GT P host G ⟨s, f, vals vs ++ .plain (.call x) :: code⟩) :
     DivFC P host C D (DivInv P host G) s f vs (.plain (.call x) :: code) := by
   obtain ⟨c₁, hs, hd₁⟩ := hd.unfold
   obtain ⟨a, fi, hx, hfi, rfl⟩ := Step.call_vals_inv_seq hs
@@ -219,7 +246,7 @@ theorem div_call (hC : CallCompleteG P host G C) (hD : DivCallComplete P host G 
   obtain ⟨ws, us, ps, rs, rfl, he, hn⟩ := callRef_split (cr := .callRefType fi.type) trivial hfi hs₂
   have hfunc : s.func? f x = some (a, fi) := by simp [Store.func?, hx, hfi]
   have hty := funcType_of_expand he
-  have hGc : G s a us := guarded_call (E := .hole) (ws := ws) (rest := code) hG .refl (by simp [Ctx.fill]) hx hfi he hn
+  have hGc : G s a us := guarded_call (E := .hole) (ws := ws) (rest := code) hG.1 .refl (by simp [Ctx.fill]) hx hfi he hn
   have hd₂ : Diverges P host
       ⟨s, f, vals ws ++ (vals us ++ [.ref (.func a), .callRefType fi.type]) ++ code⟩ := by
     unfold Diverges; simpa using hd₁
@@ -234,7 +261,7 @@ theorem div_call (hC : CallCompleteG P host G C) (hD : DivCallComplete P host G 
         refine .head (call_head hfunc) ?_
         simpa [Result.toAdmin] using steps_in ws code hcs
       exact .call hfunc hty hn hcall hw ⟨hF, by unfold Diverges at hd₃ ⊢; simpa [Result.toAdmin] using hd₃,
-        guarded_steps hG hsteps⟩
+        gt_steps hG hsteps⟩
     | trap => exact (result_not_div_seq (r := .trap) (by simp) hd₃).elim
     | throw t => exact (result_not_div_seq (r := .throw t) (by simp) hd₃).elim
 
@@ -273,7 +300,7 @@ theorem div_callRefAt (hC : CallCompleteG P host G C) (hD : DivCallComplete P ho
     (hGc : G s a us)
     (hG : ∀ {s₁ : Store H} {W : List Val},
       Steps P host ⟨s, f, vals us ++ [.ref (.func a), .plain (.callRef y)]⟩ ⟨s₁, f, vals W⟩ →
-      GuardedCalls P host G ⟨s₁, f, vals (ws ++ W) ++ code⟩)
+      GT P host G ⟨s₁, f, vals (ws ++ W) ++ code⟩)
     (hcases : Diverges P host ⟨s, f, vals us ++ [.ref (.func a), .plain (.callRef y)]⟩ ∨
         ∃ (s₁ : Store H) (r : Result),
           Steps P host ⟨s, f, vals us ++ [.ref (.func a), .plain (.callRef y)]⟩ ⟨s₁, f, r.toAdmin⟩ ∧
@@ -299,16 +326,16 @@ theorem div_callRefAt (hC : CallCompleteG P host G C) (hD : DivCallComplete P ho
 theorem div_callRef (hC : CallCompleteG P host G C) (hD : DivCallComplete P host G D)
     {s : Store H} {f : Frame} {vs : List Val} {y : TypeIdx} {code : List Admin}
     (hF : FragC code) (hd : Diverges P host ⟨s, f, vals vs ++ .plain (.callRef y) :: code⟩)
-    (hG : GuardedCalls P host G ⟨s, f, vals vs ++ .plain (.callRef y) :: code⟩) :
+    (hG : GT P host G ⟨s, f, vals vs ++ .plain (.callRef y) :: code⟩) :
     DivFC P host C D (DivInv P host G) s f vs (.plain (.callRef y) :: code) := by
   obtain ⟨ws, us, a, fi, ps, rs, rfl, hfi, he, hn, hcases⟩ := callRef_div_cases hd
   have hcode : vals (ws ++ us ++ [.ref (.func a)]) ++ .plain (.callRef y) :: code =
       Ctx.hole.fill (vals (ws ++ us) ++ .ref (.func a) :: .plain (.callRef y) :: code) := by
     simp [Ctx.fill, vals, Val.toAdmin]
-  have hGc : G s a us := hG _ .hole ws us a (.plain (.callRef y)) code fi ps rs .refl hcode trivial
+  have hGc : G s a us := hG.1 _ .hole ws us a (.plain (.callRef y)) code fi ps rs .refl hcode trivial
     (fun d hd => by cases hd) hfi he hn
   have hty := funcType_of_expand he
-  rcases div_callRefAt hC hD hF hfi he hn hGc (fun hcs => guarded_steps hG (by
+  rcases div_callRefAt hC hD hF hfi he hn hGc (fun hcs => gt_steps hG (by
       rw [hcode]; simpa [Ctx.fill] using steps_in ws code hcs)) hcases with
     hdiv | ⟨s₁, fl, vs₁, hcall, hw, hinv⟩
   · exact .callRefDiv hfi hty hn hdiv
@@ -335,7 +362,7 @@ index traps, so it never diverges. -/
 theorem div_callInd (hC : CallCompleteG P host G C) (hD : DivCallComplete P host G D)
     {s : Store H} {f : Frame} {vs : List Val} {x : TableIdx} {y : TypeIdx} {code : List Admin}
     (hF : FragC code) (hd : Diverges P host ⟨s, f, vals vs ++ .plain (.callIndirect x y) :: code⟩)
-    (hG : GuardedCalls P host G ⟨s, f, vals vs ++ .plain (.callIndirect x y) :: code⟩) :
+    (hG : GT P host G ⟨s, f, vals vs ++ .plain (.callIndirect x y) :: code⟩) :
     DivFC P host C D (DivInv P host G) s f vs (.plain (.callIndirect x y) :: code) := by
   obtain ⟨c₁, hs, hd₁⟩ := hd.unfold
   have hc₁ := Step.callIndirect_vals_inv_seq hs
@@ -373,10 +400,10 @@ theorem div_callInd (hC : CallCompleteG P host G C) (hD : DivCallComplete P host
   have hcode : vals ws ++ (vals us ++ [.ref (.func a), .plain (.callRef y)]) ++ code =
       Ctx.hole.fill (vals (ws ++ us) ++ .ref (.func a) :: .plain (.callRef y) :: code) := by
     simp [Ctx.fill]
-  have hGc : G s a us := hG _ .hole ws us a (.plain (.callRef y)) code fi ps rs hpre hcode trivial
+  have hGc : G s a us := hG.1 _ .hole ws us a (.plain (.callRef y)) code fi ps rs hpre hcode trivial
     (fun d hd => by cases hd) hfi he hn
   have hty := funcType_of_expand he
-  rcases div_callRefAt hC hD hF hfi he hn hGc (fun hcs => guarded_steps hG (hpre.trans (by
+  rcases div_callRefAt hC hD hF hfi he hn hGc (fun hcs => gt_steps hG (hpre.trans (by
       simpa using steps_in ws code hcs))) hcases with
     hdiv | ⟨s₁, fl, vs₁, hcall, hw, hinv⟩
   · exact .callIndDiv hres hfi hty hn hdiv
@@ -388,8 +415,9 @@ reaches, every diverging Core run of fragment code with calls is a diverging reg
 theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
     (hD : DivCallComplete P host G D) {s : Store H} {f : Frame} {vs : List Val}
     {code : List Admin} (hF : FragC code) (hG : GuardedCalls P host G ⟨s, f, vals vs ++ code⟩)
+    (hW : TailsOk P host ⟨s, f, vals vs ++ code⟩)
     (hd : Diverges P host ⟨s, f, vals vs ++ code⟩) : RunDivC P host C D s f vs code := by
-  refine ⟨DivInv P host G, ?_, hF, hd, hG⟩
+  refine ⟨DivInv P host G, ?_, hF, hd, ⟨hG, hW⟩⟩
   rintro s f vs code ⟨hF, hd, hG⟩
   rcases code with _ | ⟨a, code⟩
   · obtain ⟨c', hs, -⟩ := hd.unfold
@@ -404,9 +432,10 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
     obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.1 h
     exact val_case v hv
   | trap => exact (trapForm_not_div ⟨vs, code, rfl⟩ hd).elim
-  | @label n cont inner hc hi =>
-    have hGi : GuardedCalls P host G ⟨s, f, inner⟩ :=
-      guarded_label (guarded_seq (vs := vs) (code := code) (X := [.label n cont inner])
+  | retType d => exact (retCall_not_div (vs := vs) (es := code) (e := .returnCallRefType d) trivial hd).elim
+  | @label _ n cont inner hc hi =>
+    have hGi : GT P host G ⟨s, f, inner⟩ :=
+      gt_label (gt_seq (vs := vs) (code := code) (X := [.label n cont inner])
         (by simpa using hG))
     rcases label_exit hd with hin | ⟨⟨sa, fa, xa⟩, hr, out, hx, hb⟩
     · exact .labelIn ⟨hi, by simpa [vals] using hin, by simpa [vals] using hGi⟩
@@ -415,19 +444,19 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
         simpa using steps_in vs code (steps_label n cont hr)
       cases hx with
       | vals ws =>
-        have hin : RunC P host C s f [] inner sa fa (.normal ws) := completeC hC hGi hi hr rfl
+        have hin : RunC P host C s f [] inner sa fa (.normal ws) := completeC hC hGi.1 hGi.2 hi hr rfl
         have h2 := step_in (P := P) (host := host) vs code
           (Step.labelVals (s := sa) (f := fa) (n := n) (cont := cont) (vs := ws))
         exact .labelNormal hin ⟨hF', by simpa using hb,
-          by simpa using guarded_steps hG (hst.tail h2)⟩
+          by simpa using gt_steps hG (hst.tail h2)⟩
       | @brZero vs' us l rest hl hn =>
         have hin : RunC P host C s f [] inner sa fa (.br 0 (vs' ++ us)) :=
-          completeC hC hGi hi hr ⟨l, rest, hl, by simp⟩
+          completeC hC hGi.1 hGi.2 hi hr ⟨l, rest, hl, by simp⟩
         have h2 := step_in (P := P) (host := host) vs code
           (Step.brLabelZero (s := sa) (f := fa) (n := n) (cont := cont) (vs' := vs') (vs := us)
             (l := l) (rest := rest) hl hn)
         refine .labelBr0 hin hn ⟨?_, by simpa using hb,
-          by simpa using guarded_steps hG (hst.tail h2)⟩
+          by simpa using gt_steps hG (hst.tail h2)⟩
         exact frag_append.2 ⟨frag_append.2 ⟨frag_vals _, frag_expression hc⟩, hF'⟩
       | @brSucc us l rest _ =>
         obtain ⟨c', hs, -⟩ := hb.unfold
@@ -439,9 +468,9 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
         exact (retCall_not_div (vs := vs ++ us) (es := code) hc' (by simpa using hb)).elim
       | throw a => exact (throwForm_not_div ⟨vs, a, code, by simp⟩ hb).elim
       | trap => exact (trapForm_not_div ⟨vs, code, by simp⟩ hb).elim
-  | @handler n cs inner hi =>
-    have hGi : GuardedCalls P host G ⟨s, f, inner⟩ :=
-      guarded_handler (guarded_seq (vs := vs) (code := code) (X := [.handler n cs inner])
+  | @handler _ n cs inner hi =>
+    have hGi : GT P host G ⟨s, f, inner⟩ :=
+      gt_handler (gt_seq (vs := vs) (code := code) (X := [.handler n cs inner])
         (by simpa using hG))
     rcases handler_exit hd with hin | ⟨⟨sa, fa, xa⟩, hr, out, hx, hb⟩
     · exact .handlerIn ⟨hi, by simpa [vals] using hin, by simpa [vals] using hGi⟩
@@ -450,11 +479,11 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
         simpa using steps_in vs code (steps_handler n cs hr)
       cases hx with
       | vals ws =>
-        have hin : RunC P host C s f [] inner sa fa (.normal ws) := completeC hC hGi hi hr rfl
+        have hin : RunC P host C s f [] inner sa fa (.normal ws) := completeC hC hGi.1 hGi.2 hi hr rfl
         have h2 := step_in (P := P) (host := host) vs code
           (Step.handlerVals (s := sa) (f := fa) (n := n) (cs := cs) (vs := ws))
         exact .handlerNormal hin ⟨hF', by simpa using hb,
-          by simpa using guarded_steps hG (hst.tail h2)⟩
+          by simpa using gt_steps hG (hst.tail h2)⟩
       | @br _ us l rest =>
         obtain ⟨c', hs, -⟩ := hb.unfold
         exact (br_stuck_seq (vs := vs ++ us) (rest := code) (by simpa using hs)).elim
@@ -480,11 +509,36 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
         exact (br_stuck_seq (vs := vs ++ [.ref (.exn _)]) (rest := code)
           (by simpa [vals, Val.toAdmin] using hs)).elim
       | next => exact (handler_throwing_not_div (by simpa using hb)).elim
-  | @plain i hI =>
+  | @plain _ i hI =>
     cases hI with
     | call x => exact div_call hC hD hF' hd hG
     | callIndirect x y => exact div_callInd hC hD hF' hd hG
     | callRef y => exact div_callRef hC hD hF' hd hG
+    | returnCallRef y =>
+      exact (retCall_not_div (vs := vs) (es := code) (e := .plain (.returnCallRef y)) trivial hd).elim
+    | returnCall x =>
+      obtain ⟨c₁, hs, hd₁⟩ := hd.unfold
+      obtain ⟨a, fi, -, -, rfl⟩ := Step.returnCall_vals_inv_seq hs
+      exact (retCall_not_div (vs := vs ++ [.ref (.func a)]) (e := .returnCallRefType fi.type)
+        (es := code) trivial (by unfold Diverges; simpa [vals_snoc_ref, Val.toAdmin] using hd₁)).elim
+    | returnCallIndirect x y =>
+      obtain ⟨c₁, hs, hd₁⟩ := hd.unfold
+      have hc₁ := Step.returnCallIndirect_vals_inv_seq hs
+      subst hc₁
+      obtain ⟨c₂, hs₂, hd₂⟩ := hd₁.unfold
+      obtain ⟨W, us₀, c₀, rfl, hf₀, rfl⟩ := noncontrol_head (famOf_tableGet' x) hs₂
+      obtain ⟨ad, i, ta, ti, rfl, ht, ⟨r, hr, rfl⟩ | ⟨-, rfl⟩⟩ := famStep_tableGet_inv hf₀
+      swap
+      · exact (trapForm_not_div ⟨W, .plain (.refCast ⟨true, .typeIdx y⟩) ::
+          .plain (.returnCallRef y) :: code, by simp⟩ hd₂).elim
+      obtain ⟨c₃, hs₃, hd₃⟩ := hd₂.unfold
+      have hs₃' : Step P host ⟨s, f, vals (W ++ [.ref r]) ++ .plain (.refCast ⟨true, .typeIdx y⟩) ::
+          .plain (.returnCallRef y) :: code⟩ c₃ := by rw [vals_snoc_ref]; exact hs₃
+      obtain ⟨W', us₁, c₀', hW, hf₁, rfl⟩ := noncontrol_head (famOf_refCast' _) hs₃'
+      obtain ⟨r', rfl, ⟨-, rfl⟩ | ⟨-, rfl⟩⟩ := famStep_refCast_inv hf₁
+      · exact (retCall_not_div (vs := W' ++ [.ref r']) (e := .plain (.returnCallRef y)) (es := code)
+          trivial (by unfold Diverges; simpa [vals_snoc_ref, Val.toAdmin] using hd₃)).elim
+      · exact (trapForm_not_div ⟨W', .plain (.returnCallRef y) :: code, by simp⟩ hd₃).elim
     | throw x =>
       obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
       obtain ⟨ws, us, is', rfl, hs', rfl⟩ := Proofs.Exec.head_of rfl (by simp) hs
@@ -521,11 +575,11 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
         · exact hF' x hx
       have := DivFC.tryTable (P := P) (host := host) (C := C) (D := D) (R := DivInv P host G)
         (ws := ws ++ ws') (code := code) hbt hm ⟨hFl, by unfold Diverges; simpa using hd₁,
-          by simpa using guarded_steps hG (.single hs)⟩
+          by simpa using gt_steps hG (.single hs)⟩
       simpa using this
     | simple hk =>
       obtain ⟨s₁, f₁, vs₁, h₁, hd₁⟩ := atom_exit hk (hA s f vs i hk) hd
-      exact .simple hk h₁ ⟨hF', hd₁, guarded_steps hG (by simpa using steps_in [] code h₁)⟩
+      exact .simple hk h₁ ⟨hF', hd₁, gt_steps hG (by simpa using steps_in [] code h₁)⟩
     | const h =>
       obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.1 h
       exact val_case v hv
@@ -543,7 +597,7 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
         · exact hF' x hx
       have := DivFC.block (P := P) (host := host) (C := C) (D := D) (R := DivInv P host G)
         (ws := ws ++ ws') (code := code) hbt hm ⟨hFl, by unfold Diverges; simpa using hd₁,
-          by simpa using guarded_steps hG (.single hs)⟩
+          by simpa using gt_steps hG (.single hs)⟩
       simpa using this
     | @loop _ bt b hb =>
       obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
@@ -559,7 +613,7 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
         · exact hF' x hx
       have := DivFC.loop (P := P) (host := host) (C := C) (D := D) (R := DivInv P host G)
         (ws := ws ++ ws') (code := code) hbt hm ⟨hFl, by unfold Diverges; simpa using hd₁,
-          by simpa using guarded_steps hG (.single hs)⟩
+          by simpa using gt_steps hG (.single hs)⟩
       simpa using this
     | @if_ _ bt t e ht he' =>
       obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
@@ -578,7 +632,7 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
       have := DivFC.if_ (P := P) (host := host) (C := C) (D := D) (R := DivInv P host G)
         (ws := ws ++ ws') (k := k) (t := t) (e := e) (code := code)
         ⟨hFl, by unfold Diverges; simpa using hd₁,
-          by simpa using guarded_steps hG (.single hs)⟩
+          by simpa using gt_steps hG (.single hs)⟩
       simpa using this
     | @brData _ i hb =>
       obtain ⟨⟨s₁, f₁, x₁⟩, hs, hd₁⟩ := hd.unfold
@@ -592,7 +646,7 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
         (host := host) (cf := true) hB).1).2, hF'⟩
       have := DivFC.brData (P := P) (host := host) (C := C) (D := D) (R := DivInv P host G)
         (ws := ws ++ ws') (code := code) hB ⟨hFl, by unfold Diverges; simpa using hd₁,
-          by simpa using guarded_steps hG (.single hs)⟩
+          by simpa using gt_steps hG (.single hs)⟩
       simpa using this
     | br l =>
       obtain ⟨c', hs, -⟩ := hd.unfold
@@ -613,7 +667,7 @@ theorem div_completeC (hA : AtomTerm P host) (hC : CallCompleteG P host G C)
         · intro x hx; simp only [List.mem_singleton] at hx; subst hx; exact .plain (.br l)
       have := DivFC.brIf (P := P) (host := host) (C := C) (D := D) (R := DivInv P host G)
         (ws := ws ++ ws') (k := k) (l := l) (code := code) ⟨hFl, by unfold Diverges; simpa using hd₁,
-          by simpa using guarded_steps hG (.single hs)⟩
+          by simpa using gt_steps hG (.single hs)⟩
       simpa using this
 
 /-! ## The call-free fragment as an instance -/
@@ -635,6 +689,9 @@ theorem fragIB_true {cf : Bool} {i : Instr} (h : FragIB cf i) : FragIB true i :=
   | call x => exact .call x
   | callIndirect x y => exact .callIndirect x y
   | callRef y => exact .callRef y
+  | returnCall x => exact .returnCall x
+  | returnCallIndirect x y => exact .returnCallIndirect x y
+  | returnCallRef y => exact .returnCallRef y
 
 theorem fragAB_true {cf : Bool} {a : Admin} (h : FragAB cf a) : FragAB true a := by
   induction h with
@@ -643,6 +700,7 @@ theorem fragAB_true {cf : Bool} {a : Admin} (h : FragAB cf a) : FragAB true a :=
   | trap => exact .trap
   | label hc _ ih => exact .label (fun i hi => fragIB_true (hc i hi)) ih
   | handler _ ih => exact .handler ih
+  | retType d => exact .retType d
 
 /-- Call-free fragment code holds no direct call, in any context. -/
 theorem frag_fill_call : ∀ (E : Ctx) {W : List Val} {x : FuncIdx} {rest : List Admin},
@@ -689,13 +747,19 @@ theorem frag_fill_callRef : ∀ (E : Ctx) {W : List Val} {a : Nat} {cr : Admin} 
 theorem guardedCalls_frag {c₀ : Config H} (hF : Frag c₀.code) : GuardedCalls P host G c₀ :=
   fun _ E _ _ _ _ _ _ _ _ h₂ hc hcr => ((frag_fill_callRef E hcr) (hc ▸ frag_steps h₂ hF)).elim
 
+/-- Call-free fragment code keeps its (absent) pending tail calls well placed. -/
+theorem tailsOk_frag {c₀ : Config H} (hF : Frag c₀.code) : TailsOk P host c₀ :=
+  fun _ h₂ => Proofs.Region.tailWF_of_frag (frag_steps h₂ hF)
+
 /-- **Completeness for call-free divergence**: the instance of `div_completeC` with no call. -/
 theorem div_complete {s : Store H} {f : Frame} {vs : List Val} {code : List Admin}
     (hA : AtomTerm P host) (hF : Frag code) (hd : Diverges P host ⟨s, f, vals vs ++ code⟩) :
     RunDiv P host s f vs code :=
   div_completeC (G := fun _ _ _ => False) hA (fun _ _ _ _ _ _ _ _ _ _ _ hg => hg.elim)
     (fun _ _ _ _ _ _ _ _ hg => hg.elim) (fun a ha => fragAB_true (hF a ha))
-    (guardedCalls_frag (frag_append.2 ⟨frag_vals vs, hF⟩)) hd
+    (guardedCalls_frag (frag_append.2 ⟨frag_vals vs, hF⟩))
+    (fun _ h₂ => Proofs.Region.tailWF_of_frag (frag_steps h₂ (frag_append.2 ⟨frag_vals vs, hF⟩)))
+    hd
 
 /-- **Adequacy for call-free divergence**, given the atomic obligation. -/
 theorem div_adequate {s : Store H} {f : Frame} {vs : List Val} {code : List Admin}

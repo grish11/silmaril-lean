@@ -416,7 +416,19 @@ The plain graph stays an over-approximation, and claims about it say so.
       invocation diverges) is Core divergence of `invoke s a vs`. With `F = s.funcs`, `CX
       closedCallX` answers as the Core-sound `closedXOk` (`cx_closedXOk`); the invocation steps to
       the function's frame (`call_ref-func`), which diverges by `mdivT_frame_initial`. **Open:**
-      the converse, by the native route (`MDivT` ⇐ `FunDivX`, with `invoke_diverges_iff_funDivX`).
+      the converse, by the Core route (Core divergence ⇒ `MDivT`, reusing region completeness;
+      `FunDivX` then by `invoke_diverges_iff_funDivX`).
+    - **Tail calls in the fragment with calls (Core route, step 1):** `FragC` now has `return_call`,
+      `return_call_indirect`, `return_call_ref` (and the runtime `return_call_ref` of a type).
+      Core's `return_call_ref-label`/`-handler` moves all of a label's values out with the call, so
+      on untyped code the reference may come from outside the label (`ref.func a; block
+      (return_call_ref y)`), where the region semantics has no run: completeness with tail calls
+      needs the typing fact that it does not (`TailWF`, along the run `TailsOk`; from typing,
+      `tailsOk_of_typed`, via `retRef_ref_of_typed`). With it, `run_completeC` and `div_completeC`
+      cover tail calls: a tail call ends the region in a pending tail call (`labelTail`,
+      `handlerTail`, … through labels and handlers, which do not catch it), and a body never
+      diverges at a pending tail call, which is stuck outside a frame. Divergence of the tail
+      callee is frame divergence (`MDivT`), not body divergence. No EH coverage changes.
     - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
       `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
       Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the

@@ -93,4 +93,36 @@ theorem callIndirect_vals_inv_seq {s : Store H} {f : Frame} {c : Config H} {vs :
   · cases h1
   · cases h1
 
+/-- The sequence form of `returnCall_vals_inv`. -/
+theorem returnCall_vals_inv_seq {s : Store H} {f : Frame} {c : Config H} {vs : List Val}
+    {x : FuncIdx} {rest : List Admin}
+    (h : Step P host ⟨s, f, vals vs ++ .plain (.returnCall x) :: rest⟩ c) :
+    ∃ a fi, f.module.funcs[x.toNat]? = some a ∧ s.funcs[a]? = some fi ∧
+      c = ⟨s, f, vals vs ++ .ref (.func a) :: .returnCallRefType fi.type :: rest⟩ := by
+  obtain ⟨s', f', es'⟩ := c
+  rcases Sim.Step.split_head (a := .plain (.returnCall x)) rfl h with
+    ⟨ws, us, is', rfl, hstep, rfl⟩ | ⟨h1, -⟩ | ⟨h1, -⟩
+  · obtain ⟨a, fi, hx, hf, hc⟩ := returnCall_vals_inv hstep rfl
+    simp only [Config.mk.injEq] at hc
+    obtain ⟨rfl, rfl, rfl⟩ := hc
+    exact ⟨a, fi, hx, hf, by simp⟩
+  · cases h1
+  · cases h1
+
+/-- The sequence form of `returnCallIndirect_vals_inv`. -/
+theorem returnCallIndirect_vals_inv_seq {s : Store H} {f : Frame} {c : Config H} {vs : List Val}
+    {x : TableIdx} {y : TypeIdx} {rest : List Admin}
+    (h : Step P host ⟨s, f, vals vs ++ .plain (.returnCallIndirect x y) :: rest⟩ c) :
+    c = ⟨s, f, vals vs ++ .plain (.tableGet x) :: .plain (.refCast ⟨true, .typeIdx y⟩) ::
+      .plain (.returnCallRef y) :: rest⟩ := by
+  obtain ⟨s', f', es'⟩ := c
+  rcases Sim.Step.split_head (a := .plain (.returnCallIndirect x y)) rfl h with
+    ⟨ws, us, is', rfl, hstep, rfl⟩ | ⟨h1, -⟩ | ⟨h1, -⟩
+  · have hc := returnCallIndirect_vals_inv hstep rfl
+    simp only [Config.mk.injEq] at hc
+    obtain ⟨rfl, rfl, rfl⟩ := hc
+    simp
+  · cases h1
+  · cases h1
+
 end Silmaril.Wasm.Execution.Core.Proofs.Inversion

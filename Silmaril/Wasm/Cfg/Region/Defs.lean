@@ -111,6 +111,11 @@ inductive FragIB : Bool → Instr → Prop where
   | callIndirect (x : TableIdx) (y : TypeIdx) : FragIB true (.callIndirect x y)
   /-- A call by reference (only in the fragment with calls). -/
   | callRef (y : TypeIdx) : FragIB true (.callRef y)
+  /-- Tail calls (only in the fragment with calls): they end the region in a pending tail call,
+  which the function's frame answers. -/
+  | returnCall (x : FuncIdx) : FragIB true (.returnCall x)
+  | returnCallIndirect (x : TableIdx) (y : TypeIdx) : FragIB true (.returnCallIndirect x y)
+  | returnCallRef (y : TypeIdx) : FragIB true (.returnCallRef y)
 
 /-- Source instructions of the call-free fragment. -/
 abbrev FragI := FragIB false
@@ -125,6 +130,8 @@ inductive FragAB : Bool → Admin → Prop where
       FragAB cf (.label n cont inner)
   | handler {cf : Bool} {n : Nat} {cs : List Catch} {inner : List Admin}
       (hi : ∀ a ∈ inner, FragAB cf a) : FragAB cf (.handler n cs inner)
+  /-- The `return_call_ref` a direct tail call resolves to (only in the fragment with calls). -/
+  | retType (d : Validation.DefType) : FragAB true (.returnCallRefType d)
 
 /-- Runtime instructions of the call-free fragment. -/
 abbrev FragA := FragAB false
@@ -431,6 +438,31 @@ def Ctx.fill : Ctx → List Admin → List Admin
   | .hole, X => X
   | .label ws n cont E rest, X => vals ws ++ .label n cont (E.fill X) :: rest
   | .handler ws n cs E rest, X => vals ws ++ .handler n cs (E.fill X) :: rest
+
+/-- **The code of a label or handler on the redex path**: inside the first non-value
+instruction, possibly nested. -/
+inductive RedexIn : List Admin → List Admin → Prop where
+  | label {vs : List Val} {n : Nat} {cont : List Instr} {inner rest : List Admin} :
+      RedexIn (vals vs ++ .label n cont inner :: rest) inner
+  | handler {vs : List Val} {n : Nat} {cs : List Catch} {inner rest : List Admin} :
+      RedexIn (vals vs ++ .handler n cs inner :: rest) inner
+  | deepLabel {vs : List Val} {n : Nat} {cont : List Instr} {inner rest X : List Admin}
+      (h : RedexIn inner X) : RedexIn (vals vs ++ .label n cont inner :: rest) X
+  | deepHandler {vs : List Val} {n : Nat} {cs : List Catch} {inner rest X : List Admin}
+      (h : RedexIn inner X) : RedexIn (vals vs ++ .handler n cs inner :: rest) X
+
+/-- **Pending tail calls take their reference from their own label**: in every label or handler
+on the redex path whose code is a `return_call_ref` form after values, the reference is the last
+of those values. Typed code has this (`tailWF_of_typed`); Core's `return_call_ref-label` would
+otherwise take a reference from outside the label, which the region semantics does not. -/
+def TailWF (code : List Admin) : Prop :=
+  ∀ X, RedexIn code X → ∀ (vs : List Val) (c : Admin) (rest : List Admin),
+    X = vals vs ++ c :: rest → c.IsReturnCallRef → ∃ W r, vs = W ++ [Val.ref r]
+
+/-- **Pending tail calls stay well placed along the run**: every configuration reachable from
+`c₀` satisfies `TailWF`. Typed starts have it (Core typing is preserved by steps). -/
+def TailsOk (P : Profile) (host : HostSemantics H) (c₀ : Config H) : Prop :=
+  ∀ c₂ : Config H, Steps P host c₀ c₂ → TailWF c₂.code
 
 /-- **The guard holds at every call the run reaches**: at every configuration reachable from
 `c₀` whose redex is a call of a function reference (inside a context), `ref.func a` and a

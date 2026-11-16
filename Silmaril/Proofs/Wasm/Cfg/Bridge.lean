@@ -66,7 +66,8 @@ theorem runC_of_frag {s s' : Store H} {f f' : Frame} {code c' : List Admin} {o :
     (hF : Region.Frag code) (h : Steps P host ⟨s, f, code⟩ ⟨s', f', c'⟩) (he : o.Ends c') :
     RunC P host C s f [] code s' f' o :=
   Proofs.Region.completeC (G := fun _ _ _ => False) (fun _ _ _ _ _ _ _ _ _ _ _ hg => hg.elim)
-    (Proofs.Region.guardedCalls_frag hF) (fun a ha => Proofs.Region.fragAB_true (hF a ha)) h he
+    (Proofs.Region.guardedCalls_frag hF) (Proofs.Region.tailsOk_frag hF)
+    (fun a ha => Proofs.Region.fragAB_true (hF a ha)) h he
 
 /-- **A checked flat instruction is a region step** (any oracle): its native result, as a
 region outcome. -/

@@ -707,15 +707,18 @@ theorem run_divC_initial {D : Store H → Nat → List Val → Prop} {s : Store 
 
 /-- **Core divergence of a body with calls is machine divergence** (completeness): under
 a complete oracle `C` and a complete divergence predicate `D` (`Region.CallCompleteG`,
-`Region.DivCallComplete`), their guard `G` holding at every call the run reaches, a diverging
-Core 3.0 run of a body of the fragment with calls (`FragC`) is `MDivC` from the CFG entry. -/
+`Region.DivCallComplete`), their guard `G` holding at every call the run reaches and pending tail
+calls well placed along it (`Region.TailsOk`), a diverging Core 3.0 run of a body of the fragment
+with calls (`FragC`) is `MDivC` from the CFG entry. -/
 theorem core_div_initialC {G : Store H → Nat → List Val → Prop}
     {D : Store H → Nat → List Val → Prop} (hC : Region.CallCompleteG P host G C)
     (hD : Region.DivCallComplete P host G D) {s : Store H} {f : Frame}
     (hF : Region.FragC (expression body)) (hG : Region.GuardedCalls P host G ⟨s, f, expression body⟩)
+    (hW : Region.TailsOk P host ⟨s, f, expression body⟩)
     (h : Diverges P host ⟨s, f, expression body⟩) :
     MDivC P host C D body (initial body s f) :=
-  run_divC_initial (Region.div_completeC (vs := []) hC hD hF (by simpa using hG) (by simpa using h))
+  run_divC_initial (Region.div_completeC (vs := []) hC hD hF (by simpa using hG) (by simpa using hW)
+    (by simpa using h))
 
 /-- **The machine's tail step from `CallX.TailRes`**: a tail-call terminator whose call
 `Abstract.CallX.TailRes` resolves to the callee `a` (on the block's stack, top first), with an

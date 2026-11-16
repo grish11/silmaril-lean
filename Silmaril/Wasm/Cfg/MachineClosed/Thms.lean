@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Abstract.RegionCall.Thms
 public import Silmaril.Wasm.Cfg.MachineClosed.Defs
 import Silmaril.Proofs.Wasm.Cfg.CallClosed
 import Silmaril.Proofs.Wasm.Cfg.CallGuard
+import Silmaril.Proofs.Wasm.Cfg.TailTyped
 public import Silmaril.Wasm.Execution.Core.Sim.TypedContext
 
 @[expose] public section
@@ -101,15 +102,16 @@ calls (`FragC`) to a final form of `o` (not a branch out of the body, not a tail
 function) is a run of the machine with `closedCallOk` from the CFG entry to a sink ending as
 `Ends` says, in the same store and frame, provided every call the run reaches is on the native
 slice (`GuardedCalls … NativeCallOk`: typed store, native Wasm functions, arity-checked
-functions, typed invocation). -/
+functions, typed invocation) and pending tail calls stay well placed (`Region.TailsOk`). -/
 theorem core_complete_closed (P : Profile) {s s' : Store H} {f f' : Frame} {c' : List Admin}
     {o : Region.Out} (hF : Region.FragC (expression body))
     (hG : Region.GuardedCalls P (fun _ _ _ _ => False) NativeCallOk ⟨s, f, expression body⟩)
+    (hW : Region.TailsOk P (fun _ _ _ _ => False) ⟨s, f, expression body⟩)
     (h : Steps P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ ⟨s', f', c'⟩) (he : o.Ends c')
     (ho : ∀ k us, o ≠ .br k us) (hto : ∀ W a c, o ≠ .tail W a c) :
     ∃ st', Relation.ReflTransGen (MStepC P (fun _ _ _ _ => False) Abstract.closedCallOk body)
         (initial body s f) st' ∧ Ends st' o ∧ st'.store = s' ∧ st'.frame = f' :=
-  run_complete_initialC (Region.run_completeC (callCompleteG_closedCallOk P) hG hF h he) ho hto
+  run_complete_initialC (Region.run_completeC (callCompleteG_closedCallOk P) hG hW hF h he) ho hto
 
 /-- **The native-slice guard from typing** (no host, every profile): from a typed start
 (`ContextTyped`) on a store of native, arity-checked functions, every call a host-free run
@@ -120,6 +122,13 @@ theorem guardedCalls_of_typed {P : Profile} {c₀ : Config H} (hT : Sim.ContextT
     (hN : Binaryen.NativeFuncsOk c₀.store.funcs) (hS : Interp.StoreChk c₀.store.funcs) :
     Region.GuardedCalls P (fun _ _ _ _ => False) NativeCallOk c₀ :=
   Proofs.Region.guardedCalls_of_typed hT hN hS
+
+/-- **Pending tail calls stay well placed from a typed start** (no host, every profile): a typed
+`return_call_ref` takes its reference from its own label or handler (`Region.TailWF`), and Core
+typing is preserved by host-free steps. -/
+theorem tailsOk_of_typed {P : Profile} {c₀ : Config H} (hT : Sim.ContextTyped c₀) :
+    Region.TailsOk P (fun _ _ _ _ => False) c₀ :=
+  Proofs.Region.tailsOk_of_typed hT
 
 /-- **Core completeness of the machine with the checked closed oracle, from a typed native
 start** (no host, every profile, no oracle or guard hypothesis): a Core 3.0 run of a typed
@@ -135,7 +144,7 @@ theorem core_complete_closed_typed (P : Profile) {s s' : Store H} {f f' : Frame}
     (ho : ∀ k us, o ≠ .br k us) (hto : ∀ W a c, o ≠ .tail W a c) :
     ∃ st', Relation.ReflTransGen (MStepC P (fun _ _ _ _ => False) Abstract.closedCallOk body)
         (initial body s f) st' ∧ Ends st' o ∧ st'.store = s' ∧ st'.frame = f' :=
-  core_complete_closed P hF (guardedCalls_of_typed hT hN hS) h he ho hto
+  core_complete_closed P hF (guardedCalls_of_typed hT hN hS) (tailsOk_of_typed hT) h he ho hto
 
 /-! ## Divergence -/
 
@@ -172,13 +181,14 @@ theorem mdivT_frame_closed (P : Profile) {s : Store H} {fi : Frame}
 /-- **Completeness of machine divergence with the checked closed oracle** (no host, every
 profile, no oracle hypothesis): a diverging Core 3.0 run of a body of the fragment with
 calls (`FragC`) is `MDivC` with `closedCallOk` and `closedDiv` from the CFG entry, provided every
-call the run reaches is on the native slice. -/
+call the run reaches is on the native slice and pending tail calls stay well placed. -/
 theorem core_div_closed (P : Profile) {s : Store H} {f : Frame}
     (hF : Region.FragC (expression body))
     (hG : Region.GuardedCalls P (fun _ _ _ _ => False) NativeCallOk ⟨s, f, expression body⟩)
+    (hW : Region.TailsOk P (fun _ _ _ _ => False) ⟨s, f, expression body⟩)
     (h : Diverges P (fun _ _ _ _ => False) ⟨s, f, expression body⟩) :
     MDivC P (fun _ _ _ _ => False) Abstract.closedCallOk closedDiv body (initial body s f) :=
-  core_div_initialC (callCompleteG_closedCallOk P) (divCallComplete_closedDiv P) hF hG h
+  core_div_initialC (callCompleteG_closedCallOk P) (divCallComplete_closedDiv P) hF hG hW h
 
 /-- **Divergence adequacy of the machine with the checked closed oracle, from a typed native
 start** (no host, every profile, no oracle or guard hypothesis): on a typed (`ContextTyped`)
@@ -190,6 +200,6 @@ theorem mdivC_iff_core_closed_typed (P : Profile) {s : Store H} {f : Frame}
     (hN : Binaryen.NativeFuncsOk s.funcs) (hS : Interp.StoreChk s.funcs) :
     MDivC P (fun _ _ _ _ => False) Abstract.closedCallOk closedDiv body (initial body s f) ↔
       Diverges P (fun _ _ _ _ => False) ⟨s, f, expression body⟩ :=
-  ⟨mdivC_core_closed P, core_div_closed P hF (guardedCalls_of_typed hT hN hS)⟩
+  ⟨mdivC_core_closed P, core_div_closed P hF (guardedCalls_of_typed hT hN hS) (tailsOk_of_typed hT)⟩
 
 end Silmaril.Wasm.Cfg.Machine
