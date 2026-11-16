@@ -47,9 +47,9 @@ Settled decision and non-claims:
   the store down;
 * `Simple` scope: adequate simple components (#669/#676), deterministic profiles for the
   injection and the infinite plays;
-* divergence is the canonical-ABI specification's divergence on Core runs (`DivAt`); the
-  reference machine's `CallDiverges` is related to it in one direction only in the library, so
-  `RefSessEquivD`'s `div` clause is not stated on reference-machine runs;
+* divergence is the canonical-ABI specification's divergence on Core runs (`DivAt`); it equals
+  reference-machine divergence (`Reference.SessionDiv`), so `RefSessEquivD`'s `div` clause is
+  equivalently stated on reference-machine runs (`RefSessEquivD.iff_refDivs`);
 * not contextual full abstraction: the observer is a host calling exports in sequence;
 * the passage from bytes to `Comp` is separate;
 * the native store-retaining closing correspondence belongs to the `StratSession` owner.

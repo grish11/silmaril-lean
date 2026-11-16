@@ -35,10 +35,9 @@ of the component's module:
   the session continues from `s'` in both cases;
 * **divergence** `.div`: a typed call whose lowered Core activation runs forever host-free
   (`DivAt`). This is the divergence clause of the canonical-ABI specification (`specAt`,
-  `exportSpec`), on Core runs. It is not defined from reference-machine runs: the library
-  relates the reference machine's `CallDiverges` to Core divergence in one direction only
-  (reference divergence gives Core divergence, `CallRun.diverges_spec` and its sequential
-  forms), so a reference-run definition could not be compared with the IR side;
+  `exportSpec`), on Core runs. It coincides with reference-machine divergence: the reference
+  machine's `CallDiverges` gives Core divergence (`CallRun.diverges_spec`), and conversely
+  (`Reference.SessionDiv`: `Simple.divAt_iff_refDiv`, `Simple.sessDivs_eq_refDivs`);
 * **no imports**: the lower interface is `sigN 0`, with no pending calls and no productive
   streams.
 
