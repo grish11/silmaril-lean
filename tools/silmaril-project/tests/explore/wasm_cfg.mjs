@@ -1,4 +1,4 @@
-// The explorer's Wasm function pages (`wasmFuncPage` in explore.html): how the block CFG draws
+// The explorer's Wasm function pages (`wasmFuncPage` in explore/views/wasm.js): how the block CFG draws
 // its conservative may-edges, on a small function (rust_door enter) and a large one (the WASI
 // adapter's poll_oneoff, 112 blocks). Checks, in a browser:
 // * the legend's counts are the counts of the page data (wasm/m/<slug>.json);
@@ -20,7 +20,8 @@ const srv = spawn("python3", ["-I", path.join(path.dirname(new URL(import.meta.u
   "--root", site, "--port", String(port), "--log", "/tmp/wasm_cfg_requests.jsonl"], { stdio: "ignore" });
 const fails = [];
 const check = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (!ok) fails.push(what); };
-const b = await pw.chromium.launch({ executablePath: process.env.CHROME || "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" });
+const b = await pw.chromium.launch({ executablePath: process.env.CHROME ||
+  (fs.existsSync("/opt/ms-playwright/chromium-1248/chrome-linux64/chrome") ? "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" : undefined) });
 try {
   await new Promise((r) => setTimeout(r, 800));
   const p = await b.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -61,12 +62,14 @@ try {
     check(await positions() === before, `${name}: drawing may-edges moves no node`);
     await shot(`${name}-all-may`);
     await p.uncheck("#weff");
-    // Hover a marked block: its may-edges are drawn, and only those.
+    // Hover a marked block: its may-edges are drawn, and only those. (The evaluated functions return
+    // nothing: `emit` returns the cytoscape collection, and Playwright serializing that object graph
+    // back to the test ran the page out of memory, "Target crashed".)
     const marked = want.cfg.blocks.findIndex((x) => x.effects.length && want.cfg.edges.some((e) => e[0] === want.cfg.blocks.indexOf(x) && e[2] === "effect"));
     const own = want.cfg.edges.filter((e) => e[0] === marked && e[2] === "effect").length;
-    await p.evaluate((id) => wcy.getElementById(id).emit("mouseover"), "b" + marked);
+    await p.evaluate((id) => { wcy.getElementById(id).emit("mouseover"); }, "b" + marked);
     check((await drawn()).may === own, `${name}: hovering b${marked} draws its ${own} may-edge(s)`);
-    await p.evaluate((id) => wcy.getElementById(id).emit("mouseout"), "b" + marked);
+    await p.evaluate((id) => { wcy.getElementById(id).emit("mouseout"); }, "b" + marked);
     check((await drawn()).may === 0, `${name}: leaving it hides them again`);
     check(await positions() === before, `${name}: hovering moves no node`);
     // Select trap: every edge into it is listed and drawn.
@@ -110,6 +113,18 @@ try {
     const top = expect(slug, idx).cfg;
     if (!top.default || !top.variants || !top.variants[top.default]) { console.log(`     ${slug}/${idx}: the data names no default variant`); continue; }
     const v = top.variants[top.default];
+    // A contracted graph (members) must be the quotient of the all-effects graph: every AE edge but
+    // the merged fall-throughs (consecutive members), mapped to groups; every outcome kept per member.
+    const ae = top.variants["all-effects"];
+    if (Array.isArray(v.members) && ae) {
+      const grp = new Map(); v.members.forEach((ms, gi) => ms.forEach((k) => grp.set(k, gi)));
+      const inner = new Set(v.members.flatMap((ms) => ms.slice(1).map((k, j) => ms[j] + ">" + k)));
+      const G = (x) => typeof x === "number" ? grp.get(x) : x;
+      const want = new Set(ae.edges.filter(([a, x, k]) => !(k === "flow" && typeof x === "number" && inner.has(a + ">" + x))).map(([a, x, k]) => `${G(a)}|${G(x)}|${k}`));
+      const got = new Set(v.edges.map(([a, x, k]) => `${a}|${x}|${k}`));
+      check(want.size === got.size && [...want].every((x) => got.has(x)), `${slug}/${idx}: ${top.default} edges are the quotient of all-effects (${got.size} edges)`);
+      check((v.outcomes || []).length === (ae.outcomes || []).length, `${slug}/${idx}: every all-effects outcome is kept, per member`);
+    }
     await open(`/wasm-func/${slug}/${idx}`);
     const g = await p.evaluate(() => ({ variant: $("#wvariant").value, nodes: wcy.nodes('[kind = "block"]').length, edges: wcy.edges().not(".may").length,
       outcomes: Number(document.querySelector('[data-c="outcomes"]')?.textContent ?? 0), may: wcy.edges(".may").not(".outc").length }));

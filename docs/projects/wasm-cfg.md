@@ -220,6 +220,22 @@ or region tree. Every semantic claim is a theorem against `Silmaril.Wasm.Executi
     run passes;
   - the abstract `BodyM`/`IterOps` layer has no link to Core yet.
 
+**Scope: coverage is not equivalence.** A forward simulation (every Core step from a
+position moves along a CFG edge) shows that the graph *covers* execution: every run projects
+to a graph path. It does not give equality with the function's behaviours, for two reasons:
+- **Infeasible paths.** The graph's `if`, `br_if` and `br_table` edges ignore the data
+  conditions, so many graph paths are not runs.
+- **Conservative marks.** The effect marks and edges are conservative, so they include
+  outcomes no run reaches.
+
+Behavioural equivalence needs more:
+- an *executable* CFG semantics: typed blocks carrying values, locals and the store, whose
+  branches read the data;
+- a reverse simulation, or adequacy (every run of that semantics is a Core run);
+- matching treatment of initialisation, termination and divergence.
+
+The plain graph stays an over-approximation, and claims about it say so.
+
 **Milestones**, each a bounded PR with no `sorry` on `main`:
 1. **Position invariant.** `At body pos cfg` relates a reachable configuration of the body
    (nested `LABEL_n{cont}` contexts around `val* rest`) to a position
@@ -232,6 +248,13 @@ or region tree. Every semantic claim is a theorem against `Silmaril.Wasm.Executi
 3. **Control steps.** The steps of the terminators (`block`/`loop`/`if` entry, `br`,
    `br_if`, `br_table`, `br_on_*`, `return`, label exit, `unreachable`) move from `b` to a
    position at the entry of some `t` with `Edge body b t`, or to `exit`/`trap`.
+   *Done so far* (positions in `Cfg.Exec`, against `Step`): entering `block`, `loop`,
+   `try_table` and the chosen `if` arm, and falling out of a `block`/`loop`/`if` arm
+   (`resid_at_block_step` … `resid_inArm_done_step`). These use the shared Core inversions in
+   `Execution.Core.Inversion` (stuck codes, `call`/`call_ref`, `LabelExit`/`HandlerExit`/
+   `FrameExit`). Still to do: steps inside a label (lifting a body step through
+   `ctxt-label`), branches and their bubbling, `try_table` fall-through and catches, and the
+   projection of positions to `Cfg.Edge`.
 4. **Exceptions as control** (#230): a `throw`, or a raise out of a call, resolves to the
    enclosing `try_table` catch target or leaves the function. The CFG gets resolved exception
    edges for this, proved against the `HANDLER` rules. This replaces `handler-unresolved` and
@@ -240,8 +263,20 @@ or region tree. Every semantic claim is a theorem against `Silmaril.Wasm.Executi
    projects to an edge path from `cfgEntry`. Divergence is an infinite path.
 6. **Precise effects.** Each `trap` edge is justified by a step that traps (no generic "may").
    The converse, that every such edge is reachable, is not claimed unless proved.
-7. **Adequacy.** The reverse direction (CFG paths realised by runs, under data conditions),
-   only if equivalence is claimed.
+7. **Executable block semantics and adequacy.** A typed block semantics (values, locals,
+   store; branches read the data) and the reverse simulation. Only with both may equivalence
+   with `behaviours` be claimed. For the structured native fragment, equality of its runs with
+   the fragment's `Run` then gives Core 3.0 call-equivalence (`callEquiv_of_run_iff`).
+   *First slice done* (`Cfg.Region`): a compositional big-step region semantics `Run` on Core
+   runtime code (values, non-control instructions, `block`/`loop`/`if`/`br`/`br_if`/`return`,
+   `LABEL`, `TRAP`) with outcomes `normal`/`br`/`ret`/`trap`. It is adequate for Core 3.0 in
+   both directions, for every profile and host, on terminating runs: `run_adequate`,
+   `body_adequate`, and `frame_adequate` for function frames. Sequencing is
+   `run_append_iff`. Divergence: `RunDiv` (structural greatest fixed point) with `div_iff`
+   (`RunDiv ↔ Core Diverges` on the fragment), using `atomTerm` (every non-control instruction's
+   reduction is strongly normalising, by expansion level and bulk counts). `br_table` and
+   `br_on_*` are in the fragment (`BrStep`), and so are exceptions (`throw`, `throw_ref`,
+   `try_table`, `HANDLER`, clause resolution `Catches`; outcome `throw a`). Calls inside bodies remain.
 8. **Calls**, through an explicit call interface: a call node whose callee behaviour is a
    parameter (a `FRAME` run of the callee), first for direct calls.
 
@@ -279,6 +314,14 @@ kernel-checked tables. The variants below are related to it by theorems, not by 
     `default: "all-effects"` (`tools/wasm-pages/SCHEMA.md`).
   - The handler outcomes follow #230: a raise is control resumed by its handler, a trap is
     abrupt. They are to be proved against Core's `HANDLER` rules in the operational bridge.
+- **Maximal blocks** (`Cfg.canMerge`, `canMerge_succ`, `canMerge_pred`,
+  `canMerge_not_entry`): AE blocks are merged along a fallthrough whose target has no other AE
+  or handler predecessor and is not the entry. The explorer's default is
+  `variants["all-effects-max"]`, which keeps each member's identity (`members`).
+  `Cfg.Maximal`: merges are functional and injective (`canMerge_functional`, `canMerge_inj`),
+  so the merged blocks are disjoint chains. The contracted graph's edges are exactly the AE
+  edges other than the merged fall-throughs (`mem_maxFlow`), plus every handler edge
+  (`mem_maxHandler`). This is a graph construction, not an execution theorem.
 - **Graph analyses are per variant.** Removing a sink changes no dominator of the remaining
   nodes, since a sink lies on no path to another node; this is to be proved as a graph lemma.
   It does change postdominators and exit reachability, so those are stated per variant.

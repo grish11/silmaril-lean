@@ -424,6 +424,12 @@ An indented name is a named instance of the shape above it, with some arguments 
 | `silmaril.shapes.format.parses` | `Parses {V} (F : Format blob V) (b : Bytes)` | `b` parses under `F` | `parses_iff` |
 | `silmaril.shapes.format.agree` | `Agree {V} (F G : Format blob V) (a b : Bytes)` | `a` under `F` and `b` under `G` are one value of the data model `V` | `agree_iff` |
 | `silmaril.shapes.value.satisfies` | `Satisfies {V} (X : Value V) (P : V → Prop)` | `X` parses to a `v` with `P v` | `satisfies_iff`, `Satisfies.parses` |
+| `silmaril.shapes.language.member` | `Member {α} (L : Set α) (x : α)` | `x ∈ L`; with `x` free, THM/SAT/UNS/CSA are universal/nonempty/empty/nonuniversal ([languages.md](languages.md)) | `member_thm_iff`, `member_sat_iff`, `member_uns_iff`, `member_csa_iff` |
+| `silmaril.shapes.language.bytes_member` | `BytesMember (L : Set (List UInt8)) (b : Bytes)` | an artifact's bytes are in `L` | |
+| `silmaril.shapes.language.subset_at` | `SubsetAt {α} (L K : Set α) (x : α)` | `x ∈ L → x ∈ K`; THM is `L ⊆ K`, CSA a counterexample | `subsetAt_thm_iff`, `subsetAt_csa_iff` |
+| `silmaril.shapes.language.eq_at` | `EqAt {α} (L K : Set α) (x : α)` | `x ∈ L ↔ x ∈ K`; THM is `L = K` | `eqAt_thm_iff`, `eqAt_csa_iff` |
+| `silmaril.shapes.language.bound_at` | `BoundAt {α} (L : Set α) (μ : α → ℕ) (b : ℕ) (x : α)` | `x ∈ L → μ x ≤ b` | `boundAt_thm_iff`, `boundAt_csa_iff` |
+| `silmaril.shapes.language.eq_within_at` | `EqWithinAt {α} (L K : Set α) (μ : α → ℕ) (b : ℕ) (x : α)` | `x ∈ L ↔ x ∈ K ∧ μ x ≤ b` | `eqWithinAt_thm_iff` |
 | `silmaril.shapes.elf.loads` | `Loads (L : Loader) {V} (exe : Value V) (perms : String) (addr : Nat) (code : List (BitVec 8))` | the loader `L` accepts `exe`, and a segment with permissions `perms` holds exactly `code` at `addr` | `loads_x86_iff`, `Loads.x86_of_check`, `Loads.x86_of_blob` |
 | &nbsp;&nbsp;`….loads.x86` | `L := Loader.x86` | the same with the LPS x86-64 loader of `elf.exec-x86` | |
 | `silmaril.shapes.elf.entry` | `Entry (L : Loader) {V} (exe : Value V) (addr : Nat)` | `L` accepts `exe` and its entry point is `addr` | `Entry.x86_of_blob`, `Entry.x86_of_satisfies` |
@@ -481,8 +487,10 @@ line in this table.
 
 ## Artifacts and provenance: `silmaril/artifacts.toml`
 
-There is one registry per package, the single source of truth for blobs, keyed by CID (a DASL
-CIDv1, raw codec, BLAKE3-256, base32 `bafkr4i…`; SHA-256 and the Git blob SHA-1 are aliases).
+There is one registry per package, the single source of truth for blobs, keyed by CID (a CIDv1,
+raw codec, BLAKE3-256, base32 `bafkr4i…`; SHA-256 and the Git blob SHA-1 are aliases). With
+BLAKE3 it is a BDASL CID, not a DASL CID (DASL CID allows only SHA-256; see
+[format-languages.md](format-languages.md)).
 Add a file with `sil project artifacts add PATH [--name N]`, or edit `paths` and `name` and run
 `sil project lock`. `lock` fills `cid`, `size`, `sha256`, `git_sha1` and the CIDs of the files
 derivations name, merges entries with one CID and sorts them. Lean imports the registry with

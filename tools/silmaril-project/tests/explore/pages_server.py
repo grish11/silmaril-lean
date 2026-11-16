@@ -7,12 +7,17 @@ https://hiloopai.github.io/silmaril-lean/ on 2026-11-13):
   strong ETag `"<mtime>-<length>"`;
 * `Cache-Control: max-age=600` everywhere, and query strings are ignored.
 
+`--validators` changes what names the file's version: `strong` (the above, the default), `weak`
+(a weak ETag and Last-Modified), `lastmod` (Last-Modified only, one-second resolution) or `none`,
+to test servers that do not name a version reliably.
+
 Every request is logged to the file given by --log as one JSON object per line (method, path,
 query, range, status, body bytes), so a test can count transfers.
 
     python3 -I pages_server.py --root DIR --port 8766 --log requests.jsonl
 """
 import argparse
+import email.utils
 import gzip
 import http.server
 import json
@@ -25,6 +30,7 @@ def main():
     ap.add_argument("--root", required=True)
     ap.add_argument("--port", type=int, default=8766)
     ap.add_argument("--log", required=True)
+    ap.add_argument("--validators", choices=["strong", "weak", "lastmod", "none"], default="strong")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
 
@@ -47,6 +53,15 @@ def main():
             data = open(p, "rb").read()
             st = os.stat(p)
             tag = '"%x-%x"' % (int(st.st_mtime), len(data))
+            lastmod = email.utils.formatdate(int(st.st_mtime), usegmt=True)
+
+            def validators(etag):
+                if args.validators == "strong":
+                    self.send_header("ETag", etag)
+                elif args.validators == "weak":
+                    self.send_header("ETag", etag if etag.startswith("W/") else "W/" + etag)
+                if args.validators in ("weak", "lastmod"):
+                    self.send_header("Last-Modified", lastmod)
             ctype = ("text/html; charset=utf-8" if p.endswith(".html") else
                      "text/javascript" if p.endswith(".js") else "application/octet-stream")
             rng = self.headers.get("Range")
@@ -57,16 +72,16 @@ def main():
                 body = data[a:b + 1]
                 self.send_response(206)
                 self.send_header("Content-Range", "bytes %d-%d/%d" % (a, b, len(data)))
-                self.send_header("ETag", tag)
+                validators(tag)
             elif gz:
                 body = gzip.compress(data)
                 self.send_response(200)
                 self.send_header("Content-Encoding", "gzip")
-                self.send_header("ETag", "W/" + tag)
+                validators("W/" + tag)
             else:
                 body = data
                 self.send_response(200)
-                self.send_header("ETag", tag)
+                validators(tag)
             self.send_header("Content-Type", ctype)
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Cache-Control", "max-age=600")

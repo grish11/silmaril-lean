@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Interp.Arity
 public import Silmaril.Proofs.Wasm.Interp.Trap
+public import Silmaril.Proofs.Wasm.Interp.Memory
 
 @[expose] public section
 
@@ -90,7 +91,11 @@ theorem wp_abrupt {c' : List Admin} {o : Outcome} {fl : Binaryen.Flow} (he : o.E
   · exact wp_abrupt_br he hm pre rest
   · exact wp_abrupt_ret he hm pre rest
   · exact wp_abrupt_trap he hm pre rest
-  · rcases o <;> simp only [FlowMatch] at hm
+  · rcases o with _ | _ | _ | _ | a' | _ | _ <;> simp only [FlowMatch] at hm
+    subst hm
+    have hc : c' = throwing _ := he
+    subst hc
+    exact wp_throwing ⟨rfl, rfl, rfl⟩
 
 /-- A sequence whose first part ends abruptly. -/
 theorem wp_append_abrupt' {c rest : List Admin} {s₁ : Store H} {f₁ : Frame} {fl : Binaryen.Flow}
@@ -130,6 +135,7 @@ theorem truthy_eq {v : Val} {b : Bool} (h : Binaryen.truthy v = some b) :
 `call`, is a straight-line one. -/
 theorem straight_of_flatChk {nl : Nat} {h₀ : Nat} {o : Option Nat} {i : Instr}
     (hi : ∀ x, i ≠ .call x) (hb : ∀ l, i ≠ .brIf l) (hsel : ∀ t, i ≠ .select t)
+    (hmem : ¬ IsMem i)
     (hc : flatChk F mi nl ret labels h₀ i = some o)
     (h : Binaryen.evalFlat s f stk i = some (s', f', .normal stk')) :
     Instr.straight i = true ∧ Instr.setsBelow nl i = true := by
@@ -139,7 +145,15 @@ theorem straight_of_flatChk {nl : Nat} {h₀ : Nat} {o : Option Nat} {i : Instr}
     cases hfl
   cases i
   all_goals try first | exact absurd rfl (hsel _) | exact absurd ⟨_, _, rfl⟩ hbt
-  all_goals simp only [flatChk, flatEff] at hc
+  case intLoad t p x arg =>
+    rcases p with _ | p
+    · exact absurd (.inl ⟨_, _, _, rfl⟩) hmem
+    · simp[flatChk, flatChkE, flatEff] at hc
+  case intStore t p x arg =>
+    rcases p with _ | p
+    · exact absurd (.inr ⟨_, _, _, rfl⟩) hmem
+    · simp[flatChk, flatChkE, flatEff] at hc
+  all_goals simp only[flatChk, flatChkE, extStep, noExt, flatEff] at hc
   all_goals (repeat' split at hc) <;> simp_all [Instr.straight, Instr.setsBelow, Instr.setIdx?,
     Binaryen.evalFlat]
 
@@ -205,9 +219,11 @@ theorem steps_flat_normal {h₀ : Nat} {o : Option Nat} {i : Instr} (hi : ∀ x,
   by_cases hsel : ∃ t, i = .select t
   · obtain ⟨t, rfl⟩ := hsel
     exact steps_select h rest
+  by_cases hmem : IsMem i
+  · exact steps_mem_normal hmem h rest
   · have hb' : ∀ l, i ≠ .brIf l := fun l hl => hb ⟨l, hl⟩
     have hsel' : ∀ t, i ≠ .select t := fun t ht => hsel ⟨t, ht⟩
-    obtain ⟨hs, hsb⟩ := straight_of_flatChk hi hb' hsel' hc h
+    obtain ⟨hs, hsb⟩ := straight_of_flatChk hi hb' hsel' hmem hc h
     have e1 : exec1 s f stk i = some (s', f', stk') := (exec1_of_evalFlat hs hsb h).1
     have e2 : exec s f stk [i] = some (s', f', stk') := by
       rw [exec_cons_of_some e1]
@@ -319,8 +335,18 @@ theorem wp_flat_abrupt {h₀ : Nat} {o : Option Nat} {i : Instr} {fl : Binaryen.
       obtain ⟨_, _, _, _, _, -, -, -, -, rfl⟩ := evalFlat_select h
       exact absurd trivial hn
     case return_ => exact wp_flat_return h rest
+    case intLoad t p x arg =>
+      rcases p with _ | p
+      · obtain ⟨rfl, st⟩ := steps_mem_abrupt (P := P) (host := host) (.inl ⟨_, _, _, rfl⟩) h hn rest
+        exact ⟨s', f', [.trap], .trap, st, rfl, rfl, rfl, trivial⟩
+      · exfalso; simp[flatChk, flatChkE, flatEff] at hc
+    case intStore t p x arg =>
+      rcases p with _ | p
+      · obtain ⟨rfl, st⟩ := steps_mem_abrupt (P := P) (host := host) (.inr ⟨_, _, _, rfl⟩) h hn rest
+        exact ⟨s', f', [.trap], .trap, st, rfl, rfl, rfl, trivial⟩
+      · exfalso; simp[flatChk, flatChkE, flatEff] at hc
     all_goals exfalso
-    all_goals first | (simp [flatChk, flatEff] at hc; done) | simp [Binaryen.evalFlat] at h
+    all_goals first | (simp[flatChk, flatChkE, extStep, noExt, flatEff] at hc; done) | simp [Binaryen.evalFlat] at h
 
 end Flat
 
@@ -415,7 +441,11 @@ theorem label_step_abrupt {fl fl' : Binaryen.Flow} (he : o.Ends c') (hm : FlowMa
     rcases fl with _ | _ | vs | _ | _ <;> simp only [Binaryen.Flow.Escapes] at hesc
     · exact label_step_ret he hm
     · exact label_step_trap he hm
-    · rcases o <;> simp only [FlowMatch] at hm
+    · rcases o with _ | _ | _ | _ | a' | _ | _ <;> simp only [FlowMatch] at hm
+      subst hm
+      have hc : c' = throwing _ := he
+      subst hc
+      exact ⟨_, .throw _, .throwRefLabel, rfl, rfl⟩
 
 /-- Leaving a label for a branch to an outer label, a return or a trap. -/
 theorem exit_abrupt {fl fl' : Binaryen.Flow} (he : o.Ends c') (hm : FlowMatch fl o)
@@ -831,18 +861,63 @@ theorem wp_call_trap {rest : List Admin} (hfi : s.func? f x = some (a, fi))
       (Match (s₂, f, .trap)) := wp_trap ⟨rfl, rfl, trivial⟩
   exact WP.steps (enter.trans (inner.trans (Steps.ctx _ rest out))) (by simpa using hw)
 
+/-- A call whose callee throws throws the same exception: the throw leaves the callee's label
+and frame (`throw_ref-label`, `throw_ref-frame`). -/
+theorem wp_call_throw {rest : List Admin} {t : Nat} (hfi : s.func? f x = some (a, fi))
+    (hcode : fi.code = .wasm fn) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hp : ps.length ≤ stk.length)
+    (hb : WP P host s (calleeFrame fi fn stk ps.length)
+      (vals ([] : List Val).reverse ++
+        expression (Binaryen.BExpr.lowerList (Binaryen.liftInstrs fn.body)))
+      (Match (s₂, f₂, .throw t))) :
+    WP P host s f (vals stk.reverse ++ .plain (.call x) :: rest) (Match (s₂, f, .throw t)) := by
+  rw [Binaryen.lowerList_liftInstrs] at hb
+  obtain ⟨c', o, hrun, he, hm⟩ := run_of_wp hb
+  have hc : c' = throwing t := by
+    rcases o with _ | _ | _ | _ | _ | _ <;> simp only [FlowMatch] at hm
+    subst hm
+    exact he
+  subst hc
+  have enter := (steps_call_enter (P := P) (host := host) hfi hcode hty hp rest).to_reflTransGen
+  have inner := Steps.ctx (P := P) (host := host) (stk.drop ps.length).reverse rest
+    (Steps.frame (f := f) rs.length (Steps.label rs.length [] (by simpa [vals] using hrun)))
+  have out : Steps P host ⟨s₂, f, [.frame rs.length f₂ [.label rs.length [] (throwing t)]]⟩
+      ⟨s₂, f, throwing t⟩ :=
+    (Relation.ReflTransGen.single (Step.ctxtFrame Step.throwRefLabel)).tail Step.throwRefFrame
+  have hw : WP P host s₂ f (vals (stk.drop ps.length).reverse ++ throwing t ++ rest)
+      (Match (s₂, f, .throw t)) := wp_throwing ⟨rfl, rfl, rfl⟩
+  exact WP.steps (enter.trans (inner.trans (Steps.ctx _ rest out))) (by simpa using hw)
+
 end Calls
 
 /-! ## The simulation -/
 
-/-- The statement of `wp_of_eval` for one evaluation. -/
-def CoreGood (P : Numerics.Profile) (host : HostSemantics H) (s : Store H) (f : Frame)
+/-- The statement of `wp_of_eval` for one evaluation, with the postcondition `M ret r`
+chosen per return arity `ret` of the check. -/
+def CoreGoodQ (ext : ExtArity H) (P : Numerics.Profile) (host : HostSemantics H)
+    (M : Nat → Store H × Frame × Binaryen.Flow → Post H) (s : Store H)
+    (f : Frame) (stk : List Val) (es : List Binaryen.BExpr) (r : Store H × Frame × Binaryen.Flow) :
+    Prop :=
+  ∀ {labels : List Nat} {ret : Nat} {out : Option Nat}, StoreChkE ext s.funcs →
+    chkE ext s.funcs f.module f.locals.length ret labels (some stk.length) es = some out →
+    WP P host s f (vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es)) (M ret r)
+
+/-- The statement of `wp_of_eval` for one evaluation (postcondition `Match`). -/
+abbrev CoreGoodE (ext : ExtArity H) (P : Numerics.Profile) (host : HostSemantics H) (s : Store H)
+    (f : Frame) (stk : List Val) (es : List Binaryen.BExpr) (r : Store H × Frame × Binaryen.Flow) :
+    Prop :=
+  CoreGoodQ ext P host (fun _ => Match) s f stk es r
+
+/-- The native Core-run invariant. -/
+abbrev CoreGood (P : Numerics.Profile) (host : HostSemantics H) (s : Store H) (f : Frame)
     (stk : List Val) (es : List Binaryen.BExpr) (r : Store H × Frame × Binaryen.Flow) : Prop :=
-  ∀ {labels : List Nat} {ret : Nat} {out : Option Nat}, StoreChk s.funcs →
-    chk s.funcs f.module f.locals.length ret labels (some stk.length) es = some out →
-    WP P host s f (vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es)) (Match r)
+  CoreGoodE noExt P host s f stk es r
 
 section Cases
+
+set_option linter.unusedSectionVars false
+
+variable {ext : ExtArity H} [ExtStable ext] {eh : Bool} {M : Nat → Store H × Frame × Binaryen.Flow → Post H}
 
 variable {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {stk stk₁ stk₂ vs : List Val}
   {es args body : List Binaryen.BExpr} {i : Instr} {fl : Binaryen.Flow}
@@ -877,71 +952,74 @@ theorem code_if (stk : List Val) (bt : BlockType) (c t el es : List Binaryen.BEx
 
 /-- The check of the code after a block, from the values it hands on. -/
 theorem chk_after {labels : List Nat} {ret np nr : Nat} {out : Option Nat}
-    (inv1 : EvalInv s f (s₁, f₁, fl)) (hnp : np ≤ stk.length) (hnr : nr ≤ vs.length)
-    (h2 : chk s.funcs f.module f.locals.length ret labels (some (stk.length - np + nr)) es =
+    (inv1 : EvalInvE ext s f (s₁, f₁, fl)) (hnp : np ≤ stk.length) (hnr : nr ≤ vs.length)
+    (h2 : chkE ext s.funcs f.module f.locals.length ret labels (some (stk.length - np + nr)) es =
       some out) :
-    chk s₁.funcs f₁.module f₁.locals.length ret labels
+    chkE ext s₁.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take nr ++ stk.drop np).length) es = some out := by
   have hlen : (vs.take nr ++ stk.drop np).length = stk.length - np + nr := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
-  rw [chk_inv inv1, hlen]
-  exact h2
+  rw [hlen]
+  exact chk_inv inv1 h2
 
 /-- What the arity check says about a checked body run. -/
 theorem body_facts {labels : List Nat} {ret n₀ nr : Nat} {stk₀ : List Val}
-    (hS : StoreChk s.funcs) (hbody : Binaryen.Eval s f stk₀ body (s₁, f₁, fl))
-    (hb : endsAt (chk s.funcs f.module f.locals.length ret labels (some n₀) body) nr = true)
+    (hS : StoreChkE ext s.funcs) (hbody : ArityGoodE ext s f stk₀ body (s₁, f₁, fl) eh)
+    (hb : endsAt (chkE ext s.funcs f.module f.locals.length ret labels (some n₀) body) nr = true)
     (hlen : stk₀.length = n₀) :
     ∃ ob, (ob = none ∨ ob = some nr) ∧
-      chk s.funcs f.module f.locals.length ret labels (some stk₀.length) body = some ob ∧
-      FlowOk labels ret ob fl ∧ EvalInv s f (s₁, f₁, fl) := by
+      chkE ext s.funcs f.module f.locals.length ret labels (some stk₀.length) body = some ob ∧
+      FlowOkE eh labels ret ob fl ∧ EvalInvE ext s f (s₁, f₁, fl) := by
   obtain ⟨ob, hb', hob⟩ := endsAt_eq hb
-  have hbc : chk s.funcs f.module f.locals.length ret labels (some stk₀.length) body = some ob :=
+  have hbc : chkE ext s.funcs f.module f.locals.length ret labels (some stk₀.length) body = some ob :=
     hlen ▸ hb'
-  obtain ⟨hok, inv1⟩ := flowOk_of_eval hbody hS hbc
+  obtain ⟨hok, inv1⟩ := hbody hS hbc
   exact ⟨ob, hob, hbc, hok, inv1⟩
 
-theorem core_nil : CoreGood P host s f stk [] (s, f, .normal stk) := by
+theorem core_nil : CoreGoodE ext P host s f stk [] (s, f, .normal stk) := by
   intro labels ret out _ _
   simpa using (wp_vals (P := P) (host := host) (s := s) (f := f) (vs := stk.reverse)
     (Q := Match (s, f, .normal stk)) ⟨rfl, rfl, rfl⟩)
 
-theorem core_argsAbort (iha : CoreGood P host s f stk args (s₁, f₁, fl)) (hfl : ¬ fl.IsNormal) :
-    CoreGood P host s f stk (.op i args :: es) (s₁, f₁, fl) := by
+theorem core_argsAbort (iha : CoreGoodE ext P host s f stk args (s₁, f₁, fl)) (hfl : ¬ fl.IsNormal) :
+    CoreGoodE ext P host s f stk (.op i args :: es) (s₁, f₁, fl) := by
   intro labels ret out hS hc
-  obtain ⟨o, h1, -⟩ := chk_cons.mp hc
-  obtain ⟨oa, ha, -⟩ := chk1_op h1
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
+  obtain ⟨oa, ha, -⟩ := chk1_opE h1
   rw [code_op]
   exact wp_append_abrupt' (iha hS ha) hfl
 
-theorem core_opOk (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
-    (iha : CoreGood P host s f stk args (s₁, f₁, .normal stk₁)) (hi : ∀ x, i ≠ .call x)
+theorem core_opOk (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
+    (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁)) (hi : ∀ x, i ≠ .call x)
     (hflat : Binaryen.evalFlat s₁ f₁ stk₁ i = some (s₂, f₂, .normal stk₂))
-    (ihk : CoreGood P host s₂ f₂ stk₂ es r) : CoreGood P host s f stk (.op i args :: es) r := by
+    (ihk : CoreGoodQ ext P host M s₂ f₂ stk₂ es r) :
+    CoreGoodQ ext P host M s f stk (.op i args :: es) r := by
   intro labels ret out hS hc
-  obtain ⟨o, h1, h2⟩ := chk_cons.mp hc
-  obtain ⟨hf, inv1⟩ := arity_args hS (flowOk_of_eval hargs) h1
-  obtain ⟨oa, ha, -⟩ := chk1_op h1
+  obtain ⟨o, h1, h2⟩ := chk_consE.mp hc
+  obtain ⟨hf, inv1⟩ := arity_args hS hargs h1
+  obtain ⟨oa, ha, -⟩ := chk1_opE h1
+  replace hf := flatChk_of_evalFlat hflat hf
   obtain ⟨ho, inv2⟩ := flat_normal hflat hf
-  have inv12 : EvalInv s f (s₂, f₂, .normal stk₂) := inv1.trans inv2
-  have h2' : chk s₂.funcs f₂.module f₂.locals.length ret labels (some stk₂.length) es =
+  have inv12 : EvalInvE ext s f (s₂, f₂, .normal stk₂) := inv1.trans inv2
+  have h2' : chkE ext s₂.funcs f₂.module f₂.locals.length ret labels (some stk₂.length) es =
       some out := by
-    rw [chk_inv inv12, ← ho]
-    exact h2
+    rw [← ho]
+    exact chk_inv inv12 h2
   have st := steps_flat_normal (P := P) (host := host) hi hf hflat
     (expression (Binaryen.BExpr.lowerList es))
   rw [code_op]
   exact wp_append_normal (iha hS ha) (WP.steps st (ihk (storeChk_inv inv12 hS) h2'))
 
-theorem core_opStop (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
-    (iha : CoreGood P host s f stk args (s₁, f₁, .normal stk₁))
+theorem core_opStop (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
+    (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁))
     (hflat : Binaryen.evalFlat s₁ f₁ stk₁ i = some (s₂, f₂, fl)) (hfl : ¬ fl.IsNormal) :
-    CoreGood P host s f stk (.op i args :: es) (s₂, f₂, fl) := by
+    CoreGoodE ext P host s f stk (.op i args :: es) (s₂, f₂, fl) := by
   intro labels ret out hS hc
-  obtain ⟨o, h1, -⟩ := chk_cons.mp hc
-  obtain ⟨hf, -⟩ := arity_args hS (flowOk_of_eval hargs) h1
-  obtain ⟨oa, ha, -⟩ := chk1_op h1
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
+  obtain ⟨hf, -⟩ := arity_args hS hargs h1
+  obtain ⟨oa, ha, -⟩ := chk1_opE h1
+  replace hf := flatChk_of_evalFlat hflat hf
   rw [code_op]
   exact wp_append_normal (iha hS ha) (wp_flat_abrupt hf hflat hfl _)
 
@@ -952,41 +1030,41 @@ section CallCases
 variable {x : FuncIdx} {a : Nat} {fi : FuncInst H} {fn : Func} {ps rs : List Validation.CValType}
 
 /-- What the arity check says about a checked call before and after its callee. -/
-theorem call_facts {labels : List Nat} {ret : Nat} {out : Option Nat} (hS : StoreChk s.funcs)
-    (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
+theorem call_facts {labels : List Nat} {ret : Nat} {out : Option Nat} (hS : StoreChkE ext s.funcs)
+    (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hbody : Binaryen.Eval s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
-      (s₂, f₂, fl))
-    (hc : chk s.funcs f.module f.locals.length ret labels (some stk.length)
+    (hbody : ArityGoodE ext s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+      (s₂, f₂, fl) eh)
+    (hc : chkE ext s.funcs f.module f.locals.length ret labels (some stk.length)
       (.op (.call x) args :: es) = some out) :
-    ∃ oa ob, chk s.funcs f.module f.locals.length ret labels (some stk.length) args = some oa ∧
-      chk s₁.funcs (calleeFrame fi fn stk₁ ps.length).module
+    ∃ oa ob, chkE ext s.funcs f.module f.locals.length ret labels (some stk.length) args = some oa ∧
+      chkE ext s₁.funcs (calleeFrame fi fn stk₁ ps.length).module
         (calleeFrame fi fn stk₁ ps.length).locals.length rs.length [rs.length]
         (some ([] : List Val).length) (Binaryen.liftInstrs fn.body) = some ob ∧
-      (ob = none ∨ ob = some rs.length) ∧ FlowOk [rs.length] rs.length ob fl ∧
-      EvalInv s f (s₁, f₁, .normal stk₁) ∧ s₂.funcs = s₁.funcs ∧ ps.length ≤ stk₁.length ∧
-      chk s.funcs f.module f.locals.length ret labels
+      (ob = none ∨ ob = some rs.length) ∧ FlowOkE eh [rs.length] rs.length ob fl ∧
+      EvalInvE ext s f (s₁, f₁, .normal stk₁) ∧ FuncsGoodE ext s₁.funcs s₂.funcs ∧ ps.length ≤ stk₁.length ∧
+      chkE ext s.funcs f.module f.locals.length ret labels
         (some (stk₁.length - ps.length + rs.length)) es = some out := by
-  obtain ⟨inv1, hp, h2⟩ := arity_call_pre hS (flowOk_of_eval hargs) hfi hty hc
-  obtain ⟨o, h1, -⟩ := chk_cons.mp hc
-  obtain ⟨oa, ha, -⟩ := chk1_op h1
-  have hS1 : StoreChk s₁.funcs := storeChk_inv inv1 hS
-  obtain ⟨ob, hob, hb'⟩ := callee_chk hS1 hfi hcode hty hp
-  obtain ⟨hok, hinvb⟩ := flowOk_of_eval hbody hS1 hb'
+  obtain ⟨inv1, hp, h2⟩ := arity_call_pre hS hargs hfi hty hc
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
+  obtain ⟨oa, ha, -⟩ := chk1_opE h1
+  have hS1 : StoreChkE ext s₁.funcs := storeChk_inv inv1 hS
+  obtain ⟨ob, hob, hb'⟩ := callee_chk (ext := ext) hS1 hfi hcode hty hp
+  obtain ⟨hok, hinvb⟩ := hbody hS1 hb'
   exact ⟨oa, ob, ha, hb', hob, hok, inv1, hinvb.1, hp, h2⟩
 
-theorem core_callOk (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
-    (iha : CoreGood P host s f stk args (s₁, f₁, .normal stk₁))
+theorem core_callOk (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
+    (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hbody : Binaryen.Eval s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
-      (s₂, f₂, fl))
-    (ihb : CoreGood P host s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+    (hbody : ArityGoodE ext s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+      (s₂, f₂, fl) eh)
+    (ihb : CoreGoodE ext P host s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, fl))
     (hvs : fl.retVals = some vs)
-    (ihk : CoreGood P host s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es r) :
-    CoreGood P host s f stk (.op (.call x) args :: es) r := by
+    (ihk : CoreGoodQ ext P host M s₂ f₁ (vs.take rs.length ++ stk₁.drop ps.length) es r) :
+    CoreGoodQ ext P host M s f stk (.op (.call x) args :: es) r := by
   intro labels ret out hS hc
   obtain ⟨oa, ob, ha, hb', hob, hok, inv1, hfuncs, hp, h2⟩ :=
     call_facts hS hargs hfi hcode hty hbody hc
@@ -994,45 +1072,50 @@ theorem core_callOk (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk
   have hnorm : ∀ ws, fl = .normal ws → ws.length = rs.length := by
     rintro ws rfl
     exact length_of_ends hok hob
-  have inv2 : EvalInv s f (s₂, f₁, .normal (vs.take rs.length ++ stk₁.drop ps.length)) :=
-    ⟨hfuncs.trans inv1.1, inv1.2.1, inv1.2.2⟩
+  have inv2 : EvalInvE ext s f (s₂, f₁, .normal (vs.take rs.length ++ stk₁.drop ps.length)) :=
+    ⟨inv1.1.trans hfuncs, inv1.2.1, inv1.2.2⟩
   have hlen : (vs.take rs.length ++ stk₁.drop ps.length).length =
       stk₁.length - ps.length + rs.length := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
-  have h2' : chk s₂.funcs f₁.module f₁.locals.length ret labels
+  have h2' : chkE ext s₂.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take rs.length ++ stk₁.drop ps.length).length) es = some out := by
-    rw [chk_inv inv2, hlen]
-    exact h2
+    rw [hlen]
+    exact chk_inv inv2 h2
   have hk := ihk (storeChk_inv inv2 hS) h2'
   have hwb := ihb (storeChk_inv inv1 hS) hb'
   rw [code_op]
   exact wp_append_normal (iha hS ha) (wp_call_ok hfi hcode hty hp hwb hvs hrs hnorm hk)
 
-theorem core_callTrap (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
-    (iha : CoreGood P host s f stk args (s₁, f₁, .normal stk₁))
+theorem core_callTrap (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
+    (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hbody : Binaryen.Eval s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
-      (s₂, f₂, .trap))
-    (ihb : CoreGood P host s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+    (hbody : ArityGoodE ext s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+      (s₂, f₂, .trap) eh)
+    (ihb : CoreGoodE ext P host s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, .trap)) :
-    CoreGood P host s f stk (.op (.call x) args :: es) (s₂, f₁, .trap) := by
+    CoreGoodE ext P host s f stk (.op (.call x) args :: es) (s₂, f₁, .trap) := by
   intro labels ret out hS hc
   obtain ⟨oa, ob, ha, hb', -, -, inv1, -, hp, -⟩ := call_facts hS hargs hfi hcode hty hbody hc
   have hwb := ihb (storeChk_inv inv1 hS) hb'
   rw [code_op]
   exact wp_append_normal (iha hS ha) (wp_call_trap hfi hcode hty hp hwb)
 
-theorem core_callThrow {t : Nat} (hargs : Binaryen.Eval s f stk args (s₁, f₁, .normal stk₁))
+theorem core_callThrow {t : Nat} (hargs : ArityGoodE ext s f stk args (s₁, f₁, .normal stk₁) eh)
+    (iha : CoreGoodE ext P host s f stk args (s₁, f₁, .normal stk₁))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
-    (hbody : Binaryen.Eval s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+    (hbody : ArityGoodE ext s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
+      (s₂, f₂, .throw t) eh)
+    (ihb : CoreGoodE ext P host s₁ (calleeFrame fi fn stk₁ ps.length) [] (Binaryen.liftInstrs fn.body)
       (s₂, f₂, .throw t)) :
-    CoreGood P host s f stk (.op (.call x) args :: es) (s₂, f₁, .throw t) := by
+    CoreGoodE ext P host s f stk (.op (.call x) args :: es) (s₂, f₁, .throw t) := by
   intro labels ret out hS hc
-  obtain ⟨_, _, _, _, _, hok, _⟩ := call_facts hS hargs hfi hcode hty hbody hc
-  exact absurd hok id
+  obtain ⟨oa, ob, ha, hb', -, -, inv1, -, hp, -⟩ := call_facts hS hargs hfi hcode hty hbody hc
+  have hwb := ihb (storeChk_inv inv1 hS) hb'
+  rw [code_op]
+  exact wp_append_normal (iha hS ha) (wp_call_throw hfi hcode hty hp hwb)
 
 end CallCases
 
@@ -1043,10 +1126,10 @@ section BlockCases
 variable {bt : BlockType} {np nr : Nat}
 
 theorem core_blockOk (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, fl))
-    (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, fl)) (hvs : fl.blockVals = some vs)
-    (ihk : CoreGood P host s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
-    CoreGood P host s f stk (.block bt body :: es) r := by
+    (hbody : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl) eh)
+    (ihb : CoreGoodE ext P host s f (stk.take np) body (s₁, f₁, fl)) (hvs : fl.blockVals = some vs)
+    (ihk : CoreGoodQ ext P host M s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
+    CoreGoodQ ext P host M s f stk (.block bt body :: es) r := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, h2⟩ := arity_block_pre har hc
   obtain ⟨ob, hob, hbc, hok, inv1⟩ := body_facts hS hbody hb (take_length_of_le hp)
@@ -1059,10 +1142,10 @@ theorem core_blockOk (har : Binaryen.arity f bt = some (np, nr))
   exact wp_block_vals har hp (ihb hS hbc) hvs hnr hnorm hk
 
 theorem core_blockAbrupt {fl' : Binaryen.Flow} (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, fl))
-    (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, fl))
+    (hbody : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl) eh)
+    (ihb : CoreGoodE ext P host s f (stk.take np) body (s₁, f₁, fl))
     (hfl : (∃ k vs, fl = .brk (k + 1) vs ∧ fl' = .brk k vs) ∨ (fl.Escapes ∧ fl' = fl)) :
-    CoreGood P host s f stk (.block bt body :: es) (s₁, f₁, fl') := by
+    CoreGoodE ext P host s f stk (.block bt body :: es) (s₁, f₁, fl') := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, -⟩ := arity_block_pre har hc
   obtain ⟨_, _, hbc, -⟩ := body_facts hS hbody hb (take_length_of_le hp)
@@ -1070,10 +1153,10 @@ theorem core_blockAbrupt {fl' : Binaryen.Flow} (har : Binaryen.arity f bt = some
   exact wp_block_abrupt har hp (ihb hS hbc) hfl
 
 theorem core_loopOk (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, .normal vs))
-    (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, .normal vs))
-    (ihk : CoreGood P host s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
-    CoreGood P host s f stk (.loop bt body :: es) r := by
+    (hbody : ArityGoodE ext s f (stk.take np) body (s₁, f₁, .normal vs) eh)
+    (ihb : CoreGoodE ext P host s f (stk.take np) body (s₁, f₁, .normal vs))
+    (ihk : CoreGoodQ ext P host M s₁ f₁ (vs.take nr ++ stk.drop np) es r) :
+    CoreGoodQ ext P host M s f stk (.loop bt body :: es) r := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, h2⟩ := arity_loop_pre har hc
   obtain ⟨ob, hob, hbc, hok, inv1⟩ := body_facts hS hbody hb (take_length_of_le hp)
@@ -1083,10 +1166,10 @@ theorem core_loopOk (har : Binaryen.arity f bt = some (np, nr))
   exact wp_loop_normal har hp (ihb hS hbc) hlen hk
 
 theorem core_loopBack (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, .brk 0 vs))
-    (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, .brk 0 vs))
-    (ihk : CoreGood P host s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) r) :
-    CoreGood P host s f stk (.loop bt body :: es) r := by
+    (hbody : ArityGoodE ext s f (stk.take np) body (s₁, f₁, .brk 0 vs) eh)
+    (ihb : CoreGoodE ext P host s f (stk.take np) body (s₁, f₁, .brk 0 vs))
+    (ihk : CoreGoodQ ext P host M s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) r) :
+    CoreGoodQ ext P host M s f stk (.loop bt body :: es) r := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
   obtain ⟨_, _, hbc, hok, inv1⟩ := body_facts hS hbody hb (take_length_of_le hp)
@@ -1097,19 +1180,19 @@ theorem core_loopBack (har : Binaryen.arity f bt = some (np, nr))
   have hlen : (vs.take np ++ stk.drop np).length = stk.length := by
     simp only [List.length_append, List.length_take, List.length_drop]
     omega
-  have hc' : chk s₁.funcs f₁.module f₁.locals.length ret labels
+  have hc' : chkE ext s₁.funcs f₁.module f₁.locals.length ret labels
       (some (vs.take np ++ stk.drop np).length) (.loop bt body :: es) = some out := by
-    rw [chk_inv inv1, hlen]
-    exact hc
+    rw [hlen]
+    exact chk_inv inv1 hc
   have hk := ihk (storeChk_inv inv1 hS) hc'
   rw [code_loop] at hk ⊢
   exact wp_loop_back har hp (ihb hS hbc) hnp hk
 
 theorem core_loopAbrupt {fl' : Binaryen.Flow} (har : Binaryen.arity f bt = some (np, nr))
-    (hbody : Binaryen.Eval s f (stk.take np) body (s₁, f₁, fl))
-    (ihb : CoreGood P host s f (stk.take np) body (s₁, f₁, fl))
+    (hbody : ArityGoodE ext s f (stk.take np) body (s₁, f₁, fl) eh)
+    (ihb : CoreGoodE ext P host s f (stk.take np) body (s₁, f₁, fl))
     (hfl : (∃ k vs, fl = .brk (k + 1) vs ∧ fl' = .brk k vs) ∨ (fl.Escapes ∧ fl' = fl)) :
-    CoreGood P host s f stk (.loop bt body :: es) (s₁, f₁, fl') := by
+    CoreGoodE ext P host s f stk (.loop bt body :: es) (s₁, f₁, fl') := by
   intro labels ret out hS hc
   obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
   obtain ⟨_, _, hbc, -⟩ := body_facts hS hbody hb (take_length_of_le hp)
@@ -1135,38 +1218,40 @@ theorem wp_if_arm {cv : Val} {b : Bool} {t el : List Binaryen.BExpr} {rest : Lis
 
 /-- What the arity check says about a checked `if` arm run. -/
 theorem if_facts {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool} {labels : List Nat}
-    {ret : Nat} {out : Option Nat} (hS : StoreChk s.funcs)
-    (hcond : Binaryen.Eval s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    {ret : Nat} {out : Option Nat} (hS : StoreChkE ext s.funcs)
+    (hcond : ArityGoodE ext s f stk c (s₁, f₁, .normal (cv :: stk₁)) eh)
     (har : Binaryen.arity f₁ bt = some (np, nr))
-    (harm : Binaryen.Eval s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
-    (hc : chk s.funcs f.module f.locals.length ret labels (some stk.length)
+    (harm : ArityGoodE ext s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl) eh)
+    (hc : chkE ext s.funcs f.module f.locals.length ret labels (some stk.length)
       (.if_ bt c t el :: es) = some out) :
-    ∃ oc ob, chk s.funcs f.module f.locals.length ret labels (some stk.length) c = some oc ∧
-      chk s₁.funcs f₁.module f₁.locals.length ret (nr :: labels) (some (stk₁.take np).length)
+    ∃ oc ob, chkE ext s.funcs f.module f.locals.length ret labels (some stk.length) c = some oc ∧
+      chkE ext s₁.funcs f₁.module f₁.locals.length ret (nr :: labels) (some (stk₁.take np).length)
         (if b then t else el) = some ob ∧ (ob = none ∨ ob = some nr) ∧
-      FlowOk (nr :: labels) ret ob fl ∧ EvalInv s f (s₁, f₁, .normal (cv :: stk₁)) ∧
-      EvalInv s₁ f₁ (s₂, f₂, fl) ∧ np ≤ stk₁.length ∧
-      chk s₁.funcs f₁.module f₁.locals.length ret labels (some (stk₁.length - np + nr)) es =
+      FlowOkE eh (nr :: labels) ret ob fl ∧ EvalInvE ext s f (s₁, f₁, .normal (cv :: stk₁)) ∧
+      EvalInvE ext s₁ f₁ (s₂, f₂, fl) ∧ np ≤ stk₁.length ∧
+      chkE ext s₁.funcs f₁.module f₁.locals.length ret labels (some (stk₁.length - np + nr)) es =
         some out := by
-  obtain ⟨inv1, hp, hbarm, h2⟩ := arity_if_pre (b := b) hS (flowOk_of_eval hcond) har hc
-  rw [← chk_inv inv1] at hbarm h2
+  obtain ⟨inv1, hp, hbarm, h2⟩ := arity_if_pre (b := b) hS hcond har hc
+  replace hbarm := chk_inv_endsAt inv1 hbarm
+  replace h2 := chk_inv inv1 h2
   obtain ⟨ob, hob, hbc, hok, inv2⟩ :=
     body_facts (storeChk_inv inv1 hS) harm hbarm (take_length_of_le hp)
-  obtain ⟨o, h1, -⟩ := chk_cons.mp hc
-  obtain ⟨oc, hco, -⟩ := chk1_if h1
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
+  obtain ⟨oc, hco, -⟩ := chk1_ifE h1
   exact ⟨oc, ob, hco, hbc, hob, hok, inv1, inv2, hp, h2⟩
 
 theorem core_ifOk {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
-    (hcond : Binaryen.Eval s f stk c (s₁, f₁, .normal (cv :: stk₁)))
-    (ihc : CoreGood P host s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    (hcond : ArityGoodE ext s f stk c (s₁, f₁, .normal (cv :: stk₁)) eh)
+    (ihc : CoreGoodE ext P host s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (hb : Binaryen.truthy cv = some b) (har : Binaryen.arity f₁ bt = some (np, nr))
-    (harm : Binaryen.Eval s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
-    (iharm : CoreGood P host s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
-    (hvs : fl.blockVals = some vs) (ihk : CoreGood P host s₂ f₂ (vs.take nr ++ stk₁.drop np) es r) :
-    CoreGood P host s f stk (.if_ bt c t el :: es) r := by
+    (harm : ArityGoodE ext s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl) eh)
+    (iharm : CoreGoodE ext P host s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
+    (hvs : fl.blockVals = some vs)
+    (ihk : CoreGoodQ ext P host M s₂ f₂ (vs.take nr ++ stk₁.drop np) es r) :
+    CoreGoodQ ext P host M s f stk (.if_ bt c t el :: es) r := by
   intro labels ret out hS hc
   obtain ⟨oc, ob, hco, hbc, hob, hok, inv1, inv2, hp, h2⟩ := if_facts hS hcond har harm hc
-  have hS1 : StoreChk s₁.funcs := storeChk_inv inv1 hS
+  have hS1 : StoreChkE ext s₁.funcs := storeChk_inv inv1 hS
   have hnr : nr ≤ vs.length := blockVals_length hok hob hvs
   have hnorm : ∀ ws, fl = .normal ws → ws.length = nr := by
     rintro ws rfl
@@ -1177,13 +1262,13 @@ theorem core_ifOk {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
   exact wp_append_normal (ihc hS hco) (wp_if_arm hb hwb)
 
 theorem core_ifAbrupt {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool} {fl' : Binaryen.Flow}
-    (hcond : Binaryen.Eval s f stk c (s₁, f₁, .normal (cv :: stk₁)))
-    (ihc : CoreGood P host s f stk c (s₁, f₁, .normal (cv :: stk₁)))
+    (hcond : ArityGoodE ext s f stk c (s₁, f₁, .normal (cv :: stk₁)) eh)
+    (ihc : CoreGoodE ext P host s f stk c (s₁, f₁, .normal (cv :: stk₁)))
     (hb : Binaryen.truthy cv = some b) (har : Binaryen.arity f₁ bt = some (np, nr))
-    (harm : Binaryen.Eval s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
-    (iharm : CoreGood P host s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
+    (harm : ArityGoodE ext s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl) eh)
+    (iharm : CoreGoodE ext P host s₁ f₁ (stk₁.take np) (if b then t else el) (s₂, f₂, fl))
     (hfl : (∃ k vs, fl = .brk (k + 1) vs ∧ fl' = .brk k vs) ∨ (fl.Escapes ∧ fl' = fl)) :
-    CoreGood P host s f stk (.if_ bt c t el :: es) (s₂, f₂, fl') := by
+    CoreGoodE ext P host s f stk (.if_ bt c t el :: es) (s₂, f₂, fl') := by
   intro labels ret out hS hc
   obtain ⟨oc, ob, hco, hbc, -, -, inv1, -, hp, -⟩ := if_facts hS hcond har harm hc
   have hwb := wp_block_abrupt (rest := expression (Binaryen.BExpr.lowerList es)) har hp
@@ -1192,11 +1277,11 @@ theorem core_ifAbrupt {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool} {fl' 
   exact wp_append_normal (ihc hS hco) (wp_if_arm hb hwb)
 
 theorem core_ifAbort {c t el : List Binaryen.BExpr}
-    (ihc : CoreGood P host s f stk c (s₁, f₁, fl)) (hfl : ¬ fl.IsNormal) :
-    CoreGood P host s f stk (.if_ bt c t el :: es) (s₁, f₁, fl) := by
+    (ihc : CoreGoodE ext P host s f stk c (s₁, f₁, fl)) (hfl : ¬ fl.IsNormal) :
+    CoreGoodE ext P host s f stk (.if_ bt c t el :: es) (s₁, f₁, fl) := by
   intro labels ret out hS hc
-  obtain ⟨o, h1, -⟩ := chk_cons.mp hc
-  obtain ⟨oc, hco, -⟩ := chk1_if h1
+  obtain ⟨o, h1, -⟩ := chk_consE.mp hc
+  obtain ⟨oc, hco, -⟩ := chk1_ifE h1
   rw [code_if]
   exact wp_append_abrupt' (ihc hS hco) hfl
 
@@ -1212,25 +1297,26 @@ theorem wp_of_eval {s : Store H} {f : Frame} {stk : List Val} {es : List Binarye
   | nil => exact core_nil
   | argsAbort _ hfl iha => exact core_argsAbort iha hfl
   | callOk hargs hfi hcode hty hbody hvs _ iha ihb ihk =>
-    exact core_callOk hargs iha hfi hcode hty hbody ihb hvs ihk
+    exact core_callOk (flowOk_of_eval hargs) iha hfi hcode hty (flowOk_of_eval hbody) ihb hvs ihk
   | callTrap hargs hfi hcode hty hbody iha ihb =>
-    exact core_callTrap hargs iha hfi hcode hty hbody ihb
-  | callThrow hargs hfi hcode hty hbody => exact core_callThrow hargs hfi hcode hty hbody
-  | opOk hi hargs hflat _ iha ihk => exact core_opOk hargs iha hi hflat ihk
-  | opStop _ hargs hflat hfl iha => exact core_opStop hargs iha hflat hfl
-  | blockOk har hbody hvs _ ihb ihk => exact core_blockOk har hbody ihb hvs ihk
-  | blockBrk har hbody ihb => exact core_blockAbrupt har hbody ihb (.inl ⟨_, _, rfl, rfl⟩)
-  | blockEsc har hbody hfl ihb => exact core_blockAbrupt har hbody ihb (.inr ⟨hfl, rfl⟩)
-  | loopOk har hbody _ ihb ihk => exact core_loopOk har hbody ihb ihk
-  | loopBack har hbody _ ihb ihk => exact core_loopBack har hbody ihb ihk
-  | loopBrk har hbody ihb => exact core_loopAbrupt har hbody ihb (.inl ⟨_, _, rfl, rfl⟩)
-  | loopEsc har hbody hfl ihb => exact core_loopAbrupt har hbody ihb (.inr ⟨hfl, rfl⟩)
+    exact core_callTrap (flowOk_of_eval hargs) iha hfi hcode hty (flowOk_of_eval hbody) ihb
+  | callThrow hargs hfi hcode hty hbody iha ihb =>
+    exact core_callThrow (flowOk_of_eval hargs) iha hfi hcode hty (flowOk_of_eval hbody) ihb
+  | opOk hi hargs hflat _ iha ihk => exact core_opOk (flowOk_of_eval hargs) iha hi hflat ihk
+  | opStop _ hargs hflat hfl iha => exact core_opStop (flowOk_of_eval hargs) iha hflat hfl
+  | blockOk har hbody hvs _ ihb ihk => exact core_blockOk har (flowOk_of_eval hbody) ihb hvs ihk
+  | blockBrk har hbody ihb => exact core_blockAbrupt har (flowOk_of_eval hbody) ihb (.inl ⟨_, _, rfl, rfl⟩)
+  | blockEsc har hbody hfl ihb => exact core_blockAbrupt har (flowOk_of_eval hbody) ihb (.inr ⟨hfl, rfl⟩)
+  | loopOk har hbody _ ihb ihk => exact core_loopOk har (flowOk_of_eval hbody) ihb ihk
+  | loopBack har hbody _ ihb ihk => exact core_loopBack har (flowOk_of_eval hbody) ihb ihk
+  | loopBrk har hbody ihb => exact core_loopAbrupt har (flowOk_of_eval hbody) ihb (.inl ⟨_, _, rfl, rfl⟩)
+  | loopEsc har hbody hfl ihb => exact core_loopAbrupt har (flowOk_of_eval hbody) ihb (.inr ⟨hfl, rfl⟩)
   | ifOk hcond hb har harm hvs _ ihc iharm ihk =>
-    exact core_ifOk hcond ihc hb har harm iharm hvs ihk
+    exact core_ifOk (flowOk_of_eval hcond) ihc hb har (flowOk_of_eval harm) iharm hvs ihk
   | ifBrk hcond hb har harm ihc iharm =>
-    exact core_ifAbrupt hcond ihc hb har harm iharm (.inl ⟨_, _, rfl, rfl⟩)
+    exact core_ifAbrupt (flowOk_of_eval hcond) ihc hb har (flowOk_of_eval harm) iharm (.inl ⟨_, _, rfl, rfl⟩)
   | ifEsc hcond hb har harm hfl ihc iharm =>
-    exact core_ifAbrupt hcond ihc hb har harm iharm (.inr ⟨hfl, rfl⟩)
+    exact core_ifAbrupt (flowOk_of_eval hcond) ihc hb har (flowOk_of_eval harm) iharm (.inr ⟨hfl, rfl⟩)
   | ifAbort _ hfl ihc => exact core_ifAbort ihc hfl
 
 end Silmaril.Wasm.Interp

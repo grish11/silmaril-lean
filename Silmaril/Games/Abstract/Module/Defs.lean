@@ -177,6 +177,25 @@ open. -/
 def closeD (m : sh.OpenMod) : sh.ClosedMod := fun f s a =>
   close m f s a ∪ {y | y.2 = .div ∧ DivChain m (close m) ⟨f, (a, s)⟩ y.1}
 
+/-- A finite descent path from `x` to `z`: each step is a `Descends`, the
+import calls `qs` are those made along the way. -/
+inductive DescPath (m : sh.OpenMod) (c : sh.ClosedMod) :
+    sh.self.Op → List (Call sh.E) → sh.self.Op → Prop
+  | refl (x : sh.self.Op) : DescPath m c x [] x
+  | step {x y z : sh.self.Op} {q qs : List (Call sh.E)} :
+      Descends m c x q y → DescPath m c y qs z → DescPath m c x (q ++ qs) z
+
+/-- **Closing with divergence, local divergence included.** `LD z` says the
+call `z` diverges *within its own function*, without diverging inside a
+callee. This is information an `AFun` cannot carry, for example a loop that
+calls a returning function forever. `closeDL m LD` is `closeD m` plus `div`
+after the import calls of every finite descent path to such a call.
+
+Its non-`div` behaviours are those of `close m`; `LD = ⊥` gives back `closeD`
+(`Silmaril.Games.Abstract.Module.Thms`). -/
+def closeDL (m : sh.OpenMod) (LD : sh.self.Op → Prop) : sh.ClosedMod := fun f s a =>
+  closeD m f s a ∪ {y | y.2 = .div ∧ ∃ z, DescPath m (close m) ⟨f, (a, s)⟩ y.1 z ∧ LD z}
+
 /-- A closed module as an open one that makes no internal call. -/
 def lift (c : sh.ClosedMod) : sh.OpenMod := fun f s a =>
   (fun y => (y.1.map fun x => (⟨.inl x.1, x.2⟩ : Call (sh.E ⊕ₛ sh.self)), y.2)) '' c f s a
@@ -209,7 +228,8 @@ internal recursion: the streams of import calls of `InfChain`s.
 **Scope.** Open functions are `AFun`s, which have no infinite behaviours of
 their own. So an infinite run *inside* one function without internal calls
 (a loop that keeps calling imports) is not represented here. Through internal
-recursion it is. -/
+recursion it is. `Shape.closeInfL` (`Silmaril.Games.Abstract.ModuleInf`) adds such runs, given
+as data next to the open module. -/
 def closeInf (m : sh.OpenMod) (f : sh.F) (s : sh.S) (a : sh.A f) : Set (Nat → Call sh.E) :=
   {ω | InfChain m (close m) ⟨f, (a, s)⟩ ω}
 

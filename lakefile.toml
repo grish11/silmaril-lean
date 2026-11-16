@@ -87,7 +87,9 @@ globs = [
   "Silmaril.Problems.+", "Silmaril.Process.+",
   # Project, except `Project.WasmComponents` and `Project.WasmP3Rust` (`SilmarilWasmProject` below).
   "Silmaril.Project.Defs", "Silmaril.Project.CompilesTo.+", "Silmaril.Project.Components.+",
-  "Silmaril.Project.Core.+", "Silmaril.Project.Formats.+", "Silmaril.Project.Registry.+",
+  "Silmaril.Project.ConsequenceSystems.+",
+  "Silmaril.Project.Core.+", "Silmaril.Project.Formats.+", "Silmaril.Project.Languages.+",
+  "Silmaril.Project.Registry.+",
   "Silmaril.Project.Room.+", "Silmaril.Project.Shapes.+",
   "Silmaril.Proofs.Calculi.+",
   "Silmaril.Proofs.Cli.+", "Silmaril.Proofs.Compile.+", "Silmaril.Proofs.Data.+", "Silmaril.Proofs.Prelude.+", "Silmaril.Proofs.Elf.+",
@@ -96,7 +98,8 @@ globs = [
   "Silmaril.Proofs.Process.+", "Silmaril.Proofs.Project.+", "Silmaril.Proofs.SSA.+",
   "Silmaril.Proofs.Wasm.Abstract.+", "Silmaril.Proofs.Wasm.Auto.+", "Silmaril.Proofs.Wasm.Auto2.+",
   "Silmaril.Proofs.Wasm.Behaviour.+", "Silmaril.Proofs.Wasm.Binaryen.+",
-  "Silmaril.Proofs.Wasm.Examples.+", "Silmaril.Proofs.Wasm.FX.+", "Silmaril.Proofs.Wasm.FnInst.+",
+  "Silmaril.Proofs.Wasm.Examples.+", "Silmaril.Proofs.Wasm.Execution.+",
+  "Silmaril.Proofs.Wasm.FX.+", "Silmaril.Proofs.Wasm.FnInst.+",
   "Silmaril.Proofs.Wasm.Game.+", "Silmaril.Proofs.Wasm.Interp.+", "Silmaril.Proofs.Wasm.Logic.+",
   "Silmaril.Proofs.Wasm.SSA.+", "Silmaril.Proofs.Wasm.Spec.+", "Silmaril.Proofs.Wasm.Tools.+",
   "Silmaril.Proofs.Wasm.Verify.+", "Silmaril.Proofs.WasmSpec.+", "Silmaril.Proofs.X86.+",
@@ -161,7 +164,8 @@ globs = [
   "Silmaril.Raw.Wasm.Models.+", "Silmaril.Raw.Wasm.OCaml.+", "Silmaril.Raw.Wasm.Unified.+",
   "Silmaril.Wasi.Cli.+", "Silmaril.Wasi.Comp.+", "Silmaril.Wasi.Component.+",
   "Silmaril.Wasi.Converse.+", "Silmaril.Wasi.Examples.+", "Silmaril.Wasi.Host.+",
-  "Silmaril.Wasi.Theory.+", "Silmaril.Wasi.Versions.Adapter.+",
+  "Silmaril.Wasi.IOAccept.+", "Silmaril.Wasi.Theory.+",
+  "Silmaril.Wasi.Versions.Adapter.+",
   "Silmaril.Wasi.Versions.Cli3More.+", "Silmaril.Wasi.Versions.DnsOver.+",
   "Silmaril.Wasi.Versions.EnvOver.+", "Silmaril.Wasi.Versions.FsMore.+",
   "Silmaril.Wasi.Versions.FsMut.+", "Silmaril.Wasi.Versions.FsMutOver.+",
@@ -354,7 +358,7 @@ text = true
 name = "ProjectSelfTest"
 srcDir = "examples/project"
 globs = ["ProjectSelfTest", "ProjectSelfTest.+"]
-needs = ["projectRecords", "projectSelfTestData", "projectFormatExamples"]
+needs = ["projectRecords", "projectSelfTestData", "projectFormatExamples", "wasmAcceptorBlobs"]
 
 [[input_dir]]
 name = "projectRecords"
@@ -369,6 +373,13 @@ path = "examples/project/data"
 [[input_dir]]
 name = "projectFormatExamples"
 path = "examples/project-formats"
+
+# The acceptor modules' bytes (`encodeModule?` of Lean values), read by
+# `ProjectSelfTest.WasmAcceptors`.
+[[input_dir]]
+name = "wasmAcceptorBlobs"
+path = "examples/wasm-acceptors"
+
 [[lean_exe]]
 name = "wasm-as"
 root = "WasmAsCompat"

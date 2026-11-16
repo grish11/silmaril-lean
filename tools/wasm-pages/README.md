@@ -8,7 +8,21 @@ It processes:
 - the Wasm blobs of the artifact registry, those whose `meta.wasm.layer` is `module` or
   `component`;
 - the core modules and nested components inside them;
-- four example modules that are Lean values.
+- example modules that are Lean values: four of its own, and the concrete modules of the acceptor
+  interpretation catalog (`Silmaril.Wasi.Accept.Catalog.concreteModules`: the verified JSON-subset
+  acceptor `JsonAccept.prog`, `Game.Examples.exStart`, and the verified checkers `EmptyCheck.prog`
+  and `MemberCheck.prog`).
+
+For a Lean module the theorems are about the module value (the AST). Its bytes are encoded by
+`Binaryen.Exe.encodeModule?`, which is sound for the specification's binary grammar
+(`encodeModule?_sound`: `Binary.Core.Encodes bytes m`). Their SHA-256 is computed in Lean
+(`Silmaril.Crypto.SHA256.digest`) over exactly the bytes written to `wasm/blob/<slug>.wasm`, and
+is shown as the source's `sha256`. When exactly one registered module (`meta.wasm.layer =
+"module"`) has that SHA-256, the two are one file: it is published once, as the Lean example (its
+id, slug and links, `source.kind = "lean"`), with the artifact's `cid` and `path`, and the
+artifact is not published again. Nothing is matched by name. The catalog modules
+`JsonAccept.prog`, `exStart`, `EmptyCheck.prog` and `MemberCheck.prog` are registered this way (`examples/wasm-acceptors/`); the other
+Lean examples are not registered.
 
 Where each fact comes from, as the pages show it:
 

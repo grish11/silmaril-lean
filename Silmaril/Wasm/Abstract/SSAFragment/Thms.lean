@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.Function.Thms
 public import Silmaril.Wasm.Abstract.SSAFragment.Defs
 public import Silmaril.Wasm.SSA.CoreCert.Thms
+public import Silmaril.Wasm.Interp.Thms
 
 /-!
 # λSSA fragment functions as abstract functions
@@ -102,5 +103,77 @@ theorem CallEquiv.trapDiv {H' : Type} {x : CallSite H} {y : CallSite H'} (h : Ca
     Behaviours.Equiv Behaviour.TrapDiv (callSem P x vs) (callSem P y vs) := by
   rw [h P vs hok]
   exact ⟨fun b hb => ⟨b, hb, Behaviour.TrapDiv.refl b⟩, fun b hb => ⟨b, hb, Behaviour.TrapDiv.refl b⟩⟩
+
+/-! ## The final store -/
+
+/-- **A fragment call ends in the store it started from**: every Core 3.0 run of
+a typed invocation to a result, under any profile, has the initial store as
+its final store. -/
+theorem IsFragmentSite.final_store {x : CallSite H} {ft : FuncType} {bf : BFunc} {f : FragFunc}
+    (hx : IsFragmentSite x ft bf f) {vs : List Val} (hok : InvokeOk x.store x.addr vs)
+    (P : Numerics.Profile) {c : Config H} {r : Result}
+    (hst : Steps P closedHost (invoke x.store x.addr vs) c) (hc : c.code = r.toAdmin) :
+    c.store = x.store := by
+  obtain ⟨fi, hfi, hcode, hty⟩ := hx.code
+  obtain ⟨fuel, fl, hrun, -⟩ :=
+    Silmaril.Wasm.Interp.bwd_store hx.storeOk hx.nativeOk hx.storeChk hok hst hc
+  obtain ⟨args, rfl, -, -⟩ := hx.callSem hok P
+  exact invokeRun_store hfi hcode hty hx.frag hx.native hx.structured hrun
+
+/-- As an abstract function, a fragment call site is state-preserving on its
+typed invocations: every return leaves the store unchanged. -/
+theorem IsFragmentSite.ret_store {x : CallSite H} {ft : FuncType} {bf : BFunc} {f : FragFunc}
+    (hx : IsFragmentSite x ft bf f) {vs : List Val} (hok : InvokeOk x.store x.addr vs)
+    (P : Numerics.Profile) {c : List (Silmaril.Games.Abstract.Call Silmaril.Games.Sig.empty)}
+    {b : List Val ⊕ Nat} {s' : Store H}
+    (hm : (c, Silmaril.Games.Abstract.End.ret b s') ∈ wasmFun P closedHost x.addr x.store vs) :
+    s' = x.store := by
+  rcases hm with ⟨c', r, hst, hc, he⟩ | ⟨he, -⟩
+  · simp only [Prod.mk.injEq] at he
+    obtain ⟨-, he⟩ := he
+    have hs' : s' = c'.store := by
+      cases r <;> simp_all [endOfResult]
+    rw [hs']
+    exact hx.final_store hok P hst hc
+  · simp at he
+
+/-- **Store-preserving equivalence from fragment runs**: two fragment call sites
+with agreeing run relations have the same behaviours on every typed
+invocation, and each returns in the store it started from. -/
+theorem callEquiv_store_of_run_iff {H' : Type} {x : CallSite H} {y : CallSite H'}
+    {ft ft' : FuncType} {bf bf' : BFunc} {f f' : FragFunc} (hx : IsFragmentSite x ft bf f)
+    (hy : IsFragmentSite y ft' bf' f')
+    (hinv : ∀ vs, InvokeOk x.store x.addr vs → InvokeOk y.store y.addr vs)
+    (hrun : ∀ args o, f.Run args o ↔ f'.Run args o) :
+    CallEquiv x y ∧
+      (∀ P vs, InvokeOk x.store x.addr vs → ∀ c b s',
+        (c, Silmaril.Games.Abstract.End.ret b s') ∈ wasmFun P closedHost x.addr x.store vs →
+          s' = x.store) ∧
+      (∀ P vs, InvokeOk x.store x.addr vs → ∀ c b s',
+        (c, Silmaril.Games.Abstract.End.ret b s') ∈ wasmFun P closedHost y.addr y.store vs →
+          s' = y.store) :=
+  ⟨callEquiv_of_run_iff hx hy hinv hrun, fun P _ hok _ _ _ hm => hx.ret_store hok P hm,
+    fun P vs hok _ _ _ hm => hy.ret_store (hinv vs hok) P hm⟩
+
+/-- **Certified optimisations are store-preserving call equivalences.** If the
+checked λSSA optimiser accepts function `g` of `m` with replacement `bf'`, then
+in the allocated stores of `m` and of the replaced module, `g` has the same
+Core 3.0 behaviours on every typed invocation, every profile, divergence
+included, and in both stores every return leaves the store unchanged. -/
+theorem optimize_callEquiv_store {m : BModule} {g : Nat} {bf' : BFunc}
+    (h : optimizeFuncCoreChecked m g = some bf') :
+    ∃ s s' : Store Empty, allocStore? m = some s ∧ allocStore? (m.setFunc g bf') = some s' ∧
+      CallEquiv (⟨s, g⟩ : CallSite Empty) (⟨s', g⟩ : CallSite Empty) ∧
+      (∀ P vs, InvokeOk s g vs → ∀ c b st,
+        (c, Silmaril.Games.Abstract.End.ret b st) ∈ wasmFun P closedHost g s vs → st = s) ∧
+      (∀ P vs, InvokeOk s g vs → ∀ c b st,
+        (c, Silmaril.Games.Abstract.End.ret b st) ∈ wasmFun P closedHost g s' vs → st = s') := by
+  obtain ⟨bf, ft, f, f', s, s', hs, hs', ⟨h₁, h₂, h₃, h₄⟩, ⟨h₁', h₂', h₃', h₄'⟩, hf, hn, hst,
+    hf', hn', hst', hinv, hrun⟩ := coreChecked_sites h
+  have hx : IsFragmentSite (⟨s, g⟩ : CallSite Empty) ft bf f := ⟨h₁, h₂, h₃, h₄, hf, hn, hst⟩
+  have hy : IsFragmentSite (⟨s', g⟩ : CallSite Empty) ft bf' f' :=
+    ⟨h₁', h₂', h₃', h₄', hf', hn', hst'⟩
+  obtain ⟨he, hrx, hry⟩ := callEquiv_store_of_run_iff hx hy hinv hrun
+  exact ⟨s, s', hs, hs', he, hrx, hry⟩
 
 end Silmaril.Wasm.Abstract

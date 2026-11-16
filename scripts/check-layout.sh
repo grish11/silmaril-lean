@@ -50,4 +50,7 @@ for p in sorted(pathlib.Path("Silmaril").rglob("*.lean")) + [pathlib.Path("Silma
         bad = 1
 raise SystemExit(bad)
 PY
+# The generated format-language examples are up to date with the format modules (their names
+# are public: lang_<term> definitions and formats.<module>.<term> languages).
+python3 -I scripts/languages/format_examples.py --check || status=1
 exit $status

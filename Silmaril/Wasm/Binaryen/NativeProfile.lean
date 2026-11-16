@@ -7,12 +7,19 @@ public import Silmaril.Wasm.Binaryen.Profile
 /-! # The scalar profile supported by the native interpreter
 
 i32/i64 integer numerics, locals, globals, direct `call`/`return`,
-`block`/`loop`/`if`/`br`/`br_if`/`br_table`, `drop`/`select`/`nop`/`unreachable`.
-Excluded: memory, tables, references, exceptions, tail calls, floats, SIMD.
+`block`/`loop`/`if`/`br`/`br_if`/`br_table`, `drop`/`select`/`nop`/`unreachable`,
+and unpacked integer memory accesses `i32`/`i64` `load`/`store` (any memory index,
+`i32` or `i64` addresses).
+Excluded: `memory.grow` (its outcome depends on the numerics profile), `memory.size`,
+packed, float and bulk memory operations, tables, references, exceptions, tail calls,
+floats, SIMD.
 
-This is the restricted integer, memory-free profile. It is deliberately
-independent of the optimizer profile: native `run` has no float, conversion,
-memory or indirect-call cases. Adequacy requires this smaller profile.
+This is the restricted integer native profile. It is deliberately independent of
+the optimizer profile: native `run` has no float, conversion or indirect-call cases.
+Adequacy requires this smaller profile. Modules: `InNativeProfile` and its
+executable check accept declared memories (and memory exports). They still exclude
+data segments, so memories start zero-filled, and tables, tags and element
+segments.
 -/
 
 namespace Silmaril.Wasm.Binaryen
@@ -33,6 +40,7 @@ def nativeInstr : Instr → Bool
   | .nop | .unreachable | .drop | .select none | .br _ | .brIf _ | .brTable _ _ | .call _
   | .return_ | .localGet _ | .localSet _ | .localTee _ | .globalGet _ | .globalSet _
   | .intConst _ _ | .intUnOp _ _ | .intBinOp _ _ | .intTestOp _ _ | .intRelOp _ _ => true
+  | .intLoad _ none _ _ | .intStore _ none _ _ => true
   | _ => false
 
 mutual
@@ -52,13 +60,13 @@ end
 
 /-- The executable profile check of a module. -/
 def BModule.inNativeProfile (m : BModule) : Bool :=
-  m.base.memories.isEmpty && m.base.tables.isEmpty && m.base.tags.isEmpty &&
+  m.base.tables.isEmpty && m.base.tags.isEmpty &&
   m.base.data.isEmpty && m.base.elems.isEmpty &&
   m.base.imports.all (fun i => match i.type with | .func _ => true | _ => false) &&
   m.base.globals.all (fun g => nativeValType g.type.value &&
     BExpr.inNativeProfileList (liftInstrs g.init)) &&
   m.funcs.all (fun f => f.locals.all nativeValType && BExpr.inNativeProfileList f.body) &&
-  m.base.exports.all (fun e => match e.index with | .func _ | .global _ => true | _ => false)
+  m.base.exports.all (fun e => match e.index with | .func _ | .global _ | .memory _ => true | _ => false)
 
 /-- Core instructions of the profile, recursively. -/
 def instrInNativeProfile : Instr → Prop
@@ -75,7 +83,6 @@ decreasing_by
 
 /-- **The profile, as a property of the lowered module.** -/
 structure InNativeProfile (m : BModule) : Prop where
-  memories : m.lower.memories = []
   tables : m.lower.tables = []
   tags : m.lower.tags = []
   data : m.lower.data = []
@@ -142,8 +149,8 @@ end
 theorem BModule.inNativeProfile_sound {m : BModule} (h : m.inNativeProfile = true) : InNativeProfile m := by
   simp only [BModule.inNativeProfile, Bool.and_eq_true, List.isEmpty_iff, List.all_eq_true,
     and_assoc] at h
-  obtain ⟨hmem, htab, htag, hdata, helem, himp, hglob, hfun, -⟩ := h
-  refine ⟨hmem, htab, htag, hdata, helem, ?_, ?_, ?_, ?_⟩
+  obtain ⟨htab, htag, hdata, helem, himp, hglob, hfun, -⟩ := h
+  refine ⟨htab, htag, hdata, helem, ?_, ?_, ?_, ?_⟩
   · intro i hi
     have := himp i hi
     revert this
