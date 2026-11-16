@@ -157,7 +157,7 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
       label = (titles.get(n) || shortName(n)) + (out.has(n) ? `\n${c.holds} / ${c.fails} / ${c.unknown}` + (c.unchecked ? ` (${c.unchecked} unchecked)` : "") : "");
     } else {
       const i = statusInfo(statusOf.get(n));
-      if (i) label += "\n" + i.code + (i.cls === "bad" ? " !" : i.cls === "ok" ? " ✓" : "");
+      if (i) label += "\n" + i.code + (i.truth !== null ? (i.truth ? "·true" : "·false") : "") + (i.cls === "bad" ? " !" : i.cls === "ok" ? " ✓" : "");
     }
     const hidden = (out.get(n) || []).filter((e) => !keep.has(e.child)).length;
     if (hidden) label += ` (+${hidden} hidden)`;

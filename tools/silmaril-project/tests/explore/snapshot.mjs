@@ -151,12 +151,23 @@ try {
     "4. a chosen file replaces the changed database");
 
   // 5. real damage, same version: reported as such
+  // Where the damage falls decides when it shows: in pages a later view reads (then that view's
+  // query reports it, the version being unchanged), or in the schema (then the file is not
+  // opened at all, and the page says why). Either way it is damage, not a change.
   replace(bad);
-  await open().catch(() => {});
-  await walk(names.slice(0, 6));
-  await go("#/graph");
-  const t5 = await pageText();
-  check(/not a mix of two versions/.test(t5) && !(await p.evaluate(() => window.explore.changed)), "5. a damaged file is reported as damage, not as a change");
+  await p.goto(`http://127.0.0.1:${port}/index.html?cache=off&n=${++loads}#/graph`);
+  await p.waitForFunction(() => window.explore && ((window.explore.ready && !window.explore.busy) || window.explore.failed), null, { timeout: 60000 });
+  let t5;
+  if (await p.evaluate(() => !!window.explore.failed)) {
+    t5 = await pageText();
+    check(/malformed|not a database/.test(t5) && /damaged/.test(t5) && !(await p.evaluate(() => window.explore.changed)),
+      "5. a damaged file is reported as damage, not as a change (its schema is unreadable: not opened)");
+  } else {
+    await walk(names.slice(0, 6));
+    await go("#/graph");
+    t5 = await pageText();
+    check(/not a mix of two versions/.test(t5) && !(await p.evaluate(() => window.explore.changed)), "5. a damaged file is reported as damage, not as a change");
+  }
   await shot("snapshot-damaged.png");
 
   // 6. no strong ETag: one response, one file

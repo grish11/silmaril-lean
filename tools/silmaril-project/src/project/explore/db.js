@@ -326,7 +326,8 @@ async function openSource(label, make) {
     return true;
   } catch (e) {
     if (tok !== openTok || e instanceof Superseded) return false;
-    $("#main").innerHTML = `<div id="msg">${pickHelp(`<p class="err">could not open ${esc(label)}: ${esc(e.message || e)}</p>` + tooLargeOffer(e))}</div>`;
+    window.explore.failed = unreadable(e);
+    $("#main").innerHTML = `<div id="msg">${pickHelp(`<p class="err">could not open ${esc(label)}: ${esc(unreadable(e))}</p>` + tooLargeOffer(e))}</div>`;
     wireFilePickers($("#main"));
     wireTooLarge($("#main"));
     return false;
@@ -367,14 +368,25 @@ async function boot() {
     try { b = await openUrl(u); }
     catch (e) { tried.push(`<li><code>${esc(u)}</code>: ${esc(e.message || e)}${tooLargeOffer(e)}</li>`); continue; }
     if (tok !== openTok) { if (b.close) b.close(); return; }   // the reader chose a file meanwhile
-    try { return await useDb(b, u); } catch (e) { if (e instanceof Superseded) return; throw e; }
+    try { return await useDb(b, u); } catch (e) {
+      if (e instanceof Superseded) return;
+      // the file opened but cannot be read (e.g. its schema pages are damaged): try the next
+      tried.push(`<li><code>${esc(u)}</code>: ${esc(unreadable(e))}</li>`);
+    }
   }
   if (tok !== openTok) return;
+  window.explore.failed = tried.length ? tried.join(" ") : null;
   $("#main").innerHTML = `<div id="msg">${pickHelp(`<p>No database could be opened from:</p><ul>${tried.join("")}</ul>`)}</div>`;
   wireFilePickers($("#main"));
   wireTooLarge($("#main"));
 }
 // A database too large to read whole by default: the reader may still ask for it.
+// A database that opened but whose first queries fail: SQLite's own words, and what they mean.
+function unreadable(e) {
+  const m = String(e && e.message || e);
+  return /malformed|not a database|corrupt/i.test(m) ? `${m}. The file as served is damaged, or not a database this page can read ` +
+    "(check it with `sqlite3 <file> 'PRAGMA integrity_check'`); it was not opened." : m;
+}
 function tooLargeOffer(e) {
   return e instanceof TooLarge ? ` <button type="button" class="loadwhole" data-url="${esc(e.url)}">Read it whole anyway${e.total ? ` (${esc(kB(e.total))})` : ""}</button>` : "";
 }
@@ -391,15 +403,26 @@ async function useDb(b, label) {
   routeTok++;   // whatever the old database's route still awaits is superseded
   known = Object.fromEntries(KINDS.map((k) => [k, new Map()]));
   verdictOf = new Map(); summaryOf = new Map(); statusOf = new Map();
-  const ts = await q("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')");
-  const ix = await q("SELECT name FROM sqlite_master WHERE type = 'index'");
+  let ts, ix, metaRows = [];
+  try {
+    ts = await q("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')");
+    ix = await q("SELECT name FROM sqlite_master WHERE type = 'index'");
+    if (ts.some((r) => r.name === "meta")) metaRows = await q("SELECT value FROM meta WHERE key = 'schema'");
+  } catch (e) {
+    // not readable: no database stays open (the caller says why)
+    if (!(e instanceof Superseded) && be === b) {
+      be = null; window.explore.ready = false;
+      try { if (b.close) b.close(); } catch (x) { /* ignore */ }
+      Object.assign(source, { label: null, mode: null, schema: null, problem: null }); renderSource();
+    }
+    throw e;
+  }
   tables = new Set(ts.map((r) => r.name));
   indexes = new Set(ix.map((r) => r.name));
-  let schema = "?";
-  if (tables.has("meta")) schema = ((await q("SELECT value FROM meta WHERE key = 'schema'"))[0] || {}).value || "?";
+  const schema = (metaRows[0] || {}).value || "?";
   Object.assign(source, { label, mode: b.mode, schema, problem: null });
   renderSource();
-  Object.assign(window.explore, { ready: true, mode: b.mode, source: label, opened: (window.explore.opened || 0) + 1, changed: null });
+  Object.assign(window.explore, { ready: true, mode: b.mode, source: label, opened: (window.explore.opened || 0) + 1, changed: null, failed: null });
   await route();
 }
 async function updateStats() {

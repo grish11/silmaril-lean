@@ -9,17 +9,20 @@ function badge(v, text) { return v ? `<span class="badge ${esc(v)}">${esc(text |
 
 // Status badges. A problem's summary is an SZS code (THM, OPN, SAT, UNS, CSA, UNK, contingent);
 // its verdict (holds/fails/unknown, see the `szs` table) depends on the problem (UNS fails only a
-// closed one). The badge shows the code in a neutral style; what it adds comes from the problem's
-// optional expected status (`problems.expect`), compared with the summary (`statusInfo().outcome`):
+// closed one). The badge shows the stored code in a neutral style. A closed proposition (arity 0)
+// also shows its truth value: THM·true, UNS·false (SAT counts as true and CSA as false there; no
+// CTH or TAU relabelling). What the badge marks comes from the problem's optional expected status
+// (`problems.expect`), compared as `sil project check` compares it (W1, check/status.rs): the
+// expectation is met when it is the summary, or one of the problem's established statuses (the
+// `statuses` table, which holds the arity-0 closure THM ⇒ SAT, UNS ⇒ CSA), or the summary is
+// `contingent` and SAT or CSA is expected. Outcomes (`statusInfo().outcome`):
 //   none      no expectation: neutral, whatever the verdict (a refutation is not a failure by itself)
-//   pending   an expectation, and no known status yet (OPN, UNK): neutral, the title says what is expected
-//   match     the known status is the expected one: a quiet ✓
-//   mismatch  a known status that is not the expected one: an error (!)
+//   pending   an expectation, and the summary is not known (OPN, UNK): neutral, the title says so
+//   match     the expectation is met: a quiet green ✓
+//   mismatch  a known summary that does not meet the expectation: an error (!)
 //   error     a finding classifies the problem as a genuine `error`: an error (!)
-// For a closed proposition (arity 0) THM and SAT mean it is true, UNS and CSA that it is false, and
-// an expectation is met by any code of the same truth value (an expected UNS is met by a CSA). The
-// title says "closed proposition: true/false"; the stored code is shown and never rewritten.
-// Deprecated problems are struck through.
+// Statuses that hold together vacuously (THM and UNS over an empty carrier) are not an error by
+// themselves. Deprecated problems are struck through.
 // What each stored code means here (the `szs` table's codes), and its SZS name. Displayed codes
 // are three characters: the stored code itself, except `contingent`, which is shown as NOC.
 // SZS's NoConsequence (NOC) is "some interpretations are models of Ax, some models of Ax are
@@ -47,23 +50,50 @@ function statusText(code) {
 let statusOf = new Map();
 const CLOSED_TRUTH = { THM: true, SAT: true, UNS: false, CSA: false };
 const UNKNOWN_CODES = new Set(["OPN", "UNK"]);
+const EXPECT_CODES = ["THM", "SAT", "UNS", "CSA", "OPN", "UNK", "contingent"];
+// The code of an expectation as the checker reads it (case-insensitive), or the text as given.
+function expectCode(e) { return EXPECT_CODES.find((c) => c.toLowerCase() === String(e).toLowerCase()) || e; }
+// Whether the expectation `e` is met (W1). Without the established statuses (a caller that has
+// only the summary), the arity-0 closure is applied to the summary instead.
+function expectationMet(s, e) {
+  if (e === s.summary) return true;
+  if (s.summary === "contingent" && (e === "SAT" || e === "CSA")) return true;
+  if (Array.isArray(s.established)) return s.established.includes(e);
+  return s.arity === 0 && ((s.summary === "THM" && e === "SAT") || (s.summary === "UNS" && e === "CSA"));
+}
 function statusInfo(s) {
   if (!s || !s.summary) return null;
   const known = !UNKNOWN_CODES.has(s.summary);
   const closed = s.arity === 0;
   const truth = closed && known && Object.hasOwn(CLOSED_TRUTH, s.summary) ? CLOSED_TRUTH[s.summary] : null;
-  const meets = (e) => e === s.summary || (truth !== null && Object.hasOwn(CLOSED_TRUTH, e) && CLOSED_TRUTH[e] === truth);
-  const expect = s.expect && s.expect !== "OPN" ? s.expect : null;
-  const outcome = s.finding === "error" ? "error" : !expect ? "none" : !known ? "pending" : meets(expect) ? "match" : "mismatch";
+  const expect = s.expect ? expectCode(s.expect) : null;
+  const outcome = s.finding === "error" ? "error" : !expect || expect === "OPN" ? "none"
+    : expectationMet(s, expect) ? "match" : !known ? "pending" : "mismatch";
   const cls = outcome === "mismatch" || outcome === "error" ? "bad" : outcome === "match" ? "ok" : "";
   const why = [statusText(s.summary)];
   if (truth !== null) why.push(`closed proposition: ${truth ? "true" : "false"}`);
+  if (Array.isArray(s.established) && s.established.length) why.push(`established: ${s.established.map(statusCode).join(", ")}`);
   why.push(`verdict ${s.verdict}`);
   why.push({ none: "no expected status", pending: `expected ${expect}, not established yet`, match: `as expected (${expect})`,
     mismatch: `UNEXPECTED: expected ${expect}`, error: "finding: genuine error" + (expect ? `; expected ${expect}` : "") }[outcome]);
   if (s.deprecated) why.push("deprecated" + (s.deprecated === "self" ? "" : ` (through its ${s.deprecated})`));
   if (s.finding && s.finding !== "error") why.push(`finding: ${s.finding}`);
   return { code: statusCode(s.summary), stored: s.summary, outcome, cls, dep: !!s.deprecated, truth, closed, title: why.join("; ") };
+}
+// An aggregate over several problems' expectations (e.g. a language's examples): how many are met,
+// mismatched, pending (expected, not known) or unset. `allMet` only when every one has an
+// expectation and meets it: a missing or unknown one is not a pass. This counts expectations; it
+// is not a statement about the problems' conjunction.
+function expectationSummary(list) {
+  const out = { total: 0, met: 0, mismatch: 0, pending: 0, unset: 0, error: 0 };
+  for (const s of list) {
+    const i = statusInfo(s);
+    out.total++;
+    if (!i) { out.unset++; continue; }
+    out[{ match: "met", mismatch: "mismatch", pending: "pending", none: "unset", error: "error" }[i.outcome]]++;
+  }
+  out.allMet = out.total > 0 && out.met === out.total;
+  return out;
 }
 // `x`: a problem name (looked up in `statusOf`) or a status object as above.
 function statusBadge(x) {
@@ -72,7 +102,8 @@ function statusBadge(x) {
   const mark = i.cls === "bad" ? "!" : i.cls === "ok" ? "✓" : "";
   const cls = ["st", i.cls ? "st-" + i.cls : "", i.dep ? "st-dep" : ""].filter(Boolean).join(" ");
   return `<span class="${cls}" data-code="${esc(i.stored)}" data-outcome="${i.outcome}" role="img" aria-label="${esc(i.title)}" title="${esc(i.title)}">` +
-    `${esc(i.code)}${mark ? `<b aria-hidden="true">${mark}</b>` : ""}</span>`;
+    `${esc(i.code)}${i.truth !== null ? `<span class="st-truth">·${i.truth ? "true" : "false"}</span>` : ""}` +
+    `${mark ? `<b aria-hidden="true">${mark}</b>` : ""}</span>`;
 }
 function verdictBadge(p) { const b = statusBadge(p); return b ? " " + b : ""; }
 

@@ -59,45 +59,56 @@ try {
     badges: [...document.querySelectorAll("#list .st")].map((s) => s.textContent), coloured: document.querySelectorAll("#list .badge").length,
     wrap: getComputedStyle(document.querySelector("#list td.nw")).whiteSpace }));
   check(st.heads.filter((h) => /status|verdict|summary/.test(h)).length === 1 && st.coloured === 0, `one status column, no verdict colour badges (${st.heads.join(",")})`);
-  check(st.badges.length > 0 && st.badges.every((t) => /^[A-Z]{3}[!✓]?$/.test(t)) && st.wrap === "nowrap", `three-character badges: ${[...new Set(st.badges)].join(" ")}`);
+  check(st.badges.length > 0 && st.badges.every((t) => /^[A-Z]{3}(·true|·false)?[!✓]?$/.test(t)) && st.wrap === "nowrap", `three-character badges: ${[...new Set(st.badges)].join(" ")}`);
   // contingent is shown as SZS NoConsequence, and the title keeps the stored code
   const noc = await p.evaluate(() => Explorer.ui.statusBadge({ summary: "contingent", verdict: "fails" }));
   check(/>NOC</.test(noc) && /stored as &quot;contingent&quot;/.test(noc) && /NoConsequence/.test(noc), "contingent shows as NOC, naming the stored code");
   check(await p.evaluate(() => ["THM", "OPN", "SAT", "UNS", "CSA", "UNK"].every((c) => Explorer.ui.statusCode(c) === c)), "SZS codes are shown as stored");
-  // Expectation outcomes (the shared status API): no expectation is neutral whatever the verdict,
-  // an expected negative result is a quiet match, only a known status that is not the expected one
-  // (or a genuine-error finding) is an error, and an unknown status is neutral. Closed propositions
-  // (arity 0) compare truth values: an expected UNS is met by CSA. Stored codes are shown unchanged.
+  // Expectation outcomes (the shared status API), compared as `sil project check` W1 does: met when
+  // the expectation is the summary or an established status (the arity-0 closure THM ⇒ SAT,
+  // UNS ⇒ CSA), or the summary is contingent and SAT or CSA is expected. No expectation is
+  // neutral whatever the verdict; a known summary that does not meet it is an error; an unknown
+  // one is neutral. Closed propositions show their truth value; stored codes are kept.
   const shape = await p.evaluate(() => {
     const b = (s) => { const d = document.createElement("div"); d.innerHTML = Explorer.ui.statusBadge(s); const e = d.firstChild;
       return { text: e.textContent, code: e.dataset.code, outcome: e.dataset.outcome, title: e.title }; };
     return {
+      // l65: a closed membership refuted (UNS, closure CSA) with the generator's expect CSA
+      l65: b({ summary: "UNS", verdict: "fails", arity: 0, expect: "CSA", established: ["UNS", "CSA"] }),
+      l65NoStatuses: b({ summary: "UNS", verdict: "fails", arity: 0, expect: "CSA" }),
       closedFalseNoExpect: b({ summary: "UNS", verdict: "fails", arity: 0 }),
-      closedFalseExpected: b({ summary: "UNS", verdict: "fails", arity: 0, expect: "UNS" }),
-      closedCsaExpectedUns: b({ summary: "CSA", verdict: "fails", arity: 0, expect: "UNS" }),
-      closedTrueExpectedFalse: b({ summary: "THM", verdict: "holds", arity: 0, expect: "UNS" }),
-      openUnsExpectedThm: b({ summary: "UNS", verdict: "unknown", arity: 1, expect: "THM" }),
-      openCsaExpectedUns: b({ summary: "CSA", verdict: "fails", arity: 1, expect: "UNS" }),
-      pending: b({ summary: "OPN", verdict: "unknown", arity: 0, expect: "THM" }),
+      closedTrue: b({ summary: "THM", verdict: "holds", arity: 0, expect: "THM", established: ["THM", "SAT"] }),
+      // the closure goes one way: CSA alone does not establish UNS
+      csaExpectedUns: b({ summary: "CSA", verdict: "fails", arity: 0, expect: "UNS", established: ["CSA"] }),
+      closedTrueExpectedFalse: b({ summary: "THM", verdict: "holds", arity: 0, expect: "UNS", established: ["THM", "SAT"] }),
+      openUnsExpectedThm: b({ summary: "UNS", verdict: "unknown", arity: 1, expect: "THM", established: ["UNS"] }),
+      pending: b({ summary: "OPN", verdict: "unknown", arity: 0, expect: "THM", established: [] }),
       genuine: b({ summary: "CSA", verdict: "fails", arity: 0, finding: "error" }),
-      noc: b({ summary: "contingent", verdict: "fails", arity: 1, expect: "contingent" }),
-      // over an empty domain no witness exists, so SAT (and so contingent) cannot be established;
-      // whatever the database stores for such a problem is shown as stored
-      empty: b({ summary: "UNS", verdict: "unknown", arity: 1 }),
+      nocNoExpect: b({ summary: "contingent", verdict: "fails", arity: 1, established: ["SAT", "CSA"] }),
+      nocExpectSat: b({ summary: "contingent", verdict: "fails", arity: 1, expect: "sat", established: ["SAT", "CSA"] }),
+      // an empty carrier: THM and UNS both hold vacuously; that alone is no error
+      emptyBoth: b({ summary: "THM", verdict: "holds", arity: 1, established: ["THM", "UNS"] }),
+      emptyExpectUns: b({ summary: "THM", verdict: "holds", arity: 1, expect: "UNS", established: ["THM", "UNS"] }),
     };
   });
   const o = (k) => `${shape[k].text}/${shape[k].outcome}`;
-  check(o("closedFalseNoExpect") === "UNS/none" && /closed proposition: false/.test(shape.closedFalseNoExpect.title),
-    `a refuted closed proposition without expectation is neutral, titled false (${o("closedFalseNoExpect")})`);
-  check(o("closedFalseExpected") === "UNS✓/match" && o("closedCsaExpectedUns") === "CSA✓/match",
-    `an expected negative is a quiet match, by truth value for closed propositions (${o("closedFalseExpected")}, ${o("closedCsaExpectedUns")})`);
-  check(o("closedTrueExpectedFalse") === "THM!/mismatch" && o("openUnsExpectedThm") === "UNS!/mismatch" && /UNEXPECTED: expected THM/.test(shape.openUnsExpectedThm.title),
-    "a known status that is not the expected one is an error");
-  check(o("openCsaExpectedUns") === "CSA!/mismatch", "open problems compare codes exactly (CSA does not meet UNS for a predicate)");
+  check(o("l65") === "UNS·false✓/match" && o("l65NoStatuses") === "UNS·false✓/match",
+    `a refuted closed example expected CSA meets it through the closure (${o("l65")}, ${o("l65NoStatuses")})`);
+  check(o("closedFalseNoExpect") === "UNS·false/none" && o("closedTrue") === "THM·true✓/match", `closed propositions show their truth value (${o("closedFalseNoExpect")}, ${o("closedTrue")})`);
+  check(o("csaExpectedUns") === "CSA·false!/mismatch", `CSA does not establish UNS (${o("csaExpectedUns")})`);
+  check(o("closedTrueExpectedFalse") === "THM·true!/mismatch" && o("openUnsExpectedThm") === "UNS!/mismatch" && /UNEXPECTED: expected THM/.test(shape.openUnsExpectedThm.title),
+    "a known status that does not meet the expectation is an error");
   check(o("pending") === "OPN/pending" && /expected THM, not established yet/.test(shape.pending.title), "an unknown status is neutral, naming the expectation");
-  check(o("genuine") === "CSA!/error", "a genuine-error finding is an error");
-  check(shape.noc.code === "contingent" && o("noc") === "NOC✓/match", "contingent shows as NOC and meets an expected contingent");
-  check(o("empty") === "UNS/none" && shape.empty.code === "UNS", "an empty-domain problem's stored status is shown unchanged");
+  check(o("genuine") === "CSA·false!/error", "a genuine-error finding is an error");
+  check(o("nocNoExpect") === "NOC/none" && shape.nocNoExpect.code === "contingent" && o("nocExpectSat") === "NOC✓/match",
+    `contingent: neutral without an expectation, meets an expected SAT (${o("nocNoExpect")}, ${o("nocExpectSat")})`);
+  check(o("emptyBoth") === "THM/none" && o("emptyExpectUns") === "THM✓/match", "vacuous THM and UNS over an empty carrier are no error");
+  const agg = await p.evaluate(() => [
+    Explorer.ui.expectationSummary([{ summary: "THM", verdict: "holds", arity: 0, expect: "THM" }, { summary: "UNS", verdict: "fails", arity: 0, expect: "CSA" }]),
+    Explorer.ui.expectationSummary([{ summary: "THM", verdict: "holds", arity: 0, expect: "THM" }, { summary: "OPN", verdict: "unknown", arity: 0, expect: "THM" }]),
+    Explorer.ui.expectationSummary([{ summary: "THM", verdict: "holds", arity: 0, expect: "THM" }, { summary: "THM", verdict: "holds", arity: 0 }])]);
+  check(agg[0].allMet && !agg[1].allMet && agg[1].pending === 1 && !agg[2].allMet && agg[2].unset === 1,
+    "all expectations met only when every problem has one and meets it (unknown and missing are not a pass)");
   const listed = await p.evaluate(() => [...document.querySelectorAll("#list .st[data-code=contingent]")].map((e) => e.textContent));
   check(listed.every((t) => /^NOC[!✓]?$/.test(t)), `contingent rows of the database display as NOC (${listed.length} on this page)`);
   await shot("problems.png");

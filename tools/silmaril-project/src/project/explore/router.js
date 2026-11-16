@@ -123,7 +123,7 @@ window.Explorer = Object.freeze({
   registerView,
   registerViewer,
   registerSection,
-  ui: Object.freeze({ esc, href, link, badge, statusBadge, statusInfo, statusCode, statusText, table, tableOf, dl, dialog, viewer, highlightWat, hexDump }),
+  ui: Object.freeze({ esc, href, link, badge, statusBadge, statusInfo, statusCode, statusText, expectationSummary, table, tableOf, dl, dialog, viewer, highlightWat, hexDump }),
   tables: () => new Set(tables),
   schema: SCHEMA,
 });
