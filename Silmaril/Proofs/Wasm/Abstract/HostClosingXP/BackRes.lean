@@ -49,7 +49,7 @@ theorem res_evRun (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s : S
   · rw [cons_append] at hcons
     have hz := trapAt_of_trapC (P := P) (ans := (b, s₂))
       (close_le_trapC (tags := tags) (P := P) hH hE g s₁ args htr) hcons.2
-    have cl : CoreLT tags P host s f stk es (q₁ ++ c₁) :=
+    have cl : CoreLT tags P host s f stk es (q₁ ++ c₁) (fun _ => True) :=
       evalLXPh_trap (P := P) hH hE hd l₁ _ l₂ rfl q₁ c₁
         (substPre_mono (close_le_goodCX hH hE) hq₁) hz (cons_append.2 hcons) hts
     obtain ⟨s', f', c', oc, hrun, he, -⟩ := cl hS hc
@@ -71,7 +71,7 @@ theorem close_evRun_call (hH : NativeHostSlice host) (hE : HostSliceE tags host)
     rcases b with ws | t
     · exact ⟨s₂, _, .normal ws, rfl, h⟩
     · exact ⟨s₂, _, .throw t, rfl, h⟩
-  · obtain ⟨s', h⟩ := close_trap_evRun (P := P) hH hE hm hc hts hS hfi hty hn f cr hcr
+  · obtain ⟨s', -, h⟩ := close_trap_evRun (P := P) hH hE hm hc hts hS hfi hty hn f cr hcr
     exact ⟨s', _, .trap, rfl, h⟩
   · exact (close_ne_div hm).elim
 
