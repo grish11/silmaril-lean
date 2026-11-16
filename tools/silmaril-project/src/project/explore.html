@@ -97,6 +97,25 @@ dialog.dlg::backdrop { background:rgba(20,24,28,.35); }
 .ln { color:#9aa0a6; user-select:none; }
 ul.evidence { margin:4px 0 8px; padding-left:20px; }
 .hl-t { color:#005cc5; } .hl-k { color:#a3157a; font-weight:600; } .hl-i { color:#1d2329; font-weight:600; }
+/* the Lean source view (provenance.js, explore/lean/render.js) */
+dialog.dlg.dlg-wide { max-width:min(1100px, 96vw); }
+pre.code.lean { position:relative; padding:6px 0; line-height:1.45; }
+pre.lean .sl { display:block; min-height:1.45em; padding:0 10px 0 13px; }
+pre.lean .src-decl { display:block; border-left:3px solid var(--accent); background:#eef3fb; }
+pre.lean .src-decl .sl { padding-left:10px; }
+pre.lean .sl-sel { background:#dfe9f8; }
+pre.lean .lean-sel { outline:1px solid var(--accent); border-radius:2px; background:#fff; }
+pre.lean:focus-visible { outline:2px solid var(--accent); }
+.src-how { font-size:12px; padding:0 6px; border-radius:3px; border:1px solid; white-space:nowrap; }
+.src-exact { color:#1f6b36; border-color:#2e9d4f; background:#eaf6ee; }
+.src-approx { color:#7a4b00; border-color:#b7791f; background:#fff8e6; }
+.src-note { font-size:13px; }
+.lt-comment { color:#6a737d; font-style:italic; } .lt-doc-comment { color:#4b6a4b; font-style:italic; }
+.lt-string, .lt-char { color:#0a7d32; } .lt-number { color:#8a3ffc; }
+.lt-command { color:#a3157a; font-weight:600; } .lt-modifier { color:#a3157a; } .lt-keyword { color:#005cc5; font-weight:600; }
+.lt-attribute { color:#b25000; } .lt-decl-name { color:#1d2329; font-weight:700; } .lt-operator { color:#5a5f66; }
+.lt-sorry { color:#fff; background:#d64545; border-radius:2px; font-weight:600; }
+.lt-error { color:#d64545; text-decoration:underline wavy #d64545; }
 @media (max-width: 800px) { #graphwrap { flex-direction:column; height:auto; } #cy { height:60vh; } #side { flex-basis:auto; } }
 </style>
 </head>
