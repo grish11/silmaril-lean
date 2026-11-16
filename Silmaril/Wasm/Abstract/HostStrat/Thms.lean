@@ -103,4 +103,47 @@ theorem coreStrat_mem_inf (s : Store H) (q : Nat × List Val) (ω : Nat → Call
       Ok s q ∧ CoreInf P host (invoke s q.1 q.2) ω :=
   (StratObs.mem_inf (s, q) ω).trans (by simp [obsTriple, CoreObsL])
 
+/-! ## Per-function strategies -/
+
+/-- **The Core strategy of a function is its native strategy** at `profile o`. -/
+theorem coreStratAt_eq_natStratAt {o : SingleThreaded.GrowOracle} (hT : HostTyped host)
+    (hH : Interp.NativeHostSlice host) (s : Store H) (a : Nat) :
+    coreStratAt (SingleThreaded.profile o) host InvOk s a = natStratAt host InvOk s a :=
+  congrArg (fun t => StratObs.toDStrat (atTriple t s a)) <| obsTriple_congr
+    fun _ _ ⟨hs, hS, hok⟩ x => (hostSquare hT hH hs hS hok x).symm
+
+/-- **The Core strategy of a function is its native strategy at every profile**, under
+`InvOkN` and `Interp.HostNative`. -/
+theorem coreStratAt_eq_natStratAt_profile (hT : HostTyped host)
+    (hH : Interp.NativeHostSlice host) (hN : Interp.HostNative host) (s : Store H) (a : Nat) :
+    coreStratAt P host InvOkN s a = natStratAt host InvOkN s a :=
+  congrArg (fun t => StratObs.toDStrat (atTriple t s a)) <| obsTriple_congr
+    fun _ _ ⟨⟨hs, hS, hok⟩, hW⟩ x => (hostSquare_profile hT hH hN hs hS hW hok x).symm
+
+/-- **A completed round with values**, final store hidden: a Core run of the function to those
+values in some store. -/
+theorem coreStratAt_mem_ret (s : Store H) (a : Nat) (vs : List Val)
+    (cs : List (Call (wasmHostSig H))) (ws : List Val) :
+    (.inr (.ask ((), vs)) :: (StratObs.callMoves cs ++ [.inr (.ans ((), vs) (.inl (.inl ws, ())))]) :
+        List (Move (wasmHostSig H) (funSig Unit (List Val) (List Val ⊕ Nat)))) ∈
+        (coreStratAt P host Ok s a).toStrategy ↔
+      Ok s (a, vs) ∧ ∃ s₂, EvRun P host (invoke s a vs) cs ⟨s₂, {}, vals ws⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostStrat.coreStratAt_mem_ret s a vs cs ws
+
+/-- **A trap round**, final store hidden: a Core run of the function to a trap. -/
+theorem coreStratAt_mem_trap (s : Store H) (a : Nat) (vs : List Val)
+    (cs : List (Call (wasmHostSig H))) :
+    (.inr (.ask ((), vs)) :: (StratObs.callMoves cs ++ [.inr (.ans ((), vs) (.inr PUnit.unit))]) :
+        List (Move (wasmHostSig H) (funSig Unit (List Val) (List Val ⊕ Nat)))) ∈
+        (coreStratAt P host Ok s a).toStrategy ↔
+      Ok s (a, vs) ∧ ∃ s₂, EvRun P host (invoke s a vs) cs ⟨s₂, {}, [.trap]⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostStrat.coreStratAt_mem_trap s a vs cs
+
+/-- **A one-round infinite play** of the function is a productive Core run. -/
+theorem coreStratAt_mem_inf (s : Store H) (a : Nat) (vs : List Val)
+    (ω : Nat → Call (wasmHostSig H)) :
+    StratObs.streamPlay [] ((), vs) ω ∈ (coreStratAt P host Ok s a).inf ↔
+      Ok s (a, vs) ∧ CoreInf P host (invoke s a vs) ω :=
+  (StratObs.mem_inf ((), vs) ω).trans (by simp [atTriple, obsTriple, CoreObsL])
+
 end Silmaril.Wasm.Abstract

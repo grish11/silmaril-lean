@@ -29,6 +29,12 @@ the fixed host, read as a strategy on the host interface. The domains:
 * `InvOk`: a checked store and a typed invocation (`hostSquare`);
 * `InvOkN`: moreover, the store's Wasm functions are native-profile code (`hostSquare_profile`).
 
+**Per function.** `coreStratAt P host Ok s a`, `natStratAt host Ok s a`: the strategy of the one
+function at `a` in the store `s`, on the interface `funSig Unit (List Val) (List Val ⊕ Nat)`: a
+question is an argument list, an answer returns values or an exception tag, or traps, and the final
+store is hidden (`endHide`). The host callouts in the plays still carry the store at the callout:
+that is Core's host interface, where a host function may read the store.
+
 Theorems in `Silmaril.Wasm.Abstract.HostStrat.Thms`.
 -/
 
@@ -67,5 +73,32 @@ def coreStrat (P : Numerics.Profile) (host : HostSemantics H)
     (Ok : Store H → Nat × List Val → Prop) :
     DStrategy (wasmHostSig H) (funSig (Store H) (Nat × List Val) (List Val ⊕ Nat)) :=
   StratObs.toDStrat (obsTriple Ok fun s q => CoreObsL P host s q.1 q.2)
+
+/-! ## Per-function strategies, final store hidden -/
+
+/-- The end of a call with its final store hidden. -/
+def endHide {B : Type} : End (Store H) B → End Unit B
+  | .ret b _ => .ret b ()
+  | .trap => .trap
+  | .div => .div
+
+/-- **The triple of the function at `a` in the store `s`**: a question is an argument list, an
+answer has no final store. Host callouts keep their store (the host may read it). -/
+def atTriple (t : ObsTriple (wasmHostSig H) (Store H) (Nat × List Val) (List Val ⊕ Nat))
+    (s : Store H) (a : Nat) : ObsTriple (wasmHostSig H) Unit (List Val) (List Val ⊕ Nat) :=
+  (fun _ vs => (fun x => (x.1, endHide x.2)) '' t.1 s (a, vs), fun _ vs => t.2.1 s (a, vs),
+    fun _ vs => t.2.2 s (a, vs))
+
+/-- **The native strategy of the function at `a` in `s`** against `host`, on the questions `Ok`. -/
+def natStratAt (host : HostSemantics H) (Ok : Store H → Nat × List Val → Prop) (s : Store H)
+    (a : Nat) : DStrategy (wasmHostSig H) (funSig Unit (List Val) (List Val ⊕ Nat)) :=
+  StratObs.toDStrat (atTriple (obsTriple Ok fun s q => NatObs host s q.1 q.2) s a)
+
+/-- **The Core strategy of the function at `a` in `s`** against `host` at the profile `P`, on the
+questions `Ok`. -/
+def coreStratAt (P : Numerics.Profile) (host : HostSemantics H)
+    (Ok : Store H → Nat × List Val → Prop) (s : Store H) (a : Nat) :
+    DStrategy (wasmHostSig H) (funSig Unit (List Val) (List Val ⊕ Nat)) :=
+  StratObs.toDStrat (atTriple (obsTriple Ok fun s q => CoreObsL P host s q.1 q.2) s a)
 
 end Silmaril.Wasm.Abstract
