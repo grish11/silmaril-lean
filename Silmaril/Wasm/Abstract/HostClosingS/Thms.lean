@@ -4,9 +4,11 @@ public import Silmaril.Wasm.Abstract.HostClosingS.Defs
 public import Silmaril.Wasm.Abstract.HostClosingXP.Defs
 public import Silmaril.Games.Abstract.StratSession.Defs
 public import Silmaril.Wasm.Abstract.HostClosingXP.Thms
+public import Silmaril.Wasm.Abstract.OpenStrat.Defs
 import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Close
 import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Core
 import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Pend
+import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Triple
 
 /-!
 # Session closing: theorems
@@ -32,6 +34,8 @@ The session closure `wasmEvFunXPS` keeps the store of every trap, and erasing th
   exceptions are the canonical ones (`mem_wasmEvFunXPS_ret_iff`, `wasmEvFunXPS_vals_iff`,
   `wasmEvFunXPS_throw_iff`).
 * `wasmEvPendXPS_eq`: the session pending calls are the canonical ones.
+* `wasmEvFunDXPS_erase`, `eraseTrap_sessionTripleXP`, `sessionTripleXP_noPlainTrap`: the session
+  triple erases to `openTripleXP` and keeps every trap's store.
 -/
 
 @[expose] public section
@@ -199,5 +203,22 @@ theorem wasmEvPendXPS_eq : wasmEvPendXPS (H := H) = wasmEvPendXP :=
   funext fun _ => funext fun _ => Set.ext fun _ =>
     ⟨Silmaril.Proofs.Wasm.Abstract.HostClosingS.pendS_toH,
       Silmaril.Proofs.Wasm.Abstract.HostClosingS.pend_toS⟩
+
+
+/-! ## The session triple -/
+
+/-- **Erasing trap stores sends the session behaviours with divergence onto `wasmEvFunDXP`.** -/
+theorem wasmEvFunDXPS_erase (s : Store H) (p : Nat × List Val) :
+    (fun x => (x.1, eraseEnd x.2)) '' wasmEvFunDXPS s p = wasmEvFunDXP s p :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingS.erase_wasmEvFunDXPS s p
+
+/-- **The session triple projects onto the open canonical triple**: `StratSession.eraseTrap`
+sends `sessionTripleXP` to `openTripleXP`. -/
+theorem eraseTrap_sessionTripleXP : eraseTrap (sessionTripleXP (H := H)) = openTripleXP :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingS.eraseTrap_sessionTripleXP
+
+/-- **The session triple has no plain trap**: every trap keeps its store. -/
+theorem sessionTripleXP_noPlainTrap : NoPlainTrap (sessionTripleXP (H := H)) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingS.sessionTripleXP_noPlainTrap
 
 end Silmaril.Wasm.Abstract

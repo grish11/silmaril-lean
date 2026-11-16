@@ -1,6 +1,8 @@
 module
 
 public import Silmaril.Wasm.Abstract.HostClosingXP.Defs
+public import Silmaril.Wasm.Abstract.HostClosingInfXP.Defs
+public import Silmaril.Games.Abstract.StratObs.Defs
 
 /-!
 # Session closing: the canonical relation closed with traps that keep the store
@@ -31,6 +33,9 @@ This module closes the same relation natively with store-keeping traps:
   answer `.inr ()` with its store, resolved by `Shape.Subst.int`.
 * `ReachLXPS`, `PendLXPS`, `wasmEvPendXPS`: the pending host calls, as `ReachLXP`, `PendLXP`,
   `wasmEvPendXP`, over the session relation and closure.
+* `wasmEvFunDXPS`, `sessionTripleXP`: with the divergent behaviours of `wasmEvFunDXP` and the
+  productive streams of `wasmEvInfNXP`, which carry no trap store: the session analog of
+  `openTripleXP`.
 
 Erasing the stores of traps (`StratSession.eraseEnd`) projects the session closure onto
 `wasmEvFunXP`, with the same logs (`Silmaril.Wasm.Abstract.HostClosingS.Thms`).
@@ -520,5 +525,20 @@ inductive PendLXPS : Store H → Nat → List Val → List (Call (wasmHostSig H)
 /-- **The pending host calls of an invocation under the session relation.** -/
 def wasmEvPendXPS : Silmaril.Games.Abstract.Pending (wasmHostSig H) (Store H) (Nat × List Val) :=
   fun s p => {x | PendLXPS s p.1 p.2 x.1 x.2}
+
+/-! ## The session triple -/
+
+/-- **The session semantics of an invocation with divergence**: the session closure, and the
+divergent behaviours of `wasmEvFunDXP`, which carry no trap store. -/
+def wasmEvFunDXPS :
+    AFun (wasmHostSig H) (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit.{1}) :=
+  fun s p => wasmEvFunXPS s p ∪ {y | y.2 = .div ∧ (y.1, End.div) ∈ wasmEvFunDXP s p}
+
+/-- **The session triple**: finished and divergent behaviours keeping trap stores
+(`wasmEvFunDXPS`), the session pending calls (`wasmEvPendXPS`), and the productive streams of
+`wasmEvInfNXP`, which carry no trap store. -/
+def sessionTripleXP :
+    ObsTriple (wasmHostSig H) (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit.{1}) :=
+  (wasmEvFunDXPS, wasmEvPendXPS, wasmEvInfNXP)
 
 end Silmaril.Wasm.Abstract

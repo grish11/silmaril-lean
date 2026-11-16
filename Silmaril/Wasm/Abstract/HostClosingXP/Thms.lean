@@ -26,6 +26,12 @@ Proofs in `Silmaril.Proofs.Wasm.Abstract.HostClosingXP`.
   store).
 * `wasmEvFunXP_ret_len`: a function returns at most its result arity; so a cut call is never
   resolved by a return.
+* **Traps in the exact store of the trap** (`evalLXPh_trap_exact`, `evalLXPh_cut_exact`,
+  `evalLXPh_tail_exact`, `host_trap_exact`, `invoke_trap_exact`): a body trapping itself, at a
+  call or at its pending tail call whose callee traps in `s₂`, or a host function answering a
+  trap, is a Core run to a trap in exactly that store; `evRun_trap_det` (deterministic profile).
+  The closure `wasmEvFunXP` forgets that store (`End.trap`); the session closure
+  `HostClosingS.wasmEvFunXPS` keeps it.
 * **Coincidence on direct stores** (`Interp.StoreDirect`: Wasm bodies without the extended call
   forms and the exception forms):
   * `wasmHOpenXP_direct`: a canonical open behaviour is a native one, or **cut**: it ends in a
