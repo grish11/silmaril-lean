@@ -389,3 +389,11 @@ One run on a 2-vCPU sandbox (raw output in `benchmarks/kmem-kernel/results-2026-
 | `bytearray` | `runHi = true` by `decide +kernel` | `(kernel) deep recursion detected` | 14.5 s | 3.42 GB |
 
 These agree with the measurements of step 4 and step 5 above.
+
+### Use: WAST rows with data segments
+
+The WAST rows of `address.wast` (`docs/projects/wasm-wast.md`) are checked on `KMem` stores:
+`scriptKM` instantiates and runs on `Store Nat KMem`, and `scriptK_of_scriptKM` carries the result
+to the `ByteArray` checker by `instantiateOnce?_toBytes` and `runI_toBytes`. For this,
+`Verify.Kernel.stepK`/`runK` (and `stepK_eq`/`runK_eq`) take a head step over any
+representation, and `invokeOkB`/`exportsScalar` take a store over any representation.
