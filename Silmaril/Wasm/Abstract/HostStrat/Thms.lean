@@ -26,7 +26,8 @@ import Silmaril.Proofs.Wasm.Abstract.HostStrat.Basic
   session a trap round followed by a value round is a Core run to a trap leaving `s₁`, then a
   Core run from `s₁` to the values (`coreSession_mem_trap_ret`). After completed session rounds
   ending at `s`: a pending Core callout (blocked or host-divergent) from `s` is a play ending in
-  that call (`coreSession_pending_mem`); a divergent play is a Core run from `s` followed by
+  that call (`coreSession_pending_mem`; the converse, so the exact Core-only characterisation in both
+  directions, is `SessionPend.coreSession_mem_pending_iff`, for typed invocations at `profile o`); a divergent play is a Core run from `s` followed by
   host-free divergence (`coreSession_mem_div`); a stream play is a productive Core run from `s`
   (`coreSession_mem_inf`).
 -/
@@ -181,7 +182,8 @@ theorem coreSession_mem_trap_ret {s₀ : Store H} {q q' : Nat × List Val}
 /-- **A pending Core callout after session rounds is a play**: after completed session rounds
 `rs` (continuing traps included) ending at `s`, a Core run of `q` from `s` with the host calls
 `c` to a callout `m` that the host does not answer, or diverges on, is a play ending in the call
-`m`. -/
+`m`. For the converse, i.e. every pending play is a reached Core callout at exactly its log, see
+`Silmaril.Wasm.Abstract.coreSession_mem_pending_iff` (`SessionPend`). -/
 theorem coreSession_pending_mem {s₀ s : Store H}
     {rs : List ((Nat × List Val) × List (Call (wasmHostSig H)) × ((List Val ⊕ Nat) ⊕ PUnit))}
     {q : Nat × List Val} {c : List (Call (wasmHostSig H))} {m : (wasmHostSig H).Op}

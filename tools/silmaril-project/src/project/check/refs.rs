@@ -209,6 +209,33 @@ pub(super) fn follow<'a>(
                 refs.push(("to", "room", x.dst.clone()));
                 logic_fact_check("corridor", &x.facts, &at, o);
             }
+            Record::LogicCatalogue(c) => catalogue_check(c, &at, &mut refs, o),
+            Record::LogicExclusion(x) => {
+                if !EXCLUSION_CATEGORIES.contains(&x.category.as_str()) {
+                    o.error(
+                        &at,
+                        format!(
+                            "category {:?} is not one of {}",
+                            x.category,
+                            EXCLUSION_CATEGORIES.join(", ")
+                        ),
+                    );
+                }
+                let n = |v: &serde_json::Value| v.as_array().map_or(0, Vec::len) as i64;
+                let listed = n(&x.decls) + n(&x.modules);
+                if listed > 0 && listed != x.count {
+                    o.error(
+                        &at,
+                        format!(
+                            "count {} but {listed} declarations or modules are listed",
+                            x.count
+                        ),
+                    );
+                }
+                if x.reason.trim().is_empty() {
+                    o.error(&at, "an exclusion needs a reason");
+                }
+            }
             Record::LogicAudit(a) => {
                 if let Some(r) = &a.registered {
                     let k: &'static str = match a.object.as_str() {
@@ -471,5 +498,66 @@ fn hets_check(
             at,
             format!("hets: no {kind} spelled {h:?} in the pinned Hets logic graph"),
         );
+    }
+}
+
+/// A catalogue entry: a known status; a registered or represented entry names registered records
+/// (`kind:name`) and has evidence; any other entry has a reason and names no record; a prospective
+/// entry has no evidence.
+fn catalogue_check<'a>(c: &'a LogicCatalogue, at: &str, refs: &mut Refs<'a>, o: &mut Outcome) {
+    if !CATALOGUE_STATUSES.contains(&c.status.as_str()) {
+        o.error(
+            at,
+            format!(
+                "status {:?} is not one of {}",
+                c.status,
+                CATALOGUE_STATUSES.join(", ")
+            ),
+        );
+    }
+    let list = |v: &serde_json::Value| -> Vec<String> {
+        v.as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let records = list(&c.records);
+    let evidence = list(&c.evidence);
+    let held = matches!(c.status.as_str(), "registered" | "represented");
+    if held && records.is_empty() {
+        o.error(at, format!("status {} names no record", c.status));
+    }
+    if !held && !records.is_empty() {
+        o.error(at, format!("status {} names records", c.status));
+    }
+    if !held && c.reason.as_deref().unwrap_or("").is_empty() {
+        o.error(at, format!("status {} needs a reason", c.status));
+    }
+    if (c.status == "prospective") != evidence.is_empty() {
+        o.error(
+            at,
+            "an entry has evidence exactly when it is not prospective",
+        );
+    }
+    for r in records {
+        let Some((k, n)) = r.split_once(':') else {
+            o.error(at, format!("records: {r:?} is not kind:name"));
+            continue;
+        };
+        let kind: &'static str = match k {
+            "institution" => "institution",
+            "comorphism" => "comorphism",
+            "morphism" => "morphism",
+            "room" => "room",
+            "corridor" => "corridor",
+            _ => {
+                o.error(at, format!("records: {k} is not a logic-graph kind"));
+                continue;
+            }
+        };
+        refs.push(("records", kind, n.to_string()));
     }
 }

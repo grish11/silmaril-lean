@@ -214,6 +214,90 @@
    "nodes": 26,
    "edges": 23,
    "status": "pending-port"
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.node.pl",
+   "module": "LG",
+   "catalogue_id": "pl",
+   "title": "Propositional logic",
+   "entry": "node",
+   "status": "registered",
+   "records": [
+    "institution:lg.pl"
+   ],
+   "evidence": [
+    "LG.PL.inst"
+   ]
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.edge.pending",
+   "module": "LG",
+   "catalogue_id": "pending",
+   "title": "A prospective map",
+   "entry": "edge",
+   "status": "prospective",
+   "records": [],
+   "evidence": [],
+   "reason": "no Lean declaration"
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.node.zf",
+   "module": "LG",
+   "catalogue_id": "zf",
+   "title": "ZF",
+   "entry": "node",
+   "status": "not-institution-typed",
+   "records": [
+    "institution:lg.pl"
+   ],
+   "evidence": [
+    "LG.ZF"
+   ]
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.node.ghost",
+   "module": "LG",
+   "catalogue_id": "ghost",
+   "title": "Ghost",
+   "entry": "node",
+   "status": "represented",
+   "records": [
+    "institution:lg.ghost"
+   ],
+   "evidence": [
+    "LG.ghost"
+   ]
+  },
+  {
+   "kind": "logic_exclusion",
+   "name": "exclusion.fixtures.demo",
+   "module": "LG",
+   "title": "Demo fixtures",
+   "category": "fixture-dependent",
+   "decls": [],
+   "modules": [
+    "LG.A",
+    "LG.B"
+   ],
+   "count": 2,
+   "reason": "reads generated fixtures"
+  },
+  {
+   "kind": "logic_exclusion",
+   "name": "exclusion.bad",
+   "module": "LG",
+   "title": "Bad",
+   "category": "other",
+   "decls": [
+    "LG.x"
+   ],
+   "modules": [],
+   "count": 3,
+   "reason": ""
   }
  ],
  "problems": [],

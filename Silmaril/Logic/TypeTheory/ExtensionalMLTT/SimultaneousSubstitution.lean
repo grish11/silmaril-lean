@@ -1,0 +1,4 @@
+module
+
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SimultaneousSubstitution.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SimultaneousSubstitution.Thms

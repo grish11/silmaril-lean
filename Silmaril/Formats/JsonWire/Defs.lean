@@ -32,9 +32,11 @@ count) and the recursive-descent parser (`Internal.value?`). Readers by profile:
 | `parseInteger?` | RFC 8259 | `Int`: only integral decimals (`1e2` is `100`) |
 | `parseCst?` | any | the lossless concrete syntax |
 
-Lemmas: `Silmaril.Formats.JsonWire.Thms`. The project format `json.rfc8259` is `parse?` with the
-printer `encode` (`Silmaril.Project.Formats.json`). No round-trip theorem relates `encode` and
-`parse?`.
+Lemmas: `Silmaril.Formats.JsonWire.Thms`, in particular `parse?_isSome_iff`: `parse?` accepts
+exactly the JSON texts of `Silmaril.Formats.JsonBytes.language .rfc8259`. The stages of the
+reader against declarative grammars: `Silmaril.Formats.JsonWire.Grammar.Thms`. The project format
+`json.rfc8259` is `parse?` with the printer `encode` (`Silmaril.Project.Formats.json`). No
+round-trip theorem relates `encode` and `parse?`.
 -/
 
 @[expose] public section

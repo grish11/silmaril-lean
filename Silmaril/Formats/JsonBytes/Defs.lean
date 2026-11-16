@@ -7,8 +7,9 @@ public import Silmaril.Formats.Utf8.Defs
 
 The byte sequences that are a JSON text (RFC 8259) encoded in UTF-8, as a Mathlib
 `Language UInt8`. This is a specification, not a parser: it fixes which inputs are valid, and
-is meant to be what readers such as `Silmaril.Formats.JsonWire.parse?` are checked against. No
-theorem here relates the language to any reader.
+is meant to be what readers such as `Silmaril.Formats.JsonWire.parse?` are checked against:
+`Silmaril.Formats.JsonWire.parse?_isSome_iff` proves that reader accepts exactly
+`language .rfc8259`.
 
 ## The standard and the choices made explicit
 

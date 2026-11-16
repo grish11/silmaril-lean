@@ -280,6 +280,76 @@ The plain graph stays an over-approximation, and claims about it say so.
 8. **Calls**, through an explicit call interface: a call node whose callee behaviour is a
    parameter (a `FRAME` run of the callee), first for direct calls.
 
+9. **Native trees ↔ region semantics** (`Cfg.Bridge`, `Cfg.BridgeBwd`). The native evaluator
+   on folded trees (`CallX.EvalOX`, oracle `C`) against `Region.RunC` of their lowering, with the
+   same oracle; `ResOut` relates the ends (pending tail calls answered at the frame, branch and
+   return values carrying the enclosing labels' values in the region).
+   - **Forward, done** (#492): `bridge_fwd` (typed `EvalOXT`, `chkE tExt`-checked, oracle sound
+     for the tail-aware check), `bridge_fwd_closedX` (the typed closed extended oracle, no oracle
+     hypothesis).
+   - **Backward, flat case, done**: `flat_bwd` (deterministic profile `SingleThreaded.profile o`,
+     any host and oracle): a region run of a checked, typed flat instruction other than a call is
+     its `evalFlat` result, from HostEval's `flat_complete` (#496).
+   - **Backward, trees without extended calls, done**: `bridge_bwd` (deterministic profile, no
+     host, an oracle sound for the tail-aware check that keeps typing) and `bridge_bwd_closedX`
+     (the typed closed extended oracle, no oracle hypothesis): a region run of the lowering of
+     typed trees with no `call_indirect`, `call_ref` or tail call (`CallX.xFreeL`; direct calls
+     included) is a native `EvalOX` run with the same oracle, ending as `ResOut` says. Loops are
+     by induction on their region run (`loop_aux`), re-entering at each branch back.
+   - **Backward, trees without tail calls, done**: `bridge_bwd_tailFree` and
+     `bridge_bwd_tailFree_closedX` add `call_indirect` and `call_ref` (resolved as the native
+     evaluator resolves them, answered by the same oracle entry); `bridge_bwd` is its
+     `xFreeL` case.
+   - **Backward, every outcome but a pending tail call, done**: `bridge_bwd_nonTail` and
+     `bridge_bwd_nonTail_closedX` cover every typed tree, tail calls included, when the region
+     outcome is not `Out.tail`: `return_call_ref` on null and `return_call_indirect` without a
+     callee trap natively. `return_call_indirect`'s `table.get; ref.cast` Core runs are forced at
+     the deterministic profile without host (unique host-free normal forms,
+     `BridgeBwdRci.run_rci_inv`).
+   - **Backward, pending tail calls, done**: `bridge_bwd_tail` (and `_closedX`): a region run
+     ending in `Out.tail W a c` corresponds, for **every** oracle answer to that call
+     (`ResOut … (.tail W a c) r`), to a native run to `r`; the callee's parameters are on `W`
+     (typing at the call site), so enclosing labels do not change the arguments.
+     `bridge_bwd_answered` (and `_closedX`) is the existence form: if the outcome is not a
+     pending tail call, or the oracle answers it, the region run is a native run with the same
+     oracle, ending as `ResOut` says. This is the draft #494's `Task.bwd` with its honest
+     hypothesis: without an answer to a pending tail call there is no native result. The draft's
+     `sorry`s are replaced and it is not merged.
+   - **CFG corollaries, done** (`Cfg.BridgeCfg`): `machine_native` (a machine run from
+     `cfgEntry` of typed trees without tail calls to a sink is a native run with the same
+     oracle, the sink's `EndsC` and the native result related by `ResOut`) and `native_machine`
+     (a typed checked native run from the empty stack is a machine run from `cfgEntry` to a sink
+     completing its region outcome, unless that outcome is a branch out of the body; pending tail
+     calls are completed by the oracle answer `ResOut` carries), with the `closedXOk` instances
+     `machine_native_closedX`, `native_machine_closedX` (no oracle hypothesis). These are about the
+     block-CFG machine as an executable semantics; the plain graph stays an over-approximation.
+
+10. **Branches to the function label (bug in the block-CFG machine; transitions fixed).** A function
+    body runs under its function's label (Core `FRAME_n{} (LABEL_n{} body)`), so a branch whose
+    depth is the body's nesting depth returns; the native store check accepts it (labels
+    `[rs.length]`) and the extracted CFG resolves it to `exit` (`labels body [] = [.exit]`). The
+    machine's branch rules (`br`, `brIfTaken`, `brDataTaken`) need a label frame for the target,
+    and the function label has none, so the machine is stuck exactly where the CFG has an `exit`
+    edge; this is why `run_complete_initialC` excludes `br` outcomes.
+    - **Regression fixtures, done** (`Cfg.ExampleBrOut`): the validated module `brOutMod`
+      (`brOutMod_valid`) with a top-level `br 0`, a taken and an untaken `br_if`, a `br_table`
+      to the function label from inside a block, and two results; Core returns their results
+      under the function label (`core0` … `core4`), while the machine is stuck
+      (`machine_stuck0/1/4`, `machine_no_sink0/1/4`, `machine_enter3` then `machine_stuck3`).
+    - **Fix, done (machine transitions and soundness):** `MStepC.brOut`, `brIfOut`,
+      `brDataOut` step from a block whose terminator branches to label index `ls.length` (the
+      function boundary; deeper labels stay invalid) to `exit` with the block's values, as
+      `return` does; `Ends` at `exit` adds `∃ W, o = .br 0 (W ++ stk)`. Every case analysis over
+      `MStepC` is extended: soundness (`wrap_brOut`, `brOut_sound`, `brIfOut_sound`,
+      `brDataOut_sound` in `mstep_sound`), the CFG edge (`resolveT_out`: the function label
+      resolves to `exit`, so each new step is an `Edge` to `exit` in `mstep_edge`), and the Core
+      simulation (`msim`: the new steps go to a sink). Divergence results are unaffected: the
+      new steps end at a sink. The fixtures are restated as machine steps to `exit` with Core's
+      results (`machine_exit0/1/3/4`).
+    - **Next:** completeness for branches to the function label (`run_complete_initialC` still
+      excludes `br` outcomes): `Reach` at a branch to label `ls.length` asks for a machine run to
+      `exit`, through the completeness induction.
+
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
 (`bodyIfaces_complete`).

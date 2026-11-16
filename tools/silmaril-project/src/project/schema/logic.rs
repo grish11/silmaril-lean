@@ -246,6 +246,58 @@ table! {
     }
 }
 
+/// The statuses of a catalogue entry (`logic_catalogue`, Lean's `catalogueStatuses`).
+pub const CATALOGUE_STATUSES: [&str; 4] = [
+    "registered",
+    "represented",
+    "not-institution-typed",
+    "prospective",
+];
+
+table! {
+    /// One entry of the curated catalogue the logic-graph port started from (`silmaril/logic-graph/
+    /// catalogue.toml`): its stable `catalogue_id`, `title`, whether it is a logic (`node`) or a map
+    /// (`edge`), its `status`, the registered records that hold it (`records`, `kind:name`, JSON), the
+    /// Lean declarations that are its evidence (`evidence`, JSON; Lean checked that they exist) and
+    /// the `reason` when it is not a registered record.
+    LogicCatalogue = "logic_catalogue", key("name") {
+        name: String = "TEXT NOT NULL",
+        catalogue_id: String = "TEXT NOT NULL UNIQUE",
+        title: String = "TEXT NOT NULL",
+        entry: String = "TEXT NOT NULL CHECK(entry IN ('node','edge'))",
+        status: String = "TEXT NOT NULL CHECK(status IN ('registered','represented','not-institution-typed','prospective'))",
+        #[serde(default)] records: serde_json::Value = "TEXT NOT NULL",
+        #[serde(default)] evidence: serde_json::Value = "TEXT NOT NULL",
+        reason: Option<String> = "TEXT",
+        module: String = "TEXT NOT NULL",
+        #[serde(skip)] origin: String = "TEXT NOT NULL",
+    }
+}
+
+/// The categories of `logic_exclusion` (Lean's `exclusionCategories`).
+pub const EXCLUSION_CATEGORIES: [&str; 3] = [
+    "unregistrable-declaration",
+    "fixture-dependent",
+    "out-of-scope",
+];
+
+table! {
+    /// What the logic graph leaves out (`silmaril/logic-graph/exclusions.toml`): a `category`, the
+    /// declarations (`decls`, JSON; Lean checked they exist and are not registered) or modules
+    /// (`modules`, JSON) concerned, how many (`count`) and the `reason`.
+    LogicExclusion = "logic_exclusions", key("name") {
+        name: String = "TEXT NOT NULL",
+        title: String = "TEXT NOT NULL",
+        category: String = "TEXT NOT NULL CHECK(category IN ('unregistrable-declaration','fixture-dependent','out-of-scope'))",
+        #[serde(default)] decls: serde_json::Value = "TEXT NOT NULL",
+        #[serde(default)] modules: serde_json::Value = "TEXT NOT NULL",
+        count: i64 = "INTEGER NOT NULL",
+        reason: String = "TEXT NOT NULL",
+        module: String = "TEXT NOT NULL",
+        #[serde(skip)] origin: String = "TEXT NOT NULL",
+    }
+}
+
 /// The views of the logic graph:
 /// * `logic_edges`: every edge with its kind, endpoints and level (`institution` or `room`), and
 ///   how many facts it has;
@@ -267,6 +319,8 @@ SELECT 'institution' AS kind, name, decl, arity, title, hets, hets_relation, NUL
 (SELECT count(*) FROM rooms r WHERE r.institution = i.name) AS rooms FROM institutions i \
 UNION ALL SELECT 'room', name, decl, arity, title, NULL, NULL, institution, module, \
 (SELECT count(*) FROM logic_edges e WHERE e.level = 'room' AND (e.src = r.name OR e.dst = r.name)), NULL FROM rooms r;",
+    "CREATE VIEW logic_catalogue_summary AS SELECT entry, status, count(*) AS entries \
+FROM logic_catalogue GROUP BY entry, status;",
     "CREATE VIEW logic_coverage AS SELECT object, layer, count(*) AS declarations, \
 sum(arity = 0) AS closed, sum(generic) AS generic, sum(registered IS NOT NULL) AS registered, \
 sum(registered IS NULL AND NOT generic) AS omitted, sum(registered IS NULL AND generic) AS omitted_generic \

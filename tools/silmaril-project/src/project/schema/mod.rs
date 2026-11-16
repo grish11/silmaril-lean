@@ -96,6 +96,8 @@ pub enum Record {
     HetsLogic(HetsLogic),
     HetsComorphism(HetsComorphism),
     LogicPending(LogicPending),
+    LogicCatalogue(LogicCatalogue),
+    LogicExclusion(LogicExclusion),
     Machine(Box<Machine>),
     MachineBinding(MachineBinding),
     LanguageDomain(LanguageDomain),
@@ -152,6 +154,8 @@ record_kinds! {
     HetsLogic = "hets_logic", key name, object None;
     HetsComorphism = "hets_comorphism", key name, object None;
     LogicPending = "logic_pending", key name, object None;
+    LogicCatalogue = "logic_catalogue", key name, object None;
+    LogicExclusion = "logic_exclusion", key name, object None;
     Machine = "machine", key name, object Some("machine");
     MachineBinding = "machine_binding", key name, object None;
     LanguageDomain = "language_domain", key name, object Some("language_domain");
@@ -311,6 +315,7 @@ LEFT JOIN summary s ON s.problem = e.child;",
     logic::LOGIC_VIEWS[1],
     logic::LOGIC_VIEWS[2],
     logic::LOGIC_VIEWS[3],
+    logic::LOGIC_VIEWS[4],
     markings::MARKING_VIEWS[0],
     markings::MARKING_VIEWS[1],
     markings::MARKING_VIEWS[2],
@@ -454,6 +459,8 @@ pub fn tables() -> Vec<TableInfo> {
         info::<HetsLogic>(),
         info::<HetsComorphism>(),
         info::<LogicPending>(),
+        info::<LogicCatalogue>(),
+        info::<LogicExclusion>(),
         info::<Machine>(),
         info::<MachineBinding>(),
         info::<LanguageDomain>(),

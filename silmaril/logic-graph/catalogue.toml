@@ -1,0 +1,2720 @@
+# The curated catalogue the logic-graph port started from (137 logics, 158 maps between them),
+# entry by entry: what each entry is in this repository. Generated from the registry and the Lean
+# evidence; `silmaril logic_catalogue` checks that every evidence declaration exists.
+#   registered             the entry is a registered record (its evidence declaration, or a named
+#                          bundle of it, is the record's declaration)
+#   represented            the entry is an instance or an endpoint of registered records
+#   not-institution-typed  the evidence is a logical system, proof calculus, translation of proofs,
+#                          family of institutions or theorem: outside the five registry kinds
+#   prospective            the catalogue entry has no Lean declaration
+schema = "silmaril.records.v0.2"
+
+[[logic_catalogue]]
+name = "catalogue.node.pl"
+catalogue_id = "pl"
+title = "Propositional logic"
+entry = "node"
+status = "registered"
+records = ["institution:logic.institution.examples.pl.inst"]
+evidence = ["Silmaril.Logic.Institution.Examples.PL.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.eq"
+catalogue_id = "eq"
+title = "Equational logic"
+entry = "node"
+status = "registered"
+records = ["institution:logic.institution.examples.eq.inst"]
+evidence = ["Silmaril.Logic.Institution.Examples.EQ.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.fol"
+catalogue_id = "fol"
+title = "Many-sorted first-order logic"
+entry = "node"
+status = "registered"
+records = ["institution:logic.institution.examples.fol.inst", "institution:logic.institution.examples.fol.th_inst"]
+evidence = ["Silmaril.Logic.Institution.Examples.FOL.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.ufol"
+catalogue_id = "ufol"
+title = "Unsorted first-order logic"
+entry = "node"
+status = "registered"
+records = ["institution:logic.institution.examples.ufol.inst"]
+evidence = ["Silmaril.Logic.Institution.Examples.UFOL.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.hol"
+catalogue_id = "hol"
+title = "HOL Light"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Institution.Metatheory.HOL.logic"]
+reason = "a logical system (Metatheory.LogicalSystem: sentences, derivability and models), not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.mltt"
+catalogue_id = "mltt"
+title = "Extensional MLTT"
+entry = "node"
+status = "registered"
+records = ["institution:logic.type_theory.extensional_mltt.finite.bundled", "room:logic.type_theory.extensional_mltt.institution.room"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.bundled", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Institution.Sentence", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.logic"]
+
+[[logic_catalogue]]
+name = "catalogue.node.mltt-lifted"
+catalogue_id = "mltt-lifted"
+title = "Extensional MLTT · lifted stages"
+entry = "node"
+status = "registered"
+records = ["institution:logic.type_theory.extensional_mltt.apex.finite_bundled"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.finiteBundled", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.finite_satisfaction"]
+
+[[logic_catalogue]]
+name = "catalogue.node.set-constraints"
+catalogue_id = "set-constraints"
+title = "Semantic set constraints"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetTheoryInterpretation.interpret"]
+reason = "an interpretation of sequents in set theory, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.w"
+catalogue_id = "w"
+title = "Extensional MLTT with W-types"
+entry = "node"
+status = "registered"
+records = ["institution:logic.type_theory.extensional_mltt.inductives.w.finite.bundled", "institution:logic.type_theory.extensional_mltt.inductives.w.institution.bundled"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.bundled", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Institution.bundled"]
+
+[[logic_catalogue]]
+name = "catalogue.node.indexed-finite"
+catalogue_id = "indexed-finite"
+title = "Indexed rules · finite syntax"
+entry = "node"
+status = "registered"
+records = ["institution:logic.type_theory.extensional_mltt.inductives.indexed.finite.bundled"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.bundled"]
+
+[[logic_catalogue]]
+name = "catalogue.node.mutual-finite"
+catalogue_id = "mutual-finite"
+title = "Mutual rules · finite syntax"
+entry = "node"
+status = "registered"
+records = ["institution:logic.type_theory.extensional_mltt.inductives.mutual.finite.bundled"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.bundled"]
+
+[[logic_catalogue]]
+name = "catalogue.node.indexed-stage"
+catalogue_id = "indexed-stage"
+title = "Indexed rules · lifted stages"
+entry = "node"
+status = "represented"
+records = ["institution:logic.type_theory.extensional_mltt.inductives.indexed.apex.stage.bundled", "institution:logic.type_theory.extensional_mltt.inductives.indexed.apex.bundled"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Stage.toApex", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.toW"]
+reason = "the logic is the source of the registered comorphisms that are its evidence"
+
+[[logic_catalogue]]
+name = "catalogue.node.mutual-stage"
+catalogue_id = "mutual-stage"
+title = "Mutual rules · lifted stages"
+entry = "node"
+status = "represented"
+records = ["institution:logic.type_theory.extensional_mltt.inductives.mutual.apex.stage.bundled", "institution:logic.type_theory.extensional_mltt.inductives.mutual.apex.bundled"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toApex", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.toIndexed"]
+reason = "the logic is the source of the registered comorphisms that are its evidence"
+
+[[logic_catalogue]]
+name = "catalogue.node.lf"
+catalogue_id = "lf"
+title = "λΠ-modulo presentations"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.hets"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.node.lf-source-substitution"
+catalogue_id = "lf-source-substitution"
+title = "Source LF substitution models"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Institution.institutions"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.node.lf-compiled-native"
+catalogue_id = "lf-compiled-native"
+title = "Compiled native LF closed theories"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEncoding.functor", "Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEncoding.institutions"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.node.lf-native-equality"
+catalogue_id = "lf-native-equality"
+title = "Native typed equality: encoding models"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.institutions", "Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.valid_iff"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.node.lf-source-native-equality"
+catalogue_id = "lf-source-native-equality"
+title = "Source-indexed native typed equality"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEquality.institutions", "Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEquality.proof_valid", "Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEquality.sound"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.node.cic"
+catalogue_id = "cic"
+title = "CIC kernel and local semantics"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.CIC.CoreTyping", "Silmaril.Logic.TypeTheory.CIC.SetSemantics.SourceTelescopeData.recordLayer"]
+reason = "a derivation or typing relation of a proof calculus, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.cube-stlc"
+catalogue_id = "cube-stlc"
+title = "λ→ · restricted Fω PER"
+entry = "node"
+status = "represented"
+records = ["institution:calculi.lambda_cube.semantics.inst"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.stlc", "Silmaril.Calculi.LambdaCube.PERGraph.model_nontrivial"]
+reason = "a node of the PER restriction graph; its institution is `(semantics N c).inst`, an instance of the registered family"
+
+[[logic_catalogue]]
+name = "catalogue.node.cube-f"
+catalogue_id = "cube-f"
+title = "λ2 · restricted Fω PER"
+entry = "node"
+status = "represented"
+records = ["institution:calculi.lambda_cube.semantics.inst"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.systemF", "Silmaril.Calculi.LambdaCube.PERGraph.model_nontrivial"]
+reason = "a node of the PER restriction graph; its institution is `(semantics N c).inst`, an instance of the registered family"
+
+[[logic_catalogue]]
+name = "catalogue.node.cube-omega"
+catalogue_id = "cube-omega"
+title = "λω̲ · restricted Fω PER"
+entry = "node"
+status = "represented"
+records = ["institution:calculi.lambda_cube.semantics.inst"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.omega", "Silmaril.Calculi.LambdaCube.PERGraph.model_nontrivial"]
+reason = "a node of the PER restriction graph; its institution is `(semantics N c).inst`, an instance of the registered family"
+
+[[logic_catalogue]]
+name = "catalogue.node.cube-fomega"
+catalogue_id = "cube-fomega"
+title = "λω · parametric PER"
+entry = "node"
+status = "represented"
+records = ["institution:calculi.lambda_cube.semantics.inst"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.systemFOmega", "Silmaril.Calculi.LambdaCube.PERGraph.model_nontrivial"]
+reason = "a node of the PER restriction graph; its institution is `(semantics N c).inst`, an instance of the registered family"
+
+[[logic_catalogue]]
+name = "catalogue.node.metamath"
+catalogue_id = "metamath"
+title = "Metamath databases"
+entry = "node"
+status = "registered"
+records = ["room:logic.institution.metatheory.metamath.room"]
+evidence = ["Silmaril.Logic.Institution.Metatheory.Metamath.entailment", "Silmaril.Logic.Institution.Metatheory.Metamath.room"]
+
+[[logic_catalogue]]
+name = "catalogue.node.mm-zf0"
+catalogue_id = "mm-zf0"
+title = "Native ZF0 · Metamath"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.Peano.ZF.ZF0"]
+reason = "a Metamath axiom set (a set of statements of a Metamath database), a logical system, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.mm-zfc"
+catalogue_id = "mm-zfc"
+title = "Native ZFC · Metamath"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.Peano.ZF.ZFC", "Silmaril.Logic.SetTheory.Inductive.ZFC.nativeInference"]
+reason = "a Metamath axiom set (a set of statements of a Metamath database), a logical system, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.mm-pa"
+catalogue_id = "mm-pa"
+title = "PA · Metamath"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.Peano.PA", "Silmaril.Logic.Metamath.Peano.ToZF.S_tr"]
+reason = "a Metamath axiom set (a set of statements of a Metamath database), a logical system, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.soa-rca"
+catalogue_id = "soa-rca"
+title = "RCA₀ · Metamath"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.SecondOrder.RCA0"]
+reason = "a Metamath axiom set (a set of statements of a Metamath database), a logical system, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.soa-wkl"
+catalogue_id = "soa-wkl"
+title = "WKL₀ · Metamath"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.SecondOrder.WKL0"]
+reason = "a Metamath axiom set (a set of statements of a Metamath database), a logical system, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.soa-aca"
+catalogue_id = "soa-aca"
+title = "ACA₀ · Metamath"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.SecondOrder.ACA0"]
+reason = "a Metamath axiom set (a set of statements of a Metamath database), a logical system, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.soa-z2"
+catalogue_id = "soa-z2"
+title = "Z₂ · Metamath"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.SecondOrder.Z2"]
+reason = "a Metamath axiom set (a set of statements of a Metamath database), a logical system, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.scoped-zf"
+catalogue_id = "scoped-zf"
+title = "Independent scoped ZF"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.SetTheory.Inductive.ZF.Derivation"]
+reason = "a derivation or typing relation of a proof calculus, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.scoped-zfc"
+catalogue_id = "scoped-zfc"
+title = "Independent scoped ZFC"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.SetTheory.Inductive.ZFC.Derivation", "Silmaril.Logic.SetTheory.Inductive.ZFC.simpleZFCInference"]
+reason = "a derivation or typing relation of a proof calculus, not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.common-zfc"
+catalogue_id = "common-zfc"
+title = "Named ZFC · supported common fragment"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.SetTheory.Inductive.ZFC.zfcCommonInference"]
+reason = "an inference system (a proof calculus), not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.native-common-zfc"
+catalogue_id = "native-common-zfc"
+title = "Native ZFC · supported common fragment"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.SetTheory.Inductive.ZFC.nativeZFCCommonInference"]
+reason = "an inference system (a proof calculus), not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.intensional-original"
+catalogue_id = "intensional-original"
+title = "Intensional MLTT · realizability"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.logic", "Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.model_nonempty", "Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.hetsGraph"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.node.wasm-obs"
+catalogue_id = "wasm-obs"
+title = "Wasm observational logics"
+entry = "node"
+status = "represented"
+records = ["institution:wasm.institution.obs_semantics.inst", "institution:wasm.institution.obs_graph.inst"]
+evidence = ["Silmaril.Wasm.Institution.Graph.sem", "Silmaril.Wasm.Institution.Graph.graph"]
+reason = "the observational Wasm logics are instances of the registered `ObsSemantics.inst` family; the graph is `ObsGraph`"
+
+[[logic_catalogue]]
+name = "catalogue.node.wasm-redgame"
+catalogue_id = "wasm-redgame"
+title = "Wasm reduction, LTS and game logics"
+entry = "node"
+status = "represented"
+records = ["institution:wasm.institution.obs_semantics.inst"]
+evidence = ["Silmaril.Wasm.Institution.GameGraph.sem", "Silmaril.Wasm.Institution.GameGraph.gameGraph"]
+reason = "the reduction, LTS and game logics are instances of the registered `ObsSemantics.inst` family"
+
+[[logic_catalogue]]
+name = "catalogue.node.wasm-comp"
+catalogue_id = "wasm-comp"
+title = "Wasm component logics"
+entry = "node"
+status = "registered"
+records = ["institution:wasm.institution.comp_game_graph.inst"]
+evidence = ["Silmaril.Wasm.Institution.CompGraph.sem", "Silmaril.Wasm.Institution.CompGraph.compGraph"]
+
+[[logic_catalogue]]
+name = "catalogue.node.wasm-div"
+catalogue_id = "wasm-div"
+title = "Divergence-aware Wasm logics"
+entry = "node"
+status = "represented"
+records = ["institution:wasm.institution.obs_semantics.inst"]
+evidence = ["Silmaril.Wasm.Institution.DivGames.dstratSem", "Silmaril.Wasm.Institution.DivGames.divGraph"]
+reason = "the divergence-aware logics are instances of the registered `ObsSemantics.inst` family (`dstratSem`)"
+
+[[logic_catalogue]]
+name = "catalogue.node.ginst"
+catalogue_id = "ginst"
+title = "Game semantics (GInst, GInstRef, DGInst)"
+entry = "node"
+status = "registered"
+records = ["institution:games.g_inst", "institution:games.inst_graph.inst"]
+evidence = ["Silmaril.Games.GInst", "Silmaril.Games.InstGraph.spec"]
+
+[[logic_catalogue]]
+name = "catalogue.node.wasi"
+catalogue_id = "wasi"
+title = "WASI worlds (WasiInst)"
+entry = "node"
+status = "registered"
+records = ["institution:wasi.wasi_inst", "institution:wasi.spec.inc_inst", "institution:wasi.spec.wasi_inst1"]
+evidence = ["Silmaril.Wasi.WasiInst", "Silmaril.Wasi.Spec.thSpec"]
+
+[[logic_catalogue]]
+name = "catalogue.node.wasi-include"
+catalogue_id = "wasi-include"
+title = "WIT include (IncInst)"
+entry = "node"
+status = "registered"
+records = ["institution:wasi.spec.inc_inst"]
+evidence = ["Silmaril.Wasi.Spec.IncInst", "Silmaril.Wasi.Spec.not_include_hom"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egglog-core"
+catalogue_id = "egglog-core"
+title = "Egglog normalized equality-table core"
+entry = "node"
+status = "registered"
+records = ["institution:logic.egglog.core.inst"]
+evidence = ["Silmaril.Logic.Egglog.Core.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egglog-functional-fol"
+catalogue_id = "egglog-functional-fol"
+title = "Egglog same-model first-order graphs"
+entry = "node"
+status = "registered"
+records = ["institution:logic.egglog.core.graph.inst"]
+evidence = ["Silmaril.Logic.Egglog.Core.Graph.inst", "Silmaril.Logic.Egglog.Core.Graph.Examples.unrestricted_fol_countermodel"]
+
+[[logic_catalogue]]
+name = "catalogue.node.modal-k"
+catalogue_id = "modal-k"
+title = "Normal modal K"
+entry = "node"
+status = "registered"
+records = ["institution:logic.modal.inst"]
+evidence = ["Silmaril.Logic.Modal.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.modal-mu"
+catalogue_id = "modal-mu"
+title = "Positive modal mu calculus"
+entry = "node"
+status = "registered"
+records = ["institution:logic.modal_mu.inst"]
+evidence = ["Silmaril.Logic.ModalMu.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.pdl"
+catalogue_id = "pdl"
+title = "Test-inclusive propositional dynamic logic"
+entry = "node"
+status = "registered"
+records = ["institution:logic.pdl.inst"]
+evidence = ["Silmaril.Logic.PDL.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.ltl"
+catalogue_id = "ltl"
+title = "Linear temporal logic at time zero"
+entry = "node"
+status = "registered"
+records = ["institution:logic.temporal.ltl.inst"]
+evidence = ["Silmaril.Logic.Temporal.LTL.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.ctl"
+catalogue_id = "ctl"
+title = "Direct branching-time CTL"
+entry = "node"
+status = "registered"
+records = ["institution:logic.ctl.inst"]
+evidence = ["Silmaril.Logic.CTL.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.fol-lfp"
+catalogue_id = "fol-lfp"
+title = "Positive n-ary first-order LFP"
+entry = "node"
+status = "registered"
+records = ["institution:logic.first_order_lfp.inst"]
+evidence = ["Silmaril.Logic.FirstOrderLFP.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-global-fo"
+catalogue_id = "matching-global-fo"
+title = "Global first-order matching"
+entry = "node"
+status = "registered"
+records = ["institution:logic.kore.first_order.matching_inst"]
+evidence = ["Silmaril.Logic.Matching.FirstOrder.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-pointed-fo"
+catalogue_id = "matching-pointed-fo"
+title = "Pointed first-order matching"
+entry = "node"
+status = "registered"
+records = ["institution:logic.matching.first_order.pointed.inst"]
+evidence = ["Silmaril.Logic.Matching.FirstOrder.Pointed.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-global-fp"
+catalogue_id = "matching-global-fp"
+title = "Global positive fixed-point matching"
+entry = "node"
+status = "registered"
+records = ["institution:logic.matching.fixed_point.inst"]
+evidence = ["Silmaril.Logic.Matching.FixedPoint.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-pointed-fp"
+catalogue_id = "matching-pointed-fp"
+title = "Pointed positive fixed-point matching"
+entry = "node"
+status = "registered"
+records = ["institution:logic.matching.fixed_point.pointed_inst"]
+evidence = ["Silmaril.Logic.Matching.FixedPoint.pointedInstitution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.kore-fo"
+catalogue_id = "kore-fo"
+title = "Pre-elaborated first-order KORE"
+entry = "node"
+status = "registered"
+records = ["institution:logic.kore.first_order.inst"]
+evidence = ["Silmaril.Logic.Kore.FirstOrder.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.hybrid-polyadic"
+catalogue_id = "hybrid-polyadic"
+title = "Polyadic hybrid modal logic"
+entry = "node"
+status = "registered"
+records = ["institution:logic.hybrid_polyadic.inst"]
+evidence = ["Silmaril.Logic.HybridPolyadic.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-hybrid-constrained"
+catalogue_id = "matching-hybrid-constrained"
+title = "Hybrid-constrained pointed native matching"
+entry = "node"
+status = "registered"
+records = ["institution:logic.hybrid_polyadic.matching.inst"]
+evidence = ["Silmaril.Logic.HybridPolyadic.Matching.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-guarded-fol"
+catalogue_id = "matching-guarded-fol"
+title = "Guarded native first-order matching"
+entry = "node"
+status = "registered"
+records = ["institution:logic.matching.guarded_fol.inst"]
+evidence = ["Silmaril.Logic.Matching.GuardedFOL.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-guarded-lfp"
+catalogue_id = "matching-guarded-lfp"
+title = "Guarded native tuple fixed-point matching"
+entry = "node"
+status = "registered"
+records = ["institution:logic.matching.guarded_lfp.inst"]
+evidence = ["Silmaril.Logic.Matching.GuardedLFP.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.reachability"
+catalogue_id = "reachability"
+title = "Global reachability logic"
+entry = "node"
+status = "registered"
+records = ["institution:logic.hoare.reach_inst", "institution:logic.reachability.inst"]
+evidence = ["Silmaril.Logic.Reachability.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.fixed-sort-eq"
+catalogue_id = "fixed-sort-eq"
+title = "Fixed-sort Moria equations"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.many_sorted.public_eq.many_sorted_inst"]
+evidence = ["Silmaril.Logic.Algebraic.ManySorted.equationalInst", "Silmaril.Logic.Algebraic.ManySorted.PublicEQ.manySortedInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.equational-horn"
+catalogue_id = "equational-horn"
+title = "Pure equational Horn"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.many_sorted.horn_inst"]
+evidence = ["Silmaril.Logic.Algebraic.ManySorted.hornInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.thin-rewriting"
+catalogue_id = "thin-rewriting"
+title = "Thin preorder rewriting"
+entry = "node"
+status = "registered"
+records = ["institution:logic.rewriting.rewriting_inst"]
+evidence = ["Silmaril.Logic.Rewriting.rewritingInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.inhabited-rewriting"
+catalogue_id = "inhabited-rewriting"
+title = "Inhabited thin rewriting"
+entry = "node"
+status = "registered"
+records = ["institution:logic.rewriting.inhabited_inst"]
+evidence = ["Silmaril.Logic.Rewriting.inhabitedInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.rewriting-canonical-reach"
+catalogue_id = "rewriting-canonical-reach"
+title = "Canonical rewriting reachability family"
+entry = "node"
+status = "registered"
+records = ["institution:logic.rewriting.canonical_inst"]
+evidence = ["Silmaril.Logic.Rewriting.canonicalInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.hoare"
+catalogue_id = "hoare"
+title = "PDL-based Hoare triples"
+entry = "node"
+status = "registered"
+records = ["institution:logic.hoare.inst"]
+evidence = ["Silmaril.Logic.Hoare.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.hoare-canonical-reach"
+catalogue_id = "hoare-canonical-reach"
+title = "Canonical phased Hoare reachability"
+entry = "node"
+status = "registered"
+records = ["institution:logic.hoare.canonical_inst"]
+evidence = ["Silmaril.Logic.Hoare.canonicalInstitution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.hoare-pulled-reach"
+catalogue_id = "hoare-pulled-reach"
+title = "Reachability pulled back to Hoare signatures"
+entry = "node"
+status = "represented"
+records = ["institution:logic.hoare.reach_inst"]
+evidence = ["Silmaril.Logic.Hoare.restrictionNatural"]
+reason = "the pulled-back reachability institution is registered as `Hoare.reachInst`, the source of `restrictReachability`"
+
+[[logic_catalogue]]
+name = "catalogue.node.separation-base"
+catalogue_id = "separation-base"
+title = "Base separation entailments"
+entry = "node"
+status = "registered"
+records = ["institution:logic.separation.base_inst"]
+evidence = ["Silmaril.Logic.Separation.baseInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.separation-recursive"
+catalogue_id = "separation-recursive"
+title = "Positive recursive separation"
+entry = "node"
+status = "registered"
+records = ["institution:logic.separation.recursive_inst"]
+evidence = ["Silmaril.Logic.Separation.recursiveInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-resource-canonical"
+catalogue_id = "matching-resource-canonical"
+title = "Resource-generated fixed-point matching"
+entry = "node"
+status = "registered"
+records = ["institution:logic.separation.canonical_inst"]
+evidence = ["Silmaril.Logic.Separation.canonicalInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.order-sorted"
+catalogue_id = "order-sorted"
+title = "Coherent order-sorted algebras"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.order_sorted.inst"]
+evidence = ["Silmaril.Logic.Algebraic.OrderSorted.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.eq-sentence-lift"
+catalogue_id = "eq-sentence-lift"
+title = "Public EQ with lifted equation sentences"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.initial.equational_inst"]
+evidence = ["Silmaril.Logic.Algebraic.Initial.equationalInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.eq-freeness"
+catalogue_id = "eq-freeness"
+title = "Public EQ freeness constraints"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.initial.inst"]
+evidence = ["Silmaril.Logic.Algebraic.Initial.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.stlc-inhabited-fixed"
+catalogue_id = "stlc-inhabited-fixed"
+title = "Inhabited fixed-base public STLC"
+entry = "node"
+status = "registered"
+records = ["institution:logic.stlc_matching.source_inst"]
+evidence = ["Silmaril.Logic.STLCMatching.sourceInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-stlc-canonical"
+catalogue_id = "matching-stlc-canonical"
+title = "Canonical full-function native matching"
+entry = "node"
+status = "registered"
+records = ["institution:logic.stlc_matching.target_inst"]
+evidence = ["Silmaril.Logic.STLCMatching.targetInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.eq-public-fixed"
+catalogue_id = "eq-public-fixed"
+title = "Fixed-sort actual public EQ"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.lambda.equational_inst"]
+evidence = ["Silmaril.Logic.Algebraic.Lambda.equationalInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.stlc-unrestricted-fixed"
+catalogue_id = "stlc-unrestricted-fixed"
+title = "Unrestricted fixed-base public STLC"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.lambda.lambda_inst"]
+evidence = ["Silmaril.Logic.Algebraic.Lambda.lambdaInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.fol-public-fixed"
+catalogue_id = "fol-public-fixed"
+title = "Fixed-sort actual public FOL"
+entry = "node"
+status = "registered"
+records = ["institution:logic.separation.first_order.source_inst", "institution:logic.hoare.first_order.source_inst"]
+evidence = ["Silmaril.Logic.Separation.FirstOrder.sourceInst", "Silmaril.Logic.Hoare.FirstOrder.sourceInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.separation-owned-canonical"
+catalogue_id = "separation-owned-canonical"
+title = "Canonical owned-store native separation"
+entry = "node"
+status = "registered"
+records = ["institution:logic.separation.first_order.canonical_inst"]
+evidence = ["Silmaril.Logic.Separation.FirstOrder.canonicalInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-script"
+catalogue_id = "smt-script"
+title = "SMT abstract whole scripts"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.institution.script_inst"]
+evidence = ["Silmaril.Logic.Smt.Institution.scriptInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-direct"
+catalogue_id = "smt-direct"
+title = "SMT accepted S-expression scripts"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.institution.forms_inst"]
+evidence = ["Silmaril.Logic.Smt.Institution.formsInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-fixed"
+catalogue_id = "smt-fixed"
+title = "SMT fixed declarations"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.fixed.institution"]
+evidence = ["Silmaril.Logic.Smt.Fixed.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia"
+catalogue_id = "smt-uflia"
+title = "Abstract typed UF/LIA"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.institution"]
+evidence = ["Silmaril.Logic.Smt.Uflia.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-direct"
+catalogue_id = "smt-uflia-direct"
+title = "Direct UF/LIA assertions · raw environments"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.s_expr.institution"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SExpr.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-direct-checked"
+catalogue_id = "smt-uflia-direct-checked"
+title = "Direct UF/LIA assertions · checked prefixes"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.s_expr.declaration_institution"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SExpr.declarationInstitution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-fixed-raw"
+catalogue_id = "smt-uflia-fixed-raw"
+title = "UF/LIA assertion lists · raw environments"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.packaged.raw_institution"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.rawInstitution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-fixed-checked"
+catalogue_id = "smt-uflia-fixed-checked"
+title = "UF/LIA assertion lists · checked prefixes"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.packaged.checked_institution"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.checkedInstitution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-concrete-fixed"
+catalogue_id = "smt-uflia-concrete-fixed"
+title = "Concrete UF/LIA assertion lists · checked prefixes"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.packaged.concrete_fixed_institution"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.concreteFixedInstitution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-whole"
+catalogue_id = "smt-uflia-whole"
+title = "Abstract UF/LIA whole problems"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.packaged.institution"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-concrete-whole"
+catalogue_id = "smt-uflia-concrete-whole"
+title = "Concrete UF/LIA whole problems"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.packaged.concrete_institution"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.concreteInstitution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-script"
+catalogue_id = "smt-uflia-script"
+title = "Accepted single-query UF/LIA source scripts"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.script.institution"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Script.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-lra"
+catalogue_id = "smt-lra"
+title = "Abstract Bool/Real affine problems"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.lra.institution"]
+evidence = ["Silmaril.Logic.Smt.Lra.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-lra-script"
+catalogue_id = "smt-lra-script"
+title = "Accepted actual-Real source scripts"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.lra.script.institution"]
+evidence = ["Silmaril.Logic.Smt.Lra.Script.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.commonlogic"
+catalogue_id = "commonlogic"
+title = "Common Logic core"
+entry = "node"
+status = "registered"
+records = ["institution:logic.common_logic.core.inst"]
+evidence = ["Silmaril.Logic.CommonLogic.Core.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.commonlogic-named-fol"
+catalogue_id = "commonlogic-named-fol"
+title = "Common Logic named-head FOL view"
+entry = "node"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.CommonLogic.Core.FirstOrder.model"]
+reason = "a model construction (a first-order structure), not an Inst"
+
+[[logic_catalogue]]
+name = "catalogue.node.prolog-definite"
+catalogue_id = "prolog-definite"
+title = "Definite Prolog with existential queries"
+entry = "node"
+status = "registered"
+records = ["institution:logic.prolog.definite.inst"]
+evidence = ["Silmaril.Logic.Prolog.Definite.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egg-core"
+catalogue_id = "egg-core"
+title = "egg normalized conditional equations"
+entry = "node"
+status = "registered"
+records = ["institution:logic.egg.core.inst"]
+evidence = ["Silmaril.Logic.Egg.Core.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.hoare-fol-store-canonical"
+catalogue_id = "hoare-fol-store-canonical"
+title = "Canonical FOL-store native Hoare"
+entry = "node"
+status = "registered"
+records = ["institution:logic.hoare.first_order.canonical_inst"]
+evidence = ["Silmaril.Logic.Hoare.FirstOrder.canonicalInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.eq-public-manysorted-fixed"
+catalogue_id = "eq-public-manysorted-fixed"
+title = "Actual public EQ over Moria fixed-sort signatures"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.many_sorted.public_eq.public_inst"]
+evidence = ["Silmaril.Logic.Algebraic.ManySorted.PublicEQ.publicInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.order-sorted-sentence-lift"
+catalogue_id = "order-sorted-sentence-lift"
+title = "Coherent order-sorted equations with lifted sentences"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.order_sorted.initial.ordered_inst"]
+evidence = ["Silmaril.Logic.Algebraic.OrderSorted.Initial.orderedInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.order-sorted-freeness"
+catalogue_id = "order-sorted-freeness"
+title = "Coherent order-sorted freeness constraints"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.order_sorted.initial.inst"]
+evidence = ["Silmaril.Logic.Algebraic.OrderSorted.Initial.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.constructor-initial-constraints"
+catalogue_id = "constructor-initial-constraints"
+title = "Actual single-sort EQ with selected constructor initiality"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.initial.matching.source_inst"]
+evidence = ["Silmaril.Logic.Algebraic.Initial.Matching.source"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-constructor-structural"
+catalogue_id = "matching-constructor-structural"
+title = "Native matching with structural constructor graphs"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.initial.matching.target_inst"]
+evidence = ["Silmaril.Logic.Algebraic.Initial.Matching.target"]
+
+[[logic_catalogue]]
+name = "catalogue.node.fol-independent-head"
+catalogue_id = "fol-independent-head"
+title = "Independent single-sort actual public FOL"
+entry = "node"
+status = "registered"
+records = ["institution:logic.common_logic.first_order.inst"]
+evidence = ["Silmaril.Logic.CommonLogic.FirstOrder.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.fol-independent-head-nonempty"
+catalogue_id = "fol-independent-head-nonempty"
+title = "Independent single-sort actual public FOL with nonempty carriers"
+entry = "node"
+status = "registered"
+records = ["institution:logic.common_logic.first_order.nonempty_inst"]
+evidence = ["Silmaril.Logic.CommonLogic.FirstOrder.nonemptyInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.ctlstar-discrete"
+catalogue_id = "ctlstar-discrete"
+title = "Full CTL* with discrete model category"
+entry = "node"
+status = "registered"
+records = ["institution:logic.temporal.ctl_star.inst"]
+evidence = ["Silmaril.Logic.Temporal.CTLStar.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.ctlstar-rich"
+catalogue_id = "ctlstar-rich"
+title = "Full CTL* with frame isomorphisms"
+entry = "node"
+status = "registered"
+records = ["institution:logic.temporal.ctl_star.rich_inst"]
+evidence = ["Silmaril.Logic.Temporal.CTLStar.richInstitution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egglog-independent-fd-fol"
+catalogue_id = "egglog-independent-fd-fol"
+title = "Egglog independent FD first-order models"
+entry = "node"
+status = "registered"
+records = ["room:logic.egglog.core.graph.functional.room"]
+evidence = ["Silmaril.Logic.Egglog.Core.Graph.Functional.IndependentModel", "Silmaril.Logic.Egglog.Core.Graph.Functional.models_liftHom", "Silmaril.Logic.Egglog.Core.Graph.Functional.fdTheory_holds_iff"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egglog-unrestricted-public-fol"
+catalogue_id = "egglog-unrestricted-public-fol"
+title = "Public FOL over Egglog graph signatures"
+entry = "node"
+status = "registered"
+records = ["institution:logic.egglog.core.graph.functional.public_inst"]
+evidence = ["Silmaril.Logic.Egglog.Core.Graph.Functional.publicInst", "Silmaril.Logic.Egglog.Core.Graph.Functional.Examples.restriction_not_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-concrete-renaming"
+catalogue_id = "smt-uflia-concrete-renaming"
+title = "Concrete UF/LIA renaming · raw environments"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.s_expr.renaming.concrete.institution", "room:logic.smt.uflia.s_expr.renaming.concrete.room"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.institution", "Silmaril.Logic.Smt.Uflia.SExpr.Renaming.EnvironmentSignature", "Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.Sentence.map"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-concrete-renaming-checked"
+catalogue_id = "smt-uflia-concrete-renaming-checked"
+title = "Concrete UF/LIA renaming · checked prefixes"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.s_expr.renaming.concrete.declaration_institution", "institution:logic.smt.uflia.s_expr.surface.renaming.institution", "room:logic.smt.uflia.s_expr.renaming.concrete.declaration_room", "room:logic.smt.uflia.s_expr.surface.renaming.room"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.declarationInstitution", "Silmaril.Logic.Smt.Uflia.SExpr.Renaming.PrefixSignature", "Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.Sentence.map"]
+
+[[logic_catalogue]]
+name = "catalogue.node.fol-lfp-boolean"
+catalogue_id = "fol-lfp-boolean"
+title = "Signed Boolean n-ary first-order LFP"
+entry = "node"
+status = "registered"
+records = ["institution:logic.first_order_lfp.boolean.inst"]
+evidence = ["Silmaril.Logic.FirstOrderLFP.Boolean.institution"]
+
+[[logic_catalogue]]
+name = "catalogue.node.initial-finite-sorted-global"
+catalogue_id = "initial-finite-sorted-global"
+title = "Finite original-sort equation initiality · global ambient signatures"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.initial.matching.finite_sorted_compiler.institution.source_inst"]
+evidence = ["Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.sourceInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.matching-guarded-fixedpoint-theories"
+catalogue_id = "matching-guarded-fixedpoint-theories"
+title = "All guarded native fixed-point sentence conjunctions · relation-free EQ ambient"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.initial.matching.finite_sorted_compiler.institution.theory_inst"]
+evidence = ["Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.theoryInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.commonlogic-many-sorted-typed"
+catalogue_id = "commonlogic-many-sorted-typed"
+title = "Many-sorted typed Common Logic"
+entry = "node"
+status = "registered"
+records = ["institution:logic.common_logic.many_sorted.institution.inst"]
+evidence = ["Silmaril.Logic.CommonLogic.ManySorted.Institution.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.prolog-constraint-horn"
+catalogue_id = "prolog-constraint-horn"
+title = "Constraint Horn with equality and denials"
+entry = "node"
+status = "registered"
+records = ["institution:logic.prolog.horn.inst"]
+evidence = ["Silmaril.Logic.Prolog.Horn.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egglog-lattice-ground"
+catalogue_id = "egglog-lattice-ground"
+title = "Ground lattice-valued rules"
+entry = "node"
+status = "registered"
+records = ["institution:logic.egglog.merge.institution.inst"]
+evidence = ["Silmaril.Logic.Egglog.Merge.Institution.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egglog-boolean-ground"
+catalogue_id = "egglog-boolean-ground"
+title = "Boolean ground lattice rules"
+entry = "node"
+status = "registered"
+records = ["institution:logic.egglog.merge.institution.inst"]
+evidence = ["Silmaril.Logic.Egglog.Merge.Institution.inst", "Silmaril.Logic.Egglog.Merge.Institution.BooleanGraph.toGraph"]
+
+[[logic_catalogue]]
+name = "catalogue.node.commonlogic-finite-list-fol"
+catalogue_id = "commonlogic-finite-list-fol"
+title = "Common Logic constrained finite-list FOL"
+entry = "node"
+status = "registered"
+records = ["institution:logic.common_logic.finite_list_fol.inst"]
+evidence = ["Silmaril.Logic.CommonLogic.FiniteListFOL.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.prolog-source-families"
+catalogue_id = "prolog-source-families"
+title = "Accepted Prolog source vocabulary families"
+entry = "node"
+status = "registered"
+records = ["institution:logic.prolog.source.families.inst"]
+evidence = ["Silmaril.Logic.Prolog.Source.Families.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-model-homs"
+catalogue_id = "smt-uflia-model-homs"
+title = "UF/LIA with ordinary model homomorphisms"
+entry = "node"
+status = "represented"
+records = ["institution:logic.smt.uflia.hom_models.inst"]
+evidence = ["Silmaril.Logic.Smt.Uflia.HomModels.toDiscrete"]
+reason = "the logic is the source of the registered comorphisms that are its evidence"
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-quantified-model-homs"
+catalogue_id = "smt-quantified-model-homs"
+title = "Quantified UF/LIA with ordinary model homomorphisms"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.quantified.hom_models.inst"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Quantified.HomModels.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-sort-maps"
+catalogue_id = "smt-uflia-sort-maps"
+title = "UF/LIA with varying sort maps"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.sort_maps.inst"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-quantified-sort-maps"
+catalogue_id = "smt-quantified-sort-maps"
+title = "Quantified UF/LIA with varying sort maps"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.sort_maps.quantified_models.inst"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.QuantifiedModels.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-uflia-sort-source-renaming"
+catalogue_id = "smt-uflia-sort-source-renaming"
+title = "Concrete ground UF/LIA renaming · varying sorts"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.sort_maps.s_expr.renaming.inst", "room:logic.smt.uflia.sort_maps.s_expr.renaming.room"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.inst", "Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.PrefixSignature", "Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.mapSentence"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-checked-quantified-source-model-homs"
+catalogue_id = "smt-checked-quantified-source-model-homs"
+title = "Checked quantified source with ordinary model homomorphisms"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.sort_maps.source.checked_inst"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Source.checkedInst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-source-sort-families"
+catalogue_id = "smt-source-sort-families"
+title = "Checked quantified source across varying sorts"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.sort_maps.source.inst"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Source.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-quantified-problems-sort-maps"
+catalogue_id = "smt-quantified-problems-sort-maps"
+title = "Finite quantified problems across varying sorts"
+entry = "node"
+status = "registered"
+records = ["room:logic.smt.uflia.sort_maps.source.script.problem.room"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Problem", "Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.toProblems"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-program-source-families"
+catalogue_id = "smt-program-source-families"
+title = "Complete accepted SMT scripts across varying sorts"
+entry = "node"
+status = "registered"
+records = ["room:logic.smt.uflia.sort_maps.source.script.room"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Family", "Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.toProblems"]
+
+[[logic_catalogue]]
+name = "catalogue.node.smt-quantified-sort-source-renaming"
+catalogue_id = "smt-quantified-sort-source-renaming"
+title = "Concrete quantified UF/LIA renaming · varying sorts"
+entry = "node"
+status = "registered"
+records = ["institution:logic.smt.uflia.sort_maps.quantified.s_expr.renaming.inst", "room:logic.smt.uflia.sort_maps.quantified.s_expr.renaming.room"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.inst", "Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.EnvironmentSignature", "Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.mapSentence"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egglog-named-families"
+catalogue_id = "egglog-named-families"
+title = "Egglog named normalized source families"
+entry = "node"
+status = "registered"
+records = ["institution:logic.egglog.source.named.families.inst"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Families.inst", "Silmaril.Logic.Egglog.Source.Named.finiteSupportRepresentation_task"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egglog-named-supplied-support"
+catalogue_id = "egglog-named-supplied-support"
+title = "Egglog supplied vocabulary with original body support"
+entry = "node"
+status = "registered"
+records = ["institution:logic.egglog.source.named.supplied.inst"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Supplied.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.egglog-named-supplied-direct"
+catalogue_id = "egglog-named-supplied-direct"
+title = "Egglog direct supplied accepted bodies"
+entry = "node"
+status = "registered"
+records = ["institution:logic.egglog.source.named.supplied.direct.inst"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.inst", "Silmaril.Logic.Egglog.Source.Named.DeclarationHom.resolveSentence_map"]
+
+[[logic_catalogue]]
+name = "catalogue.node.stlc-equations-varying"
+catalogue_id = "stlc-equations-varying"
+title = "Lambda equations with changing base types"
+entry = "node"
+status = "registered"
+records = ["institution:logic.stlc_equations.inst"]
+evidence = ["Silmaril.Logic.STLCEquations.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.node.manysorted-varying"
+catalogue_id = "manysorted-varying"
+title = "Private many-sorted equations with changing sorts"
+entry = "node"
+status = "registered"
+records = ["institution:logic.algebraic.many_sorted.varying.inst"]
+evidence = ["Silmaril.Logic.Algebraic.ManySorted.Varying.inst"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.pl-fol"
+catalogue_id = "pl-fol"
+title = "Nullary-relation translation"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.institution.examples.pl_to_fol"]
+evidence = ["Silmaril.Logic.Institution.Examples.plToFol", "Silmaril.Logic.Institution.Examples.plToFol_modelExpansive", "Silmaril.Logic.Institution.hetLogic"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.eq-fol"
+catalogue_id = "eq-fol"
+title = "Universal closure"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.institution.examples.eq_to_fol", "morphism:logic.institution.examples.fol_to_eq"]
+evidence = ["Silmaril.Logic.Institution.Examples.eqToFol", "Silmaril.Logic.Institution.Examples.eqToFol_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.fol-eq"
+catalogue_id = "fol-eq"
+title = "Forget relation symbols"
+entry = "edge"
+status = "registered"
+records = ["morphism:logic.institution.examples.fol_to_eq"]
+evidence = ["Silmaril.Logic.Institution.Examples.folToEq", "Silmaril.Logic.Institution.Examples.folToEq_sound"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.ufol-fol"
+catalogue_id = "ufol-fol"
+title = "One sort + nonemptiness axiom"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.institution.examples.ufol_to_fol"]
+evidence = ["Silmaril.Logic.Institution.Examples.ufolToFol", "Silmaril.Logic.Institution.Examples.UFOL.entails_iff_fol"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mltt-successor"
+catalogue_id = "mltt-successor"
+title = "Add an available universe"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.finite.successor"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.successor", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.hetsGraph", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.inclusion_entails_iff", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.inclusionLogic", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.inclusionLogic_toInst", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.hetsGraph_inclusionLogic"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mltt-realize"
+catalogue_id = "mltt-realize"
+title = "Realize judgments as set constraints"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.set_theory_interpretation.to_set_theory"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetTheoryInterpretation.toSetTheory", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetTheoryInterpretation.toSetTheoryLogic", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Hets.graph"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mltt-lifted-successor"
+catalogue_id = "mltt-lifted-successor"
+title = "Add a universe in the lifted family"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.apex.successor"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.successor", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.family", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.toFull_successor"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mltt-apex"
+catalogue_id = "mltt-apex"
+title = "Finite stage → hierarchy cocone"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.apex.to_full"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.toFull", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.fullModelReduct", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.toFull_satisfaction", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.toFull_entails", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.toFull_coherent", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.cocone", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.Hets.graph"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mltt-w-finite"
+catalogue_id = "mltt-w-finite"
+title = "Add W at the same count"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.w.embedding.finite_inclusion"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.finiteInclusion", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.finiteLogical", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.finite_entails_iff"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mltt-w-hierarchy"
+catalogue_id = "mltt-w-hierarchy"
+title = "Hierarchy W extension"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.w.embedding.hierarchy_inclusion"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.hierarchyInclusion", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.hierarchyLogical"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.w-successor"
+catalogue_id = "w-successor"
+title = "Add an available universe"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.w.finite.successor"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.successor"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.w-realize"
+catalogue_id = "w-realize"
+title = "Realize W judgments"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.w.set_theory_interpretation.to_set_theory"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.SetTheoryInterpretation.toSetTheory", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Hets.Hierarchy.realizationPath"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.indexed-w"
+catalogue_id = "indexed-w"
+title = "Compile indexed rules to W"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.indexed.finite.to_w"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.toW", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.toWLogical"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.w-indexed"
+catalogue_id = "w-indexed"
+title = "Include ordinary W syntax"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.indexed.finite.from_w"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.fromW", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.fromWLogical"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.indexed-successor"
+catalogue_id = "indexed-successor"
+title = "Increase finite indexed bound"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.inclusionLogical"]
+reason = "a comorphism of logical systems (Metatheory.LogicalSystem.CoHom), not an Inst.CoHom"
+
+[[logic_catalogue]]
+name = "catalogue.edge.mutual-indexed"
+catalogue_id = "mutual-indexed"
+title = "Flatten mutual source rules"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.mutual.finite.to_indexed"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.toIndexed", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.toIndexedLogical"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mutual-successor"
+catalogue_id = "mutual-successor"
+title = "Increase finite mutual bound"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.inclusionLogical"]
+reason = "a comorphism of logical systems (Metatheory.LogicalSystem.CoHom), not an Inst.CoHom"
+
+[[logic_catalogue]]
+name = "catalogue.edge.indexed-stage-successor"
+catalogue_id = "indexed-stage-successor"
+title = "Lifted stage inclusion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.indexed.apex.stage.inclusion"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Stage.inclusion"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.indexed-stage-apex"
+catalogue_id = "indexed-stage-apex"
+title = "Enter indexed hierarchy apex"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.indexed.apex.stage.to_apex"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Stage.toApex", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Stage.toApexLogical", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Stage.toApex_include"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.indexed-apex-w"
+catalogue_id = "indexed-apex-w"
+title = "Compile indexed apex to W"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.indexed.apex.to_w"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.toW", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.toWLogical"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mutual-stage-successor"
+catalogue_id = "mutual-stage-successor"
+title = "Lifted stage inclusion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.mutual.apex.stage.inclusion"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.inclusion", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toIndexed_include"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mutual-stage-apex"
+catalogue_id = "mutual-stage-apex"
+title = "Enter mutual hierarchy apex"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.mutual.apex.stage.to_apex"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toApex", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toApexLogical", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toApex_include"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mutual-indexed-stage"
+catalogue_id = "mutual-indexed-stage"
+title = "Flatten lifted mutual stage"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.mutual.apex.stage.to_indexed"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toIndexed", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toIndexedLogical", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toIndexed_toApex"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.mutual-indexed-apex"
+catalogue_id = "mutual-indexed-apex"
+title = "Flatten mutual hierarchy apex"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.extensional_mltt.inductives.mutual.apex.to_indexed"]
+evidence = ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.toIndexed", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.toIndexedLogical", "Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Hets.graph"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.lf-registration"
+catalogue_id = "lf-registration"
+title = "Structural presentation maps"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.calculusToInstitutions", "Silmaril.Logic.TypeTheory.LambdaPi.hets"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.edge.lf-compiled-native-registration"
+catalogue_id = "lf-compiled-native-registration"
+title = "Compiled native term-valued encodings"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEncoding.institutions", "Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEncoding.hets"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.edge.lf-source-substitution-registration"
+catalogue_id = "lf-source-substitution-registration"
+title = "Source-typed LF interpretations"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Institution.institutions", "Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Institution.hets"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.edge.lf-native-equality-registration"
+catalogue_id = "lf-native-equality-registration"
+title = "Actual typed native encodings"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.institutions", "Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.hets"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.edge.lf-source-native-equality-registration"
+catalogue_id = "lf-source-native-equality-registration"
+title = "Compiled encodings with equality semantics"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEquality.institutions", "Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEquality.hets"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.edge.cic-institution-pending"
+catalogue_id = "cic-institution-pending"
+title = "Complete CIC institution pending"
+entry = "edge"
+status = "prospective"
+records = []
+evidence = []
+reason = "a prospective entry of the catalogue (a complete CIC institution): no Lean declaration exists"
+
+[[logic_catalogue]]
+name = "catalogue.edge.cube-stlc-f"
+catalogue_id = "cube-stlc-f"
+title = "Corner inclusion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:calculi.lambda_cube.restriction_graph.comorphism"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.stlcToSystemF", "Silmaril.Calculi.LambdaCube.RestrictionGraph.comorphism", "Silmaril.Calculi.LambdaCube.RestrictionGraph.comorphism_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.cube-stlc-f-projection"
+catalogue_id = "cube-stlc-f-projection"
+title = "Reverse institution projection"
+entry = "edge"
+status = "registered"
+records = ["morphism:calculi.lambda_cube.restriction_graph.projection"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.stlcToSystemF", "Silmaril.Calculi.LambdaCube.RestrictionGraph.projection"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.cube-stlc-omega"
+catalogue_id = "cube-stlc-omega"
+title = "Corner inclusion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:calculi.lambda_cube.restriction_graph.comorphism"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.stlcToOmega", "Silmaril.Calculi.LambdaCube.RestrictionGraph.comorphism", "Silmaril.Calculi.LambdaCube.RestrictionGraph.comorphism_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.cube-stlc-omega-projection"
+catalogue_id = "cube-stlc-omega-projection"
+title = "Reverse institution projection"
+entry = "edge"
+status = "registered"
+records = ["morphism:calculi.lambda_cube.restriction_graph.projection"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.stlcToOmega", "Silmaril.Calculi.LambdaCube.RestrictionGraph.projection"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.cube-f-fomega"
+catalogue_id = "cube-f-fomega"
+title = "Corner inclusion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:calculi.lambda_cube.restriction_graph.comorphism"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.systemFToSystemFOmega", "Silmaril.Calculi.LambdaCube.RestrictionGraph.comorphism", "Silmaril.Calculi.LambdaCube.RestrictionGraph.comorphism_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.cube-f-fomega-projection"
+catalogue_id = "cube-f-fomega-projection"
+title = "Reverse institution projection"
+entry = "edge"
+status = "registered"
+records = ["morphism:calculi.lambda_cube.restriction_graph.projection"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.systemFToSystemFOmega", "Silmaril.Calculi.LambdaCube.RestrictionGraph.projection"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.cube-omega-fomega"
+catalogue_id = "cube-omega-fomega"
+title = "Corner inclusion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:calculi.lambda_cube.restriction_graph.comorphism"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.omegaToSystemFOmega", "Silmaril.Calculi.LambdaCube.RestrictionGraph.comorphism", "Silmaril.Calculi.LambdaCube.RestrictionGraph.comorphism_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.cube-omega-fomega-projection"
+catalogue_id = "cube-omega-fomega-projection"
+title = "Reverse institution projection"
+entry = "edge"
+status = "registered"
+records = ["morphism:calculi.lambda_cube.restriction_graph.projection"]
+evidence = ["Silmaril.Calculi.LambdaCube.PERGraph.omegaToSystemFOmega", "Silmaril.Calculi.LambdaCube.RestrictionGraph.projection"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.metamath-rewrite"
+catalogue_id = "metamath-rewrite"
+title = "Grammar rewrite schema"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Institution.Metatheory.Metamath.senMap_derives", "Silmaril.Logic.Institution.Metatheory.Metamath.gaxSetHom_iff"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.mm-zf0-zfc"
+catalogue_id = "mm-zf0-zfc"
+title = "Add choice axiom"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.Peano.ZF.ZF0_subset_ZFC", "Silmaril.Logic.Metamath.Grammar.TDerivable.mono"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.soa-rca-wkl"
+catalogue_id = "soa-rca-wkl"
+title = "Add Σ⁰₁ separation"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.SecondOrder.RCA0_le_WKL0"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.soa-rca-aca"
+catalogue_id = "soa-rca-aca"
+title = "Derive Δ⁰₁ comprehension"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.SecondOrder.RCA0_le_ACA0"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.soa-aca-z2"
+catalogue_id = "soa-aca-z2"
+title = "Full induction and comprehension"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Metamath.SecondOrder.ACA0_le_Z2"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.scoped-zf-zfc"
+catalogue_id = "scoped-zf-zfc"
+title = "Transport ZF proof into choice extension"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.SetTheory.Inductive.ZFC.fromZF", "Silmaril.Logic.SetTheory.Inductive.ZFC.baseInclusion"]
+reason = "a translation of derivations, not an institution map"
+
+[[logic_catalogue]]
+name = "catalogue.edge.common-zfc-native"
+catalogue_id = "common-zfc-native"
+title = "Compile certified common ZFC proofs"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.SetTheory.Inductive.ZFC.zfcCommonToNative"]
+reason = "a translation of proofs between inference systems, not an institution map"
+
+[[logic_catalogue]]
+name = "catalogue.edge.native-common-zfc-independent"
+catalogue_id = "native-common-zfc-independent"
+title = "Reflect certified native proofs"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.SetTheory.Inductive.ZFC.nativeToZFCCommon", "Silmaril.Logic.SetTheory.Inductive.ZFC.zfcCommonInference_provable_iff"]
+reason = "a translation of proofs between inference systems, not an institution map"
+
+[[logic_catalogue]]
+name = "catalogue.edge.intensional-original-successor"
+catalogue_id = "intensional-original-successor"
+title = "Increase original proof budget"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.intensional_mltt.original_institution.inclusion", "comorphism:logic.type_theory.intensional_mltt.original_institution.from_finite"]
+evidence = ["Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.inclusion", "Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.inclusionLogic", "Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.inclusion_satisfaction"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.intensional-original-apex"
+catalogue_id = "intensional-original-apex"
+title = "Enter actual full code hierarchy"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.type_theory.intensional_mltt.original_institution.from_finite"]
+evidence = ["Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.fromFinite", "Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.fromFinite_comp", "Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.top_derives_empty_iff"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.wasm-obs-reg"
+catalogue_id = "wasm-obs-reg"
+title = "Phase-1 Wasm graph"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Wasm.Institution.Graph.graph_eq"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.wasm-redgame-reg"
+catalogue_id = "wasm-redgame-reg"
+title = "Reduction/game graph"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Wasm.Institution.GameGraph.gameGraph_eq"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.wasm-comp-ginst"
+catalogue_id = "wasm-comp-ginst"
+title = "Component game logic into GInst"
+entry = "edge"
+status = "represented"
+records = ["comorphism:wasm.institution.game_inst.co_hom"]
+evidence = ["Silmaril.Wasm.Institution.CompGameGraph.cross", "Silmaril.Wasm.Institution.CompGameGraph.cross_modelExpansive", "Silmaril.Wasm.Institution.CompGameGraph.allModelExpansive"]
+reason = "the cross edge `cross C .toGInst` is `GameInst.coHom compIfaces sigU` by definition, an instance of the registered family; `cross` itself is indexed by graph edges, so its source is not one registered node"
+
+[[logic_catalogue]]
+name = "catalogue.edge.wasm-div-reg"
+catalogue_id = "wasm-div-reg"
+title = "Divergence-aware graph"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Wasm.Institution.DivGames.divSpec", "Silmaril.Wasm.Institution.Structured.DivGames.entails_translate_redGame_iff"]
+reason = "a family of institutions (a functor into institutions or a logic graph): its members are registered only where they are named declarations"
+
+[[logic_catalogue]]
+name = "catalogue.edge.ginst-reg"
+catalogue_id = "ginst-reg"
+title = "Game graph"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Games.InstGraph.allModelExpansive"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.wasi-ginst"
+catalogue_id = "wasi-ginst"
+title = "Worlds as games"
+entry = "edge"
+status = "registered"
+records = ["comorphism:wasi.spec.wasi_to_g_inst"]
+evidence = ["Silmaril.Wasi.Spec.wasiToGInst", "Silmaril.Wasi.Spec.wasiToGInst_modelExpansive", "Silmaril.Wasi.Spec.wasi_refines_translatePath_iff"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.wasi-include-wasi"
+catalogue_id = "wasi-include-wasi"
+title = "Open imports"
+entry = "edge"
+status = "registered"
+records = ["comorphism:wasi.spec.inc_inst.to_wasi"]
+evidence = ["Silmaril.Wasi.Spec.IncInst.toWasi", "Silmaril.Wasi.Spec.IncInst.toWasi_modelExpansive", "Silmaril.Wasi.Spec.reduct_toOpen_mem_compSpec", "Silmaril.Wasi.Spec.mem_compSpec_iff"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-core-functional-fol"
+catalogue_id = "egglog-core-functional-fol"
+title = "Functional graph translation"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.core.graph.from_core", "comorphism:logic.egglog.source.named.families.to_graph", "comorphism:logic.egglog.source.named.supplied.direct.to_graph", "comorphism:logic.egglog.source.named.supplied.to_graph"]
+evidence = ["Silmaril.Logic.Egglog.Core.Graph.fromCore", "Silmaril.Logic.Egglog.Core.Graph.fromCore_modelExpansive", "Silmaril.Logic.Egglog.Core.Graph.Hets.edge_path"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-pl-to-normal-modal"
+catalogue_id = "matching:pl-to-normal-modal"
+title = "Interpret propositions at a Kripke point"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.modal.propositional_to_modal"]
+evidence = ["Silmaril.Logic.Modal.propositionalToModal"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-equations-to-horn"
+catalogue_id = "matching:equations-to-horn"
+title = "Include equations as Horn clauses"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.many_sorted.equation_horn_comorphism"]
+evidence = ["Silmaril.Logic.Algebraic.ManySorted.equationHornComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-pl-to-pointed-matching"
+catalogue_id = "matching:pl-to-pointed-matching"
+title = "Observe propositions at a matching point"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.matching.first_order.pointed.propositional_to_pointed_matching"]
+evidence = ["Silmaril.Logic.Matching.FirstOrder.Pointed.propositionalToPointedMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-kore-to-matching"
+catalogue_id = "matching:kore-to-matching"
+title = "Lower first-order KORE patterns"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.kore.first_order.lowering_comorphism"]
+evidence = ["Silmaril.Logic.Kore.FirstOrder.loweringComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-pl-to-ltl"
+catalogue_id = "matching:pl-to-ltl"
+title = "Interpret propositions at time zero"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.temporal.ltl.propositional_to_ltl"]
+evidence = ["Silmaril.Logic.Temporal.LTL.propositionalToLtl"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-normal-modal-to-modal-mu"
+catalogue_id = "matching:normal-modal-to-modal-mu"
+title = "Include K in the modal mu calculus"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.modal_mu.k_to_mu"]
+evidence = ["Silmaril.Logic.ModalMu.kToMu"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-normal-modal-to-pdl"
+catalogue_id = "matching:normal-modal-to-pdl"
+title = "Include K as one-action PDL"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.pdl.k_to_pdl"]
+evidence = ["Silmaril.Logic.PDL.kToPDL"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-pdl-to-modal-mu"
+catalogue_id = "matching:pdl-to-modal-mu"
+title = "Translate PDL programs to fixed points"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.pdl.pdl_to_mu"]
+evidence = ["Silmaril.Logic.PDL.pdlToMu"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-fol-to-fol-lfp"
+catalogue_id = "matching:fol-to-fol-lfp"
+title = "Include FOL in positive FO(LFP)"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.first_order_lfp.fol_to_lfp"]
+evidence = ["Silmaril.Logic.FirstOrderLFP.folToLFP"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-modal-mu-to-pointed-fixed-point-matching"
+catalogue_id = "matching:modal-mu-to-pointed-fixed-point-matching"
+title = "Encode modal fixed points as matching patterns"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.matching.fixed_point.modal_to_matching"]
+evidence = ["Silmaril.Logic.Matching.FixedPoint.modalToMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-normal-modal-to-hybrid-polyadic"
+catalogue_id = "matching:normal-modal-to-hybrid-polyadic"
+title = "Include K in polyadic hybrid logic"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.hybrid_polyadic.modal_to_hybrid_polyadic"]
+evidence = ["Silmaril.Logic.HybridPolyadic.modalToHybridPolyadic"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-normal-modal-to-ctl"
+catalogue_id = "matching:normal-modal-to-ctl"
+title = "Interpret K box as weak CTL next"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.ctl.k_to_ctl"]
+evidence = ["Silmaril.Logic.CTL.kToCTL"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-ctl-to-modal-mu"
+catalogue_id = "matching:ctl-to-modal-mu"
+title = "Translate CTL paths to modal fixed points"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.ctl.ctl_to_mu"]
+evidence = ["Silmaril.Logic.CTL.ctlToMu"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-hybrid-to-constrained-fixed-point-matching"
+catalogue_id = "matching:hybrid-to-constrained-fixed-point-matching"
+title = "Encode hybrid formulas as constrained matching"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.hybrid_polyadic.matching.hybrid_to_constrained_matching"]
+evidence = ["Silmaril.Logic.HybridPolyadic.Matching.hybridToConstrainedMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-reachability-to-global-fixed-point-matching"
+catalogue_id = "matching:reachability-to-global-fixed-point-matching"
+title = "Compile reachability to global fixed points"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.reachability.to_matching"]
+evidence = ["Silmaril.Logic.Reachability.toMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-fixed-sort-eq-to-thin-rewriting"
+catalogue_id = "matching:fixed-sort-eq-to-thin-rewriting"
+title = "Include equations in preorder rewriting"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.rewriting.from_equational"]
+evidence = ["Silmaril.Logic.Rewriting.fromEquational"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-rewriting-to-canonical-reachability"
+catalogue_id = "matching:rewriting-to-canonical-reachability"
+title = "Compile rewriting to canonical reachability"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.rewriting.to_canonical_reachability"]
+evidence = ["Silmaril.Logic.Rewriting.toCanonicalReachability"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-hoare-to-canonical-phased-reachability"
+catalogue_id = "matching:hoare-to-canonical-phased-reachability"
+title = "Compile Hoare triples to phased reachability"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.hoare.to_canonical_reachability"]
+evidence = ["Silmaril.Logic.Hoare.toCanonicalReachability"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-fol-to-guarded-native-matching"
+catalogue_id = "matching:fol-to-guarded-native-matching"
+title = "Encode FOL with guarded matching patterns"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.matching.guarded_fol.fol_to_guarded_matching"]
+evidence = ["Silmaril.Logic.Matching.GuardedFOL.folToGuardedMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-base-separation-to-positive-recursive"
+catalogue_id = "matching:base-separation-to-positive-recursive"
+title = "Include base separation in recursive separation"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.separation.base_to_recursive"]
+evidence = ["Silmaril.Logic.Separation.baseToRecursive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-positive-separation-to-canonical-matching"
+catalogue_id = "matching:positive-separation-to-canonical-matching"
+title = "Compile recursive separation to resource matching"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.separation.to_canonical_matching"]
+evidence = ["Silmaril.Logic.Separation.toCanonicalMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-public-eq-to-discrete-order-sorted"
+catalogue_id = "matching:public-eq-to-discrete-order-sorted"
+title = "Give public EQ sorts the discrete order"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.order_sorted.from_equational"]
+evidence = ["Silmaril.Logic.Algebraic.OrderSorted.fromEquational"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-order-sorted-to-compiled-eq"
+catalogue_id = "matching:order-sorted-to-compiled-eq"
+title = "Compile coercions and forget coherence"
+entry = "edge"
+status = "registered"
+records = ["morphism:logic.algebraic.order_sorted.to_equational"]
+evidence = ["Silmaril.Logic.Algebraic.OrderSorted.toEquational"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-positive-fol-lfp-to-guarded-matching"
+catalogue_id = "matching:positive-fol-lfp-to-guarded-matching"
+title = "Encode positive FO(LFP) with guarded tuples"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.matching.guarded_lfp.lfp_to_guarded_matching"]
+evidence = ["Silmaril.Logic.Matching.GuardedLFP.lfpToGuardedMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-lifted-public-eq-to-freeness-constraints"
+catalogue_id = "matching:lifted-public-eq-to-freeness-constraints"
+title = "Include lifted equations in freeness constraints"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.initial.from_equational"]
+evidence = ["Silmaril.Logic.Algebraic.Initial.fromEquational"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-inhabited-fixed-base-stlc-to-canonical-matching"
+catalogue_id = "matching:inhabited-fixed-base-stlc-to-canonical-matching"
+title = "Compile inhabited STLC to canonical matching"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.stlc_matching.to_matching", "comorphism:logic.stlc_restriction.to_matching"]
+evidence = ["Silmaril.Logic.STLCMatching.toMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-fixed-sort-public-eq-to-unrestricted-stlc"
+catalogue_id = "matching:fixed-sort-public-eq-to-unrestricted-stlc"
+title = "Embed public equations in unrestricted STLC"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.lambda.to_stlc"]
+evidence = ["Silmaril.Logic.Algebraic.Lambda.toSTLC"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-fixed-sort-fol-to-canonical-owned-store-separation"
+catalogue_id = "matching:fixed-sort-fol-to-canonical-owned-store-separation"
+title = "Compile FOL to owned-store separation"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.separation.first_order.to_separation"]
+evidence = ["Silmaril.Logic.Separation.FirstOrder.toSeparation"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.rewriting-restrict-inhabited"
+catalogue_id = "rewriting-restrict-inhabited"
+title = "Restrict rewriting to inhabited carriers"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.rewriting.restrict_inhabited"]
+evidence = ["Silmaril.Logic.Rewriting.restrictInhabited", "Silmaril.Logic.Rewriting.Examples.restrictInhabited_not_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.hoare-reach-restriction"
+catalogue_id = "hoare-reach-restriction"
+title = "Restrict reachability to canonical Hoare phases"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.hoare.restrict_reachability"]
+evidence = ["Silmaril.Logic.Hoare.restrictReachability", "Silmaril.Logic.Hoare.Examples.restriction_not_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-fo-fp"
+catalogue_id = "matching-fo-fp"
+title = "Include global patterns in fixed-point matching"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.matching.fixed_point.first_order_to_fixed_point"]
+evidence = ["Silmaril.Logic.Matching.FixedPoint.firstOrderToFixedPoint"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-pointed-fo-fp"
+catalogue_id = "matching-pointed-fo-fp"
+title = "Include pointed patterns in fixed-point matching"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.matching.fixed_point.first_order_pointed_to_fixed_point"]
+evidence = ["Silmaril.Logic.Matching.FixedPoint.firstOrderPointedToFixedPoint"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-direct-abstract"
+catalogue_id = "smt-direct-abstract"
+title = "Decode accepted SMT S-expressions"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.institution.decode_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Institution.decodeComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-fixed-package"
+catalogue_id = "smt-fixed-package"
+title = "Package fixed declarations into SMT scripts"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.Smt.Fixed.sat_iff"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-direct-decode"
+catalogue_id = "uflia-direct-decode"
+title = "Decode typed UF/LIA assertions"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.s_expr.decode_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SExpr.decodeComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-checked-decode"
+catalogue_id = "uflia-checked-decode"
+title = "Decode UF/LIA assertions over checked prefixes"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.s_expr.declaration_decode_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SExpr.declarationDecodeComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-raw-package"
+catalogue_id = "uflia-raw-package"
+title = "Package raw UF/LIA environments"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.packaged.packaging_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.packagingComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-checked-package"
+catalogue_id = "uflia-checked-package"
+title = "Package checked UF/LIA environments"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.packaged.checked_packaging_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.checkedPackagingComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-concrete-fixed-decode"
+catalogue_id = "uflia-concrete-fixed-decode"
+title = "Decode fixed concrete UF/LIA assertion lists"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.packaged.concrete_fixed_decode_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.concreteFixedDecodeComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-concrete-package"
+catalogue_id = "uflia-concrete-package"
+title = "Package concrete UF/LIA problems"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.packaged.concrete_packaging_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.concretePackagingComorphism", "Silmaril.Logic.Smt.Uflia.Packaged.packaging_decode_square"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-whole-decode"
+catalogue_id = "uflia-whole-decode"
+title = "Decode whole concrete UF/LIA problems"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.packaged.concrete_decode_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Packaged.concreteDecodeComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-script-decode"
+catalogue_id = "uflia-script-decode"
+title = "Parse accepted UF/LIA source scripts"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.script.decode_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.Script.decodeComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.lra-script-decode"
+catalogue_id = "lra-script-decode"
+title = "Decode source scripts over actual reals"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.lra.script.decode_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Lra.Script.decodeComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.commonlogic-fol-view"
+catalogue_id = "commonlogic-fol-view"
+title = "Interpret named-head FOL formulas in Common Logic"
+entry = "edge"
+status = "not-institution-typed"
+records = []
+evidence = ["Silmaril.Logic.CommonLogic.Core.FirstOrder.sentence_holds"]
+reason = "the evidence is theorems (inclusions of axiom sets, equations of graphs, model expansion of a whole graph), not an institution or a map declaration"
+
+[[logic_catalogue]]
+name = "catalogue.edge.prolog-fol"
+catalogue_id = "prolog-fol"
+title = "Encode definite clauses and queries in FOL"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.prolog.definite.to_first_order", "comorphism:logic.prolog.source.families.to_first_order"]
+evidence = ["Silmaril.Logic.Prolog.Definite.toFirstOrder"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.prolog-egglog"
+catalogue_id = "prolog-egglog"
+title = "Include definite Prolog in Egglog"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.core.from_prolog", "comorphism:logic.prolog.source.families.to_egglog_core"]
+evidence = ["Silmaril.Logic.Egglog.Core.fromProlog"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.eq-egg"
+catalogue_id = "eq-egg"
+title = "Include equations as unguarded egg rules"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egg.core.from_equations"]
+evidence = ["Silmaril.Logic.Egg.Core.fromEquations"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egg-fol"
+catalogue_id = "egg-fol"
+title = "Encode conditional egg equations in FOL"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egg.core.to_first_order"]
+evidence = ["Silmaril.Logic.Egg.Core.toFirstOrder"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.stlc-unrestricted-restriction"
+catalogue_id = "stlc-unrestricted-restriction"
+title = "Restrict STLC to inhabited base carriers"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.stlc_restriction.to_inhabited", "comorphism:logic.stlc_restriction.to_matching"]
+evidence = ["Silmaril.Logic.STLCRestriction.toInhabited", "Silmaril.Logic.STLCRestriction.modelExpansive_iff_isEmpty"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.stlc-unrestricted-matching"
+catalogue_id = "stlc-unrestricted-matching"
+title = "Compile unrestricted STLC through inhabited models"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.stlc_restriction.to_matching"]
+evidence = ["Silmaril.Logic.STLCRestriction.toMatching", "Silmaril.Logic.STLCRestriction.matching_modelExpansive_iff_isEmpty"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-fixed-sort-fol-to-canonical-native-hoare"
+catalogue_id = "matching:fixed-sort-fol-to-canonical-native-hoare"
+title = "Compile FOL assertions to canonical native Hoare"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.hoare.first_order.to_hoare"]
+evidence = ["Silmaril.Logic.Hoare.FirstOrder.toHoare"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-fixed-sort-public-eq-to-many-sorted"
+catalogue_id = "matching:fixed-sort-public-eq-to-many-sorted"
+title = "Translate actual public EQ to private ManySorted"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.many_sorted.public_eq.to_many_sorted"]
+evidence = ["Silmaril.Logic.Algebraic.ManySorted.PublicEQ.toManySorted"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-many-sorted-to-fixed-sort-public-eq"
+catalogue_id = "matching:many-sorted-to-fixed-sort-public-eq"
+title = "Translate private ManySorted to actual public EQ"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.many_sorted.public_eq.to_public_eq"]
+evidence = ["Silmaril.Logic.Algebraic.ManySorted.PublicEQ.toPublicEQ"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-order-sorted-to-initial-constraints"
+catalogue_id = "matching:order-sorted-to-initial-constraints"
+title = "Include coherent order-sorted equations in initial/free constraints"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.order_sorted.initial.from_order_sorted"]
+evidence = ["Silmaril.Logic.Algebraic.OrderSorted.Initial.fromOrderSorted"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-constructor-initial-to-native-matching"
+catalogue_id = "matching:constructor-initial-to-native-matching"
+title = "Compile actual constructor initiality to native mu and no-confusion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.initial.matching.to_matching"]
+evidence = ["Silmaril.Logic.Algebraic.Initial.Matching.toMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-independent-single-sort-fol-to-commonlogic"
+catalogue_id = "matching:independent-single-sort-fol-to-commonlogic"
+title = "Compile independent single-sort FOL into full admitted Common Logic"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.common_logic.first_order.comorphism"]
+evidence = ["Silmaril.Logic.CommonLogic.FirstOrder.comorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-nonempty-independent-single-sort-fol-to-commonlogic"
+catalogue_id = "matching:nonempty-independent-single-sort-fol-to-commonlogic"
+title = "Compile nonempty independent single-sort FOL into Common Logic"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.common_logic.first_order.nonempty_comorphism"]
+evidence = ["Silmaril.Logic.CommonLogic.FirstOrder.nonemptyComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-ctl-to-ctlstar"
+catalogue_id = "matching:ctl-to-ctlstar"
+title = "Include actual CTL in full CTL*"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.temporal.ctl_star.ctl_to_ctl_star"]
+evidence = ["Silmaril.Logic.Temporal.CTLStar.ctlToCTLStar"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-ctlstar-rich-to-discrete"
+catalogue_id = "matching:ctlstar-rich-to-discrete"
+title = "Choose the discrete full CTL* presentation"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.temporal.ctl_star.rich_to_discrete"]
+evidence = ["Silmaril.Logic.Temporal.CTLStar.richToDiscrete"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-core-independent-fd-fol"
+catalogue_id = "egglog-core-independent-fd-fol"
+title = "Independent functional graph reconstruction"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.core.graph.functional.from_core"]
+evidence = ["Silmaril.Logic.Egglog.Core.Graph.Functional.fromCore_modelExpansive", "Silmaril.Logic.Egglog.Core.Graph.Functional.relative_entails_iff", "Silmaril.Logic.Egglog.Core.Graph.Functional.Hets.reconstruct_path"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-public-fol-fd-restriction"
+catalogue_id = "egglog-public-fol-fd-restriction"
+title = "Restrict models to FD"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.core.graph.functional.restriction"]
+evidence = ["Silmaril.Logic.Egglog.Core.Graph.Functional.restriction", "Silmaril.Logic.Egglog.Core.Graph.Functional.Examples.restriction_not_modelExpansive", "Silmaril.Logic.Egglog.Core.Graph.Functional.Hets.restriction_path"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-concrete-renaming-decode"
+catalogue_id = "uflia-concrete-renaming-decode"
+title = "Decode concrete UF/LIA quotient assertions"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.s_expr.renaming.concrete.decode_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.decodeComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-concrete-renaming-checked-decode"
+catalogue_id = "uflia-concrete-renaming-checked-decode"
+title = "Decode concrete UF/LIA assertions over checked prefixes"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.s_expr.renaming.concrete.declaration_decode_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.declarationDecodeComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.uflia-concrete-renaming-forget-prefix"
+catalogue_id = "uflia-concrete-renaming-forget-prefix"
+title = "Forget checked prefix evidence for concrete UF/LIA"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.s_expr.renaming.concrete.prefix_forget_comorphism"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.prefixForgetComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-positive-to-boolean-fol-lfp"
+catalogue_id = "matching:positive-to-boolean-fol-lfp"
+title = "Include positive FO(LFP) in signed Boolean FO(LFP)"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.first_order_lfp.boolean.from_positive"]
+evidence = ["Silmaril.Logic.FirstOrderLFP.Boolean.fromPositive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-boolean-fol-lfp-to-guarded-matching"
+catalogue_id = "matching:boolean-fol-lfp-to-guarded-matching"
+title = "Encode signed Boolean FO(LFP) with guarded tuples"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.matching.guarded_lfp.boolean.lfp_to_guarded_matching"]
+evidence = ["Silmaril.Logic.Matching.GuardedLFP.Boolean.lfpToGuardedMatching"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-ctlstar-rich-to-modal-mu"
+catalogue_id = "matching:ctlstar-rich-to-modal-mu"
+title = "Compile rich CTL* to scalar modal mu"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.temporal.ctl_star.compiler.institution.rich_comorphism"]
+evidence = ["Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.richComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-ctlstar-discrete-to-modal-mu"
+catalogue_id = "matching:ctlstar-discrete-to-modal-mu"
+title = "Compile discrete CTL* to scalar modal mu"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.temporal.ctl_star.compiler.institution.discrete_comorphism"]
+evidence = ["Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.discreteComorphism"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-finite-sorted-global-initiality-to-guarded-theories"
+catalogue_id = "matching:finite-sorted-global-initiality-to-guarded-theories"
+title = "Compile finite original-sort arbitrary-equation initiality globally"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.initial.matching.finite_sorted_compiler.institution.to_matching"]
+evidence = ["Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.toMatching", "Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.expandModels", "Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.expansionDecodeIso", "Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.toMatching_elemExpansive", "Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.toMatching_faithful", "Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.satisfiable_compile_iff", "Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.unsatisfiable_compile_iff", "Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.entails_compile_iff"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.fol-to-many-sorted-typed-commonlogic"
+catalogue_id = "fol-to-many-sorted-typed-commonlogic"
+title = "Encode FOL in typed Common Logic"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.common_logic.many_sorted.institution.comorphism"]
+evidence = ["Silmaril.Logic.CommonLogic.ManySorted.Institution.comorphism", "Silmaril.Logic.CommonLogic.ManySorted.Institution.isoExpansive", "Silmaril.Logic.CommonLogic.ManySorted.Institution.elemExpansive", "Silmaril.Logic.CommonLogic.ManySorted.Institution.faithful", "Silmaril.Logic.CommonLogic.ManySorted.Institution.entails_iff", "Silmaril.Logic.CommonLogic.ManySorted.Institution.satisfiable_iff", "Silmaril.Logic.CommonLogic.ManySorted.Institution.unsatisfiable_iff"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.many-sorted-typed-to-raw-commonlogic"
+catalogue_id = "many-sorted-typed-to-raw-commonlogic"
+title = "Forget operation typing"
+entry = "edge"
+status = "registered"
+records = ["morphism:logic.common_logic.many_sorted.institution.typed_forget"]
+evidence = ["Silmaril.Logic.CommonLogic.ManySorted.Institution.typedForget", "Silmaril.Logic.CommonLogic.ManySorted.Institution.forgetComparison"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.definite-to-constraint-horn"
+catalogue_id = "definite-to-constraint-horn"
+title = "Include definite Horn"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.prolog.horn.from_definite", "comorphism:logic.prolog.source.families.to_horn"]
+evidence = ["Silmaril.Logic.Prolog.Horn.fromDefinite", "Silmaril.Logic.Prolog.Horn.fromDefinite_modelExpansive", "Silmaril.Logic.Prolog.Horn.entails_iff_definite"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.constraint-horn-to-fol"
+catalogue_id = "constraint-horn-to-fol"
+title = "Encode constraint Horn in FOL"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.prolog.horn.to_first_order"]
+evidence = ["Silmaril.Logic.Prolog.Horn.toFirstOrder", "Silmaril.Logic.Prolog.Horn.sat_iff_firstOrder", "Silmaril.Logic.Prolog.Horn.unsat_iff_firstOrder", "Silmaril.Logic.Prolog.Horn.entails_iff_firstOrder"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.constraint-horn-to-egglog-graph"
+catalogue_id = "constraint-horn-to-egglog-graph"
+title = "Encode constraint Horn in egglog Graph"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.prolog.horn.to_egglog_graph", "comorphism:logic.prolog.source.families.to_egglog_graph"]
+evidence = ["Silmaril.Logic.Prolog.Horn.toEgglogGraph", "Silmaril.Logic.Prolog.Horn.toEgglogGraph_modelExpansive", "Silmaril.Logic.Prolog.Horn.sat_iff_egglogGraph", "Silmaril.Logic.Prolog.Horn.unsat_iff_egglogGraph", "Silmaril.Logic.Prolog.Horn.entails_iff_egglogGraph"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.boolean-lattice-ground-to-egglog-graph"
+catalogue_id = "boolean-lattice-ground-to-egglog-graph"
+title = "Encode Boolean ground rules in Graph"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.merge.institution.boolean_graph.to_graph"]
+evidence = ["Silmaril.Logic.Egglog.Merge.Institution.BooleanGraph.toGraph", "Silmaril.Logic.Egglog.Merge.Institution.BooleanGraph.toGraph_modelExpansive", "Silmaril.Logic.Egglog.Merge.Institution.BooleanGraph.sat_iff", "Silmaril.Logic.Egglog.Merge.Institution.BooleanGraph.unsat_iff", "Silmaril.Logic.Egglog.Merge.Institution.BooleanGraph.entails_iff"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egg-guarded-equations-to-egglog"
+catalogue_id = "egg-guarded-equations-to-egglog"
+title = "Encode guarded equations in constructor-only egglog"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.core.egg.from_egg"]
+evidence = ["Silmaril.Logic.Egglog.Core.Egg.fromEgg", "Silmaril.Logic.Egglog.Core.Egg.decode_expansion", "Silmaril.Logic.Egglog.Core.Egg.fromEgg_modelExpansive", "Silmaril.Logic.Egglog.Core.Egg.models_full", "Silmaril.Logic.Egglog.Core.Egg.models_faithful", "Silmaril.Logic.Egglog.Core.Egg.entails_iff", "Silmaril.Logic.Egglog.Core.Egg.satisfiable_iff", "Silmaril.Logic.Egglog.Core.Egg.unsatisfiable_iff"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.commonlogic-core-to-finite-list-fol"
+catalogue_id = "commonlogic-core-to-finite-list-fol"
+title = "Full admitted Core to constrained finite-list FOL"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.common_logic.finite_list_fol.comorphism", "comorphism:logic.common_logic.source.presentations.family.to_fol", "comorphism:logic.common_logic.source.presentations.packaged.fol_comparison"]
+evidence = ["Silmaril.Logic.CommonLogic.FiniteListFOL.comorphism", "Silmaril.Logic.CommonLogic.FiniteListFOL.sentence_holds", "Silmaril.Logic.CommonLogic.FiniteListFOL.sentence_map", "Silmaril.Logic.CommonLogic.FiniteListFOL.comorphism_modelExpansive", "Silmaril.Logic.CommonLogic.FiniteListFOL.sat_transport", "Silmaril.Logic.CommonLogic.FiniteListFOL.unsat_transport", "Silmaril.Logic.CommonLogic.FiniteListFOL.entails_transport", "Silmaril.Logic.CommonLogic.FiniteListFOL.decode_expand", "Silmaril.Logic.CommonLogic.FiniteListFOL.models_natural"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.prolog-source-families-prolog-definite"
+catalogue_id = "prolog-source-families-prolog-definite"
+title = "Compile accepted source families to definite clauses and queries"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.prolog.source.families.to_definite", "comorphism:logic.prolog.source.families.to_egglog_core", "comorphism:logic.prolog.source.families.to_first_order", "comorphism:logic.prolog.source.families.to_horn"]
+evidence = ["Silmaril.Logic.Prolog.Source.Families.toDefinite"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.prolog-source-families-fol"
+catalogue_id = "prolog-source-families-fol"
+title = "Compile accepted source families to FOL"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.prolog.source.families.to_first_order"]
+evidence = ["Silmaril.Logic.Prolog.Source.Families.toFirstOrder"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.prolog-source-families-prolog-constraint-horn"
+catalogue_id = "prolog-source-families-prolog-constraint-horn"
+title = "Include source families in Horn"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.prolog.source.families.to_horn", "comorphism:logic.prolog.source.families.to_egglog_graph"]
+evidence = ["Silmaril.Logic.Prolog.Source.Families.toHorn"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.prolog-source-families-egglog-core"
+catalogue_id = "prolog-source-families-egglog-core"
+title = "Interpret source families in the egglog constructor/relation Core"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.prolog.source.families.to_egglog_core"]
+evidence = ["Silmaril.Logic.Prolog.Source.Families.toEgglogCore"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.prolog-source-families-egglog-functional-fol"
+catalogue_id = "prolog-source-families-egglog-functional-fol"
+title = "Interpret source families in egglog full graph formulas"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.prolog.source.families.to_egglog_graph"]
+evidence = ["Silmaril.Logic.Prolog.Source.Families.toEgglogGraph"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-fixed-to-sort-maps"
+catalogue_id = "smt-fixed-to-sort-maps"
+title = "Fixed-sort inclusion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.sort_maps.fixed_sort_comparison"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.fixedSortComparison", "Silmaril.Logic.Smt.Uflia.SortMaps.fixedSortComparison_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-quantified-fixed-to-sort-maps"
+catalogue_id = "smt-quantified-fixed-to-sort-maps"
+title = "Fixed-sort inclusion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.sort_maps.fixed_sort_quantified_comparison"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.fixedSortQuantifiedComparison", "Silmaril.Logic.Smt.Uflia.SortMaps.fixedSortQuantifiedComparison_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-sort-source-to-abstract"
+catalogue_id = "smt-sort-source-to-abstract"
+title = "Decode concrete varying-sort source"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.sort_maps.s_expr.renaming.to_abstract"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.toAbstract", "Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.toAbstract_modelExpansive", "Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.normalizeFormula_success", "Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.entails_iff_decode"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-checked-to-source-sort-families"
+catalogue_id = "smt-checked-to-source-sort-families"
+title = "Package checked local source"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.sort_maps.source.of_accepted_comparison", "comorphism:logic.smt.uflia.sort_maps.source.checked_to_quantified"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Source.ofAcceptedComparison", "Silmaril.Logic.Smt.Uflia.SortMaps.Source.ofAcceptedComparison_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-source-sort-families-to-quantified"
+catalogue_id = "smt-source-sort-families-to-quantified"
+title = "Decode and transport checked source"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.sort_maps.source.to_quantified", "comorphism:logic.smt.uflia.sort_maps.source.checked_to_quantified"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Source.toQuantified", "Silmaril.Logic.Smt.Uflia.SortMaps.Source.toQuantified_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-checked-source-to-quantified-sort-maps"
+catalogue_id = "smt-checked-source-to-quantified-sort-maps"
+title = "Composed checked-source decoder"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.sort_maps.source.checked_to_quantified"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Source.checkedToQuantified", "Silmaril.Logic.Smt.Uflia.SortMaps.Source.checkedToQuantified_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-program-source-families-to-problems"
+catalogue_id = "smt-program-source-families-to-problems"
+title = "Decode every accepted script assertion"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.sort_maps.source.script.to_problems"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.toProblems", "Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.toProblems_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-quantified-singleton-problems"
+catalogue_id = "smt-quantified-singleton-problems"
+title = "Singleton quantified problem"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.sort_maps.source.script.singleton"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.singleton", "Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.singleton_modelExpansive"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.smt-quantified-sort-source-to-abstract"
+catalogue_id = "smt-quantified-sort-source-to-abstract"
+title = "Decode rewritten quantified varying-sort source"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.smt.uflia.sort_maps.quantified.s_expr.renaming.to_abstract"]
+evidence = ["Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.toAbstract", "Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.toAbstract_modelExpansive", "Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.renameSentence_success"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-named-families-core"
+catalogue_id = "egglog-named-families-core"
+title = "Resolve named source families"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.source.named.families.to_core", "comorphism:logic.egglog.source.named.families.to_graph", "comorphism:logic.egglog.source.named.supplied.to_core"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Families.toCore", "Silmaril.Logic.Egglog.Source.Named.Hets.edge_path", "Silmaril.Logic.Egglog.Source.Named.Families.sat_iff_core", "Silmaril.Logic.Egglog.Source.Named.Families.entails_iff_core"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-named-families-graph"
+catalogue_id = "egglog-named-families-graph"
+title = "Interpret named source families in functional graphs"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.source.named.families.to_graph"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Families.toGraph", "Silmaril.Logic.Egglog.Source.Named.Hets.edge_path", "Silmaril.Logic.Egglog.Source.Named.Families.sat_iff_graph", "Silmaril.Logic.Egglog.Source.Named.Families.entails_iff_graph"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-named-support-families"
+catalogue_id = "egglog-named-support-families"
+title = "Retain supplied-body receipts in families"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.source.named.supplied.to_families", "comorphism:logic.egglog.source.named.supplied.to_core"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Supplied.toFamilies", "Silmaril.Logic.Egglog.Source.Named.Hets.edge_path"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-named-support-direct"
+catalogue_id = "egglog-named-support-direct"
+title = "Materialize original bodies in supplied declarations"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.source.named.supplied.to_direct"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Supplied.toDirect", "Silmaril.Logic.Egglog.Source.Named.Hets.edge_path"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-named-support-core"
+catalogue_id = "egglog-named-support-core"
+title = "Resolve supplied body support"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.source.named.supplied.to_core", "comorphism:logic.egglog.source.named.supplied.to_graph"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Supplied.toCore", "Silmaril.Logic.Egglog.Source.Named.Hets.edge_path"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-named-support-graph"
+catalogue_id = "egglog-named-support-graph"
+title = "Interpret supplied body support in functional graphs"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.source.named.supplied.to_graph"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Supplied.toGraph", "Silmaril.Logic.Egglog.Source.Named.Hets.edge_path"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-named-direct-core"
+catalogue_id = "egglog-named-direct-core"
+title = "Resolve direct supplied bodies"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.source.named.supplied.direct.to_core", "comorphism:logic.egglog.source.named.supplied.direct.to_graph"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.toCore", "Silmaril.Logic.Egglog.Source.Named.Hets.edge_path"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.egglog-named-direct-graph"
+catalogue_id = "egglog-named-direct-graph"
+title = "Interpret direct supplied bodies in functional graphs"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.egglog.source.named.supplied.direct.to_graph"]
+evidence = ["Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.toGraph", "Silmaril.Logic.Egglog.Source.Named.Hets.edge_path"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-varying-sort-public-eq-to-lambda-equations"
+catalogue_id = "matching:varying-sort-public-eq-to-lambda-equations"
+title = "Translate typed equations with arbitrary sort maps"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.lambda.varying.to_stlc"]
+evidence = ["Silmaril.Logic.Algebraic.Lambda.Varying.toSTLC"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-varying-sort-public-eq-to-private-manysorted"
+catalogue_id = "matching:varying-sort-public-eq-to-private-manysorted"
+title = "Convert public and private equations with arbitrary sort maps"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.many_sorted.varying.to_many_sorted"]
+evidence = ["Silmaril.Logic.Algebraic.ManySorted.Varying.toManySorted"]
+
+[[logic_catalogue]]
+name = "catalogue.edge.matching-varying-sort-private-manysorted-to-public-eq"
+catalogue_id = "matching:varying-sort-private-manysorted-to-public-eq"
+title = "Convert public and private equations with arbitrary sort maps"
+entry = "edge"
+status = "registered"
+records = ["comorphism:logic.algebraic.many_sorted.varying.to_public_eq"]
+evidence = ["Silmaril.Logic.Algebraic.ManySorted.Varying.toPublicEQ"]
