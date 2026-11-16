@@ -19,6 +19,8 @@ in terms of the strategies being wired:
   through the handler `h` below it, or `K` seen through `h` above it, with
   unboundedly many visible moves. The visible infinite play is `K`
   (respectively `J`), the limit of increasing finite interactions.
+* `DStrategy.extTop e N`: the part of `DStrategy.ext e D N` above `D`, copycat
+  beside `N`, split at `e`; `ext e D N = D.comp (extTop e N)` by definition.
 -/
 
 @[expose] public section
@@ -61,5 +63,9 @@ def ThroughAbove {E F G : Sig.{u}} (h : Handler F G) (K : Set (List (Move E F)))
   ∃ (s : Chain (Move E F)) (w : Chain (Move F G)) (p : Chain (Move E G)),
     (∀ m, Zip (s m) (w m) (p m)) ∧ (∀ m, s m ∈ K) ∧ (∀ m, w m ∈ Strategy.ofHandler h) ∧
       s.Mono ∧ w.Mono ∧ p.Mono ∧ p.Unbounded ∧ J = p.lim
+
+/-- The part of `DStrategy.ext e D N` above `D`: copycat beside `N`, split at `e`. -/
+def DStrategy.extTop (e : Nat) (N : DStrategy sigU sigU) : DStrategy sigU sigU :=
+  ((DStrategy.id sigU).pair N).comp (DStrategy.ofHandler (splitH e))
 
 end Silmaril.Wasm.Component

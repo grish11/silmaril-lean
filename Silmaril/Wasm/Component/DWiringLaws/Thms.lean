@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Component.DWiringLaws.Defs
 public import Silmaril.Wasm.Component.DWiring.Thms
 import Silmaril.Proofs.Wasm.Component.DWiringLaws.Trap
 import Silmaril.Proofs.Wasm.Component.DWiringLaws.Inf
+import Silmaril.Proofs.Wasm.Component.DWiringLaws.Ext
 
 /-!
 # Divergence and infinite plays of divergence-observing wiring: exact laws
@@ -40,6 +41,17 @@ plays of `σ` seen through `widenH n` below and then through `narrowH k` above.
 The visible moves grow without bound (as `ThroughBelow` requires); plays of
 `σ` that end in trap chatter give divergences instead (above). This is the
 converse of `inf_atSizes_sub`.
+
+**`ext`.** `ext e D N = D.comp (extTop e N)`, where `extTop e N` is copycat
+beside `N` below `splitH e`. In the pairing, copycat neither diverges nor
+constrains infinite plays (`div_pair_id`, `inf_pair_id`). `splitH e` is a
+one-call handler that always calls, so `extTop e N` has no hidden chatter: it
+diverges exactly where `N` does, on the right half of the pairing play
+(`div_extTop`), and its infinite plays are the infinite plays of the pairing
+seen through `splitH e` (`inf_extTop`). The divergences of `ext e D N` are
+those of `D`, those of `N`, and hidden chatter between `D` and `N`
+(`div_ext`); its infinite plays are the visible limits of its infinite
+interactions (`inf_ext`).
 
 Proofs are in `Silmaril.Proofs.Wasm.Component.DWiringLaws`.
 -/
@@ -117,6 +129,63 @@ theorem inf_atSizes_iff (σ : DStrategy sigU sigU) :
   rw [atSizes, inf_comp_ofHandler_allCall (allCall_narrowH k),
     inf_ofHandler_comp (oneCall_widenH n)]
   rfl
+
+/-! ## `ext` -/
+
+/-- Copycat beside `N` diverges exactly where `N` does, on the right half. -/
+theorem div_pair_id {E F : Sig.{u}} (N : DStrategy E F) :
+    ((DStrategy.id E).pair N).div =
+      {a | a ∈ (Strategy.id E).pair N.toStrategy ∧ (Split.halves false a).2 ∈ N.div} :=
+  Silmaril.Proofs.Wasm.Component.DWiringLaws.div_pair_id N
+
+/-- The infinite plays of copycat beside `N`: only the right projection is
+constrained. -/
+theorem inf_pair_id {E F : Sig.{u}} (N : DStrategy E F) :
+    ((DStrategy.id E).pair N).inf =
+      {K | IsInfPlay K ∧ K ⊆ ((Strategy.id E).pair N.toStrategy).plays ∧
+        (IsInfPlay (Split.infR K) → Split.infR K ∈ N.inf)} :=
+  Silmaril.Proofs.Wasm.Component.DWiringLaws.inf_pair_id N
+
+/-- `ext` is `D` below `extTop`. -/
+theorem ext_eq_comp {X : Sig.{0}} (e : Nat) (D : DStrategy X sigU) (N : DStrategy sigU sigU) :
+    ext e D N = D.comp (extTop e N) := rfl
+
+/-- **Divergence above the environment**: no chatter below `splitH e`; a
+divergence of `N` on the right half of the pairing play. -/
+theorem div_extTop (e : Nat) (N : DStrategy sigU sigU) :
+    (extTop e N).div = {p | ∃ a b, Zip a b p ∧
+      (a ∈ (Strategy.id sigU).pair N.toStrategy ∧ (Split.halves false a).2 ∈ N.div) ∧
+        b ∈ Strategy.ofHandler (splitH e)} := by
+  rw [extTop, div_comp_ofHandler (oneCall_splitH e), div_pair_id]
+  rfl
+
+/-- **Infinite plays above the environment**: infinite plays of copycat beside
+`N`, seen through `splitH e`. -/
+theorem inf_extTop (e : Nat) (N : DStrategy sigU sigU) :
+    (extTop e N).inf = {J | ∃ K, (IsInfPlay K ∧
+      K ⊆ ((Strategy.id sigU).pair N.toStrategy).plays ∧
+        (IsInfPlay (Split.infR K) → Split.infR K ∈ N.inf)) ∧ ThroughAbove (splitH e) K J} := by
+  rw [extTop, inf_comp_ofHandler_allCall (allCall_splitH e), inf_pair_id]
+  rfl
+
+/-- **Divergence of `ext`**: a divergence of `D`, a divergence of `N` through
+the pairing and `splitH e`, or hidden chatter between `D` and `extTop e N`. -/
+theorem div_ext {X : Sig.{0}} (e : Nat) (D : DStrategy X sigU) (N : DStrategy sigU sigU) :
+    (ext e D N).div =
+      {p | ∃ s t, Zip s t p ∧ ((s ∈ D.div ∧ t ∈ (extTop e N).toStrategy) ∨
+        (s ∈ D.toStrategy ∧ ∃ a b, Zip a b t ∧
+          (a ∈ (Strategy.id sigU).pair N.toStrategy ∧ (Split.halves false a).2 ∈ N.div) ∧
+            b ∈ Strategy.ofHandler (splitH e)))} ∪
+      {p | ∃ i : InfInteraction D (extTop e N), ∀ m, i.p m = p} := by
+  ext p
+  rw [ext_eq_comp, Silmaril.Games.DStrategy.mem_div_comp, div_extTop]
+  rfl
+
+/-- **Infinite plays of `ext`**: the visible limits of the infinite
+interactions of `D` with `extTop e N` whose visible part grows forever. -/
+theorem inf_ext {X : Sig.{0}} (e : Nat) (D : DStrategy X sigU) (N : DStrategy sigU sigU) :
+    (ext e D N).inf =
+      {I | ∃ i : InfInteraction D (extTop e N), i.p.Unbounded ∧ I = i.p.lim} := rfl
 
 end DStrategy
 
