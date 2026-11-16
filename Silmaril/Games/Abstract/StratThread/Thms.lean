@@ -126,6 +126,67 @@ theorem mem_inf {rs : List (A × List (Call E) × B)} {a : A} {ω : ℕ → Call
       ∃ s, Rounds t s₀ rs s ∧ ω ∈ t.2.2 s a :=
   Silmaril.Proofs.Games.Abstract.StratThread.mem_inf
 
+/-! ## Infinite plays -/
+
+/-- **Under store determinism the automaton state after a play is unique.** -/
+theorem TRun.det_of_storeDet (ht : StoreDet t) {x y y' : TSt E S A}
+    {p : List (Move E (sig1 A B))} (h : TRun t.1 (satP t) x p y)
+    (h' : TRun t.1 (satP t) x p y') : y = y' :=
+  Silmaril.Proofs.Games.Abstract.StratThread.trun_det ht h h'
+
+/-- A play of rounds is an infinite play when every finite prefix of the rounds is completed
+rounds (each from *some* chain of stores). -/
+theorem roundsPlay_mem {a : ℕ → A} {r : ℕ → List (Call E) × B}
+    (h : ∀ k, ∃ s, Rounds t s₀ (streamTake (fun i => (a i, r i)) k) s) :
+    roundsPlay a r ∈ (threadT t s₀).inf :=
+  Silmaril.Proofs.Games.Abstract.StratThread.roundsPlay_mem h
+
+/-- The first `k` rounds of a coherent sequence are completed rounds ending at `s k`. -/
+theorem InfRounds.rounds {a : ℕ → A} {r : ℕ → List (Call E) × B} {s : ℕ → S}
+    (h : InfRounds t s₀ a r s) (k : ℕ) : Rounds t s₀ (streamTake (fun i => (a i, r i)) k) (s k) :=
+  Silmaril.Proofs.Games.Abstract.StratThread.infRounds_rounds h k
+
+/-- **Soundness**: a coherent infinite sequence of rounds is an infinite play. -/
+theorem InfRounds.mem_inf {a : ℕ → A} {r : ℕ → List (Call E) × B} {s : ℕ → S}
+    (h : InfRounds t s₀ a r s) : roundsPlay a r ∈ (threadT t s₀).inf :=
+  roundsPlay_mem fun k => ⟨s k, h.rounds k⟩
+
+/-- **The infinite plays** (no hypothesis on `t`): a productive stream after finitely many
+completed rounds, or the play of rounds whose every finite prefix is completed rounds. The
+stores of the prefixes need not cohere (`not_coherent`). -/
+theorem mem_inf_iff {I : Set (List (Move E (sig1 A B)))} :
+    I ∈ (threadT t s₀).inf ↔
+      (∃ pre s a ω, TRun t.1 (satP t) (.idle s₀) pre (.idle s) ∧ ω ∈ t.2.2 s a ∧
+        I = streamPlay pre a ω) ∨
+      ∃ a r, I = roundsPlay a r ∧ ∀ k, ∃ s, Rounds t s₀ (streamTake (fun i => (a i, r i)) k) s :=
+  Silmaril.Proofs.Games.Abstract.StratThread.mem_inf_iff
+
+/-- **The converse under store determinism**: an infinite play completing infinitely many
+rounds is the play of a coherent infinite sequence of rounds. -/
+theorem exists_infRounds (ht : StoreDet t) {I : Set (List (Move E (sig1 A B)))}
+    (hI : I ∈ (threadT t s₀).inf)
+    (hk : ∀ p ∈ I, ∃ p' ∈ I, p <+: p' ∧ ∃ s, TRun t.1 (satP t) (.idle s₀) p' (.idle s)) :
+    ∃ a r s, InfRounds t s₀ a r s ∧ I = roundsPlay a r :=
+  Silmaril.Proofs.Games.Abstract.StratThread.exists_infRounds ht hI hk
+
+/-- **The infinite plays of a store-deterministic triple**: a productive stream after finitely
+many completed rounds, or the play of a coherent infinite sequence of rounds. -/
+theorem mem_inf_iff_of_storeDet (ht : StoreDet t) {I : Set (List (Move E (sig1 A B)))} :
+    I ∈ (threadT t s₀).inf ↔
+      (∃ pre s a ω, TRun t.1 (satP t) (.idle s₀) pre (.idle s) ∧ ω ∈ t.2.2 s a ∧
+        I = streamPlay pre a ω) ∨
+      ∃ a r s, InfRounds t s₀ a r s ∧ I = roundsPlay a r :=
+  Silmaril.Proofs.Games.Abstract.StratThread.mem_inf_iff_of_storeDet ht
+
+/-- **Coherence fails without store determinism**: for a countdown (from `none` return to any
+`some n`, from `some (n + 1)` return to `some n`) the play of infinitely many identical rounds
+is an infinite play from `none`, but no infinite sequence of rounds has coherent stores. -/
+theorem not_coherent {E : Sig.{0}} :
+    ∃ (t : ObsTriple E (Option ℕ) PUnit PUnit) (a : ℕ → PUnit) (r : ℕ → List (Call E) × PUnit),
+      roundsPlay a r ∈ (threadT t none).inf ∧ ∀ a' r' s, ¬ InfRounds t none a' r' s :=
+  ⟨_, _, _, Silmaril.Proofs.Games.Abstract.StratThread.Counter.countdown_mem,
+    fun _ _ _ => Silmaril.Proofs.Games.Abstract.StratThread.Counter.countdown_not_infRounds⟩
+
 /-! ## Reachable stores -/
 
 /-- Reachable stores are the final stores of completed rounds. -/

@@ -870,6 +870,237 @@ theorem roundEq_of_eq (ht : StoreDet t) (ht' : StoreDet t') {s : S} {s' : S'}
 
 end Converse
 
+/-! ## Infinite round sequences -/
+
+section InfRounds
+
+/-- Repeatedly extend a list along `next`. -/
+noncomputable def extSeq {α : Type u} (Q : List α → Prop) (h₀ : Q [])
+    (next : ∀ l, Q l → ∃ x, Q (l ++ [x])) : ℕ → {l // Q l}
+  | 0 => ⟨[], h₀⟩
+  | k + 1 =>
+    ⟨(extSeq Q h₀ next k).1 ++ [Classical.choose (next _ (extSeq Q h₀ next k).2)],
+      Classical.choose_spec (next _ (extSeq Q h₀ next k).2)⟩
+
+/-- A property of lists that holds at `[]` and can always be extended by one element holds
+along the prefixes of some stream. -/
+theorem exists_stream {α : Type u} {Q : List α → Prop} (h₀ : Q [])
+    (next : ∀ l, Q l → ∃ x, Q (l ++ [x])) : ∃ ω : ℕ → α, ∀ k, Q (streamTake ω k) := by
+  refine ⟨fun k => Classical.choose (next _ (extSeq Q h₀ next k).2), fun k => ?_⟩
+  have : ∀ k, streamTake (fun k => Classical.choose (next _ (extSeq Q h₀ next k).2)) k =
+      (extSeq Q h₀ next k).1 := by
+    intro k
+    induction k with
+    | zero => rfl
+    | succ k ih => rw [streamTake_succ, ih]; rfl
+  rw [this]
+  exact (extSeq Q h₀ next k).2
+
+theorem roundsMoves_snoc (rs : List (A × List (Call E) × B)) (x : A × List (Call E) × B) :
+    (roundsMoves (rs ++ [x]) : List (Move E (sig1 A B))) = roundsMoves rs ++ roundMoves x := by
+  simp [roundsMoves]
+
+theorem length_roundsMoves (rs : List (A × List (Call E) × B)) :
+    rs.length ≤ (roundsMoves rs : List (Move E (sig1 A B))).length := by
+  induction rs with
+  | nil => simp [roundsMoves]
+  | cons x rs ih =>
+    have h₁ : 1 ≤ (roundMoves x : List (Move E (sig1 A B))).length := by simp [roundMoves]
+    have h₂ : (roundsMoves (x :: rs) : List (Move E (sig1 A B))) =
+        roundMoves x ++ roundsMoves rs := by simp [roundsMoves]
+    rw [h₂, List.length_append, List.length_cons]
+    omega
+
+variable {f : AFun E S A B} {P : Pending E S A}
+
+theorem run_idle_inv {s : S} {a : A} {c₀ : List (Call E)} {u : List (Move E (sig1 A B))} {s' : S}
+    (h : TRun f P (.run s a c₀) u (.idle s')) :
+    ∃ c b s₁ u', u = callMoves c ++ .inr (.ans a (.inl b)) :: u' ∧
+      (c₀ ++ c, .ret b s₁) ∈ f s a ∧ TRun f P (.idle s₁) u' (.idle s') := by
+  obtain ⟨n, hn⟩ : ∃ n, u.length = n := ⟨_, rfl⟩
+  induction n using Nat.strong_induction_on generalizing u c₀ with
+  | _ n ih =>
+  cases h with
+  | cons h₁ h₂ =>
+    cases h₁ with
+    | call _ _ _ m hP =>
+      cases h₂ with
+      | cons h₃ h₄ =>
+        cases h₃ with
+        | reply _ _ _ _ n' =>
+          obtain ⟨c, b, s₁, u', rfl, hr, hu⟩ := ih _ (by simp at hn; omega) h₄ rfl
+          exact ⟨⟨m, n'⟩ :: c, b, s₁, u', by simp, by simpa using hr, hu⟩
+    | ret _ _ _ b s₁ hr => exact ⟨[], b, s₁, _, rfl, by simpa using hr, h₂⟩
+    | trap _ _ _ hr => rcases dead_inv.1 h₂ with ⟨-, h⟩ | ⟨_, -, h⟩ <;> cases h
+
+theorem idle_idle_inv {s s' : S} {u : List (Move E (sig1 A B))}
+    (h : TRun f P (.idle s) u (.idle s')) (hu : u ≠ []) :
+    ∃ a c b s₁ u', u = roundMoves (a, c, b) ++ u' ∧ (c, .ret b s₁) ∈ f s a ∧
+      TRun f P (.idle s₁) u' (.idle s') := by
+  cases h with
+  | nil => exact absurd rfl hu
+  | cons h₁ h₂ =>
+    cases h₁ with
+    | ask _ a =>
+      obtain ⟨c, b, s₁, u', rfl, hr, hu'⟩ := run_idle_inv h₂
+      exact ⟨a, c, b, s₁, u', by simp [roundMoves], by simpa using hr, hu'⟩
+
+variable {t : ObsTriple E S A B} {s₀ : S}
+
+theorem tstep_det (ht : StoreDet t) {x y y' : TSt E S A} {o : Move E (sig1 A B)}
+    (h : TStep t.1 (satP t) x o y) (h' : TStep t.1 (satP t) x o y') : y = y' := by
+  cases h <;> cases h'
+  all_goals first | rfl | exact congrArg _ (ht _ _ _ _ _ _ ‹_› ‹_›)
+
+theorem trun_det (ht : StoreDet t) {x y y' : TSt E S A} {p : List (Move E (sig1 A B))}
+    (h : TRun t.1 (satP t) x p y) (h' : TRun t.1 (satP t) x p y') : y = y' := by
+  induction h generalizing y' with
+  | nil => cases h'; rfl
+  | cons h₁ _ ih =>
+    cases h' with
+    | cons h₂ h₃ =>
+      obtain rfl := tstep_det ht h₁ h₂
+      exact ih h₃
+
+theorem rounds_run {s s₁ : S} {rs : List (A × List (Call E) × B)} (h : Rounds t s rs s₁) :
+    TRun t.1 (satP t) (.idle s) (roundsMoves rs) (.idle s₁) := by
+  rw [← List.append_nil (roundsMoves rs)]
+  exact rounds_inv.2 ⟨_, h, .nil _⟩
+
+theorem rounds_of_run {s s₁ : S} {rs : List (A × List (Call E) × B)}
+    (h : TRun t.1 (satP t) (.idle s) (roundsMoves rs) (.idle s₁)) : Rounds t s rs s₁ := by
+  rw [← List.append_nil (roundsMoves rs)] at h
+  obtain ⟨s₂, h₁, h₂⟩ := rounds_inv.1 h
+  cases h₂
+  exact h₁
+
+theorem roundsPlay_mem {a : ℕ → A} {r : ℕ → List (Call E) × B}
+    (h : ∀ k, ∃ s, Rounds t s₀ (streamTake (fun i => (a i, r i)) k) s) :
+    roundsPlay a r ∈ (threadT t s₀).inf := by
+  have hmono : Chain.Mono fun k => roundsMoves (streamTake (fun i => (a i, r i)) k) :=
+    fun k => ⟨roundMoves (a k, r k), by beta_reduce; rw [streamTake_succ, roundsMoves_snoc]⟩
+  have hlen : ∀ k, k ≤ (roundsMoves (streamTake (fun i => (a i, r i)) k) :
+      List (Move E (sig1 A B))).length := fun k => by
+    simpa using length_roundsMoves (A := A) (E := E) (B := B) (streamTake (fun i => (a i, r i)) k)
+  refine ⟨Chain.isInfPlay_lim hmono fun k => ⟨k, hlen k⟩, ?_, .inr ?_⟩
+  · rintro q ⟨k, hq⟩
+    obtain ⟨s, hs⟩ := h k
+    exact (threadT t s₀).toStrategy.of_prefix ⟨_, rounds_run hs⟩ hq
+  · rintro q ⟨k, hq⟩
+    obtain ⟨s, hs⟩ := h k
+    exact ⟨_, Chain.mem_lim_self _ k, hq, s, rounds_run hs⟩
+
+theorem infRounds_run {a : ℕ → A} {r : ℕ → List (Call E) × B} {s : ℕ → S}
+    (h : InfRounds t s₀ a r s) (k : ℕ) :
+    TRun t.1 (satP t) (.idle s₀) (roundsMoves (streamTake (fun i => (a i, r i)) k))
+      (.idle (s k)) := by
+  induction k with
+  | zero => rw [h.zero]; exact .nil _
+  | succ k ih =>
+    rw [streamTake_succ, roundsMoves_snoc]
+    exact ih.append (round_run (h.step k))
+
+theorem infRounds_rounds {a : ℕ → A} {r : ℕ → List (Call E) × B} {s : ℕ → S}
+    (h : InfRounds t s₀ a r s) (k : ℕ) : Rounds t s₀ (streamTake (fun i => (a i, r i)) k) (s k) :=
+  rounds_of_run (infRounds_run h k)
+
+/-- Under store determinism, rounds whose every prefix is played have coherent stores. -/
+theorem infRounds_of_rounds (ht : StoreDet t) {a : ℕ → A} {r : ℕ → List (Call E) × B}
+    (h : ∀ k, ∃ s, Rounds t s₀ (streamTake (fun i => (a i, r i)) k) s) :
+    ∃ s, InfRounds t s₀ a r s := by
+  choose s hs using h
+  refine ⟨s, ?_, fun k => ?_⟩
+  · have := hs 0
+    cases this
+    rfl
+  · have h₁ := rounds_run (hs (k + 1))
+    rw [streamTake_succ, roundsMoves_snoc] at h₁
+    obtain ⟨y, h₂, h₃⟩ := h₁.of_append
+    obtain rfl := trun_det ht (rounds_run (hs k)) h₂
+    rw [← List.append_nil (roundMoves _)] at h₃
+    obtain ⟨s₁, hr, h₄⟩ := round_inv.1 h₃
+    cases h₄
+    exact hr
+
+/-- An infinite play completing infinitely many rounds is the play of rounds whose every
+prefix is played. -/
+theorem exists_rounds {I : Set (List (Move E (sig1 A B)))} (hI : I ∈ (threadT t s₀).inf)
+    (hk : ∀ p ∈ I, ∃ p' ∈ I, p <+: p' ∧ ∃ s, TRun t.1 (satP t) (.idle s₀) p' (.idle s)) :
+    ∃ a r, I = roundsPlay a r ∧ ∀ k, ∃ s, Rounds t s₀ (streamTake (fun i => (a i, r i)) k) s := by
+  obtain ⟨hI, hsub, -⟩ := hI
+  have h₀ : roundsMoves ([] : List (A × List (Call E) × B)) ∈ I := by
+    obtain ⟨q, hq, -⟩ := hI.unbounded 0
+    exact hI.of_prefix hq List.nil_prefix
+  have next : ∀ rs : List (A × List (Call E) × B), roundsMoves rs ∈ I →
+      ∃ x, roundsMoves (rs ++ [x]) ∈ I := by
+    intro rs hrs
+    obtain ⟨q, hq, hql⟩ := hI.unbounded ((roundsMoves rs).length + 1)
+    have hpq : roundsMoves rs <+: q := by
+      rcases hI.total hrs hq with h | h
+      · exact h
+      · have := h.length_le; omega
+    obtain ⟨p', hp', hqp', s, hrun⟩ := hk q hq
+    obtain ⟨u, rfl⟩ := hpq.trans hqp'
+    have hu : u ≠ [] := by
+      rintro rfl
+      have := hqp'.length_le
+      simp at this
+      omega
+    obtain ⟨s₁, -, hu'⟩ := rounds_inv.1 hrun
+    obtain ⟨a, c, b, -, u', rfl, -, -⟩ := idle_idle_inv hu' hu
+    refine ⟨(a, c, b), hI.of_prefix hp' ?_⟩
+    rw [roundsMoves_snoc]
+    exact (List.prefix_append_right_inj _).2 (List.prefix_append _ _)
+  obtain ⟨ω, hω⟩ := exists_stream (Q := fun rs => roundsMoves rs ∈ I) h₀ next
+  refine ⟨fun i => (ω i).1, fun i => (ω i).2, Set.ext fun q => ⟨fun hq => ?_, ?_⟩, fun k => ?_⟩
+  · have hm := hω q.length
+    have hl : q.length ≤ (roundsMoves (streamTake ω q.length) : List (Move E (sig1 A B))).length := by
+      simpa using length_roundsMoves (A := A) (E := E) (B := B) (streamTake ω q.length)
+    rcases hI.total hq hm with h | h
+    · exact ⟨q.length, h⟩
+    · refine ⟨q.length, ?_⟩
+      show q <+: roundsMoves (streamTake ω q.length)
+      rw [h.eq_of_length (le_antisymm h.length_le hl)]
+      exact List.prefix_refl _
+  · rintro ⟨k, hq⟩
+    exact hI.of_prefix (hω k) hq
+  · exact mem_rounds.1 (hsub (hω k))
+
+theorem mem_inf_iff {I : Set (List (Move E (sig1 A B)))} :
+    I ∈ (threadT t s₀).inf ↔
+      (∃ pre s a ω, TRun t.1 (satP t) (.idle s₀) pre (.idle s) ∧ ω ∈ t.2.2 s a ∧
+        I = streamPlay pre a ω) ∨
+      ∃ a r, I = roundsPlay a r ∧ ∀ k, ∃ s, Rounds t s₀ (streamTake (fun i => (a i, r i)) k) s := by
+  constructor
+  · intro hI
+    rcases hI.2.2 with h | h
+    · exact .inl h
+    · exact .inr (exists_rounds hI h)
+  · rintro (⟨pre, s, a, ω, hpre, hω, rfl⟩ | ⟨a, r, rfl, h⟩)
+    · exact streamPlay_mem hpre hω
+    · exact roundsPlay_mem h
+
+theorem exists_infRounds (ht : StoreDet t) {I : Set (List (Move E (sig1 A B)))}
+    (hI : I ∈ (threadT t s₀).inf)
+    (hk : ∀ p ∈ I, ∃ p' ∈ I, p <+: p' ∧ ∃ s, TRun t.1 (satP t) (.idle s₀) p' (.idle s)) :
+    ∃ a r s, InfRounds t s₀ a r s ∧ I = roundsPlay a r := by
+  obtain ⟨a, r, rfl, h⟩ := exists_rounds hI hk
+  obtain ⟨s, hs⟩ := infRounds_of_rounds ht h
+  exact ⟨a, r, s, hs, rfl⟩
+
+theorem mem_inf_iff_of_storeDet (ht : StoreDet t) {I : Set (List (Move E (sig1 A B)))} :
+    I ∈ (threadT t s₀).inf ↔
+      (∃ pre s a ω, TRun t.1 (satP t) (.idle s₀) pre (.idle s) ∧ ω ∈ t.2.2 s a ∧
+        I = streamPlay pre a ω) ∨
+      ∃ a r s, InfRounds t s₀ a r s ∧ I = roundsPlay a r := by
+  rw [mem_inf_iff]
+  refine or_congr .rfl ⟨fun ⟨a, r, hI, h⟩ => ?_, fun ⟨a, r, s, hs, hI⟩ =>
+    ⟨a, r, hI, fun k => ⟨s k, infRounds_rounds hs k⟩⟩⟩
+  obtain ⟨s, hs⟩ := infRounds_of_rounds ht h
+  exact ⟨a, r, s, hs, hI⟩
+
+end InfRounds
+
 /-! ## Pointwise agreement is not necessary -/
 
 namespace Counter
@@ -913,6 +1144,56 @@ theorem not_pointwise :
   have hm : (([], .ret () false) : CallBeh E Bool PUnit) ∈ (keep (E := E)).1 false () := rfl
   rw [this] at hm
   simp [flip] at hm
+
+/-- A countdown: from `none` a call may return to any `some n`, and from `some (n + 1)` it
+returns to `some n`. -/
+def countdown : ObsTriple E (Option ℕ) PUnit PUnit :=
+  (fun s _ => {e | ∃ n, (s = none ∨ s = some (n + 1)) ∧ e = ([], .ret () (some n))},
+    fun _ _ => ∅, fun _ _ => ∅)
+
+/-- The constant round: no calls, return `()`. -/
+def unitRound : PUnit × List (Call E) × PUnit := ((), [], ())
+
+theorem streamTake_const {α : Type} (x : α) (n : ℕ) :
+    streamTake (fun _ => x) (n + 1) = x :: streamTake (fun _ => x) n := by
+  simp [streamTake, List.ofFn_succ]
+
+theorem countdown_rounds (n : ℕ) :
+    Rounds (countdown (E := E)) (some n) (streamTake (fun _ => unitRound) n) (some 0) := by
+  induction n with
+  | zero => exact .nil _
+  | succ n ih => rw [streamTake_const]; exact .cons ⟨n, .inr rfl, rfl⟩ ih
+
+theorem countdown_mem :
+    roundsPlay (fun _ => ()) (fun _ => (([] : List (Call E)), ())) ∈
+      (threadT (countdown (E := E)) none).inf := by
+  refine roundsPlay_mem fun k => ?_
+  cases k with
+  | zero => exact ⟨_, .nil _⟩
+  | succ k =>
+    refine ⟨some 0, ?_⟩
+    rw [streamTake_const]
+    exact .cons ⟨k, .inl rfl, rfl⟩ (countdown_rounds k)
+
+theorem countdown_not_infRounds {a : ℕ → PUnit} {r : ℕ → List (Call E) × PUnit}
+    {s : ℕ → Option ℕ} : ¬ InfRounds (countdown (E := E)) none a r s := by
+  intro h
+  obtain ⟨n₀, -, h₀⟩ := h.step 0
+  have key : ∀ j, ∃ m, s (j + 1) = some m ∧ m + j = n₀ := by
+    intro j
+    induction j with
+    | zero => exact ⟨n₀, by simp at h₀; exact h₀.2, rfl⟩
+    | succ j ih =>
+      obtain ⟨m, hm, hmj⟩ := ih
+      obtain ⟨n, hn, hr⟩ := h.step (j + 1)
+      rw [hm] at hn
+      simp only [Prod.mk.injEq, End.ret.injEq] at hr
+      rcases hn with hn | hn
+      · cases hn
+      · cases hn
+        exact ⟨n, hr.2.2, by omega⟩
+  obtain ⟨m, -, hm⟩ := key (n₀ + 1)
+  omega
 
 end Counter
 

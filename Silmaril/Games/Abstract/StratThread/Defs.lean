@@ -275,6 +275,23 @@ def threadT (t : ObsTriple E S A B) (s₀ : S) : DStrategy E (sig1 A B) :=
 def thread (σ : DStrategy E (funSig S A B)) (s₀ : S) : DStrategy E (sig1 A B) :=
   threadT (StratOps.readback σ) s₀
 
+/-! ## Coherent infinite round sequences -/
+
+/-- **A coherent infinite sequence of returning rounds** from `s₀`: round `k` asks `a k`, makes
+the calls `(r k).1` and returns `(r k).2`, as a finished behaviour of `t` at the store `s k`
+ending at `s (k + 1)`, with `s 0 = s₀`. -/
+structure InfRounds (t : ObsTriple E S A B) (s₀ : S) (a : ℕ → A) (r : ℕ → List (Call E) × B)
+    (s : ℕ → S) : Prop where
+  /-- The rounds start at `s₀`. -/
+  zero : s 0 = s₀
+  /-- Round `k` runs from `s k` to `s (k + 1)`. -/
+  step : ∀ k, ((r k).1, .ret (r k).2 (s (k + 1))) ∈ t.1 (s k) (a k)
+
+/-- The infinite play of the rounds `a`, `r`: the limit of the moves of their first `k`
+rounds. -/
+def roundsPlay (a : ℕ → A) (r : ℕ → List (Call E) × B) : Set (List (Move E (sig1 A B))) :=
+  Chain.lim fun k => roundsMoves (streamTake (fun i => (a i, r i)) k)
+
 /-! ## Observational equivalence of stores -/
 
 /-- One round of `t` at `s` and of `t'` at `s'` agree, with final stores of
