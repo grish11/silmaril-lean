@@ -4,6 +4,7 @@ public import Silmaril.Games.Abstract.SessionLinkAssoc.Defs
 public import Silmaril.Games.Abstract.SessionCat.Defs
 public import Silmaril.Games.Abstract.StratObs.Thms
 import Silmaril.Proofs.Games.Abstract.SessionLinkAssoc.Unit
+import Silmaril.Proofs.Games.Abstract.SessionLinkAssoc.Assoc
 
 /-!
 # Linking sessions: literal associativity and units (theorems)
@@ -11,6 +12,25 @@ import Silmaril.Proofs.Games.Abstract.SessionLinkAssoc.Unit
 The category laws of `SessionLink.linkS` as equalities of triples, after transporting the store
 along an equivalence (`mapStore`). No determinism hypotheses are needed; unlike the session-level
 laws of `SessionCat`, these compare the observations themselves.
+
+**Associativity** (`linkS_assoc`, no hypotheses): for a server `t`, a middle `u` and a client `v`,
+
+  `linkS (linkS t u) v = mapStore (prodAssoc S₁ S₂ S₃).symm (linkS t (linkS u v))`,
+
+all three components, literally (`linkS_assoc'` is the other direction). The hidden logs regroup:
+a returning round of `v` is served by rounds of `u`, each served by a block of rounds of `t`, in
+both bracketings (the outer link serves `v` by rounds of `linkS t u`; the inner one serves the
+concatenated calls of `u` by rounds of `t`). The divergences regroup case by case (a divergence of
+`u` or `t`, chatter of `u` or of `v`), as do pending calls and productive streams; the linked
+triples being saturated (`SessionLink.saturated_linkS`), the pending calls of `linkS u v` are its
+call prefixes. The coherent services `InfServe` correspond: a coherent service of `v` by
+`linkS t u` is a coherent service of `v` by `u` whose rounds are served by blocks of rounds of
+`t`; when `u` makes infinitely many calls the blocks are flattened into one coherent service by
+`t` of a productive stream of `linkS u v`, and conversely a coherent service by `t` is cut along
+the rounds of `u`. When `u` makes finitely many calls, `v` chatters against `u` and finitely many
+rounds of `t` serve them. Neither `NoPlainTrap` nor any determinism is needed: both bracketings
+drop the same plain traps (of `t`, and of `u` as a server), and stores are carried explicitly by
+the coherent services, so no uniqueness of runs is used.
 
 **Units** (no hypotheses):
 
@@ -56,6 +76,30 @@ theorem mapStore_symm_mapStore {S S' A B : Type u} (e : S ≃ S') (t : ObsTriple
 theorem mapStore_injective {S S' A B : Type u} (e : S ≃ S') :
     Function.Injective (mapStore (E := E) (A := A) (B := B) e) :=
   Silmaril.Proofs.Games.Abstract.SessionLinkAssoc.mapStore_injective e
+
+/-! ## Associativity -/
+
+section Assoc
+
+variable {S₁ S₂ S₃ A B A' B' A'' B'' : Type u}
+
+/-- **Linking is associative**, literally, along the store reassociation. -/
+theorem linkS_assoc (t : ObsTriple E S₁ A (B ⊕ PUnit.{u + 1}))
+    (u : ObsTriple (sig1 A B) S₂ A' (B' ⊕ PUnit.{u + 1}))
+    (v : ObsTriple (sig1 A' B') S₃ A'' (B'' ⊕ PUnit.{u + 1})) :
+    linkS (linkS t u) v = mapStore (Equiv.prodAssoc S₁ S₂ S₃).symm (linkS t (linkS u v)) :=
+  Silmaril.Proofs.Games.Abstract.SessionLinkAssoc.linkS_assoc t u v
+
+/-- **Linking is associative**, the other direction. -/
+theorem linkS_assoc' (t : ObsTriple E S₁ A (B ⊕ PUnit.{u + 1}))
+    (u : ObsTriple (sig1 A B) S₂ A' (B' ⊕ PUnit.{u + 1}))
+    (v : ObsTriple (sig1 A' B') S₃ A'' (B'' ⊕ PUnit.{u + 1})) :
+    linkS t (linkS u v) = mapStore (Equiv.prodAssoc S₁ S₂ S₃) (linkS (linkS t u) v) := by
+  have h := mapStore_symm_mapStore (Equiv.prodAssoc S₁ S₂ S₃).symm (linkS t (linkS u v))
+  rw [Equiv.symm_symm] at h
+  rw [linkS_assoc, h]
+
+end Assoc
 
 /-! ## Units -/
 
