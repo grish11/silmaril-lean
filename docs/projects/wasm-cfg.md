@@ -424,8 +424,11 @@ The plain graph stays an over-approximation, and claims about it say so.
       tail calls and the placement of pending tails come from typing of the entered frame
       (`guardedCalls_cx`, `tailGuarded_cx`, `tailsOk_of_typed`). Not claimed: hosts, exceptions
       (`tExt` rejects `throw`/`try_table`; no host alone does not exclude them), the
-      store-retaining session view. **Open:** function-level regression fixtures (recursive
-      indirect/ref/tail, trap ≠ divergence).
+      store-retaining session view. Fixtures (`Wasm/Cfg/ExampleFunDiv`, a validated
+      `tExt`-checked module): `fd_recursive`: functions recursing through `call_indirect`,
+      `call_ref` and `return_call` diverge natively (`FunDivX`, by coinduction), in Core 3.0 and as
+      `MDivT`; `fd_trap`: a `return_call_indirect` through a null slot and a `call_ref` on null
+      trap (closed outcomes), so none of the three holds.
     - **Host-free function-list preservation** (`Wasm/Cfg/Restrict`): without a host, a region or
       machine run keeps the store's whole function list `F` (instances with types, modules and
       code), so every call and every `F`-only check (`StoreChkE`) sees `F`. Oracles agreeing on
