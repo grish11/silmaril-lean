@@ -9,6 +9,7 @@ import Silmaril.Proofs.Logic.Consequence.HOL.Separation
 * Structural rules from the closure theorems: `[p] ⊢ p`, weakening, and single cut in `seq`;
   `p ⊢ q, p` in `gentzen`.
 * Closure under instantiation and extension, applied to a `seq` judgement.
+* `gentzen_iff_seq_disjList` on `⊢ x, ¬x`, and `derives_le_globalSeq` on an axiom.
 * **Local and global differ, concretely.** Over the initial signature, with free boolean
   variables `x`, `y`: `x ⊢ y` holds model-wise (`globalSeq`, no model validates `x`) but not
   point-wise (`seq`); `⊢ x, ¬x` holds point-wise (`gentzen`, the LK reading) but not model-wise
@@ -52,5 +53,15 @@ example : ¬ globalGentzen.{0} S₀ [] [var 0, notVar 0] :=
 /-- So `seq` is strictly below `globalSeq`. -/
 example : seq.{0} S₀ ≠ globalSeq.{0} S₀ := fun h =>
   Proofs.Logic.Consequence.HOL.not_seq_var (h ▸ Proofs.Logic.Consequence.HOL.globalSeq_var)
+
+/-! ## Classical collapse and axioms -/
+
+/-- `⊢ x, ¬x` is the single-conclusion `⊢ x ∨ (¬x ∨ ⊥)`. -/
+example : seq.{0} S₀ [] (HOLProp.disjList [var 0, notVar 0]) :=
+  (gentzen_iff_seq_disjList _ _).1 Proofs.Logic.Consequence.HOL.gentzen_excluded
+
+/-- An axiom is a model-wise consequence of itself, through the kernel. -/
+example : globalSeq.{0} S [p] p :=
+  derives_le_globalSeq (Derives.axiom (List.mem_singleton_self p.1) p.2)
 
 end Silmaril.Consequence.HOL.Examples

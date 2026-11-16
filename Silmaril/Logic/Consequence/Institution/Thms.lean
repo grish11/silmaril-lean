@@ -23,6 +23,8 @@ import Silmaril.Proofs.Logic.Consequence.Institution.Basic
 * `roomMulti_closed`, `valid_localSat_closed`: `Gentzen.Closed defaultRules`: reflexivity
   (a shared formula), weakening of both sides along list inclusion, and cut
   `Γ ⊢ a, Δ` / `a, Γ' ⊢ Δ'` ⟹ `Γ, Γ' ⊢ Δ, Δ'`.
+* **Reflection.** `corridorSeq_reflect`: along a corridor whose model reduct is surjective on
+  objects, `roomSeq` is reflected as well as preserved.
 * **Translation (reindexing along signature morphisms).** `corridorSeq`, `institutionSeq`,
   `corridorMulti` (existing) and `LogicalSystem.seqTranslation` are sound translations
   (definitions in `Defs`). `institutionSeq_id`: the identity signature morphism translates by the
@@ -79,6 +81,15 @@ theorem roomMulti_single : (roomMulti R).single = roomSeq R :=
 theorem listSys_semanticER : ER.listSys R.semanticER = roomSeq R := rfl
 
 end Room
+
+/-- A corridor whose model reduct is surjective on objects **reflects** `roomSeq`: the translation
+is conservative. -/
+theorem corridorSeq_reflect {R₁ R₂ : Room.{w, m₁, m₂}} (f : Corridor R₁ R₂)
+    (hs : Function.Surjective f.mod.obj) {Γ : List R₁.Sen} {φ : R₁.Sen}
+    (h : roomSeq R₂ (Γ.map f.sen) (f.sen φ)) : roomSeq R₁ Γ φ := fun M hM => by
+  obtain ⟨N, rfl⟩ := hs M
+  exact (f.sat N φ).1 (h N fun c hc => by
+    obtain ⟨c', hc', rfl⟩ := List.mem_map.1 hc; exact (f.sat N c').2 (hM c' hc'))
 
 theorem institutionSeq_id {Sign : Type u} [Category.{v} Sign] (I : Sign ⥤ Room.{w, m₁, m₂})
     (S : Sign) : (institutionSeq I (𝟙 S)).ax = id ∧ (institutionSeq I (𝟙 S)).c = id := by

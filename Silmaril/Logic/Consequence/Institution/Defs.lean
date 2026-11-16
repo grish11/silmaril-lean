@@ -19,6 +19,8 @@ public import Silmaril.Logic.Institution.Metatheory.Entailment
 * `roomMulti R` (existing): `Γ ⊢ Δ` iff every model of all of `Γ` satisfies **some** member of
   `Δ`. It is `Gentzen.Valid R.Sat` (`Thms`). The succedent is read disjunctively *over models*,
   not as a disjunction formula: a room has no connectives.
+* `roomSeqSys : Room ⥤ Sys` and `institutionSeqSys I := I ⋙ roomSeqSys`: the functorial
+  form (the list analogue of `roomSys` / `institutionSys`).
 * `corridorSeq f`: a corridor translates `roomSeq` (`List.map f.sen`, `f.sen`).
   `institutionSeq I σ` is that translation for an institution `I : Sign ⥤ Room` and `σ : S ⟶ S'`.
 
@@ -62,10 +64,23 @@ def corridorSeq {R₁ R₂ : Room.{w, m₁, m₂}} (f : Corridor R₁ R₂) :
   ⟨List.map f.sen, f.sen, fun _ φ h M hM => (f.sat M φ).2 (h (f.mod.obj M) fun c hc =>
     (f.sat M c).1 (hM _ (List.mem_map_of_mem hc)))⟩
 
+/-- Rooms to list-premise consequence systems: a room goes to `roomSeq`, a corridor to the
+translation mapping each premise and the conclusion. The list analogue of `roomSys`. -/
+def roomSeqSys : Room.{w, m₁, m₂} ⥤ Sys.{w, w} where
+  obj R := ⟨List R.Sen, R.Sen, roomSeq R⟩
+  map f := corridorSeq f
+  map_id _ := Translation.ext (funext List.map_id) rfl
+  map_comp f g := Translation.ext (funext fun _ => (List.map_map (f := f.sen) (g := g.sen)).symm) rfl
+
 /-- **An institution as `Sen* ⊢ Sen` per signature**, translated along signature morphisms. -/
 def institutionSeq {Sign : Type u} [Category.{v} Sign] (I : Sign ⥤ Room.{w, m₁, m₂})
     {S S' : Sign} (σ : S ⟶ S') : Translation (roomSeq (I.obj S)) (roomSeq (I.obj S')) :=
   corridorSeq (I.map σ)
+
+/-- An institution as a functor from signatures to list-premise systems: `I ⋙ roomSeqSys`. -/
+def institutionSeqSys {Sign : Type u} [Category.{v} Sign] (I : Sign ⥤ Room.{w, m₁, m₂}) :
+    Sign ⥤ Sys.{w, w} :=
+  I ⋙ roomSeqSys
 
 /-! ## Point-wise (local) semantics -/
 
