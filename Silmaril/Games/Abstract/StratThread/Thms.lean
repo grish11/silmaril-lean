@@ -15,7 +15,8 @@ After the completed rounds `rs` ending at `s`:
 * a trap round is a trapping behaviour at `s`, after which only one more
   Opponent question is possible (`mem_trap`);
 * a play ending in a call is a call prefix `satP t s a` (`mem_pending`);
-* a divergent play is a divergent behaviour at `s` (`mem_div`);
+* a divergent play is a divergent behaviour at `s` (`mem_div`), and every
+  divergent play has this form (`mem_div_iff`);
 * an infinite play of the current round is a productive stream at `s`
   (`mem_inf`).
 
@@ -127,6 +128,13 @@ theorem mem_div {rs : List (A × List (Call E) × B)} {a : A} {c : List (Call E)
     roundsMoves rs ++ .inr (.ask a) :: callMoves c ∈ (threadT t s₀).div ↔
       ∃ s, Rounds t s₀ rs s ∧ (c, .div) ∈ t.1 s a :=
   Silmaril.Proofs.Games.Abstract.StratThread.mem_div
+
+/-- **The divergent plays**: completed rounds, then the question and the calls of a divergent
+behaviour at their final store. -/
+theorem mem_div_iff {p : List (Move E (sig1 A B))} :
+    p ∈ (threadT t s₀).div ↔ ∃ rs s a c, Rounds t s₀ rs s ∧ (c, .div) ∈ t.1 s a ∧
+      p = roundsMoves rs ++ .inr (.ask a) :: callMoves c :=
+  Silmaril.Proofs.Games.Abstract.StratThread.mem_div_iff
 
 /-- A stream play is an infinite trace. -/
 theorem isInfPlay_streamPlay (pre : List (Move E (sig1 A B))) (a : A) (ω : ℕ → Call E) :

@@ -23,6 +23,12 @@ value `b` is a play of `threadS t s₀` iff `t` traps at `(s₀, a)` leaving som
 returns `b` at `(s₁, a')`. In `threadT (eraseTrap t) s₀` the trap ends the threading instead
 (`StratThread.mem_trap`).
 
+**After completed rounds** `rs` (continuing traps included), a play ending in a call is a call
+prefix at the current store (`mem_pending`), a divergent play is a divergent behaviour there
+(`mem_div`), and a stream play is a productive stream there (`mem_inf`). These need no
+hypothesis on `t`: after a plain trap the session never runs again. The divergent plays are
+exactly "completed rounds, then a divergent behaviour" (`mem_div_iff`).
+
 **Reachable stores** are the final stores of completed session rounds, including continuing
 traps (`reach_iff`, `Reach.trap`).
 
@@ -33,9 +39,10 @@ this is exact (`threadS_eq_iff`). `NoPlainTrap` is needed for the converse: a pl
 continuing trap to a store with no behaviour give the same session but are not bisimilar.
 
 **Infinite plays.** A coherent infinite sequence of session rounds is an infinite play
-(`InfRounds.mem_sinf`); for store-deterministic triples the infinite plays are exactly the
-productive streams after completed rounds and the plays of coherent infinite round sequences
-(`mem_inf_iff_of_storeDet`).
+(`InfRounds.mem_sinf`). The infinite plays are the productive streams after completed rounds
+and the plays of session rounds whose every prefix is completed (`mem_inf_iff`); for
+store-deterministic triples the stores of the rounds cohere (`mem_inf_iff_of_storeDet`), in
+particular for triples deterministic given answers (`mem_inf_iff_of_det`).
 
 Proofs are in `Silmaril.Proofs.Games.Abstract.StratSession.Basic`.
 -/
@@ -93,9 +100,41 @@ theorem mem_trap_ret_nil {a a' : A} {b : B} :
       ∃ s₁, ([], .ret (.inr PUnit.unit) s₁) ∈ t.1 s₀ a ∧ ∃ s₂, ([], .ret (.inl b) s₂) ∈ t.1 s₁ a' :=
   mem_trap_ret (c₁ := []) (c₂ := [])
 
+/-! ## Pending calls and divergence after completed rounds -/
+
+/-- **Plays ending in a call** after completed session rounds (continuing traps included) are
+call prefixes at their final store. -/
+theorem mem_pending {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} {a : A}
+    {c : List (Call E)} {m : E.Op} :
+    sroundsMoves rs ++ .inr (.ask a) :: (callMoves c ++ [.inl (.ask m)]) ∈
+      (threadS t s₀).toStrategy ↔ ∃ s, Rounds t s₀ rs s ∧ (c, m) ∈ satP t s a :=
+  Silmaril.Proofs.Games.Abstract.StratSession.mem_pending
+
+/-- **Divergent plays** after completed session rounds are divergent behaviours at their final
+store. -/
+theorem mem_div {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} {a : A}
+    {c : List (Call E)} :
+    sroundsMoves rs ++ .inr (.ask a) :: callMoves c ∈ (threadS t s₀).div ↔
+      ∃ s, Rounds t s₀ rs s ∧ (c, .div) ∈ t.1 s a :=
+  Silmaril.Proofs.Games.Abstract.StratSession.mem_div
+
+/-- **The divergent plays of a session**: completed session rounds, then the question and the
+calls of a divergent behaviour at their final store. No hypothesis on `t` is needed: after a
+plain trap the session never runs again. -/
+theorem mem_div_iff {p : List (Move E (sig1 A B))} :
+    p ∈ (threadS t s₀).div ↔ ∃ rs s a c, Rounds t s₀ rs s ∧ (c, .div) ∈ t.1 s a ∧
+      p = sroundsMoves rs ++ .inr (.ask a) :: callMoves c :=
+  Silmaril.Proofs.Games.Abstract.StratSession.mem_div_iff
+
 /-! ## Reachable stores -/
 
-/-- **Reachable stores** are the final stores of completed session rounds. -/
+/-- **After completed rounds** `rs` (continuing traps included), a play ending in a call is a call
+prefix at the current store (`mem_pending`), a divergent play is a divergent behaviour there
+(`mem_div`), and a stream play is a productive stream there (`mem_inf`). These need no
+hypothesis on `t`: after a plain trap the session never runs again. The divergent plays are
+exactly "completed rounds, then a divergent behaviour" (`mem_div_iff`).
+
+**Reachable stores** are the final stores of completed session rounds. -/
 theorem reach_iff {s : S} :
     Reach t s₀ s ↔ ∃ rs, Rounds t s₀ rs s ∧ sroundsMoves rs ∈ (threadS t s₀).toStrategy :=
   ⟨fun h => let ⟨rs, hrs⟩ := StratThread.reach_iff.1 h; ⟨rs, hrs, mem_srounds.2 (.inl ⟨s, hrs⟩)⟩,
@@ -135,6 +174,23 @@ theorem InfRounds.mem_sinf {a : ℕ → A} {r : ℕ → List (Call E) × (B ⊕ 
     {s : ℕ → S} (h : InfRounds t s₀ a r s) : sroundsPlay a r ∈ (threadS t s₀).inf :=
   ⟨_, h.mem_inf, (Silmaril.Proofs.Games.Abstract.StratSession.image_roundsPlay a r).symm⟩
 
+/-- **Infinite plays of the current round** after completed session rounds are productive
+streams at their final store. -/
+theorem mem_inf {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} {a : A}
+    {ω : ℕ → Call E} :
+    streamPlay (sroundsMoves rs) a ω ∈ (threadS t s₀).inf ↔
+      ∃ s, Rounds t s₀ rs s ∧ ω ∈ t.2.2 s a :=
+  Silmaril.Proofs.Games.Abstract.StratSession.mem_inf
+
+/-- **The infinite plays of a session** (no hypothesis on `t`): a productive stream after
+completed session rounds, or the play of session rounds whose every finite prefix is completed
+rounds. The stores of the prefixes need not cohere (`StratThread.not_coherent`). -/
+theorem mem_inf_iff {I : Set (List (Move E (sig1 A B)))} :
+    I ∈ (threadS t s₀).inf ↔
+      (∃ rs s a ω, Rounds t s₀ rs s ∧ ω ∈ t.2.2 s a ∧ I = streamPlay (sroundsMoves rs) a ω) ∨
+      ∃ a r, I = sroundsPlay a r ∧ ∀ k, ∃ s, Rounds t s₀ (streamTake (fun i => (a i, r i)) k) s :=
+  Silmaril.Proofs.Games.Abstract.StratSession.mem_inf_iff
+
 /-- **The infinite plays of a store-deterministic session**: a productive stream after completed
 rounds, or the play of a coherent infinite sequence of session rounds. -/
 theorem mem_inf_iff_of_storeDet (ht : StoreDet t) {I : Set (List (Move E (sig1 A B)))} :
@@ -142,5 +198,15 @@ theorem mem_inf_iff_of_storeDet (ht : StoreDet t) {I : Set (List (Move E (sig1 A
       (∃ rs s a ω, Rounds t s₀ rs s ∧ ω ∈ t.2.2 s a ∧ I = streamPlay (sroundsMoves rs) a ω) ∨
       ∃ a r s, InfRounds t s₀ a r s ∧ I = sroundsPlay a r :=
   Silmaril.Proofs.Games.Abstract.StratSession.mem_inf_iff_of_storeDet ht
+
+/-- **A session triple deterministic given answers has coherent infinite plays**
+(`StratThread.storeDet_of_det`): a productive stream after completed rounds, or the play of a
+coherent infinite sequence of session rounds. The trap stores are determined too, since a
+continuing trap is the return `.ret (.inr ()) s`. -/
+theorem mem_inf_iff_of_det (ht : AFun.Det t.1) {I : Set (List (Move E (sig1 A B)))} :
+    I ∈ (threadS t s₀).inf ↔
+      (∃ rs s a ω, Rounds t s₀ rs s ∧ ω ∈ t.2.2 s a ∧ I = streamPlay (sroundsMoves rs) a ω) ∨
+      ∃ a r s, InfRounds t s₀ a r s ∧ I = sroundsPlay a r :=
+  mem_inf_iff_of_storeDet (storeDet_of_det ht)
 
 end Silmaril.Games.Abstract.StratSession

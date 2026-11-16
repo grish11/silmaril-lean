@@ -10,8 +10,12 @@ public import Silmaril.Games.Abstract.StratThread.Thms
   session rounds (`preimage_sroundMoves`).
 * Completed session rounds (`mem_srounds`), through `StratThread.mem_append_rounds` and
   `StratThread.mem_trap`.
+* Plays after completed session rounds (`preimage_append_srounds`): a preimage is a play after
+  completed rounds, or a plain trap ends the rounds; hence pending calls (`mem_pending`),
+  divergence (`mem_div`, `mem_div_iff`) and stream plays (`mem_inf`).
 * Injectivity of the relabelling on plays without plain traps (`eq_of_relabel_eq`).
-* Infinite plays: images of limits (`image_lim`), stream plays and round plays.
+* Infinite plays: images of limits (`image_lim`), stream plays and round plays; the trace form
+  (`mem_inf_iff`) and the store-deterministic form (`mem_inf_iff_of_storeDet`).
 -/
 
 public section
@@ -192,6 +196,127 @@ theorem mem_trap_ret {s₀ : S} {a a' : A} {c₁ c₂ : List (Call E)} {b : B} :
 
 end Rounds
 
+/-! ## Plays after completed session rounds -/
+
+section After
+
+variable {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})}
+
+theorem preimage_ask_calls {a : A} {c : List (Call E)} {w : List (Move E (sig1 A B))}
+    {l : List (Move E (sig1 A (B ⊕ PUnit.{u + 1})))}
+    (h : l.map relMove = .inr (.ask a) :: (callMoves c ++ w)) :
+    ∃ l', l = .inr (.ask a) :: (callMoves c ++ l') ∧ l'.map relMove = w := by
+  rcases l with _ | ⟨o, l⟩
+  · simp at h
+  simp only [List.map_cons, List.cons.injEq] at h
+  obtain ⟨h₁, h₂⟩ := h
+  have e₁ : o = .inr (.ask a) := by
+    rcases o with e | (_ | ⟨_, _⟩) <;> simp_all [relMove]
+  subst e₁
+  obtain ⟨l₁, l₂, rfl, h₃, h₄⟩ := List.map_eq_append_iff.1 h₂
+  obtain rfl := preimage_callMoves h₃
+  exact ⟨l₂, rfl, h₄⟩
+
+/-- A preimage of a play after completed session rounds is a play after the completed rounds of
+the store-retaining triple, or the session rounds end with a plain trap and at most a question
+follows. -/
+theorem preimage_append_srounds {s₀ : S} {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))}
+    {q : List (Move E (sig1 A B))} {p : List (Move E (sig1 A (B ⊕ PUnit.{u + 1})))}
+    (hp : p ∈ (threadT t s₀).toStrategy) (he : p.map relMove = sroundsMoves rs ++ q) :
+    (∃ s p', Rounds t s₀ rs s ∧ p = roundsMoves rs ++ p' ∧ p' ∈ (threadT t s).toStrategy ∧
+      p'.map relMove = q) ∨
+    ∃ rs' a c, rs = rs' ++ [(a, c, .inr PUnit.unit)] ∧ ∃ w, p = roundsMoves rs' ++ (trapMoves a c ++ w) ∧
+      w.map relMove = q ∧ (w = [] ∨ ∃ a', w = [.inr (.ask a')]) := by
+  induction rs generalizing s₀ p with
+  | nil => exact .inl ⟨s₀, p, .nil _, by simp [roundsMoves], hp, by simpa [sroundsMoves] using he⟩
+  | cons r rs ih =>
+    have he' : p.map relMove = sroundMoves r ++ (sroundsMoves rs ++ q) := by
+      rw [he]; simp [sroundsMoves]
+    obtain ⟨l₁, l₂, rfl, h₁, h₂⟩ := List.map_eq_append_iff.1 he'
+    rcases preimage_sroundMoves h₁ with rfl | ⟨hx, rfl⟩
+    · have hp' : roundsMoves [r] ++ l₂ ∈ (threadT t s₀).toStrategy := by
+        simpa [roundsMoves] using hp
+      obtain ⟨s₁, hs₁, hl₂⟩ := mem_append_rounds.1 hp'
+      have hr : (r.2.1, End.ret r.2.2 s₁) ∈ t.1 s₀ r.1 := by
+        cases hs₁ with | cons hr hn => cases hn; exact hr
+      rcases ih hl₂ h₂ with ⟨s, p', hs, rfl, hp'', hq⟩ | ⟨rs', a, c, rfl, w, rfl, hw, hw'⟩
+      · exact .inl ⟨s, p', .cons hr hs, by simp [roundsMoves], hp'', hq⟩
+      · exact .inr ⟨r :: rs', a, c, rfl, w, by simp [roundsMoves], hw, hw'⟩
+    · have hp' : roundsMoves [] ++ (trapMoves r.1 r.2.1 ++ l₂) ∈ (threadT t s₀).toStrategy := by
+        simpa [roundsMoves] using hp
+      obtain ⟨-, hl⟩ := mem_trap.1 hp'
+      rcases rs with _ | ⟨r', rs⟩
+      · obtain ⟨a, c, x⟩ := r
+        simp only at hx
+        subst hx
+        exact .inr ⟨[], a, c, rfl, l₂, by simp [roundsMoves], by simpa [sroundsMoves] using h₂, hl⟩
+      · exfalso
+        rcases hl with rfl | ⟨a', rfl⟩ <;> simp [sroundsMoves, sroundMoves, relMove] at h₂
+
+theorem mem_pending {s₀ : S} {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} {a : A}
+    {c : List (Call E)} {m : E.Op} :
+    sroundsMoves rs ++ .inr (.ask a) :: (callMoves c ++ [.inl (.ask m)]) ∈
+      (threadS t s₀).toStrategy ↔ ∃ s, Rounds t s₀ rs s ∧ (c, m) ∈ satP t s a := by
+  constructor
+  · rintro ⟨p, hp, he⟩
+    rcases preimage_append_srounds hp he with ⟨s, p', hs, rfl, hp', hq⟩ | ⟨-, -, -, -, w, -, hw, hw'⟩
+    · obtain ⟨l', rfl, hl'⟩ := preimage_ask_calls hq
+      obtain ⟨o, rfl⟩ : ∃ o, l' = [o] := by
+        rcases l' with _ | ⟨o, _ | _⟩ <;> simp at hl' ⊢
+      have ho : o = .inl (.ask m) := by
+        rcases o with e | (_ | ⟨_, _⟩) <;> simp_all [relMove]
+      subst ho
+      obtain ⟨s', hs', hP⟩ := (StratThread.mem_pending (t := t) (s₀ := s) (rs := [])).1
+        (by simpa [roundsMoves] using hp')
+      cases hs'
+      exact ⟨s, hs, hP⟩
+    · exfalso
+      rcases hw' with rfl | ⟨a', rfl⟩ <;> simp [relMove] at hw
+  · rintro ⟨s, hs, hP⟩
+    exact ⟨_, StratThread.mem_pending.2 ⟨s, hs, hP⟩,
+      by simp [map_roundsMoves, map_callMoves, relMove]⟩
+
+theorem mem_div {s₀ : S} {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} {a : A}
+    {c : List (Call E)} :
+    sroundsMoves rs ++ .inr (.ask a) :: callMoves c ∈ (threadS t s₀).div ↔
+      ∃ s, Rounds t s₀ rs s ∧ (c, .div) ∈ t.1 s a := by
+  constructor
+  · rintro ⟨p, hp, he⟩
+    rcases preimage_append_srounds ((threadT t s₀).div_mem hp) he with
+      ⟨s, p', -, rfl, -, hq⟩ | ⟨rs', a', c', -, w, rfl, hw, hw'⟩
+    · obtain ⟨l', rfl, hl'⟩ := preimage_ask_calls (w := []) (by simpa using hq)
+      obtain rfl : l' = [] := by simpa using hl'
+      exact StratThread.mem_div.1 (by simpa using hp)
+    · exfalso
+      rcases hw' with rfl | ⟨a'', rfl⟩
+      · simp at hw
+      · obtain ⟨s, a₁, c₁, h, -⟩ := hp
+        rw [show roundsMoves rs' ++ (trapMoves a' c' ++ [.inr (.ask a'')]) =
+            (roundsMoves rs' ++ .inr (.ask a') :: callMoves c') ++
+              [.inr (.ans a' (.inr PUnit.unit))] ++ [.inr (.ask a'')] by simp [trapMoves]] at h
+        obtain ⟨y, h₁, h₂⟩ := h.of_append
+        obtain ⟨z, -, h₃⟩ := h₁.of_append
+        cases h₂ with
+        | cons h₄ h₅ =>
+          cases h₅
+          cases h₄
+          cases h₃ with
+          | cons h₆ h₇ => cases h₇; cases h₆
+  · rintro ⟨s, hs, hd⟩
+    exact ⟨_, StratThread.mem_div.2 ⟨s, hs, hd⟩, by simp [map_roundsMoves, map_callMoves, relMove]⟩
+
+theorem mem_div_iff {s₀ : S} {p : List (Move E (sig1 A B))} :
+    p ∈ (threadS t s₀).div ↔ ∃ rs s a c, Rounds t s₀ rs s ∧ (c, .div) ∈ t.1 s a ∧
+      p = sroundsMoves rs ++ .inr (.ask a) :: callMoves c := by
+  constructor
+  · rintro ⟨p', hp', rfl⟩
+    obtain ⟨rs, s, a, c, hrs, hd, rfl⟩ := StratThread.mem_div_iff.1 hp'
+    exact ⟨rs, s, a, c, hrs, hd, by simp [map_roundsMoves, map_callMoves, relMove]⟩
+  · rintro ⟨rs, s, a, c, hrs, hd, rfl⟩
+    exact mem_div.2 ⟨s, hrs, hd⟩
+
+end After
+
 /-! ## Injectivity on plays without plain traps -/
 
 section Inj
@@ -326,6 +451,85 @@ theorem mem_inf_iff_of_storeDet (ht : StoreDet t) {I : Set (List (Move E (sig1 A
     · exact ⟨_, streamPlay_mem (run_idle_iff.2 ⟨rs, rfl, hrs⟩) hω,
         by rw [image_streamPlay, map_roundsMoves]⟩
     · exact ⟨_, hr.mem_inf, (image_roundsPlay a r).symm⟩
+
+theorem mem_inf_iff {I : Set (List (Move E (sig1 A B)))} :
+    I ∈ (threadS t s₀).inf ↔
+      (∃ rs s a ω, Rounds t s₀ rs s ∧ ω ∈ t.2.2 s a ∧ I = streamPlay (sroundsMoves rs) a ω) ∨
+      ∃ a r, I = sroundsPlay a r ∧ ∀ k, ∃ s, Rounds t s₀ (streamTake (fun i => (a i, r i)) k) s := by
+  constructor
+  · rintro ⟨J, hJ, rfl⟩
+    rcases StratThread.mem_inf_iff.1 hJ with ⟨pre, s, a, ω, hpre, hω, rfl⟩ | ⟨a, r, rfl, hr⟩
+    · obtain ⟨rs, rfl, hrs⟩ := run_idle_iff.1 hpre
+      exact .inl ⟨rs, s, a, ω, hrs, hω, by rw [image_streamPlay, map_roundsMoves]⟩
+    · exact .inr ⟨a, r, image_roundsPlay a r, hr⟩
+  · rintro (⟨rs, s, a, ω, hrs, hω, rfl⟩ | ⟨a, r, rfl, hr⟩)
+    · exact ⟨_, streamPlay_mem (run_idle_iff.2 ⟨rs, rfl, hrs⟩) hω,
+        by rw [image_streamPlay, map_roundsMoves]⟩
+    · exact ⟨_, roundsPlay_mem hr, (image_roundsPlay a r).symm⟩
+
+theorem length_callMoves {F : Sig.{u}} (c : List (Call E)) :
+    (callMoves c : List (Move E F)).length = 2 * c.length := by
+  induction c with
+  | nil => rfl
+  | cons x c ih =>
+    simp only [callMoves, List.flatMap_cons, List.length_append] at ih ⊢
+    rw [ih]; simp; omega
+
+theorem streamTake_prefix_succ {α : Type u} (ω : ℕ → α) (k : ℕ) :
+    streamTake ω k <+: streamTake ω (k + 1) := by
+  have h : streamTake ω k = (streamTake ω (k + 1)).take k :=
+    List.ext_getElem (by simp [streamTake]) fun i h₁ h₂ => by
+      simp only [streamTake, List.getElem_take, List.getElem_ofFn]
+  rw [h]
+  exact List.take_prefix _ _
+
+theorem mem_inf {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} {a : A}
+    {ω : ℕ → Call E} :
+    streamPlay (sroundsMoves rs) a ω ∈ (threadS t s₀).inf ↔
+      ∃ s, Rounds t s₀ rs s ∧ ω ∈ t.2.2 s a := by
+  constructor
+  · rintro ⟨J, hJ, hJe⟩
+    have hJI := (threadT t s₀).inf_isInf hJ
+    have hX : ∀ k, roundsMoves rs ++ .inr (.ask a) :: callMoves (streamTake ω (k + 1)) ∈ J := by
+      intro k
+      have hm : sroundsMoves rs ++ .inr (.ask a) :: callMoves (streamTake ω (k + 1)) ∈
+          List.map relMove '' J := by
+        rw [← hJe]; exact ⟨k + 1, List.prefix_refl _⟩
+      obtain ⟨p, hp, he⟩ := hm
+      rcases preimage_append_srounds ((threadT t s₀).inf_sub hJ hp) he with
+        ⟨s, p', -, rfl, -, hq⟩ | ⟨-, -, -, -, w, -, hw, hw'⟩
+      · obtain ⟨l', rfl, hl'⟩ := preimage_ask_calls (w := []) (by simpa using hq)
+        obtain rfl : l' = [] := by simpa using hl'
+        simpa using hp
+      · exfalso
+        rcases hw' with rfl | ⟨a', rfl⟩ <;>
+          simp [relMove, callMoves, streamTake, List.ofFn_succ] at hw
+    have hlen : ∀ k, (roundsMoves rs ++ .inr (.ask a) ::
+        callMoves (streamTake ω k) : List (Move E (sig1 A (B ⊕ PUnit)))).length =
+        (sroundsMoves rs ++ .inr (.ask a) ::
+          callMoves (streamTake ω k) : List (Move E (sig1 A B))).length := fun k => by
+      rw [← map_roundsMoves]; simp [length_callMoves]
+    have hJs : J = streamPlay (roundsMoves rs) a ω := by
+      ext q
+      constructor
+      · intro hq
+        obtain ⟨k, hk⟩ : q.map relMove ∈ streamPlay (sroundsMoves rs) a ω := hJe ▸ ⟨q, hq, rfl⟩
+        rcases hJI.total hq (hX k) with h | h
+        · exact ⟨k + 1, h⟩
+        · exfalso
+          have h₁ := h.length_le
+          have h₂ := hk.length_le
+          have h₃ := hlen k
+          simp [length_callMoves, streamTake] at h₁ h₂ h₃
+          omega
+      · rintro ⟨k, hk⟩
+        refine hJI.of_prefix (hX k) (hk.trans ?_)
+        obtain ⟨d, hd⟩ := streamTake_prefix_succ ω k
+        rw [← hd]
+        simp [callMoves]
+    exact StratThread.mem_inf.1 (hJs ▸ hJ)
+  · rintro ⟨s, hs, hω⟩
+    exact ⟨_, StratThread.mem_inf.2 ⟨s, hs, hω⟩, by rw [image_streamPlay, map_roundsMoves]⟩
 
 end Inf
 
