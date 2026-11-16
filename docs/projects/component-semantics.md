@@ -198,6 +198,7 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Exact `div`/`inf` of `atSizes`; `ext`; per-layer `Comp.denD` | `DWiringLaws.chatter_iff`, `div_atSizes_iff`, `inf_atSizes_iff`, `div_ext`, `inf_ext`, `div_denD`, `div_dcoreNode`, `div_node_inst` | none | #743 |
 | Chatter of a composite; closed-form `ext` chatter | `DStrategy.InfInteraction.chatter_iff`, `div_comp_eq`, `chatter_comp_right_iff`/`left_iff`, `chatter_extTop_iff`, `div_ext_eq` | none | #747 |
 | Pending plays of a threaded loop with a total body; iteration preserves totality | `SessionIter3.total_iterT`, `mem_satP_iterS_of_total`, `mem_pending_iterS_of_total`, `satP_iterS_subset` (no hypothesis) | `Total t` | #748 |
+| Literal associativity and units of linking; coherence | `SessionLinkAssoc.linkS_assoc` (no hypotheses), `linkS_idS`, `idS_linkS` (after `sat`/`dropTrap`), `linkS_idS_eq_iff`, `idS_linkS_eq_iff`; `SessionLinkCoh.linkS_mapStore_left/right`, `mapStore_trans`, `linkS_assoc4_two`/`three` (pentagon), `linkS_linkS_idS` (triangle) | none (bare unit forms: `NoPlainTrap`, `Saturated`) | #751, #753 |
 
 ### Counterexamples (why a hypothesis cannot be dropped)
 
@@ -216,12 +217,12 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Uniformity along infinitely-branching silent maps | `FullFun.not_iter_uniform_infinite` | finite branching (`iter_uniform_silent_finite`) |
 | Prefix-limit threading is coherent | `StratThreadW.threadW_ne_threadT`, `exists_inf_not_witnessed` | witness threading `threadW`/`threadSW` |
 | Call prefixes of `iterS` without totality | `SessionIter3.not_contSatP_subset` | `Total t` (`mem_satP_iterS_of_total`) |
+| Bare unit laws of linking | `SessionLinkAssoc.linkS_trapT_idS_ne`, `idS_linkS_callDivT_ne` | `linkS_idS`/`idS_linkS` after `sat` and `dropTrap` |
 
 ### Open (classified)
 
 | Gap | Kind | Notes |
 |---|---|---|
-| Associativity and units as literal triple equalities | in progress | proved at strategy level and as `ObsEq` (#727) |
 | `ext` chatter read directly as interleaved `D`/`N` plays (through `splitH`) | refinement | closed form via `chatter_extTop_iff` done (#747); three-way plays-level forms are not possible as such (the interleaving is not determined by the plays) |
 | n-module linking; `Linked2.compTripleS` vs `linkS (instTripleS A) (instTripleS B)` | concrete (0e76ca84), accepted on #207 | `Linked2` finite/div/inf adequacy and `compSession_inj_full` are on main (0e76ca84) |
 | Component injection for linked components with imports | concrete (0e76ca84) | #680 covers simple components without imports |
