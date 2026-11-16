@@ -6,7 +6,7 @@ public import Silmaril.Wasm.Abstract.HostClosingInfXP.Thms
 public import Silmaril.Games.Abstract.StratHost.Thms
 public import Silmaril.Games.Abstract.StratOps.Thms
 import Silmaril.Proofs.Wasm.Abstract.OpenStrat.Basic
-import Silmaril.Proofs.Wasm.Abstract.OpenStrat.SatXP
+import Silmaril.Proofs.Wasm.Abstract.OpenStrat.Sat
 
 /-!
 # The open, host-independent native strategy of invocations: theorems
@@ -31,8 +31,10 @@ open triple is a pending call, so `toDStrat` erases nothing and reads the triple
   productive stream (`wasmEvInfNXP`) are pending calls of `wasmEvPendXP`;
 * `readback_openStratXP_eq`, `toDStrat_eq_openStratXP_iff`: the readback of `openStratXP` is
   `openTripleXP` itself, the only admissible triple with that play object.
+* `openTriple_admissible`, `readback_openStrat_eq`, `toDStrat_eq_openStrat_iff`: the same for
+  the exception-free `openTriple` (`wasmEvFun`, `wasmEvPend`, `wasmEvFunD`, `wasmEvInfN`).
 
-Proof (`Silmaril.Proofs.Wasm.Abstract.OpenStrat.SatShape`, `SatXP`): at the level of shapes, a
+Proof (`Silmaril.Proofs.Wasm.Abstract.OpenStrat.SatShape`, `SatXP`, `Sat`): at the level of shapes, a
 predicate `P x c e` closed under the calls of every open behaviour (an import call is pending after
 its resolved prefix; an internal call passes its callee's pending calls to the caller) contains the
 call prefixes of `close`, of descent paths and chains, of `closeDLog` and of `closeInfL`, when the
@@ -40,7 +42,8 @@ logs of the local divergence and the prefixes of the local streams are closed in
 `PendLXP` these are descents (`reachLXP_of_descends`) and reaches: every logged call of a logged
 local divergence (`LogDivXP`) and of a productive run within a function (`InfLXP`) is reached after
 the calls before it. A prefix of a pending call is pending by induction on `PendLXP`, a descent's
-prefix being the prefix of a run cutting the reached call (`reachLXP_cut`).
+prefix being the prefix of a run cutting the reached call (`reachLXP_cut`). Natively the same,
+with `PendL`, `LogDiv`, `InfL`, and the reached call answered by an exception (`reachL_throw`).
 
 **The fixed-host strategies are host restrictions** (`StratHost.hostRestrict`):
 
@@ -183,6 +186,22 @@ theorem toDStrat_eq_openStratXP_iff
     {t : ObsTriple (wasmHostSig H) (Store H) (Nat × List Val) (List Val ⊕ Nat)}
     (ht : StratObs.Admissible t) : StratObs.toDStrat t = openStratXP ↔ t = openTripleXP :=
   ⟨fun h => StratObs.toDStrat_injective ht openTripleXP_admissible h, fun h => h ▸ rfl⟩
+
+/-- **The exception-free open triple is admissible.** -/
+theorem openTriple_admissible : StratObs.Admissible (openTriple (H := H)) :=
+  StratObs.saturated_iff.2 <| funext fun s => funext fun p =>
+    Set.Subset.antisymm (Silmaril.Proofs.Wasm.Abstract.OpenStrat.satP_openTriple_le s p)
+      fun _ h => .inl h
+
+/-- **The readback of the exception-free open strategy is the open triple.** -/
+theorem readback_openStrat_eq : StratOps.readback (openStrat (H := H)) = openTriple :=
+  (StratOps.readback_toDStrat _).trans openTriple_admissible
+
+/-- **`toDStrat` is injective at `openTriple`.** -/
+theorem toDStrat_eq_openStrat_iff
+    {t : ObsTriple (wasmHostSig H) (Store H) (Nat × List Val) (List Val ⊕ Nat)}
+    (ht : StratObs.Admissible t) : StratObs.toDStrat t = openStrat ↔ t = openTriple :=
+  ⟨fun h => StratObs.toDStrat_injective ht openTriple_admissible h, fun h => h ▸ rfl⟩
 
 /-! ## The fixed-host strategies are host restrictions -/
 
