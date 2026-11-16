@@ -203,6 +203,8 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Generic pull of strategies along a move map | `Games.DPull`: `PullData`, `DStrategy.pull`, `toStrategy_pull`, `mem_div_pull`, `mem_inf_pull`, `pull_id`, `pull_comp` | `PullData f pf` | #762 |
 | Host hiding for sessions (host imports beside component imports) | `SessionHost.hostDOn`, `hostLinkS`, `pair_comp_threadS`, `pair_comp_threadS_of_det`, `pair_comp_threadS_empty` | `StoreDet (hostLinkS R t)` (no `NoPlainTrap`) | #765 |
 | Environment extension of sessions (`Comp.denU`'s `ext`) | `SessionRoute.threadS_comp_callH`, `SessionExt.extS_threadS`, `AnsPull.ofHandler_ansH_comp_pair`, `comp_ansH_comp_ansH_comp`; `ExtSessionFull.ext_threadS` (full, on `sigU`) | `NoPlainTrap`, `RetDet` | #766, #769 |
+| Wiring-induced (hidden out-of-range) divergence classified; trap propagation excludes it | `OutOfRange.wiring_divergence` (counterexample), `no_wiring_divergence`, `div_denD_eq` (outer layer, no hypothesis), `div_ext_maskH`, `div_denD_single`; `SessionTrap.TrapAbortsRound`, `threadS_trapAborting` | `TrapPropagating` | #777 |
+| Native Wasm sessions abort the round on a host trap | `ModuleTrap.close_trapAborts`; `HostTrapS.evalLXPS_trapLast`, `sessionTripleXP_trapAbortsRound`, `threadS_sessionTripleXP_trapAbortsBelow` | none | #779 |
 
 ### Counterexamples (why a hypothesis cannot be dropped)
 
@@ -223,6 +225,7 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Call prefixes of `iterS` without totality | `SessionIter3.not_contSatP_subset` | `Total t` (`mem_satP_iterS_of_total`) |
 | Bare unit laws of linking | `SessionLinkAssoc.linkS_trapT_idS_ne`, `idS_linkS_callDivT_ne` | `linkS_idS`/`idS_linkS` after `sat` and `dropTrap` |
 | `pair_comp_threadS` without `StoreDet (hostLinkS R t)`; `StoreDet t` as a replacement | `SessionHostCex.threadS_inf_not_subset_pair_comp`, `not_pair_comp_threadS_of_storeDet` (deterministic component, non-functional host) | `StoreDet (hostLinkS R t)`, or a functional host and `AFun.Det t.1` (`pair_comp_threadS_of_det`) |
+| Wiring creates no divergence of its own (hidden out-of-range calls answered `none` with no visible move) | `OutOfRange.wiring_divergence` (`spinS`: `σ.div = ∅`, yet `atSizes` diverges); not a Wasm trap | `TrapPropagating σ` (`no_wiring_divergence`), which native Wasm sessions satisfy (#779) |
 
 ### Open (classified)
 
@@ -231,6 +234,8 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Three-way plays-level form for nested composites | not possible as stated | the interleaving of outer moves is not determined by the components' plays; the two-way forms `inf_comp_eq`, `chatter_iff` are proved |
 | n-module linking; `Linked2.compTripleS` vs `linkS (instTripleS A) (instTripleS B)` | concrete (0e76ca84), accepted on #207 | `Linked2` finite/div/inf adequacy and `compSession_inj_full` are on main (0e76ca84) |
 | Component injection for linked components with imports | concrete (0e76ca84) | #680 covers simple components without imports |
+| Closed-form full observation law for multi-node `Comp.denD` | in progress | outer layer exact (`div_denD_eq`); one node exact (`div_denD_single`); inter-node chatter (`ExtChatter`) remains per layer |
+| Bridge from the native session triple over `wasmHostSig` to a component-node session over `sigS` | concrete (0e76ca84) | `DCoreSem` is abstract; trap propagation is proved for the native triple (#779) |
 
 ## Servers seam (stage 10)
 
