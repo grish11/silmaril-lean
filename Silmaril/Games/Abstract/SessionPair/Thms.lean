@@ -5,6 +5,7 @@ public import Silmaril.Games.Abstract.StratSession.Thms
 public import Silmaril.Games.DPair.Defs
 import Silmaril.Proofs.Games.Abstract.SessionPair.Basic
 import Silmaril.Proofs.Games.Abstract.SessionPair.Plays
+import Silmaril.Proofs.Games.Abstract.SessionPair.Inf
 
 /-!
 # Pairing sessions: theorems
@@ -23,7 +24,16 @@ along the injective relabelling `pairMove` (`pairMove_injective`):
   (`mem_pair_threadS_iff`), and every play of the paired session is a relabelled play
   (`exists_map_pairMove`);
 * divergence: `q` diverges in the pairing iff `q.map pairMove` diverges in the paired session
-  (`mem_div_pair_threadS_iff`).
+  (`mem_div_pair_threadS_iff`);
+* infinite plays: `J` is an infinite play of the pairing iff `List.map pairMove '' J` is an
+  infinite play of the paired session (`mem_inf_pair_threadS_iff`), and every infinite play of the
+  paired session is such an image (`exists_image_pairMove`).
+
+Infinite plays of a threading either return to idle infinitely often, which transfers along the
+automaton simulation, or end in a productive stream after an idle run. For the stream, the last
+idle point of the pairing splits the play: the side asked next receives every later move, all of
+them calls, so its projection is the component's stream after the half of the last idle point,
+while the other projection is bounded.
 
 The proof relates the threading automata (`StratThread.TSt`): the paired automaton is idle at
 `(s₁, s₂)` when both components are idle at `s₁` and `s₂`, and runs a left question when the left
@@ -115,5 +125,19 @@ theorem mem_div_pair_threadS_iff (h₁ : NoPlainTrap t₁) (h₂ : NoPlainTrap t
     q ∈ ((threadS t₁ s₁).pair (threadS t₂ s₂)).div ↔
       q.map pairMove ∈ (threadS (pairS t₁ t₂) (s₁, s₂)).div :=
   Silmaril.Proofs.Games.Abstract.SessionPair.mem_div_pair_iff h₁ h₂
+
+/-- **The infinite plays of the pairing of two sessions** are the relabelled infinite plays of the
+paired session. -/
+theorem mem_inf_pair_threadS_iff (h₁ : NoPlainTrap t₁) (h₂ : NoPlainTrap t₂)
+    {J : Set (List (Move E (sig1 A₁ B₁ ⊕ₛ sig1 A₂ B₂)))} :
+    J ∈ ((threadS t₁ s₁).pair (threadS t₂ s₂)).inf ↔
+      List.map pairMove '' J ∈ (threadS (pairS t₁ t₂) (s₁, s₂)).inf :=
+  Silmaril.Proofs.Games.Abstract.SessionPair.mem_inf_pair_iff h₁ h₂
+
+/-- Every infinite play of the paired session is a relabelling. -/
+theorem exists_image_pairMove {K : Set (List (Move E (sig1 (A₁ ⊕ A₂) (B₁ ⊕ B₂))))}
+    (hK : K ∈ (threadS (pairS t₁ t₂) (s₁, s₂)).inf) :
+    ∃ J : Set (List (Move E (sig1 A₁ B₁ ⊕ₛ sig1 A₂ B₂))), K = List.map pairMove '' J :=
+  Silmaril.Proofs.Games.Abstract.SessionPair.exists_image_pairMove hK
 
 end Silmaril.Games.Abstract.StratSession
