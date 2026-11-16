@@ -7,6 +7,11 @@ about them as ordinary project problems, answered by Lean proofs. It reuses the 
 problems, instances, answers and statuses (`@[answers "N" thm|sat|uns|csa]`); nothing here
 adds a status or a tag.
 
+This page is the presentation and roadmap of the consequence-system work; the core API
+(`System`, `WSystem`, `Sound`, `Complete`, `pullback`, `Translation`, consistency notions) is
+described in [consequence.md](consequence.md), and checkers and SZS protocols in
+[consequence-protocols.md](consequence-protocols.md).
+
 | Piece | Where |
 | --- | --- |
 | Record kind `consequence_system` | `Silmaril.Project.Registry.Consequence.Defs` |
@@ -72,7 +77,8 @@ once).
 | `translates_at S T f g Γ φ` | `S Γ φ → T (f Γ) (g φ)` | `S ≤ T.pullback f g`: the translation preserves consequence | | | a consequence not preserved |
 | `reflects_at S T f g Γ φ` | `T (f Γ) (g φ) → S Γ φ` | `T.pullback f g ≤ S`: the translation reflects consequence | | | a translated consequence not reflected |
 
-(all named `silmaril.shapes.consequence.<shape>`; with `Γ` fixed, `context_universal` is
+(all named `silmaril.shapes.consequence.<shape>`; THM of `translates_at S T f g` is exactly
+what the core's `Translation S T` with maps `ax := f`, `c := g` needs as its `sound` field; with `Γ` fixed, `context_universal` is
 `S.ProvesAll Γ`, and `derives_bottom` is `S.ProvesFalse ff Γ`, its refutation
 `S.ConsistentWrt ff Γ`.)
 
@@ -135,6 +141,20 @@ The browser test runs on a built site (`make project-check` writes the database;
 ```sh
 node tools/silmaril-project/tests/explore/systems.mjs SITE_DIR [SHOTS_DIR]
 ```
+
+## Roadmap
+
+| Track | Owns | Status |
+| --- | --- | --- |
+| Core | `Silmaril/Logic/Consequence/{Defs,Thms,Translation,Ax,Semantic}` ([consequence.md](consequence.md)) | on main |
+| Structural derivations | `Silmaril/Logic/Consequence/Structural/…`, `Gentzen`, closures under structural rules | on main; Gentzen examples registered here |
+| Checkers and SZS protocols | [consequence-protocols.md](consequence-protocols.md) | on main |
+| Registry and explorer | this page: `consequence_system`, `silmaril.shapes.consequence.*`, tables, the Systems page, fixtures | this page |
+
+Next fixtures register what the other tracks prove, with their theorems as answers: the
+multiple-conclusion `litMulti` judgements (`Silmaril.Logic.Consequence.Multi`, a
+`MultiSystem` is a `System` over lists, so no new command is needed). A Wasm-backed system
+appears here only once its bytes are a registered artifact with a registered interpretation.
 
 ## Not yet here
 
