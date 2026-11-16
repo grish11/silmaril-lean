@@ -176,6 +176,19 @@ configuration as a system, or returns `none`.
   - The bytes of `EmptyCheck` give `some ⊥`, a verified empty system (`coreBytesInterp_empty`).
   - Bytes that do not decode give `none`, which is not a system (`coreBytesInterp_nil`).
 
+## Coverage of the signed protocols
+
+`Silmaril.Wasi.Component.Consequence.Signed.Matrix.{Defs,Examples}` has one cell per variant (12
+in all). Each cell names its reading and theorems as checked names, what the evidence rests on
+(`definitions`, `specStrategy` or `execution`) and how strong it is (`exact`, `sound`,
+`boundedComplete` or `laws`):
+
+- **Specification strategies (2):** the batch emitter (call boundary, no reset) and the signed
+  identity checker, both exact.
+- **Core execution (2):** `MemberCheck`, bounded-complete; `EmptyCheck`, exact.
+- **Definitions with general laws (8):** the other batch variants, the plain two-list check and
+  the four assume/assert variants.
+
 ## Scope and gaps
 
 - No compiled component binary implements any protocol. The catalog's `compiledComponent` shape
