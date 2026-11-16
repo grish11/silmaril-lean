@@ -387,8 +387,11 @@ Explorer.registerSection({
 ```
 
 Subjects: `artifact` is `{ kind, cid, sid, name, type, sha256, size }`. `wasm-component` and
-`wasm-module` are `{ kind, slug, title, cid, sha256, name, path }`, the registered blob (`cid`
-is null for an embedded module). Sections render after the page's identity block. One that throws
+`wasm-module` are `{ kind, slug, title, cid, cidVia, sha256, name, path }`, the registered blob
+(`cid` is null for an embedded module). A module that wasm-pages built from a Lean value has no
+CID, only the SHA-256 of its encoded bytes. When exactly one registered artifact has that SHA-256,
+its CID becomes the subject's, with `cidVia: "sha256"`. Registrations keyed by CID, such as a
+language under an interpretation (`op := artifact`), then show on the module's page. Sections render after the page's identity block. One that throws
 shows its error in its own block, and the page still renders. If the route or the database changes
 while a section renders, that is not caught: it goes to the router like any query of the view. Link
 a language with `Explorer.ui.href("languages", key)`.

@@ -88,8 +88,9 @@ window.addEventListener("unhandledrejection", (e) => { if (e.reason instanceof S
 // Sections render in `order`, then by id, after the page's identity block (name, source, files).
 const SECTION_SUBJECTS = {
   artifact: "{ kind: 'artifact', cid, sid, name, type, sha256, size }",
-  "wasm-component": "{ kind: 'wasm-component', slug, title, cid, sha256, name, path } (cid etc. of the registered blob, or null for an embedded one)",
-  "wasm-module": "{ kind: 'wasm-module', slug, title, cid, sha256, name, path } (as for components)",
+  "wasm-component": "{ kind: 'wasm-component', slug, title, cid, cidVia, sha256, name, path } (the registered blob; cid null for an embedded one; " +
+    "cidVia 'sha256' when a Lean-built module's SHA-256 is exactly that of one registered artifact)",
+  "wasm-module": "{ kind: 'wasm-module', slug, title, cid, cidVia, sha256, name, path } (as for components)",
 };
 const SECTIONS = [];
 function registerSection(sec) {

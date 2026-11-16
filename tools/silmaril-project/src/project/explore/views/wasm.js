@@ -102,10 +102,20 @@ async function wasmPage() {
   };
   return { html: h, init, dispose: disposeWcy };
 }
-// The registered blob behind a Wasm page, for sections (null fields for an embedded one).
-function wasmSubject(s) {
+// The registered blob behind a Wasm page, for sections (null fields for an embedded one). A page
+// built from a Lean value (wasm-pages' Lean examples) has no CID, only the SHA-256 of its encoded
+// bytes: when the registry has an artifact with exactly that SHA-256, its CID is the subject's
+// (`cidVia: "sha256"`), so registrations about those bytes (e.g. a language under an
+// interpretation, keyed by CID) show on the module's page too. Nothing is inferred otherwise.
+async function wasmSubject(s, ctx) {
   const src = s.source || {};
-  return { slug: s.slug, title: s.title, cid: src.cid || null, sha256: src.sha256 || null, name: src.name || null, path: src.path || null };
+  const out = { slug: s.slug, title: s.title, cid: src.cid || null, cidVia: src.cid ? "page" : null,
+    sha256: src.sha256 || null, name: src.name || null, path: src.path || null };
+  if (!out.cid && out.sha256 && /^[0-9a-f]{64}$/.test(out.sha256)) {
+    const a = (await ctx.tq("artifacts", "SELECT cid FROM artifacts WHERE sha256 = ? LIMIT 2", [out.sha256]));
+    if (a.length === 1) Object.assign(out, { cid: a[0].cid, cidVia: "sha256" });
+  }
+  return out;
 }
 async function wasmComponentPage(slug, ctx) {
   let c, ix;
@@ -114,7 +124,7 @@ async function wasmComponentPage(slug, ctx) {
   let h = `<h2>${kindTag("component")} <code>${esc(s.title)}</code></h2>`;
   h += crumbs(ix, s.source.parent);
   h += sourceDl(s.source, s.size) + filesBlock(s.slug, c);
-  h += await sections("wasm-component", wasmSubject(s), ctx);
+  h += await sections("wasm-component", await wasmSubject(s, ctx), ctx);
   if (c.unsupported) return { html: h + `<p class="err">Unsupported: ${esc(c.unsupported)}</p>`, init: () => wireSha(s.slug) };
   h += `<p class="muted">Decoded by <code>Silmaril.Wasm.Component.Binary.parse</code> ${runBadge()}.</p>`;
   if (c.validity) h += `<p>component validation: <b>${esc(c.validity.status)}</b> ${runBadge()} <span class="muted">${esc(c.validity.note)}</span></p>`;
@@ -192,7 +202,7 @@ async function wasmModulePage(slug, ctx) {
   let h = `<h2>${kindTag("core module")} <code>${esc(s.title)}</code></h2>`;
   h += crumbs(ix, s.source.parent);
   h += sourceDl(s.source, s.size) + filesBlock(s.slug, m);
-  h += await sections("wasm-module", wasmSubject(s), ctx);
+  h += await sections("wasm-module", await wasmSubject(s, ctx), ctx);
   if (m.unsupported) return { html: h + `<p class="err">Unsupported: ${esc(m.unsupported)}</p>`, init: () => wireSha(s.slug) };
   const v = m.validity;
   h += `<p>validation: <b>${esc(v.status)}</b> ${v.status === "valid" || v.status === "rejected" ? runBadge(v.note) : `<span class="muted">${esc(v.note)}</span>`}</p>`;
