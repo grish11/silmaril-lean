@@ -137,7 +137,11 @@ registered as `wasm.core.seq` (partial, `Env = CoreConfig`), and
 certificates); `member_check` sound for single-succedent membership (every host set) and complete
 for it within `Γ.length + 1 ≤ 2 ^ 32 - 1` (nonempty hosts), by the protocol theorems
 `member_sound` and `member_completeOn` applied through `coreBytesInterp_member`;
-`empty_check` **defined and empty** (`coreBytesInterp_empty`).
+`empty_check` **defined and empty** (`coreBytesInterp_empty`). The two registrations of
+`member_check.wasm` agree on single conclusions: `c ↦ [c]` translates its `wasm.core.check_rel`
+reading into its `wasm.core.seq` reading and reflects it back, by the project-side bridge
+`ConsequenceSystems.WasmSeq.coreSeq_single_iff_checkRel` (`coreSeq Profile.spec allHosts m "check"
+memberEnc Γ [c] ↔ checkRel m Γ c`, for every module).
 
 ## Typed shapes, views and the Gentzen view
 

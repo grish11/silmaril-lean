@@ -217,6 +217,7 @@ try {
   await open("/system/" + encodeURIComponent(S + "wasm_seq.member_check"));
   const wsev = await p.evaluate(() => [...document.querySelectorAll("table.system-evidence[data-standing='established'] tbody tr")].map((tr) => tr.textContent));
   check(wsev.some((t) => /single_mem/.test(t) && /\(sound\)/.test(t)) && wsev.some((t) => /≤ 2 \^ 32 - 1/.test(t)), "wasm_seq.member_check: sound and boundedly complete, established");
+  check(wsev.some((t) => /from_check_rel/.test(t)) && wsev.some((t) => /to_check_rel/.test(t)), "the coreInterp and check_rel readings of member_check.wasm agree on single conclusions");
   await shot("wasm-seq-member");
 
   // finite sets, sets and translations (structural track)
