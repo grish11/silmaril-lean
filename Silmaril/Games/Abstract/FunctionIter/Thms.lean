@@ -3,10 +3,16 @@ module
 public import Silmaril.Games.Abstract.FunctionIter.Defs
 public import Silmaril.Games.Abstract.Function.Defs
 import Silmaril.Proofs.Games.Abstract.FunctionIter.Basic
+import Silmaril.Proofs.Games.Abstract.FunctionIter.Unfold
 
 /-!
 # Iteration of abstract functions: theorems
 
+* `iter_unfold` (**the fixpoint law**): `iter f = seq f (case pure (iter f))`. One
+  iteration runs; `inl b` exits through `pure`, `inr a'` continues with `iter f`. It holds
+  with no hypothesis on `f`, for every end: a trap or divergence of the first iteration ends
+  the loop, and an infinite silent chain (`spin`) is its first iteration followed by the
+  shifted chain.
 * `iter_mono`: iteration is monotone in the loop body.
 * `iter_obsCollapse`: trap ≈ divergence is a congruence for iteration. A
   trapping iteration and a diverging one end the loop with the same collapsed
@@ -31,6 +37,10 @@ open Silmaril.Games
 universe u
 
 variable {E : Sig.{u}} {S A B : Type u}
+
+/-- **The fixpoint law**: one iteration, then exit (`inl`) or iterate again (`inr`). -/
+theorem iter_unfold (f : AFun E S A (B ⊕ A)) : iter f = seq f (case pure (iter f)) :=
+  Silmaril.Proofs.Games.Abstract.FunctionIter.iter_unfold f
 
 /-- Iteration is monotone. -/
 theorem iter_mono {f g : AFun E S A (B ⊕ A)} (h : f ≤ g) : iter f ≤ iter g :=
