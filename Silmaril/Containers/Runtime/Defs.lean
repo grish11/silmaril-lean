@@ -11,9 +11,13 @@ A **runtime model** (`Runtime I P E`) says what happens when an image `I` is sta
   flat image this is a shape (`Runtime.ofShape`); for a layered image it first flattens it
   from content stores (`Runtime.layered`);
 * `sem`: **the process semantics** (`ProcSem P E`), the runs of each program over all
-  environments. It is a parameter: a tiny program language (`Silmaril.Containers.Fixtures`), the
-  Linux process semantics of `Silmaril.Process` over an ELF image, or a Wasm host are all
-  instances, with machine and memory semantics inside them;
+  environments. It is a parameter. It may be given directly (the tiny language of
+  `Silmaril.Containers.Fixtures`) or built from a **pluggable machine semantics**
+  (`Silmaril.Containers.Mach.MachineSem`, `Runtime.ofMachine`): states with whatever memory,
+  concurrency and scheduling model the machine has, labelled steps, and undefined behaviour as
+  explicit runs. A sequential x86-64 machine with thread creation as undefined behaviour, the
+  Linux process semantics of `Silmaril.Process`, a Wasm host, and later a parallel x86-64
+  machine are instances;
 * `obs`: **what the runtime adds**: `obs b₀ b` when the runtime turns a run `b₀` of the program
   into the run `b` its environment sees. `Eq` adds nothing (`Runtime.exact`).
 

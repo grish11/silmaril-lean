@@ -37,7 +37,7 @@ theorem noop_wp : wp small (fun t c => t = [] ∧ c = 0) noop := by
   intro b hb
   replace hb := (beh_image _ _ b).1 hb
   cases hb
-  exact ⟨rfl, rfl⟩
+  exact ⟨trivial, rfl, rfl⟩
 
 theorem noop_confined : pre small (Spec.always fun e => Profile.none e.cap = true) noop := by
   intro b hb
@@ -49,19 +49,19 @@ theorem crash_wlp (post : List Ev → UInt8 → Prop) : wlp small post crash := 
   intro b hb
   replace hb := (beh_image _ _ b).1 hb
   cases hb
-  trivial
+  exact ⟨trivial, trivial⟩
 
 theorem crash_not_wp (post : List Ev → UInt8 → Prop) : ¬ wp small post crash :=
-  fun h => h _ ((beh_image _ _ _).2 rfl)
+  fun h => (h _ ((beh_image _ _ _).2 rfl)).2
 
 theorem spin_wlp (post : List Ev → UInt8 → Prop) : wlp small post spin := by
   intro b hb
   replace hb := (beh_image _ _ b).1 hb
   cases hb
-  trivial
+  exact ⟨trivial, trivial⟩
 
 theorem spin_not_wp (post : List Ev → UInt8 → Prop) : ¬ wp small post spin :=
-  fun h => h _ ((beh_image _ _ _).2 rfl)
+  fun h => (h _ ((beh_image _ _ _).2 rfl)).2
 
 theorem spin_traceRefines_noop : (small.beh spin).TraceRefines (small.beh noop) := by
   rintro u ⟨b, hb, hu⟩
@@ -82,10 +82,10 @@ theorem wp_exit0_iff (img : Flat Blob) :
   · intro h
     cases hl : small.load img with
     | error r =>
-      exact (h _ ((Runtime.beh_error hl _).2 rfl)).elim
+      exact (h _ ((Runtime.beh_error hl _).2 rfl)).2.elim
     | ok p =>
       have hrun : ∀ b, Tiny.sem p b → Spec.totalCorrect (fun t c => t = [] ∧ c = 0) b :=
-        fun b hb => h b ((Runtime.beh_ok hl b).2 ⟨b, hb, rfl⟩)
+        fun b hb => (h b ((Runtime.beh_ok hl b).2 ⟨b, hb, rfl⟩)).2
       cases p with
       | exit c => have := (hrun _ rfl).2; subst this; rfl
       | crash s => exact (hrun _ rfl).elim
@@ -95,7 +95,7 @@ theorem wp_exit0_iff (img : Flat Blob) :
   · intro hl b hb
     obtain ⟨b₀, hs, rfl⟩ := (Runtime.beh_ok hl b).1 hb
     cases hs
-    exact ⟨rfl, rfl⟩
+    exact ⟨trivial, rfl, rfl⟩
 
 /-! ## HTTP over TCP -/
 

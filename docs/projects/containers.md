@@ -20,11 +20,13 @@ theorems), **Planned** (nothing exists yet). No module uses `sorry`, `native_dec
 | Environment: events, capabilities, profiles (`none`, `stdio`, `vsockOnly`, `tcpOnly`, `udpOnly`, `networkOnly`, `networkUnix`, `readOnlyFs`), confinement, declared ports | `Containers.Env` | Proved |
 | Behaviours: stops (exit, own signal, runtime kill, refusal), blocking, silent divergence, infinite runs; safety, partial and total correctness, assumptions, fairness, determinism up to inputs, noninterference | `Containers.Behaviour` | Proved |
 | Runtime models: loader, process semantics, runtime-added behaviours; assumption strengthening, kills, enforcement | `Containers.Runtime` | Proved |
-| Preconditions: semantic `pre`, `wlp`, `wp`, sufficiency, feasibility, assertion languages, representability, concrete sufficient preconditions | `Containers.Precondition` | Proved |
+| Machine semantics (pluggable): states, labelled steps, final states; runs with undefined behaviour explicit (stuck, no initial state, task creation); task-creation requests classified by `CLONE_THREAD`/`CLONE_VM`; the sequential policy; the transfer obligation to other machines | `Containers.Machine` | Proved |
+| Preconditions: semantic `pre`; the verification precondition `vpre` (no undefined behaviour and the specification); `wlp`, `wp`; sufficiency, feasibility, assertion languages, representability, concrete sufficient preconditions | `Containers.Precondition` | Proved |
+| A minimal machine: exact runs, exact `wlp`/`wp` on contents, thread creation, `vfork`, `fork`, falling off the end, spinning | `Containers.Mini` | Proved; Checked (`Examples`) |
 | Fixtures under the small runtime model: no-op, crash, spin, HTTP over TCP, vsock compute | `Containers.Fixtures` | Proved; Checked (`Examples`) |
 | HTTP interfaces (version, transport, port), admissibility under profiles, the server platform of a runtime model, the fixture's response parsed by the verified HTTP/1.1 parser | `Containers.Http` | Proved |
 | The behaviour institution and its logic-graph registration | `Containers.Institution`, `LogicGraph.Nodes.Containers` | Proved (satisfaction condition) |
-| ELF images under the Linux process semantics; OCI octets; Nitro Enclaves; Redis; Kubernetes | — | Planned (below) |
+| A sequential x86-64 machine instance; a parallel x86-64 machine; ELF images under the Linux process semantics; OCI octets; Nitro Enclaves; Redis; Kubernetes | — | Planned (below) |
 
 **What the fixtures do and do not show.** Every fixture theorem is relative to `Fixtures.small`: a
 tiny program language whose semantics is written down directly. Nothing here runs Docker, runc or a
@@ -70,8 +72,10 @@ found by a shape, and the runtime is a parameter with its own behaviours.
 * *Contents* `C` are abstract (programs in the fixtures; octets read through the ELF API later).
 * *Shapes* (`Shape C P`, with `ShapeKind` = `static`, `dynamic`, `script`, `wasm`, `distro`) say how
   a runtime finds the program.
-* *Process semantics* (`ProcSem P E := P → Model E`) is any set-of-runs semantics; machine and memory
-  semantics live inside it (an LPS configuration over an x86-64 memory model, a Wasm store).
+* *Process semantics* (`ProcSem P E := P → Model E`) is any set-of-runs semantics. It is usually
+  built from a *machine semantics* (`Mach.MachineSem P E`, `Runtime.ofMachine`): the machine's
+  state carries its memory model, threads and scheduler, so the machine, memory and concurrency
+  model are parameters of the runtime model, not a fixed sequential executable semantics.
 * *What the runtime adds* (`obs`) is separate from the program: `Runtime.exact`, `mayKill`,
   `enforce`, `restrict`.
 * *Specifications* are predicates on runs. An abstract HTTP specification is a sentence of the
@@ -93,8 +97,60 @@ found by a shape, and the runtime is a parameter with its own behaviours.
 | Noninterference is relational | `Model.Noninterference` | `noninterference_not_trace_property`; `trace_property_not_noninterference`: memory safety, no-ACE or profile confinement (all trace properties) do not imply it |
 | Profile proved of a program vs enforced by a runtime | `Confined`, `Runtime.enforce` | `enforce_confined`, `enforce_eq_of_confined`; `Fixtures.http_enforce_vsock` |
 | A digest names content; it does not prove it | `Store.Sound`, `Store.InjOn`, `Store.checked` | `sound_checked`, `agree_of_sound` (needs binding), `digest_not_binding`; `Fixtures.Examples`: a tampered store runs the wrong program unless checked |
+| Undefined behaviour is an outcome, not an absence of runs | `Stop.undefined`, `UB`, `Mach.MachineSem.Run` (stuck, `noInit`, `clone` give runs) | `not_wlp_of_stuck`, `not_wlp_of_clone`, `not_wlp_of_noInit`; `Mini.fallOff_not_wlp` |
+| Every verification precondition excludes undefined behaviour | `vpre R φ := pre R (noUB ∧ φ)`; `wlp`, `wp` | `not_vpre_of_undefined`; `Mini.wlp_iff` (exact: `noUB ∧ partialCorrect`); `Mini.threadSpawn_partial` shows partial correctness alone holds of a thread-creating program |
+| No undefined behaviour vs termination and progress | `Spec.noUB`, `Spec.terminates` | `Spec.noUB_spins`, `Spec.terminates_undefined`; `Mini.spinForever_wlp`, `spinForever_not_wp` |
+| Refinement up to undefined behaviour is vacuous against undefined abstractions | `Model.ubClose`, `Model.RefinesUB` | `refinesUB_vacuous`, `refinesUB_of_noUB` |
+| Sequential results do not transfer to a parallel machine by themselves | `Mach.SeqAgrees` | `wlp_transfer` needs it as a hypothesis |
 | Semantic weakest preconditions vs expressible ones | `pre`, `Representable`, `Expressive`, `SufficientIn` | `pre_weakest` (semantic, always exists); expressiveness is a hypothesis (`sufficientIn_of_expressive`); `Fixtures.wp_exit0_iff` computes one exactly, `noopCheck_sufficient` is a decidable sufficient one |
 | Feasibility (no miracles) | `Feasible` | `pre_of_infeasible` |
+
+## Machines, undefined behaviour and concurrency
+
+**The machine is a parameter.** `Mach.MachineSem P E` has states, the initial states of a
+program (a relation: layout randomisation and initial memory are nondeterministic), steps labelled
+by actions (`ev e` with the environment, `tau`, `clone r` for task creation) and final states.
+`Runtime.ofMachine load M` is a runtime model over it. The runs (`MachineSem.Run`) are read from
+finite executions, as described in the module: final states give stops, a state with no step and
+no final outcome gives `undefined stuck`, a program with no initial state gives
+`undefined noInit`, and a task-creation request gives `undefined (r.ub)`. **Undefined behaviour
+always produces a run**, so it cannot make a precondition hold vacuously. Infinite runs with
+infinitely many events are the limit closure of finite executions; this can only add runs, which
+makes preconditions stronger, never weaker.
+
+**"No undefined behaviour" is part of every verification precondition.** `vpre R φ` requires
+that *every* run of the image under `R` (every admissible execution: every environment input,
+every internal choice, every runtime-added behaviour, under the runtime model's assumptions)
+has no undefined behaviour, and satisfies `φ`. `wlp` and `wp` are `vpre` of partial and total
+correctness. No undefined behaviour is a safety property of a run. It is neither termination nor
+progress: a spinning program satisfies `wlp` and not `wp`.
+
+**The first machine: threads are undefined behaviour.** The sequential policy reads a
+task-creation request by its flags (`CloneReq.kind`):
+
+| Request (x86-64 system call) | Flags | Kind | Sequential policy |
+| --- | --- | --- | --- |
+| `clone` (56) or `clone3` (435) with `CLONE_THREAD` (`0x10000`), e.g. glibc `pthread_create` (`0x3d0f00`) | contains `CLONE_THREAD` | thread | `UB.threadCreate` |
+| `vfork` (58); `clone`/`clone3` with `CLONE_VM` (`0x100`) and not `CLONE_THREAD`, e.g. glibc `posix_spawn` | contains `CLONE_VM` | shared address space | `UB.threadCreate` |
+| `fork` (57); `clone`/`clone3` with neither | neither | process | `UB.unmodeled` |
+
+The trigger is the request, not its success: `clone(CLONE_THREAD)` without `CLONE_SIGHAND` and
+`CLONE_VM`, which Linux rejects with `EINVAL`, is still classified a thread; this only rejects
+more programs. Processes are `unmodeled`, not undefined in the C sense, but the effect on
+verification is the same: no claim is made, and `wlp` fails. That an instance maps these four
+system calls, and nothing else, to `clone` actions is the instance's obligation
+(`MachineSem.ClonesExplicit`). The only instance so far, `Mini.mini`, has `clone` as an
+instruction and decodes no system calls; **no system call coverage is claimed**.
+
+**Towards a parallel x86-64 machine.** It will be another `MachineSem` with explicit threads in
+its state, a scheduler whose choices are quantified over (fairness as a stated assumption where
+liveness needs it), shared memory under x86-TSO (store buffers, `MFENCE`, `LOCK`-prefixed atomic
+read-modify-write), and whatever the machine declares undefined (`UB.memory`), with refinement
+obligations between it and the sequential machine. Transfer of a sequential result is not
+automatic: `wlp_transfer` needs `SeqAgrees` (every run of the image under the parallel runtime
+is a run under the sequential one), a theorem to be proved, for example for programs that never
+make a task-creation request, from a proof that the parallel machine restricted to one thread
+refines the sequential one.
 
 ## Nitro Enclaves
 
@@ -149,10 +205,15 @@ The obligations, in the order a proof meets them:
    and libcrypto), every undefined symbol resolved by `Lookup` in the load scope, `NoTextRelD`; then
    `ExeLoaded`. That relation transcribes glibc 2.39's `ld.so`; Debian's glibc version must match it
    or the transcription must be extended, an explicit trust gap.
-5. **Process semantics.** LPS (`Process.LPS`) for the syscalls Redis uses at startup and on its
-   request path (`socket`, `bind`, `listen`, `epoll_*`, `accept` or `accept4`, `read`, `write`, `fsync`,
-   `clock_gettime`, `getrandom`, …); syscalls LPS marks `unmodeled` become refusals of the model, not
-   silent successes.
+5. **Machine and process semantics.** A `MachineSem` instance from LPS (`Process.LPS`) for the
+   syscalls Redis uses at startup and on its request path (`socket`, `bind`, `listen`, `epoll_*`, `accept` or `accept4`, `read`, `write`, `fsync`,
+   `clock_gettime`, `getrandom`, …). LPS's `error unmodeled` becomes `UB.unmodeled`, a stuck LPS
+   state `UB.stuck`, and `clone`/`clone3`/`fork`/`vfork` become `clone` actions, so they are excluded
+   by every `wlp`, never silent successes. Redis starts background threads (`bio` threads for lazy
+   freeing and file closing, I/O threads when configured), so **under the sequential machine its
+   `wlp` fails**: verifying it needs the parallel machine, or a configuration and build proved
+   never to create threads (Redis starts its `bio` threads unconditionally at startup in the
+   versions we know of; this must be checked against the pinned version).
 6. **Resources.** A memory limit (cgroup) and `maxmemory`; the file-descriptor limit (`maxclients`
    needs about 32 more descriptors than clients); CPU. Out-of-memory kills are `Runtime.mayKill`, so
    safety and partial correctness survive and total correctness does not.
@@ -204,12 +265,15 @@ specification, interpreted by `pre R φ` (planned `consequence_interpretation co
 
 1. OCI octets: JSON manifests, tar layers with whiteouts, SHA-256 checked stores, the decoder and
    its round trip.
-2. A `static` shape over ELF octets and a `ProcSem` from LPS (`RunOutcome` and socket events to
+2. A sequential x86-64 `MachineSem` with thread creation as undefined behaviour, and its
+   `ClonesExplicit` proof; a `static` shape over ELF octets and a `ProcSem` from LPS (`RunOutcome` and socket events to
    `Beh Ev`), first on a static ELF that exits 0, then on the hello server of `Servers.LinuxHello`.
-3. Hiding events (partial observation maps) with divergence made explicit, as a construction on
+3. The parallel x86-64 machine (threads, scheduler, x86-TSO, atomics) and `SeqAgrees` for
+   programs without task creation.
+4. Hiding events (partial observation maps) with divergence made explicit, as a construction on
    the institution.
-4. The Nitro runtime model with EIF measurement obligations.
-5. Problem shapes and record kinds for profiles, shapes, runtime models and obligations.
+5. The Nitro runtime model with EIF measurement obligations.
+6. Problem shapes and record kinds for profiles, shapes, runtime models and obligations.
 
 ## References
 
@@ -223,6 +287,11 @@ specification, interpreted by `pre R φ` (planned `consequence_interpretation co
   doi:10.1109/CSFW.2003.1212703 (the form of `Model.Noninterference`).
 * Dijkstra, *Guarded commands, nondeterminacy and formal derivation of programs*, CACM 18(8), 1975,
   doi:10.1145/360933.360975 (weakest and weakest liberal preconditions).
+* Sewell, Sarkar, Owens, Zappa Nardelli and Myreen, *x86-TSO: a rigorous and usable
+  programmer's model for x86 multiprocessors*, CACM 53(7), 2010, doi:10.1145/1785414.1785443
+  (the planned memory model of the parallel machine).
+* Linux `clone(2)` and `clone3` (`include/uapi/linux/sched.h` for the flag values;
+  `arch/x86/entry/syscalls/syscall_64.tbl` for the numbers 56, 57, 58, 435).
 * Open Container Initiative, *Image Format Specification* v1.1.0,
   <https://github.com/opencontainers/image-spec/tree/v1.1.0> (manifests, layers, whiteouts).
 * RFC 9112 §2.3 (`HTTP-version`), RFC 9114 §3 (HTTP/3 over QUIC).
@@ -233,6 +302,7 @@ hashes are recorded here.
 ## Checking it
 
 ```
-lake build --wfail Silmaril.Containers.Fixtures.Examples Silmaril.Containers.Http.Thms \
+lake build --wfail Silmaril.Containers.Fixtures.Examples Silmaril.Containers.Mini.Examples \
+  Silmaril.Containers.Http.Thms \
   Silmaril.Containers.Institution.Defs Silmaril.LogicGraph.Nodes.Containers.Defs
 ```

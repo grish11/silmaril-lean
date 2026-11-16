@@ -33,6 +33,10 @@ behaviour satisfies it (`Model.Sat`).
 * **Total correctness** (`Spec.totalCorrect post`): the process exits, and `post` holds.
   Relative to an environment assumption (`Spec.under A φ`), for example "the environment
   eventually supplies every input it is waited on for" (`Beh.notBlocked`).
+* **No undefined behaviour** (`Spec.noUB`): the run does not end in `Stop.undefined`. Undefined
+  behaviour is an explicit outcome, kept as a run so that a specification can exclude it; every
+  verification precondition does (`Silmaril.Containers.wlp`, `wp`). It is not termination
+  (`Spec.terminates`) or progress: a spinning run has no undefined behaviour.
 * **Fairness** for infinite behaviours is a property of the infinite sequence of events
   (`Beh.InfinitelyOften`); liveness under fairness is `Spec.under` with a fairness assumption.
 
@@ -40,6 +44,11 @@ behaviour satisfies it (`Model.Sat`).
 (`Thms.Refines.sat`), divergence included. `Model.TraceRefines M N` is inclusion of finite
 prefixes: it preserves safety only. A silently diverging process trace-refines one that exits
 at once (`Thms.traceRefines_not_total`).
+
+**Undefined behaviour and refinement.** Refinement up to undefined behaviour
+(`Model.RefinesUB`, where undefined behaviour of the abstraction allows anything afterwards) is
+not used for verification here: against an abstraction that starts with undefined behaviour it
+holds of every model.
 
 **Determinism.** `Model.DetUpToInputs isIn M`: two runs first differ only at an input event,
 and runs with the same events stop the same way. Environmental nondeterminism (which octets
@@ -75,6 +84,26 @@ inductive Refusal where
   | other
   deriving DecidableEq, Repr
 
+/-- **Undefined behaviour**: why the model gives no guarantee about the rest of a run. A run that
+reaches undefined behaviour is kept as a run (`Stop.undefined`), never dropped, so that every
+verification precondition can exclude it (`Spec.noUB`). -/
+inductive UB where
+  /-- The program asked to create a thread, or a task sharing its address space, under a
+  machine model that is sequential (`Silmaril.Containers.Mach.CloneReq`). -/
+  | threadCreate
+  /-- The machine is in a state with no step and no final outcome. -/
+  | stuck
+  /-- The machine has no initial state for the program. -/
+  | noInit
+  /-- The step is outside what the model defines (an unmodelled system call, process creation
+  under a model with no process semantics). No claim is made about it. -/
+  | unmodeled
+  /-- A memory-model violation the machine semantics declares undefined. -/
+  | memory
+  /-- Any other undefined behaviour of the machine semantics. -/
+  | other
+  deriving DecidableEq, Repr
+
 /-- **How a run stopped.** -/
 inductive Stop where
   /-- The process exited with this status. -/
@@ -85,6 +114,8 @@ inductive Stop where
   | killed (k : Kill)
   /-- The runtime never started the process. -/
   | refused (r : Refusal)
+  /-- The run reached undefined behaviour of the machine model. -/
+  | undefined (u : UB)
   deriving DecidableEq, Repr
 
 /-- **One run** as the environment sees it. -/
@@ -163,6 +194,17 @@ def noCrash : Spec E
   | .done _ (.signaled _) => False
   | _ => True
 
+/-- **No undefined behaviour**: the run does not end in `Stop.undefined`. Part of every
+verification precondition (`Silmaril.Containers.wlp`, `wp`). It is a safety property of a run,
+and says nothing about termination or progress: a silently diverging run has no undefined
+behaviour, and a run that stops in undefined behaviour has stopped. -/
+def noUB : Spec E
+  | .done _ (.undefined _) => False
+  | _ => True
+
+/-- **Termination**: the run stopped (for any reason, undefined behaviour included). -/
+def terminates : Spec E := Beh.Stopped
+
 /-- Every event is in `ok`. A safety property; `Confined` is an instance. -/
 def always (ok : E → Prop) : Spec E := safe fun t => ∀ e ∈ t, ok e
 
@@ -183,6 +225,18 @@ def Traces (M : Model E) (t : List E) : Prop := ∃ b, M b ∧ b.Prefix t
 
 /-- **Trace refinement**: every finite trace of `M` is one of `N`. -/
 def TraceRefines (M N : Model E) : Prop := ∀ t, M.Traces t → N.Traces t
+
+/-- **The closure of a model under undefined behaviour** (the reading of C and of CompCert's
+refinement): a run that reaches undefined behaviour after `t` stands for every run that extends
+`t`. -/
+def ubClose (N : Model E) : Model E := fun b =>
+  N b ∨ ∃ t u, N (.done t (.undefined u)) ∧ b.Prefix t
+
+/-- **Refinement up to undefined behaviour**: every run of `M` is a run of `N`, or extends a
+prefix after which `N` has undefined behaviour. It is vacuous against an abstraction with
+undefined behaviour at its start (`Thms.refinesUB_vacuous`), and is plain refinement against
+one with none (`Thms.refinesUB_of_noUB`). -/
+def RefinesUB (M N : Model E) : Prop := M.Refines (ubClose N)
 
 /-- **Determinism up to inputs**: two runs first differ at an input event (one the environment
 chooses), and runs with the same events stop the same way. -/

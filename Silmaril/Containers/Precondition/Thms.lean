@@ -12,12 +12,15 @@ PROVED (standard axioms); every proof is short and stays inline.
   itself sufficient: the semantic precondition is the weakest one;
 * `pre_mono`, `pre_and`: monotone and conjunctive in the specification;
 * `wp_wlp`: a total precondition is a liberal one;
+* `vpre_noUB`, `vpre_iff`, `not_vpre_of_undefined`, `not_wlp_of_undefined`: every
+  verification precondition requires that no run has undefined behaviour, and one run with
+  undefined behaviour refutes it;
 * `pre_antitone`: a model with more runs has a stronger precondition (runtime kills, a weaker
   account of the runtime), and a model with stronger assumptions a weaker one;
 * `pre_of_infeasible`: an image with no run satisfies every specification (a miracle):
   feasibility is a separate obligation;
-* `pre_refused`: an image the runtime refuses satisfies `φ` exactly when its refusal does; in
-  particular it satisfies every `wlp`, so a refusal is not a failure for partial correctness;
+* `pre_refused`: an image the runtime refuses satisfies `φ` exactly when its refusal does; a
+  refusal is not undefined behaviour, so a refused image satisfies every `wlp` (and no `wp`);
 * `pre_ofShape_none`, `pre_layered`: for shaped flat images, and for layered images read from
   content stores, the precondition reduces to the flat contents and the refusals;
 * `SufficientIn.sufficient`, `sufficientIn_of_expressive`: a concrete sufficient precondition
@@ -44,7 +47,22 @@ theorem pre_and (R : Runtime I P E) (φ ψ : Spec E) (i : I) :
   ⟨fun h => ⟨fun b hb => (h b hb).1, fun b hb => (h b hb).2⟩, fun ⟨h₁, h₂⟩ => h₁.and h₂⟩
 
 theorem wp_wlp (R : Runtime I P E) (post : List E → UInt8 → Prop) {i : I} (h : wp R post i) :
-    wlp R post i := fun b hb => Spec.totalCorrect_partialCorrect (h b hb)
+    wlp R post i := fun b hb => ⟨(h b hb).1, Spec.totalCorrect_partialCorrect (h b hb).2⟩
+
+theorem vpre_noUB {R : Runtime I P E} {φ : Spec E} {i : I} (h : vpre R φ i) :
+    pre R Spec.noUB i := fun b hb => (h b hb).1
+
+theorem vpre_iff (R : Runtime I P E) (φ : Spec E) (i : I) :
+    vpre R φ i ↔ pre R Spec.noUB i ∧ pre R φ i := pre_and R _ _ i
+
+/-- A run with undefined behaviour refutes every verification precondition. -/
+theorem not_vpre_of_undefined {R : Runtime I P E} {i : I} {t : List E} {u : UB}
+    (h : R.beh i (.done t (.undefined u))) (φ : Spec E) : ¬ vpre R φ i :=
+  fun hv => (hv _ h).1
+
+theorem not_wlp_of_undefined {R : Runtime I P E} {i : I} {t : List E} {u : UB}
+    (h : R.beh i (.done t (.undefined u))) (post : List E → UInt8 → Prop) : ¬ wlp R post i :=
+  not_vpre_of_undefined h _
 
 theorem pre_antitone {R : Runtime I P E} {R' : Runtime I P' E} (h : R.Le R') {φ : Spec E}
     {i : I} (hi : pre R' φ i) : pre R φ i := Runtime.sat_of_le h hi

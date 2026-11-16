@@ -25,6 +25,17 @@ PROVED (standard axioms). Proofs longer than a few lines are in
 * `traceRefines_not_total`: but not total correctness: a silently diverging process
   trace-refines one that exits at once.
 
+**Undefined behaviour.**
+
+* `Spec.totalCorrect_noUB`: a totally correct run has no undefined behaviour;
+* `Spec.noUB_spins`, `Spec.terminates_undefined`: no undefined behaviour is not termination
+  (a spinning run has none and does not stop), and stopping is not the absence of undefined
+  behaviour;
+* `Model.refinesUB_vacuous`: every model refines, up to undefined behaviour, the model whose
+  only run is undefined at once: the reason verification never uses that reading;
+* `Model.refinesUB_of_noUB`: against an abstraction with no undefined behaviour, refinement up
+  to undefined behaviour is refinement.
+
 **Noninterference.**
 
 * `noninterference_not_trace_property`: no specification of single runs is equivalent to
@@ -59,6 +70,28 @@ theorem Model.sat_partialCorrect_of_noExit {M : Model E}
   cases s with
   | exited c => exact (h t c hb).elim
   | _ => trivial
+
+theorem Spec.totalCorrect_noUB {post : List E → UInt8 → Prop} {b : Beh E}
+    (h : Spec.totalCorrect post b) : Spec.noUB b := by
+  rcases b with ⟨t, s⟩ | _ | _ | _ <;> try exact h.elim
+  cases s <;> first | trivial | exact h.elim
+
+theorem Spec.noUB_spins (t : List E) : Spec.noUB (.spins t) ∧ ¬ Spec.terminates (.spins t) :=
+  ⟨trivial, id⟩
+
+theorem Spec.terminates_undefined (t : List E) (u : UB) :
+    Spec.terminates (.done t (.undefined u)) ∧ ¬ Spec.noUB (.done t (.undefined u)) :=
+  ⟨trivial, id⟩
+
+theorem Model.refinesUB_vacuous (M : Model E) (u : UB) :
+    M.RefinesUB (· = .done [] (.undefined u)) := by
+  intro b _
+  refine .inr ⟨[], u, rfl, ?_⟩
+  cases b <;> first | exact List.nil_prefix | rfl
+
+theorem Model.refinesUB_of_noUB {M N : Model E} (hN : N.Sat Spec.noUB) (h : M.RefinesUB N) :
+    M.Refines N := fun b hb =>
+  (h b hb).elim id fun ⟨_, _, ht, _⟩ => (hN _ ht).elim
 
 theorem Model.Refines.sat {M N : Model E} (h : M.Refines N) {φ : Spec E} (hN : N.Sat φ) :
     M.Sat φ := fun b hb => hN b (h b hb)

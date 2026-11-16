@@ -14,9 +14,15 @@ is semantic and always exists:
   it (`Thms.pre_weakest`). For flat images `i` is the contents (`Flat C`), so `pre R φ` is a
   predicate on contents; for layered images it reduces to the flat case plus refusals
   (`Thms.pre_layered`);
-* `wlp R post := pre R (partialCorrect post)`, the weakest *liberal* precondition: crashes,
-  divergence, blocking, kills and refusals are allowed;
-* `wp R post := pre R (totalCorrect post)`: every run exits and satisfies `post`.
+* `vpre R φ := pre R (noUB ∧ φ)`, the **verification precondition**: no run has undefined
+  behaviour (`Spec.noUB`), universally over the runs of `R`, and every run satisfies `φ`.
+  Undefined behaviour is an explicit outcome of runs (`Stop.undefined`), never an absence of
+  runs, so it cannot make a precondition hold vacuously (`Thms.not_vpre_of_undefined`);
+* `wlp R post := vpre R (partialCorrect post)`, the weakest *liberal* precondition: crashes,
+  divergence, blocking, kills and refusals are allowed; undefined behaviour is not;
+* `wp R post := vpre R (totalCorrect post)`: every run exits and satisfies `post`.
+
+"No undefined behaviour" is not termination or progress: `wlp` holds of a spinning program.
 
 Both quantify over every run **under `R`**: they change when the runtime model changes, and a
 weaker runtime model (more runs) gives a stronger precondition (`Thms.pre_antitone`).
@@ -43,13 +49,20 @@ variable {I P E : Type}
 /-- **The semantic precondition**: every run of the image under `R` satisfies `φ`. -/
 def pre (R : Runtime I P E) (φ : Spec E) : I → Prop := fun i => (R.beh i).Sat φ
 
-/-- **The weakest liberal precondition** of a postcondition on exiting runs. -/
-def wlp (R : Runtime I P E) (post : List E → UInt8 → Prop) : I → Prop :=
-  pre R (Spec.partialCorrect post)
+/-- **The verification precondition**: every run under `R` has no undefined behaviour and
+satisfies `φ`. Every precondition used for verification is of this form. -/
+def vpre (R : Runtime I P E) (φ : Spec E) : I → Prop := pre R fun b => Spec.noUB b ∧ φ b
 
-/-- **The weakest (total) precondition** of a postcondition on exiting runs. -/
+/-- **The weakest liberal precondition** of a postcondition on exiting runs: no run has
+undefined behaviour, and every run that exits satisfies `post`. Crashes, kills, refusals,
+blocking and divergence are allowed. -/
+def wlp (R : Runtime I P E) (post : List E → UInt8 → Prop) : I → Prop :=
+  vpre R (Spec.partialCorrect post)
+
+/-- **The weakest (total) precondition** of a postcondition on exiting runs: no run has
+undefined behaviour, every run exits, and `post` holds. -/
 def wp (R : Runtime I P E) (post : List E → UInt8 → Prop) : I → Prop :=
-  pre R (Spec.totalCorrect post)
+  vpre R (Spec.totalCorrect post)
 
 /-- `Q` is a **sufficient precondition** for `φ` under `R`. -/
 def Sufficient (R : Runtime I P E) (Q : I → Prop) (φ : Spec E) : Prop := ∀ i, Q i → pre R φ i
