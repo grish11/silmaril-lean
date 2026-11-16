@@ -28,8 +28,8 @@ status = "pending-port"
 [[logic_pending]]
 name = "pending.egglog"
 title = "Egglog functional first-order graphs"
-nodes = 9
-edges = 14
+nodes = 8
+edges = 13
 status = "pending-port"
 
 [[logic_pending]]
@@ -49,8 +49,8 @@ status = "pending-port"
 [[logic_pending]]
 name = "pending.prolog"
 title = "Prolog and Horn-clause programs"
-nodes = 3
-edges = 9
+nodes = 2
+edges = 8
 status = "pending-port"
 
 [[logic_pending]]
@@ -82,13 +82,6 @@ edges = 3
 status = "pending-port"
 
 [[logic_pending]]
-name = "pending.first-order-lfp"
-title = "First-order logic with least fixed points"
-nodes = 2
-edges = 2
-status = "pending-port"
-
-[[logic_pending]]
 name = "pending.hybrid-polyadic"
 title = "Hybrid and polyadic modal logic"
 nodes = 2
@@ -100,13 +93,6 @@ name = "pending.stlc-matching"
 title = "Simply typed λ-calculus matching"
 nodes = 2
 edges = 1
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.egg"
-title = "Egg e-graph rewriting"
-nodes = 1
-edges = 2
 status = "pending-port"
 
 [[logic_pending]]
