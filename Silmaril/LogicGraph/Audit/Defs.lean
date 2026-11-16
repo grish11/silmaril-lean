@@ -808,8 +808,6 @@ public import Silmaril.Machine.Abi.SystemV.Thms
 public import Silmaril.Machine.Abi.Win64.Thms
 public import Silmaril.Net.Http1.Institution.Thms
 public import Silmaril.Net.Udp.Institution.Thms
-public import Silmaril.Raw.Wasm.Logic.Kore.Operational.Conditional.Update.AllPathDraft
-public import Silmaril.Raw.Wasm.Logic.Kore.Operational.Conditional.Update.CheckedUpdateDraft
 public import Silmaril.SSA.LambdaRTL.Institution.Defs
 public import Silmaril.SSA.LambdaRTL.Loop.Institution.Defs
 public import Silmaril.SSA.LambdaRTL.Nameless.Institution.Defs
