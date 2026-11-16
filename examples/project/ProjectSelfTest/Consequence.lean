@@ -5,6 +5,7 @@ public import ProjectSelfTest.Consequence.Gentzen
 public import ProjectSelfTest.Consequence.Multi
 public import ProjectSelfTest.Consequence.Wasm
 public import ProjectSelfTest.Consequence.Partial
+public import ProjectSelfTest.Consequence.WasmSeq
 
 /-!
 # The `sil project` self-test: consequence systems
@@ -382,4 +383,4 @@ silmaril group silmaril.selftest.consequence (title := "Consequence systems")
     silmaril.selftest.consequence.derivable_up_closed, silmaril.selftest.consequence.derivable_set_inv,
     silmaril.shapes.consequence, silmaril.selftest.consequence.gentzen,
     silmaril.selftest.consequence.multi, silmaril.selftest.consequence.wasm,
-    silmaril.selftest.consequence.partial])
+    silmaril.selftest.consequence.partial, silmaril.selftest.consequence.wasm_seq])

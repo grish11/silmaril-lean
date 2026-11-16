@@ -54,7 +54,7 @@ try {
     `multi.lit: signed lists on both sides, a raw sequent (${byName[S + "multi.lit"][3]})`);
   // the view buttons: counts and filters from the typed shape and certifications
   const views = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("#systems-views a")].map((a) => [a.dataset.view, +a.querySelector("span").textContent])));
-  check(views.all === list.length && views.acceptor === 6 && views.rejector === 1 && views.signed === 2 && views.partial === 4 && views["raw-sequent"] === 8 && views.gentzen === 1 && views.artifact === 8,
+  check(views.all === list.length && views.acceptor === 6 && views.rejector === 1 && views.signed === 2 && views.partial === 6 && views["raw-sequent"] === 11 && views.gentzen === 1 && views.artifact === 10,
     `view counts ${JSON.stringify(views)}`);
   await open("/systems/?view=gentzen");
   const gv = await rows("#systems-table");
@@ -178,7 +178,7 @@ try {
 
   // partial interpretations: defined, defined-and-empty, undefined; certificates, never inferred
   await open("/systems/?view=partial");
-  check((await rows("#systems-table")).length === 4, "the partial view lists the four systems read through a partial interpretation");
+  check((await rows("#systems-table")).length === 6, "the partial view lists the six systems read through a partial interpretation");
   const defn = async (n) => { await open("/system/" + encodeURIComponent(S + "partial." + n));
     return p.evaluate(() => { const dt = [...document.querySelectorAll("#main dl dt")].find((d) => d.textContent === "definedness"); return dt ? dt.nextElementSibling.textContent : ""; }); };
   const d6 = await defn("hello_6"), d100 = await defn("hello_100"), d2 = await defn("hello_2");
@@ -205,6 +205,17 @@ try {
   await open("/interpretations");
   const cnt = await p.evaluate(() => { const tr = [...document.querySelectorAll("#interpretations-table tbody tr[data-kind]")].find((t) => t.children[0].firstChild.textContent === "wasm.core.check_rel"); return tr ? tr.children[8].textContent : ""; });
   check(/^\d+ proved \/ \d+ counter \/ \d+ unknown$/.test(cnt), `check_rel problem counts (${cnt})`);
+
+  // Wasm modules through the protocol's partial coreInterp
+  const dsys = async (n) => { await open("/system/" + encodeURIComponent(S + n));
+    return p.evaluate(() => { const dt = [...document.querySelectorAll("#main dl dt")].find((d) => d.textContent === "definedness"); return dt ? dt.nextElementSibling.textContent : ""; }); };
+  const wm1 = await dsys("wasm_seq.member_check"), we1 = await dsys("wasm_seq.empty_check");
+  check(/defined \(certified\)/.test(wm1) && !/empty/.test(wm1), `wasm_seq.member_check: defined (${wm1.slice(0, 80)})`);
+  check(/defined, empty \(certified with/.test(we1), `wasm_seq.empty_check: defined and empty (${we1.slice(0, 80)})`);
+  await open("/system/" + encodeURIComponent(S + "wasm_seq.member_check"));
+  const wsev = await p.evaluate(() => [...document.querySelectorAll("table.system-evidence[data-standing='established'] tbody tr")].map((tr) => tr.textContent));
+  check(wsev.some((t) => /single_mem/.test(t) && /\(sound\)/.test(t)) && wsev.some((t) => /≤ 2 \^ 32 - 1/.test(t)), "wasm_seq.member_check: sound and boundedly complete, established");
+  await shot("wasm-seq-member");
 
   check(errors.length === 0, `no page error${errors.length ? ": " + errors.join("; ") : ""}`);
 } finally {

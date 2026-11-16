@@ -129,13 +129,15 @@ The self-test `ProjectSelfTest.Consequence.Partial` exercises these on the regis
 `hello.txt` with test readings (`prefix_exact` over `ℕ`, `nonempty_whole` as `Interp₀`); they
 are registry tests, not Wasm semantics.
 
-**Pending: Wasm modules through `coreInterp`.** The protocol track's `coreInterp`
-(`Silmaril.Wasi.Consequence`, configurations `CoreConfig`) is to be registered as
-`wasm.core.seq` with `member_check.wasm` and `empty_check.wasm` read at
-`memberConfig Profile.spec allHosts` (defined; sound and boundedly complete for single-succedent
-membership; `empty_check` defined and empty). It is blocked by a duplicate declaration
-`Silmaril.Wasm.Component.WIT.Env` that prevents importing the protocol modules together with the
-registered artifacts; it lands once that is renamed.
+**Wasm modules through `coreInterp`.** The protocol track's `coreInterp`
+(`Silmaril.Wasi.Consequence`, configurations `CoreConfig`: profile, hosts, export name, codec) is
+registered as `wasm.core.seq` (partial, `Env = CoreConfig`), and
+`ProjectSelfTest.Consequence.WasmSeq` reads `member_check.wasm` and `empty_check.wasm` at
+`memberConfig Profile.spec allHosts`: both **defined** (`artifact_defined`, from the values' `.is`
+certificates); `member_check` sound for single-succedent membership (every host set) and complete
+for it within `Γ.length + 1 ≤ 2 ^ 32 - 1` (nonempty hosts), by the protocol theorems
+`member_sound` and `member_completeOn` applied through `coreBytesInterp_member`;
+`empty_check` **defined and empty** (`coreBytesInterp_empty`).
 
 ## Typed shapes, views and the Gentzen view
 
