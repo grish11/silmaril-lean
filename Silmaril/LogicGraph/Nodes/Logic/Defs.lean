@@ -58,6 +58,10 @@ public import Silmaril.Logic.FirstOrder.FiniteLists.Defs
 public import Silmaril.Logic.FirstOrder.FiniteLists.Thms
 public import Silmaril.Logic.FirstOrderLFP.Boolean.Thms
 public import Silmaril.Logic.FirstOrderLFP.Thms
+public import Silmaril.Logic.Hoare.FirstOrder.Institution
+public import Silmaril.Logic.Hoare.Thms
+public import Silmaril.Logic.HybridPolyadic.Matching.Thms
+public import Silmaril.Logic.HybridPolyadic.Thms
 public import Silmaril.Logic.Institution.Examples.Equational
 public import Silmaril.Logic.Institution.Examples.FirstOrder
 public import Silmaril.Logic.Institution.Examples.Propositional
@@ -80,8 +84,16 @@ public import Silmaril.Logic.ModalMu.Thms
 public import Silmaril.Logic.PDL.Thms
 public import Silmaril.Logic.Prolog.Definite.Defs
 public import Silmaril.Logic.Reachability.Thms
+public import Silmaril.Logic.Rewriting.Reachability.Thms
+public import Silmaril.Logic.Rewriting.Thms
 public import Silmaril.Logic.STLCEquations.Institution
 public import Silmaril.Logic.STLCMatching.Institution
+public import Silmaril.Logic.Separation.FirstOrder.Institution
+public import Silmaril.Logic.Separation.Matching.Thms
+public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Institution.Defs
+public import Silmaril.Logic.Separation.Parameterized.Institution.Defs
+public import Silmaril.Logic.Separation.Parameterized.Matching.Institution.Defs
+public import Silmaril.Logic.Separation.Thms
 public import Silmaril.Logic.Temporal.CTLStar.Thms
 public import Silmaril.Logic.Temporal.LTL.Defs
 public import Silmaril.Project.Registry.Institution.Defs
@@ -123,6 +135,12 @@ silmaril institution logic.egglog.core.graph.inst := Silmaril.Logic.Egglog.Core.
 silmaril institution logic.egglog.core.inst := Silmaril.Logic.Egglog.Core.inst
 silmaril institution logic.egglog.source.named.families.inst := Silmaril.Logic.Egglog.Source.Named.Families.inst
 silmaril institution logic.first_order.finite_lists.inst := Silmaril.Logic.FirstOrder.FiniteLists.inst
+silmaril institution logic.hoare.first_order.canonical_inst := Silmaril.Logic.Hoare.FirstOrder.canonicalInst
+silmaril institution logic.hoare.first_order.source_inst := Silmaril.Logic.Hoare.FirstOrder.sourceInst
+silmaril institution logic.hoare.canonical_inst := Silmaril.Logic.Hoare.canonicalInst
+silmaril institution logic.hoare.inst := Silmaril.Logic.Hoare.inst
+silmaril institution logic.hybrid_polyadic.matching.inst := Silmaril.Logic.HybridPolyadic.Matching.inst
+silmaril institution logic.hybrid_polyadic.inst := Silmaril.Logic.HybridPolyadic.inst
 silmaril institution logic.institution.examples.eq.inst := Silmaril.Logic.Institution.Examples.EQ.inst (hets := "CASL") (hets_relation := fragment)
 silmaril institution logic.institution.examples.fol.inst := Silmaril.Logic.Institution.Examples.FOL.inst (hets := "CASL") (hets_relation := fragment)
 silmaril institution logic.institution.examples.pl.inst := Silmaril.Logic.Institution.Examples.PL.inst (hets := "Propositional") (hets_relation := corresponds)
@@ -133,9 +151,20 @@ silmaril institution logic.matching.guarded_fol.inst := Silmaril.Logic.Matching.
 silmaril institution logic.matching.guarded_lfp.inst := Silmaril.Logic.Matching.GuardedLFP.inst
 silmaril institution logic.matching.sort_maps.fixed_inst := Silmaril.Logic.Matching.SortMaps.fixedInst
 silmaril institution logic.prolog.definite.inst := Silmaril.Logic.Prolog.Definite.inst
+silmaril institution logic.rewriting.canonical_inst := Silmaril.Logic.Rewriting.canonicalInst
+silmaril institution logic.rewriting.inhabited_inst := Silmaril.Logic.Rewriting.inhabitedInst
+silmaril institution logic.rewriting.rewriting_inst := Silmaril.Logic.Rewriting.rewritingInst
 silmaril institution logic.stlc_equations.inst := Silmaril.Logic.STLCEquations.inst
 silmaril institution logic.stlc_matching.source_inst := Silmaril.Logic.STLCMatching.sourceInst
 silmaril institution logic.stlc_matching.target_inst := Silmaril.Logic.STLCMatching.targetInst
+silmaril institution logic.separation.first_order.canonical_inst := Silmaril.Logic.Separation.FirstOrder.canonicalInst
+silmaril institution logic.separation.first_order.source_inst := Silmaril.Logic.Separation.FirstOrder.sourceInst
+silmaril institution logic.separation.parameterized.first_order.canonical.inst := Silmaril.Logic.Separation.Parameterized.FirstOrder.Canonical.inst
+silmaril institution logic.separation.parameterized.matching.canonical.inst := Silmaril.Logic.Separation.Parameterized.Matching.Canonical.inst
+silmaril institution logic.separation.parameterized.inst := Silmaril.Logic.Separation.Parameterized.inst
+silmaril institution logic.separation.base_inst := Silmaril.Logic.Separation.baseInst
+silmaril institution logic.separation.canonical_inst := Silmaril.Logic.Separation.canonicalInst
+silmaril institution logic.separation.recursive_inst := Silmaril.Logic.Separation.recursiveInst
 silmaril institution logic.temporal.ltl.inst := Silmaril.Logic.Temporal.LTL.inst
 silmaril institution logic.algebraic.dependent_family.inst := Silmaril.Logic.Algebraic.DependentFamily.inst
 silmaril institution logic.ctl.inst := Silmaril.Logic.CTL.inst
@@ -178,6 +207,7 @@ silmaril room logic.egglog.core.graph.room := Silmaril.Logic.Egglog.Core.Graph.r
 silmaril room logic.egglog.core.room := Silmaril.Logic.Egglog.Core.room
 silmaril room logic.egglog.source.named.families.room := Silmaril.Logic.Egglog.Source.Named.Families.room
 silmaril room logic.first_order.finite_lists.room := Silmaril.Logic.FirstOrder.FiniteLists.room
+silmaril room logic.hoare.first_order.canonical_room := Silmaril.Logic.Hoare.FirstOrder.canonicalRoom
 silmaril room logic.institution.examples.eq.room := Silmaril.Logic.Institution.Examples.EQ.room
 silmaril room logic.institution.examples.fol.room := Silmaril.Logic.Institution.Examples.FOL.room
 silmaril room logic.institution.examples.pl.room := Silmaril.Logic.Institution.Examples.PL.room
@@ -189,4 +219,5 @@ silmaril room logic.prolog.definite.room := Silmaril.Logic.Prolog.Definite.room
 silmaril room logic.stlc_equations.room := Silmaril.Logic.STLCEquations.room
 silmaril room logic.stlc_matching.source_room := Silmaril.Logic.STLCMatching.sourceRoom
 silmaril room logic.stlc_matching.target_room := Silmaril.Logic.STLCMatching.targetRoom
+silmaril room logic.separation.first_order.canonical_room := Silmaril.Logic.Separation.FirstOrder.canonicalRoom
 silmaril room logic.temporal.ltl.room := Silmaril.Logic.Temporal.LTL.room

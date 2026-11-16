@@ -236,6 +236,21 @@ public import Silmaril.Logic.FirstOrderLFP.Examples
 public import Silmaril.Logic.FirstOrderLFP.Reachability.Defs
 public import Silmaril.Logic.FirstOrderLFP.Reachability.Thms
 public import Silmaril.Logic.FirstOrderLFP.Thms
+public import Silmaril.Logic.Hoare
+public import Silmaril.Logic.Hoare.Defs
+public import Silmaril.Logic.Hoare.Examples
+public import Silmaril.Logic.Hoare.FirstOrder
+public import Silmaril.Logic.Hoare.FirstOrder.Audits
+public import Silmaril.Logic.Hoare.FirstOrder.Defs
+public import Silmaril.Logic.Hoare.FirstOrder.Examples
+public import Silmaril.Logic.Hoare.FirstOrder.Institution
+public import Silmaril.Logic.Hoare.FirstOrder.Models
+public import Silmaril.Logic.Hoare.FirstOrder.Signatures
+public import Silmaril.Logic.Hoare.FirstOrder.Thms
+public import Silmaril.Logic.Hoare.Rules
+public import Silmaril.Logic.Hoare.Thms
+public import Silmaril.Logic.HybridPolyadic.Matching.Thms
+public import Silmaril.Logic.HybridPolyadic.Modal.Thms
 public import Silmaril.Logic.Institution.Examples.Comorphisms
 public import Silmaril.Logic.Institution.Hets.PresentationGraph.Defs
 public import Silmaril.Logic.Institution.Hets.PresentationGraph.Thms
@@ -373,15 +388,65 @@ public import Silmaril.Logic.PDL.Mu.Thms
 public import Silmaril.Logic.PDL.Thms
 public import Silmaril.Logic.Prolog.Definite.Defs
 public import Silmaril.Logic.Prolog.Definite.Thms
+public import Silmaril.Logic.Reachability
 public import Silmaril.Logic.Reachability.Defs
 public import Silmaril.Logic.Reachability.Relational
 public import Silmaril.Logic.Reachability.Thms
+public import Silmaril.Logic.Rewriting
+public import Silmaril.Logic.Rewriting.Defs
+public import Silmaril.Logic.Rewriting.Examples
+public import Silmaril.Logic.Rewriting.Reachability
+public import Silmaril.Logic.Rewriting.Reachability.Defs
+public import Silmaril.Logic.Rewriting.Reachability.Thms
+public import Silmaril.Logic.Rewriting.Thms
 public import Silmaril.Logic.STLCMatching.Defs
 public import Silmaril.Logic.STLCMatching.Institution
 public import Silmaril.Logic.STLCMatching.Native
 public import Silmaril.Logic.STLCMatching.Naturality
 public import Silmaril.Logic.STLCMatching.Sentences
 public import Silmaril.Logic.STLCMatching.Signatures
+public import Silmaril.Logic.STLCRestriction
+public import Silmaril.Logic.STLCRestriction.Audits
+public import Silmaril.Logic.STLCRestriction.Defs
+public import Silmaril.Logic.STLCRestriction.Examples
+public import Silmaril.Logic.STLCRestriction.Thms
+public import Silmaril.Logic.Separation
+public import Silmaril.Logic.Separation.Defs
+public import Silmaril.Logic.Separation.FirstOrder
+public import Silmaril.Logic.Separation.FirstOrder.Audits
+public import Silmaril.Logic.Separation.FirstOrder.Client
+public import Silmaril.Logic.Separation.FirstOrder.Compiler
+public import Silmaril.Logic.Separation.FirstOrder.Defs
+public import Silmaril.Logic.Separation.FirstOrder.Examples
+public import Silmaril.Logic.Separation.FirstOrder.Institution
+public import Silmaril.Logic.Separation.FirstOrder.Models
+public import Silmaril.Logic.Separation.FirstOrder.Signatures
+public import Silmaril.Logic.Separation.FirstOrder.Stores
+public import Silmaril.Logic.Separation.FirstOrder.Symbols
+public import Silmaril.Logic.Separation.FirstOrder.Thms
+public import Silmaril.Logic.Separation.Laws
+public import Silmaril.Logic.Separation.Matching.Defs
+public import Silmaril.Logic.Separation.Matching.Thms
+public import Silmaril.Logic.Separation.Parameterized.Defs
+public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Compiler.Defs
+public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Compiler.Thms
+public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Defs
+public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Institution.Defs
+public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Institution.Thms
+public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Thms
+public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Transport.Defs
+public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Transport.Thms
+public import Silmaril.Logic.Separation.Parameterized.Institution.Defs
+public import Silmaril.Logic.Separation.Parameterized.Lists.Defs
+public import Silmaril.Logic.Separation.Parameterized.Lists.Thms
+public import Silmaril.Logic.Separation.Parameterized.Matching.Defs
+public import Silmaril.Logic.Separation.Parameterized.Matching.Institution.Defs
+public import Silmaril.Logic.Separation.Parameterized.Matching.Institution.Thms
+public import Silmaril.Logic.Separation.Parameterized.Matching.Transport
+public import Silmaril.Logic.Separation.Parameterized.Thms
+public import Silmaril.Logic.Separation.Parameterized.Transport.Defs
+public import Silmaril.Logic.Separation.Parameterized.Transport.Thms
+public import Silmaril.Logic.Separation.Thms
 public import Silmaril.Logic.Temporal.Buchi.Audits
 public import Silmaril.Logic.Temporal.Buchi.Automaton.Audits
 public import Silmaril.Logic.Temporal.Buchi.Automaton.Base.Audits
@@ -510,6 +575,10 @@ silmaril comorphism logic.egglog.source.named.families.to_core := Silmaril.Logic
 silmaril comorphism logic.egglog.source.named.families.to_graph := Silmaril.Logic.Egglog.Source.Named.Families.toGraph (facts := [Silmaril.Logic.Egglog.Source.Named.Families.toGraph_modelExpansive])
 silmaril comorphism logic.first_order_lfp.boolean.from_positive := Silmaril.Logic.FirstOrderLFP.Boolean.fromPositive (facts := [Silmaril.Logic.FirstOrderLFP.Boolean.fromPositive_modelExpansive])
 silmaril comorphism logic.first_order_lfp.fol_to_lfp := Silmaril.Logic.FirstOrderLFP.folToLFP (facts := [Silmaril.Logic.FirstOrderLFP.folToLFP_modelExpansive])
+silmaril comorphism logic.hoare.first_order.to_hoare := Silmaril.Logic.Hoare.FirstOrder.toHoare (facts := [Silmaril.Logic.Hoare.FirstOrder.toHoare_modelExpansive])
+silmaril comorphism logic.hoare.to_canonical_reachability := Silmaril.Logic.Hoare.toCanonicalReachability (facts := [Silmaril.Logic.Hoare.toCanonicalReachability_modelExpansive])
+silmaril comorphism logic.hybrid_polyadic.matching.hybrid_to_constrained_matching := Silmaril.Logic.HybridPolyadic.Matching.hybridToConstrainedMatching
+silmaril comorphism logic.hybrid_polyadic.modal_to_hybrid_polyadic := Silmaril.Logic.HybridPolyadic.modalToHybridPolyadic
 silmaril comorphism logic.institution.examples.eq_to_fol := Silmaril.Logic.Institution.Examples.eqToFol (facts := [Silmaril.Logic.Institution.Examples.eqToFol_modelExpansive])
 silmaril comorphism logic.institution.examples.pl_to_fol := Silmaril.Logic.Institution.Examples.plToFol (hets := "Prop2CASL") (hets_relation := related) (facts := [Silmaril.Logic.Institution.Examples.plToFol_modelExpansive])
 silmaril comorphism logic.matching.first_order.pointed.propositional_to_pointed_matching := Silmaril.Logic.Matching.FirstOrder.Pointed.propositionalToPointedMatching (facts := [Silmaril.Logic.Matching.FirstOrder.Pointed.propositionalToPointedMatching_modelExpansive])
@@ -528,7 +597,18 @@ silmaril comorphism logic.modal_mu.k_to_mu := Silmaril.Logic.ModalMu.kToMu (fact
 silmaril comorphism logic.pdl.k_to_pdl := Silmaril.Logic.PDL.kToPDL (facts := [Silmaril.Logic.PDL.kToPDL_modelExpansive])
 silmaril comorphism logic.prolog.definite.to_first_order := Silmaril.Logic.Prolog.Definite.toFirstOrder (facts := [Silmaril.Logic.Prolog.Definite.toFirstOrder_modelExpansive])
 silmaril comorphism logic.reachability.to_matching := Silmaril.Logic.Reachability.toMatching (facts := [Silmaril.Logic.Reachability.toMatching_modelExpansive])
+silmaril comorphism logic.rewriting.from_equational := Silmaril.Logic.Rewriting.fromEquational (facts := [Silmaril.Logic.Rewriting.fromEquational_modelExpansive])
+silmaril comorphism logic.rewriting.restrict_inhabited := Silmaril.Logic.Rewriting.restrictInhabited
+silmaril comorphism logic.rewriting.to_canonical_reachability := Silmaril.Logic.Rewriting.toCanonicalReachability (facts := [Silmaril.Logic.Rewriting.toCanonicalReachability_modelExpansive])
 silmaril comorphism logic.stlc_matching.to_matching := Silmaril.Logic.STLCMatching.toMatching (facts := [Silmaril.Logic.STLCMatching.toMatching_modelExpansive])
+silmaril comorphism logic.stlc_restriction.to_inhabited := Silmaril.Logic.STLCRestriction.toInhabited (facts := [Silmaril.Logic.STLCRestriction.Examples.empty_base_universe_modelExpansive])
+silmaril comorphism logic.stlc_restriction.to_matching := Silmaril.Logic.STLCRestriction.toMatching
+silmaril comorphism logic.separation.first_order.to_separation := Silmaril.Logic.Separation.FirstOrder.toSeparation (facts := [Silmaril.Logic.Separation.FirstOrder.toSeparation_modelExpansive])
+silmaril comorphism logic.separation.parameterized.first_order.to_canonical := Silmaril.Logic.Separation.Parameterized.FirstOrder.toCanonical (facts := [Silmaril.Logic.Separation.Parameterized.FirstOrder.toCanonical_modelExpansive])
+silmaril comorphism logic.separation.parameterized.matching.source_to_canonical := Silmaril.Logic.Separation.Parameterized.Matching.sourceToCanonical (facts := [Silmaril.Logic.Separation.Parameterized.Matching.sourceToCanonical_modelExpansive])
+silmaril comorphism logic.separation.parameterized.matching.to_canonical := Silmaril.Logic.Separation.Parameterized.Matching.toCanonical (facts := [Silmaril.Logic.Separation.Parameterized.Matching.toCanonical_modelExpansive])
+silmaril comorphism logic.separation.base_to_recursive := Silmaril.Logic.Separation.baseToRecursive (facts := [Silmaril.Logic.Separation.baseToRecursive_modelExpansive])
+silmaril comorphism logic.separation.to_canonical_matching := Silmaril.Logic.Separation.toCanonicalMatching (facts := [Silmaril.Logic.Separation.toCanonicalMatching_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.compiler.institution.discrete_comorphism := Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.discreteComorphism (facts := [Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.discrete_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.compiler.institution.rich_comorphism := Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.richComorphism (facts := [Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.rich_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.ctl_to_ctl_star := Silmaril.Logic.Temporal.CTLStar.ctlToCTLStar (facts := [Silmaril.Logic.Temporal.CTLStar.ctlToCTLStar_modelExpansive])

@@ -33,43 +33,8 @@ edges = 8
 status = "pending-port"
 
 [[logic_pending]]
-name = "pending.separation"
-title = "Separation logic"
-nodes = 5
-edges = 3
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.hoare"
-title = "Hoare logic"
-nodes = 4
-edges = 3
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.rewriting"
-title = "Term rewriting"
-nodes = 3
-edges = 3
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.hybrid-polyadic"
-title = "Hybrid and polyadic modal logic"
-nodes = 2
-edges = 2
-status = "pending-port"
-
-[[logic_pending]]
 name = "pending.kore"
 title = "K framework Kore"
 nodes = 1
 edges = 1
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.stlc-restriction"
-title = "Simply typed λ-calculus restrictions"
-nodes = 0
-edges = 2
 status = "pending-port"
