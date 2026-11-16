@@ -11,6 +11,8 @@
 //! `<script>`: the shared shell (loading, routing, components) first, then one file per group of
 //! views, each registering its views with `registerView`, then `main.js`, which starts the page.
 //! A new view is a new file in `explore/views/` and one line in [`SCRIPTS`] (before `main.js`).
+//! The Lean source layer (`explore/lean/`: tokens, the text-search locator, HTML lines) comes
+//! before `provenance.js`, which uses it; its files are DOM-free and load in Node's tests too.
 
 use std::path::{Component, Path};
 
@@ -28,6 +30,9 @@ pub const SCRIPTS: &[(&str, &str)] = &[
     script!("core.js"),
     script!("status.js"),
     script!("ui.js"),
+    script!("lean/tokenize.js"),
+    script!("lean/locate.js"),
+    script!("lean/render.js"),
     script!("provenance.js"),
     script!("table.js"),
     script!("db.js"),
@@ -44,6 +49,7 @@ pub const SCRIPTS: &[(&str, &str)] = &[
     script!("views/languages.js"),
     script!("views/systems.js"),
     script!("views/sql.js"),
+    script!("views/source.js"),
     script!("main.js"),
 ];
 
