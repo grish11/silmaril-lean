@@ -26,15 +26,12 @@ rounds abort on a trap from below do propagate them, on `sigU`.
 
 **The native Wasm session triple.** For `sessionTripleXP`, whose lower interface is the host
 calls `wasmHostSig H`, the corresponding hypothesis is
-`TrapAbortsRound (fun _ p => p.2 = Result.trap) sessionTripleXP`. It is the game form of Core
-Wasm's rule that a trapping callee traps its caller (`EvalLXPS.callTrap`, `indTrap`,
-`refTrap`, and `tailAnsS` for tail calls); it is **not proved here**. It needs: for the finished
-behaviours of `Shape.close wasmHOpenXPS`, an induction on `EvalLXPS` (a call answered `.inr ()`
-is the last internal call and the body ends in a trap flow, which no handler catches) and on
-the closure (`Shape.Subst.int` carries the callee's trap end to the caller); the same for the
-divergent behaviours taken from `wasmEvFunDXP`, for the pending calls `PendLXPS`/`ReachLXPS`
-and for the productive streams `wasmEvInfNXP`. A Wasm core node of a component would moreover
-need a session triple over `sigS` rather than over `wasmHostSig H`; the component semantics
+`TrapAbortsRound IsHostTrap sessionTripleXP` (`IsHostTrap m n := n.2 = Result.trap`), the game
+form of Core Wasm's rule that a trapping callee traps its caller (`EvalLXPS.callTrap`,
+`indTrap`, `refTrap`, and `tailAnsS` for tail calls). It is proved in
+`Silmaril.Wasm.Abstract.HostTrapS` (`sessionTripleXP_trapAbortsRound`,
+`threadS_sessionTripleXP_trapAbortsBelow`). A Wasm core node of a component would moreover need
+a session triple over `sigS` rather than over `wasmHostSig H`; the component semantics
 `DCoreSem` is abstract, so that bridge is a hypothesis of the component-level results.
 -/
 
