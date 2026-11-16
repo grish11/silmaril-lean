@@ -4,6 +4,7 @@ public import Silmaril.Games.Abstract.SessionLink.Defs
 public import Silmaril.Games.Abstract.StratSession.Thms
 public import Silmaril.Games.DivComp.Defs
 import Silmaril.Proofs.Games.Abstract.SessionLink.Plays
+import Silmaril.Proofs.Games.Abstract.SessionLink.Div
 
 /-!
 # Linking sessions: theorems
@@ -23,6 +24,11 @@ reached by the rounds that served the client's calls so far, and the linked auto
 same round at the stores of the round's start; while the client waits on a call, the server runs
 the session round serving it. Conversely each linked run is realized by an interaction, built
 round by round from the witnesses of the linked behaviours and pending calls.
+
+**Divergence.** Every divergence of the linked session is one of the composite
+(`div_linkS_subset`, no hypothesis): a client divergence or a server divergence inside a served
+call is a local divergence of a component, and a served client stream with finitely many server
+calls is hidden chatter, an infinite interaction with a constant visible part.
 
 `NoPlainTrap t` is needed: a plain trap of the server answers `.inr ()` and kills the server
 session, so a later call of the client is never answered, which the store `S × S'` cannot record.
@@ -53,5 +59,10 @@ theorem comp_threadS_toStrategy (hnt : NoPlainTrap t) (s₀ : S) (s₀' : S') :
     ((threadS t s₀).comp (threadS u s₀')).toStrategy =
       (threadS (linkS t u) (s₀, s₀')).toStrategy :=
   Strategy.ext fun _ => Silmaril.Proofs.Games.Abstract.SessionLink.mem_comp_iff hnt
+
+/-- **Linked divergences are divergences of the composite.** -/
+theorem div_linkS_subset (s₀ : S) (s₀' : S') :
+    (threadS (linkS t u) (s₀, s₀')).div ⊆ ((threadS t s₀).comp (threadS u s₀')).div :=
+  fun _ => Silmaril.Proofs.Games.Abstract.SessionLink.div_bwd
 
 end Silmaril.Games.Abstract.SessionLink
