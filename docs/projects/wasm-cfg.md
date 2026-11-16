@@ -392,7 +392,13 @@ The plain graph stays an over-approximation, and claims about it say so.
       or null reference traps and never diverges. New Core inversions: `Step.callRef_top_inv(_seq)`
       and `Step.callIndirect_vals_inv_seq`. **Open:** divergence through a tail callee (frame
       replacement, bypassing the caller's handlers and pending code; `FragC` has no `return_call*`),
-      regression examples, and the function-level corollary via `invoke_diverges_iff_funDivX`.
+      a `call_indirect` fixture (needs a store with a table), and the function-level corollary via
+      `invoke_diverges_iff_funDivX`.
+    - **`call_ref` fixtures (`Wasm/Cfg/ExampleRef`):** `ref_machine_div`: in the frame of the
+      validated self-call of `recMod`, `ref.func x; call_ref y` has no infinite machine run, yet
+      `MDivC` with `closedCallOk`/`closedDiv` holds through `BodyCallDivRef`, and Core 3.0 diverges.
+      `null_machine_trap`, `null_not_diverges`, `null_not_mdivC`: `ref.null; call_ref` moves to the
+      `trap` sink in one step, and never diverges.
     - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
       `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
       Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the
