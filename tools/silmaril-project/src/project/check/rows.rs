@@ -99,6 +99,8 @@ struct RecordRows {
     interpretations: Vec<LanguageInterpretation>,
     languages: Vec<Language>,
     operands: Vec<LanguageOperand>,
+    systems: Vec<ConsequenceSystem>,
+    system_operands: Vec<ConsequenceOperand>,
 }
 
 fn record_rows(
@@ -250,6 +252,21 @@ fn record_rows(
                     sid,
                     origin: org,
                     identity_hash: identity_hash(&x.identity),
+                    ..(**x).clone()
+                });
+            }
+            Record::ConsequenceSystem(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                for (pos, a) in x.args.iter().enumerate() {
+                    rows.system_operands.push(ConsequenceOperand {
+                        system: x.name.clone(),
+                        pos: pos as i64,
+                        operand: a.clone(),
+                    });
+                }
+                rows.systems.push(ConsequenceSystem {
+                    sid,
+                    origin: org,
                     ..(**x).clone()
                 });
             }
@@ -508,6 +525,9 @@ pub(super) fn run(
     db.push(&recs.languages);
     db.push(&recs.operands);
     db.push(&shape_role_rows());
+    db.push(&recs.systems);
+    db.push(&recs.system_operands);
+    db.push(&consequence_role_rows());
     db.push(&nodes.problems);
     db.push(&nodes.args);
     db.push(&nodes.inputs);

@@ -50,7 +50,7 @@ children = ["silmaril.selftest.truth", "silmaril.selftest.small", "silmaril.self
   "silmaril.selftest.hello.six", "silmaril.selftest.square", "silmaril.selftest.hello.six_row",
   "silmaril.selftest.formats", "silmaril.shapes", "silmaril.sysv_tv.max2",
   "silmaril.compiles_to.all", "silmaril.selftest.languages", "formats.examples",
-  "formats.catalogue"]
+  "formats.catalogue", "silmaril.selftest.consequence"]
 
 [[group]]
 name = "silmaril.selftest.formats"

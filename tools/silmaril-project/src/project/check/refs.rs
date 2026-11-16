@@ -180,6 +180,7 @@ pub(super) fn follow<'a>(
                 refs.push(("domain", "language_domain", l.domain.clone()));
                 language_refs(cx, l, &at, &mut refs, o);
             }
+            Record::ConsequenceSystem(c) => consequence_refs(c, &at, &mut refs, o),
             Record::Instance(i) => {
                 if !g.is_prop(&i.of) || !g.is_prop(&i.name) {
                     o.error(&at, "an instance and its general problem must be problems");
@@ -336,4 +337,30 @@ fn language_refs<'a>(
             );
         }
     }
+}
+
+/// The references of a `consequence_system` record, and its shape: the fields its `op` needs,
+/// and its operands' references.
+fn consequence_refs<'a>(c: &'a ConsequenceSystem, at: &str, refs: &mut Refs<'a>, o: &mut Outcome) {
+    if !CONSEQUENCE_OPS.contains(&c.op.as_str()) {
+        o.error(
+            at,
+            format!("op {:?} is not one of {}", c.op, CONSEQUENCE_OPS.join(", ")),
+        );
+    }
+    let n = c.args.len();
+    match c.op.as_str() {
+        "decl" | "erase" if n > 0 => o.error(at, format!("op {} takes no args", c.op)),
+        "erase" if c.witness.is_none() => o.error(at, "op erase needs `witness`"),
+        "union" | "inter" if n < 2 => o.error(at, format!("op {} needs at least two args", c.op)),
+        "diff" if n != 2 => o.error(at, "op diff needs exactly two args"),
+        _ => {}
+    }
+    // Lean checked that the operands' context and conclusion types are definitionally equal
+    // to the system's; the printed types here are display text, not compared.
+    refs.extend(
+        c.args
+            .iter()
+            .map(|a| ("args", "consequence_system", a.clone())),
+    );
 }

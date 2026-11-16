@@ -40,6 +40,7 @@ pub const SCRIPTS: &[(&str, &str)] = &[
     script!("views/machine.js"),
     script!("views/wasm.js"),
     script!("views/languages.js"),
+    script!("views/systems.js"),
     script!("views/sql.js"),
     script!("main.js"),
 ];
