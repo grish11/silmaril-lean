@@ -158,6 +158,24 @@ specification strategies, not compiled components):
   two lists share a formula (`seqOf_idChecker`). It is `Gentzen.Reflexive` and valid for every
   satisfaction relation (`reflexive_idChecker`, `idChecker_le_valid`).
 
+## Interpretations
+
+`Silmaril.Wasi.Component.Consequence.Interp.{Defs,Thms}` exposes the readings as core
+interpretations (`Silmaril.Consequence.Interp`). An interpretation reads a value under a typed
+configuration as a system, or returns `none`.
+
+- **Trace sets.** `batchInterp`, `seqInterp`, `assumeAssertInterp` and `assumeAssertSeqInterp`
+  are always defined. Their configurations hold only static choices: function names, boundary,
+  trap policy, snapshot. How callers and hosts behave is the set of plays, not configuration.
+  `ofTraces` reads strategies through their traces.
+- **Core modules.** `coreInterp` reads a module AST, and `coreBytesInterp` decodes bytes first.
+  `CoreConfig` holds the profile, the admissible host set, the export name and the byte codec.
+  - The bytes of `MemberCheck` decode and, under `memberConfig`, give a system that is sound
+    against single-succedent membership for every host set (`member_sound`). It is complete on
+    the slice `Γ.length + 1 < 2 ^ 32` for a nonempty host set (`member_completeOn`).
+  - The bytes of `EmptyCheck` give `some ⊥`, a verified empty system (`coreBytesInterp_empty`).
+  - Bytes that do not decode give `none`, which is not a system (`coreBytesInterp_nil`).
+
 ## Scope and gaps
 
 - No compiled component binary implements any protocol. The catalog's `compiledComponent` shape
