@@ -44,8 +44,8 @@ Number-token languages (`Formats.JsonNumbers`), each a set of byte strings:
 | RFC 8259 §6 numbers | `rfc` | the `number` rule |
 | Lexical integers | `integerToken` | `[ minus ] int`; `-0` included |
 | Integral values | `integralNumber` | RFC numbers with integer value (`1.0`, `1e2`) |
-| Signed 64-bit | `int64` | lexical integers in `[-2^63, 2^63-1]` |
-| Unsigned 64-bit | `uint64` | lexical integers in `[0, 2^64-1]` (`-0` denotes `0`) |
+| Signed 64-bit | `int64` | lexical integers (form) with value in `[-2^63, 2^63-1]`; `1.0e0` is not in it |
+| Unsigned 64-bit | `uint64` | lexical integers (form) with value in `[0, 2^64-1]`; `-0` is in it (value `0`) |
 | I-JSON safe range | `safeInteger` | lexical integers in `[-(2^53-1), 2^53-1]` (RFC 7493 §2.2); not full I-JSON |
 | Exactly binary64 | `binary64Integer` | lexical integers equal to some finite IEEE 754 binary64 (`m·2^e`, `m < 2^53`, `e ≤ 971`) |
 | RFC + `Infinity`, `-Infinity` (not JSON) | `withPythonInfinity` | Python `json` spelling |
@@ -86,7 +86,7 @@ claimed by this file.
 | --- | --- |
 | I-JSON (RFC 7493) as a whole | needs string (noncharacters), duplicate-name and number-precision rules on top of `scalarEscapes` and `safeInteger` |
 | "Portable JSON" | no single standard; to be defined only against a named profile |
-| JSON integral values in 64-bit ranges | value-bounded `integralNumber` (`1.0e0` as an int64); the lexical forms are done |
+| Value-only 64-bit ranges | `integralNumber` with a value range, so `1.0e0` would count as an int64. Not defined: `int64`/`uint64`/`safeInteger`/`binary64Integer` require the lexical integer form, and the range is checked on the value |
 | Unicode-string JSON variants | e.g. no noncharacters, NFC; `scalarEscapes` is the surrogate part |
 | Canonical JSON | RFC 8785 (JCS) as a serialization profile; uniqueness only with a theorem |
 | JSON5, canonical JSON5 | grammar of the pinned JSON5 spec version |

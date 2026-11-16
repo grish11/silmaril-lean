@@ -27,9 +27,12 @@ All of the following are sets of byte strings; the docs of each say exactly whic
 * `integralNumber`: RFC numbers whose *value* is an integer, whatever their spelling: `1.0`,
   `1e2`, `10e-1` and `-0.0` are in it, `1.5` and `1e-1` are not. `integerToken` is strictly
   smaller (`integerToken_le_integralNumber`).
-* Bounded lexical integers (`boundedInteger lo hi`): lexical integers whose value lies in
-  `[lo, hi]`. The bound is on the value, so `-0` is in every range containing `0`, including the
-  unsigned one, and leading zeros cannot occur (the `int` rule forbids them).
+* Bounded lexical integers (`boundedInteger lo hi`): tokens that are **both** lexical integers
+  (`integerToken`) **and** have a value in `[lo, hi]`. The form is lexical, the range is on the
+  value. So `1.0e0`, `1e0` and `1.0` are not in any of them (not lexical integers), even though
+  their value `1` is in range; `-0` is in every range containing `0`, including the unsigned
+  one, because its value is `0`; and leading zeros cannot occur (the `int` rule forbids them).
+  Value-only variants (`integralNumber` with a range, admitting `1.0e0`) are not defined here.
   - `int64`: `[-2^63, 2^63 - 1]`, the two's-complement 64-bit range.
   - `uint64`: `[0, 2^64 - 1]`, the unsigned 64-bit range.
   - `safeInteger`: `[-(2^53 - 1), 2^53 - 1]`, the range outside of which, says I-JSON (RFC 7493

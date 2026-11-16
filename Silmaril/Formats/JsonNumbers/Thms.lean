@@ -234,6 +234,12 @@ section Examples
 
 -- Tokens.
 example : "-0".toUTF8.toList ∈ uint64 := by decide +kernel
+-- Lexical form and value range together: `1.0e0` has value `1` but is not a lexical integer.
+example : "1.0e0".toUTF8.toList ∈ integralNumber := by decide +kernel
+example : "1.0e0".toUTF8.toList ∉ int64 := by decide +kernel
+example : "1e0".toUTF8.toList ∉ uint64 := by decide +kernel
+example : "[1.0e0]".toUTF8.toList ∈ language .rfc8259 integralNumber := by decide +kernel
+example : "[1.0e0]".toUTF8.toList ∉ language .rfc8259 int64 := by decide +kernel
 example : "1e2".toUTF8.toList ∈ integralNumber := by decide +kernel
 example : "10e-1".toUTF8.toList ∈ integralNumber := by decide +kernel
 example : "1e-1".toUTF8.toList ∉ integralNumber := by decide +kernel
