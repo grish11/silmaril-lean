@@ -118,6 +118,50 @@ def text : Token Atom Unit → List Char
   | .dot => ['.']
   | .prefix _ => ['\'']
 
+/-! ## Declarative lexical grammar
+
+The specification the lexer is proved to implement (`Thms.parse?_iff_tokenizes`): no executable
+function occurs in it. -/
+
+/-- Atmosphere that does not end inside a comment. -/
+inductive Gap : List Char → Prop
+  | nil : Gap []
+  | space {c : Char} {s : List Char} : isSpace c = true → Gap s → Gap (c :: s)
+  | comment {body s : List Char} : '\n' ∉ body → Gap s → Gap (';' :: body ++ '\n' :: s)
+
+/-- Atmosphere at the end of the input, possibly an unterminated last comment. -/
+inductive Trailing : List Char → Prop
+  | gap {s : List Char} : Gap s → Trailing s
+  | comment {a body : List Char} : Gap a → '\n' ∉ body → Trailing (a ++ ';' :: body)
+
+/-- `Body q w sp`: `sp` spells the characters `w` between `q` delimiters. -/
+inductive Body (q : Char) : List Char → List Char → Prop
+  | nil : Body q [] []
+  | plain {c : Char} {w sp : List Char} : c ≠ q → c ≠ '\\' → Body q w sp → Body q (c :: w) (c :: sp)
+  | escaped {e c : Char} {w sp : List Char} :
+      escape e = some c → Body q w sp → Body q (c :: w) ('\\' :: e :: sp)
+
+/-- The rest of the input begins with a delimiter, or is empty (maximal munch). -/
+def Boundary (s : List Char) : Prop := ∀ c r, s = c :: r → isDelimiter c = true
+
+/-- `Lexeme t w s`: the token `t` is spelled `w` when followed by `s`. -/
+inductive Lexeme : Token Atom Unit → List Char → List Char → Prop
+  | «open» {s : List Char} : Lexeme (.open none () true) ['('] s
+  | close {s : List Char} : Lexeme (.close ()) [')'] s
+  | string {w sp s : List Char} : Body '"' w sp →
+      Lexeme (.atom (.string (String.ofList w))) ('"' :: sp ++ ['"']) s
+  | quoted {w sp s : List Char} : Body '|' w sp →
+      Lexeme (.atom (.symbol (String.ofList w))) ('|' :: sp ++ ['|']) s
+  | bare {w s : List Char} : w ≠ [] → (∀ c ∈ w, isDelimiter c = false) → w ≠ ['.'] →
+      Boundary s → Lexeme (.atom (.symbol (String.ofList w))) w s
+  | dot {s : List Char} : Boundary s → Lexeme .dot ['.'] s
+
+/-- `Tokenizes s ts`: the whole text `s` is atmosphere and the lexemes of `ts`. -/
+inductive Tokenizes : List Char → List (Token Atom Unit) → Prop
+  | done {a : List Char} : Trailing a → Tokenizes a []
+  | token {a w s : List Char} {t : Token Atom Unit} {ts : List (Token Atom Unit)} :
+      Gap a → Lexeme t w s → Tokenizes s ts → Tokenizes (a ++ w ++ s) (t :: ts)
+
 /-- Read exactly one datum. -/
 def parse? (s : String) : Option Datum := read lexer s.toList
 

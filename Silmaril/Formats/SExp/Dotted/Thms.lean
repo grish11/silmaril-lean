@@ -5,6 +5,7 @@ public import Silmaril.Formats.SExp.Reader.Thms
 public import Silmaril.Formats.Category.Thms
 import Silmaril.Proofs.Formats.SExp.Dotted.Basic
 import Silmaril.Proofs.Formats.SExp.Dotted.Legacy
+import Silmaril.Proofs.Formats.SExp.Dotted.Lexical
 public import Silmaril.Formats.SExp.Printer
 public import Silmaril.Formats.Utf8.Thms
 
@@ -14,7 +15,10 @@ public import Silmaril.Formats.Utf8.Thms
 * **roundtrip**: every datum, proper or improper, is read back exactly from its printed text
   (`parse?_print`), also as a prefix followed by a delimiter (`parsePrefix?_print`); hence
   printing is injective (`print_injective`), so no symbol/string distinction is lost;
-* **grammar**: `parse?` accepts exactly the texts whose token string (as lexed) derives a datum in
+* **declarative grammar**: `parse? s = some e` exactly when `s` is atmosphere and lexemes
+  (`Tokenizes`, `Lexeme`, `Gap`, `Trailing`, `Body`: inductive definitions with no executable
+  function) whose tokens derive `e` in the phrase grammar `Gram` (`parse?_iff_tokenizes`);
+* **grammar (executable lexer)**: `parse?` accepts exactly the texts whose token string (as lexed) derives a datum in
   the shared phrase grammar, followed only by atmosphere (`parse?_iff`); a derivation is unique
   (`SExpReader.gram_unique`);
 * **bytes**: `decode` inverts `encode` for every datum, non-ASCII and control characters included
@@ -66,6 +70,21 @@ theorem parse?_iff (s : String) (e : Datum) :
     parse? s = some e ↔
       ∃ ts r, lexer.Emits s.toList ts r ∧ (lexer.next r).isEof = true ∧ Gram .datum ts e :=
   read_iff lexer
+
+/-- The lexer implements the declarative lexical grammar. -/
+theorem emits_iff_tokenizes (s : List Char) (ts : List (Token Atom Unit)) :
+    (∃ r, lexer.Emits s ts r ∧ (lexer.next r).isEof = true) ↔ Tokenizes s ts :=
+  Silmaril.Proofs.Formats.SExp.Dotted.emits_iff_tokenizes s ts
+
+/-- **Declarative characterization** of the dotted text syntax. -/
+theorem parse?_iff_tokenizes (s : String) (e : Datum) :
+    parse? s = some e ↔ ∃ ts, Tokenizes s.toList ts ∧ Gram .datum ts e := by
+  rw [parse?_iff]
+  constructor
+  · rintro ⟨ts, r, he, heof, hg⟩; exact ⟨ts, (emits_iff_tokenizes _ _).1 ⟨r, he, heof⟩, hg⟩
+  · rintro ⟨ts, ht, hg⟩
+    obtain ⟨r, he, heof⟩ := (emits_iff_tokenizes _ _).2 ht
+    exact ⟨ts, r, he, heof, hg⟩
 
 theorem format_unambiguous : format.Unambiguous := Format.ofDecoder_unambiguous _
 
