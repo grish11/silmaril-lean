@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Abstract.HostClosingXP.Defs
 public import Silmaril.Wasm.Interp.HostEvalP.Thms
 public import Silmaril.Wasm.Abstract.HostCall.Defs
 public import Silmaril.Wasm.SingleThreaded.Profile
+public import Silmaril.Wasm.Execution.Core.Sim.TypedContext
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.Basic
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.Direct
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.TrapClose
@@ -118,6 +119,14 @@ of the closure; in every closed behaviour the log before a host event is a pendi
   for the simulations of divergent and productive runs (`HostClosingInfXP`);
 * `reachLXP_of_evalLXPh`: every logged call of a canonical run is reached, after the calls logged
   before it.
+
+**Facts of the backward simulation, for reuse** (`HostClosingInfXPBack`):
+
+* `outcome_ends_stuck`: a final form (`Outcome.Ends`) has no step, under any host and profile;
+* `funcType_of_callRef_cfg`, `funcType_of_indRes`, `funcType_of_returnCallRef_site`: callee
+  function types from typing: a typed `call_ref` form on a function reference, a function entry
+  passing an indirect call's cast against a type of the instance with a function type, and a
+  typed `return_call_ref` on a function reference.
 
 **Cut calls**:
 
@@ -316,6 +325,47 @@ theorem wasmEvFunXP_trap_iff (hT : HostTyped host) (hH : NativeHostSlice host)
     fun ⟨_, h⟩ => ⟨evRun_wasmEvFunXP_trap hT hH hE hs hS hts hok h, evRun_consistent h⟩⟩
 
 end Back
+
+/-! ## Facts of the backward simulation, for reuse -/
+
+section BackFacts
+
+open Silmaril.Wasm.Validation
+
+/-- **A final form has no step**, under any host and profile. -/
+theorem outcome_ends_stuck {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H}
+    {o : Silmaril.Wasm.Logic.Core.Outcome} {c : List Admin} (he : o.Ends c) (s : Store H)
+    (f : Frame) : ∀ c', ¬ Step P host ⟨s, f, c⟩ c' :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.ends_stuck he s f
+
+/-- **A typed `call_ref` form on a function reference: its function has a function type.** -/
+theorem funcType_of_callRef_cfg {P : Silmaril.Wasm.Numerics.Profile} {s : Store H} {f : Frame}
+    {vs : List Val} {a : Nat} {cr : Admin} {rest : List Admin} {fi : FuncInst H}
+    (ht : Sim.ContextTyped ⟨s, f, vals vs ++ .ref (.func a) :: cr :: rest⟩) (hcr : cr.IsCallRef)
+    (hfi : s.funcs[a]? = some fi) :
+    ∃ ps rs, DefType.funcType? fi.type = some (ps, rs) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.funcType_of_callRef_cfg (P := P) ht hcr hfi
+
+/-- **A function entry passing an indirect call's cast has a function type**, against a type of
+the instance with a function type. -/
+theorem funcType_of_indRes {s : Store H} {f : Frame} {x : TableIdx} {y : TypeIdx} {ad : AddrType}
+    {i : BitVec ad.intType.width} {fa : Nat} {fi : FuncInst H}
+    (hres : CallRes.IndRes s f x y ad i (some fa)) (hfi : s.funcs[fa]? = some fi)
+    (hs : CallXT.TyFuncs s) (hm : CallXT.TyTypes f.module) {p : Nat × Nat}
+    (hy : CallXT.typeArity f.module y = some p) :
+    ∃ ps rs, DefType.funcType? fi.type = some (ps, rs) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.funcType_of_indRes hres hfi hs hm hy
+
+/-- **A typed `return_call_ref` on a function reference: its function has a function type.** -/
+theorem funcType_of_returnCallRef_site {s : Store H} {f : Frame} {stk : List Val} {fa : Nat}
+    {y : TypeIdx} {rest : List Admin} {fi : FuncInst H}
+    (ht : Sim.ContextTyped ⟨s, f, vals (.ref (.func fa) :: stk).reverse ++
+      .plain (.returnCallRef y) :: rest⟩)
+    (hm : CallXT.TyTypes f.module) (hfi : s.funcs[fa]? = some fi) (hfiok : TyOk {} fi.type) :
+    ∃ ps rs, DefType.funcType? fi.type = some (ps, rs) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.funcType_of_returnCallRef_site ht hm hfi hfiok
+
+end BackFacts
 
 /-! ## Pending calls at exactly their log -/
 
