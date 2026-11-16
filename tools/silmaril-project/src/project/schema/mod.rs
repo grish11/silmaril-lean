@@ -1,8 +1,8 @@
 //! Every `sil project` format, one module per layer:
 //! [`dag`] (layer 0: manifest, dump, DAG records, core tables), [`relational`] (predicates,
 //! answers, instances), [`artifacts`] (the registry and blobs), [`values`] (formats and
-//! values), [`rooms`] and [`models`] (models and specs), [`markings`] (deprecations and
-//! findings). This module holds what the layers
+//! values), [`rooms`] and [`models`] (models and specs), [`languages`] (language domains,
+//! measures, interpretations and languages), [`markings`] (deprecations and findings). This module holds what the layers
 //! share: the schema strings, the closed [`Record`] enum (one line per kind, so an unknown kind
 //! is rejected), the [`table!`] macro and the DDL order ([`tables`]).
 //!
@@ -87,6 +87,10 @@ pub enum Record {
     Room(Room),
     Machine(Box<Machine>),
     MachineBinding(MachineBinding),
+    LanguageDomain(LanguageDomain),
+    Measure(Measure),
+    LanguageInterpretation(LanguageInterpretation),
+    Language(Box<Language>),
     Predicate(Predicate),
     Answer(Answer),
     Instance(Instance),
@@ -127,6 +131,10 @@ record_kinds! {
     Room = "room", key name, object Some("room");
     Machine = "machine", key name, object Some("machine");
     MachineBinding = "machine_binding", key name, object None;
+    LanguageDomain = "language_domain", key name, object Some("language_domain");
+    Measure = "measure", key name, object Some("measure");
+    LanguageInterpretation = "language_interpretation", key name, object Some("language_interpretation");
+    Language = "language", key name, object Some("language");
     Predicate = "predicate", key name, object None;
     Answer = "answer", key decl, object None;
     Instance = "instance", key name, object None;
@@ -238,6 +246,7 @@ macro_rules! table {
 // Each layer declares its record structs and tables; [`tables`] fixes the DDL order.
 pub mod artifacts;
 pub mod dag;
+pub mod languages;
 pub mod machines;
 pub mod markings;
 pub mod models;
@@ -248,6 +257,7 @@ pub mod values;
 
 pub use artifacts::*;
 pub use dag::*;
+pub use languages::*;
 pub use machines::*;
 pub use markings::*;
 pub use models::*;
@@ -255,13 +265,15 @@ pub use relational::*;
 pub use rooms::*;
 pub use values::*;
 
-/// Views written after the tables: the group vectors, then the marking views
+/// Views written after the tables: the group vectors, the language problems
+/// ([`languages::LANGUAGE_VIEWS`]), then the marking views
 /// ([`markings::MARKING_VIEWS`]).
 pub const VIEWS: &[&str] = &[
     "CREATE VIEW group_verdicts AS SELECT e.parent AS group_name, e.record_kind, \
 e.record_name, e.pos, e.child, s.summary, s.verdict \
 FROM edges e JOIN problems p ON p.name = e.parent AND p.kind = 'group' \
 LEFT JOIN summary s ON s.problem = e.child;",
+    languages::LANGUAGE_VIEWS[0],
     markings::MARKING_VIEWS[0],
     markings::MARKING_VIEWS[1],
     markings::MARKING_VIEWS[2],
@@ -308,6 +320,15 @@ pub const INDEXES: &[(&str, &str, &[&str])] = &[
         &["replacement"],
     ),
     ("machine_bindings_machine", "machine_bindings", &["machine"]),
+    ("languages_domain", "languages", &["domain", "name"]),
+    ("languages_decl", "languages", &["decl"]),
+    ("languages_identity", "languages", &["identity_hash"]),
+    (
+        "language_operands_operand",
+        "language_operands",
+        &["operand"],
+    ),
+    ("instance_args_term", "instance_args", &["term"]),
 ];
 
 /// A table's shape without its row type.
@@ -367,6 +388,12 @@ pub fn tables() -> Vec<TableInfo> {
         info::<Room>(),
         info::<Machine>(),
         info::<MachineBinding>(),
+        info::<LanguageDomain>(),
+        info::<Measure>(),
+        info::<LanguageInterpretation>(),
+        info::<Language>(),
+        info::<LanguageOperand>(),
+        info::<LanguageShapeRole>(),
         info::<ProblemRow>(),
         info::<ProblemArg>(),
         info::<ProblemInput>(),

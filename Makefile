@@ -115,6 +115,8 @@ project-lean:
 		Silmaril.Project.Defs \
 		Silmaril.Project.Formats.Thms \
 		Silmaril.Project.Shapes.Format.Thms \
+		Silmaril.Project.Shapes.Language.Thms \
+		Silmaril.Project.Languages.Wasm.Defs \
 		Silmaril.Project.Shapes.Elf.Thms \
 		Silmaril.Project.Shapes.X86.Thms \
 		Silmaril.Project.Shapes.Cli.Thms \

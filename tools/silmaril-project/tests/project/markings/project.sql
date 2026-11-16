@@ -167,6 +167,78 @@ CREATE TABLE machine_bindings(
   origin TEXT NOT NULL,
   doc TEXT
 );
+CREATE TABLE language_domains(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  carrier TEXT NOT NULL,
+  monoid INTEGER NOT NULL,
+  letters TEXT,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE measures(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  codomain TEXT NOT NULL,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE language_interpretations(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  input TEXT NOT NULL,
+  carrier TEXT NOT NULL,
+  abi TEXT,
+  environment TEXT,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE languages(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  op TEXT NOT NULL CHECK(op IN ('decl','format','artifact','union','inter','diff','regex','within')),
+  decl TEXT NOT NULL,
+  carrier TEXT NOT NULL,
+  title TEXT,
+  doc TEXT,
+  source TEXT,
+  format TEXT,
+  value TEXT,
+  interpretation TEXT,
+  regex TEXT,
+  semantics TEXT CHECK(semantics IN ('list','monoid')),
+  measure TEXT,
+  bound INTEGER,
+  identity TEXT NOT NULL,
+  identity_hash TEXT NOT NULL,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE language_operands(
+  language TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  operand TEXT NOT NULL,
+  PRIMARY KEY(language, pos)
+);
+CREATE TABLE language_shape_roles(
+  shape TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  PRIMARY KEY(shape, pos)
+);
 CREATE TABLE problems(
   sid TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -252,7 +324,7 @@ CREATE TABLE summary(
 );
 CREATE TABLE deprecations(
   name TEXT NOT NULL PRIMARY KEY,
-  kind TEXT NOT NULL CHECK(kind IN ('problem','group','spec')),
+  kind TEXT NOT NULL CHECK(kind IN ('problem','group','spec','language')),
   reason TEXT NOT NULL,
   module TEXT NOT NULL,
   origin TEXT NOT NULL CHECK(origin IN ('local','imported'))
@@ -261,7 +333,7 @@ CREATE TABLE deprecation_replacements(
   name TEXT NOT NULL,
   pos INTEGER NOT NULL,
   replacement TEXT NOT NULL,
-  kind TEXT NOT NULL CHECK(kind IN ('problem','group','spec')),
+  kind TEXT NOT NULL CHECK(kind IN ('problem','group','spec','language')),
   PRIMARY KEY(name, pos)
 );
 CREATE TABLE deprecated_problems(
@@ -286,6 +358,7 @@ CREATE TABLE finding_versions(
   PRIMARY KEY(problem, pos)
 );
 CREATE VIEW group_verdicts AS SELECT e.parent AS group_name, e.record_kind, e.record_name, e.pos, e.child, s.summary, s.verdict FROM edges e JOIN problems p ON p.name = e.parent AND p.kind = 'group' LEFT JOIN summary s ON s.problem = e.child;
+CREATE VIEW language_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, l.name AS language, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN language_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN languages l ON l.decl = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
 CREATE VIEW genuine_errors AS SELECT f.problem, p.title, s.summary, f.note, f.pointer, (SELECT group_concat(v.version, ',') FROM (SELECT version FROM finding_versions WHERE problem = f.problem ORDER BY pos) v) AS affected_versions, f.fixed_in, f.disclosure_status, f.module, f.origin FROM findings f JOIN problems p ON p.name = f.problem LEFT JOIN summary s ON s.problem = f.problem WHERE f.classification = 'error';
 CREATE VIEW model_gaps AS SELECT f.pointer, f.problem, p.title, f.note FROM findings f JOIN problems p ON p.name = f.problem WHERE f.classification = 'model_gap';
 CREATE VIEW spec_bugs AS SELECT f.problem, d.via_kind, d.via, f.note, f.pointer FROM findings f LEFT JOIN deprecated_problems d ON d.problem = f.problem WHERE f.classification = 'spec_bug';
@@ -315,6 +388,11 @@ CREATE INDEX findings_pointer ON findings(pointer);
 CREATE INDEX deprecated_problems_via ON deprecated_problems(via);
 CREATE INDEX deprecation_replacements_replacement ON deprecation_replacements(replacement);
 CREATE INDEX machine_bindings_machine ON machine_bindings(machine);
+CREATE INDEX languages_domain ON languages(domain, name);
+CREATE INDEX languages_decl ON languages(decl);
+CREATE INDEX languages_identity ON languages(identity_hash);
+CREATE INDEX language_operands_operand ON language_operands(operand);
+CREATE INDEX instance_args_term ON instance_args(term);
 INSERT INTO meta(key, value) VALUES('dump_schema', 'silmaril.project-dump.v0.1');
 INSERT INTO meta(key, value) VALUES('modules', 'Mk');
 INSERT INTO meta(key, value) VALUES('roots', 'Mk');
@@ -338,6 +416,30 @@ INSERT INTO objects(sid, kind, name, project, module, origin, sid_source) VALUES
 INSERT INTO objects(sid, kind, name, project, module, origin, sid_source) VALUES('f72890044bd46cfeb33661aa8814aa91ae1bef0c48b2885aef6324c30cb55042', 'problem', 'mk.gen.five', 'mk', 'Mk', 'local', 'derived');
 INSERT INTO specs(sid, name, decl, model, format, module, origin, doc) VALUES('381e882c929ec10da42d9fa55791fb33840f9837965d57c6ebf1d6bad48ac252', 'mk.specs.old', 'Mk.oldSpec', NULL, NULL, 'Mk', 'local', NULL);
 INSERT INTO specs(sid, name, decl, model, format, module, origin, doc) VALUES('a9273b2acbdbcc57ff57171bb7674831ce13ef890ff445689e9b695a91ad061b', 'mk.specs.new', 'Mk.newSpec', NULL, NULL, 'Mk', 'local', NULL);
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 2, 'mu');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 3, 'b');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 4, 'x');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bytes_member', 0, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bytes_member', 1, 'bytes');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_at', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_at', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_at', 2, 'K');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_at', 3, 'x');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 2, 'K');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 3, 'mu');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 4, 'b');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 5, 'x');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.member', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.member', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.member', 2, 'x');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 2, 'K');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 3, 'x');
 INSERT INTO problems(sid, name, kind, decl, arity, room, module, origin, model, spec, expect, detached, detached_reason, title, doc) VALUES('1c46cf1151f204b6e6f2a925d5c9d1980c0b203b7c837d5165a43fe4181cda91', 'mk.all', 'group', NULL, NULL, NULL, 'Mk', 'local', NULL, NULL, NULL, 0, NULL, 'All', NULL);
 INSERT INTO problems(sid, name, kind, decl, arity, room, module, origin, model, spec, expect, detached, detached_reason, title, doc) VALUES('2b5f1766a59d76082cdc5f3247e48c2b47c9a3d540a5a3e349468a8ee1b8a90e', 'mk.parse.v1', 'prop', 'Mk.v1', 0, NULL, 'Mk', 'local', NULL, NULL, NULL, 0, NULL, NULL, NULL);
 INSERT INTO problems(sid, name, kind, decl, arity, room, module, origin, model, spec, expect, detached, detached_reason, title, doc) VALUES('3eea9cc0e4d77934a085a5c02bc52ed58e91bccbbade54aa80b72136747edcf9', 'mk.vec.add', 'prop', 'Mk.add', 0, NULL, 'Mk', 'local', NULL, NULL, NULL, 0, NULL, NULL, NULL);

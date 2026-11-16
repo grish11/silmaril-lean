@@ -172,6 +172,14 @@ pub(super) fn follow<'a>(
             Record::Predicate(d) => {
                 refs.extend(d.room.iter().map(|m| ("room", "room", m.clone())));
             }
+            Record::Measure(m) => refs.push(("domain", "language_domain", m.domain.clone())),
+            Record::LanguageInterpretation(i) => {
+                refs.push(("domain", "language_domain", i.domain.clone()));
+            }
+            Record::Language(l) => {
+                refs.push(("domain", "language_domain", l.domain.clone()));
+                language_refs(cx, l, &at, &mut refs, o);
+            }
             Record::Instance(i) => {
                 if !g.is_prop(&i.of) || !g.is_prop(&i.name) {
                     o.error(&at, "an instance and its general problem must be problems");
@@ -241,4 +249,91 @@ pub(super) fn follow<'a>(
         }
     }
     Kept { keep, used_blobs }
+}
+
+/// The references of a `language` record, and its shape: the fields its `op` needs, and
+/// operands, interpretation and measure over the language's own domain (the ill-typed
+/// combinations Lean also rejects).
+fn language_refs<'a>(
+    cx: &Ctx<'a>,
+    l: &'a Language,
+    at: &str,
+    refs: &mut Refs<'a>,
+    o: &mut Outcome,
+) {
+    if !LANGUAGE_OPS.contains(&l.op.as_str()) {
+        o.error(
+            at,
+            format!("op {:?} is not one of {}", l.op, LANGUAGE_OPS.join(", ")),
+        );
+    }
+    let need = |o: &mut Outcome, field: &str, v: &Option<String>| {
+        if v.is_none() {
+            o.error(at, format!("op {} needs `{field}`", l.op));
+        }
+    };
+    let n = l.args.len();
+    match l.op.as_str() {
+        "decl" if n > 0 => o.error(at, "op decl takes no args"),
+        "format" => need(o, "format", &l.format),
+        "artifact" => {
+            need(o, "value", &l.value);
+            need(o, "interpretation", &l.interpretation);
+        }
+        "union" | "inter" if n < 2 => o.error(at, format!("op {} needs at least two args", l.op)),
+        "diff" if n != 2 => o.error(at, "op diff needs exactly two args"),
+        "regex" => {
+            need(o, "regex", &l.regex);
+            if l.semantics.is_none() {
+                o.error(at, "op regex needs `semantics` (list or monoid)");
+            }
+        }
+        "within" => {
+            need(o, "measure", &l.measure);
+            if n != 1 || l.bound.is_none() {
+                o.error(at, "op within needs one arg and a bound");
+            }
+        }
+        _ => {}
+    }
+    refs.extend(l.format.iter().map(|f| ("format", "format", f.clone())));
+    refs.extend(l.value.iter().map(|v| ("value", "value", v.clone())));
+    for (field, kind, name) in [
+        (
+            "interpretation",
+            "language_interpretation",
+            &l.interpretation,
+        ),
+        ("measure", "measure", &l.measure),
+    ] {
+        let Some(name) = name else { continue };
+        refs.push((field, kind, name.clone()));
+        let dom = match cx.get(kind, name) {
+            Some(Record::LanguageInterpretation(i)) => Some(&i.domain),
+            Some(Record::Measure(m)) => Some(&m.domain),
+            _ => None,
+        };
+        if let Some(d) = dom
+            && *d != l.domain
+        {
+            o.error(
+                at,
+                format!("{field} {name} is over the domain {d}, not {}", l.domain),
+            );
+        }
+    }
+    for a in &l.args {
+        refs.push(("args", "language", a.clone()));
+        if let Some(Record::Language(m)) = cx.get("language", a)
+            && m.domain != l.domain
+        {
+            o.error(
+                at,
+                format!(
+                    "args: language {a} is over the domain {}, not {}",
+                    m.domain, l.domain
+                ),
+            );
+        }
+    }
 }

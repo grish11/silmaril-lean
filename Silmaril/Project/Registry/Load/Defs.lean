@@ -32,7 +32,7 @@ the dump (so a file that is not loaded, or a module not rebuilt after an edit, i
 This reader only knows the order of the kinds (`loadKinds`, compared with Rust's by a Rust test)
 and three spellings:
 
-* a key in `constKeys` (`decl`, `proof`, `rel`) names a Lean constant, resolved as an identifier
+* a key in `constKeys` (`decl`, `proof`, `rel`, `abi`, `environment`) names a Lean constant, resolved as an identifier
   would be in the command; `module` names an imported module;
 * `[[value]]`: `format` and `source` (a CID, a registry path or a registry name), plus
   `sources = [{ format, source }]` for the sources that must agree with it;
