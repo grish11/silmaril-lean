@@ -489,6 +489,33 @@ environment as Lean definitions). Problems without a Lean answer are unknown. No
     return new RegExp("\\b" + m[1].replace(/[^\w]/g, "\\$&") + "\\b").test(m[2]) ? `(${t}) e` : m[2];
   }
 
+  // Evidence matrices (`consequence_matrix`): the protocol owner's cells, verbatim, with the
+  // declarations they list as supporting references.
+  async function matrixSection(ctx) {
+    if (!Explorer.tables().has("consequence_matrix_cells")) return "";
+    const cells = await ctx.q("SELECT * FROM consequence_matrix_cells ORDER BY matrix, pos LIMIT 500");
+    if (!cells.length) return "";
+    const ref = (t) => { const sl = typeof sourceLink === "function" ? sourceLink(t.module, t.name) : "";
+      return `${term(t.name)}${sl ? " " + sl : ` <span class="muted" title="no source for ${ui.esc(t.module)} on this page">(${ui.esc(t.module)})</span>`}`; };
+    let h = "";
+    for (const m of [...new Set(cells.map((c) => c.matrix))]) {
+      const cs = cells.filter((c) => c.matrix === m);
+      const count = (k, v) => cs.filter((c) => c[k] === v).length;
+      h += `<h3>Protocol evidence matrix <code>${ui.esc(m)}</code></h3>
+<p class="muted">Protocol-provided evidence and strength classifications, one cell per protocol variant, copied verbatim from
+<code>${ui.esc(cs[0].decl)}</code>; the listed declarations are supporting references (the registry checked that they exist, not that the
+classification is right). <b>specStrategy</b> evidence is about a specification strategy, not a compiled component; <b>execution</b> evidence is
+about a verified core module through an explicit byte codec. Evidence: ${count("evidence", "definitions")} definitions,
+${count("evidence", "specStrategy")} spec strategy, ${count("evidence", "execution")} execution.</p>
+<div class="tablebox"><table class="matrix-table" data-matrix="${ui.esc(m)}"><thead><tr><th>variant</th><th>reading</th><th>evidence</th><th>strength</th><th>note</th><th>supporting declarations</th></tr></thead><tbody>` +
+        cs.map((c) => { let ts = []; try { ts = typeof c.theorems === "string" ? JSON.parse(c.theorems) : c.theorems; } catch { ts = []; }
+          return `<tr data-evidence="${ui.esc(c.evidence)}" data-strength="${ui.esc(c.strength)}"><td>${term(c.variant)}</td><td>${term(c.reading)}</td>` +
+            `<td>${ui.esc(c.evidence)}</td><td>${ui.esc(c.strength)}</td><td>${ui.esc(c.note)}</td><td>${ts.map(ref).join("<br>")}</td></tr>`; }).join("") +
+        `</tbody></table></div>`;
+    }
+    return h;
+  }
+
   // The Interpretations pane: every registered interpretation of a value as a language
   // (`language_interpretation`, `V → Set T`) or as a consequence system
   // (`consequence_interpretation`, `V → System Ax C`), from the existing tables, with what uses it.
@@ -535,7 +562,7 @@ Applying it to an artifact can still fail earlier, when the bytes do not decode;
         `<td class="nw">${r.kind === "system" && (r.n_est || r.n_counter || r.n_unknown) ? `${r.n_est} proved / ${r.n_counter} counter / ${r.n_unknown} unknown` : ""}</td></tr>` +
         (r.doc ? `<tr class="doc"><td></td><td colspan="8" class="muted">${ui.esc(r.doc)}</td></tr>` : "");
     }
-    h += `</tbody></table></div><h3>Usage</h3><pre class="usage">${ui.esc(`silmaril language_interpretation N := I (domain := D) (abi := A) (environment := E)   -- I : V → Set T
+    h += `</tbody></table></div>` + await matrixSection(ctx) + `<h3>Usage</h3><pre class="usage">${ui.esc(`silmaril language_interpretation N := I (domain := D) (abi := A) (environment := E)   -- I : V → Set T
 silmaril language L (domain := D) (op := artifact) (value := X) (interpretation := N)
 silmaril consequence_interpretation N := I (abi := A) (environment := E)            -- I : V → System Ax C
 silmaril consequence_system S (op := artifact) (value := X) (interpretation := N)

@@ -54,7 +54,7 @@ try {
     `multi.lit: signed lists on both sides, a raw sequent (${byName[S + "multi.lit"][3]})`);
   // the view buttons: counts and filters from the typed shape and certifications
   const views = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("#systems-views a")].map((a) => [a.dataset.view, +a.querySelector("span").textContent])));
-  check(views.all === list.length && views.acceptor === 6 && views.rejector === 1 && views.signed === 3 && views.partial === 6 && views.finset === 1 && views.set === 3 && views["raw-sequent"] === 13 && views.gentzen === 1 && views.artifact === 10,
+  check(views.all === list.length && views.acceptor === 6 && views.rejector === 1 && views.signed === 3 && views.partial === 6 && views.finset === 1 && views.set === 3 && views["raw-sequent"] === 14 && views.gentzen === 1 && views.artifact === 10,
     `view counts ${JSON.stringify(views)}`);
   await open("/systems/?view=gentzen");
   const gv = await rows("#systems-table");
@@ -229,6 +229,20 @@ try {
   const ls = await p.evaluate(() => [...document.querySelectorAll("table.system-evidence[data-standing='established'] tbody tr")].map((tr) => tr.textContent));
   check(ls.some((t) => /preserves/.test(t) && /Signed\.pos/.test(t)) && ls.some((t) => /reflects/.test(t)), "the signed lift: translated and reflected along Signed.pos");
   await shot("structural-set");
+
+  // the UNSAT restriction toUnsat, rebuilt with viaUnsat, is validity (Calculus.Examples.lit_eq_viaUnsat)
+  await open("/system/" + encodeURIComponent(S + "gentzen.valid_via_unsat_restriction"));
+  const rr = await p.evaluate(() => [...document.querySelectorAll("table.system-evidence[data-standing='established'] tbody tr")].map((tr) => tr.textContent));
+  check(rr.some((t) => /restriction_sound/.test(t)) && rr.some((t) => /restriction_complete/.test(t)), "the toUnsat restriction: sound and complete for validity, established");
+
+  // the protocol evidence matrix: 12 cells, the owner's 2 / 2 / 8 evidence counts, verbatim
+  await open("/interpretations");
+  const mx = await p.evaluate(() => [...document.querySelectorAll("table.matrix-table tbody tr")].map((tr) => [tr.dataset.evidence, tr.dataset.strength, tr.textContent]));
+  const evc = (e) => mx.filter((r) => r[0] === e).length;
+  check(mx.length === 12 && evc("specStrategy") === 2 && evc("execution") === 2 && evc("definitions") === 8, `the matrix: 12 cells, 2 spec strategy, 2 execution, 8 definitions (${mx.length})`);
+  check(mx.some((r) => r[0] === "execution" && r[1] === "boundedComplete" && /member_completeOn/.test(r[2])), "the coreMember cell: execution, bounded complete, with member_completeOn");
+  check(await p.evaluate(() => /not a compiled component/.test(document.querySelector("#main").textContent)), "spec strategies are stated not to be compiled components");
+  await shot("matrix");
 
   check(errors.length === 0, `no page error${errors.length ? ": " + errors.join("; ") : ""}`);
 } finally {

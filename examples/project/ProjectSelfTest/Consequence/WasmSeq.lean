@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Project.ConsequenceSystems.WasmSeq.Defs
+public meta import Silmaril.Project.ConsequenceSystems.Matrix.Defs
 public import Silmaril.Project.Shapes.Consequence.Thms
 public import Silmaril.Wasi.Component.Consequence.Interp.Thms
 public import ProjectSelfTest.WasmAcceptors
@@ -138,3 +139,6 @@ silmaril group silmaril.selftest.consequence.wasm_seq
     silmaril.selftest.consequence.wasm_seq.member_sound,
     silmaril.selftest.consequence.wasm_seq.member_complete_within,
     silmaril.selftest.consequence.wasm_seq.empty_empty])
+
+silmaril consequence_matrix silmaril.protocols.signed_matrix :=
+  Silmaril.Project.ConsequenceSystems.Matrix.signedMatrixRows

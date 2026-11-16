@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Project.Shapes.Consequence.Thms
 public import Silmaril.Logic.Consequence.Gentzen.Examples
+public import Silmaril.Logic.Consequence.Gentzen.Calculus.Examples
 
 /-!
 # The `sil project` self-test: consequence systems from `Silmaril.Logic.Consequence.Gentzen`
@@ -36,6 +37,9 @@ def viaUnsatPairs : Seq Lit := viaUnsat pairs lneg
 def viaUnsatBounded3 : Seq Lit := viaUnsat (bounded 3) lneg
 /-- Its closure under reflexivity, the default weakening and cut. -/
 def bounded3Closure : Seq Lit := Derives defaultRules (viaUnsat (bounded 3) lneg)
+/-- Validity rebuilt from its UNSAT restriction: `viaUnsat (toUnsat valid) lneg`. -/
+def validViaUnsatRestriction : Seq Lit := viaUnsat (toUnsat (Valid lsat)) lneg
+
 /-- The non-logical sequents `p ⊢ q` and `q ⊢ r`. -/
 def chainRaw : Seq Lit := chain
 /-- Their closure under the default rules. -/
@@ -58,6 +62,9 @@ silmaril consequence_system silmaril.selftest.consequence.gentzen.via_unsat_boun
 silmaril consequence_system silmaril.selftest.consequence.gentzen.bounded3_closure :=
   ProjectSelfTest.Consequence.Gentzen.bounded3Closure
   (title := "The bounded test closed under reflexivity, weakening and cut")
+silmaril consequence_system silmaril.selftest.consequence.gentzen.valid_via_unsat_restriction :=
+  ProjectSelfTest.Consequence.Gentzen.validViaUnsatRestriction
+  (title := "Validity rebuilt from its UNSAT restriction toUnsat (Calculus)")
 silmaril consequence_system silmaril.selftest.consequence.gentzen.chain :=
   ProjectSelfTest.Consequence.Gentzen.chainRaw (title := "Non-logical sequents p ⊢ q, q ⊢ r (raw)")
 silmaril consequence_system silmaril.selftest.consequence.gentzen.chain_closure :=
@@ -138,6 +145,23 @@ public theorem bounded3_up_closed : ¬ CtxUpClosed viaUnsatBounded3 := fun h =>
     (show viaUnsat (bounded 3) lneg [(true, 0)] [(true, 0)] by decide))
     (show ¬ viaUnsat (bounded 3) lneg [(true, 0), (true, 1), (true, 2)] [(true, 0)] by decide)
 
+-- the UNSAT restriction loses nothing for validity (Calculus.Examples.lit_eq_viaUnsat)
+silmaril instance silmaril.selftest.consequence.gentzen.restriction_sound (expect := THM)
+  (title := "Validity rebuilt from toUnsat is sound for validity") := silmaril.shapes.consequence.sound_at
+  (S := ProjectSelfTest.Consequence.Gentzen.validViaUnsatRestriction) (T := ProjectSelfTest.Consequence.Gentzen.valid)
+
+@[answers "silmaril.selftest.consequence.gentzen.restriction_sound" thm]
+public theorem restriction_sound : ∀ Γ Δ, SoundAt validViaUnsatRestriction valid Γ Δ := fun Γ Δ h =>
+  (show Valid lsat Γ Δ from Calculus.Examples.lit_eq_viaUnsat ▸ h)
+
+silmaril instance silmaril.selftest.consequence.gentzen.restriction_complete (expect := THM)
+  (title := "…and complete: toUnsat loses nothing for validity") := silmaril.shapes.consequence.complete_at
+  (S := ProjectSelfTest.Consequence.Gentzen.validViaUnsatRestriction) (T := ProjectSelfTest.Consequence.Gentzen.valid)
+
+@[answers "silmaril.selftest.consequence.gentzen.restriction_complete" thm]
+public theorem restriction_complete : ∀ Γ Δ, CompleteAt validViaUnsatRestriction valid Γ Δ := fun Γ Δ h =>
+  (show viaUnsat (toUnsat (Valid lsat)) lneg Γ Δ from Calculus.Examples.lit_eq_viaUnsat ▸ h)
+
 silmaril instance silmaril.selftest.consequence.gentzen.p_qp (expect := THM)
   (title := "p ⊢ q, p is valid") := silmaril.shapes.consequence.derives
   (S := ProjectSelfTest.Consequence.Gentzen.valid) (Γ := [(true, 0)]) (φ := [(true, 1), (true, 0)])
@@ -205,7 +229,8 @@ public theorem chain_p_r : ¬ Derives chainRaw [(true, 0)] [(true, 2)] := by
 end
 
 silmaril group silmaril.selftest.consequence.gentzen (title := "Consequence systems: literal sequents (Gentzen)")
-  (children := [silmaril.selftest.consequence.gentzen.pairs_up_closed,
+  (children := [silmaril.selftest.consequence.gentzen.restriction_sound,
+    silmaril.selftest.consequence.gentzen.restriction_complete, silmaril.selftest.consequence.gentzen.pairs_up_closed,
     silmaril.selftest.consequence.gentzen.pairs_set_inv, silmaril.selftest.consequence.gentzen.bounded3_up_closed,
     silmaril.selftest.consequence.gentzen.pairs_closed,
     silmaril.selftest.consequence.gentzen.bounded3_closed, silmaril.selftest.consequence.gentzen.pairs_sound,

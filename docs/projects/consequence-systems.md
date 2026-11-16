@@ -190,6 +190,20 @@ and on sets (`onSet`), which agree along the inclusion of finite sets (`onFinset
 and over `m ⊨ n ↔ m ≠ n`, finite validity read on sets is sound for infinitary validity but
 not complete — `ℕ ⊨ ∅` has no finite witness (`not_onSet_valid`; no compactness).
 
+**Restrictions.** `gentzen.valid_via_unsat_restriction` is validity rebuilt from its UNSAT
+restriction (`viaUnsat (toUnsat (Valid lsat)) lneg`, `Gentzen.Calculus`): sound and complete for
+validity (`Calculus.Examples.lit_eq_viaUnsat`). The TAUTO restriction `toTaut` has the same API
+(`eq_viaTauto_toTaut`) and no separate fixture.
+
+**Evidence matrices.** `silmaril consequence_matrix N := rows` records an evidence matrix, one
+row per cell, verbatim: `rows : Silmaril.Project.MatrixRows` (variant, reading, supporting
+declarations, evidence, strength, note). Lean checks that the reading and each listed
+declaration exist and records their modules — provenance, not a check that the classification
+is right. `silmaril.protocols.signed_matrix` registers the protocol track's
+`SignedMatrix.cells` (12 cells: 8 `definitions`, 2 `specStrategy`, 2 `execution`); the
+Interpretations page shows it as the protocol-provided classification with the supporting
+declarations (specification strategies are not compiled components).
+
 **Interpretations.** The Interpretations page lists every `language_interpretation` (`V → Set T`)
 and `consequence_interpretation` (`V → System Ax C`): what it reads and gives, its ABI and
 environment, its definedness (both kinds are total definitions today; applying one to an
