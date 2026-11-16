@@ -2,7 +2,15 @@ async function artifactPage(key) {
   const a = (await q("SELECT * FROM artifacts WHERE cid = ? OR sid = ? LIMIT 1", [key, key]))[0];
   if (!a) return `<p class="err">no artifact ${esc(key)}</p>`;
   let h = `<h2>Artifact <code>${esc(a.name || a.cid)}</code></h2>` + await dl(a, { cid: "", name: "" });
-  h += "<h2>Paths</h2>" + await tableOf(await first(DETAIL, "SELECT package, path FROM artifact_paths WHERE artifact = ?", [a.sid]));
+  // The bytes: from the project's repository at the page's commit (paths of the local package
+  // only), read at most VIEWER_LIMIT bytes, checked against the registered SHA-256 when whole.
+  const local = (await tq("projects", "SELECT name FROM projects WHERE origin = 'local' LIMIT 1"))[0];
+  const paths = await first(DETAIL, "SELECT package, path FROM artifact_paths WHERE artifact = ?", [a.sid]);
+  h += "<h2>Paths</h2>" + await tableOf(paths, ["package", "path", "bytes"], { render: { bytes: (r) => {
+    const f = local && r.package === local.name ? repoFile(r.path) : null;
+    return f ? `<button type="button" data-bytes="${esc(f.raw)}" data-name="${esc(r.path)}" data-sha256="${esc(a.sha256 || "")}"` +
+      `${/\.wat$/i.test(r.path) ? ' data-lang="wat"' : ""}>view</button> <a href="${esc(f.blob)}" target="_blank" rel="noopener noreferrer">on GitHub</a>` : '<span class="muted">—</span>';
+  } }, nowrap: ["bytes"] });
   h += "<h2>Facts</h2>" + await tableOf(await first(DETAIL, "SELECT at, property, value, checker, tier FROM facts WHERE subject = ? ORDER BY at, property", [a.sid]), null, { hints: { value: "" } });
   h += "<h2>Values read from it</h2>" + await tableOf(await first(DETAIL, "SELECT value, pos, format, obligation FROM value_sources WHERE cid = ?", [a.cid]));
   h += "<h2>Problems over it</h2>" + await tableOf(await first(DETAIL, "SELECT problem, pos, 'input' AS via FROM problem_inputs WHERE cid = ? " +

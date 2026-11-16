@@ -135,14 +135,18 @@ project-tool:
 	chmod +x build/bin/sil
 
 # The explorer page and its database in _site (.github/workflows/pages.yml), from the built
-# libraries of the project's modules (silmaril.toml).
+# libraries of the project's modules (silmaril.toml). In a Git checkout, the page links problems
+# and answers to their Lean sources on GitHub at the checked-out commit.
+PAGES_SOURCE_URL ?= https://github.com/hiloopai/silmaril-lean
+PAGES_SOURCE_REV ?= $(shell git rev-parse HEAD 2>/dev/null)
 pages: project-tool
 	build/bin/silmaril-project dump --lake lake
 	build/bin/silmaril-project check
 	build/bin/silmaril-project sqlite --httpvfs > /dev/null
 	mkdir -p _site
 	cp .lake/silmaril/project.sqlite _site/project.sqlite
-	build/bin/silmaril-project explore --db _site/project.sqlite --out _site/index.html
+	build/bin/silmaril-project explore --db _site/project.sqlite --out _site/index.html \
+	  $(if $(PAGES_SOURCE_REV),--source-url $(PAGES_SOURCE_URL) --source-rev $(PAGES_SOURCE_REV))
 	# The Wasm component, module and function pages read static files next to the page.
 	lake build wasm-pages
 	.lake/build/bin/wasm-pages silmaril/artifacts.toml _site

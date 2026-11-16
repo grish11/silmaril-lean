@@ -27,6 +27,7 @@ macro_rules! script {
 pub const SCRIPTS: &[(&str, &str)] = &[
     script!("core.js"),
     script!("ui.js"),
+    script!("provenance.js"),
     script!("table.js"),
     script!("db.js"),
     script!("router.js"),
@@ -89,9 +90,49 @@ pub struct DbMeta {
     pub sha256: String,
 }
 
+/// Where the project's Lean sources are published, for links from problems and answers to the
+/// declarations' modules: a GitHub repository, a commit (links are pinned to it), and the file of
+/// each module of the database that exists under the project's source directories.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceMeta {
+    pub repo: String,
+    pub rev: String,
+    pub modules: std::collections::BTreeMap<String, String>,
+}
+
+/// Whether `repo` is a GitHub repository URL the page may link to and read raw files from.
+pub fn source_repo_ok(repo: &str) -> bool {
+    let Some(rest) = repo.strip_prefix("https://github.com/") else {
+        return false;
+    };
+    let seg = |s: &str| {
+        !s.is_empty()
+            && s != "."
+            && s != ".."
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
+    };
+    matches!(rest.split('/').collect::<Vec<_>>()[..], [o, r] if seg(o) && seg(r))
+}
+
+/// Whether `rev` is a commit id (7 to 40 hex digits): links are pinned to one commit.
+pub fn source_rev_ok(rev: &str) -> bool {
+    (7..=40).contains(&rev.len()) && rev.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 /// The page titled `title`, which tries `db_urls` (relative to the page) in order; `meta`
-/// describes the first of them, when it was readable at generation time.
-pub fn page(title: &str, db_urls: &[String], meta: Option<&DbMeta>) -> String {
+/// describes the first of them, when it was readable at generation time; `source`, when given,
+/// lets the page link declarations to their Lean sources.
+pub fn page(
+    title: &str,
+    db_urls: &[String],
+    meta: Option<&DbMeta>,
+    source: Option<&SourceMeta>,
+) -> String {
+    let source = source.map_or(
+        serde_json::Value::Null,
+        |s| serde_json::json!({ "repo": s.repo, "rev": s.rev, "modules": s.modules }),
+    );
     let meta = meta.map_or(
         serde_json::Value::Null,
         |m| serde_json::json!({ "url": db_urls.first(), "size": m.size, "sha256": m.sha256 }),
@@ -101,6 +142,7 @@ pub fn page(title: &str, db_urls: &[String], meta: Option<&DbMeta>) -> String {
         .replace("__TITLE__", &html_escape(title))
         .replace("__DB_URLS__", &script_json(&serde_json::json!(db_urls)))
         .replace("__DB_META__", &script_json(&meta))
+        .replace("__SOURCE_META__", &script_json(&source))
         .replace("__EXPLORE_SCRIPT__", &script())
 }
 
@@ -172,6 +214,7 @@ mod tests {
                 "__TITLE__",
                 "__DB_URLS__",
                 "__DB_META__",
+                "__SOURCE_META__",
                 "__EXPLORE_SCRIPT__",
             ] {
                 assert!(!text.contains(p), "{name} contains {p}");
@@ -191,7 +234,7 @@ mod tests {
         ids.dedup();
         assert_eq!(ids.len(), n, "a view id is registered twice");
         assert!(ids.contains(&"summary"), "the default view");
-        let p = page("t", &["project.sqlite".into()], None);
+        let p = page("t", &["project.sqlite".into()], None, None);
         assert!(p.contains("// ===== explore/main.js ====="));
         assert!(!p.contains("__EXPLORE_SCRIPT__"));
     }
@@ -209,6 +252,31 @@ mod tests {
     }
 
     #[test]
+    fn source_meta() {
+        assert!(source_repo_ok("https://github.com/hiloopai/silmaril-lean"));
+        for bad in [
+            "http://github.com/a/b",
+            "https://github.com/a",
+            "https://github.com/a/b/c",
+            "https://github.com/../b",
+            "https://github.com/a/b\"",
+            "https://example.com/a/b",
+        ] {
+            assert!(!source_repo_ok(bad), "{bad}");
+        }
+        assert!(source_rev_ok("dc6b6e6a"));
+        assert!(!source_rev_ok("main") && !source_rev_ok("abc"));
+        let s = SourceMeta {
+            repo: "https://github.com/a/b".into(),
+            rev: "0123456789abcdef".into(),
+            modules: [("M.N".to_string(), "x/</script>.lean".to_string())].into(),
+        };
+        let p = page("t", &[], None, Some(&s));
+        assert!(p.contains(r#""rev":"0123456789abcdef""#));
+        assert!(!p.contains("x/</script>") && !p.contains("__SOURCE_META__"));
+    }
+
+    #[test]
     fn page_escapes_title_and_urls() {
         let p = page(
             "a<b",
@@ -217,6 +285,7 @@ mod tests {
                 size: 3,
                 sha256: "ab".into(),
             }),
+            None,
         );
         assert!(p.contains(r#""size":3"#));
         assert!(p.contains("<title>a&lt;b</title>"));

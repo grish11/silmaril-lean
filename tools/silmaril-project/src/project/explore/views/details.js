@@ -9,6 +9,7 @@ async function problemDetail(name) {
   h += `<p>${link("graph", name, "show in graph")}</p>`;
   if (p.title) h += `<p>${esc(p.title)}</p>`;
   h += await markings(name);
+  h += await evidence(p, s);
   h += "<h2>Judgement</h2>" + await dl(Object.fromEntries(Object.entries(p).filter(([k, v]) => v !== null && k !== "title")), { name: "", spec: "", model: "" });
   if (s) h += `<p class="muted">summary tier: ${esc(s.tier)}</p>`;
   const args = await tq("problem_args", "SELECT pos, name, type FROM problem_args WHERE problem = ? ORDER BY pos LIMIT 100", [name]);
@@ -17,8 +18,10 @@ async function problemDetail(name) {
   if (ins.length) h += "<h2>Inputs</h2>" + await table(ins);
   const iargs = await tq("instance_args", "SELECT pos, term, value, cid FROM instance_args WHERE problem = ? ORDER BY pos LIMIT 100", [name]);
   if (iargs.length) h += "<h2>Instance arguments</h2>" + await table(iargs);
-  h += "<h2>Solutions / answers</h2>" + await tableOf(await first(DETAIL, "SELECT a.decl, a.status, a.source, a.tier, a.witness, " +
-    "(SELECT group_concat(axiom, ', ') FROM answer_axioms x WHERE x.decl = a.decl) AS axioms FROM answers a WHERE a.problem = ? ORDER BY a.decl", [name]));
+  h += '<h2 id="answers">Solutions / answers</h2>' + await tableOf(await first(DETAIL, "SELECT a.decl, a.status, a.source, a.tier, a.witness, a.module, " +
+    "(SELECT group_concat(axiom, ', ') FROM answer_axioms x WHERE x.decl = a.decl) AS axioms FROM answers a WHERE a.problem = ? ORDER BY a.decl", [name]),
+    ["decl", "status", "source", "tier", "witness", "axioms", "lean"],
+    { render: { lean: (r) => sourceLink(r.module, r.decl) || '<span class="muted">—</span>' }, nowrap: ["status", "tier", "lean"] });
   h += "<h2>Statuses</h2>" + await tableOf(await first(DETAIL, `SELECT st.status, ${COARSE} AS verdict, st.via_kind, st.via, st.tier FROM statuses st ` +
     "LEFT JOIN szs z ON z.code = st.status LEFT JOIN problems p ON p.name = st.problem WHERE st.problem = ? ORDER BY st.status", [name]));
   h += "<h2>Children (edges out)</h2>" + await tableOf(await first(DETAIL, "SELECT e.child, e.kind, e.via, e.record_kind, e.record_name, s.summary, s.verdict " +
@@ -30,6 +33,32 @@ async function problemDetail(name) {
   return h;
 }
 function problemPage(name) { return problemDetail(name); }
+// What the summary status rests on: the statuses with that code and how each was obtained (an
+// answer theorem, a solved instance, an edge, a group), with links to the answers' sources. A
+// status without evidence is not shown as established.
+async function evidence(p, s) {
+  let h = "";
+  if (p.decl || p.module) {
+    const link = sourceLink(p.module, p.decl);
+    h += `<p>Statement: <code>${esc(p.decl || "?")}</code> in <code>${esc(p.module || "?")}</code>${link ? " · " + link : ""}</p>`;
+  }
+  if (!s) return h;
+  const st = await tq("statuses", "SELECT status, via_kind, via, tier FROM statuses WHERE problem = ? AND status = ? ORDER BY via_kind, via LIMIT 20", [p.name, s.summary]);
+  if (!st.length) {
+    return h + `<p>${statusBadge(p.name)} <span class="muted">${s.summary === "OPN" ? "open: no answer or derivation is recorded" : "no recorded status has this code"}</span></p>`;
+  }
+  const answers = new Map((await inChunks("SELECT decl, module, tier, (SELECT group_concat(axiom, ', ') FROM answer_axioms x WHERE x.decl = a.decl) AS axioms FROM answers a WHERE decl IN ($)",
+    st.filter((r) => r.via_kind === "answers" || r.via_kind === "solves").map((r) => r.via))).map((r) => [r.decl, r]));
+  const VIA = { answers: "answer", solves: "solved by", refutes: "refuted by", instance: "from the instance", decomposition: "decomposed by", arity0: "from the closed problem's" };
+  await resolve(st, ["via"], { via: "problem" }, false);
+  const items = st.map((r) => {
+    const a = answers.get(r.via);
+    const what = a ? `<code>${esc(r.via)}</code>${a.axioms ? ` <span class="muted">(axioms: ${esc(a.axioms)})</span>` : ""} ${sourceLink(a.module, a.decl)}`
+      : r.via_kind === "arity0" ? `${esc(r.via)} status` : cell("via", r.via, { via: "problem" });
+    return `<li>${esc(VIA[r.via_kind] || r.via_kind)} ${what} <span class="muted">· ${esc(r.tier)} tier</span></li>`;
+  });
+  return h + `<div><b>Evidence</b> for ${statusBadge(p.name)}:<ul class="evidence">${items.join("")}</ul></div>`;
+}
 // What the markings say about a problem: its deprecation (directly or through a spec or a general
 // problem) and what replaces it, what it replaces, and how its failure is classified. Deprecated
 // problems and their counterexamples stay in the database and on every page; this links them to

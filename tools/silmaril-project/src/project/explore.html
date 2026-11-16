@@ -92,6 +92,8 @@ dialog.dlg::backdrop { background:rgba(20,24,28,.35); }
 /* the byte viewer and WAT highlighting (ui.js viewer, highlightWat) */
 .viewer button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
 .hl-c { color:#6a737d; font-style:italic; } .hl-s { color:#0a7d32; } .hl-n { color:#8a3ffc; } .hl-d { color:#b25000; }
+.ln { color:#9aa0a6; user-select:none; }
+ul.evidence { margin:4px 0 8px; padding-left:20px; }
 .hl-t { color:#005cc5; } .hl-k { color:#a3157a; font-weight:600; } .hl-i { color:#1d2329; font-weight:600; }
 @media (max-width: 800px) { #graphwrap { flex-direction:column; height:auto; } #cy { height:60vh; } #side { flex-basis:auto; } }
 </style>
@@ -108,6 +110,7 @@ dialog.dlg::backdrop { background:rgba(20,24,28,.35); }
 <div id="drop">Drop a project.sqlite</div>
 <script id="db-urls" type="application/json">__DB_URLS__</script>
 <script id="db-meta" type="application/json">__DB_META__</script>
+<script id="source-meta" type="application/json">__SOURCE_META__</script>
 <script>
 "use strict";
 __EXPLORE_SCRIPT__

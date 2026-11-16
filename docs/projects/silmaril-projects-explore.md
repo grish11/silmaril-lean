@@ -7,6 +7,7 @@ describes the database itself (`sil project sqlite`).
 ```
 sil project sqlite [--httpvfs [--page-size 4096]]   # writes .lake/silmaril/project.sql and .lake/silmaril/project.sqlite (with its indexes)
 sil project explore [--dir .] [--db .lake/silmaril/project.sqlite] [--out .lake/silmaril/explore.html]
+                    [--source-url https://github.com/<owner>/<repo> --source-rev <commit>]
 ```
 
 The page holds no data. Project databases can grow large, so the page never embeds the database
@@ -30,6 +31,40 @@ The header shows how many bytes have been read so far and a compact source butto
 `lazy`, `whole file` or `local file`, and `!` when something needs attention). The button opens a
 dialog with the source, how it is read, the schema version and the transfer counts, and with a file
 picker and a URL field to open another database.
+
+## Graph, evidence and sources
+
+**The graph** does not draw every problem by default. Below each parent, leaves (problems with no
+children of their own) are stacked by status code: `16 × OPN` is one node. Clicking a stack lists
+its problems in the side panel, and **Expand** draws them one by one (for that parent). **every
+problem** draws all of them. Problems that need attention (an unexplained failure, an unmet
+expectation), the focus and the root are never stacked. The count line says how many problems
+the neighbourhood has, how many are drawn and how many are in stacks. Nodes are neutral, and are
+marked red for an unexplained failure, dashed for an unmet expectation and grey for deprecated.
+
+**Evidence.** A problem's page says what its summary status rests on. These are the statuses with
+that code and how each was obtained: an answer or a solving theorem (with its axioms and tier), a
+refutation, an instance, a decomposition. An open problem says that nothing is recorded.
+
+**Sources.** With `--source-url` (a GitHub repository) and `--source-rev` (a commit, 7 to 40 hex
+digits), `sil project explore` writes into the page the file of each module the database names
+that exists under the project's source directories. Problems and answers then link to their
+modules at that commit. **view** fetches the file from `raw.githubusercontent.com` (at most 1 MiB)
+and shows the lines where a text search finds the declaration, escaped. The dialog says that the
+line was found by a text search. That the declaration was kernel-checked is what the database's
+tier says, not the source view. `make pages` passes the repository and the checked-out commit.
+Without these options the page has no source links.
+
+**Bytes.** An artifact of the local package has a **view** button. It reads at most 64 KiB of the
+file from the repository at that commit, shows it as text (when it is UTF-8) or hex, and, when it
+read the whole file, says whether its SHA-256 matches the registry's. A Wasm module or component
+page shows its WAT highlighted, and its bytes. Viewers are registered (`Explorer.registerViewer`),
+so a view for another format is one more entry.
+
+`tests/explore/provenance.mjs` checks these in Chromium on a `make pages` output: stacks and their
+counts, expanding, "every problem", that no problem needing attention is stacked, evidence links
+pinned to the commit, the source view, the byte viewer with its SHA-256 check, and the WAT
+highlighting.
 
 ## The published explorer
 

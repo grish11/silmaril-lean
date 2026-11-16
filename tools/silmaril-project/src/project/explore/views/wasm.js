@@ -44,7 +44,9 @@ function filesBlock(slug, d) {
   if (d.hasBlob) h += `<a href="wasm/blob/${encodeURIComponent(slug)}.wasm" download>download .wasm</a>` +
     ` <button id="wsha">SHA-256 of the download</button> <span id="wshaout" class="muted"></span>`;
   else h += '<span class="muted">no bytes</span>';
-  if (!/^not printed|^no WAT/.test(d.watNote || "")) h += ` · <a href="wasm/wat/${encodeURIComponent(slug)}.wat" target="_blank">WAT</a>`;
+  if (!/^not printed|^no WAT/.test(d.watNote || "")) h += ` · <a href="wasm/wat/${encodeURIComponent(slug)}.wat" target="_blank">WAT</a>` +
+    ` <button type="button" data-bytes="wasm/wat/${esc(encodeURIComponent(slug))}.wat" data-name="${esc(slug)}.wat" data-lang="wat">view WAT</button>`;
+  if (d.hasBlob) h += ` <button type="button" data-bytes="wasm/blob/${esc(encodeURIComponent(slug))}.wasm" data-name="${esc(slug)}.wasm">view bytes</button>`;
   h += `</div><p class="muted">WAT: ${esc(d.watNote || "")}</p>`;
   return h;
 }

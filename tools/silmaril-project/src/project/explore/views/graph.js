@@ -1,5 +1,10 @@
-const COLORS = { holds: "#2e9d4f", fails: "#d64545", unknown: "#9aa0a6" };
 const GROUP_LOOKUPS = 500;
+// By default the graph does not draw every problem: the leaves under one parent (children with no
+// children of their own) are drawn as one node per status code ("12 × THM"), which keeps their
+// count and status visible. Clicking such a node lists them; "expand" draws them one by one
+// (per parent), and "every problem" draws all leaves everywhere. Problems that need attention (an
+// unexplained failure, an unmet expectation), the focus and the root are always drawn alone.
+let gExpanded = new Set(), gEvery = false;
 function shortName(n) {
   const sep = n.includes("/") ? "/" : ".", p = n.split(sep);
   return p.length > 2 ? "…" + sep + p.slice(-2).join(sep) : n;
@@ -14,15 +19,23 @@ async function graph(focus) {
     <label>depth <input type="number" id="gdepth" min="1" max="999" value="99" style="width:4em"></label>
     <label>max nodes <input type="number" id="gmax" min="10" max="5000" value="300" style="width:5em"></label>
     <label><input type="checkbox" id="gdet"> detached problems</label>
-    <button id="gdraw">Draw</button> <button id="gfit">Fit</button>
-    <span class="legend"><span>${badge("holds")}</span><span>${badge("fails")}</span><span>${badge("unknown")}</span>
-    <span class="muted">box = group (holds/fails/unknown children) · dashed edge = refutation route · dotted = instance · thick edge = proved · thick border = root · dashed border = detached</span></span>
-    <span id="gcount" class="muted"></span></div>
+    <label title="draw every leaf problem instead of one node per parent and status"><input type="checkbox" id="gevery"${gEvery ? " checked" : ""}> every problem</label>
+    <button id="gdraw">Draw</button> <button id="gfit">Fit</button></div>
+    <p class="legend muted">${statusBadge({ summary: "THM", verdict: "holds" })} status code ·
+    <span class="st st-bad">CSA<b>!</b></span> unexplained failure · <span class="st st-unmet">OPN<b>?</b></span> unmet expectation ·
+    blue box = group (holds/fails/unknown children) · stacked = leaves grouped by status (click: list, expand) · dashed edge = refutation route ·
+    dotted = instance · thick edge = proved · thick border = root · dashed border = detached <span id="gcount"></span></p>
     <div id="graphwrap"><div id="cy"></div><div id="side"><p class="muted">Click a node for its details; double-click to refocus.</p></div></div>`;
   const init = async () => {
     const draw = () => !$("#gfocus") ? Promise.resolve() : drawGraph($("#gfocus").value.trim(), +$("#gdepth").value || 99, +$("#gmax").value || 300, $("#gdet").checked, root)
-      .catch((e) => { $("#gcount").innerHTML = `<span class="err">${esc(e.message || e)}</span>`; }).then(updateStats);
+      .catch((e) => {
+        if (e instanceof Superseded) return;
+        if (e instanceof SourceChanged) { $("#main").innerHTML = changedNotice(e); wireChangedNotice($("#main")); return; }
+        $("#gcount").innerHTML = `<span class="err">${esc(e.message || e)}</span>`;
+      }).then(updateStats);
     $("#gdraw").addEventListener("click", draw);
+    $("#gevery").addEventListener("change", (e) => { gEvery = e.target.checked; gExpanded = new Set(); draw(); });
+    window.explore.redrawGraph = draw;
     $("#gfocus").addEventListener("keydown", (e) => { if (e.key === "Enter") draw(); });
     $("#gfit").addEventListener("click", () => cy && cy.fit(undefined, 20));
     // Suggestions: the first 30 problem names containing the text (read from the name index).
@@ -94,14 +107,14 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
   const groupSet = new Set((await inChunks("SELECT name FROM objects WHERE kind = 'group' AND name IN ($)", names)).map((r) => r.name));
   const detached = new Set((await inChunks("SELECT name FROM problems WHERE detached = 1 AND name IN ($)", names)).map((r) => r.name));
   const titles = new Map((await inChunks("SELECT name, title FROM problems WHERE name IN ($)", [...groupSet])).map((r) => [r.name, r.title]));
+  // Statuses (with expectations and markings) of the drawn problems, and of up to GROUP_LOOKUPS
+  // children of groups that are not drawn, for the groups' tallies; the rest are unchecked.
   const checked = new Set();
   const lookUp = async (ns) => {
     for (const n of ns) checked.add(n);
-    for (const r of await inChunks("SELECT problem, summary, verdict FROM summary WHERE problem IN ($)", ns)) { verdictOf.set(r.problem, r.verdict); summaryOf.set(r.problem, r.summary); }
+    await resolve(ns.map((n) => ({ problem: n })), ["problem"], HINTS, false);
   };
   await lookUp(names);
-  // A group's label tallies its children's verdicts; at most GROUP_LOOKUPS children that are not
-  // drawn are looked up, the rest are counted as unchecked.
   const hiddenChildren = [...new Set([...groupSet].flatMap((g) => (out.get(g) || []).map((e) => e.child)).filter((c) => !checked.has(c)))];
   await lookUp(hiddenChildren.slice(0, GROUP_LOOKUPS));
   const gv = new Map();
@@ -110,29 +123,75 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
     for (const e of out.get(g) || []) c[checked.has(e.child) ? verdictOf.get(e.child) || "unknown" : "unchecked"]++;
     gv.set(g, c);
   }
+  // Leaves grouped under their parent by status code. A leaf is a problem read to have no
+  // children; it stays alone when it is the focus or the root, needs attention, or its parent is
+  // expanded. A leaf with several parents is counted under each.
+  const isLeaf = (n) => out.has(n) && out.get(n).length === 0 && !groupSet.has(n);
+  const alone = (n) => n === focus || n === root || ["bad", "unmet"].includes((statusInfo(statusOf.get(n)) || {}).cls);
+  const stacks = new Map();   // "parent\u0000code" -> { parent, code, kind, members }
+  const stacked = new Set();
+  if (!gEvery) for (const p of keep) {
+    if (gExpanded.has(p)) continue;
+    for (const e of out.get(p) || []) {
+      const c = e.child;
+      if (!keep.has(c) || !isLeaf(c) || alone(c)) continue;
+      const code = (statusOf.get(c) || {}).summary || "none";
+      const k = p + "\u0000" + code + "\u0000" + e.kind;
+      if (!stacks.has(k)) stacks.set(k, { parent: p, code, kind: e.kind, members: [] });
+      stacks.get(k).members.push(c);
+    }
+  }
+  // a stack of one is just the problem
+  for (const [k, st] of stacks) if (st.members.length < 2) stacks.delete(k);
+  for (const st of stacks.values()) for (const m of st.members) stacked.add(m);
+  // a stacked leaf is drawn alone too where another parent of it is expanded
+  const underExpanded = new Set([...keep].filter((p) => gExpanded.has(p)).flatMap((p) => (out.get(p) || []).map((e) => e.child)));
+  const drawnAlone = (n) => !stacked.has(n) || underExpanded.has(n);
   const els = [];
-  for (const n of keep) {
+  const shown = [...keep].filter(drawnAlone);
+  for (const n of shown) {
     const isGroup = groupSet.has(n);
     let label = shortName(n);
     if (isGroup) {
       const c = gv.get(n);
       label = (titles.get(n) || shortName(n)) + (out.has(n) ? `\n${c.holds} / ${c.fails} / ${c.unknown}` + (c.unchecked ? ` (${c.unchecked} unchecked)` : "") : "");
-    } else if (summaryOf.has(n)) label += "\n" + summaryOf.get(n);
+    } else {
+      const i = statusInfo(statusOf.get(n));
+      if (i) label += "\n" + i.code + (i.cls === "bad" ? " !" : i.cls === "unmet" ? " ?" : "");
+    }
     const hidden = (out.get(n) || []).filter((e) => !keep.has(e.child)).length;
     if (hidden) label += ` (+${hidden} hidden)`;
     else if (!out.has(n)) label += " (+ more, not read)";
-    els.push({ data: { id: n, label, verdict: verdictOf.get(n) || "unknown", group: isGroup ? 1 : 0, detached: detached.has(n) ? 1 : 0, root: n === root ? 1 : 0, focus: n === focus ? 1 : 0 } });
+    const cls = (statusInfo(statusOf.get(n)) || {}).cls || "";
+    els.push({ data: { id: n, label, att: cls, group: isGroup ? 1 : 0, detached: detached.has(n) ? 1 : 0, root: n === root ? 1 : 0, focus: n === focus ? 1 : 0 } });
   }
-  let i = 0;
-  for (const n of keep) for (const e of out.get(n) || []) if (keep.has(e.child)) els.push({ data: { id: "e" + (i++), source: e.parent, target: e.child, kind: e.kind, via: e.via || "" } });
-  $("#gcount").textContent = `${keep.size} problems, ${i} edges${note}`;
+  const drawn = new Set(shown);
+  let i = 0, nStacks = 0;
+  for (const st of stacks.values()) {
+    const id = "stack:" + (nStacks++);
+    st.id = id;
+    const loose = st.members.filter((m) => !drawn.has(m));
+    if (!loose.length) continue;
+    els.push({ data: { id, label: `${loose.length} × ${SZS_SHORT[st.code] || st.code}`, stack: 1, att: "", group: 0, detached: 0, root: 0, focus: 0 } });
+    els.push({ data: { id: "e" + (i++), source: st.parent, target: id, kind: st.kind, via: "" } });
+  }
+  for (const n of shown) for (const e of out.get(n) || []) if (drawn.has(e.child)) els.push({ data: { id: "e" + (i++), source: e.parent, target: e.child, kind: e.kind, via: e.via || "" } });
+  const nStacked = [...stacked].filter((n) => !drawn.has(n)).length;
+  $("#gcount").textContent = ` · ${keep.size} problems (${shown.length} drawn` + (nStacked ? `, ${nStacked} in ${nStacks} stacks` : "") + `), ${i} edges${note}`;
+  window.explore.graph = { problems: keep.size, drawn: shown.length, stacks: nStacks, stacked: nStacked,
+    stackMembers: [...stacked].filter((n) => !drawn.has(n)) };
   if (cy) cy.destroy();
   cy = cytoscape({
     container: $("#cy"), elements: els, minZoom: 0.05,
     style: [
       { selector: "node", style: { label: "data(label)", "text-wrap": "wrap", "text-overflow-wrap": "anywhere", "text-max-width": 140, "font-size": 10, "text-valign": "center", "text-halign": "center",
-        width: 150, height: 34, shape: "round-rectangle", "background-color": (n) => COLORS[n.data("verdict")], color: "#fff", "text-outline-width": 0,
-        "border-width": 1, "border-color": "#33393f" } },
+        width: 150, height: 34, shape: "round-rectangle", "background-color": "#fff", color: "#1d2329", "text-outline-width": 0,
+        "border-width": 1, "border-color": "#7b848d" } },
+      { selector: "node[att = 'bad']", style: { "background-color": "#fdecec", "border-color": "#d64545", "border-width": 2, color: "#9b1c1c" } },
+      { selector: "node[att = 'unmet']", style: { "border-style": "dashed", "border-color": "#b7791f", "border-width": 2 } },
+      { selector: "node[att = 'dep']", style: { color: "#66707a", "background-color": "#f4f6f8" } },
+      { selector: "node[stack = 1]", style: { shape: "round-rectangle", width: 110, height: 30, "background-color": "#f4f6f8", "border-color": "#9aa0a6",
+        "border-width": 1, "font-size": 11, "underlay-color": "#c9ced3", "underlay-opacity": 1, "underlay-padding": 3, "underlay-shape": "round-rectangle" } },
       { selector: "node[group = 1]", style: { shape: "rectangle", "background-color": "#f4f6f8", color: "#1d2329", width: 180, height: 44, "border-width": 2, "border-color": "#2f5d9e", "font-weight": 600 } },
       { selector: "node[detached = 1]", style: { "border-style": "dashed", opacity: 0.75 } },
       { selector: "node[root = 1]", style: { "border-width": 4, "border-color": "#111" } },
@@ -146,8 +205,19 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
     layout: { name: "dagre", rankDir: "TB", nodeSep: 20, rankSep: 50, animate: false },
   });
   const side = async (h) => { const html = await h; $("#side").innerHTML = html; updateStats(); };
-  cy.on("tap", "node", (e) => side(problemDetail(e.target.id())));
-  cy.on("dbltap", "node", (e) => { location.hash = href("graph", e.target.id()); });
+  const stackOf = new Map([...stacks.values()].map((st) => [st.id, st]));
+  cy.on("tap", "node", (e) => {
+    const st = stackOf.get(e.target.id());
+    if (!st) return side(problemDetail(e.target.id()));
+    side(table(st.members.map((m) => ({ problem: m })), ["problem"]).then((t) =>
+      `<h2>${st.members.length} × ${esc(SZS_SHORT[st.code] || st.code)} under ${link("problem", st.parent, shortName(st.parent))}</h2>` +
+      `<p class="muted">leaves (no children of their own) by ${esc(st.kind)} edges</p>` +
+      `<p><button type="button" id="gexpand">Expand: draw them one by one</button></p>` + t)).then(() => {
+      const b = $("#gexpand");
+      if (b) b.addEventListener("click", () => { gExpanded.add(st.parent); window.explore.redrawGraph(); });
+    });
+  });
+  cy.on("dbltap", "node", (e) => { if (!stackOf.has(e.target.id())) location.hash = href("graph", e.target.id()); });
   cy.on("tap", "edge", (e) => { const d = e.target.data();
     side(dl({ parent: d.source, child: d.target, kind: d.kind, via: d.via || null }).then((x) => "<h2>Edge</h2>" + x)); });
   // A wide level makes "fit" unreadable: then zoom in on the focus instead.
