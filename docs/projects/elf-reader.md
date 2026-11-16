@@ -52,10 +52,15 @@ evaluation. Measured with `lake env lean` (this includes about 3.5 s of imports 
 | `hello-gcc` (15,960 B) | 5,510 | 9,556 | 894 | 0 |
 | `hello-clang` (16,008 B) | 5,494 | 9,661 | 853 | 0 |
 
-*Decoded* bytes are read by a checked part. *Raw* bytes are inside a section or loaded segment
-but are not decoded: code, `.rodata`, `.data`, `.eh_frame`, `.got`, init/fini arrays, and
-string-table bytes that no part reads. They are payloads that the specification keeps as byte
-ranges (`Body.progbits`, `.strtab`, `.other`).
+*Decoded* bytes are read by a checked part: a theorem states the value parsed from them. *Raw*
+bytes are **not parsed**. They lie in a range whose extent a checked theorem states, either a section
+body kept as a byte range (for example `body_16 : PartIs F [] (Parse.body L.shs sh16)
+(.progbits ⟨4192, 265⟩)` for hello-gcc's `.text`, read with an empty window) or a loaded
+segment's file range (`phdr_i`). Nothing is stated about their contents beyond their being the
+pinned file's bytes (`include_bytes`). They include code, `.rodata`, `.data`, `.eh_frame`, `.got`,
+init/fini arrays, and string-table bytes that no part reads. **`unknown = 0`** means every byte
+is in a checked part, a checked padding range, or a checked section or segment range. It does
+**not** mean that every payload is decoded or understood.
 
 **Not supported, listed rather than omitted:** ELFCLASS32, big-endian files, extended section
 numbering and compressed sections. These are refused or read as no sections, never misread. Any

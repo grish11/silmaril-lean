@@ -28,8 +28,8 @@
   const CLASS_TEXT = {
     decoded: "decoded: inside the windows of a checked part (PartIs): the bytes the specification's reader reads to produce a value a theorem states",
     zeros: "zeros: a checked ZerosAt theorem says these bytes are zero (padding)",
-    raw: "raw: inside a section or a loaded segment but not decoded: payload kept as a byte range (code, constants, data, unread string bytes)",
-    unknown: "unknown: in no section, segment or checked part",
+    raw: "raw: not parsed. The byte is inside a section or loaded segment whose extent a checked theorem states (a section body such as .progbits (offset, length), read with an empty window, or a program header), but no theorem says anything about its contents beyond their being the pinned file's bytes (code, constants, data, unread string bytes)",
+    unknown: "unknown: in no section, segment, checked part or checked padding",
   };
   const DIS_WARNING = "UNVERIFIED: external disassembler output (GNU objdump), not checked in Lean. elf-pages compared each row's bytes " +
     "with the file's bytes at that address; the decoding (instruction boundaries, mnemonics, operands) is objdump's alone, and no " +
@@ -80,7 +80,9 @@ table.elf-dis tr.hit td { background:#fff1b8; }
   }
   function covKey(sum) {
     return '<p class="elf-key">' + ["decoded", "zeros", "raw", "unknown"].map((c) =>
-      `<span class="elf-c-${c}" title="${esc(CLASS_TEXT[c])}">${c}: ${sum[c] ?? 0} B</span>`).join("") + "</p>";
+      `<span class="elf-c-${c}" title="${esc(CLASS_TEXT[c])}">${c}: ${sum[c] ?? 0} B</span>`).join("") + "</p>" +
+      '<p class="muted elf-covnote">Only <b>decoded</b> bytes have parsed content in a theorem. <b>Raw</b> bytes lie in checked ranges, but their contents ' +
+      "(code, constants, data) are not parsed or given meaning. <b>Unknown: 0</b> means every byte lies in some checked range; it does not mean every payload is decoded.</p>";
   }
   function tabs(slug, on) {
     return '<div class="elf-tabs">' + [["overview", `#/elf-file/${enc(slug)}`], ["bytes", `#/elf-bytes/${enc(slug)}/0x0`],
