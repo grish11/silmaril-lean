@@ -5,6 +5,7 @@ public import Silmaril.LogicGraph.Nodes.Calculi.Defs
 public import Silmaril.LogicGraph.Nodes.Cerberus.Defs
 public import Silmaril.LogicGraph.Nodes.Cli.Defs
 public import Silmaril.LogicGraph.Nodes.Compiler.Defs
+public import Silmaril.LogicGraph.Nodes.Containers.Defs
 public import Silmaril.LogicGraph.Nodes.Courses.Defs
 public import Silmaril.LogicGraph.Nodes.Games.Defs
 public import Silmaril.LogicGraph.Nodes.Libc.Defs

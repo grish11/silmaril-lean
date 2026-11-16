@@ -12,6 +12,7 @@ public import Silmaril.Calculi.LambdaCube.Semantics
 public import Silmaril.Cerberus.Institution.Defs
 public import Silmaril.Cli.Institution.Defs
 public import Silmaril.Compiler.Category.Cerberus.Defs
+public import Silmaril.Containers.Institution.Defs
 public import Silmaril.Compiler.Native.Correctness.AdditionInstitution.Defs
 public import Silmaril.Compiler.Native.Correctness.ArithmeticInstitution.Defs
 public import Silmaril.Compiler.Native.Correctness.Institution.Defs
