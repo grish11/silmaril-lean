@@ -97,9 +97,14 @@ The theorems are about these strategies only.
 
 - No compiled component binary implements any protocol. The catalog's `compiledComponent` shape
   is unsupported, and no compilation correctness is claimed.
-- No core module implements `check(ax, stmt)` with a proof against Core execution. The reading
-  for one would be `Silmaril.Wasm.Game.Accept.exportAccepted`, through a canonical-ABI
-  correspondence like `CanonLowerAccept`. Nothing here assumes such a correspondence.
+- **One core module**: `Silmaril.Wasm.Examples.EmptyCheck` is the empty checker as a core
+  module. Its export `check(ptr, len) -> i32` is `i32.const 0`, verified against Core execution,
+  with its 45-byte binary. It accepts nothing (`exportAccepted_eq_empty`) and rejects every input
+  shorter than `2 ^ 32` (`exportRejected_eq`). As a `System` under any byte encoding, it is `⊥`.
+  No core module implements a nonempty checker yet.
+- **No component wraps a core module.** Connecting `EmptyCheck` to the component reading
+  `exportCheck` would need a canonical-ABI correspondence between `list<u8>` arguments and
+  `(ptr, len)`, like `CanonLowerAccept`. Nothing here assumes one.
 - Only protocol 2, with the `list` policy at the `.call` boundary, has a specification
   component. The other stateful cells, and all of protocol 4, have general laws only.
 - `Silmaril.Wasi.Component.Consequence.Bridge.Thms` connects these readings to

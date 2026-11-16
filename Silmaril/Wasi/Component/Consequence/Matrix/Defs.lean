@@ -22,7 +22,8 @@ What the evidence rests on (`Evidence`):
   (`Silmaril.Wasi.Component.Consequence.Checkers.Defs`) have exact theorems. They are not
   compiled components and no compiled binary or core module is claimed.
 
-Gaps (`gaps`): no compiled component binary, no core-module implementation of any protocol, a
+Gaps (`gaps`): no compiled component binary, no component over a core module (the empty checker
+exists as a verified core module, `Silmaril.Wasm.Examples.EmptyCheck`, unwrapped), a
 specification strategy only for protocol 2 (list policy, call boundary), and divergence is the
 absence of an answer, not an answer.
 
@@ -164,8 +165,9 @@ def gaps : List (String × String) := [
     "No compiled component binary implements any protocol: the catalog's `compiledComponent` " ++
     "shape is unsupported, and the checkers here are specification strategies."),
   ("core module",
-    "No core module implements check(ax, stmt) with a proof against its execution semantics; " ++
-    "`Silmaril.Wasm.Game.Accept.exportAccepted` would be the reading."),
+    "Only the empty checker exists as a verified core module (`Silmaril.Wasm.Examples." ++
+    "EmptyCheck`: exportAccepted is empty, exportRejected is every input below 2^32). No " ++
+    "component wraps it: the canonical-ABI correspondence to `exportCheck` is not established."),
   ("stateful specification component",
     "Only protocol 2 with the list policy at the call boundary has a specification strategy " ++
     "(`statefulMember`); the other stateful cells have general laws only."),
