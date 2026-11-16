@@ -54,11 +54,13 @@ try {
     `multi.lit: signed lists on both sides, a raw sequent (${byName[S + "multi.lit"][3]})`);
   // the view buttons: counts and filters from the typed shape and certifications
   const views = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("#systems-views a")].map((a) => [a.dataset.view, +a.querySelector("span").textContent])));
-  check(views.all === list.length && views.acceptor === 6 && views.rejector === 1 && views.signed === 3 && views.partial === 6 && views.finset === 1 && views.set === 3 && views["raw-sequent"] === 14 && views.gentzen === 1 && views.artifact === 10,
+  check(views.all === list.length && views.acceptor === 6 && views.rejector === 1 && views.signed === 3 && views.partial === 6 && views.finset === 1 && views.set === 3 && views["raw-sequent"] === 18 && views.gentzen === 4 && views.artifact === 10,
     `view counts ${JSON.stringify(views)}`);
   await open("/systems/?view=gentzen");
   const gv = await rows("#systems-table");
-  check(gv.length === 1 && gv[0][0] === S + "gentzen.via_unsat_pairs" && /closed: Gentzen\.defaultRules/.test(gv[0][3]), `the Gentzen view: certified systems only, with the rule profile (${gv.map((r) => r[0] + " " + r[3])})`);
+  check(gv.map((r) => r[0]).sort().join(" ") === [S + "gentzen.identity", S + "gentzen.via_unsat_pairs", S + "structural.identity_renamed", S + "structural.identity_signed"].sort().join(" ") &&
+    gv.every((r) => /closed: Gentzen\.defaultRules/.test(r[3])), `the Gentzen view: certified systems only, each with its rule profile (${gv.map((r) => r[0])})`);
+  check(!gv.some((r) => /bounded3|valid_via/.test(r[0])), "uncertified raw sequents are not in the Gentzen view");
   await open("/systems/?view=raw-sequent");
   check((await rows("#systems-table")).some((r) => r[0] === S + "gentzen.via_unsat_bounded3"), "raw sequents include the uncertified bounded test");
   const rel = await p.evaluate(() => [...document.querySelectorAll("#systems-relations tbody tr")].map((tr) => [tr.dataset.standing, tr.textContent]));
@@ -234,6 +236,13 @@ try {
   await open("/system/" + encodeURIComponent(S + "gentzen.valid_via_unsat_restriction"));
   const rr = await p.evaluate(() => [...document.querySelectorAll("table.system-evidence[data-standing='established'] tbody tr")].map((tr) => tr.textContent));
   check(rr.some((t) => /restriction_sound/.test(t)) && rr.some((t) => /restriction_complete/.test(t)), "the toUnsat restriction: sound and complete for validity, established");
+
+  // restrictions under their hypotheses, and what is lost without negation rules
+  await open("/system/" + encodeURIComponent(S + "gentzen.valid_via_taut_restriction"));
+  check((await p.evaluate(() => document.querySelectorAll("table.system-evidence[data-standing='established'] tbody tr").length)) === 2, "the toTaut restriction: sound and complete, established");
+  await open("/system/" + encodeURIComponent(S + "gentzen.identity"));
+  const idc = await p.evaluate(() => [...document.querySelectorAll("table.system-evidence[data-standing='counterevidence'] tbody tr")].map((tr) => tr.textContent));
+  check(idc.some((t) => /identity_restriction_sound/.test(t) && /Bool\.true, 0/.test(t)), "the identity calculus is not sound for its UNSAT rebuild, with the counterexample p ⊢ p");
 
   // the protocol evidence matrix: 12 cells, the owner's 2 / 2 / 8 evidence counts, verbatim
   await open("/interpretations");

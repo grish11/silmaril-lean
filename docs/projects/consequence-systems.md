@@ -192,8 +192,18 @@ not complete — `ℕ ⊨ ∅` has no finite witness (`not_onSet_valid`; no comp
 
 **Restrictions.** `gentzen.valid_via_unsat_restriction` is validity rebuilt from its UNSAT
 restriction (`viaUnsat (toUnsat (Valid lsat)) lneg`, `Gentzen.Calculus`): sound and complete for
-validity (`Calculus.Examples.lit_eq_viaUnsat`). The TAUTO restriction `toTaut` has the same API
-(`eq_viaTauto_toTaut`) and no separate fixture.
+validity (`Calculus.Examples.lit_eq_viaUnsat`). The TAUTO restriction is the same:
+`gentzen.valid_via_taut_restriction` (`viaTauto (toTaut (Valid lsat)) lneg`) is sound and complete
+for validity by `eq_viaTauto_toTaut` under its hypotheses (closed under the default rules, `NegL`
+and `NegR` from `lneg_sound`/`lneg_complete`). Without negation rules the restriction loses
+sequents: the identity calculus (closed under the default rules) is not sound for its UNSAT
+rebuild — `p ⊢ p` holds and `p, ¬p ⊢` does not (counterevidence kept).
+
+**Closure certificates across translations.** The signed lift of the identity calculus is closed
+under the default rules (`closed_signedLift`), and so is its pullback along `succ`
+(`closed_pullback`, `Rules.Hom.default`), which `succ` translates into and reflects from the
+identity calculus by the definition of pullback. These and the earlier certificates make up the
+Gentzen-closed view, each with its rule profile.
 
 **Evidence matrices.** `silmaril consequence_matrix N := rows` records an evidence matrix, one
 row per cell, verbatim: `rows : Silmaril.Project.MatrixRows` (variant, reading, supporting
