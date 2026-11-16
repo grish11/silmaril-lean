@@ -271,7 +271,7 @@ The review slices #722 (`wasm/memrep-kbytes`), #732 (`wasm/core-generic-memory`)
 (`wasm/core-generic-step`), #764 (`wasm/core-kmem-engine`), #776 (`wasm/ref-engine-transfer`) and
 #788 (`wasm/ref-core-effects`) form a stack, each based on the one before. Each step above is one
 slice. The integration branch is the top of the stack with current `main` merged in (a merge
-commit; every stack commit is kept). The slices stay open for review. The integration changes
+commit, repeated when `main` moved; every stack commit is kept). The slices stay open for review. The integration changes
 nothing in them except:
 
 * **Porting `main`'s new proofs.** `main` added proofs about linked sessions with host imports
@@ -284,9 +284,8 @@ nothing in them except:
   `lift_body_trapTSH`, `nest_atTSH`, … of the stack's edited lemmas) keeps `main`'s new lemmas and
   restates them over `Config.core`. No statement of `main` changed beyond `.store.core` becoming
   `.core`.
-* **Warnings.** Two warnings fail `--wfail` on the merged tree, and both are fixed: the deprecated
-  `if_pos`/`if_neg` in `Proofs/Wasm/Abstract/NodeTrap/Node.lean` (now `ite_eq_left` and
-  `ite_eq_right`), and an unused `simp` lemma in `LinkedSessionObs/Triple.lean`.
+* **Warnings.** An unused `simp` lemma in `LinkedSessionObs/Triple.lean` fails `--wfail` on the
+  merged tree; it is removed.
 * **Cleanups.** Unused core-store arguments are removed where the removal is local:
   `readyStoreI`, `LowerSite.Ok.extSC`/`OkR.extSC`, `nstore_extN` (both the reference and the
   `Param.Core3R` copies) and `CompToy.get_liftAt`. Others (`nestStore`, `nestStoreI`,
