@@ -3,6 +3,8 @@ module
 public import Silmaril.Wasm.Abstract.BodyDet.Defs
 public import Silmaril.Wasm.Abstract.PubModuleXP.Defs
 public import Silmaril.Games.Abstract.StratObs.Thms
+public import Silmaril.Games.Abstract.StratSession.Thms
+public import Silmaril.Wasm.Abstract.HostStrat.Defs
 import Silmaril.Wasm.Abstract.BodyDet.Thms
 import Silmaril.Proofs.Wasm.Abstract.CoreDet.Basic
 
@@ -57,6 +59,11 @@ counterexample without typing is known: the hypothesis is the one the available 
 needs. Nondeterministic profiles are not covered, since there one history may have several
 results.
 
+**Sessions.** The store-retaining Core triple `coreTripleS` (traps keep their store) is
+deterministic given answers too (`coreTripleS_det`): the trap configuration after a log is
+unique. Hence it is store-deterministic (`coreTripleS_storeDet`) and the infinite plays of the
+Core session are coherent (`coreSession_mem_inf_iff`).
+
 Proofs are in `Silmaril.Proofs.Wasm.Abstract.CoreDet.Basic`.
 -/
 
@@ -106,6 +113,39 @@ theorem pubStrat_pdet (hT : HostTyped host)
 theorem pubStrat_pdet_invOk (hT : HostTyped host) (s : Store H) (a : Nat) :
     PDet (pubStrat (SingleThreaded.profile o) host InvOk s a).toStrategy :=
   pubStrat_pdet hT (fun _ _ h => ⟨h.1, h.2.2⟩) s a
+
+/-! ## Sessions -/
+
+/-- **The store-retaining Core triple is deterministic given answers** at the deterministic
+profile: two finished behaviours (values, a trap with its store, or host-free divergence) make
+the same host call after every common log, and with the same log they have the same end, the
+trap store included. The extra fact over `coreTriple_det` is that the trap configuration
+`⟨s₂, {}, [.trap]⟩` reached after a log is unique. -/
+theorem coreTripleS_det (hT : HostTyped host)
+    (hOk : ∀ s q, Ok s q → StoreOk s ∧ InvokeOk s q.1 q.2) :
+    AFun.Det (coreTripleS (SingleThreaded.profile o) host Ok).1 :=
+  Silmaril.Proofs.Wasm.Abstract.CoreDet.coreTripleS_det hT hOk
+
+/-- **The store-retaining Core triple is store-deterministic**, so the Core session identifies
+exactly the observationally equivalent stores (`StratSession.threadS_eq_iff`). -/
+theorem coreTripleS_storeDet (hT : HostTyped host)
+    (hOk : ∀ s q, Ok s q → StoreOk s ∧ InvokeOk s q.1 q.2) :
+    StratThread.StoreDet (coreTripleS (SingleThreaded.profile o) host Ok) :=
+  StratThread.storeDet_of_det (coreTripleS_det hT hOk)
+
+/-- **The infinite plays of the Core session are coherent** at the deterministic profile: a
+productive Core run after completed session rounds, or the play of a coherent infinite sequence
+of session rounds (values or traps, each from the store the previous one left). -/
+theorem coreSession_mem_inf_iff (hT : HostTyped host)
+    (hOk : ∀ s q, Ok s q → StoreOk s ∧ InvokeOk s q.1 q.2) {s₀ : Store H}
+    {I : Set (List (Move (wasmHostSig H) (sig1 (Nat × List Val) (List Val ⊕ Nat))))} :
+    I ∈ (coreSession (SingleThreaded.profile o) host Ok s₀).inf ↔
+      (∃ rs s q ω, StratThread.Rounds (coreTripleS (SingleThreaded.profile o) host Ok) s₀ rs s ∧
+        (Ok s q ∧ CoreInf (SingleThreaded.profile o) host (invoke s q.1 q.2) ω) ∧
+        I = StratThread.streamPlay (StratSession.sroundsMoves rs) q ω) ∨
+      ∃ a r s, StratThread.InfRounds (coreTripleS (SingleThreaded.profile o) host Ok) s₀ a r s ∧
+        I = StratSession.sroundsPlay a r :=
+  StratSession.mem_inf_iff_of_det (coreTripleS_det hT hOk)
 
 /-! ## With exceptions -/
 
