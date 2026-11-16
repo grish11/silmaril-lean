@@ -17,6 +17,8 @@ import Silmaril.Wasm.Validation.Check.Validate
 import Silmaril.Wasm.Cfg.BlockTyping.Defs
 import Silmaril.Wasm.Cfg.Variant.Defs
 import Silmaril.Wasm.Cfg.Maximal.Defs
+import Silmaril.Crypto.SHA256
+import Silmaril.Wasi.Component.Accept.Catalog.Defs
 
 /-!
 # `wasm-pages`: the data of the explorer's Wasm component, module and function pages
@@ -729,7 +731,16 @@ def leanExamples : List (String × String × Module × String) := [
   ("silmaril.wasm.cfg.examples.mod", "Cfg.Examples.mod (br_table dispatcher, special edges)",
     Silmaril.Wasm.Cfg.Examples.mod, "Silmaril.Wasm.Cfg.Examples.mod"),
   ("silmaril.wasm.cfg.examples.effects", "Cfg.Examples.effectsMod (effects inside try_table)",
-    Silmaril.Wasm.Cfg.Examples.effectsMod, "Silmaril.Wasm.Cfg.Examples.effectsMod")]
+    Silmaril.Wasm.Cfg.Examples.effectsMod, "Silmaril.Wasm.Cfg.Examples.effectsMod")] ++
+  -- the concrete modules of the acceptor interpretation catalog
+  Silmaril.Wasi.Accept.Catalog.concreteModules.map fun (id, title, decl, m) =>
+    (id, title, m, decl.toString)
+
+/-- SHA-256 of `b`, lower-case hex (`Silmaril.Crypto.SHA256.digest`, compiled). -/
+def sha256Hex (b : ByteArray) : String :=
+  String.join ((Silmaril.Crypto.SHA256.digest b.data.toList).map fun x =>
+    let h := (Nat.toDigits 16 x.toNat)
+    String.ofList (if h.length < 2 then '0' :: h else h))
 
 def run (artifactsPath outDir : String) : IO UInt32 := do
   let text ← IO.FS.readFile artifactsPath
@@ -756,8 +767,11 @@ def run (artifactsPath outDir : String) : IO UInt32 := do
     for (id, title, m, decl) in leanExamples do
       let bytes := match Binaryen.Exe.encodeModule? m with
         | .ok l => some (ByteArray.mk l.toArray) | .error _ => none
-      let src : Source := { kind := "lean", name := decl,
-                            doc := "a Lean value; bytes encoded from it by Silmaril.Wasm.Binaryen.Exe.encodeModule?" }
+      let src : Source := { kind := "lean", name := decl, sha256 := bytes.map sha256Hex,
+                            doc := "a Lean value (the proof target is this module AST); the bytes are encoded from it by " ++
+                              "Silmaril.Wasm.Binaryen.Exe.encodeModule?, which satisfies the specification's binary grammar " ++
+                              "(encodeModule?_sound: Binary.Core.Encodes bytes m); SHA-256 of exactly these bytes, computed by " ++
+                              "Silmaril.Crypto.SHA256.digest; not registered in artifacts.toml" }
       doModule id title src m bytes
   let ((), out) ← act.run {}
   let index := jobj [("components", jarr out.components.toList), ("modules", jarr out.modules.toList)]

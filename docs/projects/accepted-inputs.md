@@ -93,6 +93,57 @@ completeness here agree with its Bool-checker forms (`Lang.sound_ofBool_iff`,
 - **Component bounds are hypotheses.** No adapter is proved to satisfy `CanonLowerAcceptBy`
   or `ListLiftChecked`.
 
+## Interpretation catalog and coverage matrix
+
+`Silmaril.Wasi.Accept.Catalog` (`entries`, `unsupported`) is the typed source of the acceptor
+interpretations: every shape, with checked names of its reading and theorems, what it is about
+and what the evidence rests on. `Catalog.Examples` checks by `decide` that every shape is
+covered exactly once, by a record or by the unsupported list, that ids are unique, that every
+concrete subject is published, and that no specification component is marked as resting on
+execution. The registry that serializes these records for the explorer belongs to the project
+registry. This table is generated from the catalog.
+
+Strength: `exact` is an equality with a stated language, `sound` an inclusion, `witness`
+membership witnesses only, and `laws` general laws for every subject. Basis: `execution` is
+the Core 3.0 semantics with spec instantiation; `specStrategy` is a strategy written in Lean,
+not a compiled component; `hypothesis X` means conditional on `X`, which is not discharged
+for any concrete subject; `definitions` is definitions only.
+
+Concrete modules are on the explorer's Wasm tab (`tools/wasm-pages`). Their bytes are
+`encodeModule?` of the module value (`encodeModule?_sound`), and their SHA-256 is computed in
+Lean over exactly those bytes. The theorems are about the module value, and no fake artifact
+is registered for them.
+
+| id | shape | subject | reading | strength | basis | theorems |
+| --- | --- | --- | --- | --- | --- | --- |
+| `module.import.bytes32` | importBytes32 | every module | `bytesLang` | laws | execution | `bytes32_eq_some_iff`, `getElem?_of_segment`, `bytesLang_length_lt`, `bytesLang_finite`, `bytesLang_eq_of_calloutEquiv` |
+| `module.import.bytes64` | importBytes64 | every module | `bytes64Lang` | laws | execution | `bytes64_eq_some_iff`, `bytes64Lang_length_lt`, `bytes64Lang_finite` |
+| `module.import.scalar` | importScalar | every module | `i32Lang` | laws | execution | `i32?_eq_some_iff`, `i64?_eq_some_iff`, `i64Lang` |
+| `module.import.call.exStart` | importCall | concrete module `Silmaril.Wasm.Game.Examples.exStart` (Wasm tab) | `accepted` | witness | execution | `exStart_callout`, `exStart_accepts` |
+| `module.export.json_accept` | exportPtrLen | concrete module `Silmaril.Wasm.Examples.JsonAccept.prog` (Wasm tab) | `exportAccepted` | exact | execution | `accept_total`, `exportAccepted_eq`, `exportRejected_eq`, `exportAccepted_eq_dfa`, `exportAccepted_subset_json` |
+| `module.combined.json_accept` | moduleCombined | concrete module `Silmaril.Wasm.Examples.JsonAccept.prog` (Wasm tab) | `exportAcceptedNotRejected` | exact | execution | `exportAcceptedNotRejected_eq_acceptsSafely`, `exportAcceptedNotRejected_eq`, `acceptsSafely_eq`, `exportAccepted_disjoint_rejected` |
+| `module.combined.callouts` | moduleCombined | every module | `acceptedNotRejected` | laws | execution | `acceptedNotRejected_eq_acceptsSafely`, `acceptedNotRejected_self`, `strictLang_self`, `not_mem_acceptedNotRejected_of_no_callout`, `neverRejected_eq_of_calloutEquiv` |
+| `module.indexed` | moduleIndexed | every module | `indexed` | laws | execution | `accepted_eq_iUnion_indexed`, `indexed_eq_of_calls_eq` |
+| `module.traced_io.exStart` | moduleTracedIO | concrete module `Silmaril.Wasm.Game.Examples.exStart` (Wasm tab) | `entryIORuns` | witness | execution | `run_tsession`, `run_triggers`, `callouts_eq_traced` |
+| `module.abstract.json_accept` | moduleAbstract | concrete module `Silmaril.Wasm.Examples.JsonAccept.prog` (Wasm tab) | `absExportRun` | exact | execution | `exportAcceptedNotRejected_eq_abs`, `exportRun_eq`, `absAcceptsSafely_eq` |
+| `module.stream.json_accept` | moduleStream | Lean function `Silmaril.Wasm.Examples.JsonAccept.streamAcceptor` (not Wasm) | `streamAcceptor` | exact | execution | `streamAcceptor_correctInterleaved`, `answer_eq_wasm`, `boundaryAnswer_eq_wasm` |
+| `component.import.spec` | componentImport | spec component `Silmaril.Wasi.Accept.importAcceptor` (no binary) | `bytesLang` | exact | specStrategy | `bytesLang_importAcceptor`, `importAcceptor_exact` |
+| `component.export.spec` | componentExport | spec component `Silmaril.Wasi.Accept.exportAcceptor` (no binary) | `exportBytesLang` | exact | specStrategy | `exportBytesLang_exportAcceptor` |
+| `component.combined.spec` | componentCombined | spec component `Silmaril.Wasi.Accept.verdictComponent` (no binary) | `exportAcceptedNotRejected` | exact | specStrategy | `exportAcceptedNotRejected_eq_acceptsSafely`, `importAcceptedNotRejected_eq_acceptsSafely`, `strict_verdictComponent`, `importAcceptedNotRejected_self`, `retWith_conflicts` |
+| `component.indexed` | componentIndexed | every component | `importIndexed` | laws | definitions | `eraseSome_importIndexed`, `layoutIndexed_of_getElem?` |
+| `component.io` | componentIO | every component | `entryIORuns` | laws | definitions | `entryIORuns_eq_of_traces`, `shallow_of_legal`, `ret_after_call` |
+| `component.session` | componentSession | every component | `sessionTraces` | sound | hypothesis `Silmaril.Wasi.Accept.StreamCorrect` | `freshFeedsQuery_sound`, `feedsQuery_sound`, `exportAlt_of_legal` |
+| `component.repr.json_events` | componentRepr | every component | `reprLang` | laws | definitions | `sound_reprLang_iff`, `completeWithin_reprLang_iff`, `treeEquiv`, `mem_eventLangAt_iff`, `linesEquiv` |
+| `component.bounds.canon` | componentBounds | every component | `bytesLang` | laws | hypothesis `Silmaril.Wasi.Accept.CanonLowerAcceptBy` | `bytesLang_length_lt_of_canonLowerAccept`, `bytesLang_finite_of_canonLowerAccept` |
+
+Not supported:
+
+| shape | reason |
+| --- | --- |
+| compiledComponent | No compiled component binary is interpreted as an acceptor: the component readings are proved for strategies, and no compiled component is related to one. |
+| componentStreamingComplete | Completeness of a multi-call streaming component over unbounded inputs is not stated; only the one-call module bound is (Wasm.Game.Accept.Complete). |
+| importBytesConcrete | No concrete module is proved to accept a stated byte language through an import accept(ptr, len); the import reading is tested on decoders and on exStart's unit call only. |
+
 ## Concrete versus abstract: what commutes
 
 "Exact" means an equality between the concrete reading and the same generic verdict of the
