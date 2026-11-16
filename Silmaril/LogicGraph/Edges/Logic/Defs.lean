@@ -299,6 +299,8 @@ public import Silmaril.Logic.Institution.Structured.Theories.ModelComparison
 public import Silmaril.Logic.Institution.Structured.Theories.Models
 public import Silmaril.Logic.Institution.Structured.Theories.Thms
 public import Silmaril.Logic.Institution.Structured.Thms
+public import Silmaril.Logic.Institution.Syntactic.Defs
+public import Silmaril.Logic.Institution.Syntactic.Thms
 public import Silmaril.Logic.Kore.FirstOrder.Defs
 public import Silmaril.Logic.Kore.FirstOrder.Examples
 public import Silmaril.Logic.Kore.FirstOrder.Hets
@@ -866,6 +868,358 @@ public import Silmaril.Logic.Temporal.LTL.Tableau.Examples
 public import Silmaril.Logic.Temporal.LTL.Tableau.Modal
 public import Silmaril.Logic.Temporal.LTL.Tableau.Thms
 public import Silmaril.Logic.Temporal.LTL.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Cases.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Context.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Declarations.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Declarations.Lookup.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Declarations.Lookup.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Declarations.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Environment.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Guards.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Instantiation.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Positivity.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Productivity.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Reduction.Contexts.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Reduction.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Reduction.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Scope.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Coherence.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.ConstructorValues.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.ConstructorValues.Tags.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Constructors.Definitions.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Constructors.Definitions.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Constructors.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Constructors.Recursive.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Constructors.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Instantiation.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Instantiation.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Local.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Operational.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Operational.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Projections.Caches.Definitions.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Projections.Caches.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Projections.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Projections.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Substitution.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Semantics.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Syntax.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Syntax.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Typing.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Typing.Thms
+public import Silmaril.Logic.TypeTheory.CIC.Universes.Defs
+public import Silmaril.Logic.TypeTheory.CIC.Universes.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Derivation
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Derivation.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.DerivationStructure
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.DerivationStructure.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.DerivationStructure.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.DerivationStructure.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.DerivationSubstitution
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.DerivationSubstitution.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Assignments
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Assignments.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Assignments.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Assignments.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Derivation
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Derivation.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Derivation.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Derivation.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.FunctionEta
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.FunctionEta.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.FunctionEta.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.HeadInversion
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.HeadInversion.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.HeadInversion.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.HeadInversion.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.IdentityElimination
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.IdentityElimination.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.IdentityElimination.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Inclusion
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Inclusion.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Inference
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Inference.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Inference.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Logic
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Logic.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Logic.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Logic.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Regularity
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Regularity.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Regularity.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Soundness
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Soundness.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Soundness.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Soundness.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Structure
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Structure.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Structure.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.FunctionEta.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.FunctionEta.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Hets.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.IdentityElimination
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.IdentityElimination.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.IdentityElimination.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.IdentityElimination.Motive
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.IdentityElimination.Motive.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.IdentityElimination.Motive.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.IdentityElimination.Motive.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.IdentityElimination.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.Object.FiniteTag
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.Object.FiniteTag.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.Object.FiniteTag.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.Object.UnitVector.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Coherence
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Coherence.Hypotheses.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Coherence.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Computation
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Computation.Coherence.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Computation.Hypotheses.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Computation.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Direct
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Direct.Hypotheses.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Direct.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Fibres
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Fibres.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Fibres.Reconstruction.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Fibres.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.Children.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.Children.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.Computation.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.Computation.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.Indexed.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.Motive.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.Node.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.RawStep.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.RawStep.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Induction.Step.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Next
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Next.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Node
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Node.Direct.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Node.Hypotheses.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Node.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Semantics.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Source
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Source.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Source.Hypotheses.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Source.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Terms.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Terms.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Typing
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Typing.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Typing.Hypotheses.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Encoding.W.Typing.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Systems.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Systems.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Hets.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Systems.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Systems.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.BinderSemantics
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.ConstantStep
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.ConstantStepComputation
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.DependentChildren
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.DependentStep
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.DependentTelescope
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Extensionality
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Functions
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Head
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Head.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Head.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.HeadComputation
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Instantiation
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Substitution
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Substitution.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Telescope
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Weakening
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Weakening.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Derivability.Weakening.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Examples.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Examples.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.BinderSemantics
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Derivation
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Derivation.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Derivation.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Examples
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Inclusion
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Inclusion.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Logic
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Logic.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Logic.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Structural
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Hets.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.NamedSubstitution
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.NamedSubstitution.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.NamedSubstitution.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.RuleBudget.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.RuleBudget.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Rules.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Rules.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.SetSemantics.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.SetSemantics.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Soundness
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Structural
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Substitution
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Systems
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Systems.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Systems.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Unbounded.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inference.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inference.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Institution
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Institution.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Institution.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.LookupStructure
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.LookupStructure.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.LookupStructure.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.NamedSubstitution
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.NamedSubstitution.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.NamedSubstitution.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetOps
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetOps.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetSemantics
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetUniverse
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SimultaneousSubstitution
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SimultaneousSubstitution.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SimultaneousSubstitution.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Soundness
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Structural
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.TheoryStructure.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet.Examples.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet.Examples.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet.Graph.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet.Graph.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet.Operations
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet.Operations.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet.Operations.Thms
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.WSet.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Budget
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Budget.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Budget.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Computation
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Computation.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Extensional.Assignment
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Extensional.Assignment.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Extensional.Syntax.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Extensional.Syntax.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.LinearJ.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.LinearJ.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalHypotheses
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalHypotheses.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalHypotheses.Examples
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalHypotheses.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawHeadSeparation
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawHeadSeparation.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawHeadSeparation.Examples
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawHeadSeparation.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Algebra.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Algebra.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Codes.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Codes.Inversion
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Codes.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Computation
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Environment
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Environment.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Environment.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.FiniteSoundness.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.FiniteSoundness.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Soundness
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Soundness.Closure
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Soundness.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Soundness.Examples
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRealizability.Soundness.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRecursorSubjectReduction.Examples
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawRecursorSubjectReduction.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.RawValueGeneration.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Reduction
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Reduction.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Reduction.Examples
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Reduction.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Regularity
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Regularity.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Rules
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Rules.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Rules.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Structural
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Structural.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Substitution
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Substitution.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Substitution.Thms
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Syntax
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.Syntax.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.Category.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.Category.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.ContextConversion.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.ContextConversion.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.Encoding.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.Encoding.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.Eta.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.Eta.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.Eta.Typing.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.Generation.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.Generation.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.Institution.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.Institution.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.Signature.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.Signature.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.Substitution.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.Substitution.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.ContextConversion.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.EqualSubstitution.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.EqualSubstitution.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Institution.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Institution.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.LambdaCongruence.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeConversion.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeConversion.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEncoding.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEncoding.Names.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEncoding.Names.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEncoding.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEquality.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeEquality.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeSignature.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeSignature.Realization
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeSignature.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeTyping.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.NativeTyping.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Regularity.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Structural.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Substitution.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Substitution.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Thms
 public import Silmaril.LogicGraph.Nodes.Defs
 public import Silmaril.Wasm.InstObs.Defs
 
@@ -1000,6 +1354,36 @@ silmaril comorphism logic.temporal.ctl_star.compiler.institution.rich_comorphism
 silmaril comorphism logic.temporal.ctl_star.ctl_to_ctl_star := Silmaril.Logic.Temporal.CTLStar.ctlToCTLStar (facts := [Silmaril.Logic.Temporal.CTLStar.ctlToCTLStar_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.rich_to_discrete := Silmaril.Logic.Temporal.CTLStar.richToDiscrete (facts := [Silmaril.Logic.Temporal.CTLStar.richToDiscrete_modelExpansive])
 silmaril comorphism logic.temporal.ltl.propositional_to_ltl := Silmaril.Logic.Temporal.LTL.propositionalToLtl (facts := [Silmaril.Logic.Temporal.LTL.propositionalToLtl_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.apex.inclusion := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.inclusion
+silmaril comorphism logic.type_theory.extensional_mltt.apex.successor := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.successor
+silmaril comorphism logic.type_theory.extensional_mltt.apex.to_full := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.toFull
+silmaril comorphism logic.type_theory.extensional_mltt.finite.inclusion := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.inclusion
+silmaril comorphism logic.type_theory.extensional_mltt.finite.successor := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.successor
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.indexed.apex.stage.inclusion := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Stage.inclusion
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.indexed.apex.stage.to_apex := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Stage.toApex
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.indexed.apex.from_w := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.fromW (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.fromW_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.indexed.apex.to_w := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.toW (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.toW_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.indexed.finite.from_w := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.fromW (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.fromW_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.indexed.finite.inclusion := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.inclusion
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.indexed.finite.to_w := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.toW (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.toW_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.apex.stage.inclusion := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.inclusion
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.apex.stage.to_apex := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toApex
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.apex.stage.to_indexed := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.toIndexed
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.apex.from_w := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.fromW (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.fromW_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.apex.to_indexed := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.toIndexed (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.toIndexed_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.apex.to_w := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.toW (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.toW_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.finite.from_w := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.fromW (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.fromW_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.finite.inclusion := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.inclusion
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.finite.to_indexed := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.toIndexed (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.toIndexed_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.mutual.finite.to_w := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.toW (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.toW_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.w.embedding.finite_inclusion := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.finiteInclusion (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.finiteInclusion_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.w.embedding.hierarchy_inclusion := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.hierarchyInclusion (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Embedding.hierarchyInclusion_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.w.finite.inclusion := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.inclusion
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.w.finite.successor := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.successor
+silmaril comorphism logic.type_theory.extensional_mltt.inductives.w.set_theory_interpretation.to_set_theory := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.SetTheoryInterpretation.toSetTheory (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.SetTheoryInterpretation.toSetTheory_modelExpansive])
+silmaril comorphism logic.type_theory.extensional_mltt.set_theory_interpretation.to_set_theory := Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetTheoryInterpretation.toSetTheory (facts := [Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetTheoryInterpretation.toSetTheory_modelExpansive, Silmaril.Proofs.Logic.TypeTheory.ExtensionalMLTT.toSetTheory_modelExpansive])
+silmaril comorphism logic.type_theory.intensional_mltt.original_institution.from_finite := Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.fromFinite
+silmaril comorphism logic.type_theory.intensional_mltt.original_institution.inclusion := Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.inclusion
 silmaril morphism inst.morphism.of_obs := Silmaril.Inst.Morphism.ofObs (facts := [Silmaril.Inst.Morphism.ofObs_sound])
 silmaril morphism logic.algebraic.dependent_family.equational.morphism := Silmaril.Logic.Algebraic.DependentFamily.Equational.morphism
 silmaril morphism logic.algebraic.order_sorted.to_equational := Silmaril.Logic.Algebraic.OrderSorted.toEquational

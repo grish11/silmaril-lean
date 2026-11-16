@@ -3,10 +3,3 @@
 # nothing in these families is registered or claimed here. Counts are of institutions (nodes) and
 # maps (edges) of each family; remove a family, or lower its counts, as its developments land.
 schema = "silmaril.records.v0.2"
-
-[[logic_pending]]
-name = "pending.type-theory"
-title = "Type theories: extensional/intensional MLTT, LF and λΠ-modulo, CIC"
-nodes = 15
-edges = 27
-status = "pending-port"

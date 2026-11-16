@@ -88,6 +88,7 @@ public import Silmaril.Logic.Institution.Grothendieck.Examples.Het
 public import Silmaril.Logic.Institution.Metatheory.Consilience
 public import Silmaril.Logic.Institution.Metatheory.HOL
 public import Silmaril.Logic.Institution.Metatheory.Metamath
+public import Silmaril.Logic.Institution.Syntactic.Defs
 public import Silmaril.Logic.Kore.FirstOrder.Institution
 public import Silmaril.Logic.Kore.FixedPoint.Institution.Defs
 public import Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.Institution.Defs
@@ -152,6 +153,20 @@ public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Defs
 public import Silmaril.Logic.Smt.Uflia.Thms
 public import Silmaril.Logic.Temporal.CTLStar.Thms
 public import Silmaril.Logic.Temporal.LTL.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Systems.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Systems.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Systems.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Institution.Defs
+public import Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.Thms
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Institution.Defs
+public import Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Institution.Thms
 public import Silmaril.Project.Registry.Institution.Defs
 public import Silmaril.Wasm.InstObs.Defs
 
@@ -267,6 +282,21 @@ silmaril institution logic.smt.uflia.sort_maps.source.inst := Silmaril.Logic.Smt
 silmaril institution logic.smt.uflia.sort_maps.inst := Silmaril.Logic.Smt.Uflia.SortMaps.inst
 silmaril institution logic.smt.uflia.institution := Silmaril.Logic.Smt.Uflia.institution
 silmaril institution logic.temporal.ltl.inst := Silmaril.Logic.Temporal.LTL.inst
+silmaril institution logic.type_theory.extensional_mltt.apex.finite_bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.finiteBundled
+silmaril institution logic.type_theory.extensional_mltt.finite.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.bundled
+silmaril institution logic.type_theory.extensional_mltt.inductives.indexed.apex.stage.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Stage.bundled
+silmaril institution logic.type_theory.extensional_mltt.inductives.indexed.apex.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.bundled
+silmaril institution logic.type_theory.extensional_mltt.inductives.indexed.finite.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.bundled
+silmaril institution logic.type_theory.extensional_mltt.inductives.mutual.apex.stage.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.bundled
+silmaril institution logic.type_theory.extensional_mltt.inductives.mutual.apex.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.bundled
+silmaril institution logic.type_theory.extensional_mltt.inductives.mutual.finite.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.bundled
+silmaril institution logic.type_theory.extensional_mltt.inductives.w.finite.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.bundled
+silmaril institution logic.type_theory.extensional_mltt.inductives.w.institution.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Institution.bundled
+silmaril institution logic.type_theory.extensional_mltt.institution.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Institution.bundled
+silmaril institution logic.type_theory.extensional_mltt.set_theory_interpretation.bundled := Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetTheoryInterpretation.bundled
+silmaril institution logic.type_theory.intensional_mltt.original_institution.bundled := Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.bundled
+silmaril institution logic.type_theory.lambda_pi.equality_institution.bundled := Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.bundled
+silmaril institution logic.type_theory.lambda_pi.typed_equality.institution.bundled := Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Institution.bundled
 silmaril institution logic.algebraic.dependent_family.inst := Silmaril.Logic.Algebraic.DependentFamily.inst
 silmaril institution logic.ctl.inst := Silmaril.Logic.CTL.inst
 silmaril institution logic.first_order_lfp.boolean.inst := Silmaril.Logic.FirstOrderLFP.Boolean.inst
@@ -290,6 +320,7 @@ silmaril institution logic.pdl.inst := Silmaril.Logic.PDL.inst
 silmaril institution logic.reachability.inst := Silmaril.Logic.Reachability.inst
 silmaril institution logic.temporal.ctl_star.inst := Silmaril.Logic.Temporal.CTLStar.inst
 silmaril institution logic.temporal.ctl_star.rich_inst := Silmaril.Logic.Temporal.CTLStar.richInst
+silmaril institution logic.type_theory.lambda_pi.equality_institution.inst := Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.inst
 silmaril room logic.algebraic.initial.matching.finite_sorted_compiler.institution.source_room := Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.sourceRoom
 silmaril room logic.algebraic.initial.matching.finite_sorted_compiler.institution.theory_room := Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.theoryRoom
 silmaril room logic.algebraic.initial.matching.global_presented.native_room := Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.nativeRoom
@@ -326,6 +357,7 @@ silmaril room logic.institution.examples.ufol.room := Silmaril.Logic.Institution
 silmaril room logic.institution.metatheory.hol.room := Silmaril.Logic.Institution.Metatheory.HOL.room
 silmaril room logic.institution.metatheory.hol_consilience.room := Silmaril.Logic.Institution.Metatheory.HOLConsilience.room
 silmaril room logic.institution.metatheory.metamath.room := Silmaril.Logic.Institution.Metatheory.Metamath.room
+silmaril room logic.institution.syntactic.room := Silmaril.Logic.Institution.Syntactic.room
 silmaril room logic.kore.general_fixed_point.boolean_runtime.package.native_room := Silmaril.Logic.Kore.GeneralFixedPoint.BooleanRuntime.Package.nativeRoom
 silmaril room logic.kore.general_fixed_point.boolean_runtime.package.source_room := Silmaril.Logic.Kore.GeneralFixedPoint.BooleanRuntime.Package.sourceRoom
 silmaril room logic.kore.general_fixed_point.boolean_theory.package.native_room := Silmaril.Logic.Kore.GeneralFixedPoint.BooleanTheory.Package.nativeRoom
@@ -387,3 +419,18 @@ silmaril room logic.smt.uflia.sort_maps.source.room := Silmaril.Logic.Smt.Uflia.
 silmaril room logic.smt.uflia.sort_maps.room := Silmaril.Logic.Smt.Uflia.SortMaps.room
 silmaril room logic.smt.uflia.room := Silmaril.Logic.Smt.Uflia.room
 silmaril room logic.temporal.ltl.room := Silmaril.Logic.Temporal.LTL.room
+silmaril room logic.type_theory.extensional_mltt.apex.finite_room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Apex.finiteRoom
+silmaril room logic.type_theory.extensional_mltt.finite.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.room
+silmaril room logic.type_theory.extensional_mltt.inductives.indexed.apex.stage.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.Stage.room
+silmaril room logic.type_theory.extensional_mltt.inductives.indexed.apex.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Apex.room
+silmaril room logic.type_theory.extensional_mltt.inductives.indexed.finite.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Indexed.Finite.room
+silmaril room logic.type_theory.extensional_mltt.inductives.mutual.apex.stage.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.Stage.room
+silmaril room logic.type_theory.extensional_mltt.inductives.mutual.apex.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Apex.room
+silmaril room logic.type_theory.extensional_mltt.inductives.mutual.finite.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.Mutual.Finite.room
+silmaril room logic.type_theory.extensional_mltt.inductives.w.finite.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Finite.room
+silmaril room logic.type_theory.extensional_mltt.inductives.w.institution.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Inductives.W.Institution.room
+silmaril room logic.type_theory.extensional_mltt.institution.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.Institution.room
+silmaril room logic.type_theory.extensional_mltt.set_theory_interpretation.room := Silmaril.Logic.TypeTheory.ExtensionalMLTT.SetTheoryInterpretation.room
+silmaril room logic.type_theory.intensional_mltt.original_institution.room := Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.room
+silmaril room logic.type_theory.lambda_pi.equality_institution.room := Silmaril.Logic.TypeTheory.LambdaPi.EqualityInstitution.room
+silmaril room logic.type_theory.lambda_pi.typed_equality.institution.room := Silmaril.Logic.TypeTheory.LambdaPi.TypedEquality.Institution.room
