@@ -3,7 +3,7 @@ const GROUP_LOOKUPS = 500;
 // children of their own) are drawn as one node per status code ("12 × THM"), which keeps their
 // count and status visible. Clicking such a node lists them; "expand" draws them one by one
 // (per parent), and "every problem" draws all leaves everywhere. Problems that need attention (an
-// unexplained failure, an unmet expectation), the focus and the root are always drawn alone.
+// status that is not the expected one, a genuine error), the focus and the root are always drawn alone.
 let gExpanded = new Set(), gEvery = false;
 function shortName(n) {
   const sep = n.includes("/") ? "/" : ".", p = n.split(sep);
@@ -22,7 +22,7 @@ async function graph(focus) {
     <label title="draw every leaf problem instead of one node per parent and status"><input type="checkbox" id="gevery"${gEvery ? " checked" : ""}> every problem</label>
     <button id="gdraw">Draw</button> <button id="gfit">Fit</button></div>
     <p class="legend muted">${statusBadge({ summary: "THM", verdict: "holds" })} status code ·
-    <span class="st st-bad">CSA<b>!</b></span> unexplained failure · <span class="st st-unmet">OPN<b>?</b></span> unmet expectation ·
+    <span class="st st-bad">CSA<b>!</b></span> not the expected status · <span class="st st-ok">UNS<b>✓</b></span> as expected ·
     blue box = group (holds/fails/unknown children) · stacked = leaves grouped by status (click: list, expand) · dashed edge = refutation route ·
     dotted = instance · thick edge = proved · thick border = root · dashed border = detached <span id="gcount"></span></p>
     <div id="graphwrap"><div id="cy"></div><div id="side"><p class="muted">Click a node for its details; double-click to refocus.</p></div></div>`;
@@ -127,7 +127,7 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
   // children; it stays alone when it is the focus or the root, needs attention, or its parent is
   // expanded. A leaf with several parents is counted under each.
   const isLeaf = (n) => out.has(n) && out.get(n).length === 0 && !groupSet.has(n);
-  const alone = (n) => n === focus || n === root || ["bad", "unmet"].includes((statusInfo(statusOf.get(n)) || {}).cls);
+  const alone = (n) => n === focus || n === root || (statusInfo(statusOf.get(n)) || {}).cls === "bad";
   const stacks = new Map();   // "parent\u0000code" -> { parent, code, kind, members }
   const stacked = new Set();
   if (!gEvery) for (const p of keep) {
@@ -157,12 +157,13 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
       label = (titles.get(n) || shortName(n)) + (out.has(n) ? `\n${c.holds} / ${c.fails} / ${c.unknown}` + (c.unchecked ? ` (${c.unchecked} unchecked)` : "") : "");
     } else {
       const i = statusInfo(statusOf.get(n));
-      if (i) label += "\n" + i.code + (i.cls === "bad" ? " !" : i.cls === "unmet" ? " ?" : "");
+      if (i) label += "\n" + i.code + (i.cls === "bad" ? " !" : i.cls === "ok" ? " ✓" : "");
     }
     const hidden = (out.get(n) || []).filter((e) => !keep.has(e.child)).length;
     if (hidden) label += ` (+${hidden} hidden)`;
     else if (!out.has(n)) label += " (+ more, not read)";
-    const cls = (statusInfo(statusOf.get(n)) || {}).cls || "";
+    const si = statusInfo(statusOf.get(n)) || {};
+    const cls = si.cls === "bad" ? "bad" : si.dep ? "dep" : "";
     els.push({ data: { id: n, label, att: cls, group: isGroup ? 1 : 0, detached: detached.has(n) ? 1 : 0, root: n === root ? 1 : 0, focus: n === focus ? 1 : 0 } });
   }
   const drawn = new Set(shown);
@@ -188,7 +189,6 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
         width: 150, height: 34, shape: "round-rectangle", "background-color": "#fff", color: "#1d2329", "text-outline-width": 0,
         "border-width": 1, "border-color": "#7b848d" } },
       { selector: "node[att = 'bad']", style: { "background-color": "#fdecec", "border-color": "#d64545", "border-width": 2, color: "#9b1c1c" } },
-      { selector: "node[att = 'unmet']", style: { "border-style": "dashed", "border-color": "#b7791f", "border-width": 2 } },
       { selector: "node[att = 'dep']", style: { color: "#66707a", "background-color": "#f4f6f8" } },
       { selector: "node[stack = 1]", style: { shape: "round-rectangle", width: 110, height: 30, "background-color": "#f4f6f8", "border-color": "#9aa0a6",
         "border-width": 1, "font-size": 11, "underlay-color": "#c9ced3", "underlay-opacity": 1, "underlay-padding": 3, "underlay-shape": "round-rectangle" } },

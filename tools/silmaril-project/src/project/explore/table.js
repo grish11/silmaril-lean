@@ -6,14 +6,14 @@ const HINTS = { problem:"problem", parent:"problem", child:"problem", obligation
 const BADGE_COLS = new Set(["problem", "child", "name", "parent", "obligation", "parses"]);
 // The columns `statusBadge` reads, for a query over `problems p`, from the tables this database has
 // (all keyed by problem, so a lookup by name reads a few pages).
-const STATUS_COLS = () => (tables.has("summary") ? ", s.summary, s.verdict" : "") + ", p.expect" +
+const STATUS_COLS = () => (tables.has("summary") ? ", s.summary, s.verdict" : "") + ", p.expect, p.arity" +
   (tables.has("deprecated_problems") ? ", (SELECT via_kind FROM deprecated_problems d WHERE d.problem = p.name) AS deprecated" : "") +
   (tables.has("findings") ? ", (SELECT classification FROM findings f WHERE f.problem = p.name) AS finding" : "");
 const STATUS_JOINS = () => tables.has("summary") ? " LEFT JOIN summary s ON s.problem = p.name" : "";
 function noteStatus(name, r) {
   if (!r.summary) return;
   verdictOf.set(name, r.verdict); summaryOf.set(name, r.summary);
-  statusOf.set(name, { summary: r.summary, verdict: r.verdict, expect: r.expect || null, deprecated: r.deprecated || null, finding: r.finding || null });
+  statusOf.set(name, { summary: r.summary, verdict: r.verdict, expect: r.expect || null, arity: r.arity == null ? null : r.arity, deprecated: r.deprecated || null, finding: r.finding || null });
 }
 const LOOKUP = {
   problem: ["problems", () => "SELECT p.name AS n" + STATUS_COLS() + " FROM problems p" + STATUS_JOINS() + " WHERE p.name IN ($)"],

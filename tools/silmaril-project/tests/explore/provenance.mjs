@@ -43,11 +43,11 @@ try {
   // 1. the grouped graph
   await p.waitForFunction(() => window.explore.graph, null, { timeout: 30000 });
   const g = await p.evaluate(() => Object.assign({}, window.explore.graph, { nodes: cy.nodes().length,
-    stackNodes: cy.nodes("[stack = 1]").map((n) => n.data("label")), att: cy.nodes("[att = 'bad'], [att = 'unmet']").length }));
+    stackNodes: cy.nodes("[stack = 1]").map((n) => n.data("label")), att: cy.nodes("[att = 'bad']").length }));
   check(g.stacks > 0 && g.drawn + g.stacked >= g.problems && g.nodes < g.problems, `leaves are stacked: ${g.problems} problems, ${g.drawn} drawn, ${g.stacked} in ${g.stacks} stacks, ${g.nodes} nodes`);
   check(g.stackNodes.every((l) => /^\d+ × [A-Za-z/]+$/.test(l)), `stack labels count and name the status: ${g.stackNodes.slice(0, 4).join(", ")}`);
   const inStacks = await p.evaluate(() => window.explore.graph.stackMembers.map((n) => (statusInfo(statusOf.get(n)) || {}).cls || ""));
-  check(inStacks.length === g.stacked && !inStacks.some((c) => c === "bad" || c === "unmet"), `no stacked problem needs attention (${g.att} drawn alone)`);
+  check(inStacks.length === g.stacked && !inStacks.some((c) => c === "bad"), `no stacked problem needs attention (${g.att} drawn alone)`);
   await shot("graph-grouped.png");
   const id = await p.evaluate(() => cy.nodes("[stack = 1]").sort((a, b) => b.data("label").localeCompare(a.data("label")))[0].id());
   await p.evaluate((id) => cy.getElementById(id).emit("tap"), id);

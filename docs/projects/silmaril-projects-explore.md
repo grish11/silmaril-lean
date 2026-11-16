@@ -340,12 +340,22 @@ ignores it), so a slow query can never write into the current page.
 escaped.
 
 Status badges show a problem's summary as a three-character code (THM, OPN, SAT, UNS, CSA, UNK, and
-NOC for the stored code `contingent`) in a
-neutral style. Only what needs attention is marked: `!` for a failing verdict that nothing explains
-(not the expected status, not deprecated, not classified as a spec bug or model gap), `?` for an
-expected status (`problems.expect`) that the summary is not, and a struck-through code for a
-deprecated problem. The badge's title spells out the code with its SZS name, the stored code when
-it differs, the verdict, expectation and markings. `contingent` (SAT and CSA both hold) is shown as
+NOC for the stored code `contingent`) in a neutral style. A problem may have an expected status
+(`problems.expect`), and the badge compares the summary with it (`Explorer.ui.statusInfo(s).outcome`):
+
+| outcome | when | badge |
+|---|---|---|
+| `none` | no expected status | neutral, whatever the verdict: a refutation is not a failure by itself |
+| `pending` | an expected status, and none known yet (OPN, UNK) | neutral; the title names the expectation |
+| `match` | the known status is the expected one | a quiet ✓ |
+| `mismatch` | a known status that is not the expected one | an error: `!` |
+| `error` | a finding classifies the problem as a genuine `error` | an error: `!` |
+
+For a closed proposition (arity 0), THM and SAT mean it is true, and UNS and CSA mean it is false.
+An expectation is met by any code of the same truth value, so an expected UNS is met by CSA. The
+title says "closed proposition: true" or "false". Open problems compare codes exactly. Deprecated
+problems are struck through. The badge's title spells out the code with its SZS name, the stored
+code when it differs, the verdict, the expectation and the markings. `contingent` (SAT and CSA both hold) is shown as
 NOC, SZS's NoConsequence: "some interpretations are models of Ax, some models of Ax are models of
 C, and some models of Ax are models of ~C" (current: [SZS Success ontology](https://szs.tptp.org/success);
 historical: [Sutcliffe, The SZS Ontologies for Automated Reasoning Software (2008)](http://tptp.org/cgi-bin/SeeTPTP?Category=BibTeX&File=Sut08-KEAPPA)).

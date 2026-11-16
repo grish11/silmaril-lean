@@ -59,32 +59,47 @@ try {
     badges: [...document.querySelectorAll("#list .st")].map((s) => s.textContent), coloured: document.querySelectorAll("#list .badge").length,
     wrap: getComputedStyle(document.querySelector("#list td.nw")).whiteSpace }));
   check(st.heads.filter((h) => /status|verdict|summary/.test(h)).length === 1 && st.coloured === 0, `one status column, no verdict colour badges (${st.heads.join(",")})`);
-  check(st.badges.length > 0 && st.badges.every((t) => /^[A-Z]{3}[!?]?$/.test(t)) && st.wrap === "nowrap", `three-character badges: ${[...new Set(st.badges)].join(" ")}`);
+  check(st.badges.length > 0 && st.badges.every((t) => /^[A-Z]{3}[!✓]?$/.test(t)) && st.wrap === "nowrap", `three-character badges: ${[...new Set(st.badges)].join(" ")}`);
   // contingent is shown as SZS NoConsequence, and the title keeps the stored code
   const noc = await p.evaluate(() => Explorer.ui.statusBadge({ summary: "contingent", verdict: "fails" }));
   check(/>NOC</.test(noc) && /stored as &quot;contingent&quot;/.test(noc) && /NoConsequence/.test(noc), "contingent shows as NOC, naming the stored code");
   check(await p.evaluate(() => ["THM", "OPN", "SAT", "UNS", "CSA", "UNK"].every((c) => Explorer.ui.statusCode(c) === c)), "SZS codes are shown as stored");
-  // The display depends on the stored code alone; the verdict (which does depend on the problem:
-  // UNS fails only a closed proposition) is shown as the database gives it, never recomputed.
+  // Expectation outcomes (the shared status API): no expectation is neutral whatever the verdict,
+  // an expected negative result is a quiet match, only a known status that is not the expected one
+  // (or a genuine-error finding) is an error, and an unknown status is neutral. Closed propositions
+  // (arity 0) compare truth values: an expected UNS is met by CSA. Stored codes are shown unchanged.
   const shape = await p.evaluate(() => {
-    const b = (s) => { const d = document.createElement("div"); d.innerHTML = Explorer.ui.statusBadge(s); const e = d.firstChild; return { text: e.textContent, code: e.dataset.code, title: e.title }; };
+    const b = (s) => { const d = document.createElement("div"); d.innerHTML = Explorer.ui.statusBadge(s); const e = d.firstChild;
+      return { text: e.textContent, code: e.dataset.code, outcome: e.dataset.outcome, title: e.title }; };
     return {
-      closedUns: b({ summary: "UNS", verdict: "fails" }),          // a closed proposition refuted
-      openUns: b({ summary: "UNS", verdict: "unknown" }),          // a predicate refuted at every argument
-      closedNoc: b({ summary: "contingent", verdict: "fails" }),
-      openNoc: b({ summary: "contingent", verdict: "fails", expect: "contingent" }),
+      closedFalseNoExpect: b({ summary: "UNS", verdict: "fails", arity: 0 }),
+      closedFalseExpected: b({ summary: "UNS", verdict: "fails", arity: 0, expect: "UNS" }),
+      closedCsaExpectedUns: b({ summary: "CSA", verdict: "fails", arity: 0, expect: "UNS" }),
+      closedTrueExpectedFalse: b({ summary: "THM", verdict: "holds", arity: 0, expect: "UNS" }),
+      openUnsExpectedThm: b({ summary: "UNS", verdict: "unknown", arity: 1, expect: "THM" }),
+      openCsaExpectedUns: b({ summary: "CSA", verdict: "fails", arity: 1, expect: "UNS" }),
+      pending: b({ summary: "OPN", verdict: "unknown", arity: 0, expect: "THM" }),
+      genuine: b({ summary: "CSA", verdict: "fails", arity: 0, finding: "error" }),
+      noc: b({ summary: "contingent", verdict: "fails", arity: 1, expect: "contingent" }),
       // over an empty domain no witness exists, so SAT (and so contingent) cannot be established;
       // whatever the database stores for such a problem is shown as stored
-      emptyUns: b({ summary: "UNS", verdict: "unknown" }),
+      empty: b({ summary: "UNS", verdict: "unknown", arity: 1 }),
     };
   });
-  check(shape.closedUns.text === "UNS!" && /verdict fails/.test(shape.closedUns.title) && shape.openUns.text === "UNS" && /verdict unknown/.test(shape.openUns.title),
-    "closed vs open UNS: same code, the stored verdict decides the mark");
-  check(shape.closedNoc.code === "contingent" && shape.closedNoc.text === "NOC!" && shape.openNoc.text === "NOC" && /as expected \(contingent\)/.test(shape.openNoc.title),
-    "contingent: NOC for closed and open problems alike, stored code kept, expectation compared on the stored code");
-  check(shape.emptyUns.text === "UNS" && shape.emptyUns.code === "UNS", "an empty-domain problem's stored status is shown unchanged");
+  const o = (k) => `${shape[k].text}/${shape[k].outcome}`;
+  check(o("closedFalseNoExpect") === "UNS/none" && /closed proposition: false/.test(shape.closedFalseNoExpect.title),
+    `a refuted closed proposition without expectation is neutral, titled false (${o("closedFalseNoExpect")})`);
+  check(o("closedFalseExpected") === "UNS✓/match" && o("closedCsaExpectedUns") === "CSA✓/match",
+    `an expected negative is a quiet match, by truth value for closed propositions (${o("closedFalseExpected")}, ${o("closedCsaExpectedUns")})`);
+  check(o("closedTrueExpectedFalse") === "THM!/mismatch" && o("openUnsExpectedThm") === "UNS!/mismatch" && /UNEXPECTED: expected THM/.test(shape.openUnsExpectedThm.title),
+    "a known status that is not the expected one is an error");
+  check(o("openCsaExpectedUns") === "CSA!/mismatch", "open problems compare codes exactly (CSA does not meet UNS for a predicate)");
+  check(o("pending") === "OPN/pending" && /expected THM, not established yet/.test(shape.pending.title), "an unknown status is neutral, naming the expectation");
+  check(o("genuine") === "CSA!/error", "a genuine-error finding is an error");
+  check(shape.noc.code === "contingent" && o("noc") === "NOC✓/match", "contingent shows as NOC and meets an expected contingent");
+  check(o("empty") === "UNS/none" && shape.empty.code === "UNS", "an empty-domain problem's stored status is shown unchanged");
   const listed = await p.evaluate(() => [...document.querySelectorAll("#list .st[data-code=contingent]")].map((e) => e.textContent));
-  check(listed.every((t) => /^NOC[!?]?$/.test(t)), `contingent rows of the database display as NOC (${listed.length} on this page)`);
+  check(listed.every((t) => /^NOC[!✓]?$/.test(t)), `contingent rows of the database display as NOC (${listed.length} on this page)`);
   await shot("problems.png");
 
   // sections: another task adds a block to artifact pages without editing the view; a section
