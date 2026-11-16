@@ -7,14 +7,16 @@ public import Lean.Data.Json
 
 A view (the explorer's assembly tab, a report) reads functions as JSON. This module fixes that
 form; `tools/elf-asm` writes it for the sample functions, with each function's **evidence read
-from theorem statements** (the tool imports the checked theorem module and classifies every
-theorem by the head of its statement, never by its name).
+from theorem statements** (the tool imports the checked theorem modules and classifies every
+theorem by the heads of its statement's conjuncts, its function argument and its file argument,
+never by its name; a self-test on decoys checks that a copy of a function, another file, a lone
+contract or a misleading name gives no evidence).
 
 ```
 { "schema": "silmaril.elf.asm/1",
-  "file": { "path", "sha256", "decl" },
+  "files": [ { "decl", "path", "sha256" } ],
   "functions": [ {
-      "decl", "name",
+      "decl", "file", "name",                      -- "file": the decl of the function's file
       "arch": { "id": "elf64-le/em62", "machine", "class", "data", "osabi" },
       "abiRef": "sysv64" | null,                   -- metadata, never evidence
       "symbol": { "table": "symtab" | "dynsym", "index" } | null,
@@ -30,9 +32,9 @@ Addresses and file offsets are hexadecimal strings (they exceed JavaScript's exa
 counts and in-function offsets are numbers. Unknown values are `null`, never `0`.
 
 Evidence kinds (one per proposition of `Silmaril.Elf.Asm`, plus the two neighbours views need):
-`arch` (`ArchOf`), `bytes` (`BytesAt`), `code` (`Silmaril.Elf.CodeAt` of the function's
+`arch` (`ArchOf`), `bytes` (`BytesAt`), `sectionBytes` (`SectionBytesAt`), `code` (`Silmaril.Elf.CodeAt` of the function's
 address and bytes), `symbol` (`SymbolOf`), `lineTiles` (`LinesTile`), `decode` (`DecodesAs`;
-`model` is the `Isa`), `noDecode` (`¬ DecodesAs` for every decoding), `notArch` (`¬ ArchOf`),
+`model` is the `Isa`), `noDecode` (`¬ DecodesAs` for every decoding), `notArch` (`¬ ArchOf`), `notBytes` (`¬ BytesAt`),
 `refs` (`RefsGrounded`),
 `contract` (a machine contract `FnContract.Spec.Total`, counted only when stated in the same
 theorem as the function's `bytes` or `code` fact; `model` is the machine). `hypotheses` lists

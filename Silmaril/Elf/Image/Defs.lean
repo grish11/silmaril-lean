@@ -27,6 +27,8 @@ Four address spaces meet in an ELF file, and a statement must say which one it i
   about memory.
 * `SegBytes F A i v o bytes`: both: segment `i` of the parse `A` maps `bytes`, which the file holds
   at `o`, to `v`.
+* `SecBytes F A k v o bytes`: the same through section `k` (`sh_addr`, `sh_offset`), the only
+  relation a relocatable object (`ET_REL`, no program headers) has.
 * `Untouched A v len`: no dynamic relocation writes into `[v, v + len)` (conservatively, each
   writes at most 8 bytes, the widest x86-64 dynamic relocation). Without it, memory after loading
   need not hold the file bytes: the loader patches relocated words. Statements about loaded
@@ -96,6 +98,18 @@ def FileBytes (F : Blob) (o : Nat) (bytes : List (BitVec 8)) : Prop :=
 /-- **Segment `i` of `A` maps `bytes`, which `F` holds at offset `o`, to virtual address `v`.** -/
 def SegBytes (F : Blob) (A : File) (i v o : Nat) (bytes : List (BitVec 8)) : Prop :=
   MapsFile A i v bytes.length o ∧ FileBytes F o bytes
+
+/-- **Section `k` of `A` holds the `len` bytes at address `v` in the file at offset `o`**: it is not
+`SHT_NOBITS`, `[v, v + len)` lies in `[sh_addr, sh_addr + sh_size)`, and `o = sh_offset + (v -
+sh_addr)`. For `ET_REL`, `sh_addr = 0` and `v` is an offset in the section; this is the only
+address relation such a file has (it has no `PT_LOAD`). -/
+def SecMapsFile (A : File) (k v len o : Nat) : Prop :=
+  ∃ s, A.sections[k]? = some s ∧ s.header.kind ≠ SHT_NOBITS ∧ s.header.address ≤ v ∧
+    v + len ≤ s.header.address + s.header.size ∧ o = s.header.offset + (v - s.header.address)
+
+/-- **Section `k` of `A` holds `bytes`, which `F` holds at offset `o`, at address `v`.** -/
+def SecBytes (F : Blob) (A : File) (k v o : Nat) (bytes : List (BitVec 8)) : Prop :=
+  SecMapsFile A k v bytes.length o ∧ FileBytes F o bytes
 
 /-- **Every byte of `[v, v + len)` resolves uniquely.** -/
 def Unambiguous (A : File) (v len : Nat) : Prop :=

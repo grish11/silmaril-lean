@@ -94,7 +94,7 @@ elf-check:
 		$(ELF_PINNED) Silmaril.Elf.Staged.Pinned.ZlibChecksums.Contracts
 	scripts/elf-reader/gen.sh --check
 	scripts/elf-reader/test-pages.sh
-	$(LAKE) env .lake/build/bin/elf-asm --check examples/elf-asm/zlib-checksums.json
+	$(LAKE) env .lake/build/bin/elf-asm --check examples/elf-asm/samples.json
 
 release-check:
 	$(PYTHON) tools/binaryen-lean/check-release.py --jobs $$(nproc) --report build/wasm-checks.json

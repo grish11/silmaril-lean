@@ -200,6 +200,40 @@ theorem refGrounded_of_check {F : Blob} {f : AsmFunction} {isa : Isa}
     exact ⟨hd, n, i, hi, h.1, h.2⟩
   · cases h
 
+theorem sectionBytesAt_of_check {F : Blob} {A : File} (hp : Parses F A) {f : AsmFunction}
+    (h : secOk A f = true)
+    (hr : ∀ o, f.extent.fileOff = some o → FileBytes F o f.bytes) : SectionBytesAt F f := by
+  unfold secOk at h
+  rw [Bool.and_eq_true, beq_iff_eq] at h
+  obtain ⟨hz, h⟩ := h
+  split at h
+  · rename_i k o hk ho
+    split at h
+    · rename_i s hs
+      simp only [Bool.and_eq_true, beq_iff_eq, bne_iff_ne, ne_eq, decide_eq_true_eq] at h
+      obtain ⟨⟨⟨hn, hlo⟩, hhi⟩, ho'⟩ := h
+      exact ⟨hz, A, k, o, hp, hk, ho, ⟨s, hs, hn, hlo, hhi, ho'⟩, hr o ho⟩
+    · cases h
+  · cases h
+
+theorem refGrounded_reloc_of_check {F : Blob} {A : File} (hp : Parses F A) {f : AsmFunction}
+    {isa : Isa} {d : List (Nat × isa.Instr)} {r : CodeRef} (h : relocRefOk A f r = true) :
+    RefGrounded F f isa d r := by
+  unfold relocRefOk at h
+  unfold RefGrounded
+  split at h
+  · rename_i sel k ho
+    rw [ho]
+    split at h
+    · rename_i rel hrel
+      simp only [Bool.and_eq_true, beq_iff_eq] at h
+      obtain ⟨⟨⟨h1, h2⟩, h3⟩, h4⟩ := h
+      refine ⟨A, rel, hp, hrel, h1, h2, h3, fun n hn => ?_⟩
+      rw [hn] at h4
+      simpa using h4
+    · cases h
+  · cases h
+
 theorem fileBytes_of_kbytes {x : Silmaril.KBytes} (hx : x.wf = true) {raw : ByteArray}
     (h : x.toByteArray = raw) {o : Nat} {bytes : List (BitVec 8)}
     (hc : Silmaril.Elf.Staged.Reader.kread x o bytes.length = some (Blob.valueLE bytes)) :

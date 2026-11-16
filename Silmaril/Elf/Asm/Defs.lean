@@ -14,11 +14,12 @@ believed is a set of separate propositions about it, each stated against the fil
 |---|---|---|
 | architecture | `ArchOf F f` | the file's `e_machine` and `e_ident[EI_OSABI]` are `f.arch`'s (the parse reads only ELF64 little-endian files) |
 | bytes | `BytesAt F f` | `f.bytes` are the file bytes at `f.extent.fileOff`, mapped by program header `f.extent.segment` to `f.extent.vaddr`, all file-backed (no zero fill), and `f.extent.size` counts them |
+| section bytes | `SectionBytesAt F f` | the same through section `f.extent.shndx` (`sh_addr`, `sh_offset`): the grounding of a relocatable object, which has no segments |
 | executable code | `Silmaril.Elf.CodeAt F f.extent.vaddr f.bytes` | the API's code fact: the first read-only executable `PT_LOAD` holds them (`Image.codeAt_segBytes`) |
 | symbol | `SymbolOf F f` | the symbol table entry `f.symbol` is a function named `f.name` with value `f.extent.vaddr` and size `f.extent.size` |
 | decoding | `DecodesAs isa f d` | the instruction model `isa`, for `f.arch.machine`, decodes `f.bytes` exactly into `d`, back to back |
 | listing boundaries | `LinesTile f` | the listing lines' byte ranges tile `f.bytes` (the line *text* is never read) |
-| relocations | `RefsGrounded F f` | each reference that claims to come from a relocation is that relocation of the file |
+| references | `RefsGrounded F f isa d` | each reference that claims to come from a relocation is that relocation of the file (offset, type, addend, symbol name); each decoded one is the target of the decoded branch |
 
 None of these implies another: the bytes can be grounded with no instruction model for the
 machine (`Isa` is a parameter; a file for an unmodelled `e_machine` decodes, is grounded, and has
@@ -153,6 +154,19 @@ def BytesAt (F : Blob) (f : AsmFunction) : Prop :=
   f.extent.size = f.bytes.length ∧ ∃ A i o, Parses F A ∧ f.extent.segment = some i ∧
     f.extent.fileOff = some o ∧ Image.SegBytes F A i f.extent.vaddr o f.bytes
 
+/-- **`f.bytes` are file bytes of section `f.extent.shndx`** at `f.extent.vaddr` (a section offset
+for `ET_REL`), from offset `f.extent.fileOff`, and `f.extent.size` counts them. The byte grounding
+of a relocatable object, which has no segments; for a linked file it complements `BytesAt`. -/
+def SectionBytesAt (F : Blob) (f : AsmFunction) : Prop :=
+  f.extent.size = f.bytes.length ∧ ∃ A k o, Parses F A ∧ f.extent.shndx = some k ∧
+    f.extent.fileOff = some o ∧ Image.SecBytes F A k f.extent.vaddr o f.bytes
+
+/-- The symbol table a relocation selector's symbol indices refer to (by the usual linking:
+`.dynsym` for the dynamic relocations, `.symtab` for a section's static ones). -/
+def selTable : File.RelocSel → Table
+  | .dynamic => .dynsym
+  | .forSection _ => .symtab
+
 /-- **The symbol table entry `f.symbol` is the function `f.name` at `f.extent`** (`STT_FUNC` or
 `STT_GNU_IFUNC`). The name is compared as `nameOf f.name`, one byte per character, so it is exact
 for ASCII names. -/
@@ -224,14 +238,17 @@ def insnAt {isa : Isa} : List (Nat × isa.Instr) → Nat → Nat → Option (Nat
   | (n, i) :: d, o, off => if o = off then some (n, i) else insnAt d (o + n) off
 
 /-- **A reference is grounded.** From a relocation: the file's relocation is at the referencing
-field with that type and addend (a `REL` entry has no addend field; its addend is in the
+field with that type and addend, and its symbol (in `selTable sel`) is `r.symbol` when that is given
+(a `REL` entry has no addend field; its addend is in the
 relocated bytes, and `r.addend` must then be `0`). From a decoding: the instruction at `r.off` is a direct branch or
 call to `r.target`. A display reference is never grounded. -/
 def RefGrounded (F : Blob) (f : AsmFunction) (isa : Isa) (d : List (Nat × isa.Instr)) (r : CodeRef) :
     Prop :=
   match r.origin with
   | .reloc sel k => ∃ A rel, Parses F A ∧ (A.relocs sel)[k]? = some rel ∧
-      rel.offset = f.extent.vaddr + r.off ∧ rel.kind = r.kind ∧ rel.addend.getD 0 = r.addend
+      rel.offset = f.extent.vaddr + r.off ∧ rel.kind = r.kind ∧ rel.addend.getD 0 = r.addend ∧
+      ∀ n, r.symbol = some n →
+        ((A.symbols (selTable sel))[rel.symbol]?).map (·.name) = some (nameOf n)
   | .decoded => DecodesAs isa f d ∧ ∃ n i, insnAt d 0 r.off = some (n, i) ∧
       r.target.isSome ∧ isa.target i (f.extent.vaddr + r.off) n = r.target
   | .display => False
@@ -271,6 +288,31 @@ def extentOk (A : File) (f : AsmFunction) : Bool :=
       | some ph => mapsOk ph f.extent.vaddr f.bytes.length o
       | none => false
     | _, _ => false
+
+/-- Section `f.extent.shndx` holds the bytes at `f.extent.vaddr` from `f.extent.fileOff`. -/
+def secOk (A : File) (f : AsmFunction) : Bool :=
+  f.extent.size == f.bytes.length &&
+    match f.extent.shndx, f.extent.fileOff with
+    | some k, some o =>
+      match A.sections[k]? with
+      | some s => s.header.kind != SHT_NOBITS && decide (s.header.address ≤ f.extent.vaddr) &&
+          decide (f.extent.vaddr + f.bytes.length ≤ s.header.address + s.header.size) &&
+          o == s.header.offset + (f.extent.vaddr - s.header.address)
+      | none => false
+    | _, _ => false
+
+/-- The check of a relocation reference `r` (origin `.reloc sel k`) against a parse. -/
+def relocRefOk (A : File) (f : AsmFunction) (r : CodeRef) : Bool :=
+  match r.origin with
+  | .reloc sel k =>
+    match (A.relocs sel)[k]? with
+    | some rel => rel.offset == f.extent.vaddr + r.off && rel.kind == r.kind &&
+        rel.addend.getD 0 == r.addend &&
+        (match r.symbol with
+          | some n => ((A.symbols (selTable sel))[rel.symbol]?).map (·.name) == some (nameOf n)
+          | none => true)
+    | none => false
+  | _ => false
 
 /-- The symbol table entry `f.symbol` is the function `f.name` at `f.extent`. -/
 def symbolOk (A : File) (f : AsmFunction) : Bool :=

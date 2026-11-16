@@ -43,6 +43,9 @@ theorem symbolOf_withLines (F : Blob) (f : AsmFunction) (ls : List Line) :
 theorem decodesAs_withLines (isa : Isa) (f : AsmFunction) (ls : List Line)
     (d : List (Nat × isa.Instr)) : DecodesAs isa (f.withLines ls) d ↔ DecodesAs isa f d := Iff.rfl
 
+theorem sectionBytesAt_withLines (F : Blob) (f : AsmFunction) (ls : List Line) :
+    SectionBytesAt F (f.withLines ls) ↔ SectionBytesAt F f := Iff.rfl
+
 theorem bytesAt_abiRef (F : Blob) (f : AsmFunction) (a : Option String) :
     BytesAt F { f with abiRef := a } ↔ BytesAt F f := Iff.rfl
 
@@ -132,6 +135,17 @@ theorem refGrounded_of_check {F : Blob} {f : AsmFunction} {isa : Isa}
     {d : List (Nat × isa.Instr)} {r : CodeRef} (ho : r.origin = .decoded) (hd : DecodesAs isa f d)
     (h : decodedRefOk f isa d r = true) : RefGrounded F f isa d r :=
   Proofs.Elf.Asm.refGrounded_of_check ho hd h
+
+theorem sectionBytesAt_of_check {F : Blob} {A : File} (hp : Parses F A) {f : AsmFunction}
+    (h : secOk A f = true)
+    (hr : ∀ o, f.extent.fileOff = some o → Image.FileBytes F o f.bytes) : SectionBytesAt F f :=
+  Proofs.Elf.Asm.sectionBytesAt_of_check hp h hr
+
+/-- A relocation reference from its check against the parse. -/
+theorem refGrounded_reloc_of_check {F : Blob} {A : File} (hp : Parses F A) {f : AsmFunction}
+    {isa : Isa} {d : List (Nat × isa.Instr)} {r : CodeRef} (h : relocRefOk A f r = true) :
+    RefGrounded F f isa d r :=
+  Proofs.Elf.Asm.refGrounded_reloc_of_check hp h
 
 /-- **File bytes from one kernel read** of the kernel bytes of an `include_bytes` file. -/
 theorem fileBytes_of_kbytes {x : KBytes} (hx : x.wf = true) {raw : ByteArray}
