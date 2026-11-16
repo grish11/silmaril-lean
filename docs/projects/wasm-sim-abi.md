@@ -204,3 +204,16 @@ examples/wasm-sim/rv64/run-tests.sh   # everything, incl. difftests: needs clang
                                       # ld.lld and qemu-riscv64
 ```
 
+
+**Results of `run-tests.sh`** on x86-64 Linux (Debian 13: clang 19.1.7, LLD 19.1.7,
+qemu-riscv64 10.0.13, `LEAN_DIR` set to this checkout). Every check passed:
+- the six test programs and five random programs (about 209,000 steps each) under
+  `qemu-riscv64`, with G/M lockstep;
+- the refinement lattice (`base ⊑ alu ⊑ nosys ⊑ full`, 100,000 random steps per pair, G and M);
+- 20,000 random steps against the Lean model `Ext.MState.step`;
+- the six test programs step by step against the Lean model.
+
+The script also regenerates `problems/` and the `Silmaril/WasmSpec/Rv64*` entries. With this
+toolchain they differ from the committed files in code addresses only, because the test ELFs are
+linked at different addresses. The committed files are the reference; regenerate them only
+together with the Lean statements that quote them. These are tests, not proofs.

@@ -100,3 +100,21 @@ Details: [wasm-sim.md](wasm-sim.md), [wasm-sim-abi.md](wasm-sim-abi.md),
 * **Wasm ↔ logic:** acceptors as consequence systems (`coreInterp`), and the LRAT and Farkas
   checkers as certificate checkers for SAT and linear arithmetic (section 2).
 * **Wasm ↔ WASI and processes:** [wasm-wasi.md](wasm-wasi.md).
+
+## 6. Not yet in this repository
+
+What related work is still outside this repository, and why. Each item names the missing
+dependency or the open problem.
+
+| Item | Status |
+| --- | --- |
+| WASI and glibc bridges of the simulators (`Sim.WasiBridge`, `Sim.GlibcBridge`) | Most of the bridges need only three small library modules (C library `puts`/`crypt` contracts and a safety predicate of the x86 relational machine). Five modules instantiate the bridges with GNU `sha256sum` and need its dynamically linked verification, which is not here. The WASI 0.2.12 WIT files the examples use also need vendored copies with their licence files |
+| Further simulator programs (litmus emulators for SC/TSO/PSO, problem shapes for emulated vs compiled functions, `sha256sum` running in the x86 simulator) | still in development elsewhere |
+| VC-generation benchmarks (`VCGenBench`, `VCGen2Bench`, `VCGenAdler`) and the `wasm-vc reflect` tests | their specifications come from a benchmark suite that is not public |
+| SMT-backed loop benchmarks and a WASI `sha256sum` example | need projects that are not public |
+| Difftests of the `Ext9`/SSE models and of the allocator; `wasmi` property tests of the spec-library programs | not ported yet |
+| A direct translation between the core-module and component institutions | open: both meet in `GInst` (`Silmaril.Wasm.Institution.CoreComp`), but relating them needs a game morphism between their signatures and an adequacy argument |
+| Component adequacy beyond `Simple` components | open ([component-caveats.md](component-caveats.md)) |
+| Two copies of the x86 function-contract layer (`Silmaril.X86` and `Silmaril.Machine.X86`) | the simulators use `Silmaril.X86`; merging the copies is a separate cleanup |
+| Byte-for-byte regeneration of the C-derived x86 problems and the RV64 problems | depends on the C compiler and linker version; the committed files are the reference |
+
