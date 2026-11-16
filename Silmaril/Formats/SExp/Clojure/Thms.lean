@@ -3,6 +3,7 @@ module
 public import Silmaril.Formats.SExp.Clojure.Defs
 public import Silmaril.Formats.SExp.Reader.Thms
 import Silmaril.Proofs.Formats.SExp.Clojure.Basic
+import Silmaril.Proofs.Formats.SExp.Clojure.Equal
 
 /-!
 # Clojure data syntax: laws
@@ -15,6 +16,10 @@ import Silmaril.Proofs.Formats.SExp.Clojure.Basic
   (`parse?_print`), also as a prefix (`parsePrefix?_print`); printing is injective on them
   (`print_injective`), so vectors, maps, sets and lists, `nil` and `()`, symbols, keywords,
   strings, longs and BigInts, doubles and BigDecimals all stay distinct;
+* **key equality**: `equal?` decides Clojure's key equality `Equal` wherever it answers
+  (`equal?_sound`), for every map/set equality satisfying `CollEq`; an accepted map or set literal
+  has pairwise unequal keys (`map_literal_ok`, `set_literal_ok`, through `issue_cons_none`), and a
+  reported duplicate is a genuine pair of equal keys (`keysIssue_duplicate`);
 * **grammar**: `parse?` accepts exactly the texts whose lexed token string derives a datum in the
   shared phrase grammar, followed only by atmosphere, whose collections are `valid` (`parse?_iff`).
 -/
@@ -70,5 +75,42 @@ theorem parse?_iff (s : String) (e : Datum) :
       (∃ ts r, lexer.Emits s.toList ts r ∧ (lexer.next r).isEof = true ∧ Gram .datum ts e) ∧
         valid e = true := by
   simp only [parse?, Option.filter_eq_some_iff, read_iff lexer]
+
+/-! ## Key equality -/
+
+/-- **`equal?` is sound**: whenever it answers, it answers Clojure's key equality. -/
+theorem equal?_sound (Q : CollEq) {a b : Value} {r : Bool} (h : equal? a b = some r) :
+    Equal Q a b ↔ r = true :=
+  Silmaril.Proofs.Formats.SExp.Clojure.equal?_sound Q a b r h
+
+theorem keysIssue_none (Q : CollEq) {vs : List Value} (h : keysIssue vs = none) :
+    vs.Pairwise (fun a b => ¬ Equal Q a b) :=
+  Silmaril.Proofs.Formats.SExp.Clojure.keysIssue_none Q vs h
+
+theorem keysIssue_duplicate (Q : CollEq) {vs : List Value} (h : keysIssue vs = some .duplicate) :
+    ¬ vs.Pairwise (fun a b => ¬ Equal Q a b) :=
+  Silmaril.Proofs.Formats.SExp.Clojure.keysIssue_duplicate Q vs h
+
+/-- An accepted map literal has an even number of forms and pairwise unequal keys. -/
+theorem map_literal_ok (Q : CollEq) {r : Datum} (h : literalIssue .map r = none) :
+    (elems r).length % 2 = 0 ∧ ∃ vs, (keysOf (elems r)).mapM toValue = some vs ∧
+      vs.Pairwise (fun a b => ¬ Equal Q a b) :=
+  Silmaril.Proofs.Formats.SExp.Clojure.map_literal_ok Q h
+
+/-- An accepted set literal has pairwise unequal elements. -/
+theorem set_literal_ok (Q : CollEq) {r : Datum} (h : literalIssue .set r = none) :
+    ∃ vs, (elems r).mapM toValue = some vs ∧ vs.Pairwise (fun a b => ¬ Equal Q a b) :=
+  Silmaril.Proofs.Formats.SExp.Clojure.set_literal_ok Q h
+
+/-- Validity is checked at every node. -/
+theorem issue_cons_none {x r : Datum} (h : issue (.cons x r) = none) :
+    (∀ m, x = .atom m → literalIssue m r = none) ∧ issue x = none ∧ issue r = none :=
+  Silmaril.Proofs.Formats.SExp.Clojure.issue_cons_none h
+
+theorem parse?_eq_toOption (s : String) : parse? s = (parseE? s).toOption := by
+  simp only [parse?, parseE?]
+  cases read lexer s.toList with
+  | none => rfl
+  | some e => cases h : issue e <;> simp [Option.filter, valid, h, Except.toOption]
 
 end Silmaril.Formats.Clojure

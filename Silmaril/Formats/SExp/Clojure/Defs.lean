@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.SExp.Lexical.Defs
+public import Silmaril.Numeric.Ieee754.SignedRationalRounding
 
 /-!
 # Clojure data syntax (a documented subset of the Clojure reader)
@@ -17,10 +18,15 @@ Clojure has **no dotted pairs**: `listDotted = false` and the lexer never emits 
 (`Atom.nil`). Vectors, maps and sets keep their syntax-level identity through **marker atoms**
 (`SExpReader` encoding): `[a b]` ↦ `cons (atom vector) (a b)`, `{k v}` ↦ `cons (atom map) (k v)`,
 `#{a}` ↦ `cons (atom set) (a)`. Markers are never read as atoms, so the four collection kinds of
-`(a b)`, `[a b]`, `{a b}`, `#{a b}` give four distinct data (`Examples`). `Valid` additionally
-requires an even number of forms in a map, no duplicate map keys and no duplicate set elements;
-duplicates are detected by structural equality of the read data, whereas Clojure uses value
-equality (`1` and `1N` are equal keys in Clojure, distinct here).
+`(a b)`, `[a b]`, `{a b}`, `#{a b}` give four distinct data (`Examples`). `valid` additionally
+requires an even number of forms in a map and pairwise unequal map keys and set elements under
+Clojure's own key equality (`Util.equiv`; see "Collection validity" below), so `#{1 1N}`,
+`#{[1] (1)}` and `#{0.0 -0.0}` are rejected as in Clojure, and `#{1 1.0}` is accepted.
+
+The `.` symbol: Clojure's `symbolPat` (`LispReader`) reads `.` as a symbol, so `(a . b)` reads as
+the three-element list of `a`, `.`, `b`. The reference reserves symbols beginning or ending with
+`.` for the language (`.` is the host-interop special form), which concerns evaluation, not
+reading; this module models reading only.
 
 ## Coverage
 
@@ -351,7 +357,187 @@ def text : Token Atom Closer → List Char
   | .dot => ['.']
   | .prefix _ => ['\'']
 
-/-! ## Collection validity -/
+/-! ## Collection validity: Clojure key equality
+
+Clojure rejects a map literal with two equal keys (`PersistentArrayMap.createWithCheck`, pairwise
+`Util.equiv`) and a set literal with two equal elements (`PersistentHashSet.createWithCheck`,
+`hasheq` + `Util.equiv`; `hasheq` agrees with `equiv` on the values below). Clojure 1.12's
+`Util.equiv` on the values this reader produces:
+
+* numbers: `Numbers.equal` requires the same category, so a long/BigInt never equals a double or
+  a BigDecimal, and a double never equals a BigDecimal; integers compare by value (`1` = `1N`);
+  BigDecimals by `compareTo` (`1.0M` = `1.00M`); doubles by `==` on the values
+  `Double.parseDouble` gives, i.e. the nearest-even binary64 rounding of the literal (`doubleBits`,
+  computed with `Numeric.Ieee754.RationalRounding`), so `0.0` = `-0.0` and `0.1` equals
+  `0.10000000000000000001`;
+* other atoms: Java `equals` (nil, booleans, strings, characters, symbols, keywords);
+* lists and vectors: sequential equality, element-wise (`[1 2]` = `(1 2)`, `()` = `[]`);
+* maps and sets: equal sizes and mutual membership. This reader decides only the cases fixed by
+  size (different sizes are unequal, two empty maps or sets are equal); comparing two nonempty
+  maps or two nonempty sets of the same size is reported as `Issue.unsupported`, an explicit
+  error rather than a guess.
+
+`Value` is the read value forgetting the list/vector distinction and literal spelling;
+`equal?` decides `Thms.Equal` (`equal?_sound`). -/
+
+/-- The binary64 bits Java's `Double.parseDouble` yields for a decimal literal (nearest-even;
+the sign is kept, so `-0.0` has the sign bit). -/
+def doubleBits (d : Decimal) : UInt64 :=
+  Numeric.Ieee754.RationalRounding.roundSigned d.negative |d.value|
+
+def isZeroBits (b : UInt64) : Bool := b &&& 0x7fffffffffffffff == 0
+
+/-- Java `==` on the doubles read from two literals (no NaN literal is read). -/
+def doubleEq (x y : Decimal) : Bool :=
+  doubleBits x == doubleBits y || (isZeroBits (doubleBits x) && isZeroBits (doubleBits y))
+
+/-- Read values as `Util.equiv` sees them. -/
+inductive Value where
+  /-- nil, booleans, strings, characters, symbols, keywords. -/
+  | scalar (a : Atom)
+  | integer (n : Int)
+  | double (d : Decimal)
+  | decimal (d : Decimal)
+  /-- Lists and vectors. -/
+  | seq (xs : List Value)
+  /-- Maps, as the flat list `k₁ v₁ k₂ v₂ …`. -/
+  | map (forms : List Value)
+  | set (xs : List Value)
+  deriving Repr
+
+mutual
+  /-- The value of a datum (`none` for improper or ill-formed encodings). -/
+  def toValue : Datum → Option Value
+    | .nil => some (.seq [])
+    | .atom (.integer n _) => some (.integer n)
+    | .atom (.float d false) => some (.double d)
+    | .atom (.float d true) => some (.decimal d)
+    | .atom .vector | .atom .map | .atom .set => none
+    | .atom a => some (.scalar a)
+    | .cons (.atom .vector) r => .seq <$> toValues r
+    | .cons (.atom .map) r => .map <$> toValues r
+    | .cons (.atom .set) r => .set <$> toValues r
+    | .cons x r =>
+        match toValue x, toValues r with
+        | some v, some vs => some (.seq (v :: vs))
+        | _, _ => none
+
+  def toValues : Datum → Option (List Value)
+    | .nil => some []
+    | .atom _ => none
+    | .cons x r =>
+        match toValue x, toValues r with
+        | some v, some vs => some (v :: vs)
+        | _, _ => none
+end
+
+/-- Map and set equality decided by sizes alone. -/
+def collEqual? (xs ys : List Value) : Option Bool :=
+  if xs.length ≠ ys.length then some false else if xs = [] then some true else none
+
+mutual
+  /-- `Util.equiv`, or `none` when this reader does not decide it. -/
+  def equal? : Value → Value → Option Bool
+    | .scalar a, b => match b with
+      | .scalar b => some (decide (a = b))
+      | _ => some false
+    | .integer m, b => match b with
+      | .integer n => some (decide (m = n))
+      | _ => some false
+    | .double x, b => match b with
+      | .double y => some (doubleEq x y)
+      | _ => some false
+    | .decimal x, b => match b with
+      | .decimal y => some (decide (x.value = y.value))
+      | _ => some false
+    | .seq xs, b => match b with
+      | .seq ys => equalList? xs ys
+      | _ => some false
+    | .map xs, b => match b with
+      | .map ys => collEqual? xs ys
+      | _ => some false
+    | .set xs, b => match b with
+      | .set ys => collEqual? xs ys
+      | _ => some false
+
+  def equalList? : List Value → List Value → Option Bool
+    | [], [] => some true
+    | x :: xs, y :: ys =>
+        match equal? x y, equalList? xs ys with
+        | some false, _ => some false
+        | _, some false => some false
+        | some true, some true => some true
+        | _, _ => none
+    | [], _ :: _ | _ :: _, [] => some false
+end
+
+/-- What is assumed about map and set equality: Clojure compares sizes first
+(`APersistentMap.equiv`, `APersistentSet.equiv`), and empty maps (sets) are equal. -/
+structure CollEq where
+  mapEq : List Value → List Value → Prop
+  setEq : List Value → List Value → Prop
+  map_length : ∀ xs ys, mapEq xs ys → xs.length = ys.length
+  map_nil : mapEq [] []
+  set_length : ∀ xs ys, setEq xs ys → xs.length = ys.length
+  set_nil : setEq [] []
+
+mutual
+  /-- **Clojure key equality** (`Util.equiv`) on read values, as specified in the section doc;
+  map and set equality are the parameters of `CollEq`. -/
+  def Equal (Q : CollEq) : Value → Value → Prop
+    | .scalar a, b => match b with
+      | .scalar b => a = b
+      | _ => False
+    | .integer m, b => match b with
+      | .integer n => m = n
+      | _ => False
+    | .double x, b => match b with
+      | .double y => doubleEq x y = true
+      | _ => False
+    | .decimal x, b => match b with
+      | .decimal y => x.value = y.value
+      | _ => False
+    | .seq xs, b => match b with
+      | .seq ys => EqualList Q xs ys
+      | _ => False
+    | .map xs, b => match b with
+      | .map ys => Q.mapEq xs ys
+      | _ => False
+    | .set xs, b => match b with
+      | .set ys => Q.setEq xs ys
+      | _ => False
+
+  def EqualList (Q : CollEq) : List Value → List Value → Prop
+    | [], [] => True
+    | x :: xs, y :: ys => Equal Q x y ∧ EqualList Q xs ys
+    | _, _ => False
+end
+
+/-- Why a literal is rejected. -/
+inductive Issue where
+  | oddMap
+  | duplicate
+  /-- Key equality outside what this reader decides (two nonempty maps or sets of equal size). -/
+  | unsupported
+  deriving DecidableEq, Repr
+
+/-- The issue between two keys. -/
+def pairIssue (x y : Value) : Option Issue :=
+  match equal? x y with
+  | some false => none
+  | some true => some .duplicate
+  | none => some .unsupported
+
+/-- A duplicate anywhere wins over an undecided pair. -/
+def worse : Option Issue → Option Issue → Option Issue
+  | some .duplicate, _ | _, some .duplicate => some .duplicate
+  | some i, _ => some i
+  | none, j => j
+
+/-- Pairwise distinctness of keys. -/
+def keysIssue : List Value → Option Issue
+  | [] => none
+  | x :: xs => worse (xs.foldr (fun y acc => worse (pairIssue x y) acc) none) (keysIssue xs)
 
 def elems : SExp2 Atom → List (SExp2 Atom)
   | .cons x r => x :: elems r
@@ -363,17 +549,54 @@ def keysOf : List (SExp2 Atom) → List (SExp2 Atom)
   | [k] => [k]
   | [] => []
 
-/-- Maps have an even number of forms and distinct keys; sets have distinct elements. -/
-def valid : SExp2 Atom → Bool
-  | .nil => true
-  | .atom _ => true
+/-- The issue of a literal with marker `m` and elements `r`. -/
+def literalIssue : Atom → SExp2 Atom → Option Issue
+  | .map, r =>
+      if (elems r).length % 2 ≠ 0 then some .oddMap
+      else match (keysOf (elems r)).mapM toValue with
+        | some vs => keysIssue vs
+        | none => some .unsupported
+  | .set, r =>
+      match (elems r).mapM toValue with
+      | some vs => keysIssue vs
+      | none => some .unsupported
+  | _, _ => none
+
+/-- The first issue of any map or set literal in a datum. -/
+def issue : SExp2 Atom → Option Issue
+  | .nil | .atom _ => none
   | .cons x r =>
       (match x with
-        | .atom .map => (elems r).length % 2 == 0 && decide (keysOf (elems r)).Nodup
-        | .atom .set => decide (elems r).Nodup
-        | _ => true) && valid x && valid r
+        | .atom m => literalIssue m r
+        | _ => none) <|> issue x <|> issue r
+
+/-- Maps have an even number of forms and pairwise unequal keys, sets pairwise unequal elements,
+in the sense of Clojure's `Util.equiv` as decided by `equal?`. -/
+def valid (e : SExp2 Atom) : Bool := (issue e).isNone
+
+/-- Reader errors. -/
+inductive ParseError where
+  /-- Not in the supported syntax (lexical or phrase error, or a rejected form). -/
+  | syntax
+  | literal (issue : Issue)
+  deriving DecidableEq, Repr
 
 /-! ## Entry points -/
+
+/-- Read exactly one datum, with the reason for a failure. -/
+def parseE? (s : String) : Except ParseError Datum :=
+  match read lexer s.toList with
+  | none => .error .syntax
+  | some e =>
+      match issue e with
+      | some i => .error (.literal i)
+      | none => .ok e
+
+/-- The reader error for a text, if any. -/
+def parseError? (s : String) : Option ParseError :=
+  match parseE? s with
+  | .error e => some e
+  | .ok _ => none
 
 /-- Read exactly one datum. -/
 def parse? (s : String) : Option Datum := (read lexer s.toList).filter valid

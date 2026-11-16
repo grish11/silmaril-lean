@@ -83,3 +83,46 @@ example : print (.cons (.atom .set) (ofList [kw "a", .atom (.float ⟨false, 15,
     "#{:a 15e-1M \\space 7N /}" := by decide +kernel
 
 end Silmaril.Formats.Clojure
+
+/-! ## Key equality (Clojure 1.12 `Util.equiv`) -/
+
+namespace Silmaril.Formats.Clojure
+
+/-- Long and BigInt are equal keys. -/
+example : parseError? "#{1 1N}" = some (.literal .duplicate) := by decide +kernel
+example : parseError? "{1 :a 1N :b}" = some (.literal .duplicate) := by decide +kernel
+/-- Different numeric categories are never equal. -/
+example : (parse? "#{1 1.0 1.0M}").isSome = true := by decide +kernel
+/-- BigDecimal compares by value (`compareTo`). -/
+example : parseError? "#{1.0M 1.00M}" = some (.literal .duplicate) := by decide +kernel
+/-- Doubles compare after binary64 rounding: `0.0 == -0.0`, and two spellings of `1.5`. -/
+example : parseError? "#{0.0 -0.0}" = some (.literal .duplicate) := by decide +kernel
+example : parseError? "#{1.5 15e-1}" = some (.literal .duplicate) := by decide +kernel
+/-- Distinct decimals that round to the same double are equal keys. -/
+example : parseError? "#{0.1 0.10000000000000000001}" = some (.literal .duplicate) := by
+  decide +kernel
+example : (parse? "#{1.5 2.5 0.1}").isSome = true := by decide +kernel
+/-- Lists and vectors are equal when their elements are, also nested. -/
+example : parseError? "#{[1 2] (1 2)}" = some (.literal .duplicate) := by decide +kernel
+example : parseError? "{[1 [2N]] :a (1N (2)) :b}" = some (.literal .duplicate) := by decide +kernel
+example : parseError? "#{() []}" = some (.literal .duplicate) := by decide +kernel
+example : (parse? "#{[1 2] [2 1] (1) nil}").isSome = true := by decide +kernel
+/-- Symbols, keywords and strings with the same name differ. -/
+example : (parse? "#{a :a \"a\" \\a}").isSome = true := by decide +kernel
+/-- Maps and sets as keys: decided by size, otherwise an explicit unsupported error. -/
+example : parseError? "#{{} {}}" = some (.literal .duplicate) := by decide +kernel
+example : (parse? "#{{} {:a 1}}").isSome = true := by decide +kernel
+example : parseError? "#{{:a 1} {:b 2}}" = some (.literal .unsupported) := by decide +kernel
+/-- Duplicates are found inside nested literals; values of a map are not compared. -/
+example : parseError? "[{:k #{1 1N}}]" = some (.literal .duplicate) := by decide +kernel
+example : (parse? "{:a 1 :b 1}").isSome = true := by decide +kernel
+example : parseError? "{:a}" = some (.literal .oddMap) := by decide +kernel
+example : parseError? "(a" = some .syntax := by decide +kernel
+
+/-! ## The `.` symbol (reader level, `LispReader.symbolPat`) -/
+
+example : parse? "(a . b)" = some (SExp2.ofList [.atom (.symbol none "a"), .atom (.symbol none "."),
+    .atom (.symbol none "b")]) := by decide +kernel
+example : parse? "." = some (.atom (.symbol none ".")) := by decide +kernel
+
+end Silmaril.Formats.Clojure
