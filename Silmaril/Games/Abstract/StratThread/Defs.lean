@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Games.Abstract.StratObs.Defs
+public import Silmaril.Games.Abstract.StratOps.Defs
 
 /-!
 # Threading a state-passing function into a persistent strategy
@@ -268,6 +269,11 @@ def build (f : AFun E S A B) (P : Pending E S A) (Q : PInf E S A) (s₀ : S) :
 /-- **The threading of a triple from the store `s₀`.** -/
 def threadT (t : ObsTriple E S A B) (s₀ : S) : DStrategy E (sig1 A B) :=
   build t.1 (satP t) t.2.2 s₀
+
+/-- **Threading a function strategy** from the store `s₀`: the threading of its readback triple
+(`StratOps.readback`). On play objects of triples it is `threadT` (`thread_toDStrat`). -/
+def thread (σ : DStrategy E (funSig S A B)) (s₀ : S) : DStrategy E (sig1 A B) :=
+  threadT (StratOps.readback σ) s₀
 
 /-! ## Observational equivalence of stores -/
 

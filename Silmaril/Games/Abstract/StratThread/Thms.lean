@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Games.Abstract.StratThread.Defs
+public import Silmaril.Games.Abstract.StratOps.Thms
 import Silmaril.Proofs.Games.Abstract.StratThread.Basic
 
 /-!
@@ -193,5 +194,17 @@ theorem threadT_eq_iff {S' : Type u} {t' : ObsTriple E S' A B} (ht : StoreDet t)
   ⟨fun h => ⟨fun s s' => threadT t s = threadT t' s',
       fun _ _ h => Silmaril.Proofs.Games.Abstract.StratThread.roundEq_of_eq ht ht' h, h⟩,
     threadT_eq_of_obsEq⟩
+
+/-! ## Threading play objects -/
+
+/-- Threading does not see saturation. -/
+theorem threadT_sat (t : ObsTriple E S A B) (s₀ : S) : threadT (sat t) s₀ = threadT t s₀ := by
+  have h : satP (sat t) = satP t := congrArg (fun t => t.2.1) (sat_idem (t := t))
+  show build (sat t).1 (satP (sat t)) (sat t).2.2 s₀ = _
+  rw [h]; rfl
+
+/-- **The threading of a triple's play object is the threading of the triple.** -/
+theorem thread_toDStrat (t : ObsTriple E S A B) (s₀ : S) : thread (toDStrat t) s₀ = threadT t s₀ := by
+  rw [thread, StratOps.readback_toDStrat, threadT_sat]
 
 end Silmaril.Games.Abstract.StratThread
