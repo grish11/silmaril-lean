@@ -20,7 +20,7 @@ async function graph(focus) {
     <span id="gcount" class="muted"></span></div>
     <div id="graphwrap"><div id="cy"></div><div id="side"><p class="muted">Click a node for its details; double-click to refocus.</p></div></div>`;
   const init = async () => {
-    const draw = () => drawGraph($("#gfocus").value.trim(), +$("#gdepth").value || 99, +$("#gmax").value || 300, $("#gdet").checked, root)
+    const draw = () => !$("#gfocus") ? Promise.resolve() : drawGraph($("#gfocus").value.trim(), +$("#gdepth").value || 99, +$("#gmax").value || 300, $("#gdet").checked, root)
       .catch((e) => { $("#gcount").innerHTML = `<span class="err">${esc(e.message || e)}</span>`; }).then(updateStats);
     $("#gdraw").addEventListener("click", draw);
     $("#gfocus").addEventListener("keydown", (e) => { if (e.key === "Enter") draw(); });
@@ -30,6 +30,7 @@ async function graph(focus) {
     $("#gfocus").addEventListener("input", () => {
       clearTimeout(timer);
       timer = setTimeout(async () => {
+        if (!$("#gfocus")) return;
         const t = $("#gfocus").value.trim();
         if (t.length < 2) return;
         const rows = await q("SELECT name FROM problems WHERE instr(name, ?) > 0 ORDER BY name LIMIT 30", [t]);

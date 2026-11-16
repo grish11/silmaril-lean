@@ -112,6 +112,7 @@ jobs:
           node wasm_cfg.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
           node wasm_cfg_variants.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
           node shell.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node snapshot.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

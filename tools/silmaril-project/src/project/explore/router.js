@@ -67,7 +67,9 @@ async function route() {
     if (view.id !== "graph") window.scrollTo(0, 0);
     if (r.init) await r.init();
   } catch (e) {
-    if (tok === routeTok && !(e instanceof Superseded)) $("#main").innerHTML = `<p class="err">${esc(e.stack || e.message || e)}</p>`;
+    if (tok !== routeTok || e instanceof Superseded) return;
+    if (e instanceof SourceChanged) { $("#main").innerHTML = changedNotice(e); wireChangedNotice($("#main")); }
+    else $("#main").innerHTML = `<p class="err">${esc(e.stack || e.message || e)}</p>`;
   } finally {
     if (tok === routeTok) { await updateStats(); window.explore.busy = false; }
   }

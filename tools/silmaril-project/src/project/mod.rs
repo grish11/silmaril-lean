@@ -1642,6 +1642,24 @@ mod tests {
             .unwrap();
         assert_eq!(ps, 1024);
         assert!(sql::write_db(&text, &tuned, Some(1000)).is_err());
+        // A failed rebuild leaves the old file in place and no temporary file behind, and a
+        // rebuild replaces the file whole (renamed over it): a reader of the old file keeps it.
+        let ps: i64 = rusqlite::Connection::open(&tuned)
+            .unwrap()
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(ps, 1024);
+        sql::write_db(&text, &tuned, Some(2048)).unwrap();
+        let old: i64 = conn
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(old, 1024);
+        let mut names: Vec<String> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["x.sqlite", "y.sqlite"]);
     }
 
     #[test]

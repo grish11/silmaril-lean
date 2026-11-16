@@ -98,6 +98,25 @@ Chromium against `pages_server.py`, a server that compresses like GitHub Pages:
 - a new version is fetched again under a new tag;
 - `?load=full` downloads the whole file and verifies its hash.
 
+### One snapshot per open database
+
+Every range read is checked in the worker, before SQLite sees its bytes: it must be a `206` of
+exactly the requested bytes, of a file with the length and the validator (strong ETag, else
+Last-Modified) that the database was opened at. The first read that fails the check fails its query
+(it is not retried), the source button is marked `!`, and the view says that the database changed
+and offers to open the new version or another file. A query on a database that has not changed but
+is damaged reports SQLite's own error (for example "database disk image is malformed"), saying that
+the version is unchanged so the file itself is damaged. Before this check, a database rebuilt while
+a page had it open lazily gave "database disk image is malformed" on later graph or problem
+views: the page read pages of the new file under the old version's URL.
+
+`sil project sqlite` builds the database in a temporary file next to it and renames it into place,
+so a server never serves a half-written database. The service worker caches a page only for the
+version its URL names, and keeps its validators so cached pages are checked like fresh ones.
+`tests/explore/snapshot.mjs` replaces the served file while a page reads it. It covers a longer
+file during graph navigation, a file of the same length, a replacement during a query, recovery
+through a chosen file, and a damaged but unchanged file.
+
 `tools/silmaril-project/tests/explore/shell.mjs` checks the shared shell in Chromium: the
 navigation built from the registered views, the source button and its dialog (keyboard, Escape,
 focus), neutral status badges in one status column, rapid graph navigation (the last route wins)
@@ -285,8 +304,11 @@ replaces.
   already cached the scripts.
 - sql.js-httpvfs opens one database per worker. When a file is opened afterwards, the old
   worker stays until the page is closed.
-- Lazy reads are cached in memory for the life of the page, and nothing persists across reloads.
-  A database rebuilt while the page is open can give inconsistent reads; reload the page.
+- A lazily read database stays on the version it was opened at. When the file on the server is
+  replaced (rebuilt, redeployed), the next read of a page not yet in memory fails its query and the
+  page says that the database changed, with a button to open the new version; it never mixes the
+  two. Two versions are told apart by the strong ETag (else Last-Modified) and the length of range
+  responses; a server that sends neither can only be checked for the length.
 - On a large project, dagre stays responsive only for a few hundred nodes, so the graph shows
   only a neighbourhood. A wide level, such as 3,400 problems at one depth, is cut off.
 - A child that belongs to several groups is drawn once, with an edge from each group. Groups

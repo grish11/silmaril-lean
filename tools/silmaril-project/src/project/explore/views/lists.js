@@ -5,9 +5,11 @@ async function listPage(spec) {
   const html = `<h2>${esc(spec.title)} (${total})</h2><div class="controls">
     <input type="text" id="filter" placeholder="filter: ${esc(spec.filter.join(", "))} contains…" size="44">
     <button id="prev">◀ previous</button><button id="next">next ▶</button><span id="range" class="muted"></span></div><div id="list"></div>`;
+  let timer = null;
   const init = async () => {
     let off = 0, tok = 0;
     const draw = async () => {
+      if (!$("#filter")) return;
       const mine = ++tok, f = $("#filter").value.trim().toLowerCase();
       const where = f ? "WHERE " + spec.filter.map((c) => `instr(lower(${c}), ?) > 0`).join(" OR ") : "";
       const rows = await q(`SELECT ${spec.select} ${where} ORDER BY ${spec.order} LIMIT ${PAGE + 1} OFFSET ${off}`, f ? spec.filter.map(() => f) : []);
@@ -18,13 +20,12 @@ async function listPage(spec) {
       $("#prev").disabled = off === 0; $("#next").disabled = rows.length <= PAGE;
       updateStats();
     };
-    let timer = null;
     $("#filter").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { off = 0; draw(); }, 250); });
     $("#prev").addEventListener("click", () => { off = Math.max(0, off - PAGE); draw(); });
     $("#next").addEventListener("click", () => { off += PAGE; draw(); });
     await draw();
   };
-  return { html, init };
+  return { html, init, dispose: () => clearTimeout(timer) };
 }
 function problems() {
   return listPage({ title: "Problems", table: "problems", order: "p.name", filter: ["p.name", "p.title", "p.module"], hints: { name: "problem" },

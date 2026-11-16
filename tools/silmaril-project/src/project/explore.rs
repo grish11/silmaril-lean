@@ -196,6 +196,18 @@ mod tests {
         assert!(!p.contains("__EXPLORE_SCRIPT__"));
     }
 
+    /// The service worker caches a page only for the version the page checks every read
+    /// against: both compute it with the same `versionOf`.
+    #[test]
+    fn one_version_function() {
+        let def = |text: &str| {
+            let start = text.find("function versionOf(").expect("versionOf");
+            text[start..start + text[start..].find("\n}").expect("end")].to_string()
+        };
+        let db = SCRIPTS.iter().find(|s| s.0 == "db.js").expect("db.js").1;
+        assert_eq!(def(db), def(SERVICE_WORKER));
+    }
+
     #[test]
     fn page_escapes_title_and_urls() {
         let p = page(
