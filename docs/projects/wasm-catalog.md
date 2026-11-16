@@ -99,7 +99,10 @@ Details: [wasm-sim.md](wasm-sim.md), [wasm-sim-abi.md](wasm-sim-abi.md),
 * **Wasm ↔ x86-64:** `Silmaril.Sim` (simulators in Wasm, section 3).
 * **Wasm ↔ logic:** acceptors as consequence systems (`coreInterp`), and the LRAT and Farkas
   checkers as certificate checkers for SAT and linear arithmetic (section 2).
-* **Wasm ↔ WASI and processes:** [wasm-wasi.md](wasm-wasi.md).
+* **Wasm ↔ WASI and processes:** [wasm-wasi.md](wasm-wasi.md). The `sha256sum` instances of
+  the WASI bridge (`Silmaril.Sim.WasiBridge.{Cli.Sha256sum,Cli.Sha256sumSys,Cli.Lps,Tv.Sha256sum}`)
+  relate WASI, simulated and static builds of `sha256sum` to the dynamically linked GNU
+  `sha256sum` on glibc ([dyn.md](dyn.md)) through the sentence `Std.sha256Stdin`.
 
 ## 6. Not yet in this repository
 
@@ -108,7 +111,6 @@ dependency or the open problem.
 
 | Item | Status |
 | --- | --- |
-| The `sha256sum` instances of the WASI bridge (five modules: the CLI and process-level readings of GNU `sha256sum` through the bridge) | need the dynamically linked verification of GNU `sha256sum`, which is not here. The rest of `Sim.WasiBridge` and `Sim.GlibcBridge` is here |
 | Further simulator programs (litmus emulators for SC/TSO/PSO, problem shapes for emulated vs compiled functions, `sha256sum` running in the x86 simulator) | still in development elsewhere |
 | VC-generation benchmarks (`VCGenBench`, `VCGen2Bench`, `VCGenAdler`) and the `wasm-vc reflect` tests | their specifications come from a benchmark suite that is not public |
 | SMT-backed loop benchmarks and a WASI `sha256sum` example | need projects that are not public |
