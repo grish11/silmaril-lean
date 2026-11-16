@@ -110,7 +110,8 @@ try {
   const cov = await p.textContent("main");
   check(/Audit of Lean declarations/.test(cov) && /declarations/.test(cov) && /omitted/.test(cov), "coverage: the audit");
   check((await rows("#lg-hets")).length === 39 + 75, "coverage: the pinned Hets list (39 logics, 75 comorphisms)");
-  check(/Logic families not yet in this repository/.test(cov) && /SMT/.test(cov), "coverage: the pending families");
+  check(/Logic families not yet in this repository/.test(cov) && (/pending-port|in-review/.test(cov) || /None listed/.test(cov)),
+    "coverage: the pending families (or that none is listed)");
   await shot("logic-coverage");
 
   // a phone

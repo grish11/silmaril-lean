@@ -639,6 +639,110 @@ public import Silmaril.Logic.Separation.Parameterized.Thms
 public import Silmaril.Logic.Separation.Parameterized.Transport.Defs
 public import Silmaril.Logic.Separation.Parameterized.Transport.Thms
 public import Silmaril.Logic.Separation.Thms
+public import Silmaril.Logic.Smt.Defs
+public import Silmaril.Logic.Smt.Fixed.Defs
+public import Silmaril.Logic.Smt.Fixed.Thms
+public import Silmaril.Logic.Smt.Institution.Defs
+public import Silmaril.Logic.Smt.Lra.Defs
+public import Silmaril.Logic.Smt.Lra.Script.Defs
+public import Silmaril.Logic.Smt.Lra.Script.Thms
+public import Silmaril.Logic.Smt.Lra.Thms
+public import Silmaril.Logic.Smt.SExpr.Defs
+public import Silmaril.Logic.Smt.SExpr.Reader.Thms
+public import Silmaril.Logic.Smt.SExpr.Writer.Defs
+public import Silmaril.Logic.Smt.SExpr.Writer.Thms
+public import Silmaril.Logic.Smt.Uflia.Defs
+public import Silmaril.Logic.Smt.Uflia.Models.Defs
+public import Silmaril.Logic.Smt.Uflia.Models.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.Models.Thms
+public import Silmaril.Logic.Smt.Uflia.Packaged.Defs
+public import Silmaril.Logic.Smt.Uflia.Packaged.Thms
+public import Silmaril.Logic.Smt.Uflia.Quantified.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.Models.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Renaming.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Renaming.Presentation.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Renaming.Thms
+public import Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Surface.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Surface.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Surface.Institution.Thms
+public import Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Surface.Thms
+public import Silmaril.Logic.Smt.Uflia.Quantified.Script.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.Script.Thms
+public import Silmaril.Logic.Smt.Uflia.Quantified.Substitution.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.Substitution.Thms
+public import Silmaril.Logic.Smt.Uflia.Quantified.Thms
+public import Silmaril.Logic.Smt.Uflia.Quantified.Variables
+public import Silmaril.Logic.Smt.Uflia.SExpr.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Category.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Category.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.Action.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.Action.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.Institution.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Legality.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Lexical.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Normalization.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Surface.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Surface.Determinism.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Surface.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Surface.Institution.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Surface.Renaming.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Surface.Renaming.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Surface.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Thms
+public import Silmaril.Logic.Smt.Uflia.Script.Defs
+public import Silmaril.Logic.Smt.Uflia.Script.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Comparisons.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Consequence.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Models.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Action.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Applications.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Atoms.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.BinderSemantics.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.BinderSemantics.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Binders.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Category.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Closed.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Core.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Fuel.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Lets.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Names.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Operators.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Results.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Scoped.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Variables.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Writer.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Action.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Applications.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Category.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Core.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Institution.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Legality.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Lexical.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Normalization.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Operators.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Syntax.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Syntax.Thms
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Thms
+public import Silmaril.Logic.Smt.Uflia.Thms
 public import Silmaril.Logic.Temporal.Buchi.Audits
 public import Silmaril.Logic.Temporal.Buchi.Automaton.Audits
 public import Silmaril.Logic.Temporal.Buchi.Automaton.Base.Audits
@@ -805,6 +909,38 @@ silmaril comorphism logic.separation.parameterized.matching.source_to_canonical 
 silmaril comorphism logic.separation.parameterized.matching.to_canonical := Silmaril.Logic.Separation.Parameterized.Matching.toCanonical (facts := [Silmaril.Logic.Separation.Parameterized.Matching.toCanonical_modelExpansive])
 silmaril comorphism logic.separation.base_to_recursive := Silmaril.Logic.Separation.baseToRecursive (facts := [Silmaril.Logic.Separation.baseToRecursive_modelExpansive])
 silmaril comorphism logic.separation.to_canonical_matching := Silmaril.Logic.Separation.toCanonicalMatching (facts := [Silmaril.Logic.Separation.toCanonicalMatching_modelExpansive])
+silmaril comorphism logic.smt.institution.decode_comorphism := Silmaril.Logic.Smt.Institution.decodeComorphism
+silmaril comorphism logic.smt.lra.script.decode_comorphism := Silmaril.Logic.Smt.Lra.Script.decodeComorphism
+silmaril comorphism logic.smt.uflia.hom_models.to_discrete := Silmaril.Logic.Smt.Uflia.HomModels.toDiscrete
+silmaril comorphism logic.smt.uflia.hom_models.to_embeddings := Silmaril.Logic.Smt.Uflia.HomModels.toEmbeddings
+silmaril comorphism logic.smt.uflia.packaged.checked_packaging_comorphism := Silmaril.Logic.Smt.Uflia.Packaged.checkedPackagingComorphism
+silmaril comorphism logic.smt.uflia.packaged.concrete_decode_comorphism := Silmaril.Logic.Smt.Uflia.Packaged.concreteDecodeComorphism
+silmaril comorphism logic.smt.uflia.packaged.concrete_fixed_decode_comorphism := Silmaril.Logic.Smt.Uflia.Packaged.concreteFixedDecodeComorphism
+silmaril comorphism logic.smt.uflia.packaged.concrete_packaging_comorphism := Silmaril.Logic.Smt.Uflia.Packaged.concretePackagingComorphism
+silmaril comorphism logic.smt.uflia.packaged.packaging_comorphism := Silmaril.Logic.Smt.Uflia.Packaged.packagingComorphism
+silmaril comorphism logic.smt.uflia.quantified.hom_models.to_discrete := Silmaril.Logic.Smt.Uflia.Quantified.HomModels.toDiscrete
+silmaril comorphism logic.smt.uflia.quantified.s_expr.surface.decode_comorphism := Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Surface.decodeComorphism
+silmaril comorphism logic.smt.uflia.quantified.script.decode_comorphism := Silmaril.Logic.Smt.Uflia.Quantified.Script.decodeComorphism
+silmaril comorphism logic.smt.uflia.s_expr.renaming.concrete.declaration_decode_comorphism := Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.declarationDecodeComorphism
+silmaril comorphism logic.smt.uflia.s_expr.renaming.concrete.decode_comorphism := Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.decodeComorphism
+silmaril comorphism logic.smt.uflia.s_expr.renaming.concrete.prefix_forget_comorphism := Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.prefixForgetComorphism
+silmaril comorphism logic.smt.uflia.s_expr.surface.direct.concrete_comorphism := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.concreteComorphism
+silmaril comorphism logic.smt.uflia.s_expr.surface.direct.script_comorphism := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.scriptComorphism
+silmaril comorphism logic.smt.uflia.s_expr.surface.renaming.comparison := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Renaming.comparison
+silmaril comorphism logic.smt.uflia.s_expr.surface.renaming.comparison_reverse := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Renaming.comparisonReverse
+silmaril comorphism logic.smt.uflia.s_expr.surface.renaming.decode_comorphism := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Renaming.decodeComorphism
+silmaril comorphism logic.smt.uflia.s_expr.declaration_decode_comorphism := Silmaril.Logic.Smt.Uflia.SExpr.declarationDecodeComorphism
+silmaril comorphism logic.smt.uflia.s_expr.decode_comorphism := Silmaril.Logic.Smt.Uflia.SExpr.decodeComorphism
+silmaril comorphism logic.smt.uflia.script.decode_comorphism := Silmaril.Logic.Smt.Uflia.Script.decodeComorphism
+silmaril comorphism logic.smt.uflia.sort_maps.quantified.s_expr.renaming.to_abstract := Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.toAbstract
+silmaril comorphism logic.smt.uflia.sort_maps.s_expr.renaming.to_abstract := Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.toAbstract
+silmaril comorphism logic.smt.uflia.sort_maps.source.script.singleton := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.singleton
+silmaril comorphism logic.smt.uflia.sort_maps.source.script.to_problems := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.toProblems
+silmaril comorphism logic.smt.uflia.sort_maps.source.checked_to_quantified := Silmaril.Logic.Smt.Uflia.SortMaps.Source.checkedToQuantified (facts := [Silmaril.Logic.Smt.Uflia.SortMaps.Source.checkedToQuantified_modelExpansive])
+silmaril comorphism logic.smt.uflia.sort_maps.source.of_accepted_comparison := Silmaril.Logic.Smt.Uflia.SortMaps.Source.ofAcceptedComparison (facts := [Silmaril.Logic.Smt.Uflia.SortMaps.Source.ofAcceptedComparison_modelExpansive])
+silmaril comorphism logic.smt.uflia.sort_maps.source.to_quantified := Silmaril.Logic.Smt.Uflia.SortMaps.Source.toQuantified (facts := [Silmaril.Logic.Smt.Uflia.SortMaps.Source.toQuantified_modelExpansive])
+silmaril comorphism logic.smt.uflia.sort_maps.fixed_sort_comparison := Silmaril.Logic.Smt.Uflia.SortMaps.fixedSortComparison
+silmaril comorphism logic.smt.uflia.sort_maps.fixed_sort_quantified_comparison := Silmaril.Logic.Smt.Uflia.SortMaps.fixedSortQuantifiedComparison
 silmaril comorphism logic.temporal.ctl_star.compiler.institution.discrete_comorphism := Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.discreteComorphism (facts := [Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.discrete_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.compiler.institution.rich_comorphism := Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.richComorphism (facts := [Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.rich_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.ctl_to_ctl_star := Silmaril.Logic.Temporal.CTLStar.ctlToCTLStar (facts := [Silmaril.Logic.Temporal.CTLStar.ctlToCTLStar_modelExpansive])

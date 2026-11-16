@@ -5,13 +5,6 @@
 schema = "silmaril.records.v0.2"
 
 [[logic_pending]]
-name = "pending.smt"
-title = "SMT-LIB theories and solver institutions"
-nodes = 25
-edges = 23
-status = "pending-port"
-
-[[logic_pending]]
 name = "pending.type-theory"
 title = "Type theories: extensional/intensional MLTT, LF and λΠ-modulo, CIC"
 nodes = 15

@@ -106,7 +106,27 @@ public import Silmaril.Logic.Separation.Parameterized.FirstOrder.Institution.Def
 public import Silmaril.Logic.Separation.Parameterized.Institution.Defs
 public import Silmaril.Logic.Separation.Parameterized.Matching.Institution.Defs
 public import Silmaril.Logic.Separation.Thms
+public import Silmaril.Logic.Smt.Fixed.Defs
+public import Silmaril.Logic.Smt.Institution.Defs
+public import Silmaril.Logic.Smt.Lra.Defs
+public import Silmaril.Logic.Smt.Lra.Script.Defs
+public import Silmaril.Logic.Smt.Uflia.Models.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.Packaged.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.Models.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Surface.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.Quantified.Script.Defs
 public import Silmaril.Logic.Smt.Uflia.Quantified.Thms
+public import Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Surface.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Surface.Renaming.Defs
+public import Silmaril.Logic.Smt.Uflia.SExpr.Thms
+public import Silmaril.Logic.Smt.Uflia.Script.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Institution.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Defs
 public import Silmaril.Logic.Smt.Uflia.Thms
 public import Silmaril.Logic.Temporal.CTLStar.Thms
 public import Silmaril.Logic.Temporal.LTL.Defs
@@ -179,7 +199,43 @@ silmaril institution logic.separation.parameterized.inst := Silmaril.Logic.Separ
 silmaril institution logic.separation.base_inst := Silmaril.Logic.Separation.baseInst
 silmaril institution logic.separation.canonical_inst := Silmaril.Logic.Separation.canonicalInst
 silmaril institution logic.separation.recursive_inst := Silmaril.Logic.Separation.recursiveInst
+silmaril institution logic.smt.fixed.institution := Silmaril.Logic.Smt.Fixed.institution
+silmaril institution logic.smt.institution.forms_inst := Silmaril.Logic.Smt.Institution.formsInst
+silmaril institution logic.smt.institution.script_inst := Silmaril.Logic.Smt.Institution.scriptInst
+silmaril institution logic.smt.lra.script.institution := Silmaril.Logic.Smt.Lra.Script.institution
+silmaril institution logic.smt.lra.institution := Silmaril.Logic.Smt.Lra.institution
+silmaril institution logic.smt.uflia.embedding_models.inst := Silmaril.Logic.Smt.Uflia.EmbeddingModels.inst
+silmaril institution logic.smt.uflia.hom_models.inst := Silmaril.Logic.Smt.Uflia.HomModels.inst
+silmaril institution logic.smt.uflia.packaged.checked_institution := Silmaril.Logic.Smt.Uflia.Packaged.checkedInstitution
+silmaril institution logic.smt.uflia.packaged.concrete_fixed_institution := Silmaril.Logic.Smt.Uflia.Packaged.concreteFixedInstitution
+silmaril institution logic.smt.uflia.packaged.concrete_institution := Silmaril.Logic.Smt.Uflia.Packaged.concreteInstitution
+silmaril institution logic.smt.uflia.packaged.institution := Silmaril.Logic.Smt.Uflia.Packaged.institution
+silmaril institution logic.smt.uflia.packaged.raw_institution := Silmaril.Logic.Smt.Uflia.Packaged.rawInstitution
+silmaril institution logic.smt.uflia.quantified.hom_models.inst := Silmaril.Logic.Smt.Uflia.Quantified.HomModels.inst
+silmaril institution logic.smt.uflia.quantified.s_expr.surface.institution := Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Surface.institution
+silmaril institution logic.smt.uflia.quantified.script.fixed_institution := Silmaril.Logic.Smt.Uflia.Quantified.Script.fixedInstitution
+silmaril institution logic.smt.uflia.quantified.script.institution := Silmaril.Logic.Smt.Uflia.Quantified.Script.institution
+silmaril institution logic.smt.uflia.quantified.script.whole_institution := Silmaril.Logic.Smt.Uflia.Quantified.Script.wholeInstitution
 silmaril institution logic.smt.uflia.quantified.institution := Silmaril.Logic.Smt.Uflia.Quantified.institution
+silmaril institution logic.smt.uflia.s_expr.renaming.concrete.declaration_institution := Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.declarationInstitution
+silmaril institution logic.smt.uflia.s_expr.renaming.concrete.institution := Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.institution
+silmaril institution logic.smt.uflia.s_expr.surface.direct.concrete_institution := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.concreteInstitution
+silmaril institution logic.smt.uflia.s_expr.surface.direct.declaration_institution := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.declarationInstitution
+silmaril institution logic.smt.uflia.s_expr.surface.direct.institution := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.institution
+silmaril institution logic.smt.uflia.s_expr.surface.direct.script_institution := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.scriptInstitution
+silmaril institution logic.smt.uflia.s_expr.surface.renaming.institution := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Renaming.institution
+silmaril institution logic.smt.uflia.s_expr.declaration_institution := Silmaril.Logic.Smt.Uflia.SExpr.declarationInstitution
+silmaril institution logic.smt.uflia.s_expr.institution := Silmaril.Logic.Smt.Uflia.SExpr.institution
+silmaril institution logic.smt.uflia.script.institution := Silmaril.Logic.Smt.Uflia.Script.institution
+silmaril institution logic.smt.uflia.sort_maps.quantified.s_expr.renaming.inst := Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.inst
+silmaril institution logic.smt.uflia.sort_maps.quantified.s_expr.renaming.prefix_inst := Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.prefixInst
+silmaril institution logic.smt.uflia.sort_maps.quantified_models.inst := Silmaril.Logic.Smt.Uflia.SortMaps.QuantifiedModels.inst
+silmaril institution logic.smt.uflia.sort_maps.s_expr.renaming.inst := Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.inst
+silmaril institution logic.smt.uflia.sort_maps.source.script.problem.inst := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Problem.inst
+silmaril institution logic.smt.uflia.sort_maps.source.script.inst := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.inst
+silmaril institution logic.smt.uflia.sort_maps.source.checked_inst := Silmaril.Logic.Smt.Uflia.SortMaps.Source.checkedInst
+silmaril institution logic.smt.uflia.sort_maps.source.inst := Silmaril.Logic.Smt.Uflia.SortMaps.Source.inst
+silmaril institution logic.smt.uflia.sort_maps.inst := Silmaril.Logic.Smt.Uflia.SortMaps.inst
 silmaril institution logic.smt.uflia.institution := Silmaril.Logic.Smt.Uflia.institution
 silmaril institution logic.temporal.ltl.inst := Silmaril.Logic.Temporal.LTL.inst
 silmaril institution logic.algebraic.dependent_family.inst := Silmaril.Logic.Algebraic.DependentFamily.inst
@@ -256,6 +312,41 @@ silmaril room logic.stlc_equations.room := Silmaril.Logic.STLCEquations.room
 silmaril room logic.stlc_matching.source_room := Silmaril.Logic.STLCMatching.sourceRoom
 silmaril room logic.stlc_matching.target_room := Silmaril.Logic.STLCMatching.targetRoom
 silmaril room logic.separation.first_order.canonical_room := Silmaril.Logic.Separation.FirstOrder.canonicalRoom
+silmaril room logic.smt.fixed.room := Silmaril.Logic.Smt.Fixed.room
+silmaril room logic.smt.institution.forms_room := Silmaril.Logic.Smt.Institution.formsRoom
+silmaril room logic.smt.institution.script_room := Silmaril.Logic.Smt.Institution.scriptRoom
+silmaril room logic.smt.lra.script.room := Silmaril.Logic.Smt.Lra.Script.room
+silmaril room logic.smt.lra.room := Silmaril.Logic.Smt.Lra.room
+silmaril room logic.smt.uflia.embedding_models.room := Silmaril.Logic.Smt.Uflia.EmbeddingModels.room
+silmaril room logic.smt.uflia.hom_models.room := Silmaril.Logic.Smt.Uflia.HomModels.room
+silmaril room logic.smt.uflia.packaged.checked_room := Silmaril.Logic.Smt.Uflia.Packaged.checkedRoom
+silmaril room logic.smt.uflia.packaged.concrete_fixed_room := Silmaril.Logic.Smt.Uflia.Packaged.concreteFixedRoom
+silmaril room logic.smt.uflia.packaged.concrete_room := Silmaril.Logic.Smt.Uflia.Packaged.concreteRoom
+silmaril room logic.smt.uflia.packaged.fixed_room := Silmaril.Logic.Smt.Uflia.Packaged.fixedRoom
+silmaril room logic.smt.uflia.packaged.whole_room := Silmaril.Logic.Smt.Uflia.Packaged.wholeRoom
+silmaril room logic.smt.uflia.quantified.hom_models.room := Silmaril.Logic.Smt.Uflia.Quantified.HomModels.room
+silmaril room logic.smt.uflia.quantified.s_expr.surface.room := Silmaril.Logic.Smt.Uflia.Quantified.SExpr.Surface.room
+silmaril room logic.smt.uflia.quantified.script.fixed_room := Silmaril.Logic.Smt.Uflia.Quantified.Script.fixedRoom
+silmaril room logic.smt.uflia.quantified.script.room := Silmaril.Logic.Smt.Uflia.Quantified.Script.room
+silmaril room logic.smt.uflia.quantified.script.whole_room := Silmaril.Logic.Smt.Uflia.Quantified.Script.wholeRoom
 silmaril room logic.smt.uflia.quantified.room := Silmaril.Logic.Smt.Uflia.Quantified.room
+silmaril room logic.smt.uflia.s_expr.renaming.concrete.declaration_room := Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.declarationRoom
+silmaril room logic.smt.uflia.s_expr.renaming.concrete.room := Silmaril.Logic.Smt.Uflia.SExpr.Renaming.Concrete.room
+silmaril room logic.smt.uflia.s_expr.surface.direct.concrete_room := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.concreteRoom
+silmaril room logic.smt.uflia.s_expr.surface.direct.declaration_room := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.declarationRoom
+silmaril room logic.smt.uflia.s_expr.surface.direct.room := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.room
+silmaril room logic.smt.uflia.s_expr.surface.direct.script_room := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Direct.scriptRoom
+silmaril room logic.smt.uflia.s_expr.surface.renaming.room := Silmaril.Logic.Smt.Uflia.SExpr.Surface.Renaming.room
+silmaril room logic.smt.uflia.s_expr.declaration_room := Silmaril.Logic.Smt.Uflia.SExpr.declarationRoom
+silmaril room logic.smt.uflia.s_expr.room := Silmaril.Logic.Smt.Uflia.SExpr.room
+silmaril room logic.smt.uflia.script.room := Silmaril.Logic.Smt.Uflia.Script.room
+silmaril room logic.smt.uflia.sort_maps.quantified.s_expr.renaming.room := Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.room
+silmaril room logic.smt.uflia.sort_maps.quantified_models.room := Silmaril.Logic.Smt.Uflia.SortMaps.QuantifiedModels.room
+silmaril room logic.smt.uflia.sort_maps.s_expr.renaming.room := Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.room
+silmaril room logic.smt.uflia.sort_maps.source.script.problem.room := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Problem.room
+silmaril room logic.smt.uflia.sort_maps.source.script.room := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.room
+silmaril room logic.smt.uflia.sort_maps.source.checked_room := Silmaril.Logic.Smt.Uflia.SortMaps.Source.checkedRoom
+silmaril room logic.smt.uflia.sort_maps.source.room := Silmaril.Logic.Smt.Uflia.SortMaps.Source.room
+silmaril room logic.smt.uflia.sort_maps.room := Silmaril.Logic.Smt.Uflia.SortMaps.room
 silmaril room logic.smt.uflia.room := Silmaril.Logic.Smt.Uflia.room
 silmaril room logic.temporal.ltl.room := Silmaril.Logic.Temporal.LTL.room
