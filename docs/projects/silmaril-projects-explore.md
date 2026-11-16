@@ -10,7 +10,7 @@ sil project explore [--dir .] [--db .lake/silmaril/project.sqlite] [--out .lake/
 ```
 
 The page holds no data. Project databases can grow large, so the page never embeds the database
-or its SQL text; it opens a separate `.sqlite` file. The page is about 46 kB.
+or its SQL text; it opens a separate `.sqlite` file. The page is about 160 kB.
 
 ## How the page finds the database
 
@@ -26,8 +26,10 @@ Over `file://`, browsers block a page from reading other files, so only the four
 The page says so and shows where `sil project sqlite` wrote the database. A chosen file is read
 into memory in the browser; nothing is uploaded.
 
-The header shows the source, how it is read (lazily, whole file, or local file), the schema
-version and how many bytes have been read so far.
+The header shows how many bytes have been read so far and a compact source button (the file name,
+`lazy`, `whole file` or `local file`, and `!` when something needs attention). The button opens a
+dialog with the source, how it is read, the schema version and the transfer counts, and with a file
+picker and a URL field to open another database.
 
 ## The published explorer
 
@@ -95,6 +97,12 @@ Chromium against `pages_server.py`, a server that compresses like GitHub Pages:
 - a reload transfers nothing;
 - a new version is fetched again under a new tag;
 - `?load=full` downloads the whole file and verifies its hash.
+
+`tools/silmaril-project/tests/explore/shell.mjs` checks the shared shell in Chromium: the
+navigation built from the registered views, the source button and its dialog (keyboard, Escape,
+focus), neutral status badges in one status column, rapid graph navigation (the last route wins)
+and repeated switches between a local file and the lazy URL while views load: `node shell.mjs
+_site [screenshots-dir]`.
 
 `tools/silmaril-project/tests/explore/wasm_cfg.mjs` checks the Wasm function pages in Chromium
 on a small and a large block CFG: the legend's edge counts against the page data, may-edges kept
@@ -217,8 +225,59 @@ must have the page's origin.
 
 cdnjs does not carry sql.js-httpvfs. Its jsdelivr files are byte-identical to the npm tarball.
 
-The template is `tools/silmaril-project/src/project/explore.html`. `explore.rs` fills in the title and the
-database URLs.
+The template is `tools/silmaril-project/src/project/explore.html` (the shell and its styles).
+`explore.rs` fills in the title and the database URLs, and bundles the script from the files of
+`explore/` in the order of its `SCRIPTS` list into one `<script>`:
+
+| file | what it holds |
+|---|---|
+| `core.js` | constants, page state, small helpers |
+| `ui.js` | shared components: links, status badges, the dialog, the byte viewer and WAT highlighting |
+| `table.js` | tables and definition lists that link the names they show |
+| `db.js` | opening a database (lazy, whole, local file) and the source button and dialog |
+| `router.js` | the view registry, routing and the per-route context |
+| `graphs.js` | dominators and dominator trees shared by graph views |
+| `views/*.js` | the views, each registering itself |
+| `main.js` | the `Explorer` API object, and the start |
+
+### Views
+
+A view is a route `#/<id>/<arg>`. A file in `explore/views/` registers its views, and one line in
+`SCRIPTS` (`script!("views/<file>.js")`, before `main.js`) adds the file to the page:
+
+```js
+Explorer.registerView({
+  id: "languages",          // the route: #/languages/<arg>; [a-z][a-z0-9-]*, unique
+  title: "Languages",       // shown in the navigation
+  nav: 75,                  // position in the navigation; omit for detail views
+  tab: "languages",         // the navigation entry to highlight (default: id)
+  async render(arg, ctx) {  // HTML, or { html, init, dispose }
+    const rows = await ctx.q("SELECT name FROM problems ORDER BY name LIMIT 20");
+    return { html: await Explorer.ui.table(rows), init() { /* wire controls */ } };
+  },
+});
+```
+
+`ctx` belongs to one rendering of one route over one database: `ctx.q`, `ctx.tq` (empty when a
+table is missing), `ctx.first` and `ctx.exec` query it, `ctx.alive()` says whether it is still
+current, and `ctx.onDispose(fn)` releases resources when the route changes. Once the reader has
+moved on or opened another database, every query of the old rendering rejects (and the router
+ignores it), so a slow query can never write into the current page.
+
+`Explorer.ui` holds the shared components: `esc`, `href`, `link`, `table(rows, cols, opts)`
+(opts: `hints`, `render` for computed columns, `badges`, `nowrap`, `label`, `limit`), `tableOf`,
+`dl`, `statusBadge(nameOrStatus)` and `statusInfo`, `dialog({ title, body, actions })` (a modal
+`<dialog>`), `viewer(bytes, { name, total, lang, limit })` (bounded text/hex/WAT views;
+`Explorer.registerViewer` adds views), `highlightWat` and `hexDump`. Everything they show is
+escaped.
+
+Status badges show a problem's summary code (THM, OPN, SAT, UNS, CSA, SAT/CSA for contingent) in a
+neutral style. Only what needs attention is marked: `!` for a failing verdict that nothing explains
+(not the expected status, not deprecated, not classified as a spec bug or model gap), `?` for an
+expected status (`problems.expect`) that the summary is not, and a struck-through code for a
+deprecated problem. The badge's title spells out the code, verdict, expectation and markings. A
+deprecated problem's page links its replacements, and a replacement's page links what it
+replaces.
 
 ## Limitations
 

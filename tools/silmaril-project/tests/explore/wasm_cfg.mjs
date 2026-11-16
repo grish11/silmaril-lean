@@ -1,4 +1,4 @@
-// The explorer's Wasm function pages (`wasmFuncPage` in explore.html): how the block CFG draws
+// The explorer's Wasm function pages (`wasmFuncPage` in explore/views/wasm.js): how the block CFG draws
 // its conservative may-edges, on a small function (rust_door enter) and a large one (the WASI
 // adapter's poll_oneoff, 112 blocks). Checks, in a browser:
 // * the legend's counts are the counts of the page data (wasm/m/<slug>.json);
