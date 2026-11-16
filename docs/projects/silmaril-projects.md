@@ -481,8 +481,10 @@ line in this table.
 
 ## Artifacts and provenance: `silmaril/artifacts.toml`
 
-There is one registry per package, the single source of truth for blobs, keyed by CID (a DASL
-CIDv1, raw codec, BLAKE3-256, base32 `bafkr4i…`; SHA-256 and the Git blob SHA-1 are aliases).
+There is one registry per package, the single source of truth for blobs, keyed by CID (a CIDv1,
+raw codec, BLAKE3-256, base32 `bafkr4i…`; SHA-256 and the Git blob SHA-1 are aliases). With
+BLAKE3 it is a BDASL CID, not a DASL CID (DASL CID allows only SHA-256; see
+[format-languages.md](format-languages.md)).
 Add a file with `sil project artifacts add PATH [--name N]`, or edit `paths` and `name` and run
 `sil project lock`. `lock` fills `cid`, `size`, `sha256`, `git_sha1` and the CIDs of the files
 derivations name, merges entries with one CID and sorts them. Lean imports the registry with
