@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Abstract.HostClosingInfXP.Defs
 public import Silmaril.Wasm.Abstract.HostClosingXP.Thms
 public import Silmaril.Wasm.Interp.PProgress.Thms
 import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.Empty
+import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.Handler
 
 /-!
 # Core to the canonical closure, divergent runs: theorems
@@ -48,6 +49,13 @@ so neither exists for a problem whose Core run diverges host-free (`diverges_thr
   descent chain, `Shape.closeD`), by choice (`Empty`);
 * `wasmEvFunDXP_of_evRun_nil`: a Core run of a typed invocation with no host event, then
   host-free divergence, is `([], div)` in `wasmEvFunDXP`.
+
+**Splitting at a handler** (`Handler`), every profile and host:
+
+* `evDiv_handler_seq_split`: a labelled run with its host events, then host-free divergence, of a
+  `try_table` handler in place: the body diverges with the whole log, or runs to a stuck end that
+  is not at a host call with a prefix of the log, and the handler around that end goes on with
+  the rest (the handler analogue of `evDiv_label_seq_split`).
 
 Not yet: divergence after a nonempty log and productive runs, Core to `wasmEvFunDXP` and
 `wasmEvInfNXP`.
@@ -115,5 +123,20 @@ theorem wasmEvFunDXP_of_evRun_nil {host : HostSemantics H} {s : Store H} {a : Na
     (hd : Diverges (profile o) (fun _ _ _ _ => False) c') :
     ([], .div) ∈ wasmEvFunDXP s (a, vs) :=
   Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evRun_nil_div hs hok hS hts hrun hd
+
+/-- **Splitting a handler in place**: the body diverges with the whole log, or runs to a stuck
+end that is not at a host call with a prefix of the log, and the handler around that end goes
+on with the rest. -/
+theorem evDiv_handler_seq_split {P : Numerics.Profile} {host : HostSemantics H} {N : Nat}
+    {s : Store H} {f : Frame} {ws : List Val} {n : Nat} {cs₀ : List Catch} {b rest : List Admin}
+    {cs : List (Silmaril.Games.Abstract.Call (wasmHostSig H))}
+    (h : EvDiv P host N ⟨s, f, vals ws ++ [.handler n cs₀ b] ++ rest⟩ cs) :
+    EvDiv P host N ⟨s, f, b⟩ cs ∨
+      ∃ (cb : Config H) (N₁ m : Nat) (cs₁ cs₂ : List (Silmaril.Games.Abstract.Call (wasmHostSig H))),
+        cs = cs₁ ++ cs₂ ∧ m ≤ N ∧ EvRunN P host N₁ ⟨s, f, b⟩ cs₁ cb ∧
+        (∀ c', ¬ Step P SingleThreaded.Det.noHost cb c') ∧
+        SingleThreaded.decompose? cb.store cb.code = none ∧
+        EvDiv P host m ⟨cb.store, cb.frame, vals ws ++ [.handler n cs₀ cb.code] ++ rest⟩ cs₂ :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evDiv_handler_seq_split h
 
 end Silmaril.Wasm.Abstract
