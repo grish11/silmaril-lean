@@ -162,6 +162,58 @@ No "components 1.0" is assumed: component features are `CMFeature` in
 | Module variants: function-only exports, then memory, globals and tables as observable state | Function-only: scalar Core 3.0 instances (`Silmaril.Wasm.Abstract.Instance`). Exported state: `Game.withCells G N V` (`get`/`got`/`set` on named cells next to `G`), `Hom.ops`, `PHom.hideCells` (`Silmaril.Games.Abstract.Cells`). Proved: `map_ops_injective`, `map_ops_le_iff` (function-only models embed), `hide_map_ops` (hiding the cells gives the function-only model back), `exists_hide_eq_ne` (exported state is strictly finer than function-only observation) | Generic layer proved. Still open: Wasm instances with exported globals, memories and tables as `withCells` machines, aliasing between exports, and mutation during calls. |
 | HTTP and TCP games; WASI reading agrees with `Servers.WasiHttp`; POSIX and container adapters | consume Servers modules | Stage 10, planned; coordinated with the Servers, UDP and CFG owners |
 
+## Canonical game object, exception-aware square, sessions and component closure
+
+This section is owned by 5fb4bf1f. The concrete component bridge (reference machine, `Comp.den`, `Linked2`, the IR) is owned by 0e76ca84. "Done" means merged on `main` after `lean / check on prove` passed on the PR's merged head. No entry uses `sorry`, new axioms, `native_decide` or `Task` obligations.
+
+### Done
+
+| Gap | Theorems (main names) | Hypotheses | PR |
+|---|---|---|---|
+| Canonical play object of a triple; injective on admissible triples | `StratObs.toDStrat`, `toDStrat_eq_iff`, `Admissible`, `toDStrat_injective_adm`, `exists_adm` | none | #562, #590 |
+| Bodies and checked code inject modulo `OpEquivP` | `BodyStrat.toDStratBody_denL_iff`, `toTriple_admissible` | none | #566, #590 |
+| Legal (typed) interfaces | `StratLegal.legalSig`, `restrict`, `toDStratL_injective`, `mem_toDStratL` | admissible triples | #616 |
+| Core = native strategies, fixed host | `coreStrat_eq_natStrat(_profile)`, `coreStratAt_eq_natStratAt(_profile)` | `profile o`; every profile needs `NativeWasmFuncs` + `HostNative` | #570, #589 |
+| Exception-aware exact-log square, **unconditional** | `hostSquareXP`, `backDivXP`, `backInfXP`, `coreStratXP_eq_natStratXP` | `HostTyped`, `NativeHostSlice`, `HostSliceE tags`, `InvOkXP tags`, `profile o` | #621, #627, #631, #647, #652 |
+| Cut audit: the canonical closure is the closure with reach | `Shape.closeR`, `close_cutMod_eq_closeR`, `wasmEvFunXP_eq_closeR` | `ReachPrefixClosed`, no closed behaviour returns a cut answer | #584, #585 |
+| Open host-independent native strategy; host restriction; linking = interaction + hiding | `openStratXP`, `openTripleXP_admissible`, `obsTriple_natXP_eq`, `comp_hostD_toDStrat`, `comp_hostD_openTripleXP` | `profile o` (Wasm instance) | #651, #677 |
+| Linking against an independent closed Core semantics | `diverges_iff_obs`, `comp_hostD_coreStrat(XP)`, `comp_hostD_natStrat(XP)` | none (Core); `profile o` (native) | #670, #677 |
+| Function-level structure on realizable strategies | `CanonStrat`, `equivAdm`; `seq_assoc`, units, whiskering, `not_interchange` (premonoidal, not monoidal), copairing; iteration laws `iter_unfold`, `iter_map`, `iter_dinat`, `iter_codiag`, `iter_uniform` (pure maps only) | none, on `CanonStrat` only | #643, #653, #671, #686, #718 |
+| Threading (store-erasing) and coherent infinite plays | `StratThread.threadT`, `thread`, `threadT_eq_iff` (up to `ObsEq`), `mem_inf_iff_of_storeDet`, `exists_infRounds`, `storeDet_of_det` | `StoreDet` (from `AFun.Det`) | #641, #644, #655, #678 |
+| **Sessions: a trap aborts the call, the store persists** | `StratSession.threadS`, `eraseTrap`, `mem_trap_ret`, `threadS_eq_iff`, `mem_pending`, `mem_div_iff`, `mem_inf_iff_of_det` | `StoreDet`, `NoPlainTrap` (equality) | #666, #681 |
+| Core sessions: determinism, coherent infinite plays, divergence | `coreSession`, `coreSessionXP`, `CoreDet.coreTripleS_det`, `coreSession_mem_inf_iff`, `coreSession_mem_div` | `HostTyped`, `Ok → StoreOk ∧ InvokeOk`, `profile o` | #666, #681, #695 |
+| **Core sessions: pending prefixes, both directions** | `coreSession_mem_pending_iff`, `coreSessionXP_mem_pending_iff`, `coreTripleS_satP_iff` | `HostTyped`, `NativeHostSlice` (`HostSliceE` for XP), typed `Ok`, `profile o` | #721 |
+| **Native session closing with trap stores at the callee (DONE)** | `HostClosingS.wasmEvFunXPS`, `wasmEvFunXPS_erase` (the old closing is its exact projection), `wasmEvFunXPS_trap_iff` (exact trap store), `wasmEvPendXPS_eq`, `eraseTrap_sessionTripleXP` | as for the square | #691, #693 |
+| **Native session = Core session (DONE)** | `natTripleSXP_eq_coreTripleSXP`, `natSessionXP_eq_coreSessionXP`, `natSessionXP_mem_inf_iff` (coherent), `natSessionXP_eq_iff` | as for the square | #695 |
+| Component linking of sessions (composition with hiding) | `SessionLink.linkS`, `comp_threadS`, `comp_threadS_of_det`, `mem_inf_linkS_iff_of_det`, `noPlainTrap_linkS` | `NoPlainTrap` (server), `StoreDet` (server, linked) or `AFun.Det` both | #706, #713 |
+| Pairing | `DStrategy.pair`, `mem_div_pair_iff`, `StratSession.pairS`, `threadS_pairS` (finite, div, inf), `det_pairS` | `NoPlainTrap` both | #713, #717 |
+| Session category laws | `RetDet`, `retDet_linkS`, `threadS_linkS_assoc`, `threadS_idS`, unit laws, `legal_linkS`, `ansLegal_linkS`, `seqS_assoc`, `frameS_seqS` | `NoPlainTrap`, `RetDet` | #727 |
+| Divergence-observing component wiring | `DStrategy.atSizes`, `ext`, `Comp.denD`, `toStrategy_denD`, `div_atSizes`, `chatter_widenH`, `div_atSizes_of_noTrap` | none | #725 |
+
+### Counterexamples (why a hypothesis cannot be dropped)
+
+| Statement | Counterexample | Replacement |
+|---|---|---|
+| Uniformity along effectful maps | `FullFun.not_iter_uniform_call`, `not_iter_uniform_trap` | uniformity along pure maps (`iter_uniform`) |
+| Sequencing commutes with saturation | `StratOps.not_sat_seqT` | `sat_seqT (Total u)`, `sat_seqT_of_adm` |
+| Pointwise threading converse | `StratThread.not_pointwise` | `threadT_eq_iff` up to `ObsEq` |
+| Coherent infinite threading without `StoreDet` | `StratThread.not_coherent` | trace form `mem_inf_iff`; coherence under `StoreDet` |
+| Interchange law | `not_interchange(T,D)` | premonoidal structure |
+
+### Open (classified)
+
+| Gap | Kind | Notes |
+|---|---|---|
+| Uniformity along silent, total, deterministic, state-changing maps | to classify: proof or counterexample | not claimed |
+| Nondeterministic coherent threading | needs execution witnesses | prefix-only coherence is **not** claimed (`not_coherent`) |
+| Linking servers with plain traps | generalisation | server store `Option S` |
+| Associativity and units as literal triple equalities | strengthening | proved at strategy level and as `ObsEq` |
+| Formal counterexamples for the linking hypotheses | counterexamples | argued in docs only |
+| `DWiring` converses; `div`/`inf` laws for `ext` and `Comp.denD` | proofs | `toStrategy` agreement proved |
+| Session iteration (recursive linking); `seqS`/`frameS` at strategy level | proofs | as needed by recursive linking |
+| n-module linking and shared stores | waiting on the concrete owner's types | asked on #207 |
+| Component injection for linked components with imports | concrete (0e76ca84) | #680 covers simple components without imports |
+
 ## Servers seam (stage 10)
 
 The server stack is merged and owned by the Servers, UDP and CFG work. Stage 10
