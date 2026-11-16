@@ -1,8 +1,9 @@
 module
 
 public import Silmaril.Wasm.Abstract.HostClosingInfXP.Defs
+public import Silmaril.Wasm.Abstract.HostClosingXP.Thms
 public import Silmaril.Wasm.Interp.PProgress.Thms
-import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.Closed
+import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.Empty
 
 /-!
 # Core to the canonical closure, divergent runs: theorems
@@ -32,6 +33,21 @@ callee function types then come from typing (`HostClosingXP.funcType_of_indRes`,
 active context, to a configuration at a host call (the steps of `Interp.progressP`), and a closed
 outcome is a Core run to a final form (`Interp.evalOXP_closed_good`); neither has a host-free step,
 so neither exists for a problem whose Core run diverges host-free (`diverges_through_steps`).
+
+**Divergence with the empty log**:
+
+* `evalLXPh_of_evalOXP_closed`: a run of the closed canonical semantics `EvalOXP closedCallXP`
+  that does not trap is a logged run `EvalLXPh` with the same result whose calls the closure
+  resolves to the empty log. Every closed answer (values, an uncaught exception) is a closure
+  behaviour with the empty log, by least-fixpoint induction on `closedCallXP` (`Conv`); a trapping
+  answer only ends a run in a trap;
+* `wasmEvFunDXP_of_funDivXP`: a call of a function with a function type that diverges at the
+  frame (`FunDivXP`) has the behaviour `([], div)` in `wasmEvFunDXP`: a body ending in a pending
+  tail call is a descent with no import call to the tail callee, and the chain of such descents
+  reaches a body diverging host-free (`LDLwXP` by `LogDivXP.div`) or goes on forever (an infinite
+  descent chain, `Shape.closeD`), by choice (`Empty`);
+* `wasmEvFunDXP_of_evRun_nil`: a Core run of a typed invocation with no host event, then
+  host-free divergence, is `([], div)` in `wasmEvFunDXP`.
 
 Not yet: divergence after a nonempty log and productive runs, Core to `wasmEvFunDXP` and
 `wasmEvInfNXP`.
@@ -71,5 +87,33 @@ theorem invoke_diverges_iff_funDivXP_of {s : Store H} {a : Nat} {vs : List Val} 
     Diverges (profile o) (fun _ _ _ _ => False) (invoke s a vs) ↔ FunDivXP s a vs :=
   ⟨funDivXP_of_invoke_diverges hs hok hS hts,
     Silmaril.Wasm.Interp.PProgress.invoke_diverges_of_funDivXP hS hts hok⟩
+
+/-- **A non-trapping closed canonical run is a logged run resolving to the empty log.** -/
+theorem evalLXPh_of_evalOXP_closed {s : Store H} {f : Frame} {stk : List Val}
+    {es : List Binaryen.BExpr} {r : Store H × Frame × CallXP.POut}
+    (h : CallXP.EvalOXP XRecursionP.closedCallXP s f stk es r) (hn : r.2.2 ≠ .flow .trap) :
+    ∃ l, EvalLXPh s f stk es l r ∧
+      Silmaril.Games.Abstract.Shape.SubstPre (Silmaril.Games.Abstract.Shape.close wasmHOpenXP)
+        (l.map OCall.lift) [] :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.closed_conv h hn
+
+/-- **A call diverging at the frame has the behaviour `([], div)`**, for a function with a
+function type. -/
+theorem wasmEvFunDXP_of_funDivXP {s : Store H} {a : Nat} {vs : List Val} {fi : FuncInst H}
+    {ps rs : List Validation.CValType} (hfi : s.funcs[a]? = some fi)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hd : FunDivXP s a vs) :
+    ([], .div) ∈ wasmEvFunDXP s (a, vs) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.div_of_funDivXP (x := ⟨a, (vs, s)⟩)
+    ⟨fi, ps, rs, hfi, hty⟩ hd
+
+/-- **A Core run with no host event, then host-free divergence, is `([], div)`** (deterministic
+profile, typed invocations, stores that may hold host functions). -/
+theorem wasmEvFunDXP_of_evRun_nil {host : HostSemantics H} {s : Store H} {a : Nat}
+    {vs : List Val} {c' : Config H} (hs : StoreOk s) (hok : InvokeOk s a vs)
+    (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s)
+    (hrun : EvRun (profile o) host (invoke s a vs) [] c')
+    (hd : Diverges (profile o) (fun _ _ _ _ => False) c') :
+    ([], .div) ∈ wasmEvFunDXP s (a, vs) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evRun_nil_div hs hok hS hts hrun hd
 
 end Silmaril.Wasm.Abstract
