@@ -1,0 +1,5 @@
+# tools/wasm-vc configuration for this entry (docs/projects/wasm-spec-library.md).
+entry = "Max"
+source = "max.wat"
+func = "max"
+lean_func = "maxFunc"

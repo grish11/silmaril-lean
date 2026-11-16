@@ -18,8 +18,8 @@ institution of an observational semantics is a facade `Institution₁`
 `Comorphism.ofTranslation`, and the typed graph builder `ObsGraph` presents finite edge lists
 as a facade `GraphSpec`. Nothing here is a new construction: every definition is an
 abbreviation of, or a thin bundle around, the existing one, and every theorem is a restatement.
-See `docs/projects/logic-inst.md` (sections "wasm") for worked examples and
-before/after comparisons.
+See `docs/projects/wasm-catalog.md` (section "Institutions over these shapes") for the list of
+Wasm institutions and `docs/projects/logic-inst.md` for the facade.
 
 * **Universe-free names.** The institutions of `ObsSemantics.inst` are the facade's
   `Silmaril.Inst.Institution₁` (`Inst.{1, 0, 0, 0, 0}`), and their logic graphs are the facade's

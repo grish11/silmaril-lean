@@ -1,0 +1,53 @@
+# Wasm specification library entry (format: docs/projects/wasm-spec-library.md).
+schema = 1
+name = "InsertionSort"
+version = "1.0.0"
+summary = "In-place insertion sort of the i32 array segment [p, p + 4n) of memory 0 (signed order)."
+status = "verified"
+
+[program]
+kind = "wat"
+source = "insertion_sort.wat"
+lean = "Silmaril.WasmSpec.InsertionSort.program"
+module = "Silmaril.WasmSpec.InsertionSort.Defs"
+functions = ["insertion_sort"]
+
+[spec]
+module = "Silmaril.WasmSpec.InsertionSort.Defs"
+statements = ["Silmaril.WasmSpec.InsertionSort.Spec", "Silmaril.WasmSpec.InsertionSort.SpecStore"]
+runs = "every"
+correctness = "total"
+description = """
+Every-run total correctness (Silmaril.Wasm.Logic.Hoare.TFSpecAt, every profile, every host
+relation). `Spec`: for every function instance fi whose code is `insertion_sort` (type
+[i32 i32] -> []) at any address a, `sortSpec a fi` holds: if memory 0 of fi's module is the
+store's memory ma, of type mt, with bytes B, p + 4n <= |B| and p + 4n < 2^32, then every run of a
+call on [i32 p, i32 n] terminates, never traps, returns no values, and leaves the store
+s.setMem ma {mt, B'} where `Sorts B B' p n`: B' has B's size and bytes outside [p, p + 4n),
+`words B' p n` is sorted in signed order (`SortedS`) and a permutation (List.Perm) of
+`words B p n`. `SpecStore`: the same for function 0 of the store produced by silmaril-lean's
+instantiateOnce? of the module."""
+
+[results]
+module = "Silmaril.WasmSpec.InsertionSort.Thms"
+theorems = ["Silmaril.WasmSpec.InsertionSort.spec", "Silmaril.WasmSpec.InsertionSort.specStore"]
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.InsertionSort.spec_tactic"
+proves = "Silmaril.WasmSpec.InsertionSort.Spec"
+module = "Silmaril.Proofs.WasmSpec.InsertionSort.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 45
+notes = "Words view and tactics (wbegin/wrun, t_brIf, t_while); invariants OInv (perm, SameOutside, sorted prefix; variant n + 1 - i) and IInv (words = hole ys i j, shifted elements > key; variant j); list lemmas in Lists.lean (hole_shift, hole_place_perm, hole_place_sorted)."
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.InsertionSort.specStore_tactic"
+proves = "Silmaril.WasmSpec.InsertionSort.SpecStore"
+module = "Silmaril.Proofs.WasmSpec.InsertionSort.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 45
+notes = "From spec_tactic and the instantiated store's function (store₀_funcs, decide +kernel on its type)."

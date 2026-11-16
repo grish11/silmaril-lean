@@ -1,0 +1,71 @@
+# Wasm specification library entry (format: docs/projects/wasm-spec-library.md).
+schema = 1
+name = "SumTo"
+version = "1.0.0"
+summary = "Count-down loop summing n + (n-1) + ... + 1, i.e. n(n+1)/2 mod 2^32."
+status = "verified"
+
+[program]
+kind = "annotated-wat"
+source = "sum_to.wat"
+lean = "Silmaril.WasmSpec.SumTo.program"
+module = "Silmaril.WasmSpec.SumTo.Defs"
+functions = ["sum"]
+
+[spec]
+module = "Silmaril.WasmSpec.SumTo.Defs"
+statements = ["Silmaril.WasmSpec.SumTo.Spec"]
+description = """
+`Spec`: for all n : BitVec 32, the body of `$sum` called on [i32 n] can return
+exactly [i32 (triBV n)], triBV n = BitVec.ofNat 32 (n.toNat * (n.toNat + 1) / 2),
+without changing the store (`Computes`); the loop terminates (the calculus is
+total: wp_loop needs a decreasing measure)."""
+runs = "some"
+correctness = "total"
+
+[results]
+module = "Silmaril.WasmSpec.SumTo.Thms"
+theorems = ["Silmaril.WasmSpec.SumTo.spec"]
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.SumTo.spec_tactic"
+proves = "Silmaril.WasmSpec.SumTo.Spec"
+module = "Silmaril.Proofs.WasmSpec.SumTo.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 1.7
+notes = "Hand-written invariant Inv (acc + triBV n = triBV n0, measure n.toNat); inv_exit/inv_step/inv_body; arithmetic in Arith.lean (tri_succ, triBV_step)."
+
+[[solution]]
+mode = "tactic+script"
+theorem = "Silmaril.WasmSpec.SumTo.Script.spec_script"
+proves = "Silmaril.WasmSpec.SumTo.Spec"
+module = "Silmaril.Proofs.WasmSpec.SumTo.Script"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4", wasm-vc = "0.1.0", z3 = "4.16.0" }
+check_seconds = 4.1
+generator = { tool = "tools/wasm-vc", version = "0.1.0", command = "cargo run --manifest-path tools/wasm-vc/Cargo.toml -- gen Silmaril/WasmSpec/SumTo", outputs = ["Silmaril/Proofs/WasmSpec/SumTo/Script.lean"] }
+notes = "Conditions from symbolic execution of the annotated WAT (vc.toml); z3 checked them and its unsat cores chose the hints; tactics chosen by trying candidates in Lean."
+
+[[solution]]
+mode = "all-in"
+theorem = "Silmaril.WasmSpec.SumTo.AllIn.spec_allin"
+proves = "Silmaril.WasmSpec.SumTo.Spec"
+module = "Silmaril.Proofs.WasmSpec.SumTo.AllIn"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4", wasm-vc = "0.1.0", z3 = "4.16.0" }
+check_seconds = 8.8
+generator = { tool = "tools/wasm-vc", version = "0.1.0", command = "cargo run --manifest-path tools/wasm-vc/Cargo.toml -- agent Silmaril/WasmSpec/SumTo --rounds 5 --ignore-invariant --ignore-hints --agent-root <blind copy>", outputs = ["Silmaril/Proofs/WasmSpec/SumTo/AllIn.lean"] }
+notes = "Canonical all-in solution, blind: the model worked in a git-archive copy of the checkout (no history) with SumTo's Tactic/Smt/Script/AllIn proofs, Arith.lean, Thms, vc.toml, manifest and the library docs removed, and no prebuilt library. Annotated invariant and hints withheld. Round 1: invariant proposed (z3: all loop conditions unsat), vc_exit/vc_step residual, lemma tri_step_nat accepted by Lean, tactics proposed; round 2: no residuals."
+
+[[solution]]
+mode = "all-in"
+theorem = "Silmaril.WasmSpec.SumTo.AllInAssisted.spec_allin"
+proves = "Silmaril.WasmSpec.SumTo.Spec"
+module = "Silmaril.Proofs.WasmSpec.SumTo.AllInAssisted"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4", wasm-vc = "0.1.0", z3 = "4.16.0" }
+check_seconds = 6.8
+generator = { tool = "tools/wasm-vc", version = "0.1.0", command = "cargo run --manifest-path tools/wasm-vc/Cargo.toml -- agent Silmaril/WasmSpec/SumTo --rounds 4 --ignore-invariant --ignore-hints (output then renamed to AllInAssisted)", outputs = ["Silmaril/Proofs/WasmSpec/SumTo/AllInAssisted.lean"] }
+notes = "Assisted (solutions visible). Annotated invariant and vc.toml hints/imports withheld. Round 1: the model proposed the invariant (z3: all four loop conditions unsat), then vc_exit/vc_step were residual; it proposed triBV_step_aux (accepted by Lean) and tactics for both. Round 2: no residuals. The model ran read-only in the checkout, so it could read Silmaril/Proofs/WasmSpec/SumTo/Arith.lean; its lemma restates triBV_step from there."
