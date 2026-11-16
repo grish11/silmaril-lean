@@ -40,6 +40,48 @@ theorem readQuoted_escape {q : Char} {esc : Char → Option Char}
         simp only [escapeQuoted]
         simp [readQuoted, hc.1, hc.2, ih]
 
+theorem escapeQuoted_clean {q : Char} {w : List Char} (hq : q ∉ w) (hb : '\\' ∉ w) :
+    escapeQuoted q w = w := by
+  induction w with
+  | nil => rfl
+  | cons c w ih =>
+      simp only [List.mem_cons, not_or] at hq hb
+      have hc : (c == q || c == '\\') = false := by simp [Ne.symm hq.1, Ne.symm hb.1]
+      simp [escapeQuoted, Ne.symm hq.1, Ne.symm hb.1, ih hq.2 hb.2]
+
+theorem readQuoted_clean {q : Char} {esc : Char → Option Char} {w : List Char}
+    (rest : List Char) (hq : q ∉ w) (hb : '\\' ∉ w) :
+    readQuoted q esc (w ++ q :: rest) = some (w, rest) := by
+  induction w with
+  | nil => simp [readQuoted]
+  | cons c w ih =>
+      simp only [List.mem_cons, not_or] at hq hb
+      simp [readQuoted, Ne.symm hq.1, Ne.symm hb.1, ih hq.2 hb.2]
+
+theorem readQuoted_noEscape {q : Char} : ∀ {cs w rest : List Char},
+    readQuoted q (fun _ => none) cs = some (w, rest) → q ∉ w ∧ '\\' ∉ w := by
+  intro cs
+  induction cs with
+  | nil => intro w rest h; simp [readQuoted] at h
+  | cons c cs ih =>
+      intro w rest h
+      simp only [readQuoted] at h
+      split at h
+      · simp only [Option.some.injEq, Prod.mk.injEq] at h; obtain ⟨rfl, -⟩ := h; simp
+      · split at h
+        · cases cs <;> simp [readEscape] at h
+        · rename_i hcq hcb
+          cases hr : readQuoted q (fun _ => none) cs with
+          | none => rw [hr] at h; cases h
+          | some p =>
+              obtain ⟨w', rest'⟩ := p
+              rw [hr] at h
+              simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at h
+              obtain ⟨rfl, -⟩ := h
+              obtain ⟨h1, h2⟩ := ih hr
+              simp only [List.mem_cons, not_or]
+              exact ⟨⟨Ne.symm hcq, h1⟩, ⟨Ne.symm hcb, h2⟩⟩
+
 theorem natText_isDigit (n : Nat) : ∀ c ∈ natText n, c.isDigit = true :=
   fun _ hc => Nat.isDigit_of_mem_toDigits (by decide) (by decide) hc
 
