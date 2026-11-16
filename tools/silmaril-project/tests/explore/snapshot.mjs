@@ -51,8 +51,13 @@ c.close()
 data = bytearray(open(bad, "rb").read())
 ps = int.from_bytes(data[16:18], "big")
 n = len(data) // ps
+# the schema's pages (sqlite_schema): a grown schema can have a page anywhere, even last
+c = sqlite3.connect(v1)
+schema = {r[0] for r in c.execute("select pageno from dbstat where name = 'sqlite_schema'")}
+c.close()
 for p in range(n // 3, n):            # leave the schema and the first tables, overwrite the rest
-    data[p * ps:(p + 1) * ps] = bytes([0x5a]) * ps
+    if p + 1 not in schema:           # dbstat numbers pages from 1
+        data[p * ps:(p + 1) * ps] = bytes([0x5a]) * ps
 open(bad, "wb").write(bytes(data))
 `, v1, v2, v3, bad]);
 
