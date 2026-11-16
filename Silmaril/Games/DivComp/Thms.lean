@@ -18,6 +18,8 @@ import Silmaril.Proofs.Games.DivComp.Laws
   divergence-free strategies can diverge (`exists_divFree_comp_div`, with
   the server/client pair of `Silmaril.Proofs.Games.DivComp.Example`).
 * Refinement is a precongruence (`comp_mono`).
+* Copycat never diverges (`div_id`), and its infinite plays are the infinite
+  traces of its finite plays (`mem_inf_id`).
 * Copycat is a two-sided unit (`id_comp`, `comp_id`). The finite parts are
   `Strategy.id_comp`/`Strategy.comp_id`; divergence and infinite plays are
   handled in `Silmaril.Proofs.Games.DivComp.Unit`.
@@ -119,6 +121,13 @@ theorem comp_mono_right (σ : DStrategy E F) {τ τ' : DStrategy F G} (h : τ �
   comp_mono le_rfl h
 
 /-! ## Units -/
+
+/-- Copycat never diverges. -/
+@[simp] theorem div_id (E : Sig.{u}) : (DStrategy.id E).div = ∅ := rfl
+
+/-- The infinite plays of copycat: every infinite trace of copycat plays. -/
+theorem mem_inf_id {I : Set (List (Move E E))} :
+    I ∈ (DStrategy.id E).inf ↔ IsInfPlay I ∧ I ⊆ (Strategy.id E).plays := Iff.rfl
 
 /-- Copycat is a left unit. -/
 theorem id_comp (δ : DStrategy E F) : (DStrategy.id E).comp δ = δ :=
