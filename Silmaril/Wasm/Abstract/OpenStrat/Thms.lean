@@ -34,16 +34,17 @@ open triple is a pending call, so `toDStrat` erases nothing and reads the triple
 * `openTriple_admissible`, `readback_openStrat_eq`, `toDStrat_eq_openStrat_iff`: the same for
   the exception-free `openTriple` (`wasmEvFun`, `wasmEvPend`, `wasmEvFunD`, `wasmEvInfN`).
 
-Proof (`Silmaril.Proofs.Wasm.Abstract.OpenStrat.SatShape`, `SatXP`, `Sat`): at the level of shapes, a
-predicate `P x c e` closed under the calls of every open behaviour (an import call is pending after
-its resolved prefix; an internal call passes its callee's pending calls to the caller) contains the
-call prefixes of `close`, of descent paths and chains, of `closeDLog` and of `closeInfL`, when the
-logs of the local divergence and the prefixes of the local streams are closed in the same way. For
-`PendLXP` these are descents (`reachLXP_of_descends`) and reaches: every logged call of a logged
-local divergence (`LogDivXP`) and of a productive run within a function (`InfLXP`) is reached after
-the calls before it. A prefix of a pending call is pending by induction on `PendLXP`, a descent's
-prefix being the prefix of a run cutting the reached call (`reachLXP_cut`). Natively the same,
-with `PendL`, `LogDiv`, `InfL`, and the reached call answered by an exception (`reachL_throw`).
+Proof (`Silmaril.Proofs.Wasm.Abstract.OpenStrat.SatShape`, `SatXP`, `Sat`): at the level of
+shapes, a predicate `P x c e` closed under the calls of every open behaviour (an import call is
+pending after its resolved prefix; an internal call passes its callee's pending calls to the
+caller) contains the call prefixes of `close`, of descent paths and chains, of `closeDLog` and of
+`closeInfL`, when the logs of the local divergence and the prefixes of the local streams are
+closed in the same way. For `PendLXP` these are descents (`reachLXP_of_descends`) and reaches:
+every logged call of a logged local divergence (`LogDivXP`) and of a productive run within a
+function (`InfLXP`) is reached after the calls before it. A prefix of a pending call is pending
+by induction on `PendLXP`, a descent's prefix being the prefix of a run cutting the reached call
+(`reachLXP_cut`). Natively the same, with `PendL`, `LogDiv`, `InfL`, and the reached call
+answered by an exception (`reachL_throw`).
 
 **The fixed-host strategies are host restrictions** (`StratHost.hostRestrict`):
 

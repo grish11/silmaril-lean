@@ -49,13 +49,13 @@ the equality of triples `linkT_coreTriple`. Clause by clause of `StratHost.linkT
 * `comp_hostD_natStratXP` (`InvOkXP tags`, moreover `HostSliceE tags`): with exceptions, through
   `natStratXP_eq_hostRestrict` and `coreStratXP_eq_natStratXP`.
 
-**Scope.** These link the host-*restricted* native triple. Linking the unrestricted open triple
-`guardT InvOk openTriple` (`comp_hostD_openStratXP`) differs only in the host-divergence clause
-of `linkT`: there the call prefixes are those of `StratObs.sat` of the open triple, forced also by
-behaviours whose later answers the host does not allow. Equating the two needs native
-saturation: every call prefix `(c, m)` of a native behaviour, pending call or stream is a native
-pending call (`wasmEvPend`, resp. `wasmEvPendXP`). Only its finite-behaviour case is proved, for
-the exception-aware closure (`HostClosingXP`, `close_pend`).
+**The open native strategies, unrestricted** (`comp_hostD_openTriple`,
+`comp_hostD_openTripleXP`): the same with the open triple at the checked questions
+(`guardT InvOk openTriple`, resp. `guardT (InvOkXP tags) openTripleXP`) in place of its host
+restriction. Linking differs only in the host-divergence clause of `linkT`, where the call
+prefixes are those of `StratObs.sat`; the open triples are admissible (`openTriple_admissible`,
+`openTripleXP_admissible`), so are their guarded restrictions (`StratHost.saturated_guardT`), and
+on saturated triples the two links agree (`StratHost.linkT_hostRestrict`).
 -/
 
 @[expose] public section
@@ -131,5 +131,26 @@ theorem comp_hostD_natStratXP {o : GrowOracle} {tags : List TagInst} (hT : HostT
       StratObs.toDStrat (closedCoreXP (profile o) host (InvOkXP tags)) :=
   ((coreStratXP_eq_natStratXP (o := o) hT hH hE).trans
     (natStratXP_eq_hostRestrict host _)) ▸ comp_hostD_coreStratXP (InvOkXP tags)
+
+/-- **Linking the open native strategy with its host is the closed Core semantics**, unrestricted
+(deterministic profile, checked typed invocations, a host with typed answers in the native host
+slice). -/
+theorem comp_hostD_openTriple {o : GrowOracle} (hT : HostTyped host) (hH : NativeHostSlice host) :
+    (hostD (coreHostRel host)).comp (StratObs.toDStrat (guardT InvOk openTriple)) =
+      StratObs.toDStrat (closedCore (profile o) host InvOk) := by
+  rw [comp_hostD_toDStrat, ← linkT_hostRestrict _ (saturated_guardT openTriple_admissible),
+    ← comp_hostD_toDStrat]
+  exact comp_hostD_natStrat hT hH
+
+/-- **Linking the open native strategy with exceptions with its host is the closed Core semantics
+with exceptions**, unrestricted (deterministic profile, `InvOkXP tags`, a host with typed answers
+in the host slices). -/
+theorem comp_hostD_openTripleXP {o : GrowOracle} {tags : List TagInst} (hT : HostTyped host)
+    (hH : NativeHostSlice host) (hE : HostSliceE tags host) :
+    (hostD (coreHostRel host)).comp (StratObs.toDStrat (guardT (InvOkXP tags) openTripleXP)) =
+      StratObs.toDStrat (closedCoreXP (profile o) host (InvOkXP tags)) := by
+  rw [comp_hostD_toDStrat, ← linkT_hostRestrict _ (saturated_guardT openTripleXP_admissible),
+    ← comp_hostD_toDStrat]
+  exact comp_hostD_natStratXP hT hH hE
 
 end Silmaril.Wasm.Abstract
