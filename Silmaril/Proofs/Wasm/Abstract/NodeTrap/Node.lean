@@ -81,9 +81,9 @@ theorem shotU_target (e : Nat) (t : Target) (a : Payload) : ShotU (t.prog e a) :
   cases t with
   | call r =>
     by_cases h : r < e
-    · rw [Target.prog, if_pos h]
+    · rw [Target.prog, ite_eq_left h]
       exact Or.inr ⟨_, _, rfl, fun n => ⟨n, rfl, id⟩⟩
-    · rw [Target.prog, if_neg h]
+    · rw [Target.prog, ite_eq_right h]
       exact Or.inl ⟨_, rfl⟩
   | const res => exact Or.inl ⟨_, rfl⟩
 

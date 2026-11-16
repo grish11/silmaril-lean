@@ -277,7 +277,7 @@ theorem calls_det {u : Store Nat} {f : Ii.F.Op} :
       simp [Silmaril.Wasm.Component.Reference.callMoves]
     have e := Silmaril.Wasm.Game.ScalarInstance.strategy_deterministic (mem_ask_of h)
       (mem_ask_of h') trivial
-    simp only [List.append_cancel_left_eq, Sum.inl.injEq, Ev.ask.injEq] at e
+    simp only [Sum.inl.injEq, Ev.ask.injEq] at e
     obtain ⟨rfl, rfl, rfl⟩ := impRel_det e hd hd' ra ra'
     rw [hm] at h h'
     obtain ⟨rfl, rfl, rfl⟩ := calls_det cs cs' dss₁ dss₁' _ w w' πa π₁ π₂ h h' hr₁ hr₁' rb rb'
