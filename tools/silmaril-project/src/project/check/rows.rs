@@ -94,6 +94,15 @@ struct RecordRows {
     rooms: Vec<Room>,
     machines: Vec<Machine>,
     bindings: Vec<MachineBinding>,
+    domains: Vec<LanguageDomain>,
+    measures: Vec<Measure>,
+    interpretations: Vec<LanguageInterpretation>,
+    languages: Vec<Language>,
+    operands: Vec<LanguageOperand>,
+    system_interpretations: Vec<ConsequenceInterpretation>,
+    systems: Vec<ConsequenceSystem>,
+    matrix_cells: Vec<ConsequenceMatrixCell>,
+    system_operands: Vec<ConsequenceOperand>,
 }
 
 fn record_rows(
@@ -206,6 +215,75 @@ fn record_rows(
                 rows.bindings.push(MachineBinding {
                     origin: org,
                     ..x.clone()
+                });
+            }
+            Record::LanguageDomain(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.domains.push(LanguageDomain {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::Measure(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.measures.push(Measure {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::LanguageInterpretation(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.interpretations.push(LanguageInterpretation {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::Language(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                for (pos, a) in x.args.iter().enumerate() {
+                    rows.operands.push(LanguageOperand {
+                        language: x.name.clone(),
+                        pos: pos as i64,
+                        operand: a.clone(),
+                    });
+                }
+                rows.languages.push(Language {
+                    sid,
+                    origin: org,
+                    identity_hash: identity_hash(&x.identity),
+                    ..(**x).clone()
+                });
+            }
+            Record::ConsequenceInterpretation(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.system_interpretations.push(ConsequenceInterpretation {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::ConsequenceMatrix(x) => {
+                rows.matrix_cells.push(ConsequenceMatrixCell {
+                    origin: org,
+                    ..(**x).clone()
+                });
+            }
+            Record::ConsequenceSystem(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                for (pos, a) in x.args.iter().enumerate() {
+                    rows.system_operands.push(ConsequenceOperand {
+                        system: x.name.clone(),
+                        pos: pos as i64,
+                        operand: a.clone(),
+                    });
+                }
+                rows.systems.push(ConsequenceSystem {
+                    sid,
+                    origin: org,
+                    ..(**x).clone()
                 });
             }
             _ => {}
@@ -457,6 +535,17 @@ pub(super) fn run(
     db.push(&recs.rooms);
     db.push(&recs.machines);
     db.push(&recs.bindings);
+    db.push(&recs.domains);
+    db.push(&recs.measures);
+    db.push(&recs.interpretations);
+    db.push(&recs.languages);
+    db.push(&recs.operands);
+    db.push(&shape_role_rows());
+    db.push(&recs.system_interpretations);
+    db.push(&recs.systems);
+    db.push(&recs.system_operands);
+    db.push(&consequence_role_rows());
+    db.push(&recs.matrix_cells);
     db.push(&nodes.problems);
     db.push(&nodes.args);
     db.push(&nodes.inputs);

@@ -280,6 +280,15 @@ theorem ready_funcs {P : Profile} {m : BModule} (hip : InNativeProfile m) {s : S
   rw [(okAdmins_steps hst hcode hFok).2]
   exact hmem
 
+/-- A closed native-profile instantiation leaves a store of native functions, so the
+store-level adequacy results (`Silmaril.Wasm.Interp`) apply to it. Memories are
+allowed. -/
+theorem ready_nativeFuncsOk {P : Profile} {m : BModule} (hip : InNativeProfile m) {s : Store H}
+    {mi : ModuleInst} (h : Ready P closedHost ({} : Store H) m.lower [] s mi) :
+    NativeFuncsOk s.funcs := fun fi hfi =>
+  let ⟨fn, _, _, h₁, _, h₃⟩ := ready_funcs hip h fi hfi
+  ⟨fn, h₁, h₃⟩
+
 /-! ## Backward simulation from the forward ones
 
 `BwdSim` needs no simulation of its own. If the native interpreter terminates at

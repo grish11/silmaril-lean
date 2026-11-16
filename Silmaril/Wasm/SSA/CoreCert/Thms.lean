@@ -352,9 +352,46 @@ theorem exCoreCert_export :
     ((optimizeFuncExport exCoreCert 0).map fun bf => bf.body.length) = some 3 := by
   decide +kernel
 
+/-- **The checked optimiser's call sites**: both allocated stores hold a
+recognised, native, structured fragment function at `g` with the source type,
+typed invocations transfer, and the two fragment functions have the same runs. -/
+theorem coreChecked_sites {m : BModule} {g : Nat} {bf' : BFunc}
+    (h : optimizeFuncCoreChecked m g = some bf') :
+    ∃ (bf : BFunc) (ft : FuncType) (f f' : FragFunc) (s s' : Store Empty),
+      allocStore? m = some s ∧ allocStore? (m.setFunc g bf') = some s' ∧
+      (StoreOk s ∧ NativeFuncsOk s.funcs ∧ Silmaril.Wasm.Interp.StoreChk s.funcs ∧
+        ∃ fi : FuncInst Empty, s.funcs[g]? = some fi ∧ fi.code = .wasm (coreFunc bf) ∧
+          Validation.DefType.funcType? fi.type =
+            some (ft.params.map Validation.liftVal, ft.results.map Validation.liftVal)) ∧
+      (StoreOk s' ∧ NativeFuncsOk s'.funcs ∧ Silmaril.Wasm.Interp.StoreChk s'.funcs ∧
+        ∃ fi : FuncInst Empty, s'.funcs[g]? = some fi ∧ fi.code = .wasm (coreFunc bf') ∧
+          Validation.DefType.funcType? fi.type =
+            some (ft.params.map Validation.liftVal, ft.results.map Validation.liftVal)) ∧
+      ofBFunc? ft bf = some f ∧ f.native = true ∧ BExpr.structuredList bf.body = true ∧
+      ofBFunc? ft bf' = some f' ∧ f'.native = true ∧ BExpr.structuredList bf'.body = true ∧
+      (∀ vs, InvokeOk s g vs → InvokeOk s' g vs) ∧
+      ∀ args o, f.Run args o ↔ f'.Run args o :=
+  Silmaril.Proofs.Wasm.SSA.CoreCert.coreChecked_sites h
+
 end Silmaril.Wasm.SSA
 
 /-! ## Runs of store-free leaf code -/
+
+namespace Silmaril.Wasm.SSA
+
+open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core
+
+/-- **A fragment function's native run ends in the store it started from**:
+fragment code (integers, locals, control) writes no memory, global or table. -/
+theorem invokeRun_store {H : Type} {s : Store H} {a : Nat} {fi : FuncInst H} {ft : FuncType}
+    {bf : BFunc} {f : FragFunc} {ps rs : List Validation.CValType} (hfi : s.funcs[a]? = some fi)
+    (hcode : fi.code = .wasm (coreFunc bf)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hf : ofBFunc? ft bf = some f) (hn : f.native = true) (hst : BExpr.structuredList bf.body = true)
+    {args : List WVal} {fuel : Nat} {s' : Store H} {fl : Flow}
+    (h : invokeRun fuel s a (args.map WVal.toVal) = some (s', fl)) : s' = s :=
+  Silmaril.Proofs.Wasm.SSA.CoreCert.invokeRun_store hfi hcode hty hf hn hst h
+
+end Silmaril.Wasm.SSA
 
 namespace Silmaril.Wasm.SSA.CoreCert
 

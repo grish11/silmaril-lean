@@ -6,10 +6,57 @@
 //! sql.js-httpvfs (HTTP Range requests, one SQLite page at a time) when the server supports
 //! Range, and downloads it whole into sql.js otherwise. Over `file://`, where browsers block
 //! `fetch`, the file is chosen with a file picker or dropped onto the page.
+//!
+//! The page's script is bundled from [`SCRIPTS`] (files in `explore/`), in order, into one
+//! `<script>`: the shared shell (loading, routing, components) first, then one file per group of
+//! views, each registering its views with `registerView`, then `main.js`, which starts the page.
+//! A new view is a new file in `explore/views/` and one line in [`SCRIPTS`] (before `main.js`).
 
 use std::path::{Component, Path};
 
 const TEMPLATE: &str = include_str!("explore.html");
+
+/// One file of the page's script, by its path in `explore/`.
+macro_rules! script {
+    ($path:literal) => {
+        ($path, include_str!(concat!("explore/", $path)))
+    };
+}
+
+/// The page's script, in order: name (for messages and tests) and text.
+pub const SCRIPTS: &[(&str, &str)] = &[
+    script!("core.js"),
+    script!("ui.js"),
+    script!("provenance.js"),
+    script!("table.js"),
+    script!("db.js"),
+    script!("router.js"),
+    script!("graphs.js"),
+    script!("views/summary.js"),
+    script!("views/graph.js"),
+    script!("views/lists.js"),
+    script!("views/details.js"),
+    script!("views/artifact.js"),
+    script!("views/machine.js"),
+    script!("views/wasm.js"),
+    script!("views/languages.js"),
+    script!("views/systems.js"),
+    script!("views/sql.js"),
+    script!("main.js"),
+];
+
+/// The bundled script: every file of [`SCRIPTS`], each after a comment naming it.
+fn script() -> String {
+    let mut out = String::new();
+    for (name, text) in SCRIPTS {
+        out.push_str(&format!("// ===== explore/{name} =====\n"));
+        out.push_str(text);
+        if !text.ends_with('\n') {
+            out.push('\n');
+        }
+    }
+    out
+}
 
 /// The service worker written next to the page (`explore-sw.js`): it keeps the database pages
 /// read lazily across reloads, keyed by the version tag in their URLs.
@@ -45,17 +92,60 @@ pub struct DbMeta {
     pub sha256: String,
 }
 
+/// Where the project's Lean sources are published, for links from problems and answers to the
+/// declarations' modules: a GitHub repository, a commit (links are pinned to it), and the file of
+/// each module of the database that exists under the project's source directories.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceMeta {
+    pub repo: String,
+    pub rev: String,
+    pub modules: std::collections::BTreeMap<String, String>,
+}
+
+/// Whether `repo` is a GitHub repository URL the page may link to and read raw files from.
+pub fn source_repo_ok(repo: &str) -> bool {
+    let Some(rest) = repo.strip_prefix("https://github.com/") else {
+        return false;
+    };
+    let seg = |s: &str| {
+        !s.is_empty()
+            && s != "."
+            && s != ".."
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
+    };
+    matches!(rest.split('/').collect::<Vec<_>>()[..], [o, r] if seg(o) && seg(r))
+}
+
+/// Whether `rev` is a commit id (7 to 40 hex digits): links are pinned to one commit.
+pub fn source_rev_ok(rev: &str) -> bool {
+    (7..=40).contains(&rev.len()) && rev.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 /// The page titled `title`, which tries `db_urls` (relative to the page) in order; `meta`
-/// describes the first of them, when it was readable at generation time.
-pub fn page(title: &str, db_urls: &[String], meta: Option<&DbMeta>) -> String {
+/// describes the first of them, when it was readable at generation time; `source`, when given,
+/// lets the page link declarations to their Lean sources.
+pub fn page(
+    title: &str,
+    db_urls: &[String],
+    meta: Option<&DbMeta>,
+    source: Option<&SourceMeta>,
+) -> String {
+    let source = source.map_or(
+        serde_json::Value::Null,
+        |s| serde_json::json!({ "repo": s.repo, "rev": s.rev, "modules": s.modules }),
+    );
     let meta = meta.map_or(
         serde_json::Value::Null,
         |m| serde_json::json!({ "url": db_urls.first(), "size": m.size, "sha256": m.sha256 }),
     );
+    // The script goes in last, so that no placeholder text inside it is replaced.
     TEMPLATE
         .replace("__TITLE__", &html_escape(title))
         .replace("__DB_URLS__", &script_json(&serde_json::json!(db_urls)))
         .replace("__DB_META__", &script_json(&meta))
+        .replace("__SOURCE_META__", &script_json(&source))
+        .replace("__EXPLORE_SCRIPT__", &script())
 }
 
 /// `target` relative to the directory `from`, when both are relative paths without `..`.
@@ -95,8 +185,9 @@ mod tests {
     /// Every table and view the database has is documented on the page's Schema tab.
     #[test]
     fn every_table_has_a_note() {
-        let start = TEMPLATE.find("const TABLE_DOCS = {").expect("TABLE_DOCS");
-        let docs = &TEMPLATE[start..start + TEMPLATE[start..].find("\n};").expect("end")];
+        let all = script();
+        let start = all.find("const TABLE_DOCS = {").expect("TABLE_DOCS");
+        let docs = &all[start..start + all[start..].find("\n};").expect("end")];
         let mut names: Vec<&str> = crate::project::schema::tables()
             .iter()
             .map(|t| t.name)
@@ -113,6 +204,80 @@ mod tests {
         }
     }
 
+    /// The bundled script can sit in one `<script>` element: no file closes it or holds a
+    /// placeholder, `main.js` comes last, and every view id is registered once.
+    #[test]
+    fn script_bundles() {
+        for (name, text) in SCRIPTS {
+            let lower = text.to_ascii_lowercase();
+            assert!(!lower.contains("</script"), "{name} contains </script");
+            assert!(!lower.contains("<!--"), "{name} contains <!--");
+            for p in [
+                "__TITLE__",
+                "__DB_URLS__",
+                "__DB_META__",
+                "__SOURCE_META__",
+                "__EXPLORE_SCRIPT__",
+            ] {
+                assert!(!text.contains(p), "{name} contains {p}");
+            }
+        }
+        assert_eq!(SCRIPTS.last().map(|s| s.0), Some("main.js"));
+        let all = script();
+        let mut ids: Vec<&str> = all
+            .match_indices("registerView({ id: \"")
+            .map(|(i, m)| {
+                let rest = &all[i + m.len()..];
+                &rest[..rest.find('"').expect("id ends")]
+            })
+            .collect();
+        let n = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), n, "a view id is registered twice");
+        assert!(ids.contains(&"summary"), "the default view");
+        let p = page("t", &["project.sqlite".into()], None, None);
+        assert!(p.contains("// ===== explore/main.js ====="));
+        assert!(!p.contains("__EXPLORE_SCRIPT__"));
+    }
+
+    /// The service worker caches a page only for the version the page checks every read
+    /// against: both compute it with the same `versionOf`.
+    #[test]
+    fn one_version_function() {
+        let def = |text: &str| {
+            let start = text.find("function versionOf(").expect("versionOf");
+            text[start..start + text[start..].find("\n}").expect("end")].to_string()
+        };
+        let db = SCRIPTS.iter().find(|s| s.0 == "db.js").expect("db.js").1;
+        assert_eq!(def(db), def(SERVICE_WORKER));
+    }
+
+    #[test]
+    fn source_meta() {
+        assert!(source_repo_ok("https://github.com/hiloopai/silmaril-lean"));
+        for bad in [
+            "http://github.com/a/b",
+            "https://github.com/a",
+            "https://github.com/a/b/c",
+            "https://github.com/../b",
+            "https://github.com/a/b\"",
+            "https://example.com/a/b",
+        ] {
+            assert!(!source_repo_ok(bad), "{bad}");
+        }
+        assert!(source_rev_ok("dc6b6e6a"));
+        assert!(!source_rev_ok("main") && !source_rev_ok("abc"));
+        let s = SourceMeta {
+            repo: "https://github.com/a/b".into(),
+            rev: "0123456789abcdef".into(),
+            modules: [("M.N".to_string(), "x/</script>.lean".to_string())].into(),
+        };
+        let p = page("t", &[], None, Some(&s));
+        assert!(p.contains(r#""rev":"0123456789abcdef""#));
+        assert!(!p.contains("x/</script>") && !p.contains("__SOURCE_META__"));
+    }
+
     #[test]
     fn page_escapes_title_and_urls() {
         let p = page(
@@ -122,6 +287,7 @@ mod tests {
                 size: 3,
                 sha256: "ab".into(),
             }),
+            None,
         );
         assert!(p.contains(r#""size":3"#));
         assert!(p.contains("<title>a&lt;b</title>"));

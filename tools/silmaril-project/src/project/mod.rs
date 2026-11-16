@@ -112,6 +112,13 @@ pub enum Command {
         /// The page
         #[arg(long, default_value = ".lake/silmaril/explore.html")]
         out: PathBuf,
+        /// The GitHub repository of the project's sources (https://github.com/<owner>/<repo>):
+        /// problems and answers link to their modules there, at `--source-rev`
+        #[arg(long, requires = "source_rev")]
+        source_url: Option<String>,
+        /// The commit the links are pinned to (7 to 40 hex digits)
+        #[arg(long, requires = "source_url")]
+        source_rev: Option<String>,
     },
     /// List the findings (classified refutations) of the database `sqlite` wrote
     Findings {
@@ -301,6 +308,49 @@ fn source_dirs(dir: &Path) -> Vec<PathBuf> {
         }
     }
     out
+}
+
+/// The Lean file of each module the database names (problems, answers, objects), relative to the
+/// project directory with `/` separators, when it exists under the project's source directories.
+fn module_files(dir: &Path, db: &Path) -> Result<std::collections::BTreeMap<String, String>> {
+    let mut out = std::collections::BTreeMap::new();
+    if !db.exists() {
+        return Ok(out);
+    }
+    let conn =
+        rusqlite::Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .into_diagnostic()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT module FROM problems UNION SELECT module FROM answers \
+             UNION SELECT module FROM objects WHERE module IS NOT NULL",
+        )
+        .into_diagnostic()?;
+    let modules = stmt
+        .query_map([], |r| r.get::<_, Option<String>>(0))
+        .into_diagnostic()?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .into_diagnostic()?;
+    let dirs = source_dirs(dir);
+    for m in modules.into_iter().flatten() {
+        if !m
+            .split('.')
+            .all(|s| !s.is_empty() && !s.contains(['/', '\\']))
+        {
+            continue;
+        }
+        let rel = format!("{}.lean", m.replace('.', "/"));
+        if let Some(path) = dirs.iter().map(|d| d.join(&rel)).find(|p| p.is_file())
+            && let Ok(r) = path.strip_prefix(dir)
+        {
+            let parts: Vec<String> = r
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .collect();
+            out.insert(m, parts.join("/"));
+        }
+    }
+    Ok(out)
 }
 
 fn read_manifest(dir: &Path) -> std::result::Result<Option<Manifest>, String> {
@@ -1481,6 +1531,8 @@ pub fn run(command: Command) -> Result<()> {
             dir: DirArg { dir },
             db,
             out,
+            source_url,
+            source_rev,
         } => {
             let p = Project::load(&dir)?;
             let out_dir = out.parent().unwrap_or(Path::new(""));
@@ -1496,10 +1548,24 @@ pub fn run(command: Command) -> Result<()> {
                 size: bytes.len() as u64,
                 sha256: hash::Digests::of(&bytes).sha256,
             });
+            let source = match (source_url, source_rev) {
+                (Some(repo), Some(rev)) => {
+                    if !explore::source_repo_ok(&repo) {
+                        bail!("--source-url must be https://github.com/<owner>/<repo>, not {repo}");
+                    }
+                    if !explore::source_rev_ok(&rev) {
+                        bail!("--source-rev must be a commit id (7 to 40 hex digits), not {rev}");
+                    }
+                    let modules = module_files(&dir, &dir.join(&db))?;
+                    Some(explore::SourceMeta { repo, rev, modules })
+                }
+                _ => None,
+            };
             let page = explore::page(
                 &format!("{} · silmaril project", p.name),
                 &urls,
                 meta.as_ref(),
+                source.as_ref(),
             );
             let shown = shown(&dir, &out);
             let out = dir.join(out);
@@ -1642,6 +1708,24 @@ mod tests {
             .unwrap();
         assert_eq!(ps, 1024);
         assert!(sql::write_db(&text, &tuned, Some(1000)).is_err());
+        // A failed rebuild leaves the old file in place and no temporary file behind, and a
+        // rebuild replaces the file whole (renamed over it): a reader of the old file keeps it.
+        let ps: i64 = rusqlite::Connection::open(&tuned)
+            .unwrap()
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(ps, 1024);
+        sql::write_db(&text, &tuned, Some(2048)).unwrap();
+        let old: i64 = conn
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(old, 1024);
+        let mut names: Vec<String> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["x.sqlite", "y.sqlite"]);
     }
 
     #[test]

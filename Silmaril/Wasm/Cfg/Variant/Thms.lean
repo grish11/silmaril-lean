@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Cfg.Variant.Defs
+public import Silmaril.Wasm.Cfg.BlockTree.Thms
 
 @[expose] public section
 
@@ -173,5 +174,49 @@ theorem edge_iff_ae (body : Expr) (b : BlockId) (t : Target) :
     · exact ⟨s, hs, (succOf_trap_iff body b s).2 hu⟩
     · exact ⟨s, hs, (succOf_raise_iff body b s).2 hu⟩
     · exact ⟨s, hs, by simp [succOf, hterm]; exact Or.inr (by simpa using hm)⟩
+
+/-! ## Maximal blocks -/
+
+/-- If `c` merges into `b`, then `b`'s only AE edge goes to `c`. -/
+theorem canMerge_succ {body : Expr} {b c : BlockId} (h : canMerge body b c = true) (t : Target) :
+    EdgeAE body b t ↔ t = .block c := by
+  unfold canMerge at h
+  split at h
+  · rename_i s hs
+    simp only [Bool.and_eq_true, beq_iff_eq] at h
+    constructor
+    · rintro ⟨s', hs', ht⟩
+      rw [hs] at hs'; cases hs'
+      rw [h.1.1] at ht; simpa using ht
+    · rintro rfl; exact ⟨s, hs, by rw [h.1.1]; simp⟩
+  · cases h
+
+/-- If `c` merges into `b`, then no other block has an AE or handler edge into `c`. -/
+theorem canMerge_pred {body : Expr} {b c : BlockId} (h : canMerge body b c = true)
+    {b' : BlockId} {s' : Segment} (hs' : lookup body b' = some s')
+    (hin : .block c ∈ succAE body b' s' ∨ .block c ∈ handlerSucc body b' s') : b' = b := by
+  unfold canMerge at h
+  split at h
+  · simp only [Bool.and_eq_true] at h
+    have hall := h.2
+    unfold onlyPred at hall
+    rw [List.all_eq_true] at hall
+    have := hall (b', s') ((mem_blocks body b' s').2 hs')
+    simp only [Bool.or_eq_true, beq_iff_eq, Bool.not_eq_true'] at this
+    rcases this with h1 | h1
+    · exact h1
+    · exfalso
+      have : (succAE body b' s' ++ handlerSucc body b' s').contains (Target.block c) = true := by
+        simpa [List.contains_iff_mem] using hin
+      rw [this] at h1; cases h1
+  · cases h
+
+/-- If `c` merges into `b`, then `c` is not the entry. -/
+theorem canMerge_not_entry {body : Expr} {b c : BlockId} (h : canMerge body b c = true) :
+    cfgEntry body ≠ .block c := by
+  unfold canMerge at h
+  split at h
+  · simp only [Bool.and_eq_true, bne_iff_ne, ne_eq] at h; exact h.1.2
+  · cases h
 
 end Silmaril.Wasm.Cfg

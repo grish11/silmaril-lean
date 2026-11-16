@@ -27,6 +27,11 @@ of import calls is not represented; such runs are out of scope for this layer.
 Import answers come from the environment: they are inputs. Statements about a
 fixed environment use a `Host`, which answers each call.
 
+## Sequencing, identity and copairing
+
+`seq f g` runs `f`, then `g` on its result; `pure` returns its argument;
+`case g h` runs `g` on `inl` arguments and `h` on `inr` ones.
+
 ## Observations and equivalence
 
 An observation `κ` maps a call behaviour to whatever an observer sees.
@@ -150,13 +155,20 @@ def obsForgetState : CallBeh E S B → List (Call E) × REnd B := fun x => (x.1,
 /-- Observe the end only, forgetting import calls. -/
 def obsIO : CallBeh E S B → End S B := fun x => x.2
 
-/-! ## Sequencing -/
+/-! ## Sequencing, identity and copairing -/
 
 /-- Run `f`, then, if it returned, run `g` on its result in the state it left. -/
 def seq (f : AFun E S A B) (g : AFun E S B C) : AFun E S A C := fun s a =>
   {x | (∃ c, (c, End.trap) ∈ f s a ∧ x = (c, End.trap)) ∨
        (∃ c, (c, End.div) ∈ f s a ∧ x = (c, End.div)) ∨
        ∃ c₁ b s₁ c₂ e, (c₁, End.ret b s₁) ∈ f s a ∧ (c₂, e) ∈ g s₁ b ∧ x = (c₁ ++ c₂, e)}
+
+/-- The identity: return the argument in the same state, with no import call. -/
+def pure : AFun E S A A := fun s a => {([], End.ret a s)}
+
+/-- **Copairing** (case analysis): run `g` on an `inl` argument and `h` on an `inr` one. -/
+def case (g : AFun E S A C) (h : AFun E S B C) : AFun E S (A ⊕ B) C :=
+  fun s => Sum.elim (g s) (h s)
 
 /-! ## Determinism -/
 

@@ -7,10 +7,11 @@ describes the database itself (`sil project sqlite`).
 ```
 sil project sqlite [--httpvfs [--page-size 4096]]   # writes .lake/silmaril/project.sql and .lake/silmaril/project.sqlite (with its indexes)
 sil project explore [--dir .] [--db .lake/silmaril/project.sqlite] [--out .lake/silmaril/explore.html]
+                    [--source-url https://github.com/<owner>/<repo> --source-rev <commit>]
 ```
 
 The page holds no data. Project databases can grow large, so the page never embeds the database
-or its SQL text; it opens a separate `.sqlite` file. The page is about 46 kB.
+or its SQL text; it opens a separate `.sqlite` file. The page is about 160 kB.
 
 ## How the page finds the database
 
@@ -26,8 +27,46 @@ Over `file://`, browsers block a page from reading other files, so only the four
 The page says so and shows where `sil project sqlite` wrote the database. A chosen file is read
 into memory in the browser; nothing is uploaded.
 
-The header shows the source, how it is read (lazily, whole file, or local file), the schema
-version and how many bytes have been read so far.
+The header shows how many bytes have been read so far and a compact source button (the file name,
+`lazy`, `whole file` or `local file`, and `!` when something needs attention). The button opens a
+dialog with the source, how it is read, the schema version and the transfer counts, and with a file
+picker and a URL field to open another database.
+
+## Graph, evidence and sources
+
+**The graph** does not draw every problem by default. Below each parent, leaves (problems with no
+children of their own) are stacked by status code: `16 × OPN` is one node. Clicking a stack lists
+its problems in the side panel, and **Expand** draws them one by one (for that parent). **every
+problem** draws all of them. Problems that need attention (an unexplained failure, an unmet
+expectation), the focus and the root are never stacked. The count line says how many problems
+the neighbourhood has, how many are drawn and how many are in stacks. Nodes are neutral, and are
+marked red for an unexplained failure, dashed for an unmet expectation and grey for deprecated.
+
+**Evidence.** A problem's page says what its summary status rests on. These are the statuses with
+that code and how each was obtained: an answer or a solving theorem (with its axioms and tier), a
+refutation, an instance, a decomposition. An open problem says that nothing is recorded.
+
+**Sources.** With `--source-url` (a GitHub repository) and `--source-rev` (a commit, 7 to 40 hex
+digits), `sil project explore` writes into the page the file of each module the database names
+that exists under the project's source directories. Problems and answers then link to their
+modules at that commit. **view** fetches the file from `raw.githubusercontent.com` (at most 1 MiB)
+and shows the lines where a text search finds the declaration, escaped. The dialog says that the
+line was found by a text search. That the declaration was kernel-checked is what the database's
+tier says, not the source view. `make pages PAGES_SOURCE_REV=<commit>` passes the repository and
+that commit (the Pages workflow passes the pushed commit). The commit is never guessed from a
+checkout, whose HEAD may be one GitHub does not have.
+Without these options the page has no source links.
+
+**Bytes.** An artifact of the local package has a **view** button. It reads at most 64 KiB of the
+file from the repository at that commit, shows it as text (when it is UTF-8) or hex, and, when it
+read the whole file, says whether its SHA-256 matches the registry's. A Wasm module or component
+page shows its WAT highlighted, and its bytes. Viewers are registered (`Explorer.registerViewer`),
+so a view for another format is one more entry.
+
+`tests/explore/provenance.mjs` checks these in Chromium on a `make pages` output: stacks and their
+counts, expanding, "every problem", that no problem needing attention is stacked, evidence links
+pinned to the commit, the source view, the byte viewer with its SHA-256 check, and the WAT
+highlighting.
 
 ## The published explorer
 
@@ -55,24 +94,30 @@ npx http-server -p 8080 .lake/silmaril   # then open http://localhost:8080/explo
 Serve the project directory and open the page, for example:
 
 ```
-npx http-server -p 8080 .lake/silmaril   # in the project directory; supports Range requests
+npx http-server -p 8080 .lake/silmaril   # in the project directory
 # then open http://localhost:8080/explore.html
 ```
 
-`python3 -m http.server` works but does not support Range requests, so the page downloads the
-whole database (see below).
+`http-server` supports Range requests but sends a weak ETag, and `python3 -m http.server` does
+not support Range requests, so with either the page reads the whole database (see below).
+GitHub Pages, and `tests/explore/pages_server.py`, allow lazy reads.
 
 ### Lazy loading (HTTP Range)
 
 The page first requests the 100-byte SQLite header with `Range: bytes=0-99` (never from the cache).
 
-- **206 Partial Content, identity bytes, `Content-Range: bytes 0-99/<length>`:** the page opens
+- **206 Partial Content, identity bytes, `Content-Range: bytes 0-99/<length>` and a strong
+  `ETag`:** the page opens
   the database with [sql.js-httpvfs](https://github.com/phiresky/sql.js-httpvfs). SQLite runs in
   a web worker and reads one page at a time with HTTP Range requests, so the browser downloads
   only the pages that the queries touch. The chunk size is the database's page size (read from
   the header).
-- **Anything else** (200, a compressed body, no length): the page downloads the whole file and
-  opens it in plain sql.js. `?load=full` forces this path. When the page was generated next to
+- **Anything else** (200, a compressed body, no length, no ETag or only a weak one or only
+  `Last-Modified`): the page downloads the whole file in one response and opens it in plain sql.js.
+  One response is one file, so this is one snapshot whatever the server's validators. A file
+  larger than 256 MB is not read whole by default: the page says why lazy reading is not possible
+  and offers **Read it whole anyway** (and the file picker). The header says why it read the file
+  whole. `?load=full` forces this path. When the page was generated next to
   this database, a whole download is checked against the SHA-256 written into the page
   (`SHA-256 verified` in the header).
 
@@ -82,8 +127,7 @@ the library's own length check fail ("Length of the file not known"), while it a
 requests with the identity bytes and the true length in `Content-Range`. The page passes that
 length to sql.js-httpvfs (its single-chunk mode).
 
-**Versions and caching.** Every range URL carries a version tag, `?v=<strong ETag or
-Last-Modified>-<length>&part=0`, taken from the probe. Pages of two versions of the database
+**Versions and caching.** Every range URL carries a version tag, `?v=<strong ETag>-<length>&part=0`, taken from the probe. Pages of two versions of the database
 therefore never mix, whatever the HTTP caches hold. A service worker, `explore-sw.js`, which
 `sil project explore` writes next to the page, keeps the pages read across reloads in the browser's
 Cache Storage, keyed by path, version and range. When a new version of a file is read, it drops the
@@ -95,6 +139,38 @@ Chromium against `pages_server.py`, a server that compresses like GitHub Pages:
 - a reload transfers nothing;
 - a new version is fetched again under a new tag;
 - `?load=full` downloads the whole file and verifies its hash.
+
+### One snapshot per open database
+
+Every range read is checked in the worker, before SQLite sees its bytes: it must be a `206` of
+exactly the requested bytes, of a file with the length and the strong ETag that the database was
+opened at. Lazy reads need a strong ETag: a `Last-Modified` date has a one-second resolution, and a
+weak ETag does not promise the same bytes, so a file replaced by another of the same size within a
+second would pass for the same version. Without a strong ETag the page reads the whole file instead
+(above). The first read that fails the check fails its query
+(it is not retried), the source button is marked `!`, and the view says that the database changed
+and offers to open the new version or another file. A query on a database that has not changed but
+is damaged reports SQLite's own error (for example "database disk image is malformed"), saying that
+the version is unchanged so the file itself is damaged. Before this check, a database rebuilt while
+a page had it open lazily gave "database disk image is malformed" on later graph or problem
+views: the page read pages of the new file under the old version's URL.
+
+`sil project sqlite` builds the database in a temporary file next to it and renames it into place,
+so a server never serves a half-written database. The service worker caches a page only for the
+version its URL names, and keeps its validators so cached pages are checked like fresh ones.
+`tests/explore/snapshot.mjs` replaces the served file while a page reads it. It covers a longer
+file during graph navigation, a file of the same length, a replacement during a query, recovery
+through a chosen file, and a damaged but unchanged file. It also checks servers with a weak ETag,
+with only `Last-Modified` and with no validator (`pages_server.py --validators`). For each, the page
+reads the whole file, and a same-size replacement with the same mtime leaves the opened snapshot
+intact. Run against the earlier lazy reading, that case showed the new file's titles for all 12
+problems not yet read. It also checks the size limit and the explicit **Read it whole anyway**.
+
+`tools/silmaril-project/tests/explore/shell.mjs` checks the shared shell in Chromium: the
+navigation built from the registered views, the source button and its dialog (keyboard, Escape,
+focus), neutral status badges in one status column, rapid graph navigation (the last route wins)
+and repeated switches between a local file and the lazy URL while views load: `node shell.mjs
+_site [screenshots-dir]`.
 
 `tools/silmaril-project/tests/explore/wasm_cfg.mjs` checks the Wasm function pages in Chromium
 on a small and a large block CFG: the legend's edge counts against the page data, may-edges kept
@@ -217,8 +293,115 @@ must have the page's origin.
 
 cdnjs does not carry sql.js-httpvfs. Its jsdelivr files are byte-identical to the npm tarball.
 
-The template is `tools/silmaril-project/src/project/explore.html`. `explore.rs` fills in the title and the
-database URLs.
+The template is `tools/silmaril-project/src/project/explore.html` (the shell and its styles).
+`explore.rs` fills in the title and the database URLs, and bundles the script from the files of
+`explore/` in the order of its `SCRIPTS` list into one `<script>`:
+
+| file | what it holds |
+|---|---|
+| `core.js` | constants, page state, small helpers |
+| `ui.js` | shared components: links, status badges, the dialog, the byte viewer and WAT highlighting |
+| `table.js` | tables and definition lists that link the names they show |
+| `db.js` | opening a database (lazy, whole, local file) and the source button and dialog |
+| `router.js` | the view registry, routing and the per-route context |
+| `graphs.js` | dominators and dominator trees shared by graph views |
+| `views/*.js` | the views, each registering itself |
+| `main.js` | the `Explorer` API object, and the start |
+
+### Views
+
+A view is a route `#/<id>/<arg>`. A file in `explore/views/` registers its views, and one line in
+`SCRIPTS` (`script!("views/<file>.js")`, before `main.js`) adds the file to the page:
+
+```js
+Explorer.registerView({
+  id: "languages",          // the route: #/languages/<arg>; [a-z][a-z0-9-]*, unique
+  title: "Languages",       // shown in the navigation
+  nav: 75,                  // position in the navigation; omit for detail views
+  tab: "languages",         // the navigation entry to highlight (default: id)
+  async render(arg, ctx) {  // HTML, or { html, init, dispose }
+    const rows = await ctx.q("SELECT name FROM problems ORDER BY name LIMIT 20");
+    return { html: await Explorer.ui.table(rows), init() { /* wire controls */ } };
+  },
+});
+```
+
+`ctx` belongs to one rendering of one route over one database: `ctx.q`, `ctx.tq` (empty when a
+table is missing), `ctx.first` and `ctx.exec` query it, `ctx.alive()` says whether it is still
+current, and `ctx.onDispose(fn)` releases resources when the route changes. Once the reader has
+moved on or opened another database, every query of the old rendering rejects (and the router
+ignores it), so a slow query can never write into the current page.
+
+`Explorer.ui` holds the shared components: `esc`, `href`, `link`, `table(rows, cols, opts)`
+(opts: `hints`, `render` for computed columns, `badges`, `nowrap`, `label`, `limit`), `tableOf`,
+`dl`, `statusBadge(nameOrStatus)` and `statusInfo`, `dialog({ title, body, actions })` (a modal
+`<dialog>`), `viewer(bytes, { name, total, lang, limit })` (bounded text/hex/WAT views;
+`Explorer.registerViewer` adds views), `highlightWat` and `hexDump`. Everything they show is
+escaped.
+
+Status badges show a problem's summary as a three-character code (THM, OPN, SAT, UNS, CSA, UNK, and
+NOC for the stored code `contingent`) in a neutral style. A closed proposition (arity 0) also
+shows its truth value: `THM·true`, `UNS·false`. SAT counts as true and CSA as false there; there is
+no CTH or TAU relabelling. A problem may have an expected status (`problems.expect`). The badge
+compares it as `sil project check` does (W1): the expectation is met when it is the summary, or
+one of the problem's established statuses (the `statuses` table, which holds the arity-0 closure
+THM ⇒ SAT, UNS ⇒ CSA), or the summary is `contingent` and SAT or CSA is expected.
+`Explorer.ui.statusInfo(s).outcome` is one of:
+
+| outcome | when | badge |
+|---|---|---|
+| `none` | no expected status | neutral, whatever the verdict: a refutation is not a failure by itself |
+| `pending` | an expected status, and the summary is not known (OPN, UNK) | neutral; the title names the expectation |
+| `match` | the expectation is met | a quiet green ✓ |
+| `mismatch` | a known summary that does not meet the expectation | an error: `!` |
+| `error` | a finding classifies the problem as a genuine `error` | an error: `!` |
+
+Statuses that hold together vacuously (THM and UNS over an empty carrier) are not an error by
+themselves. `Explorer.ui.expectationSummary(list)` counts a group's outcomes. Its `allMet` is
+true only when every problem has an expectation and meets it; a missing or unknown one is not a
+pass. It counts expectations and is not a claim about the problems' conjunction. Deprecated
+problems are struck through. The badge's title spells out the code with its SZS name, the stored
+code when it differs, the closed truth value, the established statuses, the verdict, the
+expectation and the markings. `contingent` (SAT and CSA both hold) is shown as
+NOC, SZS's NoConsequence: "some interpretations are models of Ax, some models of Ax are models of
+C, and some models of Ax are models of ~C" (current: [SZS Success ontology](https://szs.tptp.org/success);
+historical: [Sutcliffe, The SZS Ontologies for Automated Reasoning Software (2008)](http://tptp.org/cgi-bin/SeeTPTP?Category=BibTeX&File=Sut08-KEAPPA)).
+The display is one-to-one. The database keeps `contingent`, and its meaning is the SZS catalogue's
+to define. THM is kept as stored and not shown as TAU. With no axioms THM and TAU coincide, but
+the project's name for a proved problem is THM, "all models of Ax are models of C". The display
+depends only on the stored code; the verdict shown is the database's (UNS fails a closed
+proposition only). Over an empty domain no witness exists, so SAT, and therefore `contingent`,
+cannot be established there; such problems show their stored code unchanged. A
+deprecated problem's page links its replacements, and a replacement's page links what it
+replaces.
+
+### Sections
+
+Other tasks add blocks to existing pages without editing their views:
+
+```js
+Explorer.registerSection({
+  id: "acceptors",                       // unique, [a-z][a-z0-9-]*
+  title: "Acceptor interpretations",
+  on: ["wasm-component", "wasm-module", "artifact"],
+  order: 10,
+  async render(subject, ctx) {           // HTML, or "" to add nothing
+    // subject: { kind, cid, sha256, name, ... } of the page's registered blob
+    const rows = await ctx.tq("some_table", "SELECT ... WHERE cid = ?", [subject.cid]);
+    return rows.length ? await Explorer.ui.table(rows) : "";
+  },
+});
+```
+
+Subjects: `artifact` is `{ kind, cid, sid, name, type, sha256, size }`. `wasm-component` and
+`wasm-module` are `{ kind, slug, title, cid, cidVia, sha256, name, path }`, the registered blob
+(`cid` is null for an embedded module). A module that wasm-pages built from a Lean value has no
+CID, only the SHA-256 of its encoded bytes. When exactly one registered artifact has that SHA-256,
+its CID becomes the subject's, with `cidVia: "sha256"`. Registrations keyed by CID, such as a
+language under an interpretation (`op := artifact`), then show on the module's page. Sections render after the page's identity block. One that throws
+shows its error in its own block, and the page still renders. If the route or the database changes
+while a section renders, that is not caught: it goes to the router like any query of the view. Link
+a language with `Explorer.ui.href("languages", key)`.
 
 ## Limitations
 
@@ -226,8 +409,12 @@ database URLs.
   already cached the scripts.
 - sql.js-httpvfs opens one database per worker. When a file is opened afterwards, the old
   worker stays until the page is closed.
-- Lazy reads are cached in memory for the life of the page, and nothing persists across reloads.
-  A database rebuilt while the page is open can give inconsistent reads; reload the page.
+- A lazily read database stays on the version it was opened at. When the file on the server is
+  replaced (rebuilt, redeployed), the next read of a page not yet in memory fails its query and the
+  page says that the database changed, with a button to open the new version; it never mixes the
+  two. Two versions are told apart by the strong ETag and the length of range responses. A server
+  without a strong ETag gets whole-file reads, up to 256 MB unless the reader asks for more. The
+  check trusts the server's strong ETag to name the bytes, as HTTP requires.
 - On a large project, dagre stays responsive only for a few hundred nodes, so the graph shows
   only a neighbourhood. A wide level, such as 3,400 problems at one depth, is cut off.
 - A child that belongs to several groups is drawn once, with an edge from each group. Groups

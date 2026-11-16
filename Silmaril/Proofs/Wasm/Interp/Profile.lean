@@ -224,7 +224,13 @@ theorem step_profile {P P' : Profile} {host : HostSemantics H} {c c' : Config H}
   | vector h => exfalso; cases h <;> n_simp
   | «variable» h => exact .«variable» h
   | table h => exfalso; cases h <;> n_simp
-  | memory h => exfalso; cases h <;> n_simp
+  | memory h =>
+    cases h with
+    | loadIntOob hm hb => exact .memory (.loadIntOob hm hb)
+    | loadIntVal hm hl => exact .memory (.loadIntVal hm hl)
+    | storeIntOob hm hb => exact .memory (.storeIntOob hm hb)
+    | storeIntVal hm hs => exact .memory (.storeIntVal hm hs)
+    | _ => exfalso; n_simp
   | reference h => exact .reference h
   | aggregate h => exact .aggregate h
   | ctxtInstrs _ hne ih => exact .ctxtInstrs (ih hN.mid) hne

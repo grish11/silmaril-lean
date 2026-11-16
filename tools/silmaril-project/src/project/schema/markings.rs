@@ -1,6 +1,6 @@
 //! Markings: what a project says *about* its problems and specs after looking at the verdicts.
 //!
-//! - `deprecation` records mark a **wrong** problem, group or spec as deprecated, with a reason
+//! - `deprecation` records mark a **wrong** problem, group, spec or language as deprecated, with a reason
 //!   and the corrected replacement(s) (`superseded_by`). A deprecated object is never deleted:
 //!   it stays in the DAG with its statuses, and the database says it is deprecated.
 //! - `finding` records classify the refutation of a failing problem: a genuine defect of the
@@ -60,7 +60,7 @@ table! {
     /// Every in-scope `deprecation` record; `kind` is what `name` is.
     DeprecationRow = "deprecations", key("name") {
         name: String = "TEXT NOT NULL",
-        kind: String = "TEXT NOT NULL CHECK(kind IN ('problem','group','spec'))",
+        kind: String = "TEXT NOT NULL CHECK(kind IN ('problem','group','spec','language'))",
         reason: String = "TEXT NOT NULL",
         module: String = "TEXT NOT NULL",
         origin: String = "TEXT NOT NULL CHECK(origin IN ('local','imported'))",
@@ -73,7 +73,7 @@ table! {
         name: String = "TEXT NOT NULL",
         pos: i64 = "INTEGER NOT NULL",
         replacement: String = "TEXT NOT NULL",
-        kind: String = "TEXT NOT NULL CHECK(kind IN ('problem','group','spec'))",
+        kind: String = "TEXT NOT NULL CHECK(kind IN ('problem','group','spec','language'))",
     }
 }
 

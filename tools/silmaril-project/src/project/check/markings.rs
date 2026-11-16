@@ -38,12 +38,14 @@ impl Marks {
     }
 }
 
-/// What a deprecation or replacement names: `problem`, `group` or `spec`.
+/// What a deprecation or replacement names: `problem`, `group`, `spec` or `language`.
 fn what(cx: &Ctx, g: &Graph, sc: &Scope, name: &str) -> Option<&'static str> {
     if sc.in_scope.contains(name) {
         return Some(if g.is_prop(name) { "problem" } else { "group" });
     }
-    cx.get("spec", name).map(|_| "spec")
+    cx.get("spec", name)
+        .map(|_| "spec")
+        .or_else(|| cx.get("language", name).map(|_| "language"))
 }
 
 pub(super) fn run(
@@ -108,6 +110,8 @@ pub(super) fn run(
         });
         if kind == "spec" {
             deprecated_specs.insert(d.name.as_str(), ());
+        } else if kind == "language" {
+            // a deprecated language stays, with its problems; only the language is marked
         } else {
             m.deprecated
                 .insert(d.name.clone(), ("self", d.name.clone()));

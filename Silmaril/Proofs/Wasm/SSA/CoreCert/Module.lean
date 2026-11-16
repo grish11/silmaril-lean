@@ -258,4 +258,44 @@ theorem compileCore?_invokeOk {f : SFunc} {s : Store Empty} (h : compileCore? f 
     rfl
   exact invokeOk_of_type hfi hty' (hargs.trans (decompileFunc_params hg).1.symm)
 
+/-- Everything the checked optimiser establishes about the two allocated
+stores, as call-site facts: both hold a recognised, native, structured fragment
+function at `g` with the source type, typed invocations transfer, and the two
+fragment functions have the same runs. -/
+theorem coreChecked_sites {m : BModule} {g : Nat} {bf' : BFunc}
+    (h : optimizeFuncCoreChecked m g = some bf') :
+    ∃ (bf : BFunc) (ft : FuncType) (f f' : FragFunc) (s s' : Store Empty),
+      allocStore? m = some s ∧ allocStore? (m.setFunc g bf') = some s' ∧
+      (StoreOk s ∧ NativeFuncsOk s.funcs ∧ Silmaril.Wasm.Interp.StoreChk s.funcs ∧
+        ∃ fi : FuncInst Empty, s.funcs[g]? = some fi ∧ fi.code = .wasm (coreFunc bf) ∧
+          Validation.DefType.funcType? fi.type =
+            some (ft.params.map Validation.liftVal, ft.results.map Validation.liftVal)) ∧
+      (StoreOk s' ∧ NativeFuncsOk s'.funcs ∧ Silmaril.Wasm.Interp.StoreChk s'.funcs ∧
+        ∃ fi : FuncInst Empty, s'.funcs[g]? = some fi ∧ fi.code = .wasm (coreFunc bf') ∧
+          Validation.DefType.funcType? fi.type =
+            some (ft.params.map Validation.liftVal, ft.results.map Validation.liftVal)) ∧
+      ofBFunc? ft bf = some f ∧ f.native = true ∧ BExpr.structuredList bf.body = true ∧
+      ofBFunc? ft bf' = some f' ∧ f'.native = true ∧ BExpr.structuredList bf'.body = true ∧
+      (∀ vs, InvokeOk s g vs → InvokeOk s' g vs) ∧
+      ∀ args o, f.Run args o ↔ f'.Run args o := by
+  obtain ⟨bf, ft, s, s', hbf, -, ho, hs, hs', hv, hv', hr, hr'⟩ := optimizeFuncCoreChecked_inv h
+  obtain ⟨hok, hS, hF, fi, hfi, hcode, hty⟩ := checked_store (lower_funcs hbf) hs hv hr
+  obtain ⟨hok', hS', hF', fi', hfi', hcode', hty'⟩ :=
+    checked_store (setFunc_lower_funcs hbf) hs' hv' hr'
+  obtain ⟨hon, hcr, hcr'⟩ := optimizeFuncCore?_inv ho
+  obtain ⟨f, f', hf, hnf, hf', hnf', gp, -, hrun⟩ := optimizeFuncNative?_spec hon
+  obtain ⟨hp, -⟩ : ft.params = f.params.map (fun t => .num (.int t)) ∧
+      ft.results = resultTypes f.result := ofBFunc?_types hf
+  have hlift : ft.params.map Validation.liftVal =
+      f.params.map fun t => Validation.liftVal (.num (.int t)) := by
+    rw [hp, List.map_map]
+    rfl
+  have hinv : ∀ vs, InvokeOk s g vs → InvokeOk s' g vs := by
+    intro vs hi
+    obtain ⟨args, rfl, hargs⟩ := args_of_invokeOk hi hfi (hlift ▸ hty)
+    exact invokeOk_of_type hfi' (hlift ▸ hty') hargs
+  exact ⟨bf, ft, f, f', s, s', hs, hs', ⟨hok, hF, hS, fi, hfi, hcode, hty⟩,
+    ⟨hok', hF', hS', fi', hfi', hcode', hty'⟩, hf, hnf, (coreReady_inv hcr).1, hf', hnf',
+    (coreReady_inv hcr').1, hinv, hrun⟩
+
 end Silmaril.Proofs.Wasm.SSA.CoreCert

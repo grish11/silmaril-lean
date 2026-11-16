@@ -16,6 +16,9 @@ import Silmaril.Wasm.Tools.CompValidate.Defs
 import Silmaril.Wasm.Validation.Check.Validate
 import Silmaril.Wasm.Cfg.BlockTyping.Defs
 import Silmaril.Wasm.Cfg.Variant.Defs
+import Silmaril.Wasm.Cfg.Maximal.Defs
+import Silmaril.Crypto.SHA256
+import Silmaril.Wasi.Component.Accept.Catalog.Defs
 
 /-!
 # `wasm-pages`: the data of the explorer's Wasm component, module and function pages
@@ -361,10 +364,66 @@ def cfgJson (body : Expr) (typing : List ((List Cfg.SeqStep × Nat) × Json) := 
     jobj ([("id", jstr "flow+effect"), ("kinds", jarr [jstr "flow", jstr "effect"]),
       ("relation", jstr "Silmaril.Wasm.Cfg.Edge ∪ Silmaril.Wasm.Cfg.EffectEdge")] ++
       (match kernelTable with | some k => [("kernelTable", jstr k)] | none => []))])
+  -- maximal blocks: chains of `Cfg.canMerge` (functional and injective: `canMerge_functional`,
+  -- `canMerge_inj`), starting at the blocks no merge reaches. The edges are exactly `Cfg.maxFlow`
+  -- (AE edges that are not merged fall-throughs, `mem_maxFlow`) and `Cfg.maxHandler`
+  -- (`mem_maxHandler`), mapped to their maximal blocks; nothing else is dropped, so a loop back
+  -- into its own maximal block stays an edge. Outcomes stay per member, in member order.
+  -- The grouping is `Cfg.maxGroups`, accepted by the checker `Cfg.groupsOk` (`groupsOk_sound`:
+  -- every block in exactly one group, each group a maximal merge chain). If the checker rejects
+  -- it, no maximal graph is published.
+  let groupsB := Cfg.maxGroups body
+  let maxOk := Cfg.groupsOk body groupsB
+  let groups := groupsB.map (·.map ids.idxOf)
+  let groupOf (i : Nat) : Nat := (groups.findIdx? (·.contains i)).getD i
+  let gOfBlock (b : Cfg.BlockId) : Option Nat := (blockNode b).map groupOf
+  let gTargetJ : Cfg.Target → Json
+    | .block c => match gOfBlock c with | some g => jnat g | none => jstr "invalid"
+    | t => targetJson ids t
+  let maxFlowJ := (Cfg.maxFlow body).map fun (b, t) => jarr [jnat (groupOf (ids.idxOf b)), gTargetJ t, jstr "flow"]
+  let maxHandlerJ := (Cfg.maxHandler body).filterMap fun (b, t) => match t with
+    | .block c => (gOfBlock c).map fun g => jarr [jnat (groupOf (ids.idxOf b)), jnat g, jstr "handler"]
+    | _ => none
+  let maxOutcomes := groups.zipIdx.flatMap fun (ms, g) => ms.flatMap fun m =>
+    ((aeParts.getD m ([], [])).1.eraseDups).map fun o => match o with
+      | .arr xs => match xs.toList with
+        | _ :: eff :: rest =>
+          let h := match rest.head? with
+            | some (.num n) => match n.mantissa.toNat? with | some k => jnat (groupOf k) | none => Json.null
+            | some j => j
+            | none => Json.null
+          jarr [jnat g, eff, h, jnat m]
+        | _ => o
+      | _ => o
+  let gBlocks := groups.map fun ms =>
+    let mem := ms.filterMap fun i => bs[i]?
+    let instrs := mem.zipIdx.flatMap fun ((_, s), k) =>
+      s.body.map (jstr ∘ instrText) ++
+        (if k + 1 < mem.length then (s.term.map (jstr ∘ instrText)).toList else [])
+    let hb : Cfg.BlockId := match mem.head? with | some (b, _) => b | none => ⟨[], 0⟩
+    jobj [("path", jstr (".".intercalate (hb.seq.map fun (m, a) => s!"{m}/{a}"))), ("pos", jnat hb.idx),
+      ("instrs", jarr instrs),
+      ("term", match mem.getLast? with | some (_, s) => (match s.term with | some t => jstr (instrText t) | none => Json.null) | none => Json.null),
+      ("effects", jarr ((mem.flatMap fun (b, s) => Cfg.blockEffects body b s).eraseDups.map (jstr ∘ effectName))),
+      -- Typing stays per member: entering a `block`/`loop`/`if`/`try_table` between members changes
+      -- the label context, so the members' instructions are not one instruction sequence.
+      ("typing", Json.null),
+      ("memberTyping", jarr (mem.map fun (b, _) => match typing.lookup (b.seq, b.idx) with | some j => j | none => Json.null)),
+      ("members", jarr (ms.map jnat))]
+  let maxEdges := (maxFlowJ ++ maxHandlerJ).eraseDups
+  let maxBlock := jobj [("model", jstr "all-effects"), ("granularity", jstr "block"),
+    ("blocks", jarr gBlocks), ("members", jarr (groups.map fun ms => jarr (ms.map jnat))),
+    ("entry", gTargetJ (Cfg.cfgEntry body)), ("edges", jarr maxEdges),
+    ("outcomes", jarr maxOutcomes), ("bases", aeBases),
+    ("note", jstr "Outcomes are [maximal block, effect, handler or null, member block]: each member keeps its own outcomes, in member order."),
+    ("relation", jstr ("Silmaril.Wasm.Cfg.mem_maxFlow, mem_maxHandler (the kept edges, by member); " ++
+      "canMerge_functional, canMerge_inj, canMerge_not_entry (merges form disjoint chains); " ++
+      "maxGroups accepted by groupsOk (groupsOk_sound, groupOk_spec: every block in exactly one maximal merge chain)"))]
+  let maxVariants := if maxOk then [("all-effects-max", maxBlock)] else []
   jobj [("model", jstr "explicit-sink"), ("entry", targetJson ids (Cfg.cfgEntry body)), ("blocks", jarr blocksJ),
         ("edges", jarr (flowJ ++ effJ)), ("bases", legacyBases),
-        ("variants", jobj [("all-effects", aeBlock), ("all-effects-instr", aeInstr)]),
-        ("default", jstr "all-effects")]
+        ("variants", jobj (maxVariants ++ [("all-effects", aeBlock), ("all-effects-instr", aeInstr)])),
+        ("default", jstr (if maxOk then "all-effects-max" else "all-effects"))]
 
 /-- The block CFGs whose dominator table is Lean kernel-checked (machine documents loaded by
 `examples/project/ProjectSelfTest/WasmBlockCfg.lean`, over flow and effect edges). -/
@@ -672,14 +731,35 @@ def leanExamples : List (String × String × Module × String) := [
   ("silmaril.wasm.cfg.examples.mod", "Cfg.Examples.mod (br_table dispatcher, special edges)",
     Silmaril.Wasm.Cfg.Examples.mod, "Silmaril.Wasm.Cfg.Examples.mod"),
   ("silmaril.wasm.cfg.examples.effects", "Cfg.Examples.effectsMod (effects inside try_table)",
-    Silmaril.Wasm.Cfg.Examples.effectsMod, "Silmaril.Wasm.Cfg.Examples.effectsMod")]
+    Silmaril.Wasm.Cfg.Examples.effectsMod, "Silmaril.Wasm.Cfg.Examples.effectsMod")] ++
+  -- the concrete modules of the acceptor interpretation catalog
+  Silmaril.Wasi.Accept.Catalog.concreteModules.map fun (id, title, decl, m) =>
+    (id, title, m, decl.toString)
+
+/-- SHA-256 of `b`, lower-case hex (`Silmaril.Crypto.SHA256.digest`, compiled). -/
+def sha256Hex (b : ByteArray) : String :=
+  String.join ((Silmaril.Crypto.SHA256.digest b.data.toList).map fun x =>
+    let h := (Nat.toDigits 16 x.toNat)
+    String.ofList (if h.length < 2 then '0' :: h else h))
 
 def run (artifactsPath outDir : String) : IO UInt32 := do
   let text ← IO.FS.readFile artifactsPath
   let root := (System.FilePath.mk artifactsPath).parent.bind (·.parent) |>.getD "."
   let arts := readArtifacts text
+  -- the Lean example modules, encoded once
+  let leans := leanExamples.map fun (id, title, m, decl) =>
+    let bytes := match Binaryen.Exe.encodeModule? m with
+      | .ok l => some (ByteArray.mk l.toArray) | .error _ => none
+    (id, title, m, decl, bytes, bytes.map sha256Hex)
+  -- a registered module whose SHA-256 is that of a Lean example's bytes is the same file: it is
+  -- published once, as the Lean example (its id and links), with the artifact's CID and path
+  let registered (sha : Option String) : Option Artifact :=
+    sha.bind fun h => match arts.filter (fun a => a.layer == "module" && a.sha256 == h) with
+      | [a] => some a
+      | _ => none
+  let mergedShas := leans.filterMap fun (_, _, _, _, _, sha) => (registered sha).map (·.sha256)
   let act : M Unit := do
-    for a in arts do
+    for a in arts.filter (fun a => !mergedShas.contains a.sha256) do
       let p := root / a.path
       let b ← IO.FS.readBinFile p
       let src : Source := { kind := "artifact", name := a.name, cid := some a.cid,
@@ -696,11 +776,17 @@ def run (artifactsPath outDir : String) : IO UInt32 := do
           writeText s!"wasm/m/{slug a.name}.json" (jobj [("summary", summary), ("hasBlob", Json.bool true),
             ("unsupported", jstr s!"the module decoder rejected the bytes: {e}")]).compress
           modify fun o => { o with modules := o.modules.push summary }
-    for (id, title, m, decl) in leanExamples do
-      let bytes := match Binaryen.Exe.encodeModule? m with
-        | .ok l => some (ByteArray.mk l.toArray) | .error _ => none
-      let src : Source := { kind := "lean", name := decl,
-                            doc := "a Lean value; bytes encoded from it by Silmaril.Wasm.Binaryen.Exe.encodeModule?" }
+    for (id, title, m, decl, bytes, sha) in leans do
+      let lean := "a Lean value (the proof target is this module AST); the bytes are encoded from it by " ++
+        "Silmaril.Wasm.Binaryen.Exe.encodeModule?, which satisfies the specification's binary grammar " ++
+        "(encodeModule?_sound: Binary.Core.Encodes bytes m); SHA-256 of exactly these bytes, computed by " ++
+        "Silmaril.Crypto.SHA256.digest; "
+      let src : Source := match registered sha with
+        | some a => { kind := "lean", name := decl, cid := some a.cid, sha256 := sha, path := some a.path,
+                      doc := lean ++ s!"registered in silmaril/artifacts.toml as {a.name} ({a.path}), whose " ++
+                        "SHA-256 is the same; the CID is that artifact's. A claim about the artifact's bytes " ++
+                        "reaches this AST only through a decoding certificate (a value's .is problem)" }
+        | none => { kind := "lean", name := decl, sha256 := sha, doc := lean ++ "not registered in artifacts.toml" }
       doModule id title src m bytes
   let ((), out) ← act.run {}
   let index := jobj [("components", jarr out.components.toList), ("modules", jarr out.modules.toList)]

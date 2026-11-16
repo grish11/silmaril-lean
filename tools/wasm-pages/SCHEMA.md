@@ -80,7 +80,32 @@ unchanged: it is the legacy **explicit-sink** graph (`cfg.model = "explicit-sink
   `Cfg.raiseHandlers`: the catch targets of enclosing `try_table`s, innermost first. It is a
   node index, `"caller"` (escapes the function), or `"unresolved"`.
 - **`cfg.bases`** of both AE variants: `"flow"` (`Cfg.EdgeAE`) and `"flow+handler"`.
-- **`cfg.default`**: `"all-effects"`, the variant the page shows first. The legacy graph stays
+- **`cfg.variants["all-effects-max"]`**: maximal basic blocks, with their own block numbering.
+  - `blocks[k]` holds `path`/`pos` of its first member, `instrs` (the members' instructions,
+    with inner terminators inline), the last member's `term`, the union of `effects`, and
+    `members`, the shared-numbering blocks it contains, in order.
+  - The variant-level `members` holds the same lists.
+  - Edges are exactly `Cfg.maxFlow` and `Cfg.maxHandler` mapped to the groups:
+    - every AE edge except the merged fall-throughs (`mem_maxFlow`, `internal_iff`);
+    - every handler edge (`mem_maxHandler`).
+    So a loop back into its own maximal block, including a one-block loop, stays a self-loop.
+  - Outcomes are `[group, effect, handler or null, member]`. They are the member's AE outcomes,
+    member by member and in order, so no effect's position is lost.
+  - The groups are `Cfg.maxGroups`. They are published only if the checker `Cfg.groupsOk`
+    accepts them. `groupsOk_sound` and `groupOk_spec` prove what acceptance means: every block
+    is in exactly one group, and each group is a maximal merge chain. If the checker rejects
+    the groups, no `all-effects-max` is published and the default is `all-effects`.
+  - Typing stays per member: `blocks[k].typing` is `null`, and `memberTyping` holds each member's
+    interface (or `null`). No interface is composed for the merged block, because entering a
+    structured instruction between members changes the label context.
+  - Chains are merged by `Cfg.canMerge`:
+    - `canMerge_succ`: the earlier block's only AE successor is the next one;
+    - `canMerge_pred`: no other AE or handler edge enters the next one, so label targets, loop
+      heads and handler entries stay boundaries;
+    - `canMerge_not_entry`;
+    - `canMerge_functional`, `canMerge_inj` (`Cfg.Maximal`): merges form disjoint chains.
+  - `relation` names these theorems.
+- **`cfg.default`**: `"all-effects-max"`, the variant the page shows first. The legacy graph stays
   selectable as the explicit-sink consilience view.
 
 Like the legacy graph, the AE graphs are syntactic: no theorem yet says that executions follow

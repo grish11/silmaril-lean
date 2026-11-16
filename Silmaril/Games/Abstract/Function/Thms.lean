@@ -6,6 +6,9 @@ import Silmaril.Proofs.Games.Abstract.Function.Basic
 /-!
 # Abstract functions: theorems
 
+**Copairing.** `case g h` is `g` on `inl` and `h` on `inr` (`case_inl`, `case_inr`), and
+sequencing distributes over it on the left (`seq_case`).
+
 **Observations.** Composing an observation with any map gives a coarser
 equivalence (`ObsEquiv.comp`): tagged ⇒ trap ≈ divergence, tagged ⇒
 state-forgotten, and so on. The identity observation is equality
@@ -48,6 +51,17 @@ open Silmaril.Games
 universe u
 
 variable {E : Sig.{u}} {S A B C : Type u}
+
+theorem case_inl (g : AFun E S A C) (h : AFun E S B C) (s : S) (a : A) :
+    case g h s (.inl a) = g s a := rfl
+
+theorem case_inr (g : AFun E S A C) (h : AFun E S B C) (s : S) (b : B) :
+    case g h s (.inr b) = h s b := rfl
+
+/-- Sequencing distributes over copairing on the left. -/
+theorem seq_case {D : Type u} (g : AFun E S A C) (h : AFun E S B C) (k : AFun E S C D) :
+    seq (case g h) k = case (seq g k) (seq h k) := by
+  funext s x; cases x <;> rfl
 
 /-- A coarser observation gives a coarser equivalence. -/
 theorem ObsEquiv.comp {O O' : Type u} {κ : CallBeh E S B → O} (g : O → O')
