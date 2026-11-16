@@ -835,6 +835,8 @@ theorem msim (hC : CallSoundA P host C) {body : Expr} {st st₁ : MState H}
           harity hlbt (by simpa [hl] using hY'))
   | ret => exact absurd (by simp [Target.IsSink]) hns
   | brOut => exact absurd (by simp [Target.IsSink]) hns
+  | catchOut => exact absurd (by simp [Target.IsSink]) hns
+  | bodyCatchOut => exact absurd (by simp [Target.IsSink]) hns
   | brIfOut => exact absurd (by simp [Target.IsSink]) hns
   | brDataOut => exact absurd (by simp [Target.IsSink]) hns
   | trap => exact absurd (by simp [Target.IsSink]) hns

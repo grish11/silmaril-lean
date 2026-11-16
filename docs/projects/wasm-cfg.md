@@ -324,7 +324,7 @@ The plain graph stays an over-approximation, and claims about it say so.
      `machine_native_closedX`, `native_machine_closedX` (no oracle hypothesis). These are about the
      block-CFG machine as an executable semantics; the plain graph stays an over-approximation.
 
-10. **Branches to the function label (bug in the block-CFG machine; transitions fixed).** A function
+10. **Branches to the function label (bug in the block-CFG machine; fixed).** A function
     body runs under its function's label (Core `FRAME_n{} (LABEL_n{} body)`), so a branch whose
     depth is the body's nesting depth returns; the native store check accepts it (labels
     `[rs.length]`) and the extracted CFG resolves it to `exit` (`labels body [] = [.exit]`). The
@@ -346,9 +346,20 @@ The plain graph stays an over-approximation, and claims about it say so.
       simulation (`msim`: the new steps go to a sink). Divergence results are unaffected: the
       new steps end at a sink. The fixtures are restated as machine steps to `exit` with Core's
       results (`machine_exit0/1/3/4`).
-    - **Next:** completeness for branches to the function label (`run_complete_initialC` still
-      excludes `br` outcomes): `Reach` at a branch to label `ls.length` asks for a machine run to
-      `exit`, through the completeness induction.
+    - **Completeness, done:** `run_complete_initial_outC`: every `RunC` run of the body that
+      does not end in a pending tail call or in a branch past the function label is a machine run
+      from `cfgEntry` to a sink, ending as `Ends` says; a branch to the function label reaches
+      `exit`. The completeness induction's `Reach` asks, at a branch to label `ls.length`, for a
+      run to `exit` (established by the new rules, carried outward through labels and handlers
+      like `return`). `run_complete_initialC` (no branch outcome) is kept as a corollary.
+    - **The same bug for `try_table`, fixed:** a catch clause whose label is the function label
+      (`j + 1 + l = ls.length`) had no transition either (`catch_`/`bodyCatch` need a frame for
+      the target). `MStepC.catchOut`/`bodyCatchOut` go to `exit` with the handler's outer values
+      under the caught ones; soundness (`throw_catch_out`, `catchOut_sound`,
+      `bodyCatchOut_sound`), the catch edge (`catch_edge` at index `ls.length` is `exit`), the
+      Core simulation and completeness (`Reach` for a throw also asks for these catches) are
+      extended.
+    - `native_machine` now excludes only branches past the function label.
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done

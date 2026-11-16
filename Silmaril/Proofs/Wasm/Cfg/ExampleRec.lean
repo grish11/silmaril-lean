@@ -69,6 +69,8 @@ theorem step_sink {P : Profile} {host : HostSemantics H} {C : Abstract.CallRel H
   | enter hb ht => simp only [lookup_entry, Option.some.injEq] at hb; subst hb; cases ht
   | ret hb ht => simp only [lookup_entry, Option.some.injEq] at hb; subst hb; cases ht
   | brOut => simp [Target.IsSink]
+  | catchOut => simp [Target.IsSink]
+  | bodyCatchOut => simp [Target.IsSink]
   | brIfOut => simp [Target.IsSink]
   | brDataOut => simp [Target.IsSink]
   | trap hb ht => simp only [lookup_entry, Option.some.injEq] at hb; subst hb; cases ht

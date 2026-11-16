@@ -601,6 +601,18 @@ theorem run_complete_initialC {s s' : Store H} {f f' : Frame} {o : Region.Out}
       st'.store = s' ∧ st'.frame = f' :=
   Proofs.MachineComplete.run_complete_initial h ho hto
 
+/-- **Completeness from the CFG entry, with calls, including branches to the function label**:
+every `RunC` run of the body, not ending in a pending tail call or in a branch past the function
+label, is a machine run with the same oracle from the initial state to a sink, ending as `Ends`
+says, in the run's final store and frame. A branch to the function label (`br 0` out of the body,
+from any nesting depth, including a `try_table` clause that catches to it) reaches `exit`. -/
+theorem run_complete_initial_outC {s s' : Store H} {f f' : Frame} {o : Region.Out}
+    (h : Region.RunC P host C s f [] (expression body) s' f' o)
+    (ho : ∀ k us, o = .br k us → k = 0) (hto : ∀ W a c, o ≠ .tail W a c) :
+    ∃ st', Relation.ReflTransGen (MStepC P host C body) (initial body s f) st' ∧ Ends st' o ∧
+      st'.store = s' ∧ st'.frame = f' :=
+  Proofs.MachineComplete.run_complete_initial_out h ho hto
+
 /-- **Completeness for a tail call, from the CFG entry**: a `RunC` run of the body ending in a
 pending tail call of the function at `a` (its region outcome over the values `W`), with an answer
 of `C` to that call on the top `ps.length` values of `W`, is a run of the machine with the same

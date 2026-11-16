@@ -345,6 +345,31 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
             (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
             (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₁ f₁)
 
+  /-- A thrown exception caught by the `try_table` frame `j` whose clause branches to the
+  function label (`j + 1 + l` is the number of frames): leave the function with the handler's
+  outer values under the caught ones. -/
+  | catchOut {b : BlockId} {sg : Segment} {stk stk₁ us : List Val} {ls : List LFrame}
+      {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a j : Nat} {L : LFrame}
+      {l : LabelIdx} (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsThrow)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+      (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+        Catches s₂ f₂ a L.catches none)
+      (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
+      (hout : j + 1 + l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, L.outer ++ us, [], s₂, f₂⟩
+  /-- An exception thrown in the block's straight-line body, caught by frame `j` with a clause
+  branching to the function label (`catchOut`). -/
+  | bodyCatchOut {b : BlockId} {sg : Segment} {stk us : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {a j : Nat} {L : LFrame} {l : LabelIdx}
+      (hb : lookup body b = some sg)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.throw a))
+      (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+        Catches s₁ f₁ a L.catches none)
+      (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₁ f₁ a L.catches (some (us, l)))
+      (hout : j + 1 + l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, L.outer ++ us, [], s₁, f₁⟩
+
   /-- A tail call of a null reference (`return_call_ref` or `return_call_indirect` on null):
   the terminator ends in a pending tail call of null (`Region.Out.tailNull`), which traps when
   it leaves the function's frame (`return_call_ref-frame-null`). The machine moves to `trap`,

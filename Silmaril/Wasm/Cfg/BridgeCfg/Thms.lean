@@ -23,7 +23,7 @@ oracle). Composing the machine's region soundness and completeness (`run_sound_i
   with the same oracle, ending as the sink completes (`EndsC`) and `ResOut` relate.
 * **`native_machine`** (any profile and host for the machine; an oracle sound for the tail-aware
   check): a typed, checked native run from the empty stack has a region outcome `o` related to
-  its result by `ResOut`, and, unless `o` is a branch out of the body, a machine run from the
+  its result by `ResOut`, and, unless `o` is a branch past the function label (a branch to the function label reaches `exit`), a machine run from the
   CFG entry to a sink completing `o` (`EndsC`). Pending tail calls are completed by the oracle
   answer that `ResOut` carries.
 * `machine_native_closedX`, `native_machine_closedX`: the instances with the typed closed
@@ -56,7 +56,7 @@ theorem machine_native {o : SingleThreaded.GrowOracle} {P₀ : Numerics.Profile}
       ResOut C s₂ f₂ out r :=
   Proofs.BridgeCfg.machine_native hC hCk ht hx h hs
 
-/-- **Native runs are machine runs**, unless the body branches out of itself. -/
+/-- **Native runs are machine runs**, unless the body branches past the function label. -/
 theorem native_machine {P₀ : Numerics.Profile} {host₀ : HostSemantics H}
     (hC : Interp.OracleSoundT P₀ host₀ C) (P : Numerics.Profile) (host : HostSemantics H)
     {s : Store H} {f : Frame} {es : List BExpr} {r : Store H × Frame × Flow}
@@ -65,7 +65,7 @@ theorem native_machine {P₀ : Numerics.Profile} {host₀ : HostSemantics H}
     (hchk : Interp.chkE Interp.tExt s.funcs f.module f.locals.length ret labels (some 0) es =
       some out) :
     ∃ s' f' o, ResOut C s' f' o r ∧
-      ((∃ k us, o = .br k us) ∨
+      ((∃ k us, k ≠ 0 ∧ o = .br k us) ∨
         ∃ st', Relation.ReflTransGen (MStepC P host C (BExpr.lowerList es))
           (initial (BExpr.lowerList es) s f) st' ∧ EndsC C st' s' f' o) :=
   Proofs.BridgeCfg.native_machine hC P host h hS hchk
@@ -86,7 +86,7 @@ theorem native_machine_closedX (P : Numerics.Profile) {s : Store H} {f : Frame}
     {es : List BExpr} {r : Store H × Frame × Flow} (h : Abstract.CallX.EvalOX closedXOk s f [] es r)
     (ht : Interp.TypedT s f [] es) :
     ∃ s' f' o, ResOut closedXOk s' f' o r ∧
-      ((∃ k us, o = .br k us) ∨
+      ((∃ k us, k ≠ 0 ∧ o = .br k us) ∨
         ∃ st', Relation.ReflTransGen (MStepC P Interp.noHostX closedXOk (BExpr.lowerList es))
           (initial (BExpr.lowerList es) s f) st' ∧ EndsC closedXOk st' s' f' o) :=
   Proofs.BridgeCfg.native_machine_closedX P h ht

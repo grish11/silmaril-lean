@@ -356,7 +356,7 @@ theorem prog {body : Expr} : ∀ (n : Nat) (lv : Lv H) (s : Store H) (f : Frame)
           exact prog_run h1 (prog n _ _ _ _ _ _ (by simp at hn ⊢; omega) (by simpa using hre) h)
         | labelBr0 hrun hn' h =>
           subst hvs
-          have hb := complete hrun _ _ _ _ rfl rfl hin L (by simp [seqLv])
+          have hb := (complete hrun _ _ _ _ rfl rfl hin).1 L (by simp [seqLv])
             (by simp [brVals, seqLv]; omega)
             (loopOk_of_module (Proofs.Machine.run_module hrun) hlo)
           simp only [seqLv, List.nil_append, brVals] at hb
@@ -438,7 +438,7 @@ theorem prog {body : Expr} : ∀ (n : Nat) (lv : Lv H) (s : Store H) (f : Frame)
           | labelBr0 hrun hn' h' =>
             subst hvs2
             have hlo' := loopOk_of_module (Proofs.Machine.run_module hrun) hlo
-            have hb := complete hrun _ _ _ _ rfl rfl hin L (by simp [seqLv])
+            have hb := (complete hrun _ _ _ _ rfl rfl hin).1 L (by simp [seqLv])
               (by simp [brVals, seqLv]; omega) hlo'
             simp only [seqLv, List.nil_append, brVals] at hb
             exact br0_state hc hsg ht rfl hkind hlo' hn' hb rfl

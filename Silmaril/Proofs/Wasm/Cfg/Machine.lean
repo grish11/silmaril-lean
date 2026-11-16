@@ -1894,6 +1894,93 @@ theorem throw_lift {body : Expr} {s s₁ : Store H} {f f₁ : Frame} {a : Nat} {
             rw [e] at this
             simpa only [List.drop_succ_cons] using this
 
+
+/-- **A thrown exception caught by frame `j` with a clause to the function label branches out of
+the body**: the frames below `j` let it pass, frame `j`'s handler catches it, and the branch then
+leaves every remaining frame, collecting their outer values. -/
+theorem throw_catch_out {body : Expr} {s s₁ : Store H} {f f₁ : Frame} {a : Nat} {us : List Val}
+    {l : LabelIdx} :
+    ∀ (j : Nat) (rp : List SeqStep) (ls : List LFrame) {inner X : List Admin} {L : LFrame},
+      wrap body rp ls inner = some X →
+      RunC P host C s f [] inner s₁ f₁ (.throw a) →
+      (∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+        Catches s₁ f₁ a L.catches none) →
+      ls[j]? = some L → L.tryT = true → Catches s₁ f₁ a L.catches (some (us, l)) →
+      j + 1 + l.toNat = ls.length →
+      ∃ W, RunC P host C s f [] X s₁ f₁ (.br 0 (W ++ (L.outer ++ us)))
+  | _, [], [], _, _, _, _, _, _, hL, _, _, _ => by simp at hL
+  | _, [], _ :: _, _, _, _, hX, _, _, _, _, _, _ => by simp [wrap] at hX
+  | _, _ :: _, [], _, _, _, _, _, _, hL, _, _, _ => by simp at hL
+  | j, (m, a') :: rp, L₀ :: ls, inner, X, L, hX, hin, hpass, hL, hT, hc, hout => by
+    have hX0 := hX
+    simp only [wrap, Option.bind_eq_bind] at hX0
+    cases hpc : seqAt body rp.reverse with
+    | none => simp [hpc] at hX0
+    | some pc =>
+      cases hsg : (segment pc)[m]? with
+      | none => simp [hpc, hsg] at hX0
+      | some sg =>
+        cases ht : sg.term with
+        | none => simp [hpc, hsg, ht] at hX0
+        | some t =>
+          simp only [hpc, hsg, ht, Option.bind_some] at hX0
+          have hlab : RunC P host C s f [] [.label L₀.arity (if L₀.loop then [t] else []) inner]
+              s₁ f₁ (.throw a) := by
+            simpa using (RunC.labelThrow (C := C) (P := P) (host := host) (vs := [])
+              (code := []) (n := L₀.arity) (cont := if L₀.loop then [t] else []) hin)
+          cases j with
+          | zero =>
+            simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
+            subst hL
+            simp only [hT, ↓reduceIte] at hX0
+            have hrun : RunC P host C s f [] (vals L₀.outer ++
+                Admin.handler L₀.arity L₀.catches
+                  [.label L₀.arity (if L₀.loop then [t] else []) inner] ::
+                expression (restAt pc (m + 1))) s₁ f₁ (.br (ls.length + 0) (L₀.outer ++ us)) := by
+              apply Proofs.Region.run_vals (vs := [])
+              have hl : l.toNat = ls.length := by simp at hout; omega
+              rw [Nat.add_zero, ← hl]
+              simpa using (RunC.handlerCatch (C := C) (P := P) (host := host)
+                (vs := L₀.outer) (code := expression (restAt pc (m + 1))) hlab hc)
+            exact wrap_brOut rp ls 0 hX0 hrun
+          | succ j =>
+            simp only [List.getElem?_cons_succ] at hL
+            have hrun : RunC P host C s f [] (vals L₀.outer ++
+                (if L₀.tryT then Admin.handler L₀.arity L₀.catches
+                  [.label L₀.arity (if L₀.loop then [t] else []) inner]
+                else .label L₀.arity (if L₀.loop then [t] else []) inner) ::
+                expression (restAt pc (m + 1))) s₁ f₁ (.throw a) := by
+              apply Proofs.Region.run_vals (vs := [])
+              cases hT0 : L₀.tryT
+              · simp only [Bool.false_eq_true, ↓reduceIte]
+                exact .labelThrow hin
+              · simp only [↓reduceIte]
+                exact .handlerRethrow hlab (hpass 0 L₀ (by omega) (by simp) hT0)
+            exact throw_catch_out j rp ls hX0 hrun
+              (fun k L' hk hL' hT' => hpass (k + 1) L' (by omega) (by simpa using hL') hT')
+              hL hT hc (by simp at hout; omega)
+
+/-- **A caught throw to the function label is sound.** -/
+theorem catchOut_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ us : List Val}
+    {ls : List LFrame} {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a j : Nat}
+    {L : LFrame} {l : LabelIdx} {X : List Admin}
+    (hb : lookup body b = some sg) (ht : sg.term = some i)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+    (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+    (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+      Catches s₂ f₂ a L.catches none)
+    (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
+    (hout : j + 1 + l.toNat = ls.length) (hX : codeAt body b stk ls = some X) :
+    ∃ W, RunC P host C s f [] X s₂ f₂ (.br 0 (W ++ (L.outer ++ us))) := by
+  obtain ⟨c, hc', hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc', Option.bind_some] at hX
+  have hin : RunC P host C s f [] (vals stk ++ expression (restAt c b.idx)) s₂ f₂ (.throw a) := by
+    refine block_then hsg ht hr ?_
+    have h2 := Proofs.Region.run_append (B := List.map Admin.plain (restAt c (b.idx + 1))) hth
+      ⟨rfl, rfl, rfl⟩
+    simpa [expression] using h2
+  exact throw_catch_out j _ ls hX hin hpass hL hT hc hout
+
 /-- **A caught throw is sound**: the machine's branch to the catching clause's label runs as the
 code the block stood for. -/
 theorem catch_step_sound {body : Expr} {b : BlockId} {sg : Segment} {stk stk₁ us : List Val}
@@ -2089,6 +2176,21 @@ theorem bodyCatch_sound {body : Expr} {b : BlockId} {sg : Segment} {stk us : Lis
   have hbo := throw_lift j _ ls hok hX (body_throw_run hsg hr) hpass hL hT hc
   intro o s₃ f₃ h
   exact hbo L' hL' harity hlbt (by simpa [labels] using hY) h
+
+
+/-- **A body exception caught by a clause to the function label is sound.** -/
+theorem bodyCatchOut_sound {body : Expr} {b : BlockId} {sg : Segment} {stk us : List Val}
+    {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame} {a j : Nat} {L : LFrame} {l : LabelIdx}
+    {X : List Admin} (hb : lookup body b = some sg)
+    (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.throw a))
+    (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+      Catches s₁ f₁ a L.catches none)
+    (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₁ f₁ a L.catches (some (us, l)))
+    (hout : j + 1 + l.toNat = ls.length) (hX : codeAt body b stk ls = some X) :
+    ∃ W, RunC P host C s f [] X s₁ f₁ (.br 0 (W ++ (L.outer ++ us))) := by
+  obtain ⟨c, hc', hsg⟩ := seg_of_lookup hb
+  simp only [codeAt, hc', Option.bind_some] at hX
+  exact throw_catch_out j _ ls hX (body_throw_run hsg hr) hpass hL hT hc hout
 
 end Silmaril.Wasm.Cfg.Proofs.Machine
 
@@ -2357,6 +2459,14 @@ theorem mstep_sound {body : Expr} {st st₁ : MState H} (h : MStepC P host C bod
     simp only [codeOf] at hX
     exact ⟨by simp [MInv], Or.inr (sinkOk (o := .throw a) (by simp [Ends])
       (bodyRaise_sound hb hr hT hX))⟩
+  | catchOut hb ht _ hr hth hpass hL hT hc hout =>
+    simp only [codeOf] at hX
+    obtain ⟨W, hW⟩ := catchOut_sound hb ht hr hth hpass hL hT hc hout hX
+    exact ⟨by simp [MInv], Or.inr (sinkOk (by simp only [Ends]; exact Or.inr (Or.inr ⟨W, rfl⟩)) hW)⟩
+  | bodyCatchOut hb hr hpass hL hT hc hout =>
+    simp only [codeOf] at hX
+    obtain ⟨W, hW⟩ := bodyCatchOut_sound hb hr hpass hL hT hc hout hX
+    exact ⟨by simp [MInv], Or.inr (sinkOk (by simp only [Ends]; exact Or.inr (Or.inr ⟨W, rfl⟩)) hW)⟩
   | @bodyCatch b sg stk us ls s s₁ f f₁ a j L L' l hb hr hpass hL hT hc hL' harity hlbt =>
     simp only [MInv] at hok; simp only [codeOf] at hX
     cases hl : L'.loop
@@ -2605,6 +2715,16 @@ theorem mstep_edge {body : Expr} {st st' : MState H} (h : MStepC P host C body s
     simp only [MInv] at hok
     have := catch_edge hok hL hT hc
     split <;> simpa [goto] using this
+  | catchOut hb ht hi hr hth hpass hL hT hc hout =>
+    right; right; left; cases hn
+    simp only [MInv] at hok
+    have := catch_edge hok hL hT hc
+    rwa [hout, labels, framesOk_length _ _ hok, labelsRev_getD_length] at this
+  | bodyCatchOut hb hr hpass hL hT hc hout =>
+    right; right; left; cases hn
+    simp only [MInv] at hok
+    have := catch_edge hok hL hT hc
+    rwa [hout, labels, framesOk_length _ _ hok, labelsRev_getD_length] at this
   | bodyRaise hb hr =>
     right; right; right; cases hn
     obtain ⟨c, -, hsg⟩ := seg_of_lookup hb
