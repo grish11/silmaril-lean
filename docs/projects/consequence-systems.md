@@ -130,10 +130,17 @@ arguments name, role `S` or `T`, expected status, summary and verdict). Systems 
 generated system `silmaril.x` prints as `«silmaril».x` (`silmaril` is a keyword), and the
 self-test's generated systems are such names. A database written by an older `sil project` has
 none of these tables; the explorer then shows a notice instead of the Systems page. The explorer's
-**Systems** page lists the systems and what each status of each shape means; a system's page
-shows its definition (with a source link when the page has sources), its construction and
-every problem about it with the outcome, the reading for the arguments left free, and the
-Lean answers with their witnesses. Browsing never runs anything.
+**Systems** page lists the systems — construction (operands only on the system's page), types,
+closed judgments counted true / false / unknown, questions over free arguments, and expected
+statuses met — and what each status of each shape means. A system's page shows its definition
+(with a source link when the page has sources), its construction, a line of **expectations**
+(met, not yet established, unexpected: whether the project's stated expectations hold, which is
+not whether the statements are true — an expected refutation that is refuted is met), then two
+tables: **judgments**, closed propositions that are true or false, and **questions over the
+free arguments** with their SZS status; each row has the outcome (the shared status badge), the
+reading and the Lean answers with their witnesses. Lean terms are shown compactly (qualified
+names cut to their last two components) with the full term as the title. Browsing never runs
+anything.
 
 The browser test runs on a built site (`make project-check` writes the database;
 `sil project explore` the page):

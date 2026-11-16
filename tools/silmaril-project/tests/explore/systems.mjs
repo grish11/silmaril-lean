@@ -44,10 +44,16 @@ try {
   const list = await rows("#systems-table");
   const byName = Object.fromEntries(list.map((r) => [r[0], r]));
   for (const n of ["raw", "hyp", "raw_or_hyp", "derivable", "entails", "gap", "checked", "empty"]) check(byName[S + n], `listed: ${n}`);
-  check(/erase of the witness system ProjectSelfTest\.Consequence\.Deriv/.test(byName[S + "derivable"][2]), "derivable is the erasure of Deriv");
-  check(/^union of .*raw, .*hyp$/.test(byName[S + "raw_or_hyp"][2]) && /^diff of .*entails, .*derivable$/.test(byName[S + "gap"][2]),
-    "constructions name their operands in order");
-  check(/List ProjectSelfTest\.Consequence\.Atom → ProjectSelfTest\.Consequence\.Atom/.test(byName[S + "raw"][3]), "contexts → conclusions");
+  check(/^erase of Consequence\.Deriv$/.test(byName[S + "derivable"][2]), "derivable is the erasure of Deriv (compact)");
+  check(byName[S + "raw_or_hyp"][2] === "union of 2 systems" && byName[S + "gap"][2] === "diff of 2 systems",
+    "the index names a construction without its operands");
+  check(/^List Consequence\.Atom → Consequence\.Atom$/.test(byName[S + "raw"][3]) &&
+    await p.evaluate(() => document.querySelector("#systems-table tbody tr td:nth-child(4) code").title === "List ProjectSelfTest.Consequence.Atom"),
+    "contexts → conclusions, compact, with the full term as the title");
+  check(byName[S + "derivable"][4] === "1 / 2 / 0" && byName[S + "derivable"][5] === "9",
+    `derivable: 1 true / 2 false / 0 unknown judgments, 9 questions (${byName[S + "derivable"].slice(4)})`);
+  check(/^\d+ \/ \d+$/.test(byName[S + "derivable"][6]) && byName[S + "derivable"][6].split(" / ")[0] === byName[S + "derivable"][6].split(" / ")[1],
+    "derivable: every expected status met");
   const qs = await rows("#systems-questions");
   check(qs.length === 7 && qs[0][2].includes("universal") && qs[0][4].includes("empty"), "the questions table: derives THM universal, UNS empty");
   check(qs.find((r) => r[0] === "derives_bottom")[4].includes("no context derives ff"), "derives_bottom UNS: no context derives ff");
@@ -56,15 +62,22 @@ try {
   // a system: derivable
   await open("/system/" + encodeURIComponent(S + "derivable"));
   const dl = await p.evaluate(() => document.querySelector("#main dl").textContent);
-  check(/erasure of a witness system/.test(dl) && /ProjectSelfTest\.Consequence\.Deriv/.test(dl) && /used by/.test(dl), "definition, construction, witness system, used by");
-  const ps = await rows("#system-problems");
+  check(await p.evaluate(() => /^All \d+ of \d+ expected statuses met/.test(document.querySelector("p.expectations").textContent)),
+    "the expectations line: all met, kept apart from truth");
+  check(/erasure of a witness system/.test(dl) && /Consequence\.Deriv/.test(dl) && /used by/.test(dl), "definition, construction, witness system, used by");
+  const judgments = await rows("#system-judgments");
+  const ps = [...judgments, ...(await rows("#system-problems"))];
+  check(judgments.map((r) => r[0].slice(S.length)).sort().join(" ") === "derivable_ff_universal p_derives_r r_derives_p",
+    `closed judgments in their own table (${judgments.map((r) => r[0]).join(", ")})`);
+  check(ps.filter((r) => r[0] === S + "shift_preserves").length === 1 && ps.find((r) => r[0] === S + "shift_preserves")[2] === "S, T",
+    "a translation of derivable into itself is one row, as S and T");
   // derivable is generated (silmaril.selftest.consequence.derivable prints «silmaril».…): its
   // problems are found through the escaped `term`, not through `decl`
-  check(ps.length >= 12, `a generated system with a keyword-escaped name has its problems (${ps.length})`);
+  check(ps.length === 12, `a generated system with a keyword-escaped name has its problems (${ps.length})`);
   const by = Object.fromEntries(ps.map((r) => [r[0], r]));
   const row = (n) => by[S + n] || [];
   check(/THM/.test(row("p_derives_r")[4]) && /holds in/.test(row("p_derives_r")[5]), "p ⊢ r: THM, holds");
-  const rp = await p.evaluate((n) => { const a = [...document.querySelectorAll("#system-problems a")].find((x) => x.textContent === n);
+  const rp = await p.evaluate((n) => { const a = [...document.querySelectorAll("#system-judgments a, #system-problems a")].find((x) => x.textContent === n);
     const st = a.closest("tr").querySelector(".st"); return { code: st.dataset.code, outcome: st.dataset.outcome, title: st.title }; }, S + "r_derives_p");
   check(rp.code === "UNS" && rp.outcome === "match" && /closed proposition: false/.test(rp.title) && /does not hold/.test(row("r_derives_p")[5]),
     `r ⊢ p: a closed refutation, stored UNS, expected, false, does not hold (${JSON.stringify(rp)})`);
@@ -81,7 +94,7 @@ try {
 
   // entails: the same problems from the other side, and context-universality
   await open("/system/" + encodeURIComponent(S + "entails"));
-  const es = await rows("#system-problems");
+  const es = [...(await rows("#system-judgments")), ...(await rows("#system-problems"))];
   check(es.some((r) => r[0] === S + "derivable_sound" && r[2] === "T"), "entails appears as T of soundness");
   check(es.some((r) => r[0] === S + "entails_ff_universal" && /context-universal/.test(r[5])), "entails: ff is context-universal");
   await shot("system-entails");
@@ -99,6 +112,15 @@ try {
   check(/CSA/.test(gc[4] || "") && /not complete for/.test(gc[5] || "") && /Bool\.true, 2\)/.test(gc[6] || ""),
     "Gentzen: the bounded checker is not complete for its cut closure, with the cut counterexample");
   check(gs.some((r) => r[0] === S + "gentzen.bounded3_sound" && /THM/.test(r[4])), "Gentzen: the bounded checker is sound for validity");
+
+  // the multiple-conclusion fixture: ff is the empty succedent
+  await open("/system/" + encodeURIComponent(S + "multi.lit"));
+  const ms = await rows("#system-judgments");
+  const mrow = (n) => ms.find((r) => r[0] === S + "multi." + n) || [];
+  check(/THM/.test(mrow("contradiction")[4]) && /derives \[\]/.test(mrow("contradiction")[5]), "multi: p, -p ⊢ (derives the empty succedent)");
+  check(/UNS/.test(mrow("p_nil")[4]) && /does not derive \[\]/.test(mrow("p_nil")[5]), "multi: p ⊢ fails");
+  const mo = await rows("#system-problems");
+  check(mo.some((r) => r[0] === S + "multi.right_ext_complete" && r[2] === "T" && /CSA/.test(r[4])), "multi: rightExt is not complete for it (as T)");
 
   check(errors.length === 0, `no page error${errors.length ? ": " + errors.join("; ") : ""}`);
 } finally {

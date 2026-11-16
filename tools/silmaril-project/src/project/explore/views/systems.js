@@ -15,6 +15,13 @@
   const has = () => Explorer.tables().has("consequence_systems");
   const missing = `<p class="muted">This database has no consequence-system tables (built by an older <code>sil project</code>).</p>`;
   const code = (s) => s == null || s === "" ? "" : `<code>${ui.esc(s)}</code>`;
+  // A Lean term, compact: qualified names keep their last two components (the full term is the
+  // title, and the SQL tab has it too); keyword escapes «…» are dropped from the display only.
+  const compactText = (t) => String(t).replace(/«([^»]*)»/g, "$1")
+    .replace(/(?:[A-Za-z_][\w']*\.)+([A-Za-z_][\w']*\.[A-Za-z_][\w'!?]*)/g, "$1");
+  const term = (t) => t == null || t === "" ? "" : `<code title="${ui.esc(t)}">${ui.esc(compactText(t))}</code>`;
+  // A system's name relative to `base` (the namespace of the page's system), for readings.
+  const rel = (n, base) => base && n.startsWith(base) && n.length > base.length ? n.slice(base.length) : n;
   const sysLink = (n) => `<a href="#/system/${encodeURIComponent(n)}">${ui.esc(n)}</a>`;
 
   // What each status means, by shape and by the arguments left free (`Silmaril.Project.Shapes.
@@ -101,26 +108,59 @@
     return out;
   }
 
+  // Expectations, apart from truth: how many problems with an expected status meet it (an
+  // expected negative result counts as met), are still unknown, or contradict it (the shared
+  // `statusInfo` outcome).
+  function tally(list) {
+    const n = { match: 0, pending: 0, mismatch: 0, error: 0, none: 0 };
+    for (const p of list) {
+      const i = p.summary ? ui.statusInfo({ summary: p.summary, verdict: p.verdict, expect: p.expect || null, arity: p.arity }) : null;
+      n[i ? i.outcome : p.expect && p.expect !== "OPN" ? "pending" : "none"]++;
+    }
+    return n;
+  }
+  function expectations(list) {
+    const n = tally(list), with_ = n.match + n.pending + n.mismatch + n.error;
+    if (!with_) return `<p class="muted">No problem here states an expected status.</p>`;
+    const all = n.match === with_;
+    return `<p class="expectations">${all ? "All " : ""}${n.match} of ${with_} expected statuses met` +
+      (n.pending ? `, ${n.pending} not established yet` : "") + (n.mismatch + n.error ? `, <b>${n.mismatch + n.error} unexpected</b>` : "") +
+      `<span class="muted"> — whether the project's expectations hold, not whether the statements are true: an expected
+refutation that is refuted counts as met.</span></p>`;
+  }
+
   async function listPage(arg, ctx) {
     if (!has()) return `<h2>Consequence systems</h2>${missing}`;
     const rows = await ctx.q(
       "SELECT c.name, c.title, c.op, c.decl, c.witness, c.contexts, c.conclusions, c.source, " +
-      "(SELECT group_concat(operand, ', ') FROM (SELECT operand FROM consequence_operands o WHERE o.system = c.name ORDER BY pos)) AS operands, " +
-      "(SELECT count(DISTINCT cp.problem) FROM consequence_problems cp WHERE cp.system = c.name) AS problems, " +
-      "(SELECT count(DISTINCT cp.problem) FROM consequence_problems cp WHERE cp.system = c.name AND coalesce(cp.summary, 'OPN') IN ('OPN','UNK')) AS unknown " +
+      "(SELECT count(*) FROM consequence_operands o WHERE o.system = c.name) AS n_operands " +
       "FROM consequence_systems c ORDER BY c.name LIMIT " + (LIMIT + 1));
+    // the problems of each system, once each (a problem naming it as S and as T counts once)
+    const probs = new Map();
+    for (const r of await ctx.q("SELECT DISTINCT cp.system, cp.problem, cp.expect, cp.summary, cp.verdict, p.arity " +
+        "FROM consequence_problems cp JOIN problems p ON p.name = cp.problem LIMIT 20000")) {
+      if (!probs.has(r.system)) probs.set(r.system, []);
+      probs.get(r.system).push(r);
+    }
     let h = `<h2>Consequence systems</h2>
 <p class="muted">A consequence system <code>S : Ax → C → Prop</code> relates contexts to conclusions; <code>S Γ φ</code> reads
 <code>Γ ⊢ φ</code>. A context may be a finite list <code>C₁, …, Cₙ</code>, a set or anything else, and <b>no structural rule is
 implicit</b>: a system is reflexive, monotone or closed under cut only if a proof below says so. Every property is a problem
 with Lean answers; a problem with no answer is <b>unknown</b>, not false.</p>
-<div class="tablebox"><table id="systems-table"><thead><tr><th>system</th><th>title</th><th>construction</th><th>contexts → conclusions</th><th>problems</th><th>unknown</th></tr></thead><tbody>`;
+<div class="tablebox"><table id="systems-table"><thead><tr><th>system</th><th>title</th><th>construction</th><th>contexts → conclusions</th>
+<th title="closed judgments: true / false / unknown">judgments</th><th title="problems with free arguments">questions</th><th title="expected statuses met / stated">expectations</th></tr></thead><tbody>`;
     for (const r of rows.slice(0, LIMIT)) {
-      const how = r.op === "erase" ? `erase of the witness system ${code(r.witness)}`
-        : r.op === "decl" ? `${code(r.decl)}`
-        : `${ui.esc(r.op)} of ${(r.operands || "").split(", ").filter(Boolean).map(sysLink).join(", ")}`;
+      const how = r.op === "erase" ? `erase of ${term(r.witness)}` : r.op === "decl" ? term(r.decl)
+        : `${ui.esc(r.op)} of ${r.n_operands} systems`;
+      const ps = probs.get(r.name) || [];
+      const cl = ps.filter((p) => p.arity === 0);
+      const tru = cl.filter((p) => p.summary === "THM" || p.summary === "SAT").length;
+      const fal = cl.filter((p) => p.summary === "UNS" || p.summary === "CSA").length;
+      const n = tally(ps), stated = n.match + n.pending + n.mismatch + n.error;
       h += `<tr><td>${sysLink(r.name)}</td><td>${ui.esc(r.title || "")}</td><td>${how}</td>` +
-        `<td>${code(r.contexts)} → ${code(r.conclusions)}</td><td>${r.problems || ""}</td><td>${r.unknown || ""}</td></tr>`;
+        `<td>${term(r.contexts)} → ${term(r.conclusions)}</td>` +
+        `<td>${cl.length ? `${tru} / ${fal} / ${cl.length - tru - fal}` : ""}</td><td>${ps.length - cl.length || ""}</td>` +
+        `<td>${stated ? `${n.match} / ${stated}${n.mismatch + n.error ? ` <b>(${n.mismatch + n.error} unexpected)</b>` : ""}` : ""}</td></tr>`;
     }
     h += `</tbody></table></div>`;
     if (rows.length > LIMIT) h += `<p class="muted">showing the first ${LIMIT}; use the SQL tab for the rest</p>`;
@@ -137,7 +177,9 @@ fixes the systems and asks about the arguments left free. The statuses mean (for
       `</tbody></table></div>
 <p class="muted"><b>Universal</b> (every context derives every conclusion), <b>context-universal</b> (one context derives every
 conclusion) and <b>derives ff</b> (a context derives a chosen conclusion) are different properties; they coincide only under
-structural rules a system may not have. Fixing Γ and φ gives the member judgment <code>Γ ⊢ φ</code>: THM true, CSA false.</p>`;
+structural rules a system may not have. Fixing Γ and φ gives the member judgment <code>Γ ⊢ φ</code>, a closed proposition:
+true or false. The judgments column counts these as true / false / unknown; the expectations column counts expected statuses
+met, which is not the same as true. Constructions name their operands on the system's page.</p>`;
     return h;
   }
 
@@ -154,11 +196,11 @@ structural rules a system may not have. Fixing Γ and φ gives the member judgme
       diff: "difference (\\): Γ ⊢ φ in the first operand and not in the second", erase: "erasure of a witness system: Γ ⊢ φ iff some derivation exists (Nonempty)" };
     const src = typeof sourceLink === "function" ? sourceLink(c.module, c.decl) : "";
     const rows = [
-      ["relates", `contexts ${code(c.contexts)} to conclusions ${code(c.conclusions)}`],
+      ["relates", `contexts ${term(c.contexts)} to conclusions ${term(c.conclusions)}`],
       ["construction", ui.esc(OPS[c.op] || c.op)],
       ["Lean definition", code(c.decl) + ` <span class="muted">in ${ui.esc(c.module)}</span>${src ? " " + src : ""}`],
     ];
-    if (c.witness) rows.push(["witness system", code(c.witness) + ` <span class="muted">(a type of derivations of each Γ ⊢ φ)</span>`]);
+    if (c.witness) rows.push(["witness system", term(c.witness) + ` <span class="muted">(a type of derivations of each Γ ⊢ φ)</span>`]);
     if (operands.length) rows.push(["operands", operands.map((o) => sysLink(o.operand)).join(", ")]);
     if (usedBy.length) rows.push(["used by", usedBy.map((u) => sysLink(u.system)).join(", ")]);
     if (c.source) rows.push(["source", ui.esc(c.source)]);
@@ -170,7 +212,11 @@ structural rules a system may not have. Fixing Γ and φ gives the member judgme
       "(SELECT 1 FROM deprecated_problems d WHERE d.problem = cp.problem LIMIT 1) AS deprecated " +
       "FROM consequence_problems cp JOIN problems p ON p.name = cp.problem " +
       "WHERE cp.system = ? ORDER BY cp.shape, p.arity DESC, cp.problem LIMIT " + LIMIT, [name]);
+    // a problem naming this system in two roles (S and T of a translation into itself) is one row
+    { const seen = new Map();
+      for (const p of ps.splice(0)) { if (seen.has(p.problem)) seen.get(p.problem).role += ", " + p.role; else { seen.set(p.problem, p); ps.push(p); } } }
     for (const p of ps) p.roles = (p.roles || "").split(" ");
+    const base = name.includes(".") ? name.slice(0, name.lastIndexOf(".") + 1) : "";
     const args = await argsOf(ctx, [...new Set(ps.map((p) => p.problem))]);
     const answers = new Map();
     if (ps.length) {
@@ -186,23 +232,36 @@ a CSA answer written <code>⟨Γ, φ, h⟩</code> keeps its counterexample. No a
     if (!ps.length) {
       h += `<p class="muted">No standard consequence problem names this system.</p>`;
     } else {
-      h += `<div class="tablebox"><table id="system-problems"><thead><tr><th>problem</th><th>question</th><th>as</th><th>fixed</th><th>outcome</th><th>reading</th><th>answers (witness)</th></tr></thead><tbody>`;
-      for (const p of ps) {
-        const a = args.get(p.problem) || {};
-        const plain = Object.fromEntries(Object.entries(a).map(([k, v]) => [k, v.text]));
-        const fixed = Object.entries(a).filter(([k]) => k !== p.role)
-          .map(([k, v]) => `${ui.esc(k)} = ${v.system ? sysLink(v.system) : code(v.text)}`).join("<br>");
-        const ans = (answers.get(p.problem) || []).map((x) => {
-          let w = "";
-          try { const ws = x.witness ? JSON.parse(x.witness) : null; if (Array.isArray(ws) && ws.length) w = ": " + ws.map(code).join(", "); } catch { /* shown without */ }
-          const s = typeof sourceLink === "function" ? sourceLink(x.module, x.decl) : "";
-          return `${ui.esc(x.status)}${w} by ${code(x.decl)}${s ? " " + s : ""}`;
-        }).join("<br>");
-        h += `<tr><td>${ui.link("problem", p.problem)}<div class="muted">${ui.esc(p.title || "")}</div></td>` +
-          `<td>${ui.esc(SHAPE(p.shape))}${p.arity === 0 ? " (closed)" : ""}</td><td>${ui.esc(p.role)}</td><td>${fixed}</td>` +
-          `<td class="nw">${outcome(p)}</td><td>${ui.esc(reading(p, plain))}</td><td>${ans || '<span class="muted">none</span>'}</td></tr>`;
+      h += expectations(ps);
+      const table = (id, list) => {
+        let t = `<div class="tablebox"><table id="${id}"><thead><tr><th>problem</th><th>question</th><th>as</th><th>fixed</th><th>outcome</th><th>reading</th><th>answers (witness)</th></tr></thead><tbody>`;
+        for (const p of list) {
+          const a = args.get(p.problem) || {};
+          const plain = Object.fromEntries(Object.entries(a).map(([k, v]) => [k, v.system ? rel(v.system, base) : compactText(v.text)]));
+          const own = p.role.split(", ");
+          const fixed = Object.entries(a).filter(([k]) => !own.includes(k))
+            .map(([k, v]) => `${ui.esc(k)} = ${v.system ? sysLink(v.system) : term(v.text)}`).join("<br>");
+          const ans = (answers.get(p.problem) || []).map((x) => {
+            let w = "";
+            try { const ws = x.witness ? JSON.parse(x.witness) : null; if (Array.isArray(ws) && ws.length) w = ": " + ws.map(term).join(", "); } catch { /* shown without */ }
+            const sl = typeof sourceLink === "function" ? sourceLink(x.module, x.decl) : "";
+            return `${ui.esc(x.status)}${w} by ${code(x.decl)}${sl ? " " + sl : ""}`;
+          }).join("<br>");
+          t += `<tr><td>${ui.link("problem", p.problem)}<div class="muted">${ui.esc(p.title || "")}</div></td>` +
+            `<td>${ui.esc(SHAPE(p.shape))}</td><td>${ui.esc(p.role)}</td><td>${fixed}</td>` +
+            `<td class="nw">${outcome(p)}</td><td>${ui.esc(reading(p, plain))}</td><td>${ans || '<span class="muted">none</span>'}</td></tr>`;
+        }
+        return t + `</tbody></table></div>`;
+      };
+      const closed = ps.filter((p) => p.arity === 0), open = ps.filter((p) => p.arity !== 0);
+      if (closed.length) {
+        h += `<h4>Judgments: closed, true or false</h4><p class="muted">Every argument is fixed, so each is one proposition: THM or SAT
+means true, UNS or CSA false (a refutation is stored as UNS), no answer unknown.</p>` + table("system-judgments", closed);
       }
-      h += `</tbody></table></div>`;
+      if (open.length) {
+        h += `<h4>Questions over the free arguments: SZS status</h4><p class="muted">Some arguments (Γ, φ) are free: THM holds for all of
+them, SAT for some, UNS for none, CSA fails for some, NOC (stored <code>contingent</code>) is SAT and CSA together.</p>` + table("system-problems", open);
+      }
     }
     return h;
   }
