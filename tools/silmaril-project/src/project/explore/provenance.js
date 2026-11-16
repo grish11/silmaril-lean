@@ -83,8 +83,15 @@ function declLocation(module, decl, text, ranges, tokens) {
     const r = ranges;
     // Lean's end is the position after the last character: a range ending at column 0 ends on the line before.
     const endLine = r.end_col === 0 && r.end_line > r.line ? r.end_line - 1 : r.end_line;
-    return { module: r.module, path: (SOURCE && SOURCE.modules[r.module]) || null, startLine: r.line, endLine, selLine: r.sel_line, selCol: r.sel_col,
+    const loc = { module: r.module, path: (SOURCE && SOURCE.modules[r.module]) || null, startLine: r.line, endLine, selLine: r.sel_line, selCol: r.sel_col,
       selEndLine: r.sel_end_line, selEndCol: r.sel_end_col, exact: true, method: "dump", match: "name" };
+    // A command that declares a constant (`silmaril instance N …`) may give the whole command as
+    // the selection range: then the name is found by the text search, inside Lean's exact range.
+    if ((r.sel_line !== r.sel_end_line || (r.sel_line === r.line && r.sel_col === r.col && r.sel_end_line === r.end_line)) && typeof text === "string") {
+      const l = LeanLocate.locateLeanDecl(text, decl, { tokens });
+      if (l && l.selLine >= loc.startLine && l.selLine <= loc.endLine) Object.assign(loc, { selLine: l.selLine, selCol: l.selCol, selEndLine: l.selLine, selEndCol: l.selEndCol });
+    }
+    return loc;
   }
   if (typeof text !== "string" || !decl) return null;
   const l = LeanLocate.locateLeanDecl(text, decl, { tokens });

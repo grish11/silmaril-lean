@@ -118,16 +118,19 @@ try {
         check(v.note.startsWith(`Lines ${want}–${want + 2}`) && v.described && v.focusable && /Lean source/.test(v.label), `${what}: labelled, focusable, described: ${v.note.slice(0, 60)}`);
         check(v.visible && v.unsafe === 0, `${what}: the declaration is in sight, nothing active in the code`);
       };
+      // a database written by `make pages` has Lean's ranges already; an older one has none
+      const ranged = sql("SELECT count(*) AS n FROM sqlite_master WHERE name = 'decl_locations'")[0].n > 0 &&
+        sql(`SELECT count(*) AS n FROM decl_locations WHERE decl = '${jp.decl}'`)[0].n > 0;
       await go("#/problem/" + encodeURIComponent(jp.name));
       await shot("problem-json-format.png");
       await p.click(`button.srcview[data-decl="${jp.decl}"]`);
       await p.waitForSelector("dialog.dlg pre.lean, dialog.dlg .err", { timeout: 30000 });
-      expectView(await view("dialog.dlg"), false, "text search");
+      expectView(await view("dialog.dlg"), ranged, ranged ? "decl_locations of the database" : "text search");
       await shot("source-view-json-format.png");
       await p.keyboard.press("Escape");
       await go("#/source/" + encodeURIComponent(jp.decl));
       await p.waitForSelector("#main pre.lean, #main .lean-src .err", { timeout: 30000 });
-      expectView(await view("#main"), false, "source page");
+      expectView(await view("#main"), ranged, "source page");
       await shot("source-page-json-format.png");
 
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "provenance-ranges-"));

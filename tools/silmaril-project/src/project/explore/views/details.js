@@ -71,6 +71,7 @@ async function evidence(p, s) {
   if (p.decl || p.module) {
     const link = sourceLink(p.module, p.decl);
     h += `<p>Statement: <code>${esc(p.decl || "?")}</code> in <code>${esc(p.module || "?")}</code>${link ? " · " + link : ""}</p>`;
+    h += sourceBlock(p.module, p.decl);
   }
   if (!s) return h;
   const st = await tq("statuses", "SELECT status, via_kind, via, tier FROM statuses WHERE problem = ? AND status = ? ORDER BY via_kind, via LIMIT 20", [p.name, s.summary]);
