@@ -70,8 +70,10 @@ try {
     `${slug}: the module page shows the language registered over its bytes, linked to Languages`);
   if (shots) { fs.mkdirSync(shots, { recursive: true }); await p.locator("section[data-section=languages]").screenshot({ path: path.join(shots, "wasm-languages.png") }).catch(() => {}); }
   await p.click("section[data-section=languages] a[href='#/language/test.synthetic.wasm_language']");
-  await settle();
-  check(await p.evaluate(() => window.explore.view === "language"), "the link opens the language's page");
+  // the click starts a new route asynchronously (hashchange): wait for that route, not the old one
+  const opened = await p.waitForFunction(() => window.explore.view === "language" && !window.explore.busy, null, { timeout: 30000 })
+    .then(() => true, () => false);
+  check(opened, "the link opens the language's page");
   if (other) {
     await p.evaluate((h) => { location.hash = h; }, "#/wasm-module/" + encodeURIComponent(other[0]));
     await settle();
