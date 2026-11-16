@@ -17,6 +17,7 @@ cannot show a productive run (`Silmaril.Games.Abstract.HostRunInf`).
   productive run of `f`, or a finished return of `f` followed by a productive run of `g` on
   its result and state, joined into one stream (`Stream'.appendStream'`);
 * `FullFun.pure`: the identity (return the argument, no productive run);
+* `FullFun.case`: copairing (case analysis on a sum argument), `AFun.case` on both parts;
 * `FullFun.iter`: iteration of a loop body (`inl` exits, `inr` continues). The finite part is
   `AFun.iter`. A productive run is either (a) a finite chain of finished continuing iterations
   (`ContChain`) followed by a productive run of the next iteration, or (b) an infinite chain of
@@ -56,6 +57,11 @@ def seq (f : FullFun E S A B) (g : FullFun E S B C) : FullFun E S A C :=
 
 /-- **The identity**: return the argument in the same state, with no productive run. -/
 def pure : FullFun E S A A := (fun s a => {([], End.ret a s)}, fun _ _ => ∅)
+
+/-- **Copairing** (case analysis): run `g` on an `inl` argument and `h` on an `inr` one, finite
+behaviours and productive runs alike. -/
+def case (g : FullFun E S A C) (h : FullFun E S B C) : FullFun E S (A ⊕ B) C :=
+  (AFun.case g.1 h.1, fun s => Sum.elim (g.2 s) (h.2 s))
 
 /-- **A finite chain of finished continuing iterations** of a loop body `f`: from `(s, a)`,
 iterations each returning `inr`, with logs concatenating to `c`, reach `(s', a')`. -/

@@ -5,6 +5,9 @@ public import Silmaril.Games.Abstract.HostRunInf.Thms
 import Silmaril.Proofs.Games.Abstract.FullFun.Basic
 import Silmaril.Proofs.Games.Abstract.FullFun.Laws
 import Silmaril.Proofs.Games.Abstract.FullFun.Tensor
+import Silmaril.Proofs.Games.Abstract.FullFun.Unfold
+import Silmaril.Games.Abstract.Function.Thms
+import Silmaril.Games.Abstract.FunctionIter.Thms
 
 /-!
 # Full observations of functions: theorems
@@ -31,6 +34,19 @@ Proofs in `Silmaril.Proofs.Games.Abstract.FullFun`.
   `FullFun.iter F` against a relational host are (a) a consistent finite continuing chain
   followed by a productive observation of the next iteration, or (b) an infinite continuing
   chain with every segment consistent.
+
+**Copairing and the fixpoint law** (`Silmaril.Proofs.Games.Abstract.FullFun.Unfold`):
+
+* `FullFun.pure_fin`, `FullFun.case_fin`: the finite parts are `AFun.pure` and `AFun.case`;
+* `FullFun.comap_inl_case`, `FullFun.comap_inr_case`, `FullFun.pure_map_inl_seq_case`,
+  `FullFun.pure_map_inr_seq_case`: copairing after an injection is the corresponding component;
+* `FullFun.case_pure_map`: the copairing of the injections is the identity;
+* `FullFun.seq_case`: sequencing distributes over copairing on the left;
+* `FullFun.iter_unfold` (**the fixpoint law**): `iter F = seq F (case pure (iter F))`, with no
+  hypothesis on `F`. The finite part is `AFun.iter_unfold`. For the productive runs, a finite
+  continuing chain followed by a productive run is empty or a first continuing iteration
+  followed by a shorter chain, and an infinite continuing chain is its first iteration followed
+  by the shifted chain (`streamConcat_tail`, `streamConcat_cons`).
 
 **Pure maps and whiskering** (`Silmaril.Proofs.Games.Abstract.FullFun.Tensor`):
 
@@ -152,6 +168,47 @@ theorem hostObsInf_iter {R : HostRel E} (F : FullFun E S A (B ⊕ A)) (s : S) (a
           (∀ n, (l n, End.ret (.inr (σ (n + 1)).2) (σ (n + 1)).1) ∈ F.1 (σ n).1 (σ n).2) ∧
           (∀ n, R.Consistent (l n)) ∧ Shape.StreamConcat l ω :=
   Silmaril.Proofs.Games.Abstract.FullFun.hostObsInf_iter F s a ω
+
+/-! ## Copairing and the fixpoint law -/
+
+theorem FullFun.pure_fin : (FullFun.pure : FullFun E S A A).1 = AFun.pure := rfl
+
+theorem FullFun.case_fin (g : FullFun E S A C) (h : FullFun E S B C) :
+    (FullFun.case g h).1 = AFun.case g.1 h.1 := rfl
+
+theorem FullFun.comap_inl_case (g : FullFun E S A C) (h : FullFun E S B C) :
+    (FullFun.case g h).comap Sum.inl = g := rfl
+
+theorem FullFun.comap_inr_case (g : FullFun E S A C) (h : FullFun E S B C) :
+    (FullFun.case g h).comap Sum.inr = h := rfl
+
+/-- Copairing after the left injection is the left component. -/
+theorem FullFun.pure_map_inl_seq_case (g : FullFun E S A C) (h : FullFun E S B C) :
+    FullFun.seq (FullFun.pure.map Sum.inl) (FullFun.case g h) = g :=
+  Silmaril.Proofs.Games.Abstract.FullFun.pure_map_seq Sum.inl _
+
+/-- Copairing after the right injection is the right component. -/
+theorem FullFun.pure_map_inr_seq_case (g : FullFun E S A C) (h : FullFun E S B C) :
+    FullFun.seq (FullFun.pure.map Sum.inr) (FullFun.case g h) = h :=
+  Silmaril.Proofs.Games.Abstract.FullFun.pure_map_seq Sum.inr _
+
+/-- The copairing of the injections is the identity. -/
+theorem FullFun.case_pure_map :
+    FullFun.case (FullFun.pure.map Sum.inl) (FullFun.pure.map Sum.inr) =
+      (FullFun.pure : FullFun E S (A ⊕ B) (A ⊕ B)) :=
+  Silmaril.Proofs.Games.Abstract.FullFun.case_pure_map
+
+/-- Sequencing distributes over copairing on the left. -/
+theorem FullFun.seq_case {D : Type u} (g : FullFun E S A C) (h : FullFun E S B C)
+    (k : FullFun E S C D) :
+    FullFun.seq (FullFun.case g h) k = FullFun.case (FullFun.seq g k) (FullFun.seq h k) :=
+  Prod.ext (AFun.seq_case g.1 h.1 k.1) (funext fun _ => funext fun x => by cases x <;> rfl)
+
+/-- **The fixpoint law**: one iteration, then exit (`inl`) or iterate again (`inr`); finite
+behaviours and productive runs. -/
+theorem FullFun.iter_unfold (F : FullFun E S A (B ⊕ A)) :
+    FullFun.iter F = FullFun.seq F (FullFun.case FullFun.pure (FullFun.iter F)) :=
+  Prod.ext (AFun.iter_unfold F.1) (Silmaril.Proofs.Games.Abstract.FullFun.iter_unfold_inf F)
 
 /-! ## Pure maps and whiskering -/
 
