@@ -59,7 +59,7 @@ included. Hets lists no institution morphisms.
 
 ## Coverage
 
-Three questions, kept apart (explorer: `#/logic-coverage`):
+Four questions, kept apart (explorer: `#/logic-coverage`):
 
 1. **What does the registry omit from this repository?** `silmaril logic_audit (prefix := "Silmaril")`
    (in `Silmaril.LogicGraph.Audit.Defs`) records every non-theorem declaration reachable from that
@@ -68,7 +68,21 @@ Three questions, kept apart (explorer: `#/logic-coverage`):
    The `logic_coverage` view counts them.
 2. **How does the registry relate to Hets?** The `hets_coverage` view: per Hets logic and
    comorphism, the records that claim a relation to it, and which relation.
-3. **Which logic families are not in this repository yet?** `silmaril/logic-graph/pending.toml`
+3. **What is each entry of the curated catalogue the registry was ported from?**
+   `silmaril/logic-graph/catalogue.toml` (`logic_catalogue`, loaded by
+   `Silmaril.LogicGraph.Catalogue.Defs`) has one record per entry of that catalogue (137 logics,
+   158 maps), with its stable id and label, its status, the registered records that hold it, the
+   Lean declarations that are its evidence and a reason when it is not a registered record:
+   - `registered`: a registered record (its evidence declaration, or a named bundle of it);
+   - `represented`: an instance or an endpoint of registered records (a node of a registered
+     family, the source of registered comorphisms);
+   - `not-institution-typed`: the evidence is a logical system (Metamath axiom sets, inference
+     systems, `LogicalSystem`s), a translation of proofs, a family of institutions (a logic graph
+     or a functor into institutions) or theorems, outside the five registry kinds;
+   - `prospective`: the catalogue entry has no Lean declaration.
+   Lean checks that every evidence declaration exists and every named record is registered;
+   `sil project check` checks the status against the records, the evidence and the reason.
+4. **Which logic families are not in this repository yet?** `silmaril/logic-graph/pending.toml`
    (`logic_pending`): families with Lean developments that are being contributed in reviewed
    batches. Nothing in them is registered or claimed until it lands.
 

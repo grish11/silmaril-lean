@@ -233,6 +233,7 @@ public import Silmaril.Logic.Egg.Source.Named.Theory.Defs
 public import Silmaril.Logic.Egglog.Core.Defs
 public import Silmaril.Logic.Egglog.Core.Derivation
 public import Silmaril.Logic.Egglog.Core.Egg.Defs
+public import Silmaril.Logic.Egglog.Core.Egg.Thms
 public import Silmaril.Logic.Egglog.Core.Examples.Defs
 public import Silmaril.Logic.Egglog.Core.FirstOrder
 public import Silmaril.Logic.Egglog.Core.Graph.Defs
@@ -270,6 +271,7 @@ public import Silmaril.Logic.Egglog.Source.Named.Representation.Naming.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Representation.Naming.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Representation.Support.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Representation.Support.Thms
+public import Silmaril.Logic.Egglog.Source.Named.Representation.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Resolution.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Resolution.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Supplied.Defs
@@ -853,6 +855,7 @@ public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Normalization.Thm
 public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Operators.Thms
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Defs
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Thms
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Thms
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Syntax.Defs
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Syntax.Thms

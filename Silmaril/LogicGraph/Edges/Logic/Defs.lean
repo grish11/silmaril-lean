@@ -202,6 +202,7 @@ public import Silmaril.Logic.Egg.Source.Named.Theory.Defs
 public import Silmaril.Logic.Egglog.Core.Defs
 public import Silmaril.Logic.Egglog.Core.Derivation
 public import Silmaril.Logic.Egglog.Core.Egg.Defs
+public import Silmaril.Logic.Egglog.Core.Egg.Thms
 public import Silmaril.Logic.Egglog.Core.Examples.Defs
 public import Silmaril.Logic.Egglog.Core.FirstOrder
 public import Silmaril.Logic.Egglog.Core.Graph.Defs
@@ -239,6 +240,7 @@ public import Silmaril.Logic.Egglog.Source.Named.Representation.Naming.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Representation.Naming.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Representation.Support.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Representation.Support.Thms
+public import Silmaril.Logic.Egglog.Source.Named.Representation.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Resolution.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Resolution.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Supplied.Defs
@@ -273,6 +275,7 @@ public import Silmaril.Logic.Hoare.Thms
 public import Silmaril.Logic.HybridPolyadic.Matching.Thms
 public import Silmaril.Logic.HybridPolyadic.Modal.Thms
 public import Silmaril.Logic.Institution.Examples.Comorphisms
+public import Silmaril.Logic.Institution.Examples.UnsortedToFOL
 public import Silmaril.Logic.Institution.Hets.PresentationGraph.Defs
 public import Silmaril.Logic.Institution.Hets.PresentationGraph.Thms
 public import Silmaril.Logic.Institution.Pi.Defs
@@ -777,6 +780,7 @@ public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Normalization.Thm
 public import Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.Operators.Thms
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Defs
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Defs
+public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.Thms
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Source.Thms
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Syntax.Defs
 public import Silmaril.Logic.Smt.Uflia.SortMaps.Syntax.Thms
@@ -1230,6 +1234,9 @@ Lean finds the endpoints of each edge among the registered institutions and room
 -/
 
 silmaril comorphism inst.comorphism.of_obs := Silmaril.Inst.Comorphism.ofObs (facts := [Silmaril.Inst.Comorphism.ofObs_modelExpansive])
+silmaril comorphism logic.algebraic.initial.matching.finite_sorted_compiler.institution.to_matching := Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.toMatching
+silmaril comorphism logic.algebraic.initial.matching.global_presented.compiler := Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.compiler
+silmaril comorphism logic.algebraic.initial.matching.to_matching := Silmaril.Logic.Algebraic.Initial.Matching.toMatching (facts := [Silmaril.Logic.Algebraic.Initial.Matching.toMatching_modelExpansive])
 silmaril comorphism logic.algebraic.initial.from_equational := Silmaril.Logic.Algebraic.Initial.fromEquational (facts := [Silmaril.Logic.Algebraic.Initial.fromEquational_modelExpansive])
 silmaril comorphism logic.algebraic.lambda.varying.to_stlc := Silmaril.Logic.Algebraic.Lambda.Varying.toSTLC (facts := [Silmaril.Logic.Algebraic.Lambda.Varying.toSTLC_modelExpansive])
 silmaril comorphism logic.algebraic.lambda.to_stlc := Silmaril.Logic.Algebraic.Lambda.toSTLC (facts := [Silmaril.Logic.Algebraic.Lambda.toSTLC_modelExpansive])
@@ -1256,6 +1263,7 @@ silmaril comorphism logic.common_logic.source.presentations.packaged.comparison 
 silmaril comorphism logic.common_logic.source.presentations.packaged.fol_comparison := Silmaril.Logic.CommonLogic.Source.Presentations.Packaged.folComparison
 silmaril comorphism logic.egg.core.from_equations := Silmaril.Logic.Egg.Core.fromEquations (facts := [Silmaril.Logic.Egg.Core.fromEquations_modelExpansive])
 silmaril comorphism logic.egg.core.to_first_order := Silmaril.Logic.Egg.Core.toFirstOrder (facts := [Silmaril.Logic.Egg.Core.toFirstOrder_modelExpansive])
+silmaril comorphism logic.egglog.core.egg.from_egg := Silmaril.Logic.Egglog.Core.Egg.fromEgg (facts := [Silmaril.Logic.Egglog.Core.Egg.fromEgg_modelExpansive])
 silmaril comorphism logic.egglog.core.graph.functional.from_core := Silmaril.Logic.Egglog.Core.Graph.Functional.fromCore (facts := [Silmaril.Logic.Egglog.Core.Graph.Functional.fromCore_modelExpansive])
 silmaril comorphism logic.egglog.core.graph.functional.restriction := Silmaril.Logic.Egglog.Core.Graph.Functional.restriction
 silmaril comorphism logic.egglog.core.graph.from_core := Silmaril.Logic.Egglog.Core.Graph.fromCore (facts := [Silmaril.Logic.Egglog.Core.Graph.fromCore_modelExpansive])
@@ -1272,11 +1280,13 @@ silmaril comorphism logic.egglog.source.named.supplied.to_graph := Silmaril.Logi
 silmaril comorphism logic.first_order_lfp.boolean.from_positive := Silmaril.Logic.FirstOrderLFP.Boolean.fromPositive (facts := [Silmaril.Logic.FirstOrderLFP.Boolean.fromPositive_modelExpansive])
 silmaril comorphism logic.first_order_lfp.fol_to_lfp := Silmaril.Logic.FirstOrderLFP.folToLFP (facts := [Silmaril.Logic.FirstOrderLFP.folToLFP_modelExpansive])
 silmaril comorphism logic.hoare.first_order.to_hoare := Silmaril.Logic.Hoare.FirstOrder.toHoare (facts := [Silmaril.Logic.Hoare.FirstOrder.toHoare_modelExpansive])
+silmaril comorphism logic.hoare.restrict_reachability := Silmaril.Logic.Hoare.restrictReachability
 silmaril comorphism logic.hoare.to_canonical_reachability := Silmaril.Logic.Hoare.toCanonicalReachability (facts := [Silmaril.Logic.Hoare.toCanonicalReachability_modelExpansive])
 silmaril comorphism logic.hybrid_polyadic.matching.hybrid_to_constrained_matching := Silmaril.Logic.HybridPolyadic.Matching.hybridToConstrainedMatching
 silmaril comorphism logic.hybrid_polyadic.modal_to_hybrid_polyadic := Silmaril.Logic.HybridPolyadic.modalToHybridPolyadic
 silmaril comorphism logic.institution.examples.eq_to_fol := Silmaril.Logic.Institution.Examples.eqToFol (facts := [Silmaril.Logic.Institution.Examples.eqToFol_modelExpansive])
 silmaril comorphism logic.institution.examples.pl_to_fol := Silmaril.Logic.Institution.Examples.plToFol (hets := "Prop2CASL") (hets_relation := related) (facts := [Silmaril.Logic.Institution.Examples.plToFol_modelExpansive])
+silmaril comorphism logic.institution.examples.ufol_to_fol := Silmaril.Logic.Institution.Examples.ufolToFol (facts := [Silmaril.Logic.Institution.Examples.ufolToFol_modelExpansive])
 silmaril comorphism logic.kore.first_order.lowering_comorphism := Silmaril.Logic.Kore.FirstOrder.loweringComorphism (facts := [Silmaril.Logic.Kore.FirstOrder.lowering_modelExpansive])
 silmaril comorphism logic.kore.fixed_point.lowering_comorphism := Silmaril.Logic.Kore.FixedPoint.loweringComorphism (facts := [Silmaril.Logic.Kore.FixedPoint.lowering_modelExpansive])
 silmaril comorphism logic.kore.general_fixed_point.aliases.lowering_comorphism := Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.loweringComorphism (facts := [Silmaril.Logic.Kore.GeneralFixedPoint.Aliases.lowering_modelExpansive])
@@ -1295,6 +1305,7 @@ silmaril comorphism logic.matching.sort_maps.first_order_to_fixed_point := Silma
 silmaril comorphism logic.modal.propositional_to_modal := Silmaril.Logic.Modal.propositionalToModal
 silmaril comorphism logic.modal_mu.k_to_mu := Silmaril.Logic.ModalMu.kToMu (facts := [Silmaril.Logic.ModalMu.kToMu_modelExpansive])
 silmaril comorphism logic.pdl.k_to_pdl := Silmaril.Logic.PDL.kToPDL (facts := [Silmaril.Logic.PDL.kToPDL_modelExpansive])
+silmaril comorphism logic.pdl.pdl_to_mu := Silmaril.Logic.PDL.pdlToMu (facts := [Silmaril.Logic.PDL.pdlToMu_modelExpansive])
 silmaril comorphism logic.prolog.definite.to_first_order := Silmaril.Logic.Prolog.Definite.toFirstOrder (facts := [Silmaril.Logic.Prolog.Definite.toFirstOrder_modelExpansive])
 silmaril comorphism logic.prolog.horn.from_definite := Silmaril.Logic.Prolog.Horn.fromDefinite (facts := [Silmaril.Logic.Prolog.Horn.fromDefinite_modelExpansive])
 silmaril comorphism logic.prolog.horn.to_egglog_graph := Silmaril.Logic.Prolog.Horn.toEgglogGraph (facts := [Silmaril.Logic.Prolog.Horn.toEgglogGraph_modelExpansive])
@@ -1342,8 +1353,8 @@ silmaril comorphism logic.smt.uflia.s_expr.decode_comorphism := Silmaril.Logic.S
 silmaril comorphism logic.smt.uflia.script.decode_comorphism := Silmaril.Logic.Smt.Uflia.Script.decodeComorphism
 silmaril comorphism logic.smt.uflia.sort_maps.quantified.s_expr.renaming.to_abstract := Silmaril.Logic.Smt.Uflia.SortMaps.Quantified.SExpr.Renaming.toAbstract
 silmaril comorphism logic.smt.uflia.sort_maps.s_expr.renaming.to_abstract := Silmaril.Logic.Smt.Uflia.SortMaps.SExpr.Renaming.toAbstract
-silmaril comorphism logic.smt.uflia.sort_maps.source.script.singleton := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.singleton
-silmaril comorphism logic.smt.uflia.sort_maps.source.script.to_problems := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.toProblems
+silmaril comorphism logic.smt.uflia.sort_maps.source.script.singleton := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.singleton (facts := [Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.singleton_modelExpansive])
+silmaril comorphism logic.smt.uflia.sort_maps.source.script.to_problems := Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.toProblems (facts := [Silmaril.Logic.Smt.Uflia.SortMaps.Source.Script.toProblems_modelExpansive])
 silmaril comorphism logic.smt.uflia.sort_maps.source.checked_to_quantified := Silmaril.Logic.Smt.Uflia.SortMaps.Source.checkedToQuantified (facts := [Silmaril.Logic.Smt.Uflia.SortMaps.Source.checkedToQuantified_modelExpansive])
 silmaril comorphism logic.smt.uflia.sort_maps.source.of_accepted_comparison := Silmaril.Logic.Smt.Uflia.SortMaps.Source.ofAcceptedComparison (facts := [Silmaril.Logic.Smt.Uflia.SortMaps.Source.ofAcceptedComparison_modelExpansive])
 silmaril comorphism logic.smt.uflia.sort_maps.source.to_quantified := Silmaril.Logic.Smt.Uflia.SortMaps.Source.toQuantified (facts := [Silmaril.Logic.Smt.Uflia.SortMaps.Source.toQuantified_modelExpansive])
@@ -1386,6 +1397,7 @@ silmaril comorphism logic.type_theory.intensional_mltt.original_institution.from
 silmaril comorphism logic.type_theory.intensional_mltt.original_institution.inclusion := Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.inclusion
 silmaril morphism inst.morphism.of_obs := Silmaril.Inst.Morphism.ofObs (facts := [Silmaril.Inst.Morphism.ofObs_sound])
 silmaril morphism logic.algebraic.dependent_family.equational.morphism := Silmaril.Logic.Algebraic.DependentFamily.Equational.morphism
+silmaril morphism logic.algebraic.initial.matching.global_presented.compiler_hom := Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.compilerHom
 silmaril morphism logic.algebraic.order_sorted.to_equational := Silmaril.Logic.Algebraic.OrderSorted.toEquational
 silmaril morphism logic.common_logic.many_sorted.institution.typed_forget := Silmaril.Logic.CommonLogic.ManySorted.Institution.typedForget
 silmaril morphism logic.institution.examples.fol_to_eq := Silmaril.Logic.Institution.Examples.folToEq (facts := [Silmaril.Logic.Institution.Examples.folToEq_sound])

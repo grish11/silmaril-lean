@@ -794,6 +794,66 @@
         ]
       }
     },
+    "logic_catalogue": {
+      "description": "An entry of the curated catalogue the logic-graph port started from, and what it is here",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The record's name"
+          },
+          "catalogue_id": {
+            "type": "string",
+            "description": "The entry's stable id in the catalogue"
+          },
+          "title": {
+            "type": "string",
+            "description": "The entry's label"
+          },
+          "entry": {
+            "type": "string",
+            "description": "node (a logic) or edge (a map)"
+          },
+          "status": {
+            "type": "string",
+            "description": "registered, represented, not-institution-typed or prospective"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The registered records that hold it (`kind:name`)"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The Lean declarations that are its evidence"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why it is not a registered record"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "catalogue_id",
+          "title",
+          "entry",
+          "status"
+        ]
+      }
+    },
     "machine": {
       "description": "A machine document (`Silmaril.Automata.Document`): states, labels, edges and marking layers; Lean defines the constant `<name>` and fills `decl`, `deterministic` and `canonical`",
       "type": "array",
@@ -1998,6 +2058,50 @@
             "doc": {
               "type": "string",
               "description": "A description"
+            }
+          }
+        },
+        "logic_catalogue": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "catalogue_id": {
+              "type": "string",
+              "description": "The entry's stable id in the catalogue"
+            },
+            "title": {
+              "type": "string",
+              "description": "The entry's label"
+            },
+            "entry": {
+              "type": "string",
+              "description": "node (a logic) or edge (a map)"
+            },
+            "status": {
+              "type": "string",
+              "description": "registered, represented, not-institution-typed or prospective"
+            },
+            "records": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The registered records that hold it (`kind:name`)"
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The Lean declarations that are its evidence"
+            },
+            "reason": {
+              "type": "string",
+              "description": "Why it is not a registered record"
             }
           }
         },

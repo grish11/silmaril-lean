@@ -541,9 +541,9 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
     const d = await load(ctx);
     const { p } = params(arg);
     let h = tabs("logic-coverage", d) + `<h2>Coverage</h2>
-<p class="muted">Three separate questions, answered separately: what the registry omits from this repository's Lean declarations (the audit),
-how the registry relates to the Hets logic graph (by the relations records claim), and which logic families have Lean developments that are
-not in this repository yet. None of them says that this repository covers Hets.</p>`;
+<p class="muted">Four separate questions, answered separately: what the registry omits from this repository's Lean declarations (the audit),
+how the registry relates to the Hets logic graph (by the relations records claim), what each entry of the curated catalogue the registry was
+ported from is here, and which logic families have Lean developments that are not in this repository yet. None of them says that this repository covers Hets.</p>`;
     // 1. the audit
     const cov = has("logic_coverage") ? await ctx.q("SELECT * FROM logic_coverage ORDER BY object, layer") : [];
     const scope = has("logic_audit") ? await ctx.q("SELECT DISTINCT scope, module FROM logic_audit LIMIT 10") : [];
@@ -599,7 +599,31 @@ A record relates to one by its own claim: <b>corresponds</b>, <b>fragment</b> or
       h += g2.html;
       var initHets = g2.init;
     }
-    // 3. pending families
+    // 3. the curated catalogue, entry by entry
+    h += `<h3>The curated catalogue, entry by entry</h3>`;
+    const cat = has("logic_catalogue") ? await ctx.q("SELECT * FROM logic_catalogue ORDER BY entry DESC, catalogue_id") : [];
+    if (!cat.length) h += `<p class="muted">No catalogue in this database.</p>`;
+    else {
+      const n = (e, st) => cat.filter((r) => r.entry === e && (!st || r.status === st)).length;
+      const parse = (v) => { try { return JSON.parse(v || "[]"); } catch (e) { return []; } };
+      h += `<p class="muted">The ${n("node")} logics and ${n("edge")} maps of the curated catalogue this registry was ported from, each with what it is here:
+<b>registered</b> (a registered record), <b>represented</b> (an instance or endpoint of registered records), <b>not institution-typed</b>
+(a logical system, proof calculus, translation of proofs, family of institutions or theorem: outside the five registry kinds) or
+<b>prospective</b> (no Lean declaration). Lean checked that every evidence declaration exists here and that every record named is registered.
+An empty list of pending families does not mean every entry is a registered institution or map: the statuses below say which are.</p>
+<div class="lg-stats">${[["node", "logics"], ["edge", "maps"]].map(([e, t]) => ["registered", "represented", "not-institution-typed", "prospective"]
+  .map((st) => `<div class="lg-stat"><b>${n(e, st)} / ${n(e)}</b><span>${t}: ${st.replace(/-/g, " ")}</span></div>`).join("")).join("")}</div>`;
+      const g3 = grid("lg-catalogue", cat, [
+        { key: "entry", label: "entry" }, { key: "catalogue_id", label: "id", html: (r) => code(r.catalogue_id) },
+        { key: "title", label: "title" }, { key: "status", label: "status", html: (r) => pill(r.status) },
+        { key: "records", label: "registered records", html: (r) => parse(r.records).map((x) => { const i = x.indexOf(":"); return rec(x.slice(0, i), x.slice(i + 1)); }).join("<br>"),
+          text: (r) => parse(r.records).join(" ") },
+        { key: "evidence", label: "Lean evidence", html: (r) => parse(r.evidence).map(code).join("<br>"), text: (r) => parse(r.evidence).join(" ") },
+        { key: "reason", label: "reason", text: (r) => r.reason || "" }], { q: p.get("catalogue") || "" });
+      h += g3.html;
+      var initCat = g3.init;
+    }
+    // 4. pending families
     h += `<h3>Logic families not yet in this repository</h3>`;
     const pend = has("logic_pending") ? await ctx.q("SELECT * FROM logic_pending ORDER BY name") : [];
     if (!pend.length) h += `<p class="muted">None listed in this database.</p>`;
@@ -608,7 +632,7 @@ A record relates to one by its own claim: <b>corresponds</b>, <b>fragment</b> or
 Until a family lands here, nothing in it is registered, and nothing here claims it.</p>`;
       h += await ui.table(pend, ["title", "nodes", "edges", "status"], { nowrap: ["nodes", "edges", "status"] });
     }
-    return { html: h, init: () => { if (initOmitted) initOmitted(); if (initHets) initHets(); } };
+    return { html: h, init: () => { if (initOmitted) initOmitted(); if (initHets) initHets(); if (initCat) initCat(); } };
   }
 
   Explorer.registerView({ id: "logic-graph", title: "Logic graph", nav: 66, render: graphView });

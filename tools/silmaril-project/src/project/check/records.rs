@@ -41,6 +41,8 @@ fn text_field<'a>(r: &'a Record, key: &str) -> Option<&'a str> {
         (Record::HetsComorphism(x), "doc") => &x.doc,
         (Record::LogicPending(x), "doc") => &x.doc,
         (Record::LogicPending(x), "title") => return Some(&x.title),
+        (Record::LogicCatalogue(x), "title") => return Some(&x.title),
+        (Record::LogicCatalogue(x), "reason") => &x.reason,
         (Record::Institution(x), "title") => &x.title,
         (Record::Comorphism(x), "title") => &x.title,
         (Record::Morphism(x), "title") => &x.title,
@@ -62,9 +64,9 @@ fn compare(cx: &Ctx, at: &str, t: &RecordTable, o: &mut Outcome) {
         "instance" => ("instance", "judgement"),
         k @ ("artifact_type" | "format" | "format_default" | "value" | "model" | "spec"
         | "room" | "institution" | "comorphism" | "morphism" | "corridor" | "hets_logic"
-        | "hets_comorphism" | "logic_pending" | "machine" | "machine_binding"
-        | "judgement" | "detached" | "deprecation" | "finding" | "expected_open" | "group"
-        | "children") => (k, k),
+        | "hets_comorphism" | "logic_pending" | "logic_catalogue" | "machine"
+        | "machine_binding" | "judgement" | "detached" | "deprecation" | "finding"
+        | "expected_open" | "group" | "children") => (k, k),
         _ => return,
     };
     if cx.get(kind, name).is_none() {

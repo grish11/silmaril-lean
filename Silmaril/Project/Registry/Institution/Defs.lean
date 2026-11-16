@@ -420,4 +420,38 @@ def moduleLayer (m : Name) : String :=
       out := out.push (nm, f)
     return out
 
+/-! ## The curated catalogue
+
+`silmaril logic_catalogue N (catalogue_id := …) (entry := node | edge) (status := …)
+(records := ["kind:name", …]) (evidence := [decl, …]) (reason := …)` records what one entry of
+the curated catalogue the logic-graph port started from is in this repository. Lean checks that
+every evidence declaration exists (the entry's Lean code is here) and that every record it names
+is registered; `sil project check` checks the status against the records and the reason. -/
+
+/-- The statuses of a catalogue entry. -/
+def catalogueStatuses : List String :=
+  ["registered", "represented", "not-institution-typed", "prospective"]
+
+@[silmaril_kind logic_catalogue] def logicCatalogueHandler : Handler where
+  run? := some fun kind name? fs => liftTermElabM do
+    let name ← needName kind name?
+    let env ← getEnv
+    let some (.str status) := fs.get? "status" | throwError "silmaril {kind}: `status` is required"
+    unless catalogueStatuses.contains status do
+      throwError "silmaril {kind}: status {status.quote} is not one of {catalogueStatuses}"
+    if let some (.arr es) := fs.get? "evidence" then
+      for e in es do
+        let .str d := e | throwError "silmaril {kind}: `evidence` is a list of declarations"
+        unless env.contains d.toName do
+          throwError "silmaril {kind}: evidence {d} is not a declaration of the environment"
+    if let some (.arr rs) := fs.get? "records" then
+      for r in rs do
+        let .str s := r | throwError "silmaril {kind}: `records` is a list of `kind:name`"
+        match s.splitOn ":" with
+        | [k, n] =>
+          unless (logicKindHead k).isSome do throwError "silmaril {kind}: {k} is not a logic-graph kind"
+          unless (findRecord? env k n).isSome do throwError "silmaril {kind}: no {k} {n} is registered"
+        | _ => throwError "silmaril {kind}: record {s.quote} is not `kind:name`"
+    return #[(name, fs)]
+
 end Silmaril.Project

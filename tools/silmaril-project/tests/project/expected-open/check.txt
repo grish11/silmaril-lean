@@ -9,5 +9,5 @@ deprecated problem eo.old: stated over the wrong machine (superseded by eo.open)
 expected_open consistency eo.con [OPN]: states the consistency of the ambient theory (Lean with its axioms) itself (see https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems)
 expected_open independent eo.ind [OPN]: a test fixture: assumed independent of the ambient theory (Lean with its axioms)
 expected_open independent eo.old [OPN]: a test fixture: deprecated and expected open
-sql sha256: 1768b9dc2c25408fdb7faea001e9caada96cbb4725920a25311e92945c733c16
+sql sha256: 8d8b63aef95e96a0118eddb4d2814a27698c7fe794346c10ad94086478c1d440
 exit: ok

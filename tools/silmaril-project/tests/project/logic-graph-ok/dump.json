@@ -148,6 +148,33 @@
    "nodes": 26,
    "edges": 23,
    "status": "pending-port"
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.node.pl",
+   "module": "LG",
+   "catalogue_id": "pl",
+   "title": "Propositional logic",
+   "entry": "node",
+   "status": "registered",
+   "records": [
+    "institution:lg.pl"
+   ],
+   "evidence": [
+    "LG.PL.inst"
+   ]
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.edge.pending",
+   "module": "LG",
+   "catalogue_id": "pending",
+   "title": "A prospective map",
+   "entry": "edge",
+   "status": "prospective",
+   "records": [],
+   "evidence": [],
+   "reason": "no Lean declaration"
   }
  ],
  "problems": [],

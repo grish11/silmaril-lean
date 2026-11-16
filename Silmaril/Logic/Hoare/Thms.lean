@@ -111,6 +111,10 @@ def restrictionNatural : (reachSignatures C ⋙ Reachability.institution ()) ⟶
     intro A B f
     exact Room.hom_ext rfl (canonicalModels_natural C f)
 
+/-- Reachability logic pulled back to Hoare signatures (`reachSignatures C ⋙ Reachability.institution ()`),
+as a bundled `Inst`: the source of `restrictReachability`, named so that records can refer to it. -/
+def reachInst := (⟨Signature C, reachSignatures C ⋙ Reachability.institution ()⟩ : Silmaril.Logic.Institution.Inst)
+
 def restrictReachability : Inst.CoHom ⟨Signature C, reachSignatures C ⋙ Reachability.institution ()⟩
     ⟨Signature C, canonicalInstitution C⟩ := ⟨𝟭 _, restrictionNatural C⟩
 

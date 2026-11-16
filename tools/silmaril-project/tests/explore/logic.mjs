@@ -110,6 +110,15 @@ try {
   const cov = await p.textContent("main");
   check(/Audit of Lean declarations/.test(cov) && /declarations/.test(cov) && /omitted/.test(cov), "coverage: the audit");
   check((await rows("#lg-hets")).length === 39 + 75, "coverage: the pinned Hets list (39 logics, 75 comorphisms)");
+  const catRows = await rows("#lg-catalogue");
+  const catDb = await p.evaluate(() => document.querySelectorAll("#lg-catalogue tbody tr").length);
+  check(catDb === 295 || catDb === 0, `coverage: the curated catalogue, entry by entry (${catDb} rows)`);
+  if (catDb) {
+    const statuses = new Set(catRows.map((r) => r[3]));
+    check(["registered", "represented", "not-institution-typed", "prospective"].every((x) => statuses.has(x)), `catalogue statuses ${[...statuses]}`);
+    check(catRows.filter((r) => r[3] === "not-institution-typed").every((r) => r[6].length > 0), "every entry that is not institution-typed says why");
+    check(catRows.filter((r) => r[3] === "registered").every((r) => r[4].length > 0), "every registered entry names its records");
+  }
   check(/Logic families not yet in this repository/.test(cov) && (/pending-port|in-review/.test(cov) || /None listed/.test(cov)),
     "coverage: the pending families (or that none is listed)");
   await shot("logic-coverage");

@@ -359,6 +359,36 @@ pub const RECORD_KINDS: &[KindSpec] = &[
         ],
     },
     KindSpec {
+        kind: "logic_catalogue",
+        doc: "An entry of the curated catalogue the logic-graph port started from, and what it is here",
+        keys: &[
+            req("name", Ty::Name, "The record's name"),
+            req(
+                "catalogue_id",
+                Ty::Text,
+                "The entry's stable id in the catalogue",
+            ),
+            req("title", Ty::Text, "The entry's label"),
+            req("entry", Ty::Text, "node (a logic) or edge (a map)"),
+            req(
+                "status",
+                Ty::Text,
+                "registered, represented, not-institution-typed or prospective",
+            ),
+            opt(
+                "records",
+                Ty::Texts,
+                "The registered records that hold it (`kind:name`)",
+            ),
+            opt(
+                "evidence",
+                Ty::Texts,
+                "The Lean declarations that are its evidence",
+            ),
+            opt("reason", Ty::Text, "Why it is not a registered record"),
+        ],
+    },
+    KindSpec {
         kind: "machine",
         doc: "A machine document (`Silmaril.Automata.Document`): states, labels, edges and \
               marking layers; Lean defines the constant `<name>` and fills `decl`, \

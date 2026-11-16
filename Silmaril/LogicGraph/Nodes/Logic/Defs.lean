@@ -3,7 +3,10 @@ module
 public import Silmaril.Logic.Algebraic.DependentFamily.Defs
 public import Silmaril.Logic.Algebraic.Initial.Defs
 public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Institution.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Institution.Thms
 public import Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.Institution
 public import Silmaril.Logic.Algebraic.Initial.Thms
 public import Silmaril.Logic.Algebraic.Lambda.Institution
 public import Silmaril.Logic.Algebraic.ManySorted.Horn
@@ -53,6 +56,7 @@ public import Silmaril.Logic.Egg.Source.Named.Supplied.Institution.Defs
 public import Silmaril.Logic.Egglog.Core.Defs
 public import Silmaril.Logic.Egglog.Core.Derivation
 public import Silmaril.Logic.Egglog.Core.Egg.Defs
+public import Silmaril.Logic.Egglog.Core.Egg.Thms
 public import Silmaril.Logic.Egglog.Core.Examples.Defs
 public import Silmaril.Logic.Egglog.Core.FirstOrder
 public import Silmaril.Logic.Egglog.Core.Graph.Defs
@@ -84,6 +88,7 @@ public import Silmaril.Logic.Institution.Examples.Equational
 public import Silmaril.Logic.Institution.Examples.FirstOrder
 public import Silmaril.Logic.Institution.Examples.Propositional
 public import Silmaril.Logic.Institution.Examples.Unsorted
+public import Silmaril.Logic.Institution.Examples.UnsortedToFOL
 public import Silmaril.Logic.Institution.Grothendieck.Examples.Het
 public import Silmaril.Logic.Institution.Metatheory.Consilience
 public import Silmaril.Logic.Institution.Metatheory.HOL
@@ -177,6 +182,12 @@ Registrations of the institution and room declarations of the `Logic` tree (`doc
 -/
 
 silmaril institution inst.institution.of_obs := Silmaril.Inst.Institution.ofObs
+silmaril institution logic.algebraic.initial.matching.finite_sorted_compiler.institution.source_inst := Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.sourceInst
+silmaril institution logic.algebraic.initial.matching.finite_sorted_compiler.institution.theory_inst := Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.theoryInst
+silmaril institution logic.algebraic.initial.matching.global_presented.source_inst := Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.sourceInst
+silmaril institution logic.algebraic.initial.matching.global_presented.target_inst := Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.targetInst
+silmaril institution logic.algebraic.initial.matching.source_inst := Silmaril.Logic.Algebraic.Initial.Matching.sourceInst
+silmaril institution logic.algebraic.initial.matching.target_inst := Silmaril.Logic.Algebraic.Initial.Matching.targetInst
 silmaril institution logic.algebraic.initial.equational_inst := Silmaril.Logic.Algebraic.Initial.equationalInst
 silmaril institution logic.algebraic.initial.inst := Silmaril.Logic.Algebraic.Initial.inst
 silmaril institution logic.algebraic.lambda.equational_inst := Silmaril.Logic.Algebraic.Lambda.equationalInst
@@ -213,10 +224,12 @@ silmaril institution logic.egglog.source.named.supplied.inst := Silmaril.Logic.E
 silmaril institution logic.first_order.finite_lists.inst := Silmaril.Logic.FirstOrder.FiniteLists.inst
 silmaril institution logic.hoare.first_order.canonical_inst := Silmaril.Logic.Hoare.FirstOrder.canonicalInst
 silmaril institution logic.hoare.first_order.source_inst := Silmaril.Logic.Hoare.FirstOrder.sourceInst
+silmaril institution logic.hoare.reach_inst := Silmaril.Logic.Hoare.reachInst
 silmaril institution logic.hybrid_polyadic.matching.inst := Silmaril.Logic.HybridPolyadic.Matching.inst
 silmaril institution logic.hybrid_polyadic.inst := Silmaril.Logic.HybridPolyadic.inst
 silmaril institution logic.institution.examples.eq.inst := Silmaril.Logic.Institution.Examples.EQ.inst (hets := "CASL") (hets_relation := fragment)
 silmaril institution logic.institution.examples.fol.inst := Silmaril.Logic.Institution.Examples.FOL.inst (hets := "CASL") (hets_relation := fragment)
+silmaril institution logic.institution.examples.fol.th_inst := Silmaril.Logic.Institution.Examples.FOL.thInst
 silmaril institution logic.institution.examples.pl.inst := Silmaril.Logic.Institution.Examples.PL.inst (hets := "Propositional") (hets_relation := corresponds)
 silmaril institution logic.institution.examples.ufol.inst := Silmaril.Logic.Institution.Examples.UFOL.inst (hets := "CASL") (hets_relation := related)
 silmaril institution logic.institution.het_inst := Silmaril.Logic.Institution.hetInst
