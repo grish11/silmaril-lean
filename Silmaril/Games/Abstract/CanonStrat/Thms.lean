@@ -33,6 +33,14 @@ preserve admissibility.
   (**the codiagonal law** `iter (iter σ) = iter (map σ [id, inr])`).
 
 These are laws of `CanonStrat` only; no law is claimed for general prefix-closed strategies.
+
+**Scope of the iteration claim.** Iteration on `CanonStrat` satisfies exactly the laws above: the
+fixpoint law, naturality in the output, dinaturality, the codiagonal law, and uniformity **along
+pure maps only**. Uniformity along effectful maps is **false**:
+`FullFun.not_iter_uniform_call` (a total, deterministic map making one import call) and
+`FullFun.not_iter_uniform_trap` (a strict, always-trapping map). So `CanonStrat` is **not**
+claimed to be an Elgot category in the unrestricted sense, i.e. with uniformity along every
+morphism. Uniformity along silent, deterministic, total, state-changing maps is open.
 -/
 
 public section
