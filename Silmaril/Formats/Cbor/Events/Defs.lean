@@ -57,6 +57,24 @@ inductive Event where
   | float (width bits : Nat)
   deriving DecidableEq, Repr
 
+/-- The explicit payload bounds of an event. Every head argument, string length and container
+count is below `2^64` (so it is a `u64`), floats have width 2, 4 or 8 and bits below
+`256 ^ width`, and simple values are `0..23` or `32..255` (so a `u8`). `Event.encode` is only
+meaningful for bounded events; `ItemEv` implies the bound for every event (`Thms`:
+`ItemEv.bounded`). -/
+def Event.Bounded : Event → Prop
+  | .uint n | .nint n | .tag n => n < 2 ^ 64
+  | .bytes b | .text b => b.length < 2 ^ 64
+  | .beginArray (some n) | .endArray (some n) | .beginMap (some n) | .endMap (some n) =>
+      n < 2 ^ 64
+  | .simple n => n < 24 ∨ (32 ≤ n ∧ n < 256)
+  | .float w bits => (w = 2 ∨ w = 4 ∨ w = 8) ∧ bits < 256 ^ w
+  | _ => True
+
+instance (e : Event) : Decidable e.Bounded := by
+  rcases e with _ | _ | _ | _ | _ | _ | _ | (_ | _) | (_ | _) | (_ | _) | (_ | _) | _ | _ | _ <;>
+    unfold Event.Bounded <;> infer_instance
+
 /-- How an event changes the container nesting depth. -/
 def Event.kind : Event → Silmaril.Streams.BracketKind
   | .beginArray _ | .beginMap _ | .beginIndefBytes | .beginIndefText => .opening

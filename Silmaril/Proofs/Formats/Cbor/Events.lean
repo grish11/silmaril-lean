@@ -413,6 +413,68 @@ theorem itemsEv_mapEvents (kvs : List (Value × Value)) (hx : MapEncodable kvs) 
 
 end
 
+/-! ## Payload bounds -/
+
+theorem bounded_map_bytes {cs : List (List UInt8)} (h : ∀ c ∈ cs, c.length < 2 ^ 64) :
+    ∀ e ∈ cs.map Event.bytes, e.Bounded := by
+  intro e he
+  obtain ⟨c, hc, rfl⟩ := List.mem_map.mp he
+  exact h c hc
+
+theorem bounded_map_text {cs : List (List UInt8)} (h : ∀ c ∈ cs, c.length < 2 ^ 64) :
+    ∀ e ∈ cs.map Event.text, e.Bounded := by
+  intro e he
+  obtain ⟨c, hc, rfl⟩ := List.mem_map.mp he
+  exact h c hc
+
+mutual
+
+theorem ItemEv.bounded {es : List Event} : ItemEv es → ∀ e ∈ es, e.Bounded
+  | .uint h, e, he | .nint h, e, he | .bytes h, e, he | .text h, e, he | .simple h, e, he => by
+    simp at he; subst he; exact h
+  | .float hw hb, e, he => by simp at he; subst he; exact ⟨hw, hb⟩
+  | .indefBytes h, e, he => by
+    simp only [List.cons_append, List.mem_cons, List.mem_append,
+      List.not_mem_nil, or_false] at he
+    rcases he with rfl | he | rfl
+    · trivial
+    · exact bounded_map_bytes h e he
+    · trivial
+  | .indefText h, e, he => by
+    simp only [List.cons_append, List.mem_cons, List.mem_append,
+      List.not_mem_nil, or_false] at he
+    rcases he with rfl | he | rfl
+    · trivial
+    · exact bounded_map_text h e he
+    · trivial
+  | .array h hx, e, he | .map h hx, e, he => by
+    simp only [List.cons_append, List.mem_cons, List.mem_append,
+      List.not_mem_nil, or_false] at he
+    rcases he with rfl | he | rfl
+    · exact h
+    · exact ItemsEv.bounded hx e he
+    · exact h
+  | .indefArray hx, e, he | .indefMap hx, e, he => by
+    simp only [List.cons_append, List.mem_cons, List.mem_append,
+      List.not_mem_nil, or_false] at he
+    rcases he with rfl | he | rfl
+    · trivial
+    · exact ItemsEv.bounded hx e he
+    · trivial
+  | .tag h hx, e, he => by
+    rcases List.mem_cons.mp he with rfl | he
+    · exact h
+    · exact ItemEv.bounded hx e he
+
+theorem ItemsEv.bounded {k : Nat} {es : List Event} : ItemsEv k es → ∀ e ∈ es, e.Bounded
+  | .nil, _, he => by simp at he
+  | .cons h1 h2, e, he => by
+    rcases List.mem_append.mp he with he | he
+    · exact ItemEv.bounded h1 e he
+    · exact ItemsEv.bounded h2 e he
+
+end
+
 end Silmaril.Proofs.Formats.Cbor.Events
 
 end

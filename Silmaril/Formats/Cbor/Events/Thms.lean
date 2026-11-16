@@ -12,6 +12,8 @@ import Silmaril.Proofs.Formats.Cbor.Events
   injective on event streams (`encodeEvents_injective`);
 * `encodeEvents_toEvents`, `itemEv_toEvents`: the events of a definite-length value are an event
   stream whose bytes are `Value.encode`;
+* `ItemEv.bounded`: every event of a stream meets `Event.Bounded`, the explicit `u64`/`u8`/float
+  payload bounds that interface representations need;
 * examples: definite and indefinite containers, chunked strings, tags.
 -/
 
@@ -44,6 +46,11 @@ theorem itemEv_toEvents (v : Value) (hv : v.Encodable) : ItemEv v.toEvents :=
 
 theorem toEvents_mem_language (v : Value) (hv : v.Encodable) : v.toEvents ∈ Events.language :=
   itemEv_toEvents v hv
+
+/-- Every event of an event stream meets its explicit payload bounds (`u64` arguments and
+lengths, `u8` simple values, float width 2/4/8 with fitting bits). -/
+theorem ItemEv.bounded {es : List Event} (h : ItemEv es) : ∀ e ∈ es, e.Bounded :=
+  Silmaril.Proofs.Formats.Cbor.Events.ItemEv.bounded h
 
 /-! ## Examples -/
 
