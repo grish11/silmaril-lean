@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Binaryen.Behaviour
+public import Silmaril.Wasm.Execution.Core.Step.Memory
 
 @[expose] public section
 
@@ -22,8 +23,11 @@ holds Core code; they are evaluated through `liftInstrs` (exact for lowering,
 `lowerList_liftInstrs`), and `run_lift_lower` says evaluation is invariant under
 folding, so evaluating a module's own trees is the same.
 
-Adequacy is restricted to the integer, memory-free native profile
-(`NativeProfile.lean`), independently of the wider optimizer profile. Unsupported
+Adequacy is restricted to the integer native profile (`NativeProfile.lean`),
+independently of the wider optimizer profile. Memory: unpacked integer `load`
+and `store` compute what Core 3.0's `MemoryStep` rules compute, with the same
+`Store.mem?`, `Memory.load`/`Memory.store` and `Store.setMem`, and a trap exactly
+out of bounds. Unsupported
 instructions return `none` (stuck, or out of fuel); no numerics profile is needed
 for the integer operations, which are deterministic.
 -/
@@ -51,6 +55,12 @@ def asInt : (t : IntType) → Val → Option (BitVec t.width)
 
 /-- An integer value. -/
 def ofInt (t : IntType) (x : BitVec t.width) : Val := .num ⟨.int t, x⟩
+
+/-- A memory address operand (`i32` or `i64`), as a number. -/
+def addrNat? : Val → Option Nat
+  | .num ⟨.int .i32, i⟩ => some i.toNat
+  | .num ⟨.int .i64, i⟩ => some i.toNat
+  | _ => none
 
 /-- An i32 condition. -/
 def truthy (v : Val) : Option Bool := (asInt .i32 v).map (· != 0)
@@ -98,6 +108,22 @@ def evalFlat (s : Store H) (f : Frame) (stk : List Val) : Instr → Option (Stor
   | .globalSet g => match stk with
     | v :: r => (s.global? f g).map fun p => (s.setGlobal p.1 v, f, .normal r)
     | [] => none
+  | .intLoad t none x arg => match stk with
+    | v :: r => match addrNat? v, s.mem? f x with
+      | some i, some (_, mi) =>
+        match Execution.Memory.load mi.bytes (effAddr i arg) (t.width / 8) with
+        | some c => some (s, f, .normal (ofInt t (c.setWidth t.width) :: r))
+        | none => some (s, f, .trap)
+      | _, _ => none
+    | [] => none
+  | .intStore t none x arg => match stk with
+    | w :: v :: r => match addrNat? v, asInt t w, s.mem? f x with
+      | some i, some c, some (ma, mi) =>
+        match Execution.Memory.store mi.bytes (effAddr i arg) (count := t.width / 8) (c.setWidth _) with
+        | some b => some (s.setMem ma { mi with bytes := b }, f, .normal r)
+        | none => some (s, f, .trap)
+      | _, _, _ => none
+    | _ => none
   | .br l => some (s, f, .brk l.toNat stk)
   | .brIf l => match stk with
     | c :: r => (truthy c).map fun t => (s, f, if t then .brk l.toNat r else .normal r)

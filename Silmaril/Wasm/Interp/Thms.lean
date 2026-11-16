@@ -6,11 +6,20 @@ public import Silmaril.Proofs.Wasm.Interp.Trap
 public import Silmaril.Proofs.Wasm.Interp.Div
 public import Silmaril.Proofs.Wasm.Interp.Check
 public import Silmaril.Proofs.Wasm.Interp.Replace
+public import Silmaril.Proofs.Wasm.Interp.Store
+public import Silmaril.Proofs.Wasm.Interp.CallFrame
+public import Silmaril.Proofs.Wasm.Interp.HostOracle
+public import Silmaril.Proofs.Wasm.Interp.FuncsExt
+public import Silmaril.Proofs.Wasm.Interp.Tail
+public import Silmaril.Proofs.Wasm.Interp.ProfileHost
 
 @[expose] public section
 
 /-!
 # The native Binaryen interpreter against Core 3.0: results
+
+**Checked flat instructions** (`flat_core_normal`, `flat_core_abrupt`): public forms of
+`steps_flat_normal`/`wp_flat_abrupt` for clients outside `Interp`.
 
 Proofs in `Silmaril.Proofs.Wasm.Interp.{Straight,Trap,Profile,Arity,Control,Invoke,Obligations,Lag,
 Termination,Progress,Total,Div,Check,Replace}`.
@@ -28,6 +37,53 @@ straight-line integer instructions with in-range local writes (`BExpr.straightLi
   (division/remainder by zero, signed overflow) is a Core 3.0 run of the lowered code, in any
   code context `rest`, to `[trap]`, every profile and host.
 
+**Pending tail calls** (`Silmaril.Proofs.Wasm.Interp.Tail`, checker step 4). `MatchT P host n r`
+is `Match r`, a pending tail call `.tail vs a c` that ends as `r` does (`TailRun`: in every
+outer frame the callee returns `r`'s top `n` return values, or traps, in `r`'s store), or a
+pending tail call of a null reference `.tailNull vs c`, which traps at the frame
+(`return_call_ref-frame-null`, `frame_tailNull`), so ends as a trapping `r` in the same store. The
+invariant `CoreGoodQ ext P host M` takes the postcondition per return arity; `CoreGoodE` is
+`M = Match` (unchanged), `CoreGoodT` is `M = MatchT`. On results that neither return nor trap
+the two agree (`matchT_eq_match`, `core_of_coreT`); the continuation cases (`core_opOk`,
+`core_callOk`, `core_blockOk`, `core_loopOk`, `core_loopBack`, `core_ifOk`) hold for any `M`;
+the abrupt cases have `MatchT` versions (`coreT_argsAbort`, `coreT_blockAbrupt`,
+`coreT_loopAbrupt`, `coreT_ifAbrupt`, `coreT_ifAbort`), a pending tail leaving labels by
+`return_call_ref-label`; and calls whose callee body ends in a tail call (`coreT_callOk`,
+`coreT_callTrap`, through `funcPost_of_tailRun` and `frame_ends`). The tail rules of a
+derivation (producing `TailRun`) are not here.
+
+**Call oracles and host calls** (`Silmaril.Proofs.Wasm.Interp.OracleSim`, `HostOracle`).
+`evalO_good`: with a sound oracle (`OracleSound`: answers keep the store's functions, return at
+the callee's arity, and are Core runs of `call_ref` in any frame), every
+`Abstract.EvalO C` run of arity-checked code is a Core 3.0 run. `hostCall_sound`,
+`evalH_good`: the host-call oracle `Abstract.hostCall host` is sound for hosts in the
+**native host slice** `NativeHostSlice`, so every `Abstract.EvalH host` run is a Core run with
+that host, every profile. The slice: answers extend the functions as Core's `Extend` does
+(`FuncsGood`: existing addresses keep their functions, appended ones are native and pass the
+check), values at the declared result arity, no exceptions. The native arity invariant
+`EvalInv` is stated up to this extension (`chk_inv`, `storeChk_inv`, `nativeFuncsOk_inv`).
+
+**Checker extensions** (`Silmaril.Wasm.Interp.Defs`: `ExtArity`, `chkE`; proofs in `Arity`,
+`Control`, `OracleSim`). The arity and Core-run invariants and their case lemmas hold for every
+extension `ext` that is stable under function extension (`ExtStable`): `ArityGoodE ext`,
+`CoreGoodE ext`, the `arity_*`/`core_*`/`arityO_*`/`coreO_*` lemmas, and `evalO_goodE`. The
+native forms (`ArityGood`, `CoreGood`, `evalO_good`) are the `noExt` instances.
+**Throwing callees** (exceptions on, `eh = true`): `Match` relates a native `.throw a` to
+Core's `REF.EXN_ADDR a; THROW_REF` (`FlowMatch`). With an oracle sound at `eh = true` whose
+thrown exceptions are Core throws (`OracleThrowsE`), every `EvalO C` run is a Core run whose
+exceptions propagate through the caller's blocks, loops and conditionals (`evalO_goodEH`); a
+native callee's throw leaves its label and frame (`wp_call_throw`, `core_callThrow`).
+`chkE_of_chk`: the native check implies every extended check. `flatChkE_eq_flatChk`: off the
+five non-native call forms, every extension is the native check.
+
+**Memory** (`Silmaril.Proofs.Wasm.Interp.Memory`). Native unpacked integer `load`/`store`
+are Core 3.0 `MemoryStep`s, through silmaril-lean's executable `Exec.Mem.loadInt`/`storeInt`
+(`load_exec`, `store_exec`): normal results with the same store update (`steps_mem_normal`),
+and traps exactly out of bounds (`steps_mem_abrupt`). Typed progress covers them
+(`interp_load`, `interp_store`). So every theorem below holds with memory accesses in the
+native profile; `Silmaril.Wasm.Interp.MemExample` checks the hypotheses on a module with a
+memory.
+
 **Profile independence** (`Silmaril.Proofs.Wasm.Interp.Profile`). `NAdmins` (native-profile code:
 silmaril-lean's `instrInNativeProfile` instructions, constants of any type, references and traps,
 through labels, handlers and frames) with `Binaryen.NativeFuncsOk` on the store is closed under
@@ -39,6 +95,13 @@ normal forms and behaviours are profile-independent (`steps_profile_iff`,
 `diverges_profile_iff`, `core_behaviours_profile`), and closed-host normal forms reachable from a
 native configuration are unique at every profile (`eq_of_steps_nf`, transferred from
 silmaril-lean's deterministic-profile `eq_of_steps_of_nf`).
+
+**Profile independence with host functions** (`Silmaril.Proofs.Wasm.Interp.ProfileHost`). The
+store may contain host functions when its Wasm functions are native-profile code
+(`NativeWasmFuncs`; `StoreChk` does not imply it) and the host satisfies the explicit side
+condition `HostNative` (answers keep `NativeWasmFuncs` and never throw). Then `NHConfig` is closed
+under Core steps of every profile (`nAdmins_stepH`, `NHConfig.steps`), and with `step_profile`
+runs and divergence are the same at every profile (`steps_profileH`, `diverges_profileH`).
 
 **Forward simulation with structured control and calls, every profile and host.** For trees
 of straight-line integer operators, `select`, `unreachable`, blocks, loops, `if`, `br`, `br_if`,
@@ -179,5 +242,58 @@ theorem storeChk_of_check {F : List (FuncInst H)} (h : storeChkB F = true) : Sto
 theorem nativeFuncsOk_of_check {F : List (FuncInst H)} (h : nativeFuncsB F = true) :
     Binaryen.NativeFuncsOk F :=
   nativeFuncsOk_of_nativeFuncsB h
+
+/-! ## Store-level adequacy
+
+`native_adequacy` relates behaviours, which forget the store. The native
+interpreter also computes the final store, and it is Core's. Forward
+(`fwd_invoke_store`): a terminating native run is a Core run to a result
+configuration whose store is the interpreter's. Backward (`bwd_store`, every
+profile, from determinism at the closed deterministic profile and the
+existing divergence and termination lemmas): every Core run of an invocation
+to a result is found by the interpreter with that configuration's store. -/
+
+/-- **Store-level native adequacy**, on typed, native, arity-checked stores at
+every profile: the Core 3.0 runs of an invocation to a result are exactly the
+native interpreter's terminating runs, final store included. -/
+theorem native_store_adequacy {a : Nat} {vs : List Val} (hs : StoreOk s) (hF : Binaryen.NativeFuncsOk s.funcs)
+    (hS : StoreChk s.funcs) (hok : InvokeOk s a vs) (P : Profile) (r : Result) (s' : Store H) :
+    (∃ c : Config H, Steps P Binaryen.closedHost (invoke s a vs) c ∧ c.code = r.toAdmin ∧
+        c.store = s') ↔
+      ∃ fuel fl, Binaryen.invokeRun fuel s a vs = some (s', fl) ∧
+        Binaryen.flowBeh fl = some r.toBehaviour := by
+  constructor
+  · rintro ⟨c, hst, hc, rfl⟩
+    exact bwd_store hs hF hS hok hst hc
+  · rintro ⟨fuel, fl, hrun, hb⟩
+    obtain ⟨c, r', hst, hc, hcs, hb'⟩ :=
+      fwd_invoke_store (P := P) (host := Binaryen.closedHost) hS hok hrun
+    rw [hb, Option.some.injEq] at hb'
+    have hr : r = r' := by
+      cases r <;> cases r' <;> simp_all [Result.toBehaviour]
+    subst hr
+    exact ⟨c, hst, hc, hcs⟩
+
+/-! ## Checked flat instructions as Core runs -/
+
+/-- **A checked flat instruction that completes normally is a Core run** (every profile and
+host), under any continuation `rest`. Public form of `steps_flat_normal`. -/
+theorem flat_core_normal {F : List (FuncInst H)} {mi : ModuleInst} {ret : Nat}
+    {labels : List Nat} {stk stk' : List Val} {h₀ : Nat} {o : Option Nat} {i : Instr}
+    (hi : ∀ x, i ≠ .call x) (hc : flatChk F mi f.locals.length ret labels h₀ i = some o)
+    (h : Binaryen.evalFlat s f stk i = some (s', f', .normal stk')) (rest : List Admin) :
+    Steps P host ⟨s, f, vals stk.reverse ++ .plain i :: rest⟩ ⟨s', f', vals stk'.reverse ++ rest⟩ :=
+  steps_flat_normal hi hc h rest
+
+/-- **A checked flat instruction that ends abruptly** (branch, `return` or trap) runs in Core
+to the matching final form (every profile and host), under any continuation `rest`. Public
+form of `wp_flat_abrupt`. -/
+theorem flat_core_abrupt {F : List (FuncInst H)} {mi : ModuleInst} {ret : Nat}
+    {labels : List Nat} {stk : List Val} {h₀ : Nat} {o : Option Nat} {i : Instr}
+    {fl : Binaryen.Flow} (hc : flatChk F mi f.locals.length ret labels h₀ i = some o)
+    (h : Binaryen.evalFlat s f stk i = some (s', f', fl)) (hn : ¬ fl.IsNormal)
+    (rest : List Admin) :
+    WP P host s f (vals stk.reverse ++ .plain i :: rest) (Match (s', f', fl)) :=
+  wp_flat_abrupt hc h hn rest
 
 end Silmaril.Wasm.Interp

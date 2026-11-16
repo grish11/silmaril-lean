@@ -62,6 +62,9 @@ pub(super) fn follow<'a>(
                 .scoped
                 .iter()
                 .any(|e| e.record_kind == r.kind() && e.record_name == r.key()),
+            // Markings: about an in-scope problem (a local deprecation may name a spec).
+            Record::Finding(f) => in_scope.contains(f.name.as_str()),
+            Record::Deprecation(d) => cx.local(&d.module) || in_scope.contains(d.name.as_str()),
             // Answers are read by R5; artifacts are checked against the registries.
             Record::Answer(_) | Record::Artifact(_) => false,
             _ => cx.local(r.module()),
@@ -169,6 +172,15 @@ pub(super) fn follow<'a>(
             Record::Predicate(d) => {
                 refs.extend(d.room.iter().map(|m| ("room", "room", m.clone())));
             }
+            Record::Measure(m) => refs.push(("domain", "language_domain", m.domain.clone())),
+            Record::LanguageInterpretation(i) => {
+                refs.push(("domain", "language_domain", i.domain.clone()));
+            }
+            Record::Language(l) => {
+                refs.push(("domain", "language_domain", l.domain.clone()));
+                language_refs(cx, l, &at, &mut refs, o);
+            }
+            Record::ConsequenceSystem(c) => consequence_refs(c, &at, &mut refs, o),
             Record::Instance(i) => {
                 if !g.is_prop(&i.of) || !g.is_prop(&i.name) {
                     o.error(&at, "an instance and its general problem must be problems");
@@ -238,4 +250,127 @@ pub(super) fn follow<'a>(
         }
     }
     Kept { keep, used_blobs }
+}
+
+/// The references of a `language` record, and its shape: the fields its `op` needs, and
+/// operands, interpretation and measure over the language's own domain (the ill-typed
+/// combinations Lean also rejects).
+fn language_refs<'a>(
+    cx: &Ctx<'a>,
+    l: &'a Language,
+    at: &str,
+    refs: &mut Refs<'a>,
+    o: &mut Outcome,
+) {
+    if !LANGUAGE_OPS.contains(&l.op.as_str()) {
+        o.error(
+            at,
+            format!("op {:?} is not one of {}", l.op, LANGUAGE_OPS.join(", ")),
+        );
+    }
+    let need = |o: &mut Outcome, field: &str, v: &Option<String>| {
+        if v.is_none() {
+            o.error(at, format!("op {} needs `{field}`", l.op));
+        }
+    };
+    let n = l.args.len();
+    match l.op.as_str() {
+        "decl" if n > 0 => o.error(at, "op decl takes no args"),
+        "format" => need(o, "format", &l.format),
+        "artifact" => {
+            need(o, "value", &l.value);
+            need(o, "interpretation", &l.interpretation);
+        }
+        "union" | "inter" if n < 2 => o.error(at, format!("op {} needs at least two args", l.op)),
+        "diff" if n != 2 => o.error(at, "op diff needs exactly two args"),
+        "regex" => {
+            need(o, "regex", &l.regex);
+            if l.semantics.is_none() {
+                o.error(at, "op regex needs `semantics` (list or monoid)");
+            }
+        }
+        "within" => {
+            need(o, "measure", &l.measure);
+            if n != 1 || l.bound.is_none() {
+                o.error(at, "op within needs one arg and a bound");
+            }
+        }
+        _ => {}
+    }
+    refs.extend(l.format.iter().map(|f| ("format", "format", f.clone())));
+    refs.extend(l.value.iter().map(|v| ("value", "value", v.clone())));
+    for (field, kind, name) in [
+        (
+            "interpretation",
+            "language_interpretation",
+            &l.interpretation,
+        ),
+        ("measure", "measure", &l.measure),
+    ] {
+        let Some(name) = name else { continue };
+        refs.push((field, kind, name.clone()));
+        let dom = match cx.get(kind, name) {
+            Some(Record::LanguageInterpretation(i)) => Some(&i.domain),
+            Some(Record::Measure(m)) => Some(&m.domain),
+            _ => None,
+        };
+        if let Some(d) = dom
+            && *d != l.domain
+        {
+            o.error(
+                at,
+                format!("{field} {name} is over the domain {d}, not {}", l.domain),
+            );
+        }
+    }
+    for a in &l.args {
+        refs.push(("args", "language", a.clone()));
+        if let Some(Record::Language(m)) = cx.get("language", a)
+            && m.domain != l.domain
+        {
+            o.error(
+                at,
+                format!(
+                    "args: language {a} is over the domain {}, not {}",
+                    m.domain, l.domain
+                ),
+            );
+        }
+    }
+}
+
+/// The references of a `consequence_system` record, and its shape: the fields its `op` needs,
+/// and its operands' references.
+fn consequence_refs<'a>(c: &'a ConsequenceSystem, at: &str, refs: &mut Refs<'a>, o: &mut Outcome) {
+    if !CONSEQUENCE_OPS.contains(&c.op.as_str()) {
+        o.error(
+            at,
+            format!("op {:?} is not one of {}", c.op, CONSEQUENCE_OPS.join(", ")),
+        );
+    }
+    let n = c.args.len();
+    match c.op.as_str() {
+        "decl" | "erase" if n > 0 => o.error(at, format!("op {} takes no args", c.op)),
+        "erase" if c.witness.is_none() => o.error(at, "op erase needs `witness`"),
+        "union" | "inter" if n < 2 => o.error(at, format!("op {} needs at least two args", c.op)),
+        "diff" if n != 2 => o.error(at, "op diff needs exactly two args"),
+        "artifact" if n > 0 => o.error(at, "op artifact takes no args"),
+        "artifact" if c.value.is_none() || c.interpretation.is_none() => {
+            o.error(at, "op artifact needs `value` and `interpretation`")
+        }
+        _ => {}
+    }
+    refs.extend(c.value.iter().map(|v| ("value", "value", v.clone())));
+    refs.extend(
+        c.interpretation
+            .iter()
+            .map(|i| ("interpretation", "consequence_interpretation", i.clone())),
+    );
+    // Lean checked that the operands' context and conclusion types are definitionally equal
+    // to the system's; the printed types here are display text, not compared.
+    refs.extend(
+        c.args
+            .iter()
+            .map(|a| ("args", "consequence_system", a.clone())),
+    );
 }

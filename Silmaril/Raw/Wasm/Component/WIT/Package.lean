@@ -90,7 +90,7 @@ end Checks
 
 /-! ## Well-formedness -/
 
-theorem Package.errors_eq_nil_iff (env : Env) (p : Package) :
+theorem Package.errors_eq_nil_iff (env : PackageEnv) (p : Package) :
     p.errors env = [] ↔ p.WellFormed env := by
   rw [Package.wellFormed_iff]
   simp only [Package.errors, List.append_eq_nil_iff, List.map_eq_nil_iff, List.filter_eq_nil_iff,

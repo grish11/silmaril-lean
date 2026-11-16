@@ -3,8 +3,14 @@ sid = "12161b92d478b3e6fe5b4a7f9e7020e2c47244cb2f5c15db4268ce11fdcb0861"
 name = "silmaril"
 description = "The silmaril library: formats, standard shapes, and the self-test of sil project"
 modules = ["ProjectSelfTest", "Silmaril.Project.Formats.Thms", "Silmaril.Project.Shapes.Format.Thms",
+  "Silmaril.Project.Shapes.Language.Thms", "Silmaril.Project.Shapes.Consequence.Thms",
+  "Silmaril.Project.Languages.Wasm.Defs",
   "Silmaril.Project.Shapes.Elf.Thms", "Silmaril.Project.Shapes.X86.Thms",
   "Silmaril.Project.Shapes.SysV.Thms", "Silmaril.Project.Shapes.C.Thms",
   "Silmaril.Project.Shapes.SysV.Rtl.Defs", "SysVTvExample", "SysVTvRtl",
-  "Silmaril.Project.Shapes.CompilesTo.Thms", "CompilesToExamples"]
-roots = ["Silmaril.Project", "ProjectSelfTest", "SysVTvExample", "SysVTvRtl", "CompilesToExamples"]
+  "Silmaril.Project.Shapes.CompilesTo.Thms", "CompilesToExamples",
+  "Silmaril.Automata.Shapes.Thms",
+  "Silmaril.Project.WasmComponents.Thms", "Silmaril.Project.WasmComponents.Relations.Thms",
+  "Silmaril.Project.WasmComponents.Toy.Thms", "Silmaril.Project.WasmComponents.Versions.Thms",
+  "Silmaril.Project.WasmComponents.Wac.Thms", "Silmaril.Project.WasmComponents.Wac.Verdicts.Thms"]
+roots = ["Silmaril.Project", "Silmaril.Automata", "ProjectSelfTest", "SysVTvExample", "SysVTvRtl", "CompilesToExamples"]

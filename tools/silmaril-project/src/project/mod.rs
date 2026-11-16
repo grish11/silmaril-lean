@@ -6,7 +6,8 @@
 //! elaborates a small driver that runs `#silmaril_dump` (the only subcommand that runs Lean);
 //! `check` reads the manifest, the registries, `lake-manifest.json` and the dump, hashes files
 //! and applies the rules of [`check`]; `sqlite` writes the canonical SQL text and builds the
-//! database from it; `explore` writes a static HTML page over that database ([`explore`]).
+//! database from it; `explore` writes a static HTML page over that database ([`explore`]);
+//! `findings`, `errors`, `gaps` and `deprecated` query its markings ([`query`]).
 //! Works in any Lake project.
 //!
 //! Formats are defined once, in [`schema`].
@@ -15,6 +16,7 @@ mod check;
 mod edges;
 mod explore;
 mod hash;
+mod query;
 pub mod schema;
 mod sid;
 mod sources;
@@ -110,6 +112,41 @@ pub enum Command {
         /// The page
         #[arg(long, default_value = ".lake/silmaril/explore.html")]
         out: PathBuf,
+        /// The GitHub repository of the project's sources (https://github.com/<owner>/<repo>):
+        /// problems and answers link to their modules there, at `--source-rev`
+        #[arg(long, requires = "source_rev")]
+        source_url: Option<String>,
+        /// The commit the links are pinned to (7 to 40 hex digits)
+        #[arg(long, requires = "source_url")]
+        source_rev: Option<String>,
+    },
+    /// List the findings (classified refutations) of the database `sqlite` wrote
+    Findings {
+        #[command(flatten)]
+        db: DbArg,
+        /// Only this classification; `unclassified` lists the failing problems that are
+        /// neither deprecated nor classified
+        #[arg(long = "class", value_parser = ["error", "spec_bug", "model_gap", "unclear", "unclassified"])]
+        class: Option<String>,
+    },
+    /// List the genuine errors: `error` findings, with versions, fix and disclosure
+    Errors {
+        #[command(flatten)]
+        db: DbArg,
+    },
+    /// List the model gaps, one line per missing instruction or feature, most problems first
+    Gaps {
+        #[command(flatten)]
+        db: DbArg,
+    },
+    /// List the deprecated problems, groups and specs with their replacements
+    Deprecated {
+        #[command(flatten)]
+        db: DbArg,
+        /// List every deprecated problem instead, with why (its own deprecation, its spec's,
+        /// or its general problem's)
+        #[arg(long)]
+        problems: bool,
     },
     /// Print the records-file schema as JSON Schema
     Schema {
@@ -151,6 +188,25 @@ pub struct DirArg {
     /// The project directory (the Lake package root)
     #[arg(long, default_value = ".")]
     dir: PathBuf,
+}
+
+/// The database a query reads.
+#[derive(ClapArgs)]
+pub struct DbArg {
+    /// The project directory (the Lake package root)
+    #[arg(long, default_value = ".")]
+    dir: PathBuf,
+    /// The database (`sil project sqlite`), relative to the project directory
+    #[arg(long, default_value = ".lake/silmaril/project.sqlite")]
+    db: PathBuf,
+}
+
+/// Print a query's lines.
+fn print_query(db: &DbArg, q: query::Query) -> Result<()> {
+    for l in query::run(&db.dir.join(&db.db), q)? {
+        println!("{l}");
+    }
+    Ok(())
 }
 
 /// A Lake package the project can see.
@@ -252,6 +308,49 @@ fn source_dirs(dir: &Path) -> Vec<PathBuf> {
         }
     }
     out
+}
+
+/// The Lean file of each module the database names (problems, answers, objects), relative to the
+/// project directory with `/` separators, when it exists under the project's source directories.
+fn module_files(dir: &Path, db: &Path) -> Result<std::collections::BTreeMap<String, String>> {
+    let mut out = std::collections::BTreeMap::new();
+    if !db.exists() {
+        return Ok(out);
+    }
+    let conn =
+        rusqlite::Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .into_diagnostic()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT module FROM problems UNION SELECT module FROM answers \
+             UNION SELECT module FROM objects WHERE module IS NOT NULL",
+        )
+        .into_diagnostic()?;
+    let modules = stmt
+        .query_map([], |r| r.get::<_, Option<String>>(0))
+        .into_diagnostic()?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .into_diagnostic()?;
+    let dirs = source_dirs(dir);
+    for m in modules.into_iter().flatten() {
+        if !m
+            .split('.')
+            .all(|s| !s.is_empty() && !s.contains(['/', '\\']))
+        {
+            continue;
+        }
+        let rel = format!("{}.lean", m.replace('.', "/"));
+        if let Some(path) = dirs.iter().map(|d| d.join(&rel)).find(|p| p.is_file())
+            && let Ok(r) = path.strip_prefix(dir)
+        {
+            let parts: Vec<String> = r
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .collect();
+            out.insert(m, parts.join("/"));
+        }
+    }
+    Ok(out)
 }
 
 fn read_manifest(dir: &Path) -> std::result::Result<Option<Manifest>, String> {
@@ -1329,6 +1428,14 @@ pub fn run(command: Command) -> Result<()> {
             dir: DirArg { dir },
             paths,
         } => lint_project(&dir, &paths),
+        Command::Findings { db, class } => {
+            print_query(&db, query::Query::Findings(class.as_deref()))
+        }
+        Command::Errors { db } => print_query(&db, query::Query::Errors),
+        Command::Gaps { db } => print_query(&db, query::Query::Gaps),
+        Command::Deprecated { db, problems } => {
+            print_query(&db, query::Query::Deprecated(problems))
+        }
         Command::Schema { out } => {
             let text = format!(
                 "{}\n",
@@ -1424,6 +1531,8 @@ pub fn run(command: Command) -> Result<()> {
             dir: DirArg { dir },
             db,
             out,
+            source_url,
+            source_rev,
         } => {
             let p = Project::load(&dir)?;
             let out_dir = out.parent().unwrap_or(Path::new(""));
@@ -1433,13 +1542,39 @@ pub fn run(command: Command) -> Result<()> {
             if !urls.iter().any(|u| u == "project.sqlite") {
                 urls.push("project.sqlite".into());
             }
-            let page = explore::page(&format!("{} · silmaril project", p.name), &urls);
+            // The size and SHA-256 of the default database, when it exists now: the page checks
+            // the served file against them.
+            let meta = fs::read(dir.join(&db)).ok().map(|bytes| explore::DbMeta {
+                size: bytes.len() as u64,
+                sha256: hash::Digests::of(&bytes).sha256,
+            });
+            let source = match (source_url, source_rev) {
+                (Some(repo), Some(rev)) => {
+                    if !explore::source_repo_ok(&repo) {
+                        bail!("--source-url must be https://github.com/<owner>/<repo>, not {repo}");
+                    }
+                    if !explore::source_rev_ok(&rev) {
+                        bail!("--source-rev must be a commit id (7 to 40 hex digits), not {rev}");
+                    }
+                    let modules = module_files(&dir, &dir.join(&db))?;
+                    Some(explore::SourceMeta { repo, rev, modules })
+                }
+                _ => None,
+            };
+            let page = explore::page(
+                &format!("{} · silmaril project", p.name),
+                &urls,
+                meta.as_ref(),
+                source.as_ref(),
+            );
             let shown = shown(&dir, &out);
             let out = dir.join(out);
             if let Some(parent) = out.parent() {
                 fs::create_dir_all(parent).into_diagnostic()?;
             }
             fs::write(&out, page).into_diagnostic()?;
+            let sw = out.with_file_name(explore::SERVICE_WORKER_NAME);
+            fs::write(&sw, explore::SERVICE_WORKER).into_diagnostic()?;
             eprintln!("wrote {shown}; it opens {}", urls.join(", then "));
             if !dir.join(&db).exists() {
                 eprintln!(
@@ -1573,6 +1708,24 @@ mod tests {
             .unwrap();
         assert_eq!(ps, 1024);
         assert!(sql::write_db(&text, &tuned, Some(1000)).is_err());
+        // A failed rebuild leaves the old file in place and no temporary file behind, and a
+        // rebuild replaces the file whole (renamed over it): a reader of the old file keeps it.
+        let ps: i64 = rusqlite::Connection::open(&tuned)
+            .unwrap()
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(ps, 1024);
+        sql::write_db(&text, &tuned, Some(2048)).unwrap();
+        let old: i64 = conn
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(old, 1024);
+        let mut names: Vec<String> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["x.sqlite", "y.sqlite"]);
     }
 
     #[test]

@@ -1,0 +1,159 @@
+name: Explorer on GitHub Pages
+
+# Publishes the `sil project` explorer of silmaril's own project (silmaril.toml): the static
+# page `sil project explore` writes and the database it opens (`sil project sqlite --httpvfs`),
+# at https://hiloopai.github.io/silmaril-lean/. Everything in it comes from this public
+# repository: record names, Lean module and declaration names, docs, CIDs and verdicts.
+#
+# It runs on every push to main, and by hand. It cannot be a `workflow_run` of CI: hiloop's prove
+# service admits a GitHub OIDC token only for the events `pull_request`, `push`, `merge_group`,
+# `workflow_dispatch` and `schedule` (authz `githubOidc.events`; `workflow_run` runs with the base
+# repository's privileges on input a fork can control, so it is never admitted, and a
+# `workflow_run` run got HTTP 401 from /v1/prove/sessions). The build on prove restores what main's
+# CI already published and builds the rest with --wfail, and `make pages` runs the full project
+# check, so a broken main fails here too. Repository settings: Pages, source "GitHub Actions".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time; a newer main waits for the running one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'hiloopai/silmaril-lean'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      # GitHub OIDC for the prove api and for the Lean CAS role, which reads the client.
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      CLIENT: s3://hiloop-lean-cas-607856468300-us-east-1/clients/647a11c937bf/
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The client diffs against the nearest commit main's CI published.
+          fetch-depth: 65
+      - name: Assume the Lean CAS role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::607856468300:role/gha-lean-cas
+          aws-region: us-east-1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+      - name: Install hiloop-prove
+        run: |
+          aws s3 cp --only-show-errors --recursive "$CLIENT" "$RUNNER_TEMP/client/"
+          cd "$RUNNER_TEMP/client"
+          sha256sum -c - <<'SUMS'
+          486c9ee5e69730847fd736461821b001ecd54de6a5585d00a67539273302bbeb  hiloop_prove-0.0.0-py3-none-any.whl
+          5a4c63f15e57b9f5e213f2955ebbdcbe66e0b3cac4333de60c72ce208e0d853e  hiloop_common-0.0.0-py3-none-any.whl
+          446b51555965b40af2db8a3c4285b14315da0ae9d17e96b7364053112133220d  requirements.txt
+          SUMS
+          uv venv -q "$RUNNER_TEMP/prove"
+          VIRTUAL_ENV="$RUNNER_TEMP/prove" uv pip install -q --require-hashes -r requirements.txt
+          VIRTUAL_ENV="$RUNNER_TEMP/prove" uv pip install -q --no-deps ./*.whl
+          echo "$RUNNER_TEMP/prove/bin" >> "$GITHUB_PATH"
+      # On hiloop's prove service: the worker restores the libraries of the project's modules
+      # (silmaril.toml) from the pool and runs `make pages` with its Rust 1.98; the page and its
+      # database come back as _site. This runner downloads no toolchain. The page's source links
+      # are pinned to the pushed commit (the worker's own checkout has another HEAD).
+      - name: Dump, check and write the database and the page, on prove
+        run: |
+          hiloop-prove run --build Silmaril --build ProjectSelfTest --build SysVTvExample \
+            --build CompilesToExamples --build wasm-pages --out _site -- \
+            env -u CARGO_TARGET_DIR make pages PAGES_SOURCE_REV="$GITHUB_SHA"
+          ls -l _site
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+  # The explorer's browser tests on the site just built (tools/silmaril-project/tests/explore):
+  # the Wasm function pages' graphs, counts, links and keys, the variant fixtures, and the shared
+  # shell (navigation, source dialog, status badges, database switches). Deploying
+  # does not wait for them; a failure marks the run red.
+  browser-tests:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/pages
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Install Chromium for Playwright
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm install --no-save --no-audit --no-fund playwright-core@1.64.1
+          npx playwright-core install --with-deps chromium
+      - name: Run the explorer's browser tests
+        env:
+          PLAYWRIGHT_CORE: ${{ runner.temp }}/pw/node_modules/playwright-core/index.mjs
+        run: |
+          mkdir -p "$RUNNER_TEMP/site" && tar -xf "$RUNNER_TEMP/pages/artifact.tar" -C "$RUNNER_TEMP/site"
+          cd tools/silmaril-project/tests/explore
+          node wasm_cfg.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node wasm_cfg_variants.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node shell.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node snapshot.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node provenance.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node wasm_acceptors.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node wasm_languages.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node languages.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: explorer-screenshots
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: ignore
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      # The explorer reads the database with Range requests: check that the deployed site answers
+      # one with identity bytes, a Content-Range total and the SQLite header (the page also falls
+      # back to a whole download, so this checks the fast path, not correctness).
+      - name: Check Range requests on the deployed database
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          url="${PAGE_URL%/}/project.sqlite"
+          # Retry until the CDN answers 206: right after a deploy it can answer 503 for a while.
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            headers=$(curl -sS -D - -o /tmp/head.bin -r 0-99 -H 'Accept-Encoding: identity' "$url") &&
+              echo "$headers" | grep -qi '^HTTP/[0-9.]* 206' && break
+            sleep 10
+          done
+          echo "$headers"
+          echo "$headers" | grep -qi '^HTTP/[0-9.]* 206' || { echo "no 206 for a Range request"; exit 1; }
+          echo "$headers" | grep -qi '^content-range: bytes 0-99/[0-9]' || { echo "no Content-Range total"; exit 1; }
+          head -c 15 /tmp/head.bin | grep -q 'SQLite format 3' || { echo "not the SQLite header"; exit 1; }
+          curl -sSf -o /dev/null "${PAGE_URL%/}/explore-sw.js"

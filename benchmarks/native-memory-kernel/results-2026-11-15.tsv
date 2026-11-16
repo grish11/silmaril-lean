@@ -1,0 +1,3 @@
+pages	expected	seconds	status
+0	.traps	3.31	ok
+1	(.returns [Val.i32 7])	213.08	deterministic timeout

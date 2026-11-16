@@ -1,6 +1,8 @@
 module
 
 public import Silmaril.Net.Http2.Stream.Defs
+public import Silmaril.Automata.Shapes.Thms
+public import Silmaril.Automata.Graph.Thms
 import Silmaril.Proofs.Net.Http2.Stream
 
 @[expose] public section
@@ -21,6 +23,11 @@ PROVED (standard axioms; proofs in `Silmaril/Proofs/Net/Http2/Stream.lean`), RFC
 * `step_rst`: RST_STREAM closes every non-idle stream (§6.4);
 * `step_recv_data`, `step_send_data`: DATA is accepted only on open or half-closed (local)
   streams (or ignored when closed), and sent only on open or half-closed (remote) streams;
+* **as a finite machine** (`Silmaril.Automata`, decided by the verified procedures of
+  `Silmaril.Automata.Decide`): every state is reachable from idle (`all_reachable`), closed
+  reaches only closed (`closed_final`), and without END_STREAM or RST_STREAM a stream never
+  closes (`quiet_never_closes`); `machine_step_iff` relates the machine to `step`;
+* `idom_table`: the immediate dominators of the stream graph from idle (all idle);
 * `openRemote_ok`: an accepted new peer stream identifier has the peer's parity and exceeds
   every earlier one (§5.1.1).
 -/
@@ -61,6 +68,40 @@ theorem openRemote_ok {peerIsClient : Bool} {last id id' : Nat}
     (h : openRemote peerIsClient last id = .ok id') :
     id' = id ∧ id ≠ 0 ∧ clientInitiated id = peerIsClient ∧ last < id := by
   unfold openRemote at h; split at h <;> simp_all
+
+/-! ## The stream machine -/
+
+open Silmaril.Automata.Shapes in
+theorem machine_step_iff (s s' : StreamState) (e : Event) :
+    machine.step s e = some s' ↔ step s e = .ok s' := by
+  simp only [machine, Silmaril.Automata.DMachine.ofExcept]
+  cases step s e <;> simp [Except.toOption]
+
+open Silmaril.Automata.Shapes in
+/-- Every stream state is reachable from idle. -/
+theorem all_reachable : ∀ s, Reach machine (fun _ => true) .idle s := by decide
+
+open Silmaril.Automata.Shapes in
+/-- Closed is final: nothing but closed is reachable from it. -/
+theorem closed_final : ∀ s, Reach machine (fun _ => true) .closed s → s = .closed := by decide
+
+/-- Events that neither end the stream nor reset it. -/
+def quiet (e : Event) : Bool :=
+  match e.signal with
+  | .headers es | .data es => !es
+  | .rstStream => false
+  | _ => true
+
+open Silmaril.Automata.Shapes in
+/-- Without END_STREAM or RST_STREAM, a stream never closes (§5.1). -/
+theorem quiet_never_closes : ¬ Reach machine quiet .idle .closed := by decide
+
+/-- **No state but idle dominates another**: in the stream graph from idle (labels forgotten), the
+immediate dominator of every other state is idle (node `0`). So the exact dominator tree is the
+star from idle (`Graph.exact_unique`): every state can be reached avoiding any other given state. -/
+theorem idom_table :
+    Silmaril.Automata.Graph.idomTable (machine.toDigraph .idle) =
+      [none, some 0, some 0, some 0, some 0, some 0, some 0] := by decide +kernel
 
 /-! A request/response exchange, from the client's side (§8.1). -/
 

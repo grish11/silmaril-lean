@@ -168,4 +168,12 @@ theorem optimizeFuncCertified_spec {m : BModule} {g : Nat} {bf' : BFunc}
     exact ⟨validates_ok ‹_›, bf, ft, f, f', hbf, hft, hf, hf', heq, hn⟩
   · cases hv
 
+/-- **Fragment code does not change the store**: a native evaluation of a
+fragment function's body ends in the store it started from. -/
+theorem native_store {H : Type} {s : Store H} {mi : ModuleInst} {f : FragFunc}
+    {bs : List BExpr} (hb : ofBExprs? bs = some f.body) (hn : f.native = true)
+    {args : List WVal} {s' : Store H} {fr : Frame} {fl : Flow}
+    (h : Binaryen.Eval s (frameOf mi (f.initLocals args)) [] bs (s', fr, fl)) : s' = s :=
+  Silmaril.Proofs.Wasm.SSA.Native.Bwd.native_store hb hn h
+
 end Silmaril.Wasm.SSA

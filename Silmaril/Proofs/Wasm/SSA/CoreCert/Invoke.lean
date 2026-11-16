@@ -264,4 +264,23 @@ theorem nbeh_eq_run {s : Store H} {a : Nat} {fi : FuncInst H} {ft : FuncType} {b
       {b | (∃ o, f.Run args o ∧ b = outBeh (some o)) ∨ (b = .diverges ∧ ∀ o, ¬ f.Run args o)} :=
   nbeh_of_outcomes (obs_iff_run hfi hcode hty hrs hf hn hst hargs)
 
+/-- **A fragment function's native run ends in the store it started from.** -/
+theorem invokeRun_store {s : Store H} {a : Nat} {fi : FuncInst H} {ft : FuncType} {bf : BFunc}
+    {f : FragFunc} {ps rs : List Validation.CValType} (hfi : s.funcs[a]? = some fi)
+    (hcode : fi.code = .wasm (coreFunc bf)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hf : ofBFunc? ft bf = some f) (hn : f.native = true) (hst : BExpr.structuredList bf.body = true)
+    {args : List WVal} {fuel : Nat} {s' : Store H} {fl : Flow}
+    (h : invokeRun fuel s a (args.map WVal.toVal) = some (s', fl)) : s' = s := by
+  have hframe : Frame.forCall fi.module (args.map WVal.toVal) (coreFunc bf).locals =
+      frameOf fi.module (f.initLocals args) := by
+    rw [show (coreFunc bf).locals = bf.locals from rfl, locals_of_ofBFunc? hf]
+    exact forCall_eq fi.module args f.locals f rfl
+  rw [invokeRun_eq hfi hcode hty, Option.bind_eq_some_iff] at h
+  obtain ⟨⟨s₁, f₁, bfl⟩, hrun, hk⟩ := h
+  obtain ⟨fl', -, he⟩ := Option.map_eq_some_iff.mp hk
+  obtain ⟨rfl, -⟩ := Prod.mk.inj he
+  have he₁ := eval_of_run hrun
+  rw [hframe] at he₁
+  exact native_store (ofBFunc?_body hf) hn (eval_of_eval_lift bf.body hst he₁)
+
 end Silmaril.Proofs.Wasm.SSA.CoreCert
