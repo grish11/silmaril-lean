@@ -5,6 +5,7 @@ public import Silmaril.Games.Abstract.FullFun.Thms
 public import Silmaril.Games.Abstract.StratObs.Thms
 import Silmaril.Proofs.Games.Abstract.StratOps.Game
 import Silmaril.Proofs.Games.Abstract.StratOps.Unfold
+import Silmaril.Proofs.Games.Abstract.StratOps.Natural
 
 /-!
 # Premonoidal operations on observation triples: theorems
@@ -36,6 +37,16 @@ determined by its full part and its pending calls (`ext_full`).
   hypothesis on `t`. The full part is `FullFun.iter_unfold`; the pending calls after a finite
   continuing chain are those of the first iteration or those after a first continuing
   iteration and a shorter chain.
+
+**Naturality and uniformity of iteration** (`Silmaril.Proofs.Games.Abstract.StratOps.Natural`;
+the full parts are `FullFun.iter_map` and `FullFun.iter_uniform_comap`):
+
+* `iterT_mapT` (**naturality in the output**): `iterT (mapT t (Sum.map h id)) = mapT (iterT t) h`;
+* `caseT_pureT_mapT_mapT`: the copairing of pure maps is a pure map;
+* `iterT_uniform_comap`, `iterT_uniform` (**uniformity** for a pure map `h`): if
+  `h ; F = G ; [inl, inr ∘ h]` then `h ; iterT F = iterT G`. No hypothesis on `F`, `G` beyond
+  this equation: divergence, infinite silent chains, productive runs and pending calls are
+  all included.
 
 **Saturation** (`Silmaril.Proofs.Games.Abstract.StratOps.Sat`, `….Iter`):
 
@@ -225,6 +236,31 @@ theorem seqT_caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) (v : ObsTripl
 behaviours, productive runs and pending calls. -/
 theorem iterT_unfold (t : ObsTriple E S A (B ⊕ A)) : iterT t = seqT t (caseT pureT (iterT t)) :=
   Silmaril.Proofs.Games.Abstract.StratOps.iterT_unfold t
+
+/-- **Naturality of iteration in the output.** -/
+theorem iterT_mapT (t : ObsTriple E S A (B ⊕ A)) (h : B → C) :
+    iterT (mapT t (Sum.map h id)) = mapT (iterT t) h :=
+  Silmaril.Proofs.Games.Abstract.StratOps.iterT_mapT t h
+
+/-- The copairing of pure maps is a pure map. -/
+theorem caseT_pureT_mapT_mapT {X : Type u} (h₁ : A → X) (h₂ : B → X) :
+    caseT (mapT (pureT : ObsTriple E S A A) h₁) (mapT pureT h₂) = mapT pureT (Sum.elim h₁ h₂) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.caseT_pureT_mapT_mapT h₁ h₂
+
+/-- **Uniformity of iteration** with respect to a pure map `k`, pre-composition form. -/
+theorem iterT_uniform_comap {A' : Type u} {F : ObsTriple E S A (B ⊕ A)}
+    {G : ObsTriple E S A' (B ⊕ A')} {k : A' → A} (hFG : comapT F k = mapT G (Sum.map id k)) :
+    comapT (iterT F) k = iterT G :=
+  Silmaril.Proofs.Games.Abstract.StratOps.iterT_uniform_comap hFG
+
+/-- **Uniformity of iteration** (Elgot form) for a pure map `h`: if `h ; F = G ; [inl, inr ∘ h]`
+then `h ; iterT F = iterT G`. -/
+theorem iterT_uniform {A' : Type u} {F : ObsTriple E S A (B ⊕ A)}
+    {G : ObsTriple E S A' (B ⊕ A')} (h : A' → A)
+    (hFG : seqT (mapT pureT h) F =
+      seqT G (caseT (mapT pureT Sum.inl) (mapT pureT (Sum.inr ∘ h)))) :
+    seqT (mapT pureT h) (iterT F) = iterT G :=
+  Silmaril.Proofs.Games.Abstract.StratOps.iterT_uniform h hFG
 
 /-! ## Saturation and admissibility -/
 
