@@ -22,4 +22,11 @@ theorem supported_iff (p : Protocol) (s : StateShape) (b : Boundary) :
 
 theorem supported_count : (cells.filter Cell.supported).length = 24 := by decide
 
+/-- The cells with specification-strategy evidence: protocol 1 (both boundary cells) and
+protocol 2 with the list policy at the call boundary. -/
+theorem specStrategy_count :
+    (cells.filter fun c => match c.support with
+      | .supported _ _ _ .specStrategy => true
+      | _ => false).length = 3 := by decide
+
 end Silmaril.Wasi.Consequence.Matrix

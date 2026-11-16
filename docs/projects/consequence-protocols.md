@@ -18,6 +18,7 @@ New definitions; the SZS statuses follow `szs-success`, and `szs-2007` for the 2
 | --- | --- |
 | `Silmaril.Wasi.Component.Consequence.{Defs,Thms}` | `Answer` (`yes`, `no`, `trap`, `other`), `Boundary` (`call`, `answer`), `Reading X C`, `Accepted`, `AcceptWitness`, `Answered`, `Sound`, `Complete`, `execProblem`, `classify`, `StatusPair`/`status`, host classes (`HostFn`, `hostAdmissible`, `ForallHosts`, `ExistsHost`), `Step`, `Policy` (`list`, `finset`, `count`, `named`, `namedFirst`), `Policy.Hom` (`listToFinset`, `listToCount`, `listToNamed`), `epochState`, `epoch`, and the protocol readings `exportCheck`, `exportStateful`, `importAssert`, `importStateful`. |
 | `Silmaril.Wasi.Component.Consequence.Checkers.{Defs,Thms}` | Specification strategies for protocol 1: `answerChecker`, `emptyChecker`, `silentChecker`, `memberChecker`, and concrete `list<u32>`/`u32` instances (`memberU32`, `emptyU32`, `u32Dec`). |
+| `Silmaril.Wasi.Component.Consequence.Stateful.{Defs,Thms}` | A specification strategy for protocol 2: `statefulMember` (`axiom`, `check`, `reset`), and the `u32` instance `statefulMemberU32`. |
 | `Silmaril.Wasi.Component.Consequence.Matrix.{Defs,Examples}` | The interpretation matrix: protocol × state policy × boundary (48 cells, 24 supported). Each cell names its reading, its theorems as checked names, and its evidence. `gaps` lists what no cell provides. |
 
 ## Protocols and observation boundaries
@@ -83,6 +84,12 @@ of `Ax` are the completed queries `(x, c)` of `T`, and the models of `C` are tho
 | `silentChecker` | empty (`not_accepted_silentChecker`) | `CAX`: nothing completes, and `THM` holds vacuously (`status_silentChecker`, `thm_silentChecker`) |
 | `memberChecker` / `memberU32` | exactly `c ∈ xs`, sound and complete (`accepted_memberChecker`, `accepted_memberU32`, `memberChecker_sound`, `memberChecker_complete`) | `STH` if `c ∈ xs`, else `SCT` (`status_memberU32`) |
 
+| `statefulMember` / `statefulMemberU32` (protocol 2, `list` policy, `.call` boundary) | exactly `c ∈ xs`, where `xs` is the list of the current epoch's assumptions (`accepted_statefulMember`, `accepted_statefulMemberU32`) | `STH` if `c ∈ xs`, else `SCT` (`status_statefulMember`) |
+
+The stateful checker answers each call immediately, from the state of its generating play. If
+a caller interleaves calls of another shape, those calls stay pending (unanswered); they are
+never answered differently.
+
 These are **specification strategies** (`Strategy.generate`), Lean definitions of their plays.
 The theorems are about these strategies only.
 
@@ -93,8 +100,8 @@ The theorems are about these strategies only.
 - No core module implements `check(ax, stmt)` with a proof against Core execution. The reading
   for one would be `Silmaril.Wasm.Game.Accept.exportAccepted`, through a canonical-ABI
   correspondence like `CanonLowerAccept`. Nothing here assumes such a correspondence.
-- There is no specification component for the stateful protocols yet. Their readings have
-  general laws only.
+- Only protocol 2, with the `list` policy at the `.call` boundary, has a specification
+  component. The other stateful cells, and all of protocol 4, have general laws only.
 - The structural closure predicates are inline hypotheses. They will be restated with the
   structural-rules predicates once those are published, and `Accepted T r` will be related to the
   core `Silmaril.Consequence` systems in a follow-up.
@@ -104,5 +111,6 @@ The theorems are about these strategies only.
 ```sh
 lake build Silmaril.Wasi.Component.Consequence.Thms \
   Silmaril.Wasi.Component.Consequence.Checkers.Thms \
+  Silmaril.Wasi.Component.Consequence.Stateful.Thms \
   Silmaril.Wasi.Component.Consequence.Matrix.Examples
 ```

@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasi.Component.Consequence.Thms
 public import Silmaril.Wasi.Component.Consequence.Checkers.Thms
+public import Silmaril.Wasi.Component.Consequence.Stateful.Thms
 
 /-! # The interpretation matrix of the consequence protocols
 
@@ -21,8 +22,9 @@ What the evidence rests on (`Evidence`):
   (`Silmaril.Wasi.Component.Consequence.Checkers.Defs`) have exact theorems. They are not
   compiled components and no compiled binary or core module is claimed.
 
-Gaps (`gaps`): no compiled component binary, no core-module implementation of any protocol, no
-stateful specification component, and divergence is the absence of an answer, not an answer.
+Gaps (`gaps`): no compiled component binary, no core-module implementation of any protocol, a
+specification strategy only for protocol 2 (list policy, call boundary), and divergence is the
+absence of an answer, not an answer.
 
 This is metadata, independent of any serialization; the project registry may publish it.
 
@@ -135,6 +137,12 @@ def cell (p : Protocol) (s : StateShape) (b : Boundary) : Cell :=
       .unsupported "A stateful protocol accumulates its assumptions; it has no one-shot reading."
   | .exportCheck, _ | .importAssert, _ =>
       .unsupported "A one-shot protocol takes its assumptions as an argument; it has no state."
+  | .exportStateful, .list => match b with
+      | .call => .supported ``exportStateful (some ``Policy.list) (generalLaws ++ stateLaws .list ++
+          [``accepted_statefulMember, ``status_statefulMember, ``accepted_statefulMemberU32])
+          .specStrategy
+      | .answer => .supported ``exportStateful (some ``Policy.list) (generalLaws ++ stateLaws .list)
+          .definitions
   | .exportStateful, s => .supported ``exportStateful s.policy (generalLaws ++ stateLaws s)
       .definitions
   | .importStateful, s => .supported ``importStateful s.policy (generalLaws ++ stateLaws s)
@@ -159,7 +167,8 @@ def gaps : List (String × String) := [
     "No core module implements check(ax, stmt) with a proof against its execution semantics; " ++
     "`Silmaril.Wasm.Game.Accept.exportAccepted` would be the reading."),
   ("stateful specification component",
-    "No specification strategy for protocols 2 or 4 yet: their readings have general laws only."),
+    "Only protocol 2 with the list policy at the call boundary has a specification strategy " ++
+    "(`statefulMember`); the other stateful cells have general laws only."),
   ("divergence",
     "Finite plays: a call that never returns has no answer event. Divergence is not an answer; " ++
     "infinite plays are not used."),
