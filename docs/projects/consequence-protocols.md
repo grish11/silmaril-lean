@@ -101,7 +101,13 @@ The theorems are about these strategies only.
   module. Its export `check(ptr, len) -> i32` is `i32.const 0`, verified against Core execution,
   with its 45-byte binary. It accepts nothing (`exportAccepted_eq_empty`) and rejects every input
   shorter than `2 ^ 32` (`exportRejected_eq`). As a `System` under any byte encoding, it is `⊥`.
-  No core module implements a nonempty checker yet.
+- **A nonempty core module**: `Silmaril.Wasm.Examples.MemberCheck` is the finite membership
+  checker. It is a 108-byte module whose `check(ptr, len)` scans `c :: as` once and returns
+  whether `c ∈ as`. It is verified against Core execution, with total correctness (the loop
+  variant is `len - i`). Its acceptance is exact: `exportAccepted_eq` is `memberLang` below
+  `2 ^ 32`, and `exportRejected_eq` is the complement. As a relation on byte lists it is
+  exactly membership (`accepted_iff_mem`), so it is `Reflexive` and the least such relation
+  (`accepted_le_of_reflexive`). Statements and assumptions are single bytes.
 - **No component wraps a core module.** Connecting `EmptyCheck` to the component reading
   `exportCheck` would need a canonical-ABI correspondence between `list<u8>` arguments and
   `(ptr, len)`, like `CanonLowerAccept`. Nothing here assumes one.

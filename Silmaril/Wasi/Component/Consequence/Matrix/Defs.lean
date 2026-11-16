@@ -22,8 +22,9 @@ What the evidence rests on (`Evidence`):
   (`Silmaril.Wasi.Component.Consequence.Checkers.Defs`) have exact theorems. They are not
   compiled components and no compiled binary or core module is claimed.
 
-Gaps (`gaps`): no compiled component binary, no component over a core module (the empty checker
-exists as a verified core module, `Silmaril.Wasm.Examples.EmptyCheck`, unwrapped), a
+Gaps (`gaps`): no compiled component binary, no component over a core module (the empty and the
+byte-membership checkers exist as verified core modules, `Silmaril.Wasm.Examples.EmptyCheck` and
+`Silmaril.Wasm.Examples.MemberCheck`, unwrapped), a
 specification strategy only for protocol 2 (list policy, call boundary), and divergence is the
 absence of an answer, not an answer.
 
@@ -165,9 +166,10 @@ def gaps : List (String × String) := [
     "No compiled component binary implements any protocol: the catalog's `compiledComponent` " ++
     "shape is unsupported, and the checkers here are specification strategies."),
   ("core module",
-    "Only the empty checker exists as a verified core module (`Silmaril.Wasm.Examples." ++
-    "EmptyCheck`: exportAccepted is empty, exportRejected is every input below 2^32). No " ++
-    "component wraps it: the canonical-ABI correspondence to `exportCheck` is not established."),
+    "Two verified core modules: the empty checker (`Silmaril.Wasm.Examples.EmptyCheck`) and " ++
+    "the byte-membership checker (`Silmaril.Wasm.Examples.MemberCheck`, exact acceptance of " ++
+    "`c :: as` with `c ∈ as`). No component wraps them: the canonical-ABI correspondence to " ++
+    "`exportCheck` is not established."),
   ("stateful specification component",
     "Only protocol 2 with the list policy at the call boundary has a specification strategy " ++
     "(`statefulMember`); the other stateful cells have general laws only."),
