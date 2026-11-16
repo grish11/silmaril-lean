@@ -32,7 +32,14 @@ For callers whose importer also calls host functions (`HLinked2`, `Proofs.….HL
 * `CallAtLKTS.block`: once the importer's thread blocks, the call traps `cannotBlockSync`;
   `CallAtLKTS.retG`, `CallAtLKTS.trapG`: `ret` and `trap` from every `extG` extension of the
   frame; `CallAtLKTS.thread`, `tasks`, `insts`, `threads`: the call's thread, task, instances
-  and threads in the frame.
+  and threads in the frame; `CallAtLKTS.host`: the frame's host state is the call's;
+* **the host state at a trap**, for sessions resumed after a trap whose host state matters
+  (`resumeCfg` keeps it): `TrapsAtSH`, `TrapsAtRH` (`TrapsAtS`, `TrapsAtR` with the host state
+  of the trapped configuration), and the trapping runs above with it, at the host state of their
+  frame: `lrun_lift_trapAtSH`, `traps_startLTSH`, `lift_body_trapTSH`, `nest_trap_argsTSH`,
+  `lift_body_atTSH`, `nest_atTSH` (the configuration at the exporter's activation keeps the
+  frame's host state), `CallAtLKTS.trapGH`, `CallAtLKTS.blockH`. The statements without the
+  host state are derived from them.
 -/
 
 @[expose] public noncomputable section
@@ -257,6 +264,41 @@ theorem TrapsQS.trapsAtS {α : Type} {th : Option ThreadId} {p : Canon.P (E3 P) 
   rw [← e] at hrun
   exact ⟨_, _, r, hr, hrun, hlive, hu, hcore⟩
 
+/-- `TrapsAtS` with the host state `h` of the trapped configuration. -/
+def TrapsAtSH (prof : ProfileKind) (P : Profile) (impl : HostImpl (E3 P) σ)
+    (M : Machine.Config (E3 P) σ) (c : (E3 P).Store (CanonHost (E3 P))) (h : σ) : Prop :=
+  ∃ tr mT r, (∀ msg, r ≠ .internal msg) ∧ LRun prof (fun _ _ => false) (DI P impl) M tr mT ∧
+    Live mT ∧ UniqueStep prof (fun _ _ => false) (DI P impl) mT (.trap r) (trapCfg mT) ∧
+    mT.store.core = c ∧ mT.host = h
+
+theorem TrapsAtSH.toS {M : Machine.Config (E3 P) σ} {c : (E3 P).Store (CanonHost (E3 P))}
+    {h : σ} (H : TrapsAtSH prof P impl M c h) : TrapsAtS prof P impl M c := by
+  obtain ⟨tr, mT, r, hr, h₁, hl, hu, hc, -⟩ := H
+  exact ⟨tr, mT, r, hr, h₁, hl, hu, hc⟩
+
+theorem TrapsAtSH.lrun {M M' : Machine.Config (E3 P) σ} {tr : List (Label (E3 P) σ)}
+    {c : (E3 P).Store (CanonHost (E3 P))} {h : σ}
+    (H : LRun prof (fun _ _ => false) (DI P impl) M tr M') (H' : TrapsAtSH prof P impl M' c h) :
+    TrapsAtSH prof P impl M c h := by
+  obtain ⟨tr', mT, r, hr, h₁, hl, hu, hc, hh⟩ := H'
+  exact ⟨_, mT, r, hr, H.trans h₁, hl, hu, hc, hh⟩
+
+/-- `TrapsQS.trapsAtS` with the host state of the trapped configuration. -/
+theorem TrapsQS.trapsAtSH {α : Type} {th : Option ThreadId} {p : Canon.P (E3 P) σ α}
+    {f : α → Canon.P (E3 P) σ (Ret (E3 P))} {M mT : Machine.Config (E3 P) σ}
+    {segs : List (Seg (E3 P) σ)} {rest : List (Activation (E3 P) σ)} {tr : List (Label (E3 P) σ)}
+    (hc : M.ctl = ⟨th, .prog (p >>= f), segs⟩ :: rest) (h : TrapsQS (DI P impl) th p M tr mT)
+    (hl : M.store.lockdown = false) {c : (E3 P).Store (CanonHost (E3 P))}
+    (hcore : mT.store.core = c) {s : σ} (hhost : mT.host = s) : TrapsAtSH prof P impl M c s := by
+  have e : M = { M with ctl := ⟨th, .prog (p >>= f), segs⟩ :: rest } := by
+    cases M
+    cases hc
+    rfl
+  obtain ⟨q, segs', r, hr, hrun, hlive, hu⟩ := h.lrun (prof := prof) (hr := fun _ _ => false) hl
+    f segs rest
+  rw [← e] at hrun
+  exact ⟨_, _, r, hr, hrun, hlive, hu, hcore, hhost⟩
+
 /-- `TrapsAtS` with the trap reason `r`: from `M`, a live run reaches a configuration holding
 the core store `c` whose only step is the trap `r`. -/
 def TrapsAtR (prof : ProfileKind) (P : Profile) (impl : HostImpl (E3 P) σ)
@@ -282,6 +324,32 @@ theorem TrapsQR.trapsAtR {r : TrapReason} {α : Type} {th : Option ThreadId}
   rw [← e] at hrun
   exact ⟨_, _, hrun, hlive, hu, hcore⟩
 
+/-- `TrapsAtR` with the host state `h` of the trapped configuration. -/
+def TrapsAtRH (prof : ProfileKind) (P : Profile) (impl : HostImpl (E3 P) σ)
+    (M : Machine.Config (E3 P) σ) (c : (E3 P).Store (CanonHost (E3 P))) (r : TrapReason)
+    (h : σ) : Prop :=
+  ∃ tr mT, LRun prof (fun _ _ => false) (DI P impl) M tr mT ∧
+    Live mT ∧ UniqueStep prof (fun _ _ => false) (DI P impl) mT (.trap r) (trapCfg mT) ∧
+    mT.store.core = c ∧ mT.host = h
+
+/-- `TrapsQR.trapsAtR` with the host state of the trapped configuration. -/
+theorem TrapsQR.trapsAtRH {r : TrapReason} {α : Type} {th : Option ThreadId}
+    {p : Canon.P (E3 P) σ α} {f : α → Canon.P (E3 P) σ (Ret (E3 P))}
+    {M mT : Machine.Config (E3 P) σ} {segs : List (Seg (E3 P) σ)}
+    {rest : List (Activation (E3 P) σ)} {tr : List (Label (E3 P) σ)}
+    (hc : M.ctl = ⟨th, .prog (p >>= f), segs⟩ :: rest) (h : TrapsQR (DI P impl) r th p M tr mT)
+    (hl : M.store.lockdown = false) {c : (E3 P).Store (CanonHost (E3 P))}
+    (hcore : mT.store.core = c) {s : σ} (hhost : mT.host = s) :
+    TrapsAtRH prof P impl M c r s := by
+  have e : M = { M with ctl := ⟨th, .prog (p >>= f), segs⟩ :: rest } := by
+    cases M
+    cases hc
+    rfl
+  obtain ⟨q, segs', hrun, hlive, hu⟩ := h.lrun (prof := prof) (hr := fun _ _ => false) hl
+    f segs rest
+  rw [← e] at hrun
+  exact ⟨_, _, hrun, hlive, hu, hcore, hhost⟩
+
 /-- **The synchronous lift loop of an unresolved task with no ready thread in its instance
 traps `cannotBlockSync`** (REF `trap_if(not candidates)`). -/
 theorem traps_syncLoop {th : Option ThreadId} {m : Machine.Config (E3 P) σ}
@@ -304,8 +372,8 @@ theorem traps_syncLoop {th : Option ThreadId} {m : Machine.Config (E3 P) σ}
     exact TrapsQR.trap _
   exact TrapsQR.callIn hl
 
-/-- `lrun_lift_trapAt` with a specification trap. -/
-theorem lrun_lift_trapAtS {α : Type} {th : Option ThreadId} (p : Silmaril.Wasm.Component.FuncTy)
+/-- `lrun_lift_trapAt` with a specification trap, at the host state of `M`. -/
+theorem lrun_lift_trapAtSH {α : Type} {th : Option ThreadId} (p : Silmaril.Wasm.Component.FuncTy)
     (hres : p.results.length ≤ 1) (hmaxr : (ValTy.flatList p.results).length ≤ 1)
     (hff : floatFreeList p.results = true) {ys : List Flat}
     (hys : ys.map (·.type) = ValTy.flatList p.results) (hnone : liftArgs p.results ys = none)
@@ -315,7 +383,7 @@ theorem lrun_lift_trapAtS {α : Type} {th : Option ThreadId} (p : Silmaril.Wasm.
     {segs : List (Seg (E3 P) σ)} {rest : List (Activation (E3 P) σ)}
     (hc : M.ctl = ⟨th, .prog ((liftFlatValues Limits.spec Quirks.none cx ABI.maxFlatResults
       (.ofList ys) (resultTypes (witFt p)) >>= f) >>= g), segs⟩ :: rest)
-    (hl : M.store.lockdown = false) : TrapsAtS prof P impl M M.store.core := by
+    (hl : M.store.lockdown = false) : TrapsAtSH prof P impl M M.store.core M.host := by
   have e : liftFlatValues Limits.spec Quirks.none cx ABI.maxFlatResults (.ofList ys)
       (resultTypes (witFt p)) =
         (ptrType cx >>= fun q => liftFlatTypes Limits.spec Quirks.none cx q
@@ -337,7 +405,21 @@ theorem lrun_lift_trapAtS {α : Type} {th : Option ThreadId} (p : Silmaril.Wasm.
   rw [hk] at s₁
   exact ⟨_, _, r, hr, .cons ⟨by rw [hc]; exact List.cons_ne_nil _ _, hl⟩
     (.of_prog hc (fun _ _ e => by cases e) s₁) (.refl _), ⟨List.cons_ne_nil _ _, hl⟩,
-    .of_prog rfl (fun _ _ e => by cases e) (.trap rfl), rfl⟩
+    .of_prog rfl (fun _ _ e => by cases e) (.trap rfl), rfl, rfl⟩
+
+/-- `lrun_lift_trapAt` with a specification trap. -/
+theorem lrun_lift_trapAtS {α : Type} {th : Option ThreadId} (p : Silmaril.Wasm.Component.FuncTy)
+    (hres : p.results.length ≤ 1) (hmaxr : (ValTy.flatList p.results).length ≤ 1)
+    (hff : floatFreeList p.results = true) {ys : List Flat}
+    (hys : ys.map (·.type) = ValTy.flatList p.results) (hnone : liftArgs p.results ys = none)
+    {cx : LiftLowerContext (E3 P)}
+    {f : List Silmaril.Wasm.Component.Reference.Val × FlatCursor → Canon.P (E3 P) σ α}
+    {g : α → Canon.P (E3 P) σ (Ret (E3 P))} {M : Machine.Config (E3 P) σ}
+    {segs : List (Seg (E3 P) σ)} {rest : List (Activation (E3 P) σ)}
+    (hc : M.ctl = ⟨th, .prog ((liftFlatValues Limits.spec Quirks.none cx ABI.maxFlatResults
+      (.ofList ys) (resultTypes (witFt p)) >>= f) >>= g), segs⟩ :: rest)
+    (hl : M.store.lockdown = false) : TrapsAtS prof P impl M M.store.core :=
+  (lrun_lift_trapAtSH p hres hmaxr hff hys hnone hc hl).toS
 
 /-! ## Callouts whose arguments do not lift -/
 
@@ -366,8 +448,8 @@ theorem traps_lowerOnStartS {th : Option ThreadId} {m : Machine.Config (E3 P) σ
   exact ⟨_, TrapsQS.bind (RunsQ.getObj _ _ hc) (TrapsQS.bind hmp
     (TrapsQS.bind (RunsQ.modify rfl (RunsQ.pure _ _)) (TrapsQS.left hlift)))⟩
 
-/-- `traps_startLT` with a specification trap. -/
-theorem traps_startLTS {th : Option ThreadId} {m : Machine.Config (E3 P) σ}
+/-- `traps_startLT` with a specification trap, the host state kept. -/
+theorem traps_startLTSH {th : Option ThreadId} {m : Machine.Config (E3 P) σ}
     {Gt : List (Runtime.Task (E3 P))} {y : Runtime.Task (E3 P)} {c : CallerId} {S : SubtaskId}
     {cx : LiftLowerContext (E3 P)} {ys : List Flat} {p : Silmaril.Wasm.Component.FuncTy}
     {xS : Subtask}
@@ -377,7 +459,7 @@ theorem traps_startLTS {th : Option ThreadId} {m : Machine.Config (E3 P) σ}
     (hff : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
     (hmax : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = none) :
     ∃ tr mT, TrapsQS (DI P impl) th (Task.start ⟨Gt.length⟩) m tr mT ∧
-      mT.store.core = m.store.core := by
+      mT.store.core = m.store.core ∧ mT.host = m.host := by
   obtain ⟨tr, h⟩ := traps_lowerOnStartS (impl := impl) (th := th)
     (m := { m with store := CStore.setTaskState ⟨Gt.length⟩ .started m.store }) (by exact hc)
     (by exact hS) hidx hff hys hmax hws
@@ -393,7 +475,60 @@ theorem traps_startLTS {th : Option ThreadId} {m : Machine.Config (E3 P) σ}
     exact TrapsQS.callIn hon
   unfold Task.start
   exact ⟨_, _, TrapsQS.bind (runs_getObj ArenaField.tasks _ _ (tasks_get_last ht))
-    (TrapsQS.bind (runs_modifyStore _ _ rfl) hs), rfl⟩
+    (TrapsQS.bind (runs_modifyStore _ _ rfl) hs), rfl, rfl⟩
+
+/-- `traps_startLT` with a specification trap. -/
+theorem traps_startLTS {th : Option ThreadId} {m : Machine.Config (E3 P) σ}
+    {Gt : List (Runtime.Task (E3 P))} {y : Runtime.Task (E3 P)} {c : CallerId} {S : SubtaskId}
+    {cx : LiftLowerContext (E3 P)} {ys : List Flat} {p : Silmaril.Wasm.Component.FuncTy}
+    {xS : Subtask}
+    (ht : m.store.tasks = Gt ++ [y]) (hy : y.caller = c)
+    (hc : ArenaField.callers.get? m.store c = some (.lower S cx ys 0 (witFt p) 16 1))
+    (hS : ArenaField.subtasks.get? m.store S = some xS) (hidx : xS.index = none)
+    (hff : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmax : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = none) :
+    ∃ tr mT, TrapsQS (DI P impl) th (Task.start ⟨Gt.length⟩) m tr mT ∧
+      mT.store.core = m.store.core := by
+  obtain ⟨tr, mT, h, hc, -⟩ := traps_startLTSH (impl := impl) (th := th) ht hy hc hS hidx hff hys
+    hmax hws
+  exact ⟨tr, mT, h, hc⟩
+
+/-- `lift_body_trapT` with a specification trap, at the host state of `M₀`. -/
+theorem lift_body_trapTSH (M₀ : Machine.Config (E3 P) σ) (S : CStore (E3 P)) (ys : List Flat)
+    (p : Silmaril.Wasm.Component.FuncTy) {ιe ιe' : InstState}
+    (a : (E3 P).FuncAddr) (R : List (Activation (E3 P) σ))
+    (hie : S.insts[1]? = some ιe) (hadd : ιe.addThread? ⟨S.threads.length⟩ = some (1, ιe'))
+    (hl : S.lockdown = false)
+    (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmaxp : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = none) :
+    TrapsAtSH prof P impl
+      { M₀ with
+        store := nstore S { inst := ⟨2⟩ } (lowerRec ⟨S.subtasks.length⟩ ⟨2⟩ ys p 0) (ntask₀ S p)
+          (thread₁ S.tasks) S.insts
+        ctl := ⟨some ⟨S.threads.length⟩,
+          .prog (DI P impl (.threadBody (.liftImplicit ⟨S.tasks.length⟩ a))), []⟩ :: R }
+      S.core M₀.host := by
+  obtain ⟨trS, mT, hst, hcore, hhost⟩ := traps_startLTSH (impl := impl)
+    (th := some ⟨S.threads.length⟩)
+    (m := { M₀ with
+      store := nstore S { inst := ⟨2⟩ } (lowerRec ⟨S.subtasks.length⟩ ⟨2⟩ ys p 0) (ntask₁ S p)
+        ((thread₁ S.tasks).withIndex 1) (S.insts.set 1 ιe') })
+    (Gt := S.tasks) rfl rfl (callers_get_last rfl) (subtasks_get_last rfl) rfl hpf hys hmaxp hws
+  have h₁ := RunsQ.lrun_at (prof := prof) (hr := fun _ _ => false)
+    (runs_enterG (impl := impl) (Gt := S.tasks) (t := ⟨S.threads.length⟩)
+      (m := { M₀ with
+        store := nstore S { inst := ⟨2⟩ } (lowerRec ⟨S.subtasks.length⟩ ⟨2⟩ ys p 0) (ntask₀ S p)
+          (thread₁ S.tasks) S.insts
+        ctl := ⟨some ⟨S.threads.length⟩,
+          .prog (DI P impl (.threadBody (.liftImplicit ⟨S.tasks.length⟩ a))), []⟩ :: R })
+      rfl rfl (by exact hie) hadd) (by exact hl) _ rfl
+  refine TrapsAtSH.lrun h₁ ?_
+  rw [nstore_enter S _ _ p hie hadd]
+  refine TrapsAtSH.lrun (RunsQ.lrun_at (runs_getObj ArenaField.tasks _ _ (tasks_get_last rfl))
+    (by exact hl) _ rfl) ?_
+  refine TrapsQS.trapsAtSH rfl (hst.withCtl _) (by exact hl) ?_ ?_
+  · exact hcore
+  · exact hhost
 
 /-- `lift_body_trapT` with a specification trap. -/
 theorem lift_body_trapTS (M₀ : Machine.Config (E3 P) σ) (S : CStore (E3 P)) (ys : List Flat)
@@ -409,25 +544,33 @@ theorem lift_body_trapTS (M₀ : Machine.Config (E3 P) σ) (S : CStore (E3 P)) (
           (thread₁ S.tasks) S.insts
         ctl := ⟨some ⟨S.threads.length⟩,
           .prog (DI P impl (.threadBody (.liftImplicit ⟨S.tasks.length⟩ a))), []⟩ :: R }
-      S.core := by
-  obtain ⟨trS, mT, hst, hcore⟩ := traps_startLTS (impl := impl) (th := some ⟨S.threads.length⟩)
-    (m := { M₀ with
-      store := nstore S { inst := ⟨2⟩ } (lowerRec ⟨S.subtasks.length⟩ ⟨2⟩ ys p 0) (ntask₁ S p)
-        ((thread₁ S.tasks).withIndex 1) (S.insts.set 1 ιe') })
-    (Gt := S.tasks) rfl rfl (callers_get_last rfl) (subtasks_get_last rfl) rfl hpf hys hmaxp hws
-  have h₁ := RunsQ.lrun_at (prof := prof) (hr := fun _ _ => false)
-    (runs_enterG (impl := impl) (Gt := S.tasks) (t := ⟨S.threads.length⟩)
-      (m := { M₀ with
-        store := nstore S { inst := ⟨2⟩ } (lowerRec ⟨S.subtasks.length⟩ ⟨2⟩ ys p 0) (ntask₀ S p)
-          (thread₁ S.tasks) S.insts
-        ctl := ⟨some ⟨S.threads.length⟩,
-          .prog (DI P impl (.threadBody (.liftImplicit ⟨S.tasks.length⟩ a))), []⟩ :: R })
-      rfl rfl (by exact hie) hadd) (by exact hl) _ rfl
-  refine TrapsAtS.lrun h₁ ?_
-  rw [nstore_enter S _ _ p hie hadd]
-  refine TrapsAtS.lrun (RunsQ.lrun_at (runs_getObj ArenaField.tasks _ _ (tasks_get_last rfl))
-    (by exact hl) _ rfl) ?_
-  exact TrapsQS.trapsAtS rfl (hst.withCtl _) (by exact hl) hcore
+      S.core :=
+  (lift_body_trapTSH (prof := prof) (impl := impl) M₀ S ys p a R hie hadd hl hpf hys hmaxp
+    hws).toS
+
+/-- `nest_trap_argsT` with a specification trap: a callout of the importer whose arguments
+do not lift traps at the core store of the callout, at the host state of `B`. -/
+theorem nest_trap_argsTSH (B : Machine.Config (E3 P) σ) (ιe ιe' : InstState) (N : List (NRec P))
+    (C : List (Option (Activation (E3 P) σ))) (th : Option ThreadId)
+    (K : List Flat → Canon.P (E3 P) σ (Ret (E3 P))) (segs : List (Seg (E3 P) σ))
+    (rest : List (Activation (E3 P) σ)) (x : CoreSt (E3 P)) (f : FuncId) (a : (E3 P).FuncAddr)
+    (p : Silmaril.Wasm.Component.FuncTy) (ys : List Flat) (ιi : InstState)
+    (hs : (E3 P).status x.1 x.2 = .callout (.lowered f (witFt p) {} ⟨2⟩) ys)
+    (hentry : calloutEntry (extN B ιe N C).store th (.lowered f (witFt p) {} ⟨2⟩) = none)
+    (hi : ArenaField.insts.get? (extN B ιe N C).store ⟨2⟩ = some ιi) (hleave : ιi.mayLeave = true)
+    (hf : ArenaField.funcs.get? B.store f = some (.lifted a (witFt p) {} ⟨1⟩))
+    (hlen : 1 < B.store.insts.length)
+    (hadd : ιe.addThread? ⟨(extN B ιe N C).store.threads.length⟩ = some (1, ιe'))
+    (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmaxp : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = none) :
+    TrapsAtSH prof P impl (coreCfg (extN B ιe N C) th K segs rest x) x.1 B.host := by
+  obtain ⟨C₁, R, tr₁, h₁, -⟩ := nest_pre (prof := prof) (impl := impl) B ιe ιe' N C th K segs
+    rest x f a p ys ιi hs hentry hi hleave hf
+  have hie : ({ (extN B ιe N C).store with core := x.1 } : CStore (E3 P)).insts[1]? = some ιe :=
+    List.getElem?_set_self hlen
+  exact TrapsAtSH.lrun h₁ (lift_body_trapTSH (prof := prof) (impl := impl)
+    { coreCfg (extN B ιe N C) th K segs rest x with conts := C₁ }
+    { (extN B ιe N C).store with core := x.1 } ys p a R hie hadd rfl hpf hys hmaxp hws)
 
 /-- `nest_trap_argsT` with a specification trap: a callout of the importer whose arguments
 do not lift traps at the core store of the callout. -/
@@ -444,17 +587,13 @@ theorem nest_trap_argsTS (B : Machine.Config (E3 P) σ) (ιe ιe' : InstState) (
     (hadd : ιe.addThread? ⟨(extN B ιe N C).store.threads.length⟩ = some (1, ιe'))
     (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
     (hmaxp : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = none) :
-    TrapsAtS prof P impl (coreCfg (extN B ιe N C) th K segs rest x) x.1 := by
-  obtain ⟨C₁, R, tr₁, h₁, -⟩ := nest_pre (prof := prof) (impl := impl) B ιe ιe' N C th K segs
-    rest x f a p ys ιi hs hentry hi hleave hf
-  have hie : ({ (extN B ιe N C).store with core := x.1 } : CStore (E3 P)).insts[1]? = some ιe :=
-    List.getElem?_set_self hlen
-  exact TrapsAtS.lrun h₁ (lift_body_trapTS (prof := prof) (impl := impl)
-    { coreCfg (extN B ιe N C) th K segs rest x with conts := C₁ }
-    { (extN B ιe N C).store with core := x.1 } ys p a R hie hadd rfl hpf hys hmaxp hws)
+    TrapsAtS prof P impl (coreCfg (extN B ιe N C) th K segs rest x) x.1 :=
+  (nest_trap_argsTSH (prof := prof) (impl := impl) B ιe ιe' N C th K segs rest x f a p ys ιi hs
+    hentry hi hleave hf hlen hadd hpf hys hmaxp hws).toS
 
-/-- `lift_body_atT` (same proof), the trap of a failing lift a specification trap. -/
-theorem lift_body_atTS (M₀ : Machine.Config (E3 P) σ) (S : CStore (E3 P)) (ys : List Flat)
+/-- `lift_body_atT` (same proof), the trap of a failing lift a specification trap at the host
+state of `M₀`. -/
+theorem lift_body_atTSH (M₀ : Machine.Config (E3 P) σ) (S : CStore (E3 P)) (ys : List Flat)
     (p : Silmaril.Wasm.Component.FuncTy) (ws : List Silmaril.Wasm.Component.Val) {ιe ιe' : InstState}
     (a : (E3 P).FuncAddr) (R : List (Activation (E3 P) σ))
     (hie : S.insts[1]? = some ιe) (hadd : ιe.addThread? ⟨S.threads.length⟩ = some (1, ιe'))
@@ -483,9 +622,9 @@ theorem lift_body_atTS (M₀ : Machine.Config (E3 P) σ) (S : CStore (E3 P)) (ys
           { M₀ with store := nstoreRet S y.1 ys p ιe' pos us, ctl := R }) ∧
       (∀ (y : CoreSt (E3 P)) (zs : List Flat),
         zs.map (·.type) = ValTy.flatList p.results → liftArgs p.results zs = none →
-        TrapsAtS prof P impl
+        TrapsAtSH prof P impl
           (retCfg { M₀ with store := nstoreCore S ys p ιe' pos } (some ⟨S.threads.length⟩) K'
-            segs' R y zs) y.1) := by
+            segs' R y zs) y.1 M₀.host) := by
   obtain ⟨pos, trS, hst⟩ := runs_startL (impl := impl) (th := some ⟨S.threads.length⟩)
     (m := { M₀ with
       store := nstore S { inst := ⟨2⟩ } (lowerRec ⟨S.subtasks.length⟩ ⟨2⟩ ys p 0) (ntask₁ S p)
@@ -522,7 +661,94 @@ theorem lift_body_atTS (M₀ : Machine.Config (E3 P) σ) (S : CStore (E3 P)) (ys
     lstep ((CStore.unregisterThreadSt_frame (E := E3 P) _ _ _ _).2.2.2.2.2.2.2.1.trans hl)
     exact lrun_refl_store (nstore_exit S y.1 _ _ p ιe')
   · intro y zs hzs hn
-    exact lrun_lift_trapAtS p hres hmaxr hrf hzs hn rfl (by exact hl)
+    exact lrun_lift_trapAtSH p hres hmaxr hrf hzs hn rfl (by exact hl)
+
+/-- `lift_body_atT` (same proof), the trap of a failing lift a specification trap. -/
+theorem lift_body_atTS (M₀ : Machine.Config (E3 P) σ) (S : CStore (E3 P)) (ys : List Flat)
+    (p : Silmaril.Wasm.Component.FuncTy) (ws : List Silmaril.Wasm.Component.Val) {ιe ιe' : InstState}
+    (a : (E3 P).FuncAddr) (R : List (Activation (E3 P) σ))
+    (hie : S.insts[1]? = some ιe) (hadd : ιe.addThread? ⟨S.threads.length⟩ = some (1, ιe'))
+    (hrem : ιe'.removeThread? 1 = some (⟨S.threads.length⟩, InstState.removeThread 1 ιe'))
+    (hl : S.lockdown = false)
+    (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmaxp : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = some ws)
+    (hres : p.results.length ≤ 1) (hrf : floatFreeList p.results = true)
+    (hmaxr : (ValTy.flatList p.results).length ≤ 1) :
+    ∃ pos K' segs' tr, LRun prof (fun _ _ => false) (DI P impl)
+      { M₀ with
+        store := nstore S { inst := ⟨2⟩ } (lowerRec ⟨S.subtasks.length⟩ ⟨2⟩ ys p 0) (ntask₀ S p)
+          (thread₁ S.tasks) S.insts
+        ctl := ⟨some ⟨S.threads.length⟩,
+          .prog (DI P impl (.threadBody (.liftImplicit ⟨S.tasks.length⟩ a))), []⟩ :: R } tr
+      { M₀ with
+        store := nstoreCore S ys p ιe' pos
+        ctl := ⟨some ⟨S.threads.length⟩,
+          .core (Silmaril.Wasm.SingleThreaded.Thread.invokeFlat a (lowerArgs p.params ws)) K',
+          segs'⟩ :: R } ∧
+      (∀ (y : CoreSt (E3 P)) (zs : List Flat) (us : List Silmaril.Wasm.Component.Val),
+        zs.map (·.type) = ValTy.flatList p.results → liftArgs p.results zs = some us →
+        ∃ tr', LRun prof (fun _ _ => false) (DI P impl)
+          (retCfg { M₀ with store := nstoreCore S ys p ιe' pos } (some ⟨S.threads.length⟩) K'
+            segs' R y zs) tr'
+          { M₀ with store := nstoreRet S y.1 ys p ιe' pos us, ctl := R }) ∧
+      (∀ (y : CoreSt (E3 P)) (zs : List Flat),
+        zs.map (·.type) = ValTy.flatList p.results → liftArgs p.results zs = none →
+        TrapsAtS prof P impl
+          (retCfg { M₀ with store := nstoreCore S ys p ιe' pos } (some ⟨S.threads.length⟩) K'
+            segs' R y zs) y.1) := by
+  obtain ⟨pos, K', segs', tr, h₁, h₂, h₃⟩ := lift_body_atTSH (prof := prof) (impl := impl) M₀ S ys
+    p ws a R hie hadd hrem hl hpf hys hmaxp hws hres hrf hmaxr
+  exact ⟨pos, K', segs', tr, h₁, h₂, fun y zs hzs hn => (h₃ y zs hzs hn).toS⟩
+
+/-- `nest_atT` (same proof), the trap of a failing lift of the exporter's results a
+specification trap at the core store the exporter returned with, the host state that of `B`. -/
+theorem nest_atTSH (B : Machine.Config (E3 P) σ) (ιe ιe' : InstState) (N : List (NRec P))
+    (C : List (Option (Activation (E3 P) σ))) (th : Option ThreadId)
+    (K : List Flat → Canon.P (E3 P) σ (Ret (E3 P))) (segs : List (Seg (E3 P) σ))
+    (rest : List (Activation (E3 P) σ)) (x : CoreSt (E3 P)) (f : FuncId) (a : (E3 P).FuncAddr)
+    (p : Silmaril.Wasm.Component.FuncTy) (ys : List Flat) (ιi : InstState)
+    (ws : List Silmaril.Wasm.Component.Val)
+    (hs : (E3 P).status x.1 x.2 = .callout (.lowered f (witFt p) {} ⟨2⟩) ys)
+    (hentry : calloutEntry (extN B ιe N C).store th (.lowered f (witFt p) {} ⟨2⟩) = none)
+    (hi : ArenaField.insts.get? (extN B ιe N C).store ⟨2⟩ = some ιi) (hleave : ιi.mayLeave = true)
+    (hf : ArenaField.funcs.get? B.store f = some (.lifted a (witFt p) {} ⟨1⟩))
+    (hlen : 1 < B.store.insts.length)
+    (hadd : ιe.addThread? ⟨(extN B ιe N C).store.threads.length⟩ = some (1, ιe'))
+    (hrem : ιe'.removeThread? 1 =
+      some (⟨(extN B ιe N C).store.threads.length⟩, InstState.removeThread 1 ιe'))
+    (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmaxp : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = some ws)
+    (hres : p.results.length ≤ 1) (hrf : floatFreeList p.results = true)
+    (hmaxr : (ValTy.flatList p.results).length ≤ 1) :
+    ∃ (pos : Nat) (C₁ : List (Option (Activation (E3 P) σ))) (M₁ : Machine.Config (E3 P) σ)
+      (th' : Option ThreadId) (K' : List Flat → Canon.P (E3 P) σ (Ret (E3 P)))
+      (segs' : List (Seg (E3 P) σ)) (rest' : List (Activation (E3 P) σ)) (tr : List (Label (E3 P) σ)),
+      LRun prof (fun _ _ => false) (DI P impl) (coreCfg (extN B ιe N C) th K segs rest x) tr M₁ ∧
+      M₁.ctl = ⟨th', .core (Silmaril.Wasm.SingleThreaded.Thread.invokeFlat a (lowerArgs p.params ws))
+        K', segs'⟩ :: rest' ∧
+      M₁.store.core = x.1 ∧ M₁.store.lockdown = false ∧ M₁.host = B.host ∧
+      (∀ (y : CoreSt (E3 P)) (zs : List Flat) (us : List Silmaril.Wasm.Component.Val),
+        zs.map (·.type) = ValTy.flatList p.results → liftArgs p.results zs = some us →
+        ∃ tr', LRun prof (fun _ _ => false) (DI P impl) (retCfg M₁ th' K' segs' rest' y zs) tr'
+          (coreCfg (extN B (InstState.removeThread 1 ιe')
+            (N ++ [nrec { (extN B ιe N C).store with core := x.1 } ys p pos (lowerArgs p.results us)])
+            C₁) th K segs rest (y.1, (E3 P).resume y.1 x.2 (.values (lowerArgs p.results us))))) ∧
+      (∀ (y : CoreSt (E3 P)) (zs : List Flat),
+        zs.map (·.type) = ValTy.flatList p.results → liftArgs p.results zs = none →
+        TrapsAtSH prof P impl (retCfg M₁ th' K' segs' rest' y zs) y.1 B.host) := by
+  obtain ⟨C₁, R, tr₁, h₁, hback⟩ := nest_pre (prof := prof) (impl := impl) B ιe ιe' N C th K segs
+    rest x f a p ys ιi hs hentry hi hleave hf
+  have hie : ({ (extN B ιe N C).store with core := x.1 } : CStore (E3 P)).insts[1]? = some ιe :=
+    List.getElem?_set_self hlen
+  obtain ⟨pos, K', segs', tr₂, h₂, hret, htrap⟩ := lift_body_atTSH (prof := prof) (impl := impl)
+    { coreCfg (extN B ιe N C) th K segs rest x with conts := C₁ }
+    { (extN B ιe N C).store with core := x.1 } ys p ws a R hie hadd hrem rfl hpf hys hmaxp hws
+    hres hrf hmaxr
+  refine ⟨pos, C₁, _, _, K', segs', _, _, h₁.trans h₂, rfl, rfl, rfl, rfl, ?_, htrap⟩
+  intro y zs us hzs hus
+  obtain ⟨tr₃, h₃⟩ := hret y zs us hzs hus
+  obtain ⟨tr₄, h₄⟩ := hback y.1 pos us
+  exact ⟨_, h₃.trans h₄⟩
 
 /-- `nest_atT` (same proof), the trap of a failing lift of the exporter's results a
 specification trap at the core store the exporter returned with. -/
@@ -560,19 +786,11 @@ theorem nest_atTS (B : Machine.Config (E3 P) σ) (ιe ιe' : InstState) (N : Lis
       (∀ (y : CoreSt (E3 P)) (zs : List Flat),
         zs.map (·.type) = ValTy.flatList p.results → liftArgs p.results zs = none →
         TrapsAtS prof P impl (retCfg M₁ th' K' segs' rest' y zs) y.1) := by
-  obtain ⟨C₁, R, tr₁, h₁, hback⟩ := nest_pre (prof := prof) (impl := impl) B ιe ιe' N C th K segs
-    rest x f a p ys ιi hs hentry hi hleave hf
-  have hie : ({ (extN B ιe N C).store with core := x.1 } : CStore (E3 P)).insts[1]? = some ιe :=
-    List.getElem?_set_self hlen
-  obtain ⟨pos, K', segs', tr₂, h₂, hret, htrap⟩ := lift_body_atTS (prof := prof) (impl := impl)
-    { coreCfg (extN B ιe N C) th K segs rest x with conts := C₁ }
-    { (extN B ιe N C).store with core := x.1 } ys p ws a R hie hadd hrem rfl hpf hys hmaxp hws
-    hres hrf hmaxr
-  refine ⟨pos, C₁, _, _, K', segs', _, _, h₁.trans h₂, rfl, rfl, rfl, ?_, htrap⟩
-  intro y zs us hzs hus
-  obtain ⟨tr₃, h₃⟩ := hret y zs us hzs hus
-  obtain ⟨tr₄, h₄⟩ := hback y.1 pos us
-  exact ⟨_, h₃.trans h₄⟩
+  obtain ⟨pos, C₁, M₁, th', K', segs', rest', tr, h₁, h₂, h₃, h₄, -, h₅, h₆⟩ :=
+    nest_atTSH (prof := prof) (impl := impl) B ιe ιe' N C th K segs rest x f a p ys ιi ws hs hentry
+      hi hleave hf hlen hadd hrem hpf hys hmaxp hws hres hrf hmaxr
+  exact ⟨pos, C₁, M₁, th', K', segs', rest', tr, h₁, h₂, h₃, h₄, h₅,
+    fun y zs hzs hn => (h₆ y zs hzs hn).toS⟩
 
 /-- **The frame `B` extended by arbitrary records**: the exporter's instance state `ιe`, the
 subtasks `SL`, caller records `CL`, tasks `TL` and threads `HL` appended, the saved-continuation
@@ -685,6 +903,20 @@ structure CallAtLKTS (prof : ProfileKind) (P : Profile) (impl : HostImpl (E3 P) 
     (C : List (Option (Activation (E3 P) σ))) (h : σ) (y : CoreSt (E3 P)) (ys : List Flat),
     ys.map (·.type) = ValTy.flatList x.ty.results → liftArgs x.ty.results ys = none →
     TrapsAtS prof P impl (retCfg (extG M₀ ιe' SL CL TL HL C h) th K segs rest y ys) y.1
+  /-- The host state at the start of the importer's activation is the call's. -/
+  host : M₀.host = h₀
+  /-- `trapG`, the trapped configuration in the host state `h` of the extension. -/
+  trapGH : ∀ (ιe' : InstState) (SL : List Subtask) (CL : List (Caller (E3 P)))
+    (TL : List (Runtime.Task (E3 P))) (HL : List Runtime.Thread)
+    (C : List (Option (Activation (E3 P) σ))) (h : σ) (y : CoreSt (E3 P)) (ys : List Flat),
+    ys.map (·.type) = ValTy.flatList x.ty.results → liftArgs x.ty.results ys = none →
+    TrapsAtSH prof P impl (retCfg (extG M₀ ιe' SL CL TL HL C h) th K segs rest y ys) y.1 h
+  /-- `block`, the trapped configuration in the host state of `M`. -/
+  blockH : ∀ (M : Machine.Config (E3 P) σ) (R : List (Runtime.Task (E3 P)))
+    (y : Runtime.Task (E3 P)), M.ctl = rest → M.store.lockdown = false →
+    M.store.tasks = G.tasks ++ [y] ++ R → y.state ≠ .resolved →
+    M.store.instCandidates (fun _ => false) y.inst = [] →
+    TrapsAtRH prof P impl M M.store.core .cannotBlockSync M.host
 
 /-- `call_atLK` (same proof), with `CallAtLKTS`. -/
 theorem call_atLKTS (prof : ProfileKind) (cs : (core3P P).Store (CanonHost (core3P P)))
@@ -833,5 +1065,11 @@ theorem call_atLKTS (prof : ProfileKind) (cs : (core3P P).Store (CanonHost (core
       rfl
   · intro ιe' SL CL TL HL C h y ys hys hn
     exact lrun_lift_trapAtS x.ty hres hmaxr hffr hys hn rfl rfl
+  · rfl
+  · intro ιe' SL CL TL HL C h y ys hys hn
+    exact lrun_lift_trapAtSH x.ty hres hmaxr hffr hys hn rfl rfl
+  · intro M R y hM hl ht hst hc
+    exact TrapsQR.trapsAtRH (p := callUnit (.loop (.syncLiftLoop ⟨G.tasks.length⟩)))
+      (hM.trans rfl) (traps_syncLoop (impl := impl) ht hst hc) hl rfl rfl
 
 end Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionFwd

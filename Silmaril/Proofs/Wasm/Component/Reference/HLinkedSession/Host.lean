@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Stat
 public import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Silent
+public import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.TrapH
 
 /-!
 # Forward runs of a call of `HLinked2.toRef`: a host call
@@ -17,7 +18,9 @@ The importer's core activation of an `HLinked2` stopped at the callout of a host
   and caller record in the store (the core store is unchanged);
 * `hostCall_noAnswer`, `hostCall_noLift`: when `g` has no answer (`hostTrap`), or the arguments
   do not lift (a lift trap), the machine traps with a specification trap (`TrapEnd`) at the
-  core store of the callout;
+  core store of the callout; `hostCall_noAnswerH`, `hostCall_noLiftG` add the host state of the
+  trapped configuration (`TrapEndH`, that of the frame), the latter for every host whose
+  functions start with `on_start` (`answerImplS g`, `HLinked2.silentImpl`);
 * `LInv.resumeHost_fwdH`: on the importer's side, the part resumed with the lowered answer and
   the shared thread resumed with it satisfy `LInv` again, with the same exporter store.
 
@@ -112,8 +115,8 @@ theorem ctl_bind_pure {M : Machine.Config (E3 P) σ} {q : Canon.P (E3 P) σ (Ret
   exact hc
 
 /-- **A host call that the host does not answer traps** (`hostTrap`), at the core store of
-the callout. -/
-theorem hostCall_noAnswer (hl : B.store.lockdown = false)
+the callout and the host state of the frame. -/
+theorem hostCall_noAnswerH (hl : B.store.lockdown = false)
     (hst : (E3 P).status y.1 y.2 = .callout (.lowered f (witFt p) {} inst) ys)
     (hentry : calloutEntry B.store th (.lowered f (witFt p) {} inst) = none)
     (hi : ArenaField.insts.get? B.store inst = some st) (hleave : st.mayLeave = true)
@@ -121,7 +124,7 @@ theorem hostCall_noAnswer (hl : B.store.lockdown = false)
     (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
     (hmaxp : (ValTy.flatList p.params).length ≤ 16) {ws : List Silmaril.Wasm.Component.Val}
     (hws : liftArgs p.params ys = some ws) (hg : g B.host fn (ws.map toRefVal) = none) :
-    TrapEnd prof P (answerImplS g) (coreCfg B th K segs rest y) y.1 := by
+    TrapEndH prof P (answerImplS g) (coreCfg B th K segs rest y) y.1 B.host := by
   let m : Machine.Config (E3 P) σ := coreCfg B th K segs rest y
   let C : CallerId := ⟨m.store.callers.length⟩
   let m₂ : Machine.Config (E3 P) σ := { m with store := allocSC m.store inst ys p }
@@ -166,32 +169,50 @@ theorem hostCall_noAnswer (hl : B.store.lockdown = false)
       { m with ctl := ⟨th, .prog (DI P (answerImplS g)
         (.hostCallout (.lowered f (witFt p) {} inst) ys)), .core y.2 K :: segs⟩ :: rest } :=
     Step.coreCallout rfl hst
-  exact TrapEnd.steps (.cons s₀ (.refl _)) Quiet.tau
-    (TrapsQS.trapsAtS (ctl_bind_pure rfl) (h.withCtl _) hl rfl).trapEnd
+  refine TrapEndH.steps (.cons s₀ (.refl _)) Quiet.tau
+    (TrapsAtSH.trapEndH (TrapsQS.trapsAtSH (ctl_bind_pure rfl) (h.withCtl _) hl ?_ ?_)) <;> rfl
+
+/-- **A host call that the host does not answer traps** (`hostTrap`), at the core store of
+the callout. -/
+theorem hostCall_noAnswer (hl : B.store.lockdown = false)
+    (hst : (E3 P).status y.1 y.2 = .callout (.lowered f (witFt p) {} inst) ys)
+    (hentry : calloutEntry B.store th (.lowered f (witFt p) {} inst) = none)
+    (hi : ArenaField.insts.get? B.store inst = some st) (hleave : st.mayLeave = true)
+    (hf : ArenaField.funcs.get? B.store f = some (.host ft' fn))
+    (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmaxp : (ValTy.flatList p.params).length ≤ 16) {ws : List Silmaril.Wasm.Component.Val}
+    (hws : liftArgs p.params ys = some ws) (hg : g B.host fn (ws.map toRefVal) = none) :
+    TrapEnd prof P (answerImplS g) (coreCfg B th K segs rest y) y.1 :=
+  (hostCall_noAnswerH hl hst hentry hi hleave hf hpf hys hmaxp hws hg).toEnd
 
 /-- **A host call whose arguments do not lift traps** (a lift trap), at the core store of the
-callout. -/
-theorem hostCall_noLift (hl : B.store.lockdown = false)
+callout and the host state of the frame, for every host whose function `fn` starts with
+`on_start`. -/
+theorem hostCall_noLiftG {impl : HostImpl (E3 P) σ}
+    (himpl : ∀ C, ∃ k : List Silmaril.Wasm.Component.Reference.Val → Canon.P (E3 P) σ (Ret (E3 P)),
+      impl.funcs fn C = callVals (.onStart C) >>= k) (hl : B.store.lockdown = false)
     (hst : (E3 P).status y.1 y.2 = .callout (.lowered f (witFt p) {} inst) ys)
     (hentry : calloutEntry B.store th (.lowered f (witFt p) {} inst) = none)
     (hi : ArenaField.insts.get? B.store inst = some st) (hleave : st.mayLeave = true)
     (hf : ArenaField.funcs.get? B.store f = some (.host ft' fn))
     (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
     (hmaxp : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = none) :
-    TrapEnd prof P (answerImplS g) (coreCfg B th K segs rest y) y.1 := by
+    TrapEndH prof P impl (coreCfg B th K segs rest y) y.1 B.host := by
   let m : Machine.Config (E3 P) σ := coreCfg B th K segs rest y
   let C : CallerId := ⟨m.store.callers.length⟩
   let m₂ : Machine.Config (E3 P) σ := { m with store := allocSC m.store inst ys p }
-  obtain ⟨tr₁, h₁⟩ := traps_lowerOnStartS (impl := answerImplS g) (th := th) (m := m₂)
+  obtain ⟨tr₁, h₁⟩ := traps_lowerOnStartS (impl := impl) (th := th) (m := m₂)
     (allocSC_callers _ _ _ _) (allocSC_subtasks _ _ _ _) rfl hpf hys hmaxp hws
-  have hfn : TrapsQS (DI P (answerImplS g)) th
-      ((answerImplS g : HostImpl (E3 P) σ).funcs fn C) m₂ (.tau :: (.tau :: tr₁))
-      { m₂ with store := LowerSt.startSt ⟨m.store.subtasks.length⟩ m₂.store } :=
-    TrapsQS.left (TrapsQS.callIn (TrapsQS.bind (RunsQ.getObj _ _ (allocSC_callers _ _ _ _))
+  have hfn : TrapsQS (DI P impl) th
+      ((impl : HostImpl (E3 P) σ).funcs fn C) m₂ (.tau :: (.tau :: tr₁))
+      { m₂ with store := LowerSt.startSt ⟨m.store.subtasks.length⟩ m₂.store } := by
+    obtain ⟨kf, hkf⟩ := himpl C
+    rw [hkf]
+    exact TrapsQS.left (TrapsQS.callIn (TrapsQS.bind (RunsQ.getObj _ _ (allocSC_callers _ _ _ _))
       (TrapsQS.left h₁)))
   have hf₂ : ArenaField.funcs.get? (allocSC m.store inst ys p) f = some (.host ft' fn) := hf
-  have hcl : ∃ tr, TrapsQS (DI P (answerImplS g)) th
-      (DI P (answerImplS g) (.hostCallout (.lowered f (witFt p) {} inst) ys)) m tr
+  have hcl : ∃ tr, TrapsQS (DI P impl) th
+      (DI P impl (.hostCallout (.lowered f (witFt p) {} inst) ys)) m tr
       { m₂ with store := LowerSt.startSt ⟨m.store.subtasks.length⟩ m₂.store } := by
     apply Exists.intro
     apply TrapsQS.bind (RunsQ.currentThread (RunsQ.pure _ _))
@@ -209,12 +230,24 @@ theorem hostCall_noLift (hl : B.store.lockdown = false)
     apply TrapsQS.callIn
     exact TrapsQS.bind (RunsQ.getObj _ _ hf₂) hfn
   obtain ⟨tr, h⟩ := hcl
-  have s₀ : Step prof (fun _ _ => false) (DI P (answerImplS g)) m .tau
-      { m with ctl := ⟨th, .prog (DI P (answerImplS g)
+  have s₀ : Step prof (fun _ _ => false) (DI P impl) m .tau
+      { m with ctl := ⟨th, .prog (DI P impl
         (.hostCallout (.lowered f (witFt p) {} inst) ys)), .core y.2 K :: segs⟩ :: rest } :=
     Step.coreCallout rfl hst
-  exact TrapEnd.steps (.cons s₀ (.refl _)) Quiet.tau
-    (TrapsQS.trapsAtS (ctl_bind_pure rfl) (h.withCtl _) hl rfl).trapEnd
+  refine TrapEndH.steps (.cons s₀ (.refl _)) Quiet.tau
+    (TrapsAtSH.trapEndH (TrapsQS.trapsAtSH (ctl_bind_pure rfl) (h.withCtl _) hl ?_ ?_)) <;> rfl
+
+/-- **A host call whose arguments do not lift traps** (a lift trap), at the core store of the
+callout. -/
+theorem hostCall_noLift (hl : B.store.lockdown = false)
+    (hst : (E3 P).status y.1 y.2 = .callout (.lowered f (witFt p) {} inst) ys)
+    (hentry : calloutEntry B.store th (.lowered f (witFt p) {} inst) = none)
+    (hi : ArenaField.insts.get? B.store inst = some st) (hleave : st.mayLeave = true)
+    (hf : ArenaField.funcs.get? B.store f = some (.host ft' fn))
+    (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmaxp : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = none) :
+    TrapEnd prof P (answerImplS g) (coreCfg B th K segs rest y) y.1 :=
+  (hostCall_noLiftG (fun _ => ⟨_, rfl⟩) hl hst hentry hi hleave hf hpf hys hmaxp hws).toEnd
 
 end Machine
 

@@ -64,14 +64,19 @@ The **Shape** condition says the component imports of B are the wired ones follo
   (`answerImplS`), and nothing is logged for it.
 * `HLinked2.silentObs P prof l calls` is the same sessions under `silentHost P`, a host that
   takes every call (`on_start`) and never resolves it.
+* `HLinked2.HostTyped l g`: whenever `g` answers a host import called on reference images of IR
+  values, its answer is the reference image of IR values of the import's result types. The
+  specification to reference direction assumes it (an ill-typed answer is an `internal` fault of
+  the reference machine, not a trap). `HLinked2.silentG` never answers: `HostRun silentG` says
+  that every host call is answered by a trap.
 
 **Synchronous lowering: a host that never answers is a trap, not a pending call.** Every
 `canon lower` and `canon lift` of the `SimpleI` fragment is synchronous. A host call that is
 never resolved leaves no ready thread in the instance, so `canon_lift`'s synchronous loop
 traps `cannotBlockSync` (REF `trap_if(not candidates)`). #697 shows this for the fixture
 (`linkedH_silent_cannotBlock`, restated for `linkedH.toRef` in `Thms`); for every `HLinked2` with
-adequate parts it is `HLinked2.silent_cannotBlock` (`Thms`), for the first call after
-instantiation. A pending observation, where the host diverges and the call stays unresolved,
+adequate parts it is `HLinked2.silent_cannotBlock` (`Thms`) for the first call after
+instantiation, and `HLinked2.silent_cannotBlock_sess` for any call of a session. A pending observation, where the host diverges and the call stays unresolved,
 needs an asynchronous `canon lower` or `canon lift`. It is out of scope and comes later.
 
 **Not covered.** n-ary and nested components wait on the H2 owner's host hiding and `ext` laws
@@ -293,6 +298,21 @@ abbrev HostEvent : Type := HostFuncId × List RVal × List RVal
 def logG {σ : Type} (g : σ → HostFuncId → List RVal → Option (List RVal × σ)) :
     σ × List HostEvent → HostFuncId → List RVal → Option (List RVal × (σ × List HostEvent)) :=
   fun s fn args => (g s.1 fn args).map fun r => (r.1, (r.2, s.2 ++ [(fn, args, r.1)]))
+
+/-- **A typed host**: whenever `g` answers host import `i` called on the reference image of IR
+values, its answer is the reference image of IR values of the import's result types. This is
+needed: an ill-typed answer is not a trap of the reference machine but the `internal` fault
+`lower_flat: value does not match type`, while the specification traps (`Thms`). -/
+def HostTyped (l : HLinked2) {σ : Type}
+    (g : σ → HostFuncId → List RVal → Option (List RVal × σ)) : Prop :=
+  ∀ (s : σ) (i : Nat) (hi : i < l.host.length) (ws : List IVal) (rs : List RVal) (s' : σ),
+    g s ⟨i⟩ (ws.map toRefVal) = some (rs, s') →
+      ∃ us : List IVal, rs = us.map toRefVal ∧ ValTy.checkList l.host[i].2.results us = true
+
+/-- **The answering function of a host that never answers** (`HostRun silentG` holds of host
+calls all answered by a trap). -/
+def silentG {σ : Type} : σ → HostFuncId → List RVal → Option (List RVal × σ) :=
+  fun _ _ _ => none
 
 /-- The reference calls of a session: the importer's export names, on the reference images of
 the IR arguments. -/
