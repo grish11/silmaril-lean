@@ -192,6 +192,10 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Session iteration with store-retaining traps | `SessionIter.iterS`, `iterS_unfold`, `iterS_mapT`, `iterS_dinat`, `iterS_codiag`, `iterS_uniform` (pure maps), `det_iterS`, `rounds_seqS`, `rounds_iterS`, `threadS_frameS` | none | #731 |
 | Uniformity along silent, deterministic, trap-free, defined (possibly state-changing) maps | `FullFun.iter_uniform_silent`, `StratOps.iterT_uniform_silent`, `CanonStrat.iter_uniform_silent` | `SilentDetNoTrap h` | #734 |
 | Linking servers with plain traps | `SessionLinkDead.deadS`, `linkSD`, `threadS_deadS`, `comp_threadSD`, `comp_threadSD_of_det`, `threadS_linkSD_of_noPlainTrap` | `StoreDet t`, `StoreDet (linkSD t u)` (no `NoPlainTrap`) | #735 |
+| Nondeterministic threading with coherent execution witnesses | `StratThreadW.threadW`, `threadSW`, `mem_inf_iff`, `mem_sinf_iff`, `threadW_eq_threadT_of_storeDet`, `threadW_ne_threadT` (strictly finer than the prefix limit), `threadW_eq_of_obsEq` | none | #739 |
+| Plays of threaded sequencing and iteration; `seqS` determinism; strength with iteration | `SessionIter2.det_seqS`, `frameS_iterS`, `mem_div_seqS`, `mem_div_iterS`, `mem_inf_seqS`, `mem_inf_iterS`, `mem_pending_seqS`, `mem_pending_iterS` | pending: `Total u`/`Admissible`; inf: `AFun.Det` | #741 |
+| Uniformity along finitely-branching silent maps (classification complete) | `FullFun.iter_uniform_silent_finite`, `CanonStrat.iter_uniform_silent_finite` (König's lemma) | `SilentFinNoTrap h` | #742 |
+| Exact `div`/`inf` of `atSizes`; `ext`; per-layer `Comp.denD` | `DWiringLaws.chatter_iff`, `div_atSizes_iff`, `inf_atSizes_iff`, `div_ext`, `inf_ext`, `div_denD`, `div_dcoreNode`, `div_node_inst` | none | #743 |
 
 ### Counterexamples (why a hypothesis cannot be dropped)
 
@@ -207,16 +211,16 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | `comp_threadS` without `StoreDet t` | `SessionLinkCex.comp_ne_linkS_cd` | coherent servers only |
 | `comp_threadS` without `StoreDet (linkS t u)` | `SessionLinkCex.comp_ne_linkS_bound` | `RetDet` of both components (`retDet_linkS`) |
 | Linking preserves `AFun.Det` | `SessionLinkCex.not_det_linkS_may` | `RetDet` is preserved (`retDet_linkS`) |
+| Uniformity along infinitely-branching silent maps | `FullFun.not_iter_uniform_infinite` | finite branching (`iter_uniform_silent_finite`) |
+| Prefix-limit threading is coherent | `StratThreadW.threadW_ne_threadT`, `exists_inf_not_witnessed` | witness threading `threadW`/`threadSW` |
 
 ### Open (classified)
 
 | Gap | Kind | Notes |
 |---|---|---|
-| Uniformity along finitely-branching nondeterministic silent maps | open | the infinitely-branching case is refuted (#734) |
-| Nondeterministic coherent threading | in progress: witness semantics `threadW` | prefix-only coherence is **not** claimed (`not_coherent`) |
-| Associativity and units as literal triple equalities | strengthening | proved at strategy level and as `ObsEq` |
-| `DWiring` converses; `div`/`inf` laws for `ext` and `Comp.denD` | in progress | `toStrategy` agreement proved (#725) |
-| Pending/divergent/infinite plays of `threadS (seqS …)`/`threadS (iterS …)`; `AFun.Det` of `seqS`; `frameS` with `iterS` | proofs | completed rounds done (#731) |
+| Associativity and units as literal triple equalities | in progress | proved at strategy level and as `ObsEq` (#727) |
+| Closed-form divergence of the whole `Comp.denD` | in progress | per-layer laws done (#743); the remaining clause is chatter between two non-handler composites |
+| Pending plays of `threadS (iterS t)` for a merely `Total` body | proofs | admissible bodies done (#741) |
 | n-module linking and shared stores | waiting on the concrete owner's types | asked on #207 |
 | Component injection for linked components with imports | concrete (0e76ca84) | #680 covers simple components without imports |
 
