@@ -460,7 +460,7 @@ supportInterpreter = true
 
 [[lean_lib]]
 name = "WasmAutoTests"
-globs = ["tests.wasm.auto.+"]
+globs = ["tests.wasm.auto.+", "tests.wasm.auto2.+"]
 
 # The component and generator tools of the Wasm release (docs/projects/wasm-components.md).
 [[lean_exe]]

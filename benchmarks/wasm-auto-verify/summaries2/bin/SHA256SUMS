@@ -1,0 +1,4 @@
+281fb04afe1af7ff87ca86b16f42c63aa19b5e3d47f415c66f8acc88dc02ecb8  sum.binaryen-O3.wasm
+c0010d90b8f25e8ed57dc542649f4b18b976485818b998adf42aced951b53390  sum-dowhile.wasm
+2a7b29226e1fd33cf26170518a9c25c1b6786bf13f34faa67bea71ccabd86f14  sum-offbyone.wasm
+d073adb7161cb583ddaf4c243ed66ac51cd8b67f3802c9f3d41f29e5a848bd23  sum.wasm
