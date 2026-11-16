@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/funcs/ag/gcdu",
+  "kind": "assume-guarantee",
+  "function": "gcdu",
+  "address": "0x112b4",
+  "words": "00058c630005861302b575b300060513fe059ae30006051300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/gcdu.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0", "a1"], "results": ["a0"]},
+  "spec": {"requires": "true", "ensures": "(= (reg a0) (gcd (old (reg a0)) (old (reg a1))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `gcdu` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

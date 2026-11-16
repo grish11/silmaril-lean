@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/funcs/ag/isqrt",
+  "kind": "assume-guarantee",
+  "function": "isqrt",
+  "address": "0x112d0",
+  "words": "0010059303e59593000586130025d593fec56ce3000005930206066300b606b300d53733fff707130015d59300d776b300c777330026561340d5053300b705b3fc061ee30005851300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/isqrt.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0"], "results": ["a0"]},
+  "spec": {"requires": "true", "ensures": "(and (bvule (bvmul ((_ zero_extend 64) (reg a0)) ((_ zero_extend 64) (reg a0))) ((_ zero_extend 64) (old (reg a0)))) (bvult ((_ zero_extend 64) (old (reg a0))) (bvmul ((_ zero_extend 64) (bvadd (reg a0) #x0000000000000001)) ((_ zero_extend 64) (bvadd (reg a0) #x0000000000000001)))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `isqrt` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

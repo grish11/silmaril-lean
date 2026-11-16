@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/funcs/ag/absdiff",
+  "kind": "assume-guarantee",
+  "function": "absdiff",
+  "address": "0x112a0",
+  "words": "00a5c66340a585330000806740b5053300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/absdiff.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0", "a1"], "results": ["a0"]},
+  "spec": {"requires": "true", "ensures": "(= (reg a0) (ite (bvsgt (old (reg a0)) (old (reg a1))) (bvsub (old (reg a0)) (old (reg a1))) (bvsub (old (reg a1)) (old (reg a0)))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `absdiff` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

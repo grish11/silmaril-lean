@@ -1,0 +1,89 @@
+# Reduction manifest (tools/wasm-sim rv64 reduce): RV64 problems -> Wasm problems.
+schema = 2
+plan = "wasm-sim/rv64/funcs"
+elf = "funcs"
+elf_fnv1a64 = "0c7139bc3a188b0f"
+order = ["max3", "clamp", "absdiff", "gcdu", "isqrt", "popcount"]
+
+[[function]]
+name = "max3"
+entry = 0x11260
+module = "modules/max3.wat"
+words = [0x00a5d663, 0x00a65863, 0x00008067, 0x00058513, 0xfeb64ce3, 0x00060513, 0x00008067]
+params = ["a0", "a1", "a2"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl"}
+
+[[function]]
+name = "clamp"
+entry = 0x1127c
+module = "modules/clamp.wat"
+words = [0x00050693, 0x00c55863, 0x00b55a63, 0x00058513, 0x00008067, 0x00060693, 0xfeb54ae3, 0x00068513, 0x00008067]
+params = ["a0", "a1", "a2"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl"}
+
+[[function]]
+name = "absdiff"
+entry = 0x112a0
+module = "modules/absdiff.wat"
+words = [0x00a5c663, 0x40a58533, 0x00008067, 0x40b50533, 0x00008067]
+params = ["a0", "a1"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl"}
+
+[[function]]
+name = "gcdu"
+entry = 0x112b4
+module = "modules/gcdu.wat"
+words = [0x00058c63, 0x00058613, 0x02b575b3, 0x00060513, 0xfe059ae3, 0x00060513, 0x00008067]
+params = ["a0", "a1"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl", "mul"}
+
+[[function]]
+name = "isqrt"
+entry = 0x112d0
+module = "modules/isqrt.wat"
+words = [0x00100593, 0x03e59593, 0x00058613, 0x0025d593, 0xfec56ce3, 0x00000593, 0x02060663, 0x00b606b3, 0x00d53733, 0xfff70713, 0x0015d593, 0x00d776b3, 0x00c77733, 0x00265613, 0x40d50533, 0x00b705b3, 0xfc061ee3, 0x00058513, 0x00008067]
+params = ["a0"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl"}
+
+[[function]]
+name = "popcount"
+entry = 0x1131c
+module = "modules/popcount.wat"
+words = [0x00000593, 0x00050a63, 0xfff50613, 0x00a67533, 0x00158593, 0xfe051ae3, 0x00058513, 0x00008067]
+params = ["a0"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl"}
+
+transfer = """
+For each function f: if the Wasm function `f` (modules/f.wat, linked with the
+modules of its callees and a memory) meets its contract for all arguments, i.e.
+from params satisfying @requires it returns normally with results satisfying
+@ensures, then for every RV64 state s with pc = entry(f), the words of f (and
+its callees) fetchable at their entries, memory below 2^32 equal to the Wasm
+memory, the param registers holding the Wasm arguments and ra = any four-byte-
+aligned return address r outside the code, Ext.MState.step retires finitely many
+instructions reaching pc = r with the result registers equal to the Wasm results,
+ra and the callee-saved registers restored, and memory equal to the final Wasm
+memory. Traps of the Wasm function (misaligned/out-of-memory access, ABI check
+failure, misaligned target) correspond to RV faults or ABI violations, which the
+total-correctness contract excludes. Composition: assume-guarantee over the
+acyclic call graph (dag.json); per-function translation validity (tv/f) is the
+per-instruction method soundness plus CFG structuring."""
+

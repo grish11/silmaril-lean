@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/memcall/ag/tri",
+  "kind": "assume-guarantee",
+  "function": "tri",
+  "address": "0x11248",
+  "words": "02a05863fff50593ffe5061302c586b302c5b63302b585b303f616130016d69300b5053300c6e63340c50533000080670000051300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/tri.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0"], "results": ["a0", "a1", "a2", "a3"]},
+  "spec": {"requires": "(and (bvsge (reg a0) #x0000000000000000) (bvult (reg a0) #x0000000100000000))", "ensures": "(= (reg a0) (tri (old (reg a0))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `tri` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

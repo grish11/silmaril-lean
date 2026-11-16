@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/funcs/ag/clamp",
+  "kind": "assume-guarantee",
+  "function": "clamp",
+  "address": "0x1127c",
+  "words": "0005069300c5586300b55a63000585130000806700060693feb54ae30006851300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/clamp.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0", "a1", "a2"], "results": ["a0"]},
+  "spec": {"requires": "true", "ensures": "(= (reg a0) (ite (bvslt (old (reg a0)) (old (reg a1))) (old (reg a1)) (ite (bvsgt (old (reg a0)) (old (reg a2))) (old (reg a2)) (old (reg a0)))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `clamp` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

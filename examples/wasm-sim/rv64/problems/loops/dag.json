@@ -1,0 +1,26 @@
+{
+  "schema": "silmaril.wasm-sim.dag.v0",
+  "id": "wasm-sim/rv64/loops",
+  "title": "RV64 hand-written loops: sum_to, fib",
+  "root": "isa/sum_to",
+  "artifact": {"elf": "loops", "source": "../tests/loops.S", "fnv1a64": "ee79691440fbbf81"},
+  "isa": {"machine": "Silmaril.RiscV.Ext.MState.step"},
+  "sim": {"representation": "P-locals", "methods": "examples/wasm-sim/rv64/parts"},
+  "nodes": [
+    {"id": "isa/sum_to", "kind": "isa-problem", "status": "open", "statement": "Silmaril.RiscV.Ext.MState.step from the entry of `sum_to` with the plan contract (+ ABI) reaches the return address"},
+    {"id": "wasm/sum_to", "kind": "wasm-problem", "status": "open", "statement": "the linked Wasm modules of `sum_to` and its callees meet the contract of `sum_to`"},
+    {"id": "ag/sum_to", "kind": "wasm-piece", "status": "solved", "solution": "Silmaril.Sim.RV64.Transfer.SumTo.spec_tactic", "lean": "Silmaril.WasmSpec.Rv64SumTo.Spec", "files": ["modules/sum_to.wat", "pieces/ag/sum_to/piece.json"]},
+    {"id": "tv/sum_to", "kind": "translation-validation", "status": "solved", "solution": "Silmaril.Sim.RV64.Transfer.SumTo.tv_body", "statement": "modules/sum_to.wat simulates the words of `sum_to`: per-instruction method soundness (P-locals snippets = Ext.Instr.exec), structuring of the CFG, calls = ABI calls of the imported callees"},
+    {"id": "isa/fib", "kind": "isa-problem", "status": "open", "statement": "Silmaril.RiscV.Ext.MState.step from the entry of `fib` with the plan contract (+ ABI) reaches the return address"},
+    {"id": "wasm/fib", "kind": "wasm-problem", "status": "open", "statement": "the linked Wasm modules of `fib` and its callees meet the contract of `fib`"},
+    {"id": "ag/fib", "kind": "wasm-piece", "status": "open", "lean": "Silmaril.WasmSpec.Rv64Fib.Spec", "files": ["modules/fib.wat", "pieces/ag/fib/piece.json"]},
+    {"id": "tv/fib", "kind": "translation-validation", "status": "open", "statement": "modules/fib.wat simulates the words of `fib`: per-instruction method soundness (P-locals snippets = Ext.Instr.exec), structuring of the CFG, calls = ABI calls of the imported callees"}
+  ],
+  "edges": [
+    {"goal": "isa/sum_to", "pieces": ["ag/sum_to", "tv/sum_to"], "theorem": "Silmaril.Sim.RV64.Transfer.SumTo.isa", "status": "proved", "note": "loop: cut point 0x11244 (Silmaril.Sim.RV64.Cfg.reach_block), TV = wpc with the simulation invariant Reach; termination from the total Wasm Spec (measure a0); FnISAP with Pre and leaf ABI"},
+    {"goal": "isa/sum_to", "pieces": ["wasm/sum_to", "tv/sum_to"], "status": "task", "note": "transfer (reduction.toml)"},
+    {"goal": "wasm/sum_to", "pieces": ["ag/sum_to"], "status": "task", "note": "assume-guarantee over the acyclic call graph (Silmaril.Sim.Reduce.ag_compose)"},
+    {"goal": "isa/fib", "pieces": ["wasm/fib", "tv/fib"], "status": "task", "note": "transfer (reduction.toml)"},
+    {"goal": "wasm/fib", "pieces": ["ag/fib"], "status": "task", "note": "assume-guarantee over the acyclic call graph (Silmaril.Sim.Reduce.ag_compose)"}
+  ]
+}

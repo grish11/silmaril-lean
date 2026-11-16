@@ -166,3 +166,41 @@ verification-condition generator `wpc` evaluates.
 | undefined flags | a value drawn from `nd.undef(loc)` | relational: a flag global holds some bit, and `Enc` admits any bit where `Silmaril.X86.State` leaves the flag undefined (`FlagEnc`, `FlagValue.Admits`) |
 | methods | generic in operation, width and registers | one method per instruction instance (`emit i len`; registers fixed, no `br_table`) |
 | memory | `mem.*` imports | none in G; `Silmaril.Sim.X86.GM` adds a guest memory window in Wasm memory 0 |
+
+## The RV64 simulators
+
+The RV64 simulators (`examples/wasm-sim/rv64/parts/*.wat`, assembled by `wasm-sim-rv wat` into
+`examples/wasm-sim/rv64/gen/rv64-{g,m}-{base,alu,nosys,full}.wat`) follow the same scheme with
+RISC-V locations and implement RV64IM. They are **tested** against `qemu-riscv64` and the
+executable Lean model, not proved; the proved RV64 results are about the memory-state simulator
+`Silmaril.Sim.RV64.Mem.simM` and the reductions in `Silmaril.Sim.RV64`.
+
+- **Locations**: `x1`–`x31` are locations 1–31 and `pc` is location 32. `x0` reads 0 and its
+  writes are discarded, as in `Silmaril.RiscV.read`/`write`.
+- **State representation G**: one mutable `i64` global per location (`parts/state-g.wat`).
+- **State representation M**: an exported memory `state` holding Linux arch/riscv
+  `struct user_regs_struct` (32 × u64: byte offset 0 is `pc`, offset `8·i` is `x_i`), followed
+  by a u64 valid mask at offset 256 (`parts/state-m.wat`). `Silmaril.Sim.RV64.Mem` uses the
+  same layout, with `code_end` at offset 264 and the program from `0x1000`.
+- **Imports**: `mem.load*`/`mem.store*` for guest memory (a trap is a fault), `mem.load32` for
+  instruction fetch in the P-mem representation, and `sys.syscall` (number `a7`, arguments
+  `a0`–`a5`, result in `a0`) for `ecall`.
+- **Status codes**: as above: `0` ok, `1` halted (`ebreak`, the sentinel return address
+  `0xFFFF_FFFF_FFFF_F000`, or `exit`/`exit_group`), `2` undecodable or unsupported (state
+  unchanged), `3` fault (misaligned `pc`, branch or jump target, or a trapping `mem.*` import),
+  `4` out of fuel.
+- **Lattice points**: `base` ⊑ `alu` ⊑ `nosys` ⊑ `full` (instruction groups `parts/grp-*.wat`);
+  `wasm-sim-rv lattice` checks the refinement on random steps.
+
+Commands (crate `tools/wasm-sim`, binary `wasm-sim-rv`):
+
+```sh
+cargo build --release --manifest-path tools/wasm-sim/Cargo.toml
+B=tools/wasm-sim/target/release/wasm-sim-rv
+$B wat g full out.wat                 # assemble a simulator (the gen/ files are its outputs)
+$B lattice 100000                     # random-step refinement checks between lattice points
+$B lean-oracle 20000 .                # random steps vs Silmaril.RiscV.Ext.MState.step (lake)
+examples/wasm-sim/rv64/run-tests.sh   # everything, incl. difftests: needs clang for riscv64,
+                                      # ld.lld and qemu-riscv64
+```
+

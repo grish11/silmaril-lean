@@ -1,0 +1,704 @@
+;; RV64 simulator: state M, fetch Import, groups ["base", "word", "mul", "mem", "ctrl", "sys"]
+;; assembled by tools/wasm-sim (rv64) from examples/wasm-sim/rv64/parts
+(module
+;; ---- fetch-import.wat (imports)
+;; P-mem fetch: the instruction word is read through the `mem.load32` import,
+;; like every data access (Silmaril.RiscV.Ext.fetch reads the current memory, so
+;; stores to code are visible to later fetches).
+(import "mem" "load32" (func $mem_load32 (param i64) (result i64)))
+
+;; ---- state-m.wat (imports)
+
+;; ---- core.wat (imports)
+
+;; ---- grp-base.wat (imports)
+
+;; ---- grp-word.wat (imports)
+
+;; ---- grp-mul.wat (imports)
+
+;; ---- grp-mem.wat (imports)
+;; Group `mem`: loads LB LH LW LD LBU LHU LWU and stores SB SH SW SD
+;; (Ext.LoadOp / Ext.StoreOp) through the `mem.*` imports. As in
+;; Ext.Instr.exec, the effective address is rs1 + sext(offset) mod 2^64 and an
+;; access that is not naturally aligned is a fault (status 3) with no effect;
+;; Linux/qemu instead perform misaligned accesses (divergence, see status file).
+;; Loads to x0 still perform the access. A trap in the import = fault.
+;; Load results are re-masked to the access width, so the simulator does not
+;; rely on the import zero-extending.
+(import "mem" "load8" (func $mem_load8 (param i64) (result i64)))
+(import "mem" "load16" (func $mem_load16 (param i64) (result i64)))
+(import "mem" "load64" (func $mem_load64 (param i64) (result i64)))
+(import "mem" "store8" (func $mem_store8 (param i64) (param i64)))
+(import "mem" "store16" (func $mem_store16 (param i64) (param i64)))
+(import "mem" "store32" (func $mem_store32 (param i64) (param i64)))
+(import "mem" "store64" (func $mem_store64 (param i64) (param i64)))
+
+;; ---- grp-ctrl.wat (imports)
+;; Group `ctrl`: BEQ BNE BLT BGE BLTU BGEU, JAL, JALR, EBREAK (Ext.Instr.exec).
+;; A taken branch / jump to a target that is not four-byte aligned is a fault
+;; (status 3, Lean `targetMisaligned`) with no effect, in particular rd is not
+;; written. JALR reads rs1 before writing rd and clears bit 0 of the target.
+;; EBREAK is Lean `stopped`: status 1, state unchanged (pc stays at EBREAK).
+;;
+;; Method results: branches return 0 (not taken, pc += 4), 1 (taken, pc :=
+;; target) or 3 (fault); JAL/JALR return 0 or 3; EBREAK returns 1. `step` maps
+;; a taken branch to status 0. Offsets are the sign-extended byte offsets.
+
+;; ---- grp-sys.wat (imports)
+;; Group `sys`: ECALL (not in the Lean Ext model; a documented extension).
+;; Linux convention: nr = a7, arguments a0..a5, result -> a0, pc += 4.
+;; exit (93) / exit_group (94): the import is called (so the environment sees
+;; the status in a0), then the simulator halts with status 1 and no state change.
+(import "sys" "syscall" (func $sys_syscall (param i64 i64 i64 i64 i64 i64 i64) (result i64)))
+
+;; ---- fetch-import.wat
+
+(func $fetch (param $pc i64) (result i64) (call $mem_load32 (local.get $pc)))
+
+;; ---- state-m.wat
+;; State representation M (docs/projects/wasm-sim-abi.md): exported memory
+;; `state` holding Linux arch/riscv `struct user_regs_struct` (32 x u64:
+;; pc, ra, sp, gp, tp, t0-2, s0-1, a0-7, s2-11, t3-6), i.e. byte offset 0 = pc
+;; and byte offset 8*i = x_i for i = 1..31. The u64 valid mask follows at
+;; offset 256: bit loc set = location defined. x0 (bit 0) is always defined.
+;; The slot at offset 0 is pc, not x0: x0 reads 0 and its writes are discarded.
+;;
+;; Validity: `set` and every register write by an instruction set the bit;
+;; `step` does not consult the mask (it reads 0 for a never-written register).
+(memory $state (export "state") 1)
+(data (memory $state) (i32.const 256) "\01")
+
+(func $rget (param $r i32) (result i64)
+  (if (result i64) (local.get $r)
+    (then (i64.load $state (i32.shl (local.get $r) (i32.const 3))))
+    (else (i64.const 0))))
+(func $rset (param $r i32) (param $v i64)
+  (if (local.get $r)
+    (then
+      (i64.store $state (i32.shl (local.get $r) (i32.const 3)) (local.get $v))
+      (i64.store $state offset=256 (i32.const 0)
+        (i64.or (i64.load $state offset=256 (i32.const 0))
+                (i64.shl (i64.const 1) (i64.extend_i32_u (local.get $r))))))))
+(func $pc_get (result i64) (i64.load $state (i32.const 0)))
+(func $pc_set (param $v i64) (i64.store $state (i32.const 0) (local.get $v)))
+
+;; ABI: locations 0..31 = x0..x31, 32 = pc.
+(func (export "get") (param $loc i32) (result i64)
+  (if (result i64) (i32.lt_u (local.get $loc) (i32.const 32))
+    (then (call $rget (local.get $loc)))
+    (else (if (result i64) (i32.eq (local.get $loc) (i32.const 32))
+      (then (call $pc_get)) (else (i64.const 0))))))
+(func (export "set") (param $loc i32) (param $v i64)
+  (if (i32.lt_u (local.get $loc) (i32.const 32))
+    (then (call $rset (local.get $loc) (local.get $v)))
+    (else (if (i32.eq (local.get $loc) (i32.const 32))
+      (then
+        (call $pc_set (local.get $v))
+        (i64.store $state offset=256 (i32.const 0)
+          (i64.or (i64.load $state offset=256 (i32.const 0)) (i64.const 0x100000000))))))))
+(func (export "modelled") (param $loc i32) (result i32)
+  (i32.le_u (local.get $loc) (i32.const 32)))
+
+;; ---- core.wat
+;; Core of every RV64 simulator: fetch / decode dispatch (`step`), `run`, and the
+;; instruction-field helpers. Decoding mirrors Silmaril.RiscV.Ext.decode: a word
+;; is accepted iff it is the canonical encoding of an instruction of the
+;; included groups; everything else (including FENCE, CSR*, compressed words)
+;; is status 2 with no state change.
+;;
+;; Status: 0 ok, 1 halted (EBREAK = Lean `stopped`; pc = sentinel; exit
+;; syscall), 2 undecodable/unsupported, 3 fault (misaligned pc, branch/jump
+;; target or data address, as in Ext.MState.step; a trap in a `mem.*` import is
+;; a fault reported by the embedder), 4 out of fuel.
+
+(global $fuel_left (export "fuel_left") (mut i64) (i64.const 0))
+
+(func $rd (param $w i32) (result i32) (i32.and (i32.shr_u (local.get $w) (i32.const 7)) (i32.const 31)))
+(func $rs1 (param $w i32) (result i32) (i32.and (i32.shr_u (local.get $w) (i32.const 15)) (i32.const 31)))
+(func $rs2 (param $w i32) (result i32) (i32.and (i32.shr_u (local.get $w) (i32.const 20)) (i32.const 31)))
+(func $f3 (param $w i32) (result i32) (i32.and (i32.shr_u (local.get $w) (i32.const 12)) (i32.const 7)))
+(func $f7 (param $w i32) (result i32) (i32.shr_u (local.get $w) (i32.const 25)))
+;; sign-extended I, S, B, J, U immediates as i64
+(func $immI (param $w i32) (result i64) (i64.extend_i32_s (i32.shr_s (local.get $w) (i32.const 20))))
+(func $immS (param $w i32) (result i64)
+  (i64.extend_i32_s (i32.or
+    (i32.shl (i32.shr_s (local.get $w) (i32.const 25)) (i32.const 5))
+    (i32.and (i32.shr_u (local.get $w) (i32.const 7)) (i32.const 31)))))
+(func $immB (param $w i32) (result i64)
+  (i64.extend_i32_s (i32.or (i32.or
+    (i32.shl (i32.shr_s (local.get $w) (i32.const 31)) (i32.const 12))
+    (i32.shl (i32.and (i32.shr_u (local.get $w) (i32.const 7)) (i32.const 1)) (i32.const 11)))
+    (i32.or
+      (i32.shl (i32.and (i32.shr_u (local.get $w) (i32.const 25)) (i32.const 63)) (i32.const 5))
+      (i32.shl (i32.and (i32.shr_u (local.get $w) (i32.const 8)) (i32.const 15)) (i32.const 1))))))
+(func $immJ (param $w i32) (result i64)
+  (i64.extend_i32_s (i32.or (i32.or
+    (i32.shl (i32.shr_s (local.get $w) (i32.const 31)) (i32.const 20))
+    (i32.and (local.get $w) (i32.const 0xFF000)))
+    (i32.or
+      (i32.shl (i32.and (i32.shr_u (local.get $w) (i32.const 20)) (i32.const 1)) (i32.const 11))
+      (i32.shl (i32.and (i32.shr_u (local.get $w) (i32.const 21)) (i32.const 0x3FF)) (i32.const 1))))))
+(func $immU (param $w i32) (result i64)
+  (i64.extend_i32_s (i32.and (local.get $w) (i32.const 0xFFFFF000))))
+
+;; pc := pc + 4 (sequential retirement)
+(func $next (call $pc_set (i64.add (call $pc_get) (i64.const 4))))
+
+(func $step (export "step") (result i32)
+  (local $pc i64) (local $w i32)
+  (local.set $pc (call $pc_get))
+  ;; sentinel return address (docs/projects/wasm-sim-abi.md): halted
+  (if (i64.eq (local.get $pc) (i64.const 0xFFFFFFFFFFFFF000)) (then (return (i32.const 1))))
+  ;; Ext.fetch: pc must be four-byte aligned (no C extension)
+  (if (i32.wrap_i64 (i64.and (local.get $pc) (i64.const 3))) (then (return (i32.const 3))))
+  (local.set $w (i32.wrap_i64 (call $fetch (local.get $pc))))
+  (if (i32.ne (i32.and (local.get $w) (i32.const 3)) (i32.const 3)) (then (return (i32.const 2))))
+  (block $bad (block $system (block $jal (block $jalr (block $branch (block $op32 (block $lui
+  (block $op (block $store (block $opimm32 (block $auipc (block $opimm (block $load
+    (br_table
+      $load $bad $bad $bad $opimm $auipc $opimm32 $bad
+      $store $bad $bad $bad $op $lui $op32 $bad
+      $bad $bad $bad $bad $bad $bad $bad $bad
+      $branch $jalr $bad $jal $system $bad $bad $bad
+      (i32.and (i32.shr_u (local.get $w) (i32.const 2)) (i32.const 31))))
+    (return (call $d_load (local.get $w))))      ;; 0x03
+    (return (call $d_opimm (local.get $w))))     ;; 0x13
+    (return (call $d_auipc (local.get $w))))     ;; 0x17
+    (return (call $d_opimm32 (local.get $w))))   ;; 0x1B
+    (return (call $d_store (local.get $w))))     ;; 0x23
+    (return (if (result i32) (i32.eq (call $f7 (local.get $w)) (i32.const 1))  ;; 0x33
+      (then (call $d_mul (local.get $w))) (else (call $d_op (local.get $w))))))
+    (return (call $d_lui (local.get $w))))       ;; 0x37
+    (return (if (result i32) (i32.eq (call $f7 (local.get $w)) (i32.const 1))  ;; 0x3B
+      (then (call $d_mul32 (local.get $w))) (else (call $d_op32 (local.get $w))))))
+    (return (call $d_branch (local.get $w))))    ;; 0x63
+    (return (call $d_jalr (local.get $w))))      ;; 0x67
+    (return (call $d_jal (local.get $w))))       ;; 0x6F
+    ;; 0x73 SYSTEM: only the exact words of EBREAK and ECALL
+    (if (i32.eq (local.get $w) (i32.const 0x00100073)) (then (return (call $d_ebreak (local.get $w)))))
+    (if (i32.eq (local.get $w) (i32.const 0x00000073)) (then (return (call $d_ecall (local.get $w)))))
+    (return (i32.const 2)))
+  (i32.const 2))
+
+(func $run (export "run") (param $fuel i64) (result i32)
+  (local $s i32)
+  (global.set $fuel_left (local.get $fuel))
+  (loop $l
+    (if (i64.eqz (global.get $fuel_left)) (then (return (i32.const 4))))
+    (local.set $s (call $step))
+    (if (local.get $s) (then (return (local.get $s))))
+    (global.set $fuel_left (i64.sub (global.get $fuel_left) (i64.const 1)))
+    (br $l))
+  (unreachable))
+
+;; low32 of a register (Ext.low32)
+(func $lo32 (param $r i32) (result i32) (i32.wrap_i64 (call $rget (local.get $r))))
+
+;; ---- grp-base.wat
+;; Group `base`: exactly the 21 instructions of Silmaril.RiscV.Instr
+;; (Silmaril/Raw/Machine/RiscV/Basic.lean): OP-IMM (ADDI SLTI SLTIU XORI ORI ANDI
+;; SLLI SRLI SRAI), OP with funct7 0/0x20 (ADD SUB SLL SLT SLTU XOR SRL SRA OR
+;; AND), LUI, AUIPC. Each `i_*` method is `RiscV.step` for one instruction:
+;; operands read from the incoming state, rd written (x0 discarded), pc += 4.
+;; Method immediates are the sign-extended 64-bit values (`imm.signExtend 64`);
+;; shift amounts are taken mod 64 (Lean: 6-bit `amount`).
+
+(func $d_opimm (param $w i32) (result i32)
+  (local $rd i32) (local $rs1 i32) (local $imm i64)
+  (local.set $rd (call $rd (local.get $w)))
+  (local.set $rs1 (call $rs1 (local.get $w)))
+  (local.set $imm (call $immI (local.get $w)))
+  (block $bad (block $f7 (block $f6 (block $f5 (block $f4 (block $f3 (block $f2 (block $f1 (block $f0
+    (br_table $f0 $f1 $f2 $f3 $f4 $f5 $f6 $f7 (call $f3 (local.get $w))))
+    (call $x_addi (local.get $rd) (local.get $rs1) (local.get $imm)) (return (i32.const 0)))
+    ;; SLLI: funct6 = 0
+    (br_if $bad (i32.shr_u (local.get $w) (i32.const 26)))
+    (call $x_slli (local.get $rd) (local.get $rs1) (i64.and (local.get $imm) (i64.const 63))) (return (i32.const 0)))
+    (call $x_slti (local.get $rd) (local.get $rs1) (local.get $imm)) (return (i32.const 0)))
+    (call $x_sltiu (local.get $rd) (local.get $rs1) (local.get $imm)) (return (i32.const 0)))
+    (call $x_xori (local.get $rd) (local.get $rs1) (local.get $imm)) (return (i32.const 0)))
+    ;; SRLI funct6 = 0, SRAI funct6 = 0x10
+    (if (i32.eqz (i32.shr_u (local.get $w) (i32.const 26)))
+      (then (call $x_srli (local.get $rd) (local.get $rs1) (i64.and (local.get $imm) (i64.const 63)))
+            (return (i32.const 0))))
+    (if (i32.eq (i32.shr_u (local.get $w) (i32.const 26)) (i32.const 0x10))
+      (then (call $x_srai (local.get $rd) (local.get $rs1) (i64.and (local.get $imm) (i64.const 63)))
+            (return (i32.const 0))))
+    (br $bad))
+    (call $x_ori (local.get $rd) (local.get $rs1) (local.get $imm)) (return (i32.const 0)))
+    (call $x_andi (local.get $rd) (local.get $rs1) (local.get $imm)) (return (i32.const 0)))
+  (i32.const 2))
+
+;; OP with funct7 != 1 (funct7 = 1 is the M extension, dispatched by core)
+(func $d_op (param $w i32) (result i32)
+  (local $rd i32) (local $rs1 i32) (local $rs2 i32) (local $f7 i32)
+  (local.set $rd (call $rd (local.get $w)))
+  (local.set $rs1 (call $rs1 (local.get $w)))
+  (local.set $rs2 (call $rs2 (local.get $w)))
+  (local.set $f7 (call $f7 (local.get $w)))
+  (if (i32.eq (local.get $f7) (i32.const 0x20))
+    (then
+      (if (i32.eqz (call $f3 (local.get $w)))
+        (then (call $x_sub (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0))))
+      (if (i32.eq (call $f3 (local.get $w)) (i32.const 5))
+        (then (call $x_sra (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0))))
+      (return (i32.const 2))))
+  (if (local.get $f7) (then (return (i32.const 2))))
+  (block $f7 (block $f6 (block $f5 (block $f4 (block $f3 (block $f2 (block $f1 (block $f0
+    (br_table $f0 $f1 $f2 $f3 $f4 $f5 $f6 $f7 (call $f3 (local.get $w))))
+    (call $x_add (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_sll (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_slt (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_sltu (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_xor (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_srl (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_or (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+  (call $x_and (local.get $rd) (local.get $rs1) (local.get $rs2)) (i32.const 0))
+
+(func $d_lui (param $w i32) (result i32)
+  (call $x_lui (call $rd (local.get $w)) (call $immU (local.get $w))) (i32.const 0))
+(func $d_auipc (param $w i32) (result i32)
+  (call $x_auipc (call $rd (local.get $w)) (call $immU (local.get $w))) (i32.const 0))
+
+;; ImmOp.eval / ShiftOp.eval
+(func $x_addi (export "i_addi") (param $rd i32) (param $rs1 i32) (param $imm i64)
+  (call $rset (local.get $rd) (i64.add (call $rget (local.get $rs1)) (local.get $imm))) (call $next))
+(func $x_slti (export "i_slti") (param $rd i32) (param $rs1 i32) (param $imm i64)
+  (call $rset (local.get $rd) (i64.extend_i32_u (i64.lt_s (call $rget (local.get $rs1)) (local.get $imm)))) (call $next))
+(func $x_sltiu (export "i_sltiu") (param $rd i32) (param $rs1 i32) (param $imm i64)
+  (call $rset (local.get $rd) (i64.extend_i32_u (i64.lt_u (call $rget (local.get $rs1)) (local.get $imm)))) (call $next))
+(func $x_xori (export "i_xori") (param $rd i32) (param $rs1 i32) (param $imm i64)
+  (call $rset (local.get $rd) (i64.xor (call $rget (local.get $rs1)) (local.get $imm))) (call $next))
+(func $x_ori (export "i_ori") (param $rd i32) (param $rs1 i32) (param $imm i64)
+  (call $rset (local.get $rd) (i64.or (call $rget (local.get $rs1)) (local.get $imm))) (call $next))
+(func $x_andi (export "i_andi") (param $rd i32) (param $rs1 i32) (param $imm i64)
+  (call $rset (local.get $rd) (i64.and (call $rget (local.get $rs1)) (local.get $imm))) (call $next))
+(func $x_slli (export "i_slli") (param $rd i32) (param $rs1 i32) (param $sh i64)
+  (call $rset (local.get $rd) (i64.shl (call $rget (local.get $rs1)) (local.get $sh))) (call $next))
+(func $x_srli (export "i_srli") (param $rd i32) (param $rs1 i32) (param $sh i64)
+  (call $rset (local.get $rd) (i64.shr_u (call $rget (local.get $rs1)) (local.get $sh))) (call $next))
+(func $x_srai (export "i_srai") (param $rd i32) (param $rs1 i32) (param $sh i64)
+  (call $rset (local.get $rd) (i64.shr_s (call $rget (local.get $rs1)) (local.get $sh))) (call $next))
+;; RegOp.eval (Wasm shifts use the count mod 64 = Lean's `y.setWidth 6`)
+(func $x_add (export "i_add") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.add (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_sub (export "i_sub") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.sub (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_sll (export "i_sll") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.shl (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_slt (export "i_slt") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_u (i64.lt_s (call $rget (local.get $rs1)) (call $rget (local.get $rs2))))) (call $next))
+(func $x_sltu (export "i_sltu") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_u (i64.lt_u (call $rget (local.get $rs1)) (call $rget (local.get $rs2))))) (call $next))
+(func $x_xor (export "i_xor") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.xor (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_srl (export "i_srl") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.shr_u (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_sra (export "i_sra") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.shr_s (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_or (export "i_or") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.or (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_and (export "i_and") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.and (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+;; UpperOp.eval: `imm` is the sign-extended (imm20 << 12)
+(func $x_lui (export "i_lui") (param $rd i32) (param $imm i64)
+  (call $rset (local.get $rd) (local.get $imm)) (call $next))
+(func $x_auipc (export "i_auipc") (param $rd i32) (param $imm i64)
+  (call $rset (local.get $rd) (i64.add (call $pc_get) (local.get $imm))) (call $next))
+
+;; ---- grp-word.wat
+;; Group `word`: RV64I word forms of Silmaril.RiscV.Ext.Compute: ADDIW,
+;; SLLIW/SRLIW/SRAIW (`shiftW`, 5-bit amount, funct7 0 / 0x20), ADDW SUBW SLLW
+;; SRLW SRAW (`regW`). Results are `sext32` of a 32-bit operation on `low32`.
+
+(func $d_opimm32 (param $w i32) (result i32)
+  (local $rd i32) (local $rs1 i32) (local $f3 i32) (local $f7 i32)
+  (local.set $rd (call $rd (local.get $w)))
+  (local.set $rs1 (call $rs1 (local.get $w)))
+  (local.set $f3 (call $f3 (local.get $w)))
+  (local.set $f7 (call $f7 (local.get $w)))
+  (if (i32.eqz (local.get $f3))
+    (then (call $x_addiw (local.get $rd) (local.get $rs1) (call $immI (local.get $w))) (return (i32.const 0))))
+  (if (i32.and (i32.eq (local.get $f3) (i32.const 1)) (i32.eqz (local.get $f7)))
+    (then (call $x_slliw (local.get $rd) (local.get $rs1) (i64.extend_i32_u (call $rs2 (local.get $w))))
+          (return (i32.const 0))))
+  (if (i32.eq (local.get $f3) (i32.const 5))
+    (then
+      (if (i32.eqz (local.get $f7))
+        (then (call $x_srliw (local.get $rd) (local.get $rs1) (i64.extend_i32_u (call $rs2 (local.get $w))))
+              (return (i32.const 0))))
+      (if (i32.eq (local.get $f7) (i32.const 0x20))
+        (then (call $x_sraiw (local.get $rd) (local.get $rs1) (i64.extend_i32_u (call $rs2 (local.get $w))))
+              (return (i32.const 0))))))
+  (i32.const 2))
+
+;; OP-32 with funct7 != 1
+(func $d_op32 (param $w i32) (result i32)
+  (local $rd i32) (local $rs1 i32) (local $rs2 i32) (local $f3 i32) (local $f7 i32)
+  (local.set $rd (call $rd (local.get $w)))
+  (local.set $rs1 (call $rs1 (local.get $w)))
+  (local.set $rs2 (call $rs2 (local.get $w)))
+  (local.set $f3 (call $f3 (local.get $w)))
+  (local.set $f7 (call $f7 (local.get $w)))
+  (if (i32.eqz (local.get $f7))
+    (then
+      (if (i32.eqz (local.get $f3))
+        (then (call $x_addw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0))))
+      (if (i32.eq (local.get $f3) (i32.const 1))
+        (then (call $x_sllw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0))))
+      (if (i32.eq (local.get $f3) (i32.const 5))
+        (then (call $x_srlw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0))))
+      (return (i32.const 2))))
+  (if (i32.eq (local.get $f7) (i32.const 0x20))
+    (then
+      (if (i32.eqz (local.get $f3))
+        (then (call $x_subw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0))))
+      (if (i32.eq (local.get $f3) (i32.const 5))
+        (then (call $x_sraw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0))))))
+  (i32.const 2))
+
+
+(func $x_addiw (export "i_addiw") (param $rd i32) (param $rs1 i32) (param $imm i64)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.add (call $lo32 (local.get $rs1)) (i32.wrap_i64 (local.get $imm)))))
+  (call $next))
+;; shift amounts are taken mod 32 (Lean: 5-bit `amount`)
+(func $x_slliw (export "i_slliw") (param $rd i32) (param $rs1 i32) (param $sh i64)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.shl (call $lo32 (local.get $rs1)) (i32.wrap_i64 (local.get $sh)))))
+  (call $next))
+(func $x_srliw (export "i_srliw") (param $rd i32) (param $rs1 i32) (param $sh i64)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.shr_u (call $lo32 (local.get $rs1)) (i32.wrap_i64 (local.get $sh)))))
+  (call $next))
+(func $x_sraiw (export "i_sraiw") (param $rd i32) (param $rs1 i32) (param $sh i64)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.shr_s (call $lo32 (local.get $rs1)) (i32.wrap_i64 (local.get $sh)))))
+  (call $next))
+(func $x_addw (export "i_addw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.add (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2)))))
+  (call $next))
+(func $x_subw (export "i_subw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.sub (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2)))))
+  (call $next))
+(func $x_sllw (export "i_sllw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.shl (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2)))))
+  (call $next))
+(func $x_srlw (export "i_srlw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.shr_u (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2)))))
+  (call $next))
+(func $x_sraw (export "i_sraw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.shr_s (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2)))))
+  (call $next))
+
+;; ---- grp-mul.wat
+;; Group `mul`: the M extension (Ext.MulOp / Ext.MulWOp). Division never traps:
+;; divS/divU by zero give all ones, remS/remU by zero give the dividend, and
+;; signed overflow (intMin / -1) gives intMin with remainder 0. Wasm's
+;; div_s traps on that overflow, so it is special-cased.
+
+(func $d_mul (param $w i32) (result i32)
+  (local $rd i32) (local $rs1 i32) (local $rs2 i32)
+  (local.set $rd (call $rd (local.get $w)))
+  (local.set $rs1 (call $rs1 (local.get $w)))
+  (local.set $rs2 (call $rs2 (local.get $w)))
+  (block $f7 (block $f6 (block $f5 (block $f4 (block $f3 (block $f2 (block $f1 (block $f0
+    (br_table $f0 $f1 $f2 $f3 $f4 $f5 $f6 $f7 (call $f3 (local.get $w))))
+    (call $x_mul (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_mulh (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_mulhsu (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_mulhu (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_div (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_divu (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_rem (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+  (call $x_remu (local.get $rd) (local.get $rs1) (local.get $rs2)) (i32.const 0))
+
+(func $d_mul32 (param $w i32) (result i32)
+  (local $rd i32) (local $rs1 i32) (local $rs2 i32)
+  (local.set $rd (call $rd (local.get $w)))
+  (local.set $rs1 (call $rs1 (local.get $w)))
+  (local.set $rs2 (call $rs2 (local.get $w)))
+  (block $bad (block $f7 (block $f6 (block $f5 (block $f4 (block $f0
+    (br_table $f0 $bad $bad $bad $f4 $f5 $f6 $f7 (call $f3 (local.get $w))))
+    (call $x_mulw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_divw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_divuw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_remw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+    (call $x_remuw (local.get $rd) (local.get $rs1) (local.get $rs2)) (return (i32.const 0)))
+  (i32.const 2))
+
+;; high 64 bits of the unsigned 128-bit product, by 32-bit limbs
+(func $mulhu64 (param $a i64) (param $b i64) (result i64)
+  (local $al i64) (local $ah i64) (local $bl i64) (local $bh i64)
+  (local $ll i64) (local $lh i64) (local $hl i64) (local $mid i64)
+  (local.set $al (i64.and (local.get $a) (i64.const 0xFFFFFFFF)))
+  (local.set $ah (i64.shr_u (local.get $a) (i64.const 32)))
+  (local.set $bl (i64.and (local.get $b) (i64.const 0xFFFFFFFF)))
+  (local.set $bh (i64.shr_u (local.get $b) (i64.const 32)))
+  (local.set $ll (i64.mul (local.get $al) (local.get $bl)))
+  (local.set $lh (i64.mul (local.get $al) (local.get $bh)))
+  (local.set $hl (i64.mul (local.get $ah) (local.get $bl)))
+  (local.set $mid (i64.add (i64.add (i64.shr_u (local.get $ll) (i64.const 32))
+                                    (i64.and (local.get $lh) (i64.const 0xFFFFFFFF)))
+                           (i64.and (local.get $hl) (i64.const 0xFFFFFFFF))))
+  (i64.add (i64.add (i64.mul (local.get $ah) (local.get $bh))
+                    (i64.add (i64.shr_u (local.get $lh) (i64.const 32)) (i64.shr_u (local.get $hl) (i64.const 32))))
+           (i64.shr_u (local.get $mid) (i64.const 32))))
+;; signed x signed: mulhu - (a<0 ? b : 0) - (b<0 ? a : 0)
+(func $mulh64 (param $a i64) (param $b i64) (result i64)
+  (i64.sub (i64.sub (call $mulhu64 (local.get $a) (local.get $b))
+    (i64.and (i64.shr_s (local.get $a) (i64.const 63)) (local.get $b)))
+    (i64.and (i64.shr_s (local.get $b) (i64.const 63)) (local.get $a))))
+;; signed x unsigned: mulhu - (a<0 ? b : 0)
+(func $mulhsu64 (param $a i64) (param $b i64) (result i64)
+  (i64.sub (call $mulhu64 (local.get $a) (local.get $b))
+    (i64.and (i64.shr_s (local.get $a) (i64.const 63)) (local.get $b))))
+(func $divs64 (param $a i64) (param $b i64) (result i64)
+  (if (i64.eqz (local.get $b)) (then (return (i64.const -1))))
+  (if (i32.and (i64.eq (local.get $a) (i64.const 0x8000000000000000)) (i64.eq (local.get $b) (i64.const -1)))
+    (then (return (local.get $a))))
+  (i64.div_s (local.get $a) (local.get $b)))
+(func $divu64 (param $a i64) (param $b i64) (result i64)
+  (if (result i64) (i64.eqz (local.get $b)) (then (i64.const -1)) (else (i64.div_u (local.get $a) (local.get $b)))))
+(func $rems64 (param $a i64) (param $b i64) (result i64)
+  (if (i64.eqz (local.get $b)) (then (return (local.get $a))))
+  (if (i64.eq (local.get $b) (i64.const -1)) (then (return (i64.const 0))))
+  (i64.rem_s (local.get $a) (local.get $b)))
+(func $remu64 (param $a i64) (param $b i64) (result i64)
+  (if (result i64) (i64.eqz (local.get $b)) (then (local.get $a)) (else (i64.rem_u (local.get $a) (local.get $b)))))
+(func $divs32 (param $a i32) (param $b i32) (result i32)
+  (if (i32.eqz (local.get $b)) (then (return (i32.const -1))))
+  (if (i32.and (i32.eq (local.get $a) (i32.const 0x80000000)) (i32.eq (local.get $b) (i32.const -1)))
+    (then (return (local.get $a))))
+  (i32.div_s (local.get $a) (local.get $b)))
+(func $divu32 (param $a i32) (param $b i32) (result i32)
+  (if (result i32) (i32.eqz (local.get $b)) (then (i32.const -1)) (else (i32.div_u (local.get $a) (local.get $b)))))
+(func $rems32 (param $a i32) (param $b i32) (result i32)
+  (if (i32.eqz (local.get $b)) (then (return (local.get $a))))
+  (if (i32.eq (local.get $b) (i32.const -1)) (then (return (i32.const 0))))
+  (i32.rem_s (local.get $a) (local.get $b)))
+(func $remu32 (param $a i32) (param $b i32) (result i32)
+  (if (result i32) (i32.eqz (local.get $b)) (then (local.get $a)) (else (i32.rem_u (local.get $a) (local.get $b)))))
+
+(func $x_mul (export "i_mul") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.mul (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_mulh (export "i_mulh") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (call $mulh64 (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_mulhsu (export "i_mulhsu") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (call $mulhsu64 (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_mulhu (export "i_mulhu") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (call $mulhu64 (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_div (export "i_div") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (call $divs64 (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_divu (export "i_divu") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (call $divu64 (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_rem (export "i_rem") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (call $rems64 (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_remu (export "i_remu") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (call $remu64 (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))) (call $next))
+(func $x_mulw (export "i_mulw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (i32.mul (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2))))) (call $next))
+(func $x_divw (export "i_divw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (call $divs32 (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2))))) (call $next))
+(func $x_divuw (export "i_divuw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (call $divu32 (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2))))) (call $next))
+(func $x_remw (export "i_remw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (call $rems32 (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2))))) (call $next))
+(func $x_remuw (export "i_remuw") (param $rd i32) (param $rs1 i32) (param $rs2 i32)
+  (call $rset (local.get $rd) (i64.extend_i32_s (call $remu32 (call $lo32 (local.get $rs1)) (call $lo32 (local.get $rs2))))) (call $next))
+
+;; ---- grp-mem.wat
+
+(func $d_load (param $w i32) (result i32)
+  (local $rd i32) (local $rs1 i32) (local $off i64)
+  (local.set $rd (call $rd (local.get $w)))
+  (local.set $rs1 (call $rs1 (local.get $w)))
+  (local.set $off (call $immI (local.get $w)))
+  (block $bad (block $f6 (block $f5 (block $f4 (block $f3 (block $f2 (block $f1 (block $f0
+    (br_table $f0 $f1 $f2 $f3 $f4 $f5 $f6 $bad (call $f3 (local.get $w))))
+    (return (call $x_lb (local.get $rd) (local.get $rs1) (local.get $off))))
+    (return (call $x_lh (local.get $rd) (local.get $rs1) (local.get $off))))
+    (return (call $x_lw (local.get $rd) (local.get $rs1) (local.get $off))))
+    (return (call $x_ld (local.get $rd) (local.get $rs1) (local.get $off))))
+    (return (call $x_lbu (local.get $rd) (local.get $rs1) (local.get $off))))
+    (return (call $x_lhu (local.get $rd) (local.get $rs1) (local.get $off))))
+    (return (call $x_lwu (local.get $rd) (local.get $rs1) (local.get $off))))
+  (i32.const 2))
+
+(func $d_store (param $w i32) (result i32)
+  (local $rs1 i32) (local $rs2 i32) (local $off i64)
+  (local.set $rs1 (call $rs1 (local.get $w)))
+  (local.set $rs2 (call $rs2 (local.get $w)))
+  (local.set $off (call $immS (local.get $w)))
+  (block $bad (block $f3 (block $f2 (block $f1 (block $f0
+    (br_table $f0 $f1 $f2 $f3 $bad (call $f3 (local.get $w))))
+    (return (call $x_sb (local.get $rs1) (local.get $rs2) (local.get $off))))
+    (return (call $x_sh (local.get $rs1) (local.get $rs2) (local.get $off))))
+    (return (call $x_sw (local.get $rs1) (local.get $rs2) (local.get $off))))
+    (return (call $x_sd (local.get $rs1) (local.get $rs2) (local.get $off))))
+  (i32.const 2))
+
+(func $x_lb (export "i_lb") (param $rd i32) (param $rs1 i32) (param $off i64) (result i32)
+  (local $a i64) (local $v i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (local.set $v (call $mem_load8 (local.get $a)))
+  (call $rset (local.get $rd) (i64.extend8_s (local.get $v)))
+  (call $next) (i32.const 0))
+(func $x_lh (export "i_lh") (param $rd i32) (param $rs1 i32) (param $off i64) (result i32)
+  (local $a i64) (local $v i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (if (i32.wrap_i64 (i64.and (local.get $a) (i64.const 1))) (then (return (i32.const 3))))
+  (local.set $v (call $mem_load16 (local.get $a)))
+  (call $rset (local.get $rd) (i64.extend16_s (local.get $v)))
+  (call $next) (i32.const 0))
+(func $x_lw (export "i_lw") (param $rd i32) (param $rs1 i32) (param $off i64) (result i32)
+  (local $a i64) (local $v i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (if (i32.wrap_i64 (i64.and (local.get $a) (i64.const 3))) (then (return (i32.const 3))))
+  (local.set $v (call $mem_load32 (local.get $a)))
+  (call $rset (local.get $rd) (i64.extend32_s (local.get $v)))
+  (call $next) (i32.const 0))
+(func $x_ld (export "i_ld") (param $rd i32) (param $rs1 i32) (param $off i64) (result i32)
+  (local $a i64) (local $v i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (if (i32.wrap_i64 (i64.and (local.get $a) (i64.const 7))) (then (return (i32.const 3))))
+  (local.set $v (call $mem_load64 (local.get $a)))
+  (call $rset (local.get $rd) (local.get $v))
+  (call $next) (i32.const 0))
+(func $x_lbu (export "i_lbu") (param $rd i32) (param $rs1 i32) (param $off i64) (result i32)
+  (local $a i64) (local $v i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (local.set $v (call $mem_load8 (local.get $a)))
+  (call $rset (local.get $rd) (i64.and (local.get $v) (i64.const 0xFF)))
+  (call $next) (i32.const 0))
+(func $x_lhu (export "i_lhu") (param $rd i32) (param $rs1 i32) (param $off i64) (result i32)
+  (local $a i64) (local $v i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (if (i32.wrap_i64 (i64.and (local.get $a) (i64.const 1))) (then (return (i32.const 3))))
+  (local.set $v (call $mem_load16 (local.get $a)))
+  (call $rset (local.get $rd) (i64.and (local.get $v) (i64.const 0xFFFF)))
+  (call $next) (i32.const 0))
+(func $x_lwu (export "i_lwu") (param $rd i32) (param $rs1 i32) (param $off i64) (result i32)
+  (local $a i64) (local $v i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (if (i32.wrap_i64 (i64.and (local.get $a) (i64.const 3))) (then (return (i32.const 3))))
+  (local.set $v (call $mem_load32 (local.get $a)))
+  (call $rset (local.get $rd) (i64.and (local.get $v) (i64.const 0xFFFFFFFF)))
+  (call $next) (i32.const 0))
+(func $x_sb (export "i_sb") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (local $a i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (call $mem_store8 (local.get $a) (call $rget (local.get $rs2)))
+  (call $next) (i32.const 0))
+(func $x_sh (export "i_sh") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (local $a i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (if (i32.wrap_i64 (i64.and (local.get $a) (i64.const 1))) (then (return (i32.const 3))))
+  (call $mem_store16 (local.get $a) (call $rget (local.get $rs2)))
+  (call $next) (i32.const 0))
+(func $x_sw (export "i_sw") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (local $a i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (if (i32.wrap_i64 (i64.and (local.get $a) (i64.const 3))) (then (return (i32.const 3))))
+  (call $mem_store32 (local.get $a) (call $rget (local.get $rs2)))
+  (call $next) (i32.const 0))
+(func $x_sd (export "i_sd") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (local $a i64)
+  (local.set $a (i64.add (call $rget (local.get $rs1)) (local.get $off)))
+  (if (i32.wrap_i64 (i64.and (local.get $a) (i64.const 7))) (then (return (i32.const 3))))
+  (call $mem_store64 (local.get $a) (call $rget (local.get $rs2)))
+  (call $next) (i32.const 0))
+
+;; ---- grp-ctrl.wat
+
+(func $d_branch (param $w i32) (result i32)
+  (local $rs1 i32) (local $rs2 i32) (local $off i64) (local $r i32)
+  (local.set $rs1 (call $rs1 (local.get $w)))
+  (local.set $rs2 (call $rs2 (local.get $w)))
+  (local.set $off (call $immB (local.get $w)))
+  (block $done (block $bad (block $f7 (block $f6 (block $f5 (block $f4 (block $f1 (block $f0
+    (br_table $f0 $f1 $bad $bad $f4 $f5 $f6 $f7 (call $f3 (local.get $w))))
+    (local.set $r (call $x_beq (local.get $rs1) (local.get $rs2) (local.get $off))) (br $done))
+    (local.set $r (call $x_bne (local.get $rs1) (local.get $rs2) (local.get $off))) (br $done))
+    (local.set $r (call $x_blt (local.get $rs1) (local.get $rs2) (local.get $off))) (br $done))
+    (local.set $r (call $x_bge (local.get $rs1) (local.get $rs2) (local.get $off))) (br $done))
+    (local.set $r (call $x_bltu (local.get $rs1) (local.get $rs2) (local.get $off))) (br $done))
+    (local.set $r (call $x_bgeu (local.get $rs1) (local.get $rs2) (local.get $off))) (br $done))
+    (return (i32.const 2)))
+  ;; taken (1) and not taken (0) both retire
+  (select (i32.const 0) (local.get $r) (i32.le_u (local.get $r) (i32.const 1))))
+
+(func $d_jal (param $w i32) (result i32)
+  (call $x_jal (call $rd (local.get $w)) (call $immJ (local.get $w))))
+(func $d_jalr (param $w i32) (result i32)
+  (if (call $f3 (local.get $w)) (then (return (i32.const 2))))
+  (call $x_jalr (call $rd (local.get $w)) (call $rs1 (local.get $w)) (call $immI (local.get $w))))
+(func $d_ebreak (param $w i32) (result i32) (call $x_ebreak))
+
+;; jump (Ext.jumpTo): target must be four-byte aligned
+(func $jump (param $t i64) (result i32)
+  (if (i32.wrap_i64 (i64.and (local.get $t) (i64.const 3))) (then (return (i32.const 3))))
+  (call $pc_set (local.get $t))
+  (i32.const 0))
+(func $x_beq (export "i_beq") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (if (i64.eq (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))
+    (then (return (select (i32.const 1) (i32.const 3)
+      (i32.eqz (call $jump (i64.add (call $pc_get) (local.get $off))))))))
+  (call $next) (i32.const 0))
+(func $x_bne (export "i_bne") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (if (i64.ne (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))
+    (then (return (select (i32.const 1) (i32.const 3)
+      (i32.eqz (call $jump (i64.add (call $pc_get) (local.get $off))))))))
+  (call $next) (i32.const 0))
+(func $x_blt (export "i_blt") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (if (i64.lt_s (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))
+    (then (return (select (i32.const 1) (i32.const 3)
+      (i32.eqz (call $jump (i64.add (call $pc_get) (local.get $off))))))))
+  (call $next) (i32.const 0))
+(func $x_bge (export "i_bge") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (if (i64.ge_s (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))
+    (then (return (select (i32.const 1) (i32.const 3)
+      (i32.eqz (call $jump (i64.add (call $pc_get) (local.get $off))))))))
+  (call $next) (i32.const 0))
+(func $x_bltu (export "i_bltu") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (if (i64.lt_u (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))
+    (then (return (select (i32.const 1) (i32.const 3)
+      (i32.eqz (call $jump (i64.add (call $pc_get) (local.get $off))))))))
+  (call $next) (i32.const 0))
+(func $x_bgeu (export "i_bgeu") (param $rs1 i32) (param $rs2 i32) (param $off i64) (result i32)
+  (if (i64.ge_u (call $rget (local.get $rs1)) (call $rget (local.get $rs2)))
+    (then (return (select (i32.const 1) (i32.const 3)
+      (i32.eqz (call $jump (i64.add (call $pc_get) (local.get $off))))))))
+  (call $next) (i32.const 0))
+(func $x_jal (export "i_jal") (param $rd i32) (param $off i64) (result i32)
+  (local $pc i64) (local $t i64)
+  (local.set $pc (call $pc_get))
+  (local.set $t (i64.add (local.get $pc) (local.get $off)))
+  (if (i32.wrap_i64 (i64.and (local.get $t) (i64.const 3))) (then (return (i32.const 3))))
+  (call $rset (local.get $rd) (i64.add (local.get $pc) (i64.const 4)))
+  (call $pc_set (local.get $t))
+  (i32.const 0))
+(func $x_jalr (export "i_jalr") (param $rd i32) (param $rs1 i32) (param $off i64) (result i32)
+  (local $pc i64) (local $t i64)
+  (local.set $pc (call $pc_get))
+  (local.set $t (i64.and (i64.add (call $rget (local.get $rs1)) (local.get $off)) (i64.const -2)))
+  (if (i32.wrap_i64 (i64.and (local.get $t) (i64.const 3))) (then (return (i32.const 3))))
+  (call $rset (local.get $rd) (i64.add (local.get $pc) (i64.const 4)))
+  (call $pc_set (local.get $t))
+  (i32.const 0))
+(func $x_ebreak (export "i_ebreak") (result i32) (i32.const 1))
+
+;; ---- grp-sys.wat
+
+(func $d_ecall (param $w i32) (result i32) (call $x_ecall))
+(func $x_ecall (export "i_ecall") (result i32)
+  (local $nr i64) (local $r i64)
+  (local.set $nr (call $rget (i32.const 17)))
+  (local.set $r (call $sys_syscall (local.get $nr)
+    (call $rget (i32.const 10)) (call $rget (i32.const 11)) (call $rget (i32.const 12))
+    (call $rget (i32.const 13)) (call $rget (i32.const 14)) (call $rget (i32.const 15))))
+  (if (i32.or (i64.eq (local.get $nr) (i64.const 93)) (i64.eq (local.get $nr) (i64.const 94)))
+    (then (return (i32.const 1))))
+  (call $rset (i32.const 10) (local.get $r))
+  (call $next)
+  (i32.const 0))
+
+;; ---- stubs
+)

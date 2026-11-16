@@ -1,0 +1,32 @@
+# Hand-written functions of tests/arith.S.
+schema = "silmaril.wasm-sim.reduce.v0"
+id = "wasm-sim/rv64/arith"
+title = "RV64 hand-written gcd (remu loop) and factorial (mul loop)"
+
+[defs]
+gcd = "(declare-fun gcd ((_ BitVec 64) (_ BitVec 64)) (_ BitVec 64))"
+fact = "(declare-fun fact ((_ BitVec 64)) (_ BitVec 64))"
+
+[lean]
+prelude = """
+/-- Factorial. -/
+def factN : Nat → Nat
+  | 0 => 1
+  | n + 1 => (n + 1) * factN n
+"""
+
+[artifact]
+elf = "arith"
+source = "../tests/arith.S"
+
+[[function]]
+name = "gcd"
+lean_spec = { entry = "Rv64Gcd", pre = "True", post = "r_a0 = BitVec.ofNat 64 (Nat.gcd a0.toNat a1.toNat)" }
+ensures = "(= (reg a0) (gcd (old (reg a0)) (old (reg a1))))"
+sample_max = 1000000
+
+[[function]]
+name = "fact"
+lean_spec = { entry = "Rv64Fact", pre = "True", post = "r_a0 = (if a0.slt 0 then 1 else BitVec.ofNat 64 (factN a0.toNat))" }
+ensures = "(= (reg a0) (fact (old (reg a0))))"
+sample_max = 30

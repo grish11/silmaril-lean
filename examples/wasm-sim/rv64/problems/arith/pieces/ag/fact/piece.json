@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/arith/ag/fact",
+  "kind": "assume-guarantee",
+  "function": "fact",
+  "address": "0x11258",
+  "words": "0010029300a0586302a282b3fff50513ff5ff06f0002851300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/fact.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0"], "results": ["a0"]},
+  "spec": {"requires": "true", "ensures": "(= (reg a0) (fact (old (reg a0))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `fact` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}
