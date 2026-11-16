@@ -44,8 +44,15 @@ closure and receptiveness are structural.
 * infinitely many completed rounds: every member extends, within the trace, to
   a member with a run ending idle. As in `StratObs` this is a limit condition
   on the trace; it does not ask for one coherent run of stores through the
-  whole trace (for store-deterministic triples, `StoreDet`, the store after
-  each completed round is determined by the moves).
+  whole trace.
+
+`InfRounds t s₀ a r s` is a coherent infinite sequence of returning rounds,
+round `k` running from the store `s k` to `s (k + 1)`, and `roundsPlay a r` is
+its infinite play. The theorems show that the second kind of infinite play is
+exactly `roundsPlay a r` for rounds whose every finite prefix is completed
+rounds from `s₀` (`mem_inf_iff`); for store-deterministic triples (`StoreDet`)
+the stores then cohere (`exists_infRounds`, `mem_inf_iff_of_storeDet`), and
+without it they need not (`not_coherent`).
 
 **Observational equivalence of stores.** Threading only sees a store through
 its future observations. `RoundEq t t' R s s'` says one round at `s` (for `t`)

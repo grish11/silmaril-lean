@@ -17,6 +17,11 @@ public import Silmaril.Games.Div.Thms
 * For store-deterministic triples, residuals after a round
   (`mem_after_round`, `div_after_round`, `extR_mem_inf`, `resR_mem_inf`) and the
   converse (`roundEq_of_eq`).
+* Infinite round sequences: a play completing infinitely many rounds is read
+  round by round (`run_idle_inv`, `exists_stream`) as `roundsPlay a r`
+  (`exists_rounds`); under store determinism runs are unique (`trun_det`) and
+  the stores cohere (`infRounds_of_rounds`). The countdown triple
+  (`Counter.countdown`) shows coherence fails without it.
 -/
 
 public section

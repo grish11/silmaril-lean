@@ -19,6 +19,22 @@ After the completed rounds `rs` ending at `s`:
 * an infinite play of the current round is a productive stream at `s`
   (`mem_inf`).
 
+**Infinite plays.** For any triple, an infinite play of `threadT t s₀` is
+either a productive stream after finitely many completed rounds, or the play
+`roundsPlay a r` of an infinite sequence of rounds each of whose finite prefixes
+is completed rounds from `s₀` (`mem_inf_iff`). This second form is a trace
+limit: each prefix has *some* chain of stores, and these chains need not extend
+one another. A coherent sequence (`InfRounds`, one store sequence through all
+rounds) always gives an infinite play (`InfRounds.mem_inf`). For
+store-deterministic triples the automaton state after a play is unique
+(`TRun.det_of_storeDet`), so the stores cohere and the infinite plays are
+exactly the stream plays and the plays of coherent sequences
+(`exists_infRounds`, `mem_inf_iff_of_storeDet`). Without store determinism
+coherence fails: a countdown store, which may start at any `n` and then counts
+down to `0`, plays every finite number of identical rounds and hence their
+infinite play, but no infinite sequence of rounds has coherent stores
+(`not_coherent`).
+
 The general forms `mem_append_rounds` and `div_append_rounds` split any play
 after completed rounds. Reachability (`Reach`) is reachability by completed
 rounds (`reach_iff`).
