@@ -11,6 +11,10 @@ public import Silmaril.Wasm.Game.Accept.Consequence.Thms
 * **Component refinement is soundness of systems**: `CompRefines C c c'` puts `c`'s row below
   `c'`'s (`compSystem_le_of_compRefines`), and `CompEquiv` makes them equal
   (`compSystem_eq_of_compEquiv`).
+* The component-only entry point: `componentBytesSystem_iff`, `componentBytesSystem_of_decode`,
+  `componentBytesSystem_of_decode_none`, and `componentBytesSystem_eq_binarySystem` (it is
+  `binarySystem` at the component's own layout). `defValTy_list` records why `list<u8>` accept
+  functions do not lower.
 * Bytes that decode as a module have the module row (`ByteAcceptor.bytesSystem_of_decode_module`),
   bytes that decode only as a component have the component row
   (`ByteAcceptor.bytesSystem_of_decode_component`), and bytes that decode as neither prove
@@ -52,6 +56,42 @@ theorem bytesSystem_of_decode {B : Type} {decode : B → Option (Comp M)} {b : B
   System.ofDecoder_of_eq_some _ h w
 
 end ComponentAcceptor
+
+section Simple
+
+variable (C : CoreSem Silmaril.Wasm.Component.Binary.CoreMod) (mode : Mode) {b : ByteArray}
+  {w : List UInt8}
+
+/-- **What component bytes prove**: exactly the bytes their lowered component accepts. -/
+theorem componentBytesSystem_iff :
+    componentBytesSystem C mode b w ↔ ∃ c, ComponentAcceptor.decodeBinary b = some c ∧
+      w ∈ (ComponentAcceptor.ofComp C c mode).lang := Iff.rfl
+
+theorem componentBytesSystem_of_decode {c : Comp Silmaril.Wasm.Component.Binary.CoreMod}
+    (h : ComponentAcceptor.decodeBinary b = some c) :
+    componentBytesSystem C mode b w ↔ w ∈ (ComponentAcceptor.ofComp C c mode).lang :=
+  System.ofDecoder_of_eq_some _ h w
+
+/-- Bytes that do not parse and lower as a component prove nothing. -/
+theorem componentBytesSystem_of_decode_none (h : ComponentAcceptor.decodeBinary b = none) :
+    ¬ componentBytesSystem C mode b w :=
+  System.ofDecoder_of_eq_none _ h w
+
+/-- `componentBytesSystem` is the generic component bytes system at the component's own layout. -/
+theorem componentBytesSystem_eq_binarySystem {c : Comp Silmaril.Wasm.Component.Binary.CoreMod}
+    (h : ComponentAcceptor.decodeBinary b = some c) :
+    componentBytesSystem C mode b = ComponentAcceptor.binarySystem C (Layout.ofComp c) acceptFn
+      none mode b :=
+  funext fun w => propext <| (componentBytesSystem_of_decode C mode h).trans
+    (ComponentAcceptor.bytesSystem_of_decode C _ acceptFn none mode h w).symm
+
+/-- **Why `list<u8>` does not lower**: the lowering rejects list types. -/
+theorem defValTy_list (types : Array Silmaril.Wasm.Component.Binary.Lower.TypeEntry)
+    (t : Silmaril.Wasm.Component.Binary.ValType) :
+    Silmaril.Wasm.Component.Binary.Lower.defValTy types (.list t) =
+      .error "list (needs linear memory)" := rfl
+
+end Simple
 
 namespace ByteAcceptor
 

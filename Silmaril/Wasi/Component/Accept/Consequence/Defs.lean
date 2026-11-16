@@ -25,6 +25,12 @@ the interpretation.
 its lowering is partial and unverified, and no core semantics `CoreSem CoreMod` is fixed in the
 library, so `C` is a parameter. `bytesSystem` takes any decoder.
 
+**Simple entry points.** `componentBytesSystem C` reads component binaries only, through their own
+import and export names (`Layout.ofComp`) and the world-level `accept` function; only the core
+semantics `C` is required. `Silmaril.Wasm.Game.Accept.moduleBytesSystem` is the module-only
+counterpart. The lowering does not support `list` types, so only fixed-arity
+`accept(tuple<u8, …>)` components reach it (see `componentBytesSystem`).
+
 **Either shape.** `ByteAcceptor.decode` reads bytes as a core module (`decode?`) or, failing
 that, as a component. The two binary formats differ in their header's layer field, so at most
 one of the decoders is expected to succeed; the module decoder is tried first.
@@ -71,6 +77,36 @@ def binarySystem (C : CoreSem Silmaril.Wasm.Component.Binary.CoreMod) (L : Layou
   bytesSystem C L acc rej mode decodeBinary
 
 end ComponentAcceptor
+
+/-! ## Self-describing component interpretation -/
+
+/-- The function a lowered import or export name denotes: the world-level function `⟨"", n⟩`.
+Functions of instances keep the flattened name `inst#f` that `Binary.lower` gives them. -/
+def fnNameOf (n : String) : FnName := ⟨"", n⟩
+
+/-- **The layout a component names itself**: its imports and exports, by their own names. -/
+def Layout.ofComp {M : Type} (c : Comp M) : Layout :=
+  ⟨c.imports.map (fnNameOf ·.1), c.exports.map (fnNameOf ·.name)⟩
+
+/-- The component `c` read through its own names, with the `accept` function `acceptFn`
+(`accept` at world level), imported by default. -/
+def ComponentAcceptor.ofComp {M : Type} [CoreModule M] (C : CoreSem M) (c : Comp M)
+    (mode : Mode := .imp) : ComponentAcceptor :=
+  ofIR C (Layout.ofComp c) c acceptFn none mode
+
+/-- **Component binaries as a consequence system**: `b ⊢ w` iff `b` is a component binary that
+parses and lowers (`parseComponent`) to a component `c` whose world-level `accept` function,
+under the core semantics `C`, accepts `w` (imported `accept` called with `w`, or exported
+`accept(w)` returning `true`, by `mode`). The layout is the component's own (`Layout.ofComp`), so
+the only required parameter is `C`: the library fixes no core semantics for the lowered core
+modules. Core module binaries and other bytes do not decode and prove nothing.
+
+`w` reaches `accept` as a record/tuple of `u8` (`bytes?`). The lowering rejects `list` types,
+so a genuinely variable-length `accept(list<u8>)` does not lower and its binary proves nothing;
+fixed-arity `accept(tuple<u8, …>)` (at most 16 flat parameters) does. -/
+def componentBytesSystem (C : CoreSem Silmaril.Wasm.Component.Binary.CoreMod)
+    (mode : Mode := .imp) : System ByteArray (List UInt8) :=
+  System.ofDecoder ComponentAcceptor.decodeBinary fun c => ComponentAcceptor.ofComp C c mode
 
 namespace ByteAcceptor
 
