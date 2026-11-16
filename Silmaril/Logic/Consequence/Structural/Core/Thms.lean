@@ -3,6 +3,8 @@ module
 public import Silmaril.Logic.Consequence.Defs
 public import Silmaril.Logic.Consequence.Structural.Witness.Thms
 public import Silmaril.Logic.Consequence.Refutation.Thms
+public import Silmaril.Logic.Consequence.Ax.Defs
+public import Silmaril.Logic.Consequence.Structural.Finitary.Defs
 
 /-!
 # Structural closures over the core consequence systems
@@ -39,6 +41,17 @@ theorem weakensAlong_iff_monoWrt {W : List C → List C → Prop} {R : Rel C} :
 theorem weakSubset_iff_monoWrt {R : Rel C} :
     WeakSubset R ↔ System.MonoWrt (fun Γ Δ : List C => Γ ⊆ Δ) R :=
   weakensAlong_iff_monoWrt
+
+theorem exchange_iff_monoWrt {R : Rel C} : Exchange R ↔ System.MonoWrt List.Perm R :=
+  ⟨fun h _ _ hp _ hd => h hp hd, fun h _ _ _ hp hd => h hp hd⟩
+
+theorem onFinset_pullback_ctxFinset [DecidableEq C] {T : FinsetSystem C} {s : Finset C}
+    {c : C} : onFinset (System.pullback ctxFinset id T) s c ↔ T s c := by
+  simp [onFinset, System.pullback, ctxFinset, Finset.toList_toFinset]
+
+theorem weakSubset_pullback_ctxFinset [DecidableEq C] {T : FinsetSystem C}
+    (h : System.MonoWrt (· ⊆ ·) T) : WeakSubset (System.pullback ctxFinset id T) :=
+  fun _ _ _ hw hd => h (fun x hx => by simpa [ctxFinset] using hw (by simpa [ctxFinset] using hx)) hd
 
 /-- The closure adjunction, as core soundness: for a closed `T`, `Derives rs S` is sound for
 `T` iff `S` is. -/
