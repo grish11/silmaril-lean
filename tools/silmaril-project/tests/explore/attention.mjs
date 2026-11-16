@@ -93,8 +93,8 @@ try {
   await settle();
   const f1 = await p.evaluate(() => ({ hash: location.hash, codes: [...document.querySelectorAll(".browse-problems .st")].map((e) => e.dataset.display) }));
   check(/status=OPN/.test(f1.hash) && f1.codes.length > 0 && f1.codes.every((c) => c === "OPN"), `status filter: ${f1.codes.length} OPN rows, ${f1.hash} ${f1.codes.join(",")}`);
-  check(f1.codes.length > 0 && (await p.evaluate(() => [...document.querySelectorAll(".browse-problems a")].map((a) => a.textContent))).includes("silmaril.selftest.languages.json_format_eq_json"),
-    "the open json_format_eq_json is among them");
+  check(f1.codes.length > 0 && (await p.evaluate(() => [...document.querySelectorAll(".browse-problems a")].map((a) => a.textContent))).includes("silmaril.selftest.languages.wasm_accept_member"),
+    "the open wasm_accept_member is among them");
   await go("#/browse/?status=CTH&q=json_number");
   const f2 = await p.evaluate(() => [...document.querySelectorAll(".browse-problems .st")].map((e) => e.dataset.display + ":" + e.dataset.code));
   check(f2.length > 0 && f2.every((c) => c.startsWith("CTH:")), `closed refutations read CTH whatever is stored: ${[...new Set(f2)].join(" ")}`);

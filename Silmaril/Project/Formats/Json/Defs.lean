@@ -11,8 +11,12 @@ RFC 8259 bytes to the ordered wire AST with exact decimals, `Silmaril.Formats.Js
 duplicates; numbers as exact `Decimal`s). Printer: the total structural printer
 `Silmaril.Formats.JsonWire.encode`. The family default of `json`.
 
-Gaps: no round-trip theorem relates the printer and the reader, so no law is registered; the
-reader is not proved against an independent RFC 8259 grammar. silmaril's extensional reader
+The reader accepts exactly RFC 8259's JSON texts: `Silmaril.Formats.JsonWire.parse?_isSome_iff`
+compares it with the ABNF transcribed over UTF-8 bytes (`Silmaril.Formats.JsonBytes.language
+.rfc8259`), so the language of this format is RFC 8259's.
+
+Gaps: no round-trip theorem relates the printer and the reader, so no law is registered.
+silmaril's extensional reader
 `Silmaril.Formats.RfcJson.parse?` (strings, duplicate members rejected) is a different data
 model and is not a format here.
 -/
