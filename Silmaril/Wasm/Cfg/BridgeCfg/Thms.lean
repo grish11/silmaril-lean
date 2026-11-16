@@ -18,7 +18,8 @@ oracle). Composing the machine's region soundness and completeness (`run_sound_i
 
 * **`machine_native`** (deterministic profile, no host, an oracle sound for the tail-aware check
   that keeps typing): a machine run from the CFG entry of the lowering of typed trees without
-  extended calls (`CallX.xFreeL`) to a sink is a native run of the trees from the empty stack
+  tail calls (`tailFreeL`; direct, indirect and reference calls included) to a sink is a native
+  run of the trees from the empty stack
   with the same oracle, ending as the sink completes (`EndsC`) and `ResOut` relate.
 * **`native_machine`** (any profile and host for the machine; an oracle sound for the tail-aware
   check): a typed, checked native run from the empty stack has a region outcome `o` related to
@@ -28,8 +29,8 @@ oracle). Composing the machine's region soundness and completeness (`run_sound_i
 * `machine_native_closedX`, `native_machine_closedX`: the instances with the typed closed
   extended oracle `closedXOk`, with no oracle hypothesis.
 
-Scope: the machine-to-native direction excludes `call_indirect`, `call_ref` and tail calls (the
-open part of the backward bridge). These are statements about the CFG as an executable semantics
+Scope: the machine-to-native direction excludes tail calls (the open part of the backward
+bridge). These are statements about the CFG as an executable semantics
 of the body, at its region outcomes; they are not statements about the plain extracted graph's
 infeasible paths, which stay an over-approximation.
 -/
@@ -40,11 +41,11 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Binaryen Silmaril.
 
 variable {H : Type} {C : Abstract.CallRel H}
 
-/-- **Machine runs are native runs** (trees without extended calls, deterministic profile). -/
+/-- **Machine runs are native runs** (trees without tail calls, deterministic profile). -/
 theorem machine_native {o : SingleThreaded.GrowOracle} {P₀ : Numerics.Profile}
     (hC : Interp.OracleSoundT P₀ Interp.noHostX C) (hCk : Abstract.CallXT.KeepsTy C)
     {s : Store H} {f : Frame} {es : List BExpr} {st' : MState H}
-    (ht : Interp.TypedT s f [] es) (hx : Abstract.CallX.xFreeL es = true)
+    (ht : Interp.TypedT s f [] es) (hx : tailFreeL es = true)
     (h : Relation.ReflTransGen (MStepC (SingleThreaded.profile o) Interp.noHostX C
       (BExpr.lowerList es)) (initial (BExpr.lowerList es) s f) st')
     (hs : st'.node.IsSink) :
@@ -69,7 +70,7 @@ theorem native_machine {P₀ : Numerics.Profile} {host₀ : HostSemantics H}
 /-- `machine_native` for the typed closed extended oracle (no oracle hypothesis). -/
 theorem machine_native_closedX {o : SingleThreaded.GrowOracle} {s : Store H} {f : Frame}
     {es : List BExpr} {st' : MState H}
-    (ht : Interp.TypedT s f [] es) (hx : Abstract.CallX.xFreeL es = true)
+    (ht : Interp.TypedT s f [] es) (hx : tailFreeL es = true)
     (h : Relation.ReflTransGen (MStepC (SingleThreaded.profile o) Interp.noHostX closedXOk
       (BExpr.lowerList es)) (initial (BExpr.lowerList es) s f) st')
     (hs : st'.node.IsSink) :

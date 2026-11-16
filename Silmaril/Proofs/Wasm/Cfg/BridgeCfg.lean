@@ -11,8 +11,8 @@ public import Silmaril.Proofs.Wasm.Cfg.Bridge
 # The block-CFG machine against native trees (proofs)
 
 `machine_native`: a run of the machine with oracle `C` from the CFG entry of the lowering of typed
-trees without extended calls to a sink is a native run with the same oracle (`run_sound_initialC`,
-then `bridge_bwd`). `native_machine`: a typed checked native run is a machine run from the CFG
+trees without tail calls to a sink is a native run with the same oracle (`run_sound_initialC`,
+then `bridge_bwd_tailFree`). `native_machine`: a typed checked native run is a machine run from the CFG
 entry to a sink, unless the region ends in a branch out of the body (`bridge_fwd`, then
 `run_complete_initialC`, or `run_complete_tail_initialC` for a pending tail call, whose oracle
 answer `ResOut` provides).
@@ -29,14 +29,14 @@ variable {H : Type} {C : Abstract.CallRel H}
 theorem machine_native {o : SingleThreaded.GrowOracle} {P₀ : Profile}
     (hC : Interp.OracleSoundT P₀ Interp.noHostX C) (hCk : Abstract.CallXT.KeepsTy C)
     {s : Store H} {f : Frame} {es : List BExpr} {st' : MState H}
-    (ht : Interp.TypedT s f [] es) (hx : Abstract.CallX.xFreeL es = true)
+    (ht : Interp.TypedT s f [] es) (hx : tailFreeL es = true)
     (h : Relation.ReflTransGen (MStepC (SingleThreaded.profile o) Interp.noHostX C
       (BExpr.lowerList es)) (initial (BExpr.lowerList es) s f) st')
     (hs : st'.node.IsSink) :
     ∃ out s₂ f₂ r, EndsC C st' s₂ f₂ out ∧ Abstract.CallX.EvalOX C s f [] es r ∧
       ResOut C s₂ f₂ out r := by
   obtain ⟨out, s₂, f₂, hE, hR⟩ := run_sound_initialC h hs
-  obtain ⟨r, hr, hres⟩ := bridge_bwd hC hCk ht hx hR
+  obtain ⟨r, hr, hres⟩ := bridge_bwd_tailFree hC hCk ht hx hR
   exact ⟨out, s₂, f₂, r, hE, hr, hres⟩
 
 theorem native_machine {P₀ : Profile} {host₀ : HostSemantics H}
@@ -72,7 +72,7 @@ theorem native_machine {P₀ : Profile} {host₀ : HostSemantics H}
 
 theorem machine_native_closedX {o : SingleThreaded.GrowOracle} {s : Store H} {f : Frame}
     {es : List BExpr} {st' : MState H}
-    (ht : Interp.TypedT s f [] es) (hx : Abstract.CallX.xFreeL es = true)
+    (ht : Interp.TypedT s f [] es) (hx : tailFreeL es = true)
     (h : Relation.ReflTransGen (MStepC (SingleThreaded.profile o) Interp.noHostX closedXOk
       (BExpr.lowerList es)) (initial (BExpr.lowerList es) s f) st')
     (hs : st'.node.IsSink) :

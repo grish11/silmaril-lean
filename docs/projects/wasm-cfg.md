@@ -296,11 +296,16 @@ The plain graph stays an over-approximation, and claims about it say so.
      typed trees with no `call_indirect`, `call_ref` or tail call (`CallX.xFreeL`; direct calls
      included) is a native `EvalOX` run with the same oracle, ending as `ResOut` says. Loops are
      by induction on their region run (`loop_aux`), re-entering at each branch back.
-   - **Backward, open:** the extended call forms (`call_indirect`, `call_ref`, and tail calls,
-     whose pending region outcome is answered at the frame), replacing the remaining goal of the
-     draft #494, whose `sorry`s are not merged.
+   - **Backward, trees without tail calls, done**: `bridge_bwd_tailFree` and
+     `bridge_bwd_tailFree_closedX` add `call_indirect` and `call_ref` (resolved as the native
+     evaluator resolves them, answered by the same oracle entry); `bridge_bwd` is its
+     `xFreeL` case.
+   - **Backward, open:** tail calls, whose pending region outcome (`Out.tail`) is answered at the
+     frame while the native evaluator answers it at once: the statement for that outcome is
+     about every oracle answer. This replaces the remaining goal of the draft #494, whose
+     `sorry`s are not merged.
    - **CFG corollaries, done** (`Cfg.BridgeCfg`): `machine_native` (a machine run from
-     `cfgEntry` of typed trees without extended calls to a sink is a native run with the same
+     `cfgEntry` of typed trees without tail calls to a sink is a native run with the same
      oracle, the sink's `EndsC` and the native result related by `ResOut`) and `native_machine`
      (a typed checked native run from the empty stack is a machine run from `cfgEntry` to a sink
      completing its region outcome, unless that outcome is a branch out of the body; pending tail

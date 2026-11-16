@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Cfg.BridgeBwd
+public import Silmaril.Wasm.Cfg.BridgeBwd.Defs
 
 @[expose] public section
 
@@ -528,19 +529,42 @@ theorem take_rev_append {ws us : List Val} {n : Nat} (h : us.length = n) :
   rw [List.reverse_append]
   exact ⟨by rw [List.take_left' (by simp [h])]; simp, List.drop_left' (by simp [h])⟩
 
-/-! ## The tree-level backward bridge, without extended calls -/
+
+open Silmaril.Wasm.Abstract.CallX (isXCall xFree xFreeL) in
+mutual
+
+theorem tailFree_of_xFree : ∀ e : BExpr, xFree e = true → tailFree e = true
+  | .op i args, h => by
+    simp only [xFree, tailFree, Bool.and_eq_true, Bool.not_eq_true'] at h ⊢
+    exact ⟨by cases i <;> simp_all [isXCall, isTailCall], tailFreeL_of_xFreeL args h.2⟩
+  | .block _ b, h => tailFreeL_of_xFreeL b h
+  | .loop _ b, h => tailFreeL_of_xFreeL b h
+  | .if_ _ c t e, h => by
+    simp only [xFree, tailFree, Bool.and_eq_true] at h ⊢
+    exact ⟨⟨tailFreeL_of_xFreeL c h.1.1, tailFreeL_of_xFreeL t h.1.2⟩, tailFreeL_of_xFreeL e h.2⟩
+  | .tryTable _ _ b, h => tailFreeL_of_xFreeL b h
+
+theorem tailFreeL_of_xFreeL : ∀ es : List BExpr, xFreeL es = true → tailFreeL es = true
+  | [], _ => rfl
+  | e :: es, h => by
+    simp only [xFreeL, tailFreeL, Bool.and_eq_true] at h ⊢
+    exact ⟨tailFree_of_xFree e h.1, tailFreeL_of_xFreeL es h.2⟩
+
+end
+
+/-! ## The tree-level backward bridge, without tail calls -/
 
 section Main
 
 open Silmaril.Wasm.Abstract.CallXT (EvalOXT KeepsTy)
-open Silmaril.Wasm.Abstract.CallX (isXCall xFree xFreeL)
+open Silmaril.Wasm.Abstract.CallX (isXCall)
 
 variable {o : SingleThreaded.GrowOracle} {P₀ : Profile}
 
 /-- The backward statement for a tree list. -/
 def BwdL (o : SingleThreaded.GrowOracle) (C : Abstract.CallRel H) (es : List BExpr) : Prop :=
   ∀ {s s' : Store H} {f f' : Frame} {stk : List Val} {out : Region.Out}, TypedT s f stk es →
-    xFreeL es = true →
+    tailFreeL es = true →
     RunC (SingleThreaded.profile o) noHostX C s f stk.reverse (expression (BExpr.lowerList es))
       s' f' out →
     ∃ r, EvalOX C s f stk es r ∧ ResOut C s' f' out r
@@ -548,7 +572,7 @@ def BwdL (o : SingleThreaded.GrowOracle) (C : Abstract.CallRel H) (es : List BEx
 /-- The backward statement for one tree, at the head of a typed list. -/
 def Bwd1 (o : SingleThreaded.GrowOracle) (C : Abstract.CallRel H) (e : BExpr) : Prop :=
   ∀ {s s' : Store H} {f f' : Frame} {stk : List Val} {out : Region.Out} {es : List BExpr},
-    TypedT s f stk (e :: es) → xFree e = true →
+    TypedT s f stk (e :: es) → tailFree e = true →
     RunC (SingleThreaded.profile o) noHostX C s f stk.reverse (expression (BExpr.lower e))
       s' f' out →
     ∃ r, EvalOX C s f stk [e] r ∧ ResOut C s' f' out r
@@ -598,7 +622,7 @@ theorem bwd_cons {e : BExpr} {es : List BExpr} (h1 : Bwd1 o C e) (hl : BwdL o C 
       expression (BExpr.lower e) ++ expression (BExpr.lowerList es) by
     simp [BExpr.lowerList, expression]] at h
   obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
-  simp only [xFreeL, Bool.and_eq_true] at hx
+  simp only [tailFreeL, Bool.and_eq_true] at hx
   obtain ⟨r₁, hr₁, hres₁⟩ := h1 ht hx.1 ha
   by_cases hn : ∃ us, o₁ = .normal us
   · obtain ⟨us, rfl⟩ := hn
@@ -613,9 +637,9 @@ theorem bwd_cons {e : BExpr} {es : List BExpr} (h1 : Bwd1 o C e) (hl : BwdL o C 
 
 /-- **A flat operator tree, backwards.** -/
 theorem bwd1_op_flat {i : Instr} {args : List BExpr} (hi : ∀ x, i ≠ .call x)
-    (iha : BwdL o C args) : Bwd1 o C (.op i args) := by
+    (hxi : isXCall i = false) (iha : BwdL o C args) : Bwd1 o C (.op i args) := by
   intro s s' f f' stk out es ht hx h
-  simp only [xFree, Bool.and_eq_true, Bool.not_eq_true'] at hx
+  simp only [tailFree, Bool.and_eq_true, Bool.not_eq_true'] at hx
   rw [show expression (BExpr.lower (.op i args)) =
       expression (BExpr.lowerList args) ++ [.plain i] by simp [BExpr.lower, expression]] at h
   obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
@@ -630,7 +654,7 @@ theorem bwd1_op_flat {i : Instr} {args : List BExpr} (hi : ∀ x, i ≠ .call x)
     obtain ⟨rest, hct, -, -, labels, ret, oc, -, hfc⟩ := site_typedT hC hCk hT ht
     have hct' : Sim.ContextTyped ⟨sa, fa, vals us.reverse.reverse ++ [.plain i]⟩ :=
       Sim.ContextTyped.suffix (rest := rest) (by rw [List.append_assoc]; exact hct)
-    obtain ⟨fl, hev, hrel⟩ := flat_bwd hi (flatChk_of_tExt hx.1 hfc) hct' (by simpa using hb)
+    obtain ⟨fl, hev, hrel⟩ := flat_bwd hi (flatChk_of_tExt hxi hfc) hct' (by simpa using hb)
     by_cases hN : fl.IsNormal
     · rcases fl with stk₂ | _ | _ | _ | _ <;> simp only [Flow.IsNormal] at hN
       exact ⟨_, .opOk hi hra hev .nil, resOut_of_rel (flowRel_not_tail hrel) hrel⟩
@@ -644,7 +668,7 @@ omit hC hCk in
 theorem bwd1_call {x : FuncIdx} {args : List BExpr} (iha : BwdL o C args) :
     Bwd1 o C (.op (.call x) args) := by
   intro s s' f f' stk out es ht hx h
-  simp only [xFree, Bool.and_eq_true] at hx
+  simp only [tailFree, Bool.and_eq_true] at hx
   rw [show expression (BExpr.lower (.op (.call x) args)) =
       expression (BExpr.lowerList args) ++ [.plain (.call x)] by
     simp [BExpr.lower, expression]] at h
@@ -676,7 +700,7 @@ theorem bwd1_call {x : FuncIdx} {args : List BExpr} (iha : BwdL o C args) :
 theorem bwd1_block {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
     Bwd1 o C (.block bt body) := by
   intro s s' f f' stk out es ht hx h
-  simp only [xFree] at hx
+  simp only [tailFree] at hx
   have ht0 := ht
   obtain ⟨rest, labels, ret, out', hS, hc, -, -, -⟩ := ht0
   obtain ⟨o₀, h1, -⟩ := chk_consE.mp hc
@@ -700,7 +724,7 @@ theorem bwd1_block {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
 theorem bwd1_loop {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
     Bwd1 o C (.loop bt body) := by
   intro s s' f f' stk out es ht hx h
-  simp only [xFree] at hx
+  simp only [tailFree] at hx
   have ht0 := ht
   obtain ⟨rest, labels, ret, out', hS, hc, -, -, -⟩ := ht0
   obtain ⟨o₀, h1, -⟩ := chk_consE.mp hc
@@ -735,7 +759,7 @@ theorem bwd1_loop {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
 theorem bwd1_if {bt : BlockType} {c t el : List BExpr} (ihc : BwdL o C c) (iht : BwdL o C t)
     (ihe : BwdL o C el) : Bwd1 o C (.if_ bt c t el) := by
   intro s s' f f' stk out es ht hx h
-  simp only [xFree, Bool.and_eq_true] at hx
+  simp only [tailFree, Bool.and_eq_true] at hx
   rw [show expression (BExpr.lower (.if_ bt c t el)) = expression (BExpr.lowerList c) ++
       [.plain (.if_ bt (BExpr.lowerList t) (BExpr.lowerList el))] by
     simp [BExpr.lower, expression]] at h
@@ -767,7 +791,7 @@ theorem bwd1_if {bt : BlockType} {c t el : List BExpr} (ihc : BwdL o C c) (iht :
     have hta := arm_typedT hC hCk hT hb' har₁ ht
     have hp : np ≤ ws.reverse.length := by simp at hp1 ⊢; omega
     have iharm : BwdL o C (if (k != 0) = true then t else el) := by split <;> assumption
-    have hxa : xFreeL (if (k != 0) = true then t else el) = true := by split <;> simp_all
+    have hxa : tailFreeL (if (k != 0) = true then t else el) = true := by split <;> simp_all
     have hlow : BExpr.lowerList (if (k != 0) = true then t else el) =
         if k = 0 then BExpr.lowerList el else BExpr.lowerList t := by
       by_cases hk0 : k = 0
@@ -792,6 +816,118 @@ theorem bwd1_if {bt : BlockType} {c t el : List BExpr} (ihc : BwdL o C c) (iht :
     obtain ⟨rfl, rfl, rfl⟩ := thenC_stop_inv hn hb
     exact ⟨_, .ifAbort hrc (not_normal_of_res hresc hn), hresc⟩
 
+
+omit hC hCk in
+/-- **An indirect call tree, backwards**: the region resolves the callee as the native evaluator
+does (`CallRes.IndRes`), and the call is answered by the same oracle entry. -/
+theorem bwd1_callInd {x : TableIdx} {y : TypeIdx} {args : List BExpr} (iha : BwdL o C args) :
+    Bwd1 o C (.op (.callIndirect x y) args) := by
+  intro s s' f f' stk out es ht hx h
+  simp only [tailFree, Bool.and_eq_true] at hx
+  rw [show expression (BExpr.lower (.op (.callIndirect x y) args)) =
+      expression (BExpr.lowerList args) ++ [.plain (.callIndirect x y)] by
+    simp [BExpr.lower, expression]] at h
+  obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
+  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hx.2 ha
+  by_cases hn : ∃ us, o₁ = .normal us
+  swap
+  · simp only [not_exists] at hn
+    obtain ⟨rfl, rfl, rfl⟩ := thenC_stop_inv hn hb
+    exact ⟨_, .argsAbort hra (not_normal_of_res hresa hn), hresa⟩
+  obtain ⟨us, rfl⟩ := hn
+  have he := resOut_normal_inv hresa
+  simp only [Prod.mk.injEq] at he
+  obtain ⟨rfl, rfl, rfl⟩ := he
+  simp only [ThenC] at hb
+  cases hb with
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
+  | val hv => simp [Admin.val?] at hv
+  | simple hi => simp [SingleThreaded.Det.famOf] at hi
+  | simpleTrap hi => simp [SingleThreaded.Det.famOf] at hi
+  | brData hb => cases hb
+  | @callInd _ s₂ _ _ _ ws us' vs _ _ ad i fa' fi ps rs fl _ _ hres hfi hty hn' hcall hvs hk =>
+    rw [show (ws ++ us' ++ [Val.num ⟨.int ad.intType, i⟩]).reverse =
+      .num ⟨.int ad.intType, i⟩ :: (ws ++ us').reverse by simp] at hra
+    obtain ⟨htk, hdr⟩ := take_rev_append (ws := ws) hn'
+    obtain ⟨rfl, rfl, rfl⟩ := Proofs.Region.run_nil_inv hk
+    refine ⟨_, .callIndOk hra hres hfi hty (by rw [htk]; exact hcall) hvs .nil, rfl, rfl, ?_⟩
+    rw [hdr]; simp [FlowRel]
+  | @callIndTrap _ _ _ ws us' _ _ ad i fa' fi ps rs _ hres hfi hty hn' hcall =>
+    rw [show (ws ++ us' ++ [Val.num ⟨.int ad.intType, i⟩]).reverse =
+      .num ⟨.int ad.intType, i⟩ :: (ws ++ us').reverse by simp] at hra
+    obtain ⟨htk, -⟩ := take_rev_append (ws := ws) hn'
+    exact ⟨_, .callIndStop (fl := .trap) hra hres hfi hty (by rw [htk]; exact hcall)
+      (by simp [Flow.Abrupt]), rfl, rfl, trivial⟩
+  | @callIndThrow _ _ _ ws us' _ _ ad i fa' t fi ps rs _ hres hfi hty hn' hcall =>
+    rw [show (ws ++ us' ++ [Val.num ⟨.int ad.intType, i⟩]).reverse =
+      .num ⟨.int ad.intType, i⟩ :: (ws ++ us').reverse by simp] at hra
+    obtain ⟨htk, -⟩ := take_rev_append (ws := ws) hn'
+    exact ⟨_, .callIndStop (fl := .throw t) hra hres hfi hty (by rw [htk]; exact hcall)
+      (by simp [Flow.Abrupt]), rfl, rfl, rfl⟩
+  | @callIndRes _ _ ws _ _ ad i _ hres =>
+    rw [show (ws ++ [Val.num ⟨.int ad.intType, i⟩]).reverse =
+      .num ⟨.int ad.intType, i⟩ :: ws.reverse by simp] at hra
+    exact ⟨_, .callIndRes hra hres, rfl, rfl, trivial⟩
+
+omit hC hCk in
+/-- **A reference call tree, backwards.** -/
+theorem bwd1_callRef {y : TypeIdx} {args : List BExpr} (iha : BwdL o C args) :
+    Bwd1 o C (.op (.callRef y) args) := by
+  intro s s' f f' stk out es ht hx h
+  simp only [tailFree, Bool.and_eq_true] at hx
+  rw [show expression (BExpr.lower (.op (.callRef y) args)) =
+      expression (BExpr.lowerList args) ++ [.plain (.callRef y)] by
+    simp [BExpr.lower, expression]] at h
+  obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
+  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hx.2 ha
+  by_cases hn : ∃ us, o₁ = .normal us
+  swap
+  · simp only [not_exists] at hn
+    obtain ⟨rfl, rfl, rfl⟩ := thenC_stop_inv hn hb
+    exact ⟨_, .argsAbort hra (not_normal_of_res hresa hn), hresa⟩
+  obtain ⟨us, rfl⟩ := hn
+  have he := resOut_normal_inv hresa
+  simp only [Prod.mk.injEq] at he
+  obtain ⟨rfl, rfl, rfl⟩ := he
+  simp only [ThenC] at hb
+  cases hb with
+  | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+  | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
+  | val hv => simp [Admin.val?] at hv
+  | simple hi => simp [SingleThreaded.Det.famOf] at hi
+  | simpleTrap hi => simp [SingleThreaded.Det.famOf] at hi
+  | brData hb => cases hb
+  | @callRef _ s₂ _ _ _ ws us' vs _ fa' fi ps rs fl _ _ hfi hty hn' hcall hvs hk =>
+    rw [show (ws ++ us' ++ [Val.ref (.func fa')]).reverse =
+      .ref (.func fa') :: (ws ++ us').reverse by simp] at hra
+    obtain ⟨htk, hdr⟩ := take_rev_append (ws := ws) hn'
+    obtain ⟨rfl, rfl, rfl⟩ := Proofs.Region.run_nil_inv hk
+    refine ⟨_, .callRefOk hra hfi hty (by rw [htk]; exact hcall) hvs .nil, rfl, rfl, ?_⟩
+    rw [hdr]; simp [FlowRel]
+  | @callRefTrap _ _ _ ws us' _ fa' fi ps rs _ hfi hty hn' hcall =>
+    rw [show (ws ++ us' ++ [Val.ref (.func fa')]).reverse =
+      .ref (.func fa') :: (ws ++ us').reverse by simp] at hra
+    obtain ⟨htk, -⟩ := take_rev_append (ws := ws) hn'
+    exact ⟨_, .callRefStop (fl := .trap) hra hfi hty (by rw [htk]; exact hcall)
+      (by simp [Flow.Abrupt]), rfl, rfl, trivial⟩
+  | @callRefThrow _ _ _ ws us' _ fa' t fi ps rs _ hfi hty hn' hcall =>
+    rw [show (ws ++ us' ++ [Val.ref (.func fa')]).reverse =
+      .ref (.func fa') :: (ws ++ us').reverse by simp] at hra
+    obtain ⟨htk, -⟩ := take_rev_append (ws := ws) hn'
+    exact ⟨_, .callRefStop (fl := .throw t) hra hfi hty (by rw [htk]; exact hcall)
+      (by simp [Flow.Abrupt]), rfl, rfl, rfl⟩
+  | @callRefNull _ _ ws _ _ =>
+    rw [show (ws ++ [Val.ref .null]).reverse = .ref .null :: ws.reverse by simp] at hra
+    exact ⟨_, .callRefNull hra, rfl, rfl, trivial⟩
+
+omit hC hCk in
+/-- Tail calls are outside the fragment. -/
+theorem bwd1_tail {i : Instr} {args : List BExpr} (hi : isTailCall i = true) :
+    Bwd1 o C (.op i args) := by
+  intro s s' f f' stk out es ht hx h
+  simp [tailFree, hi] at hx
+
 omit hC hCk in
 /-- `try_table` does not pass the tail checker, so it has no typed backward case to prove. -/
 theorem bwd1_tryTable {bt : BlockType} {cs : List Catch} {body : List BExpr} :
@@ -800,6 +936,24 @@ theorem bwd1_tryTable {bt : BlockType} {cs : List Catch} {body : List BExpr} :
   obtain ⟨rest, labels, ret, out', hS, hc, -, -, -⟩ := ht
   obtain ⟨o₀, h1, -⟩ := chk_consE.mp hc
   simp [chk1E, tExt] at h1
+
+
+/-- **An operator tree, backwards**: a direct, indirect or reference call, or a flat
+instruction; tail calls are outside the fragment. -/
+theorem bwd1_op {i : Instr} {args : List BExpr} (iha : BwdL o C args) :
+    Bwd1 o C (.op i args) := by
+  intro s s' f f' stk out es ht hx h
+  rcases Classical.em (∃ x, i = .call x) with ⟨x, rfl⟩ | hcall
+  · exact bwd1_call iha ht hx h
+  cases htc : isTailCall i
+  swap
+  · exact bwd1_tail htc ht hx h
+  cases hxi : isXCall i
+  · exact bwd1_op_flat hC hCk (fun x hx => hcall ⟨x, hx⟩) hxi iha ht hx h
+  · cases i <;> simp only [isXCall, isTailCall, reduceCtorEq] at hxi htc <;>
+      first
+        | exact bwd1_callInd iha ht hx h
+        | exact bwd1_callRef iha ht hx h
 
 omit hC hCk in
 theorem bwdL_nil : BwdL o C [] := by
@@ -823,11 +977,7 @@ theorem bwdL_all : ∀ es, BwdL o C es := by
     have ihr : BwdL o C es := ih (sizeOf es) (by omega) es rfl
     have h1 : Bwd1 o C e := by
       cases e with
-      | op i args =>
-        by_cases hcall : ∃ x, i = .call x
-        · obtain ⟨x, rfl⟩ := hcall
-          exact bwd1_call (ihe args (by simp))
-        · exact bwd1_op_flat hC hCk (fun x hx => hcall ⟨x, hx⟩) (ihe args (by simp))
+      | op i args => exact bwd1_op hC hCk (ihe args (by simp))
       | block bt body => exact bwd1_block hC hCk (ihe body (by simp))
       | loop bt body => exact bwd1_loop hC hCk (ihe body (by simp))
       | if_ bt c t el =>
