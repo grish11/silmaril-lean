@@ -1217,4 +1217,19 @@ theorem countdown_not_infRounds {a : ℕ → PUnit} {r : ℕ → List (Call E) �
 
 end Counter
 
+/-! ## Determinism gives store determinism -/
+
+theorem agree_self {E : Sig.{u}} {S B : Type u} {c : List (Call E)} {e e' : End S B}
+    (h : AFun.Agree c e c e') : e = e' := by
+  induction c with
+  | nil => exact h
+  | cons x c ih => obtain ⟨m, n⟩ := x; exact ih (h.2 HEq.rfl)
+
+theorem storeDet_of_det {E : Sig.{u}} {S A B : Type u} {t : ObsTriple E S A B}
+    (h : AFun.Det t.1) : StoreDet t := by
+  intro s a c b s₁ s₂ h₁ h₂
+  have h' : AFun.Agree c (End.ret b s₁) c (End.ret b s₂) := h s a (c, .ret b s₁) (c, .ret b s₂) h₁ h₂
+  have := agree_self h'
+  injection this
+
 end Silmaril.Proofs.Games.Abstract.StratThread

@@ -293,4 +293,19 @@ theorem threadT_sat (t : ObsTriple E S A B) (s₀ : S) : threadT (sat t) s₀ = 
 theorem thread_toDStrat (t : ObsTriple E S A B) (s₀ : S) : thread (toDStrat t) s₀ = threadT t s₀ := by
   rw [thread, StratOps.readback_toDStrat, threadT_sat]
 
+/-! ## Determinism gives store determinism -/
+
+/-- **Determinism given answers implies store determinism.** If the finished behaviours of `t`
+are deterministic given the import answers (`AFun.Det t.1`, the `fin` field of the Wasm
+criterion `BodyDet.TripleDet`), then two returns after the same log with the same value end in
+the same store. So `threadT_eq_iff` and `mem_inf_iff_of_storeDet` apply: the infinite plays of
+the threading are coherent round sequences.
+
+Scope: `StoreDet` constrains returns `.ret b s'` only. A plain `End.trap` carries no store, and
+`threadT` ends the session there, so nothing is lost. For a store-retaining source
+(`StratSession`), a trap is the return `.ret (.inr ()) s'`, so the same theorem makes the trap
+store determined too. -/
+theorem storeDet_of_det (h : AFun.Det t.1) : StoreDet t :=
+  Silmaril.Proofs.Games.Abstract.StratThread.storeDet_of_det h
+
 end Silmaril.Games.Abstract.StratThread
