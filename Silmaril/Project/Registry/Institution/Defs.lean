@@ -18,6 +18,7 @@ the graph of the declarations.
 | `comorphism N := f` | `f : Inst.CoHom A B` with `A`, `B` registered institutions | `from`, `to`, `type`, `levels`, `doc` |
 | `morphism N := f` | `f : Inst.Hom A B` with `A`, `B` registered institutions | `from`, `to`, `type`, `levels`, `doc` |
 | `corridor N := c` | `c : Silmaril.Logic.Institution.Corridor R₁ R₂` with `R₁`, `R₂` registered rooms | `from`, `to`, `type`, `levels`, `doc` |
+| `institution`, `room` | not defined exactly as an already registered one (one node per institution or room) | |
 | any of the five | not a generic construction: no binder ranges over institutions, rooms or maps (`genericBinderHeads`) | |
 | `logic_audit (prefix := P)` | — | one record per declaration under `P` whose type is one of the five |
 
@@ -36,7 +37,8 @@ The difference is the direction of the rest:
 registered node whose declaration is the endpoint of the type up to reducible unfolding (with
 fresh universe levels). An endpoint that is not registered is an error, and so is one that
 is an instance of two registered nodes, unless one of them is the endpoint's own head constant
-(a family defined as an instance of another).  A given endpoint is checked at default transparency.
+(a family defined as an instance of another), or else the one whose own definition is the
+endpoint up to reducible unfolding (not an alias of it).  A given endpoint is checked at default transparency.
 
 **Facts.** `(facts := [p, …])` lists theorems about the edge. Lean checks that each states a
 known property *of this declaration* and records it with the theorem's axioms:
@@ -159,6 +161,22 @@ def resolveEndpoint (kind side ofKind : String) (e : Expr) (given? : Option Stri
       let own := ms.filter fun (n, _) =>
         ((findRecord? env ofKind n).bind (·.str? "decl")).map String.toName == head
       if own.size == 1 then ms := own
+    -- aliases (`def B := A`) match too: prefer the declaration whose own definition is the
+    -- endpoint up to reducible unfolding
+    if ms.size > 1 then
+      let env ← getEnv
+      let mut direct := #[]
+      for m in ms do
+        let some d := (findRecord? env ofKind m.1).bind (·.str? "decl") | continue
+        let some info := env.find? d.toName | continue
+        let some v := info.value? | continue
+        let ok ← withoutModifyingState do
+          let lvls ← info.levelParams.mapM fun _ => mkFreshLevelMVar
+          let v := v.instantiateLevelParams info.levelParams lvls
+          let (_, _, body) ← lambdaMetaTelescope v
+          withTransparency .reducible (isDefEq e body)
+        if ok then direct := direct.push m
+      if direct.size == 1 then ms := direct
     match ms.toList with
     | [m] => return m
     | [] => throwError "silmaril {kind}: the {side} endpoint{indentExpr e}\nis not a registered \
@@ -262,6 +280,18 @@ def logicRecord (kind : String) (name? : Option String) (fs : Fields) :
   if info matches .thmInfo _ then
     throwError "silmaril {kind}: {d} is a theorem; register the definition"
   let given (k : String) := match fs.get? k with | some (.str s) => some s | _ => none
+  -- one node per institution or room: a definition identical to a registered one's is a duplicate
+  if kind == "institution" || kind == "room" then
+    if let some v := info.value? then
+      for r in records (← getEnv) do
+        unless r.kind == kind do continue
+        let some d' := r.str? "decl" | continue
+        let some i' := (← getEnv).find? d'.toName | continue
+        let some v' := i'.value? | continue
+        if i'.levelParams.length == info.levelParams.length &&
+            v' == v.instantiateLevelParams info.levelParams (i'.levelParams.map Level.param) then
+          throwError "silmaril {kind}: {d} is defined exactly as {d'}, registered as {kind} {r.name}: \
+            the same {kind} is registered once"
   let filled ← logicTelescope d fun xs ty => do
     unless ty.isAppOf head do
       throwError "silmaril {kind}: {d} has type{indentExpr info.type}\nbut a {kind} is a `{head}` \

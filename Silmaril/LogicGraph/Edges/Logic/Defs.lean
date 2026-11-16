@@ -1,5 +1,112 @@
 module
 
+public import Silmaril.Logic.Algebraic.DependentFamily
+public import Silmaril.Logic.Algebraic.DependentFamily.Category
+public import Silmaril.Logic.Algebraic.DependentFamily.Defs
+public import Silmaril.Logic.Algebraic.DependentFamily.Equational
+public import Silmaril.Logic.Algebraic.Initial
+public import Silmaril.Logic.Algebraic.Initial.Defs
+public import Silmaril.Logic.Algebraic.Initial.Generation.Audits
+public import Silmaril.Logic.Algebraic.Initial.Generation.Defs
+public import Silmaril.Logic.Algebraic.Initial.Generation.Examples
+public import Silmaril.Logic.Algebraic.Initial.Generation.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.Algebra
+public import Silmaril.Logic.Algebraic.Initial.Matching.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.Examples
+public import Silmaril.Logic.Algebraic.Initial.Matching.FinitePresented.Audits
+public import Silmaril.Logic.Algebraic.Initial.Matching.FinitePresented.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.FinitePresented.Examples
+public import Silmaril.Logic.Algebraic.Initial.Matching.FinitePresented.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Audits
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Examples
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Expansion.Audits
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Expansion.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Expansion.Examples
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Expansion.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Institution.Audits
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Institution.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Institution.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Naturality.Audits
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Naturality.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.Examples
+public import Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.Institution
+public import Silmaril.Logic.Algebraic.Initial.Matching.Models
+public import Silmaril.Logic.Algebraic.Initial.Matching.Presented.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.Presented.Examples
+public import Silmaril.Logic.Algebraic.Initial.Matching.Presented.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.SignedSpectrum.Defs
+public import Silmaril.Logic.Algebraic.Initial.Matching.SignedSpectrum.Examples
+public import Silmaril.Logic.Algebraic.Initial.Matching.SignedSpectrum.Thms
+public import Silmaril.Logic.Algebraic.Initial.Matching.Thms
+public import Silmaril.Logic.Algebraic.Initial.Quotient.Audits
+public import Silmaril.Logic.Algebraic.Initial.Quotient.Characterization.Audits
+public import Silmaril.Logic.Algebraic.Initial.Quotient.Characterization.Defs
+public import Silmaril.Logic.Algebraic.Initial.Quotient.Characterization.Examples
+public import Silmaril.Logic.Algebraic.Initial.Quotient.Characterization.Thms
+public import Silmaril.Logic.Algebraic.Initial.Quotient.Defs
+public import Silmaril.Logic.Algebraic.Initial.Quotient.Examples
+public import Silmaril.Logic.Algebraic.Initial.Quotient.Thms
+public import Silmaril.Logic.Algebraic.Initial.Thms
+public import Silmaril.Logic.Algebraic.Lambda
+public import Silmaril.Logic.Algebraic.Lambda.Audits
+public import Silmaril.Logic.Algebraic.Lambda.Defs
+public import Silmaril.Logic.Algebraic.Lambda.Examples
+public import Silmaril.Logic.Algebraic.Lambda.Institution
+public import Silmaril.Logic.Algebraic.Lambda.Models
+public import Silmaril.Logic.Algebraic.Lambda.Semantics
+public import Silmaril.Logic.Algebraic.Lambda.Signatures
+public import Silmaril.Logic.Algebraic.Lambda.Thms
+public import Silmaril.Logic.Algebraic.Lambda.Varying
+public import Silmaril.Logic.Algebraic.Lambda.Varying.Audits
+public import Silmaril.Logic.Algebraic.Lambda.Varying.Defs
+public import Silmaril.Logic.Algebraic.Lambda.Varying.Examples
+public import Silmaril.Logic.Algebraic.Lambda.Varying.Institution
+public import Silmaril.Logic.Algebraic.Lambda.Varying.Thms
+public import Silmaril.Logic.Algebraic.ManySorted.Defs
+public import Silmaril.Logic.Algebraic.ManySorted.Examples
+public import Silmaril.Logic.Algebraic.ManySorted.Horn
+public import Silmaril.Logic.Algebraic.ManySorted.PublicEQ
+public import Silmaril.Logic.Algebraic.ManySorted.PublicEQ.Audits
+public import Silmaril.Logic.Algebraic.ManySorted.PublicEQ.Defs
+public import Silmaril.Logic.Algebraic.ManySorted.PublicEQ.Examples
+public import Silmaril.Logic.Algebraic.ManySorted.PublicEQ.Institution
+public import Silmaril.Logic.Algebraic.ManySorted.PublicEQ.Thms
+public import Silmaril.Logic.Algebraic.ManySorted.SingleSorted
+public import Silmaril.Logic.Algebraic.ManySorted.Substitution
+public import Silmaril.Logic.Algebraic.ManySorted.Varying
+public import Silmaril.Logic.Algebraic.ManySorted.Varying.Audits
+public import Silmaril.Logic.Algebraic.ManySorted.Varying.Defs
+public import Silmaril.Logic.Algebraic.ManySorted.Varying.Examples
+public import Silmaril.Logic.Algebraic.ManySorted.Varying.Thms
+public import Silmaril.Logic.Algebraic.OrderSorted
+public import Silmaril.Logic.Algebraic.OrderSorted.Defs
+public import Silmaril.Logic.Algebraic.OrderSorted.Examples
+public import Silmaril.Logic.Algebraic.OrderSorted.Free
+public import Silmaril.Logic.Algebraic.OrderSorted.Free.Defs
+public import Silmaril.Logic.Algebraic.OrderSorted.Free.Thms
+public import Silmaril.Logic.Algebraic.OrderSorted.Initial
+public import Silmaril.Logic.Algebraic.OrderSorted.Initial.Audits
+public import Silmaril.Logic.Algebraic.OrderSorted.Initial.Defs
+public import Silmaril.Logic.Algebraic.OrderSorted.Initial.Examples
+public import Silmaril.Logic.Algebraic.OrderSorted.Initial.Thms
+public import Silmaril.Logic.Algebraic.OrderSorted.Quotient.Audits
+public import Silmaril.Logic.Algebraic.OrderSorted.Quotient.Defs
+public import Silmaril.Logic.Algebraic.OrderSorted.Quotient.Examples
+public import Silmaril.Logic.Algebraic.OrderSorted.Quotient.Models
+public import Silmaril.Logic.Algebraic.OrderSorted.Quotient.Thms
+public import Silmaril.Logic.Algebraic.OrderSorted.Representation.Audits
+public import Silmaril.Logic.Algebraic.OrderSorted.Representation.Defs
+public import Silmaril.Logic.Algebraic.OrderSorted.Representation.Examples
+public import Silmaril.Logic.Algebraic.OrderSorted.Representation.Institution.Audits
+public import Silmaril.Logic.Algebraic.OrderSorted.Representation.Institution.Defs
+public import Silmaril.Logic.Algebraic.OrderSorted.Representation.Institution.Examples
+public import Silmaril.Logic.Algebraic.OrderSorted.Representation.Institution.Thms
+public import Silmaril.Logic.Algebraic.OrderSorted.Representation.Thms
+public import Silmaril.Logic.Algebraic.OrderSorted.Thms
 public import Silmaril.Logic.CTL
 public import Silmaril.Logic.CTL.Defs
 public import Silmaril.Logic.CTL.Derived.Thms
@@ -130,12 +237,16 @@ public import Silmaril.Logic.FirstOrderLFP.Reachability.Defs
 public import Silmaril.Logic.FirstOrderLFP.Reachability.Thms
 public import Silmaril.Logic.FirstOrderLFP.Thms
 public import Silmaril.Logic.Institution.Examples.Comorphisms
+public import Silmaril.Logic.Institution.Hets.PresentationGraph.Defs
+public import Silmaril.Logic.Institution.Hets.PresentationGraph.Thms
 public import Silmaril.Logic.Institution.Pi.Defs
 public import Silmaril.Logic.Institution.SetSentences.Defs
+public import Silmaril.Logic.Institution.SetSentences.Thms
 public import Silmaril.Logic.Institution.Structured.Constraints.Applications.ListAlgebras
 public import Silmaril.Logic.Institution.Structured.Constraints.Defs
 public import Silmaril.Logic.Institution.Structured.Constraints.Initial
 public import Silmaril.Logic.Institution.Structured.Constraints.Institution
+public import Silmaril.Logic.Institution.Structured.Constraints.Isomorphism.Thms
 public import Silmaril.Logic.Institution.Structured.Constraints.Structured
 public import Silmaril.Logic.Institution.Structured.Defs
 public import Silmaril.Logic.Institution.Structured.DiagramColimitFunctor
@@ -152,20 +263,81 @@ public import Silmaril.Logic.Institution.Structured.Theories.ModelComparison
 public import Silmaril.Logic.Institution.Structured.Theories.Models
 public import Silmaril.Logic.Institution.Structured.Theories.Thms
 public import Silmaril.Logic.Institution.Structured.Thms
+public import Silmaril.Logic.Matching.FirstOrder.Algebraic
 public import Silmaril.Logic.Matching.FirstOrder.Defs
+public import Silmaril.Logic.Matching.FirstOrder.Examples
 public import Silmaril.Logic.Matching.FirstOrder.Pointed
 public import Silmaril.Logic.Matching.FirstOrder.Pointed.Defs
 public import Silmaril.Logic.Matching.FirstOrder.Pointed.Examples
 public import Silmaril.Logic.Matching.FirstOrder.Pointed.Hets
 public import Silmaril.Logic.Matching.FirstOrder.Pointed.Propositional
+public import Silmaril.Logic.Matching.FirstOrder.Predicate.Defs
+public import Silmaril.Logic.Matching.FirstOrder.Predicate.Examples
+public import Silmaril.Logic.Matching.FirstOrder.Predicate.Thms
 public import Silmaril.Logic.Matching.FirstOrder.Thms
+public import Silmaril.Logic.Matching.FirstOrder.Variables.Defs
+public import Silmaril.Logic.Matching.FirstOrder.Variables.Thms
 public import Silmaril.Logic.Matching.FixedPoint
 public import Silmaril.Logic.Matching.FixedPoint.Defs
 public import Silmaril.Logic.Matching.FixedPoint.Dual.Thms
+public import Silmaril.Logic.Matching.FixedPoint.Examples
 public import Silmaril.Logic.Matching.FixedPoint.Modal.Defs
 public import Silmaril.Logic.Matching.FixedPoint.Modal.Thms
+public import Silmaril.Logic.Matching.FixedPoint.Simultaneous.Defs
+public import Silmaril.Logic.Matching.FixedPoint.Simultaneous.Examples
+public import Silmaril.Logic.Matching.FixedPoint.Simultaneous.SyntaxAudits
+public import Silmaril.Logic.Matching.FixedPoint.Simultaneous.SyntaxExamples
+public import Silmaril.Logic.Matching.FixedPoint.Simultaneous.Thms
+public import Silmaril.Logic.Matching.FixedPoint.SortNaturality.Audits
+public import Silmaril.Logic.Matching.FixedPoint.SortNaturality.Defs
+public import Silmaril.Logic.Matching.FixedPoint.SortNaturality.Examples
+public import Silmaril.Logic.Matching.FixedPoint.SortNaturality.Thms
 public import Silmaril.Logic.Matching.FixedPoint.Thms
 public import Silmaril.Logic.Matching.FixedPoint.Variables.Thms
+public import Silmaril.Logic.Matching.GeneralFixedPoint.Defs
+public import Silmaril.Logic.Matching.GeneralFixedPoint.Institution
+public import Silmaril.Logic.Matching.GeneralFixedPoint.SetObjects.Defs
+public import Silmaril.Logic.Matching.GeneralFixedPoint.SetObjects.Thms
+public import Silmaril.Logic.Matching.GeneralFixedPoint.SortNaturality.Defs
+public import Silmaril.Logic.Matching.GeneralFixedPoint.SortNaturality.Thms
+public import Silmaril.Logic.Matching.GeneralFixedPoint.Thms
+public import Silmaril.Logic.Matching.GeneralFixedPoint.Variables.Algebraic
+public import Silmaril.Logic.Matching.GeneralFixedPoint.Variables.Audits
+public import Silmaril.Logic.Matching.GeneralFixedPoint.Variables.Defs
+public import Silmaril.Logic.Matching.GeneralFixedPoint.Variables.Examples
+public import Silmaril.Logic.Matching.GeneralFixedPoint.Variables.Thms
+public import Silmaril.Logic.Matching.GuardedFOL
+public import Silmaril.Logic.Matching.GuardedFOL.Defs
+public import Silmaril.Logic.Matching.GuardedFOL.Examples
+public import Silmaril.Logic.Matching.GuardedFOL.Expansion
+public import Silmaril.Logic.Matching.GuardedFOL.FixedPoint.Audits
+public import Silmaril.Logic.Matching.GuardedFOL.FixedPoint.Defs
+public import Silmaril.Logic.Matching.GuardedFOL.FixedPoint.Thms
+public import Silmaril.Logic.Matching.GuardedFOL.Structure
+public import Silmaril.Logic.Matching.GuardedFOL.Thms
+public import Silmaril.Logic.Matching.GuardedLFP
+public import Silmaril.Logic.Matching.GuardedLFP.Audits
+public import Silmaril.Logic.Matching.GuardedLFP.Binders
+public import Silmaril.Logic.Matching.GuardedLFP.Boolean.Defs
+public import Silmaril.Logic.Matching.GuardedLFP.Boolean.Examples
+public import Silmaril.Logic.Matching.GuardedLFP.Boolean.Thms
+public import Silmaril.Logic.Matching.GuardedLFP.Defs
+public import Silmaril.Logic.Matching.GuardedLFP.Examples
+public import Silmaril.Logic.Matching.GuardedLFP.Expansion
+public import Silmaril.Logic.Matching.GuardedLFP.Institution
+public import Silmaril.Logic.Matching.GuardedLFP.Retraction
+public import Silmaril.Logic.Matching.GuardedLFP.Sentences
+public import Silmaril.Logic.Matching.GuardedLFP.Structure
+public import Silmaril.Logic.Matching.GuardedLFP.Thms
+public import Silmaril.Logic.Matching.GuardedLFP.Translation
+public import Silmaril.Logic.Matching.SortMaps
+public import Silmaril.Logic.Matching.SortMaps.Defs
+public import Silmaril.Logic.Matching.SortMaps.Examples
+public import Silmaril.Logic.Matching.SortMaps.GeneralFixedPoint.Controls
+public import Silmaril.Logic.Matching.SortMaps.GeneralFixedPoint.Defs
+public import Silmaril.Logic.Matching.SortMaps.GeneralFixedPoint.Institution
+public import Silmaril.Logic.Matching.SortMaps.GeneralFixedPoint.Thms
+public import Silmaril.Logic.Matching.SortMaps.Thms
 public import Silmaril.Logic.Modal.Propositional
 public import Silmaril.Logic.ModalMu
 public import Silmaril.Logic.ModalMu.AtomSubstitution.Audits
@@ -204,6 +376,12 @@ public import Silmaril.Logic.Prolog.Definite.Thms
 public import Silmaril.Logic.Reachability.Defs
 public import Silmaril.Logic.Reachability.Relational
 public import Silmaril.Logic.Reachability.Thms
+public import Silmaril.Logic.STLCMatching.Defs
+public import Silmaril.Logic.STLCMatching.Institution
+public import Silmaril.Logic.STLCMatching.Native
+public import Silmaril.Logic.STLCMatching.Naturality
+public import Silmaril.Logic.STLCMatching.Sentences
+public import Silmaril.Logic.STLCMatching.Signatures
 public import Silmaril.Logic.Temporal.Buchi.Audits
 public import Silmaril.Logic.Temporal.Buchi.Automaton.Audits
 public import Silmaril.Logic.Temporal.Buchi.Automaton.Base.Audits
@@ -300,6 +478,17 @@ Lean finds the endpoints of each edge among the registered institutions and room
 -/
 
 silmaril comorphism inst.comorphism.of_obs := Silmaril.Inst.Comorphism.ofObs (facts := [Silmaril.Inst.Comorphism.ofObs_modelExpansive])
+silmaril comorphism logic.algebraic.initial.from_equational := Silmaril.Logic.Algebraic.Initial.fromEquational (facts := [Silmaril.Logic.Algebraic.Initial.fromEquational_modelExpansive])
+silmaril comorphism logic.algebraic.lambda.varying.to_stlc := Silmaril.Logic.Algebraic.Lambda.Varying.toSTLC (facts := [Silmaril.Logic.Algebraic.Lambda.Varying.toSTLC_modelExpansive])
+silmaril comorphism logic.algebraic.lambda.to_stlc := Silmaril.Logic.Algebraic.Lambda.toSTLC (facts := [Silmaril.Logic.Algebraic.Lambda.toSTLC_modelExpansive])
+silmaril comorphism logic.algebraic.many_sorted.public_eq.to_many_sorted := Silmaril.Logic.Algebraic.ManySorted.PublicEQ.toManySorted (facts := [Silmaril.Logic.Algebraic.ManySorted.PublicEQ.toManySorted_modelExpansive])
+silmaril comorphism logic.algebraic.many_sorted.public_eq.to_public_eq := Silmaril.Logic.Algebraic.ManySorted.PublicEQ.toPublicEQ (facts := [Silmaril.Logic.Algebraic.ManySorted.PublicEQ.toPublicEQ_modelExpansive])
+silmaril comorphism logic.algebraic.many_sorted.varying.to_many_sorted := Silmaril.Logic.Algebraic.ManySorted.Varying.toManySorted (facts := [Silmaril.Logic.Algebraic.ManySorted.Varying.toManySorted_modelExpansive])
+silmaril comorphism logic.algebraic.many_sorted.varying.to_public_eq := Silmaril.Logic.Algebraic.ManySorted.Varying.toPublicEQ (facts := [Silmaril.Logic.Algebraic.ManySorted.Varying.toPublicEQ_modelExpansive])
+silmaril comorphism logic.algebraic.many_sorted.equation_horn_comorphism := Silmaril.Logic.Algebraic.ManySorted.equationHornComorphism
+silmaril comorphism logic.algebraic.order_sorted.initial.from_order_sorted := Silmaril.Logic.Algebraic.OrderSorted.Initial.fromOrderSorted (facts := [Silmaril.Logic.Algebraic.OrderSorted.Initial.fromOrderSorted_modelExpansive])
+silmaril comorphism logic.algebraic.order_sorted.representation.to_literal := Silmaril.Logic.Algebraic.OrderSorted.Representation.toLiteral
+silmaril comorphism logic.algebraic.order_sorted.from_equational := Silmaril.Logic.Algebraic.OrderSorted.fromEquational (facts := [Silmaril.Logic.Algebraic.OrderSorted.fromEquational_modelExpansive])
 silmaril comorphism logic.ctl.ctl_to_mu := Silmaril.Logic.CTL.ctlToMu (facts := [Silmaril.Logic.CTL.ctlToMu_modelExpansive])
 silmaril comorphism logic.ctl.k_to_ctl := Silmaril.Logic.CTL.kToCTL (facts := [Silmaril.Logic.CTL.kToCTL_modelExpansive])
 silmaril comorphism logic.common_logic.finite_list_fol.comorphism := Silmaril.Logic.CommonLogic.FiniteListFOL.comorphism (facts := [Silmaril.Logic.CommonLogic.FiniteListFOL.comorphism_modelExpansive])
@@ -327,16 +516,26 @@ silmaril comorphism logic.matching.first_order.pointed.propositional_to_pointed_
 silmaril comorphism logic.matching.fixed_point.first_order_pointed_to_fixed_point := Silmaril.Logic.Matching.FixedPoint.firstOrderPointedToFixedPoint (facts := [Silmaril.Logic.Matching.FixedPoint.firstOrderPointedToFixedPoint_modelExpansive])
 silmaril comorphism logic.matching.fixed_point.first_order_to_fixed_point := Silmaril.Logic.Matching.FixedPoint.firstOrderToFixedPoint (facts := [Silmaril.Logic.Matching.FixedPoint.firstOrderToFixedPoint_modelExpansive])
 silmaril comorphism logic.matching.fixed_point.modal_to_matching := Silmaril.Logic.Matching.FixedPoint.modalToMatching (facts := [Silmaril.Logic.Matching.FixedPoint.modalToMatching_modelExpansive])
+silmaril comorphism logic.matching.general_fixed_point.positive_comorphism := Silmaril.Logic.Matching.GeneralFixedPoint.positiveComorphism (facts := [Silmaril.Logic.Matching.GeneralFixedPoint.positive_modelExpansive])
+silmaril comorphism logic.matching.guarded_fol.first_order_to_fixed_point := Silmaril.Logic.Matching.GuardedFOL.firstOrderToFixedPoint (facts := [Silmaril.Logic.Matching.GuardedFOL.firstOrderToFixedPoint_modelExpansive])
+silmaril comorphism logic.matching.guarded_fol.fol_to_guarded_fixed_point := Silmaril.Logic.Matching.GuardedFOL.folToGuardedFixedPoint
+silmaril comorphism logic.matching.guarded_fol.fol_to_guarded_matching := Silmaril.Logic.Matching.GuardedFOL.folToGuardedMatching
+silmaril comorphism logic.matching.guarded_lfp.boolean.lfp_to_guarded_matching := Silmaril.Logic.Matching.GuardedLFP.Boolean.lfpToGuardedMatching
+silmaril comorphism logic.matching.guarded_lfp.lfp_to_guarded_matching := Silmaril.Logic.Matching.GuardedLFP.lfpToGuardedMatching
+silmaril comorphism logic.matching.sort_maps.first_order_to_fixed_point := Silmaril.Logic.Matching.SortMaps.firstOrderToFixedPoint (facts := [Silmaril.Logic.Matching.SortMaps.firstOrderToFixedPoint_modelExpansive])
 silmaril comorphism logic.modal.propositional_to_modal := Silmaril.Logic.Modal.propositionalToModal
 silmaril comorphism logic.modal_mu.k_to_mu := Silmaril.Logic.ModalMu.kToMu (facts := [Silmaril.Logic.ModalMu.kToMu_modelExpansive])
 silmaril comorphism logic.pdl.k_to_pdl := Silmaril.Logic.PDL.kToPDL (facts := [Silmaril.Logic.PDL.kToPDL_modelExpansive])
 silmaril comorphism logic.prolog.definite.to_first_order := Silmaril.Logic.Prolog.Definite.toFirstOrder (facts := [Silmaril.Logic.Prolog.Definite.toFirstOrder_modelExpansive])
 silmaril comorphism logic.reachability.to_matching := Silmaril.Logic.Reachability.toMatching (facts := [Silmaril.Logic.Reachability.toMatching_modelExpansive])
+silmaril comorphism logic.stlc_matching.to_matching := Silmaril.Logic.STLCMatching.toMatching (facts := [Silmaril.Logic.STLCMatching.toMatching_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.compiler.institution.discrete_comorphism := Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.discreteComorphism (facts := [Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.discrete_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.compiler.institution.rich_comorphism := Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.richComorphism (facts := [Silmaril.Logic.Temporal.CTLStar.Compiler.Institution.rich_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.ctl_to_ctl_star := Silmaril.Logic.Temporal.CTLStar.ctlToCTLStar (facts := [Silmaril.Logic.Temporal.CTLStar.ctlToCTLStar_modelExpansive])
 silmaril comorphism logic.temporal.ctl_star.rich_to_discrete := Silmaril.Logic.Temporal.CTLStar.richToDiscrete (facts := [Silmaril.Logic.Temporal.CTLStar.richToDiscrete_modelExpansive])
 silmaril comorphism logic.temporal.ltl.propositional_to_ltl := Silmaril.Logic.Temporal.LTL.propositionalToLtl (facts := [Silmaril.Logic.Temporal.LTL.propositionalToLtl_modelExpansive])
 silmaril morphism inst.morphism.of_obs := Silmaril.Inst.Morphism.ofObs (facts := [Silmaril.Inst.Morphism.ofObs_sound])
+silmaril morphism logic.algebraic.dependent_family.equational.morphism := Silmaril.Logic.Algebraic.DependentFamily.Equational.morphism
+silmaril morphism logic.algebraic.order_sorted.to_equational := Silmaril.Logic.Algebraic.OrderSorted.toEquational
 silmaril morphism logic.common_logic.many_sorted.institution.typed_forget := Silmaril.Logic.CommonLogic.ManySorted.Institution.typedForget
 silmaril morphism logic.institution.examples.fol_to_eq := Silmaril.Logic.Institution.Examples.folToEq (facts := [Silmaril.Logic.Institution.Examples.folToEq_sound])
