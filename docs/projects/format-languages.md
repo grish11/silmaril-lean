@@ -54,10 +54,12 @@ use the definitions above; they do not restate them.
   that the rule is "shortest value-preserving width". That rule is not implemented. The
   provided rules are `none` (no floats), `only64` (CBOR/c-42 and DRISL, not RFC preferred) and
   `any`.
-- **CBOR validity:** `ModelValid` is basic validity relative to `Cbor.Value`, which is finer than
-  RFC 8949's generic data model. A half and a double float key with the same value are distinct
-  there. `ModelValid` is thus necessary but not sufficient for RFC validity. Its language
-  contains only shortest-head definite encodings. Tag-content validity is not checked.
+- **CBOR validity:** `ModelValid.ok` checks UTF-8 text and pairwise distinct key encodings in
+  `Cbor.Value`, which is finer than RFC 8949's generic data model. It accepts a map whose half and
+  double `1.5` keys RFC calls duplicates. `ModelValid.language` (shortest-head definite encodings
+  only) both excludes RFC-valid encodings (non-shortest heads, indefinite lengths) and includes
+  RFC-invalid ones. No inclusion with RFC-valid bytes is claimed in either direction; only
+  decidability and well-formedness are proved. Tag-content validity is not checked.
 - **DRISL tag 42:** whether bytes may follow a CID's digest is not settled by the normative DASL
   CID text. It is the profile parameter `CidBoundary`, and the named profiles carry it.
 - **CID hashes:** allowed as `(multihash code, digest length)` pairs. DASL is `(0x12, 32)` and BDASL

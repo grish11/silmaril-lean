@@ -19,14 +19,15 @@ the shortest-head definite encoding `v.encode` of a value whose map keys are str
 **The float part of item 1 is a parameter, not a theorem.** Deciding whether a float is in its
 shortest value-preserving width needs IEEE 754 width conversion, which is not implemented here.
 So `DetProfile.floatOk` says which `(width, bits)` floats are allowed, and every statement is
-about deterministic encoding *relative to that rule*. With `FloatRule.preferred` left
-abstract, `language` is the RFC 8949 §4.2.1 core-deterministic language **only under the
-assumption** that the supplied rule is exactly "shortest value-preserving width". It is not a
-complete RFC deterministic checker until such a rule is defined and proved. The concrete rules
+about deterministic encoding *relative to that rule*. The intended reading is that `language`
+is the RFC 8949 §4.2.1 core-deterministic language **under the assumption** that the supplied
+rule is exactly "shortest value-preserving width". No such rule is defined here, so this module
+is not a complete RFC deterministic checker. The correspondence of the other checks with §4.2.1
+is by transcription; RFC 8949 is not formalized, so it is not a theorem. The concrete rules
 provided:
 
-* `FloatRule.none`: no floats, so the assumption holds vacuously, and the language is exactly
-  the float-free core-deterministic items;
+* `FloatRule.none`: no floats are allowed, so the float rule plays no part. The language is
+  meant to be the float-free core-deterministic items (by transcription, as above);
 * `FloatRule.only64`: 64-bit floats only (the CBOR/c-42 and DRISL rule, which is *not* §4.2.1
   preferred serialization);
 * `FloatRule.any`: any width. This is deterministic in everything but floats, and is not RFC

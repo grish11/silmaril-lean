@@ -14,16 +14,25 @@ and is named so (`ModelValid`), because that model is finer than the generic dat
 * two keys are duplicates here exactly when they are equal `Value`s, which for encodable values
   is when their deterministic encodings are equal (`Value.encode` is injective);
 * the generic data model identifies some keys this model keeps apart, for example a float key
-  `1.5` at half and at double precision. So a map can be `ModelValid` while RFC 8949 calls it
-  invalid. `ModelValid` is a *necessary* condition for RFC basic validity of definite items, not
-  a sufficient one. This is a statement about the definitions, not a proved theorem: RFC 8949's
-  generic data model is not formalized here.
+  `1.5` at half and at double precision. So a value can pass `ModelValid.ok` while RFC 8949
+  calls its map keys duplicates (an example in `Thms`).
 
-Not checked: tag-content validity (§5.3.2) and any application-level validity.
+`ModelValid.ok` is therefore **not** RFC basic validity, and no inclusion between it and RFC
+validity is proved in either direction. RFC 8949's generic data model is not formalized here.
+
+Not checked: tag-content validity (§5.3.2) and any application-level validity. Every statement
+here is about values and bytes *without* any tag-validity condition.
 
 `ModelValid.language` is the set of *shortest-head definite-length* encodings `v.encode` of
-model-valid values. Well-formed items with non-shortest heads or indefinite lengths are not in
-it, even when their values are valid. It is therefore not the language of all valid CBOR items.
+values passing `ModelValid.ok`. It is neither a subset nor a superset of the RFC-valid byte
+strings, and no inclusion is claimed:
+
+* it *excludes* valid encodings: items with non-shortest heads or indefinite lengths are never
+  members, even when RFC 8949 calls them valid;
+* it *includes* invalid ones: the duplicate float-key map above is a member.
+
+What is proved is only `check_iff` (decidability) and `language_le_wellFormed` (every member is one
+well-formed CBOR item).
 -/
 
 @[expose] public section
