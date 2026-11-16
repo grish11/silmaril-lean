@@ -979,6 +979,21 @@ theorem rounds_of_run {s s₁ : S} {rs : List (A × List (Call E) × B)}
   cases h₂
   exact h₁
 
+theorem run_idle_iff {s s₁ : S} {p : List (Move E (sig1 A B))} :
+    TRun t.1 (satP t) (.idle s) p (.idle s₁) ↔ ∃ rs, p = roundsMoves rs ∧ Rounds t s rs s₁ := by
+  constructor
+  · intro h
+    obtain ⟨n, hn⟩ : ∃ n, p.length = n := ⟨_, rfl⟩
+    induction n using Nat.strong_induction_on generalizing p s with
+    | _ n ih =>
+    rcases eq_or_ne p [] with rfl | hp
+    · cases h; exact ⟨[], rfl, .nil _⟩
+    · obtain ⟨a, c, b, s₂, u, rfl, hr, hu⟩ := idle_idle_inv h hp
+      obtain ⟨rs, rfl, hrs⟩ := ih _ (by simp [roundMoves] at hn; omega) hu rfl
+      exact ⟨(a, c, b) :: rs, by simp [roundsMoves], .cons hr hrs⟩
+  · rintro ⟨rs, rfl, h⟩
+    exact rounds_run h
+
 theorem roundsPlay_mem {a : ℕ → A} {r : ℕ → List (Call E) × B}
     (h : ∀ k, ∃ s, Rounds t s₀ (streamTake (fun i => (a i, r i)) k) s) :
     roundsPlay a r ∈ (threadT t s₀).inf := by

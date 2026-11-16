@@ -23,6 +23,15 @@ behaviour of `t` at `(s_{k-1}, a_k)` (each call `⟨m, n⟩` is a Proponent
   carries no store, so after the trap answer the strategy accepts Opponent
   questions (receptiveness) but never answers again.
 
+**Not session semantics.** `threadT` and `thread` thread a *store-erasing*
+source: its traps carry no store, so a trap ends the session. This is **not**
+the session semantics of Wasm, where a trap aborts only the current invocation
+and the next call starts from the store the trap left. That semantics is
+`StratSession.threadS`, which threads a *store-retaining* source
+`ObsTriple E S A (B ⊕ PUnit)` (traps `.ret (.inr ()) s` keep the store `s`) and
+continues the session after a trap; `StratSession.eraseTrap` sends such a
+source to the store-erasing source threaded here.
+
 The final store is not visible, so the automaton is nondeterministic: the same
 answer `.inl b` may lead to several stores. The plays are the move lists with
 *some* run.
@@ -273,7 +282,8 @@ def build (f : AFun E S A B) (P : Pending E S A) (Q : PInf E S A) (s₀ : S) :
   inf_isInf h := h.1
   inf_sub h := h.2.1
 
-/-- **The threading of a triple from the store `s₀`.** -/
+/-- **The threading of a triple from the store `s₀`.** The source is store-erasing: a trap ends
+the threading. For Wasm sessions, where the store survives a trap, use `StratSession.threadS`. -/
 def threadT (t : ObsTriple E S A B) (s₀ : S) : DStrategy E (sig1 A B) :=
   build t.1 (satP t) t.2.2 s₀
 

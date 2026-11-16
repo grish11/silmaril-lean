@@ -62,6 +62,10 @@ two stores is indistinguishable from one reaching a single store with the
 union of their futures, while no bisimulation relates them. This is not
 formalised here.
 
+**Store-erasing sources only.** A trap ends the threading (`mem_trap`), so `threadT` is not
+Wasm session semantics; `StratSession.threadS` is the session semantics of store-retaining
+sources, and its theorems are derived from these.
+
 Proofs are in `Silmaril.Proofs.Games.Abstract.StratThread.Basic`.
 -/
 
@@ -149,6 +153,11 @@ theorem TRun.det_of_storeDet (ht : StoreDet t) {x y y' : TSt E S A}
     {p : List (Move E (sig1 A B))} (h : TRun t.1 (satP t) x p y)
     (h' : TRun t.1 (satP t) x p y') : y = y' :=
   Silmaril.Proofs.Games.Abstract.StratThread.trun_det ht h h'
+
+/-- **Runs between idle states are completed rounds.** -/
+theorem run_idle_iff {s s₁ : S} {p : List (Move E (sig1 A B))} :
+    TRun t.1 (satP t) (.idle s) p (.idle s₁) ↔ ∃ rs, p = roundsMoves rs ∧ Rounds t s rs s₁ :=
+  Silmaril.Proofs.Games.Abstract.StratThread.run_idle_iff
 
 /-- A play of rounds is an infinite play when every finite prefix of the rounds is completed
 rounds (each from *some* chain of stores). -/
