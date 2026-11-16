@@ -60,7 +60,11 @@
     if (f.dep === "only") where.push("d.name IS NOT NULL");
     const rows = await ctx.q(
       "SELECT l.name, l.title, l.domain, l.op, l.semantics, l.measure, l.bound, l.carrier, l.identity_hash, l.source, " +
-      "d.name AS deprecated, (SELECT count(*) FROM language_problems lp WHERE lp.language = l.name) AS problems, " +
+      "d.name AS deprecated, (SELECT count(*) FROM language_problems lp WHERE lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = l.identity_hash)) AS problems, " +
+      // closed membership examples of this construction: accepted (THM), rejected (CSA/UNS), unknown (no answer)
+      "(SELECT count(*) FROM language_problems lp JOIN problems pp ON pp.name = lp.problem WHERE pp.arity = 0 AND lp.role = 'L' AND lp.shape IN ('silmaril.shapes.language.member','silmaril.shapes.language.bytes_member') AND lp.summary = 'THM' AND lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = l.identity_hash)) AS accepted, " +
+      "(SELECT count(*) FROM language_problems lp JOIN problems pp ON pp.name = lp.problem WHERE pp.arity = 0 AND lp.role = 'L' AND lp.shape IN ('silmaril.shapes.language.member','silmaril.shapes.language.bytes_member') AND lp.summary IN ('CSA','UNS') AND lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = l.identity_hash)) AS rejected, " +
+      "(SELECT count(*) FROM language_problems lp JOIN problems pp ON pp.name = lp.problem WHERE pp.arity = 0 AND lp.role = 'L' AND lp.shape IN ('silmaril.shapes.language.member','silmaril.shapes.language.bytes_member') AND coalesce(lp.summary, 'OPN') NOT IN ('THM','CSA','UNS') AND lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = l.identity_hash)) AS unknown, " +
       "(SELECT group_concat(operand, ', ') FROM (SELECT operand FROM language_operands o WHERE o.language = l.name ORDER BY pos)) AS operands " +
       "FROM languages l LEFT JOIN deprecations d ON d.name = l.name AND d.kind = 'language' " +
       (where.length ? "WHERE " + where.join(" AND ") + " " : "") + "ORDER BY l.name LIMIT " + (LIMIT + 1), params);
@@ -78,12 +82,12 @@ Membership, emptiness, inclusion and equality are undecidable in general: a ques
   <select name="deprecated">${opt("", f.dep, "deprecated too")}${opt("hide", f.dep, "hide deprecated")}${opt("only", f.dep, "only deprecated")}</select>
   <button>filter</button>
 </form>
-<div class="tablebox"><table id="languages-table"><thead><tr><th>language</th><th>title</th><th>domain</th><th>construction</th><th>operands</th><th>problems</th><th>identity</th></tr></thead><tbody>`;
+<div class="tablebox"><table id="languages-table"><thead><tr><th>language</th><th>title</th><th>domain</th><th>construction</th><th>operands</th><th>examples: in / out / unknown</th><th>problems</th><th>identity</th></tr></thead><tbody>`;
     for (const r of rows.slice(0, LIMIT)) {
       h += `<tr><td>${langLink(r.name)}${r.deprecated ? " " + ui.badge("deprecated", "deprecated") : ""}</td>` +
         `<td>${ui.esc(r.title || "")}</td><td>${ui.esc(r.domain)}</td><td>${ui.esc(opText(r))}</td>` +
         `<td>${(r.operands || "").split(", ").filter(Boolean).map(langLink).join(", ")}</td>` +
-        `<td>${r.problems || ""}</td><td><code title="${ui.esc(r.identity_hash)}">${ui.esc(r.identity_hash.slice(0, 12))}</code></td></tr>`;
+        `<td>${r.accepted || r.rejected || r.unknown ? `${r.accepted} / ${r.rejected} / ${r.unknown}` : ""}</td><td>${r.problems || ""}</td><td><code title="${ui.esc(r.identity_hash)}">${ui.esc(r.identity_hash.slice(0, 12))}</code></td></tr>`;
     }
     h += `</tbody></table></div>`;
     if (rows.length > LIMIT) h += `<p class="muted">showing the first ${LIMIT}; narrow the filter or use the SQL tab</p>`;
@@ -157,8 +161,11 @@ Equal sets built differently have different identities; their equality is a prob
     const ps = await ctx.q(
       "SELECT lp.problem, lp.shape, lp.role, lp.expect, lp.title, lp.summary, lp.verdict, p.arity, " +
       "(SELECT group_concat(a.status || coalesce(': ' || a.witness, '') || ' by ' || a.decl, '; ') FROM answers a WHERE a.problem = lp.problem) AS answers " +
-      "FROM language_problems lp JOIN problems p ON p.name = lp.problem WHERE lp.language = ? ORDER BY lp.shape, lp.problem LIMIT " + LIMIT, [name]);
-    h += `<h3>Problems</h3>`;
+      "FROM language_problems lp JOIN problems p ON p.name = lp.problem " +
+      "WHERE lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = ?) ORDER BY p.arity, lp.shape, lp.problem LIMIT " + LIMIT, [l.identity_hash]);
+    h += `<h3>Problems and examples</h3><p class="muted">Every standard language problem about this construction (under this name or another with the same identity).
+Closed membership problems are the examples: THM means the sentence is in the language, CSA that it is not, each by the Lean answer shown;
+no answer means unknown, not false.</p>`;
     if (!ps.length) {
       h += `<p class="muted">No standard language problem names this language.</p>`;
     } else {

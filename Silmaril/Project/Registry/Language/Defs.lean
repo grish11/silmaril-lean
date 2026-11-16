@@ -33,8 +33,8 @@ Every operand must be a language over the same domain (`union` of a byte languag
 language of numbers is an error), and an interpretation and a measure must be over the
 language's domain.
 
-**Identity.** `identity` describes the construction without any display name: the defining
-constant of a `decl`, the format's definition, the CID and format of an artifact's bytes with
+**Identity.** `identity` describes the construction without any display name: the body of a
+`decl` (fully qualified; the constant's name when its body is not visible), the format's definition, the CID and format of an artifact's bytes with
 the interpretation's definition, ABI and environment, the operator with its operands'
 identities, the regex expression's constant with its leaves' identities, and the domain's
 carrier. Two languages with the same identity are the same construction; languages that are
@@ -196,7 +196,14 @@ def identityObj (kvs : List (String × Json)) : Json := Json.mkObj kvs
         let d ← fs.const kind "decl"
         expectType kind m!"{d}" (← constType d) target
         unless args.isEmpty do throwError "silmaril language: op `decl` takes no `args`"
-        pure (none, [("decl", .str d.toString)])
+        -- a definition is identified by its (fully qualified) body, so two wrappers of one term
+        -- (`JsonBytes.language .rfc8259`) are one construction; anything else by its name
+        let term ← match (← getConstInfo d).value? with
+          | some v => pure (some (← ppOneLine v))
+          | none => pure none
+        pure (none, match term with
+          | some t => [("term", .str t)]
+          | none => [("decl", .str d.toString)])
       | "format" =>
         unless ← isDefEq T (mkApp (mkConst ``List [Level.zero]) (mkConst ``UInt8)) do
           throwError "silmaril language: a format language is over bytes (`List UInt8`), not {carrier}"
