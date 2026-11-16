@@ -106,6 +106,21 @@ def sat (t : ObsTriple E S A B) : ObsTriple E S A B := (t.1, satP t, t.2.2)
 /-- A triple whose pending calls are already closed. -/
 def Saturated (t : ObsTriple E S A B) : Prop := sat t = t
 
+/-- **The admissible triples**: the domain on which `toDStrat` is injective. A triple is
+admissible when it is saturated: every call prefix forced by a finished or divergent behaviour, by
+a pending call or by a productive stream is itself a pending call, so `toDStrat` erases no pending
+interaction. Every triple has an admissible saturation with the same play object
+(`StratObs.admissible_sat`, `StratObs.toDStrat_sat`).
+
+Not imposed: determinism given answers (a separate predicate, to be proved for each source), and
+limit closure of the productive streams (every stream whose finite prefixes are pending is a
+productive run). The latter fails for nondeterministic sources with infinite branching, and the
+play object does not need it. -/
+def Admissible (t : ObsTriple E S A B) : Prop := Saturated t
+
+/-- The admissible triples. -/
+abbrev AdmTriple (E : Sig.{u}) (S A B : Type u) : Type u := {t : ObsTriple E S A B // Admissible t}
+
 /-! ## The automaton -/
 
 /-- States of the play automaton: idle, running the question `q` after the

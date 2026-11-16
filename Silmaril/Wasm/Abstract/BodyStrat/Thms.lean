@@ -23,6 +23,26 @@ import Silmaril.Proofs.Wasm.Abstract.BodyStrat.Basic
   two code lists have the same play object exactly when they are
   operationally equivalent (`FunctorP.OpEquivP`).
 
+**Which game equivalence is `OpEquivP`.** The quotient is *equality of play objects*:
+`DStrategy` equality, i.e. the same finite plays, the same divergent (quiescent) plays and the same
+infinite plays. The moves are the existing game moves with their polarity:
+
+* an Opponent question `.inr (.ask (s, a))`;
+* a Proponent import call `.inl (.ask m)`, then an Opponent answer `.inl (.ans m n)`;
+* a Proponent answer `.inr (.ans (s, a) r)`. Here `r = .inl (b, s')` returns `b` in the final state
+  `s'`; at sources with exceptions, `b : List Val ⊕ Nat` and `.inr t` is the uncaught exception
+  `t`. `r = .inr ()` is a trap, with the payload erased.
+
+A play ending at a running position may be **divergent**: `DStrategy.div` holds exactly the
+divergent behaviours (`StratObs.mem_div`). **Infinite** plays are `DStrategy.inf` (`StratObs.mem_inf`).
+Body triples are admissible (`toTriple_admissible`), so no pending interaction is erased. For
+checked code, equal play objects is exactly `OpEquivP` (`toDStratBody_denL_iff`), and exactly
+equal runs with trap payloads erased (`toDStratBody_eq_iff`).
+
+No coarser game equivalence is claimed: not trace or testing equivalence forgetting divergence or
+infinite plays, and not contextual equivalence or full abstraction. The bodies are deterministic
+given answers, but this file proves no determinism of the play object.
+
 Proofs are in `Silmaril.Proofs.Wasm.Abstract.BodyStrat.Basic`.
 -/
 
@@ -40,6 +60,10 @@ variable {E : Sig.{u}} {S T A B : Type (u + 1)}
 /-- **The triple of a body is saturated.** -/
 theorem toTriple_saturated (f : Hom E S T A B) : StratObs.Saturated (toTriple f) :=
   Silmaril.Proofs.Wasm.Abstract.BodyStrat.toTriple_saturated f
+
+/-- **The triple of a body is admissible.** -/
+theorem toTriple_admissible (f : Hom E S T A B) : StratObs.Admissible (toTriple f) :=
+  toTriple_saturated f
 
 /-- Bodies have the same play object exactly when they have the same triple. -/
 theorem toDStratBody_eq_iff_toTriple {f g : Hom E S T A B} :

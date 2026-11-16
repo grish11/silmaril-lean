@@ -126,4 +126,17 @@ theorem toDStrat_injective (ht : Saturated t) (ht' : Saturated t')
     (h : toDStrat t = toDStrat t') : t = t' :=
   ht.symm.trans ((toDStrat_eq_iff.1 h).trans ht')
 
+/-! ## The admissible domain -/
+
+/-- The saturation of a triple is admissible. -/
+theorem admissible_sat : Admissible (sat t) := saturated_sat
+
+/-- **`toDStrat` is injective on admissible triples.** -/
+theorem toDStrat_injective_adm : Function.Injective fun t : AdmTriple E S A B => toDStrat t.1 :=
+  fun t t' h => Subtype.ext (toDStrat_injective t.2 t'.2 h)
+
+/-- Every play object of a triple is the play object of an admissible triple, its saturation. -/
+theorem exists_adm (t : ObsTriple E S A B) : ∃ t' : AdmTriple E S A B, toDStrat t'.1 = toDStrat t :=
+  ⟨⟨sat t, admissible_sat⟩, toDStrat_sat⟩
+
 end Silmaril.Games.Abstract.StratObs
