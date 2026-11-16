@@ -5,6 +5,7 @@ public meta import Silmaril.Project.ConsequenceSystems.Matrix.Defs
 public import Silmaril.Project.Shapes.Consequence.Thms
 public import Silmaril.Wasi.Component.Consequence.Interp.Thms
 public import ProjectSelfTest.WasmAcceptors
+public import ProjectSelfTest.Consequence.Wasm
 
 /-!
 # The `sil project` self-test: registered Wasm artifacts through a partial interpretation
@@ -115,6 +116,33 @@ public theorem member_complete_within : ∀ Γ Δ,
   exact Silmaril.Wasi.Consequence.member_completeOn _ Silmaril.Project.Languages.WasmExport.allHosts_nonempty
     (coreBytesInterp_member memberEnv) Γ Δ (by simp only at hb; omega) hm
 
+-- the two registrations of member_check.wasm agree on single conclusions (coreSeq_single_iff_checkRel)
+silmaril instance silmaril.selftest.consequence.wasm_seq.from_check_rel (expect := THM)
+  (title := "c ↦ [c] translates member_check.wasm read by check_rel into its coreInterp reading") :=
+  silmaril.shapes.consequence.translates_at (S := silmaril.selftest.consequence.wasm.member_check)
+  (T := silmaril.selftest.consequence.wasm_seq.member_check) (f := id) (g := fun (c : UInt8) => [c])
+
+@[answers "silmaril.selftest.consequence.wasm_seq.from_check_rel" thm]
+public theorem from_check_rel : ∀ Γ c, TranslatesAt silmaril.selftest.consequence.wasm.member_check
+    silmaril.selftest.consequence.wasm_seq.member_check id (fun (c : UInt8) => [c]) Γ c := by
+  intro Γ c h
+  rw [ProjectSelfTest.Consequence.Wasm.member_check_eq] at h
+  rw [member_eq]
+  exact (Silmaril.Project.ConsequenceSystems.WasmSeq.coreSeq_single_iff_checkRel _ Γ c).2 h
+
+silmaril instance silmaril.selftest.consequence.wasm_seq.to_check_rel (expect := THM)
+  (title := "…and reflects it") :=
+  silmaril.shapes.consequence.reflects_at (S := silmaril.selftest.consequence.wasm.member_check)
+  (T := silmaril.selftest.consequence.wasm_seq.member_check) (f := id) (g := fun (c : UInt8) => [c])
+
+@[answers "silmaril.selftest.consequence.wasm_seq.to_check_rel" thm]
+public theorem to_check_rel : ∀ Γ c, ReflectsAt silmaril.selftest.consequence.wasm.member_check
+    silmaril.selftest.consequence.wasm_seq.member_check id (fun (c : UInt8) => [c]) Γ c := by
+  intro Γ c h
+  rw [member_eq] at h
+  rw [ProjectSelfTest.Consequence.Wasm.member_check_eq]
+  exact (Silmaril.Project.ConsequenceSystems.WasmSeq.coreSeq_single_iff_checkRel _ Γ c).1 h
+
 silmaril instance silmaril.selftest.consequence.wasm_seq.empty_empty (expect := UNS)
   (title := "empty_check.wasm (coreInterp) derives nothing: defined and empty") :=
   silmaril.shapes.consequence.derives (S := silmaril.selftest.consequence.wasm_seq.empty_check)
@@ -138,6 +166,8 @@ silmaril group silmaril.selftest.consequence.wasm_seq
     silmaril.selftest.consequence.wasm_seq.empty_defined,
     silmaril.selftest.consequence.wasm_seq.member_sound,
     silmaril.selftest.consequence.wasm_seq.member_complete_within,
+    silmaril.selftest.consequence.wasm_seq.from_check_rel,
+    silmaril.selftest.consequence.wasm_seq.to_check_rel,
     silmaril.selftest.consequence.wasm_seq.empty_empty])
 
 silmaril consequence_matrix silmaril.protocols.signed_matrix :=

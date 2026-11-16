@@ -194,11 +194,39 @@ For Wasm (Lean names relative to `Silmaril.Wasm.Game.Accept` and `Silmaril.Wasi.
 | program system | `A.moduleSystem` | `ComponentAcceptor.compSystem C L …` | `ByteAcceptor.programSystem A I` |
 | bytes system | `A.bytesSystem` (`Binary.Core.decode?`) | `ComponentAcceptor.binarySystem C L …` (`parseComponent`), `bytesSystem … decode` | `ByteAcceptor.bytesSystem A C L …` |
 
+**Simple entry points, one shape each:**
+
+* `Silmaril.Wasm.Game.Accept.moduleBytesSystem (P := .spec) : System ByteArray (List UInt8)`:
+  module binaries under the default interpretation (`env.accept(ptr: i32, len: i32)`, memory 0,
+  every Core host; the interpretation of `wasm.core.accept_bytes32`). `b ⊢ w` iff `b` decodes to
+  `m` and `w ∈ bytesLang P m` (`moduleBytesSystem_iff`). No template.
+* `Silmaril.Wasi.Accept.componentBytesSystem C (mode := .imp)`: component binaries, through the
+  component's own import and export names (`Layout.ofComp`) and its world-level `accept`. Only
+  the core semantics `C : CoreSem CoreMod` is required. The library's only instance is the
+  loosest, `Project.WasmComponents.topSem` (every legal play); there is no execution-based one.
+  `componentBytesSystem_iff`, and `componentBytesSystem_eq_binarySystem` relates it to the general
+  form.
+* Each proves nothing on the other shape's binaries or on invalid bytes
+  (`Wasi/Component/Accept/Consequence/Examples.lean`).
+* **`list<u8>` is a lowering and semantics gap, not a parser gap.**
+  * Every component parser reads `list<u8>`: `Binary.parse`, `Codec.decode` and the reference
+    semantics' `Conformance.decodeRef`.
+  * Every lowering into the component IR (`Binary.parseComponent`, `Perf.LowerF.parseComponentF`,
+    `Perf.JcoMain.parseComponentWith`) rejects it (`defValTy_list`), because the IR's `ValTy`
+    has no list type and no memory-based canonical ABI.
+  * The reference semantics reads lists but has no trace semantics with imports.
+  * The jco model (`Silmaril.Wasm.Jco`) handles `list<u8>` only for wrapper components it
+    builds from a core module, and meets the IR only on the memory-free fragment.
+  * So a typical `accept(list<u8>)` binary proves nothing through `componentBytesSystem`, while
+    fixed-arity `accept(tuple<u8, …>)` binaries do decode. The examples check both binaries in
+    the kernel (`listAcceptBytes`, `tupleAcceptBytes`).
+
 A template `ModuleAcceptor` `A` is the module interpretation: profile, `accept`/`reject`
 imports, memory, address width and environments; `A.withModule m` replaces only the module.
-Component interpretations take a core semantics `C : CoreSem M` and a layout `L`. The library
-fixes no `CoreSem` for the lowered `CoreMod` of `parseComponent`, whose lowering is partial and
-unverified, so the component byte systems take `C` as a parameter. The either-shape decoder
+Component interpretations take a core semantics `C : CoreSem M` and a layout `L`. For the
+lowered `CoreMod` of `parseComponent` (partial, unverified lowering), the library has only the
+loosest semantics `Project.WasmComponents.topSem`, so the component byte systems take `C` as a
+parameter. The either-shape decoder
 tries the core decoder first, then the component one. Examples:
 `Silmaril/Logic/Consequence/Acceptor/Examples.lean` (a toy acceptor) and
 `Silmaril/Wasi/Component/Accept/Consequence/Examples.lean` (the empty-module binary, the
@@ -257,15 +285,24 @@ below every semantics (`derivableSys_le_seq`), and is monotone in the corner. Re
 claimed. There is deliberately no Gentzen instance. `admissible c` (examples) is the one-model
 semantics whose `seq` is admissibility.
 
+### Also proved
+
+* `roomSeqSys : Room ⥤ Sys` and `institutionSeqSys I` (functorial `Sen* ⊢ Sen`), instantiated for
+  propositional and first-order logic in the examples; `corridorSeq_reflect` (conservative
+  along corridors whose model reduct is surjective on objects).
+* HOL: `gentzen_iff_seq_disjList` (`Γ ⊢ Δ` iff `Γ ⊢ ⋁Δ`, HOL's defined disjunction) and
+  `derives_le_globalSeq` (kernel derivations from axioms `Δ` are model-wise consequences of
+  `Δ`; not point-wise ones, since the kernel instantiates axioms).
+
 ### Gaps
 
-* HOL: no completeness (standard semantics is incomplete for the kernel). No proved
-  `Γ ⊢ Δ ↔ Γ ⊢ ⋁Δ` for HOL's defined disjunction. The kernel bridge `derives_le_seq` covers
-  only the empty object theory.
-* No `Sys`-valued functor for `roomSeq` (only translations per morphism) and no reflection of
-  consequence along corridors.
+* HOL: no completeness (standard semantics is incomplete for the kernel).
 * Lambda cube: no hypothetical-judgement calculus (judgements as premises of derivations), no
-  concrete model of a dependent corner, and no substitution closure for judgements.
+  concrete model of a dependent corner, and no substitution closure for judgements. These would
+  be new developments, not adapters.
+* Wasm: no concrete binary with a proved nonempty byte language yet. Component binaries with
+  `accept(list<u8>)` parse but do not lower into the IR, and no component semantics with
+  imports and list types exists to read them.
 
 ## Interpretations
 

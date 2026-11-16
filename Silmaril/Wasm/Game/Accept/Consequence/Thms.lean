@@ -13,6 +13,9 @@ public import Silmaril.Logic.Consequence.Acceptor.Thms
 * The address-width bound holds for every judgement (`moduleSystem_length_lt`,
   `bytesSystem_length_lt`).
 * Callout-equivalent modules have the same rows (`moduleSystem_eq_of_calloutEquiv`).
+* The default entry point: `moduleBytesSystem_iff` (bytes prove exactly what their module passes
+  to `env.accept`, `bytesLang`), `moduleBytesSystem_of_decode`, `moduleBytesSystem_of_decode_none`,
+  `moduleBytesSystem_length_lt`.
 -/
 
 @[expose] public section
@@ -20,6 +23,7 @@ public import Silmaril.Logic.Consequence.Acceptor.Thms
 namespace Silmaril.Wasm.Game.Accept
 
 open Silmaril.Consequence (System)
+open Silmaril.Wasm.Numerics (Profile)
 
 namespace ModuleAcceptor
 
@@ -63,6 +67,32 @@ theorem moduleSystem_eq_of_calloutEquiv {m m' : Module}
     rw [moduleSystem_apply, moduleSystem_apply,
       (A.withModule m).lang_eq_of_calloutEquiv (B := A.withModule m') rfl rfl rfl rfl rfl h]
 
+@[simp] theorem ofModule_lang (m : Module) (P : Profile) :
+    (ofModule m P).lang = bytesLang P m := rfl
+
 end ModuleAcceptor
+
+section Default
+
+variable (P : Profile) {b : ByteArray} {w : List UInt8}
+
+/-- **What module bytes prove**: exactly the bytes their module passes to `env.accept`. -/
+theorem moduleBytesSystem_iff :
+    moduleBytesSystem P b w ↔ ∃ m, Silmaril.Wasm.Binary.Core.decode? b = some m ∧ w ∈ bytesLang P m :=
+  Iff.rfl
+
+theorem moduleBytesSystem_of_decode {m : Module} (h : Silmaril.Wasm.Binary.Core.decode? b = some m) :
+    moduleBytesSystem P b w ↔ w ∈ bytesLang P m :=
+  (ModuleAcceptor.default P).bytesSystem_of_decode h w
+
+/-- Bytes that are not a core module binary prove nothing. -/
+theorem moduleBytesSystem_of_decode_none (h : Silmaril.Wasm.Binary.Core.decode? b = none) :
+    ¬ moduleBytesSystem P b w :=
+  (ModuleAcceptor.default P).bytesSystem_of_decode_none h w
+
+theorem moduleBytesSystem_length_lt (h : moduleBytesSystem P b w) : w.length < 2 ^ 32 :=
+  (ModuleAcceptor.default P).bytesSystem_length_lt h
+
+end Default
 
 end Silmaril.Wasm.Game.Accept

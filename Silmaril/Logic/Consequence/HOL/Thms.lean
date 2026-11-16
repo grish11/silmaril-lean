@@ -17,7 +17,10 @@ import Silmaril.Proofs.Logic.Consequence.HOL.Basic
 * `logic_listSys_le_roomSeq`: at the level of sequent *sentences*, HOL derivability
   (`Metatheory.HOL.logic`) is below the institution's `roomSeq`.
 * `derives_le_seq`: the HOL Light kernel is sound for `seq` (from `HOLLight.Derives.sound`; pure
-  logic, no object theory).
+  logic, no object theory). `derives_le_globalSeq`: with an object theory `Δ`, closed theorems
+  are model-wise consequences of `Δ` (not point-wise ones: the kernel instantiates axioms).
+* `gentzen_iff_seq_disjList`: `Γ ⊢ Δ` in `gentzen` iff `Γ ⊢ ⋁Δ` in `seq`, with HOL's defined
+  disjunction. This is the precise sense in which `gentzen` is the classical (LK) reading.
 
 **Closure (each a theorem about `seq` and `gentzen`).**
 
@@ -69,6 +72,19 @@ institution's semantic consequence, from `HOLLight.Derives.sound`. -/
 theorem logic_listSys_le_roomSeq (S : HolSig) :
     LogicalSystem.listSys Metatheory.HOL.logic.{u} S ≤ roomSeq (Metatheory.HOL.logic.{u}.I.obj S) :=
   listSys_le_roomSeq Metatheory.HOL.logic_sound S
+
+/-- **Kernel with axioms is sound for model-wise consequence**: a closed theorem of the axioms
+`Δ` is valid in every model where `Δ` is valid. (Not for `seq`: the kernel instantiates axioms,
+which a point-wise hypothesis does not license.) -/
+theorem derives_le_globalSeq {Δ : List (HOLProp S)} {p : HOLProp S}
+    (d : Derives S.sig (Δ.map Subtype.val) ∅ p.1) : globalSeq.{u} S Δ p :=
+  Proofs.Logic.Consequence.HOL.derives_le_globalSeq d
+
+/-- **Classical collapse**: a Gentzen sequent is the single-conclusion sequent of the disjunction
+of its succedents (HOL's defined `∨`, `⊥` for an empty succedent). -/
+theorem gentzen_iff_seq_disjList (Γ Δ : List (HOLProp S)) :
+    gentzen.{u} S Γ Δ ↔ seq.{u} S Γ (HOLProp.disjList Δ) :=
+  Proofs.Logic.Consequence.HOL.gentzen_iff_seq_disjList Γ Δ
 
 /-! ## Structural closure -/
 

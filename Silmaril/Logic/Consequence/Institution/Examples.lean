@@ -1,6 +1,8 @@
 module
 
 public import Silmaril.Logic.Consequence.Institution.Thms
+public import Silmaril.Logic.Institution.Examples.Propositional
+public import Silmaril.Logic.Institution.Examples.FirstOrder
 
 /-!
 # Local and global consequence differ: examples
@@ -14,6 +16,8 @@ standing for `x` and `¬x`: the formula `c` holds at the point `p` iff `p = c`.
 * `x ⊢ ¬x` holds globally (no model validates `x`) and fails locally: global single-conclusion
   consequence is not below local consequence. The other direction always holds
   (`entails_localSat_le_validIn`).
+* Existing institutions (propositional, first-order) as functors `Sign ⥤ Sys` through
+  `institutionSeqSys`, with Tarski closure.
 -/
 
 @[expose] public section
@@ -45,3 +49,20 @@ example : ¬ Refutation.Entails (localSat sat) [true] false := by
   exact absurd (h ⟨(), true⟩ (by simp [Refutation.SatAll, localSat, sat])) (by simp [localSat, sat])
 
 end Silmaril.Consequence.Examples.LocalGlobal
+
+namespace Silmaril.Consequence.Examples.Institutions
+
+open CategoryTheory Silmaril.Logic.Institution.Examples
+
+/-- Propositional logic, functorially: `Sen* ⊢ Sen` per set of atoms. -/
+example : Type ⥤ Sys := institutionSeqSys PL.institution
+
+/-- First-order logic, functorially. -/
+example : FOL.Signature ⥤ Sys := institutionSeqSys FOL.institution
+
+/-- Every first-order `roomSeq` is closed under the Tarski rules. -/
+example (Sg : FOL.Signature) :
+    Structural.Closed Structural.tarskiRules (roomSeq (FOL.institution.obj Sg)) :=
+  roomSeq_closed _
+
+end Silmaril.Consequence.Examples.Institutions

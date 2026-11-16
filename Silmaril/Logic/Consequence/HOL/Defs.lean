@@ -36,6 +36,8 @@ Maps of propositions, each with a closure theorem in `Thms`:
 * `HOLProp.tySubst σ hσ`: type instantiation (the kernel's `INST_TYPE`), for well-formed `σ`.
 * `HOLProp.freeSubst σ hσ`: instantiation of free term variables (the kernel's `INST`), for a
   type-respecting `σ`.
+* `HOLProp.disjList Δ`: the disjunction of `Δ` (`⊥` when empty), with which `gentzen` collapses
+  to `seq` (`Thms`: `gentzen_iff_seq_disjList`).
 * `toSeq Γ p`: the sentence `Γ ⊢ p` of the institution; `closedSen p`: the sentence `⊢ p`.
 -/
 
@@ -92,6 +94,17 @@ def freeSubst (σ : Nat → Ty → Tm)
     (hσ : ∀ n B, B.WellFormed S.sig.tyOps → HasType S.sig [] (σ n B) B) (p : HOLProp S) :
     HOLProp S :=
   ⟨p.1.freeSubst σ, p.2.freeSubst σ hσ⟩
+
+/-- `⊥` (HOL Light's defined falsity). -/
+def falsity : HOLProp S := ⟨Tm.falsity, HasType.falsity⟩
+
+/-- `p ∨ q` (HOL Light's defined disjunction). -/
+def disj (p q : HOLProp S) : HOLProp S := ⟨Tm.disj p.1 q.1, HasType.disj p.2 q.2⟩
+
+/-- The disjunction of a list: `d₀ ∨ (d₁ ∨ (… ∨ ⊥))`. -/
+def disjList : List (HOLProp S) → HOLProp S
+  | [] => falsity
+  | p :: ps => disj p (disjList ps)
 
 end HOLProp
 
