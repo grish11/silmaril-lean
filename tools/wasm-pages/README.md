@@ -8,7 +8,8 @@ It processes:
 - the Wasm blobs of the artifact registry, those whose `meta.wasm.layer` is `module` or
   `component`;
 - the core modules and nested components inside them;
-- example modules that are Lean values: four of its own, and the concrete modules of the acceptor
+- example modules that are Lean values: six of its own (including the verified LRAT and Farkas
+  checkers, `Examples.LRAT.lratModule` and `Examples.Farkas.farkasMod`), and the concrete modules of the acceptor
   interpretation catalog (`Silmaril.Wasi.Accept.Catalog.concreteModules`: the verified JSON-subset
   acceptor `JsonAccept.prog`, `Game.Examples.exStart`, and the verified checkers `EmptyCheck.prog`
   and `MemberCheck.prog`).

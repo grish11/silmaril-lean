@@ -12,6 +12,16 @@ sha256 = "8b49538da88e3926f7c457e54fff82234e5ef0efb3c81372537b8f690f38b4b6"
 git_sha1 = "7c5be30070c4b48dd17e810e5fb461d5cc810612"
 
 [[artifact]]
+cid = "bafkr4ialkxfgfwrnf7rx6rjx57kzqmey6jqs5536k4irxrxl3c5bfvyi4a"
+type = "blob"
+name = "silmaril.wasm.examples.lrat.lratModule"
+paths = ["examples/wasm-checkers/lrat.wasm"]
+size = 1812
+sha256 = "2a7e04b514053262880547d1baf5d92fdfabddef6a4af2fce8bb7f1a08e1f2fc"
+git_sha1 = "f16161ca9fb178776f04b66305430e4db74bd32b"
+meta = { wasm = { custom = [], exports = ["func add_lit", "func end_clause", "func step_begin", "func step_lit", "func step_hint", "func step_end", "func delete", "func unsat", "func rat_begin", "func rat_end"], imports = [], layer = "module", license = "LicenseRef-silmaril-lean", version = 1 } }
+
+[[artifact]]
 cid = "bafkr4iaoamwb7wrpbjzlr5xz3xvbm7x6agefggh7cuimziettjnufjrnre"
 type = "blob"
 name = "silmaril.wasm_components.gen.run.blob"
@@ -242,6 +252,16 @@ paths = ["examples/sysv-tv/max2/O0/max2.o"]
 size = 760
 sha256 = "23f2e8e0fe7f97665952687233e5a2465f00b0dd5bc6a8714bf533c1fbd8159e"
 git_sha1 = "207dbf73c7494d2cac2c6e3df2aa6fa94f9d0597"
+
+[[artifact]]
+cid = "bafkr4if7lm7jpnq7acg5hqxn7mnkkeuye3wrqc7i7wgfczwqjizhqf2apa"
+type = "blob"
+name = "silmaril.wasm.examples.farkas.farkasMod"
+paths = ["examples/wasm-checkers/farkas.wasm"]
+size = 372
+sha256 = "795802670fece3cde2e876f4c1bf0446bdb704988c2d4e07b7a2e83143a45ab0"
+git_sha1 = "2a7e509ebe7a0b14c93612abd50259a26e775133"
+meta = { wasm = { custom = [], exports = ["func row", "func entry", "func check"], imports = [], layer = "module", license = "LicenseRef-silmaril-lean", version = 1 } }
 
 [[artifact]]
 cid = "bafkr4ifaiqnsd3oel5p6nvq57yfar6zdyw57hklpvrwt5isrlte7a3pnsm"

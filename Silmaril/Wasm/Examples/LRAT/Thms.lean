@@ -8,6 +8,9 @@ public import Silmaril.Proofs.Wasm.Examples.LRAT.Accept
 /-!
 # The streaming LRAT checker: results
 
+**The binary.** `examples/wasm-checkers/lrat.wasm` is exactly the encoding of the module
+(`Silmaril.Wasm.Examples.LRAT.Bytes.Thms`: `encodeModule_eq`, `decode_bytes`).
+
 Proofs in `Silmaril.Proofs.Wasm.Examples.LRAT.*`. Every silmaril profile, every environment, every
 host relation; no determinism assumption.
 

@@ -7,6 +7,9 @@ public import Silmaril.Proofs.Wasm.Examples.Farkas.Total
 /-!
 # A Farkas certificate checker in Wasm: results
 
+**The binary.** `examples/wasm-checkers/farkas.wasm` is exactly the encoding of the module
+(`Silmaril.Wasm.Examples.Farkas.Bytes.Thms`: `encodeModule_eq`, `decode_bytes`).
+
 Proofs in `Silmaril.Proofs.Wasm.Examples.Farkas.*`. Every profile `P`, every environment `K`,
 partial correctness (`HWP`) for soundness, total correctness (`TWP`) for termination; no
 `sorry`, axiom or `Task`.

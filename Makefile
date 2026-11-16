@@ -67,6 +67,8 @@ RELEASE_BINARIES := wasm-opt wasm-as wasm-dis wasm-merge wasm-shell wasm-ctor-ev
 check:
 	scripts/check-layout.sh
 	$(PYTHON) -I scripts/check-wasm-spec.py
+	$(PYTHON) -I scripts/check-wasm-checkers.py
+	node examples/wasm-checkers/test-lrat.mjs
 	@if [ -n "$(LAKE_CACHE_RECORD)" ]; then \
 		cov-lake-cache build --repository hiloopai/silmaril-lean --record "$(LAKE_CACHE_RECORD)" -- $(CHECK_TARGETS); \
 	elif [ -n "$(strip $(CHECK_TARGETS))" ]; then \
