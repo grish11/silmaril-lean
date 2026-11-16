@@ -71,7 +71,7 @@ def recordsSchema : String := "silmaril.records.v0.2"
 def loadKinds : List String :=
   ["artifact_type", "format", "format_default", "format_law", "value", "model", "spec", "room",
     "machine", "machine_binding", "instance", "tasks", "judgement", "detached", "deprecation",
-    "finding", "decomposition", "refutation_route", "group", "children"]
+    "finding", "expected_open", "decomposition", "refutation_route", "group", "children"]
 
 /-- The top-level keys of a records file that are not kinds. -/
 def recordsFileKeys : List String := ["schema", "root", "defaults"]

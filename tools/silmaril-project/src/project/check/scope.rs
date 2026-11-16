@@ -28,7 +28,7 @@ pub(super) fn index<'a>(p: &'a Project, dump: &'a Dump, o: &mut Outcome) -> Ctx<
             _ => {}
         }
     }
-    if dump.schema != DUMP_SCHEMA {
+    if !DUMP_SCHEMAS.contains(&dump.schema.as_str()) {
         o.error(
             "dump",
             format!("schema {:?} is not {DUMP_SCHEMA:?}", dump.schema),

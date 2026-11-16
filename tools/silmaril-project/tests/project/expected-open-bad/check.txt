@@ -1,0 +1,23 @@
+error: expected_open eo.all: expected_open is about a problem, not a group
+error: expected_open eo.badreason: reason "hard" is not one of independent, consistency, undecidable_instance
+error: expected_open eo.expects: expected open, but its judgement expects THM: drop one of the two (M4)
+error: expected_open eo.ghost: no such problem
+error: expected_open eo.noreason: an expected_open needs a `reason` (M4)
+error: expected_open eo.proved: expected open (consistency), but resolved: the verdict is holds (THM); remove the expected_open or check the statement (M4)
+error: expected_open eo.refuted: expected open (independent), but resolved: the verdict is fails (UNS); remove the expected_open or check the statement (M4)
+error: silmaril/marks.toml:5:10: expected_open.reason must be one of independent, consistency, undecidable_instance
+error: silmaril/marks.toml:7:1: expected_open eo.noreason: `reason` is required
+warning: expected_open eo.some: expected open (undecidable_instance), but the summary is SAT (W5)
+summary: 6 problems (6 local), 1 groups, 13 records, 6 edges, 0 artifacts
+verdicts: 1 holds, 1 fails, 4 unknown (all 6 problems); 1 holds, 1 fails, 4 unknown (6 local)
+markings: 0 deprecations (0 problems, 0 groups, 0 specs), 0 problems deprecated; findings: 0 error, 0 spec_bug, 0 model_gap, 0 unclear; 1 failing problems not deprecated and unclassified
+expected open: 4 problems (1 independent, 2 consistency, 1 undecidable_instance)
+verdicts without the deprecated: 1 holds, 1 fails, 4 unknown (6 problems)
+root: eo.all
+predicate eo.some (arity 1): status SAT [SAT], verdict unknown
+group eo.all: [eo.noreason=OPN, eo.badreason=OPN, eo.expects=OPN, eo.proved=THM, eo.refuted=UNS, eo.some=SAT]
+expected_open consistency eo.expects [OPN]
+expected_open consistency eo.proved [THM]
+expected_open independent eo.refuted [UNS]
+expected_open undecidable_instance eo.some [SAT]
+exit: failed

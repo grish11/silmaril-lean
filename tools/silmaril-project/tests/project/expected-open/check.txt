@@ -1,0 +1,13 @@
+summary: 5 problems (5 local), 1 groups, 8 records, 5 edges, 0 artifacts
+verdicts: 1 holds, 0 fails, 4 unknown (all 5 problems); 1 holds, 0 fails, 4 unknown (5 local)
+markings: 1 deprecations (1 problems, 0 groups, 0 specs), 1 problems deprecated; findings: 0 error, 0 spec_bug, 0 model_gap, 0 unclear; 0 failing problems not deprecated and unclassified
+expected open: 3 problems (1 independent, 1 consistency, 1 undecidable_instance)
+verdicts without the deprecated: 1 holds, 0 fails, 3 unknown (4 problems)
+root: eo.all
+group eo.all: [eo.con=OPN, eo.ind=OPN, eo.old=OPN[deprecated], eo.open=OPN, eo.proved=THM]
+deprecated problem eo.old: stated over the wrong machine (superseded by eo.open)
+expected_open consistency eo.con [OPN]: Con(ZFC) is not provable in ZFC (see https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems)
+expected_open independent eo.ind [OPN]: neither provable nor refutable in ZFC
+expected_open undecidable_instance eo.old [OPN]
+sql sha256: 9a42bc2422a75893dc3e33cebdeadde6bbaa68aeeeff12027d8c7387a9b0d225
+exit: ok

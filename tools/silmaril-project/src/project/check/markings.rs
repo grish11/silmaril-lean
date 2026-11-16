@@ -7,6 +7,12 @@
 //!   [`finding_key_errors`] (the `error`-only keys, a `model_gap`'s `pointer`).
 //! - M3: a `spec_bug` finding's problem is deprecated (by itself, through its judgement's spec,
 //!   or as an instance of a deprecated problem); an `error` finding's problem is not.
+//! - M4: an `expected_open` names an in-scope problem (not a group), its `reason` is one of
+//!   [`EXPECTED_OPEN_REASONS`], its judgement does not `expect` a status other than `OPN`, and
+//!   the problem is not resolved (its verdict is `unknown`: a proof or refutation makes the
+//!   marking stale, as for M2). W5 warns when the problem has a partial answer (summary `SAT`
+//!   or `UNS` with verdict `unknown`). A deprecated problem may also be expected open: lists of
+//!   open problems already leave deprecated ones out, so the marking is redundant but harmless.
 //!
 //! A problem is *deprecated* when its own deprecation, its judgement's spec's, or (along
 //! instance edges, transitively) its general problem's says so; `deprecated_problems` records
@@ -29,12 +35,15 @@ pub(super) struct Marks {
     pub deprecated_rows: Vec<DeprecatedProblem>,
     pub finding_rows: Vec<FindingRow>,
     pub version_rows: Vec<FindingVersion>,
+    pub expected_open_rows: Vec<ExpectedOpenRow>,
 }
 
 impl Marks {
     /// Whether the project marks anything (the report prints marking lines only then).
     pub fn any(&self) -> bool {
-        !self.deprecation_rows.is_empty() || !self.finding_rows.is_empty()
+        !self.deprecation_rows.is_empty()
+            || !self.finding_rows.is_empty()
+            || !self.expected_open_rows.is_empty()
     }
 }
 
@@ -256,6 +265,79 @@ pub(super) fn run(
                     }),
             );
     }
+
+    // M4, W5: expected-open problems.
+    for r in &cx.dump.records {
+        let Record::ExpectedOpen(e) = r else { continue };
+        let at = cx.at("expected_open", &e.name);
+        if !kept.kept(cx, r) || !g.is_prop(&e.name) {
+            if cx.local(&e.module) {
+                if g.nodes.contains_key(&e.name) && !g.is_prop(&e.name) {
+                    o.error(&at, "expected_open is about a problem, not a group");
+                } else if g.is_prop(&e.name) {
+                    o.warn(&at, "problem is out of scope; dropped");
+                } else {
+                    o.error(&at, "no such problem");
+                }
+            }
+            continue;
+        }
+        let Some(reason) = e.reason.clone() else {
+            o.error(&at, "an expected_open needs a `reason` (M4)");
+            continue;
+        };
+        if !EXPECTED_OPEN_REASONS.contains(&reason.as_str()) {
+            o.error(
+                &at,
+                format!(
+                    "reason {reason:?} is not one of {}",
+                    EXPECTED_OPEN_REASONS.join(", ")
+                ),
+            );
+            continue;
+        }
+        if let Some(Record::Judgement(j)) = cx.get("judgement", &e.name)
+            && kept.keep.contains(&("judgement", e.name.as_str()))
+            && let Some(x) = &j.expect
+        {
+            let x = expect_code(x).unwrap_or(x);
+            if x != "OPN" {
+                o.error(
+                    &at,
+                    format!(
+                        "expected open, but its judgement expects {x}: drop one of the two (M4)"
+                    ),
+                );
+            }
+        }
+        let (summary, verdict) = st
+            .summaries
+            .get(e.name.as_str())
+            .copied()
+            .unwrap_or(("OPN", "unknown"));
+        if verdict != "unknown" {
+            o.error(
+                &at,
+                format!(
+                    "expected open ({reason}), but resolved: the verdict is {verdict} \
+                     ({summary}); remove the expected_open or check the statement (M4)"
+                ),
+            );
+        } else if summary != "OPN" && summary != "UNK" {
+            o.warn(
+                &at,
+                format!("expected open ({reason}), but the summary is {summary} (W5)"),
+            );
+        }
+        m.expected_open_rows.push(ExpectedOpenRow {
+            problem: e.name.clone(),
+            reason,
+            note: e.note.clone(),
+            pointer: e.pointer.clone(),
+            module: e.module.clone(),
+            origin: cx.origin(&e.module),
+        });
+    }
     m
 }
 
@@ -305,6 +387,23 @@ pub(super) fn lines(m: &Marks, st: &Status) -> (Vec<String>, Vec<String>) {
         class("model_gap"),
         class("unclear"),
     ));
+    if !m.expected_open_rows.is_empty() {
+        let reason = |r: &str| {
+            m.expected_open_rows
+                .iter()
+                .filter(|e| e.reason == r)
+                .count()
+        };
+        head.push(format!(
+            "expected open: {} problems ({})",
+            m.expected_open_rows.len(),
+            EXPECTED_OPEN_REASONS
+                .iter()
+                .map(|r| format!("{} {r}", reason(r)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
     let live: Vec<&(&str, &str)> = st
         .summaries
         .iter()
@@ -399,6 +498,17 @@ pub(super) fn lines(m: &Marks, st: &Status) -> (Vec<String>, Vec<String>) {
         }
         if !extra.is_empty() {
             line += &format!(" ({})", extra.join("; "));
+        }
+        tail.push(line);
+    }
+    for e in &m.expected_open_rows {
+        let summary = st.summaries.get(e.problem.as_str()).map_or("OPN", |d| d.0);
+        let mut line = format!("expected_open {} {} [{summary}]", e.reason, e.problem);
+        if let Some(n) = &e.note {
+            line += &format!(": {n}");
+        }
+        if let Some(p) = &e.pointer {
+            line += &format!(" (see {p})");
         }
         tail.push(line);
     }

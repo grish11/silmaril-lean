@@ -15,5 +15,5 @@ finding spec_bug mk.old_bound [UNS]: the statement is off by one (deprecated by 
 finding model_gap mk.vec.add [UNS]: missing pxor xmm0, xmm0; Str9 does not decode SSE2 pxor
 finding model_gap mk.vec.shift [UNS]: missing shl r/m16, imm8; 16-bit shifts do not retire
 finding unclear mk.vec.mul [UNS]: the counterexample needs review
-sql sha256: f512423474b02cbc09516ea62871821c2de40330aae567b61470f1e04a1a6b43
+sql sha256: 58bf70d70d1ffea334d4e715f6b55bcc1419fca4643344b04a63ffc4696feaa4
 exit: ok

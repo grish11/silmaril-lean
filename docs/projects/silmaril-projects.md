@@ -163,7 +163,9 @@ Error:   × `lake build --wfail Hello` failed (its messages are above)
 ```
 
 `examples/project/ProjectSelfTest.lean` with `silmaril/selftest.toml` is a larger example: one
-construct per layer, and values read as Wasm and ELF.
+construct per layer, and values read as Wasm and ELF. Its root group `silmaril.all` is the
+root of silmaril's whole project: the self-test's own problems and every group of the library's
+problems (shapes, formats, languages, consequence systems, …).
 
 ## What a project is
 
@@ -243,6 +245,7 @@ first and the DAG after the statements, as in the quick start.
 | `detached` | **name**, reason | |
 | `deprecation` | **name** (a problem, group or spec), **reason**, superseded_by | (stored as written) |
 | `finding` | **name** (a problem), **classification**, note, pointer, affected_versions, fixed_in, disclosure_status | (stored as written) |
+| `expected_open` | **name** (a problem), **reason** (`independent`, `consistency`, `undecidable_instance`), note, pointer | (stored as written) |
 | `decomposition`, `refutation_route` | name, and exactly one of proof, module | the theorem is `c₁ → … → p` / `¬c → ¬p` |
 | `group` | **name**, children, title, doc, sid | |
 | `children` | **name**, **children** | |
@@ -568,6 +571,19 @@ replaced it.
 
   `note` says what the refutation shows; `pointer` may name a bug report or commit for the
   other classifications.
+- An **`expected_open`** marks an open problem that is expected to **stay** open for a
+  metatheoretic reason, so that lists of open problems (the explorer's landing page) can leave
+  it out, as they leave out deprecated problems:
+
+  | `reason` | meaning |
+  |---|---|
+  | `independent` | provably neither provable nor refutable in the ambient theory (e.g. by forcing) |
+  | `consistency` | a consistency statement the ambient theory cannot prove (Gödel's second incompleteness theorem) |
+  | `undecidable_instance` | an instance of a problem class known to be undecidable, where no proof is expected |
+
+  `note` says why the reason applies and `pointer` cites the result (a reference or URL). It is
+  never for an ordinary unproved problem: an open problem that nobody has proved yet stays
+  visible as open.
 
 In TOML:
 
@@ -596,6 +612,12 @@ name = "demo.x86.fe51_mul.str9"
 classification = "model_gap"
 pointer = "pxor xmm0, xmm0"                       # the missing instruction or feature
 note = "Str9 stops at the first SSE2 instruction"
+
+[[expected_open]]
+name = "demo.zfc.con"
+reason = "consistency"                            # independent | consistency | undecidable_instance
+note = "Con(ZFC) is not provable in ZFC"
+pointer = "Gödel, 1931"
 ```
 
 In Lean, the same records are commands (no attribute is needed: a marking names a problem, it
@@ -605,22 +627,30 @@ does not sit on a declaration):
 silmaril deprecation demo.zlib.adler32.null_literal (reason := "assumes … returns 0")
   (superseded_by := [demo.zlib.adler32.null_one])
 silmaril finding demo.x86.fe51_mul.str9 (classification := model_gap) (pointer := "pxor xmm0, xmm0")
+silmaril expected_open demo.zfc.con (reason := consistency) (note := "Con(ZFC) is not provable in ZFC")
 ```
 
-`sil project check` enforces (M1–M3, W4):
+`sil project check` enforces (M1–M4, W4, W5):
 
 - M1: a deprecation names a problem, group or spec, has a `reason`, and each `superseded_by`
   is a problem, group or spec other than itself; W4 warns about one without a replacement;
 - M2: a finding names an in-scope problem whose verdict is `fails` (a finding on a problem that
   holds, or is open, is an error: remove it when a fix or a grown model turns the verdict); the
   `error`-only keys appear only on an `error`, and a `model_gap` has a `pointer`;
-- M3: a `spec_bug`'s problem is deprecated, and an `error`'s problem is not.
+- M3: a `spec_bug`'s problem is deprecated, and an `error`'s problem is not;
+- M4: an `expected_open` names an in-scope problem (not a group) and has one of the three
+  `reason`s; its judgement does not `expect` a status other than `OPN`; and the problem is not
+  resolved (a verdict `holds` or `fails` is an error, as for M2: remove the marking, or check
+  the statement); W5 warns when the problem is still unknown but has a partial answer (summary
+  `SAT` or `UNS`). A deprecated problem may also be expected open: it is allowed and changes
+  nothing, since lists of open problems already leave deprecated problems out.
 
 Markings change no status or verdict. When a project has any, the report gains two lines after
-the verdicts (the counts, then the verdicts without the deprecated problems), marks deprecated
+the verdicts (the counts, then the verdicts without the deprecated problems; with expected-open
+problems, a line counting them by reason comes between the two), marks deprecated
 predicates (`…, deprecated`) and group entries (`name=CSA[deprecated]`), and ends with one line
-per deprecation and per finding (errors first, model gaps sorted by what is missing). A project
-without markings gets the same report as before.
+per deprecation, per finding (errors first, model gaps sorted by what is missing) and per
+expected-open problem. A project without markings gets the same report as before.
 
 The database (always present, empty without markings):
 
@@ -631,6 +661,7 @@ The database (always present, empty without markings):
 | `deprecated_problems` | every deprecated problem or group and `via_kind` (`self`, `spec`, `instance`), `via` |
 | `findings` | `problem`, `classification`, `note`, `pointer`, `fixed_in`, `disclosure_status`, `module`, `origin` |
 | `finding_versions` | `problem`, `pos`, `version` (an `error`'s `affected_versions`) |
+| `expected_open` | `problem`, `reason` (`independent`, `consistency`, `undecidable_instance`), `note`, `pointer`, `module`, `origin` |
 | view `genuine_errors` | the `error` findings with title, summary, versions, fix and disclosure |
 | view `model_gaps` | `pointer`, `problem`, `title`, `note` of the `model_gap` findings |
 | view `spec_bugs` | the `spec_bug` findings with how their problem is deprecated |
@@ -717,9 +748,16 @@ sil project deprecated [--dir .] [--db …] [--problems]
   kinds and keys. It warns about `children`, `of` and `root` that no records file, local `.lean`
   file (under the package root or a library's `srcDir`) or last dump declares; `check` decides.
 - **`dump`** builds the modules with `lake build --wfail` and runs `#silmaril_dump`. It is the
-  only subcommand that runs Lean (`--lake`, else `$SIL_LAKE`, else `lake`).
+  only subcommand that runs Lean (`--lake`, else `$SIL_LAKE`, else `lake`). Besides the
+  records, problems and solutions, the dump lists the `locations` of the declarations it names
+  (a problem's or solution's `decl`, a record's `decl`, `proof`, `rel`, `abi` or `environment`):
+  Lean's declaration ranges, also of declarations a command generated. They are presentation
+  data, in no record, sid or hash and not in the report; `sqlite` writes them to the table
+  `decl_locations` (`decl`, `module`, `line`, `col`, `end_line`, `end_col`, `sel_line`,
+  `sel_col`, `sel_end_line`, `sel_end_col`; lines 1-based, columns in codepoints from 0), which
+  the explorer's source view reads.
 - **`check`** checks the manifest, the registries and their provenance, the records files
-  (lint and R11), names, references, sids, the DAG, the statuses and the markings (M1–M3). It
+  (lint and R11), names, references, sids, the DAG, the statuses and the markings (M1–M4). It
   prints errors, warnings, a summary, the root, each group's verdict vector, the markings and
   the SHA-256 of the SQL text.
   Facts the tool checks (digests, sizes) are the `tool` tier, and Lean proofs the `kernel` tier.
@@ -740,7 +778,8 @@ relative to that package's root. `artifacts add --package P PATH` registers a fi
 dependency.
 
 Every file carries its schema version: `silmaril.project.v0.1`, `silmaril.artifacts.v0.2`
-(v0.1 is still read), `silmaril.records.v0.2`, `silmaril.project-dump.v0.1` and
+(v0.1 is still read), `silmaril.records.v0.2`, `silmaril.project-dump.v0.2` (v0.1, without
+`locations`, is still read) and
 `silmaril.project-db.v0.1`. All are defined in `tools/silmaril-project/src/project/schema/`.
 
 ## The Lean commands
