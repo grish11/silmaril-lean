@@ -396,4 +396,12 @@ theorem wasmEvFunXP_cut {g : Nat} {args : List Val} {s₁ s₂ : Store H} {ws : 
         (c₁, .trap) ∈ Shape.close wasmHOpenXP g' s' a' ∧ y.1 = q ++ c₁ :=
   Silmaril.Proofs.Wasm.Abstract.HostClosingXP.close_cut hfi hty hws h
 
+/-- **A reach cuts the reached call**: the logged prefix, then the call answered by more values
+than its callee returns, is a logged run ending in a trap. -/
+theorem reachLXP_cut {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (OCall H)} {z : (wasmOShape H).self.Op} (h : ReachLXP s f stk es l z) :
+    ∃ (ws : List Val) (f' : Frame),
+      EvalLXPh s f stk es (l ++ [OCall.mk z.1 z.2.1 z.2.2 (.inl ws) z.2.2]) (z.2.2, f', .flow .trap) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.reachLXP_cut h
+
 end Silmaril.Wasm.Abstract
