@@ -375,9 +375,9 @@ Clojure rejects a map literal with two equal keys (`PersistentArrayMap.createWit
 * maps and sets: equal sizes, and every entry (element) of one equals an entry (element) of the
   other (`APersistentMap.equiv`: `containsKey` and `equiv` of the values; `APersistentSet.equiv`:
   `contains`), recursively, independent of order (`{:a 1 :b 2}` = `{:b 2 :a 1}`).
-  `equal?` decides this by recursion with fuel `size a + size b + 1`; an undecided comparison
-  (`none`: fuel exhausted, not known to occur, adequacy not proved) is reported as
-  `Issue.unsupported`, an explicit error rather than a guess.
+  `equal?` decides this by recursion with fuel `size a + size b + 1`, proved sufficient on every
+  comparison the reader makes (`Thms.equal?_isSome`, `Thms.parseError?_ne_unsupported`); an
+  undecided result would be reported as `Issue.unsupported`, which is therefore unreachable.
 
 `Value` is the read value forgetting the list/vector distinction and literal spelling;
 `equal?` decides `Equal` wherever it answers (`Thms.equal?_sound`). -/
@@ -502,6 +502,19 @@ def equalFuel : Nat → Value → Value → Option Bool
       | .scalar _, _ | .integer _, _ | .double _, _ | .decimal _, _ | .seq _, _ | .map _, _
       | .set _, _ => some false
 
+mutual
+  /-- Every map in the value has an even number of forms (true of every value a key check sees:
+  inner literals are checked first). -/
+  def Value.evenMaps : Value → Bool
+    | .seq xs | .set xs => Value.evenMapsList xs
+    | .map xs => xs.length % 2 == 0 && Value.evenMapsList xs
+    | _ => true
+
+  def Value.evenMapsList : List Value → Bool
+    | [] => true
+    | x :: xs => x.evenMaps && Value.evenMapsList xs
+end
+
 /-- `Util.equiv` on read values, or `none` (`Issue.unsupported`) when undecided. -/
 def equal? (a b : Value) : Option Bool := equalFuel (a.size + b.size + 1) a b
 
@@ -552,8 +565,8 @@ end
 inductive Issue where
   | oddMap
   | duplicate
-  /-- Key equality this reader did not decide (`equal?` returned `none`: a nested map with an
-  odd number of forms, or exhausted fuel). -/
+  /-- Key equality this reader did not decide (`equal?` returned `none`). Unreachable from text
+  (`Thms.parseError?_ne_unsupported`); kept as a defensive case. -/
   | unsupported
   deriving DecidableEq, Repr
 

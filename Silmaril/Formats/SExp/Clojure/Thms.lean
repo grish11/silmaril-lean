@@ -4,6 +4,7 @@ public import Silmaril.Formats.SExp.Clojure.Defs
 public import Silmaril.Formats.SExp.Reader.Thms
 import Silmaril.Proofs.Formats.SExp.Clojure.Basic
 import Silmaril.Proofs.Formats.SExp.Clojure.Equal
+import Silmaril.Proofs.Formats.SExp.Clojure.Fuel
 
 /-!
 # Clojure data syntax: laws
@@ -19,7 +20,9 @@ import Silmaril.Proofs.Formats.SExp.Clojure.Equal
 * **key equality**: `equal?` decides Clojure's key equality `Equal` (an inductive specification,
   recursive through lists, vectors, maps and sets) wherever it answers (`equal?_sound`); an accepted map or set literal
   has pairwise unequal keys (`map_literal_ok`, `set_literal_ok`, through `issue_cons_none`), and a
-  reported duplicate is a genuine pair of equal keys (`keysIssue_duplicate`);
+  reported duplicate is a genuine pair of equal keys (`keysIssue_duplicate`); the fuel always
+  suffices (`equal?_isSome`), so no text is rejected as `unsupported`
+  (`parseError?_ne_unsupported`);
 * **grammar**: `parse?` accepts exactly the texts whose lexed token string derives a datum in the
   shared phrase grammar, followed only by atmosphere, whose collections are `valid` (`parse?_iff`).
 -/
@@ -106,6 +109,37 @@ theorem set_literal_ok {r : Datum} (h : literalIssue .set r = none) :
 theorem issue_cons_none {x r : Datum} (h : issue (.cons x r) = none) :
     (∀ m, x = .atom m → literalIssue m r = none) ∧ issue x = none ∧ issue r = none :=
   Silmaril.Proofs.Formats.SExp.Clojure.issue_cons_none h
+
+/-- **Fuel adequacy**: `equal?` answers whenever every map in both values has an even number of
+forms. Every recursive call compares elements of the first value, so `size a + 1` steps suffice
+and the fuel `size a + size b + 1` is enough. -/
+theorem equal?_isSome {a b : Value} (ha : a.evenMaps = true) (hb : b.evenMaps = true) :
+    (equal? a b).isSome = true :=
+  Silmaril.Proofs.Formats.SExp.Clojure.equal?_isSome ha hb
+
+/-- On well-formed data, the literal check never reports an undecided comparison. -/
+theorem issue_ne_unsupported {e : Datum} (h : syntaxNotation.wf e = true) :
+    issue e ≠ some .unsupported :=
+  (Silmaril.Proofs.Formats.SExp.Clojure.issue_ne_unsupported e).1 h
+
+/-- **No text is rejected as `unsupported`**: every key comparison the reader makes is decided;
+texts fail only for syntax, odd maps or genuine duplicates. -/
+theorem parseError?_ne_unsupported (s : String) :
+    parseError? s ≠ some (.literal .unsupported) := by
+  simp only [parseError?, parseE?]
+  cases hr : read lexer s.toList with
+  | none => simp
+  | some e =>
+      have hwf := SExpReader.wf_of_read syntaxNotation (fun _ _ _ h => step_tokenOK h) hr
+      have hne := issue_ne_unsupported hwf
+      cases hi : issue e with
+      | none => simp [hi]
+      | some i =>
+          rw [hi] at hne
+          simp only [hi]
+          intro h
+          simp only [Option.some.injEq, ParseError.literal.injEq] at h
+          exact hne (by rw [h])
 
 theorem parse?_eq_toOption (s : String) : parse? s = (parseE? s).toOption := by
   simp only [parse?, parseE?]

@@ -76,12 +76,15 @@ then `Util.equiv`). `Clojure.equal?` decides `Util.equiv` on read values (`Cloju
 
 `Equal` is an inductive specification of this table (recursive through lists, vectors, maps and
 sets); `equal?` decides it with fuel `size a + size b + 1` and is sound wherever it answers
-(`equal?_sound`). `parseE?` reports `oddMap`, `duplicate`, `unsupported` or `syntax`, inner
-literals first. Accepted literals have pairwise unequal keys (`map_literal_ok`,
-`set_literal_ok`), and a reported duplicate is a real equal pair (`keysIssue_duplicate`).
-`unsupported` arises only if the fuel runs out; that the fuel always suffices is not proved, so
-`unsupported` stays a reported error, never an acceptance (no example produces it). The map
-equality assumes literals with distinct keys, which `parse?` checks inner literals first.
+(`equal?_sound`). The fuel always suffices when every map involved has an even number of forms
+(`equal?_isSome`: each recursive call compares elements of the first value, strictly smaller
+than it), and the keys a literal check compares always satisfy this, because inner literals are
+checked first; so no text is ever rejected as `unsupported` (`parseError?_ne_unsupported`).
+`parseE?` reports `oddMap`, `duplicate` or `syntax`, inner literals first; `Issue.unsupported`
+remains in the type as a defensive case, proved unreachable from text. Accepted literals have
+pairwise unequal keys (`map_literal_ok`, `set_literal_ok`), and a reported duplicate is a real
+equal pair (`keysIssue_duplicate`). The map equality is Clojure's for literals with distinct
+keys, which `parse?` establishes for inner literals before comparing outer keys.
 
 `(a . b)` in Clojure: `LispReader.symbolPat` reads `.` as a symbol, so the text is the
 three-element list `a . b`. The reference reserves `.`-symbols for host interop (the `.` special
@@ -126,8 +129,6 @@ Each is a reader error, not a misreading. The module docs list them per dialect.
   lexical specification; their phrase structure is the declarative `Gram`, and their printed
   tokens are proved to lex back (`PrintLaws`).
 - **Runtime numbers** (all but Clojure keys): no IEEE rounding, no `eqv?`/`eql`/`=` model.
-- **Clojure**: fuel adequacy of `equal?` (that it never answers `none`) is not proved; such a
-  result would be the explicit `unsupported` error.
 - **Graph and cyclic data** (Scheme/Racket/CL labels) would need a separate representation.
 - **Bytes**: only the dotted syntax has a byte-level `Format`; the dialects read `String`s.
 - Numeric examples for Scheme and Common Lisp are checked with `cbv` (rational normalization
