@@ -23,6 +23,10 @@ text equals the `.wat` file beside it.
 | [BTree](../../Silmaril/WasmSpec/BTree/manifest.toml) | 1.0.1 (**partial**, superseded by 2) | the B-tree library of Watt et al. (ECOOP 2019): `oba_get`, `oba_find`, `btree_search` | OBA get/find proved (every-run total); search stated and tested, not provable as stated; insert/create stated | tactic (OBA) |
 | [BTree v2](../../Silmaril/WasmSpec/BTree/V2/manifest.toml) | 2.0.0 | the B-tree library with `btree_insert` (node splitting, root growth, free-page list, `memory.grow`) and `btree_create` | OBA get/find and search (store unchanged); insert/create with an out-of-memory outcome and a memory frame; every-run total | tactic (+ interpreter tests) |
 
+The generated `Rv64*` entries pose the Wasm side of RV64 functions reduced through the RV64
+simulators ([wasm-sim-abi.md](wasm-sim-abi.md)). Their status is `stated` (a specification without
+a solution yet), except `Rv64Absdiff`, which is verified.
+
 ## Layout of an entry
 
 | Path | Contents |
