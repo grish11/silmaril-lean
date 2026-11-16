@@ -182,6 +182,14 @@ weakening-closed and set-invariant, the pair test the same and the bounded test 
 acceptor of `member_check.wasm` context-free and its rejector conclusion-free, and
 `member_check.wasm`'s relation not context-free.
 
+**Finite sets, sets and translations.** `ProjectSelfTest.Consequence.Structural` registers the
+structural track's systems with their theorems: the identity calculus on atoms and its signed
+lift (explosion `p, ¬p ⊢` and excluded middle `⊢ p, ¬p`; translated and reflected along
+`Signed.pos`, `posPart_signedLift`); validity of literal sequents on finite sets (`onFinset`)
+and on sets (`onSet`), which agree along the inclusion of finite sets (`onFinset_iff_onSet`);
+and over `m ⊨ n ↔ m ≠ n`, finite validity read on sets is sound for infinitary validity but
+not complete — `ℕ ⊨ ∅` has no finite witness (`not_onSet_valid`; no compactness).
+
 **Interpretations.** The Interpretations page lists every `language_interpretation` (`V → Set T`)
 and `consequence_interpretation` (`V → System Ax C`): what it reads and gives, its ABI and
 environment, its definedness (both kinds are total definitions today; applying one to an

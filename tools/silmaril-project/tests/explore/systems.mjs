@@ -54,7 +54,7 @@ try {
     `multi.lit: signed lists on both sides, a raw sequent (${byName[S + "multi.lit"][3]})`);
   // the view buttons: counts and filters from the typed shape and certifications
   const views = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("#systems-views a")].map((a) => [a.dataset.view, +a.querySelector("span").textContent])));
-  check(views.all === list.length && views.acceptor === 6 && views.rejector === 1 && views.signed === 2 && views.partial === 6 && views["raw-sequent"] === 11 && views.gentzen === 1 && views.artifact === 10,
+  check(views.all === list.length && views.acceptor === 6 && views.rejector === 1 && views.signed === 3 && views.partial === 6 && views.finset === 1 && views.set === 3 && views["raw-sequent"] === 13 && views.gentzen === 1 && views.artifact === 10,
     `view counts ${JSON.stringify(views)}`);
   await open("/systems/?view=gentzen");
   const gv = await rows("#systems-table");
@@ -216,6 +216,19 @@ try {
   const wsev = await p.evaluate(() => [...document.querySelectorAll("table.system-evidence[data-standing='established'] tbody tr")].map((tr) => tr.textContent));
   check(wsev.some((t) => /single_mem/.test(t) && /\(sound\)/.test(t)) && wsev.some((t) => /≤ 2 \^ 32 - 1/.test(t)), "wasm_seq.member_check: sound and boundedly complete, established");
   await shot("wasm-seq-member");
+
+  // finite sets, sets and translations (structural track)
+  await open("/systems/?view=set");
+  check((await rows("#systems-table")).map((r) => r[0]).sort().join(" ") ===
+    [S + "structural.neq_inf", S + "structural.neq_on_set", S + "structural.valid_set"].sort().join(" "), "the set view: the three set-context systems");
+  await open("/system/" + encodeURIComponent(S + "structural.neq_on_set"));
+  const ns = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("table.system-evidence")].map((t) => [t.dataset.standing, [...t.querySelectorAll("tbody tr")].map((tr) => tr.textContent)])));
+  check((ns.established || []).some((t) => /\(sound\)/.test(t)) && (ns.counterevidence || []).some((t) => /neq_complete/.test(t) && /Set\.univ/.test(t)),
+    "finite validity on sets: sound, not complete, with the counterexample (ℕ, ∅)");
+  await open("/system/" + encodeURIComponent(S + "structural.identity_signed"));
+  const ls = await p.evaluate(() => [...document.querySelectorAll("table.system-evidence[data-standing='established'] tbody tr")].map((tr) => tr.textContent));
+  check(ls.some((t) => /preserves/.test(t) && /Signed\.pos/.test(t)) && ls.some((t) => /reflects/.test(t)), "the signed lift: translated and reflected along Signed.pos");
+  await shot("structural-set");
 
   check(errors.length === 0, `no page error${errors.length ? ": " + errors.join("; ") : ""}`);
 } finally {
