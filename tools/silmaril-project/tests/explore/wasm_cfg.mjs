@@ -62,12 +62,14 @@ try {
     check(await positions() === before, `${name}: drawing may-edges moves no node`);
     await shot(`${name}-all-may`);
     await p.uncheck("#weff");
-    // Hover a marked block: its may-edges are drawn, and only those.
+    // Hover a marked block: its may-edges are drawn, and only those. (The evaluated functions return
+    // nothing: `emit` returns the cytoscape collection, and Playwright serializing that object graph
+    // back to the test ran the page out of memory, "Target crashed".)
     const marked = want.cfg.blocks.findIndex((x) => x.effects.length && want.cfg.edges.some((e) => e[0] === want.cfg.blocks.indexOf(x) && e[2] === "effect"));
     const own = want.cfg.edges.filter((e) => e[0] === marked && e[2] === "effect").length;
-    await p.evaluate((id) => wcy.getElementById(id).emit("mouseover"), "b" + marked);
+    await p.evaluate((id) => { wcy.getElementById(id).emit("mouseover"); }, "b" + marked);
     check((await drawn()).may === own, `${name}: hovering b${marked} draws its ${own} may-edge(s)`);
-    await p.evaluate((id) => wcy.getElementById(id).emit("mouseout"), "b" + marked);
+    await p.evaluate((id) => { wcy.getElementById(id).emit("mouseout"); }, "b" + marked);
     check((await drawn()).may === 0, `${name}: leaving it hides them again`);
     check(await positions() === before, `${name}: hovering moves no node`);
     // Select trap: every edge into it is listed and drawn.

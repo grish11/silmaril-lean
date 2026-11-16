@@ -50,7 +50,7 @@ try {
   check(inStacks.length === g.stacked && !inStacks.some((c) => c === "bad"), `no stacked problem needs attention (${g.att} drawn alone)`);
   await shot("graph-grouped.png");
   const id = await p.evaluate(() => cy.nodes("[stack = 1]").sort((a, b) => b.data("label").localeCompare(a.data("label")))[0].id());
-  await p.evaluate((id) => cy.getElementById(id).emit("tap"), id);
+  await p.evaluate((id) => { cy.getElementById(id).emit("tap"); }, id);
   await p.waitForSelector("#gexpand");
   const listed = await p.evaluate(() => document.querySelectorAll("#side td a").length);
   const want = await p.evaluate((id) => +cy.getElementById(id).data("label").split(" ")[0], id);
