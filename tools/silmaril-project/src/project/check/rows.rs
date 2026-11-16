@@ -553,6 +553,8 @@ pub(super) fn run(
     db.push(&marks.deprecated_rows);
     db.push(&marks.finding_rows);
     db.push(&marks.version_rows);
+    db.push(&marks.expected_open_rows);
+    db.push(&location_rows(&cx.dump.locations));
 
     lines(
         g,

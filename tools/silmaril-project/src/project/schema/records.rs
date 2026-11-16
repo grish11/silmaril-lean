@@ -14,7 +14,7 @@
 //! record field of the same name, except the three spellings that Lean resolves (constants,
 //! value sources and instance arguments, see [`Ty`]).
 
-use super::{CLASSIFICATIONS, DISCLOSURE_STATES, EXPECT_CODES, Manifest};
+use super::{CLASSIFICATIONS, DISCLOSURE_STATES, EXPECT_CODES, EXPECTED_OPEN_REASONS, Manifest};
 use crate::project::check::{name_error, problem_name_error};
 use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
@@ -67,6 +67,8 @@ pub enum Ty {
     Classification,
     /// One of [`DISCLOSURE_STATES`].
     Disclosure,
+    /// One of [`EXPECTED_OPEN_REASONS`] (an `expected_open`'s reason).
+    OpenReason,
 }
 
 /// One key of a kind.
@@ -382,6 +384,30 @@ pub const RECORD_KINDS: &[KindSpec] = &[
         ],
     },
     KindSpec {
+        kind: "expected_open",
+        doc: "An open problem expected to stay open for a metatheoretic reason: it is \
+              independent of the ambient theory, a consistency statement the theory cannot \
+              prove, or an instance of an undecidable problem class. Never for an ordinary \
+              unproved problem. Its judgement's `expect`, if any, is `OPN`",
+        keys: &[
+            req("name", Ty::Problem, "The open problem (not a group)"),
+            req(
+                "reason",
+                Ty::OpenReason,
+                "`independent` (neither provable nor refutable in the ambient theory, e.g. by \
+                 forcing), `consistency` (not provable in the ambient theory, by Gödel's second \
+                 incompleteness theorem) or `undecidable_instance` (an instance of a problem \
+                 class known to be undecidable, where no proof is expected)",
+            ),
+            opt("note", Ty::Text, "Why the reason applies"),
+            opt(
+                "pointer",
+                Ty::Text,
+                "A citation or URL for the metatheoretic result",
+            ),
+        ],
+    },
+    KindSpec {
         kind: "decomposition",
         doc: "A proved edge `c₁ → … → cₙ → p`: one theorem (`proof`) or every such theorem of a \
               module (`module`)",
@@ -643,6 +669,13 @@ fn type_error(ty: Ty, v: &Json) -> Option<String> {
         Ty::Disclosure => match v {
             Json::String(s) if DISCLOSURE_STATES.contains(&s.as_str()) => None,
             _ => Some(format!("must be one of {}", DISCLOSURE_STATES.join(", "))),
+        },
+        Ty::OpenReason => match v {
+            Json::String(s) if EXPECTED_OPEN_REASONS.contains(&s.as_str()) => None,
+            _ => Some(format!(
+                "must be one of {}",
+                EXPECTED_OPEN_REASONS.join(", ")
+            )),
         },
         Ty::Args => match v {
             Json::Object(m) if !m.is_empty() => m
@@ -950,6 +983,7 @@ fn ty_schema(ty: Ty) -> Json {
         Ty::Meta => json!({"type": "object"}),
         Ty::Classification => json!({"enum": CLASSIFICATIONS}),
         Ty::Disclosure => json!({"enum": DISCLOSURE_STATES}),
+        Ty::OpenReason => json!({"enum": EXPECTED_OPEN_REASONS}),
     }
 }
 

@@ -818,6 +818,44 @@
         ]
       }
     },
+    "expected_open": {
+      "description": "An open problem expected to stay open for a metatheoretic reason: it is independent of the ambient theory, a consistency statement the theory cannot prove, or an instance of an undecidable problem class. Never for an ordinary unproved problem. Its judgement's `expect`, if any, is `OPN`",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The open problem (not a group)"
+          },
+          "reason": {
+            "enum": [
+              "independent",
+              "consistency",
+              "undecidable_instance"
+            ],
+            "description": "`independent` (neither provable nor refutable in the ambient theory, e.g. by forcing), `consistency` (not provable in the ambient theory, by Gödel's second incompleteness theorem) or `undecidable_instance` (an instance of a problem class known to be undecidable, where no proof is expected)"
+          },
+          "note": {
+            "type": "string",
+            "description": "Why the reason applies"
+          },
+          "pointer": {
+            "type": "string",
+            "description": "A citation or URL for the metatheoretic result"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "reason"
+        ]
+      }
+    },
     "decomposition": {
       "description": "A proved edge `c₁ → … → cₙ → p`: one theorem (`proof`) or every such theorem of a module (`module`)",
       "type": "array",
@@ -1547,6 +1585,32 @@
                 "public"
               ],
               "description": "`error` only: `private`, `reported` or `public`"
+            }
+          }
+        },
+        "expected_open": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "reason": {
+              "enum": [
+                "independent",
+                "consistency",
+                "undecidable_instance"
+              ],
+              "description": "`independent` (neither provable nor refutable in the ambient theory, e.g. by forcing), `consistency` (not provable in the ambient theory, by Gödel's second incompleteness theorem) or `undecidable_instance` (an instance of a problem class known to be undecidable, where no proof is expected)"
+            },
+            "note": {
+              "type": "string",
+              "description": "Why the reason applies"
+            },
+            "pointer": {
+              "type": "string",
+              "description": "A citation or URL for the metatheoretic result"
             }
           }
         },

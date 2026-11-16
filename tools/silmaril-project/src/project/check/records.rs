@@ -24,6 +24,9 @@ fn text_field<'a>(r: &'a Record, key: &str) -> Option<&'a str> {
         (Record::Finding(f), "pointer") => &f.pointer,
         (Record::Finding(f), "fixed_in") => &f.fixed_in,
         (Record::Finding(f), "disclosure_status") => &f.disclosure_status,
+        (Record::ExpectedOpen(e), "reason") => &e.reason,
+        (Record::ExpectedOpen(e), "note") => &e.note,
+        (Record::ExpectedOpen(e), "pointer") => &e.pointer,
         (Record::ArtifactType(x), "doc") => &x.doc,
         (Record::Format(x), "doc") => &x.doc,
         (Record::Value(x), "doc") => &x.doc,
@@ -45,7 +48,7 @@ fn compare(cx: &Ctx, at: &str, t: &RecordTable, o: &mut Outcome) {
         "instance" => ("instance", "judgement"),
         k @ ("artifact_type" | "format" | "format_default" | "value" | "model" | "spec"
         | "room" | "machine" | "machine_binding" | "judgement" | "detached"
-        | "deprecation" | "finding" | "group" | "children") => (k, k),
+        | "deprecation" | "finding" | "expected_open" | "group" | "children") => (k, k),
         _ => return,
     };
     if cx.get(kind, name).is_none() {

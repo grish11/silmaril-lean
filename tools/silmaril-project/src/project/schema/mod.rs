@@ -2,7 +2,7 @@
 //! [`dag`] (layer 0: manifest, dump, DAG records, core tables), [`relational`] (predicates,
 //! answers, instances), [`artifacts`] (the registry and blobs), [`values`] (formats and
 //! values), [`rooms`] and [`models`] (models and specs), [`languages`] (language domains,
-//! measures, interpretations and languages), [`consequence`] (consequence systems), [`markings`] (deprecations and findings). This module holds what the layers
+//! measures, interpretations and languages), [`consequence`] (consequence systems), [`markings`] (deprecations, findings and expected-open problems). This module holds what the layers
 //! share: the schema strings, the closed [`Record`] enum (one line per kind, so an unknown kind
 //! is rejected), the [`table!`] macro and the DDL order ([`tables`]).
 //!
@@ -32,7 +32,9 @@ use serde::Deserialize;
 
 pub const MANIFEST_SCHEMA: &str = "silmaril.project.v0.1";
 pub const ARTIFACTS_SCHEMA: &str = "silmaril.artifacts.v0.2";
-pub const DUMP_SCHEMA: &str = "silmaril.project-dump.v0.1";
+pub const DUMP_SCHEMA: &str = "silmaril.project-dump.v0.2";
+/// The dump schemas `check` reads: v0.1 is v0.2 without `locations`.
+pub const DUMP_SCHEMAS: [&str; 2] = ["silmaril.project-dump.v0.1", DUMP_SCHEMA];
 pub const DB_SCHEMA: &str = "silmaril.project-db.v0.1";
 /// The default registry path, relative to the package root.
 pub const ARTIFACTS_PATH: &str = "silmaril/artifacts.toml";
@@ -105,6 +107,7 @@ pub enum Record {
     Detached(Detached),
     Deprecation(Deprecation),
     Finding(Finding),
+    ExpectedOpen(ExpectedOpen),
 }
 
 /// Per kind: the field that identifies a record within its kind, and the sid kind of the
@@ -151,6 +154,7 @@ record_kinds! {
     Detached = "detached", key name, object None;
     Deprecation = "deprecation", key name, object None;
     Finding = "finding", key name, object None;
+    ExpectedOpen = "expected_open", key name, object None;
 }
 
 /// The sid kind of a record kind's object (`None`: the record declares no object, or a
@@ -433,6 +437,8 @@ pub fn tables() -> Vec<TableInfo> {
         info::<DeprecatedProblem>(),
         info::<FindingRow>(),
         info::<FindingVersion>(),
+        info::<ExpectedOpenRow>(),
+        info::<DeclLocation>(),
     ]
 }
 
@@ -446,5 +452,86 @@ mod tests {
             &VIEWS[VIEWS.len() - markings::MARKING_VIEWS.len()..],
             markings::MARKING_VIEWS
         );
+    }
+
+    const LOC: &str = r#"{"decl": "B.b", "module": "B", "line": 3, "col": 0, "end_line": 4,
+        "end_col": 9, "sel_line": 3, "sel_col": 8, "sel_end_line": 3, "sel_end_col": 11}"#;
+
+    #[test]
+    fn dumps_with_and_without_locations() {
+        // v0.1: no `locations`
+        let old: Dump = serde_json::from_str(
+            r#"{"schema": "silmaril.project-dump.v0.1", "toolchain": "4", "records": []}"#,
+        )
+        .unwrap();
+        assert!(DUMP_SCHEMAS.contains(&old.schema.as_str()));
+        assert!(old.locations.is_empty());
+        // v0.2: the locations, in any order and with a repeat, become one row per decl
+        let text = format!(
+            r#"{{"schema": "{DUMP_SCHEMA}", "toolchain": "4", "locations": [{LOC},
+            {{"decl": "A.a", "module": "A", "line": 1, "col": 2, "end_line": 1, "end_col": 30,
+              "sel_line": 1, "sel_col": 6, "sel_end_line": 1, "sel_end_col": 9}}, {LOC}]}}"#
+        );
+        let new: Dump = serde_json::from_str(&text).unwrap();
+        assert_eq!(new.locations.len(), 3);
+        let rows = location_rows(&new.locations);
+        let decls: Vec<&str> = rows.iter().map(|r| r.decl.as_str()).collect();
+        assert_eq!(decls, ["A.a", "B.b"]);
+        assert_eq!(
+            rows[1].row(),
+            [
+                Sql::Text("B.b".into()),
+                Sql::Text("B".into()),
+                Sql::Int(3),
+                Sql::Int(0),
+                Sql::Int(4),
+                Sql::Int(9),
+                Sql::Int(3),
+                Sql::Int(8),
+                Sql::Int(3),
+                Sql::Int(11),
+            ]
+        );
+        let cols: Vec<&str> = DeclLocation::COLUMNS.iter().map(|c| c.0).collect();
+        assert_eq!(
+            cols,
+            [
+                "decl",
+                "module",
+                "line",
+                "col",
+                "end_line",
+                "end_col",
+                "sel_line",
+                "sel_col",
+                "sel_end_line",
+                "sel_end_col"
+            ]
+        );
+        // a location with an unknown key is rejected
+        let bad = LOC.replace("\"col\"", "\"column\"");
+        assert!(serde_json::from_str::<DeclLocation>(&bad).is_err());
+    }
+
+    #[test]
+    fn expected_open_reasons_match_the_check_constraint() {
+        let (_, ty) = ExpectedOpenRow::COLUMNS
+            .iter()
+            .find(|(c, _)| *c == "reason")
+            .unwrap();
+        let quoted: Vec<String> = EXPECTED_OPEN_REASONS
+            .iter()
+            .map(|r| format!("'{r}'"))
+            .collect();
+        assert_eq!(
+            *ty,
+            format!("TEXT NOT NULL CHECK(reason IN ({}))", quoted.join(","))
+        );
+        let r: Record = serde_json::from_str(
+            r#"{"kind": "expected_open", "name": "p", "module": "M", "reason": "consistency",
+                "note": "n", "pointer": "u"}"#,
+        )
+        .unwrap();
+        assert_eq!((r.kind(), r.key()), ("expected_open", "p"));
     }
 }
