@@ -10,6 +10,7 @@ use wasmi::{Engine, Instance, Linker, Memory, Module, Store};
 pub struct Rng(pub u64);
 
 impl Rng {
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> u64 {
         let mut x = self.0;
         x ^= x << 13;

@@ -207,7 +207,7 @@ fn read_node(
 ) -> Node {
     let size = tr.memory.data(&tr.store).len();
     assert!(
-        x >= 1 && x < 32768 && (x + 1) * PAGE <= size,
+        (1..32768).contains(&x) && (x + 1) * PAGE <= size,
         "page {x} out of range"
     );
     pages.push(x);
@@ -215,7 +215,7 @@ fn read_node(
     let leaf = tr.wd(base) != 0;
     let n = tr.wd(base + 4) as usize;
     assert!(
-        n <= 2 * t - 1 && (root || n >= t - 1),
+        n < 2 * t && (root || n >= t - 1),
         "key count {n} at page {x}"
     );
     let ks: Vec<i32> = (0..n).map(|j| tr.wd(base + 8 + 4 * j)).collect();
