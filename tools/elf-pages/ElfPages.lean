@@ -786,12 +786,268 @@ def page (P : Pinned) (thms : Array Thm) (dis : Option Json) : Json := Id.run do
       | some _ => Json.mkObj [("file", js s!"dis/{P.slug}.json")]
       | none => Json.mkObj [("file", Json.null), ("note", js s!"no listing at {listingPath P}, and no objdump when the pages were written")])]
 
+
+/-! ## CLI: verified input/output records and specifications
+
+A **record** names Lean declarations only. At generation time each name must exist in the
+checked environment; its kind, status, axioms, statement and source line are read from the
+declaration (`declInfo`), never from this list. The list says what a declaration is **for** in
+the record (`role`): the theorem that proves the record, the reduction, the specification, an open
+obligation, a trusted model. A name that does not exist stops the tool. -/
+
+/-- The modules the CLI pages read (besides the pinned ELF modules). -/
+def cliModules : Array Name := #[
+  `Silmaril.Elf.CliExe.Start.Thms, `Silmaril.Elf.CliExe.Hello.Thms,
+  `Silmaril.Elf.Link.Dyn.Hello.Thms, `Silmaril.Elf.Link.Dyn.LibMod.Hello.Thms,
+  `Silmaril.Elf.Link.Dyn.Libc.Hello.Thms, `Silmaril.Elf.Link.Dyn.Program.Cli.Examples,
+  `Silmaril.Process.LPS.Problems.GnuSha256sum.Close, `Silmaril.Process.LPS.Problems.Sha256Cli.EndToEnd, `Silmaril.Cli.Institution.Std.Thms, `Silmaril.Cli.Spec.Sha256sum.Thms,
+  `Silmaril.Cli.Spec.WasmOpt.Thms, `Silmaril.Cli.Spec.Wac.Thms, `Silmaril.Cli.Spec.Jco.Thms,
+  `Silmaril.Cli.Spec.Asyncify.Thms, `Silmaril.Cli.Spec.WasmTools.Thms,
+  `Silmaril.Cli.Spec.WasmVerify.Thms, `Silmaril.Wasm.Binaryen.DriverSpec.Thms]
+
+/-- A declaration's role in a record. -/
+structure Edge where
+  decl : Name
+  role : String
+  note : String := ""
+
+structure IoRecord where
+  id : String
+  title : String
+  binary : String
+  elfSlug : Option String
+  sha256 : String
+  level : String
+  input : List (String × String)
+  output : List (String × String)
+  model : List (String × String)
+  edges : List Edge
+  limits : List String
+
+structure SpecRecord where
+  id : String
+  title : String
+  kind : String
+  level : String
+  implementation : List (String × String)
+  edges : List Edge
+  notes : List String
+
+def helloModel : List (String × String) := [
+  ("machine", "Open9 x86-64 semantics for the executable's own instructions (_start, crt, main), from e_entry"),
+  ("ABI", "System V AMD64 process entry: rip = e_entry, 16-byte aligned stack, argc/argv/envp (AtStart)"),
+  ("loader", "Dyn.Loader / ExeLoaded: a trusted transcription of ld.so (any bases, eager binding)"),
+  ("libc", "glibc 2.39 as contracts, one atomic step each (Silmaril.Elf.Link.Dyn.Proc): __libc_start_main, puts, exit, __cxa_finalize — trusted, glibc's code not executed"),
+  ("library files", "libc.so.6 and ld.so: any files agreeing with the pinned lookup chunks (hypothesis)"),
+  ("syscalls", "not modelled separately (inside the libc contracts)"),
+  ("I/O bridge", "Program's world/outcome rows: stdin at main, stdout flushed at exit (trusted)")]
+
+def ioRecords : List IoRecord := [
+  { id := "hello-gcc", title := "hello world (gcc 13.3 -O2), dynamically linked against glibc 2.39"
+    binary := "examples/dyn/pinned/hello-gcc", elfSlug := some "hello-gcc"
+    sha256 := "6964f3f23e27cfd2b6c26bd469cb210ff000dd359fc9988138cadc96683065c7"
+    level := "L1 (stream) for the cli_exe row; L3 (full invocation) for the Program API claim"
+    input := [("argv", "any (the claim is uniform: Level.liftAll)"), ("stdin", "any"),
+      ("environment", "any"), ("files", "any (read-only; hello reads none)"),
+      ("precondition", "writes to stdout succeed (Tier.reliable)")]
+    output := [("stdout", "hello, world\n"), ("stderr", "empty (L3, helloSpec)"), ("exit", "0")]
+    model := helloModel
+    edges := [
+      ⟨`Silmaril.Elf.CliExe.Hello.hello_cli, "proves the row", "silmaril.elf.cli.hello.gcc_o2: ELF facts and Std.hello under glibcStream"⟩,
+      ⟨`Silmaril.Elf.CliExe.hello_start, "proves the start-up row", "silmaril.elf.start.hello.gcc_o2: the standard C start-up check"⟩,
+      ⟨`Silmaril.Elf.CliExe.hello_via_start, "proves (via the reduction)", "L3 spec from the start-up check and main alone"⟩,
+      ⟨`Silmaril.Elf.CliExe.cli_of_main, "reduction", "standard start-up: main's proof gives the file's CLI spec"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Program.Examples.helloGcc_main, "proves main", "symbolic execution of main against puts's contract"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Hello.hello_gcc, "proves (process level)", "every run from _start ends with status 0 and hello, world on fd 1"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Hello.NonVacuous.gcc_nonvacuous, "non-vacuity", "the hypotheses are met by a concrete loaded state with a run"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Libc.helloGcc_on, "transfer", "verified on every libc specification above putsSpec"⟩,
+      ⟨`Silmaril.Cli.Institution.Std.hello, "specification", "Sen.prints helloBytes at L1"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.LibMod.helloGcc_real, "conditional", "real execution, given the two open obligations below"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.LibMod.Task.helloGccCrt, "open obligation", "main on the C-runtime machine"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.LibMod.HelloLib, "open obligation", "glibc's code realises init, gate, __libc_start_main, __cxa_finalize, puts"⟩,
+      ⟨`Silmaril.Elf.CliExe.GlibcRuntime, "open obligation (shape)", "silmaril.shapes.elf.glibc_runtime: no row (no concrete real machine yet)"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Proc.proc, "trusted model", "the process machine: Open9 plus the libc contracts"⟩]
+    limits := ["glibc's code is not executed: its entry points are trusted contracts (open: glibc_runtime)",
+      "the loader is a transcription of ld.so, trusted", "consumption, reads and the file log are not observed (L3 via toCli)"] },
+  { id := "hello-clang", title := "hello world (clang 18.1 -O2), dynamically linked against glibc 2.39 (lazy binding)"
+    binary := "examples/dyn/pinned/hello-clang", elfSlug := some "hello-clang"
+    sha256 := "ecad1a19e6e63e4828e9386a9c831dc6beb635c6858dc42d2c248e6397eaa713"
+    level := "process level (no CLI-institution row yet)"
+    input := [("argv", "any argc"), ("stdin", "not read"), ("environment", "any"), ("precondition", "reliable writes for the exact output")]
+    output := [("stdout", "hello, world\n (a prefix if writes may fail)"), ("exit", "0")]
+    model := helloModel ++ [("binding", "lazy: the resolver (_dl_runtime_resolve) as a contract")]
+    edges := [⟨`Silmaril.Elf.Link.Dyn.Hello.hello_clang, "proves (process level)", "every run from _start ends with status 0 and hello, world on fd 1"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Proc.proc, "trusted model", "the process machine"⟩]
+    limits := ["no cli_exe row: the Program API description (Bin) of hello-clang is not stated as a CLI model here"] },
+  { id := "sha256sum-min", title := "sha256sum-min: a libc-free static reimplementation of GNU coreutils 9.4 sha256sum (stdin tier)"
+    binary := "Silmaril.Process.LPS.Problems.GnuSha256sum.Elf (the file as Lean literals; apps/sha256sum-min)", elfSlug := none
+    sha256 := "22fa6345cc5bed08f07d4d5a0836885118259a73402470e4d7f7a7a81ad42817"
+    level := "LPS process (observable syscall traces)"
+    input := [("argv", "the program name only (stdin tier)"), ("stdin", "any finite byte stream"),
+      ("environment", "any admissible launch (stack placement in Linux's randomisation windows)"),
+      ("files", "unchanged, not read"), ("refusals", "every refusal configuration (spurious syscall failures)")]
+    output := [("stdout", "the SHA-256 hex digest of stdin followed by \"  -\\n\" (Apps.Sha256sum.sha256sum)"), ("stderr", "empty"), ("exit", "0"),
+      ("termination", "every execution exits; the complete ideal trace occurs")]
+    model := [("machine", "LPS x86-64 native machine (Silmaril.Process.LPS), with flag oracles"),
+      ("ABI", "Linux x86-64 process entry (ExecEntry, admissible launch)"),
+      ("loader", "LPS ELFImage loader of a static ET_EXEC"), ("libc", "none (libc-free)"),
+      ("syscalls", "NativeX86.extendedSyscallSpec with refusals")]
+    edges := [⟨`Silmaril.Process.LPS.Problems.GnuSha256sum.Close.lpsTotal_close, "proves", "total correctness in LPS, stdin tier"⟩,
+      ⟨`Silmaril.Process.LPS.Problems.GnuSha256sum.Close.lpsPartial_close, "proves", "safety"⟩,
+      ⟨`Silmaril.Process.LPS.Problems.GnuSha256sum.Close.agree_close, "proves", "agreement with sha256-cli"⟩,
+      ⟨`Silmaril.Cli.Spec.Sha256sum.spec, "specification (CLI institution)", "the standard sha256sum spec; this proof is stated in LPS, not as this sentence"⟩]
+    limits := ["stdin tier only (no options, no file operands)", "this binary is not the distro sha256sum of the ELF tab"] },
+  { id := "sha256-cli", title := "sha256-cli: a freestanding SHA-256 filter (prints 64 hex digits and \\n)"
+    binary := "apps/sha256-cli", elfSlug := none, sha256 := "(see apps/sha256-cli/manifest.json)"
+    level := "LPS process"
+    input := [("stdin", "any finite byte stream"), ("argv", "any")]
+    output := [("stdout", "64 hex digits of SHA-256(stdin) and \\n"), ("exit", "0")]
+    model := [("machine", "LPS x86-64 native machine"), ("libc", "none"), ("syscalls", "read, write, exit (LPS spec)")]
+    edges := [⟨`Silmaril.Process.LPS.Problems.Sha256Cli.sha256cli_lps_total, "proves", "total correctness in LPS"⟩]
+    limits := [] },
+  { id := "gnu-sha256sum", title := "GNU coreutils 9.4 sha256sum (Ubuntu, dynamic, glibc + libcrypto)"
+    binary := "examples/elf/pinned/gnu-sha256sum", elfSlug := some "gnu-sha256sum"
+    sha256 := "4d2db56c867e5324e0084c9e897f6360d37517de77ac96f2bd31494223d69a60"
+    level := "—"
+    input := [], output := []
+    model := []
+    edges := [⟨`Silmaril.Cli.Spec.Sha256sum.spec, "specification", "the standard spec it would be stated against"⟩]
+    limits := ["no verified input/output pair in this repository: the binary is parsed part by part (ELF tab), its functions listed, nothing about its behaviour is proved here"] }]
+
+def clapEdges (ns : Name) (refines : Bool) : List Edge :=
+  [⟨ns ++ `tool, "specification", "the args grammar (clap dialect) and its derived help, usage errors and exit codes"⟩,
+   ⟨ns ++ `tool_wf, "proves", "the grammar is well formed"⟩] ++
+  (if refines then [⟨ns ++ `main_refines, "refinement (by construction)", "a main built as tool.main on a dispatch refines the derived spec"⟩,
+    ⟨ns ++ `main_front, "refinement (front end)", "the front end's help, usage errors and exit codes"⟩] else [])
+
+def specRecords : List SpecRecord := [
+  { id := "hello", title := "hello: prints hello, world and exits 0", kind := "sentence", level := "L1"
+    implementation := [("ELF", "hello-gcc (examples/dyn/pinned/hello-gcc), via silmaril.elf.cli.hello.gcc_o2")]
+    edges := [⟨`Silmaril.Cli.Institution.Std.hello, "specification", ""⟩,
+      ⟨`Silmaril.Cli.Institution.Std.hello_agree, "proves", "two models satisfying it agree"⟩,
+      ⟨`Silmaril.Elf.CliExe.Hello.hello_cli, "refinement proof", "hello-gcc satisfies it (glibcStream)"⟩]
+    notes := [] },
+  { id := "cat", title := "cat: copies stdin to stdout", kind := "sentence", level := "L1"
+    implementation := [("ELF", "cat-stdin-gcc (examples/dyn/pinned/cat-stdin-gcc)")]
+    edges := [⟨`Silmaril.Cli.Institution.Std.cat, "specification", ""⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Program.Examples.catStdinGcc_filter, "refinement proof", "the L1 reduct of its Program model satisfies the filter"⟩]
+    notes := ["no cli_exe row for cat-stdin-gcc yet"] },
+  { id := "sha256sum", title := "sha256sum (GNU coreutils), at every level of the CLI institution", kind := "specification", level := "L1–L3"
+    implementation := [("Lean", "Silmaril.Apps.Sha256sum.sha256sum (an executable specification)"),
+      ("ELF", "sha256sum-min (LPS proof, not stated as this sentence)")]
+    edges := [⟨`Silmaril.Cli.Spec.Sha256sum.spec, "specification", ""⟩,
+      ⟨`Silmaril.Cli.Institution.Std.sha256Stdin, "specification (L1 sentence)", ""⟩,
+      ⟨`Silmaril.Cli.Spec.Sha256sum.spec_le_lift_stdin, "proves", "the stdin domain refines the L1 sentence"⟩]
+    notes := [] },
+  { id := "wasm-opt", title := "wasm-opt (silmaril's Binaryen-style optimiser)", kind := "args grammar", level := "L3"
+    implementation := [("tool", "tools/wasm-opt"), ("Lean", "Silmaril.Wasm.Binaryen.Driver")]
+    edges := clapEdges `Silmaril.Cli.Spec.WasmOpt false ++
+      [⟨`Silmaril.Wasm.Binaryen.DriverSpec.selectable_names, "proves", "the grammar's stage names are exactly the driver's selectable stages"⟩,
+       ⟨`Silmaril.Wasm.Binaryen.DriverSpec.parseArgs_verifiedStages, "proves", "the driver's reading of the verified-stages path"⟩]
+    notes := ["the optimisation passes' semantics are proved elsewhere (Silmaril.Wasm.Binaryen); this row is the command line"] },
+  { id := "wasm-wac", title := "wasm-wac", kind := "args grammar", level := "L3"
+    implementation := [("tool", "tools/wasm-wac/WasmWac.lean"), ("Lean", "Silmaril.Wasm.Wac.Tool")]
+    edges := clapEdges `Silmaril.Cli.Spec.Wac true, notes := [] },
+  { id := "wasm-jco", title := "wasm-jco", kind := "args grammar", level := "L3"
+    implementation := [("tool", "tools/wasm-jco/WasmJco.lean"), ("Lean", "Silmaril.Wasm.JcoTool")]
+    edges := clapEdges `Silmaril.Cli.Spec.Jco true, notes := [] },
+  { id := "wasm-asyncify", title := "wasm-asyncify", kind := "args grammar", level := "L3"
+    implementation := [("tool", "tools/wasm-asyncify/WasmAsyncify.lean"), ("Lean", "Silmaril.Wasm.FX.Asyncify.Tool")]
+    edges := clapEdges `Silmaril.Cli.Spec.Asyncify true, notes := [] },
+  { id := "wasm-tools", title := "wasm-tools", kind := "args grammar", level := "L3"
+    implementation := [("tool", "tools/wasm-tools")]
+    edges := clapEdges `Silmaril.Cli.Spec.WasmTools false, notes := [] },
+  { id := "wasm-verify", title := "wasm-verify", kind := "args grammar", level := "L3"
+    implementation := [("tool", "tools/wasm-verify/WasmVerify.lean")]
+    edges := clapEdges `Silmaril.Cli.Spec.WasmVerify false, notes := [] }]
+
+/-- What the environment says about a declaration. -/
+def declInfo (env : Environment) (thmOf : Std.HashMap Name Name)
+    (cache : Std.HashMap Name NameSet) (d : Name) : IO (Json × Std.HashMap Name NameSet) := do
+  let some ci := env.find? d | throw (IO.userError s!"cli pages: {d} is not in the environment")
+  let module := match env.getModuleIdxFor? d with
+    | some i => env.header.moduleNames[i.toNat]!
+    | none => .anonymous
+  let line ← runCore env do return ((← Lean.findDeclarationRanges? d).map (·.range.pos.line))
+  let stmt ← runCore env do return toString (← (Lean.Meta.ppExpr ci.type).run')
+  let ((axs, _), cache') := (axiomsOf env d).run (cache, {})
+  let axioms := axs.toArray.qsort Name.lt
+  -- a statement, or a family of statements (`∀ params, Prop`, e.g. an open `Task` or a shape)
+  let isProp ← runCore env do return (← (Lean.Meta.isProp ci.type).run')
+  let isPropFamily : Bool ← runCore env do
+    let m : Lean.MetaM Bool := Lean.Meta.forallTelescopeReducing ci.type fun _ b => return b.isProp
+    return (← m.run')
+  let kind : String := match ci with
+    | .thmInfo _ => "theorem"
+    | .inductInfo _ => if isPropFamily then "statement (a structure of obligations)" else "inductive type"
+    | .defnInfo _ => if isProp then "statement" else if isPropFamily then "statement (parametrised)" else "definition"
+    | _ => "declaration"
+  let status : String := match ci with
+    | .thmInfo _ =>
+      if axioms.contains ``sorryAx then "sorry"
+      else if axioms.all (standardAxioms.contains ·) then "proved" else "proved with other axioms"
+    | _ => match thmOf[d]? with
+      | some t => s!"proved by {t}"
+      | none =>
+        if isProp then "statement, not proved here"
+        else if isPropFamily then "parametrised statement, no instance proved here"
+        else "definition"
+  pure (Json.mkObj [("decl", js d.toString), ("kind", js kind), ("status", js status),
+    ("axioms", Json.arr (axioms.map (js ·.toString))), ("module", js module.toString),
+    ("file", js (module.toString.replace "." "/" ++ ".lean")),
+    ("line", match line with | some l => jn l | none => Json.null),
+    ("statement", js (if stmt.length > 4000 then (String.ofList (stmt.toList.take 4000)) ++ " …" else stmt))], cache'.1)
+
+def edgesJson (env : Environment) (thmOf : Std.HashMap Name Name) (cache : Std.HashMap Name NameSet)
+    (es : List Edge) : IO (Json × Std.HashMap Name NameSet) := do
+  let mut out : Array Json := #[]
+  let mut c := cache
+  for e in es do
+    let (j, c') ← declInfo env thmOf c e.decl
+    c := c'
+    -- a non-theorem used as a specification or a model is that, not an open obligation
+    let j := if (e.role.startsWith "specification" || e.role.startsWith "trusted model") &&
+        j.getObjValD "kind" != js "theorem" then
+      j.setObjVal! "status" (js (if e.role.startsWith "trusted" then "trusted model" else "specification"))
+      else j
+    out := out.push ((j.setObjVal! "role" (js e.role)).setObjVal! "note" (js e.note))
+  pure (Json.arr out, c)
+
+def pairs (xs : List (String × String)) : Json := Json.arr (xs.toArray.map fun (k, v) => Json.arr #[js k, js v])
+
+def cliIndex (env : Environment) : IO Json := do
+  -- closed statements proved by a theorem whose type is exactly the statement's constant
+  let mut thmOf : Std.HashMap Name Name := {}
+  let wanted : Std.HashSet Name := Std.HashSet.ofList
+    ((ioRecords.flatMap (·.edges)) ++ (specRecords.flatMap (·.edges)) |>.map (·.decl))
+  for (n, ci) in env.constants.toList do
+    if let .thmInfo ti := ci then
+      if let .const c _ := ti.type.consumeMData then
+        if wanted.contains c && !n.isInternal then thmOf := thmOf.insert c n
+  let mut cache : Std.HashMap Name NameSet := {}
+  let mut ios : Array Json := #[]
+  for r in ioRecords do
+    let (es, c) ← edgesJson env thmOf cache r.edges
+    cache := c
+    ios := ios.push (Json.mkObj [("id", js r.id), ("title", js r.title), ("binary", js r.binary),
+      ("elfSlug", match r.elfSlug with | some s => js s | none => Json.null), ("sha256", js r.sha256),
+      ("level", js r.level), ("input", pairs r.input), ("output", pairs r.output), ("model", pairs r.model),
+      ("edges", es), ("limits", toJson r.limits)])
+  let mut specs : Array Json := #[]
+  for r in specRecords do
+    let (es, c) ← edgesJson env thmOf cache r.edges
+    cache := c
+    specs := specs.push (Json.mkObj [("id", js r.id), ("title", js r.title), ("kind", js r.kind),
+      ("level", js r.level), ("implementation", pairs r.implementation), ("edges", es), ("notes", toJson r.notes)])
+  pure (Json.mkObj [("schema", js "silmaril.cli-pages.v1"), ("io", Json.arr ios), ("specs", Json.arr specs)])
+
 /-! ## Driver -/
 
 def loadEnv : IO Environment := do
   Lean.initSearchPath (← Lean.findSysroot)
   importModules (pinned.toArray.flatMap fun P => #[{ module := P.ns ++ `Thms }, { module := P.ns ++ `Functions }] ++
-    (if P.slug == "zlib-checksums" then #[{ module := P.ns ++ `Contracts }] else #[])) {}
+    (if P.slug == "zlib-checksums" then #[{ module := P.ns ++ `Contracts }] else #[]) ++
+    cliModules.map ({ module := · })) {}
 
 def generate : IO (List (String × Json) × List (String × ByteArray)) := do
   let e0 ← IO.monoMsNow
@@ -839,7 +1095,9 @@ def generate : IO (List (String × Json) × List (String × ByteArray)) := do
       ("functions", jn ((pg.getObjValD "functions").getArr?.toOption.map (·.size) |>.getD 0)),
       ("kernelOnly", toJson (thms.all fun t => t.axioms.all (standardAxioms.contains ·))),
       ("coverageSummary", pg.getObjValD "coverageSummary")])
-  pure (("index.json", Json.mkObj [("schema", js "silmaril.elf-pages.v1"), ("files", Json.arr index)]) :: files, blobs)
+  let cli ← cliIndex env
+  pure (("index.json", Json.mkObj [("schema", js "silmaril.elf-pages.v1"), ("files", Json.arr index)]) ::
+    ("cli.json", cli) :: files, blobs)
 
 def write (out : String) (files : List (String × Json)) (blobs : List (String × ByteArray)) : IO Unit := do
   let w0 ← IO.monoMsNow
@@ -894,6 +1152,11 @@ def tampers : List (String × String × (Json → Json)) :=
    ("axioms hidden", "f/glibc-libc.json", modArr (fun a => a.modify 0 fun t => t.setObjVal! "axioms" (Json.arr #[])) "theorems"),
    ("function row given another theorem", "f/zlib-libz.json", modArr (fun a => a.modify 1 fun r =>
       r.setObjVal! "theorem" ((a[2]?.map (·.getObjValD "theorem")).getD Json.null)) "functions"),
+   ("open obligation shown as proved", "cli.json", modArr (fun a => a.modify 0 fun r =>
+      match r.getObjValD "edges" with
+      | .arr es => r.setObjVal! "edges" (.arr (es.map fun e =>
+          if (e.getObjValD "role").getStr?.toOption.any (·.startsWith "open") then e.setObjVal! "status" (js "proved") else e))
+      | _ => r) "io"),
    ("contract linked to another function", "f/zlib-checksums.json", modArr (modFirst
       (fun r => r.getObjValD "name" == Json.str "crc32_z") fun r =>
         r.setObjVal! "contracts" (Json.arr #[js "Silmaril.Elf.Staged.Pinned.ZlibChecksums.adler32_z_contract"])) "functions")]
