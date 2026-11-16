@@ -41,6 +41,11 @@ outside a list or as a datum, `( . a)` (dot first), `(a . )` (missing tail), `(a
 escapes. `.a`, `a.b` and `...` are ordinary symbols. Any `Lexeme` can be written: a symbol that is
 empty, `.`, or contains a delimiter is printed as `|…|`.
 
+Printing escapes `\`, `"` (or `|`), newline, return and tab (`\n \r \t`), exactly as
+`SExpPrinter.escapeChar` does; other characters, controls and non-ASCII included, are written as
+themselves. `Gap`/`Trailing`/`Body`/`Lexeme`/`Tokenizes` below state the lexical grammar
+declaratively; `encode`/`decode`/`format` add the UTF-8 byte layer.
+
 `parse?` reads exactly one datum (only atmosphere may follow); `parsePrefix?` reads one datum
 from the front and returns the rest; `parseAll?` reads a document of data. `print` writes any
 datum so that `parse?` reads it back exactly (`Thms.parse?_print`).

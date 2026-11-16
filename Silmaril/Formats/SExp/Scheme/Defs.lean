@@ -16,7 +16,7 @@ public import Silmaril.Formats.SExp.SchemeFamily.Defs
 | identifiers | `symbol`, R7RS identifier grammar, case-sensitive; `|…|` with `\|`, `\\`, `\a \b \t \n \r` |
 | `#t #f #true #false` | `boolean` |
 | `42`, `-7/2` | `exact` rational (`4/2` is `2`) |
-| `1.5`, `.5`, `-1e3`, `2.` | `inexact` decimal (exact decimal value, no rounding) |
+| `1.5`, `.5`, `-1e3`, `2.` | `inexact` literal (its exact decimal value as written; the runtime inexact number is not computed) |
 | `#\a`, `#\space`, `#\(` | `char` (names: alarm backspace delete escape newline null return space tab) |
 | `"…"` | `string`, escapes `\a \b \t \n \r \" \\ \|` |
 | `'x` `` `x `` `,x` `,@x` | `(quote x)` `(quasiquote x)` `(unquote x)` `(unquote-splicing x)` |
@@ -28,6 +28,10 @@ number prefixes `#e #i #x #b #o #d`, `+inf.0 -inf.0 +nan.0 -nan.0`, complex numb
 markers other than `e`, hex escapes `\x…;` in strings, symbols and characters, string line
 continuations, `[ ]` and `{ }` (reserved by R7RS), and tokens that are neither numbers nor
 identifiers.
+
+Data equality is syntactic: `1.5`, `1.50` and `15e-1` read to three different data, and `2`
+and `2.0` to an exact and an inexact datum; this module claims nothing about `eqv?`/`=` at
+runtime.
 
 New definitions (no source; syntax from R7RS-small).
 -/

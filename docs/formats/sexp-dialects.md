@@ -32,17 +32,71 @@ so the encoding is injective, and `Notation.wf` is exactly its image (`wf_of_rea
 | Data type | `DottedSExp.Datum` | `Scheme.Datum` | `Racket.Datum` | `CommonLisp.Datum` | `Clojure.Datum` | `Pose2` |
 | Atoms | symbol, string | symbol, boolean, exact ℚ, inexact decimal, char, string | + keyword | symbol (upcased), keyword, `p:s`/`p::s`, `#:s`, ℚ, float (decimal + format), string, char | nil, boolean, integer (+BigInt), float (+BigDecimal), string, char, symbol/keyword with namespace | symbol, string, number |
 | Lists, dotted pairs | yes, yes | yes, yes | `()` `[]` `{}`, yes | yes, yes | yes, **no** (`.` is a symbol) | yes, **no** |
-| Collections (markers) | – | `#(…)`, `#u8(…)` (elements 0–255, `Valid`) | `#(…)`, box `#&` | `#(…)` | `[…]`, `{…}` (even, no duplicate keys), `#{…}` (no duplicates) | – |
+| Collections (markers) | – | `#(…)`, `#u8(…)` (elements 0–255, `Valid`) | `#(…)`, box `#&` | `#(…)` | `[…]`, `{…}` (even; keys pairwise unequal under Clojure `Util.equiv`), `#{…}` (likewise) | – |
 | Abbreviations | – | `'` `` ` `` `,` `,@` → lists | + `#'` `` #` `` `#,` `#,@` | `'` `#'` → lists; `` ` `` `,` `,@` → markers (CLHS 2.4.6) | `'` `@` `#'` `~` `~@` → lists | – |
 | Symbol escapes | `\|…\|` | `\|…\|` | `\|…\|` (no escapes inside) | `\`, `\|…\|`, mixed | none (unwritable names) | none |
 | Comments | `;` | `;`, nested `#\|…\|#` | `;`, nested `#\|…\|#` | `;`, nested `#\|…\|#` | `;`, commas are whitespace | `;` |
 | Roundtrip | `parse?_print` (all data) | `parse?_print` (`wf`, `Valid`) | `parse?_print` (`wf`) | `parse?_print` (`wf`) | `parse?_print` (`wf`, `valid`) | `print?_sound` |
-| Grammar | `parse?_iff` | `parse?_iff` | `parse?_iff` | `parse?_iff` | `parse?_iff` | via `Pose.parse?` |
+| Grammar | `parse?_iff_tokenizes` (declarative lexical + phrase grammar) | `parse?_iff` (lexer + `Gram`) | `parse?_iff` (lexer + `Gram`) | `parse?_iff` (lexer + `Gram`) | `parse?_iff` (lexer + `Gram`) | via `Pose.parse?` |
+| Bytes | `format`, `decode_encode`, `isUtf8_of_decode` | – | – | – | – | – |
 | Examples | `Dotted/Examples` | `Scheme/Examples` | `Racket/Examples` | `CommonLisp/Examples` | `Clojure/Examples` | `Pose2/Examples` |
 
 "Portable S-expressions" is POSE, the `s-expressions/pose` grammar already implemented by
 `Silmaril.Formats.Pose` (`SExp/Pose.lean`); it is not Rivest's canonical S-expressions
 (`RivestSExp`, `Spki`).
+
+## Numbers are syntax-level literals
+
+Numeric atoms record what the text says, not a runtime value. Exact rationals (`ℚ`) are read
+canonically where the language's reader does so (CL `-3/6` is `-1/2`, CLHS 12.1.3.2; Scheme and
+Racket exact rationals). Floating literals keep the exact decimal they spell
+(`SExpLexical.Decimal`: `1.5`, `1.50` and `15e-1` are three different data with one
+`Decimal.value`), with no IEEE 754 rounding. Hence equality of read data is **syntactic**: none
+of the Scheme, Racket or Common Lisp modules claims anything about runtime `eqv?`, `equal?`, `eql`
+or `=`. The one place runtime numeric equality matters for *reading* is Clojure's duplicate-key
+check, and there it is computed exactly: doubles are rounded to binary64 (nearest-even, the
+repository's proved `Numeric.Ieee754.RationalRounding`) and compared with Java `==`.
+
+## Clojure key equality
+
+Clojure 1.12 rejects map literals with equal keys (`PersistentArrayMap.createWithCheck`,
+`Util.equiv`) and set literals with equal elements (`PersistentHashSet.createWithCheck`, hash
+then `Util.equiv`). `Clojure.equal?` decides `Util.equiv` on read values (`Clojure.Equal`,
+`equal?_sound`):
+
+| values | equal when |
+| --- | --- |
+| long, BigInt | same integer (`1` = `1N`) |
+| double | same binary64 value under `==` (`0.0` = `-0.0`; `0.1` = `0.10000000000000000001`) |
+| BigDecimal | same value (`compareTo`: `1.0M` = `1.00M`) |
+| different numeric categories | never (`1` ≠ `1.0` ≠ `1.0M`) |
+| nil, booleans, strings, characters, symbols, keywords | same atom |
+| lists and vectors | element-wise (`[1 2]` = `(1 2)`, `()` = `[]`) |
+| maps, sets | decided only by size (different sizes unequal, two empty equal); two nonempty ones of equal size: explicit `Issue.unsupported` error |
+
+`parseE?` reports `oddMap`, `duplicate`, `unsupported` or `syntax`. Accepted literals have
+pairwise unequal keys (`map_literal_ok`, `set_literal_ok`), and a reported duplicate is a real
+equal pair (`keysIssue_duplicate`), for every map/set equality meeting `CollEq`.
+
+`(a . b)` in Clojure: `LispReader.symbolPat` reads `.` as a symbol, so the text is the
+three-element list `a . b`. The reference reserves `.`-symbols for host interop (the `.` special
+form); that is evaluation, outside these modules.
+
+## The older `SExpParser` and `SExpPrinter`
+
+`DottedSExp` is a separate, stricter text syntax; it does not replace the older parser. The two
+are related by proved statements:
+
+- `DottedSExp.print (v.map .string) = SExpPrinter.printSExp2 v` for every `v` (same layout,
+  same `\\ \" \n \r \t` escapes), so `DottedSExp.parse?` reads everything the older printer
+  writes (`parse?_printSExp2`);
+- on every text the older *checked* printer emits, `SExpParser.parseSExp2?` and
+  `DottedSExp.parse?` agree up to the symbol/string distinction (`agrees_on_printSExp2?`).
+
+Elsewhere they differ, deliberately, as the kernel-checked examples in `Dotted/Examples` show:
+the older parser reads a lone `.` as a symbol, does not end bare tokens at `"` or `|`, decodes any
+`\c` as `c`, and treats form feed as a symbol character; the dotted syntax rejects the first and
+third, and delimits on `"`, `|` and form feed.
 
 ## Deliberately rejected
 
@@ -62,13 +116,14 @@ Each is a reader error, not a misreading. The module docs list them per dialect.
 
 ## Remaining obligations
 
-- Lexical layers are specified by their executable lexers; only the phrase structure has a
-  declarative grammar (`Gram`). A declarative character-level grammar per dialect, and the
-  relation of `DottedSExp` to the older `SExpParser.parseSExp2?`, are not yet stated.
-- Floats are kept as exact decimal values (`SExpLexical.Decimal`); rounding to IEEE 754 is not
-  applied. Clojure duplicate detection is structural, not Clojure value equality.
-- Graph and cyclic data (Scheme/Racket/CL labels) would need a separate representation.
-- The `DottedSExp.format` is stated over UTF-8 bytes through `String.fromUTF8?`; no byte-level
-  roundtrip theorem yet.
-- Numeric examples are checked with `cbv` rather than `decide` (rational normalization does not
-  reduce in the kernel).
+- **Declarative lexical grammars** exist for the dotted syntax only (`Tokenizes`, proved
+  equivalent to its lexer). The Scheme, Racket, Common Lisp and Clojure lexers are their own
+  lexical specification; their phrase structure is the declarative `Gram`, and their printed
+  tokens are proved to lex back (`PrintLaws`).
+- **Runtime numbers** (all but Clojure keys): no IEEE rounding, no `eqv?`/`eql`/`=` model.
+- **Clojure**: equality of two nonempty maps or sets of the same size inside keys is reported as
+  unsupported rather than decided.
+- **Graph and cyclic data** (Scheme/Racket/CL labels) would need a separate representation.
+- **Bytes**: only the dotted syntax has a byte-level `Format`; the dialects read `String`s.
+- Numeric examples for Scheme and Common Lisp are checked with `cbv` (rational normalization
+  does not reduce under `decide`).

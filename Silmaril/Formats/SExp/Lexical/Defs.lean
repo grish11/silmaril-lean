@@ -17,8 +17,11 @@ Character-level scanners over `List Char`, each paired (in `Thms`) with the prin
   inverted by `natText`, `intText`, `ratText`;
 * `readDecimal`: decimal floating literals (`[sign] digits [. digits] [marker [sign] digits]`),
   read as the exact `Decimal` they denote (sign, significand, power of ten), inverted by
-  `Decimal.text`. No binary rounding is applied: two literals with the same decimal value but
-  different digits (`1.5`, `1.50`) give different `Decimal`s with the same `Decimal.value`.
+  `Decimal.text`. A `Decimal` is a **syntax-level literal**, not a runtime number: no binary
+  rounding is applied, and two literals with the same value but different digits (`1.5`,
+  `1.50`) are different `Decimal`s (same `Decimal.value`). Equality of read data is therefore
+  syntactic equality of literals; it is not the runtime numeric equality of any Lisp (for that,
+  round with `Numeric.Ieee754.RationalRounding`, as `Clojure.doubleBits` does).
 
 New definitions (no source).
 -/

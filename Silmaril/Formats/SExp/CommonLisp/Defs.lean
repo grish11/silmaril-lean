@@ -18,7 +18,7 @@ interning, no package lookup, no feature tests.
 | `p:s`, `p::s` | `qualified "P" "S" false/true` (no package lookup) |
 | `#:foo` | `uninterned "FOO"` |
 | `12`, `-3/6`, `5.` | `rational` (exact, canonical: `-3/6` is `-1/2`, `5.` is `5`) |
-| `1.5`, `.5`, `1e3`, `1.5d0` | `float` (exact decimal value and the exponent marker's format) |
+| `1.5`, `.5`, `1e3`, `1.5d0` | `float` literal (its exact decimal value as written and the exponent marker's format; the runtime float is not computed) |
 | `"a\"b"` | `string` (`\c` is `c` for every `c`) |
 | `#\a`, `#\(`, `#\Space` | `character` (names: Space, Newline, Tab, Page, Rubout, Linefeed, Return, Backspace; case-insensitive) |
 | `'x`, `#'x` | the lists `(QUOTE x)`, `(FUNCTION x)` (CLHS 2.4.3, 2.4.8.2) |
@@ -34,7 +34,9 @@ tokens of dots only (other than the consing dot), tokens that are *potential num
 not supported numbers, colons other than `:s`, `p:s`, `p::s`, and unescaped Backspace/Rubout.
 
 Datum-level, not object-level: `()` reads as `SExp2.nil` while `nil` reads as the symbol `NIL`
-(the same object in a Lisp image); floats keep their exact decimal value (no binary rounding).
+(the same object in a Lisp image); floats are syntax-level literals (`1.5` and `1.50` are
+different data), so data equality is not `eql`/`=` at runtime. Rationals are canonicalized
+because the standard reader itself produces the canonical rational (CLHS 12.1.3.2).
 Case conversion uses `Char.toUpper`, which converts ASCII letters only.
 
 New definitions (sources: CLHS chapter 2).

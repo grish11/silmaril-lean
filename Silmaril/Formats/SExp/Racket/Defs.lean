@@ -19,7 +19,7 @@ Reading never evaluates; reader extensions are not run.
 | `#:kw`, `#:|k w|` | `keyword` |
 | `#t #f #true #false` | `boolean` |
 | `42`, `-7/2` | `exact` rational |
-| `1.5`, `1e3`, `-0.0` | `inexact` decimal (exact decimal value; Racket rounds it to a flonum) |
+| `1.5`, `1e3`, `-0.0` | `inexact` literal (its exact decimal value as written; the flonum Racket reads is not computed) |
 | `#\a`, `#\space`, `#\(` | `char` (names: nul null backspace tab newline linefeed vtab page return space rubout delete) |
 | `"…"` | `string`, escapes `\a \b \t \n \v \f \r \e \" \' \\` |
 | `'x` `` `x `` `,x` `,@x` | `(quote x)` `(quasiquote x)` `(unquote x)` `(unquote-splicing x)` |
@@ -33,6 +33,10 @@ dots), `#;` datum comments, `#hash…`, `#s(…)` prefab structures, `#[…]` / 
 `#e #i #x #b #o #d`, extflonums, `+inf.0`-style and complex numbers, exponent markers other than
 `e`, backslash escapes in symbols and mixed `|…|` quoting, octal/hex/Unicode string escapes, and
 symbols or keywords containing `|` or `\` (unwritable here).
+
+Data equality is syntactic (`1.5` and `1.50` read to different data); this module claims nothing
+about runtime `equal?` or `=`. Racket's datum also forgets the bracket shape only because `read`
+does; `read-syntax` would record it as a syntax property, which is not modelled.
 
 New definitions (no source; syntax from the Racket Reference §1.3).
 -/
