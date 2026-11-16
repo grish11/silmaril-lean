@@ -43,7 +43,10 @@ claimed to be an Elgot category in the unrestricted sense, i.e. with uniformity 
 morphism. Uniformity along **silent, deterministic, trap-free, defined** (possibly state-changing)
 maps holds (`CanonStrat.iter_uniform_silent`, `Silmaril.Games.Abstract.IterUniform`), and each
 of the four conditions is needed (`FullFun.not_iter_uniform_nondet`, `not_iter_uniform_undefined`
-and the two counterexamples above). Finitely-branching nondeterministic maps are open.
+and the two counterexamples above). More generally, **finitely branching** nondeterministic silent
+trap-free defined maps also satisfy uniformity (`CanonStrat.iter_uniform_silent_finite`,
+`Silmaril.Games.Abstract.IterUniformFin`, via König's lemma); infinite branching does not
+(`FullFun.not_iter_uniform_infinite`).
 -/
 
 public section
