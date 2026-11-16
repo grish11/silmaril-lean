@@ -8,6 +8,7 @@ import Silmaril.Proofs.Games.Abstract.SessionLink.Div
 import Silmaril.Proofs.Games.Abstract.SessionLink.InfBwd
 import Silmaril.Proofs.Games.Abstract.SessionLink.Det
 import Silmaril.Proofs.Games.Abstract.SessionLink.InfFwd
+import Silmaril.Proofs.Games.Abstract.SessionLink.Trap
 
 /-!
 # Linking sessions: theorems
@@ -60,6 +61,9 @@ given answers (`AFun.Det` of `t.1` and `u.1`) the hypotheses on stores hold
 **The linked triple is saturated** (`saturated_linkS`): every call forced by a linked behaviour
 or stream is a pending call of the linked triple, a call prefix of the server inside a served call.
 
+**Plain traps.** The linked triple has no plain traps when the client has none
+(`noPlainTrap_linkS`): server divergence and hidden chatter end in `div`.
+
 **Determinism.** If the server and the client are deterministic given answers, the linked triple is
 store-deterministic (`storeDet_linkS`), so the linked session has coherent infinite plays
 (`mem_inf_linkS_iff_of_det`). The linked triple itself need not be `AFun.Det`: `AFun.Det u.1` does
@@ -104,6 +108,10 @@ linked triple. -/
 theorem inf_linkS_subset (hL : StoreDet (linkS t u)) (s₀ : S) (s₀' : S') :
     (threadS (linkS t u) (s₀, s₀')).inf ⊆ ((threadS t s₀).comp (threadS u s₀')).inf :=
   fun _ => Silmaril.Proofs.Games.Abstract.SessionLink.inf_bwd hL
+
+/-- **A client without plain traps gives a linked triple without plain traps.** -/
+theorem noPlainTrap_linkS (hu : NoPlainTrap u) : NoPlainTrap (linkS t u) :=
+  Silmaril.Proofs.Games.Abstract.SessionLink.noPlainTrap_linkS hu
 
 /-- **Deterministic components give a store-deterministic linked triple.** -/
 theorem storeDet_linkS (ht : AFun.Det t.1) (hu : AFun.Det u.1) : StoreDet (linkS t u) :=
