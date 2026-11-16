@@ -65,6 +65,12 @@ Proved non-inclusions, with witnesses: `integralNumber ⊄ integerToken` (`1.0`)
 `int64 ⊄ uint64` (`-1`), `uint64 ⊄ int64` (`2^63`), `withPythonInfinity ⊄ rfc` (`Infinity`),
 `withPythonNonFinite ⊄ withPythonInfinity` (`NaN`).
 
+## S-expressions
+
+| Language | Declaration | Evidence |
+| --- | --- | --- |
+| SPKI S-expressions, canonical form (RFC 9804 §6.2, §7.2) | `Spki.canonical` (the image of `Spki.encode`) | `mem_canonical_iff` (equals the transcribed ABNF `Spki.ABNF`), `decode_eq_some_iff`, `encode_injective` (the canonical form is unique, as §6.2 says), decided |
+
 ## CBOR
 
 Owned by the format task: `Cbor.WellFormed` (RFC 8949 well-formedness), `Cbor.ModelValid`,
@@ -84,6 +90,7 @@ claimed by this file.
 | Unicode-string JSON variants | e.g. no noncharacters, NFC; `scalarEscapes` is the surrogate part |
 | Canonical JSON | RFC 8785 (JCS) as a serialization profile; uniqueness only with a theorem |
 | JSON5, canonical JSON5 | grammar of the pinned JSON5 spec version |
-| S-expressions | Rivest canonical / transport / advanced (draft-rivest-sexp); `SExp.Rivest` has the data model and a canonical parser, no language with a theorem yet |
+| S-expressions, transport and advanced (RFC 9804 §6.3, §6.4, §7.1) | base-64 transport, tokens, quoted strings, hexadecimal, whitespace; the older reader `RivestSExp.parseCanonical?` (no display hints) is not yet related to `Spki.canonical` |
+| WAT S-expressions | the WAT lexical grammar in `Formats.SExp.EncodingWat*`; no byte language with a theorem yet |
 | WAT text, Wasm binary 1.0 / 2.0 / 3.0, components | `Wasm` has grammars and parsers; the abstract acceptors and WIT bridges are owned by the Wasm task |
 | ELF | `Formats.ELF` has readers and a CST; no byte language with a theorem yet |
