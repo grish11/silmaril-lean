@@ -67,6 +67,31 @@ Examples and regression tests: `Silmaril/Semantics/Accept/Regex/Examples.lean` (
 over bytes with an exact characterization, a comma-separated list over an abstract item leaf,
 substitution of `[0-9]+` for the leaf, monotonicity).
 
+## Expressions over a monoid (`Silmaril.Semantics.Accept.MonoidRegex`)
+
+The list semantics above is one instance of a more general one: a regular expression only
+needs a monoid. `MonoidRegex.Expr ι M` (constructors `zero`, `one`, `atom a`, `cls p`,
+`leaf i`, `plus`, `comp`, `star`) denotes a set `Set M` for any `[Monoid M]`:
+
+| Name | Meaning |
+| --- | --- |
+| `MonoidRegex.prod L K` | `{a * b ∣ a ∈ L, b ∈ K}`; `prod_eq_mul` (Mathlib's pointwise product) |
+| `MonoidRegex.star L` | products of finite lists of members; `star_eq_closure` (the generated submonoid), `one_mem_star`, `mul_mem_star` |
+| `Expr.eval ρ e` | the language of `e`; one `@[simp]` law per constructor, `eval_mono`, `eval_bind` |
+| `Expr.ofRegex e` | a `Regex.Expr ι α` over the free monoid `FreeMonoid α`; letters are generators, a class is the class of one-letter words |
+
+**The list case is the existing semantics** (`eval_ofRegex`, `mem_eval_ofRegex`):
+
+```
+eval (fun i => FreeMonoid.toList ⁻¹' ρ i) (ofRegex e) = FreeMonoid.toList ⁻¹' Regex.Expr.eval ρ e
+```
+
+so nothing about `Language α` is re-defined. Other monoids give other domains: in
+`Multiplicative ℕ` the product is addition and `star (atom 2)` is exactly the even numbers
+(`Silmaril/Semantics/Accept/MonoidRegex/Examples.lean`, `mem_evens`). As above, a leaf is any
+language, so an expression is a presentation, not a regularity or decidability certificate;
+regularity is only defined (by Mathlib) for the list case.
+
 ## Limitations
 
 * `matchB` enumerates splits and is exponential in the worst case; it is a reference
