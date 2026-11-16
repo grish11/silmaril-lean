@@ -485,3 +485,13 @@ kernel-checked tables. The variants below are related to it by theorems, not by 
 - **Renderer:** TE's new edge kinds get IDs in `tools/wasm-pages/SCHEMA.md` with a version bump,
   coordinated with the explorer's renderer, before any page switches its default.
 
+
+## Paused: F6, the CFG ↔ `BodyM` correspondence (owner 0e76ca84)
+
+F6 of the typed Wasm/CFG → `BodyM` functor plan is **paused**. It is not forgotten: it resumes after the critical component work, or when the coordinator reassigns it.
+
+- **Done around it:** the CFG operational bridge, both directions, for typed trees at a deterministic profile with no host (`Cfg.Bridge.bridge_fwd`, `bridge_bwd*`, `Cfg.BridgeCfg.machine_native`; #786 #790 #791 #793 #795). The `BodyM` side is the canonical semantics `CallXP` with `ExposeP.denListXP`, `FunctorP.OpEquivP` and `BodyStrat.toDStratBody_denL_iff`.
+- **Exact goal:** for a typed function body `es`, the block-CFG runs of its graph, labelled with call events, are the logged `EvalLXP` runs of `es`. As corollaries:
+  - CFG-trace equivalence of two bodies coincides with `OpEquivP`;
+  - the CFG view has the same canonical `DStrategy` (`toDStratBody (denL es)`).
+- **Hypotheses expected:** typed trees; a deterministic profile for the bridge; the scope of #786–#795 (no host, and pending tail calls answered by every oracle).

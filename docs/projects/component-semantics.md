@@ -236,9 +236,64 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 |---|---|---|
 | Three-way plays-level form for nested composites | not possible as stated | the interleaving of outer moves is not determined by the components' plays; the two-way forms `inf_comp_eq`, `chatter_iff` are proved |
 | n-module linking; `Linked2.compTripleS` vs `linkS (instTripleS A) (instTripleS B)` | concrete (0e76ca84), accepted on #207 | `Linked2` finite/div/inf adequacy and `compSession_inj_full` are on main (0e76ca84) |
-| Component injection for linked components with imports | concrete (0e76ca84) | #680 covers simple components without imports |
+| Component injection for linked components with imports | concrete (0e76ca84) | `Linked2` (internal imports): full injection at `profile o` (#833). `HLinked2` (host imports): finite adequacy (#782); divergence and the injection open. See the concrete section below |
 | Nested `.inst` nodes expanded recursively in the `Comp.denD` law | optional refinement | `implsH` is not trap-silent and can add silent chatter there |
-| Bridge from the native session triple over `wasmHostSig` to a component-node session over `sigS` | concrete (0e76ca84) | `DCoreSem` is abstract; trap propagation is proved for the native triple (#779) |
+| Bridge from the native session triple over `wasmHostSig` to a component-node session over `sigS` | concrete (0e76ca84) | Core-level bridge done (#785, `instTripleS_eq_viewTriple`); node trap propagation done (#787). Open: the `sigS` relabelling (`semOfSD`'s `importH`/`exportH` vs `toU`/`ofU`) and the native (non-Core) form |
+
+## Concrete component bridge: reference machine, IR and canonical objects
+
+This section is owned by 0e76ca84. The conventions are the same as above: "Done" means merged on `main` after `lean / check on prove` passed on a head containing main. No entry uses `sorry`, new axioms or `native_decide`. Named open propositions (`def Task.… : Prop`) appear only where listed, and never as axioms.
+
+**Fragments:**
+- **`Simple`**: one core module, no imports, float-free, `Good`/`Inst`/`Arity`.
+- **`Linked2`**: an exporter A and an importer B, linked through the canonical ABI, with no host imports. `Linked2.Adequate`.
+- **`HLinked2`**: `Linked2` plus host imports passed to B. `HLinked2.Adequate`; `HostTyped g` where a host is involved.
+
+**Profiles:** "every `P`" or `profile o` (deterministic), as listed.
+
+**Reference semantics:** sessions extend the reference machine. After a trap, the next export call runs fresh from the trap's store (`resumeCfg`); the reference itself locks down (`trapCfg`). This is the settled modelling choice.
+
+### Done
+
+| Gap | Theorems (main names) | Fragment / profile / host | PR |
+|---|---|---|---|
+| Public module equivalence and injection (native, XP), store view, inlined-helper and public-not-open witnesses | `pubStrat_eq_iff`, `pubStratXP_eq_iff`, `viewStrat_eq_iff`, `pubEquivV_inline`, `public_not_open` | one fixed host; exact log (whole store visible) unless viewed | #591 #594 #607 #637 #639 |
+| Core triple determinism | `coreTriple_det`, `pubStrat_pdet`, `pubStratXP_pdet` | `profile o`, `HostTyped` | #645 |
+| Core instances are threaded canonical objects | `pull_instThread`, `core3Sem_eq`; sessions: `spull_instSession`, `core3Sem_eq_threadSemS`, `instSession_eq_iff` | every `P`; `StoreDet`/injection at `profile o` | #648 #673 |
+| `Simple` finite adequacy (trap-last, then sessions) | `Simple.adequacy`, `refPubEquiv_not_den_eq` (counterexample), `Simple.sessAdequacy`, `refPubEquiv_not_refSessEquiv` | `Simple`, every `P` | #669 #676 |
+| `Simple` full injection into the canonical session object | `compSession_inj`, `divAt_iff_refDiv`, `sessDivs_eq_refDivs`, `RefSessProd`, `refSessProd_iff_inf`, `RefSessEquivFull.iff_refSessEquivD`, `compSession_inj_full` | `Simple`; divergence equality every `P`; injection `profile o` | #680 |
+| `Linked2` fixture and finite session adequacy | `linkedC_session`, `linkedC_ir_session`, `Linked2.sess_refToSpec`, `sess_specToRef`, `sessObs_eq`, `irToSpec`, `sessAdequacy_full`, `sessEquiv_iff` | `Linked2`, every `P` | #697 #703 #705 #712 #724 #726 |
+| `Linked2` spec divergence = reference divergence | `divSpecToRef`, `divRefToSpec`, `sessDivs_eq_refDivs`, `RefSessEquivD.iff_sessDivs` | `Linked2`, every `P` | #730 #737 |
+| `Linked2` canonical session object, full injection | `Linked2.compTripleS`, `storeDet_compTripleS`, `compSession_inj`, `refSessProd_iff_inf`, `compSession_inj_full` | `Linked2`, `profile o` | #746 |
+| Divergence-aware core semantics | `core3SemD`, `toStrategy_denUD_core3SemD`, `denUD_mono`, `denUD_congr`; `impSemD`, `forget_impSemD` | every `P` | #750 #789 |
+| Native/Core session triple → component node | `instTripleS_eq_viewTriple`, `core3SemD_eq_view` (store-preserving universal host `instHost`) | every `P`, Core | #785 |
+| Node trap propagation; no `implsN` silent chatter | `instTripleS_trapAbortsRound`, `trapPropagating_core3SemD`, `div_denD_core3SemD`, `trapSilent_implsN`, `div_dcoreNode_impSemD`, `SimpleI.div_coreNode_impSemD` | every `P` | #787 #794 |
+| Node divergence and infinite plays | `mem_div_spullD_instSession`, `mem_inf_spullD_instSession_stream`, `div_core3SemD_sem` | every `P` | #792 |
+| **`Linked2` IR divergence = spec/reference divergence** | `div_denD_eq_sources`, `sessDivsB_of_nodeDiv`, `sessDivsA_of_envDiv`, `chatterReadBack_profile`, `div_denD_of_sessDivs`, `div_denD_iff_profile`, `div_denD_iff_refDivs_profile` | `Linked2`; right to left every `P`; iff `profile o` | #798 #804 #807 #813 #820 #825 |
+| **`Linked2` IR infinite plays; full injection of `denD`** | `inf_denD_iff_profile`, `inf_denD_idle`, `refSessEquivFull_iff_denD` | `Linked2`, `profile o`; typed calls and streams; projections at `sigU` | #833 |
+| `HLinked2` (host imports) finite adequacy | `instantiates`, `sess_specToIR`, `silent_cannotBlock_sess`, `sess_specToRef`, `sess_refToSpec`, `sessObs_eq`, `silentObs_eq`, `irToSpec`, `sessAdequacy_full`, `silentAdequacy_full` | `HLinked2`, every `P`, `HostTyped g` | #758 #761 #768 #775 #778 #782 |
+| Dedupe: termination excludes divergence | `Wasm.Game.Termination.reach_normal_not_infinite` (small owning-topic header) | `profile o` | #694 |
+
+### Counterexamples (concrete)
+
+| Statement | Counterexample | Replacement |
+|---|---|---|
+| Trap-last adequacy gives full `Comp.den` equality | `refPubEquiv_not_den_eq` (`pokePeekS`/`zeroS`) | session adequacy (`Simple.sessAdequacy`) |
+| A fixed store-reading host composed with the open instance session is the closed one | `NodeBridge` docstring (an export writes `x` and returns `import0 ()`, answered from memory) | the universal store-preserving host `instHost` |
+| A host answer of the wrong type is a reference trap | `HLinkedSession` (`func() -> u32` answered `[]` is an internal fault, `flatMismatch`) | the `HostTyped g` hypothesis |
+| `#572`'s whiskering obstruction refutes a typed premonoidal functor | `exists_not_whisker_illegal` (the failing answer is not `ArityResp`) | `LegalFunctor` (#623) |
+
+### Open (concrete, owner 0e76ca84 unless noted)
+
+| Gap | Exact goal | Status |
+|---|---|---|
+| `Linked2` chatter read-back at nondeterministic profiles | `Linked2.Task.ChatterReadBack P l` (named `Prop`) for every `P`; the general `div_denD_iff_of` is conditional on it | open. Route: König's lemma over finitely branching Core steps (`InternalP P`), for both instances |
+| `Linked2` infinite plays and the injection at nondeterministic profiles | `inf_denD_iff_profile` and `refSessEquivFull_iff_denD` for every `P` | open. Needs coherent witnesses (`StratThreadW`, #739) |
+| `HLinked2` divergence and infinite plays | `HLinked2` analogues of #730–#833, with host pending and host divergence observable | open. Synchronous lowering turns a blocked host into a trap (`cannotBlockSync`); async lower/lift is out of scope |
+| n-module and nested components | reference adequacy and canonical injection for components built by `Comp.denU`'s `ext` over many nodes and nested `.inst` nodes | open. The generic laws (`div_denD_nodes`, `inf_denD_nodes`, `ext_threadS`, `linkS_assoc`) are on main (5fb4bf1f) |
+| `sigS` relabelling of `core3SemD` nodes | `semOfSD`'s `importH`/`exportH` vs `ExtSession.toU`/`ofU` | open |
+| Bytes → `Comp` parser correctness, composed with the semantics | decoding/validation of component binaries yields the `Comp`/`Simple`/`Linked2` values that the adequacy theorems are about | open. Next after the linked work |
+| Contextual full abstraction | not claimed | — |
 
 ## Servers seam (stage 10)
 
