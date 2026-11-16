@@ -20,19 +20,17 @@
     bytes_member: { THM: "member", CSA: "not a member" },
   };
 
-  // The outcome of a problem against its expected status: a negative result that was expected
-  // is not a failure, and no answer is unknown, never false.
+  // The status of a problem as the shared neutral badge (ui.statusBadge): marked only when it
+  // fails unexpectedly or misses its expected status. A closed refutation is stored as UNS; for a
+  // closed statement it means false, i.e. CSA, which is what the examples expect. No answer is OPN
+  // (unknown), never false.
   function outcome(p) {
-    // at arity 0 a refutation is recorded as UNS; for a closed statement it is CSA (false)
-    const s = p.arity === 0 && p.summary === "UNS" ? "CSA" : p.summary, e = p.expect;
-    if (!s || s === "OPN" || s === "UNK") {
-      return e && e !== "OPN" ? ui.badge("unknown", "unknown (expected " + e + ")") : ui.badge("unknown", "unknown");
-    }
-    if (e && e !== "OPN") {
-      return e === s ? ui.badge("expected", s + ", as expected") : ui.badge("unexpected", s + ", expected " + e);
-    }
-    return ui.badge(p.verdict, s);
+    const summary = p.arity === 0 && p.summary === "UNS" ? "CSA" : (p.summary || "OPN");
+    return ui.statusBadge({ summary, verdict: p.verdict || "unknown", expect: p.expect || null,
+      deprecated: p.deprecated || null, finding: p.finding || null }) +
+      (summary !== p.summary && p.summary ? ` <span class="muted">(stored ${ui.esc(p.summary)})</span>` : "");
   }
+  const depMark = '<span class="st st-dep" title="deprecated: kept, with its successors">deprecated</span>';
   function reading(p) {
     const r = READING[SHAPE(p.shape)];
     const closed = p.arity === 0;
@@ -76,7 +74,7 @@
 <p class="muted">A language is a set over a domain, built by a Lean definition the registry generates or checks.
 Membership, emptiness, inclusion and equality are undecidable in general: a question with no Lean answer is
 <b>unknown</b>, and only a proof changes that. Nothing here runs an artifact.</p>
-<form id="lang-filter" class="filters">
+<form id="lang-filter" class="controls">
   <input name="text" placeholder="filter by name, title or definition" value="${ui.esc(f.text)}" size="34">
   <select name="domain">${opt("", f.domain, "every domain")}${domains.map((d) => opt(d.name, f.domain)).join("")}</select>
   <select name="op">${opt("", f.op, "every construction")}${ops.map((o) => opt(o.op, f.op)).join("")}</select>
@@ -85,7 +83,7 @@ Membership, emptiness, inclusion and equality are undecidable in general: a ques
 </form>
 <div class="tablebox"><table id="languages-table"><thead><tr><th>language</th><th>title</th><th>domain</th><th>construction</th><th>operands</th><th>examples: in / out / unknown</th><th>problems</th><th>identity</th></tr></thead><tbody>`;
     for (const r of rows.slice(0, LIMIT)) {
-      h += `<tr><td>${langLink(r.name)}${r.deprecated ? " " + ui.badge("deprecated", "deprecated") : ""}</td>` +
+      h += `<tr><td>${langLink(r.name)}${r.deprecated ? " " + depMark : ""}</td>` +
         `<td>${ui.esc(r.title || "")}</td><td>${ui.esc(r.domain)}</td><td>${ui.esc(opText(r))}</td>` +
         `<td>${(r.operands || "").split(", ").filter(Boolean).map(langLink).join(", ")}</td>` +
         `<td>${r.accepted || r.rejected || r.unknown ? `${r.accepted} / ${r.rejected} / ${r.unknown}` : ""}</td><td>${r.problems || ""}</td><td><code title="${ui.esc(r.identity_hash)}">${ui.esc(r.identity_hash.slice(0, 12))}</code></td></tr>`;
@@ -127,11 +125,11 @@ Membership, emptiness, inclusion and equality are undecidable in general: a ques
     const operands = await ctx.q("SELECT operand FROM language_operands WHERE language = ? ORDER BY pos LIMIT 100", [name]);
     const usedBy = await ctx.q("SELECT DISTINCT language FROM language_operands WHERE operand = ? ORDER BY language LIMIT 100", [name]);
     const same = await ctx.q("SELECT name FROM languages WHERE identity_hash = ? AND name <> ? ORDER BY name LIMIT 50", [l.identity_hash, name]);
-    let h = `<h2>language <code>${ui.esc(name)}</code>${dep ? " " + ui.badge("deprecated", "deprecated") : ""}</h2>`;
+    let h = `<h2>language <code>${ui.esc(name)}</code>${dep ? " " + depMark : ""}</h2>`;
     if (l.title) h += `<p><b>${ui.esc(l.title)}</b></p>`;
     if (l.doc) h += `<p>${ui.esc(l.doc)}</p>`;
     if (dep) {
-      h += `<p class="deprecation">Deprecated: ${ui.esc(dep.reason)}.` +
+      h += `<p><b>Deprecated:</b> ${ui.esc(dep.reason)}.` +
         (succ.length ? ` Superseded by ${succ.map((s) => langLink(s.replacement)).join(", ")}.` : " No successor.") +
         ` It is kept with its problems.</p>`;
     }
@@ -158,9 +156,11 @@ Membership, emptiness, inclusion and equality are undecidable in general: a ques
     h += `<h3>Identity</h3><p class="muted">The construction without any display name: renaming does not change it.
 Equal sets built differently have different identities; their equality is a problem below, not a tag.</p>
 <p>BLAKE3 <code>${ui.esc(l.identity_hash)}</code>${same.length ? ` — the same construction as ${same.map((s) => langLink(s.name)).join(", ")}` : ""}</p>
-<pre class="identity">${ui.esc(JSON.stringify(JSON.parse(l.identity), null, 2))}</pre>`;
+<pre class="code">${ui.esc(JSON.stringify(JSON.parse(l.identity), null, 2))}</pre>`;
     const ps = await ctx.q(
       "SELECT lp.problem, lp.shape, lp.role, lp.expect, lp.title, lp.summary, lp.verdict, p.arity, " +
+      (Explorer.tables().has("deprecated_problems") ? "(SELECT via_kind FROM deprecated_problems d WHERE d.problem = lp.problem) AS deprecated, " : "") +
+      (Explorer.tables().has("findings") ? "(SELECT classification FROM findings f WHERE f.problem = lp.problem) AS finding, " : "") +
       "(SELECT group_concat(a.status || coalesce(': ' || a.witness, '') || ' by ' || a.decl, '; ') FROM answers a WHERE a.problem = lp.problem) AS answers " +
       "FROM language_problems lp JOIN problems p ON p.name = lp.problem " +
       "WHERE lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = ?) ORDER BY p.arity, lp.shape, lp.problem LIMIT " + LIMIT, [l.identity_hash]);
@@ -178,11 +178,28 @@ no answer means unknown, not false.</p>`;
     return h;
   }
 
-  const style = document.createElement("style");
-  style.textContent = ".badge.expected { background:#3b7d5a; } .badge.unexpected { background:#b8860b; } .badge.deprecated { background:#6c757d; } " +
-    "form.filters { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; } pre.identity { background:var(--panel); border:1px solid var(--line); " +
-    "padding:8px 10px; max-height:40vh; overflow:auto; font:12px ui-monospace, monospace; } p.deprecation { border-left:3px solid #6c757d; padding-left:8px; }";
-  document.head.appendChild(style);
-  Explorer.registerView({ id: "languages", title: "Languages", nav: 65, render: listPage });
+  // The languages an artifact denotes under a registered interpretation (`op := artifact`),
+  // on its artifact and Wasm pages, keyed by the artifact's CID. Rendering only: nothing runs.
+  async function artifactSection(subject, ctx) {
+    const t = Explorer.tables();
+    if (!subject.cid || !t.has("languages") || !t.has("language_interpretations")) return "";
+    const rows = await ctx.q(
+      "SELECT l.name, l.title, l.interpretation, i.decl AS definition, i.abi, i.environment, vs.value, " +
+      "(SELECT count(*) FROM language_problems lp WHERE lp.language = l.name) AS problems " +
+      "FROM value_sources vs JOIN languages l ON l.value = vs.value AND l.op = 'artifact' " +
+      "LEFT JOIN language_interpretations i ON i.name = l.interpretation " +
+      "WHERE vs.cid = ? AND vs.pos = 0 ORDER BY l.name LIMIT " + LIMIT, [subject.cid]);
+    if (!rows.length) return "";
+    return `<p class="muted">The languages these bytes denote under a registered interpretation (semantics, ABI and
+environments as Lean definitions). Membership is undecidable in general: problems without a Lean answer are unknown.
+Nothing on this page runs the module.</p>` +
+      await ui.table(rows, ["name", "title", "value", "interpretation", "definition", "abi", "environment", "problems"], {
+        render: { name: (r) => langLink(r.name), definition: (r) => code(r.definition), abi: (r) => code(r.abi) || '<span class="muted">none declared</span>',
+          environment: (r) => code(r.environment) || '<span class="muted">none declared</span>' },
+        label: { name: "language" } });
+  }
+  Explorer.registerSection({ id: "languages", title: "Languages", on: ["artifact", "wasm-module", "wasm-component"], order: 50,
+    render: artifactSection });
+  Explorer.registerView({ id: "languages", title: "Languages", nav: 75, render: listPage });
   Explorer.registerView({ id: "language", title: "Language", tab: "languages", render: detailPage });
 })();

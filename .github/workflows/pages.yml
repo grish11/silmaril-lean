@@ -116,6 +116,7 @@ jobs:
           node snapshot.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
           node provenance.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
           node wasm_acceptors.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node languages.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
