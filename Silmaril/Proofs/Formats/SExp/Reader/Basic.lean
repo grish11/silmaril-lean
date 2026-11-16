@@ -387,6 +387,7 @@ theorem wf_of_wfItems_first {d : Bool} {e : SExp2 A} (hd : d = true → N.listDo
       cases x with
       | atom m =>
           cases hm : N.role m with
+          | unwritable => simp_all [Notation.wfItems]
           | plain =>
               simp only [Notation.wfItems, hm] at h
               simp [Notation.wf, hm, wfItems_of_le N hd h]
@@ -411,6 +412,7 @@ theorem wfItems_of_wf {e : SExp2 A} (h : N.wf e = true) : N.wfItems true false e
       cases x with
       | atom m =>
           cases hm : N.role m with
+          | unwritable => simp_all [Notation.wf]
           | plain =>
               simp only [Notation.wf, hm] at h
               simp only [Notation.wfItems, hm]
@@ -429,6 +431,16 @@ theorem wfItems_of_wf {e : SExp2 A} (h : N.wf e = true) : N.wfItems true false e
           rw [wfItems_cons_of_not_atom N (by simp)]
           simp only [Bool.and_eq_true] at h ⊢
           exact ⟨h.1, wfItems_true N h.2⟩
+
+theorem wfItems_single {d : Bool} {e : SExp2 A} (h : N.wf e = true) :
+    N.wfItems d false (.cons e .nil) = true := by
+  cases e with
+  | atom m =>
+      have hm : N.role m = .plain := by
+        cases hm : N.role m <;> simp_all [Notation.wf, Role.isPlain]
+      simp [Notation.wfItems, hm]
+  | nil => rw [wfItems_cons_of_not_atom N (by simp)]; simp [h, Notation.wfItems]
+  | cons => rw [wfItems_cons_of_not_atom N (by simp)]; simp [h, Notation.wfItems]
 
 /-- What a derivation guarantees about its datum. -/
 def WfMotive : Mode C → List (Token A C) → SExp2 A → Prop
@@ -456,7 +468,10 @@ theorem wf_of_gram {m : Mode C} {ts : List (Token A C)} {e : SExp2 A}
       have htok := hok _ List.mem_cons_self
       simp only [Notation.TokenOK] at htok
       simp only [WfMotive] at hih ⊢
-      simp [Notation.wf, htok, hih, SExp2.cdr, Notation.wfHead]
+      rcases htok with htok | htok
+      · simp [Notation.wf, htok, hih, SExp2.cdr, Notation.wfHead]
+      · simp only [Notation.wf, htok]
+        exact wfItems_single N hih
   | close => rfl
   | dot c hg ih =>
       have hih := ih (fun t ht => hok t (by simp [ht]))
@@ -517,6 +532,7 @@ theorem tokens_gram (e : SExp2 A) :
       · cases x with
         | atom m =>
             cases hm : N.role m with
+            | unwritable => simp [Notation.wf, hm] at h
             | plain =>
                 simp only [Notation.wf, hm] at h
                 simp only [Notation.tokens, hm]
@@ -549,6 +565,7 @@ theorem tokens_gram (e : SExp2 A) :
       · cases x with
         | atom m =>
             cases hm : N.role m with
+            | unwritable => simp [Notation.wfItems, hm] at h
             | plain =>
                 simp only [Notation.wfItems, hm] at h
                 simp only [Notation.itemTokens, hm]
@@ -633,6 +650,7 @@ theorem tokens_printable (e : SExp2 A) :
       · cases x with
         | atom m =>
             cases hm : N.role m with
+            | unwritable => simp [Notation.wf, hm] at h
             | plain =>
                 simp only [Notation.wf, hm] at h
                 simp only [Notation.tokens, hm, List.mem_cons] at ht
@@ -679,6 +697,7 @@ theorem tokens_printable (e : SExp2 A) :
       · cases x with
         | atom m =>
             cases hm : N.role m with
+            | unwritable => simp [Notation.wfItems, hm] at h
             | plain =>
                 simp only [Notation.wfItems, hm] at h
                 simp only [Notation.itemTokens, hm, List.mem_cons] at ht

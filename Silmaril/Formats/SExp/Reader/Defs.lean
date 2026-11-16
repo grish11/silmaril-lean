@@ -234,6 +234,9 @@ inductive Role (C : Type) where
   | coll (closer : C) (dotted : Bool)
   /-- A prefix marker: `cons (atom m) (cons x nil)` is written as the prefix token, then `x`. -/
   | «prefix»
+  /-- An atom with no written form in the dialect (e.g. a Clojure symbol whose name breaks the
+  symbol grammar, which Clojure cannot escape). No datum containing it is `wf`. -/
+  | unwritable
   deriving DecidableEq, Repr
 
 def Role.isPlain {C : Type} : Role C → Bool
@@ -252,12 +255,13 @@ namespace Notation
 variable (N : Notation A C)
 
 /-- A lexer token respects the notation: plain atoms only as atom tokens, markers only as the
-head of their own opening or prefix token. -/
+head of their own opening or prefix token. A prefix token may also carry a plain head: an
+abbreviation such as `'x`, which reads as the ordinary list `(quote x)`. -/
 def TokenOK : Token A C → Prop
   | .atom a => N.role a = .plain
   | .open none _ d => d = true → N.listDotted = true
   | .open (some m) c d => N.role m = .coll c d
-  | .prefix p => N.role p = .prefix
+  | .prefix p => N.role p = .prefix ∨ N.role p = .plain
   | .close _ | .dot => True
 
 /-- Some bracket of the notation admits the dot. -/
@@ -273,6 +277,7 @@ mutual
         | .plain => wfItems N.listDotted false r
         | .coll _ d => wfItems d true r
         | .prefix => r.cdr.isNil && wfHead r
+        | .unwritable => false
     | .cons x r => wf x && wfItems N.listDotted false r
 
   /-- `wf` of the first element. -/
@@ -292,6 +297,7 @@ mutual
         | .plain => wfItems d false r
         | .coll _ d' => d && !first && wfItems d' true r
         | .prefix => d && !first && r.cdr.isNil && wfHead r
+        | .unwritable => false
     | .cons x r => wf x && wfItems d false r
 end
 
@@ -306,6 +312,7 @@ mutual
         | .plain => .open none N.listCloser N.listDotted :: .atom m :: itemTokens N.listCloser r
         | .coll c d => .open (some m) c d :: itemTokens c r
         | .prefix => .prefix m :: headTokens r
+        | .unwritable => []
     | .cons x r => .open none N.listCloser N.listDotted :: tokens x ++ itemTokens N.listCloser r
 
   def itemTokens (c : C) : SExp2 A → List (Token A C)
@@ -316,6 +323,7 @@ mutual
         | .plain => .atom m :: itemTokens c r
         | .coll c' d' => .dot :: .open (some m) c' d' :: itemTokens c' r ++ [.close c]
         | .prefix => .dot :: .prefix m :: headTokens r ++ [.close c]
+        | .unwritable => []
     | .cons x r => tokens x ++ itemTokens c r
 
   /-- The tokens of the first element. -/
