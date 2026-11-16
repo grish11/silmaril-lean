@@ -18,7 +18,7 @@ one little-endian number (`Silmaril.Machine.Link.Blob`), trusted only to be that
 function `i` of the loader table (`build.sh`) defined at `16 i` — so at the foreign base
 `EXT_BASE = 0x7f00_0000_0000` (`ghelloLinkMap`), `puts` is `EXT_BASE` and `__libc_start_main` is
 `glibcrun.wat`'s `START = EXT_BASE + 0x30`. **`ghelloLinkMap`** = the executable at 0 then the subset
-at `EXT_BASE`: what `loader-glibc.wat` builds (its eager binding is `EagerLoaded`, as rt-proc's).
+at `EXT_BASE`: what `loader-glibc.wat` builds (its eager binding is `EagerLoaded`, as in the process stack `examples/wasm-sim/proc`).
 -/
 
 @[expose] public section
