@@ -28,7 +28,7 @@ shapes are connected to it by proved relations, and are generic where possible
 | Shape | Entry point | Relation to Core 3.0 (proved) | Scope and caveats |
 | --- | --- | --- | --- |
 | Small-step, behaviour sets (V1, V2, V3 = Core 3.0) | `Silmaril.Wasm.Behaviour.Semantics.{V1,V2,V3}` (`behavioursOf`, `behaviours`) | definition | [wasm-semantics.md](wasm-semantics.md) |
-| Interpreter (native, fuel-based) | `Silmaril.Wasm.Binaryen.{run, invokeRun, nbeh}`; adequacy in `Silmaril.Wasm.Interp.Thms` | `native_adequacy`: `behaviours P closedHost s a vs = nbeh s a vs`; `native_store_adequacy` (final stores too) | needs a typed store (`StoreOk`), the native integer fragment (`NativeFuncsOk`, decided by `nativeFuncsB`), the arity check (`StoreChk`, decided by `storeChkB`) and a typed call (`InvokeOk`, decided by `invokeOk?`). No floats, packed or bulk memory, `memory.grow`, tables |
+| Interpreter (native, fuel-based) | `Silmaril.Wasm.Binaryen.{run, invokeRun, nbeh}`; adequacy in `Silmaril.Wasm.Interp.Thms`; common case `Silmaril.Wasm.Interp.Closed` (`callOk`, `behaviours_eq`) | `native_adequacy`: `behaviours P closedHost s a vs = nbeh s a vs`; `native_store_adequacy` (final stores too) | needs a typed store (`StoreOk`), the native integer fragment (`NativeFuncsOk`, decided by `nativeFuncsB`), the arity check (`StoreChk`, decided by `storeChkB`) and a typed call (`InvokeOk`, decided by `invokeOk?`). No floats, packed or bulk memory, `memory.grow`, tables |
 | Kernel evaluator | `Silmaril.Wasm.Verify.Kernel` (`runInvokeF_eq`) | runs of the verified interpreter are Core runs, by kernel evaluation | used by the LRAT and acceptor examples below |
 | Denotational: abstract functions and modules | `Silmaril.Wasm.Abstract.Function` (`wasmFun`), `Silmaril.Wasm.Abstract.Module` (`wasmShape`, `wasmModule`), bodies `Silmaril.Wasm.Abstract.Body` (`BodyM`, `bodyM_lawfulElgot`) | `wasmFun` agrees with `behaviours` (`Abstract.Function.Thms`); closing a module is the closed semantics (`close_wasmOpen`, `wasmFun_eq_close`, `behaviours_eq_closed`) | host calls are resolved inside the store semantics in `wasmFun` (no import interface); the open forms use `Abstract.OpenStrat` |
 | Denotational: components | `Silmaril.Wasm.Component.Semantics` (`Comp.den`, `Comp.denU`), concrete core semantics `core3Sem P` (`Component.Reference.Core3Sem`) | `denU_core3Sem_le`, `optimizeComponent_sound_core3`; IR against the reference machine `Simple.adequacy` (`Component.Reference.Adequacy`) | component adequacy covers `Simple` components only: [component-caveats.md](component-caveats.md) |
@@ -40,7 +40,8 @@ shapes are connected to it by proved relations, and are generic where possible
 
 `Silmaril.Wasm.Institution.Api` is the front door. Every Wasm institution comes from an
 observational semantics (`Institution.Generic`, `ObsSemantics`) through the facade
-`Silmaril.Inst` ([logic-inst.md](logic-inst.md)).
+`Silmaril.Inst` ([logic-inst.md](logic-inst.md)). Worked examples and the scope of core-module vs
+component institutions: [wasm-institutions-guide.md](wasm-institutions-guide.md).
 
 | Institution | Module | What its models are |
 | --- | --- | --- |
@@ -59,8 +60,8 @@ component institutions instantiated at `core3Sem`, although both semantics exist
 
 | Artifact | Lean entry point | Claim | Main theorems |
 | --- | --- | --- | --- |
-| **LRAT proof checker** (streaming, RUP and RAT) | `Silmaril.Wasm.Examples.LRAT` (`lratModule`), component `LRAT.Component` | module | `lrat_session_unsat` (an `unsat` answer `1` in any session means the streamed CNF is unsatisfiable), `lrat_spec`, `lrat_init`; `unitPair_accepted`, `unitPair_session` (an accepted refutation, by kernel evaluation) |
-| **Farkas certificate checker** | `Silmaril.Wasm.Examples.Farkas`, `Farkas.Component` | module | `farkas_session`, `farkas_session_infeasible` (no solution over any ordered field) |
+| **LRAT proof checker** (streaming, RUP and RAT) | `Silmaril.Wasm.Examples.LRAT` (`lratModule`), component `LRAT.Component` | bytes: `examples/wasm-checkers/lrat.wasm`, 1812 B (`LRAT.Bytes.Thms`: `encodeModule_eq`, `decode_bytes`) | `lrat_session_unsat` (an `unsat` answer `1` in any session means the streamed CNF is unsatisfiable), `lrat_spec`, `lrat_init`; `unitPair_accepted`, `unitPair_session` (an accepted refutation, by kernel evaluation) |
+| **Farkas certificate checker** | `Silmaril.Wasm.Examples.Farkas`, `Farkas.Component` | bytes: `examples/wasm-checkers/farkas.wasm`, 372 B (`Farkas.Bytes.Thms`) | `farkas_session`, `farkas_session_infeasible` (no solution over any ordered field) |
 | **Member / empty checkers** | `Silmaril.Wasm.Examples.{MemberCheck, EmptyCheck}` | bytes (`examples/wasm-acceptors/`, registered in `silmaril/artifacts.toml`) | `encodeModule_eq`, `decode_bytes`, `check_verified`; `exportAccepted_eq` (MemberCheck), `exportAccepted_eq_empty` (EmptyCheck) |
 | **JSON-subset acceptor** | `Silmaril.Wasm.Examples.JsonAccept` | bytes (`examples/wasm-acceptors/`) | `accept_verified`, `accept_sound_json` |
 | Verified functions | `Silmaril.Wasm.Examples.Verified` | module; `double.wasm` bytes | `double_vc`, …, `double_verified` |
