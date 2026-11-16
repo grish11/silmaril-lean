@@ -155,14 +155,16 @@ theorem chatter_of_trapChatter {σ : DStrategy sigU G} {s : List (Move (sigN n) 
           have hwq : (widenH n) q = .pure none := by
             simp [widenH, Nat.not_lt.2 he]
           refine ⟨.run q (.pure none), hrun.append ?_, .wait g q, hbT, .inr ⟨g, q, he, rfl, rfl⟩⟩
-          have := LTS.Run.of_step (L := (widenH n).toReduction.toLTS) (Reduction.Step.ask (R := (widenH n).toReduction) q)
+          have := LTS.Run.of_step (L := (widenH n).toReduction.toLTS)
+            (Reduction.Step.ask (R := (widenH n).toReduction) q)
           simpa [Handler.toReduction, hwq] using this
       · cases hst with
         | reply _ _ r =>
           cases he
           refine ⟨.idle, hrun.append ?_, .run g, hbT, .inl ⟨rfl, g, rfl⟩⟩
-          exact LTS.Run.of_step (L := (widenH n).toReduction.toLTS) (Reduction.Step.ret (R := (widenH n).toReduction) (q := q)
-            (c := .pure none) (r := none) rfl)
+          exact LTS.Run.of_step (L := (widenH n).toReduction.toLTS)
+            (Reduction.Step.ret (R := (widenH n).toReduction) (q := q) (c := .pure none)
+              (r := none) rfl)
   choose y hy using hP
   have hmono_s : Chain.Mono (fun m => u ++ (es m).map Sum.inr) := fun m => by
     obtain ⟨e, hes, -⟩ := hstep m

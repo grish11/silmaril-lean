@@ -15,6 +15,9 @@ in terms of the strategies being wired:
 * `TrapChatter n σ s`: an infinite play of `σ` which, from a position where `σ`
   is running, consists only of trap events below `widenH n` (`IsTrap`), lined
   up with a play of `widenH n` whose visible part is `s`.
+* `Silent h e`, `SilentChatter h σ s`: the same for an arbitrary handler `h`
+  below `σ`. A silent event is a question that `h` answers without a call, or
+  the answer it gives to it; for `widenH n` these are the trap events.
 * `ThroughBelow h I K` and `ThroughAbove h K J`: an infinite play `I` seen
   through the handler `h` below it, or `K` seen through `h` above it, with
   unboundedly many visible moves. The visible infinite play is `K`
@@ -45,6 +48,21 @@ def TrapChatter {G : Sig.{0}} (n : Nat) (σ : DStrategy sigU G)
   ∃ I ∈ σ.inf, ∃ t₀ ∈ I, (∃ g, Path .idle t₀ (.run g)) ∧
     (∀ w x, t₀ ++ w ++ [x] ∈ I → ∃ e, x = .inl e ∧ IsTrap n e) ∧
     ∃ u ∈ Strategy.ofHandler (widenH n), Zip u t₀ s
+
+/-- The events above a handler `h` that it handles without a visible move: a
+question answered without a call, and that answer. -/
+def Silent {E F : Sig.{u}} (h : Handler E F) : Ev F → Prop
+  | .ask q => ∃ r, h q = .pure r
+  | .ans q r => h q = .pure r
+
+/-- **Silent chatter after `s`** below the handler `h`: an infinite play `I` of
+`σ` with a member `t₀` after which `σ` is running and every move is a silent
+event of `h` below, lined up with a play `u` of `h` with the visible part `s`. -/
+def SilentChatter {E F G : Sig.{u}} (h : Handler E F) (σ : DStrategy F G)
+    (s : List (Move E G)) : Prop :=
+  ∃ I ∈ σ.inf, ∃ t₀ ∈ I, (∃ g, Path .idle t₀ (.run g)) ∧
+    (∀ w x, t₀ ++ w ++ [x] ∈ I → ∃ e, x = .inl e ∧ Silent h e) ∧
+    ∃ u ∈ Strategy.ofHandler h, Zip u t₀ s
 
 /-- **`I` seen through a handler `h` below it.** Increasing interactions of
 plays of `h` with members of `I`, whose visible parts grow without bound and
