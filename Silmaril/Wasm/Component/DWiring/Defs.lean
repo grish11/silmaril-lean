@@ -22,7 +22,12 @@ has exactly the shape of its ordinary counterpart, with `DStrategy.comp`,
 * `DCoreSem`: a divergence-observing strategy for each core module;
   `DCoreSem.forget` its finite plays, a `CoreSem`;
 * `dcoreNode`, `Comp.denD`/`Comp.denUD`/`denNodesD`/`Node.denD`,
-  `Linked.denUD`, `Program.denUD`: the denotations.
+  `Linked.denUD`, `Program.denUD`: the denotations;
+* `OneCall h`: `h` answers each question by at most one call; `IsTrap n`,
+  `EventuallyTrap n`: the trap events below `widenH n` (an out-of-range call,
+  the answer `none`), which `widenH n` answers without a visible move, and the
+  infinite plays that eventually consist of them. These describe the hidden
+  chatter of `atSizes`.
 
 `Silmaril.Wasm.Component.DWiring.Thms` shows that forgetting divergence and
 infinite plays gives back the ordinary operations (`toStrategy_atSizes`, …,
@@ -35,6 +40,28 @@ divergences and infinite plays of `atSizes`.
 namespace Silmaril.Wasm.Component
 
 open Silmaril.Games
+
+universe u
+
+/-- A handler answers each question by at most one call: its program is
+`pure r`, or `call m k` with every continuation `k n` a `pure`. `widenH`,
+`narrowH`, `splitH`, `selectH` are such handlers. A one-call handler makes at most
+one move below per move above, so it cannot chatter with a strategy below it
+(`Silmaril.Wasm.Component.DWiring.Thms`). -/
+def OneCall {E F : Sig.{u}} (h : Handler E F) : Prop :=
+  ∀ q, (∃ r, h q = .pure r) ∨ ∃ m k, h q = .call m k ∧ ∀ n, ∃ r, k n = .pure r
+
+/-- A trap round of `widenH n`: a call of an out-of-range function, or the
+answer `none`. Below `widenH n`, these are the moves of a strategy that the
+handler answers without a visible move. -/
+def IsTrap (n : Nat) : Ev sigU → Prop
+  | .ask q => n ≤ q.1
+  | .ans _ r => r = none
+
+/-- From some point on, every move of the infinite play `I` is a trap event
+below: an out-of-range call or the answer `none`. -/
+def EventuallyTrap {G : Sig.{0}} (n : Nat) (I : Set (List (Move sigU G))) : Prop :=
+  ∃ t₀ ∈ I, ∀ u x, t₀ ++ u ++ [x] ∈ I → ∃ e, x = .inl e ∧ IsTrap n e
 
 namespace DStrategy
 
