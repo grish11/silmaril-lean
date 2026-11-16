@@ -71,17 +71,20 @@ proved:
   target's arity (`trimK`). This is `map_whisker` on that fragment and at those configurations;
 * `whiskK_iff`: that equation of `PX H` arrows is exactly #529's equation of `BodyM`
   computations, on all code;
-* `exists_not_whisker` (**the obstruction**): it fails for checked code with a call
-  (`call 0; drop`, callee `[] → [i32]`, an answer with no values), at a configuration of the
-  checked height. So the stack-pure hypothesis cannot be dropped;
-* on all checked code the tensor holds only **relationally**, for answered runs under
-  arity-respecting oracles (#540's `ExposePTyped.tmor_tensor`, #545's `TypedCatFit`), not as an
-  equation of `PX H` arrows: a call's answer is an arbitrary `Store H × Flow`, so an answer
-  short of the callee's results makes the code after it read into the passive stack. So no
-  `map_whisker` is claimed for all code, and `typedFunctor` is an Elgot functor (identity,
-  composition, iteration, copairing), not a premonoidal functor. The counterexample is checked
-  code (#529's `Mor`); the answers are untyped, which is exactly what the relational tensor
-  rules out;
+* `exists_not_whisker` (**an obstruction of this codomain only**): the equation of `PX H`
+  arrows fails for checked code with a call (`call 0; drop`, callee `[] → [i32]`), at a
+  configuration of the checked height. The failing branch answers the call with **no values**,
+  which no arity-respecting oracle does (`ExposePTyped.ArityResp`): `PX H` quantifies over every
+  answer `Store H × Flow`, legal or not. So the stack-pure hypothesis cannot be dropped *for
+  `PX H`*. This is not a counterexample to a typed premonoidal functor into a codomain of legal
+  answers, and it is not a legal typed strategy;
+* on all checked code the tensor holds for answered runs under **arity-respecting** oracles
+  (#540's `ExposePTyped.tmor_tensor`, #545's `TypedCatFit`), and #579's
+  `WorldFunctor.worldFunctor_map_whisker` is `map_whisker` for all checked code in the world
+  codomain answered by `closedCallXP`. In `PX H` itself no `map_whisker` is claimed for all
+  code, so `typedFunctor` is stated as an Elgot functor (identity, composition, iteration,
+  copairing). The codomain with only legal answers is the intended target for the premonoidal
+  structure on all checked code;
 * `pure_central_of_denK`: code denoting a pure map is central: it commutes with every
   whiskered arrow (`IterOps.Ops.Lawful.pure_central`), the transfer of
   `TypedCat.interchange_of_pure`. Effectful typed code is not central in general
@@ -327,12 +330,14 @@ theorem whiskK_iff (labels : List Nat) (ret : Nat) (es : List BExpr) (f : Frame)
       denListXP es f stk >>= fun r => pure (trimP labels ret (whiskP rest r)) :=
   Silmaril.Proofs.Wasm.Abstract.TypedFunctor.whiskK_iff labels ret es f stk rest
 
-/-- **The obstruction: the stack tensor fails for checked code with a call.** `call 0; drop`,
-checked at height `0` (the callee `[] → [i32]`), at a configuration of the checked height in a
-frame of the checked instance, with one passive value: the equation of `tmor_whisker` fails.
-The call's answer is an arbitrary `Store H × Flow`; an answer with no values leaves the passive
-value on top, and `drop` pops it. So `stackPure` cannot be dropped from `tmor_whisker`, and no
-`map_whisker` holds as an equation of arrows on all checked code. -/
+/-- **The obstruction in the raw exit monad: the stack tensor of `PX H` arrows fails for
+checked code with a call.** `call 0; drop`, checked at height `0` (the callee `[] → [i32]`), at
+a configuration of the checked height in a frame of the checked instance, with one passive
+value: the equation of `tmor_whisker` fails. `PX H` admits every answer `Store H × Flow`; the
+failing branch answers with no values, which violates `ExposePTyped.ArityResp`, leaves the
+passive value on top, and `drop` pops it. So `stackPure` cannot be dropped from `tmor_whisker`
+in `PX H`. Under arity-respecting oracles the tensor holds for all checked code
+(`ExposePTyped.tmor_tensor`); this is not a counterexample for a codomain of legal answers. -/
 theorem exists_not_whisker :
     ∃ (Γ : Ctx Unit) (I : Iface) (es : List BExpr) (f : Frame) (stk rest : List Val),
       Mor Γ I (some I.h) es ∧ stackPureL es = false ∧ f.module = I.env.mi ∧ stk.length = I.h ∧
