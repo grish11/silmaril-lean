@@ -5,6 +5,7 @@ public import Silmaril.Games.Abstract.CanonStrat.Thms
 import Silmaril.Proofs.Games.Abstract.IterUniform.Basic
 import Silmaril.Proofs.Games.Abstract.IterUniform.Uniform
 import Silmaril.Proofs.Games.Abstract.IterUniform.Lift
+import Silmaril.Proofs.Games.Abstract.IterUniform.Counter
 
 /-!
 # Uniformity of iteration along silent maps: theorems
@@ -38,6 +39,24 @@ A continuation into a point where `h` diverges becomes a divergence of `F`. Wher
 diverges, `G` only diverges silently or continues silently to such points, so `iter G`
 diverges silently. A productive chain of `G` never reaches such a point. Infinite chains of
 `F` lift to `G` by dependent choice, using determinism of `h` at each step.
+
+**Each condition is needed** (`….Counter`). Dropping one of the four conditions and keeping
+the other three, uniformity fails:
+
+* `FullFun.not_iter_uniform_call_needs_silent`: one import call; deterministic and total
+  (from `FullFun.not_iter_uniform_call`);
+* `FullFun.not_iter_uniform_trap_needs_noTrap`: always trap; silent, deterministic, defined
+  (from `FullFun.not_iter_uniform_trap`);
+* `FullFun.not_iter_uniform_nondet`: return any `n : ℕ`; silent, always returning and
+  state-preserving, but not deterministic. With `F n` exiting or continuing with some `m < n`
+  and `G` exiting or continuing with its argument, `iter G` diverges silently and
+  `h ; iter F` never diverges (every chain of `F` decreases). A run of `G` would need the
+  choices of `h` along it to be made consistently, one after the other;
+* `FullFun.not_iter_uniform_undefined`: no behaviour; silent, deterministic, never traps or
+  diverges. Both sides of the hypothesis are empty, but `iter G` diverges silently.
+
+None of the four conditions can be dropped.
+Totality (always returning) is not needed: silent divergence of `h` is allowed.
 -/
 
 @[expose] public section
@@ -129,5 +148,54 @@ theorem CanonStrat.iter_uniform_silentTotalDet {h : CanonStrat E S A' A}
         (CanonStrat.map h Sum.inr))) :
     CanonStrat.seq h (CanonStrat.iter F) = CanonStrat.iter G :=
   CanonStrat.iter_uniform_silent (StratOps.SilentTotalDetT.silentDetNoTrapT hh) hFG
+
+/-! ## Each condition is needed -/
+
+/-- **Not silent**: a map making one import call, deterministic and total. -/
+theorem FullFun.not_iter_uniform_call_needs_silent :
+    ∃ (E : Sig.{0}) (h : FullFun E PUnit PUnit PUnit) (G : FullFun E PUnit PUnit (PUnit ⊕ PUnit)),
+      AFun.Det h.1 ∧ (∀ s a, AFun.MustReturn h.1 s a) ∧ FullFun.NoTrap h ∧ FullFun.Defined h ∧
+      ¬ FullFun.Silent h ∧
+      FullFun.seq h G = FullFun.seq G (FullFun.case (FullFun.pure.map Sum.inl) (h.map Sum.inr)) ∧
+      FullFun.seq h (FullFun.iter G) ≠ FullFun.iter G :=
+  Silmaril.Proofs.Games.Abstract.IterUniform.not_iter_uniform_call
+
+/-- **May trap**: an always-trapping map, silent, deterministic and defined. -/
+theorem FullFun.not_iter_uniform_trap_needs_noTrap :
+    ∃ (E : Sig.{0}) (h : FullFun E PUnit PUnit PUnit) (G : FullFun E PUnit PUnit (PUnit ⊕ PUnit)),
+      FullFun.Silent h ∧ AFun.Det h.1 ∧ FullFun.Defined h ∧ ¬ FullFun.NoTrap h ∧
+      FullFun.seq h G = FullFun.seq G (FullFun.case (FullFun.pure.map Sum.inl) (h.map Sum.inr)) ∧
+      FullFun.seq h (FullFun.iter G) ≠ FullFun.iter G :=
+  Silmaril.Proofs.Games.Abstract.IterUniform.not_iter_uniform_trap
+
+/-- **Nondeterministic**: return any natural number, silently, always, keeping the state. -/
+theorem FullFun.not_iter_uniform_nondet (E : Sig.{u}) :
+    let h : FullFun E PUnit.{u + 1} PUnit.{u + 1} (ULift.{u} ℕ) :=
+      (fun s _ => {y | ∃ n : ℕ, y = ([], End.ret ⟨n⟩ s)}, fun _ _ => ∅)
+    let F : FullFun E PUnit.{u + 1} (ULift.{u} ℕ) (PUnit.{u + 1} ⊕ ULift.{u} ℕ) :=
+      (fun s n => {y | y = ([], End.ret (.inl ⟨⟩) s) ∨
+        ∃ m < n.down, y = ([], End.ret (.inr ⟨m⟩) s)}, fun _ _ => ∅)
+    let G : FullFun E PUnit.{u + 1} PUnit.{u + 1} (PUnit.{u + 1} ⊕ PUnit.{u + 1}) :=
+      (fun s _ => {y | y = ([], End.ret (.inl ⟨⟩) s) ∨ y = ([], End.ret (.inr ⟨⟩) s)},
+        fun _ _ => ∅)
+    FullFun.Silent h ∧ (∀ s a, AFun.MustReturn h.1 s a) ∧ AFun.StatePreserving h.1 ∧
+      ¬ AFun.Det h.1 ∧
+      FullFun.seq h F = FullFun.seq G (FullFun.case (FullFun.pure.map Sum.inl) (h.map Sum.inr)) ∧
+      ([], End.div) ∈ (FullFun.iter G).1 ⟨⟩ ⟨⟩ ∧
+      ([], End.div) ∉ (FullFun.seq h (FullFun.iter F)).1 ⟨⟩ ⟨⟩ :=
+  Silmaril.Proofs.Games.Abstract.IterUniform.not_iter_uniform_nondet E
+
+/-- **Undefined**: a map with no behaviour, silent, deterministic, never trapping or
+diverging. -/
+theorem FullFun.not_iter_uniform_undefined (E : Sig.{u}) :
+    let h : FullFun E PUnit.{u + 1} PUnit.{u + 1} PUnit.{u + 1} := (fun _ _ => ∅, fun _ _ => ∅)
+    let G : FullFun E PUnit.{u + 1} PUnit.{u + 1} (PUnit.{u + 1} ⊕ PUnit.{u + 1}) :=
+      FullFun.pure.map Sum.inr
+    FullFun.Silent h ∧ AFun.Det h.1 ∧ FullFun.NoTrap h ∧ (∀ s a, ¬ AFun.MayDiv h.1 s a) ∧
+      ¬ FullFun.Defined h ∧
+      FullFun.seq h G = FullFun.seq G (FullFun.case (FullFun.pure.map Sum.inl) (h.map Sum.inr)) ∧
+      ([], End.div) ∈ (FullFun.iter G).1 ⟨⟩ ⟨⟩ ∧
+      (FullFun.seq h (FullFun.iter G)).1 ⟨⟩ ⟨⟩ = ∅ :=
+  Silmaril.Proofs.Games.Abstract.IterUniform.not_iter_uniform_undefined E
 
 end Silmaril.Games.Abstract
