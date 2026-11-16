@@ -59,7 +59,11 @@ try {
     badges: [...document.querySelectorAll("#list .st")].map((s) => s.textContent), coloured: document.querySelectorAll("#list .badge").length,
     wrap: getComputedStyle(document.querySelector("#list td.nw")).whiteSpace }));
   check(st.heads.filter((h) => /status|verdict|summary/.test(h)).length === 1 && st.coloured === 0, `one status column, no verdict colour badges (${st.heads.join(",")})`);
-  check(st.badges.length > 0 && st.badges.every((t) => /^(THM|OPN|SAT|UNS|CSA|UNK|SAT\/CSA)[!?]?$/.test(t)) && st.wrap === "nowrap", `compact badges: ${[...new Set(st.badges)].join(" ")}`);
+  check(st.badges.length > 0 && st.badges.every((t) => /^[A-Z]{3}[!?]?$/.test(t)) && st.wrap === "nowrap", `three-character badges: ${[...new Set(st.badges)].join(" ")}`);
+  // contingent is shown as SZS NoConsequence, and the title keeps the stored code
+  const noc = await p.evaluate(() => Explorer.ui.statusBadge({ summary: "contingent", verdict: "fails" }));
+  check(/>NOC</.test(noc) && /stored as &quot;contingent&quot;/.test(noc) && /NoConsequence/.test(noc), "contingent shows as NOC, naming the stored code");
+  check(await p.evaluate(() => ["THM", "OPN", "SAT", "UNS", "CSA", "UNK"].every((c) => Explorer.ui.statusCode(c) === c)), "SZS codes are shown as stored");
   await shot("problems.png");
 
   // sections: another task adds a block to artifact pages without editing the view; a section

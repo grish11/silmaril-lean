@@ -15,10 +15,28 @@ function badge(v, text) { return v ? `<span class="badge ${esc(v)}">${esc(text |
 //          unclassified failure);
 //   unmet  an expected status (`problems.expect`) that the summary is not;
 //   dep    the problem is deprecated (it stays listed, with its successors on its page).
+// What each stored code means here (the `szs` table's codes), and its SZS name. Displayed codes
+// are three characters: the stored code itself, except `contingent`, which is shown as NOC.
+// SZS's NoConsequence (NOC) is "some interpretations are models of Ax, some models of Ax are
+// models of C, and some models of Ax are models of ~C" (https://szs.tptp.org/success), which is
+// exactly SAT and CSA together, as `contingent` is defined. The mapping is one-to-one and the
+// badge's title always names the stored code, so nothing is lost. (TAU, Tautology, is not used:
+// THM, "all models of Ax are models of C", is the status a Lean proof establishes here.)
 const SZS_TEXT = { THM: "Theorem: proved", OPN: "Open: no answer yet", SAT: "Satisfiable: an instance holds",
   UNS: "Unsatisfiable: refuted for every argument", CSA: "CounterSatisfiable: a counterexample exists", UNK: "Unknown",
-  contingent: "Contingent: both SAT and CSA" };
-const SZS_SHORT = { contingent: "SAT/CSA" };
+  contingent: "both SAT and CSA hold" };
+const SZS_NAME = { THM: "Theorem", OPN: "Open", SAT: "Satisfiable", UNS: "Unsatisfiable", CSA: "CounterSatisfiable", UNK: "Unknown",
+  contingent: "NoConsequence" };
+const STATUS_DISPLAY = { contingent: "NOC" };
+const SZS_SOURCE = "https://szs.tptp.org/success";
+// The displayed code of a stored status code (unknown codes are shown as stored, never cut).
+function statusCode(code) { return Object.hasOwn(STATUS_DISPLAY, code) ? STATUS_DISPLAY[code] : code; }
+// A one-line explanation: displayed code, SZS name, meaning here, and the stored code if it differs.
+function statusText(code) {
+  const shown = statusCode(code);
+  return `${shown}${SZS_NAME[code] ? " (SZS " + SZS_NAME[code] + ")" : ""}: ${SZS_TEXT[code] || "status code"}` +
+    (shown !== code ? `; stored as "${code}"` : "");
+}
 // name -> { summary, verdict, expect, deprecated, finding } (filled by `resolve` and the graph)
 let statusOf = new Map();
 function statusInfo(s) {
@@ -27,19 +45,19 @@ function statusInfo(s) {
   const benign = s.finding === "spec_bug" || s.finding === "model_gap";
   const cls = s.verdict === "fails" && !expected && !s.deprecated && !benign ? "bad"
     : s.expect && !expected ? "unmet" : s.deprecated ? "dep" : "";
-  const why = [`${s.summary}: ${SZS_TEXT[s.summary] || "SZS status"}`, `verdict ${s.verdict}`];
+  const why = [statusText(s.summary), `verdict ${s.verdict}`];
   if (s.expect) why.push(expected ? `as expected (${s.expect})` : `expected ${s.expect}`);
   if (s.deprecated) why.push("deprecated" + (s.deprecated === "self" ? "" : ` (through its ${s.deprecated})`));
   if (s.finding) why.push(`finding: ${s.finding}`);
   else if (cls === "bad") why.push("unclassified failure");
-  return { code: SZS_SHORT[s.summary] || s.summary, cls, title: why.join("; ") };
+  return { code: statusCode(s.summary), stored: s.summary, cls, title: why.join("; ") };
 }
 // `x`: a problem name (looked up in `statusOf`) or a status object as above.
 function statusBadge(x) {
   const i = statusInfo(typeof x === "string" ? statusOf.get(x) : x);
   if (!i) return "";
   const mark = i.cls === "bad" ? "!" : i.cls === "unmet" ? "?" : "";
-  return `<span class="st${i.cls ? " st-" + i.cls : ""}" role="img" aria-label="${esc(i.title)}" title="${esc(i.title)}">` +
+  return `<span class="st${i.cls ? " st-" + i.cls : ""}" data-code="${esc(i.stored)}" role="img" aria-label="${esc(i.title)}" title="${esc(i.title)}">` +
     `${esc(i.code)}${mark ? `<b aria-hidden="true">${mark}</b>` : ""}</span>`;
 }
 function verdictBadge(p) { const b = statusBadge(p); return b ? " " + b : ""; }

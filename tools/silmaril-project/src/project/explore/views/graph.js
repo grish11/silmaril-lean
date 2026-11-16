@@ -172,7 +172,7 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
     st.id = id;
     const loose = st.members.filter((m) => !drawn.has(m));
     if (!loose.length) continue;
-    els.push({ data: { id, label: `${loose.length} × ${SZS_SHORT[st.code] || st.code}`, stack: 1, att: "", group: 0, detached: 0, root: 0, focus: 0 } });
+    els.push({ data: { id, label: `${loose.length} × ${statusCode(st.code)}`, stack: 1, att: "", group: 0, detached: 0, root: 0, focus: 0 } });
     els.push({ data: { id: "e" + (i++), source: st.parent, target: id, kind: st.kind, via: "" } });
   }
   for (const n of shown) for (const e of out.get(n) || []) if (drawn.has(e.child)) els.push({ data: { id: "e" + (i++), source: e.parent, target: e.child, kind: e.kind, via: e.via || "" } });
@@ -210,7 +210,7 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
     const st = stackOf.get(e.target.id());
     if (!st) return side(problemDetail(e.target.id()));
     side(table(st.members.map((m) => ({ problem: m })), ["problem"]).then((t) =>
-      `<h2>${st.members.length} × ${esc(SZS_SHORT[st.code] || st.code)} under ${link("problem", st.parent, shortName(st.parent))}</h2>` +
+      `<h2>${st.members.length} × ${esc(statusCode(st.code))} <span class="muted" title="${esc(statusText(st.code))}">(${esc(SZS_NAME[st.code] || st.code)})</span> under ${link("problem", st.parent, shortName(st.parent))}</h2>` +
       `<p class="muted">leaves (no children of their own) by ${esc(st.kind)} edges</p>` +
       `<p><button type="button" id="gexpand">Expand: draw them one by one</button></p>` + t)).then(() => {
       const b = $("#gexpand");

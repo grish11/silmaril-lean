@@ -339,11 +339,18 @@ ignores it), so a slow query can never write into the current page.
 `Explorer.registerViewer` adds views), `highlightWat` and `hexDump`. Everything they show is
 escaped.
 
-Status badges show a problem's summary code (THM, OPN, SAT, UNS, CSA, SAT/CSA for contingent) in a
+Status badges show a problem's summary as a three-character code (THM, OPN, SAT, UNS, CSA, UNK, and
+NOC for the stored code `contingent`) in a
 neutral style. Only what needs attention is marked: `!` for a failing verdict that nothing explains
 (not the expected status, not deprecated, not classified as a spec bug or model gap), `?` for an
 expected status (`problems.expect`) that the summary is not, and a struck-through code for a
-deprecated problem. The badge's title spells out the code, verdict, expectation and markings. A
+deprecated problem. The badge's title spells out the code with its SZS name, the stored code when
+it differs, the verdict, expectation and markings. `contingent` (SAT and CSA both hold) is shown as
+NOC, SZS's NoConsequence: "some interpretations are models of Ax, some models of Ax are models of
+C, and some models of Ax are models of ~C" ([SZS Success ontology](https://szs.tptp.org/success)).
+The display is one-to-one. The database keeps `contingent`, and its meaning is the SZS catalogue's
+to define. THM is not shown as TAU: Tautology requires every interpretation to be a model, while
+THM, "all models of Ax are models of C", is what a Lean proof establishes here. A
 deprecated problem's page links its replacements, and a replacement's page links what it
 replaces.
 
