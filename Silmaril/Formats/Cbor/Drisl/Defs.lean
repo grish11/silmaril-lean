@@ -28,22 +28,34 @@ set of byte strings `v.encode` for values `v` with `ok .drisl v`:
 * **Tags:** only tag 42, whose content is a byte string `00 ++ cid` ("the null byte 0x00 is
   prepended to the binary CID"). `cid` is a binary DASL CID (`dasl-cid`,
   https://dasl.ing/cid.html, 2025-10-02): version `01`, codec `55` (raw) or `71` (DRISL), hash
-  type `12` (SHA-256), hash size `20` (32), and a 32-byte digest. The DASL CID decoding
-  algorithm reads exactly these 36 bytes and does not say what follows. **Choice:** inside
-  tag 42 we require the CID to be exactly these 36 bytes (no trailing bytes), since the payload
-  is "the binary CID". `Drisl.Tag42Payload` is the relaxed shape (`00` then any bytes); it is
-  *not* DRISL and is named separately.
+  type `12` (SHA-256), hash size `20` (32), and a 32-byte digest. These restrictions are the
+  normative DASL CID decoding steps: version must be 1, codec must be `0x55` or `0x71`, hash
+  type must be `0x12`, hash size must be 32, and 32 digest bytes must be present. CBOR/c-42
+  Appendix A, which is non-normative, also lists `0x51`; DASL CID rejects it, and we follow
+  DASL. All these fields are single bytes below `0x80`, so the multiformats unsigned-varint
+  and the SDNV encodings of CBOR/c-42 coincide here.
+* **CID boundary: an explicit assumption, not a DRISL fact.** The DASL CID decoding algorithm
+  reads 36 bytes and is silent about any bytes after the digest. CBOR/c-42 Appendix A
+  (non-normative) describes the digest as "all remaining bytes", which together with hash size
+  32 implies none follow. So the boundary is a profile parameter, `CidBoundary`:
+  `.exact` (the payload is exactly `00` and the 36-byte CID) or `.prefix` (the payload is
+  `00`, a 36-byte CID, then any bytes, which is all the decoding algorithm checks). The named
+  profiles carry the assumption in their names. `Drisl.Tag42Payload` (`00` then any bytes)
+  is a third, weaker shape. It is *not* DRISL under either assumption, and is named
+  separately.
 * **Floats:** "always … encoded as a 64-bit IEEE 754 binary floating-point". Infinities, NaNs
   (of any payload) and negative zero "must not be encoded". Positive zero and subnormals are
   allowed.
 * **Simple values:** only `false`, `true`, `null` (20, 21, 22).
 
-**ATProto core** (`Profile.atprotoCore`): the atproto data model (`atproto-data-model`,
+**ATProto core** (`Profile.atprotoCoreExactCid`): the atproto data model (`atproto-data-model`,
 https://atproto.com/specs/data-model, pinned by SHA-256) uses DRISL-CBOR with floats "not
 allowed in atproto" and integers "signed, 64-bit". So this profile is DRISL without floats and
 with integers in `[-2^63, 2^63 - 1]`. It is **not** full atproto validity, which also has the
 `blob` structure, the reserved `$` field names, and Lexicon constraints that need a schema.
-`Profile.drislNoFloats` is DRISL without floats and without the integer range.
+`Profile.drislNoFloatsExactCid` is DRISL without floats and without the integer range.
+The atproto text "binary serialization within DRISL-CBOR cid-link fields" settles the CID
+boundary no further, so the ATProto profile also states `.exact` as an assumption.
 
 References (`references.bib`): `drisl`, `dasl-cid`, `cborc42`, `atproto-data-model`, `rfc8949`.
 
@@ -55,19 +67,31 @@ it. `Thms`: `check_iff`, and `language_le_wellFormed`.
 
 namespace Silmaril.Formats.Cbor.Drisl
 
-/-- A DRISL profile: whether 64-bit floats are allowed, and whether integers are limited to
-the signed 64-bit range. -/
+/-- The assumption about bytes after the CID in a tag-42 payload (see the module doc). -/
+inductive CidBoundary where
+  /-- The payload is exactly `00` and the 36-byte CID. -/
+  | exact
+  /-- The payload is `00`, a 36-byte CID, and then any bytes. -/
+  | prefix
+  deriving DecidableEq, Repr
+
+/-- A DRISL profile: whether 64-bit floats are allowed, whether integers are limited to the
+signed 64-bit range, and the CID-boundary assumption. -/
 structure Profile where
   floats : Bool
   int64 : Bool
+  cid : CidBoundary
   deriving DecidableEq, Repr
 
-/-- DRISL as published (2026-10-22). -/
-def Profile.drisl : Profile := ⟨true, false⟩
-/-- DRISL without floats. -/
-def Profile.drislNoFloats : Profile := ⟨false, false⟩
-/-- The CBOR-level core of the atproto data model: no floats, signed 64-bit integers. -/
-def Profile.atprotoCore : Profile := ⟨false, true⟩
+/-- DRISL (2026-10-22), with the assumption that a tag-42 payload is exactly `00` + CID. -/
+def Profile.drislExactCid : Profile := ⟨true, false, .exact⟩
+/-- DRISL (2026-10-22), with the assumption that bytes may follow the CID. -/
+def Profile.drislCidPrefix : Profile := ⟨true, false, .prefix⟩
+/-- DRISL without floats, exact CID boundary. -/
+def Profile.drislNoFloatsExactCid : Profile := ⟨false, false, .exact⟩
+/-- The CBOR-level core of the atproto data model (no floats, signed 64-bit integers), exact CID
+boundary. -/
+def Profile.atprotoCoreExactCid : Profile := ⟨false, true, .exact⟩
 
 /-- A binary DASL CID: `01`, codec `55` or `71`, `12`, `20`, and a 32-byte SHA-256 digest. -/
 def IsDaslCid (c : List UInt8) : Prop :=
@@ -83,10 +107,12 @@ def isDaslCid : List UInt8 → Bool
 /-- The relaxed tag-42 payload shape: `00` and then any bytes. *Not* DRISL. -/
 def Tag42Payload (b : List UInt8) : Prop := ∃ rest, b = 0x00 :: rest
 
-/-- The DRISL tag-42 payload: `00` and a binary DASL CID. -/
-def isCidPayload : List UInt8 → Bool
-  | 0x00 :: cid => isDaslCid cid
-  | _ => false
+/-- The DRISL tag-42 payload under a CID-boundary assumption: `00` and a binary DASL CID,
+followed by nothing (`.exact`) or by any bytes (`.prefix`). -/
+def isCidPayload : CidBoundary → List UInt8 → Bool
+  | .exact, 0x00 :: cid => isDaslCid cid
+  | .prefix, 0x00 :: cid => isDaslCid (cid.take 36)
+  | _, _ => false
 
 /-- Strict bytewise lexicographic order (a proper prefix comes first). -/
 def lexLt : List UInt8 → List UInt8 → Bool
@@ -122,7 +148,7 @@ def ok (P : Profile) : Value → Bool
   | .array xs => decide (xs.length < 2 ^ 64) && okList P xs
   | .map kvs => decide (kvs.length < 2 ^ 64) && okMap P kvs &&
       strictlySorted (kvs.map fun kv => kv.1.encode)
-  | .tag 42 (.bytes b) => decide (b.length < 2 ^ 64) && isCidPayload b
+  | .tag 42 (.bytes b) => decide (b.length < 2 ^ 64) && isCidPayload P.cid b
   | .tag _ _ => false
   | .simple n => n == 20 || n == 21 || n == 22
   | .float w bits => P.floats && w == 8 && okFloat64 bits

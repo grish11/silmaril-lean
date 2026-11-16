@@ -87,8 +87,34 @@ theorem value_unique {P : Profile} {v v' : Value} (h : ok P v = true) (h' : ok P
 
 mutual
 
+theorem isDaslCid_length {cid : List UInt8} (h : isDaslCid cid = true) : cid.length = 36 := by
+  unfold isDaslCid at h
+  split at h
+  · simp only [Bool.and_eq_true, beq_iff_eq] at h
+    simp [h.2]
+  · simp at h
+
+theorem isCidPayload_prefix_of_exact {b : List UInt8} (h : isCidPayload .exact b = true) :
+    isCidPayload .prefix b = true := by
+  rcases b with _ | ⟨x, cid⟩
+  · simp [isCidPayload] at h
+  · by_cases hx : x = 0
+    · subst hx
+      simp only [isCidPayload] at h ⊢
+      rwa [List.take_of_length_le (by rw [isDaslCid_length h])]
+    · simp [isCidPayload, hx] at h
+
+theorem isCidPayload_mono {c d : CidBoundary} (hc : c = d ∨ d = .prefix) {b : List UInt8}
+    (h : isCidPayload c b = true) : isCidPayload d b = true := by
+  rcases hc with rfl | rfl
+  · exact h
+  · cases c
+    · exact isCidPayload_prefix_of_exact h
+    · exact h
+
 theorem ok_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
-    (hi : Q.int64 = true → P.int64 = true) (v : Value) (h : ok P v = true) : ok Q v = true := by
+    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix)
+    (v : Value) (h : ok P v = true) : ok Q v = true := by
   match v, h with
   | .uint n, h | .nint n, h =>
     simp only [ok, okInt, Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true',
@@ -102,15 +128,17 @@ theorem ok_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
   | .bytes _, h | .text _, h | .simple _, h => simpa [ok] using h
   | .array xs, h =>
     simp only [ok, Bool.and_eq_true] at h ⊢
-    exact ⟨h.1, okList_mono hf hi xs h.2⟩
+    exact ⟨h.1, okList_mono hf hi hc xs h.2⟩
   | .map kvs, h =>
     simp only [ok, Bool.and_eq_true] at h ⊢
-    exact ⟨⟨h.1.1, okMap_mono hf hi kvs h.1.2⟩, h.2⟩
+    exact ⟨⟨h.1.1, okMap_mono hf hi hc kvs h.1.2⟩, h.2⟩
   | .tag n c, h =>
     by_cases hn : n = 42
     · subst hn
       cases c with
-      | bytes b => simpa [ok] using h
+      | bytes b =>
+        simp only [ok, Bool.and_eq_true] at h ⊢
+        exact ⟨h.1, isCidPayload_mono hc h.2⟩
       | _ => simp [ok] at h
     · simp [ok, hn] at h
   | .float w bits, h =>
@@ -118,29 +146,30 @@ theorem ok_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
     exact ⟨⟨hf h.1.1, h.1.2⟩, h.2⟩
 
 theorem okList_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
-    (hi : Q.int64 = true → P.int64 = true) (xs : List Value) (h : okList P xs = true) :
+    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix) (xs : List Value) (h : okList P xs = true) :
     okList Q xs = true := by
   match xs, h with
   | [], _ => rfl
   | x :: xs, h =>
     simp only [okList, Bool.and_eq_true] at h ⊢
-    exact ⟨ok_mono hf hi x h.1, okList_mono hf hi xs h.2⟩
+    exact ⟨ok_mono hf hi hc x h.1, okList_mono hf hi hc xs h.2⟩
 
 theorem okMap_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
-    (hi : Q.int64 = true → P.int64 = true) (kvs : List (Value × Value))
+    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix) (kvs : List (Value × Value))
     (h : okMap P kvs = true) : okMap Q kvs = true := by
   match kvs, h with
   | [], _ => rfl
   | (k, v) :: kvs, h =>
     simp only [okMap, Bool.and_eq_true] at h ⊢
-    exact ⟨⟨⟨h.1.1.1, ok_mono hf hi k h.1.1.2⟩, ok_mono hf hi v h.1.2⟩, okMap_mono hf hi kvs h.2⟩
+    exact ⟨⟨⟨h.1.1.1, ok_mono hf hi hc k h.1.1.2⟩, ok_mono hf hi hc v h.1.2⟩, okMap_mono hf hi hc kvs h.2⟩
 
 end
 
 theorem language_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
-    (hi : Q.int64 = true → P.int64 = true) : language P ≤ language Q := by
+    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix) :
+    language P ≤ language Q := by
   rintro w ⟨v, hok, rfl⟩
-  exact ⟨v, ok_mono hf hi v hok, rfl⟩
+  exact ⟨v, ok_mono hf hi hc v hok, rfl⟩
 
 end Silmaril.Proofs.Formats.Cbor.Drisl
 
