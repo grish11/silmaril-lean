@@ -41,7 +41,8 @@ try {
   await open("/summary");
   const nav = await p.evaluate(() => [...document.querySelectorAll("#nav a")].map((a) => a.getAttribute("href")));
   check(nav.includes("#/logics") && !nav.includes("#/logic-graph"), `Logics is in the navigation, opening the table (${nav.filter((h) => /logic/.test(h))})`);
-  await p.click('#nav a[href="#/logics"]'); await settle(); await p.waitForTimeout(300);
+  // the table renders after the click's route settles: wait for its tab bar, not a fixed delay
+  await p.click('#nav a[href="#/logics"]'); await settle(); await p.waitForSelector(".lg-views", { timeout: 30000 });
   const entry = await p.evaluate(() => ({ table: !!document.getElementById("lg-all"), graph: !!document.getElementById("lgcy"),
     tabs: [...document.querySelectorAll('.lg-views [role="tab"]')].map((t) => t.textContent + ":" + t.getAttribute("aria-selected")),
     list: document.querySelector('.lg-views').getAttribute("role") }));
