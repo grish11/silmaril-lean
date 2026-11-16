@@ -899,4 +899,114 @@ theorem coreInf_of_segments (K : Nat → Config H) (q : Nat → List (Call (wasm
     (hq : Silmaril.Games.Abstract.Shape.StreamConcat q ω) : CoreInf P host (K 0) ω :=
   Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_of_segments K q h hq
 
+/-! ## Splitting productive runs -/
+
+/-- A productive run after a host-free (or stuttering) step. -/
+theorem coreInf_silent_step {x y : Config H} {ω : Nat → Call (wasmHostSig H)}
+    (hs : HEvStep P host x none y) (h : CoreInf P host y ω) : CoreInf P host x ω :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_silent hs h
+
+/-- An answered host call in front of a productive run. -/
+theorem coreInf_cons_event {x y : Config H} {e : Call (wasmHostSig H)}
+    {ω : Nat → Call (wasmHostSig H)}
+    (hs : HEvStep P host x (some e) y) (h : CoreInf P host y ω) :
+    CoreInf P host x (Silmaril.Games.Abstract.Shape.streamAppend [e] ω) :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_cons hs h
+
+/-- **Splitting a productive run of a context** `W` (injective): it runs productively inside,
+or a finite segment of it exits (`Exit`) and the rest runs productively from there. `hsplit`
+says how a segment of a run of `W y` ending at an answered host call splits. -/
+theorem coreInf_split_wrap (W : Config H → Config H) (hW : ∀ y y', W y = W y' → y = y')
+    (Exit : List (Call (wasmHostSig H)) → Config H → Prop) {y₀ : Config H}
+    (hsplit : ∀ (y : Config H) (cs₀ : List (Call (wasmHostSig H))) (k : Nat) (c z : Config H)
+      (e : Call (wasmHostSig H)), EvRun P host y₀ cs₀ y → EvRunN P host k (W y) [] c →
+      HEvStep P host c (some e) z →
+      (∃ x y', EvRun P host y [] x ∧ HEvStep P host x (some e) y' ∧ z = W y') ∨
+        ∃ d, Exit cs₀ d ∧ EvRun P host d [e] z)
+    {ω : Nat → Call (wasmHostSig H)} (h : CoreInf P host (W y₀) ω) :
+    CoreInf P host y₀ ω ∨
+      ∃ (cs₁ : List (Call (wasmHostSig H))) (ω₂ : Nat → Call (wasmHostSig H)) (d : Config H),
+        ω = Silmaril.Games.Abstract.Shape.streamAppend cs₁ ω₂ ∧ Exit cs₁ d ∧
+          CoreInf P host d ω₂ :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_wrap_split W hW Exit hsplit h
+
+/-- **Splitting a productive run of a sequence**: `es` runs productively itself, or first runs
+to values with a prefix of the stream, and the continuation runs productively. -/
+theorem coreInf_split_seq {s : Store H} {f : Frame} {es rest : List Admin}
+    {ω : Nat → Call (wasmHostSig H)} (h : CoreInf P host ⟨s, f, es ++ rest⟩ ω) :
+    CoreInf P host ⟨s, f, es⟩ ω ∨
+      ∃ (cs₁ : List (Call (wasmHostSig H))) (ω₂ : Nat → Call (wasmHostSig H)) (c₁ : Config H)
+        (n₁ : Nat) (ws : List Val), ω = Silmaril.Games.Abstract.Shape.streamAppend cs₁ ω₂ ∧
+        EvRunN P host n₁ ⟨s, f, es⟩ cs₁ c₁ ∧
+        c₁.code = vals ws ∧ CoreInf P host ⟨c₁.store, c₁.frame, vals ws ++ rest⟩ ω₂ :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_seq_split h
+
+/-- **Splitting a productive run of a label in place.** -/
+theorem coreInf_split_label {s : Store H} {f : Frame} {ws : List Val} {n : Nat}
+    {cont : List Instr} {b rest : List Admin} {ω : Nat → Call (wasmHostSig H)}
+    (h : CoreInf P host ⟨s, f, vals ws ++ [.label n cont b] ++ rest⟩ ω) :
+    CoreInf P host ⟨s, f, b⟩ ω ∨
+      ∃ (cs₁ : List (Call (wasmHostSig H))) (ω₂ : Nat → Call (wasmHostSig H)) (cb : Config H)
+        (N₁ : Nat), ω = Silmaril.Games.Abstract.Shape.streamAppend cs₁ ω₂ ∧
+        EvRunN P host N₁ ⟨s, f, b⟩ cs₁ cb ∧
+        (∀ c', ¬ Step P SingleThreaded.Det.noHost cb c') ∧
+        SingleThreaded.decompose? cb.store cb.code = none ∧
+        CoreInf P host ⟨cb.store, cb.frame, vals ws ++ [.label n cont cb.code] ++ rest⟩ ω₂ :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_label_seq_split h
+
+/-- **Splitting a productive run of a call frame in place.** -/
+theorem coreInf_split_frame {s : Store H} {f F : Frame} {ws : List Val} {n : Nat}
+    {b rest : List Admin} {ω : Nat → Call (wasmHostSig H)}
+    (h : CoreInf P host ⟨s, f, vals ws ++ [.frame n F [.label n [] b]] ++ rest⟩ ω) :
+    CoreInf P host ⟨s, F, b⟩ ω ∨
+      ∃ (cs₁ : List (Call (wasmHostSig H))) (ω₂ : Nat → Call (wasmHostSig H)) (cb : Config H)
+        (N₁ : Nat), ω = Silmaril.Games.Abstract.Shape.streamAppend cs₁ ω₂ ∧
+        EvRunN P host N₁ ⟨s, F, b⟩ cs₁ cb ∧
+        (∀ c', ¬ Step P SingleThreaded.Det.noHost cb c') ∧
+        SingleThreaded.decompose? cb.store cb.code = none ∧
+        CoreInf P host
+          ⟨cb.store, f, vals ws ++ [.frame n cb.frame [.label n [] cb.code]] ++ rest⟩ ω₂ :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_frame_seq_split h
+
+/-- **A productive run passes through host-free steps** (deterministic profile). -/
+theorem coreInf_through_dsteps {o : SingleThreaded.GrowOracle} {K T : Config H}
+    {ω : Nat → Call (wasmHostSig H)}
+    (hpred : Relation.ReflTransGen (SingleThreaded.Det.DStep o) K T)
+    (h : CoreInf (SingleThreaded.profile o) host K ω) :
+    CoreInf (SingleThreaded.profile o) host T ω :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_through_steps hpred h
+
+/-- **A configuration with no step has no productive run.** -/
+theorem coreInf_no_step {c : Config H} {ω : Nat → Call (wasmHostSig H)}
+    (hX : ∀ c', ¬ Step P host c c') : ¬ CoreInf P host c ω :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_stuck hX
+
+/-- **A head trap has no productive run.** -/
+theorem coreInf_trap_head {s : Store H} {f : Frame} {ws : List Val} {r : List Admin}
+    {ω : Nat → Call (wasmHostSig H)} : ¬ CoreInf P host ⟨s, f, vals ws ++ .trap :: r⟩ ω :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_trap
+
+/-- A chain of nonempty runs is an infinite run. -/
+theorem trace_of_tgChain {R : Config H → Config H → Prop} {x : Nat → Config H}
+    (h : ∀ n, Relation.TransGen R (x n) (x (n + 1))) : Silmaril.InfiniteTrace R (x 0) :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.diverges_of_chain h
+
+/-- A labelled run with no event is a run of silent steps. -/
+theorem evRun_nil_silentRun {x y : Config H} (h : EvRun P host x [] y) :
+    Relation.ReflTransGen (fun a b => HEvStep P host a none b) x y :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.evRun_nil_silent h
+
+/-- Silent steps in the deterministic profile are host-free steps (or stutters). -/
+theorem silentRun_dsteps {o : SingleThreaded.GrowOracle} {c c₁ : Config H}
+    (hs : Relation.ReflTransGen (fun a b => HEvStep (SingleThreaded.profile o) host a none b) c c₁) :
+    Relation.ReflTransGen (SingleThreaded.Det.DStep o) c c₁ :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.silent_dsteps hs
+
+/-- **A productive run is not host-free divergence** (deterministic profile, typed start). -/
+theorem coreInf_not_diverges {o : SingleThreaded.GrowOracle} {c : Config H}
+    {ω : Nat → Call (wasmHostSig H)} (ht : Sim.ContextTyped c)
+    (hd : Diverges (SingleThreaded.profile o) SingleThreaded.Det.noHost c)
+    (h : CoreInf (SingleThreaded.profile o) host c ω) : False :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_not_quiet ht hd h
+
 end Silmaril.Wasm.Abstract
