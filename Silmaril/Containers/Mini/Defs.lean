@@ -128,4 +128,25 @@ def noUBCheck (img : Flat (List Instr)) : Bool :=
 /-- Open a TCP socket, then create a thread. -/
 def tcpThenThread : List Instr := [.emit (.socket (Fixtures.lsock .inet4)), .clone (.clone 0x3d0f00)]
 
+/-! ## Named systems and data for the registry -/
+
+/-- The verified consequence system of the minimal machine. -/
+def miniVsys : Silmaril.Consequence.System (Flat (List Instr)) (Spec Ev) := Check.vsys machRT
+
+/-- The raw system of the minimal machine (a comparison). -/
+def miniRawsys : Silmaril.Consequence.System (Flat (List Instr)) (Spec Ev) := Check.rawsys machRT
+
+/-- The checker system of `noUBCheck`. -/
+def miniCheckSys : Silmaril.Consequence.System (Flat (List Instr)) (Spec Ev) :=
+  Check.checkSys noUBCheck (Spec.partialCorrect fun _ _ => True)
+
+/-- The postcondition of `hello`. -/
+def helloPost (t : List Ev) (c : UInt8) : Prop := t = [.stdout (Fixtures.ascii "hi")] ∧ c = 0
+
+/-- The trivial postcondition: only "no undefined behaviour" remains. -/
+def anyPost (_ : List Ev) (_ : UInt8) : Prop := True
+
+/-- The allowed events of a profile, as the monitor reads them. -/
+def allowed (Pr : Profile) (e : Ev) : Bool := Pr e.cap
+
 end Silmaril.Containers.Mini

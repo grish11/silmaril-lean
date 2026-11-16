@@ -43,8 +43,8 @@ sufficient precondition, so its system is sound for `vsys machRT`.
   reached), which relies on faithful enforcement; enforcement never hides undefined behaviour
   that is reached (`threadSpawn_not_wlp_enforce`);
 * `noTasks_threadSpawn_exits`: `machinePolicy` with a machine that does not implement threads
-  turns the thread request into a step that creates nothing; a parallel machine needs its own
-  policy *and* states and steps that implement task creation.
+  turns the thread request into a step that creates nothing: `machinePolicy` is meaningful only
+  for a transition system that implements task creation.
 -/
 
 public section

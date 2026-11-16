@@ -7,17 +7,23 @@ public import Silmaril.Containers.Runtime.Defs
 
 A runtime model (`Silmaril.Containers.Runtime`) takes a process semantics, the runs of each
 program. This module builds process semantics from a **machine semantics** (`MachineSem P E`):
-states, the initial states of a program, labelled steps and final states. The machine is a
-parameter: its state holds whatever memory model, register file, threads and scheduler the
-machine has, so a sequential x86-64 machine, a Wasm store, or a parallel x86-64 machine with
-explicit scheduling and a weak memory model are all instances. Nothing here fixes a sequential
-executable semantics.
+states, the initial states of a program, labelled steps and final states, and a **run
+interpreter** (`MachineSem.Run pol`) that reads runs off such a labelled transition system under a
+clone policy. A runtime model takes any process semantics; this interpreter is one way to build
+one, not the only way.
+
+**What this interpreter is.** `MachineSem.Run` interprets *one* labelled transition system: a
+run is one sequence of its steps. It suits a sequential machine, with task creation read by the
+clone policy. A parallel semantics is not obtained by changing the machine's `State` while
+keeping this reading: it needs either a transition system that itself encodes threads, a
+scheduler and the memory model (with `machinePolicy`, and obligations that the encoding is
+faithful), or an interpreter of its own, or a process semantics given directly (`ProcSem`, as
+the fixtures of `Silmaril.Containers.Fixtures` are).
 
 **Steps.** A step is labelled by an action (`Act E`): an event with the environment (`ev e`),
 an internal step (`tau`), or a **task-creation request** (`clone r`). Task creation is a
-separate action so that the policy for it is visible and replaceable: a parallel machine
-handles it in its own steps; the sequential reading (`MachineSem.runs`) makes thread creation
-undefined behaviour.
+separate action so that the policy for it is visible and replaceable; the sequential reading
+(`MachineSem.runs`, `seqPolicy`) makes thread creation undefined behaviour.
 
 **In a runtime.** `MachRuntime I P E` names the parameters of a runtime over a machine: the
 loader, the machine and what the runtime adds; `MachRuntime.toRuntime` is the runtime model, and
@@ -28,9 +34,8 @@ the loaded program transformed by what the runtime adds (`Thms.MachRuntime.beh_i
 **Clone policies.** What a run does at a task-creation request is a parameter of the run
 semantics (`ClonePolicy`), not of the machine: `seqPolicy` ends the run in undefined behaviour
 (the sequential reading, `MachineSem.runs`); `machinePolicy` makes the request an internal step,
-for a machine that implements threads in its own states and steps. A parallel machine needs its
-own policy **and** a machine that implements task creation; changing only the machine's states
-while keeping `seqPolicy` keeps thread creation undefined, and choosing `machinePolicy` for a
+for a transition system that implements threads in its own states and steps. Changing the
+machine while keeping `seqPolicy` keeps thread creation undefined; choosing `machinePolicy` for a
 machine without threads makes thread creation a step that creates nothing.
 
 **Runs** (`MachineSem.Run pol`), from an initial state and a finite execution of `ev` and `tau`
@@ -70,12 +75,15 @@ That an instance maps these system calls, and only these, to `clone` actions is 
 the instance (`ClonesExplicit` names it); no instance in this module models system calls, and
 no coverage of concrete system calls is claimed.
 
-**Towards a parallel machine.** A parallel x86-64 instance has explicit threads, a scheduler (a
-source of nondeterminism to be quantified over, with fairness as an assumption), shared memory
-under x86-TSO with atomic read-modify-write instructions and fences, and defines data races or
-other memory-model violations as `UB.memory` where its semantics does. Results for the
-sequential machine do not transfer to it automatically: transfer needs a refinement obligation
-(`SeqAgrees`) relating the parallel machine's runs to the sequential ones on the programs
+**Towards a parallel machine.** A parallel x86-64 semantics has explicit threads, a scheduler (a
+source of nondeterminism to be quantified over, with fairness as an assumption), and shared
+memory under x86-TSO with atomic read-modify-write instructions and fences. It needs its own run
+interpreter or process semantics (above). **No data race is undefined behaviour by itself**: at
+the ISA level x86-TSO gives racy accesses a meaning; "a data race is undefined" is a rule of
+language-level models (C11, for example). `UB.memory` is used only where the chosen model makes a
+behaviour undefined, and which model a verification uses is part of its statement. Results for the
+sequential machine do not transfer automatically: transfer needs a refinement obligation
+(`SeqAgrees`) relating the other semantics' runs to the sequential ones on the programs
 considered (`Thms.wlp_transfer`).
 
 A Silmaril addition.
@@ -171,7 +179,7 @@ structure MachineSem (P E : Type) where
 
 /-- **A clone policy**: what a run does at a task-creation step. `some u`: the run ends in the
 undefined behaviour `u`. `none`: the step is an internal step of the machine, which must then
-*implement* task creation in its states and steps (a parallel machine with threads in its
+*implement* task creation in its states and steps (a transition system with threads in its
 state); choosing `none` for a machine that does not is unsound, because the request becomes a
 step that creates nothing (`Silmaril.Containers.Mini.noTasks_threadSpawn_exits`). -/
 abbrev ClonePolicy : Type := CloneReq → Option UB
@@ -264,10 +272,11 @@ runtime turns `b₀` into `b`; or the loader refuses (`Thms.MachRuntime.beh_iff`
 def MachRuntime.toRuntime {I P E : Type} (R : MachRuntime I P E) : Runtime I P E :=
   ⟨R.load, R.machine.runsWith R.policy, R.obs⟩
 
-/-- **The same runtime over another machine and clone policy** (for example a parallel machine
-with `machinePolicy` in place of a sequential one with `seqPolicy`): the loader and what the
-runtime adds are kept. Changing the machine but keeping `seqPolicy` keeps thread creation
-undefined, whatever the new machine's states can represent. -/
+/-- **The same runtime over another machine and clone policy**: the loader and what the runtime
+adds are kept. Changing the machine but keeping `seqPolicy` keeps thread creation undefined,
+whatever the new machine's states can represent; `machinePolicy` is meaningful only for a
+transition system that implements task creation. A parallel semantics that is not such a
+transition system is a different process semantics, not an instance of `withMachine`. -/
 def MachRuntime.withMachine {I P E : Type} (R : MachRuntime I P E) (M : MachineSem P E)
     (pol : ClonePolicy) : MachRuntime I P E :=
   { R with machine := M, policy := pol }
@@ -278,7 +287,7 @@ def _root_.Silmaril.Containers.Runtime.ofMachine {I P E : Type} (load : I → Ex
   ({ load, machine := M, obs } : MachRuntime I P E).toRuntime
 
 /-- **Sequential agreement** (the transfer obligation from a sequential machine to another,
-for example a parallel one): on the image `i`, every run under `Rpar` is a run under `Rseq`. -/
+for example a parallel semantics): on the image `i`, every run under `Rpar` is a run under `Rseq`. -/
 def SeqAgrees {I P P' E : Type} (Rpar : Runtime I P' E) (Rseq : Runtime I P E) (i : I) : Prop :=
   ∀ b, Rpar.beh i b → Rseq.beh i b
 

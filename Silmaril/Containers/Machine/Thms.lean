@@ -34,7 +34,7 @@ added to it (when what the runtime adds keeps undefined behaviour, `Runtime.ObsK
 
 **Transfer.** `MachRuntime.wlp_withMachine`: replacing the machine keeps a `wlp` given
 `SeqAgrees`; `wlp_transfer`: a `wlp` proved under a sequential runtime holds under another
-(for example a parallel one) **given** `SeqAgrees`; without it nothing transfers.
+(for example a parallel semantics) **given** `SeqAgrees`; without it nothing is claimed.
 -/
 
 public section

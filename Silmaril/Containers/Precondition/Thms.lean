@@ -2,11 +2,12 @@ module
 
 public import Silmaril.Containers.Precondition.Defs
 public import Silmaril.Containers.Runtime.Thms
+import Silmaril.Proofs.Containers.Precondition.Basic
 
 /-!
 # Preconditions: theorems
 
-PROVED (standard axioms); every proof is short and stays inline.
+PROVED (standard axioms). Longer proofs are in `Silmaril.Proofs.Containers.Precondition`.
 
 * `pre_weakest`: `Q` is sufficient for `φ` exactly when `Q` implies `pre R φ`, and `pre R φ` is
   itself sufficient: the semantic precondition is the weakest one;
@@ -26,6 +27,13 @@ PROVED (standard axioms); every proof is short and stays inline.
   content stores, the precondition reduces to the flat contents and the refusals;
 * `SufficientIn.sufficient`, `sufficientIn_of_expressive`: a concrete sufficient precondition
   is sufficient; with expressiveness, the weakest precondition is one;
+* `vpreAssuming_true`, `vpre_vpreAssuming`: with no assumption it is `vpre`, and `vpre` implies it
+  under any assumption; `onInputs_done`: an assumption on inputs cannot tell undefined behaviour
+  from another stop, so it is never "assume no undefined behaviour";
+* `vpreAssuming_of_restrict`, `restrict_strictly_conservative`: a certificate under the
+  conservative `restrict` gives `vpreAssuming`, and not conversely: an assumption that rules out
+  the only input leading to undefined behaviour satisfies `vpreAssuming` but not `vpre` under
+  `restrict`;
 * `vsufficient_iff`, `VSufficient.noUB`, `VSufficientIn.vsufficient`: the verified forms are the
   raw ones for `noUB ∧ φ`, and exclude undefined behaviour.
 -/
@@ -114,5 +122,28 @@ theorem sufficientIn_of_expressive {L : Assertions I} {R : Runtime I P E} {Φ : 
     (hL : Expressive L R Φ) {φ : Spec E} (hφ : Φ φ) : Nonempty (SufficientIn L R φ) :=
   let ⟨f, hf⟩ := hL φ hφ
   ⟨⟨f, fun i h => (hf i).1 h⟩⟩
+
+theorem vpreAssuming_true (R : Runtime I P E) (isIn : E → Bool) (φ : Spec E) (i : I) :
+    vpreAssuming R isIn (fun _ => True) φ i ↔ vpre R φ i :=
+  ⟨fun h b hb => h b hb fun _ _ => trivial, fun h b hb _ => h b hb⟩
+
+theorem vpre_vpreAssuming {R : Runtime I P E} {isIn : E → Bool} {A : List E → Prop} {φ : Spec E}
+    {i : I} (h : vpre R φ i) : vpreAssuming R isIn A φ i := fun b hb _ => h b hb
+
+theorem onInputs_done (isIn : E → Bool) (A : List E → Prop) (t : List E) (s s' : Stop) :
+    Spec.onInputs isIn A (.done t s) ↔ Spec.onInputs isIn A (.done t s') := Iff.rfl
+
+theorem vpreAssuming_of_restrict {R : Runtime I P E} {isIn : E → Bool} {A : List E → Prop}
+    {φ : Spec E} {i : I} (h : vpre (R.restrict (Spec.onInputs isIn A)) φ i) :
+    vpreAssuming R isIn A φ i :=
+  Silmaril.Proofs.Containers.Precondition.vpreAssuming_of_restrict h
+
+/-- `restrict` is strictly conservative: an assumption that rules out the only input leading to
+undefined behaviour gives `vpreAssuming`, but `vpre` under `restrict` still fails. -/
+theorem restrict_strictly_conservative :
+    ∃ (R : Runtime Unit Unit Bool) (isIn : Bool → Bool) (A : List Bool → Prop),
+      vpreAssuming R isIn A (fun _ => True) () ∧
+        ¬ vpre (R.restrict (Spec.onInputs isIn A)) (fun _ => True) () :=
+  ⟨_, _, _, Silmaril.Proofs.Containers.Precondition.restrict_strictly_conservative⟩
 
 end Silmaril.Containers

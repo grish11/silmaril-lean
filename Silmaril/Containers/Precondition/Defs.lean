@@ -29,6 +29,12 @@ obligation (`Silmaril.Containers.Check`, the fixtures' checkers) uses them.
 
 "No undefined behaviour" is not termination or progress: `wlp` holds of a spinning program.
 
+**Assumptions.** An environment assumption that may exclude runs with undefined behaviour (a
+bounded input length) is stated on inputs (`Spec.onInputs`) and used through `vpreAssuming`:
+every run satisfying the assumption has no undefined behaviour and satisfies `φ`. Without an
+assumption it is `vpre` (`Thms.vpreAssuming_true`). `Runtime.restrict` is a stricter,
+conservative certificate policy that never drops a run with undefined behaviour.
+
 Both quantify over every run **under `R`**: they change when the runtime model changes, and a
 weaker runtime model (more runs) gives a stronger precondition (`Thms.pre_antitone`).
 A model with no runs for an image satisfies everything (`Thms.pre_of_infeasible`): feasibility
@@ -68,6 +74,21 @@ def wlp (R : Runtime I P E) (post : List E → UInt8 → Prop) : I → Prop :=
 undefined behaviour, every run exits, and `post` holds. -/
 def wp (R : Runtime I P E) (post : List E → UInt8 → Prop) : I → Prop :=
   vpre R (Spec.totalCorrect post)
+
+/-- **An explicit environment assumption on inputs**: every finite prefix of the run has inputs
+(`isIn`) satisfying `A`. It cannot mention undefined behaviour, which is a stop, not an input
+(`Thms.onInputs_done`). -/
+def Spec.onInputs (isIn : E → Bool) (A : List E → Prop) : Spec E :=
+  fun b => ∀ t, b.Prefix t → A (t.filter isIn)
+
+/-- **The verification precondition under an explicit environment assumption**: every run whose
+inputs satisfy `A` has no undefined behaviour and satisfies `φ`. This is the weakest condition for
+a faithful assumption on inputs; it may hold of an image whose undefined behaviour needs inputs
+outside `A`. `Runtime.restrict` is a conservative approximation of it
+(`Thms.vpreAssuming_of_restrict`, `Thms.restrict_strictly_conservative`). -/
+def vpreAssuming (R : Runtime I P E) (isIn : E → Bool) (A : List E → Prop) (φ : Spec E) :
+    I → Prop :=
+  pre R fun b => Spec.onInputs isIn A b → Spec.noUB b ∧ φ b
 
 /-- `Q` is a **sufficient precondition** for `φ` under `R`, **in the raw sense**: it implies
 `pre R φ`, which does not exclude undefined behaviour unless `φ` does. Checked obligations use

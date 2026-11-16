@@ -24,7 +24,7 @@ theorems), **Planned** (nothing exists yet). No module uses `sorry`, `native_dec
 | Preconditions: semantic `pre`; the verification precondition `vpre` (no undefined behaviour and the specification); `wlp`, `wp`; sufficiency, feasibility, assertion languages, representability, concrete sufficient preconditions | `Containers.Precondition` | Proved |
 | A minimal machine: exact runs, exact `wlp`/`wp` on contents, thread creation, `vfork`, `fork`, falling off the end, spinning, pre-emption by enforcement, a misused clone policy, a verified checker on contents | `Containers.Mini` | Proved; Checked (`Examples`) |
 | Obligations as consequence systems (`vsys`, `rawsys`, `checkSys`) with their laws, and as an acceptor (an online monitor over observations in which undefined behaviour is visible) | `Containers.Check` | Proved |
-| Problem shapes `silmaril.shapes.containers.*`, registered consequence systems and instances with answers, obligation kinds | `Containers.Shapes` | Registered; answers checked at elaboration |
+| Problem shapes `silmaril.shapes.containers.*`, registered consequence systems and instances with answers | `LogicGraph.Consequence.Containers` (a view; `Containers` does not import `Project`) | Registered; answers checked at elaboration; `sil project` self-test |
 | Fixtures under the small runtime model: no-op, crash, spin, HTTP over TCP, vsock compute | `Containers.Fixtures` | Proved; Checked (`Examples`) |
 | HTTP interfaces (version, transport, port), admissibility under profiles, the server platform of a runtime model, the fixture's response parsed by the verified HTTP/1.1 parser | `Containers.Http` | Proved |
 | The behaviour institution and its logic-graph registration | `Containers.Institution`, `LogicGraph.Nodes.Containers` | Proved (satisfaction condition) |
@@ -98,6 +98,7 @@ found by a shape, and the runtime is a parameter with its own behaviours.
 | Environmental vs internal nondeterminism | `Ev.isInput`, `Model.DetUpToInputs` | `Fixtures.echoOnce_det`, `coin_not_det` |
 | Noninterference is relational | `Model.Noninterference` | `noninterference_not_trace_property`; `trace_property_not_noninterference`: memory safety, no-ACE or profile confinement (all trace properties) do not imply it |
 | Profile proved of a program vs enforced by a runtime | `Confined`, `Runtime.enforce` | `enforce_confined` (for runs without undefined behaviour), `enforce_eq_of_confined`; `Fixtures.http_enforce_vsock` |
+| `restrict` is a conservative certificate policy, not every faithful assumption | `Spec.onInputs`, `vpreAssuming` | `vpreAssuming_of_restrict`, `restrict_strictly_conservative`, `onInputs_done` (an input assumption cannot mention undefined behaviour) |
 | Runtime-added behaviours never hide undefined behaviour that is reached | `Runtime.ObsKeepsUB`, `Runtime.PreservesUB`; `restrict` keeps every run with undefined behaviour; `enforce` keeps every run that reaches it through allowed events | `preservesUB_restrict`, `preservesUB_mayKill`, `noUB_restrict_iff`, `noUB_mayKill_iff`, `not_vpre_of_preservesUB`; `enforce_keeps_reached_ub`, `ub_preempted_of_enforce`, `noUB_enforce_of`; `withObs_can_hide_ub`; `Mini.threadSpawn_not_wlp_restrict`, `_mayKill`, `_enforce`, `_restrict_noUB` |
 | Enforcement pre-empts undefined behaviour; it does not hide it | `Runtime.enforceObs` | `ub_preempted_of_enforce`; `Mini.tcpThenThread_not_wlp`, `tcpThenThread_wlp_enforce` (under the assumption of faithful enforcement) |
 | The clone policy is a parameter | `Mach.ClonePolicy`, `seqPolicy`, `machinePolicy`, `MachRuntime.policy` | `Mini.noTasks_threadSpawn_exits` (`machinePolicy` without a threaded machine is unsound) |
@@ -140,12 +141,17 @@ judgements:
   (`vmonitor_correctInterleaved`); `vlang_iff`: a run has no undefined behaviour and only allowed
   events exactly when every observation prefix is accepted.
 
-`Containers.Shapes` registers, in the project registry: the shapes `silmaril.shapes.containers.*`;
-the consequence systems `containers.mini.vsys`, `containers.mini.raw` and
-`containers.mini.no_ub_check`; and ten instances with answers (behaviour, thread creation,
-assumptions, pre-emption, the checker, a transformer, the monitor, and the consequence shapes
-`sound_at` both ways). `ObligationKind` names what an obligation is about (trust, format, shape,
-loader, machine, resource, security, behaviour) and `catalogue` lists the instances by kind.
+**Where the registrations live.** The definitions are in the region (`Containers.Check`, and the
+named systems and postconditions in `Containers.Mini`); the records are in the `LogicGraph` view,
+`Silmaril.LogicGraph.Consequence.Containers`, next to the consequence systems of the logics. The
+view imports the generic registry (`Silmaril.Project`) and `Silmaril.Containers` and is imported
+only by the project dump (`silmaril.toml`), so neither region depends on the other. It registers
+the shapes `silmaril.shapes.containers.*`; the consequence systems `containers.mini.vsys`,
+`containers.mini.raw` and `containers.mini.no_ub_check`; and ten instances with answers
+(behaviour, thread creation, assumptions, pre-emption, the checker, a transformer, the monitor, and
+the consequence shapes `sound_at` both ways), in the `containers` group of the problem DAG.
+`Check.ObligationKind` names what an obligation is about (trust, format, shape, loader, machine,
+resource, security, behaviour), and the view's `catalogue` lists the instances by kind.
 
 ## Machines, undefined behaviour and concurrency
 
@@ -157,11 +163,10 @@ policy and nothing else.
 
 **The clone policy is a parameter, not a property of the machine.** `seqPolicy` ends a run in
 undefined behaviour at a task-creation request (the sequential reading; `MachineSem.runs` is
-`runsWith seqPolicy`). `machinePolicy` makes the request an internal step, for a machine whose
-states and steps implement threads. A future parallel machine therefore needs both its own states
-and steps *and* its own policy: keeping `seqPolicy` while changing the machine keeps thread
-creation undefined, and choosing `machinePolicy` for a machine without threads makes thread
-creation a step that creates nothing (`Mini.noTasks_threadSpawn_exits`: the thread request of
+`runsWith seqPolicy`). `machinePolicy` makes the request an internal step, for a transition
+system whose states and steps implement threads. Keeping `seqPolicy` while changing the machine
+keeps thread creation undefined, and choosing `machinePolicy` for a machine without threads makes
+thread creation a step that creates nothing (`Mini.noTasks_threadSpawn_exits`: the thread request of
 `threadSpawn` is skipped and the program exits 0). The construction is exact (`MachRuntime.beh_iff`): the runs of an image are the
 loader's refusal, or `obs` applied to the machine's runs of the loaded program. `Mach.MachineSem P E` has states, the initial states of a
 program (a relation: layout randomisation and initial memory are nondeterministic), steps labelled
@@ -185,7 +190,12 @@ undefined behaviour. This is required, not assumed: `Runtime.ObsKeepsUB` for wha
   So a runtime model's `obs` must be shown to keep it (`ObsKeepsUB`) before verification results
   over it say anything about the program (`MachRuntime.not_vpre_of_run` takes it as a hypothesis).
 * `restrict A` (strengthening an assumption) keeps the runs satisfying `A` **and every run with
-  undefined behaviour**. Assumptions must be explicit statements about the environment or the
+  undefined behaviour**. This is a **conservative certificate policy**, not a faithful reading of
+  every environment assumption: an assumption on inputs may legitimately make undefined behaviour
+  unreachable (a bounded request length against a fixed buffer). The weakest condition under such
+  an assumption is `vpreAssuming R isIn A φ` (every run whose inputs satisfy `A`, stated with
+  `Spec.onInputs`, has no undefined behaviour and satisfies `φ`); a certificate under `restrict`
+  implies it (`vpreAssuming_of_restrict`), and not conversely (`restrict_strictly_conservative`). Assumptions must be explicit statements about the environment or the
   runtime (`Beh.notBlocked`, fairness, no out-of-memory kill), never the circular "assume no
   undefined behaviour": `restrict Spec.noUB` changes nothing about it
   (`noUB_restrict_iff`; `Mini.threadSpawn_not_wlp_restrict_noUB`; the registered instance
@@ -198,7 +208,10 @@ undefined behaviour. This is required, not assumed: `Runtime.ObsKeepsUB` for wha
   that event and is never reached. That is the only way enforcement removes undefined behaviour
   (`ub_preempted_of_enforce`), and it relies on faithful enforcement, an assumption about the
   runtime (`Mini.tcpThenThread_wlp_enforce`: a TCP socket and then a thread creation satisfies
-  `wlp` under vsock-only enforcement only because the enforcer stops it at the socket). Undefined behaviour of the container runtime itself (a
+  `wlp` under vsock-only enforcement only because the enforcer stops it at the socket). So a
+  weakest precondition under `enforce` is the weakest condition *for a faithful enforcer at the
+  granularity of events*, which prevents the unsafe action; a certificate that must not depend on
+  enforcement is stated without it (`noUB_enforce_of` gives the safe direction only). Undefined behaviour of the container runtime itself (a
 runtime bug) is outside these models and is an assumption about the runtime.
 
 **"No undefined behaviour" is part of every verification precondition.** `vpre R φ` requires
@@ -225,14 +238,23 @@ system calls, and nothing else, to `clone` actions is the instance's obligation
 (`MachineSem.ClonesExplicit`). The only instance so far, `Mini.mini`, has `clone` as an
 instruction and decodes no system calls; **no system call coverage is claimed**.
 
-**Towards a parallel x86-64 machine.** It will be another `MachineSem` with explicit threads in
-its state, a scheduler whose choices are quantified over (fairness as a stated assumption where
-liveness needs it), shared memory under x86-TSO (store buffers, `MFENCE`, `LOCK`-prefixed atomic
-read-modify-write), and whatever the machine declares undefined (`UB.memory`), with refinement
-obligations between it and the sequential machine. Transfer of a sequential result is not
+**`MachineSem.Run` is a sequential interpreter.** It reads runs off *one* labelled transition
+system, with task creation decided by the clone policy. A parallel semantics is not obtained by
+changing the machine's `State` while keeping this reading. It needs a transition system that
+itself encodes threads, a scheduler and the memory model (used with `machinePolicy`, with
+obligations that the encoding is faithful), or a run interpreter of its own, or a process
+semantics given directly (`ProcSem`).
+
+**Towards a parallel x86-64 semantics.** It has explicit threads, a scheduler whose choices are
+quantified over (fairness as a stated assumption where liveness needs it), and shared memory under
+x86-TSO (store buffers, `MFENCE`, `LOCK`-prefixed atomic read-modify-write), with refinement
+obligations between it and the sequential machine. **No data race is undefined behaviour by
+itself**: x86-TSO gives racy accesses a meaning at the ISA level, and "a data race is undefined" is
+a rule of language-level models (C11, for example). `UB.memory` is used only where the chosen model
+makes a behaviour undefined, and the model is part of what a theorem states. Transfer of a sequential result is not
 automatic: `wlp_transfer` needs `SeqAgrees` (every run of the image under the parallel runtime
 is a run under the sequential one), a theorem to be proved, for example for programs that never
-make a task-creation request, from a proof that the parallel machine restricted to one thread
+make a task-creation request, from a proof that the parallel semantics restricted to one thread
 refines the sequential one.
 
 ## Nitro Enclaves
@@ -294,7 +316,7 @@ The obligations, in the order a proof meets them:
    state `UB.stuck`, and `clone`/`clone3`/`fork`/`vfork` become `clone` actions, so they are excluded
    by every `wlp`, never silent successes. Redis starts background threads (`bio` threads for lazy
    freeing and file closing, I/O threads when configured), so **under the sequential machine its
-   `wlp` fails**: verifying it needs the parallel machine, or a configuration and build proved
+   `wlp` fails**: verifying it needs a parallel semantics, or a configuration and build proved
    never to create threads (Redis starts its `bio` threads unconditionally at startup in the
    versions we know of; this must be checked against the pinned version).
 6. **Resources.** A memory limit (cgroup) and `maxmemory`; the file-descriptor limit (`maxclients`
@@ -356,8 +378,8 @@ These are part of the original request and remain open after this pull request:
 * **The parallel x86-64 machine** (threads, scheduler, x86-TSO, atomics) and `SeqAgrees` proofs.
 * **Acceptors, consequence systems and tables: partly done.** Done: `Containers.Check`
   (consequence systems with laws, checker soundness, the observation monitor as an acceptor) and
-  `Containers.Shapes` (shapes, consequence systems and instances in the project registry, through
-  `Project` in the region's `deps`, as `Automata` does). Not done: shapes over registered
+  the `LogicGraph` view `Silmaril.LogicGraph.Consequence.Containers` (shapes, consequence systems
+  and instances in the project registry; `Containers` does not depend on `Project`). Not done: shapes over registered
   artifacts (`Silmaril.Project.Value`, so that an OCI image or an ELF file is a row with its CID,
   as the ELF shapes are), a `consequence_interpretation` over such values, record kinds of their
   own for profiles, shapes and runtime models, and dedicated tables beyond the generic

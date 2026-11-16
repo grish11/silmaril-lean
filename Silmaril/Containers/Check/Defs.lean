@@ -103,4 +103,21 @@ def vmonitor {E : Type} (ok : E → Bool) : Silmaril.Acceptor Bool (List (Obs E)
   query b := (b, b)
   reset _ := true
 
+/-! ## Obligation kinds -/
+
+/-- **What an obligation is about**, so that a table of obligations for an image keeps them
+apart: trust (digests, integrity, binding), format (decoding octets), shape (where the program
+is), loader, machine (including the clone policy), resource, security (profile, enforcement),
+behaviour (`vpre`). -/
+inductive ObligationKind where
+  | trust
+  | format
+  | shape
+  | loader
+  | machine
+  | resource
+  | security
+  | behaviour
+  deriving DecidableEq, Repr
+
 end Silmaril.Containers.Check

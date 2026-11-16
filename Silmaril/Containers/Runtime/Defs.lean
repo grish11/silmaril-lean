@@ -16,8 +16,8 @@ A **runtime model** (`Runtime I P E`) says what happens when an image `I` is sta
   (`Silmaril.Containers.Mach.MachineSem`, `Runtime.ofMachine`): states with whatever memory,
   concurrency and scheduling model the machine has, labelled steps, and undefined behaviour as
   explicit runs. A sequential x86-64 machine with thread creation as undefined behaviour, the
-  Linux process semantics of `Silmaril.Process`, a Wasm host, and later a parallel x86-64
-  machine are instances;
+  Linux process semantics of `Silmaril.Process` and a Wasm host are instances; a later parallel
+  x86-64 semantics needs its own run interpreter or a direct process semantics;
 * `obs`: **what the runtime adds**: `obs b₀ b` when the runtime turns a run `b₀` of the program
   into the run `b` its environment sees. `Eq` adds nothing (`Runtime.exact`).
 
@@ -27,16 +27,28 @@ programs and their semantics may differ. Two ways of changing a model must not b
 * **Strengthening an assumption** removes runs (`Runtime.restrict A`: "assume no runtime kill",
   "assume the host never runs out of memory"). Everything proved of the larger model holds of
   the smaller one (`Thms.Runtime.sat_of_le`), but only under the assumption: the theorem is
-  about fewer runs.
+  about fewer runs. `restrict` is a **conservative certificate policy**: it never removes a run
+  with undefined behaviour, even when the assumption would. It does not represent every
+  environment assumption faithfully: an assumption about inputs can make undefined behaviour
+  unreachable (a bounded request length against a fixed buffer), and the weakest condition under
+  such an assumption is `vpreAssuming` (`Silmaril.Containers.Precondition`), which `restrict`
+  only approximates from the safe side (`Thms.vpreAssuming_of_restrict`,
+  `Thms.restrict_strictly_conservative`).
 * **Admitting extra runtime behaviours** adds runs (`Runtime.mayKill`: the runtime may stop the
   process at any point, for a reason in `ks`). Safety and partial correctness survive
   (`Thms.Runtime.safe_mayKill`, `Thms.Runtime.partialCorrect_mayKill`); total correctness does
   not (`Thms.Runtime.totalCorrect_not_mayKill`).
 
-**Enforcement.** `Runtime.enforce P` is a runtime that stops a process with `killed .policy` at
-its first event outside the profile `P` (seccomp, a network namespace, a VM's devices). Its runs
-are confined (`Thms.Runtime.enforce_confined`), and on a confined run it changes nothing
-(`Thms.Runtime.enforce_eq_of_confined`).
+**Enforcement.** `Runtime.enforce P` models a **faithful enforcer at the granularity of events**:
+it stops a process with `killed .policy` just before its first event outside the profile `P`
+(seccomp, a network namespace, a VM's devices). Its runs are confined
+(`Thms.Runtime.enforce_confined`), and on a confined run it changes nothing
+(`Thms.Runtime.enforce_eq_of_confined`). A weakest precondition under `enforce` is a weakest
+condition *for that enforcer*: it may hold of an image whose undefined behaviour the enforcer
+prevents (`Mini.tcpThenThread_wlp_enforce`), so it relies on the enforcer being faithful, at the
+same granularity, which is an assumption about the runtime. A certificate that must not depend on
+enforcement is stated under the runtime without it: no undefined behaviour there implies none
+under `enforce` (`Thms.Runtime.noUB_enforce_of`), not conversely.
 
 **Undefined behaviour under runtime-added behaviours.** "No undefined behaviour" quantifies over
 the runs the environment sees, that is, program runs transformed by what the runtime adds. The
@@ -51,10 +63,13 @@ process at an earlier disallowed event (`ub_preempted_of_enforce`). An arbitrary
 hide undefined behaviour (`Thms.Runtime.withObs_can_hide_ub`): a runtime model built that way must
 be shown `ObsKeepsUB` before verification results over it say anything about the program.
 
-**Assumptions must be about the environment.** `restrict A` takes the assumption `A` as an
-explicit specification of runs (`Beh.notBlocked`, a fairness condition, no out-of-memory kill).
-It is never "assume no undefined behaviour": `restrict` keeps every run with undefined behaviour,
-so `restrict Spec.noUB` changes nothing about it (`noUB_restrict_iff`). Undefined behaviour of the runtime
+**Assumptions must be explicit and about the environment.** `restrict A` takes the assumption
+`A` as a specification of runs (`Beh.notBlocked`, a fairness condition, no out-of-memory kill),
+under the conservative policy above. It is never "assume no undefined behaviour", which would be
+circular: `restrict` keeps every run with undefined behaviour, so `restrict Spec.noUB` changes
+nothing about it (`noUB_restrict_iff`). An assumption that is allowed to exclude runs with
+undefined behaviour is stated on the inputs (`Spec.onInputs`), which cannot mention undefined
+behaviour, and used through `vpreAssuming`. Undefined behaviour of the runtime
 itself (a container runtime bug) is outside these models: it is an assumption about the
 runtime.
 
@@ -106,10 +121,10 @@ behaviour is a run of `R'`. Then `R'` cannot certify an image that `R` does not
 def PreservesUB {P' : Type} (R' : Runtime I P' E) (R : Runtime I P E) : Prop :=
   ∀ i b, R.beh i b → ¬ Spec.noUB b → R'.beh i b
 
-/-- **Strengthening an assumption**: keep only the runs satisfying `A`, **and every run with
-undefined behaviour**. An assumption is about the environment and the runtime (no
-out-of-memory kill, a live environment); it never excuses the program's own undefined
-behaviour, so `A` cannot remove a run that has it. -/
+/-- **Strengthening an assumption, conservatively**: keep only the runs satisfying `A`, **and every
+run with undefined behaviour**. This is a certificate policy: `A` never removes a run that has
+undefined behaviour, even when `A` is a legitimate assumption that excludes it; for that case use
+`vpreAssuming`. -/
 def restrict (R : Runtime I P E) (A : Spec E) : Runtime I P E :=
   R.withObs fun b₀ b => R.obs b₀ b ∧ (A b ∨ ¬ Spec.noUB b)
 
@@ -121,8 +136,9 @@ def killObs (ks : Kill → Prop) (b₀ b : Beh E) : Prop :=
 def mayKill (R : Runtime I P E) (ks : Kill → Prop) : Runtime I P E :=
   R.withObs fun b₀ b => ∃ b₁, R.obs b₀ b₁ ∧ killObs ks b₁ b
 
-/-- **Enforcing a profile**: a run whose events are all allowed is unchanged, **including one
-that ends in undefined behaviour** (the enforcer has nothing to stop before it is reached);
+/-- **Enforcing a profile** (a faithful enforcer, at the granularity of events): a run whose events
+are all allowed is unchanged, **including one that ends in undefined behaviour** (the enforcer has
+nothing to stop before it is reached);
 otherwise the runtime stops the process just before its first event outside the profile. In a
 run with undefined behaviour whose events include a disallowed one, the undefined behaviour comes
 after that event, so a faithful enforcer stops the process before it is reached: this is

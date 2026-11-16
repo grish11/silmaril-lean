@@ -98,7 +98,9 @@ inductive UB where
   /-- The step is outside what the model defines (an unmodelled system call, process creation
   under a model with no process semantics). No claim is made about it. -/
   | unmodeled
-  /-- A memory-model violation the machine semantics declares undefined. -/
+  /-- A memory-model behaviour the chosen semantics declares undefined. Model-specific: x86-TSO
+  gives racy accesses a meaning, so a data race is undefined only under a model that says so
+  (a language-level model such as C11). -/
   | memory
   /-- Any other undefined behaviour of the machine semantics. -/
   | other
