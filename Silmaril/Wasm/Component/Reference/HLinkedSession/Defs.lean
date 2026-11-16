@@ -69,11 +69,10 @@ The **Shape** condition says the component imports of B are the wired ones follo
 `canon lower` and `canon lift` of the `SimpleI` fragment is synchronous. A host call that is
 never resolved leaves no ready thread in the instance, so `canon_lift`'s synchronous loop
 traps `cannotBlockSync` (REF `trap_if(not candidates)`). #697 shows this for the fixture
-(`linkedH_silent_cannotBlock`, restated for `linkedH.toRef` in `Thms`). The general statement
-for every `HLinked2` is **not proved here** and is not assumed: it needs the forward linked call
-of the HLinked2 reference machine (see `Thms`). A pending observation, where the host diverges
-and the call stays unresolved, needs an asynchronous `canon lower` or `canon lift`. It is out of
-scope and comes later.
+(`linkedH_silent_cannotBlock`, restated for `linkedH.toRef` in `Thms`); for every `HLinked2` with
+adequate parts it is `HLinked2.silent_cannotBlock` (`Thms`), for the first call after
+instantiation. A pending observation, where the host diverges and the call stays unresolved,
+needs an asynchronous `canon lower` or `canon lift`. It is out of scope and comes later.
 
 **Not covered.** n-ary and nested components wait on the H2 owner's host hiding and `ext` laws
 (#207). The parser from bytes to these components, and F6, are pending.

@@ -4,6 +4,8 @@ public import Silmaril.Wasm.Component.Reference.HLinkedSession.Defs
 public import Silmaril.Wasm.Component.Reference.LinkedSession.Thms
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.IR
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Inst
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.SilentCall
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Host
 
 /-!
 # Linked components whose importer also has host imports: theorems
@@ -11,7 +13,8 @@ import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Inst
 **Scope.** `HLinked2` (`Defs`): the import-free exporter A answers the wired imports of the
 importer B, and B's remaining imports are host imports of the parent, passed through. This
 module is groundwork for session adequacy with host imports. It is **not** an HLinked2 adequacy
-theorem: the instantiation and the specification to IR direction are proved in general.
+theorem: the instantiation, the specification to IR direction and the silent-host trap of a first
+call are proved in general.
 
 ## Proved
 
@@ -45,6 +48,32 @@ theorem: the instantiation and the specification to IR direction are proved in g
   import). The importer's core facts in the shared store are `coreFactsL_of_inst` at the
   lowered callees `l.fid` (`coreFactsH_of_inst`); the configuration reached is `afterLinkH`
   (`instBehavioursH_inst`).
+* **A host that never answers, every `HLinked2`** (`HLinked2.silent_cannotBlock`,
+  `HLinked2.silent_session`, every profile, under `HLinked2.Adequate`). For the first call after
+  instantiation: a typed call whose specification round (a well-formed `SessRound` of the
+  importer's instance from its store, its import calls an `ExpRunH` segment of the exporter
+  from its store) makes a host call traps with reason `cannotBlockSync` under `silentHost`,
+  with no host event and no other trap before; its one-call session answers `none`
+  (`silentObs`). The run: the invocation and the prefix of the importer's lift; the importer's
+  core activation with its returned nested calls to the exporter, up to the callout of the
+  first host call; the callout program, whose host function takes the arguments and does not
+  resolve the subtask, so that `canon_lower` waits on it and the thread blocks; and the
+  synchronous lift loop, which finds no ready thread in the importer's instance. Proofs:
+  `Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.{Stat, Round, Silent, SilentCall}`,
+  over the forward invariants of `LinkedSessionFwd` restated at the host-first layout
+  (`HStat`, `LInv`/`LReady`/`ReadyL` at the renaming `gL P l.toW`, with `l.toW` wiring import
+  `n` to `l.fid n`; `hstat_init`, `readyH_init` at `afterLinkH`).
+* **The forward host-call segment** (`Proofs.….HLinkedSession.Host`, not restated here): at
+  the callout of a host import under `answerHostS P g`, a well-typed answer of `g` runs the
+  machine quietly to the importer's core activation resumed with the lowered answer, one more
+  subtask and caller record in the store and the new host state (`hostCall_fwd`); no answer, or
+  arguments that do not lift, trap with a specification trap (`hostCall_noAnswer`,
+  `hostCall_noLift`); the importer's part resumed alongside keeps `LInv`
+  (`LInv.resumeHost_fwdH`). **A host answer that is not well typed is not a trap**: it is the
+  `internal` fault `lower_flat: value does not match type`, which `Calls` does not count as a
+  trap. For example a host import `func() -> u32` answered `[]` (`HostAnswersS` with
+  `R = some (.vals [])`) traps in the specification but faults on the reference machine, so the
+  specification to reference direction needs a typed host.
 
 ## Not proved (what remains)
 
@@ -58,19 +87,22 @@ theorem: the instantiation and the specification to IR direction are proved in g
   component functions are shifted by `host.length`, and B's store also holds `canon lower`
   trampolines of host functions, which dispatch to `hostCalloutProg` (`CalloutRun`) instead of
   a nested lift. The next lemmas, in order, are these:
-  - the forward linked call with host trampolines (`LinkedSessionFwd` with
-    `CalloutRun.runs_callout` at host trampolines). Its invariants (`LStat`, `ReadyL`, `gL`)
-    assume the component functions are the exporter's then the importer's lifted functions, and
-    every trampoline of the importer lowers an exporter function: they have to be restated over
-    `afterLinkH` (the host functions first, trampolines of `l.fid`), with a host segment per
-    host call answered by `answerHostS P (logG g)`;
+  - the forward linked call with host calls answered (`HLinked2.linkCall_fwdH`), then
+    `HLinked2.sess_specToRef`. The invariants at the host-first layout, the prefix of a round
+    up to its first host call, and the host-call segment are proved (above). What remains is the
+    round with every host call answered and its end. A host callout appends a subtask and a
+    caller record but no task or thread, so the configurations along such a round are
+    `extG` extensions of the call's frame, not `extN` ones: `CallAtLKTS.retG` and `trapG`
+    handle the end of the call from them, while the nested calls (`nest_atTS`) and the mixed
+    segmented run have to be restated over `extG`. A session after a trapped round also needs the
+    host state at the trap (`resumeCfg` keeps it). The trapping runs (`TrapsAtS`, `nest_atTS`)
+    do not record it yet. The answers must be well typed (see the host-call segment above);
   - its backward counterpart (`LinkedSessionRef`).
 * **IR to specification**, the read-back of #724 with host moves visible.
-* **The general synchronous silent-host theorem**: for every `HLinked2`, an export call whose
-  importer calls a host import under a host that never answers traps with `cannotBlockSync`.
-  It needs the forward linked call above. Only the fixture fact is proved. Under synchronous
-  lowering the blocked host is a trap. An asynchronous lower or lift (a genuine pending
-  observation) is out of scope and comes later.
+* **The silent-host theorem in later calls of a session** (after earlier calls): it needs the
+  invariant between calls after rounds with host calls, i.e. the forward linked call above.
+  Under synchronous lowering the blocked host is a trap. An asynchronous lower or lift (a
+  genuine pending observation) is out of scope and comes later.
 * **Bridge to the divergence-aware semantics**: `Linked2.compSession` (#728) is defined from
   `Linked2.SessSpec`. It is not yet proved equal to `Comp.denUD (core3SemD P)` (#750) with the
   canonical-ABI adapters, and the same holds for any `HLinked2` analogue.
@@ -222,5 +254,46 @@ theorem HLinked2.SessSpec.length {P : Profile} {l : HLinked2}
     (h : HLinked2.SessSpec P l Ie Ii u π calls outs hs u' π') :
     calls.length = outs.length ∧ calls.length = hs.length :=
   Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.sessSpecH_length h
+
+/-! ## A host that never answers -/
+
+/-- **Under a host that never answers, a call whose round makes a host call traps
+`cannotBlockSync`** (proved, every profile and component choice profile, adequate parts): let
+`d` be a well-formed round of the importer's instance from its store (the typed call of export
+`d.j` on `d.vs`), whose component import calls are an `ExpRunH` segment of the exporter from its
+store and contain a host call. From the instance `m` of `l.toRef` under `silentHost`, the
+invocation of the importer's export runs, with no host event and no trap on the way, to the trap
+`cannotBlockSync`, which locks the store down: the importer's thread waits on the unresolved
+host call, and the synchronous lift loop finds no ready thread (REF `trap_if(not candidates)`). -/
+theorem HLinked2.silent_cannotBlock (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type} (h₀ : σ) {Ie Ii : Silmaril.Wasm.Game.ScalarInstance}
+    (hIe : l.exp.mod.IsInst Ie) (hIi : l.imp.mod.IsInst Ii) (d : Linked2.SessRound l.toL2 Ii)
+    (hok : d.Ok) {u₁ π₁ : Silmaril.Wasm.Execution.Core.Store Nat}
+    (hpath : Ii.Path P (.idle Ii.store) d.instMoves (.idle u₁))
+    (hexp : HLinked2.ExpRunH P l Ie Ie.store d.dss.flatten π₁)
+    (hh : l.hostCalls d.dss.flatten ≠ []) :
+    ∃ m : Machine.Config (core3P P) σ, m.ctl = [] ∧ m.host = h₀ ∧
+      InstResult.instance m ⟨0⟩ l.exportMap ∈ instBehaviours prof (HLinked2.silentHost P)
+        (LinkedSession.hostConfig l.host h₀) l.toRef (importArgs l.host) ∧
+      ∃ (tr : List (Label (core3P P) σ)) (m' : Machine.Config (core3P P) σ),
+        Steps prof (HLinked2.silentHost P).hr (HLinked2.silentHost P).dispatch m
+          (.host (.invoke ⟨0⟩ ⟨l.host.length + l.exp.exports.length + d.j⟩
+            (d.vs.map toRefVal)) :: (tr ++ [.trap .cannotBlockSync])) m' ∧
+        (∀ ev, Label.host ev ∉ tr) ∧ (∀ r, Label.trap r ∉ tr) ∧ m'.store.lockdown = true :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_silent_cannotBlock P prof hl
+    h₀ hIe hIi d hok hpath hexp hh
+
+/-- **Under a host that never answers, the session of such a call answers a trap** (proved):
+`([none], s) ∈ HLinked2.silentObs` for some final host state `s`. -/
+theorem HLinked2.silent_session (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type} (h₀ : σ) {Ie Ii : Silmaril.Wasm.Game.ScalarInstance}
+    (hIe : l.exp.mod.IsInst Ie) (hIi : l.imp.mod.IsInst Ii) (d : Linked2.SessRound l.toL2 Ii)
+    (hok : d.Ok) {u₁ π₁ : Silmaril.Wasm.Execution.Core.Store Nat}
+    (hpath : Ii.Path P (.idle Ii.store) d.instMoves (.idle u₁))
+    (hexp : HLinked2.ExpRunH P l Ie Ie.store d.dss.flatten π₁)
+    (hh : l.hostCalls d.dss.flatten ≠ []) :
+    ∃ s : σ, ([none], s) ∈ HLinked2.silentObs P prof l h₀ [(d.j, d.vs)] :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_silent_session P prof hl h₀
+    hIe hIi d hok hpath hexp hh
 
 end Silmaril.Wasm.Component.Reference

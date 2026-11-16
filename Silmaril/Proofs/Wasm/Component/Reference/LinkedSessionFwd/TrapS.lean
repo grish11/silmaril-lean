@@ -20,6 +20,19 @@ the traps of the reference lift of IR types are `invalidChar` and `invalidDiscri
   the importer whose arguments do not lift;
 * `lrun_lift_trapAtS`, `lift_body_atTS`, `nest_atTS`: results of the exporter that do not lift;
 * `CallAtLKTS`, `call_atLKTS`: results of the importer that do not lift.
+
+For callers whose importer also calls host functions (`HLinked2`, `Proofs.….HLinkedSession`):
+
+* `TrapsQR`, `TrapsAtR`: `TrapsQ`/`TrapsAtS` with a fixed trap reason; `traps_syncLoop`: the
+  synchronous lift loop of an unresolved task with no ready thread in its instance traps
+  `cannotBlockSync`;
+* `extG`, `nextGarbG`: the frame and the leftovers with arbitrary appended records (`extN` is
+  the case of nested calls, `extN_eq_extG`), as host callouts append a subtask and a caller
+  record only;
+* `CallAtLKTS.block`: once the importer's thread blocks, the call traps `cannotBlockSync`;
+  `CallAtLKTS.retG`, `CallAtLKTS.trapG`: `ret` and `trap` from every `extG` extension of the
+  frame; `CallAtLKTS.thread`, `tasks`, `insts`, `threads`: the call's thread, task, instances
+  and threads in the frame.
 -/
 
 @[expose] public noncomputable section
@@ -120,6 +133,82 @@ theorem lrun {α : Type} {th : Option ThreadId} {p : Canon.P E σ α} {m mT : Co
 
 end TrapsQS
 
+variable (dispatch) in
+/-- `TrapsQ` whose trap has the reason `r`. -/
+inductive TrapsQR (r : TrapReason) : {α : Type} → Option ThreadId → Canon.P E σ α →
+    Config E σ → List (Label E σ) → Config E σ → Prop where
+  | trap {α : Type} {th : Option ThreadId} {k : Empty → Canon.P E σ α} (m : Config E σ) :
+      TrapsQR r th (.op (S := Eff E σ) (.trap r) k) m [] m
+  | bind {α β : Type} {th : Option ThreadId} {p : Canon.P E σ α} {f : α → Canon.P E σ β}
+      {m m₁ mT : Config E σ} {tr₁ tr₂ : List (Label E σ)} {a : α} :
+      RunsQ dispatch th p m tr₁ a m₁ → TrapsQR r th (f a) m₁ tr₂ mT →
+      TrapsQR r th (p >>= f) m (tr₁ ++ tr₂) mT
+  | left {α β : Type} {th : Option ThreadId} {p : Canon.P E σ α} {f : α → Canon.P E σ β}
+      {m mT : Config E σ} {tr : List (Label E σ)} :
+      TrapsQR r th p m tr mT → TrapsQR r th (p >>= f) m tr mT
+  | callIn {α : Type} {th : Option ThreadId} {c : Call E} {k : Ret E → Canon.P E σ α}
+      {m mT : Config E σ} {tr : List (Label E σ)} :
+      TrapsQR r th (dispatch c) m tr mT → TrapsQR r th (callRet c >>= k) m (.tau :: tr) mT
+
+namespace TrapsQR
+
+theorem lock {r : TrapReason} {α : Type} {th : Option ThreadId} {p : Canon.P E σ α}
+    {m mT : Config E σ} {tr : List (Label E σ)} (h : TrapsQR dispatch r th p m tr mT) :
+    mT.store.lockdown = m.store.lockdown := by
+  induction h with
+  | trap => rfl
+  | bind h₁ _ ih => exact ih.trans h₁.lock
+  | left _ ih => exact ih
+  | callIn _ ih => exact ih
+
+/-- `TrapsQ.lrun`, the trap of reason `r`. -/
+theorem lrun {r : TrapReason} {α : Type} {th : Option ThreadId} {p : Canon.P E σ α}
+    {m mT : Config E σ} {tr : List (Label E σ)} (h : TrapsQR dispatch r th p m tr mT) :
+    m.store.lockdown = false →
+    ∀ (f : α → Canon.P E σ (Ret E)) (segs : List (Seg E σ)) (rest : List (Activation E σ)),
+      ∃ (q : Canon.P E σ (Ret E)) (segs' : List (Seg E σ)),
+        LRun prof hr dispatch { m with ctl := ⟨th, .prog (p >>= f), segs⟩ :: rest } tr
+          { mT with ctl := ⟨th, .prog q, segs'⟩ :: rest } ∧
+        Live ({ mT with ctl := ⟨th, .prog q, segs'⟩ :: rest } : Config E σ) ∧
+        UniqueStep prof hr dispatch { mT with ctl := ⟨th, .prog q, segs'⟩ :: rest } (.trap r)
+          (trapCfg { mT with ctl := ⟨th, .prog q, segs'⟩ :: rest }) := by
+  induction h with
+  | @trap _ th k m =>
+    intro hl f segs rest
+    exact ⟨_, segs, .refl _, RunsQ.live_op hl,
+      .of_prog rfl (fun _ _ e => by cases e) (.trap (k := fun e => k e >>= f) rfl)⟩
+  | @bind _ _ th p f₀ m m₁ mT tr₁ tr₂ a h₁ _ ih =>
+    intro hl f segs rest
+    have hl₁ : m₁.store.lockdown = false := h₁.lock.trans hl
+    obtain ⟨q, segs', hrun, hlive, hu⟩ := ih hl₁ f segs rest
+    have d₁ := h₁.lrun (prof := prof) (hr := hr) hl (fun a => f₀ a >>= f) segs rest
+    have e : (p >>= f₀) >>= f = p >>= fun a => f₀ a >>= f := by
+      rw [Prog.bind_eq, Prog.bind_eq, Prog.bind_assoc]
+      rfl
+    rw [e]
+    exact ⟨q, segs', d₁.trans hrun, hlive, hu⟩
+  | @left _ _ th p f₀ m mT tr _ ih =>
+    intro hl f segs rest
+    have e : (p >>= f₀) >>= f = p >>= fun a => f₀ a >>= f := by
+      rw [Prog.bind_eq, Prog.bind_eq, Prog.bind_assoc]
+      rfl
+    rw [e]
+    exact ih hl (fun a => f₀ a >>= f) segs rest
+  | @callIn _ th c k m mT tr _ ih =>
+    intro hl f segs rest
+    obtain ⟨q, segs', hrun, hlive, hu⟩ := ih hl Prog.pure
+      (.prog (fun r => k r >>= f) :: segs) rest
+    have s₁ : UniqueStep prof hr dispatch
+        { m with ctl := ⟨th, .prog (.op (S := Eff E σ) (.call c) fun r => k r >>= f), segs⟩ ::
+          rest }
+        .tau { m with ctl := ⟨th, .prog (dispatch c), .prog (fun r => k r >>= f) :: segs⟩ ::
+          rest } :=
+      .of_prog rfl (fun _ _ e => by cases e) (.call (k := fun r => k r >>= f) rfl)
+    rw [Prog.bind_eq, Prog.bind_pure] at hrun
+    exact ⟨q, segs', .cons (RunsQ.live_op hl) s₁ hrun, hlive, hu⟩
+
+end TrapsQR
+
 end Generic
 
 variable {P : Profile} {σ : Type} {prof : ProfileKind} {impl : HostImpl (E3 P) σ}
@@ -167,6 +256,53 @@ theorem TrapsQS.trapsAtS {α : Type} {th : Option ThreadId} {p : Canon.P (E3 P) 
     f segs rest
   rw [← e] at hrun
   exact ⟨_, _, r, hr, hrun, hlive, hu, hcore⟩
+
+/-- `TrapsAtS` with the trap reason `r`: from `M`, a live run reaches a configuration holding
+the core store `c` whose only step is the trap `r`. -/
+def TrapsAtR (prof : ProfileKind) (P : Profile) (impl : HostImpl (E3 P) σ)
+    (M : Machine.Config (E3 P) σ) (c : (E3 P).Store (CanonHost (E3 P))) (r : TrapReason) : Prop :=
+  ∃ tr mT, LRun prof (fun _ _ => false) (DI P impl) M tr mT ∧
+    Live mT ∧ UniqueStep prof (fun _ _ => false) (DI P impl) mT (.trap r) (trapCfg mT) ∧
+    mT.store.core = c
+
+/-- A big-step run to the trap `r` in focus, at the store it reaches. -/
+theorem TrapsQR.trapsAtR {r : TrapReason} {α : Type} {th : Option ThreadId}
+    {p : Canon.P (E3 P) σ α} {f : α → Canon.P (E3 P) σ (Ret (E3 P))}
+    {M mT : Machine.Config (E3 P) σ} {segs : List (Seg (E3 P) σ)}
+    {rest : List (Activation (E3 P) σ)} {tr : List (Label (E3 P) σ)}
+    (hc : M.ctl = ⟨th, .prog (p >>= f), segs⟩ :: rest) (h : TrapsQR (DI P impl) r th p M tr mT)
+    (hl : M.store.lockdown = false) {c : (E3 P).Store (CanonHost (E3 P))}
+    (hcore : mT.store.core = c) : TrapsAtR prof P impl M c r := by
+  have e : M = { M with ctl := ⟨th, .prog (p >>= f), segs⟩ :: rest } := by
+    cases M
+    cases hc
+    rfl
+  obtain ⟨q, segs', hrun, hlive, hu⟩ := h.lrun (prof := prof) (hr := fun _ _ => false) hl
+    f segs rest
+  rw [← e] at hrun
+  exact ⟨_, _, hrun, hlive, hu, hcore⟩
+
+/-- **The synchronous lift loop of an unresolved task with no ready thread in its instance
+traps `cannotBlockSync`** (REF `trap_if(not candidates)`). -/
+theorem traps_syncLoop {th : Option ThreadId} {m : Machine.Config (E3 P) σ}
+    {Gt R : List (Runtime.Task (E3 P))} {y : Runtime.Task (E3 P)}
+    (ht : m.store.tasks = Gt ++ [y] ++ R) (hst : y.state ≠ .resolved)
+    (hc : m.store.instCandidates (fun _ => false) y.inst = []) :
+    TrapsQR (DI P impl) .cannotBlockSync th (callUnit (.loop (.syncLiftLoop ⟨Gt.length⟩))) m
+      [.tau, .tau, .tau, .tau] m := by
+  have hl : TrapsQR (DI P impl) .cannotBlockSync th (DI P impl (.loop (.syncLiftLoop ⟨Gt.length⟩)))
+      m [.tau, .tau, .tau] m := by
+    show TrapsQR _ _ _ (syncLiftLoopBody (fun _ _ => false) ⟨Gt.length⟩) _ _ _
+    unfold syncLiftLoopBody
+    refine TrapsQR.bind (tr₁ := [.tau]) (tr₂ := [.tau, .tau])
+      (runs_getObj ArenaField.tasks _ _ (tasks_get_mid ht)) ?_
+    simp only [hst, ↓reduceIte]
+    refine TrapsQR.bind (tr₁ := [.tau]) (tr₂ := [.tau]) (RunsQ.get (RunsQ.pure _ _)) ?_
+    refine TrapsQR.bind (tr₁ := [.tau]) (tr₂ := []) (RunsQ.hostGet (RunsQ.pure _ _)) ?_
+    have hc' : m.store.instCandidates ((fun _ _ => false : HostReady σ) m.host) y.inst = [] := hc
+    simp only [hc']
+    exact TrapsQR.trap _
+  exact TrapsQR.callIn hl
 
 /-- `lrun_lift_trapAt` with a specification trap. -/
 theorem lrun_lift_trapAtS {α : Type} {th : Option ThreadId} (p : Silmaril.Wasm.Component.FuncTy)
@@ -438,6 +574,64 @@ theorem nest_atTS (B : Machine.Config (E3 P) σ) (ιe ιe' : InstState) (N : Lis
   obtain ⟨tr₄, h₄⟩ := hback y.1 pos us
   exact ⟨_, h₃.trans h₄⟩
 
+/-- **The frame `B` extended by arbitrary records**: the exporter's instance state `ιe`, the
+subtasks `SL`, caller records `CL`, tasks `TL` and threads `HL` appended, the saved-continuation
+slots `C`, the host state `h`, the store not locked down. `extN B ιe N C` is the case of the
+records of nested calls (`extN_eq_extG`); host callouts append a subtask and a caller record
+only. -/
+def extG (B : Machine.Config (E3 P) σ) (ιe : InstState) (SL : List Subtask)
+    (CL : List (Caller (E3 P))) (TL : List (Runtime.Task (E3 P))) (HL : List Runtime.Thread)
+    (C : List (Option (Activation (E3 P) σ))) (h : σ) : Machine.Config (E3 P) σ :=
+  { B with
+    host := h
+    conts := C
+    store := { B.store with
+      insts := B.store.insts.set 1 ιe
+      subtasks := B.store.subtasks ++ SL
+      callers := B.store.callers ++ CL
+      tasks := B.store.tasks ++ TL
+      threads := B.store.threads ++ HL
+      lockdown := false } }
+
+theorem extN_eq_extG (B : Machine.Config (E3 P) σ) (ιe : InstState) (N : List (NRec P))
+    (C : List (Option (Activation (E3 P) σ))) :
+    extN B ιe N C = extG B ιe (N.map (·.sub)) (N.map (·.caller)) (N.map (·.task))
+      (N.map (·.thread)) C B.host := rfl
+
+/-- `nextGarbL` with arbitrary records after the call's. -/
+def nextGarbG (G : Garb P σ) (x : SimpleExport) (k j : Nat)
+    (args rs : List Silmaril.Wasm.Component.Reference.Val) (CL : List (Caller (E3 P)))
+    (TL : List (Runtime.Task (E3 P))) (HL : List Runtime.Thread)
+    (C : List (Option (Activation (E3 P) σ))) : Garb P σ where
+  tasks := G.tasks ++ [taskK₂ x G.callers ⟨G.threads.length⟩] ++ TL
+  threads := G.threads ++ [{ (thread₁ G.tasks).withIndex 1 with status := .exited }] ++ HL
+  callers := G.callers ++ [.host ⟨k⟩ args 0] ++ CL
+  conts := C
+  pending := G.pending ++ [(⟨k⟩, ⟨j⟩, args)]
+  results := G.results ++ [(⟨k⟩, some rs)]
+  cancels := (⟨k⟩, .task ⟨G.tasks.length⟩) :: G.cancels.filter (·.1 != ⟨k⟩)
+
+theorem result?_nextG {G : Garb P σ} {k : Nat} (h : G.Fresh k) (x : SimpleExport) (j : Nat)
+    (args rs : List Silmaril.Wasm.Component.Reference.Val) (CL : List (Caller (E3 P)))
+    (TL : List (Runtime.Task (E3 P))) (HL : List Runtime.Thread)
+    (C : List (Option (Activation (E3 P) σ)))
+    (cs : (core3P P).Store (CanonHost (core3P P))) (ιe ιi : InstState)
+    (fs : List (CFuncInst (core3P P))) (ST : List Subtask) (h₀ : σ) :
+    (readyCfgL cs ιe ιi fs (nextGarbG G x k j args rs CL TL HL C) ST h₀).result? ⟨k⟩ =
+      some (some rs) := by
+  unfold Machine.Config.result?
+  show ((G.results ++ [((⟨k⟩ : CallId), some rs)]).find? (fun p => p.1 == (⟨k⟩ : CallId))).map
+    Prod.snd = _
+  rw [List.find?_append, find?_fresh h]
+  simp
+
+theorem fresh_nextG {G : Garb P σ} {k : Nat} (h : G.Fresh k) (x : SimpleExport) (j : Nat)
+    (args rs : List Silmaril.Wasm.Component.Reference.Val) (CL : List (Caller (E3 P)))
+    (TL : List (Runtime.Task (E3 P))) (HL : List Runtime.Thread)
+    (C : List (Option (Activation (E3 P) σ))) :
+    (nextGarbG G x k j args rs CL TL HL C).Fresh (k + 1) :=
+  ⟨(fresh_nextL h x j args rs [] C).pending, (fresh_nextL h x j args rs [] C).results⟩
+
 /-- `CallAtLKT`, the trap of a failing lift of the importer's results a specification
 trap. -/
 structure CallAtLKTS (prof : ProfileKind) (P : Profile) (impl : HostImpl (E3 P) σ)
@@ -461,6 +655,36 @@ structure CallAtLKTS (prof : ProfileKind) (P : Profile) (impl : HostImpl (E3 P) 
     (y : CoreSt (E3 P)) (ys : List Flat),
     ys.map (·.type) = ValTy.flatList x.ty.results → liftArgs x.ty.results ys = none →
     TrapsAtS prof P impl (retCfg (extN M₀ ιe' N C) th K segs rest y ys) y.1
+  /-- Once the importer's thread blocks, the call's synchronous lift loop runs: with the call's
+  task unresolved and no ready thread in its instance, it traps `cannotBlockSync`. -/
+  block : ∀ (M : Machine.Config (E3 P) σ) (R : List (Runtime.Task (E3 P)))
+    (y : Runtime.Task (E3 P)), M.ctl = rest → M.store.lockdown = false →
+    M.store.tasks = G.tasks ++ [y] ++ R → y.state ≠ .resolved →
+    M.store.instCandidates (fun _ => false) y.inst = [] →
+    TrapsAtR prof P impl M M.store.core .cannotBlockSync
+  /-- The importer's activation runs on the call's thread. -/
+  thread : th = some ⟨G.threads.length⟩
+  /-- The call's task, started, after the leftovers. -/
+  tasks : M₀.store.tasks = G.tasks ++ [(taskK₁ x G.callers ⟨G.threads.length⟩).withState .started]
+  /-- The component instances. -/
+  insts : M₀.store.insts = [{}, ιe, ιi']
+  /-- The call's thread, after the leftovers. -/
+  threads : M₀.store.threads = G.threads ++ [(thread₁ G.tasks).withIndex 1]
+  /-- `ret` from every extension of the frame by arbitrary records and host state. -/
+  retG : ∀ (ιe' : InstState) (SL : List Subtask) (CL : List (Caller (E3 P)))
+    (TL : List (Runtime.Task (E3 P))) (HL : List Runtime.Thread)
+    (C : List (Option (Activation (E3 P) σ))) (h : σ)
+    (y : CoreSt (E3 P)) (ys : List Flat) (ws : List Silmaril.Wasm.Component.Val),
+    ys.map (·.type) = ValTy.flatList x.ty.results → liftArgs x.ty.results ys = some ws →
+    ∃ C', ResolvesAtL prof P impl (retCfg (extG M₀ ιe' SL CL TL HL C h) th K segs rest y ys)
+      (readyCfgL y.1 ιe' (InstState.removeThread 1 ιi') fs
+        (nextGarbG G x k j (vs.map toRefVal) (ws.map toRefVal) CL TL HL C') (ST ++ SL) h)
+  /-- `trap` from every extension of the frame by arbitrary records and host state. -/
+  trapG : ∀ (ιe' : InstState) (SL : List Subtask) (CL : List (Caller (E3 P)))
+    (TL : List (Runtime.Task (E3 P))) (HL : List Runtime.Thread)
+    (C : List (Option (Activation (E3 P) σ))) (h : σ) (y : CoreSt (E3 P)) (ys : List Flat),
+    ys.map (·.type) = ValTy.flatList x.ty.results → liftArgs x.ty.results ys = none →
+    TrapsAtS prof P impl (retCfg (extG M₀ ιe' SL CL TL HL C h) th K segs rest y ys) y.1
 
 /-- `call_atLK` (same proof), with `CallAtLKTS`. -/
 theorem call_atLKTS (prof : ProfileKind) (cs : (core3P P).Store (CanonHost (core3P P)))
@@ -571,6 +795,43 @@ theorem call_atLKTS (prof : ProfileKind) (cs : (core3P P).Store (CanonHost (core
     · rw [hostFinish_cancel _ G.pending ⟨k⟩ ⟨j⟩ (vs.map toRefVal) _ rfl]
       rfl
   · intro ιe' N C y ys hys hn
+    exact lrun_lift_trapAtS x.ty hres hmaxr hffr hys hn rfl rfl
+  · intro M R y hM hl ht hst hc
+    exact TrapsQR.trapsAtR (p := callUnit (.loop (.syncLiftLoop ⟨G.tasks.length⟩)))
+      (hM.trans rfl) (traps_syncLoop (impl := impl) ht hst hc) hl rfl
+  · rfl
+  · rfl
+  · rfl
+  · rfl
+  · intro ιe' SL CL TL HL C h y ys ws hys hws
+    have hlift : ∀ (cx : LiftLowerContext (E3 P)) (m : Machine.Config (E3 P) σ), ∃ c,
+        RunsQ (DI P impl) (some ⟨G.threads.length⟩) (liftFlatValues Limits.spec Quirks.none cx
+          ABI.maxFlatResults (.ofList ys) (resultTypes (witFt x.ty))) m [.tau]
+          (ws.map toRefVal, c) m :=
+      runs_lift_someP x.ty hres hmaxr hffr hys hws
+    apply Exists.intro; apply Exists.intro; apply Exists.intro
+    apply And.intro
+    · show LRun prof (fun _ _ => false) (DI P impl) (retCfg _ _ _ _ _ y ys) _ _
+      unfold retCfg
+      apply RunsQ.chunk2 rfl (hlift _ _).choose_spec rfl
+      apply RunsQ.chunk2 rfl (runs_returnM (Gt := G.tasks) (R := TL)
+        (Gc := G.callers) (CL := CL) _ rfl rfl rfl rfl rfl) rfl
+      apply LRun.store_congr (setTaskState_mid (Gt := G.tasks) rfl _)
+      apply RunsQ.chunk rfl (runs_exitM (Gt := G.tasks) (R := TL)
+        (Gth := G.threads) (R' := HL) rfl rfl rfl rfl rfl rfl rfl hrem) rfl
+      apply LRun.store_congr (unregisterThreadSt_mid _ _ rfl rfl rfl)
+      show LRun prof (fun _ _ => false) (DI P impl) _ _ _
+      mstep
+      apply LRun.store_congr (threadStatus_mid (Gth := G.threads) rfl _)
+      apply RunsQ.chunk rfl (runs_callUnit_loopM (Gt := G.tasks) (R := TL) rfl rfl)
+        rfl
+      mstep
+      mstep
+      mstep
+      exact .refl _
+    · rw [hostFinish_cancel _ G.pending ⟨k⟩ ⟨j⟩ (vs.map toRefVal) _ rfl]
+      rfl
+  · intro ιe' SL CL TL HL C h y ys hys hn
     exact lrun_lift_trapAtS x.ty hres hmaxr hffr hys hn rfl rfl
 
 end Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionFwd
