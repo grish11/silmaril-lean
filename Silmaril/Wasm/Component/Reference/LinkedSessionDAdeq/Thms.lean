@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Component.Reference.LinkedSessionDAdeq.Defs
 public import Silmaril.Wasm.Component.Reference.LinkedSessionD.Thms
 import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.EnvDiv
 import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.Coherent
+import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.Chatter
 
 /-!
 # Divergences of linked sessions against the divergence-aware IR: theorems
@@ -16,8 +17,9 @@ import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.Coherent
 
 for typed calls and a typed pending call. This module proves the parts of the left-to-right
 direction where the importer diverges (#730's source (i), `Linked2.DivB`) and where the exporter
-diverges inside an import call of the importer (source (ii), `Linked2.DivA`), and states the
-whole left-to-right direction conditionally on the read-back of chatter (source (iii)).
+diverges inside an import call of the importer (source (ii), `Linked2.DivA`), states the whole
+left-to-right direction conditionally on the read-back of chatter (source (iii)), and proves that
+read-back, hence the whole left-to-right direction, at the deterministic profiles `profile o`.
 
 **What is proved.**
 
@@ -55,6 +57,9 @@ whole left-to-right direction conditionally on the read-back of chatter (source 
   `π₀`, one store sequence serves the whole stream (the exporter's half of `Linked2.Chatter`).
   The proof module also reads this back from plays of the exporter's environment
   (`LinkedSessionDAdeq.exp_plays_stream`: typed served rounds after a prefix, any number of them).
+* **Chatter, at deterministic profiles** (`Linked2.chatterReadBack_profile`, under
+  `Linked2.Adequate`): `Linked2.Task.ChatterReadBack (profile o) l`, hence the unconditional
+  left-to-right direction at `profile o` (`Linked2.sessDivs_of_div_denD_profile`).
 
 **How.** The read-back of #724 (`LinkedSessionAdeq`) inverts complete rounds; a divergence is a
 play at a running position. The proofs (`Silmaril.Proofs.Wasm.Component.Reference.
@@ -73,32 +78,36 @@ back at its waiting position (`Wait.imp_wait_readback`), and the exporter's IR d
 `imp_div_readback` at `SimpleI.ofSimple l.exp`, its complete rounds on the path that reaches the
 diverging call (`Exp.exp_div_readback`).
 
+**How (iii), at `profile o`** (`Chatter`). Chatter (`ExtChatter`) is a finite prefix `c₀` above
+the exporter's environment, then shared moves exchanged forever; they form one stream, since the
+environment's infinite play is a chain. Cutting the stream just after one of the node's calls (it
+calls at least every other move) gives finite **stages**: a play of the node layer `extTop` at a
+waiting position (`chatter_stage`, from the routing positions `path_route` and
+`Split.halves_path`), interacting with a play of the exporter's environment. Each stage is read
+back as in (ii) (`stage_readback`, with `Wait.imp_wait_readback`). The stages cohere: the node's
+complete rounds are the same and its calls grow (`rplay_ext_inl`); at `profile o` the importer's
+core plays are determined by the component answers (`ImpCoherent`: `rounds_eq`, `pend_prefix`,
+from `ScalarInstance.Trans.player_unique`, `Trans.functional` and `Path.functional` of the header
+`Silmaril.Wasm.Game.Determinism.Thms`, and the functionality of `ImpRel` in the answers), so the
+core calls have a limit stream (`exists_limit`), and the exporter serves it along one run
+(`exp_plays_stream`).
+
 **Not proved here** (the remaining targets towards `Linked2.div_denD_iff`).
 
-* **(iii) `Chatter`, left to right** (`Linked2.Task.ChatterReadBack`): the source `chatterSrc`
-  (`NodeChatter`, `ExtChatter`) needs the read-back of **infinite** plays of both nodes through
-  their wiring: of the importer's node down to a productive stream of its instance
-  (`mem_inf_spullD_instSession_stream`, `instInf_of_calls`), and of the exporter's environment
-  down to one infinite run of its instance threading its store through infinitely many served
-  rounds (`ExpRunT` for every call of the stream, as `Linked2.Chatter` requires). What remains:
-  - the shape of an `ExtChatter` after the typed session: the visible prefix through `top_div`, the
-    round of the importer's node on `topQ j vs` in progress, and the shared moves `w` its import
-    calls answered by the exporter's environment, so that `exp_plays_stream` applies (at
-    `profile o`) to the environment's plays `s₀ ++ w.map .inr`;
-  - the importer's side: the node's infinite play `L` (every profile) read back through `implsH`
-    and the importer's IR (`ext`/`splitH`, `implsN`/`widenH`, `importH`/`exportH`, `spullD`) to a
-    productive stream (`instInf`, which is run-based), with each core call related to the served
-    component calls (`ImpRel`). Alternatively, at `profile o` only: the finite read-backs of the
-    prefixes of `L` (`imp_wait_readback`) cohere, by `ScalarInstance.Path.functional` and
-    `Trans.player_unique` (proved in `Silmaril.Proofs.Wasm.Game.Strategy`, not yet in a header)
-    and the functionality of `RdI` and `ImpRel` in the core answers.
-  - At a nondeterministic profile the exporter's prefix runs need not cohere (the environment's
-    infinite play is a trace limit of `threadS`), so `exists_expRunT_stream` does not apply. This
-    is not a counterexample: the tree of the exporter's Core step prefixes is finitely branching
-    (NaN result sets of fixed width, grow success or failure, relaxed choices), so by König's lemma
-    it has an infinite branch, which either serves every call (`Chatter`) or runs forever inside
-    one call (`DivA`), both in `sessDivs`. The library has neither König's lemma for these runs nor
-    finite branching of `InternalP P`.
+* **(iii) `Chatter`, left to right, at nondeterministic profiles** (`Linked2.Task.ChatterReadBack P l`
+  for general `P`). The proof at `profile o` uses determinism twice: the importer's read-backs of
+  the stages cohere (its core plays are determined by the component answers), and so do the
+  exporter's runs of the prefixes of the served calls (`exists_expRunT_stream`). At a
+  nondeterministic profile neither need hold (the environment's infinite play is a trace limit of
+  `threadS`, `StratThread.not_coherent`). This is not a counterexample: the trees of the Core step
+  prefixes of the two instances are finitely branching (NaN result sets of fixed width, grow
+  success or failure, relaxed choices), so by König's lemma they have infinite branches, which
+  either serve every call (`Chatter`) or run forever inside one call (`DivA`, `DivB`), all in
+  `sessDivs`. The library has neither König's lemma for these runs nor finite branching of
+  `InternalP P`. Alternatively, for the importer's side at every profile: the node's infinite play
+  read back through `implsH` and the importer's IR (`ext`/`splitH`, `implsN`/`widenH`,
+  `importH`/`exportH`, `spullD`) to a productive stream (`mem_inf_spullD_instSession_stream`,
+  `instInf_of_calls`).
 * **Right to left**, for each source: building the IR divergence from a `RoundDiv`, the
   converses of these inversions (pending versions of `cplay_comp_ofHandler`,
   `cplay_ofHandler_comp`, `cplay_comp_serve`), with `div_impSemD_sem_of` at the instance.
@@ -212,6 +221,29 @@ theorem sessDivs_of_div_denD_of (P : Profile) {l : Linked2} (hl : l.Adequate)
   · exact sessDivsA_subset P l calls j vs (sessDivsA_of_envDiv P hl hIe hIi ht hlen hck hA)
   · exact sessDivsB_subset P l calls j vs (sessDivsB_of_nodeDiv P hl hIe hIi ht hlen hck hB)
   · exact hC Ie Ii hIe hIi calls outs ht hlen j vs hck hX
+
+/-- **Chatter, read back at deterministic profiles** (under `Linked2.Adequate`): at `profile o`,
+an IR divergence from chatter between the importer's node and the exporter's environment after a
+typed session, on a typed pending call, is a round of the importer making infinitely many core
+import calls, served by the exporter along one run (`Linked2.Chatter`). -/
+theorem chatterReadBack_profile (o : GrowOracle) {l : Linked2} (hl : l.Adequate) :
+    Task.ChatterReadBack (profile o) l :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.chatterReadBack_profile o hl
+
+/-- **Left to right at deterministic profiles** (under `Linked2.Adequate`, typed calls, typed
+pending call): an IR divergence after the session `sessMoves calls outs` on the call of export
+`j` on `vs` is a diverging session call of the specification. -/
+theorem sessDivs_of_div_denD_profile (o : GrowOracle) {l : Linked2} (hl : l.Adequate)
+    {Ie Ii : Silmaril.Wasm.Game.ScalarInstance}
+    (hIe : l.exp.mod.IsInst Ie) (hIi : l.imp.mod.IsInst Ii)
+    {calls : List (Fin l.imp.exports.length × List IVal)} {outs : List (Option (List IVal))}
+    (ht : SimpleI.TypedCalls l.imp calls) (hlen : calls.length = outs.length)
+    {j : Fin l.imp.exports.length} {vs : List IVal}
+    (hck : ValTy.checkList l.imp.exports[j].ty.params vs = true)
+    (h : sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈
+      (l.toComp.denD (impSemD (profile o))).div) :
+    outs ∈ sessDivs (profile o) l calls j vs :=
+  sessDivs_of_div_denD_of (profile o) hl (chatterReadBack_profile o hl) hIe hIi ht hlen hck h
 
 /-! ## The exporter's served rounds along one run -/
 

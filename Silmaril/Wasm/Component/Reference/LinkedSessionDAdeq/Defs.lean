@@ -21,8 +21,9 @@ semantics `C` (for the theorems, `impSemD P`).
   first source of divergence only, the importer diverging host-free (`Linked2.DivB`).
 * `Linked2.RoundDivA`, `Linked2.sessDivsA`: the same with the second source only, the exporter
   diverging inside an import call of the importer (`Linked2.DivA`).
-* `Linked2.Task.ChatterReadBack`: the open read-back of the third source (`chatterSrc`), as a
-  named proposition; the full left-to-right direction is stated conditionally on it.
+* `Linked2.Task.ChatterReadBack`: the read-back of the third source (`chatterSrc`), as a named
+  proposition; the full left-to-right direction is stated conditionally on it. It is proved at
+  the deterministic profiles `profile o` and open at nondeterministic ones.
 -/
 
 @[expose] public section
@@ -104,13 +105,15 @@ def sessDivsA (P : Profile) (l : Linked2) (calls : List (Fin l.imp.exports.lengt
     l.imp.mod.IsInst Ii ∧ SessSpec P l Ie Ii Ii.store Ie.store calls outs u π ∧
     RoundDivA P l Ie Ii u π j vs}
 
-/-- **Open: the chatter source, read back** (a named proposition, not proved here): for typed
-calls and a typed pending call, an IR divergence coming from chatter between the importer's node
-and the exporter's environment (`chatterSrc`) after the session `sessMoves calls outs` is one of
-`Linked2.sessDivs` (expected via `Linked2.Chatter`). `Linked2.sessDivs_of_div_denD_of` gives the
-full left-to-right direction from it. Still open at every profile; the exporter's half of the
-coherence is proved at `profile o` (`Linked2.exists_expRunT_stream`), and the remaining steps are
-listed in `Silmaril.Wasm.Component.Reference.LinkedSessionDAdeq.Thms`. -/
+/-- **The chatter source, read back** (a named proposition): for typed calls and a typed pending
+call, an IR divergence coming from chatter between the importer's node and the exporter's
+environment (`chatterSrc`) after the session `sessMoves calls outs` is one of `Linked2.sessDivs`
+(via `Linked2.Chatter`). `Linked2.sessDivs_of_div_denD_of` gives the full left-to-right direction
+from it. **Proved at the deterministic profiles** `profile o` for adequate components
+(`Linked2.chatterReadBack_profile`). **Open at nondeterministic profiles**: there the stages of
+the chatter need not be read back along one run of either instance; the expected route is
+König's lemma on the finitely branching trees of Core step prefixes (see
+`Silmaril.Wasm.Component.Reference.LinkedSessionDAdeq.Thms`). -/
 def Task.ChatterReadBack (P : Profile) (l : Linked2) : Prop :=
   ∀ (Ie Ii : ScalarInstance), l.exp.mod.IsInst Ie → l.imp.mod.IsInst Ii →
     ∀ (calls : List (Fin l.imp.exports.length × List IVal)) (outs : List (Option (List IVal))),
