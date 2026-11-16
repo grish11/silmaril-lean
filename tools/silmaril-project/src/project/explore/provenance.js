@@ -131,9 +131,10 @@ const srcLines = (a, b) => (a === b ? `line ${a}` : `lines ${a}–${b}`);
 // The source view's HTML for a `resolveSource` result: where the declaration is (a permalink to
 // its lines at the commit), how it was found, and the file around it, highlighted, with the
 // declaration's lines framed and its name marked.
+let sourceViews = 0;   // ids of the source views on the page (labels and descriptions)
 function sourceHtml(res, decl, pageLink) {
   const { file, loc } = res, rev = SOURCE.rev.slice(0, 12);
-  const uid = "src-" + Math.random().toString(36).slice(2);
+  const uid = "src-" + (++sourceViews);
   const blob = loc ? `${file.blob}#L${loc.startLine}${loc.endLine > loc.startLine ? "-L" + loc.endLine : ""}` : file.blob;
   let h = `<p class="src-where"><a class="src-permalink" href="${esc(blob)}" target="_blank" rel="noopener noreferrer" title="on GitHub, at commit ${esc(SOURCE.rev)}">` +
     `${esc(file.path)}${loc ? ", " + srcLines(loc.startLine, loc.endLine) : ""}</a> <span class="muted">at ${esc(rev)}</span> `;

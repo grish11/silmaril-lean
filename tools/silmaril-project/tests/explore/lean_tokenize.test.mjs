@@ -200,6 +200,8 @@ test("render: escaped spans per line, multi-line tokens split, marks", () => {
   // the text of every line is the source line
   const src = fs.readFileSync(path.join(repo, "examples/project/ProjectSelfTest/Languages.lean"), "utf8");
   const n = src.split("\n").length, out = renderLeanLines(tokenizeLean(src), 1, n);
-  const plain = (x) => x.replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+  // the renderer's own tags removed (to a fixpoint), then its entities decoded
+  const untag = (x) => { for (let y = null; y !== x;) { y = x; x = x.replace(/<[^>]*>/g, ""); } return x; };
+  const plain = (x) => untag(x).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
   assert.deepEqual(out.map(plain), src.split("\n"));
 });
