@@ -45,7 +45,7 @@ in `Silmaril.X86.*` namespaces the public tree does not otherwise use. They are 
 | Conventions as comorphisms, satisfaction transfer, thunk soundness, cross-ABI thunks, link soundness | proved |
 | GCC's `call_ms` thunk (`callMs_sound`, decode and fetch) | proved, for the decoded code and an abstract callee relation |
 | GCC's reverse transition `ms_calls_sysv` (`Task.msCallsSysvBridge`) | open: a `def Task.… : Prop`; the results that need it take it as a hypothesis |
-| The open machine keeps the thread pointer (`Task.openStepKeepsFs`) | open: `def Task.… : Prop`, used as a hypothesis |
+| The open machine keeps the thread pointer (`Task.openStepKeepsFs`, `Task.open9StepKeepsFs`) | proved: `FsBase.openStepKeepsFs`, `FsBase.open9StepKeepsFs` (from `Open.step_fsBase`, `Open9.step_fsBase`) |
 | Rung 01 leaves (`sat_add_u32`, `bswap32_manual`, `clamp_i32`, `gcd_u32`) | proved on the open machine, tied to the pinned executable |
 | libmini `Realizes` certificates | proved |
 | The x86 models themselves | trusted definitions (see [the x86 guide](../x86.md)) |
