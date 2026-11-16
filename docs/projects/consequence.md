@@ -208,6 +208,13 @@ For Wasm (Lean names relative to `Silmaril.Wasm.Game.Accept` and `Silmaril.Wasi.
   form.
 * Each proves nothing on the other shape's binaries or on invalid bytes
   (`Wasi/Component/Accept/Consequence/Examples.lean`).
+* **`list<u8>` components on the reference machine.** `Silmaril.Wasi.Accept.Ref.refBytesSystem prof`
+  decodes and validates a component binary on the reference machine (REF, the full canonical
+  ABI with linear memory). `b ⊢ w` iff the component, linked to a host `accept` that records
+  its arguments, receives `list<u8> w` in some run: the host invokes exports, ticks and
+  cancels. `acceptRun` is the executable driver and `acceptRun_sound` its soundness. A real
+  `accept(list<u8>)` binary decodes in the kernel and accepts `"hi!"` by a `#guard`ed run
+  (`Ref/Examples.lean`). Caveats: `docs/projects/component-caveats.md`.
 * **`list<u8>` is a lowering and semantics gap, not a parser gap.**
   * Every component parser reads `list<u8>`: `Binary.parse`, `Codec.decode` and the reference
     semantics' `Conformance.decodeRef`.
