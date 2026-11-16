@@ -1,0 +1,11 @@
+kind = "equiv"
+description = "accessor contract: G.fget refines the abstract fget (abs.wat) under the identity abstraction"
+expect = "proved"
+observe = ["trap", "result", "map"]
+pre = ["(bvule #x00000011 f)", "(bvule f #x00000017)"]
+[a]
+modules = [{ name = "acc", wat = "abs.wat" }]
+entry = "fget"
+[b]
+modules = [{ name = "acc", wat = "acc-g.wat" }]
+entry = "fget"

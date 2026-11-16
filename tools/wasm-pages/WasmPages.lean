@@ -19,6 +19,8 @@ import Silmaril.Wasm.Cfg.Variant.Defs
 import Silmaril.Wasm.Cfg.Maximal.Defs
 import Silmaril.Crypto.SHA256
 import Silmaril.Wasi.Component.Accept.Catalog.Defs
+import Silmaril.Wasm.Examples.LRAT.Defs
+import Silmaril.Wasm.Examples.Farkas.Defs
 
 /-!
 # `wasm-pages`: the data of the explorer's Wasm component, module and function pages
@@ -726,6 +728,10 @@ def readArtifacts (text : String) : List Artifact := Id.run do
 def leanExamples : List (String × String × Module × String) := [
   ("silmaril.wasm.examples.verified.prog", "Examples.Verified.prog (sum, factorial, …)",
     Silmaril.Wasm.Examples.Verified.prog, "Silmaril.Wasm.Examples.Verified.prog"),
+  ("silmaril.wasm.examples.lrat", "Examples.LRAT.lratModule (verified streaming LRAT proof checker)",
+    Silmaril.Wasm.Examples.LRAT.lratModule, "Silmaril.Wasm.Examples.LRAT.lratModule"),
+  ("silmaril.wasm.examples.farkas", "Examples.Farkas.farkasMod (verified Farkas certificate checker)",
+    Silmaril.Wasm.Examples.Farkas.farkasMod, "Silmaril.Wasm.Examples.Farkas.farkasMod"),
   ("silmaril.wasm.examples.rust_door", "Examples.RustInst.door (a compiled Rust door)",
     Silmaril.Wasm.Examples.RustInst.door, "Silmaril.Wasm.Examples.RustInst.door"),
   ("silmaril.wasm.cfg.examples.mod", "Cfg.Examples.mod (br_table dispatcher, special edges)",

@@ -19,7 +19,7 @@ public import Silmaril.Sim.Core.Thms
 
 namespace Silmaril.Sim
 
-open Silmaril.Machine.X86 (RelIsa)
+open Silmaril.X86 (RelIsa)
 
 variable {σ L V : Type}
 

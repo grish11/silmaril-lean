@@ -1,0 +1,684 @@
+{
+  "schema": "silmaril.wasm-sim.dag.v0",
+  "id": "wasm-sim/toy",
+  "title": "toy f(a, b) = sum_to(a) + dbl(b): caller, a looping callee and a straight-line callee",
+  "root": "isa/f",
+  "artifact": {
+    "build": "./build.sh",
+    "elf": "toy.elf",
+    "hash64": "2ae139c5b7d4f96a",
+    "placement": ".text at 0x400000 (ELF 0x401000)",
+    "source": "toy.S"
+  },
+  "isa": {
+    "machine": "Silmaril.Machine.X86.Open9.isa",
+    "model": "models/x86/open9",
+    "template": "FnCorrectDet"
+  },
+  "sim": {
+    "interface": "x86 method API (examples/wasm-sim/x86/src/core.wat)",
+    "module": "sim.wat",
+    "representation": "G"
+  },
+  "nodes": [
+    {
+      "id": "isa/sum_to",
+      "kind": "isa-problem",
+      "status": "open",
+      "statement": "FnCorrectDet on Silmaril.Machine.X86.Open9.isa: the System V contract of `sum_to` (requires true; ensures (= (reg rax) (tri (old (reg rdi)))))",
+      "lean": "Silmaril.Sim.Reduce.Toy.isaGoal .sumTo"
+    },
+    {
+      "id": "wasm/sum_to",
+      "kind": "wasm-problem",
+      "status": "open",
+      "statement": "the sound simulator, from every loadable state meeting the pulled-back entry of `sum_to`, can halt in a state meeting the pulled-back result (specWasm)"
+    },
+    {
+      "id": "sim/encodes/sum_to",
+      "kind": "side-condition",
+      "status": "open",
+      "statement": "every entry state of `sum_to` is represented by a loadable simulator state (Encodes)",
+      "lean": "Silmaril.Sim.Reduce.Encodes"
+    },
+    {
+      "id": "ag/sum_to",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "AGPiece: `sum_to`'s Wasm problem assuming its callees'",
+      "lean": "Silmaril.Sim.Reduce.AGPiece",
+      "files": [
+        "modules/sum_to.wat",
+        "pieces/sum_to.json"
+      ]
+    },
+    {
+      "id": "wasm-ag/sum_to",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the module of `sum_to` meets its contract relative to the simulator methods' and its callees' specifications",
+      "files": [
+        "modules/sum_to.wat",
+        "pieces/sum_to.json"
+      ],
+      "solvers": [
+        "wpc/HWP tactics",
+        "wasm-vc sym",
+        "agent"
+      ]
+    },
+    {
+      "id": "tv/sum_to",
+      "kind": "translation-validation",
+      "status": "open",
+      "statement": "modules/sum_to.wat performs, block by block, the method calls of the instructions `sum_to`'s bytes decode to",
+      "files": [
+        "modules/sum_to.wat"
+      ]
+    },
+    {
+      "id": "method/cond",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `cond` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "method/i_alu_rr",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_alu_rr` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "method/i_jmp",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_jmp` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "method/i_next",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_next` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "method/i_ret",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_ret` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "method/i_unary_r",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_unary_r` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "cut/sum_to/entry",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "CutPiece: from this cut with its invariant, reach the exit or a cut with a smaller measure",
+      "lean": "Silmaril.Sim.Reduce.CutPiece",
+      "files": [
+        "modules/sum_to.wat"
+      ]
+    },
+    {
+      "id": "cut/sum_to/0x400007",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "CutPiece: from this cut with its invariant, reach the exit or a cut with a smaller measure",
+      "lean": "Silmaril.Sim.Reduce.CutPiece",
+      "files": [
+        "modules/sum_to.wat"
+      ]
+    },
+    {
+      "id": "isa/dbl",
+      "kind": "isa-problem",
+      "status": "open",
+      "statement": "FnCorrectDet on Silmaril.Machine.X86.Open9.isa: the System V contract of `dbl` (requires true; ensures (= (reg rax) (bvadd (old (reg rdi)) (old (reg rdi)))))",
+      "lean": "Silmaril.Sim.Reduce.Toy.isaGoal .dbl"
+    },
+    {
+      "id": "wasm/dbl",
+      "kind": "wasm-problem",
+      "status": "open",
+      "statement": "the sound simulator, from every loadable state meeting the pulled-back entry of `dbl`, can halt in a state meeting the pulled-back result (specWasm)"
+    },
+    {
+      "id": "sim/encodes/dbl",
+      "kind": "side-condition",
+      "status": "open",
+      "statement": "every entry state of `dbl` is represented by a loadable simulator state (Encodes)",
+      "lean": "Silmaril.Sim.Reduce.Encodes"
+    },
+    {
+      "id": "ag/dbl",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "AGPiece: `dbl`'s Wasm problem assuming its callees'",
+      "lean": "Silmaril.Sim.Reduce.AGPiece",
+      "files": [
+        "modules/dbl.wat",
+        "pieces/dbl.json"
+      ]
+    },
+    {
+      "id": "wasm-ag/dbl",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the module of `dbl` meets its contract relative to the simulator methods' and its callees' specifications",
+      "files": [
+        "modules/dbl.wat",
+        "pieces/dbl.json"
+      ],
+      "solvers": [
+        "wpc/HWP tactics",
+        "wasm-vc sym",
+        "agent"
+      ]
+    },
+    {
+      "id": "tv/dbl",
+      "kind": "translation-validation",
+      "status": "open",
+      "statement": "modules/dbl.wat performs, block by block, the method calls of the instructions `dbl`'s bytes decode to",
+      "files": [
+        "modules/dbl.wat"
+      ]
+    },
+    {
+      "id": "method/i_mov_rr",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_mov_rr` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "isa/f",
+      "kind": "isa-problem",
+      "status": "open",
+      "statement": "FnCorrectDet on Silmaril.Machine.X86.Open9.isa: the System V contract of `f` (requires true; ensures (= (reg rax) (bvadd (tri (old (reg rdi))) (bvadd (old (reg rsi)) (old (reg rsi))))))",
+      "lean": "Silmaril.Sim.Reduce.Toy.isaGoal .f"
+    },
+    {
+      "id": "wasm/f",
+      "kind": "wasm-problem",
+      "status": "open",
+      "statement": "the sound simulator, from every loadable state meeting the pulled-back entry of `f`, can halt in a state meeting the pulled-back result (specWasm)"
+    },
+    {
+      "id": "sim/encodes/f",
+      "kind": "side-condition",
+      "status": "open",
+      "statement": "every entry state of `f` is represented by a loadable simulator state (Encodes)",
+      "lean": "Silmaril.Sim.Reduce.Encodes"
+    },
+    {
+      "id": "ag/f",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "AGPiece: `f`'s Wasm problem assuming its callees'",
+      "lean": "Silmaril.Sim.Reduce.AGPiece",
+      "files": [
+        "modules/f.wat",
+        "pieces/f.json"
+      ]
+    },
+    {
+      "id": "wasm-ag/f",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the module of `f` meets its contract relative to the simulator methods' and its callees' specifications",
+      "files": [
+        "modules/f.wat",
+        "pieces/f.json"
+      ],
+      "solvers": [
+        "wpc/HWP tactics",
+        "wasm-vc sym",
+        "agent"
+      ]
+    },
+    {
+      "id": "tv/f",
+      "kind": "translation-validation",
+      "status": "open",
+      "statement": "modules/f.wat performs, block by block, the method calls of the instructions `f`'s bytes decode to",
+      "files": [
+        "modules/f.wat"
+      ]
+    },
+    {
+      "id": "method/i_alu_ri",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_alu_ri` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "method/i_call",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_call` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "method/i_pop_r",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_pop_r` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "method/i_push_r",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the simulator's `i_push_r` meets its specification and refines the reference semantics of its forms (a Silmaril.Sim.Reduce.StepPiece)",
+      "solvers": [
+        "Wasm refinement/equivalence",
+        "wpc"
+      ]
+    },
+    {
+      "id": "sim/sound",
+      "kind": "simulator-soundness",
+      "status": "open",
+      "statement": "the linked P-calls program over the G simulator is a sound simulator (SoundSim / CoreSim.sound)"
+    },
+    {
+      "id": "sim/sound[M]",
+      "kind": "simulator-soundness",
+      "status": "open"
+    },
+    {
+      "id": "refine/G-M",
+      "kind": "wasm-piece",
+      "status": "open",
+      "statement": "the G and M representations are related by a map commuting with runs and the representation relation (SimRefines)",
+      "lean": "Silmaril.Sim.Reduce.SimRefines",
+      "solvers": [
+        "Wasm equivalence per method (G ≡ M)",
+        "lockstep difftest"
+      ]
+    },
+    {
+      "id": "x86/dbl",
+      "kind": "isa-problem",
+      "status": "open",
+      "statement": "the x86 problem of `dbl`'s straight-line body on Silmaril.X86.Ext.exec (XProblem)",
+      "lean": "Silmaril.Sim.Reduce.Toy.Dbl.X86Stmt"
+    },
+    {
+      "id": "wasm-insn/dbl",
+      "kind": "wasm-piece",
+      "status": "solved",
+      "statement": "every run of the P-calls body `dbl_body` (step methods given by their contracts) ends with the specified registers",
+      "lean": "Silmaril.Sim.Reduce.Toy.Dbl.PieceStmt",
+      "solution": "Silmaril.Sim.Reduce.Toy.Dbl.piece",
+      "problem": "wasm-sim/toy/insn/dbl-piece",
+      "files": [
+        "insn/dbl.wat"
+      ],
+      "solvers": [
+        "Hoare call rule (hwp_call_step)",
+        "wasm-vc / wpc with spec context",
+        "agent"
+      ]
+    },
+    {
+      "id": "tv-insn/dbl",
+      "kind": "translation-validation",
+      "status": "solved",
+      "statement": "the calls of `dbl_body` reach the step methods emit(i, len) of the decoded instructions (StepFns)",
+      "lean": "Silmaril.Sim.Reduce.PCalls.StepFns Toy.Dbl.dblStore … dblProg dblCalls",
+      "solution": "Silmaril.Sim.Reduce.Toy.Dbl.dbl_fns",
+      "files": [
+        "insn/dbl.wat"
+      ]
+    },
+    {
+      "id": "method/s_mov_rax_rdi_3",
+      "kind": "wasm-piece",
+      "status": "solved",
+      "statement": "the step method `s_mov_rax_rdi_3` meets its every-run step specification",
+      "lean": "Silmaril.Sim.X86.GCert.stepSpec (instruction (.mov .q (.reg .rax) .rdi, 3))",
+      "solution": "Silmaril.Sim.X86.GCert.step_valid",
+      "files": [
+        "insn/dbl.wat"
+      ]
+    },
+    {
+      "id": "method/s_add_rax_rax_3",
+      "kind": "wasm-piece",
+      "status": "solved",
+      "statement": "the step method `s_add_rax_rax_3` meets its every-run step specification",
+      "lean": "Silmaril.Sim.X86.GCert.stepSpec (instruction (.alu .q .add (.reg .rax) .rax, 3))",
+      "solution": "Silmaril.Sim.X86.GCert.step_valid",
+      "files": [
+        "insn/dbl.wat"
+      ]
+    },
+    {
+      "id": "x86/sum_to",
+      "kind": "isa-problem",
+      "status": "open",
+      "statement": "the x86 problem of the table of decoded instructions (XLProblem), every placement",
+      "lean": "Silmaril.Sim.Reduce.Toy.SumTo.X86Stmt"
+    },
+    {
+      "id": "wasm-disp/sum_to",
+      "kind": "wasm-piece",
+      "status": "solved",
+      "statement": "every run of the Wasm dispatcher (certified methods emitX, jumps included) ends in the specified state",
+      "lean": "Silmaril.Sim.Reduce.Toy.SumTo.PieceStmt",
+      "solution": "Silmaril.Sim.Reduce.Toy.SumTo.piece",
+      "solvers": [
+        "cut-point rule dispatch_hwp + one straight-line problem per entry",
+        "agent"
+      ]
+    },
+    {
+      "id": "term/sum_to",
+      "kind": "side-condition",
+      "status": "open",
+      "statement": "termination and frame of the x86 table run (from the Wasm ranking)",
+      "lean": "Silmaril.Sim.Reduce.Toy.SumTo.TermStmt"
+    },
+    {
+      "id": "wasm-rank/sum_to",
+      "kind": "wasm-piece",
+      "status": "solved",
+      "statement": "a ranking of the Wasm dispatcher: every entry's code evaluates to a store of smaller rank (termination)",
+      "lean": "Silmaril.Sim.Reduce.Toy.SumTo.RankStmt",
+      "solution": "Silmaril.Sim.Reduce.Toy.SumTo.rank",
+      "solvers": [
+        "straight-line evaluation per entry (exec) + a measure",
+        "agent"
+      ]
+    },
+    {
+      "id": "wasm-seg-a/f",
+      "kind": "wasm-piece",
+      "status": "solved",
+      "statement": "segment A of f's dispatcher (push, push, sub, mov, call sum_to): cut points with a measure",
+      "lean": "Silmaril.Sim.Reduce.Toy.F.EntriesA",
+      "solution": "Silmaril.Sim.Reduce.Toy.F.entriesA_sol",
+      "solvers": [
+        "dispatcher cut points with a measure (exec per entry)",
+        "agent"
+      ]
+    },
+    {
+      "id": "wasm-seg-b/f",
+      "kind": "wasm-piece",
+      "status": "solved",
+      "statement": "segment B (return of sum_to: mov, mov, call dbl)",
+      "lean": "Silmaril.Sim.Reduce.Toy.F.EntriesB",
+      "solution": "Silmaril.Sim.Reduce.Toy.F.entriesB_sol",
+      "solvers": [
+        "dispatcher cut points with a measure (exec per entry)",
+        "agent"
+      ]
+    },
+    {
+      "id": "wasm-seg-c/f",
+      "kind": "wasm-piece",
+      "status": "solved",
+      "statement": "segment C (return of dbl: add, add, pop, pop, ret)",
+      "lean": "Silmaril.Sim.Reduce.Toy.F.EntriesC",
+      "solution": "Silmaril.Sim.Reduce.Toy.F.entriesC_sol",
+      "solvers": [
+        "dispatcher cut points with a measure (exec per entry)",
+        "agent"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "goal": "isa/sum_to",
+      "pieces": [
+        "wasm/sum_to",
+        "sim/sound",
+        "sim/encodes/sum_to"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.specReduction",
+      "status": "proved",
+      "note": "Wasm solution + sound simulator + loadable entries => ISA solution; refutations transfer given Complete (isaCex_of_wasmCex)"
+    },
+    {
+      "goal": "wasm/sum_to",
+      "pieces": [
+        "ag/sum_to"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.agDecomp",
+      "status": "proved",
+      "note": "assume-guarantee over the acyclic call graph"
+    },
+    {
+      "goal": "ag/sum_to",
+      "pieces": [
+        "wasm-ag/sum_to",
+        "method/cond",
+        "method/i_alu_rr",
+        "method/i_jmp",
+        "method/i_next",
+        "method/i_ret",
+        "method/i_unary_r",
+        "tv/sum_to"
+      ],
+      "theorem": "Task: P-calls soundness (methods sound w.r.t. the ISA + translation validity)",
+      "status": "task"
+    },
+    {
+      "goal": "wasm-ag/sum_to",
+      "pieces": [
+        "cut/sum_to/entry",
+        "cut/sum_to/0x400007"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.cut_compose",
+      "status": "proved",
+      "note": "per cut point; the entry is the cut with the precondition as invariant"
+    },
+    {
+      "goal": "isa/dbl",
+      "pieces": [
+        "wasm/dbl",
+        "sim/sound",
+        "sim/encodes/dbl"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.specReduction",
+      "status": "proved",
+      "note": "Wasm solution + sound simulator + loadable entries => ISA solution; refutations transfer given Complete (isaCex_of_wasmCex)"
+    },
+    {
+      "goal": "wasm/dbl",
+      "pieces": [
+        "ag/dbl"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.agDecomp",
+      "status": "proved",
+      "note": "assume-guarantee over the acyclic call graph"
+    },
+    {
+      "goal": "ag/dbl",
+      "pieces": [
+        "wasm-ag/dbl",
+        "method/i_alu_rr",
+        "method/i_mov_rr",
+        "method/i_next",
+        "method/i_ret",
+        "tv/dbl"
+      ],
+      "theorem": "Task: P-calls soundness (methods sound w.r.t. the ISA + translation validity)",
+      "status": "task"
+    },
+    {
+      "goal": "isa/f",
+      "pieces": [
+        "wasm/f",
+        "sim/sound",
+        "sim/encodes/f"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.specReduction",
+      "status": "proved",
+      "note": "Wasm solution + sound simulator + loadable entries => ISA solution; refutations transfer given Complete (isaCex_of_wasmCex)"
+    },
+    {
+      "goal": "wasm/f",
+      "pieces": [
+        "ag/dbl",
+        "ag/f",
+        "ag/sum_to"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.agDecomp",
+      "status": "proved",
+      "note": "assume-guarantee over the acyclic call graph"
+    },
+    {
+      "goal": "ag/f",
+      "pieces": [
+        "wasm-ag/f",
+        "method/i_alu_ri",
+        "method/i_alu_rr",
+        "method/i_call",
+        "method/i_mov_rr",
+        "method/i_next",
+        "method/i_pop_r",
+        "method/i_push_r",
+        "method/i_ret",
+        "tv/f"
+      ],
+      "theorem": "Task: P-calls soundness (methods sound w.r.t. the ISA + translation validity)",
+      "status": "task"
+    },
+    {
+      "goal": "sim/sound",
+      "pieces": [
+        "method/cond",
+        "method/i_alu_ri",
+        "method/i_alu_rr",
+        "method/i_call",
+        "method/i_jmp",
+        "method/i_mov_rr",
+        "method/i_next",
+        "method/i_pop_r",
+        "method/i_push_r",
+        "method/i_ret",
+        "method/i_unary_r",
+        "tv/sum_to",
+        "tv/dbl",
+        "tv/f"
+      ],
+      "theorem": "Task: P-calls soundness from method soundness and translation validity",
+      "status": "task"
+    },
+    {
+      "goal": "sim/sound",
+      "pieces": [
+        "sim/sound[M]",
+        "refine/G-M"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.SoundSim.ofRefines",
+      "status": "proved"
+    },
+    {
+      "goal": "x86/dbl",
+      "pieces": [
+        "wasm-insn/dbl",
+        "tv-insn/dbl",
+        "method/s_mov_rax_rdi_3",
+        "method/s_add_rax_rax_3"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.Toy.Dbl.x86_of_piece",
+      "status": "proved",
+      "note": "P-calls soundness (Silmaril.Sim.Reduce.PCalls.xproblem_of_piece): the every-run piece joined with the existing run of the certified step methods"
+    },
+    {
+      "goal": "isa/dbl",
+      "pieces": [
+        "x86/dbl"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.Toy.Dbl.isa_of_x86",
+      "status": "proved",
+      "note": "decoding of the bytes, the final ret, System V contract on the open machine (total_of_ext_returns, Spec.Total.toOpen9)"
+    },
+    {
+      "goal": "term/sum_to",
+      "pieces": [
+        "wasm-rank/sum_to"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.Toy.SumTo.term_of_rank",
+      "status": "proved",
+      "note": "generic xrun_of_ranked: Wasm ranking + certified methods ⇒ x86 run, frame tabWrites"
+    },
+    {
+      "goal": "x86/sum_to",
+      "pieces": [
+        "wasm-disp/sum_to"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.Toy.SumTo.x86_of_piece",
+      "status": "proved",
+      "note": "xlproblem_of_lproblem (Silmaril.Sim.X86.Loop): dispatcher soundness (methods emitX_sound)"
+    },
+    {
+      "goal": "isa/sum_to",
+      "pieces": [
+        "x86/sum_to",
+        "term/sum_to"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.Toy.SumTo.isa_of",
+      "status": "proved",
+      "note": "decoding, run_of_xrun, the final ret, System V contract on the open machine"
+    },
+    {
+      "goal": "isa/f",
+      "pieces": [
+        "wasm-seg-a/f",
+        "wasm-seg-b/f",
+        "wasm-seg-c/f",
+        "isa/sum_to",
+        "isa/dbl"
+      ],
+      "theorem": "Silmaril.Sim.Reduce.Toy.F.isa_f_of",
+      "status": "proved",
+      "note": "per-function assume-guarantee: the calls leave the function's dispatcher; the callees enter through their solved ISA contracts"
+    }
+  ]
+}

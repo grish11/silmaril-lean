@@ -464,6 +464,18 @@ def TailWF (code : List Admin) : Prop :=
 def TailsOk (P : Profile) (host : HostSemantics H) (c₀ : Config H) : Prop :=
   ∀ c₂ : Config H, Steps P host c₀ c₂ → TailWF c₂.code
 
+/-- **The guard holds at every pending tail call the run reaches**: at every configuration
+reachable from `c₀` that is a pending tail call of the function `fi` at `a` (`ref.func a` and a
+`return_call_ref` form), on its `ps.length` arguments `args` (under `W₀`), the guard `G` holds
+for that call. The function's frame answers it (`return_call_ref-frame-addr`). -/
+def TailGuarded (P : Profile) (host : HostSemantics H) (G : Store H → Nat → List Val → Prop)
+    (c₀ : Config H) : Prop :=
+  ∀ (c₂ : Config H) (W₀ args : List Val) (a : Nat) (c : Admin) (rest : List Admin)
+    (fi : FuncInst H) (ps rs : Ty (.list .val)),
+    Steps P host c₀ c₂ → c₂.code = vals W₀ ++ vals args ++ .ref (.func a) :: c :: rest →
+    c.IsReturnCallRef → c₂.store.funcs[a]? = some fi → Expand fi.type (.func ps rs) →
+    args.length = ps.length → G c₂.store a args
+
 /-- **The guard holds at every call the run reaches**: at every configuration reachable from
 `c₀` whose redex is a call of a function reference (inside a context), `ref.func a` and a
 `call_ref` form `cr` (`call_ref y`, or the `call_ref` of the function's own type a direct call

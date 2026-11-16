@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Proofs.Sim.X86.Max.X86
-public import Silmaril.Machine.X86.Open9.Thms
+public import Silmaril.X86.Open9.Thms
 
 /-!
 # `max` as a System V function contract on `Open9.isa`
@@ -18,14 +18,14 @@ the Wasm solution, transported by `Silmaril.Sim.X86.G.xproblem_of_wproblem`), `O
 namespace Silmaril.Sim.X86.Max
 
 open Silmaril.X86 (Reg State MState Word Byte sysv64)
-open Silmaril.Machine.X86
+open Silmaril.X86
 open Silmaril.Sim.X86.G
 
 /-- **`max` meets its System V contract on `Open9.isa`.** -/
 theorem maxSpec_total : maxSpec.Total Open9.isa := by
   intro s _ habi hentry
   obtain ⟨final, hret, hrip, hrax, hframe, hrsp, hmem⟩ :=
-    max_returns s (Open.retOf s.core s.memory) hentry habi.returnAddress
+    max_returns s (Silmaril.X86.FnContract.retOf s.core s.memory) hentry habi.returnAddress
       (Silmaril.X86.wordOfBytes?_encodeWords _)
   obtain ⟨hreach, -⟩ := Open.returns_open_ext hret
   refine ⟨final, Open9.reaches_of_open hreach, rfl, ⟨hrip, hrsp, fun r hr => hframe r ?_ ?_⟩,

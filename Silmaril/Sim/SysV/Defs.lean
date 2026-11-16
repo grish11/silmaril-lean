@@ -2,7 +2,7 @@ module
 
 public import Silmaril.Sim.X86.G.Thms
 public import Silmaril.Sim.X86.Max.Defs
-public import Silmaril.Machine.X86.FnContract.Defs
+public import Silmaril.X86.FnContract.Defs
 public import Silmaril.X86.CallingConvention
 
 /-!
@@ -64,7 +64,7 @@ open Silmaril.X86 (Reg State MState Word Byte)
 open Silmaril.Process (Memory)
 open Silmaril.Machine.LittleEndian (encodeWords)
 open Silmaril.Sim.X86.G
-open Silmaril.Machine.X86.FnContract (AbiEntry AbiReturn)
+open Silmaril.X86.FnContract (AbiEntry AbiReturn)
 
 /-! ## Descriptors -/
 

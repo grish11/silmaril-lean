@@ -17,7 +17,7 @@ variable {W : Type}
 
 section X86
 
-open Silmaril.Machine.X86.FnContract (Spec AbiEntry)
+open Silmaril.X86.FnContract (Spec AbiEntry)
 open Silmaril.X86.SegVC (Isa)
 
 variable {τ : Type}

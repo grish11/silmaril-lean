@@ -1,0 +1,51 @@
+# Leaf functions of tests/funcs.c (clang -O2 -march=rv64im) as Wasm problems.
+schema = "silmaril.wasm-sim.reduce.v0"
+id = "wasm-sim/rv64/funcs"
+title = "RV64 leaf functions: max3, clamp, absdiff, gcdu, isqrt, popcount"
+
+[defs]
+gcd = "(declare-fun gcd ((_ BitVec 64) (_ BitVec 64)) (_ BitVec 64))"
+popcount = "(declare-fun popcount ((_ BitVec 64)) (_ BitVec 64))"
+
+[artifact]
+elf = "funcs"
+source = "../tests/funcs.c"
+build = "../tests/build.sh"
+
+[isa]
+machine = "Silmaril.RiscV.Ext.MState.step"
+
+[[function]]
+name = "max3"
+lean_spec = { entry = "Rv64Max3", pre = "True", post = "let m := (if a1.slt a0 then a0 else a1); r_a0 = (if a2.slt m then m else a2)" }
+ensures = "(= (reg a0) (ite (bvsgt (ite (bvsgt (old (reg a0)) (old (reg a1))) (old (reg a0)) (old (reg a1))) (old (reg a2))) (ite (bvsgt (old (reg a0)) (old (reg a1))) (old (reg a0)) (old (reg a1))) (old (reg a2))))"
+
+[[function]]
+name = "clamp"
+lean_spec = { entry = "Rv64Clamp", pre = "True", post = "r_a0 = (if a0.slt a1 then a1 else if a2.slt a0 then a2 else a0)" }
+ensures = "(= (reg a0) (ite (bvslt (old (reg a0)) (old (reg a1))) (old (reg a1)) (ite (bvsgt (old (reg a0)) (old (reg a2))) (old (reg a2)) (old (reg a0)))))"
+
+[[function]]
+name = "absdiff"
+lean_spec = { entry = "Rv64Absdiff", pre = "True", post = "r_a0 = (if a1.slt a0 then a0 - a1 else a1 - a0)" }
+ensures = "(= (reg a0) (ite (bvsgt (old (reg a0)) (old (reg a1))) (bvsub (old (reg a0)) (old (reg a1))) (bvsub (old (reg a1)) (old (reg a0)))))"
+
+[[function]]
+name = "gcdu"
+lean_spec = { entry = "Rv64Gcdu", pre = "True", post = "r_a0 = BitVec.ofNat 64 (Nat.gcd a0.toNat a1.toNat)" }
+ensures = "(= (reg a0) (gcd (old (reg a0)) (old (reg a1))))"
+sample_max = 1000000
+[[function.cut]]
+at = 4
+invariant = "(and (distinct (reg a1) #x0000000000000000) (= (gcd (reg a0) (reg a1)) (gcd (old (reg a0)) (old (reg a1)))))"
+decreases = "(reg a1)"
+
+[[function]]
+name = "isqrt"
+lean_spec = { entry = "Rv64Isqrt", pre = "True", post = "r_a0.toNat * r_a0.toNat ≤ a0.toNat ∧ a0.toNat < (r_a0.toNat + 1) * (r_a0.toNat + 1)" }
+ensures = "(and (bvule (bvmul ((_ zero_extend 64) (reg a0)) ((_ zero_extend 64) (reg a0))) ((_ zero_extend 64) (old (reg a0)))) (bvult ((_ zero_extend 64) (old (reg a0))) (bvmul ((_ zero_extend 64) (bvadd (reg a0) #x0000000000000001)) ((_ zero_extend 64) (bvadd (reg a0) #x0000000000000001)))))"
+
+[[function]]
+name = "popcount"
+lean_spec = { entry = "Rv64Popcount", pre = "True", post = "r_a0 = BitVec.ofNat 64 ((List.range 64).countP fun i => a0.getLsbD i)" }
+ensures = "(= (reg a0) (popcount (old (reg a0))))"

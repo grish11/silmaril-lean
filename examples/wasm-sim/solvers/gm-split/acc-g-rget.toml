@@ -1,0 +1,11 @@
+kind = "equiv"
+description = "accessor contract: G.rget refines the abstract rget (abs.wat) under the identity abstraction"
+expect = "proved"
+observe = ["trap", "result", "map"]
+pre = ["(bvult r #x00000011)"]
+[a]
+modules = [{ name = "acc", wat = "abs.wat" }]
+entry = "rget"
+[b]
+modules = [{ name = "acc", wat = "acc-g.wat" }]
+entry = "rget"

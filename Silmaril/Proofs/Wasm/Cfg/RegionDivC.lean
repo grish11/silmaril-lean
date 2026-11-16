@@ -693,6 +693,31 @@ theorem fragIB_true {cf : Bool} {i : Instr} (h : FragIB cf i) : FragIB true i :=
   | returnCallIndirect x y => exact .returnCallIndirect x y
   | returnCallRef y => exact .returnCallRef y
 
+set_option linter.unusedTactic false in
+/-- **Every instruction is in the fragment with calls.** -/
+theorem fragIB_all (i : Instr) : FragIB true i := by
+  cases i with
+  | block bt b => exact .block (fun j hj => fragIB_all j)
+  | loop bt b => exact .loop (fun j hj => fragIB_all j)
+  | if_ bt t e => exact .if_ (fun j hj => fragIB_all j) (fun j hj => fragIB_all j)
+  | tryTable bt cs b => exact .tryTable (fun j hj => fragIB_all j)
+  | intConst t b => exact .const (by cases t <;> simp [Admin.val?])
+  | floatConst t b => exact .const (by cases t <;> simp [Admin.val?])
+  | _ =>
+    first
+      | exact .br _ | exact .brIf _ | exact .return_ | exact .throw _ | exact .throwRef
+      | exact .call _ | exact .callIndirect _ _ | exact .callRef _ | exact .returnCall _
+      | exact .returnCallIndirect _ _ | exact .returnCallRef _
+      | (apply FragIB.brData; simp [Instr.IsBrData]; done)
+      | (apply FragIB.const; simp [Admin.val?]; done)
+      | (apply FragIB.simple; simp [SingleThreaded.Det.famOf]; done)
+termination_by sizeOf i
+decreasing_by all_goals (have := List.sizeOf_lt_of_mem hj; simp_wf; omega)
+
+/-- **Every function body is in the fragment with calls.** -/
+theorem fragC_expression (b : List Instr) : FragC (expression b) :=
+  frag_expression (fun i _ => fragIB_all i)
+
 theorem fragAB_true {cf : Bool} {a : Admin} (h : FragAB cf a) : FragAB true a := by
   induction h with
   | val h => exact .val h

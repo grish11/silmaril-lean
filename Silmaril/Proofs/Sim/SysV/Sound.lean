@@ -33,7 +33,7 @@ open Silmaril.X86 (Reg State MState Word)
 open Silmaril.Process (Memory)
 open Silmaril.Machine.LittleEndian (encodeWords)
 open Silmaril.Sim.X86.G
-open Silmaril.Machine.X86.FnContract (AbiEntry AbiReturn)
+open Silmaril.X86.FnContract (AbiEntry AbiReturn)
 
 variable {H : Type}
 

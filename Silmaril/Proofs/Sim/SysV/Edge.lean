@@ -71,9 +71,9 @@ theorem XGoal.of_flags {p : XProg} {code : List Instr} (hc : emitProg p = some c
     (hp : Pre d) (hs : setup d m = some e)
     (hr : m.memory.Permitted .read (entrySp n (m.core.read .rsp)).toNat 8)
     (hcode : CodeAt e.memory d.target (p ++ [(.ret, 1)])) (hf : FlagsDef m.core) :
-    Silmaril.Machine.X86.FnContract.AbiEntry e.core e.memory ∧
+    Silmaril.X86.FnContract.AbiEntry e.core e.memory ∧
       ∃ final : Silmaril.X86.MState, Silmaril.X86.Ext.Returns SENTINEL e final ∧
-        Silmaril.Machine.X86.FnContract.AbiReturn e.core e.memory final.core ∧
+        Silmaril.X86.FnContract.AbiReturn e.core e.memory final.core ∧
         Post d (final.core.read .rax) := by
   have hf' : FlagsDef e.core := by rw [setup_core hs]; exact flagsDef_entryCore hf
   obtain ⟨σ', hx⟩ := runExt_progress hc e.core hf' e.memory

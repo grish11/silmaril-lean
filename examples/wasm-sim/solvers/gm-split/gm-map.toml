@@ -1,0 +1,17 @@
+# G (globals) <-> M (Linux user_regs_struct in memory `state`) for the x86-64 simulators.
+map = [
+  { name = "rax", a = "g:r0", b = "m:80:8" },  { name = "rcx", a = "g:r1", b = "m:88:8" },
+  { name = "rdx", a = "g:r2", b = "m:96:8" },  { name = "rbx", a = "g:r3", b = "m:40:8" },
+  { name = "rsp", a = "g:r4", b = "m:152:8" }, { name = "rbp", a = "g:r5", b = "m:32:8" },
+  { name = "rsi", a = "g:r6", b = "m:104:8" }, { name = "rdi", a = "g:r7", b = "m:112:8" },
+  { name = "r8", a = "g:r8", b = "m:72:8" },   { name = "r9", a = "g:r9", b = "m:64:8" },
+  { name = "r10", a = "g:r10", b = "m:56:8" }, { name = "r11", a = "g:r11", b = "m:48:8" },
+  { name = "r12", a = "g:r12", b = "m:24:8" }, { name = "r13", a = "g:r13", b = "m:16:8" },
+  { name = "r14", a = "g:r14", b = "m:8:8" },  { name = "r15", a = "g:r15", b = "m:0:8" },
+  { name = "rip", a = "g:rip", b = "m:128:8" },
+  { name = "cf", a = "g:cf", b = "m:144:8@0" },  { name = "pf", a = "g:pf", b = "m:144:8@2" },
+  { name = "af", a = "g:af", b = "m:144:8@4" },  { name = "zf", a = "g:zf", b = "m:144:8@6" },
+  { name = "sf", a = "g:sf", b = "m:144:8@7" },  { name = "of", a = "g:of", b = "m:144:8@11" },
+  { name = "df", a = "g:df", b = "m:144:8@10" },
+  { name = "result", a = "result", b = "result" },
+]

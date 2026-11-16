@@ -1,0 +1,45 @@
+# Reduction manifest (tools/wasm-sim rv64 reduce): RV64 problems -> Wasm problems.
+schema = 2
+plan = "wasm-sim/rv64/loops"
+elf = "loops"
+elf_fnv1a64 = "ee79691440fbbf81"
+order = ["sum_to", "fib"]
+
+[[function]]
+name = "sum_to"
+entry = 0x11240
+module = "modules/sum_to.wat"
+words = [0x00000293, 0x00050863, 0x00a282b3, 0xfff50513, 0xff5ff06f, 0x00028513, 0x00008067]
+params = ["a0"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl"}
+
+[[function]]
+name = "fib"
+entry = 0x1125c
+module = "modules/fib.wat"
+words = [0x00000293, 0x00100313, 0x00050c63, 0x006283b3, 0x00030293, 0x00038313, 0xfff50513, 0xfedff06f, 0x00028513, 0x00008067]
+params = ["a0"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl"}
+
+transfer = """
+For each function f: if the Wasm function `f` (modules/f.wat, linked with the
+modules of its callees and a memory) meets its contract for all arguments, i.e.
+from params satisfying @requires it returns normally with results satisfying
+@ensures, then for every RV64 state s with pc = entry(f), the words of f (and
+its callees) fetchable at their entries, memory below 2^32 equal to the Wasm
+memory, the param registers holding the Wasm arguments and ra = any four-byte-
+aligned return address r outside the code, Ext.MState.step retires finitely many
+instructions reaching pc = r with the result registers equal to the Wasm results,
+ra and the callee-saved registers restored, and memory equal to the final Wasm
+memory. Traps of the Wasm function (misaligned/out-of-memory access, ABI check
+failure, misaligned target) correspond to RV faults or ABI violations, which the
+total-correctness contract excludes. Composition: assume-guarantee over the
+acyclic call graph (dag.json); per-function translation validity (tv/f) is the
+per-instruction method soundness plus CFG structuring."""
+

@@ -1,0 +1,64 @@
+/// x86-64 Linux processes as components, and the syscall ↔ WASI adapters
+/// (examples/wasm-sim/wasi-bridge; Lean: Silmaril.Sim.WasiBridge).
+///
+/// A *syscall subset* S is an interface: one function per syscall, at the *lifted* level (buffers
+/// as `list<u8>`, as WASI p1 events are lifted in Silmaril.Wasi.Versions.P1). The core-module stack
+/// uses the raw form `sys.syscall(nr, a1..a6) -> rax` over a memory interface (`raw`); the lifted
+/// form is what crosses component boundaries (components share no memory).
+package wsim:linux@0.1.0;
+
+/// The raw x86-64 syscall ABI (simulator ABI `sys.syscall`): pointer arguments are addresses in the
+/// process memory, which the callee reads through `wsim:sim/mem`. Core-module level only.
+interface raw {
+  syscall: func(nr: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64) -> u64;
+}
+
+/// Subset S₁ = {read, write, exit, exit_group} (+ brk, which stays inside the memory model).
+/// Errors are negated Linux errno values, as in the raw ABI.
+interface syscalls-s1 {
+  /// read(fd, buf, n): the bytes read (at most n).
+  read: func(fd: u32, n: u32) -> result<list<u8>, s32>;
+  /// write(fd, buf, n): the number of bytes written.
+  write: func(fd: u32, data: list<u8>) -> result<u32, s32>;
+  /// exit(code) / exit_group(code): does not return.
+  exit-group: func(code: u8);
+}
+
+/// An x86-64 Linux process with syscall subset S₁: ELF + loader + simulator stack. It exports
+/// wasi:cli/run (`_start` of the loader) and needs only the syscalls of S₁.
+world x86-linux-process-s1 {
+  import syscalls-s1;
+  export wasi:cli/run@0.2.12;
+}
+
+/// The syscall → WASI adapter as a component: S₁ implemented over wasi:cli.
+///   read(fd)  ↦ wasi:cli/stdin.get-stdin + wasi:io/streams.input-stream.blocking-read (fd 0)
+///   write(fd) ↦ wasi:cli/stdout|stderr + output-stream.blocking-write-and-flush (fd 1, 2)
+///   exit-group(c) ↦ wasi:cli/exit.exit(ok | err) (0.2 carries only success/failure; the p1
+///   adapter maps `proc_exit(c ≠ 0)` to exit status 1)
+world syscalls-over-wasi {
+  import wasi:cli/stdin@0.2.12;
+  import wasi:cli/stdout@0.2.12;
+  import wasi:cli/stderr@0.2.12;
+  import wasi:cli/exit@0.2.12;
+  export syscalls-s1;
+}
+
+/// The reverse adapter: a WASI program's stdio over S₁ (wasi2sys.wat at the core level).
+world wasi-over-syscalls {
+  import syscalls-s1;
+  export wasi:cli/stdin@0.2.12;
+  export wasi:cli/stdout@0.2.12;
+  export wasi:cli/stderr@0.2.12;
+  export wasi:cli/exit@0.2.12;
+}
+
+/// An "x86 component": x86-linux-process-s1 composed with syscalls-over-wasi (wac plug). Its
+/// world is a wasi:cli command restricted to stdio + exit: the object of ElfWasiEquiv.
+world x86-command-s1 {
+  import wasi:cli/stdin@0.2.12;
+  import wasi:cli/stdout@0.2.12;
+  import wasi:cli/stderr@0.2.12;
+  import wasi:cli/exit@0.2.12;
+  export wasi:cli/run@0.2.12;
+}

@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Sim.Reduce.Core.Defs
-public import Silmaril.Machine.X86.FnContract.Defs
+public import Silmaril.X86.FnContract.Defs
 
 /-!
 # Reducing ISA problems to Wasm problems: x86-64 System V contracts (definitions)
@@ -26,7 +26,7 @@ variable {W : Type}
 
 section X86
 
-open Silmaril.Machine.X86.FnContract (Spec AbiEntry)
+open Silmaril.X86.FnContract (Spec AbiEntry)
 open Silmaril.X86.SegVC (Isa)
 
 variable {τ : Type}

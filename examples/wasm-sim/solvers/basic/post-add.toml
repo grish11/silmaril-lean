@@ -1,0 +1,13 @@
+kind = "post"
+description = "add rax, rbx (dst 0, src 3) against the x86 ADD flags written in SMT-LIB"
+expect = "proved"
+modules = [{ name = "sim", wat = "flags-a.wat" }]
+calls = [{ func = "i_add_rr", args = ["0", "3"] }]
+post = [
+  "(= post.g.r0 (bvadd g.r0 g.r3))",
+  "(= post.g.r3 g.r3)",
+  "(= post.g.cf (ite (bvugt g.r0 (bvadd g.r0 g.r3)) #x00000001 #x00000000))",
+  "(= post.g.zf (ite (= (bvadd g.r0 g.r3) #x0000000000000000) #x00000001 #x00000000))",
+  "(= post.g.sf ((_ zero_extend 31) ((_ extract 63 63) (bvadd g.r0 g.r3))))",
+  "(= post.g.of (ite (and (= ((_ extract 63 63) g.r0) ((_ extract 63 63) g.r3)) (distinct ((_ extract 63 63) g.r0) ((_ extract 63 63) (bvadd g.r0 g.r3)))) #x00000001 #x00000000))",
+]

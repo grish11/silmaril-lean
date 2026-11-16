@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/memcall/ag/scale",
+  "kind": "assume-guarantee",
+  "function": "scale",
+  "address": "0x1136c",
+  "words": "02b050630035959300b505b30005368302c686b300d5302300850513feb518e300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/scale.wat", "representation": "P-locals", "imports": {"callees": [], "memory": true}, "params": ["a0", "a1", "a2"], "results": ["a0"]},
+  "spec": {"requires": "(arr (reg a0) (reg a1))", "ensures": "(forall ((i (_ BitVec 64))) (=> (bvult i (old (reg a1))) (= (mem64 (bvadd (old (reg a0)) (bvmul i #x0000000000000008))) (bvmul (old (mem64 (bvadd (old (reg a0)) (bvmul i #x0000000000000008)))) (old (reg a2))))))", "reads": "[]", "writes": "[(\"(reg a0)\", \"(bvmul (reg a1) #x0000000000000008)\")]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `scale` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}
