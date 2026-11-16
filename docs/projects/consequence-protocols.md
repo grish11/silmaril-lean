@@ -95,9 +95,14 @@ The theorems are about these strategies only.
   correspondence like `CanonLowerAccept`. Nothing here assumes such a correspondence.
 - There is no specification component for the stateful protocols yet. Their readings have
   general laws only.
-- The structural closure predicates are inline hypotheses. They will be restated with the
-  structural-rules predicates once those are published, and `Accepted T r` will be related to the
-  core `Silmaril.Consequence` systems in a follow-up.
+- `Silmaril.Wasi.Component.Consequence.Bridge.Thms` connects these readings to
+  `Silmaril.Logic.Consequence`:
+  - `Accepted T r` is a `System`, and `AcceptWitness T r` is a `WSystem` erasing to it
+    (`erase_acceptWitness`).
+  - The closure hypotheses are the named structural rules: `Exchange`
+    (`sound_perm_closure_of_exchange`) and `WeakSubset` (`finset_sound_of_weakSubset`).
+  - The membership checker is the least `Reflexive` relation (`reflexive_memberChecker`,
+    `memberChecker_sound_of_reflexive`).
 
 ## Checking
 
