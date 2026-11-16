@@ -55,6 +55,10 @@ def jsonRfc8259 : Set (List UInt8) := JsonBytes.language .rfc8259
 def jsonScalarEscapes : Set (List UInt8) := JsonBytes.language .scalarEscapes
 /-- Well-formed UTF-8. -/
 def utf8 : Set (List UInt8) := Utf8.language
+/-- UTF-8 again, under a Unicode name (regression: problems join the language by its printed name). -/
+def utf8ᵤ : Set (List UInt8) := Utf8.language
+/-- UTF-8 again, under a name Lean must escape when it prints it. -/
+def «utf-8 text» : Set (List UInt8) := Utf8.language
 /-- Well-formed CBOR data items (not validity). -/
 def cborWellFormed : Set (List UInt8) := Cbor.wellFormed
 
@@ -307,6 +311,24 @@ end
     silmaril.selftest.languages.example_wasm.parses := by
   silmaril_decide
 
+-- the same set under a Unicode name and an escaped name: each problem must reach its language
+silmaril language silmaril.selftest.lang.utf8_unicode := ProjectSelfTest.Languages.utf8ᵤ
+  (domain := bytes) (op := decl) (title := "UTF-8 (Unicode-named definition)")
+silmaril language silmaril.selftest.lang.utf8_escaped := ProjectSelfTest.Languages.«utf-8 text»
+  (domain := bytes) (op := decl) (title := "UTF-8 (escaped definition name)")
+silmaril instance silmaril.selftest.languages.utf8_unicode_has_a (expect := THM)
+  (title := "`A` is UTF-8 (Unicode-named definition)") := silmaril.shapes.language.member
+  (L := ProjectSelfTest.Languages.utf8ᵤ) (x := [0x41])
+@[answers "silmaril.selftest.languages.utf8_unicode_has_a" thm] public theorem utf8_unicode_has_a :
+    Silmaril.Project.Shapes.Member ProjectSelfTest.Languages.utf8ᵤ [0x41] :=
+  Silmaril.Formats.Utf8.isWellFormed_iff.mp (by decide)
+silmaril instance silmaril.selftest.languages.utf8_escaped_has_a (expect := THM)
+  (title := "`A` is UTF-8 (escaped definition name)") := silmaril.shapes.language.member
+  (L := ProjectSelfTest.Languages.«utf-8 text») (x := [0x41])
+@[answers "silmaril.selftest.languages.utf8_escaped_has_a" thm] public theorem utf8_escaped_has_a :
+    Silmaril.Project.Shapes.Member ProjectSelfTest.Languages.«utf-8 text» [0x41] :=
+  Silmaril.Formats.Utf8.isWellFormed_iff.mp (by decide)
+
 silmaril group silmaril.selftest.languages (title := "Languages")
   (children := [silmaril.selftest.languages.json_scalar_sub_json,
     silmaril.selftest.languages.json_sub_utf8, silmaril.selftest.languages.utf8_sub_json,
@@ -317,4 +339,5 @@ silmaril group silmaril.selftest.languages (title := "Languages")
     silmaril.selftest.languages.evens_has_6, silmaril.selftest.languages.evens_has_7,
     silmaril.selftest.languages.hello_utf8, silmaril.selftest.languages.json_format_eq_json,
     silmaril.selftest.languages.wasm_accept_member,
+    silmaril.selftest.languages.utf8_unicode_has_a, silmaril.selftest.languages.utf8_escaped_has_a,
     silmaril.selftest.languages.hello.parses, silmaril.selftest.languages.example_wasm.parses])

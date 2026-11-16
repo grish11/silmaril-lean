@@ -221,6 +221,7 @@ CREATE TABLE languages(
   semantics TEXT CHECK(semantics IN ('list','monoid')),
   measure TEXT,
   bound INTEGER,
+  term TEXT,
   identity TEXT NOT NULL,
   identity_hash TEXT NOT NULL,
   module TEXT NOT NULL,
@@ -386,7 +387,7 @@ CREATE TABLE finding_versions(
   PRIMARY KEY(problem, pos)
 );
 CREATE VIEW group_verdicts AS SELECT e.parent AS group_name, e.record_kind, e.record_name, e.pos, e.child, s.summary, s.verdict FROM edges e JOIN problems p ON p.name = e.parent AND p.kind = 'group' LEFT JOIN summary s ON s.problem = e.child;
-CREATE VIEW language_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, l.name AS language, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN language_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN languages l ON l.decl = replace(replace(i.term, '«', ''), '»', '') JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
+CREATE VIEW language_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, l.name AS language, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN language_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN languages l ON l.term = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
 CREATE VIEW consequence_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, c.name AS system, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN consequence_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN consequence_systems c ON c.term = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
 CREATE VIEW genuine_errors AS SELECT f.problem, p.title, s.summary, f.note, f.pointer, (SELECT group_concat(v.version, ',') FROM (SELECT version FROM finding_versions WHERE problem = f.problem ORDER BY pos) v) AS affected_versions, f.fixed_in, f.disclosure_status, f.module, f.origin FROM findings f JOIN problems p ON p.name = f.problem LEFT JOIN summary s ON s.problem = f.problem WHERE f.classification = 'error';
 CREATE VIEW model_gaps AS SELECT f.pointer, f.problem, p.title, f.note FROM findings f JOIN problems p ON p.name = f.problem WHERE f.classification = 'model_gap';
@@ -419,6 +420,7 @@ CREATE INDEX deprecation_replacements_replacement ON deprecation_replacements(re
 CREATE INDEX machine_bindings_machine ON machine_bindings(machine);
 CREATE INDEX languages_domain ON languages(domain, name);
 CREATE INDEX languages_decl ON languages(decl);
+CREATE INDEX languages_term ON languages(term);
 CREATE INDEX languages_identity ON languages(identity_hash);
 CREATE INDEX language_operands_operand ON language_operands(operand);
 CREATE INDEX consequence_systems_term ON consequence_systems(term);

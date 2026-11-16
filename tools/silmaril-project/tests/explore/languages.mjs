@@ -79,6 +79,14 @@ try {
     check(!!sec && sec.includes("#/language/silmaril.selftest.lang.wasm.accept"), "the artifact page's Languages section links the language");
     await shot("artifact-languages.png");
   }
+  // problems reach their language by the printed term: escaped and Unicode definition names too
+  for (const [lang, prob] of [["silmaril.selftest.lang.digits", "silmaril.selftest.languages.digits_sub_json"],
+      ["silmaril.selftest.lang.utf8_unicode", "silmaril.selftest.languages.utf8_unicode_has_a"],
+      ["silmaril.selftest.lang.utf8_escaped", "silmaril.selftest.languages.utf8_escaped_has_a"]]) {
+    await go("#/language/" + encodeURIComponent(lang));
+    const ps = await p.evaluate(() => [...document.querySelectorAll("#language-problems tbody tr td:first-child a")].map((a) => a.textContent));
+    check(ps.includes(prob), `${lang} lists ${prob}`);
+  }
   check((await errs()).length === 0, "no error on the pages");
   check(errors.length === 0, "no page errors " + errors.join("; "));
 } finally {

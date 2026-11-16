@@ -13,7 +13,7 @@ The kinds that name **languages**, the domains they are over and the measures on
 | `language_domain N := T` | `T : Type` | `carrier`, `monoid` (a `Monoid T` instance exists), `letters` (`α` when `T` is `List α`) |
 | `measure N := μ (domain := D)` | `μ : T → β` for `D`'s carrier `T` | `codomain` |
 | `language_interpretation N := I (domain := D) (abi := A) (environment := E)` | `I : V → Set T`; `A` and `E`, when given, occur in `I`'s definition | `input` (`V`), `carrier` |
-| `language N (domain := D) (op := …) …` | below; ill-typed combinations are rejected | `decl`, `carrier`, `identity` (and `semantics` for `regex`) |
+| `language N (domain := D) (op := …) …` | below; ill-typed combinations are rejected | `decl`, `term` (the definition as `ppOneLine` prints it, as instance arguments record it), `carrier`, `identity` (and `semantics` for `regex`) |
 
 A **language** is a `Set T` over the carrier `T` of its domain (`Set (List UInt8)` for the
 built-in `bytes` domain). Its `op` says how it is built; except for `decl`, Lean *generates* the
@@ -302,7 +302,9 @@ def identityObj (kvs : List (String × Json)) : Json := Json.mkObj kvs
         addLanguageDef decl target v
         fs ← fs.push kind "decl" (.str decl.toString)
         pure decl
-    let _ := declName
+    -- the definition as instance arguments record it (`ppOneLine`, so with the same escapes:
+    -- `«silmaril».…`), which is how the database relates problems to languages
+    fs ← fs.push kind "term" (.str (← ppOneLine (mkConst declName)))
     fs ← fs.push kind "carrier" (.str carrier)
     fs ← fs.push kind "identity"
       (identityObj ([("op", .str op), ("carrier", .str carrier)] ++ ident))

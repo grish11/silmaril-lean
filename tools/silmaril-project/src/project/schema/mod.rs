@@ -328,6 +328,7 @@ pub const INDEXES: &[(&str, &str, &[&str])] = &[
     ("machine_bindings_machine", "machine_bindings", &["machine"]),
     ("languages_domain", "languages", &["domain", "name"]),
     ("languages_decl", "languages", &["decl"]),
+    ("languages_term", "languages", &["term"]),
     ("languages_identity", "languages", &["identity_hash"]),
     (
         "language_operands_operand",
