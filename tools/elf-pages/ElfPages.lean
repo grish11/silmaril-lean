@@ -794,16 +794,25 @@ def loadEnv : IO Environment := do
     (if P.slug == "zlib-checksums" then #[{ module := P.ns ++ `Contracts }] else #[])) {}
 
 def generate : IO (List (String × Json) × List (String × ByteArray)) := do
+  let e0 ← IO.monoMsNow
   let env ← loadEnv
+  if (← IO.getEnv "ELF_PAGES_PROFILE").isSome then IO.eprintln s!"import: {(← IO.monoMsNow) - e0} ms"
   let mut files : List (String × Json) := []
   let mut blobs : List (String × ByteArray) := []
   let mut index : Array Json := #[]
   for P in pinned do
     let bytes ← IO.FS.readBinFile P.path
-    let sha := sha256Hex bytes
+    -- coreutils' sha256sum when present (the list-based Lean reference takes about a minute on
+    -- libc.so.6); otherwise the Lean digest
+    let sha ← (do
+        let o ← IO.Process.output { cmd := "sha256sum", args := #[P.path] }
+        if o.exitCode == 0 then pure ((o.stdout.splitOn " ").head!) else pure (sha256Hex bytes))
+      <|> pure (sha256Hex bytes)
     if sha != P.sha256 then throw (IO.userError s!"{P.path}: SHA-256 {sha}, pinned {P.sha256}")
     if bytes.size != P.size then throw (IO.userError s!"{P.path}: size {bytes.size}, pinned {P.size}")
+    let t0 ← IO.monoMsNow
     let thms ← theorems env P
+    let t1 ← IO.monoMsNow
     let src := fastRead bytes
     for t in thms do
       match t.claim, t.role with
@@ -813,8 +822,12 @@ def generate : IO (List (String × Json) × List (String × ByteArray)) := do
         unless (List.range n).all (fun i => bytes.get! (o + i) == 0) do
           throw (IO.userError s!"{t.decl}: bytes not zero")
       | _, _ => pure ()
+    let t2 ← IO.monoMsNow
     let dis ← disassemble P bytes
+    let t3 ← IO.monoMsNow
     let pg := page P thms (dis.map (·.1))
+    if (← IO.getEnv "ELF_PAGES_PROFILE").isSome then
+      IO.eprintln s!"{P.slug}: theorems {t1 - t0} ms, recheck {t2 - t1} ms, disassembly {t3 - t2} ms, page {(← IO.monoMsNow) - t3} ms ({pg.compress.length} B)"
     files := files ++ [(s!"f/{P.slug}.json", pg)]
     if let some (d, cs) := dis then
       files := files ++ [(s!"dis/{P.slug}.json", d)] ++ (cs.mapIdx fun k c => (s!"dis/{P.slug}/{k}.json", c)).toList
@@ -829,10 +842,16 @@ def generate : IO (List (String × Json) × List (String × ByteArray)) := do
   pure (("index.json", Json.mkObj [("schema", js "silmaril.elf-pages.v1"), ("files", Json.arr index)]) :: files, blobs)
 
 def write (out : String) (files : List (String × Json)) (blobs : List (String × ByteArray)) : IO Unit := do
+  let w0 ← IO.monoMsNow
   for (rel, j) in files do
     let p := System.FilePath.mk out / "elf" / rel
     if let some d := p.parent then IO.FS.createDirAll d
-    IO.FS.writeFile p j.compress
+    let c0 ← IO.monoMsNow
+    let txt := j.compress
+    let c1 ← IO.monoMsNow
+    IO.FS.writeFile p txt
+    if (← IO.getEnv "ELF_PAGES_PROFILE").isSome && c1 - c0 > 500 then IO.eprintln s!"compress {rel}: {c1 - c0} ms"
+  if (← IO.getEnv "ELF_PAGES_PROFILE").isSome then IO.eprintln s!"write: {(← IO.monoMsNow) - w0} ms"
   for (rel, b) in blobs do
     let p := System.FilePath.mk out / "elf" / rel
     if let some d := p.parent then IO.FS.createDirAll d
