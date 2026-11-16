@@ -1,0 +1,42 @@
+{
+  "address": "0x40003e",
+  "bytes": "4889f831c94c8d41084939d0770d4c8b0c0e4c890c0f4c89c1ebea4839d1730e440fb60c0e44880c0f48ffc1ebedc3",
+  "function": "memcpy1",
+  "id": "wasm-sim/x86/memcpy1/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "ea",
+        "i_alu_rr",
+        "i_jmp",
+        "i_lea",
+        "i_load",
+        "i_mov_rr",
+        "i_movx_rm",
+        "i_next",
+        "i_ret",
+        "i_store",
+        "i_unary_r"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../memcpy1.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(and (= (reg rax) (old (reg rdi))) (forall ((i (_ BitVec 64))) (=> (bvult i (old (reg rdx))) (= (mem8 (bvadd (old (reg rdi)) i)) (old (mem8 (bvadd (old (reg rsi)) i)))))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) (and (inbuf (old (reg rdi)) (old (reg rdx)) (old (reg rsp))) (inbuf (old (reg rsi)) (old (reg rdx)) (old (reg rsp))) (or (bvule (bvadd (old (reg rdi)) (old (reg rdx))) (old (reg rsi))) (bvule (bvadd (old (reg rsi)) (old (reg rdx))) (old (reg rdi))))))"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `memcpy1` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

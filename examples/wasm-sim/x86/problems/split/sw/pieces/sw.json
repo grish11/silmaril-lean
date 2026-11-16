@@ -1,0 +1,40 @@
+{
+  "address": "0x4000d1",
+  "bytes": "4883ff037728741d83ff017410720848c7c0c8000000c3b864000000c348c7c0ffffffffc3488d04fd07000000c34889f848c1f8024883d800c3",
+  "function": "sw",
+  "id": "wasm-sim/x86/sw/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "ea",
+        "i_alu_ri",
+        "i_jmp",
+        "i_lea",
+        "i_mov_ri",
+        "i_mov_rr",
+        "i_next",
+        "i_ret",
+        "i_shift_ri"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../sw.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= (reg rax) (ite (= (old (reg rdi)) #x0000000000000000) #x0000000000000064 (ite (= (old (reg rdi)) #x0000000000000001) #xffffffffffffffff (ite (= (old (reg rdi)) #x0000000000000002) #x00000000000000c8 (ite (= (old (reg rdi)) #x0000000000000003) #x000000000000001f (bvsub (bvashr (old (reg rdi)) #x0000000000000002) ((_ zero_extend 63) ((_ extract 1 1) (old (reg rdi))))))))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `sw` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

@@ -1,0 +1,21 @@
+# tools/wasm-vc configuration for this entry (docs/projects/wasm-spec-library.md).
+entry = "SumTo"
+source = "sum_to.wat"
+func = "sum"
+lean_func = "sumFunc"
+imports = ["Silmaril.Proofs.WasmSpec.SumTo.Arith"]
+
+[[fun]]
+name = "tri"
+arity = 1
+lean = "triBV"
+
+[[hint]]
+name = "tri_zero"
+smt = "(= (tri #x00000000) #x00000000)"
+lean = "have := @triBV_zero"
+
+[[hint]]
+name = "tri_step"
+smt = "(forall ((k (_ BitVec 32))) (=> (distinct k #x00000000) (= (tri k) (bvadd (tri (bvsub k #x00000001)) k))))"
+lean = "have := triBV_step (i := {v}) (by simpa using hc)"

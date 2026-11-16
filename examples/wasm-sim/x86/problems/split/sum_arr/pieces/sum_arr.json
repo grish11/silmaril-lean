@@ -1,0 +1,39 @@
+{
+  "address": "0x400020",
+  "bytes": "4885f67e1b488d14f731c00f1f4400004803074883c7084839d775f4c30f1f0031c0c3",
+  "function": "sum_arr",
+  "id": "wasm-sim/x86/sum_arr/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "ea",
+        "i_alu_ri",
+        "i_alu_rm",
+        "i_alu_rr",
+        "i_jmp",
+        "i_lea",
+        "i_next",
+        "i_ret"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../sum_arr.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= (reg rax) (sumarr (old (reg rdi)) (old (reg rsi))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) (and (bvsle (old (reg rsi)) #x0000000000000080) (inbuf (old (reg rdi)) (bvmul (old (reg rsi)) #x0000000000000008) (old (reg rsp)))))"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `sum_arr` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

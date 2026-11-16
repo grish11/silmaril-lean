@@ -6,6 +6,10 @@
 // * the table lists every node and edge and filters and sorts; the five registries list their records, filter,
 //   and link to detail pages with source declarations, endpoints, facts and crosslinks;
 // * the coverage page shows the audit (with omitted declarations), the pinned Hets list and the pending families;
+// * Logics in the navigation opens the table; Table | Graph are tabs (role tablist) carrying the search;
+//   the #/logic-graph and #/logic-table routes keep working;
+// * the source view of a registered declaration, a fact's theorem and a catalogue entry's evidence is
+//   read from the declaration's own module at Lean's range (not from the registering module);
 // * a narrow (phone) viewport stacks the graph and its details; no page error anywhere.
 //   node logic.mjs SITE_DIR [SHOTS_DIR]
 import { spawn } from "node:child_process";
@@ -33,10 +37,28 @@ try {
     [...tr.children].map((td) => td.textContent.trim())), sel);
   const counts = () => p.evaluate(() => Object.fromEntries([...document.querySelectorAll(".lg-tabs a")].map((a) => [a.getAttribute("href").slice(2), +(a.querySelector("span") || { textContent: "-1" }).textContent])));
 
+  // the entry: the navigation opens the table; Table | Graph are tabs; the search text goes along
+  await open("/summary");
+  const nav = await p.evaluate(() => [...document.querySelectorAll("#nav a")].map((a) => a.getAttribute("href")));
+  check(nav.includes("#/logics") && !nav.includes("#/logic-graph"), `Logics is in the navigation, opening the table (${nav.filter((h) => /logic/.test(h))})`);
+  // the table renders after the click's route settles: wait for its tab bar, not a fixed delay
+  await p.click('#nav a[href="#/logics"]'); await settle(); await p.waitForSelector(".lg-views", { timeout: 30000 });
+  const entry = await p.evaluate(() => ({ table: !!document.getElementById("lg-all"), graph: !!document.getElementById("lgcy"),
+    tabs: [...document.querySelectorAll('.lg-views [role="tab"]')].map((t) => t.textContent + ":" + t.getAttribute("aria-selected")),
+    list: document.querySelector('.lg-views').getAttribute("role") }));
+  check(entry.table && !entry.graph && entry.list === "tablist" && entry.tabs.join() === "Table:true,Graph:false", `the default view is the table, with Table | Graph tabs ${JSON.stringify(entry)}`);
+  await p.fill("#lg-all-q", "modal"); await p.waitForTimeout(300);
+  check(/#\/logics\/\?q=modal/.test(await p.evaluate(() => location.hash)), "the table's search is in the URL");
+  await p.click("#lg-tab-logic-graph"); await settle(); await p.waitForTimeout(500);
+  check(/#\/logic-graph\/\?q=modal/.test(await p.evaluate(() => location.hash)) && await p.inputValue("#lg-q") === "modal" &&
+    await p.getAttribute("#lg-tab-logic-graph", "aria-selected") === "true", "the Graph tab opens the graph with the same search");
+  await p.click("#lg-tab-logics"); await settle(); await p.waitForTimeout(300);
+  check(await p.inputValue("#lg-all-q") === "modal", "the Table tab returns with the search");
+  await open("/logic-table/");
+  check(await p.evaluate(() => !!document.getElementById("lg-all")) && await p.getAttribute("#lg-tab-logics", "aria-selected") === "true", "the earlier #/logic-table route still opens the table");
+
   // the graph
   await open("/logic-graph/");
-  const nav = await p.evaluate(() => [...document.querySelectorAll("#nav a")].map((a) => a.getAttribute("href")));
-  check(nav.includes("#/logic-graph"), "Logic graph is in the navigation");
   const n = await counts();
   check(n.institutions > 10 && n.comorphisms > 5 && n.morphisms >= 1 && n.rooms >= 1 && n.corridors >= 1, `registry counts ${JSON.stringify(n)}`);
   const g0 = await p.evaluate(() => window.explore.logicGraph);
@@ -79,7 +101,7 @@ try {
   check(await p.evaluate(() => !!document.querySelector("#lgcy canvas")), "zoom and fit keep the canvas");
 
   // the table
-  await open("/logic-table/");
+  await open("/logics/");
   const all = await rows("#lg-all");
   check(all.length === n.institutions + n.rooms + n.comorphisms + n.morphisms + n.corridors, `the table lists every node and edge (${all.length})`);
   await p.fill("#lg-all-q", "morphism"); await p.waitForTimeout(200);
@@ -104,6 +126,60 @@ try {
   }
   await open("/institutions");
   await shot("logic-institutions");
+
+  // the source view: a registered declaration is shown from its own module (Lean's range), not from the
+  // module of the record that registers it; likewise a fact's theorem and a catalogue entry's evidence
+  if (await p.evaluate(() => document.getElementById("source-meta").textContent.trim() !== "null")) {
+    for (const [decl, file] of [["Silmaril.SSA.LambdaRTL.Institution.rtlObs", "Silmaril/SSA/LambdaRTL/Institution/Defs.lean"],
+        ["Silmaril.Logic.Institution.Examples.plToFol_modelExpansive", "Silmaril/Logic/Institution/Examples/Comorphisms.lean"],
+        ["Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.sourceInst", "Silmaril/Proofs/Logic/Algebraic/InitialMatching/FiniteSortedInstitution.lean"],
+        ["Silmaril.Logic.Metamath.Peano.ZF.ZF0", "Silmaril/Logic/Metamath/Peano/ZFC.lean"]]) {
+      await open("/source/" + encodeURIComponent(decl));
+      await p.waitForFunction(() => !document.querySelector(".lean-src") || !/reading the Lean source/.test(document.querySelector(".lean-src").textContent), null, { timeout: 30000 });
+      const v = await p.evaluate(() => ({ where: (document.querySelector(".src-permalink") || {}).textContent || "", exact: !!document.querySelector(".src-exact"),
+        sel: (document.querySelector(".sl-sel") || {}).textContent || "", text: (document.querySelector(".lean-src") || {}).textContent || "" }));
+      const last = decl.split(".").pop();
+      check(v.where.startsWith(file) && v.exact && v.sel.includes(last) && !/No declaration of/.test(v.text),
+        `source of ${decl}: ${v.where} ${v.exact ? "exact" : "not exact"}; the marked line names ${last}`);
+    }
+    // from the institution's page: its declaration in its own module
+    await open("/institution/" + encodeURIComponent("ssa.lambda_rtl.institution.rtl_obs"));
+    await p.click("main button.srcview"); await p.waitForTimeout(300);
+    await p.waitForFunction(() => { const d = document.querySelector("dialog.dlg .lean-src"); return d && !/reading the Lean source/.test(d.textContent); }, null, { timeout: 30000 });
+    const dv = await p.evaluate(() => ({ where: document.querySelector("dialog.dlg .src-permalink").textContent, exact: !!document.querySelector("dialog.dlg .src-exact") }));
+    check(dv.where.startsWith("Silmaril/SSA/LambdaRTL/Institution/Defs.lean") && dv.exact, `the institution page's "view" shows ${dv.where}`);
+    await p.keyboard.press("Escape");
+  }
+
+  // consequence systems of the logics: a tab, a table of systems with their rooms and readings, and the
+  // proved relations (soundness of derivability for semantic consequence, inclusions, the structural laws)
+  await open("/logics/");
+  check(await p.evaluate(() => !!document.querySelector('.lg-tabs a[href="#/logic-consequence"]')), "the logic pages link the consequence systems");
+  await open("/logic-consequence/"); await p.waitForSelector("#lg-cons-rel", { timeout: 60000 });
+  const cs = await rows("#lg-cons");
+  const csText = cs.map((r) => r.join(" | ")).join("\n");
+  check(cs.length >= 18, `consequence systems of the logics (${cs.length})`);
+  for (const t of ["PA (peano.mm)", "ZF (set.mm)", "ZFC (set.mm)", "Metamath over set.mm's grammar", "HOL: the kernel", "Extensional MLTT", "Intensional MLTT"])
+    check(csText.includes(t), `the table lists ${t}`);
+  check(cs.filter((r) => r[1] === "semantic").every((r) => /room/.test(r[2])), "every semantic reading names its room");
+  const rel = await rows("#lg-cons-rel");
+  const sound = rel.filter((r) => r[1] === "is sound for");
+  check(sound.length >= 9 && sound.every((r) => /proved/.test(r[3])), `soundness relations, all proved (${sound.length})`);
+  check(rel.some((r) => /ZF \(set\.mm\): derivability/.test(r[0]) && r[1] === "is included in" && /ZFC \(set\.mm\): derivability/.test(r[2])), "ZF's consequences are ZFC's (an inclusion, not soundness)");
+  check(!rel.some((r) => /complete/.test(r[1])), "no completeness is claimed");
+  await p.fill("#lg-cons-q", "zfc");
+  await p.waitForTimeout(200);
+  check(/q=zfc/.test(await p.evaluate(() => location.hash)) && (await rows("#lg-cons")).length >= 2, "the search is kept in the URL");
+  await shot("logic-consequence");
+  await open("/system/" + encodeURIComponent("logic.consequence.metamath.zfc.entails"));
+  await p.waitForFunction(() => /over the sentences of/.test(document.querySelector("main").textContent), null, { timeout: 60000 });
+  const sysText = await p.textContent("main");
+  check(/semantic consequence/.test(sysText) && /logic\.institution\.metatheory\.metamath\.room/.test(sysText) && /Silmaril\.Consequence\.Metamath\.zf/.test(sysText),
+    "a system's page shows its reading and its room");
+  await open("/room/" + encodeURIComponent("logic.institution.metatheory.metamath.room"));
+  await p.waitForFunction(() => /consequence systems/.test(document.querySelector("main").textContent), null, { timeout: 60000 });
+  const roomText = await p.textContent("main");
+  check(/consequence systems/.test(roomText) && /PA \(peano\.mm\)/.test(roomText) && /ZFC \(set\.mm\)/.test(roomText), "the Metamath room lists its consequence systems");
 
   // coverage
   await open("/logic-coverage/");

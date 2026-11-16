@@ -1,0 +1,17 @@
+kind = "post"
+description = "core i_alu_rr add r64 (op 0, w 8) relative to abs accessors meets the x86 ADD semantics (result, CF, ZF, SF, OF) on the abstract state"
+expect = "proved"
+init = "symbolic"
+no_trap = true
+params = [{ name = "d", ty = "i32" }, { name = "s", ty = "i32" }]
+pre = ["(bvult d #x00000010)", "(bvult s #x00000010)", "(distinct d s)", "(= d #x00000000)", "(= s #x00000003)"]
+modules = [{ name = "acc", wat = "abs.wat" }, { name = "sim", wat = "core-acc.wat" }]
+calls = [{ func = "i_alu_rr", args = ["0", "8", "d", "s"] }]
+post = [
+  "(= post.g.r0 (bvadd g.r0 g.r3))",
+  "(= post.g.r3 g.r3)",
+  "(= post.g.cf (ite (bvugt g.r0 (bvadd g.r0 g.r3)) #x00000001 #x00000000))",
+  "(= post.g.zf (ite (= (bvadd g.r0 g.r3) #x0000000000000000) #x00000001 #x00000000))",
+  "(= post.g.sf ((_ zero_extend 31) ((_ extract 63 63) (bvadd g.r0 g.r3))))",
+  "(= post.g.of (ite (and (= ((_ extract 63 63) g.r0) ((_ extract 63 63) g.r3)) (distinct ((_ extract 63 63) g.r0) ((_ extract 63 63) (bvadd g.r0 g.r3)))) #x00000001 #x00000000))",
+]

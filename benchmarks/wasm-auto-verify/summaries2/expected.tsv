@@ -1,0 +1,9 @@
+# a	b	export	verdict	stage (wasm-check equiv a b export; a stage or a refutation)
+# Loops whose trip count is the input (stage vcequiv: functional contract sumFun)
+sum	sum.binaryen-O3	sum	proved	vcequiv
+sum	sum-dowhile	sum	proved	vcequiv
+sum.binaryen-O3	sum-dowhile	sum	proved	vcequiv
+sum	sum-offbyone	sum	refuted	counterexample
+sum-dowhile	sum-offbyone	sum	refuted	counterexample
+# Memory: a constant-trip loop of byte loads from a data segment (certificate over instK?)
+../../summaries/bin/memsum4	../../summaries/bin/memsum4.binaryen-O3	memsum4	proved	equivu

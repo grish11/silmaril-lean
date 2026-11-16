@@ -1,0 +1,71 @@
+# Wasm specification library entry (format: docs/projects/wasm-spec-library.md).
+schema = 1
+name = "BTree"
+version = "2.0.0"
+summary = "The B-tree library of Wasm Logic (Watt et al., ECOOP 2019) with insertion and creation, all proved: OBA get/find, search, btree_insert with node splitting, root growth and page allocation (free list, memory.grow) and an out-of-memory outcome, btree_create."
+status = "verified"
+
+[program]
+kind = "wat"
+source = "btree.wat"
+lean = "Silmaril.WasmSpec.BTree.V2.program"
+module = "Silmaril.WasmSpec.BTree.V2.Defs"
+functions = ["oba_get", "oba_find", "btree_search", "ba_insert", "ba_copy", "alloc_node", "split_child", "insert_nonfull", "btree_create", "btree_insert"]
+
+[spec]
+module = "Silmaril.WasmSpec.BTree.V2.Defs"
+statements = ["Silmaril.WasmSpec.BTree.V2.OBASpec", "Silmaril.WasmSpec.BTree.V2.SearchSpec", "Silmaril.WasmSpec.BTree.V2.InsertCreateSpec"]
+runs = "every"
+correctness = "total"
+description = """
+Every-run total correctness (Silmaril.Wasm.Logic.Hoare.TFSpecAt) at every profile and host
+relation, for instances whose function indices resolve to the module's functions (`Resolved`,
+in the preconditions); insert and create for memories of address type i32 (a 64-bit memory's
+page numbers would wrap in the i32 that memory.grow returns). The paper's predicates over the i32 view (Silmaril.Wasm.Logic.Words):
+OBA/BA/OBAnd; trees carrying their pages (`Tree`), `Repr B T` (leaf indicator, keys OBAnd at
+65536x + 4, child pages BA at 65536x + 32768), `Ordered`, `Balanced`, `Distinct` (no page used
+twice); `BTreeAt B t T φ`: t at 0, root page at 4, free pages φ as an OBAnd at 8 (the paper's
+Free(φ)), every node and free page valid (`PageOK`: in [1, 32768) and in memory) and the free
+pages not nodes, memory a whole number of pages, 2 <= t <= 4045; `IsBTree B t κ`.
+`OBASpec` (proved): oba_get returns α!k on any bounded array, oba_find the first index not below
+e, store unchanged. `SearchSpec` (proved): btree_search returns 1 iff k ∈ κ, store unchanged.
+`InsertCreateSpec` (proved): btree_insert returns 1 with a B-tree of κ ∪ {k},
+or 0 (out of memory: a page allocation failed) with a B-tree of κ; only memory 0 changes, and
+every byte outside page 0, the old tree's nodes and the old free pages is unchanged
+(`Unchanged B B' (Owned T φ)`); btree_create on an empty memory returns 1 with an empty B-tree or
+0 with the memory still empty. The paper's triples are partial correctness and its allocator
+loops forever when memory cannot grow; here every run terminates and reports the failure."""
+
+[results]
+module = "Silmaril.WasmSpec.BTree.V2.Thms"
+theorems = ["Silmaril.WasmSpec.BTree.V2.obaSpec", "Silmaril.WasmSpec.BTree.V2.searchSpec_holds", "Silmaril.WasmSpec.BTree.V2.insertCreateSpec_holds"]
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.BTree.V2.obaSpec_tactic"
+proves = "Silmaril.WasmSpec.BTree.V2.OBASpec"
+module = "Silmaril.Proofs.WasmSpec.BTree.V2.Oba"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 30
+notes = "Version 1's proof, oba_get on bounded arrays (ordered or not)."
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.BTree.V2.searchSpec_tactic"
+proves = "Silmaril.WasmSpec.BTree.V2.SearchSpec"
+module = "Silmaril.Proofs.WasmSpec.BTree.V2.Search"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 20
+notes = "Descent invariant At (page x holds a subtree, ordered within some bounds, balanced at height d, holding k iff κ does), variant the least such height (sInf); t_call1 for oba_find/oba_get with their proved specifications; child-index lemma inTree_child_iff; Repr.unique for the postcondition."
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.BTree.V2.insertCreateSpec_tactic"
+proves = "Silmaril.WasmSpec.BTree.V2.InsertCreateSpec"
+module = "Silmaril.Proofs.WasmSpec.BTree.V2.InsertCreate"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 600
+notes = "Internal every-run total specifications for ba_insert, ba_copy, alloc_node (AllocPost: free list or memory.grow), split_child (byte-region frames through each write, then split_repr) and insert_nonfull (strong induction on the height; Sub: a subtree with its allocator context; Upd: an update on the same page taking pages only from the free list or beyond the old memory, with a frame; Sub.replace and Upd.trans compose the recursive call). Abstract split lemmas (order, balance, keys, pages, distinctness) in Split. check_seconds is the module and its new dependencies (Arrays, Alloc, Split, SplitChild, InsertNonfull, Insert, Create)."

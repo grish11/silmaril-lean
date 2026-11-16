@@ -1,0 +1,17 @@
+# a	b	export	expected (wasm-check equiv a b export --random 200)
+# expected: vcinfer = verdict unknown with a vcinfer candidate whose certificate builds (--certs);
+# vcequiv/equiv... = proved at that stage; counterexample = refuted; unknown = no verdict, no candidate.
+# Loops whose trip count is the input, shapes without a hand-written contract (functional contract sum)
+../../summaries2/bin/sum	sum-tmp	sum	vcinfer
+../../summaries2/bin/sum	sum-decfirst	sum	vcinfer
+../../summaries2/bin/sum	sum-copy	sum	vcinfer
+sum-decfirst	sum-decfirst.binaryen-O3	sum	vcinfer
+sum-copy	sum-copy.binaryen-O3	sum	vcinfer
+sum-tmp	sum-copy	sum	vcinfer
+sum-tmp	../../summaries2/bin/sum.binaryen-O3	sum	vcinfer
+# Loop-free shapes (functional contract max)
+max	max-select	max	equiv
+max-select	max-le	max	vcinfer
+# A refutation
+../../summaries2/bin/sum	sum-up	sum	vcinfer
+sum-copy	../../summaries2/bin/sum-offbyone	sum	counterexample

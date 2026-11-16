@@ -1,0 +1,53 @@
+{
+  "address": "0x400147",
+  "bytes": "5341544883ec084889f3e8c5feffff4989c44889df4889dee89cfeffff4c01e04883c408415c5bc3",
+  "function": "twice_sum",
+  "id": "wasm-sim/x86/twice_sum/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [
+        "add2",
+        "sum_to"
+      ],
+      "sim": [
+        "get",
+        "i_alu_ri",
+        "i_alu_rr",
+        "i_call",
+        "i_mov_rr",
+        "i_next",
+        "i_pop_r",
+        "i_push_r",
+        "i_ret"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../twice_sum.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [
+      {
+        "ensures": "(= (reg rax) (bvadd (old (reg rdi)) (old (reg rsi))))",
+        "import": "add2",
+        "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000100100) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+      },
+      {
+        "ensures": "(= (reg rax) (tri (old (reg rdi))))",
+        "import": "sum_to",
+        "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000100100) (bvule (old (reg rsp)) #x000000000010fff8)) (bvule (old (reg rdi)) #x0000000000001000))"
+      }
+    ],
+    "ensures": "(= (reg rax) (bvadd (tri (old (reg rdi))) (bvadd (old (reg rsi)) (old (reg rsi)))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) (bvule (old (reg rdi)) #x0000000000001000))"
+  },
+  "statement": "assuming the callees [\"add2\", \"sum_to\"] meet their contracts (imports), `twice_sum` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

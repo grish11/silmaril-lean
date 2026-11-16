@@ -11,8 +11,10 @@ public import Silmaril.Wasm.Logic.Core.Defs
 
 silmaril-lean's native interpreter (`Silmaril.Wasm.Binaryen.run`, its big-step relation
 `Eval`, `invokeRun`, `nbeh`) evaluates folded trees on a top-first value stack. Its adequacy
-for Core 3.0 small-step execution is open upstream: `Silmaril/Wasm/Binaryen/AdequacyReduce.lean`
-reduces it to `FwdSim`, `BwdSim` and `NoDivOfTerm`, none of which is proved there.
+for Core 3.0 small-step execution is proved in this topic for the native fragment below:
+`native_adequacy` and `native_store_adequacy` (`Silmaril.Wasm.Interp.Thms`), for typed,
+native, arity-checked stores and typed calls. `Silmaril/Wasm/Binaryen/AdequacyReduce.lean`
+states the generic reduction to `FwdSim`, `BwdSim` and `NoDivOfTerm`.
 
 **What the interpreter assumes.** It implements integer instructions by silmaril's
 `Numerics.intUnOp`/`intBinOp`/`intTestOp`/`intRelOp` (profile-independent), locals, globals,

@@ -1,0 +1,16 @@
+{
+  "env": [
+    "mem.load8..64/store8..64",
+    "sys.syscall",
+    "nd.undef"
+  ],
+  "modules": "modules/<f>.wat",
+  "order": [
+    "sum_to",
+    "dbl",
+    "f"
+  ],
+  "root": "f",
+  "schema": "silmaril.wasm-sim.link.v0",
+  "sim": "sim.wat"
+}

@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Component.Reference.LinkedSessionD.Defs
 public import Silmaril.Wasm.Component.Reference.LinkedSessionDiv.Defs
+public import Silmaril.Wasm.Component.Reference.LinkedSessionObs.Defs
 
 /-!
 # Divergences of linked sessions against the divergence-aware IR: definitions
@@ -27,6 +28,13 @@ semantics `C` (for the theorems, `impSemD P`).
   proposition; the full left-to-right direction is stated conditionally on it. It is proved at
   the deterministic profiles `profile o` and open at nondeterministic ones. (The converse, a round
   of chatter as an IR divergence, is proved at every profile: `Linked2.div_denD_of_sessDivsC`.)
+* `Linked2.sessInfPlay l a out`: the infinite play of the typed call stream `a` answered by the
+  outcomes `out`, the limit of the session plays `sessMoves` of its finite prefixes.
+* `Linked2.IRDivEq P l l'`, `Linked2.IRInfEq P l l'`: the same IR divergences after typed
+  sessions on a typed pending call, and the same infinite IR plays of typed call streams, of
+  `l.toComp.denD (impSemD P)` and `l'.toComp.denD (impSemD P)` (the export indices cast along the
+  equal export counts). The denotations themselves have different types when the export counts
+  differ, so they are compared on these projections (and on `pubPlays` for the finite plays).
 -/
 
 @[expose] public section
@@ -144,6 +152,41 @@ def Task.ChatterReadBack (P : Profile) (l : Linked2) : Prop :=
       outs ∈ sessDivs P l calls j vs
 
 end Spec
+
+/-! ## Infinite plays and the projections of the IR -/
+
+open Silmaril.Games.Abstract (streamTake) in
+/-- **The infinite play of a typed call stream**: the calls `a 0, a 1, …` of the importer's
+exports answered by the outcomes `out 0, out 1, …` (results, or `none` for a trap), as the limit
+of the session plays of the finite prefixes. -/
+def sessInfPlay (l : Linked2) (a : ℕ → Fin l.imp.exports.length × List IVal)
+    (out : ℕ → Option (List IVal)) :
+    Set (List (Move l.toComp.imports.sig (sigN l.toComp.exports.length))) :=
+  Chain.lim fun k => sessMoves l (streamTake a k) (streamTake out k)
+
+/-- **The same IR divergences after typed sessions**: for typed calls with outcomes and a typed
+pending call, the divergence-aware IRs of `l` and `l'` at `P` diverge alike (the export indices
+cast along the equal export counts). -/
+def IRDivEq (P : Profile) (l l' : Linked2) : Prop :=
+  ∃ len : l.imp.exports.length = l'.imp.exports.length,
+    ∀ (calls : List (Fin l.imp.exports.length × List IVal)) (outs : List (Option (List IVal)))
+      (j : Fin l.imp.exports.length) (vs : List IVal),
+      SimpleI.TypedCalls l.imp calls → calls.length = outs.length →
+      ValTy.checkList l.imp.exports[j].ty.params vs = true →
+      (sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈
+          (l.toComp.denD (impSemD P)).div ↔
+        sessMoves l' (castCalls len calls) outs ++ [.inr (.ask (l'.topQ (Fin.cast len j) vs))] ∈
+          (l'.toComp.denD (impSemD P)).div)
+
+/-- **The same infinite IR plays of typed call streams**: for a typed stream of calls with
+outcomes, its infinite play is one of the divergence-aware IR of `l` at `P` iff it is one of
+`l'`'s (the export indices cast along the equal export counts). -/
+def IRInfEq (P : Profile) (l l' : Linked2) : Prop :=
+  ∃ len : l.imp.exports.length = l'.imp.exports.length,
+    ∀ (a : ℕ → Fin l.imp.exports.length × List IVal) (out : ℕ → Option (List IVal)),
+      (∀ k, ValTy.checkList l.imp.exports[(a k).1].ty.params (a k).2 = true) →
+      (l.sessInfPlay a out ∈ (l.toComp.denD (impSemD P)).inf ↔
+        l'.sessInfPlay (castStream len a) out ∈ (l'.toComp.denD (impSemD P)).inf)
 
 end Linked2
 

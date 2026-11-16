@@ -51,7 +51,7 @@ children = ["silmaril.selftest.truth", "silmaril.selftest.small", "silmaril.self
   "silmaril.selftest.formats", "silmaril.shapes", "silmaril.sysv_tv.max2",
   "silmaril.compiles_to.all", "silmaril.selftest.languages", "formats.examples",
   "formats.catalogue", "silmaril.selftest.consequence", "silmaril.selftest.wasm_acceptors",
-  "silmaril.wasm_wast"]
+  "silmaril.elf.cli", "silmaril.wasm_wast"]
 
 [[group]]
 name = "silmaril.selftest.formats"

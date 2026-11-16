@@ -1,0 +1,10 @@
+kind = "equiv"
+description = "a planted bug (result 7 when rax = 0x1234) is found"
+pre = ["(bvult p0 #x00000004)", "(bvult p1 #x00000004)"]
+expect = "refuted"
+[a]
+modules = [{ name = "sim", wat = "flags-a.wat" }]
+entry = "i_add_rr"
+[b]
+modules = [{ name = "sim", wat = "flags-bug.wat" }]
+entry = "i_add_rr"

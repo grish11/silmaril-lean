@@ -619,7 +619,7 @@ set_option maxRecDepth 100000
 namespace {ns}
 
 open Silmaril.Elf Silmaril.Elf.Staged
-open Silmaril.Formats.ELF (Header ProgramHeader SectionHeader NameBytes)
+open Silmaril.Formats.ELF (Header ProgramHeader SectionHeader NameBytes ObjectSymbol)
 
 /-- The pinned file's path, from the repository root (`raw` in `{ns}.Bytes` includes it). -/
 def path : String := \"{path}\"
@@ -700,10 +700,47 @@ theorem layout : LayoutIs F L := layoutPart.layoutIs
 
 "
   let mut bnames : Array String := #[]
+  let mut fns := s!"module
+
+public import {ns}.Thms
+
+/-! # {title}: its function symbols, one theorem each
+
+{gen}
+
+For every `STT_FUNC` or `STT_GNU_IFUNC` entry of a symbol table (defined or not), the entry as the
+specification's reader `Parse.symbol` reads it from the 24-byte record and the name bytes in the
+linked string table, and nothing else (`PartIs`, closed by `decide +kernel` on kernel bytes). A
+row says what the symbol table says: its name, value, size, binding, type and section index. It
+does not say that the bytes at `value` are a function, or anything about the System V ABI. -/
+
+@[expose] public section
+
+namespace {ns}
+
+open Silmaril.Elf Silmaril.Elf.Staged Silmaril.Elf.Staged.Reader
+
+"
   for (sec, k) in L.sections.zipIdx do
     let some b := (Parse.body shs sec.header).run src | throw (IO.userError s!"body {k} failed")
     bnames := bnames.push s!"body_{k}.bodyIs"
-    d := d ++ s!"/-- The body of section {k} (`{nameStr sec.name}`). -/\ndef b{k} : Body :=\n  {(reprStr b).replace "\n" " "}\n\n"
+    match b with
+    | .symbols tab es =>
+      let some strs := shs[sec.header.link]? | throw (IO.userError s!"symbol table {k}: no string table")
+      for (e, i) in es.zipIdx do
+        d := d ++ s!"def s{k}_{i} : ObjectSymbol := ⟨⟨{e.raw.name}, {e.raw.info}, {e.raw.other}, {e.raw.sectionIndex}, {e.raw.value}, {e.raw.size}⟩, {litName e.name}⟩\n"
+        let ty := e.raw.info % 16
+        if ty == 2 || ty == 10 then
+          let o := sec.header.offset + 24 * i
+          fns := fns ++ s!"/-- `{nameStr e.name}` (section {k}, entry {i}). -/
+theorem sym_{k}_{i} : PartIs F {litSpans (footprint src (Parse.symbol strs o))} (Parse.symbol sh{sec.header.link} {o}) s{k}_{i} :=
+  partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
+
+"
+      let t' := if tab == .symtab then "symtab" else "dynsym"
+      d := d ++ s!"\n/-- The body of section {k} (`{nameStr sec.name}`): {es.length} symbols. -/\ndef b{k} : Body :=\n  .symbols .{t'} [{", ".intercalate ((List.range es.length).map (s!"s{k}_{·}"))}]\n\n"
+    | _ =>
+      d := d ++ s!"/-- The body of section {k} (`{nameStr sec.name}`). -/\ndef b{k} : Body :=\n  {(reprStr b).replace "\n" " "}\n\n"
     t := t ++ s!"/-- **The body of section {k}** (`{nameStr sec.name}`). -/
 theorem body_{k} : PartIs F {litSpans (footprint src (Parse.body shs sec.header))} (Parse.body L.shs sh{k}) b{k} :=
   partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
@@ -747,6 +784,7 @@ theorem pad_{k} : ZerosAt F {g.off} {g.len} :=
   IO.FS.writeFile s!"{base}/Bytes.lean" bytesMod
   IO.FS.writeFile s!"{base}/Defs.lean" d
   IO.FS.writeFile s!"{base}/Thms.lean" t
+  IO.FS.writeFile s!"{base}/Functions.lean" (fns ++ s!"end {ns}\n")
   IO.println s!"wrote {base}/(Bytes,Defs,Thms).lean; non-zero gaps (no theorem): {nz.toList.map fun g => (hex g.off, g.len)}"
 
 def usage : String :=

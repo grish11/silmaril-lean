@@ -1,0 +1,9 @@
+kind = "post"
+description = "core method cond relative to the abstract accessor contracts (abs.wat): every accessor call is within its contract (no trap)"
+expect = "proved"
+init = "symbolic"
+no_trap = true
+params = [{ name = "cc", ty = "i32" }]
+pre = ["(bvult cc #x00000010)"]
+modules = [{ name = "acc", wat = "abs.wat" }, { name = "sim", wat = "core-acc.wat" }]
+calls = [{ func = "cond", args = ["cc"] }]

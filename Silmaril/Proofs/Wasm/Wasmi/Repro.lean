@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Interp.Thms
 public import Silmaril.Wasm.Binaryen.AdequacyModule
 public import Silmaril.Wasm.SingleThreaded.Soundness
 public import Silmaril.Wasm.Validation.Check.Validate
+public import Silmaril.Wasm.Interp.Closed.Thms
 
 @[expose] public section
 
@@ -17,9 +18,8 @@ checks and two native runs are kernel evaluations (`decide +kernel`, no native e
 typing of the stores comes from silmaril-lean's `prepare?_sound` and `Instantiate.ok`. The
 translation of the store is the store of the translated module, by `rfl`.
 
-`instantiate_of`, `invokeRun_mono` and `nbeh_eq_singleton` follow the proofs of
-`Silmaril.Proofs.Wasm.Interp.Example` (another topic, whose proof modules are not imported here),
-generalised to any closed module. New proofs.
+`instantiate_of`, `storeOk_of`, `invokeRun_mono` and `nbeh_eq_singleton` restate the general
+forms of the public header `Silmaril.Wasm.Interp.Closed.Thms`.
 -/
 
 namespace Silmaril.Proofs.Wasm.Wasmi
@@ -29,37 +29,20 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Interp Silmaril.Wa
 /-! ## Closed modules -/
 
 /-- A closed module that validates and allocates without segments or start function
-instantiates to its allocation, at every profile and host. -/
+instantiates to its allocation, at every profile and host (`Interp.Closed.instantiate_of_prepare`). -/
 theorem instantiate_of {m : Module} {p : Config Empty × Option FuncIdx}
     (hv : ((Validation.validate? m).map fun mt => mt.imports.isEmpty) = some true)
     (hp : prepare? evalConst? ({} : Store Empty) m [] = some p) (hst : p.2 = none)
     (P : Numerics.Profile) (host : HostSemantics Empty) :
-    Instantiate P host ({} : Store Empty) m [] p.1 := by
-  obtain ⟨mt, hmt, hnil⟩ : ∃ mt, Validation.validate? m = some mt ∧ mt.imports.isEmpty := by
-    rcases h : Validation.validate? m with _ | mt
-    · simp [h] at hv
-    · simp only [h, Option.map_some, Option.some.injEq] at hv
-      exact ⟨mt, rfl, hv⟩
-  have himp : mt.imports = [] := List.isEmpty_iff.mp hnil
-  have hvalid : ∃ xtE xtI, Validation.ModuleOk m ⟨xtI, xtE⟩ ∧
-      List.Forall₂ (ExternAddrOk ({} : Store Empty)) [] xtI :=
-    ⟨mt.exports, mt.imports, by simpa using Validation.validate?_sound hmt, by rw [himp]; exact .nil⟩
-  have h : Instantiate P host ({} : Store Empty) m [] (p.1.withStart p.2) :=
-    (prepare?_sound (P := P) (host := host) (c := p.1) (st := p.2) evalConst?_evalSound
-      hp hvalid).2
-  have hw : p.1.withStart p.2 = p.1 := by rw [hst]; rfl
-  rwa [hw] at h
+    Instantiate P host ({} : Store Empty) m [] p.1 :=
+  Interp.Closed.instantiate_of_prepare hv hp hst P host
 
-/-- The store of such an instance is typed. -/
+/-- The store of such an instance is typed (`Interp.Closed.storeOk_of_prepare`). -/
 theorem storeOk_of {m : Module} {p : Config Empty × Option FuncIdx}
     (hv : ((Validation.validate? m).map fun mt => mt.imports.isEmpty) = some true)
     (hp : prepare? evalConst? ({} : Store Empty) m [] = some p) (hst : p.2 = none) :
-    StoreOk p.1.store := by
-  have hc : ConfigOk p.1 [] :=
-    Instantiate.ok SingleThreaded.divHost_ok Binaryen.storeOk_empty
-      (instantiate_of hv hp hst (SingleThreaded.profile fun _ _ _ _ => false)
-        SingleThreaded.divHost)
-  exact SingleThreaded.ConfigOk.storeOk hc
+    StoreOk p.1.store :=
+  Interp.Closed.storeOk_of_prepare hv hp hst
 
 /-- Two `i32` arguments are a typed invocation of a function of type `[i32 i32] → [i32]`. -/
 theorem invokeOk_of {s : Store Empty}
@@ -81,44 +64,18 @@ theorem invokeOk_of {s : Store Empty}
     exact .cons (ValOk.num _) (.cons (ValOk.num _) .nil)
   · cases hty
 
-/-- More fuel never changes a result of `invokeRun`. -/
+/-- More fuel never changes a result of `invokeRun` (`Interp.Closed.invokeRun_mono`). -/
 theorem invokeRun_mono {H : Type} {n n' : Nat} (hle : n ≤ n') {s : Store H} {a : Nat}
     {vs : List Val} {r : Store H × Binaryen.Flow} (h : Binaryen.invokeRun n s a vs = some r) :
-    Binaryen.invokeRun n' s a vs = some r := by
-  unfold Binaryen.invokeRun at h ⊢
-  split at h
-  · split at h
-    · rename_i fn _ rs _ _
-      rcases hr : Binaryen.run n s _ [] (Binaryen.liftInstrs fn.body) with _ | x
-      · rw [hr] at h
-        cases h
-      · rw [hr] at h
-        rw [Binaryen.run_mono hle hr]
-        exact h
-    · cases h
-  · cases h
+    Binaryen.invokeRun n' s a vs = some r :=
+  Interp.Closed.invokeRun_mono hle h
 
-/-- The native behaviours of a terminating invocation are its single result. -/
+/-- The native behaviours of a terminating invocation are its single result
+(`Interp.Closed.nbeh_eq_singleton`). -/
 theorem nbeh_eq_singleton {H : Type} {s : Store H} {a : Nat} {vs : List Val} {n : Nat}
     {b : Behaviour Val} (h : ((Binaryen.invokeRun n s a vs).bind fun r => Binaryen.flowBeh r.2) =
-      some b) : Binaryen.nbeh s a vs = {b} := by
-  obtain ⟨⟨s₀, fl₀⟩, h₀, hb₀⟩ := Option.bind_eq_some_iff.mp h
-  ext b'
-  constructor
-  · rintro (⟨m, s₁, fl₁, h₁, hb₁⟩ | ⟨-, hdiv⟩)
-    · have e₀ : Binaryen.invokeRun (max n m) s a vs = some (s₀, fl₀) :=
-        invokeRun_mono (Nat.le_max_left n m) h₀
-      have e₁ : Binaryen.invokeRun (max n m) s a vs = some (s₁, fl₁) :=
-        invokeRun_mono (Nat.le_max_right n m) h₁
-      have hfl : fl₁ = fl₀ := by
-        rw [e₀] at e₁
-        exact (Prod.mk.inj (Option.some.inj e₁)).2.symm
-      have hb : some b' = some b := by rw [← hb₁, ← hb₀, hfl]
-      exact Option.some.inj hb
-    · rw [hdiv n] at h₀
-      cases h₀
-  · rintro rfl
-    exact .inl ⟨n, s₀, fl₀, h₀, hb₀⟩
+      some b) : Binaryen.nbeh s a vs = {b} :=
+  Interp.Closed.nbeh_eq_singleton h
 
 /-! ## The reproducer and its translation -/
 

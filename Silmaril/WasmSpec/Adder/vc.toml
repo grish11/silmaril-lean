@@ -1,0 +1,5 @@
+# tools/wasm-vc configuration for this entry (docs/projects/wasm-spec-library.md).
+entry = "Adder"
+source = "adder.wat"
+func = "add"
+lean_func = "addFunc"

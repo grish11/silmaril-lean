@@ -1,0 +1,14 @@
+# Specifications of the functions in funcs.S for `wasm-sim pcalls --mode problem`.
+# Format: name nargs | @requires | @ensures. SMT-LIB over (_ BitVec 64); arguments are named by
+# their SysV registers (rdi rsi rdx rcx r8 r9), `result` is rax at return. Other GPRs and flags
+# start as in the module (0); memory is the module's local 64 KiB at 0x100000 (zero).
+add2 2 | true | (= result (bvadd rdi rsi))
+max2 2 | true | (= result (ite (bvsgt rsi rdi) rsi rdi))
+abs1 1 | true | (= result (ite (bvslt rdi #x0000000000000000) (bvneg rdi) rdi))
+sum_to 1 | (bvule rdi #x0000000000001000) | (= result (bvudiv (bvmul rdi (bvadd rdi #x0000000000000001)) #x0000000000000002))
+gcd 2 | true | (= result (gcd rdi rsi))
+popcount1 1 | true | (= result (popcount rdi))
+popcount2 1 | true | (= result (popcount rdi))
+fact 1 | (bvule rdi #x0000000000000014) | (= result (fact rdi))
+sw 1 | true | (= result (ite (= rdi #x0000000000000000) #x0000000000000064 (ite (= rdi #x0000000000000001) #xffffffffffffffff (ite (= rdi #x0000000000000002) #x00000000000000c8 (ite (= rdi #x0000000000000003) #x000000000000001f (bvsub (bvashr rdi #x0000000000000002) (ite (= ((_ extract 1 1) rdi) #b1) #x0000000000000001 #x0000000000000000)))))))
+divs 2 | (and (distinct rsi #x0000000000000000) (not (and (= rdi #x8000000000000000) (= rsi #xffffffffffffffff)))) | (= result (bvadd (bvsdiv rdi rsi) (bvmul (bvsrem rdi rsi) #x0000000000000002)))

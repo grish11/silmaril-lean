@@ -1,0 +1,58 @@
+# Wasm specification library entry (format: docs/projects/wasm-spec-library.md).
+schema = 1
+name = "Max"
+version = "1.0.0"
+summary = "Signed maximum of two i32s, by an if on i32.gt_s."
+status = "verified"
+
+[program]
+kind = "annotated-wat"
+source = "max.wat"
+lean = "Silmaril.WasmSpec.Max.program"
+module = "Silmaril.WasmSpec.Max.Defs"
+functions = ["max"]
+
+[spec]
+module = "Silmaril.WasmSpec.Max.Defs"
+statements = ["Silmaril.WasmSpec.Max.Spec"]
+description = """
+`Spec`: for all x y : BitVec 32, the body of `$max` called on [i32 x, i32 y]
+can return exactly [i32 (smax x y)], smax x y = if y <ₛ x then x else y, without
+changing the store (`Computes`)."""
+runs = "some"
+correctness = "total"
+
+[results]
+module = "Silmaril.WasmSpec.Max.Thms"
+theorems = ["Silmaril.WasmSpec.Max.spec", "Silmaril.WasmSpec.Max.smax_comm"]
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.Max.spec_tactic"
+proves = "Silmaril.WasmSpec.Max.Spec"
+module = "Silmaril.Proofs.WasmSpec.Max.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 2.4
+notes = "wasm_step to the if; wp_if_bool32_cons; case on the comparison; wasm_block; wasm_step."
+
+[[solution]]
+mode = "tactic+smt"
+theorem = "Silmaril.WasmSpec.Max.spec_smt"
+proves = "Silmaril.WasmSpec.Max.Spec"
+module = "Silmaril.Proofs.WasmSpec.Max.Smt"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4", bv_decide = "Lean core (CaDiCaL bundled with v4.35.0-rc4)" }
+check_seconds = 2.0
+notes = "spec_of_vcs (the tactic-mode reduction) + bv_decide per branch VC. bv_decide's preprocessing closes both without a SAT call, so no native axiom is added (see the audit)."
+
+[[solution]]
+mode = "tactic+script"
+theorem = "Silmaril.WasmSpec.Max.Script.spec_script"
+proves = "Silmaril.WasmSpec.Max.Spec"
+module = "Silmaril.Proofs.WasmSpec.Max.Script"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4", wasm-vc = "0.1.0", z3 = "4.16.0" }
+check_seconds = 2.5
+generator = { tool = "tools/wasm-vc", version = "0.1.0", command = "cargo run --manifest-path tools/wasm-vc/Cargo.toml -- gen Silmaril/WasmSpec/Max", outputs = ["Silmaril/Proofs/WasmSpec/Max/Script.lean"] }
+notes = "Conditions from symbolic execution of the annotated WAT (vc.toml); z3 checked them and its unsat cores chose the hints; tactics chosen by trying candidates in Lean."

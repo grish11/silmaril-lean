@@ -1,0 +1,92 @@
+# The toy reduction problem (docs/wasm-sim-reduction.md): the System V contracts of `f`, `sum_to`
+# and `dbl` (toy.S) on Open9, posed as a DAG of small Wasm problems over the P-calls translation.
+schema = "silmaril.wasm-sim.reduce.v0"
+id = "wasm-sim/toy"
+title = "toy f(a, b) = sum_to(a) + dbl(b): caller, a looping callee and a straight-line callee"
+root = "f"
+
+[defs]
+tri = "(define-fun tri ((x (_ BitVec 64))) (_ BitVec 64) (bvudiv (bvmul x (bvadd x #x0000000000000001)) #x0000000000000002))"
+
+[artifact]
+elf = "toy.elf"
+source = "toy.S"
+build = "./build.sh"
+
+[isa]
+model = "models/x86/open9"
+machine = "Silmaril.Machine.X86.Open9.isa"
+template = "FnCorrectDet"
+
+[sim]
+interface = "silmaril.wasm-sim.x86.methods.v0"
+representation = "G"
+wat = "../../x86/x86-g.wat"
+alternatives = [{ representation = "M", wat = "../../x86/x86-m.wat" }]
+
+[lean]
+module = "Silmaril.Sim.Reduce.Toy.Defs"
+isa = "Silmaril.Sim.Reduce.Toy.isaGoal .{fn}"
+wasm = "Silmaril.Sim.Reduce.Toy.J K Init .{fn}"
+ag = "Silmaril.Sim.Reduce.Toy.piece K Init .{fn}"
+composition = "Silmaril.Sim.Reduce.Toy.isa_of_pieces"
+
+# Contracts: SMT-LIB terms over simulator locations; `(reg r)` after, `(old (reg r))` at entry.
+# The System V obligations (AbiEntry/AbiReturn: rsp, return address, callee-saved) are implicit.
+[[function]]
+name = "sum_to"
+lean = "sumTo"
+spec = "Silmaril.Sim.Reduce.Toy.spec .sumTo"
+requires = "true"
+ensures = "(= (reg rax) (tri (old (reg rdi))))"
+isa_lean = "Silmaril.Sim.Reduce.Toy.isaGoal .sumTo"
+dispatch = { piece = "Silmaril.Sim.Reduce.Toy.SumTo.PieceStmt", piece_solution = "Silmaril.Sim.Reduce.Toy.SumTo.piece", x86 = "Silmaril.Sim.Reduce.Toy.SumTo.X86Stmt", x86_of_piece = "Silmaril.Sim.Reduce.Toy.SumTo.x86_of_piece", term = "Silmaril.Sim.Reduce.Toy.SumTo.TermStmt", isa_of = "Silmaril.Sim.Reduce.Toy.SumTo.isa_of", rank = "Silmaril.Sim.Reduce.Toy.SumTo.RankStmt", rank_solution = "Silmaril.Sim.Reduce.Toy.SumTo.rank", term_of_rank = "Silmaril.Sim.Reduce.Toy.SumTo.term_of_rank" }
+[[function.cut]]
+at = 7
+invariant = "(and (bvule (reg rdi) (old (reg rdi))) (= (bvadd (reg rax) (tri (reg rdi))) (tri (old (reg rdi)))))"
+decreases = "(reg rdi)"
+
+[[function]]
+name = "dbl"
+lean = "dbl"
+spec = "Silmaril.Sim.Reduce.Toy.spec .dbl"
+requires = "true"
+ensures = "(= (reg rax) (bvadd (old (reg rdi)) (old (reg rdi))))"
+isa_lean = "Silmaril.Sim.Reduce.Toy.isaGoal .dbl"
+insn = { piece = "Silmaril.Sim.Reduce.Toy.Dbl.PieceStmt", piece_solution = "Silmaril.Sim.Reduce.Toy.Dbl.piece", piece_problem = "wasm-sim/toy/insn/dbl-piece", fns = "Silmaril.Sim.Reduce.PCalls.StepFns Toy.Dbl.dblStore … dblProg dblCalls", fns_solution = "Silmaril.Sim.Reduce.Toy.Dbl.dbl_fns", x86 = "Silmaril.Sim.Reduce.Toy.Dbl.X86Stmt", x86_of_piece = "Silmaril.Sim.Reduce.Toy.Dbl.x86_of_piece", isa_of_x86 = "Silmaril.Sim.Reduce.Toy.Dbl.isa_of_x86" }
+
+[[function]]
+name = "f"
+lean = "f"
+spec = "Silmaril.Sim.Reduce.Toy.spec .f"
+requires = "true"
+ensures = "(= (reg rax) (bvadd (tri (old (reg rdi))) (bvadd (old (reg rsi)) (old (reg rsi)))))"
+isa_lean = "Silmaril.Sim.Reduce.Toy.isaGoal .f"
+[function.decomposed]
+callees = ["sum_to", "dbl"]
+theorem = "Silmaril.Sim.Reduce.Toy.F.isa_f_of"
+[[function.decomposed.piece]]
+id = "wasm-seg-a/f"
+statement = "segment A of f's dispatcher (push, push, sub, mov, call sum_to): cut points with a measure"
+lean = "Silmaril.Sim.Reduce.Toy.F.EntriesA"
+solution = "Silmaril.Sim.Reduce.Toy.F.entriesA_sol"
+[[function.decomposed.piece]]
+id = "wasm-seg-b/f"
+statement = "segment B (return of sum_to: mov, mov, call dbl)"
+lean = "Silmaril.Sim.Reduce.Toy.F.EntriesB"
+solution = "Silmaril.Sim.Reduce.Toy.F.entriesB_sol"
+[[function.decomposed.piece]]
+id = "wasm-seg-c/f"
+statement = "segment C (return of dbl: add, add, pop, pop, ret)"
+lean = "Silmaril.Sim.Reduce.Toy.F.EntriesC"
+solution = "Silmaril.Sim.Reduce.Toy.F.entriesC_sol"
+
+
+[[test]]
+args = [3, 4]
+[[test]]
+args = [0, 0]
+[[test]]
+args = [100, -7]
+[[test]]
+args = [65535, 9223372036854775807]

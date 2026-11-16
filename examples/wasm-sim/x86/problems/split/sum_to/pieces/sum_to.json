@@ -1,0 +1,36 @@
+{
+  "address": "0x40001b",
+  "bytes": "31c04885ff74084801f848ffcf75f8c3",
+  "function": "sum_to",
+  "id": "wasm-sim/x86/sum_to/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "i_alu_rr",
+        "i_jmp",
+        "i_next",
+        "i_ret",
+        "i_unary_r"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../sum_to.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= (reg rax) (tri (old (reg rdi))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000100100) (bvule (old (reg rsp)) #x000000000010fff8)) (bvule (old (reg rdi)) #x0000000000001000))"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `sum_to` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

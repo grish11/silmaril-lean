@@ -56,6 +56,7 @@ project:
   - 'examples/project/**'
   - 'examples/project-formats/**'
   - 'examples/wasm-acceptors/**'
+  - 'examples/wasm-checkers/**'
   - 'examples/compiles-to/**'
   - 'examples/sysv-tv/**'
   - 'tools/silmaril-project/**'

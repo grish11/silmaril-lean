@@ -1,0 +1,40 @@
+{
+  "address": "0x40009c",
+  "bytes": "31c0b94000000048d1ef0f92c20fb6d201d0ffc975f1c3",
+  "function": "popcount2",
+  "id": "wasm-sim/x86/popcount2/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "i_alu_rr",
+        "i_jmp",
+        "i_mov_ri",
+        "i_movx_rr",
+        "i_next",
+        "i_ret",
+        "i_setcc_r",
+        "i_shift_ri",
+        "i_unary_r"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../popcount2.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= (reg rax) (popcount (old (reg rdi))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `popcount2` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

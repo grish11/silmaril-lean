@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Elf.Staged.Reader.Defs
 public import Silmaril.Elf.Staged.Thms
+public import Silmaril.Elf.Facts.Defs
 import Silmaril.Proofs.Elf.Staged.Reader
 
 /-! # The kernel-bytes reader is sound
@@ -10,6 +11,7 @@ import Silmaril.Proofs.Elf.Staged.Reader
 * `sub_window`: restricting a source to windows keeps it sound.
 * `partIs_of_kbytes`, `zerosAt_of_kbytes`: a part (or zero padding) of the raw file from one
   kernel run on its kernel bytes.
+* `codeAt_of_kbytes`: `Silmaril.Elf.CodeAt` of the raw file from one kernel read.
 * `PartIs.run`, `PartIs.layoutIs`, `PartIs.bodyIs`, `PartIs.loaderIs`: a part as a fact of the
   specification and of the staged parse.
 
@@ -45,6 +47,16 @@ theorem zerosAt_of_kbytes {x : KBytes} (hx : x.wf = true) {raw : ByteArray}
     (h : x.toByteArray = raw) {o n : Nat} (hc : kread x o n = some 0) :
     ZerosAt (blobOf ⟨raw⟩) o n :=
   sub_kbytes hx h o n 0 hc
+
+/-- **Code at a virtual address of the raw file** (`Silmaril.Elf.CodeAt`), from its parse, the
+`PT_LOAD` that maps the address, and one kernel read of the code's bytes on kernel bytes. -/
+theorem codeAt_of_kbytes {x : KBytes} (hx : x.wf = true) {raw : ByteArray}
+    (h : x.toByteArray = raw) {A : File} (hp : Parses (blobOf ⟨raw⟩) A) {v : Nat}
+    {code : List (BitVec 8)} {ph : Silmaril.Formats.ELF.ProgramHeader}
+    (hf : A.phdrs.find? (codeSeg v code.length) = some ph)
+    (hc : kread x (ph.offset + (v - ph.virtualAddress)) code.length =
+      some (Silmaril.X86.Link.Blob.valueLE code)) : CodeAt (blobOf ⟨raw⟩) v code :=
+  ⟨A, hp, ph, hf, sub_kbytes hx h _ _ _ hc⟩
 
 /-- A part is what the specification's reader returns on the whole file. -/
 theorem PartIs.run {α : Type} {F : Blob} {ws : List Span} {p : Rd α} {v : α}

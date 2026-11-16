@@ -28,10 +28,11 @@ component game logic).
 `program → comp`, `linked → comp` (dual of `flatten`) and `comp → module` (dual of `wrap`).
 
 `fullGraph₂ P host Env C` joins `GameGraph.fullGraph P host Env` with `compGraph C`. It has **no
-cross edges**: the core modules `M` of the component IR are abstract, with no `CoreModule`
-instance for silmaril's `Module`/`BModule` and no `CoreSem` built from silmaril's Core semantics,
-and the component game signatures (`sigU` with payloads) differ from the export signatures of
-part A (`exportSig`, with behaviours). Every path of `fullGraph₂` is model-expansive.
+cross edges**: the component game signatures (`sigU` with payloads) differ from the export
+signatures of part A (`exportSig`, with behaviours), and no translation between their sentences
+is defined. The core semantics is a parameter; its Core 3.0 instance is `core3Sem P` over numeric
+instances (`NumInstance`), and `Silmaril.Wasm.Institution.Core3Graph` instantiates both graphs
+there. Every path of `fullGraph₂` is model-expansive.
 -/
 
 namespace Silmaril.Wasm.Institution.CompGraph

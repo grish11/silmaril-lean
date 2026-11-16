@@ -1,0 +1,34 @@
+{
+  "address": "0x4002e0",
+  "bytes": "89f866c1c008c3",
+  "function": "bswap16",
+  "id": "wasm-sim/x86/bswap16/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "i_mov_rr",
+        "i_next",
+        "i_ret",
+        "i_shift_ri"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../bswap16.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= ((_ extract 15 0) (reg rax)) (concat ((_ extract 7 0) (old (reg rdi))) ((_ extract 15 8) (old (reg rdi)))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `bswap16` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

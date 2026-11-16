@@ -1,0 +1,10 @@
+kind = "equiv"
+description = "i_add_rr: two G-representation implementations agree on all registers and flags"
+pre = ["(bvult p0 #x00000004)", "(bvult p1 #x00000004)"]
+expect = "proved"
+[a]
+modules = [{ name = "sim", wat = "flags-a.wat" }]
+entry = "i_add_rr"
+[b]
+modules = [{ name = "sim", wat = "flags-b.wat" }]
+entry = "i_add_rr"

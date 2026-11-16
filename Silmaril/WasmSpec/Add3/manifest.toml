@@ -1,0 +1,42 @@
+# Wasm specification library entry (format: docs/projects/wasm-spec-library.md).
+schema = 1
+name = "Add3"
+version = "1.0.0"
+summary = "add3 x y z = add (add x y) z through an imported adder, verified against Adder's call-level spec."
+status = "verified"
+
+[program]
+kind = "annotated-wat"
+source = "add3.wat"
+lean = "Silmaril.WasmSpec.Add3.program"
+module = "Silmaril.WasmSpec.Add3.Defs"
+functions = ["add3"]
+
+[spec]
+module = "Silmaril.WasmSpec.Add3.Defs"
+statements = ["Silmaril.WasmSpec.Add3.Spec"]
+description = """
+`Spec`: for every function address a satisfying Adder.CallSpec in stores
+satisfying Inv, with function 0 of the instance at a, the body of `$add3` on
+[i32 x, i32 y, i32 z] can return exactly [i32 (x + y + z)] with the store
+unchanged. `spec_with_adder` links it with Adder's own `$add`."""
+runs = "some"
+correctness = "total"
+
+[results]
+module = "Silmaril.WasmSpec.Add3.Thms"
+theorems = ["Silmaril.WasmSpec.Add3.spec", "Silmaril.WasmSpec.Add3.spec_with_adder"]
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.Add3.spec_tactic"
+proves = "Silmaril.WasmSpec.Add3.Spec"
+module = "Silmaril.Proofs.WasmSpec.Add3.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 12.0
+notes = "add_call: wp_call against Adder.CallSpec only; wasm_step between calls."
+
+[[dependency]]
+entry = "Adder"
+version = "^1"

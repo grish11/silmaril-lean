@@ -1,0 +1,39 @@
+{
+  "address": "0x400380",
+  "bytes": "0fbfff0fbff6b8ff7f000001f781ffff7f00007f0e81ff0080ffffb80080ffff0f4dc7c3",
+  "function": "sat_add16",
+  "id": "wasm-sim/x86/sat_add16/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "i_alu_ri",
+        "i_alu_rr",
+        "i_cmov_rr",
+        "i_jmp",
+        "i_mov_ri",
+        "i_movx_rr",
+        "i_next",
+        "i_ret"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../sat_add16.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= ((_ extract 15 0) (reg rax)) (let ((s (bvadd ((_ sign_extend 16) ((_ extract 15 0) (old (reg rdi)))) ((_ sign_extend 16) ((_ extract 15 0) (old (reg rsi))))))) (ite (bvsgt s #x00007fff) #x7fff (ite (bvslt s #xffff8000) #x8000 ((_ extract 15 0) s)))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `sat_add16` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

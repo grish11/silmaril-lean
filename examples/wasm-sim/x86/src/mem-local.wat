@@ -1,0 +1,17 @@
+;; Memory owned by the module (for closed "problem" modules): one Wasm memory `mem` (exported)
+;; mapping guest addresses [0x100000, 0x100000 + 64 KiB) to offsets 0..64 KiB; any other
+;; access traps (= fault). Same signatures as the mem.* imports.
+  (memory $mem (export "mem") 1)
+  (func $off (param $a i64) (param $n i64) (result i32)
+    (if (i64.gt_u (i64.add (i64.sub (local.get $a) (i64.const 0x100000)) (local.get $n)) (i64.const 0x10000))
+      (then (unreachable)))
+    (if (i64.lt_u (local.get $a) (i64.const 0x100000)) (then (unreachable)))
+    (i32.wrap_i64 (i64.sub (local.get $a) (i64.const 0x100000))))
+  (func $load8 (param $a i64) (result i64) (i64.load8_u (call $off (local.get $a) (i64.const 1))))
+  (func $load16 (param $a i64) (result i64) (i64.load16_u (call $off (local.get $a) (i64.const 2))))
+  (func $load32 (param $a i64) (result i64) (i64.load32_u (call $off (local.get $a) (i64.const 4))))
+  (func $load64 (param $a i64) (result i64) (i64.load (call $off (local.get $a) (i64.const 8))))
+  (func $store8 (param $a i64) (param $v i64) (i64.store8 (call $off (local.get $a) (i64.const 1)) (local.get $v)))
+  (func $store16 (param $a i64) (param $v i64) (i64.store16 (call $off (local.get $a) (i64.const 2)) (local.get $v)))
+  (func $store32 (param $a i64) (param $v i64) (i64.store32 (call $off (local.get $a) (i64.const 4)) (local.get $v)))
+  (func $store64 (param $a i64) (param $v i64) (i64.store (call $off (local.get $a) (i64.const 8)) (local.get $v)))
