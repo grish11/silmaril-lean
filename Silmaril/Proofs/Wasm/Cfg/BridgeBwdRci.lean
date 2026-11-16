@@ -181,15 +181,16 @@ theorem first_step {s s' : Store H} {f f' : Frame} {us : List Val} {i : Instr} {
   · obtain ⟨ws, vs, c₀, rfl, hf, rfl⟩ := Step.noncontrol_vals_inv hk h1
     exact ⟨ws, vs, c₀, rfl, hf, h2⟩
 
-/-- **`return_call_indirect` without a callee, backwards**: a region run whose outcome is not a
-pending tail call of a function resolves the index to no callee and traps, or reaches a pending
-tail call of null, in the same store and frame. -/
-theorem run_rci_inv {s s' : Store H} {f f' : Frame} {us : List Val} {x : TableIdx}
+/-- **`return_call_indirect`, backwards**: a region run resolves the index under the top as
+`CallRes.IndRes` does, in the same store and frame. Without a callee it traps or reaches a pending
+tail call of null; with one, it ends in a pending tail call of that callee over the values under
+the index. -/
+theorem run_rci_cases {s s' : Store H} {f f' : Frame} {us : List Val} {x : TableIdx}
     {y : TypeIdx} {out : Region.Out}
-    (h : RunC PP Interp.noHostX C s f us [.plain (.returnCallIndirect x y)] s' f' out)
-    (hnt : ∀ W a c, out ≠ .tail W a c) :
-    ∃ W a i, us = W ++ [.num ⟨.int a.intType, i⟩] ∧ IndRes s f x y a i none ∧ s' = s ∧
-      f' = f ∧ (out = .trap ∨ ∃ c, out = .tailNull W c) := by
+    (h : RunC PP Interp.noHostX C s f us [.plain (.returnCallIndirect x y)] s' f' out) :
+    ∃ W a i, us = W ++ [.num ⟨.int a.intType, i⟩] ∧ s' = s ∧ f' = f ∧
+      ((IndRes s f x y a i none ∧ (out = .trap ∨ ∃ c, out = .tailNull W c)) ∨
+        ∃ fa c, IndRes s f x y a i (some fa) ∧ out = .tail W fa c) := by
   cases h with
   | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
   | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
@@ -225,12 +226,16 @@ theorem run_rci_inv {s s' : Store H} {f f' : Frame} {us : List Val} {x : TableId
             subst hv'
             generalize hW : ws ++ [Val.ref r] = W at h₃
             cases h₃ with
-            | returnCallRef hc => exact absurd rfl (hnt _ _ _)
+            | returnCallRef hc =>
+              obtain ⟨rfl, hrr⟩ := List.append_inj' hW rfl
+              simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
+              subst hrr
+              exact ⟨ws, a, i, rfl, rfl, rfl, .inr ⟨_, _, .func ht hr hok, rfl⟩⟩
             | returnCallRefNull hc =>
               obtain ⟨rfl, hrr⟩ := List.append_inj' hW rfl
               simp only [List.cons.injEq, Val.ref.injEq, and_true] at hrr
               subst hrr
-              exact ⟨ws, a, i, rfl, .null ht hr hok, rfl, rfl, .inr ⟨_, rfl⟩⟩
+              exact ⟨ws, a, i, rfl, rfl, rfl, .inl ⟨.null ht hr hok, .inr ⟨_, rfl⟩⟩⟩
             | val hv => simp [Admin.val?] at hv
             | simple hi => simp [SingleThreaded.Det.famOf] at hi
             | simpleTrap hi => simp [SingleThreaded.Det.famOf] at hi
@@ -257,7 +262,7 @@ theorem run_rci_inv {s s' : Store H} {f f' : Frame} {us : List Val} {x : TableId
               (trap_nf (o := o) _ _) (trap_nf (o := o) _ _)
             simp only [Config.mk.injEq] at he
             obtain ⟨hs', hf', -⟩ := he
-            exact ⟨ws, a, i, rfl, .castFail ht hr hok, hs', hf', .inl rfl⟩
+            exact ⟨ws, a, i, rfl, hs', hf', .inl ⟨.castFail ht hr hok, .inl rfl⟩⟩
       · exact absurd (congrArg Config.code (uniq hrest
           (by simpa using Proofs.Region.steps_trap (P := PP) (host := Interp.noHostX) s f ws [])
           (vals_nf (o := o) _ _ _) (trap_nf (o := o) _ _))) vals_ne_trap
@@ -271,7 +276,20 @@ theorem run_rci_inv {s s' : Store H} {f f' : Frame} {us : List Val} {x : TableId
           (trap_nf (o := o) _ _) (trap_nf (o := o) _ _)
         simp only [Config.mk.injEq] at he
         obtain ⟨hs', hf', -⟩ := he
-        exact ⟨ws, a, i, rfl, .oob ht hl, hs', hf', .inl rfl⟩
+        exact ⟨ws, a, i, rfl, hs', hf', .inl ⟨.oob ht hl, .inl rfl⟩⟩
+
+/-- **`return_call_indirect` without a callee, backwards**: a region run whose outcome is not a
+pending tail call of a function resolves the index to no callee and traps, or reaches a pending
+tail call of null, in the same store and frame. -/
+theorem run_rci_inv {s s' : Store H} {f f' : Frame} {us : List Val} {x : TableIdx}
+    {y : TypeIdx} {out : Region.Out}
+    (h : RunC PP Interp.noHostX C s f us [.plain (.returnCallIndirect x y)] s' f' out)
+    (hnt : ∀ W a c, out ≠ .tail W a c) :
+    ∃ W a i, us = W ++ [.num ⟨.int a.intType, i⟩] ∧ IndRes s f x y a i none ∧ s' = s ∧
+      f' = f ∧ (out = .trap ∨ ∃ c, out = .tailNull W c) := by
+  obtain ⟨W, a, i, rfl, rfl, rfl, ⟨hres, ho⟩ | ⟨fa, c, -, rfl⟩⟩ := run_rci_cases h
+  · exact ⟨W, a, i, rfl, hres, rfl, rfl, ho⟩
+  · exact absurd rfl (hnt _ _ _)
 
 end Forced
 

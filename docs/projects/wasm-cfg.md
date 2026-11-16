@@ -306,10 +306,15 @@ The plain graph stays an over-approximation, and claims about it say so.
      callee trap natively. `return_call_indirect`'s `table.get; ref.cast` Core runs are forced at
      the deterministic profile without host (unique host-free normal forms,
      `BridgeBwdRci.run_rci_inv`).
-   - **Backward, open:** a region run ending in a pending tail call of a function (`Out.tail`),
-     answered at the frame while the native evaluator answers it at once: the statement for
-     that outcome is about every oracle answer. This replaces the last goal of the draft #494,
-     whose `sorry`s are not merged.
+   - **Backward, pending tail calls, done**: `bridge_bwd_tail` (and `_closedX`): a region run
+     ending in `Out.tail W a c` corresponds, for **every** oracle answer to that call
+     (`ResOut … (.tail W a c) r`), to a native run to `r`; the callee's parameters are on `W`
+     (typing at the call site), so enclosing labels do not change the arguments.
+     `bridge_bwd_answered` (and `_closedX`) is the existence form: if the outcome is not a
+     pending tail call, or the oracle answers it, the region run is a native run with the same
+     oracle, ending as `ResOut` says. This is the draft #494's `Task.bwd` with its honest
+     hypothesis: without an answer to a pending tail call there is no native result. The draft's
+     `sorry`s are replaced and it is not merged.
    - **CFG corollaries, done** (`Cfg.BridgeCfg`): `machine_native` (a machine run from
      `cfgEntry` of typed trees without tail calls to a sink is a native run with the same
      oracle, the sink's `EndsC` and the native result related by `ResOut`) and `native_machine`

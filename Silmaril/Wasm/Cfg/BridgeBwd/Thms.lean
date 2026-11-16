@@ -8,6 +8,7 @@ public import Silmaril.Wasm.Execution.Core.Sim.TypedContext
 public import Silmaril.Wasm.Interp.OracleX.Thms
 public import Silmaril.Wasm.Cfg.MachineClosedX.Defs
 import Silmaril.Proofs.Wasm.Cfg.BridgeBwdTree
+import Silmaril.Proofs.Wasm.Cfg.BridgeBwdTail
 
 @[expose] public section
 
@@ -48,9 +49,16 @@ The converse of `Cfg.Bridge.bridge_fwd`, built in bounded steps. Proofs are in
   deterministic profile without host these runs are forced (unique host-free normal forms), so
   they resolve the index as `CallRes.IndRes` does.
 
-Not claimed here: a region run ending in a pending tail call of a function (`Region.Out.tail`),
-answered only at the frame, while the native evaluator answers it at once; the backward statement
-for that outcome is about every oracle answer, and is the next step.
+* **`bridge_bwd_tail`**, **`bridge_bwd_tail_closedX`**: a region run ending in a pending tail call
+  of a function (`Region.Out.tail W a c`, answered only at the frame) corresponds, for **every**
+  answer of the oracle to that call (`ResOut … (.tail W a c) r`), to a native run to `r`: the
+  native evaluator makes the call at once (`EvalOX.tail`). The callee's parameters are on `W`
+  (from typing at the call site), so the values an enclosing label puts under `W` do not change
+  the call's arguments.
+* **`bridge_bwd_answered`**, **`bridge_bwd_answered_closedX`**: the two together, as an existence
+  statement: if the outcome is not a pending tail call, or the oracle answers it, the region run
+  is a native run with the same oracle, ending as `ResOut` says. Without an answer to a pending
+  tail call there is no native result, so the hypothesis cannot be dropped.
 -/
 
 namespace Silmaril.Wasm.Cfg.Bridge
@@ -140,5 +148,56 @@ theorem bridge_bwd_nonTail_closedX {o : SingleThreaded.GrowOracle} {s s' : Store
     ∃ r, Abstract.CallX.EvalOX Machine.closedXOk s f stk es r ∧ ResOut Machine.closedXOk s' f' out r :=
   bridge_bwd_nonTail (Proofs.Bridge.oracleSoundT_closedXOk (SingleThreaded.profile o))
     Proofs.Bridge.keepsTy_closedXOk ht hnt h
+
+/-- **The backward bridge for a pending tail call**: for every answer of the oracle to the
+pending call, the trees run natively to the result it gives. -/
+theorem bridge_bwd_tail {o : SingleThreaded.GrowOracle} {P₀ : Numerics.Profile}
+    {C : Abstract.CallRel H} (hC : Interp.OracleSoundT P₀ Interp.noHostX C)
+    (hCk : Abstract.CallXT.KeepsTy C) {s s' : Store H} {f f' : Frame} {stk W : List Val}
+    {es : List BExpr} {a : Nat} {c : Admin} (ht : Interp.TypedT s f stk es)
+    (h : Region.RunC (SingleThreaded.profile o) Interp.noHostX C s f stk.reverse
+      (expression (BExpr.lowerList es)) s' f' (.tail W a c))
+    {r : Store H × Frame × Flow} (hr : ResOut C s' f' (.tail W a c) r) :
+    Abstract.CallX.EvalOX C s f stk es r :=
+  (Proofs.Bridge.bwdTL_all hC hCk es ht h).2 r hr
+
+/-- `bridge_bwd_tail` for the typed closed extended oracle (no oracle hypothesis). -/
+theorem bridge_bwd_tail_closedX {o : SingleThreaded.GrowOracle} {s s' : Store H} {f f' : Frame}
+    {stk W : List Val} {es : List BExpr} {a : Nat} {c : Admin} (ht : Interp.TypedT s f stk es)
+    (h : Region.RunC (SingleThreaded.profile o) Interp.noHostX Machine.closedXOk s f stk.reverse
+      (expression (BExpr.lowerList es)) s' f' (.tail W a c))
+    {r : Store H × Frame × Flow} (hr : ResOut Machine.closedXOk s' f' (.tail W a c) r) :
+    Abstract.CallX.EvalOX Machine.closedXOk s f stk es r :=
+  bridge_bwd_tail (Proofs.Bridge.oracleSoundT_closedXOk (SingleThreaded.profile o))
+    Proofs.Bridge.keepsTy_closedXOk ht h hr
+
+/-- **The backward bridge, as an existence statement**: if the region outcome is not a pending
+tail call, or the oracle answers it, the region run of typed trees is a native run with the same
+oracle, ending as `ResOut` says. -/
+theorem bridge_bwd_answered {o : SingleThreaded.GrowOracle} {P₀ : Numerics.Profile}
+    {C : Abstract.CallRel H} (hC : Interp.OracleSoundT P₀ Interp.noHostX C)
+    (hCk : Abstract.CallXT.KeepsTy C) {s s' : Store H} {f f' : Frame} {stk : List Val}
+    {es : List BExpr} {out : Region.Out} (ht : Interp.TypedT s f stk es)
+    (hans : (∀ W a c, out ≠ .tail W a c) ∨ ∃ r, ResOut C s' f' out r)
+    (h : Region.RunC (SingleThreaded.profile o) Interp.noHostX C s f stk.reverse
+      (expression (BExpr.lowerList es)) s' f' out) :
+    ∃ r, Abstract.CallX.EvalOX C s f stk es r ∧ ResOut C s' f' out r := by
+  by_cases hnt : ∀ W a c, out ≠ .tail W a c
+  · exact bridge_bwd_nonTail hC hCk ht hnt h
+  · simp only [not_forall, not_not] at hnt
+    obtain ⟨W, a, c, rfl⟩ := hnt
+    obtain ⟨r, hr⟩ := hans.resolve_left (fun hn => hn W a c rfl)
+    exact ⟨r, bridge_bwd_tail hC hCk ht h hr, hr⟩
+
+/-- `bridge_bwd_answered` for the typed closed extended oracle (no oracle hypothesis). -/
+theorem bridge_bwd_answered_closedX {o : SingleThreaded.GrowOracle} {s s' : Store H}
+    {f f' : Frame} {stk : List Val} {es : List BExpr} {out : Region.Out}
+    (ht : Interp.TypedT s f stk es)
+    (hans : (∀ W a c, out ≠ .tail W a c) ∨ ∃ r, ResOut Machine.closedXOk s' f' out r)
+    (h : Region.RunC (SingleThreaded.profile o) Interp.noHostX Machine.closedXOk s f stk.reverse
+      (expression (BExpr.lowerList es)) s' f' out) :
+    ∃ r, Abstract.CallX.EvalOX Machine.closedXOk s f stk es r ∧ ResOut Machine.closedXOk s' f' out r :=
+  bridge_bwd_answered (Proofs.Bridge.oracleSoundT_closedXOk (SingleThreaded.profile o))
+    Proofs.Bridge.keepsTy_closedXOk ht hans h
 
 end Silmaril.Wasm.Cfg.Bridge

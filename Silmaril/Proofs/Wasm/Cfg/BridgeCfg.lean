@@ -93,4 +93,46 @@ theorem native_machine_closedX (P : Profile) {s : Store H} {f : Frame} {es : Lis
     (Interp.OracleX.evalOXT_of_typedT (Proofs.Bridge.oracleSoundT_closedXOk P)
       Proofs.Bridge.keepsTy_closedXOk h ht) hS hchk
 
+/-- A sink completing a pending tail call carries the oracle's answer to it. -/
+theorem endsC_answered {st' : MState H} {s₂ : Store H} {f₂ : Frame} {out : Region.Out}
+    (hE : EndsC C st' s₂ f₂ out) : (∀ W a c, out ≠ .tail W a c) ∨ ∃ r, ResOut C s₂ f₂ out r := by
+  cases out with
+  | tail W a c =>
+    right
+    obtain ⟨fi, ps, rs, W₀, args, fl, s₃, hfi, hty, hW, hn, hcall, hend⟩ := hE
+    refine ⟨(s₃, f₂, Abstract.CallX.tailFlow rs.length fl), fi, ps, rs, W₀, args, fl, hfi, hty,
+      hW, hn, hcall, ?_, rfl, rfl⟩
+    cases fl with
+    | trap => exact .inr (by simp [Flow.Abrupt])
+    | throw t => exact .inr (by simp [Flow.Abrupt])
+    | _ =>
+      left
+      simp only [tailEnd, Option.map_eq_some_iff] at hend
+      obtain ⟨vs, hvs, -⟩ := hend
+      exact ⟨vs, hvs⟩
+  | _ => exact .inl (fun _ _ _ h => by cases h)
+
+theorem machine_native_typed {o : SingleThreaded.GrowOracle} {P₀ : Profile}
+    (hC : Interp.OracleSoundT P₀ Interp.noHostX C) (hCk : Abstract.CallXT.KeepsTy C)
+    {s : Store H} {f : Frame} {es : List BExpr} {st' : MState H}
+    (ht : Interp.TypedT s f [] es)
+    (h : Relation.ReflTransGen (MStepC (SingleThreaded.profile o) Interp.noHostX C
+      (BExpr.lowerList es)) (initial (BExpr.lowerList es) s f) st')
+    (hs : st'.node.IsSink) :
+    ∃ out s₂ f₂ r, EndsC C st' s₂ f₂ out ∧ Abstract.CallX.EvalOX C s f [] es r ∧
+      ResOut C s₂ f₂ out r := by
+  obtain ⟨out, s₂, f₂, hE, hR⟩ := run_sound_initialC h hs
+  obtain ⟨r, hr, hres⟩ := bridge_bwd_answered hC hCk ht (endsC_answered hE) hR
+  exact ⟨out, s₂, f₂, r, hE, hr, hres⟩
+
+theorem machine_native_typed_closedX {o : SingleThreaded.GrowOracle} {s : Store H} {f : Frame}
+    {es : List BExpr} {st' : MState H} (ht : Interp.TypedT s f [] es)
+    (h : Relation.ReflTransGen (MStepC (SingleThreaded.profile o) Interp.noHostX closedXOk
+      (BExpr.lowerList es)) (initial (BExpr.lowerList es) s f) st')
+    (hs : st'.node.IsSink) :
+    ∃ out s₂ f₂ r, EndsC closedXOk st' s₂ f₂ out ∧ Abstract.CallX.EvalOX closedXOk s f [] es r ∧
+      ResOut closedXOk s₂ f₂ out r :=
+  machine_native_typed (Proofs.Bridge.oracleSoundT_closedXOk (SingleThreaded.profile o))
+    Proofs.Bridge.keepsTy_closedXOk ht h hs
+
 end Silmaril.Wasm.Cfg.Proofs.BridgeCfg

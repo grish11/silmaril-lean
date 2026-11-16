@@ -752,6 +752,35 @@ theorem bwd1_block {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
     (by simpa [BExpr.lower, expression] using h)
   exact evalOX_block har hrb he
 
+/-- The loop invariant of a typed loop: typed at each entry, at the loop's arity. -/
+def LoopInv (bt : BlockType) (body : List BExpr) (np nr : Nat) (s : Store H) (f : Frame)
+    (stk : List Val) : Prop :=
+  TypedT s f stk [.loop bt body] ∧ Binaryen.arity f bt = some (np, nr)
+
+/-- **A typed loop's entries satisfy what the loop's backward case needs.** -/
+theorem loopStep_of {bt : BlockType} {body : List BExpr} {np nr : Nat} (ihb : BwdL o C body) :
+    ∀ {s f stk}, LoopInv bt body np nr s f stk →
+      LoopStep (SingleThreaded.profile o) noHostX C bt body np nr (tailFreeL body = true)
+        (LoopInv bt body np nr) s f stk := by
+  rintro s f stk ⟨ht1, har⟩
+  have ht2 := ht1
+  obtain ⟨rest, labels, ret, out', hS, hc, -, -, -⟩ := ht2
+  obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
+  have htb := loop_body_typedT (P := P₀) har ht1
+  refine ⟨har, hp, fun hT hr => ihb htb hT hr, fun hrun => ?_, fun hrun => ?_, fun hrun => ?_⟩
+  · obtain ⟨ob, hob, -, hok, -⟩ := body_facts hS
+      (arityG hC (evalOXT_of_typedT hC hCk hrun htb)) hb (take_length_of_le hp)
+    exact length_of_ends hok hob
+  · obtain ⟨ob, hob, -, hok, -⟩ := body_facts hS
+      (arityG hC (evalOXT_of_typedT hC hCk hrun htb)) hb (take_length_of_le hp)
+    obtain ⟨m, hm, hle⟩ := hok
+    simp only [List.getElem?_cons_zero, Option.some.injEq] at hm
+    exact hm ▸ hle
+  · have hT := evalOXT_of_typedT hC hCk hrun htb
+    obtain ⟨-, -, -, -, inv⟩ := body_facts hS (arityG hC hT) hb (take_length_of_le hp)
+    refine ⟨loop_back_typedT hC hCk har hT ht1, ?_⟩
+    rw [arity_eq, inv.2.1, ← arity_eq]; exact har
+
 /-- **A loop tree, backwards**, through every re-entry. -/
 theorem bwd1_loop {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
     Bwd1 o C (.loop bt body) := by
@@ -762,28 +791,9 @@ theorem bwd1_loop {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
   obtain ⟨o₀, h1, -⟩ := chk_consE.mp hc
   obtain ⟨np, nr, ha, -⟩ := chk1_loopE h1
   have har : Binaryen.arity f bt = some (np, nr) := by rw [arity_eq]; exact ha
-  let Inv : Store H → Frame → List Val → Prop := fun s f stk =>
-    TypedT s f stk [.loop bt body] ∧ Binaryen.arity f bt = some (np, nr)
-  have hI : ∀ {s f stk}, Inv s f stk →
-      LoopStep (SingleThreaded.profile o) noHostX C bt body np nr (tailFreeL body = true) Inv s f stk := by
-    rintro s f stk ⟨ht1, har⟩
-    have ht2 := ht1
-    obtain ⟨rest, labels, ret, out', hS, hc, -, -, -⟩ := ht2
-    obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
-    have htb := loop_body_typedT (P := P₀) har ht1
-    refine ⟨har, hp, fun hT hr => ihb htb hT hr, fun hrun => ?_, fun hrun => ?_, fun hrun => ?_⟩
-    · obtain ⟨ob, hob, -, hok, -⟩ := body_facts hS
-        (arityG hC (evalOXT_of_typedT hC hCk hrun htb)) hb (take_length_of_le hp)
-      exact length_of_ends hok hob
-    · obtain ⟨ob, hob, -, hok, -⟩ := body_facts hS
-        (arityG hC (evalOXT_of_typedT hC hCk hrun htb)) hb (take_length_of_le hp)
-      obtain ⟨m, hm, hle⟩ := hok
-      simp only [List.getElem?_cons_zero, Option.some.injEq] at hm
-      exact hm ▸ hle
-    · have hT := evalOXT_of_typedT hC hCk hrun htb
-      obtain ⟨-, -, -, -, inv⟩ := body_facts hS (arityG hC hT) hb (take_length_of_le hp)
-      refine ⟨loop_back_typedT hC hCk har hT ht1, ?_⟩
-      rw [arity_eq, inv.2.1, ← arity_eq]; exact har
+  have hI : ∀ {s f stk}, LoopInv bt body np nr s f stk →
+      LoopStep (SingleThreaded.profile o) noHostX C bt body np nr (tailFreeL body = true)
+        (LoopInv bt body np nr) s f stk := fun hinv => loopStep_of hC hCk ihb hinv
   exact (loop_aux hI h).1 [] stk (by simp [BExpr.lower, expression, vals]) (by simp)
     ⟨typedT_head ht, har⟩ hxb
 

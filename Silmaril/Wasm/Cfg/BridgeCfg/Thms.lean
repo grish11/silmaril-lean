@@ -28,9 +28,12 @@ oracle). Composing the machine's region soundness and completeness (`run_sound_i
   answer that `ResOut` carries.
 * `machine_native_closedX`, `native_machine_closedX`: the instances with the typed closed
   extended oracle `closedXOk`, with no oracle hypothesis.
+* **`machine_native_typed`**, **`machine_native_typed_closedX`**: `machine_native` for **every**
+  typed tree, tail calls included: a sink that completes a pending tail call carries the
+  oracle's answer to it (`EndsC`), so the backward bridge for answered outcomes
+  (`bridge_bwd_answered`) applies.
 
-Scope: the machine-to-native direction excludes tail calls (the open part of the backward
-bridge). These are statements about the CFG as an executable semantics
+These are statements about the CFG as an executable semantics
 of the body, at its region outcomes; they are not statements about the plain extracted graph's
 infeasible paths, which stay an over-approximation.
 -/
@@ -87,5 +90,27 @@ theorem native_machine_closedX (P : Numerics.Profile) {s : Store H} {f : Frame}
         ∃ st', Relation.ReflTransGen (MStepC P Interp.noHostX closedXOk (BExpr.lowerList es))
           (initial (BExpr.lowerList es) s f) st' ∧ EndsC closedXOk st' s' f' o) :=
   Proofs.BridgeCfg.native_machine_closedX P h ht
+
+/-- **Machine runs are native runs**, for every typed tree (tail calls included). -/
+theorem machine_native_typed {o : SingleThreaded.GrowOracle} {P₀ : Numerics.Profile}
+    (hC : Interp.OracleSoundT P₀ Interp.noHostX C) (hCk : Abstract.CallXT.KeepsTy C)
+    {s : Store H} {f : Frame} {es : List BExpr} {st' : MState H}
+    (ht : Interp.TypedT s f [] es)
+    (h : Relation.ReflTransGen (MStepC (SingleThreaded.profile o) Interp.noHostX C
+      (BExpr.lowerList es)) (initial (BExpr.lowerList es) s f) st')
+    (hs : st'.node.IsSink) :
+    ∃ out s₂ f₂ r, EndsC C st' s₂ f₂ out ∧ Abstract.CallX.EvalOX C s f [] es r ∧
+      ResOut C s₂ f₂ out r :=
+  Proofs.BridgeCfg.machine_native_typed hC hCk ht h hs
+
+/-- `machine_native_typed` for the typed closed extended oracle (no oracle hypothesis). -/
+theorem machine_native_typed_closedX {o : SingleThreaded.GrowOracle} {s : Store H} {f : Frame}
+    {es : List BExpr} {st' : MState H} (ht : Interp.TypedT s f [] es)
+    (h : Relation.ReflTransGen (MStepC (SingleThreaded.profile o) Interp.noHostX closedXOk
+      (BExpr.lowerList es)) (initial (BExpr.lowerList es) s f) st')
+    (hs : st'.node.IsSink) :
+    ∃ out s₂ f₂ r, EndsC closedXOk st' s₂ f₂ out ∧ Abstract.CallX.EvalOX closedXOk s f [] es r ∧
+      ResOut closedXOk s₂ f₂ out r :=
+  Proofs.BridgeCfg.machine_native_typed_closedX ht h hs
 
 end Silmaril.Wasm.Cfg.Bridge
