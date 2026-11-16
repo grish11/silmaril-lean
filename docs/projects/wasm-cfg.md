@@ -452,6 +452,20 @@ The plain graph stays an over-approximation, and claims about it say so.
       `handlerTail`, … through labels and handlers, which do not catch it), and a body never
       diverges at a pending tail call, which is stuck outside a frame. Divergence of the tail
       callee is frame divergence (`MDivT`), not body divergence. No EH coverage changes.
+    - **Exit states carry the whole frame stack (semantic correction).** The machine's exits by
+      `return`, a branch to the function label (`br`, taken `br_if`, `br_table`/`br_on_*`) and a
+      caught exception branching to it (`catchOut`, `bodyCatchOut`) kept only the innermost
+      block's stack, dropping the label frames' outer values; `Ends` at `exit` allowed any `W`
+      below it. They now keep the whole stack Core unwinds, `brVals` (outer values under the
+      block's; for a catch, the caught values over the handler's outer values, then the frames its
+      branch leaves), and `Ends` at `exit` is exact (`o = .normal`/`.ret`/`.br 0` of the stack).
+      Fall-through (via `popL`) and answered tail calls (frame replacement) were already exact and
+      are unchanged; branches past the function label stay invalid. Soundness (`ret_sound`,
+      `brOut_sound`, …, exact), completeness (`Reach`'s `br`/`ret`/catch clauses) and every
+      downstream result were updated. Fixtures `Wasm/Cfg/ExampleExitStack`: nested `return`,
+      `br`, `br_if` (taken, not taken) and `br_table` with an outer value, two results, against
+      Core; an invalid body whose `return` reaches below its block (`machine_loss`, `core_loss`),
+      on which the old exit lost a value (no general untyped claim).
     - **Plan for (b), the store-retaining CFG-instance session (host-free first).** Target: the
       canonical `DStrategy` `instSession I P s = StratSession.threadS (instTripleS I P) s`
       (`Abstract.InstSession`), hence the instance part of `core3SemD`, on an explicit typed

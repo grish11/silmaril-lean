@@ -379,14 +379,14 @@ theorem bodyTrap_sound {b : BlockId} {sg : Segment} {stk : List Val} {ls : List 
     (hX : codeAt body b stk ls = some X) : Region.Run P host s f [] X s₁ f₁ .trap :=
   Proofs.Machine.bodyTrap_sound hb hr hX
 
-/-- **A `return` is sound**: the code returns the block's values, over the label frames' outer
-values (Core keeps the top values a function returns). -/
+/-- **A `return` is sound**: the code returns the whole frame stack, the block's values under
+the label frames' outer values (`brVals`, as Core's `return-label` unwinds them). -/
 theorem ret_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
     {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some .return_)
     (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
     (hX : codeAt body b stk ls = some X) :
-    ∃ W, Region.Run P host s f [] X s₁ f₁ (.ret (W ++ stk₁)) :=
+    Region.Run P host s f [] X s₁ f₁ (.ret (brVals ls.length ls stk₁)) :=
   Proofs.Machine.ret_sound hb ht hr hX
 
 /-- **Whole-run soundness**: a machine run from a state satisfying the invariant to a sink
