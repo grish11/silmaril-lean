@@ -4,6 +4,7 @@ public import Silmaril.Games.Abstract.SessionIter.Defs
 public import Silmaril.Games.Abstract.SessionCat.Thms
 import Silmaril.Proofs.Games.Abstract.SessionIter.Laws
 import Silmaril.Proofs.Games.Abstract.SessionIter.Det
+import Silmaril.Proofs.Games.Abstract.SessionIter.Rounds
 
 /-!
 # Session iteration with store-retaining traps: theorems
@@ -28,6 +29,18 @@ hypothesis: they are transported from the `StratOps.iterT` laws along the reasso
 * `retDet_iterS`, `retDet_seqS`: deterministic returns (`SessionCat.RetDet`) are preserved;
 * `det_iterS`: determinism given answers (`AFun.Det`) is preserved by iteration, an infinite
   silent chain of a deterministic body being its only behaviour.
+
+**Session strategies** (proofs in `…SessionIter.Rounds`). The completed rounds of a session only
+see the returns of its triple, so:
+
+* `rounds_seqS`, `rounds_iterS`: the rounds of `seqS t u` and `iterS t` chain the one-round
+  relations `SeqRet t u` and `IterRet t` (`RoundsBy`): within one session round, rounds of the
+  components with the stores threaded, a continuing trap aborting the round with its store;
+* `mem_srounds_seqS`, `mem_srounds_iterS` (`StratSession.mem_srounds` style): the completed
+  session rounds of `threadS (seqS t u) s₀` and `threadS (iterS t) s₀`, possibly ending with a
+  plain trap (`trap_mem_seqS` describes those of a sequence); `…_of_noPlainTrap` without plain
+  traps, and `mem_sroundMoves_seqS`, `mem_sroundMoves_iterS` for one round;
+* `threadS_frameS`: the session of `frameS S' t` from `(s, s')` is the session of `t` from `s`.
 -/
 
 public section
@@ -130,5 +143,82 @@ theorem retDet_seqS {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})}
 theorem det_iterS {t : ObsTriple E S A ((B ⊕ A) ⊕ PUnit.{u + 1})} (ht : AFun.Det t.1) :
     AFun.Det (iterS t).1 :=
   Silmaril.Proofs.Games.Abstract.SessionIter.det_iterS ht
+
+/-! ## Session strategies -/
+
+/-- **The plain traps of a session sequence**: a plain trap of the first part, or its value
+continued by a plain trap of the second. -/
+theorem trap_mem_seqS {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})}
+    {u : ObsTriple E S B (C ⊕ PUnit.{u + 1})} {s : S} {a : A} {c : List (Call E)} :
+    (c, End.trap) ∈ (seqS t u).1 s a ↔ (c, End.trap) ∈ t.1 s a ∨
+      ∃ c₁ b s₁ c₂, (c₁, End.ret (.inl b) s₁) ∈ t.1 s a ∧ (c₂, End.trap) ∈ u.1 s₁ b ∧
+        c = c₁ ++ c₂ :=
+  Silmaril.Proofs.Games.Abstract.SessionIter.trap_mem_seqS
+
+/-- **Completed rounds of a sequence** are `SeqRet` rounds, the stores threaded. -/
+theorem rounds_seqS {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})}
+    {u : ObsTriple E S B (C ⊕ PUnit.{u + 1})} {s s' : S}
+    {rs : List (A × List (Call E) × (C ⊕ PUnit.{u + 1}))} :
+    StratThread.Rounds (seqS t u) s rs s' ↔ RoundsBy (SeqRet t u) s rs s' :=
+  Silmaril.Proofs.Games.Abstract.SessionIter.rounds_seqS
+
+/-- **Completed rounds of an iteration** are `IterRet` rounds, the stores threaded. -/
+theorem rounds_iterS {t : ObsTriple E S A ((B ⊕ A) ⊕ PUnit.{u + 1})} {s s' : S}
+    {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} :
+    StratThread.Rounds (iterS t) s rs s' ↔ RoundsBy (IterRet t) s rs s' :=
+  Silmaril.Proofs.Games.Abstract.SessionIter.rounds_iterS
+
+/-- **Completed session rounds of a sequence**: within each round, a round of `t` and then of `u`
+from the store it leaves, a continuing trap of `t` aborting the round with its store; or such
+rounds and a last plain trap (of `t`, or of `u` after a value of `t`). -/
+theorem mem_srounds_seqS {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})}
+    {u : ObsTriple E S B (C ⊕ PUnit.{u + 1})} {s₀ : S}
+    {rs : List (A × List (Call E) × (C ⊕ PUnit.{u + 1}))} :
+    sroundsMoves rs ∈ (threadS (seqS t u) s₀).toStrategy ↔ (∃ s, RoundsBy (SeqRet t u) s₀ rs s) ∨
+      ∃ rs' a c, rs = rs' ++ [(a, c, .inr PUnit.unit)] ∧ ∃ s, RoundsBy (SeqRet t u) s₀ rs' s ∧
+        ((c, End.trap) ∈ t.1 s a ∨ ∃ c₁ b s₁ c₂, (c₁, End.ret (.inl b) s₁) ∈ t.1 s a ∧
+          (c₂, End.trap) ∈ u.1 s₁ b ∧ c = c₁ ++ c₂) := by
+  simp only [mem_srounds, rounds_seqS, trap_mem_seqS]
+
+/-- **Completed session rounds of a sequence without plain traps.** -/
+theorem mem_srounds_seqS_of_noPlainTrap {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})}
+    {u : ObsTriple E S B (C ⊕ PUnit.{u + 1})} (ht : NoPlainTrap t) (hu : NoPlainTrap u) {s₀ : S}
+    {rs : List (A × List (Call E) × (C ⊕ PUnit.{u + 1}))} :
+    sroundsMoves rs ∈ (threadS (seqS t u) s₀).toStrategy ↔ ∃ s, RoundsBy (SeqRet t u) s₀ rs s := by
+  simp only [mem_srounds_of_noPlainTrap (noPlainTrap_seqS ht hu), rounds_seqS]
+
+/-- **Completed session rounds of an iteration**: within each round, continuing body rounds and
+an exit or a continuing trap, the stores threaded; or such rounds and a last plain trap. -/
+theorem mem_srounds_iterS {t : ObsTriple E S A ((B ⊕ A) ⊕ PUnit.{u + 1})} {s₀ : S}
+    {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} :
+    sroundsMoves rs ∈ (threadS (iterS t) s₀).toStrategy ↔ (∃ s, RoundsBy (IterRet t) s₀ rs s) ∨
+      ∃ rs' a c, rs = rs' ++ [(a, c, .inr PUnit.unit)] ∧ ∃ s, RoundsBy (IterRet t) s₀ rs' s ∧
+        (c, End.trap) ∈ (iterS t).1 s a := by
+  simp only [mem_srounds, rounds_iterS]
+
+/-- **Completed session rounds of an iteration without plain traps.** -/
+theorem mem_srounds_iterS_of_noPlainTrap {t : ObsTriple E S A ((B ⊕ A) ⊕ PUnit.{u + 1})}
+    (ht : NoPlainTrap t) {s₀ : S} {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} :
+    sroundsMoves rs ∈ (threadS (iterS t) s₀).toStrategy ↔ ∃ s, RoundsBy (IterRet t) s₀ rs s := by
+  simp only [mem_srounds_of_noPlainTrap (noPlainTrap_iterS ht), rounds_iterS]
+
+/-- **One session round of a sequence**, without plain traps: a round of `t` then of `u`. -/
+theorem mem_sroundMoves_seqS {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})}
+    {u : ObsTriple E S B (C ⊕ PUnit.{u + 1})} (ht : NoPlainTrap t) (hu : NoPlainTrap u)
+    {s₀ : S} {a : A} {c : List (Call E)} {x : C ⊕ PUnit.{u + 1}} :
+    sroundMoves (a, c, x) ∈ (threadS (seqS t u) s₀).toStrategy ↔ ∃ s, SeqRet t u s₀ a c x s :=
+  Silmaril.Proofs.Games.Abstract.SessionIter.mem_sroundMoves_seqS ht hu
+
+/-- **One session round of an iteration**, without plain traps: a chain of body rounds. -/
+theorem mem_sroundMoves_iterS {t : ObsTriple E S A ((B ⊕ A) ⊕ PUnit.{u + 1})}
+    (ht : NoPlainTrap t) {s₀ : S} {a : A} {c : List (Call E)} {x : B ⊕ PUnit.{u + 1}} :
+    sroundMoves (a, c, x) ∈ (threadS (iterS t) s₀).toStrategy ↔ ∃ s, IterRet t s₀ a c x s :=
+  Silmaril.Proofs.Games.Abstract.SessionIter.mem_sroundMoves_iterS ht
+
+/-- **Store strength is invisible to sessions**: the framed triple, from `(s, s')`, has the
+session of the triple from `s`. -/
+theorem threadS_frameS {S' : Type u} (t : ObsTriple E S A (B ⊕ PUnit.{u + 1})) (s : S) (s' : S') :
+    threadS (frameS S' t) (s, s') = threadS t s :=
+  Silmaril.Proofs.Games.Abstract.SessionIter.threadS_frameS t s s'
 
 end Silmaril.Games.Abstract.SessionIter
