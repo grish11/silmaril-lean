@@ -324,6 +324,25 @@ The plain graph stays an over-approximation, and claims about it say so.
      `machine_native_closedX`, `native_machine_closedX` (no oracle hypothesis). These are about the
      block-CFG machine as an executable semantics; the plain graph stays an over-approximation.
 
+10. **Branches to the function label (bug in the block-CFG machine, being fixed).** A function
+    body runs under its function's label (Core `FRAME_n{} (LABEL_n{} body)`), so a branch whose
+    depth is the body's nesting depth returns; the native store check accepts it (labels
+    `[rs.length]`) and the extracted CFG resolves it to `exit` (`labels body [] = [.exit]`). The
+    machine's branch rules (`br`, `brIfTaken`, `brDataTaken`) need a label frame for the target,
+    and the function label has none, so the machine is stuck exactly where the CFG has an `exit`
+    edge; this is why `run_complete_initialC` excludes `br` outcomes.
+    - **Regression fixtures, done** (`Cfg.ExampleBrOut`): the validated module `brOutMod`
+      (`brOutMod_valid`) with a top-level `br 0`, a taken and an untaken `br_if`, a `br_table`
+      to the function label from inside a block, and two results; Core returns their results
+      under the function label (`core0` … `core4`), while the machine is stuck
+      (`machine_stuck0/1/4`, `machine_no_sink0/1/4`, `machine_enter3` then `machine_stuck3`).
+    - **Fix, next:** transitions for a branch whose depth is `ls.length` (the function boundary)
+      to the `exit` sink with the branch's values (`brVals`), `Ends` at `exit` extended with the
+      function-label branch, in bounded PRs that audit every inversion over `MStepC` and `Ends`
+      (soundness, completeness, divergence, Core termination), with compatibility corollaries;
+      then the fixtures restated as runs to `exit` with Core's results. Depth beyond
+      `ls.length` stays invalid.
+
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
 (`bodyIfaces_complete`).
