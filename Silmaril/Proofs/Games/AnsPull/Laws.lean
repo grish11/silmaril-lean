@@ -116,15 +116,19 @@ theorem mapAns_pair (hk₁ : ∀ q n, k₁' q (k₁ q n) = n) (hk₁' : ∀ q n,
     · rcases o with _ | (_ | ⟨q | q, n⟩)
       · rfl
       · rfl
-      · exact congrArg (fun r => (Sum.inr (Ev.ans (E := F₁ ⊕ₛ F₂) (Sum.inl q) r) : Move E (F₁ ⊕ₛ F₂))) (hk₁ q n)
-      · exact congrArg (fun r => (Sum.inr (Ev.ans (E := F₁ ⊕ₛ F₂) (Sum.inr q) r) : Move E (F₁ ⊕ₛ F₂))) (hk₂ q n)
+      · exact congrArg (fun r => (Sum.inr (Ev.ans (E := F₁ ⊕ₛ F₂) (Sum.inl q) r) :
+          Move E (F₁ ⊕ₛ F₂))) (hk₁ q n)
+      · exact congrArg (fun r => (Sum.inr (Ev.ans (E := F₁ ⊕ₛ F₂) (Sum.inr q) r) :
+          Move E (F₁ ⊕ₛ F₂))) (hk₂ q n)
     · rcases o with _ | (_ | ⟨q | q, n⟩)
       · rfl
       · rfl
-      · exact congrArg (fun r => (Sum.inr (Ev.ans (E := Sig.mk F₁.Op B₁ ⊕ₛ Sig.mk F₂.Op B₂) (Sum.inl q) r) :
-          Move E (Sig.mk F₁.Op B₁ ⊕ₛ Sig.mk F₂.Op B₂))) (hk₁' q n)
-      · exact congrArg (fun r => (Sum.inr (Ev.ans (E := Sig.mk F₁.Op B₁ ⊕ₛ Sig.mk F₂.Op B₂) (Sum.inr q) r) :
-          Move E (Sig.mk F₁.Op B₁ ⊕ₛ Sig.mk F₂.Op B₂))) (hk₂' q n)
+      · exact congrArg (fun r => (Sum.inr
+          (Ev.ans (E := Sig.mk F₁.Op B₁ ⊕ₛ Sig.mk F₂.Op B₂) (Sum.inl q) r) :
+            Move E (Sig.mk F₁.Op B₁ ⊕ₛ Sig.mk F₂.Op B₂))) (hk₁' q n)
+      · exact congrArg (fun r => (Sum.inr
+          (Ev.ans (E := Sig.mk F₁.Op B₁ ⊕ₛ Sig.mk F₂.Op B₂) (Sum.inr q) r) :
+            Move E (Sig.mk F₁.Op B₁ ⊕ₛ Sig.mk F₂.Op B₂))) (hk₂' q n)
   rw [mapAns_eq_pull hk₁ hk₁', mapAns_eq_pull hk₂ hk₂', e]
   exact (pull_pair hS _ _ (halves_sumMove (E := E) (F₁ := Sig.mk F₁.Op B₁)
     (F₂ := Sig.mk F₂.Op B₂) k₁' k₂' false) σ₁ σ₂).symm
