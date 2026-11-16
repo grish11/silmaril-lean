@@ -5,6 +5,7 @@ public import Silmaril.Games.Abstract.StratSession.Thms
 public import Silmaril.Games.DivComp.Defs
 import Silmaril.Proofs.Games.Abstract.SessionLink.Plays
 import Silmaril.Proofs.Games.Abstract.SessionLink.Div
+import Silmaril.Proofs.Games.Abstract.SessionLink.InfBwd
 
 /-!
 # Linking sessions: theorems
@@ -29,6 +30,15 @@ round by round from the witnesses of the linked behaviours and pending calls.
 (`div_linkS_subset`, no hypothesis): a client divergence or a server divergence inside a served
 call is a local divergence of a component, and a served client stream with finitely many server
 calls is hidden chatter, an infinite interaction with a constant visible part.
+
+**Infinite plays.** For a store-deterministic linked triple, every infinite play of the linked
+session is one of the composite (`inf_linkS_subset`): a stream after completed linked rounds is the
+limit of an interaction in which the server streams inside a served call, or the client streams
+with its calls served; a coherent infinite sequence of linked rounds is the limit of the
+concatenated interactions of its rounds. Coherence is needed: the hidden interaction of each
+linked round must extend that of the previous rounds, and without store determinism the linked
+session's infinite plays need only every finite prefix of rounds to be completed
+(`StratSession.mem_inf_iff`).
 
 `NoPlainTrap t` is needed: a plain trap of the server answers `.inr ()` and kills the server
 session, so a later call of the client is never answered, which the store `S × S'` cannot record.
@@ -64,5 +74,11 @@ theorem comp_threadS_toStrategy (hnt : NoPlainTrap t) (s₀ : S) (s₀' : S') :
 theorem div_linkS_subset (s₀ : S) (s₀' : S') :
     (threadS (linkS t u) (s₀, s₀')).div ⊆ ((threadS t s₀).comp (threadS u s₀')).div :=
   fun _ => Silmaril.Proofs.Games.Abstract.SessionLink.div_bwd
+
+/-- **Linked infinite plays are infinite plays of the composite**, for a store-deterministic
+linked triple. -/
+theorem inf_linkS_subset (hL : StoreDet (linkS t u)) (s₀ : S) (s₀' : S') :
+    (threadS (linkS t u) (s₀, s₀')).inf ⊆ ((threadS t s₀).comp (threadS u s₀')).inf :=
+  fun _ => Silmaril.Proofs.Games.Abstract.SessionLink.inf_bwd hL
 
 end Silmaril.Games.Abstract.SessionLink
