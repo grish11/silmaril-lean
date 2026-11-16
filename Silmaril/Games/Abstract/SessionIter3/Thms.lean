@@ -4,6 +4,7 @@ public import Silmaril.Games.Abstract.SessionIter3.Defs
 public import Silmaril.Games.Abstract.SessionIter2.Thms
 import Silmaril.Proofs.Games.Abstract.SessionIter3.Iter
 import Silmaril.Proofs.Games.Abstract.SessionIter3.Plays
+import Silmaril.Proofs.Games.Abstract.SessionIter3.Cex
 
 /-!
 # Session iteration of total bodies: call prefixes and pending plays (theorems)
@@ -31,8 +32,10 @@ iterAssoc)`:
 * `satP_iterS_subset`, with no hypothesis: `satP (iterS t) s a ⊆ contSatP t s a`;
 * `total_iterS`, `mem_satP_iterS_of_total`, `satP_iterS_of_total`: for a total body,
   `satP (iterS t) = contSatP t`: finitely many continuing iterations (`ContS`), then a call
-  prefix of the body. The hypothesis is needed: a call prefix forced only by a continuing return
-  to a point with no observation is not a call prefix of `iterS t`;
+  prefix of the body;
+* `not_contSatP_subset` (proof in `…SessionIter3.Cex`): **the hypothesis is needed**. A body on
+  `Bool` that calls once and continues from `true` to `false`, with no observation at `false`:
+  the call is a call prefix of the body, but `iterS` has no observation from `true`;
 * `mem_pending_iterS_of_total`: the pending plays of `threadS (iterS t) s₀` for a total body,
   by `StratSession.mem_pending` and `SessionIter.rounds_iterS`.
 -/
@@ -108,6 +111,13 @@ theorem mem_satP_iterS_of_total (ht : Total t) {s : S} {a : A} {c : List (Call E
 /-- **Call prefixes of a session iteration of a total body**, as an equation. -/
 theorem satP_iterS_of_total (ht : Total t) : satP (iterS t) = contSatP t :=
   Silmaril.Proofs.Games.Abstract.SessionIter3.satP_iterS_of_total ht
+
+/-- **Without totality the converse inclusion fails**: a call prefix forced only by a continuing
+return to a point with no observation is not a call prefix of the iteration. -/
+theorem not_contSatP_subset :
+    ∃ (E : Sig.{0}) (t : ObsTriple E PUnit Bool ((PUnit ⊕ Bool) ⊕ PUnit)),
+      ¬ ∀ s a, contSatP t s a ⊆ satP (iterS t) s a :=
+  Silmaril.Proofs.Games.Abstract.SessionIter3.not_contSatP_subset
 
 /-- **Pending plays of an iterated session** (total body): completed rounds, then finitely many
 continuing iterations and a call prefix of the body. -/
