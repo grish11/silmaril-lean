@@ -23,7 +23,8 @@ Literals, clauses and CNF formulas in the DIMACS convention:
 (`p cnf` headers and comments are not part of the stream). `Dimacs.read xs` reads a stream into
 the completed clauses and the literals of a clause not yet terminated
 (`Dimacs.step` is one integer of the stream, so `read` is a left fold and streaming readers can
-follow it integer by integer); `Dimacs.cnf xs` is the formula of the completed clauses.
+follow it integer by integer); `Dimacs.cnf xs` is the formula of the completed clauses, and
+`Dimacs.write F` writes a formula as such a stream.
 
 Lean core has another CNF representation (`Std.Sat.CNF`, used by `bv_decide` and its verified
 LRAT checker `Std.Tactic.BVDecide.LRAT.check`); this one is the plain list form in which DIMACS
@@ -89,6 +90,10 @@ def cnf (xs : List Int) : CNF := (read xs).1
 
 /-- The literals of the last, unterminated clause of a stream. -/
 def pending (xs : List Int) : Clause := (read xs).2
+
+/-- Write a formula as a DIMACS stream of clause bodies: each clause followed by `0`. It is read
+back exactly when no clause contains `0` (`Dimacs.read_write`). -/
+def write (F : CNF) : List Int := F.flatMap (· ++ [0])
 
 end Dimacs
 

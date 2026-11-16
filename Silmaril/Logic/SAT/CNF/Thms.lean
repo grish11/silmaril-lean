@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Logic.SAT.CNF.Defs
+import Silmaril.Proofs.Logic.SAT.CNF.Write
 
 @[expose] public section
 
@@ -13,7 +14,9 @@ public import Silmaril.Logic.SAT.CNF.Defs
   `CNF.Unsat.append`;
 * DIMACS streams: `Dimacs.read_snoc` (reading is a left fold), `Dimacs.cnf_snoc_zero`,
   `Dimacs.pending_snoc_zero`, `Dimacs.cnf_snoc_ne`, `Dimacs.pending_snoc_ne`, and
-  `Dimacs.cnf_append` (later integers only add clauses).
+  `Dimacs.cnf_append` (later integers only add clauses); `Dimacs.read_write`,
+  `Dimacs.cnf_write`: a formula with no `0` in its clauses is read back exactly from its stream
+  (the `0` terminator is not a literal; `Dimacs.write_zero_not_inverse` shows why it is needed).
 
 A Silmaril addition.
 -/
@@ -123,6 +126,19 @@ theorem cnf_append (xs ys : List Int) : ∃ G, cnf (xs ++ ys) = cnf xs ++ G := b
     obtain ⟨G', hG'⟩ := ih (xs ++ [y])
     refine ⟨G ++ G', ?_⟩
     rw [show xs ++ y :: ys = xs ++ [y] ++ ys by simp, hG', hG, List.append_assoc]
+
+/-- A formula whose clauses do not contain the terminator `0` is read back from its stream. -/
+theorem read_write {F : CNF} (h : ∀ C ∈ F, (0 : Lit) ∉ C) : read (write F) = (F, []) :=
+  Proofs.Logic.SAT.CNF.Write.read_write h
+
+theorem cnf_write {F : CNF} (h : ∀ C ∈ F, (0 : Lit) ∉ C) : cnf (write F) = F := by
+  simp [cnf, read_write h]
+
+theorem pending_write {F : CNF} (h : ∀ C ∈ F, (0 : Lit) ∉ C) : pending (write F) = [] := by
+  simp [pending, read_write h]
+
+/-- Without that hypothesis the stream is not read back: `[[0]]` is read as two empty clauses. -/
+theorem write_zero_not_inverse : cnf (write [[0]]) = [[], []] := by decide
 
 end Dimacs
 
