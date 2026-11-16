@@ -6,6 +6,7 @@ public import Silmaril.Games.Abstract.StratObs.Thms
 import Silmaril.Proofs.Games.Abstract.StratOps.Game
 import Silmaril.Proofs.Games.Abstract.StratOps.Unfold
 import Silmaril.Proofs.Games.Abstract.StratOps.Natural
+import Silmaril.Proofs.Games.Abstract.StratOps.Conway
 
 /-!
 # Premonoidal operations on observation triples: theorems
@@ -47,6 +48,14 @@ the full parts are `FullFun.iter_map` and `FullFun.iter_uniform_comap`):
   `h ; F = G ; [inl, inr ∘ h]` then `h ; iterT F = iterT G`. No hypothesis on `F`, `G` beyond
   this equation: divergence, infinite silent chains, productive runs and pending calls are
   all included.
+
+**Dinaturality and the codiagonal law** (`Silmaril.Proofs.Games.Abstract.StratOps.Conway`; the
+full parts are `FullFun.iter_dinat` and `FullFun.iter_codiag`), with no hypothesis:
+
+* `iterT_dinat`: for `t : A → B ⊕ C` and `u : C → B ⊕ A`,
+  `iterT (t ; [inl, u]) = t ; [id, iterT (u ; [inl, t])]`. The pending calls of both sides are
+  those of `t` or `u` after the same finite run `t, u, t, …`;
+* `iterT_codiag`: for `t : A → (B ⊕ A) ⊕ A`, `iterT (iterT t) = iterT (mapT t [id, inr])`.
 
 **Saturation** (`Silmaril.Proofs.Games.Abstract.StratOps.Sat`, `….Iter`):
 
@@ -261,6 +270,17 @@ theorem iterT_uniform {A' : Type u} {F : ObsTriple E S A (B ⊕ A)}
       seqT G (caseT (mapT pureT Sum.inl) (mapT pureT (Sum.inr ∘ h)))) :
     seqT (mapT pureT h) (iterT F) = iterT G :=
   Silmaril.Proofs.Games.Abstract.StratOps.iterT_uniform h hFG
+
+/-- **Dinaturality of iteration**: `iterT (t ; [inl, u]) = t ; [id, iterT (u ; [inl, t])]`. -/
+theorem iterT_dinat (t : ObsTriple E S A (B ⊕ C)) (u : ObsTriple E S C (B ⊕ A)) :
+    iterT (seqT t (caseT (mapT pureT Sum.inl) u)) =
+      seqT t (caseT pureT (iterT (seqT u (caseT (mapT pureT Sum.inl) t)))) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.iterT_dinat t u
+
+/-- **The codiagonal law**: `iterT (iterT t) = iterT (mapT t [id, inr])`. -/
+theorem iterT_codiag (t : ObsTriple E S A ((B ⊕ A) ⊕ A)) :
+    iterT (iterT t) = iterT (mapT t (Sum.elim id Sum.inr)) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.iterT_codiag t
 
 /-! ## Saturation and admissibility -/
 

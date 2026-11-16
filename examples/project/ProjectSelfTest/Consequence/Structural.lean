@@ -33,6 +33,10 @@ def identity : Seq ℕ := Translate.Examples.identity
 /-- Its lift to signed literals. -/
 def identitySigned : Seq (Signed ℕ) := signedLift Translate.Examples.identity
 
+/-- The identity calculus reindexed along `succ` on both sides (`System.pullback`). -/
+def identityRenamed : Seq ℕ :=
+  System.pullback (List.map Nat.succ) (List.map Nat.succ) Translate.Examples.identity
+
 /-- Validity of literal sequents on finite sets. -/
 noncomputable def validFinset : System (Finset Examples.Lit) (Finset Examples.Lit) :=
   onFinset (Valid Examples.lsat)
@@ -52,6 +56,8 @@ silmaril consequence_system silmaril.selftest.consequence.structural.identity :=
   ProjectSelfTest.Consequence.Structural.identity (title := "The identity calculus on atoms ℕ (Derives defaultRules ⊥)")
 silmaril consequence_system silmaril.selftest.consequence.structural.identity_signed :=
   ProjectSelfTest.Consequence.Structural.identitySigned (title := "Its signed lift: negative literals change sides")
+silmaril consequence_system silmaril.selftest.consequence.structural.identity_renamed :=
+  ProjectSelfTest.Consequence.Structural.identityRenamed (title := "The identity calculus pulled back along succ")
 silmaril consequence_system silmaril.selftest.consequence.structural.valid_finset :=
   ProjectSelfTest.Consequence.Structural.validFinset (title := "Valid literal sequents on finite sets (onFinset)")
 silmaril consequence_system silmaril.selftest.consequence.structural.valid_set :=
@@ -105,6 +111,43 @@ public theorem lift_reflects : ∀ Γ Δ, ReflectsAt identity identitySigned
     (List.map Signed.pos) (List.map Signed.pos) Γ Δ := fun Γ Δ h =>
   (congrFun (congrFun Translate.Examples.identity_lift_posPart Γ) Δ).mp h
 
+-- closure certificates transported along the lift and along a pullback (rule profile: defaultRules)
+silmaril instance silmaril.selftest.consequence.structural.lift_closed (expect := THM)
+  (title := "The signed lift is closed under the default rules (closed_signedLift)") :=
+  silmaril.shapes.consequence.gentzen_closed (rs := Silmaril.Consequence.Gentzen.defaultRules)
+  (S := ProjectSelfTest.Consequence.Structural.identitySigned)
+
+@[answers "silmaril.selftest.consequence.structural.lift_closed" thm]
+public theorem lift_closed : GentzenClosed defaultRules identitySigned :=
+  closed_signedLift (derives_closed defaultRules ⊥)
+
+silmaril instance silmaril.selftest.consequence.structural.renamed_closed (expect := THM)
+  (title := "The pullback along succ is closed under the default rules (closed_pullback, Rules.Hom.default)") :=
+  silmaril.shapes.consequence.gentzen_closed (rs := Silmaril.Consequence.Gentzen.defaultRules)
+  (S := ProjectSelfTest.Consequence.Structural.identityRenamed)
+
+@[answers "silmaril.selftest.consequence.structural.renamed_closed" thm]
+public theorem renamed_closed : GentzenClosed defaultRules identityRenamed :=
+  closed_pullback (Rules.Hom.default Nat.succ) (derives_closed defaultRules ⊥)
+
+silmaril instance silmaril.selftest.consequence.structural.renamed_translates (expect := THM)
+  (title := "succ translates the pullback into the identity calculus (by definition of pullback)") :=
+  silmaril.shapes.consequence.translates_at (S := ProjectSelfTest.Consequence.Structural.identityRenamed)
+  (T := ProjectSelfTest.Consequence.Structural.identity) (f := List.map Nat.succ) (g := List.map Nat.succ)
+
+@[answers "silmaril.selftest.consequence.structural.renamed_translates" thm]
+public theorem renamed_translates : ∀ Γ Δ, TranslatesAt identityRenamed identity
+    (List.map Nat.succ) (List.map Nat.succ) Γ Δ := fun _ _ h => h
+
+silmaril instance silmaril.selftest.consequence.structural.renamed_reflects (expect := THM)
+  (title := "…and reflects it") :=
+  silmaril.shapes.consequence.reflects_at (S := ProjectSelfTest.Consequence.Structural.identityRenamed)
+  (T := ProjectSelfTest.Consequence.Structural.identity) (f := List.map Nat.succ) (g := List.map Nat.succ)
+
+@[answers "silmaril.selftest.consequence.structural.renamed_reflects" thm]
+public theorem renamed_reflects : ∀ Γ Δ, ReflectsAt identityRenamed identity
+    (List.map Nat.succ) (List.map Nat.succ) Γ Δ := fun _ _ h => h
+
 silmaril instance silmaril.selftest.consequence.structural.finset_to_set (expect := THM)
   (title := "Finite sets as sets translate valid sequents (onFinset_iff_onSet)") :=
   silmaril.shapes.consequence.translates_at (S := ProjectSelfTest.Consequence.Structural.validFinset)
@@ -152,7 +195,11 @@ end
 
 silmaril group silmaril.selftest.consequence.structural
   (title := "Translations, signed lifts, finite sets and sets (structural track)")
-  (children := [silmaril.selftest.consequence.structural.lift_explosion,
+  (children := [silmaril.selftest.consequence.structural.lift_closed,
+    silmaril.selftest.consequence.structural.renamed_closed,
+    silmaril.selftest.consequence.structural.renamed_translates,
+    silmaril.selftest.consequence.structural.renamed_reflects,
+    silmaril.selftest.consequence.structural.lift_explosion,
     silmaril.selftest.consequence.structural.lift_excluded_middle,
     silmaril.selftest.consequence.structural.lift_translates,
     silmaril.selftest.consequence.structural.lift_reflects,

@@ -21,8 +21,9 @@ async function graph(focus) {
     <label><input type="checkbox" id="gdet"> detached problems</label>
     <label title="draw every leaf problem instead of one node per parent and status"><input type="checkbox" id="gevery"${gEvery ? " checked" : ""}> every problem</label>
     <button id="gdraw">Draw</button> <button id="gfit">Fit</button></div>
-    <p class="legend muted">${statusBadge({ summary: "THM", verdict: "holds" })} status code ·
-    <span class="st st-bad">CSA<b>!</b></span> not the expected status · <span class="st st-ok">UNS<b>✓</b></span> as expected ·
+    <p class="legend muted">${statusBadge({ summary: "THM", verdict: "holds", arity: 0 })} status (<a href="#/statuses">what the codes mean</a>) ·
+    ${statusBadge({ summary: "UNS", verdict: "unknown", arity: 1, expect: "THM" })} contrary to the expected status ·
+    ${statusBadge({ summary: "CSA", verdict: "fails", arity: 1, expect: "UNS" })} less than expected ·
     blue box = group (holds/fails/unknown children) · stacked = leaves grouped by status (click: list, expand) · dashed edge = refutation route ·
     dotted = instance · thick edge = proved · thick border = root · dashed border = detached <span id="gcount"></span></p>
     <div id="graphwrap"><div id="cy"></div><div id="side"><p class="muted">Click a node for its details; double-click to refocus.</p></div></div>`;
@@ -135,7 +136,7 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
     for (const e of out.get(p) || []) {
       const c = e.child;
       if (!keep.has(c) || !isLeaf(c) || alone(c)) continue;
-      const code = (statusOf.get(c) || {}).summary || "none";
+      const code = (statusInfo(statusOf.get(c)) || {}).code || "none";
       const k = p + "\u0000" + code + "\u0000" + e.kind;
       if (!stacks.has(k)) stacks.set(k, { parent: p, code, kind: e.kind, members: [] });
       stacks.get(k).members.push(c);
@@ -157,7 +158,7 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
       label = (titles.get(n) || shortName(n)) + (out.has(n) ? `\n${c.holds} / ${c.fails} / ${c.unknown}` + (c.unchecked ? ` (${c.unchecked} unchecked)` : "") : "");
     } else {
       const i = statusInfo(statusOf.get(n));
-      if (i) label += "\n" + i.code + (i.truth !== null ? (i.truth ? "·true" : "·false") : "") + (i.cls === "bad" ? " !" : i.cls === "ok" ? " ✓" : "");
+      if (i) label += "\n" + i.code + (i.outcome === "contrary" || i.outcome === "error" ? " ≠ " + (i.expectCode || "expected") : i.outcome === "weaker" && i.expect ? " (expected " + i.expectCode + ")" : "");
     }
     const hidden = (out.get(n) || []).filter((e) => !keep.has(e.child)).length;
     if (hidden) label += ` (+${hidden} hidden)`;
@@ -210,7 +211,7 @@ async function drawGraph(focus, depth, maxNodes, withDetached, root) {
     const st = stackOf.get(e.target.id());
     if (!st) return side(problemDetail(e.target.id()));
     side(table(st.members.map((m) => ({ problem: m })), ["problem"]).then((t) =>
-      `<h2>${st.members.length} × ${esc(statusCode(st.code))} <span class="muted" title="${esc(statusText(st.code))}">(${esc(SZS_NAME[st.code] || st.code)})</span> under ${link("problem", st.parent, shortName(st.parent))}</h2>` +
+      `<h2>${st.members.length} × ${esc(statusCode(st.code))} <span class="muted" title="${esc(statusText(st.code))}">(${esc((StatusSemantics.DISPLAY_CODES[statusCode(st.code)] || {}).name || st.code)})</span> under ${link("problem", st.parent, shortName(st.parent))}</h2>` +
       `<p class="muted">leaves (no children of their own) by ${esc(st.kind)} edges</p>` +
       `<p><button type="button" id="gexpand">Expand: draw them one by one</button></p>` + t)).then(() => {
       const b = $("#gexpand");

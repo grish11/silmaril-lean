@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Abstract.PubModuleXP.Defs
 public import Silmaril.Games.Abstract.StratObs.Thms
 public import Silmaril.Games.Abstract.StratSession.Thms
 public import Silmaril.Wasm.Abstract.HostStrat.Defs
+public import Silmaril.Wasm.Abstract.HostSessionXP.Defs
 import Silmaril.Wasm.Abstract.BodyDet.Thms
 import Silmaril.Proofs.Wasm.Abstract.CoreDet.Basic
 
@@ -62,7 +63,9 @@ results.
 **Sessions.** The store-retaining Core triple `coreTripleS` (traps keep their store) is
 deterministic given answers too (`coreTripleS_det`): the trap configuration after a log is
 unique. Hence it is store-deterministic (`coreTripleS_storeDet`) and the infinite plays of the
-Core session are coherent (`coreSession_mem_inf_iff`).
+Core session are coherent (`coreSession_mem_inf_iff`). With exceptions, the same for the
+store-retaining triple `coreTripleSXP` and the session `coreSessionXP` (`coreTripleSXP_det`,
+`coreTripleSXP_storeDet`, `coreSessionXP_mem_inf_iff`).
 
 Proofs are in `Silmaril.Proofs.Wasm.Abstract.CoreDet.Basic`.
 -/
@@ -173,5 +176,37 @@ theorem pubStratXP_pdet (hT : HostTyped host)
 theorem pubStratXP_pdet_invOkXP (hT : HostTyped host) (tags : List TagInst) (s : Store H)
     (a : Nat) : PDet (pubStratXP (SingleThreaded.profile o) host (InvOkXP tags) s a).toStrategy :=
   pubStratXP_pdet hT (fun _ _ h => ⟨h.1, h.2.2.2⟩) s a
+
+/-! ## Sessions with exceptions -/
+
+/-- **The store-retaining Core triple with exceptions is deterministic given answers** at the
+deterministic profile: values, an uncaught exception or a trap, each with its store, or host-free
+divergence; with the same log, the same end. -/
+theorem coreTripleSXP_det (hT : HostTyped host)
+    (hOk : ∀ s q, Ok s q → StoreOk s ∧ InvokeOk s q.1 q.2) :
+    AFun.Det (coreTripleSXP (SingleThreaded.profile o) host Ok).1 :=
+  Silmaril.Proofs.Wasm.Abstract.CoreDet.coreTripleSXP_det hT hOk
+
+/-- **The store-retaining Core triple with exceptions is store-deterministic.** -/
+theorem coreTripleSXP_storeDet (hT : HostTyped host)
+    (hOk : ∀ s q, Ok s q → StoreOk s ∧ InvokeOk s q.1 q.2) :
+    StratThread.StoreDet (coreTripleSXP (SingleThreaded.profile o) host Ok) :=
+  StratThread.storeDet_of_det (coreTripleSXP_det hT hOk)
+
+/-- **The infinite plays of the Core session with exceptions are coherent** at the deterministic
+profile: a productive Core run after completed session rounds, or the play of a coherent infinite
+sequence of session rounds. -/
+theorem coreSessionXP_mem_inf_iff (hT : HostTyped host)
+    (hOk : ∀ s q, Ok s q → StoreOk s ∧ InvokeOk s q.1 q.2) {s₀ : Store H}
+    {I : Set (List (Move (wasmHostSig H) (sig1 (Nat × List Val) (List Val ⊕ Nat))))} :
+    I ∈ (coreSessionXP (SingleThreaded.profile o) host Ok s₀).inf ↔
+      (∃ rs s q ω,
+        StratThread.Rounds (coreTripleSXP (SingleThreaded.profile o) host Ok) s₀ rs s ∧
+        (Ok s q ∧ CoreInf (SingleThreaded.profile o) host (invoke s q.1 q.2) ω) ∧
+        I = StratThread.streamPlay (StratSession.sroundsMoves rs) q ω) ∨
+      ∃ a r s,
+        StratThread.InfRounds (coreTripleSXP (SingleThreaded.profile o) host Ok) s₀ a r s ∧
+        I = StratSession.sroundsPlay a r :=
+  StratSession.mem_inf_iff_of_det (coreTripleSXP_det hT hOk)
 
 end Silmaril.Wasm.Abstract.CoreDet

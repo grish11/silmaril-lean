@@ -53,6 +53,40 @@ pub struct Dump {
     pub problems: Vec<DumpProblem>,
     #[serde(default)]
     pub solutions: Vec<DumpSolution>,
+    /// Where the declarations the dump names are (v0.2; absent from v0.1 dumps). Presentation
+    /// data only: not records, and no part of any sid, hash or check verdict.
+    #[serde(default)]
+    pub locations: Vec<DeclLocation>,
+}
+
+table! {
+    /// Where a declaration the dump names is declared (`#silmaril_dump`'s `locations`): its
+    /// module and Lean's `DeclarationRanges`, the whole declaration (`line`, `col` to
+    /// `end_line`, `end_col`) and its name (`sel_…`). Lines are 1-based; columns count
+    /// codepoints from 0 (Lean's `Position`). Presentation data for source views: it takes no
+    /// part in sids, hashes or the check report. The dump object is the row.
+    DeclLocation = "decl_locations", key("decl") {
+        decl: String = "TEXT NOT NULL",
+        module: String = "TEXT NOT NULL",
+        line: i64 = "INTEGER NOT NULL",
+        col: i64 = "INTEGER NOT NULL",
+        end_line: i64 = "INTEGER NOT NULL",
+        end_col: i64 = "INTEGER NOT NULL",
+        sel_line: i64 = "INTEGER NOT NULL",
+        sel_col: i64 = "INTEGER NOT NULL",
+        sel_end_line: i64 = "INTEGER NOT NULL",
+        sel_end_col: i64 = "INTEGER NOT NULL",
+    }
+}
+
+/// The `decl_locations` rows of a dump's `locations`: one per declaration (the first, should a
+/// dump repeat one), in `decl` order.
+pub fn location_rows(locations: &[DeclLocation]) -> Vec<DeclLocation> {
+    let mut by_decl: std::collections::BTreeMap<&str, &DeclLocation> = Default::default();
+    for l in locations {
+        by_decl.entry(l.decl.as_str()).or_insert(l);
+    }
+    by_decl.into_values().cloned().collect()
 }
 
 /// A `@[problem "NAME"]` declaration (silmaril's `problems env`): an arity-0 problem.

@@ -1262,6 +1262,44 @@
         ]
       }
     },
+    "expected_open": {
+      "description": "An open problem expected to stay open for a metatheoretic reason about the ambient theory (Lean's type theory with the axioms its proofs may use), not about an object theory the statement talks about: Con(ZFC) is not an example. Never for an ordinary unproved problem. Its judgement's `expect`, if any, is `OPN`",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The open problem (not a group)"
+          },
+          "reason": {
+            "enum": [
+              "independent",
+              "consistency"
+            ],
+            "description": "`independent` (known to be neither provable nor refutable in the ambient theory) or `consistency` (implies the consistency of the ambient theory itself, so Gödel's second incompleteness theorem applies to that theory)"
+          },
+          "note": {
+            "type": "string",
+            "description": "Why the reason holds of the ambient theory (Lean's), not only of an object theory"
+          },
+          "pointer": {
+            "type": "string",
+            "description": "A citation or URL for the metatheoretic result"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "reason",
+          "note"
+        ]
+      }
+    },
     "decomposition": {
       "description": "A proved edge `c₁ → … → cₙ → p`: one theorem (`proof`) or every such theorem of a module (`module`)",
       "type": "array",
@@ -2335,6 +2373,31 @@
                 "public"
               ],
               "description": "`error` only: `private`, `reported` or `public`"
+            }
+          }
+        },
+        "expected_open": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "reason": {
+              "enum": [
+                "independent",
+                "consistency"
+              ],
+              "description": "`independent` (known to be neither provable nor refutable in the ambient theory) or `consistency` (implies the consistency of the ambient theory itself, so Gödel's second incompleteness theorem applies to that theory)"
+            },
+            "note": {
+              "type": "string",
+              "description": "Why the reason holds of the ambient theory (Lean's), not only of an object theory"
+            },
+            "pointer": {
+              "type": "string",
+              "description": "A citation or URL for the metatheoretic result"
             }
           }
         },

@@ -14,7 +14,7 @@
 //! record field of the same name, except the three spellings that Lean resolves (constants,
 //! value sources and instance arguments, see [`Ty`]).
 
-use super::{CLASSIFICATIONS, DISCLOSURE_STATES, EXPECT_CODES, Manifest};
+use super::{CLASSIFICATIONS, DISCLOSURE_STATES, EXPECT_CODES, EXPECTED_OPEN_REASONS, Manifest};
 use crate::project::check::{name_error, problem_name_error};
 use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
@@ -69,6 +69,8 @@ pub enum Ty {
     Classification,
     /// One of [`DISCLOSURE_STATES`].
     Disclosure,
+    /// One of [`EXPECTED_OPEN_REASONS`] (an `expected_open`'s reason).
+    OpenReason,
 }
 
 /// One key of a kind.
@@ -511,6 +513,33 @@ pub const RECORD_KINDS: &[KindSpec] = &[
         ],
     },
     KindSpec {
+        kind: "expected_open",
+        doc: "An open problem expected to stay open for a metatheoretic reason about the \
+              ambient theory (Lean's type theory with the axioms its proofs may use), not about \
+              an object theory the statement talks about: Con(ZFC) is not an example. Never for \
+              an ordinary unproved problem. Its judgement's `expect`, if any, is `OPN`",
+        keys: &[
+            req("name", Ty::Problem, "The open problem (not a group)"),
+            req(
+                "reason",
+                Ty::OpenReason,
+                "`independent` (known to be neither provable nor refutable in the ambient \
+                 theory) or `consistency` (implies the consistency of the ambient theory itself, \
+                 so Gödel's second incompleteness theorem applies to that theory)",
+            ),
+            req(
+                "note",
+                Ty::Text,
+                "Why the reason holds of the ambient theory (Lean's), not only of an object theory",
+            ),
+            opt(
+                "pointer",
+                Ty::Text,
+                "A citation or URL for the metatheoretic result",
+            ),
+        ],
+    },
+    KindSpec {
         kind: "decomposition",
         doc: "A proved edge `c₁ → … → cₙ → p`: one theorem (`proof`) or every such theorem of a \
               module (`module`)",
@@ -776,6 +805,13 @@ fn type_error(ty: Ty, v: &Json) -> Option<String> {
         Ty::Disclosure => match v {
             Json::String(s) if DISCLOSURE_STATES.contains(&s.as_str()) => None,
             _ => Some(format!("must be one of {}", DISCLOSURE_STATES.join(", "))),
+        },
+        Ty::OpenReason => match v {
+            Json::String(s) if EXPECTED_OPEN_REASONS.contains(&s.as_str()) => None,
+            _ => Some(format!(
+                "must be one of {}",
+                EXPECTED_OPEN_REASONS.join(", ")
+            )),
         },
         Ty::Args => match v {
             Json::Object(m) if !m.is_empty() => m
@@ -1084,6 +1120,7 @@ fn ty_schema(ty: Ty) -> Json {
         Ty::Meta => json!({"type": "object"}),
         Ty::Classification => json!({"enum": CLASSIFICATIONS}),
         Ty::Disclosure => json!({"enum": DISCLOSURE_STATES}),
+        Ty::OpenReason => json!({"enum": EXPECTED_OPEN_REASONS}),
     }
 }
 

@@ -7,6 +7,9 @@ import Silmaril.Proofs.Games.Abstract.FullFun.Laws
 import Silmaril.Proofs.Games.Abstract.FullFun.Tensor
 import Silmaril.Proofs.Games.Abstract.FullFun.Unfold
 import Silmaril.Proofs.Games.Abstract.FullFun.Natural
+import Silmaril.Proofs.Games.Abstract.FullFun.Dinat
+import Silmaril.Proofs.Games.Abstract.FullFun.Codiag
+import Silmaril.Proofs.Games.Abstract.FullFun.Uniform
 import Silmaril.Games.Abstract.Function.Thms
 import Silmaril.Games.Abstract.FunctionIter.Thms
 
@@ -82,6 +85,39 @@ infinite silent chains) and productive runs are included:
   a run of `G` from `a` (`FullFun.contChain_lift`), infinite chains by dependent choice.
   Uniformity is claimed only for pure `h`, as for Elgot uniformity;
 * `FullFun.case_pure_map_map`: the copairing of pure maps is a pure map.
+
+**Dinaturality of iteration** (`Silmaril.Proofs.Games.Abstract.FullFun.Dinat`), with no
+hypothesis on the bodies:
+
+* `FullFun.iter_dinat`: for `f : A → B ⊕ C` and `g : C → B ⊕ A`,
+  `iter (f ; [inl, g]) = f ; [id, iter (g ; [inl, f])]`. Both sides run `f, g, f, g, …` until
+  an `inl` exit; traps and `div` ends of either function, infinite silent chains and productive
+  runs correspond. An infinite chain's logs `cf 0 ++ cg 0, cf 1 ++ cg 1, …` are regrouped as
+  `cf 0` followed by `cg 0 ++ cf 1, cg 1 ++ cf 2, …`.
+
+**The codiagonal law** (`Silmaril.Proofs.Games.Abstract.FullFun.Codiag`), with no hypothesis:
+
+* `FullFun.iter_codiag`: for `F : A → (B ⊕ A) ⊕ A`,
+  `iter (iter F) = iter (F.map [id, inr])` (`F.map h = F ; pure.map h`, `FullFun.seq_pure_map`).
+  The inner loop continues on `inr` and its `inl (inr a')` exit continues the outer loop; merging
+  the tags gives one loop. A merged chain with infinitely many outer steps is an infinite chain
+  of outer iterations; with finitely many, a finite chain of outer iterations followed by an
+  infinite inner chain (silent: inner divergence; productive: an inner productive run). An
+  infinite chain of outer iterations, each a finite merged chain, is laid end to end into one
+  merged chain; silent iterations give a silent chain.
+
+**Uniformity fails along effectful maps** (`Silmaril.Proofs.Games.Abstract.FullFun.Uniform`).
+With `G = pure.map inr` (continue silently forever, so `iter G` is `([], div)`), `F = G`, and
+`h ; F = G ; [inl, inr ∘ h]`:
+
+* `FullFun.not_iter_uniform_call`: `h` makes one import call and returns (total and
+  deterministic). Then `h ; iter F` makes the call before diverging, `([x], div)`, while
+  `iter G` diverges silently. The logs differ, so this survives merging trap and divergence;
+* `FullFun.not_iter_uniform_trap`: `h` always traps (strict: it preserves divergence). Then
+  `h ; iter F` traps while `iter G` diverges.
+
+So uniformity is claimed only along pure maps; total, deterministic or strict maps are not
+enough.
 -/
 
 @[expose] public section
@@ -405,6 +441,41 @@ theorem FullFun.iter_uniform {A' : Type u} {F : FullFun E S A (B ⊕ A)}
       FullFun.seq G (FullFun.case (FullFun.pure.map Sum.inl) (FullFun.pure.map (Sum.inr ∘ h)))) :
     FullFun.seq (FullFun.pure.map h) (FullFun.iter F) = FullFun.iter G :=
   Silmaril.Proofs.Games.Abstract.FullFun.iter_uniform h hFG
+
+/-- **Dinaturality of iteration**: for `f : A → B ⊕ C` and `g : C → B ⊕ A`,
+`iter (f ; [inl, g]) = f ; [id, iter (g ; [inl, f])]`. -/
+theorem FullFun.iter_dinat (f : FullFun E S A (B ⊕ C)) (g : FullFun E S C (B ⊕ A)) :
+    FullFun.iter (FullFun.seq f (FullFun.case (FullFun.pure.map Sum.inl) g)) =
+      FullFun.seq f (FullFun.case FullFun.pure
+        (FullFun.iter (FullFun.seq g (FullFun.case (FullFun.pure.map Sum.inl) f)))) :=
+  Silmaril.Proofs.Games.Abstract.FullFun.iter_dinat f g
+
+/-- **The codiagonal law**: for `F : A → (B ⊕ A) ⊕ A`, iterating twice is iterating once with
+the two continue tags merged, `iter (iter F) = iter (F.map [id, inr])`. -/
+theorem FullFun.iter_codiag (F : FullFun E S A ((B ⊕ A) ⊕ A)) :
+    FullFun.iter (FullFun.iter F) = FullFun.iter (F.map (Sum.elim id Sum.inr)) :=
+  Silmaril.Proofs.Games.Abstract.FullFun.iter_codiag F
+
+/-- **Uniformity fails along a map that makes an import call**: `h` calls `x` and returns,
+`G` continues silently; `h ; G = G ; [inl, inr ∘ h]` but `h ; iter G ≠ iter G`. -/
+theorem FullFun.not_iter_uniform_call :
+    ∃ (E : Sig.{0}) (x : Call E),
+      let h : FullFun E PUnit PUnit PUnit := (fun s a => {([x], End.ret a s)}, fun _ _ => ∅)
+      let G : FullFun E PUnit PUnit (PUnit ⊕ PUnit) := FullFun.pure.map Sum.inr
+      FullFun.seq h G = FullFun.seq G (FullFun.case (FullFun.pure.map Sum.inl) (h.map Sum.inr)) ∧
+        FullFun.seq h (FullFun.iter G) ≠ FullFun.iter G :=
+  ⟨Silmaril.Proofs.Games.Abstract.FullFun.boolSig, ⟨true, ⟨⟩⟩,
+    Silmaril.Proofs.Games.Abstract.FullFun.not_iter_uniform_call⟩
+
+/-- **Uniformity fails along a map that traps**: `h` traps, `G` continues silently;
+`h ; G = G ; [inl, inr ∘ h]` but `h ; iter G` traps while `iter G` diverges. -/
+theorem FullFun.not_iter_uniform_trap :
+    ∃ E : Sig.{0},
+      let h : FullFun E PUnit PUnit PUnit := (fun _ _ => {([], End.trap)}, fun _ _ => ∅)
+      let G : FullFun E PUnit PUnit (PUnit ⊕ PUnit) := FullFun.pure.map Sum.inr
+      FullFun.seq h G = FullFun.seq G (FullFun.case (FullFun.pure.map Sum.inl) (h.map Sum.inr)) ∧
+        FullFun.seq h (FullFun.iter G) ≠ FullFun.iter G :=
+  ⟨_, Silmaril.Proofs.Games.Abstract.FullFun.not_iter_uniform_trap⟩
 
 /-- Host preservation of post-composition: the same productive observations. -/
 theorem hostObsInf_map {R : HostRel E} (f : FullFun E S A B) (h : B → C) :

@@ -583,6 +583,26 @@ CREATE TABLE finding_versions(
   version TEXT NOT NULL,
   PRIMARY KEY(problem, pos)
 );
+CREATE TABLE expected_open(
+  problem TEXT NOT NULL PRIMARY KEY,
+  reason TEXT NOT NULL CHECK(reason IN ('independent','consistency')),
+  note TEXT,
+  pointer TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL CHECK(origin IN ('local','imported'))
+);
+CREATE TABLE decl_locations(
+  decl TEXT NOT NULL PRIMARY KEY,
+  module TEXT NOT NULL,
+  line INTEGER NOT NULL,
+  col INTEGER NOT NULL,
+  end_line INTEGER NOT NULL,
+  end_col INTEGER NOT NULL,
+  sel_line INTEGER NOT NULL,
+  sel_col INTEGER NOT NULL,
+  sel_end_line INTEGER NOT NULL,
+  sel_end_col INTEGER NOT NULL
+);
 CREATE VIEW group_verdicts AS SELECT e.parent AS group_name, e.record_kind, e.record_name, e.pos, e.child, s.summary, s.verdict FROM edges e JOIN problems p ON p.name = e.parent AND p.kind = 'group' LEFT JOIN summary s ON s.problem = e.child;
 CREATE VIEW language_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, l.name AS language, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN language_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN languages l ON l.term = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
 CREATE VIEW consequence_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, c.name AS system, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN consequence_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN consequence_systems c ON c.term = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
@@ -601,6 +621,7 @@ CREATE INDEX edges_kind ON edges(kind);
 CREATE INDEX summary_verdict ON summary(verdict, summary);
 CREATE INDEX objects_kind ON objects(kind);
 CREATE INDEX problems_detached ON problems(detached, name);
+CREATE INDEX problems_status ON problems(name, kind, arity, expect);
 CREATE INDEX answers_problem ON answers(problem);
 CREATE INDEX problem_inputs_value ON problem_inputs(value);
 CREATE INDEX problem_inputs_cid ON problem_inputs(cid);

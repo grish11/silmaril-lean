@@ -40,6 +40,15 @@ def bounded3Closure : Seq Lit := Derives defaultRules (viaUnsat (bounded 3) lneg
 /-- Validity rebuilt from its UNSAT restriction: `viaUnsat (toUnsat valid) lneg`. -/
 def validViaUnsatRestriction : Seq Lit := viaUnsat (toUnsat (Valid lsat)) lneg
 
+/-- Validity rebuilt from its TAUTO restriction: `viaTauto (toTaut valid) lneg`. -/
+def validViaTautRestriction : Seq Lit := viaTauto (toTaut (Valid lsat)) lneg
+
+/-- The pure identity calculus over literals (`Calculus.Examples.identity`). -/
+def identityLit : Seq Lit := Calculus.Examples.identity
+
+/-- The identity calculus rebuilt from its UNSAT restriction. -/
+def identityViaUnsat : Seq Lit := viaUnsat (toUnsat Calculus.Examples.identity) lneg
+
 /-- The non-logical sequents `p ⊢ q` and `q ⊢ r`. -/
 def chainRaw : Seq Lit := chain
 /-- Their closure under the default rules. -/
@@ -65,6 +74,15 @@ silmaril consequence_system silmaril.selftest.consequence.gentzen.bounded3_closu
 silmaril consequence_system silmaril.selftest.consequence.gentzen.valid_via_unsat_restriction :=
   ProjectSelfTest.Consequence.Gentzen.validViaUnsatRestriction
   (title := "Validity rebuilt from its UNSAT restriction toUnsat (Calculus)")
+silmaril consequence_system silmaril.selftest.consequence.gentzen.valid_via_taut_restriction :=
+  ProjectSelfTest.Consequence.Gentzen.validViaTautRestriction
+  (title := "Validity rebuilt from its TAUTO restriction toTaut (Calculus)")
+silmaril consequence_system silmaril.selftest.consequence.gentzen.identity :=
+  ProjectSelfTest.Consequence.Gentzen.identityLit
+  (title := "The identity calculus over literals (Derives defaultRules ⊥)")
+silmaril consequence_system silmaril.selftest.consequence.gentzen.identity_via_unsat :=
+  ProjectSelfTest.Consequence.Gentzen.identityViaUnsat
+  (title := "The identity calculus rebuilt from its UNSAT restriction (no negation rules: not equal)")
 silmaril consequence_system silmaril.selftest.consequence.gentzen.chain :=
   ProjectSelfTest.Consequence.Gentzen.chainRaw (title := "Non-logical sequents p ⊢ q, q ⊢ r (raw)")
 silmaril consequence_system silmaril.selftest.consequence.gentzen.chain_closure :=
@@ -162,6 +180,46 @@ silmaril instance silmaril.selftest.consequence.gentzen.restriction_complete (ex
 public theorem restriction_complete : ∀ Γ Δ, CompleteAt validViaUnsatRestriction valid Γ Δ := fun Γ Δ h =>
   (show viaUnsat (toUnsat (Valid lsat)) lneg Γ Δ from Calculus.Examples.lit_eq_viaUnsat ▸ h)
 
+-- the TAUTO restriction too, under the stated hypotheses (closed under the default rules, NegL, NegR)
+silmaril instance silmaril.selftest.consequence.gentzen.taut_restriction_sound (expect := THM)
+  (title := "Validity rebuilt from toTaut is sound for validity (default rules, NegL and NegR from lneg_sound/lneg_complete)") :=
+  silmaril.shapes.consequence.sound_at
+  (S := ProjectSelfTest.Consequence.Gentzen.validViaTautRestriction) (T := ProjectSelfTest.Consequence.Gentzen.valid)
+
+theorem valid_eq_viaTauto : Valid lsat = viaTauto (toTaut (Valid lsat)) lneg :=
+  eq_viaTauto_toTaut valid_closed (valid_negL lneg_sound) (valid_negR lneg_complete)
+
+@[answers "silmaril.selftest.consequence.gentzen.taut_restriction_sound" thm]
+public theorem taut_restriction_sound : ∀ Γ Δ, SoundAt validViaTautRestriction valid Γ Δ := fun Γ Δ h =>
+  (show Valid lsat Γ Δ from valid_eq_viaTauto ▸ h)
+
+silmaril instance silmaril.selftest.consequence.gentzen.taut_restriction_complete (expect := THM)
+  (title := "…and complete for validity") := silmaril.shapes.consequence.complete_at
+  (S := ProjectSelfTest.Consequence.Gentzen.validViaTautRestriction) (T := ProjectSelfTest.Consequence.Gentzen.valid)
+
+@[answers "silmaril.selftest.consequence.gentzen.taut_restriction_complete" thm]
+public theorem taut_restriction_complete : ∀ Γ Δ, CompleteAt validViaTautRestriction valid Γ Δ := fun Γ Δ h =>
+  (show viaTauto (toTaut (Valid lsat)) lneg Γ Δ from valid_eq_viaTauto ▸ h)
+
+-- without negation rules the UNSAT restriction loses sequents: the identity calculus
+silmaril instance silmaril.selftest.consequence.gentzen.identity_closed (expect := THM)
+  (title := "The identity calculus is closed under the default Gentzen rules") :=
+  silmaril.shapes.consequence.gentzen_closed (rs := Silmaril.Consequence.Gentzen.defaultRules)
+  (S := ProjectSelfTest.Consequence.Gentzen.identityLit)
+
+@[answers "silmaril.selftest.consequence.gentzen.identity_closed" thm]
+public theorem identity_closed : GentzenClosed defaultRules identityLit := derives_closed defaultRules ⊥
+
+silmaril instance silmaril.selftest.consequence.gentzen.identity_restriction_sound (expect := CSA)
+  (title := "The identity calculus is sound for its UNSAT rebuild (fails: p ⊢ p, but not p, ¬p ⊢; no NegL)") :=
+  silmaril.shapes.consequence.sound_at (S := ProjectSelfTest.Consequence.Gentzen.identityLit)
+  (T := ProjectSelfTest.Consequence.Gentzen.identityViaUnsat)
+
+@[answers "silmaril.selftest.consequence.gentzen.identity_restriction_sound" csa]
+public theorem identity_restriction_sound : ∃ Γ Δ, ¬ SoundAt identityLit identityViaUnsat Γ Δ :=
+  ⟨[(true, 0)], [(true, 0)], fun h => Calculus.Examples.identity_not_explosion
+    (by simpa [identityViaUnsat, viaUnsat, toUnsat, lneg] using h Calculus.Examples.identity_p_p)⟩
+
 silmaril instance silmaril.selftest.consequence.gentzen.p_qp (expect := THM)
   (title := "p ⊢ q, p is valid") := silmaril.shapes.consequence.derives
   (S := ProjectSelfTest.Consequence.Gentzen.valid) (Γ := [(true, 0)]) (φ := [(true, 1), (true, 0)])
@@ -229,7 +287,11 @@ public theorem chain_p_r : ¬ Derives chainRaw [(true, 0)] [(true, 2)] := by
 end
 
 silmaril group silmaril.selftest.consequence.gentzen (title := "Consequence systems: literal sequents (Gentzen)")
-  (children := [silmaril.selftest.consequence.gentzen.restriction_sound,
+  (children := [silmaril.selftest.consequence.gentzen.taut_restriction_sound,
+    silmaril.selftest.consequence.gentzen.taut_restriction_complete,
+    silmaril.selftest.consequence.gentzen.identity_closed,
+    silmaril.selftest.consequence.gentzen.identity_restriction_sound,
+    silmaril.selftest.consequence.gentzen.restriction_sound,
     silmaril.selftest.consequence.gentzen.restriction_complete, silmaril.selftest.consequence.gentzen.pairs_up_closed,
     silmaril.selftest.consequence.gentzen.pairs_set_inv, silmaril.selftest.consequence.gentzen.bounded3_up_closed,
     silmaril.selftest.consequence.gentzen.pairs_closed,

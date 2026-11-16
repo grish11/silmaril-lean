@@ -28,7 +28,9 @@ preserve admissibility.
   `pure_map_inr_seq_case`, `case_pure_map`, `seq_case`;
 * iteration: `iter_unfold` (**the fixpoint law** `iter σ = seq σ (case pure (iter σ))`),
   `iter_map` (**naturality in the output**) and `iter_uniform` (**uniformity** for a pure map
-  `h`: `h ; F = G ; [inl, inr ∘ h]` implies `h ; iter F = iter G`).
+  `h`: `h ; F = G ; [inl, inr ∘ h]` implies `h ; iter F = iter G`) and `iter_dinat`
+  (**dinaturality** `iter (σ ; [inl, τ]) = σ ; [id, iter (τ ; [inl, σ])]`) and `iter_codiag`
+  (**the codiagonal law** `iter (iter σ) = iter (map σ [id, inr])`).
 
 These are laws of `CanonStrat` only; no law is claimed for general prefix-closed strategies.
 -/
@@ -264,6 +266,21 @@ theorem iter_uniform {A' : Type u} {F : CanonStrat E S A (B ⊕ A)} {G : CanonSt
   simp only [rep_seq, rep_map, rep_pure, rep_case] at this
   exact rep_injective
     (by simp only [rep_seq, rep_map, rep_pure, rep_iter]; exact iterT_uniform h this)
+
+/-- **Dinaturality of iteration**: for `σ : A → B ⊕ C` and `τ : C → B ⊕ A`,
+`iter (σ ; [inl, τ]) = σ ; [id, iter (τ ; [inl, σ])]`. -/
+theorem iter_dinat (σ : CanonStrat E S A (B ⊕ C)) (τ : CanonStrat E S C (B ⊕ A)) :
+    iter (seq σ (case (map pure Sum.inl) τ)) =
+      seq σ (case pure (iter (seq τ (case (map pure Sum.inl) σ)))) :=
+  rep_injective (by
+    simp only [rep_iter, rep_seq, rep_case, rep_map, rep_pure]
+    exact iterT_dinat _ _)
+
+/-- **The codiagonal law**: for `σ : A → (B ⊕ A) ⊕ A`,
+`iter (iter σ) = iter (map σ [id, inr])`. -/
+theorem iter_codiag (σ : CanonStrat E S A ((B ⊕ A) ⊕ A)) :
+    iter (iter σ) = iter (map σ (Sum.elim id Sum.inr)) :=
+  rep_injective (by simp only [rep_iter, rep_map]; exact iterT_codiag _)
 
 end CanonStrat
 

@@ -3,7 +3,9 @@ const PAGE = 100;
 async function listPage(spec) {
   const total = tables.has(spec.table) ? (await q(`SELECT count(*) AS n FROM ${spec.table}`))[0].n : 0;
   const html = `<h2>${esc(spec.title)} (${total})</h2><div class="controls">
-    <input type="text" id="filter" placeholder="filter: ${esc(spec.filter.join(", "))} contains…" size="44">
+    <input type="text" id="filter" placeholder="filter: ${esc(spec.filter.join(", "))} contains…" size="44" aria-label="filter">
+    ${spec.statusFilter ? `<label>status <select id="fstatus"><option value="">any</option>${StatusSemantics.DISPLAY_ORDER.filter((c) => c !== "CON").map((c) =>
+      `<option value="${c}">${c}: ${esc(StatusSemantics.DISPLAY_CODES[c].text)}</option>`).join("")}<option value="attention">needs attention</option></select></label>` : ""}
     <button id="prev">◀ previous</button><button id="next">next ▶</button><span id="range" class="muted"></span></div><div id="list"></div>`;
   let timer = null;
   const init = async () => {
@@ -11,16 +13,29 @@ async function listPage(spec) {
     const draw = async () => {
       if (!$("#filter")) return;
       const mine = ++tok, f = $("#filter").value.trim().toLowerCase();
+      const fs = spec.statusFilter && $("#fstatus") ? $("#fstatus").value : "";
       const where = f ? "WHERE " + spec.filter.map((c) => `instr(lower(${c}), ?) > 0`).join(" OR ") : "";
-      const rows = await q(`SELECT ${spec.select} ${where} ORDER BY ${spec.order} LIMIT ${PAGE + 1} OFFSET ${off}`, f ? spec.filter.map(() => f) : []);
+      let rows;
+      if (fs) {
+        // a status filter: the names from the problem index (StatusSemantics), then this page's rows
+        const idx = await problemIndex();
+        const found = f ? await problemsMatching(f) : null;
+        const names = idx.list.filter((e) => e.kind !== "group" && (fs === "attention" ? !!e.st.attention.list : e.st.code === fs) &&
+          (!found || found.has(e.name))).map((e) => e.name);
+        const page = names.slice(off, off + PAGE + 1);
+        const got = page.length ? await q(`SELECT ${spec.select} WHERE p.name IN (${ph(page.length)})`, page) : [];
+        const at = new Map(got.map((r) => [r.name, r]));
+        rows = page.map((n) => at.get(n)).filter(Boolean);
+      } else rows = await q(`SELECT ${spec.select} ${where} ORDER BY ${spec.order} LIMIT ${PAGE + 1} OFFSET ${off}`, f ? spec.filter.map(() => f) : []);
       const html = await table(rows.slice(0, PAGE), spec.cols, Object.assign({ hints: spec.hints }, spec.table_opts));
       if (mine !== tok || !$("#list")) return;
       $("#list").innerHTML = html;
-      $("#range").textContent = rows.length ? `rows ${off + 1}–${off + Math.min(rows.length, PAGE)}${f ? " of the matches" : ` of ${total}`}` : "";
+      $("#range").textContent = rows.length ? `rows ${off + 1}–${off + Math.min(rows.length, PAGE)}${f || fs ? " of the matches" : ` of ${total}`}` : "";
       $("#prev").disabled = off === 0; $("#next").disabled = rows.length <= PAGE;
       updateStats();
     };
     $("#filter").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { off = 0; draw(); }, 250); });
+    if ($("#fstatus")) $("#fstatus").addEventListener("change", () => { off = 0; draw(); });
     $("#prev").addEventListener("click", () => { off = Math.max(0, off - PAGE); draw(); });
     $("#next").addEventListener("click", () => { off += PAGE; draw(); });
     await draw();
@@ -28,7 +43,7 @@ async function listPage(spec) {
   return { html, init, dispose: () => clearTimeout(timer) };
 }
 function problems() {
-  return listPage({ title: "Problems", table: "problems", order: "p.name", filter: ["p.name", "p.title", "p.module"], hints: { name: "problem" },
+  return listPage({ title: "Problems", table: "problems", order: "p.name", filter: ["p.name", "p.title", "p.module"], hints: { name: "problem" }, statusFilter: true,
     select: "p.name, p.kind" + STATUS_COLS() + ", p.detached, p.title, p.module FROM problems p" + STATUS_JOINS(),
     cols: ["status", "name", "kind", "detached", "title", "module"],
     table_opts: { render: { status: statusBadge }, badges: false, nowrap: ["kind", "detached"] } });

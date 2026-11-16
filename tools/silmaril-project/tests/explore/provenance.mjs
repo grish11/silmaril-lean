@@ -5,6 +5,10 @@
 //     draws every problem on request; problems that need attention are never stacked;
 //   * a THM problem names its evidence (the answer theorem, its tier and axioms) with a source link
 //     pinned to the commit, and "view" shows the declaration's line, escaped;
+//   * a statement written by a `silmaril instance` command (json_format_eq_json) is found: the
+//     source view (dialog and `#/source/<decl>` page) frames its lines, marks its name, highlights
+//     the Lean and says that a text search found it; with a `decl_locations` row (a copy of the
+//     database, served on the next port) the same view says the range is Lean's, exact;
 //   * an artifact's bytes are shown bounded, as text or hex, with the registry's SHA-256 checked;
 //   * a Wasm module's WAT is shown highlighted.
 //
@@ -80,9 +84,78 @@ try {
     const sv = await p.evaluate(() => { const d = document.querySelector("dialog.dlg"); return { text: d.textContent, link: (d.querySelector("a") || {}).href || "",
       scripts: d.querySelectorAll("pre script, pre img").length }; });
     const last = thm.decl.split(".").pop();
-    check(/#L\d+$/.test(sv.link) && sv.text.includes(last) && sv.scripts === 0, `the source view shows ${last} at ${sv.link.split("/").slice(-2).join("/")}`);
+    check(/#L\d+(-L\d+)?$/.test(sv.link) && sv.text.includes(last) && sv.scripts === 0, `the source view shows ${last} at ${sv.link.split("/").slice(-2).join("/")}`);
     await shot("source-view.png");
     await p.keyboard.press("Escape");
+
+    // 2b. a statement that a command generates (`silmaril instance …`): the problem page's source
+    // view finds the command, frames the whole declaration and highlights it; then the same with
+    // Lean's ranges from a `decl_locations` row (a copy of the database, served apart)
+    const JSON_DECL = "silmaril.selftest.languages.json_format_eq_json";
+    const jp = sql(`SELECT name, decl, module FROM problems WHERE name = '${JSON_DECL}' AND decl IS NOT NULL`)[0];
+    if (jp) {
+      const raw = await p.evaluate((m) => (moduleFile(m) || {}).raw || null, jp.module);
+      const want = raw && (await (await fetch(raw)).text()).split("\n").findIndex((l) => l.startsWith(`silmaril instance ${jp.decl} `)) + 1;
+      check(want > 0, `${jp.decl} is written at line ${want} of ${raw && raw.split("/").slice(-2).join("/")}`);
+      const view = (root) => p.evaluate((root) => {
+        const d = document.querySelector(root), pre = d && d.querySelector("pre.lean"), g = pre && pre.querySelector(".src-decl");
+        if (!g) return null;
+        const pr = pre.getBoundingClientRect(), gr = g.getBoundingClientRect();
+        return { link: d.querySelector("a.src-permalink").href, rows: [...g.querySelectorAll(".sl")].map((r) => +r.dataset.line), current: g.getAttribute("aria-current"),
+          sel: (pre.querySelector(".lean-sel") || {}).textContent, kinds: [...new Set([...pre.querySelectorAll("[class^=lt-]")].map((s) => s.className))],
+          exact: !!d.querySelector(".src-exact"), approx: !!d.querySelector(".src-approx"), note: (d.querySelector(".src-note") || {}).textContent || "",
+          label: pre.getAttribute("aria-label") || "", described: !!document.getElementById(pre.getAttribute("aria-describedby") || "-"), focusable: pre.tabIndex === 0,
+          visible: gr.top >= pr.top - 1 && gr.top < pr.bottom, unsafe: d.querySelectorAll("pre script, pre img, pre [onclick]").length };
+      }, root);
+      const expectView = (v, exact, what) => {
+        check(!!v, `${what}: the source view frames a declaration`);
+        if (!v) return;
+        check(v.link.endsWith(`/blob/${source.rev}/examples/project/ProjectSelfTest/Languages.lean#L${want}-L${want + 2}`), `${what}: permalink to its lines (${v.link.split("/").pop()})`);
+        check(v.rows.join() === [want, want + 1, want + 2].join() && v.current === "location", `${what}: lines ${v.rows.join(", ")} framed, aria-current=${v.current}`);
+        check(v.sel === jp.decl, `${what}: the name is marked (${v.sel})`);
+        check(["lt-command", "lt-decl-name", "lt-string", "lt-operator"].every((k) => v.kinds.includes(k)), `${what}: highlighted (${v.kinds.join(" ")})`);
+        check(exact ? v.exact && !v.approx : v.approx && !v.exact, `${what}: marked ${exact ? "exact" : "approximate"}`);
+        check(v.note.startsWith(`Lines ${want}–${want + 2}`) && v.described && v.focusable && /Lean source/.test(v.label), `${what}: labelled, focusable, described: ${v.note.slice(0, 60)}`);
+        check(v.visible && v.unsafe === 0, `${what}: the declaration is in sight, nothing active in the code`);
+      };
+      // a database written by `make pages` has Lean's ranges already; an older one has none
+      const ranged = sql("SELECT count(*) AS n FROM sqlite_master WHERE name = 'decl_locations'")[0].n > 0 &&
+        sql(`SELECT count(*) AS n FROM decl_locations WHERE decl = '${jp.decl}'`)[0].n > 0;
+      await go("#/problem/" + encodeURIComponent(jp.name));
+      await shot("problem-json-format.png");
+      await p.click(`button.srcview[data-decl="${jp.decl}"]`);
+      await p.waitForSelector("dialog.dlg pre.lean, dialog.dlg .err", { timeout: 30000 });
+      expectView(await view("dialog.dlg"), ranged, ranged ? "decl_locations of the database" : "text search");
+      await shot("source-view-json-format.png");
+      await p.keyboard.press("Escape");
+      await go("#/source/" + encodeURIComponent(jp.decl));
+      await p.waitForSelector("#main pre.lean, #main .lean-src .err", { timeout: 30000 });
+      expectView(await view("#main"), ranged, "source page");
+      await shot("source-page-json-format.png");
+
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "provenance-ranges-"));
+      for (const f of ["index.html", "explore-sw.js"]) if (fs.existsSync(path.join(site, f))) fs.copyFileSync(path.join(site, f), path.join(tmp, f));
+      fs.copyFileSync(path.join(site, "project.sqlite"), path.join(tmp, "project.sqlite"));
+      execFileSync("python3", ["-I", "-c", "import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);" +
+        "c.execute('CREATE TABLE IF NOT EXISTS decl_locations(decl TEXT PRIMARY KEY, module TEXT NOT NULL, line INTEGER NOT NULL, col INTEGER NOT NULL, " +
+        "end_line INTEGER NOT NULL, end_col INTEGER NOT NULL, sel_line INTEGER NOT NULL, sel_col INTEGER NOT NULL, sel_end_line INTEGER NOT NULL, sel_end_col INTEGER NOT NULL)');" +
+        "c.execute('INSERT OR REPLACE INTO decl_locations VALUES (?,?,?,0,?,72,?,18,?,65)', (sys.argv[2], sys.argv[3], int(sys.argv[4]), int(sys.argv[4]) + 2, int(sys.argv[4]), int(sys.argv[4])));c.commit()",
+        path.join(tmp, "project.sqlite"), jp.decl, jp.module, String(want)]);
+      const srv2 = spawn("python3", ["-I", path.join(path.dirname(new URL(import.meta.url).pathname), "pages_server.py"),
+        "--root", tmp, "--port", String(port + 1), "--log", path.join(tmp, "requests.jsonl")], { stdio: "ignore" });
+      try {
+        await new Promise((r) => setTimeout(r, 800));
+        await p.goto(`http://127.0.0.1:${port + 1}/index.html#/problem/${encodeURIComponent(jp.name)}`);
+        await settle();
+        await p.click(`button.srcview[data-decl="${jp.decl}"]`);
+        await p.waitForSelector("dialog.dlg pre.lean, dialog.dlg .err", { timeout: 30000 });
+        expectView(await view("dialog.dlg"), true, "decl_locations");
+        await shot("source-view-exact.png");
+        await p.keyboard.press("Escape");
+      } finally { srv2.kill(); fs.rmSync(tmp, { recursive: true, force: true }); }
+      await p.goto(`http://127.0.0.1:${port}/index.html#/graph`);
+      await settle();
+    } else console.log(`skip no problem ${JSON_DECL} with a declaration in this database`);
 
     // 3. an artifact's bytes
     const art = sql("SELECT a.cid, a.sha256, ap.path FROM artifacts a JOIN artifact_paths ap ON ap.artifact = a.sid WHERE ap.path LIKE '%.txt' OR ap.path LIKE '%.wasm' ORDER BY a.size LIMIT 1")[0];
@@ -99,8 +172,10 @@ try {
   }
 
   // 4. WAT, highlighted
-  const idx = JSON.parse(fs.readFileSync(path.join(site, "wasm", "index.json"), "utf8"));
-  const mod = idx.modules.find((m) => fs.existsSync(path.join(site, "wasm", "wat", m.slug + ".wat")));
+  // (a site written without `lake build wasm-pages` has none: skipped)
+  const idxFile = path.join(site, "wasm", "index.json");
+  const idx = fs.existsSync(idxFile) ? JSON.parse(fs.readFileSync(idxFile, "utf8")) : null;
+  const mod = idx && idx.modules.find((m) => fs.existsSync(path.join(site, "wasm", "wat", m.slug + ".wat")));
   if (mod) {
     await go("#/wasm-module/" + encodeURIComponent(mod.slug));
     await p.click("button[data-lang=wat]");
@@ -109,7 +184,8 @@ try {
     check(w.pressed === "WAT" && w.kinds.includes("hl-k") && w.kinds.includes("hl-t"), `WAT is highlighted (${w.kinds.join(" ")})`);
     await shot("wat-view.png");
     await p.keyboard.press("Escape");
-  } else check(false, "no Wasm module with WAT in the site");
+  } else if (idx) check(false, "no Wasm module with WAT in the site");
+  else console.log("skip the site has no wasm/index.json: no WAT view to check");
   check(errors.length === 0, "no page errors " + errors.join("; "));
 } finally {
   await b.close(); srv.kill();

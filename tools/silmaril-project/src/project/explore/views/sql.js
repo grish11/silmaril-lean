@@ -64,6 +64,8 @@ const TABLE_DOCS = {
   deprecated_problems: "Every problem that is deprecated, directly or through a spec or general problem.",
   findings: "Classifications of failing problems (error, spec_bug, model_gap, unclear).",
   finding_versions: "The affected versions of an `error` finding.",
+  expected_open: "Open problems expected to stay open for a metatheoretic reason about Lean's ambient theory (independent, consistency), with a note and a pointer.",
+  decl_locations: "Where each Lean declaration the dump names is declared: module, whole range and name range (lines 1-based, columns in codepoints from 0).",
   group_verdicts: "View: each group's children with their summaries and verdicts.",
   deprecated_with_replacements: "View: deprecations with their replacements.",
   genuine_errors: "View: the `error` findings with their problems' titles and summaries.",

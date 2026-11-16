@@ -164,6 +164,238 @@ Each lift is the least system with its property (`…_le_iff`):
 | `liftAxAll L` | `a ⊢ c` for accepted `a`, every `c` | `{a | ProvesAll a}`, only if `C` is nonempty |
 | `liftCAll L` | `a ⊢ c` for every `a`, accepted `c` | `{c | a ⊢ c}` for any `a` |
 
+### Acceptor values, interpreters and encoded programs
+
+The lifts above take one language. A CSLib acceptor type `X` (`Cslib.Automata.Acceptor X α`,
+whose values accept words `List α`) is itself a system with acceptors as contexts, and so are
+the interpreters that read programs as acceptors (`Acceptor/`):
+
+| view | system | `· ⊢ w` holds iff |
+|---|---|---|
+| `System.ofAcceptor X` | `System X (List α)` | `x` accepts `w` |
+| `System.ofInterpreter interp` | `System W (List α)` | `interp m` accepts `w` |
+| `System.ofDecoder decode interp` | `System B (List α)` | `decode b = some m` and `interp m` accepts `w` |
+
+The row `{w | x ⊢ w}` of a context is its language (`ofAcceptor_row`, `ofInterpreter_row`), so
+`≤` between interpreter systems is language inclusion program by program
+(`ofInterpreter_le_iff`). `ofInterpreter interp` is `(ofAcceptor X).pullback interp id`; along
+an encoder that the decoder inverts, the bytes system restricts to the program system
+(`ofDecoder_pullback_of_roundtrip`). Bytes that do not decode prove nothing
+(`ofDecoder_of_eq_none`), the same row as a program that accepts nothing; keep an `Interp`
+when the difference matters. One acceptor as the only context is `liftCAll` of its language
+(`pullback_const_ofAcceptor`).
+
+For Wasm (Lean names relative to `Silmaril.Wasm.Game.Accept` and `Silmaril.Wasi.Accept`):
+
+| view | module | component | either shape |
+|---|---|---|---|
+| acceptor | `ofAcceptor ModuleAcceptor` | `ofAcceptor ComponentAcceptor` | `ofAcceptor ByteAcceptor` |
+| interpreter | `A.withModule` | `ComponentAcceptor.interp C L acc rej mode` | `ByteAcceptor.interp A I` |
+| program system | `A.moduleSystem` | `ComponentAcceptor.compSystem C L …` | `ByteAcceptor.programSystem A I` |
+| bytes system | `A.bytesSystem` (`Binary.Core.decode?`) | `ComponentAcceptor.binarySystem C L …` (`parseComponent`), `bytesSystem … decode` | `ByteAcceptor.bytesSystem A C L …` |
+
+**Simple entry points, one shape each:**
+
+* `Silmaril.Wasm.Game.Accept.moduleBytesSystem (P := .spec) : System ByteArray (List UInt8)`:
+  module binaries under the default interpretation (`env.accept(ptr: i32, len: i32)`, memory 0,
+  every Core host; the interpretation of `wasm.core.accept_bytes32`). `b ⊢ w` iff `b` decodes to
+  `m` and `w ∈ bytesLang P m` (`moduleBytesSystem_iff`). No template.
+* `Silmaril.Wasi.Accept.componentBytesSystem C (mode := .imp)`: component binaries, through the
+  component's own import and export names (`Layout.ofComp`) and its world-level `accept`. Only
+  the core semantics `C : CoreSem CoreMod` is required. The library's only instance is the
+  loosest, `Project.WasmComponents.topSem` (every legal play); there is no execution-based one.
+  `componentBytesSystem_iff`, and `componentBytesSystem_eq_binarySystem` relates it to the general
+  form.
+* Each proves nothing on the other shape's binaries or on invalid bytes
+  (`Wasi/Component/Accept/Consequence/Examples.lean`).
+* **`list<u8>` components on the reference machine.** `Silmaril.Wasi.Accept.Ref.refBytesSystem prof`
+  decodes and validates a component binary on the reference machine (REF, the full canonical
+  ABI with linear memory). `b ⊢ w` iff the component, linked to a host `accept` that records
+  its arguments, receives `list<u8> w` in some run: the host invokes exports, ticks and
+  cancels. `acceptRun` is the executable driver and `acceptRun_sound` its soundness. A real
+  `accept(list<u8>)` binary decodes in the kernel and accepts `"hi!"` by a `#guard`ed run
+  (`Ref/Examples.lean`). Caveats: `docs/projects/component-caveats.md`.
+* **`list<u8>` is a lowering and semantics gap, not a parser gap.**
+  * Every component parser reads `list<u8>`: `Binary.parse`, `Codec.decode` and the reference
+    semantics' `Conformance.decodeRef`.
+  * Every lowering into the component IR (`Binary.parseComponent`, `Perf.LowerF.parseComponentF`,
+    `Perf.JcoMain.parseComponentWith`) rejects it (`defValTy_list`), because the IR's `ValTy`
+    has no list type and no memory-based canonical ABI.
+  * The reference semantics reads lists but has no trace semantics with imports.
+  * The jco model (`Silmaril.Wasm.Jco`) handles `list<u8>` only for wrapper components it
+    builds from a core module, and meets the IR only on the memory-free fragment.
+  * So a typical `accept(list<u8>)` binary proves nothing through `componentBytesSystem`, while
+    fixed-arity `accept(tuple<u8, …>)` binaries do decode. The examples check both binaries in
+    the kernel (`listAcceptBytes`, `tupleAcceptBytes`).
+
+A template `ModuleAcceptor` `A` is the module interpretation: profile, `accept`/`reject`
+imports, memory, address width and environments; `A.withModule m` replaces only the module.
+Component interpretations take a core semantics `C : CoreSem M` and a layout `L`. For the
+lowered `CoreMod` of `parseComponent` (partial, unverified lowering), the library has only the
+loosest semantics `Project.WasmComponents.topSem`, so the component byte systems take `C` as a
+parameter. The either-shape decoder
+tries the core decoder first, then the component one. Examples:
+`Silmaril/Logic/Consequence/Acceptor/Examples.lean` (a toy acceptor) and
+`Silmaril/Wasi/Component/Accept/Consequence/Examples.lean` (the empty-module binary, the
+specification component).
+
+## Clausal acceptors: UNSAT, TAUTO, CNF, Gentzen and DIMACS
+
+`Silmaril.Consequence.Gentzen.Clausal` (`Gentzen/Clausal/{Defs,Thms,Examples}`) relates four
+kinds of acceptor over a formula type `C`. An acceptor is a plain predicate (a policy);
+its semantics and its soundness are separate notions.
+
+| kind | type | reading |
+|---|---|---|
+| UNSAT `U` | `List C → Prop` | conjunction, accepted when refuted |
+| TAUTO `T` | `List C → Prop` | disjunction, accepted when valid |
+| CNF `A` | `List (List C) → Prop` | conjunction of disjunctions, accepted when refuted |
+| Gentzen `S` | `Seq C` | sequent `Γ ⊢ Δ` |
+
+Semantics over `sat : M → C → Prop`: `CnfSat`, `CnfUnsat` (no model *in `M`*; satisfiability is
+relative to the model type), and `CnfSound` / `CnfComplete` for an acceptor. Weakening is
+membership inclusion `⊆` (`ListPred.UpClosed`); ordered or substructural policies are not
+covered by these equivalences. Negation is an explicit `neg : C → C`, never assumed involutive.
+
+**Closure laws.** `UnsatClosed neg` (`⊆`-weakening, explosion, unit cut
+`U (neg a :: Γ) → U (a :: Γ') → U (Γ ++ Γ')`); `TautClosed neg` (dually: excluded middle and
+cut); `GentzenClosed neg` (`Closed defaultRules`, `NegL`, `NegR`). CNF acceptors have two layers:
+
+* `CnfClosed`, *representation*: clause-set weakening, clause strengthening, splitting
+  `A ([a] :: F) → A (K :: F) → A ((a :: K) :: F)`, the empty clause. No negation. It holds
+  exactly when `A` is determined by its unit restriction `unitsOf A` through hitting sets
+  (`cnfOf U F := ∀ Γ, Hits Γ F → U Γ`).
+* `CnfUnsatClosed neg`, *logic*: `CnfClosed` plus complementary units `A [[c], [neg c]]` and unit
+  resolution `A ([neg a] :: F) → A ([a] :: G) → A (F ++ G)`. `cnfUnsatClosed_iff`: these are
+  exactly what makes `unitsOf A` `UnsatClosed`. "Contains the empty clause" is `CnfClosed` and
+  sound but not `CnfUnsatClosed` (`Examples.emptyClause_not_unsatClosed`).
+
+**Equivalences** (order isomorphisms between the closed acceptors; an arbitrary acceptor is not
+the restriction of any calculus, e.g. the sound `bounded 3` test is not up-closed):
+
+| equivalence | maps | hypotheses in the subtypes |
+|---|---|---|
+| `unsatEquiv neg` | `toUnsat` / `viaUnsat · neg` | `GentzenClosed neg` ≃ `UnsatClosed neg` |
+| `tautEquiv neg` | `toTaut` / `viaTauto · neg` | `GentzenClosed neg` ≃ `TautClosed neg` |
+| `cnfEquiv C` | `cnfOf` / `unitsOf` | `ListPred.UpClosed` ≃ `CnfClosed` |
+| `cnfUnsatEquiv neg` | `cnfOf` / `unitsOf` | `UnsatClosed neg` ≃ `CnfUnsatClosed neg` |
+| `gentzenCnfEquiv neg` | `cnfOf ∘ toUnsat` / `viaUnsat (unitsOf ·) neg` | `GentzenClosed neg` ≃ `CnfUnsatClosed neg` |
+| `signedEquiv A` | `signedUnsat` / `atomSeq` | `Closed defaultRules` on `Seq A` ≃ `UnsatClosed (-·)` on `List (Signed A)` |
+| `signedCnfEquiv A` | `cnfOf ∘ signedUnsat` | `Closed defaultRules` on `Seq A` ≃ `CnfUnsatClosed (-·)` on `List (List (Signed A))` |
+
+`UnsatClosed.dne` derives the double-negation step `NegR` needs from explosion and cut. Over
+signed formulas the Gentzen side is a calculus on the atoms `A` — the existing positive
+embedding `Signed.pos` (`MultiSystem.posPart`, `signedLift`) — and no positive part is derived
+from an involution: `signedUnsat S Γ = S (posAtoms Γ) (negAtoms Γ)`,
+`atomSeq U = posPart (viaUnsat U (-·))`; `atomSeq_signedUnsat` needs no hypothesis.
+
+Semantics: `CnfUnsat sat` is `CnfClosed` always, and `CnfUnsatClosed neg` given `NegSound`
+(complementary units) and `NegComplete` (unit resolution); `cnfOf_toUnsat_valid`
+(`cnfOf (toUnsat (Valid sat)) = CnfUnsat sat`); `cnfOf_signedUnsat_valid` for signed atoms
+under a valuation. Soundness transfers separately: `cnfSound_cnfOf`, `checkSound_unitsOf`,
+`viaUnsat_unitsOf_le_valid`.
+
+### DIMACS and LRAT
+
+`Gentzen/Clausal/Dimacs/{Defs,Thms,Examples}` connects this to `Silmaril.Logic.SAT` (`Lit :=
+Int`, `CNF := List (List Int)`, `Dimacs.read`, `LRAT.check`):
+
+* `CnfUnsat litSat F ↔ SAT.CNF.Unsat F` (`cnfUnsat_litSat_iff`), so `SAT.CNF.Unsat` is
+  `CnfClosed`; on `0`-free clauses it is `Refutation.Unsat csat` of `Refutation.CNF`
+  (`cnfUnsat_toCNF_iff`). `lratAccepts` (some proof passes `LRAT.check`) is a *sound* CNF acceptor
+  (`lratAccepts_sound`); no closure or completeness of LRAT acceptance is claimed.
+* `Dimacs.write F` (each clause followed by `0`) is read back exactly by the existing reader
+  when no clause contains `0` (`Dimacs.read_write`, `Dimacs.cnf_write`); `[[0]]` is not
+  (`Dimacs.write_zero_not_inverse`).
+* The image of signed clauses along `v : A → Nat`: `encLit v (pos a) = v a`,
+  `encLit v (neg a) = -(v a)`, `encode v F`. `Coherent v F`: `v` is nonzero (the terminator `0`
+  is never a literal) and injective (no collision) on the finite support `atoms F`.
+  `encLit_neg`: the sign flip commutes with the image for every `v`.
+* Direction of the transfer, for `sat : M → Signed A → Prop` with `NegSound sat (-·)` (a model
+  of `neg a` is not one of `pos a`; true of `signedSat τ`): source satisfiable in `M` ⇒ image
+  satisfiable (`sat_encode`), hence image `Unsat` ⇒ source `CnfUnsat` in `M`
+  (`cnfUnsat_of_encode`), and an accepted LRAT proof of the image — or of the formula read from
+  its DIMACS stream — refutes the source through `LRAT.check_sound` (`cnfUnsat_of_lrat`,
+  `cnfUnsat_of_lrat_stream`, `signedSat_cnfUnsat_of_lrat`).
+* The converse is not claimed. `Examples.converse_fails`: in a model type with one model making
+  every atom true, `[[¬x]]` is unsatisfiable while its coherent image `[[-1]]` is satisfiable.
+  `Examples.collision`: with every atom on variable `1`, the satisfiable `[[x], [¬y]]` has an
+  LRAT-refuted image, showing why a hypothesis like `injOn` is needed for the general theorem
+  (not that it is necessary for every formula). `Examples.src_unsat`: the four clauses over
+  `x, y` encode to `LRAT.fourClauses`, whose existing proof is checked by `decide`.
+
+## Institutions, logics and their propositions
+
+`roomSys` (`Set Sen ⊢ Sen`) and `roomMulti` (`Sen* ⊢ Sen*`) already read a room as a system.
+`Institution/` adds the list form, syntactic entailment, and point-wise semantics:
+
+| construction | system | semantics |
+|---|---|---|
+| `roomSeq R` | `Sen* ⊢ Sen` | every model of all of `Γ` satisfies `φ` (= `Room.Entails` on the members) |
+| `roomMulti R` | `Sen* ⊢ Sen*` | every model of all of `Γ` satisfies **some** `δ ∈ Δ` (= `Gentzen.Valid R.Sat`) |
+| `institutionSeq I σ`, `corridorSeq f` | translations | reindexing along signature morphisms / corridors |
+| `ER.listSys E`, `LogicalSystem.listSys L S` | `Sen* ⊢ Sen` | syntactic (Tarskian) entailment; `≤ roomSeq` when `L` is sound |
+| `Refutation.Entails (localSat sat)`, `Gentzen.Valid (localSat sat)` | point-wise | one valuation satisfies the premises and the (some) conclusion |
+| `… (validIn sat)` | model-wise | validity in a model (every valuation) |
+
+Closure: every `Refutation.Entails sat` is `Structural.Closed tarskiRules` (reflexivity, `⊆`-weakening,
+hence exchange and contraction, and multi-cut); every `Gentzen.Valid sat` is
+`Gentzen.Closed defaultRules` (reflexivity, `⊆`-weakening of both sides, cut). Maps with a
+satisfaction condition (`valid_map_of_sat`, `entails_map_of_sat`) are the reusable
+reindexing/substitution lemma. Point-wise single conclusion is below model-wise
+(`entails_localSat_le_validIn`). The converse fails, and the two multiple-conclusion systems are
+incomparable (`Institution/Examples.lean`). **A model-wise succedent is not a disjunctive (LK)
+succedent.**
+
+### HOL (`HOL/`)
+
+The HOL institution's sentences are sequents `H ⊢ p`, satisfied valuation by valuation. At the
+level of propositions `HOLProp S` (bool-typed terms):
+
+| system | Lean | reading |
+|---|---|---|
+| `HOLProp* ⊢ HOLProp` | `HOL.seq S` | HOL Light's sequent semantics: `seq_iff_entails`, `seq_iff_valid_toSeq` (`Γ ⊢ p` valid in the institution) |
+| `HOLProp* ⊢ HOLProp*` | `HOL.gentzen S` | LK: one valuation, disjunctive succedent; `gentzen_single : gentzen.single = seq` |
+| model-wise | `HOL.globalSeq S`, `HOL.globalGentzen S` | consequence between hypothesis-free sentences `⊢ p` (`globalSeq_iff_roomSeq`) |
+
+Closure, all proved for `seq` and `gentzen`: structural (`seq_closed`, `gentzen_closed`,
+`seq_exchange`, `seq_contraction`), signature extension (`seq_map`, `gentzen_map`), type
+instantiation (`seq_tySubst`, `gentzen_tySubst`) and term instantiation (`seq_freeSubst`,
+`gentzen_freeSubst`). Soundness: `derives_le_seq` (HOL Light kernel, pure logic) and
+`logic_listSys_le_roomSeq` (sequent level). `HOL/Examples.lean` proves, over the initial
+signature, `x ⊢ y` in `globalSeq` but not in `seq`, and `⊢ x, ¬x` in `gentzen` but not in
+`globalGentzen`.
+
+### Dependent type theory: the lambda cube (`Silmaril/Calculi/LambdaCube/Consequence/`)
+
+There is no Martin-Löf type theory in the library. The dependent corners of the lambda cube
+(`lambdaP` … `cc`) are the existing dependent institutions, and their sentences are judgements
+`Γ ⊢ t : A`, `Γ ⊢ t ≡ u : A` that carry their own dependent context. `Semantics.seq M`
+(`roomSeq`) relates lists of whole judgements. It is Tarski-closed in that outer list
+(`seq_closed`) and never splits `Γ`. `derivableSys c` is theoremhood: it weakens and cuts, is
+below every semantics (`derivableSys_le_seq`), and is monotone in the corner. Reflexivity is not
+claimed. There is deliberately no Gentzen instance. `admissible c` (examples) is the one-model
+semantics whose `seq` is admissibility.
+
+### Also proved
+
+* `roomSeqSys : Room ⥤ Sys` and `institutionSeqSys I` (functorial `Sen* ⊢ Sen`), instantiated for
+  propositional and first-order logic in the examples; `corridorSeq_reflect` (conservative
+  along corridors whose model reduct is surjective on objects).
+* HOL: `gentzen_iff_seq_disjList` (`Γ ⊢ Δ` iff `Γ ⊢ ⋁Δ`, HOL's defined disjunction) and
+  `derives_le_globalSeq` (kernel derivations from axioms `Δ` are model-wise consequences of
+  `Δ`; not point-wise ones, since the kernel instantiates axioms).
+
+### Gaps
+
+* HOL: no completeness (standard semantics is incomplete for the kernel).
+* Lambda cube: no hypothetical-judgement calculus (judgements as premises of derivations), no
+  concrete model of a dependent corner, and no substitution closure for judgements. These would
+  be new developments, not adapters.
+* Wasm: no concrete binary with a proved nonempty byte language yet. Component binaries with
+  `accept(list<u8>)` parse but do not lower into the IR, and no component semantics with
+  imports and list types exists to read them.
+
 ## Interpretations
 
 `Interp Env Value Ax C := (e : Env) → Value → Option (System (Ax e) (C e))` reads a value, under a
@@ -231,10 +463,14 @@ Gentzen sequents.
 | `Silmaril/Logic/Consequence/Ax/{Defs,Thms}.lean` | context shapes and their maps | core |
 | `Silmaril/Logic/Consequence/Semantic/{Defs,Thms}.lean` | satisfaction, SZS, rooms, institutions | core |
 | `Silmaril/Logic/Consequence/Accept/{Defs,Thms}.lean` | acceptor lifts | core |
+| `Silmaril/Logic/Consequence/Acceptor/{Defs,Thms,Examples}.lean` | CSLib acceptors, interpreters and decoders as systems | core |
+| `Silmaril/Logic/Consequence/Institution/{Defs,Thms,Examples}.lean` | list-premise room systems, logics, point-wise vs model-wise | core |
+| `Silmaril/Logic/Consequence/HOL/{Defs,Thms,Examples}.lean` | HOL propositions: `seq`, `gentzen`, closure | core |
 | `Silmaril/Logic/Consequence/Signed/{Defs,Thms}.lean` | signed formulas, `negateEach`, carriers | core |
 | `Silmaril/Logic/Consequence/Multi/{Defs,Thms}.lean` | multiple conclusions, `rightExt`, `multiEntails`, rooms | core |
 | `Silmaril/Logic/Consequence/Interp/{Defs,Thms}.lean` | interpretations, projection, evidence | core |
 | `Silmaril/Logic/Consequence/Shape/{Defs,Thms}.lean` | acceptor/rejector shapes, slices, checker predicates | core |
+| `Silmaril/Logic/Consequence/Gentzen/Clausal/{Defs,Thms,Examples}.lean`, `…/Clausal/Dimacs/…` | UNSAT, TAUTO, CNF and Gentzen acceptors, closure laws, equivalences; DIMACS image and LRAT bridge | structural derivations |
 | `Silmaril/Logic/Consequence/Examples.lean` | worked examples | core |
 | `Silmaril/Logic/Consequence/Structural/…` | structural rules and derivation closures | structural derivations |
 | Wasm acceptor and SZS protocol modules | Wasm evidence for the lifts | Wasm/SZS protocols |

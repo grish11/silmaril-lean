@@ -9,13 +9,65 @@ const BADGE_COLS = new Set(["problem", "child", "name", "parent", "obligation", 
 const STATUS_COLS = () => (tables.has("summary") ? ", s.summary, s.verdict" : "") + ", p.expect, p.arity" +
   (tables.has("deprecated_problems") ? ", (SELECT via_kind FROM deprecated_problems d WHERE d.problem = p.name) AS deprecated" : "") +
   (tables.has("findings") ? ", (SELECT classification FROM findings f WHERE f.problem = p.name) AS finding" : "") +
-  (tables.has("statuses") ? ", (SELECT group_concat(status, ' ') FROM statuses st WHERE st.problem = p.name) AS established" : "");
+  (tables.has("statuses") ? ", (SELECT group_concat(status, ' ') FROM statuses st WHERE st.problem = p.name) AS established" : "") +
+  (tables.has("expected_open") ? ", (SELECT reason FROM expected_open eo WHERE eo.problem = p.name) AS expected_open" : "");
 const STATUS_JOINS = () => tables.has("summary") ? " LEFT JOIN summary s ON s.problem = p.name" : "";
 function noteStatus(name, r) {
   if (!r.summary) return;
   verdictOf.set(name, r.verdict); summaryOf.set(name, r.summary);
   statusOf.set(name, { summary: r.summary, verdict: r.verdict, expect: r.expect || null, arity: r.arity == null ? null : r.arity,
-    established: r.established == null ? null : String(r.established).split(" ").filter(Boolean), deprecated: r.deprecated || null, finding: r.finding || null });
+    established: r.established == null ? null : String(r.established).split(" ").filter(Boolean), deprecated: r.deprecated || null, finding: r.finding || null,
+    expectedOpen: r.expected_open ? { reason: r.expected_open, note: r.expected_open_note || null } : null });
+}
+// Every problem with what the status semantics need (StatusSemantics.problemStatus), read once per
+// database: whole reads of `problems`, `summary`, `statuses` and the markings. The landing page,
+// the namespace browser and the status filters share it. A project database is small (silmaril's
+// own has about 800 problems, 3.5 MB in all), so this reads a few hundred kB at most; a database
+// with more than PINDEX_MAX problems is not indexed (the views then say so and fall back).
+const PINDEX_MAX = 50000;
+let pindex = { db: null, promise: null };
+function problemIndex() {
+  if (pindex.db === be && pindex.promise) return guarded(routeTok, be, pindex.promise);
+  const db = be;
+  const query = (sql) => db.query(sql, []);
+  const promise = (async () => {
+    const n = (await query("SELECT count(*) AS n FROM problems"))[0].n;
+    if (n > PINDEX_MAX) return { tooLarge: n, list: [], byName: new Map() };
+    const has = (t) => tables.has(t);
+    // narrow reads: the covering index `problems_status` (when the database has it) and `summary`
+    const rows = await query("SELECT name, kind, arity, expect FROM problems ORDER BY name");
+    const summ = new Map(has("summary") ? (await query("SELECT problem, summary, verdict FROM summary")).map((r) => [r.problem, r]) : []);
+    const est = new Map();
+    if (has("statuses")) for (const r of await query("SELECT problem, status FROM statuses")) {
+      if (!est.has(r.problem)) est.set(r.problem, []);
+      est.get(r.problem).push(r.status);
+    }
+    const dep = new Map(has("deprecated_problems") ? (await query("SELECT problem, via_kind FROM deprecated_problems")).map((r) => [r.problem, r.via_kind]) : []);
+    const fin = new Map(has("findings") ? (await query("SELECT problem, classification FROM findings")).map((r) => [r.problem, r.classification]) : []);
+    const eo = new Map(has("expected_open") ? (await query("SELECT problem, reason, note FROM expected_open")).map((r) => [r.problem, { reason: r.reason, note: r.note }]) : []);
+    const list = rows.map((r) => {
+      const sm = summ.get(r.name) || {};
+      const row = { summary: sm.summary || "OPN", verdict: sm.verdict || "unknown", expect: r.expect || null, arity: r.arity,
+        established: est.get(r.name) || [], deprecated: dep.get(r.name) || null, finding: fin.get(r.name) || null, expectedOpen: eo.get(r.name) || null };
+      return { name: r.name, kind: r.kind, arity: r.arity, row, st: StatusSemantics.problemStatus(row) };
+    });
+    return { list, byName: new Map(list.map((e) => [e.name, e])) };
+  })();
+  pindex = { db, promise };
+  promise.then((idx) => { if (pindex.db === db) for (const e of idx.list) if (!statusOf.has(e.name)) statusOf.set(e.name, e.row); },
+    () => { if (pindex.promise === promise) pindex = { db: null, promise: null }; });
+  return guarded(routeTok, be, promise);
+}
+// The titles of some problems (primary-key lookups; the index leaves titles out): name -> title.
+async function problemTitles(names) {
+  const rows = names.length ? await inChunks("SELECT name, title FROM problems WHERE name IN ($)", names) : [];
+  return new Map(rows.map((r) => [r.name, r.title]));
+}
+// The names of the problems whose name, title or module contains `text` (case-insensitive): a
+// scan of `problems`, run only for an explicit search.
+async function problemsMatching(text) {
+  const t = String(text).toLowerCase();
+  return new Set((await q("SELECT name FROM problems WHERE instr(lower(name), ?) > 0 OR instr(lower(coalesce(title, '')), ?) > 0 OR instr(lower(coalesce(module, '')), ?) > 0", [t, t, t])).map((r) => r.name));
 }
 const LOOKUP = {
   problem: ["problems", () => "SELECT p.name AS n" + STATUS_COLS() + " FROM problems p" + STATUS_JOINS() + " WHERE p.name IN ($)"],

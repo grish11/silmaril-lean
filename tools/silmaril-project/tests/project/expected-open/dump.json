@@ -1,0 +1,30 @@
+{
+  "schema": "silmaril.project-dump.v0.2",
+  "toolchain": "4.35.0-rc4",
+  "modules": ["Eo"],
+  "records": [
+    {"kind": "group", "name": "eo.all", "module": "Eo", "title": "All"},
+    {"kind": "children", "name": "eo.all", "module": "Eo", "children": ["eo.con", "eo.ind", "eo.old", "eo.open", "eo.proved"]},
+    {"kind": "root", "name": "eo.all", "module": "Eo"},
+    {"kind": "judgement", "name": "eo.con", "module": "Eo", "expect": "OPN"},
+    {"kind": "expected_open", "name": "eo.con", "module": "Eo", "reason": "consistency", "note": "states the consistency of the ambient theory (Lean with its axioms) itself", "pointer": "https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems"},
+    {"kind": "expected_open", "name": "eo.ind", "module": "Eo", "reason": "independent", "note": "a test fixture: assumed independent of the ambient theory (Lean with its axioms)"},
+    {"kind": "deprecation", "name": "eo.old", "module": "Eo", "reason": "stated over the wrong machine", "superseded_by": ["eo.open"]},
+    {"kind": "expected_open", "name": "eo.old", "module": "Eo", "reason": "independent", "note": "a test fixture: deprecated and expected open"}
+  ],
+  "problems": [
+    {"name": "eo.con", "decl": "Eo.con", "module": "Eo"},
+    {"name": "eo.ind", "decl": "Eo.ind", "module": "Eo"},
+    {"name": "eo.old", "decl": "Eo.old", "module": "Eo"},
+    {"name": "eo.open", "decl": "Eo.open", "module": "Eo"},
+    {"name": "eo.proved", "decl": "Eo.proved", "module": "Eo"}
+  ],
+  "solutions": [
+    {"problem": "eo.proved", "decl": "Eo.proved_sol", "module": "Eo", "kind": "solves", "axioms": []}
+  ],
+  "locations": [
+    {"decl": "Eo.proved_sol", "module": "Eo", "line": 20, "col": 0, "end_line": 21, "end_col": 9, "sel_line": 20, "sel_col": 8, "sel_end_line": 20, "sel_end_col": 21},
+    {"decl": "Eo.con", "module": "Eo", "line": 3, "col": 0, "end_line": 3, "end_col": 40, "sel_line": 3, "sel_col": 18, "sel_end_line": 3, "sel_end_col": 25},
+    {"decl": "Eo.ind", "module": "Eo", "line": 5, "col": 2, "end_line": 7, "end_col": 12, "sel_line": 5, "sel_col": 6, "sel_end_line": 5, "sel_end_col": 9}
+  ]
+}

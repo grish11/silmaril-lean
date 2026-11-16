@@ -1,0 +1,32 @@
+{
+  "schema": "silmaril.project-dump.v0.2",
+  "toolchain": "4.35.0-rc4",
+  "modules": ["Eo"],
+  "records": [
+    {"kind": "group", "name": "eo.all", "module": "Eo"},
+    {"kind": "children", "name": "eo.all", "module": "Eo", "children": ["eo.noreason", "eo.badreason", "eo.expects", "eo.proved", "eo.refuted", "eo.some"]},
+    {"kind": "root", "name": "eo.all", "module": "Eo"},
+    {"kind": "judgement", "name": "eo.expects", "module": "Eo", "expect": "thm"},
+    {"kind": "predicate", "name": "eo.some", "module": "Eo", "decl": "Eo.some", "arity": 1, "args": [{"pos": 0, "name": "n", "type": "Nat"}]},
+    {"kind": "answer", "name": "eo.some", "module": "Eo", "decl": "Eo.some_five", "status": "SAT", "witness": ["5"], "axioms": []},
+    {"kind": "expected_open", "name": "eo.all", "module": "Eo", "reason": "independent"},
+    {"kind": "expected_open", "name": "eo.ghost", "module": "Eo", "reason": "independent"},
+    {"kind": "expected_open", "name": "eo.noreason", "module": "Eo"},
+    {"kind": "expected_open", "name": "eo.badreason", "module": "Eo", "reason": "hard"},
+    {"kind": "expected_open", "name": "eo.expects", "module": "Eo", "reason": "consistency"},
+    {"kind": "expected_open", "name": "eo.proved", "module": "Eo", "reason": "consistency"},
+    {"kind": "expected_open", "name": "eo.refuted", "module": "Eo", "reason": "independent"},
+    {"kind": "expected_open", "name": "eo.some", "module": "Eo", "reason": "independent", "note": "a test fixture"}
+  ],
+  "problems": [
+    {"name": "eo.noreason", "decl": "Eo.noreason", "module": "Eo"},
+    {"name": "eo.badreason", "decl": "Eo.badreason", "module": "Eo"},
+    {"name": "eo.expects", "decl": "Eo.expects", "module": "Eo"},
+    {"name": "eo.proved", "decl": "Eo.proved", "module": "Eo"},
+    {"name": "eo.refuted", "decl": "Eo.refuted", "module": "Eo"}
+  ],
+  "solutions": [
+    {"problem": "eo.proved", "decl": "Eo.proved_sol", "module": "Eo", "kind": "solves", "axioms": []},
+    {"problem": "eo.refuted", "decl": "Eo.refuted_ref", "module": "Eo", "kind": "refutes", "axioms": []}
+  ]
+}

@@ -7,103 +7,72 @@ function link(kind, key, text) { return `<a href="${href(kind, key)}">${esc(text
 // A plain tag (`badge("holds")`): the verdict colours of the graph legend.
 function badge(v, text) { return v ? `<span class="badge ${esc(v)}">${esc(text || v)}</span>` : ""; }
 
-// Status badges. A problem's summary is an SZS code (THM, OPN, SAT, UNS, CSA, UNK, contingent);
-// its verdict (holds/fails/unknown, see the `szs` table) depends on the problem (UNS fails only a
-// closed one). The badge shows the stored code in a neutral style. A closed proposition (arity 0)
-// also shows its truth value: THM·true, UNS·false (SAT counts as true and CSA as false there; no
-// CTH or TAU relabelling). What the badge marks comes from the problem's optional expected status
-// (`problems.expect`), compared as `sil project check` compares it (W1, check/status.rs): the
-// expectation is met when it is the summary, or one of the problem's established statuses (the
-// `statuses` table, which holds the arity-0 closure THM ⇒ SAT, UNS ⇒ CSA), or the summary is
-// `contingent` and SAT or CSA is expected. Outcomes (`statusInfo().outcome`):
-//   none      no expectation: neutral, whatever the verdict (a refutation is not a failure by itself)
-//   pending   an expectation, and the summary is not known (OPN, UNK): neutral, the title says so
-//   match     the expectation is met: a quiet green ✓
-//   mismatch  a known summary that does not meet the expectation: an error (!)
-//   error     a finding classifies the problem as a genuine `error`: an error (!)
-// Statuses that hold together vacuously (THM and UNS over an empty carrier) are not an error by
-// themselves. Deprecated problems are struck through.
-// What each stored code means here (the `szs` table's codes), and its SZS name. Displayed codes
-// are three characters: the stored code itself, except `contingent`, which is shown as NOC.
-// SZS's NoConsequence (NOC) is "some interpretations are models of Ax, some models of Ax are
-// models of C, and some models of Ax are models of ~C" (https://szs.tptp.org/success), which is
-// exactly SAT and CSA together, as `contingent` is defined. The mapping is one-to-one and the
-// badge's title always names the stored code, so nothing is lost. THM is kept as stored, not shown
-// as TAU (with no axioms the two coincide; THM is the project's name). Historical reference:
-// Sutcliffe, The SZS Ontologies for Automated Reasoning Software (2008).
-const SZS_TEXT = { THM: "Theorem: proved", OPN: "Open: no answer yet", SAT: "Satisfiable: an instance holds",
-  UNS: "Unsatisfiable: refuted for every argument", CSA: "CounterSatisfiable: a counterexample exists", UNK: "Unknown",
-  contingent: "both SAT and CSA hold" };
-const SZS_NAME = { THM: "Theorem", OPN: "Open", SAT: "Satisfiable", UNS: "Unsatisfiable", CSA: "CounterSatisfiable", UNK: "Unknown",
-  contingent: "NoConsequence" };
-const STATUS_DISPLAY = { contingent: "NOC" };
+// Status badges. The semantics (displayed codes by arity, expectation outcomes by entailment,
+// attention lists) live in status.js (`StatusSemantics`); this is their presentation.
+// A badge shows one displayed code: THM/CTH for a problem without parameters, TAU/UNS/SAT/CSA/NOC
+// for one with parameters, OPN/UNK when nothing is known. Nothing is shown when the status is what
+// was expected or nothing was expected; otherwise a second chip names the expectation and how the
+// status differs from it ("expected UNS": less information, "≠ TAU": contrary, "+": more than
+// expected). The title (and the screen-reader label) explains the code, the stored codes, the
+// arity, the expectation and the markings. Deprecated problems are struck through. `data-code` is
+// the stored summary, `data-display` the displayed code, `data-outcome` the outcome.
 const SZS_SOURCE = "https://szs.tptp.org/success";
-// The displayed code of a stored status code (unknown codes are shown as stored, never cut).
-function statusCode(code) { return Object.hasOwn(STATUS_DISPLAY, code) ? STATUS_DISPLAY[code] : code; }
-// A one-line explanation: displayed code, SZS name, meaning here, and the stored code if it differs.
+// The displayed code of a stored code without context (a closed reading needs the arity: see
+// `statusInfo`). Kept for callers that have only a code.
+function statusCode(code) { return code === "contingent" ? "NOC" : code; }
+// A one-line explanation of a displayed or stored code.
 function statusText(code) {
   const shown = statusCode(code);
-  return `${shown}${SZS_NAME[code] ? " (SZS " + SZS_NAME[code] + ")" : ""}: ${SZS_TEXT[code] || "status code"}` +
-    (shown !== code ? `; stored as "${code}"` : "");
+  const d = StatusSemantics.DISPLAY_CODES[shown];
+  return `${shown}${d ? " (" + d.name + ")" : ""}: ${d ? d.text : "status code"}` + (shown !== code ? `; stored as "${code}"` : "");
 }
-// name -> { summary, verdict, expect, arity, deprecated, finding } (filled by `resolve` and the graph)
+// name -> { summary, verdict, expect, arity, established, deprecated, finding, expectedOpen }
+// (filled by `resolve` and the graph)
 let statusOf = new Map();
-const CLOSED_TRUTH = { THM: true, SAT: true, UNS: false, CSA: false };
-const UNKNOWN_CODES = new Set(["OPN", "UNK"]);
-const EXPECT_CODES = ["THM", "SAT", "UNS", "CSA", "OPN", "UNK", "contingent"];
-// The code of an expectation as the checker reads it (case-insensitive), or the text as given.
-function expectCode(e) { return EXPECT_CODES.find((c) => c.toLowerCase() === String(e).toLowerCase()) || e; }
-// Whether the expectation `e` is met (W1). Without the established statuses (a caller that has
-// only the summary), the arity-0 closure is applied to the summary instead.
-function expectationMet(s, e) {
-  if (e === s.summary) return true;
-  if (s.summary === "contingent" && (e === "SAT" || e === "CSA")) return true;
-  if (Array.isArray(s.established)) return s.established.includes(e);
-  return s.arity === 0 && ((s.summary === "THM" && e === "SAT") || (s.summary === "UNS" && e === "CSA"));
-}
+// Legacy outcome names (`expectationSummary`, the language and system views): met, mismatch,
+// pending, unset, error.
+const LEGACY_OUTCOME = { match: "match", stronger: "match", contrary: "mismatch", weaker: "pending", none: "none", error: "error" };
 function statusInfo(s) {
   if (!s || !s.summary) return null;
-  const known = !UNKNOWN_CODES.has(s.summary);
-  const closed = s.arity === 0;
-  const truth = closed && known && Object.hasOwn(CLOSED_TRUTH, s.summary) ? CLOSED_TRUTH[s.summary] : null;
-  const expect = s.expect ? expectCode(s.expect) : null;
-  const outcome = s.finding === "error" ? "error" : !expect || expect === "OPN" ? "none"
-    : expectationMet(s, expect) ? "match" : !known ? "pending" : "mismatch";
-  const cls = outcome === "mismatch" || outcome === "error" ? "bad" : outcome === "match" ? "ok" : "";
-  const why = [statusText(s.summary)];
-  if (truth !== null) why.push(`closed proposition: ${truth ? "true" : "false"}`);
-  if (Array.isArray(s.established) && s.established.length) why.push(`established: ${s.established.map(statusCode).join(", ")}`);
-  why.push(`verdict ${s.verdict}`);
-  why.push({ none: "no expected status", pending: `expected ${expect}, not established yet`, match: `as expected (${expect})`,
-    mismatch: `UNEXPECTED: expected ${expect}`, error: "finding: genuine error" + (expect ? `; expected ${expect}` : "") }[outcome]);
-  if (s.deprecated) why.push("deprecated" + (s.deprecated === "self" ? "" : ` (through its ${s.deprecated})`));
-  if (s.finding && s.finding !== "error") why.push(`finding: ${s.finding}`);
-  return { code: statusCode(s.summary), stored: s.summary, outcome, cls, dep: !!s.deprecated, truth, closed, title: why.join("; ") };
+  const st = StatusSemantics.problemStatus(s);
+  const cls = st.outcome === "contrary" || st.outcome === "error" ? "bad" : st.outcome === "weaker" ? "less" : st.outcome === "stronger" ? "more" : "";
+  // an expected OPN that is still open counts as no expectation in aggregates (nothing to meet)
+  const legacy = st.outcome === "match" && (st.expect === "OPN" || st.expect === "UNK") ? "none" : LEGACY_OUTCOME[st.outcome];
+  return Object.assign(st, { legacy, cls, dep: !!st.deprecated, title: StatusSemantics.statusExplanation(st) });
 }
-// An aggregate over several problems' expectations (e.g. a language's examples): how many are met,
-// mismatched, pending (expected, not known) or unset. `allMet` only when every one has an
-// expectation and meets it: a missing or unknown one is not a pass. This counts expectations; it
-// is not a statement about the problems' conjunction.
+// An aggregate over several problems' expectations (e.g. a language's examples): how many are met
+// (as expected or more), mismatched (contrary), pending (less than expected), unset or errors.
+// `allMet` only when every one has an expectation and meets it.
 function expectationSummary(list) {
   const out = { total: 0, met: 0, mismatch: 0, pending: 0, unset: 0, error: 0 };
   for (const s of list) {
     const i = statusInfo(s);
     out.total++;
     if (!i) { out.unset++; continue; }
-    out[{ match: "met", mismatch: "mismatch", pending: "pending", none: "unset", error: "error" }[i.outcome]]++;
+    out[{ match: "met", mismatch: "mismatch", pending: "pending", none: "unset", error: "error" }[i.legacy]]++;
   }
   out.allMet = out.total > 0 && out.met === out.total;
   return out;
 }
-// `x`: a problem name (looked up in `statusOf`) or a status object as above.
-function statusBadge(x) {
+// The chip after a code that says how it differs from the expectation ("" when it does not).
+function expectationChip(i) {
+  if (!i.expect && i.outcome !== "error") return "";
+  if (i.outcome === "error") return '<span class="st-x st-x-bad">error</span>';
+  if (i.outcome === "contrary") return `<span class="st-x st-x-bad" title="contrary to the expected ${esc(i.expectCode)}">≠ ${esc(i.expectCode)}</span>`;
+  if (i.outcome === "weaker") return `<span class="st-x st-x-less" title="less information than expected">expected ${esc(i.expectCode)}</span>`;
+  if (i.outcome === "stronger") return `<span class="st-x st-x-more" title="more information than expected (expected ${esc(i.expectCode)})">+ over ${esc(i.expectCode)}</span>`;
+  return "";
+}
+// `x`: a problem name (looked up in `statusOf`) or a status object as above. `opts.chip: false`
+// leaves out the expectation chip.
+function statusBadge(x, opts) {
   const i = statusInfo(typeof x === "string" ? statusOf.get(x) : x);
   if (!i) return "";
-  const mark = i.cls === "bad" ? "!" : i.cls === "ok" ? "✓" : "";
-  const cls = ["st", i.cls ? "st-" + i.cls : "", i.dep ? "st-dep" : ""].filter(Boolean).join(" ");
-  return `<span class="${cls}" data-code="${esc(i.stored)}" data-outcome="${i.outcome}" role="img" aria-label="${esc(i.title)}" title="${esc(i.title)}">` +
-    `${esc(i.code)}${i.truth !== null ? `<span class="st-truth">·${i.truth ? "true" : "false"}</span>` : ""}` +
-    `${mark ? `<b aria-hidden="true">${mark}</b>` : ""}</span>`;
+  const cls = ["st", i.cls ? "st-" + i.cls : "", i.dep ? "st-dep" : "", i.open ? "st-open" : ""].filter(Boolean).join(" ");
+  const chip = opts && opts.chip === false ? "" : expectationChip(i);
+  const marks = (i.expectedOpen ? `<span class="st-x" title="expected to stay open: ${esc(i.expectedOpen.reason)}">${esc(i.expectedOpen.reason)}</span>` : "");
+  return `<span class="st-wrap"><span class="${cls}" data-code="${esc(i.stored)}" data-display="${esc(i.code)}" data-outcome="${i.outcome}" role="img" aria-label="${esc(i.title)}" title="${esc(i.title)}">` +
+    `${esc(i.code)}</span>${chip}${marks}</span>`;
 }
 function verdictBadge(p) { const b = statusBadge(p); return b ? " " + b : ""; }
 

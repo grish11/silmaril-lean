@@ -5,9 +5,13 @@ async function problemDetail(name) {
   if (!p) return `<p class="err">no problem ${esc(name)}</p>`;
   const s = (await tq("summary", "SELECT * FROM summary WHERE problem = ?", [name]))[0];
   await resolve([{ problem: name }], ["problem"], HINTS, false);
-  let h = `<h2>${p.kind === "group" ? "Group" : "Problem"} <code>${esc(name)}</code> ${statusBadge(name)}</h2>`;
-  h += `<p>${link("graph", name, "show in graph")}</p>`;
+  const parts = StatusSemantics.splitName(name);
+  const crumbs = parts.slice(0, -1).map((part, i) => `<a href="#/browse/${encodeURIComponent(parts.slice(0, i + 1).join("."))}"><code>${esc(part)}</code></a>`);
+  let h = `<nav class="crumbs" aria-label="namespace"><a href="#/browse/">all</a>${crumbs.map((c) => " . " + c).join("")}</nav>`;
+  h += `<h2>${p.kind === "group" ? "Group" : "Problem"} <code>${esc(name)}</code> ${statusBadge(name)}</h2>`;
   if (p.title) h += `<p>${esc(p.title)}</p>`;
+  h += statusSentence(statusOf.get(name), p);
+  h += `<p class="muted">${link("graph", name, "show in graph")}</p>`;
   h += await markings(name);
   h += await evidence(p, s);
   h += "<h2>Judgement</h2>" + await dl(Object.fromEntries(Object.entries(p).filter(([k, v]) => v !== null && k !== "title")), { name: "", spec: "", model: "" });
@@ -33,6 +37,23 @@ async function problemDetail(name) {
   return h;
 }
 function problemPage(name) { return problemDetail(name); }
+// The status in words: the displayed code and what it means, the expectation and how the status
+// compares to it, the markings that leave the problem out of the attention lists.
+function statusSentence(row, p) {
+  const st = row && StatusSemantics.problemStatus(row);
+  if (!st) return "";
+  const S = StatusSemantics, d = S.DISPLAY_CODES[st.code];
+  const arity = st.arity == null ? "" : st.arity === 0 ? "It has no parameters." : `It has ${st.arity} parameter${st.arity === 1 ? "" : "s"}.`;
+  let t = `<b>${esc(st.code)}</b> (${esc(d ? d.name : st.code)}): ${esc(d ? d.text : "")}. ${arity}`;
+  if (st.expect) {
+    t += ` Expected: <b>${esc(st.expectCode)}</b>` + (st.expectCode !== st.expect ? ` <span class="muted">(stored ${esc(st.expect)})</span>` : "") + " — " +
+      esc(st.pending ? "less information than expected: nothing is established yet" : S.OUTCOMES[st.outcome].label) + ".";
+  } else if (p.kind !== "group") t += " No expected status is recorded.";
+  if (st.vacuous) t += " The statuses hold vacuously: THM and UNS together mean the argument carrier is empty.";
+  if (st.deprecated) t += " Deprecated" + (st.deprecated === "self" ? "" : ` through its ${esc(st.deprecated)}`) + ": left out of the attention lists.";
+  if (st.expectedOpen) t += ` Expected to stay open for a metatheoretic reason (<b>${esc(st.expectedOpen.reason)}</b>)${st.expectedOpen.note ? ": " + esc(st.expectedOpen.note) : ""}; left out of the attention lists while open.`;
+  return `<p class="status-sentence">${t} <a href="#/statuses">What the codes mean</a>.</p>`;
+}
 // What the summary status rests on: the statuses with that code and how each was obtained (an
 // answer theorem, a solved instance, an edge, a group), with links to the answers' sources. A
 // status without evidence is not shown as established.
@@ -41,11 +62,14 @@ async function evidence(p, s) {
   if (p.decl || p.module) {
     const link = sourceLink(p.module, p.decl);
     h += `<p>Statement: <code>${esc(p.decl || "?")}</code> in <code>${esc(p.module || "?")}</code>${link ? " · " + link : ""}</p>`;
+    h += sourceBlock(p.module, p.decl);
   }
   if (!s) return h;
   const st = await tq("statuses", "SELECT status, via_kind, via, tier FROM statuses WHERE problem = ? AND status = ? ORDER BY via_kind, via LIMIT 20", [p.name, s.summary]);
   if (!st.length) {
-    return h + `<p>${statusBadge(p.name)} <span class="muted">${s.summary === "OPN" ? "open: no answer or derivation is recorded" : "no recorded status has this code"}</span></p>`;
+    return h + `<p>${statusBadge(p.name)} <span class="muted">${s.summary === "OPN"
+      ? `open: no Lean theorem answers or solves this problem (<code>@[answers "${esc(p.name)}" …]</code>, <code>@[solves …]</code>) and no instance, edge or decomposition establishes a status. The statement above is all there is; the open status is not a display error.`
+      : "no recorded status has this code"}</span></p>`;
   }
   const answers = new Map((await inChunks("SELECT decl, module, tier, (SELECT group_concat(axiom, ', ') FROM answer_axioms x WHERE x.decl = a.decl) AS axioms FROM answers a WHERE decl IN ($)",
     st.filter((r) => r.via_kind === "answers" || r.via_kind === "solves").map((r) => r.via))).map((r) => [r.decl, r]));

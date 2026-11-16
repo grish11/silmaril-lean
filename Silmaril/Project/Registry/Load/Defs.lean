@@ -73,7 +73,7 @@ def loadKinds : List String :=
     "institution", "comorphism", "morphism", "corridor", "hets_logic", "hets_comorphism",
     "logic_pending",
     "machine", "machine_binding", "instance", "tasks", "judgement", "detached", "deprecation",
-    "finding", "decomposition", "refutation_route", "group", "children"]
+    "finding", "expected_open", "decomposition", "refutation_route", "group", "children"]
 
 /-- The top-level keys of a records file that are not kinds. -/
 def recordsFileKeys : List String := ["schema", "root", "defaults"]

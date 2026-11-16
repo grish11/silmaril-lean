@@ -113,7 +113,8 @@ owns the list of kinds and fields (`schema.rs`).
 | `judgement` | the problem exists; `values` are values | |
 | `decomposition` / `refutation_route` | `c₁ → … → cₙ → p` / `¬c → ¬p` between problems | `parent`, `children` / `child` |
 
-`#silmaril [kind]` lists records; `#silmaril_dump "PATH"` writes `silmaril.project-dump.v0.1`.
+`#silmaril [kind]` lists records; `#silmaril_dump "PATH"` writes `silmaril.project-dump.v0.2`
+(v0.1 plus the `locations` of the declarations it names).
 -/
 
 public meta section
@@ -124,7 +125,7 @@ open Lean Meta Elab Command
 open Silmaril.Problems (validId problems solutions problemDecl? moduleOf allEntries)
 
 /-- The schema string of the dump. -/
-def dumpSchema : String := "silmaril.project-dump.v0.1"
+def dumpSchema : String := "silmaril.project-dump.v0.2"
 
 /-! ## Names -/
 
@@ -229,8 +230,8 @@ def proofNameKinds : List String := ["format_law", "decomposition", "refutation_
 
 /-- Kinds whose name is a problem (or group) name, so a legacy `/` id is accepted. -/
 def problemNameKinds : List String :=
-  ["judgement", "children", "root", "detached", "deprecation", "finding", "predicate", "answer",
-    "instance"]
+  ["judgement", "children", "root", "detached", "deprecation", "finding", "expected_open",
+    "predicate", "answer", "instance"]
 
 /-- Add a record, checking its name, its sid override and that `(kind, name)` is new. -/
 def addRecord (r : Record) : CoreM Unit := do
@@ -560,8 +561,31 @@ def objLine (kvs : List (String × Json)) : String :=
 def linesArray (items : Array String) : String :=
   if items.isEmpty then "[]" else "[\n    " ++ ",\n    ".intercalate items.toList ++ "\n  ]"
 
-/-- The dump `silmaril.project-dump.v0.1`: every record, problem and solution in the
-environment, in canonical order, with no timestamps or host paths; one per line. -/
+/-- The declaration ranges of every declaration the dump names (a problem's or solution's
+`decl`, and a record's `decl`, `proof`, `rel`, `abi` or `environment` that is a constant), one
+object per line, sorted by name: `decl` (as the dump spells it), `module`, then Lean's
+`DeclarationRanges` (`range`, then `selectionRange`; lines 1-based, columns in codepoints,
+0-based). A declaration without ranges is omitted. Locations are presentation data for source
+views: they are not records and take no part in sids or hashes. -/
+def dumpLocations (env : Environment) : MetaM (Array String) := do
+  let mut named : Std.HashMap String Name := {}
+  for p in problems env do named := named.insert (toString p.decl) p.decl
+  for s in solutions env do named := named.insert (toString s.decl) s.decl
+  for r in records env do
+    for (k, v) in r.fields do
+      if let .str s := v then
+        if constKeys.contains k && env.contains s.toName then named := named.insert s s.toName
+  (named.toArray.qsort (·.1 < ·.1)).filterMapM fun (s, n) => do
+    let some r ← findDeclarationRanges? n | return none
+    let pos (k : String) (p : Position) : List (String × Json) :=
+      [(k ++ "line", toJson p.line), (k ++ "col", toJson p.column)]
+    return some <| objLine <| [("decl", .str s), ("module", .str (toString (moduleOf env n)))] ++
+      pos "" r.range.pos ++ pos "end_" r.range.endPos ++
+      pos "sel_" r.selectionRange.pos ++ pos "sel_end_" r.selectionRange.endPos
+
+/-- The dump `silmaril.project-dump.v0.2`: every record, problem and solution in the
+environment, in canonical order, with no timestamps or host paths; one per line; then the
+`locations` of the declarations it names (`dumpLocations`). -/
 def dumpText : MetaM String := do
   let env ← getEnv
   let modules := ((env.imports.map (·.module)).filter (· != `Init)).map toString
@@ -585,7 +609,8 @@ def dumpText : MetaM String := do
     ("schema", (Json.str dumpSchema).compress), ("toolchain", (Json.str Lean.versionString).compress),
     ("modules", (toJson (modules.qsort (· < ·))).compress),
     ("records", linesArray recs),
-    ("problems", linesArray ps), ("solutions", linesArray ss)]
+    ("problems", linesArray ps), ("solutions", linesArray ss),
+    ("locations", linesArray (← dumpLocations env))]
   return "{\n" ++ ",\n".intercalate (top.map fun (k, v) => "  " ++ (Json.str k).compress ++ ": " ++ v)
     ++ "\n}\n"
 
