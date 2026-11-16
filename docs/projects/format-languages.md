@@ -20,7 +20,7 @@ pinned in [`references.bib`](../../references.bib) with SHA-256.
 | `Formats.JsonEvents` | `Tree K S` (ordered, duplicates kept), `Event K S`, `Event.kind`, `Tree.toEvents`, `ofEvents?`, `language K S`, `Tree.depth` | `equivLanguage : Tree K S ≃ language K S`, `ofEvents?_eq_some_iff`, `toEvents_mem_depthBound_iff` | — |
 | `Formats.Cbor.WellFormed` | `Cbor.wellFormed` (one well-formed item), `Item`, `Items`, `Head` | `isWellFormed_iff`, `skip_sound`, `item_skip`; all RFC 8949 Appendix F.1 vectors | RFC 8949 §3, App. C |
 | `Formats.Cbor.Value` | `Cbor.Value` (representation-level: ordered maps, floats as width and bits), `encodeHead`, `Value.encode`, `decode`, `Value.Encodable` | `decode_encode`, `encode_injective`, `encode_mem_wellFormed` | RFC 8949 §4.2.1 heads |
-| `Formats.Cbor.Drisl` | `Drisl.language P`; profiles `drislExactCid`, `drislCidPrefix`, `drislNoFloatsExactCid`, `atprotoCoreExactCid`; `CidBoundary`, `IsDaslCid` | `check_iff`, `language_le_wellFormed`, `value_unique`, `language_mono` | DRISL 2026-10-22, DASL CID, CBOR/c-42, atproto data model |
+| `Formats.Cbor.Drisl` | `Drisl.language P`; `Profile` = floats, int64 range, `CidBoundary` (`exact`/`prefix`), `LinkRule` (codecs, `(multihash code, digest length)` pairs); `LinkRule.dasl`, `.bdasl`, `.none`; profiles `drislExactCid`, `drislCidPrefix`, `drislBdaslExactCid`, `drislBdaslCidPrefix`, `drislNoLinks`, `drislNoFloatsExactCid`, `atprotoCoreExactCid`; `CidPayload` | `check_iff`, `cidOk_iff`, `cidOk_mono`, `cidOk_dasl_exact_iff`, `ok_tag_of_hashes_nil`, `language_mono`, `language_le_wellFormed`, `value_unique` | DRISL 2026-10-22, DASL CID, BDASL 2026-10-19, CBOR/c-42, atproto data model |
 | `Formats.Streaming` | `derivAcceptor r`, `utf8Acceptor`, `jsonAcceptor`, `jsonLinesAcceptor`, `cborAcceptor`, `jsonDepthAcceptor` | `…_correctInterleaved` (`Semantics.Acceptors`), `jsonDepthAcceptor_soundFold`, `jsonDepthAcceptor_completeFoldOn` | — |
 | `Formats.JsonBytes.Accept` | `scalarHead`, `profileLang` | `decides_textB`, `decidesOn_scalarHead`, `profile_lt` (`Semantics.Accept`) | — |
 
@@ -47,10 +47,14 @@ use the definitions above; they do not restate them.
   widths, and definite versus indefinite strings, are different values.
 - **CBOR coverage:** generic §5.3 validity, generic §4.2.1 determinism with preferred float
   serialization, and CBOR events are not yet defined.
-- **DRISL tag 42:** whether bytes may follow the 36-byte CID is not settled by the normative DASL
+- **DRISL tag 42:** whether bytes may follow a CID's digest is not settled by the normative DASL
   CID text. It is the profile parameter `CidBoundary`, and the named profiles carry it.
-- **Repository CIDs:** the artifact registry's BLAKE3 CIDs use hash type `0x1e`. The pinned DASL CID
-  spec allows only SHA-256 (`0x12`), so DRISL rejects them inside tag 42.
+- **CID hashes:** allowed as `(multihash code, digest length)` pairs. DASL is `(0x12, 32)` and BDASL
+  adds `(0x1e, 32)`. The empty pair set (`drislNoLinks`) rejects every tag-42 value. Fields are
+  parsed as single-byte varints.
+- **Repository CIDs:** the artifact registry's BLAKE3 CIDs use hash type `0x1e`. They are BDASL
+  CIDs, not DASL CIDs. `drislExactCid` rejects them inside tag 42 and `drislBdaslExactCid` accepts
+  them.
 - **ATProto:** `atprotoCoreExactCid` covers only no floats and signed 64-bit integers.
   `blob` structure, reserved `$` fields and Lexicon constraints are not checked.
 - **Readers:** no theorem relates these languages to `JsonWire.parse?` or any other reader, and no

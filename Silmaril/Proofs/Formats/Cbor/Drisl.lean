@@ -85,35 +85,91 @@ theorem value_unique {P : Profile} {v v' : Value} (h : ok P v = true) (h' : ok P
     (he : v.encode = v'.encode) : v = v' :=
   encode_injective (encodable_of_ok v h) (encodable_of_ok v' h') he
 
+
+
+/-! ## Link rules -/
+
+theorem cidOk_iff {B : CidBoundary} {R : LinkRule} {b : List UInt8} :
+    cidOk B R b = true ↔ CidPayload B R b := by
+  constructor
+  · intro h
+    unfold cidOk at h
+    split at h
+    · next codec code len rest =>
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+      obtain ⟨⟨⟨⟨hc, h1⟩, h2⟩, hh⟩, hb⟩ := h
+      cases B with
+      | exact =>
+        simp only [beq_iff_eq] at hb
+        exact ⟨codec, code, len, rest, [], by simp, hc, h1, h2, hh, hb, fun _ => rfl⟩
+      | «prefix» =>
+        simp only [decide_eq_true_eq] at hb
+        refine ⟨codec, code, len, rest.take len.toNat, rest.drop len.toNat,
+          by simp, hc, h1, h2, hh, by simp [hb], fun h => by cases h⟩
+    · simp at h
+  · rintro ⟨codec, code, len, digest, trailing, rfl, hc, h1, h2, hh, hd, ht⟩
+    cases B with
+    | exact =>
+      rw [ht rfl, List.append_nil]
+      simp [cidOk, hc, h1, h2, hh, hd]
+    | «prefix» => simp [cidOk, hc, h1, h2, hh, hd]
+
+/-- Allowing more codecs, more `(code, length)` pairs, or trailing bytes allows more CIDs. -/
+theorem cidOk_mono {B B' : CidBoundary} {R R' : LinkRule} (hc : ∀ c ∈ R.codecs, c ∈ R'.codecs)
+    (hh : ∀ p ∈ R.hashes, p ∈ R'.hashes) (hb : B = B' ∨ B' = .prefix) {b : List UInt8}
+    (h : cidOk B R b = true) : cidOk B' R' b = true := by
+  rw [cidOk_iff] at h ⊢
+  obtain ⟨codec, code, len, digest, trailing, rfl, h1, h2, h3, h4, h5, h6⟩ := h
+  refine ⟨codec, code, len, digest, trailing, rfl, hc _ h1, h2, h3, hh _ h4, h5, ?_⟩
+  rcases hb with rfl | rfl
+  · exact h6
+  · intro h; cases h
+
+/-- The empty pair set allows no CID. -/
+theorem cidOk_of_hashes_nil {B : CidBoundary} {R : LinkRule} (h : R.hashes = []) (b : List UInt8) :
+    cidOk B R b = false := by
+  cases hb : cidOk B R b
+  · rfl
+  · obtain ⟨_, _, _, _, _, _, _, _, _, hm, _⟩ := cidOk_iff.mp hb
+    rw [h] at hm
+    cases hm
+
+/-- The pair-set rule specialised to DASL is the earlier fixed DASL CID check. -/
+theorem cidOk_dasl_exact_iff {c : List UInt8} :
+    cidOk .exact .dasl (0x00 :: c) = true ↔ IsDaslCid c := by
+  rw [cidOk_iff]
+  constructor
+  · rintro ⟨codec, code, len, digest, trailing, he, hc, -, -, hh, hd, ht⟩
+    rw [ht rfl, List.append_nil] at he
+    simp only [List.cons.injEq, true_and] at he
+    obtain ⟨rfl⟩ := he
+    simp only [LinkRule.dasl, List.mem_cons, List.not_mem_nil, or_false,
+      Prod.mk.injEq] at hc hh
+    obtain ⟨rfl, hl⟩ := hh
+    have hlen : len = 0x20 := UInt8.toNat_inj.mp (by rw [hl]; rfl)
+    subst hlen
+    exact ⟨codec, digest, rfl, hc, by rw [hd]; rfl⟩
+  · rintro ⟨codec, digest, rfl, hc, hd⟩
+    refine ⟨codec, 0x12, 0x20, digest, [], by simp, ?_, by decide, by decide, by simp [LinkRule.dasl],
+      by rw [hd]; rfl, fun _ => rfl⟩
+    simp only [LinkRule.dasl, List.mem_cons, List.not_mem_nil, or_false]
+    exact hc
+
+/-- A profile without `(code, length)` pairs allows no tag at all. -/
+theorem ok_tag_of_hashes_nil {P : Profile} (h : P.links.hashes = []) (n : Nat) (c : Value) :
+    ok P (.tag n c) = false := by
+  by_cases hn : n = 42
+  · subst hn
+    cases c with
+    | bytes b => simp [ok, cidOk_of_hashes_nil h]
+    | _ => simp [ok]
+  · simp [ok, hn]
+
 mutual
-
-theorem isDaslCid_length {cid : List UInt8} (h : isDaslCid cid = true) : cid.length = 36 := by
-  unfold isDaslCid at h
-  split at h
-  · simp only [Bool.and_eq_true, beq_iff_eq] at h
-    simp [h.2]
-  · simp at h
-
-theorem isCidPayload_prefix_of_exact {b : List UInt8} (h : isCidPayload .exact b = true) :
-    isCidPayload .prefix b = true := by
-  rcases b with _ | ⟨x, cid⟩
-  · simp [isCidPayload] at h
-  · by_cases hx : x = 0
-    · subst hx
-      simp only [isCidPayload] at h ⊢
-      rwa [List.take_of_length_le (by rw [isDaslCid_length h])]
-    · simp [isCidPayload, hx] at h
-
-theorem isCidPayload_mono {c d : CidBoundary} (hc : c = d ∨ d = .prefix) {b : List UInt8}
-    (h : isCidPayload c b = true) : isCidPayload d b = true := by
-  rcases hc with rfl | rfl
-  · exact h
-  · cases c
-    · exact isCidPayload_prefix_of_exact h
-    · exact h
 
 theorem ok_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
     (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix)
+    (hlc : ∀ c ∈ P.links.codecs, c ∈ Q.links.codecs) (hlh : ∀ p ∈ P.links.hashes, p ∈ Q.links.hashes)
     (v : Value) (h : ok P v = true) : ok Q v = true := by
   match v, h with
   | .uint n, h | .nint n, h =>
@@ -128,17 +184,17 @@ theorem ok_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
   | .bytes _, h | .text _, h | .simple _, h => simpa [ok] using h
   | .array xs, h =>
     simp only [ok, Bool.and_eq_true] at h ⊢
-    exact ⟨h.1, okList_mono hf hi hc xs h.2⟩
+    exact ⟨h.1, okList_mono hf hi hc hlc hlh xs h.2⟩
   | .map kvs, h =>
     simp only [ok, Bool.and_eq_true] at h ⊢
-    exact ⟨⟨h.1.1, okMap_mono hf hi hc kvs h.1.2⟩, h.2⟩
+    exact ⟨⟨h.1.1, okMap_mono hf hi hc hlc hlh kvs h.1.2⟩, h.2⟩
   | .tag n c, h =>
     by_cases hn : n = 42
     · subst hn
       cases c with
       | bytes b =>
         simp only [ok, Bool.and_eq_true] at h ⊢
-        exact ⟨h.1, isCidPayload_mono hc h.2⟩
+        exact ⟨h.1, cidOk_mono hlc hlh hc h.2⟩
       | _ => simp [ok] at h
     · simp [ok, hn] at h
   | .float w bits, h =>
@@ -146,30 +202,33 @@ theorem ok_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
     exact ⟨⟨hf h.1.1, h.1.2⟩, h.2⟩
 
 theorem okList_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
-    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix) (xs : List Value) (h : okList P xs = true) :
+    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix)
+    (hlc : ∀ c ∈ P.links.codecs, c ∈ Q.links.codecs) (hlh : ∀ p ∈ P.links.hashes, p ∈ Q.links.hashes) (xs : List Value) (h : okList P xs = true) :
     okList Q xs = true := by
   match xs, h with
   | [], _ => rfl
   | x :: xs, h =>
     simp only [okList, Bool.and_eq_true] at h ⊢
-    exact ⟨ok_mono hf hi hc x h.1, okList_mono hf hi hc xs h.2⟩
+    exact ⟨ok_mono hf hi hc hlc hlh x h.1, okList_mono hf hi hc hlc hlh xs h.2⟩
 
 theorem okMap_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
-    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix) (kvs : List (Value × Value))
+    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix)
+    (hlc : ∀ c ∈ P.links.codecs, c ∈ Q.links.codecs) (hlh : ∀ p ∈ P.links.hashes, p ∈ Q.links.hashes) (kvs : List (Value × Value))
     (h : okMap P kvs = true) : okMap Q kvs = true := by
   match kvs, h with
   | [], _ => rfl
   | (k, v) :: kvs, h =>
     simp only [okMap, Bool.and_eq_true] at h ⊢
-    exact ⟨⟨⟨h.1.1.1, ok_mono hf hi hc k h.1.1.2⟩, ok_mono hf hi hc v h.1.2⟩, okMap_mono hf hi hc kvs h.2⟩
+    exact ⟨⟨⟨h.1.1.1, ok_mono hf hi hc hlc hlh k h.1.1.2⟩, ok_mono hf hi hc hlc hlh v h.1.2⟩, okMap_mono hf hi hc hlc hlh kvs h.2⟩
 
 end
 
 theorem language_mono {P Q : Profile} (hf : P.floats = true → Q.floats = true)
-    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix) :
+    (hi : Q.int64 = true → P.int64 = true) (hc : P.cid = Q.cid ∨ Q.cid = .prefix)
+    (hlc : ∀ c ∈ P.links.codecs, c ∈ Q.links.codecs) (hlh : ∀ p ∈ P.links.hashes, p ∈ Q.links.hashes) :
     language P ≤ language Q := by
   rintro w ⟨v, hok, rfl⟩
-  exact ⟨v, ok_mono hf hi hc v hok, rfl⟩
+  exact ⟨v, ok_mono hf hi hc hlc hlh v hok, rfl⟩
 
 end Silmaril.Proofs.Formats.Cbor.Drisl
 
