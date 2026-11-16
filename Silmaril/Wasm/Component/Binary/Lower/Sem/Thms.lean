@@ -7,11 +7,12 @@ public import Silmaril.Wasm.Component.Param.Start.Thms
 
 * `coreModule_of_decode`: a lowered module whose bytes decode to `m` is run as `m`.
 * `coreModSem_sem_of_inst`: a lowered module with an engine instance (no start function)
-  denotes that instance's game semantics (`engineStrategy`);
-* `coreModSem_sem_of_instS`: a lowered module with an instance before its start function
-  denotes that instance's game semantics with its start phase (`engineStrategyS`);
-* `coreModSem_eq_engineSem`: on a module without a start function, `coreModSem P` is the
-  start-free `engineSem` it was defined as before.
+  denotes that instance's game semantics (`engineStrategy`).
+* The opt-in lazy start variant (`coreModSemLazyStart`, not the specification's start
+  semantics): `coreModSemLazyStart_sem_of_instS`, a lowered module with an instance before its
+  start function denotes that instance's game semantics with its lazy start phase
+  (`engineStrategyS`); `coreModSemLazyStart_eq_coreModSem`, on a module without a start
+  function the two semantics agree.
 -/
 
 @[expose] public section
@@ -24,26 +25,6 @@ theorem coreModule_of_decode {cm : CoreMod} {m : Silmaril.Wasm.Module}
     (h : Silmaril.Wasm.Binary.Core.decode? cm.bytes = some m) : coreModule cm = m := by
   simp [coreModule, h]
 
-/-- A lowered module with an instance before its start function denotes that instance's game
-semantics with its start phase. -/
-theorem coreModSem_sem_of_instS (P : Profile) {cm : CoreMod}
-    {I : Silmaril.Wasm.Component.Param.SInstance (Silmaril.Wasm.Component.Reference.core3P P)}
-    (h : Silmaril.Wasm.Component.Param.instOfS (Silmaril.Wasm.Component.Reference.core3P P)
-      (coreModule cm) (CoreModule.imports cm) (CoreModule.exports cm) = some I) :
-    (coreModSem P).sem cm = Silmaril.Wasm.Component.Param.engineStrategyS _ I
-      (CoreModule.imports cm) (CoreModule.exports cm) := by
-  simp [coreModSem, Silmaril.Wasm.Component.Param.engineSemS, h]
-
-/-- On a lowered module without a start function, `coreModSem P` is `engineSem`. -/
-theorem coreModSem_eq_engineSem (P : Profile) {cm : CoreMod}
-    (h : ∀ I, Silmaril.Wasm.Component.Param.instOfS (Silmaril.Wasm.Component.Reference.core3P P)
-      (coreModule cm) (CoreModule.imports cm) (CoreModule.exports cm) = some I → I.start = none) :
-    (coreModSem P).sem cm = (Silmaril.Wasm.Component.Param.engineSem
-      (Silmaril.Wasm.Component.Reference.core3P P) CoreMod coreModule).sem cm := by
-  unfold coreModSem
-  exact Silmaril.Wasm.Component.Param.engineSemS_sem_of_noStart
-    (E := Silmaril.Wasm.Component.Reference.core3P P) CoreMod coreModule cm h
-
 /-- A lowered module with an engine instance (no start function) denotes that instance's game
 semantics. -/
 theorem coreModSem_sem_of_inst (P : Profile) {cm : CoreMod}
@@ -52,16 +33,27 @@ theorem coreModSem_sem_of_inst (P : Profile) {cm : CoreMod}
       (coreModule cm) (CoreModule.imports cm) (CoreModule.exports cm) = some I) :
     (coreModSem P).sem cm = Silmaril.Wasm.Component.Param.engineStrategy _ I
       (CoreModule.imports cm) (CoreModule.exports cm) := by
-  have hS : ∀ J, Silmaril.Wasm.Component.Param.instOfS (Silmaril.Wasm.Component.Reference.core3P P)
-      (coreModule cm) (CoreModule.imports cm) (CoreModule.exports cm) = some J →
-      J.start = none := by
-    intro J hJ
-    have h' := (Silmaril.Wasm.Component.Param.instOf_eq (Silmaril.Wasm.Component.Reference.core3P P)
-      (coreModule cm) (CoreModule.imports cm) (CoreModule.exports cm)).symm.trans h
-    rw [hJ] at h'
-    revert h'
-    rcases hs : J.start with _ | a <;> simp [hs]
-  rw [coreModSem_eq_engineSem P hS]
-  simp [Silmaril.Wasm.Component.Param.engineSem, h]
+  simp [coreModSem, Silmaril.Wasm.Component.Param.engineSem, h]
+
+/-- **Opt-in lazy start** (not the specification's start semantics): a lowered module with an
+instance before its start function denotes that instance's game semantics with its lazy start
+phase. -/
+theorem coreModSemLazyStart_sem_of_instS (P : Profile) {cm : CoreMod}
+    {I : Silmaril.Wasm.Component.Param.SInstance (Silmaril.Wasm.Component.Reference.core3P P)}
+    (h : Silmaril.Wasm.Component.Param.instOfS (Silmaril.Wasm.Component.Reference.core3P P)
+      (coreModule cm) (CoreModule.imports cm) (CoreModule.exports cm) = some I) :
+    (coreModSemLazyStart P).sem cm = Silmaril.Wasm.Component.Param.engineStrategyS _ I
+      (CoreModule.imports cm) (CoreModule.exports cm) := by
+  simp [coreModSemLazyStart, Silmaril.Wasm.Component.Param.engineSemS, h]
+
+/-- On a lowered module without a start function, the opt-in lazy start semantics is
+`coreModSem`. -/
+theorem coreModSemLazyStart_eq_coreModSem (P : Profile) {cm : CoreMod}
+    (h : ∀ I, Silmaril.Wasm.Component.Param.instOfS (Silmaril.Wasm.Component.Reference.core3P P)
+      (coreModule cm) (CoreModule.imports cm) (CoreModule.exports cm) = some I → I.start = none) :
+    (coreModSemLazyStart P).sem cm = (coreModSem P).sem cm := by
+  unfold coreModSemLazyStart coreModSem
+  exact Silmaril.Wasm.Component.Param.engineSemS_sem_of_noStart
+    (E := Silmaril.Wasm.Component.Reference.core3P P) CoreMod coreModule cm h
 
 end Silmaril.Wasm.Component.Binary

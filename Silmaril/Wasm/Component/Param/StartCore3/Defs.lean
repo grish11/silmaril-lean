@@ -15,7 +15,7 @@ through `NumModule.mod`:
 * `trapStartMod`: the start function is `unreachable`, and the export `get` returns `7`.
 
 The same two modules as hand-assembled binaries, lowered core modules for
-`Binary.coreModSem` (`startCM`, `trapCM`): the theorems about them are about what their bytes
+`Binary.coreModSemLazyStart` (`startCM`, `trapCM`): the theorems about them are about what their bytes
 decode to (`Binary.coreModule`), computed in the kernel.
 
 `getQ` is the question `get()` of these modules. The theorems are in `StartCore3.Thms`.

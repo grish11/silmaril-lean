@@ -459,9 +459,10 @@ theorem trapStartMod_eq_trapAll (o : Silmaril.Wasm.SingleThreaded.GrowOracle) :
       (startSI (Silmaril.Wasm.SingleThreaded.profile o) trapStore) []
       trapStartMod.exports = trapAll _ _ :=
   trap_eq_trapAll trapPrep_ok o
-/-! ## The binaries, under `coreModSem` -/
+/-! ## The binaries, under `coreModSemLazyStart` -/
 
-open Silmaril.Wasm.Component.Binary (coreModule coreModSem coreModSem_sem_of_instS)
+open Silmaril.Wasm.Component.Binary (coreModule coreModSem coreModSemLazyStart
+  coreModSemLazyStart_sem_of_instS)
 
 theorem startCM_prepOk : prepOk isSet (prepareE? {} (coreModule startCM) []) = true := by
   decide +kernel
@@ -473,29 +474,29 @@ theorem trapCM_prepOk : prepOk isUnreachable (prepareE? {} (coreModule trapCM) [
   decide +kernel
 
 theorem startCM_sem (P : Profile) :
-    (coreModSem P).sem startCM =
+    (coreModSemLazyStart P).sem startCM =
       engineStrategyS (core3P P) (startSI P (storeOf (prepareE? {} (coreModule startCM) []))) []
         [("get", ⟨[], [.int .i32]⟩)] :=
-  coreModSem_sem_of_instS P (instOfS_of_prepOk P startCM_prepOk _)
+  coreModSemLazyStart_sem_of_instS P (instOfS_of_prepOk P startCM_prepOk _)
 
 theorem trapCM_sem (P : Profile) :
-    (coreModSem P).sem trapCM =
+    (coreModSemLazyStart P).sem trapCM =
       engineStrategyS (core3P P) (startSI P (storeOf (prepareE? {} (coreModule trapCM) []))) []
         [("get", ⟨[], [.int .i32]⟩)] :=
-  coreModSem_sem_of_instS P (instOfS_of_prepOk P trapCM_prepOk _)
+  coreModSemLazyStart_sem_of_instS P (instOfS_of_prepOk P trapCM_prepOk _)
 
 theorem startCM_get (P : Profile) :
-    [.inr (.ask getQ), .inr (.ans getQ (some (.flat [Flat.i32 42])))] ∈ (coreModSem P).sem startCM := by
+    [.inr (.ask getQ), .inr (.ans getQ (some (.flat [Flat.i32 42])))] ∈ (coreModSemLazyStart P).sem startCM := by
   rw [startCM_sem]
   exact get_of startCM_prepOk startCM_startOk P
 
 theorem trapCM_get (P : Profile) :
-    [.inr (.ask getQ), .inr (.ans getQ none)] ∈ (coreModSem P).sem trapCM := by
+    [.inr (.ask getQ), .inr (.ans getQ none)] ∈ (coreModSemLazyStart P).sem trapCM := by
   rw [trapCM_sem]
   exact trap_get trapCM_prepOk P
 
 theorem trapCM_eq_trapAll (o : Silmaril.Wasm.SingleThreaded.GrowOracle) :
-    (coreModSem (Silmaril.Wasm.SingleThreaded.profile o)).sem trapCM = trapAll _ _ := by
+    (coreModSemLazyStart (Silmaril.Wasm.SingleThreaded.profile o)).sem trapCM = trapAll _ _ := by
   rw [trapCM_sem]
   exact trap_eq_trapAll trapCM_prepOk o
 
@@ -536,8 +537,20 @@ theorem ne_trapAll_of {m : Silmaril.Wasm.Module} (h1 : prepOk isSet (prepareE? {
   rw [h] at hm
   exact Silmaril.Proofs.Wasm.Component.Param.two_some_not_mem_trapAll getQ _ hm
 
-theorem startCM_ne_trapAll (P : Profile) : (coreModSem P).sem startCM ≠ trapAll _ _ := by
+theorem startCM_ne_trapAll (P : Profile) : (coreModSemLazyStart P).sem startCM ≠ trapAll _ _ := by
   rw [startCM_sem]
   exact ne_trapAll_of startCM_prepOk startCM_startOk P
+
+/-- Under the default `coreModSem` (start-free `engineSem`), the binary `startCM` has no
+engine instance and traps on every question. -/
+theorem startCM_coreModSem (P : Profile) : (coreModSem P).sem startCM = trapAll _ _ := by
+  have h0 : instOfS (core3P P) (coreModule startCM : (core3P P).Module)
+      (CoreModule.imports startCM) (CoreModule.exports startCM) =
+        some (startSI P (storeOf (prepareE? {} (coreModule startCM) []))) :=
+    instOfS_of_prepOk P startCM_prepOk _
+  have h : instOf (core3P P) (coreModule startCM : (core3P P).Module)
+      (CoreModule.imports startCM) (CoreModule.exports startCM) = none :=
+    (Silmaril.Proofs.Wasm.Component.Param.instOf_eq _ _ _ _).trans (by rw [h0]; rfl)
+  simp only [coreModSem, engineSem, h]
 
 end Silmaril.Proofs.Wasm.Component.Param.StartCore3

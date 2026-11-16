@@ -14,7 +14,11 @@ then are the exports available. The reference machine does the same
 (`Reference.Instantiate.instantiateCore`, `runStart`: the start function is called during core
 instantiation; a trap of it is a trap of the instantiation).
 
-This module gives the start-aware semantics.
+This module gives a **lazy** start-aware semantics. It is an approximation that **deviates from
+that semantics** (the start phase runs at the first export question; see "Where the start phase
+is observed" below), and it is opt-in: `Binary.coreModSemLazyStart` uses it, the default
+`Binary.coreModSem` does not. A faithful treatment needs an instantiation phase in the IR's
+interface (as in `Silmaril.Wasm.Game.Start`), which `CoreSem` does not have.
 
 * `SInstance E`: an engine instance **before its start function**: the store `prepare?` returns,
   the export addresses, and the start function's address (`none` when there is none).
