@@ -82,6 +82,9 @@ theorem readQuoted_noEscape {q : Char} : ∀ {cs w rest : List Char},
               simp only [List.mem_cons, not_or]
               exact ⟨⟨Ne.symm hcq, h1⟩, ⟨Ne.symm hcb, h2⟩⟩
 
+theorem ofDigits_eq (cs : List Char) : ofDigits cs = Nat.ofDigitChars 10 cs 0 :=
+  Nat.ofDigitChars_eq_foldl.symm
+
 theorem natText_isDigit (n : Nat) : ∀ c ∈ natText n, c.isDigit = true :=
   fun _ hc => Nat.isDigit_of_mem_toDigits (by decide) (by decide) hc
 
@@ -96,7 +99,7 @@ theorem digits?_natText (n : Nat) : digits? (natText n) = some n := by
   have hall : (natText n).all Char.isDigit = true := List.all_eq_true.2 (natText_isDigit n)
   unfold digits?
   rw [ite_eq_left ⟨natText_ne_nil n, hall⟩]
-  simp [natText]
+  simp [natText, ofDigits_eq]
 
 theorem not_sign_of_isDigit {c : Char} (h : c.isDigit = true) : c ≠ '-' ∧ c ≠ '+' := by
   constructor <;> rintro rfl <;> simp [Char.isDigit] at h
@@ -171,6 +174,6 @@ theorem readDecimal_text {isMarker : Char → Bool} {m : Char} (hm : isMarker m 
     | cons => rfl
   simp only [readDecimal, hsign, htake, hmp, ite_false, hne, Bool.false_and, List.append_nil,
     hm, ite_true, int?_intText]
-  simp [Functor.map, natText, Nat.ofDigitChars_ten_toDigits]
+  simp [Functor.map, natText, ofDigits_eq, Nat.ofDigitChars_ten_toDigits]
 
 end Silmaril.Proofs.Formats.SExp.Lexical

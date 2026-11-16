@@ -1,7 +1,8 @@
 module
 
 public import Silmaril.Formats.SExp.Clojure.Thms
--- `Nat.ofDigitChars` (decimal digits) is not exposed to the kernel otherwise.
+-- Some definitions the Clojure reader evaluates (decimal digit folds in `Init`) are not
+-- exposed to the kernel otherwise.
 import all Init.Data.Nat.ToString
 
 /-! # Clojure data syntax: examples

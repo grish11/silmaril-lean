@@ -68,9 +68,14 @@ def natText (n : Nat) : List Char := Nat.toDigits 10 n
 def intText (n : Int) : List Char :=
   if n < 0 then '-' :: natText n.natAbs else natText n.toNat
 
+/-- The value of decimal digits (`Nat.ofDigitChars 10 · 0`, as an exposed fold so that the
+kernel can evaluate examples). -/
+def ofDigits (cs : List Char) : Nat :=
+  cs.foldl (fun acc c => 10 * acc + (c.toNat - '0'.toNat)) 0
+
 /-- A nonempty string of decimal digits. -/
 def digits? (cs : List Char) : Option Nat :=
-  if cs ≠ [] ∧ cs.all Char.isDigit = true then some (Nat.ofDigitChars 10 cs 0) else none
+  if cs ≠ [] ∧ cs.all Char.isDigit = true then some (ofDigits cs) else none
 
 /-- An optionally signed decimal integer. -/
 def int? : List Char → Option Int
@@ -136,7 +141,7 @@ def readDecimal (isMarker : Char → Bool) (cs : List Char) : Option (Decimal ×
     | [] => ([], false, [])
   if whole.isEmpty && frac.isEmpty then none
   else
-    let sig := Nat.ofDigitChars 10 (whole ++ frac) 0
+    let sig := ofDigits (whole ++ frac)
     match r₂ with
     | [] => if point then some (⟨neg, sig, -(frac.length : Int)⟩, none) else none
     | m :: r₃ =>
