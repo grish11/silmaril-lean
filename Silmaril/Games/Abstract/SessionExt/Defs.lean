@@ -43,7 +43,8 @@ variable {A A₁ A₂ B B₁ B₂ : Type u}
 
 /-- The answers of a pairing as answers of the paired session (`StratSession.pairMove`). -/
 def pairAnswer :
-    (a : (sig1 A₁ B₁ ⊕ₛ sig1 A₂ B₂).Op) → (sig1 A₁ B₁ ⊕ₛ sig1 A₂ B₂).Ar a → (B₁ ⊕ B₂) ⊕ PUnit.{u + 1}
+    (a : (sig1 A₁ B₁ ⊕ₛ sig1 A₂ B₂).Op) → (sig1 A₁ B₁ ⊕ₛ sig1 A₂ B₂).Ar a →
+      (B₁ ⊕ B₂) ⊕ PUnit.{u + 1}
   | .inl _, x => Sum.map .inl id x
   | .inr _, x => Sum.map .inr id x
 

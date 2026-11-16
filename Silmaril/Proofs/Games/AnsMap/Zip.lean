@@ -34,7 +34,8 @@ def C0 (s : List (Move E F)) (p : List (Move E (Sig.mk F.Op B'))) (x' : Pos E F)
 
 /-- What remains after a handler state: in sync, a forwarded question pending, or an answer to
 return. -/
-def Out : Reduction.State (ansH (B' := B') k).toReduction → List (Move E F) → List (Move E (Sig.mk F.Op B')) →
+def Out : Reduction.State (ansH (B' := B') k).toReduction → List (Move E F) →
+    List (Move E (Sig.mk F.Op B')) →
     Pos E F → Prop
   | .idle, s, p, x' => C0 k s p x'
   | .wait _ _ _, s, p, x' => C0 k s p x'
@@ -53,7 +54,8 @@ inductive Inv : Pos E F → Reduction.State (ansH (B' := B') k).toReduction → 
 
 variable {k}
 
-theorem C0.cons {s : List (Move E F)} {p : List (Move E (Sig.mk F.Op B'))} {x' : Pos E F} (h : C0 k s p x')
+theorem C0.cons {s : List (Move E F)} {p : List (Move E (Sig.mk F.Op B'))} {x' : Pos E F}
+    (h : C0 k s p x')
     (o : Move E F) : C0 k (o :: s) (ansMove k o :: p) x' := by
   rcases h with rfl | ⟨hx, ⟨q, rfl⟩ | ⟨o', h⟩⟩
   · exact .inl rfl
@@ -70,7 +72,8 @@ theorem path_nil_idle {x' : Pos E F} (h : Path (.idle : Pos E F) [] x') : x' = .
   cases h; rfl
 
 /-- **The shape of an interaction with the relabelling handler.** -/
-theorem zip_out {s : List (Move E F)} {w : List (Move F (Sig.mk F.Op B'))} {p : List (Move E (Sig.mk F.Op B'))}
+theorem zip_out {s : List (Move E F)} {w : List (Move F (Sig.mk F.Op B'))}
+    {p : List (Move E (Sig.mk F.Op B'))}
     (h : Zip s w p) : ∀ {x x' : Pos E F} {z z' : Reduction.State (ansH (B' := B') k).toReduction},
       Inv k x z → Path x s x' → (ansH k).toReduction.toLTS.Run z w z' → Out k z s p x' := by
   induction h with
@@ -145,7 +148,8 @@ theorem zip_out {s : List (Move E F)} {w : List (Move F (Sig.mk F.Op B'))} {p : 
       | call hc => cases hc
 
 /-- The interaction from idle. -/
-theorem zip_c0 {s : List (Move E F)} {w : List (Move F (Sig.mk F.Op B'))} {p : List (Move E (Sig.mk F.Op B'))}
+theorem zip_c0 {s : List (Move E F)} {w : List (Move F (Sig.mk F.Op B'))}
+    {p : List (Move E (Sig.mk F.Op B'))}
     (h : Zip s w p) {x' : Pos E F} (hs : Path .idle s x') (hw : w ∈ Strategy.ofHandler (ansH k)) :
     C0 k s p x' := by
   obtain ⟨z', hz⟩ := Strategy.mem_ofHandler.1 hw

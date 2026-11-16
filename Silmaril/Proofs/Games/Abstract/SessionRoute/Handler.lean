@@ -83,7 +83,8 @@ theorem fwd_step {x y : TSt E PUnit.{u + 1} A} {o : Move E (sig1 A (B ⊕ PUnit.
     cases h with
     | call s a c m hm =>
       obtain ⟨-, rfl⟩ := Prod.ext_iff.1 (mem_satP_callS hm)
-      exact ⟨_, Reduction.Step.call (R := (callH g f).toReduction) (k := fun n => Prog.pure (f a n)) rfl, .wait₀ s a⟩
+      exact ⟨_, Reduction.Step.call (R := (callH g f).toReduction)
+        (k := fun n => Prog.pure (f a n)) rfl, .wait₀ s a⟩
     | ret s a c b s' hb =>
       obtain ⟨n, hn⟩ := hb
       cases (Prod.ext_iff.1 hn).1
@@ -92,7 +93,8 @@ theorem fwd_step {x y : TSt E PUnit.{u + 1} A} {o : Move E (sig1 A (B ⊕ PUnit.
       cases (Prod.ext_iff.1 hn).2
   | wait₀ s a =>
     cases h with
-    | reply s a c m n => exact ⟨_, Reduction.Step.resume (R := (callH g f).toReduction) a (g a) _ n, .run₁ s a n⟩
+    | reply s a c m n =>
+      exact ⟨_, Reduction.Step.resume (R := (callH g f).toReduction) a (g a) _ n, .run₁ s a n⟩
   | run₁ s a n =>
     cases h with
     | call s a c m hm =>
