@@ -406,6 +406,17 @@ The plain graph stays an over-approximation, and claims about it say so.
       the body's pending code and handlers are bypassed. Fixture `Wasm/Cfg/ExampleTail`:
       `block (return_call x); unreachable` in the frame of `recMod`'s self-call (`tail_machine_div`).
       **Open:** the converse (Core frame divergence is `MDivT`).
+    - **Host-free function-list preservation** (`Wasm/Cfg/Restrict`): without a host, a region or
+      machine run keeps the store's whole function list `F` (instances with types, modules and
+      code), so every call and every `F`-only check (`StoreChkE`) sees `F`. Oracles agreeing on
+      stores with `F` give the same runs, steps, infinite runs, `MDivC` and `MDivT`
+      (`runC_funcs` … `mdivT_funcs`). Host-free only: nothing is claimed for host-mutated stores.
+    - **Function-level divergence, soundness side:** `Function.invoke_diverges_of_mdivT`: on the
+      fragment, `MDivT` with `CX closedCallX` and `calleeDivX o` (typed `tExt` callees whose
+      invocation diverges) is Core divergence of `invoke s a vs`. With `F = s.funcs`, `CX
+      closedCallX` answers as the Core-sound `closedXOk` (`cx_closedXOk`); the invocation steps to
+      the function's frame (`call_ref-func`), which diverges by `mdivT_frame_initial`. **Open:**
+      the converse, by the native route (`MDivT` ⇐ `FunDivX`, with `invoke_diverges_iff_funDivX`).
     - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
       `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
       Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the
