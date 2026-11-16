@@ -18,7 +18,8 @@ Core run whose host events (`EvRun`) are **exactly** a given log.
 * `hEvStep_handler`, `evRun_handler`: labelled steps and runs lift through a handler;
 * `wpl_append_normal`, `wpl_append_abruptP`: sequences;
 * `CoreLQ`, `CoreLP`, `CoreLT`: `CoreGoodQ` with the host events `q`, for any postcondition, for
-  `MatchP r`, and for a trap in any store and frame (`TrapPost`). The cases are in `Cases`,
+  `MatchP r`, and for a trap in any frame and a store satisfying `S` (`TrapPost S`; `S` the
+  trap's exact store, or anything). The cases are in `Cases`,
   `Calls` and `TrapCases`.
 -/
 
@@ -228,13 +229,16 @@ abbrev CoreLP (tags : List TagInst) (P : Silmaril.Wasm.Numerics.Profile) (host :
     (r : Store H × Frame × POut) (q : List (Call (wasmHostSig H))) : Prop :=
   CoreLQ tags P host s f stk es (MatchP r) q
 
-/-- **A trap**, in any store and frame: the postcondition of a run cut at a trapping callee. -/
-def TrapPost : Post H := fun _ _ o => o = .trap
+/-- **A trap**, in any frame, in a store satisfying `S`: the postcondition of a run cut at a
+trapping callee. A trap leaves every context without changing the store, so `S` can pin the store
+of the callee's trap exactly (`S = (· = s₂)`), or be anything (`fun _ => True`). -/
+def TrapPost (S : Store H → Prop) : Post H := fun s _ o => o = .trap ∧ S s
 
-/-- The logged Core-run invariant of a run cut at a trapping callee. -/
+/-- The logged Core-run invariant of a run cut at a trapping callee, its trap in a store
+satisfying `S`. -/
 abbrev CoreLT (tags : List TagInst) (P : Silmaril.Wasm.Numerics.Profile) (host : HostSemantics H)
     (s : Store H) (f : Frame) (stk : List Val) (es : List Binaryen.BExpr)
-    (q : List (Call (wasmHostSig H))) : Prop :=
-  CoreLQ tags P host s f stk es TrapPost q
+    (q : List (Call (wasmHostSig H))) (S : Store H → Prop) : Prop :=
+  CoreLQ tags P host s f stk es (TrapPost S) q
 
 end Silmaril.Proofs.Wasm.Abstract.HostClosingXP

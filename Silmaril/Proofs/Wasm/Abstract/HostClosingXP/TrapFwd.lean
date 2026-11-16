@@ -27,15 +27,15 @@ open Silmaril.Wasm.Abstract.HostEvalP (hostCallXP)
 
 variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H}
 
-/-- **The callee of an internal call traps**, with the host events `c₁`, on stores with the tag
-invariants and the store check, for typed arguments. -/
+/-- **The callee of an internal call traps**, with the host events `c₁`, in a store satisfying
+`S`, on stores with the tag invariants and the store check, for typed arguments. -/
 def TrapAt (tags : List TagInst) (P : Silmaril.Wasm.Numerics.Profile) (host : HostSemantics H)
-    (z : OCall H) (c₁ : List (Call (wasmHostSig H))) : Prop :=
+    (z : OCall H) (c₁ : List (Call (wasmHostSig H))) (S : Store H → Prop) : Prop :=
   ∀ (a : Nat) (args : List Val) (s₁ : Store H) (b : List Val ⊕ Nat) (s₂ : Store H),
     z = OCall.mk a args s₁ b s₂ → ∀ (fi : FuncInst H) (ps rs : List Validation.CValType),
     s₁.funcs[a]? = some fi → Validation.DefType.funcType? fi.type = some (ps, rs) →
     TagsOk tags s₁ → StoreChkE (ehExt tags) s₁.funcs → args.length = ps.length →
-    CalleeTrap P host s₁ a args c₁
+    CalleeTrap P host s₁ a args c₁ S
 
 section Split
 
@@ -97,15 +97,16 @@ theorem split_res {tags : List TagInst} {la m : List (OCall H)} {q c₁ : List (
   rw [List.append_assoc, cons_append] at hc
   exact ⟨qa, qm, rfl, h₁, h₂, hc.1, hc.2⟩
 
-/-- **The logged forward simulation of a run cut at a trapping callee**, every profile. -/
-theorem evalLXPh_trap {tags : List TagInst} (hH : NativeHostSlice host)
+/-- **The logged forward simulation of a run cut at a trapping callee**, every profile: the run
+traps in the store of the callee's trap (`S`), which no context changes. -/
+theorem evalLXPh_trap {tags : List TagInst} {S : Store H → Prop} (hH : NativeHostSlice host)
     (hE : HostSliceE tags host) {s : Store H} {f : Frame} {stk : List Val}
     {es : List Binaryen.BExpr} {l : List (OCall H)} {r : Store H × Frame × POut}
     (h : EvalLXPh s f stk es l r) :
     ∀ (l₁ : List (OCall H)) (z : OCall H) (l₂ : List (OCall H)), l = l₁ ++ z :: l₂ →
       ∀ q₁ c₁, Shape.SubstPre (GoodCX tags P host) (l₁.map OCall.lift) q₁ →
-        TrapAt tags P host z c₁ → Cons host (q₁ ++ c₁) → TagsOk tags s →
-        CoreLT tags P host s f stk es (q₁ ++ c₁) := by
+        TrapAt tags P host z c₁ S → Cons host (q₁ ++ c₁) → TagsOk tags s →
+        CoreLT tags P host s f stk es (q₁ ++ c₁) S := by
   induction h with
   | nil =>
     intro l₁ z l₂ hl

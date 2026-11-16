@@ -1,0 +1,136 @@
+// The explorer's ELF tab (explore/views/elf.js) on the pages `elf-pages` writes (elf/…). Checks, in
+// a browser, for every pinned file (GNU sha256sum and hello):
+// * the index lists it with its theorem count and kernel-only status;
+// * the overview's section and segment tables have the page data's rows, each with its theorems,
+//   and `.bss` shows as memory only; the coverage key's counts are the data's and sum to the size;
+// * the browser's SHA-256 of the downloaded bytes is the pinned one;
+// * the byte view colours each byte by its coverage class, shows file offset and virtual address,
+//   and the selection panel lists exactly the theorems whose windows hold the byte (computed here
+//   from the data, independently of the page), with section and segment;
+// * the disassembly keeps its UNVERIFIED warning visible, and its rows' bytes are the file's bytes;
+//   an address link opens the byte view at that instruction;
+// * no page errors and no console errors.
+//   node elf.mjs SITE_DIR [SHOTS_DIR]
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+const pw = await import(process.env.PLAYWRIGHT_CORE || "/usr/local/lib/node_modules/playwright-core/index.mjs");
+const site = path.resolve(process.argv[2]), shots = process.argv[3] && path.resolve(process.argv[3]);
+const port = 8797;
+const srv = spawn("python3", ["-I", path.join(path.dirname(new URL(import.meta.url).pathname), "pages_server.py"),
+  "--root", site, "--port", String(port), "--log", "/tmp/elf_requests.jsonl"], { stdio: "ignore" });
+const fails = [];
+const check = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (!ok) fails.push(what); };
+const b = await pw.chromium.launch({ executablePath: process.env.CHROME ||
+  (fs.existsSync("/opt/ms-playwright/chromium-1248/chrome-linux64/chrome") ? "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" : undefined) });
+const json = (rel) => JSON.parse(fs.readFileSync(path.join(site, "elf", rel)));
+const hx = (n) => "0x" + n.toString(16);
+try {
+  await new Promise((r) => setTimeout(r, 800));
+  const p = await b.newPage({ viewport: { width: 1500, height: 1000 } });
+  const errors = [];
+  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  p.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
+  const open = async (hash) => {
+    await p.goto(`http://127.0.0.1:${port}/index.html#${hash}`);
+    await p.waitForFunction(() => window.explore && window.explore.ready && !window.explore.busy, null, { timeout: 60000 });
+  };
+  const shot = async (name) => { if (shots) { fs.mkdirSync(shots, { recursive: true }); await p.screenshot({ path: path.join(shots, name + ".png") }); } };
+  const ix = json("index.json");
+  check(ix.files.length >= 2 && ix.files.some((f) => f.slug === "gnu-sha256sum"), "index.json lists GNU sha256sum and hello");
+
+  await open("/elf");
+  const navOn = await p.evaluate(() => document.querySelector("#nav a.on")?.textContent);
+  check(navOn === "ELF", `the ELF tab is in the navigation and selected (${navOn})`);
+  const rows = await p.evaluate(() => [...document.querySelectorAll("main table tbody tr")].map((r) => r.textContent));
+  for (const f of ix.files) check(rows.some((r) => r.includes(f.title) && r.includes(String(f.theorems)) && r.includes("kernel-only")), `index row: ${f.slug}, ${f.theorems} theorems, kernel-only`);
+  await shot("elf-index");
+
+  for (const f of ix.files) {
+    const d = json(`f/${f.slug}.json`);
+    const bytes = fs.readFileSync(path.join(site, "elf/blob", f.slug + ".bin"));
+    const sum = Object.values(d.coverageSummary).reduce((a, b) => a + b, 0);
+    check(sum === d.size && bytes.length === d.size, `${f.slug}: coverage classes sum to the file size (${sum})`);
+    check(d.theorems.every((t) => t.status === "checked" && t.kernelOnly), `${f.slug}: every theorem checked, kernel-only`);
+    // Every section and segment of the data has its theorems.
+    check(d.sections.every((s) => s.headerTheorem && s.nameTheorem && s.bodyTheorem) && d.segments.every((s) => s.theorem) && d.header.theorem && d.loader.theorem,
+      `${f.slug}: every header, section (header, name, body), segment and the loader view has a theorem`);
+
+    await open(`/elf-file/${f.slug}`);
+    const ov = await p.evaluate(() => ({
+      secRows: document.querySelectorAll("tr[id^=elf-sec-]").length,
+      kernel: document.querySelectorAll("main .prov-lean").length,
+      text: document.querySelector("main").textContent,
+      key: Object.fromEntries([...document.querySelectorAll(".elf-key span")].slice(0, 4).map((s) => s.textContent.split(": "))) }));
+    check(ov.secRows === d.sections.length, `${f.slug}: ${ov.secRows}/${d.sections.length} section rows`);
+    check(ov.kernel >= d.sections.length * 3, `${f.slug}: section theorems shown as kernel-checked (${ov.kernel} badges)`);
+    check(Object.entries(d.coverageSummary).every(([k, v]) => ov.key[k] === `${v} B`), `${f.slug}: coverage key ${JSON.stringify(ov.key)}`);
+    const bss = d.sections.find((s) => s.name === ".bss");
+    if (bss) check(ov.text.includes(`none (${bss.size} B in memory)`) && /zero-filled/.test(ov.text), `${f.slug}: .bss is memory only (${bss.size} B), the RW segment's zero fill is shown`);
+    check(ov.text.includes("ELFCLASS32") && ov.text.includes("unsupported"), `${f.slug}: unsupported variants are listed`);
+    if (f.slug.startsWith("hello-")) {
+      check(d.loader.interp === "/lib64/ld-linux-x86-64.so.2" && d.loader.needed.includes("libc.so.6") && d.loader.theorem,
+        `${f.slug}: glibc-linked: PT_INTERP ld-linux-x86-64.so.2 and DT_NEEDED libc.so.6, from the checked loader view`);
+      check(ov.text.includes("/lib64/ld-linux-x86-64.so.2") && ov.text.includes("libc.so.6"), `${f.slug}: the overview shows the interpreter and libc.so.6`);
+      await shot(`elf-${f.slug}-overview`);
+    }
+    await p.click("#elf-sha");
+    await p.waitForFunction(() => /matches|differs/.test(document.querySelector("#elf-shaout").textContent), null, { timeout: 20000 });
+    check(await p.evaluate(() => document.querySelector("#elf-shaout").textContent.includes("matches")), `${f.slug}: the browser's SHA-256 of the bytes matches ${d.sha256.slice(0, 12)}…`);
+    if (f.slug === "gnu-sha256sum") await shot("elf-sha256sum-overview");
+
+    // Theorem list: one row per theorem.
+    await open(`/elf-file/${f.slug}/theorems`);
+    const trows = await p.evaluate(() => document.querySelectorAll("main table tbody tr").length);
+    check(trows === d.theorems.length, `${f.slug}: theorem list has ${trows}/${d.theorems.length} rows`);
+
+    // Byte view at the .dynsym (or the first decoded body) and at .text.
+    const dyn = d.sections.find((s) => s.name === ".dynsym") || d.sections.find((s) => s.decoded);
+    const o = dyn.offset + 24 + 3;
+    await open(`/elf-bytes/${f.slug}/${hx(o)}`);
+    const bv = await p.evaluate((o) => {
+      const e = document.querySelector(`span.b[data-o="${o}"]`);
+      return { sel: e && e.classList.contains("sel"), text: e && e.textContent, cls: e && [...e.classList].find((c) => c.startsWith("elf-c-")),
+        side: document.querySelector("#elf-side").textContent, thms: [...document.querySelectorAll("#elf-side li code")].map((c) => c.getAttribute("title")) };
+    }, o);
+    const expectThms = d.theorems.filter((t) => t.windows.some(([w, n]) => w <= o && o < w + n)).map((t) => t.decl).sort();
+    const cls = d.coverage.find(([w, n]) => w <= o && o < w + n)[2];
+    check(bv.sel && bv.text === bytes[o].toString(16).padStart(2, "0"), `${f.slug}: byte ${hx(o)} selected, shows ${bytes[o].toString(16)}`);
+    check(bv.cls === "elf-c-" + cls, `${f.slug}: byte ${hx(o)} coloured ${cls}`);
+    check(JSON.stringify(bv.thms.slice().sort()) === JSON.stringify(expectThms), `${f.slug}: selection lists exactly the ${expectThms.length} theorems whose windows hold ${hx(o)}`);
+    check(bv.side.includes(dyn.name), `${f.slug}: selection names section ${dyn.name}`);
+    // Click another byte (the ELF magic) and check the panel follows.
+    await open(`/elf-bytes/${f.slug}/0x0`);
+    await p.click('span.b[data-o="1"]');
+    check(await p.evaluate(() => /0x1\b/.test(document.querySelector("#elf-side h3").textContent) && location.hash.endsWith("/0x1")), `${f.slug}: clicking a byte selects it and updates the link`);
+    check(await p.evaluate(() => [...document.querySelectorAll("#elf-side li code")].some((c) => /\.header$/.test(c.getAttribute("title")))), `${f.slug}: the ELF magic is covered by the header theorem`);
+    if (f.slug === "gnu-sha256sum") { await open(`/elf-bytes/${f.slug}/${hx(o)}`); await shot("elf-sha256sum-bytes"); }
+
+    // Disassembly.
+    const dis = json(d.disassembly.file);
+    check(dis.unverified === true && dis.rows.length > 0, `${f.slug}: disassembly data marked unverified, ${dis.rows.length} rows`);
+    check(dis.rows.every(([, off, hex]) => off != null && Buffer.from(hex, "hex").equals(bytes.subarray(off, off + hex.length / 2))), `${f.slug}: every disassembly row's bytes are the file's bytes`);
+    const entry = d.header.entry;
+    await open(`/elf-disasm/${f.slug}/${hx(entry)}`);
+    const dv = await p.evaluate(() => {
+      const w = document.querySelector(".elf-warn");
+      const r = w && w.getBoundingClientRect();
+      return { warn: w && /UNVERIFIED/.test(w.textContent), visible: !!r && r.top >= 0 && r.bottom <= innerHeight && getComputedStyle(w).position === "sticky",
+        hit: document.querySelector("#elf-hit td")?.textContent };
+    });
+    check(dv.warn && dv.visible, `${f.slug}: the UNVERIFIED warning is visible at the entry point`);
+    check(dv.hit === hx(entry), `${f.slug}: the entry point's row is highlighted (${dv.hit})`);
+    if (f.slug === "gnu-sha256sum") await shot("elf-sha256sum-disassembly");
+    await p.click("#elf-hit td a");
+    await p.waitForFunction(() => window.explore && !window.explore.busy && document.querySelector("#elf-side"), null, { timeout: 30000 });
+    const entryOff = d.segments.find((s) => s.type === "LOAD" && s.vaddr <= entry && entry < s.vaddr + s.filesz);
+    const want = entry - entryOff.vaddr + entryOff.offset;
+    check(await p.evaluate((w) => location.hash.includes("/0x" + w.toString(16)) && document.querySelector(`span.b[data-o="${w}"]`).classList.contains("sel"), want),
+      `${f.slug}: the entry row links to the byte view at file offset ${hx(want)}`);
+  }
+  check(errors.length === 0, `no page or console errors ${errors.join("; ")}`);
+} finally {
+  await b.close(); srv.kill();
+}
+console.log(fails.length ? `${fails.length} FAILED` : "all ok");
+process.exit(fails.length ? 1 : 0);

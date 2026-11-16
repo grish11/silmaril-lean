@@ -134,18 +134,18 @@ variable {H : Type}
   | none => rfl
   | some fl => exact eraseEnd_endOfFlowS fl s
 
-theorem eraseEnd_eq_ret {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)} {b : List Val ⊕ Nat}
+theorem eraseEnd_eq_ret {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})} {b : List Val ⊕ Nat}
     {s : Store H} (h : eraseEnd e = .ret b s) : e = .ret (.inl b) s := by
   rcases e with ⟨b' | _, s'⟩ | _ | _ <;> simp_all [eraseEnd]
 
-theorem eraseEnd_eq_trap {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
+theorem eraseEnd_eq_trap {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})}
     (h : eraseEnd e = .trap) : e = .trap ∨ ∃ s, e = .ret (.inr ()) s := by
   rcases e with ⟨b' | _, s'⟩ | _ | _ <;> simp_all [eraseEnd]
 
 theorem endOfFlowS_ne_trap (fl : Flow) (s : Store H) : endOfFlowS fl s ≠ .trap := by
   cases fl <;> simp [endOfFlowS]
 
-theorem tailAnsS_ne_trap (m n : Nat) (b : (List Val ⊕ Nat) ⊕ PUnit) (s : Store H) :
+theorem tailAnsS_ne_trap (m n : Nat) (b : (List Val ⊕ Nat) ⊕ PUnit.{1}) (s : Store H) :
     tailAnsS m n b s ≠ .trap := by
   unfold tailAnsS
   split
@@ -166,29 +166,29 @@ theorem tailAnsS_ne_trap (m n : Nat) (b : (List Val ⊕ Nat) ⊕ PUnit) (s : Sto
 /-- A session open behaviour `(l, e)` and a canonical one `(l', e')`: the same calls with the same
 answers, the end erased, except that a final trap answer may be any answer of the canonical call,
 followed by anything, the session end then erasing to a trap. -/
-inductive LogE : List (SCall H) → End (Store H) ((List Val ⊕ Nat) ⊕ PUnit) → List (HCall H) →
+inductive LogE : List (SCall H) → End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1}) → List (HCall H) →
     End (Store H) (List Val ⊕ Nat) → Prop where
-  | nil (e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)) : LogE [] e [] (eraseEnd e)
+  | nil (e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})) : LogE [] e [] (eraseEnd e)
   | ext {m : (wasmHostSig H).Op} {n : (wasmHostSig H).Ar m} {l : List (SCall H)}
-      {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)} {l' : List (HCall H)}
+      {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})} {l' : List (HCall H)}
       {e' : End (Store H) (List Val ⊕ Nat)} :
       LogE l e l' e' → LogE (⟨.inl m, n⟩ :: l) e (⟨.inl m, n⟩ :: l') e'
   | ret {y : (wasmHShape H).self.Op} {b : List Val ⊕ Nat} {s' : Store H} {l : List (SCall H)}
-      {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)} {l' : List (HCall H)}
+      {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})} {l' : List (HCall H)}
       {e' : End (Store H) (List Val ⊕ Nat)} :
       LogE l e l' e' → LogE (⟨.inr y, (.inl b, s')⟩ :: l) e (⟨.inr y, (b, s')⟩ :: l') e'
   | trap {y : (wasmHShape H).self.Op} {s₂ : Store H} {ans : (List Val ⊕ Nat) × Store H}
-      {w' : List (HCall H)} {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
+      {w' : List (HCall H)} {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})}
       {e' : End (Store H) (List Val ⊕ Nat)} (he : eraseEnd e = .trap) :
       LogE [⟨.inr y, (.inr (), s₂)⟩] e (⟨.inr y, ans⟩ :: w') e'
 
-theorem logE_map (e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)) :
+theorem logE_map (e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})) :
     ∀ l : List (OCall H), LogE (l.map oToS) e (l.map OCall.lift) (eraseEnd e)
   | [] => .nil e
   | ⟨.inr _, (_, _)⟩ :: l => .ret (logE_map e l)
 
 theorem logE_trap {y : (wasmHShape H).self.Op} {s₂ : Store H} {ans : (List Val ⊕ Nat) × Store H}
-    {w' : List (HCall H)} {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
+    {w' : List (HCall H)} {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})}
     {e' : End (Store H) (List Val ⊕ Nat)} (he : eraseEnd e = .trap) :
     ∀ u : List (OCall H), LogE (u.map oToS ++ [⟨.inr y, (.inr (), s₂)⟩]) e
       (u.map OCall.lift ++ ⟨.inr y, ans⟩ :: w') e'
@@ -198,10 +198,10 @@ theorem logE_trap {y : (wasmHShape H).self.Op} {s₂ : Store H} {ans : (List Val
 /-- **A session resolution is a canonical resolution of the related open behaviour**, against a
 module whose behaviours erase to the canonical closure's. -/
 theorem subst_toH {c : (wasmHShapeS H).ClosedMod}
-    (hc : ∀ g s a (y : CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit)),
+    (hc : ∀ g s a (y : CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})),
       y ∈ c g s a → (y.1, eraseEnd y.2) ∈ Shape.close wasmHOpenXP g s a)
-    {L : List (SCall H)} {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
-    {y : CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
+    {L : List (SCall H)} {e : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})}
+    {y : CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})}
     (h : Shape.Subst c L e y) :
     ∀ {L' : List (HCall H)} {e' : End (Store H) (List Val ⊕ Nat)}, LogE L e L' e' →
       Shape.Subst (Shape.close wasmHOpenXP) L' e' (y.1, eraseEnd y.2) := by
@@ -235,12 +235,12 @@ theorem subst_toH {c : (wasmHShapeS H).ClosedMod}
 
 /-- **A session open behaviour is related to a canonical one.** -/
 theorem open_toH {a : Nat} {s : Store H} {vs : List Val}
-    {x : CallBeh ((wasmHShapeS H).E ⊕ₛ (wasmHShapeS H).self) (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
+    {x : CallBeh ((wasmHShapeS H).E ⊕ₛ (wasmHShapeS H).self) (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})}
     (hx : x ∈ wasmHOpenXPS a s vs) : ∃ x' ∈ wasmHOpenXP a s vs, LogE x.1 x.2 x'.1 x'.2 := by
   rcases hx with ⟨fi, fn, ps, rs, s', f₂, bfl, fl, l, hf, hc, hty, hrun, hex, rfl⟩ |
     ⟨fi, fn, ps, rs, s₁, s₂, f₂, a', n, args, b, l, hf, hc, hty, hrun, rfl⟩ |
     ⟨fi, hh, ps, rs, s', r, fl, hf, hc, hty, hex, rfl⟩
-  · rcases evalLXPS_toH hrun with ⟨l', rfl, h'⟩ | ⟨ht, u, g, args, s₁, s₂, ws, rfl, h'⟩
+  · rcases evalLXPS_toH hrun with ⟨l', rfl, h'⟩ | ⟨ht, u, g, args, s₁, s₂, ws, -, rfl, h'⟩
     · refine ⟨(l'.map OCall.lift, endOfFlow fl s'),
         .inl ⟨fi, fn, ps, rs, s', f₂, bfl, fl, l', hf, hc, hty, h', hex, rfl⟩, ?_⟩
       simpa using logE_map (endOfFlowS fl s') l'
@@ -267,7 +267,7 @@ theorem open_toH {a : Nat} {s : Store H} {vs : List Val}
 
 /-- **Every session behaviour erases to a canonical behaviour**, with the same log. -/
 theorem close_erase {a : Nat} {s : Store H} {vs : List Val}
-    {y : CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
+    {y : CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})}
     (hy : y ∈ Shape.close wasmHOpenXPS a s vs) :
     (y.1, eraseEnd y.2) ∈ Shape.close wasmHOpenXP a s vs := by
   have key : Shape.close (wasmHOpenXPS (H := H)) ≤
@@ -423,19 +423,19 @@ theorem close_lift {a : Nat} {s : Store H} {vs : List Val}
       rcases eraseEnd_eq_trap h2 with rfl | ⟨s'', rfl⟩
       · refine ⟨(q ++ c₁', .trap), ⟨_, open_stop hx hxl s₁, ?_⟩, rfl, rfl⟩
         simpa using subst_of_pre (substPre_toS hC hp)
-          (Shape.Subst.intTrap (rest := []) (e := (.ret (.inr ()) s₁ : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit)))
+          (Shape.Subst.intTrap (rest := []) (e := (.ret (.inr ()) s₁ : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})))
             hy'')
       · refine ⟨(q ++ c₁', .ret (.inr ()) s''), ⟨_, open_stop hx hxl s'', ?_⟩, rfl, rfl⟩
         simpa using subst_of_pre (substPre_toS hC hp)
           (Shape.Subst.int hy'' (Shape.Subst.nil
-            (.ret (.inr ()) s'' : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit))))
+            (.ret (.inr ()) s'' : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1}))))
     · exact absurd hm.1 wasmEvFunXP_ne_div
   exact (key a s vs hy).2
 
 /-! ## No plain trap -/
 
 theorem wasmHOpenXPS_ne_trap {a : Nat} {s : Store H} {vs : List Val}
-    {x : CallBeh ((wasmHShapeS H).E ⊕ₛ (wasmHShapeS H).self) (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
+    {x : CallBeh ((wasmHShapeS H).E ⊕ₛ (wasmHShapeS H).self) (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1})}
     (hx : x ∈ wasmHOpenXPS a s vs) : x.2 ≠ .trap := by
   rcases hx with ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ |
     ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ |

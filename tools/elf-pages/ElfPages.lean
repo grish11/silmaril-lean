@@ -1,0 +1,639 @@
+import Lean
+import Silmaril.Elf.Staged.Reader.Defs
+import Silmaril.Elf.Staged.Pinned.HelloGcc.Defs
+import Silmaril.Elf.Staged.Pinned.HelloClang.Defs
+import Silmaril.Elf.Staged.Pinned.Sha256sum.Defs
+import Silmaril.Crypto.SHA256
+
+/-!
+# `elf-pages`: the explorer's ELF tab data
+
+```
+lake env .lake/build/bin/elf-pages OUTDIR     write OUTDIR/elf/{index.json, f/SLUG.json, dis/SLUG.json, blob/SLUG.bin}
+lake env .lake/build/bin/elf-pages --verify OUTDIR    re-derive everything and compare with OUTDIR/elf
+```
+
+For each pinned file (`Silmaril.Elf.Staged.Pinned.*`) the tool
+
+1. reads the file at its pinned path and checks its SHA-256 against the module's `sha256`;
+2. **imports the checked theorem module** (`….Thms`, built by `lake build --wfail`) and, for every
+   theorem in it, reads the statement: `PartIs F ws p v`, `ZerosAt F o n`, `LayoutIs F L` or
+   `Parses F A`. Which part a theorem is about and which bytes it covers come **from the
+   statement** (the reader `p`, the windows `ws`, the constant `v` and its place in `L`), never
+   from the theorem's name or from any metadata; a statement of another form, or naming another
+   file, stops the tool;
+3. re-runs each statement's reader natively on the file restricted to its windows and compares
+   with the claimed constant (a consistency check of this tool against the checked statement; the
+   proof is the kernel's);
+4. collects each theorem's axioms (`collectAxioms`) and declaration range;
+5. derives the coverage of every byte of the file from the theorems' windows: `decoded` (inside
+   a checked part's windows), `zeros` (a checked `ZerosAt`), `raw` (inside a section or segment
+   but not decoded: payload kept as a byte range), `unknown` (anything else);
+6. runs `objdump -d` (if present) for an **unverified** disassembly of the executable sections,
+   and checks that each listed instruction's bytes are the file's bytes at that address. The
+   listing is external output: nothing in Lean is about it.
+-/
+
+open Lean
+open Silmaril.Elf Silmaril.Elf.Staged Silmaril.Elf.Staged.Reader
+open Silmaril.Elf.Link.DynElf (Rd)
+open Silmaril.Formats.ELF (Header ProgramHeader SectionHeader NameBytes ObjectSymbol Rela)
+
+namespace ElfPages
+
+/-! ## The pinned files -/
+
+structure Pinned where
+  slug : String
+  ns : Name
+  title : String
+  path : String
+  sha256 : String
+  size : Nat
+  L : Layout
+  bodies : List Body
+  ld : Loader
+  /-- `(label, text)` pairs; `url:` labels are links. -/
+  provenance : List (String × String)
+
+def pinned : List Pinned := [
+  { slug := "hello-gcc", ns := `Silmaril.Elf.Staged.Pinned.HelloGcc
+    title := "hello world (gcc 13.3 -O2), dynamically linked against glibc 2.39"
+    path := Pinned.HelloGcc.path, sha256 := Pinned.HelloGcc.sha256, size := Pinned.HelloGcc.size
+    L := Pinned.HelloGcc.L, bodies := Pinned.HelloGcc.bodies, ld := Pinned.HelloGcc.ld
+    provenance := [
+      ("source", "examples/dyn/hello/hello.c (written for this repository)"),
+      ("linked", "dynamically against glibc 2.39: PT_INTERP /lib64/ld-linux-x86-64.so.2, DT_NEEDED libc.so.6 (both read by the checked loader-view theorem)"),
+      ("build", "gcc 13.3.0-6ubuntu2~24.04.1 -O2, default PIE, dynamic glibc 2.39; byte-for-byte reproducible (examples/dyn/pins.txt, examples/dyn/pin.sh --build)"),
+      ("licence", "toolchain start-up objects: glibc crt (LGPL-2.1-or-later with the linking exception), GCC crtbeginS/crtendS (GPL-3.0-or-later with the GCC Runtime Library Exception); examples/dyn/README.md")] },
+  { slug := "hello-clang", ns := `Silmaril.Elf.Staged.Pinned.HelloClang
+    title := "hello world (clang 18.1 -O2), dynamically linked against glibc 2.39"
+    path := Pinned.HelloClang.path, sha256 := Pinned.HelloClang.sha256, size := Pinned.HelloClang.size
+    L := Pinned.HelloClang.L, bodies := Pinned.HelloClang.bodies, ld := Pinned.HelloClang.ld
+    provenance := [
+      ("source", "examples/dyn/hello/hello.c (written for this repository)"),
+      ("linked", "dynamically against glibc 2.39: PT_INTERP /lib64/ld-linux-x86-64.so.2, DT_NEEDED libc.so.6 (both read by the checked loader-view theorem)"),
+      ("build", "clang 18.1.3 (1:18.1.3-1ubuntu1) -O2 with GCC 13's crt objects, default PIE; byte-for-byte reproducible (examples/dyn/pins.txt, examples/dyn/pin.sh --build)"),
+      ("licence", "toolchain start-up objects: glibc crt (LGPL-2.1-or-later with the linking exception), GCC crtbeginS/crtendS (GPL-3.0-or-later with the GCC Runtime Library Exception); examples/dyn/README.md")] },
+  { slug := "gnu-sha256sum", ns := `Silmaril.Elf.Staged.Pinned.Sha256sum
+    title := "GNU coreutils 9.4 sha256sum (Ubuntu 9.4-3ubuntu6.3, amd64)"
+    path := Pinned.Sha256sum.path, sha256 := Pinned.Sha256sum.sha256, size := Pinned.Sha256sum.size
+    L := Pinned.Sha256sum.L, bodies := Pinned.Sha256sum.bodies, ld := Pinned.Sha256sum.ld
+    provenance := [
+      ("package", "Ubuntu coreutils 9.4-3ubuntu6.3 (amd64), /usr/bin/sha256sum, unmodified"),
+      ("url:package", "https://launchpad.net/ubuntu/+archive/primary/+files/coreutils_9.4-3ubuntu6.3_amd64.deb"),
+      ("package sha256", "e1e9a17892be0cc83b7cea747edf331ffeb6d6c010b4db296e60d888e8e9274c"),
+      ("fetch", "examples/elf/pin.sh --fetch (verifies the package and file hashes)"),
+      ("licence", "GPL-3.0-or-later (NOTICES/effects-examples, NOTICES/GPLv3)"),
+      ("url:source", "https://launchpad.net/ubuntu/+source/coreutils/9.4-3ubuntu6.3")] }]
+
+/-! ## Small helpers -/
+
+def hex (n : Nat) : String := "0x" ++ String.ofList (Nat.toDigits 16 n)
+
+def nameStr (n : NameBytes) : String := String.ofList (n.map fun b => Char.ofNat b.toNat)
+
+def sha256Hex (b : ByteArray) : String :=
+  String.join ((Silmaril.Crypto.SHA256.digest b.data.toList).map fun x =>
+    let h := Nat.toDigits 16 x.toNat
+    String.ofList (if h.length < 2 then '0' :: h else h))
+
+def jn (n : Nat) : Json := toJson n
+def js (s : String) : Json := toJson s
+def spansJson (ws : List Span) : Json := Json.arr (ws.toArray.map fun s => Json.arr #[jn s.off, jn s.len])
+
+/-! ## ELF names (display only) -/
+
+def ptName (k : Nat) : String :=
+  match k with
+  | 0 => "NULL" | 1 => "LOAD" | 2 => "DYNAMIC" | 3 => "INTERP" | 4 => "NOTE" | 5 => "SHLIB"
+  | 6 => "PHDR" | 7 => "TLS" | 0x6474e550 => "GNU_EH_FRAME" | 0x6474e551 => "GNU_STACK"
+  | 0x6474e552 => "GNU_RELRO" | 0x6474e553 => "GNU_PROPERTY" | 0x6474e554 => "GNU_SFRAME"
+  | k => hex k
+
+def shtName (k : Nat) : String :=
+  match k with
+  | 0 => "NULL" | 1 => "PROGBITS" | 2 => "SYMTAB" | 3 => "STRTAB" | 4 => "RELA" | 5 => "HASH"
+  | 6 => "DYNAMIC" | 7 => "NOTE" | 8 => "NOBITS" | 9 => "REL" | 11 => "DYNSYM"
+  | 14 => "INIT_ARRAY" | 15 => "FINI_ARRAY" | 16 => "PREINIT_ARRAY" | 17 => "GROUP"
+  | 18 => "SYMTAB_SHNDX" | 19 => "RELR" | 0x6ffffff6 => "GNU_HASH" | 0x6ffffffd => "GNU_verdef"
+  | 0x6ffffffe => "GNU_verneed" | 0x6fffffff => "GNU_versym" | k => hex k
+
+def etName (k : Nat) : String :=
+  match k with
+  | 0 => "NONE" | 1 => "REL" | 2 => "EXEC" | 3 => "DYN" | 4 => "CORE" | k => hex k
+
+def machineName (k : Nat) : String :=
+  match k with
+  | 3 => "x86" | 40 => "ARM" | 62 => "x86-64" | 183 => "AArch64" | 243 => "RISC-V" | k => hex k
+
+def dtName (k : Nat) : String :=
+  match k with
+  | 0 => "NULL" | 1 => "NEEDED" | 2 => "PLTRELSZ" | 3 => "PLTGOT" | 4 => "HASH" | 5 => "STRTAB"
+  | 6 => "SYMTAB" | 7 => "RELA" | 8 => "RELASZ" | 9 => "RELAENT" | 10 => "STRSZ" | 11 => "SYMENT"
+  | 12 => "INIT" | 13 => "FINI" | 14 => "SONAME" | 15 => "RPATH" | 16 => "SYMBOLIC" | 17 => "REL"
+  | 18 => "RELSZ" | 19 => "RELENT" | 20 => "PLTREL" | 21 => "DEBUG" | 22 => "TEXTREL"
+  | 23 => "JMPREL" | 24 => "BIND_NOW" | 25 => "INIT_ARRAY" | 26 => "FINI_ARRAY"
+  | 27 => "INIT_ARRAYSZ" | 28 => "FINI_ARRAYSZ" | 29 => "RUNPATH" | 30 => "FLAGS"
+  | 0x6ffffef5 => "GNU_HASH" | 0x6ffffff0 => "VERSYM" | 0x6ffffff9 => "RELACOUNT"
+  | 0x6ffffffb => "FLAGS_1" | 0x6ffffffe => "VERNEED" | 0x6fffffff => "VERNEEDNUM"
+  | 0x6ffffffc => "VERDEF" | 0x6ffffffd => "VERDEFNUM" | k => hex k
+
+def symType (info : Nat) : String :=
+  match info % 16 with
+  | 0 => "NOTYPE" | 1 => "OBJECT" | 2 => "FUNC" | 3 => "SECTION" | 4 => "FILE" | 6 => "TLS"
+  | 10 => "IFUNC" | k => toString k
+
+def symBind (info : Nat) : String :=
+  match info / 16 with
+  | 0 => "LOCAL" | 1 => "GLOBAL" | 2 => "WEAK" | 10 => "UNIQUE" | k => toString k
+
+def pflags (f : Nat) : String :=
+  (if f &&& 4 != 0 then "R" else "-") ++ (if f &&& 2 != 0 then "W" else "-") ++
+    (if f &&& 1 != 0 then "X" else "-")
+
+def shflags (f : Nat) : String :=
+  String.join ([(1, "W"), (2, "A"), (4, "X"), (0x10, "M"), (0x20, "S"), (0x40, "I"), (0x80, "L"),
+    (0x200, "G"), (0x400, "T"), (0x800, "C")].filterMap fun (b, c) => if f &&& b != 0 then some c else none)
+
+/-! ## Reading the checked statements -/
+
+/-- A natural-number literal (`OfNat.ofNat Nat n _` or a raw literal). -/
+partial def natLit? (e : Expr) : Option Nat :=
+  match e.consumeMData with
+  | .lit (.natVal n) => some n
+  | e =>
+    if e.isAppOfArity ``OfNat.ofNat 3 then natLit? (e.getArg! 1)
+    else none
+
+/-- A list literal's elements. -/
+partial def listLit? (e : Expr) : Option (List Expr) :=
+  let e := e.consumeMData
+  if e.isAppOfArity ``List.nil 1 then some []
+  else if e.isAppOfArity ``List.cons 3 then
+    (listLit? (e.getArg! 2)).map (e.getArg! 1 :: ·)
+  else none
+
+def spanLit? (e : Expr) : Option Span :=
+  let e := e.consumeMData
+  if e.isAppOfArity ``Silmaril.Elf.Span.mk 2 then
+    match natLit? (e.getArg! 0), natLit? (e.getArg! 1) with
+    | some o, some l => some ⟨o, l⟩
+    | _, _ => none
+  else none
+
+def constName? (e : Expr) : Option Name :=
+  match e.consumeMData with
+  | .const n _ => some n
+  | _ => none
+
+/-- What a theorem says (from its statement). -/
+inductive Claim where
+  | part (ws : List Span) (reader : Expr) (value : Name)
+  | zeros (o n : Nat)
+  | layout (L : Name)
+  | parses (A : Expr)
+
+def Claim.ofType? (F : Name) (t : Expr) : Except String Claim := do
+  let t := t.consumeMData
+  let fileIs (e : Expr) : Except String Unit :=
+    if constName? e == some F then pure () else throw s!"names another file: {e}"
+  if t.isAppOfArity ``Silmaril.Elf.Staged.Reader.PartIs 5 then
+    fileIs (t.getArg! 1)
+    let some ws := (listLit? (t.getArg! 2)).bind fun es => es.mapM spanLit?
+      | throw "windows are not a literal list of spans"
+    let some v := constName? (t.getArg! 4) | throw "the claimed value is not a constant"
+    pure (.part ws (t.getArg! 3) v)
+  else if t.isAppOfArity ``Silmaril.Elf.Staged.Reader.ZerosAt 3 then
+    fileIs (t.getArg! 0)
+    let (some o, some n) := (natLit? (t.getArg! 1), natLit? (t.getArg! 2))
+      | throw "ZerosAt with non-literal range"
+    pure (.zeros o n)
+  else if t.isAppOfArity ``Silmaril.Elf.Staged.LayoutIs 2 then
+    fileIs (t.getArg! 0)
+    let some L := constName? (t.getArg! 1) | throw "LayoutIs of a non-constant"
+    pure (.layout L)
+  else if t.isAppOfArity ``Silmaril.Elf.Parses 2 then
+    fileIs (t.getArg! 0)
+    pure (.parses (t.getArg! 1))
+  else throw s!"unrecognised statement: {t}"
+
+/-- The role of a data constant: its place in the layout `L`, `bodies` or `ld`. -/
+inductive Role where
+  | header | phdr (i : Nat) | shdr (i : Nat) | name (i : Nat) | body (i : Nat) | loader | layout
+  deriving BEq, Repr
+
+def Role.label : Role → String
+  | .header => "ELF header" | .phdr i => s!"program header {i}" | .shdr i => s!"section header {i}"
+  | .name i => s!"section name {i}" | .body i => s!"section body {i}" | .loader => "loader view"
+  | .layout => "layout"
+
+def Role.key : Role → String
+  | .header => "header" | .phdr i => s!"phdr/{i}" | .shdr i => s!"shdr/{i}" | .name i => s!"name/{i}"
+  | .body i => s!"body/{i}" | .loader => "loader" | .layout => "layout"
+
+/-- Roles from the **definitions** of `L`, `bodies` and `ld` in the environment. -/
+def roles (env : Environment) (ns : Name) : Except String (List (Name × Role)) := do
+  let val (n : Name) : Except String Expr :=
+    match env.find? n with
+    | some ci => match ci.value? (allowOpaque := true) with
+      | some v => pure v
+      | none => throw s!"{n} has no value"
+    | none => throw s!"{n} not found"
+  let Lv ← val (ns ++ `L)
+  unless Lv.isAppOfArity ``Silmaril.Elf.Staged.Layout.mk 3 do throw "L is not a Layout literal"
+  let some hdr := constName? (Lv.getArg! 0) | throw "L.header is not a constant"
+  let some phs := (listLit? (Lv.getArg! 1)).bind (·.mapM constName?) | throw "L.phdrs"
+  let some secs := listLit? (Lv.getArg! 2) | throw "L.sections"
+  let secNames ← secs.mapM fun s => do
+    unless s.isAppOfArity ``Silmaril.Elf.Staged.Sec.mk 2 do throw "a section is not Sec.mk"
+    let (some h, some n) := (constName? (s.getArg! 0), constName? (s.getArg! 1)) | throw "Sec fields"
+    pure (h, n)
+  let some bs := (listLit? (← val (ns ++ `bodies))).bind (·.mapM constName?) | throw "bodies"
+  let mut out : List (Name × Role) := [(hdr, .header), (ns ++ `ld, .loader), (ns ++ `L, .layout)]
+  for (p, i) in phs.zipIdx do out := (p, .phdr i) :: out
+  for ((h, n), i) in secNames.zipIdx do out := (h, .shdr i) :: (n, .name i) :: out
+  for (b, i) in bs.zipIdx do out := (b, .body i) :: out
+  pure out
+
+/-! ## Native re-check of a claim (consistency of this tool with the statement) -/
+
+def bodyKind : Body → String
+  | .null => "null" | .noBits => "nobits" | .progbits _ => "progbits" | .strtab _ => "strtab"
+  | .symbols .symtab _ => "symtab" | .symbols .dynsym _ => "dynsym" | .relas _ => "rela"
+  | .rels _ => "rel" | .relr _ => "relr" | .dynamic _ => "dynamic" | .gnuHash _ => "gnu_hash"
+  | .hash _ => "hash" | .versym _ => "versym" | .verdef _ => "verdef" | .verneed _ => "verneed"
+  | .notes _ => "notes" | .other _ => "other"
+
+/-- Whether a body is decoded (a typed table) or kept as a byte range. -/
+def bodyDecoded : Body → Bool
+  | .progbits _ | .strtab _ | .other _ | .null | .noBits => false
+  | _ => true
+
+def recheck (P : Pinned) (src : Silmaril.Elf.Check.Src) (role : Role) (ws : List Span)
+    (reader : Expr) : Except String Unit := do
+  let w := window ws src
+  let h := P.L.header
+  let arg (i : Nat) := reader.getArg! i
+  let ok (b : Bool) (what : String) : Except String Unit := unless b do throw what
+  match role with
+  | .header =>
+    ok (reader.isConstOf ``Parse.header) "header: reader is not Parse.header"
+    ok (Parse.header.run w == some h) "header: native run differs"
+  | .phdr i =>
+    let o := h.programOffset + 56 * i
+    ok (reader.isAppOfArity ``Parse.phdr 1 && natLit? (arg 0) == some o) s!"phdr {i}: reader is not Parse.phdr {o}"
+    ok ((Parse.phdr o).run w == P.L.phdrs[i]?) s!"phdr {i}: native run differs"
+  | .shdr i =>
+    let o := h.sectionOffset + 64 * i
+    ok (reader.isAppOfArity ``Parse.shdr 1 && natLit? (arg 0) == some o) s!"shdr {i}: reader is not Parse.shdr {o}"
+    ok ((Parse.shdr o).run w == (P.L.sections[i]?.map (·.header))) s!"shdr {i}: native run differs"
+  | .name i =>
+    let some names := P.L.shs[h.sectionNameIndex]? | throw "no .shstrtab"
+    let some s := P.L.sections[i]? | throw s!"name {i}: no section"
+    ok (reader.isAppOfArity ``Parse.strAt 2 && natLit? (arg 1) == some s.header.name)
+      s!"name {i}: reader is not Parse.strAt"
+    ok ((Parse.strAt names s.header.name).run w == some s.name) s!"name {i}: native run differs"
+  | .body i =>
+    let some s := P.L.sections[i]? | throw s!"body {i}: no section"
+    ok (reader.isAppOfArity ``Parse.body 2) s!"body {i}: reader is not Parse.body"
+    ok ((Parse.body P.L.shs s.header).run w == P.bodies[i]?) s!"body {i}: native run differs"
+  | .loader =>
+    ok (reader.isAppOfArity ``readLoader 1) "loader: reader is not readLoader"
+    ok ((readLoader P.L.phdrs).run w == some P.ld) "loader: native run differs"
+  | .layout =>
+    ok (reader.isConstOf ``readLayout) "layout: reader is not readLayout"
+    ok (readLayout.run w == some P.L) "layout: native run differs"
+
+/-! ## Theorems of a module -/
+
+structure Thm where
+  decl : Name
+  claim : Claim
+  role : Option Role
+  axioms : Array Name
+  line : Option Nat
+
+def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+
+def runCore {α : Type} (env : Environment) (x : CoreM α) : IO α := do
+  let (a, _) ← x.toIO { fileName := "<elf-pages>", fileMap := default } { env }
+  pure a
+
+def theorems (env : Environment) (P : Pinned) : IO (Array Thm) := do
+  let thmsMod := P.ns ++ `Thms
+  let some modIdx := env.getModuleIdx? thmsMod | throw (IO.userError s!"{thmsMod} not imported")
+  let rs ← IO.ofExcept (roles env P.ns)
+  let F := P.ns ++ `F
+  let mut out : Array Thm := #[]
+  for (n, ci) in env.constants.toList do
+    unless env.getModuleIdxFor? n == some modIdx do continue
+    let .thmInfo ti := ci | continue
+    if n.isInternal then continue
+    let claim ← match Claim.ofType? F ti.type with
+      | .ok c => pure c
+      | .error e => throw (IO.userError s!"{n}: {e}")
+    let role := match claim with
+      | .part _ _ v => (rs.find? (·.1 == v)).map (·.2)
+      | .layout _ => some .layout
+      | _ => none
+    if let .part _ _ v := claim then
+      if role.isNone then throw (IO.userError s!"{n}: the value {v} is not a part of {P.ns}.L/bodies/ld")
+    let axioms ← runCore env (Lean.collectAxioms n)
+    let line ← runCore env do
+      let r ← Lean.findDeclarationRanges? n
+      pure (r.map (·.range.pos.line))
+    out := out.push { decl := n, claim, role, axioms, line }
+  pure (out.qsort fun a b => (a.line.getD 0) < (b.line.getD 0))
+
+/-! ## Coverage -/
+
+/-- Byte classes, by precedence. -/
+def classNames : Array String := #["unknown", "raw", "zeros", "decoded"]
+
+def coverage (P : Pinned) (thms : Array Thm) : Array Nat := Id.run do
+  let mut c := Array.replicate P.size 0
+  let mark (c : Array Nat) (o n k : Nat) : Array Nat := Id.run do
+    let mut c := c
+    for i in [o:min (o + n) P.size] do
+      if c[i]! < k then c := c.set! i k
+    c
+  for s in P.L.sections do
+    if s.header.kind != SHT_NOBITS then c := mark c s.header.offset s.header.size 1
+  for ph in P.L.phdrs do
+    if ph.kind == PT_LOAD then c := mark c ph.offset ph.fileSize 1
+  for t in thms do
+    match t.claim with
+    | .zeros o n => c := mark c o n 2
+    | .part ws _ _ => for s in ws do c := mark c s.off s.len 3
+    | _ => pure ()
+  c
+
+def runs (c : Array Nat) : Array Json := Id.run do
+  let mut out : Array Json := #[]
+  let mut i := 0
+  while i < c.size do
+    let k := c[i]!
+    let mut j := i
+    while j < c.size && c[j]! == k do j := j + 1
+    out := out.push (Json.arr #[jn i, jn (j - i), js classNames[k]!])
+    i := j
+  out
+
+/-! ## Disassembly (external, unverified) -/
+
+/-- The committed listing of `scripts/elf-reader/gen.sh`: GNU objdump's output, after two comment
+lines (the objdump version and the command). -/
+def listingPath (P : Pinned) : String := s!"examples/elf/disasm/{P.slug}.objdump"
+
+def stripEnd (s : String) (p : Char → Bool) : String :=
+  String.ofList (s.toList.reverse.dropWhile p).reverse
+
+def hexVal (s : String) : Option Nat :=
+  s.foldl (fun acc ch => acc.bind fun a =>
+    if '0' ≤ ch ∧ ch ≤ '9' then some (16 * a + (ch.toNat - '0'.toNat))
+    else if 'a' ≤ ch ∧ ch ≤ 'f' then some (16 * a + (ch.toNat - 'a'.toNat + 10))
+    else none) (some 0)
+
+/-- The listing's rows `(vaddr, offset, bytes, text, section, label)`; every row's bytes are checked
+against the file. -/
+def disassemble (P : Pinned) (bytes : ByteArray) : IO (Option Json) := do
+  let path := listingPath P
+  unless ← System.FilePath.pathExists path do return none
+  let text ← IO.FS.readFile path
+  let lines := text.splitOn "\n"
+  let version := String.ofList ((lines.getD 0 "").toList.drop 2)
+  let command := String.ofList ((lines.getD 1 "").toList.drop 2)
+  unless command == s!"objdump -d -w -z {P.path}" do
+    throw (IO.userError s!"{path}: not a listing of {P.path}")
+  let mut rows : Array Json := #[]
+  let mut secs : Array Json := #[]
+  let mut sec := ""
+  let mut label := ""
+  let mut bad := 0
+  for line in lines.drop 2 do
+    if line.startsWith "Disassembly of section " then
+      sec := stripEnd (String.ofList (line.toList.drop "Disassembly of section ".length)) (· == ':')
+      secs := secs.push (js sec)
+    else if line.endsWith ">:" then
+      label := stripEnd ((line.splitOn "<").getD 1 "") (fun c => c == ':' || c == '>')
+    else
+      match line.splitOn "\t" with
+      | a :: bs :: rest =>
+        let a := a.trimAscii.toString
+        if a.endsWith ":" then
+          let some v := hexVal (String.ofList a.toList.dropLast) | continue
+          let hexs := (bs.trimAscii.toString.splitOn " ").filter (· ≠ "")
+          let some vals := hexs.mapM hexVal | continue
+          let off := P.L.offsetOf v
+          let ok := match off with
+            | some f => (vals.zipIdx.all fun (b, i) => bytes.get! (f + i) == b.toUInt8) && f + vals.length ≤ bytes.size
+            | none => false
+          if !ok then bad := bad + 1
+          rows := rows.push (Json.arr #[jn v, (match off with | some f => jn f | none => Json.null),
+            js (String.join hexs), js ("\t".intercalate rest).trimAscii.toString, js sec, js label])
+          label := ""
+      | _ => pure ()
+  if bad != 0 then throw (IO.userError s!"{P.slug}: {bad} disassembled instructions do not match the file's bytes")
+  pure <| some <| Json.mkObj [
+    ("tool", js version), ("command", js command), ("listing", js path), ("unverified", true),
+    ("note", js "External disassembler output, not checked in Lean. Each row's bytes were compared with the file's bytes at its address; the decoding into an instruction (mnemonic, operands, length) is objdump's alone. That bytes look like code, or sit in an executable section, does not make them executed."),
+    ("sections", Json.arr secs),
+    ("rows", Json.arr rows)]
+
+/-! ## The page of a file -/
+
+def thmJson (P : Pinned) (t : Thm) : Json :=
+  let kind := match t.claim with
+    | .part .. => "part" | .zeros .. => "zeros" | .layout _ => "layout" | .parses _ => "parses"
+  let ws := match t.claim with
+    | .part ws _ _ => ws | .zeros o n => [⟨o, n⟩] | _ => []
+  let kernelOnly := t.axioms.all (standardAxioms.contains ·)
+  let status :=
+    if t.axioms.contains ``sorryAx then "sorry"
+    else if kernelOnly then "checked" else "checked-with-extra-axioms"
+  let modFile := (P.ns ++ `Thms).toString.replace "." "/" ++ ".lean"
+  Json.mkObj [
+    ("decl", js t.decl.toString), ("short", js (t.decl.replacePrefix P.ns .anonymous).toString),
+    ("kind", js kind), ("part", match t.role with | some r => js r.key | none => Json.null),
+    ("label", match t.role with
+      | some r => js r.label
+      | none => js (match t.claim with
+        | .zeros o n => s!"padding: {n} zero bytes at {hex o}" | .parses _ => "the parse of the whole file"
+        | _ => kind)),
+    ("windows", spansJson ws),
+    ("axioms", Json.arr (t.axioms.map (js ·.toString))),
+    ("kernelOnly", toJson kernelOnly), ("status", js status),
+    ("module", js (P.ns ++ `Thms).toString), ("file", js modFile),
+    ("line", match t.line with | some l => jn l | none => Json.null)]
+
+def segOf (L : Layout) (s : SectionHeader) : List Nat :=
+  (L.phdrs.zipIdx.filter fun (ph, _) =>
+    if s.kind == SHT_NOBITS then
+      s.address != 0 && ph.virtualAddress ≤ s.address && s.address + s.size ≤ ph.virtualAddress + ph.memorySize && ph.kind == PT_LOAD
+    else
+      s.size != 0 && ph.offset ≤ s.offset && s.offset + s.size ≤ ph.offset + ph.fileSize).map (·.2)
+
+def symJson (t : String) (i : Nat) (s : ObjectSymbol) : Json :=
+  Json.mkObj [("table", js t), ("idx", jn i), ("name", js (nameStr s.name)), ("value", jn s.raw.value),
+    ("size", jn s.raw.size), ("type", js (symType s.raw.info)), ("bind", js (symBind s.raw.info)),
+    ("shndx", jn s.raw.sectionIndex)]
+
+def bodyJson : Body → Json
+  | .progbits d | .strtab d | .other d => Json.mkObj [("span", spansJson [d])]
+  | .symbols t es => Json.mkObj [("count", jn es.length), ("table", js (if t == .symtab then "symtab" else "dynsym"))]
+  | .relas es => Json.mkObj [("count", jn es.length), ("entries", Json.arr (es.toArray.map fun r =>
+      Json.arr #[jn r.offset, jn (r.info % 2 ^ 32), jn (r.info / 2 ^ 32), js (toString r.addend)]))]
+  | .rels es => Json.mkObj [("count", jn es.length)]
+  | .relr ws => Json.mkObj [("count", jn ws.length)]
+  | .dynamic es => Json.mkObj [("count", jn es.length)]
+  | .gnuHash g => Json.mkObj [("nbuckets", jn g.nbuckets), ("symoffset", jn g.symoffset),
+      ("bloomWords", jn g.bloom.length), ("bloomShift", jn g.bloomShift), ("chain", jn g.chain.length)]
+  | .hash t => Json.mkObj [("nbuckets", jn t.buckets.length), ("nchains", jn t.chains.length)]
+  | .versym es => Json.mkObj [("count", jn es.length), ("entries", toJson es)]
+  | .verdef es => Json.mkObj [("count", jn es.length), ("names", Json.arr (es.toArray.map fun d =>
+      Json.arr (d.names.toArray.map (js ∘ nameStr))))]
+  | .verneed es => Json.mkObj [("count", jn es.length), ("files", Json.arr (es.toArray.map fun n =>
+      Json.mkObj [("file", js (nameStr n.file)), ("versions", Json.arr (n.aux.toArray.map (js ∘ nameStr ∘ (·.name))))]))]
+  | .notes ns => Json.mkObj [("count", jn ns.length), ("notes", Json.arr (ns.toArray.map fun n =>
+      Json.mkObj [("name", js (nameStr n.name)), ("type", jn n.type), ("desc", spansJson [n.desc])]))]
+  | .null | .noBits => Json.mkObj []
+
+def page (P : Pinned) (thms : Array Thm) (dis : Option Json) : Json := Id.run do
+  let L := P.L
+  let h := L.header
+  let thmFor (r : Role) : Json :=
+    match thms.find? (·.role == some r) with
+    | some t => js t.decl.toString
+    | none => Json.null
+  let cov := coverage P thms
+  let count (k : Nat) := cov.foldl (fun n c => if c == k then n + 1 else n) 0
+  let segs := L.phdrs.zipIdx.toArray.map fun (ph, i) => Json.mkObj [
+    ("idx", jn i), ("type", js (ptName ph.kind)), ("kind", jn ph.kind), ("flags", js (pflags ph.flags)),
+    ("offset", jn ph.offset), ("filesz", jn ph.fileSize), ("vaddr", jn ph.virtualAddress),
+    ("paddr", jn ph.physicalAddress), ("memsz", jn ph.memorySize), ("align", jn ph.alignment),
+    ("sections", toJson ((L.sections.zipIdx.filter fun (s, _) => (segOf L s.header).contains i).map (·.2))),
+    ("theorem", thmFor (.phdr i))]
+  let secs := L.sections.zipIdx.toArray.map fun (s, i) =>
+    let sh := s.header
+    let b := P.bodies[i]?.getD .null
+    Json.mkObj [
+      ("idx", jn i), ("name", js (nameStr s.name)), ("type", js (shtName sh.kind)), ("kind", jn sh.kind),
+      ("flags", js (shflags sh.flags)), ("addr", jn sh.address), ("offset", jn sh.offset),
+      ("size", jn sh.size), ("fileBytes", jn (if sh.kind == SHT_NOBITS then 0 else sh.size)),
+      ("link", jn sh.link), ("info", jn sh.info), ("align", jn sh.alignment), ("entsize", jn sh.entrySize),
+      ("segments", toJson (segOf L sh)), ("exec", toJson (sh.flags &&& 4 != 0)),
+      ("body", js (bodyKind b)), ("decoded", toJson (bodyDecoded b)), ("detail", bodyJson b),
+      ("headerTheorem", thmFor (.shdr i)), ("nameTheorem", thmFor (.name i)), ("bodyTheorem", thmFor (.body i))]
+  let syms := L.sections.zipIdx.foldl (fun acc (_, i) =>
+    match P.bodies[i]? with
+    | some (.symbols t es) =>
+      acc ++ es.zipIdx.toArray.map fun (s, k) =>
+        symJson s!"{if t == .symtab then "symtab" else "dynsym"} (section {i})" k s
+    | _ => acc) #[]
+  let unsupported : List String :=
+    (if L.sections.isEmpty then ["no section header table: sections, names and bodies are absent; the program headers and loader view are still read"] else []) ++
+    (if L.sections.any (·.header.kind == SHT_SYMTAB) then [] else ["no .symtab (stripped): only the dynamic symbols (.dynsym) are listed"]) ++
+    ["payloads kept as byte ranges, not decoded: PROGBITS (code, .rodata, .data, .eh_frame, .got, …), INIT/FINI arrays, string-table bytes no checked part reads; they are marked raw in the coverage map",
+     "not supported by the reader: ELFCLASS32, big-endian (ELFDATA2MSB), extended section numbering (e_shnum = 0 with a large section 0), compressed sections; the reader accepts any e_machine",
+     "not checked by the specification: alignment, overlap, and agreement of the section and loader views (Silmaril.Elf.Lookup.DynConsistent)"]
+  Json.mkObj [
+    ("schema", js "silmaril.elf-pages.v1"), ("slug", js P.slug), ("title", js P.title),
+    ("path", js P.path), ("size", jn P.size), ("sha256", js P.sha256),
+    ("provenance", Json.arr (P.provenance.toArray.map fun (k, v) => Json.arr #[js k, js v])),
+    ("module", js P.ns.toString), ("bytesModule", js (P.ns ++ `Bytes).toString),
+    ("header", Json.mkObj [
+      ("class", js "ELF64"), ("data", js "little-endian"), ("osabi", jn h.osABI), ("abiversion", jn h.abiVersion),
+      ("type", js (etName h.fileType)), ("machine", js (machineName h.machine)), ("machineCode", jn h.machine),
+      ("version", jn h.version), ("entry", jn h.entry), ("phoff", jn h.programOffset), ("shoff", jn h.sectionOffset),
+      ("flags", jn h.flags), ("ehsize", jn h.headerSize), ("phentsize", jn h.programEntrySize),
+      ("phnum", jn h.programCount), ("shentsize", jn h.sectionEntrySize), ("shnum", jn h.sectionCount),
+      ("shstrndx", jn h.sectionNameIndex), ("theorem", thmFor .header)]),
+    ("segments", Json.arr segs), ("sections", Json.arr secs),
+    ("loader", Json.mkObj [
+      ("interp", match P.ld.interp with | some n => js (nameStr n) | none => Json.null),
+      ("needed", Json.arr (P.ld.needed.toArray.map (js ∘ nameStr))),
+      ("soname", match P.ld.soname with | some n => js (nameStr n) | none => Json.null),
+      ("runpath", match P.ld.runpath with | some n => js (nameStr n) | none => Json.null),
+      ("dynamic", Json.arr (P.ld.dynamic.toArray.map fun d => Json.arr #[jn d.tag, js (dtName d.tag), jn d.val])),
+      ("theorem", thmFor .loader)]),
+    ("symbols", Json.arr syms),
+    ("theorems", Json.arr (thms.map (thmJson P))),
+    ("coverage", Json.arr (runs cov)),
+    ("coverageSummary", Json.mkObj ((List.range classNames.size).map fun k => (classNames[k]!, jn (count k)))),
+    ("unsupported", toJson unsupported),
+    ("disassembly", match dis with
+      | some _ => Json.mkObj [("file", js s!"dis/{P.slug}.json")]
+      | none => Json.mkObj [("file", Json.null), ("note", js s!"no listing at {listingPath P}")])]
+
+/-! ## Driver -/
+
+def loadEnv : IO Environment := do
+  Lean.initSearchPath (← Lean.findSysroot)
+  importModules (pinned.toArray.map fun P => { module := P.ns ++ `Thms }) {}
+
+def generate : IO (List (String × Json) × List (String × ByteArray)) := do
+  let env ← loadEnv
+  let mut files : List (String × Json) := []
+  let mut blobs : List (String × ByteArray) := []
+  let mut index : Array Json := #[]
+  for P in pinned do
+    let bytes ← IO.FS.readBinFile P.path
+    let sha := sha256Hex bytes
+    if sha != P.sha256 then throw (IO.userError s!"{P.path}: SHA-256 {sha}, pinned {P.sha256}")
+    if bytes.size != P.size then throw (IO.userError s!"{P.path}: size {bytes.size}, pinned {P.size}")
+    let thms ← theorems env P
+    let src := fastRead bytes
+    for t in thms do
+      match t.claim, t.role with
+      | .part ws reader _, some r =>
+        if let .error e := recheck P src r ws reader then throw (IO.userError s!"{t.decl}: {e}")
+      | .zeros o n, _ =>
+        unless (List.range n).all (fun i => bytes.get! (o + i) == 0) do
+          throw (IO.userError s!"{t.decl}: bytes not zero")
+      | _, _ => pure ()
+    let dis ← disassemble P bytes
+    let pg := page P thms dis
+    files := files ++ [(s!"f/{P.slug}.json", pg)]
+    if let some d := dis then files := files ++ [(s!"dis/{P.slug}.json", d)]
+    blobs := blobs ++ [(s!"blob/{P.slug}.bin", bytes)]
+    index := index.push (Json.mkObj [("slug", js P.slug), ("title", js P.title), ("path", js P.path),
+      ("size", jn P.size), ("sha256", js P.sha256), ("module", js P.ns.toString),
+      ("type", (pg.getObjValD "header").getObjValD "type"), ("machine", (pg.getObjValD "header").getObjValD "machine"),
+      ("sections", jn P.L.sections.length), ("segments", jn P.L.phdrs.length), ("theorems", jn thms.size),
+      ("kernelOnly", toJson (thms.all fun t => t.axioms.all (standardAxioms.contains ·))),
+      ("coverageSummary", pg.getObjValD "coverageSummary")])
+  pure (("index.json", Json.mkObj [("schema", js "silmaril.elf-pages.v1"), ("files", Json.arr index)]) :: files, blobs)
+
+def main (args : List String) : IO UInt32 := do
+  match args with
+  | [out] =>
+    let (files, blobs) ← generate
+    for (rel, j) in files do
+      let p := System.FilePath.mk out / "elf" / rel
+      if let some d := p.parent then IO.FS.createDirAll d
+      IO.FS.writeFile p j.compress
+    for (rel, b) in blobs do
+      let p := System.FilePath.mk out / "elf" / rel
+      if let some d := p.parent then IO.FS.createDirAll d
+      IO.FS.writeBinFile p b
+    IO.println s!"elf-pages: wrote {files.length + blobs.length} files under {out}/elf"
+    pure 0
+  | ["--verify", out] =>
+    let (files, blobs) ← generate
+    let mut bad := 0
+    for (rel, j) in files do
+      let p := System.FilePath.mk out / "elf" / rel
+      let got ← IO.FS.readFile p
+      match Json.parse got with
+      | .ok g => if g != j then IO.eprintln s!"elf-pages: {p} differs from the checked theorems"; bad := bad + 1
+      | .error e => IO.eprintln s!"elf-pages: {p}: {e}"; bad := bad + 1
+    for (rel, b) in blobs do
+      let p := System.FilePath.mk out / "elf" / rel
+      if (← IO.FS.readBinFile p) != b then IO.eprintln s!"elf-pages: {p} differs"; bad := bad + 1
+    if bad == 0 then IO.println "elf-pages: verified"; pure 0 else pure 1
+  | _ => IO.eprintln "usage: elf-pages OUTDIR | elf-pages --verify OUTDIR"; pure 2
+
+end ElfPages
+
+def main (args : List String) : IO UInt32 := ElfPages.main args
