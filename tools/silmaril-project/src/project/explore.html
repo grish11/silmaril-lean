@@ -75,11 +75,30 @@ dt { color:var(--muted); } dd { margin:0; font-family:ui-monospace, monospace; f
 .st { display:inline-block; padding:0 4px; border:1px solid #b9c0c7; border-radius:3px; background:#f4f6f8; color:var(--fg);
   font:11px/1.5 ui-monospace, monospace; white-space:nowrap; vertical-align:baseline; }
 .st b { margin-left:2px; }
+.st-wrap { white-space:nowrap; }
 .st-bad { border-color:var(--fails); background:#fdecec; color:#9b1c1c; }
 .st-ok { border-color:#8cc4a0; background:#eef8f1; }
-.st-ok b { color:#2e7d4f; font-weight:normal; }
-.st-truth { color:var(--muted); }
+.st-open { border-style:dashed; }
 .st-dep { color:var(--muted); text-decoration:line-through; }
+/* the chip after a badge: how the status differs from the expectation (status.js outcomes) */
+.st-x { display:inline-block; margin-left:3px; padding:0 4px; border-radius:3px; font:11px/1.5 ui-monospace, monospace; color:var(--muted); border:1px solid var(--line); }
+.st-x-bad { color:#9b1c1c; border-color:var(--fails); background:#fdecec; }
+.st-x-less { color:#7a4b00; border-color:#d9a441; background:#fff8e6; }
+.st-x-more { color:#1e4f8a; border-color:#8fb3e0; background:#eef4fb; }
+/* landing page attention lists and the namespace browser (views/summary.js, views/browse.js) */
+.att { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:8px; margin:8px 0 14px; }
+.att a.card { display:block; border:1px solid var(--line); border-left-width:4px; border-radius:4px; padding:6px 10px; background:var(--panel); color:var(--fg); text-decoration:none; }
+.att a.card:hover, .att a.card:focus-visible { background:#eef2f7; }
+.att a.card b { display:block; font-size:20px; }
+.att .card.k-contrary { border-left-color:var(--fails); } .att .card.k-open { border-left-color:#6b7280; }
+.att .card.k-weaker { border-left-color:#d9a441; } .att .card.k-stronger { border-left-color:#8fb3e0; } .att .card.k-excluded { border-left-color:var(--line); color:var(--muted); }
+.crumbs { margin:4px 0 8px; } .crumbs a, .crumbs span { margin-right:4px; }
+.ns-table td.ns-name { font-family:ui-monospace, monospace; font-size:12px; }
+.counts .st { margin-right:2px; }
+fieldset.filters { border:1px solid var(--line); border-radius:4px; padding:4px 10px 6px; margin:6px 0; }
+fieldset.filters legend { color:var(--muted); font-size:12px; }
+fieldset.filters label { margin-right:10px; white-space:nowrap; }
+.glossary dt { font-family:ui-monospace, monospace; color:var(--fg); }
 td.nw, th.nw { white-space:nowrap; width:1%; }
 .note { border-left:3px solid #b7791f; background:#fff8e6; padding:6px 10px; margin:8px 0; max-width:860px; }
 /* dialogs (ui.js dialog) */

@@ -42,6 +42,9 @@ jobs:
               sys.exit("the `project` paths filter misses registry paths: " + ", ".join(missed))
           print(f"{len(paths)} registry paths covered by {len(globs)} globs")
           PY
+      # The explorer's pure modules (status semantics, Lean tokenizer): Node unit tests, no browser.
+      - name: Explorer unit tests
+        run: node --test tools/silmaril-project/tests/explore/*.test.mjs
       - name: Install Rust
         run: |
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal

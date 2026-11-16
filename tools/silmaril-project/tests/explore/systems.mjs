@@ -94,10 +94,10 @@ try {
   check(/THM/.test(row("p_derives_r")[4]) && /holds in/.test(row("p_derives_r")[5]), "p ⊢ r: THM, holds");
   const rp = await p.evaluate((n) => { const a = [...document.querySelectorAll("#system-judgments a, #system-problems a")].find((x) => x.textContent === n);
     const st = a.closest("tr").querySelector(".st"); return { code: st.dataset.code, outcome: st.dataset.outcome, title: st.title }; }, S + "r_derives_p");
-  check(rp.code === "UNS" && rp.outcome === "match" && /closed proposition: false/.test(rp.title) && /established: .*CSA/.test(rp.title) && /does not hold/.test(row("r_derives_p")[5]),
+  check(rp.code === "UNS" && rp.outcome === "match" && /^CTH \(CounterTheorem\)/.test(rp.title) && /stored .*CSA/.test(rp.title) && /does not hold/.test(row("r_derives_p")[5]),
     `r ⊢ p: a closed refutation, stored UNS, expected, false, does not hold (${JSON.stringify(rp)})`);
   check(/sound for/.test(row("derivable_sound")[5]) && /T = .*entails/.test(row("derivable_sound")[3]), "soundness for entails");
-  check(/CSA/.test(row("derivable_complete")[4]) && /✓/.test(row("derivable_complete")[4]) && /not complete/.test(row("derivable_complete")[5]) &&
+  check(/CSA/.test(row("derivable_complete")[4]) && !/≠|expected/.test(row("derivable_complete")[4]) && /not complete/.test(row("derivable_complete")[5]) &&
     /Atom\.ff\]/.test(row("derivable_complete")[6]) && /Atom\.p/.test(row("derivable_complete")[6]), "incompleteness with the counterexample ff ⊢ p");
   check(/NOC/.test(row("derivable_universal")[4]) && /derives something, and is not universal/.test(row("derivable_universal")[5]),
     "derives: contingent is NOC, read as nonempty and not universal");
@@ -126,14 +126,14 @@ try {
   const gc = gs.find((r) => r[0] === S + "gentzen.bounded3_complete_closure") || [];
   check(/CSA/.test(gc[4] || "") && /not complete for/.test(gc[5] || "") && /Bool\.true, 2\)/.test(gc[6] || ""),
     "Gentzen: the bounded checker is not complete for its cut closure, with the cut counterexample");
-  check(gs.some((r) => r[0] === S + "gentzen.bounded3_sound" && /THM/.test(r[4])), "Gentzen: the bounded checker is sound for validity");
+  check(gs.some((r) => r[0] === S + "gentzen.bounded3_sound" && /TAU/.test(r[4])), "Gentzen: the bounded checker is sound for validity");
 
   // the multiple-conclusion fixture: ff is the empty succedent
   await open("/system/" + encodeURIComponent(S + "multi.lit"));
   const ms = await rows("#system-judgments");
   const mrow = (n) => ms.find((r) => r[0] === S + "multi." + n) || [];
   check(/THM/.test(mrow("contradiction")[4]) && /derives \[\]/.test(mrow("contradiction")[5]), "multi: p, -p ⊢ (derives the empty succedent)");
-  check(/UNS/.test(mrow("p_nil")[4]) && /does not derive \[\]/.test(mrow("p_nil")[5]), "multi: p ⊢ fails");
+  check(/CTH/.test(mrow("p_nil")[4]) && /does not derive \[\]/.test(mrow("p_nil")[5]), "multi: p ⊢ fails");
   const mo = await rows("#system-problems");
   check(mo.some((r) => r[0] === S + "multi.right_ext_complete" && r[2] === "T" && /CSA/.test(r[4])), "multi: rightExt is not complete for it (as T)");
 
@@ -161,9 +161,9 @@ try {
   check(/checkRel/.test(wd.interpretation || "") && /checkExport/.test(wd.interpretation || "") && /allHosts/.test(wd.interpretation || ""), "the interpretation row: definition, ABI, environment");
   check(/member_check\.is/.test(wd["decode evidence"] || "") && /data-code="THM"/.test(wd["decode evidence"] || ""), "the decode evidence: the value's .is certificate, proved");
   const wj = await rows("#system-judgments"), wq = await rows("#system-problems");
-  check(wj.some((r) => r[0] === S + "wasm.member_check_12_2" && /THM/.test(r[4])) && wj.some((r) => r[0] === S + "wasm.member_check_1_2" && /UNS/.test(r[4])),
+  check(wj.some((r) => r[0] === S + "wasm.member_check_12_2" && /THM/.test(r[4])) && wj.some((r) => r[0] === S + "wasm.member_check_1_2" && /CTH/.test(r[4])),
     "member_check: 1, 2 ⊢ 2 true, 1 ⊢ 2 false");
-  check(["sound_lean", "complete_lean", "sound_mem", "complete_mem"].every((n) => wq.some((r) => r[0] === S + "wasm.member_check_" + n && /THM/.test(r[4]))),
+  check(["sound_lean", "complete_lean", "sound_mem", "complete_mem"].every((n) => wq.some((r) => r[0] === S + "wasm.member_check_" + n && /TAU/.test(r[4]))),
     "member_check equals the Lean module's relation and, below the length bound, membership");
   const cid = await p.evaluate(() => decodeURIComponent((document.querySelector("#main dl a[href^='#/artifact/']") || { getAttribute: () => "" }).getAttribute("href").slice(11)));
   await open("/system/" + encodeURIComponent(S + "wasm.empty_check"));

@@ -26,6 +26,7 @@ macro_rules! script {
 /// The page's script, in order: name (for messages and tests) and text.
 pub const SCRIPTS: &[(&str, &str)] = &[
     script!("core.js"),
+    script!("status.js"),
     script!("ui.js"),
     script!("provenance.js"),
     script!("table.js"),
@@ -35,6 +36,7 @@ pub const SCRIPTS: &[(&str, &str)] = &[
     script!("views/summary.js"),
     script!("views/graph.js"),
     script!("views/lists.js"),
+    script!("views/browse.js"),
     script!("views/details.js"),
     script!("views/artifact.js"),
     script!("views/machine.js"),
