@@ -452,6 +452,32 @@ The plain graph stays an over-approximation, and claims about it say so.
       `handlerTail`, … through labels and handlers, which do not catch it), and a body never
       diverges at a pending tail call, which is stuck outside a frame. Divergence of the tail
       callee is frame divergence (`MDivT`), not body divergence. No EH coverage changes.
+    - **Plan for (b), the store-retaining CFG-instance session (host-free first).** Target: the
+      canonical `DStrategy` `instSession I P s = StratSession.threadS (instTripleS I P) s`
+      (`Abstract.InstSession`), hence the instance part of `core3SemD`, on an explicit typed
+      fragment. Not "define the CFG object by Core and conclude `rfl`".
+      1. **The CFG triple** `cfgTripleS I o`, operational: its finished behaviours are machine runs
+         (`MStepC`, oracle `CX closedCallX`) of the export's body in its call frame to a sink, the
+         answer read off the sink state (`exit` stack top, or `trap` keeping its store), and
+         machine frame divergence `MDivT`. It is **oracle-backed**: callees are answered by the
+         native closed extended semantics `CX closedCallX`, not by recursive CFG machines; that is
+         stated in every statement. A self-contained recursive CFG closure would discharge the
+         oracle later and is not claimed.
+      2. **The fragment**: deterministic profile, no imports, a well-formed store of Wasm functions
+         with function types passing `StoreChkE tExt`; preserved at every reachable store (the
+         function list never changes host-free, typing is preserved).
+      3. **No imports** removes import callouts, call logs and within-call productive host
+         interaction (the triple's pending and productive components), **not** infinite session
+         plays: `threadS` still has coherent infinite sequences of export rounds, trap-resume
+         included. Those come out of the existing `InfRounds`/`StoreDet` API and reachable-triple
+         congruence (`threadS_congr`), not by an emptiness claim.
+      4. **Equality**: `cfgTripleS` and `instTripleS` agree at reachable stores (`satP` and the
+         productive components included): a host-free activation is a Core invocation
+         (`ret_iff_core`, and the instance-level divergence chain against Core divergence, both
+         directions), finite answers from #806 (`machine_core`/`core_machine`), divergence from
+         #845 (`invoke_diverges_iff_mdivT`). Then `threadS_congr` gives the session equality.
+      5. **Then**: hosts (pending calls and logs, productive interaction), XP and EH coverage, as
+         actual extensions.
     - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
       `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
       Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the
