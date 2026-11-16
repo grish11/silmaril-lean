@@ -65,9 +65,9 @@ The **Shape** condition says the component imports of B are the wired ones follo
 * `HLinked2.silentObs P prof l calls` is the same sessions under `silentHost P`, a host that
   takes every call (`on_start`) and never resolves it.
 * `HLinked2.HostTyped l g`: whenever `g` answers a host import called on reference images of IR
-  values, its answer is the reference image of IR values of the import's result types. The
-  specification to reference direction assumes it (an ill-typed answer is an `internal` fault of
-  the reference machine, not a trap). `HLinked2.silentG` never answers: `HostRun silentG` says
+  values, its answer is the reference image of IR values of the import's result types. Both
+  directions between the specification and the reference machine assume it (an ill-typed answer
+  is an `internal` fault of the reference machine, not a trap, and has no session outcome). `HLinked2.silentG` never answers: `HostRun silentG` says
   that every host call is answered by a trap.
 
 **Synchronous lowering: a host that never answers is a trap, not a pending call.** Every

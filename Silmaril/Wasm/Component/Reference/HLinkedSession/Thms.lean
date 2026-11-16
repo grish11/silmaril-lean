@@ -7,16 +7,17 @@ import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Inst
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.SilentCall
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Host
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Sess
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.RefSess
 
 /-!
 # Linked components whose importer also has host imports: theorems
 
 **Scope.** `HLinked2` (`Defs`): the import-free exporter A answers the wired imports of the
-importer B, and B's remaining imports are host imports of the parent, passed through. This
-module is groundwork for session adequacy with host imports. It is **not** an HLinked2 adequacy
-theorem: the instantiation, the specification to IR direction, the specification to reference
-direction (for a typed host) and the silent-host traps are proved in general; the converse
-directions are not.
+importer B, and B's remaining imports are host imports of the parent, passed through. The
+instantiation, the specification to IR direction and both directions between the specification
+and the reference machine (for a typed host, with the host log observable; and for a host that
+never answers) are proved in general. The IR to specification direction is not, so this is not
+yet an HLinked2 adequacy theorem against the IR.
 
 ## Proved
 
@@ -103,12 +104,35 @@ directions are not.
   answers a trap for it. This generalises `HLinked2.silent_cannotBlock` (the first call after
   instantiation).
 
+* **Reference to specification, every `HLinked2`, typed host** (`HLinked2.sess_refToSpec`,
+  every profile, under `HLinked2.Adequate` and `HLinked2.HostTyped g`, for typed calls). Every
+  session observation `(o, st')` of `l.toRef` under the logging host `answerHostS P (logG g)` from
+  `(s₀, [])` is `o = refOuts outs` for a specification session (`HLinked2.SessSpec`, from the
+  instances' stores) whose host calls form a `HostRun (logG g)` from `(s₀, [])` to `st'`: the
+  final host state and the log of answered host calls are those of the specification's host
+  calls. With `HLinked2.sess_specToRef` this is an equality (`HLinked2.sessObs_eq`): the
+  reference session outcomes with host logs are exactly the specification sessions with their
+  `HostRun`. Each call is `Proofs.….HLinkedSession.linkCall_invH`, the backward counterpart of
+  `linkCall_fwdH` (`LinkedSessionRef`'s `lsegs_inv`/`linkCallT` at the host-first layout): the
+  importer's core phase inverts (`rounds_invH`) to nested calls of the exporter (returned, or
+  trapped inside the import call), and to **host callouts, each a host call answered as `g`
+  answers in the current host state** (a live deterministic run of the callout program,
+  `hostCall_lrun`) **or a trap** (arguments that do not lift, `hostCall_noLiftGS`; no answer,
+  `hostCall_noAnswerS`), the trapped configurations carrying their core store and host state
+  (`TrapsAtSH`). **The typed-host hypothesis is used** to read the host's answer back as IR
+  values of the import's result types; an ill-typed answer is the `internal` fault above, which
+  has no session outcome.
+* **A host that never answers, exactly** (`HLinked2.silent_refToSpec`, `HLinked2.silentObs_eq`,
+  under `HLinked2.Adequate`, for typed calls). Every session observation `(o, s)` under
+  `silentHost` from `h₀` has `s = h₀` and `o = refOuts outs` for a specification session whose
+  host calls all trap (`HostRun silentG`); with `HLinked2.silent_specToRef` this is an equality.
+  So every round that makes a host call answers a trap, that call being its last component
+  import call: the callout blocks the importer's thread and the synchronous lift loop traps
+  `cannotBlockSync` (`handlesB_silent`). Proofs: `Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.{RefRound,
+  RefSess}`.
+
 ## Not proved (what remains)
 
-* **Reference to specification.** The resumable sessions of `l.toRef` under
-  `answerHostS P (logG g)` (`HLinked2.sessObs`) are not shown to be specification sessions: the
-  backward counterpart of `linkCall_fwdH` (`LinkedSessionRef` at the host-first layout) is
-  missing.
 * **IR to specification**, the read-back of #724 with host moves visible.
 * Under synchronous lowering the blocked host is a trap. An asynchronous lower or lift (a
   genuine pending observation) is out of scope and comes later.
@@ -396,5 +420,86 @@ theorem HLinked2.silent_session_sess (P : Profile) (prof : ProfileKind) {l : HLi
       HLinked2.silentObs P prof l h₀ (calls ++ [(d.j, d.vs)]) :=
   Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_silent_session_sess P prof hl
     h₀ hIe hIi h hr d hok hpath hexp hh
+
+/-! ## Reference to specification -/
+
+/-- **Reference sessions with a typed host are specification sessions, with the host state and
+log** (proved, every profile and component choice profile, adequate parts, `HostTyped g`, typed
+calls): every session observation `(o, st')` of `l.toRef` under the logging host of `g` from
+`(s₀, [])` is the reference image `o = refOuts outs` of the outcomes of an `HLinked2.SessSpec`
+session from the instances' stores whose host calls are answered by the logging host of `g`
+from `(s₀, [])` to the final host state and log `st'`. -/
+theorem HLinked2.sess_refToSpec (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type}
+    (g : σ → HostFuncId → List Silmaril.Wasm.Component.Value.Val →
+      Option (List Silmaril.Wasm.Component.Value.Val × σ))
+    (hT : l.HostTyped g) (s₀ : σ) (calls : List (Fin l.imp.exports.length × List IVal))
+    (ht : SimpleI.TypedCalls l.imp calls)
+    {o : List (Option (List Silmaril.Wasm.Component.Value.Val))}
+    {st' : σ × List HLinked2.HostEvent} (ho : (o, st') ∈ HLinked2.sessObs P prof l g s₀ calls) :
+    ∃ (Ie Ii : Silmaril.Wasm.Game.ScalarInstance) (outs : List (Option (List IVal)))
+      (hs : List (List (Σ _ : (sigN l.host.length).Op, Option Payload)))
+      (u' π' : Silmaril.Wasm.Execution.Core.Store Nat),
+      l.exp.mod.IsInst Ie ∧ l.imp.mod.IsInst Ii ∧
+      HLinked2.SessSpec P l Ie Ii Ii.store Ie.store calls outs hs u' π' ∧
+      HostRun (HLinked2.logG g) (s₀, []) hs.flatten st' ∧ o = refOuts outs :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_sess_refToSpec P prof hl g hT
+    s₀ calls ht ho
+
+/-- **The session observations with a typed host are exactly the specification sessions with
+their host runs** (proved, adequate parts, `HostTyped g`, typed calls): `HLinked2.sessObs` is
+the set of the reference images of the outcomes of `HLinked2.SessSpec` sessions from the
+instances' stores, with the final host state and log of the `HostRun` of the logging host of `g`
+from `(s₀, [])` on their host calls. -/
+theorem HLinked2.sessObs_eq (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type}
+    (g : σ → HostFuncId → List Silmaril.Wasm.Component.Value.Val →
+      Option (List Silmaril.Wasm.Component.Value.Val × σ))
+    (hT : l.HostTyped g) (s₀ : σ) (calls : List (Fin l.imp.exports.length × List IVal))
+    (ht : SimpleI.TypedCalls l.imp calls) :
+    HLinked2.sessObs P prof l g s₀ calls =
+      {p | ∃ (Ie Ii : Silmaril.Wasm.Game.ScalarInstance) (outs : List (Option (List IVal)))
+        (hs : List (List (Σ _ : (sigN l.host.length).Op, Option Payload)))
+        (u' π' : Silmaril.Wasm.Execution.Core.Store Nat),
+        l.exp.mod.IsInst Ie ∧ l.imp.mod.IsInst Ii ∧
+        HLinked2.SessSpec P l Ie Ii Ii.store Ie.store calls outs hs u' π' ∧
+        HostRun (HLinked2.logG g) (s₀, []) hs.flatten p.2 ∧ p.1 = refOuts outs} :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_sessObs_eq P prof hl g hT s₀
+    calls ht
+
+/-- **Reference sessions under a host that never answers are specification sessions whose host
+calls all trap** (proved, adequate parts, typed calls): every session observation `(o, s)` of
+`l.toRef` under `silentHost` from `h₀` has `s = h₀` and `o = refOuts outs` for an
+`HLinked2.SessSpec` session from the instances' stores whose host calls are all answered by a
+trap (`HostRun silentG`). -/
+theorem HLinked2.silent_refToSpec (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type} (h₀ : σ) (calls : List (Fin l.imp.exports.length × List IVal))
+    (ht : SimpleI.TypedCalls l.imp calls)
+    {o : List (Option (List Silmaril.Wasm.Component.Value.Val))} {s : σ}
+    (ho : (o, s) ∈ HLinked2.silentObs P prof l h₀ calls) :
+    ∃ (Ie Ii : Silmaril.Wasm.Game.ScalarInstance) (outs : List (Option (List IVal)))
+      (hs : List (List (Σ _ : (sigN l.host.length).Op, Option Payload)))
+      (u' π' : Silmaril.Wasm.Execution.Core.Store Nat),
+      l.exp.mod.IsInst Ie ∧ l.imp.mod.IsInst Ii ∧
+      HLinked2.SessSpec P l Ie Ii Ii.store Ie.store calls outs hs u' π' ∧
+      HostRun HLinked2.silentG h₀ hs.flatten h₀ ∧ s = h₀ ∧ o = refOuts outs :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_silent_refToSpec P prof hl h₀
+    calls ht ho
+
+/-- **The session observations under a host that never answers are exactly the specification
+sessions whose host calls all trap** (proved, adequate parts, typed calls), in the initial host
+state. -/
+theorem HLinked2.silentObs_eq (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type} (h₀ : σ) (calls : List (Fin l.imp.exports.length × List IVal))
+    (ht : SimpleI.TypedCalls l.imp calls) :
+    HLinked2.silentObs P prof l h₀ calls =
+      {p | ∃ (Ie Ii : Silmaril.Wasm.Game.ScalarInstance) (outs : List (Option (List IVal)))
+        (hs : List (List (Σ _ : (sigN l.host.length).Op, Option Payload)))
+        (u' π' : Silmaril.Wasm.Execution.Core.Store Nat),
+        l.exp.mod.IsInst Ie ∧ l.imp.mod.IsInst Ii ∧
+        HLinked2.SessSpec P l Ie Ii Ii.store Ie.store calls outs hs u' π' ∧
+        HostRun HLinked2.silentG h₀ hs.flatten h₀ ∧ p.2 = h₀ ∧ p.1 = refOuts outs} :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_silentObs_eq P prof hl h₀
+    calls ht
 
 end Silmaril.Wasm.Component.Reference

@@ -65,6 +65,50 @@ variable {B : Machine.Config (E3 P) σ} {th : Option ThreadId}
   {ft' : WIT.FuncType Empty RtId} {fn : HostFuncId} {inst : InstId} {st : InstState}
   {ys : List Flat} {p : FuncTy}
 
+/-- **An answered host call, as a live deterministic run**: from the core activation at the
+callout to the core activation resumed with the lowered answer, the host state moved to `s'`,
+one more subtask (resolved, delivered) and one more `canon_lower` caller record in the store. -/
+theorem hostCall_lrun (hl : B.store.lockdown = false)
+    (hst : (E3 P).status y.1 y.2 = .callout (.lowered f (witFt p) {} inst) ys)
+    (hentry : calloutEntry B.store th (.lowered f (witFt p) {} inst) = none)
+    (hi : ArenaField.insts.get? B.store inst = some st) (hleave : st.mayLeave = true)
+    (hf : ArenaField.funcs.get? B.store f = some (.host ft' fn))
+    (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmaxp : (ValTy.flatList p.params).length ≤ 16) {ws : List Silmaril.Wasm.Component.Val}
+    (hws : liftArgs p.params ys = some ws) {us : List Silmaril.Wasm.Component.Val} {s' : σ}
+    (hg : g B.host fn (ws.map toRefVal) = some (us.map toRefVal, s'))
+    (hres : p.results.length ≤ 1) (hrf : floatFreeList p.results = true)
+    (hus : ValTy.checkList p.results us = true) (hmaxr : (ValTy.flatList p.results).length ≤ 1) :
+    ∃ (pos : Nat) (tr : List (Label (E3 P) σ)),
+      LRun prof (fun _ _ => false) (DI P (answerImplS g)) (coreCfg B th K segs rest y) (.tau :: tr)
+        (coreCfg { B with host := s', store := { B.store with
+            subtasks := B.store.subtasks ++
+              [{ resolvedSub inst (lowerArgs p.results us) with lenders := none }]
+            callers := B.store.callers ++ [lowerRec ⟨B.store.subtasks.length⟩ inst ys p pos] } }
+          th K segs rest (y.1, (E3 P).resume y.1 y.2 (.values (lowerArgs p.results us)))) := by
+  obtain ⟨pos, tr, h⟩ := runs_callout (g := g) (th := th) (m := coreCfg B th K segs rest y)
+    hentry hi hleave hf hpf hys hmaxp hws hg hres hrf hus hmaxr
+  have hl' : (coreCfg B th K segs rest y).store.lockdown = false := hl
+  have d₁ := h.lrun (prof := prof) (hr := fun _ _ => false) hl' Prog.pure (.core y.2 K :: segs)
+    rest
+  rw [Prog.bind_eq, Prog.bind_pure, calloutSt_eq] at d₁
+  have s₀ : UniqueStep prof (fun _ _ => false) (DI P (answerImplS g))
+      (coreCfg B th K segs rest y) .tau
+      { coreCfg B th K segs rest y with ctl := ⟨th, .prog (DI P (answerImplS g)
+        (.hostCallout (.lowered f (witFt p) {} inst) ys)), .core y.2 K :: segs⟩ :: rest } :=
+    UniqueStep.of_core rfl (callout_status_ne hst) (Step.coreCallout rfl hst)
+  have hlive : Live ({ coreCfg B th K segs rest y with
+      host := s', store := { (coreCfg B th K segs rest y).store with
+        subtasks := (coreCfg B th K segs rest y).store.subtasks ++
+          [{ resolvedSub inst (lowerArgs p.results us) with lenders := none }]
+        callers := (coreCfg B th K segs rest y).store.callers ++
+          [lowerRec ⟨(coreCfg B th K segs rest y).store.subtasks.length⟩ inst ys p pos] },
+      ctl := ⟨th, .prog (Prog.pure (.flat (lowerArgs p.results us))), .core y.2 K :: segs⟩ ::
+        rest } : Machine.Config (E3 P) σ) :=
+    ⟨List.cons_ne_nil _ _, hl⟩
+  exact ⟨pos, _ ++ [.tau], .cons ⟨List.cons_ne_nil _ _, hl⟩ s₀ (d₁.trans (.cons hlive
+    (.of_prog rfl (fun _ _ e => by cases e) (Step.popCore rfl)) (.refl _)))⟩
+
 /-- **An answered host call, forward**: from the core activation at the callout to the core
 activation resumed with the lowered answer, quietly, the host state moved to `s'`, one more
 subtask (resolved, delivered) and one more `canon_lower` caller record in the store. -/
@@ -86,27 +130,9 @@ theorem hostCall_fwd (hl : B.store.lockdown = false)
               [{ resolvedSub inst (lowerArgs p.results us) with lenders := none }]
             callers := B.store.callers ++ [lowerRec ⟨B.store.subtasks.length⟩ inst ys p pos] } }
           th K segs rest (y.1, (E3 P).resume y.1 y.2 (.values (lowerArgs p.results us)))) := by
-  obtain ⟨pos, tr, h⟩ := runs_callout (g := g) (th := th) (m := coreCfg B th K segs rest y)
+  obtain ⟨pos, tr, h⟩ := hostCall_lrun (prof := prof) (K := K) (segs := segs) (rest := rest) hl hst
     hentry hi hleave hf hpf hys hmaxp hws hg hres hrf hus hmaxr
-  have hl' : (coreCfg B th K segs rest y).store.lockdown = false := hl
-  have d₁ := h.lrun (prof := prof) (hr := fun _ _ => false) hl' Prog.pure (.core y.2 K :: segs)
-    rest
-  rw [Prog.bind_eq, Prog.bind_pure, calloutSt_eq] at d₁
-  have s₀ : Step prof (fun _ _ => false) (DI P (answerImplS g)) (coreCfg B th K segs rest y) .tau
-      { coreCfg B th K segs rest y with ctl := ⟨th, .prog (DI P (answerImplS g)
-        (.hostCallout (.lowered f (witFt p) {} inst) ys)), .core y.2 K :: segs⟩ :: rest } :=
-    Step.coreCallout rfl hst
-  have hlive : Live ({ coreCfg B th K segs rest y with
-      host := s', store := { (coreCfg B th K segs rest y).store with
-        subtasks := (coreCfg B th K segs rest y).store.subtasks ++
-          [{ resolvedSub inst (lowerArgs p.results us) with lenders := none }]
-        callers := (coreCfg B th K segs rest y).store.callers ++
-          [lowerRec ⟨(coreCfg B th K segs rest y).store.subtasks.length⟩ inst ys p pos] },
-      ctl := ⟨th, .prog (Prog.pure (.flat (lowerArgs p.results us))), .core y.2 K :: segs⟩ ::
-        rest } : Machine.Config (E3 P) σ) :=
-    ⟨List.cons_ne_nil _ _, hl⟩
-  refine ⟨pos, .tau :: (_ ++ [.tau]), Quiet.tau.append ((Quiet.of_lrun d₁ hlive).append
-    Quiet.tau), .cons s₀ (Adequacy.steps_append d₁.steps (.cons (Step.popCore rfl) (.refl _)))⟩
+  exact ⟨pos, _, Quiet.of_lrun h ⟨List.cons_ne_nil _ _, hl⟩, h.steps⟩
 
 /-- A configuration whose focus is the callout program, as `p >>= pure`. -/
 theorem ctl_bind_pure {M : Machine.Config (E3 P) σ} {q : Canon.P (E3 P) σ (Ret (E3 P))}
@@ -114,9 +140,9 @@ theorem ctl_bind_pure {M : Machine.Config (E3 P) σ} {q : Canon.P (E3 P) σ (Ret
   rw [Prog.bind_eq, Prog.bind_pure]
   exact hc
 
-/-- **A host call that the host does not answer traps** (`hostTrap`), at the core store of
-the callout and the host state of the frame. -/
-theorem hostCall_noAnswerH (hl : B.store.lockdown = false)
+/-- **A host call that the host does not answer traps** (`hostTrap`): a live deterministic
+run to the trap, at the core store of the callout and the host state of the frame. -/
+theorem hostCall_noAnswerS (hl : B.store.lockdown = false)
     (hst : (E3 P).status y.1 y.2 = .callout (.lowered f (witFt p) {} inst) ys)
     (hentry : calloutEntry B.store th (.lowered f (witFt p) {} inst) = none)
     (hi : ArenaField.insts.get? B.store inst = some st) (hleave : st.mayLeave = true)
@@ -124,7 +150,7 @@ theorem hostCall_noAnswerH (hl : B.store.lockdown = false)
     (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
     (hmaxp : (ValTy.flatList p.params).length ≤ 16) {ws : List Silmaril.Wasm.Component.Val}
     (hws : liftArgs p.params ys = some ws) (hg : g B.host fn (ws.map toRefVal) = none) :
-    TrapEndH prof P (answerImplS g) (coreCfg B th K segs rest y) y.1 B.host := by
+    TrapsAtSH prof P (answerImplS g) (coreCfg B th K segs rest y) y.1 B.host := by
   let m : Machine.Config (E3 P) σ := coreCfg B th K segs rest y
   let C : CallerId := ⟨m.store.callers.length⟩
   let m₂ : Machine.Config (E3 P) σ := { m with store := allocSC m.store inst ys p }
@@ -165,12 +191,26 @@ theorem hostCall_noAnswerH (hl : B.store.lockdown = false)
     apply TrapsQS.callIn
     exact TrapsQS.bind (RunsQ.getObj _ _ hf₂) hfn.choose_spec
   obtain ⟨tr, h⟩ := hcl
-  have s₀ : Step prof (fun _ _ => false) (DI P (answerImplS g)) m .tau
+  have s₀ : UniqueStep prof (fun _ _ => false) (DI P (answerImplS g)) m .tau
       { m with ctl := ⟨th, .prog (DI P (answerImplS g)
         (.hostCallout (.lowered f (witFt p) {} inst) ys)), .core y.2 K :: segs⟩ :: rest } :=
-    Step.coreCallout rfl hst
-  refine TrapEndH.steps (.cons s₀ (.refl _)) Quiet.tau
-    (TrapsAtSH.trapEndH (TrapsQS.trapsAtSH (ctl_bind_pure rfl) (h.withCtl _) hl ?_ ?_)) <;> rfl
+    UniqueStep.of_core rfl (callout_status_ne hst) (Step.coreCallout rfl hst)
+  refine TrapsAtSH.lrun (.cons ⟨List.cons_ne_nil _ _, hl⟩ s₀ (.refl _))
+    (TrapsQS.trapsAtSH (ctl_bind_pure rfl) (h.withCtl _) hl ?_ ?_) <;> rfl
+
+/-- **A host call that the host does not answer traps** (`hostTrap`), at the core store of
+the callout and the host state of the frame. -/
+theorem hostCall_noAnswerH (hl : B.store.lockdown = false)
+    (hst : (E3 P).status y.1 y.2 = .callout (.lowered f (witFt p) {} inst) ys)
+    (hentry : calloutEntry B.store th (.lowered f (witFt p) {} inst) = none)
+    (hi : ArenaField.insts.get? B.store inst = some st) (hleave : st.mayLeave = true)
+    (hf : ArenaField.funcs.get? B.store f = some (.host ft' fn))
+    (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmaxp : (ValTy.flatList p.params).length ≤ 16) {ws : List Silmaril.Wasm.Component.Val}
+    (hws : liftArgs p.params ys = some ws) (hg : g B.host fn (ws.map toRefVal) = none) :
+    TrapEndH prof P (answerImplS g) (coreCfg B th K segs rest y) y.1 B.host :=
+  TrapsAtSH.trapEndH (hostCall_noAnswerS hl hst hentry hi hleave hf hpf hys hmaxp hws hg)
+
 
 /-- **A host call that the host does not answer traps** (`hostTrap`), at the core store of
 the callout. -/
@@ -187,8 +227,8 @@ theorem hostCall_noAnswer (hl : B.store.lockdown = false)
 
 /-- **A host call whose arguments do not lift traps** (a lift trap), at the core store of the
 callout and the host state of the frame, for every host whose function `fn` starts with
-`on_start`. -/
-theorem hostCall_noLiftG {impl : HostImpl (E3 P) σ}
+`on_start`: a live deterministic run to the trap. -/
+theorem hostCall_noLiftGS {impl : HostImpl (E3 P) σ}
     (himpl : ∀ C, ∃ k : List Silmaril.Wasm.Component.Reference.Val → Canon.P (E3 P) σ (Ret (E3 P)),
       impl.funcs fn C = callVals (.onStart C) >>= k) (hl : B.store.lockdown = false)
     (hst : (E3 P).status y.1 y.2 = .callout (.lowered f (witFt p) {} inst) ys)
@@ -197,7 +237,7 @@ theorem hostCall_noLiftG {impl : HostImpl (E3 P) σ}
     (hf : ArenaField.funcs.get? B.store f = some (.host ft' fn))
     (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
     (hmaxp : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = none) :
-    TrapEndH prof P impl (coreCfg B th K segs rest y) y.1 B.host := by
+    TrapsAtSH prof P impl (coreCfg B th K segs rest y) y.1 B.host := by
   let m : Machine.Config (E3 P) σ := coreCfg B th K segs rest y
   let C : CallerId := ⟨m.store.callers.length⟩
   let m₂ : Machine.Config (E3 P) σ := { m with store := allocSC m.store inst ys p }
@@ -230,12 +270,28 @@ theorem hostCall_noLiftG {impl : HostImpl (E3 P) σ}
     apply TrapsQS.callIn
     exact TrapsQS.bind (RunsQ.getObj _ _ hf₂) hfn
   obtain ⟨tr, h⟩ := hcl
-  have s₀ : Step prof (fun _ _ => false) (DI P impl) m .tau
+  have s₀ : UniqueStep prof (fun _ _ => false) (DI P impl) m .tau
       { m with ctl := ⟨th, .prog (DI P impl
         (.hostCallout (.lowered f (witFt p) {} inst) ys)), .core y.2 K :: segs⟩ :: rest } :=
-    Step.coreCallout rfl hst
-  refine TrapEndH.steps (.cons s₀ (.refl _)) Quiet.tau
-    (TrapsAtSH.trapEndH (TrapsQS.trapsAtSH (ctl_bind_pure rfl) (h.withCtl _) hl ?_ ?_)) <;> rfl
+    UniqueStep.of_core rfl (callout_status_ne hst) (Step.coreCallout rfl hst)
+  refine TrapsAtSH.lrun (.cons ⟨List.cons_ne_nil _ _, hl⟩ s₀ (.refl _))
+    (TrapsQS.trapsAtSH (ctl_bind_pure rfl) (h.withCtl _) hl ?_ ?_) <;> rfl
+
+
+/-- **A host call whose arguments do not lift traps** (a lift trap), at the core store of the
+callout and the host state of the frame, for every host whose function `fn` starts with
+`on_start`. -/
+theorem hostCall_noLiftG {impl : HostImpl (E3 P) σ}
+    (himpl : ∀ C, ∃ k : List Silmaril.Wasm.Component.Reference.Val → Canon.P (E3 P) σ (Ret (E3 P)),
+      impl.funcs fn C = callVals (.onStart C) >>= k) (hl : B.store.lockdown = false)
+    (hst : (E3 P).status y.1 y.2 = .callout (.lowered f (witFt p) {} inst) ys)
+    (hentry : calloutEntry B.store th (.lowered f (witFt p) {} inst) = none)
+    (hi : ArenaField.insts.get? B.store inst = some st) (hleave : st.mayLeave = true)
+    (hf : ArenaField.funcs.get? B.store f = some (.host ft' fn))
+    (hpf : floatFreeList p.params = true) (hys : ys.map (·.type) = ValTy.flatList p.params)
+    (hmaxp : (ValTy.flatList p.params).length ≤ 16) (hws : liftArgs p.params ys = none) :
+    TrapEndH prof P impl (coreCfg B th K segs rest y) y.1 B.host :=
+  TrapsAtSH.trapEndH (hostCall_noLiftGS himpl hl hst hentry hi hleave hf hpf hys hmaxp hws)
 
 /-- **A host call whose arguments do not lift traps** (a lift trap), at the core store of the
 callout. -/
