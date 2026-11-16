@@ -8,16 +8,18 @@ import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.SilentCall
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Host
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Sess
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.RefSess
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Adeq
 
 /-!
 # Linked components whose importer also has host imports: theorems
 
 **Scope.** `HLinked2` (`Defs`): the import-free exporter A answers the wired imports of the
 importer B, and B's remaining imports are host imports of the parent, passed through. The
-instantiation, the specification to IR direction and both directions between the specification
-and the reference machine (for a typed host, with the host log observable; and for a host that
-never answers) are proved in general. The IR to specification direction is not, so this is not
-yet an HLinked2 adequacy theorem against the IR.
+instantiation, both directions between the specification and the IR, and both directions
+between the specification and the reference machine (for a typed host, with the host log
+observable; and for a host that never answers) are proved in general. Together they are the
+finite session adequacy of `HLinked2` against the IR, host calls included
+(`HLinked2.sessAdequacy_full`, `HLinked2.silentAdequacy_full`).
 
 ## Proved
 
@@ -131,9 +133,31 @@ yet an HLinked2 adequacy theorem against the IR.
   `cannotBlockSync` (`handlesB_silent`). Proofs: `Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.{RefRound,
   RefSess}`.
 
+* **IR to specification, every `HLinked2`** (`HLinked2.irToSpec`, every profile, under
+  `HLinked2.Adequate`, typed calls, one outcome and one list of host calls per call). Every
+  session play of `l.toComp.den (impSem P)`, its host calls visible lower moves
+  (`HLinked2.sessMoves`), is the play of an `HLinked2.SessSpec` session from the instances'
+  stores with the same host calls. #724's read-back with the host moves passed through: the
+  second environment serves the importer's import calls by rounds of the first environment
+  whose own lower calls are the visible ones (`serveC_inv`, the converse of
+  `cplay_comp_serveC`); in the first environment copycat answers a host call by the same call
+  below (`id_cs`), and the exporter's node answers a wired call without lower calls. **The host
+  answers are not constrained by the IR**: copycat passes on whatever the lower interface
+  answers, and `ExpRunH` lets a host call have any answer, so every IR play reads back. With
+  `HLinked2.sess_specToIR` it is an equivalence (`HLinked2.sessIR_iff`). Proofs:
+  `Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.{GamesInv, ReadBack}`.
+* **Finite session adequacy, every `HLinked2`** (`HLinked2.sessAdequacy_full`, typed host;
+  `HLinked2.silentAdequacy_full`, a host that never answers; under `HLinked2.Adequate`, typed
+  calls). The reference session outcomes with the final host state and log `(refOuts outs, st')`
+  are exactly those whose session play, host calls `hs` included, is a play of
+  `l.toComp.den (impSem P)` and whose host calls form a `HostRun (logG g)` from `(s₀, [])` to
+  `st'`. The IR is host-independent; the host constrains only the answers to the host calls.
+  Under `silentHost`, the same with `HostRun silentG` (every host call answered by a trap) and
+  the initial host state. Proof:
+  `Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Adeq`.
+
 ## Not proved (what remains)
 
-* **IR to specification**, the read-back of #724 with host moves visible.
 * Under synchronous lowering the blocked host is a trap. An asynchronous lower or lift (a
   genuine pending observation) is out of scope and comes later.
 * **Bridge to the divergence-aware semantics**: `Linked2.compSession` (#728) is defined from
@@ -500,6 +524,81 @@ theorem HLinked2.silentObs_eq (P : Profile) (prof : ProfileKind) {l : HLinked2}
         HLinked2.SessSpec P l Ie Ii Ii.store Ie.store calls outs hs u' π' ∧
         HostRun HLinked2.silentG h₀ hs.flatten h₀ ∧ p.2 = h₀ ∧ p.1 = refOuts outs} :=
   Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_silentObs_eq P prof hl h₀
+    calls ht
+
+/-! ## IR to specification and finite session adequacy -/
+
+/-- **IR session plays of a linked component with host imports are specification sessions**
+(proved, every profile, adequate parts, typed calls with one outcome and one list of host calls
+per call): a session play of `l.toComp.den (impSem P)`, its host calls `hs` visible lower moves,
+is the play of an `HLinked2.SessSpec` session from the instances' stores with the host calls
+`hs`. -/
+theorem HLinked2.irToSpec (P : Profile) {l : HLinked2} (hl : l.Adequate)
+    {Ie Ii : Silmaril.Wasm.Game.ScalarInstance} (hIe : l.exp.mod.IsInst Ie)
+    (hIi : l.imp.mod.IsInst Ii) (calls : List (Fin l.imp.exports.length × List IVal))
+    (outs : List (Option (List IVal)))
+    (hs : List (List (Σ _ : (sigN l.host.length).Op, Option Payload)))
+    (ht : SimpleI.TypedCalls l.imp calls) (hlen : calls.length = outs.length)
+    (hlen' : calls.length = hs.length)
+    (h : l.sessMoves calls outs hs ∈ l.toComp.den (impSem P)) :
+    ∃ u' π' : Silmaril.Wasm.Execution.Core.Store Nat,
+      HLinked2.SessSpec P l Ie Ii Ii.store Ie.store calls outs hs u' π' :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_irToSpec P l hl hIe hIi calls
+    outs hs ht hlen hlen' h
+
+/-- **The session plays of a linked component with host imports are exactly the specification
+sessions** (proved, every profile, adequate parts, typed calls with one outcome and one list of
+host calls per call). -/
+theorem HLinked2.sessIR_iff (P : Profile) {l : HLinked2} (hl : l.Adequate)
+    {Ie Ii : Silmaril.Wasm.Game.ScalarInstance} (hIe : l.exp.mod.IsInst Ie)
+    (hIi : l.imp.mod.IsInst Ii) (calls : List (Fin l.imp.exports.length × List IVal))
+    (outs : List (Option (List IVal)))
+    (hs : List (List (Σ _ : (sigN l.host.length).Op, Option Payload)))
+    (ht : SimpleI.TypedCalls l.imp calls) (hlen : calls.length = outs.length)
+    (hlen' : calls.length = hs.length) :
+    l.sessMoves calls outs hs ∈ l.toComp.den (impSem P) ↔
+      ∃ u' π' : Silmaril.Wasm.Execution.Core.Store Nat,
+        HLinked2.SessSpec P l Ie Ii Ii.store Ie.store calls outs hs u' π' :=
+  ⟨HLinked2.irToSpec P hl hIe hIi calls outs hs ht hlen hlen',
+    fun ⟨_, _, h⟩ => HLinked2.sess_specToIR hl.expGood hl.impGood hIe hIi h⟩
+
+/-- **Finite session adequacy of a linked component with host imports, with the host log**
+(proved, every profile and component choice profile, adequate parts, `HostTyped g`, typed
+calls): the reference session outcomes with the final host state and log are exactly the
+`(refOuts outs, st')` such that the session play of `outs` with some host calls `hs`, one list
+per call, is a play of `l.toComp.den (impSem P)`, and the host calls `hs` are answered by the
+logging host of `g` from `(s₀, [])` to `st'`. The IR does not depend on the host, which
+constrains only the answers to the host calls. -/
+theorem HLinked2.sessAdequacy_full (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type}
+    (g : σ → HostFuncId → List Silmaril.Wasm.Component.Value.Val →
+      Option (List Silmaril.Wasm.Component.Value.Val × σ))
+    (hT : l.HostTyped g) (s₀ : σ) (calls : List (Fin l.imp.exports.length × List IVal))
+    (ht : SimpleI.TypedCalls l.imp calls) :
+    HLinked2.sessObs P prof l g s₀ calls =
+      {p | ∃ (outs : List (Option (List IVal)))
+        (hs : List (List (Σ _ : (sigN l.host.length).Op, Option Payload))),
+        p.1 = refOuts outs ∧ calls.length = outs.length ∧ calls.length = hs.length ∧
+        l.sessMoves calls outs hs ∈ l.toComp.den (impSem P) ∧
+        HostRun (HLinked2.logG g) (s₀, []) hs.flatten p.2} :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_sessAdequacy P prof hl g hT s₀
+    calls ht
+
+/-- **Finite session adequacy of a linked component with host imports, under a host that never
+answers** (proved, every profile and component choice profile, adequate parts, typed calls):
+the reference session outcomes are exactly the `(refOuts outs, h₀)` such that the session play
+of `outs` with some host calls `hs`, one list per call, is a play of `l.toComp.den (impSem P)`
+and every host call of `hs` is answered by a trap (`HostRun silentG`). -/
+theorem HLinked2.silentAdequacy_full (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type} (h₀ : σ) (calls : List (Fin l.imp.exports.length × List IVal))
+    (ht : SimpleI.TypedCalls l.imp calls) :
+    HLinked2.silentObs P prof l h₀ calls =
+      {p | ∃ (outs : List (Option (List IVal)))
+        (hs : List (List (Σ _ : (sigN l.host.length).Op, Option Payload))),
+        p.1 = refOuts outs ∧ p.2 = h₀ ∧ calls.length = outs.length ∧
+        calls.length = hs.length ∧ l.sessMoves calls outs hs ∈ l.toComp.den (impSem P) ∧
+        HostRun HLinked2.silentG h₀ hs.flatten h₀} :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_silentAdequacy P prof hl h₀
     calls ht
 
 end Silmaril.Wasm.Component.Reference
