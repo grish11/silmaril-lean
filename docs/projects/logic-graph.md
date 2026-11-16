@@ -106,3 +106,8 @@ lake build Silmaril.LogicGraph.Audit.Defs     # Lean checks every record
 make project-check pages                       # dump, check, database, explorer
 node tools/silmaril-project/tests/explore/logic.mjs _site   # the browser walkthrough
 ```
+
+**Records files are read at build time.** `silmaril load` reads a TOML file when its module is
+elaborated, and Lake does not track the file: after editing `silmaril/logic-graph/*.toml`,
+rebuild the loading module (`Silmaril.LogicGraph.Hets.Defs`) before dumping. A clean build (CI)
+always reads the current file.

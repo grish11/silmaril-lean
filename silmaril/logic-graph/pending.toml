@@ -35,8 +35,8 @@ status = "pending-port"
 [[logic_pending]]
 name = "pending.matching"
 title = "Matching logic and scoped presentations"
-nodes = 6
-edges = 7
+nodes = 2
+edges = 3
 status = "pending-port"
 
 [[logic_pending]]
@@ -96,20 +96,6 @@ edges = 2
 status = "pending-port"
 
 [[logic_pending]]
-name = "pending.pdl"
-title = "Propositional dynamic logic"
-nodes = 1
-edges = 2
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.ctl"
-title = "Computation tree logic (CTL)"
-nodes = 1
-edges = 2
-status = "pending-port"
-
-[[logic_pending]]
 name = "pending.stlc-matching"
 title = "Simply typed λ-calculus matching"
 nodes = 2
@@ -124,29 +110,8 @@ edges = 2
 status = "pending-port"
 
 [[logic_pending]]
-name = "pending.modal"
-title = "Modal logic (Kripke semantics)"
-nodes = 1
-edges = 1
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.modal-mu"
-title = "Modal μ-calculus"
-nodes = 1
-edges = 1
-status = "pending-port"
-
-[[logic_pending]]
 name = "pending.kore"
 title = "K framework Kore"
-nodes = 1
-edges = 1
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.reachability"
-title = "Reachability logic"
 nodes = 1
 edges = 1
 status = "pending-port"
