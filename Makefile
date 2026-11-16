@@ -77,10 +77,12 @@ check:
 	$(if $(filter elf-pages,$(CHECK_TARGETS)),$(MAKE) elf-check)
 
 # The ELF reader's pinned files, generated modules and explorer data (docs/projects/elf-reader.md).
+ELF_PINNED := $(foreach n,HelloGcc HelloClang Sha256sum ZlibChecksums ZlibLibz GlibcLibm GlibcLibc,\
+	Silmaril.Elf.Staged.Pinned.$(n).Thms Silmaril.Elf.Staged.Pinned.$(n).Functions)
 elf-check:
 	examples/elf/pin.sh --check
 	$(LAKE) build --wfail elf-staged elf-pages Silmaril.Elf.Staged.Reader.Examples \
-		Silmaril.Elf.Staged.Pinned.HelloGcc.Thms Silmaril.Elf.Staged.Pinned.HelloClang.Thms Silmaril.Elf.Staged.Pinned.Sha256sum.Thms
+		$(ELF_PINNED) Silmaril.Elf.Staged.Pinned.ZlibChecksums.Contracts
 	scripts/elf-reader/gen.sh --check
 	scripts/elf-reader/test-pages.sh
 
@@ -165,7 +167,7 @@ pages: project-tool
 	lake build wasm-pages
 	.lake/build/bin/wasm-pages silmaril/artifacts.toml _site
 	# The ELF pages read the checked theorem modules of the pinned files (tools/elf-pages).
-	lake build --wfail elf-pages Silmaril.Elf.Staged.Pinned.HelloGcc.Thms Silmaril.Elf.Staged.Pinned.HelloClang.Thms Silmaril.Elf.Staged.Pinned.Sha256sum.Thms
+	lake build --wfail elf-pages $(ELF_PINNED) Silmaril.Elf.Staged.Pinned.ZlibChecksums.Contracts
 	lake env .lake/build/bin/elf-pages _site
 
 # The registry and records checks, without Lean (what CI runs when their inputs change).

@@ -3,6 +3,10 @@ import Silmaril.Elf.Staged.Reader.Defs
 import Silmaril.Elf.Staged.Pinned.HelloGcc.Defs
 import Silmaril.Elf.Staged.Pinned.HelloClang.Defs
 import Silmaril.Elf.Staged.Pinned.Sha256sum.Defs
+import Silmaril.Elf.Staged.Pinned.ZlibChecksums.Defs
+import Silmaril.Elf.Staged.Pinned.ZlibLibz.Defs
+import Silmaril.Elf.Staged.Pinned.GlibcLibm.Defs
+import Silmaril.Elf.Staged.Pinned.GlibcLibc.Defs
 import Silmaril.Crypto.SHA256
 
 /-!
@@ -75,6 +79,51 @@ def pinned : List Pinned := [
       ("linked", "dynamically against glibc 2.39: PT_INTERP /lib64/ld-linux-x86-64.so.2, DT_NEEDED libc.so.6 (both read by the checked loader-view theorem)"),
       ("build", "clang 18.1.3 (1:18.1.3-1ubuntu1) -O2 with GCC 13's crt objects, default PIE; byte-for-byte reproducible (examples/dyn/pins.txt, examples/dyn/pin.sh --build)"),
       ("licence", "toolchain start-up objects: glibc crt (LGPL-2.1-or-later with the linking exception), GCC crtbeginS/crtendS (GPL-3.0-or-later with the GCC Runtime Library Exception); examples/dyn/README.md")] },
+  { slug := "zlib-checksums", ns := `Silmaril.Elf.Staged.Pinned.ZlibChecksums
+    title := "zlib 1.3.1 adler32.c + crc32.c (-DZ_SOLO -O2, static, not stripped)"
+    path := Pinned.ZlibChecksums.path, sha256 := Pinned.ZlibChecksums.sha256, size := Pinned.ZlibChecksums.size
+    L := Pinned.ZlibChecksums.L, bodies := Pinned.ZlibChecksums.bodies, ld := Pinned.ZlibChecksums.ld
+    provenance := [
+      ("source", "zlib 1.3.1 adler32.c and crc32.c, unmodified, with examples/elf-ladder/03-zlib-checksums/main.c (release tarball sha256 9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23)"),
+      ("build", "examples/elf-ladder/03-zlib-checksums/build.sh: GCC 13.3.0, binutils 2.42, -O2, static, not stripped (.symtab present)"),
+      ("contracts", "crc32_z, crc32, adler32_z, adler32: Silmaril.X86.Ladder.ZlibChecksums, tied to this file by Silmaril.Elf.Staged.Pinned.ZlibChecksums.Contracts"),
+      ("licence", "zlib licence (examples/elf-ladder/03-zlib-checksums/pinned/LICENSE.zlib, NOTICES/zlib)")] },
+  { slug := "zlib-libz", ns := `Silmaril.Elf.Staged.Pinned.ZlibLibz
+    title := "zlib 1.3 libz.so.1.3 (Ubuntu zlib1g 1:1.3.dfsg-3.1ubuntu2.3, amd64)"
+    path := Pinned.ZlibLibz.path, sha256 := Pinned.ZlibLibz.sha256, size := Pinned.ZlibLibz.size
+    L := Pinned.ZlibLibz.L, bodies := Pinned.ZlibLibz.bodies, ld := Pinned.ZlibLibz.ld
+    provenance := [
+      ("package", "Ubuntu zlib1g 1:1.3.dfsg-3.1ubuntu2.3 (amd64), /usr/lib/x86_64-linux-gnu/libz.so.1.3, unmodified"),
+      ("url:package", "https://launchpad.net/ubuntu/+archive/primary/+files/zlib1g_1.3.dfsg-3.1ubuntu2.3_amd64.deb"),
+      ("package sha256", "376249c8de139568221dbb242318cc8cb8f02299e3a62b7432948e1754fbddf9"),
+      ("fetch", "examples/elf/pin.sh --fetch (verifies the package and file hashes)"),
+      ("symbols", "stripped: .dynsym only"),
+      ("licence", "zlib licence (NOTICES/zlib)"),
+      ("url:source", "https://launchpad.net/ubuntu/+source/zlib/1:1.3.dfsg-3.1ubuntu2.3")] },
+  { slug := "glibc-libm", ns := `Silmaril.Elf.Staged.Pinned.GlibcLibm
+    title := "glibc 2.39 libm.so.6 (Ubuntu libc6 2.39-0ubuntu8.9, amd64)"
+    path := Pinned.GlibcLibm.path, sha256 := Pinned.GlibcLibm.sha256, size := Pinned.GlibcLibm.size
+    L := Pinned.GlibcLibm.L, bodies := Pinned.GlibcLibm.bodies, ld := Pinned.GlibcLibm.ld
+    provenance := [
+      ("package", "Ubuntu libc6 2.39-0ubuntu8.9 (amd64), unmodified"),
+      ("url:package", "https://launchpad.net/ubuntu/+archive/primary/+files/libc6_2.39-0ubuntu8.9_amd64.deb"),
+      ("package sha256", "ff5557d99b51f761c4b7c92368b9cc45565eda17df9bf9eb4b134d09825008be"),
+      ("fetch", "examples/elf/pin.sh --fetch (verifies the package and file hashes)"),
+      ("symbols", "stripped: .dynsym only (no .symtab, no debug information)"),
+      ("licence", "LGPL-2.1-or-later (NOTICES/glibc)"),
+      ("url:source", "https://launchpad.net/ubuntu/+source/glibc/2.39-0ubuntu8.9")] },
+  { slug := "glibc-libc", ns := `Silmaril.Elf.Staged.Pinned.GlibcLibc
+    title := "glibc 2.39 libc.so.6 (Ubuntu libc6 2.39-0ubuntu8.9, amd64)"
+    path := Pinned.GlibcLibc.path, sha256 := Pinned.GlibcLibc.sha256, size := Pinned.GlibcLibc.size
+    L := Pinned.GlibcLibc.L, bodies := Pinned.GlibcLibc.bodies, ld := Pinned.GlibcLibc.ld
+    provenance := [
+      ("package", "Ubuntu libc6 2.39-0ubuntu8.9 (amd64), unmodified"),
+      ("url:package", "https://launchpad.net/ubuntu/+archive/primary/+files/libc6_2.39-0ubuntu8.9_amd64.deb"),
+      ("package sha256", "ff5557d99b51f761c4b7c92368b9cc45565eda17df9bf9eb4b134d09825008be"),
+      ("fetch", "examples/elf/pin.sh --fetch (verifies the package and file hashes)"),
+      ("symbols", "stripped: .dynsym only (no .symtab, no debug information)"),
+      ("licence", "LGPL-2.1-or-later (NOTICES/glibc)"),
+      ("url:source", "https://launchpad.net/ubuntu/+source/glibc/2.39-0ubuntu8.9")] },
   { slug := "gnu-sha256sum", ns := `Silmaril.Elf.Staged.Pinned.Sha256sum
     title := "GNU coreutils 9.4 sha256sum (Ubuntu 9.4-3ubuntu6.3, amd64)"
     path := Pinned.Sha256sum.path, sha256 := Pinned.Sha256sum.sha256, size := Pinned.Sha256sum.size
@@ -169,7 +218,9 @@ partial def natLit? (e : Expr) : Option Nat :=
 /-- A list literal's elements. -/
 partial def listLit? (e : Expr) : Option (List Expr) :=
   let e := e.consumeMData
-  if e.isAppOfArity ``List.nil 1 then some []
+  -- long list literals elaborate to `have x := [..]; a :: b :: x`
+  if let .letE _ _ v b _ := e then listLit? (b.instantiate1 v)
+  else if e.isAppOfArity ``List.nil 1 then some []
   else if e.isAppOfArity ``List.cons 3 then
     (listLit? (e.getArg! 2)).map (e.getArg! 1 :: ·)
   else none
@@ -193,6 +244,8 @@ inductive Claim where
   | zeros (o n : Nat)
   | layout (L : Name)
   | parses (A : Expr)
+  /-- `CodeAt F v code ∧ …`: code at `v`, with a contract (`Pinned.*.Contracts`). -/
+  | contract (v : Nat) (code : Name)
 
 def Claim.ofType? (F : Name) (t : Expr) : Except String Claim := do
   let t := t.consumeMData
@@ -216,21 +269,29 @@ def Claim.ofType? (F : Name) (t : Expr) : Except String Claim := do
   else if t.isAppOfArity ``Silmaril.Elf.Parses 2 then
     fileIs (t.getArg! 0)
     pure (.parses (t.getArg! 1))
+  else if t.isAppOfArity ``And 2 && (t.getArg! 0).consumeMData.isAppOfArity `Silmaril.Elf.CodeAt 3 then
+    let c := (t.getArg! 0).consumeMData
+    fileIs (c.getArg! 0)
+    let (some v, some code) := (natLit? (c.getArg! 1), constName? (c.getArg! 2))
+      | throw "CodeAt with a non-literal address or code"
+    pure (.contract v code)
   else throw s!"unrecognised statement: {t}"
 
 /-- The role of a data constant: its place in the layout `L`, `bodies` or `ld`. -/
 inductive Role where
   | header | phdr (i : Nat) | shdr (i : Nat) | name (i : Nat) | body (i : Nat) | loader | layout
+  | symbol (sec i : Nat)
   deriving BEq, Repr
 
 def Role.label : Role → String
   | .header => "ELF header" | .phdr i => s!"program header {i}" | .shdr i => s!"section header {i}"
   | .name i => s!"section name {i}" | .body i => s!"section body {i}" | .loader => "loader view"
-  | .layout => "layout"
+  | .layout => "layout" | .symbol k i => s!"symbol {i} of section {k}"
 
 def Role.key : Role → String
   | .header => "header" | .phdr i => s!"phdr/{i}" | .shdr i => s!"shdr/{i}" | .name i => s!"name/{i}"
   | .body i => s!"body/{i}" | .loader => "loader" | .layout => "layout"
+  | .symbol k i => s!"sym/{k}/{i}"
 
 /-- Roles from the **definitions** of `L`, `bodies` and `ld` in the environment. -/
 def roles (env : Environment) (ns : Name) : Except String (List (Name × Role)) := do
@@ -253,7 +314,13 @@ def roles (env : Environment) (ns : Name) : Except String (List (Name × Role)) 
   let mut out : List (Name × Role) := [(hdr, .header), (ns ++ `ld, .loader), (ns ++ `L, .layout)]
   for (p, i) in phs.zipIdx do out := (p, .phdr i) :: out
   for ((h, n), i) in secNames.zipIdx do out := (h, .shdr i) :: (n, .name i) :: out
-  for (b, i) in bs.zipIdx do out := (b, .body i) :: out
+  for (b, i) in bs.zipIdx do
+    out := (b, .body i) :: out
+    -- a symbol table's body is `.symbols t [s₀, s₁, …]`: entry `j` is the constant `sⱼ`
+    let bv ← val b
+    if bv.isAppOfArity ``Silmaril.Elf.Body.symbols 2 then
+      let some es := (listLit? (bv.getArg! 1)).bind (·.mapM constName?) | throw s!"{b}: entries"
+      for (e, j) in es.zipIdx do out := (e, .symbol i j) :: out
   pure out
 
 /-! ## Native re-check of a claim (consistency of this tool with the statement) -/
@@ -304,6 +371,13 @@ def recheck (P : Pinned) (src : Silmaril.Elf.Check.Src) (role : Role) (ws : List
   | .layout =>
     ok (reader.isConstOf ``readLayout) "layout: reader is not readLayout"
     ok (readLayout.run w == some P.L) "layout: native run differs"
+  | .symbol k j =>
+    let some s := P.L.sections[k]? | throw s!"symbol {k}/{j}: no section"
+    let some strs := P.L.shs[s.header.link]? | throw s!"symbol {k}/{j}: no string table"
+    let some (.symbols _ es) := P.bodies[k]? | throw s!"symbol {k}/{j}: not a symbol table"
+    let o := s.header.offset + 24 * j
+    ok (reader.isAppOfArity ``Parse.symbol 2 && natLit? (arg 1) == some o) s!"symbol {k}/{j}: reader is not Parse.symbol at {o}"
+    ok ((Parse.symbol strs o).run w == es[j]?) s!"symbol {k}/{j}: native run differs"
 
 /-! ## Theorems of a module -/
 
@@ -313,37 +387,88 @@ structure Thm where
   role : Option Role
   axioms : Array Name
   line : Option Nat
+  module : Name
+  /-- The statement, pretty-printed (contract theorems only). -/
+  stmt : Option String := none
 
 def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+
+/-- **Axioms with one cache for all theorems** (`Lean.collectAxioms` starts a fresh cache per call,
+which revisits the shared dependencies of every theorem). The same traversal as
+`Lean.CollectAxioms.collect`, except that a result is cached only when it is complete: one that met
+a constant still being traversed further up (a cycle: an inductive type and its constructors, an
+unsafe recursive definition) is cached by that constant's own frame, not before. `theorems`
+checks the result against `Lean.collectAxioms` on a sample. Returns the axioms and the constants
+still in progress that the traversal met. -/
+partial def axiomsOf (env : Environment) (c : Name) :
+    StateM (Std.HashMap Name NameSet × NameSet) (NameSet × NameSet) := do
+  if let some r := (← get).1[c]? then return (r, {})
+  if (← get).2.contains c then return ({}, ({} : NameSet).insert c)
+  modify fun (m, p) => (m, p.insert c)
+  let deps (ds : Array Name) : StateM (Std.HashMap Name NameSet × NameSet) (NameSet × NameSet) :=
+    ds.foldlM (fun (acc, hit) d => do
+      let (a, h) ← axiomsOf env d
+      return (acc.union a, hit.union h)) ({}, {})
+  let ofExpr (e : Expr) := deps e.getUsedConstants
+  let both (x y : StateM (Std.HashMap Name NameSet × NameSet) (NameSet × NameSet)) := do
+    let (a, h) ← x
+    let (a', h') ← y
+    return (a.union a', h.union h')
+  let (r, hit) ← match env.find? c with
+    | some (.axiomInfo v) => do let (a, h) ← ofExpr v.type; pure (a.insert c, h)
+    | some (.defnInfo v) => both (ofExpr v.type) (ofExpr v.value)
+    | some (.thmInfo v) => both (ofExpr v.type) (ofExpr v.value)
+    | some (.opaqueInfo v) => both (ofExpr v.type) (ofExpr v.value)
+    | some (.quotInfo _) => pure ({}, {})
+    | some (.ctorInfo v) => ofExpr v.type
+    | some (.recInfo v) => ofExpr v.type
+    | some (.inductInfo v) => both (ofExpr v.type) (deps v.ctors.toArray)
+    | none => pure ({}, {})
+  let hit := hit.erase c
+  modify fun (m, p) => (if hit.isEmpty then m.insert c r else m, p.erase c)
+  pure (r, hit)
 
 def runCore {α : Type} (env : Environment) (x : CoreM α) : IO α := do
   let (a, _) ← x.toIO { fileName := "<elf-pages>", fileMap := default } { env }
   pure a
 
 def theorems (env : Environment) (P : Pinned) : IO (Array Thm) := do
-  let thmsMod := P.ns ++ `Thms
-  let some modIdx := env.getModuleIdx? thmsMod | throw (IO.userError s!"{thmsMod} not imported")
-  let rs ← IO.ofExcept (roles env P.ns)
+  let mods := [P.ns ++ `Thms, P.ns ++ `Functions, P.ns ++ `Contracts].filterMap env.getModuleIdx?
+  if mods.length < 2 then throw (IO.userError s!"{P.ns}.Thms/Functions not imported")
+  let rs : Std.HashMap Name Role := Std.HashMap.ofList (← IO.ofExcept (roles env P.ns))
   let F := P.ns ++ `F
   let mut out : Array Thm := #[]
+  let mut cache : Std.HashMap Name NameSet := {}
   for (n, ci) in env.constants.toList do
-    unless env.getModuleIdxFor? n == some modIdx do continue
+    unless (env.getModuleIdxFor? n).any mods.contains do continue
     let .thmInfo ti := ci | continue
     if n.isInternal then continue
     let claim ← match Claim.ofType? F ti.type with
       | .ok c => pure c
       | .error e => throw (IO.userError s!"{n}: {e}")
     let role := match claim with
-      | .part _ _ v => (rs.find? (·.1 == v)).map (·.2)
+      | .part _ _ v => rs[v]?
       | .layout _ => some .layout
       | _ => none
     if let .part _ _ v := claim then
       if role.isNone then throw (IO.userError s!"{n}: the value {v} is not a part of {P.ns}.L/bodies/ld")
-    let axioms ← runCore env (Lean.collectAxioms n)
+    let ((axs, _), cache') := (axiomsOf env n).run (cache, {})
+    cache := cache'.1
+    let axioms := axs.toArray.qsort Name.lt
+    -- the shared cache against Lean's own `collectAxioms`, on the first theorems of each module
+    if out.size < 3 || out.size % 1000 == 0 then
+      let lean := (← runCore env (Lean.collectAxioms n)).qsort Name.lt
+      unless lean == axioms do throw (IO.userError s!"{n}: axioms {axioms} but collectAxioms gives {lean}")
     let line ← runCore env do
       let r ← Lean.findDeclarationRanges? n
       pure (r.map (·.range.pos.line))
-    out := out.push { decl := n, claim, role, axioms, line }
+    let module := match env.getModuleIdxFor? n with
+      | some i => env.header.moduleNames[i.toNat]!
+      | none => .anonymous
+    let stmt ← match claim with
+      | .contract .. => some <$> runCore env (do return toString (← (Lean.Meta.ppExpr ti.type).run'))
+      | _ => pure none
+    out := out.push { decl := n, claim, role, axioms, line, module, stmt }
   pure (out.qsort fun a b => (a.line.getD 0) < (b.line.getD 0))
 
 /-! ## Coverage -/
@@ -397,11 +522,19 @@ def hexVal (s : String) : Option Nat :=
 
 /-- The listing's rows `(vaddr, offset, bytes, text, section, label)`; every row's bytes are checked
 against the file. -/
-def disassemble (P : Pinned) (bytes : ByteArray) : IO (Option Json) := do
+def disassemble (P : Pinned) (bytes : ByteArray) : IO (Option (Json × Array Json)) := do
   let path := listingPath P
-  unless ← System.FilePath.pathExists path do return none
-  let text ← IO.FS.readFile path
-  let lines := text.splitOn "\n"
+  let (lines, path) ← if ← System.FilePath.pathExists path then
+      pure ((← IO.FS.readFile path).splitOn "\n", path)
+    else
+      -- no committed listing (files over 512 KiB): run objdump now, if there is one
+      let some ver ← (do
+          let o ← IO.Process.output { cmd := "objdump", args := #["--version"] }
+          pure (if o.exitCode == 0 then (o.stdout.splitOn "\n").head? else none)) <|> pure none
+        | return none
+      let o ← IO.Process.output { cmd := "objdump", args := #["-d", "-w", "-z", P.path] }
+      if o.exitCode != 0 then throw (IO.userError s!"objdump failed: {o.stderr}")
+      pure (s!"# {ver}" :: s!"# objdump -d -w -z {P.path}" :: o.stdout.splitOn "\n", "(run when the pages were written)")
   let version := String.ofList ((lines.getD 0 "").toList.drop 2)
   let command := String.ofList ((lines.getD 1 "").toList.drop 2)
   unless command == s!"objdump -d -w -z {P.path}" do
@@ -435,24 +568,31 @@ def disassemble (P : Pinned) (bytes : ByteArray) : IO (Option Json) := do
           label := ""
       | _ => pure ()
   if bad != 0 then throw (IO.userError s!"{P.slug}: {bad} disassembled instructions do not match the file's bytes")
-  pure <| some <| Json.mkObj [
+  -- chunks of `chunkRows` rows (dis/SLUG/K.json), indexed by their first and last address
+  let chunkRows := 4000
+  let chunks := (List.range ((rows.size + chunkRows - 1) / chunkRows)).toArray.map fun k =>
+    rows.extract (k * chunkRows) ((k + 1) * chunkRows)
+  let firstAddr (c : Array Json) (i : Nat) : Json := ((c[i]?).bind fun r => (r.getArrVal? 0).toOption).getD Json.null
+  pure <| some <| (Json.mkObj [
     ("tool", js version), ("command", js command), ("listing", js path), ("unverified", true),
+    ("rows", jn rows.size),
+    ("chunks", Json.arr (chunks.mapIdx fun k c => Json.arr #[js s!"dis/{P.slug}/{k}.json", firstAddr c 0, firstAddr c (c.size - 1), jn c.size])),
     ("note", js "External disassembler output, not checked in Lean. Each row's bytes were compared with the file's bytes at its address; the decoding into an instruction (mnemonic, operands, length) is objdump's alone. That bytes look like code, or sit in an executable section, does not make them executed."),
-    ("sections", Json.arr secs),
-    ("rows", Json.arr rows)]
+    ("sections", Json.arr secs)], chunks.map Json.arr)
 
 /-! ## The page of a file -/
 
 def thmJson (P : Pinned) (t : Thm) : Json :=
   let kind := match t.claim with
-    | .part .. => "part" | .zeros .. => "zeros" | .layout _ => "layout" | .parses _ => "parses"
+    | .part .. => (match t.role with | some (.symbol ..) => "symbol" | _ => "part")
+    | .zeros .. => "zeros" | .layout _ => "layout" | .parses _ => "parses" | .contract .. => "contract"
   let ws := match t.claim with
     | .part ws _ _ => ws | .zeros o n => [⟨o, n⟩] | _ => []
   let kernelOnly := t.axioms.all (standardAxioms.contains ·)
   let status :=
     if t.axioms.contains ``sorryAx then "sorry"
     else if kernelOnly then "checked" else "checked-with-extra-axioms"
-  let modFile := (P.ns ++ `Thms).toString.replace "." "/" ++ ".lean"
+  let modFile := t.module.toString.replace "." "/" ++ ".lean"
   Json.mkObj [
     ("decl", js t.decl.toString), ("short", js (t.decl.replacePrefix P.ns .anonymous).toString),
     ("kind", js kind), ("part", match t.role with | some r => js r.key | none => Json.null),
@@ -460,11 +600,13 @@ def thmJson (P : Pinned) (t : Thm) : Json :=
       | some r => js r.label
       | none => js (match t.claim with
         | .zeros o n => s!"padding: {n} zero bytes at {hex o}" | .parses _ => "the parse of the whole file"
+        | .contract v _ => s!"code at {hex v} and its contract"
         | _ => kind)),
     ("windows", spansJson ws),
     ("axioms", Json.arr (t.axioms.map (js ·.toString))),
     ("kernelOnly", toJson kernelOnly), ("status", js status),
-    ("module", js (P.ns ++ `Thms).toString), ("file", js modFile),
+    ("module", js t.module.toString), ("file", js modFile),
+    ("statement", match t.stmt with | some x => js x | none => Json.null),
     ("line", match t.line with | some l => jn l | none => Json.null)]
 
 def segOf (L : Layout) (s : SectionHeader) : List Nat :=
@@ -498,6 +640,83 @@ def bodyJson : Body → Json
   | .notes ns => Json.mkObj [("count", jn ns.length), ("notes", Json.arr (ns.toArray.map fun n =>
       Json.mkObj [("name", js (nameStr n.name)), ("type", jn n.type), ("desc", spansJson [n.desc])]))]
   | .null | .noBits => Json.mkObj []
+
+/-! ## Functions -/
+
+/-- The version name of entry `i` of the dynamic symbol table (`.gnu.version`, then `.gnu.version_d`
+or `.gnu.version_r`), with `@@` for the default version and `@` for a hidden one. -/
+def versionOf (P : Pinned) (i : Nat) : Option String := do
+  let vs ← P.bodies.findSome? fun | .versym es => some es | _ => none
+  let raw ← vs[i]?
+  let ndx := raw % 0x8000
+  if ndx ≤ 1 then none
+  let sep := if raw ≥ 0x8000 then "@" else "@@"
+  let defs := P.bodies.flatMap fun | .verdef es => es | _ => []
+  let needs := P.bodies.flatMap fun | .verneed es => es.flatMap (·.aux) | _ => []
+  match defs.find? (·.ndx == ndx) with
+  | some d => (d.names.head?).map fun n => sep ++ nameStr n
+  | none => (needs.find? (·.other == ndx)).map fun a => "@" ++ nameStr a.name
+
+/-- **The function table**: one row per `STT_FUNC`/`STT_GNU_IFUNC` entry of a symbol table. A row is
+what the symbol table says (its theorem: `Pinned.*.Functions.sym_K_I`), with what follows from the
+layout: the segment and section holding `[value, value + size)`, the file offset, aliases and
+overlaps. A row with `size = 0` has an **unknown extent**; an `IFUNC` row is a resolver, not the
+function chosen at load time; an undefined row is an import. -/
+def functions (P : Pinned) (thms : Array Thm) : Array Json := Id.run do
+  let L := P.L
+  let symThm : Std.HashMap (Nat × Nat) Thm := thms.foldl (fun m t =>
+    match t.role with | some (.symbol k i) => m.insert (k, i) t | _ => m) {}
+  let contracts := thms.filterMap fun t => match t.claim with | .contract v _ => some (v, t) | _ => none
+  let mut rows : Array (Nat × Nat × ObjectSymbol × String) := #[]
+  for (sec, k) in L.sections.zipIdx do
+    if let some (.symbols tab es) := P.bodies[k]? then
+      for (e, i) in es.zipIdx do
+        let ty := e.raw.info % 16
+        if ty == 2 || ty == 10 then
+          rows := rows.push (k, i, e, if tab == .symtab then "symtab" else "dynsym")
+      let _ := sec
+  let defined := rows.filter fun (_, _, e, _) => e.raw.sectionIndex != 0
+  let mut out : Array Json := #[]
+  for (k, i, e, tab) in rows do
+    let v := e.raw.value
+    let n := e.raw.size
+    let undef := e.raw.sectionIndex == 0
+    let abs := e.raw.sectionIndex == 0xfff1
+    let ifunc := e.raw.info % 16 == 10
+    let load := L.phdrs.zipIdx.find? fun (ph, _) =>
+      ph.kind == PT_LOAD && ph.virtualAddress ≤ v && v < ph.virtualAddress + ph.memorySize
+    let inFile := load.bind fun (ph, _) => if v < ph.virtualAddress + ph.fileSize then some (v - ph.virtualAddress + ph.offset) else none
+    let owner := L.sections.zipIdx.find? fun (s, _) =>
+      s.header.flags &&& 2 != 0 && s.header.address ≤ v && v < s.header.address + s.header.size
+    let extent : String :=
+      if undef then "import (undefined here)"
+      else if abs then "absolute symbol"
+      else if n == 0 then "unknown (st_size = 0)"
+      else match load with
+        | some (ph, _) => if v + n ≤ ph.virtualAddress + ph.fileSize then "known (st_value, st_size)" else "exceeds the segment's file bytes"
+        | none => "not in a PT_LOAD"
+    let aliases := (defined.filter fun (k', i', e', _) => (k', i') != (k, i) && e'.raw.value == v && !undef && v != 0).map fun (_, _, e', _) => nameStr e'.name
+    let overlaps := if undef || n == 0 then #[] else
+      (defined.filter fun (_, _, e', _) => e'.raw.size != 0 && e'.raw.value != v &&
+        e'.raw.value < v + n && v < e'.raw.value + e'.raw.size).map fun (_, _, e', _) => nameStr e'.name
+    let ver := if tab == "dynsym" then versionOf P i else none
+    let thm := symThm[(k, i)]?
+    let linked := if undef || n == 0 then #[] else
+      (contracts.filter fun (cv, _) => cv == v).map fun (_, t) => js t.decl.toString
+    out := out.push <| Json.mkObj [
+      ("table", js tab), ("sec", jn k), ("idx", jn i), ("name", js (nameStr e.name)),
+      ("version", match ver with | some x => js x | none => Json.null),
+      ("type", js (symType e.raw.info)), ("bind", js (symBind e.raw.info)), ("visibility", jn (e.raw.other % 4)),
+      ("shndx", jn e.raw.sectionIndex), ("value", jn v), ("size", jn n),
+      ("defined", toJson (!undef)), ("ifunc", toJson ifunc), ("extent", js extent),
+      ("offset", match inFile with | some o => jn o | none => Json.null),
+      ("segment", match load with | some (_, j) => jn j | none => Json.null),
+      ("segmentFlags", match load with | some (ph, _) => js (pflags ph.flags) | none => Json.null),
+      ("section", match owner with | some (s, _) => js (nameStr s.name) | none => Json.null),
+      ("aliases", toJson aliases), ("overlaps", toJson overlaps),
+      ("theorem", match thm with | some t => js t.decl.toString | none => Json.null),
+      ("contracts", Json.arr linked)]
+  out
 
 def page (P : Pinned) (thms : Array Thm) (dis : Option Json) : Json := Id.run do
   let L := P.L
@@ -558,19 +777,21 @@ def page (P : Pinned) (thms : Array Thm) (dis : Option Json) : Json := Id.run do
       ("dynamic", Json.arr (P.ld.dynamic.toArray.map fun d => Json.arr #[jn d.tag, js (dtName d.tag), jn d.val])),
       ("theorem", thmFor .loader)]),
     ("symbols", Json.arr syms),
+    ("functions", Json.arr (functions P thms)),
     ("theorems", Json.arr (thms.map (thmJson P))),
     ("coverage", Json.arr (runs cov)),
     ("coverageSummary", Json.mkObj ((List.range classNames.size).map fun k => (classNames[k]!, jn (count k)))),
     ("unsupported", toJson unsupported),
     ("disassembly", match dis with
       | some _ => Json.mkObj [("file", js s!"dis/{P.slug}.json")]
-      | none => Json.mkObj [("file", Json.null), ("note", js s!"no listing at {listingPath P}")])]
+      | none => Json.mkObj [("file", Json.null), ("note", js s!"no listing at {listingPath P}, and no objdump when the pages were written")])]
 
 /-! ## Driver -/
 
 def loadEnv : IO Environment := do
   Lean.initSearchPath (← Lean.findSysroot)
-  importModules (pinned.toArray.map fun P => { module := P.ns ++ `Thms }) {}
+  importModules (pinned.toArray.flatMap fun P => #[{ module := P.ns ++ `Thms }, { module := P.ns ++ `Functions }] ++
+    (if P.slug == "zlib-checksums" then #[{ module := P.ns ++ `Contracts }] else #[])) {}
 
 def generate : IO (List (String × Json) × List (String × ByteArray)) := do
   let env ← loadEnv
@@ -593,46 +814,102 @@ def generate : IO (List (String × Json) × List (String × ByteArray)) := do
           throw (IO.userError s!"{t.decl}: bytes not zero")
       | _, _ => pure ()
     let dis ← disassemble P bytes
-    let pg := page P thms dis
+    let pg := page P thms (dis.map (·.1))
     files := files ++ [(s!"f/{P.slug}.json", pg)]
-    if let some d := dis then files := files ++ [(s!"dis/{P.slug}.json", d)]
+    if let some (d, cs) := dis then
+      files := files ++ [(s!"dis/{P.slug}.json", d)] ++ (cs.mapIdx fun k c => (s!"dis/{P.slug}/{k}.json", c)).toList
     blobs := blobs ++ [(s!"blob/{P.slug}.bin", bytes)]
     index := index.push (Json.mkObj [("slug", js P.slug), ("title", js P.title), ("path", js P.path),
       ("size", jn P.size), ("sha256", js P.sha256), ("module", js P.ns.toString),
       ("type", (pg.getObjValD "header").getObjValD "type"), ("machine", (pg.getObjValD "header").getObjValD "machine"),
       ("sections", jn P.L.sections.length), ("segments", jn P.L.phdrs.length), ("theorems", jn thms.size),
+      ("functions", jn ((pg.getObjValD "functions").getArr?.toOption.map (·.size) |>.getD 0)),
       ("kernelOnly", toJson (thms.all fun t => t.axioms.all (standardAxioms.contains ·))),
       ("coverageSummary", pg.getObjValD "coverageSummary")])
   pure (("index.json", Json.mkObj [("schema", js "silmaril.elf-pages.v1"), ("files", Json.arr index)]) :: files, blobs)
+
+def write (out : String) (files : List (String × Json)) (blobs : List (String × ByteArray)) : IO Unit := do
+  for (rel, j) in files do
+    let p := System.FilePath.mk out / "elf" / rel
+    if let some d := p.parent then IO.FS.createDirAll d
+    IO.FS.writeFile p j.compress
+  for (rel, b) in blobs do
+    let p := System.FilePath.mk out / "elf" / rel
+    if let some d := p.parent then IO.FS.createDirAll d
+    IO.FS.writeBinFile p b
+
+/-- The files under `out/elf` that differ from the generated ones. -/
+def differences (out : String) (files : List (String × Json)) (blobs : List (String × ByteArray)) :
+    IO (List String) := do
+  let mut bad := []
+  for (rel, j) in files do
+    let p := System.FilePath.mk out / "elf" / rel
+    let ok ← (do pure (match Json.parse (← IO.FS.readFile p) with | .ok g => g == j | .error _ => false)) <|> pure false
+    unless ok do bad := bad ++ [p.toString]
+  for (rel, b) in blobs do
+    let p := System.FilePath.mk out / "elf" / rel
+    let ok ← (do pure ((← IO.FS.readBinFile p) == b)) <|> pure false
+    unless ok do bad := bad ++ [p.toString]
+  pure bad
+
+/-- Edits of the explorer data that `--verify` must reject: each moves a byte range, re-associates a
+theorem with another part or function, widens a coverage class, hides axioms or links a contract to
+another function. -/
+def tampers : List (String × String × (Json → Json)) :=
+  let modArr (f : Array Json → Array Json) (key : String) (j : Json) : Json :=
+    match j.getObjValD key with
+    | .arr a => j.setObjVal! key (.arr (f a))
+    | _ => j
+  let modFirst (pred : Json → Bool) (g : Json → Json) (a : Array Json) : Array Json :=
+    match a.findIdx? pred with
+    | some i => a.modify i g
+    | none => a
+  let part (k : String) (t : Json) := t.getObjValD "part" == Json.str k
+  [("window moved", "f/gnu-sha256sum.json", modArr (modFirst (part "phdr/3") fun t =>
+      t.setObjVal! "windows" (Json.arr #[Json.arr #[jn 288, jn 56]])) "theorems"),
+   ("theorem re-associated", "f/gnu-sha256sum.json", modArr (modFirst (part "phdr/3") fun t =>
+      t.setObjVal! "part" (js "phdr/4")) "theorems"),
+   ("coverage widened", "f/gnu-sha256sum.json", modArr (modFirst
+      (fun r => match r with | .arr x => x[2]? == some (js "raw") | _ => false)
+      (fun r => match r with | .arr x => .arr (x.set! 2 (js "decoded")) | r => r)) "coverage"),
+   ("axioms hidden", "f/glibc-libc.json", modArr (fun a => a.modify 0 fun t => t.setObjVal! "axioms" (Json.arr #[])) "theorems"),
+   ("function row given another theorem", "f/zlib-libz.json", modArr (fun a => a.modify 1 fun r =>
+      r.setObjVal! "theorem" ((a[2]?.map (·.getObjValD "theorem")).getD Json.null)) "functions"),
+   ("contract linked to another function", "f/zlib-checksums.json", modArr (modFirst
+      (fun r => r.getObjValD "name" == Json.str "crc32_z") fun r =>
+        r.setObjVal! "contracts" (Json.arr #[js "Silmaril.Elf.Staged.Pinned.ZlibChecksums.adler32_z_contract"])) "functions")]
 
 def main (args : List String) : IO UInt32 := do
   match args with
   | [out] =>
     let (files, blobs) ← generate
-    for (rel, j) in files do
-      let p := System.FilePath.mk out / "elf" / rel
-      if let some d := p.parent then IO.FS.createDirAll d
-      IO.FS.writeFile p j.compress
-    for (rel, b) in blobs do
-      let p := System.FilePath.mk out / "elf" / rel
-      if let some d := p.parent then IO.FS.createDirAll d
-      IO.FS.writeBinFile p b
+    write out files blobs
     IO.println s!"elf-pages: wrote {files.length + blobs.length} files under {out}/elf"
     pure 0
   | ["--verify", out] =>
     let (files, blobs) ← generate
-    let mut bad := 0
-    for (rel, j) in files do
+    let bad ← differences out files blobs
+    for p in bad do IO.eprintln s!"elf-pages: {p} differs from the checked theorems"
+    if bad.isEmpty then IO.println "elf-pages: verified"; pure 0 else pure 1
+  | ["--self-test", out] =>
+    -- one generation: write, verify, then each edit must be rejected
+    let (files, blobs) ← generate
+    write out files blobs
+    unless (← differences out files blobs).isEmpty do
+      IO.eprintln "elf-pages --self-test: freshly written pages differ"; return 1
+    let mut failed := 0
+    for (what, rel, edit) in tampers do
+      let some (_, j) := files.find? (·.1 == rel) | IO.eprintln s!"no {rel}"; return 1
       let p := System.FilePath.mk out / "elf" / rel
-      let got ← IO.FS.readFile p
-      match Json.parse got with
-      | .ok g => if g != j then IO.eprintln s!"elf-pages: {p} differs from the checked theorems"; bad := bad + 1
-      | .error e => IO.eprintln s!"elf-pages: {p}: {e}"; bad := bad + 1
-    for (rel, b) in blobs do
-      let p := System.FilePath.mk out / "elf" / rel
-      if (← IO.FS.readBinFile p) != b then IO.eprintln s!"elf-pages: {p} differs"; bad := bad + 1
-    if bad == 0 then IO.println "elf-pages: verified"; pure 0 else pure 1
-  | _ => IO.eprintln "usage: elf-pages OUTDIR | elf-pages --verify OUTDIR"; pure 2
+      let j' := edit j
+      if j' == j then IO.eprintln s!"elf-pages --self-test: edit '{what}' changed nothing"; failed := failed + 1
+      IO.FS.writeFile p j'.compress
+      if (← differences out files blobs).isEmpty then
+        IO.eprintln s!"elf-pages --self-test: --verify accepted a tampered page ({what})"; failed := failed + 1
+      IO.FS.writeFile p j.compress
+    unless (← differences out files blobs).isEmpty do failed := failed + 1
+    if failed == 0 then IO.println s!"elf-pages --self-test: ok ({tampers.length} edits rejected)"; pure 0 else pure 1
+  | _ => IO.eprintln "usage: elf-pages OUTDIR | elf-pages --verify OUTDIR | elf-pages --self-test OUTDIR"; pure 2
 
 end ElfPages
 
