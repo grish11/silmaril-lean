@@ -100,6 +100,12 @@ def parsePrefix? (s : String) : Option (Datum × String) :=
   | some (e, r) => if Valid e then some (e, String.ofList r) else none
   | none => none
 
+/-- Read a document: data separated by atmosphere, each valid. -/
+def parseAll? (s : String) : Option (List Datum) :=
+  match readAll lexer s.toList with
+  | some es => if es.all (Valid ·) then some es else none
+  | none => none
+
 /-- Print a well-formed datum. -/
 def print (e : Datum) : String := String.ofList (SExpReader.print syntaxNotation text e)
 
