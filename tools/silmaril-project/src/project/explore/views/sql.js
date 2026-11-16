@@ -32,6 +32,7 @@ const TABLE_DOCS = {
   logic_pending: "Logic families with Lean developments not in this repository yet: title, institution and map counts, status. Nothing in them is registered or claimed.",
   logic_catalogue: "The curated catalogue the logic-graph port started from (137 logics, 158 maps), entry by entry: status (registered, represented, not institution-typed, prospective), the registered records that hold it, the Lean evidence declarations and the reason.",
   logic_catalogue_summary: "View: catalogue entries per entry kind and status.",
+  logic_exclusions: "What the logic graph leaves out: unregistrable declarations with their exact reasons, modules that depend on tool-generated fixtures, and the parts of the source developments outside the institution graph, with counts.",
   logic_edges: "View: every logic-graph edge (comorphism, morphism, corridor) with its level, endpoints and number of facts.",
   logic_nodes: "View: every logic-graph node (institution or room) with its degree.",
   logic_coverage: "View: per audited kind and layer, how many declarations there are, how many are closed, generic (constructions over arbitrary institutions), registered, omitted, and omitted generic constructions.",

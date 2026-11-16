@@ -119,6 +119,9 @@ try {
     check(catRows.filter((r) => r[3] === "not-institution-typed").every((r) => r[6].length > 0), "every entry that is not institution-typed says why");
     check(catRows.filter((r) => r[3] === "registered").every((r) => r[4].length > 0), "every registered entry names its records");
   }
+  const exRows = await rows("#lg-exclusions");
+  check(exRows.length > 0 && exRows.every((r) => r[3].length > 0), `coverage: what the graph leaves out, each with a reason (${exRows.length})`);
+  check(["unregistrable-declaration", "fixture-dependent", "out-of-scope"].every((c) => exRows.some((r) => r[0] === c)), "all three exclusion categories are listed");
   check(/Logic families not yet in this repository/.test(cov) && (/pending-port|in-review/.test(cov) || /None listed/.test(cov)),
     "coverage: the pending families (or that none is listed)");
   await shot("logic-coverage");

@@ -309,6 +309,17 @@ CREATE TABLE logic_catalogue(
   module TEXT NOT NULL,
   origin TEXT NOT NULL
 );
+CREATE TABLE logic_exclusions(
+  name TEXT NOT NULL PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL CHECK(category IN ('unregistrable-declaration','fixture-dependent','out-of-scope')),
+  decls TEXT NOT NULL,
+  modules TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL
+);
 CREATE TABLE machines(
   sid TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -694,6 +705,7 @@ INSERT INTO hets_comorphisms(name, hets_name, hets_from, hets_to, flag, hets_fil
 INSERT INTO logic_pending(name, title, nodes, edges, status, doc, module, origin) VALUES('pending.smt', 'SMT-LIB theories', 26, 23, 'pending-port', NULL, 'LG', 'local');
 INSERT INTO logic_catalogue(name, catalogue_id, title, entry, status, records, evidence, reason, module, origin) VALUES('catalogue.edge.pending', 'pending', 'A prospective map', 'edge', 'prospective', '[]', '[]', 'no Lean declaration', 'LG', 'local');
 INSERT INTO logic_catalogue(name, catalogue_id, title, entry, status, records, evidence, reason, module, origin) VALUES('catalogue.node.pl', 'pl', 'Propositional logic', 'node', 'registered', '["institution:lg.pl"]', '["LG.PL.inst"]', NULL, 'LG', 'local');
+INSERT INTO logic_exclusions(name, title, category, decls, modules, count, reason, module, origin) VALUES('exclusion.fixtures.demo', 'Demo fixtures', 'fixture-dependent', '[]', '["LG.A","LG.B"]', 2, 'reads generated fixtures', 'LG', 'local');
 INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 0, 'type');
 INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 1, 'L');
 INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 2, 'mu');

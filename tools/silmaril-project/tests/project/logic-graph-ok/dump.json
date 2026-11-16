@@ -175,6 +175,20 @@
    "records": [],
    "evidence": [],
    "reason": "no Lean declaration"
+  },
+  {
+   "kind": "logic_exclusion",
+   "name": "exclusion.fixtures.demo",
+   "module": "LG",
+   "title": "Demo fixtures",
+   "category": "fixture-dependent",
+   "decls": [],
+   "modules": [
+    "LG.A",
+    "LG.B"
+   ],
+   "count": 2,
+   "reason": "reads generated fixtures"
   }
  ],
  "problems": [],

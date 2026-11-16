@@ -454,4 +454,29 @@ def catalogueStatuses : List String :=
         | _ => throwError "silmaril {kind}: record {s.quote} is not `kind:name`"
     return #[(name, fs)]
 
+/-- The categories of what the logic graph leaves out. -/
+def exclusionCategories : List String :=
+  ["unregistrable-declaration", "fixture-dependent", "out-of-scope"]
+
+/-- `silmaril logic_exclusion N (category := …) (decls := […]) (modules := […]) (count := n)
+(reason := …)`: something the logic graph leaves out, and why. Lean checks that every listed
+declaration exists and that no record registers it. -/
+@[silmaril_kind logic_exclusion] def logicExclusionHandler : Handler where
+  run? := some fun kind name? fs => liftTermElabM do
+    let name ← needName kind name?
+    let env ← getEnv
+    let some (.str c) := fs.get? "category" | throwError "silmaril {kind}: `category` is required"
+    unless exclusionCategories.contains c do
+      throwError "silmaril {kind}: category {c.quote} is not one of {exclusionCategories}"
+    if let some (.arr ds) := fs.get? "decls" then
+      let registered := (records env).filterMap fun r =>
+        if (logicKindHead r.kind).isSome then r.str? "decl" else none
+      for d in ds do
+        let .str s := d | throwError "silmaril {kind}: `decls` is a list of declarations"
+        unless env.contains s.toName do
+          throwError "silmaril {kind}: {s} is not a declaration of the environment"
+        if registered.contains s then
+          throwError "silmaril {kind}: {s} is registered, so it is not excluded"
+    return #[(name, fs)]
+
 end Silmaril.Project

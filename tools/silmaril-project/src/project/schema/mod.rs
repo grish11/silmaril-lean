@@ -97,6 +97,7 @@ pub enum Record {
     HetsComorphism(HetsComorphism),
     LogicPending(LogicPending),
     LogicCatalogue(LogicCatalogue),
+    LogicExclusion(LogicExclusion),
     Machine(Box<Machine>),
     MachineBinding(MachineBinding),
     LanguageDomain(LanguageDomain),
@@ -154,6 +155,7 @@ record_kinds! {
     HetsComorphism = "hets_comorphism", key name, object None;
     LogicPending = "logic_pending", key name, object None;
     LogicCatalogue = "logic_catalogue", key name, object None;
+    LogicExclusion = "logic_exclusion", key name, object None;
     Machine = "machine", key name, object Some("machine");
     MachineBinding = "machine_binding", key name, object None;
     LanguageDomain = "language_domain", key name, object Some("language_domain");
@@ -458,6 +460,7 @@ pub fn tables() -> Vec<TableInfo> {
         info::<HetsComorphism>(),
         info::<LogicPending>(),
         info::<LogicCatalogue>(),
+        info::<LogicExclusion>(),
         info::<Machine>(),
         info::<MachineBinding>(),
         info::<LanguageDomain>(),

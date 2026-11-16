@@ -274,6 +274,30 @@ table! {
     }
 }
 
+/// The categories of `logic_exclusion` (Lean's `exclusionCategories`).
+pub const EXCLUSION_CATEGORIES: [&str; 3] = [
+    "unregistrable-declaration",
+    "fixture-dependent",
+    "out-of-scope",
+];
+
+table! {
+    /// What the logic graph leaves out (`silmaril/logic-graph/exclusions.toml`): a `category`, the
+    /// declarations (`decls`, JSON; Lean checked they exist and are not registered) or modules
+    /// (`modules`, JSON) concerned, how many (`count`) and the `reason`.
+    LogicExclusion = "logic_exclusions", key("name") {
+        name: String = "TEXT NOT NULL",
+        title: String = "TEXT NOT NULL",
+        category: String = "TEXT NOT NULL CHECK(category IN ('unregistrable-declaration','fixture-dependent','out-of-scope'))",
+        #[serde(default)] decls: serde_json::Value = "TEXT NOT NULL",
+        #[serde(default)] modules: serde_json::Value = "TEXT NOT NULL",
+        count: i64 = "INTEGER NOT NULL",
+        reason: String = "TEXT NOT NULL",
+        module: String = "TEXT NOT NULL",
+        #[serde(skip)] origin: String = "TEXT NOT NULL",
+    }
+}
+
 /// The views of the logic graph:
 /// * `logic_edges`: every edge with its kind, endpoints and level (`institution` or `room`), and
 ///   how many facts it has;

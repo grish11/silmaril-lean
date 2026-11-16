@@ -210,6 +210,32 @@ pub(super) fn follow<'a>(
                 logic_fact_check("corridor", &x.facts, &at, o);
             }
             Record::LogicCatalogue(c) => catalogue_check(c, &at, &mut refs, o),
+            Record::LogicExclusion(x) => {
+                if !EXCLUSION_CATEGORIES.contains(&x.category.as_str()) {
+                    o.error(
+                        &at,
+                        format!(
+                            "category {:?} is not one of {}",
+                            x.category,
+                            EXCLUSION_CATEGORIES.join(", ")
+                        ),
+                    );
+                }
+                let n = |v: &serde_json::Value| v.as_array().map_or(0, Vec::len) as i64;
+                let listed = n(&x.decls) + n(&x.modules);
+                if listed > 0 && listed != x.count {
+                    o.error(
+                        &at,
+                        format!(
+                            "count {} but {listed} declarations or modules are listed",
+                            x.count
+                        ),
+                    );
+                }
+                if x.reason.trim().is_empty() {
+                    o.error(&at, "an exclusion needs a reason");
+                }
+            }
             Record::LogicAudit(a) => {
                 if let Some(r) = &a.registered {
                     let k: &'static str = match a.object.as_str() {

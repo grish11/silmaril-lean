@@ -309,6 +309,17 @@ CREATE TABLE logic_catalogue(
   module TEXT NOT NULL,
   origin TEXT NOT NULL
 );
+CREATE TABLE logic_exclusions(
+  name TEXT NOT NULL PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL CHECK(category IN ('unregistrable-declaration','fixture-dependent','out-of-scope')),
+  decls TEXT NOT NULL,
+  modules TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL
+);
 CREATE TABLE machines(
   sid TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,

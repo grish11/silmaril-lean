@@ -854,6 +854,63 @@
         ]
       }
     },
+    "logic_exclusion": {
+      "description": "Something the logic graph leaves out, and why",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The record's name"
+          },
+          "title": {
+            "type": "string",
+            "description": "What is left out"
+          },
+          "category": {
+            "type": "string",
+            "description": "unregistrable-declaration, fixture-dependent or out-of-scope"
+          },
+          "decls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The declarations concerned"
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The modules concerned"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "category",
+          "count",
+          "reason"
+        ]
+      }
+    },
     "machine": {
       "description": "A machine document (`Silmaril.Automata.Document`): states, labels, edges and marking layers; Lean defines the constant `<name>` and fills `decl`, `deterministic` and `canonical`",
       "type": "array",
@@ -2102,6 +2159,47 @@
             "reason": {
               "type": "string",
               "description": "Why it is not a registered record"
+            }
+          }
+        },
+        "logic_exclusion": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "title": {
+              "type": "string",
+              "description": "What is left out"
+            },
+            "category": {
+              "type": "string",
+              "description": "unregistrable-declaration, fixture-dependent or out-of-scope"
+            },
+            "decls": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The declarations concerned"
+            },
+            "modules": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The modules concerned"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "How many"
+            },
+            "reason": {
+              "type": "string",
+              "description": "Why"
             }
           }
         },

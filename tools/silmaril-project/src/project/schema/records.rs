@@ -389,6 +389,23 @@ pub const RECORD_KINDS: &[KindSpec] = &[
         ],
     },
     KindSpec {
+        kind: "logic_exclusion",
+        doc: "Something the logic graph leaves out, and why",
+        keys: &[
+            req("name", Ty::Name, "The record's name"),
+            req("title", Ty::Text, "What is left out"),
+            req(
+                "category",
+                Ty::Text,
+                "unregistrable-declaration, fixture-dependent or out-of-scope",
+            ),
+            opt("decls", Ty::Texts, "The declarations concerned"),
+            opt("modules", Ty::Texts, "The modules concerned"),
+            req("count", Ty::Count, "How many"),
+            req("reason", Ty::Text, "Why"),
+        ],
+    },
+    KindSpec {
         kind: "machine",
         doc: "A machine document (`Silmaril.Automata.Document`): states, labels, edges and \
               marking layers; Lean defines the constant `<name>` and fills `decl`, \

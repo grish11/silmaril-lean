@@ -25,6 +25,11 @@ proofs, family of institutions or theorem), or prospective (no Lean declaration)
 (`logic_catalogue`, `Silmaril.Project.Registry.Institution.Defs`) that every evidence declaration
 exists, which is why this module imports the modules that declare them, and that every record named
 is registered. The explorer shows the entries on its Coverage page.
+
+`silmaril/logic-graph/exclusions.toml` lists what the graph leaves out (`logic_exclusion`):
+unregistrable declarations with their exact reasons, modules that depend on tool-generated
+fixtures, and the parts of the source developments outside the institution graph.
 -/
 
 silmaril load "silmaril/logic-graph/catalogue.toml"
+silmaril load "silmaril/logic-graph/exclusions.toml"
