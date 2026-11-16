@@ -9,6 +9,11 @@ Given a runtime model `R` and a specification `φ` (from an interface: a profile
 or exit-status contract), which images satisfy `φ` when started under `R`? The baseline answer
 is semantic and always exists:
 
+**Raw and verified forms.** `pre`, `Sufficient`, `SufficientIn` and `Expressive` are about raw
+satisfaction of `φ`: they exclude undefined behaviour only if `φ` does. Only `vpre`, `wlp`, `wp`,
+`VSufficient` and `VSufficientIn` build in "no undefined behaviour"; every user-facing checked
+obligation (`Silmaril.Containers.Check`, the fixtures' checkers) uses them.
+
 * `pre R φ i`: every run of the image `i` under `R` satisfies `φ`. It is the **weakest**
   precondition in the semantic sense: it is sufficient, and every sufficient predicate implies
   it (`Thms.pre_weakest`). For flat images `i` is the contents (`Flat C`), so `pre R φ` is a
@@ -64,8 +69,14 @@ undefined behaviour, every run exits, and `post` holds. -/
 def wp (R : Runtime I P E) (post : List E → UInt8 → Prop) : I → Prop :=
   vpre R (Spec.totalCorrect post)
 
-/-- `Q` is a **sufficient precondition** for `φ` under `R`. -/
+/-- `Q` is a **sufficient precondition** for `φ` under `R`, **in the raw sense**: it implies
+`pre R φ`, which does not exclude undefined behaviour unless `φ` does. Checked obligations use
+`VSufficient`. -/
 def Sufficient (R : Runtime I P E) (Q : I → Prop) (φ : Spec E) : Prop := ∀ i, Q i → pre R φ i
+
+/-- `Q` is a **verified sufficient precondition** for `φ` under `R`: it implies the
+verification precondition `vpre R φ` (no undefined behaviour, and `φ`). -/
+def VSufficient (R : Runtime I P E) (Q : I → Prop) (φ : Spec E) : Prop := ∀ i, Q i → vpre R φ i
 
 /-- The image has at least one run under `R`. -/
 def Feasible (R : Runtime I P E) (i : I) : Prop := ∃ b, R.beh i b
@@ -88,6 +99,11 @@ semantic precondition. -/
 structure SufficientIn (L : Assertions I) (R : Runtime I P E) (φ : Spec E) where
   pre : L.F
   sound : ∀ i, L.den pre i → Silmaril.Containers.pre R φ i
+
+/-- **A concrete verified sufficient precondition** in `L`: a formula and a proof that it implies
+the verification precondition `vpre R φ`. User-facing checked obligations are of this form. -/
+abbrev VSufficientIn (L : Assertions I) (R : Runtime I P E) (φ : Spec E) : Type :=
+  SufficientIn L R fun b => Spec.noUB b ∧ φ b
 
 /-- Decidable predicates on images, as an assertion language (checkers). -/
 def Assertions.bool (I : Type) : Assertions I := ⟨I → Bool, fun f i => f i = true⟩

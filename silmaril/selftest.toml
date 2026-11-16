@@ -50,7 +50,22 @@ children = ["silmaril.selftest.truth", "silmaril.selftest.small", "silmaril.self
   "silmaril.selftest.hello.six", "silmaril.selftest.square", "silmaril.selftest.hello.six_row",
   "silmaril.selftest.formats", "silmaril.shapes", "silmaril.sysv_tv.max2",
   "silmaril.compiles_to.all", "silmaril.selftest.languages", "formats.examples",
-  "formats.catalogue", "silmaril.selftest.consequence", "silmaril.selftest.wasm_acceptors"]
+  "formats.catalogue", "silmaril.selftest.consequence", "silmaril.selftest.wasm_acceptors",
+  "containers"]
+
+# The container shapes and the instances over the minimal machine (docs/projects/containers.md).
+[[group]]
+name = "containers"
+title = "Containers: verified obligations (no undefined behaviour) over runtime models"
+children = ["silmaril.shapes.containers.vpre", "silmaril.shapes.containers.wlp",
+  "silmaril.shapes.containers.wp", "silmaril.shapes.containers.vsufficient",
+  "silmaril.shapes.containers.checker_sound", "silmaril.shapes.containers.preserves_ub",
+  "silmaril.shapes.containers.seq_agrees", "silmaril.shapes.containers.monitor_correct",
+  "containers.mini.hello_wp", "containers.mini.thread_spawn_wlp",
+  "containers.mini.thread_spawn_wlp_assume_no_ub", "containers.mini.tcp_then_thread_wlp_enforce",
+  "containers.mini.no_ub_check_sound", "containers.mini.restrict_preserves_ub",
+  "containers.monitor_correct_stdio", "containers.mini.vsys_sound_raw",
+  "containers.mini.raw_sound_vsys", "containers.mini.check_sound_vsys"]
 
 [[group]]
 name = "silmaril.selftest.formats"

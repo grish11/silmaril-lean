@@ -25,15 +25,25 @@ loader, the machine and what the runtime adds; `MachRuntime.toRuntime` is the ru
 compositional and exact: the runs of an image are the loader's refusal, or the machine's runs of
 the loaded program transformed by what the runtime adds (`Thms.MachRuntime.beh_iff`).
 
-**Runs** (`MachineSem.Run`), from an initial state and a finite execution of `ev` and `tau`
+**Clone policies.** What a run does at a task-creation request is a parameter of the run
+semantics (`ClonePolicy`), not of the machine: `seqPolicy` ends the run in undefined behaviour
+(the sequential reading, `MachineSem.runs`); `machinePolicy` makes the request an internal step,
+for a machine that implements threads in its own states and steps. A parallel machine needs its
+own policy **and** a machine that implements task creation; changing only the machine's states
+while keeping `seqPolicy` keeps thread creation undefined, and choosing `machinePolicy` for a
+machine without threads makes thread creation a step that creates nothing.
+
+**Runs** (`MachineSem.Run pol`), from an initial state and a finite execution of `ev` and `tau`
 steps with events `t`:
 
 * a final state with a stop: `done t s`;
-* a task-creation request: `done t (undefined (CloneReq.ub r))`: `threadCreate` for a thread or a
-  task sharing the address space, `unmodeled` for a new process (`CloneReq.kind`);
+* a task-creation request the policy rejects (`pol r = some u`): `done t (undefined u)`; under
+  `seqPolicy` this is `threadCreate` for a thread or a task sharing the address space and
+  `unmodeled` for a new process (`CloneReq.kind`); a request the policy accepts is an internal
+  step;
 * a state with no step and no final outcome: `done t (undefined stuck)`;
 * a state whose only steps are inputs, which the environment may withhold: `blocked t`;
-* an infinite execution of internal steps: `spins t`;
+* an infinite execution of internal steps (`tau`, and accepted task creations): `spins t`;
 * infinitely many events, every finite prefix of which some execution produces: `reactive f`
   (the limit closure: it may include infinite runs no single execution has, which only makes
   preconditions stronger);
@@ -159,16 +169,39 @@ structure MachineSem (P E : Type) where
   detects itself, such as `UB.memory`). -/
   final : State → Stop → Prop
 
+/-- **A clone policy**: what a run does at a task-creation step. `some u`: the run ends in the
+undefined behaviour `u`. `none`: the step is an internal step of the machine, which must then
+*implement* task creation in its states and steps (a parallel machine with threads in its
+state); choosing `none` for a machine that does not is unsound, because the request becomes a
+step that creates nothing (`Silmaril.Containers.Mini.noTasks_threadSpawn_exits`). -/
+abbrev ClonePolicy : Type := CloneReq → Option UB
+
+/-- **The sequential policy**: every task-creation request ends the run in undefined behaviour
+(`CloneReq.ub`: `threadCreate`, or `unmodeled` for a process). -/
+def seqPolicy : ClonePolicy := fun r => some r.ub
+
+/-- **The machine's own policy**: task creation is a step of the machine (for a machine whose
+state has threads and a scheduler). -/
+def machinePolicy : ClonePolicy := fun _ => none
+
+/-- The internal actions under a policy: `tau`, and the task-creation requests the policy hands
+to the machine. -/
+def Internal {E : Type} (pol : ClonePolicy) : Act E → Prop
+  | .tau => True
+  | .clone r => pol r = none
+  | .ev _ => False
+
 namespace MachineSem
 
 variable {P E : Type} (M : MachineSem P E)
 
-/-- **Finite executions** of event and internal steps, with their events. -/
-inductive Exec : M.State → List E → M.State → Prop where
-  | refl (s : M.State) : Exec s [] s
-  | tau {s s' s'' : M.State} {t : List E} : M.step s .tau s' → Exec s' t s'' → Exec s t s''
+/-- **Finite executions** of event and internal steps under a clone policy, with their events. -/
+inductive Exec (pol : ClonePolicy) : M.State → List E → M.State → Prop where
+  | refl (s : M.State) : Exec pol s [] s
+  | internal {s s' s'' : M.State} {a : Act E} {t : List E} :
+      Internal pol a → M.step s a s' → Exec pol s' t s'' → Exec pol s t s''
   | ev {s s' s'' : M.State} {e : E} {t : List E} :
-      M.step s (.ev e) s' → Exec s' t s'' → Exec s (e :: t) s''
+      M.step s (.ev e) s' → Exec pol s' t s'' → Exec pol s (e :: t) s''
 
 /-- **A stuck state**: no step and no final outcome. -/
 def Stuck (s : M.State) : Prop := (∀ a s', ¬ M.step s a s') ∧ ∀ st, ¬ M.final s st
@@ -178,28 +211,34 @@ def Waiting (s : M.State) : Prop :=
   (∀ st, ¬ M.final s st) ∧ (∃ e s', M.isIn e = true ∧ M.step s (.ev e) s') ∧
     ∀ a s', M.step s a s' → ∃ e, a = .ev e ∧ M.isIn e = true
 
-/-- **Silent divergence**: an infinite sequence of internal steps. -/
-def SilentDiv (s : M.State) : Prop := ∃ f : Nat → M.State, f 0 = s ∧ ∀ n, M.step (f n) .tau (f (n + 1))
+/-- **Silent divergence** under a policy: an infinite sequence of internal steps. -/
+def SilentDiv (pol : ClonePolicy) (s : M.State) : Prop :=
+  ∃ f : Nat → M.State, f 0 = s ∧ ∀ n, ∃ a, Internal pol a ∧ M.step (f n) a (f (n + 1))
 
-/-- **The runs of a program** under the sequential reading of task creation. -/
-inductive Run (p : P) : Beh E → Prop where
+/-- **The runs of a program under a clone policy.** -/
+inductive Run (pol : ClonePolicy) (p : P) : Beh E → Prop where
   | final {s s' : M.State} {t : List E} {st : Stop} :
-      M.load p s → M.Exec s t s' → M.final s' st → Run p (.done t st)
-  | clone {s s' s'' : M.State} {t : List E} {r : CloneReq} :
-      M.load p s → M.Exec s t s' → M.step s' (.clone r) s'' →
-        Run p (.done t (.undefined r.ub))
+      M.load p s → M.Exec pol s t s' → M.final s' st → Run pol p (.done t st)
+  | clone {s s' s'' : M.State} {t : List E} {r : CloneReq} {u : UB} :
+      M.load p s → M.Exec pol s t s' → M.step s' (.clone r) s'' → pol r = some u →
+        Run pol p (.done t (.undefined u))
   | stuck {s s' : M.State} {t : List E} :
-      M.load p s → M.Exec s t s' → M.Stuck s' → Run p (.done t (.undefined .stuck))
+      M.load p s → M.Exec pol s t s' → M.Stuck s' → Run pol p (.done t (.undefined .stuck))
   | blocked {s s' : M.State} {t : List E} :
-      M.load p s → M.Exec s t s' → M.Waiting s' → Run p (.blocked t)
+      M.load p s → M.Exec pol s t s' → M.Waiting s' → Run pol p (.blocked t)
   | spins {s s' : M.State} {t : List E} :
-      M.load p s → M.Exec s t s' → M.SilentDiv s' → Run p (.spins t)
+      M.load p s → M.Exec pol s t s' → M.SilentDiv pol s' → Run pol p (.spins t)
   | reactive (f : Nat → E) :
-      (∀ n, ∃ s s', M.load p s ∧ M.Exec s ((List.range n).map f) s') → Run p (.reactive f)
-  | noInit : (∀ s, ¬ M.load p s) → Run p (.done [] (.undefined .noInit))
+      (∀ n, ∃ s s', M.load p s ∧ M.Exec pol s ((List.range n).map f) s') →
+        Run pol p (.reactive f)
+  | noInit : (∀ s, ¬ M.load p s) → Run pol p (.done [] (.undefined .noInit))
 
-/-- **The process semantics of a machine.** -/
-def runs : ProcSem P E := M.Run
+/-- **The process semantics of a machine under a clone policy.** -/
+def runsWith (pol : ClonePolicy) : ProcSem P E := M.Run pol
+
+/-- **The sequential process semantics**: thread creation is undefined behaviour
+(`seqPolicy`). This is a choice of policy, not a property of the machine. -/
+def runs : ProcSem P E := M.runsWith seqPolicy
 
 /-- **Explicit task creation** (an obligation of an instance): a step creates a task only as a
 `clone` action. Stated over a predicate `creates` saying which steps of the instance create a
@@ -215,24 +254,28 @@ its states and steps), and what the runtime adds to the machine's runs. -/
 structure MachRuntime (I P E : Type) where
   load : I → Except Refusal P
   machine : MachineSem P E
+  /-- What a run does at a task-creation request (`seqPolicy` for a sequential machine). -/
+  policy : ClonePolicy := seqPolicy
   obs : Beh E → Beh E → Prop := Eq
 
 /-- **The runtime model of a machine runtime**: `beh i b` exactly when the loader gives `p`, the
-machine has the run `b₀` of `p` (`MachineSem.Run`), and the runtime turns `b₀` into `b`; or the
-loader refuses (`Thms.MachRuntime.beh_iff`). -/
+machine has the run `b₀` of `p` under the runtime's clone policy (`MachineSem.Run`), and the
+runtime turns `b₀` into `b`; or the loader refuses (`Thms.MachRuntime.beh_iff`). -/
 def MachRuntime.toRuntime {I P E : Type} (R : MachRuntime I P E) : Runtime I P E :=
-  ⟨R.load, R.machine.runs, R.obs⟩
+  ⟨R.load, R.machine.runsWith R.policy, R.obs⟩
 
-/-- **The same runtime over another machine** (for example a parallel one in place of a
-sequential one): the loader and what the runtime adds are kept. -/
-def MachRuntime.withMachine {I P E : Type} (R : MachRuntime I P E) (M : MachineSem P E) :
-    MachRuntime I P E :=
-  { R with machine := M }
+/-- **The same runtime over another machine and clone policy** (for example a parallel machine
+with `machinePolicy` in place of a sequential one with `seqPolicy`): the loader and what the
+runtime adds are kept. Changing the machine but keeping `seqPolicy` keeps thread creation
+undefined, whatever the new machine's states can represent. -/
+def MachRuntime.withMachine {I P E : Type} (R : MachRuntime I P E) (M : MachineSem P E)
+    (pol : ClonePolicy) : MachRuntime I P E :=
+  { R with machine := M, policy := pol }
 
 /-- **A runtime model over a machine**: a loader to programs, and the machine's runs. -/
 def _root_.Silmaril.Containers.Runtime.ofMachine {I P E : Type} (load : I → Except Refusal P)
     (M : MachineSem P E) (obs : Beh E → Beh E → Prop := Eq) : Runtime I P E :=
-  (MachRuntime.mk load M obs).toRuntime
+  ({ load, machine := M, obs } : MachRuntime I P E).toRuntime
 
 /-- **Sequential agreement** (the transfer obligation from a sequential machine to another,
 for example a parallel one): on the image `i`, every run under `Rpar` is a run under `Rseq`. -/

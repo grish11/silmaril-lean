@@ -93,8 +93,8 @@ theorem noopCheck_iff (img : Flat Blob) :
 /-- `noopCheck` as a concrete sufficient precondition in the language of checkers, for the
 verification precondition (no undefined behaviour, and total correctness). -/
 def noopCheck_sufficient :
-    SufficientIn (Assertions.bool (Flat Blob)) small
-      (fun b => Spec.noUB b ∧ Spec.totalCorrect (fun t c => t = [] ∧ c = 0) b) :=
+    VSufficientIn (Assertions.bool (Flat Blob)) small
+      (Spec.totalCorrect fun t c => t = [] ∧ c = 0) :=
   ⟨noopCheck, fun img h => (wp_exit0_iff img).2 ((noopCheck_iff img).1 h)⟩
 
 theorem http_confined : pre small (Spec.always fun e => Profile.tcpOnly e.cap = true) http :=

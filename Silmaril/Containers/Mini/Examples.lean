@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Containers.Mini.Thms
 public meta import Silmaril.Containers.Mini.Defs
+public meta import Silmaril.Containers.Check.Defs
 
 /-!
 # The minimal machine: executable checks
@@ -62,5 +63,35 @@ def noUB? : Beh Ev → Bool
 #guard noUB? (result spinForever) && stop? (result spinForever) == none
 -- A thread request after output: the output is kept, then undefined behaviour.
 #guard stop? (result (.emit (.stdout [1]) :: threadSpawn)) == some (.undefined .threadCreate)
+
+/-! ## The checker on contents and the monitor on observations -/
+
+#guard noUBCheck (mimage hello)
+#guard noUBCheck (mimage spinForever)
+#guard !noUBCheck (mimage threadSpawn)
+#guard !noUBCheck (mimage forkExit)
+#guard !noUBCheck (mimage fallOff)
+#guard !noUBCheck (mimage tcpThenThread)
+
+open Silmaril.Containers.Check in
+/-- The observations of a finite run: its events, then its stop. -/
+def obsOf : Beh Ev → List (Obs Ev)
+  | .done t s => t.map .ev ++ [.stop s]
+  | .blocked t | .spins t => t.map .ev
+  | .reactive _ => []
+
+open Silmaril.Containers.Check in
+/-- The monitor's answer after the observations of a run, fed in one chunk, for profile `P`. -/
+def monitor (P : Profile) (b : Beh Ev) : Bool :=
+  ((vmonitor fun e => P e.cap).run true [.process (obsOf b), .query]).1 == [true]
+
+-- Output on standard streams, then exit 0: accepted under `stdio`, not under `none`.
+#guard monitor Profile.stdio (result hello)
+#guard !monitor Profile.none (result hello)
+-- Undefined behaviour is an observation: rejected under every profile.
+#guard !monitor (fun _ => true) (result threadSpawn)
+#guard !monitor (fun _ => true) (result fallOff)
+-- A TCP socket is rejected under vsock-only.
+#guard !monitor Profile.vsockOnly (result tcpThenThread)
 
 end Silmaril.Containers.Mini.Examples

@@ -22,7 +22,9 @@ theorems), **Planned** (nothing exists yet). No module uses `sorry`, `native_dec
 | Runtime models: loader, process semantics, runtime-added behaviours; assumption strengthening, kills, enforcement | `Containers.Runtime` | Proved |
 | Machine semantics (pluggable): states, labelled steps, final states; runs with undefined behaviour explicit (stuck, no initial state, task creation); task-creation requests classified by `CLONE_THREAD`/`CLONE_VM`; the sequential policy; the transfer obligation to other machines | `Containers.Machine` | Proved |
 | Preconditions: semantic `pre`; the verification precondition `vpre` (no undefined behaviour and the specification); `wlp`, `wp`; sufficiency, feasibility, assertion languages, representability, concrete sufficient preconditions | `Containers.Precondition` | Proved |
-| A minimal machine: exact runs, exact `wlp`/`wp` on contents, thread creation, `vfork`, `fork`, falling off the end, spinning | `Containers.Mini` | Proved; Checked (`Examples`) |
+| A minimal machine: exact runs, exact `wlp`/`wp` on contents, thread creation, `vfork`, `fork`, falling off the end, spinning, pre-emption by enforcement, a misused clone policy, a verified checker on contents | `Containers.Mini` | Proved; Checked (`Examples`) |
+| Obligations as consequence systems (`vsys`, `rawsys`, `checkSys`) with their laws, and as an acceptor (an online monitor over observations in which undefined behaviour is visible) | `Containers.Check` | Proved |
+| Problem shapes `silmaril.shapes.containers.*`, registered consequence systems and instances with answers, obligation kinds | `Containers.Shapes` | Registered; answers checked at elaboration |
 | Fixtures under the small runtime model: no-op, crash, spin, HTTP over TCP, vsock compute | `Containers.Fixtures` | Proved; Checked (`Examples`) |
 | HTTP interfaces (version, transport, port), admissibility under profiles, the server platform of a runtime model, the fixture's response parsed by the verified HTTP/1.1 parser | `Containers.Http` | Proved |
 | The behaviour institution and its logic-graph registration | `Containers.Institution`, `LogicGraph.Nodes.Containers` | Proved (satisfaction condition) |
@@ -106,12 +108,59 @@ found by a shape, and the runtime is a parameter with its own behaviours.
 | Semantic weakest preconditions vs expressible ones | `pre`, `Representable`, `Expressive`, `SufficientIn` | `pre_weakest` (semantic, always exists); expressiveness is a hypothesis (`sufficientIn_of_expressive`); `Fixtures.wp_exit0_iff` computes one exactly, `noopCheck_sufficient` is a decidable sufficient one |
 | Feasibility (no miracles) | `Feasible` | `pre_of_infeasible` |
 
+## Raw and verified obligations
+
+`pre`, `Sufficient`, `SufficientIn`, `Expressive` and `rawsys` are about **raw** satisfaction of a
+specification: they exclude undefined behaviour only if the specification does. Only `vpre`,
+`wlp`, `wp`, `VSufficient`, `VSufficientIn` and `vsys` build in "no undefined behaviour".
+**Every user-facing checked obligation uses the verified forms**: the registered shapes
+(`silmaril.shapes.containers.vpre`, `wlp`, `wp`, `vsufficient`, `checker_sound`), the checkers of
+the fixtures (`Fixtures.noopCheck_sufficient`, `Mini.noUBCheck_sound`) and the consequence system
+`containers.mini.vsys`. Raw satisfaction is not sound for them (`Mini.rawsys_not_sound`, the
+registered instance `containers.mini.raw_sound_vsys`, CSA).
+
+## Obligations as consequence systems and acceptors
+
+`Containers.Check` states container obligations in the library's two shapes for checked
+judgements:
+
+* **Consequence systems** (`Silmaril.Consequence.System`): `vsys R` has images as contexts and run
+  specifications as conclusions, `i ⊢ φ` iff `vpre R φ i`. Its laws are proved: every judgement
+  excludes undefined behaviour (`vsys_noUB`), weakening and conjunction, soundness for raw
+  satisfaction, antitonicity in the runtime model (`vsys_sound_of_le`), and that assumptions and
+  kills do not mask undefined behaviour (`vsys_restrict_noUB`, `vsys_mayKill_noUB`). A decidable
+  checker on images gives a system `checkSys check φ`, sound for `vsys R` exactly when the checker
+  is `Accept.Sound` for the images satisfying `vpre R φ` (`checkSys_sound_iff`), that is, a
+  verified sufficient precondition.
+* **Acceptors** (`Silmaril.Acceptor`): a run is observed as a stream of `Obs` (its events, then its
+  stop), so undefined behaviour is an observation. `vmonitor ok` is an online acceptor over chunks
+  of observations, correct for `vlang ok` in the interleaved protocol
+  (`vmonitor_correctInterleaved`); `vlang_iff`: a run has no undefined behaviour and only allowed
+  events exactly when every observation prefix is accepted.
+
+`Containers.Shapes` registers, in the project registry: the shapes `silmaril.shapes.containers.*`;
+the consequence systems `containers.mini.vsys`, `containers.mini.raw` and
+`containers.mini.no_ub_check`; and ten instances with answers (behaviour, thread creation,
+assumptions, pre-emption, the checker, a transformer, the monitor, and the consequence shapes
+`sound_at` both ways). `ObligationKind` names what an obligation is about (trust, format, shape,
+loader, machine, resource, security, behaviour) and `catalogue` lists the instances by kind.
+
 ## Machines, undefined behaviour and concurrency
 
-**The machine is a named parameter of the runtime.** `Mach.MachRuntime I P E` has three
-fields: `load` (images to programs), `machine : MachineSem P E`, and `obs` (what the runtime
-adds, `Eq` by default); `toRuntime` is its runtime model and `withMachine M` swaps the machine and
-nothing else. The construction is exact (`MachRuntime.beh_iff`): the runs of an image are the
+**The machine is a named parameter of the runtime.** `Mach.MachRuntime I P E` has four
+fields: `load` (images to programs), `machine : MachineSem P E`, `policy : ClonePolicy` (what a run
+does at a task-creation request, `seqPolicy` by default), and `obs` (what the runtime adds, `Eq`
+by default); `toRuntime` is its runtime model and `withMachine M pol` swaps the machine and the
+policy and nothing else.
+
+**The clone policy is a parameter, not a property of the machine.** `seqPolicy` ends a run in
+undefined behaviour at a task-creation request (the sequential reading; `MachineSem.runs` is
+`runsWith seqPolicy`). `machinePolicy` makes the request an internal step, for a machine whose
+states and steps implement threads. A future parallel machine therefore needs both its own states
+and steps *and* its own policy: keeping `seqPolicy` while changing the machine keeps thread
+creation undefined, and choosing `machinePolicy` for a machine without threads makes thread
+creation a step that creates nothing (`Mini.noTasks_threadSpawn_exits`: the thread request of
+`threadSpawn` is skipped and the program exits 0). The construction is exact (`MachRuntime.beh_iff`): the runs of an image are the
 loader's refusal, or `obs` applied to the machine's runs of the loaded program. `Mach.MachineSem P E` has states, the initial states of a
 program (a relation: layout randomisation and initial memory are nondeterministic), steps labelled
 by actions (`ev e` with the environment, `tau`, `clone r` for task creation) and final states.
@@ -130,20 +179,24 @@ adds. The runtime may add runs, for example a kill truncating a program run (tha
 undefined behaviour. This is required, not assumed: `Runtime.ObsKeepsUB` for what a runtime adds,
 `Runtime.PreservesUB` between models, and all three transformers satisfy it:
 
+* **Arbitrary runtime additions can filter undefined behaviour** (`Runtime.withObs_can_hide_ub`).
+  So a runtime model's `obs` must be shown to keep it (`ObsKeepsUB`) before verification results
+  over it say anything about the program (`MachRuntime.not_vpre_of_run` takes it as a hypothesis).
 * `restrict A` (strengthening an assumption) keeps the runs satisfying `A` **and every run with
-  undefined behaviour**: an assumption about the environment or the runtime never excuses the
-  program, so even `restrict Spec.noUB` certifies nothing new (`Mini.threadSpawn_not_wlp_restrict_noUB`);
-* `mayKill` adds truncated runs and keeps the original ones;
-* `enforce` stops a run at its first event outside the profile, **except a run with undefined
-  behaviour, which is kept as it is**: in reality a faithful enforcer may stop the process before
-  the undefined behaviour, but certifying an image must not depend on that, and a run with undefined
-  behaviour may do things the filter does not observe. So `enforce_confined` is stated for runs
-  without undefined behaviour.
-
-Hence `noUB_restrict_iff`, `noUB_mayKill_iff`, `noUB_enforce_iff`: no undefined behaviour holds
-after each transformer exactly when it holds before. A runtime-defined `obs` outside these
-transformers must be shown to keep undefined behaviour (`ObsKeepsUB`) before
-`MachRuntime.not_vpre_of_run` applies. Undefined behaviour of the container runtime itself (a
+  undefined behaviour**. Assumptions must be explicit statements about the environment or the
+  runtime (`Beh.notBlocked`, fairness, no out-of-memory kill), never the circular "assume no
+  undefined behaviour": `restrict Spec.noUB` changes nothing about it
+  (`noUB_restrict_iff`; `Mini.threadSpawn_not_wlp_restrict_noUB`; the registered instance
+  `containers.mini.thread_spawn_wlp_assume_no_ub`, UNS).
+* `mayKill` adds truncated runs and keeps the original ones (`noUB_mayKill_iff`).
+* `enforce` distinguishes **pre-empting** undefined behaviour from **hiding** it. A run whose events
+  are all allowed is kept as it is, undefined behaviour included: reached undefined behaviour is
+  never hidden (`enforce_keeps_reached_ub`; `Mini.threadSpawn_not_wlp_enforce`). A run with a
+  disallowed event is stopped just before it; since undefined behaviour ends a run, it comes after
+  that event and is never reached. That is the only way enforcement removes undefined behaviour
+  (`ub_preempted_of_enforce`), and it relies on faithful enforcement, an assumption about the
+  runtime (`Mini.tcpThenThread_wlp_enforce`: a TCP socket and then a thread creation satisfies
+  `wlp` under vsock-only enforcement only because the enforcer stops it at the socket). Undefined behaviour of the container runtime itself (a
 runtime bug) is outside these models and is an assumption about the runtime.
 
 **"No undefined behaviour" is part of every verification precondition.** `vpre R φ` requires
@@ -299,15 +352,74 @@ These are part of the original request and remain open after this pull request:
 * **A sequential x86-64 machine instance** with `ClonesExplicit` proved for system calls 56, 57, 58
   and 435, and LPS's `unmodeled`, fault and stuck outcomes mapped to `UB`.
 * **The parallel x86-64 machine** (threads, scheduler, x86-TSO, atomics) and `SeqAgrees` proofs.
-* **Acceptors, consequence systems and tables.** Only the institution and its room are registered
-  (`LogicGraph.Nodes.Containers`). Not done: a `consequence_interpretation` reading
-  `vpre R φ` as `Γ ⊢ φ` over image contents; an `Acceptor` for decidable content checkers such as
-  `Fixtures.noopCheck` with `CorrectInterleaved`; record kinds and problem shapes
-  (`silmaril.shapes.containers.*`) for profiles, shapes, runtime models and obligations; and the
-  database tables of the "Tables" section. These need a decision on placement: the registry lives
-  in the `Project` region, whose `deps` do not include `Containers`.
+* **Acceptors, consequence systems and tables: partly done.** Done: `Containers.Check`
+  (consequence systems with laws, checker soundness, the observation monitor as an acceptor) and
+  `Containers.Shapes` (shapes, consequence systems and instances in the project registry, through
+  `Project` in the region's `deps`, as `Automata` does). Not done: shapes over registered
+  artifacts (`Silmaril.Project.Value`, so that an OCI image or an ELF file is a row with its CID,
+  as the ELF shapes are), a `consequence_interpretation` over such values, record kinds of their
+  own for profiles, shapes and runtime models, and dedicated tables beyond the generic
+  consequence-system and problem tables the registry already produces.
 * **Nitro Enclaves** (EIF, PCRs, attestation), **Redis**, **Kubernetes**: designed above, not
   implemented.
+
+## The first real fixture: a static no-op from OCI octets
+
+Status: **assessed, not implemented**. What exists, checked on 2026-11-16:
+
+* **The ELF.** `examples/project-formats/example-exec.elf` (632 octets, SHA-256 `78876f12…ec9f`,
+  `_start: endbr64; mov $60,%eax; xor %edi,%edi; syscall`) is already a registered value
+  (`Silmaril.Project.Formats.exampleExec`) with load facts proved (`exampleExec_parses`,
+  `exampleExec_entry`, `exampleExec_code` in `Project/Shapes/Elf/Thms`), but no run theorem. A
+  smaller exit-0 static ELF with a run theorem exists: `Process.LPS.Probes.Data.LiteTrue`
+  (352 octets) with `CoreutilsLite.true_total` (exits 0 under every valid launch and flag oracle,
+  kernel-checked).
+* **The OCI octets.** Packaged with Docker 28.5.2 (`FROM scratch`, `COPY noop /noop`,
+  `ENTRYPOINT ["/noop"]`), `docker save` writes an OCI image layout: an index, a manifest, a
+  configuration with `Entrypoint ["/noop"]`, and one uncompressed layer
+  (`application/vnd.oci.image.layer.v1.tar`, 2560 octets) holding a single `ustar` entry, no PAX
+  header, no whiteout. Evaluated in Lean (not committed): `Silmaril.Crypto.sha256` reproduces the
+  layer digest, and `Silmaril.Formats.Tar.decode` returns one entry `noop`, mode `0755`, whose
+  content is exactly `example-exec.elf`. `docker run` of the image exited 0: a test of Docker on
+  this host, not a theorem.
+* **Not reproducible as built.** The layer records the file's modification time, so a Docker build
+  gives a different layer digest each time. A committed fixture must be generated
+  deterministically (the layer by `Formats.Tar.encode` with `mtime := 0`, the JSON by a pinned
+  script) and checked against Docker only as a runtime test (`docker load`, `docker run`).
+
+**The next implementation steps**, in order, each a reviewable change:
+
+1. **Bytes to snapshot.** Prove `ELFImage.loadX86 isa bytes = some P.snapshot` for the
+   `LiteTrue` probe (`decide +kernel`; keep the octets as a `Blob`, since kernel evaluation on byte
+   lists costs about 30 s per kilobyte). This lemma does not exist yet for any probe
+   (`Probe.Layout` checks only the header readers). Then `true_total` holds of the bytes, not only
+   of the probe's snapshot. `example-exec.elf` needs the same with its four program headers (the
+   probe kit handles a single `PT_LOAD`) and the flag-oracle machine, because `xor` leaves AF
+   undefined.
+2. **LPS as a `Mach.MachineSem`.** States are LPS configurations (`Process.LPS.Run.Config`) on
+   `x86WithFlagOracle`; steps come from `LStep` and its `StepRecord`s. Events: reads and writes on
+   descriptors 0–2 become `Ev.stdin`/`stdout`/`stderr`, socket records follow
+   `Servers.Sockets.ofRecords`. Final outcomes (`RunOutcome`): `exited code` becomes
+   `Stop.exited (code &&& 255)`, `killed sig` becomes `signaled`, `error unmodeled` becomes
+   `undefined unmodeled`, `stuck` becomes `undefined stuck`, and `error fault` becomes
+   `undefined memory` (conservatively; refining it to `SIGSEGV` needs a fault-to-signal model).
+   System calls 56, 57, 58 and 435 become `Act.clone` with their flags, **overriding** LPS's own
+   reading (`Sys/Fork.lean` models `clone(SIGCHLD)` and `fork` as returning a pid with no child), so
+   that the runtime's clone policy decides; this is the instance's `ClonesExplicit` proof.
+3. **OCI octets to `Layered`.** Index, manifest and configuration through `Formats.Json.parse?` and
+   its schema decoders; layers through `Formats.Tar.decode` (and `Formats.Compression.Gzip.decompress`
+   for `+gzip` layers); blobs through `Cas.Store.checked Crypto.sha256`; whiteouts are needed only
+   for multi-layer images, not this one.
+4. **The theorem.** `wp` of "exit 0, no events" for the image under the `MachRuntime` over the LPS
+   machine with `seqPolicy`, composed from 1–3 through `pre_layered` and `MachRuntime.beh_iff`, and
+   registered as an instance of `silmaril.shapes.containers.wp` over the image's value.
+
+**Blockers.** No external blocker was found: Docker runs here (with `--network host`), a
+`FROM scratch` image needs no registry, and the parsers, hash and loader exist. The constraints
+are internal: kernel evaluation cost of byte literals, the missing `loadX86` lemma, the flag-oracle
+machine for `xor`, the tar decoder's lack of PAX headers and whiteouts (needed for real images such
+as Redis, not for this one), no proved JSON printer (only parsing is needed), and Docker's
+non-reproducible layers.
 
 ## Next steps
 

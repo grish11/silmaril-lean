@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Containers.Machine.Defs
 public import Silmaril.Containers.Fixtures.Defs
+public import Silmaril.Containers.Check.Defs
 
 /-!
 # A minimal machine: undefined behaviour and thread creation, under a sequential machine
@@ -26,6 +27,7 @@ maps to it.
 | `forkExit`: `fork`, exit 0 | `done [] (undefined unmodeled)` | no | no |
 | `fallOff`: print `x`, then nothing | `done [stdout "x"] (undefined stuck)` | no | no |
 | `spinForever` | `spins []` | yes | no |
+| `tcpThenThread`: a TCP socket, then `clone` for a thread | `done [socket] (undefined threadCreate)` | no; **yes under vsock-only enforcement**, which stops it at the socket, before the thread creation | no |
 
 A Silmaril addition.
 -/
@@ -103,5 +105,27 @@ def vforkExit : List Instr := [.clone .vfork, .exit 0]
 def forkExit : List Instr := [.clone .fork, .exit 0]
 def fallOff : List Instr := [.emit (.stdout (Fixtures.ascii "x"))]
 def spinForever : List Instr := [.spin]
+
+/-- `OutputOnly`, decided. -/
+def outputOnlyB (p : List Instr) : Bool :=
+  p.all fun
+    | .emit e => !e.isInput
+    | _ => true
+
+/-- `Spec.noUB`, decided. -/
+def noUBB : Beh Ev → Bool
+  | .done _ s => !s.isUB
+  | _ => true
+
+/-- **A checker on contents for "no undefined behaviour"**: the entry point is an output-only
+program whose run has no undefined behaviour. A verified sufficient precondition
+(`Thms.noUBCheck_sound`). -/
+def noUBCheck (img : Flat (List Instr)) : Bool :=
+  match machRT.load img with
+  | .ok p => outputOnlyB p && noUBB (result p)
+  | .error _ => false
+
+/-- Open a TCP socket, then create a thread. -/
+def tcpThenThread : List Instr := [.emit (.socket (Fixtures.lsock .inet4)), .clone (.clone 0x3d0f00)]
 
 end Silmaril.Containers.Mini

@@ -106,18 +106,16 @@ theorem always_done_nil {ok : E → Prop} (s : Stop) : Spec.always ok (.done [] 
   cases he
 
 theorem enforce_confined {R : Runtime I P Ev} {Pr : Profile} {i : I} :
-    ((R.enforce Pr).beh i).Sat
-      (Spec.under Spec.noUB (Spec.always fun e => Pr e.cap = true)) := by
-  intro b hb hnu
+    ((R.enforce Pr).beh i).Sat (Spec.always fun e => Pr e.cap = true) := by
+  intro b hb
   cases hl : R.load i with
   | error r =>
     rw [(beh_error (R := R.enforce Pr) hl b).1 hb]
     exact always_done_nil _
   | ok p =>
     obtain ⟨b₀, -, b₁, -, he⟩ := (beh_ok (R := R.enforce Pr) hl b).1 hb
-    rcases he with ⟨ha, rfl⟩ | ⟨hu, rfl⟩ | ⟨t, e, -, hc, -, rfl⟩
+    rcases he with ⟨ha, rfl⟩ | ⟨t, e, -, hc, -, rfl⟩
     · exact ha
-    · exact (hu hnu).elim
     · intro u hu x hx
       exact hc x (hu.subset hx)
 
@@ -131,8 +129,7 @@ theorem enforce_eq_of_confined {R : Runtime I P Ev} {Pr : Profile} {i : I}
     constructor
     · rintro ⟨b₀, hs, b₁, ho, he⟩
       have ha := h b₁ ((beh_ok hl b₁).2 ⟨b₀, hs, ho⟩)
-      rcases he with ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨t, e, hp, -, hf, -⟩
-      · exact ⟨b₀, hs, ho⟩
+      rcases he with ⟨-, rfl⟩ | ⟨t, e, hp, -, hf, -⟩
       · exact ⟨b₀, hs, ho⟩
       · have h' : Pr e.cap = true := ha (t ++ [e]) hp e (by simp)
         rw [hf] at h'; cases h'
@@ -159,9 +156,36 @@ theorem preservesUB_mayKill (R : Runtime I P E) (ks : Kill → Prop) :
     (R.mayKill ks).PreservesUB R :=
   preservesUB_withObs fun _ b ho _ => ⟨b, ho, .inl rfl⟩
 
-theorem preservesUB_enforce (R : Runtime I P Ev) (Pr : Profile) :
-    (R.enforce Pr).PreservesUB R :=
-  preservesUB_withObs fun _ b ho hu => ⟨b, ho, .inr (.inl ⟨hu, rfl⟩)⟩
+/-- **Enforcement keeps undefined behaviour that is reached**: a run of `R` with undefined
+behaviour all of whose events the profile allows is a run of the enforced model. -/
+theorem enforce_keeps_reached_ub {R : Runtime I P Ev} {Pr : Profile} {i : I} {b : Beh Ev}
+    (hb : R.beh i b) (ha : Spec.always (fun e => Pr e.cap = true) b) :
+    (R.enforce Pr).beh i b := by
+  cases hl : R.load i with
+  | error r => exact (beh_error (R := R.enforce Pr) hl b).2 ((beh_error hl b).1 hb)
+  | ok p =>
+    obtain ⟨b₀, hs, ho⟩ := (beh_ok hl b).1 hb
+    exact (beh_ok (R := R.enforce Pr) hl b).2 ⟨b₀, hs, b, ho, .inl ⟨ha, rfl⟩⟩
+
+/-- **Enforcement removes undefined behaviour only by pre-emption**: if no run of the enforced
+model has undefined behaviour, every run of `R` with undefined behaviour has a disallowed event
+(which comes before the undefined behaviour that ends the run). -/
+theorem ub_preempted_of_enforce {R : Runtime I P Ev} {Pr : Profile} {i : I}
+    (h : ((R.enforce Pr).beh i).Sat Spec.noUB) {b : Beh Ev} (hb : R.beh i b)
+    (hu : ¬ Spec.noUB b) : ¬ Spec.always (fun e => Pr e.cap = true) b :=
+  fun ha => hu (h b (enforce_keeps_reached_ub hb ha))
+
+/-- **An arbitrary account of what the runtime adds can hide undefined behaviour.** -/
+theorem withObs_can_hide_ub :
+    ∃ (R : Runtime Unit Unit Unit) (o : Beh Unit → Beh Unit → Prop),
+      ¬ (R.beh ()).Sat Spec.noUB ∧ ((R.withObs o).beh ()).Sat Spec.noUB := by
+  refine ⟨Runtime.exact (fun _ => .ok ()) (fun _ b => b = .done [] (.undefined .other)),
+    fun b₀ b => b₀ = b ∧ Spec.noUB b, ?_, ?_⟩
+  · intro h
+    exact h _ ((beh_ok rfl _).2 ⟨_, rfl, rfl⟩)
+  · intro b hb
+    obtain ⟨_, -, -, h⟩ := (beh_ok (R := Runtime.withObs _ _) rfl b).1 hb
+    exact h
 
 theorem noUB_of_preservesUB {P' : Type} {R' : Runtime I P' E} {R : Runtime I P E}
     (h : R'.PreservesUB R) {i : I} (h' : (R'.beh i).Sat Spec.noUB) : (R.beh i).Sat Spec.noUB := by
@@ -186,8 +210,7 @@ theorem enforce_runs {R : Runtime I P Ev} {Pr : Profile} {i : I} {b : Beh Ev}
   | ok p =>
     obtain ⟨b₀, hs, b₁, ho, he⟩ := (beh_ok (R := R.enforce Pr) hl b).1 hb
     have h₁ : R.beh i b₁ := (beh_ok hl b₁).2 ⟨b₀, hs, ho⟩
-    rcases he with ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨t, -, -, -, -, rfl⟩
-    · exact .inl h₁
+    rcases he with ⟨-, rfl⟩ | ⟨t, -, -, -, -, rfl⟩
     · exact .inl h₁
     · exact .inr ⟨t, .policy, rfl⟩
 

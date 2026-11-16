@@ -19,7 +19,8 @@ PROVED (standard axioms); every proof is short and stays inline.
 **Undefined behaviour is never vacuous.** For any machine `M` and a loader that loads the
 image to `p`:
 
-* `beh_ofMachine`: the runs of the image are the machine's runs of `p`;
+* `beh_ofMachine`: the runs of the image are the machine's runs of `p` under `seqPolicy`
+  (`Runtime.ofMachine` is the sequential reading; `MachRuntime` takes any policy);
 * `not_wlp_of_clone`: if some execution reaches a task-creation request, no `wlp` holds;
 * `not_wlp_of_stuck`: if some execution reaches a stuck state, no `wlp` holds;
 * `not_wlp_of_noInit`: if `p` has no initial state, no `wlp` holds.
@@ -68,18 +69,20 @@ end CloneReq
 variable {I P E : Type}
 
 theorem beh_ofMachine {load : I → Except Refusal P} {M : MachineSem P E} {i : I} {p : P}
-    (hl : load i = .ok p) (b : Beh E) : (Runtime.ofMachine load M).beh i b ↔ M.Run p b := by
+    (hl : load i = .ok p) (b : Beh E) :
+    (Runtime.ofMachine load M).beh i b ↔ M.Run seqPolicy p b := by
   rw [Runtime.beh_ok (R := Runtime.ofMachine load M) hl]
   exact ⟨fun ⟨_, h, he⟩ => he ▸ h, fun h => ⟨b, h, rfl⟩⟩
 
 theorem not_wlp_of_clone {load : I → Except Refusal P} {M : MachineSem P E} {i : I} {p : P}
     (hl : load i = .ok p) {s s' s'' : M.State} {t : List E} {r : CloneReq} (hs : M.load p s)
-    (hx : M.Exec s t s') (hc : M.step s' (.clone r) s'') (post : List E → UInt8 → Prop) :
+    (hx : M.Exec seqPolicy s t s') (hc : M.step s' (.clone r) s'') (post : List E → UInt8 → Prop) :
     ¬ wlp (Runtime.ofMachine load M) post i :=
-  not_wlp_of_undefined ((beh_ofMachine hl _).2 (.clone hs hx hc)) post
+  not_wlp_of_undefined ((beh_ofMachine hl _).2 (.clone hs hx hc rfl)) post
 
 theorem not_wlp_of_stuck {load : I → Except Refusal P} {M : MachineSem P E} {i : I} {p : P}
-    (hl : load i = .ok p) {s s' : M.State} {t : List E} (hs : M.load p s) (hx : M.Exec s t s')
+    (hl : load i = .ok p) {s s' : M.State} {t : List E} (hs : M.load p s)
+    (hx : M.Exec seqPolicy s t s')
     (hst : M.Stuck s') (post : List E → UInt8 → Prop) :
     ¬ wlp (Runtime.ofMachine load M) post i :=
   not_wlp_of_undefined ((beh_ofMachine hl _).2 (.stuck hs hx hst)) post
@@ -94,7 +97,7 @@ namespace MachRuntime
 theorem beh_iff (R : MachRuntime I P E) (i : I) (b : Beh E) :
     R.toRuntime.beh i b ↔
       (∃ r, R.load i = .error r ∧ b = .done [] (.refused r)) ∨
-        ∃ p, R.load i = .ok p ∧ ∃ b₀, R.machine.Run p b₀ ∧ R.obs b₀ b := by
+        ∃ p, R.load i = .ok p ∧ ∃ b₀, R.machine.Run R.policy p b₀ ∧ R.obs b₀ b := by
   cases hl : R.load i with
   | error r =>
     rw [Runtime.beh_error (R := R.toRuntime) hl]
@@ -111,29 +114,29 @@ verification precondition holds, under the runtime or under any restriction, kil
 enforcement of it. -/
 theorem not_vpre_of_run {R : MachRuntime I P E} (hobs : Runtime.ObsKeepsUB R.obs) {i : I}
     {p : P} (hl : R.load i = .ok p) {t : List E} {u : UB}
-    (hr : R.machine.Run p (.done t (.undefined u))) (φ : Spec E) : ¬ vpre R.toRuntime φ i :=
+    (hr : R.machine.Run R.policy p (.done t (.undefined u))) (φ : Spec E) : ¬ vpre R.toRuntime φ i :=
   not_vpre_of_undefined (Runtime.beh_of_sem_undefined (R := R.toRuntime) hobs hl hr id) φ
 
 theorem not_vpre_restrict_of_run {R : MachRuntime I P E} (hobs : Runtime.ObsKeepsUB R.obs)
     {i : I} {p : P} (hl : R.load i = .ok p) {t : List E} {u : UB}
-    (hr : R.machine.Run p (.done t (.undefined u))) (A : Spec E) (φ : Spec E) :
+    (hr : R.machine.Run R.policy p (.done t (.undefined u))) (A : Spec E) (φ : Spec E) :
     ¬ vpre (R.toRuntime.restrict A) φ i :=
   not_vpre_of_preservesUB (Runtime.preservesUB_restrict _ A)
     (Runtime.beh_of_sem_undefined (R := R.toRuntime) hobs hl hr id) φ
 
 theorem not_vpre_mayKill_of_run {R : MachRuntime I P E} (hobs : Runtime.ObsKeepsUB R.obs)
     {i : I} {p : P} (hl : R.load i = .ok p) {t : List E} {u : UB}
-    (hr : R.machine.Run p (.done t (.undefined u))) (ks : Kill → Prop) (φ : Spec E) :
+    (hr : R.machine.Run R.policy p (.done t (.undefined u))) (ks : Kill → Prop) (φ : Spec E) :
     ¬ vpre (R.toRuntime.mayKill ks) φ i :=
   not_vpre_of_preservesUB (Runtime.preservesUB_mayKill _ ks)
     (Runtime.beh_of_sem_undefined (R := R.toRuntime) hobs hl hr id) φ
 
 /-- **Replacing the machine**: a `wlp` proved over one machine holds over another given
 `SeqAgrees` between the two runtimes. Without such an agreement nothing is claimed. -/
-theorem wlp_withMachine {R : MachRuntime I P E} {M : MachineSem P E} {i : I}
-    (hagree : SeqAgrees (R.withMachine M).toRuntime R.toRuntime i)
+theorem wlp_withMachine {R : MachRuntime I P E} {M : MachineSem P E} {pol : ClonePolicy}
+    {i : I} (hagree : SeqAgrees (R.withMachine M pol).toRuntime R.toRuntime i)
     {post : List E → UInt8 → Prop} (h : wlp R.toRuntime post i) :
-    wlp (R.withMachine M).toRuntime post i := fun b hb => h b (hagree b hb)
+    wlp (R.withMachine M pol).toRuntime post i := fun b hb => h b (hagree b hb)
 
 end MachRuntime
 

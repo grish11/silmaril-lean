@@ -25,7 +25,9 @@ PROVED (standard axioms); every proof is short and stays inline.
 * `pre_ofShape_none`, `pre_layered`: for shaped flat images, and for layered images read from
   content stores, the precondition reduces to the flat contents and the refusals;
 * `SufficientIn.sufficient`, `sufficientIn_of_expressive`: a concrete sufficient precondition
-  is sufficient; with expressiveness, the weakest precondition is one.
+  is sufficient; with expressiveness, the weakest precondition is one;
+* `vsufficient_iff`, `VSufficient.noUB`, `VSufficientIn.vsufficient`: the verified forms are the
+  raw ones for `noUB ∧ φ`, and exclude undefined behaviour.
 -/
 
 public section
@@ -95,6 +97,15 @@ theorem pre_layered {D C : Type} (S : Stores D C) (R : Runtime (Flat C) P E) (φ
       | some img => pre R φ img
       | none => φ (.done [] (.refused .missingBlob)) := by
   cases h : m.flatten S <;> simp [pre, Model.Sat, Runtime.beh, Runtime.layered, h]
+
+theorem vsufficient_iff (R : Runtime I P E) (Q : I → Prop) (φ : Spec E) :
+    VSufficient R Q φ ↔ Sufficient R Q (fun b => Spec.noUB b ∧ φ b) := Iff.rfl
+
+theorem VSufficient.noUB {R : Runtime I P E} {Q : I → Prop} {φ : Spec E}
+    (h : VSufficient R Q φ) {i : I} (hq : Q i) : pre R Spec.noUB i := vpre_noUB (h i hq)
+
+theorem VSufficientIn.vsufficient {L : Assertions I} {R : Runtime I P E} {φ : Spec E}
+    (s : VSufficientIn L R φ) : VSufficient R (L.den s.pre) φ := s.sound
 
 theorem SufficientIn.sufficient {L : Assertions I} {R : Runtime I P E} {φ : Spec E}
     (s : SufficientIn L R φ) : Sufficient R (L.den s.pre) φ := s.sound

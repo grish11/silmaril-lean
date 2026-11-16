@@ -35,18 +35,26 @@ programs and their semantics may differ. Two ways of changing a model must not b
 
 **Enforcement.** `Runtime.enforce P` is a runtime that stops a process with `killed .policy` at
 its first event outside the profile `P` (seccomp, a network namespace, a VM's devices). Its runs
-without undefined behaviour are confined (`Thms.Runtime.enforce_confined`), and on a confined run
-it changes nothing (`Thms.Runtime.enforce_eq_of_confined`).
+are confined (`Thms.Runtime.enforce_confined`), and on a confined run it changes nothing
+(`Thms.Runtime.enforce_eq_of_confined`).
 
 **Undefined behaviour under runtime-added behaviours.** "No undefined behaviour" quantifies over
 the runs the environment sees, that is, program runs transformed by what the runtime adds. The
 runtime may add runs (a kill truncates a program run; the truncated run ends in `killed`, not in
-undefined behaviour), but it must not remove a program run that has undefined behaviour:
-`ObsKeepsUB` for what a runtime adds, `PreservesUB` between models. `restrict`, `mayKill` and
-`enforce` all preserve the undefined behaviour of the model they start from
-(`Thms.Runtime.preservesUB_restrict`, `preservesUB_mayKill`, `preservesUB_enforce`), so none of
-them can make an image with reachable undefined behaviour satisfy a verification precondition
-(`Thms.Runtime.pre_noUB_restrict_iff` and its siblings). Undefined behaviour of the runtime
+undefined behaviour), but it must not remove a program run that reaches undefined behaviour:
+`ObsKeepsUB` for what a runtime adds, `PreservesUB` between models. `restrict` and `mayKill`
+preserve all the undefined behaviour of the model they start from
+(`Thms.Runtime.preservesUB_restrict`, `preservesUB_mayKill`, `noUB_restrict_iff`,
+`noUB_mayKill_iff`). `enforce` keeps every run that *reaches* undefined behaviour through
+allowed events (`enforce_keeps_reached_ub`), and removes undefined behaviour only by stopping the
+process at an earlier disallowed event (`ub_preempted_of_enforce`). An arbitrary `withObs` can
+hide undefined behaviour (`Thms.Runtime.withObs_can_hide_ub`): a runtime model built that way must
+be shown `ObsKeepsUB` before verification results over it say anything about the program.
+
+**Assumptions must be about the environment.** `restrict A` takes the assumption `A` as an
+explicit specification of runs (`Beh.notBlocked`, a fairness condition, no out-of-memory kill).
+It is never "assume no undefined behaviour": `restrict` keeps every run with undefined behaviour,
+so `restrict Spec.noUB` changes nothing about it (`noUB_restrict_iff`). Undefined behaviour of the runtime
 itself (a container runtime bug) is outside these models: it is an assumption about the
 runtime.
 
@@ -113,14 +121,16 @@ def killObs (ks : Kill → Prop) (b₀ b : Beh E) : Prop :=
 def mayKill (R : Runtime I P E) (ks : Kill → Prop) : Runtime I P E :=
   R.withObs fun b₀ b => ∃ b₁, R.obs b₀ b₁ ∧ killObs ks b₁ b
 
-/-- **Enforcing a profile**: a run whose events are allowed is unchanged; otherwise the runtime
-stops the process just before its first event outside the profile. **A run with undefined
-behaviour is kept as it is**, even when the runtime would stop it earlier: verification of an
-image never relies on enforcement to hide the program's undefined behaviour (and a run with
-undefined behaviour may do things the profile filter does not observe). -/
+/-- **Enforcing a profile**: a run whose events are all allowed is unchanged, **including one
+that ends in undefined behaviour** (the enforcer has nothing to stop before it is reached);
+otherwise the runtime stops the process just before its first event outside the profile. In a
+run with undefined behaviour whose events include a disallowed one, the undefined behaviour comes
+after that event, so a faithful enforcer stops the process before it is reached: this is
+*pre-emption*, not hiding (`Thms.Runtime.enforce_keeps_reached_ub`,
+`Thms.Runtime.ub_preempted_of_enforce`). It relies on faithful enforcement, an assumption about the
+runtime. -/
 def enforceObs (Pr : Profile) (b₀ b : Beh Ev) : Prop :=
   (Spec.always (fun e => Pr e.cap = true) b₀ ∧ b = b₀) ∨
-    (¬ Spec.noUB b₀ ∧ b = b₀) ∨
     ∃ t e, b₀.Prefix (t ++ [e]) ∧ Confined Pr t ∧ Pr e.cap = false ∧
       b = .done t (.killed .policy)
 
