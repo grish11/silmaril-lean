@@ -577,7 +577,7 @@ straight-line body is `pre ++ call x :: post`; the prefix `pre` runs (`RunC`, it
 answered by `C`) to values `ws ++ us`, and `call x` resolves to the function at `a` (of type
 `ps → rs`) on its arguments `us`, a call that `D` says diverges. The oracle `C` answers only
 terminating calls; this is the machine's divergence inside a single callee. -/
-def BodyCallDiv {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+def BodyCallDivDirect {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
     (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
   ∃ (b : BlockId) (sg : Segment) (pre post : List Instr) (x : FuncIdx) (s₁ : Store H)
     (f₁ : Frame) (ws us : List Val) (a : Nat) (fi : FuncInst H) (ps rs : List CValType),
@@ -585,6 +585,38 @@ def BodyCallDiv {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.
     RunC P host C st.store st.frame st.stk (expression pre) s₁ f₁ (.normal (ws ++ us)) ∧
     s₁.func? f₁ x = some (a, fi) ∧ DefType.funcType? fi.type = some (ps, rs) ∧
     us.length = ps.length ∧ D s₁ a us
+
+/-- A block whose body reaches a `call_indirect` resolved (`CallRes.IndRes`, as `RunC.callInd`)
+to a callee that `D` says diverges. A null entry or failed cast traps instead. -/
+def BodyCallDivInd {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  ∃ (b : BlockId) (sg : Segment) (pre post : List Instr) (x : TableIdx) (y : TypeIdx)
+    (s₁ : Store H) (f₁ : Frame) (ws us : List Val) (ad : AddrType) (i : BitVec ad.intType.width)
+    (fa : Nat) (fi : FuncInst H) (ps rs : List CValType),
+    st.node = .block b ∧ lookup body b = some sg ∧ sg.body = pre ++ .callIndirect x y :: post ∧
+    RunC P host C st.store st.frame st.stk (expression pre) s₁ f₁
+      (.normal (ws ++ us ++ [.num ⟨.int ad.intType, i⟩])) ∧
+    Abstract.CallRes.IndRes s₁ f₁ x y ad i (some fa) ∧ s₁.funcs[fa]? = some fi ∧
+    DefType.funcType? fi.type = some (ps, rs) ∧ us.length = ps.length ∧ D s₁ fa us
+
+/-- A block whose body reaches a `call_ref` on a function reference that `D` says diverges. On
+null it traps instead. -/
+def BodyCallDivRef {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  ∃ (b : BlockId) (sg : Segment) (pre post : List Instr) (y : TypeIdx) (s₁ : Store H)
+    (f₁ : Frame) (ws us : List Val) (fa : Nat) (fi : FuncInst H) (ps rs : List CValType),
+    st.node = .block b ∧ lookup body b = some sg ∧ sg.body = pre ++ .callRef y :: post ∧
+    RunC P host C st.store st.frame st.stk (expression pre) s₁ f₁
+      (.normal (ws ++ us ++ [.ref (.func fa)])) ∧
+    s₁.funcs[fa]? = some fi ∧ DefType.funcType? fi.type = some (ps, rs) ∧ us.length = ps.length ∧
+    D s₁ fa us
+
+/-- **A block whose body reaches a call `D` says diverges**: a direct, indirect or reference call
+(`BodyCallDivDirect`, `BodyCallDivInd`, `BodyCallDivRef`). -/
+def BodyCallDiv {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  BodyCallDivDirect P host C D body st ∨ BodyCallDivInd P host C D body st ∨
+    BodyCallDivRef P host C D body st
 
 /-- **Divergence of the machine with calls**: an infinite run of `MStepC`, or a finite run to a
 block whose body reaches a call that `D` says diverges (`BodyCallDiv`). An infinite `MStepC`

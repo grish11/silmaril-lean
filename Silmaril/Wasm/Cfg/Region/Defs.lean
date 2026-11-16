@@ -621,6 +621,41 @@ inductive DivFC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
       (hfi : s.func? f x = some (a, fi)) (hty : DefType.funcType? fi.type = some (ps, rs))
       (hn : us.length = ps.length) (hD : D s a us) :
       DivFC P host C D R s f (ws ++ us) (.plain (.call x) :: code)
+  /-- `call_indirect x y` resolved to the callee `fa` (as `RunC.callInd`), answered by `C` with
+  values; the continuation diverges. A null entry or a failed cast traps (`RunC.callIndRes`), so it
+  never diverges. -/
+  | callInd {s s₁ : Store H} {f : Frame} {ws us vs : List Val} {x : TableIdx} {y : TypeIdx}
+      {ad : AddrType} {i : BitVec ad.intType.width} {fa : Nat} {fi : FuncInst H}
+      {ps rs : List CValType} {fl : Binaryen.Flow} {code : List Admin}
+      (hres : Abstract.CallRes.IndRes s f x y ad i (some fa)) (hfi : s.funcs[fa]? = some fi)
+      (hty : DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+      (hcall : C s fa us (s₁, fl)) (hvs : fl.retVals = some vs)
+      (h : R s₁ f (ws ++ (vs.take rs.length).reverse) code) :
+      DivFC P host C D R s f (ws ++ us ++ [.num ⟨.int ad.intType, i⟩])
+        (.plain (.callIndirect x y) :: code)
+  /-- `call_indirect x y` resolved to a callee that `D` says diverges. -/
+  | callIndDiv {s : Store H} {f : Frame} {ws us : List Val} {x : TableIdx} {y : TypeIdx}
+      {ad : AddrType} {i : BitVec ad.intType.width} {fa : Nat} {fi : FuncInst H}
+      {ps rs : List CValType} {code : List Admin}
+      (hres : Abstract.CallRes.IndRes s f x y ad i (some fa)) (hfi : s.funcs[fa]? = some fi)
+      (hty : DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+      (hD : D s fa us) :
+      DivFC P host C D R s f (ws ++ us ++ [.num ⟨.int ad.intType, i⟩])
+        (.plain (.callIndirect x y) :: code)
+  /-- `call_ref y` on a function reference, answered by `C` with values; the continuation
+  diverges. On null it traps (`RunC.callRefNull`). -/
+  | callRef {s s₁ : Store H} {f : Frame} {ws us vs : List Val} {y : TypeIdx} {fa : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {fl : Binaryen.Flow} {code : List Admin}
+      (hfi : s.funcs[fa]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hcall : C s fa us (s₁, fl)) (hvs : fl.retVals = some vs)
+      (h : R s₁ f (ws ++ (vs.take rs.length).reverse) code) :
+      DivFC P host C D R s f (ws ++ us ++ [.ref (.func fa)]) (.plain (.callRef y) :: code)
+  /-- `call_ref y` on a function reference that `D` says diverges. -/
+  | callRefDiv {s : Store H} {f : Frame} {ws us : List Val} {y : TypeIdx} {fa : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {code : List Admin}
+      (hfi : s.funcs[fa]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hD : D s fa us) :
+      DivFC P host C D R s f (ws ++ us ++ [.ref (.func fa)]) (.plain (.callRef y) :: code)
 
 /-- **Diverging region runs with calls**: the greatest fixed point of `DivFC`, as membership in
 some `DivFC`-closed relation. -/

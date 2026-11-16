@@ -82,11 +82,14 @@ public import Silmaril.Foundations.InfiniteTrace
 * **Divergence with calls** (`MDivC`): `C` answers terminating calls only, so an infinite
   `MStepC` run alone misses divergence inside a single callee. `MDivC P host C D` is an infinite
   `MStepC` run, or a finite run to a block whose body reaches a call that `D` names
-  (`BodyCallDiv`). `infinite_core_initialC` (under `Region.CallSoundA`) and
+  (`BodyCallDiv`: a direct call, a `call_indirect` resolved by `CallRes.IndRes` to a function, or
+  a `call_ref` of a function reference; a null entry, null reference or failed cast traps and is
+  never divergence). `infinite_core_initialC` (under `Region.CallSoundA`) and
   `mdivC_core_initial` (also under `Region.DivCallSound`): from `cfgEntry` these are Core 3.0
   divergence of the body (`Proofs/Wasm/Cfg/MachineDivC.lean`). Conversely `run_divC_initial`: a
   diverging region run with calls (`Region.RunDivC`) is `MDivC`; **`core_div_initialC`**: on
-  `FragC` bodies, Core divergence is `MDivC` under complete, guarded `C` and `D`.
+  `FragC` bodies (direct calls only), Core divergence is `MDivC` under complete, guarded `C`
+  and `D`.
 
 * **Tail calls of null** (`MStepC.tailNull`): a `return_call_ref`/`return_call_indirect` of a
   null reference goes to `trap`, whose `Ends` admits the region's pending tail call of null

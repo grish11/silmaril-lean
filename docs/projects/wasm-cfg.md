@@ -373,6 +373,17 @@ The plain graph stays an over-approximation, and claims about it say so.
       (a stopping Core run of the invocation is terminal, a closed outcome, and the body's native
       run to it is a machine run from the CFG entry to a sink ending as that run; branches past
       the function label are ruled out by the body check).
+    - **Callee divergence of every call form, soundness side:** `Region.DivFC` and the machine's
+      `BodyCallDiv` admit a `call_indirect` resolved by `CallRes.IndRes` to a function and a
+      `call_ref` of a function reference, answered by `C` or diverging inside the callee (`D`), next
+      to direct calls. `div_soundC`, `bodyCallDiv_core` and `mdivC_core_initial` cover them under the
+      same hypotheses (`CallSoundA`, `DivCallSound`, both stated for every `call_ref` form). A null
+      table entry, null reference or failed cast traps (`RunC.callIndRes`, `RunC.callRefNull`) and
+      has no divergence constructor. **Open:** the completeness side (`div_completeC`,
+      `core_div_initialC`) is on `FragC`, direct calls only; extending it needs `FragC`,
+      `GuardedCalls` and finite `completeC` for the indirect and reference forms. Divergence
+      through a tail callee (frame replacement, bypassing the caller's handlers and pending code)
+      is also open.
     - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
       `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
       Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the

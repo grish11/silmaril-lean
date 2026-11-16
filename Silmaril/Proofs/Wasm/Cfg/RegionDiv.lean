@@ -40,6 +40,10 @@ theorem DivFC.mono {R S : Rel4 H} (hRS : ∀ s f vs c, R s f vs c → S s f vs c
   | labelBr0 hin hn h => exact .labelBr0 hin hn (hRS _ _ _ _ h)
   | call hfi hty hn hcall hvs h => exact .call hfi hty hn hcall hvs (hRS _ _ _ _ h)
   | callDiv hfi hty hn hD => exact .callDiv hfi hty hn hD
+  | callInd hres hfi hty hn hcall hvs h => exact .callInd hres hfi hty hn hcall hvs (hRS _ _ _ _ h)
+  | callIndDiv hres hfi hty hn hD => exact .callIndDiv hres hfi hty hn hD
+  | callRef hfi hty hn hcall hvs h => exact .callRef hfi hty hn hcall hvs (hRS _ _ _ _ h)
+  | callRefDiv hfi hty hn hD => exact .callRefDiv hfi hty hn hD
 
 theorem runDiv_unfold {s : Store H} {f : Frame} {vs : List Val} {code : List Admin}
     (h : RunDivC P host C D s f vs code) : DivFC P host C D (RunDivC P host C D) s f vs code := by
@@ -141,6 +145,27 @@ theorem diverges_handler {s : Store H} {f : Frame} {X : List Admin} (n : Nat) (c
     (fun c : Config H => (⟨c.store, c.frame, [.handler n cs c.code]⟩ : Config H))
     (fun a b hs => by
       rcases a with ⟨_, _, _⟩; rcases b with ⟨_, _, _⟩; exact Step.ctxtHandler hs) h
+
+
+/-- A non-value instruction before a code is not a value prefix of the same code. -/
+theorem ne_vals_of_plain {s s' : Store H} {f f' : Frame} {A B : List Val} {i : Instr}
+    {code : List Admin} (hi : (Admin.plain i).val? = none) :
+    (⟨s, f, vals A ++ .plain i :: code⟩ : Config H) ≠ ⟨s', f', vals B ++ code⟩ := by
+  intro h
+  have hc := congrArg Config.code h
+  simp only at hc
+  have h2 : (vals A ++ [.plain i]) ++ code = vals B ++ code := by simpa using hc
+  have h3 := List.append_cancel_right h2
+  have hm : Admin.plain i ∈ vals B := by rw [← h3]; simp
+  obtain ⟨v, -, hv⟩ := List.mem_map.1 hm
+  rw [← hv, Admin.val?_toAdmin] at hi
+  cases hi
+
+theorem steps_div {c c' : Config H} (h : Steps P host c c') (hd : Diverges P host c') :
+    Diverges P host c := by
+  induction h using Relation.ReflTransGen.head_induction_on with
+  | refl => exact hd
+  | head hs _ ih => exact InfiniteTrace.fold hs ih
 
 /-- **Progress**: a diverging region run takes at least one Core step to another diverging
 region run, or (at a call `D` names) its code diverges in Core. -/
@@ -246,6 +271,30 @@ theorem progress (hC : CallSoundA P host C) (hD : DivCallSound P host D) {s : St
   | @callDiv _ ws us x a fi ps rs code' hfi hty hn hd =>
     refine .inr (InfiniteTrace.fold (call_head hfi) ?_)
     exact diverges_in ws code' (hD s f a fi ps rs us _ trivial (func?_inv hfi).2 hty hn hd)
+  | @callInd s₁ _ ws us vs₁ x y ad i fa fi ps rs fl code' hres hfi hty hn hcall hvs hd =>
+    refine .inl ⟨s₁, f, ws ++ (vs₁.take rs.length).reverse, code', ?_, hd⟩
+    have h1 := steps_in ws code'
+      ((hC s s₁ f fa fi ps rs us fl (.plain (.callRef y)) trivial hfi hty hn hcall).1 vs₁ hvs)
+    have hall := (callInd_head (P := P) (host := host) (ws := ws) (us := us) (code := code') hres).trans
+      (by simpa using h1)
+    exact transGen_of_steps (by simpa [List.append_assoc] using hall)
+      (ne_vals_of_plain (by simp [Admin.val?]))
+  | @callIndDiv _ ws us x y ad i fa fi ps rs code' hres hfi hty hn hd =>
+    refine .inr (steps_div (callInd_head (P := P) (host := host) (ws := ws) (us := us)
+      (code := code') hres) ?_)
+    exact diverges_in ws code' (hD s f fa fi ps rs us (.plain (.callRef y)) trivial hfi hty hn hd)
+  | @callRef s₁ _ ws us vs₁ y fa fi ps rs fl code' hfi hty hn hcall hvs hd =>
+    refine .inl ⟨s₁, f, ws ++ (vs₁.take rs.length).reverse, code', ?_, hd⟩
+    have h1 := steps_in ws code'
+      ((hC s s₁ f fa fi ps rs us fl (.plain (.callRef y)) trivial hfi hty hn hcall).1 vs₁ hvs)
+    rw [callRef_code]
+    refine transGen_of_steps (by simpa using h1) ?_
+    rw [← callRef_code]
+    exact ne_vals_of_plain (by simp [Admin.val?])
+  | @callRefDiv _ ws us y fa fi ps rs code' hfi hty hn hd =>
+    refine .inr ?_
+    rw [callRef_code]
+    exact diverges_in ws code' (hD s f fa fi ps rs us (.plain (.callRef y)) trivial hfi hty hn hd)
 
 /-- **Soundness for divergence**: a diverging region run is an infinite Core 3.0 run, when `C`
 answers calls as Core runs them and the calls `D` names diverge in Core. -/

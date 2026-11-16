@@ -112,8 +112,8 @@ theorem rec_mdivC (P : Profile) {fi : FuncInst Empty} {x : FuncIdx} {f : Frame}
       (initial [Instr.call x] recStore f) := by
   have hty : Validation.DefType.funcType? fi.type = some ([], []) := by
     simpa [hfi] using recStore_funcType
-  refine .inr ⟨_, .refl, ⟨[], 0⟩, ⟨[.call x], none⟩, [], [], x, recStore, f, [], [], 0, fi, [], [],
+  refine .inr ⟨_, .refl, .inl ⟨⟨[], 0⟩, ⟨[.call x], none⟩, [], [], x, recStore, f, [], [], 0, fi, [], [],
     by rw [initial_call], by simp [lookup_call], rfl, by rw [initial_call]; exact .nil,
-    by simp [Store.func?, hx, hfi], hty, rfl, rec_closedDiv P⟩
+    by simp [Store.func?, hx, hfi], hty, rfl, rec_closedDiv P⟩⟩
 
 end Silmaril.Wasm.Cfg.Proofs.ExampleRec

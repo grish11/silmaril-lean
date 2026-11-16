@@ -79,6 +79,13 @@ theorem term_call {c : List Instr} {i : Nat} {sg : Segment} {x : FuncIdx}
   have hwf := (hseg.2.1 sg (List.mem_of_getElem? hsg)).2 (.call x) (by simp [ht])
   simp [isTerminator] at hwf
 
+theorem term_nonterm {c : List Instr} {i : Nat} {sg : Segment} {t : Instr}
+    (hsg : (segment c)[i]? = some sg) (ht : sg.term = some t) (hn : isTerminator t = false) :
+    False := by
+  have hseg := segment_isSegmentation c
+  have hwf := (hseg.2.1 sg (List.mem_of_getElem? hsg)).2 t (by simp [ht])
+  simp [hn] at hwf
+
 theorem prog_entry_step {body : Expr} {st : MState H} {p : List SeqStep} {c : List Instr}
     {i : Nat} {ls : List LFrame} {s : Store H} {f : Frame} {vs : List Val}
     (hc : seqAt body p = some c) (hs : MStepC P host C body st (goto (entry body p i) p.length ls vs s f))
@@ -99,6 +106,10 @@ theorem prog_term {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List 
   | val hv => rw [term_val_none hsg ht] at hv; cases hv
   | call => exact (term_call hsg ht).elim
   | callDiv => exact (term_call hsg ht).elim
+  | callInd => exact (term_nonterm hsg ht (by simp [isTerminator])).elim
+  | callIndDiv => exact (term_nonterm hsg ht (by simp [isTerminator])).elim
+  | callRef => exact (term_nonterm hsg ht (by simp [isTerminator])).elim
+  | callRefDiv => exact (term_nonterm hsg ht (by simp [isTerminator])).elim
   | simple hi h₁ =>
     cases term_noncontrol hsg ht hi
     exact (steps_unreachable_not_vals h₁).elim
@@ -210,8 +221,18 @@ theorem prog_blk {body : Expr} {p : List SeqStep} {ls : List LFrame} {c : List I
       | call hfi hty hn hcall hvs h =>
         exact adv (.call hfi hty hn hcall hvs .nil) (by simpa [expression] using h)
       | @callDiv _ ws us x' a fi ps rs _ hfi hty hn hD =>
-        exact .inr ⟨_, .refl, ⟨p, i⟩, sg, pre, sfx, x', s, f, ws, us, a, fi, ps, rs, rfl,
-          lookup_of hc hsg, hbody, by simpa using hpre, hfi, hty, hn, hD⟩
+        exact .inr ⟨_, .refl, .inl ⟨⟨p, i⟩, sg, pre, sfx, x', s, f, ws, us, a, fi, ps, rs, rfl,
+          lookup_of hc hsg, hbody, by simpa using hpre, hfi, hty, hn, hD⟩⟩
+      | callInd hres hfi hty hn hcall hvs h =>
+        exact adv (.callInd hres hfi hty hn hcall hvs .nil) (by simpa [expression] using h)
+      | @callIndDiv _ ws us x' y ad k fa fi ps rs _ hres hfi hty hn hD =>
+        exact .inr ⟨_, .refl, .inr (.inl ⟨⟨p, i⟩, sg, pre, sfx, x', y, s, f, ws, us, ad, k, fa, fi,
+          ps, rs, rfl, lookup_of hc hsg, hbody, by simpa using hpre, hres, hfi, hty, hn, hD⟩)⟩
+      | callRef hfi hty hn hcall hvs h =>
+        exact adv (.callRef hfi hty hn hcall hvs .nil) (by simpa [expression] using h)
+      | @callRefDiv _ ws us y fa fi ps rs _ hfi hty hn hD =>
+        exact .inr ⟨_, .refl, .inr (.inr ⟨⟨p, i⟩, sg, pre, sfx, y, s, f, ws, us, fa, fi, ps, rs, rfl,
+          lookup_of hc hsg, hbody, by simpa using hpre, hfi, hty, hn, hD⟩)⟩
       | brIf => simp [isTerminator] at hx
       | brData hbs => cases hbs <;> simp [isTerminator] at hx
       | block => simp [isTerminator] at hx
@@ -495,7 +516,8 @@ theorem run_div_initial {body : Expr} {s : Store H} {f : Frame}
     InfiniteTrace (MStep P host body) (initial body s f) := by
   rcases run_divC_initial h with h | ⟨_, _, hB⟩
   · exact h
-  · obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, hD⟩ := hB
-    exact hD.elim
+  · rcases hB with ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, ⟨⟩⟩ |
+      ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, ⟨⟩⟩ |
+      ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, ⟨⟩⟩
 
 end Silmaril.Wasm.Cfg.Proofs.MachineDiv
