@@ -137,7 +137,8 @@ pub fn identity_hash(identity: &serde_json::Value) -> String {
 }
 
 /// The view `language_problems`: one row per argument of an instance of a standard language
-/// shape that names a registered language (by its defining constant), with the instance's
+/// shape that names a registered language (by its defining constant; Lean's `«…»` name escapes in
+/// the recorded term are dropped), with the instance's
 /// shape, role, expected status, summary and verdict. `language_shape_roles` is the role table
 /// it reads (the rows of [`LANGUAGE_SHAPES`]).
 pub const LANGUAGE_VIEWS: &[&str] = &[
@@ -146,7 +147,7 @@ r.role AS role, i.pos AS pos, l.name AS language, p.expect AS expect, p.title AS
 s.summary AS summary, s.verdict AS verdict \
 FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' \
 JOIN language_shape_roles r ON r.shape = e.parent AND r.pos = i.pos \
-JOIN languages l ON l.decl = i.term \
+JOIN languages l ON l.decl = replace(replace(i.term, '«', ''), '»', '') \
 JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;",
 ];
 

@@ -23,9 +23,30 @@
   // The status of a problem as the shared neutral badge (ui.statusBadge), with the stored SZS
   // code: marked only when it fails unexpectedly or misses its expected status. A closed
   // refutation is stored as UNS (false); no answer is OPN (unknown), never false.
-  function outcome(p) {
-    return ui.statusBadge({ summary: p.summary || "OPN", verdict: p.verdict || "unknown", expect: p.expect || null,
-      deprecated: p.deprecated || null, finding: p.finding || null });
+  const statusOfRow = (p) => ({ summary: p.summary || "OPN", verdict: p.verdict || "unknown", expect: p.expect || null,
+    arity: p.arity, deprecated: p.deprecated || null, finding: p.finding || null });
+  function outcome(p) { return ui.statusBadge(statusOfRow(p)); }
+  // Expectations of a set of problems, by the shared outcome (ui.statusInfo: a closed problem meets
+  // an expectation of the same truth value). This is an aggregate of the stored statuses, not a
+  // status and not a proof: "all met" needs every problem to have an expectation that is met; a
+  // problem with no expectation, or one not established yet, never counts as met.
+  function expectations(rows) {
+    const n = { match: 0, mismatch: 0, pending: 0, none: 0 };
+    rows = [...new Map(rows.map((r) => [r.problem, r])).values()];   // a problem counts once
+    for (const r of rows) {
+      const i = ui.statusInfo(statusOfRow(r));
+      const o = i ? i.outcome : "none";
+      n[o === "error" ? "mismatch" : o] = (n[o === "error" ? "mismatch" : o] || 0) + 1;
+    }
+    const all = rows.length > 0 && n.match === rows.length;
+    const parts = [`${n.match} met`];
+    if (n.mismatch) parts.push(`${n.mismatch} unmet`);
+    if (n.pending) parts.push(`${n.pending} not established`);
+    if (n.none) parts.push(`${n.none} without expectation`);
+    const cls = n.mismatch ? "st st-bad" : all ? "st st-ok" : "st";
+    const head = n.mismatch ? "unmet" : all ? "all met" : rows.length ? "incomplete" : "none";
+    return { all, n, html: rows.length ? `<span class="${cls}" data-expectations="${head}" title="${ui.esc(parts.join(", "))}">${head}</span> ` +
+      `<span class="muted">${ui.esc(parts.join(" · "))}</span>` : "" };
   }
   // A sentence as recorded (the pretty-printed Lean term). A list of byte values is also shown as
   // hex and as an escaped byte literal: printable ASCII as itself, every other byte as \xNN. The
@@ -81,6 +102,14 @@
       "l.decl " +
       "FROM languages l LEFT JOIN deprecations d ON d.name = l.name AND d.kind = 'language' " +
       (where.length ? "WHERE " + where.join(" AND ") + " " : "") + "ORDER BY l.name LIMIT " + (LIMIT + 1), params);
+    // the problems of the listed constructions, for the expectations column (bounded)
+    const hashes = [...new Set(rows.slice(0, LIMIT).map((r) => r.identity_hash))];
+    const probs = hashes.length ? await ctx.q(
+      "SELECT DISTINCT l.identity_hash, lp.problem, lp.expect, lp.summary, lp.verdict, p.arity FROM language_problems lp " +
+      "JOIN languages l ON l.name = lp.language JOIN problems p ON p.name = lp.problem " +
+      `WHERE l.identity_hash IN (${hashes.map(() => "?").join(",")}) LIMIT 5000`, hashes) : [];
+    const byHash = new Map();
+    for (const p of probs) { if (!byHash.has(p.identity_hash)) byHash.set(p.identity_hash, []); byHash.get(p.identity_hash).push(p); }
     const domains = await ctx.q("SELECT name, carrier, monoid, letters, doc FROM language_domains ORDER BY name LIMIT 200");
     const ops = await ctx.q("SELECT DISTINCT op FROM languages ORDER BY op LIMIT 20");
     const opt = (v, cur, label) => `<option value="${ui.esc(v)}"${v === cur ? " selected" : ""}>${ui.esc(label || v)}</option>`;
@@ -95,11 +124,12 @@ Membership, emptiness, inclusion and equality are undecidable in general: a ques
   <select name="deprecated">${opt("", f.dep, "deprecated too")}${opt("hide", f.dep, "hide deprecated")}${opt("only", f.dep, "only deprecated")}</select>
   <button>filter</button>
 </form>
-<div class="tablebox"><table id="languages-table"><thead><tr><th>language</th><th>title</th><th>domain</th><th>construction</th><th>examples: in / out / unknown</th><th>problems</th><th>identity</th></tr></thead><tbody>`;
+<div class="tablebox"><table id="languages-table"><thead><tr><th>language</th><th>title</th><th>domain</th><th>construction</th><th>examples: in / out / unknown</th><th>expectations</th><th>problems</th><th>identity</th></tr></thead><tbody>`;
     for (const r of rows.slice(0, LIMIT)) {
       h += `<tr><td>${langLink(r.name)}${r.deprecated ? " " + depMark : ""}</td>` +
         `<td>${ui.esc(r.title || "")}</td><td>${ui.esc(r.domain)}</td><td>${ui.esc(opText(r))}</td>` +
-        `<td>${r.accepted || r.rejected || r.unknown ? `${r.accepted} / ${r.rejected} / ${r.unknown}` : ""}</td><td>${r.problems || ""}</td><td><code title="${ui.esc(r.identity_hash)}">${ui.esc(r.identity_hash.slice(0, 12))}</code></td></tr>`;
+        `<td>${r.accepted || r.rejected || r.unknown ? `${r.accepted} / ${r.rejected} / ${r.unknown}` : ""}</td>` +
+        `<td>${expectations(byHash.get(r.identity_hash) || []).html}</td><td>${r.problems || ""}</td><td><code title="${ui.esc(r.identity_hash)}">${ui.esc(r.identity_hash.slice(0, 12))}</code></td></tr>`;
     }
     h += `</tbody></table></div>`;
     if (rows.length > LIMIT) h += `<p class="muted">showing the first ${LIMIT}; narrow the filter or use the SQL tab</p>`;
@@ -181,6 +211,8 @@ Equal sets built differently have different identities; their equality is a prob
     h += `<h3>Problems and examples</h3><p class="muted">Every standard language problem about this construction (under this name or another with the same identity).
 Closed membership problems are the examples: THM: the sentence is in the language (true); UNS: it is not (false, refuted); each by the Lean answer shown;
 no answer means unknown, not false.</p>`;
+    if (ps.length) h += `<p id="language-expectations">Expectations: ${expectations(ps).html}
+<span class="muted">(an aggregate of the stored statuses against <code>expect</code>, not a status or a proof)</span></p>`;
     if (!ps.length) {
       h += `<p class="muted">No standard language problem names this language.</p>`;
     } else {

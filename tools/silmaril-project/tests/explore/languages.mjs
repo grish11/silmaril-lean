@@ -38,6 +38,10 @@ try {
   check(rows > 0, `#/languages lists ${rows} languages`);
   const heads = await p.evaluate(() => [...document.querySelectorAll("#languages-table thead th")].map((t) => t.textContent));
   check(!heads.includes("operands"), `the index has no operands column: ${heads.join(", ")}`);
+  // the Wasm language has one open problem with expect OPN: no expectation, so never "all met"
+  const wasmAgg = await p.evaluate(() => { const r = [...document.querySelectorAll("#languages-table tbody tr")].find((r) => r.textContent.includes("silmaril.selftest.lang.wasm.accept"));
+    const e = r && r.querySelector("[data-expectations]"); return e && e.dataset.expectations; });
+  check(wasmAgg === "incomplete", `an open problem without an expectation is not met: ${wasmAgg}`);
   await shot("languages.png");
 
   await go("#/languages/?domain=nat.additive");
@@ -53,6 +57,8 @@ try {
   check(await p.evaluate(() => /Silmaril\.Formats\.Cbor\.Drisl\.Profile\.atprotoCoreExactCid/.test(document.querySelector("#main pre.code").textContent)),
     "the identity names the exact profile");
   await shot("language-atproto.png");
+  const agg = await p.evaluate(() => { const e = document.querySelector("#language-expectations [data-expectations]"); return e && e.dataset.expectations; });
+  check(agg === "all met", `the profile's expectations: ${agg}`);
   const hex = await p.evaluate(() => [...document.querySelectorAll("#language-problems tbody tr")].map((r) => r.children[1].textContent));
   check(hex.some((t) => /^a2 61 61 01 61 62 82 f5 f6/.test(t) && t.includes(String.raw`b"\xa2aa\x01ab\x82\xf5\xf6" (display)`)),
     "sentences are shown as hex and as an escaped display literal");
