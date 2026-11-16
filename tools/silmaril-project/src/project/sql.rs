@@ -134,13 +134,34 @@ pub fn logical_dump(conn: &rusqlite::Connection) -> Result<String> {
 /// logical dump is the text and that it has exactly the indexes of [`schema::INDEXES`]. With
 /// `httpvfs = Some(page_size)`, also set the page size (one HTTP Range request reads at least a
 /// page) and `journal_mode = DELETE`, for lazy reads; the content is the same.
+///
+/// The database is built and checked in a temporary file next to `db` and then renamed over it,
+/// so `db` is always either the old file or the complete new one: a server or an explorer page
+/// reading it while it is rebuilt never sees a half-written database. (A page that keeps reading
+/// the old version lazily notices the new version by its validators; see explore/db.js.)
 pub fn write_db(sql: &str, db: &Path, httpvfs: Option<u32>) -> Result<()> {
-    if let Some(dir) = db.parent() {
-        fs::create_dir_all(dir).into_diagnostic()?;
+    let dir = db
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    fs::create_dir_all(dir).into_diagnostic()?;
+    let name = db
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let tmp = dir.join(format!(".{name}.{}.tmp", std::process::id()));
+    let _ = fs::remove_file(&tmp);
+    let built = build_db(sql, &tmp, httpvfs);
+    if let Err(e) = built {
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
     }
-    if db.exists() {
-        fs::remove_file(db).into_diagnostic()?;
-    }
+    fs::rename(&tmp, db)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("could not replace {}", db.display()))
+}
+
+fn build_db(sql: &str, db: &Path, httpvfs: Option<u32>) -> Result<()> {
     let conn = rusqlite::Connection::open(db)
         .into_diagnostic()
         .wrap_err_with(|| format!("could not create {}", db.display()))?;

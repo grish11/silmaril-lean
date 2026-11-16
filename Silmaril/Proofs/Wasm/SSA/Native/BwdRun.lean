@@ -493,4 +493,17 @@ theorem native_backward {H : Type} {s : Silmaril.Wasm.Execution.Core.Store H} {m
     rw [hob]
     exact ho'
 
+/-- **Fragment code does not change the store**: a native evaluation of a
+fragment function's body ends in the store it started from. -/
+theorem native_store {H : Type} {s : Silmaril.Wasm.Execution.Core.Store H} {mi : ModuleInst}
+    {f : FragFunc} {bs : List BExpr} (hb : ofBExprs? bs = some f.body) (hn : f.native = true)
+    {args : List WVal} {s' : Store H} {fr : Frame} {fl : Flow}
+    (h : Silmaril.Wasm.Binaryen.Eval s (frameOf mi (f.initLocals args)) [] bs (s', fr, fl)) :
+    s' = s := by
+  obtain ⟨a, hseqty⟩ : ∃ a, tySeq [arOf f.result] (arOf f.result)
+      (f.params.length + f.locals.length) f.body = some a := arFits_some hn
+  obtain ⟨ob, -, hc⟩ := bwd h rfl hb (tyL_of_tySeq hseqty)
+  rcases corr_flow hc with ⟨-, -, -, hs, -⟩ | ⟨-, -, -, -, -, hs, -⟩ | ⟨-, -, -, hs, -⟩ |
+      ⟨-, hs, -⟩ <;> exact hs
+
 end Silmaril.Proofs.Wasm.SSA.Native.Bwd

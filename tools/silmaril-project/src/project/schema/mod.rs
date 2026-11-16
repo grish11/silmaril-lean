@@ -1,7 +1,8 @@
 //! Every `sil project` format, one module per layer:
 //! [`dag`] (layer 0: manifest, dump, DAG records, core tables), [`relational`] (predicates,
 //! answers, instances), [`artifacts`] (the registry and blobs), [`values`] (formats and
-//! values), [`rooms`] and [`models`] (models and specs). This module holds what the layers
+//! values), [`rooms`] and [`models`] (models and specs), [`languages`] (language domains,
+//! measures, interpretations and languages), [`consequence`] (consequence systems), [`markings`] (deprecations and findings). This module holds what the layers
 //! share: the schema strings, the closed [`Record`] enum (one line per kind, so an unknown kind
 //! is rejected), the [`table!`] macro and the DDL order ([`tables`]).
 //!
@@ -84,6 +85,15 @@ pub enum Record {
     Spec(Spec),
     Model(Model),
     Room(Room),
+    Machine(Box<Machine>),
+    MachineBinding(MachineBinding),
+    LanguageDomain(LanguageDomain),
+    Measure(Measure),
+    LanguageInterpretation(LanguageInterpretation),
+    Language(Box<Language>),
+    ConsequenceInterpretation(ConsequenceInterpretation),
+    ConsequenceSystem(Box<ConsequenceSystem>),
+    ConsequenceMatrix(Box<ConsequenceMatrixCell>),
     Predicate(Predicate),
     Answer(Answer),
     Instance(Instance),
@@ -94,6 +104,8 @@ pub enum Record {
     RefutationRoute(RefutationRoute),
     Root(Root),
     Detached(Detached),
+    Deprecation(Deprecation),
+    Finding(Finding),
 }
 
 /// Per kind: the field that identifies a record within its kind, and the sid kind of the
@@ -120,6 +132,15 @@ record_kinds! {
     Spec = "spec", key name, object Some("spec");
     Model = "model", key name, object Some("model");
     Room = "room", key name, object Some("room");
+    Machine = "machine", key name, object Some("machine");
+    MachineBinding = "machine_binding", key name, object None;
+    LanguageDomain = "language_domain", key name, object Some("language_domain");
+    Measure = "measure", key name, object Some("measure");
+    LanguageInterpretation = "language_interpretation", key name, object Some("language_interpretation");
+    Language = "language", key name, object Some("language");
+    ConsequenceInterpretation = "consequence_interpretation", key name, object Some("consequence_interpretation");
+    ConsequenceSystem = "consequence_system", key name, object Some("consequence_system");
+    ConsequenceMatrix = "consequence_matrix", key name, object None;
     Predicate = "predicate", key name, object None;
     Answer = "answer", key decl, object None;
     Instance = "instance", key name, object None;
@@ -130,6 +151,8 @@ record_kinds! {
     RefutationRoute = "refutation_route", key name, object None;
     Root = "root", key name, object None;
     Detached = "detached", key name, object None;
+    Deprecation = "deprecation", key name, object None;
+    Finding = "finding", key name, object None;
 }
 
 /// The sid kind of a record kind's object (`None`: the record declares no object, or a
@@ -167,6 +190,12 @@ impl Col for i64 {
 impl Col for u64 {
     fn sql(&self) -> Sql {
         Sql::Int(i64::try_from(*self).unwrap_or(i64::MAX))
+    }
+}
+/// A JSON value column holds its compact JSON text.
+impl Col for serde_json::Value {
+    fn sql(&self) -> Sql {
+        Sql::Text(self.to_string())
     }
 }
 impl Col for bool {
@@ -222,7 +251,11 @@ macro_rules! table {
 
 // Each layer declares its record structs and tables; [`tables`] fixes the DDL order.
 pub mod artifacts;
+pub mod consequence;
 pub mod dag;
+pub mod languages;
+pub mod machines;
+pub mod markings;
 pub mod models;
 pub mod records;
 pub mod relational;
@@ -230,18 +263,32 @@ pub mod rooms;
 pub mod values;
 
 pub use artifacts::*;
+pub use consequence::*;
 pub use dag::*;
+pub use languages::*;
+pub use machines::*;
+pub use markings::*;
 pub use models::*;
 pub use relational::*;
 pub use rooms::*;
 pub use values::*;
 
-/// Views written after the tables.
+/// Views written after the tables: the group vectors, the language problems
+/// ([`languages::LANGUAGE_VIEWS`]), the consequence problems
+/// ([`consequence::CONSEQUENCE_VIEWS`]), then the marking views
+/// ([`markings::MARKING_VIEWS`]).
 pub const VIEWS: &[&str] = &[
     "CREATE VIEW group_verdicts AS SELECT e.parent AS group_name, e.record_kind, \
 e.record_name, e.pos, e.child, s.summary, s.verdict \
 FROM edges e JOIN problems p ON p.name = e.parent AND p.kind = 'group' \
 LEFT JOIN summary s ON s.problem = e.child;",
+    languages::LANGUAGE_VIEWS[0],
+    consequence::CONSEQUENCE_VIEWS[0],
+    markings::MARKING_VIEWS[0],
+    markings::MARKING_VIEWS[1],
+    markings::MARKING_VIEWS[2],
+    markings::MARKING_VIEWS[3],
+    markings::MARKING_VIEWS[4],
 ];
 
 /// Indexes written after the views, as `(name, table, columns)`: lookups that primary keys and
@@ -270,6 +317,40 @@ pub const INDEXES: &[(&str, &str, &[&str])] = &[
     ("format_laws_format", "format_laws", &["format"]),
     ("format_defaults_format", "format_defaults", &["format"]),
     ("artifact_paths_artifact", "artifact_paths", &["artifact"]),
+    (
+        "findings_classification",
+        "findings",
+        &["classification", "problem"],
+    ),
+    ("findings_pointer", "findings", &["pointer"]),
+    ("deprecated_problems_via", "deprecated_problems", &["via"]),
+    (
+        "deprecation_replacements_replacement",
+        "deprecation_replacements",
+        &["replacement"],
+    ),
+    ("machine_bindings_machine", "machine_bindings", &["machine"]),
+    ("languages_domain", "languages", &["domain", "name"]),
+    ("languages_decl", "languages", &["decl"]),
+    ("languages_term", "languages", &["term"]),
+    ("languages_identity", "languages", &["identity_hash"]),
+    (
+        "language_operands_operand",
+        "language_operands",
+        &["operand"],
+    ),
+    ("consequence_systems_term", "consequence_systems", &["term"]),
+    (
+        "consequence_systems_value",
+        "consequence_systems",
+        &["value"],
+    ),
+    (
+        "consequence_operands_operand",
+        "consequence_operands",
+        &["operand"],
+    ),
+    ("instance_args_term", "instance_args", &["term"]),
 ];
 
 /// A table's shape without its row type.
@@ -327,6 +408,19 @@ pub fn tables() -> Vec<TableInfo> {
         info::<Spec>(),
         info::<Model>(),
         info::<Room>(),
+        info::<Machine>(),
+        info::<MachineBinding>(),
+        info::<LanguageDomain>(),
+        info::<Measure>(),
+        info::<LanguageInterpretation>(),
+        info::<Language>(),
+        info::<LanguageOperand>(),
+        info::<LanguageShapeRole>(),
+        info::<ConsequenceInterpretation>(),
+        info::<ConsequenceSystem>(),
+        info::<ConsequenceOperand>(),
+        info::<ConsequenceShapeRole>(),
+        info::<ConsequenceMatrixCell>(),
         info::<ProblemRow>(),
         info::<ProblemArg>(),
         info::<ProblemInput>(),
@@ -337,5 +431,23 @@ pub fn tables() -> Vec<TableInfo> {
         info::<Szs>(),
         info::<StatusRow>(),
         info::<SummaryRow>(),
+        info::<DeprecationRow>(),
+        info::<Replacement>(),
+        info::<DeprecatedProblem>(),
+        info::<FindingRow>(),
+        info::<FindingVersion>(),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn views_end_with_the_marking_views() {
+        assert_eq!(
+            &VIEWS[VIEWS.len() - markings::MARKING_VIEWS.len()..],
+            markings::MARKING_VIEWS
+        );
+    }
 }

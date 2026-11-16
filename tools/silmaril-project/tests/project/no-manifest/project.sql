@@ -141,6 +141,174 @@ CREATE TABLE rooms(
   doc TEXT,
   UNIQUE(name)
 );
+CREATE TABLE machines(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  doc TEXT,
+  deterministic INTEGER NOT NULL,
+  n_states INTEGER NOT NULL,
+  n_labels INTEGER NOT NULL,
+  n_edges INTEGER NOT NULL,
+  canonical TEXT NOT NULL,
+  dominators TEXT,
+  dominator_theorem TEXT,
+  UNIQUE(name)
+);
+CREATE TABLE machine_bindings(
+  name TEXT NOT NULL PRIMARY KEY,
+  machine TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  marks TEXT,
+  theorem TEXT NOT NULL,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  doc TEXT
+);
+CREATE TABLE language_domains(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  carrier TEXT NOT NULL,
+  monoid INTEGER NOT NULL,
+  letters TEXT,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE measures(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  codomain TEXT NOT NULL,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE language_interpretations(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  input TEXT NOT NULL,
+  carrier TEXT NOT NULL,
+  abi TEXT,
+  environment TEXT,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE languages(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  op TEXT NOT NULL CHECK(op IN ('decl','format','artifact','union','inter','diff','regex','within')),
+  decl TEXT NOT NULL,
+  carrier TEXT NOT NULL,
+  title TEXT,
+  doc TEXT,
+  source TEXT,
+  format TEXT,
+  value TEXT,
+  interpretation TEXT,
+  regex TEXT,
+  semantics TEXT CHECK(semantics IN ('list','monoid')),
+  measure TEXT,
+  bound INTEGER,
+  term TEXT,
+  identity TEXT NOT NULL,
+  identity_hash TEXT NOT NULL,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE language_operands(
+  language TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  operand TEXT NOT NULL,
+  PRIMARY KEY(language, pos)
+);
+CREATE TABLE language_shape_roles(
+  shape TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  PRIMARY KEY(shape, pos)
+);
+CREATE TABLE consequence_interpretations(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  input TEXT NOT NULL,
+  contexts TEXT NOT NULL,
+  conclusions TEXT NOT NULL,
+  abi TEXT,
+  environment TEXT,
+  definedness TEXT CHECK(definedness IN ('total','partial')),
+  env TEXT,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE consequence_systems(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  op TEXT NOT NULL CHECK(op IN ('decl','union','inter','diff','erase','artifact')),
+  decl TEXT NOT NULL,
+  term TEXT NOT NULL,
+  contexts TEXT NOT NULL,
+  conclusions TEXT NOT NULL,
+  witness TEXT,
+  value TEXT,
+  interpretation TEXT,
+  env_term TEXT,
+  ctx_kind TEXT CHECK(ctx_kind IN ('unit','list','finset','set','other')),
+  ctx_elem TEXT,
+  ctx_signed INTEGER,
+  concl_kind TEXT CHECK(concl_kind IN ('unit','list','finset','set','other')),
+  concl_elem TEXT,
+  concl_signed INTEGER,
+  raw_sequent INTEGER,
+  title TEXT,
+  doc TEXT,
+  source TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE consequence_operands(
+  system TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  operand TEXT NOT NULL,
+  PRIMARY KEY(system, pos)
+);
+CREATE TABLE consequence_shape_roles(
+  shape TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  PRIMARY KEY(shape, pos)
+);
+CREATE TABLE consequence_matrix_cells(
+  name TEXT NOT NULL PRIMARY KEY,
+  matrix TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  variant TEXT NOT NULL,
+  reading TEXT NOT NULL,
+  reading_module TEXT NOT NULL,
+  theorems TEXT NOT NULL,
+  evidence TEXT NOT NULL,
+  strength TEXT NOT NULL,
+  note TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL
+);
 CREATE TABLE problems(
   sid TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -224,7 +392,49 @@ CREATE TABLE summary(
   verdict TEXT NOT NULL CHECK(verdict IN ('holds','fails','unknown')),
   tier TEXT NOT NULL
 );
+CREATE TABLE deprecations(
+  name TEXT NOT NULL PRIMARY KEY,
+  kind TEXT NOT NULL CHECK(kind IN ('problem','group','spec','language')),
+  reason TEXT NOT NULL,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL CHECK(origin IN ('local','imported'))
+);
+CREATE TABLE deprecation_replacements(
+  name TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  replacement TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN ('problem','group','spec','language')),
+  PRIMARY KEY(name, pos)
+);
+CREATE TABLE deprecated_problems(
+  problem TEXT NOT NULL PRIMARY KEY,
+  via_kind TEXT NOT NULL CHECK(via_kind IN ('self','spec','instance')),
+  via TEXT NOT NULL
+);
+CREATE TABLE findings(
+  problem TEXT NOT NULL PRIMARY KEY,
+  classification TEXT NOT NULL CHECK(classification IN ('error','spec_bug','model_gap','unclear')),
+  note TEXT,
+  pointer TEXT,
+  fixed_in TEXT,
+  disclosure_status TEXT CHECK(disclosure_status IN ('private','reported','public')),
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL CHECK(origin IN ('local','imported'))
+);
+CREATE TABLE finding_versions(
+  problem TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  version TEXT NOT NULL,
+  PRIMARY KEY(problem, pos)
+);
 CREATE VIEW group_verdicts AS SELECT e.parent AS group_name, e.record_kind, e.record_name, e.pos, e.child, s.summary, s.verdict FROM edges e JOIN problems p ON p.name = e.parent AND p.kind = 'group' LEFT JOIN summary s ON s.problem = e.child;
+CREATE VIEW language_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, l.name AS language, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN language_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN languages l ON l.term = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
+CREATE VIEW consequence_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, c.name AS system, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN consequence_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN consequence_systems c ON c.term = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
+CREATE VIEW genuine_errors AS SELECT f.problem, p.title, s.summary, f.note, f.pointer, (SELECT group_concat(v.version, ',') FROM (SELECT version FROM finding_versions WHERE problem = f.problem ORDER BY pos) v) AS affected_versions, f.fixed_in, f.disclosure_status, f.module, f.origin FROM findings f JOIN problems p ON p.name = f.problem LEFT JOIN summary s ON s.problem = f.problem WHERE f.classification = 'error';
+CREATE VIEW model_gaps AS SELECT f.pointer, f.problem, p.title, f.note FROM findings f JOIN problems p ON p.name = f.problem WHERE f.classification = 'model_gap';
+CREATE VIEW spec_bugs AS SELECT f.problem, d.via_kind, d.via, f.note, f.pointer FROM findings f LEFT JOIN deprecated_problems d ON d.problem = f.problem WHERE f.classification = 'spec_bug';
+CREATE VIEW deprecated_with_replacements AS SELECT d.name, d.kind, d.reason, (SELECT group_concat(r.replacement, ',') FROM (SELECT replacement FROM deprecation_replacements WHERE name = d.name ORDER BY pos) r) AS superseded_by, d.module, d.origin FROM deprecations d;
+CREATE VIEW unclassified_failures AS SELECT s.problem, s.summary FROM summary s WHERE s.verdict = 'fails' AND s.problem NOT IN (SELECT problem FROM findings) AND s.problem NOT IN (SELECT problem FROM deprecated_problems);
 CREATE INDEX edges_parent ON edges(parent, child, kind, via);
 CREATE INDEX edges_child ON edges(child, parent);
 CREATE INDEX edges_kind ON edges(kind);
@@ -244,11 +454,139 @@ CREATE INDEX formats_base ON formats(base);
 CREATE INDEX format_laws_format ON format_laws(format);
 CREATE INDEX format_defaults_format ON format_defaults(format);
 CREATE INDEX artifact_paths_artifact ON artifact_paths(artifact);
+CREATE INDEX findings_classification ON findings(classification, problem);
+CREATE INDEX findings_pointer ON findings(pointer);
+CREATE INDEX deprecated_problems_via ON deprecated_problems(via);
+CREATE INDEX deprecation_replacements_replacement ON deprecation_replacements(replacement);
+CREATE INDEX machine_bindings_machine ON machine_bindings(machine);
+CREATE INDEX languages_domain ON languages(domain, name);
+CREATE INDEX languages_decl ON languages(decl);
+CREATE INDEX languages_term ON languages(term);
+CREATE INDEX languages_identity ON languages(identity_hash);
+CREATE INDEX language_operands_operand ON language_operands(operand);
+CREATE INDEX consequence_systems_term ON consequence_systems(term);
+CREATE INDEX consequence_systems_value ON consequence_systems(value);
+CREATE INDEX consequence_operands_operand ON consequence_operands(operand);
+CREATE INDEX instance_args_term ON instance_args(term);
 INSERT INTO meta(key, value) VALUES('dump_schema', 'silmaril.project-dump.v0.1');
 INSERT INTO meta(key, value) VALUES('modules', 'Lib');
 INSERT INTO meta(key, value) VALUES('roots', 'Lib');
 INSERT INTO meta(key, value) VALUES('schema', 'silmaril.project-db.v0.1');
 INSERT INTO meta(key, value) VALUES('toolchain', '4.35.0-rc4');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 2, 'mu');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 3, 'b');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 4, 'x');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bytes_member', 0, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bytes_member', 1, 'bytes');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_at', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_at', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_at', 2, 'K');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_at', 3, 'x');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 2, 'K');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 3, 'mu');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 4, 'b');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.eq_within_at', 5, 'x');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.member', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.member', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.member', 2, 'x');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 0, 'type');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 1, 'L');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 2, 'K');
+INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 3, 'x');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 2, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 3, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 4, 'X');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 5, 'I');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 6, 'e');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 3, 'T');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 4, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 5, 'phi');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 3, 'T');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 4, 'mu');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 5, 'b');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 6, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_within_at', 7, 'phi');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.conclusion_free', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.conclusion_free', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.conclusion_free', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_free', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_free', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_free', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_universal', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_universal', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_universal', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.context_universal', 3, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_append_extensive', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_append_extensive', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_append_extensive', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_perm_inv', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_perm_inv', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_perm_inv', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_set_inv', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_set_inv', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_set_inv', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_up_closed', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_up_closed', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.ctx_up_closed', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives', 3, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives', 4, 'phi');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives_bottom', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives_bottom', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives_bottom', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives_bottom', 3, 'ff');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.derives_bottom', 4, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.gentzen_closed', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.gentzen_closed', 1, 'rules');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.gentzen_closed', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 2, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 3, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 4, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 5, 'T');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 6, 'f');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 7, 'g');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 8, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.reflects_at', 9, 'phi');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.sound_at', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.sound_at', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.sound_at', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.sound_at', 3, 'T');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.sound_at', 4, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.sound_at', 5, 'phi');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.supported_ax', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.supported_ax', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.supported_ax', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.supported_ax', 3, 'tt');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.supported_c', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.supported_c', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.supported_c', 2, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.supported_c', 3, 'ff');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 2, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 3, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 4, 'S');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 5, 'T');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 6, 'f');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 7, 'g');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 8, 'ctx');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.translates_at', 9, 'phi');
 INSERT INTO szs(code, name, verdict) VALUES('CSA', 'CounterSatisfiable', 'fails');
 INSERT INTO szs(code, name, verdict) VALUES('OPN', 'Open', 'unknown');
 INSERT INTO szs(code, name, verdict) VALUES('SAT', 'Satisfiable', 'unknown');

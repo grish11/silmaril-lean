@@ -18,7 +18,8 @@ value ::= "string" | 123 | true | false | ident | [value, …]
 `:= v` fills the kind's main field (`decl` by default; each handler names its own, e.g.
 `format` for `format_default`, `children` for `children`, `proof` for
 `decomposition`/`refutation_route`). An identifier
-value is resolved as a constant only for the keys `decl`, `proof` and `rel` (and must name an
+value is resolved as a constant only for the keys `decl`, `proof`, `rel`, `abi` and
+`environment` (and must name an
 imported module for `module`); for any other key it is a literal name, so
 `(children := [demo.a, demo.b])` reads naturally. A `format` field is resolved through the
 family defaults and stores the exact format name. `(sid := "<64 hex>")` overrides an object's
@@ -39,6 +40,7 @@ has no handler. The layers register theirs, each in its own module, and the head
 | `Registry.Value.Defs` | 3, formats and values | `artifact_type`, `format`, `format_default`, `format_law`, `value`, `problem … about` |
 | `Registry.Room.Defs` | 4, rooms | `room`, `problem … in R :=` |
 | `Registry.Load.Defs` | records files | `load`: the records of TOML files (`silmaril.records.v0.2`) |
+| `Registry.Language.Defs` | 5, languages | `language_domain`, `measure`, `language_interpretation`, `language` |
 | `Registry.Attr.Defs` | attribute forms | `@[problem "N" (k := v)*]` (any arity, `room`), `@[conjecture]`, `@[value]` (a certificate) |
 
 Only layer 3, and the loader that runs its sugar, import the definitions of
@@ -225,7 +227,8 @@ def proofNameKinds : List String := ["format_law", "decomposition", "refutation_
 
 /-- Kinds whose name is a problem (or group) name, so a legacy `/` id is accepted. -/
 def problemNameKinds : List String :=
-  ["judgement", "children", "root", "detached", "predicate", "answer", "instance"]
+  ["judgement", "children", "root", "detached", "deprecation", "finding", "predicate", "answer",
+    "instance"]
 
 /-- Add a record, checking its name, its sid override and that `(kind, name)` is new. -/
 def addRecord (r : Record) : CoreM Unit := do
@@ -312,7 +315,7 @@ def erase (fs : Fields) (key : String) : Fields :=
 end Fields
 
 /-- The keys whose identifier values are constants. -/
-def constKeys : List String := ["decl", "proof", "rel"]
+def constKeys : List String := ["decl", "proof", "rel", "abi", "environment"]
 
 /-- The key of a field. -/
 def fieldKey (k : Syntax) : String :=

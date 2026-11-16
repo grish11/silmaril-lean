@@ -1,6 +1,6 @@
 # The records of the `sil project` self-test (examples/project/ProjectSelfTest.lean loads this
 # file with `silmaril load`): values, instances of an attribute-form problem and of two standard
-# shapes, the groups and the root.
+# shapes, a finding, the groups and the root.
 schema = "silmaril.records.v0.2"
 root = "silmaril.selftest.all"
 
@@ -36,13 +36,21 @@ of = "silmaril.shapes.elf.entry.x86"
 args = { exe = "silmaril.selftest.exit", addr = 4194624 }
 title = "The entry point of example-exec.elf is 0x400140"
 
+# `silmaril.selftest.small` is deprecated (ProjectSelfTest.lean): its refutation is a spec bug
+[[finding]]
+name = "silmaril.selftest.small"
+classification = "spec_bug"
+note = "5 is not below 3 (small_csa): the statement, not the code, is wrong"
+
 [[group]]
 name = "silmaril.selftest.all"
 title = "The sil project self-test"
-children = ["silmaril.selftest.truth", "silmaril.selftest.small", "silmaril.selftest.open",
+children = ["silmaril.selftest.truth", "silmaril.selftest.small", "silmaril.selftest.small_le",
+  "silmaril.selftest.open",
   "silmaril.selftest.hello.six", "silmaril.selftest.square", "silmaril.selftest.hello.six_row",
   "silmaril.selftest.formats", "silmaril.shapes", "silmaril.sysv_tv.max2",
-  "silmaril.compiles_to.all"]
+  "silmaril.compiles_to.all", "silmaril.selftest.languages", "formats.examples",
+  "formats.catalogue", "silmaril.selftest.consequence", "silmaril.selftest.wasm_acceptors"]
 
 [[group]]
 name = "silmaril.selftest.formats"
@@ -54,6 +62,9 @@ children = ["silmaril.selftest.module.parses", "silmaril.selftest.exit.parses",
 name = "silmaril.shapes"
 title = "The standard shapes: formats and values, ELF executables, x86-64 functions"
 children = ["silmaril.shapes.format.parses", "silmaril.shapes.format.agree",
+  "silmaril.shapes.language.member", "silmaril.shapes.language.bytes_member",
+  "silmaril.shapes.language.subset_at", "silmaril.shapes.language.eq_at",
+  "silmaril.shapes.language.bound_at", "silmaril.shapes.language.eq_within_at",
   "silmaril.shapes.value.satisfies", "silmaril.shapes.elf.loads", "silmaril.shapes.elf.entry",
   "silmaril.shapes.elf.fn_contract", "silmaril.shapes.x86.contract",
   "silmaril.shapes.x86.contract_strict", "silmaril.shapes.x86.abi_function",
@@ -62,7 +73,16 @@ children = ["silmaril.shapes.format.parses", "silmaril.shapes.format.agree",
   "silmaril.shapes.c.elaborates_to", "silmaril.shapes.c.ir_refines", "silmaril.shapes.c.compiles_to",
   "silmaril.shapes.c.compiles_to.builds", "silmaril.shapes.c.compiles_to.point",
   "silmaril.shapes.c.compiles_to.segment", "silmaril.shapes.c.compiles_to.segment_from_c",
-  "silmaril.shapes.c.compiles_to.canonical_entry"]
+  "silmaril.shapes.c.compiles_to.canonical_entry",
+  "silmaril.shapes.machine.reach", "silmaril.shapes.machine.reach_set",
+  "silmaril.shapes.machine.simulates", "silmaril.shapes.machine.bisimilar",
+  "silmaril.shapes.machine.sat", "silmaril.shapes.machine.json.reach",
+  "silmaril.shapes.machine.json.bisimilar", "silmaril.shapes.machine.json.simulates",
+  "silmaril.shapes.machine.accepts", "silmaril.shapes.machine.nonempty",
+  "silmaril.shapes.machine.json.accepts", "silmaril.shapes.wasm.fn_spec",
+  "silmaril.shapes.wasm.returns", "silmaril.shapes.graph.dominates",
+  "silmaril.shapes.graph.dom_tree_exact", "silmaril.shapes.graph.dom_tree_sound",
+  "silmaril.shapes.graph.region_tree_valid"]
 
 # The worked example of the System V translation-validation shapes (examples/sysv-tv,
 # docs/projects/sysv-tv.md): one C function, two builds.

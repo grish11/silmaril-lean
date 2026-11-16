@@ -1,6 +1,9 @@
-//! Blob digests: the DASL CID (CIDv1, codec raw
+//! Blob digests: the CID (CIDv1, codec raw
 //! `0x55`, multihash BLAKE3-256 `0x1e`, multibase base32-lower `b`), and the aliases SHA-256
 //! and Git blob SHA-1 (SHA-1 of `"blob " ++ decimal(len) ++ "\0" ++ bytes`).
+//!
+//! This CID is a BDASL CID, not a DASL CID: pinned DASL CID allows only SHA-256 (`0x12`), and
+//! BDASL adds BLAKE3 (`0x1e`) (`docs/projects/format-languages.md`, `Formats.Cbor.Drisl`).
 
 use sha1::Sha1;
 use sha2::{Digest, Sha256};

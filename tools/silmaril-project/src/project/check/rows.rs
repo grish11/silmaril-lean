@@ -3,6 +3,7 @@
 
 use super::super::{hash, sid};
 use super::blobs::{Files, Registries};
+use super::markings::{self, Marks};
 use super::refs::Kept;
 use super::scope::{Graph, Scope};
 use super::status::Status;
@@ -91,6 +92,17 @@ struct RecordRows {
     specs: Vec<Spec>,
     models: Vec<Model>,
     rooms: Vec<Room>,
+    machines: Vec<Machine>,
+    bindings: Vec<MachineBinding>,
+    domains: Vec<LanguageDomain>,
+    measures: Vec<Measure>,
+    interpretations: Vec<LanguageInterpretation>,
+    languages: Vec<Language>,
+    operands: Vec<LanguageOperand>,
+    system_interpretations: Vec<ConsequenceInterpretation>,
+    systems: Vec<ConsequenceSystem>,
+    matrix_cells: Vec<ConsequenceMatrixCell>,
+    system_operands: Vec<ConsequenceOperand>,
 }
 
 fn record_rows(
@@ -185,6 +197,93 @@ fn record_rows(
                     sid,
                     origin: org,
                     ..x.clone()
+                });
+            }
+            Record::Machine(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                let n = |v: usize| i64::try_from(v).unwrap_or(i64::MAX);
+                rows.machines.push(Machine {
+                    sid,
+                    origin: org,
+                    n_states: n(x.states.len()),
+                    n_labels: n(x.labels.len()),
+                    n_edges: n(x.edges.len()),
+                    ..(**x).clone()
+                });
+            }
+            Record::MachineBinding(x) => {
+                rows.bindings.push(MachineBinding {
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::LanguageDomain(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.domains.push(LanguageDomain {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::Measure(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.measures.push(Measure {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::LanguageInterpretation(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.interpretations.push(LanguageInterpretation {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::Language(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                for (pos, a) in x.args.iter().enumerate() {
+                    rows.operands.push(LanguageOperand {
+                        language: x.name.clone(),
+                        pos: pos as i64,
+                        operand: a.clone(),
+                    });
+                }
+                rows.languages.push(Language {
+                    sid,
+                    origin: org,
+                    identity_hash: identity_hash(&x.identity),
+                    ..(**x).clone()
+                });
+            }
+            Record::ConsequenceInterpretation(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.system_interpretations.push(ConsequenceInterpretation {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::ConsequenceMatrix(x) => {
+                rows.matrix_cells.push(ConsequenceMatrixCell {
+                    origin: org,
+                    ..(**x).clone()
+                });
+            }
+            Record::ConsequenceSystem(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                for (pos, a) in x.args.iter().enumerate() {
+                    rows.system_operands.push(ConsequenceOperand {
+                        system: x.name.clone(),
+                        pos: pos as i64,
+                        operand: a.clone(),
+                    });
+                }
+                rows.systems.push(ConsequenceSystem {
+                    sid,
+                    origin: org,
+                    ..(**x).clone()
                 });
             }
             _ => {}
@@ -286,6 +385,7 @@ pub(super) fn run(
     kept: &Kept,
     files: &Files,
     st: &Status,
+    marks: &Marks,
     o: &mut Outcome,
 ) {
     let p = cx.p;
@@ -433,6 +533,19 @@ pub(super) fn run(
     db.push(&recs.specs);
     db.push(&recs.models);
     db.push(&recs.rooms);
+    db.push(&recs.machines);
+    db.push(&recs.bindings);
+    db.push(&recs.domains);
+    db.push(&recs.measures);
+    db.push(&recs.interpretations);
+    db.push(&recs.languages);
+    db.push(&recs.operands);
+    db.push(&shape_role_rows());
+    db.push(&recs.system_interpretations);
+    db.push(&recs.systems);
+    db.push(&recs.system_operands);
+    db.push(&consequence_role_rows());
+    db.push(&recs.matrix_cells);
     db.push(&nodes.problems);
     db.push(&nodes.args);
     db.push(&nodes.inputs);
@@ -443,16 +556,32 @@ pub(super) fn run(
     db.push(&szs);
     db.push(&st.status_rows);
     db.push(&st.summary_rows);
+    db.push(&marks.deprecation_rows);
+    db.push(&marks.replacement_rows);
+    db.push(&marks.deprecated_rows);
+    db.push(&marks.finding_rows);
+    db.push(&marks.version_rows);
 
-    lines(g, sc, kept, st, artifact_rows.len(), edge_rows.len(), o);
+    lines(
+        g,
+        sc,
+        kept,
+        st,
+        marks,
+        artifact_rows.len(),
+        edge_rows.len(),
+        o,
+    );
 }
 
 /// The summary line, the root, each predicate's statuses and each group's vector.
+#[allow(clippy::too_many_arguments)]
 fn lines(
     g: &Graph,
     sc: &Scope,
     kept: &Kept,
     st: &Status,
+    marks: &Marks,
     n_artifacts: usize,
     n_edges: usize,
     o: &mut Outcome,
@@ -493,8 +622,17 @@ fn lines(
         count_local("unknown"),
         local.len(),
     ));
+    let (head, tail) = markings::lines(marks, st);
+    o.lines.extend(head);
     o.lines
         .push(format!("root: {}", sc.root.unwrap_or("(none)")));
+    let dep = |n: &str| {
+        if marks.deprecated.contains_key(n) {
+            "[deprecated]"
+        } else {
+            ""
+        }
+    };
     for n in st.props.iter().filter(|n| g.arity_of(n) > 0) {
         let codes: Vec<&str> = st
             .statuses
@@ -502,11 +640,16 @@ fn lines(
             .map(|m| m.keys().copied().collect())
             .unwrap_or_default();
         o.lines.push(format!(
-            "predicate {n} (arity {}): status {} [{}], verdict {}",
+            "predicate {n} (arity {}): status {} [{}], verdict {}{}",
             g.arity_of(n),
             summaries[n].0,
             codes.join(" "),
             summaries[n].1,
+            if dep(n).is_empty() {
+                ""
+            } else {
+                ", deprecated"
+            },
         ));
     }
     for n in sc.in_scope.iter().filter(|n| g.nodes[**n].kind == "group") {
@@ -541,9 +684,10 @@ fn lines(
                     },
                     |x| x.0.to_string(),
                 );
-                format!("{}={s}", e.child)
+                format!("{}={s}{}", e.child, dep(&e.child))
             })
             .collect();
         o.lines.push(format!("group {n}: [{}]", v.join(", ")));
     }
+    o.lines.extend(tail);
 }

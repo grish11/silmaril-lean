@@ -460,7 +460,9 @@ def interfaceFunctions (items : List InterfaceItem) : List (FuncName × FuncSig)
 
 /-! ## Resolution -/
 
-abbrev Env := List Package
+/-- The packages a package is resolved against. (Named `PackageEnv`, not `Env`: `Env` in this
+namespace is the value environment of `Silmaril.Wasm.Component.Reference.WIT.Interp`.) -/
+abbrev PackageEnv := List Package
 
 /-- Where a named type is defined. `inline` is an interface written inline in a world
 (`import name: interface { … }`). -/
@@ -554,7 +556,7 @@ def findUse : List UseDecl → String → Option (UsePath × String)
     | none => findUse us n
 
 /-- Interfaces of `package` in `p :: env`. -/
-def qualifiedInterface (env : Env) (p : Package) (q : PackageName) (i : String) :
+def qualifiedInterface (env : PackageEnv) (p : Package) (q : PackageName) (i : String) :
     Except ResolveError (Package × Interface) :=
   match findPackage (p :: env) q with
   | none => .error (.unknownPackage q)
@@ -565,7 +567,7 @@ def qualifiedInterface (env : Env) (p : Package) (q : PackageName) (i : String) 
 
 /-- Resolve an interface `use-path`: a bare name is an interface of `p` or a top-level `use`
 alias (`WIT.md` §WIT Packages and `use`, §Top-level `use`). -/
-def resolveInterface (env : Env) (p : Package) : UsePath → Except ResolveError (Package × Interface)
+def resolveInterface (env : PackageEnv) (p : Package) : UsePath → Except ResolveError (Package × Interface)
   | .qualified q i => qualifiedInterface env p q i
   | .ident n =>
     match findInterface p.interfaces n with
@@ -580,7 +582,7 @@ def resolveInterface (env : Env) (p : Package) : UsePath → Except ResolveError
       | none => .error (.unknownInterface (.ident n))
 
 /-- Resolve an `include` target to a world. -/
-def resolveWorld (env : Env) (p : Package) : UsePath → Except ResolveError (Package × World)
+def resolveWorld (env : PackageEnv) (p : Package) : UsePath → Except ResolveError (Package × World)
   | .ident n =>
     match findWorld p.worlds n with
     | some w => .ok (p, w)
@@ -596,7 +598,7 @@ def resolveWorld (env : Env) (p : Package) : UsePath → Except ResolveError (Pa
 /-- Resolve a type name in a scope to its defining item, chasing `use` bindings across
 interfaces (`WIT.md` §Name resolution). Returns the identity, the definition, and the
 defining scope. -/
-def resolveName (env : Env) : Nat → Scope → String →
+def resolveName (env : PackageEnv) : Nat → Scope → String →
     Except ResolveError (TypeId × TypeDefKind × Scope)
   | 0, sc, n => .error (.cyclic sc.owner n)
   | fuel + 1, sc, n =>
@@ -612,7 +614,7 @@ def resolveName (env : Env) : Nat → Scope → String →
 /-- Resolve the name in a handle (`own`/`borrow`, `WIT.md` §Handles) to a resource identity.
 Like wit-parser 0.259 (`ast/resolve.rs`, `validate_resource`), type aliases `type h = r` are
 followed to the resource they name. -/
-def resolveResource (env : Env) : Nat → Scope → String → Except ResolveError ResourceId
+def resolveResource (env : PackageEnv) : Nat → Scope → String → Except ResolveError ResourceId
   | 0, sc, n => .error (.cyclic sc.owner n)
   | fuel + 1, sc, n => do
     let (id, k, sc') ← resolveName env (fuel + 1) sc n
@@ -763,7 +765,7 @@ end Checks
 
 /-- Resolve names to nominal identities, keeping type references (`ref`) and turning resource
 names into `own`/`borrow` of their `ResourceId`. -/
-def resolveType (env : Env) (fuel : Nat) (sc : Scope) (t : TypeExpr) :
+def resolveType (env : PackageEnv) (fuel : Nat) (sc : Scope) (t : TypeExpr) :
     Except ResolveError (ValType TypeId ResourceId) :=
   t.bindM
     (fun n => do
@@ -775,7 +777,7 @@ def resolveType (env : Env) (fuel : Nat) (sc : Scope) (t : TypeExpr) :
 /-- Resolve and expand every named type to its structure, giving the reference-free type
 the canonical ABI consumes. Resources stay nominal. Each expansion step consumes fuel, so
 exhaustion reports a cyclic definition (`WIT.md` §Name resolution: types cannot be recursive). -/
-def closeType (env : Env) : Nat → Scope → TypeExpr → Except ResolveError (ClosedType ResourceId)
+def closeType (env : PackageEnv) : Nat → Scope → TypeExpr → Except ResolveError (ClosedType ResourceId)
   | 0, sc, t =>
     t.bindM (fun n => .error (.cyclic sc.owner n))
       (fun r => .own <$> resolveResource env 0 sc r)
@@ -796,7 +798,7 @@ def closeType (env : Env) : Nat → Scope → TypeExpr → Except ResolveError (
       (fun r => .borrow <$> resolveResource env (fuel + 1) sc r)
 
 /-- A function type with every name closed. -/
-def closeFunc (env : Env) (fuel : Nat) (sc : Scope) (f : FuncSig) :
+def closeFunc (env : PackageEnv) (fuel : Nat) (sc : Scope) (f : FuncSig) :
     Except ResolveError (FuncType Empty ResourceId) := do
   let params ← f.params.mapM fun p => (p.1, ·) <$> closeType env fuel sc p.2
   let result ← f.result.mapM (closeType env fuel sc)
@@ -809,11 +811,11 @@ def Package.weight (p : Package) : Nat :=
       | .import_ (.inline _ is) _ | .export_ (.inline _ is) _ => is.length
       | _ => 0).sum).sum + 1
 
-def Package.fuel (env : Env) (p : Package) : Nat := ((p :: env).map Package.weight).sum
+def Package.fuel (env : PackageEnv) (p : Package) : Nat := ((p :: env).map Package.weight).sum
 
 /-- The closed, desugared functions of an interface: canonical-ABI-ready signatures whose
 handles carry resource identities. -/
-def Interface.closedFunctions (env : Env) (p : Package) (i : Interface) :
+def Interface.closedFunctions (env : PackageEnv) (p : Package) (i : Interface) :
     Except ResolveError (List (String × FuncType Empty ResourceId)) :=
   (interfaceFunctions i.items).mapM fun f =>
     (f.1.render, ·) <$> closeFunc env (p.fuel env) (i.scope p) f.2
@@ -855,7 +857,7 @@ def firstFailure {α : Type u} (f : α → Option WfError) : List α → Option 
   | [] => none
   | a :: as => match f a with | some e => some e | none => firstFailure f as
 
-def Obligation.failure (env : Env) (fuel : Nat) : Obligation → Option WfError
+def Obligation.failure (env : PackageEnv) (fuel : Nat) : Obligation → Option WfError
   | .type sc t res =>
     if !t.exprShaped then some (.typeExprShape sc.owner) else
       match closeType env fuel sc t with
@@ -1058,7 +1060,7 @@ def Package.worldReaches (p : Package) : Nat → String → String → Bool
 /-- Well-formedness of a package against its dependencies `env` (`WIT.md` §Name resolution,
 §WIT Identifiers, §Feature Gates, §Item: `resource`, §WIT Worlds; `Explainer.md` §Name
 Uniqueness; `Binary.md` borrow rules). -/
-structure Package.WellFormed (env : Env) (p : Package) : Prop where
+structure Package.WellFormed (env : PackageEnv) (p : Package) : Prop where
   packageNames : ∀ n ∈ p.facts.packageNames, n.Valid
   labels : ∀ l ∈ p.facts.labels, IsLabel l
   unique : ∀ s ∈ p.facts.scopes, s.Nodup
@@ -1068,7 +1070,7 @@ structure Package.WellFormed (env : Env) (p : Package) : Prop where
   acyclic : ∀ i ∈ p.interfaces, p.reaches (p.interfaces.length + 1) i.name i.name = false
   acyclicWorlds : ∀ w ∈ p.worlds, p.worldReaches (p.worlds.length + 1) w.name w.name = false
 
-theorem Package.wellFormed_iff (env : Env) (p : Package) :
+theorem Package.wellFormed_iff (env : PackageEnv) (p : Package) :
     p.WellFormed env ↔
       (∀ n ∈ p.facts.packageNames, n.Valid) ∧ (∀ l ∈ p.facts.labels, IsLabel l) ∧
       (∀ s ∈ p.facts.scopes, s.Nodup) ∧ (∀ g ∈ p.facts.gates, g.Valid p.name.version) ∧
@@ -1079,11 +1081,11 @@ theorem Package.wellFormed_iff (env : Env) (p : Package) :
   ⟨fun h => ⟨h.1, h.2, h.3, h.4, h.5, h.6, h.7, h.8⟩,
     fun ⟨a, b, c, d, e, f, g, h⟩ => ⟨a, b, c, d, e, f, g, h⟩⟩
 
-instance (env : Env) (p : Package) : Decidable (p.WellFormed env) :=
+instance (env : PackageEnv) (p : Package) : Decidable (p.WellFormed env) :=
   decidable_of_iff _ (Package.wellFormed_iff env p).symm
 
 /-- Executable diagnostics: every violated condition, one error per offending item. -/
-def Package.errors (env : Env) (p : Package) : List WfError :=
+def Package.errors (env : PackageEnv) (p : Package) : List WfError :=
   let f := p.facts
   (f.packageNames.filter (fun n => !decide n.Valid)).map .packageName ++
     (f.labels.filter (fun l => !decide (IsLabel l))).map .label ++

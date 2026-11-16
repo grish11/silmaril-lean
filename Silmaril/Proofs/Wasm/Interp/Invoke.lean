@@ -130,7 +130,7 @@ theorem fwd_invoke {fuel : Nat} {fl : Binaryen.Flow} (hS : StoreChk s.funcs)
     obtain ⟨rfl, rfl⟩ := hK
     exact ⟨_, .values _, hst.trans hret, rfl, rfl⟩
   · exact ⟨_, .trap, hst.trans (frame_trap he hm), rfl, rfl⟩
-  · rcases o <;> simp only [FlowMatch] at hm
+  · exact absurd hok' id
 
 /-- **`FwdSim` on arity-checked stores**, every profile. -/
 theorem fwdSim_of_storeChk (hS : StoreChk s.funcs) (hok : InvokeOk s a vs) :

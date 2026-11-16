@@ -10,6 +10,7 @@ public import Silmaril.Project.Registry.Value.Defs
 public import Silmaril.Project.Registry.Room.Defs
 public import Silmaril.Project.Registry.Load.Defs
 public import Silmaril.Project.Registry.Attr.Defs
+public import Silmaril.Project.Registry.Language.Defs
 
 /-!
 # Silmaril projects
@@ -22,7 +23,7 @@ The header of the `Project` region, and the module a project imports (the guide 
   (`Silmaril.Project.Core.Thms`);
 * the registry (`Silmaril.Project.Registry.Defs`: the `silmaril` command, the table of kind
   handlers, `#silmaril`, `#silmaril_dump`) with every layer's handlers and sugar forms
-  (`Silmaril.Project.Registry.{Dag,Predicate,Artifacts,Value,Room}.Defs`), records files
+  (`Silmaril.Project.Registry.{Dag,Predicate,Artifacts,Value,Room,Language}.Defs`), records files
   (`silmaril load`, `Silmaril.Project.Registry.Load.Defs`) and the attribute forms
   (`@[problem "N" (k := v)]`, `@[conjecture]`, `@[value]`, `Silmaril.Project.Registry.Attr.Defs`);
 * the built-in artifact type `blob` and the identity format `bytes`, registered below.
