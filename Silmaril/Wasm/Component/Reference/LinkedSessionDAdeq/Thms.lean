@@ -22,8 +22,8 @@ direction where the importer diverges (#730's source (i), `Linked2.DivB`) and wh
 diverges inside an import call of the importer (source (ii), `Linked2.DivA`), states the whole
 left-to-right direction conditionally on the read-back of chatter (source (iii)), and proves that
 read-back, hence the whole left-to-right direction, at the deterministic profiles `profile o`.
-Right to left it proves sources (i) and (ii) at every profile, and states the iff conditionally on
-the build of chatter (`Linked2.Task.ChatterBuild`), which is open.
+Right to left it proves all three sources at every profile, so the iff holds at `profile o`
+without hypotheses, and at a general profile given the read-back of chatter.
 
 **What is proved.**
 
@@ -70,10 +70,16 @@ the build of chatter (`Linked2.Task.ChatterBuild`), which is open.
   followed by a round of the importer diverging host-free, or calling out on an export of the
   exporter that diverges from the store its run reached, is an IR divergence after the session on
   the pending call (from `nodeDivSrc`, resp. `envDivSrc`).
-* **The iff, given chatter** (`Linked2.div_denD_iff_of`, `Linked2.div_denD_iff_profile`, and with
-  `Linked2.sessDivs_eq_refDivs` the reference form `Linked2.div_denD_iff_refDivs_of`,
-  `Linked2.div_denD_iff_refDivs_profile`): conditional on `Linked2.Task.ChatterBuild` (and, at a
-  general profile, on `Linked2.Task.ChatterReadBack`).
+* **Right to left, (iii)** (`Linked2.chatterSrc_of_sessDivsC`, `Linked2.div_denD_of_sessDivsC`,
+  every profile, under `Linked2.Adequate`, no typing hypothesis): a specification session
+  followed by a round of the importer making infinitely many core import calls, each answered by
+  the exporter along one run (`Linked2.Chatter`), is an IR divergence after the session on the
+  pending call, from `chatterSrc`. Hence the whole right-to-left direction
+  (`Linked2.div_denD_of_sessDivs`).
+* **The iff** (`Linked2.div_denD_iff_profile` at `profile o`, without hypotheses;
+  `Linked2.div_denD_iff_of` at every profile, given `Linked2.Task.ChatterReadBack`; and with
+  `Linked2.sessDivs_eq_refDivs` the reference forms `Linked2.div_denD_iff_refDivs_profile`,
+  `Linked2.div_denD_iff_refDivs_of`).
 
 **How, right to left** (`Build`, `BuildA`). The forward constructions of #703/#705
 (`cplay_comp_ofHandler`, `cplay_ofHandler_comp`, `cplay_comp_serve`, `cplay_pair_inr`) with a
@@ -84,6 +90,20 @@ from its instance's path to a `DivB` state (`imp_div_build`, the converse of
 `imp_div_readback`), its waiting play (`imp_wait_build`), the exporter's served calls as rounds of
 `SimpleI.ofSimple l.exp` (`exp_layers`) and its environment's divergence (`exp_div_build`), and
 the outer handlers (`top_build`).
+
+**How, right to left, (iii)** (`InfLayers`, `InfImp`, `BuildC`). Infinite plays through the
+same layers, as limits of chains of plays built round by round: a handler on top forwards a
+pending question by one fixed play (`inf_top_pend`) or each complete round by its own run
+(`inf_top_cpl`), a one-call handler below serves the lower calls one by one (`inf_below_pend`,
+`inf_below_cpl`, through `DStrategy.inf_ofHandler_comp`), and the right component of a pairing
+keeps its infinite play (`inf_pair_pend`, `inf_pair_cpl`, through `DStrategy.inf_map_liftR`). The
+importer's core calls are an infinite play of its read-back session
+(`NodeDiv.mem_inf_spullD_instSession_stream`); none is answered by a trap (a trapped instance makes
+no further call, `NodeTrap.instSession_trapEndsBelow`), so each is one component import call, and
+the importer's IR and node play them forever (`imp_inf_pend`, `node_inf_build`). The exporter
+serves them one by one along one run; its rounds are an infinite play of its read-back session
+(`StratSession.mem_inf_iff`), of its IR (`imp_inf_cpl`) and of its environment (`exp_env_inf`).
+The two interleave as `ExtChatter` after the pending call of the linked export.
 
 **How.** The read-back of #724 (`LinkedSessionAdeq`) inverts complete rounds; a divergence is a
 play at a running position. The proofs (`Silmaril.Proofs.Wasm.Component.Reference.
@@ -132,17 +152,10 @@ core calls have a limit stream (`exists_limit`), and the exporter serves it alon
   read back through `implsH` and the importer's IR (`ext`/`splitH`, `implsN`/`widenH`,
   `importH`/`exportH`, `spullD`) to a productive stream (`mem_inf_spullD_instSession_stream`,
   `instInf_of_calls`).
-* **(iii) `Chatter`, right to left** (`Linked2.Task.ChatterBuild P l`, every profile): a round
-  of chatter as an IR divergence from `chatterSrc`. It needs an infinite play of the importer's
-  node (the instance's productive stream, `Linked2.inf_spullD_of_chatter`, through `importH`,
-  `exportH`, `widenH`, `implsN`, the pairing and `splitH`, the import mask and the export handler,
-  then `implsH`: `DStrategy.inf_ofHandler_comp`, `DStrategy.inf_comp_ofHandler_allCall`,
-  `DStrategy.inf_extTop`) and an infinite play of the exporter's environment (`ExtInf`, its
-  served rounds one after another), interleaved as `ExtChatter`.
-* Hence `Linked2.div_denD_iff` without hypotheses: `Linked2.div_denD_iff_of` assumes both
-  chatter propositions, `Linked2.div_denD_iff_profile` only `Linked2.Task.ChatterBuild`. Note
-  that the right-hand side is `outs ∈ sessDivs P l calls j vs` (the outcomes of the session
-  prefix), not `[] ∈ sessDivs …`.
+* Hence `Linked2.div_denD_iff` at nondeterministic profiles without hypotheses:
+  `Linked2.div_denD_iff_of` assumes `Linked2.Task.ChatterReadBack`. Note that the right-hand side
+  is `outs ∈ sessDivs P l calls j vs` (the outcomes of the session prefix), not
+  `[] ∈ sessDivs …`.
 -/
 
 public section
@@ -300,6 +313,28 @@ theorem div_denD_of_sessDivsA (P : Profile) {l : Linked2} (hl : l.Adequate)
     sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈ (l.toComp.denD (impSemD P)).div :=
   Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.div_denD_of_sessDivsA P hl h
 
+/-- **A round of chatter is an IR divergence from chatter** (every profile, under
+`Linked2.Adequate`, the converse of `Linked2.Task.ChatterReadBack`): after a specification session
+of `calls` with the outcomes `outs`, a round of the importer on the call of export `j` on `vs`,
+its import calls so far answered by the exporter, then making infinitely many core import calls,
+each answered by the exporter along one run (`Linked2.Chatter`), is an IR divergence after
+`sessMoves calls outs` on that call, coming from chatter between the importer's node and the
+exporter's environment. -/
+theorem chatterSrc_of_sessDivsC (P : Profile) {l : Linked2} (hl : l.Adequate)
+    {calls : List (Fin l.imp.exports.length × List IVal)} {outs : List (Option (List IVal))}
+    {j : Fin l.imp.exports.length} {vs : List IVal} (h : outs ∈ sessDivsC P l calls j vs) :
+    sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈
+      l.irDiv (impSemD P) (l.chatterSrc (impSemD P)) :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.chatterSrc_of_sessDivsC P hl h
+
+/-- **A round of chatter is an IR divergence** (every profile, under `Linked2.Adequate`). -/
+theorem div_denD_of_sessDivsC (P : Profile) {l : Linked2} (hl : l.Adequate)
+    {calls : List (Fin l.imp.exports.length × List IVal)} {outs : List (Option (List IVal))}
+    {j : Fin l.imp.exports.length} {vs : List IVal} (h : outs ∈ sessDivsC P l calls j vs) :
+    sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈ (l.toComp.denD (impSemD P)).div := by
+  rw [div_denD_eq_sources]
+  exact .inr (chatterSrc_of_sessDivsC P hl h)
+
 /-- Chatter rounds are divergences of the specification. -/
 theorem sessDivsC_subset (P : Profile) (l : Linked2)
     (calls : List (Fin l.imp.exports.length × List IVal)) (j : Fin l.imp.exports.length)
@@ -316,27 +351,22 @@ theorem sessDivs_subset_union (P : Profile) (l : Linked2)
       sessDivsB P l calls j vs ∪ sessDivsA P l calls j vs ∪ sessDivsC P l calls j vs :=
   Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.sessDivs_subset_union P l calls j vs
 
-/-- **Right to left, given the chatter build** (every profile, under `Linked2.Adequate`, typed
-calls, typed pending call): a diverging session call of the specification is an IR divergence
-after the session `sessMoves calls outs` on the call of export `j` on `vs`, assuming
-`Linked2.Task.ChatterBuild` for the third source. -/
-theorem div_denD_of_sessDivs_of (P : Profile) {l : Linked2} (hl : l.Adequate)
-    (hC : Task.ChatterBuild P l) {calls : List (Fin l.imp.exports.length × List IVal)}
-    {outs : List (Option (List IVal))} (ht : SimpleI.TypedCalls l.imp calls)
-    (hlen : calls.length = outs.length) {j : Fin l.imp.exports.length} {vs : List IVal}
-    (hck : ValTy.checkList l.imp.exports[j].ty.params vs = true)
-    (h : outs ∈ sessDivs P l calls j vs) :
+/-- **Right to left** (every profile, under `Linked2.Adequate`, no typing hypothesis): a diverging
+session call of the specification is an IR divergence after the session `sessMoves calls outs`
+on the call of export `j` on `vs`. -/
+theorem div_denD_of_sessDivs (P : Profile) {l : Linked2} (hl : l.Adequate)
+    {calls : List (Fin l.imp.exports.length × List IVal)} {outs : List (Option (List IVal))}
+    {j : Fin l.imp.exports.length} {vs : List IVal} (h : outs ∈ sessDivs P l calls j vs) :
     sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈ (l.toComp.denD (impSemD P)).div :=
-  Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.div_denD_of_sessDivs_of P hl hC
-    ht hlen hck h
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.div_denD_of_sessDivs P hl h
 
 /-! ## The divergences of a linked component -/
 
 /-- **The IR divergences of a linked component are the specification's diverging session
-calls, given chatter in both directions** (every profile, under `Linked2.Adequate`, typed calls,
-typed pending call), assuming `Linked2.Task.ChatterReadBack` and `Linked2.Task.ChatterBuild`. -/
+calls, given the chatter read-back** (every profile, under `Linked2.Adequate`, typed calls,
+typed pending call), assuming `Linked2.Task.ChatterReadBack`. -/
 theorem div_denD_iff_of (P : Profile) {l : Linked2} (hl : l.Adequate)
-    (hR : Task.ChatterReadBack P l) (hC : Task.ChatterBuild P l)
+    (hR : Task.ChatterReadBack P l)
     {calls : List (Fin l.imp.exports.length × List IVal)} {outs : List (Option (List IVal))}
     (ht : SimpleI.TypedCalls l.imp calls) (hlen : calls.length = outs.length)
     {j : Fin l.imp.exports.length} {vs : List IVal}
@@ -344,14 +374,12 @@ theorem div_denD_iff_of (P : Profile) {l : Linked2} (hl : l.Adequate)
     sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈ (l.toComp.denD (impSemD P)).div ↔
       outs ∈ sessDivs P l calls j vs := by
   obtain ⟨⟨Ie, hIe⟩, ⟨Ii, hIi⟩⟩ := And.intro hl.expInst.inst hl.impInst.inst
-  exact ⟨sessDivs_of_div_denD_of P hl hR hIe hIi ht hlen hck,
-    div_denD_of_sessDivs_of P hl hC ht hlen hck⟩
+  exact ⟨sessDivs_of_div_denD_of P hl hR hIe hIi ht hlen hck, div_denD_of_sessDivs P hl⟩
 
-/-- **The IR divergences of a linked component at deterministic profiles, given the chatter
-build** (under `Linked2.Adequate`, typed calls, typed pending call): the read-back of chatter is
-proved there (`Linked2.chatterReadBack_profile`). -/
+/-- **The IR divergences of a linked component at deterministic profiles** (under
+`Linked2.Adequate`, typed calls, typed pending call): the read-back of chatter is proved there
+(`Linked2.chatterReadBack_profile`). -/
 theorem div_denD_iff_profile (o : GrowOracle) {l : Linked2} (hl : l.Adequate)
-    (hC : Task.ChatterBuild (profile o) l)
     {calls : List (Fin l.imp.exports.length × List IVal)} {outs : List (Option (List IVal))}
     (ht : SimpleI.TypedCalls l.imp calls) (hlen : calls.length = outs.length)
     {j : Fin l.imp.exports.length} {vs : List IVal}
@@ -359,14 +387,13 @@ theorem div_denD_iff_profile (o : GrowOracle) {l : Linked2} (hl : l.Adequate)
     sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈
         (l.toComp.denD (impSemD (profile o))).div ↔
       outs ∈ sessDivs (profile o) l calls j vs :=
-  div_denD_iff_of (profile o) hl (chatterReadBack_profile o hl) hC ht hlen hck
+  div_denD_iff_of (profile o) hl (chatterReadBack_profile o hl) ht hlen hck
 
-/-- **The IR divergences of a linked component are its reference divergences, given chatter
-in both directions** (every profile and component choice profile, under `Linked2.Adequate`,
-typed calls, typed pending call, every host): `div_denD_iff_of` and
-`Linked2.sessDivs_eq_refDivs`. -/
+/-- **The IR divergences of a linked component are its reference divergences, given the chatter
+read-back** (every profile and component choice profile, under `Linked2.Adequate`, typed calls,
+typed pending call, every host): `div_denD_iff_of` and `Linked2.sessDivs_eq_refDivs`. -/
 theorem div_denD_iff_refDivs_of (P : Profile) (prof : ProfileKind) {l : Linked2}
-    (hl : l.Adequate) (hR : Task.ChatterReadBack P l) (hC : Task.ChatterBuild P l)
+    (hl : l.Adequate) (hR : Task.ChatterReadBack P l)
     {σ : Type} (impl : Silmaril.Wasm.Component.Canon.HostImpl (core3P P) σ) (h₀ : σ)
     {calls : List (Fin l.imp.exports.length × List IVal)} {outs : List (Option (List IVal))}
     (ht : SimpleI.TypedCalls l.imp calls) (hlen : calls.length = outs.length)
@@ -375,13 +402,13 @@ theorem div_denD_iff_refDivs_of (P : Profile) (prof : ProfileKind) {l : Linked2}
     sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈ (l.toComp.denD (impSemD P)).div ↔
       outs ∈ refDivs P prof l impl h₀ calls j vs := by
   rw [← sessDivs_eq_refDivs P prof l hl calls j vs ht hck impl h₀]
-  exact div_denD_iff_of P hl hR hC ht hlen hck
+  exact div_denD_iff_of P hl hR ht hlen hck
 
 /-- **The IR divergences of a linked component are its reference divergences at deterministic
-profiles, given the chatter build** (every component choice profile, under `Linked2.Adequate`,
-typed calls, typed pending call, every host). -/
+profiles** (every component choice profile, under `Linked2.Adequate`, typed calls, typed pending
+call, every host). -/
 theorem div_denD_iff_refDivs_profile (o : GrowOracle) (prof : ProfileKind) {l : Linked2}
-    (hl : l.Adequate) (hC : Task.ChatterBuild (profile o) l) {σ : Type}
+    (hl : l.Adequate) {σ : Type}
     (impl : Silmaril.Wasm.Component.Canon.HostImpl (core3P (profile o)) σ) (h₀ : σ)
     {calls : List (Fin l.imp.exports.length × List IVal)} {outs : List (Option (List IVal))}
     (ht : SimpleI.TypedCalls l.imp calls) (hlen : calls.length = outs.length)
@@ -390,8 +417,7 @@ theorem div_denD_iff_refDivs_profile (o : GrowOracle) (prof : ProfileKind) {l : 
     sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈
         (l.toComp.denD (impSemD (profile o))).div ↔
       outs ∈ refDivs (profile o) prof l impl h₀ calls j vs :=
-  div_denD_iff_refDivs_of (profile o) prof hl (chatterReadBack_profile o hl) hC impl h₀ ht hlen
-    hck
+  div_denD_iff_refDivs_of (profile o) prof hl (chatterReadBack_profile o hl) impl h₀ ht hlen hck
 
 /-! ## The exporter's served rounds along one run -/
 

@@ -25,10 +25,8 @@ semantics `C` (for the theorems, `impSemD P`).
   the importer and the exporter (`Linked2.Chatter`).
 * `Linked2.Task.ChatterReadBack`: the read-back of the third source (`chatterSrc`), as a named
   proposition; the full left-to-right direction is stated conditionally on it. It is proved at
-  the deterministic profiles `profile o` and open at nondeterministic ones.
-* `Linked2.Task.ChatterBuild`: the converse for the third source (a round of chatter is an IR
-  divergence), as a named proposition; the full right-to-left direction, hence the iff, is stated
-  conditionally on it. It is open.
+  the deterministic profiles `profile o` and open at nondeterministic ones. (The converse, a round
+  of chatter as an IR divergence, is proved at every profile: `Linked2.div_denD_of_sessDivsC`.)
 -/
 
 @[expose] public section
@@ -144,23 +142,6 @@ def Task.ChatterReadBack (P : Profile) (l : Linked2) : Prop :=
       sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈
         l.irDiv (impSemD P) (l.chatterSrc (impSemD P)) →
       outs ∈ sessDivs P l calls j vs
-
-/-- **Chatter, built** (a named proposition): the right-to-left direction for the third source.
-For typed calls and a typed pending call, a specification session of `calls` with the outcomes
-`outs` followed by a round of chatter (`Linked2.sessDivsC`: the importer makes infinitely many
-core import calls, each answered by the exporter along one run) is an IR divergence after
-`sessMoves calls outs` on the pending call. The other two sources are proved
-(`Linked2.div_denD_of_sessDivsB`, `Linked2.div_denD_of_sessDivsA`); this one is **open**: it
-needs the infinite plays of the importer's node (its IR read back to the instance's productive
-stream, `Linked2.inf_spullD_of_chatter`, then through every handler layer) and of the exporter's
-environment (`ExtInf`), interleaved as `ExtChatter`. -/
-def Task.ChatterBuild (P : Profile) (l : Linked2) : Prop :=
-  ∀ (calls : List (Fin l.imp.exports.length × List IVal)) (outs : List (Option (List IVal))),
-    SimpleI.TypedCalls l.imp calls → calls.length = outs.length →
-  ∀ (j : Fin l.imp.exports.length) (vs : List IVal),
-    ValTy.checkList l.imp.exports[j].ty.params vs = true →
-    outs ∈ sessDivsC P l calls j vs →
-    sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈ (l.toComp.denD (impSemD P)).div
 
 end Spec
 
