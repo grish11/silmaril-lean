@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Component.Conformance.Run.Defs
 public import Silmaril.Wasm.Component.Conformance.ToRef.Defs
 public import Silmaril.Logic.Consequence.Acceptor.Defs
+public import Silmaril.Wasm.Component.Reference.Defs
 
 /-! # Component acceptors on the reference machine: `accept(list<u8>)` from bytes
 
@@ -33,6 +34,11 @@ A component that re-exports its `accept` import lets the environment record any 
 **Executable side.** `acceptRun X o fuel c calls` runs the linked instantiation, then the
 top-level calls `calls` (by export name) in sequence on the interpreter `X` with oracle `o`,
 and returns the host state. `Thms`: `acceptRun_sound` (every recorded byte list is accepted).
+
+**Exported `accept`.** `AcceptedExport prof c w`: the component has no root imports, and calling
+its export `accept: func(list<u8>) -> bool` on `w` right after instantiation can return `true`
+(REF's `exportBehaviours`). `Thms`: `acceptedExport_of_run` proves it from an executable run
+(`Embedder.instantiateRun`, `callTop`).
 
 **Bytes.** `refBytesSystem prof : System ByteArray (List UInt8)`: `b ⊢ w` iff `b` decodes on
 REF (`decodeRef`), validates (`Reference.check? Features.p2`), and the component accepts `w`
@@ -104,6 +110,23 @@ def Accepted [∀ a b, Decidable (E.ExternSub a b)] (prof : ProfileKind)
     (traceObs tr₀).findSome? decodeInstantiated? = some (inst, es) ∧
     Steps prof noReady dispatch m₁ tr m₂ ∧ (∀ l ∈ tr, EnvLabel es l) ∧
     [bytesVal w] ∈ m₂.host
+
+/-! ## Exported `accept` -/
+
+/-- The acceptor host as a reference-semantics host (specification limits and quirks). -/
+def refHost : Silmaril.Wasm.Component.Reference.Host E AcceptSt :=
+  { hr := noReady, impl := acceptImpl }
+
+/-- The acceptor host with an interpreter, as an embedder. -/
+def emb (X : E.Exec) : Embedder E AcceptSt := { X := X, hr := noReady, host := acceptImpl }
+
+/-- **Exported `accept: func(bs: list<u8>) -> bool`**: instantiating `c` with no root imports
+from the empty store, then calling its export `"accept"` on `list<u8> w`, can return `true`
+(REF's `exportBehaviours`). -/
+def AcceptedExport [∀ a b, Decidable (E.ExternSub a b)] (prof : ProfileKind)
+    (c : Syntax.Component E.Module) (w : List UInt8) : Prop :=
+  Silmaril.Wasm.Component.Reference.Outcome.returns (some [.bool true]) ∈
+    Silmaril.Wasm.Component.Reference.exportBehaviours prof refHost [] c [] "accept" [bytesVal w]
 
 /-! ## The executable driver -/
 

@@ -10,7 +10,7 @@ and **gap** (a verification gap).
 
 | item | status | evidence | next step |
 |---|---|---|---|
-| `accept(list<u8>)` binaries have meaning | **wired** on the reference machine (REF) | `Silmaril.Wasi.Accept.Ref`: `Accepted`, `refBytesSystem`, `acceptRun_sound`; `Ref/Examples.lean` decodes and validates a real `accept(list<u8>)` binary in the kernel and runs it (`#guard`), recording `"hi!"` | see the gaps below |
+| `accept(list<u8>)` binaries have meaning, imported or exported `accept` | **wired** on the reference machine (REF) | `Silmaril.Wasi.Accept.Ref`: `Accepted`, `refBytesSystem`, `acceptRun_sound`; `Ref/Examples.lean` decodes and validates a real `accept(list<u8>)` binary in the kernel and runs it (`#guard`), recording `"hi!"`; `AcceptedExport` (REF `exportBehaviours`) for `accept: func(list<u8>) -> bool`, with `#guard`ed runs returning `true`/`false` | see the gaps below; the exported form covers components without root imports, one call after instantiation |
 | the component IR reads lists, strings, flags, resources | **missing** | `Binary/Lower/Defs.lean`: `defValTy` rejects them; the IR's `ValTy` has no list type | extend the IR's ABI with linear memory, or keep REF as the semantics of such components |
 | REF trace (game) semantics with imports, as a WASI world model | **missing** | REF→strategy covers import-free `Simple` components only (`Reference.SessionAdequacy`, `SessionStrat` in review) | define REF sessions with host calls; relate `Ref.Accepted` to `Wasi.Accept.bytesLang` on components both read |
 | REF↔IR adequacy beyond `Simple` | **missing** | `Reference.Sound` (`Simple.sound`, numeric, import-free) | extend to imports and tuples, then prove `Ref.Accepted = ComponentAcceptor.lang` on tuple acceptors |
