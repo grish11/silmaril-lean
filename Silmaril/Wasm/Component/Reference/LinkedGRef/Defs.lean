@@ -32,7 +32,7 @@ lifts). So the interface describes A by:
 
 The `canon lower`/`canon lift` wrapper around it is then a lemma about every such exporter,
 not a part of the interface (it is `nest_atTS` of `LinkedSessionFwd` with the instance
-indices generalised; see `Thms`).
+indices generalised, `nest_atG`; see `Thms`).
 
 ## Placement and footprints
 
