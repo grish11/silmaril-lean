@@ -56,7 +56,7 @@ abbrev SCall (H : Type) : Type := Call ((wasmHShapeS H).E ⊕ₛ (wasmHShapeS H)
 
 /-- The internal call of the function at `a` on `args` in store `s`, answered by `b` and the store
 `s'`. -/
-def SCall.mk (a : Nat) (args : List Val) (s : Store H) (b : (List Val ⊕ Nat) ⊕ PUnit)
+def SCall.mk (a : Nat) (args : List Val) (s : Store H) (b : (List Val ⊕ Nat) ⊕ PUnit.{1})
     (s' : Store H) : SCall H :=
   ⟨.inr ⟨a, (args, s)⟩, (b, s')⟩
 
@@ -312,7 +312,7 @@ inductive EvalLXPS : Store H → Frame → List Val → List BExpr → List (SCa
       EvalLXPS s f stk (.tryTable bt cs body :: es) l (s₁, f₁, .flow (.throw a))
 
 /-- **The end of a function whose exit flow is `fl`**, in store `s`, a trap keeping `s`. -/
-def endOfFlowS (fl : Flow) (s : Store H) : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit) :=
+def endOfFlowS (fl : Flow) (s : Store H) : End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1}) :=
   match fl with
   | .throw t => .ret (.inl (.inr t)) s
   | .trap => .ret (.inr ()) s
@@ -321,8 +321,8 @@ def endOfFlowS (fl : Flow) (s : Store H) : End (Store H) ((List Val ⊕ Nat) ⊕
 /-- **The end of a frame left by a pending tail call** of result arity `n`, in a function of result
 arity `m`, from the tail call's answer `(b, s')`, as `tailAns`: a trap answer traps, keeping
 `s'`. -/
-def tailAnsS (m n : Nat) (b : (List Val ⊕ Nat) ⊕ PUnit) (s' : Store H) :
-    End (Store H) ((List Val ⊕ Nat) ⊕ PUnit) :=
+def tailAnsS (m n : Nat) (b : (List Val ⊕ Nat) ⊕ PUnit.{1}) (s' : Store H) :
+    End (Store H) ((List Val ⊕ Nat) ⊕ PUnit.{1}) :=
   match b with
   | .inl b =>
     match exitFlow m (CallX.tailFlow n (ansFlow b)) with
@@ -341,7 +341,7 @@ def wasmHOpenXPS : (wasmHShapeS H).OpenMod := fun a s vs =>
         (s', f₂, .flow bfl) ∧
       exitFlow rs.length bfl = some fl ∧ x = (l, endOfFlowS fl s')) ∨
     (∃ (fi : FuncInst H) (fn : Func) (ps rs : List Validation.CValType) (s₁ s₂ : Store H)
-      (f₂ : Frame) (a' n : Nat) (args : List Val) (b : (List Val ⊕ Nat) ⊕ PUnit)
+      (f₂ : Frame) (a' n : Nat) (args : List Val) (b : (List Val ⊕ Nat) ⊕ PUnit.{1})
       (l : List (SCall H)),
       s.funcs[a]? = some fi ∧ fi.code = .wasm fn ∧
       Validation.DefType.funcType? fi.type = some (ps, rs) ∧
@@ -358,7 +358,7 @@ def wasmHOpenXPS : (wasmHShapeS H).OpenMod := fun a s vs =>
 /-- **The session semantics of an invocation**: host calls as events, internal calls closed, a
 trap keeping the store it leaves (`.ret (.inr ()) s'`). -/
 def wasmEvFunXPS :
-    AFun (wasmHostSig H) (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit) :=
+    AFun (wasmHostSig H) (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit.{1}) :=
   fun s p => Shape.close wasmHOpenXPS p.1 s p.2
 
 end Silmaril.Wasm.Abstract
