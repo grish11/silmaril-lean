@@ -120,7 +120,7 @@ theorem trap_end (hH : NativeHostSlice host) (hE : HostSliceE tags host)
   obtain ⟨fi, ps', rs', hfi, he, -⟩ := id hok
   have hty := funcType_of_expand' he
   have hcons : Cons host cs := evRun_consistent hrun
-  obtain ⟨s', h'⟩ := close_trap_evRun (P := profile o) hH hE hz hcons hts hS hfi hty
+  obtain ⟨s', -, h'⟩ := close_trap_evRun (P := profile o) hH hE hz hcons hts hS hfi hty
     (invokeOk_length hok hfi hty) {} (.callRefType fi.type) trivial
   rw [← invoke_eq hfi] at h'
   obtain ⟨n, hn⟩ := evRunN_of_evRun hrun

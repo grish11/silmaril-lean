@@ -242,10 +242,10 @@ theorem match_end (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s : S
   · rw [cons_append] at hcons
     have hz := trapAt_of_trapC (P := profile o) (ans := (b, s₂))
       (close_le_trapC (tags := tags) (P := profile o) hH hE g s₁ args htr) hcons.2
-    have cl : CoreLT tags (profile o) host s f stk es (q₁ ++ c₁) :=
+    have cl : CoreLT tags (profile o) host s f stk es (q₁ ++ c₁) (fun _ => True) :=
       evalLXPh_trap (P := profile o) hH hE hd l₁ _ l₂ rfl q₁ c₁
         (substPre_mono (close_le_goodCX hH hE) hq₁) hz (cons_append.2 hcons) hts
-    obtain ⟨s', f', c', oc, hrun, he, rfl⟩ := cl hS hc
+    obtain ⟨s', f', c', oc, hrun, he, rfl, -⟩ := cl hS hc
     obtain rfl := evRun_det_end hrun (ends_stuck he s' f') ha hend
     exact .inr ⟨ht, he⟩
 
@@ -270,10 +270,10 @@ theorem match_end_pre (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s
   · rw [cons_append] at hcons
     have hz := trapAt_of_trapC (P := profile o) (ans := (b, s₂))
       (close_le_trapC (tags := tags) (P := profile o) hH hE g s₁ args htr) hcons.2
-    have cl : CoreLT tags (profile o) host s f stk es (q₁ ++ c₁) :=
+    have cl : CoreLT tags (profile o) host s f stk es (q₁ ++ c₁) (fun _ => True) :=
       evalLXPh_trap (P := profile o) hH hE hd l₁ _ l₂ rfl q₁ c₁
         (substPre_mono (close_le_goodCX hH hE) hq₁) hz (cons_append.2 hcons) hts
-    obtain ⟨s', f', c', oc, hrun, he, rfl⟩ := cl hS hc
+    obtain ⟨s', f', c', oc, hrun, he, rfl, -⟩ := cl hS hc
     obtain ⟨rfl, rfl⟩ := evRun_det_end_pre hrun (ends_stuck he s' f') ha hend
     exact ⟨rfl, .inr ⟨ht, he⟩⟩
 
