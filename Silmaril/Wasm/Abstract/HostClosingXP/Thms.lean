@@ -5,11 +5,13 @@ public import Silmaril.Wasm.Interp.HostEvalP.Thms
 public import Silmaril.Wasm.Abstract.HostCall.Defs
 public import Silmaril.Wasm.SingleThreaded.Profile
 public import Silmaril.Wasm.Execution.Core.Sim.TypedContext
+public import Silmaril.Wasm.Interp.PProgress.Thms
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.Basic
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.Direct
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.TrapClose
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.Cut
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackWhole
+import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackPub
 import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.PendRun
 
 /-!
@@ -88,6 +90,9 @@ trap, or a pending tail call made in the caller's frame by `return_call_ref-fram
 tail callee read back on the strictly shorter rest of the run, a host tail callee its one event
 there). Callee types come from typing: progress at a `call_ref` form, a successful cast for
 `return_call_indirect`, the operand's subtyping chain for `return_call_ref`.
+
+`evRunN_back`, `evRunN_back_vals` (for reuse, `HostClosingInfXPBack`): the logged backward
+simulation of trees itself, its definitions written out, and read at values.
 
 **Pending calls at exactly their log** (`wasmEvPendXP`: a host function invoked directly, a call
 reached in a Wasm body, inside handlers, at `call`, `call_indirect` or `call_ref`, descended into,
@@ -323,6 +328,43 @@ theorem wasmEvFunXP_trap_iff (hT : HostTyped host) (hH : NativeHostSlice host)
       ∃ s₂, EvRun (profile o) host (invoke s a vs) cs ⟨s₂, {}, [.trap]⟩ :=
   ⟨fun h => wasmEvFunXP_trap_evRun hH hE hts hS hok h.1 h.2,
     fun ⟨_, h⟩ => ⟨evRun_wasmEvFunXP_trap hT hH hE hs hS hts hok h, evRun_consistent h⟩⟩
+
+/-- **The logged backward simulation of trees** (deterministic profile; `back_all`, its
+definitions written out): a labelled Core run of a typed problem with the host events `cs` to an
+end with no host-free step, not at a host call, is a logged canonical run whose calls resolve to
+exactly `cs`, or to a resolved prefix and then a callee trapping in the closure (the run then
+traps), ending as the Core run does: a final form matching the result (`Interp.MatchP`), or a
+trap. -/
+theorem evRunN_back (hT : HostTyped host) (hH : NativeHostSlice host)
+    (hE : HostSliceE tags host) {n : Nat} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List Binaryen.BExpr} {cs : List (Call (wasmHostSig H))} {c : Config H}
+    (ht : Interp.TypedP tags s f stk es)
+    (hrun : EvRunN (profile o) host n
+      ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ cs c)
+    (hend : ∀ c', ¬ Step (profile o) SingleThreaded.Det.noHost c c')
+    (hnd : SingleThreaded.decompose? c.store c.code = none) :
+    ∃ (l : List (OCall H)) (r : Store H × Frame × CallXP.POut), EvalLXPh s f stk es l r ∧
+      (Shape.SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) cs ∨
+        (r.2.2 = .flow .trap ∧ ∃ (l₁ l₂ : List (OCall H)) (g : Nat) (args : List Val)
+          (s₁ : Store H) (b : List Val ⊕ Nat) (s₂ : Store H) (q₁ c₁ : List (Call (wasmHostSig H))),
+          l = l₁ ++ OCall.mk g args s₁ b s₂ :: l₂ ∧
+          Shape.SubstPre (Shape.close wasmHOpenXP) (l₁.map OCall.lift) q₁ ∧
+          (c₁, .trap) ∈ Shape.close wasmHOpenXP g s₁ args ∧ cs = q₁ ++ c₁)) ∧
+      ((∃ oc : Silmaril.Wasm.Logic.Core.Outcome, oc.Ends c.code ∧ Interp.MatchP r c.store c.frame oc) ∨
+        (r.2.2 = .flow .trap ∧ c.code = [.trap])) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.back_end hT hH hE ht hrun hend hnd
+
+/-- **A labelled run of typed trees to values is a normal logged run with exactly its log**
+(deterministic profile). -/
+theorem evRunN_back_vals (hT : HostTyped host) (hH : NativeHostSlice host)
+    (hE : HostSliceE tags host) {n : Nat} {s s₁ : Store H} {f f₁ : Frame} {stk ws : List Val}
+    {es : List Binaryen.BExpr} {cs : List (Call (wasmHostSig H))}
+    (ht : Interp.TypedP tags s f stk es)
+    (hrun : EvRunN (profile o) host n
+      ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩ cs ⟨s₁, f₁, vals ws⟩) :
+    ∃ (l : List (OCall H)) (stk₁ : List Val), EvalLXPh s f stk es l (s₁, f₁, .flow (.normal stk₁)) ∧
+      Shape.SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) cs ∧ ws = stk₁.reverse :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.back_vals hT hH hE ht hrun
 
 end Back
 
