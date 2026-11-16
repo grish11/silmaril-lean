@@ -129,7 +129,7 @@ theorem LowerSite.answers_or_fails {L : LowerSite P} {B : CStore (E3 P)} {th : O
 /-- `Ok` depends only on the fields that callouts do not change. -/
 theorem LowerSite.Ok.extSC {L : LowerSite P} {B : Machine.Config (E3 P) σ}
     {th : Option ThreadId} {ys : List Flat} (ST : List Subtask) (CL : List (Caller (E3 P)))
-    (_cs : (E3 P).Store (CanonHost (E3 P))) (hok : L.Ok g B.store th ys) :
+    (hok : L.Ok g B.store th ys) :
     L.Ok g (Silmaril.Proofs.Wasm.Component.Reference.extSC B ST CL).store th ys :=
   { entry := hok.entry, inst := hok.inst, leave := hok.leave, func := hok.func, pff := hok.pff
     rff := hok.rff, typed := hok.typed, maxp := hok.maxp, res := hok.res, maxr := hok.maxr
@@ -169,7 +169,7 @@ theorem callout_lrun {B : Machine.Config (E3 P) σ} {ST : List Subtask}
   let M := coreCfg (extSC B ST CL) th K segs rest x
   let M₁ : Machine.Config (E3 P) σ :=
     { M with ctl := ⟨th, .prog (DA P g (.hostCallout L.host ys)), .core x.2 K :: segs⟩ :: rest }
-  have hok' := hok.extSC ST CL x.1
+  have hok' := hok.extSC ST CL
   obtain ⟨pos, tr, hr⟩ := runs_callout (g := g) (th := th) (m := M₁) hok'.entry hok'.inst
     hok'.leave hok'.func hok'.pff hok'.typed hok'.maxp hws hg hok'.res hok'.rff hus hok'.maxr
   have s₁ := callout_step (prof := prof) (g := g) (M := M) rfl hs
@@ -222,7 +222,7 @@ theorem callout_traps {B : Machine.Config (E3 P) σ} {ST : List Subtask}
   let M := coreCfg (extSC B ST CL) th K segs rest x
   let M₁ : Machine.Config (E3 P) σ :=
     { M with ctl := ⟨th, .prog (DA P g (.hostCallout L.host ys)), .core x.2 K :: segs⟩ :: rest }
-  have hok' := hok.extSC ST CL x.1
+  have hok' := hok.extSC ST CL
   have hT : ∃ tr mT, TrapsQ (DA P g) th (DA P g (.hostCallout L.host ys)) M₁ tr mT := by
     rcases hf with hws | ⟨ws, hws, hg⟩
     · exact traps_callout_lift (m := M₁) hok'.entry hok'.inst hok'.leave hok'.func hok'.pff

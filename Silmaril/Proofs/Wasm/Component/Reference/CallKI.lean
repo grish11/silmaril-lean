@@ -29,7 +29,7 @@ variable {P : Profile} {σ : Type} {g : σ → HostFuncId → List Silmaril.Wasm
 /-! ## Configurations between calls with callout records -/
 
 /-- The store between calls, with the subtasks `ST` of earlier callouts. -/
-def readyStoreI (_cs : (core3P P).Store (CanonHost (core3P P))) (ι : InstState)
+def readyStoreI (ι : InstState)
     (fs : List (CFuncInst (core3P P))) (G : Garb P σ) (ST : List Subtask) : CStore (E3 P) :=
   { readyStore ι fs G with subtasks := ST }
 
@@ -38,7 +38,7 @@ def readyStoreI (_cs : (core3P P).Store (CanonHost (core3P P))) (ι : InstState)
 def readyCfgI (cs : (core3P P).Store (CanonHost (core3P P))) (ι : InstState)
     (fs : List (CFuncInst (core3P P))) (G : Garb P σ) (ST : List Subtask) (h : σ) :
     Machine.Config (E3 P) σ :=
-  { readyCfgH cs ι fs G h with store := readyStoreI cs ι fs G ST }
+  { readyCfgH cs ι fs G h with store := readyStoreI ι fs G ST }
 
 /-- The configuration after the host invoked function `j` on `args` as call `k`. -/
 def invokedAtI (cs : (core3P P).Store (CanonHost (core3P P))) (ι : InstState)

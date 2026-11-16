@@ -254,7 +254,7 @@ theorem get_lowerAt : ∀ m : Machine.Config (E3 P) Unit,
   exact runs_lower_borrow _ rep _ rfl
 
 /-- The lift of `[i32 w]` at the return point of a call of `get`. -/
-theorem get_liftAt (_cs' : (core3P P).Store (CanonHost (core3P P))) (w : BitVec 32) :
+theorem get_liftAt (w : BitVec 32) :
     ∃ ws cur, ∀ m : Machine.Config (E3 P) Unit,
       m.store = (tStore₄ P ftGet c ι (callIn ι ⟨G.threads.length⟩) G k [.borrow rep]
           (callIn ι ⟨G.threads.length⟩) G.handles) →
@@ -310,7 +310,7 @@ theorem get_after {M₀ m₁ m' : Machine.Config (E3 P) Unit} {th : Option Threa
     (ho : (CallOutcome.resolved r).Holds (refHost P).hr ⟨k⟩ m') :
     ∃ ws, r = some ws ∧ m' = toyCfgX P c (getI ι G) (getG G k rep ws) := by
   obtain ⟨ws, cur, hlift⟩ := get_liftAt (P := P) (c := c) (ι := ι) (G := G) (k := k) (rep := rep)
-    y.1 (BitVec.ofNat 32 rep)
+    (BitVec.ofNat 32 rep)
   obtain ⟨trR, hR⟩ := hret ws cur (hys ▸ hlift)
   have hR' : LRun prof (refHost P).hr (D P) m₁ trR (toyCfgX P c (getI ι G) (getG G k rep ws)) := by
     rw [hm₁, retCfg, hst]

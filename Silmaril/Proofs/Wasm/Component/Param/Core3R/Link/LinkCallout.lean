@@ -599,8 +599,7 @@ theorem nstore_deliver (S : CStore (E3 P V IR)) (sub : Subtask) (cl : Caller (E3
     modify_concat_length]
 
 theorem nstore_extN (B : Machine.Config (E3 P V IR) σ) (ιe ι : InstState) (N : List (NRec P V IR))
-    (C C₁ : List (Option (Activation (E3 P V IR) σ))) (_c₀ _cs : (E3 P V IR).Store (CanonHost (E3 P V IR)))
-    (r : NRec P V IR) :
+    (C C₁ : List (Option (Activation (E3 P V IR) σ))) (r : NRec P V IR) :
     nstore (extN B ιe N C).store r.sub
         r.caller r.task r.thread ((extN B ιe N C).store.insts.set 1 ι) =
       (extN B ι (N ++ [r]) C₁).store := by
@@ -675,7 +674,7 @@ theorem nest_pre (B : Machine.Config (E3 P V IR) σ) (ιe ιe' : InstState) (N :
     rfl rfl) rfl
   apply LRun.store_congr (nstore_deliver _ _ _ _ _ _ _ rfl)
   repeat lstepR (rfl : (extN B ιe N C).store.lockdown = false)
-  have he := nstore_extN B ιe (InstState.removeThread 1 ιe') N C C x.1 cs
+  have he := nstore_extN B ιe (InstState.removeThread 1 ιe') N C C
     (nrec (extN B ιe N C).store ys p pos (lowerArgs p.results us))
   exact lrun_refl_store (by exact he)
 
