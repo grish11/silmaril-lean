@@ -102,13 +102,19 @@ async function wasmPage() {
   };
   return { html: h, init, dispose: disposeWcy };
 }
-async function wasmComponentPage(slug) {
+// The registered blob behind a Wasm page, for sections (null fields for an embedded one).
+function wasmSubject(s) {
+  const src = s.source || {};
+  return { slug: s.slug, title: s.title, cid: src.cid || null, sha256: src.sha256 || null, name: src.name || null, path: src.path || null };
+}
+async function wasmComponentPage(slug, ctx) {
   let c, ix;
   try { [c, ix] = await Promise.all([wasmJson(`c/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
   const s = c.summary;
   let h = `<h2>${kindTag("component")} <code>${esc(s.title)}</code></h2>`;
   h += crumbs(ix, s.source.parent);
   h += sourceDl(s.source, s.size) + filesBlock(s.slug, c);
+  h += await sections("wasm-component", wasmSubject(s), ctx);
   if (c.unsupported) return { html: h + `<p class="err">Unsupported: ${esc(c.unsupported)}</p>`, init: () => wireSha(s.slug) };
   h += `<p class="muted">Decoded by <code>Silmaril.Wasm.Component.Binary.parse</code> ${runBadge()}.</p>`;
   if (c.validity) h += `<p>component validation: <b>${esc(c.validity.status)}</b> ${runBadge()} <span class="muted">${esc(c.validity.note)}</span></p>`;
@@ -179,13 +185,14 @@ function crumbs(ix, parentId) {
   return out.length ? `<p>inside ${out.join(" › ")}</p>` : "";
 }
 function fname(f) { return f.display || f.name || (f.imported ? f.import : `func ${f.idx}`); }
-async function wasmModulePage(slug) {
+async function wasmModulePage(slug, ctx) {
   let m, ix;
   try { [m, ix] = await Promise.all([wasmJson(`m/${slug}.json`), wasmJson("index.json")]); } catch (e) { return wasmMissing(e); }
   const s = m.summary;
   let h = `<h2>${kindTag("core module")} <code>${esc(s.title)}</code></h2>`;
   h += crumbs(ix, s.source.parent);
   h += sourceDl(s.source, s.size) + filesBlock(s.slug, m);
+  h += await sections("wasm-module", wasmSubject(s), ctx);
   if (m.unsupported) return { html: h + `<p class="err">Unsupported: ${esc(m.unsupported)}</p>`, init: () => wireSha(s.slug) };
   const v = m.validity;
   h += `<p>validation: <b>${esc(v.status)}</b> ${v.status === "valid" || v.status === "rejected" ? runBadge(v.note) : `<span class="muted">${esc(v.note)}</span>`}</p>`;

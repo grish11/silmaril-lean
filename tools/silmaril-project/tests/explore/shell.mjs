@@ -62,6 +62,25 @@ try {
   check(st.badges.length > 0 && st.badges.every((t) => /^(THM|OPN|SAT|UNS|CSA|UNK|SAT\/CSA)[!?]?$/.test(t)) && st.wrap === "nowrap", `compact badges: ${[...new Set(st.badges)].join(" ")}`);
   await shot("problems.png");
 
+  // sections: another task adds a block to artifact pages without editing the view; a section
+  // that throws shows its error and the page still renders
+  await p.evaluate(() => {
+    Explorer.registerSection({ id: "test-ok", title: "Test section", on: ["artifact", "wasm-module"],
+      render: (s) => s.cid ? `<p id="sec-ok">${Explorer.ui.esc(s.kind + " " + s.cid)} <a href="#/languages/x">language</a></p>` : "" });
+    Explorer.registerSection({ id: "test-throws", title: "Broken section", on: ["artifact"], render: () => { throw new Error("boom"); } });
+  });
+  await p.evaluate(() => { location.hash = "#/artifacts"; });
+  await settle();
+  const first = await p.evaluate(() => document.querySelector("#list td a").getAttribute("href"));
+  await p.evaluate((h) => { location.hash = h; }, first);
+  await settle();
+  const sec = await p.evaluate(() => ({ ok: (document.querySelector("#sec-ok") || {}).textContent || "",
+    err: (document.querySelector("section[data-section=test-throws] .err") || {}).textContent || "", facts: /Facts/.test(document.querySelector("#main").innerText) }));
+  check(/^artifact bafkr/.test(sec.ok) && sec.err === "boom" && sec.facts, `sections render on artifact pages (${sec.ok.slice(0, 30)}…), a failing one is contained`);
+  check(await p.evaluate(() => { try { Explorer.registerSection({ id: "x", on: ["nowhere"], render: () => "" }); return false; } catch (e) { return true; } }), "a section names known subjects");
+  await p.evaluate(() => { location.hash = "#/problems"; });
+  await settle();
+
   // repeated graph navigation: every hash change starts a new route while the last one may still run
   const names = await p.evaluate(() => [...document.querySelectorAll("#list td a")].map((a) => a.textContent).slice(0, 12));
   for (let i = 0; i < names.length; i++) {

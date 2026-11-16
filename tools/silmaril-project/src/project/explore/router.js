@@ -79,6 +79,41 @@ window.addEventListener("hashchange", route);
 window.addEventListener("unhandledrejection", (e) => { if (e.reason instanceof Superseded) e.preventDefault(); });
 
 
+// ---------- sections: content other tasks add to existing pages ----------
+// A section adds a block to the pages of one or more subjects, without editing their views:
+//   registerSection({ id, title, on: ["artifact", "wasm-component", "wasm-module"], order,
+//                     render(subject, ctx) -> HTML | "" | Promise })
+// `subject` describes what the page shows (see `SECTION_SUBJECTS`); "" (or nothing) leaves the
+// page as it is. A section that throws shows its error in its own block; the page still renders.
+// Sections render in `order`, then by id, after the page's identity block (name, source, files).
+const SECTION_SUBJECTS = {
+  artifact: "{ kind: 'artifact', cid, sid, name, type, sha256, size }",
+  "wasm-component": "{ kind: 'wasm-component', slug, title, cid, sha256, name, path } (cid etc. of the registered blob, or null for an embedded one)",
+  "wasm-module": "{ kind: 'wasm-module', slug, title, cid, sha256, name, path } (as for components)",
+};
+const SECTIONS = [];
+function registerSection(sec) {
+  if (!sec || !/^[a-z][a-z0-9-]*$/.test(sec.id || "") || typeof sec.render !== "function") throw new Error("registerSection: needs an id and render");
+  const on = [].concat(sec.on || []);
+  if (!on.length || on.some((k) => !SECTION_SUBJECTS[k])) throw new Error(`registerSection: on must be among ${Object.keys(SECTION_SUBJECTS).join(", ")}`);
+  if (SECTIONS.some((s) => s.id === sec.id)) throw new Error(`registerSection: ${sec.id} is registered twice`);
+  SECTIONS.push(Object.freeze({ id: sec.id, title: sec.title || sec.id, on, order: sec.order || 0, render: sec.render }));
+  SECTIONS.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+}
+async function sections(kind, subject, ctx) {
+  let h = "";
+  for (const sec of SECTIONS.filter((s) => s.on.includes(kind))) {
+    let body;
+    try { body = await sec.render(Object.freeze(Object.assign({ kind }, subject)), ctx); }
+    catch (e) {
+      if (e instanceof Superseded || e instanceof SourceChanged) throw e;
+      body = `<p class="err">${esc(e.message || e)}</p>`;
+    }
+    if (body) h += `<section class="ext" data-section="${esc(sec.id)}"><h2>${esc(sec.title)}</h2>${body}</section>`;
+  }
+  return h;
+}
+
 // ---------- the API for views ----------
 // `Explorer` is what a view file (explore/views/*.js, bundled after this file by explore.rs) may
 // use: views register with `Explorer.registerView` (the contract is above), and `Explorer.ui`
@@ -86,6 +121,7 @@ window.addEventListener("unhandledrejection", (e) => { if (e.reason instanceof S
 window.Explorer = Object.freeze({
   registerView,
   registerViewer,
+  registerSection,
   ui: Object.freeze({ esc, href, link, badge, statusBadge, statusInfo, table, tableOf, dl, dialog, viewer, highlightWat, hexDump }),
   tables: () => new Set(tables),
   schema: SCHEMA,

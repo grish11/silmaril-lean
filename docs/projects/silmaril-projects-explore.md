@@ -347,6 +347,31 @@ deprecated problem. The badge's title spells out the code, verdict, expectation 
 deprecated problem's page links its replacements, and a replacement's page links what it
 replaces.
 
+### Sections
+
+Other tasks add blocks to existing pages without editing their views:
+
+```js
+Explorer.registerSection({
+  id: "acceptors",                       // unique, [a-z][a-z0-9-]*
+  title: "Acceptor interpretations",
+  on: ["wasm-component", "wasm-module", "artifact"],
+  order: 10,
+  async render(subject, ctx) {           // HTML, or "" to add nothing
+    // subject: { kind, cid, sha256, name, ... } of the page's registered blob
+    const rows = await ctx.tq("some_table", "SELECT ... WHERE cid = ?", [subject.cid]);
+    return rows.length ? await Explorer.ui.table(rows) : "";
+  },
+});
+```
+
+Subjects: `artifact` is `{ kind, cid, sid, name, type, sha256, size }`. `wasm-component` and
+`wasm-module` are `{ kind, slug, title, cid, sha256, name, path }`, the registered blob (`cid`
+is null for an embedded module). Sections render after the page's identity block. One that throws
+shows its error in its own block, and the page still renders. If the route or the database changes
+while a section renders, that is not caught: it goes to the router like any query of the view. Link
+a language with `Explorer.ui.href("languages", key)`.
+
 ## Limitations
 
 - The page needs network access to the CDNs. It does not work offline unless the browser has

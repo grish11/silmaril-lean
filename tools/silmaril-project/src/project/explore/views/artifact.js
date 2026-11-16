@@ -1,4 +1,4 @@
-async function artifactPage(key) {
+async function artifactPage(key, ctx) {
   const a = (await q("SELECT * FROM artifacts WHERE cid = ? OR sid = ? LIMIT 1", [key, key]))[0];
   if (!a) return `<p class="err">no artifact ${esc(key)}</p>`;
   let h = `<h2>Artifact <code>${esc(a.name || a.cid)}</code></h2>` + await dl(a, { cid: "", name: "" });
@@ -11,6 +11,7 @@ async function artifactPage(key) {
     return f ? `<button type="button" data-bytes="${esc(f.raw)}" data-name="${esc(r.path)}" data-sha256="${esc(a.sha256 || "")}"` +
       `${/\.wat$/i.test(r.path) ? ' data-lang="wat"' : ""}>view</button> <a href="${esc(f.blob)}" target="_blank" rel="noopener noreferrer">on GitHub</a>` : '<span class="muted">—</span>';
   } }, nowrap: ["bytes"] });
+  h += await sections("artifact", { cid: a.cid, sid: a.sid, name: a.name, type: a.type, sha256: a.sha256, size: a.size }, ctx);
   h += "<h2>Facts</h2>" + await tableOf(await first(DETAIL, "SELECT at, property, value, checker, tier FROM facts WHERE subject = ? ORDER BY at, property", [a.sid]), null, { hints: { value: "" } });
   h += "<h2>Values read from it</h2>" + await tableOf(await first(DETAIL, "SELECT value, pos, format, obligation FROM value_sources WHERE cid = ?", [a.cid]));
   h += "<h2>Problems over it</h2>" + await tableOf(await first(DETAIL, "SELECT problem, pos, 'input' AS via FROM problem_inputs WHERE cid = ? " +
