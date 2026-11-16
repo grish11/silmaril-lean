@@ -326,38 +326,60 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
       };
       // The clusters layout: each region laid out on its own (layered, top-down; its unconnected logics in a grid below), and the
       // regions packed in rows to the viewport's proportions. Deterministic: the same database draws the same picture.
+      // Shelf packing: place the blocks (each { coll, w, h, x1, y1 }) in rows of about `width`.
+      const pack = (blocks, width, gapX, gapY) => {
+        let x = 0, y = 0, rowH = 0;
+        for (const b of blocks) {
+          if (x > 0 && x + b.w > width) { x = 0; y += rowH + gapY; rowH = 0; }
+          b.coll.shift({ x: x - b.x1, y: y - b.y1 });
+          x += b.w + gapX; rowH = Math.max(rowH, b.h);
+        }
+      };
+      const block = (coll) => { const bb = coll.boundingBox({ includeLabels: false }); return { coll, w: bb.w, h: bb.h, x1: bb.x1, y1: bb.y1 }; };
+      // The clusters layout: within each region, every connected component laid out on its own
+      // (layered, top-down) and its unconnected logics in a grid, packed to a near-square block; then
+      // the regions packed in rows to the viewport's proportions. Deterministic: the same database
+      // draws the same picture.
       const clusters = () => {
         const groups = new Map();
         for (const n of cyi.nodes().filter((x) => !x.data("region"))) {
-          const g = n.data("parent") || n.id().split(":")[1].split(".")[0];
+          const g = n.data("parent") || "all";
           if (!groups.has(g)) groups.set(g, cyi.collection());
           groups.set(g, groups.get(g).union(n));
         }
-        const boxes = [];
-        for (const [g, ns] of [...groups].sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1))) {
+        const ratio = Math.max(0.6, (cyi.width() || 900) / (cyi.height() || 600));
+        const regions = [];
+        for (const [, ns] of [...groups].sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1))) {
           const inner = ns.edgesWith(ns).filter((e) => !e.isLoop());
-          const linked = ns.filter((n) => inner.connectedNodes().has(n));
-          const alone = ns.not(linked);
-          let y0 = 0, w = 0;
-          if (linked.length) {
-            linked.union(inner).layout({ name: "dagre", rankDir: "TB", nodeSep: 18, rankSep: 60, edgeSep: 8, animate: false, fit: false }).run();
-            const bb = linked.boundingBox();
-            linked.shift({ x: -bb.x1, y: -bb.y1 });
-            y0 = bb.h + 30; w = bb.w;
+          const blocks = [];
+          const seen = new Set();
+          const comps = [];
+          for (const n of ns) {
+            if (seen.has(n.id())) continue;
+            let comp = n.union(n), frontier = n.union(n);
+            while (frontier.length) {
+              const next = frontier.connectedEdges().intersection(inner).connectedNodes().intersection(ns).not(comp);
+              comp = comp.union(next); frontier = next;
+            }
+            comp.forEach((x) => seen.add(x.id()));
+            comps.push(comp);
           }
-          const cols = Math.max(1, Math.min(alone.length, Math.max(Math.ceil(Math.sqrt(alone.length * 1.6)), Math.floor(w / 175))));
-          alone.sort((a, b) => (a.data("label") < b.data("label") ? -1 : 1)).forEach((n, i) => n.position({ x: 80 + (i % cols) * 175, y: y0 + 20 + Math.floor(i / cols) * 52 }));
-          const bb = ns.boundingBox();
-          boxes.push({ ns, w: bb.w, h: bb.h, x1: bb.x1, y1: bb.y1 });
+          const alone = cyi.collection().union(comps.filter((c) => c.length === 1).reduce((a, c) => a.union(c), cyi.collection()));
+          for (const comp of comps.filter((c) => c.length > 1).sort((a, b) => b.length - a.length)) {
+            comp.union(inner.intersection(comp.connectedEdges())).layout({ name: "dagre", rankDir: "TB", nodeSep: 18, rankSep: 60, edgeSep: 8, animate: false, fit: false }).run();
+            blocks.push(block(comp));
+          }
+          if (alone.length) {
+            const cols = Math.max(1, Math.ceil(Math.sqrt(alone.length * 1.6)));
+            alone.sort((a, b) => (a.data("label") < b.data("label") ? -1 : 1)).forEach((n, i) => n.position({ x: (i % cols) * 175, y: Math.floor(i / cols) * 52 }));
+            blocks.push(block(alone));
+          }
+          const area = blocks.reduce((a, b) => a + (b.w + 40) * (b.h + 50), 0);
+          pack(blocks, Math.max(Math.sqrt(area * 1.4), ...blocks.map((b) => b.w)), 40, 50);
+          regions.push(block(ns));
         }
-        const area = boxes.reduce((a, b) => a + (b.w + 60) * (b.h + 70), 0), ratio = Math.max(0.6, (cyi.width() || 900) / (cyi.height() || 600));
-        const rowW = Math.max(Math.sqrt(area * ratio), ...boxes.map((b) => b.w + 60));
-        let x = 0, y = 0, rowH = 0;
-        for (const b of boxes) {
-          if (x > 0 && x + b.w > rowW) { x = 0; y += rowH + 70; rowH = 0; }
-          b.ns.shift({ x: x - b.x1, y: y - b.y1 });
-          x += b.w + 60; rowH = Math.max(rowH, b.h);
-        }
+        const area = regions.reduce((a, b) => a + (b.w + 60) * (b.h + 70), 0);
+        pack(regions, Math.max(Math.sqrt(area * ratio), ...regions.map((b) => b.w)), 60, 70);
       };
       const draw = () => {
         const showInst = state.level !== "room", showRoom = state.level !== "institution";
@@ -367,7 +389,12 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
         const fibers = state.level === "both" ? d.room.filter((r) => r.institution && ids.has("institution:" + r.institution)) : [];
         const touched = new Set([...edges.flatMap((e) => [nodeKind(e.kind) + ":" + e.src, nodeKind(e.kind) + ":" + e.dst]), ...fibers.flatMap((r) => [r.id, "institution:" + r.institution])]);
         const shownNodes = state.iso ? nodes : nodes.filter((n) => touched.has(n.id));
-        const regionOf = (n) => n.name.split(".")[0];
+        // A region is the first segment of the record name, or the first two when that region would
+        // hold more than 30 of the drawn nodes (the `logic` tree is split by topic)
+        const first = (n) => n.name.split(".")[0];
+        const sizes = new Map();
+        for (const n of shownNodes) sizes.set(first(n), (sizes.get(first(n)) || 0) + 1);
+        const regionOf = (n) => sizes.get(first(n)) > 30 ? n.name.split(".").slice(0, 2).join(".") : first(n);
         const regions = state.group ? [...new Set(shownNodes.map(regionOf))] : [];
         const els = regions.map((g) => ({ data: { id: "region:" + g, label: g, region: 1 } }))
           .concat(shownNodes.map((n) => ({ data: Object.assign({ id: n.id, label: label(n) + (n.arity ? " ⋯" : ""), kind: n.kind, fam: n.arity ? 1 : 0 },
@@ -430,10 +457,9 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
         const el = cyi.getElementById(b ? b.id : id);
         if (el.length) {
           el.select();
-          let near = el.isNode() ? el.closedNeighborhood() : el.union(el.connectedNodes());
-          near = near.union(near.parents());
-          cyi.elements().not(near).addClass("faded");
-          if (center) { cyi.fit(near, 60); if (cyi.zoom() > 1.4) cyi.zoom({ level: 1.4, position: el.isNode() ? el.position() : el.midpoint() }); }
+          const near = el.isNode() ? el.closedNeighborhood() : el.union(el.connectedNodes());
+          cyi.elements().not(near).not(near.parents()).addClass("faded");
+          if (center) { cyi.fit(near.nodes().union(near.edges()), 80); if (cyi.zoom() > 1.4) cyi.zoom({ level: 1.4, position: el.isNode() ? el.position() : el.midpoint() }); }
         }
         const e = EDGES.includes(r.kind);
         let h = `<h3>${e ? edgeSwatch(r.kind) + " " : ""}${ui.esc(r.kind)} ${rec(r.kind, r.name)}</h3>` + (r.title ? `<p><b>${ui.esc(r.title)}</b></p>` : "") +
