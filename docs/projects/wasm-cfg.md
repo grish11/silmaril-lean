@@ -290,10 +290,15 @@ The plain graph stays an over-approximation, and claims about it say so.
    - **Backward, flat case, done**: `flat_bwd` (deterministic profile `SingleThreaded.profile o`,
      any host and oracle): a region run of a checked, typed flat instruction other than a call is
      its `evalFlat` result, from HostEval's `flat_complete` (#496).
-   - **Backward, open:** the tree-level converse (`RunC` of lowered typed trees is an `EvalOX`
-     run, `ResOut`), by the structured cases (`block`, `loop` with re-entry, `if`), then calls
-     (`call`, `call_indirect`, `call_ref`, answered by `C`) and tail calls; it replaces the draft
-     #494, whose two `sorry`s are not merged. Then the CFG corollaries: machine runs from
+   - **Backward, trees without extended calls, done**: `bridge_bwd` (deterministic profile, no
+     host, an oracle sound for the tail-aware check that keeps typing) and `bridge_bwd_closedX`
+     (the typed closed extended oracle, no oracle hypothesis): a region run of the lowering of
+     typed trees with no `call_indirect`, `call_ref` or tail call (`CallX.xFreeL`; direct calls
+     included) is a native `EvalOX` run with the same oracle, ending as `ResOut` says. Loops are
+     by induction on their region run (`loop_aux`), re-entering at each branch back.
+   - **Backward, open:** the extended call forms (`call_indirect`, `call_ref`, and tail calls,
+     whose pending region outcome is answered at the frame), replacing the remaining goal of the
+     draft #494, whose `sorry`s are not merged. Then the CFG corollaries: machine runs from
      `cfgEntry` against native runs of the function body, through `run_complete_initialC` and
      `run_sound_initialC`.
 
