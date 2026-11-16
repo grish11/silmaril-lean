@@ -33,7 +33,8 @@ answers (`SessionCat.RetDet t`). The proof links `t` with `callS g f`
 (`SessionLink.comp_threadS`): the linked triple is bisimilar to `mapS g f t` through the first
 store component (`obsEq_linkS_callS`). `NoPlainTrap t` is needed: a plain trap of `t` ends the
 server session, which the linked triple does not record, while `mapS g f t` keeps it as a plain
-trap.
+trap. Mapping keeps the absence of plain traps and deterministic returns (`noPlainTrap_mapS`,
+`retDet_mapS`).
 
 Proofs are in `Silmaril.Proofs.Games.Abstract.SessionRoute`.
 -/
@@ -73,6 +74,19 @@ end CallS
 
 variable {E : Sig.{u}} {S A A' B B' : Type u} {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})}
   {g : A' → A} {f : A' → B ⊕ PUnit.{u + 1} → B' ⊕ PUnit.{u + 1}}
+
+/-- A round of the mapped triple is a round of `t` at the mapped question, its end mapped. -/
+theorem mem_mapS {s : S} {a' : A'} {x : List (Call E) × End S (B' ⊕ PUnit.{u + 1})} :
+    x ∈ (mapS g f t).1 s a' ↔ ∃ e, (x.1, e) ∈ t.1 s (g a') ∧ x.2 = mapEnd (f a') e :=
+  Silmaril.Proofs.Games.Abstract.SessionRoute.mem_mapS
+
+/-- Mapping keeps the absence of plain traps. -/
+theorem noPlainTrap_mapS (h : NoPlainTrap t) : NoPlainTrap (mapS g f t) :=
+  Silmaril.Proofs.Games.Abstract.SessionRoute.noPlainTrap_mapS h
+
+/-- Mapping keeps deterministic returns. -/
+theorem retDet_mapS (h : RetDet t) : RetDet (mapS g f t) :=
+  Silmaril.Proofs.Games.Abstract.SessionRoute.retDet_mapS h
 
 /-- **Linking a one-call client is mapping the server**, up to bisimilarity of stores. -/
 theorem obsEq_linkS_callS (hnt : NoPlainTrap t) (s : S) :

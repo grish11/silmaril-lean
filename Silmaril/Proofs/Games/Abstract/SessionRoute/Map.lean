@@ -60,6 +60,43 @@ theorem mem_mapS {s : S} {a' : A'} {x : List (Call E) × End S (B' ⊕ PUnit.{u 
   · rintro ⟨e, h, he⟩
     exact ⟨(x.1, e), h, Prod.ext rfl he.symm⟩
 
+theorem agree_map {S S' B B' : Type u} (k : End S B → End S' B') {c₁ c₂ : List (Call E)}
+    {e₁ e₂ : End S B} (h : AFun.Agree c₁ e₁ c₂ e₂) : AFun.Agree c₁ (k e₁) c₂ (k e₂) := by
+  induction c₁ generalizing c₂ with
+  | nil =>
+    rcases c₂ with _ | ⟨⟨m, n⟩, c₂⟩
+    · exact congrArg k h
+    · exact h.elim
+  | cons x c₁ ih =>
+    rcases c₂ with _ | ⟨⟨m, n⟩, c₂⟩
+    · exact h.elim
+    · obtain ⟨m₁, n₁⟩ := x
+      exact ⟨h.1, fun hn => ih (h.2 hn)⟩
+
+theorem noPlainTrap_mapS (h : NoPlainTrap t) : NoPlainTrap (mapS g f t) := by
+  intro s a c hc
+  obtain ⟨e, he, hx⟩ := mem_mapS.1 hc
+  cases e with
+  | trap => exact h _ _ _ he
+  | ret => cases hx
+  | div => cases hx
+
+theorem retDet_mapS (h : RetDet t) : RetDet (mapS g f t) := by
+  intro s a c c' b b' s₁ s₁' hc hc'
+  obtain ⟨e, he, hx⟩ := mem_mapS.1 hc
+  obtain ⟨e', he', hx'⟩ := mem_mapS.1 hc'
+  cases e with
+  | trap => cases hx
+  | div => cases hx
+  | ret x s₂ =>
+    cases e' with
+    | trap => cases hx'
+    | div => cases hx'
+    | ret x' s₂' =>
+      dsimp only at hx hx' he he'
+      rw [hx, hx']
+      exact agree_map (mapEnd (f a)) (h _ _ _ _ _ _ _ _ he he')
+
 /-- **A linked round of a one-call client**: one round of the server at `g a'`, its answer
 mapped, or a divergence of the server there. -/
 theorem mem_linkS_callS {s : S} {a' : A'}
