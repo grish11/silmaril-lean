@@ -1367,6 +1367,10 @@ def lang_uint64 := uint64
 def lang_integral_number := integralNumber
 /-- `int64` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
 def lang_int64 := int64
+/-- `language .rfc8259 integralNumber` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_language_rfc8259_integral_number := language .rfc8259 integralNumber
+/-- `language .rfc8259 int64` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_language_rfc8259_int64 := language .rfc8259 int64
 /-- `binary64Integer` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
 def lang_binary64_integer := binary64Integer
 /-- `safeInteger` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
@@ -1377,12 +1381,8 @@ def lang_with_python_infinity := withPythonInfinity
 def lang_with_python_non_finite := withPythonNonFinite
 /-- `integerToken` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
 def lang_integer_token := integerToken
-/-- `language .rfc8259 int64` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
-def lang_language_rfc8259_int64 := language .rfc8259 int64
 /-- `language .rfc8259 integerToken` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
 def lang_language_rfc8259_integer_token := language .rfc8259 integerToken
-/-- `language .rfc8259 integralNumber` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
-def lang_language_rfc8259_integral_number := language .rfc8259 integralNumber
 /-- `language .rfc8259 binary64Integer` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
 def lang_language_rfc8259_binary64_integer := language .rfc8259 binary64Integer
 /-- `JsonBytes.language .rfc8259` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
@@ -1400,6 +1400,10 @@ silmaril language formats.json.numbers.integral_number := Silmaril.Project.Langu
   (title := "integralNumber") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
 silmaril language formats.json.numbers.int64 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_int64 (domain := bytes) (op := decl)
   (title := "int64") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
+silmaril language formats.json.numbers.language_rfc8259_integral_number := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integral_number (domain := bytes) (op := decl)
+  (title := "language .rfc8259 integralNumber") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
+silmaril language formats.json.numbers.language_rfc8259_int64 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_int64 (domain := bytes) (op := decl)
+  (title := "language .rfc8259 int64") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
 silmaril language formats.json.numbers.binary64_integer := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_binary64_integer (domain := bytes) (op := decl)
   (title := "binary64Integer") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
 silmaril language formats.json.numbers.safe_integer := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_safe_integer (domain := bytes) (op := decl)
@@ -1410,12 +1414,8 @@ silmaril language formats.json.numbers.with_python_non_finite := Silmaril.Projec
   (title := "withPythonNonFinite") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
 silmaril language formats.json.numbers.integer_token := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integer_token (domain := bytes) (op := decl)
   (title := "integerToken") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.language_rfc8259_int64 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_int64 (domain := bytes) (op := decl)
-  (title := "language .rfc8259 int64") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
 silmaril language formats.json.numbers.language_rfc8259_integer_token := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integer_token (domain := bytes) (op := decl)
   (title := "language .rfc8259 integerToken") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.language_rfc8259_integral_number := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integral_number (domain := bytes) (op := decl)
-  (title := "language .rfc8259 integralNumber") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
 silmaril language formats.json.numbers.language_rfc8259_binary64_integer := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_binary64_integer (domain := bytes) (op := decl)
   (title := "language .rfc8259 binary64Integer") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
 silmaril language formats.json.numbers.json_bytes_language_rfc8259 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_json_bytes_language_rfc8259 (domain := bytes) (op := decl)
@@ -1435,219 +1435,269 @@ theorem ex236 : "-0".toUTF8.toList ∈ uint64 := by decide +kernel
     Silmaril.Project.Shapes.Member lang_uint64 ("-0".toUTF8.toList : List UInt8) := ex236
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l237 (expect := THM) (title := "\"1e2\".toUTF8.toList ∈ integralNumber")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:237") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l238 (expect := THM) (title := "\"1.0e0\".toUTF8.toList ∈ integralNumber — Lexical form and value range together: `1.0e0` has value `1` but is not a lexical integer.")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:238") := silmaril.shapes.language.member
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integral_number) (x := ("1.0e0".toUTF8.toList : List UInt8))
+namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
+open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
+theorem ex238 : "1.0e0".toUTF8.toList ∈ integralNumber := by decide +kernel
+@[answers "formats.examples.json.numbers.l238" thm] public theorem ans238 :
+    Silmaril.Project.Shapes.Member lang_integral_number ("1.0e0".toUTF8.toList : List UInt8) := ex238
+end Silmaril.Project.Languages.FormatExamples.JsonNumbers
+
+silmaril instance formats.examples.json.numbers.l239 (expect := CSA) (title := "\"1.0e0\".toUTF8.toList ∉ int64")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:239") := silmaril.shapes.language.member
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_int64) (x := ("1.0e0".toUTF8.toList : List UInt8))
+namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
+open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
+theorem ex239 : "1.0e0".toUTF8.toList ∉ int64 := by decide +kernel
+@[answers "formats.examples.json.numbers.l239" csa] public theorem ans239 :
+    ¬ Silmaril.Project.Shapes.Member lang_int64 ("1.0e0".toUTF8.toList : List UInt8) := ex239
+end Silmaril.Project.Languages.FormatExamples.JsonNumbers
+
+silmaril instance formats.examples.json.numbers.l240 (expect := CSA) (title := "\"1e0\".toUTF8.toList ∉ uint64")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:240") := silmaril.shapes.language.member
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_uint64) (x := ("1e0".toUTF8.toList : List UInt8))
+namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
+open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
+theorem ex240 : "1e0".toUTF8.toList ∉ uint64 := by decide +kernel
+@[answers "formats.examples.json.numbers.l240" csa] public theorem ans240 :
+    ¬ Silmaril.Project.Shapes.Member lang_uint64 ("1e0".toUTF8.toList : List UInt8) := ex240
+end Silmaril.Project.Languages.FormatExamples.JsonNumbers
+
+silmaril instance formats.examples.json.numbers.l241 (expect := THM) (title := "\"[1.0e0]\".toUTF8.toList ∈ language .rfc8259 integralNumber")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:241") := silmaril.shapes.language.member
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integral_number) (x := ("[1.0e0]".toUTF8.toList : List UInt8))
+namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
+open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
+theorem ex241 : "[1.0e0]".toUTF8.toList ∈ language .rfc8259 integralNumber := by decide +kernel
+@[answers "formats.examples.json.numbers.l241" thm] public theorem ans241 :
+    Silmaril.Project.Shapes.Member lang_language_rfc8259_integral_number ("[1.0e0]".toUTF8.toList : List UInt8) := ex241
+end Silmaril.Project.Languages.FormatExamples.JsonNumbers
+
+silmaril instance formats.examples.json.numbers.l242 (expect := CSA) (title := "\"[1.0e0]\".toUTF8.toList ∉ language .rfc8259 int64")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:242") := silmaril.shapes.language.member
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_int64) (x := ("[1.0e0]".toUTF8.toList : List UInt8))
+namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
+open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
+theorem ex242 : "[1.0e0]".toUTF8.toList ∉ language .rfc8259 int64 := by decide +kernel
+@[answers "formats.examples.json.numbers.l242" csa] public theorem ans242 :
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_int64 ("[1.0e0]".toUTF8.toList : List UInt8) := ex242
+end Silmaril.Project.Languages.FormatExamples.JsonNumbers
+
+silmaril instance formats.examples.json.numbers.l243 (expect := THM) (title := "\"1e2\".toUTF8.toList ∈ integralNumber")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:243") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integral_number) (x := ("1e2".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex237 : "1e2".toUTF8.toList ∈ integralNumber := by decide +kernel
-@[answers "formats.examples.json.numbers.l237" thm] public theorem ans237 :
-    Silmaril.Project.Shapes.Member lang_integral_number ("1e2".toUTF8.toList : List UInt8) := ex237
+theorem ex243 : "1e2".toUTF8.toList ∈ integralNumber := by decide +kernel
+@[answers "formats.examples.json.numbers.l243" thm] public theorem ans243 :
+    Silmaril.Project.Shapes.Member lang_integral_number ("1e2".toUTF8.toList : List UInt8) := ex243
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l238 (expect := THM) (title := "\"10e-1\".toUTF8.toList ∈ integralNumber")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:238") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l244 (expect := THM) (title := "\"10e-1\".toUTF8.toList ∈ integralNumber")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:244") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integral_number) (x := ("10e-1".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex238 : "10e-1".toUTF8.toList ∈ integralNumber := by decide +kernel
-@[answers "formats.examples.json.numbers.l238" thm] public theorem ans238 :
-    Silmaril.Project.Shapes.Member lang_integral_number ("10e-1".toUTF8.toList : List UInt8) := ex238
+theorem ex244 : "10e-1".toUTF8.toList ∈ integralNumber := by decide +kernel
+@[answers "formats.examples.json.numbers.l244" thm] public theorem ans244 :
+    Silmaril.Project.Shapes.Member lang_integral_number ("10e-1".toUTF8.toList : List UInt8) := ex244
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l239 (expect := CSA) (title := "\"1e-1\".toUTF8.toList ∉ integralNumber")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:239") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l245 (expect := CSA) (title := "\"1e-1\".toUTF8.toList ∉ integralNumber")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:245") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integral_number) (x := ("1e-1".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex239 : "1e-1".toUTF8.toList ∉ integralNumber := by decide +kernel
-@[answers "formats.examples.json.numbers.l239" csa] public theorem ans239 :
-    ¬ Silmaril.Project.Shapes.Member lang_integral_number ("1e-1".toUTF8.toList : List UInt8) := ex239
+theorem ex245 : "1e-1".toUTF8.toList ∉ integralNumber := by decide +kernel
+@[answers "formats.examples.json.numbers.l245" csa] public theorem ans245 :
+    ¬ Silmaril.Project.Shapes.Member lang_integral_number ("1e-1".toUTF8.toList : List UInt8) := ex245
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l240 (expect := THM) (title := "\"-9223372036854775808\".toUTF8.toList ∈ int64")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:240") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l246 (expect := THM) (title := "\"-9223372036854775808\".toUTF8.toList ∈ int64")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:246") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_int64) (x := ("-9223372036854775808".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex240 : "-9223372036854775808".toUTF8.toList ∈ int64 := by decide +kernel
-@[answers "formats.examples.json.numbers.l240" thm] public theorem ans240 :
-    Silmaril.Project.Shapes.Member lang_int64 ("-9223372036854775808".toUTF8.toList : List UInt8) := ex240
+theorem ex246 : "-9223372036854775808".toUTF8.toList ∈ int64 := by decide +kernel
+@[answers "formats.examples.json.numbers.l246" thm] public theorem ans246 :
+    Silmaril.Project.Shapes.Member lang_int64 ("-9223372036854775808".toUTF8.toList : List UInt8) := ex246
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l241 (expect := CSA) (title := "\"-9223372036854775809\".toUTF8.toList ∉ int64")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:241") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l247 (expect := CSA) (title := "\"-9223372036854775809\".toUTF8.toList ∉ int64")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:247") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_int64) (x := ("-9223372036854775809".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex241 : "-9223372036854775809".toUTF8.toList ∉ int64 := by decide +kernel
-@[answers "formats.examples.json.numbers.l241" csa] public theorem ans241 :
-    ¬ Silmaril.Project.Shapes.Member lang_int64 ("-9223372036854775809".toUTF8.toList : List UInt8) := ex241
+theorem ex247 : "-9223372036854775809".toUTF8.toList ∉ int64 := by decide +kernel
+@[answers "formats.examples.json.numbers.l247" csa] public theorem ans247 :
+    ¬ Silmaril.Project.Shapes.Member lang_int64 ("-9223372036854775809".toUTF8.toList : List UInt8) := ex247
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l242 (expect := THM) (title := "\"18446744073709551615\".toUTF8.toList ∈ uint64")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:242") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l248 (expect := THM) (title := "\"18446744073709551615\".toUTF8.toList ∈ uint64")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:248") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_uint64) (x := ("18446744073709551615".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex242 : "18446744073709551615".toUTF8.toList ∈ uint64 := by decide +kernel
-@[answers "formats.examples.json.numbers.l242" thm] public theorem ans242 :
-    Silmaril.Project.Shapes.Member lang_uint64 ("18446744073709551615".toUTF8.toList : List UInt8) := ex242
+theorem ex248 : "18446744073709551615".toUTF8.toList ∈ uint64 := by decide +kernel
+@[answers "formats.examples.json.numbers.l248" thm] public theorem ans248 :
+    Silmaril.Project.Shapes.Member lang_uint64 ("18446744073709551615".toUTF8.toList : List UInt8) := ex248
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l243 (expect := CSA) (title := "\"18446744073709551615\".toUTF8.toList ∉ binary64Integer")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:243") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l249 (expect := CSA) (title := "\"18446744073709551615\".toUTF8.toList ∉ binary64Integer")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:249") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_binary64_integer) (x := ("18446744073709551615".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex243 : "18446744073709551615".toUTF8.toList ∉ binary64Integer := by decide +kernel
-@[answers "formats.examples.json.numbers.l243" csa] public theorem ans243 :
-    ¬ Silmaril.Project.Shapes.Member lang_binary64_integer ("18446744073709551615".toUTF8.toList : List UInt8) := ex243
+theorem ex249 : "18446744073709551615".toUTF8.toList ∉ binary64Integer := by decide +kernel
+@[answers "formats.examples.json.numbers.l249" csa] public theorem ans249 :
+    ¬ Silmaril.Project.Shapes.Member lang_binary64_integer ("18446744073709551615".toUTF8.toList : List UInt8) := ex249
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l244 (expect := THM) (title := "\"-9007199254740991\".toUTF8.toList ∈ safeInteger")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:244") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l250 (expect := THM) (title := "\"-9007199254740991\".toUTF8.toList ∈ safeInteger")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:250") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_safe_integer) (x := ("-9007199254740991".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex244 : "-9007199254740991".toUTF8.toList ∈ safeInteger := by decide +kernel
-@[answers "formats.examples.json.numbers.l244" thm] public theorem ans244 :
-    Silmaril.Project.Shapes.Member lang_safe_integer ("-9007199254740991".toUTF8.toList : List UInt8) := ex244
+theorem ex250 : "-9007199254740991".toUTF8.toList ∈ safeInteger := by decide +kernel
+@[answers "formats.examples.json.numbers.l250" thm] public theorem ans250 :
+    Silmaril.Project.Shapes.Member lang_safe_integer ("-9007199254740991".toUTF8.toList : List UInt8) := ex250
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l245 (expect := CSA) (title := "\"-9007199254740992\".toUTF8.toList ∉ safeInteger")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:245") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l251 (expect := CSA) (title := "\"-9007199254740992\".toUTF8.toList ∉ safeInteger")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:251") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_safe_integer) (x := ("-9007199254740992".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex245 : "-9007199254740992".toUTF8.toList ∉ safeInteger := by decide +kernel
-@[answers "formats.examples.json.numbers.l245" csa] public theorem ans245 :
-    ¬ Silmaril.Project.Shapes.Member lang_safe_integer ("-9007199254740992".toUTF8.toList : List UInt8) := ex245
+theorem ex251 : "-9007199254740992".toUTF8.toList ∉ safeInteger := by decide +kernel
+@[answers "formats.examples.json.numbers.l251" csa] public theorem ans251 :
+    ¬ Silmaril.Project.Shapes.Member lang_safe_integer ("-9007199254740992".toUTF8.toList : List UInt8) := ex251
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l246 (expect := THM) (title := "\"-Infinity\".toUTF8.toList ∈ withPythonInfinity")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:246") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l252 (expect := THM) (title := "\"-Infinity\".toUTF8.toList ∈ withPythonInfinity")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:252") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_with_python_infinity) (x := ("-Infinity".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex246 : "-Infinity".toUTF8.toList ∈ withPythonInfinity := by decide +kernel
-@[answers "formats.examples.json.numbers.l246" thm] public theorem ans246 :
-    Silmaril.Project.Shapes.Member lang_with_python_infinity ("-Infinity".toUTF8.toList : List UInt8) := ex246
+theorem ex252 : "-Infinity".toUTF8.toList ∈ withPythonInfinity := by decide +kernel
+@[answers "formats.examples.json.numbers.l252" thm] public theorem ans252 :
+    Silmaril.Project.Shapes.Member lang_with_python_infinity ("-Infinity".toUTF8.toList : List UInt8) := ex252
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l247 (expect := CSA) (title := "\"+Infinity\".toUTF8.toList ∉ withPythonNonFinite")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:247") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l253 (expect := CSA) (title := "\"+Infinity\".toUTF8.toList ∉ withPythonNonFinite")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:253") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_with_python_non_finite) (x := ("+Infinity".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex247 : "+Infinity".toUTF8.toList ∉ withPythonNonFinite := by decide +kernel
-@[answers "formats.examples.json.numbers.l247" csa] public theorem ans247 :
-    ¬ Silmaril.Project.Shapes.Member lang_with_python_non_finite ("+Infinity".toUTF8.toList : List UInt8) := ex247
+theorem ex253 : "+Infinity".toUTF8.toList ∉ withPythonNonFinite := by decide +kernel
+@[answers "formats.examples.json.numbers.l253" csa] public theorem ans253 :
+    ¬ Silmaril.Project.Shapes.Member lang_with_python_non_finite ("+Infinity".toUTF8.toList : List UInt8) := ex253
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l248 (expect := CSA) (title := "\"-NaN\".toUTF8.toList ∉ withPythonNonFinite")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:248") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l254 (expect := CSA) (title := "\"-NaN\".toUTF8.toList ∉ withPythonNonFinite")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:254") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_with_python_non_finite) (x := ("-NaN".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex248 : "-NaN".toUTF8.toList ∉ withPythonNonFinite := by decide +kernel
-@[answers "formats.examples.json.numbers.l248" csa] public theorem ans248 :
-    ¬ Silmaril.Project.Shapes.Member lang_with_python_non_finite ("-NaN".toUTF8.toList : List UInt8) := ex248
+theorem ex254 : "-NaN".toUTF8.toList ∉ withPythonNonFinite := by decide +kernel
+@[answers "formats.examples.json.numbers.l254" csa] public theorem ans254 :
+    ¬ Silmaril.Project.Shapes.Member lang_with_python_non_finite ("-NaN".toUTF8.toList : List UInt8) := ex254
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l249 (expect := CSA) (title := "\"01\".toUTF8.toList ∉ integerToken")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:249") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l255 (expect := CSA) (title := "\"01\".toUTF8.toList ∉ integerToken")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:255") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integer_token) (x := ("01".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex249 : "01".toUTF8.toList ∉ integerToken := by decide +kernel
-@[answers "formats.examples.json.numbers.l249" csa] public theorem ans249 :
-    ¬ Silmaril.Project.Shapes.Member lang_integer_token ("01".toUTF8.toList : List UInt8) := ex249
+theorem ex255 : "01".toUTF8.toList ∉ integerToken := by decide +kernel
+@[answers "formats.examples.json.numbers.l255" csa] public theorem ans255 :
+    ¬ Silmaril.Project.Shapes.Member lang_integer_token ("01".toUTF8.toList : List UInt8) := ex255
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l252 (expect := THM) (title := "\"[1, -2]\".toUTF8.toList ∈ language .rfc8259 int64 — Whole texts.")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:252") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l258 (expect := THM) (title := "\"[1, -2]\".toUTF8.toList ∈ language .rfc8259 int64 — Whole texts.")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:258") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_int64) (x := ("[1, -2]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex252 : "[1, -2]".toUTF8.toList ∈ language .rfc8259 int64 := by decide +kernel
-@[answers "formats.examples.json.numbers.l252" thm] public theorem ans252 :
-    Silmaril.Project.Shapes.Member lang_language_rfc8259_int64 ("[1, -2]".toUTF8.toList : List UInt8) := ex252
+theorem ex258 : "[1, -2]".toUTF8.toList ∈ language .rfc8259 int64 := by decide +kernel
+@[answers "formats.examples.json.numbers.l258" thm] public theorem ans258 :
+    Silmaril.Project.Shapes.Member lang_language_rfc8259_int64 ("[1, -2]".toUTF8.toList : List UInt8) := ex258
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l253 (expect := CSA) (title := "\"[1, 2.0]\".toUTF8.toList ∉ language .rfc8259 integerToken")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:253") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l259 (expect := CSA) (title := "\"[1, 2.0]\".toUTF8.toList ∉ language .rfc8259 integerToken")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:259") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integer_token) (x := ("[1, 2.0]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex253 : "[1, 2.0]".toUTF8.toList ∉ language .rfc8259 integerToken := by decide +kernel
-@[answers "formats.examples.json.numbers.l253" csa] public theorem ans253 :
-    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_integer_token ("[1, 2.0]".toUTF8.toList : List UInt8) := ex253
+theorem ex259 : "[1, 2.0]".toUTF8.toList ∉ language .rfc8259 integerToken := by decide +kernel
+@[answers "formats.examples.json.numbers.l259" csa] public theorem ans259 :
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_integer_token ("[1, 2.0]".toUTF8.toList : List UInt8) := ex259
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l254 (expect := THM) (title := "\"[1, 2.0]\".toUTF8.toList ∈ language .rfc8259 integralNumber")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:254") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l260 (expect := THM) (title := "\"[1, 2.0]\".toUTF8.toList ∈ language .rfc8259 integralNumber")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:260") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integral_number) (x := ("[1, 2.0]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex254 : "[1, 2.0]".toUTF8.toList ∈ language .rfc8259 integralNumber := by decide +kernel
-@[answers "formats.examples.json.numbers.l254" thm] public theorem ans254 :
-    Silmaril.Project.Shapes.Member lang_language_rfc8259_integral_number ("[1, 2.0]".toUTF8.toList : List UInt8) := ex254
+theorem ex260 : "[1, 2.0]".toUTF8.toList ∈ language .rfc8259 integralNumber := by decide +kernel
+@[answers "formats.examples.json.numbers.l260" thm] public theorem ans260 :
+    Silmaril.Project.Shapes.Member lang_language_rfc8259_integral_number ("[1, 2.0]".toUTF8.toList : List UInt8) := ex260
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l255 (expect := THM) (title := "\"{\\\"a\\\": 9007199254740993}\".toUTF8.toList ∈ language .rfc8259 int64")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:255") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l261 (expect := THM) (title := "\"{\\\"a\\\": 9007199254740993}\".toUTF8.toList ∈ language .rfc8259 int64")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:261") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_int64) (x := ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex255 : "{\"a\": 9007199254740993}".toUTF8.toList ∈ language .rfc8259 int64 := by decide +kernel
-@[answers "formats.examples.json.numbers.l255" thm] public theorem ans255 :
-    Silmaril.Project.Shapes.Member lang_language_rfc8259_int64 ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8) := ex255
+theorem ex261 : "{\"a\": 9007199254740993}".toUTF8.toList ∈ language .rfc8259 int64 := by decide +kernel
+@[answers "formats.examples.json.numbers.l261" thm] public theorem ans261 :
+    Silmaril.Project.Shapes.Member lang_language_rfc8259_int64 ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8) := ex261
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l256 (expect := CSA) (title := "\"{\\\"a\\\": 9007199254740993}\".toUTF8.toList ∉ language .rfc8259 binary64Integer")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:256") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l262 (expect := CSA) (title := "\"{\\\"a\\\": 9007199254740993}\".toUTF8.toList ∉ language .rfc8259 binary64Integer")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:262") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_binary64_integer) (x := ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex256 : "{\"a\": 9007199254740993}".toUTF8.toList ∉ language .rfc8259 binary64Integer := by
+theorem ex262 : "{\"a\": 9007199254740993}".toUTF8.toList ∉ language .rfc8259 binary64Integer := by
   decide +kernel
-@[answers "formats.examples.json.numbers.l256" csa] public theorem ans256 :
-    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_binary64_integer ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8) := ex256
+@[answers "formats.examples.json.numbers.l262" csa] public theorem ans262 :
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_binary64_integer ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8) := ex262
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l258 (expect := CSA) (title := "\"[NaN]\".toUTF8.toList ∉ JsonBytes.language .rfc8259")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:258") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l264 (expect := CSA) (title := "\"[NaN]\".toUTF8.toList ∉ JsonBytes.language .rfc8259")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:264") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_json_bytes_language_rfc8259) (x := ("[NaN]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex258 : "[NaN]".toUTF8.toList ∉ JsonBytes.language .rfc8259 := by decide +kernel
-@[answers "formats.examples.json.numbers.l258" csa] public theorem ans258 :
-    ¬ Silmaril.Project.Shapes.Member lang_json_bytes_language_rfc8259 ("[NaN]".toUTF8.toList : List UInt8) := ex258
+theorem ex264 : "[NaN]".toUTF8.toList ∉ JsonBytes.language .rfc8259 := by decide +kernel
+@[answers "formats.examples.json.numbers.l264" csa] public theorem ans264 :
+    ¬ Silmaril.Project.Shapes.Member lang_json_bytes_language_rfc8259 ("[NaN]".toUTF8.toList : List UInt8) := ex264
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l259 (expect := THM) (title := "\"[NaN]\".toUTF8.toList ∈ language .rfc8259 withPythonNonFinite")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:259") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l265 (expect := THM) (title := "\"[NaN]\".toUTF8.toList ∈ language .rfc8259 withPythonNonFinite")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:265") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_with_python_non_finite) (x := ("[NaN]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex259 : "[NaN]".toUTF8.toList ∈ language .rfc8259 withPythonNonFinite := by decide +kernel
-@[answers "formats.examples.json.numbers.l259" thm] public theorem ans259 :
-    Silmaril.Project.Shapes.Member lang_language_rfc8259_with_python_non_finite ("[NaN]".toUTF8.toList : List UInt8) := ex259
+theorem ex265 : "[NaN]".toUTF8.toList ∈ language .rfc8259 withPythonNonFinite := by decide +kernel
+@[answers "formats.examples.json.numbers.l265" thm] public theorem ans265 :
+    Silmaril.Project.Shapes.Member lang_language_rfc8259_with_python_non_finite ("[NaN]".toUTF8.toList : List UInt8) := ex265
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril instance formats.examples.json.numbers.l260 (expect := CSA) (title := "\"[NaN]\".toUTF8.toList ∉ language .rfc8259 withPythonInfinity")
-  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:260") := silmaril.shapes.language.member
+silmaril instance formats.examples.json.numbers.l266 (expect := CSA) (title := "\"[NaN]\".toUTF8.toList ∉ language .rfc8259 withPythonInfinity")
+  (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:266") := silmaril.shapes.language.member
   (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_with_python_infinity) (x := ("[NaN]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
-theorem ex260 : "[NaN]".toUTF8.toList ∉ language .rfc8259 withPythonInfinity := by decide +kernel
-@[answers "formats.examples.json.numbers.l260" csa] public theorem ans260 :
-    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_with_python_infinity ("[NaN]".toUTF8.toList : List UInt8) := ex260
+theorem ex266 : "[NaN]".toUTF8.toList ∉ language .rfc8259 withPythonInfinity := by decide +kernel
+@[answers "formats.examples.json.numbers.l266" csa] public theorem ans266 :
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_with_python_infinity ("[NaN]".toUTF8.toList : List UInt8) := ex266
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril group formats.examples.json.numbers (title := "\"[NaN]\".toUTF8.toList ∉ language .rfc8259 withPythonInfinity: examples")
-  (children := [formats.examples.json.numbers.l236, formats.examples.json.numbers.l237, formats.examples.json.numbers.l238, formats.examples.json.numbers.l239, formats.examples.json.numbers.l240, formats.examples.json.numbers.l241, formats.examples.json.numbers.l242, formats.examples.json.numbers.l243, formats.examples.json.numbers.l244, formats.examples.json.numbers.l245, formats.examples.json.numbers.l246, formats.examples.json.numbers.l247, formats.examples.json.numbers.l248, formats.examples.json.numbers.l249, formats.examples.json.numbers.l252, formats.examples.json.numbers.l253, formats.examples.json.numbers.l254, formats.examples.json.numbers.l255, formats.examples.json.numbers.l256, formats.examples.json.numbers.l258, formats.examples.json.numbers.l259, formats.examples.json.numbers.l260])
+  (children := [formats.examples.json.numbers.l236, formats.examples.json.numbers.l238, formats.examples.json.numbers.l239, formats.examples.json.numbers.l240, formats.examples.json.numbers.l241, formats.examples.json.numbers.l242, formats.examples.json.numbers.l243, formats.examples.json.numbers.l244, formats.examples.json.numbers.l245, formats.examples.json.numbers.l246, formats.examples.json.numbers.l247, formats.examples.json.numbers.l248, formats.examples.json.numbers.l249, formats.examples.json.numbers.l250, formats.examples.json.numbers.l251, formats.examples.json.numbers.l252, formats.examples.json.numbers.l253, formats.examples.json.numbers.l254, formats.examples.json.numbers.l255, formats.examples.json.numbers.l258, formats.examples.json.numbers.l259, formats.examples.json.numbers.l260, formats.examples.json.numbers.l261, formats.examples.json.numbers.l262, formats.examples.json.numbers.l264, formats.examples.json.numbers.l265, formats.examples.json.numbers.l266])
 
 /-! ## JSON Lines and NDJSON (`Silmaril/Formats/JsonLines/Thms.lean`) -/
 
