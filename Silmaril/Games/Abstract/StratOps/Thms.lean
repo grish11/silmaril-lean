@@ -2,7 +2,8 @@ module
 
 public import Silmaril.Games.Abstract.StratOps.Defs
 public import Silmaril.Games.Abstract.FullFun.Thms
-import Silmaril.Proofs.Games.Abstract.StratOps.Laws
+public import Silmaril.Games.Abstract.StratObs.Thms
+import Silmaril.Proofs.Games.Abstract.StratOps.Game
 
 /-!
 # Premonoidal operations on observation triples: theorems
@@ -26,6 +27,38 @@ determined by its full part and its pending calls (`ext_full`).
 
 `AFun.iter` and `FullFun.iter` have no Elgot fixpoint or unfolding law in the library, so none
 is stated for `iterT`.
+
+**Saturation** (`Silmaril.Proofs.Games.Abstract.StratOps.Sat`, `….Iter`):
+
+* `sat_mapT`, `sat_comapT`, `sat_whiskerRightT`, `sat_whiskerLeftT`: pure maps and whiskering
+  commute with saturation, with no hypothesis;
+* `sat_seqT_sat_right`: saturating the second argument of a sequence changes nothing;
+* `sat_seqT` (`u` total) and `sat_seqT_of_adm` (`t` admissible):
+  `sat (seqT (sat t) (sat u)) = sat (seqT t u)`. **It fails in general** (`not_sat_seqT`): a
+  call prefix of a return of `t` is a call of `sat t`, but `seqT t u` loses it when `u` has no
+  observation after that return;
+* `sat_iterT_of_adm`: the same for iteration of an admissible body (immediate). For a
+  non-admissible body the same loss as for sequencing can occur (a continuing iteration into a
+  state with no observation); no totality version is proved for iteration;
+* `admissible_pureT`, `admissible_seqT`, `admissible_mapT`, `admissible_comapT`,
+  `admissible_whiskerRightT`, `admissible_whiskerLeftT`, `admissible_iterT`: **every operation
+  preserves admissibility**, with no further hypothesis.
+
+**Readback and the game-level operations** (`Silmaril.Proofs.Games.Abstract.StratOps.Game`):
+
+* `readback_toDStrat : readback (toDStrat t) = sat t`, from the `StratObs` readback lemmas;
+* `seqD_toDStrat` and the other `…D_toDStrat`: on play objects, a game-level operation is the
+  triple operation on the saturations;
+* preservation `toDStrat (seqT t u) = seqD (toDStrat t) (toDStrat u)` under the hypotheses of
+  `sat_seqT` (`toDStrat_seqT`, `toDStrat_seqT_of_adm`), failing in general
+  (`not_toDStrat_seqT`); for `pureT`, `mapT`, `comapT` and whiskering with no hypothesis; for
+  `iterT` for an admissible body (`toDStrat_iterT_of_adm`);
+* the laws on the image of `toDStrat`, with no hypothesis (every operation preserves
+  admissibility): `seqD_assoc`, `seqD_pureD`, `pureD_seqD`, the map laws, the whiskering laws,
+  and `not_interchangeD` (premonoidal, not monoidal).
+
+The game-level operations are defined through readback, not by a direct interaction
+construction on strategies; none is claimed.
 -/
 
 public section
@@ -142,5 +175,255 @@ theorem not_interchangeT :
       seqT (whiskerRightT t PUnit) (whiskerLeftT PUnit u) ≠
         seqT (whiskerLeftT PUnit u) (whiskerRightT t PUnit) :=
   Silmaril.Proofs.Games.Abstract.StratOps.not_interchangeT
+
+/-! ## Saturation and admissibility -/
+
+section Sat
+
+variable {t : ObsTriple E S A B} {u : ObsTriple E S B C}
+
+/-- Saturation keeps a triple total. -/
+theorem total_sat (hu : Total u) : Total (sat u) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.total_sat hu
+
+/-- Saturating the second argument of a sequence does not change its saturation. -/
+theorem sat_seqT_sat_right : sat (seqT t (sat u)) = sat (seqT t u) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.sat_eq rfl
+    Silmaril.Proofs.Games.Abstract.StratOps.satP_seqT_sat_right rfl
+
+/-- **Sequencing commutes with saturation** when the second argument is total. -/
+theorem sat_seqT (hu : Total u) : sat (seqT (sat t) (sat u)) = sat (seqT t u) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.sat_seqT hu
+
+/-- **Sequencing commutes with saturation** when the first argument is admissible. -/
+theorem sat_seqT_of_adm (ht : Admissible t) : sat (seqT (sat t) (sat u)) = sat (seqT t u) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.sat_seqT_of_adm ht
+
+/-- **Without a hypothesis the equation fails**: a call prefix of a return of `t` is a pending
+call of `sat t`, but if `u` has no observation after that return, `seqT t u` loses it. -/
+theorem not_sat_seqT :
+    ∃ (E : Sig.{0}) (t u : ObsTriple E PUnit PUnit PUnit),
+      sat (seqT (sat t) (sat u)) ≠ sat (seqT t u) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.not_sat_seqT
+
+theorem sat_mapT (t : ObsTriple E S A B) (h : B → C) : sat (mapT t h) = mapT (sat t) h :=
+  Silmaril.Proofs.Games.Abstract.StratOps.sat_mapT t h
+
+theorem sat_comapT {A' : Type u} (t : ObsTriple E S A B) (k : A' → A) :
+    sat (comapT t k) = comapT (sat t) k := rfl
+
+theorem sat_whiskerRightT (t : ObsTriple E S A B) (C : Type u) :
+    sat (whiskerRightT t C) = whiskerRightT (sat t) C :=
+  Silmaril.Proofs.Games.Abstract.StratOps.sat_whiskerRightT t C
+
+theorem sat_whiskerLeftT (C : Type u) (t : ObsTriple E S A B) :
+    sat (whiskerLeftT C t) = whiskerLeftT C (sat t) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.sat_whiskerLeftT C t
+
+/-- Iteration commutes with saturation when the body is admissible. -/
+theorem sat_iterT_of_adm {t : ObsTriple E S A (B ⊕ A)} (ht : Admissible t) :
+    sat (iterT (sat t)) = sat (iterT t) := by
+  rw [show sat t = t from ht]
+
+theorem admissible_pureT : Admissible (pureT : ObsTriple E S A A) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.saturated_pureT
+
+/-- **Sequencing preserves admissibility.** -/
+theorem admissible_seqT (ht : Admissible t) (hu : Admissible u) : Admissible (seqT t u) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.saturated_seqT ht hu
+
+theorem admissible_mapT (ht : Admissible t) (h : B → C) : Admissible (mapT t h) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.admissible_mapT ht h
+
+theorem admissible_comapT {A' : Type u} (ht : Admissible t) (k : A' → A) :
+    Admissible (comapT t k) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.admissible_comapT ht k
+
+theorem admissible_whiskerRightT (ht : Admissible t) (C : Type u) :
+    Admissible (whiskerRightT t C) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.admissible_whiskerRightT ht C
+
+theorem admissible_whiskerLeftT (ht : Admissible t) (C : Type u) :
+    Admissible (whiskerLeftT C t) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.admissible_whiskerLeftT ht C
+
+/-- **Iteration preserves admissibility.** -/
+theorem admissible_iterT {t : ObsTriple E S A (B ⊕ A)} (ht : Admissible t) :
+    Admissible (iterT t) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.saturated_iterT ht
+
+end Sat
+
+/-! ## Readback -/
+
+/-- **Reading back a play object gives the saturation of its triple.** -/
+theorem readback_toDStrat (t : ObsTriple E S A B) : readback (toDStrat t) = sat t :=
+  Silmaril.Proofs.Games.Abstract.StratOps.readback_toDStrat t
+
+/-- On admissible triples, readback inverts `toDStrat`. -/
+theorem readback_toDStrat_adm {t : ObsTriple E S A B} (ht : Admissible t) :
+    readback (toDStrat t) = t :=
+  (readback_toDStrat t).trans ht
+
+/-! ## The game-level operations on the image of `toDStrat`
+
+The operations are defined through readback (`seqD` and the others); on play objects they are
+the triple operations on saturations. -/
+
+section Game
+
+variable {t : ObsTriple E S A B} {u : ObsTriple E S B C}
+
+theorem seqD_toDStrat : seqD (toDStrat t) (toDStrat u) = toDStrat (seqT (sat t) (sat u)) := by
+  rw [seqD, readback_toDStrat, readback_toDStrat]
+
+theorem pureD_eq : (pureD : DStrategy E (funSig S A A)) = toDStrat pureT := rfl
+
+theorem mapD_toDStrat (h : B → C) : mapD (toDStrat t) h = toDStrat (mapT (sat t) h) := by
+  rw [mapD, readback_toDStrat]
+
+theorem comapD_toDStrat {A' : Type u} (k : A' → A) :
+    comapD (toDStrat t) k = toDStrat (comapT (sat t) k) := by
+  rw [comapD, readback_toDStrat]
+
+theorem whiskerRightD_toDStrat (C : Type u) :
+    whiskerRightD (toDStrat t) C = toDStrat (whiskerRightT (sat t) C) := by
+  rw [whiskerRightD, readback_toDStrat]
+
+theorem whiskerLeftD_toDStrat (C : Type u) :
+    whiskerLeftD C (toDStrat t) = toDStrat (whiskerLeftT C (sat t)) := by
+  rw [whiskerLeftD, readback_toDStrat]
+
+theorem iterD_toDStrat {t : ObsTriple E S A (B ⊕ A)} :
+    iterD (toDStrat t) = toDStrat (iterT (sat t)) := by
+  rw [iterD, readback_toDStrat]
+
+/-! ### Preservation -/
+
+/-- **`toDStrat` preserves sequencing** when the second argument is total. -/
+theorem toDStrat_seqT (hu : Total u) : toDStrat (seqT t u) = seqD (toDStrat t) (toDStrat u) := by
+  rw [seqD_toDStrat]; exact toDStrat_eq_iff.2 (sat_seqT hu).symm
+
+/-- **`toDStrat` preserves sequencing** when the first argument is admissible. -/
+theorem toDStrat_seqT_of_adm (ht : Admissible t) :
+    toDStrat (seqT t u) = seqD (toDStrat t) (toDStrat u) := by
+  rw [seqD_toDStrat]; exact toDStrat_eq_iff.2 (sat_seqT_of_adm ht).symm
+
+/-- **Preservation of sequencing fails in general.** -/
+theorem not_toDStrat_seqT :
+    ∃ (E : Sig.{0}) (t u : ObsTriple E PUnit PUnit PUnit),
+      toDStrat (seqT t u) ≠ seqD (toDStrat t) (toDStrat u) := by
+  obtain ⟨E, t, u, h⟩ := not_sat_seqT
+  exact ⟨E, t, u, fun he => h (toDStrat_eq_iff.1 (he.trans seqD_toDStrat).symm)⟩
+
+theorem toDStrat_pureT : toDStrat (pureT : ObsTriple E S A A) = pureD := rfl
+
+theorem toDStrat_mapT (h : B → C) : toDStrat (mapT t h) = mapD (toDStrat t) h := by
+  rw [mapD_toDStrat]; exact toDStrat_eq_iff.2 (by rw [sat_mapT, sat_mapT, sat_idem])
+
+theorem toDStrat_comapT {A' : Type u} (k : A' → A) :
+    toDStrat (comapT t k) = comapD (toDStrat t) k := by
+  rw [comapD_toDStrat]; exact toDStrat_eq_iff.2 (by rw [sat_comapT, sat_comapT, sat_idem])
+
+theorem toDStrat_whiskerRightT (C : Type u) :
+    toDStrat (whiskerRightT t C) = whiskerRightD (toDStrat t) C := by
+  rw [whiskerRightD_toDStrat]
+  exact toDStrat_eq_iff.2 (by rw [sat_whiskerRightT, sat_whiskerRightT, sat_idem])
+
+theorem toDStrat_whiskerLeftT (C : Type u) :
+    toDStrat (whiskerLeftT C t) = whiskerLeftD C (toDStrat t) := by
+  rw [whiskerLeftD_toDStrat]
+  exact toDStrat_eq_iff.2 (by rw [sat_whiskerLeftT, sat_whiskerLeftT, sat_idem])
+
+/-- `toDStrat` preserves iteration when the body is admissible. -/
+theorem toDStrat_iterT_of_adm {t : ObsTriple E S A (B ⊕ A)} (ht : Admissible t) :
+    toDStrat (iterT t) = iterD (toDStrat t) := by
+  rw [iterD, readback_toDStrat_adm ht]
+
+end Game
+
+/-! ### Laws on the image of `toDStrat` -/
+
+section GameLaws
+
+variable (t : ObsTriple E S A B)
+
+/-- **Associativity of game-level sequencing** on play objects. -/
+theorem seqD_assoc (u : ObsTriple E S B C) (v : ObsTriple E S C D) :
+    seqD (seqD (toDStrat t) (toDStrat u)) (toDStrat v) =
+      seqD (toDStrat t) (seqD (toDStrat u) (toDStrat v)) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.seqD_assoc t u v
+
+theorem seqD_pureD : seqD (toDStrat t) pureD = toDStrat t :=
+  Silmaril.Proofs.Games.Abstract.StratOps.seqD_pureD t
+
+theorem pureD_seqD : seqD pureD (toDStrat t) = toDStrat t :=
+  Silmaril.Proofs.Games.Abstract.StratOps.pureD_seqD t
+
+theorem mapD_id : mapD (toDStrat t) id = toDStrat t :=
+  Silmaril.Proofs.Games.Abstract.StratOps.mapD_id t
+
+theorem mapD_mapD (h : B → C) (h' : C → D) :
+    mapD (mapD (toDStrat t) h) h' = mapD (toDStrat t) (h' ∘ h) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.mapD_mapD t h h'
+
+theorem comapD_id : comapD (toDStrat t) id = toDStrat t :=
+  Silmaril.Proofs.Games.Abstract.StratOps.comapD_id t
+
+theorem comapD_comapD {A' A'' : Type u} (k : A' → A) (k' : A'' → A') :
+    comapD (comapD (toDStrat t) k) k' = comapD (toDStrat t) (k ∘ k') :=
+  Silmaril.Proofs.Games.Abstract.StratOps.comapD_comapD t k k'
+
+theorem mapD_comapD {A' : Type u} (k : A' → A) (h : B → C) :
+    mapD (comapD (toDStrat t) k) h = comapD (mapD (toDStrat t) h) k :=
+  Silmaril.Proofs.Games.Abstract.StratOps.mapD_comapD t k h
+
+theorem seqD_pureD_mapD (h : B → C) :
+    seqD (toDStrat t) (mapD pureD h) = mapD (toDStrat t) h :=
+  Silmaril.Proofs.Games.Abstract.StratOps.seqD_pureD_mapD t h
+
+theorem pureD_mapD_seqD (h : A → B) (u : ObsTriple E S B C) :
+    seqD (mapD pureD h) (toDStrat u) = comapD (toDStrat u) h :=
+  Silmaril.Proofs.Games.Abstract.StratOps.pureD_mapD_seqD h u
+
+theorem seqD_mapD (h : B → C) (u : ObsTriple E S C D) :
+    seqD (mapD (toDStrat t) h) (toDStrat u) = seqD (toDStrat t) (comapD (toDStrat u) h) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.seqD_mapD t h u
+
+theorem mapD_seqD (u : ObsTriple E S B C) (h : C → D) :
+    mapD (seqD (toDStrat t) (toDStrat u)) h = seqD (toDStrat t) (mapD (toDStrat u) h) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.mapD_seqD t u h
+
+theorem comapD_seqD {A' : Type u} (u : ObsTriple E S B C) (k : A' → A) :
+    comapD (seqD (toDStrat t) (toDStrat u)) k = seqD (comapD (toDStrat t) k) (toDStrat u) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.comapD_seqD t u k
+
+theorem whiskerRightD_pureD : whiskerRightD (pureD : DStrategy E (funSig S A A)) C = pureD :=
+  Silmaril.Proofs.Games.Abstract.StratOps.whiskerRightD_pureD
+
+theorem whiskerLeftD_pureD : whiskerLeftD C (pureD : DStrategy E (funSig S A A)) = pureD :=
+  Silmaril.Proofs.Games.Abstract.StratOps.whiskerLeftD_pureD
+
+/-- **Right whiskering preserves game-level sequencing** on play objects. -/
+theorem whiskerRightD_seqD (u : ObsTriple E S B D) (C : Type u) :
+    whiskerRightD (seqD (toDStrat t) (toDStrat u)) C =
+      seqD (whiskerRightD (toDStrat t) C) (whiskerRightD (toDStrat u) C) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.whiskerRightD_seqD t u C
+
+/-- **Left whiskering preserves game-level sequencing** on play objects. -/
+theorem whiskerLeftD_seqD (u : ObsTriple E S B D) (C : Type u) :
+    whiskerLeftD C (seqD (toDStrat t) (toDStrat u)) =
+      seqD (whiskerLeftD C (toDStrat t)) (whiskerLeftD C (toDStrat u)) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.whiskerLeftD_seqD t u C
+
+end GameLaws
+
+/-- **The interchange law fails for play objects**: the game-level structure is premonoidal,
+not monoidal. -/
+theorem not_interchangeD :
+    ∃ (E : Sig.{0}) (t u : ObsTriple E PUnit PUnit PUnit),
+      seqD (whiskerRightD (toDStrat t) PUnit) (whiskerLeftD PUnit (toDStrat u)) ≠
+        seqD (whiskerLeftD PUnit (toDStrat u)) (whiskerRightD (toDStrat t) PUnit) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.not_interchangeD
 
 end Silmaril.Games.Abstract.StratOps
