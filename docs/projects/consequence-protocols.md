@@ -147,6 +147,17 @@ signed formulas or as Gentzen sequents.
   snapshot a `check` reads is explicit (`SnapshotAt.ret` or `.call`). `assert` names an
   observation that adds to the succedent, not a proof.
 
+Specification components for these protocols (`Silmaril.Wasi.Component.Consequence.Signed.Spec`;
+specification strategies, not compiled components):
+
+- `batchEmitter enc L`: on `run`, emits the literals of a batch of `L` through `pos`/`neg` and
+  calls `done`. At the call boundary its batches are exactly `L` (`batches_batchEmitter`). If
+  every batch of `L` is unsatisfiable, its UNSAT reading is valid
+  (`batchUnsat_batchEmitter_le_valid`).
+- `idChecker`: an exported `check(conj, disj)` over signed `u32` lists that answers whether the
+  two lists share a formula (`seqOf_idChecker`). It is `Gentzen.Reflexive` and valid for every
+  satisfaction relation (`reflexive_idChecker`, `idChecker_le_valid`).
+
 ## Scope and gaps
 
 - No compiled component binary implements any protocol. The catalog's `compiledComponent` shape
@@ -184,5 +195,6 @@ lake build Silmaril.Wasi.Component.Consequence.Thms \
   Silmaril.Wasi.Component.Consequence.Stateful.Thms \
   Silmaril.Wasi.Component.Consequence.Gentzen.Thms \
   Silmaril.Wasi.Component.Consequence.Signed.Thms \
+  Silmaril.Wasi.Component.Consequence.Signed.Spec.Thms \
   Silmaril.Wasi.Component.Consequence.Matrix.Examples
 ```
