@@ -205,6 +205,7 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Environment extension of sessions (`Comp.denU`'s `ext`) | `SessionRoute.threadS_comp_callH`, `SessionExt.extS_threadS`, `AnsPull.ofHandler_ansH_comp_pair`, `comp_ansH_comp_ansH_comp`; `ExtSessionFull.ext_threadS` (full, on `sigU`) | `NoPlainTrap`, `RetDet` | #766, #769 |
 | Wiring-induced (hidden out-of-range) divergence classified; trap propagation excludes it | `OutOfRange.wiring_divergence` (counterexample), `no_wiring_divergence`, `div_denD_eq` (outer layer, no hypothesis), `div_ext_maskH`, `div_denD_single`; `SessionTrap.TrapAbortsRound`, `threadS_trapAborting` | `TrapPropagating` | #777 |
 | Native Wasm sessions abort the round on a host trap | `ModuleTrap.close_trapAborts`; `HostTrapS.evalLXPS_trapLast`, `sessionTripleXP_trapAbortsRound`, `threadS_sessionTripleXP_trapAbortsBelow` | none | #779 |
+| Exact divergence and infinite plays of multi-node `Comp.denD` | `DWiringMulti.div_denD_nodes`, `inf_denD_nodes` (no hypothesis); `div_denD_multi` (head-node `TrapPropagating` removes the `maskH` chatter); `div_ext_sources` (`EnvDiv ∪ NodeDiv ∪ NodeChatter`) | none / head-node `TrapPropagating` | #781 |
 
 ### Counterexamples (why a hypothesis cannot be dropped)
 
@@ -234,7 +235,7 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Three-way plays-level form for nested composites | not possible as stated | the interleaving of outer moves is not determined by the components' plays; the two-way forms `inf_comp_eq`, `chatter_iff` are proved |
 | n-module linking; `Linked2.compTripleS` vs `linkS (instTripleS A) (instTripleS B)` | concrete (0e76ca84), accepted on #207 | `Linked2` finite/div/inf adequacy and `compSession_inj_full` are on main (0e76ca84) |
 | Component injection for linked components with imports | concrete (0e76ca84) | #680 covers simple components without imports |
-| Closed-form full observation law for multi-node `Comp.denD` | in progress | outer layer exact (`div_denD_eq`); one node exact (`div_denD_single`); inter-node chatter (`ExtChatter`) remains per layer |
+| Nested `.inst` nodes expanded recursively in the `Comp.denD` law | optional refinement | `implsH` is not trap-silent and can add silent chatter there |
 | Bridge from the native session triple over `wasmHostSig` to a component-node session over `sigS` | concrete (0e76ca84) | `DCoreSem` is abstract; trap propagation is proved for the native triple (#779) |
 
 ## Servers seam (stage 10)
