@@ -1,0 +1,166 @@
+# Logic families whose Lean developments (institutions and the maps between them) are not in
+# this repository yet. Listed so that the omission is explicit in the explorer's Coverage page:
+# nothing in these families is registered or claimed here. Counts are of institutions (nodes) and
+# maps (edges) of each family; remove a family, or lower its counts, as its developments land.
+schema = "silmaril.records.v0.2"
+
+[[logic_pending]]
+name = "pending.smt"
+title = "SMT-LIB theories and solver institutions"
+nodes = 26
+edges = 23
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.type-theory"
+title = "Type theories: extensional/intensional MLTT, LF and λΠ-modulo, CIC"
+nodes = 15
+edges = 27
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.algebraic"
+title = "Algebraic specification: many-sorted and varying-sort equational logics"
+nodes = 15
+edges = 13
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.egglog"
+title = "Egglog functional first-order graphs"
+nodes = 9
+edges = 14
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.matching"
+title = "Matching logic and scoped presentations"
+nodes = 6
+edges = 7
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.common-logic"
+title = "Common Logic (ISO/IEC 24707) presentations"
+nodes = 6
+edges = 6
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.prolog"
+title = "Prolog and Horn-clause programs"
+nodes = 3
+edges = 9
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.temporal"
+title = "Linear temporal logic"
+nodes = 3
+edges = 5
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.separation"
+title = "Separation logic"
+nodes = 5
+edges = 3
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.hoare"
+title = "Hoare logic"
+nodes = 4
+edges = 3
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.rewriting"
+title = "Term rewriting"
+nodes = 3
+edges = 3
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.first-order-lfp"
+title = "First-order logic with least fixed points"
+nodes = 2
+edges = 2
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.hybrid-polyadic"
+title = "Hybrid and polyadic modal logic"
+nodes = 2
+edges = 2
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.pdl"
+title = "Propositional dynamic logic"
+nodes = 1
+edges = 2
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.ctl"
+title = "Computation tree logic (CTL)"
+nodes = 1
+edges = 2
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.stlc-matching"
+title = "Simply typed λ-calculus matching"
+nodes = 2
+edges = 1
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.egg"
+title = "Egg e-graph rewriting"
+nodes = 1
+edges = 2
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.modal"
+title = "Modal logic (Kripke semantics)"
+nodes = 1
+edges = 1
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.modal-mu"
+title = "Modal μ-calculus"
+nodes = 1
+edges = 1
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.kore"
+title = "K framework Kore"
+nodes = 1
+edges = 1
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.reachability"
+title = "Reachability logic"
+nodes = 1
+edges = 1
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.stlc-restriction"
+title = "Simply typed λ-calculus restrictions"
+nodes = 0
+edges = 2
+status = "pending-port"
+
+[[logic_pending]]
+name = "pending.stlc-equations"
+title = "Simply typed λ-calculus equations"
+nodes = 1
+edges = 0
+status = "pending-port"

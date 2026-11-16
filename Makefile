@@ -126,6 +126,7 @@ project-lean:
 		Silmaril.Project.Shapes.C.Thms \
 		Silmaril.Project.Shapes.SysV.Rtl.Defs \
 		Silmaril.Project.Shapes.CompilesTo.Thms \
+		Silmaril.LogicGraph.Audit.Defs \
 		ProjectSelfTest \
 		SysVTvExample \
 		CompilesToExamples
