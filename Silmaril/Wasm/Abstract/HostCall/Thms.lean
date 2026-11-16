@@ -157,6 +157,16 @@ instances `evRun_ctx`, `evRun_label`, `evRun_frame`, `coreInf_ctx`, `coreInf_lab
 chain of labelled runs `K n ⟶ K (n + 1)` whose logs concatenate to an unbounded stream `ω`
 (`Shape.StreamConcat`) is a productive run with the events `ω`.
 
+**Splitting productive runs** (proofs in `LoggedInf`), for the backward simulation of productive
+runs: `coreInf_split_wrap` (an injective context), `coreInf_split_seq`, `coreInf_split_label`,
+`coreInf_split_frame` (the part in front, a label or a call frame runs productively, or runs to a
+stuck end with a prefix of the stream and the rest runs productively); `coreInf_through_dsteps`
+(through host-free steps, deterministic profile); `coreInf_no_step`, `coreInf_trap_head` (no
+productive run from a stuck configuration or a head trap); `coreInf_not_diverges` (a productive
+run is not host-free divergence), with `trace_of_tgChain`, `evRun_nil_silentRun`,
+`silentRun_dsteps`; `coreInf_silent_step`, `coreInf_cons_event` (a silent step or an event in
+front of a productive run).
+
 The backward simulation of whole native runs is in `Silmaril.Wasm.Abstract.HostEval`.
 -/
 

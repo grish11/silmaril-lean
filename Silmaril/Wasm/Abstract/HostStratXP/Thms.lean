@@ -12,8 +12,8 @@ public import Silmaril.Wasm.Abstract.HostSquareXP.Thms
   **the Core strategy with exceptions is the native one**, given the two backward directions of
   `hostSquareXP_of` (`hdiv`: host-free Core divergence after a log is a divergent canonical
   behaviour; `hinf`: a productive Core run is a productive canonical run) for every question of
-  `InvOkXP`. These hypotheses are explicit here; `hdiv` is
-  `HostClosingInfXPBack.backDivXP`, `hinf` is not proved yet;
+  `InvOkXP`. Both are proved in `HostClosingInfXPBack` (`backDivXP`, `backInfXP`), with the
+  unconditional `coreStratXP_eq_natStratXP` and `coreStratAtXP_eq_natStratAtXP` there;
 * `coreStratXP_mem_throw`, `coreStratXP_mem_ret`: reading Core runs back from completed rounds,
   every profile: an answer `.inl (.inr t, s₂)` is a Core run to the uncaught exception
   `throwing t`, an answer `.inl (.inl ws, s₂)` to the values `ws`.

@@ -7,6 +7,7 @@ import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.Empty
 public import Silmaril.Wasm.Abstract.HostStratXP.Thms
 import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.Handler
 import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.DivWhole
+import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.InfWhole
 
 /-!
 # Core to the canonical closure, divergent runs: theorems
@@ -73,9 +74,29 @@ deterministic profile, a host with typed answers in the host slices):
   determinism. With no event left, the empty-log case above;
 * `wasmEvFunDXP_div_iff`: with `wasmEvFunDXP_div_evRun`, both directions at exactly the log;
 * `hostSquareXP_div`: the divergence corner of the exact-log square, unconditionally;
-* `backDivXP`: the backward divergence direction `BackDivXP` of `HostStratXP`, discharged.
+* `backDivXP`: the backward divergence direction `BackDivXP` of `HostStratXP`.
 
-Not yet: productive runs, Core to `wasmEvInfNXP` (`BackInfXP`).
+**Productive runs** (`InfSplit`, `InfGoal`, `InfTree`, `InfCtl`, `InfLoop`, `InfWhole`;
+deterministic profile, the same hosts):
+
+* `coreInf_wasmEvInfNXP`: a productive Core run of a typed invocation is in `wasmEvInfNXP`, with
+  exactly its host events. Proof: as `HostEval`'s `inf_wholeL`. A tree runs productively within
+  its function (`InfLXP`, a loop branching back forever by choice of its iterations,
+  `InfLXP.loopInf`), or reaches a call whose callee runs productively. A callee runs productively
+  within its body, or descends to a reached call or to its frame-level tail call; by choice of
+  the descents, finitely many then a productive body (`Shape.closeInfL`), or infinitely many
+  (`Shape.closeInf`). In both choices the stream is unbounded: infinitely many iterations or
+  descents without a host call would be host-free divergence, which a productive run is not.
+  A finished end of a part that should run productively is ruled out by determinism
+  (`noInf_of_evRun`);
+* `hostObsInf_wasmEvInfNXP_eq`: the Core witness `wasmEvInf` and `wasmEvInfNXP` have the same
+  productive observations against the host;
+* `backInfXP`: the backward productive direction `BackInfXP` of `HostStratXP`;
+* `hostSquareXP_prod`, `hostSquareXP`: the productive corner and the whole exact-log square
+  (`FullObs`), unconditionally;
+* `coreStratXP_eq_natStratXP`, `coreStratAtXP_eq_natStratAtXP`: **the Core strategy with
+  exceptions is the native one** (deterministic profile), on every question of `InvOkXP`, and
+  per function.
 -/
 
 @[expose] public section
@@ -198,6 +219,68 @@ theorem hostSquareXP_div (hT : HostTyped host) (hH : NativeHostSlice host)
 theorem backDivXP (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host) :
     BackDivXP o host tags :=
   fun _ _ hq _ _ h hd => evRun_wasmEvFunDXP_div hT hH hE hq.1 hq.2.1 hq.2.2.1 hq.2.2.2 h hd
+
+/-! ### Productive runs -/
+
+/-- **A productive Core run of a typed invocation is in `wasmEvInfNXP`**, with exactly its host
+events (deterministic profile). -/
+theorem coreInf_wasmEvInfNXP (hT : HostTyped host) (hH : NativeHostSlice host)
+    (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+    (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
+    {ω : Nat → Silmaril.Games.Abstract.Call (wasmHostSig H)}
+    (h : CoreInf (profile o) host (invoke s a vs) ω) : ω ∈ wasmEvInfNXP s (a, vs) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.coreInf_wasmEvInfNXP' hT hH hE hs hS hts hok h
+
+/-- **The productive observations are equal** (deterministic profile): the Core witness and
+`wasmEvInfNXP` have the same productive observations against the host. -/
+theorem hostObsInf_wasmEvInfNXP_eq (hT : HostTyped host) (hH : NativeHostSlice host)
+    (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+    (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs) :
+    Silmaril.Games.Abstract.hostObsInf (coreHostRel host) (wasmEvInf (profile o)) s (a, vs) =
+      Silmaril.Games.Abstract.hostObsInf (coreHostRel host) wasmEvInfNXP s (a, vs) :=
+  Set.Subset.antisymm (fun _ hω => by
+      have h := wasmEvInf_hostObsInf.mp hω
+      exact ⟨coreInf_wasmEvInfNXP hT hH hE hs hS hts hok h, fun n => coreInf_consistent h n⟩)
+    (hostObsInf_wasmEvInfNXP_le hH hE hts hS hok)
+
+/-- **The backward productive direction** of `HostStratXP`, on every question of `InvOkXP`. -/
+theorem backInfXP (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host) :
+    BackInfXP o host tags :=
+  fun _ _ hq _ h => coreInf_wasmEvInfNXP hT hH hE hq.1 hq.2.1 hq.2.2.1 hq.2.2.2 h
+
+/-- **The productive corner of the exact-log square**, unconditionally (deterministic
+profile). -/
+theorem hostSquareXP_prod (hT : HostTyped host) (hH : NativeHostSlice host)
+    (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+    (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
+    (ω : Nat → Silmaril.Games.Abstract.Call (wasmHostSig H)) :
+    NatObsXP host s a vs (.prod ω) ↔ CoreObsLXP (profile o) host s a vs (.prod ω) :=
+  hostSquareXP_prod_of hH hE hS hts hok
+    (fun _ h => coreInf_wasmEvInfNXP hT hH hE hs hS hts hok h) ω
+
+/-- **The exact-log commuting square for the canonical closure** (deterministic profile; a
+typed invocation on a checked store with the tag invariants, a host with typed answers in the
+host slices): the native and Core observations agree on every full observation. -/
+theorem hostSquareXP (hT : HostTyped host) (hH : NativeHostSlice host)
+    (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+    (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
+    (x : FullObs H) : NatObsXP host s a vs x ↔ CoreObsLXP (profile o) host s a vs x :=
+  hostSquareXP_of hT hH hE hs hS hts hok
+    (fun _ _ h hd => evRun_wasmEvFunDXP_div hT hH hE hs hS hts hok h hd)
+    (fun _ h => coreInf_wasmEvInfNXP hT hH hE hs hS hts hok h) x
+
+/-- **The Core strategy with exceptions is the native one** (deterministic profile), on every
+question of `InvOkXP`. -/
+theorem coreStratXP_eq_natStratXP (hT : HostTyped host) (hH : NativeHostSlice host)
+    (hE : HostSliceE tags host) :
+    coreStratXP (profile o) host (InvOkXP tags) = natStratXP host (InvOkXP tags) :=
+  coreStratXP_eq_natStratXP_of hT hH hE (backDivXP hT hH hE) (backInfXP hT hH hE)
+
+/-- **Per function**, final store hidden (deterministic profile). -/
+theorem coreStratAtXP_eq_natStratAtXP (hT : HostTyped host) (hH : NativeHostSlice host)
+    (hE : HostSliceE tags host) (s : Store H) (a : Nat) :
+    coreStratAtXP (profile o) host (InvOkXP tags) s a = natStratAtXP host (InvOkXP tags) s a :=
+  coreStratAtXP_eq_natStratAtXP_of hT hH hE (backDivXP hT hH hE) (backInfXP hT hH hE) s a
 
 end Div
 

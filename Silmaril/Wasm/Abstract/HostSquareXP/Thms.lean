@@ -28,9 +28,9 @@ check (`Interp.StoreChkE (Interp.ehExt tags) s.funcs`) and the tag invariants
   divergence is `(cs, div) ∈ wasmEvFunDXP`; a productive Core run is in `wasmEvInfNXP`) as
   explicit hypotheses.
 
-The divergence converse is `HostClosingInfXPBack.evRun_wasmEvFunDXP_div`, so the unconditional
-divergence corner `hostSquareXP_div` there. Not yet: the productive converse, so the
-unconditional square `hostSquareXP`.
+The converse directions are proved in `HostClosingInfXPBack` (`evRun_wasmEvFunDXP_div`,
+`coreInf_wasmEvInfNXP`), with the unconditional `hostSquareXP_div`, `hostSquareXP_prod` and the
+whole square `hostSquareXP` there.
 -/
 
 @[expose] public section
