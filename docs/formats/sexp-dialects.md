@@ -72,11 +72,16 @@ then `Util.equiv`). `Clojure.equal?` decides `Util.equiv` on read values (`Cloju
 | different numeric categories | never (`1` ≠ `1.0` ≠ `1.0M`) |
 | nil, booleans, strings, characters, symbols, keywords | same atom |
 | lists and vectors | element-wise (`[1 2]` = `(1 2)`, `()` = `[]`) |
-| maps, sets | decided only by size (different sizes unequal, two empty equal); two nonempty ones of equal size: explicit `Issue.unsupported` error |
+| maps, sets | same size and every entry (element) of one equals one of the other, recursively and order-independently (`{:a 1 :b 2}` = `{:b 2 :a 1}`, `#{#{1 2}}` keys compare as sets); a map never equals a set or a sequence |
 
-`parseE?` reports `oddMap`, `duplicate`, `unsupported` or `syntax`. Accepted literals have
-pairwise unequal keys (`map_literal_ok`, `set_literal_ok`), and a reported duplicate is a real
-equal pair (`keysIssue_duplicate`), for every map/set equality meeting `CollEq`.
+`Equal` is an inductive specification of this table (recursive through lists, vectors, maps and
+sets); `equal?` decides it with fuel `size a + size b + 1` and is sound wherever it answers
+(`equal?_sound`). `parseE?` reports `oddMap`, `duplicate`, `unsupported` or `syntax`, inner
+literals first. Accepted literals have pairwise unequal keys (`map_literal_ok`,
+`set_literal_ok`), and a reported duplicate is a real equal pair (`keysIssue_duplicate`).
+`unsupported` arises only if the fuel runs out; that the fuel always suffices is not proved, so
+`unsupported` stays a reported error, never an acceptance (no example produces it). The map
+equality assumes literals with distinct keys, which `parse?` checks inner literals first.
 
 `(a . b)` in Clojure: `LispReader.symbolPat` reads `.` as a symbol, so the text is the
 three-element list `a . b`. The reference reserves `.`-symbols for host interop (the `.` special
@@ -121,8 +126,8 @@ Each is a reader error, not a misreading. The module docs list them per dialect.
   lexical specification; their phrase structure is the declarative `Gram`, and their printed
   tokens are proved to lex back (`PrintLaws`).
 - **Runtime numbers** (all but Clojure keys): no IEEE rounding, no `eqv?`/`eql`/`=` model.
-- **Clojure**: equality of two nonempty maps or sets of the same size inside keys is reported as
-  unsupported rather than decided.
+- **Clojure**: fuel adequacy of `equal?` (that it never answers `none`) is not proved; such a
+  result would be the explicit `unsupported` error.
 - **Graph and cyclic data** (Scheme/Racket/CL labels) would need a separate representation.
 - **Bytes**: only the dotted syntax has a byte-level `Format`; the dialects read `String`s.
 - Numeric examples for Scheme and Common Lisp are checked with `cbv` (rational normalization

@@ -372,13 +372,15 @@ Clojure rejects a map literal with two equal keys (`PersistentArrayMap.createWit
   `0.10000000000000000001`;
 * other atoms: Java `equals` (nil, booleans, strings, characters, symbols, keywords);
 * lists and vectors: sequential equality, element-wise (`[1 2]` = `(1 2)`, `()` = `[]`);
-* maps and sets: equal sizes and mutual membership. This reader decides only the cases fixed by
-  size (different sizes are unequal, two empty maps or sets are equal); comparing two nonempty
-  maps or two nonempty sets of the same size is reported as `Issue.unsupported`, an explicit
-  error rather than a guess.
+* maps and sets: equal sizes, and every entry (element) of one equals an entry (element) of the
+  other (`APersistentMap.equiv`: `containsKey` and `equiv` of the values; `APersistentSet.equiv`:
+  `contains`), recursively, independent of order (`{:a 1 :b 2}` = `{:b 2 :a 1}`).
+  `equal?` decides this by recursion with fuel `size a + size b + 1`; an undecided comparison
+  (`none`: fuel exhausted, not known to occur, adequacy not proved) is reported as
+  `Issue.unsupported`, an explicit error rather than a guess.
 
 `Value` is the read value forgetting the list/vector distinction and literal spelling;
-`equal?` decides `Thms.Equal` (`equal?_sound`). -/
+`equal?` decides `Equal` wherever it answers (`Thms.equal?_sound`). -/
 
 /-- The binary64 bits Java's `Double.parseDouble` yields for a decimal literal (nearest-even;
 the sign is kept, so `-0.0` has the sign bit). -/
@@ -431,93 +433,127 @@ mutual
         | _, _ => none
 end
 
-/-- Map and set equality decided by sizes alone. -/
-def collEqual? (xs ys : List Value) : Option Bool :=
-  if xs.length ≠ ys.length then some false else if xs = [] then some true else none
+/-- Map forms as entries (`none` for an odd number of forms). -/
+def pairs : List Value → Option (List (Value × Value))
+  | [] => some []
+  | k :: v :: r => (fun ps => (k, v) :: ps) <$> pairs r
+  | [_] => none
+
+/-- Three-valued conjunction of a list: `some false` if some answer is `false`, `some true` if all
+are `true`, `none` otherwise. -/
+def all3 : List (Option Bool) → Option Bool
+  | [] => some true
+  | x :: xs =>
+      match x, all3 xs with
+      | some false, _ => some false
+      | _, some false => some false
+      | some true, some true => some true
+      | _, _ => none
+
+/-- Three-valued disjunction of a list. -/
+def any3 : List (Option Bool) → Option Bool
+  | [] => some false
+  | x :: xs =>
+      match x, any3 xs with
+      | some true, _ => some true
+      | _, some true => some true
+      | some false, some false => some false
+      | _, _ => none
 
 mutual
-  /-- `Util.equiv`, or `none` when this reader does not decide it. -/
-  def equal? : Value → Value → Option Bool
-    | .scalar a, b => match b with
-      | .scalar b => some (decide (a = b))
-      | _ => some false
-    | .integer m, b => match b with
-      | .integer n => some (decide (m = n))
-      | _ => some false
-    | .double x, b => match b with
-      | .double y => some (doubleEq x y)
-      | _ => some false
-    | .decimal x, b => match b with
-      | .decimal y => some (decide (x.value = y.value))
-      | _ => some false
-    | .seq xs, b => match b with
-      | .seq ys => equalList? xs ys
-      | _ => some false
-    | .map xs, b => match b with
-      | .map ys => collEqual? xs ys
-      | _ => some false
-    | .set xs, b => match b with
-      | .set ys => collEqual? xs ys
-      | _ => some false
+  /-- Node count, bounding the recursion of `equalFuel` (structural, so the kernel evaluates
+  it). -/
+  def Value.size : Value → Nat
+    | .seq xs | .map xs | .set xs => Value.sizeList xs + 1
+    | _ => 1
 
-  def equalList? : List Value → List Value → Option Bool
-    | [], [] => some true
-    | x :: xs, y :: ys =>
-        match equal? x y, equalList? xs ys with
-        | some false, _ => some false
-        | _, some false => some false
-        | some true, some true => some true
-        | _, _ => none
-    | [], _ :: _ | _ :: _, [] => some false
+  def Value.sizeList : List Value → Nat
+    | [] => 0
+    | x :: xs => x.size + Value.sizeList xs
 end
 
-/-- What is assumed about map and set equality: Clojure compares sizes first
-(`APersistentMap.equiv`, `APersistentSet.equiv`), and empty maps (sets) are equal. -/
-structure CollEq where
-  mapEq : List Value → List Value → Prop
-  setEq : List Value → List Value → Prop
-  map_length : ∀ xs ys, mapEq xs ys → xs.length = ys.length
-  map_nil : mapEq [] []
-  set_length : ∀ xs ys, setEq xs ys → xs.length = ys.length
-  set_nil : setEq [] []
+/-- `Util.equiv` with explicit fuel; `none` when the fuel runs out or a map has an odd number of
+forms (odd maps are reported first as `Issue.oddMap`; `none` otherwise surfaces as
+`Issue.unsupported`, never an acceptance). -/
+def equalFuel : Nat → Value → Value → Option Bool
+  | 0, _, _ => none
+  | n + 1, a, b =>
+      match a, b with
+      | .scalar a, .scalar b => some (decide (a = b))
+      | .integer m, .integer k => some (decide (m = k))
+      | .double x, .double y => some (doubleEq x y)
+      | .decimal x, .decimal y => some (decide (x.value = y.value))
+      | .seq xs, .seq ys =>
+          if xs.length = ys.length then
+            all3 ((xs.zip ys).map fun p => equalFuel n p.1 p.2)
+          else some false
+      | .map xs, .map ys =>
+          match pairs xs, pairs ys with
+          | some ps, some qs =>
+              if ps.length = qs.length then
+                all3 (ps.map fun p => any3 (qs.map fun q =>
+                  all3 [equalFuel n p.1 q.1, equalFuel n p.2 q.2]))
+              else some false
+          | _, _ => none
+      | .set xs, .set ys =>
+          if xs.length = ys.length then
+            all3 (xs.map fun x => any3 (ys.map fun y => equalFuel n x y))
+          else some false
+      | .scalar _, _ | .integer _, _ | .double _, _ | .decimal _, _ | .seq _, _ | .map _, _
+      | .set _, _ => some false
+
+/-- `Util.equiv` on read values, or `none` (`Issue.unsupported`) when undecided. -/
+def equal? (a b : Value) : Option Bool := equalFuel (a.size + b.size + 1) a b
 
 mutual
-  /-- **Clojure key equality** (`Util.equiv`) on read values, as specified in the section doc;
-  map and set equality are the parameters of `CollEq`. -/
-  def Equal (Q : CollEq) : Value → Value → Prop
-    | .scalar a, b => match b with
-      | .scalar b => a = b
-      | _ => False
-    | .integer m, b => match b with
-      | .integer n => m = n
-      | _ => False
-    | .double x, b => match b with
-      | .double y => doubleEq x y = true
-      | _ => False
-    | .decimal x, b => match b with
-      | .decimal y => x.value = y.value
-      | _ => False
-    | .seq xs, b => match b with
-      | .seq ys => EqualList Q xs ys
-      | _ => False
-    | .map xs, b => match b with
-      | .map ys => Q.mapEq xs ys
-      | _ => False
-    | .set xs, b => match b with
-      | .set ys => Q.setEq xs ys
-      | _ => False
+  /-- **Clojure key equality** (`Util.equiv`) on read values, as specified in the section doc. Map
+  and set equality: equal sizes, and every entry (element) of the first equals one of the second
+  (`APersistentMap.equiv`, `APersistentSet.equiv`, on literals whose keys are distinct). -/
+  inductive Equal : Value → Value → Prop
+    | scalar (a : Atom) : Equal (.scalar a) (.scalar a)
+    | integer (n : Int) : Equal (.integer n) (.integer n)
+    | double {x y : Decimal} : doubleEq x y = true → Equal (.double x) (.double y)
+    | decimal {x y : Decimal} : x.value = y.value → Equal (.decimal x) (.decimal y)
+    | seq {xs ys : List Value} : Pointwise xs ys → Equal (.seq xs) (.seq ys)
+    | map {xs ys : List Value} {ps qs : List (Value × Value)} : pairs xs = some ps →
+        pairs ys = some qs → ps.length = qs.length → Entries ps qs → Equal (.map xs) (.map ys)
+    | set {xs ys : List Value} : xs.length = ys.length → Members xs ys →
+        Equal (.set xs) (.set ys)
 
-  def EqualList (Q : CollEq) : List Value → List Value → Prop
-    | [], [] => True
-    | x :: xs, y :: ys => Equal Q x y ∧ EqualList Q xs ys
-    | _, _ => False
+  inductive Pointwise : List Value → List Value → Prop
+    | nil : Pointwise [] []
+    | cons {x y : Value} {xs ys : List Value} : Equal x y → Pointwise xs ys →
+        Pointwise (x :: xs) (y :: ys)
+
+  /-- Every entry of the first map has an equal entry in the second. -/
+  inductive Entries : List (Value × Value) → List (Value × Value) → Prop
+    | nil {qs : List (Value × Value)} : Entries [] qs
+    | cons {p : Value × Value} {ps qs : List (Value × Value)} : EntryIn p qs → Entries ps qs →
+        Entries (p :: ps) qs
+
+  inductive EntryIn : Value × Value → List (Value × Value) → Prop
+    | here {k v k' v' : Value} {qs : List (Value × Value)} : Equal k k' → Equal v v' →
+        EntryIn (k, v) ((k', v') :: qs)
+    | there {p q : Value × Value} {qs : List (Value × Value)} : EntryIn p qs →
+        EntryIn p (q :: qs)
+
+  /-- Every element of the first set equals one of the second. -/
+  inductive Members : List Value → List Value → Prop
+    | nil {ys : List Value} : Members [] ys
+    | cons {x : Value} {xs ys : List Value} : MemberIn x ys → Members xs ys →
+        Members (x :: xs) ys
+
+  inductive MemberIn : Value → List Value → Prop
+    | here {x y : Value} {ys : List Value} : Equal x y → MemberIn x (y :: ys)
+    | there {x y : Value} {ys : List Value} : MemberIn x ys → MemberIn x (y :: ys)
 end
 
 /-- Why a literal is rejected. -/
 inductive Issue where
   | oddMap
   | duplicate
-  /-- Key equality outside what this reader decides (two nonempty maps or sets of equal size). -/
+  /-- Key equality this reader did not decide (`equal?` returned `none`: a nested map with an
+  odd number of forms, or exhausted fuel). -/
   | unsupported
   deriving DecidableEq, Repr
 
@@ -562,13 +598,14 @@ def literalIssue : Atom → SExp2 Atom → Option Issue
       | none => some .unsupported
   | _, _ => none
 
-/-- The first issue of any map or set literal in a datum. -/
+/-- The first issue of any map or set literal in a datum, inner literals first. -/
 def issue : SExp2 Atom → Option Issue
   | .nil | .atom _ => none
   | .cons x r =>
-      (match x with
-        | .atom m => literalIssue m r
-        | _ => none) <|> issue x <|> issue r
+      issue x <|> issue r <|>
+        (match x with
+          | .atom m => literalIssue m r
+          | _ => none)
 
 /-- Maps have an even number of forms and pairwise unequal keys, sets pairwise unequal elements,
 in the sense of Clojure's `Util.equiv` as decided by `equal?`. -/

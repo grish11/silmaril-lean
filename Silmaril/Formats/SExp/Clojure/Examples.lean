@@ -109,10 +109,24 @@ example : parseError? "#{() []}" = some (.literal .duplicate) := by decide +kern
 example : (parse? "#{[1 2] [2 1] (1) nil}").isSome = true := by decide +kernel
 /-- Symbols, keywords and strings with the same name differ. -/
 example : (parse? "#{a :a \"a\" \\a}").isSome = true := by decide +kernel
-/-- Maps and sets as keys: decided by size, otherwise an explicit unsupported error. -/
+/-- Maps and sets as keys compare recursively, independent of order. -/
 example : parseError? "#{{} {}}" = some (.literal .duplicate) := by decide +kernel
 example : (parse? "#{{} {:a 1}}").isSome = true := by decide +kernel
-example : parseError? "#{{:a 1} {:b 2}}" = some (.literal .unsupported) := by decide +kernel
+example : (parse? "#{{:a 1} {:b 2}}").isSome = true := by decide +kernel
+example : (parse? "#{{:a 1} {:a 2}}").isSome = true := by decide +kernel
+example : parseError? "#{{:a 1 :b 2} {:b 2 :a 1}}" = some (.literal .duplicate) := by
+  decide +kernel
+example : parseError? "#{{:a 1N} {:a 1}}" = some (.literal .duplicate) := by decide +kernel
+example : parseError? "#{{:a [1 (2)]} {:a (1N [2])}}" = some (.literal .duplicate) := by
+  decide +kernel
+example : parseError? "#{#{1 2} #{2 1}}" = some (.literal .duplicate) := by decide +kernel
+example : parseError? "{#{0.0 [1]} :x #{(1) -0.0} :y}" = some (.literal .duplicate) := by
+  decide +kernel
+example : (parse? "#{#{1} #{2} #{1 2} {1 2}}").isSome = true := by decide +kernel
+/-- Errors inside a key are reported first. -/
+example : parseError? "#{{:a} {:b}}" = some (.literal .oddMap) := by decide +kernel
+/-- A map and a set are never equal, even when their elements line up. -/
+example : (parse? "#{{1 2} #{1 2}}").isSome = true := by decide +kernel
 /-- Duplicates are found inside nested literals; values of a map are not compared. -/
 example : parseError? "[{:k #{1 1N}}]" = some (.literal .duplicate) := by decide +kernel
 example : (parse? "{:a 1 :b 1}").isSome = true := by decide +kernel
