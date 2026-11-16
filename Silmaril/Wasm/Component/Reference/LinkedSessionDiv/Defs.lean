@@ -53,15 +53,13 @@ many lower calls in total (iii), the hidden chatter of `DStrategy.comp`
 (`DivComp.mem_div_comp_of_chatter`, `mem_div_comp_of_left`, `mem_div_comp_of_right`). The
 formal correspondence to `comp_threadS` is not stated here.
 
-## Pending
+## Status
 
 `Linked2.DivSpecToRef P prof l`: every specification divergence is a reference one
-(`sessDivs ⊆ refDivs`). It is a named proposition, **not proved** and assumed by no theorem: the
-forward runs of #712 (`LinkedSessionFwd`: `rounds_fwd`, `reach_link_fwd`, `exp_fwd`,
-`linkCall_fwd`) are finite, and the three sources need their infinite versions (a host-free
-infinite run of B's part, of A's part inside a nested call, and an infinite sequence of served
-rounds, each mapped to a nonempty run of the machine). The converse (reference divergence to
-specification divergence, as #680's `divAt_of_callDiverges`) is also open.
+(`sessDivs ⊆ refDivs`). It is proved for adequate components, from `Linked2.Adequate` alone
+(`Linked2.divSpecToRef`, `Silmaril.Wasm.Component.Reference.LinkedSessionDiv.Thms`), for all three
+sources. The converse (reference divergence to specification divergence, as #680's
+`divAt_of_callDiverges`) is open.
 
 **Not covered.** Host observations: within `Linked2` every import of B is wired to A, so
 `l.toRef` has no host imports and `linkHost impl` is never called; a parent that also passes host
@@ -201,9 +199,9 @@ def sessDivs (P : Profile) (l : Linked2) (calls : List (Fin l.imp.exports.length
 
 end Spec
 
-/-- **Specification divergence is reference divergence** (a named proposition, not proved and
-assumed by no theorem; see the module documentation): for typed calls, every diverging session
-call of the specification is one of the reference machine, under every host. -/
+/-- **Specification divergence is reference divergence** (a named proposition, proved for adequate
+components by `Linked2.divSpecToRef`; see the module documentation): for typed calls, every
+diverging session call of the specification is one of the reference machine, under every host. -/
 def DivSpecToRef (P : Profile) (prof : ProfileKind) (l : Linked2) : Prop :=
   ∀ (calls : List (Fin l.imp.exports.length × List IVal)) (j : Fin l.imp.exports.length)
     (vs : List IVal), SimpleI.TypedCalls l.imp calls →
