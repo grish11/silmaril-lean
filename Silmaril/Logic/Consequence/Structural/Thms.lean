@@ -7,7 +7,7 @@ import Silmaril.Proofs.Logic.Consequence.Structural.Closure
 # Structural closures: leastness, closure operator, lattice of closed relations
 
 * `Derives rs R` is closed under `rs` (`derives_closed`), contains `R` (`le_derives`), and is
-  below every closed relation containing `R` (`derives_le`); hence monotone (`derives_mono`,
+  below every closed relation containing `R` (`derives_le`, `derives_iff_forall_closed`); hence monotone (`derives_mono`,
   also in the rules: `derives_mono_rules`) and idempotent (`derives_derives`).
 * `closure rs` packages this as a Mathlib `ClosureOperator` whose closed elements are exactly
   the `Closed rs` relations (`isClosed_closure_iff`). Its closed elements `(closure rs).Closeds`
@@ -43,6 +43,11 @@ theorem derives_le {rs : Rules C} {R S : Rel C} (hRS : R ≤ S) (hS : Closed rs 
 theorem derives_le_iff {rs : Rules C} {R S : Rel C} (hS : Closed rs S) :
     Derives rs R ≤ S ↔ R ≤ S :=
   ⟨fun h => (le_derives rs R).trans h, fun h => derives_le h hS⟩
+
+/-- A derivation exists iff the sequent holds in every closed relation containing `R`. -/
+theorem derives_iff_forall_closed {rs : Rules C} {R : Rel C} {Γ : List C} {c : C} :
+    Derives rs R Γ c ↔ ∀ S, R ≤ S → Closed rs S → S Γ c :=
+  ⟨fun h _ hRS hS => derives_le hRS hS Γ c h, fun h => h _ (le_derives rs R) (derives_closed rs R)⟩
 
 theorem derives_mono (rs : Rules C) {R S : Rel C} (h : R ≤ S) : Derives rs R ≤ Derives rs S :=
   derives_le (h.trans (le_derives rs S)) (derives_closed rs S)
