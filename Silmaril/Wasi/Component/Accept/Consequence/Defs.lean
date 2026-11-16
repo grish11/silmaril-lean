@@ -22,14 +22,15 @@ the interpretation.
 
 **Component bytes.** `binarySystem` decodes with the driver
 `Silmaril.Wasm.Component.Binary.parseComponent` into `Comp CoreMod`. Its parsing is verified,
-its lowering is partial and unverified, and no core semantics `CoreSem CoreMod` is fixed in the
-library, so `C` is a parameter. `bytesSystem` takes any decoder.
+its lowering is partial (no list, string or resource types) and unverified. The only core
+semantics of the lowered modules in the library is the loosest
+(`Silmaril.Project.WasmComponents.topSem`), so `C` is a parameter. `bytesSystem` takes any decoder.
 
 **Simple entry points.** `componentBytesSystem C` reads component binaries only, through their own
 import and export names (`Layout.ofComp`) and the world-level `accept` function; only the core
 semantics `C` is required. `Silmaril.Wasm.Game.Accept.moduleBytesSystem` is the module-only
-counterpart. The lowering does not support `list` types, so only fixed-arity
-`accept(tuple<u8, …>)` components reach it (see `componentBytesSystem`).
+counterpart. The parser reads `list<u8>`, but the lowering into the IR does not, so only
+fixed-arity `accept(tuple<u8, …>)` components reach it (see `componentBytesSystem`).
 
 **Either shape.** `ByteAcceptor.decode` reads bytes as a core module (`decode?`) or, failing
 that, as a component. The two binary formats differ in their header's layer field, so at most
@@ -98,12 +99,18 @@ def ComponentAcceptor.ofComp {M : Type} [CoreModule M] (C : CoreSem M) (c : Comp
 parses and lowers (`parseComponent`) to a component `c` whose world-level `accept` function,
 under the core semantics `C`, accepts `w` (imported `accept` called with `w`, or exported
 `accept(w)` returning `true`, by `mode`). The layout is the component's own (`Layout.ofComp`), so
-the only required parameter is `C`: the library fixes no core semantics for the lowered core
-modules. Core module binaries and other bytes do not decode and prove nothing.
+the only required parameter is `C`, the semantics of the lowered core modules. Core module binaries and other bytes do not decode and prove nothing.
 
-`w` reaches `accept` as a record/tuple of `u8` (`bytes?`). The lowering rejects `list` types,
-so a genuinely variable-length `accept(list<u8>)` does not lower and its binary proves nothing;
-fixed-arity `accept(tuple<u8, …>)` (at most 16 flat parameters) does. -/
+`w` reaches `accept` as a record/tuple of `u8` (`bytes?`). The component *parser*
+(`Binary.parse`) reads `list<u8>`, but the *lowering* into the component IR (`Binary.lower`, which
+every IR lowering shares) rejects list types: the IR's value types have no list type and no
+memory-based canonical ABI. So a typical `accept(list<u8>)` binary does not decode here and proves
+nothing; a fixed-arity `accept(tuple<u8, …>)` (at most 16 flat parameters) does decode. The
+reference semantics (`Conformance.decodeRef`) reads list types but has no trace semantics with
+imports, so it cannot replace this path. `C` is any core semantics of the lowered modules; the
+only one in the library is the loosest, `Silmaril.Project.WasmComponents.topSem`, where every core
+module may play any legal play.
+-/
 def componentBytesSystem (C : CoreSem Silmaril.Wasm.Component.Binary.CoreMod)
     (mode : Mode := .imp) : System ByteArray (List UInt8) :=
   System.ofDecoder ComponentAcceptor.decodeBinary fun c => ComponentAcceptor.ofComp C c mode

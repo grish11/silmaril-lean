@@ -14,7 +14,7 @@ public import Silmaril.Wasm.Game.Accept.Consequence.Thms
 * The component-only entry point: `componentBytesSystem_iff`, `componentBytesSystem_of_decode`,
   `componentBytesSystem_of_decode_none`, and `componentBytesSystem_eq_binarySystem` (it is
   `binarySystem` at the component's own layout). `defValTy_list` records why `list<u8>` accept
-  functions do not lower.
+  functions parse but do not lower.
 * Bytes that decode as a module have the module row (`ByteAcceptor.bytesSystem_of_decode_module`),
   bytes that decode only as a component have the component row
   (`ByteAcceptor.bytesSystem_of_decode_component`), and bytes that decode as neither prove
@@ -85,7 +85,8 @@ theorem componentBytesSystem_eq_binarySystem {c : Comp Silmaril.Wasm.Component.B
   funext fun w => propext <| (componentBytesSystem_of_decode C mode h).trans
     (ComponentAcceptor.bytesSystem_of_decode C _ acceptFn none mode h w).symm
 
-/-- **Why `list<u8>` does not lower**: the lowering rejects list types. -/
+/-- **Why `list<u8>` does not lower**: `Binary.parse` reads list types, but the lowering into the
+component IR rejects them. -/
 theorem defValTy_list (types : Array Silmaril.Wasm.Component.Binary.Lower.TypeEntry)
     (t : Silmaril.Wasm.Component.Binary.ValType) :
     Silmaril.Wasm.Component.Binary.Lower.defValTy types (.list t) =
