@@ -82,7 +82,9 @@ transfer                    Simulation.{sem, angelic, reaches}, Institution.tran
 | artefact | status |
 |---|---|
 | the G translator: `emit`/`emitX`/`emitProg` (x86-64 register fragment → Wasm methods), `emit_sound`, `GCert.cert` | **proved** |
-| P-calls and dispatcher routes (`Silmaril.Sim.Reduce.PCalls`, `Silmaril.Sim.Reduce.Loop`) | **proved** |
+| P-calls and dispatcher routes (`Silmaril.Sim.Reduce.PCalls`, `Silmaril.Sim.Reduce.Loop`); the toy's `dbl`, `sum_to` and `f` end to end (`Silmaril.Sim.Reduce.Toy`) | **proved** |
+| the G simulator with a guest memory window (`Silmaril.Sim.X86.GM`: `MemEnc.load`/`store`, `emitM_sound`) and the monolithic toy (`Silmaril.Sim.X86.Toy`) | **proved** |
+| `Silmaril.Sim.Example`: a three-location toy ISA and a partial simulator, a non-vacuity check of the framework | **proved** |
 | the run-time simulators `examples/wasm-sim/x86/x86-g.wat`, `x86-m.wat` | **tested only** (difftests against native execution) |
 | `wasm-sim reduce` (ELF reader, decoder, translator) | untrusted tooling; its outputs are checked or restated in Lean |
 

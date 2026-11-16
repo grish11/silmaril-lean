@@ -69,6 +69,7 @@ check:
 	$(PYTHON) -I scripts/check-wasm-spec.py
 	$(PYTHON) -I scripts/check-wasm-checkers.py
 	node examples/wasm-checkers/test-lrat.mjs
+	$(PYTHON) -I scripts/check-wasm-sim.py
 	@if [ -n "$(LAKE_CACHE_RECORD)" ]; then \
 		cov-lake-cache build --repository hiloopai/silmaril-lean --record "$(LAKE_CACHE_RECORD)" -- $(CHECK_TARGETS); \
 	elif [ -n "$(strip $(CHECK_TARGETS))" ]; then \

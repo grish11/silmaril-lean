@@ -165,4 +165,4 @@ verification-condition generator `wpc` evaluates.
 | jumps | the program calls `i_next(len)`, then `i_jmp`/`cond` | `jcc rel8`/`jmp rel8` methods advance rip themselves (`jccCode`, `jmpCode`: `rip += len + offset`) |
 | undefined flags | a value drawn from `nd.undef(loc)` | relational: a flag global holds some bit, and `Enc` admits any bit where `Silmaril.X86.State` leaves the flag undefined (`FlagEnc`, `FlagValue.Admits`) |
 | methods | generic in operation, width and registers | one method per instruction instance (`emit i len`; registers fixed, no `br_table`) |
-| memory | `mem.*` imports | none in G (a guest memory window in Wasm memory 0, `X86.GM`, is not in this repository yet) |
+| memory | `mem.*` imports | none in G; `Silmaril.Sim.X86.GM` adds a guest memory window in Wasm memory 0 |
