@@ -14,7 +14,7 @@ git_sha1 = "7c5be30070c4b48dd17e810e5fb461d5cc810612"
 [[artifact]]
 cid = "bafkr4ialkxfgfwrnf7rx6rjx57kzqmey6jqs5536k4irxrxl3c5bfvyi4a"
 type = "blob"
-name = "silmaril.wasm.examples.lrat.lratModule"
+name = "silmaril.wasm.examples.lrat.lrat_module"
 paths = ["examples/wasm-checkers/lrat.wasm"]
 size = 1812
 sha256 = "2a7e04b514053262880547d1baf5d92fdfabddef6a4af2fce8bb7f1a08e1f2fc"
@@ -256,7 +256,7 @@ git_sha1 = "207dbf73c7494d2cac2c6e3df2aa6fa94f9d0597"
 [[artifact]]
 cid = "bafkr4if7lm7jpnq7acg5hqxn7mnkkeuye3wrqc7i7wgfczwqjizhqf2apa"
 type = "blob"
-name = "silmaril.wasm.examples.farkas.farkasMod"
+name = "silmaril.wasm.examples.farkas.farkas_mod"
 paths = ["examples/wasm-checkers/farkas.wasm"]
 size = 372
 sha256 = "795802670fece3cde2e876f4c1bf0446bdb704988c2d4e07b7a2e83143a45ab0"
