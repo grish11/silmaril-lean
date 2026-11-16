@@ -4,6 +4,9 @@ public import Silmaril.Formats.SExp.Dotted.Defs
 public import Silmaril.Formats.SExp.Reader.Thms
 public import Silmaril.Formats.Category.Thms
 import Silmaril.Proofs.Formats.SExp.Dotted.Basic
+import Silmaril.Proofs.Formats.SExp.Dotted.Legacy
+public import Silmaril.Formats.SExp.Printer
+public import Silmaril.Formats.Utf8.Thms
 
 /-!
 # Dotted S-expression text: laws
@@ -14,7 +17,14 @@ import Silmaril.Proofs.Formats.SExp.Dotted.Basic
 * **grammar**: `parse?` accepts exactly the texts whose token string (as lexed) derives a datum in
   the shared phrase grammar, followed only by atmosphere (`parse?_iff`); a derivation is unique
   (`SExpReader.gram_unique`);
-* the format over UTF-8 bytes is unambiguous (`format_unambiguous`).
+* **bytes**: `decode` inverts `encode` for every datum, non-ASCII and control characters included
+  (`decode_encode`); `decode` accepts only well-formed UTF-8 (`isUtf8_of_decode`), and on
+  well-formed bytes it is `parse?` of the decoded text (`decode_iff`); the format relates
+  `encode e` to `e` (`format_rel_encode`) and is unambiguous (`format_unambiguous`);
+* **the older printer and parser**: strings are printed exactly as `SExpPrinter.printSExp2`
+  prints them (`print_map_string`), so `parse?` reads all of its output, as strings
+  (`parse?_printSExp2`); on every text the older checked printer produces, the older parser and
+  `parse?` agree up to forgetting the symbol/string distinction (`agrees_on_printSExp2?`).
 -/
 
 @[expose] public section
@@ -58,5 +68,64 @@ theorem parse?_iff (s : String) (e : Datum) :
   read_iff lexer
 
 theorem format_unambiguous : format.Unambiguous := Format.ofDecoder_unambiguous _
+
+/-! ## UTF-8 bytes -/
+
+theorem fromUTF8?_toByteArray (s : String) : String.fromUTF8? s.toByteArray = some s := by
+  simp [String.fromUTF8?, s.isValidUTF8]
+
+/-- **Byte-level roundtrip.** -/
+theorem decode_encode (e : Datum) : decode (encode e) = some e := by
+  simp only [decode, encode, String.toUTF8_eq_toByteArray, fromUTF8?_toByteArray,
+    Option.bind_some, parse?_print]
+
+theorem decode_iff {b : Bytes} {e : Datum} :
+    decode b = some e ↔ ∃ s, String.fromUTF8? b.data = some s ∧ parse? s = some e := by
+  simp [decode, Option.bind_eq_some_iff]
+
+/-- **Ill-formed UTF-8 is rejected.** -/
+theorem isUtf8_of_decode {b : Bytes} {e : Datum} (h : decode b = some e) : b.IsUtf8 := by
+  obtain ⟨s, hs, -⟩ := decode_iff.1 h
+  have : (String.fromUTF8? b.data).isSome := by simp [hs]
+  exact (Bytes.isUtf8_iff_isValidUTF8 b).2 (by
+    unfold String.fromUTF8? at hs; split at hs <;> simp_all)
+
+theorem decode_eq_none_of_not_utf8 {b : Bytes} (h : ¬ b.IsUtf8) : decode b = none := by
+  cases hd : decode b with
+  | none => rfl
+  | some e => exact absurd (isUtf8_of_decode hd) h
+
+theorem format_rel_encode (e : Datum) : format.rel (encode e) e :=
+  (Format.ofDecoder_rel decode _ _).2 (decode_encode e)
+
+/-! ## The older printer and parser (`SExpPrinter`, `SExpParser`) -/
+
+/-- The dotted printer writes string atoms exactly as `SExpPrinter.printSExp2` does. -/
+theorem print_map_string (v : SExp2 String) :
+    print (v.map .string) = SExpPrinter.printSExp2 v :=
+  Silmaril.Proofs.Formats.SExp.Dotted.print_map_string v
+
+/-- `parse?` reads everything the older printer writes. -/
+theorem parse?_printSExp2 (v : SExp2 String) :
+    parse? (SExpPrinter.printSExp2 v) = some (v.map .string) := by
+  rw [← print_map_string, parse?_print]
+
+/-- On every text produced by the older checked printer, the older parser and `parse?` agree
+after forgetting the symbol/string distinction. -/
+theorem agrees_on_printSExp2? {v : SExp2 String} {t : String}
+    (h : SExpPrinter.printSExp2? v = some t) :
+    SExpParser.parseSExp2? t = some v ∧
+      (parse? t).map (SExp2.map SExpParser.Lexeme.value) = some v := by
+  refine ⟨SExpPrinter.printSExp2?_sound h, ?_⟩
+  have ht : t = SExpPrinter.printSExp2 v := by
+    simp only [SExpPrinter.printSExp2?] at h; split at h <;> simp_all
+  subst ht
+  rw [parse?_printSExp2]
+  simp only [Option.map_some, Option.some.injEq]
+  clear h
+  induction v with
+  | nil => rfl
+  | atom => rfl
+  | cons a d iha ihd => simp [SExp2.map, iha, ihd]
 
 end Silmaril.Formats.DottedSExp

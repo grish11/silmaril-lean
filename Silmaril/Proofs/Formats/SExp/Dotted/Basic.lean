@@ -33,16 +33,16 @@ theorem delim_of_follows {rest : List Char} (h : Follows text rest) :
     obtain ⟨rfl, rfl⟩ := h; decide
 
 theorem step_quoted {q : Char} {w rest : List Char} (hq : q = '"' ∨ q = '|') :
-    step (q :: (escapeQuoted q w ++ q :: rest)) =
+    step (q :: (escapeMnemonic q w ++ q :: rest)) =
       if q = '"' then .token (.atom (.string (String.ofList w))) rest
       else .token (.atom (.symbol (String.ofList w))) rest := by
   have hesc : escape '\\' = some '\\' := by decide
   rcases hq with rfl | rfl
-  · have hr := readQuoted_escape (q := '"') hesc (by decide) (by decide) w rest
+  · have hr := readQuoted_mnemonic (q := '"') hesc (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) w rest
     unfold step
     rw [skip_head _ (by decide) (by decide)]
     simp [hr]
-  · have hr := readQuoted_escape (q := '|') hesc (by decide) (by decide) w rest
+  · have hr := readQuoted_mnemonic (q := '|') hesc (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) w rest
     unfold step
     rw [skip_head _ (by decide) (by decide)]
     simp [hr]

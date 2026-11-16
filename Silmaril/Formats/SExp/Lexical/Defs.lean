@@ -61,6 +61,15 @@ def escapeQuoted (q : Char) : List Char → List Char
   | [] => []
   | c :: r => (if c = q || c = '\\' then ['\\', c] else [c]) ++ escapeQuoted q r
 
+/-- Escape the closer `q` and the backslash, and write newline, return and tab as `\n`, `\r`,
+`\t` (the escapes of `SExpPrinter.escapeChar`); every other character is written as itself. -/
+def escapeMnemonic (q : Char) : List Char → List Char
+  | [] => []
+  | c :: r =>
+      (if c = q || c = '\\' then ['\\', c]
+       else if c = '\n' then ['\\', 'n'] else if c = '\r' then ['\\', 'r']
+       else if c = '\t' then ['\\', 't'] else [c]) ++ escapeMnemonic q r
+
 /-! ## Numerals -/
 
 def natText (n : Nat) : List Char := Nat.toDigits 10 n

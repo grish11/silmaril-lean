@@ -3,6 +3,7 @@ module
 public import Silmaril.Formats.SExp.Lexical.Defs
 public import Silmaril.Formats.SExp.Parser
 public import Silmaril.Formats.Category.Defs
+public import Silmaril.Formats.Utf8.Defs
 
 /-!
 # Dotted S-expression text
@@ -107,8 +108,8 @@ def bare (cs : List Char) : Bool :=
   cs ≠ [] && cs.all (fun c => !isDelimiter c) && cs ≠ ['.']
 
 def atomText : Atom → List Char
-  | .string s => '"' :: escapeQuoted '"' s.toList ++ ['"']
-  | .symbol s => if bare s.toList then s.toList else '|' :: escapeQuoted '|' s.toList ++ ['|']
+  | .string s => '"' :: escapeMnemonic '"' s.toList ++ ['"']
+  | .symbol s => if bare s.toList then s.toList else '|' :: escapeMnemonic '|' s.toList ++ ['|']
 
 def text : Token Atom Unit → List Char
   | .atom a => atomText a
@@ -130,7 +131,14 @@ def parseAll? (s : String) : Option (List Datum) := readAll lexer s.toList
 /-- Print a datum; `parse?` reads it back exactly. -/
 def print (e : Datum) : String := String.ofList (SExpReader.print syntaxNotation text e)
 
+/-- UTF-8 bytes of the printed text. -/
+def encode (e : Datum) : Bytes := ⟨(print e).toUTF8⟩
+
+/-- Decode UTF-8 (rejecting ill-formed bytes: overlong forms, surrogates, truncated or stray
+continuation bytes, values above U+10FFFF), then read exactly one datum. -/
+def decode (b : Bytes) : Option Datum := (String.fromUTF8? b.data).bind parse?
+
 /-- The dotted text syntax as a format over UTF-8 bytes. -/
-def format : Format := Format.ofDecoder fun b => (String.fromUTF8? b.data).bind parse?
+def format : Format := Format.ofDecoder decode
 
 end Silmaril.Formats.DottedSExp

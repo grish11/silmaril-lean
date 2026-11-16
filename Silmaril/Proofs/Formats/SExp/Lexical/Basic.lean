@@ -40,6 +40,30 @@ theorem readQuoted_escape {q : Char} {esc : Char → Option Char}
         simp only [escapeQuoted]
         simp [readQuoted, hc.1, hc.2, ih]
 
+theorem readQuoted_mnemonic {q : Char} {esc : Char → Option Char}
+    (hb : esc '\\' = some '\\') (hq : esc q = some q) (hn : esc 'n' = some '\n')
+    (hr : esc 'r' = some '\r') (ht : esc 't' = some '\t')
+    (hqb : q ≠ '\\') (hqn : q ≠ '\n') (hqr : q ≠ '\r') (hqt : q ≠ '\t') (w rest : List Char) :
+    readQuoted q esc (escapeMnemonic q w ++ q :: rest) = some (w, rest) := by
+  have hbq : ('\\' = q) = False := by simp [Ne.symm hqb]
+  induction w with
+  | nil => simp [escapeMnemonic, readQuoted]
+  | cons c w ih =>
+      simp only [escapeMnemonic]
+      by_cases hc : c = q ∨ c = '\\'
+      · have hesc : esc c = some c := by rcases hc with rfl | rfl <;> assumption
+        rw [ite_eq_left (by simpa using hc)]
+        simp [readQuoted, readEscape, hbq, hesc, ih]
+      · simp only [not_or] at hc
+        rw [ite_eq_right (by simp [hc.1, hc.2])]
+        by_cases hcn : c = '\n'
+        · subst hcn; simp [readQuoted, readEscape, hbq, hn, ih]
+        by_cases hcr : c = '\r'
+        · subst hcr; simp [readQuoted, readEscape, hbq, hr, ih]
+        by_cases hct : c = '\t'
+        · subst hct; simp [readQuoted, readEscape, hbq, ht, ih]
+        simp [hcn, hcr, hct, readQuoted, hc.1, hc.2, ih]
+
 theorem escapeQuoted_clean {q : Char} {w : List Char} (hq : q ∉ w) (hb : '\\' ∉ w) :
     escapeQuoted q w = w := by
   induction w with
