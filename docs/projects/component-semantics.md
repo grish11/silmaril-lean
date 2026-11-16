@@ -182,7 +182,7 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Threading (store-erasing) and coherent infinite plays | `StratThread.threadT`, `thread`, `threadT_eq_iff` (up to `ObsEq`), `mem_inf_iff_of_storeDet`, `exists_infRounds`, `storeDet_of_det` | `StoreDet` (from `AFun.Det`) | #641, #644, #655, #678 |
 | **Sessions: a trap aborts the call, the store persists** | `StratSession.threadS`, `eraseTrap`, `mem_trap_ret`, `threadS_eq_iff`, `mem_pending`, `mem_div_iff`, `mem_inf_iff_of_det` | `StoreDet`, `NoPlainTrap` (equality) | #666, #681 |
 | Core sessions: determinism, coherent infinite plays, divergence | `coreSession`, `coreSessionXP`, `CoreDet.coreTripleS_det`, `coreSession_mem_inf_iff`, `coreSession_mem_div` | `HostTyped`, `Ok → StoreOk ∧ InvokeOk`, `profile o` | #666, #681, #695 |
-| **Core sessions: pending prefixes, both directions** | `coreSession_mem_pending_iff`, `coreSessionXP_mem_pending_iff`, `coreTripleS_satP_iff` | `HostTyped`, `NativeHostSlice` (`HostSliceE` for XP), typed `Ok`, `profile o` | #721 |
+| **Core sessions: pending prefixes, both directions** | `coreSession_mem_pending_iff`, `coreSessionXP_mem_pending_iff`, `coreTripleS_satP_iff` | `HostTyped`, `NativeHostSlice` (`HostSliceE` for XP), typed `Ok`, `profile o` | #721 (merged as `319e2e1a`; its PR check predated current main, so it is verified post-merge by main push `lean / check on prove` on descendants `119c12f1` (run 43872546677) and `7e8a250d` (run 43887303362)) |
 | **Native session closing with trap stores at the callee (DONE)** | `HostClosingS.wasmEvFunXPS`, `wasmEvFunXPS_erase` (the old closing is its exact projection), `wasmEvFunXPS_trap_iff` (exact trap store), `wasmEvPendXPS_eq`, `eraseTrap_sessionTripleXP` | as for the square | #691, #693 |
 | **Native session = Core session (DONE)** | `natTripleSXP_eq_coreTripleSXP`, `natSessionXP_eq_coreSessionXP`, `natSessionXP_mem_inf_iff` (coherent), `natSessionXP_eq_iff` | as for the square | #695 |
 | Component linking of sessions (composition with hiding) | `SessionLink.linkS`, `comp_threadS`, `comp_threadS_of_det`, `mem_inf_linkS_iff_of_det`, `noPlainTrap_linkS` | `NoPlainTrap` (server), `StoreDet` (server, linked) or `AFun.Det` both | #706, #713 |
@@ -222,6 +222,7 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Prefix-limit threading is coherent | `StratThreadW.threadW_ne_threadT`, `exists_inf_not_witnessed` | witness threading `threadW`/`threadSW` |
 | Call prefixes of `iterS` without totality | `SessionIter3.not_contSatP_subset` | `Total t` (`mem_satP_iterS_of_total`) |
 | Bare unit laws of linking | `SessionLinkAssoc.linkS_trapT_idS_ne`, `idS_linkS_callDivT_ne` | `linkS_idS`/`idS_linkS` after `sat` and `dropTrap` |
+| `pair_comp_threadS` without `StoreDet (hostLinkS R t)`; `StoreDet t` as a replacement | `SessionHostCex.threadS_inf_not_subset_pair_comp`, `not_pair_comp_threadS_of_storeDet` (deterministic component, non-functional host) | `StoreDet (hostLinkS R t)`, or a functional host and `AFun.Det t.1` (`pair_comp_threadS_of_det`) |
 
 ### Open (classified)
 
