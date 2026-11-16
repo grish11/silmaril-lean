@@ -64,7 +64,11 @@ syntax (name := silmarilRoomProblemCmd) "silmaril " "problem " silmarilName " in
 def declareRoomProblem (name r : String) (t : Syntax) (fs : Fields) : CommandElabM Unit := do
   let decl ← fullName name
   liftTermElabM do
-    let R := mkConst (← recordDecl "problem" "room" r)
+    let Rn ← recordDecl "problem" "room" r
+    unless (← getConstInfo Rn).levelParams.isEmpty do
+      throwError "silmaril problem: room {r} has universe parameters; a problem needs a \
+        universe-monomorphic room"
+    let R := mkConst Rn
     if let .forallE .. ← whnf (← inferType R) then
       throwError "silmaril problem: room {r} is a family of rooms; a problem needs a closed room \
         (register an instance `def x := {R} …` as a room)"

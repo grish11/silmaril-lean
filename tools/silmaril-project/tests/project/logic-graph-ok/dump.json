@@ -1,0 +1,155 @@
+{
+ "schema": "silmaril.project-dump.v0.1",
+ "toolchain": "4.37.0",
+ "modules": [
+  "LG"
+ ],
+ "records": [
+  {
+   "kind": "institution",
+   "name": "lg.pl",
+   "module": "LG",
+   "decl": "LG.PL.inst",
+   "arity": 0,
+   "type": "Silmaril.Logic.Institution.Inst",
+   "levels": "",
+   "title": "Propositional logic",
+   "hets": "Propositional",
+   "hets_relation": "corresponds"
+  },
+  {
+   "kind": "institution",
+   "name": "lg.fol",
+   "module": "LG",
+   "decl": "LG.FOL.inst",
+   "arity": 0,
+   "type": "Silmaril.Logic.Institution.Inst",
+   "levels": "",
+   "hets": "CASL",
+   "hets_relation": "fragment"
+  },
+  {
+   "kind": "comorphism",
+   "name": "lg.pl_fol",
+   "module": "LG",
+   "decl": "LG.plToFol",
+   "arity": 0,
+   "type": "T",
+   "levels": "",
+   "from": "lg.pl",
+   "to": "lg.fol",
+   "facts": [
+    {
+     "property": "model_expansive",
+     "proof": "LG.plToFol_me",
+     "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+     ]
+    }
+   ],
+   "hets": "Prop2CASL",
+   "hets_relation": "related"
+  },
+  {
+   "kind": "morphism",
+   "name": "lg.fol_eq",
+   "module": "LG",
+   "decl": "LG.folToEq",
+   "arity": 0,
+   "type": "T",
+   "levels": "",
+   "from": "lg.fol",
+   "to": "lg.pl"
+  },
+  {
+   "kind": "room",
+   "name": "lg.pl.room",
+   "module": "LG",
+   "decl": "LG.PL.room",
+   "sen": "LG.PL.Formula P",
+   "mod": "LG.PL.Model P",
+   "arity": 1,
+   "params": "(P : Type)",
+   "type": "Type \u2192 Room",
+   "levels": "",
+   "institution": "lg.pl",
+   "signature": "P"
+  },
+  {
+   "kind": "corridor",
+   "name": "lg.pl.id",
+   "module": "LG",
+   "decl": "LG.plId",
+   "arity": 1,
+   "type": "T",
+   "levels": "",
+   "from": "lg.pl.room",
+   "to": "lg.pl.room",
+   "params": "(P : Type)",
+   "from_at": "P",
+   "to_at": "P"
+  },
+  {
+   "kind": "logic_audit",
+   "name": "audit.lg.pl.inst",
+   "module": "LG",
+   "decl": "LG.PL.inst",
+   "object": "institution",
+   "arity": 0,
+   "decl_module": "LG.PL",
+   "layer": "header",
+   "scope": "LG",
+   "registered": "lg.pl"
+  },
+  {
+   "kind": "logic_audit",
+   "name": "audit.lg.other",
+   "module": "LG",
+   "decl": "LG.other",
+   "object": "comorphism",
+   "arity": 2,
+   "decl_module": "LG.Proofs.X",
+   "layer": "proofs",
+   "scope": "LG"
+  },
+  {
+   "kind": "hets_logic",
+   "name": "hets.logic.propositional",
+   "module": "LG",
+   "hets_name": "Propositional",
+   "hets_file": "Comorphisms/LogicList.hs",
+   "hets_rev": "65ca27f4fcafd57f94fbb0908f2d88a16b0977ea"
+  },
+  {
+   "kind": "hets_logic",
+   "name": "hets.logic.casl",
+   "module": "LG",
+   "hets_name": "CASL",
+   "hets_file": "Comorphisms/LogicList.hs",
+   "hets_rev": "65ca27f4fcafd57f94fbb0908f2d88a16b0977ea"
+  },
+  {
+   "kind": "hets_comorphism",
+   "name": "hets.comorphism.prop2casl",
+   "module": "LG",
+   "hets_name": "Prop2CASL",
+   "hets_from": "Propositional",
+   "hets_to": "CASL",
+   "hets_file": "Comorphisms/LogicGraph.hs",
+   "hets_rev": "65ca27f4fcafd57f94fbb0908f2d88a16b0977ea"
+  },
+  {
+   "kind": "logic_pending",
+   "name": "pending.smt",
+   "module": "LG",
+   "title": "SMT-LIB theories",
+   "nodes": 26,
+   "edges": 23,
+   "status": "pending-port"
+  }
+ ],
+ "problems": [],
+ "solutions": []
+}

@@ -182,7 +182,11 @@ pub(super) fn follow<'a>(
             }
             Record::ConsequenceSystem(c) => consequence_refs(c, &at, &mut refs, o),
             Record::Room(x) => {
-                refs.extend(x.institution.iter().map(|i| ("institution", "institution", i.clone())));
+                refs.extend(
+                    x.institution
+                        .iter()
+                        .map(|i| ("institution", "institution", i.clone())),
+                );
             }
             Record::Institution(x) => {
                 hets_check(cx, "hets_logic", &x.hets, &x.hets_relation, &at, o);
@@ -415,7 +419,26 @@ fn consequence_refs<'a>(c: &'a ConsequenceSystem, at: &str, refs: &mut Refs<'a>,
 fn logic_fact_check(kind: &str, facts: &[LogicFactSpec], at: &str, o: &mut Outcome) {
     for f in facts {
         if !LOGIC_FACTS.contains(&(kind, f.property.as_str())) {
-            o.error(at, format!("facts: {} is not a property of a {kind}", f.property));
+            o.error(
+                at,
+                format!("facts: {} is not a property of a {kind}", f.property),
+            );
+        }
+        let bad: Vec<&str> = f
+            .axioms
+            .iter()
+            .map(String::as_str)
+            .filter(|a| !STANDARD_AXIOMS.contains(a))
+            .collect();
+        if !bad.is_empty() {
+            o.error(
+                at,
+                format!(
+                    "facts: {} has non-standard axioms: {}",
+                    f.proof,
+                    bad.join(", ")
+                ),
+            );
         }
     }
 }
@@ -444,6 +467,9 @@ fn hets_check(
         _ => false,
     });
     if !known {
-        o.error(at, format!("hets: no {kind} spelled {h:?} in the pinned Hets logic graph"));
+        o.error(
+            at,
+            format!("hets: no {kind} spelled {h:?} in the pinned Hets logic graph"),
+        );
     }
 }

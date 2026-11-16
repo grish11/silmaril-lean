@@ -32,7 +32,7 @@ const TABLE_DOCS = {
   logic_pending: "Logic families with Lean developments not in this repository yet: title, institution and map counts, status. Nothing in them is registered or claimed.",
   logic_edges: "View: every logic-graph edge (comorphism, morphism, corridor) with its level, endpoints and number of facts.",
   logic_nodes: "View: every logic-graph node (institution or room) with its degree.",
-  logic_coverage: "View: per audited kind and layer, how many declarations there are, how many are closed, registered and omitted.",
+  logic_coverage: "View: per audited kind and layer, how many declarations there are, how many are closed, generic (constructions over arbitrary institutions), registered, omitted, and omitted generic constructions.",
   hets_coverage: "View: per Hets logic or comorphism, the registered records that relate to it and how (corresponds, fragment, related).",
   machines: "Finite machine documents: counts, determinism and the canonical JSON (the content identity).",
   machine_bindings: "Typed Lean machines proved equal to a machine document (the theorem names the proof).",

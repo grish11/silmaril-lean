@@ -38,7 +38,8 @@ has no handler. The layers register theirs, each in its own module, and the head
 | `Registry.Predicate.Defs` | 1, relational problems | `@[predicate]`, `@[answers]`, `problem … :=`, `instance` |
 | `Registry.Artifacts.Defs` | 2, artifacts | `artifacts`, `artifact` |
 | `Registry.Value.Defs` | 3, formats and values | `artifact_type`, `format`, `format_default`, `format_law`, `value`, `problem … about` |
-| `Registry.Room.Defs` | 4, rooms | `room`, `problem … in R :=` |
+| `Registry.Room.Defs` | 4, rooms | `problem … in R :=` |
+| `Registry.Institution.Defs` | 4, the logic graph | `institution`, `comorphism`, `morphism`, `room`, `corridor`, `logic_audit` |
 | `Registry.Load.Defs` | records files | `load`: the records of TOML files (`silmaril.records.v0.2`) |
 | `Registry.Language.Defs` | 5, languages | `language_domain`, `measure`, `language_interpretation`, `language` |
 | `Registry.Attr.Defs` | attribute forms | `@[problem "N" (k := v)*]` (any arity, `room`), `@[conjecture]`, `@[value]` (a certificate) |
@@ -107,7 +108,8 @@ owns the list of kinds and fields (`schema.rs`).
 | `predicate` | `∀ x⃗, Prop`, no universe parameters | `decl`, `arity`, `args`, `room` |
 | `answer` | the theorem has the shape of its status | `decl`, `status`, `witness` (`axioms` in the dump) |
 | `instance` | arguments exist, once each; terms elaborate; values have the binder's type | `of`, `decl`, `args` |
-| `room` | `decl : Silmaril.Logic.Institution.Room`, universe-monomorphic | `sen`, `mod` |
+| `room` | `decl : Silmaril.Logic.Institution.Room`, or a family `∀ x⃗, Room` (a problem needs a closed, universe-monomorphic room) | `sen`, `mod`, `arity`, `params`, `type`, `levels`, `institution`, `signature` |
+| `institution`, `comorphism`, `morphism`, `corridor` | the declaration's type; edge endpoints among registered nodes; facts (`Registry.Institution.Defs`) | `from`, `to`, `arity`, `params`, `type`, `levels`, `doc`, `facts` |
 | `judgement` | the problem exists; `values` are values | |
 | `decomposition` / `refutation_route` | `c₁ → … → cₙ → p` / `¬c → ¬p` between problems | `parent`, `children` / `child` |
 

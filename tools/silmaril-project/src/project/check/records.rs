@@ -37,6 +37,13 @@ fn text_field<'a>(r: &'a Record, key: &str) -> Option<&'a str> {
         (Record::HetsLogic(x), "doc") => &x.doc,
         (Record::HetsComorphism(x), "doc") => &x.doc,
         (Record::LogicPending(x), "doc") => &x.doc,
+        (Record::LogicPending(x), "title") => return Some(&x.title),
+        (Record::Institution(x), "title") => &x.title,
+        (Record::Comorphism(x), "title") => &x.title,
+        (Record::Morphism(x), "title") => &x.title,
+        (Record::Corridor(x), "title") => &x.title,
+        (Record::Room(x), "title") => &x.title,
+        (Record::HetsLogic(x), "title") => &x.title,
         (Record::Machine(x), "doc") => &x.doc,
         (Record::MachineBinding(x), "doc") => &x.doc,
         _ => return None,
@@ -52,8 +59,8 @@ fn compare(cx: &Ctx, at: &str, t: &RecordTable, o: &mut Outcome) {
         "instance" => ("instance", "judgement"),
         k @ ("artifact_type" | "format" | "format_default" | "value" | "model" | "spec"
         | "room" | "institution" | "comorphism" | "morphism" | "corridor" | "hets_logic"
-        | "hets_comorphism" | "logic_pending" | "machine" | "machine_binding" | "judgement" | "detached"
-        | "deprecation" | "finding" | "group" | "children") => (k, k),
+        | "hets_comorphism" | "logic_pending" | "machine" | "machine_binding"
+        | "judgement" | "detached" | "deprecation" | "finding" | "group" | "children") => (k, k),
         _ => return,
     };
     if cx.get(kind, name).is_none() {

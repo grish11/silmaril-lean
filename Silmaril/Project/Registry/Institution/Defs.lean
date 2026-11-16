@@ -18,6 +18,7 @@ the graph of the declarations.
 | `comorphism N := f` | `f : Inst.CoHom A B` with `A`, `B` registered institutions | `from`, `to`, `type`, `levels`, `doc` |
 | `morphism N := f` | `f : Inst.Hom A B` with `A`, `B` registered institutions | `from`, `to`, `type`, `levels`, `doc` |
 | `corridor N := c` | `c : Silmaril.Logic.Institution.Corridor R₁ R₂` with `R₁`, `R₂` registered rooms | `from`, `to`, `type`, `levels`, `doc` |
+| any of the five | not a generic construction: no binder ranges over institutions, rooms or maps (`genericBinderHeads`) | |
 | `logic_audit (prefix := P)` | — | one record per declaration under `P` whose type is one of the five |
 
 **Directions.** Both kinds of institution edge are recorded from `A` to `B` as Lean writes the
@@ -34,7 +35,8 @@ The difference is the direction of the rest:
 **Endpoints.** `(from := A)` and `(to := B)` may be given; otherwise Lean finds them: the
 registered node whose declaration is the endpoint of the type up to reducible unfolding (with
 fresh universe levels). An endpoint that is not registered is an error, and so is one that
-two records name. A given endpoint is checked at default transparency.
+is an instance of two registered nodes, unless one of them is the endpoint's own head constant
+(a family defined as an instance of another).  A given endpoint is checked at default transparency.
 
 **Facts.** `(facts := [p, …])` lists theorems about the edge. Lean checks that each states a
 known property *of this declaration* and records it with the theorem's axioms:
@@ -45,7 +47,9 @@ known property *of this declaration* and records it with the theorem's axioms:
 | `sound` | `Inst.Hom.Sound f` (every model translation of a morphism is surjective) |
 | `model_expansive` | `Corridor.ModelExpansive c` |
 
-A property that is not listed is not claimed: the registry records no property as a tag.
+A fact about a family holds at every argument unless it records `at`: the arguments of the one
+instance it is about. A property that is not listed is not claimed: the registry records no
+property as a tag.
 
 **Hets.** `(hets := "Name")` relates a node or an edge to a logic or comorphism of the Hets logic
 graph (`silmaril/logic-graph/hets.toml`), and `(hets_relation := r)` says how: `corresponds`
@@ -57,7 +61,9 @@ name against the pinned Hets list. Free text (`title`, `doc`, `source`, `scope`)
 `P` that is not a theorem, and whose type, after its binders, is (up to reducible unfolding) an
 institution, comorphism, morphism, room or corridor. It records each with its arity (the number of
 binders: `0` is a closed declaration, more is a family), its module and the record that registers
-it, if any. The explorer reads it as the list of what the registry omits. Run it last, in a module
+it, if any, and whether it is `generic`: a construction over an arbitrary institution, room or map
+(a binder's type mentions one, as in `Inst.th A` or `CoHom.id A`), which no registry entry can
+name an endpoint of. The explorer reads it as the list of what the registry omits. Run it last, in a module
 that imports every registration.
 -/
 
@@ -101,11 +107,11 @@ def ppLogic (e : Expr) : MetaM String :=
   withOptions (fun o => (o.setBool `pp.fullNames true).setBool `pp.fieldNotation.generalized false) do
     return (← ppExpr e).pretty 100000
 
-/-- Run `k xs body` on the binders `xs` of the type of `d` (fresh universe levels) and its body,
+/-- Run `k xs body` on the binders `xs` of the type of `d` (at its universe parameters) and its body,
 unfolded until its head is not a definition (so that `Institution₁` is `Inst.{1, 0, 0, 0, 0}` and
 `R₁ ⟶ R₂` in `Room` is `Corridor R₁ R₂`). -/
 def logicTelescope {α : Type} (d : Name) (k : Array Expr → Expr → MetaM α) : MetaM α := do
-  let c ← mkConstWithFreshMVarLevels d
+  let c := mkConst d ((← getConstInfo d).levelParams.map Level.param)
   forallTelescopeReducing (← inferType c) fun xs body => do k xs (← whnf body)
 
 /-- Whether `e` is an instance of the registered declaration `c`: `c ?x₁ … ?xₙ` for its binders
@@ -146,6 +152,13 @@ def resolveEndpoint (kind side ofKind : String) (e : Expr) (given? : Option Stri
   | none =>
     let mut ms ← registeredMatches ofKind e none .reducible
     if ms.isEmpty then ms ← registeredMatches ofKind e none .default
+    -- a family defined as an instance of another matches both: prefer the endpoint's own head
+    if ms.size > 1 then
+      let env ← getEnv
+      let head := (← instantiateMVars e).getAppFn.constName?
+      let own := ms.filter fun (n, _) =>
+        ((findRecord? env ofKind n).bind (·.str? "decl")).map String.toName == head
+      if own.size == 1 then ms := own
     match ms.toList with
     | [m] => return m
     | [] => throwError "silmaril {kind}: the {side} endpoint{indentExpr e}\nis not a registered \
@@ -163,20 +176,25 @@ def checkFacts (kind : String) (subject : Name) (fs : Fields) : TermElabM (Optio
   for p in ps do
     let .str s := p | throwError "silmaril {kind}: `facts` is a list of theorems"
     let pn ← realizeGlobalConstNoOverload (mkIdent s.toName)
-    unless (← getConstInfo pn) matches .thmInfo _ do
+    unless ← isProp (← getConstInfo pn).type do
       throwError "silmaril {kind}: fact {pn} is not a theorem"
     let prop? ← forallTelescope (← inferType (← mkConstWithFreshMVarLevels pn)) fun _ ty => do
       let ty ← whnfR ty
       let some head := ty.getAppFn.constName? | return none
       let some (_, _, prop) := logicFacts.find? fun (k, h, _) => k == kind && h == head | return none
-      if (← instanceOf? ty.appArg! subject .default).isNone then
-        throwError "silmaril {kind}: fact {pn} is about{indentExpr ty.appArg!}\nnot about {subject}"
-      return some prop
-    let some prop := prop? | throwError "silmaril {kind}: fact {pn} does not state a known property; \
+      let e := ty.appArg!
+      let some args ← instanceOf? e subject .default
+        | throwError "silmaril {kind}: fact {pn} is about{indentExpr e}\nnot about {subject}"
+      -- general: about the family at distinct variables of the theorem; else at an instance
+      let xs := e.getAppArgs
+      let general := e.getAppFn.isConstOf subject && xs.all Expr.isFVar &&
+        (xs.map Expr.fvarId!).toList.eraseDups.length == xs.size
+      return some (prop, if general then none else some (" ".intercalate args.toList))
+    let some (prop, at?) := prop? | throwError "silmaril {kind}: fact {pn} does not state a known property; \
       the known properties of a {kind} are {(logicFacts.filter (·.1 == kind)).map (·.2.1)}"
     let axioms := ((← collectAxioms pn).map toString).qsort (· < ·)
-    out := out.push (Json.mkObj [("property", .str prop), ("proof", .str pn.toString),
-      ("axioms", toJson axioms)])
+    out := out.push (Json.mkObj ([("property", .str prop), ("proof", .str pn.toString),
+      ("axioms", toJson axioms)] ++ (at?.map fun a => ("at", Json.str a)).toList))
   return some (.arr out)
 
 /-- The universe parameters of a declaration, space-separated. -/
@@ -202,7 +220,7 @@ def roomInstitution? (R : Expr) (given? : Option String) : MetaM (Option (String
     if let some g := given? then unless r.name == g do continue
     let some d := r.str? "decl" | continue
     let some _ := env.find? d.toName | continue
-    let found ← withoutModifyingState do
+    let found ← withoutModifyingState <| observing? (α := Option String) do
       let cc ← mkConstWithFreshMVarLevels d.toName
       let (mvs, _, _) ← forallMetaTelescopeReducing (← inferType cc)
       let A := mkAppN cc mvs
@@ -213,11 +231,26 @@ def roomInstitution? (R : Expr) (given? : Option String) : MetaM (Option (String
       if ← withTransparency .reducible (isDefEq R obj) <||> withTransparency .default (isDefEq R obj) then
         return some (← ppLogic (← instantiateMVars S))
       return none
-    if let some s := found then return some (r.name, s)
+    if let some (some s) := found then return some (r.name, s)
   if let some g := given? then
     throwError "silmaril room: `(institution := {g})`, but the room{indentExpr R}\nis not `I.obj S` for \
       the institution {g}"
   return none
+
+/-- Types that make a binder *generic*: a declaration over an arbitrary institution, room, map
+between them or diagram of them is a construction, not a node or an edge of the graph. -/
+def genericBinderHeads : List Name := [instName, roomName, coHomName, homName, corridorName,
+  `Silmaril.Logic.Institution.CoIns, `Silmaril.Logic.Institution.Ins,
+  `Silmaril.Logic.Institution.LogicGraph, `Silmaril.Logic.Institution.ClassicInstitution,
+  `Silmaril.Logic.Institution.Theory, `Silmaril.Logic.Institution.Metatheory.LogicalSystem,
+  `Silmaril.Inst.GraphSpec, `Silmaril.Inst.CoEdge, `Silmaril.Inst.MorEdge, `Silmaril.Inst.Plain]
+
+/-- Whether a binder type mentions (up to reducible unfolding at its head) one of
+`genericBinderHeads`. -/
+def genericBinder (ty : Expr) : MetaM Bool := do
+  let ty' ← whnfR ty
+  let hit (e : Expr) := (e.find? fun x => genericBinderHeads.any x.isConstOf).isSome
+  return hit ty || hit ty'
 
 /-- Check and fill a node or edge record of the logic graph. -/
 def logicRecord (kind : String) (name? : Option String) (fs : Fields) :
@@ -228,13 +261,16 @@ def logicRecord (kind : String) (name? : Option String) (fs : Fields) :
   let info ← getConstInfo d
   if info matches .thmInfo _ then
     throwError "silmaril {kind}: {d} is a theorem; register the definition"
-  if kind == "room" && !info.levelParams.isEmpty then
-    throwError "silmaril room: {d} has universe parameters; register a universe-monomorphic room"
   let given (k : String) := match fs.get? k with | some (.str s) => some s | _ => none
   let filled ← logicTelescope d fun xs ty => do
     unless ty.isAppOf head do
       throwError "silmaril {kind}: {d} has type{indentExpr info.type}\nbut a {kind} is a `{head}` \
         (or a family of them)"
+    for x in xs do
+      if ← genericBinder (← inferType x) then
+        throwError "silmaril {kind}: {d} is a generic construction: its binder \
+          `{(← x.fvarId!.getDecl).userName}` ranges over institutions, rooms or maps, so it is not \
+          a node or an edge of the graph (the audit lists it as generic)"
     let mut out : Array (String × Json) := #[("arity", toJson xs.size)]
     unless xs.isEmpty do out := out.push ("params", .str (← paramsOf xs))
     if let some ofKind := ends? then
@@ -246,9 +282,10 @@ def logicRecord (kind : String) (name? : Option String) (fs : Fields) :
       unless srcAt.isEmpty do out := out.push ("from_at", .str (" ".intercalate srcAt.toList))
       unless tgtAt.isEmpty do out := out.push ("to_at", .str (" ".intercalate tgtAt.toList))
     if kind == "room" then
-      let (sen, mod) ← roomTypes (mkAppN (← mkConstWithFreshMVarLevels d) xs)
+      let R := mkAppN (mkConst d (info.levelParams.map Level.param)) xs
+      let (sen, mod) ← roomTypes R
       out := out ++ #[("sen", .str (← ppOneLine sen)), ("mod", .str (← ppOneLine mod))]
-      if let some (i, s) ← roomInstitution? (mkAppN (← mkConstWithFreshMVarLevels d) xs) (given "institution") then
+      if let some (i, s) ← roomInstitution? R (given "institution") then
         out := out ++ #[("institution", .str i), ("signature", .str s)]
     return out
   let mut fs := ((fs.erase "from").erase "to").erase "institution"
@@ -309,7 +346,7 @@ def moduleLayer (m : Name) : String :=
     for r in records env do
       if (logicKindHead r.kind).isSome then
         if let some d := r.str? "decl" then reg := reg.insert d.toName (r.kind, r.name)
-    let mut found : Array (Name × String × Nat × Name) := #[]
+    let mut found : Array (Name × String × Nat × Bool × Name) := #[]
     for (n, info) in env.constants.toList do
       unless pre.isPrefixOf n do continue
       if n.isInternalDetail || isPrivateName n then continue
@@ -320,14 +357,16 @@ def moduleLayer (m : Name) : String :=
       let r? ← try
           forallTelescopeReducing info.type fun xs body => do
             let body ← whnfR body
-            return (body.getAppFn.constName?.bind logicKindOf?).map (·, xs.size)
+            let some k := body.getAppFn.constName?.bind logicKindOf? | return none
+            let g ← xs.anyM fun x => do genericBinder (← inferType x)
+            return some (k, xs.size, g)
         catch _ => pure none
-      if let some (k, arity) := r? then
-        found := found.push (n, k, arity, env.header.moduleNames[m.toNat]!)
+      if let some (k, arity, g) := r? then
+        found := found.push (n, k, arity, g, env.header.moduleNames[m.toNat]!)
     found := found.qsort fun a b => a.1.toString < b.1.toString
     let mut out := #[]
     let mut used : Std.HashSet String := {}
-    for (n, k, arity, m) in found do
+    for (n, k, arity, g, m) in found do
       let mut nm := auditName n
       if used.contains nm then
         let mut i := 2
@@ -338,6 +377,7 @@ def moduleLayer (m : Name) : String :=
       f ← f.push kind "decl" (.str n.toString)
       f ← f.push kind "object" (.str k)
       f ← f.push kind "arity" (toJson arity)
+      f ← f.push kind "generic" (toJson g)
       f ← f.push kind "decl_module" (.str m.toString)
       f ← f.push kind "layer" (.str (moduleLayer m))
       f ← f.push kind "scope" (.str pre.toString)

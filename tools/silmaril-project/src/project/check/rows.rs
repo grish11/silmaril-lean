@@ -294,7 +294,8 @@ fn record_rows(
             }
             Record::Morphism(x) => {
                 let sid = obj(o, &x.name, &x.sid_override);
-                rows.logic_facts.extend(fact_rows("morphism", &x.name, &x.facts));
+                rows.logic_facts
+                    .extend(fact_rows("morphism", &x.name, &x.facts));
                 rows.morphisms.push(Morphism {
                     sid,
                     origin: org,
@@ -303,7 +304,8 @@ fn record_rows(
             }
             Record::Corridor(x) => {
                 let sid = obj(o, &x.name, &x.sid_override);
-                rows.logic_facts.extend(fact_rows("corridor", &x.name, &x.facts));
+                rows.logic_facts
+                    .extend(fact_rows("corridor", &x.name, &x.facts));
                 rows.corridors.push(Corridor {
                     sid,
                     origin: org,

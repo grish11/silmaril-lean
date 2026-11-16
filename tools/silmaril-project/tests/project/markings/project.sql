@@ -246,6 +246,7 @@ CREATE TABLE logic_facts(
   pos INTEGER NOT NULL,
   property TEXT NOT NULL,
   proof TEXT NOT NULL,
+  instance_at TEXT,
   axioms TEXT NOT NULL,
   standard_axioms INTEGER NOT NULL,
   PRIMARY KEY(kind, edge, pos)
@@ -255,6 +256,7 @@ CREATE TABLE logic_audit(
   decl TEXT NOT NULL,
   object TEXT NOT NULL CHECK(object IN ('institution','comorphism','morphism','room','corridor')),
   arity INTEGER NOT NULL,
+  generic INTEGER NOT NULL DEFAULT 0,
   decl_module TEXT NOT NULL,
   layer TEXT NOT NULL CHECK(layer IN ('header','proofs','raw')),
   scope TEXT NOT NULL,
@@ -586,7 +588,7 @@ CREATE VIEW language_problems AS SELECT i.problem AS problem, e.parent AS shape,
 CREATE VIEW consequence_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, c.name AS system, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN consequence_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN consequence_systems c ON c.term = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
 CREATE VIEW logic_edges AS SELECT 'comorphism' AS kind, 'institution' AS level, name, decl, src, dst, from_at, to_at, arity, title, hets, hets_relation, module, (SELECT count(*) FROM logic_facts f WHERE f.kind = 'comorphism' AND f.edge = c.name) AS facts FROM comorphisms c UNION ALL SELECT 'morphism', 'institution', name, decl, src, dst, from_at, to_at, arity, title, hets, hets_relation, module, (SELECT count(*) FROM logic_facts f WHERE f.kind = 'morphism' AND f.edge = m.name) FROM morphisms m UNION ALL SELECT 'corridor', 'room', name, decl, src, dst, from_at, to_at, arity, title, hets, hets_relation, module, (SELECT count(*) FROM logic_facts f WHERE f.kind = 'corridor' AND f.edge = r.name) FROM corridors r;
 CREATE VIEW logic_nodes AS SELECT 'institution' AS kind, name, decl, arity, title, hets, hets_relation, NULL AS institution, module, (SELECT count(*) FROM logic_edges e WHERE e.level = 'institution' AND (e.src = i.name OR e.dst = i.name)) AS degree, (SELECT count(*) FROM rooms r WHERE r.institution = i.name) AS rooms FROM institutions i UNION ALL SELECT 'room', name, decl, arity, title, NULL, NULL, institution, module, (SELECT count(*) FROM logic_edges e WHERE e.level = 'room' AND (e.src = r.name OR e.dst = r.name)), NULL FROM rooms r;
-CREATE VIEW logic_coverage AS SELECT object, layer, count(*) AS declarations, sum(arity = 0) AS closed, sum(registered IS NOT NULL) AS registered, sum(registered IS NULL) AS omitted FROM logic_audit GROUP BY object, layer;
+CREATE VIEW logic_coverage AS SELECT object, layer, count(*) AS declarations, sum(arity = 0) AS closed, sum(generic) AS generic, sum(registered IS NOT NULL) AS registered, sum(registered IS NULL AND NOT generic) AS omitted, sum(registered IS NULL AND generic) AS omitted_generic FROM logic_audit GROUP BY object, layer;
 CREATE VIEW hets_coverage AS SELECT 'logic' AS hets_kind, h.hets_name, h.flag, (SELECT group_concat(i.name || ':' || i.hets_relation, ' ') FROM institutions i WHERE i.hets = h.hets_name) AS records, (SELECT count(*) FROM institutions i WHERE i.hets = h.hets_name AND i.hets_relation = 'corresponds') AS corresponds, (SELECT count(*) FROM institutions i WHERE i.hets = h.hets_name) AS related FROM hets_logics h UNION ALL SELECT 'comorphism', h.hets_name, h.flag, (SELECT group_concat(e.name || ':' || e.hets_relation, ' ') FROM logic_edges e WHERE e.hets = h.hets_name) AS records, (SELECT count(*) FROM logic_edges e WHERE e.hets = h.hets_name AND e.hets_relation = 'corresponds'), (SELECT count(*) FROM logic_edges e WHERE e.hets = h.hets_name) FROM hets_comorphisms h;
 CREATE VIEW genuine_errors AS SELECT f.problem, p.title, s.summary, f.note, f.pointer, (SELECT group_concat(v.version, ',') FROM (SELECT version FROM finding_versions WHERE problem = f.problem ORDER BY pos) v) AS affected_versions, f.fixed_in, f.disclosure_status, f.module, f.origin FROM findings f JOIN problems p ON p.name = f.problem LEFT JOIN summary s ON s.problem = f.problem WHERE f.classification = 'error';
 CREATE VIEW model_gaps AS SELECT f.pointer, f.problem, p.title, f.note FROM findings f JOIN problems p ON p.name = f.problem WHERE f.classification = 'model_gap';

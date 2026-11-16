@@ -13,9 +13,21 @@ use super::*;
 /// The node kinds and edge kinds of the logic graph, with what moves which way along an edge
 /// `A → B` (`(kind, sentences, models)`).
 pub const EDGE_KINDS: &[(&str, &str, &str)] = &[
-    ("comorphism", "forwards: Sen_A Σ → Sen_B (Φ Σ)", "backwards: Mod_B (Φ Σ) → Mod_A Σ"),
-    ("morphism", "backwards: Sen_B (Φ Σ) → Sen_A Σ", "forwards: Mod_A Σ → Mod_B (Φ Σ)"),
-    ("corridor", "forwards: Sen₁ → Sen₂", "backwards: Mod₂ → Mod₁"),
+    (
+        "comorphism",
+        "forwards: Sen_A Σ → Sen_B (Φ Σ)",
+        "backwards: Mod_B (Φ Σ) → Mod_A Σ",
+    ),
+    (
+        "morphism",
+        "backwards: Sen_B (Φ Σ) → Sen_A Σ",
+        "forwards: Mod_A Σ → Mod_B (Φ Σ)",
+    ),
+    (
+        "corridor",
+        "forwards: Sen₁ → Sen₂",
+        "backwards: Mod₂ → Mod₁",
+    ),
 ];
 
 /// How a record relates to a logic or comorphism of the Hets logic graph.
@@ -36,6 +48,9 @@ pub struct LogicFactSpec {
     pub proof: String,
     #[serde(default)]
     pub axioms: Vec<String>,
+    /// The arguments of the one instance of a family the fact is about (none: every instance).
+    #[serde(default, rename = "at")]
+    pub at: Option<String>,
 }
 
 table! {
@@ -132,7 +147,12 @@ pub fn edge_kind_rows() -> Vec<LogicEdgeKind> {
         .iter()
         .map(|(k, s, m)| LogicEdgeKind {
             kind: (*k).into(),
-            level: if *k == "corridor" { "room" } else { "institution" }.into(),
+            level: if *k == "corridor" {
+                "room"
+            } else {
+                "institution"
+            }
+            .into(),
             sentences: (*s).into(),
             models: (*m).into(),
         })
@@ -140,13 +160,15 @@ pub fn edge_kind_rows() -> Vec<LogicEdgeKind> {
 }
 
 table! {
-    /// Fact `pos` of the edge `(kind, edge)`: the theorem `proof` states `property` of it.
+    /// Fact `pos` of the edge `(kind, edge)`: the theorem `proof` states `property` of it (of
+    /// every instance of a family, or only at the arguments `instance_at`).
     LogicFact = "logic_facts", key("kind", "edge", "pos") {
         kind: String = "TEXT NOT NULL CHECK(kind IN ('comorphism','morphism','corridor'))",
         edge: String = "TEXT NOT NULL",
         pos: i64 = "INTEGER NOT NULL",
         property: String = "TEXT NOT NULL",
         proof: String = "TEXT NOT NULL",
+        instance_at: Option<String> = "TEXT",
         axioms: serde_json::Value = "TEXT NOT NULL",
         standard_axioms: bool = "INTEGER NOT NULL",
     }
@@ -156,12 +178,15 @@ table! {
     /// `silmaril logic_audit (prefix := P)`: one row per declaration under `scope` that is not a
     /// theorem and whose type is (a family of) an institution, comorphism, morphism, room or
     /// corridor (`object`), with its `arity` (0: closed), module and `layer` (`header`, `proofs`
-    /// or `raw`), and the record that registers it (`registered`, null when the registry omits it).
+    /// or `raw`), whether it is `generic` (a construction over an arbitrary institution, room or map,
+    /// which no record can name endpoints of), and the record that registers it (`registered`,
+    /// null when the registry omits it).
     LogicAudit = "logic_audit", key("name") {
         name: String = "TEXT NOT NULL",
         decl: String = "TEXT NOT NULL",
         object: String = "TEXT NOT NULL CHECK(object IN ('institution','comorphism','morphism','room','corridor'))",
         arity: i64 = "INTEGER NOT NULL",
+        #[serde(default)] generic: bool = "INTEGER NOT NULL DEFAULT 0",
         decl_module: String = "TEXT NOT NULL",
         layer: String = "TEXT NOT NULL CHECK(layer IN ('header','proofs','raw'))",
         scope: String = "TEXT NOT NULL",
@@ -243,8 +268,9 @@ SELECT 'institution' AS kind, name, decl, arity, title, hets, hets_relation, NUL
 UNION ALL SELECT 'room', name, decl, arity, title, NULL, NULL, institution, module, \
 (SELECT count(*) FROM logic_edges e WHERE e.level = 'room' AND (e.src = r.name OR e.dst = r.name)), NULL FROM rooms r;",
     "CREATE VIEW logic_coverage AS SELECT object, layer, count(*) AS declarations, \
-sum(arity = 0) AS closed, sum(registered IS NOT NULL) AS registered, \
-sum(registered IS NULL) AS omitted FROM logic_audit GROUP BY object, layer;",
+sum(arity = 0) AS closed, sum(generic) AS generic, sum(registered IS NOT NULL) AS registered, \
+sum(registered IS NULL AND NOT generic) AS omitted, sum(registered IS NULL AND generic) AS omitted_generic \
+FROM logic_audit GROUP BY object, layer;",
     "CREATE VIEW hets_coverage AS \
 SELECT 'logic' AS hets_kind, h.hets_name, h.flag, \
 (SELECT group_concat(i.name || ':' || i.hets_relation, ' ') FROM institutions i WHERE i.hets = h.hets_name) AS records, \
@@ -270,6 +296,7 @@ pub fn fact_rows(kind: &str, edge: &str, facts: &[LogicFactSpec]) -> Vec<LogicFa
                 pos: pos as i64,
                 property: f.property.clone(),
                 proof: f.proof.clone(),
+                instance_at: f.at.clone(),
                 standard_axioms: axioms.iter().all(|a| STANDARD_AXIOMS.contains(&a.as_str())),
                 axioms: serde_json::Value::from(axioms),
             }

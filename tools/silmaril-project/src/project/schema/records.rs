@@ -122,8 +122,16 @@ const LOGIC_SOURCE: Key = opt(
     Ty::Text,
     "A citation key of references.bib, or a section of a standard",
 );
-const LOGIC_SCOPE: Key = opt("scope", Ty::Text, "What the declaration covers, and what it does not");
-const HETS: Key = opt("hets", Ty::Text, "The Hets logic or comorphism it relates to");
+const LOGIC_SCOPE: Key = opt(
+    "scope",
+    Ty::Text,
+    "What the declaration covers, and what it does not",
+);
+const HETS: Key = opt(
+    "hets",
+    Ty::Text,
+    "The Hets logic or comorphism it relates to",
+);
 const HETS_RELATION: Key = opt(
     "hets_relation",
     Ty::Text,
@@ -135,7 +143,11 @@ const LOGIC_EDGE_KEYS: &[Key] = &[
     req("decl", Ty::Const, "The declaration"),
     opt("from", Ty::Name, "The source node (else found by Lean)"),
     opt("to", Ty::Name, "The target node (else found by Lean)"),
-    opt("facts", Ty::Texts, "Theorems stating known properties of it"),
+    opt(
+        "facts",
+        Ty::Texts,
+        "Theorems stating known properties of it",
+    ),
     TITLE,
     DOC,
     LOGIC_SOURCE,
@@ -304,7 +316,11 @@ pub const RECORD_KINDS: &[KindSpec] = &[
             req("name", Ty::Name, "The record's name"),
             req("hets_name", Ty::Text, "The logic's name in Hets"),
             TITLE,
-            opt("flag", Ty::Text, "The CPP flag that guards it in Hets's build"),
+            opt(
+                "flag",
+                Ty::Text,
+                "The CPP flag that guards it in Hets's build",
+            ),
             req("hets_file", Ty::Text, "The Hets source file that lists it"),
             req("hets_rev", Ty::Text, "The Hets commit"),
             DOC,
@@ -318,7 +334,11 @@ pub const RECORD_KINDS: &[KindSpec] = &[
             req("hets_name", Ty::Text, "The comorphism's name in Hets"),
             req("hets_from", Ty::Text, "Its source logic, as Hets names it"),
             req("hets_to", Ty::Text, "Its target logic, as Hets names it"),
-            opt("flag", Ty::Text, "The CPP flag that guards it in Hets's build"),
+            opt(
+                "flag",
+                Ty::Text,
+                "The CPP flag that guards it in Hets's build",
+            ),
             req("hets_file", Ty::Text, "The Hets source file that lists it"),
             req("hets_rev", Ty::Text, "The Hets commit"),
             DOC,

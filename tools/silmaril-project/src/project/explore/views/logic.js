@@ -2,8 +2,8 @@
 // as typed, directed edges, and one level down rooms (an institution at one signature) with
 // corridors; the five registries; the coverage audit (declarations the registry omits, the pinned
 // Hets logic graph, logic families not yet in this repository).
-//   #/logic-graph[/<kind>:<name>][?level=…&kinds=…&q=…]   the graph viewer, a selection deep-linked
-//   #/logic-table[?q=…]                                   every node and edge, searchable and sortable
+//   #/logic-graph/[<kind>:<name>][?level=…&kinds=…&q=…&layout=layered&group=0&isolated=0]   the graph viewer, a selection deep-linked
+//   #/logic-table/[?q=…]                                  every node and edge, searchable and sortable
 //   #/institutions #/comorphisms #/morphisms #/rooms #/corridors   the registries
 //   #/institution/<name> … #/corridor/<name>             one record, with its crosslinks
 //   #/logic-coverage                                      the audit
@@ -56,7 +56,7 @@
       "#lgcy { flex:1 1 auto; border:1px solid var(--line); background:var(--panel); min-width:0; position:relative; } " +
       "#lgcy:focus-visible { outline:3px solid var(--accent); outline-offset:1px; } " +
       "#lgside { flex:0 0 380px; overflow:auto; border:1px solid var(--line); background:var(--panel); padding:8px 10px; } " +
-      "#lgside h3 { margin:4px 0 6px; font-size:14px; } .lg-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); padding:20px; text-align:center; } " +
+      "#lgside h3 { margin:4px 0 6px; font-size:14px; overflow-wrap:anywhere; } #lgside dd { overflow-wrap:anywhere; } .lg-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); padding:20px; text-align:center; } " +
       ".lg-legend { display:flex; flex-wrap:wrap; gap:4px 16px; align-items:center; font-size:13px; margin:4px 0 8px; } .lg-legend svg { vertical-align:middle; } " +
       ".lg-node { display:inline-block; width:16px; height:11px; border:1.5px solid #52514e; border-radius:3px; vertical-align:middle; background:#fff; } " +
       ".lg-node.room { border-radius:50%; background:#f1f3f5; } .lg-node.fam { border-style:dashed; } " +
@@ -146,7 +146,7 @@
     };
     return { html, init };
   }
-  const factCell = (r) => r.facts.length ? r.facts.map((f) => `<span class="pill" title="${ui.esc(f.proof)}${f.standard_axioms ? "" : " (non-standard axioms)"}">${ui.esc(f.property)} ✓</span>`).join(" ") : "";
+  const factCell = (r) => r.facts.length ? r.facts.map((f) => `<span class="pill" title="${ui.esc(f.proof)}${f.instance_at ? " — only at " + ui.esc(f.instance_at) : " — for every instance"}${f.standard_axioms ? "" : " (non-standard axioms)"}">${ui.esc(f.property)}${f.instance_at ? " (at an instance)" : ""} ✓</span>`).join(" ") : "";
   const COLS = {
     institution: (d) => [
       { key: "name", label: "institution", html: (r) => rec("institution", r.name) },
@@ -188,7 +188,7 @@
       const html = tabs(KIND[kind].plural, d) + `<h2>${KIND[kind].title} (${rows.length})</h2>` +
         `<p class="muted">A ${kind} is ${ui.esc(KIND[kind].what)}. Each row is a Lean declaration whose type Lean checked` +
         (EDGES.includes(kind) ? `; its endpoints were found by Lean among the registered ${nodeKind(kind)}s` : "") + ". " +
-        (audit && audit.n ? `The audit found ${audit.n} declarations of this type in the scanned scope; ${audit.omitted || 0} are not registered (<a href="#/logic-coverage?object=${kind}">coverage</a>).` : "") +
+        (audit && audit.n ? `The audit found ${audit.n} declarations of this type in the scanned scope; ${audit.omitted || 0} are not registered (<a href="#/logic-coverage/?object=${kind}">coverage</a>).` : "") +
         `</p>` + g.html;
       return { html, init: g.init };
     };
@@ -213,7 +213,7 @@
         rows.push(["to", rec(nk, r.dst) + (r.to_at ? ` <span class="muted">at</span> ${code(r.to_at)}` : "")]);
         const k = d.kinds.find((x) => x.kind === kind);
         if (k) rows.push(["direction", `sentences ${ui.esc(k.sentences)}; models ${ui.esc(k.models)}`]);
-        rows.push(["facts", r.facts.length ? r.facts.map((f) => `<b>${ui.esc(f.property)}</b> by ${code(f.proof)} ${src(r.module, f.proof)} <span class="muted">axioms: ${ui.esc(JSON.parse(f.axioms || "[]").join(", ") || "none")}${f.standard_axioms ? "" : " — non-standard"}</span>`).join("<br>")
+        rows.push(["facts", r.facts.length ? r.facts.map((f) => `<b>${ui.esc(f.property)}</b>${f.instance_at ? ` only at ${code(f.instance_at)}` : r.arity ? " for every instance" : ""} by ${code(f.proof)} <span class="muted">axioms: ${ui.esc(JSON.parse(f.axioms || "[]").join(", ") || "none")}${f.standard_axioms ? "" : " — non-standard"}</span>`).join("<br>")
           : '<span class="muted">none registered: no property of this edge is claimed</span>']);
         const parallel = d[kind].filter((x) => x !== r && x.src === r.src && x.dst === r.dst);
         if (parallel.length) rows.push(["parallel edges", parallel.map((x) => rec(kind, x.name)).join(", ")]);
@@ -262,7 +262,7 @@
       { key: "decl", label: "Lean declaration", html: (r) => code(r.decl) },
       { key: "module", label: "module" },
     ], { q: params(arg).p.get("q") || "", empty: "Nothing is registered.",
-      onFilter: (q) => history.replaceState(null, "", "#/logic-table" + (q ? "?q=" + encodeURIComponent(q) : "")) });
+      onFilter: (q) => history.replaceState(null, "", "#/logic-table/" + (q ? "?q=" + encodeURIComponent(q) : "")) });
     return { html: tabs("logic-table", d) + `<h2>Logic graph: every node and edge (${all.length})</h2>
 <p class="muted">Search by any column (words are ANDed); click a header to sort. Edges go from → to as Lean writes their type.</p>` + legend() + g.html, init: g.init };
   }
@@ -291,7 +291,8 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
   <span>
   <button type="button" id="lg-fit" title="fit the graph to the view">Fit</button>
   <button type="button" id="lg-zin" aria-label="zoom in">+</button><button type="button" id="lg-zout" aria-label="zoom out">−</button>
-  <button type="button" id="lg-dir" title="lay out left to right or top to bottom">${p.get("dir") === "TB" ? "↓ top-down" : "→ left-right"}</button>
+  <label title="clusters: each region laid out on its own; layered: one left-to-right flow over everything">layout <select id="lg-layout"><option value="clusters">clusters</option><option value="layered"${p.get("layout") === "layered" ? " selected" : ""}>layered (one flow)</option></select></label>
+  <label title="draw a box around the logics of each library region"><input type="checkbox" id="lg-group"${p.get("group") === "0" ? "" : " checked"}> group by region</label>
   <button type="button" id="lg-reset">Reset</button></span>
   <span class="muted" id="lg-count" aria-live="polite"></span>
 </div>${legend()}
@@ -299,16 +300,64 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
 <div id="lgside" aria-live="polite"><p class="muted">Select a node or an edge for its details (click, or use <b>go to</b>). Double-click opens its page.</p></div></div>`;
     const init = () => {
       if (typeof cytoscape !== "function") { document.getElementById("lgcy").innerHTML = `<div class="lg-empty">The graph library did not load; the <a href="#/logic-table">table</a> has the same content.</div>`; return; }
-      const state = { level, kinds, q: p.get("q") || "", iso: p.get("isolated") !== "0", dir: p.get("dir") === "TB" ? "TB" : "LR", sel };
+      const state = { level, kinds, q: p.get("q") || "", iso: p.get("isolated") !== "0", layout: p.get("layout") === "layered" ? "layered" : "clusters", group: p.get("group") !== "0", sel };
       const writeUrl = () => {
         const qs = new URLSearchParams();
         if (state.level !== "institution") qs.set("level", state.level);
         if (state.kinds.size !== EDGES.length) qs.set("kinds", [...state.kinds].join(","));
         if (state.q) qs.set("q", state.q);
         if (!state.iso) qs.set("isolated", "0");
-        if (state.dir !== "LR") qs.set("dir", state.dir);
+        if (state.layout !== "clusters") qs.set("layout", state.layout);
+        if (!state.group) qs.set("group", "0");
         const s = qs.toString();
-        history.replaceState(null, "", "#/logic-graph" + (state.sel ? "/" + encodeURIComponent(state.sel) : "") + (s ? "?" + s : ""));
+        history.replaceState(null, "", "#/logic-graph/" + (state.sel ? encodeURIComponent(state.sel) : "") + (s ? "?" + s : ""));
+      };
+      // Parallel edges of one kind between the same two nodes are drawn as one edge ("3 comorphisms"); selecting it lists them.
+      let bundles = new Map(), bundleOf = new Map();
+      const bundle = (edges) => {
+        bundles = new Map(); bundleOf = new Map();
+        for (const e of edges) {
+          const s = nodeKind(e.kind) + ":" + e.src, t = nodeKind(e.kind) + ":" + e.dst, key = `${e.kind}|${s}|${t}`;
+          if (!bundles.has(key)) bundles.set(key, { key, kind: e.kind, source: s, target: t, members: [] });
+          bundles.get(key).members.push(e);
+        }
+        for (const b of bundles.values()) { b.id = b.members.length === 1 ? b.members[0].id : "bundle:" + b.key; for (const e of b.members) bundleOf.set(e.id, b); }
+        return bundles;
+      };
+      // The clusters layout: each region laid out on its own (layered, top-down; its unconnected logics in a grid below), and the
+      // regions packed in rows to the viewport's proportions. Deterministic: the same database draws the same picture.
+      const clusters = () => {
+        const groups = new Map();
+        for (const n of cyi.nodes().filter((x) => !x.data("region"))) {
+          const g = n.data("parent") || n.id().split(":")[1].split(".")[0];
+          if (!groups.has(g)) groups.set(g, cyi.collection());
+          groups.set(g, groups.get(g).union(n));
+        }
+        const boxes = [];
+        for (const [g, ns] of [...groups].sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1))) {
+          const inner = ns.edgesWith(ns).filter((e) => !e.isLoop());
+          const linked = ns.filter((n) => inner.connectedNodes().has(n));
+          const alone = ns.not(linked);
+          let y0 = 0, w = 0;
+          if (linked.length) {
+            linked.union(inner).layout({ name: "dagre", rankDir: "TB", nodeSep: 18, rankSep: 60, edgeSep: 8, animate: false, fit: false }).run();
+            const bb = linked.boundingBox();
+            linked.shift({ x: -bb.x1, y: -bb.y1 });
+            y0 = bb.h + 30; w = bb.w;
+          }
+          const cols = Math.max(1, Math.min(alone.length, Math.max(Math.ceil(Math.sqrt(alone.length * 1.6)), Math.floor(w / 175))));
+          alone.sort((a, b) => (a.data("label") < b.data("label") ? -1 : 1)).forEach((n, i) => n.position({ x: 80 + (i % cols) * 175, y: y0 + 20 + Math.floor(i / cols) * 52 }));
+          const bb = ns.boundingBox();
+          boxes.push({ ns, w: bb.w, h: bb.h, x1: bb.x1, y1: bb.y1 });
+        }
+        const area = boxes.reduce((a, b) => a + (b.w + 60) * (b.h + 70), 0), ratio = Math.max(0.6, (cyi.width() || 900) / (cyi.height() || 600));
+        const rowW = Math.max(Math.sqrt(area * ratio), ...boxes.map((b) => b.w + 60));
+        let x = 0, y = 0, rowH = 0;
+        for (const b of boxes) {
+          if (x > 0 && x + b.w > rowW) { x = 0; y += rowH + 70; rowH = 0; }
+          b.ns.shift({ x: x - b.x1, y: y - b.y1 });
+          x += b.w + 60; rowH = Math.max(rowH, b.h);
+        }
       };
       const draw = () => {
         const showInst = state.level !== "room", showRoom = state.level !== "institution";
@@ -318,9 +367,13 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
         const fibers = state.level === "both" ? d.room.filter((r) => r.institution && ids.has("institution:" + r.institution)) : [];
         const touched = new Set([...edges.flatMap((e) => [nodeKind(e.kind) + ":" + e.src, nodeKind(e.kind) + ":" + e.dst]), ...fibers.flatMap((r) => [r.id, "institution:" + r.institution])]);
         const shownNodes = state.iso ? nodes : nodes.filter((n) => touched.has(n.id));
-        const els = shownNodes.map((n) => ({ data: { id: n.id, label: label(n) + (n.arity ? " ⋯" : ""), kind: n.kind, fam: n.arity ? 1 : 0 } }))
-          .concat(edges.map((e) => ({ data: { id: e.id, source: nodeKind(e.kind) + ":" + e.src, target: nodeKind(e.kind) + ":" + e.dst, kind: e.kind,
-            label: short(e.name) + (e.facts.length ? " ✓" : "") } })))
+        const regionOf = (n) => n.name.split(".")[0];
+        const regions = state.group ? [...new Set(shownNodes.map(regionOf))] : [];
+        const els = regions.map((g) => ({ data: { id: "region:" + g, label: g, region: 1 } }))
+          .concat(shownNodes.map((n) => ({ data: Object.assign({ id: n.id, label: label(n) + (n.arity ? " ⋯" : ""), kind: n.kind, fam: n.arity ? 1 : 0 },
+            state.group ? { parent: "region:" + regionOf(n) } : {}) })))
+          .concat([...bundle(edges).values()].map((b) => ({ data: { id: b.id, source: b.source, target: b.target, kind: b.kind, n: b.members.length,
+            label: (b.members.length > 1 ? `${b.members.length} ${b.kind}s` : short(b.members[0].name)) + (b.members.some((e) => e.facts.length) ? " ✓" : "") } })))
           .concat(fibers.filter((r) => shownNodes.some((n) => n.id === r.id)).map((r) => ({ data: { id: "fiber:" + r.name, source: r.id, target: "institution:" + r.institution, kind: "fiber", label: "" } })));
         if (cyi) { cyi.destroy(); cyi = null; }
         const box = document.getElementById("lgcy");
@@ -343,18 +396,27 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
             ...EDGES.map((k) => ({ selector: `edge[kind = '${k}']`, style: { "line-color": KIND[k].color, "target-arrow-color": KIND[k].color, "line-style": KIND[k].line === "solid" ? "solid" : KIND[k].line } })),
             { selector: "edge[kind = 'morphism']", style: { "line-dash-pattern": [7, 4] } },
             { selector: "edge[kind = 'corridor']", style: { "line-dash-pattern": [2, 3], width: 2.5 } },
+            { selector: "edge:loop", style: { "loop-direction": "-30deg", "loop-sweep": "-70deg", "control-point-step-size": 70 } },
             { selector: "edge[kind = 'fiber']", style: { "line-color": "#9aa0a6", "target-arrow-shape": "none", "line-style": "dotted", width: 1.2 } },
+            { selector: "node[region = 1]", style: { shape: "round-rectangle", "background-color": "#f4f6f8", "background-opacity": 0.6, "border-width": 1,
+              "border-color": "#c9ced3", label: "data(label)", "text-valign": "top", "text-halign": "center", "font-size": 13, "font-weight": 600, color: "#52514e", padding: 14 } },
             { selector: ".faded", style: { opacity: 0.18 } },
             { selector: ".hit", style: { "underlay-color": "#eda100", "underlay-opacity": 0.45, "underlay-padding": 5 } },
             { selector: ":selected", style: { "border-width": 3, "border-color": "#2f5d9e", width: 3, "overlay-color": "#2f5d9e", "overlay-opacity": 0.12 } },
           ],
-          layout: { name: "dagre", rankDir: state.dir, nodeSep: 28, rankSep: 90, edgeSep: 12, animate: false } });
-        cyi.on("tap", "node, edge", (e) => select(e.target.id(), false));
+          layout: state.layout === "layered" && !state.group ? { name: "dagre", rankDir: "LR", nodeSep: 24, rankSep: 80, edgeSep: 10, animate: false } : { name: "preset" } });
+        if (state.layout !== "layered" || state.group) clusters();
+        cyi.on("tap", "node, edge", (e) => { if (e.target.data("region")) return;
+          const b = [...bundles.values()].find((x) => x.id === e.target.id());
+          select(b ? b.members[0].id : e.target.id(), false); });
         cyi.on("tap", (e) => { if (e.target === cyi) select("", false); });
-        cyi.on("dbltap", "node, edge", (e) => { const [k, ...n] = e.target.id().split(":"); if (KIND[k]) location.hash = `#/${k}/${encodeURIComponent(n.join(":"))}`; });
+        cyi.on("dbltap", "node, edge", (e) => { const id = state.sel && bundleOf.get(state.sel) && bundleOf.get(state.sel).id === e.target.id() ? state.sel : e.target.id();
+          const [k, ...n] = id.split(":"); if (KIND[k]) location.hash = `#/${k}/${encodeURIComponent(n.join(":"))}`; });
         search();
-        if (state.sel && cyi.getElementById(state.sel).length) select(state.sel, true); else cyi.fit(undefined, 24);
+        if (state.sel && cyi.getElementById(bundleOf.has(state.sel) ? bundleOf.get(state.sel).id : state.sel).length) select(state.sel, true); else fit();
       };
+      // fit, without blowing a small graph up past a readable size
+      const fit = () => { if (!cyi) return; cyi.fit(undefined, 24); if (cyi.zoom() > 1.2) { cyi.zoom(1.2); cyi.center(); } };
       const all = Object.fromEntries([...NODES, ...EDGES].flatMap((k) => d[k].map((r) => [r.id, r])));
       const side = document.getElementById("lgside");
       const select = (id, center) => {
@@ -364,10 +426,12 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
         cyi.elements().unselect().removeClass("faded");
         const r = all[id];
         if (!r) { side.innerHTML = `<p class="muted">Select a node or an edge for its details (click, or use <b>go to</b>). Double-click opens its page.</p>`; search(); return; }
-        const el = cyi.getElementById(id);
+        const b = bundleOf.get(id);
+        const el = cyi.getElementById(b ? b.id : id);
         if (el.length) {
           el.select();
-          const near = el.isNode() ? el.closedNeighborhood() : el.union(el.connectedNodes());
+          let near = el.isNode() ? el.closedNeighborhood() : el.union(el.connectedNodes());
+          near = near.union(near.parents());
           cyi.elements().not(near).addClass("faded");
           if (center) { cyi.fit(near, 60); if (cyi.zoom() > 1.4) cyi.zoom({ level: 1.4, position: el.isNode() ? el.position() : el.midpoint() }); }
         }
@@ -385,16 +449,22 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
         if (r.hets) h += `<dt>Hets</dt><dd>${hetsText(r)}</dd>`;
         h += `</dl>` + (r.doc ? `<p class="muted" style="white-space:pre-wrap">${ui.esc(r.doc.length > 600 ? r.doc.slice(0, 600) + "…" : r.doc)}</p>` : "") +
           `<p><a href="#/${r.kind}/${encodeURIComponent(r.name)}">Open the ${ui.esc(r.kind)}'s page</a></p>`;
+        if (b && b.members.length > 1) h += `<p class="muted">One of ${b.members.length} parallel ${ui.esc(b.kind)}s drawn as one edge: ` +
+          b.members.map((m) => `<a href="#/logic-graph/${encodeURIComponent(m.id)}" data-sel="${ui.esc(m.id)}">${ui.esc(short(m.name))}</a>`).join(", ") + `</p>`;
         if (el.length === 0) h = `<p class="note">Not drawn with the current filters.</p>` + h;
         side.innerHTML = h;
       };
+      side.addEventListener("click", (e) => { const a = e.target.closest && e.target.closest("a[data-sel]"); if (!a) return; e.preventDefault(); select(a.dataset.sel, false); });
       const search = () => {
         if (!cyi) return;
         cyi.elements().removeClass("hit");
         const words = state.q.toLowerCase().split(/\s+/).filter(Boolean);
         if (!words.length) return;
-        const hits = cyi.elements().filter((el) => { const r = all[el.id()]; if (!r) return false;
-          const t = [r.name, r.title, r.decl, r.hets, r.module, r.doc].join(" ").toLowerCase(); return words.every((w) => t.includes(w)); });
+        const text = (r) => [r.name, r.title, r.decl, r.hets, r.module, r.doc].join(" ").toLowerCase();
+        const hits = cyi.elements().filter((el) => {   // region boxes are not records; a bundle matches when one of its edges does
+          const b = [...bundles.values()].find((x) => x.id === el.id());
+          const rs = b ? b.members : all[el.id()] ? [all[el.id()]] : [];
+          return rs.some((r) => words.every((w) => text(r).includes(w))); });
         hits.addClass("hit");
         document.getElementById("lg-count").textContent += ` · ${hits.length} match${hits.length === 1 ? "" : "es"}`;
       };
@@ -416,10 +486,12 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
         }
         select(id, true);
       });
-      $id("lg-fit").addEventListener("click", () => cyi && cyi.fit(undefined, 24));
+      $id("lg-fit").addEventListener("click", fit);
       $id("lg-zin").addEventListener("click", () => cyi && cyi.zoom({ level: cyi.zoom() * 1.25, renderedPosition: { x: cyi.width() / 2, y: cyi.height() / 2 } }));
       $id("lg-zout").addEventListener("click", () => cyi && cyi.zoom({ level: cyi.zoom() / 1.25, renderedPosition: { x: cyi.width() / 2, y: cyi.height() / 2 } }));
-      $id("lg-dir").addEventListener("click", (e) => { state.dir = state.dir === "LR" ? "TB" : "LR"; e.target.textContent = state.dir === "TB" ? "↓ top-down" : "→ left-right"; writeUrl(); draw(); });
+      $id("lg-layout").addEventListener("change", (e) => { state.layout = e.target.value;
+        if (state.layout === "layered") { state.group = false; $id("lg-group").checked = false; } writeUrl(); draw(); });
+      $id("lg-group").addEventListener("change", (e) => { state.group = e.target.checked; writeUrl(); draw(); });
       $id("lg-reset").addEventListener("click", () => { location.hash = "#/logic-graph"; });
       // keyboard: + / − zoom, 0 fits, Escape clears the selection
       $id("lgcy").addEventListener("keydown", (e) => {
@@ -455,14 +527,19 @@ not in this repository yet. None of them says that this repository covers Hets.<
       const tot = (k) => cov.reduce((n, r) => n + (r[k] || 0), 0);
       h += `<p class="muted">Every declaration under <code>${ui.esc(scope.map((s) => s.scope).join(", "))}</code> reachable from <code>${ui.esc(scope.map((s) => s.module).join(", "))}</code>
 that is not a theorem and whose type, after its binders, is an institution, comorphism, morphism, room or corridor. A family (arity &gt; 0) is
-registered as a family. Proofs and Raw declarations are implementation detail and are counted apart.</p>
-<div class="lg-stats">${[["declarations", tot("declarations")], ["registered", tot("registered")], ["omitted", tot("omitted")], ["closed (arity 0)", tot("closed")]]
+registered as a family. <b>Generic</b> declarations are constructions over an arbitrary institution, room or map (a binder ranges over them,
+as in theories <code>Inst.th A</code> or identities <code>CoHom.id A</code>): they are not nodes or edges, and the registry rejects them.
+Other omissions are declarations of Raw modules reached through public imports (not an API), and edges whose endpoint is not a registered
+declaration (an unnamed term such as <code>Inst.th FOL.inst</code> or a structure field). Proofs modules are not imported and not audited.</p>
+<div class="lg-stats">${[["declarations", tot("declarations")], ["registered", tot("registered")], ["omitted", tot("omitted")], ["generic constructions", tot("generic")], ["closed (arity 0)", tot("closed")]]
   .map(([k, v]) => `<div class="lg-stat"><b>${v}</b><span>${k}</span></div>`).join("")}</div>`;
-      h += await ui.table(cov, ["object", "layer", "declarations", "closed", "registered", "omitted"]);
-      const om = await ctx.q("SELECT name, decl, object, arity, decl_module, layer FROM logic_audit WHERE registered IS NULL ORDER BY layer, object, decl LIMIT " + LIMIT);
+      h += await ui.table(cov, ["object", "layer", "declarations", "closed", "generic", "registered", "omitted", "omitted_generic"],
+        { label: { omitted: "omitted (not generic)", omitted_generic: "omitted generic" } });
+      const om = await ctx.q("SELECT name, decl, object, arity, generic, decl_module, layer FROM logic_audit WHERE registered IS NULL ORDER BY generic, layer, object, decl LIMIT " + LIMIT);
       const g = grid("lg-omitted", om, [
         { key: "object", label: "kind" }, { key: "decl", label: "declaration", html: (r) => code(r.decl) + " " + src(r.decl_module, r.decl) },
-        { key: "arity", label: "arity", num: true }, { key: "layer", label: "layer" }, { key: "decl_module", label: "module" }],
+        { key: "generic", label: "why", text: (r) => r.generic ? "generic construction" : r.layer === "raw" ? "in a Raw module (not an API)" : "an endpoint is not a registered declaration" },
+        { key: "arity", label: "arity", num: true }, { key: "decl_module", label: "module" }],
         { q: p.get("object") || "", empty: "Nothing is omitted." });
       h += `<h4>Omitted declarations (${om.length})</h4>` + g.html;
       var initOmitted = g.init;
@@ -503,7 +580,7 @@ A record relates to one by its own claim: <b>corresponds</b>, <b>fragment</b> or
     else {
       h += `<p class="muted">Lean developments of these families exist outside this repository and are being contributed in reviewed batches.
 Until a family lands here, nothing in it is registered, and nothing here claims it.</p>`;
-      h += await ui.table(pend, ["title", "nodes", "edges", "status", "doc"], { nowrap: ["nodes", "edges", "status"] });
+      h += await ui.table(pend, ["title", "nodes", "edges", "status"], { nowrap: ["nodes", "edges", "status"] });
     }
     return { html: h, init: () => { if (initOmitted) initOmitted(); if (initHets) initHets(); } };
   }
