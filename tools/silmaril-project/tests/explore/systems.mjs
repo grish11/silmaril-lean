@@ -64,6 +64,7 @@ try {
   const dl = await p.evaluate(() => document.querySelector("#main dl").textContent);
   check(await p.evaluate(() => /^All \d+ of \d+ expected statuses met/.test(document.querySelector("p.expectations").textContent)),
     "the expectations line: all met, kept apart from truth");
+  check(await p.evaluate(() => document.querySelector("p.expectations").dataset.allMet === "true"), "the shared expectationSummary says allMet");
   check(/erasure of a witness system/.test(dl) && /Consequence\.Deriv/.test(dl) && /used by/.test(dl), "definition, construction, witness system, used by");
   const judgments = await rows("#system-judgments");
   const ps = [...judgments, ...(await rows("#system-problems"))];
@@ -79,7 +80,7 @@ try {
   check(/THM/.test(row("p_derives_r")[4]) && /holds in/.test(row("p_derives_r")[5]), "p ⊢ r: THM, holds");
   const rp = await p.evaluate((n) => { const a = [...document.querySelectorAll("#system-judgments a, #system-problems a")].find((x) => x.textContent === n);
     const st = a.closest("tr").querySelector(".st"); return { code: st.dataset.code, outcome: st.dataset.outcome, title: st.title }; }, S + "r_derives_p");
-  check(rp.code === "UNS" && rp.outcome === "match" && /closed proposition: false/.test(rp.title) && /does not hold/.test(row("r_derives_p")[5]),
+  check(rp.code === "UNS" && rp.outcome === "match" && /closed proposition: false/.test(rp.title) && /established: .*CSA/.test(rp.title) && /does not hold/.test(row("r_derives_p")[5]),
     `r ⊢ p: a closed refutation, stored UNS, expected, false, does not hold (${JSON.stringify(rp)})`);
   check(/sound for/.test(row("derivable_sound")[5]) && /T = .*entails/.test(row("derivable_sound")[3]), "soundness for entails");
   check(/CSA/.test(row("derivable_complete")[4]) && /✓/.test(row("derivable_complete")[4]) && /not complete/.test(row("derivable_complete")[5]) &&

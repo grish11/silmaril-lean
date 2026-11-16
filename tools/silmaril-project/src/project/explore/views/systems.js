@@ -67,15 +67,15 @@
   // The argument roles of each shape that a reading can leave free.
   const FREE_ROLES = ["ctx", "phi"];
 
-  // The outcome: the shared status badge (which compares the stored code with the expected
-  // status; for a closed problem by truth value), or "unknown" when there is no answer.
-  function outcome(p) {
-    if (!p.summary || p.summary === "OPN" || p.summary === "UNK") {
-      return ui.badge("unknown", p.expect && p.expect !== "OPN" ? `unknown (expected ${p.expect})` : "unknown");
-    }
-    return ui.statusBadge({ summary: p.summary, verdict: p.verdict, expect: p.expect || null, arity: p.arity,
-      deprecated: p.deprecated ? "self" : null });
-  }
+  // A problem row as the shared status API reads it: its summary (no answer is OPN, unknown, never
+  // false), expectation, arity and its established statuses (the `statuses` table, with the
+  // arity-0 closure THM ⇒ SAT, UNS ⇒ CSA), so that expectations are compared as the checker does.
+  const statusOfRow = (p) => ({ summary: p.summary || "OPN", verdict: p.verdict || "unknown", expect: p.expect || null,
+    arity: p.arity, established: p.established ? p.established.split(",") : [], deprecated: p.deprecated ? "self" : null });
+  const outcome = (p) => ui.statusBadge(statusOfRow(p));
+  // The established statuses of a problem, as a comma-separated list (SQL).
+  const ESTABLISHED = "(SELECT group_concat(st.status, ',') FROM statuses st WHERE st.problem = p.name) AS established";
+
   function fill(t, args) {
     return t.replace(/\{(S|T|ctx|phi|ff|f|g)\}/g, (_, k) => args[k] || ({ S: "S", T: "T", ctx: "Γ", phi: "φ", ff: "ff", f: "f", g: "g" })[k]);
   }
@@ -108,23 +108,18 @@
     return out;
   }
 
-  // Expectations, apart from truth: how many problems with an expected status meet it (an
-  // expected negative result counts as met), are still unknown, or contradict it (the shared
-  // `statusInfo` outcome).
-  function tally(list) {
-    const n = { match: 0, pending: 0, mismatch: 0, error: 0, none: 0 };
-    for (const p of list) {
-      const i = p.summary ? ui.statusInfo({ summary: p.summary, verdict: p.verdict, expect: p.expect || null, arity: p.arity }) : null;
-      n[i ? i.outcome : p.expect && p.expect !== "OPN" ? "pending" : "none"]++;
-    }
-    return n;
-  }
+  // Expectations, apart from truth (ui.expectationSummary): met, unexpected, not established, or
+  // without an expectation. "All met" needs every problem to have an expectation that is met; an
+  // unknown or unset one never counts as met. This counts expectations; it is not a statement
+  // about the problems, nor a proof of their conjunction.
+  const summarize = (list) => ui.expectationSummary(list.map(statusOfRow));
   function expectations(list) {
-    const n = tally(list), with_ = n.match + n.pending + n.mismatch + n.error;
-    if (!with_) return `<p class="muted">No problem here states an expected status.</p>`;
-    const all = n.match === with_;
-    return `<p class="expectations">${all ? "All " : ""}${n.match} of ${with_} expected statuses met` +
-      (n.pending ? `, ${n.pending} not established yet` : "") + (n.mismatch + n.error ? `, <b>${n.mismatch + n.error} unexpected</b>` : "") +
+    const n = summarize(list), bad = n.mismatch + n.error;
+    const parts = [`${n.met} of ${n.total} expected statuses met`];
+    if (n.pending) parts.push(`${n.pending} not established yet`);
+    if (n.unset) parts.push(`${n.unset} without an expected status`);
+    if (bad) parts.push(`<b>${bad} unexpected</b>`);
+    return `<p class="expectations" data-all-met="${n.allMet}">${n.allMet ? "All " : ""}${parts.join(", ")}` +
       `<span class="muted"> — whether the project's expectations hold, not whether the statements are true: an expected
 refutation that is refuted counts as met.</span></p>`;
   }
@@ -137,7 +132,7 @@ refutation that is refuted counts as met.</span></p>`;
       "FROM consequence_systems c ORDER BY c.name LIMIT " + (LIMIT + 1));
     // the problems of each system, once each (a problem naming it as S and as T counts once)
     const probs = new Map();
-    for (const r of await ctx.q("SELECT DISTINCT cp.system, cp.problem, cp.expect, cp.summary, cp.verdict, p.arity " +
+    for (const r of await ctx.q("SELECT DISTINCT cp.system, cp.problem, cp.expect, cp.summary, cp.verdict, p.arity, " + ESTABLISHED + " " +
         "FROM consequence_problems cp JOIN problems p ON p.name = cp.problem LIMIT 20000")) {
       if (!probs.has(r.system)) probs.set(r.system, []);
       probs.get(r.system).push(r);
@@ -148,7 +143,7 @@ refutation that is refuted counts as met.</span></p>`;
 implicit</b>: a system is reflexive, monotone or closed under cut only if a proof below says so. Every property is a problem
 with Lean answers; a problem with no answer is <b>unknown</b>, not false.</p>
 <div class="tablebox"><table id="systems-table"><thead><tr><th>system</th><th>title</th><th>construction</th><th>contexts → conclusions</th>
-<th title="closed judgments: true / false / unknown">judgments</th><th title="problems with free arguments">questions</th><th title="expected statuses met / stated">expectations</th></tr></thead><tbody>`;
+<th title="closed judgments: true / false / unknown">judgments</th><th title="problems with free arguments">questions</th><th title="expected statuses met / problems (unknown or unset is not met)">expectations</th></tr></thead><tbody>`;
     for (const r of rows.slice(0, LIMIT)) {
       const how = r.op === "erase" ? `erase of ${term(r.witness)}` : r.op === "decl" ? term(r.decl)
         : `${ui.esc(r.op)} of ${r.n_operands} systems`;
@@ -156,11 +151,11 @@ with Lean answers; a problem with no answer is <b>unknown</b>, not false.</p>
       const cl = ps.filter((p) => p.arity === 0);
       const tru = cl.filter((p) => p.summary === "THM" || p.summary === "SAT").length;
       const fal = cl.filter((p) => p.summary === "UNS" || p.summary === "CSA").length;
-      const n = tally(ps), stated = n.match + n.pending + n.mismatch + n.error;
+      const n = summarize(ps), bad = n.mismatch + n.error;
       h += `<tr><td>${sysLink(r.name)}</td><td>${ui.esc(r.title || "")}</td><td>${how}</td>` +
         `<td>${term(r.contexts)} → ${term(r.conclusions)}</td>` +
         `<td>${cl.length ? `${tru} / ${fal} / ${cl.length - tru - fal}` : ""}</td><td>${ps.length - cl.length || ""}</td>` +
-        `<td>${stated ? `${n.match} / ${stated}${n.mismatch + n.error ? ` <b>(${n.mismatch + n.error} unexpected)</b>` : ""}` : ""}</td></tr>`;
+        `<td>${n.total ? `${n.met} / ${n.total}${bad ? ` <b>(${bad} unexpected)</b>` : ""}` : ""}</td></tr>`;
     }
     h += `</tbody></table></div>`;
     if (rows.length > LIMIT) h += `<p class="muted">showing the first ${LIMIT}; use the SQL tab for the rest</p>`;
@@ -207,7 +202,7 @@ met, which is not the same as true. Constructions name their operands on the sys
     h += `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
 
     const ps = await ctx.q(
-      "SELECT cp.problem, cp.shape, cp.role, cp.expect, cp.title, cp.summary, cp.verdict, p.arity, " +
+      "SELECT cp.problem, cp.shape, cp.role, cp.expect, cp.title, cp.summary, cp.verdict, p.arity, " + ESTABLISHED + ", " +
       "(SELECT group_concat(r.role, ' ') FROM consequence_shape_roles r WHERE r.shape = cp.shape) AS roles, " +
       "(SELECT 1 FROM deprecated_problems d WHERE d.problem = cp.problem LIMIT 1) AS deprecated " +
       "FROM consequence_problems cp JOIN problems p ON p.name = cp.problem " +
