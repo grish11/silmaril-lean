@@ -196,6 +196,8 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Plays of threaded sequencing and iteration; `seqS` determinism; strength with iteration | `SessionIter2.det_seqS`, `frameS_iterS`, `mem_div_seqS`, `mem_div_iterS`, `mem_inf_seqS`, `mem_inf_iterS`, `mem_pending_seqS`, `mem_pending_iterS` | pending: `Total u`/`Admissible`; inf: `AFun.Det` | #741 |
 | Uniformity along finitely-branching silent maps (classification complete) | `FullFun.iter_uniform_silent_finite`, `CanonStrat.iter_uniform_silent_finite` (König's lemma) | `SilentFinNoTrap h` | #742 |
 | Exact `div`/`inf` of `atSizes`; `ext`; per-layer `Comp.denD` | `DWiringLaws.chatter_iff`, `div_atSizes_iff`, `inf_atSizes_iff`, `div_ext`, `inf_ext`, `div_denD`, `div_dcoreNode`, `div_node_inst` | none | #743 |
+| Chatter of a composite; closed-form `ext` chatter | `DStrategy.InfInteraction.chatter_iff`, `div_comp_eq`, `chatter_comp_right_iff`/`left_iff`, `chatter_extTop_iff`, `div_ext_eq` | none | #747 |
+| Pending plays of a threaded loop with a total body; iteration preserves totality | `SessionIter3.total_iterT`, `mem_satP_iterS_of_total`, `mem_pending_iterS_of_total`, `satP_iterS_subset` (no hypothesis) | `Total t` | #748 |
 
 ### Counterexamples (why a hypothesis cannot be dropped)
 
@@ -213,15 +215,15 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Linking preserves `AFun.Det` | `SessionLinkCex.not_det_linkS_may` | `RetDet` is preserved (`retDet_linkS`) |
 | Uniformity along infinitely-branching silent maps | `FullFun.not_iter_uniform_infinite` | finite branching (`iter_uniform_silent_finite`) |
 | Prefix-limit threading is coherent | `StratThreadW.threadW_ne_threadT`, `exists_inf_not_witnessed` | witness threading `threadW`/`threadSW` |
+| Call prefixes of `iterS` without totality | `SessionIter3.not_contSatP_subset` | `Total t` (`mem_satP_iterS_of_total`) |
 
 ### Open (classified)
 
 | Gap | Kind | Notes |
 |---|---|---|
 | Associativity and units as literal triple equalities | in progress | proved at strategy level and as `ObsEq` (#727) |
-| Closed-form divergence of the whole `Comp.denD` | in progress | per-layer laws done (#743); the remaining clause is chatter between two non-handler composites |
-| Pending plays of `threadS (iterS t)` for a merely `Total` body | proofs | admissible bodies done (#741) |
-| n-module linking and shared stores | waiting on the concrete owner's types | asked on #207 |
+| `ext` chatter read directly as interleaved `D`/`N` plays (through `splitH`) | refinement | closed form via `chatter_extTop_iff` done (#747); three-way plays-level forms are not possible as such (the interleaving is not determined by the plays) |
+| n-module linking; `Linked2.compTripleS` vs `linkS (instTripleS A) (instTripleS B)` | concrete (0e76ca84), accepted on #207 | `Linked2` finite/div/inf adequacy and `compSession_inj_full` are on main (0e76ca84) |
 | Component injection for linked components with imports | concrete (0e76ca84) | #680 covers simple components without imports |
 
 ## Servers seam (stage 10)
