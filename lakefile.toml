@@ -717,3 +717,9 @@ supportInterpreter = true
 name = "elf-staged"
 root = "ElfStaged"
 srcDir = "tools/elf-staged"
+
+# The explorer's ELF tab data (tools/elf-pages, docs/projects/elf-reader.md).
+[[lean_exe]]
+name = "elf-pages"
+root = "ElfPages"
+srcDir = "tools/elf-pages"
