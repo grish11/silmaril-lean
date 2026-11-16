@@ -9,3 +9,4 @@ __pycache__/
 /tools/syswrap-gen/target/
 /tools/cfg-cert/target/
 /tools/wasm-sim/target/
+/tools/x86-difftest/out/
