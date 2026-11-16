@@ -59,7 +59,7 @@ formal correspondence to `comp_threadS` is not stated here.
 (`sessDivs ⊆ refDivs`). It is proved for adequate components, from `Linked2.Adequate` alone
 (`Linked2.divSpecToRef`, `Silmaril.Wasm.Component.Reference.LinkedSessionDiv.Thms`), for all three
 sources. The converse (reference divergence to specification divergence, as #680's
-`divAt_of_callDiverges`) is open.
+`divAt_of_callDiverges`) is `Linked2.divRefToSpec` (`Reference.LinkedSessionDivInv`).
 
 **Not covered.** Host observations: within `Linked2` every import of B is wired to A, so
 `l.toRef` has no host imports and `linkHost impl` is never called; a parent that also passes host

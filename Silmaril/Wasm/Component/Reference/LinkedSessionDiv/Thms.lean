@@ -38,11 +38,10 @@ diverges inside a served call (`Linked2.DivA`), the client makes infinitely many
 
 **Not claimed.**
 
-* The converse `refDivs ⊆ sessDivs` (so `sessDivs = refDivs`, as `sessDivs_eq_refDivs` for
-  `Simple`): a machine divergence inside a linked call must be classified by whether the machine
-  eventually stays in B's core activation, stays in A's, or crosses the link infinitely often;
-  this needs an inversion of infinite runs of the linked call (the infinite counterpart of
-  `lsegs_inv`) and is open.
+* The converse `refDivs ⊆ sessDivs` is proved in `Reference.LinkedSessionDivInv`
+  (`Linked2.divRefToSpec`, hence `Linked2.sessDivs_eq_refDivs`): a machine divergence inside a
+  linked call stays in B's core activation, diverges in A's, or crosses the link infinitely
+  often.
 * Host observations: within `Linked2`, `l.toRef` has no host imports; a parent passing host
   imports to B (`linkedHRef`) is not covered.
 * Productive (infinite) linked executions come next, through `mem_inf_linkS_iff_of_det` (#706).
