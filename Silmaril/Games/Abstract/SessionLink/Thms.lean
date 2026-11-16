@@ -6,6 +6,7 @@ public import Silmaril.Games.DivComp.Defs
 import Silmaril.Proofs.Games.Abstract.SessionLink.Plays
 import Silmaril.Proofs.Games.Abstract.SessionLink.Div
 import Silmaril.Proofs.Games.Abstract.SessionLink.InfBwd
+import Silmaril.Proofs.Games.Abstract.SessionLink.Det
 
 /-!
 # Linking sessions: theorems
@@ -39,6 +40,13 @@ concatenated interactions of its rounds. Coherence is needed: the hidden interac
 linked round must extend that of the previous rounds, and without store determinism the linked
 session's infinite plays need only every finite prefix of rounds to be completed
 (`StratSession.mem_inf_iff`).
+
+**Determinism.** If the server and the client are deterministic given answers (`AFun.Det` of
+their finished behaviours), the linked triple is store-deterministic (`storeDet_linkS`), so the
+linked session has coherent infinite plays (`mem_inf_linkS_iff_of_det`). The linked triple itself
+need not be `AFun.Det`: `AFun.Det u.1` does not relate the client's finished behaviours to its
+pending calls, so a client that may return at once or call `a` gives, against a server diverging at
+`a`, a linked return and a linked divergence with the same empty log.
 
 `NoPlainTrap t` is needed: a plain trap of the server answers `.inr ()` and kills the server
 session, so a later call of the client is never answered, which the store `S × S'` cannot record.
@@ -80,5 +88,19 @@ linked triple. -/
 theorem inf_linkS_subset (hL : StoreDet (linkS t u)) (s₀ : S) (s₀' : S') :
     (threadS (linkS t u) (s₀, s₀')).inf ⊆ ((threadS t s₀).comp (threadS u s₀')).inf :=
   fun _ => Silmaril.Proofs.Games.Abstract.SessionLink.inf_bwd hL
+
+/-- **Deterministic components give a store-deterministic linked triple.** -/
+theorem storeDet_linkS (ht : AFun.Det t.1) (hu : AFun.Det u.1) : StoreDet (linkS t u) :=
+  Silmaril.Proofs.Games.Abstract.SessionLink.storeDet_linkS ht hu
+
+/-- **Linked deterministic components have coherent infinite plays**: a stream after completed
+linked rounds, or the play of a coherent infinite sequence of linked rounds. -/
+theorem mem_inf_linkS_iff_of_det (ht : AFun.Det t.1) (hu : AFun.Det u.1) {σ₀ : S × S'}
+    {I : Set (List (Move E (sig1 A' B')))} :
+    I ∈ (threadS (linkS t u) σ₀).inf ↔
+      (∃ rs σ a ω, Rounds (linkS t u) σ₀ rs σ ∧ ω ∈ (linkS t u).2.2 σ a ∧
+        I = streamPlay (sroundsMoves rs) a ω) ∨
+      ∃ a r st, InfRounds (linkS t u) σ₀ a r st ∧ I = sroundsPlay a r :=
+  mem_inf_iff_of_storeDet (storeDet_linkS ht hu)
 
 end Silmaril.Games.Abstract.SessionLink
