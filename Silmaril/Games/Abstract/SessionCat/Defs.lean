@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Games.Abstract.SessionLink.Defs
+public import Silmaril.Games.Abstract.StratOps.Defs
 
 /-!
 # Session-level category laws: definitions
@@ -35,6 +36,15 @@ question, and it has no productive stream.
 `pairAns L₁ L₂` is the legality of the answers of a paired session (`StratSession.pairS`).
 `legalPart L t` keeps the observations of `t` whose logs are legal, on the same interface (a
 filter, where `StratLegal.restrict` transports them to the legal interface).
+
+**Sequencing within a round, with store-retaining traps.** For session triples on one store,
+`seqS t u` runs `t`, then `u` on its value; a continuing trap `.ret (.inr ()) s₁` of `t` aborts
+the round with the store `s₁` (`trapS`), a plain trap or a divergence of `t` is kept. It is
+`StratOps.seqT` after the copairing `caseT u trapS`: the Kleisli sequencing of the exception
+monad `· ⊕ PUnit`. Its unit is `retS`, returning the argument as a value.
+
+**Store strength.** `frameS S' t : ObsTriple E (S × S') A B` runs `t` on the first store
+component and leaves the second untouched (`frameEnd`).
 
 Theorems in `Silmaril.Games.Abstract.SessionCat.Thms`.
 -/
@@ -88,5 +98,33 @@ def pairAns {A₁ A₂ B₁ B₂ : Type u} (L₁ : A₁ → B₁ ⊕ PUnit.{u + 
     (L₂ : A₂ → B₂ ⊕ PUnit.{u + 1} → Prop) : A₁ ⊕ A₂ → (B₁ ⊕ B₂) ⊕ PUnit.{u + 1} → Prop
   | .inl a, x => ∃ y, L₁ a y ∧ x = Sum.map .inl id y
   | .inr a, x => ∃ y, L₂ a y ∧ x = Sum.map .inr id y
+
+/-! ## Sequencing and strength -/
+
+open StratOps
+
+/-- **The unit of session sequencing**: return the argument as a value, in the same store. -/
+def retS : ObsTriple E S A (A ⊕ PUnit.{u + 1}) := mapT pureT Sum.inl
+
+/-- **The trap continuation**: a continuing trap, in the same store. -/
+def trapS : ObsTriple E S PUnit.{u + 1} (B ⊕ PUnit.{u + 1}) := mapT pureT Sum.inr
+
+/-- **Session sequencing within a round**: run `t`, then `u` on its value; a continuing trap of
+`t` aborts the round, keeping its store. -/
+def seqS {C : Type u} (t : ObsTriple E S A (B ⊕ PUnit.{u + 1}))
+    (u : ObsTriple E S B (C ⊕ PUnit.{u + 1})) : ObsTriple E S A (C ⊕ PUnit.{u + 1}) :=
+  seqT t (caseT u trapS)
+
+/-- The end of a framed round: the second store component is kept. -/
+def frameEnd {S' : Type u} (s' : S') : End S B → End (S × S') B
+  | .ret b s => .ret b (s, s')
+  | .trap => .trap
+  | .div => .div
+
+/-- **Store strength**: run `t` on the first store component, the second untouched. -/
+def frameS (S' : Type u) (t : ObsTriple E S A B) : ObsTriple E (S × S') A B :=
+  (fun σ a => (fun x => (x.1, frameEnd σ.2 x.2)) '' t.1 σ.1 a,
+    fun σ a => t.2.1 σ.1 a,
+    fun σ a => t.2.2 σ.1 a)
 
 end Silmaril.Games.Abstract.SessionCat

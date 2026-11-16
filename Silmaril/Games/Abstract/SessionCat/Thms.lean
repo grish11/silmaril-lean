@@ -8,6 +8,7 @@ import Silmaril.Proofs.Games.Abstract.SessionCat.Det
 import Silmaril.Proofs.Games.Abstract.SessionCat.Assoc
 import Silmaril.Proofs.Games.Abstract.SessionCat.Unit
 import Silmaril.Proofs.Games.Abstract.SessionCat.Legal
+import Silmaril.Proofs.Games.Abstract.SessionCat.Seq
 
 /-!
 # Session-level category laws: theorems
@@ -54,6 +55,13 @@ of it when it is the server (`linkS t idS`) or for the equivalence of triples.
   (`pairAns`);
 * `toDStratL_legalPart`: the legal play object of `StratLegal` sees only the legal part,
   `StratLegal.toDStratL L (legalPart L t) = StratLegal.toDStratL L t`.
+
+**Sequencing within a round** (no hypotheses): `mem_seqS` — a continuing trap of the first part
+aborts the round keeping its store, a plain trap or divergence is kept, and a value continues with
+the second part; `seqS_assoc`, `seqS_retS`, `retS_seqS` — associativity and units. **Store
+strength** (no hypotheses): `frameS` preserves sequencing and its unit (`frameS_seqS`,
+`frameS_retS`), and the underlying operations (`frameS_seqT`, `frameS_pureT`, `frameS_mapT`,
+`frameS_caseT`).
 -/
 
 public section
@@ -193,5 +201,70 @@ theorem ansLegal_pairS {L₁ : A₁ → B₁ ⊕ PUnit.{u + 1} → Prop} {L₂ :
   Silmaril.Proofs.Games.Abstract.SessionCat.ansLegal_pairS h₁ h₂
 
 end Legal
+
+/-! ## Sequencing and strength -/
+
+section Seq
+
+open StratOps
+
+variable {S S' A B C D : Type u}
+
+/-- **A round of a sequence**: a plain trap or divergence of `t`, a continuing trap of `t`
+(aborting the round, keeping its store), or a value of `t` continued by `u`. -/
+theorem mem_seqS {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})} {u : ObsTriple E S B (C ⊕ PUnit.{u + 1})}
+    {s : S} {a : A} {x : List (Call E) × End S (C ⊕ PUnit.{u + 1})} :
+    x ∈ (seqS t u).1 s a ↔ (∃ c, (c, End.trap) ∈ t.1 s a ∧ x = (c, End.trap)) ∨
+      (∃ c, (c, End.div) ∈ t.1 s a ∧ x = (c, End.div)) ∨
+      (∃ c s₁, (c, End.ret (.inr PUnit.unit) s₁) ∈ t.1 s a ∧
+        x = (c, End.ret (.inr PUnit.unit) s₁)) ∨
+      ∃ c₁ b s₁ c₂ e, (c₁, End.ret (.inl b) s₁) ∈ t.1 s a ∧ (c₂, e) ∈ u.1 s₁ b ∧
+        x = (c₁ ++ c₂, e) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.mem_seqS
+
+/-- **Session sequencing is associative.** -/
+theorem seqS_assoc (t : ObsTriple E S A (B ⊕ PUnit.{u + 1}))
+    (u : ObsTriple E S B (C ⊕ PUnit.{u + 1})) (v : ObsTriple E S C (D ⊕ PUnit.{u + 1})) :
+    seqS (seqS t u) v = seqS t (seqS u v) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.seqS_assoc t u v
+
+/-- `retS` is a right unit. -/
+theorem seqS_retS (t : ObsTriple E S A (B ⊕ PUnit.{u + 1})) : seqS t retS = t :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.seqS_retS t
+
+/-- `retS` is a left unit. -/
+theorem retS_seqS (u : ObsTriple E S A (B ⊕ PUnit.{u + 1})) : seqS retS u = u :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.retS_seqS u
+
+/-- **Strength preserves sequencing of triples.** -/
+theorem frameS_seqT (t : ObsTriple E S A B) (u : ObsTriple E S B C) :
+    frameS S' (seqT t u) = seqT (frameS S' t) (frameS S' u) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.frameS_seqT t u
+
+/-- Strength preserves the identity. -/
+theorem frameS_pureT : frameS S' (pureT : ObsTriple E S A A) = pureT :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.frameS_pureT
+
+/-- Strength commutes with pure maps. -/
+theorem frameS_mapT (t : ObsTriple E S A B) (h : B → C) :
+    frameS S' (mapT t h) = mapT (frameS S' t) h :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.frameS_mapT t h
+
+/-- Strength commutes with copairing. -/
+theorem frameS_caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) :
+    frameS S' (caseT t u) = caseT (frameS S' t) (frameS S' u) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.frameS_caseT t u
+
+/-- **Strength preserves the unit of session sequencing.** -/
+theorem frameS_retS : frameS S' (retS : ObsTriple E S A (A ⊕ PUnit.{u + 1})) = retS :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.frameS_retS
+
+/-- **Strength preserves session sequencing.** -/
+theorem frameS_seqS (t : ObsTriple E S A (B ⊕ PUnit.{u + 1}))
+    (u : ObsTriple E S B (C ⊕ PUnit.{u + 1})) :
+    frameS S' (seqS t u) = seqS (frameS S' t) (frameS S' u) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.frameS_seqS t u
+
+end Seq
 
 end Silmaril.Games.Abstract.SessionCat
