@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Games.DPair.Defs
+public import Silmaril.Games.DivComp.Defs
 import Silmaril.Proofs.Games.DPair.Basic
 
 /-!
@@ -134,6 +135,13 @@ the pairing. -/
 theorem pair_ofStrategy (σ₁ : Strategy E F₁) (σ₂ : Strategy E F₂) :
     (ofStrategy σ₁).pair (ofStrategy σ₂) = ofStrategy (σ₁.pair σ₂) :=
   Silmaril.Proofs.Games.DPair.pair_ofStrategy σ₁ σ₂
+
+/-- Copycat never diverges. -/
+@[simp] theorem div_id (E : Sig.{u}) : (DStrategy.id E).div = ∅ := rfl
+
+/-- The infinite plays of copycat: every infinite trace of copycat plays. -/
+theorem mem_inf_id {I : Set (List (Move E E))} :
+    I ∈ (DStrategy.id E).inf ↔ IsInfPlay I ∧ I ⊆ (Strategy.id E).plays := Iff.rfl
 
 end DStrategy
 
