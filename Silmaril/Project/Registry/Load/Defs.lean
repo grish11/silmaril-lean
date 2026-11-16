@@ -70,6 +70,8 @@ def recordsSchema : String := "silmaril.records.v0.2"
 `RECORD_KINDS` in `tools/silmaril-project/src/project/schema/records.rs` (a Rust test compares the two). -/
 def loadKinds : List String :=
   ["artifact_type", "format", "format_default", "format_law", "value", "model", "spec", "room",
+    "institution", "comorphism", "morphism", "corridor", "hets_logic", "hets_comorphism",
+    "logic_pending", "logic_catalogue", "logic_exclusion",
     "machine", "machine_binding", "instance", "tasks", "judgement", "detached", "deprecation",
     "finding", "expected_open", "decomposition", "refutation_route", "group", "children"]
 

@@ -505,6 +505,84 @@ theorem call_inv_of {s : Store H} {f : Frame} {c : Config H} {x : FuncIdx} {a : 
   obtain rfl : fi' = fi := Option.some.inj (hf'.symm.trans hf)
   rfl
 
+/-- **A `call_ref` step, by its reference**: on null it traps in place; otherwise the reference
+is to a function in the store. -/
+theorem callRef_top_inv {c c' : Config H} (h : Step P host c c') :
+    ∀ {vs : List Val} {r : Admin}, r.IsCallRef → c.code = vals vs ++ [r] →
+      (∃ ws, vs = ws ++ [.ref .null] ∧ c' = ⟨c.store, c.frame, vals ws ++ [.trap]⟩) ∨
+        ∃ ws a fi, vs = ws ++ [.ref (.func a)] ∧ c.store.funcs[a]? = some fi := by
+  induction h with
+  | @callRefFunc _ _ cr vs' a' _ _ _ _ hr' hf' =>
+    intro vs r hr hc
+    have hc' : vals vs ++ r :: [] = vals (vs' ++ [.ref (.func a')]) ++ cr :: [] := by
+      simpa [vals, Val.toAdmin] using hc.symm
+    obtain ⟨rfl, rfl, -⟩ := Sim.vals_append_cons_inj (Admin.val?_of_isCallRef hr)
+      (Admin.val?_of_isCallRef hr') hc'
+    exact .inr ⟨_, _, _, rfl, hf'⟩
+  | @callRefHost _ _ _ cr vs' a' _ _ _ _ _ hr' hf' =>
+    intro vs r hr hc
+    have hc' : vals vs ++ r :: [] = vals (vs' ++ [.ref (.func a')]) ++ cr :: [] := by
+      simpa [vals, Val.toAdmin] using hc.symm
+    obtain ⟨rfl, rfl, -⟩ := Sim.vals_append_cons_inj (Admin.val?_of_isCallRef hr)
+      (Admin.val?_of_isCallRef hr') hc'
+    exact .inr ⟨_, _, _, rfl, hf'⟩
+  | @callRefHostDiv _ _ cr vs' a' _ _ _ _ hr' hf' =>
+    intro vs r hr hc
+    have hc' : vals vs ++ r :: [] = vals (vs' ++ [.ref (.func a')]) ++ cr :: [] := by
+      simpa [vals, Val.toAdmin] using hc.symm
+    obtain ⟨rfl, rfl, -⟩ := Sim.vals_append_cons_inj (Admin.val?_of_isCallRef hr)
+      (Admin.val?_of_isCallRef hr') hc'
+    exact .inr ⟨_, _, _, rfl, hf'⟩
+  | @callRefNull _ _ cr hr' =>
+    intro vs r hr hc
+    have hc' : vals vs ++ r :: [] = vals [.ref .null] ++ cr :: [] := by
+      simpa [vals, Val.toAdmin] using hc.symm
+    obtain ⟨rfl, rfl, -⟩ := Sim.vals_append_cons_inj (Admin.val?_of_isCallRef hr)
+      (Admin.val?_of_isCallRef hr') hc'
+    exact .inl ⟨[], rfl, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro vs r hr hc
+    dsimp only at hc ⊢
+    obtain ⟨w, b, t, hb, rfl⟩ := Sim.exists_head_of_not_all hs.not_all_isVal
+    have hc' : vals (vs₀ ++ w) ++ b :: (t ++ rest) = vals vs ++ r :: [] := by
+      simpa [vals, Val.toAdmin] using hc
+    obtain ⟨rfl, rfl, h3⟩ := Sim.vals_append_cons_inj hb (Admin.val?_of_isCallRef hr) hc'
+    obtain ⟨rfl, rfl⟩ := List.append_eq_nil_iff.1 h3
+    rcases ih (vs := w) hr (by simp) with ⟨ws, rfl, he⟩ | ⟨ws, a, fi, rfl, hf⟩
+    · simp only [Config.mk.injEq] at he
+      obtain ⟨rfl, rfl, rfl⟩ := he
+      exact .inl ⟨vs₀ ++ ws, by simp, by simp⟩
+    · exact .inr ⟨vs₀ ++ ws, a, fi, by simp, hf⟩
+  | @trapInstrs s f vs₀ rest _ =>
+    intro vs r hr hc
+    have hc' : vals vs₀ ++ Admin.trap :: rest = vals vs ++ r :: [] := by simpa using hc
+    obtain ⟨-, rfl, -⟩ := Sim.vals_append_cons_inj rfl (Admin.val?_of_isCallRef hr) hc'
+    simp [Admin.IsCallRef] at hr
+  | @throwRefInstrs s f vs₀ x rest _ =>
+    intro vs r hr hc
+    have hc' : vals (vs₀ ++ [.ref (.exn x)]) ++ Admin.plain .throwRef :: rest =
+        vals vs ++ r :: [] := by
+      simpa [vals, Val.toAdmin, throwing] using hc
+    obtain ⟨-, rfl, -⟩ := Sim.vals_append_cons_inj rfl (Admin.val?_of_isCallRef hr) hc'
+    simp [Admin.IsCallRef] at hr
+  | _ =>
+    intro vs r hr hc
+    have hl := congrArg List.getLast? hc
+    simp only [List.getLast?_append, List.getLast?_singleton, List.getLast?_cons_cons,
+      Option.some_or, List.getLast?_cons] at hl
+    have hk := isCallRef_control hr
+    first
+      | (exact absurd (fam_parametric ‹_› hl) (by simp [hk]))
+      | (exact absurd (fam_numeric ‹_› hl) (by simp [hk]))
+      | (exact absurd (fam_vector ‹_› hl) (by simp [hk]))
+      | (exact absurd (fam_variable ‹_› hl) (by simp [hk]))
+      | (exact absurd (fam_table ‹_› hl) (by simp [hk]))
+      | (exact absurd (fam_memory ‹_› hl) (by simp [hk]))
+      | (exact absurd (fam_reference ‹_› hl) (by simp [hk]))
+      | (exact absurd (fam_aggregate ‹_› hl) (by simp [hk]))
+      | (cases Option.some.inj hl; simp [Admin.IsCallRef] at hr)
+      | (simp at hl)
+
 theorem callRef_wasm_inv_exact {s : Store H} {f : Frame} {c : Config H} {vs : List Val} {a : Nat}
     {r : Admin} {fi : FuncInst H} {code : Func} {ps rs : Ty (.list .val)} (hr : r.IsCallRef)
     (hf : s.funcs[a]? = some fi) (hcode : fi.code = .wasm code) (he : Expand fi.type (.func ps rs))
@@ -653,6 +731,30 @@ theorem call_vals_inv {c c' : Config H} (h : Step P host c c') {x : FuncIdx} :
     obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
     obtain ⟨a, fi, hx, hf, hc''⟩ := ih rfl
     refine ⟨a, fi, hx, hf, ?_⟩
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
+/-- `call_indirect` under values only unfolds into `table.get; ref.cast; call_ref`. -/
+theorem callIndirect_vals_inv {c c' : Config H} (h : Step P host c c') {x : TableIdx}
+    {y : TypeIdx} : ∀ {us : List Val}, c.code = vals us ++ [.plain (.callIndirect x y)] →
+      c' = ⟨c.store, c.frame, vals us ++ [.plain (.tableGet x),
+        .plain (.refCast ⟨true, .typeIdx y⟩), .plain (.callRef y)]⟩ := by
+  induction h with
+  | callIndirect =>
+    intro us hc
+    obtain ⟨rfl, -, hx'⟩ := mid_single (rest := []) (by simpa using hc.symm)
+    simp only [Admin.plain.injEq, Instr.callIndirect.injEq] at hx'
+    obtain ⟨rfl, rfl⟩ := hx'
+    simp [vals]
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    have hc'' := ih rfl
     simp only [Config.mk.injEq] at hc'' ⊢
     obtain ⟨rfl, rfl, rfl⟩ := hc''
     simp

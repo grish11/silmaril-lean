@@ -1,0 +1,305 @@
+{
+ "schema": "silmaril.project-dump.v0.1",
+ "toolchain": "4.37.0",
+ "modules": [
+  "LG"
+ ],
+ "records": [
+  {
+   "kind": "institution",
+   "name": "lg.pl",
+   "module": "LG",
+   "decl": "LG.PL.inst",
+   "arity": 0,
+   "type": "Silmaril.Logic.Institution.Inst",
+   "levels": "",
+   "title": "Propositional logic",
+   "hets": "Propositional",
+   "hets_relation": "corresponds"
+  },
+  {
+   "kind": "institution",
+   "name": "lg.fol",
+   "module": "LG",
+   "decl": "LG.FOL.inst",
+   "arity": 0,
+   "type": "Silmaril.Logic.Institution.Inst",
+   "levels": "",
+   "hets": "CASL",
+   "hets_relation": "fragment"
+  },
+  {
+   "kind": "institution",
+   "name": "lg.eq",
+   "module": "LG",
+   "decl": "LG.EQ.inst",
+   "arity": 0,
+   "type": "Silmaril.Logic.Institution.Inst",
+   "levels": "",
+   "hets": "NoSuchLogic",
+   "hets_relation": "related"
+  },
+  {
+   "kind": "comorphism",
+   "name": "lg.pl_fol",
+   "module": "LG",
+   "decl": "LG.plToFol",
+   "arity": 0,
+   "type": "T",
+   "levels": "",
+   "from": "lg.pl",
+   "to": "lg.fol",
+   "facts": [
+    {
+     "property": "model_expansive",
+     "proof": "LG.plToFol_me",
+     "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+     ]
+    }
+   ],
+   "hets": "Prop2CASL",
+   "hets_relation": "related"
+  },
+  {
+   "kind": "morphism",
+   "name": "lg.fol_eq",
+   "module": "LG",
+   "decl": "LG.folToEq",
+   "arity": 0,
+   "type": "T",
+   "levels": "",
+   "from": "lg.fol",
+   "to": "lg.eq"
+  },
+  {
+   "kind": "comorphism",
+   "name": "lg.dangling",
+   "module": "LG",
+   "decl": "LG.dangling",
+   "arity": 0,
+   "type": "T",
+   "levels": "",
+   "from": "lg.pl",
+   "to": "lg.nowhere"
+  },
+  {
+   "kind": "comorphism",
+   "name": "lg.bad_fact",
+   "module": "LG",
+   "decl": "LG.badFact",
+   "arity": 0,
+   "type": "T",
+   "levels": "",
+   "from": "lg.pl",
+   "to": "lg.fol",
+   "facts": [
+    {
+     "property": "sound",
+     "proof": "LG.x",
+     "axioms": [
+      "sorryAx"
+     ]
+    }
+   ],
+   "hets": "Prop2CASL",
+   "hets_relation": "maybe"
+  },
+  {
+   "kind": "room",
+   "name": "lg.pl.room",
+   "module": "LG",
+   "decl": "LG.PL.room",
+   "sen": "LG.PL.Formula P",
+   "mod": "LG.PL.Model P",
+   "arity": 1,
+   "params": "(P : Type)",
+   "type": "Type \u2192 Room",
+   "levels": "",
+   "institution": "lg.pl",
+   "signature": "P"
+  },
+  {
+   "kind": "room",
+   "name": "lg.lonely",
+   "module": "LG",
+   "decl": "LG.lonely",
+   "sen": "Prop",
+   "mod": "Unit",
+   "institution": "lg.nope",
+   "signature": "x"
+  },
+  {
+   "kind": "corridor",
+   "name": "lg.pl.id",
+   "module": "LG",
+   "decl": "LG.plId",
+   "arity": 1,
+   "type": "T",
+   "levels": "",
+   "from": "lg.pl.room",
+   "to": "lg.pl.room",
+   "params": "(P : Type)",
+   "from_at": "P",
+   "to_at": "P"
+  },
+  {
+   "kind": "logic_audit",
+   "name": "audit.lg.pl.inst",
+   "module": "LG",
+   "decl": "LG.PL.inst",
+   "object": "institution",
+   "arity": 0,
+   "decl_module": "LG.PL",
+   "layer": "header",
+   "scope": "LG",
+   "registered": "lg.pl"
+  },
+  {
+   "kind": "logic_audit",
+   "name": "audit.lg.other",
+   "module": "LG",
+   "decl": "LG.other",
+   "object": "comorphism",
+   "arity": 2,
+   "decl_module": "LG.Proofs.X",
+   "layer": "proofs",
+   "scope": "LG"
+  },
+  {
+   "kind": "logic_audit",
+   "name": "audit.lg.wrong",
+   "module": "LG",
+   "decl": "LG.wrong",
+   "object": "morphism",
+   "arity": 0,
+   "decl_module": "LG.X",
+   "layer": "header",
+   "scope": "LG",
+   "registered": "lg.nothing"
+  },
+  {
+   "kind": "hets_logic",
+   "name": "hets.logic.propositional",
+   "module": "LG",
+   "hets_name": "Propositional",
+   "hets_file": "Comorphisms/LogicList.hs",
+   "hets_rev": "65ca27f4fcafd57f94fbb0908f2d88a16b0977ea"
+  },
+  {
+   "kind": "hets_logic",
+   "name": "hets.logic.casl",
+   "module": "LG",
+   "hets_name": "CASL",
+   "hets_file": "Comorphisms/LogicList.hs",
+   "hets_rev": "65ca27f4fcafd57f94fbb0908f2d88a16b0977ea"
+  },
+  {
+   "kind": "hets_comorphism",
+   "name": "hets.comorphism.prop2casl",
+   "module": "LG",
+   "hets_name": "Prop2CASL",
+   "hets_from": "Propositional",
+   "hets_to": "CASL",
+   "hets_file": "Comorphisms/LogicGraph.hs",
+   "hets_rev": "65ca27f4fcafd57f94fbb0908f2d88a16b0977ea"
+  },
+  {
+   "kind": "logic_pending",
+   "name": "pending.smt",
+   "module": "LG",
+   "title": "SMT-LIB theories",
+   "nodes": 26,
+   "edges": 23,
+   "status": "pending-port"
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.node.pl",
+   "module": "LG",
+   "catalogue_id": "pl",
+   "title": "Propositional logic",
+   "entry": "node",
+   "status": "registered",
+   "records": [
+    "institution:lg.pl"
+   ],
+   "evidence": [
+    "LG.PL.inst"
+   ]
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.edge.pending",
+   "module": "LG",
+   "catalogue_id": "pending",
+   "title": "A prospective map",
+   "entry": "edge",
+   "status": "prospective",
+   "records": [],
+   "evidence": [],
+   "reason": "no Lean declaration"
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.node.zf",
+   "module": "LG",
+   "catalogue_id": "zf",
+   "title": "ZF",
+   "entry": "node",
+   "status": "not-institution-typed",
+   "records": [
+    "institution:lg.pl"
+   ],
+   "evidence": [
+    "LG.ZF"
+   ]
+  },
+  {
+   "kind": "logic_catalogue",
+   "name": "catalogue.node.ghost",
+   "module": "LG",
+   "catalogue_id": "ghost",
+   "title": "Ghost",
+   "entry": "node",
+   "status": "represented",
+   "records": [
+    "institution:lg.ghost"
+   ],
+   "evidence": [
+    "LG.ghost"
+   ]
+  },
+  {
+   "kind": "logic_exclusion",
+   "name": "exclusion.fixtures.demo",
+   "module": "LG",
+   "title": "Demo fixtures",
+   "category": "fixture-dependent",
+   "decls": [],
+   "modules": [
+    "LG.A",
+    "LG.B"
+   ],
+   "count": 2,
+   "reason": "reads generated fixtures"
+  },
+  {
+   "kind": "logic_exclusion",
+   "name": "exclusion.bad",
+   "module": "LG",
+   "title": "Bad",
+   "category": "other",
+   "decls": [
+    "LG.x"
+   ],
+   "modules": [],
+   "count": 3,
+   "reason": ""
+  }
+ ],
+ "problems": [],
+ "solutions": []
+}

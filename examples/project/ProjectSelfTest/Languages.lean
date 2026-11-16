@@ -4,6 +4,7 @@ public import Silmaril.Project.Shapes.Language.Thms
 public import Silmaril.Project.Languages.Wasm.Defs
 public import Silmaril.Project.Formats.Defs
 public import Silmaril.Formats.JsonBytes.Thms
+public import Silmaril.Formats.JsonWire.Thms
 public import Silmaril.Formats.JsonBytes.Decide.Thms
 public import Silmaril.Formats.Utf8.Thms
 public import Silmaril.Formats.Cbor.WellFormed.Thms
@@ -39,8 +40,9 @@ exists and none where it does not:
   semantics), and a **measure restriction** (`within`);
 * the problems: inclusions in both directions (with a preserved counterexample), sentence
   and artifact membership, nonempty/empty/universal/nonuniversal, a measure bound, equality
-  with a measure-restricted language, and two open problems (equality of the format's language
-  with RFC 8259's, and acceptance by the Wasm module) that stay unknown.
+  with a measure-restricted language, equality of the json format's language with RFC 8259's
+  (`Silmaril.Formats.JsonWire.parse?_isSome_iff`), and an open problem (acceptance by the Wasm
+  module) that stays unknown.
 -/
 
 namespace ProjectSelfTest.Languages
@@ -292,10 +294,17 @@ silmaril instance silmaril.selftest.languages.hello_utf8 (expect := THM)
 public theorem hello_utf8 : silmaril.selftest.languages.hello.Satisfies (fun b => BytesMember utf8 b) :=
   Silmaril.Project.Value.satisfies_of_any (by decide)
 
--- open: the format's parser against the RFC grammar, and what the Wasm module accepts
-silmaril instance silmaril.selftest.languages.json_format_eq_json (expect := OPN)
+-- equality, proved: the json format's reader accepts exactly RFC 8259's JSON texts
+silmaril instance silmaril.selftest.languages.json_format_eq_json (expect := THM)
   (title := "The json format's language is RFC 8259's") := silmaril.shapes.language.eq_at
   (L := silmaril.selftest.lang.json.format) (K := ProjectSelfTest.Languages.jsonRfc8259)
+
+@[answers "silmaril.selftest.languages.json_format_eq_json" thm]
+public theorem json_format_eq_json :
+    ∀ x, EqAt silmaril.selftest.lang.json.format jsonRfc8259 x :=
+  fun x => JsonWire.parse?_isSome_iff x
+
+-- open: what the Wasm module accepts
 
 silmaril instance silmaril.selftest.languages.wasm_accept_member (expect := OPN)
   (title := "Membership in what example.wasm accepts") := silmaril.shapes.language.member

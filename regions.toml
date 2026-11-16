@@ -112,6 +112,10 @@ scope = "imbrem/thesis, one folder per chapter, following the text."
 name = "Courses"
 scope = "Self-contained course developments, with inline proofs and numbered references; imported by no library region."
 
+[[view]]
+name = "LogicGraph"
+scope = "The logic graph's records: `silmaril institution`, `comorphism`, `morphism`, `room` and `corridor` registrations of declarations from every region (and Courses), the pinned Hets list, pending families and the audit (docs/projects/logic-graph.md). Records only, no proofs; imported by nothing but the project dump (silmaril.toml)."
+
 [[region]]
 name = "Cli"
 scope = "Command-line interfaces as specifications: argument grammars as data with a derived front end (parser proved sound and complete, renderer with round trip, help, usage errors, exit codes, grammar morphisms), the clap and getopt dialects, a behaviour model of CLI programs (arguments, environment, stdin, stdout, stderr, files under declared roots, exit code) with refinement and composition, Lean programs as a free monad with a test harness, and the CLI institution with its observation levels and standard sentences. Also imports `Silmaril.Apps.Sha256sum` (the reference behaviour of `sha256sum`), which is not a region."

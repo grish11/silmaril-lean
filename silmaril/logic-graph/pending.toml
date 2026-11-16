@@ -1,0 +1,5 @@
+# Logic families whose Lean developments (institutions and the maps between them) are not in
+# this repository yet. Listed so that the omission is explicit in the explorer's Coverage page:
+# nothing in these families is registered or claimed here. Counts are of institutions (nodes) and
+# maps (edges) of each family; remove a family, or lower its counts, as its developments land.
+schema = "silmaril.records.v0.2"

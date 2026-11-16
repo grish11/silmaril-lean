@@ -35,35 +35,26 @@ theorem steps_funcs_closed {c c' : Config H} (h : Steps P (fun _ _ _ _ => False)
   | refl => rfl
   | tail _ hs ih => exact (SingleThreaded.Step.framesLocal hs).1.trans ih
 
-/-- **A typed resolved call types its arguments**: a typed `call_ref` of `fi` (the form a direct
-call resolves to) on its `ps.length` top values `us` is a typed invocation. -/
-theorem invokeOk_of_typed {s : Store H} {f : Frame} {ws us : List Val} {a : Nat}
+/-- **A typed resolved call types its arguments**: a typed `call_ref` form `cr` of `fi` (`call_ref
+y`, or the `call_ref` of `fi`'s own type a direct call resolves to) on its `ps.length` top values
+`us` is a typed invocation. -/
+theorem invokeOk_of_typed {s : Store H} {f : Frame} {ws us : List Val} {a : Nat} {cr : Admin}
     {fi : FuncInst H} {ps rs : Ty (.list .val)} {rest : List Admin}
-    (h : Sim.ContextTyped ⟨s, f, vals (ws ++ us) ++ .ref (.func a) :: .callRefType fi.type :: rest⟩)
+    (h : Sim.ContextTyped ⟨s, f, vals (ws ++ us) ++ .ref (.func a) :: cr :: rest⟩)
+    (hcr : cr.IsCallRef) (hd : ∀ d, cr = .callRefType d → d = fi.type)
     (hfi : s.funcs[a]? = some fi) (he : Expand fi.type (.func ps rs)) (hn : us.length = ps.length) :
     InvokeOk s a us := by
-  have h1 : Sim.ContextTyped ⟨s, f, vals (ws ++ us) ++ [.ref (.func a), .callRefType fi.type]⟩ :=
+  have h1 : Sim.ContextTyped ⟨s, f, vals (ws ++ us) ++ [.ref (.func a), cr]⟩ :=
     Sim.ContextTyped.suffix (rest := rest) (by simpa using h)
   obtain ⟨C, ts, xs, hs, hC, hc, hcode⟩ := h1.fragment_ctx
   obtain ⟨_, xs₁, _, hp, ht, _⟩ := AdminsOk.split hcode hC (vals ws)
-    (vals us ++ [.ref (.func a), .callRefType fi.type]) (by simp) (by simp)
+    (vals us ++ [.ref (.func a), cr]) (by simp) (by simp)
   have hC' := hC.initLocals xs₁
   have hc' := hc.initLocals hp.vals_inits
   obtain ⟨-, -, -, -, -, -, -, -, hargs, -⟩ := PC.callRef_front hs ⟨hs.structsClosed, hs.arraysClosed⟩
-    hc' hC' (c := .callRefType fi.type) trivial
-    (fun d hd => by cases hd; exact PC.StoreOk.func_tyOk hs hfi) hfi he hn ht
+    hc' hC' (c := cr) hcr
+    (fun d hd' => by obtain rfl := hd d hd'; exact PC.StoreOk.func_tyOk hs hfi) hfi he hn ht
   exact ⟨fi, ps, rs, hfi, he, hargs⟩
-
-/-- A step of the hole lifts through a context. -/
-theorem step_fill_lift {host : HostSemantics H} :
-    ∀ (E : Ctx) {s s' : Store H} {f f' : Frame} {X X' : List Admin},
-      Step P host ⟨s, f, X⟩ ⟨s', f', X'⟩ → Step P host ⟨s, f, E.fill X⟩ ⟨s', f', E.fill X'⟩
-  | .hole, _, _, _, _, _, _, h => h
-  | .label ws n cont E rest, _, _, _, _, _, _, h => by
-    simpa [Ctx.fill] using step_in (P := P) (host := host) ws rest (Step.ctxtLabel (step_fill_lift E h))
-  | .handler ws n cs E rest, _, _, _, _, _, _, h => by
-    simpa [Ctx.fill] using step_in (P := P) (host := host) ws rest
-      (Step.ctxtHandler (step_fill_lift E h))
 
 /-- Typing descends through a context. -/
 theorem contextTyped_fill : ∀ (E : Ctx) {s : Store H} {f : Frame} {X : List Admin},
@@ -80,20 +71,14 @@ a host-free run reaches is on the native slice. -/
 theorem guardedCalls_of_typed {c₀ : Config H} (hT : Sim.ContextTyped c₀)
     (hN : NativeFuncsOk c₀.store.funcs) (hS : Interp.StoreChk c₀.store.funcs) :
     GuardedCalls P (fun _ _ _ _ => False) Machine.NativeCallOk c₀ := by
-  intro c₂ E ws us x rest a fi ps rs h hc hx hfi he hn
+  intro c₂ E ws us a cr rest fi ps rs h hc hcr hd hfi he hn
   have hfun := steps_funcs_closed h
   have hT₂ := hT.steps h
   obtain ⟨C, ts, xs, hs, -, -, -⟩ := hT₂.fragment_ctx
   refine ⟨hs, hfun ▸ hN, hfun ▸ hS, ?_⟩
   obtain ⟨s₂, f₂, code₂⟩ := c₂
-  simp only at hc hx hfi ⊢
+  simp only at hc hfi ⊢
   subst hc
-  have hstep : Step P (fun _ _ _ _ => False)
-      ⟨s₂, f₂, E.fill (vals (ws ++ us) ++ .plain (.call x) :: rest)⟩
-      ⟨s₂, f₂, E.fill (vals (ws ++ us) ++ .ref (.func a) :: .callRefType fi.type :: rest)⟩ :=
-    step_fill_lift E (by
-      simpa using step_in (P := P) (host := fun _ _ _ _ => False) (ws ++ us) rest
-        (Step.call (s := s₂) (f := f₂) hx hfi))
-  exact invokeOk_of_typed (contextTyped_fill E (hT₂.step hstep)) hfi he hn
+  exact invokeOk_of_typed (contextTyped_fill E hT₂) hcr hd hfi he hn
 
 end Silmaril.Wasm.Cfg.Proofs.Region

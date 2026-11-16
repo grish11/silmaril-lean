@@ -49,6 +49,8 @@ pub enum Ty {
     Expect,
     /// `roundtrip` or `sound`.
     Law,
+    /// A non-negative integer.
+    Count,
     /// A sid: 64 lowercase hex digits.
     Sid,
     /// A value source: a CID, a registry path or a registry name.
@@ -117,6 +119,45 @@ const ARTIFACTS: Key = opt(
     "Artifacts the problem reads (CIDs or names)",
 );
 const EXPECT: Key = opt("expect", Ty::Expect, "The expected status");
+const LOGIC_SOURCE: Key = opt(
+    "source",
+    Ty::Text,
+    "A citation key of references.bib, or a section of a standard",
+);
+const LOGIC_SCOPE: Key = opt(
+    "scope",
+    Ty::Text,
+    "What the declaration covers, and what it does not",
+);
+const HETS: Key = opt(
+    "hets",
+    Ty::Text,
+    "The Hets logic or comorphism it relates to",
+);
+const HETS_RELATION: Key = opt(
+    "hets_relation",
+    Ty::Text,
+    "How it relates to `hets`: corresponds, fragment or related",
+);
+/// The keys of `comorphism`, `morphism` and `corridor`.
+const LOGIC_EDGE_KEYS: &[Key] = &[
+    req("name", Ty::Name, "The edge's name"),
+    req("decl", Ty::Const, "The declaration"),
+    opt("from", Ty::Name, "The source node (else found by Lean)"),
+    opt("to", Ty::Name, "The target node (else found by Lean)"),
+    opt(
+        "facts",
+        Ty::Texts,
+        "Theorems stating known properties of it",
+    ),
+    TITLE,
+    DOC,
+    LOGIC_SOURCE,
+    LOGIC_SCOPE,
+    HETS,
+    HETS_RELATION,
+    SID,
+];
 /// Every kind also takes `meta`: tool-only data that Lean does not read.
 pub const META: Key = opt(
     "meta",
@@ -221,12 +262,147 @@ pub const RECORD_KINDS: &[KindSpec] = &[
     },
     KindSpec {
         kind: "room",
-        doc: "A room: `decl : Silmaril.Logic.Institution.Room`",
+        doc: "A room: `decl : Silmaril.Logic.Institution.Room`, or a family `∀ x⃗, Room`",
         keys: &[
             req("name", Ty::Name, "The room's name"),
             req("decl", Ty::Const, "The room"),
+            opt(
+                "institution",
+                Ty::Name,
+                "The institution it is a fiber of (else found by Lean, if registered)",
+            ),
+            TITLE,
             DOC,
+            LOGIC_SOURCE,
+            LOGIC_SCOPE,
             SID,
+        ],
+    },
+    KindSpec {
+        kind: "institution",
+        doc: "An institution: `decl : Silmaril.Logic.Institution.Inst`, or a family `∀ x⃗, Inst`",
+        keys: &[
+            req("name", Ty::Name, "The institution's name"),
+            req("decl", Ty::Const, "The institution"),
+            TITLE,
+            DOC,
+            LOGIC_SOURCE,
+            LOGIC_SCOPE,
+            HETS,
+            HETS_RELATION,
+            SID,
+        ],
+    },
+    KindSpec {
+        kind: "comorphism",
+        doc: "An institution comorphism `decl : Inst.CoHom A B` between registered institutions \
+              (sentences forwards, models backwards)",
+        keys: LOGIC_EDGE_KEYS,
+    },
+    KindSpec {
+        kind: "morphism",
+        doc: "An institution morphism `decl : Inst.Hom A B` between registered institutions \
+              (sentences backwards, models forwards)",
+        keys: LOGIC_EDGE_KEYS,
+    },
+    KindSpec {
+        kind: "corridor",
+        doc: "A corridor `decl : Corridor R₁ R₂` between registered rooms (sentences forwards, \
+              models backwards)",
+        keys: LOGIC_EDGE_KEYS,
+    },
+    KindSpec {
+        kind: "hets_logic",
+        doc: "A logic of the pinned Hets logic graph, as Hets lists it",
+        keys: &[
+            req("name", Ty::Name, "The record's name"),
+            req("hets_name", Ty::Text, "The logic's name in Hets"),
+            TITLE,
+            opt(
+                "flag",
+                Ty::Text,
+                "The CPP flag that guards it in Hets's build",
+            ),
+            req("hets_file", Ty::Text, "The Hets source file that lists it"),
+            req("hets_rev", Ty::Text, "The Hets commit"),
+            DOC,
+        ],
+    },
+    KindSpec {
+        kind: "hets_comorphism",
+        doc: "A comorphism of the pinned Hets logic graph, as Hets lists it",
+        keys: &[
+            req("name", Ty::Name, "The record's name"),
+            req("hets_name", Ty::Text, "The comorphism's name in Hets"),
+            req("hets_from", Ty::Text, "Its source logic, as Hets names it"),
+            req("hets_to", Ty::Text, "Its target logic, as Hets names it"),
+            opt(
+                "flag",
+                Ty::Text,
+                "The CPP flag that guards it in Hets's build",
+            ),
+            req("hets_file", Ty::Text, "The Hets source file that lists it"),
+            req("hets_rev", Ty::Text, "The Hets commit"),
+            DOC,
+        ],
+    },
+    KindSpec {
+        kind: "logic_pending",
+        doc: "A logic family with Lean developments not in this repository yet",
+        keys: &[
+            req("name", Ty::Name, "The record's name"),
+            req("title", Ty::Text, "The family"),
+            req("nodes", Ty::Count, "How many institutions it has"),
+            req("edges", Ty::Count, "How many maps between them it has"),
+            req("status", Ty::Text, "pending-port or in-review"),
+            DOC,
+        ],
+    },
+    KindSpec {
+        kind: "logic_catalogue",
+        doc: "An entry of the curated catalogue the logic-graph port started from, and what it is here",
+        keys: &[
+            req("name", Ty::Name, "The record's name"),
+            req(
+                "catalogue_id",
+                Ty::Text,
+                "The entry's stable id in the catalogue",
+            ),
+            req("title", Ty::Text, "The entry's label"),
+            req("entry", Ty::Text, "node (a logic) or edge (a map)"),
+            req(
+                "status",
+                Ty::Text,
+                "registered, represented, not-institution-typed or prospective",
+            ),
+            opt(
+                "records",
+                Ty::Texts,
+                "The registered records that hold it (`kind:name`)",
+            ),
+            opt(
+                "evidence",
+                Ty::Texts,
+                "The Lean declarations that are its evidence",
+            ),
+            opt("reason", Ty::Text, "Why it is not a registered record"),
+        ],
+    },
+    KindSpec {
+        kind: "logic_exclusion",
+        doc: "Something the logic graph leaves out, and why",
+        keys: &[
+            req("name", Ty::Name, "The record's name"),
+            req("title", Ty::Text, "What is left out"),
+            req(
+                "category",
+                Ty::Text,
+                "unregistrable-declaration, fixture-dependent or out-of-scope",
+            ),
+            opt("decls", Ty::Texts, "The declarations concerned"),
+            opt("modules", Ty::Texts, "The modules concerned"),
+            req("count", Ty::Count, "How many"),
+            req("reason", Ty::Text, "Why"),
         ],
     },
     KindSpec {
@@ -642,6 +818,10 @@ fn type_error(ty: Ty, v: &Json) -> Option<String> {
                 EXPECT_CODES.join(", ")
             )),
         },
+        Ty::Count => match v {
+            Json::Number(n) if n.as_u64().is_some() => None,
+            _ => Some("must be a non-negative integer".into()),
+        },
         Ty::Law => match v {
             Json::String(s) if s == "roundtrip" || s == "sound" => None,
             _ => Some("must be `roundtrip` or `sound`".into()),
@@ -976,6 +1156,7 @@ fn ty_schema(ty: Ty) -> Json {
             json!({"enum": any_case})
         }
         Ty::Law => json!({"enum": ["roundtrip", "sound"]}),
+        Ty::Count => json!({"type": "integer", "minimum": 0}),
         Ty::Sid => json!({"type": "string", "pattern": "^[0-9a-f]{64}$"}),
         Ty::Sources => json!({"type": "array", "items": {
             "type": "object", "additionalProperties": false, "required": ["format", "source"],

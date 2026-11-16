@@ -79,6 +79,13 @@ def multibyte : RegularExpression UInt8 := seq2 + seq3 + seq4
 /-- The encoding of exactly one Unicode scalar value (Table 3-7, one row). -/
 def scalar : RegularExpression UInt8 := ascii + multibyte
 
+/-- The UTF-8 encoding of a list of characters: Lean core's `String.utf8EncodeChar`, one character
+after another (the list view of `List.utf8Encode`). -/
+def encode (cs : List Char) : List UInt8 := cs.flatMap String.utf8EncodeChar
+
+/-- The characters of a list of ASCII bytes (bytes `00..7F`; other bytes are not ASCII). -/
+def ofAscii (bs : List UInt8) : List Char := bs.map fun b => Char.ofNat b.toNat
+
 /-- Well-formed UTF-8: any finite concatenation of encoded scalar values (RFC 3629
 `UTF8-octets = *( UTF8-char )`). -/
 def wellFormed : RegularExpression UInt8 := star scalar
@@ -91,6 +98,10 @@ def IsWellFormed (bytes : List UInt8) : Prop := bytes ∈ language
 
 /-- The executable check: Mathlib's derivative matcher on `wellFormed`. -/
 def isWellFormed (bytes : List UInt8) : Bool := wellFormed.rmatch bytes
+
+/-- A regular expression all of whose words are well-formed UTF-8, so that a match of an encoding
+splits it at character boundaries (`Silmaril.Formats.Utf8.Thms`, `encode_mem_mul`). -/
+def Good (r : RegularExpression UInt8) : Prop := ∀ w ∈ r.matches', IsWellFormed w
 
 end Silmaril.Formats.Utf8
 

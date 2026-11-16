@@ -3,6 +3,8 @@ module
 public import Silmaril.Formats.Utf8.Defs
 import Silmaril.Proofs.Formats.Utf8.Basic
 import Silmaril.Proofs.Formats.Utf8.Core
+import Silmaril.Proofs.Formats.Utf8.Encode
+import Silmaril.Proofs.Formats.Utf8.Transport
 
 /-!
 # The language of well-formed UTF-8 bytes: lemmas
@@ -19,6 +21,15 @@ import Silmaril.Proofs.Formats.Utf8.Core
   `List.flatMap String.utf8EncodeChar` (`isWellFormed_iff_exists_chars`), hence
   `isValidUTF8_iff`, `validateUTF8_iff`, `fromUTF8?_isSome_iff`, `toUTF8_isWellFormed` and
   `Bytes.isUtf8_iff_isValidUTF8`;
+* the encoding of character lists, `encode`: it distributes over `++` (`encode_append`), is
+  injective (`encode_injective`), so a split of an encoding into well-formed parts is a split of
+  the characters (`encode_eq_append`); `String.fromUTF8?` inverts it (`fromUTF8?_eq_some`,
+  `fromUTF8?_encode`); ASCII bytes are the encoding of `ofAscii` (`encode_ofAscii`, `eq_ofAscii`);
+* byte regular expressions on encodings (`encode_mem_mul`, `encode_mem_add`, `encode_mem_star`,
+  `encode_mem_one`, `encode_mem_char`, `encode_mem_byteRange`, `encode_mem_multibyte`): a match
+  of `encode cs` is a condition on the characters `cs`, given that the expressions are `Good`
+  (all their words are well-formed UTF-8; `good_mul` … `good_multibyte`). Grammars written over
+  bytes can so be compared with readers that work on characters;
 * worked examples, accepted and rejected, for every row of Table 3-7.
 -/
 
@@ -109,6 +120,118 @@ theorem _root_.Silmaril.Formats.Bytes.isUtf8_iff_isValidUTF8 (b : Bytes) :
     b.IsUtf8 ↔ b.data.IsValidUTF8 :=
   isValidUTF8_iff.symm
 
+/-! ## The encoding of character lists -/
+
+@[simp] theorem encode_nil : encode [] = [] := rfl
+
+@[simp] theorem encode_cons (c : Char) (cs : List Char) :
+    encode (c :: cs) = String.utf8EncodeChar c ++ encode cs :=
+  Silmaril.Proofs.Formats.Utf8.Encode.encode_cons c cs
+
+@[simp] theorem encode_append (a b : List Char) : encode (a ++ b) = encode a ++ encode b :=
+  Silmaril.Proofs.Formats.Utf8.Encode.encode_append a b
+
+/-- The encoding is injective: Lean core decodes it back (`String.ofList`). -/
+theorem encode_injective {cs cs' : List Char} (h : encode cs = encode cs') : cs = cs' :=
+  Silmaril.Proofs.Formats.Utf8.Encode.encode_injective h
+
+theorem isWellFormed_encode (cs : List Char) : IsWellFormed (encode cs) :=
+  Silmaril.Proofs.Formats.Utf8.Encode.isWellFormed_encode cs
+
+/-- **Splitting an encoding** into two well-formed parts splits the characters. -/
+theorem encode_eq_append {cs : List Char} {a b : List UInt8} (h : encode cs = a ++ b)
+    (ha : IsWellFormed a) (hb : IsWellFormed b) :
+    ∃ c₁ c₂, cs = c₁ ++ c₂ ∧ encode c₁ = a ∧ encode c₂ = b :=
+  Silmaril.Proofs.Formats.Utf8.Encode.encode_eq_append h ha hb
+
+/-- `String.fromUTF8?` decodes to the characters whose encoding is the input. -/
+theorem fromUTF8?_eq_some {b : ByteArray} {s : String} (h : String.fromUTF8? b = some s) :
+    b.data.toList = encode s.toList :=
+  Silmaril.Proofs.Formats.Utf8.Encode.fromUTF8?_eq_some h
+
+/-- `String.fromUTF8?` decodes every encoding, to its characters. -/
+theorem fromUTF8?_encode (cs : List Char) :
+    ∃ s, String.fromUTF8? (encode cs).toByteArray = some s ∧ s.toList = cs :=
+  Silmaril.Proofs.Formats.Utf8.Encode.fromUTF8?_encode cs
+
+/-- An ASCII byte list is the encoding of its characters. -/
+theorem encode_ofAscii {bs : List UInt8} (h : ∀ b ∈ bs, b < 0x80) : encode (ofAscii bs) = bs :=
+  Silmaril.Proofs.Formats.Utf8.Encode.encode_ofAscii h
+
+/-- The only characters whose encoding is a given ASCII byte list. -/
+theorem eq_ofAscii {cs : List Char} {bs : List UInt8} (h : encode cs = bs)
+    (ha : ∀ b ∈ bs, b < 0x80) : cs = ofAscii bs :=
+  Silmaril.Proofs.Formats.Utf8.Encode.eq_ofAscii h ha
+
+/-! ## Byte regular expressions on encodings -/
+
+section Transport
+open Silmaril.Proofs.Formats.Utf8.Transport
+
+theorem good_mul {r s : RegularExpression UInt8} (hr : Good r) (hs : Good s) : Good (r * s) :=
+  Silmaril.Proofs.Formats.Utf8.Transport.good_mul hr hs
+theorem good_add {r s : RegularExpression UInt8} (hr : Good r) (hs : Good s) : Good (r + s) :=
+  Silmaril.Proofs.Formats.Utf8.Transport.good_add hr hs
+theorem good_one : Good 1 := Silmaril.Proofs.Formats.Utf8.Transport.good_one
+theorem good_star {r : RegularExpression UInt8} (hr : Good r) : Good (star r) :=
+  Silmaril.Proofs.Formats.Utf8.Transport.good_star hr
+theorem good_anyOf {l : List UInt8} (h : ∀ b ∈ l, b < 0x80) : Good (anyOf l) :=
+  Silmaril.Proofs.Formats.Utf8.Transport.good_anyOf h
+theorem good_char {b : UInt8} (h : b < 0x80) : Good (char b) :=
+  Silmaril.Proofs.Formats.Utf8.Transport.good_char h
+theorem good_byteRange {lo hi : UInt8} (h : hi < 0x80) : Good (byteRange lo hi) :=
+  Silmaril.Proofs.Formats.Utf8.Transport.good_byteRange h
+theorem good_word {l : List UInt8} (h : ∀ b ∈ l, b < 0x80) : Good (word l) :=
+  Silmaril.Proofs.Formats.Utf8.Transport.good_word h
+theorem good_scalar : Good scalar := Silmaril.Proofs.Formats.Utf8.Transport.good_scalar
+theorem good_multibyte : Good multibyte := Silmaril.Proofs.Formats.Utf8.Transport.good_multibyte
+
+/-- An encoding matches a product of `Good` expressions exactly when its characters split. -/
+theorem encode_mem_mul {r s : RegularExpression UInt8} (hr : Good r) (hs : Good s) {cs : List Char} :
+    encode cs ∈ (r * s).matches' ↔
+      ∃ c₁ c₂, cs = c₁ ++ c₂ ∧ encode c₁ ∈ r.matches' ∧ encode c₂ ∈ s.matches' :=
+  Silmaril.Proofs.Formats.Utf8.Transport.encode_mem_mul hr hs
+
+theorem encode_mem_add {r s : RegularExpression UInt8} {cs : List Char} :
+    encode cs ∈ (r + s).matches' ↔ encode cs ∈ r.matches' ∨ encode cs ∈ s.matches' :=
+  Silmaril.Proofs.Formats.Utf8.Transport.encode_mem_add
+
+theorem encode_mem_one {cs : List Char} :
+    encode cs ∈ (1 : RegularExpression UInt8).matches' ↔ cs = [] :=
+  Silmaril.Proofs.Formats.Utf8.Transport.encode_mem_one
+
+theorem encode_mem_star {r : RegularExpression UInt8} (hr : Good r) {cs : List Char} :
+    encode cs ∈ (star r).matches' ↔
+      ∃ L : List (List Char), cs = L.flatten ∧ ∀ x ∈ L, encode x ∈ r.matches' :=
+  Silmaril.Proofs.Formats.Utf8.Transport.encode_mem_star hr
+
+theorem encode_singleton_ascii {c : Char} (h : c.toNat < 0x80) :
+    encode [c] = [UInt8.ofNat c.toNat] :=
+  Silmaril.Proofs.Formats.Utf8.Transport.encode_singleton_ascii h
+
+theorem encode_mem_byteRange {lo hi : UInt8} (h : hi < 0x80) {cs : List Char} :
+    encode cs ∈ (byteRange lo hi).matches' ↔
+      ∃ c, cs = [c] ∧ lo.toNat ≤ c.toNat ∧ c.toNat ≤ hi.toNat :=
+  Silmaril.Proofs.Formats.Utf8.Transport.encode_mem_byteRange h
+
+theorem encode_mem_char {b : UInt8} (h : b < 0x80) {cs : List Char} :
+    encode cs ∈ (char b).matches' ↔ cs = [Char.ofNat b.toNat] :=
+  Silmaril.Proofs.Formats.Utf8.Transport.encode_mem_char h
+
+theorem encode_mem_anyOf {l : List UInt8} (h : ∀ b ∈ l, b < 0x80) {cs : List Char} :
+    encode cs ∈ (anyOf l).matches' ↔ ∃ b ∈ l, cs = [Char.ofNat b.toNat] :=
+  Silmaril.Proofs.Formats.Utf8.Transport.encode_mem_anyOf h
+
+/-- The multi-byte rows of Table 3-7 encode exactly the non-ASCII characters. -/
+theorem encode_mem_multibyte {cs : List Char} :
+    encode cs ∈ multibyte.matches' ↔ ∃ c, cs = [c] ∧ 0x80 ≤ c.toNat :=
+  Silmaril.Proofs.Formats.Utf8.Transport.encode_mem_multibyte
+
+theorem toNat_ofNat_ascii {n : Nat} (h : n < 0x80) : (Char.ofNat n).toNat = n :=
+  Silmaril.Proofs.Formats.Utf8.Encode.toNat_ofNat_ascii h
+
+end Transport
+
 /-! ## Examples: one accepted and one rejected sequence per row of Table 3-7 -/
 
 section Examples
@@ -159,6 +282,16 @@ example : [0xF0, 0x9F, 0x98, 0x80].toByteArray.validateUTF8 = true := by
   rw [validateUTF8_iff]; decide +kernel
 example : (String.fromUTF8? [0xED, 0xA0, 0x80].toByteArray).isSome = false := by
   rw [Bool.eq_false_iff, ne_eq, fromUTF8?_isSome_iff]; decide +kernel
+
+-- The transport lemmas: `é` (two bytes) is one multi-byte row; `ab` splits as `a`, `b`.
+example : encode ['é'] ∈ multibyte.matches' := encode_mem_multibyte.mpr ⟨'é', rfl, by decide⟩
+example : encode ['a', 'b'] ∈ (char (0x61 : UInt8) * char (0x62 : UInt8)).matches' :=
+  (encode_mem_mul (good_char (b := 0x61) (by decide)) (good_char (b := 0x62) (by decide))).mpr
+    ⟨['a'], ['b'], rfl, (encode_mem_char (b := 0x61) (by decide)).mpr rfl,
+      (encode_mem_char (b := 0x62) (by decide)).mpr rfl⟩
+-- `fromUTF8?` inverts the encoding.
+example : ∃ s, String.fromUTF8? (encode ['é', 'a']).toByteArray = some s ∧ s.toList = ['é', 'a'] :=
+  fromUTF8?_encode _
 
 end Examples
 

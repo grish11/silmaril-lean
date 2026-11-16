@@ -24,10 +24,10 @@ With the typed closed extended oracle `closedXOk` (no host, every profile):
 * **`frame_tail_closedX`**: one ending by a tail call is a Core 3.0 run of the function's
   `FRAME` to the sink's code.
 
-Soundness only. Completeness for the extended forms (Core runs of `call_indirect`/`call_ref` to
-`RunC`) needs the converse of the extended closure (`closedCallX` progress), and the discharge of
-the oracle's typing guard at each call site; neither is claimed here, and the fragments
-`Frag`/`FragC` of the completeness theorems still exclude these forms.
+Soundness only. The region-level completeness theorems now cover `call_indirect`/`call_ref`
+(`FragC` includes them), for any complete oracle; with `closedCallX` this needs its completeness
+(`CallCompleteG`, the converse of the extended closure) and the discharge of its typing guard at
+each call site, neither of which is claimed here.
 -/
 
 namespace Silmaril.Wasm.Cfg.Machine

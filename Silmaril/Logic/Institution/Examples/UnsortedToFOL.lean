@@ -221,6 +221,10 @@ theorem expansion_mem (A : UFOL.Structure Sg) :
 
 end UFOLtoFOL
 
+/-- The institution of first-order theories, `Inst.th FOL.inst`: the target of the simple
+theoroidal comorphism `ufolToFol`, named so that records can refer to it. -/
+def FOL.thInst := Inst.th FOL.inst
+
 /-- The simple theoroidal comorphism from unsorted into many-sorted first-order logic.
 
 Source: `mossakowski-et-al-2014-proof-support-common-logic` in `references.bib`, §4.8, p. 11;

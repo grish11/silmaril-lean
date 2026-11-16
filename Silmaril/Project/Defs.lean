@@ -8,6 +8,7 @@ public import Silmaril.Project.Registry.Predicate.Defs
 public import Silmaril.Project.Registry.Artifacts.Defs
 public import Silmaril.Project.Registry.Value.Defs
 public import Silmaril.Project.Registry.Room.Defs
+public import Silmaril.Project.Registry.Institution.Defs
 public import Silmaril.Project.Registry.Load.Defs
 public import Silmaril.Project.Registry.Attr.Defs
 public import Silmaril.Project.Registry.Language.Defs

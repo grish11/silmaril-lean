@@ -70,7 +70,7 @@ jobs:
       # are pinned to the pushed commit (the worker's own checkout has another HEAD).
       - name: Dump, check and write the database and the page, on prove
         run: |
-          hiloop-prove run --build Silmaril --build ProjectSelfTest --build SysVTvExample \
+          hiloop-prove run --build Silmaril --build SilmarilLogicGraphData --build ProjectSelfTest --build SysVTvExample \
             --build CompilesToExamples --build wasm-pages --build elf-pages --out _site -- \
             env -u CARGO_TARGET_DIR make pages PAGES_SOURCE_REV="$GITHUB_SHA"
           ls -l _site
@@ -120,6 +120,7 @@ jobs:
           node languages.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
           node attention.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
           node elf.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          node logic.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

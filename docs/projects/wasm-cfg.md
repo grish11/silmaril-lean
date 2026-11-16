@@ -280,6 +280,151 @@ The plain graph stays an over-approximation, and claims about it say so.
 8. **Calls**, through an explicit call interface: a call node whose callee behaviour is a
    parameter (a `FRAME` run of the callee), first for direct calls.
 
+9. **Native trees ↔ region semantics** (`Cfg.Bridge`, `Cfg.BridgeBwd`). The native evaluator
+   on folded trees (`CallX.EvalOX`, oracle `C`) against `Region.RunC` of their lowering, with the
+   same oracle; `ResOut` relates the ends (pending tail calls answered at the frame, branch and
+   return values carrying the enclosing labels' values in the region).
+   - **Forward, done** (#492): `bridge_fwd` (typed `EvalOXT`, `chkE tExt`-checked, oracle sound
+     for the tail-aware check), `bridge_fwd_closedX` (the typed closed extended oracle, no oracle
+     hypothesis).
+   - **Backward, flat case, done**: `flat_bwd` (deterministic profile `SingleThreaded.profile o`,
+     any host and oracle): a region run of a checked, typed flat instruction other than a call is
+     its `evalFlat` result, from HostEval's `flat_complete` (#496).
+   - **Backward, trees without extended calls, done**: `bridge_bwd` (deterministic profile, no
+     host, an oracle sound for the tail-aware check that keeps typing) and `bridge_bwd_closedX`
+     (the typed closed extended oracle, no oracle hypothesis): a region run of the lowering of
+     typed trees with no `call_indirect`, `call_ref` or tail call (`CallX.xFreeL`; direct calls
+     included) is a native `EvalOX` run with the same oracle, ending as `ResOut` says. Loops are
+     by induction on their region run (`loop_aux`), re-entering at each branch back.
+   - **Backward, trees without tail calls, done**: `bridge_bwd_tailFree` and
+     `bridge_bwd_tailFree_closedX` add `call_indirect` and `call_ref` (resolved as the native
+     evaluator resolves them, answered by the same oracle entry); `bridge_bwd` is its
+     `xFreeL` case.
+   - **Backward, every outcome but a pending tail call, done**: `bridge_bwd_nonTail` and
+     `bridge_bwd_nonTail_closedX` cover every typed tree, tail calls included, when the region
+     outcome is not `Out.tail`: `return_call_ref` on null and `return_call_indirect` without a
+     callee trap natively. `return_call_indirect`'s `table.get; ref.cast` Core runs are forced at
+     the deterministic profile without host (unique host-free normal forms,
+     `BridgeBwdRci.run_rci_inv`).
+   - **Backward, pending tail calls, done**: `bridge_bwd_tail` (and `_closedX`): a region run
+     ending in `Out.tail W a c` corresponds, for **every** oracle answer to that call
+     (`ResOut … (.tail W a c) r`), to a native run to `r`; the callee's parameters are on `W`
+     (typing at the call site), so enclosing labels do not change the arguments.
+     `bridge_bwd_answered` (and `_closedX`) is the existence form: if the outcome is not a
+     pending tail call, or the oracle answers it, the region run is a native run with the same
+     oracle, ending as `ResOut` says. This is the draft #494's `Task.bwd` with its honest
+     hypothesis: without an answer to a pending tail call there is no native result. The draft's
+     `sorry`s are replaced and it is not merged.
+   - **CFG corollaries, done** (`Cfg.BridgeCfg`): `machine_native` (a machine run from
+     `cfgEntry` of typed trees without tail calls to a sink is a native run with the same
+     oracle, the sink's `EndsC` and the native result related by `ResOut`) and `native_machine`
+     (a typed checked native run from the empty stack is a machine run from `cfgEntry` to a sink
+     completing its region outcome, unless that outcome is a branch out of the body; pending tail
+     calls are completed by the oracle answer `ResOut` carries), with the `closedXOk` instances
+     `machine_native_closedX`, `native_machine_closedX` (no oracle hypothesis). These are about the
+     block-CFG machine as an executable semantics; the plain graph stays an over-approximation.
+
+10. **Branches to the function label (bug in the block-CFG machine; fixed).** A function
+    body runs under its function's label (Core `FRAME_n{} (LABEL_n{} body)`), so a branch whose
+    depth is the body's nesting depth returns; the native store check accepts it (labels
+    `[rs.length]`) and the extracted CFG resolves it to `exit` (`labels body [] = [.exit]`). The
+    machine's branch rules (`br`, `brIfTaken`, `brDataTaken`) need a label frame for the target,
+    and the function label has none, so the machine is stuck exactly where the CFG has an `exit`
+    edge; this is why `run_complete_initialC` excludes `br` outcomes.
+    - **Regression fixtures, done** (`Cfg.ExampleBrOut`): the validated module `brOutMod`
+      (`brOutMod_valid`) with a top-level `br 0`, a taken and an untaken `br_if`, a `br_table`
+      to the function label from inside a block, and two results; Core returns their results
+      under the function label (`core0` … `core4`), while the machine is stuck
+      (`machine_stuck0/1/4`, `machine_no_sink0/1/4`, `machine_enter3` then `machine_stuck3`).
+    - **Fix, done (machine transitions and soundness):** `MStepC.brOut`, `brIfOut`,
+      `brDataOut` step from a block whose terminator branches to label index `ls.length` (the
+      function boundary; deeper labels stay invalid) to `exit` with the block's values, as
+      `return` does; `Ends` at `exit` adds `∃ W, o = .br 0 (W ++ stk)`. Every case analysis over
+      `MStepC` is extended: soundness (`wrap_brOut`, `brOut_sound`, `brIfOut_sound`,
+      `brDataOut_sound` in `mstep_sound`), the CFG edge (`resolveT_out`: the function label
+      resolves to `exit`, so each new step is an `Edge` to `exit` in `mstep_edge`), and the Core
+      simulation (`msim`: the new steps go to a sink). Divergence results are unaffected: the
+      new steps end at a sink. The fixtures are restated as machine steps to `exit` with Core's
+      results (`machine_exit0/1/3/4`).
+    - **Completeness, done:** `run_complete_initial_outC`: every `RunC` run of the body that
+      does not end in a pending tail call or in a branch past the function label is a machine run
+      from `cfgEntry` to a sink, ending as `Ends` says; a branch to the function label reaches
+      `exit`. The completeness induction's `Reach` asks, at a branch to label `ls.length`, for a
+      run to `exit` (established by the new rules, carried outward through labels and handlers
+      like `return`). `run_complete_initialC` (no branch outcome) is kept as a corollary.
+    - **The same bug for `try_table`, fixed:** a catch clause whose label is the function label
+      (`j + 1 + l = ls.length`) had no transition either (`catch_`/`bodyCatch` need a frame for
+      the target). `MStepC.catchOut`/`bodyCatchOut` go to `exit` with the handler's outer values
+      under the caught ones; soundness (`throw_catch_out`, `catchOut_sound`,
+      `bodyCatchOut_sound`), the catch edge (`catch_edge` at index `ls.length` is `exit`), the
+      Core simulation and completeness (`Reach` for a throw also asks for these catches) are
+      extended.
+    - `native_machine` now excludes only branches past the function label.
+
+11. **A defined function's CFG execution against its Core invocation** (`Cfg.Function`).
+    Fragment, stated explicitly: a typed invocation (`StoreOk`, `InvokeOk`) of a Wasm function in
+    a store of Wasm functions with function types (`WasmFuncsT`) passing the tail-aware check
+    (`StoreChkE tExt`: every call form, no `throw` or `try_table`), the deterministic profile, no
+    host (closed: no observable call log). The machine runs the function's body in its call frame
+    with calls answered by the typed closed extended oracle `CX closedCallX`.
+    - **Finite runs, both directions, done:** `machine_core` (a machine run from the CFG entry to a
+      sink is a native body run whose flow is a closed outcome of the invocation, and Core runs
+      the invocation to the matching values or trap in the same final store) and `core_machine`
+      (a stopping Core run of the invocation is terminal, a closed outcome, and the body's native
+      run to it is a machine run from the CFG entry to a sink ending as that run; branches past
+      the function label are ruled out by the body check).
+    - **Callee divergence of every call form, soundness side:** `Region.DivFC` and the machine's
+      `BodyCallDiv` admit a `call_indirect` resolved by `CallRes.IndRes` to a function and a
+      `call_ref` of a function reference, answered by `C` or diverging inside the callee (`D`), next
+      to direct calls. `div_soundC`, `bodyCallDiv_core` and `mdivC_core_initial` cover them under the
+      same hypotheses (`CallSoundA`, `DivCallSound`, both stated for every `call_ref` form). A null
+      table entry, null reference or failed cast traps (`RunC.callIndRes`, `RunC.callRefNull`) and
+      has no divergence constructor.
+    - **Callee divergence of every call form, completeness side:** `FragC` now has `call_indirect`
+      and `call_ref`. `GuardedCalls` guards every `call_ref` of a function reference the run
+      reaches, and a direct call's guard follows in one step (`guarded_call`). Finite completeness
+      (`completeC`, `run_completeC`) rebuilds `call_indirect` from its Core unfolding
+      `table.get; ref.cast; call_ref` (`callInd_back`, via the profile-generic inversions in
+      `Proofs/Wasm/Cfg/IndSteps.lean`), and answers `call_ref` of a function by `callRef_incl`.
+      Divergence completeness (`div_completeC`, hence `core_div_initialC`, `core_div_closed` and
+      `mdivC_iff_core_closed_typed`) has `div_callInd`/`div_callRef`: the call diverges in the
+      callee (`D`), or is answered with values and the continuation diverges. An unresolved index
+      or null reference traps and never diverges. New Core inversions: `Step.callRef_top_inv(_seq)`
+      and `Step.callIndirect_vals_inv_seq`. **Open:** completeness of divergence through a tail
+      callee (`FragC` has no `return_call*`), a `call_indirect` fixture (needs a store with a
+      table), and the function-level corollary via `invoke_diverges_iff_funDivX`.
+    - **`call_ref` fixtures (`Wasm/Cfg/ExampleRef`):** `ref_machine_div`: in the frame of the
+      validated self-call of `recMod`, `ref.func x; call_ref y` has no infinite machine run, yet
+      `MDivC` with `closedCallOk`/`closedDiv` holds through `BodyCallDivRef`, and Core 3.0 diverges.
+      `null_machine_trap`, `null_not_diverges`, `null_not_mdivC`: `ref.null; call_ref` moves to the
+      `trap` sink in one step, and never diverges.
+    - **Divergence through tail callees, soundness side:** `MDivT` is `MDivC` or a finite run to a
+      block ending in a tail call of a callee `D` names (`TailCallDiv`, read as `MStepC.tail` reads
+      it, with no answer). `mdivT_frame_initial` (and `mdivT_frame_closed`): from the CFG entry it
+      is Core 3.0 divergence of the function's frame `FRAME_n{fi} (LABEL_n{} body)` in any outer
+      frame. The tail call replaces the frame (`return_call_ref-frame-addr`, `frame_tail_div`), so
+      the body's pending code and handlers are bypassed. Fixture `Wasm/Cfg/ExampleTail`:
+      `block (return_call x); unreachable` in the frame of `recMod`'s self-call (`tail_machine_div`).
+      **Open:** the converse (Core frame divergence is `MDivT`).
+    - **Host-free function-list preservation** (`Wasm/Cfg/Restrict`): without a host, a region or
+      machine run keeps the store's whole function list `F` (instances with types, modules and
+      code), so every call and every `F`-only check (`StoreChkE`) sees `F`. Oracles agreeing on
+      stores with `F` give the same runs, steps, infinite runs, `MDivC` and `MDivT`
+      (`runC_funcs` … `mdivT_funcs`). Host-free only: nothing is claimed for host-mutated stores.
+    - **Function-level divergence, soundness side:** `Function.invoke_diverges_of_mdivT`: on the
+      fragment, `MDivT` with `CX closedCallX` and `calleeDivX o` (typed `tExt` callees whose
+      invocation diverges) is Core divergence of `invoke s a vs`. With `F = s.funcs`, `CX
+      closedCallX` answers as the Core-sound `closedXOk` (`cx_closedXOk`); the invocation steps to
+      the function's frame (`call_ref-func`), which diverges by `mdivT_frame_initial`. **Open:**
+      the converse, by the native route (`MDivT` ⇐ `FunDivX`, with `invoke_diverges_iff_funDivX`).
+    - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
+      `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
+      Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the
+      store-retaining session target (b): the CFG-instance session triple denotes the same
+      `DStrategy` as `instSession`/`core3SemD`, with finite done/pending plays, quiescent
+      divergence and coherent productive infinite interaction. None of these is claimed by the
+      OX results above, which are store-erasing at nested callee boundaries.
+
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
 (`bodyIfaces_complete`).

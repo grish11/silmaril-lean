@@ -181,6 +181,73 @@ pub(super) fn follow<'a>(
                 language_refs(cx, l, &at, &mut refs, o);
             }
             Record::ConsequenceSystem(c) => consequence_refs(c, &at, &mut refs, o),
+            Record::Room(x) => {
+                refs.extend(
+                    x.institution
+                        .iter()
+                        .map(|i| ("institution", "institution", i.clone())),
+                );
+            }
+            Record::Institution(x) => {
+                hets_check(cx, "hets_logic", &x.hets, &x.hets_relation, &at, o);
+            }
+            Record::Comorphism(x) => {
+                hets_check(cx, "hets_comorphism", &x.hets, &x.hets_relation, &at, o);
+                refs.push(("from", "institution", x.src.clone()));
+                refs.push(("to", "institution", x.dst.clone()));
+                logic_fact_check("comorphism", &x.facts, &at, o);
+            }
+            Record::Morphism(x) => {
+                hets_check(cx, "hets_comorphism", &x.hets, &x.hets_relation, &at, o);
+                refs.push(("from", "institution", x.src.clone()));
+                refs.push(("to", "institution", x.dst.clone()));
+                logic_fact_check("morphism", &x.facts, &at, o);
+            }
+            Record::Corridor(x) => {
+                hets_check(cx, "hets_comorphism", &x.hets, &x.hets_relation, &at, o);
+                refs.push(("from", "room", x.src.clone()));
+                refs.push(("to", "room", x.dst.clone()));
+                logic_fact_check("corridor", &x.facts, &at, o);
+            }
+            Record::LogicCatalogue(c) => catalogue_check(c, &at, &mut refs, o),
+            Record::LogicExclusion(x) => {
+                if !EXCLUSION_CATEGORIES.contains(&x.category.as_str()) {
+                    o.error(
+                        &at,
+                        format!(
+                            "category {:?} is not one of {}",
+                            x.category,
+                            EXCLUSION_CATEGORIES.join(", ")
+                        ),
+                    );
+                }
+                let n = |v: &serde_json::Value| v.as_array().map_or(0, Vec::len) as i64;
+                let listed = n(&x.decls) + n(&x.modules);
+                if listed > 0 && listed != x.count {
+                    o.error(
+                        &at,
+                        format!(
+                            "count {} but {listed} declarations or modules are listed",
+                            x.count
+                        ),
+                    );
+                }
+                if x.reason.trim().is_empty() {
+                    o.error(&at, "an exclusion needs a reason");
+                }
+            }
+            Record::LogicAudit(a) => {
+                if let Some(r) = &a.registered {
+                    let k: &'static str = match a.object.as_str() {
+                        "institution" => "institution",
+                        "comorphism" => "comorphism",
+                        "morphism" => "morphism",
+                        "room" => "room",
+                        _ => "corridor",
+                    };
+                    refs.push(("registered", k, r.clone()));
+                }
+            }
             Record::Instance(i) => {
                 if !g.is_prop(&i.of) || !g.is_prop(&i.name) {
                     o.error(&at, "an instance and its general problem must be problems");
@@ -373,4 +440,124 @@ fn consequence_refs<'a>(c: &'a ConsequenceSystem, at: &str, refs: &mut Refs<'a>,
             .iter()
             .map(|a| ("args", "consequence_system", a.clone())),
     );
+}
+
+/// The facts of an edge state properties known for its kind (Lean checked the statements).
+fn logic_fact_check(kind: &str, facts: &[LogicFactSpec], at: &str, o: &mut Outcome) {
+    for f in facts {
+        if !LOGIC_FACTS.contains(&(kind, f.property.as_str())) {
+            o.error(
+                at,
+                format!("facts: {} is not a property of a {kind}", f.property),
+            );
+        }
+        let bad: Vec<&str> = f
+            .axioms
+            .iter()
+            .map(String::as_str)
+            .filter(|a| !STANDARD_AXIOMS.contains(a))
+            .collect();
+        if !bad.is_empty() {
+            o.error(
+                at,
+                format!(
+                    "facts: {} has non-standard axioms: {}",
+                    f.proof,
+                    bad.join(", ")
+                ),
+            );
+        }
+    }
+}
+
+/// `hets` names an entry of the pinned Hets logic graph (a `hets_logic` for a node, a
+/// `hets_comorphism` for an edge, by its Hets spelling), and `hets_relation` is one of
+/// [`HETS_RELATIONS`].
+fn hets_check(
+    cx: &Ctx,
+    kind: &str,
+    hets: &Option<String>,
+    rel: &Option<String>,
+    at: &str,
+    o: &mut Outcome,
+) {
+    let Some(h) = hets else { return };
+    if !rel.as_deref().is_some_and(|r| HETS_RELATIONS.contains(&r)) {
+        o.error(
+            at,
+            format!("hets_relation must be one of {}", HETS_RELATIONS.join(", ")),
+        );
+    }
+    let known = cx.dump.records.iter().any(|r| match r {
+        Record::HetsLogic(l) => kind == "hets_logic" && &l.hets_name == h,
+        Record::HetsComorphism(c) => kind == "hets_comorphism" && &c.hets_name == h,
+        _ => false,
+    });
+    if !known {
+        o.error(
+            at,
+            format!("hets: no {kind} spelled {h:?} in the pinned Hets logic graph"),
+        );
+    }
+}
+
+/// A catalogue entry: a known status; a registered or represented entry names registered records
+/// (`kind:name`) and has evidence; any other entry has a reason and names no record; a prospective
+/// entry has no evidence.
+fn catalogue_check<'a>(c: &'a LogicCatalogue, at: &str, refs: &mut Refs<'a>, o: &mut Outcome) {
+    if !CATALOGUE_STATUSES.contains(&c.status.as_str()) {
+        o.error(
+            at,
+            format!(
+                "status {:?} is not one of {}",
+                c.status,
+                CATALOGUE_STATUSES.join(", ")
+            ),
+        );
+    }
+    let list = |v: &serde_json::Value| -> Vec<String> {
+        v.as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let records = list(&c.records);
+    let evidence = list(&c.evidence);
+    let held = matches!(c.status.as_str(), "registered" | "represented");
+    if held && records.is_empty() {
+        o.error(at, format!("status {} names no record", c.status));
+    }
+    if !held && !records.is_empty() {
+        o.error(at, format!("status {} names records", c.status));
+    }
+    if !held && c.reason.as_deref().unwrap_or("").is_empty() {
+        o.error(at, format!("status {} needs a reason", c.status));
+    }
+    if (c.status == "prospective") != evidence.is_empty() {
+        o.error(
+            at,
+            "an entry has evidence exactly when it is not prospective",
+        );
+    }
+    for r in records {
+        let Some((k, n)) = r.split_once(':') else {
+            o.error(at, format!("records: {r:?} is not kind:name"));
+            continue;
+        };
+        let kind: &'static str = match k {
+            "institution" => "institution",
+            "comorphism" => "comorphism",
+            "morphism" => "morphism",
+            "room" => "room",
+            "corridor" => "corridor",
+            _ => {
+                o.error(at, format!("records: {k} is not a logic-graph kind"));
+                continue;
+            }
+        };
+        refs.push(("records", kind, n.to_string()));
+    }
 }

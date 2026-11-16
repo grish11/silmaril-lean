@@ -5,13 +5,15 @@ public import Silmaril.Proofs.Wasm.Cfg.CallSeq
 @[expose] public section
 
 /-!
-# Core 3.0 runs of code with direct calls are region runs
+# Core 3.0 runs of code with calls are region runs
 
-For the fragment with direct calls (`FragC`), every Core run to a final form of an outcome is a
-`RunC` run with any complete oracle (`CallCompleteG`). The proof follows the Core run: a step
-whose redex is not a call is expanded (`expandB`); at a call (inside labels and handlers, a context
-`Ctx`), the run goes through the callee's `call_ref` and frame to a result, and the call is the
-region-run inclusion `call_incl`, lifted through the context.
+For the fragment with calls (`FragC`: `call x`, `call_indirect`, `call_ref`), every Core run to a
+final form of an outcome is a `RunC` run with any complete oracle (`CallCompleteG`). The proof
+follows the Core run: a step whose redex is not a call is expanded (`expandB`; `call_indirect`
+unfolds into `table.get; ref.cast; call_ref`, and a `call_ref` of null traps); at a call of a
+function (inside labels and handlers, a context `Ctx`), the run goes through the callee's
+`call_ref` and frame to a result, and the call is the region-run inclusion `call_incl` (direct) or
+`callRef_incl` (by reference), lifted through the context.
 -/
 
 namespace Silmaril.Wasm.Cfg.Proofs.Region
@@ -196,29 +198,37 @@ theorem run_fill_back : ∀ (E : Ctx) {s s₁ : Store H} {f f₁ : Frame} {X X' 
       simpa using handler_back (run_fill_back E hb) (by simpa using run_vals_inv (vs := []) h))
 
 theorem callAt_fill {code : List Admin} (h : CallAt code) (hF : FragC code) :
-    ∃ (E : Ctx) (ws : List Val) (x : FuncIdx) (rest : List Admin), CtxF E ∧ FragC rest ∧
-      code = E.fill (vals ws ++ .plain (.call x) :: rest) := by
+    ∃ (E : Ctx) (rest : List Admin), CtxF E ∧ FragC rest ∧
+      ((∃ (ws : List Val) (x : FuncIdx), code = E.fill (vals ws ++ .plain (.call x) :: rest)) ∨
+        ∃ (ws : List Val) (a : Nat) (y : TypeIdx),
+          code = E.fill (vals ws ++ .ref (.func a) :: .plain (.callRef y) :: rest)) := by
   induction h with
   | @here ws x rest =>
-    refine ⟨.hole, ws, x, rest, .hole, fun a ha => hF a (by simp [ha]), rfl⟩
+    exact ⟨.hole, rest, .hole, fun a ha => hF a (by simp [ha]), .inl ⟨ws, x, rfl⟩⟩
+  | @hereRef ws a y rest =>
+    exact ⟨.hole, rest, .hole, fun b hb => hF b (by simp [hb]), .inr ⟨ws, a, y, rfl⟩⟩
   | @label ws n cont X rest _ ih =>
     have hl := hF (.label n cont X) (by simp)
     obtain ⟨hc, hi⟩ : (∀ i ∈ cont, FragIB true i) ∧ FragC X := by
       cases hl with
       | val h => simp [Admin.val?] at h
       | label hc hi => exact ⟨hc, hi⟩
-    obtain ⟨E, ws', x, rest', hE, hr, rfl⟩ := ih hi
-    exact ⟨.label ws n cont E rest, ws', x, rest',
-      .label hc (fun a ha => hF a (by simp [ha])) hE, hr, rfl⟩
+    obtain ⟨E, rest', hE, hr, h'⟩ := ih hi
+    refine ⟨.label ws n cont E rest, rest', .label hc (fun a ha => hF a (by simp [ha])) hE, hr, ?_⟩
+    rcases h' with ⟨ws', x, rfl⟩ | ⟨ws', a, y, rfl⟩
+    · exact .inl ⟨ws', x, rfl⟩
+    · exact .inr ⟨ws', a, y, rfl⟩
   | @handler ws n cs X rest _ ih =>
     have hl := hF (.handler n cs X) (by simp)
     have hi : FragC X := by
       cases hl with
       | val h => simp [Admin.val?] at h
       | handler hi => exact hi
-    obtain ⟨E, ws', x, rest', hE, hr, rfl⟩ := ih hi
-    exact ⟨.handler ws n cs E rest, ws', x, rest',
-      .handler (fun a ha => hF a (by simp [ha])) hE, hr, rfl⟩
+    obtain ⟨E, rest', hE, hr, h'⟩ := ih hi
+    refine ⟨.handler ws n cs E rest, rest', .handler (fun a ha => hF a (by simp [ha])) hE, hr, ?_⟩
+    rcases h' with ⟨ws', x, rfl⟩ | ⟨ws', a, y, rfl⟩
+    · exact .inl ⟨ws', x, rfl⟩
+    · exact .inr ⟨ws', a, y, rfl⟩
 
 theorem ends_not_blocked {o : Out} {X : List Admin} (ho : o.Ends X) (hb : Blocked X) : False := by
   obtain ⟨ws, y, rest, rfl, hy⟩ := hb
@@ -300,27 +310,20 @@ theorem complete_core {G : Store H → Nat → List Val → Prop} (hC : CallComp
         ⟨ws, _, rest, rfl, .inr (.inr (.inl ⟨_, _, _, rfl⟩))⟩)).elim
   | @head c₀ c₁ hstep hrest ih =>
     intro hG
-    have ih := ih (fun c₂ E ws us x rest a fi ps rs h₂ hc hx hfi he hn =>
-      hG c₂ E ws us x rest a fi ps rs (.head hstep h₂) hc hx hfi he hn)
+    have ih := ih (fun c₂ E ws us a cr rest fi ps rs h₂ =>
+      hG c₂ E ws us a cr rest fi ps rs (.head hstep h₂))
     obtain ⟨s, f, code⟩ := c₀
     obtain ⟨s₁', f₁', code₁⟩ := c₁
-    refine ⟨fun hF => ?_, ?_, ?_⟩
-    · -- (A)
-      by_cases hca : CallAt code
-      · obtain ⟨E, ws, x, rest, hE, hr, rfl⟩ := callAt_fill hca hF
-        obtain ⟨X', hX', hc₁⟩ := step_fill E ⟨ws, _, rest, rfl, .inl ⟨x, rfl⟩⟩ hstep
-        obtain ⟨a, fi, hx, hfi, hcf⟩ := Step.call_vals_inv_seq hX'
-        simp only [Config.mk.injEq] at hcf hc₁
-        obtain ⟨rfl, rfl, rfl⟩ := hcf
-        obtain ⟨ws', us, ps, rs, s₂, r, rfl, he, hn, hcall, hrun⟩ :=
-          ih.2.1 E ws a _ rest fi hE hr hc₁ trivial hfi
-        exact run_fill_back E (fun hh => call_incl hC hx hfi he hn
-          (hG _ E ws' us x rest a fi ps rs .refl rfl hx hfi he hn) hcall hh) hrun
-      · obtain ⟨hF₁, hb⟩ := expandB (C := C) hstep hF hca
-        exact hb (ih.1 hF₁)
-    · -- (B)
+    have hB : ∀ (E : Ctx) (ws : List Val) (a : Nat) (cr : Admin) (rest : List Admin)
+        (fi : FuncInst H), CtxF E → FragC rest →
+        code = E.fill (vals ws ++ .ref (.func a) :: cr :: rest) → cr.IsCallRef →
+        s.funcs[a]? = some fi →
+        ∃ (ws' us : List Val) (ps rs : Ty (.list .val)) (s₁ : Store H) (r : Result),
+          ws = ws' ++ us ∧ Expand fi.type (.func ps rs) ∧ us.length = ps.length ∧
+          Steps P host ⟨s, f, vals us ++ [.ref (.func a), cr]⟩ ⟨s₁, f, r.toAdmin⟩ ∧
+          RunC P host C s₁ f [] (E.fill (vals ws' ++ r.toAdmin ++ rest))
+            c'.store c'.frame o := by
       intro E ws a cr rest fi hE hr hc hcr hfi
-      simp only at hc hfi ⊢
       subst hc
       obtain ⟨X', hX', hc₁⟩ := step_fill E (blocked_pending hcr) hstep
       simp only at hc₁ hX'
@@ -344,6 +347,36 @@ theorem complete_core {G : Store H → Nat → List Val → Prop} (hC : CallComp
         · simp only [Config.mk.injEq] at hcf
           obtain ⟨rfl, rfl, rfl⟩ := hcf
           exact ih.2.1 E (vs₁ ++ vs₂) a cr rest fi hE hr (by rw [hc₁]; simp) hcr hfi
+    refine ⟨fun hF => ?_, hB, ?_⟩
+    · -- (A)
+      by_cases hca : CallAt code
+      · obtain ⟨E, rest, hE, hr, ⟨ws, x, rfl⟩ | ⟨ws, a, y, rfl⟩⟩ := callAt_fill hca hF
+        · obtain ⟨X', hX', hc₁⟩ := step_fill E ⟨ws, _, rest, rfl, .inl ⟨x, rfl⟩⟩ hstep
+          obtain ⟨a, fi, hx, hfi, hcf⟩ := Step.call_vals_inv_seq hX'
+          simp only [Config.mk.injEq] at hcf hc₁
+          obtain ⟨rfl, rfl, rfl⟩ := hcf
+          obtain ⟨ws', us, ps, rs, s₂, r, rfl, he, hn, hcall, hrun⟩ :=
+            ih.2.1 E ws a _ rest fi hE hr hc₁ trivial hfi
+          exact run_fill_back E (fun hh => call_incl hC hx hfi he hn
+            (guarded_call hG .refl rfl hx hfi he hn) hcall hh) hrun
+        · obtain ⟨X', hX', -⟩ := step_fill E
+            (blocked_pending (ws := ws) (a := a) (rest := rest) (cr := .plain (.callRef y)) trivial)
+            hstep
+          have hX'' : Step P host ⟨s, f, vals (ws ++ [.ref (.func a)]) ++ .plain (.callRef y) :: rest⟩
+              ⟨s₁', f₁', X'⟩ := by simpa [vals, Val.toAdmin] using hX'
+          rcases Step.callRef_top_inv_seq (r := .plain (.callRef y)) trivial hX'' with
+            ⟨w, hw, -⟩ | ⟨w, a', fi, hw, hfi⟩
+          · have := congrArg List.getLast? hw; simp at this
+          · obtain ⟨rfl, hl⟩ := List.append_inj' hw rfl
+            simp only [List.cons.injEq, Val.ref.injEq, Ref.func.injEq, and_true] at hl
+            subst hl
+            obtain ⟨ws', us, ps, rs, s₂, r, rfl, he, hn, hcall, hrun⟩ :=
+              hB E _ a _ rest fi hE hr rfl trivial hfi
+            exact run_fill_back E (fun hh => callRef_incl hC hfi he hn
+              (hG _ E ws' us a _ rest fi ps rs .refl rfl trivial
+                (fun d hd => by cases hd) hfi he hn) hcall hh) (by simpa using hrun)
+      · obtain ⟨hF₁, hb⟩ := expandB (C := C) hstep hF hca
+        exact hb (ih.1 hF₁)
     · -- (C)
       intro E ws n F Y rest hE hr hc
       simp only at hc ⊢
@@ -379,7 +412,7 @@ theorem complete_core {G : Store H → Nat → List Val → Prop} (hC : CallComp
           obtain ⟨rfl, rfl⟩ := List.append_inj' hsplit (by omega)
           exact ⟨s₂, r, .head hd hcall, hrun⟩
 
-/-- **Core completeness for code with direct calls**: under a complete oracle (`CallCompleteG`,
+/-- **Core completeness for code with calls**: under a complete oracle (`CallCompleteG`,
 its guard holding everywhere), every Core 3.0 run of fragment code with calls (`FragC`) to a final
 form of `o` is a `RunC` run. -/
 theorem completeC {G : Store H → Nat → List Val → Prop} (hC : CallCompleteG P host G C)

@@ -92,6 +92,17 @@ struct RecordRows {
     specs: Vec<Spec>,
     models: Vec<Model>,
     rooms: Vec<Room>,
+    institutions: Vec<Institution>,
+    comorphisms: Vec<Comorphism>,
+    morphisms: Vec<Morphism>,
+    corridors: Vec<Corridor>,
+    logic_facts: Vec<LogicFact>,
+    logic_audit: Vec<LogicAudit>,
+    hets_logics: Vec<HetsLogic>,
+    hets_comorphisms: Vec<HetsComorphism>,
+    logic_pending: Vec<LogicPending>,
+    logic_catalogue: Vec<LogicCatalogue>,
+    logic_exclusions: Vec<LogicExclusion>,
     machines: Vec<Machine>,
     bindings: Vec<MachineBinding>,
     domains: Vec<LanguageDomain>,
@@ -265,6 +276,68 @@ fn record_rows(
                     ..x.clone()
                 });
             }
+            Record::Institution(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.institutions.push(Institution {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::Comorphism(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.logic_facts
+                    .extend(fact_rows("comorphism", &x.name, &x.facts));
+                rows.comorphisms.push(Comorphism {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::Morphism(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.logic_facts
+                    .extend(fact_rows("morphism", &x.name, &x.facts));
+                rows.morphisms.push(Morphism {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::Corridor(x) => {
+                let sid = obj(o, &x.name, &x.sid_override);
+                rows.logic_facts
+                    .extend(fact_rows("corridor", &x.name, &x.facts));
+                rows.corridors.push(Corridor {
+                    sid,
+                    origin: org,
+                    ..x.clone()
+                });
+            }
+            Record::LogicAudit(x) => rows.logic_audit.push(LogicAudit {
+                origin: org,
+                ..x.clone()
+            }),
+            Record::HetsLogic(x) => rows.hets_logics.push(HetsLogic {
+                origin: org,
+                ..x.clone()
+            }),
+            Record::HetsComorphism(x) => rows.hets_comorphisms.push(HetsComorphism {
+                origin: org,
+                ..x.clone()
+            }),
+            Record::LogicExclusion(x) => rows.logic_exclusions.push(LogicExclusion {
+                origin: org,
+                ..x.clone()
+            }),
+            Record::LogicCatalogue(x) => rows.logic_catalogue.push(LogicCatalogue {
+                origin: org,
+                ..x.clone()
+            }),
+            Record::LogicPending(x) => rows.logic_pending.push(LogicPending {
+                origin: org,
+                ..x.clone()
+            }),
             Record::ConsequenceMatrix(x) => {
                 rows.matrix_cells.push(ConsequenceMatrixCell {
                     origin: org,
@@ -533,6 +606,18 @@ pub(super) fn run(
     db.push(&recs.specs);
     db.push(&recs.models);
     db.push(&recs.rooms);
+    db.push(&recs.institutions);
+    db.push(&recs.comorphisms);
+    db.push(&recs.morphisms);
+    db.push(&recs.corridors);
+    db.push(&edge_kind_rows());
+    db.push(&recs.logic_facts);
+    db.push(&recs.logic_audit);
+    db.push(&recs.hets_logics);
+    db.push(&recs.hets_comorphisms);
+    db.push(&recs.logic_pending);
+    db.push(&recs.logic_catalogue);
+    db.push(&recs.logic_exclusions);
     db.push(&recs.machines);
     db.push(&recs.bindings);
     db.push(&recs.domains);

@@ -239,6 +239,91 @@ tries the core decoder first, then the component one. Examples:
 `Silmaril/Wasi/Component/Accept/Consequence/Examples.lean` (the empty-module binary, the
 specification component).
 
+## Clausal acceptors: UNSAT, TAUTO, CNF, Gentzen and DIMACS
+
+`Silmaril.Consequence.Gentzen.Clausal` (`Gentzen/Clausal/{Defs,Thms,Examples}`) relates four
+kinds of acceptor over a formula type `C`. An acceptor is a plain predicate (a policy);
+its semantics and its soundness are separate notions.
+
+| kind | type | reading |
+|---|---|---|
+| UNSAT `U` | `List C → Prop` | conjunction, accepted when refuted |
+| TAUTO `T` | `List C → Prop` | disjunction, accepted when valid |
+| CNF `A` | `List (List C) → Prop` | conjunction of disjunctions, accepted when refuted |
+| Gentzen `S` | `Seq C` | sequent `Γ ⊢ Δ` |
+
+Semantics over `sat : M → C → Prop`: `CnfSat`, `CnfUnsat` (no model *in `M`*; satisfiability is
+relative to the model type), and `CnfSound` / `CnfComplete` for an acceptor. Weakening is
+membership inclusion `⊆` (`ListPred.UpClosed`); ordered or substructural policies are not
+covered by these equivalences. Negation is an explicit `neg : C → C`, never assumed involutive.
+
+**Closure laws.** `UnsatClosed neg` (`⊆`-weakening, explosion, unit cut
+`U (neg a :: Γ) → U (a :: Γ') → U (Γ ++ Γ')`); `TautClosed neg` (dually: excluded middle and
+cut); `GentzenClosed neg` (`Closed defaultRules`, `NegL`, `NegR`). CNF acceptors have two layers:
+
+* `CnfClosed`, *representation*: clause-set weakening, clause strengthening, splitting
+  `A ([a] :: F) → A (K :: F) → A ((a :: K) :: F)`, the empty clause. No negation. It holds
+  exactly when `A` is determined by its unit restriction `unitsOf A` through hitting sets
+  (`cnfOf U F := ∀ Γ, Hits Γ F → U Γ`).
+* `CnfUnsatClosed neg`, *logic*: `CnfClosed` plus complementary units `A [[c], [neg c]]` and unit
+  resolution `A ([neg a] :: F) → A ([a] :: G) → A (F ++ G)`. `cnfUnsatClosed_iff`: these are
+  exactly what makes `unitsOf A` `UnsatClosed`. "Contains the empty clause" is `CnfClosed` and
+  sound but not `CnfUnsatClosed` (`Examples.emptyClause_not_unsatClosed`).
+
+**Equivalences** (order isomorphisms between the closed acceptors; an arbitrary acceptor is not
+the restriction of any calculus, e.g. the sound `bounded 3` test is not up-closed):
+
+| equivalence | maps | hypotheses in the subtypes |
+|---|---|---|
+| `unsatEquiv neg` | `toUnsat` / `viaUnsat · neg` | `GentzenClosed neg` ≃ `UnsatClosed neg` |
+| `tautEquiv neg` | `toTaut` / `viaTauto · neg` | `GentzenClosed neg` ≃ `TautClosed neg` |
+| `cnfEquiv C` | `cnfOf` / `unitsOf` | `ListPred.UpClosed` ≃ `CnfClosed` |
+| `cnfUnsatEquiv neg` | `cnfOf` / `unitsOf` | `UnsatClosed neg` ≃ `CnfUnsatClosed neg` |
+| `gentzenCnfEquiv neg` | `cnfOf ∘ toUnsat` / `viaUnsat (unitsOf ·) neg` | `GentzenClosed neg` ≃ `CnfUnsatClosed neg` |
+| `signedEquiv A` | `signedUnsat` / `atomSeq` | `Closed defaultRules` on `Seq A` ≃ `UnsatClosed (-·)` on `List (Signed A)` |
+| `signedCnfEquiv A` | `cnfOf ∘ signedUnsat` | `Closed defaultRules` on `Seq A` ≃ `CnfUnsatClosed (-·)` on `List (List (Signed A))` |
+
+`UnsatClosed.dne` derives the double-negation step `NegR` needs from explosion and cut. Over
+signed formulas the Gentzen side is a calculus on the atoms `A` — the existing positive
+embedding `Signed.pos` (`MultiSystem.posPart`, `signedLift`) — and no positive part is derived
+from an involution: `signedUnsat S Γ = S (posAtoms Γ) (negAtoms Γ)`,
+`atomSeq U = posPart (viaUnsat U (-·))`; `atomSeq_signedUnsat` needs no hypothesis.
+
+Semantics: `CnfUnsat sat` is `CnfClosed` always, and `CnfUnsatClosed neg` given `NegSound`
+(complementary units) and `NegComplete` (unit resolution); `cnfOf_toUnsat_valid`
+(`cnfOf (toUnsat (Valid sat)) = CnfUnsat sat`); `cnfOf_signedUnsat_valid` for signed atoms
+under a valuation. Soundness transfers separately: `cnfSound_cnfOf`, `checkSound_unitsOf`,
+`viaUnsat_unitsOf_le_valid`.
+
+### DIMACS and LRAT
+
+`Gentzen/Clausal/Dimacs/{Defs,Thms,Examples}` connects this to `Silmaril.Logic.SAT` (`Lit :=
+Int`, `CNF := List (List Int)`, `Dimacs.read`, `LRAT.check`):
+
+* `CnfUnsat litSat F ↔ SAT.CNF.Unsat F` (`cnfUnsat_litSat_iff`), so `SAT.CNF.Unsat` is
+  `CnfClosed`; on `0`-free clauses it is `Refutation.Unsat csat` of `Refutation.CNF`
+  (`cnfUnsat_toCNF_iff`). `lratAccepts` (some proof passes `LRAT.check`) is a *sound* CNF acceptor
+  (`lratAccepts_sound`); no closure or completeness of LRAT acceptance is claimed.
+* `Dimacs.write F` (each clause followed by `0`) is read back exactly by the existing reader
+  when no clause contains `0` (`Dimacs.read_write`, `Dimacs.cnf_write`); `[[0]]` is not
+  (`Dimacs.write_zero_not_inverse`).
+* The image of signed clauses along `v : A → Nat`: `encLit v (pos a) = v a`,
+  `encLit v (neg a) = -(v a)`, `encode v F`. `Coherent v F`: `v` is nonzero (the terminator `0`
+  is never a literal) and injective (no collision) on the finite support `atoms F`.
+  `encLit_neg`: the sign flip commutes with the image for every `v`.
+* Direction of the transfer, for `sat : M → Signed A → Prop` with `NegSound sat (-·)` (a model
+  of `neg a` is not one of `pos a`; true of `signedSat τ`): source satisfiable in `M` ⇒ image
+  satisfiable (`sat_encode`), hence image `Unsat` ⇒ source `CnfUnsat` in `M`
+  (`cnfUnsat_of_encode`), and an accepted LRAT proof of the image — or of the formula read from
+  its DIMACS stream — refutes the source through `LRAT.check_sound` (`cnfUnsat_of_lrat`,
+  `cnfUnsat_of_lrat_stream`, `signedSat_cnfUnsat_of_lrat`).
+* The converse is not claimed. `Examples.converse_fails`: in a model type with one model making
+  every atom true, `[[¬x]]` is unsatisfiable while its coherent image `[[-1]]` is satisfiable.
+  `Examples.collision`: with every atom on variable `1`, the satisfiable `[[x], [¬y]]` has an
+  LRAT-refuted image, showing why a hypothesis like `injOn` is needed for the general theorem
+  (not that it is necessary for every formula). `Examples.src_unsat`: the four clauses over
+  `x, y` encode to `LRAT.fourClauses`, whose existing proof is checked by `decide`.
+
 ## Institutions, logics and their propositions
 
 `roomSys` (`Set Sen ⊢ Sen`) and `roomMulti` (`Sen* ⊢ Sen*`) already read a room as a system.
@@ -385,6 +470,7 @@ Gentzen sequents.
 | `Silmaril/Logic/Consequence/Multi/{Defs,Thms}.lean` | multiple conclusions, `rightExt`, `multiEntails`, rooms | core |
 | `Silmaril/Logic/Consequence/Interp/{Defs,Thms}.lean` | interpretations, projection, evidence | core |
 | `Silmaril/Logic/Consequence/Shape/{Defs,Thms}.lean` | acceptor/rejector shapes, slices, checker predicates | core |
+| `Silmaril/Logic/Consequence/Gentzen/Clausal/{Defs,Thms,Examples}.lean`, `…/Clausal/Dimacs/…` | UNSAT, TAUTO, CNF and Gentzen acceptors, closure laws, equivalences; DIMACS image and LRAT bridge | structural derivations |
 | `Silmaril/Logic/Consequence/Examples.lean` | worked examples | core |
 | `Silmaril/Logic/Consequence/Structural/…` | structural rules and derivation closures | structural derivations |
 | Wasm acceptor and SZS protocol modules | Wasm evidence for the lifts | Wasm/SZS protocols |

@@ -236,6 +236,28 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .return_)
       (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
       MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+  /-- `br l` to the function label (`l` is the number of label frames, the function boundary):
+  leave the function with the block's values, as `return` does. Deeper labels stay invalid. -/
+  | brOut {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
+      {f f₁ : Frame} {l : LabelIdx} (hb : lookup body b = some sg)
+      (ht : sg.term = some (.br l))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hL : l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+  /-- `br_if l` with a nonzero condition, to the function label. -/
+  | brIfOut {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {k : BitVec 32}
+      (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
+      (hk : k ≠ 0) (hL : l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+  /-- A data-dependent branch (`br_table`, `br_on_*`) that branches to the function label. -/
+  | brDataOut {b : BlockId} {sg : Segment} {stk ws us us' : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {l : LabelIdx}
+      (hb : lookup body b = some sg) (ht : sg.term = some i)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+      (hbs : BrStep s₁ f₁ us i us' [.plain (.br l)]) (hL : l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, ws ++ us', [], s₁, f₁⟩
   /-- `unreachable`, or a trap in the block's body. -/
   | trap {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .unreachable)
@@ -322,6 +344,31 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
           goto ((labels body b.seq).getD (j + 1 + l.toNat) .invalid)
             (b.seq.length - (j + 1 + l.toNat + 1)) (ls.drop (j + 1 + l.toNat + 1))
             (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₁ f₁)
+
+  /-- A thrown exception caught by the `try_table` frame `j` whose clause branches to the
+  function label (`j + 1 + l` is the number of frames): leave the function with the handler's
+  outer values under the caught ones. -/
+  | catchOut {b : BlockId} {sg : Segment} {stk stk₁ us : List Val} {ls : List LFrame}
+      {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a j : Nat} {L : LFrame}
+      {l : LabelIdx} (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsThrow)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hth : RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.throw a))
+      (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+        Catches s₂ f₂ a L.catches none)
+      (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
+      (hout : j + 1 + l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, L.outer ++ us, [], s₂, f₂⟩
+  /-- An exception thrown in the block's straight-line body, caught by frame `j` with a clause
+  branching to the function label (`catchOut`). -/
+  | bodyCatchOut {b : BlockId} {sg : Segment} {stk us : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {a j : Nat} {L : LFrame} {l : LabelIdx}
+      (hb : lookup body b = some sg)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.throw a))
+      (hpass : ∀ (k : Nat) (L : LFrame), k < j → ls[k]? = some L → L.tryT = true →
+        Catches s₁ f₁ a L.catches none)
+      (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₁ f₁ a L.catches (some (us, l)))
+      (hout : j + 1 + l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, L.outer ++ us, [], s₁, f₁⟩
 
   /-- A tail call of a null reference (`return_call_ref` or `return_call_indirect` on null):
   the terminator ends in a pending tail call of null (`Region.Out.tailNull`), which traps when
@@ -472,13 +519,14 @@ def _root_.Silmaril.Wasm.Cfg.Target.IsSink : Target → Prop
   | _ => False
 
 /-- **What a run ending in a sink state means**, as a region outcome: at `exit`, the final
-values, reached by falling off the end (`normal`) or by `return` (`ret`, the values under the
-returned ones are the label frames' outer values Core keeps); at `trap`, a trap or a pending
+values, reached by falling off the end (`normal`), by `return` (`ret`, the values under the
+returned ones are the label frames' outer values Core keeps), or by a branch to the function
+label (`br 0` out of the body, with the same outer values under the branch's); at `trap`, a trap or a pending
 tail call of null (which traps at the function's frame); at `raise`, the thrown exception whose
 address is the stack. -/
 def Ends {H : Type} (st : MState H) (o : Region.Out) : Prop :=
   match st.node with
-  | .exit => o = .normal st.stk ∨ ∃ W, o = .ret (W ++ st.stk)
+  | .exit => o = .normal st.stk ∨ (∃ W, o = .ret (W ++ st.stk)) ∨ ∃ W, o = .br 0 (W ++ st.stk)
   | .trap => o = .trap ∨ ∃ W c, o = .tailNull W c
   | .raise => ∃ a, st.stk = [.ref (.exn a)] ∧ o = .throw a
   | _ => False
@@ -529,7 +577,7 @@ straight-line body is `pre ++ call x :: post`; the prefix `pre` runs (`RunC`, it
 answered by `C`) to values `ws ++ us`, and `call x` resolves to the function at `a` (of type
 `ps → rs`) on its arguments `us`, a call that `D` says diverges. The oracle `C` answers only
 terminating calls; this is the machine's divergence inside a single callee. -/
-def BodyCallDiv {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+def BodyCallDivDirect {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
     (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
   ∃ (b : BlockId) (sg : Segment) (pre post : List Instr) (x : FuncIdx) (s₁ : Store H)
     (f₁ : Frame) (ws us : List Val) (a : Nat) (fi : FuncInst H) (ps rs : List CValType),
@@ -537,6 +585,38 @@ def BodyCallDiv {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.
     RunC P host C st.store st.frame st.stk (expression pre) s₁ f₁ (.normal (ws ++ us)) ∧
     s₁.func? f₁ x = some (a, fi) ∧ DefType.funcType? fi.type = some (ps, rs) ∧
     us.length = ps.length ∧ D s₁ a us
+
+/-- A block whose body reaches a `call_indirect` resolved (`CallRes.IndRes`, as `RunC.callInd`)
+to a callee that `D` says diverges. A null entry or failed cast traps instead. -/
+def BodyCallDivInd {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  ∃ (b : BlockId) (sg : Segment) (pre post : List Instr) (x : TableIdx) (y : TypeIdx)
+    (s₁ : Store H) (f₁ : Frame) (ws us : List Val) (ad : AddrType) (i : BitVec ad.intType.width)
+    (fa : Nat) (fi : FuncInst H) (ps rs : List CValType),
+    st.node = .block b ∧ lookup body b = some sg ∧ sg.body = pre ++ .callIndirect x y :: post ∧
+    RunC P host C st.store st.frame st.stk (expression pre) s₁ f₁
+      (.normal (ws ++ us ++ [.num ⟨.int ad.intType, i⟩])) ∧
+    Abstract.CallRes.IndRes s₁ f₁ x y ad i (some fa) ∧ s₁.funcs[fa]? = some fi ∧
+    DefType.funcType? fi.type = some (ps, rs) ∧ us.length = ps.length ∧ D s₁ fa us
+
+/-- A block whose body reaches a `call_ref` on a function reference that `D` says diverges. On
+null it traps instead. -/
+def BodyCallDivRef {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  ∃ (b : BlockId) (sg : Segment) (pre post : List Instr) (y : TypeIdx) (s₁ : Store H)
+    (f₁ : Frame) (ws us : List Val) (fa : Nat) (fi : FuncInst H) (ps rs : List CValType),
+    st.node = .block b ∧ lookup body b = some sg ∧ sg.body = pre ++ .callRef y :: post ∧
+    RunC P host C st.store st.frame st.stk (expression pre) s₁ f₁
+      (.normal (ws ++ us ++ [.ref (.func fa)])) ∧
+    s₁.funcs[fa]? = some fi ∧ DefType.funcType? fi.type = some (ps, rs) ∧ us.length = ps.length ∧
+    D s₁ fa us
+
+/-- **A block whose body reaches a call `D` says diverges**: a direct, indirect or reference call
+(`BodyCallDivDirect`, `BodyCallDivInd`, `BodyCallDivRef`). -/
+def BodyCallDiv {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  BodyCallDivDirect P host C D body st ∨ BodyCallDivInd P host C D body st ∨
+    BodyCallDivRef P host C D body st
 
 /-- **Divergence of the machine with calls**: an infinite run of `MStepC`, or a finite run to a
 block whose body reaches a call that `D` says diverges (`BodyCallDiv`). An infinite `MStepC`
@@ -546,5 +626,30 @@ def MDivC {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRe
     (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
   InfiniteTrace (MStepC P host C body) st ∨
     ∃ st', Relation.ReflTransGen (MStepC P host C body) st st' ∧ BodyCallDiv P host C D body st'
+
+/-- **A block ending in a tail call of a diverging callee**: its body runs to values, and its
+terminator, a tail call (`return_call`, `return_call_indirect`, `return_call_ref`), ends in a
+pending tail call (`Out.tail`) of a function that `D` says diverges on the top `ps.length`
+values of the whole stack, the label frames' outer values under the terminator's (`brVals`), as
+`MStepC.tail` reads them. The tail call replaces the function's frame, so this is divergence of
+the function's `FRAME`, not of its body: the caller's pending code and handlers are bypassed. -/
+def TailCallDiv {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  ∃ (b : BlockId) (sg : Segment) (i : Instr) (stk₁ : List Val) (s₁ s₂ : Store H) (f₁ f₂ : Frame)
+    (W : List Val) (a : Nat) (c : Admin) (fi : FuncInst H) (ps rs : List CValType)
+    (W₀ args : List Val),
+    st.node = .block b ∧ lookup body b = some sg ∧ sg.term = some i ∧ i.IsTailCall ∧
+    RunC P host C st.store st.frame st.stk (expression sg.body) s₁ f₁ (.normal stk₁) ∧
+    RunC P host C s₁ f₁ stk₁ [.plain i] s₂ f₂ (.tail W a c) ∧
+    s₂.funcs[a]? = some fi ∧ DefType.funcType? fi.type = some (ps, rs) ∧
+    brVals st.lbls.length st.lbls W = W₀ ++ args ∧ args.length = ps.length ∧ D s₂ a args
+
+/-- **Divergence of a function's frame in the machine with calls**: divergence of the body
+(`MDivC`), or a finite run to a block ending in a tail call of a callee that `D` says diverges
+(`TailCallDiv`). -/
+def MDivT {H : Type} (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
+    (D : Store H → Nat → List Val → Prop) (body : Expr) (st : MState H) : Prop :=
+  MDivC P host C D body st ∨
+    ∃ st', Relation.ReflTransGen (MStepC P host C body) st st' ∧ TailCallDiv P host C D body st'
 
 end Silmaril.Wasm.Cfg.Machine

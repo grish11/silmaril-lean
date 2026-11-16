@@ -6,7 +6,7 @@ public import Silmaril.Project.Registry.Predicate.Defs
 # Silmaril projects: rooms (layer 4)
 
 `silmaril room R := decl` registers a room over silmaril's `Room` (named, not imported:
-`Silmaril.Logic.Institution.Room`), and `silmaril problem N in R := φ` for a sentence
+`Silmaril.Logic.Institution.Room`; the handler is in `Registry.Institution.Defs`), and `silmaril problem N in R := φ` for a sentence
 `φ : R.Sen` is the predicate `fun M => Silmaril.Project.Room.Problem R φ M` over the room's
 models, so that THM is validity, SAT satisfiability, UNS unsatisfiability, CSA a countermodel,
 and `(M := m)` is `m ⊨ φ`.
@@ -48,19 +48,9 @@ def roomTypes (R : Expr) : MetaM (Expr × Expr) := do
     | throwError "silmaril room: unexpected type of `Sat`"
   return (← peel 16 sen, ← peel 16 mod)
 
-/-- `room R := decl`, `decl : Silmaril.Logic.Institution.Room`, universe-monomorphic. -/
-@[silmaril_kind room] def roomHandler : Handler where
-  run? := some fun kind name? fs => liftTermElabM do
-    let R ← fs.const kind "decl"
-    unless (← getConstInfo R).levelParams.isEmpty do
-      throwError "silmaril room: {R} has universe parameters; register a universe-monomorphic room"
-    let ty ← whnf (← constType R)
-    unless ty.isAppOf roomName do
-      throwError "silmaril room: {R} has type{indentExpr ty}\nbut a room is a `{roomName}`"
-    let (sen, mod) ← roomTypes (mkConst R)
-    let fs ← fs.push kind "sen" (.str (← ppOneLine sen))
-    let fs ← fs.push kind "mod" (.str (← ppOneLine mod))
-    return #[(← needName kind name?, fs)]
+-- The handler of `room R := decl` is `Silmaril.Project.roomGraphHandler`
+-- (`Registry.Institution.Defs`): rooms are the nodes of the room level of the logic graph, and may
+-- be families `∀ x⃗, Room` (a problem needs a closed room, checked below).
 
 /-- `silmaril problem N in R (k := v)* := φ`: for a registered room `R` and a sentence
 `φ : R.Sen`, the problem `N` is the predicate `fun M => Silmaril.Project.Room.Problem R φ M` over the
@@ -74,7 +64,14 @@ syntax (name := silmarilRoomProblemCmd) "silmaril " "problem " silmarilName " in
 def declareRoomProblem (name r : String) (t : Syntax) (fs : Fields) : CommandElabM Unit := do
   let decl ← fullName name
   liftTermElabM do
-    let R := mkConst (← recordDecl "problem" "room" r)
+    let Rn ← recordDecl "problem" "room" r
+    unless (← getConstInfo Rn).levelParams.isEmpty do
+      throwError "silmaril problem: room {r} has universe parameters; a problem needs a \
+        universe-monomorphic room"
+    let R := mkConst Rn
+    if let .forallE .. ← whnf (← inferType R) then
+      throwError "silmaril problem: room {r} is a family of rooms; a problem needs a closed room \
+        (register an instance `def x := {R} …` as a room)"
     let (sen, mod) ← roomTypes R
     let φ ← elabClosed t sen
     let value ← withLocalDeclD `M mod fun M => do
