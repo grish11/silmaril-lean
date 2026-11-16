@@ -1,7 +1,8 @@
 //! Every `sil project` format, one module per layer:
 //! [`dag`] (layer 0: manifest, dump, DAG records, core tables), [`relational`] (predicates,
 //! answers, instances), [`artifacts`] (the registry and blobs), [`values`] (formats and
-//! values), [`rooms`] and [`models`] (models and specs), [`languages`] (language domains,
+//! values), [`rooms`] and [`logic`] (the logic graph: institutions, comorphisms, morphisms, rooms
+//! and corridors), [`models`] (models and specs), [`languages`] (language domains,
 //! measures, interpretations and languages), [`consequence`] (consequence systems), [`markings`] (deprecations and findings). This module holds what the layers
 //! share: the schema strings, the closed [`Record`] enum (one line per kind, so an unknown kind
 //! is rejected), the [`table!`] macro and the DDL order ([`tables`]).
@@ -85,6 +86,14 @@ pub enum Record {
     Spec(Spec),
     Model(Model),
     Room(Room),
+    Institution(Institution),
+    Comorphism(Comorphism),
+    Morphism(Morphism),
+    Corridor(Corridor),
+    LogicAudit(LogicAudit),
+    HetsLogic(HetsLogic),
+    HetsComorphism(HetsComorphism),
+    LogicPending(LogicPending),
     Machine(Box<Machine>),
     MachineBinding(MachineBinding),
     LanguageDomain(LanguageDomain),
@@ -132,6 +141,14 @@ record_kinds! {
     Spec = "spec", key name, object Some("spec");
     Model = "model", key name, object Some("model");
     Room = "room", key name, object Some("room");
+    Institution = "institution", key name, object Some("institution");
+    Comorphism = "comorphism", key name, object Some("comorphism");
+    Morphism = "morphism", key name, object Some("morphism");
+    Corridor = "corridor", key name, object Some("corridor");
+    LogicAudit = "logic_audit", key name, object None;
+    HetsLogic = "hets_logic", key name, object None;
+    HetsComorphism = "hets_comorphism", key name, object None;
+    LogicPending = "logic_pending", key name, object None;
     Machine = "machine", key name, object Some("machine");
     MachineBinding = "machine_binding", key name, object None;
     LanguageDomain = "language_domain", key name, object Some("language_domain");
@@ -254,6 +271,7 @@ pub mod artifacts;
 pub mod consequence;
 pub mod dag;
 pub mod languages;
+pub mod logic;
 pub mod machines;
 pub mod markings;
 pub mod models;
@@ -266,6 +284,7 @@ pub use artifacts::*;
 pub use consequence::*;
 pub use dag::*;
 pub use languages::*;
+pub use logic::*;
 pub use machines::*;
 pub use markings::*;
 pub use models::*;
@@ -284,6 +303,10 @@ FROM edges e JOIN problems p ON p.name = e.parent AND p.kind = 'group' \
 LEFT JOIN summary s ON s.problem = e.child;",
     languages::LANGUAGE_VIEWS[0],
     consequence::CONSEQUENCE_VIEWS[0],
+    logic::LOGIC_VIEWS[0],
+    logic::LOGIC_VIEWS[1],
+    logic::LOGIC_VIEWS[2],
+    logic::LOGIC_VIEWS[3],
     markings::MARKING_VIEWS[0],
     markings::MARKING_VIEWS[1],
     markings::MARKING_VIEWS[2],
@@ -308,6 +331,8 @@ pub const INDEXES: &[(&str, &str, &[&str])] = &[
     ("problem_inputs_value", "problem_inputs", &["value"]),
     ("problem_inputs_cid", "problem_inputs", &["cid"]),
     ("instance_args_value", "instance_args", &["value"]),
+    ("logic_audit_decl", "logic_audit", &["decl"]),
+    ("rooms_institution", "rooms", &["institution"]),
     ("instance_args_cid", "instance_args", &["cid"]),
     ("value_sources_cid", "value_sources", &["cid"]),
     ("value_sources_obligation", "value_sources", &["obligation"]),
@@ -408,6 +433,16 @@ pub fn tables() -> Vec<TableInfo> {
         info::<Spec>(),
         info::<Model>(),
         info::<Room>(),
+        info::<Institution>(),
+        info::<Comorphism>(),
+        info::<Morphism>(),
+        info::<Corridor>(),
+        info::<LogicEdgeKind>(),
+        info::<LogicFact>(),
+        info::<LogicAudit>(),
+        info::<HetsLogic>(),
+        info::<HetsComorphism>(),
+        info::<LogicPending>(),
         info::<Machine>(),
         info::<MachineBinding>(),
         info::<LanguageDomain>(),

@@ -30,6 +30,13 @@ fn text_field<'a>(r: &'a Record, key: &str) -> Option<&'a str> {
         (Record::Model(x), "doc") => &x.doc,
         (Record::Spec(x), "doc") => &x.doc,
         (Record::Room(x), "doc") => &x.doc,
+        (Record::Institution(x), "doc") => &x.doc,
+        (Record::Comorphism(x), "doc") => &x.doc,
+        (Record::Morphism(x), "doc") => &x.doc,
+        (Record::Corridor(x), "doc") => &x.doc,
+        (Record::HetsLogic(x), "doc") => &x.doc,
+        (Record::HetsComorphism(x), "doc") => &x.doc,
+        (Record::LogicPending(x), "doc") => &x.doc,
         (Record::Machine(x), "doc") => &x.doc,
         (Record::MachineBinding(x), "doc") => &x.doc,
         _ => return None,
@@ -44,7 +51,8 @@ fn compare(cx: &Ctx, at: &str, t: &RecordTable, o: &mut Outcome) {
     let (kind, fields_kind) = match t.kind.as_str() {
         "instance" => ("instance", "judgement"),
         k @ ("artifact_type" | "format" | "format_default" | "value" | "model" | "spec"
-        | "room" | "machine" | "machine_binding" | "judgement" | "detached"
+        | "room" | "institution" | "comorphism" | "morphism" | "corridor" | "hets_logic"
+        | "hets_comorphism" | "logic_pending" | "machine" | "machine_binding" | "judgement" | "detached"
         | "deprecation" | "finding" | "group" | "children") => (k, k),
         _ => return,
     };

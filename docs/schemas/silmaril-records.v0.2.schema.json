@@ -315,7 +315,7 @@
       }
     },
     "room": {
-      "description": "A room: `decl : Silmaril.Logic.Institution.Room`",
+      "description": "A room: `decl : Silmaril.Logic.Institution.Room`, or a family `∀ x⃗, Room`",
       "type": "array",
       "items": {
         "type": "object",
@@ -330,9 +330,26 @@
             "type": "string",
             "description": "The room"
           },
+          "institution": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The institution it is a fiber of (else found by Lean, if registered)"
+          },
+          "title": {
+            "type": "string",
+            "description": "A one-line title"
+          },
           "doc": {
             "type": "string",
             "description": "A description"
+          },
+          "source": {
+            "type": "string",
+            "description": "A citation key of references.bib, or a section of a standard"
+          },
+          "scope": {
+            "type": "string",
+            "description": "What the declaration covers, and what it does not"
           },
           "sid": {
             "type": "string",
@@ -347,6 +364,433 @@
         "required": [
           "name",
           "decl"
+        ]
+      }
+    },
+    "institution": {
+      "description": "An institution: `decl : Silmaril.Logic.Institution.Inst`, or a family `∀ x⃗, Inst`",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The institution's name"
+          },
+          "decl": {
+            "type": "string",
+            "description": "The institution"
+          },
+          "title": {
+            "type": "string",
+            "description": "A one-line title"
+          },
+          "doc": {
+            "type": "string",
+            "description": "A description"
+          },
+          "source": {
+            "type": "string",
+            "description": "A citation key of references.bib, or a section of a standard"
+          },
+          "scope": {
+            "type": "string",
+            "description": "What the declaration covers, and what it does not"
+          },
+          "hets": {
+            "type": "string",
+            "description": "The Hets logic or comorphism it relates to"
+          },
+          "hets_relation": {
+            "type": "string",
+            "description": "How it relates to `hets`: corresponds, fragment or related"
+          },
+          "sid": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "A sid override (64 lowercase hex digits)"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "decl"
+        ]
+      }
+    },
+    "comorphism": {
+      "description": "An institution comorphism `decl : Inst.CoHom A B` between registered institutions (sentences forwards, models backwards)",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The edge's name"
+          },
+          "decl": {
+            "type": "string",
+            "description": "The declaration"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The source node (else found by Lean)"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The target node (else found by Lean)"
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Theorems stating known properties of it"
+          },
+          "title": {
+            "type": "string",
+            "description": "A one-line title"
+          },
+          "doc": {
+            "type": "string",
+            "description": "A description"
+          },
+          "source": {
+            "type": "string",
+            "description": "A citation key of references.bib, or a section of a standard"
+          },
+          "scope": {
+            "type": "string",
+            "description": "What the declaration covers, and what it does not"
+          },
+          "hets": {
+            "type": "string",
+            "description": "The Hets logic or comorphism it relates to"
+          },
+          "hets_relation": {
+            "type": "string",
+            "description": "How it relates to `hets`: corresponds, fragment or related"
+          },
+          "sid": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "A sid override (64 lowercase hex digits)"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "decl"
+        ]
+      }
+    },
+    "morphism": {
+      "description": "An institution morphism `decl : Inst.Hom A B` between registered institutions (sentences backwards, models forwards)",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The edge's name"
+          },
+          "decl": {
+            "type": "string",
+            "description": "The declaration"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The source node (else found by Lean)"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The target node (else found by Lean)"
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Theorems stating known properties of it"
+          },
+          "title": {
+            "type": "string",
+            "description": "A one-line title"
+          },
+          "doc": {
+            "type": "string",
+            "description": "A description"
+          },
+          "source": {
+            "type": "string",
+            "description": "A citation key of references.bib, or a section of a standard"
+          },
+          "scope": {
+            "type": "string",
+            "description": "What the declaration covers, and what it does not"
+          },
+          "hets": {
+            "type": "string",
+            "description": "The Hets logic or comorphism it relates to"
+          },
+          "hets_relation": {
+            "type": "string",
+            "description": "How it relates to `hets`: corresponds, fragment or related"
+          },
+          "sid": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "A sid override (64 lowercase hex digits)"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "decl"
+        ]
+      }
+    },
+    "corridor": {
+      "description": "A corridor `decl : Corridor R₁ R₂` between registered rooms (sentences forwards, models backwards)",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The edge's name"
+          },
+          "decl": {
+            "type": "string",
+            "description": "The declaration"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The source node (else found by Lean)"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The target node (else found by Lean)"
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Theorems stating known properties of it"
+          },
+          "title": {
+            "type": "string",
+            "description": "A one-line title"
+          },
+          "doc": {
+            "type": "string",
+            "description": "A description"
+          },
+          "source": {
+            "type": "string",
+            "description": "A citation key of references.bib, or a section of a standard"
+          },
+          "scope": {
+            "type": "string",
+            "description": "What the declaration covers, and what it does not"
+          },
+          "hets": {
+            "type": "string",
+            "description": "The Hets logic or comorphism it relates to"
+          },
+          "hets_relation": {
+            "type": "string",
+            "description": "How it relates to `hets`: corresponds, fragment or related"
+          },
+          "sid": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "A sid override (64 lowercase hex digits)"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "decl"
+        ]
+      }
+    },
+    "hets_logic": {
+      "description": "A logic of the pinned Hets logic graph, as Hets lists it",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The record's name"
+          },
+          "hets_name": {
+            "type": "string",
+            "description": "The logic's name in Hets"
+          },
+          "title": {
+            "type": "string",
+            "description": "A one-line title"
+          },
+          "flag": {
+            "type": "string",
+            "description": "The CPP flag that guards it in Hets's build"
+          },
+          "hets_file": {
+            "type": "string",
+            "description": "The Hets source file that lists it"
+          },
+          "hets_rev": {
+            "type": "string",
+            "description": "The Hets commit"
+          },
+          "doc": {
+            "type": "string",
+            "description": "A description"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "hets_name",
+          "hets_file",
+          "hets_rev"
+        ]
+      }
+    },
+    "hets_comorphism": {
+      "description": "A comorphism of the pinned Hets logic graph, as Hets lists it",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The record's name"
+          },
+          "hets_name": {
+            "type": "string",
+            "description": "The comorphism's name in Hets"
+          },
+          "hets_from": {
+            "type": "string",
+            "description": "Its source logic, as Hets names it"
+          },
+          "hets_to": {
+            "type": "string",
+            "description": "Its target logic, as Hets names it"
+          },
+          "flag": {
+            "type": "string",
+            "description": "The CPP flag that guards it in Hets's build"
+          },
+          "hets_file": {
+            "type": "string",
+            "description": "The Hets source file that lists it"
+          },
+          "hets_rev": {
+            "type": "string",
+            "description": "The Hets commit"
+          },
+          "doc": {
+            "type": "string",
+            "description": "A description"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "hets_name",
+          "hets_from",
+          "hets_to",
+          "hets_file",
+          "hets_rev"
+        ]
+      }
+    },
+    "logic_pending": {
+      "description": "A logic family with Lean developments not in this repository yet",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+            "description": "The record's name"
+          },
+          "title": {
+            "type": "string",
+            "description": "The family"
+          },
+          "nodes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many institutions it has"
+          },
+          "edges": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many maps between them it has"
+          },
+          "status": {
+            "type": "string",
+            "description": "pending-port or in-review"
+          },
+          "doc": {
+            "type": "string",
+            "description": "A description"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "nodes",
+          "edges",
+          "status"
         ]
       }
     },
@@ -1164,14 +1608,358 @@
               "type": "string",
               "description": "The room"
             },
+            "institution": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+              "description": "The institution it is a fiber of (else found by Lean, if registered)"
+            },
+            "title": {
+              "type": "string",
+              "description": "A one-line title"
+            },
             "doc": {
               "type": "string",
               "description": "A description"
+            },
+            "source": {
+              "type": "string",
+              "description": "A citation key of references.bib, or a section of a standard"
+            },
+            "scope": {
+              "type": "string",
+              "description": "What the declaration covers, and what it does not"
             },
             "sid": {
               "type": "string",
               "pattern": "^[0-9a-f]{64}$",
               "description": "A sid override (64 lowercase hex digits)"
+            }
+          }
+        },
+        "institution": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "decl": {
+              "type": "string",
+              "description": "The institution"
+            },
+            "title": {
+              "type": "string",
+              "description": "A one-line title"
+            },
+            "doc": {
+              "type": "string",
+              "description": "A description"
+            },
+            "source": {
+              "type": "string",
+              "description": "A citation key of references.bib, or a section of a standard"
+            },
+            "scope": {
+              "type": "string",
+              "description": "What the declaration covers, and what it does not"
+            },
+            "hets": {
+              "type": "string",
+              "description": "The Hets logic or comorphism it relates to"
+            },
+            "hets_relation": {
+              "type": "string",
+              "description": "How it relates to `hets`: corresponds, fragment or related"
+            },
+            "sid": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "A sid override (64 lowercase hex digits)"
+            }
+          }
+        },
+        "comorphism": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "decl": {
+              "type": "string",
+              "description": "The declaration"
+            },
+            "from": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+              "description": "The source node (else found by Lean)"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+              "description": "The target node (else found by Lean)"
+            },
+            "facts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Theorems stating known properties of it"
+            },
+            "title": {
+              "type": "string",
+              "description": "A one-line title"
+            },
+            "doc": {
+              "type": "string",
+              "description": "A description"
+            },
+            "source": {
+              "type": "string",
+              "description": "A citation key of references.bib, or a section of a standard"
+            },
+            "scope": {
+              "type": "string",
+              "description": "What the declaration covers, and what it does not"
+            },
+            "hets": {
+              "type": "string",
+              "description": "The Hets logic or comorphism it relates to"
+            },
+            "hets_relation": {
+              "type": "string",
+              "description": "How it relates to `hets`: corresponds, fragment or related"
+            },
+            "sid": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "A sid override (64 lowercase hex digits)"
+            }
+          }
+        },
+        "morphism": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "decl": {
+              "type": "string",
+              "description": "The declaration"
+            },
+            "from": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+              "description": "The source node (else found by Lean)"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+              "description": "The target node (else found by Lean)"
+            },
+            "facts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Theorems stating known properties of it"
+            },
+            "title": {
+              "type": "string",
+              "description": "A one-line title"
+            },
+            "doc": {
+              "type": "string",
+              "description": "A description"
+            },
+            "source": {
+              "type": "string",
+              "description": "A citation key of references.bib, or a section of a standard"
+            },
+            "scope": {
+              "type": "string",
+              "description": "What the declaration covers, and what it does not"
+            },
+            "hets": {
+              "type": "string",
+              "description": "The Hets logic or comorphism it relates to"
+            },
+            "hets_relation": {
+              "type": "string",
+              "description": "How it relates to `hets`: corresponds, fragment or related"
+            },
+            "sid": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "A sid override (64 lowercase hex digits)"
+            }
+          }
+        },
+        "corridor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "decl": {
+              "type": "string",
+              "description": "The declaration"
+            },
+            "from": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+              "description": "The source node (else found by Lean)"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+              "description": "The target node (else found by Lean)"
+            },
+            "facts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Theorems stating known properties of it"
+            },
+            "title": {
+              "type": "string",
+              "description": "A one-line title"
+            },
+            "doc": {
+              "type": "string",
+              "description": "A description"
+            },
+            "source": {
+              "type": "string",
+              "description": "A citation key of references.bib, or a section of a standard"
+            },
+            "scope": {
+              "type": "string",
+              "description": "What the declaration covers, and what it does not"
+            },
+            "hets": {
+              "type": "string",
+              "description": "The Hets logic or comorphism it relates to"
+            },
+            "hets_relation": {
+              "type": "string",
+              "description": "How it relates to `hets`: corresponds, fragment or related"
+            },
+            "sid": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "A sid override (64 lowercase hex digits)"
+            }
+          }
+        },
+        "hets_logic": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "hets_name": {
+              "type": "string",
+              "description": "The logic's name in Hets"
+            },
+            "title": {
+              "type": "string",
+              "description": "A one-line title"
+            },
+            "flag": {
+              "type": "string",
+              "description": "The CPP flag that guards it in Hets's build"
+            },
+            "hets_file": {
+              "type": "string",
+              "description": "The Hets source file that lists it"
+            },
+            "hets_rev": {
+              "type": "string",
+              "description": "The Hets commit"
+            },
+            "doc": {
+              "type": "string",
+              "description": "A description"
+            }
+          }
+        },
+        "hets_comorphism": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "hets_name": {
+              "type": "string",
+              "description": "The comorphism's name in Hets"
+            },
+            "hets_from": {
+              "type": "string",
+              "description": "Its source logic, as Hets names it"
+            },
+            "hets_to": {
+              "type": "string",
+              "description": "Its target logic, as Hets names it"
+            },
+            "flag": {
+              "type": "string",
+              "description": "The CPP flag that guards it in Hets's build"
+            },
+            "hets_file": {
+              "type": "string",
+              "description": "The Hets source file that lists it"
+            },
+            "hets_rev": {
+              "type": "string",
+              "description": "The Hets commit"
+            },
+            "doc": {
+              "type": "string",
+              "description": "A description"
+            }
+          }
+        },
+        "logic_pending": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "meta": {
+              "type": "object",
+              "description": "Tool-only data (any table): not read by Lean, not compared by `sil project check`"
+            },
+            "title": {
+              "type": "string",
+              "description": "The family"
+            },
+            "nodes": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "How many institutions it has"
+            },
+            "edges": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "How many maps between them it has"
+            },
+            "status": {
+              "type": "string",
+              "description": "pending-port or in-review"
+            },
+            "doc": {
+              "type": "string",
+              "description": "A description"
             }
           }
         },

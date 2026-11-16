@@ -273,8 +273,9 @@ syntax "[" silmarilValue,* "]" : silmarilValue
 /-- A name: an identifier (`demo.config`) or a string (`"some.ns.problems.5"`). -/
 syntax silmarilName := ident <|> str
 
-/-- A field `(key := value)`; `module` is accepted as a key although it is a keyword. -/
-syntax silmarilField := "(" (&"module" <|> &"prefix" <|> ident) " := " silmarilValue ")"
+/-- A field `(key := value)`; `module`, `prefix` and `from` are accepted as keys although they are
+keywords. -/
+syntax silmarilField := "(" (&"module" <|> &"prefix" <|> &"from" <|> ident) " := " silmarilValue ")"
 
 /-- Parsed fields, plus the constant each constant-valued field resolved to. -/
 structure Fields where

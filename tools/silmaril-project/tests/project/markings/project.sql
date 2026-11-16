@@ -139,7 +139,161 @@ CREATE TABLE rooms(
   module TEXT NOT NULL,
   origin TEXT NOT NULL,
   doc TEXT,
+  arity INTEGER NOT NULL DEFAULT 0,
+  params TEXT,
+  type TEXT,
+  levels TEXT,
+  institution TEXT,
+  signature TEXT,
+  title TEXT,
+  source TEXT,
+  scope TEXT,
   UNIQUE(name)
+);
+CREATE TABLE institutions(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  arity INTEGER NOT NULL,
+  params TEXT,
+  type TEXT NOT NULL,
+  levels TEXT NOT NULL,
+  title TEXT,
+  doc TEXT,
+  source TEXT,
+  scope TEXT,
+  hets TEXT,
+  hets_relation TEXT CHECK(hets_relation IN ('corresponds','fragment','related')),
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE comorphisms(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  src TEXT NOT NULL,
+  dst TEXT NOT NULL,
+  from_at TEXT,
+  to_at TEXT,
+  arity INTEGER NOT NULL,
+  params TEXT,
+  type TEXT NOT NULL,
+  levels TEXT NOT NULL,
+  title TEXT,
+  doc TEXT,
+  source TEXT,
+  scope TEXT,
+  hets TEXT,
+  hets_relation TEXT CHECK(hets_relation IN ('corresponds','fragment','related')),
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE morphisms(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  src TEXT NOT NULL,
+  dst TEXT NOT NULL,
+  from_at TEXT,
+  to_at TEXT,
+  arity INTEGER NOT NULL,
+  params TEXT,
+  type TEXT NOT NULL,
+  levels TEXT NOT NULL,
+  title TEXT,
+  doc TEXT,
+  source TEXT,
+  scope TEXT,
+  hets TEXT,
+  hets_relation TEXT CHECK(hets_relation IN ('corresponds','fragment','related')),
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE corridors(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  src TEXT NOT NULL,
+  dst TEXT NOT NULL,
+  from_at TEXT,
+  to_at TEXT,
+  arity INTEGER NOT NULL,
+  params TEXT,
+  type TEXT NOT NULL,
+  levels TEXT NOT NULL,
+  title TEXT,
+  doc TEXT,
+  source TEXT,
+  scope TEXT,
+  hets TEXT,
+  hets_relation TEXT CHECK(hets_relation IN ('corresponds','fragment','related')),
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
+CREATE TABLE logic_edge_kinds(
+  kind TEXT NOT NULL PRIMARY KEY,
+  level TEXT NOT NULL,
+  sentences TEXT NOT NULL,
+  models TEXT NOT NULL
+);
+CREATE TABLE logic_facts(
+  kind TEXT NOT NULL CHECK(kind IN ('comorphism','morphism','corridor')),
+  edge TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  property TEXT NOT NULL,
+  proof TEXT NOT NULL,
+  axioms TEXT NOT NULL,
+  standard_axioms INTEGER NOT NULL,
+  PRIMARY KEY(kind, edge, pos)
+);
+CREATE TABLE logic_audit(
+  name TEXT NOT NULL PRIMARY KEY,
+  decl TEXT NOT NULL,
+  object TEXT NOT NULL CHECK(object IN ('institution','comorphism','morphism','room','corridor')),
+  arity INTEGER NOT NULL,
+  decl_module TEXT NOT NULL,
+  layer TEXT NOT NULL CHECK(layer IN ('header','proofs','raw')),
+  scope TEXT NOT NULL,
+  registered TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL
+);
+CREATE TABLE hets_logics(
+  name TEXT NOT NULL PRIMARY KEY,
+  hets_name TEXT NOT NULL UNIQUE,
+  title TEXT,
+  flag TEXT,
+  hets_file TEXT NOT NULL,
+  hets_rev TEXT NOT NULL,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL
+);
+CREATE TABLE hets_comorphisms(
+  name TEXT NOT NULL PRIMARY KEY,
+  hets_name TEXT NOT NULL UNIQUE,
+  hets_from TEXT NOT NULL,
+  hets_to TEXT NOT NULL,
+  flag TEXT,
+  hets_file TEXT NOT NULL,
+  hets_rev TEXT NOT NULL,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL
+);
+CREATE TABLE logic_pending(
+  name TEXT NOT NULL PRIMARY KEY,
+  title TEXT NOT NULL,
+  nodes INTEGER NOT NULL,
+  edges INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('pending-port','in-review')),
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL
 );
 CREATE TABLE machines(
   sid TEXT NOT NULL PRIMARY KEY,
@@ -430,6 +584,10 @@ CREATE TABLE finding_versions(
 CREATE VIEW group_verdicts AS SELECT e.parent AS group_name, e.record_kind, e.record_name, e.pos, e.child, s.summary, s.verdict FROM edges e JOIN problems p ON p.name = e.parent AND p.kind = 'group' LEFT JOIN summary s ON s.problem = e.child;
 CREATE VIEW language_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, l.name AS language, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN language_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN languages l ON l.term = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
 CREATE VIEW consequence_problems AS SELECT i.problem AS problem, e.parent AS shape, r.role AS role, i.pos AS pos, c.name AS system, p.expect AS expect, p.title AS title, s.summary AS summary, s.verdict AS verdict FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' JOIN consequence_shape_roles r ON r.shape = e.parent AND r.pos = i.pos JOIN consequence_systems c ON c.term = i.term JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem;
+CREATE VIEW logic_edges AS SELECT 'comorphism' AS kind, 'institution' AS level, name, decl, src, dst, from_at, to_at, arity, title, hets, hets_relation, module, (SELECT count(*) FROM logic_facts f WHERE f.kind = 'comorphism' AND f.edge = c.name) AS facts FROM comorphisms c UNION ALL SELECT 'morphism', 'institution', name, decl, src, dst, from_at, to_at, arity, title, hets, hets_relation, module, (SELECT count(*) FROM logic_facts f WHERE f.kind = 'morphism' AND f.edge = m.name) FROM morphisms m UNION ALL SELECT 'corridor', 'room', name, decl, src, dst, from_at, to_at, arity, title, hets, hets_relation, module, (SELECT count(*) FROM logic_facts f WHERE f.kind = 'corridor' AND f.edge = r.name) FROM corridors r;
+CREATE VIEW logic_nodes AS SELECT 'institution' AS kind, name, decl, arity, title, hets, hets_relation, NULL AS institution, module, (SELECT count(*) FROM logic_edges e WHERE e.level = 'institution' AND (e.src = i.name OR e.dst = i.name)) AS degree, (SELECT count(*) FROM rooms r WHERE r.institution = i.name) AS rooms FROM institutions i UNION ALL SELECT 'room', name, decl, arity, title, NULL, NULL, institution, module, (SELECT count(*) FROM logic_edges e WHERE e.level = 'room' AND (e.src = r.name OR e.dst = r.name)), NULL FROM rooms r;
+CREATE VIEW logic_coverage AS SELECT object, layer, count(*) AS declarations, sum(arity = 0) AS closed, sum(registered IS NOT NULL) AS registered, sum(registered IS NULL) AS omitted FROM logic_audit GROUP BY object, layer;
+CREATE VIEW hets_coverage AS SELECT 'logic' AS hets_kind, h.hets_name, h.flag, (SELECT group_concat(i.name || ':' || i.hets_relation, ' ') FROM institutions i WHERE i.hets = h.hets_name) AS records, (SELECT count(*) FROM institutions i WHERE i.hets = h.hets_name AND i.hets_relation = 'corresponds') AS corresponds, (SELECT count(*) FROM institutions i WHERE i.hets = h.hets_name) AS related FROM hets_logics h UNION ALL SELECT 'comorphism', h.hets_name, h.flag, (SELECT group_concat(e.name || ':' || e.hets_relation, ' ') FROM logic_edges e WHERE e.hets = h.hets_name) AS records, (SELECT count(*) FROM logic_edges e WHERE e.hets = h.hets_name AND e.hets_relation = 'corresponds'), (SELECT count(*) FROM logic_edges e WHERE e.hets = h.hets_name) FROM hets_comorphisms h;
 CREATE VIEW genuine_errors AS SELECT f.problem, p.title, s.summary, f.note, f.pointer, (SELECT group_concat(v.version, ',') FROM (SELECT version FROM finding_versions WHERE problem = f.problem ORDER BY pos) v) AS affected_versions, f.fixed_in, f.disclosure_status, f.module, f.origin FROM findings f JOIN problems p ON p.name = f.problem LEFT JOIN summary s ON s.problem = f.problem WHERE f.classification = 'error';
 CREATE VIEW model_gaps AS SELECT f.pointer, f.problem, p.title, f.note FROM findings f JOIN problems p ON p.name = f.problem WHERE f.classification = 'model_gap';
 CREATE VIEW spec_bugs AS SELECT f.problem, d.via_kind, d.via, f.note, f.pointer FROM findings f LEFT JOIN deprecated_problems d ON d.problem = f.problem WHERE f.classification = 'spec_bug';
@@ -445,6 +603,8 @@ CREATE INDEX answers_problem ON answers(problem);
 CREATE INDEX problem_inputs_value ON problem_inputs(value);
 CREATE INDEX problem_inputs_cid ON problem_inputs(cid);
 CREATE INDEX instance_args_value ON instance_args(value);
+CREATE INDEX logic_audit_decl ON logic_audit(decl);
+CREATE INDEX rooms_institution ON rooms(institution);
 CREATE INDEX instance_args_cid ON instance_args(cid);
 CREATE INDEX value_sources_cid ON value_sources(cid);
 CREATE INDEX value_sources_obligation ON value_sources(obligation);
@@ -491,6 +651,9 @@ INSERT INTO objects(sid, kind, name, project, module, origin, sid_source) VALUES
 INSERT INTO objects(sid, kind, name, project, module, origin, sid_source) VALUES('f72890044bd46cfeb33661aa8814aa91ae1bef0c48b2885aef6324c30cb55042', 'problem', 'mk.gen.five', 'mk', 'Mk', 'local', 'derived');
 INSERT INTO specs(sid, name, decl, model, format, module, origin, doc) VALUES('381e882c929ec10da42d9fa55791fb33840f9837965d57c6ebf1d6bad48ac252', 'mk.specs.old', 'Mk.oldSpec', NULL, NULL, 'Mk', 'local', NULL);
 INSERT INTO specs(sid, name, decl, model, format, module, origin, doc) VALUES('a9273b2acbdbcc57ff57171bb7674831ce13ef890ff445689e9b695a91ad061b', 'mk.specs.new', 'Mk.newSpec', NULL, NULL, 'Mk', 'local', NULL);
+INSERT INTO logic_edge_kinds(kind, level, sentences, models) VALUES('comorphism', 'institution', 'forwards: Sen_A Σ → Sen_B (Φ Σ)', 'backwards: Mod_B (Φ Σ) → Mod_A Σ');
+INSERT INTO logic_edge_kinds(kind, level, sentences, models) VALUES('corridor', 'room', 'forwards: Sen₁ → Sen₂', 'backwards: Mod₂ → Mod₁');
+INSERT INTO logic_edge_kinds(kind, level, sentences, models) VALUES('morphism', 'institution', 'backwards: Sen_B (Φ Σ) → Sen_A Σ', 'forwards: Mod_A Σ → Mod_B (Φ Σ)');
 INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 0, 'type');
 INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 1, 'L');
 INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.bound_at', 2, 'mu');

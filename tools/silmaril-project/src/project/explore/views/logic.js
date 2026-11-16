@@ -1,0 +1,518 @@
+// The logic graph (docs/projects/logic-graph.md): institutions as nodes with comorphisms and morphisms
+// as typed, directed edges, and one level down rooms (an institution at one signature) with
+// corridors; the five registries; the coverage audit (declarations the registry omits, the pinned
+// Hets logic graph, logic families not yet in this repository).
+//   #/logic-graph[/<kind>:<name>][?level=…&kinds=…&q=…]   the graph viewer, a selection deep-linked
+//   #/logic-table[?q=…]                                   every node and edge, searchable and sortable
+//   #/institutions #/comorphisms #/morphisms #/rooms #/corridors   the registries
+//   #/institution/<name> … #/corridor/<name>             one record, with its crosslinks
+//   #/logic-coverage                                      the audit
+// It reads the database only. Every node and edge is a Lean declaration whose type Lean checked;
+// endpoints were found by Lean, not written by hand. A Hets relation is what the record claims
+// (corresponds, fragment, related), never "Hets coverage" by itself.
+(() => {
+  const ui = Explorer.ui;
+  const has = (t) => Explorer.tables().has(t);
+  const missing = `<p class="muted">This database has no logic-graph tables (built by an older <code>sil project</code>).</p>`;
+  const LIMIT = 5000;
+  // The node and edge kinds. Colours: the explorer's categorical slots 1–3, validated for colour
+  // vision deficiency; every edge kind is also told apart by its line style and its label.
+  const KIND = {
+    institution: { plural: "institutions", title: "Institutions", level: "institution", node: true,
+      what: "a category of signatures with a functor into rooms (Inst)" },
+    room: { plural: "rooms", title: "Rooms", level: "room", node: true,
+      what: "sentences, a category of models and satisfaction: an institution at one signature" },
+    comorphism: { plural: "comorphisms", title: "Comorphisms", level: "institution", color: "#2a78d6", line: "solid",
+      what: "a logic translation A → B: signatures Φ : Sign_A → Sign_B, sentences forwards, models backwards" },
+    morphism: { plural: "morphisms", title: "Morphisms", level: "institution", color: "#eb6834", line: "dashed",
+      what: "a logic projection A → B: signatures Φ : Sign_A → Sign_B, sentences backwards, models forwards" },
+    corridor: { plural: "corridors", title: "Corridors", level: "room", color: "#1baf7a", line: "dotted",
+      what: "between rooms R₁ → R₂ (a comorphism at one signature): sentences forwards, models backwards" },
+  };
+  const EDGES = ["comorphism", "morphism", "corridor"];
+  const NODES = ["institution", "room"];
+  const short = (n) => { const p = String(n).split("."); return p.length > 2 ? p.slice(-2).join(".") : n; };
+  const code = (s) => s == null || s === "" ? "" : `<code>${ui.esc(s)}</code>`;
+  const rec = (kind, name, text) => name == null ? "" : `<a href="#/${kind}/${encodeURIComponent(name)}">${ui.esc(text == null ? name : text)}</a>`;
+  const src = (module, decl) => typeof sourceLink === "function" ? sourceLink(module, decl) : "";
+  const pill = (t, title) => `<span class="pill"${title ? ` title="${ui.esc(title)}"` : ""}>${ui.esc(t)}</span>`;
+  const family = (r) => r.arity > 0 ? pill(`family, ${r.arity} ${r.arity === 1 ? "parameter" : "parameters"}`, r.params || "") : "";
+  const hetsText = (r) => r.hets ? `${pill(r.hets_relation || "?", { corresponds: "the same logic or translation, as far as the Lean definition goes",
+    fragment: "a fragment of it", related: "a comparable construction, not the same one" }[r.hets_relation] || "")} Hets <code>${ui.esc(r.hets)}</code>` : "";
+  const edgeSwatch = (k) => `<svg width="34" height="10" aria-hidden="true"><line x1="1" y1="5" x2="26" y2="5" stroke="${KIND[k].color}" stroke-width="2.5"` +
+    (KIND[k].line === "dashed" ? ' stroke-dasharray="6 3"' : KIND[k].line === "dotted" ? ' stroke-dasharray="2 3"' : "") +
+    `/><path d="M26 1 L33 5 L26 9 z" fill="${KIND[k].color}"/></svg>`;
+
+  const STYLE = "lg-style";
+  function style() {
+    if (document.getElementById(STYLE)) return;
+    const s = document.createElement("style");
+    s.id = STYLE;
+    s.textContent =
+      ".lg-tabs { display:flex; flex-wrap:wrap; gap:4px; margin:0 0 10px; } .lg-tabs a { border:1px solid var(--line); border-radius:4px; padding:2px 8px; text-decoration:none; background:var(--panel); } " +
+      ".lg-tabs a.on { background:var(--accent); color:#fff; border-color:var(--accent); } .lg-tabs a span { color:inherit; opacity:.75; } " +
+      ".pill { font-size:11px; border:1px solid var(--line); border-radius:8px; padding:0 5px; white-space:nowrap; } " +
+      "#lgwrap { display:flex; gap:12px; height:calc(100vh - 230px); min-height:440px; } " +
+      "#lgcy { flex:1 1 auto; border:1px solid var(--line); background:var(--panel); min-width:0; position:relative; } " +
+      "#lgcy:focus-visible { outline:3px solid var(--accent); outline-offset:1px; } " +
+      "#lgside { flex:0 0 380px; overflow:auto; border:1px solid var(--line); background:var(--panel); padding:8px 10px; } " +
+      "#lgside h3 { margin:4px 0 6px; font-size:14px; } .lg-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); padding:20px; text-align:center; } " +
+      ".lg-legend { display:flex; flex-wrap:wrap; gap:4px 16px; align-items:center; font-size:13px; margin:4px 0 8px; } .lg-legend svg { vertical-align:middle; } " +
+      ".lg-node { display:inline-block; width:16px; height:11px; border:1.5px solid #52514e; border-radius:3px; vertical-align:middle; background:#fff; } " +
+      ".lg-node.room { border-radius:50%; background:#f1f3f5; } .lg-node.fam { border-style:dashed; } " +
+      "table.lg-grid th button { font:inherit; font-weight:600; border:0; background:none; padding:0; cursor:pointer; color:inherit; } " +
+      "table.lg-grid th[aria-sort=ascending] button::after { content:' ▲'; } table.lg-grid th[aria-sort=descending] button::after { content:' ▼'; } " +
+      ".lg-stats { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 12px; } .lg-stat { border:1px solid var(--line); background:var(--panel); border-radius:6px; padding:6px 12px; min-width:110px; text-decoration:none; color:var(--fg); } " +
+      ".lg-stat b { display:block; font-size:20px; font-variant-numeric:tabular-nums; } .lg-stat span { color:var(--muted); font-size:12px; } " +
+      ".lg-dir { font-size:12px; color:var(--muted); } " +
+      "@media (max-width: 800px) { #lgwrap { flex-direction:column; height:auto; } #lgcy { height:62vh; flex:0 0 auto; } #lgside { flex-basis:auto; max-height:none; } .lg-tabs a { padding:4px 8px; } }";
+    document.head.appendChild(s);
+  }
+
+  // ---------- data ----------
+  async function load(ctx) {
+    const q = (t, sql) => has(t) ? ctx.q(sql + " LIMIT " + LIMIT) : Promise.resolve([]);
+    const [institutions, rooms, comorphisms, morphisms, corridors, facts, kinds] = await Promise.all([
+      q("institutions", "SELECT * FROM institutions ORDER BY name"),
+      q("rooms", "SELECT * FROM rooms ORDER BY name"),
+      q("comorphisms", "SELECT * FROM comorphisms ORDER BY name"),
+      q("morphisms", "SELECT * FROM morphisms ORDER BY name"),
+      q("corridors", "SELECT * FROM corridors ORDER BY name"),
+      q("logic_facts", "SELECT * FROM logic_facts ORDER BY kind, edge, pos"),
+      q("logic_edge_kinds", "SELECT * FROM logic_edge_kinds"),
+    ]);
+    const factsOf = new Map();
+    for (const f of facts) { const k = f.kind + ":" + f.edge; if (!factsOf.has(k)) factsOf.set(k, []); factsOf.get(k).push(f); }
+    const tag = (kind) => (r) => Object.assign(r, { kind, id: kind + ":" + r.name, facts: factsOf.get(kind + ":" + r.name) || [] });
+    return { institution: institutions.map(tag("institution")), room: rooms.map(tag("room")), comorphism: comorphisms.map(tag("comorphism")),
+      morphism: morphisms.map(tag("morphism")), corridor: corridors.map(tag("corridor")), kinds };
+  }
+  const nodeKind = (k) => k === "corridor" ? "room" : "institution";
+  const label = (r) => r.title || short(r.name);
+  const params = (arg) => {
+    const i = arg.indexOf("?");
+    return { sel: decodeURIComponent(i < 0 ? arg : arg.slice(0, i)), p: new URLSearchParams(i < 0 ? "" : arg.slice(i + 1)) };
+  };
+
+  function tabs(on, d) {
+    const n = (k) => d ? ` <span>${d[k].length}</span>` : "";
+    const items = [["logic-graph", "Graph"], ["logic-table", "Table"], ["institutions", "Institutions" + n("institution")],
+      ["comorphisms", "Comorphisms" + n("comorphism")], ["morphisms", "Morphisms" + n("morphism")], ["rooms", "Rooms" + n("room")],
+      ["corridors", "Corridors" + n("corridor")], ["logic-coverage", "Coverage"]];
+    return `<nav class="lg-tabs" aria-label="logic graph">${items.map(([id, t]) => `<a href="#/${id}"${id === on ? ' class="on" aria-current="page"' : ""}>${t}</a>`).join("")}</nav>`;
+  }
+  function legend() {
+    return `<div class="lg-legend" id="lg-legend" role="list" aria-label="legend">` +
+      `<span role="listitem"><span class="lg-node"></span> institution</span>` +
+      `<span role="listitem"><span class="lg-node room"></span> room</span>` +
+      `<span role="listitem"><span class="lg-node fam"></span> family (has parameters)</span>` +
+      EDGES.map((k) => `<span role="listitem" title="${ui.esc(KIND[k].what)}">${edgeSwatch(k)} ${k} <span class="lg-dir">(${k === "morphism" ? "sentences ←, models →" : "sentences →, models ←"})</span></span>`).join("") +
+      `<span role="listitem"><svg width="34" height="10" aria-hidden="true"><line x1="1" y1="5" x2="33" y2="5" stroke="#9aa0a6" stroke-width="1.5" stroke-dasharray="1 2"/></svg> room is a fiber of</span>` +
+      `<span role="listitem"><b>✓</b> has a proved fact</span></div>`;
+  }
+
+  // ---------- a sortable, filterable table over rows held in memory ----------
+  // cols: [{ key, label, html(r), text(r), num }]. The filter matches every column's text.
+  function grid(id, rows, cols, opts) {
+    opts = opts || {};
+    const txt = (c, r) => String(c.text ? c.text(r) : r[c.key] == null ? "" : r[c.key]);
+    const body = rows.map((r, i) => `<tr data-i="${i}" data-text="${ui.esc(cols.map((c) => txt(c, r)).join(" ").toLowerCase())}">` +
+      cols.map((c) => `<td${c.num ? ' class="num"' : ""}>${c.html ? c.html(r) : ui.esc(txt(c, r))}</td>`).join("") + "</tr>").join("");
+    const html = `<div class="controls"><label>filter <input type="search" id="${id}-q" size="36" placeholder="name, declaration, module, Hets…" value="${ui.esc(opts.q || "")}"></label>` +
+      `<span class="muted" id="${id}-n" aria-live="polite"></span></div>` +
+      (rows.length ? `<div class="tablebox"><table class="lg-grid" id="${id}"><thead><tr>${cols.map((c, j) => `<th data-j="${j}" aria-sort="none"><button type="button">${ui.esc(c.label)}</button></th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`
+        : `<p class="muted">${opts.empty || "(none)"}</p>`);
+    const init = () => {
+      const t = document.getElementById(id), qi = document.getElementById(id + "-q"), n = document.getElementById(id + "-n");
+      if (!qi) return;
+      const apply = () => {
+        if (!t) { n.textContent = ""; return; }
+        const words = qi.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        let shown = 0;
+        for (const tr of t.tBodies[0].rows) { const ok = words.every((w) => tr.dataset.text.includes(w)); tr.hidden = !ok; if (ok) shown++; }
+        n.textContent = `${shown} of ${rows.length}`;
+        if (opts.onFilter) opts.onFilter(qi.value.trim());
+      };
+      qi.addEventListener("input", apply);
+      if (t) for (const th of t.tHead.rows[0].cells) th.querySelector("button").addEventListener("click", () => {
+        const j = +th.dataset.j, c = cols[j], dir = th.getAttribute("aria-sort") === "ascending" ? -1 : 1;
+        for (const o of t.tHead.rows[0].cells) o.setAttribute("aria-sort", "none");
+        th.setAttribute("aria-sort", dir > 0 ? "ascending" : "descending");
+        const key = (tr) => { const r = rows[+tr.dataset.i]; return c.num ? +(r[c.key] || 0) : txt(c, r).toLowerCase(); };
+        const trs = [...t.tBodies[0].rows].sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
+        for (const tr of trs) t.tBodies[0].appendChild(tr);
+      });
+      apply();
+    };
+    return { html, init };
+  }
+  const factCell = (r) => r.facts.length ? r.facts.map((f) => `<span class="pill" title="${ui.esc(f.proof)}${f.standard_axioms ? "" : " (non-standard axioms)"}">${ui.esc(f.property)} ✓</span>`).join(" ") : "";
+  const COLS = {
+    institution: (d) => [
+      { key: "name", label: "institution", html: (r) => rec("institution", r.name) },
+      { key: "title", label: "title" },
+      { key: "decl", label: "Lean declaration", html: (r) => code(r.decl) + (r.arity ? " " + family(r) : "") },
+      { key: "edges", label: "edges", num: true, text: (r) => d.comorphism.concat(d.morphism).filter((e) => e.src === r.name || e.dst === r.name).length },
+      { key: "rooms", label: "rooms", num: true, text: (r) => d.room.filter((x) => x.institution === r.name).length },
+      { key: "hets", label: "Hets", html: hetsText, text: (r) => r.hets ? `${r.hets} ${r.hets_relation}` : "" },
+      { key: "module", label: "module" }],
+    room: () => [
+      { key: "name", label: "room", html: (r) => rec("room", r.name) },
+      { key: "institution", label: "fiber of", html: (r) => r.institution ? `${rec("institution", r.institution)} at ${code(r.signature)}` : '<span class="muted">—</span>', text: (r) => `${r.institution || ""} ${r.signature || ""}` },
+      { key: "sen", label: "sentences", html: (r) => code(r.sen) },
+      { key: "mod", label: "models", html: (r) => code(r.mod) },
+      { key: "decl", label: "Lean declaration", html: (r) => code(r.decl) + (r.arity ? " " + family(r) : "") },
+      { key: "module", label: "module" }],
+    edge: (kind) => [
+      { key: "name", label: kind, html: (r) => rec(kind, r.name) },
+      { key: "src", label: "from", html: (r) => rec(nodeKind(kind), r.src) + (r.from_at ? ` <span class="muted">at ${ui.esc(r.from_at)}</span>` : "") },
+      { key: "dst", label: "to", html: (r) => rec(nodeKind(kind), r.dst) + (r.to_at ? ` <span class="muted">at ${ui.esc(r.to_at)}</span>` : "") },
+      { key: "title", label: "title" },
+      { key: "facts", label: "facts", html: factCell, text: (r) => r.facts.map((f) => f.property).join(" ") },
+      { key: "decl", label: "Lean declaration", html: (r) => code(r.decl) + (r.arity ? " " + family(r) : "") },
+      { key: "hets", label: "Hets", html: hetsText, text: (r) => r.hets ? `${r.hets} ${r.hets_relation}` : "" },
+      { key: "module", label: "module" }],
+  };
+
+  // ---------- the registries ----------
+  function registry(kind) {
+    return async (arg, ctx) => {
+      style();
+      if (!has("institutions")) return tabs(KIND[kind].plural) + missing;
+      const d = await load(ctx);
+      const rows = d[kind];
+      const cols = kind === "institution" ? COLS.institution(d) : kind === "room" ? COLS.room() : COLS.edge(kind);
+      const g = grid(`lg-${KIND[kind].plural}`, rows, cols, { q: params(arg).p.get("q") || "",
+        empty: `No ${kind} is registered (<code>silmaril ${kind} &lt;name&gt; := &lt;decl&gt;</code>).` });
+      const audit = has("logic_audit") ? (await ctx.q("SELECT count(*) AS n, sum(registered IS NULL) AS omitted FROM logic_audit WHERE object = ?", [kind]))[0] : null;
+      const html = tabs(KIND[kind].plural, d) + `<h2>${KIND[kind].title} (${rows.length})</h2>` +
+        `<p class="muted">A ${kind} is ${ui.esc(KIND[kind].what)}. Each row is a Lean declaration whose type Lean checked` +
+        (EDGES.includes(kind) ? `; its endpoints were found by Lean among the registered ${nodeKind(kind)}s` : "") + ". " +
+        (audit && audit.n ? `The audit found ${audit.n} declarations of this type in the scanned scope; ${audit.omitted || 0} are not registered (<a href="#/logic-coverage?object=${kind}">coverage</a>).` : "") +
+        `</p>` + g.html;
+      return { html, init: g.init };
+    };
+  }
+
+  // ---------- one record ----------
+  function detail(kind) {
+    return async (name, ctx) => {
+      style();
+      if (!has("institutions")) return missing;
+      const d = await load(ctx);
+      const r = d[kind].find((x) => x.name === name);
+      if (!r) return tabs(KIND[kind].plural, d) + `<p class="err">no ${kind} ${ui.esc(name)}</p>`;
+      const rows = [["is", ui.esc(KIND[kind].what)],
+        ["Lean declaration", `${code(r.decl)} <span class="muted">in ${ui.esc(r.module)}</span> ${src(r.module, r.decl)}`],
+        ["type", code(r.type)]];
+      if (r.arity) rows.push(["parameters", `${code(r.params)} ${family(r)}`]);
+      if (r.levels) rows.push(["universe parameters", code(r.levels)]);
+      if (EDGES.includes(kind)) {
+        const nk = nodeKind(kind);
+        rows.push(["from", rec(nk, r.src) + (r.from_at ? ` <span class="muted">at</span> ${code(r.from_at)}` : "")]);
+        rows.push(["to", rec(nk, r.dst) + (r.to_at ? ` <span class="muted">at</span> ${code(r.to_at)}` : "")]);
+        const k = d.kinds.find((x) => x.kind === kind);
+        if (k) rows.push(["direction", `sentences ${ui.esc(k.sentences)}; models ${ui.esc(k.models)}`]);
+        rows.push(["facts", r.facts.length ? r.facts.map((f) => `<b>${ui.esc(f.property)}</b> by ${code(f.proof)} ${src(r.module, f.proof)} <span class="muted">axioms: ${ui.esc(JSON.parse(f.axioms || "[]").join(", ") || "none")}${f.standard_axioms ? "" : " — non-standard"}</span>`).join("<br>")
+          : '<span class="muted">none registered: no property of this edge is claimed</span>']);
+        const parallel = d[kind].filter((x) => x !== r && x.src === r.src && x.dst === r.dst);
+        if (parallel.length) rows.push(["parallel edges", parallel.map((x) => rec(kind, x.name)).join(", ")]);
+        const back = EDGES.flatMap((k2) => d[k2].filter((x) => x.src === r.dst && x.dst === r.src).map((x) => rec(k2, x.name) + ` <span class="muted">(${k2})</span>`));
+        if (back.length) rows.push(["opposite direction", back.join(", ")]);
+      }
+      if (kind === "room") {
+        rows.push(["sentences", code(r.sen)], ["models", code(r.mod)]);
+        rows.push(["fiber of", r.institution ? `${rec("institution", r.institution)} at the signature ${code(r.signature)}` : '<span class="muted">no registered institution found by Lean</span>']);
+      }
+      if (kind === "institution") {
+        const rs = d.room.filter((x) => x.institution === r.name);
+        if (rs.length) rows.push(["rooms", rs.map((x) => rec("room", x.name) + ` <span class="muted">at ${ui.esc(x.signature)}</span>`).join("<br>")]);
+      }
+      if (kind === "institution" || kind === "room") {
+        const out = EDGES.flatMap((k) => d[k].filter((e) => e.src === r.name && nodeKind(k) === kind).map((e) => `${edgeSwatch(k)} ${rec(k, e.name)} → ${rec(kind, e.dst)}`));
+        const inc = EDGES.flatMap((k) => d[k].filter((e) => e.dst === r.name && nodeKind(k) === kind).map((e) => `${edgeSwatch(k)} ${rec(kind, e.src)} → ${rec(k, e.name)}`));
+        rows.push(["outgoing", out.join("<br>") || '<span class="muted">none</span>'], ["incoming", inc.join("<br>") || '<span class="muted">none</span>']);
+      }
+      if (r.hets) rows.push(["Hets", hetsText(r) + ` <a href="#/logic-coverage">(pinned Hets list)</a>`]);
+      if (r.source) rows.push(["source", ui.esc(r.source)]);
+      if (r.scope) rows.push(["scope", ui.esc(r.scope)]);
+      const h = tabs(KIND[kind].plural, d) + `<h2>${kind} <code>${ui.esc(r.name)}</code></h2>` + (r.title ? `<p><b>${ui.esc(r.title)}</b></p>` : "") +
+        (r.doc ? `<p style="white-space:pre-wrap;max-width:860px">${ui.esc(r.doc)}</p>` : "") +
+        `<p><a href="#/logic-graph/${encodeURIComponent(r.id)}">Show in the graph</a></p>` +
+        `<dl>${rows.map(([k, v]) => `<dt>${ui.esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
+      return h;
+    };
+  }
+
+  // ---------- the table of everything ----------
+  async function table(arg, ctx) {
+    style();
+    if (!has("institutions")) return tabs("logic-table") + missing;
+    const d = await load(ctx);
+    const all = [...NODES, ...EDGES].flatMap((k) => d[k]);
+    const g = grid("lg-all", all, [
+      { key: "kind", label: "kind", html: (r) => (EDGES.includes(r.kind) ? edgeSwatch(r.kind) + " " : "") + ui.esc(r.kind) },
+      { key: "name", label: "name", html: (r) => rec(r.kind, r.name) },
+      { key: "src", label: "from", html: (r) => r.src ? rec(nodeKind(r.kind), r.src) : "", text: (r) => r.src || "" },
+      { key: "dst", label: "to", html: (r) => r.dst ? rec(nodeKind(r.kind), r.dst) : r.institution ? `<span class="muted">fiber of</span> ${rec("institution", r.institution)}` : "", text: (r) => r.dst || r.institution || "" },
+      { key: "title", label: "title" },
+      { key: "facts", label: "facts", html: factCell, text: (r) => r.facts.map((f) => f.property).join(" ") },
+      { key: "arity", label: "params", num: true },
+      { key: "hets", label: "Hets", html: hetsText, text: (r) => r.hets ? `${r.hets} ${r.hets_relation}` : "" },
+      { key: "decl", label: "Lean declaration", html: (r) => code(r.decl) },
+      { key: "module", label: "module" },
+    ], { q: params(arg).p.get("q") || "", empty: "Nothing is registered.",
+      onFilter: (q) => history.replaceState(null, "", "#/logic-table" + (q ? "?q=" + encodeURIComponent(q) : "")) });
+    return { html: tabs("logic-table", d) + `<h2>Logic graph: every node and edge (${all.length})</h2>
+<p class="muted">Search by any column (words are ANDed); click a header to sort. Edges go from → to as Lean writes their type.</p>` + legend() + g.html, init: g.init };
+  }
+
+  // ---------- the graph ----------
+  let cyi = null;
+  async function graphView(arg, ctx) {
+    style();
+    if (!has("institutions")) return tabs("logic-graph") + missing;
+    const d = await load(ctx);
+    const { sel, p } = params(arg);
+    const level = ["institution", "room", "both"].includes(p.get("level")) ? p.get("level") : (sel.startsWith("room:") || sel.startsWith("corridor:") ? "room" : "institution");
+    const kinds = new Set((p.get("kinds") || EDGES.join(",")).split(",").filter((k) => EDGES.includes(k)));
+    const total = NODES.reduce((n, k) => n + d[k].length, 0);
+    const options = [...NODES, ...EDGES].flatMap((k) => d[k].map((r) => `<option value="${ui.esc(r.id)}"${r.id === sel ? " selected" : ""}>${ui.esc(k)}: ${ui.esc(r.name)}</option>`)).join("");
+    const html = tabs("logic-graph", d) + `<h2>Logic graph</h2>
+<p class="muted">Registered institutions and the comorphisms and morphisms between them; one level down, rooms and the corridors between them.
+Every arrow points from A to B as its Lean type <code>Inst.CoHom A B</code>, <code>Inst.Hom A B</code> or <code>Corridor A B</code> says.
+This is the registry of this repository, not Hets's logic graph: see <a href="#/logic-coverage">Coverage</a> for how they relate and what is omitted.</p>
+<div class="controls" role="group" aria-label="graph filters">
+  <label>level <select id="lg-level"><option value="institution"${level === "institution" ? " selected" : ""}>institutions</option><option value="room"${level === "room" ? " selected" : ""}>rooms</option><option value="both"${level === "both" ? " selected" : ""}>both</option></select></label>
+  ${EDGES.map((k) => `<label title="${ui.esc(KIND[k].what)}"><input type="checkbox" class="lg-kind" value="${k}"${kinds.has(k) ? " checked" : ""}> ${k}s</label>`).join("")}
+  <label><input type="checkbox" id="lg-iso"${p.get("isolated") === "0" ? "" : " checked"}> unconnected nodes</label>
+  <label>search <input type="search" id="lg-q" size="18" value="${ui.esc(p.get("q") || "")}" placeholder="name, title, Hets…"></label>
+  <label>go to <select id="lg-go" style="max-width:16em"><option value="">—</option>${options}</select></label>
+  <span>
+  <button type="button" id="lg-fit" title="fit the graph to the view">Fit</button>
+  <button type="button" id="lg-zin" aria-label="zoom in">+</button><button type="button" id="lg-zout" aria-label="zoom out">−</button>
+  <button type="button" id="lg-dir" title="lay out left to right or top to bottom">${p.get("dir") === "TB" ? "↓ top-down" : "→ left-right"}</button>
+  <button type="button" id="lg-reset">Reset</button></span>
+  <span class="muted" id="lg-count" aria-live="polite"></span>
+</div>${legend()}
+<div id="lgwrap"><div id="lgcy" tabindex="0" role="img" aria-label="logic graph; use the go-to list or the Table tab for a text view"></div>
+<div id="lgside" aria-live="polite"><p class="muted">Select a node or an edge for its details (click, or use <b>go to</b>). Double-click opens its page.</p></div></div>`;
+    const init = () => {
+      if (typeof cytoscape !== "function") { document.getElementById("lgcy").innerHTML = `<div class="lg-empty">The graph library did not load; the <a href="#/logic-table">table</a> has the same content.</div>`; return; }
+      const state = { level, kinds, q: p.get("q") || "", iso: p.get("isolated") !== "0", dir: p.get("dir") === "TB" ? "TB" : "LR", sel };
+      const writeUrl = () => {
+        const qs = new URLSearchParams();
+        if (state.level !== "institution") qs.set("level", state.level);
+        if (state.kinds.size !== EDGES.length) qs.set("kinds", [...state.kinds].join(","));
+        if (state.q) qs.set("q", state.q);
+        if (!state.iso) qs.set("isolated", "0");
+        if (state.dir !== "LR") qs.set("dir", state.dir);
+        const s = qs.toString();
+        history.replaceState(null, "", "#/logic-graph" + (state.sel ? "/" + encodeURIComponent(state.sel) : "") + (s ? "?" + s : ""));
+      };
+      const draw = () => {
+        const showInst = state.level !== "room", showRoom = state.level !== "institution";
+        const nodes = [...(showInst ? d.institution : []), ...(showRoom ? d.room : [])];
+        const ids = new Set(nodes.map((n) => n.id));
+        const edges = EDGES.filter((k) => state.kinds.has(k)).flatMap((k) => d[k]).filter((e) => ids.has(nodeKind(e.kind) + ":" + e.src) && ids.has(nodeKind(e.kind) + ":" + e.dst));
+        const fibers = state.level === "both" ? d.room.filter((r) => r.institution && ids.has("institution:" + r.institution)) : [];
+        const touched = new Set([...edges.flatMap((e) => [nodeKind(e.kind) + ":" + e.src, nodeKind(e.kind) + ":" + e.dst]), ...fibers.flatMap((r) => [r.id, "institution:" + r.institution])]);
+        const shownNodes = state.iso ? nodes : nodes.filter((n) => touched.has(n.id));
+        const els = shownNodes.map((n) => ({ data: { id: n.id, label: label(n) + (n.arity ? " ⋯" : ""), kind: n.kind, fam: n.arity ? 1 : 0 } }))
+          .concat(edges.map((e) => ({ data: { id: e.id, source: nodeKind(e.kind) + ":" + e.src, target: nodeKind(e.kind) + ":" + e.dst, kind: e.kind,
+            label: short(e.name) + (e.facts.length ? " ✓" : "") } })))
+          .concat(fibers.filter((r) => shownNodes.some((n) => n.id === r.id)).map((r) => ({ data: { id: "fiber:" + r.name, source: r.id, target: "institution:" + r.institution, kind: "fiber", label: "" } })));
+        if (cyi) { cyi.destroy(); cyi = null; }
+        const box = document.getElementById("lgcy");
+        if (!box) return;
+        box.querySelectorAll(".lg-empty").forEach((x) => x.remove());
+        document.getElementById("lg-count").textContent = `${shownNodes.length} nodes, ${edges.length} edges shown (of ${total} nodes, ${EDGES.reduce((n, k) => n + d[k].length, 0)} edges)`;
+        window.explore.logicGraph = { nodes: shownNodes.length, edges: edges.length, fibers: fibers.length, level: state.level };
+        if (!shownNodes.length) {
+          box.insertAdjacentHTML("beforeend", `<div class="lg-empty">${total ? "Nothing matches these filters. Reset, or choose another level." : "No institution or room is registered yet."}</div>`);
+          return;
+        }
+        cyi = cytoscape({ container: box, elements: els, minZoom: 0.1, maxZoom: 3, wheelSensitivity: 0.25,
+          style: [
+            { selector: "node", style: { label: "data(label)", "text-wrap": "wrap", "text-max-width": 150, "font-size": 11, "text-valign": "center", "text-halign": "center",
+              width: 160, height: 38, shape: "round-rectangle", "background-color": "#fff", color: "#0b0b0b", "border-width": 1.5, "border-color": "#52514e" } },
+            { selector: "node[kind = 'room']", style: { shape: "ellipse", "background-color": "#f1f3f5", width: 140, height: 40 } },
+            { selector: "node[fam = 1]", style: { "border-style": "dashed" } },
+            { selector: "edge", style: { width: 2, "curve-style": "bezier", "target-arrow-shape": "triangle", "arrow-scale": 1.1, label: "data(label)", "font-size": 9,
+              "text-rotation": "autorotate", "text-background-color": "#fcfcfb", "text-background-opacity": 0.9, "text-background-padding": 2, color: "#52514e" } },
+            ...EDGES.map((k) => ({ selector: `edge[kind = '${k}']`, style: { "line-color": KIND[k].color, "target-arrow-color": KIND[k].color, "line-style": KIND[k].line === "solid" ? "solid" : KIND[k].line } })),
+            { selector: "edge[kind = 'morphism']", style: { "line-dash-pattern": [7, 4] } },
+            { selector: "edge[kind = 'corridor']", style: { "line-dash-pattern": [2, 3], width: 2.5 } },
+            { selector: "edge[kind = 'fiber']", style: { "line-color": "#9aa0a6", "target-arrow-shape": "none", "line-style": "dotted", width: 1.2 } },
+            { selector: ".faded", style: { opacity: 0.18 } },
+            { selector: ".hit", style: { "underlay-color": "#eda100", "underlay-opacity": 0.45, "underlay-padding": 5 } },
+            { selector: ":selected", style: { "border-width": 3, "border-color": "#2f5d9e", width: 3, "overlay-color": "#2f5d9e", "overlay-opacity": 0.12 } },
+          ],
+          layout: { name: "dagre", rankDir: state.dir, nodeSep: 28, rankSep: 90, edgeSep: 12, animate: false } });
+        cyi.on("tap", "node, edge", (e) => select(e.target.id(), false));
+        cyi.on("tap", (e) => { if (e.target === cyi) select("", false); });
+        cyi.on("dbltap", "node, edge", (e) => { const [k, ...n] = e.target.id().split(":"); if (KIND[k]) location.hash = `#/${k}/${encodeURIComponent(n.join(":"))}`; });
+        search();
+        if (state.sel && cyi.getElementById(state.sel).length) select(state.sel, true); else cyi.fit(undefined, 24);
+      };
+      const all = Object.fromEntries([...NODES, ...EDGES].flatMap((k) => d[k].map((r) => [r.id, r])));
+      const side = document.getElementById("lgside");
+      const select = (id, center) => {
+        state.sel = id; writeUrl();
+        const go = document.getElementById("lg-go"); if (go) go.value = all[id] ? id : "";
+        if (!cyi) return;
+        cyi.elements().unselect().removeClass("faded");
+        const r = all[id];
+        if (!r) { side.innerHTML = `<p class="muted">Select a node or an edge for its details (click, or use <b>go to</b>). Double-click opens its page.</p>`; search(); return; }
+        const el = cyi.getElementById(id);
+        if (el.length) {
+          el.select();
+          const near = el.isNode() ? el.closedNeighborhood() : el.union(el.connectedNodes());
+          cyi.elements().not(near).addClass("faded");
+          if (center) { cyi.fit(near, 60); if (cyi.zoom() > 1.4) cyi.zoom({ level: 1.4, position: el.isNode() ? el.position() : el.midpoint() }); }
+        }
+        const e = EDGES.includes(r.kind);
+        let h = `<h3>${e ? edgeSwatch(r.kind) + " " : ""}${ui.esc(r.kind)} ${rec(r.kind, r.name)}</h3>` + (r.title ? `<p><b>${ui.esc(r.title)}</b></p>` : "") +
+          `<p class="muted">${ui.esc(KIND[r.kind].what)}</p><dl>`;
+        if (e) h += `<dt>from</dt><dd>${rec(nodeKind(r.kind), r.src)}${r.from_at ? " at " + code(r.from_at) : ""}</dd><dt>to</dt><dd>${rec(nodeKind(r.kind), r.dst)}${r.to_at ? " at " + code(r.to_at) : ""}</dd>` +
+          `<dt>facts</dt><dd>${factCell(r) || '<span class="muted">none claimed</span>'}</dd>`;
+        if (r.kind === "room") h += `<dt>sentences</dt><dd>${code(r.sen)}</dd><dt>models</dt><dd>${code(r.mod)}</dd>` + (r.institution ? `<dt>fiber of</dt><dd>${rec("institution", r.institution)} at ${code(r.signature)}</dd>` : "");
+        if (!e) {
+          const deg = EDGES.flatMap((k) => d[k].filter((x) => nodeKind(k) === r.kind && (x.src === r.name || x.dst === r.name)));
+          h += `<dt>edges</dt><dd>${deg.length ? deg.map((x) => `${edgeSwatch(x.kind)} ${x.src === r.name ? "→ " + rec(r.kind, x.dst) : "← " + rec(r.kind, x.src)} <span class="muted">by</span> ${rec(x.kind, x.name, short(x.name))}`).join("<br>") : '<span class="muted">none</span>'}</dd>`;
+        }
+        h += `<dt>declaration</dt><dd>${code(r.decl)}${r.arity ? " " + family(r) : ""} ${src(r.module, r.decl)}</dd><dt>module</dt><dd>${ui.esc(r.module)}</dd>`;
+        if (r.hets) h += `<dt>Hets</dt><dd>${hetsText(r)}</dd>`;
+        h += `</dl>` + (r.doc ? `<p class="muted" style="white-space:pre-wrap">${ui.esc(r.doc.length > 600 ? r.doc.slice(0, 600) + "…" : r.doc)}</p>` : "") +
+          `<p><a href="#/${r.kind}/${encodeURIComponent(r.name)}">Open the ${ui.esc(r.kind)}'s page</a></p>`;
+        if (el.length === 0) h = `<p class="note">Not drawn with the current filters.</p>` + h;
+        side.innerHTML = h;
+      };
+      const search = () => {
+        if (!cyi) return;
+        cyi.elements().removeClass("hit");
+        const words = state.q.toLowerCase().split(/\s+/).filter(Boolean);
+        if (!words.length) return;
+        const hits = cyi.elements().filter((el) => { const r = all[el.id()]; if (!r) return false;
+          const t = [r.name, r.title, r.decl, r.hets, r.module, r.doc].join(" ").toLowerCase(); return words.every((w) => t.includes(w)); });
+        hits.addClass("hit");
+        document.getElementById("lg-count").textContent += ` · ${hits.length} match${hits.length === 1 ? "" : "es"}`;
+      };
+      const $id = (x) => document.getElementById(x);
+      $id("lg-level").addEventListener("change", (e) => { state.level = e.target.value; writeUrl(); draw(); });
+      for (const c of document.querySelectorAll(".lg-kind")) c.addEventListener("change", () => {
+        state.kinds = new Set([...document.querySelectorAll(".lg-kind")].filter((x) => x.checked).map((x) => x.value)); writeUrl(); draw(); });
+      $id("lg-iso").addEventListener("change", (e) => { state.iso = e.target.checked; writeUrl(); draw(); });
+      let timer = null;
+      $id("lg-q").addEventListener("input", (e) => { clearTimeout(timer); timer = setTimeout(() => { state.q = e.target.value.trim(); writeUrl(); draw(); }, 200); });
+      $id("lg-go").addEventListener("change", (e) => {
+        const id = e.target.value, r = all[id];
+        if (r && cyi && !cyi.getElementById(id).length) {   // not drawn: switch to its level and kinds
+          state.level = NODES.includes(r.kind) ? r.kind : nodeKind(r.kind);
+          if (EDGES.includes(r.kind)) state.kinds.add(r.kind);
+          $id("lg-level").value = state.level;
+          for (const c of document.querySelectorAll(".lg-kind")) c.checked = state.kinds.has(c.value);
+          state.sel = id; writeUrl(); draw(); return;
+        }
+        select(id, true);
+      });
+      $id("lg-fit").addEventListener("click", () => cyi && cyi.fit(undefined, 24));
+      $id("lg-zin").addEventListener("click", () => cyi && cyi.zoom({ level: cyi.zoom() * 1.25, renderedPosition: { x: cyi.width() / 2, y: cyi.height() / 2 } }));
+      $id("lg-zout").addEventListener("click", () => cyi && cyi.zoom({ level: cyi.zoom() / 1.25, renderedPosition: { x: cyi.width() / 2, y: cyi.height() / 2 } }));
+      $id("lg-dir").addEventListener("click", (e) => { state.dir = state.dir === "LR" ? "TB" : "LR"; e.target.textContent = state.dir === "TB" ? "↓ top-down" : "→ left-right"; writeUrl(); draw(); });
+      $id("lg-reset").addEventListener("click", () => { location.hash = "#/logic-graph"; });
+      // keyboard: + / − zoom, 0 fits, Escape clears the selection
+      $id("lgcy").addEventListener("keydown", (e) => {
+        if (!cyi) return;
+        if (e.key === "+" || e.key === "=") $id("lg-zin").click();
+        else if (e.key === "-") $id("lg-zout").click();
+        else if (e.key === "0") $id("lg-fit").click();
+        else if (e.key === "Escape") select("", false);
+        else return;
+        e.preventDefault();
+      });
+      draw();
+    };
+    return { html, init, dispose: () => { if (cyi) { cyi.destroy(); cyi = null; } } };
+  }
+
+  // ---------- coverage ----------
+  async function coverage(arg, ctx) {
+    style();
+    if (!has("institutions")) return tabs("logic-coverage") + missing;
+    const d = await load(ctx);
+    const { p } = params(arg);
+    let h = tabs("logic-coverage", d) + `<h2>Coverage</h2>
+<p class="muted">Three separate questions, answered separately: what the registry omits from this repository's Lean declarations (the audit),
+how the registry relates to the Hets logic graph (by the relations records claim), and which logic families have Lean developments that are
+not in this repository yet. None of them says that this repository covers Hets.</p>`;
+    // 1. the audit
+    const cov = has("logic_coverage") ? await ctx.q("SELECT * FROM logic_coverage ORDER BY object, layer") : [];
+    const scope = has("logic_audit") ? await ctx.q("SELECT DISTINCT scope, module FROM logic_audit LIMIT 10") : [];
+    h += `<h3>Audit of Lean declarations</h3>`;
+    if (!cov.length) h += `<p class="muted">No audit in this database (<code>silmaril logic_audit</code>).</p>`;
+    else {
+      const tot = (k) => cov.reduce((n, r) => n + (r[k] || 0), 0);
+      h += `<p class="muted">Every declaration under <code>${ui.esc(scope.map((s) => s.scope).join(", "))}</code> reachable from <code>${ui.esc(scope.map((s) => s.module).join(", "))}</code>
+that is not a theorem and whose type, after its binders, is an institution, comorphism, morphism, room or corridor. A family (arity &gt; 0) is
+registered as a family. Proofs and Raw declarations are implementation detail and are counted apart.</p>
+<div class="lg-stats">${[["declarations", tot("declarations")], ["registered", tot("registered")], ["omitted", tot("omitted")], ["closed (arity 0)", tot("closed")]]
+  .map(([k, v]) => `<div class="lg-stat"><b>${v}</b><span>${k}</span></div>`).join("")}</div>`;
+      h += await ui.table(cov, ["object", "layer", "declarations", "closed", "registered", "omitted"]);
+      const om = await ctx.q("SELECT name, decl, object, arity, decl_module, layer FROM logic_audit WHERE registered IS NULL ORDER BY layer, object, decl LIMIT " + LIMIT);
+      const g = grid("lg-omitted", om, [
+        { key: "object", label: "kind" }, { key: "decl", label: "declaration", html: (r) => code(r.decl) + " " + src(r.decl_module, r.decl) },
+        { key: "arity", label: "arity", num: true }, { key: "layer", label: "layer" }, { key: "decl_module", label: "module" }],
+        { q: p.get("object") || "", empty: "Nothing is omitted." });
+      h += `<h4>Omitted declarations (${om.length})</h4>` + g.html;
+      var initOmitted = g.init;
+    }
+    // 2. Hets
+    h += `<h3>Relation to the Hets logic graph</h3>`;
+    if (!has("hets_coverage")) h += `<p class="muted">No Hets list in this database.</p>`;
+    else {
+      const hl = await ctx.q("SELECT h.*, l.hets_rev, l.hets_file FROM hets_coverage h LEFT JOIN hets_logics l ON l.hets_name = h.hets_name AND h.hets_kind = 'logic' ORDER BY h.hets_kind DESC, h.hets_name");
+      const hc = await ctx.q("SELECT hets_name, hets_from, hets_to, hets_rev FROM hets_comorphisms");
+      const ends = new Map(hc.map((c) => [c.hets_name, c]));
+      const rev = (hl.find((r) => r.hets_rev) || hc[0] || {}).hets_rev || "";
+      const nl = hl.filter((r) => r.hets_kind === "logic"), nc = hl.filter((r) => r.hets_kind === "comorphism");
+      const cnt = (l, k) => l.filter((r) => r[k] > 0).length;
+      h += `<p class="muted">The logics and comorphisms Hets registers (<code>logicList</code>, <code>comorphismList</code>) at
+<a href="https://github.com/spechub/Hets/tree/${ui.esc(rev)}" target="_blank" rel="noopener noreferrer">spechub/Hets@${ui.esc(rev.slice(0, 12))}</a>, names only.
+A record relates to one by its own claim: <b>corresponds</b>, <b>fragment</b> or <b>related</b>. Hets lists no institution morphisms.</p>
+<div class="lg-stats"><div class="lg-stat"><b>${cnt(nl, "related")} / ${nl.length}</b><span>Hets logics with a related institution</span></div>
+<div class="lg-stat"><b>${cnt(nl, "corresponds")} / ${nl.length}</b><span>… one that corresponds</span></div>
+<div class="lg-stat"><b>${cnt(nc, "related")} / ${nc.length}</b><span>Hets comorphisms with a related edge</span></div>
+<div class="lg-stat"><b>${cnt(nc, "corresponds")} / ${nc.length}</b><span>… one that corresponds</span></div></div>`;
+      const relCell = (r) => r.records ? r.records.split(" ").map((x) => { const i = x.lastIndexOf(":"); const n = x.slice(0, i);
+        const kind = r.hets_kind === "logic" ? "institution" : (d.comorphism.some((e) => e.name === n) ? "comorphism" : d.morphism.some((e) => e.name === n) ? "morphism" : "corridor");
+        return `${rec(kind, n)} ${pill(x.slice(i + 1))}`; }).join("<br>") : '<span class="muted">none</span>';
+      const g2 = grid("lg-hets", hl, [
+        { key: "hets_kind", label: "Hets kind" },
+        { key: "hets_name", label: "Hets name", html: (r) => code(r.hets_name) + (ends.has(r.hets_name) ? ` <span class="muted">${ui.esc(ends.get(r.hets_name).hets_from)} → ${ui.esc(ends.get(r.hets_name).hets_to)}</span>` : "") },
+        { key: "flag", label: "Hets build flag", text: (r) => r.flag || "" },
+        { key: "records", label: "registered records (relation)", html: relCell, text: (r) => r.records || "none" },
+      ]);
+      h += g2.html;
+      var initHets = g2.init;
+    }
+    // 3. pending families
+    h += `<h3>Logic families not yet in this repository</h3>`;
+    const pend = has("logic_pending") ? await ctx.q("SELECT * FROM logic_pending ORDER BY name") : [];
+    if (!pend.length) h += `<p class="muted">None listed in this database.</p>`;
+    else {
+      h += `<p class="muted">Lean developments of these families exist outside this repository and are being contributed in reviewed batches.
+Until a family lands here, nothing in it is registered, and nothing here claims it.</p>`;
+      h += await ui.table(pend, ["title", "nodes", "edges", "status", "doc"], { nowrap: ["nodes", "edges", "status"] });
+    }
+    return { html: h, init: () => { if (initOmitted) initOmitted(); if (initHets) initHets(); } };
+  }
+
+  Explorer.registerView({ id: "logic-graph", title: "Logic graph", nav: 66, render: graphView });
+  Explorer.registerView({ id: "logic-table", title: "Logic table", tab: "logic-graph", render: table });
+  Explorer.registerView({ id: "logic-coverage", title: "Logic coverage", tab: "logic-graph", render: coverage });
+  for (const k of [...NODES, ...EDGES]) {
+    Explorer.registerView({ id: KIND[k].plural, title: KIND[k].title, tab: "logic-graph", render: registry(k) });
+    Explorer.registerView({ id: k, title: k, tab: "logic-graph", render: detail(k) });
+  }
+})();
