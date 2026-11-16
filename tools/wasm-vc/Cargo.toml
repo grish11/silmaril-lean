@@ -1,0 +1,20 @@
+[package]
+name = "wasm-vc"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+license = "MIT"
+description = "Verification conditions, SMT checks and Lean proof generation for the Wasm spec library."
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.6", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "1.1"
+wasmparser = { version = "0.263", default-features = false, features = ["std", "validate", "features", "simd"] }
+wat = "1.263"
+serde_json = "1"
+
+[lints.rust]
+unsafe_code = "forbid"

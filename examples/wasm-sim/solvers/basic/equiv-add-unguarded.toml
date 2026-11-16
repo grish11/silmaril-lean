@@ -1,0 +1,9 @@
+kind = "equiv"
+description = "without the register-index precondition the two differ (index 7 hits r3 vs r3; index ≥ 4 behaves the same here, so this is proved)"
+expect = "proved"
+[a]
+modules = [{ name = "sim", wat = "flags-a.wat" }]
+entry = "i_add_rr"
+[b]
+modules = [{ name = "sim", wat = "flags-b.wat" }]
+entry = "i_add_rr"

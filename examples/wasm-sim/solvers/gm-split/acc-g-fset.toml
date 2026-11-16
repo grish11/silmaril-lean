@@ -1,0 +1,11 @@
+kind = "equiv"
+description = "accessor contract: G.fset refines the abstract fset (abs.wat) under the identity abstraction"
+expect = "proved"
+observe = ["trap", "result", "map"]
+pre = ["(bvule #x00000011 f)", "(bvule f #x00000017)", "(bvule v #x00000001)"]
+[a]
+modules = [{ name = "acc", wat = "abs.wat" }]
+entry = "fset"
+[b]
+modules = [{ name = "acc", wat = "acc-g.wat" }]
+entry = "fset"

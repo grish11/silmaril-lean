@@ -91,6 +91,7 @@ Details: [wasm-sim.md](wasm-sim.md), [wasm-sim-abi.md](wasm-sim-abi.md),
 | `wasm-tools`, `wasm-jco`, `wasm-wac`, `wasm-wit` | component and WIT tooling | see each page | [wasm-components.md](wasm-components.md) |
 | `wasm-pages` | the explorer's Wasm pages (CFGs, component structure) | runtime; what each fact rests on is listed | `tools/wasm-pages/README.md` |
 | `wasm-sim` (Rust) | generates, difftests and reduces the x86 simulators | untrusted | [wasm-sim.md](wasm-sim.md) |
+| `wasm-vc` (Rust) | solves small Wasm problems (symbolic execution + SMT), generates `tactic+script` spec-library proofs and Lean statements | untrusted; Lean re-checks what it generates | [wasm-solvers.md](wasm-solvers.md) |
 
 ## 5. Bridges to other regions
 
