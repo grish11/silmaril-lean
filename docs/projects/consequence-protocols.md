@@ -93,6 +93,27 @@ never answered differently.
 These are **specification strategies** (`Strategy.generate`), Lean definitions of their plays.
 The theorems are about these strategies only.
 
+## Gentzen sequents from UNSAT and TAUTO checkers
+
+`Silmaril.Wasi.Component.Consequence.Gentzen.{Defs,Thms}` covers a component that exports a
+list checker `f(list<T>) -> bool` (`listCheck`). It gives a predicate on lists (`checkerOf`),
+which can be read two ways as a Gentzen sequent relation (`Silmaril.Consequence.Gentzen`):
+
+- `unsatSeq` (`viaUnsat`): `Γ ⊢ Δ` iff the component accepts `Γ ++ Δ.map neg`.
+- `tautSeq` (`viaTauto`): `Γ ⊢ Δ` iff it accepts `Γ.map neg ++ Δ`.
+
+The adapter theorems take soundness of the component as a hypothesis:
+
+- `unsatSeq_le_valid` needs `CheckSound` and `NegComplete`.
+- `tautSeq_le_valid` needs `TautSound` and `NegSound`.
+- The Gentzen closures (`derives_*`) and the completeness directions are covered too.
+
+Over signed formulas, the sign flip satisfies both negation laws (`signed_negSound`,
+`signed_negComplete`). The specification **clash checker** `clashU32` accepts exactly the lists
+containing some `x` and `-x`. It is sound both as an UNSAT checker and as a TAUTO checker, for
+different reasons, so both of its readings are valid. Its UNSAT reading is `Reflexive`. Its
+execution status for a list (`STH` or `SCT`) is about plays, not the SZS status of the formula.
+
 ## Scope and gaps
 
 - No compiled component binary implements any protocol. The catalog's `compiledComponent` shape
@@ -122,5 +143,6 @@ The theorems are about these strategies only.
 lake build Silmaril.Wasi.Component.Consequence.Thms \
   Silmaril.Wasi.Component.Consequence.Checkers.Thms \
   Silmaril.Wasi.Component.Consequence.Stateful.Thms \
+  Silmaril.Wasi.Component.Consequence.Gentzen.Thms \
   Silmaril.Wasi.Component.Consequence.Matrix.Examples
 ```
