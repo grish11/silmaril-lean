@@ -110,6 +110,15 @@ leaves every context, is a trapping Core run, so by `evRun_wasmEvFunXP_trap` a t
 of the closure; in every closed behaviour the log before a host event is a pending call of it
 (least-fixpoint induction; every logged call of a canonical run is reached).
 
+**Logged runs as Core runs, for reuse** (the hypotheses of the forward lemmas):
+
+* `evalLXPh_evRun`: a logged canonical run whose calls the closure resolves to a log the host
+  allows is a run against the canonical host oracle and, from checked code, a Core run with
+  exactly that log to a final form matching its result (`evalLXPh_fwd` with `close_le_goodCX`),
+  for the simulations of divergent and productive runs (`HostClosingInfXP`);
+* `reachLXP_of_evalLXPh`: every logged call of a canonical run is reached, after the calls logged
+  before it.
+
 **Cut calls**:
 
 * `wasmHOpenXP_ne_div`, `wasmEvFunXP_ne_div`: no open behaviour and no closed behaviour ends in
@@ -403,5 +412,48 @@ theorem reachLXP_cut {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr
     ∃ (ws : List Val) (f' : Frame),
       EvalLXPh s f stk es (l ++ [OCall.mk z.1 z.2.1 z.2.2 (.inl ws) z.2.2]) (z.2.2, f', .flow .trap) :=
   Silmaril.Proofs.Wasm.Abstract.HostClosingXP.reachLXP_cut h
+
+/-! ## Logged runs as Core runs, for reuse -/
+
+section Runs
+
+open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt chkE MatchP)
+open Silmaril.Wasm.Abstract.CallXP (POut EvalOXP)
+open Silmaril.Wasm.Abstract.HostEvalP (hostCallXP)
+
+variable {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H} {tags : List TagInst}
+
+/-- **A logged canonical run whose calls the closure resolves to a log the host allows** is a run
+against the canonical host oracle and, on a store with the tag invariants, from checked code on a
+checked store, a Core run with **exactly** that log to a final form matching its result
+(`Interp.MatchP`), every profile. The statement behind the finished-behaviour lemmas above, for
+the simulations of divergent and productive runs. -/
+theorem evalLXPh_evRun (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+    {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr} {l : List (OCall H)}
+    {r : Store H × Frame × POut} {q : List (Call (wasmHostSig H))}
+    (h : EvalLXPh s f stk es l r)
+    (hq : Shape.SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) q)
+    (hc : (coreHostRel host).Consistent q) :
+    EvalOXP (hostCallXP host) s f stk es r ∧
+      (TagsOk tags s → ∀ {labels : List Nat} {ret : Nat} {out : Option Nat},
+        StoreChkE (ehExt tags) s.funcs →
+        chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some stk.length) es =
+          some out →
+        ∃ (s' : Store H) (f' : Frame) (c' : List Admin) (o : Silmaril.Wasm.Logic.Core.Outcome),
+          EvRun P host ⟨s, f, vals stk.reverse ++ expression (BExpr.lowerList es)⟩ q
+            ⟨s', f', c'⟩ ∧ o.Ends c' ∧ MatchP r s' f' o) := by
+  obtain ⟨d, cl⟩ := Silmaril.Proofs.Wasm.Abstract.HostClosingXP.evalLXPh_fwd (P := P) hH hE h q
+    (Silmaril.Proofs.Wasm.Abstract.HostClosingXP.substPre_mono
+      (Silmaril.Proofs.Wasm.Abstract.HostClosingXP.close_le_goodCX hH hE) hq) hc
+  exact ⟨d, fun hts _ _ _ hS hchk => cl hts hS hchk⟩
+
+end Runs
+
+/-- **Every logged call is reached**, after the calls logged before it. -/
+theorem reachLXP_of_evalLXPh {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (OCall H)} {r : Store H × Frame × CallXP.POut} (h : EvalLXPh s f stk es l r)
+    {u w : List (OCall H)} {g : Nat} {args : List Val} {s₁ s₂ : Store H} {b : List Val ⊕ Nat}
+    (hl : l = u ++ OCall.mk g args s₁ b s₂ :: w) : ReachLXP s f stk es u ⟨g, (args, s₁)⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingXP.reachLXP_of_log h u w g args s₁ s₂ b hl
 
 end Silmaril.Wasm.Abstract
