@@ -840,7 +840,8 @@ def helloModel : List (String × String) := [
   ("libc", "glibc 2.39 as contracts, one atomic step each (Silmaril.Elf.Link.Dyn.Proc): __libc_start_main, puts, exit, __cxa_finalize — trusted, glibc's code not executed"),
   ("library files", "libc.so.6 and ld.so: any files agreeing with the pinned lookup chunks (hypothesis)"),
   ("syscalls", "not modelled separately (inside the libc contracts)"),
-  ("I/O bridge", "Program's world/outcome rows: stdin at main, stdout flushed at exit (trusted)")]
+  ("I/O bridge", "Program's world/outcome rows: stdin at main, stdout flushed at exit (trusted)"),
+  ("claim scope", "every proved claim here is about the modelled process (the rows above); none is an end-to-end claim about glibc's or ld.so's code: real execution is helloGcc_real, conditional on the open Task.helloGccCrt and HelloLib")]
 
 def ioRecords : List IoRecord := [
   { id := "hello-gcc", title := "hello world (gcc 13.3 -O2), dynamically linked against glibc 2.39"
@@ -853,21 +854,21 @@ def ioRecords : List IoRecord := [
     output := [("stdout", "hello, world\n"), ("stderr", "empty (L3, helloSpec)"), ("exit", "0")]
     model := helloModel
     edges := [
-      ⟨`Silmaril.Elf.CliExe.Hello.hello_cli, "proves the row", "silmaril.elf.cli.hello.gcc_o2: ELF facts and Std.hello under glibcStream"⟩,
+      ⟨`Silmaril.Elf.CliExe.Hello.hello_cli, "proves the row", "silmaril.elf.cli.hello.gcc_o2: ELF facts, and Std.hello under glibcStream (the process model above, not concrete glibc)"⟩,
       ⟨`Silmaril.Elf.CliExe.hello_start, "proves the start-up row", "silmaril.elf.start.hello.gcc_o2: the standard C start-up check"⟩,
       ⟨`Silmaril.Elf.CliExe.hello_via_start, "proves (via the reduction)", "L3 spec from the start-up check and main alone"⟩,
       ⟨`Silmaril.Elf.CliExe.cli_of_main, "reduction", "standard start-up: main's proof gives the file's CLI spec"⟩,
       ⟨`Silmaril.Elf.Link.Dyn.Program.Examples.helloGcc_main, "proves main", "symbolic execution of main against puts's contract"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.Hello.hello_gcc, "proves (process level)", "every run from _start ends with status 0 and hello, world on fd 1"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Hello.hello_gcc, "proves (process model)", "MustQ over the modelled process (Open9 for the file's code, glibc as trusted contract steps, memory from the trusted loader relation, any libc.so.6/ld.so agreeing with the pinned chunks): every modelled run from _start ends with status 0 and hello, world on fd 1 (a prefix if writes may fail)"⟩,
       ⟨`Silmaril.Elf.Link.Dyn.Hello.NonVacuous.gcc_nonvacuous, "non-vacuity", "the hypotheses are met by a concrete loaded state with a run"⟩,
       ⟨`Silmaril.Elf.Link.Dyn.Libc.helloGcc_on, "transfer", "verified on every libc specification above putsSpec"⟩,
       ⟨`Silmaril.Cli.Institution.Std.hello, "specification", "Sen.prints helloBytes at L1"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.LibMod.helloGcc_real, "conditional", "real execution, given the two open obligations below"⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.LibMod.helloGcc_real, "conditional (not proved end to end)", "real execution on a real machine X: assumes Task.helloGccCrt and HelloLib, both open"⟩,
       ⟨`Silmaril.Elf.Link.Dyn.LibMod.Task.helloGccCrt, "open obligation", "main on the C-runtime machine"⟩,
       ⟨`Silmaril.Elf.Link.Dyn.LibMod.HelloLib, "open obligation", "glibc's code realises init, gate, __libc_start_main, __cxa_finalize, puts"⟩,
       ⟨`Silmaril.Elf.CliExe.GlibcRuntime, "open obligation (shape)", "silmaril.shapes.elf.glibc_runtime: no row (no concrete real machine yet)"⟩,
       ⟨`Silmaril.Elf.Link.Dyn.Proc.proc, "trusted model", "the process machine: Open9 plus the libc contracts"⟩]
-    limits := ["glibc's code is not executed: its entry points are trusted contracts (open: glibc_runtime)",
+    limits := ["no end-to-end claim about concrete glibc: its code is not executed, its entry points are trusted contracts; real start-up and puts depend on the open Task.helloGccCrt and HelloLib (and the glibc_runtime shape, no row)",
       "the loader is a transcription of ld.so, trusted", "consumption, reads and the file log are not observed (L3 via toCli)"] },
   { id := "hello-clang", title := "hello world (clang 18.1 -O2), dynamically linked against glibc 2.39 (lazy binding)"
     binary := "examples/dyn/pinned/hello-clang", elfSlug := some "hello-clang"
@@ -876,7 +877,7 @@ def ioRecords : List IoRecord := [
     input := [("argv", "any argc"), ("stdin", "not read"), ("environment", "any"), ("precondition", "reliable writes for the exact output")]
     output := [("stdout", "hello, world\n (a prefix if writes may fail)"), ("exit", "0")]
     model := helloModel ++ [("binding", "lazy: the resolver (_dl_runtime_resolve) as a contract")]
-    edges := [⟨`Silmaril.Elf.Link.Dyn.Hello.hello_clang, "proves (process level)", "every run from _start ends with status 0 and hello, world on fd 1"⟩,
+    edges := [⟨`Silmaril.Elf.Link.Dyn.Hello.hello_clang, "proves (process model)", "MustQ over the modelled process (Open9 for the file's code, glibc and the lazy-binding resolver as trusted contract steps, the trusted loader relation): every modelled run from _start ends with status 0 and hello, world on fd 1 (a prefix if writes may fail)"⟩,
       ⟨`Silmaril.Elf.Link.Dyn.Proc.proc, "trusted model", "the process machine"⟩]
     limits := ["no cli_exe row: the Program API description (Bin) of hello-clang is not stated as a CLI model here"] },
   { id := "sha256sum-min", title := "sha256sum-min: a libc-free static reimplementation of GNU coreutils 9.4 sha256sum (stdin tier)"
@@ -1010,6 +1011,9 @@ def edgesJson (env : Environment) (thmOf : Std.HashMap Name Name) (cache : Std.H
         j.getObjValD "kind" != js "theorem" then
       j.setObjVal! "status" (js (if e.role.startsWith "trusted" then "trusted model" else "specification"))
       else j
+    -- a theorem with open hypotheses is proved only as an implication: never shown as proved
+    let j := if e.role.startsWith "conditional" && j.getObjValD "status" == js "proved" then
+      j.setObjVal! "status" (js "proved implication; hypotheses open") else j
     out := out.push ((j.setObjVal! "role" (js e.role)).setObjVal! "note" (js e.note))
   pure (Json.arr out, c)
 

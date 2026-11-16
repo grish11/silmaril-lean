@@ -39,8 +39,13 @@ try {
   // Data invariants (independent of the page).
   check(d.io.every((r) => r.edges.every((e) => !e.role.startsWith("open") || !(e.status === "proved" || e.status.startsWith("proved by")))),
     "no open obligation is proved in the data (they would not be open)");
-  check(d.io.flatMap((r) => r.edges).concat(d.specs.flatMap((r) => r.edges)).every((e) => e.kind !== "theorem" || e.status === "proved"),
-    "every linked theorem is proved with the standard axioms");
+  check(d.io.flatMap((r) => r.edges).concat(d.specs.flatMap((r) => r.edges)).every((e) => e.kind !== "theorem" ||
+      e.status === (e.role.startsWith("conditional") ? "proved implication; hypotheses open" : "proved")),
+    "every linked theorem is proved with the standard axioms (a conditional one as an implication)");
+  const helloEdges = d.io.find((r) => r.id === "hello-gcc").edges;
+  check(helloEdges.some((e) => e.decl.endsWith("helloGcc_real") && e.status === "proved implication; hypotheses open") &&
+      helloEdges.filter((e) => e.role.startsWith("proves")).every((e) => !/concrete glibc/.test(e.note) || /not concrete glibc/.test(e.note)),
+    "hello-gcc: real execution is a conditional implication, the proved claims are about the process model");
 
   await open("/cli");
   check(await p.evaluate(() => document.querySelector("#nav a.on")?.textContent) === "CLI", "the CLI tab is in the navigation and selected");
