@@ -171,12 +171,12 @@ theorem fstep {x x' : TSt E (S₁ × S₂) (A₁ ⊕ A₂)} {o : Move E (sig1 A�
         obtain ⟨e, he, hx⟩ := mem_pairS_inl.1 hx
         cases e with
         | ret y s =>
-          simp only [endL, End.ret.injEq] at hx
+          simp only [pairEndL, End.ret.injEq] at hx
           obtain ⟨hy, rfl⟩ := hx
           cases Sum.map_injective.2 ⟨Sum.inl_injective, Function.injective_id⟩ hy
           exact ⟨_, _, .cons (.ret _ _ _ _ _ he) (.nil _), .nil _, .idle _ _ _⟩
-        | trap => simp [endL] at hx
-        | div => simp [endL] at hx
+        | trap => simp [pairEndL] at hx
+        | div => simp [pairEndL] at hx
   · cases h with
     | ret σ a c x σ' hx =>
       cases hr with
@@ -184,12 +184,12 @@ theorem fstep {x x' : TSt E (S₁ × S₂) (A₁ ⊕ A₂)} {o : Move E (sig1 A�
         obtain ⟨e, he, hx⟩ := mem_pairS_inr.1 hx
         cases e with
         | ret y s =>
-          simp only [endR, End.ret.injEq] at hx
+          simp only [pairEndR, End.ret.injEq] at hx
           obtain ⟨hy, rfl⟩ := hx
           cases Sum.map_injective.2 ⟨Sum.inr_injective, Function.injective_id⟩ hy
           exact ⟨_, _, .nil _, .cons (.ret _ _ _ _ _ he) (.nil _), .idle _ _ _⟩
-        | trap => simp [endR] at hx
-        | div => simp [endR] at hx
+        | trap => simp [pairEndR] at hx
+        | div => simp [pairEndR] at hx
 
 /-- One move of a component on its side is a move of the paired automaton, if the move is legal
 in the pairing game. -/

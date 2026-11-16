@@ -51,13 +51,13 @@ variable {E : Sig.{u}} {S₁ S₂ A₁ A₂ B₁ B₂ : Type u}
 /-- A left round of the paired triple is a round of `t₁`, keeping the second store. -/
 theorem mem_pairS_inl {σ : S₁ × S₂} {a : A₁}
     {x : List (Call E) × End (S₁ × S₂) ((B₁ ⊕ B₂) ⊕ PUnit.{u + 1})} :
-    x ∈ (pairS t₁ t₂).1 σ (.inl a) ↔ ∃ e, (x.1, e) ∈ t₁.1 σ.1 a ∧ x.2 = endL σ.2 e :=
+    x ∈ (pairS t₁ t₂).1 σ (.inl a) ↔ ∃ e, (x.1, e) ∈ t₁.1 σ.1 a ∧ x.2 = pairEndL σ.2 e :=
   Silmaril.Proofs.Games.Abstract.SessionPair.mem_pairS_inl
 
 /-- A right round of the paired triple is a round of `t₂`, keeping the first store. -/
 theorem mem_pairS_inr {σ : S₁ × S₂} {a : A₂}
     {x : List (Call E) × End (S₁ × S₂) ((B₁ ⊕ B₂) ⊕ PUnit.{u + 1})} :
-    x ∈ (pairS t₁ t₂).1 σ (.inr a) ↔ ∃ e, (x.1, e) ∈ t₂.1 σ.2 a ∧ x.2 = endR σ.1 e :=
+    x ∈ (pairS t₁ t₂).1 σ (.inr a) ↔ ∃ e, (x.1, e) ∈ t₂.1 σ.2 a ∧ x.2 = pairEndR σ.1 e :=
   Silmaril.Proofs.Games.Abstract.SessionPair.mem_pairS_inr
 
 /-- The call prefixes of a left round are those of `t₁`. -/

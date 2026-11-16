@@ -86,17 +86,17 @@ theorem exists_pairMove_of_step {x y : TSt E (S₁ × S₂) (A₁ ⊕ A₂)}
     · obtain ⟨e, -, he⟩ := mem_pairS_inl.1 hb
       cases e with
       | ret x _ =>
-        simp only [endL, End.ret.injEq] at he
+        simp only [pairEndL, End.ret.injEq] at he
         exact ⟨.inr (.ans (.inl a) x), by rw [he.1]; rfl⟩
-      | trap => simp [endL] at he
-      | div => simp [endL] at he
+      | trap => simp [pairEndL] at he
+      | div => simp [pairEndL] at he
     · obtain ⟨e, -, he⟩ := mem_pairS_inr.1 hb
       cases e with
       | ret x _ =>
-        simp only [endR, End.ret.injEq] at he
+        simp only [pairEndR, End.ret.injEq] at he
         exact ⟨.inr (.ans (.inr a) x), by rw [he.1]; rfl⟩
-      | trap => simp [endR] at he
-      | div => simp [endR] at he
+      | trap => simp [pairEndR] at he
+      | div => simp [pairEndR] at he
 
 theorem exists_map_of_run {x y : TSt E (S₁ × S₂) (A₁ ⊕ A₂)}
     {p : List (Move E (sig1 (A₁ ⊕ A₂) ((B₁ ⊕ B₂) ⊕ PUnit.{u + 1})))}
@@ -147,13 +147,13 @@ theorem mem_div_pair_iff (h₁ : NoPlainTrap t₁) (h₂ : NoPlainTrap t₂)
       obtain ⟨e, he, hx⟩ := mem_pairS_inl.1 hd
       cases e with
       | div => exact .inl ((mem_div_threadS_iff h₁).2 ⟨_, _, _, r₁, he⟩)
-      | ret => simp [endL] at hx
-      | trap => simp [endL] at hx
+      | ret => simp [pairEndL] at hx
+      | trap => simp [pairEndL] at hx
     | runR s s' a c =>
       obtain ⟨e, he, hx⟩ := mem_pairS_inr.1 hd
       cases e with
       | div => exact .inr ((mem_div_threadS_iff h₂).2 ⟨_, _, _, r₂, he⟩)
-      | ret => simp [endR] at hx
-      | trap => simp [endR] at hx
+      | ret => simp [pairEndR] at hx
+      | trap => simp [pairEndR] at hx
 
 end Silmaril.Proofs.Games.Abstract.SessionPair

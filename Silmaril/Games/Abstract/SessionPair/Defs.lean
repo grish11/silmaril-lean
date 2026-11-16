@@ -11,7 +11,7 @@ interface `E` give the **paired triple**
 `pairS t₁ t₂ : ObsTriple E (S₁ × S₂) (A₁ ⊕ A₂) ((B₁ ⊕ B₂) ⊕ PUnit)`. A round on
 `.inl a₁` is a round of `t₁` at `(s₁, a₁)` on the first store, keeping the
 second store; its value `.inl b₁` is shown as `.inl (.inl b₁)` and its
-continuing trap as `.inr ()` (`endL`). Rounds on `.inr a₂` are symmetric. Pending
+continuing trap as `.inr ()` (`pairEndL`). Rounds on `.inr a₂` are symmetric. Pending
 calls and productive streams are those of the component of the question.
 
 **Relabelling.** The session of the paired triple
@@ -35,13 +35,13 @@ universe u
 variable {E : Sig.{u}} {S₁ S₂ A₁ A₂ B₁ B₂ : Type u}
 
 /-- The end of a left round in the paired triple: the second store is kept. -/
-def endL (s₂ : S₂) : End S₁ (B₁ ⊕ PUnit.{u + 1}) → End (S₁ × S₂) ((B₁ ⊕ B₂) ⊕ PUnit.{u + 1})
+def pairEndL (s₂ : S₂) : End S₁ (B₁ ⊕ PUnit.{u + 1}) → End (S₁ × S₂) ((B₁ ⊕ B₂) ⊕ PUnit.{u + 1})
   | .ret x s => .ret (Sum.map .inl id x) (s, s₂)
   | .trap => .trap
   | .div => .div
 
 /-- The end of a right round in the paired triple: the first store is kept. -/
-def endR (s₁ : S₁) : End S₂ (B₂ ⊕ PUnit.{u + 1}) → End (S₁ × S₂) ((B₁ ⊕ B₂) ⊕ PUnit.{u + 1})
+def pairEndR (s₁ : S₁) : End S₂ (B₂ ⊕ PUnit.{u + 1}) → End (S₁ × S₂) ((B₁ ⊕ B₂) ⊕ PUnit.{u + 1})
   | .ret x s => .ret (Sum.map .inr id x) (s₁, s)
   | .trap => .trap
   | .div => .div
@@ -51,8 +51,8 @@ def endR (s₁ : S₁) : End S₂ (B₂ ⊕ PUnit.{u + 1}) → End (S₁ × S₂
 def pairS (t₁ : ObsTriple E S₁ A₁ (B₁ ⊕ PUnit.{u + 1}))
     (t₂ : ObsTriple E S₂ A₂ (B₂ ⊕ PUnit.{u + 1})) :
     ObsTriple E (S₁ × S₂) (A₁ ⊕ A₂) ((B₁ ⊕ B₂) ⊕ PUnit.{u + 1}) :=
-  (fun σ => Sum.elim (fun a => (fun x => (x.1, endL σ.2 x.2)) '' t₁.1 σ.1 a)
-      (fun a => (fun x => (x.1, endR σ.1 x.2)) '' t₂.1 σ.2 a),
+  (fun σ => Sum.elim (fun a => (fun x => (x.1, pairEndL σ.2 x.2)) '' t₁.1 σ.1 a)
+      (fun a => (fun x => (x.1, pairEndR σ.1 x.2)) '' t₂.1 σ.2 a),
     fun σ => Sum.elim (t₁.2.1 σ.1) (t₂.2.1 σ.2),
     fun σ => Sum.elim (t₁.2.2 σ.1) (t₂.2.2 σ.2))
 
