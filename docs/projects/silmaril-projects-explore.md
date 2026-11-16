@@ -347,10 +347,14 @@ expected status (`problems.expect`) that the summary is not, and a struck-throug
 deprecated problem. The badge's title spells out the code with its SZS name, the stored code when
 it differs, the verdict, expectation and markings. `contingent` (SAT and CSA both hold) is shown as
 NOC, SZS's NoConsequence: "some interpretations are models of Ax, some models of Ax are models of
-C, and some models of Ax are models of ~C" ([SZS Success ontology](https://szs.tptp.org/success)).
+C, and some models of Ax are models of ~C" (current: [SZS Success ontology](https://szs.tptp.org/success);
+historical: [Sutcliffe, The SZS Ontologies for Automated Reasoning Software (2008)](http://tptp.org/cgi-bin/SeeTPTP?Category=BibTeX&File=Sut08-KEAPPA)).
 The display is one-to-one. The database keeps `contingent`, and its meaning is the SZS catalogue's
-to define. THM is not shown as TAU: Tautology requires every interpretation to be a model, while
-THM, "all models of Ax are models of C", is what a Lean proof establishes here. A
+to define. THM is kept as stored and not shown as TAU. With no axioms THM and TAU coincide, but
+the project's name for a proved problem is THM, "all models of Ax are models of C". The display
+depends only on the stored code; the verdict shown is the database's (UNS fails a closed
+proposition only). Over an empty domain no witness exists, so SAT, and therefore `contingent`,
+cannot be established there; such problems show their stored code unchanged. A
 deprecated problem's page links its replacements, and a replacement's page links what it
 replaces.
 

@@ -20,8 +20,9 @@ function badge(v, text) { return v ? `<span class="badge ${esc(v)}">${esc(text |
 // SZS's NoConsequence (NOC) is "some interpretations are models of Ax, some models of Ax are
 // models of C, and some models of Ax are models of ~C" (https://szs.tptp.org/success), which is
 // exactly SAT and CSA together, as `contingent` is defined. The mapping is one-to-one and the
-// badge's title always names the stored code, so nothing is lost. (TAU, Tautology, is not used:
-// THM, "all models of Ax are models of C", is the status a Lean proof establishes here.)
+// badge's title always names the stored code, so nothing is lost. THM is kept as stored, not shown
+// as TAU (with no axioms the two coincide; THM is the project's name). Historical reference:
+// Sutcliffe, The SZS Ontologies for Automated Reasoning Software (2008).
 const SZS_TEXT = { THM: "Theorem: proved", OPN: "Open: no answer yet", SAT: "Satisfiable: an instance holds",
   UNS: "Unsatisfiable: refuted for every argument", CSA: "CounterSatisfiable: a counterexample exists", UNK: "Unknown",
   contingent: "both SAT and CSA hold" };

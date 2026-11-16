@@ -64,6 +64,27 @@ try {
   const noc = await p.evaluate(() => Explorer.ui.statusBadge({ summary: "contingent", verdict: "fails" }));
   check(/>NOC</.test(noc) && /stored as &quot;contingent&quot;/.test(noc) && /NoConsequence/.test(noc), "contingent shows as NOC, naming the stored code");
   check(await p.evaluate(() => ["THM", "OPN", "SAT", "UNS", "CSA", "UNK"].every((c) => Explorer.ui.statusCode(c) === c)), "SZS codes are shown as stored");
+  // The display depends on the stored code alone; the verdict (which does depend on the problem:
+  // UNS fails only a closed proposition) is shown as the database gives it, never recomputed.
+  const shape = await p.evaluate(() => {
+    const b = (s) => { const d = document.createElement("div"); d.innerHTML = Explorer.ui.statusBadge(s); const e = d.firstChild; return { text: e.textContent, code: e.dataset.code, title: e.title }; };
+    return {
+      closedUns: b({ summary: "UNS", verdict: "fails" }),          // a closed proposition refuted
+      openUns: b({ summary: "UNS", verdict: "unknown" }),          // a predicate refuted at every argument
+      closedNoc: b({ summary: "contingent", verdict: "fails" }),
+      openNoc: b({ summary: "contingent", verdict: "fails", expect: "contingent" }),
+      // over an empty domain no witness exists, so SAT (and so contingent) cannot be established;
+      // whatever the database stores for such a problem is shown as stored
+      emptyUns: b({ summary: "UNS", verdict: "unknown" }),
+    };
+  });
+  check(shape.closedUns.text === "UNS!" && /verdict fails/.test(shape.closedUns.title) && shape.openUns.text === "UNS" && /verdict unknown/.test(shape.openUns.title),
+    "closed vs open UNS: same code, the stored verdict decides the mark");
+  check(shape.closedNoc.code === "contingent" && shape.closedNoc.text === "NOC!" && shape.openNoc.text === "NOC" && /as expected \(contingent\)/.test(shape.openNoc.title),
+    "contingent: NOC for closed and open problems alike, stored code kept, expectation compared on the stored code");
+  check(shape.emptyUns.text === "UNS" && shape.emptyUns.code === "UNS", "an empty-domain problem's stored status is shown unchanged");
+  const listed = await p.evaluate(() => [...document.querySelectorAll("#list .st[data-code=contingent]")].map((e) => e.textContent));
+  check(listed.every((t) => /^NOC[!?]?$/.test(t)), `contingent rows of the database display as NOC (${listed.length} on this page)`);
   await shot("problems.png");
 
   // sections: another task adds a block to artifact pages without editing the view; a section
