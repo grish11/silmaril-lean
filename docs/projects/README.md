@@ -3,6 +3,7 @@
 | Project | Included in this release | Guide |
 | --- | --- | --- |
 | Wasm catalogue | Every Wasm semantic model with its proved relations to Core 3.0, the institutions over them, the verified checkers and programs written in Wasm (LRAT, Farkas, acceptors, the specification library), the x86-64 emulators in Wasm, the tools and the bridges, each marked as module-, byte- or test-level evidence | [Wasm catalogue](wasm-catalog.md), [spec library](wasm-spec-library.md) |
+| Wasm institutions guide | Defining a logic from an observational semantics, comorphisms and borrowing, typed logic graphs, and the Wasm, game, SpecTec, trace-specification and atlas institution families, as compiled examples; the scope of the core-module and component institutions and the missing edge between them | [Wasm institutions guide](wasm-institutions-guide.md) |
 | WebAssembly | Seven native tools, binary/text models, execution models and scoped transformation proofs | [Wasm](wasm.md) |
 | Wasm components | The component model (codec, validator, reference machine, streams), WIT, jco and WAC work-alikes, the component and generator subcommands of `wasm-tools`, the CLI specification API and the generator API | [Wasm components](wasm-components.md) |
 | More Wasm | WasmFX and asyncify on it, the unified and deterministic semantics, Wasm games and institutions, program logics, version models, wasmi and OCaml models, WASI preview 1/0.2/0.3 theories and adapters, a networking stack, and the component registry shapes | [More Wasm](wasm-wasi.md) |
