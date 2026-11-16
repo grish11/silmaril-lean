@@ -19,8 +19,9 @@ async function listPage(spec) {
       if (fs) {
         // a status filter: the names from the problem index (StatusSemantics), then this page's rows
         const idx = await problemIndex();
+        const found = f ? await problemsMatching(f) : null;
         const names = idx.list.filter((e) => e.kind !== "group" && (fs === "attention" ? !!e.st.attention.list : e.st.code === fs) &&
-          (!f || [e.name, e.title, e.module].some((v) => String(v || "").toLowerCase().includes(f)))).map((e) => e.name);
+          (!found || found.has(e.name))).map((e) => e.name);
         const page = names.slice(off, off + PAGE + 1);
         const got = page.length ? await q(`SELECT ${spec.select} WHERE p.name IN (${ph(page.length)})`, page) : [];
         const at = new Map(got.map((r) => [r.name, r]));

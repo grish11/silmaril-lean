@@ -2,13 +2,7 @@
 const DETAIL = 300;
 async function problemDetail(name) {
   const p = (await q("SELECT * FROM problems WHERE name = ?", [name]))[0];
-  if (!p) {
-    const now = RENAMED[name];
-    if (now && (await q("SELECT 1 AS x FROM problems WHERE name = ? LIMIT 1", [now])).length) {
-      return `<p class="note">${esc(name)} was renamed to ${link("problem", now)}.</p>`;
-    }
-    return `<p class="err">no problem ${esc(name)}</p>`;
-  }
+  if (!p) return `<p class="err">no problem ${esc(name)}</p>`;
   const s = (await tq("summary", "SELECT * FROM summary WHERE problem = ?", [name]))[0];
   await resolve([{ problem: name }], ["problem"], HINTS, false);
   const parts = StatusSemantics.splitName(name);
@@ -43,9 +37,6 @@ async function problemDetail(name) {
   return h;
 }
 function problemPage(name) { return problemDetail(name); }
-// Names that changed, for links and bookmarks to the old name: the old name's page points to the
-// new one when the open database has only the new one.
-const RENAMED = Object.freeze({ "silmaril.selftest.all": "silmaril.all" });
 // The status in words: the displayed code and what it means, the expectation and how the status
 // compares to it, the markings that leave the problem out of the attention lists.
 function statusSentence(row, p) {

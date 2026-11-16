@@ -461,6 +461,7 @@ CREATE INDEX edges_kind ON edges(kind);
 CREATE INDEX summary_verdict ON summary(verdict, summary);
 CREATE INDEX objects_kind ON objects(kind);
 CREATE INDEX problems_detached ON problems(detached, name);
+CREATE INDEX problems_status ON problems(name, kind, arity, expect);
 CREATE INDEX answers_problem ON answers(problem);
 CREATE INDEX problem_inputs_value ON problem_inputs(value);
 CREATE INDEX problem_inputs_cid ON problem_inputs(cid);

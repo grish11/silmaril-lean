@@ -35,10 +35,7 @@ function browseMatch(e, f) {
   if (!StatusSemantics.matchesFilter(e.st, { codes: f.codes, outcomes: f.outcomes })) return false;
   if (f.attention && (f.attention === "any" ? !e.st.attention.list : e.st.attention.list !== f.attention)) return false;
   if (f.excluded && (f.excluded === "any" ? !e.st.attention.excluded : e.st.attention.excluded !== f.excluded)) return false;
-  if (f.q) {
-    const t = f.q.toLowerCase();
-    if (!e.name.toLowerCase().includes(t) && !String(e.title || "").toLowerCase().includes(t)) return false;
-  }
+  if (f.q && !(f.found && f.found.has(e.name))) return false;
   return true;
 }
 // Counts by displayed code, as small badges linking to the filtered listing.
@@ -53,6 +50,7 @@ function browseCounts(entries, path, f) {
 async function browse() {
   const f = browseParse();
   const idx = await problemIndex();
+  if (f.q) f.found = await problemsMatching(f.q);
   if (idx.tooLarge) return `<p class="muted">${idx.tooLarge} problems: too many to browse here; use the <a href="#/problems">problem list</a>.</p>`;
   if (browseTree.idx !== idx) browseTree = { idx, tree: StatusSemantics.namespaceTree(idx.list.map((e) => e.name)) };
   const node = StatusSemantics.namespaceNode(browseTree.tree, f.path);
@@ -92,9 +90,9 @@ async function browse() {
       }).join("") + "</tbody></table></div>";
   }
   const here = node.items.map((n) => idx.byName.get(n)).filter((e) => e && browseMatch(e, f));
-  if (here.length) h += `<h3>Problems in <code>${esc(f.path || "(top level)")}</code></h3>` + browseRows(here);
+  if (here.length) h += `<h3>Problems in <code>${esc(f.path || "(top level)")}</code></h3>` + await browseRows(here);
   if (browseFiltered(f)) {
-    h += `<h3>Every matching problem under ${f.path ? `<code>${esc(f.path)}</code>` : "all namespaces"} (${matching.length})</h3>` + browseRows(matching.slice(0, BROWSE_LIMIT)) +
+    h += `<h3>Every matching problem under ${f.path ? `<code>${esc(f.path)}</code>` : "all namespaces"} (${matching.length})</h3>` + await browseRows(matching.slice(0, BROWSE_LIMIT)) +
       (matching.length > BROWSE_LIMIT ? `<p class="muted">the first ${BROWSE_LIMIT}</p>` : "");
   }
   const init = () => {
@@ -116,11 +114,12 @@ async function browse() {
   };
   return { html: h, init };
 }
-function browseRows(list) {
+async function browseRows(list) {
   if (!list.length) return '<p class="muted">(none)</p>';
+  const titles = await problemTitles(list.map((e) => e.name));
   return '<div class="tablebox"><table class="browse-problems"><thead><tr><th class="nw">status</th><th>problem</th><th class="nw">params</th><th>title</th></tr></thead><tbody>' +
     list.map((e) => `<tr><td class="nw">${statusBadge(e.row)}</td><td>${link("problem", e.name)}${e.kind === "group" ? ' <span class="muted">group</span>' : ""}</td>` +
-      `<td class="num nw">${e.arity == null ? "" : e.arity}</td><td>${esc(e.title || "")}</td></tr>`).join("") + "</tbody></table></div>";
+      `<td class="num nw">${e.arity == null ? "" : e.arity}</td><td>${esc(titles.get(e.name) || "")}</td></tr>`).join("") + "</tbody></table></div>";
 }
 
 registerView({ id: "browse", title: "Browse", nav: 15, render: browse });

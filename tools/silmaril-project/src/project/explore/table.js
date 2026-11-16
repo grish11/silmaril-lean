@@ -34,8 +34,9 @@ function problemIndex() {
     const n = (await query("SELECT count(*) AS n FROM problems"))[0].n;
     if (n > PINDEX_MAX) return { tooLarge: n, list: [], byName: new Map() };
     const has = (t) => tables.has(t);
-    const rows = await query("SELECT p.name, p.kind, p.arity, p.expect, p.title, p.detached, p.module" +
-      (has("summary") ? ", s.summary, s.verdict" : "") + " FROM problems p" + (has("summary") ? " LEFT JOIN summary s ON s.problem = p.name" : "") + " ORDER BY p.name");
+    // narrow reads: the covering index `problems_status` (when the database has it) and `summary`
+    const rows = await query("SELECT name, kind, arity, expect FROM problems ORDER BY name");
+    const summ = new Map(has("summary") ? (await query("SELECT problem, summary, verdict FROM summary")).map((r) => [r.problem, r]) : []);
     const est = new Map();
     if (has("statuses")) for (const r of await query("SELECT problem, status FROM statuses")) {
       if (!est.has(r.problem)) est.set(r.problem, []);
@@ -45,9 +46,10 @@ function problemIndex() {
     const fin = new Map(has("findings") ? (await query("SELECT problem, classification FROM findings")).map((r) => [r.problem, r.classification]) : []);
     const eo = new Map(has("expected_open") ? (await query("SELECT problem, reason, note FROM expected_open")).map((r) => [r.problem, { reason: r.reason, note: r.note }]) : []);
     const list = rows.map((r) => {
-      const row = { summary: r.summary || "OPN", verdict: r.verdict || "unknown", expect: r.expect || null, arity: r.arity,
+      const sm = summ.get(r.name) || {};
+      const row = { summary: sm.summary || "OPN", verdict: sm.verdict || "unknown", expect: r.expect || null, arity: r.arity,
         established: est.get(r.name) || [], deprecated: dep.get(r.name) || null, finding: fin.get(r.name) || null, expectedOpen: eo.get(r.name) || null };
-      return { name: r.name, kind: r.kind, arity: r.arity, title: r.title, detached: !!r.detached, module: r.module, row, st: StatusSemantics.problemStatus(row) };
+      return { name: r.name, kind: r.kind, arity: r.arity, row, st: StatusSemantics.problemStatus(row) };
     });
     return { list, byName: new Map(list.map((e) => [e.name, e])) };
   })();
@@ -55,6 +57,17 @@ function problemIndex() {
   promise.then((idx) => { if (pindex.db === db) for (const e of idx.list) if (!statusOf.has(e.name)) statusOf.set(e.name, e.row); },
     () => { if (pindex.promise === promise) pindex = { db: null, promise: null }; });
   return guarded(routeTok, be, promise);
+}
+// The titles of some problems (primary-key lookups; the index leaves titles out): name -> title.
+async function problemTitles(names) {
+  const rows = names.length ? await inChunks("SELECT name, title FROM problems WHERE name IN ($)", names) : [];
+  return new Map(rows.map((r) => [r.name, r.title]));
+}
+// The names of the problems whose name, title or module contains `text` (case-insensitive): a
+// scan of `problems`, run only for an explicit search.
+async function problemsMatching(text) {
+  const t = String(text).toLowerCase();
+  return new Set((await q("SELECT name FROM problems WHERE instr(lower(name), ?) > 0 OR instr(lower(coalesce(title, '')), ?) > 0 OR instr(lower(coalesce(module, '')), ?) > 0", [t, t, t])).map((r) => r.name));
 }
 const LOOKUP = {
   problem: ["problems", () => "SELECT p.name AS n" + STATUS_COLS() + " FROM problems p" + STATUS_JOINS() + " WHERE p.name IN ($)"],

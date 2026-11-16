@@ -9,5 +9,5 @@ deprecated problem eo.old: stated over the wrong machine (superseded by eo.open)
 expected_open consistency eo.con [OPN]: Con(ZFC) is not provable in ZFC (see https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems)
 expected_open independent eo.ind [OPN]: neither provable nor refutable in ZFC
 expected_open undecidable_instance eo.old [OPN]
-sql sha256: d888271aa10f01376f5614f5db639f462e2d4446640b16e75f9379aa8840e66d
+sql sha256: 09873ab47ef73919401140ec1daded7a4c9cc3dcd5734b8ea822fb8c18d5e480
 exit: ok

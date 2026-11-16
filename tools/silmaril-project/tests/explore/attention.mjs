@@ -1,8 +1,7 @@
 // The landing page's attention lists, the namespace browser and the status filters, in Chromium:
 // the cards count what StatusSemantics classifies (status.js), deprecated problems and problems with
 // an `expected_open` marking are left out of the lists but stay reachable, the browser walks dotted
-// namespaces with breadcrumbs, filters by displayed status and outcome through the URL, and the
-// old root name of the project still reaches the renamed root.
+// namespaces with breadcrumbs, and filters by displayed status and outcome through the URL.
 //
 //   node attention.mjs SITE_DIR [SHOTS_DIR]   (SITE_DIR holds index.html and project.sqlite)
 //
@@ -108,17 +107,6 @@ try {
   await go("#/statuses");
   const gl = await p.evaluate(() => [...document.querySelectorAll(".glossary dt .st")].map((e) => e.textContent));
   check(["THM", "CTH", "TAU", "UNS", "SAT", "CSA", "NOC", "OPN"].every((c) => gl.includes(c)), `glossary: ${gl.join(" ")}`);
-
-  // the old root name reaches the renamed root
-  const roots = py(`
-import sqlite3, sys
-c = sqlite3.connect(sys.argv[1])
-print(c.execute("SELECT root FROM projects WHERE origin = 'local'").fetchone()[0])
-`, path.join(tmp, "project.sqlite")).trim();
-  await go("#/problem/silmaril.selftest.all");
-  const legacy = await p.evaluate(() => document.querySelector("#main").textContent);
-  if (roots === "silmaril.selftest.all") check(/Group silmaril\.selftest\.all/.test(legacy), "an older database still shows its root under the old name");
-  else check(/renamed to silmaril\.all/.test(legacy), `the old root name points to ${roots}`);
 
   check((await errs()).length === 0 && errors.length === 0, `no errors (${errors.join("; ")})`);
 } finally {

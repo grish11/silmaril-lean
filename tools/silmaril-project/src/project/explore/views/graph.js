@@ -13,8 +13,6 @@ async function graph(focus) {
   const local = (await tq("projects", "SELECT root FROM projects WHERE origin = 'local' LIMIT 1"))[0];
   const root = (local && local.root) || "";
   focus = focus || root || ((await q("SELECT name FROM problems ORDER BY name LIMIT 1"))[0] || {}).name || "";
-  // a renamed problem (details.js RENAMED): focus on its new name when only that one exists
-  if (Object.hasOwn(RENAMED, focus) && !(await q("SELECT 1 AS x FROM problems WHERE name = ? LIMIT 1", [focus])).length) focus = RENAMED[focus];
   const html = `<div class="controls">
     <label>focus <input type="text" id="gfocus" list="gnames" size="44" value="${esc(focus)}"></label>
     <datalist id="gnames"></datalist>

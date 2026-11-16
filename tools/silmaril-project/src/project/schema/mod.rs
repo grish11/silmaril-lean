@@ -308,6 +308,9 @@ pub const INDEXES: &[(&str, &str, &[&str])] = &[
     ("summary_verdict", "summary", &["verdict", "summary"]),
     ("objects_kind", "objects", &["kind"]),
     ("problems_detached", "problems", &["detached", "name"]),
+    // the explorer's status index (explore/table.js `problemIndex`) reads every problem's name,
+    // kind, arity and expectation: a covering index, much narrower than the table's rows
+    ("problems_status", "problems", &["name", "kind", "arity", "expect"]),
     ("answers_problem", "answers", &["problem"]),
     ("problem_inputs_value", "problem_inputs", &["value"]),
     ("problem_inputs_cid", "problem_inputs", &["cid"]),

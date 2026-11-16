@@ -54,8 +54,9 @@ async function statusesPage() {
 async function problemRows(list, limit) {
   const shown = list.slice(0, limit);
   if (!shown.length) return '<p class="muted">(none)</p>';
+  const titles = await problemTitles(shown.map((e) => e.name));
   return '<div class="tablebox"><table><thead><tr><th class="nw">status</th><th>problem</th><th>title</th></tr></thead><tbody>' +
-    shown.map((e) => `<tr><td class="nw">${statusBadge(e.row)}</td><td>${link("problem", e.name)}</td><td>${esc(e.title || "")}</td></tr>`).join("") +
+    shown.map((e) => `<tr><td class="nw">${statusBadge(e.row)}</td><td>${link("problem", e.name)}</td><td>${esc(titles.get(e.name) || "")}</td></tr>`).join("") +
     "</tbody></table></div>" + (list.length > limit ? `<p class="muted">the first ${limit} of ${list.length}</p>` : "");
 }
 
@@ -95,7 +96,23 @@ async function summary() {
     await resolve([local], ["root"], HINTS, false);
     h += `<h2>Root</h2><p>${link("problem", local.root)}${verdictBadge(local.root)} · <a href="${browseHref("")}">browse by namespace</a> · ${link("graph", local.root, "graph")}</p>`;
   }
-  h += "<details><summary><b>Counts, verdicts, groups and metadata</b></summary>";
+  // the counts read whole tables (edges, statuses): only when asked for
+  h += '<details id="sumdetails"><summary><b>Counts, verdicts, groups and metadata</b></summary><div id="sumdetailsbody"><p class="muted">reading…</p></div></details>';
+  const init = () => {
+    const d = $("#sumdetails");
+    if (!d) return;
+    d.addEventListener("toggle", async () => {
+      if (!d.open || d.dataset.loaded) return;
+      d.dataset.loaded = "1";
+      try { $("#sumdetailsbody").innerHTML = await summaryDetails(local, proj, problemsOnly); }
+      catch (e) { if (!(e instanceof Superseded)) $("#sumdetailsbody").innerHTML = `<p class="err">${esc(e.message || e)}</p>`; }
+      updateStats();
+    });
+  };
+  return { html: h, init };
+}
+async function summaryDetails(local, proj, problemsOnly) {
+  let h = "";
   h += local ? await dl(local) : '<p class="muted">no local project row</p>';
   const counts = [
     ...await tq("objects", "SELECT kind, count(*) AS n FROM objects GROUP BY kind"),
@@ -125,7 +142,6 @@ async function summary() {
   }
   h += "<h2>Meta</h2>" + await table(await tq("meta", "SELECT * FROM meta LIMIT 100"));
   if (proj.length > 1) h += "<h2>Projects</h2>" + await table(proj, ["name", "origin", "version", "root", "url", "rev"]);
-  h += "</details>";
   return h;
 }
 
