@@ -108,7 +108,7 @@ dependency or the open problem.
 
 | Item | Status |
 | --- | --- |
-| WASI and glibc bridges of the simulators (`Sim.WasiBridge`, `Sim.GlibcBridge`) | Most of the bridges need only three small library modules (C library `puts`/`crypt` contracts and a safety predicate of the x86 relational machine). Five modules instantiate the bridges with GNU `sha256sum` and need its dynamically linked verification, which is not here. The WASI 0.2.12 WIT files the examples use also need vendored copies with their licence files |
+| The `sha256sum` instances of the WASI bridge (five modules: the CLI and process-level readings of GNU `sha256sum` through the bridge) | need the dynamically linked verification of GNU `sha256sum`, which is not here. The rest of `Sim.WasiBridge` and `Sim.GlibcBridge` is here |
 | Further simulator programs (litmus emulators for SC/TSO/PSO, problem shapes for emulated vs compiled functions, `sha256sum` running in the x86 simulator) | still in development elsewhere |
 | VC-generation benchmarks (`VCGenBench`, `VCGen2Bench`, `VCGenAdler`) and the `wasm-vc reflect` tests | their specifications come from a benchmark suite that is not public |
 | SMT-backed loop benchmarks and a WASI `sha256sum` example | need projects that are not public |

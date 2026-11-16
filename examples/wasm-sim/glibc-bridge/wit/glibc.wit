@@ -1,0 +1,50 @@
+/// glibc functions as component imports (examples/wasm-sim/glibc-bridge;
+/// Lean: Silmaril.Sim.GlibcBridge). A dynamically linked x86-64 program's
+/// `call f@plt` becomes a call of `f` here (eager binding of GOT[f] to a foreign address,
+/// System V by value: integer arguments in rdi rsi rdx rcx r8 r9, result in rax).
+package wsim:glibc@0.1.0;
+
+/// Guest memory of the process (the simulator's `mem.*`): pointer arguments are guest addresses.
+interface guest-memory {
+  load8: func(addr: u64) -> u8;
+  store8: func(addr: u64, v: u8);
+}
+
+/// The subset implemented by examples/wasm-sim/glibc-bridge/wat/glibc.wat (core level: the
+/// `ffi.call(target, a1..a6)` dispatcher). Contracts: `puts` ↦ Silmaril.Sim.GlibcBridge.putsC
+/// (= Silmaril.Libc.putsGlibc on bytes), `exit` ↦ exitC; the others are to be stated.
+interface glibc-subset {
+  /// puts(s): writes s ++ "\n" on stdout; |s| + 1, or -1 (EOF) on a short/failed write.
+  puts: func(s: u64) -> s32;
+  strlen: func(s: u64) -> u64;
+  putchar: func(c: s32) -> s32;
+  /// exit(status): does not return (no stdio buffers: puts/write are unbuffered here).
+  exit: func(status: s32);
+  write: func(fd: s32, buf: u64, n: u64) -> s64;
+  memcpy: func(dst: u64, src: u64, n: u64) -> u64;
+  memset: func(dst: u64, c: s32, n: u64) -> u64;
+}
+
+/// The start-up contract replacing glibc's start-up (`__libc_start_main` of crt1's `_start`):
+/// `start(main, argc, argv) = exit(main(argc, argv, argv + 8 (argc + 1)))`. It calls back into
+/// the simulated program, so in the core-module stack it lives in the driver layer
+/// (`glibcrun.wat`), not in the library.
+interface startup {
+  libc-start-main: func(main: u64, argc: s32, argv: u64);
+}
+
+/// A glibc-linked x86-64 program on the simulator stack: needs only the glibc subset (and no
+/// syscalls of its own beyond those), exports wasi:cli/run.
+world x86-glibc-program {
+  import guest-memory;
+  import glibc-subset;
+  export wasi:cli/run@0.2.12;
+}
+
+/// The Wasm glibc subset over WASI (route (a)).
+world glibc-over-wasi {
+  import guest-memory;
+  import wasi:cli/stdout@0.2.12;
+  import wasi:cli/exit@0.2.12;
+  export glibc-subset;
+}

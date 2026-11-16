@@ -1,0 +1,7 @@
+build/
+progs/*
+!progs/*.S
+!progs/*.c
+!progs/*.h
+!progs/build.sh
+!progs/*.txt
