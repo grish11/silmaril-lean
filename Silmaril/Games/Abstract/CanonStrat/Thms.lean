@@ -40,7 +40,10 @@ pure maps only**. Uniformity along effectful maps is **false**:
 `FullFun.not_iter_uniform_call` (a total, deterministic map making one import call) and
 `FullFun.not_iter_uniform_trap` (a strict, always-trapping map). So `CanonStrat` is **not**
 claimed to be an Elgot category in the unrestricted sense, i.e. with uniformity along every
-morphism. Uniformity along silent, deterministic, total, state-changing maps is open.
+morphism. Uniformity along **silent, deterministic, trap-free, defined** (possibly state-changing)
+maps holds (`CanonStrat.iter_uniform_silent`, `Silmaril.Games.Abstract.IterUniform`), and each
+of the four conditions is needed (`FullFun.not_iter_uniform_nondet`, `not_iter_uniform_undefined`
+and the two counterexamples above). Finitely-branching nondeterministic maps are open.
 -/
 
 public section
