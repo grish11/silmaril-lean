@@ -4,6 +4,7 @@ public import Silmaril.Games.Abstract.SessionCat.Defs
 public import Silmaril.Games.Abstract.SessionLink.Thms
 import Silmaril.Proofs.Games.Abstract.SessionCat.Det
 import Silmaril.Proofs.Games.Abstract.SessionCat.Assoc
+import Silmaril.Proofs.Games.Abstract.SessionCat.Unit
 
 /-!
 # Session-level category laws: theorems
@@ -25,6 +26,16 @@ Hypotheses: the two servers `t` and `u` have no plain traps (`comp_threadS` need
 server of each link; `linkS t u` inherits it from `u`), and all three have deterministic returns
 (the stores of the four links involved are then deterministic). The equivalence of triples also
 needs `NoPlainTrap v`, for `threadS_eq_iff`.
+
+**Identity** (`threadS_idS`): the session of the identity session triple `idS` is copycat,
+`DStrategy.id (sig1 A B)`, exactly (all three components, no relabelling): the forwarded answer is
+returned unchanged, a trap answer being a continuing trap, so the session never ends. `idS` has
+deterministic returns and no plain traps.
+
+**Unit laws** (`threadS_linkS_idS`, `threadS_idS_linkS`, `obsEq_linkS_idS`, `obsEq_idS_linkS`):
+linking with `idS` on either side gives the same session, the unit store `PUnit` being added, and
+observationally equivalent stores. Hypotheses: `RetDet` of the other component, and `NoPlainTrap`
+of it when it is the server (`linkS t idS`) or for the equivalence of triples.
 -/
 
 public section
@@ -77,5 +88,46 @@ theorem obsEq_linkS_assoc (hnt : NoPlainTrap t) (hnu : NoPlainTrap u) (hnv : NoP
   Silmaril.Proofs.Games.Abstract.SessionCat.obsEq_linkS_assoc hnt hnu hnv ht hu hv s₁ s₂ s₃
 
 end Assoc
+
+/-! ## Identity and units -/
+
+/-- **The identity session is copycat.** -/
+theorem threadS_idS {A B : Type u} :
+    threadS (idS (A := A) (B := B)) PUnit.unit = DStrategy.id (sig1 A B) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.threadS_idS
+
+/-- The identity session has deterministic returns. -/
+theorem retDet_idS {A B : Type u} : RetDet (idS (A := A) (B := B)) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.retDet_idS
+
+/-- The identity session has no plain traps. -/
+theorem noPlainTrap_idS {A B : Type u} : NoPlainTrap (idS (A := A) (B := B)) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.noPlainTrap_idS
+
+section Unit
+
+variable {S A B A' B' : Type u}
+
+/-- **Right unit on sessions**: a server served to the identity client. -/
+theorem threadS_linkS_idS {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})} (hnt : NoPlainTrap t)
+    (ht : RetDet t) (s : S) : threadS (linkS t idS) (s, PUnit.unit) = threadS t s :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.threadS_linkS_idS hnt ht s
+
+/-- **Left unit on sessions**: a client served by the identity server. -/
+theorem threadS_idS_linkS {u : ObsTriple (sig1 A B) S A' (B' ⊕ PUnit.{u + 1})} (hu : RetDet u)
+    (s : S) : threadS (linkS idS u) (PUnit.unit, s) = threadS u s :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.threadS_idS_linkS hu s
+
+/-- **Right unit on triples**, up to observational equivalence. -/
+theorem obsEq_linkS_idS {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})} (hnt : NoPlainTrap t)
+    (ht : RetDet t) (s : S) : ObsEq (linkS t idS) t (s, PUnit.unit) s :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.obsEq_linkS_idS hnt ht s
+
+/-- **Left unit on triples**, up to observational equivalence. -/
+theorem obsEq_idS_linkS {u : ObsTriple (sig1 A B) S A' (B' ⊕ PUnit.{u + 1})}
+    (hnu : NoPlainTrap u) (hu : RetDet u) (s : S) : ObsEq (linkS idS u) u (PUnit.unit, s) s :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.obsEq_idS_linkS hnu hu s
+
+end Unit
 
 end Silmaril.Games.Abstract.SessionCat
