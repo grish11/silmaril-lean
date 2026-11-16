@@ -227,10 +227,15 @@ The Wasm institutions come in two families, built the same way (an observational
 | Core modules | `Wasm.Institution.Entry` (single invocations, `ModuleRefines`), `Wasm.Institution.Session` (calls sharing a store), `Wasm.Institution.{Graph, Games, GameGraph, DivGames}` (reduction, LTS and game readings) | Core 3.0 stores and instances |
 | Components | `Wasm.Institution.Components`, `Wasm.Institution.CompGraph` (`compGraph`, `fullGraph₂`: wrapping and flattening) | components over **any** core semantics `C : CoreSem M` |
 
-**What is not there.** No comorphism connects the two families yet. The component institutions
-are parametric in `CoreSem`, and `core3Sem P` (`Wasm.Component.Reference.Core3Sem`) is the Core
-3.0 instance, but no graph instantiates `compGraph (core3Sem P)` and joins it to the
-core-module graph. Component-level adequacy is proved only for `Simple` components
+**Over Core 3.0.** The component institutions are parametric in `CoreSem`;
+`Wasm.Institution.Core3Graph` instantiates them at `core3Sem P`
+(`Wasm.Component.Reference.Core3Sem`: numeric Core 3.0 instances): `core3Graph P`, and
+`fullGraph₃ P host Env` with the core-module graph beside it, with borrowing along wrapping and
+flattening (`valid_wrap_iff`, `valid_flatten_iff`) and along every path (`pathModelExpansive`).
+
+**What is not there.** No comorphism connects the two families yet: inside `fullGraph₃` the
+core-module logics (export signatures with behaviours, `exportSig`) and the component logics
+(the IR's game signatures, `sigU`) have no edges between them. Component-level adequacy is proved only for `Simple` components
 ([component-caveats.md](component-caveats.md)).
 
 ## Check and locate the claims
