@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Component.Reference.LinkedSessionDAdeq.Defs
 public import Silmaril.Wasm.Component.Reference.LinkedSessionD.Thms
 import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.EnvDiv
+import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.Coherent
 
 /-!
 # Divergences of linked sessions against the divergence-aware IR: theorems
@@ -48,6 +49,12 @@ whole left-to-right direction conditionally on the read-back of chatter (source 
 * **Left to right, given chatter** (`Linked2.sessDivs_of_div_denD_of`): every IR divergence after
   a typed session on a typed pending call is in `sessDivs`, assuming
   `Linked2.Task.ChatterReadBack` (the third source).
+* **The exporter's served rounds along one run, at deterministic profiles**
+  (`Linked2.expRunT_functional`, `Linked2.exists_expRunT_stream`): at `profile o` the store an
+  `ExpRunT` reaches is unique, so if every finite prefix of a stream of import calls is served from
+  `π₀`, one store sequence serves the whole stream (the exporter's half of `Linked2.Chatter`).
+  The proof module also reads this back from plays of the exporter's environment
+  (`LinkedSessionDAdeq.exp_plays_stream`: typed served rounds after a prefix, any number of them).
 
 **How.** The read-back of #724 (`LinkedSessionAdeq`) inverts complete rounds; a divergence is a
 play at a running position. The proofs (`Silmaril.Proofs.Wasm.Component.Reference.
@@ -73,7 +80,25 @@ diverging call (`Exp.exp_div_readback`).
   their wiring: of the importer's node down to a productive stream of its instance
   (`mem_inf_spullD_instSession_stream`, `instInf_of_calls`), and of the exporter's environment
   down to one infinite run of its instance threading its store through infinitely many served
-  rounds (`ExpRunT` for every call of the stream, as `Linked2.Chatter` requires).
+  rounds (`ExpRunT` for every call of the stream, as `Linked2.Chatter` requires). What remains:
+  - the shape of an `ExtChatter` after the typed session: the visible prefix through `top_div`, the
+    round of the importer's node on `topQ j vs` in progress, and the shared moves `w` its import
+    calls answered by the exporter's environment, so that `exp_plays_stream` applies (at
+    `profile o`) to the environment's plays `s₀ ++ w.map .inr`;
+  - the importer's side: the node's infinite play `L` (every profile) read back through `implsH`
+    and the importer's IR (`ext`/`splitH`, `implsN`/`widenH`, `importH`/`exportH`, `spullD`) to a
+    productive stream (`instInf`, which is run-based), with each core call related to the served
+    component calls (`ImpRel`). Alternatively, at `profile o` only: the finite read-backs of the
+    prefixes of `L` (`imp_wait_readback`) cohere, by `ScalarInstance.Path.functional` and
+    `Trans.player_unique` (proved in `Silmaril.Proofs.Wasm.Game.Strategy`, not yet in a header)
+    and the functionality of `RdI` and `ImpRel` in the core answers.
+  - At a nondeterministic profile the exporter's prefix runs need not cohere (the environment's
+    infinite play is a trace limit of `threadS`), so `exists_expRunT_stream` does not apply. This
+    is not a counterexample: the tree of the exporter's Core step prefixes is finitely branching
+    (NaN result sets of fixed width, grow success or failure, relaxed choices), so by König's lemma
+    it has an infinite branch, which either serves every call (`Chatter`) or runs forever inside
+    one call (`DivA`), both in `sessDivs`. The library has neither König's lemma for these runs nor
+    finite branching of `InternalP P`.
 * **Right to left**, for each source: building the IR divergence from a `RoundDiv`, the
   converses of these inversions (pending versions of `cplay_comp_ofHandler`,
   `cplay_ofHandler_comp`, `cplay_comp_serve`), with `div_impSemD_sem_of` at the instance.
@@ -86,7 +111,9 @@ public section
 namespace Silmaril.Wasm.Component.Reference
 
 open Silmaril.Games Silmaril.Wasm.Component
+open Silmaril.Games.Abstract (streamTake)
 open Silmaril.Wasm.Numerics (Profile)
+open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 local notation "IVal" => Silmaril.Wasm.Component.Val
 
@@ -185,6 +212,29 @@ theorem sessDivs_of_div_denD_of (P : Profile) {l : Linked2} (hl : l.Adequate)
   · exact sessDivsA_subset P l calls j vs (sessDivsA_of_envDiv P hl hIe hIi ht hlen hck hA)
   · exact sessDivsB_subset P l calls j vs (sessDivsB_of_nodeDiv P hl hIe hIi ht hlen hck hB)
   · exact hC Ie Ii hIe hIi calls outs ht hlen j vs hck hX
+
+/-! ## The exporter's served rounds along one run -/
+
+/-- **The exporter's run is determined** at a deterministic profile: the store reached by serving
+the import calls `ds` from `s` is unique. -/
+theorem expRunT_functional {o : GrowOracle} {l : Linked2}
+    {I : Silmaril.Wasm.Game.ScalarInstance} {s s₁ s₂ : Silmaril.Wasm.Execution.Core.Store Nat}
+    {ds : List (Σ _ : (sigN l.imp.imports.length).Op, Option Payload)}
+    (h₁ : ExpRunT (profile o) l I s ds s₁) (h₂ : ExpRunT (profile o) l I s ds s₂) : s₁ = s₂ :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.expRunT_functional h₁ h₂
+
+/-- **One run for a whole stream of served calls** (deterministic profiles): if every finite
+prefix of the stream of import-call lists `ds` is served by the exporter from `π₀`, then one store
+sequence threads all of them, as `Linked2.Chatter` requires of the exporter. At a
+nondeterministic profile the runs of the prefixes need not extend one another
+(`StratThread.not_coherent` for the abstract phenomenon). -/
+theorem exists_expRunT_stream {o : GrowOracle} {l : Linked2}
+    {I : Silmaril.Wasm.Game.ScalarInstance} {π₀ : Silmaril.Wasm.Execution.Core.Store Nat}
+    (ds : ℕ → List (Σ _ : (sigN l.imp.imports.length).Op, Option Payload))
+    (h : ∀ n, ∃ π, ExpRunT (profile o) l I π₀ (streamTake ds n).flatten π) :
+    ∃ st : ℕ → Silmaril.Wasm.Execution.Core.Store Nat, st 0 = π₀ ∧
+      ∀ k, ExpRunT (profile o) l I (st k) (ds k) (st (k + 1)) :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.exists_expRunT_stream ds h
 
 end Linked2
 

@@ -108,7 +108,9 @@ def sessDivsA (P : Profile) (l : Linked2) (calls : List (Fin l.imp.exports.lengt
 calls and a typed pending call, an IR divergence coming from chatter between the importer's node
 and the exporter's environment (`chatterSrc`) after the session `sessMoves calls outs` is one of
 `Linked2.sessDivs` (expected via `Linked2.Chatter`). `Linked2.sessDivs_of_div_denD_of` gives the
-full left-to-right direction from it. -/
+full left-to-right direction from it. Still open at every profile; the exporter's half of the
+coherence is proved at `profile o` (`Linked2.exists_expRunT_stream`), and the remaining steps are
+listed in `Silmaril.Wasm.Component.Reference.LinkedSessionDAdeq.Thms`. -/
 def Task.ChatterReadBack (P : Profile) (l : Linked2) : Prop :=
   ∀ (Ie Ii : ScalarInstance), l.exp.mod.IsInst Ie → l.imp.mod.IsInst Ii →
     ∀ (calls : List (Fin l.imp.exports.length × List IVal)) (outs : List (Option (List IVal))),
