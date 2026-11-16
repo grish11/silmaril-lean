@@ -165,3 +165,29 @@ functions, 300 random inputs each) with 0 failures. The problem modules of the a
 functions regenerate byte for byte. The six from `cfuncs.c` depend on the C compiler version,
 so another gcc may regenerate different code; `problems --check` additionally needs `z3`.
 These are tests, not proofs.
+
+## The process stack (runtime, tested)
+
+`examples/wasm-sim/proc` runs x86-64 ELF processes on an all-Wasm stack under plain
+`wasmtime run`. The stack has a memory model, Linux syscalls over WASI, a simulator, foreign calls
+and an ELF loader (`run-wasi.sh`; `check-wasi.sh` checks it). Three variants need the
+`wsim-proc` binary of `tools/wasm-sim`:
+
+- `components.sh` wraps every core module as a component (`examples/wasm-sim/wit/sim.wit`) and
+  composes one WASI command component per simulator with `wac`
+  (`examples/wasm-sim/wit/process.wac`). It uses the preview1 adapters of
+  `examples/wasm-components/adapter`.
+- `bench.sh` times and sizes the linking variants: Rust host, preloaded core modules,
+  `wasm-merge` with and without `-O3`, and the composed component.
+- `glibc-bridge/route-b.sh` runs glibc's own `puts` (a `libc.so.6` given by `LIBC`, mapped
+  into the simulated address space) on the simulators. It prints where execution stops: a
+  probe of the simulators' frontier, not a pass/fail check.
+
+Checked with wasmtime 50.0.1, wasm-tools 1.263.0, wac-cli 0.12.0 and Binaryen version_123:
+- the composed components run `hello` on G and M;
+- every `bench.sh` variant ran;
+- `route-b.sh` with the pinned Ubuntu glibc 2.39 `libc.so.6` stops at the first instruction
+  outside the simulators (e.g. an SSE `movq` into `xmm0`), and its host-function control prints
+  `Hello, world!`.
+
+These are tests, not proofs.
