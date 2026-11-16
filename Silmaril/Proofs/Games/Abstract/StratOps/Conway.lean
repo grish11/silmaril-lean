@@ -3,14 +3,20 @@ module
 public import Silmaril.Proofs.Games.Abstract.StratOps.Laws
 import Silmaril.Games.Abstract.FullFun.Thms
 public import Silmaril.Proofs.Games.Abstract.FullFun.Dinat
+public import Silmaril.Proofs.Games.Abstract.FullFun.Codiag
 
 /-!
-# Dinaturality of iteration for triples (proofs)
+# Dinaturality and the codiagonal law of iteration for triples (proofs)
 
 The full part is `FullFun.iter_dinat`. The pending calls of `iterT (t ; [inl, u])` are those of
 `t`, or of `u` after a continuing return of `t`, after a finite chain of continuing iterations;
 the pending calls of `t ; [id, iterT (u ; [inl, t])]` group the same runs as a first run of `t`
 followed by a chain of `(u, t)` iterations.
+
+The codiagonal law `iterT (iterT t) = iterT (t.map [id, inr])` has full part
+`FullFun.iter_codiag`. A pending call of the nested loop comes after a chain of outer iterations
+and a chain of inner steps, which together are a chain of the merged body, and conversely
+(`codiag_chain_split`).
 -/
 
 @[expose] public section
@@ -19,7 +25,8 @@ namespace Silmaril.Proofs.Games.Abstract.StratOps
 
 open Silmaril.Games Silmaril.Games.Abstract Silmaril.Games.Abstract.StratObs
   Silmaril.Games.Abstract.StratOps
-open Silmaril.Proofs.Games.Abstract.FullFun (body body_cont body_of_g)
+open Silmaril.Proofs.Games.Abstract.FullFun (body body_cont body_of_g contChain_append
+  codiag_outer_chain codiag_inner_chain codiag_chain_split)
 
 universe u
 
@@ -149,5 +156,26 @@ theorem iterT_dinat (t : ObsTriple E S A (B ⊕ C)) (u : ObsTriple E S C (B ⊕ 
   ext_full (FullFun.iter_dinat (full t) (full u)) (iterT_dinat_pending t u)
 
 end Dinat
+
+/-- **The codiagonal law**, pending calls. -/
+theorem iterT_codiag_pending (t : ObsTriple E S A ((B ⊕ A) ⊕ A)) :
+    (iterT (iterT t)).2.1 = (iterT (mapT t (Sum.elim id Sum.inr))).2.1 := by
+  funext s a
+  ext ⟨d, m⟩
+  constructor
+  · rintro ⟨c, s', a', c', m', hc, ⟨c'', s'', a'', c''', m'', hc', hp, he'⟩, he⟩
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj he'
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
+    exact ⟨c ++ c'', s'', a'', c''', _, contChain_append (codiag_outer_chain (F := full t) hc)
+      (codiag_inner_chain (F := full t) hc'), hp, by simp⟩
+  · rintro ⟨c, s', a', c', m', hc, hp, he⟩
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
+    obtain ⟨c₁, s₁, a₁, c₂, ho, hi, rfl⟩ := codiag_chain_split (F := full t) hc
+    exact ⟨c₁, s₁, a₁, c₂ ++ c', _, ho, ⟨c₂, s', a', c', _, hi, hp, rfl⟩, by simp⟩
+
+/-- **The codiagonal law** for triples. -/
+theorem iterT_codiag (t : ObsTriple E S A ((B ⊕ A) ⊕ A)) :
+    iterT (iterT t) = iterT (mapT t (Sum.elim id Sum.inr)) :=
+  ext_full (FullFun.iter_codiag (full t)) (iterT_codiag_pending t)
 
 end Silmaril.Proofs.Games.Abstract.StratOps

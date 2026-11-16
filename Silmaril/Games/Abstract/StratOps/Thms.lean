@@ -49,12 +49,13 @@ the full parts are `FullFun.iter_map` and `FullFun.iter_uniform_comap`):
   this equation: divergence, infinite silent chains, productive runs and pending calls are
   all included.
 
-**Dinaturality of iteration** (`Silmaril.Proofs.Games.Abstract.StratOps.Conway`; the full part
-is `FullFun.iter_dinat`):
+**Dinaturality and the codiagonal law** (`Silmaril.Proofs.Games.Abstract.StratOps.Conway`; the
+full parts are `FullFun.iter_dinat` and `FullFun.iter_codiag`), with no hypothesis:
 
 * `iterT_dinat`: for `t : A → B ⊕ C` and `u : C → B ⊕ A`,
-  `iterT (t ; [inl, u]) = t ; [id, iterT (u ; [inl, t])]`, with no hypothesis. The pending
-  calls of both sides are those of `t` or `u` after the same finite run `t, u, t, …`.
+  `iterT (t ; [inl, u]) = t ; [id, iterT (u ; [inl, t])]`. The pending calls of both sides are
+  those of `t` or `u` after the same finite run `t, u, t, …`;
+* `iterT_codiag`: for `t : A → (B ⊕ A) ⊕ A`, `iterT (iterT t) = iterT (mapT t [id, inr])`.
 
 **Saturation** (`Silmaril.Proofs.Games.Abstract.StratOps.Sat`, `….Iter`):
 
@@ -275,6 +276,11 @@ theorem iterT_dinat (t : ObsTriple E S A (B ⊕ C)) (u : ObsTriple E S C (B ⊕ 
     iterT (seqT t (caseT (mapT pureT Sum.inl) u)) =
       seqT t (caseT pureT (iterT (seqT u (caseT (mapT pureT Sum.inl) t)))) :=
   Silmaril.Proofs.Games.Abstract.StratOps.iterT_dinat t u
+
+/-- **The codiagonal law**: `iterT (iterT t) = iterT (mapT t [id, inr])`. -/
+theorem iterT_codiag (t : ObsTriple E S A ((B ⊕ A) ⊕ A)) :
+    iterT (iterT t) = iterT (mapT t (Sum.elim id Sum.inr)) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.iterT_codiag t
 
 /-! ## Saturation and admissibility -/
 

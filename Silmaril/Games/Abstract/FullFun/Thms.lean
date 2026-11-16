@@ -8,6 +8,7 @@ import Silmaril.Proofs.Games.Abstract.FullFun.Tensor
 import Silmaril.Proofs.Games.Abstract.FullFun.Unfold
 import Silmaril.Proofs.Games.Abstract.FullFun.Natural
 import Silmaril.Proofs.Games.Abstract.FullFun.Dinat
+import Silmaril.Proofs.Games.Abstract.FullFun.Codiag
 import Silmaril.Games.Abstract.Function.Thms
 import Silmaril.Games.Abstract.FunctionIter.Thms
 
@@ -92,6 +93,17 @@ hypothesis on the bodies:
   an `inl` exit; traps and `div` ends of either function, infinite silent chains and productive
   runs correspond. An infinite chain's logs `cf 0 ++ cg 0, cf 1 ++ cg 1, …` are regrouped as
   `cf 0` followed by `cg 0 ++ cf 1, cg 1 ++ cf 2, …`.
+
+**The codiagonal law** (`Silmaril.Proofs.Games.Abstract.FullFun.Codiag`), with no hypothesis:
+
+* `FullFun.iter_codiag`: for `F : A → (B ⊕ A) ⊕ A`,
+  `iter (iter F) = iter (F.map [id, inr])` (`F.map h = F ; pure.map h`, `FullFun.seq_pure_map`).
+  The inner loop continues on `inr` and its `inl (inr a')` exit continues the outer loop; merging
+  the tags gives one loop. A merged chain with infinitely many outer steps is an infinite chain
+  of outer iterations; with finitely many, a finite chain of outer iterations followed by an
+  infinite inner chain (silent: inner divergence; productive: an inner productive run). An
+  infinite chain of outer iterations, each a finite merged chain, is laid end to end into one
+  merged chain; silent iterations give a silent chain.
 -/
 
 @[expose] public section
@@ -423,6 +435,12 @@ theorem FullFun.iter_dinat (f : FullFun E S A (B ⊕ C)) (g : FullFun E S C (B �
       FullFun.seq f (FullFun.case FullFun.pure
         (FullFun.iter (FullFun.seq g (FullFun.case (FullFun.pure.map Sum.inl) f)))) :=
   Silmaril.Proofs.Games.Abstract.FullFun.iter_dinat f g
+
+/-- **The codiagonal law**: for `F : A → (B ⊕ A) ⊕ A`, iterating twice is iterating once with
+the two continue tags merged, `iter (iter F) = iter (F.map [id, inr])`. -/
+theorem FullFun.iter_codiag (F : FullFun E S A ((B ⊕ A) ⊕ A)) :
+    FullFun.iter (FullFun.iter F) = FullFun.iter (F.map (Sum.elim id Sum.inr)) :=
+  Silmaril.Proofs.Games.Abstract.FullFun.iter_codiag F
 
 /-- Host preservation of post-composition: the same productive observations. -/
 theorem hostObsInf_map {R : HostRel E} (f : FullFun E S A B) (h : B → C) :
