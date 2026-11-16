@@ -189,6 +189,9 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Pairing | `DStrategy.pair`, `mem_div_pair_iff`, `StratSession.pairS`, `threadS_pairS` (finite, div, inf), `det_pairS` | `NoPlainTrap` both | #713, #717 |
 | Session category laws | `RetDet`, `retDet_linkS`, `threadS_linkS_assoc`, `threadS_idS`, unit laws, `legal_linkS`, `ansLegal_linkS`, `seqS_assoc`, `frameS_seqS` | `NoPlainTrap`, `RetDet` | #727 |
 | Divergence-observing component wiring | `DStrategy.atSizes`, `ext`, `Comp.denD`, `toStrategy_denD`, `div_atSizes`, `chatter_widenH`, `div_atSizes_of_noTrap` | none | #725 |
+| Session iteration with store-retaining traps | `SessionIter.iterS`, `iterS_unfold`, `iterS_mapT`, `iterS_dinat`, `iterS_codiag`, `iterS_uniform` (pure maps), `det_iterS`, `rounds_seqS`, `rounds_iterS`, `threadS_frameS` | none | #731 |
+| Uniformity along silent, deterministic, trap-free, defined (possibly state-changing) maps | `FullFun.iter_uniform_silent`, `StratOps.iterT_uniform_silent`, `CanonStrat.iter_uniform_silent` | `SilentDetNoTrap h` | #734 |
+| Linking servers with plain traps | `SessionLinkDead.deadS`, `linkSD`, `threadS_deadS`, `comp_threadSD`, `comp_threadSD_of_det`, `threadS_linkSD_of_noPlainTrap` | `StoreDet t`, `StoreDet (linkSD t u)` (no `NoPlainTrap`) | #735 |
 
 ### Counterexamples (why a hypothesis cannot be dropped)
 
@@ -199,18 +202,21 @@ This section is owned by 5fb4bf1f. The concrete component bridge (reference mach
 | Pointwise threading converse | `StratThread.not_pointwise` | `threadT_eq_iff` up to `ObsEq` |
 | Coherent infinite threading without `StoreDet` | `StratThread.not_coherent` | trace form `mem_inf_iff`; coherence under `StoreDet` |
 | Interchange law | `not_interchange(T,D)` | premonoidal structure |
+| Uniformity along nondeterministic or undefined silent maps | `FullFun.not_iter_uniform_nondet` (infinite branching), `not_iter_uniform_undefined`; `..._needs_silent`, `..._needs_noTrap` | `iter_uniform_silent` under all four conditions |
+| `comp_threadS` without `NoPlainTrap` | `SessionLinkCex.comp_ne_linkS_plainTrap` | `comp_threadSD` (dead-server store `Option S`) |
+| `comp_threadS` without `StoreDet t` | `SessionLinkCex.comp_ne_linkS_cd` | coherent servers only |
+| `comp_threadS` without `StoreDet (linkS t u)` | `SessionLinkCex.comp_ne_linkS_bound` | `RetDet` of both components (`retDet_linkS`) |
+| Linking preserves `AFun.Det` | `SessionLinkCex.not_det_linkS_may` | `RetDet` is preserved (`retDet_linkS`) |
 
 ### Open (classified)
 
 | Gap | Kind | Notes |
 |---|---|---|
-| Uniformity along silent, total, deterministic, state-changing maps | to classify: proof or counterexample | not claimed |
-| Nondeterministic coherent threading | needs execution witnesses | prefix-only coherence is **not** claimed (`not_coherent`) |
-| Linking servers with plain traps | generalisation | server store `Option S` |
+| Uniformity along finitely-branching nondeterministic silent maps | open | the infinitely-branching case is refuted (#734) |
+| Nondeterministic coherent threading | in progress: witness semantics `threadW` | prefix-only coherence is **not** claimed (`not_coherent`) |
 | Associativity and units as literal triple equalities | strengthening | proved at strategy level and as `ObsEq` |
-| Formal counterexamples for the linking hypotheses | counterexamples | argued in docs only |
-| `DWiring` converses; `div`/`inf` laws for `ext` and `Comp.denD` | proofs | `toStrategy` agreement proved |
-| Session iteration (recursive linking); `seqS`/`frameS` at strategy level | proofs | as needed by recursive linking |
+| `DWiring` converses; `div`/`inf` laws for `ext` and `Comp.denD` | in progress | `toStrategy` agreement proved (#725) |
+| Pending/divergent/infinite plays of `threadS (seqS …)`/`threadS (iterS …)`; `AFun.Det` of `seqS`; `frameS` with `iterS` | proofs | completed rounds done (#731) |
 | n-module linking and shared stores | waiting on the concrete owner's types | asked on #207 |
 | Component injection for linked components with imports | concrete (0e76ca84) | #680 covers simple components without imports |
 
