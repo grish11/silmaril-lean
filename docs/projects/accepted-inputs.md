@@ -111,8 +111,24 @@ for any concrete subject; `definitions` is definitions only.
 
 Concrete modules are on the explorer's Wasm tab (`tools/wasm-pages`). Their bytes are
 `encodeModule?` of the module value (`encodeModule?_sound`), and their SHA-256 is computed in
-Lean over exactly those bytes. The theorems are about the module value, and no fake artifact
-is registered for them.
+Lean over exactly those bytes. The theorems are about the module value.
+
+The two concrete modules are also registered artifacts, with exactly those bytes:
+`examples/wasm-acceptors/json_accept.wasm` (`silmaril.wasm.examples.json_accept.prog`, 213 B,
+SHA-256 `f86b7fc9…`) and `examples/wasm-acceptors/ex_start.wasm`
+(`silmaril.wasm.game.examples.ex_start`, 49 B, SHA-256 `bb4323bd…`). When a Lean module's
+SHA-256 is that of exactly one registered module, `wasm-pages` publishes it once, under the Lean
+example's id, with the artifact's CID and path. The registry's languages then reach the bytes
+through interpretations (`Silmaril.Project.Languages.WasmExport`: `wasm.core.export_accept`,
+`export_reject`, `export_accept_safely`, `accept_bytes64`, `accept_safely_bytes32`, beside
+`wasm.core.accept_bytes32`). An interpretation names its ABI and environment, so a language is
+not determined by the hash alone. A claim about the bytes reaches the module value only through
+a decoding certificate (`Value.Is`, `Silmaril.Project.Formats.wasm_is_of_encode`). The fixture
+`ProjectSelfTest.WasmAcceptors` has the certificates, the accepted, rejected and combined
+languages of `json_accept.wasm`, and claims about them, each restating a theorem above. The
+specification components and the call and I/O readings in this table are not byte languages of
+a binary, and no compiled component is registered as an acceptor (`compiledComponent` is
+unsupported).
 
 | id | shape | subject | reading | strength | basis | theorems |
 | --- | --- | --- | --- | --- | --- | --- |

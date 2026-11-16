@@ -122,6 +122,16 @@ sha256 = "20f405d1d1acd3a6d3653b2960d386aba6f3e820c41007f21d552563f122177f"
 git_sha1 = "5204a0088e4abf687a483025c2143d5ce4eb8f64"
 
 [[artifact]]
+cid = "bafkr4icbdqehjo752ccglrwtcsgl6iwb7dkmgyjnbmz7tr37p7r3avdbru"
+type = "blob"
+name = "silmaril.wasm.examples.json_accept.prog"
+paths = ["examples/wasm-acceptors/json_accept.wasm"]
+size = 213
+sha256 = "f86b7fc993ce4aaeeffafc91efbbf7bb4505e7aaebf832d62fb3d59cfe0f6ad7"
+git_sha1 = "9fbb024ae8787f532979a137f7b097ac429a7b0f"
+meta = { wasm = { custom = [], exports = ["func accept"], imports = [], layer = "module", license = "LicenseRef-silmaril-lean", version = 1 } }
+
+[[artifact]]
 cid = "bafkr4iccoqsy5a346yjdsg2dsmfxpdoxw354jxdtdjdawnqnwy3glk7yha"
 type = "blob"
 name = "silmaril.wasm_components.gen.comp_b.blob"
@@ -233,6 +243,16 @@ sha256 = "1b557cbf64f58fc526735d99e79e17aa1e68e9434dcb934441669d63d42f112b"
 git_sha1 = "da6686ad7c276d6c51b4ee5b30e95a155370e3c6"
 derivation = "silmaril.wasm_components.gen.toy.recipe"
 meta = { wasm = { custom = [], exports = ["type r", "func make", "func get", "func drop"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
+
+[[artifact]]
+cid = "bafkr4iftejn2uc2tq5nhwijs7kpn3nbh3hjjyqix34k7hvzdvsilsxxbva"
+type = "blob"
+name = "silmaril.wasm.game.examples.ex_start"
+paths = ["examples/wasm-acceptors/ex_start.wasm"]
+size = 49
+sha256 = "bb4323bdfa85244147d28a9211f05540cd4bbce4c08c10820c70ebcb565ab259"
+git_sha1 = "b1da8d7e0527f94b57c3eb7c802695e50488a8e8"
+meta = { wasm = { custom = [], exports = ["func run"], imports = ["func env/f"], layer = "module", license = "LicenseRef-silmaril-lean", version = 1 } }
 
 [[artifact]]
 cid = "bafkr4iftt5liw7pg4oqoomzko37mw3bvknodohn6dyltlz2bdw6ddrjxnu"

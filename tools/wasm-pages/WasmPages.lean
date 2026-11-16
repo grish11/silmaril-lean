@@ -746,8 +746,20 @@ def run (artifactsPath outDir : String) : IO UInt32 := do
   let text ← IO.FS.readFile artifactsPath
   let root := (System.FilePath.mk artifactsPath).parent.bind (·.parent) |>.getD "."
   let arts := readArtifacts text
+  -- the Lean example modules, encoded once
+  let leans := leanExamples.map fun (id, title, m, decl) =>
+    let bytes := match Binaryen.Exe.encodeModule? m with
+      | .ok l => some (ByteArray.mk l.toArray) | .error _ => none
+    (id, title, m, decl, bytes, bytes.map sha256Hex)
+  -- a registered module whose SHA-256 is that of a Lean example's bytes is the same file: it is
+  -- published once, as the Lean example (its id and links), with the artifact's CID and path
+  let registered (sha : Option String) : Option Artifact :=
+    sha.bind fun h => match arts.filter (fun a => a.layer == "module" && a.sha256 == h) with
+      | [a] => some a
+      | _ => none
+  let mergedShas := leans.filterMap fun (_, _, _, _, _, sha) => (registered sha).map (·.sha256)
   let act : M Unit := do
-    for a in arts do
+    for a in arts.filter (fun a => !mergedShas.contains a.sha256) do
       let p := root / a.path
       let b ← IO.FS.readBinFile p
       let src : Source := { kind := "artifact", name := a.name, cid := some a.cid,
@@ -764,14 +776,17 @@ def run (artifactsPath outDir : String) : IO UInt32 := do
           writeText s!"wasm/m/{slug a.name}.json" (jobj [("summary", summary), ("hasBlob", Json.bool true),
             ("unsupported", jstr s!"the module decoder rejected the bytes: {e}")]).compress
           modify fun o => { o with modules := o.modules.push summary }
-    for (id, title, m, decl) in leanExamples do
-      let bytes := match Binaryen.Exe.encodeModule? m with
-        | .ok l => some (ByteArray.mk l.toArray) | .error _ => none
-      let src : Source := { kind := "lean", name := decl, sha256 := bytes.map sha256Hex,
-                            doc := "a Lean value (the proof target is this module AST); the bytes are encoded from it by " ++
-                              "Silmaril.Wasm.Binaryen.Exe.encodeModule?, which satisfies the specification's binary grammar " ++
-                              "(encodeModule?_sound: Binary.Core.Encodes bytes m); SHA-256 of exactly these bytes, computed by " ++
-                              "Silmaril.Crypto.SHA256.digest; not registered in artifacts.toml" }
+    for (id, title, m, decl, bytes, sha) in leans do
+      let lean := "a Lean value (the proof target is this module AST); the bytes are encoded from it by " ++
+        "Silmaril.Wasm.Binaryen.Exe.encodeModule?, which satisfies the specification's binary grammar " ++
+        "(encodeModule?_sound: Binary.Core.Encodes bytes m); SHA-256 of exactly these bytes, computed by " ++
+        "Silmaril.Crypto.SHA256.digest; "
+      let src : Source := match registered sha with
+        | some a => { kind := "lean", name := decl, cid := some a.cid, sha256 := sha, path := some a.path,
+                      doc := lean ++ s!"registered in silmaril/artifacts.toml as {a.name} ({a.path}), whose " ++
+                        "SHA-256 is the same; the CID is that artifact's. A claim about the artifact's bytes " ++
+                        "reaches this AST only through a decoding certificate (a value's .is problem)" }
+        | none => { kind := "lean", name := decl, sha256 := sha, doc := lean ++ "not registered in artifacts.toml" }
       doModule id title src m bytes
   let ((), out) ← act.run {}
   let index := jobj [("components", jarr out.components.toList), ("modules", jarr out.modules.toList)]

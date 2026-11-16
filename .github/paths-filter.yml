@@ -55,6 +55,7 @@ project:
   - 'lake-manifest.json'
   - 'examples/project/**'
   - 'examples/project-formats/**'
+  - 'examples/wasm-acceptors/**'
   - 'examples/compiles-to/**'
   - 'examples/sysv-tv/**'
   - 'tools/silmaril-project/**'

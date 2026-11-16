@@ -5,7 +5,10 @@
 //   the bytes were encoded (encodeModule?, encodeModule?_sound);
 // * the SHA-256 that wasm-pages computed in Lean equals the SHA-256 of the served .wasm, both as
 //   computed here and as the page's "SHA-256 of the download" button computes it in the browser;
-// * the bytes are valid (the Lean validator, check_ok_iff).
+// * the bytes are valid (the Lean validator, check_ok_iff);
+// * each is the registered artifact of silmaril/artifacts.toml with the same SHA-256: its source
+//   keeps the Lean provenance and carries that artifact's CID and path, the module is listed once,
+//   and the json_accept page's Languages section (keyed by the CID) lists its languages.
 //   node wasm_acceptors.mjs SITE_DIR [SHOTS_DIR]
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
@@ -23,6 +26,16 @@ const check = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (
 const modules = [
   ["silmaril.wasm.examples.json_accept.prog", "Silmaril.Wasm.Examples.JsonAccept.prog", "accept"],
   ["silmaril.wasm.game.examples.ex_start", "Silmaril.Wasm.Game.Examples.exStart", "run"]];
+// The registry: name -> { cid, sha256, path } (its machine-written layout, one key per line).
+const registry = {};
+{ let cur = null;
+  for (const line of fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), "../../../../silmaril/artifacts.toml"), "utf8").split("\n")) {
+    if (line.startsWith("[[artifact]]")) { cur = {}; continue; }
+    const m = /^(name|cid|sha256|paths) = (?:\[)?"([^"]*)"/.exec(line);
+    if (cur && m) { cur[m[1]] = m[2]; if (m[1] === "name") registry[m[2]] = cur; } } }
+// The languages registered over json_accept.wasm (ProjectSelfTest.WasmAcceptors).
+const languages = { "silmaril.wasm.examples.json_accept.prog": ["silmaril.selftest.lang.json_accept.accepted",
+  "silmaril.selftest.lang.json_accept.rejected", "silmaril.selftest.lang.json_accept.safe"] };
 const b = await pw.chromium.launch({ executablePath: process.env.CHROME ||
   (fs.existsSync("/opt/ms-playwright/chromium-1248/chrome-linux64/chrome") ? "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" : undefined) });
 try {
@@ -47,11 +60,18 @@ try {
     const bytes = fs.readFileSync(path.join(site, "wasm/blob", slug + ".wasm"));
     const h = crypto.createHash("sha256").update(bytes).digest("hex");
     check(src.sha256 === h, `${slug}: Lean SHA-256 ${src.sha256} = SHA-256 of the served bytes (${bytes.length} B)`);
+    const reg = registry[slug];
+    check(reg && reg.sha256 === src.sha256 && reg.cid === src.cid && reg.paths === src.path,
+      `${slug}: source carries the registered artifact's CID ${src.cid} and path ${src.path} (same SHA-256)`);
+    const ids = JSON.parse(fs.readFileSync(path.join(site, "wasm/index.json"))).modules.map((m) => m.id);
+    check(ids.filter((x) => x === slug).length === 1 && !ids.some((x) => x !== slug && registry[x] && registry[x].sha256 === src.sha256),
+      `${slug}: published once (wasm/index.json)`);
     const v = d.validity || d.summary.validity || {};
     check(v.status === "valid", `${slug}: the bytes are valid (${v.status})`);
     await open("/wasm-module/" + encodeURIComponent(slug));
     const text = await p.evaluate(() => document.querySelector("main") ? document.querySelector("main").textContent : document.body.textContent);
     check(text.includes(exp), `${slug}: the module page shows the export ${exp}`);
+    for (const l of languages[slug] || []) check(text.includes(l), `${slug}: the Languages section lists ${l}`);
     await p.click("#wsha");
     await p.waitForFunction(() => /^[0-9a-f]{64}/.test(document.querySelector("#wshaout").textContent), null, { timeout: 30000 });
     const browserSha = await p.evaluate(() => document.querySelector("#wshaout code").textContent);

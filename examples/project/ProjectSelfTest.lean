@@ -11,6 +11,7 @@ public import ProjectSelfTest.Languages
 public import ProjectSelfTest.FormatExamples
 public import ProjectSelfTest.Catalogue
 public import ProjectSelfTest.Consequence
+public import ProjectSelfTest.WasmAcceptors
 -- The Wasm components records (silmaril/wasm-components/*.toml) are part of this project; their
 -- modules declare the registry's artifacts first, so this module only adds the rest.
 public import Silmaril.Project.WasmComponents.Thms

@@ -16,7 +16,12 @@ For a Lean module the theorems are about the module value (the AST). Its bytes a
 `Binaryen.Exe.encodeModule?`, which is sound for the specification's binary grammar
 (`encodeModule?_sound`: `Binary.Core.Encodes bytes m`). Their SHA-256 is computed in Lean
 (`Silmaril.Crypto.SHA256.digest`) over exactly the bytes written to `wasm/blob/<slug>.wasm`, and
-is shown as the source's `sha256`. These modules are not registered in `artifacts.toml`.
+is shown as the source's `sha256`. When exactly one registered module (`meta.wasm.layer =
+"module"`) has that SHA-256, the two are one file: it is published once, as the Lean example (its
+id, slug and links, `source.kind = "lean"`), with the artifact's `cid` and `path`, and the
+artifact is not published again. Nothing is matched by name. The acceptor modules
+`JsonAccept.prog` and `exStart` are registered this way (`examples/wasm-acceptors/`); the other
+Lean examples are not registered.
 
 Where each fact comes from, as the pages show it:
 

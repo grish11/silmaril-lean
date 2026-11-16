@@ -13,6 +13,9 @@ import Silmaril.Proofs.Project.Formats.Wasm
 * `wasm_print_sound`, `wasm_print_parse`: the printer is sound, and parsing printed bytes
   returns the printed module or fails (from `encodeModule?_sound` and the functionality of
   the binary grammar). This is not the `roundtrip` law, which also needs the parse to succeed.
+* `wasm_is_of_encode`: a module certificate for a project value. If the value's bytes parse
+  and are exactly `encodeModule? m`, they parse to `m`. Both premises are kernel `Bool`
+  evaluations (`silmaril_decide`), so no decidable equality of module ASTs is needed.
 * An example on `examples/project-formats/example.wasm`.
 -/
 
@@ -37,6 +40,15 @@ def exampleWasm : Silmaril.Formats.Bytes :=
   ⟨include_bytes "../../../../examples/project-formats/example.wasm"⟩
 
 theorem exampleWasm_parses : (wasm.parse exampleWasm).isSome = true := by decide +kernel
+
+/-- A certificate of a core-module value from the encoder: if the bytes parse and are
+exactly `encodeModule? m`, they parse to `m` (by `decode?_sound`, `encodeModule?_sound` and
+the functionality of the binary grammar). -/
+theorem wasm_is_of_encode {X : Silmaril.Project.Value Silmaril.Wasm.Module} (hf : X.format = wasm)
+    {m : Silmaril.Wasm.Module}
+    (he : (Binaryen.Exe.encodeModule? m).toOption = some X.bytes.toList) (hp : X.Parses) :
+    X.Is m :=
+  Silmaril.Proofs.Project.Formats.wasm_is_of_encode hf he hp
 
 end Silmaril.Project.Formats
 

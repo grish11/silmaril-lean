@@ -357,7 +357,7 @@ text = true
 name = "ProjectSelfTest"
 srcDir = "examples/project"
 globs = ["ProjectSelfTest", "ProjectSelfTest.+"]
-needs = ["projectRecords", "projectSelfTestData", "projectFormatExamples"]
+needs = ["projectRecords", "projectSelfTestData", "projectFormatExamples", "wasmAcceptorBlobs"]
 
 [[input_dir]]
 name = "projectRecords"
@@ -372,6 +372,13 @@ path = "examples/project/data"
 [[input_dir]]
 name = "projectFormatExamples"
 path = "examples/project-formats"
+
+# The acceptor modules' bytes (`encodeModule?` of Lean values), read by
+# `ProjectSelfTest.WasmAcceptors`.
+[[input_dir]]
+name = "wasmAcceptorBlobs"
+path = "examples/wasm-acceptors"
+
 [[lean_exe]]
 name = "wasm-as"
 root = "WasmAsCompat"
