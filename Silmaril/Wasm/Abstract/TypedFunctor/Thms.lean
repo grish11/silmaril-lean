@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Abstract.ExposePTyped.Thms
 public import Silmaril.Wasm.Abstract.FullObsFaithful.Thms
 public import Silmaril.Semantics.IterOpsGen.Thms
 import Silmaril.Proofs.Wasm.Abstract.TypedFunctor.Basic
+import Silmaril.Proofs.Wasm.Abstract.TypedFunctor.Obstruction
 
 /-!
 # The typed premonoidal Elgot functor of the exact F5 denotation
@@ -68,12 +69,19 @@ proved:
   checked height in a frame of the checked instance, precomposing with the stack append
   `appK` is whiskering by the passive stack and then appending, every exit read at its
   target's arity (`trimK`). This is `map_whisker` on that fragment and at those configurations;
+* `whiskK_iff`: that equation of `PX H` arrows is exactly #529's equation of `BodyM`
+  computations, on all code;
+* `exists_not_whisker` (**the obstruction**): it fails for checked code with a call
+  (`call 0; drop`, callee `[] → [i32]`, an answer with no values), at a configuration of the
+  checked height. So the stack-pure hypothesis cannot be dropped;
 * on all checked code the tensor holds only **relationally**, for answered runs under
   arity-respecting oracles (#540's `ExposePTyped.tmor_tensor`, #545's `TypedCatFit`), not as an
   equation of `PX H` arrows: a call's answer is an arbitrary `Store H × Flow`, so an answer
-  short of the callee's results makes the code after it read into the passive stack (#529's
-  `[call x, drop]`). So no `map_whisker` is claimed for all code, and `typedFunctor` is an Elgot
-  functor (identity, composition, iteration, copairing), not a premonoidal functor;
+  short of the callee's results makes the code after it read into the passive stack. So no
+  `map_whisker` is claimed for all code, and `typedFunctor` is an Elgot functor (identity,
+  composition, iteration, copairing), not a premonoidal functor. The counterexample is checked
+  code (#529's `Mor`); the answers are untyped, which is exactly what the relational tensor
+  rules out;
 * `pure_central_of_denK`: code denoting a pure map is central: it commutes with every
   whiskered arrow (`IterOps.Ops.Lawful.pure_central`), the transfer of
   `TypedCat.interchange_of_pure`. Effectful typed code is not central in general
@@ -306,6 +314,34 @@ theorem tmor_whisker {Γ : Ctx H} {I : Iface} {o : Option Nat} {es : List BExpr}
         ((kOps H).comp ((kOps H).whisker (ULift.{1} (List Val)) (denK es)) ((kOps H).pure appK)
           ((⟨rest⟩ : ULift.{1} (List Val)), (⟨(f, stk)⟩ : Cfg))) :=
   Silmaril.Proofs.Wasm.Abstract.TypedFunctor.denK_whisker_ops hp (by rw [hs]; exact hm) hf rest
+
+/-- **The stack tensor of the exit monad is #529's**: on all code, at every configuration, the
+whiskering equation of `tmor_whisker` is exactly `ExposePStruct.denListXP_whisker`'s equation. -/
+theorem whiskK_iff (labels : List Nat) (ret : Nat) (es : List BExpr) (f : Frame)
+    (stk rest : List Val) :
+    trimK labels ret ((kOps H).comp ((kOps H).pure appK) (denK es)
+        ((⟨rest⟩ : ULift.{1} (List Val)), (⟨(f, stk)⟩ : Cfg))) =
+      trimK labels ret ((kOps H).comp ((kOps H).whisker (ULift.{1} (List Val)) (denK es))
+        ((kOps H).pure appK) ((⟨rest⟩ : ULift.{1} (List Val)), (⟨(f, stk)⟩ : Cfg))) ↔
+    obsP labels ret (denListXP (H := H) es f (stk ++ rest)) =
+      denListXP es f stk >>= fun r => pure (trimP labels ret (whiskP rest r)) :=
+  Silmaril.Proofs.Wasm.Abstract.TypedFunctor.whiskK_iff labels ret es f stk rest
+
+/-- **The obstruction: the stack tensor fails for checked code with a call.** `call 0; drop`,
+checked at height `0` (the callee `[] → [i32]`), at a configuration of the checked height in a
+frame of the checked instance, with one passive value: the equation of `tmor_whisker` fails.
+The call's answer is an arbitrary `Store H × Flow`; an answer with no values leaves the passive
+value on top, and `drop` pops it. So `stackPure` cannot be dropped from `tmor_whisker`, and no
+`map_whisker` holds as an equation of arrows on all checked code. -/
+theorem exists_not_whisker :
+    ∃ (Γ : Ctx Unit) (I : Iface) (es : List BExpr) (f : Frame) (stk rest : List Val),
+      Mor Γ I (some I.h) es ∧ stackPureL es = false ∧ f.module = I.env.mi ∧ stk.length = I.h ∧
+        ¬ (trimK I.env.labels I.env.ret ((kOps Unit).comp ((kOps Unit).pure appK) (denK es)
+            ((⟨rest⟩ : ULift.{1} (List Val)), (⟨(f, stk)⟩ : Cfg))) =
+          trimK I.env.labels I.env.ret
+            ((kOps Unit).comp ((kOps Unit).whisker (ULift.{1} (List Val)) (denK es))
+              ((kOps Unit).pure appK) ((⟨rest⟩ : ULift.{1} (List Val)), (⟨(f, stk)⟩ : Cfg)))) :=
+  Silmaril.Proofs.Wasm.Abstract.TypedFunctor.Ex.exists_not_whisker
 
 /-- **Pure code is central**: code denoting a pure map commutes with every whiskered arrow,
 run on the context side (`rwhiskK`, `- ⋊ A`); the transfer of `TypedCat.interchange_of_pure`. -/
