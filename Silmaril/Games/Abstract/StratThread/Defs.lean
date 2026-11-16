@@ -43,7 +43,8 @@ closure and receptiveness are structural.
 * infinitely many completed rounds: every member extends, within the trace, to
   a member with a run ending idle. As in `StratObs` this is a limit condition
   on the trace; it does not ask for one coherent run of stores through the
-  whole trace (for store-deterministic triples, `StoreDet`, runs are unique).
+  whole trace (for store-deterministic triples, `StoreDet`, the store after
+  each completed round is determined by the moves).
 
 **Observational equivalence of stores.** Threading only sees a store through
 its future observations. `RoundEq t t' R s s'` says one round at `s` (for `t`)

@@ -870,4 +870,50 @@ theorem roundEq_of_eq (ht : StoreDet t) (ht' : StoreDet t') {s : S} {s' : S'}
 
 end Converse
 
+/-! ## Pointwise agreement is not necessary -/
+
+namespace Counter
+
+variable {E : Sig.{0}}
+
+/-- A function that keeps its store. -/
+def keep : ObsTriple E Bool PUnit PUnit :=
+  (fun s _ => {([], .ret () s)}, fun _ _ => ∅, fun _ _ => ∅)
+
+/-- A function that flips its store. -/
+def flip : ObsTriple E Bool PUnit PUnit :=
+  (fun s _ => {([], .ret () (!s))}, fun _ _ => ∅, fun _ _ => ∅)
+
+theorem satP_eq {f : AFun E Bool PUnit PUnit} (hf : ∀ s a c e, (c, e) ∈ f s a → c = [])
+    (s : Bool) : satP ((f, fun _ _ => ∅, fun _ _ => ∅) : ObsTriple E Bool PUnit PUnit) s =
+      fun _ => ∅ := by
+  funext a
+  ext ⟨c, m⟩
+  refine ⟨?_, fun h => by simp at h⟩
+  rintro (h | ⟨_, _, h, -⟩ | ⟨d, e, hd, n, c', rfl⟩ | ⟨_, h, -⟩)
+  · simp at h
+  · simp at h
+  · simpa using hf s a _ e hd
+  · simp at h
+
+theorem isBisim : IsBisim (keep (E := E)) flip fun _ _ => True := fun s s' _ =>
+  { trap := fun a c => by simp [keep, flip]
+    div := fun a c => by simp [keep, flip]
+    pend := by
+      rw [keep, flip, satP_eq (by simp) s, satP_eq (by simp) s']
+    inf := rfl
+    ret := fun a c b s₁ h => ⟨!s', by simp_all [keep, flip], trivial⟩
+    ret' := fun a c b s₁ h => ⟨s, by simp_all [keep, flip], trivial⟩ }
+
+theorem not_pointwise :
+    threadT (keep (E := E)) false = threadT flip false ∧
+      ¬ ∀ s, Reach (keep (E := E)) false s → (keep (E := E)).1 s = flip.1 s := by
+  refine ⟨threadT_eq_of_isBisim isBisim trivial, fun h => ?_⟩
+  have := congrFun (h false (.refl _)) ()
+  have hm : (([], .ret () false) : CallBeh E Bool PUnit) ∈ (keep (E := E)).1 false () := rfl
+  rw [this] at hm
+  simp [flip] at hm
+
+end Counter
+
 end Silmaril.Proofs.Games.Abstract.StratThread
