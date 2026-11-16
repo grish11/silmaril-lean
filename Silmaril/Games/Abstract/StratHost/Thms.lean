@@ -2,8 +2,10 @@ module
 
 public import Silmaril.Games.Abstract.StratHost.Defs
 public import Silmaril.Games.DivComp.Defs
+public import Silmaril.Games.Abstract.StratObs.Thms
 import Silmaril.Proofs.Games.Abstract.StratHost.Basic
 import Silmaril.Proofs.Games.Abstract.StratHost.Link
+import Silmaril.Proofs.Games.Abstract.StratHost.Sat
 
 /-!
 # Restricting an open play object by a relational host: theorems
@@ -29,7 +31,12 @@ divergence, infinite plays). Composing with the host hides every host interactio
   divergence. The composite does not distinguish it from an unanswered question;
 * the infinite plays of the composite are exactly those completing infinitely many rounds.
 
-Proofs are in `Silmaril.Proofs.Games.Abstract.StratHost.Basic` and `.Link`.
+**Saturated triples** (`StratObs.Saturated`): restricting the questions keeps a triple
+saturated (`saturated_guardT`), and on a saturated triple linking after the host restriction is
+linking (`linkT_hostRestrict`): the links differ only in the call prefixes at which the host
+diverges, and those of a saturated triple are its pending calls.
+
+Proofs are in `Silmaril.Proofs.Games.Abstract.StratHost.Basic`, `.Link` and `.Sat`.
 -/
 
 public section
@@ -61,5 +68,15 @@ host interaction hidden, is the play object of the closed triple `linkT R t`. -/
 theorem comp_hostD_toDStrat (R : HostRel E) (t : ObsTriple E S A B) :
     (hostD R).comp (StratObs.toDStrat t) = StratObs.toDStrat (linkT R t) :=
   Silmaril.Proofs.Games.Abstract.StratHost.comp_hostD_toDStrat
+
+/-- **Restricting the questions keeps a triple saturated.** -/
+theorem saturated_guardT {Ok : S → A → Prop} {t : ObsTriple E S A B}
+    (ht : StratObs.Saturated t) : StratObs.Saturated (guardT Ok t) :=
+  Silmaril.Proofs.Games.Abstract.StratHost.saturated_guardT ht
+
+/-- **On a saturated triple, linking after the host restriction is linking.** -/
+theorem linkT_hostRestrict (R : HostRel E) {t : ObsTriple E S A B}
+    (ht : StratObs.Saturated t) : linkT R (hostRestrict R t) = linkT R t :=
+  Silmaril.Proofs.Games.Abstract.StratHost.linkT_hostRestrict R ht
 
 end Silmaril.Games.Abstract.StratHost

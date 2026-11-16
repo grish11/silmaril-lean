@@ -323,4 +323,46 @@ def singletonEnv? (Env : Expr) : MetaM (Option Expr) := do
     fs ← systemShapeFields kind fs Ax C
     return #[(name, fs)]
 
+/-! ## Evidence matrices -/
+
+/-- The rows of an evidence matrix, in a type the registry reads without importing the matrix's
+module: `(variant, reading, theorems, evidence, strength, note)`, each as its owner wrote it. -/
+abbrev MatrixRows : Type := List (String × Lean.Name × List Lean.Name × String × String × String)
+
+/-- Evaluate a `MatrixRows` constant. -/
+unsafe def evalMatrixRowsUnsafe (env : Environment) (opts : Options) (d : Name) :
+    Except String MatrixRows :=
+  env.evalConst MatrixRows opts d
+
+@[implemented_by evalMatrixRowsUnsafe]
+opaque evalMatrixRows (env : Environment) (opts : Options) (d : Name) : Except String MatrixRows
+
+/-- `consequence_matrix N := rows` for `rows : MatrixRows`: one `consequence_matrix_cell` record
+per row, its fields copied verbatim. Lean checks that the reading and every listed declaration
+exist and records each one's module (provenance, not a check that the classification is right). -/
+@[silmaril_kind consequence_matrix] def consequenceMatrixHandler : Handler where
+  run? := some fun kind name? fs => liftTermElabM do
+    let name ← needName kind name?
+    let d ← fs.const kind "decl"
+    let ty ← constType d
+    unless ← isDefEq ty (mkConst ``MatrixRows) do
+      throwError "silmaril {kind}: {d} has type{indentExpr ty}\nbut a matrix is `MatrixRows`"
+    let rows ← match evalMatrixRows (← getEnv) (← getOptions) d with
+      | .ok rows => pure rows
+      | .error e => throwError "silmaril {kind}: cannot evaluate {d}: {e}"
+    let env ← getEnv
+    let decl (n : Name) : TermElabM Json := do
+      unless env.contains n do throwError "silmaril {kind}: {n} is not a declaration"
+      let m := (env.getModuleIdxFor? n).map (fun i => env.header.moduleNames[i.toNat]!) |>.getD env.mainModule
+      return Json.mkObj [("name", .str n.toString), ("module", .str m.toString)]
+    let mut out := #[]
+    for ((variant, reading, thms, evidence, strength, note), pos) in rows.zipIdx do
+      let r ← decl reading
+      let ts ← thms.toArray.mapM (decl ·)
+      out := out.push (s!"{name}.c{pos}", { values := #[("matrix", .str name), ("pos", toJson pos),
+        ("variant", .str variant), ("reading", r.getObjValD "name"), ("reading_module", r.getObjValD "module"),
+        ("theorems", .arr ts), ("evidence", .str evidence), ("strength", .str strength), ("note", .str note),
+        ("decl", .str d.toString)] })
+    return out.map fun (n, f) => (n, f)
+
 end Silmaril.Project

@@ -149,6 +149,11 @@ for divergence after a log (`wasmEvFunD_of_evRun`, so the equivalence `wasmEvFun
 the pending agreement `wasmEvPend_evRun_iff`, at profiles other than the deterministic one; the
 forward directions (`wasmEvFun_evRun`, `wasmEvFun_trap_evRun`, `wasmEvInfN_coreInf`,
 `wasmEvFunD_div_evRun`, `wasmEvPend_evRun`) hold at every profile.
+
+**Logged reaches, for reuse**: `reachL_of_evalL` (a recorded call of a logged run is reached
+after the calls recorded before it), `reachL_throw` (a reach, its call answered by an exception,
+is a logged run ending in that exception) and `reachL_of_descends` (a descent of `wasmHOpen` is a
+logged reach in a Wasm body).
 -/
 
 @[expose] public section
@@ -460,5 +465,33 @@ theorem hostObsInf_wasmEvInf_eq {o : SingleThreaded.GrowOracle} (hT : HostTyped 
     hostObsInf (coreHostRel host) (wasmEvInf (SingleThreaded.profile o)) s (a, vs) =
       hostObsInf (coreHostRel host) wasmEvInfN s (a, vs) :=
   Set.Subset.antisymm (hostObsInf_wasmEvInf_le hT hH hs hS hok) (hostObsInf_wasmEvInfN_le hH hS hok)
+
+/-! ## Logged reaches, for reuse -/
+
+/-- **A recorded call of a logged run is reached**, after the calls recorded before it. -/
+theorem reachL_of_evalL {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
+    {l : List (OCall H)} {r : Store H × Frame × Binaryen.Flow} (h : EvalL s f stk es l r)
+    {u rest : List (OCall H)} {a : Nat} {args : List Val} {s₁ s₂ : Store H} {b : List Val ⊕ Nat}
+    (hl : l = u ++ OCall.mk a args s₁ b s₂ :: rest) : ReachL s f stk es u ⟨a, (args, s₁)⟩ :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInf.reachL_of_evalL h u rest a args s₁ b s₂ hl
+
+/-- **A logged reach, the reached call answered by an exception**, is a logged run ending in
+that exception. -/
+theorem reachL_throw {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
+    {l : List (OCall H)} {y : (wasmOShape H).self.Op} (h : ReachL s f stk es l y) :
+    ∃ (s' : Store H) (f' : Frame) (t : Nat) (ans : List Val ⊕ Nat) (s'' : Store H),
+      EvalL s f stk es (l ++ [⟨.inr y, (ans, s'')⟩]) (s', f', .throw t) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInf.reachL_throw h
+
+/-- **A descent of `wasmHOpen` is a logged reach in a Wasm body**, after the calls the descent
+resolves. -/
+theorem reachL_of_descends {c : (wasmHShape H).ClosedMod} {x y : (wasmHShape H).self.Op}
+    {q : List (Call (wasmHostSig H))} (h : Shape.Descends wasmHOpen c x q y) :
+    ∃ (fi : FuncInst H) (fn : Func) (ps rs : List Validation.CValType) (l : List (OCall H)),
+      x.2.2.funcs[x.1]? = some fi ∧ fi.code = .wasm fn ∧
+      Validation.DefType.funcType? fi.type = some (ps, rs) ∧
+      ReachL x.2.2 (Frame.forCall fi.module x.2.1 fn.locals) [] (Binaryen.liftInstrs fn.body) l y ∧
+      Shape.SubstPre c (l.map OCall.lift) q :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInf.descends_unwrap h
 
 end Silmaril.Wasm.Abstract

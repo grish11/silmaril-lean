@@ -22,6 +22,8 @@ public import Silmaril.Games.Div.Thms
   (`exists_rounds`); under store determinism runs are unique (`trun_det`) and
   the stores cohere (`infRounds_of_rounds`). The countdown triple
   (`Counter.countdown`) shows coherence fails without it.
+* Divergent plays: a run to the middle of a round is completed rounds, a question and its calls
+  (`run_mid_inv`, `mem_div_iff`).
 -/
 
 public section
@@ -1121,6 +1123,67 @@ theorem mem_inf_iff_of_storeDet (ht : StoreDet t) {I : Set (List (Move E (sig1 A
 
 end InfRounds
 
+/-! ## Divergent plays -/
+
+section Div
+
+variable {t : ObsTriple E S A B} {s₀ : S}
+
+/-- A run from idle to the middle of a round is a run to idle, then the question and the calls
+of the round (and, when waiting, the pending call). -/
+theorem run_mid_inv {p : List (Move E (sig1 A B))} {y : TSt E S A}
+    (h : TRun t.1 (satP t) (.idle s₀) p y) :
+    (∀ s a c, y = .run s a c →
+      ∃ pre, TRun t.1 (satP t) (.idle s₀) pre (.idle s) ∧ p = pre ++ .inr (.ask a) :: callMoves c) ∧
+    (∀ s a c m, y = .wait s a c m →
+      ∃ pre, TRun t.1 (satP t) (.idle s₀) pre (.idle s) ∧
+        p = pre ++ .inr (.ask a) :: (callMoves c ++ [.inl (.ask m)])) := by
+  obtain ⟨n, hn⟩ : ∃ n, p.length = n := ⟨_, rfl⟩
+  induction n generalizing p y with
+  | zero =>
+    obtain rfl := List.eq_nil_of_length_eq_zero hn
+    cases h
+    exact ⟨by intros; contradiction, by intros; contradiction⟩
+  | succ n ihn =>
+    obtain ⟨p, o, rfl⟩ := (List.eq_nil_or_concat p).resolve_left (by rintro rfl; simp at hn)
+    rw [List.concat_eq_append] at h hn ⊢
+    have ih := fun {y} (h : TRun t.1 (satP t) (.idle s₀) p y) => ihn h (by simpa using hn)
+    obtain ⟨z, h₁, h₂⟩ := h.of_append
+    cases h₂ with
+    | cons hs hn =>
+      cases hn
+      cases hs with
+      | ask s a =>
+        refine ⟨fun s' a' c' he => ?_, by intros; contradiction⟩
+        cases he
+        exact ⟨p, h₁, by simp⟩
+      | call s a c m _ =>
+        refine ⟨by intros; contradiction, fun s' a' c' m' he => ?_⟩
+        cases he
+        obtain ⟨pre, hpre, rfl⟩ := (ih h₁).1 s a c rfl
+        exact ⟨pre, hpre, by simp⟩
+      | reply s a c m n =>
+        refine ⟨fun s' a' c' he => ?_, by intros; contradiction⟩
+        cases he
+        obtain ⟨pre, hpre, rfl⟩ := (ih h₁).2 s a c m rfl
+        exact ⟨pre, hpre, by simp⟩
+      | ret => exact ⟨by intros; contradiction, by intros; contradiction⟩
+      | trap => exact ⟨by intros; contradiction, by intros; contradiction⟩
+      | deadAsk => exact ⟨by intros; contradiction, by intros; contradiction⟩
+
+theorem mem_div_iff {p : List (Move E (sig1 A B))} :
+    p ∈ (threadT t s₀).div ↔ ∃ rs s a c, Rounds t s₀ rs s ∧ (c, .div) ∈ t.1 s a ∧
+      p = roundsMoves rs ++ .inr (.ask a) :: callMoves c := by
+  constructor
+  · rintro ⟨s, a, c, h, hd⟩
+    obtain ⟨pre, hpre, rfl⟩ := (run_mid_inv h).1 s a c rfl
+    obtain ⟨rs, rfl, hrs⟩ := run_idle_iff.1 hpre
+    exact ⟨rs, s, a, c, hrs, hd, rfl⟩
+  · rintro ⟨rs, s, a, c, hrs, hd, rfl⟩
+    exact mem_div.2 ⟨s, hrs, hd⟩
+
+end Div
+
 /-! ## Pointwise agreement is not necessary -/
 
 namespace Counter
@@ -1216,5 +1279,20 @@ theorem countdown_not_infRounds {a : ℕ → PUnit} {r : ℕ → List (Call E) �
   omega
 
 end Counter
+
+/-! ## Determinism gives store determinism -/
+
+theorem agree_self {E : Sig.{u}} {S B : Type u} {c : List (Call E)} {e e' : End S B}
+    (h : AFun.Agree c e c e') : e = e' := by
+  induction c with
+  | nil => exact h
+  | cons x c ih => obtain ⟨m, n⟩ := x; exact ih (h.2 HEq.rfl)
+
+theorem storeDet_of_det {E : Sig.{u}} {S A B : Type u} {t : ObsTriple E S A B}
+    (h : AFun.Det t.1) : StoreDet t := by
+  intro s a c b s₁ s₂ h₁ h₂
+  have h' : AFun.Agree c (End.ret b s₁) c (End.ret b s₂) := h s a (c, .ret b s₁) (c, .ret b s₂) h₁ h₂
+  have := agree_self h'
+  injection this
 
 end Silmaril.Proofs.Games.Abstract.StratThread

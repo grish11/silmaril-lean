@@ -15,7 +15,8 @@ After the completed rounds `rs` ending at `s`:
 * a trap round is a trapping behaviour at `s`, after which only one more
   Opponent question is possible (`mem_trap`);
 * a play ending in a call is a call prefix `satP t s a` (`mem_pending`);
-* a divergent play is a divergent behaviour at `s` (`mem_div`);
+* a divergent play is a divergent behaviour at `s` (`mem_div`), and every
+  divergent play has this form (`mem_div_iff`);
 * an infinite play of the current round is a productive stream at `s`
   (`mem_inf`).
 
@@ -127,6 +128,13 @@ theorem mem_div {rs : List (A × List (Call E) × B)} {a : A} {c : List (Call E)
     roundsMoves rs ++ .inr (.ask a) :: callMoves c ∈ (threadT t s₀).div ↔
       ∃ s, Rounds t s₀ rs s ∧ (c, .div) ∈ t.1 s a :=
   Silmaril.Proofs.Games.Abstract.StratThread.mem_div
+
+/-- **The divergent plays**: completed rounds, then the question and the calls of a divergent
+behaviour at their final store. -/
+theorem mem_div_iff {p : List (Move E (sig1 A B))} :
+    p ∈ (threadT t s₀).div ↔ ∃ rs s a c, Rounds t s₀ rs s ∧ (c, .div) ∈ t.1 s a ∧
+      p = roundsMoves rs ++ .inr (.ask a) :: callMoves c :=
+  Silmaril.Proofs.Games.Abstract.StratThread.mem_div_iff
 
 /-- A stream play is an infinite trace. -/
 theorem isInfPlay_streamPlay (pre : List (Move E (sig1 A B))) (a : A) (ω : ℕ → Call E) :
@@ -292,5 +300,20 @@ theorem threadT_sat (t : ObsTriple E S A B) (s₀ : S) : threadT (sat t) s₀ = 
 /-- **The threading of a triple's play object is the threading of the triple.** -/
 theorem thread_toDStrat (t : ObsTriple E S A B) (s₀ : S) : thread (toDStrat t) s₀ = threadT t s₀ := by
   rw [thread, StratOps.readback_toDStrat, threadT_sat]
+
+/-! ## Determinism gives store determinism -/
+
+/-- **Determinism given answers implies store determinism.** If the finished behaviours of `t`
+are deterministic given the import answers (`AFun.Det t.1`, the `fin` field of the Wasm
+criterion `BodyDet.TripleDet`), then two returns after the same log with the same value end in
+the same store. So `threadT_eq_iff` and `mem_inf_iff_of_storeDet` apply: the infinite plays of
+the threading are coherent round sequences.
+
+Scope: `StoreDet` constrains returns `.ret b s'` only. A plain `End.trap` carries no store, and
+`threadT` ends the session there, so nothing is lost. For a store-retaining source
+(`StratSession`), a trap is the return `.ret (.inr ()) s'`, so the same theorem makes the trap
+store determined too. -/
+theorem storeDet_of_det (h : AFun.Det t.1) : StoreDet t :=
+  Silmaril.Proofs.Games.Abstract.StratThread.storeDet_of_det h
 
 end Silmaril.Games.Abstract.StratThread

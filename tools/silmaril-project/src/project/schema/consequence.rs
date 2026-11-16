@@ -159,6 +159,27 @@ table! {
 }
 
 table! {
+    /// `silmaril consequence_matrix NAME := rows`: one row per cell of an evidence matrix (the
+    /// protocol track's `SignedMatrix.cells`), copied verbatim. `theorems` is the JSON list of the
+    /// listed declarations with their modules; Lean checked only that they exist.
+    ConsequenceMatrixCell = "consequence_matrix_cells", key("name") {
+        name: String = "TEXT NOT NULL",
+        matrix: String = "TEXT NOT NULL",
+        pos: i64 = "INTEGER NOT NULL",
+        variant: String = "TEXT NOT NULL",
+        reading: String = "TEXT NOT NULL",
+        reading_module: String = "TEXT NOT NULL",
+        theorems: serde_json::Value = "TEXT NOT NULL",
+        evidence: String = "TEXT NOT NULL",
+        strength: String = "TEXT NOT NULL",
+        note: String = "TEXT NOT NULL",
+        decl: String = "TEXT NOT NULL",
+        module: String = "TEXT NOT NULL",
+        #[serde(skip)] origin: String = "TEXT NOT NULL",
+    }
+}
+
+table! {
     /// Operand `pos` of a constructed consequence system.
     ConsequenceOperand = "consequence_operands", key("system", "pos") {
         system: String = "TEXT NOT NULL",

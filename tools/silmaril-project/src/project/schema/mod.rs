@@ -95,6 +95,7 @@ pub enum Record {
     Language(Box<Language>),
     ConsequenceInterpretation(ConsequenceInterpretation),
     ConsequenceSystem(Box<ConsequenceSystem>),
+    ConsequenceMatrix(Box<ConsequenceMatrixCell>),
     Predicate(Predicate),
     Answer(Answer),
     Instance(Instance),
@@ -142,6 +143,7 @@ record_kinds! {
     Language = "language", key name, object Some("language");
     ConsequenceInterpretation = "consequence_interpretation", key name, object Some("consequence_interpretation");
     ConsequenceSystem = "consequence_system", key name, object Some("consequence_system");
+    ConsequenceMatrix = "consequence_matrix", key name, object None;
     Predicate = "predicate", key name, object None;
     Answer = "answer", key decl, object None;
     Instance = "instance", key name, object None;
@@ -422,6 +424,7 @@ pub fn tables() -> Vec<TableInfo> {
         info::<ConsequenceSystem>(),
         info::<ConsequenceOperand>(),
         info::<ConsequenceShapeRole>(),
+        info::<ConsequenceMatrixCell>(),
         info::<ProblemRow>(),
         info::<ProblemArg>(),
         info::<ProblemInput>(),

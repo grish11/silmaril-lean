@@ -129,13 +129,15 @@ The self-test `ProjectSelfTest.Consequence.Partial` exercises these on the regis
 `hello.txt` with test readings (`prefix_exact` over `ℕ`, `nonempty_whole` as `Interp₀`); they
 are registry tests, not Wasm semantics.
 
-**Pending: Wasm modules through `coreInterp`.** The protocol track's `coreInterp`
-(`Silmaril.Wasi.Consequence`, configurations `CoreConfig`) is to be registered as
-`wasm.core.seq` with `member_check.wasm` and `empty_check.wasm` read at
-`memberConfig Profile.spec allHosts` (defined; sound and boundedly complete for single-succedent
-membership; `empty_check` defined and empty). It is blocked by a duplicate declaration
-`Silmaril.Wasm.Component.WIT.Env` that prevents importing the protocol modules together with the
-registered artifacts; it lands once that is renamed.
+**Wasm modules through `coreInterp`.** The protocol track's `coreInterp`
+(`Silmaril.Wasi.Consequence`, configurations `CoreConfig`: profile, hosts, export name, codec) is
+registered as `wasm.core.seq` (partial, `Env = CoreConfig`), and
+`ProjectSelfTest.Consequence.WasmSeq` reads `member_check.wasm` and `empty_check.wasm` at
+`memberConfig Profile.spec allHosts`: both **defined** (`artifact_defined`, from the values' `.is`
+certificates); `member_check` sound for single-succedent membership (every host set) and complete
+for it within `Γ.length + 1 ≤ 2 ^ 32 - 1` (nonempty hosts), by the protocol theorems
+`member_sound` and `member_completeOn` applied through `coreBytesInterp_member`;
+`empty_check` **defined and empty** (`coreBytesInterp_empty`).
 
 ## Typed shapes, views and the Gentzen view
 
@@ -179,6 +181,38 @@ system permutation-invariant but not weakening-closed (`p ⊢ q`, not `p, p ⊢ 
 weakening-closed and set-invariant, the pair test the same and the bounded test not, the
 acceptor of `member_check.wasm` context-free and its rejector conclusion-free, and
 `member_check.wasm`'s relation not context-free.
+
+**Finite sets, sets and translations.** `ProjectSelfTest.Consequence.Structural` registers the
+structural track's systems with their theorems: the identity calculus on atoms and its signed
+lift (explosion `p, ¬p ⊢` and excluded middle `⊢ p, ¬p`; translated and reflected along
+`Signed.pos`, `posPart_signedLift`); validity of literal sequents on finite sets (`onFinset`)
+and on sets (`onSet`), which agree along the inclusion of finite sets (`onFinset_iff_onSet`);
+and over `m ⊨ n ↔ m ≠ n`, finite validity read on sets is sound for infinitary validity but
+not complete — `ℕ ⊨ ∅` has no finite witness (`not_onSet_valid`; no compactness).
+
+**Restrictions.** `gentzen.valid_via_unsat_restriction` is validity rebuilt from its UNSAT
+restriction (`viaUnsat (toUnsat (Valid lsat)) lneg`, `Gentzen.Calculus`): sound and complete for
+validity (`Calculus.Examples.lit_eq_viaUnsat`). The TAUTO restriction is the same:
+`gentzen.valid_via_taut_restriction` (`viaTauto (toTaut (Valid lsat)) lneg`) is sound and complete
+for validity by `eq_viaTauto_toTaut` under its hypotheses (closed under the default rules, `NegL`
+and `NegR` from `lneg_sound`/`lneg_complete`). Without negation rules the restriction loses
+sequents: the identity calculus (closed under the default rules) is not sound for its UNSAT
+rebuild — `p ⊢ p` holds and `p, ¬p ⊢` does not (counterevidence kept).
+
+**Closure certificates across translations.** The signed lift of the identity calculus is closed
+under the default rules (`closed_signedLift`), and so is its pullback along `succ`
+(`closed_pullback`, `Rules.Hom.default`), which `succ` translates into and reflects from the
+identity calculus by the definition of pullback. These and the earlier certificates make up the
+Gentzen-closed view, each with its rule profile.
+
+**Evidence matrices.** `silmaril consequence_matrix N := rows` records an evidence matrix, one
+row per cell, verbatim: `rows : Silmaril.Project.MatrixRows` (variant, reading, supporting
+declarations, evidence, strength, note). Lean checks that the reading and each listed
+declaration exist and records their modules — provenance, not a check that the classification
+is right. `silmaril.protocols.signed_matrix` registers the protocol track's
+`SignedMatrix.cells` (12 cells: 8 `definitions`, 2 `specStrategy`, 2 `execution`); the
+Interpretations page shows it as the protocol-provided classification with the supporting
+declarations (specification strategies are not compiled components).
 
 **Interpretations.** The Interpretations page lists every `language_interpretation` (`V → Set T`)
 and `consequence_interpretation` (`V → System Ax C`): what it reads and gives, its ABI and
