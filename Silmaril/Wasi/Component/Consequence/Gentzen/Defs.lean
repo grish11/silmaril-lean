@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasi.Component.Consequence.Checkers.Defs
 public import Silmaril.Logic.Consequence.Gentzen.Defs
+public import Silmaril.Logic.Consequence.Gentzen.Core.Thms
 public import Silmaril.Logic.Consequence.Signed.Defs
 
 /-! # Gentzen sequents from component UNSAT and TAUTO checkers
@@ -21,10 +22,11 @@ UNSAT checker and as a TAUTO checker for different reasons, or for neither. Soun
 component (`CheckSound`, `TautSound`) is always a **hypothesis** of the adapter theorems, unless
 it is proved for a specification strategy.
 
-**Signed formulas** (`Silmaril.Consequence.Signed`): `signedSat v` reads `pos a` as `v m a` and
-`neg a` as its negation, so the sign flip `-` satisfies both negation laws exactly. The
-specification **clash checker** (`clashChecker`) accepts a list exactly when it contains some
-`x` and `-x`. It is a specification strategy (`answerChecker`), not a compiled component;
+**Signed formulas** (`Silmaril.Consequence.Signed`): signed satisfaction is the core
+`Silmaril.Consequence.Gentzen.signedSat v`, which reads `pos a` as `v m a` and `neg a` as its
+negation; the sign flip `-` satisfies both negation laws exactly. The former local name
+`signedSat` is a deprecated `abbrev` for it. The specification **clash checker** (`clashChecker`)
+accepts a list exactly when it contains some `x` and `-x`. It is a specification strategy (`answerChecker`), not a compiled component;
 `signedU32?` and `clashEnc` are its concrete `list<variant { pos(u32), neg(u32) }>` encoding.
 
 New definitions (no source).
@@ -61,10 +63,12 @@ def tautSeq (T : Set (List WEv)) (r : Reading Unit (List F)) (neg : F → F) :
 
 /-! ## Signed formulas -/
 
-/-- Signed satisfaction: `pos a` holds when `a` does, `neg a` when it does not. -/
-def signedSat {M A : Type} (v : M → A → Prop) : M → Signed A → Prop
-  | m, .pos a => v m a
-  | m, .neg a => ¬ v m a
+/-- Signed satisfaction: the core `Silmaril.Consequence.Gentzen.signedSat`, under its former
+local name (reducible, so terms stated with either name are interchangeable). -/
+@[deprecated Silmaril.Consequence.Gentzen.signedSat +typeChanged
+  (since := "2026-11-16")]
+abbrev signedSat {M A : Type} (v : M → A → Prop) : M → Signed A → Prop :=
+  Silmaril.Consequence.Gentzen.signedSat v
 
 /-- A list contains some formula and its negation. -/
 def Clash {A : Type} (Γ : List (Signed A)) : Prop := ∃ x ∈ Γ, -x ∈ Γ

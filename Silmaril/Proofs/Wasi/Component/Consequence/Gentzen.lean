@@ -53,22 +53,18 @@ theorem clashDec_iff (args : List Val) (q : Unit × List (Signed (BitVec 32))) :
     simp [clashDec, args1, clashEnc, Option.bind_eq_some_iff, ofRecord?_eq_some,
       mapM_eq_some_iff_of_inverse signedU32?_iff]
 
-theorem signedSat_neg {M A : Type} (v : M → A → Prop) (m : M) (x : Signed A) :
-    signedSat v m (-x) ↔ ¬ signedSat v m x := by
-  cases x <;> simp [signedSat, Neg.neg, Signed.flip]
-
 theorem clash_unsat {M A : Type} (v : M → A → Prop) (Γ : List (Signed A)) (h : Clash Γ) :
-    Silmaril.Consequence.Refutation.Unsat (signedSat v) Γ := by
+    Silmaril.Consequence.Refutation.Unsat (Silmaril.Consequence.Gentzen.signedSat v) Γ := by
   obtain ⟨x, hx, hnx⟩ := h
   intro m hm
-  exact (signedSat_neg v m x).1 (hm _ hnx) (hm _ hx)
+  exact Silmaril.Consequence.Gentzen.signedSat_negSound v m x (hm _ hnx) (hm _ hx)
 
 theorem clash_taut {M A : Type} (v : M → A → Prop) (Δ : List (Signed A)) (h : Clash Δ) :
-    Silmaril.Consequence.Gentzen.Taut (signedSat v) Δ := by
+    Silmaril.Consequence.Gentzen.Taut (Silmaril.Consequence.Gentzen.signedSat v) Δ := by
   obtain ⟨x, hx, hnx⟩ := h
   intro m _
-  by_cases hm : signedSat v m x
+  by_cases hm : Silmaril.Consequence.Gentzen.signedSat v m x
   · exact ⟨x, hx, hm⟩
-  · exact ⟨-x, hnx, (signedSat_neg v m x).2 hm⟩
+  · exact ⟨-x, hnx, Silmaril.Consequence.Gentzen.signedSat_negComplete v m x hm⟩
 
 end Silmaril.Proofs.Wasi.Component.Consequence

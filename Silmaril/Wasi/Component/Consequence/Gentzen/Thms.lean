@@ -13,8 +13,9 @@ import Silmaril.Proofs.Wasi.Component.Consequence.Gentzen
   The TAUTO reading needs `TautSound` and `NegSound` (`tautSeq_le_valid`,
   `derives_tautSeq_le_valid`). Completeness goes the other way, with the other negation law
   (`valid_le_unsatSeq`, `valid_le_tautSeq`).
-* **Signed formulas**: the sign flip satisfies both negation laws for `signedSat`
-  (`signed_negSound`, `signed_negComplete`).
+* **Signed formulas**: signed satisfaction and its negation laws are the core
+  `Gentzen.signedSat`, `Gentzen.signedSat_negSound` and `Gentzen.signedSat_negComplete`; the
+  former local `signed_negSound` and `signed_negComplete` are deprecated forwarding names.
 * **The clash checker** (a specification strategy, not a compiled component) accepts exactly
   the lists with a clash (`checkerOf_clashU32`). It is sound **both** as an UNSAT checker and as
   a TAUTO checker, for every valuation, for different reasons (`clashU32_checkSound`,
@@ -71,11 +72,15 @@ theorem valid_le_tautSeq (hc : TautComplete sat (checkerOf T r)) (hn : NegComple
 
 variable {A : Type} {v : M → A → Prop}
 
-theorem signed_negSound : NegSound (signedSat v) (-·) := fun m x h =>
-  (Proofs.Wasi.Component.Consequence.signedSat_neg v m x).1 h
+@[deprecated Silmaril.Consequence.Gentzen.signedSat_negSound +typeChanged
+  (since := "2026-11-16")]
+theorem signed_negSound : NegSound (Silmaril.Consequence.Gentzen.signedSat v) (-·) :=
+  Silmaril.Consequence.Gentzen.signedSat_negSound v
 
-theorem signed_negComplete : NegComplete (signedSat v) (-·) := fun m x h =>
-  (Proofs.Wasi.Component.Consequence.signedSat_neg v m x).2 h
+@[deprecated Silmaril.Consequence.Gentzen.signedSat_negComplete +typeChanged
+  (since := "2026-11-16")]
+theorem signed_negComplete : NegComplete (Silmaril.Consequence.Gentzen.signedSat v) (-·) :=
+  Silmaril.Consequence.Gentzen.signedSat_negComplete v
 
 /-! ## The clash checker -/
 
@@ -89,21 +94,27 @@ theorem checkerOf_clashU32 (Γ : List (Signed (BitVec 32))) :
 
 /-- As an UNSAT checker, it is sound for every valuation. -/
 theorem clashU32_checkSound {v : M → BitVec 32 → Prop} :
-    CheckSound (signedSat v) (checkerOf (Traces clashU32) (listCheck checkFn clashDec)) :=
+    CheckSound (Silmaril.Consequence.Gentzen.signedSat v)
+      (checkerOf (Traces clashU32) (listCheck checkFn clashDec)) :=
   fun Γ h => Proofs.Wasi.Component.Consequence.clash_unsat v Γ ((checkerOf_clashU32 Γ).1 h)
 
 /-- As a TAUTO checker, it is sound for every valuation too. -/
 theorem clashU32_tautSound {v : M → BitVec 32 → Prop} :
-    TautSound (signedSat v) (checkerOf (Traces clashU32) (listCheck checkFn clashDec)) :=
+    TautSound (Silmaril.Consequence.Gentzen.signedSat v)
+      (checkerOf (Traces clashU32) (listCheck checkFn clashDec)) :=
   fun Δ h => Proofs.Wasi.Component.Consequence.clash_taut v Δ ((checkerOf_clashU32 Δ).1 h)
 
 theorem unsatSeq_clashU32_le_valid {v : M → BitVec 32 → Prop} :
-    unsatSeq (Traces clashU32) (listCheck checkFn clashDec) (-·) ≤ Valid (signedSat v) :=
-  unsatSeq_le_valid clashU32_checkSound signed_negComplete
+    unsatSeq (Traces clashU32) (listCheck checkFn clashDec) (-·) ≤
+      Valid (Silmaril.Consequence.Gentzen.signedSat v) :=
+  unsatSeq_le_valid clashU32_checkSound
+    (Silmaril.Consequence.Gentzen.signedSat_negComplete v)
 
 theorem tautSeq_clashU32_le_valid {v : M → BitVec 32 → Prop} :
-    tautSeq (Traces clashU32) (listCheck checkFn clashDec) (-·) ≤ Valid (signedSat v) :=
-  tautSeq_le_valid clashU32_tautSound signed_negSound
+    tautSeq (Traces clashU32) (listCheck checkFn clashDec) (-·) ≤
+      Valid (Silmaril.Consequence.Gentzen.signedSat v) :=
+  tautSeq_le_valid clashU32_tautSound
+    (Silmaril.Consequence.Gentzen.signedSat_negSound v)
 
 /-- **The UNSAT reading of the clash checker is reflexive**: `c ∈ Γ` and `c ∈ Δ` put `c` and
 `-c` in `Γ ++ Δ.map (-·)`. -/

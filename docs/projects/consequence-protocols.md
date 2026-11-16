@@ -108,8 +108,10 @@ The adapter theorems take soundness of the component as a hypothesis:
 - `tautSeq_le_valid` needs `TautSound` and `NegSound`.
 - The Gentzen closures (`derives_*`) and the completeness directions are covered too.
 
-Over signed formulas, the sign flip satisfies both negation laws (`signed_negSound`,
-`signed_negComplete`). The specification **clash checker** `clashU32` accepts exactly the lists
+Over signed formulas, satisfaction is the core `Gentzen.signedSat`, and the sign flip satisfies
+both negation laws (`Gentzen.signedSat_negSound`, `Gentzen.signedSat_negComplete`). The former
+local names `signedSat`, `signed_negSound` and `signed_negComplete` remain as deprecated
+forwarding names. The specification **clash checker** `clashU32` accepts exactly the lists
 containing some `x` and `-x`. It is sound both as an UNSAT checker and as a TAUTO checker, for
 different reasons, so both of its readings are valid. Its UNSAT reading is `Reflexive`. Its
 execution status for a list (`STH` or `SCT`) is about plays, not the SZS status of the formula.
