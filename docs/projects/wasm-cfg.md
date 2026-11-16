@@ -466,39 +466,43 @@ The plain graph stays an over-approximation, and claims about it say so.
       `br`, `br_if` (taken, not taken) and `br_table` with an outer value, two results, against
       Core; an invalid body whose `return` reaches below its block (`machine_loss`, `core_loss`),
       on which the old exit lost a value (no general untyped claim).
-    - **Plan for (b), the store-retaining CFG-instance session (host-free first).** Target: the
-      canonical `DStrategy` `instSession I P s = StratSession.threadS (instTripleS I P) s`
-      (`Abstract.InstSession`), hence the instance part of `core3SemD`, on an explicit typed
-      fragment. Not "define the CFG object by Core and conclude `rfl`".
-      1. **The CFG triple** `cfgTripleS I o`, operational: its finished behaviours are machine runs
-         (`MStepC`, oracle `CX closedCallX`) of the export's body in its call frame to a sink, the
-         answer read off the sink state (`exit` stack top, or `trap` keeping its store), and
-         machine frame divergence `MDivT`. It is **oracle-backed**: callees are answered by the
-         native closed extended semantics `CX closedCallX`, not by recursive CFG machines; that is
-         stated in every statement. A self-contained recursive CFG closure would discharge the
-         oracle later and is not claimed.
-      2. **The fragment**: deterministic profile, no imports, a well-formed store of Wasm functions
-         with function types passing `StoreChkE tExt`; preserved at every reachable store (the
-         function list never changes host-free, typing is preserved).
-      3. **No imports** removes import callouts, call logs and within-call productive host
-         interaction (the triple's pending and productive components), **not** infinite session
-         plays: `threadS` still has coherent infinite sequences of export rounds, trap-resume
-         included. Those come out of the existing `InfRounds`/`StoreDet` API and reachable-triple
-         congruence (`threadS_congr`), not by an emptiness claim.
-      4. **Equality**: `cfgTripleS` and `instTripleS` agree at reachable stores (`satP` and the
-         productive components included): a host-free activation is a Core invocation
-         (`ret_iff_core`, and the instance-level divergence chain against Core divergence, both
-         directions), finite answers from #806 (`machine_core`/`core_machine`), divergence from
-         #845 (`invoke_diverges_iff_mdivT`). Then `threadS_congr` gives the session equality.
-      5. **Then**: hosts (pending calls and logs, productive interaction), XP and EH coverage, as
-         actual extensions.
-    - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
-      `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
-      Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the
-      store-retaining session target (b): the CFG-instance session triple denotes the same
-      `DStrategy` as `instSession`/`core3SemD`, with finite done/pending plays, quiescent
-      divergence and coherent productive infinite interaction. None of these is claimed by the
-      OX results above, which are store-erasing at nested callee boundaries.
+    - **(b), host-free milestone: the CFG session is the instance session** (`Wasm/Cfg/Session`).
+      Target: the canonical `DStrategy` `instSession I P s = StratSession.threadS (instTripleS I
+      P) s` (`Abstract.InstSession`), hence the instance part of `core3SemD`, on an explicit
+      typed fragment. Not "define the CFG object by Core and conclude `rfl`".
+      1. **The CFG triple** `cfgTripleS I o`, operational: `cfgFinS` is machine runs (`MStepC`,
+         oracle `CX closedCallX`) of the export's body in its call frame to a sink, the answer
+         read off the sink state (`sinkResult`: the top `rs.length` values of the exit stack, the
+         whole frame stack since the exit fix; `trap` keeping its store), and machine frame
+         divergence `MDivT` with `calleeDivX o`; empty logs. It is **oracle-backed**: callees
+         are answered by the native closed extended semantics `CX closedCallX`, not by recursive
+         CFG machines. A self-contained recursive CFG closure would discharge the oracle later
+         and is not claimed.
+      2. **The fragment** `HFOk I s`: no imports, `I.WellFormed s`, only Wasm functions with
+         function types (`WasmFuncsT`), `StoreChkE tExt`, at `profile o`. Preserved at every
+         reachable store (`hfOk_of_reach`: the function list never changes host-free,
+         `wellFormed_after_run`). Exceptions are excluded by `tExt`, separately from hosts; the
+         proof derives that a closed outcome of a checked invocation is never a throw.
+      3. **Equality**, both directions per activation (`instFinS_eq`): returning activations by
+         NodeBridge `ret_iff` (empty logs) and `Function.core_machine`/`machine_core`, the sink
+         reading matched against Core's result (`sink_cases`; values are typed, so the exit
+         stack holds the results); divergent ones by `div_iff` and
+         `invoke_diverges_iff_mdivT`. With empty `satP` and productive components (no import
+         operations), `threadS_congr` gives `cfgSession_eq_instSession`; then `spull_cfgSession`
+         (the finite plays are `I.strategy`) and `core3SemD_eq_cfgSessions`: `core3SemD
+         (profile o)` interprets every numeric instance in the fragment at its instantiation
+         store by its CFG session (and the others by their instance sessions).
+      4. **No imports is not no infinite plays**: no imports removes import callouts, call logs
+         and within-call productive host interaction, not infinite session plays.
+         `mem_inf_cfgSession`: the infinite plays are exactly those of the coherent infinite
+         sequences of export rounds (`InfRounds`, via `mem_inf_instSession`/`StoreDet` and
+         `infRounds_iff`), trap-resume rounds included; `infRounds_repeat`. Fixtures
+         (`Wasm/Cfg/ExampleSession`, a validated two-export module, no imports): `ses_hfOk`;
+         export `0` traps and export `1` answers `7` on the machine; `trap_forever` and
+         `alt_forever` (trap, answer, trap, …) are infinite plays of the CFG session and of the
+         instance session.
+      5. **Next**: hosts (pending calls and logs, productive interaction), XP and EH coverage, as
+         actual extensions; a catch-exit fixture; a recursive CFG closure discharging the oracle.
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
