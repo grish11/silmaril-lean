@@ -32,11 +32,10 @@ The proof uses the handler laws of finite plays: `toU` below the pairing is dupl
 `ofU` (`toU_comp_ofU`), moves above the pairing, and commutes with the routing
 (`sumMap_comp_splitH`).
 
-**Not yet covered:** the divergence and infinite-play components of the `sigU` statement. They
-need a law for a relabelling handler below a divergence-observing pairing (the
-`DStrategy` analogue of `Strategy.ofHandler_comp_pair`), or equivalently that relabelling the
-middle interface of a composite is invisible. The session-interface statement above has all three
-components.
+**All components on `sigU`:** `Silmaril.Wasm.Component.ExtSessionFull` (`ext_eq`, `ext_threadS`)
+proves the `sigU` statements for divergence and infinite plays as well, with the handler laws of
+`Silmaril.Games.AnsPull` for relabelling handlers (below a divergence-observing pairing, and
+cancellation of inverse relabellings in the middle of a composite).
 
 Proofs are in `Silmaril.Proofs.Wasm.Component.ExtSession`.
 -/
