@@ -6,6 +6,7 @@ import Silmaril.Proofs.Games.Abstract.FullFun.Basic
 import Silmaril.Proofs.Games.Abstract.FullFun.Laws
 import Silmaril.Proofs.Games.Abstract.FullFun.Tensor
 import Silmaril.Proofs.Games.Abstract.FullFun.Unfold
+import Silmaril.Proofs.Games.Abstract.FullFun.Natural
 import Silmaril.Games.Abstract.Function.Thms
 import Silmaril.Games.Abstract.FunctionIter.Thms
 
@@ -66,6 +67,21 @@ Proofs in `Silmaril.Proofs.Games.Abstract.FullFun`.
   structure;
 * `hostObsInf_map`, `hostObsInf_comap`, `hostObsInf_whiskerRight`, `hostObsInf_whiskerLeft`:
   host preservation; the productive observations are those of the original function.
+
+**Naturality and uniformity of iteration** (`Silmaril.Proofs.Games.Abstract.FullFun.Natural`).
+No hypothesis on the loop bodies beyond the stated equation. Divergence (`div` ends and
+infinite silent chains) and productive runs are included:
+
+* `FullFun.iter_map_fin`, `FullFun.iter_map` (**naturality in the output**):
+  `iter (F.map (Sum.map h id)) = (iter F).map h`. Mapping the exit value changes no continuing
+  iteration (`FullFun.contChain_map`);
+* `FullFun.iter_uniform_fin`, `FullFun.iter_uniform_comap`, `FullFun.iter_uniform`
+  (**uniformity** for a pure map `h : A' → A`): if `h ; F = G ; [inl, inr ∘ h]`, that is
+  `F.comap h = G.map (Sum.map id h)`, then `h ; iter F = iter G`. A run of `G` maps to a run of
+  `F` (`FullFun.contChain_uniform`). A run of `F` from `h a` lifts, iteration by iteration, to
+  a run of `G` from `a` (`FullFun.contChain_lift`), infinite chains by dependent choice.
+  Uniformity is claimed only for pure `h`, as for Elgot uniformity;
+* `FullFun.case_pure_map_map`: the copairing of pure maps is a pure map.
 -/
 
 @[expose] public section
@@ -321,6 +337,74 @@ theorem FullFun.not_interchange :
       FullFun.seq (f.whiskerRight PUnit) (g.whiskerLeft PUnit) ≠
         FullFun.seq (g.whiskerLeft PUnit) (f.whiskerRight PUnit) :=
   ⟨_, _, _, Silmaril.Proofs.Games.Abstract.FullFun.not_interchange⟩
+
+/-! ## Naturality and uniformity of iteration -/
+
+/-- Mapping the exit value keeps the continuing chains. -/
+theorem FullFun.contChain_map (F : FullFun E S A (B ⊕ A)) (h : B → C) {s : S} {a : A}
+    {c : List (Call E)} {s' : S} {a' : A} :
+    FullFun.ContChain (F.map (Sum.map h id)).1 s a c s' a' ↔ FullFun.ContChain F.1 s a c s' a' :=
+  Silmaril.Proofs.Games.Abstract.FullFun.contChain_map
+
+/-- **Naturality of iteration in the output**, finite behaviours: applying `h` to the exit value
+of every iteration is applying it to the result of the loop. -/
+theorem FullFun.iter_map_fin (f : AFun E S A (B ⊕ A)) (h : B → C) :
+    AFun.iter (fun s a => (fun x => (x.1, FullFun.endMap (Sum.map h id) x.2)) '' f s a) =
+      fun s a => (fun x => (x.1, FullFun.endMap h x.2)) '' AFun.iter f s a :=
+  Silmaril.Proofs.Games.Abstract.FullFun.iter_map_fin f h
+
+/-- **Naturality of iteration in the output.** -/
+theorem FullFun.iter_map (F : FullFun E S A (B ⊕ A)) (h : B → C) :
+    FullFun.iter (F.map (Sum.map h id)) = (FullFun.iter F).map h :=
+  Silmaril.Proofs.Games.Abstract.FullFun.iter_map F h
+
+/-- **Uniformity of iteration**, finite behaviours: if the body `f` at `k a` is the body `g` at
+`a` with `k` applied to continuing arguments, the loops agree. -/
+theorem FullFun.iter_uniform_fin {A' : Type u} {f : AFun E S A (B ⊕ A)}
+    {g : AFun E S A' (B ⊕ A')} (k : A' → A)
+    (hfg : ∀ s a, f s (k a) = (fun x => (x.1, FullFun.endMap (Sum.map id k) x.2)) '' g s a)
+    (s : S) (a : A') : AFun.iter f s (k a) = AFun.iter g s a :=
+  Silmaril.Proofs.Games.Abstract.FullFun.iter_uniform_fin hfg s a
+
+/-- Under the uniformity hypothesis, a continuing chain of `G` maps to one of `F`. -/
+theorem FullFun.contChain_uniform {A' : Type u} {F : FullFun E S A (B ⊕ A)}
+    {G : FullFun E S A' (B ⊕ A')} {k : A' → A} (hFG : F.comap k = G.map (Sum.map id k))
+    {s : S} {a : A'} {c : List (Call E)} {s' : S} {a' : A'}
+    (hc : FullFun.ContChain G.1 s a c s' a') : FullFun.ContChain F.1 s (k a) c s' (k a') :=
+  Silmaril.Proofs.Games.Abstract.FullFun.contChain_uniform
+    (Silmaril.Proofs.Games.Abstract.FullFun.fin_of_comap hFG) hc
+
+/-- Under the uniformity hypothesis, a continuing chain of `F` from `k a` lifts to one of `G`
+from `a`. -/
+theorem FullFun.contChain_lift {A' : Type u} {F : FullFun E S A (B ⊕ A)}
+    {G : FullFun E S A' (B ⊕ A')} {k : A' → A} (hFG : F.comap k = G.map (Sum.map id k))
+    {s : S} {a : A'} {c : List (Call E)} {s' : S} {x' : A}
+    (hc : FullFun.ContChain F.1 s (k a) c s' x') :
+    ∃ a', k a' = x' ∧ FullFun.ContChain G.1 s a c s' a' :=
+  Silmaril.Proofs.Games.Abstract.FullFun.contChain_lift
+    (Silmaril.Proofs.Games.Abstract.FullFun.fin_of_comap hFG) hc a rfl
+
+/-- **Uniformity of iteration** with respect to a pure map `k`, pre-composition form. -/
+theorem FullFun.iter_uniform_comap {A' : Type u} {F : FullFun E S A (B ⊕ A)}
+    {G : FullFun E S A' (B ⊕ A')} {k : A' → A} (hFG : F.comap k = G.map (Sum.map id k)) :
+    (FullFun.iter F).comap k = FullFun.iter G :=
+  Silmaril.Proofs.Games.Abstract.FullFun.iter_uniform_comap hFG
+
+/-- The copairing of pure maps is a pure map. -/
+theorem FullFun.case_pure_map_map {X : Type u} (h₁ : A → X) (h₂ : B → X) :
+    FullFun.case ((FullFun.pure : FullFun E S A A).map h₁)
+        ((FullFun.pure : FullFun E S B B).map h₂) =
+      (FullFun.pure : FullFun E S (A ⊕ B) (A ⊕ B)).map (Sum.elim h₁ h₂) :=
+  Silmaril.Proofs.Games.Abstract.FullFun.case_pure_map_map h₁ h₂
+
+/-- **Uniformity of iteration** (Elgot form) for a pure map `h`: if `h ; F = G ; [inl, inr ∘ h]`
+then `h ; iter F = iter G`. -/
+theorem FullFun.iter_uniform {A' : Type u} {F : FullFun E S A (B ⊕ A)}
+    {G : FullFun E S A' (B ⊕ A')} (h : A' → A)
+    (hFG : FullFun.seq (FullFun.pure.map h) F =
+      FullFun.seq G (FullFun.case (FullFun.pure.map Sum.inl) (FullFun.pure.map (Sum.inr ∘ h)))) :
+    FullFun.seq (FullFun.pure.map h) (FullFun.iter F) = FullFun.iter G :=
+  Silmaril.Proofs.Games.Abstract.FullFun.iter_uniform h hFG
 
 /-- Host preservation of post-composition: the same productive observations. -/
 theorem hostObsInf_map {R : HostRel E} (f : FullFun E S A B) (h : B → C) :
