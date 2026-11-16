@@ -50,8 +50,8 @@ These are the node-level halves of the linked divergences of #730: `Linked2.DivB
 importer's side of `Linked2.Chatter` is a productive stream of B's instance.
 
 **Not claimed here.** The core node `dcoreNode` adds `implsN` below these strategies; its silent
-chatter (`div_dcoreNode`) is excluded only when `implsN` is trap-silent and the strategy above
-propagates traps, which this module does not prove. The read-back of the linked component's
+chatter (`div_dcoreNode`) is excluded when every wiring program calls the environment, in
+`Silmaril.Wasm.Abstract.NodeTrap.Thms` (`div_dcoreNode_core3SemD`). The read-back of the linked component's
 divergences (`Linked2.linkDiv`) to `Linked2.RoundDiv` is not done here.
 
 Proofs: `Silmaril.Proofs.Wasm.Abstract.NodeDiv.Basic`.

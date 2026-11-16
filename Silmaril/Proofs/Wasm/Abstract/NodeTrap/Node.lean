@@ -81,9 +81,9 @@ theorem shotU_target (e : Nat) (t : Target) (a : Payload) : ShotU (t.prog e a) :
   cases t with
   | call r =>
     by_cases h : r < e
-    · rw [Target.prog, if_pos h]
+    · simp only [Target.prog, h, ↓reduceIte]
       exact Or.inr ⟨_, _, rfl, fun n => ⟨n, rfl, id⟩⟩
-    · rw [Target.prog, if_neg h]
+    · simp only [Target.prog, h, ↓reduceIte]
       exact Or.inl ⟨_, rfl⟩
   | const res => exact Or.inl ⟨_, rfl⟩
 
@@ -136,5 +136,63 @@ theorem endsBelow_core3SemD (P : Profile) (e : Nat) (m : NumInstance) (args : Li
 theorem trapPropagating_core3SemD (P : Profile) (e : Nat) (m : NumInstance)
     (args : List Impl) : TrapPropagating (Node.denD (core3SemD P) e (.core m args)) :=
   fun s q y hp => endsBelow_core3SemD P e m args s q none y rfl hp
+
+/-- **The module of a Core 3.0 core node, seen through `widenH`, propagates traps**: the part of
+the node above `implsN`, at the level of its finite plays. -/
+theorem endsBelow_sem_widenH (P : Profile) (m : NumInstance) :
+    EndsBelow (fun _ r => r = none)
+      (((core3SemD P).sem m).comp (DStrategy.ofHandler (widenH m.exports.length))).toStrategy := by
+  show EndsBelow _ (((Strategy.ofHandler (importH m)).comp
+    ((spullD (instSession m.inst P m.inst.store)).toStrategy.comp
+      (Strategy.ofHandler (exportH m)))).comp (Strategy.ofHandler (widenH m.exports.length)))
+  rw [toStrategy_spullD_instSession]
+  refine endsBelow_comp_upper ?_ (relays_ofHandler (oneShot_widenH _))
+  refine endsBelow_comp_lower (relays_ofHandler (oneShot_importH m)) ?_
+  exact endsBelow_comp_upper (endsBelow_strategy _ _ _) (relays_ofHandler (oneShot_exportH m))
+
+theorem trapPropagating_sem_widenH (P : Profile) (m : NumInstance) :
+    TrapPropagating
+      (((core3SemD P).sem m).comp (DStrategy.ofHandler (widenH m.exports.length))) :=
+  fun s q y hp => endsBelow_sem_widenH P m s q none y rfl hp
+
+/-! ## Trap-silent wiring -/
+
+/-- A chain of adapters answers without a call only with a trap, when its target does. -/
+theorem runChain_pure_none (c : List Adapter) (k : Payload → Prog sigU (Option Payload))
+    (hk : ∀ a r, k a = .pure r → r = none) (a : Payload) (r : Option Payload)
+    (h : runChain c k a = .pure r) : r = none := by
+  induction c generalizing a r with
+  | nil => exact hk a r h
+  | cons ad c ih =>
+    unfold runChain at h
+    split at h
+    · cases h; rfl
+    · rename_i a' _
+      cases hc : runChain c k a' with
+      | pure r₀ =>
+        rw [hc] at h
+        cases h
+        rw [ih a' r₀ hc]
+        rfl
+      | call m κ =>
+        rw [hc] at h
+        cases h
+
+/-- **`implsN` is trap-silent when every wiring program calls the environment**: it answers
+without a call only with a trap (an argument that does not lift, a call out of range, an index
+without a program). -/
+theorem trapSilent_implsN (e : Nat) (args : List Impl) (t : Nat)
+    (hargs : ∀ im ∈ args, ∃ r, im.target = .call r) : TrapSilent (implsN e args t) := by
+  intro q r h
+  unfold implsN implsH at h
+  split at h
+  · rename_i im him
+    obtain ⟨j, hj⟩ := hargs im (List.mem_of_getElem? him)
+    refine runChain_pure_none im.chain _ (fun a r' ha => ?_) q.2 r h
+    rw [hj, Target.prog] at ha
+    split at ha
+    · cases ha
+    · cases ha; rfl
+  · cases h; rfl
 
 end Silmaril.Proofs.Wasm.Abstract.NodeTrap

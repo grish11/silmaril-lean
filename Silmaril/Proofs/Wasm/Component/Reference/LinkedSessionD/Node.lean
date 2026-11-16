@@ -10,6 +10,9 @@ public import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionD.Basic
 
 * `callMoves_eq`: the import-call moves of `Reference.Sound` are those of `StratObs`;
 * `div_impSemD_sem_of`: `NodeDiv.div_core3SemD_sem` at the module's instance;
+* `lowerArgs_calls`, `div_dcoreNode_impSemD`: every wiring program of `SimpleI.lowerArgs` calls
+  the environment, so `implsN` is trap-silent and the core node has no silent chatter
+  (`NodeTrap.div_dcoreNode_core3SemD` at the module's instance);
 * `inf_spullD_of_chatter`: the importer's side of `Linked2.Chatter`, after a path of its
   instance, is an infinite play of its read-back session (`NodeDiv.instInf_of_calls`,
   `NodeDiv.mem_inf_spullD_instSession_stream`).
@@ -40,6 +43,23 @@ theorem div_impSemD_sem_of (P : Profile) {m : ImpModule} (h : ∃ I, m.IsInst I)
           Linked2.DivB P s t) ∧
         b ∈ Strategy.ofHandler (exportH (m.numInst h))} := by
   rw [impSemD_sem_of P h, Silmaril.Wasm.Abstract.NodeDiv.div_core3SemD_sem]
+  rfl
+
+theorem lowerArgs_calls (ims : Iface) :
+    ∀ im ∈ SimpleI.lowerArgs ims, ∃ r, im.target = .call r := by
+  intro im him
+  obtain ⟨k, -, rfl⟩ := List.mem_mapIdx.1 him
+  exact ⟨k, rfl⟩
+
+theorem div_dcoreNode_impSemD (P : Profile) (e : Nat) {m : ImpModule} (h : ∃ I, m.IsInst I)
+    (ims : Iface) :
+    (Node.denD (impSemD P) e (.core m (SimpleI.lowerArgs ims))).div = {p | ∃ u v, Zip u v p ∧
+      u ∈ Strategy.ofHandler (implsN e (SimpleI.lowerArgs ims) m.imports.length) ∧
+        ∃ a b, Zip a b v ∧ a ∈ ((impSemD P).sem m).div ∧
+          b ∈ Strategy.ofHandler (widenH m.exports.length)} := by
+  rw [node_impSemD P e h,
+    Silmaril.Wasm.Abstract.NodeTrap.div_dcoreNode_core3SemD P e _ _ (lowerArgs_calls ims),
+    impSemD_sem_of P h]
   rfl
 
 theorem inf_spullD_of_chatter {P : Profile} {l : Linked2} {Ie Ii : ScalarInstance}
