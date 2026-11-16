@@ -294,6 +294,21 @@ CREATE TABLE consequence_shape_roles(
   role TEXT NOT NULL,
   PRIMARY KEY(shape, pos)
 );
+CREATE TABLE consequence_matrix_cells(
+  name TEXT NOT NULL PRIMARY KEY,
+  matrix TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  variant TEXT NOT NULL,
+  reading TEXT NOT NULL,
+  reading_module TEXT NOT NULL,
+  theorems TEXT NOT NULL,
+  evidence TEXT NOT NULL,
+  strength TEXT NOT NULL,
+  note TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL
+);
 CREATE TABLE problems(
   sid TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
