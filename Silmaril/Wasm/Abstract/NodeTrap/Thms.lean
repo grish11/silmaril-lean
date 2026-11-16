@@ -29,6 +29,12 @@ and finishes only with a trap. So, for every profile `P` and with no typing hypo
   between one-shot handlers (`implsN`, `importH` below; `exportH`, `widenH` above); `importH` reads
   the IR trap `none` as `Answer.trap`, and the others keep `none`.
 
+* **The module above `implsN`** (`trapPropagating_sem_widenH`): the module's strategy seen
+  through `widenH` propagates traps too. Below it, `implsN e args` is trap-silent when every
+  wiring program in `args` calls the environment (`trapSilent_implsN`: an argument that does not
+  lift, a call out of range or a missing program answers `none`). So such a core node has no
+  silent chatter: it diverges exactly where its module does (`div_dcoreNode_core3SemD`).
+
 Hence, for a component whose first node is a Core 3.0 core node, the divergences of
 `Comp.denD (core3SemD P)` have no chatter between `maskH` and the first node
 (`div_denD_core3SemD`, from `div_denD_multi`), and a core node seen at interface sizes diverges
@@ -81,6 +87,32 @@ end Instance
 theorem trapPropagating_core3SemD (P : Profile) (e : Nat) (m : NumInstance) (args : List Impl) :
     TrapPropagating (Node.denD (core3SemD P) e (.core m args)) :=
   Silmaril.Proofs.Wasm.Abstract.NodeTrap.trapPropagating_core3SemD P e m args
+
+/-- **The module of a Core 3.0 core node, seen through `widenH`, propagates traps**: the layer
+of the node above `implsN`. -/
+theorem trapPropagating_sem_widenH (P : Profile) (m : NumInstance) :
+    TrapPropagating
+      (((core3SemD P).sem m).comp (DStrategy.ofHandler (widenH m.exports.length))) :=
+  Silmaril.Proofs.Wasm.Abstract.NodeTrap.trapPropagating_sem_widenH P m
+
+/-- **`implsN` is trap-silent when every wiring program calls the environment** (as `canon
+lower` of a component import does): it answers without a call only with the trap `none`. -/
+theorem trapSilent_implsN (e : Nat) (args : List Impl) (t : Nat)
+    (hargs : ∀ im ∈ args, ∃ r, im.target = .call r) : TrapSilent (implsN e args t) :=
+  Silmaril.Proofs.Wasm.Abstract.NodeTrap.trapSilent_implsN e args t hargs
+
+/-- **No silent chatter from `implsN` at a Core 3.0 core node** whose wiring programs all call
+the environment: the node diverges exactly where its module does, through `implsN` below and
+`widenH` above. -/
+theorem div_dcoreNode_core3SemD (P : Profile) (e : Nat) (m : NumInstance) (args : List Impl)
+    (hargs : ∀ im ∈ args, ∃ r, im.target = .call r) :
+    (Node.denD (core3SemD P) e (.core m args)).div = {p | ∃ u v, Zip u v p ∧
+      u ∈ Strategy.ofHandler (implsN e args m.imports.length) ∧ ∃ a b, Zip a b v ∧
+        a ∈ ((core3SemD P).sem m).div ∧ b ∈ Strategy.ofHandler (widenH m.exports.length)} := by
+  rw [Node.denD, div_dcoreNode]
+  ext p
+  exact or_iff_left ((trapPropagating_sem_widenH P m).not_silentChatter
+    (trapSilent_implsN e args _ hargs))
 
 /-- **No chatter at `maskH` below a Core 3.0 core node**: the environment after it has only the
 node's own divergences. -/

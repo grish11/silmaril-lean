@@ -7,7 +7,10 @@ public import Silmaril.Wasm.Abstract.InstSessionD.Thms
 public import Silmaril.Wasm.Abstract.NodeTrap.Thms
 public import Silmaril.Wasm.Component.DWiringMulti.Thms
 public import Silmaril.Games.Abstract.HostRunInf.Thms
+public import Silmaril.Wasm.Component.Reference.LinkedSessionDiv.Defs
+public import Silmaril.Wasm.Abstract.NodeDiv.Thms
 import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionD.Basic
+import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionD.Node
 
 /-!
 # Linked sessions against the divergence-aware IR denotation: theorems
@@ -27,7 +30,13 @@ every profile `P` unless stated; the IR is the divergence-aware denotation
   `NodeTrap.trapPropagating_core3SemD`);
 * hence a `SimpleI` component (the exporter `SimpleI.ofSimple l.exp` and the importer `l.imp`
   of a `Linked2`) diverges over `sigU` only by its core node's own divergence, with no chatter at
-  `maskH` (`SimpleI.div_denUD_impSemD`).
+  `maskH` (`SimpleI.div_denUD_impSemD`);
+* **no silent chatter from `implsN`** at a core node wired by `SimpleI.lowerArgs`
+  (`div_dcoreNode_impSemD`): every wiring program of `canon lower` calls the environment, so
+  `implsN` answers without a call only with a trap (`NodeTrap.trapSilent_implsN`), and the module
+  seen through `widenH` propagates traps (`NodeTrap.trapPropagating_sem_widenH`). Hence the core
+  node of a simple component diverges exactly at `DivB` states of its module's instance
+  (`SimpleI.div_coreNode_impSemD`, with `div_impSemD_sem_of`).
 
 **Finite plays of `Linked2`** (from `LinkedSessionAdeq`, `LinkedSessionEquiv`, under
 `Linked2.Adequate`): finite session adequacy (`Linked2.sessAdequacy_fullD`) and the finite
@@ -53,14 +62,29 @@ injection (`Linked2.sessEquiv_iffD`) restated on the finite plays of the diverge
   `Linked2.RefSessProd` of a typed stream of calls holds iff every finite session prefix of the
   stream is a finite play of `l.toComp.denD (impSemD (profile o))`.
 
+**The modules' own divergences** (`Silmaril.Wasm.Abstract.NodeDiv`, every profile):
+
+* `div_impSemD_sem_of`: the divergences of a module with an instance under `impSemD P` are the
+  paths of its instance from the instantiation store to a running state `(s, t)` with
+  `Linked2.DivB P s t` (host-free divergence), through `importH` and `exportH`: the coercions add
+  no chatter (`NodeDiv.div_semOfSD`). For the importer this is #730's `DivB`; for the exporter,
+  reached inside an import call of the importer, it is the divergence `DivAt` of `DivA`.
+* On the read-back session of an instance (`spullD (instSession Ii P s₀)`):
+  `Linked2.div_spullD_iff_divB` (its divergences are paths to a `DivB` state; the round's
+  prefix `DivRound.instMoves` after a path to `.idle u` is one, `Linked2.div_spullD_of_divB`)
+  and `Linked2.inf_spullD_of_chatter` (the importer's side of `Chatter`, after a path to
+  `.idle u`, is the infinite play of a productive stream of the round, `NodeDiv.stream`).
+
 **Not proved here** (the remaining targets).
 
 * `sessDivs ⊆` IR divergences and its converse: relating `Linked2.linkDiv (impSemD P) l`, after
-  the session prefix and the pending ask `(j, vs)`, to `Linked2.RoundDiv`. This needs the
-  read-back of #724 (`LinkedSessionAdeq`) for **pending** rounds (B's instance `.running`), the
-  divergence of a core node of `core3SemD` through the coercions `importH`, `spullD`,
-  `exportH` (`instFinS`'s `.div` is `Diverges`, which is #730's `DivB`), and for chatter, the
-  infinite plays of B's node within one round (`instInf`) against infinite plays of A's node.
+  the session prefix and the pending ask `(j, vs)`, to `Linked2.RoundDiv`. The node-level halves
+  are above; what remains is the read-back of #724 (`LinkedSessionAdeq`) for **pending** rounds
+  (B's instance `.running`) through the remaining wiring (the node's `implsN`/`widenH`, `maskH`
+  and `splitH`, the importer node's `implsH`, `exportsH`, `widenH 0`, `narrowH`), and for
+  chatter, the exporter's finite rounds served inside B's round (`ExpRunT`) against the
+  exporter's node. (The exclusion of `implsN`'s silent chatter below a core node is
+  `div_dcoreNode_impSemD`.)
 * The infinite plays: that the limit of the session prefixes of a productive execution is in
   `(l.toComp.denD (impSemD P)).inf` (the `inf` of a composite needs runs of each component,
   `inf_comp_eq`), and conversely that an IR infinite play is such a limit.
@@ -85,6 +109,9 @@ open Silmaril.Wasm.Numerics (Profile)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 local notation "IVal" => Silmaril.Wasm.Component.Val
+
+open Silmaril.Wasm.Abstract.InstSession (spullD instSession)
+open Silmaril.Wasm.Abstract.NodeDiv (stream prependStream)
 
 /-! ## The core semantics -/
 
@@ -144,6 +171,78 @@ theorem SimpleI.div_denUD_impSemD (P : Profile) (c : SimpleI) (h : ∃ I, c.mod.
         t ∈ Strategy.ofHandler
           (exportsH (envAfter c.imports.length [c.coreNode]) c.compExports)} :=
   Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionD.div_denUD_simpleI P c h
+
+/-- **The own divergences of a module with an instance under `impSemD P`**: a path of its
+instance from the instantiation store to a running state that diverges host-free (`DivB`),
+through the coercions `importH` and `exportH`, which add no chatter. -/
+theorem div_impSemD_sem_of (P : Profile) {m : ImpModule} (h : ∃ I, m.IsInst I) :
+    ((impSemD P).sem m).div = {p | ∃ u v, Zip u v p ∧
+      u ∈ Strategy.ofHandler (importH (m.numInst h)) ∧ ∃ a b, Zip a b v ∧
+        (∃ f s t, (m.numInst h).inst.Path P (.idle (m.numInst h).inst.store) a (.running f s t) ∧
+          Linked2.DivB P s t) ∧
+        b ∈ Strategy.ofHandler (exportH (m.numInst h))} :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionD.div_impSemD_sem_of P h
+
+/-- **No silent chatter from `implsN` at a core node of a simple component** (when its module
+has an instance): every wiring program of `SimpleI.lowerArgs` calls the environment, so `implsN`
+answers without a call only with a trap, and the module seen through `widenH` propagates traps.
+The node diverges exactly where its module does, through `implsN` and `widenH`. -/
+theorem div_dcoreNode_impSemD (P : Profile) (e : Nat) {m : ImpModule} (h : ∃ I, m.IsInst I)
+    (ims : Iface) :
+    (Node.denD (impSemD P) e (.core m (SimpleI.lowerArgs ims))).div = {p | ∃ u v, Zip u v p ∧
+      u ∈ Strategy.ofHandler (implsN e (SimpleI.lowerArgs ims) m.imports.length) ∧
+        ∃ a b, Zip a b v ∧ a ∈ ((impSemD P).sem m).div ∧
+          b ∈ Strategy.ofHandler (widenH m.exports.length)} :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionD.div_dcoreNode_impSemD P e h ims
+
+/-- **The divergences of the core node of a simple component are `DivB` states** of its
+module's instance (`div_dcoreNode_impSemD` and `div_impSemD_sem_of`): a path of the instance from
+its instantiation store to a running state that diverges host-free, seen through `importH`,
+`exportH`, `implsN` below and `widenH` above. For the importer of a `Linked2` this is the node
+side of `Linked2.DivB`; for the exporter, reached inside a call of the importer, of `DivA`. -/
+theorem SimpleI.div_coreNode_impSemD (P : Profile) (e : Nat) (c : SimpleI)
+    (h : ∃ I, c.mod.IsInst I) :
+    (Node.denD (impSemD P) e c.coreNode).div = {p | ∃ u v, Zip u v p ∧
+      u ∈ Strategy.ofHandler (implsN e (SimpleI.lowerArgs c.imports) c.mod.imports.length) ∧
+        ∃ a b, Zip a b v ∧ (∃ x y, Zip x y a ∧
+          x ∈ Strategy.ofHandler (importH (c.mod.numInst h)) ∧ ∃ a' b', Zip a' b' y ∧
+            (∃ f s t, (c.mod.numInst h).inst.Path P (.idle (c.mod.numInst h).inst.store) a'
+              (.running f s t) ∧ Linked2.DivB P s t) ∧
+            b' ∈ Strategy.ofHandler (exportH (c.mod.numInst h))) ∧
+          b ∈ Strategy.ofHandler (widenH c.mod.exports.length)} := by
+  rw [SimpleI.coreNode, div_dcoreNode_impSemD P e h, div_impSemD_sem_of P h]
+  rfl
+
+/-- **The divergences of an instance's read-back session are `DivB` states**: the paths from the
+store `s₀` to a running state `(s, t)` with `Linked2.DivB P s t`. -/
+theorem Linked2.div_spullD_iff_divB {P : Profile} {Ii : Silmaril.Wasm.Game.ScalarInstance}
+    {s₀ : Silmaril.Wasm.Execution.Core.Store Nat} {p : List (Move Ii.E Ii.F)} :
+    p ∈ (spullD (instSession Ii P s₀)).div ↔
+      ∃ f s t, Ii.Path P (.idle s₀) p (.running f s t) ∧ Linked2.DivB P s t :=
+  Silmaril.Wasm.Abstract.NodeDiv.mem_div_spullD_instSession
+
+/-- **A round of the importer diverging host-free (`DivB`) is a divergence of its session**:
+after a path of the instance from `s₀` to `.idle u`, the round's prefix `d.instMoves` to a
+`DivB` state. -/
+theorem Linked2.div_spullD_of_divB {P : Profile} {l : Linked2}
+    {Ii : Silmaril.Wasm.Game.ScalarInstance} {d : Linked2.DivRound l Ii}
+    {s₀ u s : Silmaril.Wasm.Execution.Core.Store Nat} {t : Silmaril.Wasm.SingleThreaded.Thread}
+    {p₀ : List (Move Ii.E Ii.F)} (h₀ : Ii.Path P (.idle s₀) p₀ (.idle u))
+    (hp : Ii.Path P (.idle u) d.instMoves (.running d.f s t)) (hB : Linked2.DivB P s t) :
+    p₀ ++ d.instMoves ∈ (spullD (instSession Ii P s₀)).div :=
+  Linked2.div_spullD_iff_divB.2 ⟨d.f, s, t, Silmaril.Wasm.Abstract.NodeDiv.path_append h₀ hp, hB⟩
+
+/-- **The importer's side of chatter is an infinite play of its session**: after a path of the
+instance from `s₀` to `.idle u` and the round's prefix `d.instMoves`, the import calls of
+`Linked2.Chatter` are a productive stream of the round (`d.cs`, then the calls `c`). -/
+theorem Linked2.inf_spullD_of_chatter {P : Profile} {l : Linked2}
+    {Ie Ii : Silmaril.Wasm.Game.ScalarInstance} {d : Linked2.DivRound l Ii}
+    {s₀ u s π : Silmaril.Wasm.Execution.Core.Store Nat} {t : Silmaril.Wasm.SingleThreaded.Thread}
+    {p₀ : List (Move Ii.E Ii.F)} (h₀ : Ii.Path P (.idle s₀) p₀ (.idle u))
+    (hp : Ii.Path P (.idle u) d.instMoves (.running d.f s t))
+    (hC : Linked2.Chatter P l Ie Ii d.f s t π) :
+    ∃ c, (stream p₀ d.f (prependStream d.cs c)).lim ∈ (spullD (instSession Ii P s₀)).inf :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionD.inf_spullD_of_chatter h₀ hp hC
 
 /-! ## Finite plays of linked components -/
 

@@ -290,12 +290,28 @@ The plain graph stays an over-approximation, and claims about it say so.
    - **Backward, flat case, done**: `flat_bwd` (deterministic profile `SingleThreaded.profile o`,
      any host and oracle): a region run of a checked, typed flat instruction other than a call is
      its `evalFlat` result, from HostEval's `flat_complete` (#496).
-   - **Backward, open:** the tree-level converse (`RunC` of lowered typed trees is an `EvalOX`
-     run, `ResOut`), by the structured cases (`block`, `loop` with re-entry, `if`), then calls
-     (`call`, `call_indirect`, `call_ref`, answered by `C`) and tail calls; it replaces the draft
-     #494, whose two `sorry`s are not merged. Then the CFG corollaries: machine runs from
-     `cfgEntry` against native runs of the function body, through `run_complete_initialC` and
-     `run_sound_initialC`.
+   - **Backward, trees without extended calls, done**: `bridge_bwd` (deterministic profile, no
+     host, an oracle sound for the tail-aware check that keeps typing) and `bridge_bwd_closedX`
+     (the typed closed extended oracle, no oracle hypothesis): a region run of the lowering of
+     typed trees with no `call_indirect`, `call_ref` or tail call (`CallX.xFreeL`; direct calls
+     included) is a native `EvalOX` run with the same oracle, ending as `ResOut` says. Loops are
+     by induction on their region run (`loop_aux`), re-entering at each branch back.
+   - **Backward, trees without tail calls, done**: `bridge_bwd_tailFree` and
+     `bridge_bwd_tailFree_closedX` add `call_indirect` and `call_ref` (resolved as the native
+     evaluator resolves them, answered by the same oracle entry); `bridge_bwd` is its
+     `xFreeL` case.
+   - **Backward, open:** tail calls, whose pending region outcome (`Out.tail`) is answered at the
+     frame while the native evaluator answers it at once: the statement for that outcome is
+     about every oracle answer. This replaces the remaining goal of the draft #494, whose
+     `sorry`s are not merged.
+   - **CFG corollaries, done** (`Cfg.BridgeCfg`): `machine_native` (a machine run from
+     `cfgEntry` of typed trees without tail calls to a sink is a native run with the same
+     oracle, the sink's `EndsC` and the native result related by `ResOut`) and `native_machine`
+     (a typed checked native run from the empty stack is a machine run from `cfgEntry` to a sink
+     completing its region outcome, unless that outcome is a branch out of the body; pending tail
+     calls are completed by the oracle answer `ResOut` carries), with the `closedXOk` instances
+     `machine_native_closedX`, `native_machine_closedX` (no oracle hypothesis). These are about the
+     block-CFG machine as an executable semantics; the plain graph stays an over-approximation.
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
