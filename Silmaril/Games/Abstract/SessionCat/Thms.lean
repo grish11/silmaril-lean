@@ -2,9 +2,12 @@ module
 
 public import Silmaril.Games.Abstract.SessionCat.Defs
 public import Silmaril.Games.Abstract.SessionLink.Thms
+public import Silmaril.Games.Abstract.SessionPair.Defs
+public import Silmaril.Games.Abstract.StratLegal.Defs
 import Silmaril.Proofs.Games.Abstract.SessionCat.Det
 import Silmaril.Proofs.Games.Abstract.SessionCat.Assoc
 import Silmaril.Proofs.Games.Abstract.SessionCat.Unit
+import Silmaril.Proofs.Games.Abstract.SessionCat.Legal
 
 /-!
 # Session-level category laws: theorems
@@ -36,6 +39,21 @@ deterministic returns and no plain traps.
 linking with `idS` on either side gives the same session, the unit store `PUnit` being added, and
 observationally equivalent stores. Hypotheses: `RetDet` of the other component, and `NoPlainTrap`
 of it when it is the server (`linkS t idS`) or for the equivalence of triples.
+
+**Legality** (no hypotheses beyond legality itself):
+
+* `legal_linkS`: the import logs of `linkS t u` are made of logs of the server (the client's calls
+  are hidden), so a legal server gives a legal linked triple, whatever the client;
+* `ansLegal_linkS`: the answers of `linkS t u` are the client's;
+* `logLegal_served`: when the server's answers are legal for the client's interface
+  (`AnsLegal L₁ t`), every client call it serves is legal; hence `linkS_legalPart`: linking only
+  exercises the legal part of the (saturated) client, `linkS t (legalPart L₁ (sat u)) = linkS t u`.
+  Saturation is used: a pending call of `u` after an illegal answer forces an earlier call
+  prefix with a legal log, which `legalPart L₁ u` drops with the pending call;
+* `legal_pairS`, `ansLegal_pairS`: pairing preserves both, the answers being relabelled
+  (`pairAns`);
+* `toDStratL_legalPart`: the legal play object of `StratLegal` sees only the legal part,
+  `StratLegal.toDStratL L (legalPart L t) = StratLegal.toDStratL L t`.
 -/
 
 public section
@@ -129,5 +147,51 @@ theorem obsEq_idS_linkS {u : ObsTriple (sig1 A B) S A' (B' ⊕ PUnit.{u + 1})}
   Silmaril.Proofs.Games.Abstract.SessionCat.obsEq_idS_linkS hnu hu s
 
 end Unit
+
+/-! ## Legality -/
+
+section Legal
+
+variable {L : (m : E.Op) → E.Ar m → Prop} {S S' A B A' B' : Type u}
+  {t : ObsTriple E S A (B ⊕ PUnit.{u + 1})} {u : ObsTriple (sig1 A B) S' A' (B' ⊕ PUnit.{u + 1})}
+
+/-- **Linking with a legal server is legal.** -/
+theorem legal_linkS (ht : Legal L t) : Legal L (linkS t u) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.legal_linkS ht
+
+/-- **The answers of a linked triple are the client's.** -/
+theorem ansLegal_linkS {L' : A' → B' ⊕ PUnit.{u + 1} → Prop} (hu : AnsLegal L' u) :
+    AnsLegal L' (linkS t u) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.ansLegal_linkS hu
+
+/-- **A server with legal answers serves legal calls.** -/
+theorem logLegal_served {L₁ : A → B ⊕ PUnit.{u + 1} → Prop} (ht : AnsLegal L₁ t) {s s₁ : S}
+    {rs : List (A × List (Call E) × (B ⊕ PUnit.{u + 1}))} (h : Rounds t s rs s₁) :
+    LogLegal (E := sig1 A B) L₁ (SessionLink.served rs) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.logLegal_served ht h
+
+/-- **Linking exercises only the legal part of the client**, for a server with legal answers. -/
+theorem linkS_legalPart {L₁ : A → B ⊕ PUnit.{u + 1} → Prop} (ht : AnsLegal L₁ t) :
+    linkS t (legalPart (E := sig1 A B) L₁ (sat u)) = linkS t u :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.linkS_legalPart ht
+
+/-- **The legal play object sees only the legal part.** -/
+theorem toDStratL_legalPart {A₀ B₀ : Type u} (v : ObsTriple E S A₀ B₀) :
+    StratLegal.toDStratL L (legalPart L v) = StratLegal.toDStratL L v :=
+  congrArg StratObs.toDStrat (Silmaril.Proofs.Games.Abstract.SessionCat.restrict_legalPart v)
+
+variable {S₁ S₂ A₁ A₂ B₁ B₂ : Type u} {t₁ : ObsTriple E S₁ A₁ (B₁ ⊕ PUnit.{u + 1})}
+  {t₂ : ObsTriple E S₂ A₂ (B₂ ⊕ PUnit.{u + 1})}
+
+/-- **Pairing legal triples is legal.** -/
+theorem legal_pairS (h₁ : Legal L t₁) (h₂ : Legal L t₂) : Legal L (pairS t₁ t₂) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.legal_pairS h₁ h₂
+
+/-- **Pairing triples with legal answers has legal answers.** -/
+theorem ansLegal_pairS {L₁ : A₁ → B₁ ⊕ PUnit.{u + 1} → Prop} {L₂ : A₂ → B₂ ⊕ PUnit.{u + 1} → Prop}
+    (h₁ : AnsLegal L₁ t₁) (h₂ : AnsLegal L₂ t₂) : AnsLegal (pairAns L₁ L₂) (pairS t₁ t₂) :=
+  Silmaril.Proofs.Games.Abstract.SessionCat.ansLegal_pairS h₁ h₂
+
+end Legal
 
 end Silmaril.Games.Abstract.SessionCat

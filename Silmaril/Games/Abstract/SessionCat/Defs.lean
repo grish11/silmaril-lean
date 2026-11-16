@@ -32,6 +32,7 @@ question, and it has no productive stream.
 * `AnsLegal L' t`, for `L'` a legality predicate on the session interface `sig1 A B`: every
   answer of `t` (a returned value or a continuing trap) is legal.
 
+`pairAns L₁ L₂` is the legality of the answers of a paired session (`StratSession.pairS`).
 `legalPart L t` keeps the observations of `t` whose logs are legal, on the same interface (a
 filter, where `StratLegal.restrict` transports them to the legal interface).
 
@@ -80,5 +81,12 @@ def legalPart (L : (m : E.Op) → E.Ar m → Prop) (t : ObsTriple E S A B) : Obs
   (fun s a => {x | x ∈ t.1 s a ∧ LogLegal L x.1},
     fun s a => {x | x ∈ t.2.1 s a ∧ LogLegal L x.1},
     fun s a => {ω | ω ∈ t.2.2 s a ∧ ∀ k, L (ω k).1 (ω k).2})
+
+/-- Legal answers of a paired session (`StratSession.pairS`): an answer to `.inl a₁` is the
+relabelling of an `L₁`-legal answer, and to `.inr a₂` of an `L₂`-legal one. -/
+def pairAns {A₁ A₂ B₁ B₂ : Type u} (L₁ : A₁ → B₁ ⊕ PUnit.{u + 1} → Prop)
+    (L₂ : A₂ → B₂ ⊕ PUnit.{u + 1} → Prop) : A₁ ⊕ A₂ → (B₁ ⊕ B₂) ⊕ PUnit.{u + 1} → Prop
+  | .inl a, x => ∃ y, L₁ a y ∧ x = Sum.map .inl id y
+  | .inr a, x => ∃ y, L₂ a y ∧ x = Sum.map .inr id y
 
 end Silmaril.Games.Abstract.SessionCat
