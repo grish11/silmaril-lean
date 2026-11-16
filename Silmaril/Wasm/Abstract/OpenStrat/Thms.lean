@@ -31,6 +31,11 @@ import Silmaril.Proofs.Wasm.Abstract.OpenStrat.Basic
 * `coreStratXP_eq_hostRestrict_of` (deterministic profile, the explicit backward hypotheses of
   `coreStratXP_eq_natStratXP_of`), `coreStrat_eq_hostRestrict`: the Core strategies are host
   restrictions of the open native triples.
+
+**Linking with the host** (`comp_hostD_openStratXP`): composing the open strategy with the host
+`coreHostRel host` as a strategy without imports (`StratHost.hostD`), host interaction hidden, is
+the play object of the closed triple `linkT (coreHostRel host) openTripleXP`
+(`StratHost.comp_hostD_toDStrat`).
 -/
 
 public section
@@ -175,5 +180,14 @@ theorem coreStrat_eq_hostRestrict {o : GrowOracle} {host : HostSemantics H} (hT 
     coreStrat (profile o) host InvOk =
       StratObs.toDStrat (hostRestrict (coreHostRel host) (guardT InvOk openTriple)) :=
   (coreStrat_eq_natStrat hT hH).trans (natStrat_eq_hostRestrict host _)
+
+/-! ## Linking with the host -/
+
+/-- **Linking the open native strategy with a host**: interaction with the host as a strategy,
+host calls hidden, is the closed linked triple. -/
+theorem comp_hostD_openStratXP (host : HostSemantics H) :
+    (hostD (coreHostRel host)).comp (openStratXP (H := H)) =
+      StratObs.toDStrat (linkT (coreHostRel host) openTripleXP) :=
+  comp_hostD_toDStrat _ _
 
 end Silmaril.Wasm.Abstract

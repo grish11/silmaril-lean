@@ -1,7 +1,9 @@
 module
 
 public import Silmaril.Games.Abstract.StratHost.Defs
+public import Silmaril.Games.DivComp.Defs
 import Silmaril.Proofs.Games.Abstract.StratHost.Basic
+import Silmaril.Proofs.Games.Abstract.StratHost.Link
 
 /-!
 # Restricting an open play object by a relational host: theorems
@@ -13,7 +15,21 @@ import Silmaril.Proofs.Games.Abstract.StratHost.Basic
   `hostRestrict R t` are those of `restrict R.legal t`, and its pending calls are those of
   `restrict R.legal t` at which `R` stalls.
 
-Proofs are in `Silmaril.Proofs.Games.Abstract.StratHost.Basic`.
+**Linking is interaction plus hiding** (`comp_hostD_toDStrat`):
+`(hostD R).comp (toDStrat t) = toDStrat (linkT R t)`, all three components (finite plays,
+divergence, infinite plays). Composing with the host hides every host interaction:
+
+* a completed round of the composite is a behaviour of `t` whose log `R` allows, log erased;
+* the composite diverges after a question when `t` diverges after an allowed log, when `R` may
+  diverge at a call prefix of `t` after an allowed log (`hostD` diverges), or when `t` has a
+  productive stream with every answer allowed: infinitely many hidden host interactions, the
+  chatter clause of `DStrategy.comp`. No other divergence arises: an infinite interaction with a
+  constant visible part cannot complete infinitely many rounds, so the upper limit is a stream;
+* a call prefix at which `R` has no outcome is quiescent in the composite: no move and no
+  divergence. The composite does not distinguish it from an unanswered question;
+* the infinite plays of the composite are exactly those completing infinitely many rounds.
+
+Proofs are in `Silmaril.Proofs.Games.Abstract.StratHost.Basic` and `.Link`.
 -/
 
 public section
@@ -39,5 +55,11 @@ theorem restrict_hostRestrict (R : HostRel E) (t : ObsTriple E S A B) :
       ((restrict R.legal t).1, fun s a => {x | x ∈ (restrict R.legal t).2.1 s a ∧ R.Stalls x.2},
         (restrict R.legal t).2.2) :=
   Silmaril.Proofs.Games.Abstract.StratHost.restrict_hostRestrict R t
+
+/-- **Linking is interaction plus hiding**: the play object of `t` composed with the host `R`,
+host interaction hidden, is the play object of the closed triple `linkT R t`. -/
+theorem comp_hostD_toDStrat (R : HostRel E) (t : ObsTriple E S A B) :
+    (hostD R).comp (StratObs.toDStrat t) = StratObs.toDStrat (linkT R t) :=
+  Silmaril.Proofs.Games.Abstract.StratHost.comp_hostD_toDStrat
 
 end Silmaril.Games.Abstract.StratHost
