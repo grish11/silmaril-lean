@@ -164,6 +164,46 @@ Each lift is the least system with its property (`…_le_iff`):
 | `liftAxAll L` | `a ⊢ c` for accepted `a`, every `c` | `{a | ProvesAll a}`, only if `C` is nonempty |
 | `liftCAll L` | `a ⊢ c` for every `a`, accepted `c` | `{c | a ⊢ c}` for any `a` |
 
+### Acceptor values, interpreters and encoded programs
+
+The lifts above take one language. A CSLib acceptor type `X` (`Cslib.Automata.Acceptor X α`,
+whose values accept words `List α`) is itself a system with acceptors as contexts, and so are
+the interpreters that read programs as acceptors (`Acceptor/`):
+
+| view | system | `· ⊢ w` holds iff |
+|---|---|---|
+| `System.ofAcceptor X` | `System X (List α)` | `x` accepts `w` |
+| `System.ofInterpreter interp` | `System W (List α)` | `interp m` accepts `w` |
+| `System.ofDecoder decode interp` | `System B (List α)` | `decode b = some m` and `interp m` accepts `w` |
+
+The row `{w | x ⊢ w}` of a context is its language (`ofAcceptor_row`, `ofInterpreter_row`), so
+`≤` between interpreter systems is language inclusion program by program
+(`ofInterpreter_le_iff`). `ofInterpreter interp` is `(ofAcceptor X).pullback interp id`; along
+an encoder that the decoder inverts, the bytes system restricts to the program system
+(`ofDecoder_pullback_of_roundtrip`). Bytes that do not decode prove nothing
+(`ofDecoder_of_eq_none`), the same row as a program that accepts nothing; keep an `Interp`
+when the difference matters. One acceptor as the only context is `liftCAll` of its language
+(`pullback_const_ofAcceptor`).
+
+For Wasm (Lean names relative to `Silmaril.Wasm.Game.Accept` and `Silmaril.Wasi.Accept`):
+
+| view | module | component | either shape |
+|---|---|---|---|
+| acceptor | `ofAcceptor ModuleAcceptor` | `ofAcceptor ComponentAcceptor` | `ofAcceptor ByteAcceptor` |
+| interpreter | `A.withModule` | `ComponentAcceptor.interp C L acc rej mode` | `ByteAcceptor.interp A I` |
+| program system | `A.moduleSystem` | `ComponentAcceptor.compSystem C L …` | `ByteAcceptor.programSystem A I` |
+| bytes system | `A.bytesSystem` (`Binary.Core.decode?`) | `ComponentAcceptor.binarySystem C L …` (`parseComponent`), `bytesSystem … decode` | `ByteAcceptor.bytesSystem A C L …` |
+
+A template `ModuleAcceptor` `A` is the module interpretation: profile, `accept`/`reject`
+imports, memory, address width and environments; `A.withModule m` replaces only the module.
+Component interpretations take a core semantics `C : CoreSem M` and a layout `L`. The library
+fixes no `CoreSem` for the lowered `CoreMod` of `parseComponent`, whose lowering is partial and
+unverified, so the component byte systems take `C` as a parameter. The either-shape decoder
+tries the core decoder first, then the component one. Examples:
+`Silmaril/Logic/Consequence/Acceptor/Examples.lean` (a toy acceptor) and
+`Silmaril/Wasi/Component/Accept/Consequence/Examples.lean` (the empty-module binary, the
+specification component).
+
 ## Interpretations
 
 `Interp Env Value Ax C := (e : Env) → Value → Option (System (Ax e) (C e))` reads a value, under a
@@ -231,6 +271,7 @@ Gentzen sequents.
 | `Silmaril/Logic/Consequence/Ax/{Defs,Thms}.lean` | context shapes and their maps | core |
 | `Silmaril/Logic/Consequence/Semantic/{Defs,Thms}.lean` | satisfaction, SZS, rooms, institutions | core |
 | `Silmaril/Logic/Consequence/Accept/{Defs,Thms}.lean` | acceptor lifts | core |
+| `Silmaril/Logic/Consequence/Acceptor/{Defs,Thms,Examples}.lean` | CSLib acceptors, interpreters and decoders as systems | core |
 | `Silmaril/Logic/Consequence/Signed/{Defs,Thms}.lean` | signed formulas, `negateEach`, carriers | core |
 | `Silmaril/Logic/Consequence/Multi/{Defs,Thms}.lean` | multiple conclusions, `rightExt`, `multiEntails`, rooms | core |
 | `Silmaril/Logic/Consequence/Interp/{Defs,Thms}.lean` | interpretations, projection, evidence | core |
