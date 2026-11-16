@@ -215,7 +215,7 @@ theorem splitK_eq : splitK = splitVals := by
     rw [ih, splitVals]
     cases a.val? <;> rfl
 
-theorem stepK_eq (head : HeadFn H) (d : Nat) : stepK head d = step? head := by
+theorem stepK_eq {R : Type} (head : HeadFn H R) (d : Nat) : stepK head d = step? head := by
   induction d with
   | zero => funext c; rfl
   | succ d ih =>
@@ -229,7 +229,7 @@ theorem stepK_eq (head : HeadFn H) (d : Nat) : stepK head d = step? head := by
     | (vs, []) => exact (step?_nil hs).symm
     | (vs, e :: rest) => exact (step?_cons hs).symm
 
-theorem runK_eq (head : HeadFn H) : runK head = run? head := by
+theorem runK_eq {R : Type} (head : HeadFn H R) : runK head = run? head := by
   funext n
   induction n with
   | zero => funext c; rfl
