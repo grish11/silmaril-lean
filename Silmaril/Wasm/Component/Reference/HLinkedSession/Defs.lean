@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Component.Reference.LinkedSessionIR.Defs
 public import Silmaril.Wasm.Component.Reference.LinkedSession.Defs
+public import Silmaril.Wasm.Component.Reference.LinkedSessionRef.Defs
 
 /-!
 # Linked components whose importer also has host imports: definitions
@@ -30,6 +31,15 @@ The **Shape** condition says the component imports of B are the wired ones follo
   instantiates A, aliases A's wired exports (functions `k, …, k + wire.length - 1`), and
   instantiates B with them and with the host functions (`importFid`). It then aliases B's
   exports and exports them (function `k + wire.length + i` for export `i`).
+
+## Layout and hypotheses
+
+* `HLinked2.fid l n` is the component function answering import `n` of B in the instantiated
+  `l.toRef`: `k + wire[n]` (A's lifted function `wire[n]`, after the `k` host functions) for a
+  wired import, host function `n - wire.length` otherwise. `HLinked2.exportMap` is the export
+  map of the instantiated `l.toRef` (export `i` at `k + exp.exports.length + i`).
+* `HLinked2.WireTy` is `Shape` with the typing of the wired imports (`Linked2.WireTy.ty`).
+  `HLinked2.Adequate` is `Linked2.Adequate` with `WireTy` in place of `Linked2.WireTy`.
 
 ## Specification and IR plays of sessions
 
@@ -145,6 +155,48 @@ def toRef (l : HLinked2) : Core3Component :=
     (l.imp.exports.map fun x => .alias (.export_ 1 x.name .func)) ++
     (l.imp.exports.mapIdx fun i x =>
       .export_ { name := x.name } ⟨.func, l.host.length + l.wire.length + i⟩ none)
+
+/-! ## The layout of the instantiated parent -/
+
+/-- **The component function answering import `n` of the importer** in the instantiated
+`l.toRef`: the host functions are component functions `0, …, k - 1` (`k = host.length`) and the
+exporter's lifted functions follow them, so a wired import `n` is the exporter's lifted function
+`k + wire[n]`, and the host import `n` (`n ≥ wire.length`) is host function `n - wire.length`. -/
+def fid (l : HLinked2) (n : Nat) : Silmaril.Wasm.Component.Runtime.FuncId :=
+  ⟨if n < l.wire.length then l.host.length + l.wire.getD n 0 else n - l.wire.length⟩
+
+/-- **The function exports of the instantiated `l.toRef`**: export `i` of the importer is its
+lifted function `i`, after the `k` host functions and the exporter's lifted functions. -/
+def exportMap (l : HLinked2) : List (String × Silmaril.Wasm.Component.Runtime.FuncId) :=
+  l.imp.exports.mapIdx fun i x => (x.name, ⟨l.host.length + l.exp.exports.length + i⟩)
+
+/-! ## Hypotheses -/
+
+/-- **The wiring and the host imports are well typed**: the importer's imports are the wired
+ones followed by exactly the host imports (`Shape`: names and types of the host imports are
+those of the importer's imports `wire.length, …`), and the export `wire[n]` answering the
+wired import `n` is an export of the exporter of the import's type (`Linked2.WireTy.ty`). -/
+structure WireTy (l : HLinked2) : Prop where
+  shape : l.Shape
+  ty : ∀ (k w : Nat), l.wire[k]? = some w →
+    ∃ x : SimpleExport, l.exp.exports[w]? = some x ∧
+      (l.imp.imports[k]?).map (fun p : String × FuncTy => p.2) = some x.ty
+
+/-- **The adequacy hypotheses of a linked component with host imports**: those of
+`Linked2.Adequate`, with the wiring condition `Linked2.WireTy` (one wired export per import)
+replaced by `HLinked2.WireTy` (one wired export per wired import, the remaining imports being
+the host imports). -/
+structure Adequate (l : HLinked2) : Prop where
+  expGood : l.exp.Good
+  expInst : l.exp.Inst
+  impGood : l.imp.Good
+  impInst : l.imp.Inst
+  impArity : l.imp.Arity
+  impFloatFree : l.imp.FloatFree
+  wireTy : l.WireTy
+  namesOk : l.toL2.NamesOk
+  wireNodup : l.toL2.WireNodup
+  splitOk : l.toL2.SplitOk
 
 end HLinked2
 

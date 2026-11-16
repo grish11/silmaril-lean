@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Component.Reference.HLinkedSession.Defs
 public import Silmaril.Wasm.Component.Reference.LinkedSession.Thms
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.IR
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Inst
 
 /-!
 # Linked components whose importer also has host imports: theorems
@@ -10,7 +11,7 @@ import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.IR
 **Scope.** `HLinked2` (`Defs`): the import-free exporter A answers the wired imports of the
 importer B, and B's remaining imports are host imports of the parent, passed through. This
 module is groundwork for session adequacy with host imports. It is **not** an HLinked2 adequacy
-theorem: only the specification to IR direction is proved in general.
+theorem: the instantiation and the specification to IR direction are proved in general.
 
 ## Proved
 
@@ -31,33 +32,38 @@ theorem: only the specification to IR direction is proved in general.
   to A stay hidden. Traps continue: an exporter trap inside an import call, or a trap of B
   itself, answers `none` and the session goes on from the stores reached.
   Proofs: `Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.{Games, IR}`.
-* **Relocation of the exporter's nested instantiation** (proof level only:
-  `Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.InstReloc`).
+* **Instantiation, every `HLinked2`** (`HLinked2.instantiates`, every profile, any host, under
+  `HLinked2.Adequate`). From the host functions of `l.host` (`hostConfig`, import `k` bound to
+  host function `k`), the only result of instantiating `l.toRef` is an instance with root
+  instance `0` and the export map `HLinked2.exportMap`: export `i` of the importer is component
+  function `host.length + exp.exports.length + i`. A `Linked2` is the case without host
+  imports (`Linked2.Adequate.toH`). Proof:
+  `Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.Inst`. The layout it establishes:
+  the host functions are component functions `0, …, k - 1`, the exporter's lifted functions
+  follow (`InstReloc.instantiateCall_simpleO` at `o = k`), and import `n` of the importer is
+  bound to `HLinked2.fid n` (`k + wire[n]` for a wired import, `n - wire.length` for a host
+  import). The importer's core facts in the shared store are `coreFactsL_of_inst` at the
+  lowered callees `l.fid` (`coreFactsH_of_inst`); the configuration reached is `afterLinkH`
+  (`instBehavioursH_inst`).
 
 ## Not proved (what remains)
 
 * **Reference to specification and specification to reference.** The resumable sessions of
   `l.toRef` under `answerHostS P (logG g)` (`HLinked2.sessObs`) are not related to
-  `HLinked2.SessSpec` with `HostRun g` on the host calls. The `Linked2` proofs (#705, #712) rest
-  on the instantiation of an import-free parent (`InstLink*`) and on the linked call machinery
-  (`LinkCall*`, `LinkedSessionRef`, `LinkedSessionFwd`). Both are specific to the `Linked2`
-  layout: no host functions before the parent's component functions, and only exporter
-  trampolines in the importer's core store. With host imports, the parent's component functions
-  are shifted by `host.length`, and B's store also holds `canon lower` trampolines of host
-  functions, which dispatch to `hostCalloutProg` (`CalloutRun`) instead of a nested lift.
-  Generalising that machinery over the layout is the next step. Its first relocation lemma is
-  proved at proof level: `Proofs.….HLinkedSession.InstReloc.instantiateCall_simpleO`, the
-  exporter's nested instantiation in a store that already holds `o` component functions, with
-  export `i` at function `o + i` (`instantiateCall_simple'` is `o = 0`). The next lemmas, in
-  order, are these:
-  - the parent's definitions run (`toRefL_run` with `importsDefs_runG` for the host prefix,
-    `instantiateCall_simpleO` at `o = host.length`, and `instantiateCall_simpleI'` with
-    `fid n = if n < wire.length then host.length + wire[n] else n - wire.length`);
-  - the root call with imports and the uniqueness of the instantiation (`rootCallL_run`,
-    `instBehavioursL_toRef`, from `hostConfig host`);
-  - `coreFactsL_of_inst` for that `fid`;
+  `HLinked2.SessSpec` with `HostRun g` on the host calls. The instantiation of `l.toRef` is
+  proved (`HLinked2.instantiates`, above). The `Linked2` session proofs (#705, #712) also rest
+  on the linked call machinery (`LinkCall*`, `LinkedSessionRef`, `LinkedSessionFwd`), which is
+  specific to the `Linked2` layout: no host functions before the parent's component functions,
+  and only exporter trampolines in the importer's core store. With host imports, the parent's
+  component functions are shifted by `host.length`, and B's store also holds `canon lower`
+  trampolines of host functions, which dispatch to `hostCalloutProg` (`CalloutRun`) instead of
+  a nested lift. The next lemmas, in order, are these:
   - the forward linked call with host trampolines (`LinkedSessionFwd` with
-    `CalloutRun.runs_callout` at host trampolines);
+    `CalloutRun.runs_callout` at host trampolines). Its invariants (`LStat`, `ReadyL`, `gL`)
+    assume the component functions are the exporter's then the importer's lifted functions, and
+    every trampoline of the importer lowers an exporter function: they have to be restated over
+    `afterLinkH` (the host functions first, trampolines of `l.fid`), with a host segment per
+    host call answered by `answerHostS P (logG g)`;
   - its backward counterpart (`LinkedSessionRef`).
 * **IR to specification**, the read-back of #724 with host moves visible.
 * **The general synchronous silent-host theorem**: for every `HLinked2`, an export call whose
@@ -168,6 +174,29 @@ theorem linkedH_silent_cannotBlock' :
   linkedH_silent_cannotBlock
 
 end LinkedSession
+
+/-! ## Instantiation -/
+
+/-- **A `Linked2` with adequate parts is an `HLinked2` with adequate parts** (proved). -/
+theorem Linked2.Adequate.toH {l : Linked2} (hl : l.Adequate) : l.toH.Adequate :=
+  ⟨hl.expGood, hl.expInst, hl.impGood, hl.impInst, hl.impArity, hl.impFloatFree,
+    ⟨by simp [HLinked2.Shape, Linked2.toH, hl.wireTy.length], hl.wireTy.ty⟩, hl.namesOk,
+    hl.wireNodup, hl.splitOk⟩
+
+/-- **`l.toRef` instantiates, uniquely, for adequate parts** (proved, every profile, any host):
+from the host functions of `l.host`, import `k` bound to host function `k`, there is a
+configuration `m`, the host in control in the initial host state, such that the instance at
+`m` with root instance `0` and the export map `l.exportMap` is a result of instantiating
+`l.toRef`, and the only one. -/
+theorem HLinked2.instantiates (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type} (h : Host (core3P P) σ) (h₀ : σ) :
+    ∃ m : Machine.Config (core3P P) σ, m.ctl = [] ∧ m.host = h₀ ∧
+      InstResult.instance m ⟨0⟩ l.exportMap ∈
+        instBehaviours prof h (LinkedSession.hostConfig l.host h₀) l.toRef (importArgs l.host) ∧
+      ∀ r ∈ instBehaviours prof h (LinkedSession.hostConfig l.host h₀) l.toRef
+          (importArgs l.host),
+        r = .instance m ⟨0⟩ l.exportMap :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.hlinked2_instantiates P prof hl h h₀
 
 /-! ## Specification to IR -/
 
