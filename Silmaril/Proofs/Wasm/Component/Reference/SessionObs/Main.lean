@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Component.Reference.SessionObs.Defs
+public import Silmaril.Wasm.Game.Termination.Thms
 public import Silmaril.Proofs.Wasm.Component.Reference.SessionDiv.Main
 public import Silmaril.Proofs.Wasm.Component.Reference.SessionStrat.Main
 public import Silmaril.Proofs.Wasm.Component.Reference.MultiSpec
@@ -20,7 +21,7 @@ public import Silmaril.Wasm.SingleThreaded.Determinism
   (`exists_stream`);
 * `quiet_not_terminates`: at the deterministic profiles, a call that diverges after a session
   does not also return or trap after the same session (Core termination excludes divergence,
-  `reach_normal_not_infinite`, by the shrinking argument of `Det.DStep.shrink`);
+  `Silmaril.Wasm.Game.reach_normal_not_infinite`, from the header `Wasm.Game.Termination`);
 * `sess_no_callout`: the lowered call of a session never reaches a host call redex;
 * `refSessEquivFull_iff`: at the deterministic profiles the full equivalence is `RefSessEquivD`.
 -/
@@ -61,50 +62,6 @@ theorem mapM_ofFn_some {β γ : Type} {g : β → Option γ} :
   | 0, _, _, _ => rfl
   | _ + 1, f, r, h => by
     simp [List.ofFn_succ, List.mapM_cons, h 0, mapM_ofFn_some (fun i => h i.succ)]
-
-/-- **Termination excludes divergence, abstractly** (the argument of the `Wasm.Game` adequacy
-proofs): peaks joinable in at most one step on each side, whose non-trivial sides shrink under
-`μ`, leave no infinite trace from a configuration with a counted path to a normal form. -/
-theorem nsteps_normal_not_infinite {α : Type _} {R : α → α → Prop} (μ : α → Nat)
-    (hj : ∀ {x a b : α}, R x a → R x b → Silmaril.Wasm.SingleThreaded.Det.Join R a b)
-    (hs : ∀ {x a b : α}, R x a → R x b → a = b ∨ μ a < μ x)
-    {y : α} (hy : ∀ z, ¬ R y z) :
-    ∀ (k : Nat) (x : α), Silmaril.Wasm.SingleThreaded.NSteps R k x y →
-      ¬ Silmaril.InfiniteTrace R x := by
-  intro k
-  induction k using Nat.strong_induction_on with
-  | _ k ihk =>
-  suffices h : ∀ (n : Nat) (x : α), μ x = n → Silmaril.Wasm.SingleThreaded.NSteps R k x y →
-      ¬ Silmaril.InfiniteTrace R x from fun x => h _ x rfl
-  intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ihn =>
-  intro x hn hpath hinf
-  obtain ⟨x₁, hx₁, hinf₁⟩ := hinf.unfold
-  obtain ⟨m, hm, hpath₁⟩ := Silmaril.Wasm.SingleThreaded.NSteps.of_step_join hj hy hpath hx₁
-  cases hpath with
-  | refl => exact hy _ hx₁
-  | @head _ a _ k' hxa hrest =>
-    rcases hs hx₁ hxa with heq | hlt
-    · exact ihk k' (Nat.lt_succ_self k') _ (heq ▸ hrest) hinf₁
-    · rcases Nat.lt_or_ge m (k' + 1) with hlt' | hge
-      · exact ihk m hlt' x₁ hpath₁ hinf₁
-      · have hmk : m = k' + 1 := le_antisymm hm hge
-        exact ihn (μ x₁) (by omega) x₁ rfl (hmk ▸ hpath₁) hinf₁
-
-open Silmaril.Wasm.SingleThreaded in
-/-- A host-free run reaching a normal form has no infinite continuation from its start
-(deterministic profiles). -/
-theorem reach_normal_not_infinite {o : GrowOracle}
-    {x y : Silmaril.Wasm.Execution.Core.Store Nat × Thread}
-    (run : Silmaril.Wasm.Game.Reach (profile o) x y)
-    (normal : ∀ z, ¬ Silmaril.Wasm.Game.InternalP (profile o) y z) :
-    ¬ Silmaril.InfiniteTrace (Silmaril.Wasm.Game.InternalP (profile o)) x := by
-  unfold Silmaril.Wasm.Game.Reach at run
-  rw [Silmaril.Wasm.Game.internalP_profile] at run normal ⊢
-  obtain ⟨k, hk⟩ := NSteps.of_rtg run
-  exact nsteps_normal_not_infinite tsize (fun ha hb => Internal.deterministic ha hb)
-    (fun ha hb => Internal.shrink ha hb) normal k x hk
 
 end Generic
 
@@ -340,7 +297,8 @@ theorem divAt_not_result {o : GrowOracle} {x : SimpleExport} {vs : List IVal} {s
         (lowerArgs x.ty.params vs)) (s', t'))
     (final : Silmaril.Wasm.Game.ResultAt s' t' r) : False := by
   obtain ⟨-, g, h0, hg⟩ := hd
-  exact reach_normal_not_infinite run (Silmaril.Wasm.Game.resultAt_no_internal final) ⟨g, h0, hg⟩
+  exact Silmaril.Wasm.Game.reach_normal_not_infinite run
+    (Silmaril.Wasm.Game.resultAt_no_internal final) ⟨g, h0, hg⟩
 
 theorem divAt_not_retAt {o : GrowOracle} {x : SimpleExport} {vs ws : List IVal}
     {s s' : Store Nat} (hd : DivAt (profile o) I x vs s) (h : RetAt (profile o) c I x vs s ws s') :

@@ -326,38 +326,60 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
       };
       // The clusters layout: each region laid out on its own (layered, top-down; its unconnected logics in a grid below), and the
       // regions packed in rows to the viewport's proportions. Deterministic: the same database draws the same picture.
+      // Shelf packing: place the blocks (each { coll, w, h, x1, y1 }) in rows of about `width`.
+      const pack = (blocks, width, gapX, gapY) => {
+        let x = 0, y = 0, rowH = 0;
+        for (const b of blocks) {
+          if (x > 0 && x + b.w > width) { x = 0; y += rowH + gapY; rowH = 0; }
+          b.coll.shift({ x: x - b.x1, y: y - b.y1 });
+          x += b.w + gapX; rowH = Math.max(rowH, b.h);
+        }
+      };
+      const block = (coll) => { const bb = coll.boundingBox({ includeLabels: false }); return { coll, w: bb.w, h: bb.h, x1: bb.x1, y1: bb.y1 }; };
+      // The clusters layout: within each region, every connected component laid out on its own
+      // (layered, top-down) and its unconnected logics in a grid, packed to a near-square block; then
+      // the regions packed in rows to the viewport's proportions. Deterministic: the same database
+      // draws the same picture.
       const clusters = () => {
         const groups = new Map();
         for (const n of cyi.nodes().filter((x) => !x.data("region"))) {
-          const g = n.data("parent") || n.id().split(":")[1].split(".")[0];
+          const g = n.data("parent") || "all";
           if (!groups.has(g)) groups.set(g, cyi.collection());
           groups.set(g, groups.get(g).union(n));
         }
-        const boxes = [];
-        for (const [g, ns] of [...groups].sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1))) {
+        const ratio = Math.max(0.6, (cyi.width() || 900) / (cyi.height() || 600));
+        const regions = [];
+        for (const [, ns] of [...groups].sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1))) {
           const inner = ns.edgesWith(ns).filter((e) => !e.isLoop());
-          const linked = ns.filter((n) => inner.connectedNodes().has(n));
-          const alone = ns.not(linked);
-          let y0 = 0, w = 0;
-          if (linked.length) {
-            linked.union(inner).layout({ name: "dagre", rankDir: "TB", nodeSep: 18, rankSep: 60, edgeSep: 8, animate: false, fit: false }).run();
-            const bb = linked.boundingBox();
-            linked.shift({ x: -bb.x1, y: -bb.y1 });
-            y0 = bb.h + 30; w = bb.w;
+          const blocks = [];
+          const seen = new Set();
+          const comps = [];
+          for (const n of ns) {
+            if (seen.has(n.id())) continue;
+            let comp = n.union(n), frontier = n.union(n);
+            while (frontier.length) {
+              const next = frontier.connectedEdges().intersection(inner).connectedNodes().intersection(ns).not(comp);
+              comp = comp.union(next); frontier = next;
+            }
+            comp.forEach((x) => seen.add(x.id()));
+            comps.push(comp);
           }
-          const cols = Math.max(1, Math.min(alone.length, Math.max(Math.ceil(Math.sqrt(alone.length * 1.6)), Math.floor(w / 175))));
-          alone.sort((a, b) => (a.data("label") < b.data("label") ? -1 : 1)).forEach((n, i) => n.position({ x: 80 + (i % cols) * 175, y: y0 + 20 + Math.floor(i / cols) * 52 }));
-          const bb = ns.boundingBox();
-          boxes.push({ ns, w: bb.w, h: bb.h, x1: bb.x1, y1: bb.y1 });
+          const alone = cyi.collection().union(comps.filter((c) => c.length === 1).reduce((a, c) => a.union(c), cyi.collection()));
+          for (const comp of comps.filter((c) => c.length > 1).sort((a, b) => b.length - a.length)) {
+            comp.union(inner.intersection(comp.connectedEdges())).layout({ name: "dagre", rankDir: "TB", nodeSep: 18, rankSep: 60, edgeSep: 8, animate: false, fit: false }).run();
+            blocks.push(block(comp));
+          }
+          if (alone.length) {
+            const cols = Math.max(1, Math.ceil(Math.sqrt(alone.length * 1.6)));
+            alone.sort((a, b) => (a.data("label") < b.data("label") ? -1 : 1)).forEach((n, i) => n.position({ x: (i % cols) * 175, y: Math.floor(i / cols) * 52 }));
+            blocks.push(block(alone));
+          }
+          const area = blocks.reduce((a, b) => a + (b.w + 40) * (b.h + 50), 0);
+          pack(blocks, Math.max(Math.sqrt(area * 1.4), ...blocks.map((b) => b.w)), 40, 50);
+          regions.push(block(ns));
         }
-        const area = boxes.reduce((a, b) => a + (b.w + 60) * (b.h + 70), 0), ratio = Math.max(0.6, (cyi.width() || 900) / (cyi.height() || 600));
-        const rowW = Math.max(Math.sqrt(area * ratio), ...boxes.map((b) => b.w + 60));
-        let x = 0, y = 0, rowH = 0;
-        for (const b of boxes) {
-          if (x > 0 && x + b.w > rowW) { x = 0; y += rowH + 70; rowH = 0; }
-          b.ns.shift({ x: x - b.x1, y: y - b.y1 });
-          x += b.w + 60; rowH = Math.max(rowH, b.h);
-        }
+        const area = regions.reduce((a, b) => a + (b.w + 60) * (b.h + 70), 0);
+        pack(regions, Math.max(Math.sqrt(area * ratio), ...regions.map((b) => b.w)), 60, 70);
       };
       const draw = () => {
         const showInst = state.level !== "room", showRoom = state.level !== "institution";
@@ -367,7 +389,12 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
         const fibers = state.level === "both" ? d.room.filter((r) => r.institution && ids.has("institution:" + r.institution)) : [];
         const touched = new Set([...edges.flatMap((e) => [nodeKind(e.kind) + ":" + e.src, nodeKind(e.kind) + ":" + e.dst]), ...fibers.flatMap((r) => [r.id, "institution:" + r.institution])]);
         const shownNodes = state.iso ? nodes : nodes.filter((n) => touched.has(n.id));
-        const regionOf = (n) => n.name.split(".")[0];
+        // A region is the first segment of the record name, or the first two when that region would
+        // hold more than 30 of the drawn nodes (the `logic` tree is split by topic)
+        const first = (n) => n.name.split(".")[0];
+        const sizes = new Map();
+        for (const n of shownNodes) sizes.set(first(n), (sizes.get(first(n)) || 0) + 1);
+        const regionOf = (n) => sizes.get(first(n)) > 30 ? n.name.split(".").slice(0, 2).join(".") : first(n);
         const regions = state.group ? [...new Set(shownNodes.map(regionOf))] : [];
         const els = regions.map((g) => ({ data: { id: "region:" + g, label: g, region: 1 } }))
           .concat(shownNodes.map((n) => ({ data: Object.assign({ id: n.id, label: label(n) + (n.arity ? " ⋯" : ""), kind: n.kind, fam: n.arity ? 1 : 0 },
@@ -430,10 +457,9 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
         const el = cyi.getElementById(b ? b.id : id);
         if (el.length) {
           el.select();
-          let near = el.isNode() ? el.closedNeighborhood() : el.union(el.connectedNodes());
-          near = near.union(near.parents());
-          cyi.elements().not(near).addClass("faded");
-          if (center) { cyi.fit(near, 60); if (cyi.zoom() > 1.4) cyi.zoom({ level: 1.4, position: el.isNode() ? el.position() : el.midpoint() }); }
+          const near = el.isNode() ? el.closedNeighborhood() : el.union(el.connectedNodes());
+          cyi.elements().not(near).not(near.parents()).addClass("faded");
+          if (center) { cyi.fit(near.nodes().union(near.edges()), 80); if (cyi.zoom() > 1.4) cyi.zoom({ level: 1.4, position: el.isNode() ? el.position() : el.midpoint() }); }
         }
         const e = EDGES.includes(r.kind);
         let h = `<h3>${e ? edgeSwatch(r.kind) + " " : ""}${ui.esc(r.kind)} ${rec(r.kind, r.name)}</h3>` + (r.title ? `<p><b>${ui.esc(r.title)}</b></p>` : "") +
@@ -515,9 +541,9 @@ This is the registry of this repository, not Hets's logic graph: see <a href="#/
     const d = await load(ctx);
     const { p } = params(arg);
     let h = tabs("logic-coverage", d) + `<h2>Coverage</h2>
-<p class="muted">Three separate questions, answered separately: what the registry omits from this repository's Lean declarations (the audit),
-how the registry relates to the Hets logic graph (by the relations records claim), and which logic families have Lean developments that are
-not in this repository yet. None of them says that this repository covers Hets.</p>`;
+<p class="muted">Five separate questions, answered separately: what the registry omits from this repository's Lean declarations (the audit),
+how the registry relates to the Hets logic graph (by the relations records claim), what each entry of the curated catalogue the registry was
+ported from is here, what the graph leaves out and why, and which logic families have Lean developments that are not in this repository yet. None of them says that this repository covers Hets.</p>`;
     // 1. the audit
     const cov = has("logic_coverage") ? await ctx.q("SELECT * FROM logic_coverage ORDER BY object, layer") : [];
     const scope = has("logic_audit") ? await ctx.q("SELECT DISTINCT scope, module FROM logic_audit LIMIT 10") : [];
@@ -573,7 +599,53 @@ A record relates to one by its own claim: <b>corresponds</b>, <b>fragment</b> or
       h += g2.html;
       var initHets = g2.init;
     }
-    // 3. pending families
+    // 3. the curated catalogue, entry by entry
+    h += `<h3>The curated catalogue, entry by entry</h3>`;
+    const cat = has("logic_catalogue") ? await ctx.q("SELECT * FROM logic_catalogue ORDER BY entry DESC, catalogue_id") : [];
+    if (!cat.length) h += `<p class="muted">No catalogue in this database.</p>`;
+    else {
+      const n = (e, st) => cat.filter((r) => r.entry === e && (!st || r.status === st)).length;
+      const parse = (v) => { try { const x = JSON.parse(v || "[]"); return Array.isArray(x) ? x : []; } catch (e) { return []; } };
+      h += `<p class="muted">The ${n("node")} logics and ${n("edge")} maps of the curated catalogue this registry was ported from, each with what it is here:
+<b>registered</b> (a registered record), <b>represented</b> (an instance or endpoint of registered records), <b>not institution-typed</b>
+(a logical system, proof calculus, translation of proofs, family of institutions or theorem: outside the five registry kinds) or
+<b>prospective</b> (no Lean declaration). For every entry that has evidence (all but the prospective ones), Lean checked that each evidence
+declaration exists here; for every entry, that each record it names is registered.
+An empty list of pending families does not mean every entry is a registered institution or map: the statuses below say which are.</p>
+<div class="lg-stats">${[["node", "logics"], ["edge", "maps"]].map(([e, t]) => ["registered", "represented", "not-institution-typed", "prospective"]
+  .map((st) => `<div class="lg-stat"><b>${n(e, st)} / ${n(e)}</b><span>${t}: ${st.replace(/-/g, " ")}</span></div>`).join("")).join("")}</div>`;
+      const g3 = grid("lg-catalogue", cat, [
+        { key: "entry", label: "entry" }, { key: "catalogue_id", label: "id", html: (r) => code(r.catalogue_id) },
+        { key: "title", label: "title" }, { key: "status", label: "status", html: (r) => pill(r.status) },
+        { key: "records", label: "registered records", html: (r) => parse(r.records).map((x) => { const i = x.indexOf(":"); return rec(x.slice(0, i), x.slice(i + 1)); }).join("<br>"),
+          text: (r) => parse(r.records).join(" ") },
+        { key: "evidence", label: "Lean evidence", html: (r) => parse(r.evidence).map(code).join("<br>"), text: (r) => parse(r.evidence).join(" ") },
+        { key: "reason", label: "reason", text: (r) => r.reason || "" }], { q: p.get("catalogue") || "" });
+      h += g3.html;
+      var initCat = g3.init;
+    }
+    // 4. what the graph leaves out
+    h += `<h3>What the graph leaves out</h3>`;
+    const ex = has("logic_exclusions") ? await ctx.q("SELECT * FROM logic_exclusions ORDER BY category, name") : [];
+    if (!ex.length) h += `<p class="muted">No exclusions in this database.</p>`;
+    else {
+      const parse = (v) => { try { const x = JSON.parse(v || "[]"); return Array.isArray(x) ? x : []; } catch (e) { return []; } };
+      const sum = (c) => ex.filter((r) => r.category === c).reduce((n, r) => n + r.count, 0);
+      h += `<p class="muted">Declarations of an institution-graph type that no record can hold (each with its exact reason; Lean checked that each exists
+and is not registered), modules not in this repository because they read fixtures generated by external tools, and the parts of the source
+developments outside the institution graph.</p>
+<div class="lg-stats">${[["unregistrable-declaration", "unregistrable declarations"], ["fixture-dependent", "fixture-dependent modules"], ["out-of-scope", "out-of-scope modules"]]
+  .map(([c, t]) => `<div class="lg-stat"><b>${sum(c)}</b><span>${t}</span></div>`).join("")}</div>`;
+      const g4 = grid("lg-exclusions", ex, [
+        { key: "category", label: "category" }, { key: "title", label: "what", html: (r) => r.category === "unregistrable-declaration" ? code(r.title) : ui.esc(r.title) },
+        { key: "count", label: "count", num: true }, { key: "reason", label: "reason" },
+        { key: "modules", label: "declarations or modules", html: (r) => { const l = parse(r.decls).concat(parse(r.modules));
+          return l.length > 3 ? `<details><summary>${l.length} listed</summary>${l.map(code).join("<br>")}</details>` : l.map(code).join("<br>"); },
+          text: (r) => parse(r.decls).concat(parse(r.modules)).join(" ") }]);
+      h += g4.html;
+      var initEx = g4.init;
+    }
+    // 5. pending families
     h += `<h3>Logic families not yet in this repository</h3>`;
     const pend = has("logic_pending") ? await ctx.q("SELECT * FROM logic_pending ORDER BY name") : [];
     if (!pend.length) h += `<p class="muted">None listed in this database.</p>`;
@@ -582,7 +654,7 @@ A record relates to one by its own claim: <b>corresponds</b>, <b>fragment</b> or
 Until a family lands here, nothing in it is registered, and nothing here claims it.</p>`;
       h += await ui.table(pend, ["title", "nodes", "edges", "status"], { nowrap: ["nodes", "edges", "status"] });
     }
-    return { html: h, init: () => { if (initOmitted) initOmitted(); if (initHets) initHets(); } };
+    return { html: h, init: () => { if (initOmitted) initOmitted(); if (initHets) initHets(); if (initCat) initCat(); if (initEx) initEx(); } };
   }
 
   Explorer.registerView({ id: "logic-graph", title: "Logic graph", nav: 66, render: graphView });

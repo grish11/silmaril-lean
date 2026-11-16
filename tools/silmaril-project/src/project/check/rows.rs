@@ -101,6 +101,8 @@ struct RecordRows {
     hets_logics: Vec<HetsLogic>,
     hets_comorphisms: Vec<HetsComorphism>,
     logic_pending: Vec<LogicPending>,
+    logic_catalogue: Vec<LogicCatalogue>,
+    logic_exclusions: Vec<LogicExclusion>,
     machines: Vec<Machine>,
     bindings: Vec<MachineBinding>,
     domains: Vec<LanguageDomain>,
@@ -321,6 +323,14 @@ fn record_rows(
                 ..x.clone()
             }),
             Record::HetsComorphism(x) => rows.hets_comorphisms.push(HetsComorphism {
+                origin: org,
+                ..x.clone()
+            }),
+            Record::LogicExclusion(x) => rows.logic_exclusions.push(LogicExclusion {
+                origin: org,
+                ..x.clone()
+            }),
+            Record::LogicCatalogue(x) => rows.logic_catalogue.push(LogicCatalogue {
                 origin: org,
                 ..x.clone()
             }),
@@ -606,6 +616,8 @@ pub(super) fn run(
     db.push(&recs.hets_logics);
     db.push(&recs.hets_comorphisms);
     db.push(&recs.logic_pending);
+    db.push(&recs.logic_catalogue);
+    db.push(&recs.logic_exclusions);
     db.push(&recs.machines);
     db.push(&recs.bindings);
     db.push(&recs.domains);

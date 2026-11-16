@@ -238,6 +238,17 @@ theorem value_rfc8259_of_scalarEscapes {w : List UInt8} (h : Value .scalarEscape
 theorem language_scalarEscapes_le : language .scalarEscapes ≤ language .rfc8259 :=
   Silmaril.Proofs.Formats.JsonBytes.Profile.language_le
 
+/-! ## Well-formedness of the grammar's parts (they split encodings at character boundaries) -/
+
+theorem value_isWellFormed {p : Profile} {w : List UInt8} (h : Value p w) : Utf8.IsWellFormed w :=
+  Silmaril.Proofs.Formats.JsonBytes.value_isWellFormed h
+
+theorem elements_isWellFormed {p : Profile} {w : List UInt8} (h : Elements p w) : Utf8.IsWellFormed w :=
+  Silmaril.Proofs.Formats.JsonBytes.elements_isWellFormed h
+
+theorem members_isWellFormed {p : Profile} {w : List UInt8} (h : Members p w) : Utf8.IsWellFormed w :=
+  Silmaril.Proofs.Formats.JsonBytes.members_isWellFormed h
+
 end Silmaril.Formats.JsonBytes
 
 end

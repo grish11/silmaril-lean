@@ -1,0 +1,6 @@
+module
+
+public import Silmaril.Proofs.Logic.Matching.GeneralFixedPoint.SortNaturality.ObjectRenaming
+public import Silmaril.Proofs.Logic.Matching.GeneralFixedPoint.SortNaturality.SetRenaming
+public import Silmaril.Proofs.Logic.Matching.GeneralFixedPoint.SortNaturality.SubstitutionBridges
+public import Silmaril.Proofs.Logic.Matching.GeneralFixedPoint.SortNaturality.Substitution

@@ -1,0 +1,191 @@
+module
+
+public import Silmaril.Proofs.Logic.Kore.FixedPoint.Environment
+
+@[expose] public section
+noncomputable section
+set_option backward.isDefEq.respectTransparency false
+namespace Silmaril.Proofs.Logic.Kore.FixedPoint
+open Silmaril.Logic.Kore.FixedPoint Silmaril.Logic.Kore.FixedPoint.Semantics
+variable {scope : Silmaril.Logic.Kore.Modules.Scope}
+variable (M : Silmaril.Logic.Matching.FixedPoint.Model scope.signature)
+
+/-- Accepted named syntax has the native meaning in every model and under
+arbitrary object and set valuations. No equation of meanings is assumed. -/
+theorem elaborate_sound (fuel : Nat) :
+    ∀ (sets objects : Names) (s : String) (raw : RawPattern)
+      (typed : Pattern scope sets objects s)
+      (v : ∀ i, M.carrier (context objects i))
+      (η : ∀ i, Set (M.carrier (context sets i))),
+      Checking.elaborate scope fuel sets objects s raw = some typed →
+      denote scope M fuel (interpret M sets η) (interpret M objects (fun i => {v i})) s raw =
+        some (typed.denote M v η) := by
+  induction fuel with
+  | zero => intros; contradiction
+  | succ n ih =>
+    intro sets objects s raw typed v η accepted
+    cases raw with
+    | evar name actual =>
+        simp only [Checking.elaborate] at accepted
+        split at accepted
+        · contradiction
+        · rename_i valid
+          cases found : lookup objects name with
+          | none => simp [found] at accepted
+          | some i =>
+              simp only [found, bind, Option.bind] at accepted
+              split at accepted
+              · rename_i same
+                cases same
+                cases Option.some.inj accepted
+                simp only [denote, valid, Bool.false_eq_true, ↓reduceIte, lookup_interpret, found,
+                  Option.bind, ↓reduceDIte, Silmaril.Logic.Matching.FixedPoint.Pattern.denote,
+                  Silmaril.Logic.Matching.FirstOrder.Model.denote]
+                rfl
+              · contradiction
+    | svar name actual =>
+        simp only [Checking.elaborate] at accepted
+        split at accepted
+        · contradiction
+        · rename_i valid
+          cases found : lookup sets name with
+          | none => simp [found] at accepted
+          | some i =>
+              simp only [found, bind, Option.bind] at accepted
+              split at accepted
+              · rename_i same
+                cases same
+                cases Option.some.inj accepted
+                simp only [denote, valid, Bool.false_eq_true, ↓reduceIte, lookup_interpret, found,
+                  Option.bind, ↓reduceDIte, Silmaril.Logic.Matching.FixedPoint.Pattern.denote]
+                rfl
+              · contradiction
+    | top actual =>
+        simp only [Checking.elaborate] at accepted
+        split at accepted
+        · rename_i valid
+          cases Option.some.inj accepted
+          simp only [denote, valid, ↓reduceIte, Silmaril.Logic.Matching.FixedPoint.Pattern.denote,
+            Silmaril.Logic.Matching.FirstOrder.Model.denote_top]
+          rfl
+        · contradiction
+    | bottom actual =>
+        simp only [Checking.elaborate] at accepted
+        split at accepted
+        · rename_i valid
+          cases Option.some.inj accepted
+          simp only [denote, valid, ↓reduceIte, Silmaril.Logic.Matching.FixedPoint.Pattern.denote,
+            Silmaril.Logic.Matching.FirstOrder.Model.denote_bottom]
+          rfl
+        · contradiction
+    | conj actual left right =>
+        simp only [Checking.elaborate] at accepted
+        split at accepted
+        · contradiction
+        · rename_i valid
+          obtain ⟨p, hp, rest⟩ := Option.bind_eq_some_iff.mp accepted
+          obtain ⟨q, hq, result⟩ := Option.bind_eq_some_iff.mp rest
+          cases Option.some.inj result
+          simp only [denote, valid, ↓reduceIte, ih sets objects s left p v η hp,
+            ih sets objects s right q v η hq, bind, Option.bind, Silmaril.Logic.Matching.FixedPoint.Pattern.denote]
+          rfl
+    | disj actual left right =>
+        simp only [Checking.elaborate] at accepted
+        split at accepted
+        · contradiction
+        · rename_i valid
+          obtain ⟨p, hp, rest⟩ := Option.bind_eq_some_iff.mp accepted
+          obtain ⟨q, hq, result⟩ := Option.bind_eq_some_iff.mp rest
+          cases Option.some.inj result
+          simp only [denote, valid, ↓reduceIte, ih sets objects s left p v η hp,
+            ih sets objects s right q v η hq, bind, Option.bind, Silmaril.Logic.Matching.FixedPoint.Pattern.denote]
+          rfl
+    | ex actual name b body =>
+        simp only [Checking.elaborate] at accepted
+        split at accepted
+        · contradiction
+        · rename_i valid
+          obtain ⟨p, hp, result⟩ := Option.bind_eq_some_iff.mp accepted
+          cases Option.some.inj result
+          have bodyMeaning (x : M.carrier b) :
+              denote scope M n (interpret M sets η) (⟨name, b, {x}⟩ ::
+                interpret M objects (fun i => {v i})) s body =
+                some (p.denote M (@Fin.cases objects.length (fun i => M.carrier (context ((name, b) :: objects) i)) x v) η) := by
+            simpa only [interpret, Fin.cases_zero, Fin.cases_succ] using
+              ih sets ((name, b) :: objects) s body p (@Fin.cases objects.length (fun i => M.carrier (context ((name, b) :: objects) i)) x v) η hp
+          with_unfolding_all simp only [denote, valid, Bool.false_eq_true, ↓reduceIte, bodyMeaning, Option.getD_some,
+            Silmaril.Logic.Matching.FixedPoint.Pattern.denote]
+          rfl
+    | all actual name b body =>
+        simp only [Checking.elaborate] at accepted
+        split at accepted
+        · contradiction
+        · rename_i valid
+          obtain ⟨p, hp, result⟩ := Option.bind_eq_some_iff.mp accepted
+          cases Option.some.inj result
+          have bodyMeaning (x : M.carrier b) :
+              denote scope M n (interpret M sets η) (⟨name, b, {x}⟩ ::
+                interpret M objects (fun i => {v i})) s body =
+                some (p.denote M (@Fin.cases objects.length (fun i => M.carrier (context ((name, b) :: objects) i)) x v) η) := by
+            simpa only [interpret, Fin.cases_zero, Fin.cases_succ] using
+              ih sets ((name, b) :: objects) s body p (@Fin.cases objects.length (fun i => M.carrier (context ((name, b) :: objects) i)) x v) η hp
+          with_unfolding_all simp only [denote, valid, Bool.false_eq_true, ↓reduceIte, bodyMeaning, Option.getD_some,
+            Silmaril.Logic.Matching.FixedPoint.Pattern.denote]
+          rfl
+    | mu name actual body =>
+        simp only [Checking.elaborate] at accepted
+        with_unfolding_all split at accepted
+        · contradiction
+        · rename_i valid
+          obtain ⟨p, hp, result⟩ := Option.bind_eq_some_iff.mp accepted
+          cases Option.some.inj result
+          have bodyMeaning (X : Set (M.carrier s)) :
+              denote scope M n (⟨name, s, X⟩ :: interpret M sets η)
+                (interpret M objects (fun i => {v i})) s body =
+                some (p.denote M v (@Fin.cases sets.length (fun i => Set (M.carrier (context ((name, s) :: sets) i))) X η)) := by
+            simpa only [interpret, Fin.cases_zero, Fin.cases_succ] using
+              ih ((name, s) :: sets) objects s body p v (@Fin.cases sets.length (fun i => Set (M.carrier (context ((name, s) :: sets) i))) X η) hp
+          with_unfolding_all simp only [denote, valid, Bool.false_eq_true, ↓reduceIte, bodyMeaning, Option.getD_some,
+            Silmaril.Logic.Matching.FixedPoint.Pattern.denote, OrderHom.lfp, OrderHom.comp_coe,
+            Silmaril.Logic.Matching.FixedPoint.insert, OrderHom.coe_mk]
+          rfl
+    | nu name actual body =>
+        simp only [Checking.elaborate] at accepted
+        with_unfolding_all split at accepted
+        · contradiction
+        · rename_i valid
+          obtain ⟨p, hp, result⟩ := Option.bind_eq_some_iff.mp accepted
+          cases Option.some.inj result
+          have bodyMeaning (X : Set (M.carrier s)) :
+              denote scope M n (⟨name, s, X⟩ :: interpret M sets η)
+                (interpret M objects (fun i => {v i})) s body =
+                some (p.denote M v (@Fin.cases sets.length (fun i => Set (M.carrier (context ((name, s) :: sets) i))) X η)) := by
+            simpa only [interpret, Fin.cases_zero, Fin.cases_succ] using
+              ih ((name, s) :: sets) objects s body p v (@Fin.cases sets.length (fun i => Set (M.carrier (context ((name, s) :: sets) i))) X η) hp
+          with_unfolding_all simp only [denote, valid, Bool.false_eq_true, ↓reduceIte, bodyMeaning, Option.getD_some,
+            Silmaril.Logic.Matching.FixedPoint.Pattern.denote, OrderHom.gfp, OrderHom.comp_coe,
+            Silmaril.Logic.Matching.FixedPoint.insert, OrderHom.coe_mk]
+          rfl
+    | app name args =>
+        simp only [Checking.elaborate] at accepted
+        cases found : scope.symbols.attach.find? (fun d => d.val.declaration.name == name) with
+        | none => simp [found] at accepted
+        | some d =>
+            simp only [found, bind, Option.bind] at accepted
+            split at accepted
+            · rename_i outputSort
+              split at accepted
+              · rename_i arity
+                obtain ⟨ps, hps, result⟩ := Option.bind_eq_some_iff.mp accepted
+                cases Option.some.inj result
+                have argumentMeaning (i : Fin d.val.declaration.arguments.length) :
+                    denote scope M n (interpret M sets η) (interpret M objects (fun j => {v j}))
+                      (d.val.declaration.arguments.get i) (args.get ⟨i.val, by omega⟩) =
+                      some ((ps i).denote M v η) :=
+                  ih sets objects _ _ _ v η (collect_some _ _ hps i)
+                simp only [denote, found, bind, Option.bind, outputSort, arity, ↓reduceDIte,
+                  argumentMeaning, collect_pure, Silmaril.Logic.Matching.FixedPoint.Pattern.denote]
+                rfl
+              · contradiction
+            · contradiction
+end Silmaril.Proofs.Logic.Kore.FixedPoint

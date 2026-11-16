@@ -70,7 +70,7 @@ jobs:
       # are pinned to the pushed commit (the worker's own checkout has another HEAD).
       - name: Dump, check and write the database and the page, on prove
         run: |
-          hiloop-prove run --build Silmaril --build ProjectSelfTest --build SysVTvExample \
+          hiloop-prove run --build Silmaril --build SilmarilLogicGraphData --build ProjectSelfTest --build SysVTvExample \
             --build CompilesToExamples --build wasm-pages --build elf-pages --out _site -- \
             env -u CARGO_TARGET_DIR make pages PAGES_SOURCE_REV="$GITHUB_SHA"
           ls -l _site

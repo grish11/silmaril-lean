@@ -280,6 +280,23 @@ The plain graph stays an over-approximation, and claims about it say so.
 8. **Calls**, through an explicit call interface: a call node whose callee behaviour is a
    parameter (a `FRAME` run of the callee), first for direct calls.
 
+9. **Native trees ↔ region semantics** (`Cfg.Bridge`, `Cfg.BridgeBwd`). The native evaluator
+   on folded trees (`CallX.EvalOX`, oracle `C`) against `Region.RunC` of their lowering, with the
+   same oracle; `ResOut` relates the ends (pending tail calls answered at the frame, branch and
+   return values carrying the enclosing labels' values in the region).
+   - **Forward, done** (#492): `bridge_fwd` (typed `EvalOXT`, `chkE tExt`-checked, oracle sound
+     for the tail-aware check), `bridge_fwd_closedX` (the typed closed extended oracle, no oracle
+     hypothesis).
+   - **Backward, flat case, done**: `flat_bwd` (deterministic profile `SingleThreaded.profile o`,
+     any host and oracle): a region run of a checked, typed flat instruction other than a call is
+     its `evalFlat` result, from HostEval's `flat_complete` (#496).
+   - **Backward, open:** the tree-level converse (`RunC` of lowered typed trees is an `EvalOX`
+     run, `ResOut`), by the structured cases (`block`, `loop` with re-entry, `if`), then calls
+     (`call`, `call_indirect`, `call_ref`, answered by `C`) and tail calls; it replaces the draft
+     #494, whose two `sorry`s are not merged. Then the CFG corollaries: machine runs from
+     `cfgEntry` against native runs of the function body, through `run_complete_initialC` and
+     `run_sound_initialC`.
+
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
 (`bodyIfaces_complete`).

@@ -162,6 +162,83 @@ No "components 1.0" is assumed: component features are `CMFeature` in
 | Module variants: function-only exports, then memory, globals and tables as observable state | Function-only: scalar Core 3.0 instances (`Silmaril.Wasm.Abstract.Instance`). Exported state: `Game.withCells G N V` (`get`/`got`/`set` on named cells next to `G`), `Hom.ops`, `PHom.hideCells` (`Silmaril.Games.Abstract.Cells`). Proved: `map_ops_injective`, `map_ops_le_iff` (function-only models embed), `hide_map_ops` (hiding the cells gives the function-only model back), `exists_hide_eq_ne` (exported state is strictly finer than function-only observation) | Generic layer proved. Still open: Wasm instances with exported globals, memories and tables as `withCells` machines, aliasing between exports, and mutation during calls. |
 | HTTP and TCP games; WASI reading agrees with `Servers.WasiHttp`; POSIX and container adapters | consume Servers modules | Stage 10, planned; coordinated with the Servers, UDP and CFG owners |
 
+## Canonical game object, exception-aware square, sessions and component closure
+
+This section is owned by 5fb4bf1f. The concrete component bridge (reference machine, `Comp.den`, `Linked2`, the IR) is owned by 0e76ca84. "Done" means merged on `main` after `lean / check on prove` passed on the PR's merged head. No entry uses `sorry`, new axioms, `native_decide` or `Task` obligations.
+
+### Done
+
+| Gap | Theorems (main names) | Hypotheses | PR |
+|---|---|---|---|
+| Canonical play object of a triple; injective on admissible triples | `StratObs.toDStrat`, `toDStrat_eq_iff`, `Admissible`, `toDStrat_injective_adm`, `exists_adm` | none | #562, #590 |
+| Bodies and checked code inject modulo `OpEquivP` | `BodyStrat.toDStratBody_denL_iff`, `toTriple_admissible` | none | #566, #590 |
+| Legal (typed) interfaces | `StratLegal.legalSig`, `restrict`, `toDStratL_injective`, `mem_toDStratL` | admissible triples | #616 |
+| Core = native strategies, fixed host | `coreStrat_eq_natStrat(_profile)`, `coreStratAt_eq_natStratAt(_profile)` | `profile o`; every profile needs `NativeWasmFuncs` + `HostNative` | #570, #589 |
+| Exception-aware exact-log square, **unconditional** | `hostSquareXP`, `backDivXP`, `backInfXP`, `coreStratXP_eq_natStratXP` | `HostTyped`, `NativeHostSlice`, `HostSliceE tags`, `InvOkXP tags`, `profile o` | #621, #627, #631, #647, #652 |
+| Cut audit: the canonical closure is the closure with reach | `Shape.closeR`, `close_cutMod_eq_closeR`, `wasmEvFunXP_eq_closeR` | `ReachPrefixClosed`, no closed behaviour returns a cut answer | #584, #585 |
+| Open host-independent native strategy; host restriction; linking = interaction + hiding | `openStratXP`, `openTripleXP_admissible`, `obsTriple_natXP_eq`, `comp_hostD_toDStrat`, `comp_hostD_openTripleXP` | `profile o` (Wasm instance) | #651, #677 |
+| Linking against an independent closed Core semantics | `diverges_iff_obs`, `comp_hostD_coreStrat(XP)`, `comp_hostD_natStrat(XP)` | none (Core); `profile o` (native) | #670, #677 |
+| Function-level structure on realizable strategies | `CanonStrat`, `equivAdm`; `seq_assoc`, units, whiskering, `not_interchange` (premonoidal, not monoidal), copairing; iteration laws `iter_unfold`, `iter_map`, `iter_dinat`, `iter_codiag`, `iter_uniform` (pure maps only) | none, on `CanonStrat` only | #643, #653, #671, #686, #718 |
+| Threading (store-erasing) and coherent infinite plays | `StratThread.threadT`, `thread`, `threadT_eq_iff` (up to `ObsEq`), `mem_inf_iff_of_storeDet`, `exists_infRounds`, `storeDet_of_det` | `StoreDet` (from `AFun.Det`) | #641, #644, #655, #678 |
+| **Sessions: a trap aborts the call, the store persists** | `StratSession.threadS`, `eraseTrap`, `mem_trap_ret`, `threadS_eq_iff`, `mem_pending`, `mem_div_iff`, `mem_inf_iff_of_det` | `StoreDet`, `NoPlainTrap` (equality) | #666, #681 |
+| Core sessions: determinism, coherent infinite plays, divergence | `coreSession`, `coreSessionXP`, `CoreDet.coreTripleS_det`, `coreSession_mem_inf_iff`, `coreSession_mem_div` | `HostTyped`, `Ok → StoreOk ∧ InvokeOk`, `profile o` | #666, #681, #695 |
+| **Core sessions: pending prefixes, both directions** | `coreSession_mem_pending_iff`, `coreSessionXP_mem_pending_iff`, `coreTripleS_satP_iff` | `HostTyped`, `NativeHostSlice` (`HostSliceE` for XP), typed `Ok`, `profile o` | #721 (merged as `319e2e1a`; its PR check predated current main, so it is verified post-merge by main push `lean / check on prove` on descendants `119c12f1` (run 43872546677) and `7e8a250d` (run 43887303362)) |
+| **Native session closing with trap stores at the callee (DONE)** | `HostClosingS.wasmEvFunXPS`, `wasmEvFunXPS_erase` (the old closing is its exact projection), `wasmEvFunXPS_trap_iff` (exact trap store), `wasmEvPendXPS_eq`, `eraseTrap_sessionTripleXP` | as for the square | #691, #693 |
+| **Native session = Core session (DONE)** | `natTripleSXP_eq_coreTripleSXP`, `natSessionXP_eq_coreSessionXP`, `natSessionXP_mem_inf_iff` (coherent), `natSessionXP_eq_iff` | as for the square | #695 |
+| Component linking of sessions (composition with hiding) | `SessionLink.linkS`, `comp_threadS`, `comp_threadS_of_det`, `mem_inf_linkS_iff_of_det`, `noPlainTrap_linkS` | `NoPlainTrap` (server), `StoreDet` (server, linked) or `AFun.Det` both | #706, #713 |
+| Pairing | `DStrategy.pair`, `mem_div_pair_iff`, `StratSession.pairS`, `threadS_pairS` (finite, div, inf), `det_pairS` | `NoPlainTrap` both | #713, #717 |
+| Session category laws | `RetDet`, `retDet_linkS`, `threadS_linkS_assoc`, `threadS_idS`, unit laws, `legal_linkS`, `ansLegal_linkS`, `seqS_assoc`, `frameS_seqS` | `NoPlainTrap`, `RetDet` | #727 |
+| Divergence-observing component wiring | `DStrategy.atSizes`, `ext`, `Comp.denD`, `toStrategy_denD`, `div_atSizes`, `chatter_widenH`, `div_atSizes_of_noTrap` | none | #725 |
+| Session iteration with store-retaining traps | `SessionIter.iterS`, `iterS_unfold`, `iterS_mapT`, `iterS_dinat`, `iterS_codiag`, `iterS_uniform` (pure maps), `det_iterS`, `rounds_seqS`, `rounds_iterS`, `threadS_frameS` | none | #731 |
+| Uniformity along silent, deterministic, trap-free, defined (possibly state-changing) maps | `FullFun.iter_uniform_silent`, `StratOps.iterT_uniform_silent`, `CanonStrat.iter_uniform_silent` | `SilentDetNoTrap h` | #734 |
+| Linking servers with plain traps (generic; **not needed for Wasm**, whose session triples have no plain traps: `noPlainTrap_coreTripleS`, `noPlainTrap_natTripleSXP`, `wasmEvFunXPS_noPlainTrap`; for them `linkSD = linkS`, `threadS_linkSD_of_noPlainTrap`) | `SessionLinkDead.deadS`, `linkSD`, `threadS_deadS`, `comp_threadSD`, `comp_threadSD_of_det`, `threadS_linkSD_of_noPlainTrap` | `StoreDet t`, `StoreDet (linkSD t u)` (no `NoPlainTrap`) | #735 |
+| Nondeterministic threading with coherent execution witnesses | `StratThreadW.threadW`, `threadSW`, `mem_inf_iff`, `mem_sinf_iff`, `threadW_eq_threadT_of_storeDet`, `threadW_ne_threadT` (strictly finer than the prefix limit), `threadW_eq_of_obsEq` | none | #739 |
+| Plays of threaded sequencing and iteration; `seqS` determinism; strength with iteration | `SessionIter2.det_seqS`, `frameS_iterS`, `mem_div_seqS`, `mem_div_iterS`, `mem_inf_seqS`, `mem_inf_iterS`, `mem_pending_seqS`, `mem_pending_iterS` | pending: `Total u`/`Admissible`; inf: `AFun.Det` | #741 |
+| Uniformity along finitely-branching silent maps (classification complete) | `FullFun.iter_uniform_silent_finite`, `CanonStrat.iter_uniform_silent_finite` (König's lemma) | `SilentFinNoTrap h` | #742 |
+| Exact `div`/`inf` of `atSizes`; `ext`; per-layer `Comp.denD` | `DWiringLaws.chatter_iff`, `div_atSizes_iff`, `inf_atSizes_iff`, `div_ext`, `inf_ext`, `div_denD`, `div_dcoreNode`, `div_node_inst` | none | #743 |
+| Chatter of a composite; closed-form `ext` chatter | `DStrategy.InfInteraction.chatter_iff`, `div_comp_eq`, `chatter_comp_right_iff`/`left_iff`, `chatter_extTop_iff`, `div_ext_eq` | none | #747 |
+| Pending plays of a threaded loop with a total body; iteration preserves totality | `SessionIter3.total_iterT`, `mem_satP_iterS_of_total`, `mem_pending_iterS_of_total`, `satP_iterS_subset` (no hypothesis) | `Total t` | #748 |
+| Literal associativity and units of linking; coherence | `SessionLinkAssoc.linkS_assoc` (no hypotheses), `linkS_idS`, `idS_linkS` (after `sat`/`dropTrap`), `linkS_idS_eq_iff`, `idS_linkS_eq_iff`; `SessionLinkCoh.linkS_mapStore_left/right`, `mapStore_trans`, `linkS_assoc4_two`/`three` (pentagon), `linkS_linkS_idS` (triangle) | none (bare unit forms: `NoPlainTrap`, `Saturated`) | #751, #753 |
+| `ext` chatter and infinite plays routed by `splitH`; infinite plays of any composite | `DWiringChatter2.chatter_ext_iff`, `copycat_silent_extTop`, `div_ext_eq_routed`; `DWiringChatter3.inf_comp_eq`, `inf_ext_routed`, `copycat_bounded_of_stop` | none | #756, #759 |
+| Generic pull of strategies along a move map | `Games.DPull`: `PullData`, `DStrategy.pull`, `toStrategy_pull`, `mem_div_pull`, `mem_inf_pull`, `pull_id`, `pull_comp` | `PullData f pf` | #762 |
+| Host hiding for sessions (host imports beside component imports) | `SessionHost.hostDOn`, `hostLinkS`, `pair_comp_threadS`, `pair_comp_threadS_of_det`, `pair_comp_threadS_empty` | `StoreDet (hostLinkS R t)` (no `NoPlainTrap`) | #765 |
+| Environment extension of sessions (`Comp.denU`'s `ext`) | `SessionRoute.threadS_comp_callH`, `SessionExt.extS_threadS`, `AnsPull.ofHandler_ansH_comp_pair`, `comp_ansH_comp_ansH_comp`; `ExtSessionFull.ext_threadS` (full, on `sigU`) | `NoPlainTrap`, `RetDet` | #766, #769 |
+| Wiring-induced (hidden out-of-range) divergence classified; trap propagation excludes it | `OutOfRange.wiring_divergence` (counterexample), `no_wiring_divergence`, `div_denD_eq` (outer layer, no hypothesis), `div_ext_maskH`, `div_denD_single`; `SessionTrap.TrapAbortsRound`, `threadS_trapAborting` | `TrapPropagating` | #777 |
+| Native Wasm sessions abort the round on a host trap | `ModuleTrap.close_trapAborts`; `HostTrapS.evalLXPS_trapLast`, `sessionTripleXP_trapAbortsRound`, `threadS_sessionTripleXP_trapAbortsBelow` | none | #779 |
+| Exact divergence and infinite plays of multi-node `Comp.denD` | `DWiringMulti.div_denD_nodes`, `inf_denD_nodes` (no hypothesis); `div_denD_multi` (head-node `TrapPropagating` removes the `maskH` chatter); `div_ext_sources` (`EnvDiv ∪ NodeDiv ∪ NodeChatter`) | none / head-node `TrapPropagating` | #781 |
+| Concrete `spullD` is the generic `DStrategy.pull` (owner request after #750) | `SRelabelPull.srelabel_eq_ansMove`, `pullData_srelabel` (header imports only `InstSession.Defs`, `AnsPull.Defs`); `spull_eq_pull`, `spullD_eq_pull`; generic `Strategy/DStrategy.pull_congr`, `pull_pos` | none | this PR |
+
+### Counterexamples (why a hypothesis cannot be dropped)
+
+| Statement | Counterexample | Replacement |
+|---|---|---|
+| Uniformity along effectful maps | `FullFun.not_iter_uniform_call`, `not_iter_uniform_trap` | uniformity along pure maps (`iter_uniform`) |
+| Sequencing commutes with saturation | `StratOps.not_sat_seqT` | `sat_seqT (Total u)`, `sat_seqT_of_adm` |
+| Pointwise threading converse | `StratThread.not_pointwise` | `threadT_eq_iff` up to `ObsEq` |
+| Coherent infinite threading without `StoreDet` | `StratThread.not_coherent` | trace form `mem_inf_iff`; coherence under `StoreDet` |
+| Interchange law | `not_interchange(T,D)` | premonoidal structure |
+| Uniformity along nondeterministic or undefined silent maps | `FullFun.not_iter_uniform_nondet` (infinite branching), `not_iter_uniform_undefined`; `..._needs_silent`, `..._needs_noTrap` | `iter_uniform_silent` under all four conditions |
+| `comp_threadS` without `NoPlainTrap` | `SessionLinkCex.comp_ne_linkS_plainTrap` | `comp_threadSD` (dead-server store `Option S`) |
+| `comp_threadS` without `StoreDet t` | `SessionLinkCex.comp_ne_linkS_cd` | coherent servers only |
+| `comp_threadS` without `StoreDet (linkS t u)` | `SessionLinkCex.comp_ne_linkS_bound` | `RetDet` of both components (`retDet_linkS`) |
+| Linking preserves `AFun.Det` | `SessionLinkCex.not_det_linkS_may` | `RetDet` is preserved (`retDet_linkS`) |
+| Uniformity along infinitely-branching silent maps | `FullFun.not_iter_uniform_infinite` | finite branching (`iter_uniform_silent_finite`) |
+| Prefix-limit threading is coherent | `StratThreadW.threadW_ne_threadT`, `exists_inf_not_witnessed` | witness threading `threadW`/`threadSW` |
+| Call prefixes of `iterS` without totality | `SessionIter3.not_contSatP_subset` | `Total t` (`mem_satP_iterS_of_total`) |
+| Bare unit laws of linking | `SessionLinkAssoc.linkS_trapT_idS_ne`, `idS_linkS_callDivT_ne` | `linkS_idS`/`idS_linkS` after `sat` and `dropTrap` |
+| `pair_comp_threadS` without `StoreDet (hostLinkS R t)`; `StoreDet t` as a replacement | `SessionHostCex.threadS_inf_not_subset_pair_comp`, `not_pair_comp_threadS_of_storeDet` (deterministic component, non-functional host) | `StoreDet (hostLinkS R t)`, or a functional host and `AFun.Det t.1` (`pair_comp_threadS_of_det`) |
+| Wiring creates no divergence of its own (hidden out-of-range calls answered `none` with no visible move) | `OutOfRange.wiring_divergence` (`spinS`: `σ.div = ∅`, yet `atSizes` diverges); not a Wasm trap | `TrapPropagating σ` (`no_wiring_divergence`), which native Wasm sessions satisfy (#779) |
+
+### Open (classified)
+
+| Gap | Kind | Notes |
+|---|---|---|
+| Three-way plays-level form for nested composites | not possible as stated | the interleaving of outer moves is not determined by the components' plays; the two-way forms `inf_comp_eq`, `chatter_iff` are proved |
+| n-module linking; `Linked2.compTripleS` vs `linkS (instTripleS A) (instTripleS B)` | concrete (0e76ca84), accepted on #207 | `Linked2` finite/div/inf adequacy and `compSession_inj_full` are on main (0e76ca84) |
+| Component injection for linked components with imports | concrete (0e76ca84) | #680 covers simple components without imports |
+| Nested `.inst` nodes expanded recursively in the `Comp.denD` law | optional refinement | `implsH` is not trap-silent and can add silent chatter there |
+| Bridge from the native session triple over `wasmHostSig` to a component-node session over `sigS` | concrete (0e76ca84) | `DCoreSem` is abstract; trap propagation is proved for the native triple (#779) |
+
 ## Servers seam (stage 10)
 
 The server stack is merged and owned by the Servers, UDP and CFG work. Stage 10

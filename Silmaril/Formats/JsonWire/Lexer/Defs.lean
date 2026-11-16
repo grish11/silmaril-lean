@@ -46,36 +46,41 @@ def hexes? : Nat → List Char → Option (Nat × List Char)
       pure (h * 16 ^ n + tail, rest)
   | _, [] => none
 
-/-- The closing quote is consumed. JSON5 line continuations denote no units. -/
+/-- The escape after a backslash (`\u0041`, `\n`, …): its UTF-16 code units and the input after
+it, or `none` if the dialect has no such escape. JSON5 line continuations denote no units. -/
+def escape? (dialect : Dialect) : List Char → Option (Units × List Char)
+  | 'u' :: rest => do
+      let (n, rest) ← hexes? 4 rest
+      pure ([UInt16.ofNat n], rest)
+  | 'x' :: rest =>
+      if dialect == .json5 then do
+        let (n, rest) ← hexes? 2 rest
+        pure ([UInt16.ofNat n], rest)
+      else none
+  | e :: rest =>
+    if dialect == .json5 && lineEnd e then
+      some ([], if e == '\r' then match rest with
+        | '\n' :: rest => rest | _ => rest else rest)
+    else match e with
+      | '"' => some ([34], rest) | '\\' => some ([92], rest)
+      | '/' => some ([47], rest) | 'b' => some ([8], rest)
+      | 'f' => some ([12], rest) | 'n' => some ([10], rest)
+      | 'r' => some ([13], rest) | 't' => some ([9], rest)
+      | 'v' => if dialect == .json5 then some ([11], rest) else none
+      | '0' => if dialect == .json5 && !(rest.head?.any Char.isDigit) then
+          some ([0], rest) else none
+      | _ => if dialect == .json5 && !e.isDigit then some (charUnits e, rest) else none
+  | [] => none
+
+/-- The rest of a string after its opening quote: its code units, up to and consuming the
+closing `quote`. -/
 def quoted? (dialect : Dialect) (quote : Char) : Nat → List Char → Option (Units × List Char)
   | 0, _ => none
   | _, [] => none
   | fuel + 1, c :: cs => do
     if c == quote then return ([], cs)
     if c == '\\' then
-      let (head, rest) ← match cs with
-        | 'u' :: rest => do
-            let (n, rest) ← hexes? 4 rest
-            pure ([UInt16.ofNat n], rest)
-        | 'x' :: rest =>
-            if dialect == .json5 then do
-              let (n, rest) ← hexes? 2 rest
-              pure ([UInt16.ofNat n], rest)
-            else none
-        | e :: rest =>
-          if dialect == .json5 && lineEnd e then
-            some ([], if e == '\r' then match rest with
-              | '\n' :: rest => rest | _ => rest else rest)
-          else match e with
-            | '"' => some ([34], rest) | '\\' => some ([92], rest)
-            | '/' => some ([47], rest) | 'b' => some ([8], rest)
-            | 'f' => some ([12], rest) | 'n' => some ([10], rest)
-            | 'r' => some ([13], rest) | 't' => some ([9], rest)
-            | 'v' => if dialect == .json5 then some ([11], rest) else none
-            | '0' => if dialect == .json5 && !(rest.head?.any Char.isDigit) then
-                some ([0], rest) else none
-            | _ => if dialect == .json5 && !e.isDigit then some (charUnits e, rest) else none
-        | [] => none
+      let (head, rest) ← escape? dialect cs
       let (tail, rest) ← quoted? dialect quote fuel rest
       return (head ++ tail, rest)
     -- JSON5 §5.2 explicitly admits raw U+2028 and U+2029 in strings.
@@ -115,12 +120,23 @@ def identifier? : Nat → Bool → List Char → Option (Units × List Char)
 def digitsValue (base : Nat) (cs : List Char) : Nat :=
   cs.foldl (fun n c => base * n + (hex? c).getD 0) 0
 
+/-- A leading sign: `true` for `-`, and the characters after it. -/
+def splitSign : List Char → Bool × List Char
+  | '-' :: ds => (true, ds)
+  | '+' :: ds => (false, ds)
+  | cs => (false, cs)
+
+/-- A fraction `.digits` at the front: its digits, the characters after them, and whether there
+was a decimal point. -/
+def splitFraction : List Char → List Char × List Char × Bool
+  | '.' :: rest => let (f, r) := rest.span Char.isDigit; (f, r, true)
+  | rest => ([], rest, false)
+
 def exponent? : List Char → Option Int
   | [] => some 0
   | e :: rest =>
       if e == 'e' || e == 'E' then
-        let (neg, ds) := match rest with
-          | '-' :: ds => (true, ds) | '+' :: ds => (false, ds) | _ => (false, rest)
+        let (neg, ds) := splitSign rest
         if ds.isEmpty || !(ds.all Char.isDigit) then none
         else
           let n : Int := digitsValue 10 ds
@@ -128,10 +144,7 @@ def exponent? : List Char → Option Int
       else none
 
 def decimal? (dialect : Dialect) (text : List Char) : Option Number := do
-  let (negative, cs) := match text with
-    | '-' :: cs => (true, cs)
-    | '+' :: cs => (false, cs)
-    | _ => (false, text)
+  let (negative, cs) := splitSign text
   if dialect != .json5 && text.head? == some '+' then none else do
   if dialect == .json5 && cs == "Infinity".toList then return .infinity negative
   if dialect == .json5 && cs == "NaN".toList then return .nan
@@ -142,9 +155,7 @@ def decimal? (dialect : Dialect) (text : List Char) : Option Number := do
   else do
     let (whole, rest) := cs.span Char.isDigit
     if whole.length > 1 && whole.head? == some '0' then none else do
-    let (fraction, rest, dot) := match rest with
-      | '.' :: rest => let (f, r) := rest.span Char.isDigit; (f, r, true)
-      | _ => ([], rest, false)
+    let (fraction, rest, dot) := splitFraction rest
     if whole.isEmpty && fraction.isEmpty then none else do
     if dialect != .json5 && (whole.isEmpty || (dot && fraction.isEmpty)) then none else do
     let exponent ← exponent? rest
@@ -154,44 +165,51 @@ def delimiter (d : Dialect) (c : Char) : Bool :=
   white d c || c == ',' || c == ']' || c == '}' || c == ':' ||
     c == '[' || c == '{' || (d != .rfc8259 && c == '/')
 
-/-- Tokenization retains trivia. Every successful iteration consumes a character;
+/-- One step of the lexer at the character `c` (followed by `cs`): the token read (`none` for
+trivia), its kind, and the input left. `lex` iterates it; a step that consumes nothing fails
+there. -/
+def step (dialect : Dialect) (c : Char) (cs : List Char) :
+    Option (Option Token × TokenKind × List Char) :=
+  let input := c :: cs
+  if white dialect c then some (none, .whitespace, input.dropWhile (white dialect))
+  else if dialect != .rfc8259 && input.take 2 == ['/', '/'] then
+    some (none, .comment, cs.drop 1 |>.dropWhile (fun c => !lineEnd c))
+  else if dialect != .rfc8259 && input.take 2 == ['/', '*'] then do
+    let rest ← blockComment? (input.drop 2)
+    pure (none, .comment, rest)
+  else if c == '"' || (dialect == .json5 && c == '\'') then do
+    let (s, rest) ← quoted? dialect c (input.length + 1) cs
+    pure (some (.string s), .string, rest)
+  else match c with
+    | '[' => some (some .arrayOpen, .arrayOpen, cs)
+    | ']' => some (some .arrayClose, .arrayClose, cs)
+    | '{' => some (some .objectOpen, .objectOpen, cs)
+    | '}' => some (some .objectClose, .objectClose, cs)
+    | ',' => some (some .comma, .comma, cs)
+    | ':' => some (some .colon, .colon, cs)
+    | _ =>
+      if c.isDigit || c == '-' || c == '+' || c == '.' then do
+        let (word, rest) := input.span (fun c => !delimiter dialect c)
+        let n ← decimal? dialect word
+        pure (some (.number n), .number, rest)
+      else if dialect == .json5 then do
+        let (name, rest) ← identifier? (input.length + 1) true input
+        let raw := input.take (input.length - rest.length)
+        pure (some (.identifier name (raw.all (· != '\\'))), .identifier, rest)
+      else
+        let (word, rest) := input.span (fun c => !delimiter dialect c)
+        if word == "true".toList then some (some (.bool true), .literal, rest)
+        else if word == "false".toList then some (some (.bool false), .literal, rest)
+        else if word == "null".toList then some (some .null, .literal, rest)
+        else none
+
+/-- Tokenization retains trivia. Every successful iteration (`step`) consumes a character;
 fuel is a totality guard bounded by the original character count. -/
 def lex (dialect : Dialect) : Nat → Nat → List Char → Option Lexed
   | _, _, [] => some ⟨[], []⟩
   | 0, _, _ => none
   | fuel + 1, offset, input@(c :: cs) => do
-    let (token, kind, rest) ←
-      if white dialect c then some (none, .whitespace, input.dropWhile (white dialect))
-      else if dialect != .rfc8259 && input.take 2 == ['/', '/'] then
-        some (none, .comment, cs.drop 1 |>.dropWhile (fun c => !lineEnd c))
-      else if dialect != .rfc8259 && input.take 2 == ['/', '*'] then do
-        let rest ← blockComment? (input.drop 2)
-        pure (none, .comment, rest)
-      else if c == '"' || (dialect == .json5 && c == '\'') then do
-        let (s, rest) ← quoted? dialect c (input.length + 1) cs
-        pure (some (.string s), .string, rest)
-      else match c with
-        | '[' => some (some .arrayOpen, .arrayOpen, cs)
-        | ']' => some (some .arrayClose, .arrayClose, cs)
-        | '{' => some (some .objectOpen, .objectOpen, cs)
-        | '}' => some (some .objectClose, .objectClose, cs)
-        | ',' => some (some .comma, .comma, cs)
-        | ':' => some (some .colon, .colon, cs)
-        | _ =>
-          if c.isDigit || c == '-' || c == '+' || c == '.' then do
-            let (word, rest) := input.span (fun c => !delimiter dialect c)
-            let n ← decimal? dialect word
-            pure (some (.number n), .number, rest)
-          else if dialect == .json5 then do
-            let (name, rest) ← identifier? (input.length + 1) true input
-            let raw := input.take (input.length - rest.length)
-            pure (some (.identifier name (raw.all (· != '\\'))), .identifier, rest)
-          else
-            let (word, rest) := input.span (fun c => !delimiter dialect c)
-            if word == "true".toList then some (some (.bool true), .literal, rest)
-            else if word == "false".toList then some (some (.bool false), .literal, rest)
-            else if word == "null".toList then some (some .null, .literal, rest)
-            else none
+    let (token, kind, rest) ← step dialect c cs
     let count := input.length - rest.length
     if count == 0 then none else do
     let stop := offset + width (input.take count)

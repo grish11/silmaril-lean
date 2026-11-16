@@ -70,10 +70,48 @@ use the definitions above; they do not restate them.
   them.
 - **ATProto:** `atprotoCoreExactCid` covers only no floats and signed 64-bit integers.
   `blob` structure, reserved `$` fields and Lexicon constraints are not checked.
-- **Readers:** no theorem relates these languages to `JsonWire.parse?` or any other reader, and no
-  lexer from bytes to events is proved.
+- **Readers:** `Silmaril.Formats.JsonWire.parse?_isSome_iff` proves that the RFC 8259 reader
+  `JsonWire.parse?` accepts exactly `JsonBytes.language .rfc8259`. Its stages are proved against
+  declarative grammars in `Silmaril.Formats.JsonWire.Grammar.Thms`, see "Proving a reader against
+  a byte grammar" below. No other reader is related to these languages, and no lexer from bytes to
+  events is proved.
 - **Acceptors:** the JSON, JSON Lines and CBOR acceptors buffer their input; only
   `utf8Acceptor` is incremental.
+
+## Proving a reader against a byte grammar
+
+The proof that `JsonWire.parse?` accepts exactly the JSON texts is split by the reader's stages,
+and each layer is a reusable API:
+
+1. **UTF-8** (`Silmaril.Formats.Utf8.Thms`). `encode cs` is the UTF-8 encoding of characters.
+   `String.fromUTF8?` inverts it (`fromUTF8?_eq_some`, `fromUTF8?_encode`), and it is injective
+   (`encode_injective`), so splitting an encoding into well-formed parts splits the characters
+   (`encode_eq_append`). The transport lemmas turn a byte regular expression on an encoding into
+   a condition on the characters: `encode_mem_mul`, `encode_mem_star`, `encode_mem_add`,
+   `encode_mem_char`, `encode_mem_byteRange`, `encode_mem_anyOf` and `encode_mem_multibyte`.
+   Their side conditions are `Good` expressions, whose words are all well-formed UTF-8
+   (`good_mul`, `good_star`, …).
+2. **Lexemes** (`Silmaril.Formats.JsonWire.Grammar.Thms`). Each lexing function is proved sound
+   and complete against a character condition: `quoted?` against `StrBody` and `decimal?` against
+   `NumberChars`, and the conditions are the byte expressions read through UTF-8 (`mem_string`,
+   `mem_number`).
+3. **Lexer.** `lex` runs a per-character `step` (`Internal.step`). `tokensOf_cons` is one step,
+   and the fuel only needs to cover the characters (`lex_tokens_eq`). Soundness says the tokens
+   read are whitespace and lexemes (`Lexes`, `lexes_of_tokensOf`). Completeness goes one lexeme at
+   a time: a lexeme followed by a delimiter is read as its token (`tokensOf_number`,
+   `tokensOf_string`, …).
+4. **Parser.** `TValue` is the RFC 8259 value grammar over tokens, written to mirror the
+   recursive-descent procedures. `value?` reads all of a token list exactly when it is a `TValue`,
+   with one fuel per token (`value?_eq_some_nil_iff`).
+5. **Grammar.** One induction over the byte grammar's derivations shows the reader reads every
+   text (completeness). One induction over `TValue` shows that whatever it reads is a text
+   (soundness).
+
+A new reader can reuse layers 1 and 4 unchanged, and needs a `step`, lexeme lemmas and the two
+inductions of layer 5. Behaviour-preserving refactors make the reader easier to prove: the
+lexer's step, escapes (`escape?`), signs (`splitSign`) and fractions (`splitFraction`) became
+named functions, so each case of a proof is a small lemma instead of a `match` over character
+literals.
 
 ## Checking
 

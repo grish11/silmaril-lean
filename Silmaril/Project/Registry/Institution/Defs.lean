@@ -18,6 +18,7 @@ the graph of the declarations.
 | `comorphism N := f` | `f : Inst.CoHom A B` with `A`, `B` registered institutions | `from`, `to`, `type`, `levels`, `doc` |
 | `morphism N := f` | `f : Inst.Hom A B` with `A`, `B` registered institutions | `from`, `to`, `type`, `levels`, `doc` |
 | `corridor N := c` | `c : Silmaril.Logic.Institution.Corridor R₁ R₂` with `R₁`, `R₂` registered rooms | `from`, `to`, `type`, `levels`, `doc` |
+| `institution`, `room` | not defined exactly as an already registered one (one node per institution or room) | |
 | any of the five | not a generic construction: no binder ranges over institutions, rooms or maps (`genericBinderHeads`) | |
 | `logic_audit (prefix := P)` | — | one record per declaration under `P` whose type is one of the five |
 
@@ -36,7 +37,8 @@ The difference is the direction of the rest:
 registered node whose declaration is the endpoint of the type up to reducible unfolding (with
 fresh universe levels). An endpoint that is not registered is an error, and so is one that
 is an instance of two registered nodes, unless one of them is the endpoint's own head constant
-(a family defined as an instance of another).  A given endpoint is checked at default transparency.
+(a family defined as an instance of another), or else the one whose own definition is the
+endpoint up to reducible unfolding (not an alias of it).  A given endpoint is checked at default transparency.
 
 **Facts.** `(facts := [p, …])` lists theorems about the edge. Lean checks that each states a
 known property *of this declaration* and records it with the theorem's axioms:
@@ -159,6 +161,22 @@ def resolveEndpoint (kind side ofKind : String) (e : Expr) (given? : Option Stri
       let own := ms.filter fun (n, _) =>
         ((findRecord? env ofKind n).bind (·.str? "decl")).map String.toName == head
       if own.size == 1 then ms := own
+    -- aliases (`def B := A`) match too: prefer the declaration whose own definition is the
+    -- endpoint up to reducible unfolding
+    if ms.size > 1 then
+      let env ← getEnv
+      let mut direct := #[]
+      for m in ms do
+        let some d := (findRecord? env ofKind m.1).bind (·.str? "decl") | continue
+        let some info := env.find? d.toName | continue
+        let some v := info.value? | continue
+        let ok ← withoutModifyingState do
+          let lvls ← info.levelParams.mapM fun _ => mkFreshLevelMVar
+          let v := v.instantiateLevelParams info.levelParams lvls
+          let (_, _, body) ← lambdaMetaTelescope v
+          withTransparency .reducible (isDefEq e body)
+        if ok then direct := direct.push m
+      if direct.size == 1 then ms := direct
     match ms.toList with
     | [m] => return m
     | [] => throwError "silmaril {kind}: the {side} endpoint{indentExpr e}\nis not a registered \
@@ -262,6 +280,18 @@ def logicRecord (kind : String) (name? : Option String) (fs : Fields) :
   if info matches .thmInfo _ then
     throwError "silmaril {kind}: {d} is a theorem; register the definition"
   let given (k : String) := match fs.get? k with | some (.str s) => some s | _ => none
+  -- one node per institution or room: a definition identical to a registered one's is a duplicate
+  if kind == "institution" || kind == "room" then
+    if let some v := info.value? then
+      for r in records (← getEnv) do
+        unless r.kind == kind do continue
+        let some d' := r.str? "decl" | continue
+        let some i' := (← getEnv).find? d'.toName | continue
+        let some v' := i'.value? | continue
+        if i'.levelParams.length == info.levelParams.length &&
+            v' == v.instantiateLevelParams info.levelParams (i'.levelParams.map Level.param) then
+          throwError "silmaril {kind}: {d} is defined exactly as {d'}, registered as {kind} {r.name}: \
+            the same {kind} is registered once"
   let filled ← logicTelescope d fun xs ty => do
     unless ty.isAppOf head do
       throwError "silmaril {kind}: {d} has type{indentExpr info.type}\nbut a {kind} is a `{head}` \
@@ -354,13 +384,15 @@ def moduleLayer (m : Name) : String :=
       if info matches .inductInfo _ then continue
       if isAuxRecursor env n || isNoConfusion env n then continue
       let some m := env.getModuleIdxFor? n | continue
-      let r? ← try
+      -- deep types (large inductive signatures) get a higher recursion limit; a type that still
+      -- cannot be unfolded is not classified (not a node or an edge of a known kind)
+      let r? ← tryCatchRuntimeEx (withTheReader Core.Context (fun c => { c with maxRecDepth := 8192 }) <|
           forallTelescopeReducing info.type fun xs body => do
             let body ← whnfR body
             let some k := body.getAppFn.constName?.bind logicKindOf? | return none
             let g ← xs.anyM fun x => do genericBinder (← inferType x)
-            return some (k, xs.size, g)
-        catch _ => pure none
+            return some (k, xs.size, g))
+        fun _ => pure none
       if let some (k, arity, g) := r? then
         found := found.push (n, k, arity, g, env.header.moduleNames[m.toNat]!)
     found := found.qsort fun a b => a.1.toString < b.1.toString
@@ -387,5 +419,64 @@ def moduleLayer (m : Name) : String :=
         f ← f.push kind "registered" (.str rn)
       out := out.push (nm, f)
     return out
+
+/-! ## The curated catalogue
+
+`silmaril logic_catalogue N (catalogue_id := …) (entry := node | edge) (status := …)
+(records := ["kind:name", …]) (evidence := [decl, …]) (reason := …)` records what one entry of
+the curated catalogue the logic-graph port started from is in this repository. Lean checks that
+every evidence declaration exists (the entry's Lean code is here) and that every record it names
+is registered; `sil project check` checks the status against the records and the reason. -/
+
+/-- The statuses of a catalogue entry. -/
+def catalogueStatuses : List String :=
+  ["registered", "represented", "not-institution-typed", "prospective"]
+
+@[silmaril_kind logic_catalogue] def logicCatalogueHandler : Handler where
+  run? := some fun kind name? fs => liftTermElabM do
+    let name ← needName kind name?
+    let env ← getEnv
+    let some (.str status) := fs.get? "status" | throwError "silmaril {kind}: `status` is required"
+    unless catalogueStatuses.contains status do
+      throwError "silmaril {kind}: status {status.quote} is not one of {catalogueStatuses}"
+    if let some (.arr es) := fs.get? "evidence" then
+      for e in es do
+        let .str d := e | throwError "silmaril {kind}: `evidence` is a list of declarations"
+        unless env.contains d.toName do
+          throwError "silmaril {kind}: evidence {d} is not a declaration of the environment"
+    if let some (.arr rs) := fs.get? "records" then
+      for r in rs do
+        let .str s := r | throwError "silmaril {kind}: `records` is a list of `kind:name`"
+        match s.splitOn ":" with
+        | [k, n] =>
+          unless (logicKindHead k).isSome do throwError "silmaril {kind}: {k} is not a logic-graph kind"
+          unless (findRecord? env k n).isSome do throwError "silmaril {kind}: no {k} {n} is registered"
+        | _ => throwError "silmaril {kind}: record {s.quote} is not `kind:name`"
+    return #[(name, fs)]
+
+/-- The categories of what the logic graph leaves out. -/
+def exclusionCategories : List String :=
+  ["unregistrable-declaration", "fixture-dependent", "out-of-scope"]
+
+/-- `silmaril logic_exclusion N (category := …) (decls := […]) (modules := […]) (count := n)
+(reason := …)`: something the logic graph leaves out, and why. Lean checks that every listed
+declaration exists and that no record registers it. -/
+@[silmaril_kind logic_exclusion] def logicExclusionHandler : Handler where
+  run? := some fun kind name? fs => liftTermElabM do
+    let name ← needName kind name?
+    let env ← getEnv
+    let some (.str c) := fs.get? "category" | throwError "silmaril {kind}: `category` is required"
+    unless exclusionCategories.contains c do
+      throwError "silmaril {kind}: category {c.quote} is not one of {exclusionCategories}"
+    if let some (.arr ds) := fs.get? "decls" then
+      let registered := (records env).filterMap fun r =>
+        if (logicKindHead r.kind).isSome then r.str? "decl" else none
+      for d in ds do
+        let .str s := d | throwError "silmaril {kind}: `decls` is a list of declarations"
+        unless env.contains s.toName do
+          throwError "silmaril {kind}: {s} is not a declaration of the environment"
+        if registered.contains s then
+          throwError "silmaril {kind}: {s} is registered, so it is not excluded"
+    return #[(name, fs)]
 
 end Silmaril.Project
