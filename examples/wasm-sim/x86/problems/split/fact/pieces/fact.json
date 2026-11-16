@@ -1,0 +1,44 @@
+{
+  "address": "0x4000b3",
+  "bytes": "534889fbb8010000004883ff01760d488d7fffe8e8ffffff480fafc35bc3",
+  "function": "fact",
+  "id": "wasm-sim/x86/fact/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "ea",
+        "get",
+        "i_alu_ri",
+        "i_call",
+        "i_imul_rr",
+        "i_jmp",
+        "i_lea",
+        "i_mov_ri",
+        "i_mov_rr",
+        "i_next",
+        "i_pop_r",
+        "i_push_r",
+        "i_ret"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../fact.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= (reg rax) (fact (old (reg rdi))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) (bvule (old (reg rdi)) #x0000000000000014))"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `fact` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

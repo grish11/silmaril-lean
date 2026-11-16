@@ -1,0 +1,39 @@
+{
+  "address": "0x400090",
+  "bytes": "4883ee014885f67e2231c00f1f4400000fb614070fb60c37880c074883c0018814374883ee014839f07ce5c3",
+  "function": "reverse",
+  "id": "wasm-sim/x86/reverse/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "ea",
+        "i_alu_ri",
+        "i_alu_rr",
+        "i_jmp",
+        "i_movx_rm",
+        "i_next",
+        "i_ret",
+        "i_store"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../reverse.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(forall ((i (_ BitVec 64))) (=> (bvult i (old (reg rsi))) (= (mem8 (bvadd (old (reg rdi)) i)) (old (mem8 (bvsub (bvadd (old (reg rdi)) (old (reg rsi))) (bvadd i #x0000000000000001)))))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) (and (bvsge (old (reg rsi)) #x0000000000000000) (inbuf (old (reg rdi)) (old (reg rsi)) (old (reg rsp)))))"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `reverse` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

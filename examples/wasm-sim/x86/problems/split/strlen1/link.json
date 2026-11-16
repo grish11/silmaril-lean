@@ -1,0 +1,13 @@
+{
+  "env": [
+    "mem.load8..64/store8..64",
+    "sys.syscall",
+    "nd.undef"
+  ],
+  "order": [
+    "strlen1"
+  ],
+  "root": "strlen1",
+  "schema": "silmaril.wasm-sim.link.v0",
+  "sim": "../sim.wat"
+}
