@@ -167,7 +167,7 @@ theorem viewEnd_injective {B : Type} (hπ : Function.Injective π) :
   · simp only [viewEnd, End.ret.injEq, Prod.mk.injEq] at h
     obtain ⟨⟨rfl, h₁⟩, -⟩ := h
     rw [hπ h₁]
-  all_goals first | rfl | (simp [viewEnd] at h; done)
+  all_goals first | rfl | simp [viewEnd] at h
 
 theorem viewTriple_injective (hπ : Function.Injective π) :
     Function.Injective (viewTriple (H := H) π) := by
