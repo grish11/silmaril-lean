@@ -324,6 +324,31 @@ Int`, `CNF := List (List Int)`, `Dimacs.read`, `LRAT.check`):
   (not that it is necessary for every formula). `Examples.src_unsat`: the four clauses over
   `x, y` encode to `LRAT.fourClauses`, whose existing proof is checked by `decide`.
 
+### Word carriers: `list<list<s32>>` and zero-terminated `list<s32>`
+
+`Silmaril/Logic/SAT/Carrier/{Defs,Thms,Examples}` reads the two WIT problem carriers of the
+certificate-checking acceptors into the existing `SAT.CNF` (no new CNF formalism):
+
+* a word is a WIT `s32` (`BitVec 32`, two's complement); a literal word is neither `0` nor
+  `Int32.MIN` (`litWord_iff`: exactly the literals `l ≠ 0`, `|l| < 2³¹`);
+* `decodeNested` (one inner list per clause; a `0` or `Int32.MIN` anywhere is malformed) and
+  `decodeStream` (the existing `Dimacs.cnf` of the signed words; `Int32.MIN` or an unterminated
+  last clause is malformed). Malformed input is `none`, never the empty formula; `[]`, `[[]]`,
+  the empty stream and `[0]` are distinct (`Examples`);
+* lossless on in-range formulas (`decodeNested_encode`, `encodeNested_of_decode`,
+  `decodeStream_encode`, `encodeStream_of_decode`), and related to each other through
+  `flatten` (`decodeStream_flatten`, `unsatNested_iff_stream`, …);
+* languages `UnsatNested`, `SatNested`, `UnsatStream`, `SatStream`, related to `CnfUnsat litSat`
+  and `lratAccepts` above (`unsatNested_iff_cnfUnsat`, `lratNested_lratAccepts`);
+* acceptors `check(problem, certificate) → Bool` with `Accepts chk = {p | ∃ c, chk p c}`, sound
+  by existential projection: `lratNested_sound`, `lratStream_sound` (a flat LRAT certificate
+  stream with RUP, deletion and RAT steps, decoded losslessly on representable steps:
+  `LratStream.decode_encode`, `LratStream.encode_decode`) and `satNested_sound`,
+  `satStream_sound` (an explicit, consistent model witness, `eval_of_modelOk`; never a negated
+  UNSAT answer). No completeness or decision procedure is claimed.
+
+These are the Lean specifications; they are not compiled components.
+
 ## Institutions, logics and their propositions
 
 `roomSys` (`Set Sen ⊢ Sen`) and `roomMulti` (`Sen* ⊢ Sen*`) already read a room as a system.
@@ -471,6 +496,7 @@ Gentzen sequents.
 | `Silmaril/Logic/Consequence/Interp/{Defs,Thms}.lean` | interpretations, projection, evidence | core |
 | `Silmaril/Logic/Consequence/Shape/{Defs,Thms}.lean` | acceptor/rejector shapes, slices, checker predicates | core |
 | `Silmaril/Logic/Consequence/Gentzen/Clausal/{Defs,Thms,Examples}.lean`, `…/Clausal/Dimacs/…` | UNSAT, TAUTO, CNF and Gentzen acceptors, closure laws, equivalences; DIMACS image and LRAT bridge | structural derivations |
+| `Silmaril/Logic/SAT/Carrier/{Defs,Thms,Examples}.lean` | `s32` word carriers of CNF (nested, zero-terminated), their UNSAT/SAT languages, LRAT and model certificate checkers | core |
 | `Silmaril/Logic/Consequence/Examples.lean` | worked examples | core |
 | `Silmaril/Logic/Consequence/Structural/…` | structural rules and derivation closures | structural derivations |
 | Wasm acceptor and SZS protocol modules | Wasm evidence for the lifts | Wasm/SZS protocols |
