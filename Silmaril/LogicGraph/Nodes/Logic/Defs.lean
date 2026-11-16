@@ -51,9 +51,27 @@ public import Silmaril.Logic.Egg.Core.Defs
 public import Silmaril.Logic.Egg.Source.Named.Family.Defs
 public import Silmaril.Logic.Egg.Source.Named.Supplied.Institution.Defs
 public import Silmaril.Logic.Egglog.Core.Defs
+public import Silmaril.Logic.Egglog.Core.Derivation
+public import Silmaril.Logic.Egglog.Core.Egg.Defs
+public import Silmaril.Logic.Egglog.Core.Examples.Defs
 public import Silmaril.Logic.Egglog.Core.FirstOrder
 public import Silmaril.Logic.Egglog.Core.Graph.Defs
+public import Silmaril.Logic.Egglog.Core.Graph.Examples.Defs
+public import Silmaril.Logic.Egglog.Core.Graph.Examples.Thms
+public import Silmaril.Logic.Egglog.Core.Graph.Functional.Defs
+public import Silmaril.Logic.Egglog.Core.Graph.Functional.Examples
+public import Silmaril.Logic.Egglog.Core.Graph.Functional.Hets
+public import Silmaril.Logic.Egglog.Core.Graph.Functional.Thms
+public import Silmaril.Logic.Egglog.Core.Graph.Hets
+public import Silmaril.Logic.Egglog.Core.Graph.Thms
+public import Silmaril.Logic.Egglog.Core.Positive.Defs
+public import Silmaril.Logic.Egglog.Core.Positive.Thms
+public import Silmaril.Logic.Egglog.Core.Prolog
+public import Silmaril.Logic.Egglog.Core.Thms
+public import Silmaril.Logic.Egglog.Merge.Institution.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Family.Defs
+public import Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.Defs
+public import Silmaril.Logic.Egglog.Source.Named.Supplied.Institution.Defs
 public import Silmaril.Logic.FirstOrder.FiniteLists.Defs
 public import Silmaril.Logic.FirstOrder.FiniteLists.Thms
 public import Silmaril.Logic.FirstOrderLFP.Boolean.Thms
@@ -95,6 +113,10 @@ public import Silmaril.Logic.Modal.Thms
 public import Silmaril.Logic.ModalMu.Thms
 public import Silmaril.Logic.PDL.Thms
 public import Silmaril.Logic.Prolog.Definite.Defs
+public import Silmaril.Logic.Prolog.Horn.Defs
+public import Silmaril.Logic.Prolog.Source.Accepted.Defs
+public import Silmaril.Logic.Prolog.Source.Family.Defs
+public import Silmaril.Logic.Prolog.Source.Native.Defs
 public import Silmaril.Logic.Reachability.Thms
 public import Silmaril.Logic.Rewriting.Reachability.Thms
 public import Silmaril.Logic.Rewriting.Thms
@@ -165,9 +187,14 @@ silmaril institution logic.common_logic.source.presentations.packaged.inst := Si
 silmaril institution logic.egg.core.inst := Silmaril.Logic.Egg.Core.inst
 silmaril institution logic.egg.source.named.families.inst := Silmaril.Logic.Egg.Source.Named.Families.inst
 silmaril institution logic.egg.source.named.supplied.direct.inst := Silmaril.Logic.Egg.Source.Named.Supplied.Direct.inst
+silmaril institution logic.egglog.core.graph.functional.inst := Silmaril.Logic.Egglog.Core.Graph.Functional.inst
+silmaril institution logic.egglog.core.graph.functional.public_inst := Silmaril.Logic.Egglog.Core.Graph.Functional.publicInst
 silmaril institution logic.egglog.core.graph.inst := Silmaril.Logic.Egglog.Core.Graph.inst
 silmaril institution logic.egglog.core.inst := Silmaril.Logic.Egglog.Core.inst
+silmaril institution logic.egglog.merge.institution.inst := Silmaril.Logic.Egglog.Merge.Institution.inst
 silmaril institution logic.egglog.source.named.families.inst := Silmaril.Logic.Egglog.Source.Named.Families.inst
+silmaril institution logic.egglog.source.named.supplied.direct.inst := Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.inst
+silmaril institution logic.egglog.source.named.supplied.inst := Silmaril.Logic.Egglog.Source.Named.Supplied.inst
 silmaril institution logic.first_order.finite_lists.inst := Silmaril.Logic.FirstOrder.FiniteLists.inst
 silmaril institution logic.hoare.first_order.canonical_inst := Silmaril.Logic.Hoare.FirstOrder.canonicalInst
 silmaril institution logic.hoare.first_order.source_inst := Silmaril.Logic.Hoare.FirstOrder.sourceInst
@@ -185,6 +212,8 @@ silmaril institution logic.matching.guarded_fol.inst := Silmaril.Logic.Matching.
 silmaril institution logic.matching.guarded_lfp.inst := Silmaril.Logic.Matching.GuardedLFP.inst
 silmaril institution logic.matching.sort_maps.fixed_inst := Silmaril.Logic.Matching.SortMaps.fixedInst
 silmaril institution logic.prolog.definite.inst := Silmaril.Logic.Prolog.Definite.inst
+silmaril institution logic.prolog.horn.inst := Silmaril.Logic.Prolog.Horn.inst
+silmaril institution logic.prolog.source.families.inst := Silmaril.Logic.Prolog.Source.Families.inst
 silmaril institution logic.rewriting.canonical_inst := Silmaril.Logic.Rewriting.canonicalInst
 silmaril institution logic.rewriting.inhabited_inst := Silmaril.Logic.Rewriting.inhabitedInst
 silmaril institution logic.rewriting.rewriting_inst := Silmaril.Logic.Rewriting.rewritingInst
@@ -281,9 +310,13 @@ silmaril room logic.common_logic.source.room := Silmaril.Logic.CommonLogic.Sourc
 silmaril room logic.egg.core.room := Silmaril.Logic.Egg.Core.room
 silmaril room logic.egg.source.named.families.room := Silmaril.Logic.Egg.Source.Named.Families.room
 silmaril room logic.egg.source.named.supplied.direct.room := Silmaril.Logic.Egg.Source.Named.Supplied.Direct.room
+silmaril room logic.egglog.core.graph.functional.room := Silmaril.Logic.Egglog.Core.Graph.Functional.room
 silmaril room logic.egglog.core.graph.room := Silmaril.Logic.Egglog.Core.Graph.room
 silmaril room logic.egglog.core.room := Silmaril.Logic.Egglog.Core.room
+silmaril room logic.egglog.merge.institution.room := Silmaril.Logic.Egglog.Merge.Institution.room
 silmaril room logic.egglog.source.named.families.room := Silmaril.Logic.Egglog.Source.Named.Families.room
+silmaril room logic.egglog.source.named.supplied.direct.room := Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.room
+silmaril room logic.egglog.source.named.supplied.room := Silmaril.Logic.Egglog.Source.Named.Supplied.room
 silmaril room logic.first_order.finite_lists.room := Silmaril.Logic.FirstOrder.FiniteLists.room
 silmaril room logic.hoare.first_order.canonical_room := Silmaril.Logic.Hoare.FirstOrder.canonicalRoom
 silmaril room logic.institution.examples.eq.room := Silmaril.Logic.Institution.Examples.EQ.room
@@ -308,6 +341,10 @@ silmaril room logic.kore.general_fixed_point.builtins.source_room := Silmaril.Lo
 silmaril room logic.kore.general_fixed_point.hooked_sorts.external.package.native_room := Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.External.Package.nativeRoom
 silmaril room logic.kore.general_fixed_point.hooked_sorts.external.package.source_room := Silmaril.Logic.Kore.GeneralFixedPoint.HookedSorts.External.Package.sourceRoom
 silmaril room logic.prolog.definite.room := Silmaril.Logic.Prolog.Definite.room
+silmaril room logic.prolog.horn.room := Silmaril.Logic.Prolog.Horn.room
+silmaril room logic.prolog.source.families.room := Silmaril.Logic.Prolog.Source.Families.room
+silmaril room logic.prolog.source.native_room := Silmaril.Logic.Prolog.Source.nativeRoom
+silmaril room logic.prolog.source.source_room := Silmaril.Logic.Prolog.Source.sourceRoom
 silmaril room logic.stlc_equations.room := Silmaril.Logic.STLCEquations.room
 silmaril room logic.stlc_matching.source_room := Silmaril.Logic.STLCMatching.sourceRoom
 silmaril room logic.stlc_matching.target_room := Silmaril.Logic.STLCMatching.targetRoom

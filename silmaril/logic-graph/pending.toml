@@ -10,17 +10,3 @@ title = "Type theories: extensional/intensional MLTT, LF and λΠ-modulo, CIC"
 nodes = 15
 edges = 27
 status = "pending-port"
-
-[[logic_pending]]
-name = "pending.egglog"
-title = "Egglog functional first-order graphs"
-nodes = 8
-edges = 13
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.prolog"
-title = "Prolog and Horn-clause programs"
-nodes = 2
-edges = 8
-status = "pending-port"

@@ -200,13 +200,28 @@ public import Silmaril.Logic.Egg.Source.Named.Supplied.Thms
 public import Silmaril.Logic.Egg.Source.Named.Syntax.Defs
 public import Silmaril.Logic.Egg.Source.Named.Theory.Defs
 public import Silmaril.Logic.Egglog.Core.Defs
+public import Silmaril.Logic.Egglog.Core.Derivation
 public import Silmaril.Logic.Egglog.Core.Egg.Defs
+public import Silmaril.Logic.Egglog.Core.Examples.Defs
 public import Silmaril.Logic.Egglog.Core.FirstOrder
 public import Silmaril.Logic.Egglog.Core.Graph.Defs
+public import Silmaril.Logic.Egglog.Core.Graph.Examples.Defs
+public import Silmaril.Logic.Egglog.Core.Graph.Examples.Thms
+public import Silmaril.Logic.Egglog.Core.Graph.Functional.Defs
+public import Silmaril.Logic.Egglog.Core.Graph.Functional.Examples
+public import Silmaril.Logic.Egglog.Core.Graph.Functional.Hets
+public import Silmaril.Logic.Egglog.Core.Graph.Functional.Thms
+public import Silmaril.Logic.Egglog.Core.Graph.Hets
 public import Silmaril.Logic.Egglog.Core.Graph.Thms
 public import Silmaril.Logic.Egglog.Core.Positive.Defs
 public import Silmaril.Logic.Egglog.Core.Positive.Thms
 public import Silmaril.Logic.Egglog.Core.Prolog
+public import Silmaril.Logic.Egglog.Core.Thms
+public import Silmaril.Logic.Egglog.Merge.Defs
+public import Silmaril.Logic.Egglog.Merge.Institution.Defs
+public import Silmaril.Logic.Egglog.Merge.Institution.Graph
+public import Silmaril.Logic.Egglog.Merge.Institution.Thms
+public import Silmaril.Logic.Egglog.Merge.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Accepted.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Accepted.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Declarations.Defs
@@ -214,6 +229,8 @@ public import Silmaril.Logic.Egglog.Source.Named.Declarations.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Denotation.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Family.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Family.Thms
+public import Silmaril.Logic.Egglog.Source.Named.Hets.Defs
+public import Silmaril.Logic.Egglog.Source.Named.Hets.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Parser.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Parser.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Representation.Defs
@@ -225,6 +242,10 @@ public import Silmaril.Logic.Egglog.Source.Named.Representation.Support.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Resolution.Defs
 public import Silmaril.Logic.Egglog.Source.Named.Resolution.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Supplied.Defs
+public import Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.Defs
+public import Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.Thms
+public import Silmaril.Logic.Egglog.Source.Named.Supplied.Institution.Defs
+public import Silmaril.Logic.Egglog.Source.Named.Supplied.Institution.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Supplied.Thms
 public import Silmaril.Logic.Egglog.Source.Named.Syntax.Defs
 public import Silmaril.Logic.FirstOrderLFP
@@ -557,6 +578,22 @@ public import Silmaril.Logic.PDL.Mu.Thms
 public import Silmaril.Logic.PDL.Thms
 public import Silmaril.Logic.Prolog.Definite.Defs
 public import Silmaril.Logic.Prolog.Definite.Thms
+public import Silmaril.Logic.Prolog.Horn.Definite
+public import Silmaril.Logic.Prolog.Horn.Defs
+public import Silmaril.Logic.Prolog.Horn.Egglog
+public import Silmaril.Logic.Prolog.Horn.Thms
+public import Silmaril.Logic.Prolog.Source.Accepted.Defs
+public import Silmaril.Logic.Prolog.Source.Accepted.Thms
+public import Silmaril.Logic.Prolog.Source.Compilation.Defs
+public import Silmaril.Logic.Prolog.Source.Compilation.Thms
+public import Silmaril.Logic.Prolog.Source.Denotation.Defs
+public import Silmaril.Logic.Prolog.Source.Denotation.Thms
+public import Silmaril.Logic.Prolog.Source.Family.Defs
+public import Silmaril.Logic.Prolog.Source.Family.Relationships.Defs
+public import Silmaril.Logic.Prolog.Source.Family.Thms
+public import Silmaril.Logic.Prolog.Source.Native.Defs
+public import Silmaril.Logic.Prolog.Source.Parser.Defs
+public import Silmaril.Logic.Prolog.Source.Syntax.Defs
 public import Silmaril.Logic.Reachability
 public import Silmaril.Logic.Reachability.AllPath.Defs
 public import Silmaril.Logic.Reachability.AllPath.Thms
@@ -865,10 +902,19 @@ silmaril comorphism logic.common_logic.source.presentations.packaged.comparison 
 silmaril comorphism logic.common_logic.source.presentations.packaged.fol_comparison := Silmaril.Logic.CommonLogic.Source.Presentations.Packaged.folComparison
 silmaril comorphism logic.egg.core.from_equations := Silmaril.Logic.Egg.Core.fromEquations (facts := [Silmaril.Logic.Egg.Core.fromEquations_modelExpansive])
 silmaril comorphism logic.egg.core.to_first_order := Silmaril.Logic.Egg.Core.toFirstOrder (facts := [Silmaril.Logic.Egg.Core.toFirstOrder_modelExpansive])
+silmaril comorphism logic.egglog.core.graph.functional.from_core := Silmaril.Logic.Egglog.Core.Graph.Functional.fromCore (facts := [Silmaril.Logic.Egglog.Core.Graph.Functional.fromCore_modelExpansive])
+silmaril comorphism logic.egglog.core.graph.functional.restriction := Silmaril.Logic.Egglog.Core.Graph.Functional.restriction
 silmaril comorphism logic.egglog.core.graph.from_core := Silmaril.Logic.Egglog.Core.Graph.fromCore (facts := [Silmaril.Logic.Egglog.Core.Graph.fromCore_modelExpansive])
 silmaril comorphism logic.egglog.core.from_prolog := Silmaril.Logic.Egglog.Core.fromProlog (facts := [Silmaril.Logic.Egglog.Core.fromProlog_modelExpansive])
+silmaril comorphism logic.egglog.merge.institution.boolean_graph.to_graph := Silmaril.Logic.Egglog.Merge.Institution.BooleanGraph.toGraph (facts := [Silmaril.Logic.Egglog.Merge.Institution.BooleanGraph.toGraph_modelExpansive])
 silmaril comorphism logic.egglog.source.named.families.to_core := Silmaril.Logic.Egglog.Source.Named.Families.toCore (facts := [Silmaril.Logic.Egglog.Source.Named.Families.toCore_modelExpansive])
 silmaril comorphism logic.egglog.source.named.families.to_graph := Silmaril.Logic.Egglog.Source.Named.Families.toGraph (facts := [Silmaril.Logic.Egglog.Source.Named.Families.toGraph_modelExpansive])
+silmaril comorphism logic.egglog.source.named.supplied.direct.to_core := Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.toCore (facts := [Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.toCore_modelExpansive])
+silmaril comorphism logic.egglog.source.named.supplied.direct.to_graph := Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.toGraph (facts := [Silmaril.Logic.Egglog.Source.Named.Supplied.Direct.toGraph_modelExpansive])
+silmaril comorphism logic.egglog.source.named.supplied.to_core := Silmaril.Logic.Egglog.Source.Named.Supplied.toCore (facts := [Silmaril.Logic.Egglog.Source.Named.Supplied.toCore_modelExpansive])
+silmaril comorphism logic.egglog.source.named.supplied.to_direct := Silmaril.Logic.Egglog.Source.Named.Supplied.toDirect (facts := [Silmaril.Logic.Egglog.Source.Named.Supplied.toDirect_modelExpansive])
+silmaril comorphism logic.egglog.source.named.supplied.to_families := Silmaril.Logic.Egglog.Source.Named.Supplied.toFamilies
+silmaril comorphism logic.egglog.source.named.supplied.to_graph := Silmaril.Logic.Egglog.Source.Named.Supplied.toGraph (facts := [Silmaril.Logic.Egglog.Source.Named.Supplied.toGraph_modelExpansive])
 silmaril comorphism logic.first_order_lfp.boolean.from_positive := Silmaril.Logic.FirstOrderLFP.Boolean.fromPositive (facts := [Silmaril.Logic.FirstOrderLFP.Boolean.fromPositive_modelExpansive])
 silmaril comorphism logic.first_order_lfp.fol_to_lfp := Silmaril.Logic.FirstOrderLFP.folToLFP (facts := [Silmaril.Logic.FirstOrderLFP.folToLFP_modelExpansive])
 silmaril comorphism logic.hoare.first_order.to_hoare := Silmaril.Logic.Hoare.FirstOrder.toHoare (facts := [Silmaril.Logic.Hoare.FirstOrder.toHoare_modelExpansive])
@@ -896,6 +942,14 @@ silmaril comorphism logic.modal.propositional_to_modal := Silmaril.Logic.Modal.p
 silmaril comorphism logic.modal_mu.k_to_mu := Silmaril.Logic.ModalMu.kToMu (facts := [Silmaril.Logic.ModalMu.kToMu_modelExpansive])
 silmaril comorphism logic.pdl.k_to_pdl := Silmaril.Logic.PDL.kToPDL (facts := [Silmaril.Logic.PDL.kToPDL_modelExpansive])
 silmaril comorphism logic.prolog.definite.to_first_order := Silmaril.Logic.Prolog.Definite.toFirstOrder (facts := [Silmaril.Logic.Prolog.Definite.toFirstOrder_modelExpansive])
+silmaril comorphism logic.prolog.horn.from_definite := Silmaril.Logic.Prolog.Horn.fromDefinite (facts := [Silmaril.Logic.Prolog.Horn.fromDefinite_modelExpansive])
+silmaril comorphism logic.prolog.horn.to_egglog_graph := Silmaril.Logic.Prolog.Horn.toEgglogGraph (facts := [Silmaril.Logic.Prolog.Horn.toEgglogGraph_modelExpansive])
+silmaril comorphism logic.prolog.horn.to_first_order := Silmaril.Logic.Prolog.Horn.toFirstOrder (facts := [Silmaril.Logic.Prolog.Horn.toFirstOrder_modelExpansive])
+silmaril comorphism logic.prolog.source.families.to_definite := Silmaril.Logic.Prolog.Source.Families.toDefinite (facts := [Silmaril.Logic.Prolog.Source.Families.toDefinite_modelExpansive])
+silmaril comorphism logic.prolog.source.families.to_egglog_core := Silmaril.Logic.Prolog.Source.Families.toEgglogCore (facts := [Silmaril.Logic.Prolog.Source.Families.toEgglogCore_modelExpansive])
+silmaril comorphism logic.prolog.source.families.to_egglog_graph := Silmaril.Logic.Prolog.Source.Families.toEgglogGraph (facts := [Silmaril.Logic.Prolog.Source.Families.toEgglogGraph_modelExpansive])
+silmaril comorphism logic.prolog.source.families.to_first_order := Silmaril.Logic.Prolog.Source.Families.toFirstOrder (facts := [Silmaril.Logic.Prolog.Source.Families.toFirstOrder_modelExpansive])
+silmaril comorphism logic.prolog.source.families.to_horn := Silmaril.Logic.Prolog.Source.Families.toHorn (facts := [Silmaril.Logic.Prolog.Source.Families.toHorn_modelExpansive])
 silmaril comorphism logic.reachability.to_matching := Silmaril.Logic.Reachability.toMatching (facts := [Silmaril.Logic.Reachability.toMatching_modelExpansive])
 silmaril comorphism logic.rewriting.from_equational := Silmaril.Logic.Rewriting.fromEquational (facts := [Silmaril.Logic.Rewriting.fromEquational_modelExpansive])
 silmaril comorphism logic.rewriting.restrict_inhabited := Silmaril.Logic.Rewriting.restrictInhabited
