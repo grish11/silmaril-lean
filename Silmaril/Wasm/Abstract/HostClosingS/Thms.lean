@@ -6,6 +6,7 @@ public import Silmaril.Games.Abstract.StratSession.Defs
 public import Silmaril.Wasm.Abstract.HostClosingXP.Thms
 import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Close
 import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Core
+import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Pend
 
 /-!
 # Session closing: theorems
@@ -30,6 +31,7 @@ The session closure `wasmEvFunXPS` keeps the store of every trap, and erasing th
   `s₂` (forward every profile, `wasmEvFunXPS_trap_evRun`; backward deterministic). Values and
   exceptions are the canonical ones (`mem_wasmEvFunXPS_ret_iff`, `wasmEvFunXPS_vals_iff`,
   `wasmEvFunXPS_throw_iff`).
+* `wasmEvPendXPS_eq`: the session pending calls are the canonical ones.
 -/
 
 @[expose] public section
@@ -186,5 +188,16 @@ theorem wasmEvFunXPS_throw_iff (hT : HostTyped host) (hH : NativeHostSlice host)
   exact wasmEvFunXP_throw_iff hT hH hE hs hS hts hok
 
 end CoreIff
+
+
+/-! ## Pending calls -/
+
+/-- **The session pending calls are the canonical pending calls**: a pending call carries no end,
+and the calls before it are answered by values or exceptions, so the store of a trap never enters
+it. -/
+theorem wasmEvPendXPS_eq : wasmEvPendXPS (H := H) = wasmEvPendXP :=
+  funext fun _ => funext fun _ => Set.ext fun _ =>
+    ⟨Silmaril.Proofs.Wasm.Abstract.HostClosingS.pendS_toH,
+      Silmaril.Proofs.Wasm.Abstract.HostClosingS.pend_toS⟩
 
 end Silmaril.Wasm.Abstract
