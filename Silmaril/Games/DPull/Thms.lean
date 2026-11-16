@@ -12,6 +12,8 @@ import Silmaril.Proofs.Games.DPull.Laws
   (`Strategy.pull_eq_generate`, `DStrategy.toStrategy_pull`), the form of `spull`.
 * Functoriality: `PullData.id`, `PullData.comp`; `pull_id`, `pull_comp`.
 * Monotonicity: `Strategy.pull_mono`, `DStrategy.pull_mono`.
+* Congruence: the pull only sees the image of `f` (`Strategy.pull_congr`, `DStrategy.pull_congr`)
+  and does not depend on the position map (`pull_pos`).
 
 Proofs are in `Silmaril.Proofs.Games.DPull.Laws`.
 -/
@@ -65,6 +67,15 @@ theorem pull_comp {g : Move E' F' → Move E'' F''} {pg : Pos E' F' → Pos E'' 
 theorem pull_mono (hf : PullData f pf) {σ τ : Strategy E' F'} (h : σ ≤ τ) :
     σ.pull f pf hf ≤ τ.pull f pf hf := fun _ hp => h hp
 
+/-- **Congruence**: the pull only sees the plays in the image of `f`. -/
+theorem pull_congr (hf : PullData f pf) {σ τ : Strategy E' F'}
+    (h : ∀ p : List (Move E F), p.map f ∈ σ ↔ p.map f ∈ τ) : σ.pull f pf hf = τ.pull f pf hf :=
+  ext h
+
+/-- The pull does not depend on the position map. -/
+theorem pull_pos {pf' : Pos E F → Pos E' F'} (hf : PullData f pf) (hf' : PullData f pf')
+    (σ : Strategy E' F') : σ.pull f pf hf = σ.pull f pf' hf' := rfl
+
 end Strategy
 
 /-! ## Divergence-observing strategies -/
@@ -110,6 +121,20 @@ theorem pull_comp {g : Move E' F' → Move E'' F''} {pg : Pos E' F' → Pos E'' 
 theorem pull_mono (hf : PullData f pf) {σ τ : DStrategy E' F'} (h : σ ≤ τ) :
     σ.pull f pf hf ≤ τ.pull f pf hf :=
   ⟨Strategy.pull_mono hf h.1, fun _ hp => h.2.1 hp, fun _ hJ => ⟨hJ.1, h.2.2 hJ.2⟩⟩
+
+/-- **Congruence**: the pull only sees the plays, divergences and infinite plays in the image
+of `f`. -/
+theorem pull_congr (hf : PullData f pf) {σ τ : DStrategy E' F'}
+    (h₁ : ∀ p : List (Move E F), p.map f ∈ σ.toStrategy ↔ p.map f ∈ τ.toStrategy)
+    (h₂ : ∀ p : List (Move E F), p.map f ∈ σ.div ↔ p.map f ∈ τ.div)
+    (h₃ : ∀ J : Set (List (Move E F)), IsInfPlay J →
+      (List.map f '' J ∈ σ.inf ↔ List.map f '' J ∈ τ.inf)) :
+    σ.pull f pf hf = τ.pull f pf hf :=
+  ext (Strategy.pull_congr hf h₁) (Set.ext h₂) (Set.ext fun J => and_congr_right (h₃ J))
+
+/-- The pull does not depend on the position map. -/
+theorem pull_pos {pf' : Pos E F → Pos E' F'} (hf : PullData f pf) (hf' : PullData f pf')
+    (σ : DStrategy E' F') : σ.pull f pf hf = σ.pull f pf' hf' := rfl
 
 end DStrategy
 
