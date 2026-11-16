@@ -262,4 +262,131 @@ One run each on a 2-vCPU sandbox, whole `lean` process (`lake env lean` on the m
 * Proof modules that ran REF programs step by step now take a `readCore` step where they used
   to take a `get` step for a core-store read. Lemmas that described a configuration through
   `{ s with core := c }` now set `Config.core`. A few internal proof definitions keep an unused
-  core-store argument (`_cs`), so their call sites did not change.
+  core-store argument (`_cs`), so their call sites did not change. The integration (below)
+  removes the ones whose removal stays inside one proof file and its direct caller.
+
+## Integration on `main` (`wasm/kmem-evaluator`)
+
+The review slices #722 (`wasm/memrep-kbytes`), #732 (`wasm/core-generic-memory`), #755
+(`wasm/core-generic-step`), #764 (`wasm/core-kmem-engine`), #776 (`wasm/ref-engine-transfer`) and
+#788 (`wasm/ref-core-effects`) form a stack, each based on the one before. Each step above is one
+slice. The integration branch is the top of the stack with current `main` merged in (a merge
+commit; every stack commit is kept). The slices stay open for review. The integration changes
+nothing in them except:
+
+* **Porting `main`'s new proofs.** `main` added proofs about linked sessions with host imports
+  (`Proofs/Wasm/Component/Reference/HLinkedSession`, and parts of `LinkedSessionFwd/TrapS`,
+  `LinkedSessionDiv`, `LinkedSessionObs`) that described configurations through `CStore.core`.
+  They now use `Machine.Config.core`, as the rest of the stack does. These are the same small fixes
+  the stack applied to the older proofs (`m.store.core` becomes `m.core`, instantiation sets
+  `{ cfg with core := cs }`, a core-store read is a `readCore` step). The one textual conflict
+  (`LinkedSessionFwd/TrapS.lean`, where `main` added the host-state variants `TrapsAtSH`,
+  `lift_body_trapTSH`, `nest_atTSH`, … of the stack's edited lemmas) keeps `main`'s new lemmas and
+  restates them over `Config.core`. No statement of `main` changed beyond `.store.core` becoming
+  `.core`.
+* **Warnings.** Two warnings fail `--wfail` on the merged tree, and both are fixed: the deprecated
+  `if_pos`/`if_neg` in `Proofs/Wasm/Abstract/NodeTrap/Node.lean` (now `ite_eq_left` and
+  `ite_eq_right`), and an unused `simp` lemma in `LinkedSessionObs/Triple.lean`.
+* **Cleanups.** Unused core-store arguments are removed where the removal is local:
+  `readyStoreI`, `LowerSite.Ok.extSC`/`OkR.extSC`, `nstore_extN` (both the reference and the
+  `Param.Core3R` copies) and `CompToy.get_liftAt`. Others (`nestStore`, `nestStoreI`,
+  `readyStoreL`, `storeLN`, `store₁`, `nstoreRet`, `sStore₄`, `tStoreX`, …) are kept: removing
+  them would cascade into the signatures of further definitions used across many files.
+
+### Shapes that changed across the stack
+
+Code written against `main` before the stack may need the following changes. Every statement not
+listed keeps its shape.
+
+**Core (`Execution.Core`, `SingleThreaded`).**
+* `MemInst`, `Store H` and `Config H` take a memory representation `R` with default `ByteArray`
+  (`MemInst (R := ByteArray)`, `Store H (R := ByteArray)`, `Config H (R := ByteArray)`). Uses at
+  the default keep their meaning. Explicit applications (`@f H`) now need the extra argument.
+* Generic in `R` (with `[MemRep R]` where bytes are touched): the store helpers (`Store.func?`,
+  `funcAt?`, `tag?`, `global?`, `mem?`, `table?`, `data?`, `elem?`, `setGlobal`, `setTable`,
+  `setMem`, `setElem`, `setData`, `setStructField`, `setArrayField`, `addStruct`, `addArray`,
+  `addExn`, `Ref.type?`); every instruction family of the computable interpreter and its
+  helpers; the driver (`HeadFn H R`, `Drv.layer`, `step?`, `run?`, `interpHead`, `stepI`, `runI`);
+  the thread level (`Core.invoke`, `Thread.config`, `Thread.code`, `hostArity?`, `decompose?`,
+  `resume`, `resumeResult`, `statusC`, `internalC`, `runC`); constant evaluation, allocation
+  (`allocTag`, …, `allocMany`, `allocModule?`, `ModuleInst.initial`), segment initialisation
+  (`tableInitLoop`, `memoryInitLoop`, `elemDrop?`, `dataDrop?`, `initElemSeg?`, `initDataSeg?`,
+  `initElemList?`, `initDataList?`, `initElem?`, `initData?`, `initSegments?`), `prepare?`,
+  `instantiate?`, `prepareDirect?`, `instantiateDirect?`, `instantiateOnce?`,
+  `externAddrType?`/`externAddrOk?`/`externAddrsOk?`; the component accessors
+  `SingleThreaded.allocHost`, `memSize?`, `memAddrType?`, `tableAddrType?`, `memRead?`,
+  `memWrite?`, `tableFunc?`; and `Core3.externTypeE?`, `prepareE?`, `prepareSpecE?`, `statusE`,
+  `funcTypeE?`.
+* Theorems now stated over any `R`: `step?_nil`, `step?_cons`, `run?_zero`, `run?_succ_none`,
+  `run?_succ_some`, `run?_mono`, `run?_stopped` (same proofs).
+* Theorems that now name `ByteArray` explicitly: `memoryInitLoopK_eq`, `tableInitLoopK_eq` (Auto2
+  kernel) and `loadIntF_eq`, `storeIntF_eq` (`Verify.Kernel`). Proofs that unfold the generic
+  definitions at `ByteArray` rewrite with `MemRep.size_byteArray`, `store_byteArray`,
+  `readBytes_byteArray`, `writeBytes_byteArray` and `zeros_byteArray` (all `rfl`).
+
+**The reference component machine (`Wasm.Component.Reference`).**
+* `CStore` lost its `core` field; the machine holds the core store in `Machine.Config.core`
+  (default `E.empty`). `CStore.empty_core` is gone. `{ s with core := c }` on a `CStore` becomes
+  `{ m with core := c }` on the configuration, and `m.store.core` becomes `m.core`.
+* `Canon.Op` has four new operations: `readCore` (answered with
+  `CoreEngine.view E m.core : CoreView E (CanonHost E)`), `memWrite`, `allocHost` and `prepare`.
+  `Machine.Step`, `Machine.Exec` and `SessionAdequacy.silentRun` have one rule each for them
+  (`Step.readCore`, …). `Callout.confine` allows `readCore`.
+* `ptrTypeIn`, `memBytes?`, `LoadPre` and `addrTypesOf` take a `CoreView` instead of a `CStore`;
+  `ptrTypeIn_none` likewise. `ptrType` is `getsCore`. `memLen`, `readMem`, `writeMem`,
+  `threadNewIndirect`, `allocCoreHost` and `instantiateCore` go through `readCore` and the core
+  operations.
+* Removed: `writeMemSt`, `setCoreSt`, `allocHostSt`, `Machine.Exec.setCore`,
+  `Canon.P.Inv.MemWritePres`, the field `StorePres.write`, and `writeMemSt_insts`
+  (`MachineTab.Frames`). `coreImportsFor? s.core` is `coreImportsWith?` over an extern-type query.
+* Invariant lemmas lost their memory-write hypothesis (memory writes no longer touch `CStore`):
+  `Canon.P.Inv.writeMem`, `unpackEvent`, `storeInt`, `storeVariantHead`, `storeFlags`,
+  `storePrim`, `storeListWith`, `storeString`, `storeStringIntoRange`, `runStoreStep`,
+  `runStoreSteps`, `storeOption`, `storeResult`, `lowerFlatPrim`, `errorContextDebugMessage` and
+  the `Waitable` lemmas. `ptrType` is proved by `getsCore`. New: `Inv.readCore`, `getsCore`,
+  `memWriteOp`, `allocHostOp`, `prepareOp`.
+* `CStore.registerThreadSt_frame` and `CStore.unregisterThreadSt_frame` lost their first
+  conjunct (`s'.core = s.core`), so projections such as `.2.2.2.2.2.2.2.1` lose one `.2`.
+* The plain-data REF types are indexed by `CoreEngine.Static` (with the coercion
+  `CoreEngine.toStatic`): `CanonOpts`, `LiftLowerContext`, `ResolvedBuiltin`, `CanonHost`,
+  `ResourceType`, `BufferDesc`, `End`, `Caller`, `Task`, `CFuncInst`, `Canon.Ret`, `ThreadBody`,
+  `LoopPoint`, `Canon.Call`, `Canon.Op`, `Eff`, `P`, `Instantiate.ItemVal`, `Closure`, `Frame`,
+  `CStore`, `ArenaField`, `AddrTypes`, `CopyAction`, `DtorRequest`, `HostImpl`,
+  `Instantiate.Entry`, `Scope`, `TyScope`, `EntityT` and `Exports`. A use at `E : CoreEngine`
+  elaborates to `E.toStatic`, so source that names them at an engine is unchanged.
+* `Det.CompScratch` and `Det.Component` compare `Store` updates with an explicit type ascription
+  (the `R` argument).
+
+### Trust boundary
+
+* No new `axiom`, no `sorry`, no `native_decide`, and no `@[csimp]`, `@[implemented_by]` or
+  `@[extern]` in the stack. `#print axioms` on `hi_mem`, `runHiK_true`, `acceptedK_hi`,
+  `accepted_of_storeSim`, `Machine.Transfer.steps_sim`, `stepI_toBytes`, `runI_toBytes`,
+  `core3On_steps` and `KMem.lawful` gives `[propext, Classical.choice, Quot.sound]` (some a subset).
+* `runHiK_true` and the `MemRep` examples use `decide +kernel`: the kernel evaluates the
+  `Decidable` instance.
+* Two tactics only assign a term whose type check is left to the kernel. `prog_rel_refl` (and its
+  proof-module copy `prog_rel_refl_core`) assigns `ProgRel.refl S p` to a goal
+  `ProgRel S p' p`; the kernel checks that `p'` and `p` agree up to unfolding. `kernel_rfl`
+  (`Verify.Kernel`, already on `main`) adds `Eq.refl` as an auxiliary lemma checked by the
+  kernel. Neither adds an axiom or a trusted evaluation.
+* `hi_mem` is about the `ByteArray` engine `core3 neverFail`; its only computation is the kernel
+  run over `KMem`, carried over by proved simulations. The native `#guard runHi` is still in
+  `Ref/Examples.lean` as a regression test, but no theorem depends on it any more except
+  `hi_mem_of_runHi` (kept, superseded).
+
+### Benchmark (end to end)
+
+`benchmarks/kmem-kernel/bench.py` runs `lake env lean` on
+`Wasi/Component/Accept/Ref/KMem/Examples.lean` and on a generated file that checks
+`runHi = true` (the same run over the `ByteArray` engine) by `decide +kernel`. It records wall time
+and peak RSS. The `ByteArray` case is expected to fail; CI does not run the script.
+
+One run on a 2-vCPU sandbox (raw output in `benchmarks/kmem-kernel/results-2026-11-16.tsv`):
+
+| case | check | result | wall | peak RSS |
+|---|---|---|---:|---:|
+| `kmem` | `runHiK_true`, `acceptedK_hi`, `hi_mem_of_progRel`, `hi_mem` | passes | 7.3 s | 1.47 GB |
+| `bytearray` | `runHi = true` by `decide +kernel` | `(kernel) deep recursion detected` | 14.5 s | 3.42 GB |
+
+These agree with the measurements of step 4 and step 5 above.
