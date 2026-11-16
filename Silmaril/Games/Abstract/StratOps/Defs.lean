@@ -18,6 +18,8 @@ the `FullFun` operations (`full_seqT` and the other `full_…` lemmas hold by `r
   unchanged (re-indexed by the argument for `comapT`);
 * `whiskerRightT`, `whiskerLeftT`: run on one component of a pair and carry the other through;
   the pending calls at `(a, c)` (resp. `(c, a)`) are those at `a`;
+* `caseT`: copairing (case analysis on a sum argument); the pending calls are dispatched the
+  same way;
 * `iterT`: iteration (`inl` exits, `inr` continues); the pending calls are those of the body
   reached after a finite chain of finished continuing iterations (`FullFun.ContChain`).
 
@@ -33,11 +35,11 @@ divergent plays, pending calls from one-round plays ending in a call, and produc
 one-round infinite plays `streamPlay [] q ω`. On play objects it is saturation
 (`readback_toDStrat : readback (toDStrat t) = sat t`).
 
-The game-level operations `seqD`, `pureD`, `mapD`, `comapD`, `whiskerRightD`, `whiskerLeftD`
-and `iterD` are **defined through readback**: read the triples back, apply the triple operation,
-and take the play object. No direct interaction construction on strategies (composition with
-hiding of the intermediate interface) is given or claimed here; the theorems show that these
-operations agree with the triple operations on the image of `toDStrat`.
+The game-level operations `seqD`, `pureD`, `mapD`, `comapD`, `whiskerRightD`, `whiskerLeftD`,
+`caseD` and `iterD` are **defined through readback**: read the triples back, apply the triple
+operation, and take the play object. No direct interaction construction on strategies
+(composition with hiding of the intermediate interface) is given or claimed here; the theorems
+show that these operations agree with the triple operations on the image of `toDStrat`.
 -/
 
 @[expose] public section
@@ -89,6 +91,11 @@ def whiskerRightT (t : ObsTriple E S A B) (C : Type u) : ObsTriple E S (A × C) 
 /-- **Left whiskering** `C ⋊ t`; the pending calls at `(c, a)` are those at `a`. -/
 def whiskerLeftT (C : Type u) (t : ObsTriple E S A B) : ObsTriple E S (C × A) (C × B) :=
   ofFull ((full t).whiskerLeft C) fun s p => t.2.1 s p.2
+
+/-- **Copairing** (case analysis): `t` on an `inl` argument and `u` on an `inr` one; the pending
+calls are dispatched the same way. -/
+def caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) : ObsTriple E S (A ⊕ B) C :=
+  ofFull (FullFun.case (full t) (full u)) fun s => Sum.elim (t.2.1 s) (u.2.1 s)
 
 /-- **Iteration** of a loop body (`inl` exits, `inr` continues). The pending calls are those
 of the body after a finite chain of finished continuing iterations. -/
@@ -144,6 +151,11 @@ def whiskerRightD (σ : DStrategy E (funSig S A B)) (C : Type u) :
 def whiskerLeftD (C : Type u) (σ : DStrategy E (funSig S A B)) :
     DStrategy E (funSig S (C × A) (C × B)) :=
   toDStrat (whiskerLeftT C (readback σ))
+
+/-- Copairing of play objects, through readback. -/
+def caseD (σ : DStrategy E (funSig S A C)) (τ : DStrategy E (funSig S B C)) :
+    DStrategy E (funSig S (A ⊕ B) C) :=
+  toDStrat (caseT (readback σ) (readback τ))
 
 /-- Iteration of a play object, through readback. -/
 def iterD (σ : DStrategy E (funSig S A (B ⊕ A))) : DStrategy E (funSig S A B) :=

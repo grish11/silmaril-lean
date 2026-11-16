@@ -4,6 +4,7 @@ public import Silmaril.Games.Abstract.StratOps.Defs
 public import Silmaril.Games.Abstract.FullFun.Thms
 public import Silmaril.Games.Abstract.StratObs.Thms
 import Silmaril.Proofs.Games.Abstract.StratOps.Game
+import Silmaril.Proofs.Games.Abstract.StratOps.Unfold
 
 /-!
 # Premonoidal operations on observation triples: theorems
@@ -25,8 +26,16 @@ determined by its full part and its pending calls (`ext_full`).
 * `not_interchangeT`: **the interchange law fails**, so triples are premonoidal and not
   monoidal (transported from `FullFun.not_interchange`).
 
-`AFun.iter` and `FullFun.iter` have no Elgot fixpoint or unfolding law in the library, so none
-is stated for `iterT`.
+**Copairing and the fixpoint law** (`Silmaril.Proofs.Games.Abstract.StratOps.Unfold`):
+
+* `full_caseT`, `comapT_inl_caseT`, `comapT_inr_caseT`, `pureT_mapT_inl_seqT_caseT`,
+  `pureT_mapT_inr_seqT_caseT`, `caseT_pureT_mapT`, `seqT_caseT`: copairing after an injection
+  is the corresponding component, the copairing of the injections is the identity, and
+  sequencing distributes over copairing on the left;
+* `iterT_unfold` (**the fixpoint law**): `iterT t = seqT t (caseT pureT (iterT t))`, with no
+  hypothesis on `t`. The full part is `FullFun.iter_unfold`; the pending calls after a finite
+  continuing chain are those of the first iteration or those after a first continuing
+  iteration and a shorter chain.
 
 **Saturation** (`Silmaril.Proofs.Games.Abstract.StratOps.Sat`, `….Iter`):
 
@@ -40,9 +49,11 @@ is stated for `iterT`.
 * `sat_iterT_of_adm`: the same for iteration of an admissible body (immediate). For a
   non-admissible body the same loss as for sequencing can occur (a continuing iteration into a
   state with no observation); no totality version is proved for iteration;
+* `sat_caseT`: copairing commutes with saturation, with no hypothesis;
 * `admissible_pureT`, `admissible_seqT`, `admissible_mapT`, `admissible_comapT`,
-  `admissible_whiskerRightT`, `admissible_whiskerLeftT`, `admissible_iterT`: **every operation
-  preserves admissibility**, with no further hypothesis.
+  `admissible_whiskerRightT`, `admissible_whiskerLeftT`, `admissible_caseT`,
+  `admissible_iterT`: **every operation preserves admissibility**, with no further
+  hypothesis.
 
 **Readback and the game-level operations** (`Silmaril.Proofs.Games.Abstract.StratOps.Game`):
 
@@ -52,10 +63,13 @@ is stated for `iterT`.
 * preservation `toDStrat (seqT t u) = seqD (toDStrat t) (toDStrat u)` under the hypotheses of
   `sat_seqT` (`toDStrat_seqT`, `toDStrat_seqT_of_adm`), failing in general
   (`not_toDStrat_seqT`); for `pureT`, `mapT`, `comapT` and whiskering with no hypothesis; for
-  `iterT` for an admissible body (`toDStrat_iterT_of_adm`);
+  `iterT` for an admissible body (`toDStrat_iterT_of_adm`); for `caseT` with no hypothesis
+  (`toDStrat_caseT`);
 * the laws on the image of `toDStrat`, with no hypothesis (every operation preserves
   admissibility): `seqD_assoc`, `seqD_pureD`, `pureD_seqD`, the map laws, the whiskering laws,
-  and `not_interchangeD` (premonoidal, not monoidal).
+  `seqD_caseD`, **the fixpoint law** `iterD_unfold`
+  (`iterD σ = seqD σ (caseD pureD (iterD σ))` for `σ = toDStrat t`, any `t`), and
+  `not_interchangeD` (premonoidal, not monoidal).
 
 The game-level operations are defined through readback, not by a direct interaction
 construction on strategies; none is claimed.
@@ -176,6 +190,42 @@ theorem not_interchangeT :
         seqT (whiskerLeftT PUnit u) (whiskerRightT t PUnit) :=
   Silmaril.Proofs.Games.Abstract.StratOps.not_interchangeT
 
+/-! ## Copairing and the fixpoint law -/
+
+theorem full_caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) :
+    full (caseT t u) = FullFun.case (full t) (full u) := rfl
+
+theorem comapT_inl_caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) :
+    comapT (caseT t u) Sum.inl = t := rfl
+
+theorem comapT_inr_caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) :
+    comapT (caseT t u) Sum.inr = u := rfl
+
+/-- Copairing after the left injection is the left component. -/
+theorem pureT_mapT_inl_seqT_caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) :
+    seqT (mapT pureT Sum.inl) (caseT t u) = t :=
+  pureT_mapT_seqT Sum.inl _
+
+/-- Copairing after the right injection is the right component. -/
+theorem pureT_mapT_inr_seqT_caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) :
+    seqT (mapT pureT Sum.inr) (caseT t u) = u :=
+  pureT_mapT_seqT Sum.inr _
+
+/-- The copairing of the injections is the identity. -/
+theorem caseT_pureT_mapT :
+    caseT (mapT pureT Sum.inl) (mapT pureT Sum.inr) = (pureT : ObsTriple E S (A ⊕ B) (A ⊕ B)) :=
+  ext_full FullFun.case_pure_map (funext fun _ => funext fun x => by cases x <;> rfl)
+
+/-- Sequencing distributes over copairing on the left. -/
+theorem seqT_caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) (v : ObsTriple E S C D) :
+    seqT (caseT t u) v = caseT (seqT t v) (seqT u v) :=
+  ext_full (FullFun.seq_case _ _ _) (funext fun _ => funext fun x => by cases x <;> rfl)
+
+/-- **The fixpoint law**: one iteration, then exit (`inl`) or iterate again (`inr`); finished
+behaviours, productive runs and pending calls. -/
+theorem iterT_unfold (t : ObsTriple E S A (B ⊕ A)) : iterT t = seqT t (caseT pureT (iterT t)) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.iterT_unfold t
+
 /-! ## Saturation and admissibility -/
 
 section Sat
@@ -224,6 +274,15 @@ theorem sat_whiskerLeftT (C : Type u) (t : ObsTriple E S A B) :
 theorem sat_iterT_of_adm {t : ObsTriple E S A (B ⊕ A)} (ht : Admissible t) :
     sat (iterT (sat t)) = sat (iterT t) := by
   rw [show sat t = t from ht]
+
+/-- Copairing commutes with saturation. -/
+theorem sat_caseT (t : ObsTriple E S A C) (u : ObsTriple E S B C) :
+    sat (caseT t u) = caseT (sat t) (sat u) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.sat_caseT t u
+
+theorem admissible_caseT {t : ObsTriple E S A C} {u : ObsTriple E S B C} (ht : Admissible t)
+    (hu : Admissible u) : Admissible (caseT t u) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.admissible_caseT ht hu
 
 theorem admissible_pureT : Admissible (pureT : ObsTriple E S A A) :=
   Silmaril.Proofs.Games.Abstract.StratOps.saturated_pureT
@@ -298,6 +357,10 @@ theorem iterD_toDStrat {t : ObsTriple E S A (B ⊕ A)} :
     iterD (toDStrat t) = toDStrat (iterT (sat t)) := by
   rw [iterD, readback_toDStrat]
 
+theorem caseD_toDStrat {t : ObsTriple E S A C} {u : ObsTriple E S B C} :
+    caseD (toDStrat t) (toDStrat u) = toDStrat (caseT (sat t) (sat u)) := by
+  rw [caseD, readback_toDStrat, readback_toDStrat]
+
 /-! ### Preservation -/
 
 /-- **`toDStrat` preserves sequencing** when the second argument is total. -/
@@ -334,6 +397,11 @@ theorem toDStrat_whiskerLeftT (C : Type u) :
     toDStrat (whiskerLeftT C t) = whiskerLeftD C (toDStrat t) := by
   rw [whiskerLeftD_toDStrat]
   exact toDStrat_eq_iff.2 (by rw [sat_whiskerLeftT, sat_whiskerLeftT, sat_idem])
+
+/-- `toDStrat` preserves copairing. -/
+theorem toDStrat_caseT {t : ObsTriple E S A C} {u : ObsTriple E S B C} :
+    toDStrat (caseT t u) = caseD (toDStrat t) (toDStrat u) := by
+  rw [caseD_toDStrat, ← sat_caseT, toDStrat_sat]
 
 /-- `toDStrat` preserves iteration when the body is admissible. -/
 theorem toDStrat_iterT_of_adm {t : ObsTriple E S A (B ⊕ A)} (ht : Admissible t) :
@@ -416,7 +484,19 @@ theorem whiskerLeftD_seqD (u : ObsTriple E S B D) (C : Type u) :
       seqD (whiskerLeftD C (toDStrat t)) (whiskerLeftD C (toDStrat u)) :=
   Silmaril.Proofs.Games.Abstract.StratOps.whiskerLeftD_seqD t u C
 
+/-- Game-level sequencing distributes over copairing on the left, on play objects. -/
+theorem seqD_caseD {C' : Type u} (u : ObsTriple E S C' B) (v : ObsTriple E S B D) :
+    seqD (caseD (toDStrat t) (toDStrat u)) (toDStrat v) =
+      caseD (seqD (toDStrat t) (toDStrat v)) (seqD (toDStrat u) (toDStrat v)) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.seqD_caseD t u v
+
 end GameLaws
+
+/-- **The fixpoint law for play objects**: on the image of `toDStrat`, with no hypothesis. -/
+theorem iterD_unfold (t : ObsTriple E S A (B ⊕ A)) :
+    iterD (toDStrat t) = seqD (toDStrat t) (caseD pureD (iterD (toDStrat t))) :=
+  Silmaril.Proofs.Games.Abstract.StratOps.iterD_unfold t
+
 
 /-- **The interchange law fails for play objects**: the game-level structure is premonoidal,
 not monoidal. -/
