@@ -1,4 +1,4 @@
--- variant-of: glibc.hello.gcc | style: crt-libmod | see-also: Silmaril.Raw.Elf.Link.Dyn.Program.Examples.Hello, Silmaril.Elf.Link.Dyn.Libc.Examples.Hello
+-- variant-of: glibc.hello.gcc | style: crt-libmod | see-also: Silmaril.Raw.Elf.Link.Dyn.Program.Examples.Hello, Silmaril.Elf.Link.Dyn.Libc.Hello.Thms
 module
 
 public import Silmaril.Elf.Link.Dyn.LibMod.Program.Defs
