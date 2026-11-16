@@ -150,3 +150,9 @@ lake build --wfail Silmaril.Elf.Defs Silmaril.Elf.Shapes.Thms Silmaril.Elf.Check
   Silmaril.Elf.Example.Thms Silmaril.Elf.Staged.Thms Silmaril.Elf.Staged.Leaf.Thms Silmaril.Elf.Staged.Example.Thms
 lake build elf-staged   # the native tool (benchmarks/elf-staged)
 ```
+
+## The per-part reader and the explorer's ELF tab
+
+[elf-reader.md](elf-reader.md): every part of a pinned file (GNU coreutils `sha256sum`,
+`hello-gcc`) as a kernel-checked `PartIs` theorem on kernel bytes, the coverage of every byte, and
+the explorer's ELF tab (bytes, theorems, and an unverified disassembly).
