@@ -429,7 +429,7 @@ CREATE TABLE finding_versions(
 );
 CREATE TABLE expected_open(
   problem TEXT NOT NULL PRIMARY KEY,
-  reason TEXT NOT NULL CHECK(reason IN ('independent','consistency','undecidable_instance')),
+  reason TEXT NOT NULL CHECK(reason IN ('independent','consistency')),
   note TEXT,
   pointer TEXT,
   module TEXT NOT NULL,

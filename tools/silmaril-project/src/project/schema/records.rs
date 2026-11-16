@@ -385,21 +385,24 @@ pub const RECORD_KINDS: &[KindSpec] = &[
     },
     KindSpec {
         kind: "expected_open",
-        doc: "An open problem expected to stay open for a metatheoretic reason: it is \
-              independent of the ambient theory, a consistency statement the theory cannot \
-              prove, or an instance of an undecidable problem class. Never for an ordinary \
-              unproved problem. Its judgement's `expect`, if any, is `OPN`",
+        doc: "An open problem expected to stay open for a metatheoretic reason about the \
+              ambient theory (Lean's type theory with the axioms its proofs may use), not about \
+              an object theory the statement talks about: Con(ZFC) is not an example. Never for \
+              an ordinary unproved problem. Its judgement's `expect`, if any, is `OPN`",
         keys: &[
             req("name", Ty::Problem, "The open problem (not a group)"),
             req(
                 "reason",
                 Ty::OpenReason,
-                "`independent` (neither provable nor refutable in the ambient theory, e.g. by \
-                 forcing), `consistency` (not provable in the ambient theory, by Gödel's second \
-                 incompleteness theorem) or `undecidable_instance` (an instance of a problem \
-                 class known to be undecidable, where no proof is expected)",
+                "`independent` (known to be neither provable nor refutable in the ambient \
+                 theory) or `consistency` (implies the consistency of the ambient theory itself, \
+                 so Gödel's second incompleteness theorem applies to that theory)",
             ),
-            opt("note", Ty::Text, "Why the reason applies"),
+            req(
+                "note",
+                Ty::Text,
+                "Why the reason holds of the ambient theory (Lean's), not only of an object theory",
+            ),
             opt(
                 "pointer",
                 Ty::Text,

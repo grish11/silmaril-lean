@@ -3,4 +3,4 @@ schema = "silmaril.records.v0.2"
 [[expected_open]]
 name = "eo.ind"
 reason = "independent"
-note = "neither provable nor refutable in ZFC"
+note = "a test fixture: assumed independent of the ambient theory (Lean with its axioms)"

@@ -429,7 +429,7 @@ CREATE TABLE finding_versions(
 );
 CREATE TABLE expected_open(
   problem TEXT NOT NULL PRIMARY KEY,
-  reason TEXT NOT NULL CHECK(reason IN ('independent','consistency','undecidable_instance')),
+  reason TEXT NOT NULL CHECK(reason IN ('independent','consistency')),
   note TEXT,
   pointer TEXT,
   module TEXT NOT NULL,
@@ -644,9 +644,9 @@ INSERT INTO summary(problem, summary, verdict, tier) VALUES('eo.proved', 'THM', 
 INSERT INTO deprecations(name, kind, reason, module, origin) VALUES('eo.old', 'problem', 'stated over the wrong machine', 'Eo', 'local');
 INSERT INTO deprecation_replacements(name, pos, replacement, kind) VALUES('eo.old', 0, 'eo.open', 'problem');
 INSERT INTO deprecated_problems(problem, via_kind, via) VALUES('eo.old', 'self', 'eo.old');
-INSERT INTO expected_open(problem, reason, note, pointer, module, origin) VALUES('eo.con', 'consistency', 'Con(ZFC) is not provable in ZFC', 'https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems', 'Eo', 'local');
-INSERT INTO expected_open(problem, reason, note, pointer, module, origin) VALUES('eo.ind', 'independent', 'neither provable nor refutable in ZFC', NULL, 'Eo', 'local');
-INSERT INTO expected_open(problem, reason, note, pointer, module, origin) VALUES('eo.old', 'undecidable_instance', NULL, NULL, 'Eo', 'local');
+INSERT INTO expected_open(problem, reason, note, pointer, module, origin) VALUES('eo.con', 'consistency', 'states the consistency of the ambient theory (Lean with its axioms) itself', 'https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems', 'Eo', 'local');
+INSERT INTO expected_open(problem, reason, note, pointer, module, origin) VALUES('eo.ind', 'independent', 'a test fixture: assumed independent of the ambient theory (Lean with its axioms)', NULL, 'Eo', 'local');
+INSERT INTO expected_open(problem, reason, note, pointer, module, origin) VALUES('eo.old', 'independent', 'a test fixture: deprecated and expected open', NULL, 'Eo', 'local');
 INSERT INTO decl_locations(decl, module, line, col, end_line, end_col, sel_line, sel_col, sel_end_line, sel_end_col) VALUES('Eo.con', 'Eo', 3, 0, 3, 40, 3, 18, 3, 25);
 INSERT INTO decl_locations(decl, module, line, col, end_line, end_col, sel_line, sel_col, sel_end_line, sel_end_col) VALUES('Eo.ind', 'Eo', 5, 2, 7, 12, 5, 6, 5, 9);
 INSERT INTO decl_locations(decl, module, line, col, end_line, end_col, sel_line, sel_col, sel_end_line, sel_end_col) VALUES('Eo.proved_sol', 'Eo', 20, 0, 21, 9, 20, 8, 20, 21);

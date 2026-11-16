@@ -8,14 +8,17 @@
 //!   spec to be deprecated), a gap of the machine model the statement is about (`model_gap`,
 //!   with a `pointer` to the missing instruction or feature), or `unclear`.
 //! - `expected_open` records mark an open problem that is expected to **stay** open for a
-//!   metatheoretic reason ([`EXPECTED_OPEN_REASONS`]): it is independent of the ambient theory,
-//!   it is a consistency statement the theory cannot prove, or it is an instance of an
-//!   undecidable problem class where no proof is expected. Lists of open problems leave them
-//!   out. An ordinary unproved problem is never marked so.
+//!   metatheoretic reason about the *ambient* theory, the one its proofs are checked in: Lean's
+//!   type theory with the axioms the proofs may use (`propext`, `Classical.choice`,
+//!   `Quot.sound`). The reason ([`EXPECTED_OPEN_REASONS`]) and the required `note` must hold of
+//!   that theory, not of an object theory the statement talks about: Con(ZFC) is not an
+//!   example, since Gödel's theorem for ZFC says nothing about Lean, whose universes make it
+//!   stronger than ZFC. Lists of open problems leave marked problems out. An ordinary unproved
+//!   problem is never marked so.
 //!
 //! Lean stores all three as generic records (no handler): `silmaril deprecation N (reason :=
 //! "…") (superseded_by := [M])`, `silmaril finding N (classification := error) (note := "…")`,
-//! `silmaril expected_open N (reason := consistency)`, or the `[[deprecation]]`, `[[finding]]`
+//! `silmaril expected_open N (reason := consistency) (note := "…")`, or the `[[deprecation]]`, `[[finding]]`
 //! and `[[expected_open]]` tables of a records file.
 use super::*;
 use serde::Deserialize;
@@ -24,12 +27,13 @@ use serde::Deserialize;
 pub const CLASSIFICATIONS: [&str; 4] = ["error", "spec_bug", "model_gap", "unclear"];
 /// The disclosure states of an `error` (`finding.disclosure_status`).
 pub const DISCLOSURE_STATES: [&str; 3] = ["private", "reported", "public"];
-/// Why a problem is expected to stay open (`expected_open.reason`): `independent` (provably
-/// neither provable nor refutable in the ambient theory, e.g. by forcing), `consistency` (a
-/// consistency statement the ambient theory cannot prove, by Gödel's second incompleteness
-/// theorem), `undecidable_instance` (an instance of a problem class known to be undecidable,
-/// where no proof is expected).
-pub const EXPECTED_OPEN_REASONS: [&str; 3] = ["independent", "consistency", "undecidable_instance"];
+/// Why a problem is expected to stay open (`expected_open.reason`), always about the ambient
+/// theory (Lean's, with the axioms its proofs may use): `independent` (known to be neither
+/// provable nor refutable in that theory) or `consistency` (the statement implies the
+/// consistency of that theory itself, which, if consistent, cannot prove it by Gödel's second
+/// incompleteness theorem). Undecidability of a problem class says nothing about one instance,
+/// so it is not a reason.
+pub const EXPECTED_OPEN_REASONS: [&str; 2] = ["independent", "consistency"];
 
 /// `silmaril deprecation NAME (reason := "…") (superseded_by := [...])`: the problem, group or
 /// spec `NAME` is wrong and kept only for the record.
@@ -79,6 +83,8 @@ pub struct ExpectedOpen {
     /// One of [`EXPECTED_OPEN_REASONS`] (required; an `Option` so that its absence is a check
     /// error).
     pub reason: Option<String>,
+    /// Why the reason holds of the ambient theory (required, M4; an `Option` so that its
+    /// absence is a check error).
     pub note: Option<String>,
     /// A citation or URL for the metatheoretic result.
     pub pointer: Option<String>,
@@ -144,7 +150,7 @@ table! {
     /// reason (lists of open problems leave it out).
     ExpectedOpenRow = "expected_open", key("problem") {
         problem: String = "TEXT NOT NULL",
-        reason: String = "TEXT NOT NULL CHECK(reason IN ('independent','consistency','undecidable_instance'))",
+        reason: String = "TEXT NOT NULL CHECK(reason IN ('independent','consistency'))",
         note: Option<String> = "TEXT",
         pointer: Option<String> = "TEXT",
         module: String = "TEXT NOT NULL",

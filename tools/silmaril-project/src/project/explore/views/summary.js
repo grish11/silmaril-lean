@@ -12,7 +12,7 @@ const ATTENTION = [
 ];
 const EXCLUDED = {
   deprecated: { title: "Deprecated", text: "marked wrong by a deprecation record; kept for the record" },
-  "expected-open": { title: "Expected to stay open", text: "an expected_open marking gives a metatheoretic reason (e.g. independence, a consistency statement)" },
+  "expected-open": { title: "Expected to stay open", text: "an expected_open marking gives a metatheoretic reason about Lean's own theory (independence of it, or its own consistency)" },
 };
 // A link to the namespace browser filtered by `params` (see views/browse.js).
 function browseHref(path, params) {

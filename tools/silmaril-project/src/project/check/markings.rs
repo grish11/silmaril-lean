@@ -8,7 +8,7 @@
 //! - M3: a `spec_bug` finding's problem is deprecated (by itself, through its judgement's spec,
 //!   or as an instance of a deprecated problem); an `error` finding's problem is not.
 //! - M4: an `expected_open` names an in-scope problem (not a group), its `reason` is one of
-//!   [`EXPECTED_OPEN_REASONS`], its judgement does not `expect` a status other than `OPN`, and
+//!   [`EXPECTED_OPEN_REASONS`], it has a `note` (why the reason holds of the ambient theory), its judgement does not `expect` a status other than `OPN`, and
 //!   the problem is not resolved (its verdict is `unknown`: a proof or refutation makes the
 //!   marking stale, as for M2). W5 warns when the problem has a partial answer (summary `SAT`
 //!   or `UNS` with verdict `unknown`). A deprecated problem may also be expected open: lists of
@@ -286,6 +286,13 @@ pub(super) fn run(
             o.error(&at, "an expected_open needs a `reason` (M4)");
             continue;
         };
+        if e.note.as_deref().is_none_or(|n| n.trim().is_empty()) {
+            o.error(
+                &at,
+                "an expected_open needs a `note` saying why its reason holds of the ambient theory \
+                 (Lean's), not only of an object theory such as ZFC (M4)",
+            );
+        }
         if !EXPECTED_OPEN_REASONS.contains(&reason.as_str()) {
             o.error(
                 &at,

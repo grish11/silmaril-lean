@@ -16,7 +16,7 @@
     {"kind": "expected_open", "name": "eo.expects", "module": "Eo", "reason": "consistency"},
     {"kind": "expected_open", "name": "eo.proved", "module": "Eo", "reason": "consistency"},
     {"kind": "expected_open", "name": "eo.refuted", "module": "Eo", "reason": "independent"},
-    {"kind": "expected_open", "name": "eo.some", "module": "Eo", "reason": "undecidable_instance"}
+    {"kind": "expected_open", "name": "eo.some", "module": "Eo", "reason": "independent", "note": "a test fixture"}
   ],
   "problems": [
     {"name": "eo.noreason", "decl": "Eo.noreason", "module": "Eo"},

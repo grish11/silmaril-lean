@@ -7,10 +7,10 @@
     {"kind": "children", "name": "eo.all", "module": "Eo", "children": ["eo.con", "eo.ind", "eo.old", "eo.open", "eo.proved"]},
     {"kind": "root", "name": "eo.all", "module": "Eo"},
     {"kind": "judgement", "name": "eo.con", "module": "Eo", "expect": "OPN"},
-    {"kind": "expected_open", "name": "eo.con", "module": "Eo", "reason": "consistency", "note": "Con(ZFC) is not provable in ZFC", "pointer": "https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems"},
-    {"kind": "expected_open", "name": "eo.ind", "module": "Eo", "reason": "independent", "note": "neither provable nor refutable in ZFC"},
+    {"kind": "expected_open", "name": "eo.con", "module": "Eo", "reason": "consistency", "note": "states the consistency of the ambient theory (Lean with its axioms) itself", "pointer": "https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems"},
+    {"kind": "expected_open", "name": "eo.ind", "module": "Eo", "reason": "independent", "note": "a test fixture: assumed independent of the ambient theory (Lean with its axioms)"},
     {"kind": "deprecation", "name": "eo.old", "module": "Eo", "reason": "stated over the wrong machine", "superseded_by": ["eo.open"]},
-    {"kind": "expected_open", "name": "eo.old", "module": "Eo", "reason": "undecidable_instance"}
+    {"kind": "expected_open", "name": "eo.old", "module": "Eo", "reason": "independent", "note": "a test fixture: deprecated and expected open"}
   ],
   "problems": [
     {"name": "eo.con", "decl": "Eo.con", "module": "Eo"},

@@ -245,7 +245,7 @@ first and the DAG after the statements, as in the quick start.
 | `detached` | **name**, reason | |
 | `deprecation` | **name** (a problem, group or spec), **reason**, superseded_by | (stored as written) |
 | `finding` | **name** (a problem), **classification**, note, pointer, affected_versions, fixed_in, disclosure_status | (stored as written) |
-| `expected_open` | **name** (a problem), **reason** (`independent`, `consistency`, `undecidable_instance`), note, pointer | (stored as written) |
+| `expected_open` | **name** (a problem), **reason** (`independent`, `consistency`), **note**, pointer | (stored as written) |
 | `decomposition`, `refutation_route` | name, and exactly one of proof, module | the theorem is `c₁ → … → p` / `¬c → ¬p` |
 | `group` | **name**, children, title, doc, sid | |
 | `children` | **name**, **children** | |
@@ -573,17 +573,31 @@ replaced it.
   other classifications.
 - An **`expected_open`** marks an open problem that is expected to **stay** open for a
   metatheoretic reason, so that lists of open problems (the explorer's landing page) can leave
-  it out, as they leave out deprecated problems:
+  it out, as they leave out deprecated problems. A problem is a Lean proposition, so the reason
+  must hold of the **ambient theory**: Lean's type theory with the axioms its proofs may use
+  (`propext`, `Classical.choice`, `Quot.sound`, and any exception in `policy.toml`). It must not
+  rest on a result about an *object* theory that the statement talks about:
 
   | `reason` | meaning |
   |---|---|
-  | `independent` | provably neither provable nor refutable in the ambient theory (e.g. by forcing) |
-  | `consistency` | a consistency statement the ambient theory cannot prove (Gödel's second incompleteness theorem) |
-  | `undecidable_instance` | an instance of a problem class known to be undecidable, where no proof is expected |
+  | `independent` | known to be neither provable nor refutable in the ambient theory |
+  | `consistency` | the statement implies the consistency of the ambient theory itself (or of a stronger theory), so, if that theory is consistent, it cannot prove it (Gödel's second incompleteness theorem) |
 
-  `note` says why the reason applies and `pointer` cites the result (a reference or URL). It is
-  never for an ordinary unproved problem: an open problem that nobody has proved yet stays
-  visible as open.
+  The consistency of ZFC is **not** an example. Gödel's theorem says that ZFC cannot prove
+  Con(ZFC); it says nothing about Lean. Lean's type theory, with its hierarchy of universes, is
+  stronger than ZFC (Carneiro, *The Type Theory of Lean*, MS thesis, Carnegie Mellon University,
+  2019, relates it to ZFC with inaccessible cardinals), so Con(ZFC), formalized as a Lean
+  proposition, is expected to be provable in Lean. This repository proves it for its own
+  calculus: `Silmaril.Logic.SetTheory.Theorems.zfc_consistent` says that the scoped ZFC calculus
+  of `Silmaril.Logic.SetTheory` has no closed derivation of falsehood, by soundness in Mathlib's
+  `ZFSet` model, with only `propext`, `Classical.choice` and `Quot.sound`
+  ([logic-arithmetic.md](logic-arithmetic.md)). Likewise, independence of ZFC (for example
+  of the continuum hypothesis over ZFC) does not by itself make a statement independent of Lean.
+  The undecidability of a problem class says nothing about one instance, so it is not a reason.
+
+  `note` (required) says why the reason holds of the ambient theory, and `pointer` cites the
+  result (a reference or URL). It is never for an ordinary unproved problem: an open problem
+  that nobody has proved yet stays visible as open.
 
 In TOML:
 
@@ -614,10 +628,10 @@ pointer = "pxor xmm0, xmm0"                       # the missing instruction or f
 note = "Str9 stops at the first SSE2 instruction"
 
 [[expected_open]]
-name = "demo.zfc.con"
-reason = "consistency"                            # independent | consistency | undecidable_instance
-note = "Con(ZFC) is not provable in ZFC"
-pointer = "Gödel, 1931"
+name = "demo.lean.con"                            # states the consistency of Lean's own theory
+reason = "consistency"                            # independent | consistency
+note = "implies the consistency of the ambient theory (Lean with propext, Classical.choice, Quot.sound) itself"
+pointer = "Gödel, 1931 (second incompleteness theorem)"
 ```
 
 In Lean, the same records are commands (no attribute is needed: a marking names a problem, it
@@ -627,7 +641,8 @@ does not sit on a declaration):
 silmaril deprecation demo.zlib.adler32.null_literal (reason := "assumes … returns 0")
   (superseded_by := [demo.zlib.adler32.null_one])
 silmaril finding demo.x86.fe51_mul.str9 (classification := model_gap) (pointer := "pxor xmm0, xmm0")
-silmaril expected_open demo.zfc.con (reason := consistency) (note := "Con(ZFC) is not provable in ZFC")
+silmaril expected_open demo.lean.con (reason := consistency)
+  (note := "implies the consistency of the ambient theory (Lean with its axioms) itself")
 ```
 
 `sil project check` enforces (M1–M4, W4, W5):
@@ -661,7 +676,7 @@ The database (always present, empty without markings):
 | `deprecated_problems` | every deprecated problem or group and `via_kind` (`self`, `spec`, `instance`), `via` |
 | `findings` | `problem`, `classification`, `note`, `pointer`, `fixed_in`, `disclosure_status`, `module`, `origin` |
 | `finding_versions` | `problem`, `pos`, `version` (an `error`'s `affected_versions`) |
-| `expected_open` | `problem`, `reason` (`independent`, `consistency`, `undecidable_instance`), `note`, `pointer`, `module`, `origin` |
+| `expected_open` | `problem`, `reason` (`independent`, `consistency`), `note`, `pointer`, `module`, `origin` |
 | view `genuine_errors` | the `error` findings with title, summary, versions, fix and disclosure |
 | view `model_gaps` | `pointer`, `problem`, `title`, `note` of the `model_gap` findings |
 | view `spec_bugs` | the `spec_bug` findings with how their problem is deprecated |
