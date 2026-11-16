@@ -7,6 +7,7 @@ import Silmaril.Proofs.Games.Abstract.FullFun.Laws
 import Silmaril.Proofs.Games.Abstract.FullFun.Tensor
 import Silmaril.Proofs.Games.Abstract.FullFun.Unfold
 import Silmaril.Proofs.Games.Abstract.FullFun.Natural
+import Silmaril.Proofs.Games.Abstract.FullFun.Dinat
 import Silmaril.Games.Abstract.Function.Thms
 import Silmaril.Games.Abstract.FunctionIter.Thms
 
@@ -82,6 +83,15 @@ infinite silent chains) and productive runs are included:
   a run of `G` from `a` (`FullFun.contChain_lift`), infinite chains by dependent choice.
   Uniformity is claimed only for pure `h`, as for Elgot uniformity;
 * `FullFun.case_pure_map_map`: the copairing of pure maps is a pure map.
+
+**Dinaturality of iteration** (`Silmaril.Proofs.Games.Abstract.FullFun.Dinat`), with no
+hypothesis on the bodies:
+
+* `FullFun.iter_dinat`: for `f : A → B ⊕ C` and `g : C → B ⊕ A`,
+  `iter (f ; [inl, g]) = f ; [id, iter (g ; [inl, f])]`. Both sides run `f, g, f, g, …` until
+  an `inl` exit; traps and `div` ends of either function, infinite silent chains and productive
+  runs correspond. An infinite chain's logs `cf 0 ++ cg 0, cf 1 ++ cg 1, …` are regrouped as
+  `cf 0` followed by `cg 0 ++ cf 1, cg 1 ++ cf 2, …`.
 -/
 
 @[expose] public section
@@ -405,6 +415,14 @@ theorem FullFun.iter_uniform {A' : Type u} {F : FullFun E S A (B ⊕ A)}
       FullFun.seq G (FullFun.case (FullFun.pure.map Sum.inl) (FullFun.pure.map (Sum.inr ∘ h)))) :
     FullFun.seq (FullFun.pure.map h) (FullFun.iter F) = FullFun.iter G :=
   Silmaril.Proofs.Games.Abstract.FullFun.iter_uniform h hFG
+
+/-- **Dinaturality of iteration**: for `f : A → B ⊕ C` and `g : C → B ⊕ A`,
+`iter (f ; [inl, g]) = f ; [id, iter (g ; [inl, f])]`. -/
+theorem FullFun.iter_dinat (f : FullFun E S A (B ⊕ C)) (g : FullFun E S C (B ⊕ A)) :
+    FullFun.iter (FullFun.seq f (FullFun.case (FullFun.pure.map Sum.inl) g)) =
+      FullFun.seq f (FullFun.case FullFun.pure
+        (FullFun.iter (FullFun.seq g (FullFun.case (FullFun.pure.map Sum.inl) f)))) :=
+  Silmaril.Proofs.Games.Abstract.FullFun.iter_dinat f g
 
 /-- Host preservation of post-composition: the same productive observations. -/
 theorem hostObsInf_map {R : HostRel E} (f : FullFun E S A B) (h : B → C) :
