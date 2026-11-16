@@ -41,10 +41,9 @@ The rules follow the structure of the code:
 
 Outcomes carry values, store and frame, and every branch reads data.
 
-The fragment `Frag` (`FragB false`) is call-free; `FragC` (`FragB true`) also allows direct calls
-`call x`. With an oracle, `RunC` also runs `call_indirect` and `call_ref` (resolved by
-`CallRes.IndRes` and the reference on the stack, as `CallX.EvalOX` does); they are in neither
-fragment. The call-free fragment is: values, non-control instructions,
+The fragment `Frag` (`FragB false`) is call-free; `FragC` (`FragB true`) also allows the calls
+`call x`, `call_indirect x y` and `call_ref y`, which `RunC` runs with an oracle (resolved by
+`CallRes.IndRes` and the reference on the stack, as `CallX.EvalOX` does). The call-free fragment is: values, non-control instructions,
 `block`, `loop`, `if`, `br`, `br_if`, `br_table`, `br_on_null`, `br_on_non_null`, `br_on_cast`,
 `br_on_cast_fail`, `return`, `throw`, `throw_ref`, `try_table`, `TRAP`, `LABEL` and `HANDLER`. On it the semantics is
 **adequate in both directions** for every profile and host (`Region/Thms.lean`): `Run`
@@ -86,7 +85,7 @@ def Out.Ends : Out → List Admin → Prop
   | .tailNull vs r, c => r.IsReturnCallRef ∧ ∃ rest : List Admin,
       c = vals vs ++ .ref .null :: r :: rest
 
-/-- Source instructions of the fragment, with direct calls allowed when `cf = true`. -/
+/-- Source instructions of the fragment, with calls allowed when `cf = true`. -/
 inductive FragIB : Bool → Instr → Prop where
   | simple {cf : Bool} {i : Instr} (h : SingleThreaded.Det.famOf (.plain i) ≠ .control) :
       FragIB cf i
@@ -108,11 +107,15 @@ inductive FragIB : Bool → Instr → Prop where
       (h : ∀ i ∈ b, FragIB cf i) : FragIB cf (.tryTable bt cs b)
   /-- A direct call (only in the fragment with calls). -/
   | call (x : FuncIdx) : FragIB true (.call x)
+  /-- An indirect call (only in the fragment with calls). -/
+  | callIndirect (x : TableIdx) (y : TypeIdx) : FragIB true (.callIndirect x y)
+  /-- A call by reference (only in the fragment with calls). -/
+  | callRef (y : TypeIdx) : FragIB true (.callRef y)
 
 /-- Source instructions of the call-free fragment. -/
 abbrev FragI := FragIB false
 
-/-- Runtime instructions of the fragment, with direct calls allowed when `cf = true`. -/
+/-- Runtime instructions of the fragment, with calls allowed when `cf = true`. -/
 inductive FragAB : Bool → Admin → Prop where
   | val {cf : Bool} {a : Admin} (h : a.val? ≠ none) : FragAB cf a
   | plain {cf : Bool} {i : Instr} (h : FragIB cf i) : FragAB cf (.plain i)
@@ -126,20 +129,23 @@ inductive FragAB : Bool → Admin → Prop where
 /-- Runtime instructions of the call-free fragment. -/
 abbrev FragA := FragAB false
 
-/-- Runtime code of the fragment, with direct calls allowed when `cf = true`. -/
+/-- Runtime code of the fragment, with calls allowed when `cf = true`. -/
 def FragB (cf : Bool) (code : List Admin) : Prop := ∀ a ∈ code, FragAB cf a
 
 /-- Runtime code of the call-free fragment. -/
 abbrev Frag := FragB false
 
-/-- Runtime code of the fragment with direct calls. -/
+/-- Runtime code of the fragment with calls. -/
 abbrev FragC := FragB true
 
-/-- **The redex of a code is a direct call**: `call x` is the first non-value instruction,
-possibly inside labels and handlers. -/
+/-- **The redex of a code is a call**: a direct call `call x`, or `call_ref y` of a function
+reference, is the first non-value instruction, possibly inside labels and handlers. (A
+`call_indirect` first unfolds into `table.get; ref.cast; call_ref`.) -/
 inductive CallAt : List Admin → Prop where
   | here {ws : List Val} {x : FuncIdx} {rest : List Admin} :
       CallAt (vals ws ++ .plain (.call x) :: rest)
+  | hereRef {ws : List Val} {a : Nat} {y : TypeIdx} {rest : List Admin} :
+      CallAt (vals ws ++ .ref (.func a) :: .plain (.callRef y) :: rest)
   | label {ws : List Val} {n : Nat} {cont : List Instr} {X rest : List Admin} (h : CallAt X) :
       CallAt (vals ws ++ .label n cont X :: rest)
   | handler {ws : List Val} {n : Nat} {cs : List Catch} {X rest : List Admin} (h : CallAt X) :
@@ -427,15 +433,17 @@ def Ctx.fill : Ctx → List Admin → List Admin
   | .handler ws n cs E rest, X => vals ws ++ .handler n cs (E.fill X) :: rest
 
 /-- **The guard holds at every call the run reaches**: at every configuration reachable from
-`c₀` whose redex is a direct call `call x` (inside a context), resolving to the function `fi` at
-address `a`, on its `ps.length` arguments `us` (under `ws`), the oracle's guard `G` holds for that
-call. -/
+`c₀` whose redex is a call of a function reference (inside a context), `ref.func a` and a
+`call_ref` form `cr` (`call_ref y`, or the `call_ref` of the function's own type a direct call
+resolves to), of the function `fi` at `a`, on its `ps.length` arguments `us` (under `ws`), the
+oracle's guard `G` holds for that call. Direct, indirect and reference calls all reach such a
+redex (`call x` in one step). -/
 def GuardedCalls (P : Profile) (host : HostSemantics H) (G : Store H → Nat → List Val → Prop)
     (c₀ : Config H) : Prop :=
-  ∀ (c₂ : Config H) (E : Ctx) (ws us : List Val) (x : FuncIdx) (rest : List Admin) (a : Nat)
+  ∀ (c₂ : Config H) (E : Ctx) (ws us : List Val) (a : Nat) (cr : Admin) (rest : List Admin)
     (fi : FuncInst H) (ps rs : Ty (.list .val)),
-    Steps P host c₀ c₂ → c₂.code = E.fill (vals (ws ++ us) ++ .plain (.call x) :: rest) →
-    c₂.frame.module.funcs[x.toNat]? = some a → c₂.store.funcs[a]? = some fi →
+    Steps P host c₀ c₂ → c₂.code = E.fill (vals (ws ++ us) ++ .ref (.func a) :: cr :: rest) →
+    cr.IsCallRef → (∀ d, cr = .callRefType d → d = fi.type) → c₂.store.funcs[a]? = some fi →
     Expand fi.type (.func ps rs) → us.length = ps.length → G c₂.store a us
 
 /-- **Soundness of a call oracle for Core 3.0**: every answer of `C` for a Wasm-typed function
@@ -621,6 +629,41 @@ inductive DivFC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
       (hfi : s.func? f x = some (a, fi)) (hty : DefType.funcType? fi.type = some (ps, rs))
       (hn : us.length = ps.length) (hD : D s a us) :
       DivFC P host C D R s f (ws ++ us) (.plain (.call x) :: code)
+  /-- `call_indirect x y` resolved to the callee `fa` (as `RunC.callInd`), answered by `C` with
+  values; the continuation diverges. A null entry or a failed cast traps (`RunC.callIndRes`), so it
+  never diverges. -/
+  | callInd {s s₁ : Store H} {f : Frame} {ws us vs : List Val} {x : TableIdx} {y : TypeIdx}
+      {ad : AddrType} {i : BitVec ad.intType.width} {fa : Nat} {fi : FuncInst H}
+      {ps rs : List CValType} {fl : Binaryen.Flow} {code : List Admin}
+      (hres : Abstract.CallRes.IndRes s f x y ad i (some fa)) (hfi : s.funcs[fa]? = some fi)
+      (hty : DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+      (hcall : C s fa us (s₁, fl)) (hvs : fl.retVals = some vs)
+      (h : R s₁ f (ws ++ (vs.take rs.length).reverse) code) :
+      DivFC P host C D R s f (ws ++ us ++ [.num ⟨.int ad.intType, i⟩])
+        (.plain (.callIndirect x y) :: code)
+  /-- `call_indirect x y` resolved to a callee that `D` says diverges. -/
+  | callIndDiv {s : Store H} {f : Frame} {ws us : List Val} {x : TableIdx} {y : TypeIdx}
+      {ad : AddrType} {i : BitVec ad.intType.width} {fa : Nat} {fi : FuncInst H}
+      {ps rs : List CValType} {code : List Admin}
+      (hres : Abstract.CallRes.IndRes s f x y ad i (some fa)) (hfi : s.funcs[fa]? = some fi)
+      (hty : DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
+      (hD : D s fa us) :
+      DivFC P host C D R s f (ws ++ us ++ [.num ⟨.int ad.intType, i⟩])
+        (.plain (.callIndirect x y) :: code)
+  /-- `call_ref y` on a function reference, answered by `C` with values; the continuation
+  diverges. On null it traps (`RunC.callRefNull`). -/
+  | callRef {s s₁ : Store H} {f : Frame} {ws us vs : List Val} {y : TypeIdx} {fa : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {fl : Binaryen.Flow} {code : List Admin}
+      (hfi : s.funcs[fa]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hcall : C s fa us (s₁, fl)) (hvs : fl.retVals = some vs)
+      (h : R s₁ f (ws ++ (vs.take rs.length).reverse) code) :
+      DivFC P host C D R s f (ws ++ us ++ [.ref (.func fa)]) (.plain (.callRef y) :: code)
+  /-- `call_ref y` on a function reference that `D` says diverges. -/
+  | callRefDiv {s : Store H} {f : Frame} {ws us : List Val} {y : TypeIdx} {fa : Nat}
+      {fi : FuncInst H} {ps rs : List CValType} {code : List Admin}
+      (hfi : s.funcs[fa]? = some fi) (hty : DefType.funcType? fi.type = some (ps, rs))
+      (hn : us.length = ps.length) (hD : D s fa us) :
+      DivFC P host C D R s f (ws ++ us ++ [.ref (.func fa)]) (.plain (.callRef y) :: code)
 
 /-- **Diverging region runs with calls**: the greatest fixed point of `DivFC`, as membership in
 some `DivFC`-closed relation. -/

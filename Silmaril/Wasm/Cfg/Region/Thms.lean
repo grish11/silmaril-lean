@@ -47,8 +47,10 @@ All results hold for every profile `P` and every host `host`. Proofs are in
   (ranks on expansion level and the `fill`/`copy`/`init` counts), so **`div_iff`** is
   unconditional. `RunDiv` is `RunDivC` with no call answered (`noCall`) or diverging (`noDiv`).
 
-* **Divergence with calls** (`RunDivC P host C D`): a direct call is answered by `C` with values
-  and the continuation diverges, or `D` names it (it diverges inside the callee).
+* **Divergence with calls** (`RunDivC P host C D`): a call (direct, `call_indirect` resolved by
+  `CallRes.IndRes`, or `call_ref` of a function reference) is answered by `C` with values and the
+  continuation diverges, or `D` names it (it diverges inside the callee). An unresolved index or a
+  null reference traps and is never divergence.
   `div_soundC` under `CallSoundA` and `DivCallSound`; **`div_completeC`**: on code of the
   fragment with calls (`FragC`), a diverging Core run is a `RunDivC` run under complete `C` and
   `D` (`CallCompleteG`, `DivCallComplete`) whose guard holds at every call the run reaches
@@ -61,8 +63,9 @@ All results hold for every profile `P` and every host `host`. Proofs are in
   about it. `run_soundC` holds under the named hypothesis `CallSoundA P host C` (every
   `call_ref` form). `call_indirect` and `call_ref` are answered by the same oracle after their
   resolution (`CallRes.IndRes`; the function reference on the stack), as `CallX.EvalOX` resolves
-  them (`RunC.callInd*`, `RunC.callRef*`); they are outside `Frag`/`FragC`, so completeness does
-  not cover them.
+  them (`RunC.callInd*`, `RunC.callRef*`). They are in `FragC`, and completeness covers them:
+  `call_indirect` unfolds in Core into `table.get; ref.cast; call_ref` (`callInd_back`), and the
+  guard `GuardedCalls` holds at every `call_ref` of a function reference the run reaches.
 
 * **Tail calls**: `return_call*` end a region in a pending tail call (`Out.tail`, `Out.tailNull`,
   the final forms `vals vs ++ REF.FUNC_ADDR a :: c :: rest` and its null analogue), which needs
@@ -104,8 +107,8 @@ theorem run_expand {c c₁ : Config H} (h : Step P host c c₁) (hF : Frag c.cod
         Run P host c.store c.frame vs c.code s' f' o :=
   Proofs.Region.expand h hF
 
-/-- **Expansion in the fragment with calls** (`FragB cf`, `cf = true` allowing direct calls),
-for any call oracle: a Core step whose redex is not a direct call (`¬ CallAt`)
+/-- **Expansion in the fragment with calls** (`FragB cf`, `cf = true` allowing calls),
+for any call oracle: a Core step whose redex is not a call (`¬ CallAt`)
 stays in the fragment, and region runs of the successor are region runs of the predecessor. -/
 theorem run_expandB {cf : Bool} {C : Abstract.CallRel H} {c c₁ : Config H}
     (h : Step P host c c₁) (hF : FragB cf c.code) (hnc : ¬ CallAt c.code) :
@@ -200,7 +203,7 @@ theorem div_soundC {C : Abstract.CallRel H} {D : Store H → Nat → List Val �
     (h : RunDivC P host C D s f vs code) : Diverges P host ⟨s, f, vals vs ++ code⟩ :=
   Proofs.Region.div_soundC hC hD h
 
-/-- **Divergence completeness with direct calls**: under a complete oracle `C` and a complete
+/-- **Divergence completeness with calls**: under a complete oracle `C` and a complete
 divergence predicate `D`, their guard `G` holding at every call the run reaches, every infinite
 Core 3.0 run of code of the fragment with calls (`FragC`) is a diverging region run with calls. -/
 theorem div_completeC {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
@@ -438,11 +441,11 @@ theorem call_incl {G : Store H → Nat → List Val → Prop} {C : Abstract.Call
     RunC P host C s f [] (vals (ws ++ us) ++ .plain (.call x) :: rest) s₂ f₂ o :=
   Proofs.Region.call_incl hC hx hfi he hn hG hcall hr
 
-/-! ## Core completeness with direct calls -/
+/-! ## Core completeness with calls -/
 
-/-- **Core completeness for code with direct calls** (every profile and host): under a complete
+/-- **Core completeness for code with calls** (every profile and host): under a complete
 oracle (`CallCompleteG`) whose guard holds at every call the run reaches (`GuardedCalls`), every
-Core 3.0 run of code of the fragment with calls (`FragC`: direct calls anywhere, in blocks,
+Core 3.0 run of code of the fragment with calls (`FragC`: direct, indirect and reference calls anywhere, in blocks,
 loops, `if`s, `try_table`s, labels and handlers) to a final form of `o` is a `RunC` run. -/
 theorem run_completeC {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
     (hC : CallCompleteG P host G C) {code c' : List Admin} {o : Out}

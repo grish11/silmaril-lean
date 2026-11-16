@@ -82,35 +82,63 @@ theorem run_core (hC : CallSoundA P host C) {body : Expr} {st st' : MState H}
     obtain ⟨hok', Z, hZ, hsteps⟩ := ih hok₁ hY
     exact ⟨hok', Z, hZ, (msim hC hs hok hX hY hns₁).1.trans hsteps⟩
 
+/-- A block whose body runs to values `W` before an instruction `i` diverges in Core when `i` on
+`W` diverges under any continuation. -/
+theorem blockAt_div (hC : CallSoundA P host C) {body : Expr} {b : BlockId} {sg : Segment}
+    {pre post : List Instr} {i : Instr} {stk : List Val} {ls : List LFrame} {s s₁ : Store H}
+    {f f₁ : Frame} {W : List Val} {X : List Admin} (hb : lookup body b = some sg)
+    (hbody : sg.body = pre ++ i :: post)
+    (hr : RunC P host C s f stk (expression pre) s₁ f₁ (.normal W))
+    (hi : ∀ R, Diverges P host ⟨s₁, f₁, vals W ++ .plain i :: R⟩)
+    (hX : codeOf body ⟨.block b, stk, ls, s, f⟩ = some X) :
+    Diverges P host ⟨s, f, X⟩ := by
+  obtain ⟨c, hc, hsg⟩ := Proofs.Machine.seg_of_lookup hb
+  simp only [codeOf, codeAt, hc, Option.bind_eq_bind, Option.bind_some] at hX
+  set R := expression (post ++ sg.term.toList ++ restAt c (b.idx + 1)) with hR
+  have hcode : vals stk ++ expression (restAt c b.idx) =
+      vals stk ++ expression pre ++ .plain i :: R := by
+    rw [Proofs.Machine.restAt_cons hsg]
+    simp [Segment.instrs, hbody, expression, hR, List.append_assoc]
+  obtain ⟨c', hs, he⟩ := Proofs.Region.soundC hC hr
+  simp only [Out.Ends] at he; subst he
+  have h1 : Steps P host ⟨s, f, vals stk ++ expression pre ++ .plain i :: R⟩
+      ⟨s₁, f₁, vals W ++ .plain i :: R⟩ := by
+    simpa [List.append_assoc] using Proofs.Region.steps_in [] (.plain i :: R) hs
+  have hdiv : Diverges P host ⟨s, f, vals stk ++ expression (restAt c b.idx)⟩ := by
+    rw [hcode]; exact InfiniteTrace.of_steps h1 (hi R)
+  exact wrap_div _ _ hX hdiv
+
 /-- **A block whose body reaches a diverging call diverges in Core**: the code its state stands
-for runs to the call, which diverges, inside the block's continuation and label frames. -/
+for runs to the call (direct, indirect after resolution, or by reference), which diverges, inside
+the block's continuation and label frames. -/
 theorem bodyCallDiv_core (hC : CallSoundA P host C) {D : Store H → Nat → List Val → Prop}
     (hD : DivCallSound P host D) {body : Expr} {st : MState H} {X : List Admin}
     (hX : codeOf body st = some X) (h : BodyCallDiv P host C D body st) :
     Diverges P host ⟨st.store, st.frame, X⟩ := by
   obtain ⟨node, stk, ls, s, f⟩ := st
-  obtain ⟨b, sg, pre, post, x, s₁, f₁, ws, us, a, fi, ps, rs, hn, hb, hbody, hr, hfi, hty, hlen,
-    hd⟩ := h
-  simp only at hn hr; subst hn
-  obtain ⟨c, hc, hsg⟩ := Proofs.Machine.seg_of_lookup hb
-  simp only [codeOf, codeAt, hc, Option.bind_eq_bind, Option.bind_some] at hX
-  set R := expression (post ++ sg.term.toList ++ restAt c (b.idx + 1)) with hR
-  have hcode : vals stk ++ expression (restAt c b.idx) =
-      vals stk ++ expression pre ++ .plain (.call x) :: R := by
-    rw [Proofs.Machine.restAt_cons hsg]
-    simp [Segment.instrs, hbody, expression, hR, List.append_assoc]
-  obtain ⟨c', hs, he⟩ := Proofs.Region.soundC hC hr
-  simp only [Out.Ends] at he; subst he
-  have h1 : Steps P host ⟨s, f, vals stk ++ expression pre ++ .plain (.call x) :: R⟩
-      ⟨s₁, f₁, vals (ws ++ us) ++ .plain (.call x) :: R⟩ := by
-    simpa [List.append_assoc] using Proofs.Region.steps_in [] (.plain (.call x) :: R) hs
-  have h2 := Proofs.Region.call_head (P := P) (host := host) (ws := ws) (us := us) (code := R) hfi
-  have h3 : Diverges P host ⟨s₁, f₁, vals ws ++ (vals us ++ [.ref (.func a),
-      .callRefType fi.type]) ++ R⟩ :=
-    Proofs.Region.diverges_in ws R (hD s₁ f₁ a fi ps rs us _ trivial (Proofs.Region.func?_inv hfi).2 hty hlen hd)
-  have hdiv : Diverges P host ⟨s, f, vals stk ++ expression (restAt c b.idx)⟩ := by
-    rw [hcode]; exact InfiniteTrace.of_steps h1 (InfiniteTrace.fold h2 h3)
-  exact wrap_div _ _ hX hdiv
+  rcases h with h | h | h
+  · obtain ⟨b, sg, pre, post, x, s₁, f₁, ws, us, a, fi, ps, rs, hn, hb, hbody, hr, hfi, hty, hlen,
+      hd⟩ := h
+    simp only at hn hr; subst hn
+    refine blockAt_div hC hb hbody hr (fun R => ?_) hX
+    exact InfiniteTrace.fold (Proofs.Region.call_head (P := P) (host := host) (ws := ws) (us := us)
+      (code := R) hfi) (Proofs.Region.diverges_in ws R
+        (hD s₁ f₁ a fi ps rs us _ trivial (Proofs.Region.func?_inv hfi).2 hty hlen hd))
+  · obtain ⟨b, sg, pre, post, x, y, s₁, f₁, ws, us, ad, k, fa, fi, ps, rs, hn, hb, hbody, hr, hres,
+      hfi, hty, hlen, hd⟩ := h
+    simp only at hn hr; subst hn
+    refine blockAt_div hC hb hbody hr (fun R => ?_) hX
+    simpa [List.append_assoc] using Proofs.Region.steps_div (Proofs.Region.callInd_head (P := P)
+      (host := host) (ws := ws) (us := us) (code := R) hres)
+      (Proofs.Region.diverges_in ws R (hD s₁ f₁ fa fi ps rs us (.plain (.callRef y)) trivial hfi hty
+        hlen hd))
+  · obtain ⟨b, sg, pre, post, y, s₁, f₁, ws, us, fa, fi, ps, rs, hn, hb, hbody, hr, hfi, hty, hlen,
+      hd⟩ := h
+    simp only at hn hr; subst hn
+    refine blockAt_div hC hb hbody hr (fun R => ?_) hX
+    rw [Proofs.Region.callRef_code]
+    exact Proofs.Region.diverges_in ws R (hD s₁ f₁ fa fi ps rs us (.plain (.callRef y)) trivial hfi
+      hty hlen hd)
 
 /-- **Soundness of machine divergence with calls**: from a state satisfying the invariant,
 `MDivC` is Core 3.0 divergence of the code the state stands for. -/
@@ -121,7 +149,11 @@ theorem mdivC_core (hC : CallSoundA P host C) {D : Store H → Nat → List Val 
   rcases h with h | ⟨st', hrun, hd⟩
   · exact core_infinite hC hok hX h
   · have hns : ¬ st'.node.IsSink := by
-      obtain ⟨b, _, _, _, _, _, _, _, _, _, _, _, _, hn, -⟩ := hd
+      have hn : ∃ b, st'.node = .block b := by
+        rcases hd with ⟨b, _, _, _, _, _, _, _, _, _, _, _, _, hn, -⟩ |
+          ⟨b, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, hn, -⟩ |
+          ⟨b, _, _, _, _, _, _, _, _, _, _, _, _, hn, -⟩ <;> exact ⟨b, hn⟩
+      obtain ⟨b, hn⟩ := hn
       rw [hn]; simp [Target.IsSink]
     obtain ⟨-, Y, hY, hsteps⟩ := run_core hC hrun hns hok hX
     exact InfiniteTrace.of_steps hsteps (bodyCallDiv_core hC hD hY hd)
@@ -140,7 +172,11 @@ theorem mdivC_core_initial (hC : CallSoundA P host C) {D : Store H → Nat → L
     rcases h with h | ⟨st', hrun, hd⟩
     · exact MachineCore.not_sink_of_infinite h
     · rcases hrun.cases_head with rfl | ⟨_, h₁, _⟩
-      · obtain ⟨b, _, _, _, _, _, _, _, _, _, _, _, _, hn, -⟩ := hd
+      · have hn : ∃ b, (initial body s f).node = .block b := by
+          rcases hd with ⟨b, _, _, _, _, _, _, _, _, _, _, _, _, hn, -⟩ |
+            ⟨b, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, hn, -⟩ |
+            ⟨b, _, _, _, _, _, _, _, _, _, _, _, _, hn, -⟩ <;> exact ⟨b, hn⟩
+        obtain ⟨b, hn⟩ := hn
         rw [hn]; simp [Target.IsSink]
       · exact not_sink_of_step h₁
   obtain ⟨Y, hY⟩ := codeOf_of_ok hok

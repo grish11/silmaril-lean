@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Cfg.BridgeBwd
 public import Silmaril.Wasm.Cfg.BridgeBwd.Defs
+public import Silmaril.Proofs.Wasm.Cfg.BridgeBwdRci
 
 @[expose] public section
 
@@ -234,6 +235,19 @@ theorem resOut_br_inv {s' : Store H} {f' : Frame} {l : Nat} {us : List Val}
   obtain ⟨rfl, junk, rfl⟩ := h
   exact ⟨_, junk, rfl, rfl⟩
 
+/-- A region outcome other than a pending tail call of a function. -/
+def NT (o : Region.Out) : Prop := ∀ W a c, o ≠ .tail W a c
+
+theorem nt_normal (us : List Val) : NT (.normal us) := by intro W a c h; cases h
+
+theorem nt_br (l : Nat) (us : List Val) : NT (.br l us) := by intro W a c h; cases h
+
+theorem labelExit_nt {ws : List Val} {oi o : Region.Out} (hx : LabelExit ws oi o) (h : NT o) :
+    NT oi := by
+  rintro W a c rfl
+  simp only [LabelExit] at hx
+  exact h _ _ _ hx
+
 /-- The top `n` values under junk, read top first. -/
 theorem top_of_append {us₁ us₂ junk vs : List Val} {n : Nat} (h : us₁ ++ us₂ = junk ++ vs.reverse)
     (hn : us₂.length = n) (hle : n ≤ vs.length) : us₂ = (vs.take n).reverse := by
@@ -257,9 +271,9 @@ variable {P : Profile} {host : HostSemantics H}
 /-- **A region run of a block, backwards**, from the backward runs of its body and the body's
 arity facts. -/
 theorem block_bwd {s s' : Store H} {f f' : Frame} {stk : List Val} {bt : BlockType}
-    {body : List BExpr} {np nr : Nat} {o : Region.Out}
+    {body : List BExpr} {np nr : Nat} {o : Region.Out} {T : Prop} (hT : T ∨ NT o)
     (har : Binaryen.arity f bt = some (np, nr)) (hp : np ≤ stk.length)
-    (ihb : ∀ {sB fB oB}, RunC P host C s f (stk.take np).reverse
+    (ihb : ∀ {sB fB oB}, T ∨ NT oB → RunC P host C s f (stk.take np).reverse
         (expression (BExpr.lowerList body)) sB fB oB →
       ∃ rb, EvalOX C s f (stk.take np) body rb ∧ ResOut C sB fB oB rb)
     (hlen : ∀ {s₁ f₁ vs}, EvalOX C s f (stk.take np) body (s₁, f₁, .normal vs) → vs.length = nr)
@@ -276,13 +290,15 @@ theorem block_bwd {s s' : Store H} {f f' : Frame} {stk : List Val} {bt : BlockTy
   rcases run_label_inv hl with ⟨s₁, f₁, us', hin, hk⟩ | ⟨s₁, f₁, us₁, us₂, hin, hn, hk⟩ |
       ⟨oi, hin, hx⟩
   · obtain ⟨rfl, rfl, rfl⟩ := Proofs.Region.run_nil_inv hk
-    obtain ⟨rb, hrb, hres⟩ := ihb (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
+    obtain ⟨rb, hrb, hres⟩ := ihb (.inr (nt_normal _))
+      (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
     obtain rfl := resOut_normal_inv hres
     have hl' := hlen hrb
     refine ⟨_, _, _, hrb, .inl ⟨_, rfl, rfl, rfl, ?_⟩⟩
     simp only [FlowRel, List.reverse_append, List.reverse_reverse]
     rw [List.take_of_length_le (le_of_eq hl'), List.reverse_reverse]
-  · obtain ⟨rb, hrb, hres⟩ := ihb (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
+  · obtain ⟨rb, hrb, hres⟩ := ihb (.inr (nt_br _ _))
+      (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
     obtain ⟨vs, junk, rfl, hj⟩ := resOut_br_inv hres
     have hle := hbr hrb
     obtain rfl := top_of_append hj hn hle
@@ -290,7 +306,8 @@ theorem block_bwd {s s' : Store H} {f f' : Frame} {stk : List Val} {bt : BlockTy
         s' f' o := Proofs.Region.run_vals_inv (code := []) (by simpa [expression] using hk)
     obtain ⟨rfl, rfl, rfl⟩ := Proofs.Region.run_nil_inv hk'
     exact ⟨_, _, _, hrb, .inl ⟨vs, rfl, rfl, rfl, by simp [FlowRel]⟩⟩
-  · obtain ⟨rb, hrb, hres⟩ := ihb (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
+  · obtain ⟨rb, hrb, hres⟩ := ihb (hT.imp id (labelExit_nt hx))
+      (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
     obtain ⟨fl', hfl, hres'⟩ := labelExit_res hres hx
     obtain ⟨s₁, f₁, fl⟩ := rb
     rcases hfl with ⟨k, vs, h1, rfl⟩ | ⟨hesc, rfl⟩
@@ -331,12 +348,13 @@ variable {P : Profile} {host : HostSemantics H} {bt : BlockType} {body : List BE
 /-- What a loop's backward case needs at each entry `(s, f, stk)`: the block type's arity, enough
 operands, the backward runs of the body, its arity facts, and the same at re-entry. -/
 structure LoopStep (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
-    (bt : BlockType) (body : List BExpr) (np nr : Nat)
+    (bt : BlockType) (body : List BExpr) (np nr : Nat) (T : Prop)
     (Inv : Store H → Frame → List Val → Prop) (s : Store H) (f : Frame) (stk : List Val) :
     Prop where
   har : Binaryen.arity f bt = some (np, nr)
   hp : np ≤ stk.length
-  ihb : ∀ {sB fB oB}, RunC P host C s f (stk.take np).reverse (expression (BExpr.lowerList body))
+  ihb : ∀ {sB fB oB}, T ∨ NT oB →
+      RunC P host C s f (stk.take np).reverse (expression (BExpr.lowerList body))
       sB fB oB → ∃ rb, EvalOX C s f (stk.take np) body rb ∧ ResOut C sB fB oB rb
   hlen : ∀ {s₁ f₁ vs}, EvalOX C s f (stk.take np) body (s₁, f₁, .normal vs) → vs.length = nr
   hbr : ∀ {s₁ f₁ vs}, EvalOX C s f (stk.take np) body (s₁, f₁, .brk 0 vs) → np ≤ vs.length
@@ -346,14 +364,15 @@ structure LoopStep (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel 
 
 /-- A loop's label left other than by falling through or branching back. -/
 theorem loop_exit {Inv : Store H → Frame → List Val → Prop} {s s₁ : Store H} {f f₁ : Frame}
-    {stk W us : List Val} {oi o : Region.Out} (hs : LoopStep P host C bt body np nr Inv s f stk)
+    {stk W us : List Val} {oi o : Region.Out} {T : Prop}
+    (hs : LoopStep P host C bt body np nr T Inv s f stk) (hT : T ∨ NT o)
     (hW : W ++ us = stk.reverse) (hlen : us.length = np)
     (hin : RunC P host C s f [] (vals us ++ expression (BExpr.lowerList body)) s₁ f₁ oi)
     (hx : LabelExit W oi o) :
     ∃ r, EvalOX C s f stk [.loop bt body] r ∧ ResOut C s₁ f₁ o r := by
   rw [rev_split stk np] at hW
   obtain ⟨rfl, rfl⟩ := List.append_inj' hW (by rw [hlen, len_rev_take hs.hp])
-  obtain ⟨rb, hrb, hres⟩ := hs.ihb (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
+  obtain ⟨rb, hrb, hres⟩ := hs.ihb (hT.imp id (labelExit_nt hx)) (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
   obtain ⟨fl', hfl, hres'⟩ := labelExit_res hres hx
   obtain ⟨sb, fb, fl⟩ := rb
   rcases hfl with ⟨k, vs, h1, rfl⟩ | ⟨hesc, rfl⟩
@@ -364,28 +383,28 @@ theorem loop_exit {Inv : Store H → Frame → List Val → Prop} {s s₁ : Stor
 set_option linter.unusedTactic false in
 /-- The two code shapes a loop's region run passes through: values then the loop, and the
 loop's label. -/
-theorem loop_aux {Inv : Store H → Frame → List Val → Prop}
-    (hI : ∀ {s f stk}, Inv s f stk → LoopStep P host C bt body np nr Inv s f stk)
+theorem loop_aux {Inv : Store H → Frame → List Val → Prop} {T : Prop}
+    (hI : ∀ {s f stk}, Inv s f stk → LoopStep P host C bt body np nr T Inv s f stk)
     {s s' : Store H} {f f' : Frame} {W : List Val} {code : List Admin} {o : Region.Out}
     (h : RunC P host C s f W code s' f' o) :
     (∀ us stk, code = vals us ++ [.plain (.loop bt (BExpr.lowerList body))] →
-        W ++ us = stk.reverse → Inv s f stk →
+        W ++ us = stk.reverse → Inv s f stk → (T ∨ NT o) →
         ∃ r, EvalOX C s f stk [.loop bt body] r ∧ ResOut C s' f' o r) ∧
       (∀ us stk, code = [.label np [.loop bt (BExpr.lowerList body)]
           (vals us ++ expression (BExpr.lowerList body))] →
-        W ++ us = stk.reverse → us.length = np → Inv s f stk →
+        W ++ us = stk.reverse → us.length = np → Inv s f stk → (T ∨ NT o) →
         ∃ r, EvalOX C s f stk [.loop bt body] r ∧ ResOut C s' f' o r) := by
   induction h with
   | @val s s' f f' vs a v code o hv _ ih =>
-    refine ⟨fun us stk hc hW hinv => ?_, fun us stk hc => by
+    refine ⟨fun us stk hc hW hinv hT => ?_, fun us stk hc => by
       simp only [List.cons.injEq] at hc; obtain ⟨rfl, -⟩ := hc; simp [Admin.val?] at hv⟩
     rcases loop_code_cases hc.symm with ⟨rfl, rfl, rfl⟩ | ⟨u, us', rfl, rfl, rfl⟩
     · simp [Admin.val?] at hv
     · rw [Admin.val?_toAdmin, Option.some.injEq] at hv
       subst hv
-      exact ih.1 us' stk rfl (by simpa using hW) hinv
+      exact ih.1 us' stk rfl (by simpa using hW) hinv hT
   | @loop s s' f f' ws us₀ bt' b t₁ t₂ code o hbt hm _ ih =>
-    refine ⟨fun us stk hc hW hinv => ?_, fun us stk hc => by simp at hc⟩
+    refine ⟨fun us stk hc hW hinv hT => ?_, fun us stk hc => by simp at hc⟩
     rcases loop_code_cases hc.symm with ⟨rfl, h1, rfl⟩ | ⟨u, us', rfl, h1, -⟩
     · simp only [Admin.plain.injEq, Instr.loop.injEq] at h1
       obtain ⟨rfl, rfl⟩ := h1
@@ -393,10 +412,10 @@ theorem loop_aux {Inv : Store H → Frame → List Val → Prop}
       obtain ⟨t₁', t₂', hbt', h1', -⟩ := blockType_of_arity hs.har
       rw [hbt] at hbt'
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hbt')
-      exact ih.2 us₀ stk (by rw [h1']) (by simpa using hW) (hm.trans h1') hinv
+      exact ih.2 us₀ stk (by rw [h1']) (by simpa using hW) (hm.trans h1') hinv hT
     · rcases u with ⟨⟨_ | _⟩, _⟩ | _ | _ <;> simp [Val.toAdmin] at h1
   | @labelNormal s s₁ s' f f₁ f' vs us' n cont inner code o hin hk _ _ =>
-    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv => ?_⟩
+    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv hT => ?_⟩
     · rcases loop_code_cases hc.symm with ⟨-, h1, -⟩ | ⟨u, -, -, h1, -⟩
       · cases h1
       · rcases u with ⟨⟨_ | _⟩, _⟩ | _ | _ <;> simp [Val.toAdmin] at h1
@@ -406,14 +425,15 @@ theorem loop_aux {Inv : Store H → Frame → List Val → Prop}
     rw [rev_split stk n] at hW
     obtain ⟨rfl, rfl⟩ := List.append_inj' hW (by rw [hlen, len_rev_take hs.hp])
     obtain ⟨rfl, rfl, rfl⟩ := Proofs.Region.run_nil_inv hk
-    obtain ⟨rb, hrb, hres⟩ := hs.ihb (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
+    obtain ⟨rb, hrb, hres⟩ := hs.ihb (.inr (nt_normal _))
+      (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
     obtain rfl := resOut_normal_inv hres
     have hl' := hs.hlen hrb
     refine ⟨_, .loopOk hs.har hrb .nil, rfl, rfl, ?_⟩
     simp only [FlowRel, List.reverse_append, List.reverse_reverse]
     rw [List.take_of_length_le (le_of_eq hl'), List.reverse_reverse]
   | @labelBr0 s s₁ s' f f₁ f' vs us₁ us₂ n cont inner code o hin hn hk _ ihk =>
-    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv => ?_⟩
+    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv hT => ?_⟩
     · rcases loop_code_cases hc.symm with ⟨-, h1, -⟩ | ⟨u, -, -, h1, -⟩
       · cases h1
       · rcases u with ⟨⟨_ | _⟩, _⟩ | _ | _ <;> simp [Val.toAdmin] at h1
@@ -422,63 +442,64 @@ theorem loop_aux {Inv : Store H → Frame → List Val → Prop}
     have hs := hI hinv
     rw [rev_split stk n] at hW
     obtain ⟨rfl, rfl⟩ := List.append_inj' hW (by rw [hlen, len_rev_take hs.hp])
-    obtain ⟨rb, hrb, hres⟩ := hs.ihb (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
+    obtain ⟨rb, hrb, hres⟩ := hs.ihb (.inr (nt_br _ _))
+      (by simpa using Proofs.Region.run_vals_inv (vs := []) hin)
     obtain ⟨vs, junk, rfl, hj⟩ := resOut_br_inv hres
     have hle := hs.hbr hrb
     obtain rfl := top_of_append hj hn hle
     obtain ⟨r, hr, hres'⟩ := ihk.1 (vs.take n).reverse (vs.take n ++ stk.drop n) (by simp [expression])
-      (by simp) (hs.back hrb)
+      (by simp) (hs.back hrb) hT
     exact ⟨r, .loopBack hs.har hrb hr, hres'⟩
   | labelBrSucc hin =>
-    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv => ?_⟩
+    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv hT => ?_⟩
     · rcases loop_code_cases hc.symm with ⟨-, h1, -⟩ | ⟨u, -, -, h1, -⟩
       · cases h1
       · rcases u with ⟨⟨_ | _⟩, _⟩ | _ | _ <;> simp [Val.toAdmin] at h1
     simp only [List.cons.injEq, Admin.label.injEq] at hc
     obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hc
-    exact loop_exit (hI hinv) hW hlen hin rfl
+    exact loop_exit (hI hinv) hT hW hlen hin rfl
   | labelRet hin =>
-    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv => ?_⟩
+    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv hT => ?_⟩
     · rcases loop_code_cases hc.symm with ⟨-, h1, -⟩ | ⟨u, -, -, h1, -⟩
       · cases h1
       · rcases u with ⟨⟨_ | _⟩, _⟩ | _ | _ <;> simp [Val.toAdmin] at h1
     simp only [List.cons.injEq, Admin.label.injEq] at hc
     obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hc
-    exact loop_exit (hI hinv) hW hlen hin rfl
+    exact loop_exit (hI hinv) hT hW hlen hin rfl
   | labelTrap hin =>
-    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv => ?_⟩
+    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv hT => ?_⟩
     · rcases loop_code_cases hc.symm with ⟨-, h1, -⟩ | ⟨u, -, -, h1, -⟩
       · cases h1
       · rcases u with ⟨⟨_ | _⟩, _⟩ | _ | _ <;> simp [Val.toAdmin] at h1
     simp only [List.cons.injEq, Admin.label.injEq] at hc
     obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hc
-    exact loop_exit (hI hinv) hW hlen hin rfl
+    exact loop_exit (hI hinv) hT hW hlen hin rfl
   | labelThrow hin =>
-    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv => ?_⟩
+    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv hT => ?_⟩
     · rcases loop_code_cases hc.symm with ⟨-, h1, -⟩ | ⟨u, -, -, h1, -⟩
       · cases h1
       · rcases u with ⟨⟨_ | _⟩, _⟩ | _ | _ <;> simp [Val.toAdmin] at h1
     simp only [List.cons.injEq, Admin.label.injEq] at hc
     obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hc
-    exact loop_exit (hI hinv) hW hlen hin rfl
+    exact loop_exit (hI hinv) hT hW hlen hin rfl
   | labelTail hin =>
-    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv => ?_⟩
+    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv hT => ?_⟩
     · rcases loop_code_cases hc.symm with ⟨-, h1, -⟩ | ⟨u, -, -, h1, -⟩
       · cases h1
       · rcases u with ⟨⟨_ | _⟩, _⟩ | _ | _ <;> simp [Val.toAdmin] at h1
     simp only [List.cons.injEq, Admin.label.injEq] at hc
     obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hc
-    exact loop_exit (hI hinv) hW hlen hin rfl
+    exact loop_exit (hI hinv) hT hW hlen hin rfl
   | labelTailNull hin =>
-    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv => ?_⟩
+    refine ⟨fun us stk hc => ?_, fun us stk hc hW hlen hinv hT => ?_⟩
     · rcases loop_code_cases hc.symm with ⟨-, h1, -⟩ | ⟨u, -, -, h1, -⟩
       · cases h1
       · rcases u with ⟨⟨_ | _⟩, _⟩ | _ | _ <;> simp [Val.toAdmin] at h1
     simp only [List.cons.injEq, Admin.label.injEq] at hc
     obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hc
-    exact loop_exit (hI hinv) hW hlen hin rfl
+    exact loop_exit (hI hinv) hT hW hlen hin rfl
   | _ =>
-    refine ⟨fun us stk hc _ _ => ?_, fun us stk hc _ _ _ => ?_⟩
+    refine ⟨fun us stk hc _ _ _ => ?_, fun us stk hc _ _ _ _ => ?_⟩
     · first
         | (simp at hc; done)
         | (rcases loop_code_cases hc.symm with ⟨-, h1, -⟩ | ⟨u, -, -, h1, -⟩
@@ -564,7 +585,7 @@ variable {o : SingleThreaded.GrowOracle} {P₀ : Profile}
 /-- The backward statement for a tree list. -/
 def BwdL (o : SingleThreaded.GrowOracle) (C : Abstract.CallRel H) (es : List BExpr) : Prop :=
   ∀ {s s' : Store H} {f f' : Frame} {stk : List Val} {out : Region.Out}, TypedT s f stk es →
-    tailFreeL es = true →
+    (tailFreeL es = true ∨ NT out) →
     RunC (SingleThreaded.profile o) noHostX C s f stk.reverse (expression (BExpr.lowerList es))
       s' f' out →
     ∃ r, EvalOX C s f stk es r ∧ ResOut C s' f' out r
@@ -572,7 +593,7 @@ def BwdL (o : SingleThreaded.GrowOracle) (C : Abstract.CallRel H) (es : List BEx
 /-- The backward statement for one tree, at the head of a typed list. -/
 def Bwd1 (o : SingleThreaded.GrowOracle) (C : Abstract.CallRel H) (e : BExpr) : Prop :=
   ∀ {s s' : Store H} {f f' : Frame} {stk : List Val} {out : Region.Out} {es : List BExpr},
-    TypedT s f stk (e :: es) → tailFree e = true →
+    TypedT s f stk (e :: es) → (tailFree e = true ∨ NT out) →
     RunC (SingleThreaded.profile o) noHostX C s f stk.reverse (expression (BExpr.lower e))
       s' f' out →
     ∃ r, EvalOX C s f stk [e] r ∧ ResOut C s' f' out r
@@ -603,6 +624,12 @@ theorem thenC_stop_inv {P : Profile} {host : HostSemantics H} {s₁ s' : Store H
   | normal us => exact absurd rfl (hn us)
   | _ => exact h
 
+theorem nt_of_then {P : Profile} {host : HostSemantics H} {s₁ s' : Store H} {f₁ f' : Frame}
+    {o₁ out : Region.Out} {B : List Admin} (hnt : NT out)
+    (h : ThenC P host C s₁ f₁ o₁ B s' f' out) : NT o₁ := by
+  rintro W a c rfl
+  exact hnt W a c (thenC_stop_inv (fun us h => by cases h) h).1
+
 theorem not_normal_of_res {s' : Store H} {f' : Frame} {o₁ : Region.Out}
     {r : Store H × Frame × Flow} (hres : ResOut C s' f' o₁ r) (hn : ∀ us, o₁ ≠ .normal us) :
     ¬ r.2.2.IsNormal := by
@@ -622,14 +649,17 @@ theorem bwd_cons {e : BExpr} {es : List BExpr} (h1 : Bwd1 o C e) (hl : BwdL o C 
       expression (BExpr.lower e) ++ expression (BExpr.lowerList es) by
     simp [BExpr.lowerList, expression]] at h
   obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
-  simp only [tailFreeL, Bool.and_eq_true] at hx
-  obtain ⟨r₁, hr₁, hres₁⟩ := h1 ht hx.1 ha
+  have hx1 : tailFree e = true ∨ NT o₁ :=
+    hx.imp (fun h => by simp only [tailFreeL, Bool.and_eq_true] at h; exact h.1) (nt_of_then · hb)
+  have hx2 : tailFreeL es = true ∨ NT out :=
+    hx.imp (fun h => by simp only [tailFreeL, Bool.and_eq_true] at h; exact h.2) id
+  obtain ⟨r₁, hr₁, hres₁⟩ := h1 ht hx1 ha
   by_cases hn : ∃ us, o₁ = .normal us
   · obtain ⟨us, rfl⟩ := hn
     obtain rfl := resOut_normal_inv hres₁
     simp only [ThenC] at hb
     have hT : EvalOXT C s f stk [e] _ := evalOXT_of_typedT hC hCk hr₁ (typedT_head ht)
-    obtain ⟨r, hr, hres⟩ := hl (cont_typedT hC hCk hT ht) hx.2 (by simpa using hb)
+    obtain ⟨r, hr, hres⟩ := hl (cont_typedT hC hCk hT ht) hx2 (by simpa using hb)
     exact ⟨r, by simpa using evalOX_append hr₁ rfl hr, hres⟩
   · simp only [not_exists] at hn
     obtain ⟨rfl, rfl, rfl⟩ := thenC_stop_inv hn hb
@@ -639,11 +669,12 @@ theorem bwd_cons {e : BExpr} {es : List BExpr} (h1 : Bwd1 o C e) (hl : BwdL o C 
 theorem bwd1_op_flat {i : Instr} {args : List BExpr} (hi : ∀ x, i ≠ .call x)
     (hxi : isXCall i = false) (iha : BwdL o C args) : Bwd1 o C (.op i args) := by
   intro s s' f f' stk out es ht hx h
-  simp only [tailFree, Bool.and_eq_true, Bool.not_eq_true'] at hx
   rw [show expression (BExpr.lower (.op i args)) =
       expression (BExpr.lowerList args) ++ [.plain i] by simp [BExpr.lower, expression]] at h
   obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
-  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hx.2 ha
+  have hxa : tailFreeL args = true ∨ NT o₁ :=
+    hx.imp (fun h => by simp only [tailFree, Bool.and_eq_true] at h; exact h.2) (nt_of_then · hb)
+  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hxa ha
   by_cases hn : ∃ us, o₁ = .normal us
   · obtain ⟨us, rfl⟩ := hn
     have he := resOut_normal_inv hresa
@@ -668,12 +699,13 @@ omit hC hCk in
 theorem bwd1_call {x : FuncIdx} {args : List BExpr} (iha : BwdL o C args) :
     Bwd1 o C (.op (.call x) args) := by
   intro s s' f f' stk out es ht hx h
-  simp only [tailFree, Bool.and_eq_true] at hx
   rw [show expression (BExpr.lower (.op (.call x) args)) =
       expression (BExpr.lowerList args) ++ [.plain (.call x)] by
     simp [BExpr.lower, expression]] at h
   obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
-  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hx.2 ha
+  have hxa : tailFreeL args = true ∨ NT o₁ :=
+    hx.imp (fun h => by simp only [tailFree, Bool.and_eq_true] at h; exact h.2) (nt_of_then · hb)
+  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hxa ha
   by_cases hn : ∃ us, o₁ = .normal us
   · obtain ⟨us, rfl⟩ := hn
     have he := resOut_normal_inv hresa
@@ -700,7 +732,7 @@ theorem bwd1_call {x : FuncIdx} {args : List BExpr} (iha : BwdL o C args) :
 theorem bwd1_block {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
     Bwd1 o C (.block bt body) := by
   intro s s' f f' stk out es ht hx h
-  simp only [tailFree] at hx
+  have hxb : tailFreeL body = true ∨ NT out := hx.imp (fun h => by simpa [tailFree] using h) id
   have ht0 := ht
   obtain ⟨rest, labels, ret, out', hS, hc, -, -, -⟩ := ht0
   obtain ⟨o₀, h1, -⟩ := chk_consE.mp hc
@@ -708,7 +740,7 @@ theorem bwd1_block {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
   have har : Binaryen.arity f bt = some (np, nr) := by rw [arity_eq]; exact ha
   obtain ⟨hp, hb, -⟩ := arity_block_pre har hc
   have htb := block_body_typedT (P := P₀) har ht
-  obtain ⟨s₁, f₁, fl, hrb, he⟩ := block_bwd har hp (fun hr => ihb htb hx hr)
+  obtain ⟨s₁, f₁, fl, hrb, he⟩ := block_bwd hxb har hp (fun hT hr => ihb htb hT hr)
     (fun hrun => by
       obtain ⟨ob, hob, -, hok, -⟩ := body_facts hS
         (arityG hC (evalOXT_of_typedT hC hCk hrun htb)) hb (take_length_of_le hp)
@@ -720,51 +752,62 @@ theorem bwd1_block {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
     (by simpa [BExpr.lower, expression] using h)
   exact evalOX_block har hrb he
 
+/-- The loop invariant of a typed loop: typed at each entry, at the loop's arity. -/
+def LoopInv (bt : BlockType) (body : List BExpr) (np nr : Nat) (s : Store H) (f : Frame)
+    (stk : List Val) : Prop :=
+  TypedT s f stk [.loop bt body] ∧ Binaryen.arity f bt = some (np, nr)
+
+/-- **A typed loop's entries satisfy what the loop's backward case needs.** -/
+theorem loopStep_of {bt : BlockType} {body : List BExpr} {np nr : Nat} (ihb : BwdL o C body) :
+    ∀ {s f stk}, LoopInv bt body np nr s f stk →
+      LoopStep (SingleThreaded.profile o) noHostX C bt body np nr (tailFreeL body = true)
+        (LoopInv bt body np nr) s f stk := by
+  rintro s f stk ⟨ht1, har⟩
+  have ht2 := ht1
+  obtain ⟨rest, labels, ret, out', hS, hc, -, -, -⟩ := ht2
+  obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
+  have htb := loop_body_typedT (P := P₀) har ht1
+  refine ⟨har, hp, fun hT hr => ihb htb hT hr, fun hrun => ?_, fun hrun => ?_, fun hrun => ?_⟩
+  · obtain ⟨ob, hob, -, hok, -⟩ := body_facts hS
+      (arityG hC (evalOXT_of_typedT hC hCk hrun htb)) hb (take_length_of_le hp)
+    exact length_of_ends hok hob
+  · obtain ⟨ob, hob, -, hok, -⟩ := body_facts hS
+      (arityG hC (evalOXT_of_typedT hC hCk hrun htb)) hb (take_length_of_le hp)
+    obtain ⟨m, hm, hle⟩ := hok
+    simp only [List.getElem?_cons_zero, Option.some.injEq] at hm
+    exact hm ▸ hle
+  · have hT := evalOXT_of_typedT hC hCk hrun htb
+    obtain ⟨-, -, -, -, inv⟩ := body_facts hS (arityG hC hT) hb (take_length_of_le hp)
+    refine ⟨loop_back_typedT hC hCk har hT ht1, ?_⟩
+    rw [arity_eq, inv.2.1, ← arity_eq]; exact har
+
 /-- **A loop tree, backwards**, through every re-entry. -/
 theorem bwd1_loop {bt : BlockType} {body : List BExpr} (ihb : BwdL o C body) :
     Bwd1 o C (.loop bt body) := by
   intro s s' f f' stk out es ht hx h
-  simp only [tailFree] at hx
+  have hxb : tailFreeL body = true ∨ NT out := hx.imp (fun h => by simpa [tailFree] using h) id
   have ht0 := ht
   obtain ⟨rest, labels, ret, out', hS, hc, -, -, -⟩ := ht0
   obtain ⟨o₀, h1, -⟩ := chk_consE.mp hc
   obtain ⟨np, nr, ha, -⟩ := chk1_loopE h1
   have har : Binaryen.arity f bt = some (np, nr) := by rw [arity_eq]; exact ha
-  let Inv : Store H → Frame → List Val → Prop := fun s f stk =>
-    TypedT s f stk [.loop bt body] ∧ Binaryen.arity f bt = some (np, nr)
-  have hI : ∀ {s f stk}, Inv s f stk →
-      LoopStep (SingleThreaded.profile o) noHostX C bt body np nr Inv s f stk := by
-    rintro s f stk ⟨ht1, har⟩
-    have ht2 := ht1
-    obtain ⟨rest, labels, ret, out', hS, hc, -, -, -⟩ := ht2
-    obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
-    have htb := loop_body_typedT (P := P₀) har ht1
-    refine ⟨har, hp, fun hr => ihb htb hx hr, fun hrun => ?_, fun hrun => ?_, fun hrun => ?_⟩
-    · obtain ⟨ob, hob, -, hok, -⟩ := body_facts hS
-        (arityG hC (evalOXT_of_typedT hC hCk hrun htb)) hb (take_length_of_le hp)
-      exact length_of_ends hok hob
-    · obtain ⟨ob, hob, -, hok, -⟩ := body_facts hS
-        (arityG hC (evalOXT_of_typedT hC hCk hrun htb)) hb (take_length_of_le hp)
-      obtain ⟨m, hm, hle⟩ := hok
-      simp only [List.getElem?_cons_zero, Option.some.injEq] at hm
-      exact hm ▸ hle
-    · have hT := evalOXT_of_typedT hC hCk hrun htb
-      obtain ⟨-, -, -, -, inv⟩ := body_facts hS (arityG hC hT) hb (take_length_of_le hp)
-      refine ⟨loop_back_typedT hC hCk har hT ht1, ?_⟩
-      rw [arity_eq, inv.2.1, ← arity_eq]; exact har
+  have hI : ∀ {s f stk}, LoopInv bt body np nr s f stk →
+      LoopStep (SingleThreaded.profile o) noHostX C bt body np nr (tailFreeL body = true)
+        (LoopInv bt body np nr) s f stk := fun hinv => loopStep_of hC hCk ihb hinv
   exact (loop_aux hI h).1 [] stk (by simp [BExpr.lower, expression, vals]) (by simp)
-    ⟨typedT_head ht, har⟩
+    ⟨typedT_head ht, har⟩ hxb
 
 /-- **A conditional tree, backwards**: the condition, then the chosen arm as a block. -/
 theorem bwd1_if {bt : BlockType} {c t el : List BExpr} (ihc : BwdL o C c) (iht : BwdL o C t)
     (ihe : BwdL o C el) : Bwd1 o C (.if_ bt c t el) := by
   intro s s' f f' stk out es ht hx h
-  simp only [tailFree, Bool.and_eq_true] at hx
   rw [show expression (BExpr.lower (.if_ bt c t el)) = expression (BExpr.lowerList c) ++
       [.plain (.if_ bt (BExpr.lowerList t) (BExpr.lowerList el))] by
     simp [BExpr.lower, expression]] at h
   obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
-  obtain ⟨⟨sa, fa, fla⟩, hrc, hresc⟩ := ihc (cond_typedT ht) hx.1.1 ha
+  have hxc : tailFreeL c = true ∨ NT o₁ := hx.imp (fun h => by
+    simp only [tailFree, Bool.and_eq_true] at h; exact h.1.1) (nt_of_then · hb)
+  obtain ⟨⟨sa, fa, fla⟩, hrc, hresc⟩ := ihc (cond_typedT ht) hxc ha
   by_cases hn : ∃ us, o₁ = .normal us
   · obtain ⟨us, rfl⟩ := hn
     have he := resOut_normal_inv hresc
@@ -791,7 +834,8 @@ theorem bwd1_if {bt : BlockType} {c t el : List BExpr} (ihc : BwdL o C c) (iht :
     have hta := arm_typedT hC hCk hT hb' har₁ ht
     have hp : np ≤ ws.reverse.length := by simp at hp1 ⊢; omega
     have iharm : BwdL o C (if (k != 0) = true then t else el) := by split <;> assumption
-    have hxa : tailFreeL (if (k != 0) = true then t else el) = true := by split <;> simp_all
+    have hxa : tailFreeL (if (k != 0) = true then t else el) = true ∨ NT out := hx.imp (fun h => by
+      simp only [tailFree, Bool.and_eq_true] at h; split <;> simp_all) id
     have hlow : BExpr.lowerList (if (k != 0) = true then t else el) =
         if k = 0 then BExpr.lowerList el else BExpr.lowerList t := by
       by_cases hk0 : k = 0
@@ -802,7 +846,7 @@ theorem bwd1_if {bt : BlockType} {c t el : List BExpr} (ihc : BwdL o C c) (iht :
         (hrun : EvalOX C sa fa (ws.reverse.take np) (if (k != 0) = true then t else el)
           (s₂, f₂, fl)) =>
       if_facts hS (arityG hC hT) har₁ (arityG hC (evalOXT_of_typedT hC hCk hrun hta)) hc
-    obtain ⟨s₂, f₂, fl, harm, he⟩ := block_bwd har₁ hp (fun hr => iharm hta hxa hr)
+    obtain ⟨s₂, f₂, fl, harm, he⟩ := block_bwd hxa har₁ hp (fun hT hr => iharm hta hT hr)
       (fun hrun => by
         obtain ⟨-, ob, -, -, hob, hok, -⟩ := hfacts hrun; exact length_of_ends hok hob)
       (fun hrun => by
@@ -823,12 +867,13 @@ does (`CallRes.IndRes`), and the call is answered by the same oracle entry. -/
 theorem bwd1_callInd {x : TableIdx} {y : TypeIdx} {args : List BExpr} (iha : BwdL o C args) :
     Bwd1 o C (.op (.callIndirect x y) args) := by
   intro s s' f f' stk out es ht hx h
-  simp only [tailFree, Bool.and_eq_true] at hx
   rw [show expression (BExpr.lower (.op (.callIndirect x y) args)) =
       expression (BExpr.lowerList args) ++ [.plain (.callIndirect x y)] by
     simp [BExpr.lower, expression]] at h
   obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
-  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hx.2 ha
+  have hxa : tailFreeL args = true ∨ NT o₁ :=
+    hx.imp (fun h => by simp only [tailFree, Bool.and_eq_true] at h; exact h.2) (nt_of_then · hb)
+  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hxa ha
   by_cases hn : ∃ us, o₁ = .normal us
   swap
   · simp only [not_exists] at hn
@@ -875,12 +920,13 @@ omit hC hCk in
 theorem bwd1_callRef {y : TypeIdx} {args : List BExpr} (iha : BwdL o C args) :
     Bwd1 o C (.op (.callRef y) args) := by
   intro s s' f f' stk out es ht hx h
-  simp only [tailFree, Bool.and_eq_true] at hx
   rw [show expression (BExpr.lower (.op (.callRef y) args)) =
       expression (BExpr.lowerList args) ++ [.plain (.callRef y)] by
     simp [BExpr.lower, expression]] at h
   obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
-  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hx.2 ha
+  have hxa : tailFreeL args = true ∨ NT o₁ :=
+    hx.imp (fun h => by simp only [tailFree, Bool.and_eq_true] at h; exact h.2) (nt_of_then · hb)
+  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) hxa ha
   by_cases hn : ∃ us, o₁ = .normal us
   swap
   · simp only [not_exists] at hn
@@ -922,11 +968,50 @@ theorem bwd1_callRef {y : TypeIdx} {args : List BExpr} (iha : BwdL o C args) :
     exact ⟨_, .callRefNull hra, rfl, rfl, trivial⟩
 
 omit hC hCk in
-/-- Tail calls are outside the fragment. -/
-theorem bwd1_tail {i : Instr} {args : List BExpr} (hi : isTailCall i = true) :
-    Bwd1 o C (.op i args) := by
+/-- **A tail call tree whose region outcome is not a pending tail call of a function**: a
+`return_call_ref` on null (a pending tail call of null) or a `return_call_indirect` without a
+callee (`run_rci_inv`); either way the native evaluator traps (`EvalOX.tailRes`). -/
+theorem bwd1_tail {i : Instr} {args : List BExpr} (hi : isTailCall i = true)
+    (iha : BwdL o C args) : Bwd1 o C (.op i args) := by
   intro s s' f f' stk out es ht hx h
-  simp [tailFree, hi] at hx
+  have hnt : NT out := hx.resolve_left (by simp [tailFree, hi])
+  rw [show expression (BExpr.lower (.op i args)) =
+      expression (BExpr.lowerList args) ++ [.plain i] by simp [BExpr.lower, expression]] at h
+  obtain ⟨s₁, f₁, o₁, ha, hb⟩ := Proofs.Region.run_split h rfl
+  obtain ⟨⟨sa, fa, fla⟩, hra, hresa⟩ := iha (args_typedT ht) (.inr (nt_of_then hnt hb)) ha
+  by_cases hn : ∃ us, o₁ = .normal us
+  swap
+  · simp only [not_exists] at hn
+    obtain ⟨rfl, rfl, rfl⟩ := thenC_stop_inv hn hb
+    exact ⟨_, .argsAbort hra (not_normal_of_res hresa hn), hresa⟩
+  obtain ⟨us, rfl⟩ := hn
+  have he := resOut_normal_inv hresa
+  simp only [Prod.mk.injEq] at he
+  obtain ⟨rfl, rfl, rfl⟩ := he
+  simp only [ThenC] at hb
+  cases i <;> simp only [isTailCall, reduceCtorEq] at hi
+  · cases hb with
+    | returnCall hfi => exact absurd rfl (hnt _ _ _)
+    | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
+    | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
+    | val hv => simp [Admin.val?] at hv
+    | simple hi => simp [SingleThreaded.Det.famOf] at hi
+    | simpleTrap hi => simp [SingleThreaded.Det.famOf] at hi
+    | brData hb => cases hb
+  · cases hb with
+    | returnCallRef hc => exact absurd rfl (hnt _ _ _)
+    | @returnCallRefNull _ _ ws c _ hc =>
+      rw [show (ws ++ [Val.ref .null]).reverse = .ref .null :: ws.reverse by simp] at hra
+      exact ⟨_, .tailRes hra .refNull, rfl, rfl, trivial⟩
+    | val hv => simp [Admin.val?] at hv
+    | simple hi => simp [SingleThreaded.Det.famOf] at hi
+    | simpleTrap hi => simp [SingleThreaded.Det.famOf] at hi
+    | brData hb => cases hb
+  · obtain ⟨W, a, i', rfl, hres, rfl, rfl, hout⟩ := run_rci_inv hb hnt
+    rw [show (W ++ [Val.num ⟨.int a.intType, i'⟩]).reverse =
+      .num ⟨.int a.intType, i'⟩ :: W.reverse by simp] at hra
+    refine ⟨_, .tailRes hra (.indirectTrap hres), ?_⟩
+    rcases hout with rfl | ⟨c, rfl⟩ <;> exact ⟨rfl, rfl, trivial⟩
 
 omit hC hCk in
 /-- `try_table` does not pass the tail checker, so it has no typed backward case to prove. -/
@@ -947,7 +1032,7 @@ theorem bwd1_op {i : Instr} {args : List BExpr} (iha : BwdL o C args) :
   · exact bwd1_call iha ht hx h
   cases htc : isTailCall i
   swap
-  · exact bwd1_tail htc ht hx h
+  · exact bwd1_tail htc iha ht hx h
   cases hxi : isXCall i
   · exact bwd1_op_flat hC hCk (fun x hx => hcall ⟨x, hx⟩) hxi iha ht hx h
   · cases i <;> simp only [isXCall, isTailCall, reduceCtorEq] at hxi htc <;>
