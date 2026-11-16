@@ -204,6 +204,69 @@ tries the core decoder first, then the component one. Examples:
 `Silmaril/Wasi/Component/Accept/Consequence/Examples.lean` (the empty-module binary, the
 specification component).
 
+## Institutions, logics and their propositions
+
+`roomSys` (`Set Sen ⊢ Sen`) and `roomMulti` (`Sen* ⊢ Sen*`) already read a room as a system.
+`Institution/` adds the list form, syntactic entailment, and point-wise semantics:
+
+| construction | system | semantics |
+|---|---|---|
+| `roomSeq R` | `Sen* ⊢ Sen` | every model of all of `Γ` satisfies `φ` (= `Room.Entails` on the members) |
+| `roomMulti R` | `Sen* ⊢ Sen*` | every model of all of `Γ` satisfies **some** `δ ∈ Δ` (= `Gentzen.Valid R.Sat`) |
+| `institutionSeq I σ`, `corridorSeq f` | translations | reindexing along signature morphisms / corridors |
+| `ER.listSys E`, `LogicalSystem.listSys L S` | `Sen* ⊢ Sen` | syntactic (Tarskian) entailment; `≤ roomSeq` when `L` is sound |
+| `Refutation.Entails (localSat sat)`, `Gentzen.Valid (localSat sat)` | point-wise | one valuation satisfies the premises and the (some) conclusion |
+| `… (validIn sat)` | model-wise | validity in a model (every valuation) |
+
+Closure: every `Refutation.Entails sat` is `Structural.Closed tarskiRules` (reflexivity, `⊆`-weakening,
+hence exchange and contraction, and multi-cut); every `Gentzen.Valid sat` is
+`Gentzen.Closed defaultRules` (reflexivity, `⊆`-weakening of both sides, cut). Maps with a
+satisfaction condition (`valid_map_of_sat`, `entails_map_of_sat`) are the reusable
+reindexing/substitution lemma. Point-wise single conclusion is below model-wise
+(`entails_localSat_le_validIn`). The converse fails, and the two multiple-conclusion systems are
+incomparable (`Institution/Examples.lean`). **A model-wise succedent is not a disjunctive (LK)
+succedent.**
+
+### HOL (`HOL/`)
+
+The HOL institution's sentences are sequents `H ⊢ p`, satisfied valuation by valuation. At the
+level of propositions `HOLProp S` (bool-typed terms):
+
+| system | Lean | reading |
+|---|---|---|
+| `HOLProp* ⊢ HOLProp` | `HOL.seq S` | HOL Light's sequent semantics: `seq_iff_entails`, `seq_iff_valid_toSeq` (`Γ ⊢ p` valid in the institution) |
+| `HOLProp* ⊢ HOLProp*` | `HOL.gentzen S` | LK: one valuation, disjunctive succedent; `gentzen_single : gentzen.single = seq` |
+| model-wise | `HOL.globalSeq S`, `HOL.globalGentzen S` | consequence between hypothesis-free sentences `⊢ p` (`globalSeq_iff_roomSeq`) |
+
+Closure, all proved for `seq` and `gentzen`: structural (`seq_closed`, `gentzen_closed`,
+`seq_exchange`, `seq_contraction`), signature extension (`seq_map`, `gentzen_map`), type
+instantiation (`seq_tySubst`, `gentzen_tySubst`) and term instantiation (`seq_freeSubst`,
+`gentzen_freeSubst`). Soundness: `derives_le_seq` (HOL Light kernel, pure logic) and
+`logic_listSys_le_roomSeq` (sequent level). `HOL/Examples.lean` proves, over the initial
+signature, `x ⊢ y` in `globalSeq` but not in `seq`, and `⊢ x, ¬x` in `gentzen` but not in
+`globalGentzen`.
+
+### Dependent type theory: the lambda cube (`Silmaril/Calculi/LambdaCube/Consequence/`)
+
+There is no Martin-Löf type theory in the library. The dependent corners of the lambda cube
+(`lambdaP` … `cc`) are the existing dependent institutions, and their sentences are judgements
+`Γ ⊢ t : A`, `Γ ⊢ t ≡ u : A` that carry their own dependent context. `Semantics.seq M`
+(`roomSeq`) relates lists of whole judgements. It is Tarski-closed in that outer list
+(`seq_closed`) and never splits `Γ`. `derivableSys c` is theoremhood: it weakens and cuts, is
+below every semantics (`derivableSys_le_seq`), and is monotone in the corner. Reflexivity is not
+claimed. There is deliberately no Gentzen instance. `admissible c` (examples) is the one-model
+semantics whose `seq` is admissibility.
+
+### Gaps
+
+* HOL: no completeness (standard semantics is incomplete for the kernel). No proved
+  `Γ ⊢ Δ ↔ Γ ⊢ ⋁Δ` for HOL's defined disjunction. The kernel bridge `derives_le_seq` covers
+  only the empty object theory.
+* No `Sys`-valued functor for `roomSeq` (only translations per morphism) and no reflection of
+  consequence along corridors.
+* Lambda cube: no hypothetical-judgement calculus (judgements as premises of derivations), no
+  concrete model of a dependent corner, and no substitution closure for judgements.
+
 ## Interpretations
 
 `Interp Env Value Ax C := (e : Env) → Value → Option (System (Ax e) (C e))` reads a value, under a
@@ -272,6 +335,8 @@ Gentzen sequents.
 | `Silmaril/Logic/Consequence/Semantic/{Defs,Thms}.lean` | satisfaction, SZS, rooms, institutions | core |
 | `Silmaril/Logic/Consequence/Accept/{Defs,Thms}.lean` | acceptor lifts | core |
 | `Silmaril/Logic/Consequence/Acceptor/{Defs,Thms,Examples}.lean` | CSLib acceptors, interpreters and decoders as systems | core |
+| `Silmaril/Logic/Consequence/Institution/{Defs,Thms,Examples}.lean` | list-premise room systems, logics, point-wise vs model-wise | core |
+| `Silmaril/Logic/Consequence/HOL/{Defs,Thms,Examples}.lean` | HOL propositions: `seq`, `gentzen`, closure | core |
 | `Silmaril/Logic/Consequence/Signed/{Defs,Thms}.lean` | signed formulas, `negateEach`, carriers | core |
 | `Silmaril/Logic/Consequence/Multi/{Defs,Thms}.lean` | multiple conclusions, `rightExt`, `multiEntails`, rooms | core |
 | `Silmaril/Logic/Consequence/Interp/{Defs,Thms}.lean` | interpretations, projection, evidence | core |
