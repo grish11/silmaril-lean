@@ -16,17 +16,17 @@ import Silmaril.Proofs.Wasm.Cfg.ExampleBrOut
 label to the `exit` sink (`labels_exit`). Core 3.0 returns the expected results under the function
 label `LABEL_n{}` (`core0` … `core4`).
 
-**The block-CFG machine is stuck there** (the regression these fixtures record): its branch rules
-need a label frame for the target (`ls[l]? = some L`), and the function label has none, so
+**The block-CFG machine leaves the function there** (the fixed regression: its branch rules used
+to need a label frame for the target, and the function label has none, so the machine was stuck;
+`MStepC.brOut`, `brIfOut`, `brDataOut` now go to `exit` for a branch whose label index is the
+number of frames):
 
-* `machine_stuck0`, `machine_stuck1`, `machine_stuck4`: from the CFG entry of `body0`, `body1`,
-  `body4` the machine has no step, and so reaches no sink (`machine_no_sink0` …);
-* `machine_enter3`, `machine_stuck3`: `body3` enters its block and is then stuck at the
-  `br_table` whose target is the function label.
+* `machine_exit0`, `machine_exit1`, `machine_exit4`: from the CFG entry of `body0`, `body1`,
+  `body4` the machine steps to `exit` with Core's results;
+* `machine_enter3`, `machine_exit3`: `body3` enters its block, then its `br_table` steps to `exit`
+  with Core's result `5`.
 
-`body2` is the control: its `br_if` is not taken. These are statements about the machine as it is
-defined now; the fix (a transition to `exit` for a branch whose depth is the function boundary)
-is to restate them as machine runs to `exit` with Core's results.
+`body2` is the control: its `br_if` is not taken.
 -/
 
 namespace Silmaril.Wasm.Cfg.ExampleBrOut
@@ -64,40 +64,31 @@ theorem core4 (s : Store H) (f : Frame) :
     Steps P host ⟨s, f, [.label 2 [] (expression body4)]⟩ ⟨s, f, vals [.i32 1, .i32 2]⟩ :=
   Proofs.ExampleBrOut.core4 s f
 
-theorem machine_stuck0 (s : Store H) (f : Frame) (st' : MState H) :
-    ¬ MStepC P host C body0 (initial body0 s f) st' := Proofs.ExampleBrOut.stuck0 s f st'
+/-- **`body0` leaves the function at its `br 0`**: the machine steps from the CFG entry to `exit`
+with Core's result `1`. -/
+theorem machine_exit0 (s : Store H) (f : Frame) :
+    MStepC P host C body0 (initial body0 s f) ⟨.exit, [.i32 1], [], s, f⟩ :=
+  Proofs.ExampleBrOut.exit0 s f
 
-theorem machine_stuck1 (s : Store H) (f : Frame) (st' : MState H) :
-    ¬ MStepC P host C body1 (initial body1 s f) st' := Proofs.ExampleBrOut.stuck1 s f st'
+/-- **`body1` leaves the function at its taken `br_if`**, with Core's result `7`. -/
+theorem machine_exit1 (s : Store H) (f : Frame) :
+    MStepC P host C body1 (initial body1 s f) ⟨.exit, [.i32 7], [], s, f⟩ :=
+  Proofs.ExampleBrOut.exit1 s f
 
-theorem machine_stuck4 (s : Store H) (f : Frame) (st' : MState H) :
-    ¬ MStepC P host C body4 (initial body4 s f) st' := Proofs.ExampleBrOut.stuck4 s f st'
-
-theorem machine_no_sink0 (s : Store H) (f : Frame) (st' : MState H)
-    (h : Relation.ReflTransGen (MStepC P host C body0) (initial body0 s f) st') :
-    ¬ st'.node.IsSink :=
-  Proofs.ExampleBrOut.no_sink_of_stuck (Proofs.ExampleBrOut.stuck0 s f)
-    (Proofs.ExampleBrOut.initial_not_sink body0 _ rfl s f) st' h
-
-theorem machine_no_sink1 (s : Store H) (f : Frame) (st' : MState H)
-    (h : Relation.ReflTransGen (MStepC P host C body1) (initial body1 s f) st') :
-    ¬ st'.node.IsSink :=
-  Proofs.ExampleBrOut.no_sink_of_stuck (Proofs.ExampleBrOut.stuck1 s f)
-    (Proofs.ExampleBrOut.initial_not_sink body1 _ rfl s f) st' h
-
-theorem machine_no_sink4 (s : Store H) (f : Frame) (st' : MState H)
-    (h : Relation.ReflTransGen (MStepC P host C body4) (initial body4 s f) st') :
-    ¬ st'.node.IsSink :=
-  Proofs.ExampleBrOut.no_sink_of_stuck (Proofs.ExampleBrOut.stuck4 s f)
-    (Proofs.ExampleBrOut.initial_not_sink body4 _ rfl s f) st' h
+/-- **`body4` leaves the function at its `br 0`**, with Core's results `1, 2`. -/
+theorem machine_exit4 (s : Store H) (f : Frame) :
+    MStepC P host C body4 (initial body4 s f) ⟨.exit, [.i32 1, .i32 2], [], s, f⟩ :=
+  Proofs.ExampleBrOut.exit4 s f
 
 theorem machine_enter3 (s : Store H) (f : Frame) :
     MStepC P host C body3 (initial body3 s f)
       ⟨.block ⟨[(0, 0)], 0⟩, [], [frame3], s, f⟩ :=
   Proofs.ExampleBrOut.enter3 s f
 
-theorem machine_stuck3 (s : Store H) (f : Frame) (st' : MState H) :
-    ¬ MStepC P host C body3 ⟨.block ⟨[(0, 0)], 0⟩, [], [frame3], s, f⟩ st' :=
-  Proofs.ExampleBrOut.stuck3 s f st'
+/-- **`body3` leaves the function from inside its block at the `br_table`**, with Core's result
+`5`. -/
+theorem machine_exit3 (s : Store H) (f : Frame) :
+    MStepC P host C body3 ⟨.block ⟨[(0, 0)], 0⟩, [], [frame3], s, f⟩ ⟨.exit, [.i32 5], [], s, f⟩ :=
+  Proofs.ExampleBrOut.exit3 s f
 
 end Silmaril.Wasm.Cfg.ExampleBrOut

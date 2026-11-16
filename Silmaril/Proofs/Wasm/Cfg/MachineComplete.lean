@@ -1331,7 +1331,7 @@ theorem run_complete_initial {body : Expr} {s s' : Store H} {f f' : Frame} {o : 
   | br k us => exact absurd rfl (ho k us)
   | ret us =>
     obtain ⟨W, stk, rfl, hm⟩ := hr
-    exact ⟨_, hm, Or.inr ⟨W, rfl⟩, rfl, rfl⟩
+    exact ⟨_, hm, Or.inr (Or.inl ⟨W, rfl⟩), rfl, rfl⟩
   | trap => exact ⟨_, hr, Or.inl rfl, rfl, rfl⟩
   | throw a =>
     exact ⟨_, hr.2 (fun k L hL => by simp [seqLv] at hL), ⟨a, rfl, rfl⟩, rfl, rfl⟩

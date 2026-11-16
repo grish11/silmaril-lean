@@ -36,123 +36,6 @@ theorem run_consts : ∀ {is : List Instr} {s s' : Store H} {f f' : Frame} {vs :
       (by simpa [expression] using h')
     exact ⟨rfl, rfl, by simp [hv']⟩
 
-/-- The branch instructions: `br`, `br_if` and the data-dependent branches. -/
-def IsBranch (T : Instr) : Prop := (∃ l, T = .br l) ∨ (∃ l, T = .brIf l) ∨ T.IsBrData
-
-/-- **A branch only falls through or branches**, in a one-instruction region run. -/
-theorem branch_run_inv {s s' : Store H} {f f' : Frame} {W : List Val} {T : Instr}
-    {o : Region.Out} (hT : IsBranch T) (h : RunC P host C s f W [.plain T] s' f' o) :
-    (∃ us, o = .normal us) ∨ ∃ l us, o = .br l us := by
-  rcases hT with ⟨l, rfl⟩ | ⟨l, rfl⟩ | hd
-  · obtain ⟨rfl, -, -⟩ := Proofs.Region.run_br_inv h; exact .inr ⟨_, _, rfl⟩
-  · cases h with
-    | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
-    | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
-    | val hv => simp [Admin.val?] at hv
-    | simple hi => simp [SingleThreaded.Det.famOf] at hi
-    | simpleTrap hi => simp [SingleThreaded.Det.famOf] at hi
-    | brData hb => cases hb
-    | @brIf _ _ _ _ _ k _ _ _ h' =>
-      by_cases hk : k = 0
-      · simp only [hk, ↓reduceIte, List.nil_append] at h'
-        obtain ⟨rfl, -, -⟩ := Proofs.Region.run_nil_inv h'; exact .inl ⟨_, rfl⟩
-      · simp only [hk, ↓reduceIte, List.singleton_append] at h'
-        obtain ⟨rfl, -, -⟩ := Proofs.Region.run_br_inv h'; exact .inr ⟨_, _, rfl⟩
-  · cases T <;> simp only [Instr.IsBrData] at hd <;>
-    (cases h with
-      | brData hb h' =>
-        cases hb <;> simp only [List.append_nil] at h' <;>
-          first
-            | (obtain ⟨rfl, -, -⟩ := Proofs.Region.run_nil_inv h'; exact .inl ⟨_, rfl⟩)
-            | (obtain ⟨rfl, -, -⟩ := Proofs.Region.run_br_inv h'; exact .inr ⟨_, _, rfl⟩)
-      | returnCallRef hc => simp [Admin.IsReturnCallRef] at hc
-      | returnCallRefNull hc => simp [Admin.IsReturnCallRef] at hc
-      | val hv => simp [Admin.val?] at hv
-      | simple hi => simp [SingleThreaded.Det.famOf] at hi
-      | simpleTrap hi => simp [SingleThreaded.Det.famOf] at hi)
-
-/-- **The machine is stuck at a block of constants whose terminator branches to the function
-label**: every label the terminator can branch to has no frame. -/
-theorem stuck_brOut {body : Expr} {b : BlockId} {sg : Segment} {stk : List Val}
-    {ls : List LFrame} {s : Store H} {f : Frame} {st' : MState H} {T : Instr}
-    (hb : lookup body b = some sg) (hv : ∀ i ∈ sg.body, (Admin.plain i).val? ≠ none)
-    (hterm : sg.term = some T) (hT : IsBranch T)
-    (hbr : ∀ l, T = .br l → ls[l.toNat]? = none)
-    (hbrIf : ∀ l, T = .brIf l → ls[l.toNat]? = none ∧
-      ∀ W, stk ++ sg.body.filterMap (fun i => (Admin.plain i).val?) ≠ W ++ [.i32 0])
-    (hdata : ∀ us us' X W, stk ++ sg.body.filterMap (fun i => (Admin.plain i).val?) = W ++ us →
-      BrStep s f us T us' X → ∃ l, X = [.plain (.br l)] ∧ ls[l.toNat]? = none) :
-    ¬ MStepC P host C body ⟨.block b, stk, ls, s, f⟩ st' := by
-  intro h
-  cases h with
-  | fall hb' ht => rw [hb] at hb'; cases hb'; simp_all
-  | br hb' ht _ hL =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht; simp_all
-  | brIfTaken hb' ht _ _ hL =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht; simp_all
-  | brIfNot hb' ht hr =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    obtain ⟨rfl, rfl, ho⟩ := run_consts hv hr
-    simp only [Region.Out.normal.injEq] at ho
-    exact (hbrIf _ rfl).2 _ ho.symm
-  | brDataTaken hb' ht hr hbs hL =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    obtain ⟨rfl, rfl, ho⟩ := run_consts hv hr
-    simp only [Region.Out.normal.injEq] at ho
-    obtain ⟨l', hX, hl'⟩ := hdata _ _ _ _ ho.symm hbs
-    simp only [List.cons.injEq, Admin.plain.injEq, Instr.br.injEq, and_true] at hX
-    subst hX; simp_all
-  | brDataNot hb' ht hr hbs =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    obtain ⟨rfl, rfl, ho⟩ := run_consts hv hr
-    simp only [Region.Out.normal.injEq] at ho
-    obtain ⟨l', hX, -⟩ := hdata _ _ _ _ ho.symm hbs
-    cases hX
-  | enter hb' ht _ hkind =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    rcases hT with ⟨l, rfl⟩ | ⟨l, rfl⟩ | hd <;> cases hkind <;> simp_all [Instr.IsBrData]
-  | ret hb' ht =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    rcases hT with ⟨l, h⟩ | ⟨l, h⟩ | hd <;> simp_all [Instr.IsBrData]
-  | trap hb' ht =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    rcases hT with ⟨l, h⟩ | ⟨l, h⟩ | hd <;> simp_all [Instr.IsBrData]
-  | termTrap hb' ht _ hth =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    rcases branch_run_inv hT hth with ⟨us, h⟩ | ⟨l, us, h⟩ <;> cases h
-  | bodyTrap hb' hr =>
-    rw [hb] at hb'; cases hb'
-    obtain ⟨-, -, ho⟩ := run_consts hv hr; cases ho
-  | raise hb' ht hi =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    rcases hT with ⟨l, rfl⟩ | ⟨l, rfl⟩ | hd
-    · simp [Instr.IsThrow] at hi
-    · simp [Instr.IsThrow] at hi
-    · cases T <;> simp only [Instr.IsThrow, Instr.IsBrData] at hi hd
-  | catch_ hb' ht hi =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    rcases hT with ⟨l, rfl⟩ | ⟨l, rfl⟩ | hd
-    · simp [Instr.IsThrow] at hi
-    · simp [Instr.IsThrow] at hi
-    · cases T <;> simp only [Instr.IsThrow, Instr.IsBrData] at hi hd
-  | bodyRaise hb' hr =>
-    rw [hb] at hb'; cases hb'
-    obtain ⟨-, -, ho⟩ := run_consts hv hr; cases ho
-  | bodyCatch hb' hr =>
-    rw [hb] at hb'; cases hb'
-    obtain ⟨-, -, ho⟩ := run_consts hv hr; cases ho
-  | tailNull hb' ht hi =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    rcases hT with ⟨l, rfl⟩ | ⟨l, rfl⟩ | hd
-    · simp [Instr.IsTailCall] at hi
-    · simp [Instr.IsTailCall] at hi
-    · cases T <;> simp only [Instr.IsTailCall, Instr.IsBrData] at hi hd
-  | tail hb' ht hi =>
-    rw [hb] at hb'; cases hb'; rw [hterm] at ht; cases ht
-    rcases hT with ⟨l, rfl⟩ | ⟨l, rfl⟩ | hd
-    · simp [Instr.IsTailCall] at hi
-    · simp [Instr.IsTailCall] at hi
-    · cases T <;> simp only [Instr.IsTailCall, Instr.IsBrData] at hi hd
 
 end Silmaril.Wasm.Cfg.Proofs.ExampleBrOut
 
@@ -167,39 +50,6 @@ set_option linter.unusedTactic false
 set_option linter.unusedSimpArgs false
 
 
-/-- A stuck start that is not a sink reaches no sink. -/
-theorem no_sink_of_stuck {body : Expr} {st₀ : MState H}
-    (hst : ∀ st', ¬ MStepC P host C body st₀ st') (hs : ¬ st₀.node.IsSink) :
-    ∀ st', Relation.ReflTransGen (MStepC P host C body) st₀ st' → ¬ st'.node.IsSink := by
-  intro st' h
-  rcases Relation.ReflTransGen.cases_head h with rfl | ⟨st₁, h1, -⟩
-  · exact hs
-  · exact absurd h1 (hst _)
-
-theorem stuck0 (s : Store H) (f : Frame) (st' : MState H) :
-    ¬ MStepC P host C body0 (initial body0 s f) st' :=
-  stuck_brOut (sg := ⟨[.intConst .i32 1], some (.br l0)⟩) (T := .br l0) rfl
-    (by simp [Admin.val?]) rfl (.inl ⟨_, rfl⟩) (fun _ _ => rfl)
-    (fun _ h => by cases h) (fun _ _ _ _ _ h => by cases h)
-
-theorem stuck1 (s : Store H) (f : Frame) (st' : MState H) :
-    ¬ MStepC P host C body1 (initial body1 s f) st' :=
-  stuck_brOut (sg := ⟨[.intConst .i32 7, .intConst .i32 1], some (.brIf l0)⟩) (T := .brIf l0) rfl
-    (by simp [Admin.val?]) rfl (.inr (.inl ⟨_, rfl⟩)) (fun _ h => by cases h)
-    (fun _ h => by
-      cases h
-      refine ⟨rfl, fun W hW => ?_⟩
-      have := congrArg List.getLast? hW
-      simp [Admin.val?, Val.i32] at this
-      exact absurd this (by decide))
-    (fun _ _ _ _ _ h => by cases h)
-
-theorem stuck4 (s : Store H) (f : Frame) (st' : MState H) :
-    ¬ MStepC P host C body4 (initial body4 s f) st' :=
-  stuck_brOut (sg := ⟨[.intConst .i32 1, .intConst .i32 2], some (.br l0)⟩) (T := .br l0) rfl
-    (by simp [Admin.val?]) rfl (.inl ⟨_, rfl⟩) (fun _ _ => rfl)
-    (fun _ h => by cases h) (fun _ _ _ _ _ h => by cases h)
-
 /-- **`body3` enters its block**: the state at the block's first segment, under its frame. -/
 theorem enter3 (s : Store H) (f : Frame) :
     MStepC P host C body3 (initial body3 s f) ⟨.block ⟨[(0, 0)], 0⟩, [], [frame3], s, f⟩ := by
@@ -212,20 +62,6 @@ theorem enter3 (s : Store H) (f : Frame) :
       have := CondArm.plain (i := Instr.block .empty inner3) (ws := []) (us := []) (by simp)
       simpa using this) rfl rfl
   exact h
-
-theorem stuck3 (s : Store H) (f : Frame) (st' : MState H) :
-    ¬ MStepC P host C body3 ⟨.block ⟨[(0, 0)], 0⟩, [], [frame3], s, f⟩ st' :=
-  stuck_brOut (sg := ⟨[.intConst .i32 5, .intConst .i32 0], some (.brTable [l1] l1)⟩)
-    (T := .brTable [l1] l1) rfl (by simp [Admin.val?]) rfl (.inr (.inr trivial))
-    (fun _ h => by cases h) (fun _ h => by cases h)
-    (fun us us' X W _ hbs => by
-      cases hbs with
-      | tableLt hl =>
-        have hm := List.mem_of_getElem? hl
-        simp only [List.mem_singleton] at hm
-        subst hm
-        exact ⟨_, rfl, rfl⟩
-      | tableGe => exact ⟨_, rfl, rfl⟩)
 
 /-- A call-free region run to values is a Core run to them. -/
 theorem core_of_run {s s' : Store H} {f f' : Frame} {code : List Admin} {vs : List Val}
@@ -290,8 +126,31 @@ theorem core2 (s : Store H) (f : Frame) :
   exact core_of_run (RunC.labelNormal (vs := []) (by simpa using hin) (by simpa using
     (RunC.nil : RunC P host noCall s f [.i32 9] [] s f _)))
 
-theorem initial_not_sink (body : Expr) (b : BlockId) (h : cfgEntry body = .block b) (s : Store H)
-    (f : Frame) : ¬ (initial body s f).node.IsSink := by
-  simp [initial, h, Target.IsSink]
+/-! ## The machine leaves the function at the branch (the fixed machine) -/
+
+/-- **`body0`: the machine branches to the function label and reaches `exit` with `1`.** -/
+theorem exit0 (s : Store H) (f : Frame) :
+    MStepC P host C body0 (initial body0 s f) ⟨.exit, [.i32 1], [], s, f⟩ :=
+  MStepC.brOut (sg := ⟨[.intConst .i32 1], some (.br l0)⟩) (ls := []) rfl rfl
+    (.val (val_i32 1) .nil) rfl
+
+/-- **`body1`: the taken `br_if` reaches `exit` with `7`.** -/
+theorem exit1 (s : Store H) (f : Frame) :
+    MStepC P host C body1 (initial body1 s f) ⟨.exit, [.i32 7], [], s, f⟩ :=
+  MStepC.brIfOut (sg := ⟨[.intConst .i32 7, .intConst .i32 1], some (.brIf l0)⟩) (ls := [])
+    (k := 1) rfl rfl (.val (val_i32 7) (.val (val_i32 1) .nil)) (by decide) rfl
+
+/-- **`body3`: after entering its block, the `br_table` reaches `exit` with `5`.** -/
+theorem exit3 (s : Store H) (f : Frame) :
+    MStepC P host C body3 ⟨.block ⟨[(0, 0)], 0⟩, [], [frame3], s, f⟩ ⟨.exit, [.i32 5], [], s, f⟩ :=
+  MStepC.brDataOut (sg := ⟨[.intConst .i32 5, .intConst .i32 0], some (.brTable [l1] l1)⟩)
+    (ws := [.i32 5]) (us := [.i32 0]) (us' := []) (l := l1) rfl rfl
+    (.val (val_i32 5) (.val (val_i32 0) .nil)) (.tableLt rfl) rfl
+
+/-- **`body4`: the machine reaches `exit` with `1, 2`.** -/
+theorem exit4 (s : Store H) (f : Frame) :
+    MStepC P host C body4 (initial body4 s f) ⟨.exit, [.i32 1, .i32 2], [], s, f⟩ :=
+  MStepC.brOut (sg := ⟨[.intConst .i32 1, .intConst .i32 2], some (.br l0)⟩) (ls := []) rfl rfl
+    (.val (val_i32 1) (.val (val_i32 2) .nil)) rfl
 
 end Silmaril.Wasm.Cfg.Proofs.ExampleBrOut

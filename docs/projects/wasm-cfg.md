@@ -324,7 +324,7 @@ The plain graph stays an over-approximation, and claims about it say so.
      `machine_native_closedX`, `native_machine_closedX` (no oracle hypothesis). These are about the
      block-CFG machine as an executable semantics; the plain graph stays an over-approximation.
 
-10. **Branches to the function label (bug in the block-CFG machine, being fixed).** A function
+10. **Branches to the function label (bug in the block-CFG machine; transitions fixed).** A function
     body runs under its function's label (Core `FRAME_n{} (LABEL_n{} body)`), so a branch whose
     depth is the body's nesting depth returns; the native store check accepts it (labels
     `[rs.length]`) and the extracted CFG resolves it to `exit` (`labels body [] = [.exit]`). The
@@ -336,12 +336,19 @@ The plain graph stays an over-approximation, and claims about it say so.
       to the function label from inside a block, and two results; Core returns their results
       under the function label (`core0` … `core4`), while the machine is stuck
       (`machine_stuck0/1/4`, `machine_no_sink0/1/4`, `machine_enter3` then `machine_stuck3`).
-    - **Fix, next:** transitions for a branch whose depth is `ls.length` (the function boundary)
-      to the `exit` sink with the branch's values (`brVals`), `Ends` at `exit` extended with the
-      function-label branch, in bounded PRs that audit every inversion over `MStepC` and `Ends`
-      (soundness, completeness, divergence, Core termination), with compatibility corollaries;
-      then the fixtures restated as runs to `exit` with Core's results. Depth beyond
-      `ls.length` stays invalid.
+    - **Fix, done (machine transitions and soundness):** `MStepC.brOut`, `brIfOut`,
+      `brDataOut` step from a block whose terminator branches to label index `ls.length` (the
+      function boundary; deeper labels stay invalid) to `exit` with the block's values, as
+      `return` does; `Ends` at `exit` adds `∃ W, o = .br 0 (W ++ stk)`. Every case analysis over
+      `MStepC` is extended: soundness (`wrap_brOut`, `brOut_sound`, `brIfOut_sound`,
+      `brDataOut_sound` in `mstep_sound`), the CFG edge (`resolveT_out`: the function label
+      resolves to `exit`, so each new step is an `Edge` to `exit` in `mstep_edge`), and the Core
+      simulation (`msim`: the new steps go to a sink). Divergence results are unaffected: the
+      new steps end at a sink. The fixtures are restated as machine steps to `exit` with Core's
+      results (`machine_exit0/1/3/4`).
+    - **Next:** completeness for branches to the function label (`run_complete_initialC` still
+      excludes `br` outcomes): `Reach` at a branch to label `ls.length` asks for a machine run to
+      `exit`, through the completeness induction.
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done

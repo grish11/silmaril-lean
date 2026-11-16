@@ -236,6 +236,28 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .return_)
       (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
       MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+  /-- `br l` to the function label (`l` is the number of label frames, the function boundary):
+  leave the function with the block's values, as `return` does. Deeper labels stay invalid. -/
+  | brOut {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
+      {f f₁ : Frame} {l : LabelIdx} (hb : lookup body b = some sg)
+      (ht : sg.term = some (.br l))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
+      (hL : l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+  /-- `br_if l` with a nonzero condition, to the function label. -/
+  | brIfOut {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {k : BitVec 32}
+      (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
+      (hk : k ≠ 0) (hL : l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+  /-- A data-dependent branch (`br_table`, `br_on_*`) that branches to the function label. -/
+  | brDataOut {b : BlockId} {sg : Segment} {stk ws us us' : List Val} {ls : List LFrame}
+      {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {l : LabelIdx}
+      (hb : lookup body b = some sg) (ht : sg.term = some i)
+      (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
+      (hbs : BrStep s₁ f₁ us i us' [.plain (.br l)]) (hL : l.toNat = ls.length) :
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, ws ++ us', [], s₁, f₁⟩
   /-- `unreachable`, or a trap in the block's body. -/
   | trap {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .unreachable)
@@ -472,13 +494,14 @@ def _root_.Silmaril.Wasm.Cfg.Target.IsSink : Target → Prop
   | _ => False
 
 /-- **What a run ending in a sink state means**, as a region outcome: at `exit`, the final
-values, reached by falling off the end (`normal`) or by `return` (`ret`, the values under the
-returned ones are the label frames' outer values Core keeps); at `trap`, a trap or a pending
+values, reached by falling off the end (`normal`), by `return` (`ret`, the values under the
+returned ones are the label frames' outer values Core keeps), or by a branch to the function
+label (`br 0` out of the body, with the same outer values under the branch's); at `trap`, a trap or a pending
 tail call of null (which traps at the function's frame); at `raise`, the thrown exception whose
 address is the stack. -/
 def Ends {H : Type} (st : MState H) (o : Region.Out) : Prop :=
   match st.node with
-  | .exit => o = .normal st.stk ∨ ∃ W, o = .ret (W ++ st.stk)
+  | .exit => o = .normal st.stk ∨ (∃ W, o = .ret (W ++ st.stk)) ∨ ∃ W, o = .br 0 (W ++ st.stk)
   | .trap => o = .trap ∨ ∃ W c, o = .tailNull W c
   | .raise => ∃ a, st.stk = [.ref (.exn a)] ∧ o = .throw a
   | _ => False
