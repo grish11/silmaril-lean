@@ -115,7 +115,12 @@ def generate():
           "one registered language, and each example is a closed instance of",
           "`silmaril.shapes.language.member` about exactly that language: THM for `∈`, CSA for `∉`,",
           "with the example's own proof. JsonEvents' examples are about event streams of a local tree",
-          "and are not restated.", "-/", "",
+          "and are not restated.", "",
+          "**Stable names.** A language term `L` of module `M` is the definition",
+          "`Silmaril.Project.Languages.FormatExamples.<M>.lang_<snake L>` and the language",
+          "`formats.<m>.<snake L>`; the same term always gets the same name (a clash in one module takes",
+          "a `_` suffix, in file order). Problems are `formats.examples.<m>.l<line>`, by source line.",
+          "-/", "",
           "/-- `json_head` of `Silmaril/Formats/JsonBytes/Thms.lean`: decide a text that starts with a",
           "byte other than whitespace, `[` and `{`. -/",
           "local macro \"json_head\" : tactic =>", "  `(tactic| " + JSON_HEAD + ")", ""]
@@ -133,21 +138,22 @@ def generate():
         o.append(f"namespace Silmaril.Project.Languages.FormatExamples.{''.join(p.capitalize() for p in re.split(r'[._]', short))}")
         o.append("open " + ns + (" " + " ".join(opens) if opens else ""))
         o.append("@[expose] public section")
-        names = {}
-        for k, L in enumerate(langs):
-            d = f"lang{k}"
-            names[L] = (d, f"formats.{short}.{seg(L)}")
-            o.append(f"/-- `{L}` -/\ndef {d} := {L}")
+        # Stable public names: the definition `lang_<term>` and the language `formats.<module>.<term>`
+        # are named after the language term (deterministic: the same term gives the same name; a clash takes a `_` suffix in
+        # file order).
+        names, taken = {}, set()
+        for L in langs:
+            d = "lang_" + slug(L)
+            while d in taken:
+                d += "_"
+            taken.add(d)
+            names[L] = (d, f"formats.{short}.{d[len('lang_'):]}")
+            o.append(f"/-- `{L}` (`{f}`) -/\ndef {d} := {L}")
         o.append("end")
         nsfull = o[-len(langs) * 1 - 3].split(" ", 1)[1] if False else None
         o.append(f"end Silmaril.Project.Languages.FormatExamples.{''.join(p.capitalize() for p in re.split(r'[._]', short))}\n")
         nsname = f"Silmaril.Project.Languages.FormatExamples.{''.join(p.capitalize() for p in re.split(r'[._]', short))}"
-        used = set()
         for L, (d, lname) in names.items():
-            while lname in used:
-                lname += "_"
-            used.add(lname)
-            names[L] = (d, lname)
             o.append(f"silmaril language {lname} := {nsname}.{d} (domain := bytes) (op := decl)\n"
                      f"  (title := {lean_str(L)}) (source := {lean_str(f)})")
         o.append("")

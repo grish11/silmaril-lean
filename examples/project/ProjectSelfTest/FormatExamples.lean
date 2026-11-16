@@ -23,6 +23,11 @@ one registered language, and each example is a closed instance of
 `silmaril.shapes.language.member` about exactly that language: THM for `∈`, CSA for `∉`,
 with the example's own proof. JsonEvents' examples are about event streams of a local tree
 and are not restated.
+
+**Stable names.** A language term `L` of module `M` is the definition
+`Silmaril.Project.Languages.FormatExamples.<M>.lang_<snake L>` and the language
+`formats.<m>.<snake L>`; the same term always gets the same name (a clash in one module takes
+a `_` suffix, in file order). Problems are `formats.examples.<m>.l<line>`, by source line.
 -/
 
 /-- `json_head` of `Silmaril/Formats/JsonBytes/Thms.lean`: decide a text that starts with a
@@ -39,104 +44,104 @@ local macro "json_head" : tactic =>
 namespace Silmaril.Project.Languages.FormatExamples.Ascii
 open Silmaril.Formats Silmaril.Formats.Ascii
 @[expose] public section
-/-- `language` -/
-def lang0 := language
-/-- `printable` -/
-def lang1 := printable
-/-- `json .rfc8259` -/
-def lang2 := json .rfc8259
-/-- `JsonBytes.language .rfc8259` -/
-def lang3 := JsonBytes.language .rfc8259
+/-- `language` (`Silmaril/Formats/Ascii/Thms.lean`) -/
+def lang_language := language
+/-- `printable` (`Silmaril/Formats/Ascii/Thms.lean`) -/
+def lang_printable := printable
+/-- `json .rfc8259` (`Silmaril/Formats/Ascii/Thms.lean`) -/
+def lang_json_rfc8259 := json .rfc8259
+/-- `JsonBytes.language .rfc8259` (`Silmaril/Formats/Ascii/Thms.lean`) -/
+def lang_json_bytes_language_rfc8259 := JsonBytes.language .rfc8259
 end
 end Silmaril.Project.Languages.FormatExamples.Ascii
 
-silmaril language formats.ascii.language := Silmaril.Project.Languages.FormatExamples.Ascii.lang0 (domain := bytes) (op := decl)
+silmaril language formats.ascii.language := Silmaril.Project.Languages.FormatExamples.Ascii.lang_language (domain := bytes) (op := decl)
   (title := "language") (source := "Silmaril/Formats/Ascii/Thms.lean")
-silmaril language formats.ascii.printable := Silmaril.Project.Languages.FormatExamples.Ascii.lang1 (domain := bytes) (op := decl)
+silmaril language formats.ascii.printable := Silmaril.Project.Languages.FormatExamples.Ascii.lang_printable (domain := bytes) (op := decl)
   (title := "printable") (source := "Silmaril/Formats/Ascii/Thms.lean")
-silmaril language formats.ascii.json_rfc8259 := Silmaril.Project.Languages.FormatExamples.Ascii.lang2 (domain := bytes) (op := decl)
+silmaril language formats.ascii.json_rfc8259 := Silmaril.Project.Languages.FormatExamples.Ascii.lang_json_rfc8259 (domain := bytes) (op := decl)
   (title := "json .rfc8259") (source := "Silmaril/Formats/Ascii/Thms.lean")
-silmaril language formats.ascii.json_bytes_language_rfc8259 := Silmaril.Project.Languages.FormatExamples.Ascii.lang3 (domain := bytes) (op := decl)
+silmaril language formats.ascii.json_bytes_language_rfc8259 := Silmaril.Project.Languages.FormatExamples.Ascii.lang_json_bytes_language_rfc8259 (domain := bytes) (op := decl)
   (title := "JsonBytes.language .rfc8259") (source := "Silmaril/Formats/Ascii/Thms.lean")
 
 silmaril instance formats.examples.ascii.l64 (expect := THM) (title := "[0x00, 0x41, 0x7F] ∈ language")
   (doc := "Silmaril/Formats/Ascii/Thms.lean:64") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang0) (x := ([0x00, 0x41, 0x7F] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang_language) (x := ([0x00, 0x41, 0x7F] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Ascii
 open Silmaril.Formats Silmaril.Formats.Ascii
 theorem ex64 : [0x00, 0x41, 0x7F] ∈ language := by decide +kernel
 @[answers "formats.examples.ascii.l64" thm] public theorem ans64 :
-    Silmaril.Project.Shapes.Member lang0 ([0x00, 0x41, 0x7F] : List UInt8) := ex64
+    Silmaril.Project.Shapes.Member lang_language ([0x00, 0x41, 0x7F] : List UInt8) := ex64
 end Silmaril.Project.Languages.FormatExamples.Ascii
 
 silmaril instance formats.examples.ascii.l65 (expect := CSA) (title := "[0x41, 0x80] ∉ language")
   (doc := "Silmaril/Formats/Ascii/Thms.lean:65") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang0) (x := ([0x41, 0x80] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang_language) (x := ([0x41, 0x80] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Ascii
 open Silmaril.Formats Silmaril.Formats.Ascii
 theorem ex65 : [0x41, 0x80] ∉ language := by decide +kernel
 @[answers "formats.examples.ascii.l65" csa] public theorem ans65 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x41, 0x80] : List UInt8) := ex65
+    ¬ Silmaril.Project.Shapes.Member lang_language ([0x41, 0x80] : List UInt8) := ex65
 end Silmaril.Project.Languages.FormatExamples.Ascii
 
 silmaril instance formats.examples.ascii.l67 (expect := CSA) (title := "[0xC3, 0xA9] ∉ language — `é` in UTF-8 is well-formed but not ASCII.")
   (doc := "Silmaril/Formats/Ascii/Thms.lean:67") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang0) (x := ([0xC3, 0xA9] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang_language) (x := ([0xC3, 0xA9] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Ascii
 open Silmaril.Formats Silmaril.Formats.Ascii
 theorem ex67 : [0xC3, 0xA9] ∉ language := by decide +kernel
 @[answers "formats.examples.ascii.l67" csa] public theorem ans67 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xC3, 0xA9] : List UInt8) := ex67
+    ¬ Silmaril.Project.Shapes.Member lang_language ([0xC3, 0xA9] : List UInt8) := ex67
 end Silmaril.Project.Languages.FormatExamples.Ascii
 
 silmaril instance formats.examples.ascii.l68 (expect := THM) (title := "[0x20, 0x41, 0x7E] ∈ printable")
   (doc := "Silmaril/Formats/Ascii/Thms.lean:68") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang1) (x := ([0x20, 0x41, 0x7E] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang_printable) (x := ([0x20, 0x41, 0x7E] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Ascii
 open Silmaril.Formats Silmaril.Formats.Ascii
 theorem ex68 : [0x20, 0x41, 0x7E] ∈ printable := by decide +kernel
 @[answers "formats.examples.ascii.l68" thm] public theorem ans68 :
-    Silmaril.Project.Shapes.Member lang1 ([0x20, 0x41, 0x7E] : List UInt8) := ex68
+    Silmaril.Project.Shapes.Member lang_printable ([0x20, 0x41, 0x7E] : List UInt8) := ex68
 end Silmaril.Project.Languages.FormatExamples.Ascii
 
 silmaril instance formats.examples.ascii.l69 (expect := CSA) (title := "[0x41, 0x0A] ∉ printable")
   (doc := "Silmaril/Formats/Ascii/Thms.lean:69") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang1) (x := ([0x41, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang_printable) (x := ([0x41, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Ascii
 open Silmaril.Formats Silmaril.Formats.Ascii
 theorem ex69 : [0x41, 0x0A] ∉ printable := by decide +kernel
 @[answers "formats.examples.ascii.l69" csa] public theorem ans69 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x41, 0x0A] : List UInt8) := ex69
+    ¬ Silmaril.Project.Shapes.Member lang_printable ([0x41, 0x0A] : List UInt8) := ex69
 end Silmaril.Project.Languages.FormatExamples.Ascii
 
 silmaril instance formats.examples.ascii.l71 (expect := THM) (title := "[0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] ∈ json .rfc8259 — `\"é\"` as an escape is ASCII JSON; written directly it is JSON but not ASCII.")
   (doc := "Silmaril/Formats/Ascii/Thms.lean:71") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang2) (x := ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang_json_rfc8259) (x := ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Ascii
 open Silmaril.Formats Silmaril.Formats.Ascii
 theorem ex71 : [0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] ∈ json .rfc8259 := by decide +kernel
 @[answers "formats.examples.ascii.l71" thm] public theorem ans71 :
-    Silmaril.Project.Shapes.Member lang2 ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] : List UInt8) := ex71
+    Silmaril.Project.Shapes.Member lang_json_rfc8259 ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] : List UInt8) := ex71
 end Silmaril.Project.Languages.FormatExamples.Ascii
 
 silmaril instance formats.examples.ascii.l72 (expect := THM) (title := "[0x22, 0xC3, 0xA9, 0x22] ∈ JsonBytes.language .rfc8259")
   (doc := "Silmaril/Formats/Ascii/Thms.lean:72") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang3) (x := ([0x22, 0xC3, 0xA9, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang_json_bytes_language_rfc8259) (x := ([0x22, 0xC3, 0xA9, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Ascii
 open Silmaril.Formats Silmaril.Formats.Ascii
 theorem ex72 : [0x22, 0xC3, 0xA9, 0x22] ∈ JsonBytes.language .rfc8259 := by decide +kernel
 @[answers "formats.examples.ascii.l72" thm] public theorem ans72 :
-    Silmaril.Project.Shapes.Member lang3 ([0x22, 0xC3, 0xA9, 0x22] : List UInt8) := ex72
+    Silmaril.Project.Shapes.Member lang_json_bytes_language_rfc8259 ([0x22, 0xC3, 0xA9, 0x22] : List UInt8) := ex72
 end Silmaril.Project.Languages.FormatExamples.Ascii
 
 silmaril instance formats.examples.ascii.l73 (expect := CSA) (title := "[0x22, 0xC3, 0xA9, 0x22] ∉ json .rfc8259")
   (doc := "Silmaril/Formats/Ascii/Thms.lean:73") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang2) (x := ([0x22, 0xC3, 0xA9, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Ascii.lang_json_rfc8259) (x := ([0x22, 0xC3, 0xA9, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Ascii
 open Silmaril.Formats Silmaril.Formats.Ascii
 theorem ex73 : [0x22, 0xC3, 0xA9, 0x22] ∉ json .rfc8259 := by decide +kernel
 @[answers "formats.examples.ascii.l73" csa] public theorem ans73 :
-    ¬ Silmaril.Project.Shapes.Member lang2 ([0x22, 0xC3, 0xA9, 0x22] : List UInt8) := ex73
+    ¬ Silmaril.Project.Shapes.Member lang_json_rfc8259 ([0x22, 0xC3, 0xA9, 0x22] : List UInt8) := ex73
 end Silmaril.Project.Languages.FormatExamples.Ascii
 
 silmaril group formats.examples.ascii (title := "[0x22, 0xC3, 0xA9, 0x22] ∉ json .rfc8259: examples")
@@ -147,230 +152,230 @@ silmaril group formats.examples.ascii (title := "[0x22, 0xC3, 0xA9, 0x22] ∉ js
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 @[expose] public section
-/-- `language .big` -/
-def lang0 := language .big
-/-- `language .little` -/
-def lang1 := language .little
-/-- `schemeLanguage` -/
-def lang2 := schemeLanguage
+/-- `language .big` (`Silmaril/Formats/Utf16/Thms.lean`) -/
+def lang_language_big := language .big
+/-- `language .little` (`Silmaril/Formats/Utf16/Thms.lean`) -/
+def lang_language_little := language .little
+/-- `schemeLanguage` (`Silmaril/Formats/Utf16/Thms.lean`) -/
+def lang_scheme_language := schemeLanguage
 end
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
-silmaril language formats.utf16.language_big := Silmaril.Project.Languages.FormatExamples.Utf16.lang0 (domain := bytes) (op := decl)
+silmaril language formats.utf16.language_big := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big (domain := bytes) (op := decl)
   (title := "language .big") (source := "Silmaril/Formats/Utf16/Thms.lean")
-silmaril language formats.utf16.language_little := Silmaril.Project.Languages.FormatExamples.Utf16.lang1 (domain := bytes) (op := decl)
+silmaril language formats.utf16.language_little := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_little (domain := bytes) (op := decl)
   (title := "language .little") (source := "Silmaril/Formats/Utf16/Thms.lean")
-silmaril language formats.utf16.scheme_language := Silmaril.Project.Languages.FormatExamples.Utf16.lang2 (domain := bytes) (op := decl)
+silmaril language formats.utf16.scheme_language := Silmaril.Project.Languages.FormatExamples.Utf16.lang_scheme_language (domain := bytes) (op := decl)
   (title := "schemeLanguage") (source := "Silmaril/Formats/Utf16/Thms.lean")
 
 silmaril instance formats.examples.utf16.l85 (expect := THM) (title := "[0x00, 0x41] ∈ language .big — `A` (`U+0041`) in each byte order.")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:85") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0x00, 0x41] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0x00, 0x41] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex85 : [0x00, 0x41] ∈ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l85" thm] public theorem ans85 :
-    Silmaril.Project.Shapes.Member lang0 ([0x00, 0x41] : List UInt8) := ex85
+    Silmaril.Project.Shapes.Member lang_language_big ([0x00, 0x41] : List UInt8) := ex85
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l86 (expect := THM) (title := "[0x41, 0x00] ∈ language .little")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:86") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang1) (x := ([0x41, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_little) (x := ([0x41, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex86 : [0x41, 0x00] ∈ language .little := by decide +kernel
 @[answers "formats.examples.utf16.l86" thm] public theorem ans86 :
-    Silmaril.Project.Shapes.Member lang1 ([0x41, 0x00] : List UInt8) := ex86
+    Silmaril.Project.Shapes.Member lang_language_little ([0x41, 0x00] : List UInt8) := ex86
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l89 (expect := THM) (title := "[0xD8, 0x3D, 0xDE, 0x00] ∈ language .big")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:89") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0xD8, 0x3D, 0xDE, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0xD8, 0x3D, 0xDE, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex89 : [0xD8, 0x3D, 0xDE, 0x00] ∈ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l89" thm] public theorem ans89 :
-    Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x3D, 0xDE, 0x00] : List UInt8) := ex89
+    Silmaril.Project.Shapes.Member lang_language_big ([0xD8, 0x3D, 0xDE, 0x00] : List UInt8) := ex89
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l90 (expect := THM) (title := "[0x3D, 0xD8, 0x00, 0xDE] ∈ language .little")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:90") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang1) (x := ([0x3D, 0xD8, 0x00, 0xDE] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_little) (x := ([0x3D, 0xD8, 0x00, 0xDE] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex90 : [0x3D, 0xD8, 0x00, 0xDE] ∈ language .little := by decide +kernel
 @[answers "formats.examples.utf16.l90" thm] public theorem ans90 :
-    Silmaril.Project.Shapes.Member lang1 ([0x3D, 0xD8, 0x00, 0xDE] : List UInt8) := ex90
+    Silmaril.Project.Shapes.Member lang_language_little ([0x3D, 0xD8, 0x00, 0xDE] : List UInt8) := ex90
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l94 (expect := THM) (title := "[0xFF, 0xFF, 0xE0, 0x00] ∈ language .big — `U+FFFF` and `U+E000` are not surrogates.")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:94") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0xFF, 0xFF, 0xE0, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0xFF, 0xFF, 0xE0, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex94 : [0xFF, 0xFF, 0xE0, 0x00] ∈ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l94" thm] public theorem ans94 :
-    Silmaril.Project.Shapes.Member lang0 ([0xFF, 0xFF, 0xE0, 0x00] : List UInt8) := ex94
+    Silmaril.Project.Shapes.Member lang_language_big ([0xFF, 0xFF, 0xE0, 0x00] : List UInt8) := ex94
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l97 (expect := CSA) (title := "[0xD8, 0x3D] ∉ language .big — A lone high surrogate, a lone low surrogate, a reversed pair, a truncated pair.")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:97") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0xD8, 0x3D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0xD8, 0x3D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex97 : [0xD8, 0x3D] ∉ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l97" csa] public theorem ans97 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x3D] : List UInt8) := ex97
+    ¬ Silmaril.Project.Shapes.Member lang_language_big ([0xD8, 0x3D] : List UInt8) := ex97
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l98 (expect := CSA) (title := "[0xDE, 0x00] ∉ language .big")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:98") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0xDE, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0xDE, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex98 : [0xDE, 0x00] ∉ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l98" csa] public theorem ans98 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xDE, 0x00] : List UInt8) := ex98
+    ¬ Silmaril.Project.Shapes.Member lang_language_big ([0xDE, 0x00] : List UInt8) := ex98
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l99 (expect := CSA) (title := "[0xDE, 0x00, 0xD8, 0x3D] ∉ language .big")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:99") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0xDE, 0x00, 0xD8, 0x3D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0xDE, 0x00, 0xD8, 0x3D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex99 : [0xDE, 0x00, 0xD8, 0x3D] ∉ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l99" csa] public theorem ans99 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xDE, 0x00, 0xD8, 0x3D] : List UInt8) := ex99
+    ¬ Silmaril.Project.Shapes.Member lang_language_big ([0xDE, 0x00, 0xD8, 0x3D] : List UInt8) := ex99
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l100 (expect := CSA) (title := "[0xD8, 0x3D, 0x00, 0x41] ∉ language .big")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:100") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0xD8, 0x3D, 0x00, 0x41] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0xD8, 0x3D, 0x00, 0x41] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex100 : [0xD8, 0x3D, 0x00, 0x41] ∉ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l100" csa] public theorem ans100 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x3D, 0x00, 0x41] : List UInt8) := ex100
+    ¬ Silmaril.Project.Shapes.Member lang_language_big ([0xD8, 0x3D, 0x00, 0x41] : List UInt8) := ex100
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l102 (expect := CSA) (title := "[0x00, 0x41, 0x00] ∉ language .big — Odd length.")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:102") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0x00, 0x41, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0x00, 0x41, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex102 : [0x00, 0x41, 0x00] ∉ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l102" csa] public theorem ans102 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x00, 0x41, 0x00] : List UInt8) := ex102
+    ¬ Silmaril.Project.Shapes.Member lang_language_big ([0x00, 0x41, 0x00] : List UInt8) := ex102
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l105 (expect := THM) (title := "[0x00, 0xD8] ∈ language .big — surrogate `D800` little-endian.")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:105") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0x00, 0xD8] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0x00, 0xD8] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex105 : [0x00, 0xD8] ∈ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l105" thm] public theorem ans105 :
-    Silmaril.Project.Shapes.Member lang0 ([0x00, 0xD8] : List UInt8) := ex105
+    Silmaril.Project.Shapes.Member lang_language_big ([0x00, 0xD8] : List UInt8) := ex105
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l106 (expect := CSA) (title := "[0x00, 0xD8] ∉ language .little")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:106") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang1) (x := ([0x00, 0xD8] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_little) (x := ([0x00, 0xD8] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex106 : [0x00, 0xD8] ∉ language .little := by decide +kernel
 @[answers "formats.examples.utf16.l106" csa] public theorem ans106 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x00, 0xD8] : List UInt8) := ex106
+    ¬ Silmaril.Project.Shapes.Member lang_language_little ([0x00, 0xD8] : List UInt8) := ex106
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l109 (expect := THM) (title := "[0xFE, 0xFF, 0x00, 0x41] ∈ language .big — Explicit-endian schemes keep `FE FF` as the character `U+FEFF`.")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:109") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0xFE, 0xFF, 0x00, 0x41] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0xFE, 0xFF, 0x00, 0x41] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex109 : [0xFE, 0xFF, 0x00, 0x41] ∈ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l109" thm] public theorem ans109 :
-    Silmaril.Project.Shapes.Member lang0 ([0xFE, 0xFF, 0x00, 0x41] : List UInt8) := ex109
+    Silmaril.Project.Shapes.Member lang_language_big ([0xFE, 0xFF, 0x00, 0x41] : List UInt8) := ex109
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l110 (expect := THM) (title := "[0xFF, 0xFE, 0x41, 0x00] ∈ language .little")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:110") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang1) (x := ([0xFF, 0xFE, 0x41, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_little) (x := ([0xFF, 0xFE, 0x41, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex110 : [0xFF, 0xFE, 0x41, 0x00] ∈ language .little := by decide +kernel
 @[answers "formats.examples.utf16.l110" thm] public theorem ans110 :
-    Silmaril.Project.Shapes.Member lang1 ([0xFF, 0xFE, 0x41, 0x00] : List UInt8) := ex110
+    Silmaril.Project.Shapes.Member lang_language_little ([0xFF, 0xFE, 0x41, 0x00] : List UInt8) := ex110
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l112 (expect := THM) (title := "[0x00, 0x41] ∈ schemeLanguage — The UTF-16 scheme: big-endian without a mark, or the mark `FF FE` and little-endian text.")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:112") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang2) (x := ([0x00, 0x41] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_scheme_language) (x := ([0x00, 0x41] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex112 : [0x00, 0x41] ∈ schemeLanguage := by decide +kernel
 @[answers "formats.examples.utf16.l112" thm] public theorem ans112 :
-    Silmaril.Project.Shapes.Member lang2 ([0x00, 0x41] : List UInt8) := ex112
+    Silmaril.Project.Shapes.Member lang_scheme_language ([0x00, 0x41] : List UInt8) := ex112
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l113 (expect := THM) (title := "[0xFF, 0xFE, 0x41, 0x00] ∈ schemeLanguage")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:113") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang2) (x := ([0xFF, 0xFE, 0x41, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_scheme_language) (x := ([0xFF, 0xFE, 0x41, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex113 : [0xFF, 0xFE, 0x41, 0x00] ∈ schemeLanguage := by decide +kernel
 @[answers "formats.examples.utf16.l113" thm] public theorem ans113 :
-    Silmaril.Project.Shapes.Member lang2 ([0xFF, 0xFE, 0x41, 0x00] : List UInt8) := ex113
+    Silmaril.Project.Shapes.Member lang_scheme_language ([0xFF, 0xFE, 0x41, 0x00] : List UInt8) := ex113
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l114 (expect := THM) (title := "[0xFF, 0xFE, 0x3D, 0xD8, 0x00, 0xDE] ∈ schemeLanguage")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:114") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang2) (x := ([0xFF, 0xFE, 0x3D, 0xD8, 0x00, 0xDE] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_scheme_language) (x := ([0xFF, 0xFE, 0x3D, 0xD8, 0x00, 0xDE] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex114 : [0xFF, 0xFE, 0x3D, 0xD8, 0x00, 0xDE] ∈ schemeLanguage := by decide +kernel
 @[answers "formats.examples.utf16.l114" thm] public theorem ans114 :
-    Silmaril.Project.Shapes.Member lang2 ([0xFF, 0xFE, 0x3D, 0xD8, 0x00, 0xDE] : List UInt8) := ex114
+    Silmaril.Project.Shapes.Member lang_scheme_language ([0xFF, 0xFE, 0x3D, 0xD8, 0x00, 0xDE] : List UInt8) := ex114
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l117 (expect := THM) (title := "[0x3D, 0xD8, 0x00, 0xDE] ∈ schemeLanguage — pair `D83D DE00`.")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:117") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang2) (x := ([0x3D, 0xD8, 0x00, 0xDE] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_scheme_language) (x := ([0x3D, 0xD8, 0x00, 0xDE] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex117 : [0x3D, 0xD8, 0x00, 0xDE] ∈ schemeLanguage := by decide +kernel
 @[answers "formats.examples.utf16.l117" thm] public theorem ans117 :
-    Silmaril.Project.Shapes.Member lang2 ([0x3D, 0xD8, 0x00, 0xDE] : List UInt8) := ex117
+    Silmaril.Project.Shapes.Member lang_scheme_language ([0x3D, 0xD8, 0x00, 0xDE] : List UInt8) := ex117
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l118 (expect := CSA) (title := "[0xD8, 0x3D] ∉ schemeLanguage")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:118") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang2) (x := ([0xD8, 0x3D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_scheme_language) (x := ([0xD8, 0x3D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex118 : [0xD8, 0x3D] ∉ schemeLanguage := by decide +kernel
 @[answers "formats.examples.utf16.l118" csa] public theorem ans118 :
-    ¬ Silmaril.Project.Shapes.Member lang2 ([0xD8, 0x3D] : List UInt8) := ex118
+    ¬ Silmaril.Project.Shapes.Member lang_scheme_language ([0xD8, 0x3D] : List UInt8) := ex118
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l120 (expect := THM) (title := "[0xFF, 0xFE, 0x00, 0xD8] ∈ language .big — After the mark `FF FE` the text is little-endian, so this well-formed UTF-16BE is rejected.")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:120") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang0) (x := ([0xFF, 0xFE, 0x00, 0xD8] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_language_big) (x := ([0xFF, 0xFE, 0x00, 0xD8] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex120 : [0xFF, 0xFE, 0x00, 0xD8] ∈ language .big := by decide +kernel
 @[answers "formats.examples.utf16.l120" thm] public theorem ans120 :
-    Silmaril.Project.Shapes.Member lang0 ([0xFF, 0xFE, 0x00, 0xD8] : List UInt8) := ex120
+    Silmaril.Project.Shapes.Member lang_language_big ([0xFF, 0xFE, 0x00, 0xD8] : List UInt8) := ex120
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril instance formats.examples.utf16.l121 (expect := CSA) (title := "[0xFF, 0xFE, 0x00, 0xD8] ∉ schemeLanguage")
   (doc := "Silmaril/Formats/Utf16/Thms.lean:121") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang2) (x := ([0xFF, 0xFE, 0x00, 0xD8] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Utf16.lang_scheme_language) (x := ([0xFF, 0xFE, 0x00, 0xD8] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Utf16
 open Silmaril.Formats Silmaril.Formats.Utf16
 theorem ex121 : [0xFF, 0xFE, 0x00, 0xD8] ∉ schemeLanguage := by decide +kernel
 @[answers "formats.examples.utf16.l121" csa] public theorem ans121 :
-    ¬ Silmaril.Project.Shapes.Member lang2 ([0xFF, 0xFE, 0x00, 0xD8] : List UInt8) := ex121
+    ¬ Silmaril.Project.Shapes.Member lang_scheme_language ([0xFF, 0xFE, 0x00, 0xD8] : List UInt8) := ex121
 end Silmaril.Project.Languages.FormatExamples.Utf16
 
 silmaril group formats.examples.utf16 (title := "[0xFF, 0xFE, 0x00, 0xD8] ∉ schemeLanguage: examples")
@@ -381,507 +386,507 @@ silmaril group formats.examples.utf16 (title := "[0xFF, 0xFE, 0x00, 0xD8] ∉ sc
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 @[expose] public section
-/-- `language .rfc8259` -/
-def lang0 := language .rfc8259
-/-- `language .scalarEscapes` -/
-def lang1 := language .scalarEscapes
+/-- `language .rfc8259` (`Silmaril/Formats/JsonBytes/Thms.lean`) -/
+def lang_language_rfc8259 := language .rfc8259
+/-- `language .scalarEscapes` (`Silmaril/Formats/JsonBytes/Thms.lean`) -/
+def lang_language_scalar_escapes := language .scalarEscapes
 end
 end Silmaril.Project.Languages.FormatExamples.Json
 
-silmaril language formats.json.language_rfc8259 := Silmaril.Project.Languages.FormatExamples.Json.lang0 (domain := bytes) (op := decl)
+silmaril language formats.json.language_rfc8259 := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259 (domain := bytes) (op := decl)
   (title := "language .rfc8259") (source := "Silmaril/Formats/JsonBytes/Thms.lean")
-silmaril language formats.json.language_scalar_escapes := Silmaril.Project.Languages.FormatExamples.Json.lang1 (domain := bytes) (op := decl)
+silmaril language formats.json.language_scalar_escapes := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes (domain := bytes) (op := decl)
   (title := "language .scalarEscapes") (source := "Silmaril/Formats/JsonBytes/Thms.lean")
 
 silmaril instance formats.examples.json.l82 (expect := THM) (title := "[0x30] ∈ language .rfc8259 — 0")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:82") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x30] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x30] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex82 : [0x30] ∈ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l82" thm] public theorem ans82 :
-    Silmaril.Project.Shapes.Member lang0 ([0x30] : List UInt8) := ex82
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x30] : List UInt8) := ex82
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l83 (expect := THM) (title := "[0x2D, 0x30] ∈ language .rfc8259 — -0")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:83") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x2D, 0x30] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x2D, 0x30] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex83 : [0x2D, 0x30] ∈ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l83" thm] public theorem ans83 :
-    Silmaril.Project.Shapes.Member lang0 ([0x2D, 0x30] : List UInt8) := ex83
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x2D, 0x30] : List UInt8) := ex83
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l84 (expect := THM) (title := "[0x2D, 0x31, 0x32, 0x2E, 0x35, 0x65, 0x2B, 0x31, 0x30] ∈ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:84") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x2D, 0x31, 0x32, 0x2E, 0x35, 0x65, 0x2B, 0x31, 0x30] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x2D, 0x31, 0x32, 0x2E, 0x35, 0x65, 0x2B, 0x31, 0x30] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex84 : [0x2D, 0x31, 0x32, 0x2E, 0x35, 0x65, 0x2B, 0x31, 0x30] ∈ language .rfc8259 := by
   json_head
 @[answers "formats.examples.json.l84" thm] public theorem ans84 :
-    Silmaril.Project.Shapes.Member lang0 ([0x2D, 0x31, 0x32, 0x2E, 0x35, 0x65, 0x2B, 0x31, 0x30] : List UInt8) := ex84
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x2D, 0x31, 0x32, 0x2E, 0x35, 0x65, 0x2B, 0x31, 0x30] : List UInt8) := ex84
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l86 (expect := THM) (title := "[0x31, 0x45, 0x34, 0x30, 0x30] ∈ language .rfc8259 — 1E400")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:86") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x31, 0x45, 0x34, 0x30, 0x30] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x31, 0x45, 0x34, 0x30, 0x30] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex86 : [0x31, 0x45, 0x34, 0x30, 0x30] ∈ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l86" thm] public theorem ans86 :
-    Silmaril.Project.Shapes.Member lang0 ([0x31, 0x45, 0x34, 0x30, 0x30] : List UInt8) := ex86
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x31, 0x45, 0x34, 0x30, 0x30] : List UInt8) := ex86
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l87 (expect := THM) (title := "[0x30, 0x2E, 0x30, 0x65, 0x2D, 0x30] ∈ language .rfc8259 — 0.0e-0")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:87") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x30, 0x2E, 0x30, 0x65, 0x2D, 0x30] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x30, 0x2E, 0x30, 0x65, 0x2D, 0x30] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex87 : [0x30, 0x2E, 0x30, 0x65, 0x2D, 0x30] ∈ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l87" thm] public theorem ans87 :
-    Silmaril.Project.Shapes.Member lang0 ([0x30, 0x2E, 0x30, 0x65, 0x2D, 0x30] : List UInt8) := ex87
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x30, 0x2E, 0x30, 0x65, 0x2D, 0x30] : List UInt8) := ex87
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l88 (expect := THM) (title := "[0x31, 0x20, 0x0A] ∈ language .rfc8259 — 1 followed by ws")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:88") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x31, 0x20, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x31, 0x20, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex88 : [0x31, 0x20, 0x0A] ∈ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l88" thm] public theorem ans88 :
-    Silmaril.Project.Shapes.Member lang0 ([0x31, 0x20, 0x0A] : List UInt8) := ex88
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x31, 0x20, 0x0A] : List UInt8) := ex88
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l89 (expect := CSA) (title := "[0x30, 0x31] ∉ language .rfc8259 — 01")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:89") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x30, 0x31] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x30, 0x31] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex89 : [0x30, 0x31] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l89" csa] public theorem ans89 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x30, 0x31] : List UInt8) := ex89
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x30, 0x31] : List UInt8) := ex89
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l90 (expect := CSA) (title := "[0x2B, 0x31] ∉ language .rfc8259 — +1")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:90") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x2B, 0x31] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x2B, 0x31] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex90 : [0x2B, 0x31] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l90" csa] public theorem ans90 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x2B, 0x31] : List UInt8) := ex90
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x2B, 0x31] : List UInt8) := ex90
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l91 (expect := CSA) (title := "[0x2E, 0x35] ∉ language .rfc8259 — .5")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:91") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x2E, 0x35] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x2E, 0x35] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex91 : [0x2E, 0x35] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l91" csa] public theorem ans91 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x2E, 0x35] : List UInt8) := ex91
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x2E, 0x35] : List UInt8) := ex91
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l92 (expect := CSA) (title := "[0x35, 0x2E] ∉ language .rfc8259 — 5.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:92") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x35, 0x2E] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x35, 0x2E] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex92 : [0x35, 0x2E] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l92" csa] public theorem ans92 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x35, 0x2E] : List UInt8) := ex92
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x35, 0x2E] : List UInt8) := ex92
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l93 (expect := CSA) (title := "[0x31, 0x65] ∉ language .rfc8259 — 1e")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:93") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x31, 0x65] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x31, 0x65] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex93 : [0x31, 0x65] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l93" csa] public theorem ans93 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x31, 0x65] : List UInt8) := ex93
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x31, 0x65] : List UInt8) := ex93
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l94 (expect := CSA) (title := "[0x2D] ∉ language .rfc8259 — -")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:94") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x2D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x2D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex94 : [0x2D] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l94" csa] public theorem ans94 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x2D] : List UInt8) := ex94
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x2D] : List UInt8) := ex94
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l95 (expect := CSA) (title := "[0x2D, 0x2D, 0x31] ∉ language .rfc8259 — --1")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:95") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x2D, 0x2D, 0x31] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x2D, 0x2D, 0x31] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex95 : [0x2D, 0x2D, 0x31] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l95" csa] public theorem ans95 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x2D, 0x2D, 0x31] : List UInt8) := ex95
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x2D, 0x2D, 0x31] : List UInt8) := ex95
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l96 (expect := CSA) (title := "[0x30, 0x78, 0x31, 0x46] ∉ language .rfc8259 — 0x1F")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:96") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x30, 0x78, 0x31, 0x46] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x30, 0x78, 0x31, 0x46] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex96 : [0x30, 0x78, 0x31, 0x46] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l96" csa] public theorem ans96 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x30, 0x78, 0x31, 0x46] : List UInt8) := ex96
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x30, 0x78, 0x31, 0x46] : List UInt8) := ex96
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l97 (expect := CSA) (title := "[0x4E, 0x61, 0x4E] ∉ language .rfc8259 — NaN")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:97") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x4E, 0x61, 0x4E] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x4E, 0x61, 0x4E] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex97 : [0x4E, 0x61, 0x4E] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l97" csa] public theorem ans97 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x4E, 0x61, 0x4E] : List UInt8) := ex97
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x4E, 0x61, 0x4E] : List UInt8) := ex97
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l98 (expect := CSA) (title := "[0x31, 0x20, 0x32] ∉ language .rfc8259 — 1 2")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:98") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x31, 0x20, 0x32] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x31, 0x20, 0x32] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex98 : [0x31, 0x20, 0x32] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l98" csa] public theorem ans98 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x31, 0x20, 0x32] : List UInt8) := ex98
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x31, 0x20, 0x32] : List UInt8) := ex98
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l102 (expect := THM) (title := "[0x74, 0x72, 0x75, 0x65] ∈ language .rfc8259 — true")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:102") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x74, 0x72, 0x75, 0x65] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x74, 0x72, 0x75, 0x65] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex102 : [0x74, 0x72, 0x75, 0x65] ∈ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l102" thm] public theorem ans102 :
-    Silmaril.Project.Shapes.Member lang0 ([0x74, 0x72, 0x75, 0x65] : List UInt8) := ex102
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x74, 0x72, 0x75, 0x65] : List UInt8) := ex102
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l103 (expect := THM) (title := "[0x6E, 0x75, 0x6C, 0x6C, 0x09] ∈ language .scalarEscapes — null·")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:103") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x6E, 0x75, 0x6C, 0x6C, 0x09] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x6E, 0x75, 0x6C, 0x6C, 0x09] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex103 : [0x6E, 0x75, 0x6C, 0x6C, 0x09] ∈ language .scalarEscapes := by json_head
 @[answers "formats.examples.json.l103" thm] public theorem ans103 :
-    Silmaril.Project.Shapes.Member lang1 ([0x6E, 0x75, 0x6C, 0x6C, 0x09] : List UInt8) := ex103
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x6E, 0x75, 0x6C, 0x6C, 0x09] : List UInt8) := ex103
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l104 (expect := CSA) (title := "[0x74, 0x72, 0x75] ∉ language .rfc8259 — tru")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:104") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x74, 0x72, 0x75] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x74, 0x72, 0x75] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex104 : [0x74, 0x72, 0x75] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l104" csa] public theorem ans104 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x74, 0x72, 0x75] : List UInt8) := ex104
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x74, 0x72, 0x75] : List UInt8) := ex104
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l105 (expect := CSA) (title := "[0x54, 0x72, 0x75, 0x65] ∉ language .rfc8259 — True")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:105") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x54, 0x72, 0x75, 0x65] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x54, 0x72, 0x75, 0x65] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex105 : [0x54, 0x72, 0x75, 0x65] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l105" csa] public theorem ans105 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x54, 0x72, 0x75, 0x65] : List UInt8) := ex105
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x54, 0x72, 0x75, 0x65] : List UInt8) := ex105
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l106 (expect := CSA) (title := "[0x74, 0x72, 0x75, 0x65, 0x78] ∉ language .rfc8259 — truex")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:106") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x74, 0x72, 0x75, 0x65, 0x78] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x74, 0x72, 0x75, 0x65, 0x78] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex106 : [0x74, 0x72, 0x75, 0x65, 0x78] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l106" csa] public theorem ans106 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x74, 0x72, 0x75, 0x65, 0x78] : List UInt8) := ex106
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x74, 0x72, 0x75, 0x65, 0x78] : List UInt8) := ex106
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l110 (expect := THM) (title := "[0x22, 0x22] ∈ language .scalarEscapes — \"\"")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:110") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x22, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x22, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex110 : [0x22, 0x22] ∈ language .scalarEscapes := by json_head
 @[answers "formats.examples.json.l110" thm] public theorem ans110 :
-    Silmaril.Project.Shapes.Member lang1 ([0x22, 0x22] : List UInt8) := ex110
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x22, 0x22] : List UInt8) := ex110
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l112 (expect := THM) (title := "[0x22, 0xC3, 0xA9, 0x22] ∈ language .scalarEscapes — \"é\", raw UTF-8 `C3 A9`.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:112") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x22, 0xC3, 0xA9, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x22, 0xC3, 0xA9, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex112 : [0x22, 0xC3, 0xA9, 0x22] ∈ language .scalarEscapes := by json_head
 @[answers "formats.examples.json.l112" thm] public theorem ans112 :
-    Silmaril.Project.Shapes.Member lang1 ([0x22, 0xC3, 0xA9, 0x22] : List UInt8) := ex112
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x22, 0xC3, 0xA9, 0x22] : List UInt8) := ex112
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l114 (expect := THM) (title := "[0x22, 0xF0, 0x9F, 0x98, 0x80, 0x22] ∈ language .scalarEscapes — \"😀\", raw UTF-8 `F0 9F 98 80`.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:114") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x22, 0xF0, 0x9F, 0x98, 0x80, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x22, 0xF0, 0x9F, 0x98, 0x80, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex114 : [0x22, 0xF0, 0x9F, 0x98, 0x80, 0x22] ∈ language .scalarEscapes := by json_head
 @[answers "formats.examples.json.l114" thm] public theorem ans114 :
-    Silmaril.Project.Shapes.Member lang1 ([0x22, 0xF0, 0x9F, 0x98, 0x80, 0x22] : List UInt8) := ex114
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x22, 0xF0, 0x9F, 0x98, 0x80, 0x22] : List UInt8) := ex114
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l116 (expect := THM) (title := "[0x22, 0x5C, 0x22, 0x5C, 0x5C, 0x5C, 0x2F, 0x5C, 0x6E, 0x22] ∈ language .rfc8259 — \"\\\"\\\\\\/\\n\"")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:116") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x5C, 0x22, 0x5C, 0x5C, 0x5C, 0x2F, 0x5C, 0x6E, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x5C, 0x22, 0x5C, 0x5C, 0x5C, 0x2F, 0x5C, 0x6E, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex116 : [0x22, 0x5C, 0x22, 0x5C, 0x5C, 0x5C, 0x2F, 0x5C, 0x6E, 0x22] ∈ language .rfc8259 := by
   json_head
 @[answers "formats.examples.json.l116" thm] public theorem ans116 :
-    Silmaril.Project.Shapes.Member lang0 ([0x22, 0x5C, 0x22, 0x5C, 0x5C, 0x5C, 0x2F, 0x5C, 0x6E, 0x22] : List UInt8) := ex116
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x5C, 0x22, 0x5C, 0x5C, 0x5C, 0x2F, 0x5C, 0x6E, 0x22] : List UInt8) := ex116
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l119 (expect := THM) (title := "[0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] ∈ language .scalarEscapes — \"é\" and \"é\": hex digits in either case.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:119") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex119 : [0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] ∈ language .scalarEscapes := by
   json_head
 @[answers "formats.examples.json.l119" thm] public theorem ans119 :
-    Silmaril.Project.Shapes.Member lang1 ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] : List UInt8) := ex119
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x65, 0x39, 0x22] : List UInt8) := ex119
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l121 (expect := THM) (title := "[0x22, 0x5C, 0x75, 0x30, 0x30, 0x45, 0x39, 0x22] ∈ language .scalarEscapes")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:121") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x45, 0x39, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x45, 0x39, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex121 : [0x22, 0x5C, 0x75, 0x30, 0x30, 0x45, 0x39, 0x22] ∈ language .scalarEscapes := by
   json_head
 @[answers "formats.examples.json.l121" thm] public theorem ans121 :
-    Silmaril.Project.Shapes.Member lang1 ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x45, 0x39, 0x22] : List UInt8) := ex121
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x22, 0x5C, 0x75, 0x30, 0x30, 0x45, 0x39, 0x22] : List UInt8) := ex121
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l124 (expect := THM) (title := "[0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] ∈ language .scalarEscapes — \"😀\", a surrogate pair: valid in both profiles.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:124") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex124 : [0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] ∈ language .scalarEscapes := by json_head
 @[answers "formats.examples.json.l124" thm] public theorem ans124 :
-    Silmaril.Project.Shapes.Member lang1 ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] : List UInt8) := ex124
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] : List UInt8) := ex124
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l126 (expect := THM) (title := "[0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] ∈ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:126") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex126 : [0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] ∈ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l126" thm] public theorem ans126 :
-    Silmaril.Project.Shapes.Member lang0 ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] : List UInt8) := ex126
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x22] : List UInt8) := ex126
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l129 (expect := THM) (title := "[0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] ∈ language .rfc8259 — \"\\uD800\", a lone high surrogate: RFC 8259 grammar only.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:129") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex129 : [0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] ∈ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l129" thm] public theorem ans129 :
-    Silmaril.Project.Shapes.Member lang0 ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] : List UInt8) := ex129
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] : List UInt8) := ex129
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l130 (expect := CSA) (title := "[0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] ∉ language .scalarEscapes")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:130") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex130 : [0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] ∉ language .scalarEscapes := by
   json_head
 @[answers "formats.examples.json.l130" csa] public theorem ans130 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] : List UInt8) := ex130
+    ¬ Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22] : List UInt8) := ex130
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l133 (expect := THM) (title := "[0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] ∈ language .rfc8259 — \"\\uDE00\\uD83D\", a reversed pair: RFC 8259 grammar only.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:133") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex133 : [0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] ∈ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l133" thm] public theorem ans133 :
-    Silmaril.Project.Shapes.Member lang0 ([0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] : List UInt8) := ex133
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] : List UInt8) := ex133
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l135 (expect := CSA) (title := "[0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] ∉ language .scalarEscapes")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:135") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex135 : [0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] ∉ language .scalarEscapes := by json_head
 @[answers "formats.examples.json.l135" csa] public theorem ans135 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] : List UInt8) := ex135
+    ¬ Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x22, 0x5C, 0x75, 0x44, 0x45, 0x30, 0x30, 0x5C, 0x75, 0x44, 0x38, 0x33, 0x44, 0x22] : List UInt8) := ex135
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l138 (expect := CSA) (title := "[0x22, 0x5C, 0x75, 0x64, 0x38, 0x30, 0x30, 0x61, 0x22] ∉ language .scalarEscapes — \"\\ud800a\": a high surrogate escape followed by a character, not by a low surrogate escape.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:138") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x22, 0x5C, 0x75, 0x64, 0x38, 0x30, 0x30, 0x61, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x22, 0x5C, 0x75, 0x64, 0x38, 0x30, 0x30, 0x61, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex138 : [0x22, 0x5C, 0x75, 0x64, 0x38, 0x30, 0x30, 0x61, 0x22] ∉ language .scalarEscapes := by
   json_head
 @[answers "formats.examples.json.l138" csa] public theorem ans138 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x22, 0x5C, 0x75, 0x64, 0x38, 0x30, 0x30, 0x61, 0x22] : List UInt8) := ex138
+    ¬ Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x22, 0x5C, 0x75, 0x64, 0x38, 0x30, 0x30, 0x61, 0x22] : List UInt8) := ex138
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l141 (expect := CSA) (title := "[0x22, 0x61, 0x62, 0x63] ∉ language .rfc8259 — Unterminated \"abc, unknown escape \"\\a\", short escape \"\\u12\", \"\\U0041\".")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:141") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x61, 0x62, 0x63] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x61, 0x62, 0x63] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex141 : [0x22, 0x61, 0x62, 0x63] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l141" csa] public theorem ans141 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0x61, 0x62, 0x63] : List UInt8) := ex141
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x61, 0x62, 0x63] : List UInt8) := ex141
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l142 (expect := CSA) (title := "[0x22, 0x5C, 0x61, 0x22] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:142") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x5C, 0x61, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x5C, 0x61, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex142 : [0x22, 0x5C, 0x61, 0x22] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l142" csa] public theorem ans142 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0x5C, 0x61, 0x22] : List UInt8) := ex142
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x5C, 0x61, 0x22] : List UInt8) := ex142
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l143 (expect := CSA) (title := "[0x22, 0x5C, 0x75, 0x31, 0x32, 0x22] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:143") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x5C, 0x75, 0x31, 0x32, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x5C, 0x75, 0x31, 0x32, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex143 : [0x22, 0x5C, 0x75, 0x31, 0x32, 0x22] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l143" csa] public theorem ans143 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0x5C, 0x75, 0x31, 0x32, 0x22] : List UInt8) := ex143
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x5C, 0x75, 0x31, 0x32, 0x22] : List UInt8) := ex143
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l144 (expect := CSA) (title := "[0x22, 0x5C, 0x55, 0x30, 0x30, 0x34, 0x31, 0x22] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:144") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x5C, 0x55, 0x30, 0x30, 0x34, 0x31, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x5C, 0x55, 0x30, 0x30, 0x34, 0x31, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex144 : [0x22, 0x5C, 0x55, 0x30, 0x30, 0x34, 0x31, 0x22] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l144" csa] public theorem ans144 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0x5C, 0x55, 0x30, 0x30, 0x34, 0x31, 0x22] : List UInt8) := ex144
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x5C, 0x55, 0x30, 0x30, 0x34, 0x31, 0x22] : List UInt8) := ex144
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l146 (expect := CSA) (title := "[0x22, 0x0A, 0x22] ∉ language .rfc8259 — A raw line feed or tab inside a string must be escaped.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:146") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x0A, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x0A, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex146 : [0x22, 0x0A, 0x22] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l146" csa] public theorem ans146 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0x0A, 0x22] : List UInt8) := ex146
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x0A, 0x22] : List UInt8) := ex146
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l147 (expect := CSA) (title := "[0x22, 0x09, 0x22] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:147") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0x09, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0x09, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex147 : [0x22, 0x09, 0x22] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l147" csa] public theorem ans147 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0x09, 0x22] : List UInt8) := ex147
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0x09, 0x22] : List UInt8) := ex147
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l150 (expect := CSA) (title := "[0x22, 0xC0, 0xAF, 0x22] ∉ language .rfc8259 — a truncated `E2 82`.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:150") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0xC0, 0xAF, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0xC0, 0xAF, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex150 : [0x22, 0xC0, 0xAF, 0x22] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l150" csa] public theorem ans150 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0xC0, 0xAF, 0x22] : List UInt8) := ex150
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0xC0, 0xAF, 0x22] : List UInt8) := ex150
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l151 (expect := CSA) (title := "[0x22, 0xED, 0xA0, 0x80, 0x22] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:151") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0xED, 0xA0, 0x80, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0xED, 0xA0, 0x80, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex151 : [0x22, 0xED, 0xA0, 0x80, 0x22] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l151" csa] public theorem ans151 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0xED, 0xA0, 0x80, 0x22] : List UInt8) := ex151
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0xED, 0xA0, 0x80, 0x22] : List UInt8) := ex151
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l152 (expect := CSA) (title := "[0x22, 0xFF, 0x22] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:152") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0xFF, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0xFF, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex152 : [0x22, 0xFF, 0x22] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l152" csa] public theorem ans152 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0xFF, 0x22] : List UInt8) := ex152
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0xFF, 0x22] : List UInt8) := ex152
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l153 (expect := CSA) (title := "[0x22, 0xE2, 0x82, 0x22] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:153") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x22, 0xE2, 0x82, 0x22] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x22, 0xE2, 0x82, 0x22] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex153 : [0x22, 0xE2, 0x82, 0x22] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l153" csa] public theorem ans153 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0xE2, 0x82, 0x22] : List UInt8) := ex153
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x22, 0xE2, 0x82, 0x22] : List UInt8) := ex153
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l155 (expect := CSA) (title := "[0x27, 0x61, 0x27] ∉ language .rfc8259 — Single quotes are not string delimiters.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:155") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x27, 0x61, 0x27] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x27, 0x61, 0x27] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex155 : [0x27, 0x61, 0x27] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l155" csa] public theorem ans155 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x27, 0x61, 0x27] : List UInt8) := ex155
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x27, 0x61, 0x27] : List UInt8) := ex155
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l160 (expect := CSA) (title := "[0xEF, 0xBB, 0xBF, 0x31] ∉ language .rfc8259 — A byte-order mark before `1` (`EF BB BF 31`) is not part of the language.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:160") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0xEF, 0xBB, 0xBF, 0x31] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0xEF, 0xBB, 0xBF, 0x31] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex160 : [0xEF, 0xBB, 0xBF, 0x31] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l160" csa] public theorem ans160 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xEF, 0xBB, 0xBF, 0x31] : List UInt8) := ex160
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0xEF, 0xBB, 0xBF, 0x31] : List UInt8) := ex160
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l162 (expect := CSA) (title := "[0x31, 0x00] ∉ language .rfc8259 — A NUL after the value.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:162") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x31, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x31, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex162 : [0x31, 0x00] ∉ language .rfc8259 := by json_head
 @[answers "formats.examples.json.l162" csa] public theorem ans162 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x31, 0x00] : List UInt8) := ex162
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x31, 0x00] : List UInt8) := ex162
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l163 (expect := CSA) (title := "([] : List UInt8) ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:163") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := (([] : List UInt8) : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := (([] : List UInt8) : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex163 : ([] : List UInt8) ∉ language .rfc8259 := nil_not_mem_language _
 @[answers "formats.examples.json.l163" csa] public theorem ans163 :
-    ¬ Silmaril.Project.Shapes.Member lang0 (([] : List UInt8) : List UInt8) := ex163
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 (([] : List UInt8) : List UInt8) := ex163
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l168 (expect := THM) (title := "[0x20, 0x5B, 0x20, 0x5D, 0x20] ∈ language .rfc8259 — ` [ ] `: whitespace before, inside and after.")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:168") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x20, 0x5B, 0x20, 0x5D, 0x20] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x20, 0x5B, 0x20, 0x5D, 0x20] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex168 : [0x20, 0x5B, 0x20, 0x5D, 0x20] ∈ language .rfc8259 := ⟨[0x20], [0x5B, 0x20, 0x5D], [0x20], mem_of_rmatch (by decide +kernel),
@@ -889,12 +894,12 @@ theorem ex168 : [0x20, 0x5B, 0x20, 0x5D, 0x20] ∈ language .rfc8259 := ⟨[0x20
       (mem_of_rmatch (by decide +kernel)),
     mem_of_rmatch (by decide +kernel), rfl⟩
 @[answers "formats.examples.json.l168" thm] public theorem ans168 :
-    Silmaril.Project.Shapes.Member lang0 ([0x20, 0x5B, 0x20, 0x5D, 0x20] : List UInt8) := ex168
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x20, 0x5B, 0x20, 0x5D, 0x20] : List UInt8) := ex168
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l175 (expect := THM) (title := "[0x5B, 0x5B, 0x5D, 0x5D] ∈ language .rfc8259 — `[[]]`")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:175") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang0) (x := ([0x5B, 0x5B, 0x5D, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_rfc8259) (x := ([0x5B, 0x5B, 0x5D, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex175 : [0x5B, 0x5B, 0x5D, 0x5D] ∈ language .rfc8259 := ⟨[], _, [], mem_of_rmatch (by decide +kernel),
@@ -904,12 +909,12 @@ theorem ex175 : [0x5B, 0x5B, 0x5D, 0x5D] ∈ language .rfc8259 := ⟨[], _, [], 
       (mem_of_rmatch (by decide +kernel)),
     mem_of_rmatch (by decide +kernel), rfl⟩
 @[answers "formats.examples.json.l175" thm] public theorem ans175 :
-    Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x5B, 0x5D, 0x5D] : List UInt8) := ex175
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x5B, 0x5D, 0x5D] : List UInt8) := ex175
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril instance formats.examples.json.l184 (expect := THM) (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] ∈ language .scalarEscapes — `{\"a\":[1, true],\"a\":null}`: duplicate names are grammatical (§4).")
   (doc := "Silmaril/Formats/JsonBytes/Thms.lean:184") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Json.lang1) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Json.lang_language_scalar_escapes) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Json
 open Silmaril.Formats Silmaril.Formats.JsonBytes RegularExpression Silmaril.Formats.Utf8
 theorem ex184 : [0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] ∈ language .scalarEscapes := ⟨[], _, [], mem_of_rmatch (by decide +kernel),
@@ -928,7 +933,7 @@ theorem ex184 : [0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x7
       (mem_of_rmatch (by decide +kernel)),
     mem_of_rmatch (by decide +kernel), rfl⟩
 @[answers "formats.examples.json.l184" thm] public theorem ans184 :
-    Silmaril.Project.Shapes.Member lang1 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] : List UInt8) := ex184
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] : List UInt8) := ex184
 end Silmaril.Project.Languages.FormatExamples.Json
 
 silmaril group formats.examples.json (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] ∈ language .scalarEscapes — `{\"a\":[1, true],\"a\":null}`: duplicate names are grammatical (§4).: examples")
@@ -939,259 +944,259 @@ silmaril group formats.examples.json (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 @[expose] public section
-/-- `language .rfc8259` -/
-def lang0 := language .rfc8259
-/-- `language .scalarEscapes` -/
-def lang1 := language .scalarEscapes
+/-- `language .rfc8259` (`Silmaril/Formats/JsonBytes/Decide/Thms.lean`) -/
+def lang_language_rfc8259 := language .rfc8259
+/-- `language .scalarEscapes` (`Silmaril/Formats/JsonBytes/Decide/Thms.lean`) -/
+def lang_language_scalar_escapes := language .scalarEscapes
 end
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
-silmaril language formats.json.decide.language_rfc8259 := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0 (domain := bytes) (op := decl)
+silmaril language formats.json.decide.language_rfc8259 := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259 (domain := bytes) (op := decl)
   (title := "language .rfc8259") (source := "Silmaril/Formats/JsonBytes/Decide/Thms.lean")
-silmaril language formats.json.decide.language_scalar_escapes := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang1 (domain := bytes) (op := decl)
+silmaril language formats.json.decide.language_scalar_escapes := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_scalar_escapes (domain := bytes) (op := decl)
   (title := "language .scalarEscapes") (source := "Silmaril/Formats/JsonBytes/Decide/Thms.lean")
 
 silmaril instance formats.examples.json.decide.l67 (expect := THM) (title := "[0x5B, 0x31, 0x2C, 0x32, 0x5D] ∈ language .rfc8259 — `[1,2]`, `[1,]` (trailing comma), `[,1]`, `[1 2]`, `[` and `]`.")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:67") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B, 0x31, 0x2C, 0x32, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B, 0x31, 0x2C, 0x32, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex67 : [0x5B, 0x31, 0x2C, 0x32, 0x5D] ∈ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l67" thm] public theorem ans67 :
-    Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x31, 0x2C, 0x32, 0x5D] : List UInt8) := ex67
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x31, 0x2C, 0x32, 0x5D] : List UInt8) := ex67
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l68 (expect := CSA) (title := "[0x5B, 0x31, 0x2C, 0x5D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:68") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B, 0x31, 0x2C, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B, 0x31, 0x2C, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex68 : [0x5B, 0x31, 0x2C, 0x5D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l68" csa] public theorem ans68 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x31, 0x2C, 0x5D] : List UInt8) := ex68
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x31, 0x2C, 0x5D] : List UInt8) := ex68
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l69 (expect := CSA) (title := "[0x5B, 0x2C, 0x31, 0x5D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:69") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B, 0x2C, 0x31, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B, 0x2C, 0x31, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex69 : [0x5B, 0x2C, 0x31, 0x5D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l69" csa] public theorem ans69 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x2C, 0x31, 0x5D] : List UInt8) := ex69
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x2C, 0x31, 0x5D] : List UInt8) := ex69
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l70 (expect := CSA) (title := "[0x5B, 0x31, 0x20, 0x32, 0x5D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:70") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B, 0x31, 0x20, 0x32, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B, 0x31, 0x20, 0x32, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex70 : [0x5B, 0x31, 0x20, 0x32, 0x5D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l70" csa] public theorem ans70 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x31, 0x20, 0x32, 0x5D] : List UInt8) := ex70
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x31, 0x20, 0x32, 0x5D] : List UInt8) := ex70
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l71 (expect := CSA) (title := "[0x5B] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:71") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex71 : [0x5B] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l71" csa] public theorem ans71 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B] : List UInt8) := ex71
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B] : List UInt8) := ex71
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l72 (expect := CSA) (title := "[0x5D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:72") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex72 : [0x5D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l72" csa] public theorem ans72 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5D] : List UInt8) := ex72
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5D] : List UInt8) := ex72
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l74 (expect := THM) (title := "[0x20, 0x5B, 0x20, 0x5B, 0x20, 0x5D, 0x20, 0x2C, 0x20, 0x7B, 0x20, 0x7D, 0x20, 0x5D, 0x20] ∈ language .rfc8259 — ` [ [ ] , { } ] `, with whitespace everywhere it may occur.")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:74") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x20, 0x5B, 0x20, 0x5B, 0x20, 0x5D, 0x20, 0x2C, 0x20, 0x7B, 0x20, 0x7D, 0x20, 0x5D, 0x20] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x20, 0x5B, 0x20, 0x5B, 0x20, 0x5D, 0x20, 0x2C, 0x20, 0x7B, 0x20, 0x7D, 0x20, 0x5D, 0x20] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex74 : [0x20, 0x5B, 0x20, 0x5B, 0x20, 0x5D, 0x20, 0x2C, 0x20, 0x7B, 0x20, 0x7D, 0x20, 0x5D, 0x20] ∈ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l74" thm] public theorem ans74 :
-    Silmaril.Project.Shapes.Member lang0 ([0x20, 0x5B, 0x20, 0x5B, 0x20, 0x5D, 0x20, 0x2C, 0x20, 0x7B, 0x20, 0x7D, 0x20, 0x5D, 0x20] : List UInt8) := ex74
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x20, 0x5B, 0x20, 0x5B, 0x20, 0x5D, 0x20, 0x2C, 0x20, 0x7B, 0x20, 0x7D, 0x20, 0x5D, 0x20] : List UInt8) := ex74
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l77 (expect := CSA) (title := "[0x5B, 0x5B, 0x5D] ∉ language .rfc8259 — `[[]`, `[]]`, `[}`, `{]`: unbalanced or mismatched brackets.")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:77") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B, 0x5B, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B, 0x5B, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex77 : [0x5B, 0x5B, 0x5D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l77" csa] public theorem ans77 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x5B, 0x5D] : List UInt8) := ex77
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x5B, 0x5D] : List UInt8) := ex77
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l78 (expect := CSA) (title := "[0x5B, 0x5D, 0x5D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:78") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B, 0x5D, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B, 0x5D, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex78 : [0x5B, 0x5D, 0x5D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l78" csa] public theorem ans78 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x5D, 0x5D] : List UInt8) := ex78
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x5D, 0x5D] : List UInt8) := ex78
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l79 (expect := CSA) (title := "[0x5B, 0x7D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:79") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex79 : [0x5B, 0x7D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l79" csa] public theorem ans79 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x7D] : List UInt8) := ex79
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x7D] : List UInt8) := ex79
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l80 (expect := CSA) (title := "[0x7B, 0x5D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:80") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x7B, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x7B, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex80 : [0x7B, 0x5D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l80" csa] public theorem ans80 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7B, 0x5D] : List UInt8) := ex80
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x7B, 0x5D] : List UInt8) := ex80
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l82 (expect := THM) (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x7D] ∈ language .rfc8259 — `{\"a\":1}`, `{\"a\"}`, `{\"a\":}`, `{1:2}` (names are strings), `{\"a\":1,}`, `{a:1}`.")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:82") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex82 : [0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x7D] ∈ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l82" thm] public theorem ans82 :
-    Silmaril.Project.Shapes.Member lang0 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x7D] : List UInt8) := ex82
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x7D] : List UInt8) := ex82
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l83 (expect := CSA) (title := "[0x7B, 0x22, 0x61, 0x22, 0x7D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:83") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x7B, 0x22, 0x61, 0x22, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x7B, 0x22, 0x61, 0x22, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex83 : [0x7B, 0x22, 0x61, 0x22, 0x7D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l83" csa] public theorem ans83 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7B, 0x22, 0x61, 0x22, 0x7D] : List UInt8) := ex83
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x7B, 0x22, 0x61, 0x22, 0x7D] : List UInt8) := ex83
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l84 (expect := CSA) (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:84") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex84 : [0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l84" csa] public theorem ans84 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7D] : List UInt8) := ex84
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7D] : List UInt8) := ex84
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l85 (expect := CSA) (title := "[0x7B, 0x31, 0x3A, 0x32, 0x7D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:85") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x7B, 0x31, 0x3A, 0x32, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x7B, 0x31, 0x3A, 0x32, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex85 : [0x7B, 0x31, 0x3A, 0x32, 0x7D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l85" csa] public theorem ans85 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7B, 0x31, 0x3A, 0x32, 0x7D] : List UInt8) := ex85
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x7B, 0x31, 0x3A, 0x32, 0x7D] : List UInt8) := ex85
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l86 (expect := CSA) (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x2C, 0x7D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:86") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x2C, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x2C, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex86 : [0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x2C, 0x7D] ∉ language .rfc8259 := by
   decide +kernel
 @[answers "formats.examples.json.decide.l86" csa] public theorem ans86 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x2C, 0x7D] : List UInt8) := ex86
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x31, 0x2C, 0x7D] : List UInt8) := ex86
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l88 (expect := CSA) (title := "[0x7B, 0x61, 0x3A, 0x31, 0x7D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:88") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x7B, 0x61, 0x3A, 0x31, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x7B, 0x61, 0x3A, 0x31, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex88 : [0x7B, 0x61, 0x3A, 0x31, 0x7D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l88" csa] public theorem ans88 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7B, 0x61, 0x3A, 0x31, 0x7D] : List UInt8) := ex88
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x7B, 0x61, 0x3A, 0x31, 0x7D] : List UInt8) := ex88
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l90 (expect := CSA) (title := "[0x5B, 0x31, 0x5D, 0x20, 0x5B, 0x32, 0x5D] ∉ language .rfc8259 — `[1] [2]`: two values.")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:90") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B, 0x31, 0x5D, 0x20, 0x5B, 0x32, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B, 0x31, 0x5D, 0x20, 0x5B, 0x32, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex90 : [0x5B, 0x31, 0x5D, 0x20, 0x5B, 0x32, 0x5D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l90" csa] public theorem ans90 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x31, 0x5D, 0x20, 0x5B, 0x32, 0x5D] : List UInt8) := ex90
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x31, 0x5D, 0x20, 0x5B, 0x32, 0x5D] : List UInt8) := ex90
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l92 (expect := THM) (title := "[0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] ∈ language .rfc8259 — `[\"\\uD800\"]`: a lone surrogate escape nested in an array, per profile.")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:92") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex92 : [0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] ∈ language .rfc8259 := by
   decide +kernel
 @[answers "formats.examples.json.decide.l92" thm] public theorem ans92 :
-    Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] : List UInt8) := ex92
+    Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] : List UInt8) := ex92
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l94 (expect := CSA) (title := "[0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] ∉ language .scalarEscapes")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:94") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang1) (x := ([0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_scalar_escapes) (x := ([0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex94 : [0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] ∉ language .scalarEscapes := by decide +kernel
 @[answers "formats.examples.json.decide.l94" csa] public theorem ans94 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] : List UInt8) := ex94
+    ¬ Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x5B, 0x22, 0x5C, 0x75, 0x44, 0x38, 0x30, 0x30, 0x22, 0x5D] : List UInt8) := ex94
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l97 (expect := THM) (title := "[0x7B, 0x22, 0xC3, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] ∈ language .scalarEscapes — `{\"é\":[1E2]}` with a raw UTF-8 name, and the same with an overlong `C0 A9` in the name.")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:97") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang1) (x := ([0x7B, 0x22, 0xC3, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_scalar_escapes) (x := ([0x7B, 0x22, 0xC3, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex97 : [0x7B, 0x22, 0xC3, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] ∈ language .scalarEscapes := by decide +kernel
 @[answers "formats.examples.json.decide.l97" thm] public theorem ans97 :
-    Silmaril.Project.Shapes.Member lang1 ([0x7B, 0x22, 0xC3, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] : List UInt8) := ex97
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x7B, 0x22, 0xC3, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] : List UInt8) := ex97
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l99 (expect := CSA) (title := "[0x7B, 0x22, 0xC0, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] ∉ language .rfc8259")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:99") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang0) (x := ([0x7B, 0x22, 0xC0, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_rfc8259) (x := ([0x7B, 0x22, 0xC0, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex99 : [0x7B, 0x22, 0xC0, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] ∉ language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.decide.l99" csa] public theorem ans99 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7B, 0x22, 0xC0, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] : List UInt8) := ex99
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259 ([0x7B, 0x22, 0xC0, 0xA9, 0x22, 0x3A, 0x5B, 0x31, 0x45, 0x32, 0x5D, 0x7D] : List UInt8) := ex99
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l102 (expect := THM) (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] ∈ language .scalarEscapes — `{\"a\":[1, true],\"a\":null}` with duplicate names; and with a trailing comma before `}`.")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:102") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang1) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_scalar_escapes) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex102 : [0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] ∈ language .scalarEscapes := by
   decide +kernel
 @[answers "formats.examples.json.decide.l102" thm] public theorem ans102 :
-    Silmaril.Project.Shapes.Member lang1 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] : List UInt8) := ex102
+    Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x7D] : List UInt8) := ex102
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril instance formats.examples.json.decide.l105 (expect := CSA) (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x2C, 0x7D] ∉ language .scalarEscapes")
   (doc := "Silmaril/Formats/JsonBytes/Decide/Thms.lean:105") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang1) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x2C, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDecide.lang_language_scalar_escapes) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x2C, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDecide
 open Silmaril.Formats Silmaril.Formats.JsonBytes Decide
 theorem ex105 : [0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x2C, 0x7D] ∉ language .scalarEscapes := by decide +kernel
 @[answers "formats.examples.json.decide.l105" csa] public theorem ans105 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x2C, 0x7D] : List UInt8) := ex105
+    ¬ Silmaril.Project.Shapes.Member lang_language_scalar_escapes ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x2C, 0x7D] : List UInt8) := ex105
 end Silmaril.Project.Languages.FormatExamples.JsonDecide
 
 silmaril group formats.examples.json.decide (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x5B, 0x31, 0x2C, 0x20, 0x74, 0x72, 0x75, 0x65, 0x5D, 0x2C, 0x22, 0x61, 0x22, 0x3A, 0x6E, 0x75, 0x6C, 0x6C, 0x2C, 0x7D] ∉ language .scalarEscapes: examples")
@@ -1202,150 +1207,150 @@ silmaril group formats.examples.json.decide (title := "[0x7B, 0x22, 0x61, 0x22, 
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 @[expose] public section
-/-- `languageAt .rfc8259 0` -/
-def lang0 := languageAt .rfc8259 0
-/-- `languageAt .rfc8259 1` -/
-def lang1 := languageAt .rfc8259 1
-/-- `languageAt .rfc8259 2` -/
-def lang2 := languageAt .rfc8259 2
-/-- `languageAt .rfc8259 3` -/
-def lang3 := languageAt .rfc8259 3
-/-- `languageAt .rfc8259 5` -/
-def lang4 := languageAt .rfc8259 5
+/-- `languageAt .rfc8259 0` (`Silmaril/Formats/JsonBytes/Depth/Thms.lean`) -/
+def lang_language_at_rfc8259_0 := languageAt .rfc8259 0
+/-- `languageAt .rfc8259 1` (`Silmaril/Formats/JsonBytes/Depth/Thms.lean`) -/
+def lang_language_at_rfc8259_1 := languageAt .rfc8259 1
+/-- `languageAt .rfc8259 2` (`Silmaril/Formats/JsonBytes/Depth/Thms.lean`) -/
+def lang_language_at_rfc8259_2 := languageAt .rfc8259 2
+/-- `languageAt .rfc8259 3` (`Silmaril/Formats/JsonBytes/Depth/Thms.lean`) -/
+def lang_language_at_rfc8259_3 := languageAt .rfc8259 3
+/-- `languageAt .rfc8259 5` (`Silmaril/Formats/JsonBytes/Depth/Thms.lean`) -/
+def lang_language_at_rfc8259_5 := languageAt .rfc8259 5
 end
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
-silmaril language formats.json.depth.language_at_rfc8259_0 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang0 (domain := bytes) (op := decl)
+silmaril language formats.json.depth.language_at_rfc8259_0 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_0 (domain := bytes) (op := decl)
   (title := "languageAt .rfc8259 0") (source := "Silmaril/Formats/JsonBytes/Depth/Thms.lean")
-silmaril language formats.json.depth.language_at_rfc8259_1 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang1 (domain := bytes) (op := decl)
+silmaril language formats.json.depth.language_at_rfc8259_1 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_1 (domain := bytes) (op := decl)
   (title := "languageAt .rfc8259 1") (source := "Silmaril/Formats/JsonBytes/Depth/Thms.lean")
-silmaril language formats.json.depth.language_at_rfc8259_2 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang2 (domain := bytes) (op := decl)
+silmaril language formats.json.depth.language_at_rfc8259_2 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_2 (domain := bytes) (op := decl)
   (title := "languageAt .rfc8259 2") (source := "Silmaril/Formats/JsonBytes/Depth/Thms.lean")
-silmaril language formats.json.depth.language_at_rfc8259_3 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang3 (domain := bytes) (op := decl)
+silmaril language formats.json.depth.language_at_rfc8259_3 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_3 (domain := bytes) (op := decl)
   (title := "languageAt .rfc8259 3") (source := "Silmaril/Formats/JsonBytes/Depth/Thms.lean")
-silmaril language formats.json.depth.language_at_rfc8259_5 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang4 (domain := bytes) (op := decl)
+silmaril language formats.json.depth.language_at_rfc8259_5 := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_5 (domain := bytes) (op := decl)
   (title := "languageAt .rfc8259 5") (source := "Silmaril/Formats/JsonBytes/Depth/Thms.lean")
 
 silmaril instance formats.examples.json.depth.l85 (expect := THM) (title := "[0x31] ∈ languageAt .rfc8259 0 — `1` and `\"x\"` have depth 0; `[]` and `{}` depth 1.")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:85") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang0) (x := ([0x31] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_0) (x := ([0x31] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex85 : [0x31] ∈ languageAt .rfc8259 0 := by decide +kernel
 @[answers "formats.examples.json.depth.l85" thm] public theorem ans85 :
-    Silmaril.Project.Shapes.Member lang0 ([0x31] : List UInt8) := ex85
+    Silmaril.Project.Shapes.Member lang_language_at_rfc8259_0 ([0x31] : List UInt8) := ex85
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l86 (expect := CSA) (title := "[0x5B, 0x5D] ∉ languageAt .rfc8259 0")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:86") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang0) (x := ([0x5B, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_0) (x := ([0x5B, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex86 : [0x5B, 0x5D] ∉ languageAt .rfc8259 0 := by decide +kernel
 @[answers "formats.examples.json.depth.l86" csa] public theorem ans86 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x5D] : List UInt8) := ex86
+    ¬ Silmaril.Project.Shapes.Member lang_language_at_rfc8259_0 ([0x5B, 0x5D] : List UInt8) := ex86
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l87 (expect := THM) (title := "[0x5B, 0x5D] ∈ languageAt .rfc8259 1")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:87") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang1) (x := ([0x5B, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_1) (x := ([0x5B, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex87 : [0x5B, 0x5D] ∈ languageAt .rfc8259 1 := by decide +kernel
 @[answers "formats.examples.json.depth.l87" thm] public theorem ans87 :
-    Silmaril.Project.Shapes.Member lang1 ([0x5B, 0x5D] : List UInt8) := ex87
+    Silmaril.Project.Shapes.Member lang_language_at_rfc8259_1 ([0x5B, 0x5D] : List UInt8) := ex87
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l88 (expect := THM) (title := "[0x7B, 0x7D] ∈ languageAt .rfc8259 1")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:88") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang1) (x := ([0x7B, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_1) (x := ([0x7B, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex88 : [0x7B, 0x7D] ∈ languageAt .rfc8259 1 := by decide +kernel
 @[answers "formats.examples.json.depth.l88" thm] public theorem ans88 :
-    Silmaril.Project.Shapes.Member lang1 ([0x7B, 0x7D] : List UInt8) := ex88
+    Silmaril.Project.Shapes.Member lang_language_at_rfc8259_1 ([0x7B, 0x7D] : List UInt8) := ex88
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l90 (expect := CSA) (title := "[0x5B, 0x5B, 0x31, 0x5D, 0x5D] ∉ languageAt .rfc8259 1 — `[[1]]` has depth 2.")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:90") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang1) (x := ([0x5B, 0x5B, 0x31, 0x5D, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_1) (x := ([0x5B, 0x5B, 0x31, 0x5D, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex90 : [0x5B, 0x5B, 0x31, 0x5D, 0x5D] ∉ languageAt .rfc8259 1 := by decide +kernel
 @[answers "formats.examples.json.depth.l90" csa] public theorem ans90 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x5B, 0x5B, 0x31, 0x5D, 0x5D] : List UInt8) := ex90
+    ¬ Silmaril.Project.Shapes.Member lang_language_at_rfc8259_1 ([0x5B, 0x5B, 0x31, 0x5D, 0x5D] : List UInt8) := ex90
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l91 (expect := THM) (title := "[0x5B, 0x5B, 0x31, 0x5D, 0x5D] ∈ languageAt .rfc8259 2")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:91") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang2) (x := ([0x5B, 0x5B, 0x31, 0x5D, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_2) (x := ([0x5B, 0x5B, 0x31, 0x5D, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex91 : [0x5B, 0x5B, 0x31, 0x5D, 0x5D] ∈ languageAt .rfc8259 2 := by decide +kernel
 @[answers "formats.examples.json.depth.l91" thm] public theorem ans91 :
-    Silmaril.Project.Shapes.Member lang2 ([0x5B, 0x5B, 0x31, 0x5D, 0x5D] : List UInt8) := ex91
+    Silmaril.Project.Shapes.Member lang_language_at_rfc8259_2 ([0x5B, 0x5B, 0x31, 0x5D, 0x5D] : List UInt8) := ex91
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l93 (expect := CSA) (title := "[0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] ∉ languageAt .rfc8259 1 — `[1,[2]]`: the depth is the largest element's, plus one.")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:93") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang1) (x := ([0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_1) (x := ([0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex93 : [0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] ∉ languageAt .rfc8259 1 := by
   decide +kernel
 @[answers "formats.examples.json.depth.l93" csa] public theorem ans93 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] : List UInt8) := ex93
+    ¬ Silmaril.Project.Shapes.Member lang_language_at_rfc8259_1 ([0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] : List UInt8) := ex93
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l95 (expect := THM) (title := "[0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] ∈ languageAt .rfc8259 2")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:95") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang2) (x := ([0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_2) (x := ([0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex95 : [0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] ∈ languageAt .rfc8259 2 := by
   decide +kernel
 @[answers "formats.examples.json.depth.l95" thm] public theorem ans95 :
-    Silmaril.Project.Shapes.Member lang2 ([0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] : List UInt8) := ex95
+    Silmaril.Project.Shapes.Member lang_language_at_rfc8259_2 ([0x5B, 0x31, 0x2C, 0x5B, 0x32, 0x5D, 0x5D] : List UInt8) := ex95
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l98 (expect := CSA) (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] ∉ languageAt .rfc8259 2 — `{\"a\":{\"b\":[]}}` has depth 3; names add nothing.")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:98") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang2) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_2) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex98 : [0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] ∉ languageAt .rfc8259 2 := by decide +kernel
 @[answers "formats.examples.json.depth.l98" csa] public theorem ans98 :
-    ¬ Silmaril.Project.Shapes.Member lang2 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] : List UInt8) := ex98
+    ¬ Silmaril.Project.Shapes.Member lang_language_at_rfc8259_2 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] : List UInt8) := ex98
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l100 (expect := THM) (title := "[0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] ∈ languageAt .rfc8259 3")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:100") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang3) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_3) (x := ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex100 : [0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] ∈ languageAt .rfc8259 3 := by decide +kernel
 @[answers "formats.examples.json.depth.l100" thm] public theorem ans100 :
-    Silmaril.Project.Shapes.Member lang3 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] : List UInt8) := ex100
+    Silmaril.Project.Shapes.Member lang_language_at_rfc8259_3 ([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x7B, 0x22, 0x62, 0x22, 0x3A, 0x5B, 0x5D, 0x7D, 0x7D] : List UInt8) := ex100
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l103 (expect := THM) (title := "[0x5B, 0x22, 0x5B, 0x5B, 0x22, 0x5D] ∈ languageAt .rfc8259 1 — `[\"[[\"]`: brackets inside strings do not count.")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:103") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang1) (x := ([0x5B, 0x22, 0x5B, 0x5B, 0x22, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_1) (x := ([0x5B, 0x22, 0x5B, 0x5B, 0x22, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex103 : [0x5B, 0x22, 0x5B, 0x5B, 0x22, 0x5D] ∈ languageAt .rfc8259 1 := by decide +kernel
 @[answers "formats.examples.json.depth.l103" thm] public theorem ans103 :
-    Silmaril.Project.Shapes.Member lang1 ([0x5B, 0x22, 0x5B, 0x5B, 0x22, 0x5D] : List UInt8) := ex103
+    Silmaril.Project.Shapes.Member lang_language_at_rfc8259_1 ([0x5B, 0x22, 0x5B, 0x5B, 0x22, 0x5D] : List UInt8) := ex103
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril instance formats.examples.json.depth.l105 (expect := CSA) (title := "[0x5B, 0x31, 0x2C, 0x5D] ∉ languageAt .rfc8259 5 — An invalid text is in no bounded language: `[1,]`.")
   (doc := "Silmaril/Formats/JsonBytes/Depth/Thms.lean:105") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang4) (x := ([0x5B, 0x31, 0x2C, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonDepth.lang_language_at_rfc8259_5) (x := ([0x5B, 0x31, 0x2C, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonDepth
 open Silmaril.Formats Silmaril.Formats.JsonBytes
 theorem ex105 : [0x5B, 0x31, 0x2C, 0x5D] ∉ languageAt .rfc8259 5 := by decide +kernel
 @[answers "formats.examples.json.depth.l105" csa] public theorem ans105 :
-    ¬ Silmaril.Project.Shapes.Member lang4 ([0x5B, 0x31, 0x2C, 0x5D] : List UInt8) := ex105
+    ¬ Silmaril.Project.Shapes.Member lang_language_at_rfc8259_5 ([0x5B, 0x31, 0x2C, 0x5D] : List UInt8) := ex105
 end Silmaril.Project.Languages.FormatExamples.JsonDepth
 
 silmaril group formats.examples.json.depth (title := "[0x5B, 0x31, 0x2C, 0x5D] ∉ languageAt .rfc8259 5 — An invalid text is in no bounded language: `[1,]`.: examples")
@@ -1356,289 +1361,289 @@ silmaril group formats.examples.json.depth (title := "[0x5B, 0x31, 0x2C, 0x5D] �
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 @[expose] public section
-/-- `uint64` -/
-def lang0 := uint64
-/-- `integralNumber` -/
-def lang1 := integralNumber
-/-- `int64` -/
-def lang2 := int64
-/-- `binary64Integer` -/
-def lang3 := binary64Integer
-/-- `safeInteger` -/
-def lang4 := safeInteger
-/-- `withPythonInfinity` -/
-def lang5 := withPythonInfinity
-/-- `withPythonNonFinite` -/
-def lang6 := withPythonNonFinite
-/-- `integerToken` -/
-def lang7 := integerToken
-/-- `language .rfc8259 int64` -/
-def lang8 := language .rfc8259 int64
-/-- `language .rfc8259 integerToken` -/
-def lang9 := language .rfc8259 integerToken
-/-- `language .rfc8259 integralNumber` -/
-def lang10 := language .rfc8259 integralNumber
-/-- `language .rfc8259 binary64Integer` -/
-def lang11 := language .rfc8259 binary64Integer
-/-- `JsonBytes.language .rfc8259` -/
-def lang12 := JsonBytes.language .rfc8259
-/-- `language .rfc8259 withPythonNonFinite` -/
-def lang13 := language .rfc8259 withPythonNonFinite
-/-- `language .rfc8259 withPythonInfinity` -/
-def lang14 := language .rfc8259 withPythonInfinity
+/-- `uint64` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_uint64 := uint64
+/-- `integralNumber` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_integral_number := integralNumber
+/-- `int64` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_int64 := int64
+/-- `binary64Integer` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_binary64_integer := binary64Integer
+/-- `safeInteger` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_safe_integer := safeInteger
+/-- `withPythonInfinity` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_with_python_infinity := withPythonInfinity
+/-- `withPythonNonFinite` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_with_python_non_finite := withPythonNonFinite
+/-- `integerToken` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_integer_token := integerToken
+/-- `language .rfc8259 int64` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_language_rfc8259_int64 := language .rfc8259 int64
+/-- `language .rfc8259 integerToken` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_language_rfc8259_integer_token := language .rfc8259 integerToken
+/-- `language .rfc8259 integralNumber` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_language_rfc8259_integral_number := language .rfc8259 integralNumber
+/-- `language .rfc8259 binary64Integer` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_language_rfc8259_binary64_integer := language .rfc8259 binary64Integer
+/-- `JsonBytes.language .rfc8259` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_json_bytes_language_rfc8259 := JsonBytes.language .rfc8259
+/-- `language .rfc8259 withPythonNonFinite` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_language_rfc8259_with_python_non_finite := language .rfc8259 withPythonNonFinite
+/-- `language .rfc8259 withPythonInfinity` (`Silmaril/Formats/JsonNumbers/Thms.lean`) -/
+def lang_language_rfc8259_with_python_infinity := language .rfc8259 withPythonInfinity
 end
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
-silmaril language formats.json.numbers.uint64 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang0 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.uint64 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_uint64 (domain := bytes) (op := decl)
   (title := "uint64") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.integral_number := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang1 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.integral_number := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integral_number (domain := bytes) (op := decl)
   (title := "integralNumber") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.int64 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang2 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.int64 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_int64 (domain := bytes) (op := decl)
   (title := "int64") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.binary64_integer := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang3 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.binary64_integer := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_binary64_integer (domain := bytes) (op := decl)
   (title := "binary64Integer") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.safe_integer := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang4 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.safe_integer := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_safe_integer (domain := bytes) (op := decl)
   (title := "safeInteger") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.with_python_infinity := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang5 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.with_python_infinity := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_with_python_infinity (domain := bytes) (op := decl)
   (title := "withPythonInfinity") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.with_python_non_finite := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang6 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.with_python_non_finite := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_with_python_non_finite (domain := bytes) (op := decl)
   (title := "withPythonNonFinite") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.integer_token := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang7 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.integer_token := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integer_token (domain := bytes) (op := decl)
   (title := "integerToken") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.language_rfc8259_int64 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang8 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.language_rfc8259_int64 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_int64 (domain := bytes) (op := decl)
   (title := "language .rfc8259 int64") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.language_rfc8259_integer_token := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang9 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.language_rfc8259_integer_token := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integer_token (domain := bytes) (op := decl)
   (title := "language .rfc8259 integerToken") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.language_rfc8259_integral_number := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang10 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.language_rfc8259_integral_number := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integral_number (domain := bytes) (op := decl)
   (title := "language .rfc8259 integralNumber") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.language_rfc8259_binary64_integer := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang11 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.language_rfc8259_binary64_integer := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_binary64_integer (domain := bytes) (op := decl)
   (title := "language .rfc8259 binary64Integer") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.json_bytes_language_rfc8259 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang12 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.json_bytes_language_rfc8259 := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_json_bytes_language_rfc8259 (domain := bytes) (op := decl)
   (title := "JsonBytes.language .rfc8259") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.language_rfc8259_with_python_non_finite := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang13 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.language_rfc8259_with_python_non_finite := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_with_python_non_finite (domain := bytes) (op := decl)
   (title := "language .rfc8259 withPythonNonFinite") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
-silmaril language formats.json.numbers.language_rfc8259_with_python_infinity := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang14 (domain := bytes) (op := decl)
+silmaril language formats.json.numbers.language_rfc8259_with_python_infinity := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_with_python_infinity (domain := bytes) (op := decl)
   (title := "language .rfc8259 withPythonInfinity") (source := "Silmaril/Formats/JsonNumbers/Thms.lean")
 
 silmaril instance formats.examples.json.numbers.l236 (expect := THM) (title := "\"-0\".toUTF8.toList ∈ uint64 — Tokens.")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:236") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang0) (x := ("-0".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_uint64) (x := ("-0".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex236 : "-0".toUTF8.toList ∈ uint64 := by decide +kernel
 @[answers "formats.examples.json.numbers.l236" thm] public theorem ans236 :
-    Silmaril.Project.Shapes.Member lang0 ("-0".toUTF8.toList : List UInt8) := ex236
+    Silmaril.Project.Shapes.Member lang_uint64 ("-0".toUTF8.toList : List UInt8) := ex236
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l237 (expect := THM) (title := "\"1e2\".toUTF8.toList ∈ integralNumber")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:237") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang1) (x := ("1e2".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integral_number) (x := ("1e2".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex237 : "1e2".toUTF8.toList ∈ integralNumber := by decide +kernel
 @[answers "formats.examples.json.numbers.l237" thm] public theorem ans237 :
-    Silmaril.Project.Shapes.Member lang1 ("1e2".toUTF8.toList : List UInt8) := ex237
+    Silmaril.Project.Shapes.Member lang_integral_number ("1e2".toUTF8.toList : List UInt8) := ex237
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l238 (expect := THM) (title := "\"10e-1\".toUTF8.toList ∈ integralNumber")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:238") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang1) (x := ("10e-1".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integral_number) (x := ("10e-1".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex238 : "10e-1".toUTF8.toList ∈ integralNumber := by decide +kernel
 @[answers "formats.examples.json.numbers.l238" thm] public theorem ans238 :
-    Silmaril.Project.Shapes.Member lang1 ("10e-1".toUTF8.toList : List UInt8) := ex238
+    Silmaril.Project.Shapes.Member lang_integral_number ("10e-1".toUTF8.toList : List UInt8) := ex238
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l239 (expect := CSA) (title := "\"1e-1\".toUTF8.toList ∉ integralNumber")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:239") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang1) (x := ("1e-1".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integral_number) (x := ("1e-1".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex239 : "1e-1".toUTF8.toList ∉ integralNumber := by decide +kernel
 @[answers "formats.examples.json.numbers.l239" csa] public theorem ans239 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ("1e-1".toUTF8.toList : List UInt8) := ex239
+    ¬ Silmaril.Project.Shapes.Member lang_integral_number ("1e-1".toUTF8.toList : List UInt8) := ex239
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l240 (expect := THM) (title := "\"-9223372036854775808\".toUTF8.toList ∈ int64")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:240") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang2) (x := ("-9223372036854775808".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_int64) (x := ("-9223372036854775808".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex240 : "-9223372036854775808".toUTF8.toList ∈ int64 := by decide +kernel
 @[answers "formats.examples.json.numbers.l240" thm] public theorem ans240 :
-    Silmaril.Project.Shapes.Member lang2 ("-9223372036854775808".toUTF8.toList : List UInt8) := ex240
+    Silmaril.Project.Shapes.Member lang_int64 ("-9223372036854775808".toUTF8.toList : List UInt8) := ex240
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l241 (expect := CSA) (title := "\"-9223372036854775809\".toUTF8.toList ∉ int64")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:241") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang2) (x := ("-9223372036854775809".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_int64) (x := ("-9223372036854775809".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex241 : "-9223372036854775809".toUTF8.toList ∉ int64 := by decide +kernel
 @[answers "formats.examples.json.numbers.l241" csa] public theorem ans241 :
-    ¬ Silmaril.Project.Shapes.Member lang2 ("-9223372036854775809".toUTF8.toList : List UInt8) := ex241
+    ¬ Silmaril.Project.Shapes.Member lang_int64 ("-9223372036854775809".toUTF8.toList : List UInt8) := ex241
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l242 (expect := THM) (title := "\"18446744073709551615\".toUTF8.toList ∈ uint64")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:242") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang0) (x := ("18446744073709551615".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_uint64) (x := ("18446744073709551615".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex242 : "18446744073709551615".toUTF8.toList ∈ uint64 := by decide +kernel
 @[answers "formats.examples.json.numbers.l242" thm] public theorem ans242 :
-    Silmaril.Project.Shapes.Member lang0 ("18446744073709551615".toUTF8.toList : List UInt8) := ex242
+    Silmaril.Project.Shapes.Member lang_uint64 ("18446744073709551615".toUTF8.toList : List UInt8) := ex242
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l243 (expect := CSA) (title := "\"18446744073709551615\".toUTF8.toList ∉ binary64Integer")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:243") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang3) (x := ("18446744073709551615".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_binary64_integer) (x := ("18446744073709551615".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex243 : "18446744073709551615".toUTF8.toList ∉ binary64Integer := by decide +kernel
 @[answers "formats.examples.json.numbers.l243" csa] public theorem ans243 :
-    ¬ Silmaril.Project.Shapes.Member lang3 ("18446744073709551615".toUTF8.toList : List UInt8) := ex243
+    ¬ Silmaril.Project.Shapes.Member lang_binary64_integer ("18446744073709551615".toUTF8.toList : List UInt8) := ex243
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l244 (expect := THM) (title := "\"-9007199254740991\".toUTF8.toList ∈ safeInteger")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:244") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang4) (x := ("-9007199254740991".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_safe_integer) (x := ("-9007199254740991".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex244 : "-9007199254740991".toUTF8.toList ∈ safeInteger := by decide +kernel
 @[answers "formats.examples.json.numbers.l244" thm] public theorem ans244 :
-    Silmaril.Project.Shapes.Member lang4 ("-9007199254740991".toUTF8.toList : List UInt8) := ex244
+    Silmaril.Project.Shapes.Member lang_safe_integer ("-9007199254740991".toUTF8.toList : List UInt8) := ex244
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l245 (expect := CSA) (title := "\"-9007199254740992\".toUTF8.toList ∉ safeInteger")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:245") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang4) (x := ("-9007199254740992".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_safe_integer) (x := ("-9007199254740992".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex245 : "-9007199254740992".toUTF8.toList ∉ safeInteger := by decide +kernel
 @[answers "formats.examples.json.numbers.l245" csa] public theorem ans245 :
-    ¬ Silmaril.Project.Shapes.Member lang4 ("-9007199254740992".toUTF8.toList : List UInt8) := ex245
+    ¬ Silmaril.Project.Shapes.Member lang_safe_integer ("-9007199254740992".toUTF8.toList : List UInt8) := ex245
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l246 (expect := THM) (title := "\"-Infinity\".toUTF8.toList ∈ withPythonInfinity")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:246") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang5) (x := ("-Infinity".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_with_python_infinity) (x := ("-Infinity".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex246 : "-Infinity".toUTF8.toList ∈ withPythonInfinity := by decide +kernel
 @[answers "formats.examples.json.numbers.l246" thm] public theorem ans246 :
-    Silmaril.Project.Shapes.Member lang5 ("-Infinity".toUTF8.toList : List UInt8) := ex246
+    Silmaril.Project.Shapes.Member lang_with_python_infinity ("-Infinity".toUTF8.toList : List UInt8) := ex246
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l247 (expect := CSA) (title := "\"+Infinity\".toUTF8.toList ∉ withPythonNonFinite")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:247") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang6) (x := ("+Infinity".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_with_python_non_finite) (x := ("+Infinity".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex247 : "+Infinity".toUTF8.toList ∉ withPythonNonFinite := by decide +kernel
 @[answers "formats.examples.json.numbers.l247" csa] public theorem ans247 :
-    ¬ Silmaril.Project.Shapes.Member lang6 ("+Infinity".toUTF8.toList : List UInt8) := ex247
+    ¬ Silmaril.Project.Shapes.Member lang_with_python_non_finite ("+Infinity".toUTF8.toList : List UInt8) := ex247
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l248 (expect := CSA) (title := "\"-NaN\".toUTF8.toList ∉ withPythonNonFinite")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:248") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang6) (x := ("-NaN".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_with_python_non_finite) (x := ("-NaN".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex248 : "-NaN".toUTF8.toList ∉ withPythonNonFinite := by decide +kernel
 @[answers "formats.examples.json.numbers.l248" csa] public theorem ans248 :
-    ¬ Silmaril.Project.Shapes.Member lang6 ("-NaN".toUTF8.toList : List UInt8) := ex248
+    ¬ Silmaril.Project.Shapes.Member lang_with_python_non_finite ("-NaN".toUTF8.toList : List UInt8) := ex248
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l249 (expect := CSA) (title := "\"01\".toUTF8.toList ∉ integerToken")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:249") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang7) (x := ("01".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_integer_token) (x := ("01".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex249 : "01".toUTF8.toList ∉ integerToken := by decide +kernel
 @[answers "formats.examples.json.numbers.l249" csa] public theorem ans249 :
-    ¬ Silmaril.Project.Shapes.Member lang7 ("01".toUTF8.toList : List UInt8) := ex249
+    ¬ Silmaril.Project.Shapes.Member lang_integer_token ("01".toUTF8.toList : List UInt8) := ex249
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l252 (expect := THM) (title := "\"[1, -2]\".toUTF8.toList ∈ language .rfc8259 int64 — Whole texts.")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:252") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang8) (x := ("[1, -2]".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_int64) (x := ("[1, -2]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex252 : "[1, -2]".toUTF8.toList ∈ language .rfc8259 int64 := by decide +kernel
 @[answers "formats.examples.json.numbers.l252" thm] public theorem ans252 :
-    Silmaril.Project.Shapes.Member lang8 ("[1, -2]".toUTF8.toList : List UInt8) := ex252
+    Silmaril.Project.Shapes.Member lang_language_rfc8259_int64 ("[1, -2]".toUTF8.toList : List UInt8) := ex252
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l253 (expect := CSA) (title := "\"[1, 2.0]\".toUTF8.toList ∉ language .rfc8259 integerToken")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:253") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang9) (x := ("[1, 2.0]".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integer_token) (x := ("[1, 2.0]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex253 : "[1, 2.0]".toUTF8.toList ∉ language .rfc8259 integerToken := by decide +kernel
 @[answers "formats.examples.json.numbers.l253" csa] public theorem ans253 :
-    ¬ Silmaril.Project.Shapes.Member lang9 ("[1, 2.0]".toUTF8.toList : List UInt8) := ex253
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_integer_token ("[1, 2.0]".toUTF8.toList : List UInt8) := ex253
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l254 (expect := THM) (title := "\"[1, 2.0]\".toUTF8.toList ∈ language .rfc8259 integralNumber")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:254") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang10) (x := ("[1, 2.0]".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_integral_number) (x := ("[1, 2.0]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex254 : "[1, 2.0]".toUTF8.toList ∈ language .rfc8259 integralNumber := by decide +kernel
 @[answers "formats.examples.json.numbers.l254" thm] public theorem ans254 :
-    Silmaril.Project.Shapes.Member lang10 ("[1, 2.0]".toUTF8.toList : List UInt8) := ex254
+    Silmaril.Project.Shapes.Member lang_language_rfc8259_integral_number ("[1, 2.0]".toUTF8.toList : List UInt8) := ex254
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l255 (expect := THM) (title := "\"{\\\"a\\\": 9007199254740993}\".toUTF8.toList ∈ language .rfc8259 int64")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:255") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang8) (x := ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_int64) (x := ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex255 : "{\"a\": 9007199254740993}".toUTF8.toList ∈ language .rfc8259 int64 := by decide +kernel
 @[answers "formats.examples.json.numbers.l255" thm] public theorem ans255 :
-    Silmaril.Project.Shapes.Member lang8 ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8) := ex255
+    Silmaril.Project.Shapes.Member lang_language_rfc8259_int64 ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8) := ex255
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l256 (expect := CSA) (title := "\"{\\\"a\\\": 9007199254740993}\".toUTF8.toList ∉ language .rfc8259 binary64Integer")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:256") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang11) (x := ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_binary64_integer) (x := ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex256 : "{\"a\": 9007199254740993}".toUTF8.toList ∉ language .rfc8259 binary64Integer := by
   decide +kernel
 @[answers "formats.examples.json.numbers.l256" csa] public theorem ans256 :
-    ¬ Silmaril.Project.Shapes.Member lang11 ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8) := ex256
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_binary64_integer ("{\"a\": 9007199254740993}".toUTF8.toList : List UInt8) := ex256
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l258 (expect := CSA) (title := "\"[NaN]\".toUTF8.toList ∉ JsonBytes.language .rfc8259")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:258") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang12) (x := ("[NaN]".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_json_bytes_language_rfc8259) (x := ("[NaN]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex258 : "[NaN]".toUTF8.toList ∉ JsonBytes.language .rfc8259 := by decide +kernel
 @[answers "formats.examples.json.numbers.l258" csa] public theorem ans258 :
-    ¬ Silmaril.Project.Shapes.Member lang12 ("[NaN]".toUTF8.toList : List UInt8) := ex258
+    ¬ Silmaril.Project.Shapes.Member lang_json_bytes_language_rfc8259 ("[NaN]".toUTF8.toList : List UInt8) := ex258
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l259 (expect := THM) (title := "\"[NaN]\".toUTF8.toList ∈ language .rfc8259 withPythonNonFinite")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:259") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang13) (x := ("[NaN]".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_with_python_non_finite) (x := ("[NaN]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex259 : "[NaN]".toUTF8.toList ∈ language .rfc8259 withPythonNonFinite := by decide +kernel
 @[answers "formats.examples.json.numbers.l259" thm] public theorem ans259 :
-    Silmaril.Project.Shapes.Member lang13 ("[NaN]".toUTF8.toList : List UInt8) := ex259
+    Silmaril.Project.Shapes.Member lang_language_rfc8259_with_python_non_finite ("[NaN]".toUTF8.toList : List UInt8) := ex259
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril instance formats.examples.json.numbers.l260 (expect := CSA) (title := "\"[NaN]\".toUTF8.toList ∉ language .rfc8259 withPythonInfinity")
   (doc := "Silmaril/Formats/JsonNumbers/Thms.lean:260") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang14) (x := ("[NaN]".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.JsonNumbers.lang_language_rfc8259_with_python_infinity) (x := ("[NaN]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.JsonNumbers
 open Silmaril.Formats Silmaril.Formats.JsonNumbers RegularExpression Silmaril.Formats.JsonBytes
 theorem ex260 : "[NaN]".toUTF8.toList ∉ language .rfc8259 withPythonInfinity := by decide +kernel
 @[answers "formats.examples.json.numbers.l260" csa] public theorem ans260 :
-    ¬ Silmaril.Project.Shapes.Member lang14 ("[NaN]".toUTF8.toList : List UInt8) := ex260
+    ¬ Silmaril.Project.Shapes.Member lang_language_rfc8259_with_python_infinity ("[NaN]".toUTF8.toList : List UInt8) := ex260
 end Silmaril.Project.Languages.FormatExamples.JsonNumbers
 
 silmaril group formats.examples.json.numbers (title := "\"[NaN]\".toUTF8.toList ∉ language .rfc8259 withPythonInfinity: examples")
@@ -1649,238 +1654,238 @@ silmaril group formats.examples.json.numbers (title := "\"[NaN]\".toUTF8.toList 
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 @[expose] public section
-/-- `language .jsonLines .rfc8259` -/
-def lang0 := language .jsonLines .rfc8259
-/-- `language .ndjson .rfc8259` -/
-def lang1 := language .ndjson .rfc8259
-/-- `JsonBytes.language .rfc8259` -/
-def lang2 := JsonBytes.language .rfc8259
-/-- `language { Policy.ndjson with blankLines := true } .rfc8259` -/
-def lang3 := language { Policy.ndjson with blankLines := true } .rfc8259
-/-- `languageAt .jsonLines .rfc8259 2` -/
-def lang4 := languageAt .jsonLines .rfc8259 2
-/-- `languageAt .jsonLines .rfc8259 1` -/
-def lang5 := languageAt .jsonLines .rfc8259 1
+/-- `language .jsonLines .rfc8259` (`Silmaril/Formats/JsonLines/Thms.lean`) -/
+def lang_language_json_lines_rfc8259 := language .jsonLines .rfc8259
+/-- `language .ndjson .rfc8259` (`Silmaril/Formats/JsonLines/Thms.lean`) -/
+def lang_language_ndjson_rfc8259 := language .ndjson .rfc8259
+/-- `JsonBytes.language .rfc8259` (`Silmaril/Formats/JsonLines/Thms.lean`) -/
+def lang_json_bytes_language_rfc8259 := JsonBytes.language .rfc8259
+/-- `language { Policy.ndjson with blankLines := true } .rfc8259` (`Silmaril/Formats/JsonLines/Thms.lean`) -/
+def lang_language_policy_ndjson_with_blank_lines_true_rfc8259 := language { Policy.ndjson with blankLines := true } .rfc8259
+/-- `languageAt .jsonLines .rfc8259 2` (`Silmaril/Formats/JsonLines/Thms.lean`) -/
+def lang_language_at_json_lines_rfc8259_2 := languageAt .jsonLines .rfc8259 2
+/-- `languageAt .jsonLines .rfc8259 1` (`Silmaril/Formats/JsonLines/Thms.lean`) -/
+def lang_language_at_json_lines_rfc8259_1 := languageAt .jsonLines .rfc8259 1
 end
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
-silmaril language formats.jsonl.language_json_lines_rfc8259 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0 (domain := bytes) (op := decl)
+silmaril language formats.jsonl.language_json_lines_rfc8259 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259 (domain := bytes) (op := decl)
   (title := "language .jsonLines .rfc8259") (source := "Silmaril/Formats/JsonLines/Thms.lean")
-silmaril language formats.jsonl.language_ndjson_rfc8259 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang1 (domain := bytes) (op := decl)
+silmaril language formats.jsonl.language_ndjson_rfc8259 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_ndjson_rfc8259 (domain := bytes) (op := decl)
   (title := "language .ndjson .rfc8259") (source := "Silmaril/Formats/JsonLines/Thms.lean")
-silmaril language formats.jsonl.json_bytes_language_rfc8259 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang2 (domain := bytes) (op := decl)
+silmaril language formats.jsonl.json_bytes_language_rfc8259 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_json_bytes_language_rfc8259 (domain := bytes) (op := decl)
   (title := "JsonBytes.language .rfc8259") (source := "Silmaril/Formats/JsonLines/Thms.lean")
-silmaril language formats.jsonl.language_policy_ndjson_with_blank_lines_true_rfc8259 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang3 (domain := bytes) (op := decl)
+silmaril language formats.jsonl.language_policy_ndjson_with_blank_lines_true_rfc8259 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_policy_ndjson_with_blank_lines_true_rfc8259 (domain := bytes) (op := decl)
   (title := "language { Policy.ndjson with blankLines := true } .rfc8259") (source := "Silmaril/Formats/JsonLines/Thms.lean")
-silmaril language formats.jsonl.language_at_json_lines_rfc8259_2 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang4 (domain := bytes) (op := decl)
+silmaril language formats.jsonl.language_at_json_lines_rfc8259_2 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_at_json_lines_rfc8259_2 (domain := bytes) (op := decl)
   (title := "languageAt .jsonLines .rfc8259 2") (source := "Silmaril/Formats/JsonLines/Thms.lean")
-silmaril language formats.jsonl.language_at_json_lines_rfc8259_1 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang5 (domain := bytes) (op := decl)
+silmaril language formats.jsonl.language_at_json_lines_rfc8259_1 := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_at_json_lines_rfc8259_1 (domain := bytes) (op := decl)
   (title := "languageAt .jsonLines .rfc8259 1") (source := "Silmaril/Formats/JsonLines/Thms.lean")
 
 silmaril instance formats.examples.jsonl.l92 (expect := THM) (title := "[0x31, 0x0A, 0x32, 0x0A] ∈ language .jsonLines .rfc8259 — `1⏎2⏎`: both dialects. `1⏎2`: JSON Lines only (NDJSON requires the final newline).")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:92") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x31, 0x0A, 0x32, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x31, 0x0A, 0x32, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex92 : [0x31, 0x0A, 0x32, 0x0A] ∈ language .jsonLines .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l92" thm] public theorem ans92 :
-    Silmaril.Project.Shapes.Member lang0 ([0x31, 0x0A, 0x32, 0x0A] : List UInt8) := ex92
+    Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x31, 0x0A, 0x32, 0x0A] : List UInt8) := ex92
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l93 (expect := THM) (title := "[0x31, 0x0A, 0x32, 0x0A] ∈ language .ndjson .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:93") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang1) (x := ([0x31, 0x0A, 0x32, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_ndjson_rfc8259) (x := ([0x31, 0x0A, 0x32, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex93 : [0x31, 0x0A, 0x32, 0x0A] ∈ language .ndjson .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l93" thm] public theorem ans93 :
-    Silmaril.Project.Shapes.Member lang1 ([0x31, 0x0A, 0x32, 0x0A] : List UInt8) := ex93
+    Silmaril.Project.Shapes.Member lang_language_ndjson_rfc8259 ([0x31, 0x0A, 0x32, 0x0A] : List UInt8) := ex93
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l94 (expect := THM) (title := "[0x31, 0x0A, 0x32] ∈ language .jsonLines .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:94") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x31, 0x0A, 0x32] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x31, 0x0A, 0x32] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex94 : [0x31, 0x0A, 0x32] ∈ language .jsonLines .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l94" thm] public theorem ans94 :
-    Silmaril.Project.Shapes.Member lang0 ([0x31, 0x0A, 0x32] : List UInt8) := ex94
+    Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x31, 0x0A, 0x32] : List UInt8) := ex94
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l95 (expect := CSA) (title := "[0x31, 0x0A, 0x32] ∉ language .ndjson .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:95") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang1) (x := ([0x31, 0x0A, 0x32] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_ndjson_rfc8259) (x := ([0x31, 0x0A, 0x32] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex95 : [0x31, 0x0A, 0x32] ∉ language .ndjson .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l95" csa] public theorem ans95 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x31, 0x0A, 0x32] : List UInt8) := ex95
+    ¬ Silmaril.Project.Shapes.Member lang_language_ndjson_rfc8259 ([0x31, 0x0A, 0x32] : List UInt8) := ex95
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l97 (expect := THM) (title := "[0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] ∈ language .jsonLines .rfc8259 — `1␍⏎2␍⏎`: CRLF line ends, in both dialects.")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:97") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex97 : [0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] ∈ language .jsonLines .rfc8259 := by
   decide +kernel
 @[answers "formats.examples.jsonl.l97" thm] public theorem ans97 :
-    Silmaril.Project.Shapes.Member lang0 ([0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] : List UInt8) := ex97
+    Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] : List UInt8) := ex97
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l99 (expect := THM) (title := "[0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] ∈ language .ndjson .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:99") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang1) (x := ([0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_ndjson_rfc8259) (x := ([0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex99 : [0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] ∈ language .ndjson .rfc8259 := by
   decide +kernel
 @[answers "formats.examples.jsonl.l99" thm] public theorem ans99 :
-    Silmaril.Project.Shapes.Member lang1 ([0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] : List UInt8) := ex99
+    Silmaril.Project.Shapes.Member lang_language_ndjson_rfc8259 ([0x31, 0x0D, 0x0A, 0x32, 0x0D, 0x0A] : List UInt8) := ex99
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l102 (expect := THM) (title := "[0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] ∈ language .jsonLines .rfc8259 — `[1,␍2]⏎`: a `0D` inside the text is JSON whitespace (JSON Lines), not NDJSON.")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:102") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex102 : [0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] ∈ language .jsonLines .rfc8259 := by
   decide +kernel
 @[answers "formats.examples.jsonl.l102" thm] public theorem ans102 :
-    Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] : List UInt8) := ex102
+    Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] : List UInt8) := ex102
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l104 (expect := CSA) (title := "[0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] ∉ language .ndjson .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:104") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang1) (x := ([0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_ndjson_rfc8259) (x := ([0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex104 : [0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] ∉ language .ndjson .rfc8259 := by
   decide +kernel
 @[answers "formats.examples.jsonl.l104" csa] public theorem ans104 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] : List UInt8) := ex104
+    ¬ Silmaril.Project.Shapes.Member lang_language_ndjson_rfc8259 ([0x5B, 0x31, 0x2C, 0x0D, 0x32, 0x5D, 0x0A] : List UInt8) := ex104
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l107 (expect := THM) (title := "[0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] ∈ JsonBytes.language .rfc8259 — `[1,⏎2]`: valid JSON, but it spans two lines.")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:107") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang2) (x := ([0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_json_bytes_language_rfc8259) (x := ([0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex107 : [0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] ∈ JsonBytes.language .rfc8259 := by
   decide +kernel
 @[answers "formats.examples.jsonl.l107" thm] public theorem ans107 :
-    Silmaril.Project.Shapes.Member lang2 ([0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] : List UInt8) := ex107
+    Silmaril.Project.Shapes.Member lang_json_bytes_language_rfc8259 ([0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] : List UInt8) := ex107
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l109 (expect := CSA) (title := "[0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] ∉ language .jsonLines .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:109") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex109 : [0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] ∉ language .jsonLines .rfc8259 := by
   decide +kernel
 @[answers "formats.examples.jsonl.l109" csa] public theorem ans109 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] : List UInt8) := ex109
+    ¬ Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x5B, 0x31, 0x2C, 0x0A, 0x32, 0x5D] : List UInt8) := ex109
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l112 (expect := CSA) (title := "[0x31, 0x0A, 0x0A, 0x32, 0x0A] ∉ language .jsonLines .rfc8259 — Blank lines: `1⏎⏎2⏎` and `1⏎⏎` are rejected; a lenient NDJSON reader accepts them.")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:112") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x31, 0x0A, 0x0A, 0x32, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x31, 0x0A, 0x0A, 0x32, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex112 : [0x31, 0x0A, 0x0A, 0x32, 0x0A] ∉ language .jsonLines .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l112" csa] public theorem ans112 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x31, 0x0A, 0x0A, 0x32, 0x0A] : List UInt8) := ex112
+    ¬ Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x31, 0x0A, 0x0A, 0x32, 0x0A] : List UInt8) := ex112
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l113 (expect := CSA) (title := "[0x31, 0x0A, 0x0A] ∉ language .jsonLines .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:113") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x31, 0x0A, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x31, 0x0A, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex113 : [0x31, 0x0A, 0x0A] ∉ language .jsonLines .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l113" csa] public theorem ans113 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x31, 0x0A, 0x0A] : List UInt8) := ex113
+    ¬ Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x31, 0x0A, 0x0A] : List UInt8) := ex113
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l114 (expect := THM) (title := "[0x31, 0x0A, 0x0A, 0x32, 0x0A] ∈ language { Policy.ndjson with blankLines := true } .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:114") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang3) (x := ([0x31, 0x0A, 0x0A, 0x32, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_policy_ndjson_with_blank_lines_true_rfc8259) (x := ([0x31, 0x0A, 0x0A, 0x32, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex114 : [0x31, 0x0A, 0x0A, 0x32, 0x0A] ∈ language { Policy.ndjson with blankLines := true } .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l114" thm] public theorem ans114 :
-    Silmaril.Project.Shapes.Member lang3 ([0x31, 0x0A, 0x0A, 0x32, 0x0A] : List UInt8) := ex114
+    Silmaril.Project.Shapes.Member lang_language_policy_ndjson_with_blank_lines_true_rfc8259 ([0x31, 0x0A, 0x0A, 0x32, 0x0A] : List UInt8) := ex114
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l117 (expect := THM) (title := "([] : List UInt8) ∈ language .jsonLines .rfc8259 — The empty file is zero lines; a lone `⏎` is one blank line.")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:117") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := (([] : List UInt8) : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := (([] : List UInt8) : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex117 : ([] : List UInt8) ∈ language .jsonLines .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l117" thm] public theorem ans117 :
-    Silmaril.Project.Shapes.Member lang0 (([] : List UInt8) : List UInt8) := ex117
+    Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 (([] : List UInt8) : List UInt8) := ex117
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l118 (expect := CSA) (title := "[0x0A] ∉ language .jsonLines .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:118") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex118 : [0x0A] ∉ language .jsonLines .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l118" csa] public theorem ans118 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x0A] : List UInt8) := ex118
+    ¬ Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x0A] : List UInt8) := ex118
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l120 (expect := CSA) (title := "[0x31, 0x20, 0x32, 0x0A] ∉ language .jsonLines .rfc8259 — Two values on one line, a BOM, and ill-formed UTF-8 in a string.")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:120") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x31, 0x20, 0x32, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x31, 0x20, 0x32, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex120 : [0x31, 0x20, 0x32, 0x0A] ∉ language .jsonLines .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l120" csa] public theorem ans120 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x31, 0x20, 0x32, 0x0A] : List UInt8) := ex120
+    ¬ Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x31, 0x20, 0x32, 0x0A] : List UInt8) := ex120
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l121 (expect := CSA) (title := "[0xEF, 0xBB, 0xBF, 0x31, 0x0A] ∉ language .jsonLines .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:121") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0xEF, 0xBB, 0xBF, 0x31, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0xEF, 0xBB, 0xBF, 0x31, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex121 : [0xEF, 0xBB, 0xBF, 0x31, 0x0A] ∉ language .jsonLines .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l121" csa] public theorem ans121 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xEF, 0xBB, 0xBF, 0x31, 0x0A] : List UInt8) := ex121
+    ¬ Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0xEF, 0xBB, 0xBF, 0x31, 0x0A] : List UInt8) := ex121
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l122 (expect := CSA) (title := "[0x22, 0xC0, 0x80, 0x22, 0x0A] ∉ language .jsonLines .rfc8259")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:122") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang0) (x := ([0x22, 0xC0, 0x80, 0x22, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_json_lines_rfc8259) (x := ([0x22, 0xC0, 0x80, 0x22, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex122 : [0x22, 0xC0, 0x80, 0x22, 0x0A] ∉ language .jsonLines .rfc8259 := by decide +kernel
 @[answers "formats.examples.jsonl.l122" csa] public theorem ans122 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x22, 0xC0, 0x80, 0x22, 0x0A] : List UInt8) := ex122
+    ¬ Silmaril.Project.Shapes.Member lang_language_json_lines_rfc8259 ([0x22, 0xC0, 0x80, 0x22, 0x0A] : List UInt8) := ex122
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l124 (expect := THM) (title := "[0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] ∈ languageAt .jsonLines .rfc8259 2 — Per-line depth: `[[1]]⏎2⏎` has lines of depth 2 and 0.")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:124") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang4) (x := ([0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_at_json_lines_rfc8259_2) (x := ([0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex124 : [0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] ∈ languageAt .jsonLines .rfc8259 2 := by decide +kernel
 @[answers "formats.examples.jsonl.l124" thm] public theorem ans124 :
-    Silmaril.Project.Shapes.Member lang4 ([0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] : List UInt8) := ex124
+    Silmaril.Project.Shapes.Member lang_language_at_json_lines_rfc8259_2 ([0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] : List UInt8) := ex124
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril instance formats.examples.jsonl.l126 (expect := CSA) (title := "[0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] ∉ languageAt .jsonLines .rfc8259 1")
   (doc := "Silmaril/Formats/JsonLines/Thms.lean:126") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang5) (x := ([0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Jsonl.lang_language_at_json_lines_rfc8259_1) (x := ([0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Jsonl
 open Silmaril.Formats Silmaril.Formats.JsonLines
 theorem ex126 : [0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] ∉ languageAt .jsonLines .rfc8259 1 := by decide +kernel
 @[answers "formats.examples.jsonl.l126" csa] public theorem ans126 :
-    ¬ Silmaril.Project.Shapes.Member lang5 ([0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] : List UInt8) := ex126
+    ¬ Silmaril.Project.Shapes.Member lang_language_at_json_lines_rfc8259_1 ([0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] : List UInt8) := ex126
 end Silmaril.Project.Languages.FormatExamples.Jsonl
 
 silmaril group formats.examples.jsonl (title := "[0x5B, 0x5B, 0x31, 0x5D, 0x5D, 0x0A, 0x32, 0x0A] ∉ languageAt .jsonLines .rfc8259 1: examples")
@@ -1891,1412 +1896,1412 @@ silmaril group formats.examples.jsonl (title := "[0x5B, 0x5B, 0x31, 0x5D, 0x5D, 
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 @[expose] public section
-/-- `wellFormed` -/
-def lang0 := wellFormed
+/-- `wellFormed` (`Silmaril/Formats/Cbor/WellFormed/Thms.lean`) -/
+def lang_well_formed := wellFormed
 end
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
-silmaril language formats.cbor.wellformed.well_formed := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0 (domain := bytes) (op := decl)
+silmaril language formats.cbor.wellformed.well_formed := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed (domain := bytes) (op := decl)
   (title := "wellFormed") (source := "Silmaril/Formats/Cbor/WellFormed/Thms.lean")
 
 silmaril instance formats.examples.cbor.wellformed.l46 (expect := THM) (title := "[0x00] ∈ wellFormed — 0")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:46") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex46 : [0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l46" thm] public theorem ans46 :
-    Silmaril.Project.Shapes.Member lang0 ([0x00] : List UInt8) := ex46
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x00] : List UInt8) := ex46
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l48 (expect := THM) (title := "[0x17] ∈ wellFormed — 23")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:48") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x17] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x17] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex48 : [0x17] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l48" thm] public theorem ans48 :
-    Silmaril.Project.Shapes.Member lang0 ([0x17] : List UInt8) := ex48
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x17] : List UInt8) := ex48
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l50 (expect := THM) (title := "[0x18, 0x18] ∈ wellFormed — 24")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:50") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x18, 0x18] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x18, 0x18] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex50 : [0x18, 0x18] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l50" thm] public theorem ans50 :
-    Silmaril.Project.Shapes.Member lang0 ([0x18, 0x18] : List UInt8) := ex50
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x18, 0x18] : List UInt8) := ex50
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l52 (expect := THM) (title := "[0x19, 0x03, 0xE8] ∈ wellFormed — 1000")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:52") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x19, 0x03, 0xE8] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x19, 0x03, 0xE8] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex52 : [0x19, 0x03, 0xE8] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l52" thm] public theorem ans52 :
-    Silmaril.Project.Shapes.Member lang0 ([0x19, 0x03, 0xE8] : List UInt8) := ex52
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x19, 0x03, 0xE8] : List UInt8) := ex52
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l54 (expect := THM) (title := "[0x1B, 0x00, 0x00, 0x00, 0xE8, 0xD4, 0xA5, 0x10, 0x00] ∈ wellFormed — 1000000000000")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:54") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1B, 0x00, 0x00, 0x00, 0xE8, 0xD4, 0xA5, 0x10, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1B, 0x00, 0x00, 0x00, 0xE8, 0xD4, 0xA5, 0x10, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex54 : [0x1B, 0x00, 0x00, 0x00, 0xE8, 0xD4, 0xA5, 0x10, 0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l54" thm] public theorem ans54 :
-    Silmaril.Project.Shapes.Member lang0 ([0x1B, 0x00, 0x00, 0x00, 0xE8, 0xD4, 0xA5, 0x10, 0x00] : List UInt8) := ex54
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x1B, 0x00, 0x00, 0x00, 0xE8, 0xD4, 0xA5, 0x10, 0x00] : List UInt8) := ex54
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l56 (expect := THM) (title := "[0x1B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] ∈ wellFormed — 18446744073709551615")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:56") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex56 : [0x1B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l56" thm] public theorem ans56 :
-    Silmaril.Project.Shapes.Member lang0 ([0x1B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex56
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x1B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex56
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l58 (expect := THM) (title := "[0x20] ∈ wellFormed — -1")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:58") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x20] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x20] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex58 : [0x20] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l58" thm] public theorem ans58 :
-    Silmaril.Project.Shapes.Member lang0 ([0x20] : List UInt8) := ex58
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x20] : List UInt8) := ex58
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l60 (expect := THM) (title := "[0x38, 0x63] ∈ wellFormed — -100")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:60") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x38, 0x63] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x38, 0x63] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex60 : [0x38, 0x63] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l60" thm] public theorem ans60 :
-    Silmaril.Project.Shapes.Member lang0 ([0x38, 0x63] : List UInt8) := ex60
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x38, 0x63] : List UInt8) := ex60
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l62 (expect := THM) (title := "[0xC2, 0x49, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ wellFormed — bignum 2^64 (tag 2)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:62") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xC2, 0x49, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xC2, 0x49, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex62 : [0xC2, 0x49, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l62" thm] public theorem ans62 :
-    Silmaril.Project.Shapes.Member lang0 ([0xC2, 0x49, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex62
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xC2, 0x49, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex62
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l64 (expect := THM) (title := "[0xF9, 0x00, 0x00] ∈ wellFormed — 0.0 (half)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:64") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF9, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF9, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex64 : [0xF9, 0x00, 0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l64" thm] public theorem ans64 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF9, 0x00, 0x00] : List UInt8) := ex64
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF9, 0x00, 0x00] : List UInt8) := ex64
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l66 (expect := THM) (title := "[0xF9, 0x7C, 0x00] ∈ wellFormed — Infinity (half)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:66") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF9, 0x7C, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF9, 0x7C, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex66 : [0xF9, 0x7C, 0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l66" thm] public theorem ans66 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF9, 0x7C, 0x00] : List UInt8) := ex66
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF9, 0x7C, 0x00] : List UInt8) := ex66
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l68 (expect := THM) (title := "[0xF9, 0x7E, 0x00] ∈ wellFormed — NaN (half)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:68") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF9, 0x7E, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF9, 0x7E, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex68 : [0xF9, 0x7E, 0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l68" thm] public theorem ans68 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF9, 0x7E, 0x00] : List UInt8) := ex68
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF9, 0x7E, 0x00] : List UInt8) := ex68
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l70 (expect := THM) (title := "[0xF9, 0x80, 0x00] ∈ wellFormed — -0.0 (half)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:70") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF9, 0x80, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF9, 0x80, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex70 : [0xF9, 0x80, 0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l70" thm] public theorem ans70 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF9, 0x80, 0x00] : List UInt8) := ex70
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF9, 0x80, 0x00] : List UInt8) := ex70
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l72 (expect := THM) (title := "[0xFA, 0x47, 0xC3, 0x50, 0x00] ∈ wellFormed — 100000.0 (single)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:72") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xFA, 0x47, 0xC3, 0x50, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xFA, 0x47, 0xC3, 0x50, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex72 : [0xFA, 0x47, 0xC3, 0x50, 0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l72" thm] public theorem ans72 :
-    Silmaril.Project.Shapes.Member lang0 ([0xFA, 0x47, 0xC3, 0x50, 0x00] : List UInt8) := ex72
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xFA, 0x47, 0xC3, 0x50, 0x00] : List UInt8) := ex72
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l74 (expect := THM) (title := "[0xFB, 0x3F, 0xF1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A] ∈ wellFormed — 1.1 (double)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:74") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xFB, 0x3F, 0xF1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xFB, 0x3F, 0xF1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex74 : [0xFB, 0x3F, 0xF1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l74" thm] public theorem ans74 :
-    Silmaril.Project.Shapes.Member lang0 ([0xFB, 0x3F, 0xF1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A] : List UInt8) := ex74
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xFB, 0x3F, 0xF1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A] : List UInt8) := ex74
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l76 (expect := THM) (title := "[0xF4] ∈ wellFormed — false")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:76") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF4] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF4] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex76 : [0xF4] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l76" thm] public theorem ans76 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF4] : List UInt8) := ex76
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF4] : List UInt8) := ex76
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l78 (expect := THM) (title := "[0xF5] ∈ wellFormed — true")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:78") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF5] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF5] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex78 : [0xF5] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l78" thm] public theorem ans78 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF5] : List UInt8) := ex78
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF5] : List UInt8) := ex78
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l80 (expect := THM) (title := "[0xF6] ∈ wellFormed — null")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:80") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF6] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF6] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex80 : [0xF6] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l80" thm] public theorem ans80 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF6] : List UInt8) := ex80
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF6] : List UInt8) := ex80
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l82 (expect := THM) (title := "[0xF7] ∈ wellFormed — undefined")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:82") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF7] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF7] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex82 : [0xF7] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l82" thm] public theorem ans82 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF7] : List UInt8) := ex82
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF7] : List UInt8) := ex82
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l84 (expect := THM) (title := "[0xF0] ∈ wellFormed — simple(16)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:84") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex84 : [0xF0] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l84" thm] public theorem ans84 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF0] : List UInt8) := ex84
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF0] : List UInt8) := ex84
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l86 (expect := THM) (title := "[0xF8, 0xFF] ∈ wellFormed — simple(255)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:86") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF8, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF8, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex86 : [0xF8, 0xFF] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l86" thm] public theorem ans86 :
-    Silmaril.Project.Shapes.Member lang0 ([0xF8, 0xFF] : List UInt8) := ex86
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xF8, 0xFF] : List UInt8) := ex86
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l88 (expect := THM) (title := "[0xC0, 0x74, 0x32, 0x30, 0x31, 0x33, 0x2D, 0x30, 0x33, 0x2D, 0x32, 0x31, 0x54, 0x32, 0x30, 0x3A, 0x30, 0x34, 0x3A, 0x30, 0x30, 0x5A] ∈ wellFormed — 0(\"2013-03-21T20:04:00Z\")")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:88") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xC0, 0x74, 0x32, 0x30, 0x31, 0x33, 0x2D, 0x30, 0x33, 0x2D, 0x32, 0x31, 0x54, 0x32, 0x30, 0x3A, 0x30, 0x34, 0x3A, 0x30, 0x30, 0x5A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xC0, 0x74, 0x32, 0x30, 0x31, 0x33, 0x2D, 0x30, 0x33, 0x2D, 0x32, 0x31, 0x54, 0x32, 0x30, 0x3A, 0x30, 0x34, 0x3A, 0x30, 0x30, 0x5A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex88 : [0xC0, 0x74, 0x32, 0x30, 0x31, 0x33, 0x2D, 0x30, 0x33, 0x2D, 0x32, 0x31, 0x54, 0x32, 0x30, 0x3A, 0x30, 0x34, 0x3A, 0x30, 0x30, 0x5A] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l88" thm] public theorem ans88 :
-    Silmaril.Project.Shapes.Member lang0 ([0xC0, 0x74, 0x32, 0x30, 0x31, 0x33, 0x2D, 0x30, 0x33, 0x2D, 0x32, 0x31, 0x54, 0x32, 0x30, 0x3A, 0x30, 0x34, 0x3A, 0x30, 0x30, 0x5A] : List UInt8) := ex88
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xC0, 0x74, 0x32, 0x30, 0x31, 0x33, 0x2D, 0x30, 0x33, 0x2D, 0x32, 0x31, 0x54, 0x32, 0x30, 0x3A, 0x30, 0x34, 0x3A, 0x30, 0x30, 0x5A] : List UInt8) := ex88
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l90 (expect := THM) (title := "[0x40] ∈ wellFormed — h''")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:90") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x40] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x40] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex90 : [0x40] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l90" thm] public theorem ans90 :
-    Silmaril.Project.Shapes.Member lang0 ([0x40] : List UInt8) := ex90
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x40] : List UInt8) := ex90
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l92 (expect := THM) (title := "[0x44, 0x01, 0x02, 0x03, 0x04] ∈ wellFormed — h'01020304'")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:92") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x44, 0x01, 0x02, 0x03, 0x04] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x44, 0x01, 0x02, 0x03, 0x04] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex92 : [0x44, 0x01, 0x02, 0x03, 0x04] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l92" thm] public theorem ans92 :
-    Silmaril.Project.Shapes.Member lang0 ([0x44, 0x01, 0x02, 0x03, 0x04] : List UInt8) := ex92
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x44, 0x01, 0x02, 0x03, 0x04] : List UInt8) := ex92
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l94 (expect := THM) (title := "[0x60] ∈ wellFormed — \"\"")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:94") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x60] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x60] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex94 : [0x60] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l94" thm] public theorem ans94 :
-    Silmaril.Project.Shapes.Member lang0 ([0x60] : List UInt8) := ex94
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x60] : List UInt8) := ex94
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l96 (expect := THM) (title := "[0x64, 0x49, 0x45, 0x54, 0x46] ∈ wellFormed — \"IETF\"")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:96") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x64, 0x49, 0x45, 0x54, 0x46] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x64, 0x49, 0x45, 0x54, 0x46] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex96 : [0x64, 0x49, 0x45, 0x54, 0x46] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l96" thm] public theorem ans96 :
-    Silmaril.Project.Shapes.Member lang0 ([0x64, 0x49, 0x45, 0x54, 0x46] : List UInt8) := ex96
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x64, 0x49, 0x45, 0x54, 0x46] : List UInt8) := ex96
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l98 (expect := THM) (title := "[0x80] ∈ wellFormed — []")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:98") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x80] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x80] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex98 : [0x80] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l98" thm] public theorem ans98 :
-    Silmaril.Project.Shapes.Member lang0 ([0x80] : List UInt8) := ex98
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x80] : List UInt8) := ex98
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l100 (expect := THM) (title := "[0x83, 0x01, 0x02, 0x03] ∈ wellFormed — [1, 2, 3]")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:100") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x83, 0x01, 0x02, 0x03] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x83, 0x01, 0x02, 0x03] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex100 : [0x83, 0x01, 0x02, 0x03] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l100" thm] public theorem ans100 :
-    Silmaril.Project.Shapes.Member lang0 ([0x83, 0x01, 0x02, 0x03] : List UInt8) := ex100
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x83, 0x01, 0x02, 0x03] : List UInt8) := ex100
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l102 (expect := THM) (title := "[0x83, 0x01, 0x82, 0x02, 0x03, 0x82, 0x04, 0x05] ∈ wellFormed — [1, [2, 3], [4, 5]]")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:102") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x83, 0x01, 0x82, 0x02, 0x03, 0x82, 0x04, 0x05] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x83, 0x01, 0x82, 0x02, 0x03, 0x82, 0x04, 0x05] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex102 : [0x83, 0x01, 0x82, 0x02, 0x03, 0x82, 0x04, 0x05] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l102" thm] public theorem ans102 :
-    Silmaril.Project.Shapes.Member lang0 ([0x83, 0x01, 0x82, 0x02, 0x03, 0x82, 0x04, 0x05] : List UInt8) := ex102
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x83, 0x01, 0x82, 0x02, 0x03, 0x82, 0x04, 0x05] : List UInt8) := ex102
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l104 (expect := THM) (title := "[0xA0] ∈ wellFormed — {}")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:104") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex104 : [0xA0] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l104" thm] public theorem ans104 :
-    Silmaril.Project.Shapes.Member lang0 ([0xA0] : List UInt8) := ex104
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xA0] : List UInt8) := ex104
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l106 (expect := THM) (title := "[0xA2, 0x01, 0x02, 0x03, 0x04] ∈ wellFormed — {1: 2, 3: 4}")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:106") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA2, 0x01, 0x02, 0x03, 0x04] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA2, 0x01, 0x02, 0x03, 0x04] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex106 : [0xA2, 0x01, 0x02, 0x03, 0x04] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l106" thm] public theorem ans106 :
-    Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x01, 0x02, 0x03, 0x04] : List UInt8) := ex106
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xA2, 0x01, 0x02, 0x03, 0x04] : List UInt8) := ex106
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l108 (expect := THM) (title := "[0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0x02, 0x03] ∈ wellFormed — {\"a\": 1, \"b\": [2, 3]}")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:108") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0x02, 0x03] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0x02, 0x03] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex108 : [0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0x02, 0x03] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l108" thm] public theorem ans108 :
-    Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0x02, 0x03] : List UInt8) := ex108
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0x02, 0x03] : List UInt8) := ex108
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l110 (expect := THM) (title := "[0x5F, 0x42, 0x01, 0x02, 0x43, 0x03, 0x04, 0x05, 0xFF] ∈ wellFormed — (_ h'0102', h'030405')")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:110") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0x42, 0x01, 0x02, 0x43, 0x03, 0x04, 0x05, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0x42, 0x01, 0x02, 0x43, 0x03, 0x04, 0x05, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex110 : [0x5F, 0x42, 0x01, 0x02, 0x43, 0x03, 0x04, 0x05, 0xFF] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l110" thm] public theorem ans110 :
-    Silmaril.Project.Shapes.Member lang0 ([0x5F, 0x42, 0x01, 0x02, 0x43, 0x03, 0x04, 0x05, 0xFF] : List UInt8) := ex110
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0x42, 0x01, 0x02, 0x43, 0x03, 0x04, 0x05, 0xFF] : List UInt8) := ex110
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l112 (expect := THM) (title := "[0x7F, 0x65, 0x73, 0x74, 0x72, 0x65, 0x61, 0x64, 0x6D, 0x69, 0x6E, 0x67, 0xFF] ∈ wellFormed — (_ \"strea\", \"ming\")")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:112") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x7F, 0x65, 0x73, 0x74, 0x72, 0x65, 0x61, 0x64, 0x6D, 0x69, 0x6E, 0x67, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x7F, 0x65, 0x73, 0x74, 0x72, 0x65, 0x61, 0x64, 0x6D, 0x69, 0x6E, 0x67, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex112 : [0x7F, 0x65, 0x73, 0x74, 0x72, 0x65, 0x61, 0x64, 0x6D, 0x69, 0x6E, 0x67, 0xFF] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l112" thm] public theorem ans112 :
-    Silmaril.Project.Shapes.Member lang0 ([0x7F, 0x65, 0x73, 0x74, 0x72, 0x65, 0x61, 0x64, 0x6D, 0x69, 0x6E, 0x67, 0xFF] : List UInt8) := ex112
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x7F, 0x65, 0x73, 0x74, 0x72, 0x65, 0x61, 0x64, 0x6D, 0x69, 0x6E, 0x67, 0xFF] : List UInt8) := ex112
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l114 (expect := THM) (title := "[0x9F, 0xFF] ∈ wellFormed — [_ ]")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:114") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9F, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9F, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex114 : [0x9F, 0xFF] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l114" thm] public theorem ans114 :
-    Silmaril.Project.Shapes.Member lang0 ([0x9F, 0xFF] : List UInt8) := ex114
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x9F, 0xFF] : List UInt8) := ex114
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l116 (expect := THM) (title := "[0x9F, 0x01, 0x82, 0x02, 0x03, 0x9F, 0x04, 0x05, 0xFF, 0xFF] ∈ wellFormed — [_ 1, [2, 3], [_ 4, 5]]")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:116") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9F, 0x01, 0x82, 0x02, 0x03, 0x9F, 0x04, 0x05, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9F, 0x01, 0x82, 0x02, 0x03, 0x9F, 0x04, 0x05, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex116 : [0x9F, 0x01, 0x82, 0x02, 0x03, 0x9F, 0x04, 0x05, 0xFF, 0xFF] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l116" thm] public theorem ans116 :
-    Silmaril.Project.Shapes.Member lang0 ([0x9F, 0x01, 0x82, 0x02, 0x03, 0x9F, 0x04, 0x05, 0xFF, 0xFF] : List UInt8) := ex116
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x9F, 0x01, 0x82, 0x02, 0x03, 0x9F, 0x04, 0x05, 0xFF, 0xFF] : List UInt8) := ex116
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l118 (expect := THM) (title := "[0x83, 0x01, 0x9F, 0x02, 0x03, 0xFF, 0x82, 0x04, 0x05] ∈ wellFormed — [1, [_ 2, 3], [4, 5]]")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:118") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x83, 0x01, 0x9F, 0x02, 0x03, 0xFF, 0x82, 0x04, 0x05] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x83, 0x01, 0x9F, 0x02, 0x03, 0xFF, 0x82, 0x04, 0x05] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex118 : [0x83, 0x01, 0x9F, 0x02, 0x03, 0xFF, 0x82, 0x04, 0x05] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l118" thm] public theorem ans118 :
-    Silmaril.Project.Shapes.Member lang0 ([0x83, 0x01, 0x9F, 0x02, 0x03, 0xFF, 0x82, 0x04, 0x05] : List UInt8) := ex118
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x83, 0x01, 0x9F, 0x02, 0x03, 0xFF, 0x82, 0x04, 0x05] : List UInt8) := ex118
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l120 (expect := THM) (title := "[0xBF, 0x61, 0x61, 0x01, 0x61, 0x62, 0x9F, 0x02, 0x03, 0xFF, 0xFF] ∈ wellFormed — {_ \"a\": 1, \"b\": [_ 2, 3]}")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:120") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xBF, 0x61, 0x61, 0x01, 0x61, 0x62, 0x9F, 0x02, 0x03, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xBF, 0x61, 0x61, 0x01, 0x61, 0x62, 0x9F, 0x02, 0x03, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex120 : [0xBF, 0x61, 0x61, 0x01, 0x61, 0x62, 0x9F, 0x02, 0x03, 0xFF, 0xFF] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l120" thm] public theorem ans120 :
-    Silmaril.Project.Shapes.Member lang0 ([0xBF, 0x61, 0x61, 0x01, 0x61, 0x62, 0x9F, 0x02, 0x03, 0xFF, 0xFF] : List UInt8) := ex120
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xBF, 0x61, 0x61, 0x01, 0x61, 0x62, 0x9F, 0x02, 0x03, 0xFF, 0xFF] : List UInt8) := ex120
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l122 (expect := THM) (title := "[0x5F, 0xFF] ∈ wellFormed — (_ ) empty indefinite byte string")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:122") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex122 : [0x5F, 0xFF] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l122" thm] public theorem ans122 :
-    Silmaril.Project.Shapes.Member lang0 ([0x5F, 0xFF] : List UInt8) := ex122
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0xFF] : List UInt8) := ex122
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l124 (expect := THM) (title := "[0x18, 0x00] ∈ wellFormed — 0 with a non-preferred 1-byte argument (not deterministic, still well-formed)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:124") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x18, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x18, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex124 : [0x18, 0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l124" thm] public theorem ans124 :
-    Silmaril.Project.Shapes.Member lang0 ([0x18, 0x00] : List UInt8) := ex124
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x18, 0x00] : List UInt8) := ex124
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l126 (expect := THM) (title := "[0x62, 0xC3, 0x28] ∈ wellFormed — a text string with ill-formed UTF-8 (well-formed, not valid)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:126") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x62, 0xC3, 0x28] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x62, 0xC3, 0x28] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex126 : [0x62, 0xC3, 0x28] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l126" thm] public theorem ans126 :
-    Silmaril.Project.Shapes.Member lang0 ([0x62, 0xC3, 0x28] : List UInt8) := ex126
+    Silmaril.Project.Shapes.Member lang_well_formed ([0x62, 0xC3, 0x28] : List UInt8) := ex126
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l128 (expect := THM) (title := "[0xA2, 0x01, 0x02, 0x01, 0x03] ∈ wellFormed — a map with a duplicate key (well-formed, not valid)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:128") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex128 : [0xA2, 0x01, 0x02, 0x01, 0x03] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l128" thm] public theorem ans128 :
-    Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8) := ex128
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8) := ex128
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l130 (expect := THM) (title := "[0xD9, 0xFF, 0xFF, 0x00] ∈ wellFormed — an unassigned tag (well-formed; tag validity is not checked)")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:130") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xD9, 0xFF, 0xFF, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xD9, 0xFF, 0xFF, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex130 : [0xD9, 0xFF, 0xFF, 0x00] ∈ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l130" thm] public theorem ans130 :
-    Silmaril.Project.Shapes.Member lang0 ([0xD9, 0xFF, 0xFF, 0x00] : List UInt8) := ex130
+    Silmaril.Project.Shapes.Member lang_well_formed ([0xD9, 0xFF, 0xFF, 0x00] : List UInt8) := ex130
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l132 (expect := CSA) (title := "([0x00, 0x00] : List UInt8) ∉ wellFormed — two items: not a single item")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:132") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := (([0x00, 0x00] : List UInt8) : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := (([0x00, 0x00] : List UInt8) : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex132 : ([0x00, 0x00] : List UInt8) ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l132" csa] public theorem ans132 :
-    ¬ Silmaril.Project.Shapes.Member lang0 (([0x00, 0x00] : List UInt8) : List UInt8) := ex132
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed (([0x00, 0x00] : List UInt8) : List UInt8) := ex132
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l134 (expect := CSA) (title := "([0x00, 0xFF] : List UInt8) ∉ wellFormed — trailing break")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:134") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := (([0x00, 0xFF] : List UInt8) : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := (([0x00, 0xFF] : List UInt8) : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex134 : ([0x00, 0xFF] : List UInt8) ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l134" csa] public theorem ans134 :
-    ¬ Silmaril.Project.Shapes.Member lang0 (([0x00, 0xFF] : List UInt8) : List UInt8) := ex134
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed (([0x00, 0xFF] : List UInt8) : List UInt8) := ex134
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l136 (expect := CSA) (title := "([] : List UInt8) ∉ wellFormed — the empty input")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:136") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := (([] : List UInt8) : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := (([] : List UInt8) : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex136 : ([] : List UInt8) ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l136" csa] public theorem ans136 :
-    ¬ Silmaril.Project.Shapes.Member lang0 (([] : List UInt8) : List UInt8) := ex136
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed (([] : List UInt8) : List UInt8) := ex136
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l141 (expect := CSA) (title := "[0x18] ∉ wellFormed — End of input in a head.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:141") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x18] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x18] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex141 : [0x18] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l141" csa] public theorem ans141 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x18] : List UInt8) := ex141
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x18] : List UInt8) := ex141
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l142 (expect := CSA) (title := "[0x19] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:142") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x19] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x19] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex142 : [0x19] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l142" csa] public theorem ans142 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x19] : List UInt8) := ex142
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x19] : List UInt8) := ex142
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l143 (expect := CSA) (title := "[0x1A] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:143") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1A] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1A] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex143 : [0x1A] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l143" csa] public theorem ans143 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x1A] : List UInt8) := ex143
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x1A] : List UInt8) := ex143
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l144 (expect := CSA) (title := "[0x1B] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:144") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1B] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1B] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex144 : [0x1B] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l144" csa] public theorem ans144 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x1B] : List UInt8) := ex144
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x1B] : List UInt8) := ex144
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l145 (expect := CSA) (title := "[0x19, 0x01] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:145") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x19, 0x01] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x19, 0x01] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex145 : [0x19, 0x01] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l145" csa] public theorem ans145 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x19, 0x01] : List UInt8) := ex145
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x19, 0x01] : List UInt8) := ex145
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l146 (expect := CSA) (title := "[0x1A, 0x01, 0x02] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:146") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1A, 0x01, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1A, 0x01, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex146 : [0x1A, 0x01, 0x02] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l146" csa] public theorem ans146 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x1A, 0x01, 0x02] : List UInt8) := ex146
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x1A, 0x01, 0x02] : List UInt8) := ex146
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l147 (expect := CSA) (title := "[0x1B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:147") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex147 : [0x1B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l147" csa] public theorem ans147 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x1B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07] : List UInt8) := ex147
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x1B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07] : List UInt8) := ex147
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l148 (expect := CSA) (title := "[0x38] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:148") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x38] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x38] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex148 : [0x38] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l148" csa] public theorem ans148 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x38] : List UInt8) := ex148
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x38] : List UInt8) := ex148
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l149 (expect := CSA) (title := "[0x58] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:149") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x58] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x58] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex149 : [0x58] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l149" csa] public theorem ans149 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x58] : List UInt8) := ex149
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x58] : List UInt8) := ex149
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l150 (expect := CSA) (title := "[0x78] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:150") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x78] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x78] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex150 : [0x78] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l150" csa] public theorem ans150 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x78] : List UInt8) := ex150
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x78] : List UInt8) := ex150
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l151 (expect := CSA) (title := "[0x98] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:151") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x98] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x98] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex151 : [0x98] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l151" csa] public theorem ans151 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x98] : List UInt8) := ex151
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x98] : List UInt8) := ex151
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l152 (expect := CSA) (title := "[0x9A, 0x01, 0xFF, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:152") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9A, 0x01, 0xFF, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9A, 0x01, 0xFF, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex152 : [0x9A, 0x01, 0xFF, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l152" csa] public theorem ans152 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9A, 0x01, 0xFF, 0x00] : List UInt8) := ex152
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9A, 0x01, 0xFF, 0x00] : List UInt8) := ex152
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l153 (expect := CSA) (title := "[0xB8] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:153") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xB8] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xB8] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex153 : [0xB8] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l153" csa] public theorem ans153 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xB8] : List UInt8) := ex153
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xB8] : List UInt8) := ex153
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l154 (expect := CSA) (title := "[0xD8] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:154") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xD8] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xD8] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex154 : [0xD8] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l154" csa] public theorem ans154 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8] : List UInt8) := ex154
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xD8] : List UInt8) := ex154
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l155 (expect := CSA) (title := "[0xF8] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:155") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF8] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF8] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex155 : [0xF8] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l155" csa] public theorem ans155 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF8] : List UInt8) := ex155
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xF8] : List UInt8) := ex155
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l156 (expect := CSA) (title := "[0xF9, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:156") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF9, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF9, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex156 : [0xF9, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l156" csa] public theorem ans156 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF9, 0x00] : List UInt8) := ex156
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xF9, 0x00] : List UInt8) := ex156
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l157 (expect := CSA) (title := "[0xFA, 0x00, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:157") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xFA, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xFA, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex157 : [0xFA, 0x00, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l157" csa] public theorem ans157 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xFA, 0x00, 0x00] : List UInt8) := ex157
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xFA, 0x00, 0x00] : List UInt8) := ex157
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l158 (expect := CSA) (title := "[0xFB, 0x00, 0x00, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:158") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xFB, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xFB, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex158 : [0xFB, 0x00, 0x00, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l158" csa] public theorem ans158 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xFB, 0x00, 0x00, 0x00] : List UInt8) := ex158
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xFB, 0x00, 0x00, 0x00] : List UInt8) := ex158
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l160 (expect := CSA) (title := "[0x41] ∉ wellFormed — Definite-length strings with short data.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:160") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x41] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x41] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex160 : [0x41] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l160" csa] public theorem ans160 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x41] : List UInt8) := ex160
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x41] : List UInt8) := ex160
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l161 (expect := CSA) (title := "[0x61] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:161") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x61] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x61] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex161 : [0x61] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l161" csa] public theorem ans161 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x61] : List UInt8) := ex161
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x61] : List UInt8) := ex161
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l162 (expect := CSA) (title := "[0x5A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:162") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex162 : [0x5A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l162" csa] public theorem ans162 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] : List UInt8) := ex162
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] : List UInt8) := ex162
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l163 (expect := CSA) (title := "[0x5B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:163") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex163 : [0x5B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l163" csa] public theorem ans163 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] : List UInt8) := ex163
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] : List UInt8) := ex163
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l164 (expect := CSA) (title := "[0x7A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:164") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x7A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x7A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex164 : [0x7A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l164" csa] public theorem ans164 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] : List UInt8) := ex164
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x7A, 0xFF, 0xFF, 0xFF, 0xFF, 0x00] : List UInt8) := ex164
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l165 (expect := CSA) (title := "[0x7B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:165") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x7B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x7B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex165 : [0x7B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l165" csa] public theorem ans165 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] : List UInt8) := ex165
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x7B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x02, 0x03] : List UInt8) := ex165
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l167 (expect := CSA) (title := "[0x81] ∉ wellFormed — Definite-length maps and arrays not closed with enough items.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:167") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x81] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x81] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex167 : [0x81] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l167" csa] public theorem ans167 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x81] : List UInt8) := ex167
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x81] : List UInt8) := ex167
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l168 (expect := CSA) (title := "[0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:168") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex168 : [0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l168" csa] public theorem ans168 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81] : List UInt8) := ex168
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81] : List UInt8) := ex168
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l169 (expect := CSA) (title := "[0x82, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:169") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x82, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x82, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex169 : [0x82, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l169" csa] public theorem ans169 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x82, 0x00] : List UInt8) := ex169
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x82, 0x00] : List UInt8) := ex169
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l170 (expect := CSA) (title := "[0xA1] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:170") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA1] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA1] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex170 : [0xA1] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l170" csa] public theorem ans170 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA1] : List UInt8) := ex170
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xA1] : List UInt8) := ex170
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l171 (expect := CSA) (title := "[0xA2, 0x01, 0x02] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:171") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA2, 0x01, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA2, 0x01, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex171 : [0xA2, 0x01, 0x02] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l171" csa] public theorem ans171 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x01, 0x02] : List UInt8) := ex171
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xA2, 0x01, 0x02] : List UInt8) := ex171
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l172 (expect := CSA) (title := "[0xA1, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:172") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA1, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA1, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex172 : [0xA1, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l172" csa] public theorem ans172 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA1, 0x00] : List UInt8) := ex172
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xA1, 0x00] : List UInt8) := ex172
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l173 (expect := CSA) (title := "[0xA2, 0x00, 0x00, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:173") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA2, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA2, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex173 : [0xA2, 0x00, 0x00, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l173" csa] public theorem ans173 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x00, 0x00, 0x00] : List UInt8) := ex173
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xA2, 0x00, 0x00, 0x00] : List UInt8) := ex173
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l175 (expect := CSA) (title := "[0xC0] ∉ wellFormed — Tag number not followed by tag content.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:175") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xC0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xC0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex175 : [0xC0] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l175" csa] public theorem ans175 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xC0] : List UInt8) := ex175
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xC0] : List UInt8) := ex175
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l177 (expect := CSA) (title := "[0x5F, 0x41, 0x00] ∉ wellFormed — Indefinite-length strings not closed by a break stop code.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:177") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0x41, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0x41, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex177 : [0x5F, 0x41, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l177" csa] public theorem ans177 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5F, 0x41, 0x00] : List UInt8) := ex177
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0x41, 0x00] : List UInt8) := ex177
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l178 (expect := CSA) (title := "[0x7F, 0x61, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:178") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x7F, 0x61, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x7F, 0x61, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex178 : [0x7F, 0x61, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l178" csa] public theorem ans178 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7F, 0x61, 0x00] : List UInt8) := ex178
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x7F, 0x61, 0x00] : List UInt8) := ex178
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l180 (expect := CSA) (title := "[0x9F] ∉ wellFormed — Indefinite-length maps and arrays not closed by a break stop code.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:180") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9F] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9F] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex180 : [0x9F] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l180" csa] public theorem ans180 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9F] : List UInt8) := ex180
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9F] : List UInt8) := ex180
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l181 (expect := CSA) (title := "[0x9F, 0x01, 0x02] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:181") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9F, 0x01, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9F, 0x01, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex181 : [0x9F, 0x01, 0x02] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l181" csa] public theorem ans181 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9F, 0x01, 0x02] : List UInt8) := ex181
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9F, 0x01, 0x02] : List UInt8) := ex181
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l182 (expect := CSA) (title := "[0xBF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:182") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xBF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xBF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex182 : [0xBF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l182" csa] public theorem ans182 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xBF] : List UInt8) := ex182
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xBF] : List UInt8) := ex182
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l183 (expect := CSA) (title := "[0xBF, 0x01, 0x02, 0x01, 0x02] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:183") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xBF, 0x01, 0x02, 0x01, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xBF, 0x01, 0x02, 0x01, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex183 : [0xBF, 0x01, 0x02, 0x01, 0x02] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l183" csa] public theorem ans183 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xBF, 0x01, 0x02, 0x01, 0x02] : List UInt8) := ex183
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xBF, 0x01, 0x02, 0x01, 0x02] : List UInt8) := ex183
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l184 (expect := CSA) (title := "[0x81, 0x9F] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:184") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x81, 0x9F] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x81, 0x9F] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex184 : [0x81, 0x9F] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l184" csa] public theorem ans184 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x81, 0x9F] : List UInt8) := ex184
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x81, 0x9F] : List UInt8) := ex184
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l185 (expect := CSA) (title := "[0x9F, 0x80, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:185") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9F, 0x80, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9F, 0x80, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex185 : [0x9F, 0x80, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l185" csa] public theorem ans185 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9F, 0x80, 0x00] : List UInt8) := ex185
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9F, 0x80, 0x00] : List UInt8) := ex185
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l186 (expect := CSA) (title := "[0x9F, 0x9F, 0x9F, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:186") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9F, 0x9F, 0x9F, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9F, 0x9F, 0x9F, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex186 : [0x9F, 0x9F, 0x9F, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l186" csa] public theorem ans186 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9F, 0x9F, 0x9F, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex186
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9F, 0x9F, 0x9F, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex186
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l187 (expect := CSA) (title := "[0x9F, 0x81, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:187") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9F, 0x81, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9F, 0x81, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex187 : [0x9F, 0x81, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l187" csa] public theorem ans187 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9F, 0x81, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF] : List UInt8) := ex187
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9F, 0x81, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF] : List UInt8) := ex187
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l189 (expect := CSA) (title := "[0x1C] ∉ wellFormed — Subkind 1: reserved additional information values.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:189") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1C] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1C] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex189 : [0x1C] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l189" csa] public theorem ans189 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x1C] : List UInt8) := ex189
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x1C] : List UInt8) := ex189
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l190 (expect := CSA) (title := "[0x1D] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:190") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex190 : [0x1D] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l190" csa] public theorem ans190 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x1D] : List UInt8) := ex190
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x1D] : List UInt8) := ex190
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l191 (expect := CSA) (title := "[0x1E] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:191") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1E] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1E] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex191 : [0x1E] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l191" csa] public theorem ans191 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x1E] : List UInt8) := ex191
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x1E] : List UInt8) := ex191
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l192 (expect := CSA) (title := "[0x3C] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:192") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x3C] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x3C] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex192 : [0x3C] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l192" csa] public theorem ans192 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x3C] : List UInt8) := ex192
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x3C] : List UInt8) := ex192
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l193 (expect := CSA) (title := "[0x3D] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:193") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x3D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x3D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex193 : [0x3D] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l193" csa] public theorem ans193 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x3D] : List UInt8) := ex193
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x3D] : List UInt8) := ex193
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l194 (expect := CSA) (title := "[0x3E] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:194") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x3E] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x3E] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex194 : [0x3E] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l194" csa] public theorem ans194 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x3E] : List UInt8) := ex194
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x3E] : List UInt8) := ex194
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l195 (expect := CSA) (title := "[0x5C] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:195") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5C] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5C] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex195 : [0x5C] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l195" csa] public theorem ans195 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5C] : List UInt8) := ex195
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5C] : List UInt8) := ex195
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l196 (expect := CSA) (title := "[0x5D] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:196") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex196 : [0x5D] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l196" csa] public theorem ans196 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5D] : List UInt8) := ex196
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5D] : List UInt8) := ex196
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l197 (expect := CSA) (title := "[0x5E] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:197") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5E] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5E] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex197 : [0x5E] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l197" csa] public theorem ans197 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5E] : List UInt8) := ex197
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5E] : List UInt8) := ex197
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l198 (expect := CSA) (title := "[0x7C] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:198") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x7C] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x7C] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex198 : [0x7C] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l198" csa] public theorem ans198 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7C] : List UInt8) := ex198
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x7C] : List UInt8) := ex198
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l199 (expect := CSA) (title := "[0x7D] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:199") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x7D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x7D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex199 : [0x7D] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l199" csa] public theorem ans199 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7D] : List UInt8) := ex199
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x7D] : List UInt8) := ex199
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l200 (expect := CSA) (title := "[0x7E] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:200") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x7E] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x7E] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex200 : [0x7E] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l200" csa] public theorem ans200 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7E] : List UInt8) := ex200
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x7E] : List UInt8) := ex200
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l201 (expect := CSA) (title := "[0x9C] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:201") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9C] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9C] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex201 : [0x9C] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l201" csa] public theorem ans201 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9C] : List UInt8) := ex201
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9C] : List UInt8) := ex201
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l202 (expect := CSA) (title := "[0x9D] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:202") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9D] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9D] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex202 : [0x9D] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l202" csa] public theorem ans202 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9D] : List UInt8) := ex202
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9D] : List UInt8) := ex202
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l203 (expect := CSA) (title := "[0x9E] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:203") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9E] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9E] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex203 : [0x9E] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l203" csa] public theorem ans203 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9E] : List UInt8) := ex203
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9E] : List UInt8) := ex203
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l204 (expect := CSA) (title := "[0xBC] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:204") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xBC] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xBC] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex204 : [0xBC] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l204" csa] public theorem ans204 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xBC] : List UInt8) := ex204
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xBC] : List UInt8) := ex204
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l205 (expect := CSA) (title := "[0xBD] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:205") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xBD] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xBD] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex205 : [0xBD] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l205" csa] public theorem ans205 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xBD] : List UInt8) := ex205
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xBD] : List UInt8) := ex205
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l206 (expect := CSA) (title := "[0xBE] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:206") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xBE] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xBE] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex206 : [0xBE] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l206" csa] public theorem ans206 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xBE] : List UInt8) := ex206
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xBE] : List UInt8) := ex206
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l207 (expect := CSA) (title := "[0xDC] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:207") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xDC] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xDC] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex207 : [0xDC] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l207" csa] public theorem ans207 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xDC] : List UInt8) := ex207
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xDC] : List UInt8) := ex207
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l208 (expect := CSA) (title := "[0xDD] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:208") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xDD] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xDD] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex208 : [0xDD] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l208" csa] public theorem ans208 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xDD] : List UInt8) := ex208
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xDD] : List UInt8) := ex208
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l209 (expect := CSA) (title := "[0xDE] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:209") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xDE] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xDE] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex209 : [0xDE] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l209" csa] public theorem ans209 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xDE] : List UInt8) := ex209
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xDE] : List UInt8) := ex209
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l210 (expect := CSA) (title := "[0xFC] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:210") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xFC] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xFC] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex210 : [0xFC] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l210" csa] public theorem ans210 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xFC] : List UInt8) := ex210
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xFC] : List UInt8) := ex210
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l211 (expect := CSA) (title := "[0xFD] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:211") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xFD] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xFD] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex211 : [0xFD] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l211" csa] public theorem ans211 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xFD] : List UInt8) := ex211
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xFD] : List UInt8) := ex211
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l212 (expect := CSA) (title := "[0xFE] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:212") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xFE] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xFE] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex212 : [0xFE] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l212" csa] public theorem ans212 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xFE] : List UInt8) := ex212
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xFE] : List UInt8) := ex212
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l214 (expect := CSA) (title := "[0xF8, 0x00] ∉ wellFormed — Subkind 2: reserved two-byte encodings of simple values.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:214") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF8, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF8, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex214 : [0xF8, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l214" csa] public theorem ans214 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF8, 0x00] : List UInt8) := ex214
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xF8, 0x00] : List UInt8) := ex214
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l215 (expect := CSA) (title := "[0xF8, 0x01] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:215") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF8, 0x01] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF8, 0x01] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex215 : [0xF8, 0x01] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l215" csa] public theorem ans215 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF8, 0x01] : List UInt8) := ex215
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xF8, 0x01] : List UInt8) := ex215
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l216 (expect := CSA) (title := "[0xF8, 0x18] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:216") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF8, 0x18] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF8, 0x18] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex216 : [0xF8, 0x18] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l216" csa] public theorem ans216 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF8, 0x18] : List UInt8) := ex216
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xF8, 0x18] : List UInt8) := ex216
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l217 (expect := CSA) (title := "[0xF8, 0x1F] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:217") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xF8, 0x1F] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xF8, 0x1F] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex217 : [0xF8, 0x1F] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l217" csa] public theorem ans217 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF8, 0x1F] : List UInt8) := ex217
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xF8, 0x1F] : List UInt8) := ex217
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l219 (expect := CSA) (title := "[0x5F, 0x00, 0xFF] ∉ wellFormed — Subkind 3: indefinite-length string chunks not of the correct type.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:219") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex219 : [0x5F, 0x00, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l219" csa] public theorem ans219 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5F, 0x00, 0xFF] : List UInt8) := ex219
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0x00, 0xFF] : List UInt8) := ex219
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l220 (expect := CSA) (title := "[0x5F, 0x21, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:220") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0x21, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0x21, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex220 : [0x5F, 0x21, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l220" csa] public theorem ans220 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5F, 0x21, 0xFF] : List UInt8) := ex220
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0x21, 0xFF] : List UInt8) := ex220
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l221 (expect := CSA) (title := "[0x5F, 0x61, 0x00, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:221") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0x61, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0x61, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex221 : [0x5F, 0x61, 0x00, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l221" csa] public theorem ans221 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5F, 0x61, 0x00, 0xFF] : List UInt8) := ex221
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0x61, 0x00, 0xFF] : List UInt8) := ex221
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l222 (expect := CSA) (title := "[0x5F, 0x80, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:222") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0x80, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0x80, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex222 : [0x5F, 0x80, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l222" csa] public theorem ans222 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5F, 0x80, 0xFF] : List UInt8) := ex222
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0x80, 0xFF] : List UInt8) := ex222
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l223 (expect := CSA) (title := "[0x5F, 0xA0, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:223") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0xA0, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0xA0, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex223 : [0x5F, 0xA0, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l223" csa] public theorem ans223 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5F, 0xA0, 0xFF] : List UInt8) := ex223
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0xA0, 0xFF] : List UInt8) := ex223
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l224 (expect := CSA) (title := "[0x5F, 0xC0, 0x00, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:224") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0xC0, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0xC0, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex224 : [0x5F, 0xC0, 0x00, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l224" csa] public theorem ans224 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5F, 0xC0, 0x00, 0xFF] : List UInt8) := ex224
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0xC0, 0x00, 0xFF] : List UInt8) := ex224
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l225 (expect := CSA) (title := "[0x5F, 0xE0, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:225") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0xE0, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0xE0, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex225 : [0x5F, 0xE0, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l225" csa] public theorem ans225 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5F, 0xE0, 0xFF] : List UInt8) := ex225
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0xE0, 0xFF] : List UInt8) := ex225
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l226 (expect := CSA) (title := "[0x7F, 0x41, 0x00, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:226") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x7F, 0x41, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x7F, 0x41, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex226 : [0x7F, 0x41, 0x00, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l226" csa] public theorem ans226 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7F, 0x41, 0x00, 0xFF] : List UInt8) := ex226
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x7F, 0x41, 0x00, 0xFF] : List UInt8) := ex226
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l228 (expect := CSA) (title := "[0x5F, 0x5F, 0x41, 0x00, 0xFF, 0xFF] ∉ wellFormed — Subkind 3: indefinite-length string chunks not definite length.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:228") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x5F, 0x5F, 0x41, 0x00, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x5F, 0x5F, 0x41, 0x00, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex228 : [0x5F, 0x5F, 0x41, 0x00, 0xFF, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l228" csa] public theorem ans228 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x5F, 0x5F, 0x41, 0x00, 0xFF, 0xFF] : List UInt8) := ex228
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x5F, 0x5F, 0x41, 0x00, 0xFF, 0xFF] : List UInt8) := ex228
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l229 (expect := CSA) (title := "[0x7F, 0x7F, 0x61, 0x00, 0xFF, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:229") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x7F, 0x7F, 0x61, 0x00, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x7F, 0x7F, 0x61, 0x00, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex229 : [0x7F, 0x7F, 0x61, 0x00, 0xFF, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l229" csa] public theorem ans229 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x7F, 0x7F, 0x61, 0x00, 0xFF, 0xFF] : List UInt8) := ex229
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x7F, 0x7F, 0x61, 0x00, 0xFF, 0xFF] : List UInt8) := ex229
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l231 (expect := CSA) (title := "[0xFF] ∉ wellFormed — Subkind 4: break on its own outside an indefinite-length item.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:231") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex231 : [0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l231" csa] public theorem ans231 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xFF] : List UInt8) := ex231
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xFF] : List UInt8) := ex231
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l233 (expect := CSA) (title := "[0x81, 0xFF] ∉ wellFormed — Subkind 4: break in a definite-length array or map or a tag.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:233") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x81, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x81, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex233 : [0x81, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l233" csa] public theorem ans233 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x81, 0xFF] : List UInt8) := ex233
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x81, 0xFF] : List UInt8) := ex233
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l234 (expect := CSA) (title := "[0x82, 0x00, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:234") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x82, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x82, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex234 : [0x82, 0x00, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l234" csa] public theorem ans234 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x82, 0x00, 0xFF] : List UInt8) := ex234
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x82, 0x00, 0xFF] : List UInt8) := ex234
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l235 (expect := CSA) (title := "[0xA1, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:235") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA1, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA1, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex235 : [0xA1, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l235" csa] public theorem ans235 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA1, 0xFF] : List UInt8) := ex235
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xA1, 0xFF] : List UInt8) := ex235
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l236 (expect := CSA) (title := "[0xA1, 0xFF, 0x00] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:236") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA1, 0xFF, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA1, 0xFF, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex236 : [0xA1, 0xFF, 0x00] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l236" csa] public theorem ans236 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA1, 0xFF, 0x00] : List UInt8) := ex236
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xA1, 0xFF, 0x00] : List UInt8) := ex236
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l237 (expect := CSA) (title := "[0xA1, 0x00, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:237") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA1, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA1, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex237 : [0xA1, 0x00, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l237" csa] public theorem ans237 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA1, 0x00, 0xFF] : List UInt8) := ex237
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xA1, 0x00, 0xFF] : List UInt8) := ex237
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l238 (expect := CSA) (title := "[0xA2, 0x00, 0x00, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:238") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xA2, 0x00, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xA2, 0x00, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex238 : [0xA2, 0x00, 0x00, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l238" csa] public theorem ans238 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x00, 0x00, 0xFF] : List UInt8) := ex238
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xA2, 0x00, 0x00, 0xFF] : List UInt8) := ex238
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l239 (expect := CSA) (title := "[0x9F, 0x81, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:239") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9F, 0x81, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9F, 0x81, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex239 : [0x9F, 0x81, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l239" csa] public theorem ans239 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9F, 0x81, 0xFF] : List UInt8) := ex239
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9F, 0x81, 0xFF] : List UInt8) := ex239
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l240 (expect := CSA) (title := "[0x9F, 0x82, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:240") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x9F, 0x82, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x9F, 0x82, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex240 : [0x9F, 0x82, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l240" csa] public theorem ans240 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9F, 0x82, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex240
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x9F, 0x82, 0x9F, 0x81, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex240
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l242 (expect := CSA) (title := "[0xBF, 0x00, 0xFF] ∉ wellFormed — Subkind 4: break in a value position of an indefinite-length map.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:242") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xBF, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xBF, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex242 : [0xBF, 0x00, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l242" csa] public theorem ans242 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xBF, 0x00, 0xFF] : List UInt8) := ex242
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xBF, 0x00, 0xFF] : List UInt8) := ex242
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l243 (expect := CSA) (title := "[0xBF, 0x00, 0x00, 0x00, 0xFF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:243") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xBF, 0x00, 0x00, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xBF, 0x00, 0x00, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex243 : [0xBF, 0x00, 0x00, 0x00, 0xFF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l243" csa] public theorem ans243 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xBF, 0x00, 0x00, 0x00, 0xFF] : List UInt8) := ex243
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xBF, 0x00, 0x00, 0x00, 0xFF] : List UInt8) := ex243
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l245 (expect := CSA) (title := "[0x1F] ∉ wellFormed — Subkind 5: major type 0, 1, 6 with additional information 31.")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:245") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x1F] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x1F] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex245 : [0x1F] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l245" csa] public theorem ans245 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x1F] : List UInt8) := ex245
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x1F] : List UInt8) := ex245
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l246 (expect := CSA) (title := "[0x3F] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:246") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0x3F] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0x3F] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex246 : [0x3F] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l246" csa] public theorem ans246 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x3F] : List UInt8) := ex246
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0x3F] : List UInt8) := ex246
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril instance formats.examples.cbor.wellformed.l247 (expect := CSA) (title := "[0xDF] ∉ wellFormed")
   (doc := "Silmaril/Formats/Cbor/WellFormed/Thms.lean:247") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang0) (x := ([0xDF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborWellformed.lang_well_formed) (x := ([0xDF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborWellformed
 open Silmaril.Formats Silmaril.Formats.Cbor
 theorem ex247 : [0xDF] ∉ wellFormed := by decide +kernel
 @[answers "formats.examples.cbor.wellformed.l247" csa] public theorem ans247 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xDF] : List UInt8) := ex247
+    ¬ Silmaril.Project.Shapes.Member lang_well_formed ([0xDF] : List UInt8) := ex247
 end Silmaril.Project.Languages.FormatExamples.CborWellformed
 
 silmaril group formats.examples.cbor.wellformed (title := "[0xDF] ∉ wellFormed: examples")
@@ -3307,83 +3312,83 @@ silmaril group formats.examples.cbor.wellformed (title := "[0xDF] ∉ wellFormed
 namespace Silmaril.Project.Languages.FormatExamples.CborModelValid
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.ModelValid
 @[expose] public section
-/-- `language` -/
-def lang0 := language
+/-- `language` (`Silmaril/Formats/Cbor/ModelValid/Thms.lean`) -/
+def lang_language := language
 end
 end Silmaril.Project.Languages.FormatExamples.CborModelValid
 
-silmaril language formats.cbor.model_valid.language := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang0 (domain := bytes) (op := decl)
+silmaril language formats.cbor.model_valid.language := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language (domain := bytes) (op := decl)
   (title := "language") (source := "Silmaril/Formats/Cbor/ModelValid/Thms.lean")
 
 silmaril instance formats.examples.cbor.model_valid.l38 (expect := THM) (title := "[0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] ∈ language — `{\"b\": 1, \"a\": 2}`: keys need not be sorted for validity.")
   (doc := "Silmaril/Formats/Cbor/ModelValid/Thms.lean:38") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang0) (x := ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language) (x := ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborModelValid
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.ModelValid
 theorem ex38 : [0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] ∈ language := by decide +kernel
 @[answers "formats.examples.cbor.model_valid.l38" thm] public theorem ans38 :
-    Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8) := ex38
+    Silmaril.Project.Shapes.Member lang_language ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8) := ex38
 end Silmaril.Project.Languages.FormatExamples.CborModelValid
 
 silmaril instance formats.examples.cbor.model_valid.l40 (expect := CSA) (title := "[0xA2, 0x01, 0x02, 0x01, 0x03] ∉ language — `{1: 2, 1: 3}`: a duplicate key is not valid.")
   (doc := "Silmaril/Formats/Cbor/ModelValid/Thms.lean:40") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang0) (x := ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language) (x := ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborModelValid
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.ModelValid
 theorem ex40 : [0xA2, 0x01, 0x02, 0x01, 0x03] ∉ language := by decide +kernel
 @[answers "formats.examples.cbor.model_valid.l40" csa] public theorem ans40 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8) := ex40
+    ¬ Silmaril.Project.Shapes.Member lang_language ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8) := ex40
 end Silmaril.Project.Languages.FormatExamples.CborModelValid
 
 silmaril instance formats.examples.cbor.model_valid.l42 (expect := CSA) (title := "[0x62, 0xC3, 0x28] ∉ language — `\"\\xC3(\"`: ill-formed UTF-8 text is not valid, also as a map key or inside a tag.")
   (doc := "Silmaril/Formats/Cbor/ModelValid/Thms.lean:42") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang0) (x := ([0x62, 0xC3, 0x28] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language) (x := ([0x62, 0xC3, 0x28] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborModelValid
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.ModelValid
 theorem ex42 : [0x62, 0xC3, 0x28] ∉ language := by decide +kernel
 @[answers "formats.examples.cbor.model_valid.l42" csa] public theorem ans42 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x62, 0xC3, 0x28] : List UInt8) := ex42
+    ¬ Silmaril.Project.Shapes.Member lang_language ([0x62, 0xC3, 0x28] : List UInt8) := ex42
 end Silmaril.Project.Languages.FormatExamples.CborModelValid
 
 silmaril instance formats.examples.cbor.model_valid.l43 (expect := CSA) (title := "[0xA1, 0x62, 0xC3, 0x28, 0x00] ∉ language")
   (doc := "Silmaril/Formats/Cbor/ModelValid/Thms.lean:43") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang0) (x := ([0xA1, 0x62, 0xC3, 0x28, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language) (x := ([0xA1, 0x62, 0xC3, 0x28, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborModelValid
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.ModelValid
 theorem ex43 : [0xA1, 0x62, 0xC3, 0x28, 0x00] ∉ language := by decide +kernel
 @[answers "formats.examples.cbor.model_valid.l43" csa] public theorem ans43 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA1, 0x62, 0xC3, 0x28, 0x00] : List UInt8) := ex43
+    ¬ Silmaril.Project.Shapes.Member lang_language ([0xA1, 0x62, 0xC3, 0x28, 0x00] : List UInt8) := ex43
 end Silmaril.Project.Languages.FormatExamples.CborModelValid
 
 silmaril instance formats.examples.cbor.model_valid.l44 (expect := CSA) (title := "[0xC0, 0x62, 0xC3, 0x28] ∉ language")
   (doc := "Silmaril/Formats/Cbor/ModelValid/Thms.lean:44") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang0) (x := ([0xC0, 0x62, 0xC3, 0x28] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language) (x := ([0xC0, 0x62, 0xC3, 0x28] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborModelValid
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.ModelValid
 theorem ex44 : [0xC0, 0x62, 0xC3, 0x28] ∉ language := by decide +kernel
 @[answers "formats.examples.cbor.model_valid.l44" csa] public theorem ans44 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xC0, 0x62, 0xC3, 0x28] : List UInt8) := ex44
+    ¬ Silmaril.Project.Shapes.Member lang_language ([0xC0, 0x62, 0xC3, 0x28] : List UInt8) := ex44
 end Silmaril.Project.Languages.FormatExamples.CborModelValid
 
 silmaril instance formats.examples.cbor.model_valid.l48 (expect := THM) (title := "[0xA2, 0xF9, 0x3E, 0x00, 0x01, 0xFB, 0x3F, 0xF8, 0, 0, 0, 0, 0, 0, 0x02] ∈ language — would call its keys duplicates.")
   (doc := "Silmaril/Formats/Cbor/ModelValid/Thms.lean:48") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang0) (x := ([0xA2, 0xF9, 0x3E, 0x00, 0x01, 0xFB, 0x3F, 0xF8, 0, 0, 0, 0, 0, 0, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language) (x := ([0xA2, 0xF9, 0x3E, 0x00, 0x01, 0xFB, 0x3F, 0xF8, 0, 0, 0, 0, 0, 0, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborModelValid
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.ModelValid
 theorem ex48 : [0xA2, 0xF9, 0x3E, 0x00, 0x01, 0xFB, 0x3F, 0xF8, 0, 0, 0, 0, 0, 0, 0x02] ∈ language := by
   decide +kernel
 @[answers "formats.examples.cbor.model_valid.l48" thm] public theorem ans48 :
-    Silmaril.Project.Shapes.Member lang0 ([0xA2, 0xF9, 0x3E, 0x00, 0x01, 0xFB, 0x3F, 0xF8, 0, 0, 0, 0, 0, 0, 0x02] : List UInt8) := ex48
+    Silmaril.Project.Shapes.Member lang_language ([0xA2, 0xF9, 0x3E, 0x00, 0x01, 0xFB, 0x3F, 0xF8, 0, 0, 0, 0, 0, 0, 0x02] : List UInt8) := ex48
 end Silmaril.Project.Languages.FormatExamples.CborModelValid
 
 silmaril instance formats.examples.cbor.model_valid.l51 (expect := CSA) (title := "[0x18, 0x00] ∉ language — Only shortest-head definite encodings are members: `18 00` is a valid item, but not here.")
   (doc := "Silmaril/Formats/Cbor/ModelValid/Thms.lean:51") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang0) (x := ([0x18, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborModelValid.lang_language) (x := ([0x18, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborModelValid
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.ModelValid
 theorem ex51 : [0x18, 0x00] ∉ language := by decide +kernel
 @[answers "formats.examples.cbor.model_valid.l51" csa] public theorem ans51 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x18, 0x00] : List UInt8) := ex51
+    ¬ Silmaril.Project.Shapes.Member lang_language ([0x18, 0x00] : List UInt8) := ex51
 end Silmaril.Project.Languages.FormatExamples.CborModelValid
 
 silmaril group formats.examples.cbor.model_valid (title := "[0x18, 0x00] ∉ language — Only shortest-head definite encodings are members: `18 00` is a valid item, but not here.: examples")
@@ -3394,134 +3399,134 @@ silmaril group formats.examples.cbor.model_valid (title := "[0x18, 0x00] ∉ lan
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 @[expose] public section
-/-- `language noFloats` -/
-def lang0 := language noFloats
-/-- `language anyFloat` -/
-def lang1 := language anyFloat
-/-- `language only64` -/
-def lang2 := language only64
-/-- `language ⟨FloatRule.none, false⟩` -/
-def lang3 := language ⟨FloatRule.none, false⟩
+/-- `language noFloats` (`Silmaril/Formats/Cbor/Deterministic/Thms.lean`) -/
+def lang_language_no_floats := language noFloats
+/-- `language anyFloat` (`Silmaril/Formats/Cbor/Deterministic/Thms.lean`) -/
+def lang_language_any_float := language anyFloat
+/-- `language only64` (`Silmaril/Formats/Cbor/Deterministic/Thms.lean`) -/
+def lang_language_only64 := language only64
+/-- `language ⟨FloatRule.none, false⟩` (`Silmaril/Formats/Cbor/Deterministic/Thms.lean`) -/
+def lang_language_float_rule_none_false := language ⟨FloatRule.none, false⟩
 end
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
-silmaril language formats.cbor.deterministic.language_no_floats := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang0 (domain := bytes) (op := decl)
+silmaril language formats.cbor.deterministic.language_no_floats := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats (domain := bytes) (op := decl)
   (title := "language noFloats") (source := "Silmaril/Formats/Cbor/Deterministic/Thms.lean")
-silmaril language formats.cbor.deterministic.language_any_float := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang1 (domain := bytes) (op := decl)
+silmaril language formats.cbor.deterministic.language_any_float := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float (domain := bytes) (op := decl)
   (title := "language anyFloat") (source := "Silmaril/Formats/Cbor/Deterministic/Thms.lean")
-silmaril language formats.cbor.deterministic.language_only64 := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang2 (domain := bytes) (op := decl)
+silmaril language formats.cbor.deterministic.language_only64 := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64 (domain := bytes) (op := decl)
   (title := "language only64") (source := "Silmaril/Formats/Cbor/Deterministic/Thms.lean")
-silmaril language formats.cbor.deterministic.language_float_rule_none_false := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang3 (domain := bytes) (op := decl)
+silmaril language formats.cbor.deterministic.language_float_rule_none_false := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_float_rule_none_false (domain := bytes) (op := decl)
   (title := "language ⟨FloatRule.none, false⟩") (source := "Silmaril/Formats/Cbor/Deterministic/Thms.lean")
 
 silmaril instance formats.examples.cbor.deterministic.l60 (expect := THM) (title := "[0xA2, 0x01, 0x02, 0x61, 0x61, 0x81, 0xC1, 0x00] ∈ language noFloats — `{1: 2, \"a\": [0]}` sorted by encodings (`01` < `61 61`); any tag is allowed (tag 1 here).")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:60") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang0) (x := ([0xA2, 0x01, 0x02, 0x61, 0x61, 0x81, 0xC1, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats) (x := ([0xA2, 0x01, 0x02, 0x61, 0x61, 0x81, 0xC1, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex60 : [0xA2, 0x01, 0x02, 0x61, 0x61, 0x81, 0xC1, 0x00] ∈ language noFloats := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l60" thm] public theorem ans60 :
-    Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x01, 0x02, 0x61, 0x61, 0x81, 0xC1, 0x00] : List UInt8) := ex60
+    Silmaril.Project.Shapes.Member lang_language_no_floats ([0xA2, 0x01, 0x02, 0x61, 0x61, 0x81, 0xC1, 0x00] : List UInt8) := ex60
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l62 (expect := CSA) (title := "[0xA2, 0x61, 0x61, 0x00, 0x01, 0x02] ∉ language noFloats — Unsorted keys, a duplicate key, a non-shortest head, an indefinite array.")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:62") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang0) (x := ([0xA2, 0x61, 0x61, 0x00, 0x01, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats) (x := ([0xA2, 0x61, 0x61, 0x00, 0x01, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex62 : [0xA2, 0x61, 0x61, 0x00, 0x01, 0x02] ∉ language noFloats := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l62" csa] public theorem ans62 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x61, 0x61, 0x00, 0x01, 0x02] : List UInt8) := ex62
+    ¬ Silmaril.Project.Shapes.Member lang_language_no_floats ([0xA2, 0x61, 0x61, 0x00, 0x01, 0x02] : List UInt8) := ex62
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l63 (expect := CSA) (title := "[0xA2, 0x01, 0x02, 0x01, 0x03] ∉ language noFloats")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:63") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang0) (x := ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats) (x := ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex63 : [0xA2, 0x01, 0x02, 0x01, 0x03] ∉ language noFloats := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l63" csa] public theorem ans63 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8) := ex63
+    ¬ Silmaril.Project.Shapes.Member lang_language_no_floats ([0xA2, 0x01, 0x02, 0x01, 0x03] : List UInt8) := ex63
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l64 (expect := CSA) (title := "[0x18, 0x00] ∉ language noFloats")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:64") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang0) (x := ([0x18, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats) (x := ([0x18, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex64 : [0x18, 0x00] ∉ language noFloats := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l64" csa] public theorem ans64 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x18, 0x00] : List UInt8) := ex64
+    ¬ Silmaril.Project.Shapes.Member lang_language_no_floats ([0x18, 0x00] : List UInt8) := ex64
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l65 (expect := CSA) (title := "[0x9F, 0xFF] ∉ language noFloats")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:65") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang0) (x := ([0x9F, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats) (x := ([0x9F, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex65 : [0x9F, 0xFF] ∉ language noFloats := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l65" csa] public theorem ans65 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9F, 0xFF] : List UInt8) := ex65
+    ¬ Silmaril.Project.Shapes.Member lang_language_no_floats ([0x9F, 0xFF] : List UInt8) := ex65
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l67 (expect := THM) (title := "[0xF9, 0x3C, 0x00] ∈ language anyFloat — Half-precision 1.0 (`f9 3c00`): allowed only by the `any` rule.")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:67") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang1) (x := ([0xF9, 0x3C, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_any_float) (x := ([0xF9, 0x3C, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex67 : [0xF9, 0x3C, 0x00] ∈ language anyFloat := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l67" thm] public theorem ans67 :
-    Silmaril.Project.Shapes.Member lang1 ([0xF9, 0x3C, 0x00] : List UInt8) := ex67
+    Silmaril.Project.Shapes.Member lang_language_any_float ([0xF9, 0x3C, 0x00] : List UInt8) := ex67
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l68 (expect := CSA) (title := "[0xF9, 0x3C, 0x00] ∉ language only64")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:68") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang2) (x := ([0xF9, 0x3C, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64) (x := ([0xF9, 0x3C, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex68 : [0xF9, 0x3C, 0x00] ∉ language only64 := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l68" csa] public theorem ans68 :
-    ¬ Silmaril.Project.Shapes.Member lang2 ([0xF9, 0x3C, 0x00] : List UInt8) := ex68
+    ¬ Silmaril.Project.Shapes.Member lang_language_only64 ([0xF9, 0x3C, 0x00] : List UInt8) := ex68
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l69 (expect := CSA) (title := "[0xF9, 0x3C, 0x00] ∉ language noFloats")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:69") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang0) (x := ([0xF9, 0x3C, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats) (x := ([0xF9, 0x3C, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex69 : [0xF9, 0x3C, 0x00] ∉ language noFloats := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l69" csa] public theorem ans69 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF9, 0x3C, 0x00] : List UInt8) := ex69
+    ¬ Silmaril.Project.Shapes.Member lang_language_no_floats ([0xF9, 0x3C, 0x00] : List UInt8) := ex69
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l72 (expect := THM) (title := "[0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] ∈ language only64 — the half-precision form, which is why `only64` is not RFC §4.2.1.)")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:72") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang2) (x := ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_only64) (x := ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex72 : [0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] ∈ language only64 := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l72" thm] public theorem ans72 :
-    Silmaril.Project.Shapes.Member lang2 ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex72
+    Silmaril.Project.Shapes.Member lang_language_only64 ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex72
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l74 (expect := CSA) (title := "[0x62, 0xC3, 0x28] ∉ language noFloats — Ill-formed UTF-8 text is rejected only when the profile asks for UTF-8.")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:74") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang0) (x := ([0x62, 0xC3, 0x28] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_no_floats) (x := ([0x62, 0xC3, 0x28] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex74 : [0x62, 0xC3, 0x28] ∉ language noFloats := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l74" csa] public theorem ans74 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x62, 0xC3, 0x28] : List UInt8) := ex74
+    ¬ Silmaril.Project.Shapes.Member lang_language_no_floats ([0x62, 0xC3, 0x28] : List UInt8) := ex74
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril instance formats.examples.cbor.deterministic.l75 (expect := THM) (title := "[0x62, 0xC3, 0x28] ∈ language ⟨FloatRule.none, false⟩")
   (doc := "Silmaril/Formats/Cbor/Deterministic/Thms.lean:75") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang3) (x := ([0x62, 0xC3, 0x28] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDeterministic.lang_language_float_rule_none_false) (x := ([0x62, 0xC3, 0x28] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDeterministic
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Deterministic
 theorem ex75 : [0x62, 0xC3, 0x28] ∈ language ⟨FloatRule.none, false⟩ := by decide +kernel
 @[answers "formats.examples.cbor.deterministic.l75" thm] public theorem ans75 :
-    Silmaril.Project.Shapes.Member lang3 ([0x62, 0xC3, 0x28] : List UInt8) := ex75
+    Silmaril.Project.Shapes.Member lang_language_float_rule_none_false ([0x62, 0xC3, 0x28] : List UInt8) := ex75
 end Silmaril.Project.Languages.FormatExamples.CborDeterministic
 
 silmaril group formats.examples.cbor.deterministic (title := "[0x62, 0xC3, 0x28] ∈ language ⟨FloatRule.none, false⟩: examples")
@@ -3532,501 +3537,501 @@ silmaril group formats.examples.cbor.deterministic (title := "[0x62, 0xC3, 0x28]
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 @[expose] public section
-/-- `language .drislExactCid` -/
-def lang0 := language .drislExactCid
-/-- `language .atprotoCoreExactCid` -/
-def lang1 := language .atprotoCoreExactCid
-/-- `language .drislCidPrefix` -/
-def lang2 := language .drislCidPrefix
-/-- `language .drislBdaslExactCid` -/
-def lang3 := language .drislBdaslExactCid
-/-- `language sha256TwoLengths` -/
-def lang4 := language sha256TwoLengths
-/-- `language .drislBdaslCidPrefix` -/
-def lang5 := language .drislBdaslCidPrefix
-/-- `language .drislNoLinks` -/
-def lang6 := language .drislNoLinks
+/-- `language .drislExactCid` (`Silmaril/Formats/Cbor/Drisl/Thms.lean`) -/
+def lang_language_drisl_exact_cid := language .drislExactCid
+/-- `language .atprotoCoreExactCid` (`Silmaril/Formats/Cbor/Drisl/Thms.lean`) -/
+def lang_language_atproto_core_exact_cid := language .atprotoCoreExactCid
+/-- `language .drislCidPrefix` (`Silmaril/Formats/Cbor/Drisl/Thms.lean`) -/
+def lang_language_drisl_cid_prefix := language .drislCidPrefix
+/-- `language .drislBdaslExactCid` (`Silmaril/Formats/Cbor/Drisl/Thms.lean`) -/
+def lang_language_drisl_bdasl_exact_cid := language .drislBdaslExactCid
+/-- `language sha256TwoLengths` (`Silmaril/Formats/Cbor/Drisl/Thms.lean`) -/
+def lang_language_sha256_two_lengths := language sha256TwoLengths
+/-- `language .drislBdaslCidPrefix` (`Silmaril/Formats/Cbor/Drisl/Thms.lean`) -/
+def lang_language_drisl_bdasl_cid_prefix := language .drislBdaslCidPrefix
+/-- `language .drislNoLinks` (`Silmaril/Formats/Cbor/Drisl/Thms.lean`) -/
+def lang_language_drisl_no_links := language .drislNoLinks
 end
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
-silmaril language formats.cbor.drisl.language_drisl_exact_cid := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0 (domain := bytes) (op := decl)
+silmaril language formats.cbor.drisl.language_drisl_exact_cid := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid (domain := bytes) (op := decl)
   (title := "language .drislExactCid") (source := "Silmaril/Formats/Cbor/Drisl/Thms.lean")
-silmaril language formats.cbor.drisl.language_atproto_core_exact_cid := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang1 (domain := bytes) (op := decl)
+silmaril language formats.cbor.drisl.language_atproto_core_exact_cid := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid (domain := bytes) (op := decl)
   (title := "language .atprotoCoreExactCid") (source := "Silmaril/Formats/Cbor/Drisl/Thms.lean")
-silmaril language formats.cbor.drisl.language_drisl_cid_prefix := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang2 (domain := bytes) (op := decl)
+silmaril language formats.cbor.drisl.language_drisl_cid_prefix := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_cid_prefix (domain := bytes) (op := decl)
   (title := "language .drislCidPrefix") (source := "Silmaril/Formats/Cbor/Drisl/Thms.lean")
-silmaril language formats.cbor.drisl.language_drisl_bdasl_exact_cid := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang3 (domain := bytes) (op := decl)
+silmaril language formats.cbor.drisl.language_drisl_bdasl_exact_cid := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid (domain := bytes) (op := decl)
   (title := "language .drislBdaslExactCid") (source := "Silmaril/Formats/Cbor/Drisl/Thms.lean")
-silmaril language formats.cbor.drisl.language_sha256_two_lengths := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang4 (domain := bytes) (op := decl)
+silmaril language formats.cbor.drisl.language_sha256_two_lengths := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_sha256_two_lengths (domain := bytes) (op := decl)
   (title := "language sha256TwoLengths") (source := "Silmaril/Formats/Cbor/Drisl/Thms.lean")
-silmaril language formats.cbor.drisl.language_drisl_bdasl_cid_prefix := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang5 (domain := bytes) (op := decl)
+silmaril language formats.cbor.drisl.language_drisl_bdasl_cid_prefix := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_cid_prefix (domain := bytes) (op := decl)
   (title := "language .drislBdaslCidPrefix") (source := "Silmaril/Formats/Cbor/Drisl/Thms.lean")
-silmaril language formats.cbor.drisl.language_drisl_no_links := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang6 (domain := bytes) (op := decl)
+silmaril language formats.cbor.drisl.language_drisl_no_links := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_no_links (domain := bytes) (op := decl)
   (title := "language .drislNoLinks") (source := "Silmaril/Formats/Cbor/Drisl/Thms.lean")
 
 silmaril instance formats.examples.cbor.drisl.l109 (expect := THM) (title := "[0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] ∈ language .drislExactCid — `{\"a\": 1, \"b\": [true, null]}`: accepted by all three profiles.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:109") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex109 : [0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] ∈ language .drislExactCid := by
   decide +kernel
 @[answers "formats.examples.cbor.drisl.l109" thm] public theorem ans109 :
-    Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8) := ex109
+    Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8) := ex109
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l111 (expect := THM) (title := "[0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] ∈ language .atprotoCoreExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:111") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang1) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex111 : [0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] ∈ language .atprotoCoreExactCid := by
   decide +kernel
 @[answers "formats.examples.cbor.drisl.l111" thm] public theorem ans111 :
-    Silmaril.Project.Shapes.Member lang1 ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8) := ex111
+    Silmaril.Project.Shapes.Member lang_language_atproto_core_exact_cid ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8) := ex111
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l114 (expect := CSA) (title := "[0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] ∉ language .drislExactCid — Unsorted keys `{\"b\": 1, \"a\": 2}`, a duplicate key `{\"a\": 1, \"a\": 2}`, an integer key `{1: 2}`.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:114") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex114 : [0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l114" csa] public theorem ans114 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8) := ex114
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xA2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02] : List UInt8) := ex114
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l115 (expect := CSA) (title := "[0xA2, 0x61, 0x61, 0x01, 0x61, 0x61, 0x02] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:115") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x61, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x61, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex115 : [0xA2, 0x61, 0x61, 0x01, 0x61, 0x61, 0x02] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l115" csa] public theorem ans115 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x61, 0x02] : List UInt8) := ex115
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x61, 0x02] : List UInt8) := ex115
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l116 (expect := CSA) (title := "[0xA1, 0x01, 0x02] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:116") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xA1, 0x01, 0x02] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xA1, 0x01, 0x02] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex116 : [0xA1, 0x01, 0x02] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l116" csa] public theorem ans116 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xA1, 0x01, 0x02] : List UInt8) := ex116
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xA1, 0x01, 0x02] : List UInt8) := ex116
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l118 (expect := THM) (title := "[0xA2, 0x61, 0x62, 0x00, 0x62, 0x61, 0x61, 0x00] ∈ language .drislExactCid — Key order is bytewise on encodings: `{\"b\": 0, \"aa\": 0}` is sorted (`61 62` < `62 61 61`).")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:118") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xA2, 0x61, 0x62, 0x00, 0x62, 0x61, 0x61, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xA2, 0x61, 0x62, 0x00, 0x62, 0x61, 0x61, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex118 : [0xA2, 0x61, 0x62, 0x00, 0x62, 0x61, 0x61, 0x00] ∈ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l118" thm] public theorem ans118 :
-    Silmaril.Project.Shapes.Member lang0 ([0xA2, 0x61, 0x62, 0x00, 0x62, 0x61, 0x61, 0x00] : List UInt8) := ex118
+    Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xA2, 0x61, 0x62, 0x00, 0x62, 0x61, 0x61, 0x00] : List UInt8) := ex118
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l120 (expect := CSA) (title := "[0x18, 0x00] ∉ language .drislExactCid — Non-shortest heads, indefinite lengths, trailing bytes.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:120") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0x18, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0x18, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex120 : [0x18, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l120" csa] public theorem ans120 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x18, 0x00] : List UInt8) := ex120
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0x18, 0x00] : List UInt8) := ex120
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l121 (expect := CSA) (title := "[0x9F, 0xFF] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:121") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0x9F, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0x9F, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex121 : [0x9F, 0xFF] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l121" csa] public theorem ans121 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x9F, 0xFF] : List UInt8) := ex121
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0x9F, 0xFF] : List UInt8) := ex121
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l122 (expect := CSA) (title := "[0x00, 0x00] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:122") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex122 : [0x00, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l122" csa] public theorem ans122 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x00, 0x00] : List UInt8) := ex122
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0x00, 0x00] : List UInt8) := ex122
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l124 (expect := CSA) (title := "[0x62, 0xC3, 0x28] ∉ language .drislExactCid — Text must be UTF-8: `\"\\xC3(\"`.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:124") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0x62, 0xC3, 0x28] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0x62, 0xC3, 0x28] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex124 : [0x62, 0xC3, 0x28] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l124" csa] public theorem ans124 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0x62, 0xC3, 0x28] : List UInt8) := ex124
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0x62, 0xC3, 0x28] : List UInt8) := ex124
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l126 (expect := CSA) (title := "[0xF7] ∉ language .drislExactCid — Simple values: `undefined` and `simple(16)` are rejected.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:126") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xF7] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xF7] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex126 : [0xF7] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l126" csa] public theorem ans126 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF7] : List UInt8) := ex126
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xF7] : List UInt8) := ex126
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l127 (expect := CSA) (title := "[0xF0] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:127") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xF0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xF0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex127 : [0xF0] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l127" csa] public theorem ans127 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF0] : List UInt8) := ex127
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xF0] : List UInt8) := ex127
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l129 (expect := THM) (title := "[0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] ∈ language .drislExactCid — Floats: 1.0 as a double is DRISL, not ATProto; as a half it is not DRISL.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:129") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex129 : [0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] ∈ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l129" thm] public theorem ans129 :
-    Silmaril.Project.Shapes.Member lang0 ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex129
+    Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex129
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l130 (expect := CSA) (title := "[0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] ∉ language .atprotoCoreExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:130") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang1) (x := ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid) (x := ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex130 : [0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] ∉ language .atprotoCoreExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l130" csa] public theorem ans130 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex130
+    ¬ Silmaril.Project.Shapes.Member lang_language_atproto_core_exact_cid ([0xFB, 0x3F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex130
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l131 (expect := CSA) (title := "[0xF9, 0x3C, 0x00] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:131") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xF9, 0x3C, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xF9, 0x3C, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex131 : [0xF9, 0x3C, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l131" csa] public theorem ans131 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xF9, 0x3C, 0x00] : List UInt8) := ex131
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xF9, 0x3C, 0x00] : List UInt8) := ex131
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l133 (expect := THM) (title := "[0xFB, 0, 0, 0, 0, 0, 0, 0, 0] ∈ language .drislExactCid — `+0.0` is allowed, `-0.0`, NaN and infinity are not.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:133") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xFB, 0, 0, 0, 0, 0, 0, 0, 0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xFB, 0, 0, 0, 0, 0, 0, 0, 0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex133 : [0xFB, 0, 0, 0, 0, 0, 0, 0, 0] ∈ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l133" thm] public theorem ans133 :
-    Silmaril.Project.Shapes.Member lang0 ([0xFB, 0, 0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex133
+    Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xFB, 0, 0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex133
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l134 (expect := CSA) (title := "[0xFB, 0x80, 0, 0, 0, 0, 0, 0, 0] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:134") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xFB, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xFB, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex134 : [0xFB, 0x80, 0, 0, 0, 0, 0, 0, 0] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l134" csa] public theorem ans134 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xFB, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex134
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xFB, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex134
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l135 (expect := CSA) (title := "[0xFB, 0x7F, 0xF8, 0, 0, 0, 0, 0, 0] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:135") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xFB, 0x7F, 0xF8, 0, 0, 0, 0, 0, 0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xFB, 0x7F, 0xF8, 0, 0, 0, 0, 0, 0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex135 : [0xFB, 0x7F, 0xF8, 0, 0, 0, 0, 0, 0] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l135" csa] public theorem ans135 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xFB, 0x7F, 0xF8, 0, 0, 0, 0, 0, 0] : List UInt8) := ex135
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xFB, 0x7F, 0xF8, 0, 0, 0, 0, 0, 0] : List UInt8) := ex135
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l136 (expect := CSA) (title := "[0xFB, 0x7F, 0xF0, 0, 0, 0, 0, 0, 0] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:136") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xFB, 0x7F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xFB, 0x7F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex136 : [0xFB, 0x7F, 0xF0, 0, 0, 0, 0, 0, 0] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l136" csa] public theorem ans136 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xFB, 0x7F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex136
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xFB, 0x7F, 0xF0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex136
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l139 (expect := THM) (title := "[0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] ∈ language .drislExactCid — and so is -2^63 (`nint (2^63 - 1)`).")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:139") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex139 : [0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] ∈ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l139" thm] public theorem ans139 :
-    Silmaril.Project.Shapes.Member lang0 ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex139
+    Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex139
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l140 (expect := CSA) (title := "[0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] ∉ language .atprotoCoreExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:140") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang1) (x := ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid) (x := ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex140 : [0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] ∉ language .atprotoCoreExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l140" csa] public theorem ans140 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex140
+    ¬ Silmaril.Project.Shapes.Member lang_language_atproto_core_exact_cid ([0x1B, 0x80, 0, 0, 0, 0, 0, 0, 0] : List UInt8) := ex140
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l141 (expect := THM) (title := "[0x1B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] ∈ language .atprotoCoreExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:141") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang1) (x := ([0x1B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid) (x := ([0x1B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex141 : [0x1B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] ∈ language .atprotoCoreExactCid := by
   decide +kernel
 @[answers "formats.examples.cbor.drisl.l141" thm] public theorem ans141 :
-    Silmaril.Project.Shapes.Member lang1 ([0x1B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex141
+    Silmaril.Project.Shapes.Member lang_language_atproto_core_exact_cid ([0x1B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex141
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l143 (expect := THM) (title := "[0x3B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] ∈ language .atprotoCoreExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:143") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang1) (x := ([0x3B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid) (x := ([0x3B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex143 : [0x3B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] ∈ language .atprotoCoreExactCid := by
   decide +kernel
 @[answers "formats.examples.cbor.drisl.l143" thm] public theorem ans143 :
-    Silmaril.Project.Shapes.Member lang1 ([0x3B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex143
+    Silmaril.Project.Shapes.Member lang_language_atproto_core_exact_cid ([0x3B, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] : List UInt8) := ex143
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l146 (expect := CSA) (title := "[0xC1, 0x00] ∉ language .drislExactCid — Tags: tag 1 (epoch time) and a bignum (tag 2) are rejected.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:146") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xC1, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xC1, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex146 : [0xC1, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l146" csa] public theorem ans146 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xC1, 0x00] : List UInt8) := ex146
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xC1, 0x00] : List UInt8) := ex146
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l147 (expect := CSA) (title := "[0xC2, 0x41, 0x01] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:147") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xC2, 0x41, 0x01] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xC2, 0x41, 0x01] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex147 : [0xC2, 0x41, 0x01] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l147" csa] public theorem ans147 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xC2, 0x41, 0x01] : List UInt8) := ex147
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xC2, 0x41, 0x01] : List UInt8) := ex147
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l149 (expect := THM) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislExactCid — Tag 42 with `00` and a DASL CID (codec DRISL `71` or raw `55`, SHA-256, 32 bytes).")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:149") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex149 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l149" thm] public theorem ans149 :
-    Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex149
+    Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex149
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l150 (expect := THM) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .atprotoCoreExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:150") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang1) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex150 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .atprotoCoreExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l150" thm] public theorem ans150 :
-    Silmaril.Project.Shapes.Member lang1 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex150
+    Silmaril.Project.Shapes.Member lang_language_atproto_core_exact_cid ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex150
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l152 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid — … but not with a BLAKE3 hash type (`1E`), without the `00` prefix, or with a trailing byte.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:152") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex152 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l152" csa] public theorem ans152 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex152
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex152
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l153 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x24, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:153") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xD8, 0x2A, 0x58, 0x24, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x24, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex153 : [0xD8, 0x2A, 0x58, 0x24, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l153" csa] public theorem ans153 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x2A, 0x58, 0x24, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex153
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xD8, 0x2A, 0x58, 0x24, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex153
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l154 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:154") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex154 : [0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l154" csa] public theorem ans154 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex154
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex154
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l156 (expect := THM) (title := "[0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislCidPrefix — The trailing byte is exactly what the `.prefix` CID-boundary assumption admits.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:156") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang2) (x := ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_cid_prefix) (x := ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex156 : [0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislCidPrefix := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l156" thm] public theorem ans156 :
-    Silmaril.Project.Shapes.Member lang2 ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex156
+    Silmaril.Project.Shapes.Member lang_language_drisl_cid_prefix ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex156
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l165 (expect := THM) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislBdaslExactCid — BLAKE3 (`1E`) with a 32-byte digest: BDASL, not DASL, not ATProto.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:165") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang3) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex165 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislBdaslExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l165" thm] public theorem ans165 :
-    Silmaril.Project.Shapes.Member lang3 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex165
+    Silmaril.Project.Shapes.Member lang_language_drisl_bdasl_exact_cid ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex165
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l166 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:166") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex166 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l166" csa] public theorem ans166 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex166
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex166
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l167 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .atprotoCoreExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:167") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang1) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_atproto_core_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex167 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .atprotoCoreExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l167" csa] public theorem ans167 :
-    ¬ Silmaril.Project.Shapes.Member lang1 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex167
+    ¬ Silmaril.Project.Shapes.Member lang_language_atproto_core_exact_cid ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex167
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l169 (expect := THM) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislBdaslExactCid — SHA-256 is still allowed under BDASL.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:169") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang3) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex169 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislBdaslExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l169" thm] public theorem ans169 :
-    Silmaril.Project.Shapes.Member lang3 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex169
+    Silmaril.Project.Shapes.Member lang_language_drisl_bdasl_exact_cid ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex169
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l172 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid — Rejected under both boundaries (under `.prefix` there are fewer bytes than declared).")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:172") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex172 : [0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l172" csa] public theorem ans172 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex172
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex172
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l173 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislCidPrefix")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:173") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang2) (x := ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_cid_prefix) (x := ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex173 : [0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislCidPrefix := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l173" csa] public theorem ans173 :
-    ¬ Silmaril.Project.Shapes.Member lang2 ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex173
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_cid_prefix ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex173
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l176 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid — allowed pair in DRISL.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:176") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex176 : [0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l176" csa] public theorem ans176 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex176
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xD8, 0x2A, 0x58, 0x24, 0x00, 0x01, 0x71, 0x12, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex176
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l179 (expect := THM) (title := "[0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language sha256TwoLengths — still is; DRISL rejects the 16-byte one.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:179") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang4) (x := ([0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_sha256_two_lengths) (x := ([0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex179 : [0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language sha256TwoLengths := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l179" thm] public theorem ans179 :
-    Silmaril.Project.Shapes.Member lang4 ([0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex179
+    Silmaril.Project.Shapes.Member lang_language_sha256_two_lengths ([0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex179
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l180 (expect := THM) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language sha256TwoLengths")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:180") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang4) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_sha256_two_lengths) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex180 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language sha256TwoLengths := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l180" thm] public theorem ans180 :
-    Silmaril.Project.Shapes.Member lang4 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex180
+    Silmaril.Project.Shapes.Member lang_language_sha256_two_lengths ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex180
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l181 (expect := CSA) (title := "[0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:181") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang0) (x := ([0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_exact_cid) (x := ([0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex181 : [0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l181" csa] public theorem ans181 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ([0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex181
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_exact_cid ([0xD8, 0x2A, 0x55, 0x00, 0x01, 0x71, 0x12, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex181
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l183 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x51, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislBdaslExactCid — Codec `51` is not a DASL codec, whatever the hash.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:183") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang3) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x51, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x51, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex183 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x51, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislBdaslExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l183" csa] public theorem ans183 :
-    ¬ Silmaril.Project.Shapes.Member lang3 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x51, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex183
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_bdasl_exact_cid ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x51, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex183
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l186 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislBdaslExactCid — where the 32 declared bytes are the digest and the last byte is trailing.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:186") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang3) (x := ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_exact_cid) (x := ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex186 : [0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislBdaslExactCid := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l186" csa] public theorem ans186 :
-    ¬ Silmaril.Project.Shapes.Member lang3 ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex186
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_bdasl_exact_cid ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex186
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l187 (expect := THM) (title := "[0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislBdaslCidPrefix")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:187") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang5) (x := ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_bdasl_cid_prefix) (x := ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex187 : [0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∈ language .drislBdaslCidPrefix := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l187" thm] public theorem ans187 :
-    Silmaril.Project.Shapes.Member lang5 ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex187
+    Silmaril.Project.Shapes.Member lang_language_drisl_bdasl_cid_prefix ([0xD8, 0x2A, 0x58, 0x26, 0x00, 0x01, 0x55, 0x1E, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex187
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l189 (expect := CSA) (title := "[0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislNoLinks — DRISL without links rejects every link, even a valid DASL one, and accepts linkless values.")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:189") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang6) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_no_links) (x := ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex189 : [0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] ∉ language .drislNoLinks := by decide +kernel
 @[answers "formats.examples.cbor.drisl.l189" csa] public theorem ans189 :
-    ¬ Silmaril.Project.Shapes.Member lang6 ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex189
+    ¬ Silmaril.Project.Shapes.Member lang_language_drisl_no_links ([0xD8, 0x2A, 0x58, 0x25, 0x00, 0x01, 0x71, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] : List UInt8) := ex189
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril instance formats.examples.cbor.drisl.l190 (expect := THM) (title := "[0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] ∈ language .drislNoLinks")
   (doc := "Silmaril/Formats/Cbor/Drisl/Thms.lean:190") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang6) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.CborDrisl.lang_language_drisl_no_links) (x := ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.CborDrisl
 open Silmaril.Formats Silmaril.Formats.Cbor Silmaril.Formats.Cbor.Drisl
 theorem ex190 : [0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] ∈ language .drislNoLinks := by
   decide +kernel
 @[answers "formats.examples.cbor.drisl.l190" thm] public theorem ans190 :
-    Silmaril.Project.Shapes.Member lang6 ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8) := ex190
+    Silmaril.Project.Shapes.Member lang_language_drisl_no_links ([0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] : List UInt8) := ex190
 end Silmaril.Project.Languages.FormatExamples.CborDrisl
 
 silmaril group formats.examples.cbor.drisl (title := "[0xA2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x82, 0xF5, 0xF6] ∈ language .drislNoLinks: examples")
@@ -4037,192 +4042,192 @@ silmaril group formats.examples.cbor.drisl (title := "[0xA2, 0x61, 0x61, 0x01, 0
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 @[expose] public section
-/-- `canonical` -/
-def lang0 := canonical
+/-- `canonical` (`Silmaril/Formats/Spki/Thms.lean`) -/
+def lang_canonical := canonical
 end
 end Silmaril.Project.Languages.FormatExamples.Spki
 
-silmaril language formats.spki.canonical := Silmaril.Project.Languages.FormatExamples.Spki.lang0 (domain := bytes) (op := decl)
+silmaril language formats.spki.canonical := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical (domain := bytes) (op := decl)
   (title := "canonical") (source := "Silmaril/Formats/Spki/Thms.lean")
 
 silmaril instance formats.examples.spki.l62 (expect := THM) (title := "\"(6:issuer3:bob)\".toUTF8.toList ∈ canonical — RFC 9804 §6.2.")
   (doc := "Silmaril/Formats/Spki/Thms.lean:62") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("(6:issuer3:bob)".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("(6:issuer3:bob)".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex62 : "(6:issuer3:bob)".toUTF8.toList ∈ canonical := by decide +kernel
 @[answers "formats.examples.spki.l62" thm] public theorem ans62 :
-    Silmaril.Project.Shapes.Member lang0 ("(6:issuer3:bob)".toUTF8.toList : List UInt8) := ex62
+    Silmaril.Project.Shapes.Member lang_canonical ("(6:issuer3:bob)".toUTF8.toList : List UInt8) := ex62
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l63 (expect := THM) (title := "\"(4:icon[12:image/bitmap]9:xxxxxxxxx)\".toUTF8.toList ∈ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:63") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("(4:icon[12:image/bitmap]9:xxxxxxxxx)".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("(4:icon[12:image/bitmap]9:xxxxxxxxx)".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex63 : "(4:icon[12:image/bitmap]9:xxxxxxxxx)".toUTF8.toList ∈ canonical := by decide +kernel
 @[answers "formats.examples.spki.l63" thm] public theorem ans63 :
-    Silmaril.Project.Shapes.Member lang0 ("(4:icon[12:image/bitmap]9:xxxxxxxxx)".toUTF8.toList : List UInt8) := ex63
+    Silmaril.Project.Shapes.Member lang_canonical ("(4:icon[12:image/bitmap]9:xxxxxxxxx)".toUTF8.toList : List UInt8) := ex63
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l64 (expect := THM) (title := "\"(7:subject(3:ref5:alice6:mother))\".toUTF8.toList ∈ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:64") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("(7:subject(3:ref5:alice6:mother))".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("(7:subject(3:ref5:alice6:mother))".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex64 : "(7:subject(3:ref5:alice6:mother))".toUTF8.toList ∈ canonical := by decide +kernel
 @[answers "formats.examples.spki.l64" thm] public theorem ans64 :
-    Silmaril.Project.Shapes.Member lang0 ("(7:subject(3:ref5:alice6:mother))".toUTF8.toList : List UInt8) := ex64
+    Silmaril.Project.Shapes.Member lang_canonical ("(7:subject(3:ref5:alice6:mother))".toUTF8.toList : List UInt8) := ex64
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l66 (expect := THM) (title := "\"0:\".toUTF8.toList ∈ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:66") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("0:".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("0:".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex66 : "0:".toUTF8.toList ∈ canonical := by decide +kernel
 @[answers "formats.examples.spki.l66" thm] public theorem ans66 :
-    Silmaril.Project.Shapes.Member lang0 ("0:".toUTF8.toList : List UInt8) := ex66
+    Silmaril.Project.Shapes.Member lang_canonical ("0:".toUTF8.toList : List UInt8) := ex66
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l67 (expect := THM) (title := "\"()\".toUTF8.toList ∈ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:67") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("()".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("()".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex67 : "()".toUTF8.toList ∈ canonical := by decide +kernel
 @[answers "formats.examples.spki.l67" thm] public theorem ans67 :
-    Silmaril.Project.Shapes.Member lang0 ("()".toUTF8.toList : List UInt8) := ex67
+    Silmaril.Project.Shapes.Member lang_canonical ("()".toUTF8.toList : List UInt8) := ex67
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l69 (expect := THM) (title := "[0x32, 0x3A, 0x00, 0xFF] ∈ canonical — Octets are arbitrary bytes, not text.")
   (doc := "Silmaril/Formats/Spki/Thms.lean:69") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ([0x32, 0x3A, 0x00, 0xFF] : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ([0x32, 0x3A, 0x00, 0xFF] : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex69 : [0x32, 0x3A, 0x00, 0xFF] ∈ canonical := by decide +kernel
 @[answers "formats.examples.spki.l69" thm] public theorem ans69 :
-    Silmaril.Project.Shapes.Member lang0 ([0x32, 0x3A, 0x00, 0xFF] : List UInt8) := ex69
+    Silmaril.Project.Shapes.Member lang_canonical ([0x32, 0x3A, 0x00, 0xFF] : List UInt8) := ex69
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l76 (expect := CSA) (title := "\"01:a\".toUTF8.toList ∉ canonical — A leading zero in a length, a length too long or too short, no length.")
   (doc := "Silmaril/Formats/Spki/Thms.lean:76") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("01:a".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("01:a".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex76 : "01:a".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l76" csa] public theorem ans76 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("01:a".toUTF8.toList : List UInt8) := ex76
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("01:a".toUTF8.toList : List UInt8) := ex76
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l77 (expect := CSA) (title := "\"3:ab\".toUTF8.toList ∉ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:77") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("3:ab".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("3:ab".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex77 : "3:ab".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l77" csa] public theorem ans77 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("3:ab".toUTF8.toList : List UInt8) := ex77
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("3:ab".toUTF8.toList : List UInt8) := ex77
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l78 (expect := CSA) (title := "\"1:ab\".toUTF8.toList ∉ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:78") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("1:ab".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("1:ab".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex78 : "1:ab".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l78" csa] public theorem ans78 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("1:ab".toUTF8.toList : List UInt8) := ex78
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("1:ab".toUTF8.toList : List UInt8) := ex78
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l79 (expect := CSA) (title := "\":\".toUTF8.toList ∉ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:79") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := (":".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := (":".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex79 : ":".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l79" csa] public theorem ans79 :
-    ¬ Silmaril.Project.Shapes.Member lang0 (":".toUTF8.toList : List UInt8) := ex79
+    ¬ Silmaril.Project.Shapes.Member lang_canonical (":".toUTF8.toList : List UInt8) := ex79
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l83 (expect := CSA) (title := "\"1:a1:b\".toUTF8.toList ∉ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:83") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("1:a1:b".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("1:a1:b".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex83 : "1:a1:b".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l83" csa] public theorem ans83 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("1:a1:b".toUTF8.toList : List UInt8) := ex83
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("1:a1:b".toUTF8.toList : List UInt8) := ex83
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l84 (expect := CSA) (title := "([] : List UInt8) ∉ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:84") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := (([] : List UInt8) : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := (([] : List UInt8) : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex84 : ([] : List UInt8) ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l84" csa] public theorem ans84 :
-    ¬ Silmaril.Project.Shapes.Member lang0 (([] : List UInt8) : List UInt8) := ex84
+    ¬ Silmaril.Project.Shapes.Member lang_canonical (([] : List UInt8) : List UInt8) := ex84
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l86 (expect := CSA) (title := "\"[1:a]\".toUTF8.toList ∉ canonical — A display hint must precede an octet string and does not nest.")
   (doc := "Silmaril/Formats/Spki/Thms.lean:86") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("[1:a]".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("[1:a]".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex86 : "[1:a]".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l86" csa] public theorem ans86 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("[1:a]".toUTF8.toList : List UInt8) := ex86
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("[1:a]".toUTF8.toList : List UInt8) := ex86
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l87 (expect := CSA) (title := "\"[[1:a]1:b]1:c\".toUTF8.toList ∉ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:87") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("[[1:a]1:b]1:c".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("[[1:a]1:b]1:c".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex87 : "[[1:a]1:b]1:c".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l87" csa] public theorem ans87 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("[[1:a]1:b]1:c".toUTF8.toList : List UInt8) := ex87
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("[[1:a]1:b]1:c".toUTF8.toList : List UInt8) := ex87
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l88 (expect := CSA) (title := "\"[1:a]()\".toUTF8.toList ∉ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:88") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("[1:a]()".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("[1:a]()".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex88 : "[1:a]()".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l88" csa] public theorem ans88 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("[1:a]()".toUTF8.toList : List UInt8) := ex88
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("[1:a]()".toUTF8.toList : List UInt8) := ex88
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l90 (expect := CSA) (title := "\"(1:a 1:b)\".toUTF8.toList ∉ canonical — Whitespace and the advanced forms are not canonical.")
   (doc := "Silmaril/Formats/Spki/Thms.lean:90") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("(1:a 1:b)".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("(1:a 1:b)".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex90 : "(1:a 1:b)".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l90" csa] public theorem ans90 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("(1:a 1:b)".toUTF8.toList : List UInt8) := ex90
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("(1:a 1:b)".toUTF8.toList : List UInt8) := ex90
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l91 (expect := CSA) (title := "\"(abc)\".toUTF8.toList ∉ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:91") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("(abc)".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("(abc)".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex91 : "(abc)".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l91" csa] public theorem ans91 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("(abc)".toUTF8.toList : List UInt8) := ex91
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("(abc)".toUTF8.toList : List UInt8) := ex91
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril instance formats.examples.spki.l92 (expect := CSA) (title := "\"#616263#\".toUTF8.toList ∉ canonical")
   (doc := "Silmaril/Formats/Spki/Thms.lean:92") := silmaril.shapes.language.member
-  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang0) (x := ("#616263#".toUTF8.toList : List UInt8))
+  (L := Silmaril.Project.Languages.FormatExamples.Spki.lang_canonical) (x := ("#616263#".toUTF8.toList : List UInt8))
 namespace Silmaril.Project.Languages.FormatExamples.Spki
 open Silmaril.Formats Silmaril.Formats.Spki
 theorem ex92 : "#616263#".toUTF8.toList ∉ canonical := by decide +kernel
 @[answers "formats.examples.spki.l92" csa] public theorem ans92 :
-    ¬ Silmaril.Project.Shapes.Member lang0 ("#616263#".toUTF8.toList : List UInt8) := ex92
+    ¬ Silmaril.Project.Shapes.Member lang_canonical ("#616263#".toUTF8.toList : List UInt8) := ex92
 end Silmaril.Project.Languages.FormatExamples.Spki
 
 silmaril group formats.examples.spki (title := "\"#616263#\".toUTF8.toList ∉ canonical: examples")
