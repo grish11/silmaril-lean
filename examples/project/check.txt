@@ -1,4 +1,4 @@
-summary: 848 problems (848 local), 46 groups, 3452 records, 1571 edges, 34 artifacts
+summary: 848 problems (848 local), 46 groups, 3586 records, 1571 edges, 34 artifacts
 verdicts: 379 holds, 324 fails, 145 unknown (all 848 problems); 379 holds, 324 fails, 145 unknown (848 local)
 markings: 2 deprecations (1 problems, 0 groups, 0 specs), 2 problems deprecated; findings: 0 error, 1 spec_bug, 0 model_gap, 0 unclear; 322 failing problems not deprecated and unclassified
 verdicts without the deprecated: 379 holds, 322 fails, 145 unknown (846 problems)

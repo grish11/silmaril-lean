@@ -40,24 +40,10 @@ edges = 3
 status = "pending-port"
 
 [[logic_pending]]
-name = "pending.common-logic"
-title = "Common Logic (ISO/IEC 24707) presentations"
-nodes = 6
-edges = 6
-status = "pending-port"
-
-[[logic_pending]]
 name = "pending.prolog"
 title = "Prolog and Horn-clause programs"
 nodes = 2
 edges = 8
-status = "pending-port"
-
-[[logic_pending]]
-name = "pending.temporal"
-title = "Linear temporal logic"
-nodes = 3
-edges = 5
 status = "pending-port"
 
 [[logic_pending]]
