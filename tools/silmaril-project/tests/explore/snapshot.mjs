@@ -8,7 +8,10 @@
 //   3. while a query is in flight;
 //   4. recovery by choosing a local file after a change;
 //   5. a damaged file that is NOT replaced is reported as damage of the file itself, not as a
-//      version change.
+//      version change;
+//   6. servers without a strong ETag (a weak one, Last-Modified only, none): the page reads the
+//      file whole, in one response, so a same-size replacement within the same second cannot mix
+//      into it; past the size limit it asks before reading a file whole.
 // Before the per-read check, (1) failed with "SQLite: database disk image is malformed".
 //
 //   node snapshot.mjs SITE_DIR [SHOTS_DIR]   (SITE_DIR holds index.html, explore-sw.js and project.sqlite;
@@ -83,6 +86,9 @@ try {
   const names = execFileSync("python3", ["-I", "-c",
     "import sqlite3,sys;print('\\n'.join(r[0] for r in sqlite3.connect(sys.argv[1]).execute('select name from problems order by name desc limit 40')))", v1])
     .toString().trim().split("\n");
+  // problems whose v3 title differs (v3 upper-cases titles), from the end of the name order
+  const titled = JSON.parse(execFileSync("python3", ["-I", "-c",
+    "import sqlite3,sys,json;print(json.dumps([dict(name=r[0],title=r[1]) for r in sqlite3.connect(sys.argv[1]).execute(\"select name, title from problems where title <> upper(title) order by name desc limit 12\")]))", v1]).toString());
   let loads = 0;
   const open = async () => {
     // a new query each time, so that it is a real page load (not a same-document hash change)
@@ -152,6 +158,47 @@ try {
   const t5 = await pageText();
   check(/not a mix of two versions/.test(t5) && !(await p.evaluate(() => window.explore.changed)), "5. a damaged file is reported as damage, not as a change");
   await shot("snapshot-damaged.png");
+
+  // 6. no strong ETag: one response, one file
+  for (const [i, mode] of ["weak", "lastmod", "none"].entries()) {
+    const root2 = path.join(work, "site-" + mode), port2 = 8798 + i;
+    fs.mkdirSync(root2);
+    for (const f of ["index.html", "explore-sw.js"]) fs.copyFileSync(path.join(site, f), path.join(root2, f));
+    fs.copyFileSync(v1, path.join(root2, "project.sqlite"));
+    const t0 = new Date(Math.floor(Date.now() / 1000) * 1000);
+    fs.utimesSync(path.join(root2, "project.sqlite"), t0, t0);
+    const s2 = spawn("python3", ["-I", path.join(path.dirname(new URL(import.meta.url).pathname), "pages_server.py"),
+      "--root", root2, "--port", String(port2), "--log", path.join(work, mode + ".jsonl"), "--validators", mode], { stdio: "ignore" });
+    try {
+      await new Promise((r) => setTimeout(r, 800));
+      // open on a page that reads almost nothing, so that what follows reads after the replacement
+      await p.goto(`http://127.0.0.1:${port2}/index.html?cache=off&n=${++loads}#/about`);
+      await settle();
+      const m = await p.evaluate(() => window.explore.mode);
+      check(/^whole file \(the server sent no strong ETag/.test(m), `6. ${mode}: read whole: ${m}`);
+      // the same size and the same mtime: nothing in the headers tells the two files apart
+      const dst = path.join(root2, "project.sqlite");
+      fs.copyFileSync(v3, dst + ".tmp"); fs.utimesSync(dst + ".tmp", t0, t0); fs.renameSync(dst + ".tmp", dst);
+      // problems not read before the replacement: their titles must be v1's, not v3's upper case
+      let mixed = 0;
+      for (const t of titled.slice(0, 12)) {
+        await go("#/problem/" + encodeURIComponent(t.name));
+        const text = await p.evaluate(() => document.querySelector("#main").innerText);
+        if (!text.includes(t.title) || /malformed/i.test(text)) mixed++;
+      }
+      check(mixed === 0, `6. ${mode}: a same-size, same-second replacement leaves the opened snapshot intact (${mixed} of 12 unread problems differ)`);
+      if (mode === "lastmod") {
+        await p.goto(`http://127.0.0.1:${port2}/index.html?cache=off&whole-limit=100000&n=${++loads}#/problems`);
+        await p.waitForSelector("button.loadwhole", { timeout: 30000 });
+        const msg = await p.evaluate(() => document.querySelector("#main").innerText);
+        check(/would be read whole into memory/.test(msg) && /no strong ETag/.test(msg), "6. past the limit, the page says why and asks");
+        await shot("snapshot-too-large.png");
+        await p.click("button.loadwhole");
+        await p.waitForFunction(() => window.explore.ready && /^whole file/.test(window.explore.mode || "") && !window.explore.busy, null, { timeout: 60000 });
+        check(true, "6. reading it whole on request opens it");
+      }
+    } finally { s2.kill(); }
+  }
   check(errors.length === 0, "no page errors " + errors.join("; "));
 } finally {
   await b.close(); srv.kill();

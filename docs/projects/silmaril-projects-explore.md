@@ -94,24 +94,30 @@ npx http-server -p 8080 .lake/silmaril   # then open http://localhost:8080/explo
 Serve the project directory and open the page, for example:
 
 ```
-npx http-server -p 8080 .lake/silmaril   # in the project directory; supports Range requests
+npx http-server -p 8080 .lake/silmaril   # in the project directory
 # then open http://localhost:8080/explore.html
 ```
 
-`python3 -m http.server` works but does not support Range requests, so the page downloads the
-whole database (see below).
+`http-server` supports Range requests but sends a weak ETag, and `python3 -m http.server` does
+not support Range requests, so with either the page reads the whole database (see below).
+GitHub Pages, and `tests/explore/pages_server.py`, allow lazy reads.
 
 ### Lazy loading (HTTP Range)
 
 The page first requests the 100-byte SQLite header with `Range: bytes=0-99` (never from the cache).
 
-- **206 Partial Content, identity bytes, `Content-Range: bytes 0-99/<length>`:** the page opens
+- **206 Partial Content, identity bytes, `Content-Range: bytes 0-99/<length>` and a strong
+  `ETag`:** the page opens
   the database with [sql.js-httpvfs](https://github.com/phiresky/sql.js-httpvfs). SQLite runs in
   a web worker and reads one page at a time with HTTP Range requests, so the browser downloads
   only the pages that the queries touch. The chunk size is the database's page size (read from
   the header).
-- **Anything else** (200, a compressed body, no length): the page downloads the whole file and
-  opens it in plain sql.js. `?load=full` forces this path. When the page was generated next to
+- **Anything else** (200, a compressed body, no length, no ETag or only a weak one or only
+  `Last-Modified`): the page downloads the whole file in one response and opens it in plain sql.js.
+  One response is one file, so this is one snapshot whatever the server's validators. A file
+  larger than 256 MB is not read whole by default: the page says why lazy reading is not possible
+  and offers **Read it whole anyway** (and the file picker). The header says why it read the file
+  whole. `?load=full` forces this path. When the page was generated next to
   this database, a whole download is checked against the SHA-256 written into the page
   (`SHA-256 verified` in the header).
 
@@ -121,8 +127,7 @@ the library's own length check fail ("Length of the file not known"), while it a
 requests with the identity bytes and the true length in `Content-Range`. The page passes that
 length to sql.js-httpvfs (its single-chunk mode).
 
-**Versions and caching.** Every range URL carries a version tag, `?v=<strong ETag or
-Last-Modified>-<length>&part=0`, taken from the probe. Pages of two versions of the database
+**Versions and caching.** Every range URL carries a version tag, `?v=<strong ETag>-<length>&part=0`, taken from the probe. Pages of two versions of the database
 therefore never mix, whatever the HTTP caches hold. A service worker, `explore-sw.js`, which
 `sil project explore` writes next to the page, keeps the pages read across reloads in the browser's
 Cache Storage, keyed by path, version and range. When a new version of a file is read, it drops the
@@ -138,8 +143,11 @@ Chromium against `pages_server.py`, a server that compresses like GitHub Pages:
 ### One snapshot per open database
 
 Every range read is checked in the worker, before SQLite sees its bytes: it must be a `206` of
-exactly the requested bytes, of a file with the length and the validator (strong ETag, else
-Last-Modified) that the database was opened at. The first read that fails the check fails its query
+exactly the requested bytes, of a file with the length and the strong ETag that the database was
+opened at. Lazy reads need a strong ETag: a `Last-Modified` date has a one-second resolution, and a
+weak ETag does not promise the same bytes, so a file replaced by another of the same size within a
+second would pass for the same version. Without a strong ETag the page reads the whole file instead
+(above). The first read that fails the check fails its query
 (it is not retried), the source button is marked `!`, and the view says that the database changed
 and offers to open the new version or another file. A query on a database that has not changed but
 is damaged reports SQLite's own error (for example "database disk image is malformed"), saying that
@@ -152,7 +160,11 @@ so a server never serves a half-written database. The service worker caches a pa
 version its URL names, and keeps its validators so cached pages are checked like fresh ones.
 `tests/explore/snapshot.mjs` replaces the served file while a page reads it. It covers a longer
 file during graph navigation, a file of the same length, a replacement during a query, recovery
-through a chosen file, and a damaged but unchanged file.
+through a chosen file, and a damaged but unchanged file. It also checks servers with a weak ETag,
+with only `Last-Modified` and with no validator (`pages_server.py --validators`). For each, the page
+reads the whole file, and a same-size replacement with the same mtime leaves the opened snapshot
+intact. Run against the earlier lazy reading, that case showed the new file's titles for all 12
+problems not yet read. It also checks the size limit and the explicit **Read it whole anyway**.
 
 `tools/silmaril-project/tests/explore/shell.mjs` checks the shared shell in Chromium: the
 navigation built from the registered views, the source button and its dialog (keyboard, Escape,
@@ -344,8 +356,9 @@ replaces.
 - A lazily read database stays on the version it was opened at. When the file on the server is
   replaced (rebuilt, redeployed), the next read of a page not yet in memory fails its query and the
   page says that the database changed, with a button to open the new version; it never mixes the
-  two. Two versions are told apart by the strong ETag (else Last-Modified) and the length of range
-  responses; a server that sends neither can only be checked for the length.
+  two. Two versions are told apart by the strong ETag and the length of range responses. A server
+  without a strong ETag gets whole-file reads, up to 256 MB unless the reader asks for more. The
+  check trusts the server's strong ETag to name the bytes, as HTTP requires.
 - On a large project, dagre stays responsive only for a few hundred nodes, so the graph shows
   only a neighbourhood. A wide level, such as 3,400 problems at one depth, is cut off.
 - A child that belongs to several groups is drawn once, with an edge from each group. Groups

@@ -41,8 +41,8 @@ async function wholeBackend(bytes, mode) {
 // fails the check fails its query (it is never retried), the database is marked as changed, and
 // the page offers to open the new version. A malformed database whose version has not changed
 // is reported as damage of the file itself, not as a version change.
-// (With no validator at all, only the length is checked; GitHub Pages and common static servers
-// send a strong ETag or Last-Modified with range responses.)
+// Lazy reads are used only when the server names its file by a strong ETag (see `openUrl`);
+// GitHub Pages does. Otherwise the file is read whole, in one response.
 const SNAPSHOT_CHANNEL = "silmaril-explore-snapshot";
 function versionOf(etag, lastModified, total) {
   return ((etag && !etag.startsWith("W/") ? etag : lastModified) || "").replace(/[^A-Za-z0-9._-]/g, "") + "-" + total;
@@ -182,8 +182,41 @@ function metaNote(u, size, sha) {
 // Open `u` over http(s): probe with a Range request for the 100-byte header. 206 with identity
 // bytes and a `Content-Range` total -> lazy; otherwise download the whole file (and check its
 // SHA-256 against the page's when it has one).
-async function openUrl(u) {
+// Reading lazily keeps one snapshot only when every range response names its file by a strong
+// ETag (see the snapshot guard above): a Last-Modified date has a resolution of one second and a
+// weak ETag (`W/…`) does not promise the same bytes, so a file replaced by another of the same
+// size within that second would pass for the same version. Without a strong ETag the page reads
+// the whole file in one response instead (one response is one file), up to WHOLE_LIMIT bytes;
+// a larger file is read whole only when the reader asks (`opts.whole`, or `?load=full`).
+// `?whole-limit=<bytes>` may only lower it (for tests and small devices).
+const WHOLE_LIMIT = Math.min(256 * 1024 * 1024, Number(PARAMS.get("whole-limit")) || Infinity);
+class TooLarge extends Error {
+  constructor(url, total, why) {
+    super(`${url} is ${total ? kB(total) : "of unknown size"}; ${why}, so it would be read whole into memory`);
+    this.name = "TooLarge"; Object.assign(this, { url, total });
+  }
+}
+// The body of `r`, failing beyond `limit` bytes (whatever the headers said).
+async function readCapped(r, limit, url, why) {
+  const parts = []; let n = 0;
+  const rd = r.body.getReader();
+  for (;;) {
+    const { done, value } = await rd.read();
+    if (done) break;
+    n += value.length;
+    if (n > limit) { rd.cancel().catch(() => {}); throw new TooLarge(url, null, why); }
+    parts.push(value);
+  }
+  const out = new Uint8Array(n); let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+// Open `u` over http(s): probe with a Range request for the 100-byte header. 206 with identity
+// bytes, a `Content-Range` total and a strong ETag -> lazy; otherwise read the whole file (and
+// check its SHA-256 against the page's when it has one).
+async function openUrl(u, opts) {
   const url = new URL(u, location.href).href;
+  const whole = PARAMS.get("load") === "full" || !!(opts && opts.whole);
   let r;
   try { r = await fetch(url, { headers: { Range: "bytes=0-99" }, cache: "no-store" }); }
   catch (e) { throw new Error("could not fetch (" + e.message + ")"); }
@@ -191,28 +224,31 @@ async function openUrl(u) {
   const enc = r.headers.get("content-encoding");
   const total = Number(((r.headers.get("content-range") || "").match(/\/(\d+)$/) || [])[1]);
   const ranged = r.status === 206 && (!enc || enc === "identity");
-  let note = "";
+  const etag = r.headers.get("etag");
+  const strong = !!etag && !etag.startsWith("W/");
+  let note = "", why = "";
   if (ranged) {
     const head = new Uint8Array(await r.arrayBuffer());
     if (!isSqlite(head)) throw new Error("not a SQLite database");
     const ps = (head[16] << 8) | head[17];
-    const etag = r.headers.get("etag");
-    const tag = versionOf(etag, r.headers.get("last-modified"), total);
-    if (PARAMS.get("load") !== "full") {
-      const cached = await registerPageCache();
-      if (!total) note = " (lazy loading needs the file length; the server sent no Content-Range total)";
+    if (!whole) {
+      if (!total) why = "the server sent no Content-Range total";
+      else if (!strong) why = `the server sent no strong ETag (${etag ? "a weak one" : r.headers.get("last-modified") ? "only Last-Modified" : "no validator"}), which lazy reads need to stay on one version`;
       else {
+        const cached = await registerPageCache();
         try {
-          const b = await lazyBackend(url, ps === 1 ? 65536 : ps, total, tag);
+          const b = await lazyBackend(url, ps === 1 ? 65536 : ps, total, versionOf(etag, null, total));
           b.mode += (cached ? "; pages cached across reloads" : "") + metaNote(u, total);
           return b;
-        } catch (e) { note = ` (lazy loading failed: ${e.message || e})`; }
+        } catch (e) { why = `lazy loading failed: ${e.message || e}`; }
       }
+      note = ` (${why})`;
+      if (total > WHOLE_LIMIT) throw new TooLarge(u, total, why);
     }
     r = await fetch(url, { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
-  }
-  const bytes = new Uint8Array(await r.arrayBuffer());
+  } else why = "the server ignored the Range request";
+  const bytes = whole ? new Uint8Array(await r.arrayBuffer()) : await readCapped(r, WHOLE_LIMIT, u, why);
   if (!isSqlite(bytes)) throw new Error("not a SQLite database");
   const sha = await sha256Hex(bytes);
   return wholeBackend(bytes, (ranged ? "whole file" : "whole file (the server ignored Range)") + note + metaNote(u, bytes.length, sha));
@@ -290,8 +326,9 @@ async function openSource(label, make) {
     return true;
   } catch (e) {
     if (tok !== openTok || e instanceof Superseded) return false;
-    $("#main").innerHTML = `<div id="msg">${pickHelp(`<p class="err">could not open ${esc(label)}: ${esc(e.message || e)}</p>`)}</div>`;
+    $("#main").innerHTML = `<div id="msg">${pickHelp(`<p class="err">could not open ${esc(label)}: ${esc(e.message || e)}</p>` + tooLargeOffer(e))}</div>`;
     wireFilePickers($("#main"));
+    wireTooLarge($("#main"));
     return false;
   }
 }
@@ -328,13 +365,24 @@ async function boot() {
     $("#msg") && ($("#msg").textContent = `Opening ${u}…`);
     let b;
     try { b = await openUrl(u); }
-    catch (e) { tried.push(`<li><code>${esc(u)}</code>: ${esc(e.message || e)}</li>`); continue; }
+    catch (e) { tried.push(`<li><code>${esc(u)}</code>: ${esc(e.message || e)}${tooLargeOffer(e)}</li>`); continue; }
     if (tok !== openTok) { if (b.close) b.close(); return; }   // the reader chose a file meanwhile
     try { return await useDb(b, u); } catch (e) { if (e instanceof Superseded) return; throw e; }
   }
   if (tok !== openTok) return;
   $("#main").innerHTML = `<div id="msg">${pickHelp(`<p>No database could be opened from:</p><ul>${tried.join("")}</ul>`)}</div>`;
   wireFilePickers($("#main"));
+  wireTooLarge($("#main"));
+}
+// A database too large to read whole by default: the reader may still ask for it.
+function tooLargeOffer(e) {
+  return e instanceof TooLarge ? ` <button type="button" class="loadwhole" data-url="${esc(e.url)}">Read it whole anyway${e.total ? ` (${esc(kB(e.total))})` : ""}</button>` : "";
+}
+function wireTooLarge(root) {
+  for (const b of root.querySelectorAll("button.loadwhole")) b.addEventListener("click", () => {
+    const u = b.dataset.url;
+    openSource(u, () => openUrl(u, { whole: true }));
+  });
 }
 async function useDb(b, label) {
   if (be && be.close) try { be.close(); } catch (e) { /* ignore */ }
