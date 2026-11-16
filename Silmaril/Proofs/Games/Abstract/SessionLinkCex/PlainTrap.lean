@@ -55,7 +55,8 @@ theorem not_noPlainTrap_trapServer : ¬ NoPlainTrap (trapServer (E := E)) :=
   fun h => h () () [] rfl
 
 theorem askRet_mem_comp :
-    [.inr (.ask ()), .inr (.ans () (Sum.inl ()))] ∈ ((threadS (trapServer (E := E)) ()).comp (threadS trapClient ())).toStrategy := by
+    [.inr (.ask ()), .inr (.ans () (Sum.inl ()))] ∈
+      ((threadS (trapServer (E := E)) ()).comp (threadS trapClient ())).toStrategy := by
   have hs : ([.inr (.ask ()), .inr (.ans () (Sum.inr ()))] : List (Move E (sig1 Unit Unit))) ∈
       (threadS (trapServer (E := E)) ()).toStrategy :=
     mem_srounds (rs := [((), [], .inr ())]) |>.2 (.inr ⟨[], (), [], rfl, (), .nil _, rfl⟩)
@@ -67,7 +68,8 @@ theorem askRet_mem_comp :
   exact ⟨_, hs, _, ht, .right _ (.sync _ (.sync _ (.right _ .nil)))⟩
 
 theorem askRet_not_mem_linkS :
-    [.inr (.ask ()), .inr (.ans () (Sum.inl ()))] ∉ (threadS (linkS (trapServer (E := E)) trapClient) ((), ())).toStrategy := by
+    [.inr (.ask ()), .inr (.ans () (Sum.inl ()))] ∉
+      (threadS (linkS (trapServer (E := E)) trapClient) ((), ())).toStrategy := by
   intro h
   have h' : sroundsMoves [((), ([] : List (Call E)), (.inl () : Unit ⊕ Unit))] ∈
       (threadS (linkS (trapServer (E := E)) trapClient) ((), ())).toStrategy := h
