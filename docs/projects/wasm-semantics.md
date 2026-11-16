@@ -81,3 +81,24 @@ ordinary clients use the versioned imports in the table above.
 
 The [compiler API guide](compilers.md) describes how additional semantic models
 can connect to these observations.
+
+## Exact behaviours of a closed module, by evaluation
+
+For a module without imports, `Silmaril.Wasm.Interp.Closed` turns one terminating run of the
+native interpreter into the exact Core 3.0 behaviour set at every profile. Its hypotheses are a
+single Boolean check that the kernel evaluates:
+
+```lean
+open Silmaril.Wasm Silmaril.Wasm.Interp.Closed in
+example (P : Numerics.Profile) :
+    behaviours P Binaryen.closedHost (store maxMod) 0 [Val.i32 7, Val.i32 3] =
+      {.returns [Val.i32 7]} :=
+  behaviours_eq (fuel := 20) (by decide +kernel) (by decide +kernel) P
+```
+
+`callOk m a vs` checks that the module validates without imports, has no start function or
+segment code, stays in the interpreter's integer fragment (no floats, packed or bulk memory,
+`memory.grow`, tables or references), passes the arity check, and that `vs` are typed arguments
+of `a`. If the check fails, or the run runs out of fuel, nothing is claimed.
+`Silmaril.Wasm.Interp.Closed.Examples` shows a return, a trap, an unsupported module and an
+out-of-fuel run.

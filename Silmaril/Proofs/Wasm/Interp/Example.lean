@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Interp.Example.Defs
 public import Silmaril.Proofs.Wasm.Interp.Check
 public import Silmaril.Wasm.Binaryen.AdequacyModule
 public import Silmaril.Wasm.SingleThreaded.Soundness
+public import Silmaril.Proofs.Wasm.Interp.Closed
 
 @[expose] public section
 
@@ -49,31 +50,13 @@ theorem exPrep_eq : prepare? evalConst? ({} : Store Empty) exMod [] = some exPre
 
 /-- **`exMod` instantiates to `exPrep.1`**, at every profile and host. -/
 theorem ex_instantiate (P : Numerics.Profile) (host : HostSemantics Empty) :
-    Instantiate P host ({} : Store Empty) exMod [] exPrep.1 := by
-  obtain ⟨mt, hmt, hnil⟩ : ∃ mt, Validation.validate? exMod = some mt ∧ mt.imports.isEmpty := by
-    rcases h : Validation.validate? exMod with _ | mt
-    · have hm := exMod_valid
-      simp [h] at hm
-    · have hm := exMod_valid
-      simp only [h, Option.map_some, Option.some.injEq] at hm
-      exact ⟨mt, rfl, hm⟩
-  have himp : mt.imports = [] := List.isEmpty_iff.mp hnil
-  have hvalid : ∃ xtE xtI, Validation.ModuleOk exMod ⟨xtI, xtE⟩ ∧
-      List.Forall₂ (ExternAddrOk ({} : Store Empty)) [] xtI :=
-    ⟨mt.exports, mt.imports, by simpa using Validation.validate?_sound hmt, by rw [himp]; exact .nil⟩
-  have hst : exPrep.2 = none := Option.isNone_iff_eq_none.mp exPrep_shape.2
-  have h : Instantiate P host ({} : Store Empty) exMod [] (exPrep.1.withStart exPrep.2) :=
-    (prepare?_sound (P := P) (host := host) (c := exPrep.1) (st := exPrep.2) evalConst?_evalSound
-      exPrep_eq hvalid).2
-  have hw : exPrep.1.withStart exPrep.2 = exPrep.1 := by rw [hst]; rfl
-  rwa [hw] at h
+    Instantiate P host ({} : Store Empty) exMod [] exPrep.1 :=
+  Closed.instantiate_of_prepare exMod_valid exPrep_eq
+    (Option.isNone_iff_eq_none.mp exPrep_shape.2) P host
 
 /-- **The store of the instance is typed.** -/
-theorem exStore_ok : StoreOk exStore := by
-  have hc : ConfigOk exPrep.1 [] :=
-    Instantiate.ok SingleThreaded.divHost_ok Binaryen.storeOk_empty
-      (ex_instantiate (SingleThreaded.profile fun _ _ _ _ => false) SingleThreaded.divHost)
-  exact SingleThreaded.ConfigOk.storeOk hc
+theorem exStore_ok : StoreOk exStore :=
+  Closed.storeOk_of_prepare exMod_valid exPrep_eq (Option.isNone_iff_eq_none.mp exPrep_shape.2)
 
 /-- **Two `i32` arguments are a typed invocation of function `0`.** -/
 theorem ex_invokeOk (x y : BitVec 32) : InvokeOk exStore 0 [Val.i32 x, Val.i32 y] := by
@@ -95,43 +78,17 @@ theorem ex_invokeOk (x y : BitVec 32) : InvokeOk exStore 0 [Val.i32 x, Val.i32 y
 
 /-! ## Native behaviours of a terminating invocation -/
 
-/-- More fuel never changes a result of `invokeRun`. -/
+/-- More fuel never changes a result of `invokeRun` (`Closed.invokeRun_mono`). -/
 theorem invokeRun_mono {H : Type} {n n' : Nat} (hle : n ≤ n') {s : Store H} {a : Nat}
     {vs : List Val} {r : Store H × Binaryen.Flow} (h : Binaryen.invokeRun n s a vs = some r) :
-    Binaryen.invokeRun n' s a vs = some r := by
-  unfold Binaryen.invokeRun at h ⊢
-  split at h
-  · split at h
-    · rename_i fn _ rs _ _
-      rcases hr : Binaryen.run n s _ [] (Binaryen.liftInstrs fn.body) with _ | x
-      · rw [hr] at h
-        cases h
-      · rw [hr] at h
-        rw [Binaryen.run_mono hle hr]
-        exact h
-    · cases h
-  · cases h
+    Binaryen.invokeRun n' s a vs = some r :=
+  Closed.invokeRun_mono hle h
 
-/-- **The native behaviours of a terminating invocation** are its single result. -/
+/-- **The native behaviours of a terminating invocation** are its single result
+(`Closed.nbeh_eq_singleton`). -/
 theorem nbeh_eq_singleton {H : Type} {s : Store H} {a : Nat} {vs : List Val} {n : Nat}
     {b : Behaviour Val} (h : ((Binaryen.invokeRun n s a vs).bind fun r => Binaryen.flowBeh r.2) =
-      some b) : Binaryen.nbeh s a vs = {b} := by
-  obtain ⟨⟨s₀, fl₀⟩, h₀, hb₀⟩ := Option.bind_eq_some_iff.mp h
-  ext b'
-  constructor
-  · rintro (⟨m, s₁, fl₁, h₁, hb₁⟩ | ⟨-, hdiv⟩)
-    · have e₀ : Binaryen.invokeRun (max n m) s a vs = some (s₀, fl₀) :=
-        invokeRun_mono (Nat.le_max_left n m) h₀
-      have e₁ : Binaryen.invokeRun (max n m) s a vs = some (s₁, fl₁) :=
-        invokeRun_mono (Nat.le_max_right n m) h₁
-      have hfl : fl₁ = fl₀ := by
-        rw [e₀] at e₁
-        exact (Prod.mk.inj (Option.some.inj e₁)).2.symm
-      have hb : some b' = some b := by rw [← hb₁, ← hb₀, hfl]
-      exact Option.some.inj hb
-    · rw [hdiv n] at h₀
-      cases h₀
-  · rintro rfl
-    exact .inl ⟨n, s₀, fl₀, h₀, hb₀⟩
+      some b) : Binaryen.nbeh s a vs = {b} :=
+  Closed.nbeh_eq_singleton h
 
 end Silmaril.Proofs.Wasm.Interp.Example
