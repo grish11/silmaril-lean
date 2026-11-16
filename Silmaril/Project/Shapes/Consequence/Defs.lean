@@ -5,6 +5,7 @@ public import Silmaril.Project.Registry.Consequence.Defs
 public import Silmaril.Logic.Consequence.Defs
 public import Silmaril.Logic.Consequence.Gentzen.Defs
 public import Silmaril.Logic.Consequence.Interp.Defs
+public import Silmaril.Logic.Consequence.Shape.Defs
 
 /-!
 # Standard problem shapes: consequence systems
@@ -42,6 +43,15 @@ this does not hold — the bytes do not decode, *or* the reading is undefined; s
 evidence (the value's `.is`) tells the two apart. A system read through `I.orBot e` that derives
 nothing is a *defined, empty* system only with this certificate and an established emptiness
 (`derives` UNS over all contexts and conclusions).
+
+**Shape evidence** (closed once the system is fixed; each is a core predicate of
+`Silmaril.Logic.Consequence.Shape`, not restated): `context_free S` (`ContextFree`: what a
+context derives does not depend on the context), `conclusion_free S` (`ConclusionFree`),
+`supported_ax S tt` / `supported_c S ff` (`SupportedAx`/`SupportedC`: every judgement has the
+context `tt` / the conclusion `ff`; a different property from context- or conclusion-freeness),
+and for list contexts, per conclusion `c`, the checker `fun Γ => S Γ c` is `ListPred.PermInv`
+(`ctx_perm_inv`), `ListPred.SetInv` (`ctx_set_inv`), `ListPred.UpClosed` (`ctx_up_closed`: left
+`⊆`-weakening) or `ListPred.AppendExtensive` (`ctx_append_extensive`; not `AppendClosed`).
 
 Fixing `Γ` too (`derives S (Γ := …)`) asks about one context: THM says `Γ` derives every
 conclusion (`Γ` is **context-universal**), CSA that some conclusion is not derived. Fixing `φ`
@@ -112,6 +122,42 @@ defined. -/
 def ArtifactDefined {Env V : Type} {Ax C : Env → Type} (X : Silmaril.Project.Value V)
     (I : Silmaril.Consequence.Interp Env V Ax C) (e : Env) : Prop :=
   ∃ v, X.parse = some v ∧ I.Defined e v
+
+/-- **Context-free**: `Silmaril.Consequence.ContextFree S`. -/
+@[problem "silmaril.shapes.consequence.context_free" (title := "What a context derives does not depend on it")]
+def ContextFreeShape {Ax C : Type} (S : System Ax C) : Prop := Silmaril.Consequence.ContextFree S
+
+/-- **Conclusion-free**: `Silmaril.Consequence.ConclusionFree S`. -/
+@[problem "silmaril.shapes.consequence.conclusion_free" (title := "Whether a context derives does not depend on the conclusion")]
+def ConclusionFreeShape {Ax C : Type} (S : System Ax C) : Prop := Silmaril.Consequence.ConclusionFree S
+
+/-- **Supported at the context `tt`**: `Silmaril.Consequence.SupportedAx S tt`. -/
+@[problem "silmaril.shapes.consequence.supported_ax" (title := "Every judgement has a designated context")]
+def SupportedAxShape {Ax C : Type} (S : System Ax C) (tt : Ax) : Prop := Silmaril.Consequence.SupportedAx S tt
+
+/-- **Supported at the conclusion `ff`**: `Silmaril.Consequence.SupportedC S ff`. -/
+@[problem "silmaril.shapes.consequence.supported_c" (title := "Every judgement has a designated conclusion")]
+def SupportedCShape {Ax C : Type} (S : System Ax C) (ff : C) : Prop := Silmaril.Consequence.SupportedC S ff
+
+/-- **Permutation-invariant contexts**: each conclusion's checker is `ListPred.PermInv`. -/
+@[problem "silmaril.shapes.consequence.ctx_perm_inv" (title := "Contexts may be permuted")]
+def CtxPermInv {α C : Type} (S : System (List α) C) : Prop :=
+  ∀ c, Silmaril.Consequence.ListPred.PermInv (fun Γ => S Γ c)
+
+/-- **Set-invariant contexts**: each conclusion's checker is `ListPred.SetInv`. -/
+@[problem "silmaril.shapes.consequence.ctx_set_inv" (title := "Contexts are read as sets")]
+def CtxSetInv {α C : Type} (S : System (List α) C) : Prop :=
+  ∀ c, Silmaril.Consequence.ListPred.SetInv (fun Γ => S Γ c)
+
+/-- **Up-closed contexts** (left `⊆`-weakening): each conclusion's checker is `ListPred.UpClosed`. -/
+@[problem "silmaril.shapes.consequence.ctx_up_closed" (title := "Contexts may be weakened (⊆)")]
+def CtxUpClosed {α C : Type} (S : System (List α) C) : Prop :=
+  ∀ c, Silmaril.Consequence.ListPred.UpClosed (fun Γ => S Γ c)
+
+/-- **Append-extensive contexts**: each conclusion's checker is `ListPred.AppendExtensive`. -/
+@[problem "silmaril.shapes.consequence.ctx_append_extensive" (title := "Contexts may be extended by appending")]
+def CtxAppendExtensive {α C : Type} (S : System (List α) C) : Prop :=
+  ∀ c, Silmaril.Consequence.ListPred.AppendExtensive (fun Γ => S Γ c)
 
 /-- **A translation preserves `Γ ⊢ φ`**: from `S` to `T` along `f` on contexts and `g` on
 conclusions. -/

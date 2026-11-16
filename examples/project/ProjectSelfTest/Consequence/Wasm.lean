@@ -238,6 +238,35 @@ public theorem member_check_1_2 :
     ¬ Derives silmaril.selftest.consequence.wasm.member_check [1] 2 :=
   fun h => absurd (member_check_sound_mem _ _ h).1 (by decide)
 
+-- shape evidence: member_check's relation depends on the context; the acceptor's contexts and
+-- the rejector's conclusions are unit
+silmaril instance silmaril.selftest.consequence.wasm.member_check_context_free (expect := UNS)
+  (title := "member_check.wasm is context-free (fails: 1, 2 ⊢ 2 but not 1 ⊢ 2)") :=
+  silmaril.shapes.consequence.context_free (S := silmaril.selftest.consequence.wasm.member_check)
+
+@[answers "silmaril.selftest.consequence.wasm.member_check_context_free" csa]
+public theorem member_check_context_free :
+    ¬ ContextFreeShape silmaril.selftest.consequence.wasm.member_check :=
+  fun h => member_check_1_2 (h [1, 2] [1] 2 member_check_12_2)
+
+silmaril instance silmaril.selftest.consequence.wasm.acceptor_context_free (expect := THM)
+  (title := "member_check.wasm's acceptor is context-free (unit contexts)") :=
+  silmaril.shapes.consequence.context_free (S := silmaril.selftest.consequence.wasm.member_check.acceptor)
+
+@[answers "silmaril.selftest.consequence.wasm.acceptor_context_free" thm]
+public theorem acceptor_context_free :
+    ContextFreeShape silmaril.selftest.consequence.wasm.member_check.acceptor := by
+  intro a a' c h; cases a; cases a'; exact h
+
+silmaril instance silmaril.selftest.consequence.wasm.rejector_conclusion_free (expect := THM)
+  (title := "member_check.wasm's rejector is conclusion-free (unit conclusions)") :=
+  silmaril.shapes.consequence.conclusion_free (S := silmaril.selftest.consequence.wasm.member_check.rejector)
+
+@[answers "silmaril.selftest.consequence.wasm.rejector_conclusion_free" thm]
+public theorem rejector_conclusion_free :
+    ConclusionFreeShape silmaril.selftest.consequence.wasm.member_check.rejector := by
+  intro a c c' h; cases c; cases c'; exact h
+
 silmaril instance silmaril.selftest.consequence.wasm.empty_check_empty (expect := UNS)
   (title := "empty_check.wasm derives nothing (decodes: a verified empty checker, every host set)") :=
   silmaril.shapes.consequence.derives (S := silmaril.selftest.consequence.wasm.empty_check)
@@ -263,4 +292,7 @@ silmaril group silmaril.selftest.consequence.wasm
     silmaril.selftest.consequence.wasm.acceptor_212, silmaril.selftest.consequence.wasm.rejector_1,
     silmaril.selftest.consequence.wasm.member_check_12_2,
     silmaril.selftest.consequence.wasm.member_check_1_2,
+    silmaril.selftest.consequence.wasm.member_check_context_free,
+    silmaril.selftest.consequence.wasm.acceptor_context_free,
+    silmaril.selftest.consequence.wasm.rejector_conclusion_free,
     silmaril.selftest.consequence.wasm.empty_check_empty])

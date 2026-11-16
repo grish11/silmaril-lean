@@ -51,6 +51,38 @@ pub const CONSEQUENCE_SHAPES: &[(&str, &[&str])] = &[
         &["type", "type", "type", "type", "X", "I", "e"],
     ),
     (
+        "silmaril.shapes.consequence.context_free",
+        &["type", "type", "S"],
+    ),
+    (
+        "silmaril.shapes.consequence.conclusion_free",
+        &["type", "type", "S"],
+    ),
+    (
+        "silmaril.shapes.consequence.supported_ax",
+        &["type", "type", "S", "tt"],
+    ),
+    (
+        "silmaril.shapes.consequence.supported_c",
+        &["type", "type", "S", "ff"],
+    ),
+    (
+        "silmaril.shapes.consequence.ctx_perm_inv",
+        &["type", "type", "S"],
+    ),
+    (
+        "silmaril.shapes.consequence.ctx_set_inv",
+        &["type", "type", "S"],
+    ),
+    (
+        "silmaril.shapes.consequence.ctx_up_closed",
+        &["type", "type", "S"],
+    ),
+    (
+        "silmaril.shapes.consequence.ctx_append_extensive",
+        &["type", "type", "S"],
+    ),
+    (
         "silmaril.shapes.consequence.translates_at",
         &[
             "type", "type", "type", "type", "S", "T", "f", "g", "ctx", "phi",

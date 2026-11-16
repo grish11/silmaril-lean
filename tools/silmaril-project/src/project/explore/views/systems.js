@@ -63,6 +63,11 @@
     gentzen_closed: {
       "": { THM: "{S} is closed under the Gentzen rules {rules}", CSA: "{S} is not closed under {rules}" },
     },
+    ...Object.fromEntries(["context_free", "conclusion_free", "supported_ax", "supported_c", "ctx_perm_inv", "ctx_set_inv", "ctx_up_closed", "ctx_append_extensive"]
+      .map((k) => [k, { "": { THM: `{S} is ${({ context_free: "context-free", conclusion_free: "conclusion-free", supported_ax: "supported at the context {tt}",
+        supported_c: "supported at the conclusion {ff}", ctx_perm_inv: "invariant under permuting contexts", ctx_set_inv: "reads contexts as sets",
+        ctx_up_closed: "closed under weakening contexts (⊆)", ctx_append_extensive: "closed under appending to contexts" })[k]}`,
+        CSA: "{S} is not: a counterexample" } }])),
     translates_at: {
       "ctx phi": { THM: "({f}, {g}) preserves consequence from {S} to {T}", CSA: "({f}, {g}) does not preserve consequence from {S} to {T}: a counterexample" },
     },
@@ -83,7 +88,7 @@
   const ESTABLISHED = "(SELECT group_concat(st.status, ',') FROM statuses st WHERE st.problem = p.name) AS established";
 
   function fill(t, args) {
-    return t.replace(/\{(S|T|ctx|phi|ff|f|g|mu|b|rules)\}/g, (_, k) => args[k] || ({ S: "S", T: "T", ctx: "Γ", phi: "φ", ff: "ff", f: "f", g: "g", mu: "μ", b: "b", rules: "rs" })[k]);
+    return t.replace(/\{(S|T|ctx|phi|ff|f|g|mu|b|rules|tt)\}/g, (_, k) => args[k] || ({ S: "S", T: "T", ctx: "Γ", phi: "φ", ff: "ff", f: "f", g: "g", mu: "μ", b: "b", rules: "rs", tt: "tt" })[k]);
   }
   function reading(p, args) {
     const sh = READING[SHAPE(p.shape)];
@@ -202,9 +207,13 @@ refutation that is refuted counts as met.</span></p>`;
   // (measure, bound, maps, rule profile) and where it stands: established (the universal or
   // closed statement is proved), counterevidence (a counterexample or refutation, kept),
   // partial (only an instance, SAT), or unknown. A SAT answer is never shown as established.
-  const REL_SHAPES = ["sound_at", "complete_at", "complete_within_at", "translates_at", "reflects_at", "gentzen_closed"];
+  const SHAPE_EVIDENCE = { context_free: "context-free", conclusion_free: "conclusion-free", supported_ax: "supported at the context {tt}",
+    supported_c: "supported at the conclusion {ff}", ctx_perm_inv: "contexts permutable", ctx_set_inv: "contexts read as sets",
+    ctx_up_closed: "contexts weakenable (⊆)", ctx_append_extensive: "contexts append-extensible" };
+  const REL_SHAPES = ["sound_at", "complete_at", "complete_within_at", "translates_at", "reflects_at", "gentzen_closed", ...Object.keys(SHAPE_EVIDENCE)];
   const REL_TEXT = { sound_at: "{S} ≤ {T} (sound)", complete_at: "{T} ≤ {S} (complete)", complete_within_at: "{T} ≤ {S} where {mu} ≤ {b}",
-    translates_at: "{S} → {T} along ({f}, {g}) preserves", reflects_at: "{T} → {S} along ({f}, {g}) reflects", gentzen_closed: "{S} closed under {rules}" };
+    translates_at: "{S} → {T} along ({f}, {g}) preserves", reflects_at: "{T} → {S} along ({f}, {g}) reflects", gentzen_closed: "{S} closed under {rules}",
+    ...Object.fromEntries(Object.entries(SHAPE_EVIDENCE).map(([k, v]) => [k, "{S}: " + v])) };
   function standing(p) {
     const s = p.summary || "OPN";
     if (s === "THM") return "established";
@@ -229,7 +238,7 @@ refutation that is refuted counts as met.</span></p>`;
     const a = r.args, plain = Object.fromEntries(Object.entries(a).map(([k, v]) => [k, v.system ? rel(v.system, base) : compactText(v.text)]));
     const lk = (k) => a[k] ? (a[k].system ? sysLink(a[k].system) : term(a[k].text)) : "";
     const what = REL_TEXT[SHAPE(r.shape)] || SHAPE(r.shape);
-    const html = ui.esc(what).replace(/\{(S|T|mu|b|f|g|rules)\}/g, (_, k) => lk(k) || k);
+    const html = ui.esc(what).replace(/\{(S|T|mu|b|f|g|rules|tt|ff)\}/g, (_, k) => lk(k) || k);
     const sl = r.proof && typeof sourceLink === "function" ? sourceLink(r.module, r.proof) : "";
     return `<tr data-standing="${r.standing}"><td>${html}</td><td>${ui.link("problem", r.problem)}</td><td class="nw">${outcome(r)}</td>` +
       `<td>${ui.esc(r.standing)}</td><td>${r.answers ? ui.esc(compactText(r.answers)) : '<span class="muted">none</span>'}${r.proof ? ` by ${code(r.proof)}${sl ? " " + sl : ""}` : ""}</td></tr>`;
@@ -258,6 +267,13 @@ or <b>unknown</b>.</p><div class="tablebox"><table id="systems-relations"><thead
       "(SELECT count(*) FROM consequence_operands o WHERE o.system = c.name) AS n_operands " +
       "FROM consequence_systems c ORDER BY c.name LIMIT " + (LIMIT + 1));
     const gz = await gentzenOf(ctx);
+    // proved shape evidence per system (THM only): the exact property, never a generic label
+    const proved = new Map();
+    for (const r of await ctx.q("SELECT DISTINCT cp.system, cp.shape, cp.problem FROM consequence_problems cp WHERE cp.role = 'S' AND cp.summary = 'THM' AND cp.shape IN (" +
+        Object.keys(SHAPE_EVIDENCE).map(() => "?").join(",") + ") LIMIT 5000", Object.keys(SHAPE_EVIDENCE).map((k) => PREFIX + k))) {
+      if (!proved.has(r.system)) proved.set(r.system, []);
+      proved.get(r.system).push(r);
+    }
     const certified = new Set([...gz].filter(([, l]) => l.some((x) => x.summary === "THM")).map(([k]) => k));
     const test = (VIEWS.find((v) => v[0] === view) || VIEWS[0])[2];
     const rows = all.filter((r) => test(r, certified));
@@ -290,7 +306,8 @@ proved <code>gentzen_closed</code> certificate for a named rule profile.</p>
       const fal = cl.filter((p) => p.summary === "UNS" || p.summary === "CSA").length;
       const n = summarize(ps), bad = n.mismatch + n.error;
       h += `<tr><td>${sysLink(r.name)}</td><td>${ui.esc(r.title || "")}</td><td>${how}</td>` +
-        `<td>${shapeText(r)}${gz.has(r.name) ? gz.get(r.name).filter((x) => x.summary === "THM").map((x) => ` <span class="pill" title="${ui.esc(x.problem)}">closed: ${ui.esc(compactText(x.rules || "rules"))}</span>`).join("") : ""}</td>` +
+        `<td>${shapeText(r)}${gz.has(r.name) ? gz.get(r.name).filter((x) => x.summary === "THM").map((x) => ` <span class="pill" title="${ui.esc(x.problem)}">closed: ${ui.esc(compactText(x.rules || "rules"))}</span>`).join("") : ""}` +
+        (proved.get(r.name) || []).filter((x) => !/supported_/.test(x.shape)).map((x) => ` <span class="pill" title="proved: ${ui.esc(x.problem)}">${ui.esc(SHAPE_EVIDENCE[SHAPE(x.shape)])} ✓</span>`).join("") + `</td>` +
         `<td>${cl.length ? `${tru} / ${fal} / ${cl.length - tru - fal}` : ""}</td><td>${ps.length - cl.length || ""}</td>` +
         `<td>${n.total ? `${n.met} / ${n.total}${bad ? ` <b>(${bad} unexpected)</b>` : ""}` : ""}</td></tr>`;
     }
@@ -480,7 +497,8 @@ environment as Lean definitions). Problems without a Lean answer are unknown. No
     let h = `<h2>Interpretations</h2>
 <p class="muted">How a registered value (an artifact's decoded bytes) denotes a language or a consequence system. Each is a Lean definition
 over the value's type; its ABI and environment, when declared, occur in that definition (a check of the metadata, not a proof that the
-definition models execution). <b>Definedness</b> is the declaration's: <i>total</i> means the definition gives a result for every value;
+definition models execution). The problem counts are of distinct problems about its systems; they say what has been proved about
+particular readings, not that every reading is sound or complete. <b>Definedness</b> is the declaration's: <i>total</i> means the definition gives a result for every value;
 <i>partial</i> (a core <code>Interp Env V Ax C</code>) gives an optional system under a configuration <code>e : Env</code>, and a system read
 through it is that reading or ⊥ where it is undefined — whether it is defined is a separate certificate (<code>artifact_defined</code>).
 Applying it to an artifact can still fail earlier, when the bytes do not decode; a system's or language's page shows its decode evidence.</p>`;
@@ -494,12 +512,18 @@ Applying it to an artifact can still fail earlier, when the bytes do not decode;
       const d = await hasColumn(ctx, "consequence_interpretations", "definedness");
       for (const r of await ctx.q("SELECT i.name, i.decl, i.input, i.contexts, i.conclusions, i.abi, i.environment, i.doc, " +
           (d ? "i.definedness, i.env, " : "") +
-          "(SELECT group_concat(c.name, ' ') FROM consequence_systems c WHERE c.interpretation = i.name) AS users FROM consequence_interpretations i ORDER BY i.name LIMIT 500"))
+          "(SELECT group_concat(c.name, ' ') FROM consequence_systems c WHERE c.interpretation = i.name) AS users, " +
+          // distinct problems about its systems, by standing (no duplicates across roles)
+          "(SELECT count(DISTINCT cp.problem) FROM consequence_problems cp JOIN consequence_systems c ON c.name = cp.system WHERE c.interpretation = i.name AND cp.summary = 'THM') AS n_est, " +
+          "(SELECT count(DISTINCT cp.problem) FROM consequence_problems cp JOIN consequence_systems c ON c.name = cp.system WHERE c.interpretation = i.name AND cp.summary IN ('CSA','UNS','contingent')) AS n_counter, " +
+          "(SELECT count(DISTINCT cp.problem) FROM consequence_problems cp JOIN consequence_systems c ON c.name = cp.system WHERE c.interpretation = i.name AND coalesce(cp.summary,'OPN') IN ('OPN','UNK')) AS n_unknown " +
+          "FROM consequence_interpretations i ORDER BY i.name LIMIT 500"))
         rows.push(Object.assign(r, { kind: "system", output: r.definedness === "partial"
           ? `(e : ${r.env}) → Option (System (${family(r.contexts)}) (${family(r.conclusions)}))` : `System (${r.contexts}) (${r.conclusions})` }));
     }
     if (!rows.length) return h + `<p class="muted">No interpretation is registered.</p>`;
-    h += `<div class="tablebox"><table id="interpretations-table"><thead><tr><th>interpretation</th><th>kind</th><th>reads</th><th>gives</th><th>ABI</th><th>environment</th><th>definedness</th><th>used by</th></tr></thead><tbody>`;
+    h += `<div class="tablebox"><table id="interpretations-table"><thead><tr><th>interpretation</th><th>kind</th><th>reads</th><th>gives</th><th>ABI</th><th>environment</th><th>definedness</th><th>used by</th>
+<th title="distinct problems about the systems read through it: proved (THM) / refuted or counterexample / unknown">problems</th></tr></thead><tbody>`;
     for (const r of rows) {
       const users = (r.users || "").split(" ").filter(Boolean);
       const userLink = (n) => r.kind === "system" ? sysLink(n) : `<a href="#/language/${encodeURIComponent(n)}">${ui.esc(n)}</a>`;
@@ -507,8 +531,9 @@ Applying it to an artifact can still fail earlier, when the bytes do not decode;
         `<td>${term(r.input)}</td><td>${term(r.output)}</td><td>${term(r.abi) || '<span class="muted">none declared</span>'}</td>` +
         `<td>${term(r.environment) || '<span class="muted">none declared</span>'}</td>` +
         `<td>${r.definedness === "partial" ? `partial, at a configuration e : ${term(r.env)}` : "total"}</td>` +
-        `<td>${users.length ? users.map(userLink).join("<br>") : '<span class="muted">unused</span>'}</td></tr>` +
-        (r.doc ? `<tr class="doc"><td></td><td colspan="7" class="muted">${ui.esc(r.doc)}</td></tr>` : "");
+        `<td>${users.length ? users.map(userLink).join("<br>") : '<span class="muted">unused</span>'}</td>` +
+        `<td class="nw">${r.kind === "system" && (r.n_est || r.n_counter || r.n_unknown) ? `${r.n_est} proved / ${r.n_counter} counter / ${r.n_unknown} unknown` : ""}</td></tr>` +
+        (r.doc ? `<tr class="doc"><td></td><td colspan="8" class="muted">${ui.esc(r.doc)}</td></tr>` : "");
     }
     h += `</tbody></table></div><h3>Usage</h3><pre class="usage">${ui.esc(`silmaril language_interpretation N := I (domain := D) (abi := A) (environment := E)   -- I : V → Set T
 silmaril language L (domain := D) (op := artifact) (value := X) (interpretation := N)

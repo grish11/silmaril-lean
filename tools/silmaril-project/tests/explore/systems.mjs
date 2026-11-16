@@ -47,7 +47,7 @@ try {
   check(/^erase of Consequence\.Deriv$/.test(byName[S + "derivable"][2]), "derivable is the erasure of Deriv (compact)");
   check(byName[S + "raw_or_hyp"][2] === "union of 2 systems" && byName[S + "gap"][2] === "diff of 2 systems",
     "the index names a construction without its operands");
-  check(/^list of Consequence\.Atom → other Consequence\.Atom$/.test(byName[S + "raw"][3]) &&
+  check(/^list of Consequence\.Atom → other Consequence\.Atom( |$)/.test(byName[S + "raw"][3]) &&
     await p.evaluate(() => document.querySelector("#systems-table tbody tr td:nth-child(4) code").title === "ProjectSelfTest.Consequence.Atom"),
     `the typed shape: list contexts, a scalar conclusion, compact, full term as the title (${byName[S + "raw"][3]})`);
   check(/^list of Consequence\.Signed Unit signed → list of Consequence\.Signed Unit signed raw sequent$/.test(byName[S + "multi.lit"][3]),
@@ -64,8 +64,8 @@ try {
   const rel = await p.evaluate(() => [...document.querySelectorAll("#systems-relations tbody tr")].map((tr) => [tr.dataset.standing, tr.textContent]));
   check(rel.some(([st, t]) => st === "counterevidence" && /bounded3_closed/.test(t)), "the relations table keeps the refuted Gentzen closure as counterevidence");
   await open("/systems");
-  check(byName[S + "derivable"][4] === "1 / 2 / 0" && byName[S + "derivable"][5] === "9",
-    `derivable: 1 true / 2 false / 0 unknown judgments, 9 questions (${byName[S + "derivable"].slice(4)})`);
+  check(byName[S + "derivable"][4] === "3 / 2 / 0" && byName[S + "derivable"][5] === "9",
+    `derivable: 3 true / 2 false / 0 unknown judgments, 9 questions (${byName[S + "derivable"].slice(4)})`);
   check(/^\d+ \/ \d+$/.test(byName[S + "derivable"][6]) && byName[S + "derivable"][6].split(" / ")[0] === byName[S + "derivable"][6].split(" / ")[1],
     "derivable: every expected status met");
   const qs = await rows("#systems-questions");
@@ -82,13 +82,13 @@ try {
   check(/erasure of a witness system/.test(dl) && /Consequence\.Deriv/.test(dl) && /used by/.test(dl), "definition, construction, witness system, used by");
   const judgments = await rows("#system-judgments");
   const ps = [...judgments, ...(await rows("#system-problems"))];
-  check(judgments.map((r) => r[0].slice(S.length)).sort().join(" ") === "derivable_ff_universal p_derives_r r_derives_p",
+  check(judgments.map((r) => r[0].slice(S.length)).sort().join(" ") === "derivable_ff_universal derivable_set_inv derivable_up_closed p_derives_r r_derives_p",
     `closed judgments in their own table (${judgments.map((r) => r[0]).join(", ")})`);
   check(ps.filter((r) => r[0] === S + "shift_preserves").length === 1 && ps.find((r) => r[0] === S + "shift_preserves")[2] === "S, T",
     "a translation of derivable into itself is one row, as S and T");
   // derivable is generated (silmaril.selftest.consequence.derivable prints «silmaril».…): its
   // problems are found through the escaped `term`, not through `decl`
-  check(ps.length === 12, `a generated system with a keyword-escaped name has its problems (${ps.length})`);
+  check(ps.length === 14, `a generated system with a keyword-escaped name has its problems (${ps.length})`);
   const by = Object.fromEntries(ps.map((r) => [r[0], r]));
   const row = (n) => by[S + n] || [];
   check(/THM/.test(row("p_derives_r")[4]) && /holds in/.test(row("p_derives_r")[5]), "p ⊢ r: THM, holds");
@@ -140,7 +140,7 @@ try {
   // the evidence panel and the bounded completeness
   await open("/system/" + encodeURIComponent(S + "wasm.member_check"));
   const ev = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("table.system-evidence")].map((t) => [t.dataset.standing, [...t.querySelectorAll("tbody tr")].map((tr) => tr.textContent)])));
-  check((ev.established || []).some((t) => /where \(fun as x => as\.length \+ 1\) ≤ 2 \^ 32 - 1/.test(t) || /≤ 2 \^ 32 - 1/.test(t)) && !ev.counterevidence,
+  check((ev.established || []).some((t) => /where \(fun as x => as\.length \+ 1\) ≤ 2 \^ 32 - 1/.test(t) || /≤ 2 \^ 32 - 1/.test(t)) && (ev.counterevidence || []).every((t) => /context-free/.test(t)),
     `member_check: bounded completeness established with its exact measure and bound (${(ev.established || []).find((t) => /2 \^ 32/.test(t))})`);
   // the interpretations pane
   await open("/interpretations");
@@ -191,6 +191,20 @@ try {
   const pe = pi.find((r) => r[0] === "selftest.prefix_exact") || [];
   check(/^\(e : ℕ\) → Option \(System \(PUnit\.\{1\}\) \(List UInt8\)\)$/.test(pe[1] || "") && /partial, at a configuration e : ℕ/.test(pe[2] || ""), `prefix_exact: partial over ℕ (${pe})`);
   check((pi.find((r) => r[0] === "wasm.core.check_rel") || [])[2] === "total", "check_rel stays total");
+
+  // shape evidence: exact proved properties as pills, refutations as counterevidence
+  await open("/systems");
+  const se = await rows("#systems-table");
+  const sh = (n) => (se.find((r) => r[0] === S + n) || [])[3] || "";
+  check(/contexts weakenable \(⊆\) ✓/.test(sh("derivable")) && /contexts read as sets ✓/.test(sh("derivable")), `derivable: weakening and set-reading proved (${sh("derivable")})`);
+  check(/contexts permutable ✓/.test(sh("raw")) && !/weakenable/.test(sh("raw")), `raw: permutable, not weakenable (${sh("raw")})`);
+  check(/context-free ✓/.test(sh("wasm.member_check.acceptor")) && !/context-free/.test(sh("wasm.member_check")), "acceptor context-free proved; member_check not");
+  await open("/system/" + encodeURIComponent(S + "raw"));
+  const rc = await p.evaluate(() => [...document.querySelectorAll("table.system-evidence[data-standing='counterevidence'] tbody tr")].map((tr) => tr.textContent));
+  check(rc.some((t) => /contexts weakenable/.test(t) && /raw_up_closed/.test(t)), "raw: the refuted weakening is counterevidence");
+  await open("/interpretations");
+  const cnt = await p.evaluate(() => { const tr = [...document.querySelectorAll("#interpretations-table tbody tr[data-kind]")].find((t) => t.children[0].firstChild.textContent === "wasm.core.check_rel"); return tr ? tr.children[8].textContent : ""; });
+  check(/^\d+ proved \/ \d+ counter \/ \d+ unknown$/.test(cnt), `check_rel problem counts (${cnt})`);
 
   check(errors.length === 0, `no page error${errors.length ? ": " + errors.join("; ") : ""}`);
 } finally {

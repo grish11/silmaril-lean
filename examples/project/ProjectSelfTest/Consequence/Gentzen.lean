@@ -105,6 +105,39 @@ silmaril instance silmaril.selftest.consequence.gentzen.bounded3_closed (expect 
 public theorem bounded3_closed : ¬ GentzenClosed defaultRules viaUnsatBounded3 :=
   fun h => bounded_not_cut (h.cut trivial)
 
+-- shape evidence: the pair test's contexts may be weakened and are read as sets; the bounded test's may not
+silmaril instance silmaril.selftest.consequence.gentzen.pairs_up_closed (expect := THM)
+  (title := "The pair test: contexts may be weakened (⊆)") := silmaril.shapes.consequence.ctx_up_closed
+  (S := ProjectSelfTest.Consequence.Gentzen.viaUnsatPairs)
+
+theorem pairs_mono {X Y : List Lit} (h : X ⊆ Y) : pairs X → pairs Y :=
+  fun ⟨l, hl, hn⟩ => ⟨l, h hl, h hn⟩
+
+theorem append_subset_right {X Y M : List Lit} (h : X ⊆ Y) : X ++ M ⊆ Y ++ M := fun x hx => by
+  simp only [List.mem_append] at hx ⊢; exact hx.imp_left (h ·)
+
+@[answers "silmaril.selftest.consequence.gentzen.pairs_up_closed" thm]
+public theorem pairs_up_closed : CtxUpClosed viaUnsatPairs :=
+  fun _ _ _ s h => pairs_mono (append_subset_right s) h
+
+silmaril instance silmaril.selftest.consequence.gentzen.pairs_set_inv (expect := THM)
+  (title := "The pair test: contexts are read as sets") := silmaril.shapes.consequence.ctx_set_inv
+  (S := ProjectSelfTest.Consequence.Gentzen.viaUnsatPairs)
+
+@[answers "silmaril.selftest.consequence.gentzen.pairs_set_inv" thm]
+public theorem pairs_set_inv : CtxSetInv viaUnsatPairs :=
+  fun Δ l l' h => ⟨pairs_up_closed Δ l l' (fun x hx => (h x).1 hx), pairs_up_closed Δ l' l (fun x hx => (h x).2 hx)⟩
+
+silmaril instance silmaril.selftest.consequence.gentzen.bounded3_up_closed (expect := UNS)
+  (title := "The bounded test: contexts may be weakened (fails: p ⊢ p, but not p, q, r ⊢ p)") :=
+  silmaril.shapes.consequence.ctx_up_closed (S := ProjectSelfTest.Consequence.Gentzen.viaUnsatBounded3)
+
+@[answers "silmaril.selftest.consequence.gentzen.bounded3_up_closed" csa]
+public theorem bounded3_up_closed : ¬ CtxUpClosed viaUnsatBounded3 := fun h =>
+  absurd (h [(true, 0)] [(true, 0)] [(true, 0), (true, 1), (true, 2)] (by decide)
+    (show viaUnsat (bounded 3) lneg [(true, 0)] [(true, 0)] by decide))
+    (show ¬ viaUnsat (bounded 3) lneg [(true, 0), (true, 1), (true, 2)] [(true, 0)] by decide)
+
 silmaril instance silmaril.selftest.consequence.gentzen.p_qp (expect := THM)
   (title := "p ⊢ q, p is valid") := silmaril.shapes.consequence.derives
   (S := ProjectSelfTest.Consequence.Gentzen.valid) (Γ := [(true, 0)]) (φ := [(true, 1), (true, 0)])
@@ -172,7 +205,9 @@ public theorem chain_p_r : ¬ Derives chainRaw [(true, 0)] [(true, 2)] := by
 end
 
 silmaril group silmaril.selftest.consequence.gentzen (title := "Consequence systems: literal sequents (Gentzen)")
-  (children := [silmaril.selftest.consequence.gentzen.pairs_closed,
+  (children := [silmaril.selftest.consequence.gentzen.pairs_up_closed,
+    silmaril.selftest.consequence.gentzen.pairs_set_inv, silmaril.selftest.consequence.gentzen.bounded3_up_closed,
+    silmaril.selftest.consequence.gentzen.pairs_closed,
     silmaril.selftest.consequence.gentzen.bounded3_closed, silmaril.selftest.consequence.gentzen.pairs_sound,
     silmaril.selftest.consequence.gentzen.pairs_complete, silmaril.selftest.consequence.gentzen.p_qp,
     silmaril.selftest.consequence.gentzen.p_q, silmaril.selftest.consequence.gentzen.bounded3_sound,

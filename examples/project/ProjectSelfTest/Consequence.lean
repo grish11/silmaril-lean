@@ -104,6 +104,11 @@ theorem deriv_r {φ : Atom} (d : Deriv [.r] φ) : φ = .r :=
 theorem deriv_nil {φ : Atom} (d : Deriv [] φ) : False :=
   deriv_mem (U := fun _ => False) (fun _ _ _ h => h) (fun _ h => by cases h) d
 
+/-- A derivation from `Γ` is one from any `Γ' ⊇ Γ`. -/
+def Deriv.weaken {Γ Γ' : List Atom} (s : Γ ⊆ Γ') : {φ : Atom} → Deriv Γ φ → Deriv Γ' φ
+  | _, .hyp h => .hyp (s h)
+  | _, .step r d => .step r (d.weaken s)
+
 /-- `ff` alone entails everything: no model makes `ff` true. -/
 theorem entails_ff (φ : Atom) : entails [.ff] φ :=
   fun _ hv hΓ => absurd (hΓ _ (List.mem_singleton_self _)) hv.1
@@ -312,11 +317,54 @@ public theorem shift_reflects : ∃ Γ φ, ¬ ReflectsAt silmaril.selftest.conse
 
 end
 
+-- shape evidence: the raw system is permutation-invariant but not weakening-closed; derivations are both
+silmaril instance silmaril.selftest.consequence.raw_perm_inv (expect := THM)
+  (title := "raw: contexts may be permuted") := silmaril.shapes.consequence.ctx_perm_inv
+  (S := ProjectSelfTest.Consequence.raw)
+
+@[answers "silmaril.selftest.consequence.raw_perm_inv" thm]
+public theorem raw_perm_inv : Silmaril.Project.Shapes.Consequence.CtxPermInv ProjectSelfTest.Consequence.raw := by
+  intro c l l' hp
+  constructor
+  · rintro ⟨a, rfl, r⟩; exact ⟨a, List.perm_singleton.mp hp.symm, r⟩
+  · rintro ⟨a, rfl, r⟩; exact ⟨a, List.perm_singleton.mp hp, r⟩
+
+silmaril instance silmaril.selftest.consequence.raw_up_closed (expect := UNS)
+  (title := "raw: contexts may be weakened (fails: p ⊢ q but not p, p ⊢ q)") :=
+  silmaril.shapes.consequence.ctx_up_closed (S := ProjectSelfTest.Consequence.raw)
+
+@[answers "silmaril.selftest.consequence.raw_up_closed" csa]
+public theorem raw_up_closed : ¬ Silmaril.Project.Shapes.Consequence.CtxUpClosed ProjectSelfTest.Consequence.raw := fun h => by
+  obtain ⟨a, he, -⟩ := h .q [.p] [.p, .p] (fun x hx => by simp_all) ⟨.p, rfl, ⟨.pq⟩⟩
+  simp at he
+
+silmaril instance silmaril.selftest.consequence.derivable_up_closed (expect := THM)
+  (title := "derivable: contexts may be weakened (⊆)") := silmaril.shapes.consequence.ctx_up_closed
+  (S := silmaril.selftest.consequence.derivable)
+
+@[answers "silmaril.selftest.consequence.derivable_up_closed" thm]
+public theorem derivable_up_closed : Silmaril.Project.Shapes.Consequence.CtxUpClosed silmaril.selftest.consequence.derivable :=
+  fun _ _ _ s ⟨d⟩ => ⟨ProjectSelfTest.Consequence.Deriv.weaken s d⟩
+
+silmaril instance silmaril.selftest.consequence.derivable_set_inv (expect := THM)
+  (title := "derivable: contexts are read as sets") := silmaril.shapes.consequence.ctx_set_inv
+  (S := silmaril.selftest.consequence.derivable)
+
+@[answers "silmaril.selftest.consequence.derivable_set_inv" thm]
+public theorem derivable_set_inv : Silmaril.Project.Shapes.Consequence.CtxSetInv silmaril.selftest.consequence.derivable :=
+  fun c l l' h => ⟨derivable_up_closed c l l' (fun x hx => (h x).1 hx),
+    derivable_up_closed c l' l (fun x hx => (h x).2 hx)⟩
+
 silmaril group silmaril.shapes.consequence (title := "The standard consequence shapes")
   (children := [silmaril.shapes.consequence.derives, silmaril.shapes.consequence.context_universal,
     silmaril.shapes.consequence.derives_bottom, silmaril.shapes.consequence.sound_at,
     silmaril.shapes.consequence.complete_at, silmaril.shapes.consequence.translates_at,
-    silmaril.shapes.consequence.reflects_at])
+    silmaril.shapes.consequence.reflects_at, silmaril.shapes.consequence.complete_within_at,
+    silmaril.shapes.consequence.gentzen_closed, silmaril.shapes.consequence.artifact_defined,
+    silmaril.shapes.consequence.context_free, silmaril.shapes.consequence.conclusion_free,
+    silmaril.shapes.consequence.supported_ax, silmaril.shapes.consequence.supported_c,
+    silmaril.shapes.consequence.ctx_perm_inv, silmaril.shapes.consequence.ctx_set_inv,
+    silmaril.shapes.consequence.ctx_up_closed, silmaril.shapes.consequence.ctx_append_extensive])
 
 silmaril group silmaril.selftest.consequence (title := "Consequence systems")
   (children := [silmaril.selftest.consequence.p_derives_r,
@@ -330,6 +378,8 @@ silmaril group silmaril.selftest.consequence (title := "Consequence systems")
     silmaril.selftest.consequence.derivable_universal, silmaril.selftest.consequence.empty_derives,
     silmaril.selftest.consequence.gap_nonempty, silmaril.selftest.consequence.checked_complete,
     silmaril.selftest.consequence.shift_preserves, silmaril.selftest.consequence.shift_reflects,
+    silmaril.selftest.consequence.raw_perm_inv, silmaril.selftest.consequence.raw_up_closed,
+    silmaril.selftest.consequence.derivable_up_closed, silmaril.selftest.consequence.derivable_set_inv,
     silmaril.shapes.consequence, silmaril.selftest.consequence.gentzen,
     silmaril.selftest.consequence.multi, silmaril.selftest.consequence.wasm,
     silmaril.selftest.consequence.partial])

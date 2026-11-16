@@ -168,6 +168,18 @@ statement is proved), **counterevidence** (a counterexample or refutation, kept 
 witness), **partial** (only an instance), **unknown**. The Systems page lists the same relations
 for all systems, with constructions and artifacts by definition.
 
+**Shape evidence.** Closed shapes state the core predicates of
+`Silmaril.Logic.Consequence.Shape` about a system: `context_free`, `conclusion_free`,
+`supported_ax S tt`, `supported_c S ff` (support at a designated context or conclusion is a
+different property from context- or conclusion-freeness), and, per conclusion, the context
+policies `ctx_perm_inv`, `ctx_set_inv`, `ctx_up_closed` (left `⊆`-weakening) and
+`ctx_append_extensive` (not `AppendClosed`). A proved one shows on the Systems page as a pill
+naming exactly that property; a refuted one is counterevidence. The self-test proves the raw
+system permutation-invariant but not weakening-closed (`p ⊢ q`, not `p, p ⊢ q`), derivations
+weakening-closed and set-invariant, the pair test the same and the bounded test not, the
+acceptor of `member_check.wasm` context-free and its rejector conclusion-free, and
+`member_check.wasm`'s relation not context-free.
+
 **Interpretations.** The Interpretations page lists every `language_interpretation` (`V → Set T`)
 and `consequence_interpretation` (`V → System Ax C`): what it reads and gives, its ABI and
 environment, its definedness (both kinds are total definitions today; applying one to an
