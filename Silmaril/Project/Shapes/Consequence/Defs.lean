@@ -4,6 +4,7 @@ public import Silmaril.Project.Defs
 public import Silmaril.Project.Registry.Consequence.Defs
 public import Silmaril.Logic.Consequence.Defs
 public import Silmaril.Logic.Consequence.Gentzen.Defs
+public import Silmaril.Logic.Consequence.Interp.Defs
 
 /-!
 # Standard problem shapes: consequence systems
@@ -33,6 +34,14 @@ UNS of `derives S` both hold, and SAT and CSA both fail — nothing is assumed n
 profile `rs` (`Gentzen.defaultRules`, `withWeakening W`, …): THM certified, UNS (a closed
 refutation) not closed. A list-to-list system is only a *raw* sequent relation until such a
 problem is proved.
+
+`silmaril.shapes.consequence.artifact_defined X I e` (closed once fixed) certifies that the
+CID-pinned bytes of the registered value `X` decode **and** the partial interpretation `I` is
+defined on the decoded value at the configuration `e`: THM. Its refutation (UNS) says only that
+this does not hold — the bytes do not decode, *or* the reading is undefined; separate decode
+evidence (the value's `.is`) tells the two apart. A system read through `I.orBot e` that derives
+nothing is a *defined, empty* system only with this certificate and an established emptiness
+(`derives` UNS over all contexts and conclusions).
 
 Fixing `Γ` too (`derives S (Γ := …)`) asks about one context: THM says `Γ` derives every
 conclusion (`Γ` is **context-universal**), CSA that some conclusion is not derived. Fixing `φ`
@@ -95,6 +104,14 @@ def CompleteWithinAt {Ax C : Type} (S T : System Ax C) (μ : Ax → C → ℕ) (
 def GentzenClosed {C : Type} (rs : Silmaril.Consequence.Gentzen.Rules C)
     (S : Silmaril.Consequence.Gentzen.Seq C) : Prop :=
   Silmaril.Consequence.Gentzen.Closed rs S
+
+/-- **An artifact is read by a partial interpretation**: its bytes decode to `v` with `I e v`
+defined. -/
+@[problem "silmaril.shapes.consequence.artifact_defined"
+  (title := "An artifact's bytes decode and a partial interpretation is defined on them")]
+def ArtifactDefined {Env V : Type} {Ax C : Env → Type} (X : Silmaril.Project.Value V)
+    (I : Silmaril.Consequence.Interp Env V Ax C) (e : Env) : Prop :=
+  ∃ v, X.parse = some v ∧ I.Defined e v
 
 /-- **A translation preserves `Γ ⊢ φ`**: from `S` to `T` along `f` on contexts and `g` on
 conclusions. -/

@@ -141,10 +141,48 @@ refutation that is refuted counts as met.</span></p>`;
     ["finset", "finset contexts", (r) => r.ctx_kind === "finset"],
     ["set", "set contexts", (r) => r.ctx_kind === "set"],
     ["multi", "multiple conclusions", (r) => r.concl_kind === "list"],
+    ["partial", "partial interpretations", (r) => r.definedness === "partial"],
     ["signed", "signed formulas", (r) => !!(r.ctx_signed || r.concl_signed)],
     ["raw-sequent", "raw sequents", (r) => !!r.raw_sequent],
     ["gentzen", "Gentzen-closed (certified)", (r, g) => g.has(r.name)],
   ];
+  // Whether a table has a column (an older database may lack it).
+  const columnCache = new Map();
+  async function hasColumn(ctx, table, col) {
+    const k = table + "." + col;
+    if (!columnCache.has(k)) {
+      columnCache.set(k, Explorer.tables().has(table) &&
+        (await ctx.q("SELECT count(*) AS n FROM pragma_table_info(?) WHERE name = ?", [table, col]))[0].n > 0);
+    }
+    return columnCache.get(k);
+  }
+  // The definedness certificates of a system read through a partial interpretation: every
+  // `artifact_defined` problem about its value, with its interpretation and configuration, and
+  // what can be said. Positive evidence only: no certificate means "not certified", a refutation
+  // without decode evidence means "undefined or undecodable", and "defined, empty" needs both a
+  // definedness certificate and established emptiness (derives UNS over all Γ, φ).
+  async function definednessRows(c, ctx, isProved) {
+    const [ci] = await ctx.q("SELECT decl FROM consequence_interpretations WHERE name = ? LIMIT 1", [c.interpretation]);
+    const all = await ctx.q(
+      "SELECT i.problem, s.summary, s.verdict, p.arity, p.expect, " +
+      "(SELECT a.term FROM instance_args a JOIN consequence_shape_roles r ON r.shape = e.parent AND r.pos = a.pos WHERE a.problem = i.problem AND r.role = 'I') AS interp, " +
+      "(SELECT a.term FROM instance_args a JOIN consequence_shape_roles r ON r.shape = e.parent AND r.pos = a.pos WHERE a.problem = i.problem AND r.role = 'e') AS env " +
+      "FROM instance_args i JOIN edges e ON e.child = i.problem AND e.kind = 'instance' AND e.parent = ? " +
+      "JOIN consequence_shape_roles r ON r.shape = e.parent AND r.pos = i.pos AND r.role = 'X' " +
+      "JOIN problems p ON p.name = i.problem LEFT JOIN summary s ON s.problem = i.problem WHERE i.value = ? ORDER BY i.problem LIMIT 50",
+      [PREFIX + "artifact_defined", c.value]);
+    // this system's certificates: the same interpretation, at the same configuration
+    const ps = all.filter((p) => ci && p.interp === ci.decl && (p.env === c.env_term || (!c.env_term && p.env === "PUnit.unit")));
+    const [empty] = await ctx.q("SELECT cp.problem FROM consequence_problems cp JOIN problems p ON p.name = cp.problem " +
+      "WHERE cp.system = ? AND cp.role = 'S' AND cp.shape = ? AND p.arity = 2 AND cp.summary = 'UNS' LIMIT 1", [c.name, PREFIX + "derives"]);
+    const label = (p) => p.summary === "THM" ? (empty ? `defined, empty (certified with ${ui.link("problem", empty.problem)})` : "defined (certified)")
+      : p.summary === "UNS" || p.summary === "CSA" ? (isProved ? "undefined: the bytes decode (proved .is or .parses) but the reading is undefined" : "undefined or undecodable")
+      : "not certified (no answer)";
+    if (!ps.length) return [["definedness", '<span class="muted">not certified: no <code>artifact_defined</code> problem names this value</span>']];
+    return [["definedness", ps.map((p) => `${ui.link("problem", p.problem)} ${ui.statusBadge({ summary: p.summary || "OPN", verdict: p.verdict || "unknown", arity: p.arity, expect: p.expect || null })}` +
+      ` <b>${label(p)}</b> <span class="muted">— ${term(p.interp)} at ${term(p.env)}</span>`).join("<br>")]];
+  }
+
   // One side of a system's typed shape: kind, element type, polarity.
   const side = (k, e, sg) => k == null ? "" : `${ui.esc(k)}${k === "other" || k === "unit" ? "" : " of"} ${k === "unit" ? "" : term(e)}${sg ? ' <span class="pill">signed</span>' : ""}`;
   const shapeText = (r) => r.ctx_kind == null ? '<span class="muted">not recorded</span>'
@@ -214,8 +252,9 @@ or <b>unknown</b>.</p><div class="tablebox"><table id="systems-relations"><thead
   async function listPage(arg, ctx) {
     if (!has()) return `<h2>Consequence systems</h2>${missing}`;
     const view = new URLSearchParams((arg || "").replace(/^\?/, "")).get("view") || "all";
+    const hasDef = await hasColumn(ctx, "consequence_interpretations", "definedness");
     const all = await ctx.q(
-      "SELECT c.*, " +
+      "SELECT c.*, " + (hasDef ? "(SELECT ci.definedness FROM consequence_interpretations ci WHERE ci.name = c.interpretation) AS definedness, " : "") +
       "(SELECT count(*) FROM consequence_operands o WHERE o.system = c.name) AS n_operands " +
       "FROM consequence_systems c ORDER BY c.name LIMIT " + (LIMIT + 1));
     const gz = await gentzenOf(ctx);
@@ -391,11 +430,16 @@ them, SAT for some, UNS for none, CSA fails for some, NOC (stored <code>continge
     }
     const ev = await ctx.q("SELECT p.name, s.summary, s.verdict, p.arity, p.expect FROM problems p LEFT JOIN summary s ON s.problem = p.name " +
       "WHERE p.name IN (?, ?) ORDER BY p.name LIMIT 2", [c.value + ".is", c.value + ".parses"]);
+    if (c.env_term) out.push(["configuration", `${term(c.env_term)} <span class="muted">(the interpretation is partial: the system is its reading at this configuration, or ⊥ where it is undefined)</span>`]);
     out.push(["decode evidence", ev.length
       ? ev.map((e) => `${ui.link("problem", e.name)} ${ui.statusBadge({ summary: e.summary || "OPN", verdict: e.verdict || "unknown", arity: e.arity, expect: e.expect || null })}`).join(" · ") +
         `<div class="muted">The <code>.is</code> certificate says the bytes decode to the Lean module the theorems are about. Without it, a system
 that derives nothing may only mean that the bytes do not decode.</div>`
       : `<span class="muted">none registered: the bytes are not tied to a Lean module, and an empty system may only mean that they do not decode</span>`]);
+    if (c.env_term || (await hasColumn(ctx, "consequence_interpretations", "definedness") &&
+        (await ctx.q("SELECT definedness FROM consequence_interpretations WHERE name = ? LIMIT 1", [c.interpretation]))[0]?.definedness === "partial")) {
+      out.push(...await definednessRows(c, ctx, ev.some((e) => e.summary === "THM")));
+    }
     return out;
   }
 
@@ -420,6 +464,14 @@ environment as Lean definitions). Problems without a Lean answer are unknown. No
   Explorer.registerSection({ id: "consequence-systems", title: "Consequence systems", on: ["artifact", "wasm-module"], order: 55,
     render: artifactSection });
 
+  // A family `fun x => T` over the configurations, at the configuration `e` (display only: the
+  // types themselves were recorded by Lean; a constant family shows as its type).
+  function family(t) {
+    const m = /^fun (\S+) => (.*)$/.exec(t || "");
+    if (!m) return `${t} e`;
+    return new RegExp("\\b" + m[1].replace(/[^\w]/g, "\\$&") + "\\b").test(m[2]) ? `(${t}) e` : m[2];
+  }
+
   // The Interpretations pane: every registered interpretation of a value as a language
   // (`language_interpretation`, `V → Set T`) or as a consequence system
   // (`consequence_interpretation`, `V → System Ax C`), from the existing tables, with what uses it.
@@ -428,7 +480,9 @@ environment as Lean definitions). Problems without a Lean answer are unknown. No
     let h = `<h2>Interpretations</h2>
 <p class="muted">How a registered value (an artifact's decoded bytes) denotes a language or a consequence system. Each is a Lean definition
 over the value's type; its ABI and environment, when declared, occur in that definition (a check of the metadata, not a proof that the
-definition models execution). <b>Definedness</b> is the declaration's: <i>total</i> means the definition gives a result for every value.
+definition models execution). <b>Definedness</b> is the declaration's: <i>total</i> means the definition gives a result for every value;
+<i>partial</i> (a core <code>Interp Env V Ax C</code>) gives an optional system under a configuration <code>e : Env</code>, and a system read
+through it is that reading or ⊥ where it is undefined — whether it is defined is a separate certificate (<code>artifact_defined</code>).
 Applying it to an artifact can still fail earlier, when the bytes do not decode; a system's or language's page shows its decode evidence.</p>`;
     const rows = [];
     if (t.has("language_interpretations")) {
@@ -437,9 +491,12 @@ Applying it to an artifact can still fail earlier, when the bytes do not decode;
         rows.push(Object.assign(r, { kind: "language", output: `Set (${r.output})` }));
     }
     if (t.has("consequence_interpretations")) {
+      const d = await hasColumn(ctx, "consequence_interpretations", "definedness");
       for (const r of await ctx.q("SELECT i.name, i.decl, i.input, i.contexts, i.conclusions, i.abi, i.environment, i.doc, " +
+          (d ? "i.definedness, i.env, " : "") +
           "(SELECT group_concat(c.name, ' ') FROM consequence_systems c WHERE c.interpretation = i.name) AS users FROM consequence_interpretations i ORDER BY i.name LIMIT 500"))
-        rows.push(Object.assign(r, { kind: "system", output: `System (${r.contexts}) (${r.conclusions})` }));
+        rows.push(Object.assign(r, { kind: "system", output: r.definedness === "partial"
+          ? `(e : ${r.env}) → Option (System (${family(r.contexts)}) (${family(r.conclusions)}))` : `System (${r.contexts}) (${r.conclusions})` }));
     }
     if (!rows.length) return h + `<p class="muted">No interpretation is registered.</p>`;
     h += `<div class="tablebox"><table id="interpretations-table"><thead><tr><th>interpretation</th><th>kind</th><th>reads</th><th>gives</th><th>ABI</th><th>environment</th><th>definedness</th><th>used by</th></tr></thead><tbody>`;
@@ -448,14 +505,18 @@ Applying it to an artifact can still fail earlier, when the bytes do not decode;
       const userLink = (n) => r.kind === "system" ? sysLink(n) : `<a href="#/language/${encodeURIComponent(n)}">${ui.esc(n)}</a>`;
       h += `<tr data-kind="${r.kind}"><td>${ui.esc(r.name)}<div class="muted">${term(r.decl)}</div></td><td>${r.kind === "system" ? "consequence system" : "language"}</td>` +
         `<td>${term(r.input)}</td><td>${term(r.output)}</td><td>${term(r.abi) || '<span class="muted">none declared</span>'}</td>` +
-        `<td>${term(r.environment) || '<span class="muted">none declared</span>'}</td><td>total</td>` +
+        `<td>${term(r.environment) || '<span class="muted">none declared</span>'}</td>` +
+        `<td>${r.definedness === "partial" ? `partial, at a configuration e : ${term(r.env)}` : "total"}</td>` +
         `<td>${users.length ? users.map(userLink).join("<br>") : '<span class="muted">unused</span>'}</td></tr>` +
         (r.doc ? `<tr class="doc"><td></td><td colspan="7" class="muted">${ui.esc(r.doc)}</td></tr>` : "");
     }
     h += `</tbody></table></div><h3>Usage</h3><pre class="usage">${ui.esc(`silmaril language_interpretation N := I (domain := D) (abi := A) (environment := E)   -- I : V → Set T
 silmaril language L (domain := D) (op := artifact) (value := X) (interpretation := N)
 silmaril consequence_interpretation N := I (abi := A) (environment := E)            -- I : V → System Ax C
-silmaril consequence_system S (op := artifact) (value := X) (interpretation := N)`)}</pre>`;
+silmaril consequence_system S (op := artifact) (value := X) (interpretation := N)
+silmaril consequence_interpretation N := I                                             -- I : Interp Env V Ax C (partial)
+silmaril consequence_system S (op := artifact) (value := X) (interpretation := N) (env := "e")   -- I.orBot e
+silmaril instance D := silmaril.shapes.consequence.artifact_defined (X := X) (I := I) (e := e)`)}</pre>`;
     return h;
   }
 

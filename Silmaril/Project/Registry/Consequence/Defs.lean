@@ -2,7 +2,9 @@ module
 
 public import Silmaril.Project.Registry.Defs
 public import Silmaril.Project.Registry.Language.Defs
+public import Silmaril.Project.Registry.Predicate.Defs
 public import Silmaril.Logic.Consequence.Defs
+public import Silmaril.Logic.Consequence.Interp.Defs
 public import Silmaril.Project.ConsequenceSystems.Defs
 
 /-!
@@ -21,7 +23,9 @@ is implicit** — a system is reflexive, monotone or closed under cut only if a 
 | `consequence_system N (op := inter) (args := [A, B, …])` | as for `union` | `decl := A ⊓ B ⊓ …` |
 | `consequence_system N (op := diff) (args := [A, B])` | exactly two operands | `decl := A \ B` |
 | `consequence_interpretation N := I (abi := A) (environment := E)` | `I : V → System Ax C`; `A` and `E`, when given, occur in `I`'s definition | `input` (`V`), `contexts`, `conclusions` |
+| `consequence_interpretation N := I` | `I : Silmaril.Consequence.Interp Env V Ax C` (partial, under a configuration `Env`; `Interp₀` is `Env = PUnit`) | `definedness := partial`, `env` (`Env`), `input`, `contexts`/`conclusions` (the families) |
 | `consequence_system N (op := artifact) (value := X) (interpretation := I)` | `X` a registered `Value V`, `I` a registered `consequence_interpretation` reading `V` | `decl := ConsequenceSystems.artifactSystem X I` |
+| `consequence_system N (op := artifact) (value := X) (interpretation := I) (env := t)` | `I` partial, `t : Env` closed (default `PUnit.unit` when `Env` is `PUnit`) | `decl := artifactSystem X (I.orBot t)`, `env_term` |
 | `consequence_system N := W (op := erase)` | `W : Ax → C → Type` (a `WSystem`: a type of derivations of each `Γ ⊢ φ`) | `witness := W`, `decl := WSystem.erase W` (`Nonempty (W Γ φ)`) |
 
 **Typed shape.** Lean classifies each side from its type (the `Expr`, up to reducible
@@ -150,26 +154,56 @@ def addConsequenceDef (n : Name) (value : Expr) : TermElabM Unit := do
     (.regular (getMaxHeight (← getEnv) value + 1)))) (forceExpose := true)
   addDeclarationRangesFromSyntax n (← getRef)
 
-/-- `consequence_interpretation N := I (abi := A) (environment := E)`, `I : V → System Ax C`. -/
+/-- `(Env, V, Ax, C)` if `ty` is `Silmaril.Consequence.Interp Env V Ax C`, found by unfolding
+the head one definition at a time (so `Interp₀` and other aliases are seen) and stopping at the
+`Interp` application, before `Interp` itself unfolds to a function type. -/
+partial def interpArgs? (ty : Expr) (fuel : Nat := 16) : MetaM (Option (Expr × Expr × Expr × Expr)) := do
+  let ty ← whnfCore ty
+  if ty.isAppOfArity ``Silmaril.Consequence.Interp 4 then
+    return some (ty.getArg! 0, ty.getArg! 1, ty.getArg! 2, ty.getArg! 3)
+  match fuel, ← unfoldDefinition? ty with
+  | fuel + 1, some ty' => interpArgs? ty' fuel
+  | _, _ => return none
+
+/-- The default configuration of a singleton `Env` (`PUnit`, `Unit`): its unique element. -/
+def singletonEnv? (Env : Expr) : MetaM (Option Expr) := do
+  let E ← whnf Env
+  if E.isAppOfArity ``PUnit 0 || E.isConstOf ``PUnit then
+    return some (mkConst ``PUnit.unit E.constLevels!)
+  return none
+
+/-- `consequence_interpretation N := I (abi := A) (environment := E)`: `I : V → System Ax C`
+(total), or `I : Interp Env V Ax C` (partial, under a configuration). -/
 @[silmaril_kind consequence_interpretation] def consequenceInterpretationHandler : Handler where
   run? := some fun kind name? fs => liftTermElabM do
     let name ← needName kind name?
     let d ← fs.const kind "decl"
     unless (← getConstInfo d).levelParams.isEmpty do
       throwError "silmaril {kind}: {d} has universe parameters; register a universe-monomorphic interpretation"
-    let ty ← whnf (← constType d)
-    let .forallE _ V body _ := ty
-      | throwError "silmaril {kind}: {d} has type{indentExpr ty}\nbut an interpretation is `V → System Ax C`"
-    let some (Ax, C) ← (if body.hasLooseBVars then pure none else consequenceTypes? body false)
-      | throwError "silmaril {kind}: {d} has type{indentExpr ty}\nbut an interpretation is `V → System Ax C`"
+    let mut fs := fs
+    let (V, Ax, C) ← match ← interpArgs? (← constType d) with
+      | some (Env, V, Ax, C) =>
+        fs ← fs.push kind "definedness" (.str "partial")
+        fs ← fs.push kind "env" (.str (← ppOneLine Env))
+        pure (V, Ax, C)
+      | none =>
+        let ty ← whnf (← constType d)
+        let .forallE _ V body _ := ty
+          | throwError "silmaril {kind}: {d} has type{indentExpr ty}\nbut an interpretation is \
+              `V → System Ax C` or `Silmaril.Consequence.Interp Env V Ax C`"
+        let some (Ax, C) ← (if body.hasLooseBVars then pure none else consequenceTypes? body false)
+          | throwError "silmaril {kind}: {d} has type{indentExpr ty}\nbut an interpretation is \
+              `V → System Ax C` or `Silmaril.Consequence.Interp Env V Ax C`"
+        fs ← fs.push kind "definedness" (.str "total")
+        pure (V, Ax, C)
     let used := (← visibleValue kind d).getUsedConstants
     for key in ["abi", "environment"] do
       if let some (_, c) := fs.consts.find? (·.1 == key) then
         unless used.contains c do
           throwError "silmaril {kind}: the {key} {c} does not occur in the definition of {d}; \
             the interpretation must be defined from it"
-    let fs ← fs.push kind "input" (.str (← ppOneLine V))
-    let fs ← fs.push kind "contexts" (.str (← ppOneLine Ax))
+    fs ← fs.push kind "input" (.str (← ppOneLine V))
+    fs ← fs.push kind "contexts" (.str (← ppOneLine Ax))
     return #[(name, ← fs.push kind "conclusions" (.str (← ppOneLine C)))]
 
 /-- `consequence_system N := S`, or a construction (`op := union | inter | diff | erase`). -/
@@ -227,16 +261,40 @@ def addConsequenceDef (n : Name) (value : Expr) : TermElabM Unit := do
         let some id := ir.str? "decl"
           | throwError "silmaril {kind}: interpretation {iname} has no `decl`"
         let I := mkConst id.toName
+        -- a partial interpretation is read at a configuration `env` (its `orBot`)
+        let (I, envTerm?) ← match ← interpArgs? (← inferType I) with
+          | some (Env, _, _, _) =>
+            let e ← match fs.get? "env" with
+              | some (.str t) =>
+                let stx ← match Parser.runParserCategory (← getEnv) `term t with
+                  | .ok stx => pure stx
+                  | .error err => throwError "silmaril {kind}: `env`: {err}"
+                let e ← elabClosed stx Env
+                if e.hasFVar || e.hasMVar then throwError "silmaril {kind}: `env` must be closed"
+                pure e
+              | some _ => throwError "silmaril {kind}: `env` is a Lean term, written as a string"
+              | none => match ← singletonEnv? Env with
+                | some u => pure u
+                | none => throwError "silmaril {kind}: interpretation {iname} is read under a \
+                    configuration of type{indentExpr Env}\ngive it: `(env := \"…\")`"
+            pure (← mkAppM ``Silmaril.Consequence.Interp.orBot #[I, e], some (← ppOneLine e))
+          | none =>
+            if (fs.get? "env").isSome then
+              throwError "silmaril {kind}: interpretation {iname} is total; it takes no `env`"
+            pure (I, none)
         let .forallE _ V' body _ ← whnf (← inferType I)
           | throwError "silmaril {kind}: bad interpretation {iname}"
         unless ← isDefEq V V' do
           throwError "silmaril {kind}: value {xname} reads{indentExpr V}\nbut interpretation \
             {iname} interprets{indentExpr V'}"
-        let some (Ax, C) ← consequenceTypes? body false
+        let some (Ax, C) ← consequenceTypes? (← instantiateMVars body) false
           | throwError "silmaril {kind}: bad interpretation {iname}"
         if (← getEnv).contains decl then throwError "silmaril {kind}: {decl} is already declared"
         addConsequenceDef decl (mkAppN (mkConst ``Silmaril.Project.ConsequenceSystems.artifactSystem)
           #[V, Ax, C, mkConst xd.toName, I])
+        if let some t := envTerm? then
+          fs := fs.erase "env"
+          fs ← fs.push kind "env_term" (.str t)
         fs ← fs.push kind "decl" (.str decl.toString)
         pure (decl, Ax, C)
       | _ => -- union, inter, diff

@@ -98,6 +98,45 @@ systems its bytes denote.
 
 Statements and assumptions are bytes (`UInt8`); no component wraps either module.
 
+## Partial interpretations (core `Interp`)
+
+`consequence_interpretation N := I` also accepts a core partial interpretation
+`I : Silmaril.Consequence.Interp Env V Ax C` (`Silmaril.Logic.Consequence.Interp`; `Interp₀` is
+the case `Env = PUnit`). Lean recognises it from the type's `Interp` application (through aliases,
+before `Interp` unfolds) and records `definedness := partial` and the configuration type `env`;
+the earlier form `V → System Ax C` is `definedness := total`, unchanged.
+
+```lean
+silmaril consequence_interpretation my.reading := My.reading          -- : Interp Env V Ax C
+silmaril consequence_system my.sys (op := artifact) (value := X) (interpretation := my.reading)
+  (env := My.config)                      -- a closed term of type Env; optional when Env is PUnit
+silmaril instance my.sys_defined := silmaril.shapes.consequence.artifact_defined
+  (X := X) (I := My.reading) (e := My.config)
+```
+
+The system is `artifactSystem X (I.orBot e)`: the reading of the decoded value at `e`, or `⊥`
+where it is undefined (core's compatibility projection). Whether it is defined is a separate
+certificate, `artifact_defined X I e` (`∃ v, X.parse = some v ∧ I.Defined e v`); the page never
+infers it:
+
+* **defined (certified)**: `artifact_defined` is proved;
+* **defined, empty (certified)**: also `derives` over all `Γ, φ` refuted (UNS);
+* **undefined**: `artifact_defined` refuted *and* the bytes decode (a proved `.is` or `.parses`);
+  without that, **undefined or undecodable**;
+* **not certified**: no `artifact_defined` problem for that interpretation and configuration.
+
+The self-test `ProjectSelfTest.Consequence.Partial` exercises these on the registered bytes
+`hello.txt` with test readings (`prefix_exact` over `ℕ`, `nonempty_whole` as `Interp₀`); they
+are registry tests, not Wasm semantics.
+
+**Pending: Wasm modules through `coreInterp`.** The protocol track's `coreInterp`
+(`Silmaril.Wasi.Consequence`, configurations `CoreConfig`) is to be registered as
+`wasm.core.seq` with `member_check.wasm` and `empty_check.wasm` read at
+`memberConfig Profile.spec allHosts` (defined; sound and boundedly complete for single-succedent
+membership; `empty_check` defined and empty). It is blocked by a duplicate declaration
+`Silmaril.Wasm.Component.WIT.Env` that prevents importing the protocol modules together with the
+registered artifacts; it lands once that is renamed.
+
 ## Typed shapes, views and the Gentzen view
 
 Lean records each system's shape from its types (the `Expr`, never printed text): for contexts

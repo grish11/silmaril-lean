@@ -87,6 +87,11 @@ theorem gentzenClosed_iff {C : Type} {rs : Silmaril.Consequence.Gentzen.Rules C}
     {S : Silmaril.Consequence.Gentzen.Seq C} : GentzenClosed rs S ↔ Silmaril.Consequence.Gentzen.Closed rs S :=
   Iff.rfl
 
+theorem artifactDefined_iff {Env V : Type} {Ax C : Env → Type} {X : Silmaril.Project.Value V}
+    {I : Silmaril.Consequence.Interp Env V Ax C} {e : Env} :
+    ArtifactDefined X I e ↔ ((X.parse).bind (I e)).isSome = true := by
+  unfold ArtifactDefined Silmaril.Consequence.Interp.Defined; cases X.parse <;> simp
+
 theorem translatesAt_thm_iff {U : System Bx D} :
     (∀ Γ φ, TranslatesAt S U f g Γ φ) ↔ S ≤ U.pullback f g := Iff.rfl
 

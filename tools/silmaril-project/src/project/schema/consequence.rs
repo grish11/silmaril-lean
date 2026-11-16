@@ -47,6 +47,10 @@ pub const CONSEQUENCE_SHAPES: &[(&str, &[&str])] = &[
         &["type", "rules", "S"],
     ),
     (
+        "silmaril.shapes.consequence.artifact_defined",
+        &["type", "type", "type", "type", "X", "I", "e"],
+    ),
+    (
         "silmaril.shapes.consequence.translates_at",
         &[
             "type", "type", "type", "type", "S", "T", "f", "g", "ctx", "phi",
@@ -77,6 +81,7 @@ table! {
         witness: Option<String> = "TEXT",
         value: Option<String> = "TEXT",
         interpretation: Option<String> = "TEXT",
+        env_term: Option<String> = "TEXT",
         ctx_kind: Option<String> = "TEXT CHECK(ctx_kind IN ('unit','list','finset','set','other'))",
         ctx_elem: Option<String> = "TEXT",
         ctx_signed: Option<bool> = "INTEGER",
@@ -99,7 +104,8 @@ table! {
 
 table! {
     /// `silmaril consequence_interpretation NAME := I (abi := A) (environment := E)`, with
-    /// `I : V → System Ax C`; Lean checks that `A` and `E` occur in `I`'s definition and fills
+    /// `I : V → System Ax C` (`definedness` total) or `I : Interp Env V Ax C` (partial, under
+    /// the configuration type `env`); Lean checks that `A` and `E` occur in `I`'s definition and fills
     /// `input` (`V`), `contexts` and `conclusions`. A system `op := artifact` reads a registered
     /// value through one.
     ConsequenceInterpretation = "consequence_interpretations", key("sid"), unique("name") {
@@ -111,6 +117,8 @@ table! {
         conclusions: String = "TEXT NOT NULL",
         abi: Option<String> = "TEXT",
         environment: Option<String> = "TEXT",
+        definedness: Option<String> = "TEXT CHECK(definedness IN ('total','partial'))",
+        env: Option<String> = "TEXT",
         doc: Option<String> = "TEXT",
         module: String = "TEXT NOT NULL",
         #[serde(skip)] origin: String = "TEXT NOT NULL",

@@ -249,6 +249,8 @@ CREATE TABLE consequence_interpretations(
   conclusions TEXT NOT NULL,
   abi TEXT,
   environment TEXT,
+  definedness TEXT CHECK(definedness IN ('total','partial')),
+  env TEXT,
   doc TEXT,
   module TEXT NOT NULL,
   origin TEXT NOT NULL,
@@ -265,6 +267,7 @@ CREATE TABLE consequence_systems(
   witness TEXT,
   value TEXT,
   interpretation TEXT,
+  env_term TEXT,
   ctx_kind TEXT CHECK(ctx_kind IN ('unit','list','finset','set','other')),
   ctx_elem TEXT,
   ctx_signed INTEGER,
@@ -497,6 +500,13 @@ INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.langu
 INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 1, 'L');
 INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 2, 'K');
 INSERT INTO language_shape_roles(shape, pos, role) VALUES('silmaril.shapes.language.subset_at', 3, 'x');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 0, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 1, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 2, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 3, 'type');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 4, 'X');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 5, 'I');
+INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.artifact_defined', 6, 'e');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 0, 'type');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 1, 'type');
 INSERT INTO consequence_shape_roles(shape, pos, role) VALUES('silmaril.shapes.consequence.complete_at', 2, 'S');

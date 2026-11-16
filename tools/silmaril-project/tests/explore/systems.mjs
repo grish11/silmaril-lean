@@ -54,7 +54,7 @@ try {
     `multi.lit: signed lists on both sides, a raw sequent (${byName[S + "multi.lit"][3]})`);
   // the view buttons: counts and filters from the typed shape and certifications
   const views = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("#systems-views a")].map((a) => [a.dataset.view, +a.querySelector("span").textContent])));
-  check(views.all === list.length && views.acceptor === 2 && views.rejector === 1 && views.signed === 2 && views["raw-sequent"] === 8 && views.gentzen === 1 && views.artifact === 4,
+  check(views.all === list.length && views.acceptor === 6 && views.rejector === 1 && views.signed === 2 && views.partial === 4 && views["raw-sequent"] === 8 && views.gentzen === 1 && views.artifact === 8,
     `view counts ${JSON.stringify(views)}`);
   await open("/systems/?view=gentzen");
   const gv = await rows("#systems-table");
@@ -175,6 +175,22 @@ try {
   const sec = await p.evaluate(() => { const e = document.querySelector("section[data-section='consequence-systems']"); return e ? e.textContent : ""; });
   check(sec.includes(S + "wasm.member_check") && !sec.includes(S + "wasm.empty_check") && /check_rel/.test(sec), `the artifact page of ${cid.slice(0, 16)}… lists its system`);
   await shot("artifact-systems");
+
+  // partial interpretations: defined, defined-and-empty, undefined; certificates, never inferred
+  await open("/systems/?view=partial");
+  check((await rows("#systems-table")).length === 4, "the partial view lists the four systems read through a partial interpretation");
+  const defn = async (n) => { await open("/system/" + encodeURIComponent(S + "partial." + n));
+    return p.evaluate(() => { const dt = [...document.querySelectorAll("#main dl dt")].find((d) => d.textContent === "definedness"); return dt ? dt.nextElementSibling.textContent : ""; }); };
+  const d6 = await defn("hello_6"), d100 = await defn("hello_100"), d2 = await defn("hello_2");
+  check(/defined \(certified\)/.test(d6) && !/empty/.test(d6), `hello_6: defined (${d6.slice(0, 80)})`);
+  check(/defined, empty \(certified with/.test(d100), `hello_100: defined and empty, certified (${d100.slice(0, 90)})`);
+  check(/undefined: the bytes decode/.test(d2) && !/defined, empty/.test(d2), `hello_2: undefined, never shown as defined-empty (${d2.slice(0, 90)})`);
+  check(await p.evaluate(() => /Partial\.two/.test(document.querySelector("#main dl").textContent)), "the configuration is shown");
+  await open("/interpretations");
+  const pi = await p.evaluate(() => [...document.querySelectorAll("#interpretations-table tbody tr[data-kind]")].map((tr) => [tr.children[0].firstChild.textContent, tr.children[3].textContent, tr.children[6].textContent]));
+  const pe = pi.find((r) => r[0] === "selftest.prefix_exact") || [];
+  check(/^\(e : ℕ\) → Option \(System \(PUnit\.\{1\}\) \(List UInt8\)\)$/.test(pe[1] || "") && /partial, at a configuration e : ℕ/.test(pe[2] || ""), `prefix_exact: partial over ℕ (${pe})`);
+  check((pi.find((r) => r[0] === "wasm.core.check_rel") || [])[2] === "total", "check_rel stays total");
 
   check(errors.length === 0, `no page error${errors.length ? ": " + errors.join("; ") : ""}`);
 } finally {
