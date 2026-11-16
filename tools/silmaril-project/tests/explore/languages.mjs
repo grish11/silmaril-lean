@@ -36,6 +36,8 @@ try {
   check(nav.includes("#/languages"), "the Languages view is in the navigation");
   const rows = await p.evaluate(() => document.querySelectorAll("#languages-table tbody tr").length);
   check(rows > 0, `#/languages lists ${rows} languages`);
+  const heads = await p.evaluate(() => [...document.querySelectorAll("#languages-table thead th")].map((t) => t.textContent));
+  check(!heads.includes("operands"), `the index has no operands column: ${heads.join(", ")}`);
   await shot("languages.png");
 
   await go("#/languages/?domain=nat.additive");
@@ -51,6 +53,14 @@ try {
   check(await p.evaluate(() => /Silmaril\.Formats\.Cbor\.Drisl\.Profile\.atprotoCoreExactCid/.test(document.querySelector("#main pre.code").textContent)),
     "the identity names the exact profile");
   await shot("language-atproto.png");
+  const hex = await p.evaluate(() => [...document.querySelectorAll("#language-problems tbody tr")].map((r) => r.children[1].textContent));
+  check(hex.some((t) => /^a2 61 61 01 61 62 82 f5 f6/.test(t) && t.includes(String.raw`b"\xa2aa\x01ab\x82\xf5\xf6" (display)`)),
+    "sentences are shown as hex and as an escaped display literal");
+
+  // an intentional negative example: refuted, as expected (the deployed l65 was marked "!")
+  await go("#/problem/formats.examples.ascii.l65");
+  const l65 = await p.evaluate(() => { const s = document.querySelector("#main h2 .st"); return s && { cls: s.className, code: s.dataset.code, title: s.title }; });
+  check(!!l65 && l65.code === "UNS" && !/st-bad|st-unmet/.test(l65.cls), `l65 is UNS as expected: ${l65 && l65.title}`);
 
   await go("#/language/silmaril.selftest.lang.wasm.accept");
   const w = await p.evaluate(() => document.querySelector("#main dl").textContent);

@@ -20,15 +20,29 @@
     bytes_member: { THM: "member", CSA: "not a member" },
   };
 
-  // The status of a problem as the shared neutral badge (ui.statusBadge): marked only when it
-  // fails unexpectedly or misses its expected status. A closed refutation is stored as UNS; for a
-  // closed statement it means false, i.e. CSA, which is what the examples expect. No answer is OPN
-  // (unknown), never false.
+  // The status of a problem as the shared neutral badge (ui.statusBadge), with the stored SZS
+  // code: marked only when it fails unexpectedly or misses its expected status. A closed
+  // refutation is stored as UNS (false); no answer is OPN (unknown), never false.
   function outcome(p) {
-    const summary = p.arity === 0 && p.summary === "UNS" ? "CSA" : (p.summary || "OPN");
-    return ui.statusBadge({ summary, verdict: p.verdict || "unknown", expect: p.expect || null,
-      deprecated: p.deprecated || null, finding: p.finding || null }) +
-      (summary !== p.summary && p.summary ? ` <span class="muted">(stored ${ui.esc(p.summary)})</span>` : "");
+    return ui.statusBadge({ summary: p.summary || "OPN", verdict: p.verdict || "unknown", expect: p.expect || null,
+      deprecated: p.deprecated || null, finding: p.finding || null });
+  }
+  // A sentence as recorded (the pretty-printed Lean term). A list of byte values is also shown as
+  // hex and as an escaped byte literal: printable ASCII as itself, every other byte as \xNN. The
+  // bytes are never decoded as text.
+  function sentence(term) {
+    if (term == null) return "";
+    const m = /^\[\s*((?:\d+\s*,\s*)*\d+)?\s*\]$/.exec(term);
+    const bs = m ? (m[1] ? m[1].split(",").map((x) => +x.trim()) : []) : null;
+    if (!bs || bs.some((b) => b > 255)) {
+      // Lean shortens long lists with `let`: the source literal is in the problem's title
+      return term.length > 80 ? `<span class="muted" title="${ui.esc(term)}">long term; the source literal is in the title</span>` : code(term);
+    }
+    const hex = bs.map((b) => b.toString(16).padStart(2, "0")).join(" ");
+    const lit = bs.map((b) => b === 0x22 ? '\\"' : b === 0x5c ? "\\\\" : b >= 0x20 && b < 0x7f ? String.fromCharCode(b)
+      : "\\x" + b.toString(16).padStart(2, "0")).join("");
+    return `<code title="${ui.esc(term)}">${ui.esc(hex || "(empty)")}</code><div class="muted" title="display syntax only (not Lean): printable ASCII as itself, other bytes as \\xNN; the Lean term is in the title above">` +
+      `<code>b"${ui.esc(lit)}"</code> (display)</div>`;
   }
   const depMark = '<span class="st st-dep" title="deprecated: kept, with its successors">deprecated</span>';
   function reading(p) {
@@ -64,7 +78,7 @@
       "(SELECT count(*) FROM language_problems lp JOIN problems pp ON pp.name = lp.problem WHERE pp.arity = 0 AND lp.role = 'L' AND lp.shape IN ('silmaril.shapes.language.member','silmaril.shapes.language.bytes_member') AND lp.summary = 'THM' AND lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = l.identity_hash)) AS accepted, " +
       "(SELECT count(*) FROM language_problems lp JOIN problems pp ON pp.name = lp.problem WHERE pp.arity = 0 AND lp.role = 'L' AND lp.shape IN ('silmaril.shapes.language.member','silmaril.shapes.language.bytes_member') AND lp.summary IN ('CSA','UNS') AND lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = l.identity_hash)) AS rejected, " +
       "(SELECT count(*) FROM language_problems lp JOIN problems pp ON pp.name = lp.problem WHERE pp.arity = 0 AND lp.role = 'L' AND lp.shape IN ('silmaril.shapes.language.member','silmaril.shapes.language.bytes_member') AND coalesce(lp.summary, 'OPN') NOT IN ('THM','CSA','UNS') AND lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = l.identity_hash)) AS unknown, " +
-      "(SELECT group_concat(operand, ', ') FROM (SELECT operand FROM language_operands o WHERE o.language = l.name ORDER BY pos)) AS operands " +
+      "l.decl " +
       "FROM languages l LEFT JOIN deprecations d ON d.name = l.name AND d.kind = 'language' " +
       (where.length ? "WHERE " + where.join(" AND ") + " " : "") + "ORDER BY l.name LIMIT " + (LIMIT + 1), params);
     const domains = await ctx.q("SELECT name, carrier, monoid, letters, doc FROM language_domains ORDER BY name LIMIT 200");
@@ -81,11 +95,10 @@ Membership, emptiness, inclusion and equality are undecidable in general: a ques
   <select name="deprecated">${opt("", f.dep, "deprecated too")}${opt("hide", f.dep, "hide deprecated")}${opt("only", f.dep, "only deprecated")}</select>
   <button>filter</button>
 </form>
-<div class="tablebox"><table id="languages-table"><thead><tr><th>language</th><th>title</th><th>domain</th><th>construction</th><th>operands</th><th>examples: in / out / unknown</th><th>problems</th><th>identity</th></tr></thead><tbody>`;
+<div class="tablebox"><table id="languages-table"><thead><tr><th>language</th><th>title</th><th>domain</th><th>construction</th><th>examples: in / out / unknown</th><th>problems</th><th>identity</th></tr></thead><tbody>`;
     for (const r of rows.slice(0, LIMIT)) {
       h += `<tr><td>${langLink(r.name)}${r.deprecated ? " " + depMark : ""}</td>` +
         `<td>${ui.esc(r.title || "")}</td><td>${ui.esc(r.domain)}</td><td>${ui.esc(opText(r))}</td>` +
-        `<td>${(r.operands || "").split(", ").filter(Boolean).map(langLink).join(", ")}</td>` +
         `<td>${r.accepted || r.rejected || r.unknown ? `${r.accepted} / ${r.rejected} / ${r.unknown}` : ""}</td><td>${r.problems || ""}</td><td><code title="${ui.esc(r.identity_hash)}">${ui.esc(r.identity_hash.slice(0, 12))}</code></td></tr>`;
     }
     h += `</tbody></table></div>`;
@@ -161,18 +174,19 @@ Equal sets built differently have different identities; their equality is a prob
       "SELECT lp.problem, lp.shape, lp.role, lp.expect, lp.title, lp.summary, lp.verdict, p.arity, " +
       (Explorer.tables().has("deprecated_problems") ? "(SELECT via_kind FROM deprecated_problems d WHERE d.problem = lp.problem) AS deprecated, " : "") +
       (Explorer.tables().has("findings") ? "(SELECT classification FROM findings f WHERE f.problem = lp.problem) AS finding, " : "") +
+      "(SELECT ia.term FROM instance_args ia JOIN language_shape_roles r ON r.shape = lp.shape AND r.pos = ia.pos AND r.role = 'x' WHERE ia.problem = lp.problem) AS sentence, " +
       "(SELECT group_concat(a.status || coalesce(': ' || a.witness, '') || ' by ' || a.decl, '; ') FROM answers a WHERE a.problem = lp.problem) AS answers " +
       "FROM language_problems lp JOIN problems p ON p.name = lp.problem " +
       "WHERE lp.language IN (SELECT m.name FROM languages m WHERE m.identity_hash = ?) ORDER BY p.arity, lp.shape, lp.problem LIMIT " + LIMIT, [l.identity_hash]);
     h += `<h3>Problems and examples</h3><p class="muted">Every standard language problem about this construction (under this name or another with the same identity).
-Closed membership problems are the examples: THM means the sentence is in the language, CSA that it is not, each by the Lean answer shown;
+Closed membership problems are the examples: THM: the sentence is in the language (true); UNS: it is not (false, refuted); each by the Lean answer shown;
 no answer means unknown, not false.</p>`;
     if (!ps.length) {
       h += `<p class="muted">No standard language problem names this language.</p>`;
     } else {
-      h += `<div class="tablebox"><table id="language-problems"><thead><tr><th>problem</th><th>question</th><th>as</th><th>outcome</th><th>reading</th><th>answers (witness)</th></tr></thead><tbody>` +
+      h += `<div class="tablebox"><table id="language-problems"><thead><tr><th>problem</th><th>sentence</th><th>question</th><th>as</th><th>outcome</th><th>reading</th><th>answers (witness)</th></tr></thead><tbody>` +
         ps.map((p) => `<tr><td>${ui.link("problem", p.problem)}<div class="muted">${ui.esc(p.title || "")}</div></td>` +
-          `<td>${ui.esc(SHAPE(p.shape))}${p.arity === 0 ? " (closed)" : ""}</td><td>${ui.esc(p.role)}</td><td>${outcome(p)}</td>` +
+          `<td>${sentence(p.sentence)}</td><td>${ui.esc(SHAPE(p.shape))}${p.arity === 0 ? " (closed)" : ""}</td><td>${ui.esc(p.role)}</td><td>${outcome(p)}</td>` +
           `<td>${ui.esc(reading(p))}</td><td>${ui.esc(p.answers || "none")}</td></tr>`).join("") + `</tbody></table></div>`;
     }
     return h;

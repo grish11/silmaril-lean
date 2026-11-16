@@ -205,7 +205,7 @@ silmaril instance silmaril.selftest.languages.json_has_one (expect := THM)
 public theorem json_has_one : Member jsonRfc8259 [0x31] :=
   JsonBytes.Decide.textB_iff.mp (by decide)
 
-silmaril instance silmaril.selftest.languages.cbor_has_break (expect := CSA)
+silmaril instance silmaril.selftest.languages.cbor_has_break (expect := UNS)
   (title := "0xFF alone is a CBOR data item (fails: a break is not an item)") :=
   silmaril.shapes.language.member (L := ProjectSelfTest.Languages.cborWellFormed) (x := [0xFF])
 
@@ -263,7 +263,7 @@ silmaril instance silmaril.selftest.languages.evens_has_6 (expect := THM)
 public theorem evens_has_6 : Member silmaril.selftest.lang.evens (Multiplicative.ofAdd 6) :=
   ⟨[Multiplicative.ofAdd 2, Multiplicative.ofAdd 2, Multiplicative.ofAdd 2], by simp, rfl⟩
 
-silmaril instance silmaril.selftest.languages.evens_has_7 (expect := CSA)
+silmaril instance silmaril.selftest.languages.evens_has_7 (expect := UNS)
   (title := "7 ∈ 2* (fails)") := silmaril.shapes.language.member
   (L := silmaril.selftest.lang.evens) (x := Multiplicative.ofAdd 7)
 
