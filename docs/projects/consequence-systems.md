@@ -110,7 +110,11 @@ lists as contexts, and the rules `p ⇒ q`, `q ⇒ r`:
 `sil project sqlite` writes `consequence_systems` (name, op, decl, term, contexts,
 conclusions, witness, provenance), `consequence_operands`, `consequence_shape_roles` and the
 view `consequence_problems` (each instance of a consequence shape with the systems its
-arguments name, role `S` or `T`, expected status, summary and verdict). The explorer's
+arguments name, role `S` or `T`, expected status, summary and verdict). Systems are matched by
+`term`, the defining constant exactly as Lean prints an instance argument, not by `decl`: a
+generated system `silmaril.x` prints as `«silmaril».x` (`silmaril` is a keyword), and the
+self-test's generated systems are such names. A database written by an older `sil project` has
+none of these tables; the explorer then shows a notice instead of the Systems page. The explorer's
 **Systems** page lists the systems and what each status of each shape means; a system's page
 shows its definition (with a source link when the page has sources), its construction and
 every problem about it with the outcome, the reading for the arguments left free, and the

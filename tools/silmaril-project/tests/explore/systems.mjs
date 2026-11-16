@@ -58,6 +58,9 @@ try {
   const dl = await p.evaluate(() => document.querySelector("#main dl").textContent);
   check(/erasure of a witness system/.test(dl) && /ProjectSelfTest\.Consequence\.Deriv/.test(dl) && /used by/.test(dl), "definition, construction, witness system, used by");
   const ps = await rows("#system-problems");
+  // derivable is generated (silmaril.selftest.consequence.derivable prints «silmaril».…): its
+  // problems are found through the escaped `term`, not through `decl`
+  check(ps.length >= 12, `a generated system with a keyword-escaped name has its problems (${ps.length})`);
   const by = Object.fromEntries(ps.map((r) => [r[0], r]));
   const row = (n) => by[S + n] || [];
   check(/THM/.test(row("p_derives_r")[4]) && /holds in/.test(row("p_derives_r")[5]), "p ⊢ r: THM, holds");
