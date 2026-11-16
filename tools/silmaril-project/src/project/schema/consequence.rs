@@ -10,7 +10,7 @@
 use super::*;
 
 /// The operations of `consequence_system` (Lean's `consequenceOps`).
-pub const CONSEQUENCE_OPS: [&str; 5] = ["decl", "union", "inter", "diff", "erase"];
+pub const CONSEQUENCE_OPS: [&str; 6] = ["decl", "union", "inter", "diff", "erase", "artifact"];
 
 /// The standard consequence shapes: `(problem, role of each argument position)`. The roles
 /// name what an instance argument is: a type (`type`), the system asked about (`S`), the
@@ -58,12 +58,14 @@ table! {
     ConsequenceSystem = "consequence_systems", key("sid"), unique("name") {
         #[serde(skip)] sid: String = "TEXT NOT NULL",
         name: String = "TEXT NOT NULL",
-        op: String = "TEXT NOT NULL CHECK(op IN ('decl','union','inter','diff','erase'))",
+        op: String = "TEXT NOT NULL CHECK(op IN ('decl','union','inter','diff','erase','artifact'))",
         decl: String = "TEXT NOT NULL",
         term: String = "TEXT NOT NULL",
         contexts: String = "TEXT NOT NULL",
         conclusions: String = "TEXT NOT NULL",
         witness: Option<String> = "TEXT",
+        value: Option<String> = "TEXT",
+        interpretation: Option<String> = "TEXT",
         title: Option<String> = "TEXT",
         doc: Option<String> = "TEXT",
         source: Option<String> = "TEXT",
@@ -75,6 +77,27 @@ table! {
         #[serde(default)] args: Vec<String>,
         #[serde(rename = "sid")] sid_override: Option<String>,
     }
+}
+
+table! {
+    /// `silmaril consequence_interpretation NAME := I (abi := A) (environment := E)`, with
+    /// `I : V → System Ax C`; Lean checks that `A` and `E` occur in `I`'s definition and fills
+    /// `input` (`V`), `contexts` and `conclusions`. A system `op := artifact` reads a registered
+    /// value through one.
+    ConsequenceInterpretation = "consequence_interpretations", key("sid"), unique("name") {
+        #[serde(skip)] sid: String = "TEXT NOT NULL",
+        name: String = "TEXT NOT NULL",
+        decl: String = "TEXT NOT NULL",
+        input: String = "TEXT NOT NULL",
+        contexts: String = "TEXT NOT NULL",
+        conclusions: String = "TEXT NOT NULL",
+        abi: Option<String> = "TEXT",
+        environment: Option<String> = "TEXT",
+        doc: Option<String> = "TEXT",
+        module: String = "TEXT NOT NULL",
+        #[serde(skip)] origin: String = "TEXT NOT NULL",
+    }
+    extra { #[serde(rename = "sid")] sid_override: Option<String>, }
 }
 
 table! {

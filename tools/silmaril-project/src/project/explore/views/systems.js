@@ -127,7 +127,7 @@ refutation that is refuted counts as met.</span></p>`;
   async function listPage(arg, ctx) {
     if (!has()) return `<h2>Consequence systems</h2>${missing}`;
     const rows = await ctx.q(
-      "SELECT c.name, c.title, c.op, c.decl, c.witness, c.contexts, c.conclusions, c.source, " +
+      "SELECT c.*, " +
       "(SELECT count(*) FROM consequence_operands o WHERE o.system = c.name) AS n_operands " +
       "FROM consequence_systems c ORDER BY c.name LIMIT " + (LIMIT + 1));
     // the problems of each system, once each (a problem naming it as S and as T counts once)
@@ -146,6 +146,7 @@ with Lean answers; a problem with no answer is <b>unknown</b>, not false.</p>
 <th title="closed judgments: true / false / unknown">judgments</th><th title="problems with free arguments">questions</th><th title="expected statuses met / problems (unknown or unset is not met)">expectations</th></tr></thead><tbody>`;
     for (const r of rows.slice(0, LIMIT)) {
       const how = r.op === "erase" ? `erase of ${term(r.witness)}` : r.op === "decl" ? term(r.decl)
+        : r.op === "artifact" ? `artifact ${ui.link("value", r.value)} read by ${ui.esc(r.interpretation)}`
         : `${ui.esc(r.op)} of ${r.n_operands} systems`;
       const ps = probs.get(r.name) || [];
       const cl = ps.filter((p) => p.arity === 0);
@@ -188,13 +189,15 @@ met, which is not the same as true. Constructions name their operands on the sys
     if (c.title) h += `<p><b>${ui.esc(c.title)}</b></p>`;
     if (c.doc) h += `<p>${ui.esc(c.doc)}</p>`;
     const OPS = { decl: "a Lean definition", union: "union (⊔): Γ ⊢ φ in some operand", inter: "intersection (⊓): Γ ⊢ φ in every operand",
-      diff: "difference (\\): Γ ⊢ φ in the first operand and not in the second", erase: "erasure of a witness system: Γ ⊢ φ iff some derivation exists (Nonempty)" };
+      diff: "difference (\\): Γ ⊢ φ in the first operand and not in the second", erase: "erasure of a witness system: Γ ⊢ φ iff some derivation exists (Nonempty)",
+      artifact: "an interpreted artifact: Γ ⊢ φ iff the artifact's CID-pinned bytes decode to a value v with I v Γ φ" };
     const src = typeof sourceLink === "function" ? sourceLink(c.module, c.decl) : "";
     const rows = [
       ["relates", `contexts ${term(c.contexts)} to conclusions ${term(c.conclusions)}`],
       ["construction", ui.esc(OPS[c.op] || c.op)],
       ["Lean definition", code(c.decl) + ` <span class="muted">in ${ui.esc(c.module)}</span>${src ? " " + src : ""}`],
     ];
+    if (c.op === "artifact" && c.value) rows.push(...await artifactRows(c, ctx));
     if (c.witness) rows.push(["witness system", term(c.witness) + ` <span class="muted">(a type of derivations of each Γ ⊢ φ)</span>`]);
     if (operands.length) rows.push(["operands", operands.map((o) => sysLink(o.operand)).join(", ")]);
     if (usedBy.length) rows.push(["used by", usedBy.map((u) => sysLink(u.system)).join(", ")]);
@@ -260,6 +263,50 @@ them, SAT for some, UNS for none, CSA fails for some, NOC (stored <code>continge
     }
     return h;
   }
+
+  // The artifact of an `op := artifact` system: the value and its CID-pinned bytes, the
+  // interpretation (definition, ABI, environment), and the decode evidence (the value's `.is` and
+  // `.parses` problems, when registered). Without a decode certificate the system is ⊥ only
+  // because nothing decodes; that is never shown as a verified empty checker.
+  async function artifactRows(c, ctx) {
+    const out = [];
+    const src = await ctx.q("SELECT pos, cid, format FROM value_sources WHERE value = ? ORDER BY pos LIMIT 10", [c.value]);
+    out.push(["artifact", ui.link("value", c.value) + src.map((s) => ` — bytes ${ui.link("artifact", s.cid, s.cid.slice(0, 20) + "…")} read as ${ui.esc(s.format)}`).join("")]);
+    if (Explorer.tables().has("consequence_interpretations")) {
+      const [i] = await ctx.q("SELECT decl, input, abi, environment, doc FROM consequence_interpretations WHERE name = ? LIMIT 1", [c.interpretation]);
+      out.push(["interpretation", ui.esc(c.interpretation) + (i ? `: ${term(i.decl)} reading ${term(i.input)}, ABI ${term(i.abi) || "none declared"}, environment ${term(i.environment) || "none declared"}` +
+        (i.doc ? `<div class="muted">${ui.esc(i.doc)}</div>` : "") : "")]);
+    }
+    const ev = await ctx.q("SELECT p.name, s.summary, s.verdict, p.arity, p.expect FROM problems p LEFT JOIN summary s ON s.problem = p.name " +
+      "WHERE p.name IN (?, ?) ORDER BY p.name LIMIT 2", [c.value + ".is", c.value + ".parses"]);
+    out.push(["decode evidence", ev.length
+      ? ev.map((e) => `${ui.link("problem", e.name)} ${ui.statusBadge({ summary: e.summary || "OPN", verdict: e.verdict || "unknown", arity: e.arity, expect: e.expect || null })}`).join(" · ") +
+        `<div class="muted">The <code>.is</code> certificate says the bytes decode to the Lean module the theorems are about. Without it, a system
+that derives nothing may only mean that the bytes do not decode.</div>`
+      : `<span class="muted">none registered: the bytes are not tied to a Lean module, and an empty system may only mean that they do not decode</span>`]);
+    return out;
+  }
+
+  // On an artifact's (or Wasm module's) page: the consequence systems its bytes denote.
+  async function artifactSection(subject, ctx) {
+    const t = Explorer.tables();
+    if (!subject.cid || !t.has("consequence_systems") || !t.has("consequence_interpretations")) return "";
+    const rows = await ctx.q(
+      "SELECT c.name, c.title, c.interpretation, i.decl AS definition, i.abi, i.environment, vs.value, " +
+      "(SELECT count(DISTINCT cp.problem) FROM consequence_problems cp WHERE cp.system = c.name) AS problems " +
+      "FROM value_sources vs JOIN consequence_systems c ON c.value = vs.value AND c.op = 'artifact' " +
+      "LEFT JOIN consequence_interpretations i ON i.name = c.interpretation " +
+      "WHERE vs.cid = ? ORDER BY c.name LIMIT " + LIMIT, [subject.cid]);
+    if (!rows.length) return "";
+    return `<p class="muted">The consequence systems these bytes denote under a registered interpretation (Γ ⊢ φ; semantics, ABI and
+environment as Lean definitions). Problems without a Lean answer are unknown. Nothing on this page runs the module.</p>` +
+      await ui.table(rows, ["name", "title", "value", "interpretation", "definition", "abi", "environment", "problems"], {
+        render: { name: (r) => sysLink(r.name), value: (r) => ui.link("value", r.value), definition: (r) => term(r.definition),
+          abi: (r) => term(r.abi) || '<span class="muted">none declared</span>', environment: (r) => term(r.environment) || '<span class="muted">none declared</span>' },
+        label: { name: "system" } });
+  }
+  Explorer.registerSection({ id: "consequence-systems", title: "Consequence systems", on: ["artifact", "wasm-module"], order: 55,
+    render: artifactSection });
 
   Explorer.registerView({ id: "systems", title: "Systems", nav: 66, render: listPage });
   Explorer.registerView({ id: "system", title: "System", tab: "systems", render: detailPage });

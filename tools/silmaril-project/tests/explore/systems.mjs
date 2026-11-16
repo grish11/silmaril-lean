@@ -123,6 +123,32 @@ try {
   const mo = await rows("#system-problems");
   check(mo.some((r) => r[0] === S + "multi.right_ext_complete" && r[2] === "T" && /CSA/.test(r[4])), "multi: rightExt is not complete for it (as T)");
 
+  // registered Wasm artifacts as systems (op := artifact, wasm.core.check_rel)
+  await open("/systems");
+  const wl = await rows("#systems-table");
+  const wm = wl.find((r) => r[0] === S + "wasm.member_check") || [];
+  check(/^artifact silmaril\.selftest\.wasm_acceptors\.member_check read by wasm\.core\.check_rel$/.test(wm[2] || ""), `member_check.wasm is listed as an artifact system (${wm[2]})`);
+  await open("/system/" + encodeURIComponent(S + "wasm.member_check"));
+  const wd = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("#main dl dt")].map((dt) => [dt.textContent, dt.nextElementSibling.innerHTML])));
+  check(/#\/artifact\/bafk/.test(wd.artifact || "") && /read as wasm/.test(wd.artifact || ""), "the artifact row links the CID-pinned bytes and their format");
+  check(/checkRel/.test(wd.interpretation || "") && /checkExport/.test(wd.interpretation || "") && /allHosts/.test(wd.interpretation || ""), "the interpretation row: definition, ABI, environment");
+  check(/member_check\.is/.test(wd["decode evidence"] || "") && /data-code="THM"/.test(wd["decode evidence"] || ""), "the decode evidence: the value's .is certificate, proved");
+  const wj = await rows("#system-judgments"), wq = await rows("#system-problems");
+  check(wj.some((r) => r[0] === S + "wasm.member_check_12_2" && /THM/.test(r[4])) && wj.some((r) => r[0] === S + "wasm.member_check_1_2" && /UNS/.test(r[4])),
+    "member_check: 1, 2 ⊢ 2 true, 1 ⊢ 2 false");
+  check(["sound_lean", "complete_lean", "sound_mem", "complete_mem"].every((n) => wq.some((r) => r[0] === S + "wasm.member_check_" + n && /THM/.test(r[4]))),
+    "member_check equals the Lean module's relation and, below the length bound, membership");
+  const cid = await p.evaluate(() => decodeURIComponent((document.querySelector("#main dl a[href^='#/artifact/']") || { getAttribute: () => "" }).getAttribute("href").slice(11)));
+  await open("/system/" + encodeURIComponent(S + "wasm.empty_check"));
+  check((await rows("#system-problems")).some((r) => r[0] === S + "wasm.empty_check_empty" && /UNS/.test(r[4])) &&
+    await p.evaluate(() => /member_check|empty_check\.is/.test(document.querySelector("#main dl").textContent)), "empty_check: derives nothing, with its decode certificate shown");
+  // the reverse section on the artifact's page
+  await open("/artifact/" + encodeURIComponent(cid));
+  await p.waitForSelector("section[data-section='consequence-systems']", { timeout: 30000 }).catch(() => {});
+  const sec = await p.evaluate(() => { const e = document.querySelector("section[data-section='consequence-systems']"); return e ? e.textContent : ""; });
+  check(sec.includes(S + "wasm.member_check") && !sec.includes(S + "wasm.empty_check") && /check_rel/.test(sec), `the artifact page of ${cid.slice(0, 16)}… lists its system`);
+  await shot("artifact-systems");
+
   check(errors.length === 0, `no page error${errors.length ? ": " + errors.join("; ") : ""}`);
 } finally {
   await b.close();

@@ -354,8 +354,18 @@ fn consequence_refs<'a>(c: &'a ConsequenceSystem, at: &str, refs: &mut Refs<'a>,
         "erase" if c.witness.is_none() => o.error(at, "op erase needs `witness`"),
         "union" | "inter" if n < 2 => o.error(at, format!("op {} needs at least two args", c.op)),
         "diff" if n != 2 => o.error(at, "op diff needs exactly two args"),
+        "artifact" if n > 0 => o.error(at, "op artifact takes no args"),
+        "artifact" if c.value.is_none() || c.interpretation.is_none() => {
+            o.error(at, "op artifact needs `value` and `interpretation`")
+        }
         _ => {}
     }
+    refs.extend(c.value.iter().map(|v| ("value", "value", v.clone())));
+    refs.extend(
+        c.interpretation
+            .iter()
+            .map(|i| ("interpretation", "consequence_interpretation", i.clone())),
+    );
     // Lean checked that the operands' context and conclusion types are definitionally equal
     // to the system's; the printed types here are display text, not compared.
     refs.extend(

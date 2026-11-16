@@ -1,7 +1,9 @@
 module
 
 public import Silmaril.Project.Registry.Defs
+public import Silmaril.Project.Registry.Language.Defs
 public import Silmaril.Logic.Consequence.Defs
+public import Silmaril.Project.ConsequenceSystems.Defs
 
 /-!
 # Silmaril projects: consequence systems (layer 5)
@@ -18,6 +20,8 @@ is implicit** — a system is reflexive, monotone or closed under cut only if a 
 | `consequence_system N (op := union) (args := [A, B, …])` | two or more operands, over the same `Ax` and `C` (definitionally) | `decl := A ⊔ B ⊔ …` |
 | `consequence_system N (op := inter) (args := [A, B, …])` | as for `union` | `decl := A ⊓ B ⊓ …` |
 | `consequence_system N (op := diff) (args := [A, B])` | exactly two operands | `decl := A \ B` |
+| `consequence_interpretation N := I (abi := A) (environment := E)` | `I : V → System Ax C`; `A` and `E`, when given, occur in `I`'s definition | `input` (`V`), `contexts`, `conclusions` |
+| `consequence_system N (op := artifact) (value := X) (interpretation := I)` | `X` a registered `Value V`, `I` a registered `consequence_interpretation` reading `V` | `decl := ConsequenceSystems.artifactSystem X I` |
 | `consequence_system N := W (op := erase)` | `W : Ax → C → Type` (a `WSystem`: a type of derivations of each `Γ ⊢ φ`) | `witness := W`, `decl := WSystem.erase W` (`Nonempty (W Γ φ)`) |
 
 `term` is the defining constant as the arguments of an instance print it, so that the database
@@ -30,6 +34,13 @@ with `op := decl`. `diff` is binary, never an n-ary fold.
 
 Operands are compatible when their context types and their conclusion types are
 *definitionally equal* in Lean (checked with `isDefEq`, not by comparing printed names).
+
+**Artifacts.** `op := artifact` mirrors `language … (op := artifact)`: the system is
+`artifactSystem X I`, `Γ ⊢ φ` iff the CID-pinned bytes of `X` decode to some `v` with
+`I v Γ φ`. A decode failure gives `⊥`, which is not a verified empty checker; the value's `.is`
+certificate is what ties the system to a Lean module (`artifactSystem_of_is`). That the ABI and
+environment occur in `I`'s definition is a sanity check of the metadata, not a proof that the
+definition models execution.
 
 The fields `title`, `doc` and `source` (a citation key of `references.bib`, or a section of a
 standard) are kept as written.
@@ -48,7 +59,7 @@ namespace Silmaril.Project
 open Lean Meta Elab Command
 
 /-- The operations of `consequence_system`. -/
-def consequenceOps : List String := ["decl", "union", "inter", "diff", "erase"]
+def consequenceOps : List String := ["decl", "union", "inter", "diff", "erase", "artifact"]
 
 /-- `(Ax, C)` if `ty` is `Ax → C → s` (up to unfolding) with `s` the sort `Prop`
 (`wantType := false`) or `Type` (`wantType := true`), and `C`, `s` not depending on the
@@ -99,6 +110,28 @@ def addConsequenceDef (n : Name) (value : Expr) : TermElabM Unit := do
     (.regular (getMaxHeight (← getEnv) value + 1)))) (forceExpose := true)
   addDeclarationRangesFromSyntax n (← getRef)
 
+/-- `consequence_interpretation N := I (abi := A) (environment := E)`, `I : V → System Ax C`. -/
+@[silmaril_kind consequence_interpretation] def consequenceInterpretationHandler : Handler where
+  run? := some fun kind name? fs => liftTermElabM do
+    let name ← needName kind name?
+    let d ← fs.const kind "decl"
+    unless (← getConstInfo d).levelParams.isEmpty do
+      throwError "silmaril {kind}: {d} has universe parameters; register a universe-monomorphic interpretation"
+    let ty ← whnf (← constType d)
+    let .forallE _ V body _ := ty
+      | throwError "silmaril {kind}: {d} has type{indentExpr ty}\nbut an interpretation is `V → System Ax C`"
+    let some (Ax, C) ← (if body.hasLooseBVars then pure none else consequenceTypes? body false)
+      | throwError "silmaril {kind}: {d} has type{indentExpr ty}\nbut an interpretation is `V → System Ax C`"
+    let used := (← visibleValue kind d).getUsedConstants
+    for key in ["abi", "environment"] do
+      if let some (_, c) := fs.consts.find? (·.1 == key) then
+        unless used.contains c do
+          throwError "silmaril {kind}: the {key} {c} does not occur in the definition of {d}; \
+            the interpretation must be defined from it"
+    let fs ← fs.push kind "input" (.str (← ppOneLine V))
+    let fs ← fs.push kind "contexts" (.str (← ppOneLine Ax))
+    return #[(name, ← fs.push kind "conclusions" (.str (← ppOneLine C)))]
+
 /-- `consequence_system N := S`, or a construction (`op := union | inter | diff | erase`). -/
 @[silmaril_kind consequence_system] def consequenceSystemHandler : Handler where
   run? := some fun kind name? fs => do
@@ -137,6 +170,33 @@ def addConsequenceDef (n : Name) (value : Expr) : TermElabM Unit := do
           [Level.zero, Level.zero, Level.zero]) Ax C (mkConst W))
         fs := fs.erase "decl"
         fs ← fs.push kind "witness" (.str W.toString)
+        fs ← fs.push kind "decl" (.str decl.toString)
+        pure (decl, Ax, C)
+      | "artifact" =>
+        unless args.isEmpty do throwError "silmaril {kind}: op `artifact` takes no `args`"
+        if (fs.get? "decl").isSome then throwError "silmaril {kind}: op `artifact` generates `decl`; do not give it"
+        let xname ← fs.str kind "value"
+        let xr ← needRecord kind "value" xname
+        let some xd := xr.str? "decl" | throwError "silmaril {kind}: value {xname} has no `decl`"
+        let xty ← whnf (← constType xd.toName)
+        unless xty.isAppOfArity ``Silmaril.Project.Value 1 do
+          throwError "silmaril {kind}: {xd} is not a `Value V`"
+        let V := xty.getArg! 0
+        let iname ← fs.str kind "interpretation"
+        let ir ← needRecord kind "consequence_interpretation" iname
+        let some id := ir.str? "decl"
+          | throwError "silmaril {kind}: interpretation {iname} has no `decl`"
+        let I := mkConst id.toName
+        let .forallE _ V' body _ ← whnf (← inferType I)
+          | throwError "silmaril {kind}: bad interpretation {iname}"
+        unless ← isDefEq V V' do
+          throwError "silmaril {kind}: value {xname} reads{indentExpr V}\nbut interpretation \
+            {iname} interprets{indentExpr V'}"
+        let some (Ax, C) ← consequenceTypes? body false
+          | throwError "silmaril {kind}: bad interpretation {iname}"
+        if (← getEnv).contains decl then throwError "silmaril {kind}: {decl} is already declared"
+        addConsequenceDef decl (mkAppN (mkConst ``Silmaril.Project.ConsequenceSystems.artifactSystem)
+          #[V, Ax, C, mkConst xd.toName, I])
         fs ← fs.push kind "decl" (.str decl.toString)
         pure (decl, Ax, C)
       | _ => -- union, inter, diff

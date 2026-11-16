@@ -51,6 +51,7 @@ silmaril consequence_system my.gap (op := diff) (args := [my.entails, my.derivab
 | `erase` | `decl := W` (`W : Ax → C → Type`) | `Silmaril.Consequence.WSystem.erase W`; `witness := W` is kept |
 | `union`, `inter` | `args := [A, B, …]`, at least two | `A ⊔ B ⊔ …`, `A ⊓ B ⊓ …` (Mathlib's pointwise lattice) |
 | `diff` | `args := [A, B]`, exactly two | `A \ B` |
+| `artifact` | `value := X`, `interpretation := I` | `ConsequenceSystems.artifactSystem X I`: `Γ ⊢ φ` iff the CID-pinned bytes of `X` decode to `v` with `I v Γ φ` |
 
 The operands of a construction must have definitionally equal context types and conclusion
 types (Lean checks this with `isDefEq`; the printed `contexts` and `conclusions` columns are
@@ -58,6 +59,44 @@ for reading only). There is no nullary union or intersection: register the empty
 system with `op := decl`. Lean fills `decl`, `contexts`, `conclusions` and `term` (the defining
 constant as instance arguments print it, which is how the database relates problems to
 systems). `title`, `doc` and `source` (a `references.bib` key) are kept as written.
+
+## Systems of registered artifacts
+
+`op := artifact` mirrors `language … (op := artifact)`. An interpretation is its own record:
+
+```lean
+silmaril consequence_interpretation wasm.core.check_rel :=
+  Silmaril.Project.ConsequenceSystems.WasmExport.checkRel
+  (abi := Silmaril.Project.Languages.WasmExport.checkExport)
+  (environment := Silmaril.Project.Languages.WasmExport.allHosts)
+silmaril consequence_system my.checker (op := artifact)
+  (value := my.checker_value) (interpretation := wasm.core.check_rel)
+```
+
+`I : V → System Ax C` reads the value's decoded type `V` (Lean checks it against the value's
+type); the ABI and environment, when given, must occur in `I`'s definition — a check of the
+metadata, not a proof that `I` models execution. `wasm.core.check_rel m` is
+`as ⊢ c` iff some run of the export `check(ptr: i32, len: i32) -> i32` answers `1` on the bytes
+`c :: as` written into memory 0 (`Profile.spec`, every Core host), over the export semantics
+`Silmaril.Wasm.Game.Accept.Export`.
+
+**Decode failure is not an empty checker.** When the bytes do not decode, `artifactSystem X I`
+is `⊥` only because there is nothing to interpret. The value's `.is` problem — a kernel-checked
+certificate that the bytes decode to a given Lean module — is what ties the system to the
+module the theorems are about: `X.Is v → artifactSystem X I = I v` (`artifactSystem_of_is`).
+The system's page shows that certificate as **decode evidence** next to the artifact (CID,
+format) and the interpretation (definition, ABI, environment); an artifact's page lists the
+systems its bytes denote.
+
+`examples/project/ProjectSelfTest/Consequence/Wasm.lean` registers the checkers of
+`ProjectSelfTest.WasmAcceptors`:
+
+| system | problems (all proved) |
+| --- | --- |
+| `wasm.member_check` (`member_check.wasm`, 108 bytes) | equal to `MemberCheck.accepted Profile.spec allHosts` (sound and complete, by the `.is` certificate); equal to membership `c ∈ as` **for `as.length + 1 < 2 ^ 32`** (the export ABI's bound), both directions for a nonempty host set; `1, 2 ⊢ 2` true, `1 ⊢ 2` false |
+| `wasm.empty_check` (`empty_check.wasm`, 45 bytes) | derives nothing, for every host set; its bytes decode (`.is`), so this is a verified checker that accepts nothing |
+
+Statements and assumptions are bytes (`UInt8`); no component wraps either module.
 
 ## The standard problems
 
@@ -158,10 +197,10 @@ node tools/silmaril-project/tests/explore/systems.mjs SITE_DIR [SHOTS_DIR]
 | Checkers and SZS protocols | [consequence-protocols.md](consequence-protocols.md) | on main |
 | Registry and explorer | this page: `consequence_system`, `silmaril.shapes.consequence.*`, tables, the Systems page, fixtures | this page |
 
-Next fixtures register what the other tracks prove, with their theorems as answers: the
-multiple-conclusion `litMulti` judgements (`Silmaril.Logic.Consequence.Multi`, a
-`MultiSystem` is a `System` over lists, so no new command is needed). A Wasm-backed system
-appears here only once its bytes are a registered artifact with a registered interpretation.
+Fixtures register what the other tracks prove, with their theorems as answers: Gentzen
+literal sequents, the multiple-conclusion `litMulti` judgements, and the registered Wasm
+checkers (`op := artifact`). A Wasm-backed system appears here only when its bytes are a
+registered artifact with a registered interpretation.
 
 ## Not yet here
 

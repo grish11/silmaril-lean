@@ -91,6 +91,7 @@ pub enum Record {
     Measure(Measure),
     LanguageInterpretation(LanguageInterpretation),
     Language(Box<Language>),
+    ConsequenceInterpretation(ConsequenceInterpretation),
     ConsequenceSystem(Box<ConsequenceSystem>),
     Predicate(Predicate),
     Answer(Answer),
@@ -136,6 +137,7 @@ record_kinds! {
     Measure = "measure", key name, object Some("measure");
     LanguageInterpretation = "language_interpretation", key name, object Some("language_interpretation");
     Language = "language", key name, object Some("language");
+    ConsequenceInterpretation = "consequence_interpretation", key name, object Some("consequence_interpretation");
     ConsequenceSystem = "consequence_system", key name, object Some("consequence_system");
     Predicate = "predicate", key name, object None;
     Answer = "answer", key decl, object None;
@@ -337,6 +339,11 @@ pub const INDEXES: &[(&str, &str, &[&str])] = &[
     ),
     ("consequence_systems_term", "consequence_systems", &["term"]),
     (
+        "consequence_systems_value",
+        "consequence_systems",
+        &["value"],
+    ),
+    (
         "consequence_operands_operand",
         "consequence_operands",
         &["operand"],
@@ -407,6 +414,7 @@ pub fn tables() -> Vec<TableInfo> {
         info::<Language>(),
         info::<LanguageOperand>(),
         info::<LanguageShapeRole>(),
+        info::<ConsequenceInterpretation>(),
         info::<ConsequenceSystem>(),
         info::<ConsequenceOperand>(),
         info::<ConsequenceShapeRole>(),

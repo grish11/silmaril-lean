@@ -240,15 +240,31 @@ CREATE TABLE language_shape_roles(
   role TEXT NOT NULL,
   PRIMARY KEY(shape, pos)
 );
+CREATE TABLE consequence_interpretations(
+  sid TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  decl TEXT NOT NULL,
+  input TEXT NOT NULL,
+  contexts TEXT NOT NULL,
+  conclusions TEXT NOT NULL,
+  abi TEXT,
+  environment TEXT,
+  doc TEXT,
+  module TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  UNIQUE(name)
+);
 CREATE TABLE consequence_systems(
   sid TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
-  op TEXT NOT NULL CHECK(op IN ('decl','union','inter','diff','erase')),
+  op TEXT NOT NULL CHECK(op IN ('decl','union','inter','diff','erase','artifact')),
   decl TEXT NOT NULL,
   term TEXT NOT NULL,
   contexts TEXT NOT NULL,
   conclusions TEXT NOT NULL,
   witness TEXT,
+  value TEXT,
+  interpretation TEXT,
   title TEXT,
   doc TEXT,
   source TEXT,
@@ -424,6 +440,7 @@ CREATE INDEX languages_term ON languages(term);
 CREATE INDEX languages_identity ON languages(identity_hash);
 CREATE INDEX language_operands_operand ON language_operands(operand);
 CREATE INDEX consequence_systems_term ON consequence_systems(term);
+CREATE INDEX consequence_systems_value ON consequence_systems(value);
 CREATE INDEX consequence_operands_operand ON consequence_operands(operand);
 CREATE INDEX instance_args_term ON instance_args(term);
 INSERT INTO meta(key, value) VALUES('dump_schema', 'silmaril.project-dump.v0.1');
