@@ -42,7 +42,7 @@ every bit-field (C17 7.19p3), wherever it lies; `bitOffsetOf`, the physical bit 
 any named member (a layout query, not a C expression); `paddingBits` and `paddingBytes`, the bits
 and the whole bytes no named member covers (unnamed bit-fields are padding, C17 6.7.2.1p12).
 
-`msX64` (below) is a data model, not a calling convention: Microsoft x64 argument passing is
+`msX64` (`Data.Layout.Defs`) is a data model, not a calling convention: Microsoft x64 argument passing is
 `Silmaril.Machine.Abi.Win64`.
 
 The result is a list of `BitSlot`s (name, bit offset, bit width; an ordinary member's width is
@@ -212,23 +212,6 @@ def bitLayout (pol : BitPolicy) (dm : DataModel) (env : Env) (d : Decl) :
   match bitMembers dm env d.fields with
   | .error e => .error e
   | .ok ms => bitKind pol d.kind ms
-
-/-- **Microsoft x64** (LLP64, MSVC): `long` is 4 bytes, `long double` is `double` (8/8), `wchar_t`
-is an unsigned 2-byte type, plain `char` is signed; pointers and `size_t` are 8 bytes. -/
-def msX64 : DataModel where
-  name := "x64 Microsoft (LLP64)"
-  intShape
-    | .char => some ⟨1, 1⟩ | .short => some ⟨2, 2⟩ | .int => some ⟨4, 4⟩ | .long => some ⟨4, 4⟩
-    | .longLong | .size | .ptrdiff | .intptr => some ⟨8, 8⟩
-    | .int128 => none | .wchar => some ⟨2, 2⟩
-    | .exact n => exactShape n
-  floatShape
-    | .float => some ⟨4, 4⟩ | .double => some ⟨8, 8⟩
-    | .longDouble => some ⟨8, 8⟩ | .float128 => none
-  ptr := ⟨8, 8⟩
-  bool := ⟨1, 1⟩
-  charSigned := true
-  wcharSigned := false
 
 /-! ## Queries: `sizeof`, `_Alignof`, `offsetof`, padding -/
 
