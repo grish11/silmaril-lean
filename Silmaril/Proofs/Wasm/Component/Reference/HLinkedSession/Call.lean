@@ -19,7 +19,8 @@ host callouts, so the configurations along the round are `extG` extensions of it
   lowered answer, quietly, in the new host state and with one more subtask and caller record.
   `Handles impl g l` asks this of every call's frame (`CallAtLKTS`); `handles_answer` proves it
   for `answerImplS g`;
-* `nest_retG`: a returned nested call to the exporter is a quiet run between `extG` extensions;
+* `nest_retG`: a returned nested call to the exporter is a nonempty quiet run between `extG`
+  extensions;
 * `LInv.expTrap_fwdH`: `LInv.expTrap_fwd` at the host-first layout;
 * `rounds_fwdH`: from `LInv`, the round is a quiet run of the machine to the end of the importer's
   part (`LInv` at the exporter's end store, the host state at the end of `HostRun`), or a trap
@@ -178,7 +179,7 @@ theorem linkSite_extG {y : CoreSt (E3 P)} {h : CanonHost (E3 P)} {ys : List Flat
     (C : List (Option (Activation (E3 P) σ))) (s : σ) :
     LinkSite (extG M₀ ιe SL CL TL HL C s) y h ys := ⟨hS.site⟩
 
-/-- **A returned nested call is a quiet run between `extG` extensions.** -/
+/-- **A returned nested call is a nonempty quiet run between `extG` extensions.** -/
 theorem nest_retG (hF : GFrame M₀ th) {ιe : InstState} {SL : List Subtask}
     {CL : List (Caller (E3 P))} {TL : List (Runtime.Task (E3 P))} {HL : List Runtime.Thread}
     {C : List (Option (Activation (E3 P) σ))} {s : σ} (hte : ThreadsOk ιe) {y e : CoreSt (E3 P)}
@@ -194,7 +195,7 @@ theorem nest_retG (hF : GFrame M₀ th) {ιe : InstState} {SL : List Subtask}
     ∃ (ιe' : InstState) (SL' : List Subtask) (CL' : List (Caller (E3 P)))
       (TL' : List (Runtime.Task (E3 P))) (HL' : List Runtime.Thread)
       (C' : List (Option (Activation (E3 P) σ))) (tr : List (Label (E3 P) σ)),
-      ThreadsOk ιe' ∧ Quiet tr ∧
+      ThreadsOk ιe' ∧ Quiet tr ∧ tr ≠ [] ∧
       Steps prof (fun _ _ => false) (DI P impl)
         (coreCfg (extG M₀ ιe SL CL TL HL C s) th K segs rest y) tr
         (coreCfg (extG M₀ ιe' SL' CL' TL' HL' C' s) th K segs rest
@@ -232,7 +233,7 @@ theorem nest_retG (hF : GFrame M₀ th) {ιe : InstState} {SL : List Subtask}
   rw [extN_extG] at h₅
   rw [← hM] at r₃
   have hr := Adequacy.steps_append hrun.steps (Adequacy.steps_append r₃ (.cons s₄ h₅.steps))
-  exact ⟨_, _, _, _, _, _, _, threadsOk_after _ _, hq, hr⟩
+  exact ⟨_, _, _, _, _, _, _, threadsOk_after _ _, hq, by simp, hr⟩
 
 end Nest
 
@@ -497,7 +498,7 @@ theorem rounds_fwdH (S : HStat P l Ie Ii u F₀ M₀ (ownOf s₀)) (hF : GFrame 
             rw [hup, payloadAnswer_flat (w := .values ⟨_, resAnswerH S hk hek.1 hcheck⟩) rfl]
             rfl
           rw [hv] at hpath'
-          obtain ⟨ιe₂, SL₂, CL₂, TL₂, HL₂, C₂, tr₂, hte₂, hq₂, r₂⟩ :=
+          obtain ⟨ιe₂, SL₂, CL₂, TL₂, HL₂, C₂, tr₂, hte₂, hq₂, -, r₂⟩ :=
             nest_retG (prof := prof) (impl := impl) (K := K) (segs := segs) (rest := rest)
               (SL := SL) (CL := CL) (TL := TL) (HL := HL) (C := C) (s := s) hF hte hst hfl hres
               hsite hws hrunA hstA husA
