@@ -267,10 +267,139 @@ theorem trap_reach {s : Store H} {f : Frame} {N : List Val} {es : List BExpr}
   | argsAbort _ _ ih => intro l' z s₂ h; exact .args (ih l' z s₂ h)
   | callRet hargs hfi hty _ _ ihk =>
     intro l' z s₂ h
-    rcases loc3 h.symm with ⟨B', h1⟩ | ⟨-, h1, -⟩ | ⟨A', h1, h2⟩
-    · simp at h1
-    · sorry
-    · sorry
-  | _ => sorry
+    rcases loc3 h with ⟨B', h1⟩ | ⟨-, h1, -⟩ | ⟨A', h1, h2⟩
+    · subst h1; exact (trap_not_normal hargs).elim
+    · exact absurd h1 trapEntry_ne
+    · subst h2; exact .callK hargs hfi hty (ihk A' z s₂ h1)
+  | callThrow hargs hfi hty _ =>
+    intro l' z s₂ h
+    obtain ⟨-, h1⟩ := singleton_eq h
+    exact absurd h1.symm trapEntry_ne
+  | callTrap hargs hfi hty _ =>
+    intro l' z s₂ h
+    obtain ⟨rfl, h1⟩ := singleton_eq h
+    obtain ⟨rfl, -⟩ := trapEntry_eq h1.symm
+    exact .call hargs hfi hty
+  | opOk hi hargs hflat _ _ ihk =>
+    intro l' z s₂ h
+    rcases loc2 h with ⟨B', h1, -⟩ | ⟨A', h1, h2⟩
+    · subst h1; exact (trap_not_normal hargs).elim
+    · subst h2; exact .opK hi hargs hflat (ihk A' z s₂ h1)
+  | opStop _ hargs _ _ _ =>
+    intro l' z s₂ h
+    subst h; exact (trap_not_normal hargs).elim
+  | blockOk har hbody hvs _ _ ihk =>
+    intro l' z s₂ h
+    rcases loc2 h with ⟨B', h1, -⟩ | ⟨A', h1, h2⟩
+    · subst h1
+      have := (trap_last hbody _ _ _ _ rfl).2.2; simp at this; subst this
+      simp [Flow.blockVals] at hvs
+    · subst h2; exact .blockK har hbody hvs (ihk A' z s₂ h1)
+  | blockBrk _ hbody _ =>
+    intro l' z s₂ h
+    subst h; simpa using (trap_last hbody _ _ _ [] rfl).2.2
+  | blockEsc har _ _ ihb => intro l' z s₂ h; exact .block har (ihb l' z s₂ h)
+  | loopOk har hbody _ _ ihk =>
+    intro l' z s₂ h
+    rcases loc2 h with ⟨B', h1, -⟩ | ⟨A', h1, h2⟩
+    · subst h1; exact (trap_not_normal hbody).elim
+    · subst h2; exact .loopK har hbody (ihk A' z s₂ h1)
+  | loopBack har hbody _ _ ihk =>
+    intro l' z s₂ h
+    rcases loc2 h with ⟨B', h1, -⟩ | ⟨A', h1, h2⟩
+    · subst h1; simpa using (trap_last hbody _ _ _ _ rfl).2.2
+    · subst h2; exact .loopBack har hbody (ihk A' z s₂ h1)
+  | loopBrk _ hbody _ =>
+    intro l' z s₂ h
+    subst h; simpa using (trap_last hbody _ _ _ [] rfl).2.2
+  | loopEsc har _ _ ihb => intro l' z s₂ h; exact .loop har (ihb l' z s₂ h)
+  | ifOk hc hb har harm hvs _ _ _ ihk =>
+    intro l' z s₂ h
+    rcases loc2 h with ⟨B', h1, -⟩ | ⟨A', h1, h2⟩
+    · rcases loc2 h1 with ⟨B'', h3, -⟩ | ⟨A'', h3, -⟩
+      · subst h3; exact (trap_not_normal hc).elim
+      · subst h3
+        have := (trap_last harm _ _ _ _ rfl).2.2; simp at this; subst this
+        simp [Flow.blockVals] at hvs
+    · subst h2; exact .ifK hc hb har harm hvs (ihk A' z s₂ h1)
+  | ifBrk hc _ _ harm _ _ =>
+    intro l' z s₂ h
+    rcases loc2 h with ⟨B', h1, -⟩ | ⟨A', h1, -⟩
+    · subst h1; exact (trap_not_normal hc).elim
+    · subst h1; simpa using (trap_last harm _ _ _ _ rfl).2.2
+  | ifEsc hc hb har _ _ _ iha =>
+    intro l' z s₂ h
+    rcases loc2 h with ⟨B', h1, -⟩ | ⟨A', h1, h2⟩
+    · subst h1; exact (trap_not_normal hc).elim
+    · subst h2; exact .arm hc hb har (iha A' z s₂ h1)
+  | ifAbort _ _ ihc => intro l' z s₂ h; exact .cond (ihc l' z s₂ h)
+  | indRet hargs hres hfi hty hy _ _ ihk =>
+    intro l' z s₂ h
+    rcases loc3 h with ⟨B', h1⟩ | ⟨-, h1, -⟩ | ⟨A', h1, h2⟩
+    · subst h1; exact (trap_not_normal hargs).elim
+    · exact absurd h1 trapEntry_ne
+    · subst h2; exact .indK hargs hres hfi hty hy (ihk A' z s₂ h1)
+  | indThrow hargs hres hfi hty hy _ =>
+    intro l' z s₂ h
+    obtain ⟨-, h1⟩ := singleton_eq h
+    exact absurd h1.symm trapEntry_ne
+  | indTrap hargs hres hfi hty hy _ =>
+    intro l' z s₂ h
+    obtain ⟨rfl, h1⟩ := singleton_eq h
+    obtain ⟨rfl, -⟩ := trapEntry_eq h1.symm
+    exact .ind hargs hres hfi hty hy
+  | indRes hargs _ _ =>
+    intro l' z s₂ h
+    subst h; exact (trap_not_normal hargs).elim
+  | refRet hargs hfi hty hy _ _ ihk =>
+    intro l' z s₂ h
+    rcases loc3 h with ⟨B', h1⟩ | ⟨-, h1, -⟩ | ⟨A', h1, h2⟩
+    · subst h1; exact (trap_not_normal hargs).elim
+    · exact absurd h1 trapEntry_ne
+    · subst h2; exact .refK hargs hfi hty hy (ihk A' z s₂ h1)
+  | refThrow hargs hfi hty hy _ =>
+    intro l' z s₂ h
+    obtain ⟨-, h1⟩ := singleton_eq h
+    exact absurd h1.symm trapEntry_ne
+  | refTrap hargs hfi hty hy _ =>
+    intro l' z s₂ h
+    obtain ⟨rfl, h1⟩ := singleton_eq h
+    obtain ⟨rfl, -⟩ := trapEntry_eq h1.symm
+    exact .ref hargs hfi hty hy
+  | refNull hargs _ =>
+    intro l' z s₂ h
+    subst h; exact (trap_not_normal hargs).elim
+  | tail hargs _ _ _ _ _ =>
+    intro l' z s₂ h
+    subst h; exact (trap_not_normal hargs).elim
+  | tailRes hargs _ _ =>
+    intro l' z s₂ h
+    subst h; exact (trap_not_normal hargs).elim
+  | throw hargs _ _ _ _ =>
+    intro l' z s₂ h
+    subst h; exact (trap_not_normal hargs).elim
+  | throwRefNull hargs _ =>
+    intro l' z s₂ h
+    subst h; exact (trap_not_normal hargs).elim
+  | throwRefExn hargs _ =>
+    intro l' z s₂ h
+    subst h; exact (trap_not_normal hargs).elim
+  | tryOk har hbody hvs _ _ ihk =>
+    intro l' z s₂ h
+    rcases loc2 h with ⟨B', h1, -⟩ | ⟨A', h1, h2⟩
+    · subst h1
+      have := (trap_last hbody _ _ _ _ rfl).2.2; simp at this; subst this
+      simp [Flow.blockVals] at hvs
+    · subst h2; exact .tryK har hbody hvs (ihk A' z s₂ h1)
+  | tryBrk _ hbody _ =>
+    intro l' z s₂ h
+    subst h; simpa using (trap_last hbody _ _ _ [] rfl).2.2
+  | tryEsc har _ _ _ ihb => intro l' z s₂ h; exact .handler har (ihb l' z s₂ h)
+  | tryCatch _ hbody _ _ =>
+    intro l' z s₂ h
+    subst h; simpa using (trap_last hbody _ _ _ [] rfl).2.2
+  | tryRethrow _ hbody _ _ =>
+    intro l' z s₂ h
+    subst h; simpa using (trap_last hbody _ _ _ [] rfl).2.2
 
 end Silmaril.Wasm.Cfg.Proofs.MachineLPend
