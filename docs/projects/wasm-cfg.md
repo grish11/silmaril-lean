@@ -1139,24 +1139,46 @@ The plain graph stays an over-approximation, and claims about it say so.
                `restrictLog (RoundLegal …) (instTripleS …)`. This is the legal counterpart of
                `InstSession.instSession_eq_iff`. It is not compared with Core 3.0 session
                equality, because legality reads hidden call stores.
-             - Left to the concrete owner (`docs/projects/component-semantics.md`, 0e76ca84):
-               legal counterparts of `Linked2`/`LinkedG` `compSession_inj_full` and
-               `refSessEquivFull_iff_denD`. They need (1) a reference equivalence
-               `RefSessEquivFull` restricted to legal environments (host throws below the
-               call store's exception count), and (2) a statement of which import answers of
-               internally linked components are legal: whether an exporter's escaping exception
-               names an exception of the importer's call store. Nothing in the owner's modules
-               is changed.
-             - **Not claimed.** No theorem about `legalSemD` says that `core3SemD` with
-               imports equals the CFG semantics. `core3SemD` also has the non-`LegalPlay`
-               plays (dangling host throws), and these are not read on the CFG. Equality with
-               `core3SemD` holds only without imports
-               (`core3SemD_sem_eq_cfgInstSessionsL`). For components only refinement is
-               proved. The exact compositional pullback is open: `c.denUD (legalSemD _)` as
-               the part of `c.denUD (core3SemD _)` whose hidden node plays are legal. It
-               needs legality reflected through each hidden interface of node composition,
-               `implsN` and the wiring. Infinite plays of a node through
-               `DStrategy.InfInteraction` are covered only by refinement.
+             - **Exact component legality** (`Games/DivCompAns`, `Wasm/Abstract/NodeLegalComp`,
+               `Wasm/Cfg/CfgLegalComp`). The import coercion `importH m` of every `semOfSD`
+               node answers with `payloadAnswer`, i.e. `.values` or `.trap` and never `.throw`
+               (`NodeLegalComp.toResult_payloadAnswer_ne`). `LegalRes` only constrains
+               exceptions, so every such answer is legal at every store, including the
+               importer's `.waiting` store (`answersIn_importH`, `nonExnLegal_legalRes`). It
+               asks nothing of values, arity, references or stores. Wiring, `ext`, nested
+               instances and hidden composition all act above `importH m`. The generic law
+               `DStrategy.comp_eq_of_ansPart` covers finite plays, local divergence, hidden
+               chatter and infinite plays. Its witnesses are coherent: `InfInteraction.ansRight`
+               and `ansLeft` lift, and `ofLe` lowers, with the same chains. Combined with
+               `ansPart_comp` and `SessionLegal.sLegal_of_lAnsIn`, it gives:
+               - `CfgLegalComp.legalSemD_eq : legalSemD (profile o) = core3SemD (profile o)`
+                 at the node interface, hence `denUD_legalSemD_eq` and `denD_legalSemD_eq` for
+                 every component, with no domain restriction.
+               - `nodeHidLegal`, `compLegal`: every hidden node interaction of every component
+                 is legal at every importer point, at any profile. `mem_`, `pending_`, `div_` and
+                 `inf_denUD_legalSemD_iff` (chatter included) are the exact pullback with
+                 `CompLegal`.
+               - Node forms with explicit witnesses: `mem_legalSemD_sem_iff`,
+                 `div_legalSemD_sem_iff` and `inf_legalSemD_sem_iff`. In
+                 `NodeLegalComp.inf_inner_lift`, one coherent inner infinite interaction has
+                 legal hidden instance stages.
+               - `denUD_cfgSemD_eq_core3` and `denD_cfgSemD_eq_core3`: on
+                 `CompIn (fun m => InstDom m.inst m.inst.store) c`, the CFG-built denotation
+                 equals the `core3SemD (profile o)` denotation, imports included.
+             - Owner interface (`docs/projects/component-semantics.md`, 0e76ca84): see
+               `Wasm/Cfg/CfgLegalOwner` for the exact obligations. A legal reference injection
+               needs the reference relation stated at the same `payloadAnswer` boundary. Nothing
+               in the owner's modules is changed.
+             - **Not claimed.** The equalities above are at the IR node boundary. On the session
+               interface `ssig`, before `importH`, an environment may answer `throw a`, and the
+               legal session drops the dangling throws. Unrestricted equality of `instSession`
+               with a CFG reading is **not established** on such environments, and no
+               inequality is proved either. The node-level equality does not prove
+               native/Core equality on arbitrary throwing `ssig` environments. The raw dangling
+               backward bridge (`DanglingExn`) is separate. By design of the IR boundary there
+               is no cross-node exception propagation: an escaping exception becomes a trap
+               (`answerPayload`). Nothing here covers a reference interface that passes
+               exceptions between instances.
           3. **Regressions, done** (`Wasm/Cfg/ExampleRegress`). One validated store (`rgMod`,
              one host import `h : [i32] → []`, a spec instance, `StoreOk`, `StoreChkE (ehExt
              tags)` by `storeChkEB`). Each fixture is proved on the CFG closure directly, by

@@ -59,26 +59,23 @@ equal legal sessions, nor conversely.
 
 ## What is not claimed
 
-* **No raw `core3SemD` equality for instances with imports.** `core3SemD` also has the plays in
-  which an import throws a dangling exception (`throw a` with `a ≥ s.exns.length` at the call
-  store); these are exactly the plays that are not `LegalPlay`, and no CFG reading of them is
-  claimed (see `CfgInst.Thms`, "What is not claimed"). `legalSemD` (and `cfgSemD`) equal
-  `core3SemD` only where nothing is restricted: instances without imports
-  (`CfgInst.core3SemD_sem_eq_cfgInstSessionsL`).
-* **The compositional pullback is not proved.** For components, only refinement
-  (`denUD_legalSemD_le`) is proved. That `c.denUD (legalSemD _)` is exactly the part of
-  `c.denUD (core3SemD _)` whose hidden node plays are legal needs a characterization of the
-  interactions of `Comp.denUD` (node composition, `implsN`, the wiring) with legality reflected
-  through each hidden interface; at the node level the hidden instance play is already the place
-  where legality is stated (`mem_legalSemD_sem`). Infinite plays at the node level (through
-  `DStrategy.InfInteraction`) are covered only by the refinement.
+* **On the session interface, no unrestricted equality is established.** The instance session
+  `instSession` on `ssig` also has plays in which an import throws a dangling exception
+  (`throw a` with `a ≥ s.exns.length` at the call store). These are exactly the plays that are
+  not `LegalPlay`, and no CFG reading of them is claimed (see `CfgInst.Thms`, "What is not
+  claimed"). Equality of the unrestricted session with a CFG reading is not established, and no
+  inequality is proved either.
+* **At the node interface the restriction is invisible** (`Cfg.CfgLegalComp`). There the import
+  coercion `importH` never answers with an exception (`payloadAnswer`). So
+  `legalSemD (profile o) = core3SemD (profile o)` (`CfgLegalComp.legalSemD_eq`), every
+  component's denotations are equal, and on the CFG domain
+  `c.denUD cfgSemD = c.denUD (core3SemD (profile o))` (`CfgLegalComp.denUD_cfgSemD_eq_core3`).
+  The refinements (d) above are the weaker, profile-free forms.
 * **No reference-equivalence injection for the legal object.** The concrete injections
   (`Linked2`/`LinkedG` `compSession_inj_full`, `refSessEquivFull_iff_denD`) relate the reference
   machine's `RefSessEquivFull` to the unrestricted component session objects. Their legal
-  counterparts are left to the owner of those modules: a reference equivalence restricted to
-  legal environments, and a statement of which import answers of internally linked components are
-  legal at the importer's call store. Without those, `legalSession_eq_iff` is the injection proved
-  here.
+  counterparts are left to the owner of those modules; the exact obligations are in
+  `Cfg.CfgLegalOwner`.
 -/
 
 public section
