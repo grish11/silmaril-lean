@@ -29,7 +29,8 @@
     return out;
   }
   function cFetch(rel, how) {
-    if (!cache.has(rel)) cache.set(rel, fetch("c/" + rel).then(async (r) => {
+    const key = how + ":" + rel;
+    if (!cache.has(key)) cache.set(key, fetch("c/" + rel).then(async (r) => {
       if (!r.ok) throw new Error(`c/${rel}: HTTP ${r.status}`);
       let bytes = await readBounded(r.body, FETCH_LIMIT, `c/${rel}`);
       if (how === "json") return JSON.parse(new TextDecoder("utf-8").decode(bytes));
@@ -39,7 +40,7 @@
       }
       return bytes;
     }));
-    return cache.get(rel).catch((e) => { cache.delete(rel); throw e; });
+    return cache.get(key).catch((e) => { cache.delete(key); throw e; });
   }
   // The project database's record of a registered corpus file (silmaril/artifacts.toml, written by
   // scripts/c-tv/corpus.py --register): its SHA-256 and CID, or null.
