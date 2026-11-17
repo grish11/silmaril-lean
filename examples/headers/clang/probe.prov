@@ -1,0 +1,12 @@
+artifact: probe.json
+image: silkeh/clang@sha256:3914c93a02e866795aafc80737488e515b96390eff3d2787cf8c5095997baea9
+clang: Debian clang version 18.1.8 (++20240731024826+3b5b5c1ec4a3-1~exp1~20240731144843.145)
+target: x86_64-unknown-linux-gnu
+std: gnu11
+cwd: .
+command: clang -target x86_64-unknown-linux-gnu -x c -std=gnu11 -ffreestanding -fno-builtin probe.h -Xclang -ast-dump=json -fsyntax-only
+filter: python3 -I filter.py probe.h
+filter-sha256: ce3bb06a49a58ca0c6c77a2128838d40b274b2f362656d90604d32ef8a9bce7c
+input: probe.h d69db957a83d0583a2307778114ed337a67bdfdc925e7941aa4c3297882b14a3
+json-sha256: a426dc74285d36f68556371675ebd4ac73fa5839ad949bfe90cf4e1e7a041da9
+json-bytes: 19560
