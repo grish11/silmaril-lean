@@ -512,19 +512,53 @@ The plain graph stays an over-approximation, and claims about it say so.
       the module's instance (`catch_tag`). Exit state only: no exception coverage at the function
       or session level.
     - **Not implemented (ledger)**, in order:
-      1. **Hosts**: imports in the CFG session: pending import calls and logs (the triple's
-         `instPend`, `CallView` logs), productive within-call host interaction (`instInf`),
-         store-preserving host answers, and the machine running against the instance host instead
-         of `noHostX`.
-      2. **XP/EH**: exceptions in the session fragment (`throw`, `try_table`, uncaught
-         exceptions as `Answer.throw`), trap stores preserved; the `tExt` check replaced by an
-         exception-aware one.
-      3. **Discharging the oracle**: a self-contained recursive CFG closure (callees run by the
-         CFG machine, divergence inside callees included) proved equivalent to the native
-         closed oracle `closedCallX` and to Core; until then every CFG statement is
-         oracle-backed.
-      4. Untyped stores, host functions in the store, instructions outside the checked
-         fragments: unsupported, excluded by hypotheses.
+      1. **Hosts**: imports in the CFG session: pending import calls and logs, productive
+         within-call host interaction, host answers keeping or changing the store, and exceptions
+         raised by host answers. Route H1–H3 below.
+      2. **XP/EH**: exceptions in the session fragment (`throw`, `try_table`, handler matching,
+         tail calls bypassing handlers, uncaught exceptions as `Answer.throw`), trap stores
+         preserved. Covered by the same route: `EvalLXPS` has the exception rules.
+      3. **Discharging the oracle**: callees run by the CFG machine through a recursive closure
+         (H3), callee divergence included. Until H3 lands every CFG statement is oracle-backed.
+      4. Untyped stores and instructions outside the checked fragments: unsupported, excluded by
+         hypotheses.
+    - **Route for hosts, XP/EH and the oracle (H1–H3, coordinator-approved).** The CFG machine
+      `MStepC` is unlabelled: simple steps are Core `Steps P host`, and calls go through a stateless
+      `CallRel` oracle. A run's host-event log cannot be recovered from it, and a stateless host
+      cannot encode one, so the logs need a logged CFG layer. It reuses the CFG graph, extraction
+      and control rules, and the canonical store-retaining logged relation
+      `HostClosingS.EvalLXPS` (open calls with arbitrary answers: values, an exception raised at
+      the call, or a callee trap with its store).
+      - **H1, the logged machine `MStepL`.** A block-CFG execution: each block runs its straight-line
+        segment by `EvalLXPS` on `liftInstrs sg.body` (flat ops by `evalFlat`, calls open and
+        logged), then its terminator with `MStepC`'s rules (label frames, `goto`, `brVals`,
+        `topVals`, loops, the function label, `try_table` frames and `Catches`, pending tail
+        calls). It is never a native evaluation of the whole structured function in one step.
+        Machine stacks are bottom first and native ones top first (`reverse`). Obligations:
+        - a projection to `MStepC` on their shared fragment, with its hypotheses stated where
+          host observations cannot be forgotten;
+        - the forward theorem (the first bounded PR): a logged run from the CFG entry to an end
+          (`exit`, `trap` with its store, an uncaught exception, a pending tail call) with log
+          `l` is an `EvalLXPS` run of the body with exactly `l` and the store.
+      - **H2, both directions on bodies.**
+        - Finished ends: done, throw and trap, with exact final store and log.
+        - Pending calls (`ReachLXPS`), quiescent divergence, and coherent productive streams.
+          These are proved for the machine, not inferred from finite equivalence.
+        - EH: handler matching (`Catches`), and pending tail calls bypassing handlers.
+        - Stack caveat: a native `return`/branch flow carries only the innermost stack, while
+          the machine keeps the whole frame stack, so an exact equality of result values needs
+          typing, as in `ExampleExitStack.machine_loss`. The typing hypotheses are stated, not
+          hidden.
+      - **H3, the recursive CFG closure.** `cfgHOpenXPS`, the open module whose Wasm bodies run
+        on the logged machine. It is defined from the machine, not as an alias of `wasmHOpenXPS`.
+        Its closure `Shape.close cfgHOpenXPS` resolves callees through CFG-run bodies, which
+        discharges `CX closedCallX`.
+        - Equality with the store-retaining session closure `wasmEvFunXPS`/`sessionTripleXP`
+          (not the trap-store-erasing `wasmEvFunXP`).
+        - Then the instance session with imports and exceptions, via the existing Core adequacy
+          (`wasmEvFunXPS_*_iff`, `wasmEvPendXPS_eq`, productive streams) and NodeBridge, on a
+          typed fragment with the exception checker (`ehExt tags`).
+        - Regressions: recursion through a host, trap-then-resume, productive host interaction.
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
