@@ -48,17 +48,14 @@ read-back. Chains (`chainExp`, `LinkedN`) built on such an exporter (`ChainOk`, 
    divergence (`refDivs`, `LinkedN.sessDivs_eq_refDivs`), given the read-back of chatter for
    every link.
 
-**Not proved: the read-back of chatter** (`LinkedG.Task.ChatterReadBack`, the abstract-exporter
-form of `Linked2.Task.ChatterReadBack`). It needs the converse of `AdeqI` for the exporter: an
-infinite play of the exporter's environment is served along **one** run of its `Step`s. For
-`Simple` this holds at the deterministic profiles `profile o` (`exp_plays_stream`,
-`expRunT_functional`); for `LinkedG.toExp` it would need the same read-back of the linked
-component's infinite plays, which needs the coherence of the importer's read-backs
-(`ImpCoherent`) and, recursively, the exporter's; at nondeterministic profiles it is open for
-`Linked2` already (König's lemma, see `LinkedSessionDAdeq.Thms`). So `LinkedG.toExp_adeqD`
-(the unconditional IR law), `chainExp_adeqD` and `LinkedN.div_iff` without the read-back
-hypotheses remain open. Ill-typed calls and the infinite plays of the linked IR beyond
-`AdeqI`'s forward half are not covered.
+**Not proved here: the read-back of chatter** (`LinkedG.Task.ChatterReadBack`, the
+abstract-exporter form of `Linked2.Task.ChatterReadBack`). It needs the converse of `AdeqI` for
+the exporter: an infinite play of the exporter's environment is served along **one** run of its
+`Step`s. At the deterministic profiles `profile o` it is proved in `LinkedGChatter`
+(`ExpSpec.AdeqIC`, `LinkedG.chatterReadBack_profile`, `LinkedG.toExp_adeqD_profile`,
+`LinkedN.div_iff_profile`); at nondeterministic profiles it is open for `Linked2` already
+(König's lemma, see `LinkedSessionDAdeq.Thms`). Ill-typed calls and the infinite plays of the
+linked IR beyond `AdeqI`'s forward half are not covered.
 
 Proofs: `Silmaril.Proofs.Wasm.Component.Reference.LinkedGDivIR.{Layers, Back, Build, Inf,
 Chatter, Main}`.
