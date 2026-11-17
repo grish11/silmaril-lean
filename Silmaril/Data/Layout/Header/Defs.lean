@@ -23,8 +23,9 @@ Everything else is **refused with a message**, not skipped: a redeclaration with
 prototype or typedef, `#if` expressions, function-like
 macros, struct/union/enum *definitions* (`struct s *` as an incomplete pointee is accepted),
 bit-fields, function pointers, K&R declarations, function definitions, `static`/`inline`
-functions. Qualifiers (`const`, `volatile`, `restrict`) are accepted and dropped: they do not
-change how a prototype is called. The reader is the bridge to a full C front end, not one: its
+functions. Qualifiers (`const`, `volatile`, `restrict`) are not part of `CTy` (they do not change
+how a value is passed) and are kept beside it, by pointer level (`Header.quals?`,
+`ProtoQuals`); a redeclaration must agree on them up to parameters' top-level qualifiers. The reader is the bridge to a full C front end, not one: its
 output type `Header` is what the full parser will also produce.
 
 Types are `Silmaril.Data.Layout.CTy`; typedef names are kept (`CTy.typedef name ty`) so that
@@ -47,15 +48,39 @@ structure CProto where
   variadic : Bool := false
   deriving DecidableEq, Repr
 
-/-- What a header declares, in order of appearance. -/
+/-- The type qualifiers of one type as written, by level: index 0 the qualifiers among the
+specifiers (of the base type), index `k` those after the `k`-th `*`; the last level qualifies
+the type itself. Each level is a sublist of `["const", "volatile", "restrict"]` in that order.
+An array parameter `T a[]` has one more (empty) level, for the pointer it is adjusted to. -/
+abbrev Quals := List (List String)
+
+/-- The qualifiers of a prototype's result and parameters (`CTy` has none: they do not change
+how a value is passed, but they are part of the C type a header declares). -/
+structure ProtoQuals where
+  ret : Quals
+  params : List Quals
+  deriving DecidableEq, Repr
+
+/-- The qualifiers that matter for compatibility of function types: a parameter's top-level
+qualifiers do not (C17 6.7.6.3p15), so its last level is cleared. -/
+def ProtoQuals.forCompat (q : ProtoQuals) : ProtoQuals :=
+  { q with params := q.params.map fun l => l.dropLast ++ (if l.isEmpty then [] else [[]]) }
+
+/-- What a header declares, in order of appearance. `quals` has, for each prototype, the
+qualifiers the declaration wrote (of the first declaration). -/
 structure Header where
   typedefs : List (String × CTy) := []
   protos : List (String × CProto) := []
+  quals : List (String × ProtoQuals) := []
   deriving DecidableEq, Repr
 
 /-- The prototype the header declares for `f` (the first one). -/
 def Header.proto? (h : Header) (f : String) : Option CProto :=
   (h.protos.find? (·.1 == f)).map (·.2)
+
+/-- The qualifiers the header writes in its prototype for `f` (the first one). -/
+def Header.quals? (h : Header) (f : String) : Option ProtoQuals :=
+  (h.quals.find? (·.1 == f)).map (·.2)
 
 /-- The type a typedef name denotes (the first one). -/
 def Header.typedef? (h : Header) (n : String) : Option CTy :=
@@ -291,7 +316,19 @@ def pointers : (fuel : Nat) → CTy → List Tok → CTy × List Tok
   | f + 1, t, .ident q :: r => if qualifiers.contains q then pointers f t r else (t, .ident q :: r)
   | _, t, ts => (t, ts)
 
-/-- Split a parameter list at top-level commas. -/
+/-- The qualifier levels of a type's tokens (`Quals`): a qualifier word joins the current
+level, `*` starts the next one. `__restrict` is `restrict`; `extern` is not a qualifier. -/
+def qualLevels (ts : List Tok) : Quals :=
+  let canon (l : List String) := ["const", "volatile", "restrict"].filter fun q =>
+    l.contains q || (q == "restrict" && l.contains "__restrict")
+  let rec go : List Tok → List String → Quals → Quals
+    | [], cur, done => done ++ [canon cur]
+    | .punct '*' :: r, cur, done => go r [] (done ++ [canon cur])
+    | .ident q :: r, cur, done => go r (if qualifiers.contains q then q :: cur else cur) done
+    | _ :: r, cur, done => go r cur done
+  go ts [] []
+
+
 def splitParams : List Tok → List (List Tok) → List Tok → List (List Tok)
   | [], acc, cur => acc ++ [cur]
   | .punct ',' :: r, acc, cur => splitParams r (acc ++ [cur]) []
@@ -309,6 +346,15 @@ def param (h : Header) (ts : List Tok) : Except String CTy := do
   | .punct '(' :: _ => .error "function-pointer parameters are outside the header subset"
   | _ => .error "parameter declarator"
 
+/-- The qualifier levels of each parameter (as `params` reads them). -/
+def paramQuals (ts : List Tok) : List Quals :=
+  match ts with
+  | [.ident "void"] => []
+  | ts =>
+    let ps := splitParams ts [] []
+    let ps := match ps.getLast? with | some [.dots] => ps.dropLast | _ => ps
+    ps.map fun p => if p.contains (.punct '[') then qualLevels p ++ [[]] else qualLevels p
+
 def params (h : Header) (ts : List Tok) : Except String (List CTy × Bool) :=
   match ts with
   | [.ident "void"] => .ok ([], false)
@@ -325,12 +371,15 @@ def Header.addTypedef (h : Header) (n : String) (t : CTy) : Except String Header
   | some t' => if t' == t then .ok h else .error s!"typedef {n} redefined with a different type"
   | none => .ok { h with typedefs := h.typedefs ++ [(n, t)] }
 
-/-- Add a prototype; a redeclaration must be the same prototype (refused otherwise, rather than
-keeping the first: compatible-type rules beyond identity are not modelled). -/
-def Header.addProto (h : Header) (f : String) (p : CProto) : Except String Header :=
+/-- Add a prototype; a redeclaration must be the same prototype with the same qualifiers up to
+parameters' top-level ones (refused otherwise, rather than keeping the first: compatible-type
+rules beyond identity are not modelled). -/
+def Header.addProto (h : Header) (f : String) (p : CProto) (q : ProtoQuals) : Except String Header :=
   match h.proto? f with
-  | some p' => if p' == p then .ok h else .error s!"{f} redeclared with a different prototype"
-  | none => .ok { h with protos := h.protos ++ [(f, p)] }
+  | some p' =>
+    if p' == p && (h.quals? f).map ProtoQuals.forCompat == some q.forCompat then .ok h
+    else .error s!"{f} redeclared with a different prototype"
+  | none => .ok { h with protos := h.protos ++ [(f, p)], quals := h.quals ++ [(f, q)] }
 
 /-- One top-level declaration (the tokens before its `;`). -/
 def decl (h : Header) (ts : List Tok) : Except String Header :=
@@ -353,7 +402,7 @@ def decl (h : Header) (ts : List Tok) : Except String Header :=
         if inner.contains (.punct '(') then .error s!"{f}: nested declarators are outside the header subset"
         else
           let (ps, v) ← params h inner
-          h.addProto f ⟨t, ps, v⟩
+          h.addProto f ⟨t, ps, v⟩ ⟨qualLevels (ts.take (ts.length - (r.length + 2))), paramQuals inner⟩
       | _ => .error s!"{f}: expected ')' at the end of the declaration"
     | [.ident n] => .error s!"object declaration '{n}' is outside the header subset"
     | _ => .error "declaration"

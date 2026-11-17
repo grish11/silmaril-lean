@@ -32,6 +32,12 @@ namespace Silmaril.Elf.Abi.LeafArith
 /-- The functions are found in `.symtab`. -/
 def bind (_ : String) : Silmaril.Elf.Abi.Binding := .symtab
 
+/-- `clamp_i32`'s code region with the byte at its entry changed to `0x90` (`nop`): the
+wrong-bytes negative test. -/
+def patched : Silmaril.Machine.Abi.Conformance.Code :=
+  { Silmaril.Machine.Abi.Conformance.LeafArith.clampCode with
+    bytes := Silmaril.X86.Ladder.LeafArith.code.set 0x30 0x90 }
+
 end Silmaril.Elf.Abi.LeafArith
 
 end
