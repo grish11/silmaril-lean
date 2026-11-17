@@ -191,6 +191,14 @@ reads) and the pinned static `zlib-checksums`. The prototypes, C specs and code 
 | `….adler32` (region spans its tail call into `adler32_z`) | `Open9`, total, 96 | open |
 | `….zlib_h` (partial: the four claimed) | `Open9` | open, from the four |
 
+**Preconditions** (part of each row's claim):
+- a non-null buffer is readable and lies in user space (`userBuf`: `buf + len ≤ 2^47`);
+- for Adler-32, both halves of the incoming value are below 65521, and `buf = NULL` with
+  `len = 1` is excluded (zlib reads `buf[0]` before testing it).
+
+The user-space bound is what makes `enterable` satisfiable. Without it, a buffer could cover
+all memory except the stack's room, and no call would be admitted.
+
 **Proved:**
 - the code binding (`CodeOf`): symbol, bytes, `crc_table` as read-only data, image;
 - no dynamic relocation, and the only load base is 0;
