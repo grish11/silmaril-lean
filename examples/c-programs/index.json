@@ -1,18 +1,23 @@
 {
  "programs": [
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "arithmetic",
    "routes": {
     "cerberus": "elaborated",
     "clang": "elaborated"
    },
+   "status": "agreement-ub-free",
    "verdicts": {
     "cerberus->clang": "validated",
     "clang->cerberus": "validated"
    }
   },
   {
+   "blockedRoutes": [
+    "cerberus"
+   ],
    "failures": [
     "clang.tail"
    ],
@@ -20,9 +25,11 @@
    "routes": {
     "cerberus": "elaborated"
    },
+   "status": "single-route",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [
     "cerberus.tail"
    ],
@@ -30,105 +37,127 @@
    "routes": {
     "clang": "elaborated"
    },
+   "status": "single-route",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "calls",
    "routes": {
     "cerberus": "elaborated",
     "clang": "elaborated"
    },
+   "status": "agreement-ub-free",
    "verdicts": {
     "cerberus->clang": "validated",
     "clang->cerberus": "validated"
    }
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "control-flow",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "division-by-zero",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "float",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "globals",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "locals",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "pointer",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "recursion",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "return-constant",
    "routes": {
     "cerberus": "elaborated",
     "clang": "elaborated"
    },
+   "status": "agreement-ub-free",
    "verdicts": {
     "cerberus->clang": "validated",
     "clang->cerberus": "validated"
    }
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "signed-overflow",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [
     "cerberus.tail"
    ],
@@ -136,24 +165,29 @@
    "routes": {
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "unsequenced-calls",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   },
   {
+   "blockedRoutes": [],
    "failures": [],
    "name": "unsequenced-ub",
    "routes": {
     "cerberus": "rejected",
     "clang": "rejected"
    },
+   "status": "elaborator-rejected",
    "verdicts": {}
   }
  ],
