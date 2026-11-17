@@ -27,9 +27,16 @@ the recursion is the CFG's own, not the native relation's. Every theorem about `
 holds for it by `cfgEvFun_eq`: erasure to `wasmEvFunXP` (`HostClosingS.wasmEvFunXPS_erase`), and
 Core 3.0 adequacy with hosts and exceptions (`wasmEvFunXPS_trap_iff`, `wasmEvFunXPS_vals_iff`, …).
 
-Not yet here: the CFG versions of the session triple's pending and divergent/productive parts
-(`sessionTripleXP`), via `MachineL.pending_iff`, `MachineL.div_iff`/`logDiv_machine`/
-`machine_logDiv` and `MachineL.prodL_iff` (`docs/projects/wasm-cfg.md`).
+* **`cfgPend_iff`**, **`cfgEvPend_eq`** (pending host calls): the CFG session's pending host calls
+  (`CfgPendLXPS`: a host function at once; a Wasm body run on the machine to a block reaching an
+  internal call, `ReachL`, or to a pending tail call, `TailL`, its log resolved by the CFG closure)
+  are the session's (`Abstract.PendLXPS`, `wasmEvPendXPS`). The proof uses
+  `MachineL.pending_iff`, `forward_tail` and `backward`, and `cfgHOpen_eq` for the closure that
+  resolves the logs.
+
+Not yet here: the CFG versions of the session triple's divergent and productive parts
+(`sessionTripleXP`), via `MachineL.div_iff`/`logDiv_machine`/`machine_logDiv` and
+`MachineL.prodL_iff` (`docs/projects/wasm-cfg.md`).
 -/
 
 namespace Silmaril.Wasm.Cfg.CfgSession
@@ -47,5 +54,18 @@ theorem cfgEvFun_eq :
       (Nat × List Execution.Core.Val) ((List Execution.Core.Val ⊕ Nat) ⊕ PUnit.{1})) =
       Abstract.wasmEvFunXPS :=
   Proofs.CfgSession.cfgEvFun_eq
+
+/-- **The CFG session's pending host calls are the session's.** -/
+theorem cfgPend_iff {s : Execution.Core.Store H} {a : Nat} {vs : List Execution.Core.Val}
+    {q : List (Silmaril.Games.Abstract.Call (Abstract.wasmHostSig H))}
+    {m : (Abstract.wasmHostSig H).Op} :
+    CfgPendLXPS s a vs q m ↔ Abstract.PendLXPS s a vs q m :=
+  Proofs.CfgSession.cfgPend_iff
+
+/-- **The pending host calls of the CFG session are the session's.** -/
+theorem cfgEvPend_eq :
+    (cfgEvPendXPS : Silmaril.Games.Abstract.Pending (Abstract.wasmHostSig H)
+      (Execution.Core.Store H) (Nat × List Execution.Core.Val)) = Abstract.wasmEvPendXPS :=
+  Proofs.CfgSession.cfgEvPend_eq
 
 end Silmaril.Wasm.Cfg.CfgSession

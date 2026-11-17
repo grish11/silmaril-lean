@@ -112,4 +112,36 @@ theorem cfgEvFun_eq : (cfgEvFunXPS : Silmaril.Games.Abstract.AFun (Abstract.wasm
   funext s p
   simp only [cfgEvFunXPS, Abstract.wasmEvFunXPS, cfgHOpen_eq]
 
+open Silmaril.Wasm.Abstract (PendLXPS) in
+/-- **The CFG session's pending host calls are the session's.** -/
+theorem cfgPend_iff {s : Store H} {a : Nat} {vs : List Val}
+    {q : List (Call (Abstract.wasmHostSig H))} {m : (Abstract.wasmHostSig H).Op} :
+    CfgPendLXPS s a vs q m ↔ PendLXPS s a vs q m := by
+  constructor
+  · intro h
+    induction h with
+    | self hf hc => exact .self hf hc
+    | desc hf hc hrun hr hq _ ih =>
+      exact .desc hf hc ((pending_iff).2 ⟨_, _, _, hrun, hr, rfl⟩) (by rwa [cfgHOpen_eq] at hq) ih
+    | tail hf hc hrun ht hq _ ih =>
+      exact .tail hf hc (forward_tail hrun ht) (by rwa [cfgHOpen_eq] at hq) ih
+  · intro h
+    induction h with
+    | self hf hc => exact .self hf hc
+    | desc hf hc hr hq _ ih =>
+      obtain ⟨st, l₁, l₂, hrun, hR, rfl⟩ := (pending_iff).1 hr
+      exact .desc hf hc hrun hR (by rwa [cfgHOpen_eq]) ih
+    | tail hf hc hbody hq _ ih =>
+      obtain ⟨st, l₁, l₂, hrun, rfl, hend⟩ := backward hbody (by intro k ws h; cases h)
+      rcases hend with ⟨-, -, hE⟩ | ht
+      · obtain ⟨g, hg⟩ := endRel_sf hE; cases hg
+      · exact .tail hf hc hrun ht (by rwa [cfgHOpen_eq]) ih
+
+/-- **The pending host calls of the CFG session are the session's.** -/
+theorem cfgEvPend_eq : (cfgEvPendXPS : Silmaril.Games.Abstract.Pending (Abstract.wasmHostSig H)
+    (Store H) (Nat × List Val)) = Abstract.wasmEvPendXPS := by
+  funext s p
+  ext x
+  exact cfgPend_iff
+
 end Silmaril.Wasm.Cfg.Proofs.CfgSession

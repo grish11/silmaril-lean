@@ -792,7 +792,9 @@ The plain graph stays an over-approximation, and claims about it say so.
             `forward_tail` and `backward`; `backward`'s excluded `brk (k + 1)` has no framed end.
           - `cfgEvFun_eq : cfgEvFunXPS = wasmEvFunXPS`. So `wasmEvFunXPS`'s Core adequacy with
             hosts and exceptions (`wasmEvFunXPS_*_iff`) holds for the CFG closure.
-        - Next, H3-2: the pending part (`PendLXPS` with `ReachL`/`TailL`, via `pending_iff`).
+        - **H3-2, pending host calls, done**: `CfgPendLXPS`, `cfgPend_iff`, and
+          `cfgEvPend_eq : cfgEvPendXPS = wasmEvPendXPS`. They go via `pending_iff`,
+          `forward_tail`/`backward` and `cfgHOpen_eq`.
         - Then H3-3: the divergent part (`closeDLog` over the trap-erasing module, with the CFG's
           logged divergence `MLogDivL`, whose converse adds `closedCallXP`-answered entries that
           the closure resolves with empty host logs) and the productive part (`closeInfL` with

@@ -64,4 +64,32 @@ def cfgEvFunXPS :
     AFun (wasmHostSig H) (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit.{1}) :=
   fun s p => Shape.close cfgHOpenXPS p.1 s p.2
 
+/-- **Pending host calls of the CFG session**: as the session's `Abstract.PendLXPS`, with Wasm
+bodies run on the CFG machine. A host function is pending at once. A Wasm function runs on the
+machine to a block reaching an internal call (`ReachL`) or to a pending tail call (`TailL`); its
+log so far is resolved by the CFG closure, and the call's own pending calls follow. -/
+inductive CfgPendLXPS : Store H → Nat → List Val → List (Call (wasmHostSig H)) →
+    (wasmHostSig H).Op → Prop where
+  | self {s : Store H} {a : Nat} {vs : List Val} {fi : FuncInst H} {hh : H}
+      (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh) : CfgPendLXPS s a vs [] (hh, s, vs)
+  | desc {s : Store H} {a : Nat} {vs : List Val} {fi : FuncInst H} {fn : Func} {st : MState H}
+      {l₁ l₂ : List (SCall H)} {q q' : List (Call (wasmHostSig H))}
+      {z : (Abstract.wasmOShape H).self.Op} {m : (wasmHostSig H).Op}
+      (hf : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+      (hrun : MRunL fn.body (initial fn.body s (Frame.forCall fi.module vs fn.locals)) l₁ st)
+      (hr : ReachL fn.body st l₂ z) (hq : Shape.SubstPre (Shape.close cfgHOpenXPS) (l₁ ++ l₂) q) :
+      CfgPendLXPS z.2.2 z.1 z.2.1 q' m → CfgPendLXPS s a vs (q ++ q') m
+  | tail {s s₁ : Store H} {a : Nat} {vs : List Val} {fi : FuncInst H} {fn : Func} {st : MState H}
+      {f₂ : Frame} {a' n : Nat} {args : List Val} {l₁ l₂ : List (SCall H)}
+      {q q' : List (Call (wasmHostSig H))} {m : (wasmHostSig H).Op}
+      (hf : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+      (hrun : MRunL fn.body (initial fn.body s (Frame.forCall fi.module vs fn.locals)) l₁ st)
+      (ht : TailL fn.body st l₂ (s₁, f₂, .tail a' args n))
+      (hq : Shape.SubstPre (Shape.close cfgHOpenXPS) (l₁ ++ l₂) q) :
+      CfgPendLXPS s₁ a' args q' m → CfgPendLXPS s a vs (q ++ q') m
+
+/-- **The pending host calls of the CFG session.** -/
+def cfgEvPendXPS : Silmaril.Games.Abstract.Pending (wasmHostSig H) (Store H) (Nat × List Val) :=
+  fun s p => {x | CfgPendLXPS s p.1 p.2 x.1 x.2}
+
 end Silmaril.Wasm.Cfg.CfgSession
