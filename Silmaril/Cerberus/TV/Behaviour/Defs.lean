@@ -35,6 +35,16 @@ roadmap). Undefined behaviour on the **source** side is not filtered out: a sour
 reaches undefined behaviour admits every observation (C11 §4p2), so a target refines such a
 source on that input whatever it does. Validators report when they relied on it.
 
+**Parameters and fixed choices.** The only implementation-defined choices the relation takes as
+parameters are those of `Spec.Impl` (the exit status of `exit(n)` and whether `abort` flushes).
+Every other implementation-defined or unspecified choice is fixed inside the port: integer
+conversions and shifts in the runtime maps, layouts (`Mem.Concrete`), and the **allocator**,
+which is deterministic. Every `unseq` interleaving and `nd` choice the LTS keeps is explored, but
+behaviours that ISO C allows through other allocation addresses (pointer comparisons and
+address-dependent output) are not. So this is not a semantics parameterized by the full C
+implementation; target profiles (`TV.Profile`) only check coherence, which is necessary, not
+sufficient, for a result to transfer.
+
 The relation is about the Lean port of Cerberus's Core semantics, not ISO C: how faithful the
 Core dynamics and the elaboration are to the C standard is a separate, reviewed assumption
 (docs/projects/cerberus.md).

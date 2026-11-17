@@ -5,7 +5,8 @@ public import Silmaril.Cerberus.TV.Explore.Defs
 /-!
 # A whole-program refinement validator for closed Core programs
 
-`validate impl src tgt bounds` is a **sound semi-decision** of `Refines impl src tgt`
+`validate impl src tgt bounds` is a **sound partial validator** (a sound semi-decision) of
+`Refines impl src tgt`
 (`TV.Behaviour`): `validated` and `refuted` are proved, and `unknown` may hide a true refinement.
 It explores both programs (`Closed.explore`) and checks that every ending of the target is
 **covered** by one ending of the source: each observation the target ending admits, that source
