@@ -7,6 +7,7 @@ public import Silmaril.Data.Layout.Header.Import.Pinned.ZlibSolo.Thms
 public import Silmaril.Data.Layout.Header.Import.Pinned.ZlibHosted.Thms
 public import Silmaril.Data.Layout.Header.Import.Pinned.GlibcString.Thms
 public import Silmaril.Data.Layout.Header.Import.Pinned.GlibcMath.Thms
+public import Silmaril.Data.Layout.Header.Import.Pinned.GlibcStdlib.Thms
 public import Silmaril.Data.Layout.Header.Zlib.Defs
 
 /-!
@@ -32,6 +33,8 @@ theorems here rewrite with it and compute (`decide +kernel`) on the literal entr
   entries, all imported; `glibcMath_implicit_duplicates`: each of the 177 implicit builtin
   entries duplicates an explicit declaration of the same name; the 438 explicit names are
   distinct.
+* `glibcStdlib_reads`: glibc's `stdlib.h` (with `alloca.h`) as pinned: 130 retained entries,
+  all imported; the 19 implicit builtin entries duplicate explicit declarations.
 * `glibcString_reads`: glibc's `string.h`: 66 entries, 26 of them clang's implicit builtin
   declarations, and `strerror_r`'s asm label `__xpg_strerror_r` (glibc's `__REDIRECT_NTH`);
 * `provenance_reads`: the provenance records of the artifacts, as read from their `.prov`.
@@ -139,6 +142,27 @@ theorem glibcMath_implicit_duplicates :
     ((glibcMath.entries.filter (fun e => !e.implicit && e.kind == .function)).map
       (·.name)).Nodup := by
   rw [import_glibcMath]; decide +kernel
+
+set_option maxRecDepth 100000 in
+/-- glibc's `stdlib.h` **as pinned** (clang 18.1.8, `x86_64-unknown-linux-gnu`, `-std=gnu11`, default
+feature set), with `alloca.h`, which it includes by default: every retained entry is imported,
+none refused by the import, no asm renames: 130 entries, 121 functions, 19 of them clang's
+implicit builtin declarations, each the duplicate of an explicit declaration of the same name.
+What the file filter drops (8 function declarations: `bits/byteswap.h`'s and
+`bits/uintn-identity.h`'s internal inline helpers and `sys/select.h`'s `select`/`pselect`, which
+belong to that header) and the 37 names only under `-D_GNU_SOURCE` are in the recipe's report
+`examples/headers/clang/glibc-stdlib.scope` (checked byte for byte, not a theorem). -/
+theorem glibcStdlib_reads :
+    glibcStdlib.error = none ∧ glibcStdlib.entries.length = 130 ∧
+    (glibcStdlib.entries.filter (·.kind == .function)).length = 121 ∧
+    (glibcStdlib.entries.filter (·.implicit)).length = 19 ∧
+    (glibcStdlib.entries.filter (fun e => match e.body with
+      | .unsupported _ => true | _ => false)).length = 0 ∧
+    (glibcStdlib.entries.filter (fun e => match e.body with
+      | .function f => f.asmLabel.isSome | _ => false)).length = 0 ∧
+    (glibcStdlib.entries.filter (·.implicit)).all (fun e =>
+      glibcStdlib.entries.any (fun e' => !e'.implicit && e'.kind == .function && e'.name == e.name)) := by
+  rw [import_glibcStdlib]; decide +kernel
 
 set_option maxRecDepth 100000 in
 theorem provenance_reads :

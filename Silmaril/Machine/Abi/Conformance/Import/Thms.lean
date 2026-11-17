@@ -27,6 +27,18 @@ PROVED (standard axioms; the per-header facts rewrite with `Pinned.import_<name>
   checked coverage of the import;
 * `zlibSolo_coverage`, `zlibHosted_coverage`, `probe_coverage`, `glibcString_coverage`: each
   header's claimable functions and its unsupported ones with the reasons;
+* `glibcStdlib_coverage`: glibc's `stdlib.h` as pinned under `sysvInt`: 73 functions claimable,
+  28 refused, listed exactly. **Not all refusals are ABI scope**:
+  - ABI scope of the INTEGER fragment (20): 17 with a floating parameter or result (`strtod`,
+    `atof`, `drand48`, the `ecvt` family, …) and 3 returning a struct by value (`div`, `ldiv`,
+    `lldiv`);
+  - **gaps of this import and of `CProto`** (8), not ABI refusals: 5 with a function-pointer
+    parameter (`qsort`, `bsearch`, `atexit`, `at_quick_exit`, `on_exit`; the ABI passes it as a
+    pointer, `CProto` cannot represent it) and 4 where the import cannot resolve a typedef
+    (`size_t` in `__ctype_get_mb_cur_max`, `int32_t` in `random_r`, `__uint32_t` in
+    `arc4random`, `wchar_t` in `mbtowc`). They are follow-ups: closing them would make these
+    functions claimable, and must not be read as the ABI excluding them.
+  The 19 `internal` entries are implicit duplicates (`Pinned.glibcStdlib_reads`).
 * `glibcMath_coverage`: glibc's `math.h` (libm) as pinned (`-std=gnu11`, default feature set;
   `Pinned.glibcMath_reads`) under the INTEGER fragment `sysvInt`: nothing is claimable; all 438
   explicit functions are refused because a parameter or the result is a floating type (SSE/x87
@@ -159,6 +171,41 @@ theorem glibcMath_coverage :
     ((table sysvInt sysvCcs glibcMath).filter (fun x => x.2 matches .internal _)).length =
       177 := by
   rw [import_glibcMath]; decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem glibcStdlib_coverage :
+    (claimable sysvInt sysvCcs glibcStdlib).length = 73 ∧
+    unsupportedFns sysvInt sysvCcs glibcStdlib =
+      [("__ctype_get_mb_cur_max", "result: unknown type name size_t"),
+       ("atof", "result: floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("strtod", "result: floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("strtof", "result: floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("strtold", "result: floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("random_r", "parameter 2: unknown type name int32_t"),
+       ("drand48", "result: floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("erand48", "result: floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("arc4random", "result: unknown type name __uint32_t"),
+       ("atexit", "parameter 1: function or function-pointer type: outside CProto"),
+       ("at_quick_exit", "parameter 1: function or function-pointer type: outside CProto"),
+       ("on_exit", "parameter 1: function or function-pointer type: outside CProto"),
+       ("bsearch", "parameter 5: typedef __compar_fn_t: function or function-pointer type: outside CProto"),
+       ("qsort", "parameter 4: typedef __compar_fn_t: function or function-pointer type: outside CProto"),
+       ("div", "result: struct div_t by value: aggregates are outside the INTEGER fragment"),
+       ("ldiv", "result: struct ldiv_t by value: aggregates are outside the INTEGER fragment"),
+       ("lldiv", "result: struct lldiv_t by value: aggregates are outside the INTEGER fragment"),
+       ("ecvt", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("fcvt", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("gcvt", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("qecvt", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("qfcvt", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("qgcvt", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("ecvt_r", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("fcvt_r", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("qecvt_r", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("qfcvt_r", "floating type: SSE/x87 classes are outside the INTEGER fragment"),
+       ("mbtowc", "parameter 1: unknown type name wchar_t")] ∧
+    ((table sysvInt sysvCcs glibcStdlib).filter (fun x => x.2 matches .internal _)).length = 19 := by
+  rw [import_glibcStdlib]; decide +kernel
 
 end Silmaril.Machine.Abi.Conformance
 
