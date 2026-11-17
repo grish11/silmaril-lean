@@ -100,7 +100,9 @@ def artifacts : List (String × String × String) :=
    ("probe", "Probe", "The probe header `examples/headers/probe/probe.h`"),
    ("zlib-solo", "ZlibSolo", "zlib 1.3.1's `zlib.h` under `-DZ_SOLO`"),
    ("zlib-hosted", "ZlibHosted", "zlib 1.3.1's `zlib.h`, hosted"),
-   ("glibc-string", "GlibcString", "glibc's `string.h`, hosted")]
+   ("glibc-string", "GlibcString", "glibc's `string.h`, hosted"),
+   ("glibc-math", "GlibcMath", "glibc's `math.h` (libm), hosted"),
+   ("glibc-stdlib", "GlibcStdlib", "glibc's `stdlib.h` (with `alloca.h`), hosted")]
 
 def moduleText (file name what prov : String) (imp : Imported) : String :=
   let v := name.decapitalize
