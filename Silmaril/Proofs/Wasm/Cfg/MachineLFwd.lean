@@ -700,4 +700,150 @@ theorem disp_kl {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : Blo
     exact kl_brOut (hF _ ⟨_, rfl, by simp [Flow.retVals]⟩) _ _
       (Proofs.Machine.framesOk_drop _ _ _ hok)
 
+/-! ## Steps and runs -/
+
+theorem contRev_ne_raise (body : Expr) : ∀ rp : List SeqStep, contRev body rp ≠ .raise
+  | [] => by simp [contRev]
+  | (m, _) :: rp => by
+    unfold contRev; split
+    · exact nofun
+    · exact contRev_ne_raise body rp
+
+theorem entry_ne_raise (body : Expr) (p : List SeqStep) (i : Nat) : entry body p i ≠ .raise := by
+  unfold entry; split
+  · exact nofun
+  · exact contRev_ne_raise body _
+
+theorem labelsRev_ne_raise (body : Expr) :
+    ∀ (rp : List SeqStep) (k : Nat), (labelsRev body rp).getD k .invalid ≠ .raise
+  | [], 0 => by simp [labelsRev]
+  | [], _ + 1 => by simp [labelsRev]
+  | (m, a) :: rp, 0 => by
+    simp only [labelsRev, List.getD_cons_zero]
+    split
+    · exact entry_ne_raise body _ _
+    · exact contRev_ne_raise body _
+  | (m, a) :: rp, k + 1 => by
+    simp only [labelsRev, List.getD_cons_succ]
+    exact labelsRev_ne_raise body rp k
+
+/-- A branch keeps the state invariant. -/
+theorem branchR_ok {body : Expr} {rp : List SeqStep} {ls : List LFrame} {k : Nat} {L : LFrame}
+    {V : List Val} {s : Store H} {f : Frame} {st' : MState H} (hok : FramesOk body rp ls)
+    (hL : ls[k]? = some L) (hg : branchR body rp ls k L V s f = some st') : MInv body st' := by
+  simp only [branchR, Option.bind_eq_some_iff] at hg
+  obtain ⟨⟨np, nr⟩, -, hg⟩ := hg
+  cases hloop : L.loop
+  · simp only [hloop, Bool.false_eq_true, ↓reduceIte] at hg
+    exact gotoN_ok hg (labelsRev_ne_raise body rp k) (Proofs.Machine.br_ok hok hL hloop)
+  · simp only [hloop, ↓reduceIte] at hg
+    split at hg
+    · exact gotoN_ok hg (labelsRev_ne_raise body rp k) (Proofs.Machine.br_loop_ok hok hL hloop)
+    · cases hg
+
+/-- **A step keeps the state invariant.** -/
+theorem mstep_ok {body : Expr} {st st' : MState H} {l : List (SCall H)}
+    (h : MStepL body st l st') (hok : MInv body st) : MInv body st' := by
+  have hdisp : ∀ {b : BlockId} {ls : List LFrame} {r : Store H × Frame × POut},
+      FramesOk body b.seq.reverse ls → DispL body b ls r st' → MInv body st' := by
+    intro b ls r hok hd
+    have hlen := Proofs.Machine.framesOk_length _ _ hok
+    cases hd with
+    | next hg =>
+      exact gotoN_ok hg (entry_ne_raise _ _ _)
+        (Proofs.Machine.entry_ok (body := body) (i := b.idx + 1) (by simpa using hok))
+    | br hL hg => rw [branchN_eq] at hg; exact branchR_ok hok hL hg
+    | brOut => rfl
+    | ret => rfl
+    | trap => trivial
+    | raise => exact ⟨rfl, _, rfl⟩
+    | catch_ _ _ _ _ hL' hg => rw [branchN_eq] at hg; exact branchR_ok hok hL' hg
+    | catchOut => rfl
+  cases h with
+  | run _ _ _ hd => exact hdisp hok hd
+  | abort _ _ _ hd => exact hdisp hok hd
+  | enter hb ht harm hkind _ _ _ _ hg =>
+    exact gotoN_ok hg (entry_ne_raise _ _ _) (Proofs.Machine.enter_ok hok hb ht harm hkind)
+
+/-- **A step keeps the invariant backwards**: a state stands for what its successor stands
+for, with the step's log first. -/
+theorem mstep_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {st st' : MState H}
+    {l l' : List (SCall H)} (h : MStepL body st l st') (hok : MInv body st)
+    (hG : Good body Fin st' l') : Good body Fin st (l ++ l') := by
+  cases h with
+  | @run b sg stk ls s f l r st' hb ht hr hd =>
+    by_cases hn : r.2.2.IsNormal
+    · cases hd with
+      | next hg => exact next_good hok hb hr hg hG
+      | _ => simp_all [POut.IsNormal, Flow.IsNormal]
+    · exact abrupt_good hb (.inl rfl) hr hn (disp_kl hok hd hn hG)
+  | @abort b sg stk ls s f l r st' hb hr hn hd =>
+    have hr' : EvalLXPS s f stk.reverse (liftInstrs (MachineL.codeOf sg)) l r := by
+      rw [MachineL.codeOf, MachineLSeq.liftInstrs_append]
+      exact (MachineLSeq.append hr _).1 hn
+    exact abrupt_good hb (.inl rfl) hr' hn (disp_kl hok hd hn hG)
+  | enter hb ht harm hkind hr hcond hbt hm hg => exact enter_good hok hb ht harm hkind hr hcond hbt hm hg hG
+
+/-- **Runs keep the invariant backwards.** -/
+theorem run_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {st st' : MState H}
+    {l l' : List (SCall H)} (h : MRunL body st l st') (hok : MInv body st)
+    (hG : Good body Fin st' l') : Good body Fin st (l ++ l') := by
+  induction h with
+  | refl => simpa using hG
+  | step hs _ ih => simpa [List.append_assoc] using mstep_good hs hok (ih (mstep_ok hs hok) hG)
+
+/-- **Runs keep the state invariant.** -/
+theorem run_ok {body : Expr} {st st' : MState H} {l : List (SCall H)} (h : MRunL body st l st')
+    (hok : MInv body st) : MInv body st' := by
+  induction h with
+  | refl => exact hok
+  | step hs _ ih => exact ih (mstep_ok hs hok)
+
+theorem initial_eq (body : Expr) (s : Store H) (f : Frame) :
+    gotoN (entry body [] 0) ([] : List SeqStep).length [] [] s f = some (initial body s f) := by
+  simp [gotoN, popN, initial, cfgEntry]
+
+theorem initial_ok (body : Expr) (s : Store H) (f : Frame) : MInv body (initial body s f) := by
+  have := Proofs.Machine.entry_ok (body := body) (s := s) (f := f) (p := []) (i := 0)
+    (ls := []) (W := []) trivial
+  simpa [goto, popL, initial, cfgEntry] using this
+
+/-- From the CFG entry: the invariant there is a native run of the whole body. -/
+theorem good_initial {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H}
+    {f : Frame} {l : List (SCall H)} (hG : Good body Fin (initial body s f) l) :
+    ∃ r, EvalLXPS s f [] (liftInstrs body) l r ∧ Fin r := by
+  obtain ⟨l₀, l₁, r₀, hrun, hkl, rfl⟩ :=
+    entry_good (p := []) (c := body) (i := 0) (ls := []) (W := []) trivial rfl
+      (initial_eq body s f) hG
+  rw [restAt_zero] at hrun
+  cases hkl with
+  | top hF => exact ⟨r₀, by simpa using hrun, hF⟩
+
+/-- **The forward theorem, sinks**: a logged run from the CFG entry to a sink is a native run of
+the body with exactly the run's log, to a result the sink stands for (`EndRel`). -/
+theorem forward_sink {body : Expr} {s : Store H} {f : Frame} {l : List (SCall H)}
+    {st : MState H} (h : MRunL body (initial body s f) l st) (hs : st.node.IsSink) :
+    ∃ r, EvalLXPS s f [] (liftInstrs body) l r ∧ EndRel st r := by
+  have hG : Good body (EndRel st) st [] := by
+    obtain ⟨node, stk, ls, s', f'⟩ := st
+    cases node <;> simp only [Target.IsSink] at hs <;> exact ⟨rfl, fun _ h => h⟩
+  simpa using good_initial (run_good h (initial_ok body s f) hG)
+
+/-- **The forward theorem, pending tail calls**: a logged run from the CFG entry to a block whose
+straight-line code ends in a pending tail call is a native run of the body to that pending tail
+call, with exactly the logs. -/
+theorem forward_tail {body : Expr} {s : Store H} {f : Frame} {l l' : List (SCall H)}
+    {st : MState H} {r : Store H × Frame × POut} (h : MRunL body (initial body s f) l st)
+    (ht : TailL body st l' r) : EvalLXPS s f [] (liftInstrs body) (l ++ l') r := by
+  have hok := run_ok h (initial_ok body s f)
+  have hG : Good body (· = r) st l' := by
+    cases ht with
+    | @tail b sg stk ls s₀ s₁ f₀ f₁ l' fa n args hb _ hr =>
+      have hn : ¬ (POut.tail fa args n).IsNormal := id
+      simpa using abrupt_good hb (.inl rfl) hr hn
+        (kl_esc (Fin := fun x => x = (s₁, f₁, .tail fa args n)) (o := .tail fa args n) trivial rfl
+          _ _ hok (by simp))
+  obtain ⟨r', hrun, rfl⟩ := good_initial (run_good h (initial_ok body s f) hG)
+  exact hrun
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLFwd
