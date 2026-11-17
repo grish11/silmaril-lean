@@ -22,3 +22,7 @@ theorem add_row : silmaril.abi.sse.add :=
 end Silmaril.Project.Shapes.Abi.Sse
 
 end
+
+silmaril group silmaril.abi.sse
+  (title := "ABI conformance on the SSE model machine Mach.str9L: default-environment subset of System V (real x86 needs Faithful, not proved)")
+  (children := [silmaril.shapes.abi.conforms.sysv_scalar_default_env_str9l, silmaril.abi.sse.add])
