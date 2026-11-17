@@ -1,0 +1,23 @@
+[
+  {
+    "filename": "coreutils-9.12.tar.xz",
+    "sha256": "a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210",
+    "mirror_url": "https://mirror.csclub.uwaterloo.ca/gnu/coreutils/coreutils-9.12.tar.xz",
+    "canonical_url": "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz",
+    "acquired_utc": "2026-11-17T21:29:38.022410+00:00"
+  },
+  {
+    "filename": "coreutils-9.12.tar.xz.sig",
+    "sha256": "e28e1ee5d29f88bd88bedf64bbbf033106eb28eb2efc9ffc4a0c3c92a80ac353",
+    "mirror_url": "https://mirror.csclub.uwaterloo.ca/gnu/coreutils/coreutils-9.12.tar.xz.sig",
+    "canonical_url": "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz.sig",
+    "acquired_utc": "2026-11-17T21:29:38.023181+00:00"
+  },
+  {
+    "filename": "gnu-keyring.gpg",
+    "sha256": "8013de59880f7a59f53b6bd207f4d2a408d67b84a82fa9cba1dbbf443428e2db",
+    "mirror_url": "https://mirror.csclub.uwaterloo.ca/gnu/gnu-keyring.gpg",
+    "canonical_url": "https://ftp.gnu.org/gnu/gnu-keyring.gpg",
+    "acquired_utc": "2026-11-17T21:29:38.032208+00:00"
+  }
+]

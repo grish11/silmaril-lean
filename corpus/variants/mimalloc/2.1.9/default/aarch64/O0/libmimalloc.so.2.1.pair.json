@@ -1,0 +1,6409 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 136200,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 22096,
+      "sha256": "5292e925058de07b70745f4ac32dc29e8c654965f4f0ea0a8ac94137db9449bd",
+      "size": 28
+    },
+    ".plt": {
+      "address": 22128,
+      "sha256": "8e308f483f88f9e7352e9ec6e6d9ad3e5be6c8b36566d24a4b2c0e3fc13f0e80",
+      "size": 1808
+    },
+    ".text": {
+      "address": 23936,
+      "sha256": "8d7e1f92b1234181314673c60b2d342d1308f227ca043ba48ecf56c9dd4fa9cc",
+      "size": 112264
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "f9a5fd51a58a4151716a1cbfbc90fdfe72ee9358e2d91fc04540c1377464a413",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "2588a7c2990619b989f9459053c6c3c61d0896ac416afcf577a09382ac0e3194",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 23936
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_wsize_from_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 24168
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_mul_overflow",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 24196
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_count_size_overflow",
+      "section_index": "11",
+      "size": 116,
+      "type": "FUNC",
+      "value": 24296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_get_free_small_page",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 24412
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_segment",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 24472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_to_page",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 24528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_first",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 24548
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_page_of",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 24596
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_block_size",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 24704
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_usable_block_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 24728
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_block",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 24756
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_delayed",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 24780
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_make",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 24804
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_set_delayed",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 24836
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_set_block",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 24876
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_is_in_full",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 24920
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_has_aligned",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 24952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_nextx",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 24984
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_set_nextx",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 25024
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_next",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 25068
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_set_next",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 25108
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 25160
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 25208
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 25252
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_thread_id",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 25300
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_get_default_heap",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 25308
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_free_block_local",
+      "section_index": "11",
+      "size": 256,
+      "type": "FUNC",
+      "value": 26336
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_check_is_double_free",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 28748
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_check_padding",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 28832
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_free",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 28856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_check_unguard",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 26752
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_free_generic_local",
+      "section_index": "11",
+      "size": 116,
+      "type": "FUNC",
+      "value": 26780
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_free_generic_mt",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 26896
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_free_block_mt",
+      "section_index": "11",
+      "size": 228,
+      "type": "FUNC",
+      "value": 28116
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_checked_ptr_segment",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 27064
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_free_block_delayed_mt",
+      "section_index": "11",
+      "size": 592,
+      "type": "FUNC",
+      "value": 27524
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_usable_aligned_size_of",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 28344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_usable_size_of",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 28772
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_usable_size",
+      "section_index": "11",
+      "size": 160,
+      "type": "FUNC",
+      "value": 28436
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_malloc_small_zero",
+      "section_index": "11",
+      "size": 72,
+      "type": "FUNC",
+      "value": 29192
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_malloc_small.localalias",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_malloc.localalias",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29492
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_malloc.localalias",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 29532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_zalloc.localalias",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_calloc.localalias",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 29672
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_get_new_handler",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 31548
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_try_new_handler",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 31568
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_try_new",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 31764
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_is_power_of_two",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 32480
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_wsize_from_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 32524
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_mul_overflow",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 32552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_count_size_overflow",
+      "section_index": "11",
+      "size": 116,
+      "type": "FUNC",
+      "value": 32652
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_get_free_small_page",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 32768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_segment",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 32828
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_to_page",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 32884
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_first",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 32904
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_page_of",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 32952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_page",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 33060
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_set_has_aligned",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 33096
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 33140
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 33188
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy_aligned",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 33232
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 33296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_get_default_heap",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 33344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_malloc_is_naturally_aligned",
+      "section_index": "11",
+      "size": 136,
+      "type": "FUNC",
+      "value": 33368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_malloc_zero_no_guarded",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 33504
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_malloc_zero_aligned_at_overalloc",
+      "section_index": "11",
+      "size": 460,
+      "type": "FUNC",
+      "value": 33548
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_malloc_zero_aligned_at_generic",
+      "section_index": "11",
+      "size": 216,
+      "type": "FUNC",
+      "value": 34008
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_malloc_zero_aligned_at",
+      "section_index": "11",
+      "size": 372,
+      "type": "FUNC",
+      "value": 34224
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_realloc_zero_aligned_at",
+      "section_index": "11",
+      "size": 400,
+      "type": "FUNC",
+      "value": 35244
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_realloc_zero_aligned",
+      "section_index": "11",
+      "size": 128,
+      "type": "FUNC",
+      "value": 35644
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_is_power_of_two",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 36556
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_align_up",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 36600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 36708
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_lock_try_acquire",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 38152
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_lock_acquire",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 38192
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_lock_release",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 38256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_lock_init",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 38288
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_lock_done",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 38324
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_memkind_is_os",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 38356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_is_aligned",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 38416
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_align_up",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 38472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_align_up_ptr",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 38580
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_divide_up",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 38616
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_clamp",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 38680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_mul_overflow",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 38756
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memid_create",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 38856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memid_none",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 38936
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_numa_node",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 38968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_numa_node_count",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 39048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 39136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 39180
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_index_create_ex",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 39228
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_index_create",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 39264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_index_field",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 39300
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_index_bit_in_field",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 39324
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_index_bit",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 39348
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_segment_os_clear_abandoned",
+      "section_index": "11",
+      "size": 392,
+      "type": "FUNC",
+      "value": 39368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_segment_os_mark_abandoned",
+      "section_index": "11",
+      "size": 204,
+      "type": "FUNC",
+      "value": 40004
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_segment_clear_abandoned_at",
+      "section_index": "11",
+      "size": 204,
+      "type": "FUNC",
+      "value": 40908
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_segment_clear_abandoned_next_field",
+      "section_index": "11",
+      "size": 752,
+      "type": "FUNC",
+      "value": 41112
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_segment_clear_abandoned_next_list",
+      "section_index": "11",
+      "size": 356,
+      "type": "FUNC",
+      "value": 41864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_id_create",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 42576
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_id_is_suitable",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 42608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_count_of_size",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 42932
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_block_size",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 42964
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_size",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 42988
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_memid_create_arena",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 43020
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_static_zalloc",
+      "section_index": "11",
+      "size": 464,
+      "type": "FUNC",
+      "value": 43196
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_try_claim",
+      "section_index": "11",
+      "size": 140,
+      "type": "FUNC",
+      "value": 44040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_try_alloc_at",
+      "section_index": "11",
+      "size": 632,
+      "type": "FUNC",
+      "value": 44180
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_try_alloc_at_id",
+      "section_index": "11",
+      "size": 420,
+      "type": "FUNC",
+      "value": 44812
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_try_alloc",
+      "section_index": "11",
+      "size": 480,
+      "type": "FUNC",
+      "value": 45232
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_reserve",
+      "section_index": "11",
+      "size": 444,
+      "type": "FUNC",
+      "value": 45712
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_purge_delay",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 46920
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_purge",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 46968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_schedule_purge",
+      "section_index": "11",
+      "size": 316,
+      "type": "FUNC",
+      "value": 47212
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_purge_range",
+      "section_index": "11",
+      "size": 256,
+      "type": "FUNC",
+      "value": 47528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_try_purge",
+      "section_index": "11",
+      "size": 804,
+      "type": "FUNC",
+      "value": 47784
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arenas_try_purge",
+      "section_index": "11",
+      "size": 652,
+      "type": "FUNC",
+      "value": 48588
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arenas_unsafe_destroy",
+      "section_index": "11",
+      "size": 488,
+      "type": "FUNC",
+      "value": 49992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_add",
+      "section_index": "11",
+      "size": 228,
+      "type": "FUNC",
+      "value": 50792
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_manage_os_memory_ex2",
+      "section_index": "11",
+      "size": 1016,
+      "type": "FUNC",
+      "value": 51020
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_debug_show_bitmap",
+      "section_index": "11",
+      "size": 372,
+      "type": "FUNC",
+      "value": 52700
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_divide_up",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 54484
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_clz",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 54548
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_ctz",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 54596
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_index_create_ex",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 54648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_index_create",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 54684
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_index_field",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 54720
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_index_bit_in_field",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 54744
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_mask_",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 54768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_is_claimedx",
+      "section_index": "11",
+      "size": 188,
+      "type": "FUNC",
+      "value": 56020
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_try_find_claim_field_across",
+      "section_index": "11",
+      "size": 1224,
+      "type": "FUNC",
+      "value": 56580
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_mask_across",
+      "section_index": "11",
+      "size": 276,
+      "type": "FUNC",
+      "value": 58016
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bitmap_is_claimedx_across",
+      "section_index": "11",
+      "size": 456,
+      "type": "FUNC",
+      "value": 59040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_divide_up",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 59620
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_is_backing",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 59684
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_is_initialized",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 59728
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_cookie",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 59796
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_segment",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 59832
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_to_page",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 59888
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_segment",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 59908
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_first",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 59944
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_page_of",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 59992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_start",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 60100
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_block_size",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 60124
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_usable_block_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 60148
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_heap",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 60176
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_all_free",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 60220
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_nextx",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 60256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_next",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 60296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_clz",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 60336
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_ctz",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 60384
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 60436
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy_aligned",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 60484
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_get_default_heap",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 60548
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_visit_pages",
+      "section_index": "11",
+      "size": 248,
+      "type": "FUNC",
+      "value": 60572
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_page_collect",
+      "section_index": "11",
+      "size": 200,
+      "type": "FUNC",
+      "value": 60820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_page_never_delayed_free",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 61020
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_collect_ex",
+      "section_index": "11",
+      "size": 532,
+      "type": "FUNC",
+      "value": 61076
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_is_default",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 61748
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_reset_pages",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 62432
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_free",
+      "section_index": "11",
+      "size": 292,
+      "type": "FUNC",
+      "value": 62532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_page_destroy",
+      "section_index": "11",
+      "size": 120,
+      "type": "FUNC",
+      "value": 62948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_absorb",
+      "section_index": "11",
+      "size": 256,
+      "type": "FUNC",
+      "value": 63400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heaps_are_compatible",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 63656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_of_block",
+      "section_index": "11",
+      "size": 132,
+      "type": "FUNC",
+      "value": 64000
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_page_check_owned",
+      "section_index": "11",
+      "size": 196,
+      "type": "FUNC",
+      "value": 64236
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_get_fast_divisor",
+      "section_index": "11",
+      "size": 116,
+      "type": "FUNC",
+      "value": 64796
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_fast_divide",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 64912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_visit_areas_page",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 66068
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_visit_areas",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 66160
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_area_visitor",
+      "section_index": "11",
+      "size": 188,
+      "type": "FUNC",
+      "value": 66236
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_atomic_once",
+      "section_index": "11",
+      "size": 128,
+      "type": "FUNC",
+      "value": 66508
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_lock_acquire",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 66636
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_lock_release",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 66700
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_lock_init",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 66732
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_lock_done",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 66768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_is_initialized",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 66800
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memid_create",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 66868
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memid_none",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 66948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 66980
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 67028
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy_aligned",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 67072
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 67136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_thread_id",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 67184
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_get_default_heap",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 67192
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_main_init",
+      "section_index": "11",
+      "size": 208,
+      "type": "FUNC",
+      "value": 67312
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_thread_data_zalloc",
+      "section_index": "11",
+      "size": 396,
+      "type": "FUNC",
+      "value": 68088
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_thread_data_free",
+      "section_index": "11",
+      "size": 268,
+      "type": "FUNC",
+      "value": 68484
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_thread_heap_init",
+      "section_index": "11",
+      "size": 188,
+      "type": "FUNC",
+      "value": 68988
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_thread_heap_done",
+      "section_index": "11",
+      "size": 312,
+      "type": "FUNC",
+      "value": 69276
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_process_setup_auto_thread_done",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 69588
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_detect_cpu_features",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 70356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_outc",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 71912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_outs",
+      "section_index": "11",
+      "size": 136,
+      "type": "FUNC",
+      "value": 72000
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_out_fill",
+      "section_index": "11",
+      "size": 128,
+      "type": "FUNC",
+      "value": 72136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_out_alignright",
+      "section_index": "11",
+      "size": 256,
+      "type": "FUNC",
+      "value": 72264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_out_num",
+      "section_index": "11",
+      "size": 436,
+      "type": "FUNC",
+      "value": 72520
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_mul_overflow",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 75992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 76092
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_option_has_size_in_kib",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 76148
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_add_stderr_output",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 78060
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_option_init",
+      "section_index": "11",
+      "size": 1108,
+      "type": "FUNC",
+      "value": 80436
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_option_set.localalias",
+      "section_index": "11",
+      "size": 200,
+      "type": "FUNC",
+      "value": 76776
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_out_stderr",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 77268
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_out_buf",
+      "section_index": "11",
+      "size": 236,
+      "type": "FUNC",
+      "value": 77332
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_out_buf_flush",
+      "section_index": "11",
+      "size": 200,
+      "type": "FUNC",
+      "value": 77568
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_out_buf_stderr",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 77768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_out_get_default",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 77820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_recurse_enter_prim",
+      "section_index": "11",
+      "size": 72,
+      "type": "FUNC",
+      "value": 78120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_recurse_exit_prim",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 78192
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_recurse_enter",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 78220
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_recurse_exit",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 78244
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_vfprintf",
+      "section_index": "11",
+      "size": 184,
+      "type": "FUNC",
+      "value": 78520
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_vfprintf_thread",
+      "section_index": "11",
+      "size": 260,
+      "type": "FUNC",
+      "value": 78880
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_show_error_message",
+      "section_index": "11",
+      "size": 224,
+      "type": "FUNC",
+      "value": 79556
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_error_default",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 80092
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_memkind_is_os",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 81544
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_align_up",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 81604
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_align_down",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 81712
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_align_up_ptr",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 81804
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_align_down_ptr",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 81840
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memid_create",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 81876
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memid_none",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 81956
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memid_create_os",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 81988
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_numa_node_count",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 82092
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_get_default_heap",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 82180
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_prim_free",
+      "section_index": "11",
+      "size": 168,
+      "type": "FUNC",
+      "value": 83084
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_free_huge_os_pages",
+      "section_index": "11",
+      "size": 132,
+      "type": "FUNC",
+      "value": 88388
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_prim_alloc_at",
+      "section_index": "11",
+      "size": 320,
+      "type": "FUNC",
+      "value": 83648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_prim_alloc",
+      "section_index": "11",
+      "size": 72,
+      "type": "FUNC",
+      "value": 83968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_prim_alloc_aligned",
+      "section_index": "11",
+      "size": 800,
+      "type": "FUNC",
+      "value": 84040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_page_align_areax",
+      "section_index": "11",
+      "size": 292,
+      "type": "FUNC",
+      "value": 85680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_page_align_area_conservative",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 85972
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_decommit_ex",
+      "section_index": "11",
+      "size": 192,
+      "type": "FUNC",
+      "value": 86340
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_protectx",
+      "section_index": "11",
+      "size": 200,
+      "type": "FUNC",
+      "value": 87044
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_os_claim_huge_pages",
+      "section_index": "11",
+      "size": 296,
+      "type": "FUNC",
+      "value": 87332
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_atomic_yield",
+      "section_index": "11",
+      "size": 12,
+      "type": "FUNC",
+      "value": 88796
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_is_power_of_two",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 88808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_align_up",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 88852
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_wsize_from_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 88960
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_is_initialized",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 88988
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_segment",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 89056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_segment",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 89112
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_start",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 89148
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_block_size",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 89172
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_is_huge",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 89196
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_usable_block_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 89228
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_thread_free",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 89256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_heap",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 89304
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_set_heap",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 89348
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_block",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 89432
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_delayed",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 89456
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_make",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 89480
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_set_delayed",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 89512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_tf_set_block",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 89552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_all_free",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 89596
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_immediate_available",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 89632
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_is_mostly_used",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 89668
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 89760
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_is_in_full",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 89828
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_set_in_full",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 89860
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_set_has_aligned",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 89904
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_nextx",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 89948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_set_nextx",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 89988
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_next",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 90032
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_block_set_next",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 90072
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_random_shuffle",
+      "section_index": "11",
+      "size": 156,
+      "type": "FUNC",
+      "value": 90124
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_clz",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 90280
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_ctz",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 90328
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bsr",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 90380
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 90440
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 90484
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_is_full",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 90532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_is_special",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 90576
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bin",
+      "section_index": "11",
+      "size": 204,
+      "type": "FUNC",
+      "value": 90612
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_page_queue_of",
+      "section_index": "11",
+      "size": 152,
+      "type": "FUNC",
+      "value": 90972
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_of",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 91124
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_heap_queue_first_update",
+      "section_index": "11",
+      "size": 376,
+      "type": "FUNC",
+      "value": 91176
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_remove",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 91552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_push",
+      "section_index": "11",
+      "size": 188,
+      "type": "FUNC",
+      "value": 91796
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_move_to_front",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 91984
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_enqueue_from_ex",
+      "section_index": "11",
+      "size": 540,
+      "type": "FUNC",
+      "value": 92068
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_enqueue_from",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 92608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_enqueue_from_full",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 92660
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_block_at",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 92992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_thread_free_collect",
+      "section_index": "11",
+      "size": 392,
+      "type": "FUNC",
+      "value": 93456
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_fresh_alloc",
+      "section_index": "11",
+      "size": 204,
+      "type": "FUNC",
+      "value": 94208
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_init",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 97544
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_fresh",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 94412
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_to_full",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 95100
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_free_list_extend_secure",
+      "section_index": "11",
+      "size": 788,
+      "type": "FUNC",
+      "value": 96252
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_free_list_extend",
+      "section_index": "11",
+      "size": 236,
+      "type": "FUNC",
+      "value": 97040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_extend_free",
+      "section_index": "11",
+      "size": 268,
+      "type": "FUNC",
+      "value": 97276
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_is_expandable",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 97788
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_queue_find_free_ex",
+      "section_index": "11",
+      "size": 560,
+      "type": "FUNC",
+      "value": 97832
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_find_free_page",
+      "section_index": "11",
+      "size": 140,
+      "type": "FUNC",
+      "value": 98392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_large_huge_page_alloc",
+      "section_index": "11",
+      "size": 196,
+      "type": "FUNC",
+      "value": 98800
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_find_page",
+      "section_index": "11",
+      "size": 184,
+      "type": "FUNC",
+      "value": 98996
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_random_shuffle",
+      "section_index": "11",
+      "size": 156,
+      "type": "FUNC",
+      "value": 99560
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memcpy",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 99716
+    },
+    {
+      "binding": "LOCAL",
+      "name": "rotl",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 99764
+    },
+    {
+      "binding": "LOCAL",
+      "name": "qround",
+      "section_index": "11",
+      "size": 608,
+      "type": "FUNC",
+      "value": 99800
+    },
+    {
+      "binding": "LOCAL",
+      "name": "chacha_block",
+      "section_index": "11",
+      "size": 492,
+      "type": "FUNC",
+      "value": 100408
+    },
+    {
+      "binding": "LOCAL",
+      "name": "chacha_next32",
+      "section_index": "11",
+      "size": 148,
+      "type": "FUNC",
+      "value": 100900
+    },
+    {
+      "binding": "LOCAL",
+      "name": "read32",
+      "section_index": "11",
+      "size": 136,
+      "type": "FUNC",
+      "value": 101048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "chacha_init",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 101184
+    },
+    {
+      "binding": "LOCAL",
+      "name": "chacha_split",
+      "section_index": "11",
+      "size": 124,
+      "type": "FUNC",
+      "value": 101428
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_random_init_ex",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 101800
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_align_up",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 102168
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_align_down",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 102276
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_divide_up",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 102368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_cookie",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 102432
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_segment",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 102468
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_to_page",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 102524
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_to_slice",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 102544
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_segment",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 102564
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_first",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 102600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_block_size",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 102648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 102672
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_thread_free",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 102700
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_set_heap",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 102748
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_all_free",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 102832
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_page_has_any_available",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 102868
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_create_empty",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 102948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_create_full",
+      "section_index": "11",
+      "size": 72,
+      "type": "FUNC",
+      "value": 103016
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_is_empty",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 103088
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_is_full",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 103168
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_clz",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 103248
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_bsr",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 103296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_memzero",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 103356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_all_set",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 103400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_any_set",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 103512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_create_intersect",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 103612
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_clear",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 103716
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_set",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 103820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_commit_mask_create",
+      "section_index": "11",
+      "size": 268,
+      "type": "FUNC",
+      "value": 103920
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_slices_end",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 104740
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_start",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 104792
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_bin8",
+      "section_index": "11",
+      "size": 132,
+      "type": "FUNC",
+      "value": 104868
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_bin",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 105000
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_index",
+      "section_index": "11",
+      "size": 72,
+      "type": "FUNC",
+      "value": 105036
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_span_queue_push",
+      "section_index": "11",
+      "size": 116,
+      "type": "FUNC",
+      "value": 105108
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_span_queue_for",
+      "section_index": "11",
+      "size": 72,
+      "type": "FUNC",
+      "value": 105224
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_span_queue_delete",
+      "section_index": "11",
+      "size": 196,
+      "type": "FUNC",
+      "value": 105296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slice_is_used",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 105492
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_info_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 105528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_page_start_from_slice",
+      "section_index": "11",
+      "size": 372,
+      "type": "FUNC",
+      "value": 105556
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_calculate_slices",
+      "section_index": "11",
+      "size": 164,
+      "type": "FUNC",
+      "value": 106004
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segments_track_size",
+      "section_index": "11",
+      "size": 224,
+      "type": "FUNC",
+      "value": 106168
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_os_free",
+      "section_index": "11",
+      "size": 216,
+      "type": "FUNC",
+      "value": 106392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_commit_mask",
+      "section_index": "11",
+      "size": 540,
+      "type": "FUNC",
+      "value": 106608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_commit",
+      "section_index": "11",
+      "size": 372,
+      "type": "FUNC",
+      "value": 107148
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_ensure_committed",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 107520
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_purge",
+      "section_index": "11",
+      "size": 328,
+      "type": "FUNC",
+      "value": 107632
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_schedule_purge",
+      "section_index": "11",
+      "size": 428,
+      "type": "FUNC",
+      "value": 107960
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_try_purge",
+      "section_index": "11",
+      "size": 340,
+      "type": "FUNC",
+      "value": 108388
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_is_abandoned",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 108768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_span_free",
+      "section_index": "11",
+      "size": 408,
+      "type": "FUNC",
+      "value": 108824
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_span_remove_from_queue",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 109232
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_span_free_coalesce",
+      "section_index": "11",
+      "size": 448,
+      "type": "FUNC",
+      "value": 109296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_span_allocate",
+      "section_index": "11",
+      "size": 612,
+      "type": "FUNC",
+      "value": 109744
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_slice_split",
+      "section_index": "11",
+      "size": 152,
+      "type": "FUNC",
+      "value": 110356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segments_page_find_and_allocate",
+      "section_index": "11",
+      "size": 368,
+      "type": "FUNC",
+      "value": 110508
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_os_alloc",
+      "section_index": "11",
+      "size": 704,
+      "type": "FUNC",
+      "value": 110876
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_alloc",
+      "section_index": "11",
+      "size": 776,
+      "type": "FUNC",
+      "value": 111580
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_free",
+      "section_index": "11",
+      "size": 240,
+      "type": "FUNC",
+      "value": 112356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_page_clear",
+      "section_index": "11",
+      "size": 336,
+      "type": "FUNC",
+      "value": 112596
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_abandon",
+      "section_index": "11",
+      "size": 360,
+      "type": "FUNC",
+      "value": 113076
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_slices_start_iterate",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 113552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_check_free",
+      "section_index": "11",
+      "size": 380,
+      "type": "FUNC",
+      "value": 113656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_reclaim",
+      "section_index": "11",
+      "size": 660,
+      "type": "FUNC",
+      "value": 114036
+    },
+    {
+      "binding": "LOCAL",
+      "name": "segment_count_is_within_target",
+      "section_index": "11",
+      "size": 120,
+      "type": "FUNC",
+      "value": 115196
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_get_reclaim_tries",
+      "section_index": "11",
+      "size": 296,
+      "type": "FUNC",
+      "value": 115316
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_try_reclaim",
+      "section_index": "11",
+      "size": 480,
+      "type": "FUNC",
+      "value": 115612
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_force_abandon",
+      "section_index": "11",
+      "size": 292,
+      "type": "FUNC",
+      "value": 116352
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segments_try_abandon_to_target",
+      "section_index": "11",
+      "size": 252,
+      "type": "FUNC",
+      "value": 116644
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segments_try_abandon",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 116896
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_reclaim_or_alloc",
+      "section_index": "11",
+      "size": 152,
+      "type": "FUNC",
+      "value": 117100
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segments_page_alloc",
+      "section_index": "11",
+      "size": 212,
+      "type": "FUNC",
+      "value": 117252
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_huge_page_alloc",
+      "section_index": "11",
+      "size": 236,
+      "type": "FUNC",
+      "value": 117464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_visit_page",
+      "section_index": "11",
+      "size": 160,
+      "type": "FUNC",
+      "value": 118108
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_cookie",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 118516
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_ptr_segment",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 118552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_segment_map_index_of",
+      "section_index": "11",
+      "size": 556,
+      "type": "FUNC",
+      "value": 118608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_of",
+      "section_index": "11",
+      "size": 224,
+      "type": "FUNC",
+      "value": 119720
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_is_valid_pointer",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 119944
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_atomic_addi64_relaxed",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 120224
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_atomic_maxi64_relaxed",
+      "section_index": "11",
+      "size": 156,
+      "type": "FUNC",
+      "value": 120260
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_numa_node_count",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 120416
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_is_in_main",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 120504
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_update",
+      "section_index": "11",
+      "size": 308,
+      "type": "FUNC",
+      "value": 120584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_adjust",
+      "section_index": "11",
+      "size": 188,
+      "type": "FUNC",
+      "value": 120892
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_add",
+      "section_index": "11",
+      "size": 232,
+      "type": "FUNC",
+      "value": 121400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_counter_add",
+      "section_index": "11",
+      "size": 120,
+      "type": "FUNC",
+      "value": 121632
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stats_add",
+      "section_index": "11",
+      "size": 864,
+      "type": "FUNC",
+      "value": 121752
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_printf_amount",
+      "section_index": "11",
+      "size": 688,
+      "type": "FUNC",
+      "value": 122616
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_print_amount",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 123304
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_print_count",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 123364
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_print_ex",
+      "section_index": "11",
+      "size": 692,
+      "type": "FUNC",
+      "value": 123464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_print",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 124156
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_peak_print",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 124224
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_counter_print",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 124332
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stat_counter_print_avg",
+      "section_index": "11",
+      "size": 220,
+      "type": "FUNC",
+      "value": 124436
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_print_header",
+      "section_index": "11",
+      "size": 120,
+      "type": "FUNC",
+      "value": 124656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_buffered_flush",
+      "section_index": "11",
+      "size": 96,
+      "type": "FUNC",
+      "value": 124776
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_buffered_out",
+      "section_index": "11",
+      "size": 208,
+      "type": "FUNC",
+      "value": 124872
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_stats_print",
+      "section_index": "11",
+      "size": 1452,
+      "type": "FUNC",
+      "value": 125080
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stats_get_default",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 126532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_stats_merge_from",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 126568
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_is_aligned",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 127532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_open",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 127588
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_read",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 127624
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_close",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 127668
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_access",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 127696
+    },
+    {
+      "binding": "LOCAL",
+      "name": "unix_detect_overcommit",
+      "section_index": "11",
+      "size": 156,
+      "type": "FUNC",
+      "value": 127732
+    },
+    {
+      "binding": "LOCAL",
+      "name": "unix_madvise",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 128268
+    },
+    {
+      "binding": "LOCAL",
+      "name": "unix_mmap_prim",
+      "section_index": "11",
+      "size": 284,
+      "type": "FUNC",
+      "value": 128344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "unix_mmap_fd",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 128628
+    },
+    {
+      "binding": "LOCAL",
+      "name": "unix_mmap",
+      "section_index": "11",
+      "size": 848,
+      "type": "FUNC",
+      "value": 128636
+    },
+    {
+      "binding": "LOCAL",
+      "name": "unix_mprotect_hint",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 129652
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_prim_mbind",
+      "section_index": "11",
+      "size": 72,
+      "type": "FUNC",
+      "value": 130152
+    },
+    {
+      "binding": "LOCAL",
+      "name": "timeval_secs",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 130828
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_get_environ",
+      "section_index": "11",
+      "size": 16,
+      "type": "FUNC",
+      "value": 131100
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_pthread_done",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 131796
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_process_attach",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 132000
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_process_detach",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 132024
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_from_index",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 42876
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_has_overcommit",
+      "section_index": "11",
+      "size": 16,
+      "type": "FUNC",
+      "value": 82204
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_reclaim",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 94140
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_abandoned_collect",
+      "section_index": "11",
+      "size": 260,
+      "type": "FUNC",
+      "value": 116092
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_delayed_free_all",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 94492
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_free_generic",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 26976
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_thread_done_auto_done",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 131880
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_set_default_direct",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 70096
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_fprintf",
+      "section_index": "11",
+      "size": 176,
+      "type": "FUNC",
+      "value": 78704
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_process_done",
+      "section_index": "11",
+      "size": 272,
+      "type": "FUNC",
+      "value": 70776
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_unclaim",
+      "section_index": "11",
+      "size": 136,
+      "type": "FUNC",
+      "value": 55708
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_try_find_claim_field",
+      "section_index": "11",
+      "size": 448,
+      "type": "FUNC",
+      "value": 54856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_process_load",
+      "section_index": "11",
+      "size": 188,
+      "type": "FUNC",
+      "value": 70168
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_snprintf",
+      "section_index": "11",
+      "size": 172,
+      "type": "FUNC",
+      "value": 75820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_is_redirected",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 132048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_init",
+      "section_index": "11",
+      "size": 296,
+      "type": "FUNC",
+      "value": 61836
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_purge",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 86996
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_thread_init_auto_done",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 131840
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_malloc_generic",
+      "section_index": "11",
+      "size": 380,
+      "type": "FUNC",
+      "value": 99180
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_is_any_claimed",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 56516
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_page_size",
+      "section_index": "11",
+      "size": 16,
+      "type": "FUNC",
+      "value": 82236
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_destroy_pages",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 63068
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_use_delayed_free",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 93040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_error_message",
+      "section_index": "11",
+      "size": 248,
+      "type": "FUNC",
+      "value": 80188
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_use_large_page",
+      "section_index": "11",
+      "size": 176,
+      "type": "FUNC",
+      "value": 82308
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_segment_mark_abandoned",
+      "section_index": "11",
+      "size": 232,
+      "type": "FUNC",
+      "value": 40208
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_main_get",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 67520
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_collect_abandon",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 61608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_abandoned_reclaim_all",
+      "section_index": "11",
+      "size": 120,
+      "type": "FUNC",
+      "value": 115076
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_realloc_zero",
+      "section_index": "11",
+      "size": 420,
+      "type": "FUNC",
+      "value": 30020
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_stat_counter_increase",
+      "section_index": "11",
+      "size": 136,
+      "type": "FUNC",
+      "value": 121080
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_free",
+      "section_index": "11",
+      "size": 752,
+      "type": "FUNC",
+      "value": 49240
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_random_init",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 102044
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZSt15get_new_handlerv",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 31540
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_process_info",
+      "section_index": "11",
+      "size": 120,
+      "type": "FUNC",
+      "value": 130932
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_get_aligned_hint",
+      "section_index": "11",
+      "size": 372,
+      "type": "FUNC",
+      "value": 82712
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_decommit",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 129764
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_random_next",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 101600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_stats_done",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 126796
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_free_delayed_block",
+      "section_index": "11",
+      "size": 132,
+      "type": "FUNC",
+      "value": 27392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_map_allocated_at",
+      "section_index": "11",
+      "size": 276,
+      "type": "FUNC",
+      "value": 119164
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_stat_decrease",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 121260
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_try_find_from_claim_across",
+      "section_index": "11",
+      "size": 212,
+      "type": "FUNC",
+      "value": 57804
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bin",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 90816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_random_split",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 101552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_warning_message",
+      "section_index": "11",
+      "size": 312,
+      "type": "FUNC",
+      "value": 79780
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_random_weak",
+      "section_index": "11",
+      "size": 140,
+      "type": "FUNC",
+      "value": 101660
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_is_claimed",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 56456
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_thread_data_collect",
+      "section_index": "11",
+      "size": 236,
+      "type": "FUNC",
+      "value": 68752
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_random_init_weak",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 102080
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_fputs",
+      "section_index": "11",
+      "size": 252,
+      "type": "FUNC",
+      "value": 78268
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_has_virtual_reserve",
+      "section_index": "11",
+      "size": 16,
+      "type": "FUNC",
+      "value": 82220
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_strnicmp",
+      "section_index": "11",
+      "size": 228,
+      "type": "FUNC",
+      "value": 71108
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_page_abandon",
+      "section_index": "11",
+      "size": 116,
+      "type": "FUNC",
+      "value": 113436
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_memid_is_os_allocated",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 42804
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_stat_adjust_increase",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 121308
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_protect",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 130040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_large_page_size",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 82252
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_numa_node_count",
+      "section_index": "11",
+      "size": 128,
+      "type": "FUNC",
+      "value": 130588
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_malloc",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 29096
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_area_visit_blocks",
+      "section_index": "11",
+      "size": 1092,
+      "type": "FUNC",
+      "value": 64976
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_stat_increase",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 121216
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_unsafe_destroy_all",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 50516
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_retire",
+      "section_index": "11",
+      "size": 308,
+      "type": "FUNC",
+      "value": 95548
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_reset",
+      "section_index": "11",
+      "size": 212,
+      "type": "FUNC",
+      "value": 129828
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_commit_mask_committed_size",
+      "section_index": "11",
+      "size": 168,
+      "type": "FUNC",
+      "value": 104188
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_try_use_delayed_free",
+      "section_index": "11",
+      "size": 332,
+      "type": "FUNC",
+      "value": 93124
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_memid_indices",
+      "section_index": "11",
+      "size": 72,
+      "type": "FUNC",
+      "value": 43124
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_unfull",
+      "section_index": "11",
+      "size": 140,
+      "type": "FUNC",
+      "value": 94960
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_force_abandon",
+      "section_index": "11",
+      "size": 152,
+      "type": "FUNC",
+      "value": 95284
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_claim",
+      "section_index": "11",
+      "size": 176,
+      "type": "FUNC",
+      "value": 55844
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_block_start",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 43972
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_page_alloc",
+      "section_index": "11",
+      "size": 296,
+      "type": "FUNC",
+      "value": 117812
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_segment_clear_abandoned",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 39760
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_clock_now",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 130716
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_alloc_huge_os_pages",
+      "section_index": "11",
+      "size": 284,
+      "type": "FUNC",
+      "value": 130224
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_ptr_unalign",
+      "section_index": "11",
+      "size": 160,
+      "type": "FUNC",
+      "value": 26592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_page_start",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 105928
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_free",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 95436
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_purge_ex",
+      "section_index": "11",
+      "size": 220,
+      "type": "FUNC",
+      "value": 86776
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_strlcat",
+      "section_index": "11",
+      "size": 144,
+      "type": "FUNC",
+      "value": 71488
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_clock_end",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 127064
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_stat_adjust_decrease",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 121352
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_random_buf",
+      "section_index": "11",
+      "size": 392,
+      "type": "FUNC",
+      "value": 131404
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_is_main_thread",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 69668
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_clock_now",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 126964
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_alloc_aligned",
+      "section_index": "11",
+      "size": 308,
+      "type": "FUNC",
+      "value": 85060
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_id_none",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 42600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_is_any_claimed_across",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 59556
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_get_count",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 42836
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_try_find_from_claim_pred",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 55464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_collect",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 108728
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_toupper",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 71048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_trace_message",
+      "section_index": "11",
+      "size": 200,
+      "type": "FUNC",
+      "value": 79140
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_page_free",
+      "section_index": "11",
+      "size": 144,
+      "type": "FUNC",
+      "value": 112932
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_strlen",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 71632
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_clock_start",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 126984
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_field_cursor_init",
+      "section_index": "11",
+      "size": 400,
+      "type": "FUNC",
+      "value": 40440
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_alloc_aligned_at_offset",
+      "section_index": "11",
+      "size": 312,
+      "type": "FUNC",
+      "value": 85368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_map_freed_at",
+      "section_index": "11",
+      "size": 280,
+      "type": "FUNC",
+      "value": 119440
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_tld_init",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 69176
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_attempt_reclaim",
+      "section_index": "11",
+      "size": 380,
+      "type": "FUNC",
+      "value": 114696
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_map_unsafe_destroy",
+      "section_index": "11",
+      "size": 168,
+      "type": "FUNC",
+      "value": 120056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_random_reinit_if_weak",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 102116
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_malloc_zero",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 29444
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_is_claimed_across",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 59496
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_memid_is_suitable",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 42716
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_preloading",
+      "section_index": "11",
+      "size": 16,
+      "type": "FUNC",
+      "value": 70152
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_segment_clear_abandoned_next",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 42220
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_alloc",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 46656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_meta_zalloc",
+      "section_index": "11",
+      "size": 204,
+      "type": "FUNC",
+      "value": 43660
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_commit_ex",
+      "section_index": "11",
+      "size": 268,
+      "type": "FUNC",
+      "value": 86020
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_free",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 83560
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_deferred_free",
+      "section_index": "11",
+      "size": 192,
+      "type": "FUNC",
+      "value": 98532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_guarded_init",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 67292
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_queue_append",
+      "section_index": "11",
+      "size": 280,
+      "type": "FUNC",
+      "value": 92712
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_unclaim_across",
+      "section_index": "11",
+      "size": 328,
+      "type": "FUNC",
+      "value": 58292
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_contains",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 50548
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_area_init",
+      "section_index": "11",
+      "size": 192,
+      "type": "FUNC",
+      "value": 64604
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mi_arena_id_index",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 42528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_thread_associate_default_heap",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 131936
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_malloc_zero_ex",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 29336
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_thread_id",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 67216
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_free_collect",
+      "section_index": "11",
+      "size": 292,
+      "type": "FUNC",
+      "value": 93848
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_try_claim",
+      "section_index": "11",
+      "size": 248,
+      "type": "FUNC",
+      "value": 56208
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_unprotect",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 87288
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_protect",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 87244
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_init",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 82680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_abandon",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 95192
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_memid_is_suitable",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 62320
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_decommit",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 86532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arenas_collect",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 50480
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_verbose_message",
+      "section_index": "11",
+      "size": 216,
+      "type": "FUNC",
+      "value": 79340
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_getenv",
+      "section_index": "11",
+      "size": 288,
+      "type": "FUNC",
+      "value": 131116
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_delayed_free_partial",
+      "section_index": "11",
+      "size": 400,
+      "type": "FUNC",
+      "value": 94560
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_current_thread_count",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 69756
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_malloc_zeroed",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 29144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_meta_free",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 43864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_free_ex",
+      "section_index": "11",
+      "size": 308,
+      "type": "FUNC",
+      "value": 83252
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_padding_shrink",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 28804
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_alloc",
+      "section_index": "11",
+      "size": 220,
+      "type": "FUNC",
+      "value": 84840
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_free",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 128188
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_field_cursor_done",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 40840
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_numa_node_count_get",
+      "section_index": "11",
+      "size": 176,
+      "type": "FUNC",
+      "value": 88520
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_good_alloc_size",
+      "section_index": "11",
+      "size": 196,
+      "type": "FUNC",
+      "value": 82484
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_random_next",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 62400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_subproc_from_id",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 67692
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_options_init",
+      "section_index": "11",
+      "size": 240,
+      "type": "FUNC",
+      "value": 76208
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_unsafe_destroy_all",
+      "section_index": "11",
+      "size": 132,
+      "type": "FUNC",
+      "value": 63268
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_claim_across",
+      "section_index": "11",
+      "size": 420,
+      "type": "FUNC",
+      "value": 58620
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_alloc_huge_os_pages",
+      "section_index": "11",
+      "size": 760,
+      "type": "FUNC",
+      "value": 87628
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_mem_init",
+      "section_index": "11",
+      "size": 300,
+      "type": "FUNC",
+      "value": 127888
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_commit",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 129672
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_option_get_fast",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 76448
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_out_stderr",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 131052
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_by_tag",
+      "section_index": "11",
+      "size": 124,
+      "type": "FUNC",
+      "value": 62824
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_allocator_done",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 132096
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_vsnprintf",
+      "section_index": "11",
+      "size": 2864,
+      "type": "FUNC",
+      "value": 72956
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_numa_node_get",
+      "section_index": "11",
+      "size": 100,
+      "type": "FUNC",
+      "value": 88696
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_strlcpy",
+      "section_index": "11",
+      "size": 152,
+      "type": "FUNC",
+      "value": 71336
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_getenv",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 71820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_thread_done",
+      "section_index": "11",
+      "size": 192,
+      "type": "FUNC",
+      "value": 69904
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_visit_blocks",
+      "section_index": "11",
+      "size": 248,
+      "type": "FUNC",
+      "value": 118268
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_arena_alloc_aligned",
+      "section_index": "11",
+      "size": 500,
+      "type": "FUNC",
+      "value": 46156
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_allocator_init",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 132056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_commit",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 86288
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bin_size",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 90848
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_bitmap_try_find_from_claim",
+      "section_index": "11",
+      "size": 160,
+      "type": "FUNC",
+      "value": 55304
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_os_reset",
+      "section_index": "11",
+      "size": 192,
+      "type": "FUNC",
+      "value": 86584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_heap_collect_retired",
+      "section_index": "11",
+      "size": 396,
+      "type": "FUNC",
+      "value": 95856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_strnlen",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 71716
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_page_malloc_zero",
+      "section_index": "11",
+      "size": 216,
+      "type": "FUNC",
+      "value": 28880
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_segment_huge_page_reset",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 117700
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_alloc",
+      "section_index": "11",
+      "size": 168,
+      "type": "FUNC",
+      "value": 129484
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_commit_mask_next_run",
+      "section_index": "11",
+      "size": 384,
+      "type": "FUNC",
+      "value": 104356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_mi_prim_numa_node",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 130508
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_destroy",
+      "section_index": "11",
+      "size": 144,
+      "type": "FUNC",
+      "value": 63124
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_arena_area",
+      "section_index": "11",
+      "size": 196,
+      "type": "FUNC",
+      "value": 46724
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pvalloc",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 26012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reserve_huge_os_pages_at_ex",
+      "section_index": "11",
+      "size": 424,
+      "type": "FUNC",
+      "value": 53512
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_reallocn",
+      "section_index": "11",
+      "size": 96,
+      "type": "FUNC",
+      "value": 30488
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "realloc",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 30812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_new_aligned",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 32144
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_calloc",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29760
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_new_aligned_nothrow",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 32224
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_recalloc_aligned_at",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 36012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_subproc_add_current_thread",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 67976
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "__libc_valloc",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 26200
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_reallocf",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 30584
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_new_nothrow",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 32064
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdaPvmSt11align_val_t",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 25460
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_malloc_aligned_at",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 34964
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdlPv",
+      "section_index": "11",
+      "size": 252,
+      "type": "FUNC",
+      "value": 27140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_realloc_aligned",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 35836
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_mbsdup",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 37728
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_valloc",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 37128
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_cfree",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 36840
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZnwmRKSt9nothrow_t",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 25668
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_realpath",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 31500
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_Znam",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 31896
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "malloc_size",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 28596
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_thread_init",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 69796
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "__libc_realloc",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 30812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reallocf",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 30900
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_set_enabled_default",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 77152
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_version",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 76140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_alloc_new",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 31804
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_aligned_recalloc",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 38100
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_rezalloc_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 36388
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "calloc",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29760
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_collect",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 61688
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_manage_os_memory",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 52568
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_malloc_small",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29264
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_malloc",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 29532
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_recalloc_aligned_at",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 36436
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reserve_huge_os_pages_interleave",
+      "section_index": "11",
+      "size": 352,
+      "type": "FUNC",
+      "value": 53988
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_collect",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 61644
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi__expand",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 37512
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "valloc",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 25812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_malloc_aligned",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 35012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "free",
+      "section_index": "11",
+      "size": 252,
+      "type": "FUNC",
+      "value": 27140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_get_default",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 61724
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_recalloc_aligned",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 36124
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_strndup",
+      "section_index": "11",
+      "size": 144,
+      "type": "FUNC",
+      "value": 31196
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_rezalloc_aligned",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 35956
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_free_size_aligned",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 28668
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_get_size",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 76692
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "strndup",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 31340
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdaPvSt11align_val_t",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 25372
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_register_output",
+      "section_index": "11",
+      "size": 132,
+      "type": "FUNC",
+      "value": 77928
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_strdup",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 31164
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_guarded_set_sample_rate",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 67236
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_try_new",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 31672
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_set_enabled",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 77108
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_visit_blocks",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 66424
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_manage_os_memory_ex",
+      "section_index": "11",
+      "size": 152,
+      "type": "FUNC",
+      "value": 52036
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_subproc_main",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 67548
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_collect_reduce",
+      "section_index": "11",
+      "size": 116,
+      "type": "FUNC",
+      "value": 116984
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZnamSt11align_val_tRKSt9nothrow_t",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 25772
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_contains_block",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 64132
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_realloc_aligned_at",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 36228
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_wcsdup",
+      "section_index": "11",
+      "size": 148,
+      "type": "FUNC",
+      "value": 37580
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_aligned_malloc",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 26076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_malloc",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29492
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_new_reallocn",
+      "section_index": "11",
+      "size": 96,
+      "type": "FUNC",
+      "value": 32384
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reallocarr",
+      "section_index": "11",
+      "size": 148,
+      "type": "FUNC",
+      "value": 37364
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reserve_os_memory_ex",
+      "section_index": "11",
+      "size": 380,
+      "type": "FUNC",
+      "value": 52188
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_process_init",
+      "section_index": "11",
+      "size": 412,
+      "type": "FUNC",
+      "value": 70364
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdlPvmSt11align_val_t",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 25412
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_zalloc",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 29640
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_zalloc_aligned_at",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 35052
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_aligned_alloc",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 37244
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_disable",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 77232
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_get_clamp",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 76608
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_thread_done",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 69876
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_expand",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 29928
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_new_realloc",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 32304
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZnamRKSt9nothrow_t",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 25700
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_zalloc_aligned_at",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 34700
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_zalloc_small",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 29564
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "malloc_good_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 25872
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_set_default",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 63908
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_zalloc_aligned",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 35100
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_free",
+      "section_index": "11",
+      "size": 252,
+      "type": "FUNC",
+      "value": 27140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_stats_merge",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 126768
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_zalloc_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 34756
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZnwmSt11align_val_tRKSt9nothrow_t",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 25732
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reserve_os_memory",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 52648
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_malloc_usable_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 36784
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_check_owned",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 64568
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_new_in_arena",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 62248
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_calloc_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 35196
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_get",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 76496
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_new",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 62284
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_aligned_offset_recalloc",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 38040
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_new_ex",
+      "section_index": "11",
+      "size": 116,
+      "type": "FUNC",
+      "value": 62132
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_alloc_new_n",
+      "section_index": "11",
+      "size": 96,
+      "type": "FUNC",
+      "value": 31928
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_get_backing",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 61792
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_realloc_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 36284
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_realloc_aligned_at",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 35772
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_memalign",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 37084
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_wdupenv_s",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 37952
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_guarded_set_size_bound",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 67264
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "aligned_alloc",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 25944
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "reallocarray",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 26112
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_strdup",
+      "section_index": "11",
+      "size": 136,
+      "type": "FUNC",
+      "value": 31028
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdaPv",
+      "section_index": "11",
+      "size": 252,
+      "type": "FUNC",
+      "value": 27140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_malloc_aligned_at",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 34596
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reserve_huge_os_pages",
+      "section_index": "11",
+      "size": 144,
+      "type": "FUNC",
+      "value": 54340
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_recalloc",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 30980
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "__libc_free",
+      "section_index": "11",
+      "size": 252,
+      "type": "FUNC",
+      "value": 27140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_usable_size",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 28596
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdaPvSt11align_val_tRKSt9nothrow_t",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 25624
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_calloc_aligned_at",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 35140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_rezalloc_aligned_at",
+      "section_index": "11",
+      "size": 64,
+      "type": "FUNC",
+      "value": 35892
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_debug_show_arenas",
+      "section_index": "11",
+      "size": 440,
+      "type": "FUNC",
+      "value": 53072
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdaPvRKSt9nothrow_t",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 25544
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "memalign",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 26040
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "reallocf",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 30900
+    },
+    {
+      "binding": "WEAK",
+      "name": "reallocarr",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 26156
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_delete",
+      "section_index": "11",
+      "size": 164,
+      "type": "FUNC",
+      "value": 63744
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_malloc_good_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 36812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_pvalloc",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 37160
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_stats_print_out",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 126828
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_process_info",
+      "section_index": "11",
+      "size": 412,
+      "type": "FUNC",
+      "value": 127120
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_stats_reset",
+      "section_index": "11",
+      "size": 124,
+      "type": "FUNC",
+      "value": 126644
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_realloc",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 30812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_dupenv_s",
+      "section_index": "11",
+      "size": 196,
+      "type": "FUNC",
+      "value": 37756
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_check_owned",
+      "section_index": "11",
+      "size": 136,
+      "type": "FUNC",
+      "value": 64432
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "__libc_cfree",
+      "section_index": "11",
+      "size": 252,
+      "type": "FUNC",
+      "value": 27140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_stats_print",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 126884
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_calloc",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 29672
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_rezalloc_aligned_at",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 36332
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_thread_stats_print_out",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 126920
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_rezalloc",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 30940
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdlPvRKSt9nothrow_t",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 25508
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "malloc_usable_size",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 28596
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_enable",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 77196
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_rezalloc",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 30668
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vfree",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 25840
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_register_deferred_free",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 98724
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "__libc_calloc",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29760
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_new",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 31896
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_subproc_new",
+      "section_index": "11",
+      "size": 136,
+      "type": "FUNC",
+      "value": 67556
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_realpath",
+      "section_index": "11",
+      "size": 120,
+      "type": "FUNC",
+      "value": 31380
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "__libc_pvalloc",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 26228
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_posix_memalign",
+      "section_index": "11",
+      "size": 188,
+      "type": "FUNC",
+      "value": 36896
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZnwmSt11align_val_t",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 32144
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_strndup",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 31340
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_malloc_size",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 36756
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_recalloc_aligned",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 36500
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reallocarray",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 37288
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_malloc_small",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 29304
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_recalloc",
+      "section_index": "11",
+      "size": 96,
+      "type": "FUNC",
+      "value": 30716
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "strdup",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 31164
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_realloc",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 30440
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_subproc_delete",
+      "section_index": "11",
+      "size": 240,
+      "type": "FUNC",
+      "value": 67736
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_is_enabled",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 77068
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "__libc_memalign",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 26256
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_Znwm",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 31896
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_calloc_aligned_at",
+      "section_index": "11",
+      "size": 104,
+      "type": "FUNC",
+      "value": 34804
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "__posix_memalign",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 26292
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_set_default",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 76976
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_register_error",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 80112
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_mallocn",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29888
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cfree",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 25980
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_new_n",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 32024
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdaPvm",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 28632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_zalloc",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 29600
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdlPvSt11align_val_t",
+      "section_index": "11",
+      "size": 40,
+      "type": "FUNC",
+      "value": 25332
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "posix_memalign",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 25900
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_mallocn",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 29800
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_option_set",
+      "section_index": "11",
+      "size": 200,
+      "type": "FUNC",
+      "value": 76776
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdlPvm",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 28632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_is_in_heap_region",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 120024
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_free_size",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 28632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_good_size",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 90904
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reallocn",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 30852
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "__libc_malloc",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 29532
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_calloc_aligned",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 34908
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_free_aligned",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 28712
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "malloc",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 29532
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZnamSt11align_val_t",
+      "section_index": "11",
+      "size": 80,
+      "type": "FUNC",
+      "value": 32144
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_heap_malloc_aligned",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 34652
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_reserve_huge_os_pages_at",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 53936
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZdlPvSt11align_val_tRKSt9nothrow_t",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 25580
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mi_abandoned_visit_blocks",
+      "section_index": "11",
+      "size": 224,
+      "type": "FUNC",
+      "value": 42304
+    }
+  ]
+}

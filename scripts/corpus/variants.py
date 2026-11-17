@@ -42,9 +42,12 @@ def main():
     p.add_argument('--package', choices=PACKAGES, action='append')
     p.add_argument('--arch', choices=['x86_64', 'aarch64'], action='append')
     p.add_argument('--level', choices=['O0', 'Og', 'O1', 'O3'], action='append')
+    p.add_argument('--configuration', choices=['asm', 'no-asm'], help='OpenSSL only; default remains no-asm')
     p.add_argument('--work', type=Path, required=True)
     p.add_argument('--resume', action='store_true', help='validate and retain already published builds')
     a = p.parse_args()
+    if a.configuration is not None and a.package != ['openssl']:
+        p.error('--configuration requires exactly --package openssl')
     os.chdir(ROOT)
     cache = Path(os.environ.get('CORPUS_CACHE', str(Path.home() / '.cache/silmaril-corpus'))).resolve()
     cache.mkdir(parents=True, exist_ok=True)
@@ -66,14 +69,14 @@ def main():
             canonical = json.loads((ROOT / 'corpus/elf' / pkg / arch / 'receipt.json').read_text())
             names = [obj['object'] for obj in canonical['outputs']]
             for level in a.level or ['O0', 'Og', 'O1', 'O3']:
-                config = 'no-asm' if pkg == 'openssl' else 'default'
+                config = (a.configuration or 'no-asm') if pkg == 'openssl' else 'default'
                 relative = Path('corpus/variants') / pkg / package['version'] / config / arch / level
                 dest = ROOT / relative
                 if dest.exists():
                     if not a.resume:
                         raise FileExistsError(f'{dest}: preserve existing outputs; use --resume to validate and retain')
                     existing = json.loads((dest / 'build.json').read_text())
-                    if (existing['project'], existing['version'], existing['optimization'], existing['target']) != (pkg, package['version'], level, arch + '-linux-gnu'):
+                    if (existing['project'], existing['version'], existing['optimization'], existing['target'], existing['configuration']) != (pkg, package['version'], level, arch + '-linux-gnu', config):
                         raise ValueError(f'{dest}: identity mismatch')
                     for variant in ['unstripped', 'stripped']:
                         receipt = json.loads((dest / variant / 'receipt.json').read_text())
@@ -95,7 +98,7 @@ def main():
                 def docker(command, log, extra=()):
                     nonlocal processor
                     base_cmd = ['docker', 'run', '--rm', '--network', 'host', '--cpus', '8', '--memory', '32g',
-                           '-e', 'JOBS=8', '-e', 'SOURCE_DATE_EPOCH=1762128000', '-e', f'CORPUS_OPT_LEVEL={level}',
+                           '-e', 'JOBS=8', '-e', 'SOURCE_DATE_EPOCH=1762128000', '-e', f'CORPUS_OPT_LEVEL={level}', '-e', f'CORPUS_OPENSSL_CONFIG={config}',
                            '-v', f'{recipes / "corpus"}:/corpus:ro', '-v', f'{recipes / "scripts"}:/scripts:ro',
                            '-v', f'{cache}:/cache:ro', '-v', f'{work}:/out', *extra]
                     # Measure tools inside the container, not just the Docker client.

@@ -1,0 +1,71 @@
+{
+  "package": "tinycc",
+  "version": "0.9.27",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD (configure adds -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result)",
+  "ldflags": "",
+  "configure_args": "./configure  --extra-cflags='-Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD'",
+  "build_commands": [
+    "gcc -o tcc.o -c tcc.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o libtcc.o -c libtcc.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccpp.o -c tccpp.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccgen.o -c tccgen.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccelf.o -c tccelf.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccasm.o -c tccasm.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccrun.o -c tccrun.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o x86_64-gen.o -c x86_64-gen.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o x86_64-link.o -c x86_64-link.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o i386-asm.o -c i386-asm.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tcc tcc.o libtcc.a -lm -ldl  "
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/tinycc",
+  "inputs": [
+    {
+      "url": "https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2",
+      "sha256": "de23af78fca90ce32dff2dd45b3432b2334740bb9bb7b05bf60fdbfc396ceb9c"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "tcc",
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/Og/unstripped/tcc",
+      "size": 242696,
+      "sha256": "398ba6ca51236ceefa5902884ba42153959790c3b821b90a4037094d27a9b340",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 499,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean builds (fresh containers, fresh /build) compared by sha256",
+  "tests": [
+    {
+      "command": "tcc -v",
+      "result": "pass: tcc version 0.9.27 (x86_64 Linux)"
+    },
+    {
+      "command": "file hello.o (tcc -c output is an ELF relocatable for x86_64)",
+      "result": "pass: 1"
+    },
+    {
+      "command": "./hello (compiled by tcc, linked by gcc -no-pie)",
+      "result": "pass: hello from tcc 6765"
+    }
+  ],
+  "variant": {
+    "optimization": "Og",
+    "stripping": "unstripped",
+    "configuration": "default",
+    "run_id": "742c5962-3a1a-46d8-847a-4c69d824cd0d",
+    "target": "x86_64-linux-gnu"
+  }
+}

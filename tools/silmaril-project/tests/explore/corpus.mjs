@@ -5,6 +5,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 const pw=await import(process.env.PLAYWRIGHT_CORE||'/usr/local/lib/node_modules/playwright-core/index.mjs');
 const site=path.resolve(process.argv[2]), screenshot=process.argv[3];
+const requestLog=path.join(site,'browser-requests.jsonl');
+fs.rmSync(requestLog,{force:true});
 const server=spawn('python3',['-I',new URL('./pages_server.py',import.meta.url).pathname,'--root',site,'--port','8789','--log',path.join(site,'browser-requests.jsonl')],{stdio:'ignore'});
 const localChrome='/opt/ms-playwright/chromium-1248/chrome-linux64/chrome';
 const browser=await pw.chromium.launch({executablePath:process.env.CHROME||(fs.existsSync(localChrome)?localChrome:undefined),args:['--no-sandbox']});
@@ -14,7 +16,10 @@ try{
   await page.goto('http://127.0.0.1:8789/index.html#/corpus');
   await page.waitForFunction(()=>window.explore?.ready&&!window.explore.busy,null,{timeout:60000});
   assert.match(await page.locator('#main').innerText(),/Software under test/);
-  assert.match(await page.locator('#main').innerText(),/0 contextual C → ELF statements/);
+  const initialReads=fs.readFileSync(requestLog,'utf8').trim().split('\n').map(JSON.parse).filter(r=>r.path==='/project.sqlite');
+  assert.ok(initialReads.reduce((n,r)=>n+(r.method==='GET'?r.bytes:0),0)<2*1024*1024,'landing page reads compact indexes rather than artifact evidence payloads');
+  assert.match(await page.locator('#main').innerText(),/1 contextual C → ELF statements/);
+  assert.match(await page.locator('#main').innerText(),/1 function-equivalence statements/);
   assert.equal(await page.locator('#nav a').count(),2,'standalone corpus database gets dedicated navigation');
   assert.equal(await page.locator('#source .err').count(),0,'recognized corpus schema');
   if(screenshot)await page.screenshot({path:screenshot,fullPage:false});
@@ -67,5 +72,5 @@ c.execute('UPDATE corpus_timings SET metadata=? WHERE run_id=?',(json.dumps(m),r
     assert.equal(await page.locator('#main img').count(),0);
   }finally{fs.rmSync(path.join(site,evil));}
   assert.deepEqual(errors,[]);
-  console.log('PASS corpus database: filters, artifact/source links, stripped mapping search, timings, zero-TV disclosure');
+  console.log('PASS corpus database: filters, artifact/source links, stripped mapping search, timings, concrete stated/unproved disclosure');
 }finally{await browser.close();server.kill();}

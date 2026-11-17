@@ -1,0 +1,519 @@
+{
+  "schema_version": 1,
+  "run_id": "dcb4131c-fe23-4490-94dd-0612ad3ddc5c",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-17T23:09:24.816488+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.Aarch64.O0.Stripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.Aarch64.O0.Unstripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.Aarch64.O1.Stripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.Aarch64.O1.Unstripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.Aarch64.O3.Stripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.Aarch64.O3.Unstripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.Aarch64.Og.Stripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.Aarch64.Og.Unstripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.X8664.O0.Stripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.X8664.O0.Unstripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.X8664.O1.Stripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.X8664.O1.Unstripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.X8664.O3.Stripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.X8664.O3.Unstripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.X8664.Og.Stripped.DarkhttpdBinary.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Darkhttpd.N117.Default.X8664.Og.Unstripped.DarkhttpdBinary.Decomp"
+  ],
+  "cwd": "/work/formal-integration",
+  "target": "x86_64+aarch64-linux-gnu",
+  "repository": {
+    "commit": "04b8f5425df39c9a81bd59dff5d7af7943e501de",
+    "dirty": true,
+    "diff_sha256": "ee2d867a6d14f453b17106ee5eea7ca949bb0f378a3a727104fd8826b17535d8"
+  },
+  "cache": "unspecified",
+  "concurrency": 2,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O0/stripped/darkhttpd",
+      "sha256": "37b94e99b07c29b5996b163634afa0902194ddd5c7c60fe3e158ece3e863b942"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Stripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "e1a6fbd5bdca66d3a293b9624ed8b2cb293d579840e9b068513ed1ba218cd23f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Stripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "47b871258f34e192345b1a1f859355253f0df98c0b8b7fb7cdf9e5711591d81f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Stripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "401a758117c17b4615ab7273342dd8655ecc58195a09ecc290006af100f83c98"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Stripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "ecaa98bd2d92cde2982bfd0543056dc8b7d47785528973015768710df1100c05"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Stripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "926c2203564d4b926758c256f267c3c74b5cdd4e6bc72e78d8b3ad1876f9f50c"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O0/unstripped/darkhttpd",
+      "sha256": "c7d1209801f8f6de306e42563eb7fbae16996026075719eabe126ed73335c068"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Unstripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "5629ef7cd1706901da9cc8d935895d34b9cf55c51c8acc5857d5b039abb854ef"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Unstripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "6b1d54d5e11a3c3dcbd2e67e68aa707567408f21832cc4f16d94b62269dbc4d5"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Unstripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "d8b3c2ef1d1c06a16343044cfd9673f716b85bbb1bdd71d414dc90df9d01c68d"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Unstripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "1c7fc4549a94e11408f7ca2b79d758503988e72f2b1cc18db548265ec80832a5"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Unstripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "e06a4eef72abc5240de84cbcceba35faf4d6a5cf29716eac8e33a49412199e8b"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Unstripped/DarkhttpdBinary/Bodies/Part0.lean",
+      "sha256": "c7dd43b336ce406d30b00abcddbe5373a1122bb2ddf59459c29069eda19be9fa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Unstripped/DarkhttpdBinary/Bodies/Part1.lean",
+      "sha256": "a7f4e32656daf95ef2019b5b31f6ccef4a10eca0f09f9bdf07cbfacc510966e6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O0/Unstripped/DarkhttpdBinary/Bodies/Part2.lean",
+      "sha256": "c271f6c04c35cd98349770db2d27a9158d9d8740ddd7dfbf946c3768a60c9a41"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O1/stripped/darkhttpd",
+      "sha256": "221b51fa154bfe156d15864d2ad27413f0f0945aa900d52ed4551481bb155979"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Stripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "65c7b090cd5114774a1068f50a7f522f50a0b6253fcb74fbbf0ae9d37e69afa0"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Stripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "ec727c194070a6e2f02ac8e2763e83f1c53f4f063791b00a00b0c9441d7cff6d"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Stripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "7bb89aa53f0b66936bc9cff6c8213973ce6bfdb69cedf2abe0eeea495165cc2d"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Stripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "983192760016092b217e24f901bc41e3e79e2c10fdd610664a747f96c6db0ac9"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Stripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "bb14d7075b03f9d8914d14e202be665a70118b0ffc614de60962c0982d41d624"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O1/unstripped/darkhttpd",
+      "sha256": "53e189066d169475194115ff2fc8402dcc625d92cf50072b9a0e167efbd2ab86"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Unstripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "ae4f212a8073f597b61ce0ffb3bb3d00dde4c4a140d7d3b5730f4306f25b6872"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Unstripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "1a3b8f57adf5e2620c4666550fe95ab539425367116d5b239a86df7604c95034"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Unstripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "970ad43cf35bac9dcc90b0d87104d832dd89e5f70aa8e6a63e25ba436882044c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Unstripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "f64c74cda10922fb204a97eeee3c5dd673fe10424af2f9ed9d2d375a16256a07"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Unstripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "fbf47ab86460b1a78c27b1e5ab6403d1497d62e8c7f951943224677c14fa1076"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Unstripped/DarkhttpdBinary/Bodies/Part0.lean",
+      "sha256": "859b70df72b0370db002aacf3fb17363696ee291eb521ca1f753aa0b8bf7e814"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Unstripped/DarkhttpdBinary/Bodies/Part1.lean",
+      "sha256": "e8fee1482f66eed06a4a2a6663a903e0a9b4316ddb9e2e0ead540f392c7bf8a6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O1/Unstripped/DarkhttpdBinary/Bodies/Part2.lean",
+      "sha256": "82ad824953bc1a25dcdc96b8aa1b505911868dd0cc92d045a6e87df7ca720d15"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O3/stripped/darkhttpd",
+      "sha256": "c63c5d71393396585d37483f2019f528ae997008cbef224997c44e6d8d234b81"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Stripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "3298b179d0e1300f266c33063266d5b907251c4360bc3a0aaf22a0415ef8579f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Stripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "aa0eab7c495f985b0a54f1a8df1efb2f34b07b657057e35ce308cfae0c3c49d7"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Stripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "4d6242fe1f192cbf25a22447aa07da9f49f04dd24fa0789fc6c3d47c9415983f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Stripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "6dc0593db975f32d1a3ccaea429480d3f663b37551e371f6574e6fd32887fde0"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Stripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "265c28abfaaee7f4af3ea1ac4b563ecfc908a214f185e51d4bdf3ff01ebb9d6f"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O3/unstripped/darkhttpd",
+      "sha256": "1e6e61e1d358d1cb65f182b993cf11d9366e0246fa8be852d9629830d2ce3b8a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Unstripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "2c38793953b9b562fdb2b111f04f15bb13b37d807dd9017247d326839f33d6a2"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Unstripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "6ddeac75c946571d93d3eafddf058e75a8cde213c7a68866905d5e9d3a1666af"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Unstripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "52375b3c73a9fb4675c3ec3c1633965c2648286173c4c599ea2f6f9ba82605d8"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Unstripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "9f9ab13e6837129ba309c3d7c0f537c68e95601236a12ed2f3e2c19a10c01c0b"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Unstripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "ec703ec484cf57b086f73b4dc2c2f3af35dc052d20389cef9cf104a61a5bc879"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Unstripped/DarkhttpdBinary/Bodies/Part0.lean",
+      "sha256": "4b4776854ad53b26eb521ab323d9ecdceaf8488afd5e7f67e099829de0b22c1e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Unstripped/DarkhttpdBinary/Bodies/Part1.lean",
+      "sha256": "b506e543ae1464135c3faf191c7ebe70bbb78fc34f626c6e76be073c4c5dc4cb"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/O3/Unstripped/DarkhttpdBinary/Bodies/Part2.lean",
+      "sha256": "29b57da8433e3bf74668e717d0ec4895f8918a6608b996e477bdf3028d4e1c94"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/aarch64/Og/stripped/darkhttpd",
+      "sha256": "284c70a15822e10da10ba748f6f933984e45e411f96cda4c1c7164596ad2c729"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Stripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "f472a187e313e5b84395660715d109877f64190b44d3761988458ffe34344757"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Stripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "66018db24dd023dd5ffb2e747fd67d65cee046485498e1dff6cd523e758b98ca"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Stripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "a022446fcf0a66842ae1feb7bdfe9520b88f48a5edff15d10ce268e18f57052e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Stripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "f8b6bb500bb19df7339c13ebfcc74b78891e03adc840d178dba4a0398bd93214"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Stripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "c2ff8175fece753e220b4d47e13c17dd0d1984012d118f6d93e47a33f1328e65"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/aarch64/Og/unstripped/darkhttpd",
+      "sha256": "9260c61ebf438bad34ecbbf5a49f2cb46391b1540df84dde5c2f0570ec82d182"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Unstripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "82fcdd7072dd0c0848bb2f9e5fd12572df0fa80ec8f0035a74a86d530faf3aa9"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Unstripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "30983bcc981607f9c096a64545878a354e4041f6b581e9e5185862cf60c9ba65"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Unstripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "c7c32ee336eb147d8976767f1f5ed532302bc8c6d3781653c7fc998f791d514a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Unstripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "582a12e711d737ecad4e80372d7dea4c96d19b350ce04a15a92a9face1513a52"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Unstripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "0d1add8c7169e4044034828a56a598be25cace3028335a939f3f6e2acd7a27f2"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Unstripped/DarkhttpdBinary/Bodies/Part0.lean",
+      "sha256": "d81be1990d508db2018568e5755551cca332cb6678ba8bd40a5a80416fc028cf"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Unstripped/DarkhttpdBinary/Bodies/Part1.lean",
+      "sha256": "24e7ebcec75ba0efee5e5d916e395a4b3ce9ed11980ec36da1853cbe8153836f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/Aarch64/Og/Unstripped/DarkhttpdBinary/Bodies/Part2.lean",
+      "sha256": "281c5522a3b51047198d8378570033f0e33bcf5b3af78f755571029026fdba99"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O0/stripped/darkhttpd",
+      "sha256": "294669ba0a97debbc13e8bf8aa0794aa94c9d019de1463b59df612f85327bb4c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Stripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "94629cbc48675273beb6ed312211187c4e7e933801e54ff83d2c841aa7b428c2"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Stripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "231c432d8754b8ea7580efd0f0d8ffb608f7909a8cc1ba87ee897305acff016f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Stripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "220d2465ece9a59766f118b340473c5b0cf9c8fa24a37acdf54e08ed7f0f3f51"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Stripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "2d67bc685155391ada8b19517e3f581e11d2f31b8e7987176cdd5aca50f885dc"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Stripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "22d030ecbc18abcbae19fea89eb15668fcb18333dd45da5a4899d92619b4fc2e"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O0/unstripped/darkhttpd",
+      "sha256": "9e107552b0d523f90b1b0b2eacd475f1172a1040316de9d1fc7060dc4799a698"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Unstripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "f584c751510acd37b736abadd3c7bb00b1a50f02ac447534fcb0725381ce1c9e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Unstripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "a07dc491f3f2ac9140f3c8daa43348df1f1dab749f02e32e9ec6129a60c024e6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Unstripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "9265f4b2720bcac14d19c900fe0a4d7f646ab897c8156310772dba3095b322f1"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Unstripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "e326efe78f8856a0ddbc66fe203e16c5127a77c95cfb2746599eb6ce482abbf9"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Unstripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "a8579ec87f220e025d77e9ba544852fc5407b38718cf3a5d190d8bc77d6406c3"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Unstripped/DarkhttpdBinary/Bodies/Part0.lean",
+      "sha256": "403b01bfdeaaa3811eff7ff8fadefd30c9b3764927bb923e08f2c59bef0f0577"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O0/Unstripped/DarkhttpdBinary/Bodies/Part1.lean",
+      "sha256": "f73027439c45df9b635e02ad2f836d1c7dfd18bdcc9dad36f76a92a5f2522a57"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O1/stripped/darkhttpd",
+      "sha256": "baf2a3c755acd9fcb2c6ba873d19fe1e970926e91898f3dda4028908a7114944"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Stripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "e3a6ab21aa552b5e51066997227804a0f378f0c7f01918b15293d8d8e8cddf8c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Stripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "b0e050f090bc1db44293f88e580a628821a818320390dd2c297e97fe01949676"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Stripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "798714925080b8669e280898f30d74d7aa2f19891689a919f16dfef67f55a077"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Stripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "12ff3bd38f71da4259697655a1e12dbf3f0f76ca217c5c3f8c892873ac460986"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Stripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "772a44f5645b1e16517a296124520e0a233439b50aa8ea25f8913b0d4b49921f"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O1/unstripped/darkhttpd",
+      "sha256": "5e593fe0ffe95e1e2a1b2c5d93c5d9b15f6a91fd783003a19a848c484147ad2a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Unstripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "b7d66aef8f752ec40fe7bc3b3b163a1e298d210b1ae17c9026c117daef2b5d63"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Unstripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "7bce1b70815ad57af0b564fd19dc606f40c76ccdf295ce7b90e8537271bf9b66"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Unstripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "0aa373ad7a0af2fdb1e8ea4d0fb98f3a704bbbc8c5c153e227287ebc3beaafe3"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Unstripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "2d088a78d554a5261f3b4a8be5b03d72c2882b03664cb60588094ff666702043"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Unstripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "0a0437d28fb7006ab3e91a63523206f1407c9e53f3af735f12d5d28ff2fd3545"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Unstripped/DarkhttpdBinary/Bodies/Part0.lean",
+      "sha256": "4d8b8091eacb37eb194ed5120cb1d4b96a46ff0a4ce3c7689ba6d885924c8189"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O1/Unstripped/DarkhttpdBinary/Bodies/Part1.lean",
+      "sha256": "fe7709afce973b4cb761fa97b7a5568274ff1f1ae1a625d261d6dc3cc00f9b33"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O3/stripped/darkhttpd",
+      "sha256": "02358eff230fd3f78e5a2bc8072254049090af23bff490926e78b63cadc90661"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Stripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "a4b9628e7e847aab825a55923dd565d73788c2d58362324c3a7fa00d4ce07c04"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Stripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "20ea51fe9f7abf7b69bc61e876d966bbf561c80bf26c3dc58b0909d8eb3ef574"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Stripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "f605d4f71a9f1a0878fd6a3147ab83a8fce987d2292dca6e5387698a492f9fa3"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Stripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "75daaef7c975e36199ab313f0113b7daf5cbad20d6bd1a90b58cf233be5672e6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Stripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "daeedea04a33611dd71ba3f6d36a6b4c0a396986c59613ccedc0abe3360f2eff"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O3/unstripped/darkhttpd",
+      "sha256": "0653b23aa4fb4391f9315ee5f0297b241df2918cd9e73e32ca21f48513bf4333"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Unstripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "98e366a346fa9dcf9b823b3c10cb370760883e092c85e0f0f8217b9b8da0e3f4"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Unstripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "3523540720519a060d8372d29b2365a6015143b49c9b2dafa5110fccd1dde9ce"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Unstripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "01b2cfa5ac6ceac15acb0a49178d58d3b6f3961d9ae108625f0244e9f7715b5c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Unstripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "c3cd9aea95f44dc33028b7b3809f80788d81a8c522db1a388602ee117a0a1bd8"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Unstripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "6e4837c98bdd5f39a25f0ff76c16c27a73ce5ff058e644c6cdff9fd9b317f92c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Unstripped/DarkhttpdBinary/Bodies/Part0.lean",
+      "sha256": "cb7695188fda51b191c318df453cbef1b15952c5f819aced9f8491f401b77050"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/O3/Unstripped/DarkhttpdBinary/Bodies/Part1.lean",
+      "sha256": "44273b48d4f1a235b9fabe5005cd60db63303a5a0fd59c8b444fe9beabb92ff5"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/Og/stripped/darkhttpd",
+      "sha256": "b6380894e85fa98c932bf8439482d2ab2e76fd8b28deaa49fd032d00d287898a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Stripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "7b27b126a06b7bfbd8d9abfbc2b5b306b19d6fe60d9608bd61c842c8766f0e2a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Stripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "c829fab0a63127027a3b9c2b4d6bd20f559dbf501f941de298e7e141cae438a8"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Stripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "222664633162d644d874edd5f819e4131341d89ce2f895873064964bcb90ad2e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Stripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "956ec2d08f9c06d88cf7fd2286bf5c6152ce89d4639b571f4a8958ddffad988a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Stripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "d0e23ac97200f71c49af2cab50846ce1462dc1e40e6f5bd8074dfcd001b780f6"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/Og/unstripped/darkhttpd",
+      "sha256": "1a558f0eca05769307bd2950e91c4c817214b77c30e1a2eedd2376f4afbaaa99"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Unstripped/DarkhttpdBinary/Bytes.lean",
+      "sha256": "f88515a922b6fbad1af6b0fd0fa1a432b815eb6fe259ca000b09ada651a07de0"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Unstripped/DarkhttpdBinary/Decomp.lean",
+      "sha256": "c5788395088c527fd2aca7483135ed5322a372577e0da4b5ea1d4f17848d5aa2"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Unstripped/DarkhttpdBinary/Defs.lean",
+      "sha256": "ae407b47a18dfee6f3124307d958255e8cc4efd544afa29559e76d37f6d7c546"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Unstripped/DarkhttpdBinary/Functions.lean",
+      "sha256": "a3c91051f3e08a0cabc4b5b0e3237c0777e65b46cb6dcda2829e7be6276504f9"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Unstripped/DarkhttpdBinary/Thms.lean",
+      "sha256": "a6898c04ab2c2a44f3dcdce5fbf61d9f5fedca44d6758cadb777a0e62abef130"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Unstripped/DarkhttpdBinary/Bodies/Part0.lean",
+      "sha256": "b7a05574af72459847dc421e60c7dcaea4c8dacc6687dd5bd6bffb254b7d153b"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Darkhttpd/N117/Default/X8664/Og/Unstripped/DarkhttpdBinary/Bodies/Part1.lean",
+      "sha256": "a63ae38e9a5350a00e7acb9f8429b3ebcdcbb4b48a0e849d8c1fc188c4618d9d"
+    }
+  ],
+  "wall_seconds": 127.98880970200025,
+  "exit_code": 0,
+  "user_cpu_seconds": 251.46,
+  "system_cpu_seconds": 254.21,
+  "peak_rss_kib": 3328152,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

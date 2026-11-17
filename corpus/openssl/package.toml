@@ -1,7 +1,7 @@
 name = "openssl"
 version = "3.5.9"
 category = "TLS/crypto library (libcrypto), TLS library (libssl), crypto command-line tool"
-summary = "OpenSSL 3.5.9 (3.5 LTS, latest patch release on 2026-11-17), built with its own Configure + make, no-asm (pure C: no perlasm modules) shared no-tests: libcrypto.so.3, libssl.so.3 and the openssl CLI (apps/openssl) as separate ELF files."
+summary = "OpenSSL 3.5.9 (3.5 LTS, latest patch release on 2026-11-17), built with its own Configure + make, no-asm (separately selected perlasm modules disabled; C inline assembly is not excluded) shared no-tests: libcrypto.so.3, libssl.so.3 and the openssl CLI (apps/openssl) as separate ELF files."
 license = "Apache-2.0"
 license_files = ["upstream/openssl-3.5.9/LICENSE.txt"]
 homepage = "https://openssl-library.org/"

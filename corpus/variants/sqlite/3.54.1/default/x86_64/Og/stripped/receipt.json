@@ -1,0 +1,82 @@
+{
+  "package": "sqlite",
+  "version": "3.54.1",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-Og -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD",
+  "ldflags": "",
+  "configure_args": "(none: amalgamation compiled directly)",
+  "build_commands": [
+    "gcc -Og -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD -fPIC -c sqlite3.c -o sqlite3.o",
+    "gcc -shared -Wl,-soname,libsqlite3.so.0 -o libsqlite3.so sqlite3.o -lm",
+    "gcc -Og -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD -c shell.c -o shell.o",
+    "gcc -o sqlite3 shell.o -L. -lsqlite3 -lm"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/sqlite",
+  "inputs": [
+    {
+      "url": "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+      "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libsqlite3.so",
+      "path": "corpus/variants/sqlite/3.54.1/default/x86_64/Og/stripped/libsqlite3.so",
+      "size": 925672,
+      "sha256": "41d9dd1e49b5cb7540063fb56c8d888dc586fa5c3f5fcd91f2554fc6a66ad7a7",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    },
+    {
+      "object": "sqlite3",
+      "path": "corpus/variants/sqlite/3.54.1/default/x86_64/Og/stripped/sqlite3",
+      "size": 369976,
+      "sha256": "f830272eec39c338dc7a0624f6c1999c7e326437acab688bc809afd97d196091",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two byte-identical clean builds, independently stripped with the pinned tool in a separate post-processing container, byte-identical stripped outputs",
+  "tests": [
+    {
+      "command": "sqlite3 :memory: 'select sqlite_version()'",
+      "result": "pass: 3.54.1"
+    },
+    {
+      "command": "sqlite3 :memory: 'create table t(x); insert into t values(1),(2),(3); select sum(x),group_concat(x) from t'",
+      "result": "pass: 6|1,2,3"
+    },
+    {
+      "command": "sqlite3 :memory: \"select hex(sha3('abc',256))\" (shell's built-in sha3 extension)",
+      "result": "pass: 3A985DA74FE225B2045C172D6BD390BD855F086E3E9D525B46BFE24511431532"
+    },
+    {
+      "command": "sqlite3 FILE (create table, then reopen and query; json_object)",
+      "result": "pass: {\"k\":\"b\",\"v\":2}"
+    },
+    {
+      "command": "sqlite3 FILE 'pragma integrity_check'",
+      "result": "pass: ok"
+    }
+  ],
+  "variant": {
+    "optimization": "Og",
+    "stripping": "stripped",
+    "configuration": "default",
+    "run_id": "ff1bc3b6-7deb-4d89-a0f7-cd84c6956aa2",
+    "target": "x86_64-linux-gnu"
+  }
+}

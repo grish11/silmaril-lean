@@ -38,6 +38,7 @@ def main():
         source.backup(db)
         source.close()
     data = inventory(ROOT)
+    formal = json.loads((ROOT / 'corpus/measurements/formal-functions/checks.json').read_text())['statements']
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     with db:
         db.executescript('''
@@ -50,6 +51,7 @@ CREATE TABLE corpus_artifacts(
  census TEXT, sources TEXT NOT NULL);
 CREATE INDEX corpus_identity ON corpus_artifacts(project,version,target,optimization,stripping);
 CREATE INDEX corpus_hash ON corpus_artifacts(sha256);
+CREATE INDEX corpus_browser ON corpus_artifacts(project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'));
 CREATE TABLE corpus_functions(
  artifact TEXT NOT NULL, ordinal INTEGER NOT NULL, symbol TEXT NOT NULL,
  address INTEGER NOT NULL, size INTEGER NOT NULL, mapping TEXT NOT NULL,
@@ -58,7 +60,8 @@ CREATE INDEX corpus_function_name ON corpus_functions(artifact,symbol);
 CREATE TABLE corpus_timings(run_id TEXT PRIMARY KEY, build_id TEXT, stage TEXT NOT NULL, metadata TEXT NOT NULL);
 ''')
         db.executemany('INSERT INTO corpus_meta VALUES(?,?)', [('schema', 'corpus.catalog.v1'), ('revision', revision),
-            ('artifact_rows', str(data['artifact_rows'])), ('unique_content_hashes', str(data['unique_content_hashes']))])
+            ('artifact_rows', str(data['artifact_rows'])), ('unique_content_hashes', str(data['unique_content_hashes'])),
+            *[(kind + '_statements', str(count)) for kind, count in data['formal_statement_counts'].items()]])
         for artifact in data['artifacts']:
             key = digest([artifact['build_id'], artifact['stripping'], artifact['path']])
             path = Path(artifact['path'])
@@ -95,6 +98,12 @@ CREATE TABLE corpus_timings(run_id TEXT PRIMARY KEY, build_id TEXT, stage TEXT N
                  artifact['stripping'], path.name, artifact['sha256'], artifact['path'], artifact['source_id'], artifact['build_id'],
                  json.dumps(artifact), census, json.dumps(sources)))
             for ordinal, function in enumerate(functions):
+                concrete = [s for s in formal if s.get('function_symbol') == function.get('symbol', function.get('name'))
+                            and artifact['path'] in s['artifact_sha256']]
+                if concrete:
+                    function['tv_context'] = {
+                        'status': 'concrete contextual C-to-ELF statement; stated-unproved',
+                        'statements': [{k: s[k] for k in ['kind', 'status', 'declaration', 'root']} for s in concrete]}
                 db.execute('INSERT INTO corpus_functions VALUES(?,?,?,?,?,?)', (key, ordinal,
                     function.get('symbol', function.get('name')), function['value'], function['size'], json.dumps(function)))
         baseline_paths = list((ROOT / 'corpus/census/runs').glob('*.json'))

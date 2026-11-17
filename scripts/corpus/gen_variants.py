@@ -19,8 +19,13 @@ def module_parts(artifact):
     path = Path(artifact['path'])
     if not path.is_relative_to('corpus/variants'):
         raise ValueError(f'{path}: expected a delivered variant')
-    return ['Silmaril', 'Elf', 'Staged', 'CorpusVariants',
-            *[camel(part) for part in path.relative_to('corpus/variants').parts]]
+    parts = ['Silmaril', 'Elf', 'Staged', 'CorpusVariants',
+             *[camel(part) for part in path.relative_to('corpus/variants').parts]]
+    # Project and executable often share a name (darkhttpd, sqlite, ...).
+    # Keep generated namespaces unambiguous under Lean's duplicate-namespace linter.
+    while parts[-1] in parts[:-1]:
+        parts[-1] += 'Binary'
+    return parts
 
 
 def main():

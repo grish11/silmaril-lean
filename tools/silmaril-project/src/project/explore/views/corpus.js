@@ -1,14 +1,16 @@
 // A dedicated corpus view over additive metadata tables. No ELF bytes are embedded.
 async function corpusPage(arg, ctx) {
   if (!tables.has("corpus_artifacts")) return '<h2>Corpus</h2><p>No corpus inventory is available in this database.</p>';
-  const counts = (await ctx.q("SELECT count(*) artifacts,count(DISTINCT project) projects,count(DISTINCT sha256) hashes FROM corpus_artifacts"))[0];
+  const counts = (await ctx.q("SELECT (SELECT count(*) FROM corpus_artifacts) artifacts,(SELECT count(DISTINCT project) FROM corpus_artifacts) projects,(SELECT count(DISTINCT sha256) FROM corpus_artifacts) hashes"))[0];
+  const statementCounts = Object.fromEntries((await ctx.q("SELECT key,value FROM corpus_meta WHERE key LIKE '%_statements'")).map(r=>[r.key,Number(r.value)]));
+  const tvCount=statementCounts.contextual_c_to_elf_statements||0, eqCount=statementCounts.functional_equivalence_statements||0;
   const choices = {};
   for (const column of ["project", "version", "target", "optimization", "stripping"])
     choices[column] = await ctx.q(`SELECT DISTINCT ${column} value FROM corpus_artifacts ORDER BY ${column}`);
   const select = (column) => `<label>${esc(column)} <select data-corpus-filter="${column}" aria-label="${column}"><option value="">All</option>${choices[column].map(r => `<option>${esc(r.value)}</option>`).join("")}</select></label>`;
   return { html: `<section><h2>Software under test</h2><p class="muted">Browse projects, releases, build settings and exact artifacts.</p>
     <div class="corpus-metrics"><div><h3>${counts.projects} projects</h3><p>${counts.artifacts} delivered artifact rows · ${counts.hashes} unique contents</p></div>
-    <div><h3>0 contextual C → ELF statements</h3><p>Source metadata and structural decompositions remain separate from semantic validation.</p></div></div>
+    <div><h3>${tvCount} contextual C → ELF statements</h3><p>${eqCount} function-equivalence statements · stated, unproved. Source metadata and structural decompositions remain separate from semantic validation.</p></div></div>
     <p>Only completed, hash-checked artifacts appear. Instruction census results are static tool evidence; imports do not demonstrate runtime use.</p>
     <div class="corpus-filters" id="corpus-filters">${Object.keys(choices).map(select).join(" ")}</div>
     <p id="corpus-count" aria-live="polite"></p><div id="corpus-results"></div></section>`,
@@ -21,12 +23,11 @@ async function corpusPage(arg, ctx) {
           clauses.push(element.dataset.corpusFilter + " = ?"); params.push(element.value);
         }
         const where = clauses.length ? " WHERE " + clauses.join(" AND ") : "";
-        const rows = await ctx.q("SELECT * FROM corpus_artifacts" + where + " ORDER BY project,version,target,optimization,stripping,name LIMIT 1000", params);
+        const rows = await ctx.q("SELECT id,project,version,target,optimization,stripping,name,sha256,json_extract(metadata,'$.lean_status') lean_status,json_extract(metadata,'$.functional_equivalence_statements') equivalence_statements,json_extract(metadata,'$.contextual_c_to_elf_statements') tv_statements FROM corpus_artifacts" + where + " ORDER BY project,version,target,optimization,stripping,name LIMIT 1000", params);
         if (!ctx.alive() || token !== request) return;
         document.querySelector("#corpus-count").textContent = `${rows.length} matching artifacts${rows.length === 1000 ? ' (first 1,000)' : ''}`;
         document.querySelector("#corpus-results").innerHTML = `<table><thead><tr><th>Project / release</th><th>Build</th><th>Artifact</th><th>Coverage</th></tr></thead><tbody>${rows.map(r => {
-          const m = JSON.parse(r.metadata);
-          return `<tr><td><strong>${esc(r.project)}</strong><br>${esc(r.version)}</td><td>${esc(r.target)}<br><code>-${esc(r.optimization)}</code> · ${esc(r.stripping)}</td><td><a href="#/corpus-artifact/${encodeURIComponent(r.id)}">${esc(r.name)}</a><br><small><code>${esc(r.sha256.slice(0, 16))}…</code></small></td><td>${esc(m.lean_status)}<br><span class="muted">TV: no statement</span></td></tr>`;
+          return `<tr><td><strong>${esc(r.project)}</strong><br>${esc(r.version)}</td><td>${esc(r.target)}<br><code>-${esc(r.optimization)}</code> · ${esc(r.stripping)}</td><td><a href="#/corpus-artifact/${encodeURIComponent(r.id)}">${esc(r.name)}</a><br><small><code>${esc(r.sha256.slice(0, 16))}…</code></small></td><td>${esc(r.lean_status)}<br><span class="muted">TV: ${Number(r.tv_statements)||0} stated · equivalence: ${Number(r.equivalence_statements)||0} stated</span></td></tr>`;
         }).join("")}</tbody></table>`;
       };
       for (const element of document.querySelectorAll("[data-corpus-filter]")) element.addEventListener("change", () => refresh().catch(e => { if (ctx.alive()) document.querySelector("#corpus-count").textContent = e.message; }));
@@ -47,7 +48,8 @@ async function corpusArtifact(id, ctx) {
     <p>${esc(row.target)} · -${esc(row.optimization)} · ${esc(row.stripping)} · ${esc(m.license)}</p>
     <p><a href="${file(row.path)}">Canonical ELF in Git</a> · <a href="${file(m.receipt)}">Build receipt</a></p>
     <dl><dt>SHA-256</dt><dd><code>${esc(row.sha256)}</code></dd><dt>Source identity</dt><dd><code>${esc(row.source_id)}</code></dd><dt>Build identity</dt><dd><code>${esc(row.build_id)}</code></dd></dl>
-    <h3>Verification coverage</h3><p>${esc(m.lean_status)}. Contextual C → ELF statements: 0. Functional equivalence statements: 0.</p>
+    ${m.formal_statements?.length?`<h3>Concrete function problems</h3>${m.formal_statements.map(s=>`<p><a href="${file(s.root.replaceAll('.','/')+'.lean')}">${esc(s.declaration)}</a> · ${esc(s.kind)} · ${esc(s.status)}</p>`).join('')}`:''}
+    <h3>Verification coverage</h3><p>${esc(m.lean_status)}. Contextual C → ELF statements: ${Number(m.contextual_c_to_elf_statements)||0}. Functional equivalence statements: ${Number(m.functional_equivalence_statements)||0} (stated, unproved).</p>
     <h3>Build configuration</h3>${pretty(m.build)}
     <p><a href="#/corpus-timings/${encodeURIComponent(row.build_id)}">Measured build stages</a> · <a href="#/corpus-timings">All measured stages</a></p>
     <h3>Dependencies and instruction evidence</h3>${census ? `<p>Static tool evidence; runtime use and semantic support are not established.</p>${pretty({tools:census.tools, sections:census.executable_sections.map(s=>({name:s.name,size:s.size,decoded_bytes:s.decoded_bytes,undecoded_bytes:s.undecoded_bytes,unreported_bytes:s.unreported_bytes})), dynamic:census.dynamic, relocations:census.relocations, abi:census.abi_evidence, extensions:census.extension_evidence})}` : '<p>Not measured for this variant. No canonical-build census is silently reused.</p>'}
@@ -62,10 +64,10 @@ async function corpusTimings(build, ctx) {
   return `<p><a href="#/corpus">← Corpus</a></p><h2>Measured pipeline stages</h2><p>${runs.length} actual run receipts. Cache state, concurrency and runner identity are recorded per run. Times cover each command's measured scope; overlapping stages must not be summed as end-to-end cost.</p><table><thead><tr><th>Stage</th><th>Wall seconds</th><th>Peak RSS KiB</th><th>Exit</th><th>Receipt</th></tr></thead><tbody>${runs.map(r=>{const m=JSON.parse(r.metadata);return `<tr><td>${esc(r.stage)}</td><td>${Number(m.wall_seconds).toFixed(3)}</td><td>${esc(m.peak_rss_kib)}</td><td>${esc(m.exit_code)}</td><td><details><summary>${esc(r.run_id.slice(0,8))}</summary><pre>${esc(JSON.stringify(m,null,2))}</pre></details></td></tr>`;}).join('')}</tbody></table>`;
 }
 async function corpusFunctions(id, ctx) {
-  const [artifact] = await ctx.tq("corpus_artifacts", "SELECT name FROM corpus_artifacts WHERE id=?", [id]);
+  const [artifact] = await ctx.tq("corpus_artifacts", "SELECT name,metadata FROM corpus_artifacts WHERE id=?", [id]);
   if (!artifact) return '<p>Artifact not found.</p>';
   return {html:`<p><a href="#/corpus-artifact/${encodeURIComponent(id)}">← Artifact</a></p><h2>${esc(artifact.name)} · Function mappings</h2>
-    <p>Symbol rows include aliases. Metadata is not source semantics; contextual TV statements remain uninstantiated.</p>
+    <p>Symbol rows include aliases. Metadata is not source semantics. This artifact has ${Number(JSON.parse(artifact.metadata).contextual_c_to_elf_statements)||0} contextual C → ELF statements (stated, unproved); see the artifact verification links for their exact scope.</p>
     <label>Symbol contains <input id="corpus-function-search" type="search"></label><p id="corpus-function-count" aria-live="polite"></p><div id="corpus-functions"></div>`,
     init:async()=>{
       let request=0;

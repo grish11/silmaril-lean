@@ -25,6 +25,19 @@ def sha(path):
 
 def inventory(root):
     artifacts = []
+    formal_path = root / 'corpus/measurements/formal-functions/checks.json'
+    formal = json.loads(formal_path.read_text())['statements'] if formal_path.exists() else []
+    if len({s['declaration'] for s in formal}) != len(formal):
+        raise ValueError('duplicate concrete formal statement')
+    for statement in formal:
+        if statement['kind'] not in ['functional_equivalence', 'contextual_c_to_elf'] or statement['status'] != 'stated-unproved':
+            raise ValueError('unsupported formal statement status')
+        run = json.loads((root / statement['run_receipt']).read_text())
+        if run['exit_code'] != 0 or statement['root'] not in run['command']:
+            raise ValueError('formal statement check receipt mismatch')
+        for path, expected in {**statement['artifact_sha256'], **statement['module_sha256']}.items():
+            if sha(root / path) != expected:
+                raise ValueError(f'{path}: changed since formal statement check')
     check_path = root / 'corpus/measurements/variant-lean/checks.json'
     checked_variants = {c['path']: c for c in json.loads(check_path.read_text())['artifacts']} if check_path.exists() else {}
     receipts = sorted((root / 'corpus/elf').glob('*/*/receipt.json'))
@@ -79,10 +92,13 @@ def inventory(root):
                 'has_symtab': obj['has_symtab'], 'reproducible': receipt['reproducible'],
                 'runtime_tests': receipt['tests'],
                 'lean_status': lean_status,
-                'contextual_c_to_elf_statements': 0, 'functional_equivalence_statements': 0})
+                'formal_statements': [{k: s[k] for k in ['kind', 'status', 'declaration', 'root']} for s in formal if obj['path'] in s['artifact_sha256']],
+                'contextual_c_to_elf_statements': sum(s['kind'] == 'contextual_c_to_elf' and obj['path'] in s['artifact_sha256'] for s in formal),
+                'functional_equivalence_statements': sum(s['kind'] == 'functional_equivalence' and obj['path'] in s['artifact_sha256'] for s in formal)})
     return {'schema_version': 1,
             'hierarchy': ['project', 'version_components', 'source_id', 'build.configuration',
                           'build.target', 'build.compiler', 'build.cflags', 'stripping', 'sha256'],
+            'formal_statement_counts': {kind: sum(s['kind'] == kind for s in formal) for kind in ['contextual_c_to_elf', 'functional_equivalence']},
             'artifact_rows': len(artifacts), 'unique_content_hashes': len({a['sha256'] for a in artifacts}),
             'limits': ['Only completed hash-checked outputs are indexed; no planned builds count as artifacts.',
                        'Symbol entries include aliases and are not unique semantic functions.',

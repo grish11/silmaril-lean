@@ -1,0 +1,62 @@
+{
+  "package": "jemalloc",
+  "version": "5.3.0",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-Og -g0 -ffile-prefix-map=/build/jemalloc=. (after configure's own: -std=gnu11 -Wall ... -O3 -funroll-loops -g3 ...; see command lines)",
+  "ldflags": "",
+  "configure_args": "--build=x86_64-linux-gnu --host=x86_64-linux-gnu --disable-cxx --with-lg-page=12 --with-lg-hugepage=21 CC=gcc CFLAGS='-Og -g0 -ffile-prefix-map=/build/jemalloc=.'",
+  "build_commands": [
+    "compile line: gcc -std=gnu11 -Wall -Wextra -Wsign-compare -Wundef -Wno-format-zero-length -Wpointer-arith -Wno-missing-braces -Wno-missing-field-initializers -Wno-missing-attributes -pipe -g3 -fvisibility=hidden -Wimplicit-fallthrough -O3 -funroll-loops -Og -g0 -ffile-prefix-map=/build/jemalloc=. -fPIC -DPIC -c -D_GNU_SOURCE -D_REENTRANT -Iinclude -Iinclude -o src/jemalloc.pic.o src/jemalloc.c",
+    "gcc -shared -Wl,-soname,libjemalloc.so.2  -o lib/libjemalloc.so.2 src/jemalloc.pic.o src/arena.pic.o src/background_thread.pic.o src/base.pic.o src/bin.pic.o src/bin_info.pic.o src/bitmap.pic.o src/buf_writer.pic.o src/cache_bin.pic.o src/ckh.pic.o src/counter.pic.o src/ctl.pic.o src/decay.pic.o src/div.pic.o src/ecache.pic.o src/edata.pic.o src/edata_cache.pic.o src/ehooks.pic.o src/emap.pic.o src/eset.pic.o src/exp_grow.pic.o src/extent.pic.o src/extent_dss.pic.o src/extent_mmap.pic.o src/fxp.pic.o src/san.pic.o src/san_bump.pic.o src/hook.pic.o src/hpa.pic.o src/hpa_hooks.pic.o src/hpdata.pic.o src/inspect.pic.o src/large.pic.o src/log.pic.o src/malloc_io.pic.o src/mutex.pic.o src/nstime.pic.o src/pa.pic.o src/pa_extra.pic.o src/pai.pic.o src/pac.pic.o src/pages.pic.o src/peak_event.pic.o src/prof.pic.o src/prof_data.pic.o src/prof_log.pic.o src/prof_recent.pic.o src/prof_stats.pic.o src/prof_sys.pic.o src/psset.pic.o src/rtree.pic.o src/safety_check.pic.o src/sc.pic.o src/sec.pic.o src/stats.pic.o src/sz.pic.o src/tcache.pic.o src/test_hooks.pic.o src/thread_event.pic.o src/ticker.pic.o src/tsd.pic.o src/witness.pic.o  -lm  -pthread "
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/jemalloc",
+  "inputs": [
+    {
+      "url": "https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2",
+      "sha256": "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libjemalloc.so.2",
+      "path": "corpus/variants/jemalloc/5.3.0/default/x86_64/Og/unstripped/libjemalloc.so.2",
+      "size": 623664,
+      "sha256": "44c21b75188a7cd3744c7688c6b70810c1fc8ea73628568a9f29be88ff59a06c",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 1592,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean builds (fresh containers, fresh /build) compared by sha256",
+  "tests": [
+    {
+      "command": "je_smoke (local/je_smoke.c linked against libjemalloc.so.2): exit status",
+      "result": "pass: 0"
+    },
+    {
+      "command": "je_smoke output",
+      "result": "version 5.3.0-0-g54eaed1d8b56b1aa528be3bdd1877e59c56fa90c arenas.page 4096 stats.allocated rc=0 ok bad=0"
+    },
+    {
+      "command": "LD_PRELOAD=libjemalloc.so.2 MALLOC_CONF=stats_print:true perl -e 1 (first stats line; coreutils programs close stderr before jemalloc's atexit)",
+      "result": "pass: ___ Begin jemalloc statistics ___"
+    }
+  ],
+  "variant": {
+    "optimization": "Og",
+    "stripping": "unstripped",
+    "configuration": "default",
+    "run_id": "9af09c9b-225e-4fab-ae0b-5f28227958db",
+    "target": "x86_64-linux-gnu"
+  }
+}

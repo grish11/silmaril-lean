@@ -82,7 +82,7 @@ deps = ["Prelude", "Numeric"]
 [[region]]
 name = "Elf"
 scope = "The ELF verification API: one parse of an ELF64 file into an AST, symbol lookup as ld.so does it (SysV and GNU hash, versions), a lookup index, facts about a file (kind, symbols, lookups, DT_NEEDED, relocations, placement, code) with their problem shapes, a checker for the parse of large files, and the x86-64 dynamic-loading models these facts relate to (ld.so's table readers, pages of included files, ElfBind, the loader relation ExeLoaded and its image), and executables as models of the CLI institution (`Silmaril.Elf.LpsCli`: LPS launches, and the static and dynamically linked `sha256sum`). Also imports the x86 tree (`Silmaril.X86`: blobs, memory, symbolic execution), which is not a region, as `Project` does."
-deps = ["Prelude", "Formats", "Machine", "Process", "Project", "Cli"]
+deps = ["Prelude", "Formats", "Machine", "Process", "Project", "Cli", "Cerberus"]
 
 [[region]]
 name = "Libc"

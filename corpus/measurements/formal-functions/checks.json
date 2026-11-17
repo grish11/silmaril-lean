@@ -1,0 +1,38 @@
+{
+  "statements": [
+    {
+      "kind": "functional_equivalence",
+      "status": "stated-unproved",
+      "declaration": "Silmaril.Elf.Corpus.MimallocVersion.Task.mi_version_equivalent",
+      "root": "Silmaril.Elf.Corpus.MimallocVersion.Thms",
+      "run_receipt": "corpus/measurements/formal-functions/runs/6d3b930c-cbbd-49bc-b033-933acdead32a.json",
+      "artifact_sha256": {
+        "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/unstripped/libmimalloc.so.2.1": "b89f65cbfb1a06468e1ba2b89ec908e5897a61cda109df92f112d9709e4dbf7d",
+        "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/unstripped/libmimalloc.so.2.1": "d31800fec23b41fe8b9cbc2fac88762b4d4a2716b1fbe65fea1fd0aeb8b0aab3"
+      },
+      "module_sha256": {
+        "Silmaril/Elf/Corpus/MimallocVersion/Defs.lean": "b6895331b57df449337c471756775668414f21a1718eafc374d1b2afc2a0b148",
+        "Silmaril/Elf/Corpus/MimallocVersion/Thms.lean": "6dd12e450fa04c03fa9f16e9f50f275c6c5d1e12615e723bbd6d456f9091b4ad"
+      }
+    },
+    {
+      "kind": "contextual_c_to_elf",
+      "status": "stated-unproved",
+      "declaration": "Silmaril.Elf.Corpus.MimallocVersion.Source.Core.Task.compiles_to",
+      "root": "Silmaril.Elf.Corpus.MimallocVersion.Source.Core.Thms",
+      "run_receipt": "corpus/measurements/formal-functions/runs/c9bb3e04-0403-4b4a-940e-e229f0420227.json",
+      "artifact_sha256": {
+        "corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31"
+      },
+      "module_sha256": {
+        "Silmaril/Elf/Corpus/MimallocVersion/Source/Defs.lean": "c167e9f5170a8d4cd055a894977c34e829a6ed319a1ba8c3b8dd47c75b6ed4e1",
+        "Silmaril/Elf/Corpus/MimallocVersion/Source/Core/Defs.lean": "36abc353b9f08f66f0603d59e654bf26978b054230026e7c2a809815bf3097c9",
+        "Silmaril/Elf/Corpus/MimallocVersion/Source/Core/Thms.lean": "fa3578bb54573e379e796d19c8b840e42ba10e805d6374cb1b51f037d85ae641",
+        "Silmaril/Proofs/Elf/Corpus/MimallocVersion/SourceCore.lean": "9f63feff1dce803a286cff494c7cce886602fa5d4071ba3b8a1e8df5d9b07267",
+        "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/mi_version/options.i": "32de013ed832e6f319a9364c4738899d575289a3fe6b744c415b70b1c3f406fe",
+        "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/mi_version/definition.c": "6502ef2c985a434da8d9a669e5ef3f9abce7f36c6c52c7008d4fa4934b540f37"
+      },
+      "function_symbol": "mi_version"
+    }
+  ]
+}

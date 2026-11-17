@@ -5,11 +5,19 @@ import subprocess
 import tempfile
 import unittest
 from variant_pair import executable_sections
+from gen_variants import module_parts
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class VariantContracts(unittest.TestCase):
+    def test_executable_project_namespace_collision(self):
+        parts = module_parts({'path': 'corpus/variants/darkhttpd/1.17/default/x86_64/O0/stripped/darkhttpd'})
+        self.assertEqual(parts[-1], 'DarkhttpdBinary')
+        self.assertEqual(len(parts), len(set(parts)))
+        unchanged = module_parts({'path': 'corpus/variants/mimalloc/2.1.9/default/x86_64/O0/stripped/libmimalloc.so.2.1'})
+        self.assertEqual(unchanged[-1], 'LibmimallocSo21')
+
     def test_resource_and_flag_guards(self):
         script = '. corpus/common.sh; printf "%s %s" "$JOBS" "$CORPUS_OPT_LEVEL"'
         for jobs, level, expected in [('8', 'O0', 0), ('1', 'Og', 0), ('9', 'O2', 2), ('0', 'O2', 2), ('8', 'fast', 2)]:

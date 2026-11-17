@@ -1,0 +1,177 @@
+{
+  "package": "coreutils",
+  "version": "9.12",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O0 -g0 -ffile-prefix-map=/build/coreutils=.",
+  "ldflags": "",
+  "configure_args": "FORCE_UNSAFE_CONFIGURE=1 ./configure --build=x86_64-linux-gnu --host=x86_64-linux-gnu --disable-nls --without-selinux --without-openssl --without-libgmp --disable-acl --disable-xattr --disable-libcap --disable-libsmack --without-systemd --disable-rpath CC=gcc CFLAGS='-O0 -g0 -ffile-prefix-map=/build/coreutils=.'",
+  "build_commands": [
+    "gcc -std=gnu23  -I. -I./lib  -Ilib -I./lib -Isrc -I./src    -O0 -g0 -ffile-prefix-map=/build/coreutils=. -MT src/wc.o -MD -MP -MF $depbase.Tpo -c -o src/wc.o src/wc.c",
+    "gcc -std=gnu23   -O0 -g0 -ffile-prefix-map=/build/coreutils=. -Wl,--as-needed  -o src/wc src/wc.o src/libver.a lib/libcoreutils.a   lib/libcoreutils.a src/libwc_avx512.a src/libwc_avx2.a  "
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/coreutils",
+  "inputs": [
+    {
+      "url": "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz",
+      "sha256": "a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "cat",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O0/unstripped/cat",
+      "size": 69000,
+      "sha256": "7229447add2e96ddcc1b4af714d2d65719092c15c2a5b77fffd999b827335575",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 142,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "echo",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O0/unstripped/echo",
+      "size": 58256,
+      "sha256": "59e7ab186fe9139b4cdeac7aa041b46cd210368d70d6f3def18db983facd6fd1",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 125,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "head",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O0/unstripped/head",
+      "size": 68840,
+      "sha256": "d4fac9ecdd6643b6876bb882603d7acd416c1d9633d5d258e0a6227c46fc47e8",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 156,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "sha256sum",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O0/unstripped/sha256sum",
+      "size": 89968,
+      "sha256": "967daf804fc3272054253342ebfb0c29c4919fef932f367a13991900cd7fdd9d",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 165,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "sort",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O0/unstripped/sort",
+      "size": 187544,
+      "sha256": "bc5eb725cbb15d5a0214480956ba3a4571b665593968830821bf8561c35e14e3",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 386,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "true",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O0/unstripped/true",
+      "size": 49400,
+      "sha256": "a9816e2c1a2fa07279e2cc46d51e8ae7d545cae0de6db4569a8a364e2ae8a979",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 109,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "wc",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O0/unstripped/wc",
+      "size": 92640,
+      "sha256": "0513d42860195a5bda1b76bb69be6bce6c5932afa6fd94a5a94a03848c03db25",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 179,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean builds (fresh containers, fresh /build) compared by sha256",
+  "tests": [
+    {
+      "command": "true --version | head -1",
+      "result": "pass: true (GNU coreutils) 9.12"
+    },
+    {
+      "command": "echo --version | head -1",
+      "result": "pass: echo (GNU coreutils) 9.12"
+    },
+    {
+      "command": "cat --version | head -1",
+      "result": "pass: cat (GNU coreutils) 9.12"
+    },
+    {
+      "command": "wc --version | head -1",
+      "result": "pass: wc (GNU coreutils) 9.12"
+    },
+    {
+      "command": "head --version | head -1",
+      "result": "pass: head (GNU coreutils) 9.12"
+    },
+    {
+      "command": "sort --version | head -1",
+      "result": "pass: sort (GNU coreutils) 9.12"
+    },
+    {
+      "command": "sha256sum --version | head -1",
+      "result": "pass: sha256sum (GNU coreutils) 9.12"
+    },
+    {
+      "command": "true; echo $?",
+      "result": "pass: 0"
+    },
+    {
+      "command": "echo -e 'a\\tb'",
+      "result": "pass: a\tb"
+    },
+    {
+      "command": "cat -n in.txt | tail -1",
+      "result": "pass:      5\tbanana"
+    },
+    {
+      "command": "wc in.txt",
+      "result": "pass:  5  5 23 /tmp/tmp.gKc0JuMrQA/in.txt"
+    },
+    {
+      "command": "head -n 2 in.txt",
+      "result": "pass: pear\napple"
+    },
+    {
+      "command": "sort in.txt",
+      "result": "pass: 10\n9\napple\nbanana\npear"
+    },
+    {
+      "command": "sort -n in.txt | tail -2",
+      "result": "pass: 9\n10"
+    },
+    {
+      "command": "printf abc | sha256sum",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  -"
+    },
+    {
+      "command": "sha256sum 1e6 zero bytes",
+      "result": "pass: d29751f2649b32ff572b5e0a9f541ea660a50f94ff0beedfb0b692b924cc8025  /tmp/tmp.gKc0JuMrQA/zero"
+    }
+  ],
+  "notes": [
+    "configure: 26 checks guessed (cross compilation: no); see generated/x86_64/configure-cross-guesses.txt"
+  ],
+  "variant": {
+    "optimization": "O0",
+    "stripping": "unstripped",
+    "configuration": "default",
+    "run_id": "460d9845-51f0-4d85-90bd-977987499372",
+    "target": "x86_64-linux-gnu"
+  }
+}
