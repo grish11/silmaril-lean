@@ -27,18 +27,21 @@ PROVED (standard axioms; the per-header facts rewrite with `Pinned.import_<name>
   checked coverage of the import;
 * `zlibSolo_coverage`, `zlibHosted_coverage`, `probe_coverage`, `glibcString_coverage`: each
   header's claimable functions and its unsupported ones with the reasons;
-* `glibcStdlib_coverage`: glibc's `stdlib.h` as pinned under `sysvInt`: 73 functions claimable,
-  28 refused, listed exactly. **Not all refusals are ABI scope**:
-  - ABI scope of the INTEGER fragment (20): 17 with a floating parameter or result (`strtod`,
-    `atof`, `drand48`, the `ecvt` family, …) and 3 returning a struct by value (`div`, `ldiv`,
-    `lldiv`);
-  - **gaps of this import and of `CProto`** (8), not ABI refusals: 5 with a function-pointer
-    parameter (`qsort`, `bsearch`, `atexit`, `at_quick_exit`, `on_exit`; the ABI passes it as a
-    pointer, `CProto` cannot represent it) and 4 where the import cannot resolve a typedef
-    (`size_t` in `__ctype_get_mb_cur_max`, `int32_t` in `random_r`, `__uint32_t` in
-    `arc4random`, `wchar_t` in `mbtowc`). They are follow-ups: closing them would make these
-    functions claimable, and must not be read as the ABI excluding them.
-  The 19 `internal` entries are implicit duplicates (`Pinned.glibcStdlib_reads`).
+* `glibcStdlib_coverage`: glibc's `stdlib.h` as pinned under `sysvInt`, **by name** (101 distinct
+  explicit function names; `reallocarray` is declared twice): 73 claimable + 28 refused = 101,
+  the refusals listed exactly, in two disjoint groups:
+  - **ABI scope of the INTEGER fragment (19)**: 16 with a floating parameter or result
+    (`atof`, `strtod`, `strtof`, `strtold`, `drand48`, `erand48`, and the ten `ecvt`/`fcvt`/
+    `gcvt` functions) and 3 returning a struct by value (`div`, `ldiv`, `lldiv`);
+  - **gaps of the import and of `CProto` (9), not ABI refusals**: the 9 entries whose prototype
+    the import cannot represent (`Pinned.glibcStdlib_reads`): 5 with a function-pointer
+    parameter (`atexit`, `at_quick_exit`, `on_exit`, `bsearch`, `qsort`; the ABI passes it as a
+    pointer) and 4 with a typedef the import cannot resolve (`size_t` in
+    `__ctype_get_mb_cur_max`, `int32_t` in `random_r`, `__uint32_t` in `arc4random`, `wchar_t`
+    in `mbtowc`). Follow-ups; closing them would make these functions claimable.
+  The 19 `internal` entries are clang's implicit builtin declarations, each an **excluded
+  duplicate** of an explicit declaration that is classified on its own; `internal` does not
+  mean a private function.
 * `glibcMath_coverage`: glibc's `math.h` (libm) as pinned (`-std=gnu11`, default feature set;
   `Pinned.glibcMath_reads`) under the INTEGER fragment `sysvInt`: nothing is claimable; all 438
   explicit functions are refused because a parameter or the result is a floating type (SSE/x87
