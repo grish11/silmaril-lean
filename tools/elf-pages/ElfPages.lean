@@ -4,6 +4,9 @@ import Silmaril.Elf.Staged.Pinned.HelloGcc.Defs
 import Silmaril.Elf.Staged.Pinned.HelloClang.Defs
 import Silmaril.Elf.Staged.Pinned.Sha256sum.Defs
 import Silmaril.Elf.Staged.Pinned.LeafArith.Defs
+-- loaded at run time (not in the Makefile's ELF_PINNED): imported so building elf-pages builds them
+import Silmaril.Elf.Staged.Pinned.LeafArith.Thms
+import Silmaril.Elf.Staged.Pinned.LeafArith.Functions
 import Silmaril.Elf.Staged.Pinned.ZlibChecksums.Defs
 import Silmaril.Elf.Staged.Pinned.ZlibLibz.Defs
 import Silmaril.Elf.Staged.Pinned.GlibcLibm.Defs
