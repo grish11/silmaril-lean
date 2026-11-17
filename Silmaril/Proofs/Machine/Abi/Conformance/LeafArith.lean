@@ -222,10 +222,10 @@ theorem clamp_conforms (mode : Mode) :
   refine conforms_of_strict clamp_strict clamp_declared (by decide +kernel)
     ⟨clampArgs, ffiSt 0x30 5 0 3, ⟨trivial, clamp_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩,
       trivial⟩
-    (fun a _ _ => match a with
+    (fun a _ _ _ => match a with
       | .cons x (.cons lo (.cons hi .nil)) => ⟨ffiSt 0x30 (wide x) (wide lo) (wide hi),
           ⟨trivial, clamp_entry_of x lo hi, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩,
-          trivial⟩)
+          trivial, fun _ => Iff.rfl, fun _ h => h.elim⟩)
     (fun _ _ ad => abiEntry_of_entry ad.entry)
     (fun _ _ ad _ => ⟨⟨ad.placed.loaded, ad.placed.pc⟩, ad.placed.retOutside⟩) ?_
   intro a s t ad _ fr res
@@ -244,10 +244,10 @@ theorem sat_conforms (mode : Mode) :
   refine conforms_of_strict sat_strict sat_declared (by decide +kernel)
     ⟨satArgs, ffiSt 0x90 0xfffffff0 0x20 0,
       ⟨trivial, sat_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩, trivial⟩
-    (fun a _ _ => match a with
+    (fun a _ _ _ => match a with
       | .cons x (.cons y .nil) => ⟨ffiSt 0x90 (wide x) (wide y) 0,
           ⟨trivial, sat_entry_of x y, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩,
-          trivial⟩)
+          trivial, fun _ => Iff.rfl, fun _ h => h.elim⟩)
     (fun _ _ ad => abiEntry_of_entry ad.entry)
     (fun _ _ ad _ => ⟨⟨ad.placed.loaded, ad.placed.pc⟩, ad.placed.retOutside⟩) ?_
   intro a s t ad _ fr res

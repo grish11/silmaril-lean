@@ -86,7 +86,7 @@ theorem codeOf (f : String) (i v n off : Nat) (hl : A0.select (Binding.symtab.se
 theorem relocs_empty : A0.relocs .dynamic = [] := by decide +kernel
 
 theorem untouched (off n : Nat) : Untouched F (region off n) :=
-  ⟨_, parses, by rw [relocs_empty]; simp⟩
+  ⟨_, parses, by decide +kernel, by rw [relocs_empty]; simp⟩
 
 /-- `leaf-arith` is `ET_EXEC`: its only load base is `0`. -/
 theorem placement_zero {b : Nat} (h : Placement F b) : b = 0 := by
