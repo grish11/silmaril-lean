@@ -20,7 +20,9 @@ assumption. Proofs in `Silmaril.Proofs.Wasm.Examples.FarkasAccept.*`.
   instance's functions, **any** checker state, any heap pointer, a 1 MiB ABI memory `B₁`) with
   the records of the system in memory (`IneqsIn`) and the multipliers in memory, every run of
   `check` that returns `[r]` with `r ≠ 0` puts the system read from `B₁` (`systemAt`) in
-  `Infeasible`: it has no solution over any ordered field. The multipliers need no assumption:
+  `Infeasible`: it has no solution over any ordered field, and the number of multipliers is
+  the number of inequalities (`yl = sl`: the check answers `0` otherwise). Beyond the length,
+  the multipliers need no assumption:
   the check resets the checker (its `check()`), feeds every inequality as `row`/`entry` calls,
   and the checker's invariant (`Silmaril.Wasm.Examples.Farkas.Inv`, generalised to a fixture
   with further globals and memories) makes a nonzero final `check()` certify the rows it holds,
@@ -54,14 +56,15 @@ variable {P : Profile} {host : HostSemantics Nat}
 
 /-! ## The check -/
 
-/-- **Soundness of `check`**: a nonzero answer refutes the system in memory. -/
+/-- **Soundness of `check`**: a nonzero answer refutes the system in memory, and the numbers of
+multipliers and of inequalities agree. -/
 theorem check_sound {s : Store Nat} {top : BitVec 32} {B₁ : ByteArray} (hs : AccStore s top B₁)
     {sp sl yp yl : BitVec 32} (hsp : IneqsIn B₁ sp.toNat sl.toNat)
     (hyp : yp.toNat + 8 * yl.toNat ≤ memBytes)
     {s' : Store Nat} {f' : Frame} {r : BitVec 32}
     (hrun : Steps P host (invoke s 4 [Val.i32 sp, Val.i32 sl, Val.i32 yp, Val.i32 yl])
       ⟨s', f', vals [Val.i32 r]⟩) (hr : r ≠ 0#32) :
-    systemAt B₁ sp.toNat sl.toNat ∈ Infeasible :=
+    systemAt B₁ sp.toNat sl.toNat ∈ Infeasible ∧ yl = sl :=
   Silmaril.Proofs.Wasm.Examples.FarkasAccept.check_sound hs hsp hyp hrun hr
 
 /-! ## The allocator -/

@@ -19,9 +19,15 @@ the core-level theorem of the same name is `Silmaril.Wasm.Examples.FarkasAccept.
   `S : SystemW` and the `list<s64>` value of multipliers `y` can return `true`, then
   `S ∈ Infeasible`: `S` has no solution over any ordered field.
 
-The multipliers are not constrained. Only accepting behaviours are: traps, divergence and
-`false` answers are not (no completeness is claimed; outside the checker's bounds valid
-certificates are rejected).
+* `check_length`: an accepting call has one multiplier per inequality, `y.length = S.length`;
+* `check_rejects_length`: **multipliers of the wrong number are rejected**: if
+  `y.length ≠ S.length`, no behaviour of the reference machine returns `true`.
+
+Beyond their number the multipliers are not constrained. Only accepting behaviours are
+characterised: that a rejected call actually returns `false` (rather than trapping or diverging)
+is not proved, and no completeness is claimed (outside the checker's bounds valid certificates
+are rejected, by testing only). No rejection is proved for well-sized multipliers or
+coefficients outside the checker's bounds.
 
 The proof (`Silmaril.Proofs.Wasm.Examples.FarkasAccept.Component`) is an instance of the acceptor
 kit (`Silmaril.Wasm.Acceptor`, `docs/projects/acceptor-kit.md`): the kit's
@@ -117,5 +123,23 @@ theorem check_sound (P : Profile) (prof : ProfileKind) (S : SystemW) (y : List S
       farkasComp.toRef [] "check" [(ofSystem S).toRef, (ofS64s y).toRef]) :
     S ∈ Infeasible :=
   Silmaril.Proofs.Wasm.Examples.FarkasAccept.Component.check_sound P prof S y h
+
+/-- **An accepting call of `check` has one multiplier per inequality.** -/
+theorem check_length (P : Profile) (prof : ProfileKind) (S : SystemW) (y : List S64)
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) ()
+      farkasComp.toRef [] "check" [(ofSystem S).toRef, (ofS64s y).toRef]) :
+    y.length = S.length :=
+  Silmaril.Proofs.Wasm.Examples.FarkasAccept.Component.check_length P prof S y h
+
+/-! ## Rejection
+
+"Rejected" means: no behaviour of the reference machine returns `true`. -/
+
+/-- **Multipliers of the wrong number are never accepted.** -/
+theorem check_rejects_length (P : Profile) (prof : ProfileKind) {S : SystemW} {y : List S64}
+    (hl : y.length ≠ S.length) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) ()
+      farkasComp.toRef [] "check" [(ofSystem S).toRef, (ofS64s y).toRef] :=
+  Silmaril.Proofs.Wasm.Examples.FarkasAccept.Component.check_rejects_length P prof hl
 
 end Silmaril.Wasm.Examples.FarkasAccept.Component

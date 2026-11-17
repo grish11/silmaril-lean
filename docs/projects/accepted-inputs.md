@@ -236,7 +236,8 @@ Limitations:
 The certificate-checking acceptor components are Wasm components in
 `examples/wasm-acceptors/`. Each export returns a `bool`. Their shared allocator, ABI read
 contracts, call rules, bridge from Core soundness to component soundness and byte linkage are
-the [acceptor kit](acceptor-kit.md), which also lists the steps for adding a checker.
+the [acceptor kit](acceptor-kit.md), which also lists the steps for adding a checker. The per-export status (artifacts, proofs, tests, what is not proved) is the
+[acceptance checklist](acceptor-checklist.md).
 
 - **SAT** (`sat_accept.wasm`): registered in `silmaril/artifacts.toml` as
   `silmaril.wasm.examples.sat_accept.component`. Its exports are
@@ -246,25 +247,57 @@ the [acceptor kit](acceptor-kit.md), which also lists the steps for adding a che
     `checkNested_sound_of_bytes` cover every reference Component Model reading of what
     `Silmaril.Wasm.Examples.SatAccept.bytes` parse to.
   - An accepting call implies `satStream`/`satNested` and membership in
-    `SatStream`/`SatNested`. This is component-level soundness only: nothing is proved about
-    rejections, traps or completeness.
+    `SatStream`/`SatNested`. Rejection of malformed problems and bad models is proved as a
+    corollary (below); nothing is proved about traps or completeness.
   - The file is tied to `bytes` by regeneration and by the SHA-256 that the harness pins. No
     theorem ties them.
 - **LRAT** (`lrat_accept.wasm`): registered as `silmaril.wasm.examples.lrat_accept.component`,
   with the exports `check-stream(problem: list<s32>, cert: list<s32>)` and
   `check-nested(problem: list<list<s32>>, cert: list<s32>)`.
   `Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes` and
-  `checkNested_sound_of_bytes`: an accepting call implies that the problem is unsatisfiable,
-  whatever the certificate.
+  `checkNested_sound_of_bytes`: an accepting call implies that the problem is unsatisfiable.
+  `Silmaril.Wasm.Examples.LratAccept.Component.checkStream_cert`, `checkNested_cert`: it also
+  implies that the certificate words decode (`LratStream.decode cs ≠ none`).
 - **Farkas** (`farkas_accept.wasm`): registered as
   `silmaril.wasm.examples.farkas_accept.component`, with the export
   `check(system: list<ineq>, y: list<s64>)` and the exported record type
   `ineq { coeffs: list<tuple<u32, s64>>, bound: s64 }`.
   `Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes`: an accepting call on the
-  `list<ineq>` value of a system `S` implies `S ∈ Infeasible`, whatever the multipliers.
+  `list<ineq>` value of a system `S` implies `S ∈ Infeasible`.
+  `Silmaril.Wasm.Examples.FarkasAccept.Component.check_length`: it also implies
+  `y.length = S.length`.
 - Both are component-level soundness only, for every reference Component Model reading of what
   the bytes parse to, and both files are tied to their `bytes` by regeneration and the pinned
   SHA-256, as for SAT.
+
+**Proved rejection.** "Rejected" is stated precisely: **no behaviour of the reference Component
+Model returns `true`** (`Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P)
+() c.toRef [] name args`), at every numerics profile `P` and choice profile `prof`. That such a
+call returns `false`, rather than trapping or diverging, is **not** proved: the reference
+machine is only characterised on accepting behaviours (`ListLift.acceptSound`). The theorems are
+about the emitted components `c.toRef` (`Silmaril.Wasm.Examples.*.Component.Thms`); the reading
+of the bytes is `c.toRef` by `Silmaril.Project.WasmComponents.*.toRef_toAst`. The generic step is
+`Silmaril.Wasm.Acceptor.CheckerExport.rejects` (and `rejects_none` for decoders): when the
+export's `Goal p q` implies `R p q`, arguments with `¬ R p q` are never accepted.
+
+| Checker | Rejected inputs (theorem) | From |
+|---|---|---|
+| SAT | `decodeStream xs = none` (`SatAccept.checkStream_rejects_problem`), `decodeNested p = none` (`checkNested_rejects_problem`), any model | the functional specification (answer `= satStream`/`satNested`) |
+| SAT | `satStream xs ms = false` / `satNested p ms = false` (`checkStream_rejects`, `checkNested_rejects`) | the same |
+| SAT | a model word that is not a literal word, `0` or `Int32.MIN` (`…_rejects_nonLit`); a model with a literal and its negation (`…_rejects_inconsistent`); a model hitting no literal of a clause of the decoded formula (`…_rejects_clause`) | the same, through `modelOk_iff` |
+| LRAT | `decodeStream xs = none` (`LratAccept.Component.checkStream_rejects_problem`), `decodeNested p = none` (`checkNested_rejects_problem`), any certificate | soundness (`UnsatStream`/`UnsatNested` need a decoded formula) |
+| LRAT | `LratStream.decode cs = none` (`checkStream_rejects_cert`, `checkNested_rejects_cert`), any problem | the strengthened Core soundness: the driver's parse states are the automaton `certRun` (`dispatch_val`), the answer needs state `0`, and `decode_of_certRun` |
+| Farkas | `y.length ≠ S.length` (`FarkasAccept.Component.check_rejects_length`) | the strengthened Core soundness (`check_sound`: `yl = sl`) |
+
+**Not proved (tested only, or not at all).** No rejection is proved for well-formed inputs
+outside a checker's bounds: LRAT ids `≥ 1024`, literals with `|l| ≥ 1024` or a full 40 KiB
+clause arena (the certificate decodes; the answer is only constrained by soundness); Farkas
+values outside `|y|, |b|, |a| ≤ 2³⁰`, negative multipliers, variables `j ≥ 8192` or accumulator
+overflow (the checker's sticky flag makes the answer `0` by design, but only soundness is
+proved). LRAT certificates that decode but do not refute the problem are rejected only in the
+sense of soundness (an accepting call is on an unsatisfiable problem), not because the
+certificate is checked against `LRAT.check`. The Wasmtime suites test such cases; they prove
+nothing.
 
 **The harness.** `tools/wasm-acceptor-harness` runs the suites `suites/*.json` under Wasmtime
 50.0.0 on the actual component bytes (the version is pinned exactly). Each case calls one export

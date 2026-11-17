@@ -21,8 +21,22 @@ and `checkNested_sound`):
 * `checkNested_sound`: if calling `check-nested` on the `list<list<s32>>` value of `p` and the
   certificate words `cs` can return `true`, then `p ∈ UnsatNested`.
 
-The certificate is not constrained. Only accepting behaviours are: traps, divergence and `false`
-answers are not (no completeness is claimed).
+* `checkStream_cert`, `checkNested_cert`: an accepting call is on certificate words that decode
+  under the flat LRAT stream format v1 (`LratStream.decode cs ≠ none`).
+
+**Malformed inputs are rejected**, in this precise sense: **no behaviour of the reference machine
+returns `true`** (at every profile and choice profile, for every other argument):
+
+* `checkStream_rejects_problem`, `checkNested_rejects_problem`: a problem with
+  `decodeStream xs = none` (`decodeNested p = none`);
+* `checkStream_rejects_cert`, `checkNested_rejects_cert`: a certificate with
+  `LratStream.decode cs = none`.
+
+Only accepting behaviours are characterised: that a rejected call actually returns `false`
+(rather than trapping or diverging) is not proved, and no completeness is claimed. Well-formed
+certificates outside the checker's bounds (ids `≥ 1024`, literals `|l| ≥ 1024`, a full clause
+arena) decode, so they are not covered by the rejection theorems; their answer is only
+constrained by soundness.
 
 The proof (`Silmaril.Proofs.Wasm.Examples.LratAccept.Component`) is an instance of the acceptor
 kit (`Silmaril.Wasm.Acceptor`, `docs/projects/acceptor-kit.md`): the kit's
@@ -61,7 +75,7 @@ open Silmaril.Wasm.Component Silmaril.Wasm.Component.Reference
 open Silmaril.Wasm.Component.Reference.ListLift
 open Silmaril.Wasm.Logic.Words (wd words)
 open Silmaril.Wasm.Numerics (Profile)
-open Silmaril.Logic.SAT.Carrier (UnsatStream UnsatNested)
+open Silmaril.Logic.SAT.Carrier (UnsatStream UnsatNested decodeStream decodeNested)
 
 /-! ## The bytes -/
 
@@ -138,5 +152,52 @@ theorem checkNested_sound (P : Profile) (prof : ProfileKind) (p : List (List (Bi
       [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords cs).toRef]) :
     p ∈ UnsatNested :=
   Silmaril.Proofs.Wasm.Examples.LratAccept.Component.checkNested_sound P prof p cs h
+
+/-- **An accepting call of `check-stream` is on a decodable certificate.** -/
+theorem checkStream_cert (P : Profile) (prof : ProfileKind) (xs cs : List (BitVec 32))
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords cs).toRef]) :
+    (Silmaril.Logic.SAT.Carrier.LratStream.decode cs).isSome = true :=
+  Silmaril.Proofs.Wasm.Examples.LratAccept.Component.checkStream_cert P prof xs cs h
+
+/-- **An accepting call of `check-nested` is on a decodable certificate.** -/
+theorem checkNested_cert (P : Profile) (prof : ProfileKind) (p : List (List (BitVec 32)))
+    (cs : List (BitVec 32))
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords cs).toRef]) :
+    (Silmaril.Logic.SAT.Carrier.LratStream.decode cs).isSome = true :=
+  Silmaril.Proofs.Wasm.Examples.LratAccept.Component.checkNested_cert P prof p cs h
+
+/-! ## Rejection of malformed inputs
+
+"Rejected" means: no behaviour of the reference machine returns `true`. -/
+
+/-- **A malformed stream problem is never accepted**, whatever the certificate. -/
+theorem checkStream_rejects_problem (P : Profile) (prof : ProfileKind) {xs : List (BitVec 32)}
+    (cs : List (BitVec 32)) (hD : decodeStream xs = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords cs).toRef] :=
+  Silmaril.Proofs.Wasm.Examples.LratAccept.Component.checkStream_rejects_problem P prof cs hD
+
+/-- **A malformed certificate is never accepted** by `check-stream`, whatever the problem. -/
+theorem checkStream_rejects_cert (P : Profile) (prof : ProfileKind) (xs : List (BitVec 32))
+    {cs : List (BitVec 32)} (hD : Silmaril.Logic.SAT.Carrier.LratStream.decode cs = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords cs).toRef] :=
+  Silmaril.Proofs.Wasm.Examples.LratAccept.Component.checkStream_rejects_cert P prof xs hD
+
+/-- **A malformed nested problem is never accepted**, whatever the certificate. -/
+theorem checkNested_rejects_problem (P : Profile) (prof : ProfileKind)
+    {p : List (List (BitVec 32))} (cs : List (BitVec 32)) (hD : decodeNested p = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords cs).toRef] :=
+  Silmaril.Proofs.Wasm.Examples.LratAccept.Component.checkNested_rejects_problem P prof cs hD
+
+/-- **A malformed certificate is never accepted** by `check-nested`, whatever the problem. -/
+theorem checkNested_rejects_cert (P : Profile) (prof : ProfileKind) (p : List (List (BitVec 32)))
+    {cs : List (BitVec 32)} (hD : Silmaril.Logic.SAT.Carrier.LratStream.decode cs = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords cs).toRef] :=
+  Silmaril.Proofs.Wasm.Examples.LratAccept.Component.checkNested_rejects_cert P prof p hD
 
 end Silmaril.Wasm.Examples.LratAccept.Component

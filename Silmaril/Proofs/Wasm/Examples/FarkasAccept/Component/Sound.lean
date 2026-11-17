@@ -140,7 +140,7 @@ def checkExport : CheckerExport farkasComp SystemW (List S64) where
     show LTy.checkParams [.list ineqTy, .list .s64] [ofSystem S, ofS64s y] = true
     simp only [LTy.checkParams, LTy.check, ofSystem, ofS64s, checkList_map check_ineq,
       checkList_map (t := .s64) (f := LVal.s64) (fun _ => rfl), Bool.and_true]
-  Goal S _ := S ∈ Infeasible
+  Goal S y := S ∈ Infeasible ∧ y.length = S.length
 
 /-- **The Core obligation of `check`**, from the core soundness theorem. -/
 theorem checkExport_core : checkExport.CoreSound farkasKit := by
@@ -154,7 +154,9 @@ theorem checkExport_core : checkExport.CoreSound farkasKit := by
     hs (by rw [toNat_ofNat hq₁, toNat_ofNat hl₁]; exact hin)
     (by rw [toNat_ofNat hq₂, toNat_ofNat hl₂]; omega) hS hr
   rw [toNat_ofNat hq₁, toNat_ofNat hl₁, hsys] at hU
-  exact hU
+  refine ⟨hU.1, ?_⟩
+  have := congrArg BitVec.toNat hU.2
+  rwa [toNat_ofNat hl₁, toNat_ofNat hl₂] at this
 
 /-! ## The headline result -/
 
@@ -163,6 +165,21 @@ theorem check_sound (P : Profile) (prof : ProfileKind) (S : SystemW) (y : List S
     (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) ()
       farkasComp.toRef [] "check" [(ofSystem S).toRef, (ofS64s y).toRef]) :
     S ∈ Infeasible :=
-  checkExport.sound farkasKit checkExport_core P prof S y h
+  (checkExport.sound farkasKit checkExport_core P prof S y h).1
+
+/-- **An accepting call of `check` has one multiplier per inequality.** -/
+theorem check_length (P : Profile) (prof : ProfileKind) (S : SystemW) (y : List S64)
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) ()
+      farkasComp.toRef [] "check" [(ofSystem S).toRef, (ofS64s y).toRef]) :
+    y.length = S.length :=
+  (checkExport.sound farkasKit checkExport_core P prof S y h).2
+
+/-- **Multipliers of the wrong number are never accepted.** -/
+theorem check_rejects_length (P : Profile) (prof : ProfileKind) {S : SystemW} {y : List S64}
+    (hl : y.length ≠ S.length) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) ()
+      farkasComp.toRef [] "check" [(ofSystem S).toRef, (ofS64s y).toRef] :=
+  checkExport.rejects farkasKit checkExport_core (R := fun S y => y.length = S.length)
+    (fun _ _ h => h.2) P prof hl
 
 end Silmaril.Proofs.Wasm.Examples.FarkasAccept.Component

@@ -38,7 +38,8 @@ open Silmaril.Wasm.Acceptor (Kit CheckerExport reads_s32 reads_words flatHolds_t
 open Silmaril.Wasm.Logic.Words (wd words MemAt)
 open Silmaril.Wasm.Logic.VC (globalVal)
 open Silmaril.Wasm.Numerics (Profile)
-open Silmaril.Logic.SAT.Carrier (satStream satNested)
+open Silmaril.Logic.SAT.Carrier (satStream satNested decodeStream decodeNested modelOk LitWord
+  modelOk_iff)
 
 /-! ## Reading the arguments -/
 
@@ -196,5 +197,58 @@ theorem checkNested_sound (P : Profile) (prof : ProfileKind) (p : List (List (Bi
       [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords ms).toRef]) :
     satNested p ms = true :=
   nestedExport.sound satKit nestedExport_core P prof p ms h
+
+/-! ## Rejection
+
+From the functional specification: an accepting call answers `satStream` (`satNested`), so a
+call on which the Lean checker answers `false` never returns `true`. -/
+
+theorem modelOk_false_nonLit {F : Silmaril.Logic.SAT.CNF} {m : List (BitVec 32)} {x : BitVec 32}
+    (hx : x ∈ m) (hl : LitWord x = false) : modelOk F m = false := by
+  rw [← Bool.not_eq_true, modelOk_iff]
+  exact fun h => by simp [h.1 x hx] at hl
+
+theorem modelOk_false_inconsistent {F : Silmaril.Logic.SAT.CNF} {m : List (BitVec 32)}
+    {x y : BitVec 32} (hx : x ∈ m) (hy : y ∈ m) (hxy : y.toInt = -x.toInt) :
+    modelOk F m = false := by
+  rw [← Bool.not_eq_true, modelOk_iff]
+  exact fun h => h.2.1 x.toInt (List.mem_map_of_mem hx) (hxy ▸ List.mem_map_of_mem hy)
+
+theorem modelOk_false_clause {F : Silmaril.Logic.SAT.CNF} {m : List (BitVec 32)}
+    {C : Silmaril.Logic.SAT.Clause} (hC : C ∈ F) (hmiss : ∀ x ∈ m, x.toInt ∉ C) :
+    modelOk F m = false := by
+  rw [← Bool.not_eq_true, modelOk_iff]
+  intro h
+  obtain ⟨l, hl, hlm⟩ := h.2.2 C hC
+  obtain ⟨x, hx, rfl⟩ := List.mem_map.1 hlm
+  exact hmiss x hx hl
+
+theorem satStream_false {xs ms : List (BitVec 32)}
+    (h : ∀ F, decodeStream xs = some F → modelOk F ms = false) : satStream xs ms = false := by
+  unfold satStream; split
+  · next F hF => exact h F hF
+  · rfl
+
+theorem satNested_false {p : List (List (BitVec 32))} {ms : List (BitVec 32)}
+    (h : ∀ F, decodeNested p = some F → modelOk F ms = false) : satNested p ms = false := by
+  unfold satNested; split
+  · next F hF => exact h F hF
+  · rfl
+
+/-- **A call on which `satStream` answers `false` is never accepted.** -/
+theorem checkStream_rejects (P : Profile) (prof : ProfileKind) {xs ms : List (BitVec 32)}
+    (h : satStream xs ms = false) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords ms).toRef] :=
+  streamExport.rejects satKit streamExport_core (R := fun xs ms => satStream xs ms = true)
+    (fun _ _ h => h) P prof (by simp [h])
+
+/-- **A call on which `satNested` answers `false` is never accepted.** -/
+theorem checkNested_rejects (P : Profile) (prof : ProfileKind) {p : List (List (BitVec 32))}
+    {ms : List (BitVec 32)} (h : satNested p ms = false) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords ms).toRef] :=
+  nestedExport.rejects satKit nestedExport_core (R := fun p ms => satNested p ms = true)
+    (fun _ _ h => h) P prof (by simp [h])
 
 end Silmaril.Proofs.Wasm.Examples.SatAccept.Component

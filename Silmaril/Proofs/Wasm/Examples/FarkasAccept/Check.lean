@@ -10,7 +10,7 @@ public import Silmaril.Proofs.Wasm.Examples.FarkasAccept.Abi
 `check_hwp`: from any store of the acceptor (`AccStore`: any checker state, any heap pointer,
 the ABI memory `B₁`), with the records of the system and the multipliers in bounds, every run of
 the body of `check(sp, sl, yp, yl)` returns one value, and a nonzero value only if
-`systemAt B₁ sp sl ∈ Infeasible`.
+`systemAt B₁ sp sl ∈ Infeasible` and `yl = sl`.
 
 The reset (`check()`, answer dropped) leaves the checker representing no rows (`RepA []`). The
 row loop keeps `RowInv`: the store represents rows `rs` that all come from the system
@@ -64,7 +64,7 @@ theorem check_hwp {s : Store Nat} (hS : AccStore s top B₁) {sp sl yp yl : BitV
     (hsp : IneqsIn B₁ sp.toNat sl.toNat) (hyp : yp.toNat + 8 * yl.toNat ≤ B₁.size) :
     HWP P host s (fr accMi [sp, sl, yp, yl, 0, 0, 0, 0, 0])
       (vals ([] : List Val).reverse ++ expression checkBody ++ [])
-      (bodyPost 1 (checkPost (systemAt B₁ sp.toNat sl.toNat ∈ Infeasible))) := by
+      (bodyPost 1 (checkPost (systemAt B₁ sp.toNat sl.toNat ∈ Infeasible ∧ yl = sl))) := by
   have hsz : B₁.size = 1048576 := hS.size₁
   obtain ⟨m, hH, hB⟩ := accStore_holds hS
   simp only [checkBody, expression, List.map_cons, List.map_nil,
@@ -93,7 +93,7 @@ theorem check_hwp {s : Store Nat} (hS : AccStore s top B₁) {sp sl yp yl : BitV
       refine w_check (vs := []) hR.sized fun s₂ v₂ hR₂ hc₂ => ?_
       wstep; fnorm
       refine w_armEnd ?_
-      exact w_tail hR₂.inA (by simp) fun hv => infeasible_of_sub hsub (hc₂ rs hR hv)
+      exact w_tail hR₂.inA (by simp) fun hv => ⟨infeasible_of_sub hsub (hc₂ rs hR hv), hyl⟩
     · -- one more inequality
       have hlt : i.toNat < sl.toNat := by have := b32_eq_zero.1 hx; omega
       have hsl := hsp.1

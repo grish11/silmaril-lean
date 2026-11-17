@@ -54,7 +54,8 @@ set_option maxHeartbeats 1000000 in
 theorem checkStream_spec {top : BitVec 32} {B₁ : ByteArray} {pp pl cp cl : BitVec 32}
     (hpp : pp.toNat + 4 * pl.toNat ≤ memBytes) (hcp : cp.toNat + 4 * cl.toNat ≤ memBytes) :
     FSpecValid P host 11 (checkSpec [Val.i32 pp, Val.i32 pl, Val.i32 cp, Val.i32 cl] top B₁
-      (wordsAt B₁ pp.toNat pl.toNat ∈ UnsatStream)) := by
+      (wordsAt B₁ pp.toNat pl.toNat ∈ UnsatStream ∧
+        (LratStream.decode (wordsAt B₁ cp.toNat cl.toNat)).isSome = true)) := by
   obtain ⟨fi, f, ty, hfi, hf, hty, hcode, hmod, hexp⟩ := acc_fn 11 (by decide)
   rw [prog_f11] at hf
   cases hf
@@ -75,7 +76,8 @@ set_option maxHeartbeats 1000000 in
 theorem checkNested_spec {top : BitVec 32} {B₁ : ByteArray} {pp pl cp cl : BitVec 32}
     (hpp : NestedIn B₁ pp.toNat pl.toNat) (hcp : cp.toNat + 4 * cl.toNat ≤ memBytes) :
     FSpecValid P host 12 (checkSpec [Val.i32 pp, Val.i32 pl, Val.i32 cp, Val.i32 cl] top B₁
-      (nestedAt B₁ pp.toNat pl.toNat ∈ UnsatNested)) := by
+      (nestedAt B₁ pp.toNat pl.toNat ∈ UnsatNested ∧
+        (LratStream.decode (wordsAt B₁ cp.toNat cl.toNat)).isSome = true)) := by
   obtain ⟨fi, f, ty, hfi, hf, hty, hcode, hmod, hexp⟩ := acc_fn 12 (by decide)
   rw [prog_f12] at hf
   cases hf
@@ -101,7 +103,8 @@ theorem checkStream_sound {s : Store Nat} {G : List (BitVec 32)} {B₀ B₁ : By
     {s' : Store Nat} {f' : Frame} {r : BitVec 32}
     (hrun : Steps P host (invoke s 11 [Val.i32 pp, Val.i32 pl, Val.i32 cp, Val.i32 cl])
       ⟨s', f', vals [Val.i32 r]⟩) (hr : r ≠ 0#32) :
-    wordsAt B₁ pp.toNat pl.toNat ∈ UnsatStream :=
+    wordsAt B₁ pp.toNat pl.toNat ∈ UnsatStream ∧
+      (LratStream.decode (wordsAt B₁ cp.toNat cl.toNat)).isSome = true :=
   checkPost_vals (s := s') ((checkStream_spec (P := P) (host := host) hpp hcp).invoke_vals
     ⟨rfl, G, B₀, hs⟩ hrun) hr
 
@@ -112,7 +115,8 @@ theorem checkNested_sound {s : Store Nat} {G : List (BitVec 32)} {B₀ B₁ : By
     {s' : Store Nat} {f' : Frame} {r : BitVec 32}
     (hrun : Steps P host (invoke s 12 [Val.i32 pp, Val.i32 pl, Val.i32 cp, Val.i32 cl])
       ⟨s', f', vals [Val.i32 r]⟩) (hr : r ≠ 0#32) :
-    nestedAt B₁ pp.toNat pl.toNat ∈ UnsatNested :=
+    nestedAt B₁ pp.toNat pl.toNat ∈ UnsatNested ∧
+      (LratStream.decode (wordsAt B₁ cp.toNat cl.toNat)).isSome = true :=
   checkPost_vals (s := s') ((checkNested_spec (P := P) (host := host) hpp hcp).invoke_vals
     ⟨rfl, G, B₀, hs⟩ hrun) hr
 

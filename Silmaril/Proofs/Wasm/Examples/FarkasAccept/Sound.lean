@@ -47,7 +47,7 @@ set_option maxHeartbeats 1000000 in
 theorem accept_spec {top : BitVec 32} {B₁ : ByteArray} {sp sl yp yl : BitVec 32}
     (hsp : IneqsIn B₁ sp.toNat sl.toNat) (hyp : yp.toNat + 8 * yl.toNat ≤ memBytes) :
     FSpecValid P host 4 (acceptSpec [Val.i32 sp, Val.i32 sl, Val.i32 yp, Val.i32 yl] top B₁
-      (systemAt B₁ sp.toNat sl.toNat ∈ Infeasible)) := by
+      (systemAt B₁ sp.toNat sl.toNat ∈ Infeasible ∧ yl = sl)) := by
   obtain ⟨fi, f, ty, hfi, hf, hty, hcode, hmod, hexp⟩ := acc_fn 4 (by decide)
   rw [prog_f4] at hf
   cases hf
@@ -67,7 +67,7 @@ theorem check_sound {s : Store Nat} {top : BitVec 32} {B₁ : ByteArray} (hs : A
     {s' : Store Nat} {f' : Frame} {r : BitVec 32}
     (hrun : Steps P host (invoke s 4 [Val.i32 sp, Val.i32 sl, Val.i32 yp, Val.i32 yl])
       ⟨s', f', vals [Val.i32 r]⟩) (hr : r ≠ 0#32) :
-    systemAt B₁ sp.toNat sl.toNat ∈ Infeasible :=
+    systemAt B₁ sp.toNat sl.toNat ∈ Infeasible ∧ yl = sl :=
   (accept_spec (P := P) (host := host) (top := top) hsp hyp).invoke_vals ⟨rfl, hs⟩ hrun r rfl hr
 
 /-! ## `cabi_realloc` -/

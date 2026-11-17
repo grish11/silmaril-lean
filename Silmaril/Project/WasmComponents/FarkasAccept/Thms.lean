@@ -18,8 +18,11 @@ is `farkasComp.toRef` (`toRef_toAst`: the acceptor kit's generic
 component read from the bytes (`check_sound_of_bytes`): a call of `check` returning `true` on
 the `list<ineq>` value of a system `S` and any multipliers `y` means `S ∈ Infeasible`.
 
-The file itself is tied to `bytes` by regeneration and the SHA-256 pinned in
-`tools/wasm-acceptor-harness/suites/farkas.json`, not by a theorem here.
+The registered file `examples/wasm-acceptors/farkas_accept.wasm`
+(`silmaril.wasm.examples.farkas_accept.component`) is `bytes` by a kernel certificate in the
+`sil project` self-test (`ProjectSelfTest.WasmAcceptors.farkas_accept_bytes`,
+`farkas_accept_is`), which also restates the soundness for the registered value
+(`farkas_accept_check_sound`).
 -/
 
 @[expose] public section

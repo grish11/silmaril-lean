@@ -19,8 +19,9 @@ export holds for it (`CheckerExport.sound_of_bytes`: the acceptor kit's
 
 The per-acceptor facts are `decode? coreBytes = some prog` and `parse bytes = .ok (c.toAst
 coreBytes)` (`Silmaril.Wasm.Acceptor.decode_coreBytesOf`, `parse_compBytes` on kernel
-evaluations). A file is tied to its `bytes` by regeneration and a pinned SHA-256, not by a
-theorem.
+evaluations). A registered file is tied to its `bytes` by a component-value certificate
+(`Silmaril.Project.WasmComponents.is_of_encode`; for the acceptors, in
+`ProjectSelfTest.WasmAcceptors`).
 
 Proofs in `Silmaril.Proofs.Project.WasmComponents.Acceptor`.
 -/

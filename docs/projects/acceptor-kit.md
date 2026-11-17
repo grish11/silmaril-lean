@@ -17,7 +17,7 @@ what each checker supplies, and how to add the next checker.
 | Allocator | `Silmaril.Wasm.Acceptor.Alloc` | `reallocFunc ty g N`: `cabi_realloc` as a Lean Wasm AST function, its heap pointer global `g`, its memory size `N`; `realloc_sound` (every returning run answers one value and only sets the heap pointer, `ReallocOk N`); `BumpSpec` and `BumpSpec.bumpAlloc` (a bump allocator on a global gives `ListLift.BumpAlloc` for any memory index) |
 | Code and instance facts | `Silmaril.Wasm.Acceptor.Code` | `fnOk`, `fn_of_fnOk` (one kernel check gives, per function, its code, module instance and type); `ibeq`/`ibeqs` with `ibeqs_sound`; `callf`; the call rules `w_call`, `w_callVoid`, `w_callI32` of the every-run logic |
 | ABI read contracts | `Silmaril.Wasm.Acceptor.Abi` | readers `listAt`, `pairAt`, `read2`, bounds `ListIn`, `PairIn`; the contract `Reads t enc rd inn` (`Holds` implies the reader returns the value and the bounds hold) with `reads_s32`, `reads_u32`, `reads_s64`, `Reads.list`, `Reads.tuple2`, `Reads.record2`, `Reads.map`, `Reads.mono`, `reads_words`; `holdsL_listAt`, `flatHolds_two`, `flatHolds_read2`; the shared `list<list<s32>>` reader `nestedAt`, `NestedIn`; `checkList_map` for typing |
-| Bridge | `Silmaril.Wasm.Acceptor.Bridge` | `Kit c` (instance, `Good`, `Inst`, bump allocator, invariant, initial heap pointer), `CheckerExport c α β` (export, encoding of problem and certificate, typing, `Goal`), the Core obligation `CheckerExport.CoreSound`; `CheckerExport.sound`, `sound_accepts`, `sound_lang` |
+| Bridge | `Silmaril.Wasm.Acceptor.Bridge` | `Kit c` (instance, `Good`, `Inst`, bump allocator, invariant, initial heap pointer), `CheckerExport c α β` (export, encoding of problem and certificate, typing, `Goal`), the Core obligation `CheckerExport.CoreSound`; `CheckerExport.sound`, `sound_accepts`, `sound_lang`; rejection: `CheckerExport.rejects`, `rejects_none` |
 | Emission and bytes | `Silmaril.Wasm.Acceptor.Emit` | `coreBytesOf m`, `compBytes c core`; `decode_coreBytesOf`, `parse_compBytes` from the kernel evaluations of the encoders and the decoder |
 | Byte linkage | `Silmaril.Project.WasmComponents.Acceptor` | `toRef_toAst`: for **every** `ListComp`, `toRef? (c.toAst core) = some c.toRef` when `decode? core = some c.mod` (proved once, not by evaluation); `toRef_of_parse`; `CheckerExport.sound_of_bytes` |
 
@@ -45,6 +45,11 @@ allocator results `ListLift.Bump` (`BumpAlloc`, `params_holds`, `Holds`, `FlatHo
   exportBehaviours prof (refHost P) () c.toRef [] e.x.name ((e.enc p q).map LVal.toRef) →
   e.Goal p q`; with `hg : Goal p q → chk p q = true` and `hL : Accepts chk ⊆ L`,
   `sound_lang` gives `p ∈ L`.
+* `CheckerExport.rejects K e hc (hg : ∀ p q, Goal p q → R p q) P prof (hn : ¬ R p q) :
+  returns (some [bool true]) ∉ exportBehaviours prof (refHost P) () c.toRef [] e.x.name …`;
+  `rejects_none` is the case `R p q := D (f p q) ≠ none` for a decoder `D` of the problem or the
+  certificate. "Rejected" means only this: no reference behaviour returns `true`; that the call
+  returns `false` (rather than trapping or diverging) is not claimed.
 * `Acceptor.toRef_toAst c (h : decode? core = some c.mod) : toRef? (c.toAst core) = some c.toRef`.
 
 ## Generic versus checker-specific
@@ -118,10 +123,25 @@ two fields (add a combinator when a checker needs one).
 | Checker | Exports | Goal of an accepting call | Core theorem used |
 |---|---|---|---|
 | SAT | `check-stream`, `check-nested` | `satStream xs ms = true`, `satNested p ms = true` (agrees with the Lean checker) | `stream_returns`, `nested_returns` |
-| LRAT | `check-stream`, `check-nested` | `xs ∈ UnsatStream`, `p ∈ UnsatNested` | `checkStream_sound`, `checkNested_sound` |
-| Farkas | `check` | `S ∈ Infeasible` | `check_sound` |
+| LRAT | `check-stream`, `check-nested` | `xs ∈ UnsatStream ∧ (LratStream.decode cs).isSome`, `p ∈ UnsatNested ∧ (LratStream.decode cs).isSome` | `checkStream_sound`, `checkNested_sound` |
+| Farkas | `check` | `S ∈ Infeasible ∧ y.length = S.length` | `check_sound` |
 
 The LRAT and Farkas Wasm checkers do not agree with the Lean reference checkers (`lratStream`,
 `lratNested`, `farkasCheck`) on every input: the Farkas checker rejects valid certificates
 outside its bounds, and the LRAT checker needs no empty-clause step on a problem with an empty
-input clause. Their `Goal` is therefore language membership, from their own Core proofs.
+input clause. Their `Goal` is therefore language membership, from their own Core proofs, together
+with what the driver checks of the certificate: for LRAT that the certificate words decode
+under the flat LRAT stream format v1 (the driver's certificate loop runs the parser automaton
+`LratAccept.certRun`, and answers nonzero only in its state `0`; `decode_of_certRun`), for Farkas
+that there is one multiplier per inequality.
+
+**Rejection.** With `CheckerExport.rejects`, each `Goal` gives rejection theorems (no reference
+behaviour returns `true`): malformed problems for SAT and LRAT (`decodeStream`/`decodeNested`
+`= none`), malformed LRAT certificates (`LratStream.decode cs = none`), Farkas multiplier lists
+of the wrong length, and SAT models that are not consistent sets of literal words or miss a
+clause. See [accepted inputs](accepted-inputs.md#acceptor-components-runtime-observations-and-theorems)
+for the list and for what is not proved (well-formed inputs beyond a checker's bounds, and
+termination).
+
+The current status of the SAT, LRAT and Farkas exports, proved and tested, is in the
+[acceptance checklist](acceptor-checklist.md).

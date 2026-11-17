@@ -180,6 +180,33 @@ def certCode : List Instr :=
     lget 6, lget 7, ieqz, iand, ifThen [callf 7, c32 0, ine, lset 8],
     c32 heapBase, gset gHeap, lget 8]
 
+/-! ## The certificate parser as an automaton
+
+`certCode`'s parse states, as a Lean function: `certStep q x` is the state after reading the
+word `x` in state `q` (`dispatchCode`: `0` tag, `1`/`5` the id of an addition/RAT step, `2`/`6`
+its literals, `3` the hints of an addition, `4` the ids of a deletion, `7` a RAT candidate or
+the end of the groups, `8` the hints of a RAT group, `9` the sink). `certRun` runs it from a
+state over a list of words. The check answers nonzero only if `certRun 0` of the certificate
+words is `0` (`checkStream_sound`, `checkNested_sound`), and then the words decode
+(`decode_of_certRun`, `Silmaril.Wasm.Examples.LratAccept.Thms`). -/
+
+open Silmaril.Logic.SAT.Carrier (LitWord) in
+/-- One word of the certificate parser. -/
+def certStep : Nat → BitVec 32 → Nat
+  | 0, x => if x = 1 then 1 else if x = 2 then 4 else if x = 3 then 5 else 9
+  | 1, x => if 0 < x.toInt then 2 else 9
+  | 2, x => if x = 0 then 3 else if LitWord x then 2 else 9
+  | 3, x => if x = 0 then 0 else if 0 < x.toInt then 3 else 9
+  | 4, x => if x = 0 then 0 else if 0 < x.toInt then 4 else 9
+  | 5, x => if 0 < x.toInt then 6 else 9
+  | 6, x => if x = 0 then 7 else if LitWord x then 6 else 9
+  | 7, x => if x = 0 then 0 else if 0 < x.toInt then 8 else 9
+  | 8, x => if x = 0 then 7 else if 0 < x.toInt then 8 else 9
+  | _, _ => 9
+
+/-- The parser's state after a list of words. -/
+def certRun (q : Nat) (ws : List (BitVec 32)) : Nat := ws.foldl certStep q
+
 /-! ## The problem -/
 
 /-- One word of a stream problem: leave when `i = pl`; else `add_lit(x)` for `x = problem[i]`,

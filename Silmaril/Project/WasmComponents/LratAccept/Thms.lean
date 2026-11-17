@@ -20,8 +20,11 @@ for **every** reference component read from the bytes (`checkStream_sound_of_byt
 certificate `cs` means `xs ∈ UnsatStream`; a call of `check-nested` returning `true` on `p` and
 any certificate `cs` means `p ∈ UnsatNested`.
 
-The file itself is tied to `bytes` by regeneration and the SHA-256 pinned in
-`tools/wasm-acceptor-harness/suites/lrat.json`, not by a theorem here.
+The registered file `examples/wasm-acceptors/lrat_accept.wasm`
+(`silmaril.wasm.examples.lrat_accept.component`) is `bytes` by a kernel certificate in the
+`sil project` self-test (`ProjectSelfTest.WasmAcceptors.lrat_accept_bytes`, `lrat_accept_is`),
+which also restates the soundness for the registered value (`lrat_accept_checkStream_sound`,
+`lrat_accept_checkNested_sound`).
 -/
 
 @[expose] public section

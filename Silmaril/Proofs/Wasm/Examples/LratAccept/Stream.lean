@@ -9,7 +9,8 @@ public import Silmaril.Proofs.Wasm.Examples.LratAccept.Reset
 
 `stream_hwp`: from any LRAT view, with the problem `[pp, pp + 4 pl)` and the certificate
 `[cp, cp + 4 cl)` in the ABI memory `B₁`, every run of the body of `check-stream` returns one
-value, and a nonzero value only if the problem is in `UnsatStream`. The reset gives `Good []`;
+value, and a nonzero value only if the problem is in `UnsatStream` and the certificate words
+decode (`LratStream.decode`). The reset gives `Good []`;
 the feeding loop sends every problem word to `add_lit`, so the view satisfies `Good` for the
 stream of the problem's words, while the flag `ok` records "no `Int32.MIN` so far"; the
 termination test adds "empty or ending in `0`", and `cert_hwp` does the rest.
@@ -49,13 +50,6 @@ theorem okUpTo_succ {B : ByteArray} {p n : Nat} :
     · exact hn
   · intro h
     exact ⟨fun m hm => h m (by omega), h n (by omega)⟩
-
-theorem wordsAt_succ {B : ByteArray} {p n : Nat} :
-    wordsAt B p (n + 1) = wordsAt B p n ++ [Silmaril.Wasm.Logic.Words.wd B (p + 4 * n)] := by
-  simp [wordsAt, Silmaril.Wasm.Logic.Words.words, List.range_succ]
-
-theorem wordsAt_zero {B : ByteArray} {p : Nat} : wordsAt B p 0 = [] := by
-  simp [wordsAt, Silmaril.Wasm.Logic.Words.words]
 
 theorem mem_wordsAt {B : ByteArray} {p n : Nat} {w : BitVec 32} :
     w ∈ wordsAt B p n ↔ ∃ m < n, Silmaril.Wasm.Logic.Words.wd B (p + 4 * m) = w := by
@@ -124,7 +118,8 @@ theorem stream_hwp (hX : MiOk X) (hC : CallsOk P host X) (hA : Abi X B₁) (hS :
     (hcp : cp.toNat + 4 * cl.toNat ≤ B₁.size) :
     HWP P host s (fr X.mi [pp, pl, cp, cl, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
       (vals ([] : List Val).reverse ++ expression checkStreamBody ++ [])
-      (bodyPost 1 (checkPost (H := H) (wordsAt B₁ pp.toNat pl.toNat ∈ UnsatStream))) := by
+      (bodyPost 1 (checkPost (H := H) (wordsAt B₁ pp.toNat pl.toNat ∈ UnsatStream ∧
+        (LratStream.decode (wordsAt B₁ cp.toNat cl.toNat)).isSome = true))) := by
   have hsz := hA.size
   unfold checkStreamBody
   simp only [expression, List.map_append, List.append_assoc]
@@ -170,14 +165,14 @@ theorem stream_hwp (hX : MiOk X) (hC : CallsOk P host X) (hA : Abi X B₁) (hS :
       lnorm
       refine w_armEnd ?_
       rw [← List.append_assoc]
-      refine cert_hwp hC hA hcp ⟨G₁, B₂, hS₂, hG₂⟩ fun ⟨hok, hlast⟩ hu => ?_
+      refine cert_hwp hC hA hcp ⟨G₁, B₂, hS₂, hG₂⟩ fun ⟨hok, hlast⟩ hu hd => ?_
       rw [hie] at hok hu
-      exact mem_unsatStream hok (fun _ => hlast) hu
+      exact ⟨mem_unsatStream hok (fun _ => hlast) hu, hd⟩
     · have hpl : pl = BitVec.ofNat 32 0 := by have := b32_eq_zero.1 hc; simpa using this
       rw [← List.append_assoc]
-      refine cert_hwp hC hA hcp hI fun hok hu => ?_
+      refine cert_hwp hC hA hcp hI fun hok hu hd => ?_
       rw [hie] at hok hu
-      exact mem_unsatStream hok (fun h => absurd h (by rw [hpl]; simp)) hu
+      exact ⟨mem_unsatStream hok (fun h => absurd h (by rw [hpl]; simp)) hu, hd⟩
   · -- one more word
     have hlt : i.toNat < pl.toNat := by have := b32_eq_zero.1 hx; omega
     obtain ⟨G₁, B₂, hS₂, hG₂⟩ := hI

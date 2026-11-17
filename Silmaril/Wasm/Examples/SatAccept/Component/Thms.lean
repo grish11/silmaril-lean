@@ -20,8 +20,22 @@ every component choice profile `prof`:
 * `checkNested_sound`, `checkNested_satNested`, `checkNested_accepts`: the same for
   `check-nested` on a `list<list<s32>>` value `p`, with `satNested` and `SatNested`.
 
-Only accepting behaviours are constrained: traps, divergence and `false` answers are not (no
-completeness is claimed).
+**Malformed inputs and bad model witnesses are rejected**, in this precise sense: **no
+behaviour of the reference machine returns `true`** (at every profile and choice profile). This
+is a corollary of the functional specification above (the answer of an accepting call is
+`satStream`/`satNested`, which is `true` only on a decoded problem and a model passing
+`modelOk`):
+
+* `checkStream_rejects`, `checkNested_rejects`: when the Lean checker answers `false`;
+* `checkStream_rejects_problem`, `checkNested_rejects_problem`: a malformed problem
+  (`decodeStream xs = none`, `decodeNested p = none`), whatever the model;
+* `…_rejects_nonLit`: a model containing a word that is not a literal word (`0` or
+  `Int32.MIN`);
+* `…_rejects_inconsistent`: a model containing a literal and its negation;
+* `…_rejects_clause`: a model that hits no literal of some clause of the decoded formula.
+
+Only accepting behaviours are constrained: that a rejected call actually returns `false` (rather
+than trapping or diverging) is not proved, and no completeness is claimed.
 
 The proof (`Silmaril.Proofs.Wasm.Examples.SatAccept.Component`) is an instance of the acceptor
 kit (`Silmaril.Wasm.Acceptor`, `docs/projects/acceptor-kit.md`): the kit's
@@ -57,7 +71,8 @@ open Silmaril.Wasm.Component.Reference.ListLift
 open Silmaril.Wasm.Logic.Words (wd words)
 open Silmaril.Wasm.Logic.VC (globalVal)
 open Silmaril.Wasm.Numerics (Profile)
-open Silmaril.Logic.SAT.Carrier (satStream satNested SatStream SatNested Accepts)
+open Silmaril.Logic.SAT.Carrier (satStream satNested SatStream SatNested Accepts decodeStream
+  decodeNested LitWord)
 
 /-! ## The bytes -/
 
@@ -160,5 +175,87 @@ theorem checkNested_satNested (P : Profile) (prof : ProfileKind) (p : List (List
       [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords ms).toRef]) :
     p ∈ SatNested :=
   Silmaril.Logic.SAT.Carrier.satNested_sound (checkNested_accepts P prof p ms h)
+
+/-! ## Rejection
+
+"Rejected" means: no behaviour of the reference machine returns `true`. -/
+
+/-- **`check-stream`: a call on which `satStream` answers `false` is never accepted.** -/
+theorem checkStream_rejects (P : Profile) (prof : ProfileKind) {xs : List (BitVec 32)}
+    {ms : List (BitVec 32)} (h : satStream xs ms = false) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords ms).toRef] :=
+  Silmaril.Proofs.Wasm.Examples.SatAccept.Component.checkStream_rejects P prof h
+
+/-- **`check-stream`: a malformed problem is never accepted**, whatever the model. -/
+theorem checkStream_rejects_problem (P : Profile) (prof : ProfileKind) {xs : List (BitVec 32)}
+    (ms : List (BitVec 32)) (hD : decodeStream xs = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords ms).toRef] :=
+  checkStream_rejects P prof (by simp [satStream, hD])
+
+/-- **`check-stream`: a model with a word that is not a literal word is never accepted.** -/
+theorem checkStream_rejects_nonLit (P : Profile) (prof : ProfileKind) (xs : List (BitVec 32))
+    {ms : List (BitVec 32)} {x : BitVec 32} (hx : x ∈ ms) (hl : LitWord x = false) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords ms).toRef] :=
+  checkStream_rejects P prof (Silmaril.Proofs.Wasm.Examples.SatAccept.Component.satStream_false fun _ _ => Silmaril.Proofs.Wasm.Examples.SatAccept.Component.modelOk_false_nonLit hx hl)
+
+/-- **`check-stream`: an inconsistent model is never accepted.** -/
+theorem checkStream_rejects_inconsistent (P : Profile) (prof : ProfileKind) (xs : List (BitVec 32))
+    {ms : List (BitVec 32)} {x y : BitVec 32} (hx : x ∈ ms) (hy : y ∈ ms)
+    (hxy : y.toInt = -x.toInt) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords ms).toRef] :=
+  checkStream_rejects P prof
+    (Silmaril.Proofs.Wasm.Examples.SatAccept.Component.satStream_false fun _ _ => Silmaril.Proofs.Wasm.Examples.SatAccept.Component.modelOk_false_inconsistent hx hy hxy)
+
+/-- **`check-stream`: a model missing a clause is never accepted.** -/
+theorem checkStream_rejects_clause (P : Profile) (prof : ProfileKind) {xs : List (BitVec 32)}
+    {F : Silmaril.Logic.SAT.CNF} (hF : decodeStream xs = some F) {C : Silmaril.Logic.SAT.Clause}
+    (hC : C ∈ F) {ms : List (BitVec 32)} (hmiss : ∀ x ∈ ms, x.toInt ∉ C) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords ms).toRef] :=
+  checkStream_rejects P prof (Silmaril.Proofs.Wasm.Examples.SatAccept.Component.satStream_false fun F' hF' => by
+    cases hF.symm.trans hF'; exact Silmaril.Proofs.Wasm.Examples.SatAccept.Component.modelOk_false_clause hC hmiss)
+
+/-- **`check-nested`: a call on which `satNested` answers `false` is never accepted.** -/
+theorem checkNested_rejects (P : Profile) (prof : ProfileKind) {p : List (List (BitVec 32))}
+    {ms : List (BitVec 32)} (h : satNested p ms = false) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords ms).toRef] :=
+  Silmaril.Proofs.Wasm.Examples.SatAccept.Component.checkNested_rejects P prof h
+
+/-- **`check-nested`: a malformed problem is never accepted**, whatever the model. -/
+theorem checkNested_rejects_problem (P : Profile) (prof : ProfileKind) {p : List (List (BitVec 32))}
+    (ms : List (BitVec 32)) (hD : decodeNested p = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords ms).toRef] :=
+  checkNested_rejects P prof (by simp [satNested, hD])
+
+/-- **`check-nested`: a model with a word that is not a literal word is never accepted.** -/
+theorem checkNested_rejects_nonLit (P : Profile) (prof : ProfileKind) (p : List (List (BitVec 32)))
+    {ms : List (BitVec 32)} {x : BitVec 32} (hx : x ∈ ms) (hl : LitWord x = false) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords ms).toRef] :=
+  checkNested_rejects P prof (Silmaril.Proofs.Wasm.Examples.SatAccept.Component.satNested_false fun _ _ => Silmaril.Proofs.Wasm.Examples.SatAccept.Component.modelOk_false_nonLit hx hl)
+
+/-- **`check-nested`: an inconsistent model is never accepted.** -/
+theorem checkNested_rejects_inconsistent (P : Profile) (prof : ProfileKind) (p : List (List (BitVec 32)))
+    {ms : List (BitVec 32)} {x y : BitVec 32} (hx : x ∈ ms) (hy : y ∈ ms)
+    (hxy : y.toInt = -x.toInt) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords ms).toRef] :=
+  checkNested_rejects P prof
+    (Silmaril.Proofs.Wasm.Examples.SatAccept.Component.satNested_false fun _ _ => Silmaril.Proofs.Wasm.Examples.SatAccept.Component.modelOk_false_inconsistent hx hy hxy)
+
+/-- **`check-nested`: a model missing a clause is never accepted.** -/
+theorem checkNested_rejects_clause (P : Profile) (prof : ProfileKind) {p : List (List (BitVec 32))}
+    {F : Silmaril.Logic.SAT.CNF} (hF : decodeNested p = some F) {C : Silmaril.Logic.SAT.Clause}
+    (hC : C ∈ F) {ms : List (BitVec 32)} (hmiss : ∀ x ∈ ms, x.toInt ∉ C) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () satComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords ms).toRef] :=
+  checkNested_rejects P prof (Silmaril.Proofs.Wasm.Examples.SatAccept.Component.satNested_false fun F' hF' => by
+    cases hF.symm.trans hF'; exact Silmaril.Proofs.Wasm.Examples.SatAccept.Component.modelOk_false_clause hC hmiss)
 
 end Silmaril.Wasm.Examples.SatAccept

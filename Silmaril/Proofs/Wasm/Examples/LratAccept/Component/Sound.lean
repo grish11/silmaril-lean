@@ -16,12 +16,16 @@ An instance of the acceptor kit (`Silmaril.Wasm.Acceptor`):
   lowered `list<list<s32>>` reads back as `nestedAt` with its blocks in bounds (the kit's
   `holdsL_listAt` with `reads_words`);
 * `lratKit`, `streamExport`, `nestedExport`: the kit of `lratComp` (instance, bump allocator,
-  invariant `LInvL`) and its two exports, with `Goal xs _ := xs ∈ UnsatStream` and
-  `Goal p _ := p ∈ UnsatNested`; `streamExport_core`, `nestedExport_core`: the Core
-  obligations, from the kit's `flatHolds_read2` and the core soundness theorems
+  invariant `LInvL`) and its two exports, with `Goal xs cs := xs ∈ UnsatStream ∧
+  (Silmaril.Logic.SAT.Carrier.LratStream.decode cs).isSome` and `Goal p cs := p ∈ UnsatNested ∧ (Silmaril.Logic.SAT.Carrier.LratStream.decode
+  cs).isSome`; `streamExport_core`, `nestedExport_core`: the Core obligations, from the kit's
+  `flatHolds_read2` and the core soundness theorems
   `Silmaril.Wasm.Examples.LratAccept.checkStream_sound`, `checkNested_sound`, which hold from
   any LRAT state;
-* `checkStream_sound`, `checkNested_sound`: the kit's `CheckerExport.sound`.
+* `checkStream_sound`, `checkStream_cert`, `checkNested_sound`, `checkNested_cert`: the kit's
+  `CheckerExport.sound`; `checkStream_rejects_problem`, `checkStream_rejects_cert`,
+  `checkNested_rejects_problem`, `checkNested_rejects_cert`: the kit's
+  `CheckerExport.rejects_none`.
 -/
 
 @[expose] public section
@@ -36,7 +40,7 @@ open Silmaril.Wasm.Acceptor (Kit CheckerExport reads_s32 reads_words flatHolds_t
   holdsL_listAt checkList_map)
 open Silmaril.Wasm.Logic.Words (wd words)
 open Silmaril.Wasm.Numerics (Profile)
-open Silmaril.Logic.SAT.Carrier (UnsatStream UnsatNested)
+open Silmaril.Logic.SAT.Carrier (UnsatStream UnsatNested decodeStream decodeNested)
 
 /-! ## Reading the arguments -/
 
@@ -90,7 +94,8 @@ def lratKit : Kit lratComp where
   base := heapBase
   init := lInvL_init
 
-/-- **The export `check-stream`**: an accepting call means that the stream is unsatisfiable. -/
+/-- **The export `check-stream`**: an accepting call means that the stream is unsatisfiable and
+the certificate decodes. -/
 def streamExport : CheckerExport lratComp (List (BitVec 32)) (List (BitVec 32)) where
   x := ⟨"check-stream", [("problem", .list .s32), ("cert", .list .s32)], "check-stream"⟩
   mem := List.mem_cons_self
@@ -99,10 +104,10 @@ def streamExport : CheckerExport lratComp (List (BitVec 32)) (List (BitVec 32)) 
     show LTy.checkParams [.list .s32, .list .s32] [LVal.ofWords xs, LVal.ofWords cs] = true
     simp only [LTy.checkParams, LVal.ofWords, LTy.check, Bool.and_true,
       checkList_map (t := .s32) (f := LVal.s32) (fun _ => rfl)]
-  Goal xs _ := xs ∈ UnsatStream
+  Goal xs cs := xs ∈ UnsatStream ∧ (Silmaril.Logic.SAT.Carrier.LratStream.decode cs).isSome = true
 
 /-- **The export `check-nested`**: an accepting call means that the formula is
-unsatisfiable. -/
+unsatisfiable and the certificate decodes. -/
 def nestedExport : CheckerExport lratComp (List (List (BitVec 32))) (List (BitVec 32)) where
   x := ⟨"check-nested", [("problem", .list (.list .s32)), ("cert", .list .s32)], "check-nested"⟩
   mem := List.mem_cons_of_mem _ List.mem_cons_self
@@ -114,7 +119,7 @@ def nestedExport : CheckerExport lratComp (List (List (BitVec 32))) (List (BitVe
       exact checkList_map (t := .s32) (f := LVal.s32) (fun _ => rfl) c
     simp only [LTy.checkParams, LVal.ofNested, LTy.check, Bool.and_true, checkList_map hw]
     exact checkList_map (t := .s32) (f := LVal.s32) (fun _ => rfl) cs
-  Goal p _ := p ∈ UnsatNested
+  Goal p cs := p ∈ UnsatNested ∧ (Silmaril.Logic.SAT.Carrier.LratStream.decode cs).isSome = true
 
 /-- **The Core obligation of `check-stream`.** -/
 theorem streamExport_core : streamExport.CoreSound lratKit := by
@@ -122,7 +127,7 @@ theorem streamExport_core : streamExport.CoreSound lratKit := by
   change FlatHolds (memBytesOf s 1) heapBase t [.list .s32, .list .s32]
     [LVal.ofWords xs, LVal.ofWords cs] fl at hF
   rw [memBytesOf_acc hs] at hF
-  obtain ⟨q₁, q₂, rfl, hq₁, hq₂, hl₁, hl₂, hin₁, hw₁, hin₂, -⟩ :=
+  obtain ⟨q₁, q₂, rfl, hq₁, hq₂, hl₁, hl₂, hin₁, hw₁, hin₂, hw₂⟩ :=
     flatHolds_read2 reads_s32 reads_s32 hF
   change Steps _ _ (invoke s (lratComp.coreAddr accI "check-stream") _) _ at hS
   rw [t_coreAddrs.2.1] at hS
@@ -133,8 +138,10 @@ theorem streamExport_core : streamExport.CoreSound lratKit := by
     (pl := BitVec.ofNat 32 xs.length) (cp := BitVec.ofNat 32 q₂) (cl := BitVec.ofNat 32 cs.length)
     hs (by rw [toNat_ofNat hq₁, toNat_ofNat hl₁]; omega)
     (by rw [toNat_ofNat hq₂, toNat_ofNat hl₂]; omega) hS hr
-  rw [toNat_ofNat hq₁, toNat_ofNat hl₁] at hU
-  exact (show wordsAt B₁ q₁ xs.length = xs from hw₁) ▸ hU
+  rw [toNat_ofNat hq₁, toNat_ofNat hl₁, toNat_ofNat hq₂, toNat_ofNat hl₂] at hU
+  rw [show wordsAt B₁ q₁ xs.length = xs from hw₁,
+    show wordsAt B₁ q₂ cs.length = cs from hw₂] at hU
+  exact hU
 
 /-- **The Core obligation of `check-nested`.** -/
 theorem nestedExport_core : nestedExport.CoreSound lratKit := by
@@ -142,7 +149,7 @@ theorem nestedExport_core : nestedExport.CoreSound lratKit := by
   change FlatHolds (memBytesOf s 1) heapBase t [.list (.list .s32), .list .s32]
     [LVal.ofNested p, LVal.ofWords cs] fl at hF
   rw [memBytesOf_acc hs] at hF
-  obtain ⟨q₁, q₂, rfl, hq₁, hq₂, hl₁, hl₂, hin₁, hn₁, hin₂, -⟩ :=
+  obtain ⟨q₁, q₂, rfl, hq₁, hq₂, hl₁, hl₂, hin₁, hn₁, hin₂, hw₂⟩ :=
     flatHolds_read2 reads_words reads_s32 hF
   change Steps _ _ (invoke s (lratComp.coreAddr accI "check-nested") _) _ at hS
   rw [t_coreAddrs.2.2] at hS
@@ -152,8 +159,10 @@ theorem nestedExport_core : nestedExport.CoreSound lratKit := by
     (pl := BitVec.ofNat 32 p.length) (cp := BitVec.ofNat 32 q₂) (cl := BitVec.ofNat 32 cs.length)
     hs (by rw [toNat_ofNat hq₁, toNat_ofNat hl₁]; exact hin₁)
     (by rw [toNat_ofNat hq₂, toNat_ofNat hl₂]; omega) hS hr
-  rw [toNat_ofNat hq₁, toNat_ofNat hl₁] at hU
-  exact (show nestedAt B₁ q₁ p.length = p from hn₁) ▸ hU
+  rw [toNat_ofNat hq₁, toNat_ofNat hl₁, toNat_ofNat hq₂, toNat_ofNat hl₂] at hU
+  rw [show nestedAt B₁ q₁ p.length = p from hn₁,
+    show wordsAt B₁ q₂ cs.length = cs from hw₂] at hU
+  exact hU
 
 /-! ## The headline results -/
 
@@ -162,7 +171,14 @@ theorem checkStream_sound (P : Profile) (prof : ProfileKind) (xs cs : List (BitV
     (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () lratComp.toRef
       [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords cs).toRef]) :
     xs ∈ UnsatStream :=
-  streamExport.sound lratKit streamExport_core P prof xs cs h
+  (streamExport.sound lratKit streamExport_core P prof xs cs h).1
+
+/-- **An accepting call of `check-stream` is on a decodable certificate.** -/
+theorem checkStream_cert (P : Profile) (prof : ProfileKind) (xs cs : List (BitVec 32))
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords cs).toRef]) :
+    (Silmaril.Logic.SAT.Carrier.LratStream.decode cs).isSome = true :=
+  (streamExport.sound lratKit streamExport_core P prof xs cs h).2
 
 /-- **An accepting call of `check-nested` is on an unsatisfiable formula.** -/
 theorem checkNested_sound (P : Profile) (prof : ProfileKind) (p : List (List (BitVec 32)))
@@ -170,6 +186,60 @@ theorem checkNested_sound (P : Profile) (prof : ProfileKind) (p : List (List (Bi
     (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () lratComp.toRef
       [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords cs).toRef]) :
     p ∈ UnsatNested :=
-  nestedExport.sound lratKit nestedExport_core P prof p cs h
+  (nestedExport.sound lratKit nestedExport_core P prof p cs h).1
+
+/-- **An accepting call of `check-nested` is on a decodable certificate.** -/
+theorem checkNested_cert (P : Profile) (prof : ProfileKind) (p : List (List (BitVec 32)))
+    (cs : List (BitVec 32))
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords cs).toRef]) :
+    (Silmaril.Logic.SAT.Carrier.LratStream.decode cs).isSome = true :=
+  (nestedExport.sound lratKit nestedExport_core P prof p cs h).2
+
+/-! ## Rejection -/
+
+theorem decodeStream_ne_none {xs : List (BitVec 32)} (h : xs ∈ UnsatStream) :
+    decodeStream xs ≠ none := by
+  obtain ⟨F, hF, -⟩ := h; simp [hF]
+
+theorem decodeNested_ne_none {p : List (List (BitVec 32))} (h : p ∈ UnsatNested) :
+    decodeNested p ≠ none := by
+  obtain ⟨F, hF, -⟩ := h; simp [hF]
+
+theorem decode_ne_none {cs : List (BitVec 32)} (h : (Silmaril.Logic.SAT.Carrier.LratStream.decode cs).isSome = true) :
+    Silmaril.Logic.SAT.Carrier.LratStream.decode cs ≠ none := by
+  simpa [Option.isSome_iff_ne_none] using h
+
+/-- **A malformed stream problem is never accepted.** -/
+theorem checkStream_rejects_problem (P : Profile) (prof : ProfileKind) {xs : List (BitVec 32)}
+    (cs : List (BitVec 32)) (hD : decodeStream xs = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords cs).toRef] :=
+  streamExport.rejects_none lratKit streamExport_core (f := fun xs _ => xs)
+    (fun _ _ h => decodeStream_ne_none h.1) P prof (q := cs) hD
+
+/-- **A malformed certificate is never accepted** (stream problems). -/
+theorem checkStream_rejects_cert (P : Profile) (prof : ProfileKind) (xs : List (BitVec 32))
+    {cs : List (BitVec 32)} (hD : Silmaril.Logic.SAT.Carrier.LratStream.decode cs = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords cs).toRef] :=
+  streamExport.rejects_none lratKit streamExport_core (f := fun _ cs => cs)
+    (fun _ _ h => decode_ne_none h.2) P prof (p := xs) hD
+
+/-- **A malformed nested problem is never accepted.** -/
+theorem checkNested_rejects_problem (P : Profile) (prof : ProfileKind)
+    {p : List (List (BitVec 32))} (cs : List (BitVec 32)) (hD : decodeNested p = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords cs).toRef] :=
+  nestedExport.rejects_none lratKit nestedExport_core (f := fun p _ => p)
+    (fun _ _ h => decodeNested_ne_none h.1) P prof (q := cs) hD
+
+/-- **A malformed certificate is never accepted** (nested problems). -/
+theorem checkNested_rejects_cert (P : Profile) (prof : ProfileKind) (p : List (List (BitVec 32)))
+    {cs : List (BitVec 32)} (hD : Silmaril.Logic.SAT.Carrier.LratStream.decode cs = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () lratComp.toRef
+      [] "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords cs).toRef] :=
+  nestedExport.rejects_none lratKit nestedExport_core (f := fun _ cs => cs)
+    (fun _ _ h => decode_ne_none h.2) P prof (p := p) hD
 
 end Silmaril.Proofs.Wasm.Examples.LratAccept.Component

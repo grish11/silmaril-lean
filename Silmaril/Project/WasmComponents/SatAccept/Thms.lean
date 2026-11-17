@@ -20,8 +20,11 @@ reference component read from the bytes (`checkStream_sound_of_bytes`,
 `satStream xs ms = true`, hence `xs ∈ SatStream`; a call of `check-nested` returning `true` on
 `p` and `ms` means `satNested p ms = true`, hence `p ∈ SatNested`.
 
-The file itself is tied to `bytes` by regeneration and the SHA-256 pinned in
-`tools/wasm-acceptor-harness/suites/sat.json`, not by a theorem here.
+The registered file `examples/wasm-acceptors/sat_accept.wasm`
+(`silmaril.wasm.examples.sat_accept.component`) is `bytes` by a kernel certificate in the
+`sil project` self-test (`ProjectSelfTest.WasmAcceptors.sat_accept_bytes`, `sat_accept_is`),
+which also restates the soundness for the registered value (`sat_accept_checkStream_sound`,
+`sat_accept_checkNested_sound`).
 -/
 
 @[expose] public section

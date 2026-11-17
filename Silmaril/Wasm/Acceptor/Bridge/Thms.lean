@@ -17,8 +17,14 @@ profile `prof`. Proof in `Silmaril.Proofs.Wasm.Acceptor.Bridge`.
   `chk p q = true` for a Lean checker `chk`, an accepting call puts `p` in `Accepts chk`, and in
   every language `L ⊇ Accepts chk`.
 
+* **`CheckerExport.rejects`**, **`CheckerExport.rejects_none`**: the contrapositive, for
+  rejection. If `Goal p q` implies a property `R p q` (for instance that a decoder of the problem
+  or of the certificate succeeds, `D p ≠ none`), then for arguments with `¬ R p q` **no
+  behaviour of the reference machine returns `true`**.
+
 Only accepting behaviours are characterised: traps, divergence and `false` answers impose
-nothing.
+nothing. In particular "rejected" means "never answers `true`": that such a call answers `false`
+(rather than trapping or diverging) is not claimed.
 -/
 
 @[expose] public section
@@ -56,5 +62,25 @@ theorem CheckerExport.sound_lang {c : ListComp} {α β : Type} (K : Kit c)
       e.x.name ((e.enc p q).map LVal.toRef)) :
     p ∈ L :=
   hL (e.sound_accepts K hc hg P prof p q h)
+
+/-- **Arguments outside the goal are never accepted**: when `Goal p q` implies `R p q`, no
+reference behaviour of a call on arguments with `¬ R p q` returns `true`. -/
+theorem CheckerExport.rejects {c : ListComp} {α β : Type} (K : Kit c) (e : CheckerExport c α β)
+    (hc : e.CoreSound K) {R : α → β → Prop} (hg : ∀ p q, e.Goal p q → R p q) (P : Profile)
+    (prof : ProfileKind) {p : α} {q : β} (hn : ¬ R p q) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () c.toRef []
+      e.x.name ((e.enc p q).map LVal.toRef) :=
+  fun h => hn (hg p q (e.sound K hc P prof p q h))
+
+/-- **Undecodable arguments are never accepted**: when `Goal p q` implies that a decoder `D`
+succeeds on `f p q` (the problem, the certificate, or both), no reference behaviour of a call
+on arguments with `D (f p q) = none` returns `true`. -/
+theorem CheckerExport.rejects_none {c : ListComp} {α β γ δ : Type} (K : Kit c)
+    (e : CheckerExport c α β) (hc : e.CoreSound K) {f : α → β → γ} {D : γ → Option δ}
+    (hg : ∀ p q, e.Goal p q → D (f p q) ≠ none) (P : Profile) (prof : ProfileKind) {p : α}
+    {q : β} (hD : D (f p q) = none) :
+    Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P) () c.toRef []
+      e.x.name ((e.enc p q).map LVal.toRef) :=
+  e.rejects K hc (R := fun p q => D (f p q) ≠ none) hg P prof (not_not_intro hD)
 
 end Silmaril.Wasm.Acceptor
