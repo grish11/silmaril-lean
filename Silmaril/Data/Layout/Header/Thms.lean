@@ -65,6 +65,28 @@ theorem reads_identical_redeclaration :
       some [("f", ⟨.int .int .signed, [.int .int .signed], false⟩),
         ("g", ⟨.typedef "t" (.int .int .signed), [], false⟩)] := by decide +kernel
 
+/-- The qualifiers `text` writes for `f`. -/
+def quals (text f : String) : Option ProtoQuals :=
+  (read [("h.h", text)] "h.h").toOption.bind (·.quals? f)
+
+/-- Qualifiers are kept by level: `const char *` is `[["const"], []]` (a non-`const` pointer to
+`const char`), `char *const` is `[[], ["const"]]`; an array parameter gets the level of the
+pointer it is adjusted to; `__restrict` is `restrict`. -/
+theorem reads_qualifiers :
+    quals "int printf(const char *fmt, ...);" "printf" =
+      some ⟨[[]], [[["const"], []]]⟩ ∧
+    quals "const volatile int *g(char *const p, const int a[], int *__restrict q);" "g" =
+      some ⟨[["const", "volatile"], []], [[[], ["const"]], [["const"], []], [[], ["restrict"]]]⟩ := by
+  decide +kernel
+
+/-- A redeclaration must agree on pointee qualifiers; parameters' top-level qualifiers do not
+matter (C17 6.7.6.3p15). -/
+theorem qualifier_redeclaration :
+    refuses "int f(const char *); int f(char *);" = true ∧
+    refuses "const char *f(void); char *f(void);" = true ∧
+    refuses "int f(const int); int f(int);" = false ∧
+    refuses "int f(char *const); int f(char *);" = false := by decide +kernel
+
 end Silmaril.Data.Layout.Header
 
 end
