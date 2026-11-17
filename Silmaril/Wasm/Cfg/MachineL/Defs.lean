@@ -86,12 +86,16 @@ def gotoN (t : Target) (d : Nat) (ls : List LFrame) (stk : List Val) (s : Store 
 keeps the top `L.arity` values of the branch-site stack `V` over its outer values; a `loop`
 is re-entered on them, any other label leaves its sequence (`gotoN`). No values of the frames in
 between are collected (`EvalLXPS`'s `blockBrk` passes a branch's values unchanged; `MStepC`'s
-`brVals` collects them, as Core does; they agree on typed code). -/
+`brVals` collects them, as Core does; they agree on typed code). Re-entering a loop needs at
+least its parameters on the branch-site stack: with fewer, `EvalLXPS`'s `loopBack` would take
+values of the frame outside as parameters, which the machine does not model (no step). -/
 def branchN (body : Expr) (b : BlockId) (ls : List LFrame) (k : Nat) (L : LFrame) (V : List Val)
     (s : Store H) (f : Frame) : Option (MState H) :=
   if L.loop then
-    some (goto ((labels body b.seq).getD k .invalid) (b.seq.length - k) (L :: ls.drop (k + 1))
-      (topVals L.arity V) s f)
+    if L.arity ≤ V.length then
+      gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - k) (L :: ls.drop (k + 1))
+        (topVals L.arity V) s f
+    else none
   else
     gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - (k + 1)) (ls.drop (k + 1))
       (L.outer ++ topVals L.arity V) s f
@@ -158,7 +162,8 @@ inductive MStepL (body : Expr) : MState H → List (SCall H) → MState H → Pr
       (hb : lookup body b = some sg) (hr : EvalLXPS s f stk.reverse (liftInstrs sg.body) l r)
       (hn : ¬ r.2.2.IsNormal) (hd : DispL body b ls r st') :
       MStepL body ⟨.block b, stk, ls, s, f⟩ l st'
-  /-- Entering arm `a` of a structured terminator after the segment, as `MStepC.enter`. -/
+  /-- Entering arm `a` of a structured terminator after the segment, as `MStepC.enter` (an empty
+  arm continues at once, leaving its sequence natively). -/
   | enter {b : BlockId} {sg : Segment} {stk stk₁ ws us : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {a : Nat} {c : List Instr} {bt : BlockType}
       {t₁ t₂ : List Validation.CValType} {loop tryT : Bool} {cs : List Catch} {l : List (SCall H)}
@@ -166,10 +171,11 @@ inductive MStepL (body : Expr) : MState H → List (SCall H) → MState H → Pr
       (hkind : StructKind i bt loop tryT cs)
       (hr : EvalLXPS s f stk.reverse (liftInstrs sg.body) l (s₁, f₁, .flow (.normal stk₁)))
       (hcond : CondArm i stk₁.reverse a ws us)
-      (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length) :
-      MStepL body ⟨.block b, stk, ls, s, f⟩ l
-        (goto (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
-          (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁)
+      (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+      {st' : MState H}
+      (hg : gotoN (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
+          (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁ = some st') :
+      MStepL body ⟨.block b, stk, ls, s, f⟩ l st'
 
 /-- **A pending tail call ends the body**: a block's straight-line code ends in a pending tail
 call (through every label and handler), which the function's frame makes. -/
