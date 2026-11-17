@@ -60,83 +60,83 @@ def Arith.entries : List Entry := [
     (.typedef (.ok (.int .long .signed)))⟩,
   ⟨"sc3", .function, (some ⟨"../common/rt.h", 19⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .long .signed), [(.int .long .signed), (.int .long .signed), (.int .long .signed), (.int .long .signed)], false⟩),
+      ⟨(.ok ⟨(.int .long .signed), [(.int .long .signed), (.int .long .signed), (.int .long .signed), (.int .long .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[]], [[]]]⟩),
        false, .c, [], "sc3", none, none, false, false⟩)⟩,
   ⟨"rt_write", .function, (some ⟨"../common/rt.h", 20⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "isize" (.int .long .signed)), [(.int .int .signed), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "isize" (.int .long .signed)), [(.int .int .signed), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩), (some ⟨[[]], [[[]], [["const"], []], [[]]]⟩),
        false, .c, [], "rt_write", none, none, false, false⟩)⟩,
   ⟨"rt_read", .function, (some ⟨"../common/rt.h", 21⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "isize" (.int .long .signed)), [(.int .int .signed), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "isize" (.int .long .signed)), [(.int .int .signed), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩), (some ⟨[[]], [[[]], [[], []], [[]]]⟩),
        false, .c, [], "rt_read", none, none, false, false⟩)⟩,
   ⟨"rt_puts", .function, (some ⟨"../common/rt.h", 22⟩), false,
     (.function
-      ⟨(.ok ⟨.void, [(.ptr (.int .char .plain))], false⟩),
+      ⟨(.ok ⟨.void, [(.ptr (.int .char .plain))], false⟩), (some ⟨[[]], [[["const"], []]]⟩),
        false, .c, [], "rt_puts", none, none, false, false⟩)⟩,
   ⟨"rt_put_hex", .function, (some ⟨"../common/rt.h", 23⟩), false,
     (.function
-      ⟨(.ok ⟨.void, [(.typedef "u32" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨.void, [(.typedef "u32" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "rt_put_hex", none, none, false, false⟩)⟩,
   ⟨"rt_check", .function, (some ⟨"../common/rt.h", 24⟩), false,
     (.function
-      ⟨(.ok ⟨.void, [(.int .int .signed), (.ptr (.int .char .plain))], false⟩),
+      ⟨(.ok ⟨.void, [(.int .int .signed), (.ptr (.int .char .plain))], false⟩), (some ⟨[[]], [[[]], [["const"], []]]⟩),
        false, .c, [], "rt_check", none, none, false, false⟩)⟩,
   ⟨"rt_failures", .function, (some ⟨"../common/rt.h", 25⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [], false⟩), (some ⟨[[]], []⟩),
        false, .c, [], "rt_failures", none, none, false, false⟩)⟩,
   ⟨"rt_finish", .function, (some ⟨"../common/rt.h", 26⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.ptr (.int .char .plain))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.ptr (.int .char .plain))], false⟩), (some ⟨[[]], [[["const"], []]]⟩),
        false, .c, [], "rt_finish", none, none, false, false⟩)⟩,
   ⟨"memcpy", .function, (some ⟨"../common/rt.h", 28⟩), false,
     (.function
-      ⟨(.ok ⟨(.ptr .void), [(.ptr .void), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.ptr .void), [(.ptr .void), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩), (some ⟨[[], []], [[[], ["restrict"]], [["const"], ["restrict"]], [[]]]⟩),
        false, .c, [], "memcpy", none, none, false, false⟩)⟩,
   ⟨"memset", .function, (some ⟨"../common/rt.h", 29⟩), false,
     (.function
-      ⟨(.ok ⟨(.ptr .void), [(.ptr .void), (.int .int .signed), (.typedef "usize" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.ptr .void), [(.ptr .void), (.int .int .signed), (.typedef "usize" (.int .long .unsigned))], false⟩), (some ⟨[[], []], [[[], []], [[]], [[]]]⟩),
        false, .c, [], "memset", none, none, false, false⟩)⟩,
   ⟨"memmove", .function, (some ⟨"../common/rt.h", 30⟩), false,
     (.function
-      ⟨(.ok ⟨(.ptr .void), [(.ptr .void), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.ptr .void), [(.ptr .void), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩), (some ⟨[[], []], [[[], []], [["const"], []], [[]]]⟩),
        false, .c, [], "memmove", none, none, false, false⟩)⟩,
   ⟨"memcmp", .function, (some ⟨"../common/rt.h", 31⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.ptr .void), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.ptr .void), (.ptr .void), (.typedef "usize" (.int .long .unsigned))], false⟩), (some ⟨[[]], [[["const"], []], [["const"], []], [[]]]⟩),
        false, .c, [], "memcmp", none, none, false, false⟩)⟩,
   ⟨"strlen", .function, (some ⟨"../common/rt.h", 32⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "usize" (.int .long .unsigned)), [(.ptr (.int .char .plain))], false⟩),
+      ⟨(.ok ⟨(.typedef "usize" (.int .long .unsigned)), [(.ptr (.int .char .plain))], false⟩), (some ⟨[[]], [[["const"], []]]⟩),
        false, .c, [], "strlen", none, none, false, false⟩)⟩,
   ⟨"popcount32", .function, (some ⟨"arith.h", 6⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "popcount32", none, none, false, false⟩)⟩,
   ⟨"gcd_u32", .function, (some ⟨"arith.h", 7⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned)), (.typedef "u32" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned)), (.typedef "u32" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "gcd_u32", none, none, false, false⟩)⟩,
   ⟨"clamp_i32", .function, (some ⟨"arith.h", 8⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed), (.int .int .signed), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed), (.int .int .signed), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[]]]⟩),
        false, .c, [], "clamp_i32", none, none, false, false⟩)⟩,
   ⟨"isqrt_u32", .function, (some ⟨"arith.h", 9⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "isqrt_u32", none, none, false, false⟩)⟩,
   ⟨"sat_add_u32", .function, (some ⟨"arith.h", 10⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned)), (.typedef "u32" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned)), (.typedef "u32" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "sat_add_u32", none, none, false, false⟩)⟩,
   ⟨"bswap32_manual", .function, (some ⟨"arith.h", 11⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "u32" (.int .int .unsigned)), [(.typedef "u32" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "bswap32_manual", none, none, false, false⟩)⟩,
   ⟨"ilog2_u32", .function, (some ⟨"arith.h", 12⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "u32" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "u32" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "ilog2_u32", none, none, false, false⟩)⟩]
 
 end Silmaril.Data.Layout.Header.Import.Pinned

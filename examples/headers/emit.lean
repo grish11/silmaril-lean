@@ -57,6 +57,10 @@ def got {α : Type} (f : α → String) : Got α → String
 
 def proto (p : CProto) : String := s!"⟨{cty p.ret}, {list cty p.params}, {boolS p.variadic}⟩"
 
+def quals (q : Quals) : String := list (list esc) q
+
+def protoQuals (q : ProtoQuals) : String := s!"⟨{quals q.ret}, {list quals q.params}⟩"
+
 def cc : CallConv → String
   | .c => ".c" | .msAbi => ".msAbi" | .sysvAbi => ".sysvAbi" | .regcall => ".regcall"
   | .vectorcall => ".vectorcall" | .other s => s!"(.other {esc s})"
@@ -78,7 +82,7 @@ def kind : DeclKind → String
 
 def body : Body → String
   | .function f =>
-    s!"(.function\n      ⟨{got proto f.proto},\n       {boolS f.variadic}, {cc f.cc}, {list attr f.attrs}, " ++
+    s!"(.function\n      ⟨{got proto f.proto}, {opt protoQuals f.quals},\n       {boolS f.variadic}, {cc f.cc}, {list attr f.attrs}, " ++
     s!"{esc f.symbol}, {opt esc f.asmLabel}, {opt esc f.storage}, {boolS f.inline}, " ++
     s!"{boolS f.definition}⟩)"
   | .typedef t => s!"(.typedef {got cty t})"
