@@ -152,4 +152,166 @@ theorem liftInstrs_append (is js : List Instr) :
   | nil => rfl
   | cons i is ih => simp [liftInstrs, ih]
 
+/-- The outcome of splitting a run of `es₁ ++ es₂`. -/
+def SplitRes (s : Store H) (f : Frame) (stk : List Val) (es₁ es₂ : List BExpr) (l : List (SCall H))
+    (r : Store H × Frame × POut) : Prop :=
+  (∃ s₁ f₁ stk₁ l₁ l₂, EvalLXPS s f stk es₁ l₁ (s₁, f₁, .flow (.normal stk₁)) ∧
+    EvalLXPS s₁ f₁ stk₁ es₂ l₂ r ∧ l = l₁ ++ l₂) ∨
+  (EvalLXPS s f stk es₁ l r ∧ ¬ r.2.2.IsNormal)
+
+theorem escapes_not_normal {o : POut} (h : o.Escapes) : ¬ o.IsNormal := by
+  rcases o with fl | _
+  · cases fl <;> simp_all [POut.Escapes, POut.IsNormal, Flow.Escapes, Flow.IsNormal]
+  · exact id
+
+/-- A rule continuing with `hk` on the rest: splitting the whole is splitting the rest. -/
+theorem split_cont {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ : List Val} {y : BExpr}
+    {pre : List (SCall H)}
+    (A : ∀ {es : List BExpr} {l : List (SCall H)} {r : Store H × Frame × POut},
+      EvalLXPS s₁ f₁ stk₁ es l r → EvalLXPS s f stk (y :: es) (pre ++ l) r)
+    {es₁ es₂ : List BExpr} {l : List (SCall H)} {r : Store H × Frame × POut}
+    (hk : EvalLXPS s₁ f₁ stk₁ (es₁ ++ es₂) l r)
+    (ih : ∀ z es₁', es₁ = z :: es₁' → SplitRes s₁ f₁ stk₁ (z :: es₁') es₂ l r) :
+    SplitRes s f stk (y :: es₁) es₂ (pre ++ l) r := by
+  rcases es₁ with _ | ⟨z, es₁'⟩
+  · exact .inl ⟨s₁, f₁, stk₁, pre ++ [], l, A .nil, hk, by simp⟩
+  · rcases ih z es₁' rfl with ⟨s₂, f₂, stk₂, l₁, l₂, h₁, h₂, rfl⟩ | ⟨h₁, hn⟩
+    · exact .inl ⟨s₂, f₂, stk₂, pre ++ l₁, l₂, A h₁, h₂, by simp⟩
+    · exact .inr ⟨A h₁, hn⟩
+
+theorem split_cons {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (SCall H)} {r : Store H × Frame × POut} (h : EvalLXPS s f stk es l r) :
+    ∀ y es₁ es₂, es = y :: (es₁ ++ es₂) → SplitRes s f stk (y :: es₁) es₂ l r := by
+  induction h with
+  | nil => intro _ _ _ he; cases he
+  | argsAbort hargs ho =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.argsAbort hargs ho, ho⟩
+  | callRet hargs hfi hty hk _ ihk =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    have := split_cont (pre := _ ++ [_]) (fun h => by simpa using EvalLXPS.callRet hargs hfi hty h)
+      hk
+        (fun z es₁' he => ihk z es₁' es₂ (by simp [he]))
+    rwa [List.append_assoc, List.singleton_append] at this
+  | callThrow hargs hfi hty =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.callThrow hargs hfi hty, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | callTrap hargs hfi hty =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.callTrap hargs hfi hty, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | opOk hi hargs hflat hk _ ihk =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact split_cont (fun h => EvalLXPS.opOk hi hargs hflat h) hk
+      (fun z es₁' he => ihk z es₁' es₂ (by simp [he]))
+  | opStop hi hargs hflat hfl =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.opStop hi hargs hflat hfl, hfl⟩
+  | blockOk har hbody hvs hk _ ihk =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact split_cont (fun h => EvalLXPS.blockOk har hbody hvs h) hk
+      (fun z es₁' he => ihk z es₁' es₂ (by simp [he]))
+  | blockBrk har hbody =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.blockBrk har hbody, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | blockEsc har hbody ho =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.blockEsc har hbody ho, escapes_not_normal ho⟩
+  | loopOk har hbody hk _ ihk =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact split_cont (fun h => EvalLXPS.loopOk har hbody h) hk
+      (fun z es₁' he => ihk z es₁' es₂ (by simp [he]))
+  | @loopBack s s₁ f f₁ stk vs bt body es np nr l₁ l₂ r har hbody hk _ ihk =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    rcases ihk (.loop bt body) es₁ es₂ rfl with ⟨s₂, f₂, stk₂, l₃, l₄, h₁, h₂, rfl⟩ | ⟨h₁, hn⟩
+    · exact .inl ⟨s₂, f₂, stk₂, l₁ ++ l₃, l₄, .loopBack har hbody h₁, h₂, by simp⟩
+    · exact .inr ⟨.loopBack har hbody h₁, hn⟩
+  | loopBrk har hbody =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.loopBrk har hbody, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | loopEsc har hbody ho =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.loopEsc har hbody ho, escapes_not_normal ho⟩
+  | ifOk hc hb har harm hvs hk _ _ ihk =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact split_cont (fun h => EvalLXPS.ifOk hc hb har harm hvs h) hk
+      (fun z es₁' he => ihk z es₁' es₂ (by simp [he]))
+  | ifBrk hc hb har harm =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.ifBrk hc hb har harm, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | ifEsc hc hb har harm ho =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.ifEsc hc hb har harm ho, escapes_not_normal ho⟩
+  | ifAbort hc ho =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.ifAbort hc ho, ho⟩
+  | indRet hargs hres hfi hty hy hk _ ihk =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    have := split_cont (pre := _ ++ [_]) (fun h => by simpa using EvalLXPS.indRet hargs hres hfi hty hy h)
+      hk (fun z es₁' he => ihk z es₁' es₂ (by simp [he]))
+    rwa [List.append_assoc, List.singleton_append] at this
+  | indThrow hargs hres hfi hty hy =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.indThrow hargs hres hfi hty hy, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | indTrap hargs hres hfi hty hy =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.indTrap hargs hres hfi hty hy, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | indRes hargs hres =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.indRes hargs hres, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | refRet hargs hfi hty hy hk _ ihk =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    have := split_cont (pre := _ ++ [_]) (fun h => by simpa using EvalLXPS.refRet hargs hfi hty hy h)
+      hk (fun z es₁' he => ihk z es₁' es₂ (by simp [he]))
+    rwa [List.append_assoc, List.singleton_append] at this
+  | refThrow hargs hfi hty hy =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.refThrow hargs hfi hty hy, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | refTrap hargs hfi hty hy =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.refTrap hargs hfi hty hy, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | refNull hargs =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.refNull hargs, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | tail hargs hres hfi hty hy =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.tail hargs hres hfi hty hy, id⟩
+  | tailRes hargs hres =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.tailRes hargs hres, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | throw hargs ht he' hn =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.throw hargs ht he' hn, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | throwRefNull hargs =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.throwRefNull hargs, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | throwRefExn hargs =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.throwRefExn hargs, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | tryOk har hbody hvs hk _ ihk =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact split_cont (fun h => EvalLXPS.tryOk har hbody hvs h) hk
+      (fun z es₁' he => ihk z es₁' es₂ (by simp [he]))
+  | tryBrk har hbody =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.tryBrk har hbody, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | tryEsc har hbody ho hnt =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.tryEsc har hbody ho hnt, escapes_not_normal ho⟩
+  | tryCatch har hbody hc =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.tryCatch har hbody hc, by simp [POut.IsNormal, Flow.IsNormal]⟩
+  | tryRethrow har hbody hc =>
+    intro y es₁ es₂ he; simp only [List.cons.injEq] at he; obtain ⟨rfl, rfl⟩ := he
+    exact .inr ⟨.tryRethrow har hbody hc, by simp [POut.IsNormal, Flow.IsNormal]⟩
+
+/-- **Splitting a sequence** (the converse of `append`): a run of `es₁ ++ es₂` is a run of `es₁`
+falling through, then a run of `es₂`, the logs concatenated; or a run of `es₁` ending abruptly,
+with the whole log and end. -/
+theorem split {s : Store H} {f : Frame} {stk : List Val} (es₁ es₂ : List BExpr)
+    {l : List (SCall H)} {r : Store H × Frame × POut} (h : EvalLXPS s f stk (es₁ ++ es₂) l r) :
+    SplitRes s f stk es₁ es₂ l r := by
+  rcases es₁ with _ | ⟨y, es₁⟩
+  · exact .inl ⟨s, f, stk, [], l, .nil, h, rfl⟩
+  · exact split_cons h y es₁ es₂ rfl
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLSeq
