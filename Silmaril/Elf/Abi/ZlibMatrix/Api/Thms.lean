@@ -5,10 +5,10 @@ public import Silmaril.Elf.Abi.ZlibLibz.Thms
 public import Silmaril.Machine.Abi.Conformance.Zlib.Api.Thms
 import Silmaril.Proofs.Elf.Abi.ZlibMatrix.LibzApi
 
-/-! # zlib's whole checksum API in Ubuntu's `libz.so.1.3`: theorems
+/-! # The 11-declaration zlib.h checksum excerpt in Ubuntu's `libz.so.1.3`: theorems
 
 PROVED (standard axioms), proofs in `Silmaril.Proofs.Elf.Abi.ZlibMatrix.LibzApi`: for each of the
-seven functions, `*_code` (`CodeOf` through ld.so's versioned lookup), `*_untouched` (8-byte
+seven functions, `*_code` (`CodeOf` through a structural model of ld.so's versioned lookup), `*_untouched` (8-byte
 relocation types only, none on the code or the read-only data), `*_declared` (`Declares` in the
 hosted header); `coverage_check`, `coverage_complete` (nothing excluded); `*_of` (each row from
 its task) and `header_complete_of`: **complete header satisfaction from the eleven tasks**.
@@ -57,7 +57,8 @@ theorem zlibCompileFlags_of (h : Task.zlibCompileFlags) : silmaril.elf.abi.zlib_
 theorem coverage_check : coverage.check sysvInt hdr = true := Silmaril.Proofs.Elf.Abi.ZlibMatrix.LibzApi.coverage_check
 theorem coverage_complete : coverage.complete = true ∧ coverage.available = true := Silmaril.Proofs.Elf.Abi.ZlibMatrix.LibzApi.coverage_complete
 
-/-- **`libz.so.1.3` satisfies the whole zlib.h excerpt**, given the eleven open tasks. -/
+/-- **`libz.so.1.3` satisfies all 11 declarations of the zlib.h checksum excerpt**, given the
+eleven open tasks (`crc32_combine_op`'s on its domain: operators with nonzero low 32 bits). -/
 theorem header_complete_of (h0 : Silmaril.Elf.Abi.ZlibLibz.Task.crc32z) (h1 : Silmaril.Elf.Abi.ZlibLibz.Task.crc32) (h2 : Silmaril.Elf.Abi.ZlibLibz.Task.adler32z) (h3 : Silmaril.Elf.Abi.ZlibLibz.Task.adler32)
     (g0 : Task.crc32Combine) (g1 : Task.adler32Combine) (g2 : Task.crc32CombineGen) (g3 : Task.crc32CombineOp) (g4 : Task.getCrcTable) (g5 : Task.zlibVersion) (g6 : Task.zlibCompileFlags) :
     silmaril.elf.abi.zlib_libz.zlib_h_complete :=
@@ -68,6 +69,6 @@ end Silmaril.Elf.Abi.ZlibMatrix.Api
 end
 
 silmaril group silmaril.abi.zlib_libz_api
-  (title := "ABI conformance: the whole zlib.h checksum excerpt in Ubuntu's libz.so.1.3 (complete header satisfaction, open)")
+  (title := "ABI conformance: the 11-declaration zlib.h checksum excerpt in Ubuntu's libz.so.1.3 (complete header satisfaction, open)")
   (children := [silmaril.elf.abi.zlib_libz.crc32_combine, silmaril.elf.abi.zlib_libz.adler32_combine, silmaril.elf.abi.zlib_libz.crc32_combine_gen, silmaril.elf.abi.zlib_libz.crc32_combine_op, silmaril.elf.abi.zlib_libz.get_crc_table, silmaril.elf.abi.zlib_libz.zlib_version, silmaril.elf.abi.zlib_libz.zlib_compile_flags,
     silmaril.elf.abi.zlib_libz.zlib_h_complete])

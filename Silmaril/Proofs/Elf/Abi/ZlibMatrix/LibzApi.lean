@@ -5,7 +5,7 @@ public import Silmaril.Elf.Staged.Pinned.ZlibLibz.Thms
 public import Silmaril.Elf.Abi.ZlibLibz.Thms
 public import Silmaril.Elf.Abi.ZlibMatrix.Api.Defs
 
-/-! # zlib's whole API in Ubuntu's `libz.so.1.3`: the file facts of the rows -/
+/-! # The zlib.h checksum excerpt in Ubuntu's `libz.so.1.3`: the file facts of the rows -/
 
 set_option maxRecDepth 100000
 

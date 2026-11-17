@@ -15,12 +15,14 @@ and C specs from zlib's documentation:
 | `crc32_combine` | `uLong (uLong, uLong, z_off_t)` | `crc32_combine(crc32(0,A), crc32(0,B), len(B)) = crc32(0, A ++ B)`, for every `A`, `B` (zlib.h:1758) |
 | `adler32_combine` | `uLong (uLong, uLong, z_off_t)` | the same for Adler-32 with initial value 1 (zlib.h:1720) |
 | `crc32_combine_gen` | `uLong (z_off_t)` | an operator `op` with `multmodp(op, crc32(0,A)) ^ crc32(0,B) = crc32(0, A ++ B)` whenever `len(B)` is the argument, 32 bits wide (zlib.h:1763) |
-| `crc32_combine_op` | `uLong (uLong, uLong, uLong)` | `multmodp(op, crc1) ^ crc2` on the low 32 bits (zlib.h:1771): with the previous row, the combination |
+| `crc32_combine_op` | `uLong (uLong, uLong, uLong)` | for an operator whose low 32 bits are not 0, `multmodp(op, crc1) ^ crc2` on the low 32 bits (zlib.h:1771): with the previous row, the combination. **Partial domain**: zlib's `multmodp` never returns when the low 32 bits of `op` are 0 (its loop ends only at a set bit), so the precondition excludes those operators (`0`, `0x100000000`, …); every operator `crc32_combine_gen` returns is nonzero (`x^(8n) mod p`) |
 | `get_crc_table` | `const z_crc_t * (void)` | a pointer to 1024 readable bytes, the 256 table entries `crcEntry i` little-endian (zlib.h:1916) |
 | `zlibVersion` | `const char * (void)` | a pointer to the library's version string, NUL-terminated, readable (zlib.h:220); the string is a parameter: each binary has its own |
-| `zlibCompileFlags` | `uLong (void)` | its low byte encodes the sizes of `uInt`, `uLong`, `voidpf` and `z_off_t` (zlib.h:1150-1155), computed here from the data model, not hardcoded |
+| `zlibCompileFlags` | `uLong (void)` | its low byte encodes the sizes of `uInt`, `uLong`, `voidpf` and `z_off_t` (zlib.h:1150-1155), computed here from the data model with `z_off_t` as `long` (`flagsLow`; a large-file build makes `z_off_t` an 8-byte `off_t`: `flagsLowOff`) |
 
-The combine specs characterize the result by what it is for (`∀ A B`), not by zlib's algorithm;
+These are the 11 declarations of the zlib.h checksum **excerpt**; zlib.h also declares the
+large-file variants (`crc32_combine64`, `adler32_combine64`, `crc32_combine_gen64`), which the
+excerpt omits. The combine specs characterize the result by what it is for (`∀ A B`), not by zlib's algorithm;
 they say nothing when the arguments are not checksums of some data. A negative length (zlib
 returns a sentinel) is excluded by the precondition. `multmodp` (GF(2) multiplication modulo the
 reflected CRC-32 polynomial) is the one operation the `_op`/`_gen` pair is defined through.
@@ -76,11 +78,17 @@ def crcTableBytes : List Byte :=
 def sizeCode : Option Silmaril.Data.Layout.Shape → Nat
   | some ⟨2, _⟩ => 0 | some ⟨4, _⟩ => 1 | some ⟨8, _⟩ => 2 | _ => 3
 
-/-- **The low byte of `zlibCompileFlags`** under a data model: `uInt` (`unsigned int`), `uLong`
-(`unsigned long`), `voidpf` (a pointer) and `z_off_t` (`long`) size codes, two bits each. -/
-def flagsLow (dm : Silmaril.Data.Layout.DataModel) : Nat :=
+/-- **The low byte of `zlibCompileFlags`** under a data model, with `z_off_t` of shape `zOff`:
+`uInt` (`unsigned int`), `uLong` (`unsigned long`), `voidpf` (a pointer) and `z_off_t` size
+codes, two bits each. -/
+def flagsLowOff (dm : Silmaril.Data.Layout.DataModel) (zOff : Option Silmaril.Data.Layout.Shape) : Nat :=
   sizeCode (dm.intShape .int) + 4 * sizeCode (dm.intShape .long) + 16 * sizeCode (some dm.ptr) +
-    64 * sizeCode (dm.intShape .long)
+    64 * sizeCode zOff
+
+/-- **The low byte of `zlibCompileFlags`** with `z_off_t` = `long` (zconf.h without
+`Z_HAVE_UNISTD_H`, or a platform where `off_t` is `long`): an assumption of this spec, exposed.
+A large-file build (`_FILE_OFFSET_BITS=64` on ILP32) has an 8-byte `z_off_t`: `flagsLowOff`. -/
+def flagsLow (dm : Silmaril.Data.Layout.DataModel) : Nat := flagsLowOff dm (dm.intShape .long)
 
 /-! ## Arguments -/
 
@@ -114,9 +122,10 @@ def crc32CombineGenS : CallSpec sysvInt.V genProto where
   post a _ r _ := (r : Word).toNat < 2 ^ 32 ∧ ∀ A B : List Byte, B.length = (genLen a).toNat →
     multmodp (lo32 r) (crc32 0 A) ^^^ crc32 0 B = crc32 0 (A ++ B)
 
-/-- `crc32_combine_op`. -/
+/-- `crc32_combine_op`, for operators whose low 32 bits are not 0 (zlib's `multmodp` does not
+return on 0: the precondition is the domain on which the function is total). -/
 def crc32CombineOpS : CallSpec sysvInt.V opProto where
-  pre _ _ := True
+  pre a _ := lo32 (opOp a) ≠ 0
   post a _ r _ := (r : Word) = (multmodp (lo32 (opOp a)) (lo32 (op1 a)) ^^^ lo32 (op2 a)).setWidth 64
 
 /-- `get_crc_table`. -/

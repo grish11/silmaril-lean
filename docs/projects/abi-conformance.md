@@ -306,7 +306,7 @@ All rows are on `Open9`, total, frame 256, at every load base. The header rows a
 `scripts/abi-bytes/zlib_matrix.py` generates the code bytes and regions and checks each
 claimed symbol's value, size, type and version against the file. The kernel checks them again.
 
-## The whole header: complete satisfaction on Ubuntu's `libz.so.1.3`
+## The 11-declaration excerpt: complete satisfaction on Ubuntu's `libz.so.1.3`
 
 `Silmaril.Elf.Abi.ZlibMatrix.Api` claims the excerpt's seven other declarations on Ubuntu's
 `libz.so.1.3`, beside the four checksum rows. With them, all 11 declarations are claimed and
@@ -319,11 +319,23 @@ conformance tasks.
 | `crc32_combine` | `= crc32(0, A ++ B)` whenever the arguments are `crc32(0,A)`, `crc32(0,B)`, `len(B)` | `ZLIB_1.2.2` |
 | `adler32_combine` | the same for Adler-32 (initial value 1) | `ZLIB_1.2.2` |
 | `crc32_combine_gen` | a 32-bit operator `op` with `multmodp(op, crc32(0,A)) ^ crc32(0,B) = crc32(0, A ++ B)` for `len(B)` the argument | `ZLIB_1.2.12` |
-| `crc32_combine_op` | `multmodp(op, crc1) ^ crc2` on the low 32 bits | `ZLIB_1.2.12` |
+| `crc32_combine_op` | `multmodp(op, crc1) ^ crc2` on the low 32 bits, **for `op` whose low 32 bits are not 0** | `ZLIB_1.2.12` |
 | `get_crc_table` | a pointer to 1024 readable bytes: the table, little-endian | base |
 | `zlibVersion` | a pointer to `"1.3"` and a NUL, readable (the binary's own version) | base |
-| `zlibCompileFlags` | the low byte the data model gives (`0xa9` for LP64; `0x55` for ILP32) | `ZLIB_1.2.0.2` |
+| `zlibCompileFlags` | the low byte the data model gives, with `z_off_t` = `long` (`0xa9` for LP64; `0x55` for ILP32, `0x95` for ILP32 with a large-file `z_off_t`) | `ZLIB_1.2.0.2` |
 
+- **The excerpt.** The 11 declarations are the excerpt's; zlib.h also declares the large-file
+  variants (`crc32_combine64`, `adler32_combine64`, `crc32_combine_gen64`), not claimed here.
+- **Partial domain of `crc32_combine_op`.** zlib's `multmodp(a, b)` loops until it finds a set
+  bit of `a`, so the function does not return when the low 32 bits of `op` are 0 (the pinned
+  binary still runs after 5 s on `op = 0` and `op = 0x100000000`). With the precondition `True`,
+  `enterable` would admit such a call and `.total` would need it to return: the first statement
+  of this task (`fec10a49`) was refutable, not open. The precondition is now `lo32 op ≠ 0`
+  (`op_pre_zero_low`, `op_pre_examples`); it is satisfiable (`op_pre_gen_one`: `crc32_combine_gen(1)`'s
+  operator and the identity), and every operator `crc32_combine_gen` returns is nonzero.
+- **Binding.** "Versioned lookup" is a structural model (`Lookup` on the file's `.dynsym` and
+  version tables, after glibc's `check_match`), not a proof about a running ld.so (global scope,
+  interposition, `LD_PRELOAD`).
 - **Specs.** The combine specs characterize the result by what it is for; they say nothing
   when the arguments are not checksums. `combine_example` checks the `_gen`/`_op` condition on
   zlib's operator for one-byte strings by kernel computation.

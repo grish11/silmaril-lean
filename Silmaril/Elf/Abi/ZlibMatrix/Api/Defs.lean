@@ -4,7 +4,7 @@ public import Silmaril.Elf.Abi.ZlibLibz.Defs
 public import Silmaril.Machine.Abi.Conformance.Zlib.Api.Defs
 public import Silmaril.Machine.Abi.Conformance.ZlibApi.Defs
 
-/-! # ABI conformance rows: zlib's whole checksum API in Ubuntu's `libz.so.1.3`
+/-! # ABI conformance rows: the 11-declaration zlib.h checksum excerpt in Ubuntu's `libz.so.1.3`
 
 The seven declarations of the zlib.h excerpt beside the four checksum entry points
 (`Silmaril.Elf.Abi.ZlibLibz`), with the specs of `Silmaril.Machine.Abi.Conformance.Zlib.Api`, on
@@ -12,8 +12,9 @@ the same file and in the same (hosted) header configuration. With them every dec
 excerpt is claimed, so the header row here is **complete** header satisfaction
 (`abi_header_sat_complete`: nothing unclaimed, nothing absent), for the surface the
 `sysvInt` fragment expresses, on `Open9`. It is open: it holds once the eleven conformance tasks
-do. Each row is total with a 256-byte frame, at every load base, through ld.so's versioned
-lookup:
+do. Each row is total with a 256-byte frame, at every load base, bound through a structural model of
+ld.so's versioned lookup (`Lookup` on this file's `.dynsym` and version tables, after glibc's
+`check_match`; not global scope, interposition or `LD_PRELOAD`):
 
 | function | binding |
 | --- | --- |
@@ -133,7 +134,7 @@ silmaril instance silmaril.elf.abi.zlib_libz.crc32_combine_gen
     (c := Silmaril.Machine.Abi.Conformance.ZlibApi.crc32CombineGenCode) (frame := Silmaril.Elf.Abi.ZlibLibz.frame)
     (S := (Silmaril.Machine.Abi.Conformance.Zlib.Api.crc32CombineGenS))
 silmaril instance silmaril.elf.abi.zlib_libz.crc32_combine_op
-    (title := "libz.so.1.3 crc32_combine_op@@ZLIB_1.2.12 conforms to System V AMD64 (INTEGER fragment) on Open9 as zlib.h declares it, at every load base: total, frame 256 (open)") :=
+    (title := "libz.so.1.3 crc32_combine_op@@ZLIB_1.2.12 conforms to System V AMD64 (INTEGER fragment) on Open9 as zlib.h declares it, for operators with nonzero low 32 bits (zlib loops on the others), at every load base: total, frame 256 (open)") :=
   silmaril.shapes.elf.abi_conforms.sysv_int_open9 (mode := .total) (hdr := Silmaril.Elf.Abi.ZlibLibz.hdr)
     (f := "crc32_combine_op") (p := Silmaril.Machine.Abi.Conformance.Zlib.Api.opProto)
     (F := Silmaril.Elf.Staged.Pinned.ZlibLibz.F) (b := (.dynsym (some Silmaril.Elf.Abi.ZlibMatrix.Api.zlib1212)))
@@ -161,7 +162,7 @@ silmaril instance silmaril.elf.abi.zlib_libz.zlib_compile_flags
     (c := Silmaril.Machine.Abi.Conformance.ZlibApi.zlibCompileFlagsCode) (frame := Silmaril.Elf.Abi.ZlibLibz.frame)
     (S := (Silmaril.Machine.Abi.Conformance.Zlib.Api.zlibCompileFlagsS Silmaril.Machine.Abi.Conformance.sysvInt.dm))
 silmaril instance silmaril.elf.abi.zlib_libz.zlib_h_complete
-    (title := "libz.so.1.3 satisfies the WHOLE zlib.h checksum excerpt (all 11 declarations claimed, none absent; total, at every load base) under System V AMD64 (INTEGER fragment) on Open9 (open)") :=
+    (title := "libz.so.1.3 satisfies all 11 declarations of the zlib.h checksum excerpt (none absent; total, at every load base) under System V AMD64 (INTEGER fragment) on Open9 (open)") :=
   silmaril.shapes.elf.abi_header_sat_complete (A := Silmaril.Machine.Abi.Conformance.sysvInt) (M := Silmaril.X86.Open9.isa) (hdr := Silmaril.Elf.Abi.ZlibLibz.hdr)
     (cov := Silmaril.Elf.Abi.ZlibMatrix.Api.coverage) (F := Silmaril.Elf.Staged.Pinned.ZlibLibz.F)
     (bind := Silmaril.Elf.Abi.ZlibMatrix.Api.bind) (impl := Silmaril.Elf.Abi.ZlibMatrix.Api.impl)
