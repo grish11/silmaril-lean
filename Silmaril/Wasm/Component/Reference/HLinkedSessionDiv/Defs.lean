@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Component.Reference.HLinkedSession.Defs
 public import Silmaril.Wasm.Component.Reference.LinkedSessionDiv.Defs
+public import Silmaril.Wasm.Component.Reference.LinkedSessionEquiv.Defs
 
 /-!
 # Diverging calls of linked sessions with host imports: definitions
@@ -44,9 +45,10 @@ the definitions below keep them apart.
 `QuietDiverges prof hr dispatch st m`: from `m`, an infinite sequence of nonempty runs without
 host events, each from and to a configuration in host state `st`. `CallQuietDiverges`: the
 host's invocation of a top-level call, a finite run without host events, then `QuietDiverges`.
-For the logging host `logG g` the log in the host state only grows (every answered host call
-appends to it), so a run that is in host state `st` at unboundedly late points answers no host
-call after reaching `st`: this is internal divergence after the log `st.2`. The definition uses
+For the logging host `logG g` the log in the host state only grows, strictly at every answered
+host call (proved: `HLinked2.logSteps_mono`, `HostWrite.Thms`), so a run that is in host state
+`st` at unboundedly late points answers no host call after reaching `st`: this is internal
+divergence after the log `st.2`. The definition uses
 only reference-machine runs and host states, not the specification, the IR or finite prefixes.
 
 `HLinked2.RefSessDiv P prof l g s₀ calls outs j vs st`: after instantiating `l.toRef` under the
@@ -76,9 +78,13 @@ prefix ending at a host callout on arguments that lift, the host not answering
 
 ## Status
 
-`HLinked2.DivSpecToRef P prof l g` (`sessDivs ⊆ refDivs` for every `s₀`) is proved under
-`HLinked2.Adequate` and `HLinked2.HostTyped g` at every profile (`HLinked2.divSpecToRef`,
-`HLinkedSessionDiv.Thms`). The converse `HLinked2.DivRefToSpec` is stated and open.
+`HLinked2.DivSpecToRef P prof l g` (`sessDivs ⊆ refDivs`) and its converse
+`HLinked2.DivRefToSpec P prof l g` are proved under `HLinked2.Adequate` and `HLinked2.HostTyped g`
+at every profile (`HLinked2.divSpecToRef`, `HLinked2.divRefToSpec`, hence
+`HLinked2.sessDivs_eq_refDivs`, `HLinkedSessionDiv.Thms`). `HLinked2.RefSessEquivH` and
+`HLinked2.RefSessEquivD` are the reference-machine equivalences of sessions and of sessions with
+quiet divergence; `HLinked2.RefSessEquivD.iff_sessDivs` states the divergence clause on the
+specification.
 -/
 
 @[expose] public section
@@ -252,14 +258,44 @@ def DivSpecToRef (P : Profile) (prof : ProfileKind) (l : HLinked2) {σ : Type}
     sessDivs P l g s₀ calls j vs ⊆ refDivs P prof l g s₀ calls j vs
 
 /-- **Reference divergence is specification divergence, with the host log** (a named
-proposition, open): for typed calls, every quiet divergence of the reference machine is an
-internal divergence of the specification. -/
+proposition, proved under `HLinked2.Adequate` and `HostTyped g` by `HLinked2.divRefToSpec`): for
+typed calls, every quiet divergence of the reference machine is an internal divergence of the
+specification. -/
 def DivRefToSpec (P : Profile) (prof : ProfileKind) (l : HLinked2) {σ : Type}
     (g : σ → HostFuncId → List RVal → Option (List RVal × σ)) : Prop :=
   ∀ (s₀ : σ) (calls : List (Fin l.imp.exports.length × List IVal))
     (j : Fin l.imp.exports.length) (vs : List IVal), SimpleI.TypedCalls l.imp calls →
     ValTy.checkList l.imp.exports[j].ty.params vs = true →
     refDivs P prof l g s₀ calls j vs ⊆ sessDivs P l g s₀ calls j vs
+
+/-! ## Equivalences on the reference machine -/
+
+/-- **The resumable-session equivalence of linked components with host imports**, on the
+reference machine only: the same export types, the same host imports, and for typed calls,
+under every typed host, the same session observations with the host state and log
+(`sessObs`). -/
+structure RefSessEquivH (P : Profile) (prof : ProfileKind) (l l' : HLinked2) : Prop where
+  len : l.imp.exports.length = l'.imp.exports.length
+  ty : ∀ j : Fin l.imp.exports.length, l'.imp.exports[Fin.cast len j].ty = l.imp.exports[j].ty
+  host : l'.host = l.host
+  obs : ∀ calls : List (Fin l.imp.exports.length × List IVal), SimpleI.TypedCalls l.imp calls →
+    ∀ {σ : Type} (g : σ → HostFuncId → List RVal → Option (List RVal × σ)), l.HostTyped g →
+      ∀ s₀ : σ, sessObs P prof l g s₀ calls =
+        sessObs P prof l' g s₀ (Linked2.castCalls (l := l.toL2) (l' := l'.toL2) len calls)
+
+/-- **The resumable-session equivalence with quiet divergence and the host log**, on the
+reference machine only: `RefSessEquivH`, and for every typed sequence of calls followed by a
+typed call, under every typed host, the same outcomes and host state and log after which that
+call diverges quietly (`refDivs`). -/
+structure RefSessEquivD (P : Profile) (prof : ProfileKind) (l l' : HLinked2) : Prop
+    extends RefSessEquivH P prof l l' where
+  div : ∀ (calls : List (Fin l.imp.exports.length × List IVal)) (j : Fin l.imp.exports.length)
+      (vs : List IVal), SimpleI.TypedCalls l.imp calls →
+      ValTy.checkList l.imp.exports[j].ty.params vs = true →
+    ∀ {σ : Type} (g : σ → HostFuncId → List RVal → Option (List RVal × σ)), l.HostTyped g →
+      ∀ s₀ : σ, refDivs P prof l g s₀ calls j vs =
+        refDivs P prof l' g s₀ (Linked2.castCalls (l := l.toL2) (l' := l'.toL2) len calls)
+          (Fin.cast len j) vs
 
 end HLinked2
 

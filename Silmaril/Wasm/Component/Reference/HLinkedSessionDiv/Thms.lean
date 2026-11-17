@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Wasm.Component.Reference.HLinkedSessionDiv.Defs
-import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionDiv.Main
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionDiv.Inv
 
 /-!
 # Diverging calls of linked sessions with host imports: theorems
@@ -45,21 +45,26 @@ import call answered by a trap dooms B's thread, after which no source applies. 
 * **(iii)** every served wired call is a nonempty quiet run back to B's core activation in the same
   host state (no host call: `expRunT_toH`), concatenated by `quietDiverges_of_segs`.
 
+* **Reference divergence is specification divergence, with the host log**
+  (`HLinked2.divRefToSpec`): `HLinked2.DivRefToSpec P prof l g`, i.e. `refDivs ⊆ sessDivs` for
+  typed calls. Hence **the two agree** (`HLinked2.sessDivs_eq_refDivs`), and
+  **`HLinked2.RefSessEquivD.iff_sessDivs`**: the reference-defined equivalence with quiet
+  divergence and the host log (`RefSessEquivD`) is the session equivalence `RefSessEquivH`
+  together with the same specification divergences under every typed host.
+
+How (`Proofs.….HLinkedSessionDiv.{Trace, Back, Classify, Inv}`): the session prefix is inverted
+by `sessH_inv` (which ends between calls, `ReadyL`); the configuration reached is host-safe for
+the logging host (`HLinked2.logSession_cfgSafe`, `HostWrite`). The divergent call is the
+invocation and an explicit infinite run on which the host state `st` occurs unboundedly late
+(`callQuiet_irun`). Its rounds are classified along that run (`ldiv_roundH`): B host-free, A in a
+wired call, or one served import call (a nested call of A, or a host call answered by the host)
+to a later position. By `HLinked2.logSteps_mono` the log only grows along the run, strictly at
+each answered host call: infinitely many host calls would make the log of every later round
+longer than that of `st`, which follows them on the run; after the last one, a configuration in
+`st` lies between two rounds in the same host state, so `st` is it (`ldiv_classifyH`).
+
 ## Not claimed (what remains)
 
-* **The converse** `HLinked2.DivRefToSpec` (`refDivs ⊆ sessDivs`, the `HLinked2` counterpart of
-  `Linked2.divRefToSpec`) is stated and open. It needs (a) the backward classification of a
-  quiet divergence from B's core activation with host callouts (an `ldiv_round` at the
-  `HLinked2` layout, host calls inverted through `HandlesB`/`hostCall_lrun` as in
-  `rounds_invH`), and (b) that a run with infinitely many answered host calls is not a quiet
-  divergence. (b) is where the definition is used: `QuietDiverges` fixes the host state only at
-  the ends of its segments, so (b) needs that the log of `logG g` does not shrink along a
-  reference run between those ends (every `hostSet` of the machine comes from `answerImplS`,
-  which appends one event), a per-step invariant of the machine's programs that is not yet
-  available. A per-step definition (`InternalStep` with the host state fixed at every step) would
-  make (b) immediate but the forward (iii) would then need the host state fixed inside the lift
-  and lower programs of nested calls (`nest_atTSH` and the return lift give it only at their
-  ends). The equality `sessDivs = refDivs` and a `RefSessEquivD` for `HLinked2` wait on this.
 * **Host divergence** (`HLinked2.hostDivs`: the round blocked on a pending host call that the host
   never answers) is defined and kept separate from `sessDivs`. Under synchronous lowering it is a
   trap of the reference machine, not a divergence: for a host that never answers this is
@@ -92,5 +97,48 @@ theorem HLinked2.divSpecToRef (P : Profile) (prof : ProfileKind) {l : HLinked2}
       Option (List Silmaril.Wasm.Component.Value.Val × σ))
     (hT : l.HostTyped g) : HLinked2.DivSpecToRef P prof l g :=
   Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionDiv.hlinked2_divSpecToRef P prof hl g hT
+
+/-- **Reference divergence of a linked session with host imports is specification divergence,
+with the host log** (proved, every profile and component choice profile, under
+`HLinked2.Adequate` and a typed host, typed calls): every quiet divergence of the reference
+machine after a session (`refDivs`) is an internal divergence of the specification after the same
+session and host log (`sessDivs`). -/
+theorem HLinked2.divRefToSpec (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type}
+    (g : σ → HostFuncId → List Silmaril.Wasm.Component.Value.Val →
+      Option (List Silmaril.Wasm.Component.Value.Val × σ))
+    (hT : l.HostTyped g) : HLinked2.DivRefToSpec P prof l g :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionDiv.hlinked2_divRefToSpec P prof hl g hT
+
+/-- **The diverging session calls of a linked component with host imports, with the host log,
+are those of the reference machine** (proved, typed calls, typed host). -/
+theorem HLinked2.sessDivs_eq_refDivs (P : Profile) (prof : ProfileKind) {l : HLinked2}
+    (hl : l.Adequate) {σ : Type}
+    (g : σ → HostFuncId → List Silmaril.Wasm.Component.Value.Val →
+      Option (List Silmaril.Wasm.Component.Value.Val × σ))
+    (hT : l.HostTyped g) (s₀ : σ) (calls : List (Fin l.imp.exports.length × List Silmaril.Wasm.Component.Val))
+    (j : Fin l.imp.exports.length) (vs : List Silmaril.Wasm.Component.Val) (ht : SimpleI.TypedCalls l.imp calls)
+    (hvs : ValTy.checkList l.imp.exports[j].ty.params vs = true) :
+    HLinked2.sessDivs P l g s₀ calls j vs = HLinked2.refDivs P prof l g s₀ calls j vs :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionDiv.hlinked2_sessDivs_eq_refDivs P prof
+    hl g hT s₀ calls j vs ht hvs
+
+/-- **`RefSessEquivD` with the divergence clause on the specification** (proved): for adequate
+linked components with host imports, the reference-defined equivalence with quiet divergence and
+the host log is `RefSessEquivH` together with the same specification divergences under every
+typed host. -/
+theorem HLinked2.RefSessEquivD.iff_sessDivs {P : Profile} {prof : ProfileKind} {l l' : HLinked2}
+    (hl : l.Adequate) (hl' : l'.Adequate) :
+    HLinked2.RefSessEquivD P prof l l' ↔ ∃ h : HLinked2.RefSessEquivH P prof l l',
+      ∀ (calls : List (Fin l.imp.exports.length × List Silmaril.Wasm.Component.Val)) (j : Fin l.imp.exports.length)
+        (vs : List Silmaril.Wasm.Component.Val), SimpleI.TypedCalls l.imp calls →
+        ValTy.checkList l.imp.exports[j].ty.params vs = true →
+        ∀ {σ : Type} (g : σ → HostFuncId → List Silmaril.Wasm.Component.Value.Val →
+          Option (List Silmaril.Wasm.Component.Value.Val × σ)), l.HostTyped g →
+          ∀ s₀ : σ, HLinked2.sessDivs P l g s₀ calls j vs =
+            HLinked2.sessDivs P l' g s₀
+              (Linked2.castCalls (l := l.toL2) (l' := l'.toL2) h.len calls)
+              (Fin.cast h.len j) vs :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionDiv.hlinked2_refSessEquivD_iff hl hl'
 
 end Silmaril.Wasm.Component.Reference
