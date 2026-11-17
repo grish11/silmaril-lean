@@ -4,7 +4,9 @@ public import Silmaril.Wasm.Cfg.BridgeCfg.Thms
 public import Silmaril.Wasm.Cfg.MachineL.Thms
 public import Silmaril.Wasm.Abstract.CallXP.Thms
 public import Silmaril.Wasm.Abstract.CallXE.Thms
+public import Silmaril.Wasm.Cfg.MachineLProj.Defs
 import Silmaril.Proofs.Wasm.Cfg.MachineLProj
+import Silmaril.Proofs.Wasm.Cfg.MachineLProjC
 
 @[expose] public section
 
@@ -35,6 +37,20 @@ those results share. They are stated, and none is claimed to be removable here:
   `EvalOX`.
 * **Typing.** `Interp.TypedT` for the `tExt` checker, as `native_machine_closedX` needs.
 
+**Control conventions** (toward the stepwise projection). `MStepL` moves between blocks with
+native stack conventions, `MStepC` with Core's. They agree when the stacks fit the block types,
+which typed code ensures:
+
+* `popN_eq_popL`, `gotoN_eq_goto`: leaving sequences, under `PopFit`;
+* `branchN_block`, `branchN_loop`: a branch, when the frame records the label's arity and the
+  branch site holds that many values (`topVals_brVals`);
+* `armSel_condArm`, `labelArity_eq`: entering an arm, when the stack holds its parameters and the
+  block type resolves.
+
+At a function exit they differ: `MStepC` keeps the outer values of every frame left under the
+branch-site stack (`brVals_junk`), `MStepL` only the branch-site stack. A stepwise projection
+therefore relates exit states up to that prefix.
+
 On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
 projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
 correspondence remain open (`docs/projects/wasm-cfg.md`).
@@ -60,5 +76,60 @@ theorem project_sink_closedX (P : Numerics.Profile) {body : Expr} {s : Store H} 
       Relation.ReflTransGen (MStepC P Interp.noHostX closedXOk body) (initial body s f) st' ∧
       EndsC closedXOk st' s' f' o :=
   Proofs.MachineLProj.project_sink_closedX P h hs hl ht hx he
+
+/-! ## Control conventions -/
+
+/-- **Native frame popping is Core's** on fitting stacks. -/
+theorem popN_eq_popL (f : Frame) (k : Nat) (ls : List LFrame) (stk : List Val)
+    (h : PopFit f k ls stk) : popN f k ls stk = some (popL k ls stk) :=
+  Proofs.MachineLProjC.popN_eq_popL f k ls stk h
+
+/-- **Native moves are Core's** on fitting stacks. -/
+theorem gotoN_eq_goto {t : Target} {d : Nat} {ls : List LFrame} {stk : List Val} {s : Store H}
+    {f : Frame} (h : PopFit f (d - depthT t) ls stk) :
+    gotoN t d ls stk s f = some (goto t d ls stk s f) :=
+  Proofs.MachineLProjC.gotoN_eq_goto h
+
+/-- The values a Core branch carries are the branch-site stack over the left frames' values. -/
+theorem brVals_junk (k : Nat) (ls : List LFrame) (stk : List Val) :
+    ∃ junk, brVals k ls stk = junk ++ stk :=
+  Proofs.MachineLProjC.brVals_junk k ls stk
+
+/-- The top values a branch keeps, native and Core, when the branch site holds them. -/
+theorem topVals_brVals {n k : Nat} {ls : List LFrame} {N : List Val} (h : n ≤ N.length) :
+    topVals n (brVals k ls N.reverse) = (N.take n).reverse :=
+  Proofs.MachineLProjC.topVals_brVals h
+
+/-- **A branch to a `block`, `if` or `try_table` label**, native and Core. -/
+theorem branchN_block {body : Expr} {b : BlockId} {ls : List LFrame} {k : Nat} {L : LFrame}
+    {N : List Val} {s : Store H} {f : Frame} {np nr : Nat} (hloop : L.loop = false)
+    (har : Binaryen.arity f L.bt = some (np, nr)) (hLa : L.arity = nr) (hN : nr ≤ N.length) :
+    branchN body b ls k L N s f =
+      gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - (k + 1)) (ls.drop (k + 1))
+        (L.outer ++ topVals L.arity (brVals k ls N.reverse)) s f :=
+  Proofs.MachineLProjC.branchN_block hloop har hLa hN
+
+/-- **A branch to a `loop` label**, native and Core. -/
+theorem branchN_loop {body : Expr} {b : BlockId} {ls : List LFrame} {k : Nat} {L : LFrame}
+    {N : List Val} {s : Store H} {f : Frame} {np nr : Nat} (hloop : L.loop = true)
+    (har : Binaryen.arity f L.bt = some (np, nr)) (hLa : L.arity = np) (hN : np ≤ N.length) :
+    branchN body b ls k L N s f =
+      gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - k) (L :: ls.drop (k + 1))
+        (topVals L.arity (brVals k ls N.reverse)) s f :=
+  Proofs.MachineLProjC.branchN_loop hloop har hLa hN
+
+/-- **Entering an arm**: the native split (`ArmSel`) is Core's (`CondArm`). -/
+theorem armSel_condArm {i : Instr} {V V' : List Val} {a np : Nat} (h : ArmSel i V a V')
+    (hnp : np ≤ V'.length) :
+    CondArm i V.reverse a (V'.drop np).reverse (V'.take np).reverse ∧
+      (V'.take np).reverse.length = np :=
+  Proofs.MachineLProjC.armSel_condArm h hnp
+
+/-- **The frame an arm entry pushes** has the same label arity, native and Core. -/
+theorem labelArity_eq {f : Frame} {bt : BlockType} {t₁ t₂ : List Validation.CValType}
+    {np nr : Nat} (loop : Bool) (hbt : f.module.blockType? bt = some (t₁, t₂))
+    (har : Binaryen.arity f bt = some (np, nr)) :
+    labelArity loop t₁ t₂ = if loop then np else nr :=
+  Proofs.MachineLProjC.labelArity_eq loop hbt har
 
 end Silmaril.Wasm.Cfg.MachineL
