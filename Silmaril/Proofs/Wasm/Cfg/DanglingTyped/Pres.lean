@@ -21,19 +21,12 @@ preservation (`Sim.ContextTyped.step`), and the actual code is typed up to caugh
 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 open Silmaril.Wasm.Execution.Core.Sim (ContextTyped)
 open Silmaril.Wasm.Numerics (Profile)
 
 variable {H : Type} {P : Profile}
-
-/-- **The relaxed configuration invariant.** -/
-structure ConfigOkD (c : Config H) : Prop where
-  funcs : FuncsSupp c.store
-  frame : FrameBelow c.store.tags.length c.frame
-  code : ∀ a ∈ c.code, ASupp c.store.tags.length a
-  heap : HeapBelow c.store
-  ghost : ∃ T X, GhostOk c.store T X ∧ ContextTyped ⟨gst c.store T X, c.frame, c.code⟩
 
 theorem GhostOk.congr {s s' : Store H} {T : List TagInst} {X : List ExnInst}
     (ht : s'.tags = s.tags) (he : s'.exns = s.exns) (h : GhostOk s T X) : GhostOk s' T X := by
@@ -73,13 +66,13 @@ theorem ConfigOkD.step {c c' : Config H} (hc : ConfigOkD c) (h : Step P NH c c')
   obtain ⟨hF, hf, hs, hheap, T, X, hg, hct⟩ := hc
   obtain ⟨ht, hfn, hf', hs'⟩ := step_supp h hF hf hs
   obtain ⟨hst, har, hle⟩ := step_heap h hs
-  refine ⟨?_, ht ▸ hf', ht ▸ hs', hheap.mono hst har hle, ?_⟩
+  refine ⟨?_, ht ▸ hf', ht ▸ hs', HeapBelow.mono hst har hle hheap, ?_⟩
   · intro fi hfi
     rw [hfn] at hfi
     rw [ht]
     exact hF fi hfi
   · rcases step_ghost h hg hf hs with ⟨ht', he', es, hgst, hx⟩ | ⟨e, he, es, hgst, hx⟩
-    · exact ⟨T, X, hg.congr ht' he', contextTyped_approx (hct.step hgst) hx⟩
+    · exact ⟨T, X, GhostOk.congr ht' he' hg, contextTyped_approx (hct.step hgst) hx⟩
     · have hct' := hct.step hgst
       obtain ⟨c'₀, f', code'⟩ := c'
       dsimp only at he hct' hx ⊢
@@ -94,6 +87,6 @@ theorem ConfigOkD.steps {c c' : Config H} (hc : ConfigOkD c) (h : Steps P NH c c
     ConfigOkD c' := by
   induction h with
   | refl => exact hc
-  | tail _ hs ih => exact ih.step hs
+  | tail _ hs ih => exact ConfigOkD.step ih hs
 
 end Silmaril.Wasm.Cfg.Proofs.DanglingTyped

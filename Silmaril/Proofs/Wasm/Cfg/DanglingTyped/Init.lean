@@ -22,14 +22,11 @@ not `StoreOk` (`DanglingExn.not_storeOk_of_global`, `not_storeOk_addExn_self`).
 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 open Silmaril.Wasm.Execution.Core.Sim (ContextTyped)
 
 variable {H : Type}
-
-/-- **The relaxed store invariant.** -/
-def StoreOkD (s : Store H) : Prop :=
-  FuncsSupp s ∧ HeapBelow s ∧ ∃ T X, GhostOk s T X ∧ StoreOk (gst s T X)
 
 /-- The type `[] → []` of the fresh tag of a witness. -/
 def padTy : DefType := (⟨[], []⟩ : V1.FuncType).toDefType

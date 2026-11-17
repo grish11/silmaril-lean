@@ -18,6 +18,7 @@ exception lists.
 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 open Silmaril.Wasm.Numerics (Profile)
 
@@ -48,7 +49,7 @@ end Families
 
 /-! ## Supported code -/
 
-theorem ASupp.not_unsupp {k : Nat} {i : Instr} (h : ASupp k (.plain i)) (hs : ¬ Structured i) :
+theorem _root_.Silmaril.Wasm.Cfg.DanglingTyped.ASupp.not_unsupp {k : Nat} {i : Instr} (h : ASupp k (.plain i)) (hs : ¬ Structured i) :
     ¬ Unsupp i := by
   cases h with
   | plain h =>

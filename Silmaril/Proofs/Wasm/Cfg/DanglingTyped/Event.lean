@@ -19,6 +19,7 @@ typed host (`ContextTyped.steps_typed`) types the answered configuration on the 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
 open Silmaril.Games.Abstract (Call)
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 open Silmaril.Wasm.Execution.Core.Sim (ContextTyped)
 open Silmaril.Wasm.Numerics (Profile)
@@ -124,7 +125,7 @@ theorem ghost_extend {s : Store H} {T : List TagInst} {X : List ExnInst} {f : Fr
     contextTyped_widen hw hS' hct⟩
   · intro a e he
     obtain ⟨e', h1, h2, h3⟩ := hg.real a e he
-    refine ⟨e', ?_, h2, h3.imp fun _ _ h => h.mono (by simp)⟩
+    refine ⟨e', ?_, h2, h3.imp fun _ _ h => ValApprox.mono (by simp) h⟩
     rw [List.getElem?_append_left (List.getElem?_eq_some_iff.1 h1).1]; exact h1
   · intro a e' ha he'
     rcases Nat.lt_or_ge a X.length with hlt | hge
@@ -147,11 +148,6 @@ theorem hostTyped_ghostHost : Abstract.HostTyped (ghostHost (H := H)) := by
   · trivial
   · exact ⟨hs, Extend.refl hs, hr fi hfi hc ps rs he⟩
 
-/-- Typing of a host answer, except its exception address. -/
-def ResultTypedD (s : Store H) : Result → List CValType → Prop
-  | .values vs, ts => List.Forall₂ (ValOk s) vs ts
-  | _, _ => True
-
 /-- **A store-keeping host answer whose values are typed keeps the relaxed invariant**, every
 exception address included. -/
 theorem ConfigOkD.event {host : HostSemantics H} {c c' : Config H} {e : Call (Abstract.wasmHostSig H)}
@@ -173,7 +169,7 @@ theorem ConfigOkD.event {host : HostSemantics H} {c c' : Config H} {e : Call (Ab
   obtain ⟨X, hM, hg, hct⟩ := ghost_extend hg₀ hct₀
     (match r with | .throw t => t + 1 | _ => 0)
   refine ⟨T, X, hg, ?_⟩
-  have hw := hg.widen
+  have hw := GhostOk.widen hg
   have hghost : ghostHost hh (gst c.store T X) us (.returned (gst c.store T X) r) := by
     refine .inr ⟨r, rfl, fun fi' hfi' hc' ps' rs' he' => ?_⟩
     have := hres fi' hfi' hc' ps' rs' he'

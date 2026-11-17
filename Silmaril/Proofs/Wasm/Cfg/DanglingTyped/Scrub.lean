@@ -1,5 +1,6 @@
 module
 
+public import Silmaril.Wasm.Cfg.DanglingTyped.Defs
 public import Silmaril.Proofs.Wasm.Cfg.DanglingTyped.Approx
 
 @[expose] public section
@@ -15,6 +16,7 @@ under some `extern` wrappers. A redirected reference is unchanged or a chain to 
 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 
 variable {H : Type}
@@ -32,12 +34,6 @@ def scrubV (N : Nat) : Val → Val
 
 /-- Redirect the exception addresses of the fields of an exception to `N`. -/
 def scrubE (N : Nat) (e : ExnInst) : ExnInst := ⟨e.tag, e.fields.map (scrubV N)⟩
-
-/-- Every exception address of a reference satisfies `p`. -/
-def RefLeaves (p : Nat → Prop) : Ref → Prop
-  | .exn a => p a
-  | .extern r => RefLeaves p r
-  | _ => True
 
 /-- `r` is `ref.exn a` under `extern` wrappers. -/
 def ChainTo (a : Nat) : Ref → Prop

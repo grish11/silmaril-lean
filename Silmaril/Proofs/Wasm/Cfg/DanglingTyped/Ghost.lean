@@ -1,5 +1,6 @@
 module
 
+public import Silmaril.Wasm.Cfg.DanglingTyped.Defs
 public import Silmaril.Proofs.Wasm.Cfg.DanglingTyped.Widen
 public import Silmaril.Proofs.Wasm.Cfg.DanglingTyped.Approx
 public import Silmaril.Wasm.Execution.Core.Soundness.ProgressAux
@@ -33,70 +34,10 @@ witness at `X.length` instead of `s.exns.length`.
 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 
 variable {H : Type}
-
-/-! ## The supported profile -/
-
-/-- Instructions outside the supported profile: runtime type tests and casts other than
-`ref.cast` at a defined type, and the aggregate (struct and array) instructions. -/
-def Unsupp : Instr → Prop
-  | .refTest _ | .brOnCast .. | .brOnCastFail .. => True
-  | .refCast ⟨_, .abstract _⟩ => True
-  | .structNew _ | .structNewDefault _ | .structGet .. | .structSet .. | .arrayNew _
-  | .arrayNewDefault _ | .arrayNewFixed .. | .arrayNewData .. | .arrayNewElem .. | .arrayGet ..
-  | .arraySet _ | .arrayLen | .arrayFill _ | .arrayCopy .. | .arrayInitData ..
-  | .arrayInitElem .. => True
-  | _ => False
-
-/-- Structured instructions (with nested bodies). -/
-def Structured : Instr → Prop
-  | .block .. | .loop .. | .if_ .. | .tryTable .. => True
-  | _ => False
-
-/-- **A supported instruction**: no unsupported instruction, also in nested bodies. -/
-inductive ISupp : Instr → Prop where
-  | block (bt : BlockType) {body : List Instr} (h : ∀ i ∈ body, ISupp i) :
-      ISupp (.block bt body)
-  | loop (bt : BlockType) {body : List Instr} (h : ∀ i ∈ body, ISupp i) : ISupp (.loop bt body)
-  | if_ (bt : BlockType) {b₁ b₂ : List Instr} (h₁ : ∀ i ∈ b₁, ISupp i) (h₂ : ∀ i ∈ b₂, ISupp i) :
-      ISupp (.if_ bt b₁ b₂)
-  | tryTable (bt : BlockType) (cs : List Catch) {body : List Instr} (h : ∀ i ∈ body, ISupp i) :
-      ISupp (.tryTable bt cs body)
-  | atom {i : Instr} (hs : ¬ Structured i) (hn : ¬ Unsupp i) : ISupp i
-
-/-- A frame whose module names only tag addresses below `k`. -/
-def FrameBelow (k : Nat) (f : Frame) : Prop := ∀ t ∈ f.module.tags, t < k
-
-/-- **A supported administrative instruction**: supported instructions, frames below `k`. -/
-inductive ASupp (k : Nat) : Admin → Prop where
-  | plain {i : Instr} (h : ISupp i) : ASupp k (.plain i)
-  | ref (r : Ref) : ASupp k (.ref r)
-  | callRefType (d : DefType) : ASupp k (.callRefType d)
-  | returnCallRefType (d : DefType) : ASupp k (.returnCallRefType d)
-  | label (n : Nat) {cont : List Instr} {body : List Admin} (hc : ∀ i ∈ cont, ISupp i)
-      (hb : ∀ a ∈ body, ASupp k a) : ASupp k (.label n cont body)
-  | handler (n : Nat) (cs : List Catch) {body : List Admin} (hb : ∀ a ∈ body, ASupp k a) :
-      ASupp k (.handler n cs body)
-  | frame (n : Nat) {fr : Frame} {body : List Admin} (hf : FrameBelow k fr)
-      (hb : ∀ a ∈ body, ASupp k a) : ASupp k (.frame n fr body)
-  | trap : ASupp k .trap
-
-/-! ## Witness stores -/
-
-/-- `s` with tags `T` and exceptions `X`. -/
-abbrev gst (s : Store H) (T : List TagInst) (X : List ExnInst) : Store H :=
-  { s with tags := T, exns := X }
-
-/-- **`gst s T X` is a typing witness of `s`.** -/
-structure GhostOk (s : Store H) (T : List TagInst) (X : List ExnInst) : Prop where
-  tags : s.tags <+: T
-  lt : s.exns.length < X.length
-  real : ∀ (a : Nat) (e : ExnInst), s.exns[a]? = some e → ∃ e', X[a]? = some e' ∧
-    e'.tag = e.tag ∧ List.Forall₂ (ValApprox X.length) e.fields e'.fields
-  pad : ∀ (a : Nat) (e' : ExnInst), s.exns.length ≤ a → X[a]? = some e' →
-    s.tags.length ≤ e'.tag ∧ e'.fields = []
 
 theorem GhostOk.widen {s : Store H} {T : List TagInst} {X : List ExnInst} (h : GhostOk s T X) :
     Widen s (gst s T X) :=
@@ -148,7 +89,7 @@ theorem refOk_of_gst {s : Store H} {T : List TagInst} {X : List ExnInst} {r : Re
 theorem refOk_gst_iff {s : Store H} {T : List TagInst} {X : List ExnInst} (hg : GhostOk s T X)
     {m : ModuleInst} {r : Ref} {rt : RefType} (hn : ¬ Unsupp (.refCast rt)) :
     RefOk (gst s T X) r (m.instRef rt) ↔ RefOk s r (m.instRef rt) := by
-  refine ⟨fun h => ?_, fun h => hg.widen.refOk h⟩
+  refine ⟨fun h => ?_, fun h => (GhostOk.widen hg).refOk h⟩
   by_cases hr : ∃ a, r = .exn a
   · obtain ⟨a, rfl⟩ := hr
     obtain ⟨b, ht⟩ := rt

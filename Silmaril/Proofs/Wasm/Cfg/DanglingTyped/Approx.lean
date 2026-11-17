@@ -1,5 +1,6 @@
 module
 
+public import Silmaril.Wasm.Cfg.DanglingTyped.Defs
 public import Silmaril.Wasm.Execution.Core.Typing.Config
 
 @[expose] public section
@@ -15,19 +16,10 @@ an exception, so typing of `es'` in a store with `N` exceptions types `es` (`adm
 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 
 variable {H : Type}
-
-/-- References equal up to exception addresses (the left ones below `N`). -/
-inductive RefApprox (N : Nat) : Ref → Ref → Prop where
-  | refl (r : Ref) : RefApprox N r r
-  | exn {a b : Nat} (h : a < N) : RefApprox N (.exn a) (.exn b)
-  | extern {r r' : Ref} (h : RefApprox N r r') : RefApprox N (.extern r) (.extern r')
-
-/-- Values equal up to exception addresses (the left ones below `N`). -/
-def ValApprox (N : Nat) (v w : Val) : Prop :=
-  v = w ∨ ∃ r r', v = .ref r ∧ w = .ref r' ∧ RefApprox N r r'
 
 mutual
 
@@ -100,7 +92,7 @@ theorem ValApprox.mono {N M : Nat} (h : N ≤ M) {v w : Val} (hv : ValApprox N v
     ValApprox M v w := by
   rcases hv with rfl | ⟨r, r', rfl, rfl, hr⟩
   · exact .inl rfl
-  · exact .inr ⟨r, r', rfl, rfl, hr.mono h⟩
+  · exact .inr ⟨r, r', rfl, rfl, RefApprox.mono h hr⟩
 
 theorem RefApprox.ne_null {N : Nat} {r r' : Ref} (h : RefApprox N r r') (hn : r' ≠ .null) :
     r ≠ .null := by
@@ -122,7 +114,7 @@ theorem refOk_approx {s : Store H} {r' : Ref} {rt : CRefType} (h : RefOk s r' rt
     intro r hr
     cases hr with
     | refl => exact .extern (ih (.refl _)) hn
-    | extern hr => exact .extern (ih hr) (hr.ne_null hn)
+    | extern hr => exact .extern (ih hr) (RefApprox.ne_null hr hn)
   | sub _ hok hs ih => intro r hr; exact .sub (ih hr) hok hs
   | null => intro r hr; cases hr; exact .null
   | i31 b => intro r hr; cases hr; exact .i31 b

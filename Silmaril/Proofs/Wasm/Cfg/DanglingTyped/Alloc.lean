@@ -23,15 +23,11 @@ naming `n` (none: exception fields name `N`, struct and array fields name except
 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 open Silmaril.Wasm.Execution.Core.Sim (ContextTyped)
 
 variable {H : Type}
-
-/-- **Struct and array fields name exceptions of the store** (also under `extern`). -/
-def HeapBelow (s : Store H) : Prop :=
-  (∀ si ∈ s.structs, ∀ r, FieldVal.val (.ref r) ∈ si.fields → RefLeaves (· < s.exns.length) r) ∧
-    ∀ ai ∈ s.arrays, ∀ r, FieldVal.val (.ref r) ∈ ai.fields → RefLeaves (· < s.exns.length) r
 
 section Alloc
 
@@ -324,7 +320,7 @@ theorem alloc_ghost {s : Store H} {T : List TagInst} {X : List ExnInst} {f : Fra
       obtain ⟨y, hy, htag, hfs⟩ := hg.real a x hx'
       refine ⟨scrubE X.length y, ?_, htag, ?_⟩
       · rw [allocX_get_ne (Nat.ne_of_lt hlt) (Nat.lt_trans hlt hn), hy]; rfl
-      · exact forall₂_map_right_mem (fun v w hw' h => valApprox_scrub (h.mono (by omega))
+      · exact forall₂_map_right_mem (fun v w hw' h => valApprox_scrub (ValApprox.mono (by omega) h)
           (hleaves y (List.mem_append_left _ (List.mem_of_getElem? hy)) w hw')) hfs
     · have ha : a = s.exns.length := by
         have := (List.getElem?_eq_some_iff.1 hx).1

@@ -18,16 +18,11 @@ Every restricted universal host of an instance, `CfgInst.instHostU I` included, 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
 open Silmaril.Games.Abstract (Call)
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 open Silmaril.Wasm.Numerics (Profile)
 
 variable {H : Type} {P : Profile}
-
-/-- **A store-keeping host whose values are typed**, any exception address allowed. -/
-def HostTypedD (host : HostSemantics H) : Prop :=
-  ∀ (hh : H) (s : Store H) (us : List Val) (s' : Store H) (r : Result),
-    host hh s us (.returned s' r) → s' = s ∧ ∀ fi ∈ s.funcs, fi.code = .host hh →
-      ∀ ps rs, Expand fi.type (.func ps rs) → ResultTypedD s r rs.toList
 
 /-- **Labelled runs keep the relaxed invariant.** -/
 theorem ConfigOkD.evRun {host : HostSemantics H} (hT : HostTypedD host) {c c' : Config H}
@@ -37,12 +32,12 @@ theorem ConfigOkD.evRun {host : HostSemantics H} (hT : HostTypedD host) {c c' : 
   | refl => exact hc
   | silent hs _ ih =>
     rcases hs with hs | ⟨rfl, -⟩
-    · exact ih (hc.step hs)
+    · exact ih (ConfigOkD.step hc hs)
     · exact ih hc
   | @event c₁ c₂ c₃ e cs hs _ ih =>
     obtain ⟨E, a, hdec, hst, hhost, hc₂⟩ := hs
     obtain ⟨hsp, hres⟩ := hT _ _ _ _ _ hhost
-    refine ih (hc.event (P := P) (e := e) ⟨E, a, hdec, hst, hhost, hc₂⟩ (by rw [hsp, hst]) ?_)
+    refine ih (ConfigOkD.event (P := P) hc (e := e) ⟨E, a, hdec, hst, hhost, hc₂⟩ (by rw [hsp, hst]) ?_)
     intro fi hfi hcode ps rs hexp
     exact hres fi hfi hcode ps rs hexp
 

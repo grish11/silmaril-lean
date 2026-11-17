@@ -15,15 +15,11 @@ bodies, from `call_indirect` (whose `ref.cast` is at a defined type) and from va
 
 namespace Silmaril.Wasm.Cfg.Proofs.DanglingTyped
 
+open Silmaril.Wasm.Cfg.DanglingTyped
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 open Silmaril.Wasm.Numerics (Profile)
 
 variable {H : Type} {P : Profile} {k : Nat}
-
-/-- **Supported functions**: Wasm bodies are supported, modules name tags below the store's. -/
-def FuncsSupp (s : Store H) : Prop :=
-  ∀ fi ∈ s.funcs, FrameBelow s.tags.length ⟨[], fi.module⟩ ∧
-    ∀ code, fi.code = .wasm code → ∀ i ∈ code.body, ISupp i
 
 theorem isupp_atom_iff {i : Instr} (hs : ¬ Structured i) (hn : ¬ Unsupp i) : ISupp i ↔ True :=
   iff_true_intro (.atom hs hn)
