@@ -370,11 +370,13 @@ specification, interpreted by `pre R φ` (planned `consequence_interpretation co
 
 These are part of the original request and remain open after this pull request:
 
-* **Real images and real execution.** No OCI image is parsed and no ELF file is loaded or run under
-  `Process.LPS` in this development; nothing is executed in a container runtime, and no fixture has
-  been compared with Docker. The fixtures are models (`Fixtures.small`, `Mini.machR`).
-* **A sequential x86-64 machine instance** with `ClonesExplicit` proved for system calls 56, 57, 58
-  and 435, and LPS's `unmodeled`, fault and stuck outcomes mapped to `UB`.
+* **Real images and real execution: one fixture done.** The static no-op ELF in a deterministic OCI
+  image is proved under the LPS adapter and tested under Docker (above). General OCI images,
+  dynamically linked programs and programs that interact are not.
+* **The sequential x86-64 machine instance: restricted.** `Lps.lps` maps system calls 56, 57, 58
+  and 435 to `clone` actions and LPS's unmodelled, fault and stuck outcomes to `UB`; the run
+  characterisation is proved for programs that only exit. `ClonesExplicit` as a general statement
+  about LPS steps is not proved.
 * **The parallel x86-64 machine** (threads, scheduler, x86-TSO, atomics) and `SeqAgrees` proofs.
 * **Acceptors, consequence systems and tables: partly done.** Done: `Containers.Check`
   (consequence systems with laws, checker soundness, the observation monitor as an acceptor) and
@@ -387,63 +389,80 @@ These are part of the original request and remain open after this pull request:
 * **Nitro Enclaves** (EIF, PCRs, attestation), **Redis**, **Kubernetes**: designed above, not
   implemented.
 
-## The first real fixture: a static no-op from OCI octets
+## The first real fixture: a static no-op ELF in an OCI image
 
-Status: **assessed, not implemented**. What exists, checked on 2026-11-16:
+Status: **proved**, relative to the LPS model of Linux, with a Docker differential test.
+Modules: `Containers.Oci` (the reader), `Containers.Lps` (the machine adapter), `Containers.Noop`
+(the fixture), and the registered instance `containers.noop.oci_wp`.
 
-* **The ELF.** `examples/project-formats/example-exec.elf` (632 octets, SHA-256 `78876f12…ec9f`,
-  `_start: endbr64; mov $60,%eax; xor %edi,%edi; syscall`) is already a registered value
-  (`Silmaril.Project.Formats.exampleExec`) with load facts proved (`exampleExec_parses`,
-  `exampleExec_entry`, `exampleExec_code` in `Project/Shapes/Elf/Thms`), but no run theorem. A
-  smaller exit-0 static ELF with a run theorem exists: `Process.LPS.Probes.Data.LiteTrue`
-  (352 octets) with `CoreutilsLite.true_total` (exits 0 under every valid launch and flag oracle,
-  kernel-checked).
-* **The OCI octets.** Packaged with Docker 28.5.2 (`FROM scratch`, `COPY noop /noop`,
-  `ENTRYPOINT ["/noop"]`), `docker save` writes an OCI image layout: an index, a manifest, a
-  configuration with `Entrypoint ["/noop"]`, and one uncompressed layer
-  (`application/vnd.oci.image.layer.v1.tar`, 2560 octets) holding a single `ustar` entry, no PAX
-  header, no whiteout. Evaluated in Lean (not committed): `Silmaril.Crypto.sha256` reproduces the
-  layer digest, and `Silmaril.Formats.Tar.decode` returns one entry `noop`, mode `0755`, whose
-  content is exactly `example-exec.elf`. `docker run` of the image exited 0: a test of Docker on
-  this host, not a theorem.
-* **Not reproducible as built.** The layer records the file's modification time, so a Docker build
-  gives a different layer digest each time. A committed fixture must be generated
-  deterministically (the layer by `Formats.Tar.encode` with `mtime := 0`, the JSON by a pinned
-  script) and checked against Docker only as a runtime test (`docker load`, `docker run`).
+**One pinned artifact.** The program is the 352-octet static x86-64 ELF of the LPS probe
+`lite_true` (`Process.LPS.Probes.Data.LiteTrue.fileBytes`; GCC 13.3 `-O2` `true`,
+`mov $60,%eax; xor %edi,%edi; syscall`, one `PT_LOAD`), SHA-256 `faf558ec…6675`, already pinned in
+`examples/verification-projects/theorem-dev/lps-probes/SHA256SUMS`. An earlier experiment used
+`examples/project-formats/example-exec.elf` (632 octets, SHA-256 `78876f12…ec9f`, four program
+headers, only load facts proved); it is **not** used: `lite_true` is the binary LPS already proves
+totally correct (`CoreutilsLite.true_total`). Every other artifact is computed from these octets
+and pinned by its digest, proved by kernel evaluation of `Crypto.sha256`:
 
-**The next implementation steps**, in order, each a reviewable change:
+| Artifact | Octets | SHA-256 | How it is made |
+| --- | --- | --- | --- |
+| ELF | 352 | `faf558ec522716eb1b0979289f73782140a1812d73b2ae596040498f1dd74675` | the probe's bytes |
+| layer | 2048 | `c2e4b98bae96ca80b54509d3067c208b6f9d22d9153e6ae80a83c947787a5d14` | `Tar.encode [noop, 0755, owner 0, time 0]` |
+| config | 185 | `d77f6e9c553c0f0a3c2370fc870c57f500b2a0769f056a757365959928ca0260` | literal, `Entrypoint ["/noop"]` |
+| manifest | 397 | `f13b70f2cd9336b73436e4c76fd475138a253c140d1a4e2d80dbddd03f2542d8` | literal |
 
-1. **Bytes to snapshot.** Prove `ELFImage.loadX86 isa bytes = some P.snapshot` for the
-   `LiteTrue` probe (`decide +kernel`; keep the octets as a `Blob`, since kernel evaluation on byte
-   lists costs about 30 s per kilobyte). This lemma does not exist yet for any probe
-   (`Probe.Layout` checks only the header readers). Then `true_total` holds of the bytes, not only
-   of the probe's snapshot. `example-exec.elf` needs the same with its four program headers (the
-   probe kit handles a single `PT_LOAD`) and the flag-oracle machine, because `xor` leaves AF
-   undefined.
-2. **LPS as a `Mach.MachineSem`.** States are LPS configurations (`Process.LPS.Run.Config`) on
-   `x86WithFlagOracle`; steps come from `LStep` and its `StepRecord`s. Events: reads and writes on
-   descriptors 0–2 become `Ev.stdin`/`stdout`/`stderr`, socket records follow
-   `Servers.Sockets.ofRecords`. Final outcomes (`RunOutcome`): `exited code` becomes
-   `Stop.exited (code &&& 255)`, `killed sig` becomes `signaled`, `error unmodeled` becomes
-   `undefined unmodeled`, `stuck` becomes `undefined stuck`, and `error fault` becomes
-   `undefined memory` (conservatively; refining it to `SIGSEGV` needs a fault-to-signal model).
-   System calls 56, 57, 58 and 435 become `Act.clone` with their flags, **overriding** LPS's own
-   reading (`Sys/Fork.lean` models `clone(SIGCHLD)` and `fork` as returning a pid with no child), so
-   that the runtime's clone policy decides; this is the instance's `ClonesExplicit` proof.
-3. **OCI octets to `Layered`.** Index, manifest and configuration through `Formats.Json.parse?` and
-   its schema decoders; layers through `Formats.Tar.decode` (and `Formats.Compression.Gzip.decompress`
-   for `+gzip` layers); blobs through `Cas.Store.checked Crypto.sha256`; whiteouts are needed only
-   for multi-layer images, not this one.
-4. **The theorem.** `wp` of "exit 0, no events" for the image under the `MachRuntime` over the LPS
-   machine with `seqPolicy`, composed from 1–3 through `pre_layered` and `MachRuntime.beh_iff`, and
-   registered as an instance of `silmaril.shapes.containers.wp` over the image's value.
+`examples/containers/noop-oci/Generate.lean` writes the same blobs (and `oci-layout`, `index.json`,
+Docker's `manifest.json`) to `examples/containers/noop-oci/layout/`; `… Generate.lean check` compares.
 
-**Blockers.** No external blocker was found: Docker runs here (with `--network host`), a
-`FROM scratch` image needs no registry, and the parsers, hash and loader exist. The constraints
-are internal: kernel evaluation cost of byte literals, the missing `loadX86` lemma, the flag-oracle
-machine for `xor`, the tar decoder's lack of PAX headers and whiteouts (needed for real images such
-as Redis, not for this one), no proved JSON printer (only parsing is needed), and Docker's
-non-reproducible layers.
+**What is proved** (`Noop.Thms`):
+
+1. **Bytes to snapshot** (`loadElf_elf`): LPS's loader `ELFImage.loadX86` accepts the octets and
+   returns the probe's snapshot. The parse is kernel-evaluated on the public reader (the plain
+   352-octet list takes about 3 s; the `Blob` encoding of `Silmaril.X86` is not needed at this size,
+   and `X86` is not in this region's `deps`). The two image checks the kernel cannot evaluate (the
+   entry instruction fetches, the program headers are readable) come from the kit's theorem
+   `Probe.snapshot_valid`.
+2. **The machine** (`Lps.lps`, `Lps.runtime`): LPS as a `MachineSem`, described in the module: all
+   four task-creation system calls are `clone` actions that override LPS's own reading; LPS errors
+   are undefined behaviour (`unmodeled` for what `UnmodeledAt` marks, `memory` for faults); a
+   running configuration with no step is `stuck`; events outside the three standard channels end
+   the run in `unmodeled`; flags left undefined by x86-64 are covered by quantifying over every flag
+   oracle; launches by quantifying over every admissible launch (`CoreutilsLite.Admissible`) and
+   allocation limit. `Lps.runs_eq` / `run_exists`: for any snapshot whose LPS executions only exit
+   with status `k` and never reach a task-creation request, the adapter's only run is
+   `done [] (exited k)`. Clone freedom is a separate hypothesis because `Omni.Exec` constrains
+   traces, not intermediate states, and LPS models `fork` as a successful step; for `lite_true` it is
+   proved along the probe's unique-successor chain (`noClone`, with `noclone_*` rules mirroring the
+   kit's `oexec_*`).
+3. **OCI octets** (`Oci.load`): a restricted reader with checked digests that refuses everything
+   outside its profile (compressed layers, links, devices, PAX headers, whiteouts, other platforms,
+   non-ASCII or duplicate-key JSON). JSON is read with the existing RFC reader
+   `Formats.RfcJson.value?`, folded by the raw recursor so the kernel can evaluate it (definitions by
+   `match` over the reader's indexed syntax carry `propext` casts and do not reduce); layers with
+   `Formats.Tar.decode`. `runtime_load`: the image's program is the probe's snapshot. Refusals are
+   proved for a tampered layer (`badDigest`), a missing config (`missingBlob`) and a gzip layer
+   (`other`).
+4. **The composed claim** (`beh_image`, `wp_image`, `confined_image`): under `Lps.ociRuntime` the
+   image has exactly one run, `done [] (exited 0)`: no undefined behaviour, total correctness of
+   "exit 0, no events", and confinement to the empty profile. Registered as
+   `containers.noop.oci_wp` (THM) in the `containers` group.
+
+**Trust boundary.** The theorem is about the LPS model: its transcription of Linux system calls
+(the native x86-64 table, no refusals), the x86-64 decoder and semantics behind
+`x86WithFlagOracle`, and the admissibility of launches, which is the obligation of a runtime. It is
+not about Docker, runc or a kernel.
+
+**Docker differential test** (`examples/containers/noop-oci/docker-test.sh`, a test, not a proof):
+it checks the blob digests with `sha256sum`, loads the layout, checks that Docker's image ID is
+`sha256:<config digest>` and its single layer is the layer digest, and runs the image with
+`--network none --read-only --cap-drop ALL --security-opt no-new-privileges`, expecting exit 0 and
+empty stdout and stderr. It passed on Docker 28.5.2 on 2026-11-16.
+
+**Not done.** The instance is backed by the Lean data and its proved digests, not by a registered
+`Project.Value` artifact with a CID (no OCI format adapter exists in `Project`). The reader handles
+one profile, not OCI in general. Programs beyond the probe kit's single `PT_LOAD`, dynamically
+linked programs, and programs with events need more adapter theorems (events are mapped, but only
+the exit-only case is proved).
 
 ## Next steps
 

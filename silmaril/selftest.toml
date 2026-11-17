@@ -65,7 +65,7 @@ children = ["silmaril.shapes.containers.vpre", "silmaril.shapes.containers.wlp",
   "containers.mini.thread_spawn_wlp_assume_no_ub", "containers.mini.tcp_then_thread_wlp_enforce",
   "containers.mini.no_ub_check_sound", "containers.mini.restrict_preserves_ub",
   "containers.monitor_correct_stdio", "containers.mini.vsys_sound_raw",
-  "containers.mini.raw_sound_vsys", "containers.mini.check_sound_vsys"]
+  "containers.mini.raw_sound_vsys", "containers.mini.check_sound_vsys", "containers.noop.oci_wp"]
 
 [[group]]
 name = "silmaril.selftest.formats"

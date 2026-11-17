@@ -3,6 +3,7 @@ module
 public import Silmaril.Project.Shapes.Consequence.Defs
 public import Silmaril.Containers.Mini.Thms
 public import Silmaril.Containers.Check.Thms
+public import Silmaril.Containers.Noop.Thms
 
 /-!
 # The logic graph: container obligations as problem shapes and consequence systems
@@ -45,6 +46,7 @@ satisfaction, a comparison), `containers.mini.no_ub_check` (the judgements of `M
 | `containers.mini.vsys_sound_raw` | `consequence.sound_at` (`vsys` for `raw`) | THM |
 | `containers.mini.raw_sound_vsys` | `consequence.sound_at` (`raw` for `vsys`) | CSA |
 | `containers.mini.check_sound_vsys` | `consequence.sound_at` (the checker for `vsys`) | THM |
+| `containers.noop.oci_wp` | `wp` of the OCI no-op image under `Lps.ociRuntime` | THM |
 -/
 
 @[expose] public section
@@ -163,6 +165,17 @@ public theorem tcp_then_thread_wlp_enforce_answer :
     Wlp (Mini.machRT.enforce Profile.vsockOnly) anyPost (Mini.mimage Mini.tcpThenThread) :=
   Mini.tcpThenThread_wlp_enforce _
 
+silmaril instance containers.noop.oci_wp (expect := THM)
+  (title := "The static no-op ELF in its OCI image: no undefined behaviour, exit 0, no events (LPS, every launch and flag oracle)") :=
+  silmaril.shapes.containers.wp
+  (R := Silmaril.Containers.Mach.MachRuntime.toRuntime Silmaril.Containers.Lps.ociRuntime)
+  (post := Silmaril.Containers.Noop.exitZeroNoEvents) (i := Silmaril.Containers.Noop.image)
+
+@[answers "containers.noop.oci_wp" thm]
+public theorem noop_oci_wp_answer :
+    Wp Lps.ociRuntime.toRuntime Noop.exitZeroNoEvents Noop.image :=
+  Noop.wp_image
+
 /-! ## Checkers, transformers, monitors -/
 
 silmaril instance containers.mini.no_ub_check_sound (expect := THM)
@@ -245,6 +258,6 @@ public def catalogue : List (String × ObligationKind) :=
    ("containers.mini.restrict_preserves_ub", .machine),
    ("containers.monitor_correct_stdio", .security),
    ("containers.mini.vsys_sound_raw", .behaviour), ("containers.mini.raw_sound_vsys", .behaviour),
-   ("containers.mini.check_sound_vsys", .behaviour)]
+   ("containers.mini.check_sound_vsys", .behaviour), ("containers.noop.oci_wp", .behaviour)]
 
 end Silmaril.LogicGraph.Consequence.Containers
