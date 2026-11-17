@@ -935,12 +935,19 @@ The plain graph stays an over-approximation, and claims about it say so.
           `Abstract.EvalLXPS`. Its calls are open entries with arbitrary answers, and no oracle
           answers them.
         - **Remaining before all generic gaps can be called closed:**
-          1. Derive the typed-invocation hypotheses from module validation and instantiation,
-             instead of assuming them. These are `StoreOk`, `InvokeOk`, `StoreChkE (ehExt tags)`
-             and `TagsOk` in the Core corollaries, and `Ctx.Good`, `vs.length = ps.length` in
-             `MachineLClose.logged_of_session`/`proj_of_session`. Candidates are
-             `TypedCatValid` (`storeCtx_good`, `tagsOk_of_storeOk`, `arityResp_storeCtx`,
-             `bodyOk_counts`).
+          1. Typed-invocation hypotheses (`Wasm/Cfg/CfgValid`). These are now derived from
+             `StoreOk` and `InvokeOk`, at the store's own tags:
+             - the function type and exact parameter count (`funcType_of_invokeOk`);
+             - `TagsOk` and `Ctx.Good` (`storeCtx_good_of_storeOk`).
+
+             Corollaries: `logged_of_valid`, `proj_of_valid`, `cfgFunDiv_iff_diverges_valid` and
+             `cfgAns_{trap,vals,throw}_iff_valid`.
+
+             Still assumed: the checker's acceptance `StoreChkE (ehExt s.tags) s.funcs`. It is a
+             fragment restriction, because `chkE` accepts only `xInstr` (`xInstr_of_flatChkE`)
+             plus EH, while validated code may lie outside that set. Its completeness on
+             validated code inside the fragment is not proved. Host hypotheses are about the
+             host, not the module.
           2. The instance session with imports through the CFG closure (NodeBridge, typed
              fragment with `ehExt tags`). Also replace `core3SemD`/`Comp.denUD` uses by the CFG
              closure, coordinated with the component owner.
