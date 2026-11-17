@@ -242,10 +242,9 @@ end ListComp
 
 open Silmaril.Wasm.Execution.Core (Store Steps invoke Frame vals)
 
-/-- The 4 little-endian bytes of a word. -/
-def le32 (x : BitVec 32) : ByteArray :=
-  ⟨#[UInt8.ofNat x.toNat, UInt8.ofNat (x.toNat / 2 ^ 8), UInt8.ofNat (x.toNat / 2 ^ 16),
-    UInt8.ofNat (x.toNat / 2 ^ 24)]⟩
+/-- The 4 little-endian bytes of a word (`Memory.encodeLE 4`, as the canonical ABI's
+`store_int` writes them). -/
+def le32 (x : BitVec 32) : ByteArray := Silmaril.Wasm.Execution.Memory.encodeLE 4 x.toNat
 
 /-- The byte length of memory `ma` (`0` if there is none). -/
 def memLen (s : Store Nat) (ma : Nat) : Nat := ((s.mems[ma]?).map (·.bytes.size)).getD 0
@@ -306,7 +305,25 @@ inductive LParams (P : Profile) (ra ma : Nat) :
 
 /-! ## The target statement -/
 
+/-- The flat core types of a parameter of type `t`: one `i32` for an `s32`, the `(ptr, len)`
+pair of `i32`s for a list (32-bit memory). -/
+def LTy.flat : LTy → List Silmaril.Wasm.Game.ScalarType
+  | .s32 => [.num (.int .i32)]
+  | .list _ => [.num (.int .i32), .num (.int .i32)]
+
+/-- The flat core parameter types of an export: its parameters' `LTy.flat`, left to right. -/
+def ListExport.flatParams (x : ListExport) : List Silmaril.Wasm.Game.ScalarType :=
+  (x.params.map (·.2)).flatMap LTy.flat
+
+/-- The core type `(i32, i32, i32, i32) -> i32` of `cabi_realloc` (32-bit memory). -/
+def reallocFnType : Silmaril.Wasm.Game.FnType :=
+  ⟨[.num (.int .i32), .num (.int .i32), .num (.int .i32), .num (.int .i32)], [.num (.int .i32)]⟩
+
 namespace ListComp
+
+/-- The function address of the core export named `n` in the instance (`0` if none). -/
+def coreAddr (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) (n : String) : Nat :=
+  ((Silmaril.Wasm.Component.Reference.funcExportNames c.mod).zip I.addrs |>.lookup n).getD 0
 
 /-- The component is well formed: distinct export names, every export at most `16` flat
 parameters (two per list) and no other result than `bool`. -/
@@ -315,9 +332,23 @@ structure Good (c : ListComp) : Prop where
   flat : ∀ x ∈ c.exports, 2 * x.params.length ≤ 16
 
 /-- The module is instantiated as the statement assumes: it validates and instantiates without
-imports and without a start function (`I`, as `NumModule.IsInst` reads it), the allocator and
-the exports' core functions are among its function exports (`funcExportNames`, aliased by name),
-and `memName` is its memory export `0` (address `0` of the instance store). -/
+imports and without a start function (`I`, as `NumModule.IsInst` reads it), `memName` is its
+memory export `0` (address `0` of the instance store), a 32-bit memory, and the core functions
+the component runs are typed function exports of the instance:
+
+* `reallocFunc`, `coreFuncs`: the allocator and the exports' core functions are among its
+  function exports (`funcExportNames`, aliased by name);
+* `realloc`: the function at the allocator's address (`coreAddr I reallocName`, the address the
+  lifts' `realloc` option holds) is the instance's function export `k`, of type
+  `(i32, i32, i32, i32) -> i32`;
+* `core`: the function at the address of each export's core function is a function export of
+  the instance of type `flatParams -> i32`.
+
+The typing is needed: the reference machine does not check the types of flat results (REF
+`types_match_values` is an assert, deviation D-f), so a core function `(param i32 i32)
+(result i64)` returning `1`, lifted at `-> bool`, makes the call return `true` although no Core
+run returns an `i32` (and an allocator returning an `i64` is lifted as a `u32`). Such modules
+are outside the fragment. -/
 structure Inst (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) : Prop where
   inst : ∃ mt, Silmaril.Wasm.Game.IsInstance c.mod mt I
   noImports : I.imports = []
@@ -327,10 +358,12 @@ structure Inst (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) : Prop whe
   reallocFunc : c.reallocName ∈ Silmaril.Wasm.Component.Reference.funcExportNames c.mod
   /-- The lifted core functions are function exports of the module. -/
   coreFuncs : ∀ x ∈ c.exports, x.core ∈ Silmaril.Wasm.Component.Reference.funcExportNames c.mod
-
-/-- The function address of the core export named `n` in the instance (`0` if none). -/
-def coreAddr (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) (n : String) : Nat :=
-  ((Silmaril.Wasm.Component.Reference.funcExportNames c.mod).zip I.addrs |>.lookup n).getD 0
+  /-- The memory is 32-bit. -/
+  memI32 : Silmaril.Wasm.SingleThreaded.memAddrType? I.store 0 = some .i32
+  realloc : ∃ k, ∃ hk : k < I.exports.length,
+    I.addrs.getD k 0 = c.coreAddr I c.reallocName ∧ I.exports[k] = reallocFnType
+  core : ∀ x ∈ c.exports, ∃ k, ∃ hk : k < I.exports.length,
+    I.addrs.getD k 0 = c.coreAddr I x.core ∧ I.exports[k] = ⟨x.flatParams, [.num (.int .i32)]⟩
 
 end ListComp
 
