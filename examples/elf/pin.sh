@@ -11,10 +11,13 @@ SHA256SUM_SHA=4d2db56c867e5324e0084c9e897f6360d37517de77ac96f2bd31494223d69a60
 check() { echo "$2  $1" | sha256sum --check --quiet; }
 # glibc 2.39 (libc.so.6, libm.so.6) and zlib (libz.so.1.3), Ubuntu 24.04 amd64: the files of the
 # explorer's function tables (examples/elf/README.md). Each line: name, package URL, package sha256,
-# member, file sha256.
+# member, file sha256. glibc 2.36 libm.so.6 of Debian 12 (bookworm) libc6 2.36-9+deb12u14 is the
+# file of the math.h import's image (examples/headers/clang/glibc-math.prov): header and binary
+# from one glibc build (Silmaril.Elf.Abi.Libm).
 LIBS=(
   "glibc-libc.so.6 https://launchpad.net/ubuntu/+archive/primary/+files/libc6_2.39-0ubuntu8.9_amd64.deb ff5557d99b51f761c4b7c92368b9cc45565eda17df9bf9eb4b134d09825008be ./usr/lib/x86_64-linux-gnu/libc.so.6 3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
   "glibc-libm.so.6 https://launchpad.net/ubuntu/+archive/primary/+files/libc6_2.39-0ubuntu8.9_amd64.deb ff5557d99b51f761c4b7c92368b9cc45565eda17df9bf9eb4b134d09825008be ./usr/lib/x86_64-linux-gnu/libm.so.6 fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0"
+  "glibc-2.36-libm.so.6 https://snapshot.debian.org/archive/debian/20260504T025922Z/pool/main/g/glibc/libc6_2.36-9%2Bdeb12u14_amd64.deb ba4f88f73dbc3ae9055f3c20f4523bfdbaf1ad13ff95e258924f77d20b4fbedf ./lib/x86_64-linux-gnu/libm.so.6 7f2ca87f652f56b094462474b076749e90e689d0ecb9cb63c7679820b271b4e7"
   "zlib-libz.so.1.3 https://launchpad.net/ubuntu/+archive/primary/+files/zlib1g_1.3.dfsg-3.1ubuntu2.3_amd64.deb 376249c8de139568221dbb242318cc8cb8f02299e3a62b7432948e1754fbddf9 ./usr/lib/x86_64-linux-gnu/libz.so.1.3 f61677c7bdb7c2aa2a243ea781bfd16afcb361cede7b4ef76127a9d8eb9a5242"
 )
 fetch_member() {  # fetch_member NAME URL DEB_SHA MEMBER FILE_SHA
@@ -22,6 +25,7 @@ fetch_member() {  # fetch_member NAME URL DEB_SHA MEMBER FILE_SHA
   curl -fsSL -o "$tmp/p.deb" "$2"
   check "$tmp/p.deb" "$3"
   if command -v dpkg-deb >/dev/null; then dpkg-deb --fsys-tarfile "$tmp/p.deb" > "$tmp/data.tar"
+  elif ar t "$tmp/p.deb" | grep -qx data.tar.xz; then (cd "$tmp" && ar x p.deb data.tar.xz && xz -d data.tar.xz)
   else (cd "$tmp" && ar x p.deb data.tar.zst && zstd -q -d data.tar.zst -o data.tar); fi
   mkdir "$tmp/x" && tar -xf "$tmp/data.tar" -C "$tmp/x" "$4"
   check "$tmp/x/$4" "$5"

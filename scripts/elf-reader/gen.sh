@@ -46,5 +46,6 @@ emit examples/elf-ladder/01-leaf-arith/pinned/leaf-arith LeafArith 'elf-ladder r
 emit examples/elf-ladder/03-zlib-checksums/pinned/zlib-checksums ZlibChecksums 'zlib 1.3.1 `adler32.c` and `crc32.c` (`-DZ_SOLO -O2`, GCC 13.3; `examples/elf-ladder/03-zlib-checksums`)' zlib-checksums
 emit examples/elf/pinned/zlib-libz.so.1.3 ZlibLibz 'zlib 1.3 `libz.so.1.3` (Ubuntu zlib1g 1:1.3.dfsg-3.1ubuntu2.3)' zlib-libz
 emit examples/elf/pinned/glibc-libm.so.6 GlibcLibm 'glibc 2.39 `libm.so.6` (Ubuntu libc6 2.39-0ubuntu8.9)' glibc-libm
+emit examples/elf/pinned/glibc-2.36-libm.so.6 GlibcLibm236 'glibc 2.36 `libm.so.6` (Debian 12 libc6 2.36-9+deb12u14; the image of the pinned `math.h` import)' glibc-2.36-libm
 emit examples/elf/pinned/glibc-libc.so.6 GlibcLibc 'glibc 2.39 `libc.so.6` (Ubuntu libc6 2.39-0ubuntu8.9)' glibc-libc
 echo "gen.sh: ok"
