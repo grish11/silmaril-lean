@@ -89,27 +89,14 @@ theorem satP_linkO (σ : (PUnit.{1} × Store Nat) × Store Nat) (q : Nat × Payl
     satP (l.linkO P Ie Ii) σ q = (l.linkO P Ie Ii).2.1 σ q :=
   congrFun (congrFun (saturated_iff.1 SessionLink.saturated_linkS) σ) q
 
-/-- **The pending calls of the generic link are the call prefixes of the open triple.** -/
-theorem pend_eq (hw : l.WireTy) (u π : Store Nat) (q : Nat × Payload) :
-    satP (HLinked2.compFinO P l Ie Ii, fun _ _ => ∅, HLinked2.compInfO P l Ie Ii) (u, π) q =
-      (l.linkO P Ie Ii).2.1 ((PUnit.unit, π), u) q := by
-  ext x
-  constructor
-  · rintro (h | ⟨d, m', h, -⟩ | ⟨d, e, hd, hc⟩ | ⟨ω, hω, k, hk, hm⟩)
-    · exact h.elim
-    · exact h.elim
-    · have hd' : (d, e) ∈ HLinked2.compFinO P l Ie Ii (u, π) q := hd
-      rw [fin_eq hw] at hd'
-      obtain ⟨x', hx', hxe⟩ := hd'
-      simp only [Prod.mk.injEq] at hxe
-      obtain ⟨rfl, -⟩ := hxe
-      rw [← satP_linkO]
-      exact .inr (.inr (.inl ⟨x'.1, x'.2, hx', hc⟩))
-    · have hω' : ω ∈ HLinked2.compInfO P l Ie Ii (u, π) q := hω
-      rw [inf_eq hw] at hω'
-      rw [← satP_linkO]
-      exact .inr (.inr (.inr ⟨ω, hω', k, hk, hm⟩))
-  · rintro ⟨rs, s₁, a, c, hR, hsatc, hsats, hx1⟩
+/-- **A pending call of the generic link, refused, is a finished behaviour of the open
+triple**: the importer's core instance traps at once. -/
+theorem refuse_mem (hw : l.WireTy) {u π : Store Nat} {q : Nat × Payload}
+    {x : List (Call (sigN l.host.length)) × (sigN l.host.length).Op}
+    (hx : x ∈ (l.linkO P Ie Ii).2.1 ((PUnit.unit, π), u) q) :
+    ∃ σ : Store Nat × Store Nat, (x.1 ++ [⟨x.2, none⟩], End.ret (Sum.inr PUnit.unit) σ) ∈
+      HLinked2.compFinO P l Ie Ii (u, π) q := by
+    obtain ⟨rs, s₁, a, c, hR, hsatc, hsats, hx1⟩ := hx
     obtain ⟨j, vs, f, cs, dss, s, t, e, s', t', nm, ft, ws, rfl, hlow, hp, hpe, himp, hlift, hxa⟩ :=
       LinkedGLink.satP_impTripleS_subset (b := l.imp) (wire := l.wireH) _ _ hsatc
     simp only [Prod.mk.injEq] at hxa
@@ -168,10 +155,37 @@ theorem pend_eq (hw : l.WireTy) (u π : Store Nat) (q : Nat × Payload) :
         HLinked2.compFinO P l Ie Ii (u, π) (j.val, .vals vs) := by
       simp only [HLinked2.compFinO, hq]
       exact .inl ⟨none, s', π₁, hspec, rfl⟩
-    refine .inr (.inr (.inl ⟨_, _, hmem, none, [], ?_⟩))
-    rw [List.flatten_append, List.flatten_singleton, hostCalls_append, hzh, ← hslog, hx1]
-    simp only [List.append_nil, Sum.inl.injEq] at hroute ⊢
-    rw [← hroute]
+    have hlog' : l.hostCalls (dss ++ [[z]]).flatten = x.1 ++ [⟨x.2, none⟩] := by
+      rw [List.flatten_append, List.flatten_singleton, hostCalls_append, hzh, ← hslog, hx1]
+      simp only [List.append_nil, Sum.inl.injEq] at hroute ⊢
+      rw [← hroute]
+    refine ⟨(s', π₁), ?_⟩
+    rw [← hlog']
+    exact hmem
+
+/-- **The pending calls of the generic link are the call prefixes of the open triple.** -/
+theorem pend_eq (hw : l.WireTy) (u π : Store Nat) (q : Nat × Payload) :
+    satP (HLinked2.compFinO P l Ie Ii, fun _ _ => ∅, HLinked2.compInfO P l Ie Ii) (u, π) q =
+      (l.linkO P Ie Ii).2.1 ((PUnit.unit, π), u) q := by
+  ext x
+  constructor
+  · rintro (h | ⟨d, m', h, -⟩ | ⟨d, e, hd, hc⟩ | ⟨ω, hω, k, hk, hm⟩)
+    · exact h.elim
+    · exact h.elim
+    · have hd' : (d, e) ∈ HLinked2.compFinO P l Ie Ii (u, π) q := hd
+      rw [fin_eq hw] at hd'
+      obtain ⟨x', hx', hxe⟩ := hd'
+      simp only [Prod.mk.injEq] at hxe
+      obtain ⟨rfl, -⟩ := hxe
+      rw [← satP_linkO]
+      exact .inr (.inr (.inl ⟨x'.1, x'.2, hx', hc⟩))
+    · have hω' : ω ∈ HLinked2.compInfO P l Ie Ii (u, π) q := hω
+      rw [inf_eq hw] at hω'
+      rw [← satP_linkO]
+      exact .inr (.inr (.inr ⟨ω, hω', k, hk, hm⟩))
+  · intro hx
+    obtain ⟨σ, hσ⟩ := refuse_mem hw hx
+    exact .inr (.inr (.inl ⟨_, _, hσ, none, [], rfl⟩))
 
 /-- **The open triple before restriction is the generic link**, the stores reordered. -/
 theorem compTripleOR_eq (hw : l.WireTy) :
