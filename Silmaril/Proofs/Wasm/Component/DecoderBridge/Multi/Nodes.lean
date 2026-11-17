@@ -308,4 +308,239 @@ theorem nonCore_step {pre : RefComponent} {R R' : RSt}
     | _ => simp [postDefOk] at hpost
   | _ => simp [postDefOk] at hpost
 
+/-! ## The pieces, strengthened -/
+
+/-- **`LaterCoreStep`, with the component-level index spaces kept**: the core instantiation
+pushes only its core instance (types and component functions unchanged). -/
+def LaterCoreStep' : Prop :=
+  ∀ (pre : RefComponent) (mi : Nat) (cargs : List (String × Nat)) (ds : RefComponent)
+    (sc : Scope (core3 neverFail)) (M : Machine.Config (core3 neverFail) Σh)
+    (m : Silmaril.Wasm.Module) (p : Binary.CoreMod × List Impl)
+    (t : List (Σ _ : sigU.Op, Option Payload)) (L : List HLinked2.HostEvent)
+    (K : Scope (core3 neverFail) → Canon.P (core3 neverFail) Σh (Ret (core3 neverFail))),
+    (coreMods pre)[mi]? = some m →
+    postDefOk (preLowers pre) (preInsts pre) (coreMods pre)
+      (.coreInstance (.instantiate mi cargs)) = true →
+    Binary.coreModule p.1 = m → (CoreModule.imports p.1).length = m.imports.length → NodeOk p →
+    NodeCalls hostI.length .ready p.1 p.2 t →
+    (∀ x ∈ t, x.2 = InstTests.unitV) →
+    LaterInv pre sc M →
+    M.ctl = [.ofProg none
+      ((Syntax.Definition.coreInstance (.instantiate mi cargs) :: ds).foldlM
+        (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc >>= K)] →
+    M.host = ((), L) →
+    ∃ (tr : List (Label (core3 neverFail) Σh)) (M' : Machine.Config (core3 neverFail) Σh)
+      (sc' : Scope (core3 neverFail)) (es : List (String × (core3 neverFail).ExternVal)),
+      LRun first.prof embL.hr (DG embL.host) M tr M' ∧
+      (∀ ev, Label.host ev ∉ tr) ∧ (∀ msg, Label.trap msg ∉ tr) ∧
+      M'.ctl = [.ofProg none
+        (ds.foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc' >>= K)] ∧
+      LaterInv pre sc' M' ∧ M'.host = ((), L ++ logOfCalls t) ∧
+      sc'.frame.coreModules = sc.frame.coreModules ∧
+      sc'.frame.coreInstances = sc.frame.coreInstances ++ [es] ∧
+      sc'.frame.coreFuncs = sc.frame.coreFuncs ∧ sc'.exports = sc.exports ∧
+      List.Forall₂ (fun (e : Silmaril.Wasm.Export) (x : String × (core3 neverFail).ExternVal) =>
+        x.1 = e.name ∧ ∀ i, e.index = .func i → ∃ a : Nat, x.2 = Silmaril.Wasm.Execution.Core.ExternAddr.func a)
+        m.exports es ∧
+      sc'.frame.types = sc.frame.types ∧ sc'.frame.funcs = sc.frame.funcs
+
+/-- **`FirstK`, with the frame related to the symbolic reading** of the definitions up to and
+including the first core instantiation. -/
+def FirstK' : Prop :=
+  ∀ (b : ByteArray) (c : Comp Binary.CoreMod) (r : RefComponent)
+    (p : Binary.CoreMod × List Impl) (ps : List (Binary.CoreMod × List Impl))
+    (t₀ : List (Σ _ : sigU.Op, Option Payload)) (pre : RefComponent) (mi : Nat)
+    (cargs : List (String × Nat)) (post : RefComponent),
+    Binary.parseComponent b = .ok c → decodeRef b = .ok r → MultiImpFrag r →
+    c.imports = hostI → c.nodes = coreNodes (p :: ps) → (∀ x ∈ t₀, x.2 = InstTests.unitV) →
+    NodeCalls hostI.length .ready p.1 p.2 t₀ →
+    firstCore? r = some (pre, mi, cargs, post) →
+    ∃ sc M, RefAtDefsK r post sc (logOfCalls t₀) M ∧ LaterInv pre sc M ∧
+      ∀ R₀, (pre ++ [Syntax.Definition.coreInstance (.instantiate mi cargs)]).foldlM refStep
+          ({ env := (r.filter isFuncImport).length } : RSt) = some R₀ →
+        FrameRel (coreMods pre) R₀ sc
+
+/-! ## Core instantiations in the symbolic reading -/
+
+theorem refStep_inst {R R' : RSt} {mi : Nat} {cargs : List (String × Nat)}
+    (h : refStep R (.coreInstance (.instantiate mi cargs)) = some R') :
+    ∃ m nm imps exps w, R.mods[mi]? = some m ∧ coreIface m = .ok (nm, imps, exps) ∧
+      R'.nodes = R.nodes ++ [(m, w)] ∧ R'.coreInsts = R.coreInsts ++ [RCI.node R.env exps] ∧
+      R'.mods = R.mods ∧ R'.types = R.types ∧ R'.funcs = R.funcs ∧
+      R'.coreFuncs = R.coreFuncs := by
+  simp only [refStep, Option.bind_eq_some_iff, Option.some.injEq, bind] at h
+  obtain ⟨m, hm, ⟨nm, imps, exps⟩, hci, w, -, rfl⟩ := h
+  refine ⟨m, nm, imps, exps, w, hm, ?_, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  cases hc : coreIface m with
+  | error e => rw [hc] at hci; cases hci
+  | ok v => rw [hc] at hci; cases hci; rfl
+
+theorem frameRel_inst {pre : RefComponent} {R R' : RSt} {mi : Nat} {cargs : List (String × Nat)}
+    {sc sc' : Scope (core3 neverFail)} {m : Silmaril.Wasm.Module}
+    {es : List (String × (core3 neverFail).ExternVal)}
+    (hF : FrameRel (coreMods pre) R sc) (hR : refStep R (.coreInstance (.instantiate mi cargs)) = some R')
+    (hm : (coreMods pre)[mi]? = some m)
+    (hci : sc'.frame.coreInstances = sc.frame.coreInstances ++ [es])
+    (hcf : sc'.frame.coreFuncs = sc.frame.coreFuncs) (hty : sc'.frame.types = sc.frame.types)
+    (hfn : sc'.frame.funcs = sc.frame.funcs)
+    (hE : List.Forall₂ (fun (e : Silmaril.Wasm.Export) (x : String × (core3 neverFail).ExternVal) =>
+        x.1 = e.name ∧ ∀ i, e.index = .func i →
+          ∃ a : Nat, x.2 = Silmaril.Wasm.Execution.Core.ExternAddr.func a) m.exports es) :
+    FrameRel (coreMods pre) R' sc' := by
+  obtain ⟨m', nm, imps, exps, w, hm', hc, -, hR1, hR2, hR3, hR4, hR5⟩ := refStep_inst hR
+  rw [hF.rmods, hm] at hm'
+  cases hm'
+  refine ⟨hR2.trans hF.rmods, by rw [hty, hR3]; exact hF.types_len, by rw [hty]; exact hF.types_func,
+    by rw [hfn, hR4]; exact hF.funcs_len, by rw [hcf, hR5]; exact hF.cf_len, ?_⟩
+  rw [hci, hR1]
+  have hn : CIRel (coreMods pre) (.node R.env exps) es :=
+    ⟨m, List.mem_of_getElem? hm, ⟨nm, imps, hc⟩, hE⟩
+  exact List.rel_append hF.ci (.cons hn .nil)
+
+/-! ## The later definitions -/
+
+theorem ctl_cons {sc : Scope (core3 neverFail)} {d : Syntax.Definition Silmaril.Wasm.Module}
+    {ds : RefComponent}
+    {K : Scope (core3 neverFail) → Canon.P (core3 neverFail) Σh (Ret (core3 neverFail))} :
+    ((d :: ds).foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc >>= K) =
+      (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI) sc d >>= fun sc' =>
+        ds.foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc' >>= K) := by
+  erw [List.foldlM_cons]
+  simp only [bind_assoc]
+
+theorem findSome_append_some {tr₁ tr₂ : List (Label (core3 neverFail) Σh)}
+    (h : ∃ x, (traceObs tr₂).findSome? decodeInstantiated? = some x) :
+    ∃ x, (traceObs (tr₁ ++ tr₂)).findSome? decodeInstantiated? = some x := by
+  obtain ⟨x, hx⟩ := h
+  simp only [traceObs, List.filterMap_append, List.findSome?_append] at hx ⊢
+  cases (tr₁.filterMap Label.obs?).findSome? decodeInstantiated? with
+  | none => exact ⟨x, by simpa using hx⟩
+  | some y => exact ⟨y, rfl⟩
+
+theorem traceObs_tau {tr : List (Label (core3 neverFail) Σh)} (h : ∀ l ∈ tr, l = .tau) :
+    traceObs tr = [] := by
+  induction tr with
+  | nil => rfl
+  | cons l tr ih =>
+    rw [h l List.mem_cons_self]
+    exact ih (fun l' hl' => h l' (List.mem_cons_of_mem _ hl'))
+
+/-- **The later definitions, then the end of the instantiation.** -/
+theorem later_run (h2 : LaterCoreStep') {pre : RefComponent} :
+    ∀ (ds : RefComponent) (R Rf : RSt) (sc : Scope (core3 neverFail))
+      (M : Machine.Config (core3 neverFail) Σh)
+      (K : Scope (core3 neverFail) → Canon.P (core3 neverFail) Σh (Ret (core3 neverFail)))
+      (L : List HLinked2.HostEvent) (ps : List (Binary.CoreMod × List Impl))
+      (ts : List (List (Σ _ : sigU.Op, Option Payload))),
+      ds.foldlM refStep R = some Rf →
+      ds.all (postDefOk (preLowers pre) (preInsts pre) (coreMods pre)) = true →
+      (∃ X, Rf.nodes = R.nodes ++ X ∧ List.Forall₂ NodeW (coreNodes ps) X) →
+      (∀ p ∈ ps, NodeOk p) →
+      List.Forall₂ (fun q tj => NodeCalls hostI.length .ready q.1 q.2 tj) ps ts →
+      (∀ x ∈ ts.flatten, x.2 = InstTests.unitV) →
+      FrameRel (coreMods pre) R sc → LaterInv pre sc M → KFin K →
+      M.ctl = [.ofProg none
+        (ds.foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc >>= K)] →
+      M.host = ((), L) →
+      ∃ tr M', Steps first.prof embL.hr (Host.ofEmbedder embL).dispatch M tr M' ∧
+        (∀ ev, Label.host ev ∉ tr) ∧ M'.ctl = [] ∧ M'.store.lockdown = false ∧
+        M'.host = ((), L ++ logOfCalls ts.flatten) ∧
+        ∃ x, (traceObs tr).findSome? decodeInstantiated? = some x
+  | [], R, Rf, sc, M, K, L, ps, ts, hfold, _, hX, _, hNC, _, _, hL, hK, hc, hh => by
+    simp only [List.foldlM_nil] at hfold
+    cases hfold
+    obtain ⟨X, hX, hW⟩ := hX
+    have hX0 : X = [] := by simpa using hX.symm
+    subst hX0
+    have hps : ps = [] := by
+      cases ps with
+      | nil => rfl
+      | cons _ _ => cases hW
+    subst hps
+    cases hNC
+    have hc' : M.ctl = [.ofProg none (K sc)] := by rw [hc]; rfl
+    obtain ⟨tr, M', hs, hn, hctl, hlock, hhost, -, hobs⟩ := hK sc M hL.lock hc'
+    exact ⟨tr, M', hs, hn, hctl, hlock, by rw [hhost, hh]; simp [logOfCalls], _, hobs⟩
+  | d :: ds, R, Rf, sc, M, K, L, ps, ts, hfold, hpost, hX, hok, hNC, hu, hF, hL, hK, hc, hh => by
+    simp only [List.foldlM_cons] at hfold
+    cases hR : refStep R d with
+    | none => rw [hR] at hfold; cases hfold
+    | some R₁ =>
+    rw [hR] at hfold
+    simp only [List.all_cons, Bool.and_eq_true] at hpost
+    obtain ⟨hd, hpost⟩ := hpost
+    obtain ⟨X, hX, hW⟩ := hX
+    obtain ⟨Y, hY, -⟩ := foldlM_refStep_nodes hfold
+    by_cases hi : IsInst d
+    · -- a core instantiation
+      obtain ⟨mi, cargs, rfl⟩ : ∃ mi cargs, d = .coreInstance (.instantiate mi cargs) := by
+        cases d with
+        | coreInstance ci => cases ci with
+          | instantiate mi cargs => exact ⟨mi, cargs, rfl⟩
+          | exports => exact hi.elim
+        | _ => exact hi.elim
+      obtain ⟨m, nm, imps, exps, w, hm, hci, hRn, -⟩ := refStep_inst hR
+      have hm' : (coreMods pre)[mi]? = some m := by rw [← hF.rmods]; exact hm
+      have hXY : X = (m, w) :: Y := by
+        rw [hY, hRn] at hX
+        simpa using hX.symm
+      subst hXY
+      obtain ⟨p, ps', rfl, hpW, hW'⟩ : ∃ p ps', ps = p :: ps' ∧ NodeW (.core p.1 p.2) (m, w) ∧
+          List.Forall₂ NodeW (coreNodes ps') Y := by
+        cases ps with
+        | nil => cases hW
+        | cons p ps' => cases hW with | cons h1 h2 => exact ⟨p, ps', rfl, h1, h2⟩
+      obtain ⟨cm, he, hdec, hcif⟩ := hpW
+      injection he with he₁ he₂
+      subst he₁
+      have hmod : Binary.coreModule p.1 = m := by
+        unfold Binary.coreModule
+        rw [hdec]
+        rfl
+      have hilen : (CoreModule.imports p.1).length = m.imports.length :=
+        (FirstImp.coreIface_imports_length hcif).symm ▸ rfl
+      obtain ⟨t, ts', rfl, ht, hNC'⟩ : ∃ t ts', ts = t :: ts' ∧
+          NodeCalls hostI.length .ready p.1 p.2 t ∧
+          List.Forall₂ (fun q tj => NodeCalls hostI.length .ready q.1 q.2 tj) ps' ts' := by
+        cases hNC with | cons h1 h2 => exact ⟨_, _, rfl, h1, h2⟩
+      simp only [List.flatten_cons, List.mem_append] at hu
+      obtain ⟨tr₁, M₁, sc₁, es, d₁, hn₁, -, hc₁, hL₁, hh₁, -, hci₁, hcf₁, -, hE, hty₁, hfn₁⟩ :=
+        h2 pre mi cargs ds sc M m p t L K hm' hd hmod hilen (hok p List.mem_cons_self) ht
+          (fun x hx => hu x (.inl hx)) hL hc hh
+      have hF₁ := frameRel_inst hF hR hm' hci₁ hcf₁ hty₁ hfn₁ hE
+      obtain ⟨tr₂, M₂, d₂, hn₂, hctl, hlock, hhost, hobs⟩ :=
+        later_run h2 ds _ Rf sc₁ M₁ K (L ++ logOfCalls t) ps' ts' hfold hpost ⟨Y, hY, hW'⟩
+          (fun q hq => hok q (List.mem_cons_of_mem _ hq)) hNC' (fun x hx => hu x (.inr hx))
+          hF₁ hL₁ hK hc₁ hh₁
+      refine ⟨tr₁ ++ tr₂, M₂, Adequacy.steps_append d₁.steps d₂, ?_, hctl, hlock, ?_, ?_⟩
+      · intro ev hev
+        rcases List.mem_append.mp hev with h | h
+        · exact hn₁ ev h
+        · exact hn₂ ev h
+      · rw [hhost, List.flatten_cons, logOfCalls_append, List.append_assoc]
+      · exact findSome_append_some hobs
+    · -- another definition
+      obtain ⟨sc₁, M₁, hT, hF₁, hL₁, hh₁⟩ := nonCore_step hd hi hR hF hL
+      obtain ⟨tr₁, hq, htau⟩ := sruns_tau (dispatch := DG embL.host) hT none rfl
+      have d₁ := RunsQ.lrun_at (prof := first.prof) (hr := embL.hr) hq hL.lock
+        (fun sc' => ds.foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc' >>= K)
+        (segs := []) (rest := []) (by rw [hc, ctl_cons]; rfl)
+      obtain ⟨Y₁, hY₁, hY₁'⟩ := refStep_nodes hR
+      have hY0 := hY₁' hi
+      subst hY0
+      obtain ⟨tr₂, M₂, d₂, hn₂, hctl, hlock, hhost, hobs⟩ :=
+        later_run h2 ds R₁ Rf sc₁ { M₁ with ctl := _ } K L ps ts hfold hpost
+          ⟨X, by rw [hX, hY₁, List.append_nil], hW⟩ hok hNC hu hF₁
+          (hL₁.congr rfl rfl (fs := []) (by simp)) hK rfl (by rw [← hh, ← hh₁])
+      refine ⟨tr₁ ++ tr₂, M₂, Adequacy.steps_append d₁.steps d₂, ?_, hctl, hlock, hhost, ?_⟩
+      · intro ev hev
+        rcases List.mem_append.mp hev with h | h
+        · exact absurd (htau _ h) (by simp)
+        · exact hn₂ ev h
+      · rw [traceObs, List.filterMap_append]
+        have := traceObs_tau htau
+        simp only [traceObs] at this
+        rw [this, List.nil_append]
+        exact hobs
+
 end Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi
