@@ -72,6 +72,21 @@ ELF-only adapters a statement about a function of a file needs next to `CodeAt`:
 | `Asm.RefTargetIn F r i`, `Asm.RefTargetReadOnly F r` | a reference's target lies in segment `i`; every segment mapping it is read-only (from the address alone, no decoder) |
 | `ImageLoaded F A base mem`, `readWith_of_segBytes`, `readWith_of_codeAt`, `readWith_of_readOnlyAt` | a memory holding the image at `base` wherever no relocation writes; then an untouched segment range reads back as the file's bytes at `base + v` |
 
+Boundaries, each with a kernel-checked example (`Silmaril.Elf.Load.Examples`):
+
+- **`Untouched` is a footprint model.** It is about the relocation records and the widths
+  `File.relocWidth` assigns. For `COPY` the width is the destination's `st_size`, which bounds
+  what glibc (`MIN` of the definition's and the destination's size) and musl (the destination's
+  size) copy. That bound is an assumption about the loader; another loader is outside the domain.
+- **`ReadOnlyAt` is a first match.** `overlap_first`/`overlap_ambiguous` show a read-only segment
+  found first while a writable one maps the same address. `readOnlyAt_unique` adds `Unambiguous`
+  and concludes that the read-only segment is the only origin of every byte.
+- **`ImageLoaded` is a hypothesis, sometimes unsatisfiable.** `conflict_no_memory`: when two
+  segments map one address from differing file bytes, no memory satisfies it, so a statement
+  conditional on it is vacuous for that file. `one_loaded`/`one_read`: on a one-segment image a
+  memory satisfies it, and the read-back theorem gives the file's bytes, so the chain is not
+  vacuous.
+
 `ImageLoaded` is a property of a memory: nothing here runs a loader, and `Placement F base` only
 says which bases a statement covers. Its satisfiability is not proved; on a file whose overlapping
 segments disagree it is unsatisfiable, so check `Image.Unambiguous` on the load ranges (done for

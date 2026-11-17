@@ -144,4 +144,17 @@ theorem readWith_of_readOnlyAt {F : Blob} {A : File} (hA : Parses F A) {base : N
   cases parses_unique hA hB
   exact readWith_of_segBytes hL hs hu hp
 
+theorem readOnlyAt_unique {F : Blob} {A : File} (hA : Parses F A) {v : Nat}
+    {bytes : List (BitVec 8)} (hr : ReadOnlyAt F v bytes) (hu : Unambiguous A v bytes.length) :
+    ∃ i ph, A.phdrs[i]? = some ph ∧ roSeg v bytes.length ph = true ∧
+      ∀ k, k < bytes.length →
+        A.origins (v + k) = [(i, Origin.file (ph.offset + (v - ph.virtualAddress) + k))] := by
+  obtain ⟨B, hB, i, ph, hph, hro, hs⟩ := readOnlyAt_segBytes hr
+  cases parses_unique hA hB
+  refine ⟨i, ph, hph, hro, fun k hk => ?_⟩
+  have hm := mapsFile_origins hs.1 hk
+  obtain ⟨x, hx⟩ := List.length_eq_one_iff.mp (hu k hk)
+  rw [hx] at hm ⊢
+  rw [List.mem_singleton.mp hm]
+
 end Silmaril.Proofs.Elf.Load

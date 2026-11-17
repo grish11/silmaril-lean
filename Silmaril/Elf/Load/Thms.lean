@@ -63,6 +63,16 @@ theorem not_present_of_absent {F : Blob} {n : Silmaril.Formats.ELF.NameBytes}
     (ha : AbsentName F n) : ¬ PresentFn F n :=
   Proofs.Elf.Load.not_present_of_absent ha
 
+/-- **`ReadOnlyAt` with `Unambiguous`: the read-only segment is the only one.** Every byte of the
+range has exactly that segment as its origin, so no writable segment maps it. (`ReadOnlyAt`
+alone is a first match: `Examples.overlap_first`.) -/
+theorem readOnlyAt_unique {F : Blob} {A : File} (hA : Parses F A) {v : Nat}
+    {bytes : List (BitVec 8)} (hr : ReadOnlyAt F v bytes) (hu : Unambiguous A v bytes.length) :
+    ∃ i ph, A.phdrs[i]? = some ph ∧ roSeg v bytes.length ph = true ∧
+      ∀ k, k < bytes.length →
+        A.origins (v + k) = [(i, Origin.file (ph.offset + (v - ph.virtualAddress) + k))] :=
+  Proofs.Elf.Load.readOnlyAt_unique hA hr hu
+
 /-- **A `.symtab` lookup finds a defined function entry** with the name looked up. -/
 theorem lookup_sym_entry {F : Blob} {n : Silmaril.Formats.ELF.NameBytes} {d : Def}
     (h : Lookup F (.sym n) (some d)) :
