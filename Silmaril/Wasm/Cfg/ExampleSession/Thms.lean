@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Cfg.ExampleSession.Defs
 public import Silmaril.Wasm.Cfg.Session.Thms
+public import Silmaril.Wasm.Cfg.SessionCheck.Defs
 import Silmaril.Proofs.Wasm.Cfg.ExampleSession
 
 @[expose] public section
@@ -14,6 +15,8 @@ interface rules out host calls inside an activation, not infinitely many export 
 
 * `ses_hfOk`: the instance is in the host-free fragment (`Session.HFOk`) at its store: well
   formed, only Wasm functions with function types, `tExt`-checked.
+* `ses_check`, `ses_hfOk_checked`: the executable domain check `SessionCheck.hfCheck` accepts
+  the instance, which gives the same domain from the module's validation and instantiation.
 * `trap_round`, `val_round`: on the CFG machine, export `0` traps (`unreachable`) keeping the
   store, and export `1` answers `7` from the exit stack.
 * `trap_forever`: repeating the trap is an infinite play of the CFG session: each round resumes
@@ -32,6 +35,12 @@ open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 /-- **The instance is in the host-free fragment.** -/
 theorem ses_hfOk : HFOk sesInst sesStore := Proofs.ExampleSession.ses_hfOk
+
+/-- **The executable domain check accepts the instance.** -/
+theorem ses_check : SessionCheck.hfCheck sesInst = true := Proofs.ExampleSession.ses_check
+
+/-- **The domain from the executable check**, through `SessionCheck.hfOk_of_check`. -/
+theorem ses_hfOk_checked : HFOk sesInst sesStore := Proofs.ExampleSession.ses_hfOk_checked
 
 /-- **Export `0` traps on the CFG machine**, keeping the store. -/
 theorem trap_round (o : GrowOracle) :

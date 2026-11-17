@@ -504,6 +504,18 @@ The plain graph stays an over-approximation, and claims about it say so.
          **`cfgSessions` is compatibility, not coverage**: outside `HFOk` it falls back to the
          Core 3.0 instance session; no CFG semantics of general modules or components is
          claimed without the domain hypothesis.
+    - **The domain, checked, and components on it** (`Wasm/Cfg/SessionCheck`):
+      - `hfOk_of_check`: for a validated module without imports, instantiated into the empty
+        store, an instance passing the executable check `hfCheck` is in `HFOk`.
+        - `hfCheck` uses existing checkers: `storeChkEB tExt`, a Wasm-function check, and export
+          types via `expand?`.
+        - Store typing comes from validation and instantiation.
+      - `denUD_congrIn`: a denotation depends only on the core instances a component uses
+        (`CompIn`).
+      - `denUD_core3SemD_eq_cfgSession` and `denD_…`: when every core instance of a component
+        is in `HFOk`, its Core 3.0 denotation is the one with CFG sessions. There is no
+        fallback, and nothing is claimed outside the domain.
+      - Regression: `ExampleSession.ses_hfOk_checked`.
     - **Catch exits (#866 regression)** (`Wasm/Cfg/ExampleCatchExit`, a validated module with a
       tag `[i32 i32] → []`): a caught exception branching to the function label exits with the
       whole frame stack: `machine_catch` (`1, 3, 4`: the `try_table`'s outer value under the

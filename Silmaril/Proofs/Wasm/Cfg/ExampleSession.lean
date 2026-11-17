@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Cfg.Session.Thms
 public import Silmaril.Wasm.Interp.ExampleX.Thms
 public import Silmaril.Wasm.Validation.Check.Validate
 public import Silmaril.Proofs.Wasm.Cfg.Session
+public import Silmaril.Wasm.Cfg.SessionCheck.Thms
 
 @[expose] public section
 
@@ -105,6 +106,24 @@ theorem ses_hfOk : HFOk sesInst sesStore where
         rw [hcode] at hc; cases hc }
   wasm := sesStore_wasmT
   chk := sesStore_chkE
+
+/-- The executable domain check accepts the instance. -/
+theorem ses_check : SessionCheck.hfCheck sesInst = true := by decide +kernel
+
+/-- **The domain from the executable check** (`SessionCheck.hfOk_of_check`), from the module's
+validation and instantiation. -/
+theorem ses_hfOk_checked : HFOk sesInst sesStore := by
+  obtain ⟨mt, hmt, hnil⟩ : ∃ mt, Validation.validate? sesMod = some mt ∧ mt.imports.isEmpty := by
+    rcases h : Validation.validate? sesMod with _ | mt
+    · have hm := sesMod_valid
+      simp [h] at hm
+    · have hm := sesMod_valid
+      simp only [h, Option.map_some, Option.some.injEq] at hm
+      exact ⟨mt, rfl, hm⟩
+  have hst : sesPrep.2 = none := Option.isNone_iff_eq_none.mp sesPrep_shape.2
+  have hp : prepare? evalConst? ({} : Store Nat) sesMod [] = some (sesPrep.1, none) := by
+    rw [sesPrep_eq, ← hst]
+  exact SessionCheck.hfOk_of_check hmt (List.isEmpty_iff.mp hnil) hp rfl ses_check
 
 /-! ## The two activations on the CFG machine -/
 
