@@ -62,7 +62,7 @@ theorem trapEntry_eq {z : (wasmOShape H).self.Op} {s₂ s' : Store H} {a : Nat} 
   have h1 := congrArg Sigma.fst h
   obtain ⟨-, h2⟩ := Sigma.mk.inj_iff.mp h
   have h3 := congrArg Prod.snd (eq_of_heq h2)
-  simp only [trapEntry, SCall.mk, Sum.inr.injEq] at h1
+  simp only [trapEntry, SCall.mk] at h1
   cases h1
   exact ⟨rfl, h3⟩
 
@@ -187,5 +187,90 @@ theorem trap_last {s : Store H} {f : Frame} {N : List Val} {es : List BExpr}
   | tryEsc _ _ _ _ ihb => exact ihb
   | tryCatch _ _ _ ihb => intro A z s₂ B h; simpa using (ihb A z s₂ B h).2.2
   | tryRethrow _ _ _ ihb => intro A z s₂ B h; simpa using (ihb A z s₂ B h).2.2
+
+/-! ## The encoding, both ways -/
+
+/-- **A reached call, answered by a callee trap** (`callTrap`, `indTrap`, `refTrap`): for every
+answer store `s₂`, the code runs with the prefix log then the trap-answered entry, ending in a
+trap in `s₂` (in the frame at the call). -/
+theorem reach_trap {s : Store H} {f : Frame} {N : List Val} {es : List BExpr}
+    {l : List (SCall H)} {z : (wasmOShape H).self.Op} (h : ReachLXPS s f N es l z)
+    (s₂ : Store H) : ∃ f', EvalLXPS s f N es (l ++ [trapEntry z s₂]) (s₂, f', .flow .trap) := by
+  induction h with
+  | call hargs hfi hty => exact ⟨_, .callTrap hargs hfi hty⟩
+  | ind hargs hres hfi hty hy => exact ⟨_, .indTrap hargs hres hfi hty hy⟩
+  | ref hargs hfi hty hy => exact ⟨_, .refTrap hargs hfi hty hy⟩
+  | args _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', .argsAbort h (by simp [POut.IsNormal, Flow.IsNormal])⟩
+  | callK hargs hfi hty _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.callRet hargs hfi hty h⟩
+  | indK hargs hres hfi hty hy _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.indRet hargs hres hfi hty hy h⟩
+  | refK hargs hfi hty hy _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.refRet hargs hfi hty hy h⟩
+  | opK hi hargs hflat _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.opOk hi hargs hflat h⟩
+  | block har _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', .blockEsc har h trivial⟩
+  | blockK har hbody hvs _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.blockOk har hbody hvs h⟩
+  | loop har _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', .loopEsc har h trivial⟩
+  | loopK har hbody _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.loopOk har hbody h⟩
+  | loopBack har hbody _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.loopBack har hbody h⟩
+  | cond _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', .ifAbort h (by simp [POut.IsNormal, Flow.IsNormal])⟩
+  | arm hc hb har _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.ifEsc hc hb har h trivial⟩
+  | ifK hc hb har harm hvs _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.ifOk hc hb har harm hvs h⟩
+  | handler har _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', .tryEsc har h trivial trivial⟩
+  | tryK har hbody hvs _ ih =>
+    obtain ⟨f', h⟩ := ih
+    exact ⟨f', by simpa using EvalLXPS.tryOk har hbody hvs h⟩
+
+theorem singleton_eq {l₁ A : List (SCall H)} {x y : SCall H} (h : l₁ ++ [y] = A ++ [x]) :
+    l₁ = A ∧ y = x := by
+  simpa using List.append_inj' h rfl
+
+/-- A run whose log holds a trap-answered entry does not end normally. -/
+theorem trap_not_normal {s s' : Store H} {f f' : Frame} {N N' : List Val} {es : List BExpr}
+    {A B : List (SCall H)} {z : (wasmOShape H).self.Op} {s₂ : Store H}
+    (h : EvalLXPS s f N es (A ++ trapEntry z s₂ :: B) (s', f', .flow (.normal N'))) : False := by
+  simpa using (trap_last h A z s₂ B rfl).2.2
+
+/-- **A run ending with a trap-answered entry reached that call** after exactly the prefix
+log. -/
+theorem trap_reach {s : Store H} {f : Frame} {N : List Val} {es : List BExpr}
+    {l : List (SCall H)} {r : Store H × Frame × POut} (h : EvalLXPS s f N es l r) :
+    ∀ (l' : List (SCall H)) (z : (wasmOShape H).self.Op) (s₂ : Store H),
+      l = l' ++ [trapEntry z s₂] → ReachLXPS s f N es l' z := by
+  induction h with
+  | nil => intro l' z s₂ h; simp at h
+  | argsAbort _ _ ih => intro l' z s₂ h; exact .args (ih l' z s₂ h)
+  | callRet hargs hfi hty _ _ ihk =>
+    intro l' z s₂ h
+    rcases loc3 h.symm with ⟨B', h1⟩ | ⟨-, h1, -⟩ | ⟨A', h1, h2⟩
+    · simp at h1
+    · sorry
+    · sorry
+  | _ => sorry
 
 end Silmaril.Wasm.Cfg.Proofs.MachineLPend
