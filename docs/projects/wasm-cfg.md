@@ -994,15 +994,26 @@ The plain graph stays an over-approximation, and claims about it say so.
              native↔Core bridge (`NativeHostSlice.noThrow`) excludes. So for instances with
              imports, `core3SemD` keeps its Core session (`cfgInstSessions` falls back), and
              only the throw-free session is CFG-equal.
-          3. Regressions: recursion through a host, trap-then-resume, and productive host
-             interaction.
+          3. **Regressions, done** (`Wasm/Cfg/ExampleRegress`). One validated store (`rgMod`,
+             one host import `h : [i32] → []`, a spec instance, `StoreOk`, `StoreChkE (ehExt
+             tags)` by `storeChkEB`). Each fixture is proved on the CFG closure directly, by
+             explicit logged-machine runs resolved by `Shape.close`/`closeInfL`, not via
+             `cfgSessionTripleC_eq`:
+             - recursion through a host: `rec_run` and `rec_log`, where `rec k` has the host
+               log `h(k), …, h(0)`, one call per depth;
+             - trap then resume: `trap_then_get`, where `trap` writes a global and traps, and
+               the session continues and `get` reads `42`;
+             - productive host interaction: `pump_prod`, `pump_stream`, `pump_session`, a loop
+               with the exact stream `h(0), h(1), …`; `regress_play` chains `trap`, `get`
+               and the infinite `pump` play from the trap's store in one session.
         - Equality with the store-retaining session closure `wasmEvFunXPS`/`sessionTripleXP`
           (not the trap-store-erasing `wasmEvFunXP`): done (`cfgEvFun_eq`,
           `cfgSessionTriple_eq`).
         - Then the instance session with imports and exceptions, via the existing Core adequacy
           (`wasmEvFunXPS_*_iff`, `wasmEvPendXPS_eq`, productive streams) and NodeBridge, on a
           typed fragment with the exception checker (`ehExt tags`).
-        - Regressions: recursion through a host, trap-then-resume, productive host interaction.
+        - Regressions: recursion through a host, trap-then-resume, productive host interaction:
+          done (`Wasm/Cfg/ExampleRegress`, item 3 above).
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
