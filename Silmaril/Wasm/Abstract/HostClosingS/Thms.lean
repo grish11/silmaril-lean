@@ -33,8 +33,8 @@ The session closure `wasmEvFunXPS` keeps the store of every trap, and erasing th
   `s₂` (forward every profile, `wasmEvFunXPS_trap_evRun`; backward deterministic). Values and
   exceptions are the canonical ones (`mem_wasmEvFunXPS_ret_iff`, `wasmEvFunXPS_vals_iff`,
   `wasmEvFunXPS_throw_iff`).
-* `evalLXPh_session`: a canonical logged run not ending in a trap is a session run, its calls
-  answered as `inl` (`OCall.toS`).
+* `evalLXPh_session`, `evalLXPS_canonical`: a canonical logged run not ending in a trap is a
+  session run, its calls answered as `inl` (`OCall.toS`), and conversely.
 * `wasmEvPendXPS_eq`: the session pending calls are the canonical ones.
 * `wasmEvFunDXPS_erase`, `eraseTrap_sessionTripleXP`, `sessionTripleXP_noPlainTrap`: the session
   triple erases to `openTripleXP` and keeps every trap's store.
@@ -209,6 +209,15 @@ theorem evalLXPh_session {s : Store H} {f : Frame} {stk : List Val} {es : List B
   have : (OCall.toS : OCall H → SCall H) = Silmaril.Proofs.Wasm.Abstract.HostClosingS.oToS := by
     funext z; rcases z with ⟨⟨⟨⟩⟩ | y, b, s'⟩; rfl
   rw [this]; exact Silmaril.Proofs.Wasm.Abstract.HostClosingS.evalLXPh_toS_ok h ho
+
+/-- **A session run not ending in a trap is a canonical logged run**, its calls the session
+reading (`OCall.toS`) of the canonical ones. -/
+theorem evalLXPS_canonical {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (SCall H)} {r : Store H × Frame × CallXP.POut} (h : EvalLXPS s f stk es l r)
+    (ho : r.2.2 ≠ .flow .trap) : ∃ l', l = l'.map OCall.toS ∧ EvalLXPh s f stk es l' r := by
+  have : (OCall.toS : OCall H → SCall H) = Silmaril.Proofs.Wasm.Abstract.HostClosingS.oToS := by
+    funext z; rcases z with ⟨⟨⟨⟩⟩ | y, b, s'⟩; rfl
+  rw [this]; exact (Silmaril.Proofs.Wasm.Abstract.HostClosingS.evalLXPS_toH h).ok ho
 
 /-! ## Pending calls -/
 

@@ -509,6 +509,19 @@ theorem qb_step {body : Expr} {g : ℕ → MState H} :
               heq.symm, hterm, hk, h₂, hl₂, hsel, harm, har, hg⟩⟩
         · exact absurd trivial hn
 
+/-- **Positions of a run that never leaves their sequence diverge natively.** -/
+theorem qx_div {body : Expr} {g : ℕ → MState H} {s : Store H} {f : Frame} {N : List Val}
+    {es : List BExpr} (h : QX body g s f N es) : EvalDivXP s f N es := by
+  have hX : ∀ s f N es, QX body g s f N es → DivStepXP (QX body g) FunDivXP s f N es := by
+    rintro s f N es (⟨n, p, c, i, sg, pre, post, ls, hp, hok, rfl, hstay, hres⟩ | hA | hD)
+    · exact qb_step post hp hok hstay hres
+    · exact qa_step hA
+    · exact (evalDivXP_iff_step.1 hD).mono (fun _ _ _ _ h => .inr (.inr h)) le_rfl
+  have hY : ∀ s a vs, FunDivXP s a vs → CallStepXP (QX body g) FunDivXP s a vs := by
+    intro s a vs h
+    exact (funDivXP_iff_step.1 h).mono (fun _ _ _ _ h => .inr (.inr h)) le_rfl
+  exact (evalDivXP_of_coind hX hY).1 _ _ _ _ h
+
 /-- **Infinite local steps from the CFG entry are native divergence of the body.** -/
 theorem infK_div {body : Expr} {s : Store H} {f : Frame} (h : InfK body (initial body s f)) :
     EvalDivXP s f [] (liftInstrs body) := by
@@ -518,15 +531,7 @@ theorem infK_div {body : Expr} {s : Store H} {f : Frame} (h : InfK body (initial
     obtain ⟨l, hs, hl⟩ := hg m
     obtain ⟨l', hs', -⟩ := hg (m + 1)
     exact ⟨Nat.zero_le _, l, mstepS_zero hs (mstepL_block hs'), hl⟩
-  have hX : ∀ s f N es, QX body g s f N es → DivStepXP (QX body g) FunDivXP s f N es := by
-    rintro s f N es (⟨n, p, c, i, sg, pre, post, ls, hp, hok, rfl, hstay, hres⟩ | hA | hD)
-    · exact qb_step post hp hok hstay hres
-    · exact qa_step hA
-    · exact (evalDivXP_iff_step.1 hD).mono (fun _ _ _ _ h => .inr (.inr h)) le_rfl
-  have hY : ∀ s a vs, FunDivXP s a vs → CallStepXP (QX body g) FunDivXP s a vs := by
-    intro s a vs h
-    exact (funDivXP_iff_step.1 h).mono (fun _ _ _ _ h => .inr (.inr h)) le_rfl
-  have hle := (evalDivXP_of_coind hX hY).1
+  have hle : ∀ s f N es, QX body g s f N es → EvalDivXP s f N es := fun _ _ _ _ h => qx_div h
   obtain ⟨l, hs, -⟩ := hg 0
   obtain ⟨b, hb⟩ := mstepL_block hs
   have hie := initial_eq body s f
