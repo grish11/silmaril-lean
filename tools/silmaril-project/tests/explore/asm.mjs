@@ -95,6 +95,16 @@ try {
     check(JSON.stringify(got.map((x) => x.join("|")).sort()) === JSON.stringify(want.map((x) => x.join("|")).sort()),
       `${tag}: one evidence row per dimension, status from its own evidence (${got.map(([a, m, s]) => `${a}${m ? ":" + m.split(".").slice(-2)[0] : ""}=${s}`).join(", ")})`);
     for (const [dim, , st, text] of pg.dims) if (st === "none" && dim !== "abi") check(/none/.test(text), `${tag}: ${dim} with no evidence shows none`);
+    // The demo the dimensions exist for: a contract on one machine does not make a decoder accept the bytes.
+    const dec = (model) => pg.dims.find(([dim, m]) => dim === "decode" && m === model)?.[2];
+    if (fn.name === "crc32_z" && fn.arch?.machine === 62)
+      check(dec("x86-64/Silmaril.X86.Open.decode") === "holds" && dec("x86-64/Silmaril.X86.Ext.decode") === "does not hold" &&
+        pg.dims.some(([dim, , st]) => dim === "contract" && st === "holds"),
+        `${tag}: decoded by Open, not by Ext (proved), its contract on Open shown separately`);
+    if (fn.name === "adler32_z")
+      check(dec("x86-64/Silmaril.X86.Open9.decode") === "holds" && dec("x86-64/Silmaril.X86.Open.decode") === "does not hold" &&
+        pg.dims.some(([dim, , st]) => dim === "contract" && st === "holds"),
+        `${tag}: decoded by Open9, not by Open (proved), its contract on Open9 shown separately`);
     // each row names exactly its own declarations
     const decRows = pg.dims.filter(([dim]) => dim in DIMS);
     check(decRows.every(([dim, , , text]) => fn.evidence.filter((e) => DIMS[dim][0].concat(DIMS[dim][1]).includes(e.kind)).every((e) => text.includes(e.decl.split(".").slice(-2).join(".")))),
