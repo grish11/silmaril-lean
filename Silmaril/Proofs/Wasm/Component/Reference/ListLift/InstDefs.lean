@@ -8,13 +8,13 @@ public import Silmaril.Proofs.Wasm.Component.Reference.ListLift.InstTypes
 The definitions of `ListComp.toRef` run silently (`TRuns`) from the empty frame:
 
 * the core module and the core instance (`instDef_coreModule`, `instDef_coreInstance`);
-* `alias core export 0 memName (core memory)`: core memory `0` is memory address `0`
+* `alias core export 0 memName (core memory)`: core memory `0` is memory address `memIdx`
   (`instDef_aliasMem`); the allocator alias and the aliases of the lifted core functions
   (`aliases_eq`), so that core function `0` is the allocator and core function `i + 1` the core
   function of export `i`;
 * the type definitions (`typeDefs_run`);
 * `canon lift (core func i+1) (memory 0) (realloc 0) (type t)`: the options resolve to memory
-  address `0` and the allocator's address, and each lift allocates the next component function
+  address `memIdx` and the allocator's address, and each lift allocates the next component function
   (`instDef_liftL`, `lifts_run`);
 * the exports of the lifted functions (`exports_eq`).
 
@@ -248,7 +248,7 @@ noncomputable def prefixFrameL (c : ListComp) (es₀ : List (String × (core3P P
 /-- The scope after the core module, the core instance and the memory and allocator aliases. -/
 noncomputable def prefixScopeL (c : ListComp) (es₀ : List (String × (core3P Pf).ExternVal))
     (ra : Nat) : Scope (core3P Pf) :=
-  { frame := prefixFrameL c es₀ [Silmaril.Wasm.Execution.Core.ExternAddr.mem 0] [ra] }
+  { frame := prefixFrameL c es₀ [Silmaril.Wasm.Execution.Core.ExternAddr.mem c.memIdx] [ra] }
 
 /-- **The definitions of `c.toRef` run silently** from a store with the empty core store and
 no component function: the core instance, then the lifted functions of the exports. -/
@@ -258,7 +258,7 @@ theorem toRefDefs_runL {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance}
     (hcore : cfg.store.core = (core3P Pf).empty _) (hfuncs : cfg.store.funcs = []) :
     ∃ sc', TRuns (List.foldlM (instantiateDef R inst outer args) {} c.toRef) cfg sc'
         { cfg with store := (liftStore cs cfg.store
-            (liftedListL (Pf := Pf) (c.coreAddr I) 0 (c.coreAddr I c.reallocName) inst
+            (liftedListL (Pf := Pf) (c.coreAddr I) c.memIdx (c.coreAddr I c.reallocName) inst
               c.exports)) } ∧
       funcExports sc'.exports = exportMapL c ∧ NoImport c.toRef := by
   have hp : (core3P Pf).prepare? cfg.store.core c.mod [] = some (cs, ci, none) := by
@@ -272,10 +272,10 @@ theorem toRefDefs_runL {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance}
       exports := [] } cfg rfl hF.imports hp
   have h₃ := instDef_aliasMem (R := R) (inst := inst) (outer := outer) (args := args) (σ := σ)
     { frame := prefixFrameL c es₀ [] [] } (i := 0) rfl hF.mem
-    (show (core3P Pf).asMemory? (Silmaril.Wasm.Execution.Core.ExternAddr.mem 0) = some (0 : Nat)
-      from rfl)
+    (show (core3P Pf).asMemory? (Silmaril.Wasm.Execution.Core.ExternAddr.mem c.memIdx) =
+      some c.memIdx from rfl)
   have h₄ := instDef_alias (R := R) (inst := inst) (outer := outer) (args := args) (σ := σ)
-    { frame := prefixFrameL c es₀ [Silmaril.Wasm.Execution.Core.ExternAddr.mem 0] [] }
+    { frame := prefixFrameL c es₀ [Silmaril.Wasm.Execution.Core.ExternAddr.mem c.memIdx] [] }
     (i := 0) rfl
     (hF.func _ hi.reallocFunc) (rfl : (core3P Pf).asFunc? (.func ra) = some ra)
   have h₅ := aliases_eq (R := R) (inst := inst) (outer := outer) (args := args) (σ := σ) es₀
@@ -288,7 +288,7 @@ theorem toRefDefs_runL {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance}
           (c.exports.map fun x => c.coreAddr I x.core) } }
   obtain ⟨new, hf₆⟩ := hP₆.2.1
   obtain ⟨sc₇, hr₇, hx₇, hf₇⟩ := lifts_run (R := R) (inst := inst) (outer := outer)
-    (args := args) 0 ra (c.coreAddr I) c.exports 0 (ListComp.funcTypeIdx c.exports 0) sc₆
+    (args := args) c.memIdx ra (c.coreAddr I) c.exports 0 (ListComp.funcTypeIdx c.exports 0) sc₆
     { cfg with store := setCoreSt cs cfg.store }
     (by rw [hf₆]; rfl) (by rw [hf₆]; rfl)
     (fun j hj => by

@@ -104,7 +104,11 @@ theorem satComp_good : satComp.Good := ⟨by decide +kernel, by decide +kernel�
 theorem satComp_inst : satComp.Inst satI where
   inst := isInstance_instOf t_instance
   noImports := t_shape.1
-  memExport := by decide +kernel
+  memExport := by
+    have h : ∃ x ∈ satComp.mod.exports, x.name = satComp.memName ∧ x.index = .memory ⟨0⟩ := by
+      decide +kernel
+    obtain ⟨x, hx, hn, hi⟩ := h
+    exact ⟨x, hx, hn, ⟨0⟩, hi, rfl⟩
   memAddr := by decide +kernel
   reallocFunc := by decide +kernel
   coreFuncs := by decide +kernel

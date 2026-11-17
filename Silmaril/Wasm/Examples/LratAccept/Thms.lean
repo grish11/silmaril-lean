@@ -29,8 +29,9 @@ assumption. Proofs in `Silmaril.Proofs.Wasm.Examples.LratAccept.*`.
 
 Not claimed: completeness (that every valid LRAT certificate is accepted), agreement with the
 reference acceptors `lratStream`/`lratNested` (they differ on problems with an empty input
-clause: the acceptor needs no empty-clause step there), termination, and anything about the
-component binary beyond the core module.
+clause: the acceptor needs no empty-clause step there) and termination. The component wrapping
+`prog` (`lratComp`) and the soundness of its accepting calls on the reference Component Model
+are in `Silmaril.Wasm.Examples.LratAccept.Component.Thms`.
 -/
 
 @[expose] public section

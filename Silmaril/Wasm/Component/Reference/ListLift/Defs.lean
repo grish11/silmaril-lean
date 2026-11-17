@@ -24,7 +24,8 @@ relates.
 * `ListExport`: an export `name: func(params) -> bool`, the `canon lift` of the core export
   `core` with the options `(memory 0) (realloc 0)`;
 * `ListComp`: one core instance of a module (instantiated without imports), exporting the memory
-  `memName` and the allocator `reallocName`, and the exports. `ListComp.toRef` is the reference
+  `memName` (the module's memory `memIdx`, which is store address `memIdx` of the import-free
+  instance) and the allocator `reallocName`, and the exports. `ListComp.toRef` is the reference
   component and `ListComp.toAst` the binary component, with the same definitions in the same
   order (core module, core instance, aliases of the memory, of the allocator and of the lifted
   core functions, the list types and function types, the lifts, the exports), so that
@@ -183,6 +184,10 @@ structure ListComp where
   mod : Silmaril.Wasm.Module
   /-- The name of the memory export. -/
   memName : String
+  /-- The module's memory index of the memory export `memName` (`ListComp.Inst.memExport`).
+  The module has no imports, so it is also the memory's address in the instance store, which the
+  lowering writes. The component itself aliases this memory as its core memory `0`. -/
+  memIdx : Nat := 0
   /-- The name of the allocator export (`cabi_realloc(old, old_size, align, new_size)`). -/
   reallocName : String
   /-- The exports. -/
@@ -333,7 +338,7 @@ structure Good (c : ListComp) : Prop where
 
 /-- The module is instantiated as the statement assumes: it validates and instantiates without
 imports and without a start function (`I`, as `NumModule.IsInst` reads it), `memName` is its
-memory export `0` (address `0` of the instance store), a 32-bit memory, and the core functions
+export of memory `memIdx` (address `memIdx` of the instance store), a 32-bit memory, and the core functions
 the component runs are typed function exports of the instance:
 
 * `reallocFunc`, `coreFuncs`: the allocator and the exports' core functions are among its
@@ -352,14 +357,15 @@ are outside the fragment. -/
 structure Inst (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) : Prop where
   inst : ∃ mt, Silmaril.Wasm.Game.IsInstance c.mod mt I
   noImports : I.imports = []
-  memExport : ∃ x ∈ c.mod.exports, x.name = c.memName ∧ x.index = .memory ⟨0⟩
-  memAddr : 0 < I.store.mems.length
+  memExport : ∃ x ∈ c.mod.exports, x.name = c.memName ∧
+    ∃ i : Silmaril.Wasm.MemIdx, x.index = .memory i ∧ i.toNat = c.memIdx
+  memAddr : c.memIdx < I.store.mems.length
   /-- The allocator is a function export of the module. -/
   reallocFunc : c.reallocName ∈ Silmaril.Wasm.Component.Reference.funcExportNames c.mod
   /-- The lifted core functions are function exports of the module. -/
   coreFuncs : ∀ x ∈ c.exports, x.core ∈ Silmaril.Wasm.Component.Reference.funcExportNames c.mod
   /-- The memory is 32-bit. -/
-  memI32 : Silmaril.Wasm.SingleThreaded.memAddrType? I.store 0 = some .i32
+  memI32 : Silmaril.Wasm.SingleThreaded.memAddrType? I.store c.memIdx = some .i32
   realloc : ∃ k, ∃ hk : k < I.exports.length,
     I.addrs.getD k 0 = c.coreAddr I c.reallocName ∧ I.exports[k] = reallocFnType
   core : ∀ x ∈ c.exports, ∃ k, ∃ hk : k < I.exports.length,
@@ -371,7 +377,7 @@ end ListComp
 development): for every export `x` of `c` and values `vs` of its parameter types, a behaviour of
 the reference machine that instantiates `c.toRef`, calls `x` on `vs` and returns `true` lowers
 `vs` from the instance store (`LParams`, with the allocator at its address and the memory at
-address `0`) to a store `s` and flat arguments `fl`, from which the lifted core function returns
+address `memIdx`) to a store `s` and flat arguments `fl`, from which the lifted core function returns
 one nonzero `i32`. -/
 def AcceptSound (c : ListComp) : Prop :=
   ∀ (P : Profile) (prof : Silmaril.Wasm.Component.ProfileKind)
@@ -381,7 +387,7 @@ def AcceptSound (c : ListComp) : Prop :=
       exportBehaviours prof (refHost P) () c.toRef [] x.name (vs.map LVal.toRef) →
     ∃ (s : Store Nat) (fl : List Silmaril.Wasm.Execution.Core.Val) (s' : Store Nat) (f' : Frame)
       (r : BitVec 32),
-      LParams P (c.coreAddr I c.reallocName) 0 (x.params.map (·.2)) vs I.store fl s ∧
+      LParams P (c.coreAddr I c.reallocName) c.memIdx (x.params.map (·.2)) vs I.store fl s ∧
       Steps P Silmaril.Wasm.SingleThreaded.Det.noHost (invoke s (c.coreAddr I x.core) fl)
         ⟨s', f', vals [.i32 r]⟩ ∧ r ≠ 0
 

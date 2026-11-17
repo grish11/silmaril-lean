@@ -1,14 +1,26 @@
 module
 
 public import Silmaril.Wasm.Examples.LratAccept.Defs
+public import Silmaril.Wasm.Component.Reference.ListLift.Defs
 public import Silmaril.Wasm.Component.Binary.Encode.Defs
 public import Silmaril.Wasm.Binaryen.Exe.Encode
 
 /-!
-# The LRAT UNSAT acceptor as a component: the binary
+# The LRAT UNSAT acceptor as a component: the component and its binary
 
-`compAst core` is the component binary (abstract syntax, `Silmaril.Wasm.Component.Binary.Ast`)
-wrapping the core module bytes `core`:
+`lratComp` is the list-taking component (`Silmaril.Wasm.Component.Reference.ListLift.ListComp`)
+of one instance of `prog`: memory `memory` (the module's memory `1`, `memIdx := 1`), allocator
+`cabi_realloc`, and the exports
+
+* `check-stream: func(problem: list<s32>, cert: list<s32>) -> bool`, the lift of the core
+  export `check-stream`;
+* `check-nested: func(problem: list<list<s32>>, cert: list<s32>) -> bool`, the lift of the
+  core export `check-nested`;
+
+both `canon lift … (memory 0) (realloc 0)`, the component's core memory `0` being the alias of
+the core export `memory`. Its reference component is `lratComp.toRef` and its binary
+`lratComp.toAst coreBytes` (the generic emitter `ListComp.toAst`, with the definitions of
+`toRef` in the same order):
 
 ```wat
 (component
@@ -19,21 +31,26 @@ wrapping the core module bytes `core`:
   (alias core export $i "check-stream" (core func))    ;; core func 1
   (alias core export $i "check-nested" (core func))    ;; core func 2
   (type (list s32))                                    ;; type 0
-  (type (list 0))                                      ;; type 1: list<list<s32>>
-  (type (func (param "problem" 0) (param "cert" 0) (result bool)))   ;; type 2
-  (type (func (param "problem" 1) (param "cert" 0) (result bool)))   ;; type 3
-  (func (canon lift (core func 1) (memory 0) (realloc 0) (type 2)))  ;; func 0
-  (func (canon lift (core func 2) (memory 0) (realloc 0) (type 3)))  ;; func 1
+  (type (list s32))                                    ;; type 1
+  (type (func (param "problem" 0) (param "cert" 1) (result bool)))    ;; type 2
+  (type (list s32))                                    ;; type 3
+  (type (list 3))                                      ;; type 4: list<list<s32>>
+  (type (list s32))                                    ;; type 5
+  (type (func (param "problem" 4) (param "cert" 5) (result bool)))    ;; type 6
+  (func (canon lift (core func 1) (memory 0) (realloc 0) (type 2)))   ;; func 0
+  (func (canon lift (core func 2) (memory 0) (realloc 0) (type 6)))   ;; func 1
   (export "check-stream" (func 0))
   (export "check-nested" (func 1)))
 ```
 
-`coreBytes` is silmaril-lean's encoding of `prog` (`Binaryen.Exe.encodeModule?`) and `bytes` the
-component's (`Binary.encode`); `examples/wasm-acceptors/lrat_accept.wasm` holds them.
+`LInvL s t` is the store invariant under which `cabi_realloc` is a bump allocator for memory
+address `1` (`Silmaril.Wasm.Component.Reference.ListLift.BumpAlloc`): the store is a store of
+the acceptor (`AccStore`: the instance's functions, any LRAT state, the 1 MiB ABI memory) whose
+heap pointer is `t ≤ memBytes`.
 
-This file only defines the binary. What its exports compute is the subject of the core-level
-specifications of `prog` (`Silmaril.Wasm.Examples.LratAccept.Thms`); no theorem here is about the
-binary's behaviour.
+`coreBytes` is silmaril-lean's encoding of `prog` (`Binaryen.Exe.encodeModule?`) and `bytes` the
+component's (`Binary.encode`); `examples/wasm-acceptors/lrat_accept.wasm` holds them. What the
+exports compute is stated in `Silmaril.Wasm.Examples.LratAccept.Component.Thms`.
 -/
 
 @[expose] public section
@@ -41,21 +58,24 @@ binary's behaviour.
 namespace Silmaril.Wasm.Examples.LratAccept
 
 open Silmaril.Wasm.Component.Binary
+open Silmaril.Wasm.Component.Reference.ListLift
 
-/-- **The component binary** around the core module bytes `core`. -/
-def compAst (core : ByteArray) : Ast := .mk [
-  .coreModule core,
-  .coreInstances [.instantiate 0 []],
-  .aliases [⟨.core .memory, .coreExport 0 "memory"⟩,
-            ⟨.core .func, .coreExport 0 "cabi_realloc"⟩,
-            ⟨.core .func, .coreExport 0 "check-stream"⟩,
-            ⟨.core .func, .coreExport 0 "check-nested"⟩],
-  .types [.val (.list (.prim .s32)),
-          .val (.list (.idx 0)),
-          .func ⟨[("problem", .idx 0), ("cert", .idx 0)], some (.prim .bool), false⟩,
-          .func ⟨[("problem", .idx 1), ("cert", .idx 0)], some (.prim .bool), false⟩],
-  .canons [.lift 1 [.memory 0, .realloc 0] 2, .lift 2 [.memory 0, .realloc 0] 3],
-  .exports [⟨↑"check-stream", ⟨.func, 0⟩, none⟩, ⟨↑"check-nested", ⟨.func, 1⟩, none⟩]]
+/-- **The LRAT acceptor component.** -/
+def lratComp : ListComp where
+  mod := prog
+  memName := "memory"
+  memIdx := 1
+  reallocName := "cabi_realloc"
+  exports := [
+    { name := "check-stream", params := [("problem", .list .s32), ("cert", .list .s32)],
+      core := "check-stream" },
+    { name := "check-nested", params := [("problem", .list (.list .s32)), ("cert", .list .s32)],
+      core := "check-nested" }]
+
+/-- The store invariant of the lowering with heap pointer `t`: a store of the acceptor (any LRAT
+state, any ABI memory of `memBytes` bytes) with the heap pointer `t ≤ memBytes`. -/
+def LInvL (s : Silmaril.Wasm.Execution.Core.Store Nat) (t : Nat) : Prop :=
+  (∃ G B₀ B₁, AccStore s G B₀ (BitVec.ofNat 32 t) B₁) ∧ t ≤ memBytes
 
 /-- The core module bytes: silmaril-lean's encoding of `prog`. -/
 def coreBytes : ByteArray :=
@@ -64,6 +84,6 @@ def coreBytes : ByteArray :=
   | .error _ => .empty
 
 /-- The component bytes. -/
-def bytes : ByteArray := (encode (compAst coreBytes)).getD .empty
+def bytes : ByteArray := (encode (lratComp.toAst coreBytes)).getD .empty
 
 end Silmaril.Wasm.Examples.LratAccept

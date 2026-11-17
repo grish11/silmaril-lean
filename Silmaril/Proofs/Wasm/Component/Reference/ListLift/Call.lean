@@ -171,7 +171,7 @@ def CallGoal (P : Profile) (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance
   ∃ (s : Silmaril.Wasm.Execution.Core.Store Nat) (fl : List Silmaril.Wasm.Execution.Core.Val)
     (s' : Silmaril.Wasm.Execution.Core.Store Nat) (f' : Silmaril.Wasm.Execution.Core.Frame)
     (r : BitVec 32),
-    LParams P (c.coreAddr I c.reallocName) 0 (x.params.map (·.2)) vs I.store fl s ∧
+    LParams P (c.coreAddr I c.reallocName) c.memIdx (x.params.map (·.2)) vs I.store fl s ∧
     Silmaril.Wasm.Execution.Core.Steps P Silmaril.Wasm.SingleThreaded.Det.noHost
       (Silmaril.Wasm.Execution.Core.invoke s (c.coreAddr I x.core) fl)
       ⟨s', f', Silmaril.Wasm.Execution.Core.vals [.i32 r]⟩ ∧ r ≠ 0
@@ -215,13 +215,13 @@ theorem specQ_mainBody {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (h
     {t₀ : ThreadId} {m : Config (E3 P) Unit}
     (hv : (tview m.store)[0]? = some (tkey (mainTask P c I c.exports[j]), .initial))
     (hcl : ArenaField.callers.get? m.store ⟨0⟩ = some (.host ⟨0⟩ (vs.map LVal.toRef) 0))
-    (hres : m.results = []) (hcs : cmap m.store = I.store) (hinv : LInv P I m) :
+    (hres : m.results = []) (hcs : cmap m.store = I.store) (hinv : LInv P I c.memIdx m) :
     SpecQR prof P (CallGoal P c I c.exports[j] vs) (some t₀)
       (liftThreadBody Limits.spec Quirks.none ⟨0⟩ (c.coreAddr I c.exports[j].core)) m
       (fun _ _ => False) := by
   have hA : AllocAt I (c.coreAddr I c.reallocName) := ⟨hi.noImports, hi.realloc⟩
   obtain ⟨k, hk, hka, hkt⟩ := hi.core c.exports[j] (List.getElem_mem hj)
-  have hcx : LowerCx P I (c.coreAddr I c.reallocName)
+  have hcx : LowerCx P I (c.coreAddr I c.reallocName) c.memIdx
       ({ opts := optsL P c I, inst := ⟨0⟩, scope := .task ⟨0⟩ } : LiftLowerContext (E3 P)) :=
     ⟨rfl, rfl, hA⟩
   unfold liftThreadBody
@@ -246,9 +246,10 @@ theorem specQ_mainBody {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (h
   refine SpecQ.bind (SpecQ.ofSpec (spec_start (T := ⟨0⟩) hv₁' (spec_onStart_host hcl₁)))
     fun args m₃ ⟨hargs, hm⟩ _ _ => ?_
   subst args m₃
-  have hinv₃ : LInv P I { m₁ with store := CStore.setTaskState ⟨0⟩ .started m₁.store } := by
+  have hinv₃ : LInv P I c.memIdx
+      { m₁ with store := CStore.setTaskState ⟨0⟩ .started m₁.store } := by
     refine ⟨?_, ?_⟩
-    · show (E3 P).memAddrType? m₁.store.core (mem0 P) = some .i32
+    · show (E3 P).memAddrType? m₁.store.core (memAt P c.memIdx) = some .i32
       rw [hcore₁]
       exact hinv.mem
     · show I.WellFormed (Store.mapH _ m₁.store.core)
@@ -275,7 +276,7 @@ theorem specQ_mainBody {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (h
   obtain ⟨⟨f', run⟩, htys, hwf⟩ := core_returned (P := P) hi.noImports hi₄.wf hk hxs y hy hst
   rw [hkt] at htys
   obtain ⟨r, rfl⟩ := single_i32 htys
-  have hi₅ : LInv P I { m₄ with store := { m₄.store with core := y.1 } } :=
+  have hi₅ : LInv P I c.memIdx { m₄ with store := { m₄.store with core := y.1 } } :=
     ⟨coreSteps_memAddrType hy _ _ hi₄.mem, hwf⟩
   refine SpecQ.bind (SpecQ.ofSpec (spec_liftBool _ ?hp r _ ?hrt))
     fun res m₆ ⟨hr, hm⟩ _ _ => ?_
@@ -347,7 +348,7 @@ theorem specQ_invoke {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (hi 
     SpecQR prof P (CallGoal P c I c.exports[j] vs) none
       (StepDefs.invokeProg ⟨0⟩ ⟨j⟩ (vs.map LVal.toRef))
       (invokedCfg P cs (liftedFuncsL P c I) j (vs.map LVal.toRef)) (fun _ _ => False) := by
-  have hmem : (E3 P).memAddrType? cs (mem0 P) = some .i32 := by
+  have hmem : (E3 P).memAddrType? cs (memAt P c.memIdx) = some .i32 := by
     have h := hi.memI32
     rw [← hcs] at h
     exact h
@@ -391,7 +392,7 @@ theorem specQ_invoke {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (hi 
   · show Store.mapH _ m'.store.core = _
     rw [hcore]
     exact hcs
-  · show (E3 P).memAddrType? m'.store.core (mem0 P) = some .i32
+  · show (E3 P).memAddrType? m'.store.core (memAt P c.memIdx) = some .i32
     rw [hcore]
     exact hmem
   · show I.WellFormed (Store.mapH _ m'.store.core)

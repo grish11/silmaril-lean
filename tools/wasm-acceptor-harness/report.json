@@ -3,6 +3,7 @@
   "evidence": "runtime observations of one engine on concrete inputs; not a proof",
   "command": [
     "target/release/wasm-acceptor-harness",
+    "suites/lrat.json",
     "suites/sat.json",
     "--out",
     "report.json"
@@ -21,6 +22,16 @@
   },
   "artifacts": [
     {
+      "id": "lrat-accept/lrat",
+      "path": "../../../examples/wasm-acceptors/lrat_accept.wasm",
+      "source": "Silmaril.Wasm.Examples.LratAccept: prog, wrapped as a component (memory 0 = core memory 1, realloc cabi_realloc)",
+      "bytes": 3198,
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "blake3": "e2dae4ae144fd3d7247d968503be1fe41a7c8f2a52c40e4c8c07454534a33f53",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "pinned_sha256_ok": true
+    },
+    {
       "id": "sat-accept/sat",
       "path": "../../../examples/wasm-acceptors/sat_accept.wasm",
       "source": "Silmaril.Wasm.Examples.SatAccept: prog, wrapped as a component (memory 0, realloc cabi_realloc)",
@@ -32,6 +43,1986 @@
     }
   ],
   "cases": [
+    {
+      "suite": "lrat-accept",
+      "name": "stream-four-rup",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          2,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "the four clauses over two variables; RUP steps 5:[2] (hints 1,2) and 6:[] (hints 5,3,4)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-four-rup",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          2,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "the four clauses over two variables; RUP steps 5:[2] (hints 1,2) and 6:[] (hints 5,3,4)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-four-rat",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          3,
+          5,
+          1,
+          0,
+          2,
+          1,
+          0,
+          4,
+          3,
+          0,
+          0,
+          1,
+          6,
+          0,
+          5,
+          2,
+          4,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "RAT step 5:[1] with groups (2: hint 1) and (4: hint 3), then 6:[] (hints 5,2,4)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-four-rat",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          3,
+          5,
+          1,
+          0,
+          2,
+          1,
+          0,
+          4,
+          3,
+          0,
+          0,
+          1,
+          6,
+          0,
+          5,
+          2,
+          4,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "RAT step 5:[1] with groups (2: hint 1) and (4: hint 3), then 6:[] (hints 5,2,4)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-four-delete",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          2,
+          0,
+          2,
+          1,
+          2,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "RUP 5:[2], delete 1 and 2, then 6:[] (hints 5,3,4)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-four-delete",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          2,
+          0,
+          2,
+          1,
+          2,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "RUP 5:[2], delete 1 and 2, then 6:[] (hints 5,3,4)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-unit-pair",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[[1],[-1]]; RUP 3:[] (hints 1,2)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-unit-pair",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[[1],[-1]]; RUP 3:[] (hints 1,2)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-unit-pair-rat-fresh",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          3,
+          3,
+          7,
+          0,
+          0,
+          1,
+          4,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[[1],[-1]]; RAT 3:[7] on a fresh variable (no candidates), then RUP 4:[] (hints 1,2)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-unit-pair-rat-fresh",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          3,
+          3,
+          7,
+          0,
+          0,
+          1,
+          4,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[[1],[-1]]; RAT 3:[7] on a fresh variable (no candidates), then RUP 4:[] (hints 1,2)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-empty-clause",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          0
+        ],
+        [
+          1,
+          2,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[[]] (stream [0]): the formula with one empty clause; RUP 2:[] (hint 1)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-empty-clause",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          []
+        ],
+        [
+          1,
+          2,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[[]] (stream [0]): the formula with one empty clause; RUP 2:[] (hint 1)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-empty-clause-empty-cert",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          0
+        ],
+        []
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[[]] with the empty certificate: the LRAT core reads the empty input clause and answers unsat. The reference lratStream/lratNested rejects (LRAT.run [] = false: it wants an explicit empty-clause step); the acceptor is sound but accepts more here"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-empty-clause-empty-cert",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          []
+        ],
+        []
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[[]] with the empty certificate: the LRAT core reads the empty input clause and answers unsat. The reference lratStream/lratNested rejects (LRAT.run [] = false: it wants an explicit empty-clause step); the acceptor is sound but accepts more here"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-empty-formula",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[] (both encodings): the empty formula is satisfiable, not malformed"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-empty-formula",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[] (both encodings): the empty formula is satisfiable, not malformed"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-sat-bogus",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0
+        ],
+        [
+          1,
+          2,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "satisfiable [[1,2]] with a bogus RUP step 2:[] (hint 1)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-sat-bogus",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          1,
+          2,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "satisfiable [[1,2]] with a bogus RUP step 2:[] (hint 1)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-sat-bogus-rat",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0
+        ],
+        [
+          3,
+          2,
+          -1,
+          0,
+          0,
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "satisfiable [[1,2]]: RAT 2:[-1] is not RAT (candidate 1 not covered), so 3:[] fails"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-sat-bogus-rat",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          3,
+          2,
+          -1,
+          0,
+          0,
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "satisfiable [[1,2]]: RAT 2:[-1] is not RAT (candidate 1 not covered), so 3:[] fails"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-four-wrong-hints",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "the first RUP step has hint 1 only: no conflict, clause 5 never stored"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-four-wrong-hints",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "the first RUP step has hint 1 only: no conflict, clause 5 never stored"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-unit-pair-no-cert",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[[1],[-1]] with the empty certificate: nothing derived"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-unit-pair-no-cert",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[[1],[-1]] with the empty certificate: nothing derived"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-empty-formula-empty-step",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [],
+        [
+          1,
+          1,
+          0,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "the empty formula with a hint-free empty-clause step"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-empty-formula-empty-step",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [],
+        [
+          1,
+          1,
+          0,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "the empty formula with a hint-free empty-clause step"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-unit-pair-missing-hint",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "the empty clause with hint 1 only: a unit, no conflict"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-unit-pair-missing-hint",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "the empty clause with hint 1 only: a unit, no conflict"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-unterminated",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "unterminated last clause: malformed (decodeStream = none), certificate otherwise valid"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-unterminated-after-empty",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          0,
+          1
+        ],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[0, 1]: the LRAT core reads the empty clause, but the stream is unterminated: malformed"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-intmin",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          -2147483648,
+          0
+        ],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "Int32.MIN in a stream"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-intmin-after-empty",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          0,
+          -2147483648,
+          0
+        ],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[0, Int32.MIN, 0]: an empty clause, then Int32.MIN: malformed"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-inner-zero",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            0
+          ]
+        ],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[[0]]: a 0 inside a clause is malformed (the LRAT core would read an empty clause)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-inner-zero-pair",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1,
+            0
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[[1,0],[-1]]: a 0 inside a clause"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-intmin",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1,
+            -2147483648
+          ]
+        ],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "Int32.MIN inside a clause"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-intmin-with-empty",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [],
+          [
+            -2147483648
+          ]
+        ],
+        []
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[[],[Int32.MIN]]: the empty clause, then Int32.MIN"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-cert-unterminated",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "the hints of the step are not terminated"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-cert-unterminated",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "the hints of the step are not terminated"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-cert-bad-tag",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          0
+        ],
+        [
+          7
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[[]] is unsatisfiable, but tag 7 is malformed"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-cert-bad-tag",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          []
+        ],
+        [
+          7
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[[]] is unsatisfiable, but tag 7 is malformed"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-cert-truncated-step",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a step ending after its tag"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-cert-truncated-step",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          []
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a step ending after its tag"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-cert-zero-id",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "id 0 is not a positive word"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-cert-zero-id",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          []
+        ],
+        [
+          1,
+          0,
+          0,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "id 0 is not a positive word"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-cert-trailing-garbage",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0,
+          5
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a valid refutation followed by the tag 5"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-cert-trailing-garbage",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0,
+          5
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a valid refutation followed by the tag 5"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-cert-intmin-literal",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          -2147483648,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "Int32.MIN as a literal"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-cert-intmin-literal",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          -2147483648,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "Int32.MIN as a literal"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-cert-negative-hint",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          -2,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a negative hint"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-cert-negative-hint",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          -2,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a negative hint"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-cert-rat-unterminated-groups",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          3,
+          5,
+          1,
+          0,
+          2,
+          1,
+          0,
+          4,
+          3,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a RAT step whose group list lacks the final 0"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-cert-rat-unterminated-groups",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          3,
+          5,
+          1,
+          0,
+          2,
+          1,
+          0,
+          4,
+          3,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a RAT step whose group list lacks the final 0"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-cert-zero-tag",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          0
+        ],
+        [
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "0 in tag position"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-cert-zero-tag",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          []
+        ],
+        [
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "0 in tag position"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "stream-too-large",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "cert: list<s32>"
+      ],
+      "class": "abi-failure",
+      "args": [
+        {
+          "$repeat": 1,
+          "count": 300000
+        },
+        []
+      ],
+      "expected": "error",
+      "observed": {
+        "outcome": "error",
+        "detail": "realloc return: beyond end of memory"
+      },
+      "verdict": "pass",
+      "note": "1.2 MB of problem words exceed the 1 MiB memory: cabi_realloc answers memBytes and the canonical ABI bounds check fails (Wasmtime reports a host error)"
+    },
+    {
+      "suite": "lrat-accept",
+      "name": "nested-too-large",
+      "artifact": "lrat",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+      "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "cert: list<s32>"
+      ],
+      "class": "abi-failure",
+      "args": [
+        [
+          {
+            "$repeat": 1,
+            "count": 300000
+          }
+        ],
+        []
+      ],
+      "expected": "error",
+      "observed": {
+        "outcome": "error",
+        "detail": "realloc return: beyond end of memory"
+      },
+      "verdict": "pass",
+      "note": "one clause of 1.2 MB of words exceeds the 1 MiB memory"
+    },
     {
       "suite": "sat-accept",
       "name": "stream-sattwo-model",
@@ -627,6 +2618,6 @@
     }
   ],
   "summary": {
-    "pass": 20
+    "pass": 76
   }
 }

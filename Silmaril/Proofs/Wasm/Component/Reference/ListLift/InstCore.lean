@@ -12,7 +12,8 @@ empty core store of `core3P P`. For a component instantiated as `ListComp.Inst` 
 * the initialiser runs of instantiation allocate no memory (`evalConst?_mems`,
   `evalGlobals?_mems`, `evalExprs?_mems`, `evalExprss?_mems`), so the memories of an instance
   built in the empty store are at the addresses `0, 1, …` (`instantiateOnce?_memExports`);
-* `lookup_memExport`: the core export named `memName` (memory `0`) is memory address `0`;
+* `lookup_memExport`: the core export named `memName` (memory `memIdx`) is memory address
+  `memIdx`;
 * `lookup_funcName`: the core export named by a function export name `n` is the function
   address `c.coreAddr I n`;
 * `coreFactsL`: the facts the instantiation run needs, over `core3P P`.
@@ -334,30 +335,30 @@ theorem inst_onceL (g : H → Nat) {m : Module} {I : Silmaril.Wasm.Game.ScalarIn
   obtain ⟨cs, ho, hs⟩ := mapS_eq_some hf'
   exact ⟨mt, cs, f, hIs.valid, hmt, ho, hs, haddr⟩
 
-/-- **The core export named `memName` is memory address `0`.** -/
+/-- **The core export named `memName` is memory address `memIdx`.** -/
 theorem lookup_memExport {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance}
     {mt : Validation.CModuleType} {f' : Frame} {cs : Store H} (hi : c.Inst I)
     (hv : Validation.validate? c.mod = some mt)
     (ho : instantiateOnce? ({} : Store H) c.mod [] = some (cs, f', none)) :
-    (f'.module.exports.map fun x => (x.name, x.addr)).lookup c.memName = some (.mem 0) := by
+    (f'.module.exports.map fun x => (x.name, x.addr)).lookup c.memName = some (.mem c.memIdx) := by
   obtain ⟨ei, hX, hm⟩ := instantiateOnce?_memExports ho
   have hnd : (c.mod.exports.map (·.name)).Nodup := by
     obtain ⟨⟩ := Validation.validate?_sound hv
     assumption
-  obtain ⟨e, he, hname, hidx⟩ := hi.memExport
+  obtain ⟨e, he, hname, i, hidx, hi'⟩ := hi.memExport
   obtain ⟨x, hx, hl⟩ := lookup_allocExport hX hnd e he
   rw [← hname, hl]
   unfold allocExport? at hx
   rw [hidx, hm] at hx
   obtain ⟨b, hb, rfl⟩ := Option.map_eq_some_iff.1 hx
   obtain ⟨a, ha, rfl⟩ := Option.map_eq_some_iff.1 hb
-  have ha0 : a = 0 := by
-    have h0 : (List.range' 0 c.mod.memories.length)[0]? = some a := ha
-    cases hn : c.mod.memories.length with
-    | zero => rw [hn] at h0; cases h0
-    | succ k =>
-      simp only [hn, List.range'_succ, List.getElem?_cons_zero, Option.some.injEq] at h0
-      exact h0.symm
+  have ha0 : a = c.memIdx := by
+    have h0 : (List.range' 0 c.mod.memories.length)[c.memIdx]? = some a := hi' ▸ ha
+    by_cases hlt : c.memIdx < c.mod.memories.length
+    · rw [List.getElem?_range' hlt] at h0
+      simpa using h0.symm
+    · rw [List.getElem?_eq_none (by simpa using hlt)] at h0
+      cases h0
   rw [ha0]
 
 /-- **The core export named by a function export name `n` is the function `c.coreAddr I n`.** -/
@@ -404,7 +405,7 @@ structure CoreFactsL (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance)
   store : Store.mapH (fun _ => 0) cs = I.store
   imports : (core3P Pf).importTypes c.mod = []
   prepare : (core3P Pf).prepare? ((core3P Pf).empty _) c.mod [] = some (cs, ci, none)
-  mem : lookupExport? ((core3P Pf).exports ci) c.memName = some (.mem 0)
+  mem : lookupExport? ((core3P Pf).exports ci) c.memName = some (.mem c.memIdx)
   func : ∀ n ∈ funcExportNames c.mod,
     lookupExport? ((core3P Pf).exports ci) n = some (.func (c.coreAddr I n))
 

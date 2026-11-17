@@ -28,13 +28,16 @@
           states: "check-stream returns true on xs, ms ⇒ satStream xs ms = true ∧ xs ∈ SatStream" },
         { decl: "Silmaril.Project.WasmComponents.SatAccept.checkNested_sound_of_bytes", module: "Silmaril.Project.WasmComponents.SatAccept.Thms",
           states: "check-nested returns true on p, ms ⇒ satNested p ms = true ∧ p ∈ SatNested" }] },
-    { sha256: "0808019a42916942c82041d1bc11c062e3fb440621974ebbee6956d178fcf1ba", name: "silmaril.wasm.examples.lrat_accept.component",
-      kind: "core-module soundness only", level: "core",
-      scope: "About the core module inside the component (Core 3.0 small-step execution), not about the component's " +
-        "canonical ABI lift and lowering; component-level proofs are in progress.",
+    { sha256: "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784", name: "silmaril.wasm.examples.lrat_accept.component",
+      kind: "component-level soundness (kernel-checked)", level: "component",
+      scope: "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.LratAccept.bytes, " +
+        "regenerated as examples/wasm-acceptors/lrat_accept.wasm): an accepting call implies that the problem is unsatisfiable. " +
+        "Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
       theorems: [
-        { decl: "Silmaril.Wasm.Examples.LratAccept.checkStream_sound", module: "Silmaril.Wasm.Examples.LratAccept.Thms", states: "core check-stream: soundness" },
-        { decl: "Silmaril.Wasm.Examples.LratAccept.checkNested_sound", module: "Silmaril.Wasm.Examples.LratAccept.Thms", states: "core check-nested: soundness" }] },
+        { decl: "Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes", module: "Silmaril.Project.WasmComponents.LratAccept.Thms",
+          states: "check-stream returns true on xs, cert ⇒ xs ∈ UnsatStream" },
+        { decl: "Silmaril.Project.WasmComponents.LratAccept.checkNested_sound_of_bytes", module: "Silmaril.Project.WasmComponents.LratAccept.Thms",
+          states: "check-nested returns true on p, cert ⇒ p ∈ UnsatNested" }] },
     { sha256: "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996", name: "silmaril.wasm.examples.farkas_accept.component",
       kind: "core-module soundness only", level: "core",
       scope: "About the core module inside the component (Core 3.0 small-step execution), not about the component's " +

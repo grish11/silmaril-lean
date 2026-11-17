@@ -5,7 +5,7 @@
     "lrat": {
       "path": "../../../examples/wasm-acceptors/lrat_accept.wasm",
       "source": "Silmaril.Wasm.Examples.LratAccept: prog, wrapped as a component (memory 0 = core memory 1, realloc cabi_realloc)",
-      "sha256": "0808019a42916942c82041d1bc11c062e3fb440621974ebbee6956d178fcf1ba"
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784"
     }
   },
   "cases": [

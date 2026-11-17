@@ -12,7 +12,8 @@ proved in two phases that meet at the configuration `afterInst` reached by insta
 
 * `liftedFtL x`: the resolved function type of the lift of export `x` (its named parameters at
   `LTy.toClosed`, result `bool`, synchronous), and `liftedFuncsL P c I`: the lifted functions of
-  the exports, at the addresses of their core functions, with the options `memory` (address `0`)
+  the exports, at the addresses of their core functions, with the options `memory` (address
+  `memIdx`)
   and `realloc` (the allocator's address), in instance `0`;
 * `InstPhaseL`: instantiating `c.toRef` only reaches `afterInst` with the instance's core store
   (up to the host type) and these functions, and the export map `exportMapL c`;
@@ -36,10 +37,10 @@ open Silmaril.Wasm.Execution.Core (Steps invoke Frame vals)
 def liftedFtL (x : ListExport) : WIT.FuncType Empty RtId :=
   ⟨x.params.map fun p => (p.1, p.2.toClosed), some (.prim .bool), false⟩
 
-/-- The canonical options of the lifts: memory address `0` and the allocator. -/
+/-- The canonical options of the lifts: memory address `memIdx` and the allocator. -/
 def optsL (P : Profile) (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) :
     CanonOpts (core3P P) :=
-  { memory := some (show (core3P P).MemAddr from (0 : Nat)), realloc := some (c.coreAddr I c.reallocName) }
+  { memory := some (show (core3P P).MemAddr from c.memIdx), realloc := some (c.coreAddr I c.reallocName) }
 
 /-- The lifted functions of the exports of `c`. -/
 noncomputable def liftedFuncsL (P : Profile) (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) :
@@ -70,7 +71,7 @@ def CallPhaseL : Prop :=
           (afterInst P cs (liftedFuncsL P c I)) ⟨0⟩ ⟨j⟩ (vs.map LVal.toRef) →
       ∃ (s : Silmaril.Wasm.Execution.Core.Store Nat) (fl : List Silmaril.Wasm.Execution.Core.Val)
         (s' : Silmaril.Wasm.Execution.Core.Store Nat) (f' : Frame) (r : BitVec 32),
-        LParams P (c.coreAddr I c.reallocName) 0 (c.exports[j].params.map (·.2)) vs I.store fl s ∧
+        LParams P (c.coreAddr I c.reallocName) c.memIdx (c.exports[j].params.map (·.2)) vs I.store fl s ∧
         Steps P Silmaril.Wasm.SingleThreaded.Det.noHost (invoke s (c.coreAddr I c.exports[j].core) fl)
           ⟨s', f', vals [.i32 r]⟩ ∧ r ≠ 0
 

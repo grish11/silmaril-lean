@@ -515,14 +515,14 @@ abbrev reallocRec (align n p : Nat) : Caller (E3 P) :=
   .sub (.realloc (reallocArgs align n) (some (.int .u32 (p : Int))))
 
 /-- **`reallocate`** (the dispatched `Call.reallocate`) of a lift context with the memory at
-address `0` (32-bit) and the allocator `ra`, on an accepting path: the pointer `p` is the
+address `ma` (32-bit) and the allocator `ra`, on an accepting path: the pointer `p` is the
 answer of a Core run of the allocator (`AllocRun`); the caller records gain the resolved
 record and the task view the resolved allocator task. -/
-theorem spec_realloc {I : Silmaril.Wasm.Game.ScalarInstance} {ra : Nat} (hA : AllocAt I ra)
+theorem spec_realloc {I : Silmaril.Wasm.Game.ScalarInstance} {ra ma : Nat} (hA : AllocAt I ra)
     {th : Option ThreadId} {cx : LiftLowerContext (E3 P)}
-    (hmem : cx.opts.memory = some (show (E3 P).MemAddr from (0 : Nat)))
+    (hmem : cx.opts.memory = some (show (E3 P).MemAddr from ma))
     (hra : cx.opts.realloc = some ra) {m : Config (E3 P) Unit}
-    (hm0 : (E3 P).memAddrType? m.store.core (show (E3 P).MemAddr from (0 : Nat)) = some .i32)
+    (hm0 : (E3 P).memAddrType? m.store.core (show (E3 P).MemAddr from ma) = some .i32)
     (hw : I.WellFormed (cmap m.store)) (align n : Nat) :
     SpecR prof P th (D P (.reallocate cx 0 0 align n)) m
       (fun r m' => ∃ p, r = .nat p ∧ AllocRun P I ra align n m.store m'.store p ∧

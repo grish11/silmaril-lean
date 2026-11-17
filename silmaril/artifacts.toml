@@ -338,6 +338,16 @@ derivation = "silmaril.wasm_components.gen.comp_b.world.project"
 meta = { wasm = { layer = "component", version = 13, world_of = "silmaril.wasm_components.gen.comp_b.blob" } }
 
 [[artifact]]
+cid = "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km"
+type = "blob"
+name = "silmaril.wasm.examples.lrat_accept.component"
+paths = ["examples/wasm-acceptors/lrat_accept.wasm"]
+size = 3198
+sha256 = "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784"
+git_sha1 = "08b04a5c89cff872f23503c52ddf96dcf096ad53"
+meta = { wasm = { custom = [], exports = ["func check-stream", "func check-nested"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
+
+[[artifact]]
 cid = "bafkr4ihjitr643vnhzwmwj2kyxkvpad23ayzskzhpihwasjbozsyeux65q"
 type = "blob"
 name = "silmaril.wasm_components.wac.pilot.blob"
