@@ -197,4 +197,59 @@ theorem cont_good {body : Expr} {Fin : Store H × Frame × POut → Prop} :
         wrap_fall har (by rw [hnil]; exact .nil)
       simpa using KL.frame hpc hsg ht harm hkind hw hkl
 
+/-- **Reaching position `i` of the sequence at `p`** natively (`gotoN (entry …)`): the rest of
+the sequence from `i` runs natively and its outcome is carried out by `KL`. -/
+theorem entry_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {c : List Instr} {i : Nat} {ls : List LFrame} {W : List Val} {s : Store H} {f : Frame}
+    {st' : MState H} {l : List (SCall H)} (hok : FramesOk body p.reverse ls)
+    (hc : seqAt body p = some c) (hg : gotoN (entry body p i) p.length ls W s f = some st')
+    (hG : Good body Fin st' l) :
+    ∃ (l₀ l₁ : List (SCall H)) (r₀ : Store H × Frame × POut),
+      EvalLXPS s f W.reverse (liftInstrs (restAt c i)) l₀ r₀ ∧
+      KL body Fin p.reverse ls r₀ l₁ ∧ l = l₀ ++ l₁ := by
+  unfold entry at hg
+  split at hg
+  · rw [show p.length = (⟨p, i⟩ : BlockId).seq.length from rfl] at hg
+    have := gotoN_block hg
+    subst this
+    obtain ⟨c', l₀, l₁, r₀, hc', hrun, hkl, rfl⟩ := hG
+    simp only at hc' hrun hkl
+    rw [hc] at hc'; cases hc'
+    exact ⟨l₀, l₁, r₀, by simpa using hrun, hkl, rfl⟩
+  · next hnone =>
+    have hend : (segment c)[i]? = none := by
+      rw [lookup_eq] at hnone
+      simpa [hc] using hnone
+    rw [restAt_end hend]
+    refine ⟨[], l, _, .nil, ?_, rfl⟩
+    exact cont_good p.reverse ls W s f st' l hok (by simpa [cont] using hg) hG
+
+/-- The straight-line code of a block is its segment's instructions. -/
+theorem codeOf_eq (sg : Segment) : codeOf sg = sg.instrs := rfl
+
+/-- **A block's straight-line code, then the rest**: a normal end continues into the rest of the
+sequence; an abrupt one ends it. -/
+theorem restAt_run {c : List Instr} {i : Nat} {sg : Segment} (hsg : (segment c)[i]? = some sg)
+    {s : Store H} {f : Frame} {V : List Val} {l : List (SCall H)} {r : Store H × Frame × POut}
+    (hr : EvalLXPS s f V (liftInstrs (codeOf sg)) l r) :
+    (¬ r.2.2.IsNormal → EvalLXPS s f V (liftInstrs (restAt c i)) l r) ∧
+    (∀ s₁ f₁ ws, r = (s₁, f₁, .flow (.normal ws)) → ∀ l₂ r₂,
+      EvalLXPS s₁ f₁ ws (liftInstrs (restAt c (i + 1))) l₂ r₂ →
+      EvalLXPS s f V (liftInstrs (restAt c i)) (l ++ l₂) r₂) := by
+  rw [restAt_cons hsg, MachineLSeq.liftInstrs_append]
+  exact MachineLSeq.append hr _
+
+/-- **Falling through** (`DispL.next`). -/
+theorem next_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : BlockId}
+    {sg : Segment} {stk : List Val} {ls : List LFrame} {s s₁ : Store H} {f f₁ : Frame}
+    {ws : List Val} {l l' : List (SCall H)} {st' : MState H} (hok : FramesOk body b.seq.reverse ls)
+    (hb : lookup body b = some sg)
+    (hr : EvalLXPS s f stk.reverse (liftInstrs (codeOf sg)) l (s₁, f₁, .flow (.normal ws)))
+    (hg : gotoN (entry body b.seq (b.idx + 1)) b.seq.length ls ws.reverse s₁ f₁ = some st')
+    (hG : Good body Fin st' l') : Good body Fin ⟨.block b, stk, ls, s, f⟩ (l ++ l') := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  obtain ⟨l₀, l₁, r₀, hrun, hkl, rfl⟩ := entry_good (by simpa using hok) hc hg hG
+  refine ⟨c, l ++ l₀, l₁, r₀, hc, ?_, hkl, by simp⟩
+  exact (restAt_run hsg hr).2 _ _ _ rfl _ _ (by simpa using hrun)
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLFwd
