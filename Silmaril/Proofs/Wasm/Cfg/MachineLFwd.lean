@@ -615,4 +615,89 @@ theorem kl_brOut {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : St
     obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩ := hok
     simpa using KL.frame hpc hsg ht harm hkind WrapL.brk (kl_brOut hF rp ls hok')
 
+/-! ## Exceptions -/
+
+/-- **A caught exception**: the frames below `j` let it pass (`tryRethrow`, or the escape rule),
+and the `try_table` frame `j` catches it (`tryCatch`): a branch from outside it. -/
+theorem kl_catch {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
+    {a : Nat} {us : List Val} {L : LFrame} {l' : LabelIdx} {lg : List (SCall H)} :
+    ∀ (j : Nat) (rp : List SeqStep) (ls : List LFrame), FramesOk body rp ls →
+      (∀ (k : Nat) (L' : LFrame), k < j → ls[k]? = some L' → L'.tryT = true →
+        Catches s f a L'.catches none) →
+      ls[j]? = some L → L.tryT = true → Catches s f a L.catches (some (us, l')) →
+      KL body Fin (rp.drop (j + 1)) (ls.drop (j + 1))
+        (s, f, .flow (.brk l'.toNat (us.reverse ++ L.outer.reverse))) lg →
+      KL body Fin rp ls (s, f, .flow (.throw a)) lg
+  | _, [], [], _, _, hL, _, _, _ => by simp at hL
+  | _, [], _ :: _, h, _, _, _, _, _ => by simp [FramesOk] at h
+  | _, _ :: _, [], h, _, _, _, _, _ => by simp [FramesOk] at h
+  | 0, (m, a') :: rp, L₀ :: ls, hok, _, hL, hT, hc, hk => by
+    simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
+    subst hL
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, -⟩ := hok
+    simpa using KL.frame hpc hsg ht harm hkind (.catch_ hT hc) (by simpa using hk)
+  | j + 1, (m, a') :: rp, L₀ :: ls, hok, hpass, hL, hT, hc, hk => by
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩ := hok
+    have hkl := kl_catch j rp ls hok'
+      (fun k L' hk' hL' hT' => hpass (k + 1) L' (by omega) (by simpa using hL') hT')
+      (by simpa using hL) hT hc (by simpa using hk)
+    have hw : WrapL L₀ t (restAt pc (m + 1)) (s, f, .flow (.throw a)) [] (s, f, .flow (.throw a)) := by
+      cases htt : L₀.tryT
+      · exact .esc trivial (fun h => by rw [htt] at h; cases h)
+      · exact .rethrow htt (hpass 0 L₀ (by omega) rfl htt)
+    simpa using KL.frame hpc hsg ht harm hkind hw hkl
+
+theorem branchR_drop (body : Expr) {n : Nat} {rp : List SeqStep} {ls : List LFrame}
+    (hn : n ≤ rp.length) (hls : ls.length = rp.length) (k : Nat) (L : LFrame) (V : List Val)
+    (s : Store H) (f : Frame) :
+    branchR body rp ls (n + k) L V s f = branchR body (rp.drop n) (ls.drop n) k L V s f := by
+  simp only [branchR, Proofs.Machine.labelsRev_getD_drop body n rp k hn, List.length_drop,
+    List.drop_drop]
+  rw [show rp.length - (n + k) = rp.length - n - k by omega,
+    show rp.length - (n + k + 1) = rp.length - n - (k + 1) by omega,
+    show n + k + 1 = n + (k + 1) by omega]
+
+/-- **Where an abrupt native outcome leads** (`DispL` but falling through): its frames carry it
+out to the result the target stands for. -/
+theorem disp_kl {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : BlockId}
+    {ls : List LFrame} {r : Store H × Frame × POut} {st' : MState H} {l : List (SCall H)}
+    (hok : FramesOk body b.seq.reverse ls) (hd : DispL body b ls r st') (hn : ¬ r.2.2.IsNormal)
+    (hG : Good body Fin st' l) : KL body Fin b.seq.reverse ls r l := by
+  have hlen := Proofs.Machine.framesOk_length _ _ hok
+  cases hd with
+  | next => exact absurd trivial hn
+  | br hL hg =>
+    rw [branchN_eq] at hg
+    exact br_kl _ _ _ _ _ _ _ _ _ hok hL hg hG
+  | brOut hk =>
+    subst hk
+    obtain ⟨rfl, hF⟩ := hG
+    exact kl_brOut (hF _ ⟨_, rfl, by simp [Flow.retVals]⟩) _ _ hok
+  | @ret s f ws =>
+    obtain ⟨rfl, hF⟩ := hG
+    exact kl_esc (o := .flow (.ret ws)) trivial (hF _ ⟨_, rfl, by simp [Flow.retVals]⟩) _ _ hok (by simp)
+  | @trap s f =>
+    obtain ⟨rfl, hF⟩ := hG
+    exact kl_esc (o := .flow .trap) trivial (hF _ rfl) _ _ hok (by simp)
+  | @raise s f a hT =>
+    obtain ⟨rfl, hF⟩ := hG
+    exact kl_esc (o := .flow (.throw a)) trivial (hF _ ⟨_, rfl, rfl⟩) _ _ hok (by
+      intro a' h k L hL hTL; simp only [POut.flow.injEq, Flow.throw.injEq] at h; subst h
+      exact hT k L hL hTL)
+  | @catch_ s f a j us L L' l' st' hpass hL hT hc hL' hg =>
+    have hj : j + 1 ≤ b.seq.reverse.length := by
+      have := (List.getElem?_eq_some_iff.mp hL).1; omega
+    refine kl_catch j _ _ hok hpass hL hT hc ?_
+    rw [branchN_eq, branchR_drop body hj (by simpa using hlen)] at hg
+    have hL'' : (ls.drop (j + 1))[l'.toNat]? = some L' := by simpa using hL'
+    refine br_kl _ _ _ _ _ _ _ _ _ (Proofs.Machine.framesOk_drop _ _ _ hok) hL'' ?_ hG
+    simpa using hg
+  | @catchOut s f a j us L l' hpass hL hT hc hout =>
+    obtain ⟨rfl, hF⟩ := hG
+    refine kl_catch j _ _ hok hpass hL hT hc ?_
+    have hl : l'.toNat = (ls.drop (j + 1)).length := by simp; omega
+    rw [hl]
+    exact kl_brOut (hF _ ⟨_, rfl, by simp [Flow.retVals]⟩) _ _
+      (Proofs.Machine.framesOk_drop _ _ _ hok)
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLFwd
