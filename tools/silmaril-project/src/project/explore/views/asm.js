@@ -108,6 +108,8 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
     { id: "decode", label: "decodes", prop: "DecodesAs isa f d", what: "the instruction model decodes the bytes back to back", holds: ["decode"], refutes: ["noDecode"], perModel: true },
     { id: "lines", label: "lines tile", prop: "LinesTile f", what: "the display lines' byte ranges tile the bytes (their text is not read)", holds: ["lineTiles"], refutes: [] },
     { id: "refs", label: "references grounded", prop: "RefsGrounded F f isa d", what: "each relocation reference is the file's relocation; each decoded reference is the decoded branch target", holds: ["refs"], refutes: [] },
+    { id: "unrelocated", label: "unrelocated", prop: "Unrelocated F f", what: "no relocation of the file patches the function's bytes", holds: ["unrelocated"], refutes: [] },
+    { id: "present", label: "present (load)", prop: "Load.PresentFn F name", what: "the file defines a function of this name", holds: ["present"], refutes: [] },
     { id: "contract", label: "contract", prop: "FnContract.Spec.Total (machine)", what: "a machine contract, stated in the same theorem as the function's bytes", holds: ["contract"], refutes: [] },
   ];
   const KNOWN_KINDS = new Set(DIMENSIONS.flatMap((d) => d.holds.concat(d.refutes)));
@@ -136,12 +138,16 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
     const other = ev.filter((e) => !KNOWN_KINDS.has(e.kind));
     return { rows, other };
   }
-  // A row's status, from its own entries.
+  // A theorem's premises: schema 1.2 `assumptions` (with `applicability`), else 1.0 `hypotheses`.
+  const premisesOf = (e) => (e.assumptions && e.assumptions.length ? e.assumptions : e.hypotheses) || [];
+  const unconditional = (e) => e.applicability ? e.applicability === "unconditional" : !premisesOf(e).length;
+  // A row's status, from its own entries. Every entry is a proved theorem (1.2 `statusKind:
+  // "theorem"`); a conditional one is a theorem with undischarged premises, never an open problem.
   function rowStatus(r) {
     if (r.pos.length && r.neg.length) return "conflicting";
     if (r.neg.length) return "does not hold";
     if (!r.pos.length) return "none";
-    return r.pos.some((e) => !(e.hypotheses || []).length) ? "holds" : "holds under premises";
+    return r.pos.some(unconditional) ? "holds" : "holds under premises";
   }
   // A decoder that is a partial function (`decode : bytes → Option insn`) proves acceptance or
   // rejection, never why it rejected: invalid, incomplete and unsupported bytes all give `none`.
@@ -152,7 +158,7 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
       if (s === "none") return '<span class="muted" title="no DecodesAs theorem either way for this model">none: unknown (no DecodesAs theorem)</span>';
     }
     return s === "holds" ? '<span class="prov prov-lean" title="a theorem states it, with no premise">holds</span>'
-      : s === "holds under premises" ? '<span class="st st-open" title="every theorem stating it has premises (listed)">holds under premises</span>'
+      : s === "holds under premises" ? '<span class="st st-open" title="a proved theorem whose premises (listed) are not discharged: a conditional theorem, not a registered open problem">holds under premises (conditional theorem)</span>'
       : s === "does not hold" ? '<span class="st st-bad" title="a theorem states its negation">does not hold (negation proved)</span>'
       : s === "conflicting" ? '<span class="st st-bad">both it and its negation are stated</span>'
       : '<span class="muted">none</span>';
@@ -189,7 +195,7 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
       ents.forEach(([e, neg], i) => {
         h += `<tr data-kind="${esc(e.kind)}">${i === 0 ? head : ""}<td>${neg ? '<span class="muted">¬</span> ' : ""}${declCell(decls, e.decl)}</td>` +
           `<td>${e.model == null ? '<span class="muted">—</span>' : `<code title="${esc(e.model)}">${esc(e.model)}</code>`}</td>` +
-          `<td>${axiomsCell(e.axioms)}</td><td>${premisesCell(e.hypotheses)}</td></tr>`;
+          `<td>${axiomsCell(e.axioms)}</td><td>${premisesCell(premisesOf(e))}${e.note ? `<br><span class="muted">${esc(e.note)}</span>` : ""}</td></tr>`;
       });
       h += "</tbody>";
     }
@@ -264,6 +270,13 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
     if (o.kind === "display") return "listing";
     return esc(o.kind);
   }
+  // Where a target lies (segment, section, read-only): computed from the parse for display, not a
+  // theorem; a read-only target is never Code.data on that basis alone.
+  function targetInText(t) {
+    if (!t) return "";
+    const parts = [t.segment != null ? "segment " + esc(t.segment) : null, t.section ? esc(t.section) : null, t.readOnly != null ? (t.readOnly ? "read-only" : "writable") : null].filter(Boolean);
+    return parts.length ? `<br><span class="asm-meta" title="${esc(t.provenance ?? "computed from the parse; not a theorem")}">target in ${parts.join(", ")}: metadata (not evidence)</span>` : "";
+  }
   function refsTable(fn, decls) {
     const refs = fn.refs || [];
     if (!refs.length) return `<p class="muted">none</p>`;
@@ -276,7 +289,7 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
     };
     return '<div class="tablebox"><table class="asm-refs"><thead><tr><th>offset</th><th>address</th><th>target</th><th>symbol</th><th>relocation type</th><th>addend</th><th>origin</th><th>grounded</th></tr></thead><tbody>' +
       refs.map((r) => `<tr data-origin="${esc(r.origin ? r.origin.kind : "")}"><td>+${hx(r.off)}</td><td>${base == null ? "" : hx(base + r.off)}</td><td>${val(r.target)}</td><td>${val(r.symbol)}</td>` +
-        `<td>${r.kind ? esc(r.kind) : '<span class="muted">— (not a relocation)</span>'}</td><td>${esc(r.addend)}</td><td>${originText(r.origin)}</td><td>${grounded(r)}</td></tr>`).join("") +
+        `<td>${r.kind ? esc(r.kind) : '<span class="muted">— (not a relocation)</span>'}</td><td>${esc(r.addend)}</td><td>${originText(r.origin)}${targetInText(r.targetIn)}</td><td>${grounded(r)}</td></tr>`).join("") +
       "</tbody></table></div>";
   }
 
@@ -303,13 +316,16 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
       const r = evRows.find((q) => q.D.id === id);
       return ` <span class="asm-origin" title="a field of the record; grounded in the file only by ${esc(prop)}">record field; grounded by <code>${esc(prop)}</code>: ${statusPill(r ? rowStatus(r) : "none", r && r.D)}</span>`;
     };
-    h += '<div class="grid"><div><h3>Extent</h3>' + dl([["virtual address", val(x.vaddr) + ground("bytes", "BytesAt")], ["size", val(x.size, (n) => n + " B")], ["file offset", val(x.fileOff)],
+    const addrKind = x.addrKind === "link" ? ' <span class="muted">(link-time address; no load base: a row rebases it at each admitted base)</span>' : "";
+    h += '<div class="grid"><div><h3>Extent</h3>' + dl([["virtual address", val(x.vaddr) + addrKind + ground("bytes", "BytesAt")], ["size", val(x.size, (n) => n + " B")], ["file offset", val(x.fileOff)],
       ["segment", val(x.segment) + (x.segment != null ? ground("bytes", "BytesAt") + ' <span class="muted">(the segment flags are the file\'s program header, read by the ELF tab; BytesAt uses its mapping, not a record flag)</span>' : "")],
       ["section", val(x.shndx, (n) => "#" + n)],
       ["symbol", (fn.symbol ? `${esc(fn.symbol.table)} #${esc(fn.symbol.index)}` + ground("symbol", "SymbolOf") : unknown) +
         (fn.symbol && fn.symbol.version != null ? ` <span class="asm-origin">version <code>${esc(fn.symbol.version)}</code>: record field; a binding's version is checked only by a conformance row's <code>CodeOf</code> (ld.so's versioned lookup)</span>` : "")]]) + "</div>" +
       '<div><h3>Architecture</h3>' + dl([["id", val(a.id)], ["e_machine", val(a.machine)], ["class", val(a.class)], ["data", val(a.data)], ["OS ABI", val(a.osabi)],
-        ["abiRef", `${fn.abiRef == null ? unknown : `<code>${esc(fn.abiRef)}</code>`} <span class="asm-meta" title="an identifier carried by the record; no proposition reads it">metadata (not evidence)</span>`]]) + "</div></div>";
+        ["abiRef", `${fn.abiRef == null ? unknown : `<code>${esc(fn.abiRef)}</code>`} <span class="asm-meta" title="an identifier carried by the record; no proposition reads it">metadata (not evidence)</span>`]].concat(
+          fn.abi && !Array.isArray(fn.abi) && typeof fn.abi === "object" ? [["abi (cited)", `<code>${esc(fn.abi.id ?? "")}</code> ${esc(fn.abi.source ?? "")} <span class="asm-meta" title="${esc(fn.abi.note ?? "metadata")}">metadata (not evidence)</span>`]] : []).concat(
+          fn.listing ? [["listing", `${esc(fn.listing.tool ?? "")} <span class="asm-meta">${fn.listing.verified ? "verified" : "not verified"}</span>`]] : [])) + "</div></div>";
     h += "<h3>Evidence</h3>" + evidencePanel(fn, decls);
     h += `<h3>Bytes (${bytesOf(fn).length} B)</h3>` + hexDump(fn);
     h += "<h3>Display lines and decodings</h3>" +
@@ -334,7 +350,7 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
     return rs.map((r) => statusPill(rowStatus(r), r.D)).join(" ");
   }
   const INDEX_DIMS = [["arch", "arch"], ["bytes", "bytes (segment)"], ["sectionBytes", "bytes (section)"], ["code", "CodeAt"], ["symbol", "symbol"],
-    ["decode", "decodes (per model)"], ["lines", "lines tile"], ["refs", "refs grounded"], ["contract", "contract"], ["abi", "ABI conformance"]];
+    ["decode", "decodes (per model)"], ["lines", "lines tile"], ["refs", "refs grounded"], ["unrelocated", "unrelocated"], ["present", "present"], ["contract", "contract"], ["abi", "ABI conformance"]];
 
   async function asmIndex(D) {
     let h = "<h2>Assembly</h2><p>Assembly functions: the exact bytes of each, its display listing beside each instruction model's decoding, its references, " +

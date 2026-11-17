@@ -29,9 +29,10 @@ const d = json("asm.json"), decls = json("asm-decls.json").decls, ix = json("ind
 
 // The status of each dimension, from the record's own evidence (independent of the page).
 const DIMS = { arch: [["arch"], ["notArch"]], bytes: [["bytes"], ["notBytes"]], sectionBytes: [["sectionBytes"], []], code: [["code"], []],
-  symbol: [["symbol"], []], lines: [["lineTiles"], []], refs: [["refs"], []], contract: [["contract"], []] };
+  symbol: [["symbol"], []], lines: [["lineTiles"], []], refs: [["refs"], []], unrelocated: [["unrelocated"], []], present: [["present"], []],
+  contract: [["contract"], []] };
 const statusOf = (pos, neg) => pos.length && neg.length ? "conflicting" : neg.length ? "does not hold" : !pos.length ? "none"
-  : pos.some((e) => !e.hypotheses.length) ? "holds" : "holds under premises";
+  : pos.some((e) => e.applicability ? e.applicability === "unconditional" : !e.hypotheses.length) ? "holds" : "holds under premises";
 function expected(fn) {
   const out = [];
   for (const [dim, [p, n]] of Object.entries(DIMS))
