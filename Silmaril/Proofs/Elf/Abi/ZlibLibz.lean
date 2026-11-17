@@ -98,13 +98,25 @@ theorem crc32z_unversioned (d : Option Def) : ¬ Lookup F ((Binding.dynsym none)
 theorem adler32z_unversioned (d : Option Def) : ¬ Lookup F ((Binding.dynsym none).sel "adler32_z") d :=
   no_lookup_unversioned (by decide +kernel) d
 
-/-- No dynamic relocation (`.rela.dyn`, `.rela.plt`) writes `[v, v + n)`. -/
+/-- The file is x86-64, and its dynamic relocations are `GLOB_DAT` (6), `JUMP_SLOT` (7) and
+`RELATIVE` (8) only: 8 bytes each (`relocWidth`). -/
+theorem machine_x86_64 : A0.header.machine = EM_X86_64 := by decide +kernel
+
+theorem reloc_kinds : (A0.relocs .dynamic).all (fun r => [6, 7, 8].contains r.kind) = true := by
+  decide +kernel
+
+theorem reloc_width {r : File.Reloc} (hr : r ∈ A0.relocs .dynamic) : relocWidth r.kind = some 8 := by
+  have h := List.all_eq_true.mp reloc_kinds r hr
+  simp only [List.contains_cons, List.contains_nil, Bool.or_false, Bool.or_eq_true, beq_iff_eq] at h
+  rcases h with h | h | h <;> rw [h] <;> rfl
+
+/-- No dynamic relocation (`.rela.dyn`, `.rela.plt`), 8 bytes each, writes `[v, v + n)`. -/
 def missesAllB (v n : Nat) : Bool :=
   (A0.relocs .dynamic).all fun r => decide (r.offset + 8 ≤ v ∨ v + n ≤ r.offset)
 
 theorem untouched_of {c : Code} (hc : missesAllB c.base.toNat c.bytes.length = true)
     (hd : ∀ d ∈ c.data, missesAllB d.1.toNat d.2.length = true) : Untouched F c := by
-  refine ⟨_, parses, fun r hr => ⟨?_, fun d hdm => ?_⟩⟩
+  refine ⟨_, parses, machine_x86_64, fun r hr => ⟨8, reloc_width hr, ?_, fun d hdm => ?_⟩⟩
   · unfold Misses; exact of_decide_eq_true (List.all_eq_true.mp hc r hr)
   · unfold Misses; exact of_decide_eq_true (List.all_eq_true.mp (hd d hdm) r hr)
 

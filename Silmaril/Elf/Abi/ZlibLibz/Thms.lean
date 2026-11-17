@@ -16,7 +16,8 @@ PROVED (standard axioms), proofs in `Silmaril.Proofs.Elf.Abi.{ZlibLibz,ZlibLibzR
 * `crc32z_unversioned`, `adler32z_unversioned`: without `ZLIB_1.2.9`, ld.so's lookup of a `_z`
   function has no answer (so the version in the binding is needed);
 * `crc32z_untouched` …: no dynamic relocation (`.rela.dyn`, `.rela.plt`) writes the code or the
-  read-only segment;
+  read-only segment. The file is x86-64 and its relocations are `RELATIVE` (28), `JUMP_SLOT`
+  (17) and `GLOB_DAT` (4) only, 8 bytes each by `relocWidth` (any other type would be refused);
 * `placement_zero`: the file (`ET_DYN`) admits the load base `0`;
 * `crc32z_declared` …: the shared zlib.h excerpt (hosted) declares each prototype;
 * `coverage_check`: the coverage is checked against the header;
