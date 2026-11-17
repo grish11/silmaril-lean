@@ -125,4 +125,76 @@ theorem gotoN_ok {body : Expr} {t : Target} {d : Nat} {ls : List LFrame} {W : Li
   simp only [goto] at hok
   cases t <;> simp_all
 
+theorem retVals_normal (vs : List Val) : (Flow.normal vs).retVals = some vs := rfl
+
+/-- One native pop of `gotoN` at a target no deeper than the rest of the path. -/
+theorem gotoN_cons {t : Target} {d : Nat} {L : LFrame} {ls : List LFrame} {W : List Val}
+    {s : Store H} {f : Frame} {st' : MState H} (hd : depthT t ≤ d)
+    (h : gotoN t (d + 1) (L :: ls) W s f = some st') :
+    ∃ np nr, arity f L.bt = some (np, nr) ∧ gotoN t d ls (L.outer ++ topVals nr W) s f = some st' := by
+  unfold gotoN at h ⊢
+  rw [show d + 1 - depthT t = (d - depthT t) + 1 by omega] at h
+  simp only [popN, Option.map_eq_some_iff, Option.bind_eq_some_iff] at h
+  obtain ⟨p, ⟨⟨np, nr⟩, har, hp⟩, rfl⟩ := h
+  exact ⟨np, nr, har, by simp [hp]⟩
+
+/-- `gotoN` to a block at its own depth moves there with the stack and frames. -/
+theorem gotoN_block {b : BlockId} {ls : List LFrame} {W : List Val} {s : Store H} {f : Frame}
+    {st' : MState H} (h : gotoN (.block b) b.seq.length ls W s f = some st') :
+    st' = ⟨.block b, W, ls, s, f⟩ := by
+  simp [gotoN, depthT, popN] at h; exact h.symm
+
+/-- **Leaving a frame normally with the stack `W`**: the native arm ends normally, its frame
+continues with the parent's rest (`WrapL.ok` or `loopOk`) on the top values over the outer
+ones. -/
+theorem wrap_fall {L : LFrame} {t : Instr} {rest : List Instr} {s : Store H} {f : Frame}
+    {W : List Val} {np nr : Nat} (har : arity f L.bt = some (np, nr)) {l : List (SCall H)}
+    {r : Store H × Frame × POut}
+    (hk : EvalLXPS s f (L.outer ++ topVals nr W).reverse (liftInstrs rest) l r) :
+    WrapL L t rest (s, f, .flow (.normal W.reverse)) l r := by
+  rw [List.reverse_append, topVals_reverse] at hk
+  cases hl : L.loop
+  · exact .ok hl har rfl hk
+  · exact .loopOk hl har hk
+
+/-- **The continuation of a finished sequence** (`contRev`, reached natively by `gotoN`): the
+sequence's normal end with the stack `W` is carried out by `KL`. -/
+theorem cont_good {body : Expr} {Fin : Store H × Frame × POut → Prop} :
+    ∀ (rp : List SeqStep) (ls : List LFrame) (W : List Val) (s : Store H) (f : Frame)
+      (st' : MState H) (l : List (SCall H)), FramesOk body rp ls →
+      gotoN (contRev body rp) rp.length ls W s f = some st' → Good body Fin st' l →
+      KL body Fin rp ls (s, f, .flow (.normal W.reverse)) l
+  | [], [], W, s, f, st', l, _, hg, hG => by
+    simp only [contRev, gotoN, depthT, List.length_nil, Nat.sub_self, popN, Option.map_some,
+      Option.some.injEq] at hg
+    subst hg
+    obtain ⟨rfl, hF⟩ := hG
+    exact .top (hF _ ⟨_, rfl, retVals_normal _⟩)
+  | [], _ :: _, _, _, _, _, _, h, _, _ => by simp [FramesOk] at h
+  | _ :: _, [], _, _, _, _, _, h, _, _ => by simp [FramesOk] at h
+  | (m, a) :: rp, L :: ls, W, s, f, st', l, hok, hg, hG => by
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩ := hok
+    rw [List.length_cons] at hg
+    obtain ⟨np, nr, har, hg'⟩ := gotoN_cons (Proofs.Machine.depth_contRev_cons body m a rp) hg
+    unfold contRev at hg'
+    split at hg'
+    · next hsome =>
+      rw [show rp.length = (⟨rp.reverse, m + 1⟩ : BlockId).seq.length by simp] at hg'
+      have := gotoN_block hg'
+      subst this
+      obtain ⟨c', l₀, l₁, r₀, hc', hrun, hkl, rfl⟩ := hG
+      simp only at hc' hrun hkl
+      rw [hpc] at hc'; cases hc'
+      exact .frame hpc hsg ht harm hkind (wrap_fall har hrun) (by simpa using hkl)
+    · next hnone =>
+      have hend : (segment pc)[m + 1]? = none := by
+        rw [lookup_eq] at hnone
+        simpa [hpc] using hnone
+      have hnil : restAt pc (m + 1) = [] := restAt_end hend
+      have hkl := cont_good rp ls _ s f st' l hok' hg' hG
+      have hw : WrapL L t (restAt pc (m + 1)) (s, f, .flow (.normal W.reverse)) []
+          (s, f, .flow (.normal (L.outer ++ topVals nr W).reverse)) :=
+        wrap_fall har (by rw [hnil]; exact .nil)
+      simpa using KL.frame hpc hsg ht harm hkind hw hkl
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLFwd
