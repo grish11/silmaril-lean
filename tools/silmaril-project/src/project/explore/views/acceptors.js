@@ -115,6 +115,24 @@
     return out;
   }
   const LEVEL_CLASS = { component: "prov prov-lean", "core-module": "prov prov-browser" };
+  // The source of a claimed theorem. A module the page's source map knows keeps its usual links
+  // (file, view, the declaration's own page). A library module it does not know (the database
+  // lists only the modules of its own problems) links to its file at the page's pinned revision:
+  // `Silmaril.A.B` is `Silmaril/A/B.lean` and `ProjectSelfTest.A` is
+  // `examples/project/ProjectSelfTest/A.lean` by the library layout (lakefile.toml); only names
+  // of those shapes are mapped. Without a pinned revision nothing is linked, and the page says so.
+  // library roots (lakefile.toml): `Silmaril.*` under the repository root, the self-test library
+  // `ProjectSelfTest.*` under examples/project/
+  const LIB_ROOTS = [[/^Silmaril(\.[A-Za-z][A-Za-z0-9_]*)+$/, ""], [/^ProjectSelfTest(\.[A-Za-z][A-Za-z0-9_]*)+$/, "examples/project/"]];
+  function claimSource(t) {
+    const known = sourceLink(t.module, t.decl);
+    if (known) return known;
+    const root = typeof t.module === "string" ? LIB_ROOTS.find(([re]) => re.test(t.module)) : null;
+    if (!root) return '<span class="muted">—</span>';
+    const f = repoFile(root[1] + t.module.replace(/\./g, "/") + ".lean");
+    if (!f) return '<span class="muted" data-claim-source="none">no pinned source revision on this page</span>';
+    return `<a class="claim-src" href="${esc(f.blob)}" target="_blank" rel="noopener noreferrer" title="${esc(f.path)} at ${esc(SOURCE.rev.slice(0, 12))}">source</a>`;
+  }
   function claimBlock(cl) {
     const cls = LEVEL_CLASS[cl.level] || "prov";
     let h = `<p><span class="${cls}" data-claim="${esc(cl.level || "")}">${esc(cl.kind || "claim")}</span> ` +
@@ -125,8 +143,8 @@
     h += '<dl class="obs-meta">' + rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("") + "</dl>";
     const ths = Array.isArray(cl.theorems) ? cl.theorems : [];
     h += '<div class="tablebox"><table class="claims"><thead><tr><th>theorem</th><th>states</th><th>source</th></tr></thead><tbody>' +
-      ths.map((t) => `<tr><td><a href="${esc(href("source", t.decl))}">${code(t.decl)}</a><div class="muted">${esc(t.module)}</div></td>` +
-        `<td>${esc(t.states)}</td><td>${sourceLink(t.module, t.decl) || '<span class="muted">—</span>'}</td></tr>`).join("") +
+      ths.map((t) => `<tr><td>${moduleFile(t.module) ? `<a href="${esc(href("source", t.decl))}">${code(t.decl)}</a>` : code(t.decl)}` +
+        `<div class="muted">${esc(t.module)}</div></td><td>${esc(t.states)}</td><td>${claimSource(t)}</td></tr>`).join("") +
       "</tbody></table></div>";
     return h;
   }

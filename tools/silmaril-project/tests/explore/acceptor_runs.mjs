@@ -17,7 +17,7 @@
 //   when registered (SAT must be), its registered one; every named theorem whose header is on this
 //   branch is stated in it.
 //   node acceptor_runs.mjs SITE_DIR [SHOTS_DIR]
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -76,7 +76,10 @@ function mkSite(name, runs) {
   fs.mkdirSync(path.join(d, "wasm/c"), { recursive: true });
   for (const f of ["index.html", "project.sqlite", "explore-sw.js", "wasm/index.json"])
     if (fs.existsSync(path.join(site, f))) fs.copyFileSync(path.join(site, f), path.join(d, f));
-  fs.copyFileSync(path.join(site, "wasm/c", slug + ".json"), path.join(d, "wasm/c", slug + ".json"));
+  // every component page the site has (all acceptor components), at least the SAT one
+  for (const f of fs.readdirSync(path.join(site, "wasm/c")).filter((f) => f.endsWith(".json")))
+    fs.copyFileSync(path.join(site, "wasm/c", f), path.join(d, "wasm/c", f));
+  if (!fs.existsSync(path.join(d, "wasm/c", slug + ".json"))) throw new Error(`the site has no page for ${slug}`);
   if (runs != null) fs.writeFileSync(path.join(d, "acceptor-runs.json"), runs);
 }
 const art = report.artifacts.find((a) => a.sha256 === sat.sha256);
@@ -144,9 +147,50 @@ try {
       claimsNone: !!s.querySelector(".claims-none"),
       decls: [...s.querySelectorAll("table.claims td:first-child code")].map((c) => c.textContent),
       sourceLinks: [...s.querySelectorAll("table.claims a[href^='#/source/']")].map((a) => decodeURIComponent(a.getAttribute("href").slice(9))),
+      // per claimed theorem: its module, its own-page link, its GitHub source link, the no-revision notice
+      claimRows: [...s.querySelectorAll("table.claims tbody tr")].map((r) => ({ decl: r.querySelector("td code").textContent,
+        module: (r.querySelector("td .muted") || {}).textContent || "",
+        page: (r.querySelector("a[href^='#/source/']") || { getAttribute: () => null }).getAttribute("href"),
+        blobs: [...r.querySelectorAll("a[href^='https://github.com/']")].map((a) => a.getAttribute("href")),
+        noRev: !!r.querySelector("[data-claim-source='none']") })),
+      sourceMeta: JSON.parse(document.getElementById("source-meta").textContent || "null"),
       pageH2: [...document.querySelectorAll("main h2")].map((h) => h.textContent) };
   });
   const pages = [["component", "/wasm-component/" + encodeURIComponent(slug)], ["artifact", "/artifact/" + sat.cid]];
+
+  // The real site: every claim of every acceptor component page links to something that exists.
+  // A GitHub source link must be at the page's pinned revision and name a file that exists in this
+  // repository at that revision; an own-page link must open a declaration page with a module.
+  {
+    const comps = [...new Set(report.artifacts.flatMap((a) => (a.claims || []).map((c) => c.registry_name)).filter(Boolean))];
+    for (const name of comps) {
+      await open("real", "/wasm-component/" + encodeURIComponent(name));
+      const s = await section();
+      if (!s || !s.claimRows.length) { check(false, `real ${name}: the claims are shown`); continue; }
+      const meta = s.sourceMeta;
+      for (const r of s.claimRows) {
+        if (!meta) { check(r.noRev || (!r.page && r.blobs.length === 0), `real ${name}: ${r.decl} (no pinned revision on this page, said so)`); continue; }
+        check(r.blobs.length > 0, `real ${name}: ${r.decl} has a source link`);
+        for (const u of r.blobs) {
+          const m = new RegExp(`^${meta.repo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/blob/([0-9a-f]+)/(.+)$`).exec(u);
+          let exists = false;
+          if (m && m[1] === meta.rev) {
+            try { execFileSync("git", ["-C", repo, "cat-file", "-e", `${m[1]}:${decodeURIComponent(m[2])}`], { stdio: "ignore" }); exists = true; }
+            catch (e) { exists = false; }
+          }
+          check(exists, `real ${name}: ${r.decl} -> ${m ? decodeURIComponent(m[2]) : u} exists at ${meta.rev.slice(0, 12)}`);
+        }
+        if (r.page) {
+          await p.evaluate((h) => { location.hash = h.slice(1); }, r.page);
+          await p.waitForTimeout(300);
+          await p.waitForFunction(() => window.explore && window.explore.ready && !window.explore.busy, null, { timeout: 60000 });
+          const t = await p.evaluate(() => document.querySelector("#main").innerText);
+          check(!/names no module/.test(t), `real ${name}: ${r.decl}'s own page resolves`);
+          await open("real", "/wasm-component/" + encodeURIComponent(name));
+        }
+      }
+    }
+  }
 
   for (const [what, hash] of pages) {
     await open("real", hash);
@@ -178,8 +222,13 @@ try {
     check(f.claims.length === 2 && f.claims[1].kind === "fixture claim kind" && f.claims[1].level === "core-module" && !/prov-lean/.test(f.claims[1].cls),
       `fixture ${what}: every claim of the report is shown, a core-module claim without the component style`);
     check(f.decls.includes("Fixture.check_sound") && f.text.includes("Fixture.bytes") && f.text.includes(sat.sha256), `fixture ${what}: the claim's theorems, value and SHA-256`);
-    check(["Silmaril.Project.WasmComponents.SatAccept.checkStream_sound_of_bytes", "Silmaril.Project.WasmComponents.SatAccept.checkNested_sound_of_bytes"]
-      .every((d) => f.sourceLinks.includes(d)), `fixture ${what}: the theorems link to their source pages`);
+    // every claimed theorem has exactly one honest source state: the page's source map knows its
+    // module (own-page link and file link), or it is a library module linked at the pinned revision,
+    // or the page has no pinned revision and says so; never an own-page link without a known module
+    const known = (m) => !!(f.sourceMeta && f.sourceMeta.modules && Object.hasOwn(f.sourceMeta.modules, m));
+    check(f.claimRows.length > 0 && f.claimRows.every((r) => known(r.module) ? (r.page && r.blobs.length > 0) :
+        (!r.page && (/^(Silmaril|ProjectSelfTest)\./.test(r.module) ? (f.sourceMeta ? r.blobs.length === 1 : r.noRev) : r.blobs.length === 0))),
+      `fixture ${what}: each claimed theorem links to its source where known, at the pinned revision otherwise, no unresolvable own page`);
     check(!f.err, `fixture ${what}: no error`);
     await shot("acceptor-runs-fixture-" + what);
 
