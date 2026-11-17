@@ -21,6 +21,11 @@ ABI model's `SystemV.Abi.plan`) on the result. All are `decide +kernel`.
   `struct f3 { float a, b, c; }` (12 bytes) SSE, SSE, and the same for `float v[3]` and for
   `struct f3` nested; `union { double; long; }` INTEGER (the merge rule); `char` and `float` in
   one eightbyte INTEGER; bit-fields INTEGER; a typedef of `struct p2` as `struct p2`;
+* `sysvScalar_nested_classes`: nested structs and arrays of structs at offsets that are not
+  multiples of 8 bytes are flattened to their leaves at absolute offsets:
+  `struct outer { float x; struct inner { int a; float b; float c; } in; }` INTEGER, SSE (GCC's
+  classes; the flat equivalent's), in RDI and XMM0, not the INTEGER, INTEGER that classifying
+  `in` as a whole object gives;
 * `sysvScalar_aggregate_args`: where the planner puts them: `p2` in RDI, RSI; `d2` in XMM0,
   XMM1; `m` in RDI and XMM0; the 24-byte struct on the stack (offset 0, 32 bytes reserved);
   `f3` in XMM0 (`a`, `b`: 8 bytes) and XMM1 (`c`: 4 bytes); five `long`s then `p2` then a
@@ -150,6 +155,56 @@ theorem sysvScalar_aggregate_classes :
       some [⟨4, 4, [.integer]⟩] ∧
     (aggHdr.lowered sysvScalar "td_f").map (·.args) =
       (aggHdr.lowered sysvScalar "sum_p2").map (·.args) := by
+  decide +kernel
+
+/-- Nested aggregates at offsets that are not multiples of 8 bytes (GCC 13 `-O2` regressions).
+Each struct is 16 bytes; GCC passes it in RDI and XMM0 (INTEGER, SSE), as compiling a function
+reading the member at offset 8 shows (`movq %xmm0, …`/a bare `ret` when it is already in
+XMM0). -/
+def nestHdr : HeaderSrc :=
+  ⟨[("nest.h", "struct inner { int a; float b; float c; };
+struct outer { float x; struct inner in; };
+struct inner2 { int a; float b; };
+struct outerA { float x; struct inner2 in[1]; float y; };
+struct flat { float x; int a; float b; float c; };
+struct pq { float p; float q; };
+struct al { int a; struct pq in; float z; };
+long f_outer(struct outer o);
+long f_outerA(struct outerA o);
+long f_flat(struct flat o);
+long f_al(struct al o);
+struct outer r_outer(void);")], "nest.h"⟩
+
+/-- **Nested aggregates are classified from their leaves at absolute offsets** (`leavesOf`):
+`struct outer { float x; struct inner { int a; float b; float c; } in; }` is INTEGER, SSE (the
+first eightbyte holds `x` and `in.a`, the second `in.b` and `in.c`), as GCC passes it and as
+the flat `struct flat { float x; int a; float b; float c; }` is; likewise an array of one
+`struct { int a; float b; }` at offset 4 followed by a `float`, and `struct pq` at offset 4.
+The planner then passes each in RDI and XMM0, and returns `struct outer` in RAX and XMM0.
+
+The last conjunct is what classifying `in` as a whole object relative to its own start
+(INTEGER, SSE over its 12 bytes) and merging that into the outer eightbytes computes:
+INTEGER, INTEGER, which is wrong. -/
+theorem sysvScalar_nested_classes :
+    (nestHdr.lowered sysvScalar "f_outer").map (·.args.map Arg.object) =
+      some [⟨16, 4, [.integer, .sse]⟩] ∧
+    (nestHdr.lowered sysvScalar "f_outerA").map (·.args.map Arg.object) =
+      some [⟨16, 4, [.integer, .sse]⟩] ∧
+    (nestHdr.lowered sysvScalar "f_flat").map (·.args.map Arg.object) =
+      some [⟨16, 4, [.integer, .sse]⟩] ∧
+    (nestHdr.lowered sysvScalar "f_al").map (·.args.map Arg.object) =
+      some [⟨16, 4, [.integer, .sse]⟩] ∧
+    ((nestHdr.lowered sysvScalar "f_outer").bind fun p => (p.plan {}).toOption).map
+        (·.arguments.map (·.chunks)) =
+      some [[⟨0, 8, .gp .rdi⟩, ⟨8, 8, .vector 0 0⟩]] ∧
+    ((nestHdr.lowered sysvScalar "f_outerA").bind fun p => (p.plan {}).toOption).map
+        (·.arguments.map (·.chunks)) =
+      some [[⟨0, 8, .gp .rdi⟩, ⟨8, 8, .vector 0 0⟩]] ∧
+    ((nestHdr.lowered sysvScalar "r_outer").bind fun p => (p.plan {}).toOption).map
+        (·.result) =
+      some (.direct [⟨0, 8, .gp .rax⟩, ⟨8, 8, .vector 0 0⟩]) ∧
+    aggregate 16 4 [⟨0, .floating .binary32, none⟩, ⟨32, ⟨12, 4, [.integer, .sse]⟩, none⟩] =
+      ⟨16, 4, [.integer, .integer]⟩ := by
   decide +kernel
 
 /-- Where the raw planner passes them. -/
