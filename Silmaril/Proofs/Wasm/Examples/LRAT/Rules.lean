@@ -15,9 +15,12 @@ This file gives every-run (`HWP`, every profile and host relation) rules for exa
 instructions over a **view** of the configuration:
 
 * the frame is `fr mi L` (all locals are `i32`, listed in `L`);
-* the store has the shape `Shape X s G B` (`X : Fix H` fixes the functions, the global type and
-  the memory type): its globals are the `i32` values `G`, its only memory holds the bytes `B`,
-  which are `65536` long;
+* the store has the shape `Shape X s G B` (`X : Fix H` fixes the functions, the global type,
+  the memory type and any further globals `X.grest` and memories `X.mrest`): its first eight
+  globals are the `i32` values `G`, followed by `X.grest`; its first memory holds the bytes `B`,
+  which are `65536` long, followed by `X.mrest`. The checker's code never touches the further
+  globals and memories, so its functions keep their specifications inside a bigger module
+  (`Silmaril.Wasm.Examples.LratAccept`); for `lratModule` itself both are empty;
 * the operand stack is written top-first, as `vals rs.reverse`, so that pushing is `::` and the
   rules apply by unification.
 
@@ -47,24 +50,30 @@ structure Fix (H : Type) where
   gt : CGlobalType
   /-- The type of the memory. -/
   mt : MemoryType
+  /-- Further globals of the store, after the eight of the checker (never touched by its code). -/
+  grest : List GlobalInst := []
+  /-- Further memories of the store, after the checker's (never touched by its code). -/
+  mrest : List MemInst := []
 
 /-- A frame whose locals are the `i32` values `L`. -/
 def fr (mi : ModuleInst) (L : List (BitVec 32)) : Frame :=
   ⟨L.map fun v => some (Val.i32 v), mi⟩
 
-/-- The store has the functions `X.fs`, the eight `i32` globals `G` and the one memory `B`. -/
+/-- The store has the functions `X.fs`, the eight `i32` globals `G` (followed by the fixed
+globals `X.grest`) and the memory `B` (followed by the fixed memories `X.mrest`). -/
 structure Shape {H : Type} (X : Fix H) (s : Store H) (G : List (BitVec 32)) (B : ByteArray) : Prop
     where
   funcs : s.funcs = X.fs
-  glob : s.globals = G.map fun v => ⟨X.gt, Val.i32 v⟩
+  glob : s.globals = (G.map fun v => ⟨X.gt, Val.i32 v⟩) ++ X.grest
   len : G.length = 8
-  mem : s.mems = [⟨X.mt, B⟩]
+  mem : s.mems = ⟨X.mt, B⟩ :: X.mrest
   size : B.size = memSize
 
-/-- The module instance resolves global `k` to address `k` and memory `0` to address `0`. -/
+/-- The module instance resolves global `k < 8` to address `k` and memory `0` to address `0`
+(further globals and memories of the module instance are unconstrained). -/
 structure MiOk {H : Type} (X : Fix H) : Prop where
-  globals : X.mi.globals = List.range 8
-  mems : X.mi.mems = [0]
+  globals : ∀ k < 8, X.mi.globals[k]? = some k
+  mems : X.mi.mems[0]? = some 0
 
 variable {H : Type} {P : Profile} {host : HostSemantics H} {X : Fix H}
 variable {s : Store H} {G : List (BitVec 32)} {B : ByteArray} {L : List (BitVec 32)}
@@ -128,14 +137,17 @@ theorem Shape.global? (hS : Shape X s G B) (hX : MiOk X) {L : List (BitVec 32)} 
     s.global? (fr X.mi L) ⟨⟨k % 2 ^ 32, Nat.mod_lt _ (by decide)⟩⟩ =
       some (k, ⟨X.gt, Val.i32 (gv G k)⟩) := by
   have hk' : k < G.length := hS.len ▸ hk
-  simp [Store.global?, fr, Idx.toNat, idx_mod (by omega : k < 16), hX.globals, hS.glob,
-    List.getElem?_range hk, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk']
+  have hk'' : k < (G.map fun v => (⟨X.gt, Val.i32 v⟩ : GlobalInst)).length := by simpa using hk'
+  simp [Store.global?, fr, Idx.toNat, idx_mod (by omega : k < 16), hX.globals k hk, hS.glob,
+    List.getElem?_append_left hk'', List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk']
 
 theorem Shape.setGlobal (hS : Shape X s G B) {k : Nat} (hk : k < 8) (v : BitVec 32) :
     Shape X (s.setGlobal k (Val.i32 v)) (G.set k v) B := by
   refine ⟨hS.funcs, ?_, by rw [List.length_set, hS.len], hS.mem, hS.size⟩
-  simp only [Store.setGlobal, hS.glob, List.modify_eq_set_getElem?, List.map_set]
   have hk' : k < G.length := hS.len ▸ hk
+  have hk'' : k < (G.map fun v => (⟨X.gt, Val.i32 v⟩ : GlobalInst)).length := by simpa using hk'
+  simp only [Store.setGlobal, hS.glob, List.modify_eq_set_getElem?, List.map_set,
+    List.getElem?_append_left hk'', List.set_append_left _ _ hk'']
   simp [hk']
 
 theorem Shape.mem? (hS : Shape X s G B) (hX : MiOk X) {L : List (BitVec 32)} :
