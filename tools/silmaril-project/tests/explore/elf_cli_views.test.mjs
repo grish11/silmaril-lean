@@ -50,19 +50,24 @@ const elfFile = {
 const dis = { tool: "GNU objdump 2.44", command: "objdump -d -w -z x.so", listing: "x.objdump", unverified: true, rows: 1,
   chunks: [["dis/x/0.json", 4096, 4096, 1]], sections: [".text"] };
 const disRows = [[4096, 4096, "c3", "ret", ".text", "f_known"]];
-const edge = (decl, role, status, kind = "theorem") => ({ decl, role, status, kind, note: "", axioms: [], module: "M", file: "M.lean", line: 1, statement: "s" });
+const edge = (decl, role, status, kind = "theorem", association = "n/a") => ({ decl, role, status, kind, note: "", axioms: [], module: "M", file: "M.lean", line: 1, statement: "s", association, about: [] });
 const cli = {
   schema: "silmaril.cli-pages.v1",
   io: [
     { id: "a", title: "A", binary: "a", elfSlug: "x", sha256: "00", level: "L1", input: [["stdin", "any"]], output: [["stdout", "hi"], ["exit", "0"]],
       model: [["libc", "contracts (trusted)"]], limits: [],
-      edges: [edge("M.a_proof", "proves the row", "proved"), edge("M.Task.a", "open obligation", "parametrised statement, no instance proved here", "statement (parametrised)"),
-        edge("M.Task.b", "open obligation", "statement, not proved here", "statement"), edge("M.spec", "specification", "specification", "statement (parametrised)")] },
+      edges: [edge("M.a_proof", "proves the row", "proved", "theorem", "checked"), edge("M.Task.a", "open obligation", "parametrised statement, no instance proved here", "statement (parametrised)"),
+        edge("M.Task.b", "open obligation", "statement, not proved here", "statement"), edge("M.spec", "specification", "specification", "statement (parametrised)"),
+        edge("M.Shape", "shape (uninstantiated)", "uninstantiated shape", "statement (parametrised)")] },
     { id: "b", title: "B", binary: "b", elfSlug: null, sha256: "00", level: "—", input: [], output: [], model: [], limits: ["nothing proved"],
-      edges: [edge("M.spec", "specification", "specification", "statement (parametrised)")] }],
+      edges: [edge("M.spec", "specification", "specification", "statement (parametrised)")] },
+    { id: "c", title: "C", binary: "c", elfSlug: null, sha256: "00", level: "L1", input: [], output: [], model: [], limits: [],
+      edges: [edge("M.unrelated_true_theorem", "proves", "proved", "theorem", "curated")] }],
   specs: [
     { id: "s1", title: "S1", kind: "args grammar", level: "L3", implementation: [["tool", "tools/s1"]], notes: [],
-      edges: [edge("M.tool", "specification", "specification", "definition"), edge("M.main_refines", "refinement (by construction)", "proved")] },
+      edges: [edge("M.tool", "specification", "specification", "definition"), edge("M.main_refines", "refinement (by construction)", "proved", "theorem", "checked")] },
+    { id: "s3", title: "S3", kind: "sentence", level: "L1", implementation: [["ELF", "c"]], notes: [],
+      edges: [edge("M.spec3", "specification", "specification", "definition"), edge("M.curated_refines", "refinement proof", "proved", "theorem", "curated")] },
     { id: "s2", title: "S2", kind: "args grammar", level: "L3", implementation: [["tool", "tools/s2"]], notes: [],
       edges: [edge("M.tool2", "specification", "specification", "definition"), edge("M.tool2_wf", "proves", "proved")] }],
 };
@@ -120,6 +125,12 @@ test("CLI I/O: verdicts follow the declarations, open obligations are never prov
   assert.match(a, /verified under the stated model/);
   assert.match(a, /2 open obligations/);
   assert.match(b, /no verified input\/output pair/);
+  // a proved theorem not checked to be about the record gives no verdict
+  assert.match(rowOf(h, 'id="cli-io-c"'), /no verified input\/output pair/);
+  assert.match(h, /curated reference \(association not checked\)/);
+  // the uninstantiated shape is not an open obligation
+  assert.doesNotMatch(a, /3 open obligations/);
+  assert.match(h, /data-role="shape \(uninstantiated\)"[\s\S]*?uninstantiated shape/);
   for (const m of h.matchAll(/<tr data-role="open obligation">([\s\S]*?)<\/tr>/g)) {
     assert.match(m[1], /st-bad/);
     assert.doesNotMatch(m[1], /prov-lean/);
@@ -131,4 +142,6 @@ test("CLI specs: a specification without a refinement proof shows none", async (
   const h = await html(v.get("cli-specs"), "");
   assert.match(rowOf(h, 'id="cli-spec-s1"'), /main_refines/);
   assert.match(rowOf(h, 'id="cli-spec-s2"'), /<td><span class="muted">none<\/span><\/td>/);
+  // a curated refinement proof is not shown as a refinement
+  assert.match(rowOf(h, 'id="cli-spec-s3"'), /<td><span class="muted">none<\/span><\/td>/);
 });

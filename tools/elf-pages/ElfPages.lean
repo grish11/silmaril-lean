@@ -829,6 +829,11 @@ structure Edge where
   decl : Name
   role : String
   note : String := ""
+  /-- **The record's anchors this declaration must be about**: groups of constants (binary,
+  model, specification …); the declaration's statement, with registry rows (`silmaril.*`)
+  unfolded, must mention a constant of every group. A proving or refinement edge without anchors is
+  a *curated reference*: shown, never counted in a verdict. -/
+  about : List (List Name) := []
 
 structure IoRecord where
   id : String
@@ -852,6 +857,23 @@ structure SpecRecord where
   edges : List Edge
   notes : List String
 
+/-- An edge with anchors. -/
+def Edge.on (e : Edge) (about : List (List Name)) : Edge := { e with about }
+
+/-- Roles whose edges count towards a verdict or a refinement column. -/
+def countingRole (r : String) : Bool :=
+  r.startsWith "proves" || r.startsWith "refinement" || r.startsWith "checks"
+
+-- Anchor groups (binary, model, specification) of the records.
+def aHelloGcc : List Name := [`Silmaril.Elf.CliExe.Hello.helloGcc, `Silmaril.Elf.Link.Dyn.Program.Examples.helloGcc,
+  `Silmaril.Elf.Link.Dyn.Hello.gccFile]
+def aHelloClang : List Name := [`Silmaril.Elf.Link.Dyn.Hello.clangFile]
+def aHelloSpec : List Name := [`Silmaril.Cli.Institution.Std.hello, `Silmaril.Elf.Link.Dyn.Program.Examples.helloSpec,
+  `Silmaril.Elf.Link.Dyn.Hello.HelloDone]
+def aGlibcModel : List Name := [`Silmaril.Elf.CliExe.glibcStream, `Silmaril.Elf.CliExe.glibcPin,
+  `Silmaril.Elf.Link.Dyn.Program.MainProof, `Silmaril.Elf.Link.Dyn.Proc.MustQ]
+def aPins : List Name := [`Silmaril.Elf.Link.Dyn.Program.libc]
+
 def helloModel : List (String × String) := [
   ("machine", "Open9 x86-64 semantics for the executable's own instructions (_start, crt, main), from e_entry"),
   ("ABI", "System V AMD64 process entry: rip = e_entry, 16-byte aligned stack, argc/argv/envp (AtStart)"),
@@ -873,20 +895,20 @@ def ioRecords : List IoRecord := [
     output := [("stdout", "hello, world\n"), ("stderr", "empty (L3, helloSpec)"), ("exit", "0")]
     model := helloModel
     edges := [
-      ⟨`Silmaril.Elf.CliExe.Hello.hello_cli, "proves the row", "silmaril.elf.cli.hello.gcc_o2: ELF facts, and Std.hello under glibcStream (the process model above, not concrete glibc)"⟩,
-      ⟨`Silmaril.Elf.CliExe.hello_start, "checks the start-up description", "silmaril.elf.start.hello.gcc_o2: a decidable check of a description of the file (B.ok), not a statement about runs; its execution consequence is the next two rows"⟩,
-      ⟨`Silmaril.Elf.CliExe.hello_via_start, "proves (via the reduction)", "the execution consequence: hello's L3 spec, from the checked description and main's proof alone"⟩,
-      ⟨`Silmaril.Elf.CliExe.cli_of_main, "reduction", "for any file: a checked start-up description and a proof of main give the file's CLI spec in the process model"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.Program.Examples.helloGcc_main, "proves main", "symbolic execution of main against puts's contract"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.Hello.hello_gcc, "proves (process model)", "MustQ over the modelled process (Open9 for the file's code, glibc as trusted contract steps, memory from the trusted loader relation, any libc.so.6/ld.so agreeing with the pinned chunks): every modelled run from _start ends with status 0 and hello, world on fd 1 (a prefix if writes may fail)"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.Hello.NonVacuous.gcc_nonvacuous, "non-vacuity", "the hypotheses are met by a concrete loaded state with a run"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.Libc.helloGcc_on, "transfer", "verified on every libc specification above putsSpec"⟩,
-      ⟨`Silmaril.Cli.Institution.Std.hello, "specification", "Sen.prints helloBytes at L1"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.LibMod.helloGcc_real, "conditional (not proved end to end)", "real execution on a real machine X: assumes Task.helloGccCrt and HelloLib, both open"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.LibMod.Task.helloGccCrt, "open obligation", "main on the C-runtime machine"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.LibMod.HelloLib, "open obligation", "glibc's code realises init, gate, __libc_start_main, __cxa_finalize, puts"⟩,
-      ⟨`Silmaril.Elf.CliExe.GlibcRuntime, "open obligation (shape only)", "silmaril.shapes.elf.glibc_runtime: a shape with no instance: no concrete real machine X or library module M exists yet, so there is no open problem about glibc 2.39; instantiating it is itself unmet"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.Proc.proc, "trusted model", "the process machine: Open9 plus the libc contracts"⟩]
+      (⟨`Silmaril.Elf.CliExe.Hello.hello_cli, "proves the row", "silmaril.elf.cli.hello.gcc_o2: ELF facts, and Std.hello under glibcStream (the process model above, not concrete glibc)", []⟩ : Edge).on [[`Silmaril.Elf.CliExe.Hello.helloGcc], [`Silmaril.Elf.CliExe.glibcStream], [`Silmaril.Cli.Institution.Std.hello]],
+      (⟨`Silmaril.Elf.CliExe.hello_start, "checks the start-up description", "silmaril.elf.start.hello.gcc_o2: a decidable check of a description of the file (B.ok), not a statement about runs; its execution consequence is the next two rows", []⟩ : Edge).on [[`Silmaril.Elf.CliExe.Hello.helloGcc], aPins, [`Silmaril.Elf.CliExe.GlibcStart]],
+      (⟨`Silmaril.Elf.CliExe.hello_via_start, "proves (via the reduction)", "the execution consequence: hello's L3 spec, from the checked description and main's proof alone", []⟩ : Edge).on [[`Silmaril.Elf.CliExe.Hello.helloGcc], [`Silmaril.Elf.CliExe.glibcPin], [`Silmaril.Elf.Link.Dyn.Program.Examples.helloSpec]],
+      ⟨`Silmaril.Elf.CliExe.cli_of_main, "reduction", "for any file: a checked start-up description and a proof of main give the file's CLI spec in the process model", []⟩,
+      (⟨`Silmaril.Elf.Link.Dyn.Program.Examples.helloGcc_main, "proves main", "symbolic execution of main against puts's contract", []⟩ : Edge).on [[`Silmaril.Elf.Link.Dyn.Program.Examples.helloGcc], [`Silmaril.Elf.Link.Dyn.Program.MainProof], [`Silmaril.Elf.Link.Dyn.Program.Examples.helloSpec]],
+      (⟨`Silmaril.Elf.Link.Dyn.Hello.hello_gcc, "proves (process model)", "MustQ over the modelled process (Open9 for the file's code, glibc as trusted contract steps, memory from the trusted loader relation, any libc.so.6/ld.so agreeing with the pinned chunks): every modelled run from _start ends with status 0 and hello, world on fd 1 (a prefix if writes may fail)", []⟩ : Edge).on [[`Silmaril.Elf.Link.Dyn.Hello.gccFile], [`Silmaril.Elf.Link.Dyn.Proc.MustQ, `Silmaril.Elf.Link.Dyn.Hello.gccWorld], [`Silmaril.Elf.Link.Dyn.Hello.HelloDone]],
+      ⟨`Silmaril.Elf.Link.Dyn.Hello.NonVacuous.gcc_nonvacuous, "non-vacuity", "the hypotheses are met by a concrete loaded state with a run", []⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Libc.helloGcc_on, "transfer", "verified on every libc specification above putsSpec", []⟩,
+      ⟨`Silmaril.Cli.Institution.Std.hello, "specification", "Sen.prints helloBytes at L1", []⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.LibMod.helloGcc_real, "conditional (not proved end to end)", "real execution on a real machine X: assumes Task.helloGccCrt and HelloLib, both open", []⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.LibMod.Task.helloGccCrt, "open obligation (assumption of helloGcc_real)", "main on the C-runtime machine", []⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.LibMod.HelloLib, "open obligation (assumption of helloGcc_real)", "glibc's code realises init, gate, __libc_start_main, __cxa_finalize, puts", []⟩,
+      ⟨`Silmaril.Elf.CliExe.GlibcRuntime, "shape (uninstantiated)", "silmaril.shapes.elf.glibc_runtime: a problem shape, not an open problem: no concrete real machine X or library module M exists yet, so there is no instance (and no glibc 2.39 problem) to prove; instantiating it is itself unmet. The concrete open assumptions are the two rows above", []⟩,
+      ⟨`Silmaril.Elf.Link.Dyn.Proc.proc, "trusted model", "the process machine: Open9 plus the libc contracts", []⟩]
     limits := ["no end-to-end claim about concrete glibc: its code is not executed, its entry points are trusted contracts; real start-up and puts depend on the open Task.helloGccCrt and HelloLib (and the glibc_runtime shape, no row)",
       "the loader is a transcription of ld.so, trusted", "consumption, reads and the file log are not observed (L3 via toCli)"] },
   { id := "hello-clang", title := "hello world (clang 18.1 -O2), dynamically linked against glibc 2.39 (lazy binding)"
@@ -896,8 +918,8 @@ def ioRecords : List IoRecord := [
     input := [("argv", "any argc"), ("stdin", "not read"), ("environment", "any"), ("precondition", "reliable writes for the exact output")]
     output := [("stdout", "hello, world\n (a prefix if writes may fail)"), ("exit", "0")]
     model := helloModel ++ [("binding", "lazy: the resolver (_dl_runtime_resolve) as a contract")]
-    edges := [⟨`Silmaril.Elf.Link.Dyn.Hello.hello_clang, "proves (process model)", "MustQ over the modelled process (Open9 for the file's code, glibc and the lazy-binding resolver as trusted contract steps, the trusted loader relation): every modelled run from _start ends with status 0 and hello, world on fd 1 (a prefix if writes may fail)"⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.Proc.proc, "trusted model", "the process machine"⟩]
+    edges := [(⟨`Silmaril.Elf.Link.Dyn.Hello.hello_clang, "proves (process model)", "MustQ over the modelled process (Open9 for the file's code, glibc and the lazy-binding resolver as trusted contract steps, the trusted loader relation): every modelled run from _start ends with status 0 and hello, world on fd 1 (a prefix if writes may fail)", []⟩ : Edge).on [[`Silmaril.Elf.Link.Dyn.Hello.clangFile], [`Silmaril.Elf.Link.Dyn.Proc.MustQ, `Silmaril.Elf.Link.Dyn.Hello.clangWorld], [`Silmaril.Elf.Link.Dyn.Hello.HelloDone]],
+      ⟨`Silmaril.Elf.Link.Dyn.Proc.proc, "trusted model", "the process machine", []⟩]
     limits := ["no cli_exe row: the Program API description (Bin) of hello-clang is not stated as a CLI model here"] },
   { id := "sha256sum-min", title := "sha256sum-min: a libc-free static reimplementation of GNU coreutils 9.4 sha256sum (stdin tier)"
     binary := "Silmaril.Process.LPS.Problems.GnuSha256sum.Elf (the file as Lean literals; apps/sha256sum-min)", elfSlug := none
@@ -912,10 +934,10 @@ def ioRecords : List IoRecord := [
       ("ABI", "Linux x86-64 process entry (ExecEntry, admissible launch)"),
       ("loader", "LPS ELFImage loader of a static ET_EXEC"), ("libc", "none (libc-free)"),
       ("syscalls", "NativeX86.extendedSyscallSpec with refusals")]
-    edges := [⟨`Silmaril.Process.LPS.Problems.GnuSha256sum.Close.lpsTotal_close, "proves", "total correctness in LPS, stdin tier"⟩,
-      ⟨`Silmaril.Process.LPS.Problems.GnuSha256sum.Close.lpsPartial_close, "proves", "safety"⟩,
-      ⟨`Silmaril.Process.LPS.Problems.GnuSha256sum.Close.agree_close, "proves", "agreement with sha256-cli"⟩,
-      ⟨`Silmaril.Cli.Spec.Sha256sum.spec, "specification (CLI institution)", "the standard sha256sum spec; this proof is stated in LPS, not as this sentence"⟩]
+    edges := [(⟨`Silmaril.Process.LPS.Problems.GnuSha256sum.Close.lpsTotal_close, "proves", "total correctness in LPS, stdin tier", []⟩ : Edge).on [[`Silmaril.Process.LPS.Problems.GnuSha256sum.snapshot, `Silmaril.Process.LPS.Problems.GnuSha256sum.file], [`Silmaril.Process.LPS.Problems.GnuSha256sum.TotalOn, `Silmaril.Process.LPS.Problems.GnuSha256sum.Total]],
+      (⟨`Silmaril.Process.LPS.Problems.GnuSha256sum.Close.lpsPartial_close, "proves", "safety", []⟩ : Edge).on [[`Silmaril.Process.LPS.Problems.GnuSha256sum.snapshot, `Silmaril.Process.LPS.Problems.GnuSha256sum.file]],
+      (⟨`Silmaril.Process.LPS.Problems.GnuSha256sum.Close.agree_close, "proves", "agreement with sha256-cli", []⟩ : Edge).on [[`Silmaril.Process.LPS.Problems.GnuSha256sum.file], [`Silmaril.Process.LPS.Problems.Sha256Cli.file]],
+      ⟨`Silmaril.Cli.Spec.Sha256sum.spec, "specification (CLI institution)", "the standard sha256sum spec; this proof is stated in LPS, not as this sentence", []⟩]
     limits := ["stdin tier only (no options, no file operands)", "this binary is not the distro sha256sum of the ELF tab"] },
   { id := "sha256-cli", title := "sha256-cli: a freestanding SHA-256 filter (prints 64 hex digits and \\n)"
     binary := "apps/sha256-cli", elfSlug := none, sha256 := "(see apps/sha256-cli/manifest.json)"
@@ -923,7 +945,7 @@ def ioRecords : List IoRecord := [
     input := [("stdin", "any finite byte stream"), ("argv", "any")]
     output := [("stdout", "64 hex digits of SHA-256(stdin) and \\n"), ("exit", "0")]
     model := [("machine", "LPS x86-64 native machine"), ("libc", "none"), ("syscalls", "read, write, exit (LPS spec)")]
-    edges := [⟨`Silmaril.Process.LPS.Problems.Sha256Cli.sha256cli_lps_total, "proves", "total correctness in LPS"⟩]
+    edges := [(⟨`Silmaril.Process.LPS.Problems.Sha256Cli.sha256cli_lps_total, "proves", "total correctness in LPS", []⟩ : Edge).on [[`Silmaril.Process.LPS.Problems.Sha256Cli.snapshot, `Silmaril.Process.LPS.Problems.Sha256Cli.file], [`Silmaril.Process.LPS.Problems.Sha256Cli.TotalOn, `Silmaril.Process.LPS.Problems.Sha256Cli.Total]]]
     limits := [] },
   { id := "gnu-sha256sum", title := "GNU coreutils 9.4 sha256sum (Ubuntu, dynamic, glibc + libcrypto)"
     binary := "examples/elf/pinned/gnu-sha256sum", elfSlug := some "gnu-sha256sum"
@@ -931,39 +953,41 @@ def ioRecords : List IoRecord := [
     level := "—"
     input := [], output := []
     model := []
-    edges := [⟨`Silmaril.Cli.Spec.Sha256sum.spec, "specification", "the standard spec it would be stated against"⟩]
+    edges := [⟨`Silmaril.Cli.Spec.Sha256sum.spec, "specification", "the standard spec it would be stated against", []⟩]
     limits := ["no verified input/output pair in this repository: the binary is parsed part by part (ELF tab), its functions listed, nothing about its behaviour is proved here"] }]
 
 def clapEdges (ns : Name) (refines : Bool) : List Edge :=
-  [⟨ns ++ `tool, "specification", "the args grammar (clap dialect) and its derived help, usage errors and exit codes"⟩,
-   ⟨ns ++ `tool_wf, "proves", "the grammar is well formed"⟩] ++
-  (if refines then [⟨ns ++ `main_refines, "refinement (by construction)", "a main built as tool.main on a dispatch refines the derived spec"⟩,
-    ⟨ns ++ `main_front, "refinement (front end)", "the front end's help, usage errors and exit codes"⟩] else [])
+  [⟨ns ++ `tool, "specification", "the args grammar (clap dialect) and its derived help, usage errors and exit codes", []⟩,
+   (⟨ns ++ `tool_wf, "proves", "the grammar is well formed", []⟩ : Edge).on [[ns ++ `tool]]] ++
+  (if refines then [(⟨ns ++ `main_refines, "refinement (by construction)", "a main built as tool.main on a dispatch refines the derived spec", []⟩ : Edge).on
+      [[ns ++ `tool], [`Silmaril.Cli.Clap.Tool.spec]],
+    (⟨ns ++ `main_front, "refinement (front end)", "the front end's help, usage errors and exit codes", []⟩ : Edge).on
+      [[ns ++ `tool], [`Silmaril.Cli.Clap.Tool.frontSpec]]] else [])
 
 def specRecords : List SpecRecord := [
   { id := "hello", title := "hello: prints hello, world and exits 0", kind := "sentence", level := "L1"
     implementation := [("ELF", "hello-gcc (examples/dyn/pinned/hello-gcc), via silmaril.elf.cli.hello.gcc_o2")]
-    edges := [⟨`Silmaril.Cli.Institution.Std.hello, "specification", ""⟩,
-      ⟨`Silmaril.Cli.Institution.Std.hello_agree, "proves", "two models satisfying it agree"⟩,
-      ⟨`Silmaril.Elf.CliExe.Hello.hello_cli, "refinement proof", "hello-gcc satisfies it (glibcStream)"⟩]
+    edges := [⟨`Silmaril.Cli.Institution.Std.hello, "specification", "", []⟩,
+      (⟨`Silmaril.Cli.Institution.Std.hello_agree, "proves", "two models satisfying it agree", []⟩ : Edge).on [[`Silmaril.Cli.Institution.Std.hello]],
+      (⟨`Silmaril.Elf.CliExe.Hello.hello_cli, "refinement proof", "hello-gcc satisfies it (glibcStream)", []⟩ : Edge).on [[`Silmaril.Elf.CliExe.Hello.helloGcc], [`Silmaril.Elf.CliExe.glibcStream], [`Silmaril.Cli.Institution.Std.hello]]]
     notes := [] },
   { id := "cat", title := "cat: copies stdin to stdout", kind := "sentence", level := "L1"
     implementation := [("ELF", "cat-stdin-gcc (examples/dyn/pinned/cat-stdin-gcc)")]
-    edges := [⟨`Silmaril.Cli.Institution.Std.cat, "specification", ""⟩,
-      ⟨`Silmaril.Elf.Link.Dyn.Program.Examples.catStdinGcc_filter, "refinement proof", "the L1 reduct of its Program model satisfies the filter"⟩]
+    edges := [⟨`Silmaril.Cli.Institution.Std.cat, "specification", "", []⟩,
+      (⟨`Silmaril.Elf.Link.Dyn.Program.Examples.catStdinGcc_filter, "refinement proof", "the L1 reduct of its Program model satisfies the filter", []⟩ : Edge).on [[`Silmaril.Elf.Link.Dyn.Program.Examples.catStdinGcc], [`Silmaril.Elf.Link.Dyn.Program.x86Model], [`Silmaril.Cli.Institution.Std.cat]]]
     notes := ["no cli_exe row for cat-stdin-gcc yet"] },
   { id := "sha256sum", title := "sha256sum (GNU coreutils), at every level of the CLI institution", kind := "specification", level := "L1–L3"
     implementation := [("Lean", "Silmaril.Apps.Sha256sum.sha256sum (an executable specification)"),
       ("ELF", "sha256sum-min (LPS proof, not stated as this sentence)")]
-    edges := [⟨`Silmaril.Cli.Spec.Sha256sum.spec, "specification", ""⟩,
-      ⟨`Silmaril.Cli.Institution.Std.sha256Stdin, "specification (L1 sentence)", ""⟩,
-      ⟨`Silmaril.Cli.Spec.Sha256sum.spec_le_lift_stdin, "proves", "the stdin domain refines the L1 sentence"⟩]
+    edges := [⟨`Silmaril.Cli.Spec.Sha256sum.spec, "specification", "", []⟩,
+      ⟨`Silmaril.Cli.Institution.Std.sha256Stdin, "specification (L1 sentence)", "", []⟩,
+      (⟨`Silmaril.Cli.Spec.Sha256sum.spec_le_lift_stdin, "proves", "the stdin domain refines the L1 sentence", []⟩ : Edge).on [[`Silmaril.Cli.Spec.Sha256sum.spec], [`Silmaril.Cli.Institution.Std.sha256Stdin]]]
     notes := [] },
   { id := "wasm-opt", title := "wasm-opt (silmaril's Binaryen-style optimiser)", kind := "args grammar", level := "L3"
     implementation := [("tool", "tools/wasm-opt"), ("Lean", "Silmaril.Wasm.Binaryen.Driver")]
     edges := clapEdges `Silmaril.Cli.Spec.WasmOpt false ++
-      [⟨`Silmaril.Wasm.Binaryen.DriverSpec.selectable_names, "proves", "the grammar's stage names are exactly the driver's selectable stages"⟩,
-       ⟨`Silmaril.Wasm.Binaryen.DriverSpec.parseArgs_verifiedStages, "proves", "the driver's reading of the verified-stages path"⟩]
+      [(⟨`Silmaril.Wasm.Binaryen.DriverSpec.selectable_names, "proves", "the grammar's stage names are exactly the driver's selectable stages", []⟩ : Edge).on [[`Silmaril.Cli.Spec.WasmOpt.passNames], [`Silmaril.Wasm.Binaryen.Driver.selectableStages]],
+       (⟨`Silmaril.Wasm.Binaryen.DriverSpec.parseArgs_verifiedStages, "proves", "the driver's reading of the verified-stages path", []⟩ : Edge).on [[`Silmaril.Wasm.Binaryen.Driver.parseArgs]]]
     notes := ["the optimisation passes' semantics are proved elsewhere (Silmaril.Wasm.Binaryen); this row is the command line"] },
   { id := "wasm-wac", title := "wasm-wac", kind := "args grammar", level := "L3"
     implementation := [("tool", "tools/wasm-wac/WasmWac.lean"), ("Lean", "Silmaril.Wasm.Wac.Tool")]
@@ -1018,6 +1042,82 @@ def declInfo (env : Environment) (thmOf : Std.HashMap Name Name)
     ("line", match line with | some l => jn l | none => Json.null),
     ("statement", js (if stmt.length > 4000 then (String.ofList (stmt.toList.take 4000)) ++ " …" else stmt))], cache'.1)
 
+/-! ### Association: is the declaration about the record? -/
+
+/-- The constants a statement mentions, unfolding `Silmaril`/`silmaril` definitions (registry rows,
+goals, models) up to depth 5. -/
+def stmtClosure (env : Environment) (e : Expr) : NameSet := Id.run do
+  let mut out : NameSet := {}
+  let mut todo : List (Name × Nat) := e.getUsedConstants.toList.map (·, 0)
+  let mut fuel := 5000
+  while fuel > 0 do
+    fuel := fuel - 1
+    match todo with
+    | [] => break
+    | (c, d) :: rest =>
+      todo := rest
+      if out.contains c then continue
+      out := out.insert c
+      if d < 5 && ((`silmaril).isPrefixOf c || (`Silmaril).isPrefixOf c) then
+        if let some (.defnInfo v) := env.find? c then todo := todo ++ v.value.getUsedConstants.toList.map (·, d + 1)
+  return out
+
+/-- Some closed subterm of the statement (under its binders) is definitionally equal to the
+constant `a` (default transparency): `Sen.filter id` is `Std.cat`. -/
+def occursDefEq (env : Environment) (stmt : Expr) (a : Name) : IO Bool := runCore env do
+  let some ci := env.find? a | return false
+  if !ci.levelParams.isEmpty then return false
+  Lean.Meta.MetaM.run' do
+    Lean.Meta.forallTelescopeReducing stmt fun _ body => do
+      let ty ← Lean.Meta.inferType (.const a [])
+      let mut found := false
+      -- every closed application subterm of the body
+      let subs : Array Expr := Id.run do
+        let mut acc : Array Expr := #[]
+        let mut stack : List Expr := [body]
+        let mut n := 0
+        while n < 2000 do
+          n := n + 1
+          match stack with
+          | [] => break
+          | x :: rest =>
+            stack := rest
+            if !x.hasLooseBVars then acc := acc.push x
+            match x with
+            | .app f a => stack := f :: a :: stack
+            | .mdata _ b => stack := b :: stack
+            | _ => pure ()
+        return acc
+      for sub in subs do
+        if found then break
+        try
+          if ← Lean.Meta.isDefEq (← Lean.Meta.inferType sub) ty then
+            if ← Lean.Meta.isDefEq sub (.const a []) then found := true
+        catch _ => pure ()
+      return found
+
+/-- The statement a declaration makes: a theorem's type, a definition's value. -/
+def statementOf (env : Environment) (d : Name) : Option Expr :=
+  match env.find? d with
+  | some (.thmInfo t) => some t.type
+  | some (.defnInfo v) => some v.value
+  | some ci => some ci.type
+  | none => none
+
+/-- **The association check**: for each anchor group, the statement mentions one of its constants
+(after unfolding registry rows and goals), or has a subterm definitionally equal to one. -/
+def checkAssociation (env : Environment) (e : Edge) : IO (Except String Unit) := do
+  let some stmt := statementOf env e.decl | return .error s!"{e.decl} is not in the environment"
+  let cl := stmtClosure env stmt
+  for g in e.about do
+    if g.any cl.contains then continue
+    let mut ok := false
+    for a in g do
+      if !ok then ok ← occursDefEq env stmt a
+    unless ok do
+      return .error s!"{e.decl} ({e.role}) is not about the record: it mentions none of {g}"
+  return .ok ()
+
 def edgesJson (env : Environment) (thmOf : Std.HashMap Name Name) (cache : Std.HashMap Name NameSet)
     (es : List Edge) : IO (Json × Std.HashMap Name NameSet) := do
   let mut out : Array Json := #[]
@@ -1025,6 +1125,16 @@ def edgesJson (env : Environment) (thmOf : Std.HashMap Name Name) (cache : Std.H
   for e in es do
     let (j, c') ← declInfo env thmOf c e.decl
     c := c'
+    let assoc ← if countingRole e.role then
+        if e.about.isEmpty then pure "curated"
+        else match ← checkAssociation env e with
+          | .ok () => pure "checked"
+          | .error msg => throw (IO.userError s!"cli pages: {msg}")
+      else pure "n/a"
+    let j := (j.setObjVal! "association" (js assoc)).setObjVal! "about"
+      (toJson (e.about.map (·.map (·.toString))))
+    -- an uninstantiated shape is neither an open problem nor a missing proof
+    let j := if e.role.startsWith "shape" then j.setObjVal! "status" (js "uninstantiated shape") else j
     -- a non-theorem used as a specification or a model is that, not an open obligation
     let j := if (e.role.startsWith "specification" || e.role.startsWith "trusted model") &&
         j.getObjValD "kind" != js "theorem" then
@@ -1072,7 +1182,7 @@ def loadEnv : IO Environment := do
     (if P.slug == "zlib-checksums" then #[{ module := P.ns ++ `Contracts }] else #[]) ++
     cliModules.map ({ module := · })) {}
 
-def generate : IO (List (String × Json) × List (String × ByteArray)) := do
+def generateWithEnv : IO (Environment × List (String × Json) × List (String × ByteArray)) := do
   let e0 ← IO.monoMsNow
   let env ← loadEnv
   if (← IO.getEnv "ELF_PAGES_PROFILE").isSome then IO.eprintln s!"import: {(← IO.monoMsNow) - e0} ms"
@@ -1119,8 +1229,51 @@ def generate : IO (List (String × Json) × List (String × ByteArray)) := do
       ("kernelOnly", toJson (thms.all fun t => t.axioms.all (standardAxioms.contains ·))),
       ("coverageSummary", pg.getObjValD "coverageSummary")])
   let cli ← cliIndex env
-  pure (("index.json", Json.mkObj [("schema", js "silmaril.elf-pages.v1"), ("files", Json.arr index)]) ::
+  pure (env, ("index.json", Json.mkObj [("schema", js "silmaril.elf-pages.v1"), ("files", Json.arr index)]) ::
     ("cli.json", cli) :: files, blobs)
+
+def generate : IO (List (String × Json) × List (String × ByteArray)) := do
+  let (_, files, blobs) ← generateWithEnv
+  pure (files, blobs)
+
+/-- The edge of record `id` (an I/O or a specification record) for `decl`. -/
+def edgeOf (id : String) (decl : Name) : Option Edge :=
+  ((ioRecords.find? (·.id == id)).map (·.edges) <|> (specRecords.find? (·.id == id)).map (·.edges)).bind
+    fun es => es.find? (·.decl == decl)
+
+/-- **Association tampers**: a proving or refinement edge with its declaration swapped for a
+true theorem about something else. Each must fail `checkAssociation`. -/
+def associationTampers : List (String × String × Name × Name) := [
+  ("hello-gcc row proved by sha256sum's LPS theorem", "hello-gcc", `Silmaril.Elf.CliExe.Hello.hello_cli,
+    `Silmaril.Process.LPS.Problems.GnuSha256sum.Close.lpsTotal_close),
+  ("hello-gcc row proved by an unrelated arithmetic fact", "hello-gcc", `Silmaril.Elf.CliExe.Hello.hello_cli, `Nat.add_comm),
+  ("hello-gcc process theorem swapped for hello-clang's (other binary)", "hello-gcc", `Silmaril.Elf.Link.Dyn.Hello.hello_gcc,
+    `Silmaril.Elf.Link.Dyn.Hello.hello_clang),
+  ("hello-gcc execution consequence swapped for cat's refinement (other binary and spec)", "hello-gcc",
+    `Silmaril.Elf.CliExe.hello_via_start, `Silmaril.Elf.Link.Dyn.Program.Examples.catStdinGcc_filter),
+  ("sha256-cli proved by sha256sum-min's theorem (other binary)", "sha256-cli",
+    `Silmaril.Process.LPS.Problems.Sha256Cli.sha256cli_lps_total, `Silmaril.Process.LPS.Problems.GnuSha256sum.Close.lpsTotal_close),
+  ("cat refined by hello's proof (other spec)", "cat", `Silmaril.Elf.Link.Dyn.Program.Examples.catStdinGcc_filter,
+    `Silmaril.Elf.CliExe.Hello.hello_cli),
+  ("hello spec refined by cat's proof (other spec and binary)", "hello", `Silmaril.Elf.CliExe.Hello.hello_cli,
+    `Silmaril.Elf.Link.Dyn.Program.Examples.catStdinGcc_filter),
+  ("wasm-wac refinement swapped for wasm-jco's", "wasm-wac", `Silmaril.Cli.Spec.Wac.main_refines,
+    `Silmaril.Cli.Spec.Jco.main_refines)]
+
+def associationSelfTest (env : Environment) : IO Nat := do
+  let mut failed := 0
+  for (what, id, orig, swap) in associationTampers do
+    let some e := edgeOf id orig | IO.eprintln s!"elf-pages --self-test: no edge {orig} in {id}"; failed := failed + 1; continue
+    if e.about.isEmpty then
+      IO.eprintln s!"elf-pages --self-test: {orig} in {id} has no anchors"; failed := failed + 1; continue
+    match ← checkAssociation env e with
+    | .error m => IO.eprintln s!"elf-pages --self-test: the original edge fails ({m})"; failed := failed + 1
+    | .ok () =>
+      if env.find? swap |>.isNone then
+        IO.eprintln s!"elf-pages --self-test: {swap} is not in the environment"; failed := failed + 1
+      else if (← checkAssociation env { e with decl := swap }) matches .ok () then
+        IO.eprintln s!"elf-pages --self-test: the association check accepted '{what}'"; failed := failed + 1
+  pure failed
 
 def write (out : String) (files : List (String × Json)) (blobs : List (String × ByteArray)) : IO Unit := do
   let w0 ← IO.monoMsNow
@@ -1198,11 +1351,11 @@ def main (args : List String) : IO UInt32 := do
     if bad.isEmpty then IO.println "elf-pages: verified"; pure 0 else pure 1
   | ["--self-test", out] =>
     -- one generation: write, verify, then each edit must be rejected
-    let (files, blobs) ← generate
+    let (env, files, blobs) ← generateWithEnv
     write out files blobs
     unless (← differences out files blobs).isEmpty do
       IO.eprintln "elf-pages --self-test: freshly written pages differ"; return 1
-    let mut failed := 0
+    let mut failed ← associationSelfTest env
     for (what, rel, edit) in tampers do
       let some (_, j) := files.find? (·.1 == rel) | IO.eprintln s!"no {rel}"; return 1
       let p := System.FilePath.mk out / "elf" / rel
@@ -1213,7 +1366,9 @@ def main (args : List String) : IO UInt32 := do
         IO.eprintln s!"elf-pages --self-test: --verify accepted a tampered page ({what})"; failed := failed + 1
       IO.FS.writeFile p j.compress
     unless (← differences out files blobs).isEmpty do failed := failed + 1
-    if failed == 0 then IO.println s!"elf-pages --self-test: ok ({tampers.length} edits rejected)"; pure 0 else pure 1
+    if failed == 0 then
+      IO.println s!"elf-pages --self-test: ok ({tampers.length} edits rejected, {associationTampers.length} swapped proofs rejected)"; pure 0
+    else pure 1
   | _ => IO.eprintln "usage: elf-pages OUTDIR | elf-pages --verify OUTDIR | elf-pages --self-test OUTDIR"; pure 2
 
 end ElfPages
