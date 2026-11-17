@@ -66,3 +66,14 @@ example : ((Silmaril.Cerberus.Names.types.filter fun t => ["Ctype.ctype_", "Ctyp
     "Ctype.floatingType", "Ctype.realFloatingType", "IntegerType.integerType",
     "IntegerType.integerBaseType"].contains t.cerberus).flatMap fun t => t.renames.map (·.1)).all
       (ctypeVocabulary.contains ·) = true := by decide +kernel
+
+/-- An unknown type constructor cannot silently pass the per-type filter. -/
+example : mentionsTree (Silmaril.TaggedCodec.node "Ctype"
+    [Silmaril.TaggedCodec.node "$list" [], Silmaril.TaggedCodec.node "FutureType" []]) =
+    [.outside "FutureType"] := by cbv
+example : (mentionsTree (Silmaril.TaggedCodec.node "Basic"
+    [Silmaril.TaggedCodec.node "FutureBasic" []])).all linuxX86_64.coherentAt = false := by cbv
+example : (mentionsTree (Silmaril.TaggedCodec.node "Signed"
+    [Silmaril.TaggedCodec.node "FutureInt" []])).all linuxX86_64.coherentAt = false := by cbv
+example : (mentionsTree (Silmaril.TaggedCodec.node "RealFloating"
+    [Silmaril.TaggedCodec.node "FutureFloat" []])).all linuxX86_64.coherentAt = false := by cbv

@@ -36,6 +36,7 @@ dynamics executes. (Core names runtime functions by symbol and implementation co
   and atomics are **outside the coherence table** (`Mention.outside`): the check never passes for
   a program that names one. Every constructor of the C type vocabulary (`ctypeVocabulary`) is
   classified explicitly; a test fails when the vocabulary gains one this module does not know.
+  Unknown constructors in a typed wrapper position also block the check at run time.
 
 **What the scan cannot see**, beside what `Profile.issues` does not compare: operations rather
 than types (integer conversions, shifts and division go through runtime functions such as
@@ -80,7 +81,8 @@ def mentionOf (tag : String) (first : Option String) : List Mention :=
   | "RealFloating", some "Float" => [.scalar .float]
   | "RealFloating", some "Double" => [.scalar .double]
   | "RealFloating", some "LongDouble" => [.scalar .longDouble]
-  | "RealFloating", _ => floats
+  | "RealFloating", some t => [.outside t]
+  | "RealFloating", none => [.outside "missing real floating type"]
   | "OTy_floating", _ => floats
   | "OVfloating", _ => floats
   | "Signed", some "Ichar" => [.scalar .schar]
@@ -95,6 +97,8 @@ def mentionOf (tag : String) (first : Option String) : List Mention :=
   | "Unsigned", some "Long" => [.scalar .ulong]
   | "Unsigned", some "LongLong" => [.scalar .ulongLong]
   | "Unsigned", some "Intptr_t" => [.scalar .uintptr]
+  | "Signed", none => [.outside "missing signed integer type"]
+  | "Unsigned", none => [.outside "missing unsigned integer type"]
   | "Signed", some t => [.outside t]
   | "Unsigned", some t => [.outside t]
   | "Char", _ => [.scalar .char]
@@ -125,12 +129,32 @@ def rootTag : Tree → Option String
   | .atom _ => none
   | .tag t _ _ => some t
 
+/-- Unknown constructors in a typed position block applicability. Other wire nodes (expressions,
+locations, symbols) are not type constructors and are traversed without classifying them. -/
+def typeChildMentions (parent : String) (child : Option String) : List Mention :=
+  let allowed := match parent with
+    | "Ctype" => ["Void", "Basic", "Array", "Function", "FunctionNoParams", "Pointer", "Atomic",
+        "Struct", "Union", "Byte"]
+    | "Basic" => ["Integer", "Floating"]
+    | "Integer" => ["Char", "Bool", "Signed", "Unsigned", "Enum", "Wchar_t", "Wint_t", "Size_t",
+        "Ptrdiff_t", "Ptraddr_t"]
+    | "Floating" => ["RealFloating"]
+    | _ => []
+  if allowed.isEmpty then [] else
+    match child with
+    | some t => if allowed.contains t then [] else [.outside t]
+    | none => [.outside s!"missing type under {parent}"]
+
 /-- Every mention in a tree. -/
 def mentionsTree : Tree → List Mention
   | .atom _ => []
   | .tag t n cs =>
       let first := if h : 0 < n then rootTag (cs ⟨0, h⟩) else none
-      mentionOf t first ++ (List.ofFn fun i => mentionsTree (cs i)).flatten
+      let typeChild := if t == "Ctype" then
+          (if h : 1 < n then rootTag (cs ⟨1, h⟩) else none)
+        else first
+      typeChildMentions t typeChild ++ mentionOf t first ++
+        (List.ofFn fun i => mentionsTree (cs i)).flatten
 
 /-- The program part of a file: the runtime library maps emptied. -/
 def programPart (b : Codec.FileBindings) : Codec.FileBindings :=
