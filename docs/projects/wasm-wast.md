@@ -348,8 +348,8 @@ code and every action with the interpreter head step under `Verify.Kernel.runK`,
 store against addresses of the import types gives a typed configuration, with any imports and any
 start function), so every store of the script is typed (`StoreOk`); `runI_steps_typed`,
 `runI_stopped_no_step_typed`, `runI_typed` (a stopped run is a host-free normal form and stays
-typed); `externAddrsOk?_sound`/`_complete` (the latter needs the typed store); and
-`WasmWast.nf_unique`/`nf_always` (`Det.DStep.join'`, `Det.DStep.shrink`).
+typed); `externAddrsOk?_sound`/`_complete` (the latter needs the typed store); and `nf_unique`,
+`nf_always` for the normal forms of any configuration (`Det.DStep.join'`, `Det.DStep.shrink`).
 
 **Strength labels** (`report.json` `strength`): `only` for `link.returns_only`, `link.traps_only`
 and `link.uninstantiable` (Core reduction, every normal form); `link` for `link.unlinkable`
@@ -771,10 +771,12 @@ sandbox; the job has a 5-minute timeout. It grows linearly with the number of sc
   dump.
 * `Silmaril/Project/Shapes/WasmWastLink/{Defs,Thms}.lean`,
   `Silmaril/Proofs/Project/Shapes/WasmWastLink.lean`: `Spectest.module`, the script contexts and
-  runs, the linked shapes, the checker `scriptLK` and its soundness; `Silmaril.Wasm.Game.Instantiate.Thms`
-  gains `instantiateOnce?_configOk` (instantiation against typed imports is typed) and
-  `importStore_nil_ok`; `Silmaril.Project.Shapes.WasmWast.Thms` gains `nf_unique`, `nf_always`
-  and `invokeOk_of_invokeOkB` for any configuration.
+  runs, the linked shapes, the checker `scriptLK` and its soundness (with `nf_unique`,
+  `nf_always` for the normal forms of any configuration); `Silmaril/Wasm/Game/InstantiateTyped/Thms.lean`
+  (proofs `Silmaril/Proofs/Wasm/Game/Instantiate/Typed.lean`): `instantiateOnce?_configOk`
+  (instantiation against typed imports is typed) and `importStore_nil_ok`, in a small header of
+  their own so that the widely imported `Wasm.Game.Instantiate.Thms` and
+  `Project.Shapes.WasmWast.Thms` are unchanged (no rebuild of their importers).
 * `examples/wasm-wast/report.json` (every command: inputs, expectation, observation, status,
   reason, row, claim strength `only`, `all` or `tool`; for a proved execution row its `profile`,
   its `allowed` set and its `claims`, each with a kind: `only`, `all`, `terminates`), and

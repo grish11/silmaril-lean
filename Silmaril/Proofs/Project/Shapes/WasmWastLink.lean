@@ -1,8 +1,8 @@
 module
 
 public import Silmaril.Project.Shapes.WasmWastLink.Defs
-public import Silmaril.Project.Shapes.WasmWast.Thms
-public import Silmaril.Wasm.Game.Instantiate.Thms
+public import Silmaril.Proofs.Project.Shapes.WasmWast
+public import Silmaril.Wasm.Game.InstantiateTyped.Thms
 public import Silmaril.Wasm.SingleThreaded.Exec.InvokeRun
 public import Silmaril.Wasm.SingleThreaded.Soundness
 public import Silmaril.Wasm.Verify.Kernel.Thms
@@ -16,10 +16,12 @@ public import Silmaril.Wasm.Execution.MemRep.Inst.Thms
 * `runG_sound`, `instG_sound`, `actG_sound`, `unlinkableG_sound`: a stopped run of a typed
   configuration is a host-free normal form and stays typed; instantiation keeps the store typed
   (`Game.instantiateOnce?_configOk`);
+* `nf_unique`, `nf_always`: uniqueness and termination for the host-free normal forms of any
+  configuration (from `Silmaril.Proofs.Project.Shapes.WasmWast`, same topic);
 * `actNF_unique`, `instNF_unique`, `cmdRun_unique`, `scriptAt_unique`: at `profile o` a script
-  prefix reaches at most one context (`WasmWast.nf_unique`);
+  prefix reaches at most one context (`nf_unique`);
 * `scriptHolds_of_kernel`: `scriptLK … = true` gives `ScriptHolds`;
-* `reaches_always`: one run of an action to a result excludes infinite runs (`WasmWast.nf_always`);
+* `reaches_always`: one run of an action to a result excludes infinite runs (`nf_always`);
 * `print_nf`: a function whose body is empty returns no values and leaves the store unchanged.
 -/
 
@@ -231,6 +233,36 @@ theorem scriptG_toBytes (o : GrowOracle) (fuel : Nat) (s₀ : Store Nat R) (cmds
 
 end ToBytes
 
+/-! ## Normal forms of any configuration
+
+The two facts of `Silmaril.Proofs.Project.Shapes.WasmWast` (same topic) for the host-free normal
+forms of any configuration, not only of an invocation: uniqueness (`Det.DStep.join'`) and
+termination (`nsteps_normal_not_infinite`, `Det.DStep.shrink`). -/
+
+section NF
+
+open Silmaril.Proofs.Project.Shapes.WasmWast (nsteps_normal_not_infinite nsteps_of_steps
+  nsteps_to_rtg dstep_shrink)
+
+theorem nf_unique {o : GrowOracle} {c₀ c c' : Config Nat} (h : Steps (profile o) Det.noHost c₀ c)
+    (hn : ∀ x, ¬ Step (profile o) Det.noHost c x) (h' : Steps (profile o) Det.noHost c₀ c')
+    (hn' : ∀ x, ¬ Step (profile o) Det.noHost c' x) : c = c' :=
+  nf_unique_of_join (R := Det.DStep o) (fun ha hb => Det.DStep.join' ha hb) h h' hn hn'
+
+theorem nf_always {o : GrowOracle} {c₀ c : Config Nat} (h : Steps (profile o) Det.noHost c₀ c)
+    (hn : ∀ x, ¬ Step (profile o) Det.noHost c x) :
+    ¬ Diverges (profile o) Det.noHost c₀ ∧
+      ∀ c', Steps (profile o) Det.noHost c₀ c' → Steps (profile o) Det.noHost c' c := by
+  obtain ⟨k, hk⟩ := NSteps.of_rtg (R := Det.DStep o) h
+  refine ⟨nsteps_normal_not_infinite (R := Det.DStep o) (fun c : Config Nat => sizeOf c.code)
+    (fun ha hb => Det.DStep.join' ha hb) (fun ha hb => dstep_shrink ha hb) hn k _ hk,
+    fun c' hc' => ?_⟩
+  obtain ⟨m, hm⟩ := nsteps_of_steps (R := Det.DStep o) (fun ha hb => Det.DStep.join' ha hb)
+    hn hk hc'
+  exact nsteps_to_rtg hm
+
+end NF
+
 /-! ## Soundness on `ByteArray` stores -/
 
 theorem runG_sound {o : GrowOracle} {fuel : Nat} {c c' : Config Nat} {ts : List CValType}
@@ -285,7 +317,7 @@ theorem actG_sound {o : GrowOracle} {fuel : Nat} {ctx : CtxR ByteArray} {act : A
       · rename_i a ha
         split at h
         · rename_i hok
-          have hi := Silmaril.Project.Shapes.WasmWast.invokeOk_of_invokeOkB hok
+          have hi := Silmaril.Proofs.Project.Shapes.WasmWast.invokeOk_of_invokeOkB hok
           obtain ⟨_, _, rs, _, _, hc⟩ := invoke_ok hs hi
           cases hrun : runG o fuel (invoke ctx.store a args) with
           | none => rw [hrun] at h; cases h
@@ -350,7 +382,7 @@ theorem actNF_unique {o : GrowOracle} {ctx : CtxR ByteArray} {act : Action} {ro 
       cases hm'
       rw [ha] at ha'
       cases ha'
-      obtain rfl := Silmaril.Project.Shapes.WasmWast.nf_unique hc.1 hc.2 hc'.1 hc'.2
+      obtain rfl := nf_unique hc.1 hc.2 hc'.1 hc'.2
       exact ⟨rfl, rfl⟩
   | get hm ha hg =>
     cases h' with
@@ -375,7 +407,7 @@ theorem instNF_unique {o : GrowOracle} {ctx : CtxR ByteArray} {m : Module} {ro r
       rw [hi] at hi'
       simp only [Option.some.injEq, Prod.mk.injEq] at hi'
       obtain ⟨rfl, rfl, rfl⟩ := hi'
-      obtain rfl := Silmaril.Project.Shapes.WasmWast.nf_unique hc.1 hc.2 hc'.1 hc'.2
+      obtain rfl := nf_unique hc.1 hc.2 hc'.1 hc'.2
       exact ⟨rfl, rfl, rfl⟩
 
 theorem cmdRun_unique {o : GrowOracle} {ctx ctx₁ ctx₂ : CtxR ByteArray} {cmd : Cmd}
@@ -571,7 +603,7 @@ theorem reaches_always {o : GrowOracle} {pre : List Cmd} {act : Action} {r : Res
     cases hm'
     rw [ha] at ha'
     cases ha'
-    obtain ⟨hdiv, hext⟩ := Silmaril.Project.Shapes.WasmWast.nf_always hc.1 hc.2
+    obtain ⟨hdiv, hext⟩ := nf_always hc.1 hc.2
     exact ⟨hdiv, fun c' hc' => ⟨_, hext c' hc', hc, rfl⟩⟩
 
 /-! ## Functions with an empty body -/

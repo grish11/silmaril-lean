@@ -10,9 +10,6 @@ import Silmaril.Proofs.Wasm.Game.Instantiate.Basic
 * `IsInstance.ok`: the instance of a module (validated, function imports
   only, no start function, instantiated by `instantiateOnce?`) is well formed
   at its initial store.
-* `instantiateOnce?_configOk`: instantiation of a valid module by `instantiateOnce?` in any
-  well-typed store, against imports of the right types, is typed (no restriction to function
-  imports or to a missing start function); `importStore_nil_ok`: the empty store is typed.
 * `IsInstance.unique`: a module has at most one instance, so `I.σ P` is *the*
   strategy of the module, for every profile `P`.
 * `IsInstance.adequacy_profile` (every profile `P`): M2 for modules: the
@@ -80,20 +77,5 @@ theorem IsInstance.adequacy {m : Module} {mt : CModuleType} {I : ScalarInstance}
     behaviours (profile o) (hostOf I.imports K) I.store (I.addr f.1) f.2.1 =
       compositeObs (K.strategy.comp (I.σ (profile o))) f :=
   ScalarInstance.adequacy h.ok K hK f
-
-/-- The empty store `importStore []` is well typed. -/
-theorem importStore_nil_ok : StoreOk (importStore []) :=
-  Silmaril.Proofs.Wasm.Game.importStore_nil_ok
-
-/-- **Instantiation against typed imports is typed.** A valid module `m : mt`, instantiated by
-`instantiateOnce?` in a well-typed store `s` against external addresses `xas` of the import types
-of `mt` (`ExternAddrOk`), leaves a typed configuration `⟨s', f, startCode st⟩`: the store after
-segment initialisation, with the start call (if any) still to run. -/
-theorem instantiateOnce?_configOk {s : Store Nat} {m : Module} {xas : List ExternAddr}
-    {mt : CModuleType} {s' : Store Nat} {f : Frame} {st : Option FuncIdx} (hs : StoreOk s)
-    (hm : ModuleOk m mt) (hx : List.Forall₂ (ExternAddrOk s) xas mt.imports)
-    (h : instantiateOnce? s m xas = some (s', f, st)) :
-    ConfigOk ⟨s', f, startCode st⟩ [] :=
-  Silmaril.Proofs.Wasm.Game.instantiateOnce?_configOk hs hm hx h
 
 end Silmaril.Wasm.Game

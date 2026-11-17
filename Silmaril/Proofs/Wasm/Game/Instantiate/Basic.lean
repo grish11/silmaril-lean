@@ -181,28 +181,6 @@ theorem IsInstance.ok {m : Module} {mt : CModuleType} {I : ScalarInstance}
       obtain ⟨code, hc⟩ := hwasm fi (List.mem_of_getElem? hnew')
       cases hc.symm.trans hcode
 
-/-- The empty store of `importStore []` is well typed. -/
-theorem importStore_nil_ok : StoreOk (importStore []) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals simp [importStore]
-
-/-- **Instantiation against typed imports is typed.** A valid module `m : mt`, instantiated by
-`instantiateOnce?` in a well-typed store against external addresses of the import types, leaves
-a typed configuration: the store after segment initialisation, with the start call (if any)
-still to run. -/
-theorem instantiateOnce?_configOk {s : Store Nat} {m : Module} {xas : List ExternAddr}
-    {mt : CModuleType} {s' : Store Nat} {f : Frame} {st : Option FuncIdx} (hs : StoreOk s)
-    (hm : ModuleOk m mt) (hx : List.Forall₂ (ExternAddrOk s) xas mt.imports)
-    (h : instantiateOnce? s m xas = some (s', f, st)) :
-    ConfigOk ⟨s', f, startCode st⟩ [] := by
-  obtain ⟨s₁, f₁, vs, c, hg, hp, hS⟩ := instantiateOnce?_steps
-    (P := SingleThreaded.profile SingleThreaded.neverFail) (host := SingleThreaded.divHost) h
-  obtain ⟨hc, -⟩ := prepare?_globalResidue_ok (P := SingleThreaded.profile SingleThreaded.neverFail)
-    SingleThreaded.divHost_ok hs ⟨mt.exports, mt.imports, hm, hx⟩ hg hp
-  have hS₂ := Steps.withStart (st := st) hS
-  rw [Config.withStart_nil] at hS₂
-  exact steps_configOk SingleThreaded.divHost_ok hc hS₂
-
 theorem forall₂_functional {α β : Type} {R : α → β → Prop}
     (hR : ∀ a b b', R a b → R a b' → b = b') :
     ∀ {l : List α} {l₁ l₂ : List β}, List.Forall₂ R l l₁ → List.Forall₂ R l l₂ → l₁ = l₂
