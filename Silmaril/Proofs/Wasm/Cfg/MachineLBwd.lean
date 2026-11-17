@@ -551,7 +551,7 @@ theorem pos_head {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {sg
 
 theorem lift_op {e i : Instr} {args : List BExpr} (h : liftInstr e = .op i args) :
     e = i ∧ args = [] ∧ ¬ Instr.IsStruct e := by
-  cases e <;> simp [liftInstr] at h <;> (try obtain ⟨rfl, rfl⟩ := h) <;>
+  cases e <;> simp [liftInstr] at h <;> obtain ⟨rfl, rfl⟩ := h <;>
     exact ⟨rfl, rfl, fun ⟨_, _, _, _, hk⟩ => nomatch hk⟩
 
 theorem lift_block {e : Instr} {bt : BlockType} {b : List BExpr} (h : liftInstr e = .block bt b) :
@@ -634,6 +634,18 @@ theorem exit_ok_like {body : Expr} {Fin : Store H × Frame × POut → Prop} {p 
     · simp [Flow.blockVals] at hvs; subst hvs; exact exit_brk0 hokA hloop har hx
     · simp [Flow.blockVals] at hvs
   | _ => simp [Flow.blockVals] at hvs
+
+theorem armOf_if {bt : BlockType} {t e c' : List Instr} {b : Bool}
+    (h : armOf (.if_ bt t e) (if b then 0 else 1) = some c') : c' = if b then t else e := by
+  cases b <;> simp [armOf] at h <;> exact h.symm
+
+theorem armOf_if' (bt : BlockType) (t e : List Instr) (b : Bool) :
+    armOf (.if_ bt t e) (if b then 0 else 1) = some (if b then t else e) := by
+  cases b <;> rfl
+
+theorem liftInstrs_ite (b : Bool) (t e : List Instr) :
+    (if b then liftInstrs t else liftInstrs e) = liftInstrs (if b then t else e) := by
+  cases b <;> rfl
 
 /-- **The main induction**: every native run satisfies the motive. -/
 theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
@@ -1160,7 +1172,100 @@ theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H
     exact blk_enter hp .tryTable (.plain (fun _ _ _ => nofun)) rfl har
       (harmC _ 0 _ _ _ _ _ false true _ rfl .tryTable (.plain (fun _ _ _ => nofun)) rfl har)
       s₀ f₀ N₀ l₀ hpre
-  | _ => sorry
+  | ifOk hc hb har harm hvs hk _ iha ihk =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    obtain ⟨t₀, e₀, rfl, rfl, rfl, rfl⟩ := lift_if hhd.symm
+    obtain ⟨-, rfl, -⟩ := pos_term hp rfl
+    simp only [liftInstrs, List.nil_append] at htl
+    subst htl
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hc
+    rw [liftInstrs_ite] at harm iha
+    refine (fun harmC => ⟨fun s₀ f₀ N₀ l₀ hpre => ?blk, harmC⟩) ?arm
+    case arm =>
+      intro t a c' V' np nr bt' loop tryT cs hpost hk' hsel harm' har'
+      simp only [List.cons.injEq, and_true] at hpost; subst hpost
+      cases hk'
+      cases hsel with
+      | cond hb' =>
+        rw [hb] at hb'; cases hb'
+        have hc' := armOf_if harm'; subst hc'
+        have har₀ := har
+        rw [har'] at har₀; simp only [Option.some.injEq, Prod.mk.injEq] at har₀
+        obtain ⟨rfl, rfl⟩ := har₀
+        have hokA := arm_ok hp .if_ harm' hok
+        have har₁ := (arity_congr (MachineLSeq.module_eq harm) _).trans har'
+        obtain ⟨st, hg, hE⟩ := at_boundary hk ihk hp.hc hok hx
+        exact mEnds_congr' (by simp) (arm_entry hp .if_ harm' hok harm iha (exit_ok_like (hokA _ _) rfl har₁ hvs ⟨st, by simpa [List.reverse_append] using hg, hE⟩))
+      | plain hi => exact absurd rfl (hi _ _ _)
+    case blk =>
+    exact mEnds_congr (by simp) (blk_enter hp .if_ (.cond hb) (armOf_if' _ _ _ _) har
+      (harmC _ _ _ _ _ _ _ false false [] rfl .if_ (.cond hb) (armOf_if' _ _ _ _) har)
+      s₀ f₀ N₀ l₀ hpre)
+  | ifBrk hc hb har harm _ iha =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    obtain ⟨t₀, e₀, rfl, rfl, rfl, rfl⟩ := lift_if hhd.symm
+    obtain ⟨-, rfl, -⟩ := pos_term hp rfl
+    simp only [liftInstrs, List.nil_append] at htl
+    subst htl
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hc
+    rw [liftInstrs_ite] at harm iha
+    refine (fun harmC => ⟨fun s₀ f₀ N₀ l₀ hpre => ?blk, harmC⟩) ?arm
+    case arm =>
+      intro t a c' V' np nr bt' loop tryT cs hpost hk' hsel harm' har'
+      simp only [List.cons.injEq, and_true] at hpost; subst hpost
+      cases hk'
+      cases hsel with
+      | cond hb' =>
+        rw [hb] at hb'; cases hb'
+        have hc' := armOf_if harm'; subst hc'
+        have har₀ := har
+        rw [har'] at har₀; simp only [Option.some.injEq, Prod.mk.injEq] at har₀
+        obtain ⟨rfl, rfl⟩ := har₀
+        have hokA := arm_ok hp .if_ harm' hok
+        have har₁ := (arity_congr (MachineLSeq.module_eq harm) _).trans har'
+        exact mEnds_congr' (by simp) (arm_entry hp .if_ harm' hok harm iha (exit_brk_succ hx))
+      | plain hi => exact absurd rfl (hi _ _ _)
+    case blk =>
+    exact mEnds_congr (by simp) (blk_enter hp .if_ (.cond hb) (armOf_if' _ _ _ _) har
+      (harmC _ _ _ _ _ _ _ false false [] rfl .if_ (.cond hb) (armOf_if' _ _ _ _) har)
+      s₀ f₀ N₀ l₀ hpre)
+  | ifEsc hc hb har harm ho _ iha =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    obtain ⟨t₀, e₀, rfl, rfl, rfl, rfl⟩ := lift_if hhd.symm
+    obtain ⟨-, rfl, -⟩ := pos_term hp rfl
+    simp only [liftInstrs, List.nil_append] at htl
+    subst htl
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hc
+    rw [liftInstrs_ite] at harm iha
+    refine (fun harmC => ⟨fun s₀ f₀ N₀ l₀ hpre => ?blk, harmC⟩) ?arm
+    case arm =>
+      intro t a c' V' np nr bt' loop tryT cs hpost hk' hsel harm' har'
+      simp only [List.cons.injEq, and_true] at hpost; subst hpost
+      cases hk'
+      cases hsel with
+      | cond hb' =>
+        rw [hb] at hb'; cases hb'
+        have hc' := armOf_if harm'; subst hc'
+        have har₀ := har
+        rw [har'] at har₀; simp only [Option.some.injEq, Prod.mk.injEq] at har₀
+        obtain ⟨rfl, rfl⟩ := har₀
+        have hokA := arm_ok hp .if_ harm' hok
+        have har₁ := (arity_congr (MachineLSeq.module_eq harm) _).trans har'
+        exact mEnds_congr' (by simp) (arm_entry hp .if_ harm' hok harm iha (exit_esc ho (fun _ _ h => by cases h) hx))
+      | plain hi => exact absurd rfl (hi _ _ _)
+    case blk =>
+    exact mEnds_congr (by simp) (blk_enter hp .if_ (.cond hb) (armOf_if' _ _ _ _) har
+      (harmC _ _ _ _ _ _ _ false false [] rfl .if_ (.cond hb) (armOf_if' _ _ _ _) har)
+      s₀ f₀ N₀ l₀ hpre)
+  | ifAbort hc ho =>
+    intro p c i sg pre post ls l' hp hes
+    obtain ⟨e, post', rfl, hhd, -⟩ := pos_head hp hes
+    obtain ⟨t₀, e₀, rfl, rfl, -, -⟩ := lift_if hhd.symm
+    obtain ⟨-, -, rfl, -⟩ := nil_inv hc
+    exact absurd trivial ho
 
 /-- **The converse, finished outcomes**: a native run of the body from the empty stack, to an
 outcome other than a branch past the function label, is a logged machine run from the CFG entry

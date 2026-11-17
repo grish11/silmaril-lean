@@ -590,6 +590,19 @@ The plain graph stays an over-approximation, and claims about it say so.
             entry, not from the segment. So the induction's start states are "the point where a
             structured instruction is entered", which covers both the fresh entry (`enter`) and
             the re-entry (`branchN`).
+      - **H2 status: the converse for finished outcomes is done** (`MachineL.backward`).
+        - Statement: a native run of the body to anything but a branch past the function label
+          is a logged run from the CFG entry to an end standing for it (a sink, or the block
+          making the pending tail call), with exactly the native log.
+        - Proof: continuation passing on the native derivation (`MachineLBwd`). The motive
+          covers mid-segment positions and arm entries, so `loopBack`'s re-run of the loop
+          starts where the machine re-enters it.
+        - The re-entered loop frame's arity is now the block type's parameter count, the same as
+          a fresh entry.
+        - Still open in H2: pending calls (`ReachLXPS`), quiescent divergence (infinite local
+          steps vs a finite run into a diverging callee, kept distinct) and coherent productive
+          streams.
+        - Still open as fixtures: nested-loop `continue` and a tail call inside a handler.
       - **H2, both directions on bodies.**
         - Finished ends: done, throw and trap, with exact final store and log.
         - Pending calls (`ReachLXPS`), quiescent divergence, and coherent productive streams.
