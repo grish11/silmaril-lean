@@ -405,4 +405,82 @@ theorem wrap_sound_if {L : LFrame} {bt : BlockType} {tt ee rest c : List Instr} 
   | catch_ hT => cases hT
   | rethrow hT => cases hT
 
+theorem kl_frame_inv {body : Expr} {Fin : Store H × Frame × POut → Prop} {m a : Nat}
+    {rp : List SeqStep} {L : LFrame} {ls : List LFrame} {r₀ : Store H × Frame × POut}
+    {l : List (SCall H)} (h : KL body Fin ((m, a) :: rp) (L :: ls) r₀ l) :
+    ∃ (pc : List Instr) (sg : Segment) (t : Instr) (c : List Instr)
+      (r₁ : Store H × Frame × POut) (l₁ l₂ : List (SCall H)),
+      seqAt body rp.reverse = some pc ∧ (segment pc)[m]? = some sg ∧ sg.term = some t ∧
+      armOf t a = some c ∧ WrapL L t (restAt pc (m + 1)) r₀ l₁ r₁ ∧
+      KL body Fin rp ls r₁ l₂ ∧ l = l₁ ++ l₂ := by
+  cases h with
+  | frame hpc hsg ht harm _ hw hrest => exact ⟨_, _, _, _, _, _, _, hpc, hsg, ht, harm, hw, hrest, rfl⟩
+
+theorem arity_of_blockType {f : Frame} {bt : BlockType} {t₁ t₂ : List Validation.CValType}
+    (h : f.module.blockType? bt = some (t₁, t₂)) : arity f bt = some (t₁.length, t₂.length) := by
+  cases bt with
+  | empty => simp [ModuleInst.blockType?] at h; obtain ⟨rfl, rfl⟩ := h; rfl
+  | value t => simp [ModuleInst.blockType?] at h; obtain ⟨rfl, rfl⟩ := h; rfl
+  | typeIdx x =>
+    simp only [ModuleInst.blockType?] at h
+    simp [arity, Frame.type?, h]
+
+/-- **Entering a structured terminator** (`MStepL.enter`). -/
+theorem enter_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : BlockId}
+    {sg : Segment} {stk stk₁ ws us : List Val} {ls : List LFrame} {s s₁ : Store H}
+    {f f₁ : Frame} {i : Instr} {a : Nat} {c : List Instr} {bt : BlockType}
+    {t₁ t₂ : List Validation.CValType} {loop tryT : Bool} {cs : List Catch} {l l' : List (SCall H)}
+    {st' : MState H} (hok : FramesOk body b.seq.reverse ls)
+    (hb : lookup body b = some sg) (ht : sg.term = some i) (harm : armOf i a = some c)
+    (hkind : StructKind i bt loop tryT cs)
+    (hr : EvalLXPS s f stk.reverse (liftInstrs sg.body) l (s₁, f₁, .flow (.normal stk₁)))
+    (hcond : CondArm i stk₁.reverse a ws us)
+    (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+    (hg : gotoN (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
+      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁ = some st')
+    (hG : Good body Fin st' l') : Good body Fin ⟨.block b, stk, ls, s, f⟩ (l ++ l') := by
+  obtain ⟨pc, hpc, hsg⟩ := seg_of_lookup hb
+  have hcarm : seqAt body (b.seq ++ [(b.idx, a)]) = some c := by
+    rw [Proofs.Machine.seqAt_append]; simp [hpc, hsg, ht, harm]
+  set L : LFrame := ⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ with hLdef
+  have hokA : FramesOk body (b.seq ++ [(b.idx, a)]).reverse (L :: ls) := by
+    simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+      List.singleton_append, FramesOk]
+    exact ⟨⟨pc, sg, i, c, by simpa using hpc, hsg, ht, harm, hkind⟩, hok⟩
+  obtain ⟨l₀, l₁, r₀, hrun, hkl, rfl⟩ :=
+    entry_good hokA hcarm (by simpa using hg) hG
+  rw [restAt_zero] at hrun
+  simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+    List.singleton_append] at hkl
+  obtain ⟨pc', sg', t', c', r₁, l₁₁, l₁₂, hpc', hsg', ht', harm', hw, hrest, rfl⟩ :=
+    kl_frame_inv hkl
+  rw [List.reverse_reverse, hpc] at hpc'; cases hpc'
+  rw [hsg] at hsg'; cases hsg'
+  rw [ht] at ht'; cases ht'
+  have har := arity_of_blockType (f := f₁) hbt
+  have hus : us.reverse.length = t₁.length := by simpa using hm
+  have hnat : EvalLXPS s₁ f₁ stk₁ (liftInstr i :: liftInstrs (restAt pc (b.idx + 1)))
+      (l₀ ++ l₁₁) r₁ := by
+    generalize hV : stk₁.reverse = V at hcond
+    have hstk : stk₁ = V.reverse := by rw [← hV, List.reverse_reverse]
+    subst hstk
+    cases hcond with
+    | plain hi =>
+      simpa [List.reverse_append] using wrap_sound hkind harm hi har hus hrun hw
+    | @ifTrue bt' tt ee _ _ k hk =>
+      have hka : (k != 0) = (0 == 0) := by simpa using hk
+      simpa [List.reverse_append, Val.i32] using
+        wrap_sound_if hkind harm hka har hus hrun hw
+    | @ifFalse bt' tt ee =>
+      have hka : ((0 : BitVec 32) != 0) = (1 == 0) := by decide
+      simpa [List.reverse_append, Val.i32] using
+        wrap_sound_if hkind harm hka har hus hrun hw
+  refine ⟨pc, l ++ (l₀ ++ l₁₁), l₁₂, r₁, hpc, ?_, hrest, by simp⟩
+  have hsplit : liftInstrs (restAt pc b.idx) =
+      liftInstrs sg.body ++ (liftInstr i :: liftInstrs (restAt pc (b.idx + 1))) := by
+    rw [restAt_cons hsg, Segment.instrs, ht]
+    simp [MachineLSeq.liftInstrs_append, liftInstrs]
+  rw [hsplit]
+  exact (MachineLSeq.append hr _).2 _ _ _ rfl _ _ hnat
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLFwd
