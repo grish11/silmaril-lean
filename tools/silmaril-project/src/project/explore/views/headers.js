@@ -28,7 +28,7 @@
   }
   const lowerCell = (l) => !l ? '<span class="muted">—</span>'
     : l.refused != null ? `<span class="hdr-refused" title="the ABI definition's lowering refuses this prototype">refused: ${esc(l.refused)}</span>`
-    : `<span class="hdr-ok">${esc(l.ok)}</span>` + (l.plan ? (l.plan.ok ? `<div class="hdr-plan">args: ${esc(l.plan.ok.arguments.join(" · ") || "none")}<br>result: ${esc(l.plan.ok.result)}</div>`
+    : `<span class="hdr-ok">${esc(l.ok)}</span>` + (l.plan ? (l.plan.ok ? `<div class="hdr-plan">args: ${esc(l.plan.ok.arguments.join(" · ") || "none")}<br>result: ${esc(l.plan.ok.result)}<br><span class="muted" data-stack>outgoing stack: ${esc(l.plan.ok.stackSize)} B${l.planNote ? " · " + esc(l.planNote) : ""}</span></div>`
       : `<div class="hdr-plan hdr-refused">plan refused: ${esc(l.plan.refused)}</div>`) : "");
 
   function layoutTable(a, dms) {

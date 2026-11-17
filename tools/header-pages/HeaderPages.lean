@@ -172,7 +172,16 @@ def lowerings (env : Env) (cp : CProto) : Json := Json.mkObj <| abis.map fun (na
       | .error e => Json.mkObj [("refused", js e)]
       | .ok p => Json.mkObj [("ok", js (sigText (p.args.map argText) (p.result.map argText))),
           ("plan", exceptJson planJson (p.plan {}))]
-    | "win64Int" => intLowering (win64Int.lower env cp : Except String Silmaril.Machine.Abi.SystemV.Proto)
+    | "win64Int" =>
+      match (win64Int.lower env cp : Except String Silmaril.Machine.Abi.SystemV.Proto) with
+      | .error e => Json.mkObj [("refused", js e)]
+      | .ok p => Json.mkObj [
+          ("ok", js (sigText (p.signature.arguments.map (short ∘ reprStr)) (p.signature.result.map (short ∘ reprStr)))),
+          -- Microsoft x64's closed-form plan (`Win64.plan`, the convention's `msPlan`): RCX, RDX,
+          -- R8, R9, then 8-byte slots above the 32-byte shadow space; the outgoing area is the
+          -- shadow space plus the stack arguments, 16-aligned.
+          ("plan", Json.mkObj [("ok", planJson (Silmaril.Machine.Abi.Win64.plan p))]),
+          ("planNote", js "Microsoft x64: RCX, RDX, R8, R9, then 8-byte stack slots; the outgoing area includes the 32-byte shadow space")]
     | _ => intLowering (sysvInt.lower env cp : Except String Silmaril.Machine.Abi.SystemV.Proto))
 
 def protoJson (h : Header) (f : String) (cp : CProto) : Json :=

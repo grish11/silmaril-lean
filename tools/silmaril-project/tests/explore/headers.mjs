@@ -165,6 +165,9 @@ try {
     if (h.id === "layout-demo") {
       check(/xmm0/.test(pg.fns.scale?.sysvScalar || "") && /refused/.test(pg.fns.scale?.sysvInt || ""), "layout-demo: double scale(double, float, int) uses xmm registers under sysvScalar, refused by sysvInt");
       check(pg.aggs.pt?.sysvX86_64 === "24 / 8" && pg.aggs.pt?.msX64 === "12 / 4", "layout-demo: struct pt is 24/8 under System V, 12/4 under Microsoft x64");
+      check(/args: rcx\[0\.\.8\)/.test(pg.fns.rec_size?.win64Int || "") && /result: rax\[0\.\.4\)/.test(pg.fns.rec_size?.win64Int || "") &&
+        /outgoing stack: 32 B/.test(pg.fns.rec_size?.win64Int || "") && /shadow space/.test(pg.fns.rec_size?.win64Int || ""),
+        "layout-demo: long rec_size(struct rec *) under win64Int: rcx → eax (LLP64 long is 4 bytes), 32 B outgoing (shadow space)");
       if (shots) await p.screenshot({ path: path.join(shots, "headers-layout-demo.png"), fullPage: true });
     }
   }
