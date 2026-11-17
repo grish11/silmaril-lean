@@ -332,7 +332,7 @@ conformance tasks.
   `enterable` would admit such a call and `.total` would need it to return: the first statement
   of this task (`fec10a49`) was refutable, not open. The precondition is now `lo32 op ≠ 0`
   (`op_pre_zero_low`, `op_pre_examples`); it is satisfiable (`op_pre_gen_one`: `crc32_combine_gen(1)`'s
-  operator and the identity), and every operator `crc32_combine_gen` returns is nonzero.
+  operator and the identity), and every operator `crc32_combine_gen` returns for a nonnegative length (its precondition) is nonzero; on a negative length the binary returns 0.
 - **Binding.** "Versioned lookup" is a structural model (`Lookup` on the file's `.dynsym` and
   version tables, after glibc's `check_match`), not a proof about a running ld.so (global scope,
   interposition, `LD_PRELOAD`).
