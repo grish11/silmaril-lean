@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Component.Reference.HLinkedSession.Thms
 public import Silmaril.Games.Abstract.StratLegal.Thms
 public import Silmaril.Games.Abstract.StratSession.Thms
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.Triple
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.Det
 
 /-!
 # Session objects of linked components with host imports: theorems
@@ -36,13 +37,18 @@ reference composition needs `HLinked2.Adequate` and typed calls, as `HLinked2.se
   the same for the open triple): every trap keeps the state, and the triples are admissible
   (saturated) on the legal host interface `HLinked2.hostSig`, so the canonical play object
   `StratLegal.toDStratL` is injective on them.
+* **Store determinism at `profile o`** (`HLinked2.storeDet_compTripleS`,
+  `HLinked2.storeDet_compTripleO`): two `SessSpec` rounds from the same stores whose host calls
+  agree on answers wherever they agree on calls make the same core and component import calls
+  and end in the same outcome and stores (B's moves by `strategy_deterministic`, A's answers by
+  `retAt_det`/`trapAt_det`); hence the triples are store-deterministic, the hypothesis of
+  `StratSession.threadS_eq_iff` together with `NoPlainTrap`.
 
 ## Not claimed (what remains)
 
 * **The injection.** `HLinked2.RefSessEquivFull (profile o) prof l l' ↔ ∃ h : SameTypes l l',
-  compSession` equality after transport along `h.host` is the target and is **open**. It needs
-  store determinism of `compTripleS` at `profile o` (one `SessSpec` round, with its host calls,
-  is a function of the stores, the call and the host answers), the bisimulation from scripted
+  compSession` equality after transport along `h.host` is the target and is **open**. Store
+  determinism is proved; it still needs the bisimulation from scripted
   hosts (`scriptG` realizes every visible history; a probe answering one more call reveals each
   refused call), and the divergence, host-chatter and productive-stream clauses through
   `HLinked2.RefSessEquivFull.iff_spec`.
@@ -66,6 +72,7 @@ open Silmaril.Wasm.Component
 open Silmaril.Wasm.Numerics (Profile)
 open Silmaril.Wasm.Game (ScalarInstance)
 open Silmaril.Wasm.Component.Runtime (HostFuncId)
+open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 local notation "IVal" => Silmaril.Wasm.Component.Val
 local notation "RVal" => Silmaril.Wasm.Component.Value.Val
@@ -144,6 +151,18 @@ theorem noPlainTrap_compTripleO : StratSession.NoPlainTrap (compTripleO P l Ie I
 /-- **The open triple is admissible** on the legal host interface (proved). -/
 theorem admissible_compTripleO : Admissible (compTripleO P l Ie Ii) :=
   Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.admissible_compTripleO
+
+/-- **Store determinism** of the host-realizable triple (proved, `profile o`): one round, with its
+host calls and their answers, is a function of the stores and the call; a round whose visible
+host calls are `c` and one that hides a forced refusal after `c` cannot both exist. -/
+theorem storeDet_compTripleS {o : GrowOracle} :
+    StratThread.StoreDet (compTripleS (profile o) l Ie Ii) :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.storeDet_compTripleS
+
+/-- **Store determinism** of the open triple (proved, `profile o`). -/
+theorem storeDet_compTripleO {o : GrowOracle} :
+    StratThread.StoreDet (compTripleO (profile o) l Ie Ii) :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.storeDet_compTripleO
 
 end HLinked2
 
