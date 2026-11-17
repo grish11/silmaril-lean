@@ -1089,6 +1089,56 @@ The plain graph stays an over-approximation, and claims about it say so.
              proofs would then be generalized from `ContextTyped`/`HostTyped` to this
              invariant. For the threaded sessions, `InstDom` must also be relaxed, since a
              round can leave a non-`StoreOk` store (`not_storeOk_of_global`).
+
+             **The legal typed canonical object** (`Games/Abstract/SessionLegal`,
+             `Wasm/Abstract/NodeLegal`, `Wasm/Cfg/CfgLegal`). The legal domain is stated on
+             the plays of the instance session, on its own interface `I.E ↠ ssig I.exports`.
+             It is not stated only on Core events. Deterministic profile `profile o`.
+             - Game level: `SessionLegal.restrictLog Lg t` keeps the behaviours, call prefixes
+               and streams of `t` whose logs satisfy a prefix-closed, store-dependent log
+               legality `Lg s a c`. `PLegal`/`SLegal` are the play predicates: the store is
+               threaded by the session automaton `StratThread.TSt`. For `StoreDet` triples
+               without plain traps, `mem_threadS_restrictLog`, `div_threadS_restrictLog` and
+               `inf_threadS_restrictLog` make `threadS (restrictLog Lg t)` the exact pullback
+               of `threadS t`: finite plays are `PLegal` (legal before each Proponent move,
+               since a strategy is receptive), divergences are `SLegal`, and infinite plays
+               have `PLegal` prefixes. `pLegal_snoc` covers pending calls.
+             - The call store: `NodeLegal.RoundLegal I P Q s a c` says each answer `x.2` of
+               the log is allowed by `Q` at the store `s'` of every hidden instance state
+               `.waiting a s' t x.1` that waits for it. `instTripleQ_agree`: at every store,
+               `instTripleQ I (profile o) Q := viewTriple I (evRestrict Q (coreTripleSO …))`
+               equals `restrictLog (RoundLegal …) (instTripleS I (profile o))` on behaviours,
+               call prefixes and streams. Core event stores are the `.waiting` stores, and
+               `Path.functional` makes those unique. `instTripleS` is saturated
+               (`satP_instTripleS_sub`). `instTripleL` is `instTripleQ` at `LegalRes`, by
+               `rfl` (`CfgLegal.instTripleL_eq`).
+             - Node sessions (`CfgLegal.LegalPlay`, `LegalPlayD`; read through
+               `roundLegal_iff`, `Answer.ThrowsBelow s'.exns.length`): `mem_legalSession`,
+               `pending_legalSession`, `div_legalSession` and `inf_legalSession` show that
+               `threadS (instTripleL I (profile o)) s₀` is exactly the `LegalPlay` part of
+               `instSession I (profile o) s₀`. `mem_cfgSession` and its `pending`, `div` and
+               `inf` variants give the same for the CFG-built `threadS (cfgInstTripleL I) s₀`
+               on `InstDom I s₀`.
+             - Nodes of the component semantics: `mem_legalSemD_sem` and `div_legalSemD_sem`
+               show that a play or divergence of a `legalSemD` node is the visible part of an
+               interaction through `importH`/`exportH` whose hidden instance play is a legal
+               play of the `core3SemD` session. `legalSemD_le` gives `legalSemD ≤ core3SemD`
+               node by node. `CfgLegal.cfgSemD := threadSemSD cfgInstSessionsL` (an audit
+               root) satisfies `cfgSemD_sem_eq`, `mem_cfgSemD_sem` and `div_cfgSemD_sem` on
+               the domain.
+             - Components: `denUD_legalSemD_le` gives `c.denUD (legalSemD _) ≤ c.denUD
+               (core3SemD _)` for every `c`. `denUD_cfgSemD_eq` and `denUD_cfgSemD_le` hold on
+               `CompIn (fun m => InstDom m.inst m.inst.store) c`.
+             - **Not claimed.** No theorem about `legalSemD` says that `core3SemD` with
+               imports equals the CFG semantics. `core3SemD` also has the non-`LegalPlay`
+               plays (dangling host throws), and these are not read on the CFG. Equality with
+               `core3SemD` holds only without imports
+               (`core3SemD_sem_eq_cfgInstSessionsL`). For components only refinement is
+               proved. The exact compositional pullback is open: `c.denUD (legalSemD _)` as
+               the part of `c.denUD (core3SemD _)` whose hidden node plays are legal. It
+               needs legality reflected through each hidden interface of node composition,
+               `implsN` and the wiring. Infinite plays of a node through
+               `DStrategy.InfInteraction` are covered only by refinement.
           3. **Regressions, done** (`Wasm/Cfg/ExampleRegress`). One validated store (`rgMod`,
              one host import `h : [i32] → []`, a spec instance, `StoreOk`, `StoreChkE (ehExt
              tags)` by `storeChkEB`). Each fixture is proved on the CFG closure directly, by
