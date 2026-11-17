@@ -23,7 +23,7 @@ predicate, and no signature is attached to a symbol by hand:
 
 | ingredient | what fixes it |
 | --- | --- |
-| the ABI | `A : AbiDef`: a versioned identity and source, a data model, the C → ABI lowering (`lower`, which refuses what it does not support; it reads struct and union definitions from the tag definitions of the header, `Header.env`), a `Convention` and an entry environment. The convention gives `Entry` (argument placement, stack alignment, return address, direction flag, x87 mode, `%al` for varargs), `Return` (return address, `rsp + 8`, callee-saved registers, the MXCSR control bits and x87 control word preserved, the MXCSR status flags free, direction flag clear, x87 mode, FFI thread pointer) and `ResultAt` (result read-back). `EntryEnv` constrains the MXCSR and x87 control word at entry, and nothing else: `True` for `sysvInt`, `sysvScalar`, `win64Int` (their conventions let a caller enter with any control bits); an ABI requiring `MXCSR = 0x1F80` is a **default-environment subset** (`AbiDef.defaultEnv`) |
+| the ABI | `A : AbiDef`: a versioned identity and source, a data model, the C → ABI lowering (`lower`, which refuses what it does not support; it reads struct and union definitions from the tag definitions of the header, `Header.env`), a `Convention` and an entry environment. The convention gives `Entry` (argument placement, stack alignment, return address, direction flag, x87 mode, `%al` for varargs), `Return` (return address, `rsp + 8`, callee-saved registers, the MXCSR control bits and x87 control word preserved, the MXCSR status flags free, direction flag clear, x87 mode, FFI thread pointer) and `ResultAt` (result read-back). `EntryEnv` constrains the MXCSR and x87 control word at entry, and nothing else: `True` for `sysvInt`, `sysvScalar`, `win64Int` (their conventions let a caller enter with any control bits); an ABI requiring the default MXCSR control bits (`MXCSR &&& 0xffc0 = 0x1F80`; the sticky status flags free) is a **default-environment subset** (`AbiDef.defaultEnv`) |
 | the prototype | `declared`: the header files parse (`Data.Layout.Header.read`, which refuses incompatible redeclarations) to a header declaring `f` with a C prototype that `A.lower` maps to `p`, with the tag definitions of **that** header (`HeaderSrc.env`: a by-value `struct T` is the `T` the same header defines). The prototype is a function of the header (`HeaderSrc.proto?`): the exact parsed one, with signedness and widths; its qualifiers are `HeaderSrc.quals?` (they do not change the lowering) |
 | the code | `code : Code`: the bytes, where they are loaded, the entry offset, the function's extent, the read-only data it reads and the image's address ranges |
 | admissible calls | `Admit`: every admissible completion of the entry state live; `A.conv.Entry p a s`; the entry environment `A.EntryEnv`; the code and data placed, with the return address outside the code; the memory `A` gives the callee (`Stack`: `frame` bytes below `rsp`, the return address, the argument area, and `A.owned`, the storage of a MEMORY result); the FFI thread pointer equal to the machine's (`fsCoherent`). The stack window must be readable, writable, and apart from the code, the data, the image and the call's caller-visible objects (`S.objects`); every byte of `A.owned` readable, writable, and apart from the stack window, the code, the data, the image and `S.objects`. Also `S.pre a mem`: the C precondition, on the arguments and memory only |
@@ -57,7 +57,8 @@ does not determine (a time-stamp oracle) is quantified over: every row covers ev
 completion (`Mach.Fills`). Which MXCSR and x87 control modes an admitted call may start in is
 the ABI's entry environment (`AbiDef.EntryEnv`), shown with every row and never part of a
 machine. The psABI lets callers enter with any control bits, so the full conventions here
-admit every mode; a row that requires the default `MXCSR = 0x1F80` is about a
+admit every mode; a row that requires the default MXCSR control bits
+(`MXCSR &&& 0xffc0 = 0x1F80`, any status flags) is about a
 **default-environment subset** (`AbiDef.defaultEnv`), not full System V. `Return` follows the
 psABI (§3.2.1, "Registers and the Stack Frame"): the MXCSR control bits (6–15) and the x87
 control word are preserved, the MXCSR status flags (0–5) are not constrained, the direction
@@ -118,7 +119,7 @@ structure AbiDef where
   constrain arguments, registers, memory or the other FFI fields (those are `conv.Entry`'s,
   which already fixes the direction flag and x87 mode at entry). `True` for an ABI that, like
   the System V psABI and Microsoft x64, lets a caller enter with any control bits. An ABI
-  definition that requires the default environment (`MXCSR = 0x1F80`) is a
+  definition that requires the default environment (MXCSR control bits `0x1F80`) is a
   **default-environment subset**, not the full convention (`AbiDef.defaultEnv`). -/
   EntryEnv : BitVec 32 → BitVec 16 → Prop
 
@@ -179,14 +180,18 @@ def sysvInt : AbiDef where
   EntryEnv _ _ := True
 
 /-- **The default-environment subset of `A`**: `A` with calls admitted only when they enter
-with the default MXCSR `0x1F80` (round to nearest, every exception masked, DAZ and FTZ off, no
-status flag set), labelled as such in its identity. A row stated on it covers only callers in
-the default floating-point environment; the full System V and Microsoft conventions let a
-caller enter with other control bits. -/
+with the default MXCSR **control bits** (bits 6–15 of `0x1F80`: round to nearest, every
+exception masked, DAZ and FTZ off), labelled as such in its identity. The status flags (bits
+0–5) are free: they are sticky, so an ordinary caller's MXCSR is `0x1F80` only until its first
+inexact operation (`0x1FA0` after `1.0/3.0`), and `Return` leaves them free too. The reserved
+bits 16–31 are not constrained (hardware keeps them zero). A row stated on it covers only callers in the default floating-point
+control environment; the full System V and Microsoft conventions let a caller enter with other
+control bits. -/
 def AbiDef.defaultEnv (A : AbiDef) : AbiDef :=
   { A with
     id := A.id ++ "/default-env-subset"
-    EntryEnv := fun mxcsr x87Control => A.EntryEnv mxcsr x87Control ∧ mxcsr = 0x1F80 }
+    EntryEnv := fun mxcsr x87Control =>
+      A.EntryEnv mxcsr x87Control ∧ mxcsr &&& 0xffc0 = 0x1F80 }
 
 /-! ## Code, machines, specs -/
 
