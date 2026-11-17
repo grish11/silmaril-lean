@@ -31,7 +31,8 @@ fragment from them, so the decomposition is checked.
   resolve, through the inline core instances before the first instantiation, to trampolines, in
   order (import `i` to trampoline `i`, `importsLowered`), at types accepting the trampolines
   (`refTypesOk`), and which import only functions;
-  primitive function types; aliases of core function exports; option-less `canon lift`s; and
+  primitive function types; aliases of core function exports (the core modules' export names
+  distinct, so that an alias finds the export the IR wires); option-less `canon lift`s; and
   function exports;
 * the component's first export has type `func() -> u32` (`isGetTy`).
 
@@ -142,7 +143,7 @@ def postDefOk (n : Nat) (insts : List (List (String × Nat))) (mods : List Silma
         m.imports.all (fun i => match i.type with | .func _ => true | _ => false)
     | none => false
   | .type (.func ft) => funcTypePrim ft
-  | .alias (.coreExport _ _ .func) => true
+  | .alias (.coreExport _ _ .func) => mods.all fun m => (m.exports.map (·.name)).Nodup
   | .canon (.lift _ [] _) => true
   | .export_ _ ⟨.func, _⟩ none => true
   | _ => false
