@@ -248,11 +248,21 @@ The certificate-checking acceptor components are Wasm components in
     rejections, traps or completeness.
   - The file is tied to `bytes` by regeneration and by the SHA-256 that the harness pins. No
     theorem ties them.
-- **LRAT and Farkas** (`lrat_accept.wasm`, `farkas_accept.wasm`, on their own branches): only
-  core-module theorems exist so far (`Silmaril.Wasm.Examples.LratAccept.checkStream_sound`,
-  `checkNested_sound`, `Silmaril.Wasm.Examples.FarkasAccept.check_sound`). They are about the
-  core module inside the component, not about the canonical ABI lift and lowering.
-  Component-level proofs are in progress.
+- **LRAT** (`lrat_accept.wasm`): registered as `silmaril.wasm.examples.lrat_accept.component`,
+  with the exports `check-stream(problem: list<s32>, cert: list<s32>)` and
+  `check-nested(problem: list<list<s32>>, cert: list<s32>)`.
+  `Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes` and
+  `checkNested_sound_of_bytes`: an accepting call implies that the problem is unsatisfiable,
+  whatever the certificate.
+- **Farkas** (`farkas_accept.wasm`): registered as
+  `silmaril.wasm.examples.farkas_accept.component`, with the export
+  `check(system: list<ineq>, y: list<s64>)` and the exported record type
+  `ineq { coeffs: list<tuple<u32, s64>>, bound: s64 }`.
+  `Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes`: an accepting call on the
+  `list<ineq>` value of a system `S` implies `S ∈ Infeasible`, whatever the multipliers.
+- Both are component-level soundness only, for every reference Component Model reading of what
+  the bytes parse to, and both files are tied to their `bytes` by regeneration and the pinned
+  SHA-256, as for SAT.
 
 **The harness.** `tools/wasm-acceptor-harness` runs the suites `suites/*.json` under Wasmtime
 50.0.0 on the actual component bytes (the version is pinned exactly). Each case calls one export
@@ -286,9 +296,8 @@ known acceptor. It has two parts, kept apart:
   - Without `acceptor-runs.json` the section shows a neutral notice. A malformed report is an
     error inside the section only.
 - **Lean theorems.** A static map, keyed by the SHA-256 of the bytes a theorem is about, gives
-  the theorem names and the kind of claim. For SAT the claim is "component-level soundness
-  (kernel-checked)". For LRAT and Farkas it is "core-module soundness only". The names link to
-  their source pages.
+  the theorem names and the kind of claim. For SAT, LRAT and Farkas the claim is
+  "component-level soundness (kernel-checked)". The names link to their source pages.
   - A changed file no longer matches the map, so a claim never shows on other bytes.
 
 `tools/silmaril-project/tests/explore/acceptor_runs.mjs` checks the section in Chromium on a

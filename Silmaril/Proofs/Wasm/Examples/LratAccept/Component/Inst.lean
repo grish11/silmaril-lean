@@ -86,7 +86,8 @@ theorem accS_mems : ∃ B₀ B₁, accS.mems = [⟨lratMemType, B₀⟩, ⟨accM
 
 /-! ## The fragment -/
 
-theorem lratComp_good : lratComp.Good := ⟨by decide +kernel, by decide +kernel⟩
+theorem lratComp_good : lratComp.Good :=
+  ⟨by decide +kernel, by decide +kernel, by decide +kernel⟩
 
 theorem lratComp_inst : lratComp.Inst accI where
   inst := by
@@ -173,7 +174,7 @@ theorem lratBump (P : Profile) : BumpAlloc P 10 1 memBytes LInvL where
       rfl
     · rw [Memory.writeBytes_size _ _ _ _ hwb, h.size₁]
   realloc := by
-    rintro s t n q s' ⟨⟨G, B₀, B₁, h⟩, ht⟩ ⟨f', hs, hq⟩
+    rintro s t al n q s' ⟨⟨G, B₀, B₁, h⟩, ht⟩ ⟨f', hs, hq⟩
     have hmb : memBytes = 1048576 := rfl
     have htn : (BitVec.ofNat 32 t).toNat = t := toNat_ofNat (by omega)
     have hg : s.globals[8]? = some ⟨accGt, Val.i32 (BitVec.ofNat 32 t)⟩ := by

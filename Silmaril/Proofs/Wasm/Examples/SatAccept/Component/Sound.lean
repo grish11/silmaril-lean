@@ -50,7 +50,8 @@ theorem holdsL_nested {B : ByteArray} {lo hi : Nat} :
         ∀ i < p.length, (wd B (q + 8 * i)).toNat + 4 * (wd B (q + 8 * i + 4)).toNat ≤ B.size
   | [], _, _ => ⟨rfl, by simp⟩
   | c :: p, q, h => by
-    simp only [List.map_cons, HoldsL, LVal.ofWords, Holds, LTy.size, List.length_map] at h
+    simp only [List.map_cons, HoldsL, LVal.ofWords, Holds, LTy.size_s32, LTy.size_list,
+      List.length_map] at h
     obtain ⟨⟨_, hlen, -, -, hb, hc⟩, hrest⟩ := h
     obtain ⟨ih1, ih2⟩ := holdsL_nested p (q + 8) hrest
     refine ⟨?_, ?_⟩
@@ -82,7 +83,7 @@ theorem lower2 {P : Profile} {t : LTy} {us : List LVal} {ms : List (BitVec 32)} 
   obtain ⟨t₁, ⟨hf, ⟨mt, B, hm, hB⟩, hg, -⟩, -, -, hF⟩ := params_holds (satBump P) hL sInv_init
   have hBm : memBytesOf s 0 = B := by simp [memBytesOf, hm]
   rw [hBm] at hF
-  simp only [FlatHolds, LVal.ofWords, List.length_map, LTy.size] at hF
+  simp only [FlatHolds, LVal.ofWords, List.length_map, LTy.size_s32] at hF
   obtain ⟨q₁, fl₁, rfl, hq₁, hl₁, -, -, hb₁, hL₁, q₂, fl₂, rfl, hq₂, hl₂, -, -, hb₂, hL₂, rfl⟩ := hF
   refine ⟨q₁, q₂, mt, B, heapBase, t₁, rfl, hq₁, hq₂, hl₁, hl₂, hf, hm, hB, by rw [hg]; rfl,
     hb₁, hL₁, by omega, ?_⟩
@@ -128,7 +129,7 @@ theorem checkStream_sound (P : Profile) (prof : ProfileKind) (xs ms : List (BitV
   have hg' : (globalVal s f₁.module 0).isSome := by
     rw [globalVal_congr (m' := satM) (by rw [satM_eq hF, hg₁, hg₀]) 0]
     exact hg
-  simp only [List.length_map, LTy.size] at hb₁ hL₁ hl₁ hS
+  simp only [List.length_map, LTy.size_s32] at hb₁ hL₁ hl₁ hS
   have hw₁ := holdsL_words xs q₁ hL₁
   obtain ⟨-, hres⟩ := stream_returns (pp := BitVec.ofNat 32 q₁) (pl := BitVec.ofNat 32 xs.length)
     (mp := BitVec.ofNat 32 q₂) (ml := BitVec.ofNat 32 ms.length) hfi hc₁ he₁ ty4_params
@@ -168,7 +169,7 @@ theorem checkNested_sound (P : Profile) (prof : ProfileKind) (p : List (List (Bi
   have hg' : (globalVal s f₂.module 0).isSome := by
     rw [globalVal_congr (m' := satM) (by rw [satM_eq hF, hg₁, hg₀]) 0]
     exact hg
-  simp only [List.length_map, LTy.size] at hb₁ hL₁ hl₁ hS
+  simp only [List.length_map, LTy.size_list] at hb₁ hL₁ hl₁ hS
   obtain ⟨hn₁, hin⟩ := holdsL_nested p q₁ hL₁
   obtain ⟨-, hres⟩ := nested_returns (pp := BitVec.ofNat 32 q₁) (pl := BitVec.ofNat 32 p.length)
     (mp := BitVec.ofNat 32 q₂) (ml := BitVec.ofNat 32 ms.length) hfi hc₁ he₁ ty4_params

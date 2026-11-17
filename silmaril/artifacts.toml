@@ -306,6 +306,16 @@ derivation = "silmaril.wasm_components.gen.linked.world.project"
 meta = { wasm = { layer = "component", version = 13, world_of = "silmaril.wasm_components.gen.linked.blob" } }
 
 [[artifact]]
+cid = "bafkr4igd5n4qywsi5wnzogjwvltd3chsrjoa6um4ed6cb5o5vig73jztka"
+type = "blob"
+name = "silmaril.wasm.examples.farkas_accept.component"
+paths = ["examples/wasm-acceptors/farkas_accept.wasm"]
+size = 794
+sha256 = "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996"
+git_sha1 = "18d4e4e65f3321acfa22fb9c62d8b55d2b31ff94"
+meta = { wasm = { custom = [], exports = ["type ineq", "func check"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
+
+[[artifact]]
 cid = "bafkr4igey43jzn5rh4ji7q2uib4g6bzs3ammrmur7eds3nlp6xjdul6jfi"
 type = "blob"
 name = "silmaril.wasm.examples.member_check.prog"

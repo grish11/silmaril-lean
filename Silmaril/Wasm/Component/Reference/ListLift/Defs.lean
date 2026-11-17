@@ -18,9 +18,17 @@ relates.
 
 ## The fragment
 
-* `LTy`: parameter types `s32` and `list<t>` (so `list<s32>`, `list<list<s32>>`, …), `LVal`
-  their values, `LTy.check`, the reference values `LVal.toRef` and the resolved reference types
-  `LTy.toClosed`;
+* `LTy`: the types `s32`, `u32`, `s64`, `list<t>`, `tuple<t, …>` and named records
+  `record name { l: t, … }` (so `list<s32>`, `list<list<s32>>`,
+  `list<record { coeffs: list<tuple<u32, s64>>, bound: s64 }>`, …), `LVal` their values,
+  `LTy.check`, the reference values `LVal.toRef`, the resolved reference types `LTy.toClosed`
+  and the canonical-ABI layouts `LTy.layout` (`size`, `align`); the parameters of an export are
+  `s32`s and lists (`LTy.topLevel`);
+* the emitters: `LTy.emit` (reference definitions) and `LTy.emitB` (binary type items,
+  `tySections`), with one type definition per list and tuple type, and for a record its type
+  definition followed by the export of that type under the record's name (an exported function
+  may only mention records through named types; the export is the type index the parameter
+  refers to);
 * `ListExport`: an export `name: func(params) -> bool`, the `canon lift` of the core export
   `core` with the options `(memory 0) (realloc 0)`;
 * `ListComp`: one core instance of a module (instantiated without imports), exporting the memory
@@ -39,11 +47,13 @@ relates.
 
 * `ReallocRun P ra s align size p s'`: a returning Core run of the allocator (function address
   `ra`) on `(0, 0, align, size)` from `s`, answering `p` in the store `s'`;
-* `LList`: `store_list_into_range`: the allocator returns an aligned `q` with the list's
-  `len · size` bytes in the memory (address `ma`), then the elements are stored (`LElems`) at
-  `q`, `q + size`, …;
-* `LStore`: `store` of one value: an `s32` as its 4 little-endian bytes (`le32`), a list as
-  `store_list_into_range` followed by the `(ptr, len)` pair;
+* `LList`: `store_list_into_range`: the allocator, asked for the element alignment, returns an
+  aligned `q` with the list's `len · size` bytes in the memory (address `ma`), then the elements
+  are stored (`LElems`) at `q`, `q + size`, …;
+* `LStore`: `store` of one value: an `s32` or `u32` as its 4 little-endian bytes (`le32`), an
+  `s64` as its 8 (`le64`), a list as `store_list_into_range` followed by the `(ptr, len)` pair,
+  a tuple or record field by field (`LFields`, `store_record`: each field at the cursor rounded
+  up to its alignment);
 * `LParams`: the parameters left to right, each list lowered to the flat `(ptr, len)`.
 
 The relation is generic in the module: it does not assume anything about the allocator, whose
@@ -74,29 +84,50 @@ open Silmaril.Wasm.Numerics (Profile)
 
 /-! ## Types and values -/
 
-/-- Parameter types: `s32` and lists. -/
+/-- Parameter and element types: `s32`, `u32`, `s64`, lists, tuples and records. A tuple
+`tuple t ts` is `tuple<t, ts…>` and a record `record name l t fs` is `record { l: t, fs… }`: both
+have at least one element, as the Component Model requires. A record carries the name under
+which the component exports its type (an exported function may only mention records through
+named types). -/
 inductive LTy where
   | s32
   | list (t : LTy)
-  deriving DecidableEq, Repr, Inhabited
+  | u32
+  | s64
+  | tuple (t : LTy) (ts : List LTy)
+  | record (name : String) (l : String) (t : LTy) (fs : List (String × LTy))
+  deriving Repr, Inhabited
 
-/-- Values of the parameter types. -/
+/-- Values of the types: a tuple or record value is the list of its field values. -/
 inductive LVal where
   | s32 (x : BitVec 32)
   | list (vs : List LVal)
+  | u32 (x : BitVec 32)
+  | s64 (x : BitVec 64)
+  | fields (vs : List LVal)
   deriving Repr, Inhabited
 
 mutual
 /-- `v` has type `t`. -/
 def LTy.check : LTy → LVal → Bool
   | .s32, .s32 _ => true
+  | .u32, .u32 _ => true
+  | .s64, .s64 _ => true
   | .list t, .list vs => LTy.checkList t vs
+  | .tuple t ts, .fields vs => LTy.checkFields (t :: ts) vs
+  | .record _ _ t fs, .fields vs => LTy.checkFields (t :: fs.map (·.2)) vs
   | _, _ => false
 
 /-- Every value of `vs` has type `t`. -/
 def LTy.checkList (t : LTy) : List LVal → Bool
   | [] => true
   | v :: vs => t.check v && LTy.checkList t vs
+
+/-- The values `vs` have the types `ts`, in order. -/
+def LTy.checkFields : List LTy → List LVal → Bool
+  | [], [] => true
+  | t :: ts, v :: vs => t.check v && LTy.checkFields ts vs
+  | _, _ => false
 end
 
 /-- `vs` have the types `ts`, in order. -/
@@ -106,10 +137,14 @@ def LTy.checkParams : List LTy → List LVal → Bool
   | _, _ => false
 
 mutual
-/-- The reference value of a value (an `s32` by its two's-complement reading). -/
+/-- The reference value of a value (an `s32` or `s64` by its two's-complement reading, a `u32`
+by its unsigned reading, a tuple or record as the positional record value). -/
 def LVal.toRef : LVal → Silmaril.Wasm.Component.Value.Val
   | .s32 x => .int .s32 x.toInt
   | .list vs => .list (LVal.toRefList vs)
+  | .u32 x => .int .u32 x.toNat
+  | .s64 x => .int .s64 x.toInt
+  | .fields vs => .record (LVal.toRefList vs)
 
 /-- `LVal.toRef` on lists. -/
 def LVal.toRefList : List LVal → List Silmaril.Wasm.Component.Value.Val
@@ -118,33 +153,162 @@ def LVal.toRefList : List LVal → List Silmaril.Wasm.Component.Value.Val
 end
 
 open Silmaril.Wasm.Component.Runtime (RtId) in
-/-- The resolved reference type of a parameter type. -/
+mutual
+/-- The resolved reference type of a type. -/
 def LTy.toClosed : LTy → Silmaril.Wasm.Component.WIT.ClosedType RtId
   | .s32 => .prim .s32
   | .list t => .list t.toClosed
+  | .u32 => .prim .u32
+  | .s64 => .prim .s64
+  | .tuple t ts => .tuple (t.toClosed :: LTy.toClosedList ts)
+  | .record _ l t fs => .record ((l, t.toClosed) :: LTy.toClosedFields fs)
 
-/-- The canonical-ABI size (and alignment) in bytes of a value of type `t` in memory: `4` for
-`s32`, `8` for a `(ptr, len)` list pair (alignment `4` in both cases). -/
-def LTy.size : LTy → Nat
-  | .s32 => 4
-  | .list _ => 8
+/-- `LTy.toClosed` on lists. -/
+def LTy.toClosedList : List LTy → List (Silmaril.Wasm.Component.WIT.ClosedType RtId)
+  | [] => []
+  | t :: ts => t.toClosed :: LTy.toClosedList ts
+
+/-- `LTy.toClosed` on labelled fields. -/
+def LTy.toClosedFields :
+    List (String × LTy) → List (String × Silmaril.Wasm.Component.WIT.ClosedType RtId)
+  | [] => []
+  | (l, t) :: fs => (l, t.toClosed) :: LTy.toClosedFields fs
+end
+
+mutual
+/-- The canonical-ABI layout (alignment, size) of a value of type `t` in memory, with 32-bit
+pointers: an `s32` or `u32` takes 4 bytes aligned to 4, an `s64` 8 bytes aligned to 8, a list
+its `(ptr, len)` pair (8 bytes aligned to 4), and a tuple or record its fields, each at the
+next offset aligned to its alignment, the size rounded up to the largest field alignment
+(`ABI.recordLayout`). -/
+def LTy.layout : LTy → Silmaril.Wasm.Component.ABI.Layout
+  | .s32 => ⟨.four, 1⟩
+  | .list _ => ⟨.four, 2⟩
+  | .u32 => ⟨.four, 1⟩
+  | .s64 => ⟨.eight, 1⟩
+  | .tuple t ts => Silmaril.Wasm.Component.ABI.recordLayout (t.layout :: LTy.layoutList ts)
+  | .record _ _ t fs =>
+    Silmaril.Wasm.Component.ABI.recordLayout (t.layout :: LTy.layoutFields fs)
+
+/-- `LTy.layout` on lists. -/
+def LTy.layoutList : List LTy → List Silmaril.Wasm.Component.ABI.Layout
+  | [] => []
+  | t :: ts => t.layout :: LTy.layoutList ts
+
+/-- `LTy.layout` on labelled fields. -/
+def LTy.layoutFields : List (String × LTy) → List Silmaril.Wasm.Component.ABI.Layout
+  | [] => []
+  | (_, t) :: fs => t.layout :: LTy.layoutFields fs
+end
+
+/-- The canonical-ABI size in bytes of a value of type `t` in memory (a multiple of its
+alignment). -/
+def LTy.size (t : LTy) : Nat := t.layout.size
+
+/-- The canonical-ABI alignment of a value of type `t` in memory. -/
+def LTy.align (t : LTy) : Silmaril.Wasm.Component.ABI.Alignment := t.layout.alignment
+
+theorem LTy.size_s32 : LTy.s32.size = 4 := rfl
+theorem LTy.size_list (t : LTy) : (LTy.list t).size = 8 := rfl
 
 /-! ## Reference and binary syntax of the types -/
 
-/-- The reference value type of `t`, with the type definitions it needs from type index `n`
-(each list type is one `(type (list …))` definition); returns the next free type index. -/
+mutual
+/-- The reference value type of `t`, with the type definitions it needs from type index `n`;
+returns the next free type index. Each list and tuple type is one type definition; a record is
+its type definition followed by the export of that type under the record's name (the export is
+the next type index, which the value type refers to). -/
 def LTy.emit {M : Type} : LTy → Nat → Syntax.VT × List (Syntax.Definition M) × Nat
   | .s32, n => (.prim .s32, [], n)
   | .list t, n =>
     let (v, ds, n') := t.emit n
     (.idx n', ds ++ [.type (.val (.list v))], n' + 1)
+  | .u32, n => (.prim .u32, [], n)
+  | .s64, n => (.prim .s64, [], n)
+  | .tuple t ts, n =>
+    let (v, ds, n₁) := t.emit n
+    let (vs, ds', n₂) := LTy.emitList ts n₁
+    (.idx n₂, ds ++ ds' ++ [.type (.val (.tuple (v :: vs)))], n₂ + 1)
+  | .record name l t fs, n =>
+    let (v, ds, n₁) := t.emit n
+    let (vs, ds', n₂) := LTy.emitFields fs n₁
+    (.idx (n₂ + 1), ds ++ ds' ++ [.type (.val (.record ((l, v) :: vs))),
+      .export_ { name := name } ⟨.type, n₂⟩ none], n₂ + 2)
 
-/-- The binary value type of `t`, with its type definitions from index `n`. -/
-def LTy.emitB : LTy → Nat → Binary.ValType × List Binary.DefType × Nat
+/-- `LTy.emit` on lists, left to right. -/
+def LTy.emitList {M : Type} : List LTy → Nat →
+    List Syntax.VT × List (Syntax.Definition M) × Nat
+  | [], n => ([], [], n)
+  | t :: ts, n =>
+    let (v, ds, n₁) := t.emit n
+    let (vs, ds', n₂) := LTy.emitList ts n₁
+    (v :: vs, ds ++ ds', n₂)
+
+/-- `LTy.emit` on labelled fields, left to right. -/
+def LTy.emitFields {M : Type} : List (String × LTy) → Nat →
+    List (String × Syntax.VT) × List (Syntax.Definition M) × Nat
+  | [], n => ([], [], n)
+  | (l, t) :: fs, n =>
+    let (v, ds, n₁) := t.emit n
+    let (vs, ds', n₂) := LTy.emitFields fs n₁
+    ((l, v) :: vs, ds ++ ds', n₂)
+end
+
+/-- An item of the binary type index space: a type definition, or the export of type `i`
+under a name. -/
+inductive TyItem where
+  | def_ (d : Binary.DefType)
+  | export_ (name : String) (i : Nat)
+
+mutual
+/-- The binary value type of `t`, with its type items from index `n` (as `LTy.emit`). -/
+def LTy.emitB : LTy → Nat → Binary.ValType × List TyItem × Nat
   | .s32, n => (.prim .s32, [], n)
   | .list t, n =>
     let (v, ds, n') := t.emitB n
-    (.idx n', ds ++ [.val (.list v)], n' + 1)
+    (.idx n', ds ++ [.def_ (.val (.list v))], n' + 1)
+  | .u32, n => (.prim .u32, [], n)
+  | .s64, n => (.prim .s64, [], n)
+  | .tuple t ts, n =>
+    let (v, ds, n₁) := t.emitB n
+    let (vs, ds', n₂) := LTy.emitListB ts n₁
+    (.idx n₂, ds ++ ds' ++ [.def_ (.val (.tuple (v :: vs)))], n₂ + 1)
+  | .record name l t fs, n =>
+    let (v, ds, n₁) := t.emitB n
+    let (vs, ds', n₂) := LTy.emitFieldsB fs n₁
+    (.idx (n₂ + 1), ds ++ ds' ++ [.def_ (.val (.record ((l, v) :: vs))), .export_ name n₂],
+      n₂ + 2)
+
+/-- `LTy.emitB` on lists, left to right. -/
+def LTy.emitListB : List LTy → Nat → List Binary.ValType × List TyItem × Nat
+  | [], n => ([], [], n)
+  | t :: ts, n =>
+    let (v, ds, n₁) := t.emitB n
+    let (vs, ds', n₂) := LTy.emitListB ts n₁
+    (v :: vs, ds ++ ds', n₂)
+
+/-- `LTy.emitB` on labelled fields, left to right. -/
+def LTy.emitFieldsB : List (String × LTy) → Nat →
+    List (String × Binary.ValType) × List TyItem × Nat
+  | [], n => ([], [], n)
+  | (l, t) :: fs, n =>
+    let (v, ds, n₁) := t.emitB n
+    let (vs, ds', n₂) := LTy.emitFieldsB fs n₁
+    ((l, v) :: vs, ds ++ ds', n₂)
+end
+
+/-- The binary sections of type items: each maximal run of type definitions is one `types`
+section and each maximal run of type exports one `exports` section, in order. -/
+def tySections : List TyItem → List Binary.Section
+  | [] => []
+  | .def_ d :: is =>
+    match tySections is with
+    | .types ds :: ss => .types (d :: ds) :: ss
+    | ss => .types [d] :: ss
+  | .export_ n i :: is =>
+    match tySections is with
+    | .exports es :: ss => .exports (⟨↑n, ⟨.type, i⟩, none⟩ :: es) :: ss
+    | ss => .exports [⟨↑n, ⟨.type, i⟩, none⟩] :: ss
 
 /-- `emit` on named parameters, left to right. -/
 def emitParams {M : Type} : List (String × LTy) → Nat →
@@ -157,7 +321,7 @@ def emitParams {M : Type} : List (String × LTy) → Nat →
 
 /-- `emitB` on named parameters, left to right. -/
 def emitParamsB : List (String × LTy) → Nat →
-    List (String × Binary.ValType) × List Binary.DefType × Nat
+    List (String × Binary.ValType) × List TyItem × Nat
   | [], n => ([], [], n)
   | (x, t) :: ps, n =>
     let (v, ds, n₁) := t.emitB n
@@ -175,7 +339,7 @@ structure ListExport where
   params : List (String × LTy)
   /-- The name of the lifted core function export. -/
   core : String
-  deriving Repr, DecidableEq
+  deriving Repr
 
 /-- A component of one core instance of an import-free module that exports its memory
 `memName` and allocator `reallocName`, with list-taking exports returning `bool`. -/
@@ -222,24 +386,25 @@ def toRef (c : ListComp) : Core3Component :=
     .canon (.lift (i + 1) [.memory 0, .realloc 0] t)) ++
   c.exports.zipIdx.map (fun (x, i) => .export_ { name := x.name } ⟨.func, i⟩ none)
 
-/-- The binary type definitions of the exports from type index `n`. -/
-def typeDefsB : List ListExport → Nat → List Binary.DefType
+/-- The binary type items of the exports from type index `n`. -/
+def typeDefsB : List ListExport → Nat → List TyItem
   | [], _ => []
   | x :: xs, n =>
     let (ps, ds, n') := emitParamsB x.params n
-    ds ++ [.func ⟨ps, some (.prim .bool), false⟩] ++ typeDefsB xs (n' + 1)
+    ds ++ [.def_ (.func ⟨ps, some (.prim .bool), false⟩)] ++ typeDefsB xs (n' + 1)
 
 /-- **The binary component** around the core module bytes `core`, with the definitions of
-`toRef` in the same order. -/
-def toAst (c : ListComp) (core : ByteArray) : Binary.Ast := .mk [
+`toRef` in the same order (the type definitions in `types` sections, the record type exports in
+`exports` sections between them: `tySections`). -/
+def toAst (c : ListComp) (core : ByteArray) : Binary.Ast := .mk ([
   .coreModule core,
   .coreInstances [.instantiate 0 []],
   .aliases ([⟨.core .memory, .coreExport 0 c.memName⟩, ⟨.core .func, .coreExport 0 c.reallocName⟩]
-    ++ c.exports.map fun x => ⟨.core .func, .coreExport 0 x.core⟩),
-  .types (typeDefsB c.exports 0),
+    ++ c.exports.map fun x => ⟨.core .func, .coreExport 0 x.core⟩)] ++
+  tySections (typeDefsB c.exports 0) ++ [
   .canons ((c.exports.zipIdx.zip (funcTypeIdx c.exports 0)).map fun ((_, i), t) =>
     .lift (i + 1) [.memory 0, .realloc 0] t),
-  .exports (c.exports.zipIdx.map fun (x, i) => ⟨↑x.name, ⟨.func, i⟩, none⟩)]
+  .exports (c.exports.zipIdx.map fun (x, i) => ⟨↑x.name, ⟨.func, i⟩, none⟩)])
 
 end ListComp
 
@@ -250,6 +415,9 @@ open Silmaril.Wasm.Execution.Core (Store Steps invoke Frame vals)
 /-- The 4 little-endian bytes of a word (`Memory.encodeLE 4`, as the canonical ABI's
 `store_int` writes them). -/
 def le32 (x : BitVec 32) : ByteArray := Silmaril.Wasm.Execution.Memory.encodeLE 4 x.toNat
+
+/-- The 8 little-endian bytes of a 64-bit word. -/
+def le64 (x : BitVec 64) : ByteArray := Silmaril.Wasm.Execution.Memory.encodeLE 8 x.toNat
 
 /-- The byte length of memory `ma` (`0` if there is none). -/
 def memLen (s : Store Nat) (ma : Nat) : Nat := ((s.mems[ma]?).map (·.bytes.size)).getD 0
@@ -269,6 +437,17 @@ inductive LStore (P : Profile) (ra ma : Nat) : LTy → LVal → Nat → Store Na
   | s32 {x p s s'} :
       Silmaril.Wasm.SingleThreaded.memWrite? s ma p (le32 x) = some s' →
       LStore P ra ma .s32 (.s32 x) p s s'
+  | u32 {x p s s'} :
+      Silmaril.Wasm.SingleThreaded.memWrite? s ma p (le32 x) = some s' →
+      LStore P ra ma .u32 (.u32 x) p s s'
+  | s64 {x p s s'} :
+      Silmaril.Wasm.SingleThreaded.memWrite? s ma p (le64 x) = some s' →
+      LStore P ra ma .s64 (.s64 x) p s s'
+  | tuple {t ts vs p s s'} :
+      LFields P ra ma (t :: ts) vs p s s' → LStore P ra ma (.tuple t ts) (.fields vs) p s s'
+  | record {name l t fs vs p s s'} :
+      LFields P ra ma (t :: fs.map (·.2)) vs p s s' →
+      LStore P ra ma (.record name l t fs) (.fields vs) p s s'
   | list {t vs p s s₁ s₂ s'} {q : Nat} :
       LList P ra ma t vs s q s₁ →
       Silmaril.Wasm.SingleThreaded.memWrite? s₁ ma p (le32 (BitVec.ofNat 32 q)) = some s₂ →
@@ -276,13 +455,14 @@ inductive LStore (P : Profile) (ra ma : Nat) : LTy → LVal → Nat → Store Na
         (le32 (BitVec.ofNat 32 vs.length)) = some s' →
       LStore P ra ma (.list t) (.list vs) p s s'
 
-/-- `store_list_into_range(vs, t)`: the allocator answers `q` for the list's bytes, `q` is
-aligned (to `4`) and the bytes lie in memory, and the elements are stored from `q` on. -/
+/-- `store_list_into_range(vs, t)`: the allocator answers `q` for the list's bytes at the
+alignment of `t`, `q` is aligned and the bytes lie in memory, and the elements are stored from
+`q` on. -/
 inductive LList (P : Profile) (ra ma : Nat) : LTy → List LVal → Store Nat → Nat → Store Nat →
     Prop
   | mk {t vs s q s₁ s'} :
-      ReallocRun P ra s 4 (vs.length * t.size) q s₁ →
-      q % 4 = 0 → q + vs.length * t.size ≤ memLen s₁ ma →
+      ReallocRun P ra s t.align.bytes (vs.length * t.size) q s₁ →
+      q % t.align.bytes = 0 → q + vs.length * t.size ≤ memLen s₁ ma →
       LElems P ra ma t vs q s₁ s' →
       LList P ra ma t vs s q s'
 
@@ -293,10 +473,20 @@ inductive LElems (P : Profile) (ra ma : Nat) : LTy → List LVal → Nat → Sto
   | cons {t v vs p s s₁ s'} :
       LStore P ra ma t v p s s₁ → LElems P ra ma t vs (p + t.size) s₁ s' →
       LElems P ra ma t (v :: vs) p s s'
+
+/-- `store_record`: the fields `vs` of types `ts` from the cursor `p` on, each stored at the
+cursor rounded up to its type's alignment, the cursor then moving past it. -/
+inductive LFields (P : Profile) (ra ma : Nat) : List LTy → List LVal → Nat → Store Nat →
+    Store Nat → Prop
+  | nil {p s} : LFields P ra ma [] [] p s s
+  | cons {t ts v vs p s s₁ s'} :
+      LStore P ra ma t v (Silmaril.Wasm.Component.ABI.alignTo p t.align) s s₁ →
+      LFields P ra ma ts vs (Silmaril.Wasm.Component.ABI.alignTo p t.align + t.size) s₁ s' →
+      LFields P ra ma (t :: ts) (v :: vs) p s s'
 end
 
-/-- The flat lowering of the parameters: each list to its `(ptr, len)`, left to right. Only list
-parameters are in the fragment's exports (an `s32` parameter would be one flat `i32`). -/
+/-- The flat lowering of the parameters: an `s32` to its `i32`, each list to its `(ptr, len)`,
+left to right (the parameter types of the fragment's exports, `ListComp.Good.top`). -/
 inductive LParams (P : Profile) (ra ma : Nat) :
     List LTy → List LVal → Store Nat → List Silmaril.Wasm.Execution.Core.Val → Store Nat → Prop
   | nil {s} : LParams P ra ma [] [] s [] s
@@ -310,11 +500,34 @@ inductive LParams (P : Profile) (ra ma : Nat) :
 
 /-! ## The target statement -/
 
-/-- The flat core types of a parameter of type `t`: one `i32` for an `s32`, the `(ptr, len)`
-pair of `i32`s for a list (32-bit memory). -/
+mutual
+/-- The flat core types of a value of type `t` (`flatten`): one `i32` for an `s32` or a `u32`,
+one `i64` for an `s64`, the `(ptr, len)` pair of `i32`s for a list (32-bit memory), the fields'
+flat types for a tuple or record. -/
 def LTy.flat : LTy → List Silmaril.Wasm.Game.ScalarType
   | .s32 => [.num (.int .i32)]
   | .list _ => [.num (.int .i32), .num (.int .i32)]
+  | .u32 => [.num (.int .i32)]
+  | .s64 => [.num (.int .i64)]
+  | .tuple t ts => t.flat ++ LTy.flatList ts
+  | .record _ _ t fs => t.flat ++ LTy.flatFields fs
+
+/-- `LTy.flat` on lists. -/
+def LTy.flatList : List LTy → List Silmaril.Wasm.Game.ScalarType
+  | [] => []
+  | t :: ts => t.flat ++ LTy.flatList ts
+
+/-- `LTy.flat` on labelled fields. -/
+def LTy.flatFields : List (String × LTy) → List Silmaril.Wasm.Game.ScalarType
+  | [] => []
+  | (_, t) :: fs => t.flat ++ LTy.flatFields fs
+end
+
+/-- The parameter types the fragment lowers: `s32` and lists (of any element type). -/
+def LTy.topLevel : LTy → Bool
+  | .s32 => true
+  | .list _ => true
+  | _ => false
 
 /-- The flat core parameter types of an export: its parameters' `LTy.flat`, left to right. -/
 def ListExport.flatParams (x : ListExport) : List Silmaril.Wasm.Game.ScalarType :=
@@ -331,10 +544,12 @@ def coreAddr (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) (n : String)
   ((Silmaril.Wasm.Component.Reference.funcExportNames c.mod).zip I.addrs |>.lookup n).getD 0
 
 /-- The component is well formed: distinct export names, every export at most `16` flat
-parameters (two per list) and no other result than `bool`. -/
+parameters (two per list), each an `s32` or a list (`LTy.topLevel`: `u32`, `s64`, tuples and
+records occur inside lists). -/
 structure Good (c : ListComp) : Prop where
   names : (c.exports.map (·.name)).Nodup
   flat : ∀ x ∈ c.exports, 2 * x.params.length ≤ 16
+  top : ∀ x ∈ c.exports, ∀ p ∈ x.params, p.2.topLevel = true
 
 /-- The module is instantiated as the statement assumes: it validates and instantiates without
 imports and without a start function (`I`, as `NumModule.IsInst` reads it), `memName` is its

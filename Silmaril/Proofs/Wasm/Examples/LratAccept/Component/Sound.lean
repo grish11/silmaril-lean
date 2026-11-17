@@ -48,7 +48,8 @@ theorem holdsL_nested {B : ByteArray} {lo hi : Nat} :
         ∀ i < p.length, (wd B (q + 8 * i)).toNat + 4 * (wd B (q + 8 * i + 4)).toNat ≤ B.size
   | [], _, _ => ⟨rfl, by simp⟩
   | c :: p, q, h => by
-    simp only [List.map_cons, HoldsL, LVal.ofWords, Holds, LTy.size, List.length_map] at h
+    simp only [List.map_cons, HoldsL, LVal.ofWords, Holds, LTy.size_s32, LTy.size_list,
+      List.length_map] at h
     obtain ⟨⟨_, hlen, -, -, hb, hc⟩, hrest⟩ := h
     obtain ⟨ih1, ih2⟩ := holdsL_nested p (q + 8) hrest
     refine ⟨?_, ?_⟩
@@ -81,7 +82,7 @@ theorem lower2 {P : Profile} {t : LTy} {us : List LVal} {cs : List (BitVec 32)} 
   obtain ⟨t₁, ⟨⟨G, B₀, B₁, hs⟩, -⟩, -, -, hF⟩ := params_holds (lratBump P) hL lInvL_init
   have hBm : memBytesOf s 1 = B₁ := by simp [memBytesOf, hs.mems]
   rw [hBm] at hF
-  simp only [FlatHolds, LVal.ofWords, List.length_map, LTy.size] at hF
+  simp only [FlatHolds, LVal.ofWords, List.length_map, LTy.size_s32] at hF
   obtain ⟨q₁, fl₁, rfl, hq₁, hl₁, -, -, hb₁, hL₁, q₂, fl₂, rfl, hq₂, hl₂, -, -, hb₂, hL₂, rfl⟩ := hF
   refine ⟨q₁, q₂, G, B₀, _, B₁, heapBase, t₁, rfl, hq₁, hq₂, hl₁, hl₂, hs, hb₁, hL₁, by omega, ?_⟩
   have := holdsL_words cs q₂ hL₂
@@ -117,7 +118,7 @@ theorem checkStream_sound (P : Profile) (prof : ProfileKind) (xs cs : List (BitV
   rw [t_coreAddrs.2.1] at hS
   obtain ⟨q₁, q₂, G, B₀, top, B₁, lo, hi, rfl, hq₁, hq₂, hl₁, hl₂, hs, hb₁, hL₁, hb₂, hw₂⟩ :=
     lower2 (us := xs.map LVal.s32) hL
-  simp only [List.length_map, LTy.size] at hb₁ hL₁ hl₁ hS
+  simp only [List.length_map, LTy.size_s32] at hb₁ hL₁ hl₁ hS
   have hw₁ := holdsL_words xs q₁ hL₁
   have hB := hs.size₁
   have hU := Silmaril.Wasm.Examples.LratAccept.checkStream_sound (pp := BitVec.ofNat 32 q₁)
@@ -148,7 +149,7 @@ theorem checkNested_sound (P : Profile) (prof : ProfileKind) (p : List (List (Bi
   rw [t_coreAddrs.2.2] at hS
   obtain ⟨q₁, q₂, G, B₀, top, B₁, lo, hi, rfl, hq₁, hq₂, hl₁, hl₂, hs, hb₁, hL₁, hb₂, hw₂⟩ :=
     lower2 (us := p.map LVal.ofWords) hL
-  simp only [List.length_map, LTy.size] at hb₁ hL₁ hl₁ hS
+  simp only [List.length_map, LTy.size_list] at hb₁ hL₁ hl₁ hS
   obtain ⟨hn₁, hin⟩ := holdsL_nested p q₁ hL₁
   have hB := hs.size₁
   have hU := Silmaril.Wasm.Examples.LratAccept.checkNested_sound (pp := BitVec.ofNat 32 q₁)

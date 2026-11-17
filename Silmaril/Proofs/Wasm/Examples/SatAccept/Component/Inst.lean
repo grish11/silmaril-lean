@@ -99,7 +99,8 @@ theorem ty4_results : (Ty.ofList (fnType4.results.map ScalarType.toC)).length = 
 
 /-! ## The fragment -/
 
-theorem satComp_good : satComp.Good := ⟨by decide +kernel, by decide +kernel⟩
+theorem satComp_good : satComp.Good :=
+  ⟨by decide +kernel, by decide +kernel, by decide +kernel⟩
 
 theorem satComp_inst : satComp.Inst satI where
   inst := isInstance_instOf t_instance
@@ -158,14 +159,14 @@ theorem satBump (P : Profile) : BumpAlloc P 0 0 memBytes SInv where
     · simp [Store.setMem, List.getElem?_set_self hlt]
     · rw [Memory.writeBytes_size _ _ _ _ hwb, hB]
   realloc := by
-    rintro s t n q s' ⟨hf, hmem, hg, ht⟩ ⟨f', hs, hq⟩
+    rintro s t al n q s' ⟨hf, hmem, hg, ht⟩ ⟨f', hs, hq⟩
     obtain ⟨f₀, f₁, f₂, hF, hc₀, -, -, he₀, -, -, -, -, -, -, -, -⟩ := funcs_eq
     have hfi : s.funcs[0]? = some f₀ := by rw [hf, hF]; rfl
     have hg' : globalVal s f₀.module 0 = some (.i32 (BitVec.ofNat 32 t)) := satM_eq hF ▸ hg
     obtain ⟨hres, rfl, hok⟩ := realloc_returns hfi hc₀ he₀ ty4_params ty4_results hg' hs
     simp only [List.cons.injEq, and_true] at hres
     have hr := i32_inj hres
-    set r := reallocRes (BitVec.ofNat 32 t) (BitVec.ofNat 32 4) (BitVec.ofNat 32 n)
+    set r := reallocRes (BitVec.ofNat 32 t) (BitVec.ofNat 32 al) (BitVec.ofNat 32 n)
     have hqr : q = r.1.toNat := by
       rw [← hr, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hq]
     have hmb : memBytes = 1048576 := rfl

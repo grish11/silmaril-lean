@@ -39,12 +39,13 @@
         { decl: "Silmaril.Project.WasmComponents.LratAccept.checkNested_sound_of_bytes", module: "Silmaril.Project.WasmComponents.LratAccept.Thms",
           states: "check-nested returns true on p, cert ⇒ p ∈ UnsatNested" }] },
     { sha256: "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996", name: "silmaril.wasm.examples.farkas_accept.component",
-      kind: "core-module soundness only", level: "core",
-      scope: "About the core module inside the component (Core 3.0 small-step execution), not about the component's " +
-        "canonical ABI lift and lowering; component-level proofs are in progress.",
+      kind: "component-level soundness (kernel-checked)", level: "component",
+      scope: "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.FarkasAccept.bytes, " +
+        "regenerated as examples/wasm-acceptors/farkas_accept.wasm): an accepting call implies that the system is infeasible. " +
+        "Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
       theorems: [
-        { decl: "Silmaril.Wasm.Examples.FarkasAccept.check_sound", module: "Silmaril.Wasm.Examples.FarkasAccept.Thms",
-          states: "core check returning nonzero ⇒ the system read from memory is infeasible" }] }];
+        { decl: "Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes", module: "Silmaril.Project.WasmComponents.FarkasAccept.Thms",
+          states: "check returns true on S, y ⇒ S ∈ Infeasible" }] }];
 
   let reportP = null;
   // The report, or { missing: reason } when there is none next to the page. Anything else that

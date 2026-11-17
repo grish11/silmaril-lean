@@ -15,12 +15,15 @@ pointer, and the heap pointer moves past it.
 
 * `BumpAlloc P ra ma N Inv`: the hypothesis on the allocator. `Inv s t` is a store invariant
   with heap pointer `t`; memory `ma` has `N < 2³²` bytes under it, writes to memory `ma` keep
-  it, and an allocator run (`ReallocRun`) from heap pointer `t` leaves memory `ma` unchanged and
-  answers a block `q ≥ t` whose end is below the new heap pointer `t'` whenever the block lies
-  in memory (the canonical ABI's bounds check rejects the other blocks);
+  it, and an allocator run (`ReallocRun`, at any alignment) from heap pointer `t` leaves memory
+  `ma` unchanged and answers a block `q ≥ t` whose end is below the new heap pointer `t'`
+  whenever the block lies in memory (the canonical ABI's bounds check rejects the other
+  blocks);
 * `Holds B lo hi t v p`: the bytes `B` hold the value `v` of type `t` at byte `p`, with every
-  block it points to in `[lo, hi)` and in `B`: an `s32` is its word (`wd`), a list its
-  `(ptr, len)` pair at `p`, with its elements (`HoldsL`) at `ptr, ptr + size, …`;
+  block it points to in `[lo, hi)` and in `B`: an `s32` or `u32` is its word (`wd`), an `s64`
+  its 64-bit word (`wd64`), a list its `(ptr, len)` pair at `p`, with its elements (`HoldsL`) at
+  `ptr, ptr + size, …`, a tuple or record its fields at their aligned offsets from `p`
+  (`HoldsF`);
 * `FlatHolds B lo hi ts vs fl`: the flat arguments `fl` of the parameters `vs` of types `ts`:
   an `s32` is its `i32`, a list the `i32` pair `(q, len)` of a block in `[lo, hi)` holding the
   elements.
@@ -59,25 +62,43 @@ structure BumpAlloc (P : Profile) (ra ma N : Nat) (Inv : Store Nat → Nat → P
   /-- Writes to memory `ma` keep the invariant and the heap pointer. -/
   write : ∀ {s t p bs s'}, Inv s t →
     Silmaril.Wasm.SingleThreaded.memWrite? s ma p bs = some s' → Inv s' t
-  /-- An allocation from heap pointer `t` leaves the memory unchanged and answers a block at or
-  above `t`, below the new heap pointer when it lies in memory. -/
-  realloc : ∀ {s t n q s'}, Inv s t → ReallocRun P ra s 4 n q s' →
+  /-- An allocation from heap pointer `t`, at any alignment, leaves the memory unchanged and
+  answers a block at or above `t`, below the new heap pointer when it lies in memory. -/
+  realloc : ∀ {s t al n q s'}, Inv s t → ReallocRun P ra s al n q s' →
     ∃ t', Inv s' t' ∧ memBytesOf s' ma = memBytesOf s ma ∧ t ≤ q ∧ (q + n ≤ N → q + n ≤ t')
+
+/-- The little-endian 64-bit word at byte `a` (`0` out of bounds). -/
+def wd64 (B : ByteArray) (a : Nat) : BitVec 64 :=
+  (Silmaril.Wasm.Execution.Memory.load B a 8).getD 0
 
 mutual
 /-- The bytes `B` hold the value `v` of type `t` at byte `p`, the blocks it points to lying in
 `[lo, hi)` and in `B`. -/
 def Holds (B : ByteArray) (lo hi : Nat) : LTy → LVal → Nat → Prop
   | .s32, .s32 x, p => p + 4 ≤ B.size ∧ wd B p = x
+  | .u32, .u32 x, p => p + 4 ≤ B.size ∧ wd B p = x
+  | .s64, .s64 x, p => p + 8 ≤ B.size ∧ wd64 B p = x
   | .list t, .list vs, p => p + 8 ≤ B.size ∧ (wd B (p + 4)).toNat = vs.length ∧
       lo ≤ (wd B p).toNat ∧ (wd B p).toNat + vs.length * t.size ≤ hi ∧
       (wd B p).toNat + vs.length * t.size ≤ B.size ∧ HoldsL B lo hi t vs (wd B p).toNat
+  | .tuple t ts, .fields vs, p => HoldsF B lo hi (t :: ts) vs p 0
+  | .record _ _ t fs, .fields vs, p => HoldsF B lo hi (t :: fs.map (·.2)) vs p 0
   | _, _, _ => False
 
 /-- The bytes `B` hold the values `vs` of type `t` at `p`, `p + size`, …. -/
 def HoldsL (B : ByteArray) (lo hi : Nat) (t : LTy) : List LVal → Nat → Prop
   | [], _ => True
   | v :: vs, p => Holds B lo hi t v p ∧ HoldsL B lo hi t vs (p + t.size)
+
+/-- The bytes `B` hold the fields `vs` of types `ts` of a tuple or record at byte `p`, from the
+offset `c` on: each at the offset rounded up to its type's alignment (`ABI.alignTo`), the offset
+then moving past it. -/
+def HoldsF (B : ByteArray) (lo hi : Nat) : List LTy → List LVal → Nat → Nat → Prop
+  | [], [], _, _ => True
+  | t :: ts, v :: vs, p, c =>
+    Holds B lo hi t v (p + Silmaril.Wasm.Component.ABI.alignTo c t.align) ∧
+      HoldsF B lo hi ts vs p (Silmaril.Wasm.Component.ABI.alignTo c t.align + t.size)
+  | _, _, _, _ => False
 end
 
 /-- The flat arguments `fl` of the parameters `vs` of types `ts` with the bytes `B`: an `s32` is

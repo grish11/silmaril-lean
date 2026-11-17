@@ -10,7 +10,9 @@ import Silmaril.Proofs.Wasm.Component.Reference.ListLift.Bump
   arguments from a store with heap pointer `t₀` ends in a store with heap pointer `t₁ ≥ t₀`
   whose memory is the old one outside `[t₀, t₁)` and holds the arguments (`FlatHolds … t₀ t₁`):
   each list is the `i32` pair `(q, len)` of a block in `[t₀, t₁)` holding its elements, inner
-  lists recursively. Later allocations and writes never overwrite earlier blocks.
+  lists, tuples and records recursively (`Holds`). Later allocations and writes never overwrite
+  earlier blocks. The allocator is asked for each element type's alignment (`BumpAlloc.realloc`
+  holds at every alignment).
 * **`holdsL_words`**: the elements of a `list<s32>` are the words of its block.
 
 Proofs in `Silmaril.Proofs.Wasm.Component.Reference.ListLift.Bump`.

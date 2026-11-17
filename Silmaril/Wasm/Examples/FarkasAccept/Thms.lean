@@ -31,7 +31,8 @@ assumption. Proofs in `Silmaril.Proofs.Wasm.Examples.FarkasAccept.*`.
 Not claimed: completeness (that every valid certificate within the bounds is accepted; the
 Wasmtime suite `tools/wasm-acceptor-harness/suites/farkas.json` tests it on examples),
 agreement with `Carrier.farkasCheck` (outside the checker's bounds valid certificates are
-rejected), termination, and anything about the component binary beyond the core module.
+rejected) and termination. The component around the module (the canonical-ABI lowering of the
+system and the multipliers) is the subject of `Silmaril.Wasm.Examples.FarkasAccept.Component.Thms`.
 -/
 
 @[expose] public section

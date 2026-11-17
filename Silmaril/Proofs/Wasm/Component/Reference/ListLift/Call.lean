@@ -211,7 +211,7 @@ theorem liftFlatBool_true {b : BitVec 32} (h : liftFlatBool ⟨.int .i32, b⟩ =
 /-- **The thread of the lifted export** on an accepting path settles `CallGoal`. -/
 theorem specQ_mainBody {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (hi : c.Inst I)
     {j : Nat} (hj : j < c.exports.length) (hflat : 2 * c.exports[j].params.length ≤ 16)
-    {vs : List LVal} (hvs : LTy.checkParams (c.exports[j].params.map (·.2)) vs = true)
+    (htop : ∀ t ∈ c.exports[j].params.map (·.2), t.topLevel = true) {vs : List LVal} (hvs : LTy.checkParams (c.exports[j].params.map (·.2)) vs = true)
     {t₀ : ThreadId} {m : Config (E3 P) Unit}
     (hv : (tview m.store)[0]? = some (tkey (mainTask P c I c.exports[j]), .initial))
     (hcl : ArenaField.callers.get? m.store ⟨0⟩ = some (.host ⟨0⟩ (vs.map LVal.toRef) 0))
@@ -260,7 +260,7 @@ theorem specQ_mainBody {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (h
     rw [hcore₁]
     exact hcs
   rw [paramTypes_liftedFtL]
-  refine SpecQ.bind (SpecQ.ofSpec (spec_lowerParams hcx _ (by simpa using hflat) vs hvs hinv₃))
+  refine SpecQ.bind (SpecQ.ofSpec (spec_lowerParams hcx _ (by simpa using hflat) htop vs hvs hinv₃))
     fun fl m₄ ⟨hi₄, hg₄, hp₄⟩ _ hres₄ => ?_
   refine SpecQ.ite_true rfl ?_
   refine SpecQ.bind (R := fun _ _ => False) ?_ fun _ _ h => h.elim
@@ -344,7 +344,7 @@ theorem liftedFuncsL_get? (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance)
 theorem specQ_invoke {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (hi : c.Inst I)
     {cs : (core3P P).Store (CanonHost (core3P P))} (hcs : Store.mapH (fun _ => 0) cs = I.store)
     {j : Nat} (hj : j < c.exports.length) (hflat : 2 * c.exports[j].params.length ≤ 16)
-    {vs : List LVal} (hvs : LTy.checkParams (c.exports[j].params.map (·.2)) vs = true) :
+    (htop : ∀ t ∈ c.exports[j].params.map (·.2), t.topLevel = true) {vs : List LVal} (hvs : LTy.checkParams (c.exports[j].params.map (·.2)) vs = true) :
     SpecQR prof P (CallGoal P c I c.exports[j] vs) none
       (StepDefs.invokeProg ⟨0⟩ ⟨j⟩ (vs.map LVal.toRef))
       (invokedCfg P cs (liftedFuncsL P c I) j (vs.map LVal.toRef)) (fun _ _ => False) := by
@@ -379,7 +379,7 @@ theorem specQ_invoke {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (hi 
     (Config.cont?_setCont_self _ _ _) fun m' hcore hcall htasks hres' => ?_)
     fun _ _ ⟨_, _, hF, _⟩ _ _ => hF.elim
   show SpecQR prof P _ (some t) (liftThreadBody Limits.spec Quirks.none _ _) _ _
-  refine specQ_mainBody hi hj hflat hvs ?_ ?_ ?_ ?_ ⟨?_, ?_⟩
+  refine specQ_mainBody hi hj hflat htop hvs ?_ ?_ ?_ ?_ ⟨?_, ?_⟩
   · show (tview m'.store)[0]? = _
     rw [show tview m'.store = _ from congrArg (List.map _) htasks]
     rfl
@@ -403,10 +403,10 @@ theorem specQ_invoke {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (hi 
 theorem acc_invoked {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (hi : c.Inst I)
     {cs : (core3P P).Store (CanonHost (core3P P))} (hcs : Store.mapH (fun _ => 0) cs = I.store)
     {j : Nat} (hj : j < c.exports.length) (hflat : 2 * c.exports[j].params.length ≤ 16)
-    {vs : List LVal} (hvs : LTy.checkParams (c.exports[j].params.map (·.2)) vs = true) :
+    (htop : ∀ t ∈ c.exports[j].params.map (·.2), t.topLevel = true) {vs : List LVal} (hvs : LTy.checkParams (c.exports[j].params.map (·.2)) vs = true) :
     Acc prof (refHost P).hr (D P) (invokedCfg P cs (liftedFuncsL P c I) j (vs.map LVal.toRef))
       (CallGoal P c I c.exports[j] vs) := by
-  have h := specQ_invoke (prof := prof) hi hcs hj hflat hvs rfl Prog.pure [] []
+  have h := specQ_invoke (prof := prof) hi hcs hj hflat htop hvs rfl Prog.pure [] []
     fun _ _ hF => hF.elim
   rw [Prog.bind_eq, Prog.bind_pure] at h
   exact h
@@ -415,6 +415,9 @@ theorem acc_invoked {c : ListComp} {I : Silmaril.Wasm.Game.ScalarInstance} (hi :
 theorem callPhaseL : CallPhaseL := by
   intro P prof c I hc hi cs hcs j hj vs hvs hb
   have hflat := hc.flat _ (List.getElem_mem hj)
+  have htop : ∀ t ∈ c.exports[j].params.map (·.2), t.topLevel = true := fun t ht => by
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 ht
+    exact hc.top _ (List.getElem_mem hj) p hp
   rcases hb with ⟨m', out, ⟨tr, hs, -, -, ho⟩, hout⟩ | ⟨h, -⟩
   · cases out with
     | resolved r =>
@@ -422,7 +425,7 @@ theorem callPhaseL : CallPhaseL := by
       subst hout
       obtain ⟨m₂, s, r'⟩ := Steps.cons_iff.mp hs
       rw [invoke_inv s] at r'
-      exact acc_invoked hi hcs hj hflat hvs _ _ r' ho
+      exact acc_invoked hi hcs hj hflat htop hvs _ _ r' ho
     | trap => cases hout
     | deadlock => cases hout
   · cases h
