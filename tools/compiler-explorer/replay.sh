@@ -19,8 +19,12 @@ modules=(
   CompilesToExamples.Explorer.Decompiled
   CompilesToExamples.Explorer.Rows
 )
+# The pinned checker accepts multiple targets and replays each module from its own imports.
+# Keep the complete target list; use the configured Lean task pool (CI: two threads).
+# One invocation avoids repeated Lake startup and lets independent replays share the pool.
+start=$(date +%s)
+timeout 1200 "$LAKE" env "$checker" --verbose "${modules[@]}"
 for m in "${modules[@]}"; do
-  start=$(date +%s)
-  timeout 1200 "$LAKE" env "$checker" "$m"
-  echo "leanchecker $m: ok ($(( $(date +%s) - start )) s)"
+  echo "leanchecker $m: ok (batched)"
 done
+echo "leanchecker batch: ${#modules[@]} targets ($(( $(date +%s) - start )) s)"
