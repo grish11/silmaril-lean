@@ -84,6 +84,8 @@ try {
       none: !!document.querySelector('[data-read="none"]'),
       fns: Object.fromEntries([...document.querySelectorAll("tr[data-fn]")].map((r) => [r.dataset.fn,
         Object.fromEntries([...r.querySelectorAll("td[data-abi]")].map((c) => [c.dataset.abi, c.innerText]))])),
+      pads: Object.fromEntries([...document.querySelectorAll("h4[data-agg]")].map((h4) => [h4.dataset.agg,
+        Object.fromEntries([...h4.nextElementSibling.querySelectorAll("td[data-pad]")].map((c) => [c.dataset.pad, c.innerText.trim()]))])),
       aggs: Object.fromEntries([...document.querySelectorAll("h4[data-agg]")].map((h4) => [h4.dataset.agg,
         Object.fromEntries([...h4.nextElementSibling.querySelectorAll("td[data-dm]")].map((c) => [c.dataset.dm, c.innerText.trim()]))])),
       counts: Object.fromEntries([...document.querySelectorAll("[data-clang-counts] [data-count]")].map((s) => [s.dataset.count, s.innerText])),
@@ -113,6 +115,10 @@ try {
         if (L.refused != null ? !tx.includes("refused") : tx !== `${L.ok.size} / ${L.ok.align}`) lok = false;
       }
       check(lok, `${h.id}: ${(h.aggregates || []).length} aggregates, size / align per data model as the data says`);
+      const padText = (L) => !L || L.refused != null ? "" : L.ok.padding.length === 0 ? "none" :
+        `${L.ok.paddingBytes} B: ` + L.ok.padding.map(([lo, hi]) => `[${lo}, ${hi})`).join(" ");
+      check((h.aggregates || []).every((a) => d.dataModels.every((dm) => (pg.pads[a.tag]?.[dm] ?? "") === padText(a.layouts[dm]))),
+        `${h.id}: each aggregate's padding per data model as the data says`);
     }
     // The clang route.
     if (!h.clang) check(!!(await p.$('[data-clang="none"]')) && pg.entries.length === 0, `${h.id}: no clang route, said so`);
@@ -165,6 +171,8 @@ try {
     if (h.id === "layout-demo") {
       check(/xmm0/.test(pg.fns.scale?.sysvScalar || "") && /refused/.test(pg.fns.scale?.sysvInt || ""), "layout-demo: double scale(double, float, int) uses xmm registers under sysvScalar, refused by sysvInt");
       check(pg.aggs.pt?.sysvX86_64 === "24 / 8" && pg.aggs.pt?.msX64 === "12 / 4", "layout-demo: struct pt is 24/8 under System V, 12/4 under Microsoft x64");
+      check(pg.pads.pt?.sysvX86_64 === "13 B: [1, 8) [18, 24)" && pg.pads.pt?.msX64 === "5 B: [1, 4) [10, 12)",
+        `layout-demo: struct pt's padding: System V [1,8) [18,24), Microsoft x64 [1,4) [10,12) (${JSON.stringify(pg.pads.pt)})`);
       check(/args: rcx\[0\.\.8\)/.test(pg.fns.rec_size?.win64Int || "") && /result: rax\[0\.\.4\)/.test(pg.fns.rec_size?.win64Int || "") &&
         /outgoing stack: 32 B/.test(pg.fns.rec_size?.win64Int || "") && /shadow space/.test(pg.fns.rec_size?.win64Int || ""),
         "layout-demo: long rec_size(struct rec *) under win64Int: rcx → eax (LLP64 long is 4 bytes), 32 B outgoing (shadow space)");

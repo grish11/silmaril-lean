@@ -193,9 +193,23 @@ def protoJson (h : Header) (f : String) (cp : CProto) : Json :=
 def slotJson (s : BitSlot) : Json :=
   Json.mkObj [("name", js s.name), ("bitOffset", jn s.off), ("bits", jn s.width)]
 
+/-- The bytes of `[0, size)` that no named member occupies (an unnamed bit-field is not a member
+in C), as maximal ranges `[lo, hi)`. A byte a bit-field uses only partly is not padding here. -/
+def paddingRanges (slots : List BitSlot) (size : Nat) : List (Nat × Nat) :=
+  let used (b : Nat) : Bool := slots.any fun s =>
+    s.name != "" && s.width > 0 && s.off < 8 * (b + 1) && 8 * b < s.off + s.width
+  let pad := (List.range size).filter fun b => !used b
+  (pad.foldl (fun (acc : List (Nat × Nat)) b => match acc with
+    | (lo, hi) :: rest => if hi == b then (lo, b + 1) :: rest else (b, b + 1) :: acc
+    | [] => [(b, b + 1)]) []).reverse
+
 def layoutJson (pol : BitPolicy) (dm : DataModel) (env : Env) (d : Decl) : Json :=
-  exceptJson (fun (slots, sh) => Json.mkObj [("size", jn sh.size), ("align", jn sh.align),
-    ("members", Json.arr (slots.toArray.map slotJson))]) (bitLayout pol dm env d)
+  exceptJson (fun (slots, sh) =>
+    let pad := paddingRanges slots sh.size
+    Json.mkObj [("size", jn sh.size), ("align", jn sh.align),
+      ("members", Json.arr (slots.toArray.map slotJson)),
+      ("padding", Json.arr (pad.toArray.map fun (lo, hi) => Json.arr #[jn lo, jn hi])),
+      ("paddingBytes", jn (pad.foldl (fun n (lo, hi) => n + (hi - lo)) 0))]) (bitLayout pol dm env d)
 
 def declJson (env : Env) (d : Decl) : Json :=
   Json.mkObj [("kind", js (match d.kind with | .struct => "struct" | .union => "union")),

@@ -41,6 +41,9 @@
     }
     h += "<tr><th colspan=2>size / align</th>" + dms.map((dm) => { const L = a.layouts[dm];
       return `<td data-dm="${esc(dm)}">${!L ? "" : L.refused != null ? `<span class="hdr-refused">refused: ${esc(L.refused)}</span>` : `<b>${esc(L.ok.size)} / ${esc(L.ok.align)}</b>`}</td>`; }).join("") + "</tr>";
+    h += '<tr><th colspan=2>padding <span class="muted">(bytes no named member occupies; contents unspecified)</span></th>' + dms.map((dm) => { const L = a.layouts[dm];
+      return `<td data-pad="${esc(dm)}">${!L || L.refused != null || !L.ok.padding ? "" : L.ok.padding.length === 0 ? "none" :
+        `${esc(L.ok.paddingBytes)} B: ` + L.ok.padding.map(([lo, hi]) => `[${esc(lo)}, ${esc(hi)})`).join(" ")}</td>`; }).join("") + "</tr>";
     return h + "</tbody></table>";
   }
 
