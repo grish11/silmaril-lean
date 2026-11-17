@@ -174,7 +174,7 @@ for a reason. Each reason is checked:
 - **`HeaderSatAvailable`** / `abi_header_sat_available` is partial satisfaction with no
   `unclaimed` declaration and every claimed function in `.total` mode: every function of the
   header **the binary provides** conforms. `absent` declarations (checked absent from the file:
-  a version gap such as zlib 1.2.11 lacking `crc32_z`) are allowed and listed with the row.
+  a version gap such as zlib 1.2.11 lacking `crc32_combine_gen` and `crc32_combine_op`, which 1.2.12 added) are allowed and listed with the row.
 - **`HeaderSatComplete`** / `abi_header_sat_complete` is available satisfaction with nothing
   `absent`: every declaration is claimed or refused by the ABI's lowering. This is the only
   level that is satisfaction of the whole header (for the surface the ABI expresses).
