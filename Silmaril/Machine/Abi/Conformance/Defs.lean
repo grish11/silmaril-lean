@@ -23,8 +23,8 @@ predicate, and no signature is attached to a symbol by hand:
 
 | ingredient | what fixes it |
 | --- | --- |
-| the ABI | `A : AbiDef`: a versioned identity and source, a data model, the C → ABI lowering (`lower`, which refuses what it does not support), and a `Convention`. The convention gives `Entry` (argument placement, stack alignment, return address, direction flag, x87 mode, `%al` for varargs), `Return` (return address, `rsp + 8`, callee-saved registers, control state, FFI thread pointer) and `ResultAt` (result read-back) |
-| the prototype | `declared`: the header files parse (`Data.Layout.Header.read`, which refuses incompatible redeclarations) to a header declaring `f` with a C prototype that `A.lower` maps to `p`. The prototype is a function of the header (`HeaderSrc.proto?`): the exact parsed one, with signedness and widths; its qualifiers are `HeaderSrc.quals?` (they do not change the lowering) |
+| the ABI | `A : AbiDef`: a versioned identity and source, a data model, the C → ABI lowering (`lower`, which refuses what it does not support; it reads struct and union definitions from the tag definitions of the header, `Header.env`), and a `Convention`. The convention gives `Entry` (argument placement, stack alignment, return address, direction flag, x87 mode, `%al` for varargs), `Return` (return address, `rsp + 8`, callee-saved registers, control state, FFI thread pointer) and `ResultAt` (result read-back) |
+| the prototype | `declared`: the header files parse (`Data.Layout.Header.read`, which refuses incompatible redeclarations) to a header declaring `f` with a C prototype that `A.lower` maps to `p`, with the tag definitions of **that** header (`HeaderSrc.env`: a by-value `struct T` is the `T` the same header defines). The prototype is a function of the header (`HeaderSrc.proto?`): the exact parsed one, with signedness and widths; its qualifiers are `HeaderSrc.quals?` (they do not change the lowering) |
 | the code | `code : Code`: the bytes, where they are loaded, the entry offset, the function's extent, the read-only data it reads and the image's address ranges |
 | admissible calls | `Admit`: a live machine state; `A.conv.Entry p a s`; the code and data placed, with the return address outside the code; the stack `A` gives the callee (`frame` bytes below `rsp`, the return address, the argument area); the FFI thread pointer equal to the machine's (`fsCoherent`). The stack must be readable, writable, and apart from the code, the data, the image and the call's caller-visible objects (`S.objects`). Also `S.pre a mem`: the C precondition, on the arguments and memory only |
 | execution | `callModelOf M`: the **first return** of `M` (`FnContract.FirstReturn`) |
@@ -87,8 +87,10 @@ structure AbiDef where
   D : Type
   /-- Argument placement, return discipline, result read-back. -/
   conv : Convention V Ffi.State D
-  /-- The ABI's prototype for a C prototype, or the reason it is outside the ABI fragment. -/
-  lower : CProto → Except String V.Proto
+  /-- The ABI's prototype for a C prototype whose struct and union tags are defined in `env`
+  (the header's tag definitions, `Header.env`), or the reason it is outside the ABI
+  fragment. -/
+  lower : Silmaril.Data.Layout.Env → CProto → Except String V.Proto
   /-- Bytes of the caller's frame the callee receives above its return address (incoming stack
   arguments, a shadow area), which it may read and write. -/
   argArea : V.Proto → Nat
@@ -145,7 +147,7 @@ def sysvInt : AbiDef where
   V := Silmaril.Machine.Abi.SystemV.vocab
   D := Silmaril.Machine.Abi.SystemV.CallSite
   conv := Silmaril.Machine.Abi.SystemV.sysv {}
-  lower := lowerInt Silmaril.Data.Layout.sysvX86_64
+  lower _ := lowerInt Silmaril.Data.Layout.sysvX86_64
   argArea p := 8 * (p.signature.arguments.length - 6)
   owned _ _ _ := False
 
@@ -299,6 +301,13 @@ structure HeaderSrc where
 def HeaderSrc.proto? (hdr : HeaderSrc) (f : String) : Option CProto :=
   (Silmaril.Data.Layout.Header.read hdr.files hdr.root).toOption.bind (·.proto? f)
 
+/-- The tag definitions of the header (`Header.env`), if the header reads; none otherwise. The
+lowering reads by-value structs and unions there (`Declares`, `Coverage.refusalsOk`). -/
+def HeaderSrc.env (hdr : HeaderSrc) : Silmaril.Data.Layout.Env :=
+  match Silmaril.Data.Layout.Header.read hdr.files hdr.root with
+  | .ok H => H.env
+  | .error _ => []
+
 /-- The qualifiers the header writes in its prototype for `f`, if the header reads. -/
 def HeaderSrc.quals? (hdr : HeaderSrc) (f : String) : Option Silmaril.Data.Layout.Header.ProtoQuals :=
   (Silmaril.Data.Layout.Header.read hdr.files hdr.root).toOption.bind (·.quals? f)
@@ -310,9 +319,11 @@ def Code.Outside (c : Code) (x : Nat) : Prop :=
     ∀ d ∈ c.data, ¬ (d.1.toNat ≤ x ∧ x < d.1.toNat + d.2.length)
 
 /-- **The header declares `f` with a C prototype that `A` lowers to `p`.** The prototype `cp` is
-the one `hdr.proto? f` gives (a function of the header), so it is unique. -/
+the one `hdr.proto? f` gives (a function of the header), so it is unique, and it is lowered with
+the tag definitions of the same header (`hdr.env`), so a by-value `struct T` is laid out as that
+header defines `T`. -/
 def Declares (A : AbiDef) (hdr : HeaderSrc) (f : String) (p : A.V.Proto) : Prop :=
-  ∃ cp, hdr.proto? f = some cp ∧ A.lower cp = .ok p
+  ∃ cp, hdr.proto? f = some cp ∧ A.lower hdr.env cp = .ok p
 
 /-- **The code conforms to `A` on the machine `M`** as the function `f` of the header `hdr`,
 with prototype `p`, `frame` bytes of stack and C-level spec `S`. Every admitted call has no
@@ -396,11 +407,12 @@ def Coverage.Complete (cov : Coverage) (H : Header) : Prop :=
 instance (cov : Coverage) (H : Header) : Decidable (cov.Complete H) :=
   inferInstanceAs (Decidable (_ ∧ _ ∧ _))
 
-/-- Every `unsupported` exclusion is refused by the lowering. -/
+/-- Every `unsupported` exclusion is refused by the lowering (with the header's tag
+definitions). -/
 def Coverage.refusalsOk (A : AbiDef) (cov : Coverage) (H : Header) : Bool :=
   cov.excluded.all fun (f, e) => match e with
     | .unsupported _ => match H.proto? f with
-      | some cp => (match A.lower cp with | .error _ => true | .ok _ => false)
+      | some cp => (match A.lower H.env cp with | .error _ => true | .ok _ => false)
       | none => false
     | _ => true
 
