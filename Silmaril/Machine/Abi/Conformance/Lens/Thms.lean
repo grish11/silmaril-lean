@@ -58,6 +58,9 @@ theorem tsc_not_faithful_ofFun (r : Ffi.State → Option Ffi.State) :
     ¬ Faithful (Ref.ofFun r) tsc :=
   Silmaril.Proofs.Machine.Abi.Conformance.Lens.tsc_not_faithful_ofFun r
 
+/-- Every hidden time-stamp value completes an FFI state. -/
+theorem tsc_fillsAll : tsc.FillsAll := fun _ _ h => h .machine rfl
+
 theorem tsc_faithful : Faithful tscRef tsc :=
   Silmaril.Proofs.Machine.Abi.Conformance.Lens.tsc_faithful
 

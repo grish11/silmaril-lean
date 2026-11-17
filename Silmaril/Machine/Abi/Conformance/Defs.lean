@@ -320,6 +320,21 @@ from `s` (`overwrite`). -/
 def Mach.store (M : Mach) (s : Ffi.State) (x : M.σ) : Ffi.State :=
   overwrite M.models s (M.view x)
 
+/-- **`M`'s completions are all the states that fit**: every machine state agreeing with `s` on
+the modelled fields completes `s`. `Fills` is trusted like `isa`, and nothing in `Mach` forces
+this: a narrower `Fills` (a fixed oracle value, a single profile) narrows every row on `M`
+silently. A row on a machine that does not satisfy `FillsAll` must say what its `Fills` fixes.
+It holds for the integer machines (`Thms.ofInt_fillsAll`) and for `Lens.tsc`
+(`Lens.tsc_fillsAll`).
+
+Hidden state must also be as fine-grained as the hardware's nondeterminism. A time-stamp
+oracle that is one constant per run, read twice (`rdtsc; rdtsc`), is not faithful to a
+reference that returns a fresh value each time: `Faithful.bwd` asks for a single run. `onRef`
+then never applies, which is vacuous, not unsound; a per-step stream oracle avoids it. (`Lens.tsc`
+reads once; the two-read case is argued here, not yet a kernel-checked example.) -/
+def Mach.FillsAll (M : Mach) : Prop :=
+  ∀ s x, (∀ f, M.models f = true → f.Agree (M.view x) s) → M.Fills s x
+
 /-- **An integer machine** (on `MState`, whose core and memory are the state's) as a `Mach`:
 it models `.machine` only, and its one completion of `s` is `s.machine`, so the rest of the
 FFI state (vectors, x87, control state, thread pointer) is carried unchanged by `callModelOf`

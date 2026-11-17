@@ -163,6 +163,11 @@ theorem ofInt_fills {I : Silmaril.X86.SegVC.Isa MState} {hc : ∀ m, I.core m = 
     {hm : ∀ m, I.mem m = m.memory} {s : Ffi.State} {x : MState} :
     (Mach.ofInt I hc hm).Fills s x ↔ x = s.machine := Iff.rfl
 
+/-- An integer machine's completions are all the states that fit. -/
+theorem ofInt_fillsAll {I : Silmaril.X86.SegVC.Isa MState} {hc : ∀ m, I.core m = m.core}
+    {hm : ∀ m, I.mem m = m.memory} : (Mach.ofInt I hc hm).FillsAll :=
+  fun _ _ h => h .machine rfl
+
 theorem mem_callModelOf_ofInt {I : Silmaril.X86.SegVC.Isa MState} {hc : ∀ m, I.core m = m.core}
     {hm : ∀ m, I.mem m = m.memory} {s t : Ffi.State} :
     t ∈ callModelOf (Mach.ofInt I hc hm) s ↔
