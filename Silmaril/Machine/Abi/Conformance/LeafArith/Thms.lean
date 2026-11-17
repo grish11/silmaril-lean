@@ -1,21 +1,32 @@
 module
 
-public import Silmaril.Machine.Abi.Conformance.LeafArith.Defs
+public import Silmaril.Machine.Abi.Conformance.LeafArith.Witness.Defs
 public import Silmaril.Machine.Abi.Conformance.Thms
 import Silmaril.Proofs.Machine.Abi.Conformance.LeafArith
+import Silmaril.Proofs.Machine.Abi.Conformance.Negative
 
 /-! # ABI conformance of rung 01: theorems
 
-PROVED (standard axioms), proofs in `Silmaril.Proofs.Machine.Abi.Conformance.LeafArith`:
+PROVED (standard axioms), proofs in `Silmaril.Proofs.Machine.Abi.Conformance.LeafArith` and
+`….Negative`. Every statement is on the open machine *model* `Open` (or, for the schema tests,
+a small machine given by its step function), not on real x86.
 
 * `clamp_conforms`, `sat_conforms`: gcc -O2 `clamp_i32` and `sat_add_u32` conform to the
-  System V AMD64 psABI (INTEGER fragment, `sysvInt`) as `arith.h` declares them, with their
-  source functions as C specs, no stack frame, no memory written, on the open machine, in both
-  modes;
-* `clamp_rejects_first`: the statement discriminates: `clamp_i32` does not conform with the
-  spec "returns its first argument";
-* `coverage_check`, `header_sat`: `arith.h` (with `rt.h`) is accounted for: the two functions
-  are claimed and conform, every other declaration is excluded with its reason.
+  System V AMD64 psABI INTEGER fragment (`sysvInt`) as `arith.h` declares them, with their
+  source functions as C specs, no stack frame, no memory written, the thread pointer kept, on
+  `Open`, in both modes;
+* `header_sat`: **partial** satisfaction of `arith.h` (with `rt.h`): the two functions are
+  claimed and conform, and every other declaration is excluded with a checked reason.
+
+Negative (the statement rejects):
+
+* `clamp_rejects_first`: a wrong postcondition ("returns its first argument");
+* `open_mid_not`: **stuck code on `Open`**: `clamp_i32`'s prototype entered in the middle of an
+  instruction is undecodable (`open_stuck_mid`), and it conforms in neither mode, for any spec;
+* `stuck_not`, `clobber_not`, `unbalanced_not`, `scribble_not` (schema tests on small
+  machines): a machine that cannot step; a return with `rbx` changed; a "return" with `rsp`
+  16 above the entry, which never returns and gets stuck; a write at `rsp − 8` with no frame;
+* `wrong_prototype`: `long clamp_i32(long, long, long)` is not what `arith.h` declares.
 
 OPEN (`Task`): the first-return rows of `gcd_u32` and `bswap32_manual`, whose block
 certificates are proved (`Silmaril.X86.Ladder.LeafArith`) but not in first-return form.
@@ -42,8 +53,52 @@ theorem clamp_rejects_first (mode : Mode) :
 theorem coverage_check : coverage.check sysvInt hdr = true :=
   Silmaril.Proofs.Machine.Abi.Conformance.LeafArith.coverage_check
 
-theorem header_sat : HeaderSat sysvInt Open.isa hdr coverage impl :=
+theorem header_sat : HeaderSatPartial sysvInt Open.isa hdr coverage impl :=
   Silmaril.Proofs.Machine.Abi.Conformance.LeafArith.header_sat
+
+section Negative
+open Silmaril.Machine.Abi.Conformance.LeafArith.Witness
+
+theorem open_stuck_mid :
+    Silmaril.X86.Open.step (st 1 5 0 3) = none :=
+  Silmaril.Proofs.Machine.Abi.Conformance.Negative.open_stuck_mid
+
+theorem open_mid_not (mode : Mode) (S : CallSpec sysvInt.V clampProto)
+    (hS : S.objects clampArgs
+      (ffiSt 1 5 0 3).machine.memory = fun _ => False)
+    (hpre : S.pre clampArgs
+      (ffiSt 1 5 0 3).machine.memory) :
+    ¬ Conforms sysvInt Open.isa mode hdr "clamp_i32" clampProto (region 1 19) 0 S :=
+  Silmaril.Proofs.Machine.Abi.Conformance.Negative.open_mid_not mode S hS hpre
+
+theorem stuck_not (mode : Mode) (S : CallSpec sysvInt.V clampProto)
+    (hS : S.objects clampArgs s0.machine.memory =
+      fun _ => False)
+    (hpre : S.pre clampArgs s0.machine.memory) :
+    ¬ Conforms sysvInt (toy fun _ => none) mode hdr "clamp_i32" clampProto clampCode 0 S :=
+  Silmaril.Proofs.Machine.Abi.Conformance.Negative.stuck_not mode S hS hpre
+
+theorem clobber_not (mode : Mode) :
+    ¬ Conforms sysvInt (toy (oneStep clobbered
+      s0.machine.memory)) mode hdr "clamp_i32" clampProto clampCode 0
+      (CallSpec.abiPure sysvInt.V clampProto) :=
+  Silmaril.Proofs.Machine.Abi.Conformance.Negative.clobber_not mode
+
+theorem unbalanced_not (mode : Mode) :
+    ¬ Conforms sysvInt (toy unbalancedStep) mode hdr "clamp_i32" clampProto clampCode 0
+      (CallSpec.abiPure sysvInt.V clampProto) :=
+  Silmaril.Proofs.Machine.Abi.Conformance.Negative.unbalanced_not mode
+
+theorem scribble_not (mode : Mode) :
+    ¬ Conforms sysvInt (toy (oneStep
+      s0.machine.core scribbled)) mode hdr "clamp_i32" clampProto clampCode 0
+      (CallSpec.abiPure sysvInt.V clampProto) :=
+  Silmaril.Proofs.Machine.Abi.Conformance.Negative.scribble_not mode
+
+theorem wrong_prototype : ¬ Declares sysvInt hdr "clamp_i32" longProto :=
+  Silmaril.Proofs.Machine.Abi.Conformance.Negative.wrong_prototype
+
+end Negative
 
 end Silmaril.Machine.Abi.Conformance.LeafArith
 

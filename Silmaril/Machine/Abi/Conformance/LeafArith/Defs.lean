@@ -44,9 +44,14 @@ def arithH : String := include_str "../../../../../examples/elf-ladder/01-leaf-a
 /-- The header `arith.h`, with the file it includes. -/
 def hdr : HeaderSrc := ⟨[("rt.h", rtH), ("arith.h", arithH)], "arith.h"⟩
 
+/-- The image of the pinned `leaf-arith`: its four `PT_LOAD` ranges (start, `p_memsz`), as the
+file's parse gives them (`Silmaril.Elf.Abi.LeafArith`'s `CodeOf` checks this). -/
+def image : List (Silmaril.X86.Word × Nat) :=
+  [(0x400000, 344), (0x401000, 2038), (0x402000, 204), (0x4030cc, 4)]
+
 /-- The transcribed region at `0x401370`, entered at offset `off`, function size `len`. -/
 def region (off len : Nat) : Code :=
-  ⟨Silmaril.X86.Ladder.LeafArith.base, Silmaril.X86.Ladder.LeafArith.code, off, len, []⟩
+  ⟨Silmaril.X86.Ladder.LeafArith.base, Silmaril.X86.Ladder.LeafArith.code, off, len, [], image⟩
 
 /-- `clamp_i32`: `0x4013a0`, 19 bytes. -/
 def clampCode : Code := region 0x30 19

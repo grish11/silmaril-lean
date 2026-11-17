@@ -19,7 +19,8 @@ statement can say "this prototype is the one the header declares". It reads:
   `ZEXPORT`-style annotation that expands to nothing), `#ifndef`/`#ifdef`/`#else`/`#endif`
   on defined-ness, and `#undef`. Comments of both forms.
 
-Everything else is **refused with a message**, not skipped: `#if` expressions, function-like
+Everything else is **refused with a message**, not skipped: a redeclaration with a different
+prototype or typedef, `#if` expressions, function-like
 macros, struct/union/enum *definitions* (`struct s *` as an incomplete pointee is accepted),
 bit-fields, function pointers, K&R declarations, function definitions, `static`/`inline`
 functions. Qualifiers (`const`, `volatile`, `restrict`) are accepted and dropped: they do not
@@ -318,6 +319,19 @@ def params (h : Header) (ts : List Tok) : Except String (List CTy × Bool) :=
     | some [.dots] => (·, true) <$> traverse (param h) ps.dropLast
     | _ => (·, false) <$> traverse (param h) ps
 
+/-- Add a typedef; a redefinition must name the same type (C11 6.7p3). -/
+def Header.addTypedef (h : Header) (n : String) (t : CTy) : Except String Header :=
+  match h.typedef? n with
+  | some t' => if t' == t then .ok h else .error s!"typedef {n} redefined with a different type"
+  | none => .ok { h with typedefs := h.typedefs ++ [(n, t)] }
+
+/-- Add a prototype; a redeclaration must be the same prototype (refused otherwise, rather than
+keeping the first: compatible-type rules beyond identity are not modelled). -/
+def Header.addProto (h : Header) (f : String) (p : CProto) : Except String Header :=
+  match h.proto? f with
+  | some p' => if p' == p then .ok h else .error s!"{f} redeclared with a different prototype"
+  | none => .ok { h with protos := h.protos ++ [(f, p)] }
+
 /-- One top-level declaration (the tokens before its `;`). -/
 def decl (h : Header) (ts : List Tok) : Except String Header :=
   match ts with
@@ -325,9 +339,8 @@ def decl (h : Header) (ts : List Tok) : Except String Header :=
     let (t, r) ← specifiers h (r.length + 2) [] r
     let (t, r) := pointers (r.length + 1) t r
     match r with
-    | [.ident n] => .ok { h with typedefs := h.typedefs ++ [(n, t)] }
-    | [.ident n, .punct '[', .num k, .punct ']'] =>
-      .ok { h with typedefs := h.typedefs ++ [(n, .array t k)] }
+    | [.ident n] => h.addTypedef n t
+    | [.ident n, .punct '[', .num k, .punct ']'] => h.addTypedef n (.array t k)
     | _ => .error "typedef declarator"
   | ts => do
     let (t, r) ← specifiers h (ts.length + 2) [] ts
@@ -340,7 +353,7 @@ def decl (h : Header) (ts : List Tok) : Except String Header :=
         if inner.contains (.punct '(') then .error s!"{f}: nested declarators are outside the header subset"
         else
           let (ps, v) ← params h inner
-          .ok { h with protos := h.protos ++ [(f, ⟨t, ps, v⟩)] }
+          h.addProto f ⟨t, ps, v⟩
       | _ => .error s!"{f}: expected ')' at the end of the declaration"
     | [.ident n] => .error s!"object declaration '{n}' is outside the header subset"
     | _ => .error "declaration"

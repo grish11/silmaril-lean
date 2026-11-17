@@ -7,25 +7,46 @@ public import Silmaril.Project.Shapes.Abi.Defs
 # Standard problem shapes: ABI conformance of a function of an ELF file
 
 `silmaril.shapes.elf.abi_conforms` is `silmaril.shapes.abi.conforms` with the code **bound to
-the file**: the ELF symbol lookup `sel` (ld.so's versioned lookup in `.dynsym`, or `.symtab`)
-names the header's function `f` and finds a plain function at the code's entry
-(`st_value = base + off`) whose size is the code's extent (`st_size = len`); a read-only
-executable `PT_LOAD` of the file maps the code bytes at `base`; the read-only data the code
-reads are mapped by the file too. Nothing about the code is taken from a tool: every one of
-these facts reads the file through the ELF specification (`Silmaril.Elf.Facts`).
+the file** (`CodeOf`):
 
-An ELF symbol has a value and a size but **no C signature**: the prototype comes from the
-header (`Conforms.declared`), and the symbol only locates the code. So a row of this shape is
-three separate statements that the explorer shows separately: the symbol is present
-(`Lookup`), the code is the file's (`CodeAt`, `MappedAt`), and the code conforms (`Conforms`).
+- the binding (`.symtab`, or ld.so's versioned lookup in `.dynsym`) looks up the header's name
+  `f`, and finds a plain function at the code's entry (`st_value = base + off`) whose size is
+  the code's extent (`st_size = len`);
+- the symbol entry is an `STT_FUNC` named `f` (`STT_OBJECT`, `NOTYPE` and `GNU_IFUNC` symbols
+  are rejected);
+- a read-only executable `PT_LOAD` maps the code bytes, and read-only `PT_LOAD`s map the data;
+- the code's image is the file's `PT_LOAD` ranges.
 
-`silmaril.shapes.elf.abi_header_sat` is header satisfaction for one file: the claimed
-functions each have a row, an `absent` exclusion is checked against the file (the lookup finds
-nothing: an API version gap), and the coverage is checked against the header.
+Two more facts complete the binding:
 
-A header shared by several binaries (zlib's `zlib.h` for a static build and for a distribution's
-`libz.so.1`) gives one set of rows **per binary**: the header and the specs are the same
-values, the files, selectors (versions) and code differ.
+- **No relocation touches the code** (`Untouched`): no dynamic relocation writes the code or
+  its data.
+- **Every load base** the file admits (`Placement`): the rebased code (`Code.rebase`)
+  conforms. For `ET_EXEC` that base is `0`. For `ET_DYN` no row claims conformance at
+  link-time addresses.
+
+Every one of these facts reads the file through the ELF specification (`Silmaril.Elf.Facts`).
+
+An ELF symbol has a value and a size but **no C signature**. The prototype comes from the
+header (`Conforms.declared`); the symbol only locates the code. A row is three separate
+statements:
+
+1. the function is present (`Lookup`, `SymbolAt`);
+2. the code is the file's (`CodeAt`, `MappedAt`, `Untouched`);
+3. the code conforms on the machine model `M` (`Conforms`).
+
+The header shapes are:
+
+- `silmaril.shapes.elf.abi_header_sat_partial`. The claimed functions (at least one) each
+  have a row. An `absent` exclusion is absent from every symbol table of the file in any
+  version (`Absent`: an API version gap). An `unclaimed` one is a function present in the
+  file (`Present`). The coverage is checked against the header.
+- `silmaril.shapes.elf.abi_header_sat_full`. The same with no `unclaimed` declaration and
+  every claimed function total.
+
+A header shared by several binaries (zlib's `zlib.h` for a static build and for a
+distribution's `libz.so.1`) gives one set of rows **per binary**. The header and the specs are
+the same values; the files, bindings (versions) and code differ.
 -/
 
 @[expose] public section
@@ -37,11 +58,23 @@ open Silmaril.Machine.Abi.Conformance
 open Silmaril.X86.Link (Blob)
 open Silmaril.Elf.Link.DynElf (blobRead)
 
-/-- The name a selector looks up. -/
-def selName : Sel → Silmaril.Formats.ELF.NameBytes
-  | .dyn r => r.name
-  | .sym n => n
-  | .fn r => r.name
+/-- **How a function is found in the file**: in `.symtab`, or by ld.so's lookup in `.dynsym`
+with a requested version. The name is always the header's (`Binding.sel`). -/
+inductive Binding where
+  | symtab
+  | dynsym (ver : Option Ver)
+  deriving DecidableEq, Repr
+
+/-- The selector for the function `f`. -/
+def Binding.sel (b : Binding) (f : String) : Sel :=
+  match b with
+  | .symtab => .sym (nameOf f)
+  | .dynsym ver => .dyn ⟨nameOf f, false, ver⟩
+
+/-- The symbol table the binding reads. -/
+def Binding.table : Binding → Table
+  | .symtab => .symtab
+  | .dynsym _ => .dynsym
 
 /-- `ph` is a `PT_LOAD` mapping `[v, v + len)` from the file, readable and not writable. -/
 def roSeg (v len : Nat) (ph : Silmaril.Formats.ELF.ProgramHeader) : Bool :=
@@ -53,48 +86,89 @@ def MappedAt (F : Blob) (v : Nat) (bytes : List (BitVec 8)) : Prop :=
   ∃ A, Parses F A ∧ ∃ ph, A.phdrs.find? (roSeg v bytes.length) = some ph ∧
     blobRead F (ph.offset + (v - ph.virtualAddress)) bytes.length = some (Blob.valueLE bytes)
 
-/-- **The code is the function `sel` of `F`**: the selector names `f`, its lookup finds a plain
-function at the entry with the code's extent, the file maps the code bytes and the data. -/
-def CodeOf (F : Blob) (sel : Sel) (f : String) (c : Code) : Prop :=
-  selName sel = nameOf f ∧
-  (∃ d, Lookup F sel (some d) ∧ d.value = c.base.toNat + c.off ∧ d.size = c.len ∧
-    d.ifunc = false ∧ d.abs = false) ∧
+/-- **The code is the function `f` of `F`** (at link-time addresses): the binding's lookup finds a
+plain function at the entry with the code's extent, the symbol entry it found is an `STT_FUNC`
+named `f` (not an `STT_OBJECT`, `NOTYPE` or `GNU_IFUNC`), the file maps the code bytes and the
+data, and the code's image is the file's `PT_LOAD` ranges. -/
+def CodeOf (F : Blob) (b : Binding) (f : String) (c : Code) : Prop :=
+  (∃ d, Lookup F (b.sel f) (some d) ∧ d.value = c.base.toNat + c.off ∧ d.size = c.len ∧
+    d.ifunc = false ∧ d.abs = false ∧
+    ∃ s, SymbolAt F b.table d.index s ∧ s.name = nameOf f ∧ s.kind = 2) ∧
   CodeAt F c.base.toNat c.bytes ∧
-  ∀ d ∈ c.data, MappedAt F d.1.toNat d.2
+  (∀ d ∈ c.data, MappedAt F d.1.toNat d.2) ∧
+  ∃ A, Parses F A ∧ c.image = A.loads.map fun ph => (BitVec.ofNat 64 ph.virtualAddress, ph.memorySize)
 
-/-- **The function `sel` of the ELF file `F` conforms to the ABI `A`** as the function `f` of the
-header `hdr`: the code is the file's (`CodeOf`) and it conforms (`Conforms`). -/
+/-- `[o, o + 8)` misses `[v, v + n)`. -/
+def Misses (o v n : Nat) : Prop := o + 8 ≤ v ∨ v + n ≤ o
+
+/-- **No dynamic relocation patches the code or its data**: ld.so writes (at most 8 bytes at each
+dynamic relocation's offset) none of the bytes the statement is about. -/
+def Untouched (F : Blob) (c : Code) : Prop :=
+  ∃ A, Parses F A ∧ ∀ r ∈ A.relocs .dynamic,
+    Misses r.offset c.base.toNat c.bytes.length ∧ ∀ d ∈ c.data, Misses r.offset d.1.toNat d.2.length
+
+/-- **`f` is absent from `F`**: no symbol table (`.symtab`, `.dynsym`, any version) has a
+defined symbol named `f`. -/
+def Absent (F : Blob) (f : String) : Prop :=
+  ∃ A, Parses F A ∧ ∀ t, ∀ s ∈ A.symbols t, s.name = nameOf f → s.raw.sectionIndex = 0
+
+/-- **`f` is present in `F`**: some symbol table defines a function (`STT_FUNC` or
+`STT_GNU_IFUNC`) named `f`. -/
+def Present (F : Blob) (f : String) : Prop :=
+  ∃ A, Parses F A ∧ ∃ t, ∃ s ∈ A.symbols t, s.name = nameOf f ∧ s.raw.sectionIndex ≠ 0 ∧
+    (s.kind = 2 ∨ s.kind = 10)
+
+/-- **The function `f` of the ELF file `F` conforms to the ABI `A` on the machine `M`**, as the
+header `hdr` declares it: the code is the file's (`CodeOf`, at link-time addresses), no dynamic
+relocation patches it (`Untouched`), and at **every load base the file admits**
+(`Placement`: `0` for `ET_EXEC`, page-aligned for `ET_DYN`) the rebased code conforms. -/
 @[problem "silmaril.shapes.elf.abi_conforms"
-  (title := "A function of an ELF file conforms to a versioned ABI as its C header declares it")]
+  (title := "A function of an ELF file conforms to a versioned ABI on a restricted x86-64 machine model, as its C header declares it")]
 def AbiConforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : String)
-    (p : A.V.Proto) (F : Blob) (sel : Sel) (c : Code) (frame : Nat) (S : CallSpec A.V p) : Prop :=
-  CodeOf F sel f c ∧ Conforms A M mode hdr f p c frame S
+    (p : A.V.Proto) (F : Blob) (b : Binding) (c : Code) (frame : Nat) (S : CallSpec A.V p) : Prop :=
+  CodeOf F b f c ∧ Untouched F c ∧
+    ∀ base, Placement F base → Conforms A M mode hdr f p (c.rebase base) frame S
 
-/-- **The ELF file `F` satisfies the claimed part of the header `hdr`**: the coverage is checked
-against the header, every `absent` exclusion is absent from the file (`sel f` finds nothing),
-and every claimed function is a conforming function of the file. -/
-@[problem "silmaril.shapes.elf.abi_header_sat"
-  (title := "An ELF file satisfies the claimed part of a C header under a versioned ABI")]
-def AbiHeaderSat (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage) (F : Blob)
-    (sel : String → Sel) (impl : String → Option (Impl A)) : Prop :=
-  cov.check A hdr = true ∧
-  (∀ f why, (f, Exclusion.absent why) ∈ cov.excluded → Lookup F (sel f) none) ∧
+/-- **The ELF file `F` satisfies a part of the header `hdr`** (partial): at least one function is
+claimed; the coverage is checked against the header; every `absent` declaration is absent from
+the file and every `unclaimed` one is present; every claimed function is a conforming function of
+the file. -/
+@[problem "silmaril.shapes.elf.abi_header_sat_partial"
+  (title := "An ELF file satisfies the claimed part of a C header under a versioned ABI, on a restricted x86-64 machine model")]
+def AbiHeaderSatPartial (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage) (F : Blob)
+    (bind : String → Binding) (impl : String → Option (Impl A)) : Prop :=
+  cov.claimed ≠ [] ∧ cov.check A hdr = true ∧
+  (∀ f why, (f, Exclusion.absent why) ∈ cov.excluded → Absent F f) ∧
+  (∀ f why, (f, Exclusion.unclaimed why) ∈ cov.excluded → Present F f) ∧
   ∀ f ∈ cov.claimed, ∃ i, impl f = some i ∧
-    AbiConforms A M i.mode hdr f i.proto F (sel f) i.code i.frame i.spec
+    AbiConforms A M i.mode hdr f i.proto F (bind f) i.code i.frame i.spec
+
+/-- **The ELF file `F` satisfies the header `hdr`** (full): partial satisfaction with no
+`unclaimed` declaration and every claimed function total. -/
+@[problem "silmaril.shapes.elf.abi_header_sat_full"
+  (title := "An ELF file satisfies a whole C header (every supported, present function, total) under a versioned ABI, on a restricted x86-64 machine model")]
+def AbiHeaderSatFull (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage) (F : Blob)
+    (bind : String → Binding) (impl : String → Option (Impl A)) : Prop :=
+  AbiHeaderSatPartial A M hdr cov F bind impl ∧ cov.full = true ∧
+    ∀ f ∈ cov.claimed, ∃ i, impl f = some i ∧ i.mode = .total
 
 end Silmaril.Elf.Abi
 
 end
 
 silmaril instance silmaril.shapes.elf.abi_conforms.sysv_int_open
-    (title := "abi_conforms, System V AMD64 INTEGER fragment, on the open machine (Open)") :=
+    (title := "abi_conforms, System V AMD64 INTEGER fragment, on the open machine model (Open)") :=
   silmaril.shapes.elf.abi_conforms (A := Silmaril.Machine.Abi.Conformance.sysvInt)
     (M := Silmaril.X86.Open.isa)
 silmaril instance silmaril.shapes.elf.abi_conforms.sysv_int_open9
-    (title := "abi_conforms, System V AMD64 INTEGER fragment, on the open machine (Open9)") :=
+    (title := "abi_conforms, System V AMD64 INTEGER fragment, on the open machine model (Open9)") :=
   silmaril.shapes.elf.abi_conforms (A := Silmaril.Machine.Abi.Conformance.sysvInt)
     (M := Silmaril.X86.Open9.isa)
-silmaril instance silmaril.shapes.elf.abi_header_sat.sysv_int_open
-    (title := "abi_header_sat, System V AMD64 INTEGER fragment, on the open machine (Open)") :=
-  silmaril.shapes.elf.abi_header_sat (A := Silmaril.Machine.Abi.Conformance.sysvInt)
+silmaril instance silmaril.shapes.elf.abi_header_sat_partial.sysv_int_open
+    (title := "abi_header_sat_partial, System V AMD64 INTEGER fragment, on the open machine model (Open)") :=
+  silmaril.shapes.elf.abi_header_sat_partial (A := Silmaril.Machine.Abi.Conformance.sysvInt)
+    (M := Silmaril.X86.Open.isa)
+silmaril instance silmaril.shapes.elf.abi_header_sat_full.sysv_int_open
+    (title := "abi_header_sat_full, System V AMD64 INTEGER fragment, on the open machine model (Open)") :=
+  silmaril.shapes.elf.abi_header_sat_full (A := Silmaril.Machine.Abi.Conformance.sysvInt)
     (M := Silmaril.X86.Open.isa)

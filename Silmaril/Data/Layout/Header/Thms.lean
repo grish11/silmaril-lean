@@ -56,7 +56,14 @@ theorem refuses_outside_subset :
     refuses "#define F(x) x\n" = true ∧
     refuses "#include <stdio.h>\n" = true ∧
     refuses "int f(void)" = true ∧
-    refuses "struct s;" = true := by decide +kernel
+    refuses "struct s;" = true ∧
+    refuses "int f(int); long f(long);" = true ∧
+    refuses "typedef int t; typedef long t;" = true := by decide +kernel
+
+theorem reads_identical_redeclaration :
+    protos "int f(int); int f(int x); typedef int t; typedef int t; t g(void);" =
+      some [("f", ⟨.int .int .signed, [.int .int .signed], false⟩),
+        ("g", ⟨.typedef "t" (.int .int .signed), [], false⟩)] := by decide +kernel
 
 end Silmaril.Data.Layout.Header
 

@@ -1,10 +1,11 @@
 module
 
-public import Silmaril.Machine.Abi.Conformance.LeafArith.Defs
+public import Silmaril.Machine.Abi.Conformance.LeafArith.Witness.Defs
 public import Silmaril.X86.Ladder.LeafArith.Thms
 public import Silmaril.X86.Cert.Kinds.Thms
 public import Silmaril.Proofs.Machine.Abi.Conformance.SysvInt
 public import Silmaril.Proofs.Machine.Abi.Conformance.Basic
+public import Silmaril.X86.Open.FsBase.Thms
 
 /-!
 # ABI conformance of rung 01 `clamp_i32` and `sat_add_u32`: proofs
@@ -33,24 +34,14 @@ open Silmaril.Machine.Abi.SystemV (Proto vocab sysv Options callOf)
 open Silmaril.Proofs.Machine.Abi.Conformance.SysvInt
 open Silmaril.Machine.Abi.Conformance
 open Silmaril.Machine.Abi.Conformance.LeafArith
+open Silmaril.Machine.Abi.Conformance.LeafArith.Witness
 open Silmaril.Proofs.Machine.Abi.Conformance
 
 /-! ## A concrete entry state -/
 
-def allRegion : Region := ⟨0, 2 ^ 64, ⟨true, true, true⟩⟩
-def retAt : Word := 0x401000
-def retEnc : List Byte := Silmaril.Machine.LittleEndian.encodeWords [retAt]
 
-def mem : Memory :=
-  ⟨[allRegion], Memory.install (Memory.install ∅ 0x8ff8 retEnc) 0x401370 code⟩
 
-/-- `rip` at offset `off`, `rsp = 0x8ff8`, `rdi`, `rsi`, `rdx` as given. -/
-def st (off : Nat) (x y z : Word) : MState :=
-  ⟨⟨fun r => match r with | .rdi => x | .rsi => y | .rdx => z | .rsp => 0x8ff8 | _ => 0,
-    base + BitVec.ofNat 64 off, ⟨none, none, none, none, none, none⟩, 0⟩, mem⟩
 
-def ffiSt (off : Nat) (x y z : Word) : Ffi.State :=
-  ⟨st off x y z, fun _ => 0, fun _ => 0, false, true, 0, 0, 0⟩
 
 theorem permits_all (acc) (a : Nat) (ha : a < 2 ^ 64) : mem.permits acc a = true := by
   have : a < 18446744073709551616 := ha
@@ -105,23 +96,25 @@ theorem placed (off len : Nat) (x y z : Word) : Placed (region off len) (ffiSt o
   omega
 
 theorem stack (p : Proto) (hp : p.signature.arguments.length ≤ 6) (off len : Nat) (x y z : Word) :
-    Stack sysvInt p (region off len) 0 (ffiSt off x y z) := by
+    Stack sysvInt p (region off len) 0 (fun _ => False) (ffiSt off x y z) := by
   have ha : sysvInt.argArea p = 0 := by
     show 8 * (p.signature.arguments.length - 6) = 0
     omega
   have hsp : sp (ffiSt off x y z) = 0x8ff8 := rfl
-  refine ⟨by omega, ?_, ?_, ?_, ?_⟩
+  refine ⟨by omega, ?_, ?_, ?_, ?_, (fun _ h => nomatch h), ?_, fun _ h => nomatch h⟩
   · rw [ha, hsp]; decide
   · rw [ha, hsp]; exact permitted _ _ _ (by decide)
   · rw [ha, hsp]; exact permitted _ _ _ (by decide)
   · right
     rw [ha, hsp]
-    show 0x8ff8 + 8 + 0 ≤ base.toNat
+    show 0x8ff8 - 0 + (0 + 8 + 0) ≤ base.toNat
     decide
+  · intro r hr
+    rw [ha, hsp]
+    simp only [region, image, List.mem_cons, List.not_mem_nil, or_false] at hr
+    right
+    rcases hr with rfl | rfl | rfl | rfl <;> decide
 
-/-- The C arguments `clamp_i32(5, 0, 3)`. -/
-def clampArgs : vocab.Args clampProto :=
-  .cons (5 : BitVec 32) (.cons (0 : BitVec 32) (.cons (3 : BitVec 32) .nil))
 
 theorem clamp_entry : sysvInt.conv.Entry clampProto clampArgs (ffiSt 0x30 5 0 3) := by
   refine ⟨retAt, rfl, ⟨⟨rfl, _, rfl, (chunk32_iff _ .rdi _).2 rfl⟩,
@@ -132,9 +125,6 @@ theorem clamp_entry : sysvInt.conv.Entry clampProto clampArgs (ffiSt 0x30 5 0 3)
   · change (0x8ff8 : Word).toNat + 8 + alignUp (8 * (3 - 6)) 16 ≤ 2 ^ 64
     decide
 
-/-- The C arguments `sat_add_u32(0xfffffff0, 0x20)`. -/
-def satArgs : vocab.Args satProto :=
-  .cons (0xfffffff0 : BitVec 32) (.cons (0x20 : BitVec 32) .nil)
 
 theorem sat_entry : sysvInt.conv.Entry satProto satArgs (ffiSt 0x90 0xfffffff0 0x20 0) := by
   refine ⟨retAt, rfl, ⟨⟨rfl, _, rfl, (chunk32_iff _ .rdi _).2 rfl⟩,
@@ -175,6 +165,13 @@ theorem sat_args {a b : BitVec 32} {s : Ffi.State}
   subst e0 e1
   exact ⟨(chunk32_iff _ .rdi _).1 c0, (chunk32_iff _ .rsi _).1 c1⟩
 
+/-- No open-machine run writes the FS base (`Open.step_fsBase`). -/
+theorem fs_of_runs {P : MState → Prop} {m t : MState} (r : FnContract.RunsIn Open.isa P m t) :
+    t.core.fsBase = m.core.fsBase := by
+  induction r with
+  | refl => rfl
+  | step _ hs _ ih => exact ih.trans (Silmaril.X86.Open.step_fsBase hs)
+
 theorem writesWithin_mono {m m' : Memory} {P Q : Nat → Prop} (h : m.WritesWithin m' P)
     (hPQ : ∀ x, P x → Q x) : m.WritesWithin m' Q :=
   ⟨h.1, fun x hx => h.2 x fun hp => hx (hPQ x hp)⟩
@@ -193,13 +190,13 @@ theorem sat_declared : Declares sysvInt hdr "sat_add_u32" satProto :=
 theorem clamp_conforms (mode : Mode) :
     Conforms sysvInt Open.isa mode hdr "clamp_i32" clampProto clampCode 0 clampS := by
   refine conforms_of_strict clamp_strict clamp_declared (by decide +kernel)
-    ⟨clampArgs, ffiSt 0x30 5 0 3, ⟨trivial, clamp_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _⟩,
+    ⟨clampArgs, ffiSt 0x30 5 0 3, ⟨trivial, clamp_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩,
       trivial⟩
     (fun _ _ ad => abiEntry_of_entry ad.entry)
     (fun _ _ ad _ => ⟨⟨ad.placed.loaded, ad.placed.pc⟩, ad.placed.retOutside⟩) ?_
-  intro a s t ad _ res
-  refine ⟨return_of_result (fun _ => rfl) (fun _ => rfl) ad.entry res, ?_, writesWithin_mono res.frame
-    fun _ h => nomatch h⟩
+  intro a s t ad _ fr res
+  refine ⟨return_of_result (fun _ => rfl) (fun _ => rfl) ad.entry res, ?_,
+    writesWithin_mono res.frame (fun _ h => nomatch h), fs_of_runs fr.1⟩
   match a, ad with
   | .cons x (.cons lo (.cons hi .nil)), ad =>
     obtain ⟨hx, hl, hh⟩ := clamp_args ad.entry
@@ -212,12 +209,12 @@ theorem sat_conforms (mode : Mode) :
     Conforms sysvInt Open.isa mode hdr "sat_add_u32" satProto satCode 0 satS := by
   refine conforms_of_strict sat_strict sat_declared (by decide +kernel)
     ⟨satArgs, ffiSt 0x90 0xfffffff0 0x20 0,
-      ⟨trivial, sat_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _⟩, trivial⟩
+      ⟨trivial, sat_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩, trivial⟩
     (fun _ _ ad => abiEntry_of_entry ad.entry)
     (fun _ _ ad _ => ⟨⟨ad.placed.loaded, ad.placed.pc⟩, ad.placed.retOutside⟩) ?_
-  intro a s t ad _ res
-  refine ⟨return_of_result (fun _ => rfl) (fun _ => rfl) ad.entry res, ?_, writesWithin_mono res.frame
-    fun _ h => nomatch h⟩
+  intro a s t ad _ fr res
+  refine ⟨return_of_result (fun _ => rfl) (fun _ => rfl) ad.entry res, ?_,
+    writesWithin_mono res.frame (fun _ h => nomatch h), fs_of_runs fr.1⟩
   match a, ad with
   | .cons x (.cons y .nil), ad =>
     obtain ⟨hx, hy⟩ := sat_args ad.entry
@@ -231,11 +228,13 @@ first argument". On `clamp_i32(5, 0, 3)` the one outcome reads back as `3`, not 
 theorem clamp_rejects_first (mode : Mode) :
     ¬ Conforms sysvInt Open.isa mode hdr "clamp_i32" clampProto clampCode 0 clampFirstS := by
   intro bad
-  have ad : Admit sysvInt Open.isa clampProto clampCode 0 clampArgs (ffiSt 0x30 5 0 3) :=
-    ⟨trivial, clamp_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _⟩
+  have ad : Admit sysvInt Open.isa clampProto clampCode 0 clampFirstS clampArgs (ffiSt 0x30 5 0 3) :=
+    ⟨trivial, clamp_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩
+  have ad' : Admit sysvInt Open.isa clampProto clampCode 0 clampS clampArgs (ffiSt 0x30 5 0 3) :=
+    ⟨trivial, clamp_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩
   have good := clamp_conforms .total
-  obtain ⟨t, ht⟩ := good.progress rfl _ _ ad trivial
-  obtain ⟨r, hr, hpost⟩ := (good.sound _ _ ad trivial t ht).result
+  obtain ⟨t, ht⟩ := good.progress rfl _ _ ad' trivial
+  obtain ⟨r, hr, hpost⟩ := (good.sound _ _ ad' trivial t ht).result
   obtain ⟨r', hr', hpost'⟩ := (bad.sound _ _ ad trivial t ht).result
   have e1 := (resultAt_int32 _ _ _ _ _).1 hr
   have e2 := (resultAt_int32 _ _ _ _ _).1 hr'
@@ -246,8 +245,8 @@ theorem clamp_rejects_first (mode : Mode) :
 
 theorem coverage_check : coverage.check sysvInt hdr = true := by decide +kernel
 
-theorem header_sat : HeaderSat sysvInt Open.isa hdr coverage impl := by
-  refine ⟨coverage_check, fun f hf => ?_⟩
+theorem header_sat : HeaderSatPartial sysvInt Open.isa hdr coverage impl := by
+  refine ⟨by decide, coverage_check, fun f hf => ?_⟩
   simp only [coverage, List.mem_cons, List.not_mem_nil, or_false] at hf
   rcases hf with rfl | rfl
   · exact ⟨_, rfl, clamp_conforms .total⟩
