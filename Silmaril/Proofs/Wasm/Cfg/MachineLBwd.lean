@@ -395,6 +395,141 @@ theorem pos_last_nonstruct {body : Expr} {p : List SeqStep} {c : List Instr} {i 
   subst this
   exact he hs
 
+/-- Before a structured terminator, a non-structured instruction is in the body. -/
+theorem pos_body_prefix {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat}
+    {sg : Segment} {pre post' : List Instr} {e t : Instr} (hp : Pos body p c i sg pre (e :: post'))
+    (he : ¬ Instr.IsStruct e) (ht : sg.term = some t) (hts : Instr.IsStruct t) :
+    ∃ X, sg.body = pre ++ e :: X := by
+  have hi := hp.hinstrs
+  simp only [Segment.instrs, ht, Option.toList_some] at hi
+  have hle := hp.hstruct t ht hts
+  rcases Nat.lt_or_ge pre.length sg.body.length with hlt | hge
+  · refine ⟨sg.body.drop (pre.length + 1), ?_⟩
+    have h1 := congrArg (List.take pre.length) hi
+    simp [List.take_append_of_le_length hle] at h1
+    have h2 : sg.body[pre.length]? = some e := by
+      have := congrArg (·[pre.length]?) hi
+      simp only [List.getElem?_append_left hlt] at this
+      simpa using this
+    simp [List.getElem?_eq_getElem hlt] at h2
+    calc sg.body = sg.body.take pre.length ++ sg.body.drop pre.length :=
+          (List.take_append_drop _ _).symm
+      _ = pre ++ e :: sg.body.drop (pre.length + 1) := by
+          rw [h1, List.drop_eq_getElem_cons hlt, h2]
+  · have heq : pre.length = sg.body.length := by omega
+    have h3 : (sg.body ++ [t])[sg.body.length]? = some t := by simp
+    have h4 : (pre ++ e :: post')[pre.length]? = some e := by simp
+    rw [hi, ← heq, h4] at h3
+    cases h3
+    exact absurd hts he
+
+/-- One more non-structured instruction of `post` moves into `pre`. -/
+theorem pos_next {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {sg : Segment}
+    {pre post' : List Instr} {e e' : Instr} (hp : Pos body p c i sg pre (e :: e' :: post'))
+    (he : ¬ Instr.IsStruct e) : Pos body p c i sg (pre ++ [e]) (e' :: post') where
+  hc := hp.hc
+  hsg := hp.hsg
+  hinstrs := by rw [hp.hinstrs]; simp
+  hpost := by simp
+  hstruct t ht hts := by
+    obtain ⟨X, hX⟩ := pos_body_prefix hp he ht hts
+    rw [hX]; simp
+
+/-- **The block clause, continuing**: a non-structured instruction ran normally, and the
+motive holds for the rest. -/
+theorem blk_cont {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {c : List Instr} {i : Nat} {sg : Segment} {pre post' : List Instr} {e : Instr}
+    {ls : List LFrame} {l' : List (SCall H)} {s s₂ : Store H} {f f₂ : Frame} {N N₂ : List Val}
+    {l_e l_k : List (SCall H)} {r : Store H × Frame × POut}
+    (hp : Pos body p c i sg pre (e :: post')) (hok : FramesOk body p.reverse ls)
+    (hx : ExitE body Fin p ls r l') (he : ¬ Instr.IsStruct e)
+    (hstep : EvalLXPS s f N [liftInstr e] l_e (s₂, f₂, .flow (.normal N₂)))
+    (hk : EvalLXPS s₂ f₂ N₂ (liftInstrs post' ++ liftInstrs (restAt c (i + 1))) l_k r)
+    (ihk : Mot body Fin s₂ f₂ N₂ (liftInstrs post' ++ liftInstrs (restAt c (i + 1))) l_k r)
+    (s₀ : Store H) (f₀ : Frame) (N₀ : List Val) (l₀ : List (SCall H))
+    (hpre : EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N))) :
+    MEnds body Fin ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ (l_e ++ l_k) ++ l') := by
+  have hpre' : EvalLXPS s₀ f₀ N₀ (liftInstrs (pre ++ [e])) (l₀ ++ l_e)
+      (s₂, f₂, .flow (.normal N₂)) := by
+    rw [MachineLSeq.liftInstrs_append]
+    exact (MachineLSeq.append hpre _).2 _ _ _ rfl _ _ (by simpa [liftInstrs] using hstep)
+  rcases post' with _ | ⟨e', post''⟩
+  · have ht := pos_last_nonstruct hp he
+    have hb : lookup body ⟨p, i⟩ = some sg := by rw [lookup_eq]; simp [hp.hc, hp.hsg]
+    simp only [liftInstrs, List.nil_append] at hk ihk
+    obtain ⟨st, hg, hE⟩ := at_boundary hk ihk hp.hc hok hx
+    have hr : EvalLXPS s₀ f₀ (N₀.reverse).reverse (liftInstrs (MachineL.codeOf sg)) (l₀ ++ l_e)
+        (s₂, f₂, .flow (.normal N₂)) := by
+      rw [List.reverse_reverse, codeOf_eq, hp.hinstrs]; exact hpre'
+    have := mEnds_step (MStepL.run hb ht hr (.next (by simpa using hg))) hE
+    simpa [List.append_assoc] using this
+  · have := (ihk p c i sg (pre ++ [e]) (e' :: post'') ls l' (pos_next hp he) rfl hok hx).1
+      s₀ f₀ N₀ (l₀ ++ l_e) hpre'
+    simpa [List.append_assoc] using this
+
+/-- **The block clause, abrupt**: a non-structured instruction of `post` ended the code. -/
+theorem blk_abrupt {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {c : List Instr} {i : Nat} {sg : Segment} {pre post' : List Instr} {e : Instr}
+    {ls : List LFrame} {l' : List (SCall H)} {s : Store H} {f : Frame} {N : List Val}
+    {l_e : List (SCall H)} {r : Store H × Frame × POut}
+    (hp : Pos body p c i sg pre (e :: post')) (hx : ExitE body Fin p ls r l')
+    (he : ¬ Instr.IsStruct e) (hstep : EvalLXPS s f N [liftInstr e] l_e r)
+    (hn : ¬ r.2.2.IsNormal)
+    (htail : ∀ fa args n, r.2.2 = .tail fa args n → isTerminator e = true)
+    (s₀ : Store H) (f₀ : Frame) (N₀ : List Val) (l₀ : List (SCall H))
+    (hpre : EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N))) :
+    MEnds body Fin ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ l_e ++ l') := by
+  have hrun : EvalLXPS s₀ f₀ N₀ (liftInstrs (pre ++ [e])) (l₀ ++ l_e) r := by
+    rw [MachineLSeq.liftInstrs_append]
+    exact (MachineLSeq.append hpre _).2 _ _ _ rfl _ _ (by simpa [liftInstrs] using hstep)
+  have hb : lookup body ⟨p, i⟩ = some sg := by rw [lookup_eq]; simp [hp.hc, hp.hsg]
+  by_cases hts : ∃ t, sg.term = some t ∧ Instr.IsStruct t
+  · obtain ⟨t, ht, hst⟩ := hts
+    obtain ⟨X, hX⟩ := pos_body_prefix hp he ht hst
+    have hr : EvalLXPS s₀ f₀ (N₀.reverse).reverse (liftInstrs sg.body) (l₀ ++ l_e) r := by
+      rw [List.reverse_reverse, hX, show pre ++ e :: X = (pre ++ [e]) ++ X by simp,
+        MachineLSeq.liftInstrs_append]
+      exact (MachineLSeq.append hrun _).1 hn
+    obtain ⟨s', f', o⟩ := r
+    rcases o with fl | ⟨fa, args, n⟩
+    · unfold ExitE at hx
+      cases fl with
+      | normal => exact absurd trivial hn
+      | _ =>
+        obtain ⟨st, hd, hE⟩ := hx
+        exact mEnds_step (MStepL.abort hb hr hn (dispL_idx' hn hd)) hE
+    · have := htail fa args n rfl
+      have hwf := (seg_wf hp.hsg).1 e (by rw [hX]; simp)
+      rw [this] at hwf; cases hwf
+  · push Not at hts
+    have hr : EvalLXPS s₀ f₀ (N₀.reverse).reverse (liftInstrs (MachineL.codeOf sg)) (l₀ ++ l_e) r := by
+      rw [List.reverse_reverse, codeOf_eq, hp.hinstrs,
+        show pre ++ e :: post' = (pre ++ [e]) ++ post' by simp, MachineLSeq.liftInstrs_append]
+      exact (MachineLSeq.append hrun _).1 hn
+    simpa using block_abrupt hb (fun t ht h => hts t ht h) hr hn hx
+
+/-- **The block clause, a structured terminator**, from the arm clause: the machine enters the
+arm. -/
+theorem blk_enter {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {c : List Instr} {i : Nat} {sg : Segment} {pre : List Instr} {t : Instr}
+    {ls : List LFrame} {l l' : List (SCall H)} {s : Store H} {f : Frame} {N V' : List Val}
+    {a : Nat} {c' : List Instr} {np nr : Nat} {bt : BlockType} {loop tryT : Bool}
+    {cs : List Catch} (hp : Pos body p c i sg pre [t]) (hk : StructKind t bt loop tryT cs)
+    (hsel : ArmSel t N a V') (harm : armOf t a = some c') (har : arity f bt = some (np, nr))
+    (hA : ∃ st₁, gotoN (entry body (p ++ [(i, a)]) 0) (p.length + 1)
+      (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls)
+      (V'.take np).reverse s f = some st₁ ∧ MEnds body Fin st₁ (l ++ l'))
+    (s₀ : Store H) (f₀ : Frame) (N₀ : List Val) (l₀ : List (SCall H))
+    (hpre : EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N))) :
+    MEnds body Fin ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ l ++ l') := by
+  obtain ⟨ht, -, hpb⟩ := pos_term hp (isStruct_terminator ⟨_, _, _, _, hk⟩)
+  subst hpb
+  have hb : lookup body ⟨p, i⟩ = some sg := by rw [lookup_eq]; simp [hp.hc, hp.hsg]
+  obtain ⟨st₁, hg, hE⟩ := hA
+  have := mEnds_step (MStepL.enter hb ht harm hk (by rw [List.reverse_reverse]; exact hpre) hsel
+    har hg) hE
+  simpa [List.append_assoc] using this
+
 /-- **The main induction**: every native run satisfies the motive. -/
 theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
     {N : List Val} {es : List BExpr} {l : List (SCall H)} {r : Store H × Frame × POut}
