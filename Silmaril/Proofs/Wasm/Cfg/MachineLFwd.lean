@@ -252,4 +252,56 @@ theorem next_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : B
   refine ⟨c, l ++ l₀, l₁, r₀, hc, ?_, hkl, by simp⟩
   exact (restAt_run hsg hr).2 _ _ _ rfl _ _ (by simpa using hrun)
 
+/-- **An escaping outcome leaves every frame unchanged**: a return, a trap, a pending tail call
+(which bypasses handlers), or an exception no `try_table` frame catches. -/
+theorem kl_esc {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
+    {o : POut} (ho : o.Escapes) (hF : Fin (s, f, o)) :
+    ∀ (rp : List SeqStep) (ls : List LFrame), FramesOk body rp ls →
+      (∀ a, o = .flow (.throw a) → ∀ (k : Nat) (L : LFrame), ls[k]? = some L →
+        L.tryT = true → Catches s f a L.catches none) →
+      KL body Fin rp ls (s, f, o) []
+  | [], [], _, _ => .top hF
+  | [], _ :: _, h, _ => by simp [FramesOk] at h
+  | _ :: _, [], h, _ => by simp [FramesOk] at h
+  | (m, a) :: rp, L :: ls, hok, hT => by
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩ := hok
+    have hT' : ∀ a', o = .flow (.throw a') → ∀ (k : Nat) (L' : LFrame), ls[k]? = some L' →
+        L'.tryT = true → Catches s f a' L'.catches none :=
+      fun a' h k L' hL' => hT a' h (k + 1) L' (by simpa using hL')
+    have hw : WrapL L t (restAt pc (m + 1)) (s, f, o) [] (s, f, o) := by
+      by_cases hth : ∃ a', o = .flow (.throw a')
+      · obtain ⟨a', rfl⟩ := hth
+        cases htt : L.tryT
+        · exact .esc ho (fun h => by rw [htt] at h; cases h)
+        · exact .rethrow htt (hT a' rfl 0 L rfl htt)
+      · refine .esc ho fun _ => ?_
+        rcases o with fl | _
+        · cases fl <;> simp_all [POut.NotThrow]
+        · trivial
+    simpa using KL.frame hpc hsg ht harm hkind hw (kl_esc ho hF rp ls hok' hT')
+
+/-- **A block whose straight-line code ends abruptly**: the rest of the sequence is skipped. -/
+theorem abrupt_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : BlockId}
+    {sg : Segment} {stk : List Val} {ls : List LFrame} {s : Store H} {f : Frame}
+    {l l₁ : List (SCall H)} {r : Store H × Frame × POut} {is : List Instr}
+    (hb : lookup body b = some sg) (his : is = MachineL.codeOf sg ∨ (is = sg.body ∧ ∃ t, sg.term = some t))
+    (hr : EvalLXPS s f stk.reverse (liftInstrs is) l r) (hn : ¬ r.2.2.IsNormal)
+    (hkl : KL body Fin b.seq.reverse ls r l₁) :
+    Good body Fin ⟨.block b, stk, ls, s, f⟩ (l ++ l₁) := by
+  obtain ⟨c, hc, hsg⟩ := seg_of_lookup hb
+  refine ⟨c, l, l₁, r, hc, ?_, hkl, rfl⟩
+  rcases his with rfl | ⟨rfl, t, ht⟩
+  · exact (restAt_run hsg hr).1 hn
+  · have hr' : EvalLXPS s f stk.reverse (liftInstrs (codeOf sg)) l r := by
+      rw [MachineL.codeOf, ht, Option.toList_some, MachineLSeq.liftInstrs_append]
+      exact (MachineLSeq.append hr _).1 hn
+    exact (restAt_run hsg hr').1 hn
+
+/-- The sink a trap, `return`, an uncaught exception or an exit stands for. -/
+theorem fin_of_sink {body : Expr} {Fin : Store H × Frame × POut → Prop} {st : MState H}
+    {l : List (SCall H)} (hG : Good body Fin st l) (hs : st.node.IsSink) {r : Store H × Frame × POut}
+    (hE : EndRel st r) : l = [] ∧ Fin r := by
+  obtain ⟨node, stk, ls, s, f⟩ := st
+  cases node <;> simp only [Target.IsSink] at hs <;> exact ⟨hG.1, hG.2 r hE⟩
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLFwd
