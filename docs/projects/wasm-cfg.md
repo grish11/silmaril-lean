@@ -621,7 +621,7 @@ The plain graph stays an over-approximation, and claims about it say so.
             entries are all `C`-answers (`CloseOk`).
           - Answers are exact: callee values trimmed to the callee's result arity; exceptions and
             traps with the stores `C` leaves.
-        - **Divergence, D2 in progress** (`Silmaril.Wasm.Cfg.MachineLDiv`). The machine's host-free
+        - **Divergence, D2 done** (`Silmaril.Wasm.Cfg.MachineLDiv`). The machine's host-free
           divergence has three distinct forms, every logged call answered by `closedCallXP`
           (`StepK`):
           - `InfK`: an infinite run of local steps;
@@ -631,17 +631,15 @@ The plain graph stays an over-approximation, and claims about it say so.
             one is function-level only.
           `MDivL := InfK ∨ CalleeDivK`; `FunDivL` adds `TailDivK` at the frame, as `funDivXP_iff`
           does.
-          - Done, native to machine: `div_machine` (`EvalDivXP` of a body gives `MDivL` from the
-            CFG entry) and `funDiv_machine` (`FunDivXP` gives `FunDivL`). The infinite run is
-            built from the native unfolding. Finite parts of structured instructions (a loop
-            iteration, an arm ending normally) are the converse's arm clause, with a strict stop
-            state so that every unfolding makes at least one machine step.
-          - Done, machine to native, finite forms: `calleeDiv_div`, `funDiv_of_calleeDiv`,
-            `funDiv_of_tailDiv`.
-          - Open, machine to native for `InfK`. The plan: coinduction on `EvalDivXP` over
-            positions of the run, splitting at the first step that leaves an arm (classified by
-            its dispatch, so re-entering a loop counts as leaving its arm). The finite inside
-            part is read natively by a forward invariant relative to the arm's frame.
+          - `div_iff`: `EvalDivXP s f [] (liftInstrs body) ↔ MDivL body (initial body s f)`.
+          - `funDiv_iff`: `FunDivXP s a args ↔ FunDivL s a args`.
+          - Native to machine: the infinite run is built from the native unfolding. Finite parts
+            of structured instructions go through the converse's arm clause, with a strict stop
+            state, so every unfolding makes at least one machine step.
+          - Machine to native for `InfK`: coinduction on `EvalDivXP` over positions of the run.
+            Steps are classified by depth (`MStepS`): re-entering a loop counts as leaving its
+            arm. At the first step leaving an arm, the arm's run is read natively by a forward
+            invariant relative to the arm's frame (`Proofs/Wasm/Cfg/MachineLRel`, `arm_fwd`).
           - Then: `LogDivXP` after a logged prefix (D3).
         - Still open after that: coherent productive streams (`InfLXP`).
         - The closed oracle `closedCallXP` used here is the native one. These results do not

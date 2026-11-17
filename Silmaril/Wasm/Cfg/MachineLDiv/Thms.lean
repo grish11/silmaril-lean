@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Cfg.MachineLDiv.Defs
 public import Silmaril.Wasm.Abstract.XDivergeP.Thms
 import Silmaril.Proofs.Wasm.Cfg.MachineLDivF
+import Silmaril.Proofs.Wasm.Cfg.MachineLDivI
 
 @[expose] public section
 
@@ -15,21 +16,24 @@ On the machine it is `MDivL` (infinite oracle-answered local steps `InfK`, or a 
 `CalleeDivK`), and at a call's frame `FunDivL`, which adds the diverging tail callee `TailDivK`
 (`MachineLDiv.Defs`).
 
-* **`div_machine`** (native to machine): native divergence of a body from the empty stack is
-  machine divergence from the CFG entry. Divergence inside a callee is the machine's
-  `CalleeDivK`, at the block making the call. Divergence of the body's own code, through blocks,
-  loops (re-entered by branches, caught exceptions included), conditionals and handlers, is
-  `InfK`, an infinite run of the machine.
-* **`calleeDiv_div`** (machine to native, the callee form): a diverging callee reached from the
-  CFG entry is native divergence of the body.
-* **`funDiv_machine`**: native frame divergence of a call (`FunDivXP`: the body diverges, or it
-  ends in a pending tail call whose callee diverges) is `FunDivL`.
-* **`funDiv_of_calleeDiv`, `funDiv_of_tailDiv`**: the converse for the callee and tail-callee forms.
+* **`div_iff`**: native divergence of a body from the empty stack is exactly machine divergence
+  from the CFG entry.
+  * Native to machine (`div_machine`). Divergence inside a callee is the machine's `CalleeDivK`,
+    at the block making the call. Divergence of the body's own code, through blocks, loops
+    (re-entered by branches, caught exceptions included), conditionals and handlers, is `InfK`,
+    an infinite run of the machine.
+  * Machine to native: `calleeDiv_div` for a diverging callee; `infK_div` for infinite local
+    steps. The run never leaves a sequence, or leaves it at a first step: the arm then ran natively
+    to that step, and its outcome continues the enclosing sequence or re-enters its loop.
+* **`funDiv_iff`**: native frame divergence of a call (`FunDivXP`: the body diverges, or it ends
+  in a pending tail call whose callee diverges) is exactly `FunDivL` (`funDiv_machine`,
+  `funDiv_of_calleeDiv`, `funDiv_of_tailDiv`, `funDiv_of_infK`).
 
-Not yet here: the converse for infinite local steps (`InfK` from the CFG entry is native
-divergence of the body), hence `MDivL`, `FunDivL` and native divergence as equivalences;
-divergence after a host-event log (`LogDivXP`); productive streams. The closed answers and the
-diverging callees are those of the native oracle: this does not discharge H3
+The three forms stay distinct: `InfK` runs forever by finitely answered steps, `CalleeDivK` stops
+at a call whose callee diverges, `TailDivK` stops at a pending tail call whose callee diverges.
+
+Not yet here: divergence after a host-event log (`LogDivXP`), and productive streams. The closed
+answers and the diverging callees are those of the native oracle: this does not discharge H3
 (`docs/projects/wasm-cfg.md`).
 -/
 
@@ -50,6 +54,16 @@ theorem div_machine {body : Expr} {s : Store H} {f : Frame}
 theorem calleeDiv_div {body : Expr} {s : Store H} {f : Frame}
     (h : CalleeDivK body (initial body s f)) : EvalDivXP s f [] (liftInstrs body) :=
   Proofs.MachineLDivF.calleeDiv_div h
+
+/-- **Infinite local steps from the CFG entry are native divergence of the body.** -/
+theorem infK_div {body : Expr} {s : Store H} {f : Frame} (h : InfK body (initial body s f)) :
+    EvalDivXP s f [] (liftInstrs body) :=
+  Proofs.MachineLDivI.infK_div h
+
+/-- **Native host-free divergence of a body is machine divergence**, both ways. -/
+theorem div_iff {body : Expr} {s : Store H} {f : Frame} :
+    EvalDivXP s f [] (liftInstrs body) ↔ MDivL body (initial body s f) :=
+  ⟨div_machine, fun h => h.elim infK_div calleeDiv_div⟩
 
 /-- **Native frame divergence of a call is machine frame divergence.** -/
 theorem funDiv_machine {s : Store H} {a : Nat} {args : List Val} (h : FunDivXP s a args) :
@@ -72,5 +86,21 @@ theorem funDiv_of_tailDiv {s : Store H} {a : Nat} {args : List Val} {fi : FuncIn
     (h : TailDivK fn.body (initial fn.body s (Frame.forCall fi.module args fn.locals))) :
     FunDivXP s a args :=
   funDivXP_iff.2 ⟨fi, fn, hfi, hcode, .inr (Proofs.MachineLDivF.tailDiv_tail h)⟩
+
+/-- **A call whose body runs forever by local steps diverges at the frame.** -/
+theorem funDiv_of_infK {s : Store H} {a : Nat} {args : List Val} {fi : FuncInst H}
+    {fn : Func} (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+    (h : InfK fn.body (initial fn.body s (Frame.forCall fi.module args fn.locals))) :
+    FunDivXP s a args :=
+  funDivXP_iff.2 ⟨fi, fn, hfi, hcode, .inl (infK_div h)⟩
+
+/-- **Native frame divergence of a call is machine frame divergence**, both ways. -/
+theorem funDiv_iff {s : Store H} {a : Nat} {args : List Val} :
+    FunDivXP s a args ↔ FunDivL s a args := by
+  refine ⟨funDiv_machine, ?_⟩
+  rintro ⟨fi, fn, hfi, hcode, (hI | hC) | hT⟩
+  · exact funDiv_of_infK hfi hcode hI
+  · exact funDiv_of_calleeDiv hfi hcode hC
+  · exact funDiv_of_tailDiv hfi hcode hT
 
 end Silmaril.Wasm.Cfg.MachineL
