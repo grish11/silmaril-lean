@@ -54,8 +54,8 @@ the exporter: an infinite play of the exporter's environment is served along **o
 `Step`s. At the deterministic profiles `profile o` it is proved in `LinkedGChatter`
 (`ExpSpec.AdeqIC`, `LinkedG.chatterReadBack_profile`, `LinkedG.toExp_adeqD_profile`,
 `LinkedN.div_iff_profile`); at nondeterministic profiles it is open for `Linked2` already
-(König's lemma, see `LinkedSessionDAdeq.Thms`). Ill-typed calls and the infinite plays of the
-linked IR beyond `AdeqI`'s forward half are not covered.
+(König's lemma, see `LinkedSessionDAdeq.Thms`). Ill-typed calls are not covered. The infinite
+plays of the linked IR beyond `AdeqI`'s forward half are in `LinkedGInf` (`profile o`).
 
 Proofs: `Silmaril.Proofs.Wasm.Component.Reference.LinkedGDivIR.{Layers, Back, Build, Inf,
 Chatter, Main}`.

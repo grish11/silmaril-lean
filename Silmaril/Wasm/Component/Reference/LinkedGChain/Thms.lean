@@ -62,8 +62,9 @@ footprint containing the combined one (not exactly it), so that R2/R3 can end at
 footprint grown by the fresh addresses.
 
 **Not claimed.** Divergence of chains (reference side proved in `LinkedGDiv`:
-`LinkedG.toExp_refAdeqUXD`, `LinkedN.sessDivs_eq_refDivs`) and infinite plays of chains; general `ext`/nested `.inst`
-components beyond `LinkedN`; ill-typed calls.
+`LinkedG.toExp_refAdeqUXD`, `LinkedN.sessDivs_eq_refDivs`) and infinite plays of chains (in
+`LinkedGInf`, at `profile o`); general `ext`/nested `.inst` components beyond `LinkedN`;
+ill-typed calls.
 -/
 
 public section
