@@ -22,7 +22,9 @@
 # Inputs: the repository's examples/elf-ladder/01-leaf-arith/arith.h and
 # examples/elf-ladder/common/rt.h; examples/headers/probe/probe.h; zlib 1.3.1's zlib.h and
 # zconf.h from the release tarball (fetched, SHA-256 checked, not committed; set ZLIB_TARBALL
-# to a local copy to skip the download); glibc's string.h as installed in the image.
+# to a local copy to skip the download); glibc's string.h and math.h as installed in the image
+# (math.h's declarations are written in bits/mathcalls.h and bits/mathcalls-helper-functions.h,
+# expanded once per floating type; bits/floatn-common.h has the _FloatN typedefs).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
@@ -97,6 +99,8 @@ run probe "$ROOT/examples/headers/probe" . "probe.h" -ffreestanding -fno-builtin
 run zlib-solo "$work/zlib" zlib-1.3.1 "zlib.h ./zconf.h" -ffreestanding -fno-builtin -DZ_SOLO zlib.h
 run zlib-hosted "$work/zlib" zlib-1.3.1 "zlib.h ./zconf.h" zlib.h
 run glibc-string "$work" . "/usr/include/string.h" /usr/include/string.h
+run glibc-math "$work" . "/usr/include/math.h /usr/include/x86_64-linux-gnu/bits/mathcalls.h /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h /usr/include/x86_64-linux-gnu/bits/floatn-common.h" \
+  /usr/include/math.h
 sed -i "s|^input: zlib.h|source: zlib-1.3.1.tar.gz $ZLIB_SHA256 $ZLIB_URL\ninput: zlib.h|" \
   "$out/clang/zlib-solo.prov" "$out/clang/zlib-hosted.prov"
 

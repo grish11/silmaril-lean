@@ -26,7 +26,13 @@ PROVED (standard axioms; the per-header facts rewrite with `Pinned.import_<name>
   example's `LeafArith.coverage` (checked by the subset route, `Coverage.check`) is also a
   checked coverage of the import;
 * `zlibSolo_coverage`, `zlibHosted_coverage`, `probe_coverage`, `glibcString_coverage`: each
-  header's claimable functions and its unsupported ones with the reasons.
+  header's claimable functions and its unsupported ones with the reasons;
+* `glibcMath_coverage`: glibc's `math.h` (libm) under the INTEGER fragment `sysvInt`: nothing is
+  claimable; all 438 non-builtin functions are refused because a parameter or the result is a
+  floating type (SSE/x87 classes), and the other 177 are clang's implicit builtins. This is
+  `sysvInt`'s scope, not a statement about libm: the `double`/`float` declarations are for
+  `sysvScalar` (#964/#983) and an SSE-capable machine (#994, stage 2), and `long double` is
+  X87 class, outside both.
 -/
 
 @[expose] public section
@@ -140,6 +146,17 @@ theorem glibcString_coverage :
     ((table sysvInt sysvCcs glibcString).filter (fun x => x.2 matches .internal _)).length =
       26 := by
   rw [import_glibcString]; decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem glibcMath_coverage :
+    claimable sysvInt sysvCcs glibcMath = [] ∧
+    (unsupportedFns sysvInt sysvCcs glibcMath).length = 438 ∧
+    (unsupportedFns sysvInt sysvCcs glibcMath).all (fun x =>
+      x.2 == "floating type: SSE/x87 classes are outside the INTEGER fragment" ||
+      x.2 == "result: floating type: SSE/x87 classes are outside the INTEGER fragment") ∧
+    ((table sysvInt sysvCcs glibcMath).filter (fun x => x.2 matches .internal _)).length =
+      177 := by
+  rw [import_glibcMath]; decide +kernel
 
 end Silmaril.Machine.Abi.Conformance
 

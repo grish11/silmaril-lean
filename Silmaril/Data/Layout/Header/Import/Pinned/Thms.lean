@@ -6,6 +6,7 @@ public import Silmaril.Data.Layout.Header.Import.Pinned.Probe.Thms
 public import Silmaril.Data.Layout.Header.Import.Pinned.ZlibSolo.Thms
 public import Silmaril.Data.Layout.Header.Import.Pinned.ZlibHosted.Thms
 public import Silmaril.Data.Layout.Header.Import.Pinned.GlibcString.Thms
+public import Silmaril.Data.Layout.Header.Import.Pinned.GlibcMath.Thms
 public import Silmaril.Data.Layout.Header.Zlib.Defs
 
 /-!
@@ -27,6 +28,7 @@ theorems here rewrite with it and compute (`decide +kernel`) on the literal entr
   to the same System V prototype (`Machine.Abi.Conformance.Import.Thms`);
 * `probe_reads`: the probe header's kinds, conventions (`ms_abi`, `sysv_abi`, `regcall`),
   attributes, asm label and tag definitions as the import reads them;
+* `glibcMath_reads`: glibc's `math.h` (libm): 623 entries, 615 functions, none refused.
 * `glibcString_reads`: glibc's `string.h`: 66 entries, 26 of them clang's implicit builtin
   declarations, and `strerror_r`'s asm label `__xpg_strerror_r` (glibc's `__REDIRECT_NTH`);
 * `provenance_reads`: the provenance records of the artifacts, as read from their `.prov`.
@@ -87,6 +89,29 @@ theorem glibcString_reads :
     (glibcString.fn? "strerror_r").map (fun (_, f) => (f.symbol, f.asmLabel)) =
       some ("__xpg_strerror_r", some "__xpg_strerror_r") := by
   rw [import_glibcString]; decide +kernel
+
+set_option maxRecDepth 100000 in
+/-- glibc's `math.h` (libm): every declaration of `math.h`, `bits/mathcalls.h`,
+`bits/mathcalls-helper-functions.h` and `bits/floatn-common.h` as clang expands them (each
+`__MATHCALL` once per floating type: `double`, `float`, `long double`, with the `__`-prefixed
+internal names), none refused by the import: 623 entries, 615 functions, 177 of them clang's
+implicit builtins, no asm renames. `sin` is `double (double)`, `sinf` `float (float)` and
+`sinl` `long double (long double)`. -/
+theorem glibcMath_reads :
+    glibcMath.error = none ∧ glibcMath.entries.length = 623 ∧
+    (glibcMath.entries.filter (·.kind == .function)).length = 615 ∧
+    (glibcMath.entries.filter (·.implicit)).length = 177 ∧
+    (glibcMath.entries.filter (fun e => match e.body with
+      | .unsupported _ => true | _ => false)).length = 0 ∧
+    (glibcMath.entries.filter (fun e => match e.body with
+      | .function f => f.asmLabel.isSome | _ => false)).length = 0 ∧
+    (glibcMath.fn? "sin").map (fun (_, f) => f.proto) =
+      some (.ok ⟨.float .double, [.float .double], false⟩) ∧
+    (glibcMath.fn? "sinf").map (fun (_, f) => f.proto) =
+      some (.ok ⟨.float .float, [.float .float], false⟩) ∧
+    (glibcMath.fn? "sinl").map (fun (_, f) => f.proto) =
+      some (.ok ⟨.float .longDouble, [.float .longDouble], false⟩) := by
+  rw [import_glibcMath]; decide +kernel
 
 set_option maxRecDepth 100000 in
 theorem provenance_reads :
