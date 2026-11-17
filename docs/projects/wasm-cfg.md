@@ -990,8 +990,15 @@ The plain graph stays an over-approximation, and claims about it say so.
                `nativeHostSlice_instHostNT`, `hostSliceE_instHostNT`.
              - Obstruction: `not_nativeHostSlice_instHost`.
 
-             Remaining: host exceptions. `instHost` may answer `Answer.throw a`, which the
-             native↔Core bridge (`NativeHostSlice.noThrow`) excludes. So for instances with
+             Host exceptions in the bridge are done. The XP native↔Core bridge (`HostClosingXP`,
+             `HostClosingS`, `HostClosingInfXP(Back)`, `HostSquareXP`, `HostStratXP`,
+             `HostSessionXP`) now takes `Interp.HostSliceT`, which is `NativeHostSlice` without
+             `noThrow`. Old callers pass `NativeHostSlice.toT`. Caller handlers catch a host
+             throw, tail host throws bypass them, and the callee store is kept. Existence of
+             the thrown exception is needed only by the backward sites, which get it from
+             `HostTyped`. Remaining at the instance layer: `instHost` may answer
+             `Answer.throw a` with a dangling `a`. That violates `HostTyped`, which the
+             native↔Core bridge needs (the old obstruction was `NativeHostSlice.noThrow`). So for instances with
              imports, `core3SemD` keeps its Core session (`cfgInstSessions` falls back), and
              only the throw-free session is CFG-equal.
           3. **Regressions, done** (`Wasm/Cfg/ExampleRegress`). One validated store (`rgMod`,
