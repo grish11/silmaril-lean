@@ -20,14 +20,14 @@ open Silmaril.Proofs.Elf.Abi.Zlib (A0)
 
 /-- `Declares` from the decidable comparison of lowered signatures. -/
 theorem declares_of_sig {hdr : HeaderSrc} {f : String} {p : Silmaril.Machine.Abi.SystemV.Proto}
-    (h : (hdr.proto? f).bind (fun cp => (sysvInt.lower cp).toOption.map (·.signature)) = some p.signature) :
+    (h : (hdr.proto? f).bind (fun cp => (sysvInt.lower hdr.env cp).toOption.map (·.signature)) = some p.signature) :
     Declares sysvInt hdr f p := by
   cases hp : hdr.proto? f with
   | none => rw [hp] at h; cases h
   | some cp =>
     rw [hp] at h
     simp only [Option.bind_some] at h
-    cases hl : sysvInt.lower cp with
+    cases hl : sysvInt.lower hdr.env cp with
     | error e => rw [hl] at h; cases h
     | ok q =>
       rw [hl] at h
