@@ -36,8 +36,9 @@ const WastModel = (() => {
     "silmaril.shapes.wasm.wast.link.unlinkable": "after the linked script prefix, the module is valid and its imports do not resolve by name " +
       "to exports of registered modules, or resolve to addresses without the import types (ExternAddrOk, silmaril-lean's transcription " +
       "of Externaddr_ok); so no Instantiate derivation exists for them (Unlinkable.not_instantiate)",
-    "silmaril.shapes.wasm.wast.link.uninstantiable": "after the linked script prefix, the module links and instantiateOnce? allocates it, " +
-      "and its start function traps at every host-free normal form (segment traps have no shape)",
+    "silmaril.shapes.wasm.wast.link.uninstantiable": "after the linked script prefix, the module links and its instantiation traps at every outcome: " +
+      "its segment initialisation traps (instantiateOnceT?; the script goes on with the residual store), " +
+      "or it is allocated and its start function traps at every host-free normal form",
   };
   // How strong a proved row's claim is (the report's `strength`).
   const CLAIM = {
