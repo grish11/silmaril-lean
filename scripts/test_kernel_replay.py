@@ -37,6 +37,7 @@ else:
             checker.write_text('''#!/usr/bin/env python3
 import json,os,sys
 from pathlib import Path
+assert os.environ['LEAN_NUM_THREADS'] == '2'
 Path(os.environ['REPLAY_TRACE']).write_text(json.dumps(sys.argv[1:]))
 raise SystemExit(int(os.environ['REPLAY_EXIT']))
 ''')
@@ -44,8 +45,8 @@ raise SystemExit(int(os.environ['REPLAY_EXIT']))
             checker.chmod(0o755)
             trace = directory / 'trace.json'
             result = subprocess.run(['bash', 'tools/compiler-explorer/replay.sh'], cwd=ROOT,
-                env={**os.environ, 'LAKE': str(lake), 'REPLAY_TRACE': str(trace),
-                     'REPLAY_EXIT': str(exit_code), 'LEAN_NUM_THREADS': '2'},
+                env={**{k:v for k,v in os.environ.items() if k != 'LEAN_NUM_THREADS'},
+                     'LAKE': str(lake), 'REPLAY_TRACE': str(trace), 'REPLAY_EXIT': str(exit_code)},
                 capture_output=True, text=True)
             return result, json.loads(trace.read_text())
 

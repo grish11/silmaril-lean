@@ -7,6 +7,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 LAKE="${LAKE:-lake}"
+# Bound the multi-target checker on runners that do not set a Lean task-pool size.
+export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-2}"
 checker="$(dirname "$("$LAKE" env which lean)")/leanchecker"
 modules=(
   Silmaril.Proofs.Compiler.CompilesTo.Sim.Compose
