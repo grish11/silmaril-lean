@@ -8,6 +8,25 @@ import Silmaril.Elf.Staged.Pinned.ZlibLibz.Defs
 import Silmaril.Elf.Staged.Pinned.GlibcLibm.Defs
 import Silmaril.Elf.Staged.Pinned.GlibcLibc.Defs
 import Silmaril.Crypto.SHA256
+-- The CLI tab's modules (`cliModules`), loaded at run time: imported here so that building
+-- `elf-pages` builds them, whatever the CI scope.
+import Silmaril.Elf.CliExe.Start.Thms
+import Silmaril.Elf.CliExe.Hello.Thms
+import Silmaril.Elf.Link.Dyn.Hello.Thms
+import Silmaril.Elf.Link.Dyn.LibMod.Hello.Thms
+import Silmaril.Elf.Link.Dyn.Libc.Hello.Thms
+import Silmaril.Elf.Link.Dyn.Program.Cli.Examples
+import Silmaril.Process.LPS.Problems.GnuSha256sum.Close
+import Silmaril.Process.LPS.Problems.Sha256Cli.EndToEnd
+import Silmaril.Cli.Institution.Std.Thms
+import Silmaril.Cli.Spec.Sha256sum.Thms
+import Silmaril.Cli.Spec.WasmOpt.Thms
+import Silmaril.Cli.Spec.Wac.Thms
+import Silmaril.Cli.Spec.Jco.Thms
+import Silmaril.Cli.Spec.Asyncify.Thms
+import Silmaril.Cli.Spec.WasmTools.Thms
+import Silmaril.Cli.Spec.WasmVerify.Thms
+import Silmaril.Wasm.Binaryen.DriverSpec.Thms
 
 /-!
 # `elf-pages`: the explorer's ELF tab data
