@@ -59,10 +59,11 @@ call. The IR side is the law `ExpSpec.AdeqD` for a simple exporter only.
 
 **Not claimed.**
 
-* The IR side for linked components: `LinkedG.toExp` meeting `ExpSpec.AdeqD` (the linked IR
-  divergence iff `sessDivs`, #789–#825 generalised); only the simple exporter's IR law is
-  proved. For `Linked2` the read-back of chatter needs a deterministic profile (`profile o`), so
-  the general statement is expected to need it too.
+* The IR side for linked components here: `LinkedG.toExp` meeting `ExpSpec.AdeqD` (the linked
+  IR divergence iff `sessDivs`, #789–#825 generalised) is in `LinkedGDivIR`, proved except for
+  the read-back of chatter (`LinkedG.toExp_adeqD_of`, conditional on
+  `LinkedG.Task.ChatterReadBack`). For `Linked2` that read-back needs a deterministic profile
+  (`profile o`).
 * Infinite plays, ill-typed calls, host imports of the importer.
 
 Proofs: `Silmaril.Proofs.Wasm.Component.Reference.LinkedGDiv.{Simple, SimpleIR, Round, Call,
