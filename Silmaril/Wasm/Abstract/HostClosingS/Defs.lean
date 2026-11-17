@@ -33,6 +33,7 @@ This module closes the same relation natively with store-keeping traps:
   answer `.inr ()` with its store, resolved by `Shape.Subst.int`.
 * `ReachLXPS`, `PendLXPS`, `wasmEvPendXPS`: the pending host calls, as `ReachLXP`, `PendLXP`,
   `wasmEvPendXP`, over the session relation and closure.
+* `OCall.toS`: a call of the canonical logged semantics as a session call, its answer as `inl`.
 * `wasmEvFunDXPS`, `sessionTripleXP`: with the divergent behaviours of `wasmEvFunDXP` and the
   productive streams of `wasmEvInfNXP`, which carry no trap store: the session analog of
   `openTripleXP`.
@@ -540,5 +541,10 @@ def wasmEvFunDXPS :
 def sessionTripleXP :
     ObsTriple (wasmHostSig H) (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit.{1}) :=
   (wasmEvFunDXPS, wasmEvPendXPS, wasmEvInfNXP)
+
+/-- **A logged call of the canonical semantics as a session call**: its answer (values, or an
+exception raised at the call) as the `inl` answer of `SCall`. -/
+def OCall.toS : OCall H → SCall H
+  | ⟨.inr y, (b, s')⟩ => ⟨.inr y, (.inl b, s')⟩
 
 end Silmaril.Wasm.Abstract

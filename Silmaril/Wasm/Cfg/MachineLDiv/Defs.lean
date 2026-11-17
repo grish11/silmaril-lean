@@ -28,6 +28,11 @@ or its exception, or its trap, with the store it leaves). It has three distinct 
 the callee is a Wasm function whose body diverges from the CFG entry (`MDivL`), or reaches a
 diverging tail callee (`TailDivK`).
 
+**After a log** (`MLogDivL body st l`): logged steps with arbitrary answers, then, from a boundary
+inside a step, host-free divergence (`MDivL`, or a reached call whose callee diverges). The log is
+the calls before the boundary. The logged calls of the canonical semantics (`Abstract.OCall`, as
+`Abstract.LogDivXP` records them) are read as session calls by `Abstract.OCall.toS`.
+
 The diverging callees are named by native frame divergence (`FunDivXP`), as the closed answers are
 the native oracle's: this is the machine's divergence over the native closed semantics, not a
 recursive CFG closure (H3).
@@ -82,5 +87,16 @@ def FunDivL (s : Store H) (a : Nat) (args : List Val) : Prop :=
   ∃ (fi : FuncInst H) (fn : Func), s.funcs[a]? = some fi ∧ fi.code = .wasm fn ∧
     (MDivL fn.body (initial fn.body s (Frame.forCall fi.module args fn.locals)) ∨
       TailDivK fn.body (initial fn.body s (Frame.forCall fi.module args fn.locals)))
+
+/-- **Divergence after a log, on the machine**: logged steps with the log `l₁`, then from `st₁` a
+step whose log is `l₂` followed by oracle-answered entries `l₃`, after which the body diverges
+(`MDivL`); or a block reaching, after `l₂` then oracle-answered entries, an internal call whose
+callee diverges at the frame. The log is `l₁ ++ l₂`: the calls before the boundary, which may
+fall inside a step. -/
+def MLogDivL (body : Expr) (st : MState H) (l : List (SCall H)) : Prop :=
+  ∃ (st₁ : MState H) (l₁ l₂ l₃ : List (SCall H)), MRunL body st l₁ st₁ ∧ l = l₁ ++ l₂ ∧
+    (∀ e ∈ l₃, CloseOk closedCallXP e) ∧
+    ((∃ st₂, MStepL body st₁ (l₂ ++ l₃) st₂ ∧ MDivL body st₂) ∨
+      (∃ z, ReachL body st₁ (l₂ ++ l₃) z ∧ FunDivXP z.2.2 z.1 z.2.1))
 
 end Silmaril.Wasm.Cfg.MachineL

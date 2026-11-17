@@ -33,6 +33,8 @@ The session closure `wasmEvFunXPS` keeps the store of every trap, and erasing th
   `s₂` (forward every profile, `wasmEvFunXPS_trap_evRun`; backward deterministic). Values and
   exceptions are the canonical ones (`mem_wasmEvFunXPS_ret_iff`, `wasmEvFunXPS_vals_iff`,
   `wasmEvFunXPS_throw_iff`).
+* `evalLXPh_session`: a canonical logged run not ending in a trap is a session run, its calls
+  answered as `inl` (`OCall.toS`).
 * `wasmEvPendXPS_eq`: the session pending calls are the canonical ones.
 * `wasmEvFunDXPS_erase`, `eraseTrap_sessionTripleXP`, `sessionTripleXP_noPlainTrap`: the session
   triple erases to `openTripleXP` and keeps every trap's store.
@@ -193,6 +195,20 @@ theorem wasmEvFunXPS_throw_iff (hT : HostTyped host) (hH : NativeHostSlice host)
 
 end CoreIff
 
+
+/-! ## Canonical runs as session runs -/
+
+@[simp] theorem OCall.toS_mk {a : Nat} {args : List Val} {s s' : Store H} {b : List Val ⊕ Nat} :
+    OCall.toS (OCall.mk a args s b s') = SCall.mk a args s (.inl b) s' := rfl
+
+/-- **A canonical logged run not ending in a trap is a session run**, its calls answered as `inl`
+(`OCall.toS`). -/
+theorem evalLXPh_session {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (OCall H)} {r : Store H × Frame × CallXP.POut} (h : EvalLXPh s f stk es l r)
+    (ho : r.2.2 ≠ .flow .trap) : EvalLXPS s f stk es (l.map OCall.toS) r := by
+  have : (OCall.toS : OCall H → SCall H) = Silmaril.Proofs.Wasm.Abstract.HostClosingS.oToS := by
+    funext z; rcases z with ⟨⟨⟨⟩⟩ | y, b, s'⟩; rfl
+  rw [this]; exact Silmaril.Proofs.Wasm.Abstract.HostClosingS.evalLXPh_toS_ok h ho
 
 /-! ## Pending calls -/
 

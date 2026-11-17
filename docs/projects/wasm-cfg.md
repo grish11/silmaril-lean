@@ -640,7 +640,20 @@ The plain graph stays an over-approximation, and claims about it say so.
             Steps are classified by depth (`MStepS`): re-entering a loop counts as leaving its
             arm. At the first step leaving an arm, the arm's run is read natively by a forward
             invariant relative to the arm's frame (`Proofs/Wasm/Cfg/MachineLRel`, `arm_fwd`).
-          - Then: `LogDivXP` after a logged prefix (D3).
+        - **Divergence after a log, D3 in progress.** `MLogDivL body st l`: logged steps, then a
+          boundary inside a step, then host-free divergence (`MDivL`, or a reached call whose
+          callee diverges). The log is the calls before the boundary.
+          - Done, native to machine: `logDiv_machine`. `LogDivXP s f [] (liftInstrs body) L`
+            gives `MLogDivL body (initial body s f) (L.map ocallS)`, the same log. The proof is an
+            induction on `LogDivXP` with a block clause and a loop arm-entry clause, as the
+            converse's `Mot`. Its base case is the native-to-machine divergence progress
+            generalized to an open prefix (`ProgO`).
+          - Open, machine to native: `MLogDivL` gives `LogDivXP` with the log extended by
+            oracle-answered entries. `LogDivXP` places the boundary only where the remaining
+            subproblem diverges; the machine's boundary can be earlier, the run then leaving that
+            sequence (for instance by a branch to an enclosing loop) with closed calls before the
+            native boundary. The closure resolves those entries with empty host logs.
+
         - Still open after that: coherent productive streams (`InfLXP`).
         - The closed oracle `closedCallXP` used here is the native one. These results do not
           discharge H3, which still needs the recursive logged CFG closure.

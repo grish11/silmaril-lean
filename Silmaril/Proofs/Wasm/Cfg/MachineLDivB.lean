@@ -312,10 +312,10 @@ theorem enter_inv {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {s
     {np nr : Nat} {bt : BlockType} {loop tryT : Bool} {cs : List Catch}
     (hp : Pos body p c i sg pre [t]) (hok : FramesOk body p.reverse ls)
     (hpre : EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N)))
-    (hl₀ : AllOk closedCallXP l₀) (hk : StructKind t bt loop tryT cs) (hsel : ArmSel t N a V')
+    (hk : StructKind t bt loop tryT cs) (hsel : ArmSel t N a V')
     (harm : armOf t a = some c') (har : arity f bt = some (np, nr))
     (hX : EvalDivXP s f (V'.take np) (liftInstrs c')) :
-    ∃ st', StepK body ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ st' ∧ InvB body st' := by
+    ∃ st', MStepL body ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ l₀ st' ∧ InvB body st' := by
   obtain ⟨ht, -, rfl⟩ := pos_term hp (isStruct_terminator ⟨_, _, _, _, hk⟩)
   have hb : lookup body ⟨p, i⟩ = some sg := by rw [lookup_eq]; simp [hp.hc, hp.hsg]
   have hcA : seqAt body (p ++ [(i, a)]) = some c' := by
@@ -325,8 +325,8 @@ theorem enter_inv {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {s
   have hg := gotoN_entry hcA hsg₀
     (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls) (V'.take np).reverse
     s f
-  refine ⟨_, ⟨l₀, MStepL.enter hb ht harm hk (by rw [List.reverse_reverse]; exact hpre) hsel har
-    (by simpa using hg), hl₀⟩, ?_⟩
+  refine ⟨_, MStepL.enter hb ht harm hk (by rw [List.reverse_reverse]; exact hpre) hsel har
+    (by simpa using hg), ?_⟩
   exact invB_at hcA hsg₀ (by simpa using arm_ok hp hk harm hok _ _) hX
 
 /-- **A pending internal call of a block**, reached after an oracle-answered prefix. -/
@@ -351,18 +351,55 @@ theorem reachL_at {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {s
 
 /-! ## Progress -/
 
+/-- **Progress after an open prefix** `l₀`: a nonempty run from `st` whose log is `l₀` then
+oracle-answered entries, to an invariant state; or a reached call, after `l₀` then oracle-answered
+entries, whose callee diverges at the frame. -/
+def ProgO (body : Expr) (st : MState H) (l₀ : List (SCall H)) : Prop :=
+  (∃ (l₁ : List (SCall H)) (st₁ : MState H) (l₂ : List (SCall H)) (st' : MState H)
+    (L : List (SCall H)), MStepL body st l₁ st₁ ∧ MRunL body st₁ l₂ st' ∧ l₁ ++ l₂ = l₀ ++ L ∧
+      AllOk closedCallXP L ∧ (InvB body st' ∨ InvA body st')) ∨
+  (∃ (L : List (SCall H)) (z : (Abstract.wasmOShape H).self.Op), ReachL body st (l₀ ++ L) z ∧
+    AllOk closedCallXP L ∧ FunDivXP z.2.2 z.1 z.2.1)
+
+theorem progO_append {body : Expr} {st : MState H} {l₀ l : List (SCall H)}
+    (h : ProgO body st (l₀ ++ l)) (hl : AllOk closedCallXP l) : ProgO body st l₀ := by
+  rcases h with ⟨l₁, st₁, l₂, st', L, hs, hr, heq, hL, hI⟩ | ⟨L, z, hR, hL, hY⟩
+  · exact .inl ⟨l₁, st₁, l₂, st', l ++ L, hs, hr, by simp [heq], allOk_append.2 ⟨hl, hL⟩, hI⟩
+  · exact .inr ⟨l ++ L, z, by simpa using hR, allOk_append.2 ⟨hl, hL⟩, hY⟩
+
+/-- A strict run to a stop state is a first step, then a run. -/
+theorem mEnds_run {body : Expr} {st st' : MState H} {l : List (SCall H)}
+    (h : MEnds body (fun _ => False) (· = st') st l) :
+    ∃ l₁ st₁ l₂, MStepL body st l₁ st₁ ∧ MRunL body st₁ l₂ st' ∧ l = l₁ ++ l₂ := by
+  obtain ⟨st₀, l₁, l₂, hr, rfl, ⟨st'', hs, rfl⟩ | ⟨_, hF, _⟩⟩ := h
+  · cases hr with
+    | refl => exact ⟨l₂, st'', [], hs, .refl _, by simp⟩
+    | step h₁ h₂ =>
+      exact ⟨_, _, _, h₁, MachineLPend.mrun_snoc h₂ hs, by simp⟩
+  · exact hF.elim
+
+/-- With an oracle-answered prefix, progress is oracle-answered steps. -/
+theorem progO_closed {body : Expr} {st : MState H} {l₀ : List (SCall H)} (h : ProgO body st l₀)
+    (hl₀ : AllOk closedCallXP l₀) :
+    (∃ st', Relation.TransGen (StepK body) st st' ∧ (InvB body st' ∨ InvA body st')) ∨
+      CalleeDivK body st := by
+  rcases h with ⟨l₁, st₁, l₂, st', L, hs, hr, heq, hL, hI⟩ | ⟨L, z, hR, hL, hY⟩
+  · have hall : AllOk closedCallXP (l₁ ++ l₂) := by rw [heq]; exact allOk_append.2 ⟨hl₀, hL⟩
+    obtain ⟨h₁, h₂⟩ := allOk_append.1 hall
+    exact .inl ⟨st', Relation.TransGen.head' ⟨_, hs, h₁⟩ (run_stepK hr h₂), hI⟩
+  · exact .inr ⟨st, _, z, .refl, hR, allOk_append.2 ⟨hl₀, hL⟩, hY⟩
+
 /-- **From a block whose rest diverges**, the machine makes at least one oracle-answered step to
 an invariant state, or reaches a diverging callee. -/
 theorem progB {body : Expr} : ∀ (post : List Instr) {p : List SeqStep} {c : List Instr} {i : Nat}
     {sg : Segment} {pre : List Instr} {ls : List LFrame} {s : Store H} {f : Frame}
     {N : List Val} {s₀ : Store H} {f₀ : Frame} {N₀ : List Val} {l₀ : List (SCall H)},
     Pos body p c i sg pre post → FramesOk body p.reverse ls →
-    EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N)) → AllOk closedCallXP l₀ →
+    EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N)) →
     EvalDivXP s f N (liftInstrs post ++ liftInstrs (restAt c (i + 1))) →
-    (∃ st', Relation.TransGen (StepK body) ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ st' ∧
-      (InvB body st' ∨ InvA body st')) ∨ CalleeDivK body ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩
-  | [], _, _, _, _, _, _, _, _, _, _, _, _, _, hp, _, _, _, _ => absurd rfl hp.hpost
-  | e :: post', p, c, i, sg, pre, ls, s, f, N, s₀, f₀, N₀, l₀, hp, hok, hpre, hl₀, hdiv => by
+    ProgO body ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ l₀
+  | [], _, _, _, _, _, _, _, _, _, _, _, _, _, hp, _, _, _ => absurd rfl hp.hpost
+  | e :: post', p, c, i, sg, pre, ls, s, f, N, s₀, f₀, N₀, l₀, hp, hok, hpre, hdiv => by
     have hd := evalDivXP_iff_step.1 hdiv
     generalize hes : liftInstrs (e :: post') ++ liftInstrs (restAt c (i + 1)) = es at hd
     simp only [liftInstrs, List.cons_append] at hes
@@ -387,8 +424,9 @@ theorem progB {body : Expr} : ∀ (post : List Instr) {p : List SeqStep} {c : Li
           ⟨_, _, _, _, hk⟩ rfl rfl hp hok ⟨_, hg, .inr ⟨rfl, rfl⟩⟩ a c' V' np nr bt loop tryT cs hk
           hsel harm har
         have hE := blk_enter hp hk hsel harm har hA s₀ f₀ N₀ l₀ hpre
-        refine .inl ⟨_, mEnds_trans hE (by simpa using allOk_append.2 ⟨hl₀, hlok⟩), .inl ?_⟩
-        exact invB_at hp.hc hsg' hok hX
+        obtain ⟨l₁, st₁, l₂, hs, hr, heq⟩ := mEnds_run hE
+        exact .inl ⟨l₁, st₁, l₂, _, l_e, hs, hr, by rw [← heq]; simp, hlok,
+          .inl (invB_at hp.hc hsg' hok hX)⟩
       · cases post' with
         | nil =>
           have ht := pos_last_nonstruct hp hse
@@ -398,48 +436,49 @@ theorem progB {body : Expr} : ∀ (post : List Instr) {p : List SeqStep} {c : Li
               (s₂, f₂, .flow (.normal N₂)) := by
             rw [List.reverse_reverse, codeOf_eq, hp.hinstrs, MachineLSeq.liftInstrs_append]
             exact (MachineLSeq.append hpre _).2 _ _ _ rfl _ _ (by simpa [liftInstrs] using hle)
-          refine .inl ⟨_, .single ⟨_, MStepL.run hb ht hr
-            (.next (by simpa using gotoN_entry hp.hc hsg' ls N₂.reverse s₂ f₂)),
-            allOk_append.2 ⟨hl₀, hlok⟩⟩, .inl ?_⟩
-          exact invB_at hp.hc hsg' hok hX
+          exact .inl ⟨_, _, [], _, l_e, MStepL.run hb ht hr
+            (.next (by simpa using gotoN_entry hp.hc hsg' ls N₂.reverse s₂ f₂)), .refl _, by simp,
+            hlok, .inl (invB_at hp.hc hsg' hok hX)⟩
         | cons e' post'' =>
           have hpre' : EvalLXPS s₀ f₀ N₀ (liftInstrs (pre ++ [e])) (l₀ ++ l_e)
               (s₂, f₂, .flow (.normal N₂)) := by
             rw [MachineLSeq.liftInstrs_append]
             exact (MachineLSeq.append hpre _).2 _ _ _ rfl _ _ (by simpa [liftInstrs] using hle)
-          exact progB (e' :: post'') (pos_next hp hse) hok hpre' (allOk_append.2 ⟨hl₀, hlok⟩) hX
+          exact progO_append (progB (e' :: post'') (pos_next hp hse) hok hpre' hX) hlok
     | callee hargs hfi hty hY =>
       obtain ⟨hhd, -⟩ := List.cons.inj hes
       obtain ⟨rfl, rfl, hse⟩ := lift_op hhd
       obtain ⟨rfl, rfl, rfl⟩ := closed_nil hargs
-      exact .inr ⟨_, _, _, .refl, reachL_at hp hse hpre (fun _ => .call .nil hfi hty), hl₀, hY⟩
+      exact .inr ⟨[], _, by simpa using reachL_at hp hse hpre (fun _ => .call .nil hfi hty),
+        allOk_nil _, hY⟩
     | callIndCallee hargs hres hfi hty hy hY =>
       obtain ⟨hhd, -⟩ := List.cons.inj hes
       obtain ⟨rfl, rfl, hse⟩ := lift_op hhd
       obtain ⟨rfl, rfl, hN⟩ := closed_nil hargs
       subst hN
-      exact .inr ⟨_, _, _, .refl, reachL_at hp hse hpre (fun _ => .ind .nil hres hfi hty hy), hl₀,
-        hY⟩
+      exact .inr ⟨[], _, by simpa using reachL_at hp hse hpre (fun _ => .ind .nil hres hfi hty hy),
+        allOk_nil _, hY⟩
     | callRefCallee hargs hfi hty hy hY =>
       obtain ⟨hhd, -⟩ := List.cons.inj hes
       obtain ⟨rfl, rfl, hse⟩ := lift_op hhd
       obtain ⟨rfl, rfl, hN⟩ := closed_nil hargs
       subst hN
-      exact .inr ⟨_, _, _, .refl, reachL_at hp hse hpre (fun _ => .ref .nil hfi hty hy), hl₀, hY⟩
+      exact .inr ⟨[], _, by simpa using reachL_at hp hse hpre (fun _ => .ref .nil hfi hty hy),
+        allOk_nil _, hY⟩
     | block har hX =>
       obtain ⟨hhd, -⟩ := List.cons.inj hes
       obtain ⟨b₀, rfl, rfl⟩ := lift_block hhd
       obtain ⟨-, rfl, -⟩ := pos_term hp rfl
-      obtain ⟨st', hs, hI⟩ := enter_inv hp hok hpre hl₀ .block (.plain (fun _ _ _ => nofun)) rfl
+      obtain ⟨st', hs, hI⟩ := enter_inv hp hok hpre .block (.plain (fun _ _ _ => nofun)) rfl
         har hX
-      exact .inl ⟨st', .single hs, .inl hI⟩
+      exact .inl ⟨l₀, st', [], st', [], hs, .refl _, by simp, allOk_nil _, .inl hI⟩
     | loop har hX =>
       obtain ⟨hhd, -⟩ := List.cons.inj hes
       obtain ⟨b₀, rfl, rfl⟩ := lift_loop hhd
       obtain ⟨-, rfl, -⟩ := pos_term hp rfl
-      obtain ⟨st', hs, hI⟩ := enter_inv hp hok hpre hl₀ .loop (.plain (fun _ _ _ => nofun)) rfl
+      obtain ⟨st', hs, hI⟩ := enter_inv hp hok hpre .loop (.plain (fun _ _ _ => nofun)) rfl
         har hX
-      exact .inl ⟨st', .single hs, .inl hI⟩
+      exact .inl ⟨l₀, st', [], st', [], hs, .refl _, by simp, allOk_nil _, .inl hI⟩
     | @loopBack _ s₁ _ f₁ _ vs bt _ _ np nr har hbody hX =>
       obtain ⟨hhd, htl⟩ := List.cons.inj hes
       obtain ⟨b₀, rfl, rfl⟩ := lift_loop hhd
@@ -466,7 +505,8 @@ theorem progB {body : Expr} : ∀ (post : List Instr) {p : List SeqStep} {c : Li
         hp .loop rfl hok hlb (mot hlb)
         (exit_loopBack (hokA _ _) rfl har₁ ⟨_, by simpa [hN'] using hg₂, .inr ⟨rfl, rfl⟩⟩)
       have hE := blk_enter hp .loop (.plain (fun _ _ _ => nofun)) rfl har hA s₀ f₀ N₀ l₀ hpre
-      refine .inl ⟨_, mEnds_trans hE (by simpa using allOk_append.2 ⟨hl₀, hlbok⟩), .inr ?_⟩
+      obtain ⟨l₁, st₁, l₂, hs, hr, heq⟩ := mEnds_run hE
+      refine .inl ⟨l₁, st₁, l₂, _, l_b, hs, hr, by rw [← heq]; simp, hlbok, .inr ?_⟩
       exact ⟨p, c, i, sg, sg.body, _, bt, false, [], b₀, sg₀, ls, s₁, f₁, N', np, nr, hp, .loop, rfl,
         hsg₀, hok, har₁, rfl, by simpa [liftInstrs, liftInstr] using hX⟩
     | cond hX =>
@@ -479,15 +519,15 @@ theorem progB {body : Expr} : ∀ (post : List Instr) {p : List SeqStep} {c : Li
       obtain ⟨rfl, rfl, rfl⟩ := closed_nil hc
       obtain ⟨-, rfl, -⟩ := pos_term hp rfl
       rw [liftInstrs_ite] at hX
-      obtain ⟨st', hs, hI⟩ := enter_inv hp hok hpre hl₀ .if_ (.cond hb) (armOf_if' _ _ _ _) har hX
-      exact .inl ⟨st', .single hs, .inl hI⟩
+      obtain ⟨st', hs, hI⟩ := enter_inv hp hok hpre .if_ (.cond hb) (armOf_if' _ _ _ _) har hX
+      exact .inl ⟨l₀, st', [], st', [], hs, .refl _, by simp, allOk_nil _, .inl hI⟩
     | try_ har hX =>
       obtain ⟨hhd, -⟩ := List.cons.inj hes
       obtain ⟨b₀, rfl, rfl⟩ := lift_try hhd
       obtain ⟨-, rfl, -⟩ := pos_term hp rfl
-      obtain ⟨st', hs, hI⟩ := enter_inv hp hok hpre hl₀ .tryTable (.plain (fun _ _ _ => nofun))
+      obtain ⟨st', hs, hI⟩ := enter_inv hp hok hpre .tryTable (.plain (fun _ _ _ => nofun))
         rfl har hX
-      exact .inl ⟨st', .single hs, .inl hI⟩
+      exact .inl ⟨l₀, st', [], st', [], hs, .refl _, by simp, allOk_nil _, .inl hI⟩
 
 /-- **From the entry of a diverging loop's arm**: the arm's own block diverges there, or the
 machine makes at least one oracle-answered step to an invariant state, or reaches a diverging
@@ -569,7 +609,7 @@ theorem prog {body : Expr} {st : MState H} (h : InvB body st ∨ InvA body st) :
   have hB : InvB body st → (∃ st', Relation.TransGen (StepK body) st st' ∧
       (InvB body st' ∨ InvA body st')) ∨ CalleeDivK body st := by
     rintro ⟨p, c, i, sg, pre, post, ls, s, f, N, s₀, f₀, N₀, l₀, rfl, hp, hok, hpre, hl₀, hdiv⟩
-    exact progB post hp hok hpre hl₀ hdiv
+    exact progO_closed (progB post hp hok hpre hdiv) hl₀
   rcases h with h | h
   · exact hB h
   · rcases progA h with h' | h' | h'

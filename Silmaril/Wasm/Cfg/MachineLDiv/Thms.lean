@@ -2,8 +2,10 @@ module
 
 public import Silmaril.Wasm.Cfg.MachineLDiv.Defs
 public import Silmaril.Wasm.Abstract.XDivergeP.Thms
+public import Silmaril.Wasm.Abstract.HostClosingInfXP.Defs
 import Silmaril.Proofs.Wasm.Cfg.MachineLDivF
 import Silmaril.Proofs.Wasm.Cfg.MachineLDivI
+import Silmaril.Proofs.Wasm.Cfg.MachineLLogDiv
 
 @[expose] public section
 
@@ -32,7 +34,15 @@ On the machine it is `MDivL` (infinite oracle-answered local steps `InfK`, or a 
 The three forms stay distinct: `InfK` runs forever by finitely answered steps, `CalleeDivK` stops
 at a call whose callee diverges, `TailDivK` stops at a pending tail call whose callee diverges.
 
-Not yet here: divergence after a host-event log (`LogDivXP`), and productive streams. The closed
+* **`logDiv_machine`** (after a log, native to machine): divergence after a host-event log in the
+  canonical semantics (`Abstract.LogDivXP`: an `EvalLXPh` prefix with the log `L`, then host-free
+  divergence) is the machine's divergence after the same log (`MLogDivL`, the calls read by
+  `Abstract.OCall.toS`). The log's boundary may fall inside a block's straight-line code: the machine's step
+  there has the log's last calls, then oracle-answered calls, then diverges.
+
+Not yet here: the converse after a log (machine to native), which can only hold up to extending
+the log by oracle-answered calls, since `LogDivXP` places the boundary where the remaining
+subproblem diverges; and productive streams. The closed
 answers and the diverging callees are those of the native oracle: this does not discharge H3
 (`docs/projects/wasm-cfg.md`).
 -/
@@ -93,6 +103,12 @@ theorem funDiv_of_infK {s : Store H} {a : Nat} {args : List Val} {fi : FuncInst 
     (h : InfK fn.body (initial fn.body s (Frame.forCall fi.module args fn.locals))) :
     FunDivXP s a args :=
   funDivXP_iff.2 ⟨fi, fn, hfi, hcode, .inl (infK_div h)⟩
+
+/-- **Divergence after a log is the machine's divergence after the same log.** -/
+theorem logDiv_machine {body : Expr} {s : Store H} {f : Frame} {L : List (Abstract.OCall H)}
+    (h : Abstract.LogDivXP s f [] (liftInstrs body) L) :
+    MLogDivL body (initial body s f) (L.map Abstract.OCall.toS) :=
+  Proofs.MachineLLogDiv.logDiv_machine h
 
 /-- **Native frame divergence of a call is machine frame divergence**, both ways. -/
 theorem funDiv_iff {s : Store H} {a : Nat} {args : List Val} :
