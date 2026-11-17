@@ -103,4 +103,70 @@ theorem block_abrupt {body : Expr} {Fin : Store H × Frame × POut → Prop} {b 
   · obtain ⟨rfl, hF⟩ := hx
     exact ⟨_, _, [], l, .refl _, by simp, hF, .inr (.tail hb ht hr)⟩
 
+/-! ## Exit obligations across a frame -/
+
+theorem branchN_succ (body : Expr) (p : List SeqStep) (x : SeqStep) (L₀ : LFrame)
+    (ls : List LFrame) (k : Nat) (L : LFrame) (N : List Val) (s : Store H) (f : Frame) :
+    branchN body ⟨p ++ [x], 0⟩ (L₀ :: ls) (k + 1) L N s f = branchN body ⟨p, 0⟩ ls k L N s f := by
+  rw [branchN_eq, branchN_eq]
+  simpa using branchR_succ body x p.reverse L₀ ls k L N s f
+
+/-- **A branch passing the frame**: `brk (k + 1)` inside is `brk k` outside. -/
+theorem exit_brk_succ {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {x : SeqStep} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {k : Nat}
+    {ws : List Val} {l' : List (SCall H)}
+    (hx : ExitE body Fin p ls (s, f, .flow (.brk k ws)) l') :
+    ExitE body Fin (p ++ [x]) (L :: ls) (s, f, .flow (.brk (k + 1) ws)) l' := by
+  obtain ⟨st, hd, hE⟩ := hx
+  refine ⟨st, ?_, hE⟩
+  cases hd with
+  | br hL hg => exact .br (by simpa using hL) (by rw [branchN_succ]; exact hg)
+  | brOut hk => exact .brOut (by simp [hk])
+
+/-- **An escaping outcome passing the frame** (a return, a trap, a pending tail call, or an
+exception the frame does not catch). -/
+theorem exit_esc {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {x : SeqStep} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {o : POut}
+    {l' : List (SCall H)} (ho : o.Escapes)
+    (hpass : ∀ a, o = .flow (.throw a) → L.tryT = true → Catches s f a L.catches none)
+    (hx : ExitE body Fin p ls (s, f, o) l') : ExitE body Fin (p ++ [x]) (L :: ls) (s, f, o) l' := by
+  rcases o with fl | ⟨fa, args, n⟩
+  · cases fl with
+    | normal => exact absurd ho id
+    | brk => exact absurd ho id
+    | ret ws =>
+      obtain ⟨st, hd, hE⟩ := hx
+      refine ⟨st, ?_, hE⟩
+      cases hd; exact .ret
+    | trap =>
+      obtain ⟨st, hd, hE⟩ := hx
+      refine ⟨st, ?_, hE⟩
+      cases hd; exact .trap
+    | throw a =>
+      obtain ⟨st, hd, hE⟩ := hx
+      refine ⟨st, ?_, hE⟩
+      cases hd with
+      | raise hT =>
+        refine .raise fun k L' hL' hTL => ?_
+        rcases k with _ | k
+        · simp only [List.getElem?_cons_zero, Option.some.injEq] at hL'; subst hL'
+          exact hpass a rfl hTL
+        · exact hT k L' (by simpa using hL') hTL
+      | @catch_ _ _ _ j _ _ _ lb _ hpass' hL hT hc hL' hg =>
+        refine .catch_ (j := j + 1) (fun k L' hk hL'' hTL => ?_) (by simpa using hL) hT hc
+          (by rw [show j + 1 + 1 + lb.toNat = (j + 1 + lb.toNat) + 1 by omega]; simpa using hL') ?_
+        · rcases k with _ | k
+          · simp only [List.getElem?_cons_zero, Option.some.injEq] at hL''; subst hL''
+            exact hpass a rfl hTL
+          · exact hpass' k L' (by omega) (by simpa using hL'') hTL
+        · rw [show j + 1 + 1 + lb.toNat = (j + 1 + lb.toNat) + 1 by omega, branchN_succ]; exact hg
+      | catchOut hpass' hL hT hc hout =>
+        refine .catchOut (j := _ + 1) (fun k L' hk hL'' hTL => ?_) (by simpa using hL) hT hc
+          (by simp; omega)
+        rcases k with _ | k
+        · simp only [List.getElem?_cons_zero, Option.some.injEq] at hL''; subst hL''
+          exact hpass a rfl hTL
+        · exact hpass' k L' (by omega) (by simpa using hL'') hTL
+  · exact hx
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLBwd
