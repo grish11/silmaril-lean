@@ -95,6 +95,7 @@ elf-check:
 	$(LAKE) build --wfail elf-staged elf-pages Silmaril.Elf.Staged.Reader.Examples \
 		$(ELF_PINNED) Silmaril.Elf.Staged.Pinned.ZlibChecksums.Contracts
 	scripts/elf-reader/gen.sh --check
+	python3 -I scripts/libm-rows/gen.py --check
 	scripts/elf-reader/test-pages.sh
 
 release-check:
