@@ -87,7 +87,7 @@ logic-graph-check:
 	LAKE="$(LAKE)" scripts/logic-graph/test-incremental.sh
 
 # The ELF reader's pinned files, generated modules and explorer data (docs/projects/elf-reader.md).
-ELF_PINNED := $(foreach n,HelloGcc HelloClang Sha256sum LeafArith ZlibChecksums ZlibLibz GlibcLibm GlibcLibc,\
+ELF_PINNED := $(foreach n,HelloGcc HelloClang Sha256sum ZlibChecksums ZlibLibz GlibcLibm GlibcLibc,\
 	Silmaril.Elf.Staged.Pinned.$(n).Thms Silmaril.Elf.Staged.Pinned.$(n).Functions)
 elf-check:
 	examples/elf/pin.sh --check
