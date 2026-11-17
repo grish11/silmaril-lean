@@ -7,7 +7,8 @@
 # 3. `verify` every manifest: run the exporter and record its result (fails when a named proof
 #    is not evidence: missing, another statement, other axioms);
 # 4. fail unless the statuses are examples/compiler-explorer/expected-status.txt;
-# 5. run the database and view tests.
+# 5. replay the kernel on the evidence modules (`replay.sh`, leanchecker);
+# 6. run the database and view tests.
 # Docker is not needed: the builds and listings are committed (fixtures.py build|listings).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -17,7 +18,7 @@ out="${1:-.lake/compiler-explorer}"
 mkdir -p "$out"
 "$LAKE" build --wfail cexplorer-export Silmaril.Compiler.Explorer.Det.Thms \
   Silmaril.Project.Shapes.CompilesTo.Explorer.Thms CompilesToExamples.Explorer.Builds \
-  CompilesToExamples.Explorer.Code CompilesToExamples.Explorer.Rows
+  CompilesToExamples.Explorer.Code CompilesToExamples.Explorer.Rows CompilesToExamples.Explorer.Decompiled
 regen="$(mktemp -d)"
 trap 'rm -rf "$regen"' EXIT
 "$PYTHON" -I tools/compiler-explorer/fixtures.py manifests --out "$regen" > /dev/null
@@ -35,6 +36,7 @@ if ! diff -u examples/compiler-explorer/expected-status.txt "$out/status.txt"; t
   echo "error: the statuses differ from examples/compiler-explorer/expected-status.txt" >&2
   exit 1
 fi
+LAKE="$LAKE" tools/compiler-explorer/replay.sh
 "$PYTHON" -I tools/compiler-explorer/tests/test_cexplorer.py
 node --test tools/compiler-explorer/tests/view.test.mjs
 echo "compiler explorer: ok ($(grep -c ' proved ' "$out/status.txt") proved obligations)"

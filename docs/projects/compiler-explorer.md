@@ -166,9 +166,29 @@ There are two kinds of link, never mixed:
 | decompiled | the decompiler's receipt read the target bytes and wrote the source bytes | `decompiled/scale`: gcc 13.3.0 `-O2` of `scale.c`, decompiled by `SemLift.propose`, `SemLift.check` (which accepts the proposal) and `WordC.regenerate` into `wc_scale` |
 | imported | nothing is derived; an origin may only be recorded as a claim | `imported/sha256-compress`: `xc_sha256.c` and the clang `-O2` assembly of `apps/sha256-cli` |
 
-No decompilation theorem is claimed. `WordC.checked_output_c0` relates a checked block to the C0
-evaluation of the generated expression, but no obligation states it for the fixture yet, and the
-`ret` lies outside the block. The imported assembly has a functional contract against a SHA-256
+The decompiled fixture has one stated obligation, `decompilation`:
+`Silmaril.Compiler.Explorer.DecompiledBlock "scale" bytes 1 inputs source`
+(`Silmaril.Compiler.Explorer.Decompiled`). It says three things:
+* the proposer's summary of the block is accepted by `SemLift.check`;
+* its `rax` expression lowers to a term that prints as exactly the text of `scale.dec.c`;
+* from every state where the block is loaded and entered, the machine reaches a state whose
+  `rax` is the C0 value of that term's typed Ail (`WordC.checked_output_c0`, through the generic
+  `decompiledBlock_of`).
+
+`CompilesToExamples.Explorer.Decompiled.scale` proves it for the five bytes, by kernel evaluation.
+Its statement is built from the fixture's own data:
+* the source artifact's text, as a Lean string literal;
+* the block's bytes. On ingest, the database reads the object's `.text` section from the ELF file
+  and checks that the bytes are there at the receipt's range. That is a tool check, not the
+  kernel's.
+
+What is not stated, and why:
+* The C text is *printed from* the term. It is not parsed or elaborated back, so no Cerberus or
+  C0 reading of the text itself is involved.
+* `ret` and the System V convention lie outside the block.
+* C0 is the repository's C subset interpreter, not Cerberus.
+
+So the translation, ABI, mapping and refinement questions stay unsupported for this problem. The imported assembly has a functional contract against a SHA-256
 specification (`Sha256O2.sha256_compress_O2`, [sha256sum](sha256sum.md)). That contract is not a
 statement about the C source beside it.
 
@@ -211,11 +231,20 @@ A status comes from one of three origins. Only the first two can make an obligat
   - Unverified: the line table and slot offsets read by `tools/c-tv`.
   - Recorded only: receipts (compiler, version, image digest, hashes).
   - Trusted: the semantics themselves (the Lean port of Cerberus Core, `Silmaril.X86.Open.isa`).
-  - Not replayed: the exporter reads theorem types from `.olean` files and does not run
-    `leanchecker`.
+  - Replay boundary: the exporter reads theorem types from `.olean` files. `replay.sh` (run by
+    `make compiler-explorer-check`) re-runs the toolchain's `leanchecker` on the evidence modules:
+    - each module's own declarations go through the kernel again, on top of imports loaded from
+      their `.olean` files;
+    - the imports themselves are not replayed (no `--fresh`, which would include Mathlib);
+    - it is the same kernel as the build, not an independent checker.
+
+    Locally, all 9 modules replay in 16–19 s each (`leanchecker-paranoid` on `Builds`: same
+    result).
 
 **Conditional and unconditional.**
-* The translation is unconditional for safe Core runs. For an unsafe Core run it says nothing.
+* The translation holds from every related entry whose Core state is safe: no Core run from it
+  reaches undefined behaviour, and every Core run from it is finite. From any other entry it says
+  nothing.
 * `c.compiles_to` (every Core entry, through `Task.<f>_safe`) remains open.
 * Non-vacuity is shown for one entry.
 * "ABI" means that an entry state exists for every argument tuple. Every execution's return-side
@@ -273,7 +302,7 @@ compares them with `examples/compiler-explorer/expected-status.txt`:
 | `branch.c -O2 max2` | open | proved | proved | open | 0/1 | proved |
 | `loop.c sum_to` | unsupported: the elaborator has no `while` | | | | | |
 | `hello`, `msort`, `fft`, `lisp` | unsupported (execution tests against expected output: passed) | | | | debug info only | |
-| `decompiled/scale` | unsupported (no decompilation obligation stated) | | | | the decompiled block | |
+| `decompiled/scale` | unsupported; the `decompilation` obligation (block → C0) is proved | | | | the decompiled block | |
 | `imported/sha256-compress` | unsupported | | | | none | |
 
 The other obligations are proved for every row with statements: the C-to-Core points, the
@@ -291,9 +320,10 @@ canonical-entry row. Safety from every Core entry is open everywhere.
 | non-vacuity | done for the C instance (`compilation_inhabited`) |
 | CI | done: `make check` runs the database and view tests, and `compiler-explorer-check` when `cexplorer-export` or `CompilesToExamples` is in scope; a broken proof fails it |
 | `sil project` | done: shapes, rows and the database adapter; the Pages tab is the remaining step (above) |
-| decompiled and imported directions | done, with fixtures and no theorem claimed |
+| decompiled and imported directions | done, with fixtures; the decompiled block's machine → C0 obligation is proved (bound to the object's bytes by a tool check, to the C text by printing); no whole-function decompilation theorem |
+| kernel replay | `leanchecker` on the evidence modules in `make compiler-explorer-check` (imports from `.olean`, same kernel) |
 | nondeterministic segment discipline, concurrent target | not done |
-| interactive compilation | not done by design: no sandboxed compile service |
+| interactive compilation (choose compiler, flags, source; compile on demand) | not done: a remaining goal. It needs a sandboxed compile service (resource limits, no network, pinned images, receipts written by the service) with an API the database can trust; the repository has none, and this page must not run compilers itself |
 
 ## Build
 

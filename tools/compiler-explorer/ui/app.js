@@ -130,7 +130,7 @@ function showSelection(ids) {
   box.replaceChildren(el("h2", null, "Selection"));
   if (!ids || !ids.length) {
     box.append(el("p", "muted", state.mode === "navigation"
-      ? "Debug-info links come from the compiler's line table: they say where code came from, not that it is correct."
+      ? "Navigation links come from the compiler's debug information or the decompiler's input block: they say where code came from, not that it is correct."
       : "Semantic links are program points of a Lean correspondence; each has its own obligations."));
     return;
   }
@@ -174,10 +174,10 @@ function obligationRow(o) {
 }
 
 const QUESTIONS = [
-  ["translation", "Translation: target refines source, for safe source runs",
-    "From every related entry whose source run is safe (no undefined behaviour, every run finite), every target run is safe and finite, stops only at a final state, and returns a result some source run produces. It says nothing about entries whose source run is unsafe or diverges. No mapping is involved."],
+  ["translation", "Translation: target refines source, from safe source states",
+    "From every related entry whose source state is safe (no source run from it reaches undefined behaviour, and every source run from it is finite), every target run is safe and finite, stops only at a final state, and returns a result that some source run produces. It says nothing about entries from which some source run has undefined behaviour or diverges. No mapping is involved."],
   ["nonvacuity", "Not vacuous",
-    "Some related entry has a safe source run. Without it, a refinement could hold because nothing is related. This is one entry (canonical arguments, empty caller), not every entry: safety from every Core entry is a separate, open obligation."],
+    "Some related entry has a safe source state. Without it, a refinement could hold because nothing is related. This is one entry (canonical arguments, empty caller), not every entry: safety from every Core entry is a separate, open obligation."],
   ["abi", "ABI entry exists",
     "For every argument tuple, a System V entry state of the placed code exists (existence only). The return-side conditions of every execution (callee-saved registers, writes only in the frame, the value in rax) are part of the translation."],
   ["mapping", "Whole mapping",
@@ -186,7 +186,16 @@ const QUESTIONS = [
     "At every point, the mapping's relation implies the relation the location semi-comorphism generates: each C object with a value has a value it holds in Core and its frame slot holds on the machine. Independent of the segments. The slot offsets come from c-tv's reading of DWARF, which is not verified."],
 ];
 
+const DECOMPILATION = ["decompilation", "Decompiled block (machine → C0)",
+  "The decompiler's summary of the block before ret is accepted by its checker; its rax expression prints as exactly this C text; and from every state where the block is loaded and entered, the machine reaches a state whose rax is the C0 value of that expression's typed Ail. The C text is printed from the expression, not parsed back; ret and the calling convention are outside the block; C0 is the repository's C subset interpreter."];
+
 const TRUST = {
+  "decompiled-word-block": [
+    ["kernel", "the decompilation obligation, for exactly these block bytes and this C text (WordC.checked_output_c0 instantiated)"],
+    ["tool check", "the block bytes are the object's .text at the receipt's range: read from the ELF file by the database, not by the kernel"],
+    ["printing only", "the C text is the printing of the generated expression; nothing parses it back into Cerberus or C0"],
+    ["not replayed by default", "the exporter reads theorem types from .olean files; tools/compiler-explorer/replay.sh replays the key modules with leanchecker"],
+  ],
   "c-function-x86": [
     ["kernel", "every obligation shown proved: a theorem of exactly that statement, standard axioms, read from the Lean build by the exporter that this database ran"],
     ["kernel", "the function's bytes are the registered object's code at its symbol (artifact obligation)"],
@@ -201,8 +210,16 @@ const TRUST = {
 function drawQuestions(p) {
   const box = $("questions");
   box.replaceChildren(el("h2", null, "Questions"));
+  const dq = p.questions.decompilation;
+  if (dq) {
+    const card = el("div", "q");
+    const head = el("div", "q-head");
+    head.append(statusBadge(dq.status), el("strong", null, DECOMPILATION[1]));
+    card.append(head, el("div", "muted", DECOMPILATION[2]), obligationRow(dq));
+    box.append(card);
+  }
   const generic = {
-    translation: "Does the target refine the source (backward, for safe source runs)?",
+    translation: "Does the target refine the source (backward, from safe source states)?",
     nonvacuity: "Is some related entry safe on the source side?",
     abi: "Does an entry state of the calling convention exist?",
     mapping: "Is every segment of a semantic mapping valid?",
@@ -237,7 +254,7 @@ function drawQuestions(p) {
   const card = el("div", "q");
   card.append(el("div", "q-head", `Links with a proved segment: ${ed.proved} of ${ed.listed} listed`), el("div", "muted", ed.note));
   box.append(card);
-  const rest = p.obligations.filter((o) => !["edge", "point", ...QUESTIONS.map((q) => q[0])].includes(o.kind));
+  const rest = p.obligations.filter((o) => !["edge", "point", "decompilation", ...QUESTIONS.map((q) => q[0])].includes(o.kind));
   if (rest.length) {
     const more = el("details", "q");
     more.append(el("summary", null, "Other obligations (elaboration, artifact identity, non-vacuity)"));

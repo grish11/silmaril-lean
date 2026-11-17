@@ -113,7 +113,7 @@ class Ingest(Base):
         v = cx.problem_view(self.db, "programs/msort/O2")
         self.assertTrue(all(o["status"] == "unsupported" for o in v["obligations"]))
         self.assertEqual([t["status"] for t in v["tests"]], ["passed"])
-        self.assertEqual({q["status"] for k, q in v["questions"].items() if k != "edges"}, {"unsupported"})
+        self.assertEqual({q["status"] for k, q in v["questions"].items() if q and k != "edges"}, {"unsupported"})
         self.assertEqual(v["questions"]["edges"]["proved"], 0)
         cx.ingest_manifest(self.db, LOOP_O0)
         self.assertEqual(set(self.statuses("compiles-to/loop/O0/sum_to").values()), {"unsupported"})
@@ -382,10 +382,34 @@ class Directions(Base):
     def test_decompiled_and_imported_are_ingested_without_claims(self):
         cx.ingest_manifest(self.db, self.DECOMPILED)
         cx.ingest_manifest(self.db, self.IMPORTED)
-        for pid, direction in (("decompiled/scale", "decompiled"), ("imported/sha256-compress", "imported")):
-            v = cx.problem_view(self.db, pid)
-            self.assertEqual(v["direction"], direction)
-            self.assertEqual({o["status"] for o in v["obligations"]}, {"unsupported"})
+        v = cx.problem_view(self.db, "decompiled/scale")
+        self.assertEqual(v["direction"], "decompiled")
+        st = {o["id"]: o["status"] for o in v["obligations"]}
+        self.assertEqual(st.pop("decompilation"), "unchecked")  # stated, not yet checked
+        self.assertEqual(set(st.values()), {"unsupported"})
+        v = cx.problem_view(self.db, "imported/sha256-compress")
+        self.assertEqual({o["status"] for o in v["obligations"]}, {"unsupported"})
+
+    def test_decompiled_block_must_be_the_objects_text(self):
+        for edit in (lambda v: v.update(bytes=[0x48, 0x8d, 0x44, 0xfe, 0xfc]),
+                     lambda v: v.update(inputs=[["rax", "a"], ["rsi", "b"]]),
+                     lambda v: v.update(name="scale; int x")):
+            m = json.loads(self.DECOMPILED.read_bytes())
+            edit(m["lean"]["vars"])
+            with self.assertRaises(cx.Rejected):
+                cx.ingest_manifest(self.db, self.write("m.json", m))
+
+    def test_decompiled_statement_is_about_the_source_text(self):
+        m = json.loads(self.DECOMPILED.read_bytes())
+        o = m["obligations"][0]
+        o["statement"] = o["statement"].replace("8ULL", "9ULL")
+        with self.assertRaises(cx.Rejected):
+            cx.ingest_manifest(self.db, self.write("m.json", m))
+
+    def test_lean_strings_are_escaped(self):
+        self.assertEqual(cx.lean_str('a"b\\c\n'), '"a\\"b\\\\c\\n"')
+        with self.assertRaises(ValueError):
+            cx.lean_str("é")
 
     def test_decompiler_receipt_must_read_the_target(self):
         m = json.loads(self.DECOMPILED.read_bytes())

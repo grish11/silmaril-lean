@@ -546,10 +546,16 @@ def decompiled_manifests() -> list[dict]:
     b.edges.append({"id": "nav/scale/block", "kind": "navigation", "origin": "decompiler",
                     "function": "scale", "source": [s], "target": [t],
                     "note": "the decompiler's input block and its output function; not a semantic link"})
-    reason = ("no obligation is stated: the decompiler has a block theorem "
-              "(Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state "
-              "whose rax is the generated expression's C0 value), but this explorer does not yet "
-              "state it for this fixture, and the final ret is outside the block")
+    reason = ("not stated: the decompilation obligation covers the block before ret and the C0 "
+              "evaluation of the generated expression; no translation from this C text to the whole "
+              "machine function (ret, the System V convention, Cerberus semantics) is stated")
+    cx = cexplorer()
+    vars_ = {"name": "scale", "bytes": [int(b, 16) for b in rec["input"]["bytes"].split()],
+             "n": rec["input"].get("instructions", 1), "inputs": [["rdi", "a"], ["rsi", "b"]]}
+    decomp = {"id": "decompilation", "kind": "decompilation",
+              "decl": "CompilesToExamples.Explorer.Decompiled.scale",
+              "statement": cx.statement_for("decompiled-word-block", vars_, "decompilation", None, None,
+                                            (d / "scale.dec.c").read_text())}
     return [{
         "schema": SCHEMA, "id": "decompiled/scale", "direction": "decompiled",
         "title": "scale.o (gcc 13.3.0 -O2) decompiled to C by SemLift + WordC",
@@ -566,9 +572,10 @@ def decompiled_manifests() -> list[dict]:
                     "mapping_relation": None, "comorphism": None},
         "fragments": sorted(b.fragments.values(), key=lambda f: f["id"]),
         "edges": b.edges,
-        "obligations": [{"id": k, "kind": k, "decl": None, "statement": None, "unsupported": reason}
-                        for k in ("translation", "nonvacuity", "abi", "mapping", "refinement")],
-        "tests": [], "lean": {"family": None, "modules": []},
+        "obligations": [decomp] + [{"id": k, "kind": k, "decl": None, "statement": None, "unsupported": reason}
+                                   for k in ("translation", "nonvacuity", "abi", "mapping", "refinement")],
+        "tests": [], "lean": {"family": "decompiled-word-block", "vars": vars_,
+                              "modules": ["CompilesToExamples.Explorer.Decompiled"]},
     }]
 
 

@@ -105,44 +105,73 @@
   ],
   "id": "decompiled/scale",
   "lean": {
-    "family": null,
-    "modules": []
+    "family": "decompiled-word-block",
+    "modules": [
+      "CompilesToExamples.Explorer.Decompiled"
+    ],
+    "vars": {
+      "bytes": [
+        72,
+        141,
+        68,
+        254,
+        251
+      ],
+      "inputs": [
+        [
+          "rdi",
+          "a"
+        ],
+        [
+          "rsi",
+          "b"
+        ]
+      ],
+      "n": 1,
+      "name": "scale"
+    }
   },
   "obligations": [
+    {
+      "decl": "CompilesToExamples.Explorer.Decompiled.scale",
+      "id": "decompilation",
+      "kind": "decompilation",
+      "statement": "Silmaril.Compiler.Explorer.DecompiledBlock \"scale\" ([0x48, 0x8d, 0x44, 0xfe, 0xfb] : List Silmaril.X86.Byte) 1 [(Silmaril.X86.Reg.rdi, \"a\"), (Silmaril.X86.Reg.rsi, \"b\")] \"unsigned long long wc_scale(unsigned long long wc_a, unsigned long long wc_b) {\\n  return ((wc_b + (wc_a * 8ULL)) + 18446744073709551611ULL);\\n}\\n\""
+    },
     {
       "decl": null,
       "id": "translation",
       "kind": "translation",
       "statement": null,
-      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+      "unsupported": "not stated: the decompilation obligation covers the block before ret and the C0 evaluation of the generated expression; no translation from this C text to the whole machine function (ret, the System V convention, Cerberus semantics) is stated"
     },
     {
       "decl": null,
       "id": "nonvacuity",
       "kind": "nonvacuity",
       "statement": null,
-      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+      "unsupported": "not stated: the decompilation obligation covers the block before ret and the C0 evaluation of the generated expression; no translation from this C text to the whole machine function (ret, the System V convention, Cerberus semantics) is stated"
     },
     {
       "decl": null,
       "id": "abi",
       "kind": "abi",
       "statement": null,
-      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+      "unsupported": "not stated: the decompilation obligation covers the block before ret and the C0 evaluation of the generated expression; no translation from this C text to the whole machine function (ret, the System V convention, Cerberus semantics) is stated"
     },
     {
       "decl": null,
       "id": "mapping",
       "kind": "mapping",
       "statement": null,
-      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+      "unsupported": "not stated: the decompilation obligation covers the block before ret and the C0 evaluation of the generated expression; no translation from this C text to the whole machine function (ret, the System V convention, Cerberus semantics) is stated"
     },
     {
       "decl": null,
       "id": "refinement",
       "kind": "refinement",
       "statement": null,
-      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+      "unsupported": "not stated: the decompilation obligation covers the block before ret and the C0 evaluation of the generated expression; no translation from this C text to the whole machine function (ret, the System V convention, Cerberus semantics) is stated"
     }
   ],
   "schema": "silmaril.compiler-explorer.problem/1",

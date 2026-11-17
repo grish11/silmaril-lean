@@ -96,6 +96,8 @@ unsafe def run (manifestPath outPath : String) : IO UInt32 := do
   let lean ← IO.ofExcept (j.getObjVal? "lean")
   let modules ← IO.ofExcept (lean.getObjValAs? (Array String) "modules")
   let obls ← IO.ofExcept (j.getObjValAs? (Array Json) "obligations")
+  -- obligations without a statement are unsupported: there is nothing to check
+  let obls := obls.filter fun o => (o.getObjValAs? String "statement").toOption.isSome
   let obls ← IO.ofExcept (obls.mapM parseObligation)
   initSearchPath (← findSysroot)
   enableInitializersExecution

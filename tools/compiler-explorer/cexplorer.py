@@ -89,6 +89,67 @@ TEMPLATES = {
             f"Silmaril.Project.Shapes.SysV.ObjectFn {v['target_value']} \"{v['cname']}\" {v['fn']}.code"),
     },
 }
+def lean_str(text: str) -> str:
+    """A Lean string literal for ASCII text (anything else is refused)."""
+    if any(ord(c) > 126 or (ord(c) < 32 and c not in "\n\t") for c in text):
+        raise ValueError("the text is not printable ASCII")
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t") + '"'
+
+
+def decompiled_block(v: dict, source: str) -> str:
+    code = ", ".join(f"0x{b:02x}" for b in v["bytes"])
+    inputs = ", ".join(f'(Silmaril.X86.Reg.{r}, "{name}")' for r, name in v["inputs"])
+    return (f'Silmaril.Compiler.Explorer.DecompiledBlock "{v["name"]}" ([{code}] : List Silmaril.X86.Byte) '
+            f'{v["n"]} [{inputs}] {lean_str(source)}')
+
+
+TEMPLATES["decompiled-word-block"] = {
+    # the decompiler's checked block, its printed C text (this problem's source artifact), and
+    # WordC.checked_output_c0 for the block's rax
+    "decompilation": lambda v, k, line, source=None: decompiled_block(v, source),
+}
+INPUT_REGS = ("rdi", "rsi", "rdx", "rcx", "r8", "r9")
+
+
+def check_decompiled_vars(v: dict, blobs: dict, m: dict) -> None:
+    """The block's bytes are the target object's `.text` at the receipt's range (read here from
+    the ELF file: a tool check, not the kernel's), and the names are plain."""
+    if not IDENT.match(str(v.get("name"))) or "." in v["name"]:
+        raise ValueError("the decompiled function name is not an identifier")
+    bs = v.get("bytes")
+    if not isinstance(bs, list) or not bs or not all(isinstance(b, int) and 0 <= b < 256 for b in bs):
+        raise ValueError("the block's bytes are not bytes")
+    if not isinstance(v.get("n"), int) or v["n"] < 1:
+        raise ValueError("the block's instruction count is not positive")
+    for r, name in v.get("inputs", []):
+        if r not in INPUT_REGS or not IDENT.match(name) or "." in name:
+            raise ValueError("an input is not an argument register with a plain name")
+    rec = json.loads(blobs[m["derivation"]["receipt"]])
+    lo, hi = rec["input"]["text_range"]
+    if elf_text(blobs["target"])[lo:hi] != bytes(bs):
+        raise ValueError("the block's bytes are not the target object's .text at the receipt's range")
+    if rec["input"].get("bytes") != " ".join(f"{b:02x}" for b in bs):
+        raise ValueError("the block's bytes are not the decompiler's input")
+
+
+def elf_text(data: bytes) -> bytes:
+    """The `.text` section of a little-endian ELF64 file."""
+    import struct
+    if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
+        raise ValueError("the target is not a little-endian ELF64 file")
+    shoff, = struct.unpack_from("<Q", data, 0x28)
+    shentsize, shnum, shstrndx = struct.unpack_from("<HHH", data, 0x3A)
+    def header(i):
+        return struct.unpack_from("<IIQQQQ", data, shoff + i * shentsize)
+    _, _, _, _, stroff, strsize = header(shstrndx)
+    names = data[stroff:stroff + strsize]
+    for i in range(shnum):
+        name, _, _, _, off, size = header(i)
+        if names[name:names.index(b"\0", name)] == b".text":
+            return data[off:off + size]
+    raise ValueError("the target has no .text section")
+
+
 # The `sil project` shape of each obligation kind that has one, and its arguments (by position):
 # a row is evidence for an obligation only when it is an instance of this shape with these
 # arguments (`ingest_project`).
@@ -108,9 +169,10 @@ ROW_SHAPES = {
 # no other obligation of the problem is shown as proved (`unbound`).
 BINDING = {"c-function-x86": "artifact"}
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_']*(\.[A-Za-z_][A-Za-z0-9_']*)*$")
-KINDS = ("translation", "mapping", "edge", "refinement", "abi", "point", "elaboration",
+KINDS = ("translation", "mapping", "edge", "refinement", "abi", "point", "elaboration", "decompilation",
          "nonvacuity", "nonvacuity_canonical", "nonvacuity_universal", "artifact")
-FAMILY_VARS = {"c-function-x86": ("fn", "ail", "cname", "isa", "comorphism", "target_value")}
+FAMILY_VARS = {"c-function-x86": ("fn", "ail", "cname", "isa", "comorphism", "target_value"),
+               "decompiled-word-block": ("name", "bytes", "n", "inputs")}
 
 
 class Rejected(Exception):
@@ -129,9 +191,11 @@ def fragment_id(artifact_sha: str, space: str, ranges: list[list[int]]) -> str:
     return sha256(f"{artifact_sha}:{space}:{json.dumps(sorted(ranges))}".encode())[:20]
 
 
-def statement_for(family: str, vars_: dict, kind: str, point, line):
+def statement_for(family: str, vars_: dict, kind: str, point, line, source: str | None = None):
     t = TEMPLATES.get(family, {}).get(kind)
-    return None if t is None else t(vars_, point, line)
+    if t is None:
+        return None
+    return t(vars_, point, line, source) if kind == "decompilation" else t(vars_, point, line)
 
 
 # ------------------------------------------------------------------------------------------------
@@ -413,6 +477,11 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
         missing = [k for k in FAMILY_VARS[family] if not vars_.get(k)]
         if missing:
             raise ValueError(f"family {family} needs the Lean names {missing}")
+    if family == "decompiled-word-block":
+        if m["direction"] != "decompiled":
+            raise ValueError("a decompiled block is the statement of a decompiled problem")
+        check_decompiled_vars(vars_, blobs, m)
+    elif family is not None:
         bad = [k for k in FAMILY_VARS[family] if not IDENT.match(str(vars_[k]))]
         if bad:
             raise ValueError(f"the Lean names {bad} are not identifiers")
@@ -447,7 +516,8 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
             raise ValueError(f"obligation {o['id']}: an {o['kind']} obligation is about a semantic edge")
         if o.get("row") is not None and (not IDENT.match(o["row"]) or o["kind"] not in ROW_SHAPES.get(family, {})):
             raise ValueError(f"obligation {o['id']}: no row of kind {o['kind']}")
-        expected = statement_for(family, vars_, o["kind"], e and e["point"], e and e.get("line"))
+        expected = statement_for(family, vars_, o["kind"], e and e["point"], e and e.get("line"),
+                                 blobs["source"].decode("utf-8", "replace"))
         if expected is None or o["statement"] != expected:
             raise ValueError(f"obligation {o['id']}: the statement is not the {o['kind']} statement "
                              f"of this problem (expected {expected!r})")
@@ -628,7 +698,8 @@ def raw_status(db, ver, o) -> dict:
             "detail": e["detail"], "origin": e["origin"], "row": e["row"]}}
     older = db.execute(
         "SELECT pv.manifest_sha256 FROM evidence ev JOIN problem_versions pv ON pv.id = ev.version_id "
-        "WHERE pv.problem_id = ? AND ev.obligation_id = ? AND ev.status = 'kernel' AND pv.id != ?",
+        "WHERE pv.problem_id = ? AND ev.obligation_id = ? AND ev.status = 'kernel' AND ev.origin != 'file' "
+        "AND pv.id != ?",
         (ver["problem_id"], o["id"], ver["id"])).fetchone()
     if older is not None and o["decl"] is not None:
         return {"status": "stale", "older_manifest": older[0]}
@@ -704,6 +775,7 @@ def problem_view(db, pid: str) -> dict | None:
         "questions": {
             "translation": by_kind.get("translation"),
             "nonvacuity": by_kind.get("nonvacuity"),
+            "decompilation": by_kind.get("decompilation"),
             "abi": by_kind.get("abi"),
             "mapping": by_kind.get("mapping"),
             "refinement": by_kind.get("refinement"),

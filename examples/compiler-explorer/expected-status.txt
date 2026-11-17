@@ -75,6 +75,7 @@ compiles-to/straight/O2/add3  [compiled]  straight.c, gcc 13.3.0 -O2, add3 (obje
   nonvacuity/canonical   proved       CompilesToExamples.Explorer.StraightO2.canonical
   nonvacuity/universal   open         
 decompiled/scale  [decompiled]  scale.o (gcc 13.3.0 -O2) decompiled to C by SemLift + WordC
+  decompilation          proved       CompilesToExamples.Explorer.Decompiled.scale
   translation            unsupported  
   nonvacuity             unsupported  
   abi                    unsupported  
