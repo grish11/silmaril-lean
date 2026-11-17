@@ -55,7 +55,7 @@ does not reject overlapping segments, so `File.resolve` answers `unmapped`, `uni
 `offsetOf_origin`/`vaddrOf_origin` (the staged layout's `offsetOf`/`vaddrOf` give one of the
 origins), `offsetOf_of_unique` (they give *the* origin when it is unique), and
 `codeAt_segBytes`/`codeAt_of_segBytes` (`CodeAt` is `SegBytes` in the first read-only executable
-segment). `Untouched A v len` says no dynamic relocation writes into a range; memory after loading
+segment). `Untouched A v len` says no dynamic relocation writes into a range (each by the width its type writes; unknown widths touch everything); memory after loading
 equals file bytes only there (or under a loading model, `Silmaril.Elf.Link.ElfBind`).
 
 ## Assembly functions (`Silmaril.Elf.Asm`)

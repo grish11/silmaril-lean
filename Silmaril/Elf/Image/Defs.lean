@@ -29,10 +29,13 @@ Four address spaces meet in an ELF file, and a statement must say which one it i
   at `o`, to `v`.
 * `SecBytes F A k v o bytes`: the same through section `k` (`sh_addr`, `sh_offset`), the only
   relation a relocatable object (`ET_REL`, no program headers) has.
-* `Untouched A v len`: no dynamic relocation writes into `[v, v + len)` (conservatively, each
-  writes at most 8 bytes, the widest x86-64 dynamic relocation). Without it, memory after loading
-  need not hold the file bytes: the loader patches relocated words. Statements about loaded
-  memory take it (or a loading model, `Silmaril.Elf.Link.ElfBind`) as a hypothesis.
+* `Untouched A v len`: no dynamic relocation writes into `[v, v + len)`, each relocation by the
+  number of bytes its type writes (`File.relocWidth`: the x86-64 psABI field widths, 16 for
+  `R_X86_64_TLSDESC`, the symbol's size for `R_X86_64_COPY`). A relocation whose width is not
+  known (another machine, an unlisted type, a `COPY` whose symbol cannot be read) makes every range
+  touched: nothing is assumed about it. Without `Untouched`, memory after loading need not hold
+  the file bytes: the loader patches relocated words. Statements about loaded memory take it (or a
+  loading model, `Silmaril.Elf.Link.ElfBind`) as a hypothesis.
 
 Not modelled: page granularity (the loader maps whole pages, so bytes outside `[p_offset,
 p_offset + p_filesz)` on the same page are visible in memory; nothing here claims anything about
@@ -47,6 +50,9 @@ namespace Silmaril.Elf.Image
 open Silmaril.Formats.ELF (ProgramHeader)
 open Silmaril.Elf.Link.DynElf (blobRead)
 open Silmaril.X86.Link (Blob)
+
+/-- `EM_X86_64`, the machine whose relocation widths are known here. -/
+def EM_X86_64_MACHINE : Nat := 62
 
 /-- Where a byte of a loaded segment comes from. -/
 inductive Origin where
@@ -118,9 +124,41 @@ def Unambiguous (A : File) (v len : Nat) : Prop :=
 instance (A : File) (v len : Nat) : Decidable (Unambiguous A v len) :=
   inferInstanceAs (Decidable (∀ k, k < len → _))
 
-/-- **No dynamic relocation writes into `[v, v + len)`** (each assumed to write at most 8 bytes). -/
+/-- The bytes an x86-64 relocation of type `k` writes (System V AMD64 psABI, Tables 4.10 and the
+TLS supplement), when it is a fixed width. `R_X86_64_COPY` (5) is not: see `File.relocWidth`. -/
+def x86RelocWidth : Nat → Option Nat
+  | 0 => some 0            -- NONE
+  | 1 | 6 | 7 | 8 => some 8 -- 64, GLOB_DAT, JUMP_SLOT, RELATIVE
+  | 2 | 3 | 4 | 9 | 10 | 11 => some 4 -- PC32, GOT32, PLT32, GOTPCREL, 32, 32S
+  | 12 | 13 => some 2      -- 16, PC16
+  | 14 | 15 => some 1      -- 8, PC8
+  | 16 | 17 | 18 => some 8 -- DTPMOD64, DTPOFF64, TPOFF64
+  | 19 | 20 | 21 | 22 | 23 => some 4 -- TLSGD, TLSLD, DTPOFF32, GOTTPOFF, TPOFF32
+  | 24 | 25 => some 8      -- PC64, GOTOFF64
+  | 26 => some 4           -- GOTPC32
+  | 32 => some 4 | 33 => some 8 -- SIZE32, SIZE64
+  | 34 => some 4           -- GOTPC32_TLSDESC
+  | 35 => some 0           -- TLSDESC_CALL (a marker)
+  | 36 => some 16          -- TLSDESC (two words)
+  | 37 | 38 => some 8      -- IRELATIVE, RELATIVE64
+  | 41 | 42 => some 4      -- GOTPCRELX, REX_GOTPCRELX
+  | _ => none
+
+/-- **The bytes the dynamic relocation `r` of `A` writes**, if known: the x86-64 width of its
+type, and for `R_X86_64_COPY` the size of its `.dynsym` symbol. `none` for any other machine. -/
+def _root_.Silmaril.Elf.File.relocWidth (A : File) (r : File.Reloc) : Option Nat :=
+  if A.header.machine ≠ EM_X86_64_MACHINE then none
+  else if r.kind = 5 then (A.dynsyms[r.symbol]?).map (·.raw.size)
+  else x86RelocWidth r.kind
+
+/-- `[o, o + w)` and `[v, v + len)` are disjoint. -/
+def Misses (o w v len : Nat) : Bool := decide (o + w ≤ v) || decide (v + len ≤ o)
+
+/-- **No dynamic relocation writes into `[v, v + len)`**: every relocation has a known width
+(`File.relocWidth`) and writes outside the range. A relocation of unknown width touches every
+range. -/
 def Untouched (A : File) (v len : Nat) : Prop :=
-  ∀ r ∈ A.relocs .dynamic, r.offset + 8 ≤ v ∨ v + len ≤ r.offset
+  ∀ r ∈ A.relocs .dynamic, ∃ w, A.relocWidth r = some w ∧ Misses r.offset w v len = true
 
 instance (A : File) (v len : Nat) : Decidable (Untouched A v len) :=
   inferInstanceAs (Decidable (∀ r ∈ A.relocs .dynamic, _))
