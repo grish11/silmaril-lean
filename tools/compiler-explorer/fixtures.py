@@ -408,10 +408,11 @@ def compiles_to_manifests() -> list[dict]:
                                           f"CompilesToExamples.{cname}.{opt}.{fname}_point_{k}", eid, k, p["line"]))
                 if pts:
                     obligations += [
-                        ob("translation", "translation", f"{X}.translation_valid" if proved else None),
+                        ob("translation", "translation", f"{X}.translation" if proved else None),
                         ob("mapping", "mapping", f"{X}.mapping_valid" if proved else None),
                         ob("refinement", "refinement", f"{X}.refines_dwarf"),
-                        ob("abi", "abi", f"CompilesToExamples.{cname}.{opt}.{fname}_enterable" if proved else None),
+                        ob("abi", "abi", f"{X}.abi"),
+                        ob("nonvacuity", "nonvacuity", f"{X}.inhabited"),
                         ob("elaboration", "elaboration", f"{X}.elaboration"),
                         ob("artifact", "artifact", f"CompilesToExamples.Explorer.{name}_{opt}_code"),
                         ob("nonvacuity/canonical", "nonvacuity_canonical", f"{X}.canonical" if proved else None),

@@ -91,8 +91,9 @@ class Ingest(Base):
         cx.ingest_manifest(self.db, BRANCH_O2)
         cx.ingest_evidence(self.db, self.write("ev.json", evidence_for(BRANCH_O2)))
         st = self.statuses("compiles-to/branch/O2/max2")
-        self.assertEqual(st["refinement"], "proved")
-        for k in ("edge/0", "mapping", "translation", "abi"):
+        for k in ("refinement", "abi", "nonvacuity"):
+            self.assertEqual(st[k], "proved", k)
+        for k in ("edge/0", "mapping", "translation"):
             self.assertEqual(st[k], "open", k)
 
     def test_exporter_mismatch_is_rejected_status(self):

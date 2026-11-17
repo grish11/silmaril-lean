@@ -4,18 +4,20 @@ public import Silmaril.Compiler.Explorer.Defs
 import Silmaril.Proofs.Compiler.Explorer.Basic
 
 /-!
-# Compilation problems and segment mappings: theorems
+# Compilation problems, mappings and generated relations: theorems
 
-* `Problem.valid_of_mapping`: a valid mapping that starts at the entry proves the translation.
-* `Mapping.valid_of_edges`: valid listed edges and coverage make a valid mapping.
-* `Counterexample.edges_not_valid`: valid listed edges alone do not (no coverage, no valid
-  translation).
-* `Problem.Valid.mono`: validity survives a stronger entry convention and weaker observations.
-* `ObsComorphism.generated_mono`, `generated_comp`, `generated_iff`: the relations comorphisms
-  generate shrink with the observables, compose through a functional middle logic, and for
-  functional logics determine the observed values.
-* `Mapping.RefinesComorphism.observe`, `Mapping.ofComorphism_refines`,
-  `Mapping.RefinesAt.mono`: what refinement of a generated relation gives.
+* `Problem.Refines.mono`: a stronger entry relation and a weaker result relation keep a
+  refinement.
+* `Problem.Refines.comp`: refinements compose vertically (source → intermediate → target).
+* `SegmentDiscipline.all_of_listed`, `SegmentDiscipline.refines_of_listed`: valid listed edges and
+  coverage give every edge, hence the refinement. Without coverage they give neither
+  (`Det.Counterexample.edges_not_enough` in `Silmaril.Compiler.Explorer.Det.Thms`).
+* `Gen.agrees_iff_reduct`: through the satisfaction condition of the semi-comorphism, agreement
+  is agreement between the source reading and the *model translation* of the target reading.
+* `Gen.agrees_comp`: generated relations compose along composed semi-comorphisms.
+* `Gen.witnessed_of_reduct`: a witness in the model translation is a witness of the generated
+  relation.
+* `Mapping.RefinesAt.mono`, `Generator.mapping_refines` (the specification of the construction).
 
 Proofs: `Silmaril.Proofs.Compiler.Explorer.Basic`.
 -/
@@ -24,90 +26,81 @@ Proofs: `Silmaril.Proofs.Compiler.Explorer.Basic`.
 
 namespace Silmaril.Compiler.Explorer
 
-open Silmaril.Compiler.CompilesTo (Source)
+open Silmaril.Inst
 
-variable {σ τ R : Type}
+universe u₁ v₁ u₂ v₂ u₃ v₃ w m₁ m₂
 
-/-- **A valid mapping that starts at the entry proves the translation** (`Corr.whole_of_segments`
-from point `0`). -/
-theorem Problem.valid_of_mapping {P : Problem σ τ R} (M : Mapping P) (hs : M.Starts)
-    (hv : M.Valid) : P.Valid :=
-  Silmaril.Proofs.Compiler.Explorer.valid_of_mapping M hs hv
+variable {σ τ μ R T W : Type}
 
-/-- **Valid listed edges and coverage make a valid mapping**: the segments of the points outside
-`L` are vacuous. -/
-theorem Mapping.valid_of_edges {P : Problem σ τ R} (M : Mapping P) (L : List Nat)
-    (he : ∀ k ∈ L, M.EdgeValid k) (hc : M.Covers L) : M.Valid :=
-  Silmaril.Proofs.Compiler.Explorer.valid_of_edges M L he hc
+/-- **Monotonicity**: with the same semantics, a stronger entry relation and a weaker result
+relation keep the refinement. -/
+theorem Problem.Refines.mono {P Q : Problem σ τ R T} (hsrc : Q.src = P.src) (htgt : Q.tgt = P.tgt)
+    (he : ∀ s x, Q.entry s x → P.entry s x) (hr : ∀ r v, P.result r v → Q.result r v)
+    (h : P.Refines) : Q.Refines :=
+  Silmaril.Proofs.Compiler.Explorer.refines_mono hsrc htgt he hr h
 
-/-- **Validity is monotone**: with the same models, a stronger entry convention, a weaker return
-condition and a weaker result relation keep a translation valid. -/
-theorem Problem.Valid.mono {P Q : Problem σ τ R} (hsrc : Q.src = P.src) (htgt : Q.tgt = P.tgt)
-    (he : ∀ x0 s, Q.entry x0 s → P.entry x0 s)
-    (hf : ∀ x0 y, P.tgtFinal x0 y → Q.tgtFinal x0 y)
-    (hr : ∀ x0 r y, P.result x0 r y → Q.result x0 r y) (h : P.Valid) : Q.Valid :=
-  Silmaril.Proofs.Compiler.Explorer.valid_mono hsrc htgt he hf hr h
+/-- **Vertical composition**: if `P` refines into an intermediate semantics and `Q` refines from
+that same semantics, the composite refines. -/
+theorem Problem.Refines.comp {P : Problem σ μ R W} {Q : Problem μ τ W T} (hmid : Q.src = P.tgt)
+    (hP : P.Refines) (hQ : Q.Refines) : (P.comp Q).Refines :=
+  Silmaril.Proofs.Compiler.Explorer.refines_comp hmid hP hQ
 
-/-- **Valid listed edges do not make a valid mapping**: a problem and a mapping that starts at
-the entry whose only listed edge (point `0`) is valid, whose listed points do not cover it, and
-whose translation (hence the mapping) is not valid. -/
-theorem Counterexample.edges_not_valid :
-    ∃ (P : Problem Nat Nat Unit) (M : Mapping P), M.Starts ∧ (∀ k ∈ [0], M.EdgeValid k) ∧
-      ¬ M.Covers [0] ∧ ¬ M.Valid ∧ ¬ P.Valid := by
-  open Silmaril.Proofs.Compiler.Explorer.Counterexample in
-  exact ⟨problem, mapping, starts, by simpa using edge0, not_covers,
-    fun hv => not_valid (Problem.valid_of_mapping mapping starts hv), not_valid⟩
+/-- **Valid listed edges and coverage give every edge.** -/
+theorem SegmentDiscipline.all_of_listed {P : Problem σ τ R T} (D : SegmentDiscipline P)
+    (N : D.Map) (L : List Nat) (he : ∀ k ∈ L, D.EdgeValid N k)
+    (hc : (D.toMapping N).Covers L) : ∀ k, D.EdgeValid N k :=
+  Silmaril.Proofs.Compiler.Explorer.all_of_listed D N L he hc
 
-namespace ObsComorphism
+/-- **Valid listed edges, coverage, admissibility and the entry give the refinement.** -/
+theorem SegmentDiscipline.refines_of_listed {P : Problem σ τ R T} (D : SegmentDiscipline P)
+    (N : D.Map) (L : List Nat) (ha : D.Admissible N) (hs : (D.toMapping N).Starts)
+    (he : ∀ k ∈ L, D.EdgeValid N k) (hc : (D.toMapping N).Covers L) : P.Refines :=
+  D.sound N ha hs (D.all_of_listed N L he hc)
 
-variable {S T U V : Type} {A : ObsLogic S V} {B : ObsLogic T V} {C : ObsLogic U V}
+namespace Gen
 
-/-- Fewer observables, a weaker generated relation. -/
-theorem generated_mono (c : ObsComorphism A B) {Φ Ψ : A.Obs → Prop} (h : ∀ o, Ψ o → Φ o)
-    {s : S} {x : T} (hg : c.Generated Φ s x) : c.Generated Ψ s x := fun o ho => hg o (h o ho)
+variable {A : Institution.{u₁, v₁, w, m₁, m₂}} {B : Institution.{u₂, v₂, w, m₁, m₂}}
+  {C : Institution.{u₃, v₃, w, m₁, m₂}}
 
-/-- **Generated relations compose** through a functional middle logic: the composite of the
-relations `c` and `d` generate lies in the relation `c.comp d` generates. -/
-theorem generated_comp (c : ObsComorphism A B) (d : ObsComorphism B C) (hB : B.Functional)
-    {Φ : A.Obs → Prop} {s : S} {y : T} {x : U} (h₁ : c.Generated Φ s y)
-    (h₂ : d.Generated (c.image Φ) y x) : (c.comp d).Generated Φ s x :=
-  Silmaril.Proofs.Compiler.Explorer.generated_comp c d hB h₁ h₂
+/-- **Agreement is agreement with the model translation**, when the semi-comorphism's
+satisfaction condition holds both ways on the observed sentences. -/
+theorem agrees_iff_reduct (f : SemiComorphism A B) (hF : f.Fwd) (hB : f.Bwd) (S : A.Sign)
+    (readS : σ → A.Mod S) (readT : τ → B.Mod (f.sig S)) (Ψ : A.Sen S → Prop)
+    (hΨ : ∀ φ, Ψ φ → f.cls S φ) (s : σ) (x : τ) :
+    Agrees f S readS readT Ψ s x ↔ ∀ φ, Ψ φ → (readS s ⊨[A] φ ↔ f.mod S (readT x) ⊨[A] φ) :=
+  Silmaril.Proofs.Compiler.Explorer.agrees_iff_reduct f hF hB S readS readT Ψ hΨ s x
 
-/-- For functional logics, a generated relation makes each observed value agree exactly. -/
-theorem generated_iff (c : ObsComorphism A B) (hA : A.Functional) (hB : B.Functional)
-    {Φ : A.Obs → Prop} {s : S} {x : T} (h : c.Generated Φ s x) {o : A.Obs} (ho : Φ o) (v : V) :
-    A.Holds s o v ↔ B.Holds x (c.map o) v :=
-  Silmaril.Proofs.Compiler.Explorer.generated_iff c hA hB h ho v
+/-- **Generated relations compose** along the composite semi-comorphism `f ≫ˢ g`. -/
+theorem agrees_comp (f : SemiComorphism A B) (g : SemiComorphism B C) (S : A.Sign)
+    (readS : σ → A.Mod S) (readM : μ → B.Mod (f.sig S)) (readT : τ → C.Mod (g.sig (f.sig S)))
+    (Ψ : A.Sen S → Prop) {s : σ} {y : μ} {x : τ}
+    (h₁ : Agrees f S readS readM Ψ s y) (h₂ : Agrees g (f.sig S) readM readT (image f S Ψ) y x) :
+    Agrees (f.comp g) S readS readT Ψ s x :=
+  Silmaril.Proofs.Compiler.Explorer.agrees_comp f g S readS readM readT Ψ h₁ h₂
 
-end ObsComorphism
+/-- **A witness in the model translation is a witness of the generated relation** (preservation
+suffices). -/
+theorem witnessed_of_reduct (f : SemiComorphism A B) (hF : f.Fwd) (S : A.Sign)
+    (readS : σ → A.Mod S) (readT : τ → B.Mod (f.sig S)) {ι V : Type} (fam : ι → V → A.Sen S)
+    (obs : ι → Prop) (hcls : ∀ i v, obs i → f.cls S (fam i v)) {s : σ} {x : τ}
+    (h : ∀ i, obs i → ∃ v, readS s ⊨[A] fam i v ∧ f.mod S (readT x) ⊨[A] fam i v) :
+    Witnessed f S readS readT fam obs s x :=
+  Silmaril.Proofs.Compiler.Explorer.witnessed_of_reduct f hF S readS readT fam obs hcls h
 
-namespace Mapping
-
-variable {P : Problem σ τ R}
+end Gen
 
 /-- Refinement is monotone in the generated relation. -/
-theorem RefinesAt.mono {M : Mapping P} {G G' : Nat → τ → σ → τ → Prop} {K : Nat → Prop}
-    (h : M.RefinesAt G K) (hG : ∀ k, K k → ∀ x0 s x, G k x0 s x → G' k x0 s x) :
-    M.RefinesAt G' K := fun k hk x0 s x hr => hG k hk x0 s x (h k hk x0 s x hr)
+theorem Mapping.RefinesAt.mono {P : Problem σ τ R T} {M : Mapping P} {G G' : Nat → σ → τ → Prop}
+    {K : Nat → Prop} (h : M.RefinesAt G K) (hG : ∀ k, K k → ∀ s x, G k s x → G' k s x) :
+    M.RefinesAt G' K := fun k hk s x hr => hG k hk s x (h k hk s x hr)
 
-/-- **What refinement of a comorphism relation gives**: at a point of `K`, every observable in
-scope of related states has a value that holds of it in the source and of its translation in the
-target. -/
-theorem RefinesComorphism.observe {V : Type} {M : Mapping P} {A : ObsLogic σ V}
-    {B : ObsLogic (τ × τ) V} {c : ObsComorphism A B} {scope : Nat → A.Obs → Prop}
-    {K : Nat → Prop} (h : M.RefinesComorphism c scope K) {k : Nat} (hk : K k) {x0 : τ} {s : σ}
-    {x : τ} (hr : M.rel k x0 s x) {o : A.Obs} (ho : scope k o) :
-    ∃ v, A.Holds s o v ∧ B.Holds (x0, x) (c.map o) v := h k hk x0 s x hr o ho
-
-/-- The mapping a comorphism generates refines the comorphism's relation at every point (the
-specification of the construction). -/
-theorem ofComorphism_refines {V : Type} {A : ObsLogic σ V} {B : ObsLogic (τ × τ) V}
-    (srcAt : Nat → σ → Prop) (tgtAt : Nat → τ → Prop) (frame : Nat → τ → σ → τ → Prop)
-    (c : ObsComorphism A B) (scope : Nat → A.Obs → Prop) :
-    (ofComorphism (P := P) srcAt tgtAt frame c scope).RefinesComorphism c scope (fun _ => True) :=
-  fun _ _ _ _ _ hr => hr.2
-
-end Mapping
+/-- The mapping a generator generates refines the generator's point relations (the
+specification of the construction, not a correctness result). -/
+theorem Generator.mapping_refines {A : Institution.{u₁, v₁, w, m₁, m₂}}
+    {B : Institution.{u₂, v₂, w, m₁, m₂}} (g : Generator A B σ τ R T) {P : Problem σ τ R T}
+    (srcAt : Nat → σ → Prop) (tgtAt : Nat → τ → Prop) (frame : Nat → σ → τ → Prop) :
+    (g.mapping (P := P) srcAt tgtAt frame).RefinesAt g.pointRel (fun _ => True) :=
+  fun _ _ _ _ hr => hr.2
 
 end Silmaril.Compiler.Explorer
 

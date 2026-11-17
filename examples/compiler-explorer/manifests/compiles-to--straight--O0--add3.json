@@ -415,10 +415,10 @@
       "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Straight.O0.add3 4 7"
     },
     {
-      "decl": "CompilesToExamples.Explorer.StraightO0.translation_valid",
+      "decl": "CompilesToExamples.Explorer.StraightO0.translation",
       "id": "translation",
       "kind": "translation",
-      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.compilation Silmaril.X86.Open.isa k0).Valid"
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.compilation Silmaril.X86.Open.isa k0).toProblem.Refines"
     },
     {
       "decl": "CompilesToExamples.Explorer.StraightO0.mapping_valid",
@@ -430,13 +430,19 @@
       "decl": "CompilesToExamples.Explorer.StraightO0.refines_dwarf",
       "id": "refinement",
       "kind": "refinement",
-      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.mapping Silmaril.X86.Open.isa k0).RefinesComorphism Silmaril.Project.CompilesTo.dwarf CompilesToExamples.Straight.O0.add3.scope (fun _ => True)"
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.mapping Silmaril.X86.Open.isa k0).toMapping.RefinesAt (fun k => Silmaril.Compiler.Explorer.Gen.Witnessed Silmaril.Project.CompilesTo.dwarf Silmaril.Compiler.Explorer.obsSig Silmaril.Project.CompilesTo.readCore Silmaril.Project.CompilesTo.readFrame Silmaril.Compiler.Explorer.obsFam (CompilesToExamples.Straight.O0.add3.scope k)) (fun _ => True)"
     },
     {
-      "decl": "CompilesToExamples.Straight.O0.add3_enterable",
+      "decl": "CompilesToExamples.Explorer.StraightO0.abi",
       "id": "abi",
       "kind": "abi",
       "statement": "Silmaril.Project.Shapes.SysV.Enterable Silmaril.X86.Open.isa CompilesToExamples.Straight.O0.add3.placement CompilesToExamples.Straight.O0.add3.sig CompilesToExamples.Straight.O0.add3.frame"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.inhabited",
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "statement": "(CompilesToExamples.Straight.O0.add3.compilation Silmaril.X86.Open.isa []).toProblem.Inhabited"
     },
     {
       "decl": "CompilesToExamples.Explorer.StraightO0.elaboration",

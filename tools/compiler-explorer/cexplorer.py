@@ -58,12 +58,17 @@ K0 = "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame,"
 # obligation's point (`k`) and line. `None` for kinds the family does not state.
 TEMPLATES = {
     "c-function-x86": {
-        "translation": lambda v, k, line: f"{K0} ({v['fn']}.compilation {v['isa']} k0).Valid",
+        # the generic, backward refinement of the problem's generic reading (first return)
+        "translation": lambda v, k, line: f"{K0} ({v['fn']}.compilation {v['isa']} k0).toProblem.Refines",
         "mapping": lambda v, k, line: f"{K0} ({v['fn']}.mapping {v['isa']} k0).Valid",
         "edge": lambda v, k, line: f"{K0} ({v['fn']}.mapping {v['isa']} k0).EdgeValid {k}",
         "refinement": lambda v, k, line: (
-            f"{K0} ({v['fn']}.mapping {v['isa']} k0).RefinesComorphism {v['comorphism']} "
-            f"{v['fn']}.scope (fun _ => True)"),
+            f"{K0} ({v['fn']}.mapping {v['isa']} k0).toMapping.RefinesAt (fun k => "
+            f"Silmaril.Compiler.Explorer.Gen.Witnessed {v['comorphism']} Silmaril.Compiler.Explorer.obsSig "
+            f"Silmaril.Project.CompilesTo.readCore Silmaril.Project.CompilesTo.readFrame "
+            f"Silmaril.Compiler.Explorer.obsFam ({v['fn']}.scope k)) (fun _ => True)"),
+        # some entry is related and safe (empty caller continuation)
+        "nonvacuity": lambda v, k, line: f"({v['fn']}.compilation {v['isa']} []).toProblem.Inhabited",
         "abi": lambda v, k, line: (
             f"Silmaril.Project.Shapes.SysV.Enterable {v['isa']} {v['fn']}.placement "
             f"{v['fn']}.sig {v['fn']}.frame"),
@@ -84,7 +89,7 @@ TEMPLATES = {
 BINDING = {"c-function-x86": "artifact"}
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_']*(\.[A-Za-z_][A-Za-z0-9_']*)*$")
 KINDS = ("translation", "mapping", "edge", "refinement", "abi", "point", "elaboration",
-         "nonvacuity_canonical", "nonvacuity_universal", "artifact")
+         "nonvacuity", "nonvacuity_canonical", "nonvacuity_universal", "artifact")
 FAMILY_VARS = {"c-function-x86": ("fn", "ail", "cname", "isa", "comorphism", "target_value")}
 
 
