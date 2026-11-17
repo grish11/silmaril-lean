@@ -25,7 +25,9 @@ are packaged as `FrameG` and kept:
   `TrapEnd` with `TrapAtG` at the trapped core store and the exporter's state after the step;
   a step answering a flat payload has no `Ends`, so does not occur; `call_stepB'` states it with
   the exporter's end (its relation, `Within`, `Grows`) in place of `LInvG`/`TrapAtG`, for the
-  tracked rounds of `LinkedGChain`.
+  tracked rounds of `LinkedGChain`. A returning call's run is non-empty (it passes through the
+  exporter's activation, whose start and return differ in their control chain), which the
+  coinduction over served calls in `LinkedGDiv` uses.
 -/
 
 @[expose] public noncomputable section
@@ -192,6 +194,12 @@ theorem trapAt_of_within {s s' : e.St} {S S₀ S' : CStore (E3 P)} {F F' : CoreF
 
 end Trap
 
+/-- A run with an empty trace does not move. -/
+theorem steps_nil_eqG {m m' : Machine.Config (E3 P) σ}
+    (h : Machine.Steps prof (fun _ _ => false) (DI P impl) m [] m') : m = m' := by
+  cases h
+  rfl
+
 /-! ## One import call, for any step of the exporter -/
 
 section Call
@@ -232,7 +240,7 @@ theorem call_stepB' (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw :
         (∀ ev, Label.host ev ∉ trc) ∧ (∀ msg, Label.trap (.internal msg) ∉ trc) ∧
         d.Hold pl s' S'' F' ∧ F.Within (M.store.core : Store (CanonHost (E3 P))) S''.core ∧
         F.Grows F' (M.store.core : Store (CanonHost (E3 P))) ∧
-        FrameG d pl ii th S'' ∧ CallExt d pl M.store S'') ∨
+        FrameG d pl ii th S'' ∧ CallExt d pl M.store S'' ∧ trc ≠ []) ∨
     (R = none ∧ ∃ c, TrapEnd prof P impl (coreCfg M th K segs rest y) c ∧
       ∃ (S' : CStore (E3 P)) (F' : CoreFoot), S'.core = c ∧ S'.funcs = M.store.funcs ∧
         d.Hold pl s' S' F' ∧ F.Within (M.store.core : Store (CanonHost (E3 P))) c ∧
@@ -388,9 +396,15 @@ theorem call_stepB' (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw :
           exact ⟨_, List.getElem?_set_self (lt_of_getElem? hie'), threadsOk_after ιe t⟩
         · rw [List.getElem?_set_ne hw', hext.insts_exp w', hS₁]
           exact ⟨ι, (List.getElem?_set_ne hw').trans hι, hιt⟩
+      have htr₂ : tr₂ ≠ [] := by
+        rintro rfl
+        have e := congrArg Machine.Config.ctl (steps_nil_eqG h₂)
+        rw [hc₁] at e
+        simp [ExpSpec.RefData.retCfg'] at e
       refine .inl ⟨us, rfl, hck, tr₁ ++ tr₂ ++ tr₃, C', S'', F',
         Adequacy.steps_append (Adequacy.steps_append h₁.steps h₂) h₃.steps, ?_, ?_, hH'', hwi',
-        hgr', hFG.of_callExt hX hexp, hX⟩
+        hgr', hFG.of_callExt hX hexp, hX, fun h =>
+          htr₂ (List.append_eq_nil_iff.mp (List.append_eq_nil_iff.mp h).1).2⟩
       · intro ev hm
         rcases List.mem_append.mp hm with hm | hm
         · rcases List.mem_append.mp hm with hm | hm
@@ -456,7 +470,7 @@ theorem call_stepB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : 
           (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))
           (x.1, Silmaril.Wasm.SingleThreaded.resumeResult x.1 x.2
             (.values ((lowerArgs p.results us).map Silmaril.Wasm.SingleThreaded.ofFlat))) ∧
-        FrameG d pl ii th S'' ∧ CallExt d pl M.store S'') ∨
+        FrameG d pl ii th S'' ∧ CallExt d pl M.store S'' ∧ trc ≠ []) ∨
     (R = none ∧ ∃ c, TrapEnd prof P impl (coreCfg M th K segs rest y) c ∧
       TrapAtG d pl Ii s₀ u₀ F₀ g Oc₀ fq M.store s' c x.1) := by
   obtain ⟨nm', p', ys', E, a', hk', hdx, -, -, -⟩ := hI.callout_fwd SI hc he
@@ -464,10 +478,10 @@ theorem call_stepB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : 
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hk')
   rcases call_stepB' (prof := prof) (impl := impl) SI hFr hFw hI th hFG hc he hk hw hty htr
       K segs rest hpf hmaxp hres hrf hmaxr hys hws hstep with
-    ⟨us, hR, hck, trc, C', S'', F', hrun, hnh, hni, hH, hwi, hgr, hFG', hX⟩ |
+    ⟨us, hR, hck, trc, C', S'', F', hrun, hnh, hni, hH, hwi, hgr, hFG', hX, hne⟩ |
     ⟨hR, c, hT, S', F', hc', hf, hH, hwi, hgr⟩
   · exact .inl ⟨us, hR, hck, trc, C', S'', F', hrun, hnh, hni,
-      LInvG.resume_fwd SI hI hk hdx he hck hH hwi hgr (hB pl _ S'' F' hH), hFG', hX⟩
+      LInvG.resume_fwd SI hI hk hdx he hck hH hwi hgr (hB pl _ S'' F' hH), hFG', hX, hne⟩
   · subst hc'
     exact .inr ⟨hR, S'.core, hT, trapAt_of_within hI hH hf hwi hgr (hB pl _ S' F' hH)⟩
 

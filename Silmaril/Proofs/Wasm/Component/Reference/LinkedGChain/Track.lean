@@ -397,7 +397,7 @@ theorem rounds_fwdT (SI : ImpStatG P lg.imp Ii u₀ F₀ g tr) (W : WireG lg d p
         rw [hw₂] at hstep
         rcases call_stepB' (prof := prof) (impl := impl) SI hFr hFw hI₁ th hFG₁ co op hk hxe
             hty htr K segs rest hpf hmaxp hres hrf hmaxr hys hws hstep with
-          ⟨us, rfl, hck, trc, C', S'', F', hrun, hnh, hni, hH, hwi, hgr, hFG₂, hX⟩ |
+          ⟨us, rfl, hck, trc, C', S'', F', hrun, hnh, hni, hH, hwi, hgr, hFG₂, hX, -⟩ |
           ⟨rfl, c, hTE, S', F', hc', hfS, hH, hwi, hgr⟩
         · have hv : Silmaril.Wasm.Game.Answer.toResult v =
               .values ((lowerArgs ft.results us).map Silmaril.Wasm.SingleThreaded.ofFlat) := by
