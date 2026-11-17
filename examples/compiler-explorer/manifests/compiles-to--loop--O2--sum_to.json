@@ -483,6 +483,13 @@
       "kind": "abi",
       "statement": null,
       "unsupported": "C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\""
+    },
+    {
+      "decl": null,
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "statement": null,
+      "unsupported": "C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\""
     }
   ],
   "schema": "silmaril.compiler-explorer.problem/1",

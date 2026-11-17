@@ -2137,6 +2137,13 @@
     },
     {
       "decl": null,
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "statement": null,
+      "unsupported": "no translation is stated, so there is nothing to be vacuous"
+    },
+    {
+      "decl": null,
       "id": "mapping",
       "kind": "mapping",
       "statement": null,

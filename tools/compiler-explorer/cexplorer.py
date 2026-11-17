@@ -2,7 +2,8 @@
 """The compiler explorer's database and read-only API.
 
     python3 -I tools/compiler-explorer/cexplorer.py ingest DB MANIFEST...   # problems (with their artifacts)
-    python3 -I tools/compiler-explorer/cexplorer.py evidence DB EVIDENCE... # export.lean outputs
+    python3 -I tools/compiler-explorer/cexplorer.py verify DB MANIFEST...   # run the exporter, record its result
+    python3 -I tools/compiler-explorer/cexplorer.py evidence DB EVIDENCE... # an exporter file (recorded as a claim)
     python3 -I tools/compiler-explorer/cexplorer.py status DB [PROBLEM]     # a text report
     python3 -I tools/compiler-explorer/cexplorer.py serve DB [--host 127.0.0.1] [--port 8765]
 
@@ -32,10 +33,13 @@ from __future__ import annotations
 import hashlib
 import http.server
 import json
+import os
 import pathlib
 import re
 import sqlite3
+import subprocess
 import sys
+import tempfile
 import tomllib
 import urllib.parse
 
@@ -222,6 +226,12 @@ MIGRATIONS = [
       what TEXT NOT NULL,
       reason TEXT NOT NULL
     );
+    """,
+    # 2: where evidence came from. Only a result of the exporter run by this tool (`verify`) is
+    # checked evidence; a file handed in (`evidence`) is recorded as a claim.
+    """
+    ALTER TABLE evidence ADD COLUMN origin TEXT NOT NULL DEFAULT 'file'
+      CHECK (origin IN ('file', 'exporter-run'));
     """,
 ]
 
@@ -481,7 +491,7 @@ def ingest_manifest(db: sqlite3.Connection, path: pathlib.Path, root: pathlib.Pa
 # Ingesting evidence
 
 
-def ingest_evidence(db: sqlite3.Connection, path: pathlib.Path) -> int:
+def ingest_evidence(db: sqlite3.Connection, path: pathlib.Path, origin: str = "file") -> int:
     raw = path.read_bytes()
     esha = sha256(raw)
     what = f"evidence {path}"
@@ -523,12 +533,12 @@ def ingest_evidence(db: sqlite3.Connection, path: pathlib.Path) -> int:
             raise reject(db, what, f"obligation {o['id']}: open, yet the manifest names a declaration")
         rows.append((ver["id"], o["id"], "lean-export", status, ver["manifest_sha256"], ver["context_hash"],
                      o["statement"], o["decl"], json.dumps(axioms), ev["lean_version"], ev["git_commit"],
-                     esha, r.get("detail")))
+                     esha, r.get("detail"), origin))
     with db:
         db.execute("DELETE FROM evidence WHERE version_id = ? AND evidence_sha256 = ?", (ver["id"], esha))
         db.executemany("INSERT INTO evidence (version_id, obligation_id, kind, status, manifest_sha256,"
                        " context_hash, statement, decl, axioms, lean_version, git_commit, evidence_sha256,"
-                       " detail) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+                       " detail, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
     return len(rows)
 
 
@@ -536,7 +546,8 @@ def ingest_evidence(db: sqlite3.Connection, path: pathlib.Path) -> int:
 # Queries: statuses are computed here, from the database, for the current version only
 
 STATUS_TEXT = {
-    "proved": "checked by Lean's kernel",
+    "proved": "a theorem of this statement, checked when Lean built it, read back by the exporter run here",
+    "claimed": "an exporter result handed in as a file: not run here, so not counted as proved",
     "open": "stated in Lean, not proved",
     "unchecked": "a proof is claimed but no checked evidence is recorded",
     "rejected": "the claimed proof was checked and does not prove the statement",
@@ -568,7 +579,7 @@ def raw_status(db, ver, o) -> dict:
     if evs:
         e = evs[0]
         if e["status"] == "kernel":
-            status = "proved"
+            status = "proved" if e["origin"] == "exporter-run" else "claimed"
         elif e["status"] == "open":
             status = "open"
         else:
@@ -577,7 +588,7 @@ def raw_status(db, ver, o) -> dict:
             "kind": e["kind"], "export_status": e["status"], "decl": e["decl"],
             "axioms": json.loads(e["axioms"] or "[]"), "lean_version": e["lean_version"],
             "git_commit": e["git_commit"], "evidence_sha256": e["evidence_sha256"],
-            "detail": e["detail"]}}
+            "detail": e["detail"], "origin": e["origin"]}}
     older = db.execute(
         "SELECT pv.manifest_sha256 FROM evidence ev JOIN problem_versions pv ON pv.id = ev.version_id "
         "WHERE pv.problem_id = ? AND ev.obligation_id = ? AND ev.status = 'kernel' AND pv.id != ?",
@@ -655,6 +666,7 @@ def problem_view(db, pid: str) -> dict | None:
         "versions": versions, "extra": json.loads(ver["extra"]),
         "questions": {
             "translation": by_kind.get("translation"),
+            "nonvacuity": by_kind.get("nonvacuity"),
             "abi": by_kind.get("abi"),
             "mapping": by_kind.get("mapping"),
             "refinement": by_kind.get("refinement"),
@@ -731,6 +743,37 @@ def serve(db_path: str, host: str, port: int) -> None:
     srv.serve_forever()
 
 
+def git_commit() -> str:
+    try:
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True,
+                              check=True).stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT,
+                               capture_output=True, text=True, check=True).stdout.strip()
+        return head + ("-dirty" if dirty else "")
+    except (OSError, subprocess.CalledProcessError):
+        return os.environ.get("GITHUB_SHA", "unknown")
+
+
+def verify(db: sqlite3.Connection, manifest: pathlib.Path, lake: str = "lake") -> int:
+    """Ingest the manifest, run the exporter on it (from the Lean build in this checkout), and
+    record its result as checked evidence. Returns the exporter's exit code (non-zero when a named
+    proof is not evidence)."""
+    ingest_manifest(db, manifest)
+    m = json.loads(manifest.read_bytes())
+    if not m.get("lean", {}).get("modules"):
+        return 0
+    with tempfile.TemporaryDirectory() as tmp:
+        out = pathlib.Path(tmp) / "evidence.json"
+        env = dict(os.environ, EXPLORER_MANIFEST_SHA256=sha256(manifest.read_bytes()),
+                   EXPLORER_GIT_COMMIT=git_commit())
+        proc = subprocess.run([lake, "env", str(ROOT / ".lake" / "build" / "bin" / "cexplorer-export"),
+                               str(manifest.resolve()), str(out)], cwd=ROOT, env=env)
+        if not out.exists():
+            raise reject(db, f"verify {manifest}", f"the exporter produced no output (exit {proc.returncode})")
+        ingest_evidence(db, out, origin="exporter-run")
+        return proc.returncode
+
+
 def status_report(db, pid: str | None) -> str:
     lines = []
     for p in problem_list(db):
@@ -760,7 +803,15 @@ def main(argv: list[str]) -> int:
         return 0
     db = connect(db_path)
     status = 0
-    if cmd in ("ingest", "evidence"):
+    if cmd == "verify":
+        for f in rest:
+            try:
+                rc = verify(db, pathlib.Path(f), os.environ.get("LAKE", "lake"))
+                status = status or rc
+            except Rejected as exc:
+                print(f"rejected: {exc}", file=sys.stderr)
+                status = 1
+    elif cmd in ("ingest", "evidence"):
         for f in rest:
             try:
                 if cmd == "ingest":

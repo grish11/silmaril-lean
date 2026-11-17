@@ -1,34 +1,39 @@
 #!/usr/bin/env bash
-# Check the compiler explorer end to end, from the repository root:
+# The compiler explorer, end to end (`make compiler-explorer-check`; CI runs it through `make check`
+# whenever `cexplorer-export` or `CompilesToExamples` is in scope):
 #   tools/compiler-explorer/check.sh [OUT]          (OUT defaults to .lake/compiler-explorer)
-# 1. build the Lean modules (the API, the C/x86 instance, the examples' restatements);
+# 1. build the Lean modules and the exporter;
 # 2. regenerate the manifests and fail if they differ from the committed ones;
-# 3. run the evidence exporter on every manifest with Lean statements;
-# 4. ingest manifests and evidence into a fresh database and print the statuses;
+# 3. `verify` every manifest: run the exporter and record its result (fails when a named proof
+#    is not evidence: missing, another statement, other axioms);
+# 4. fail unless the statuses are examples/compiler-explorer/expected-status.txt;
 # 5. run the database and view tests.
 # Docker is not needed: the builds and listings are committed (fixtures.py build|listings).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+LAKE="${LAKE:-lake}"
+PYTHON="${PYTHON:-python3}"
 out="${1:-.lake/compiler-explorer}"
-mkdir -p "$out/evidence"
-lake build --wfail Silmaril.Compiler.Explorer.Thms Silmaril.Project.CompilesTo.Explorer.Thms \
-  CompilesToExamples.Explorer.Builds CompilesToExamples.Explorer.Code
-python3 -I tools/compiler-explorer/fixtures.py manifests > /dev/null
-if [ -n "$(git status --porcelain -- examples/compiler-explorer/manifests)" ]; then
-  git status --short -- examples/compiler-explorer/manifests
-  echo "error: the committed manifests are not what fixtures.py writes" >&2; exit 1
+mkdir -p "$out"
+"$LAKE" build --wfail cexplorer-export Silmaril.Compiler.Explorer.Det.Thms \
+  Silmaril.Project.Shapes.CompilesTo.Explorer.Thms CompilesToExamples.Explorer.Builds \
+  CompilesToExamples.Explorer.Code
+regen="$(mktemp -d)"
+trap 'rm -rf "$regen"' EXIT
+"$PYTHON" -I tools/compiler-explorer/fixtures.py manifests --out "$regen" > /dev/null
+if ! diff -r "$regen" examples/compiler-explorer/manifests > /dev/null; then
+  diff -r "$regen" examples/compiler-explorer/manifests | head -20 >&2
+  echo "error: the committed manifests are not what fixtures.py writes" >&2
+  exit 1
 fi
-commit="$(git rev-parse HEAD)"
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then commit="$commit-dirty"; fi
-for m in examples/compiler-explorer/manifests/*.json; do
-  if python3 -I -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["lean"]["modules"] else 1)' "$m"; then
-    EXPLORER_MANIFEST_SHA256="$(sha256sum "$m" | cut -d' ' -f1)" EXPLORER_GIT_COMMIT="$commit" \
-      lake env lean --run tools/compiler-explorer/export.lean "$m" "$out/evidence/$(basename "$m")"
-  fi
-done
 rm -f "$out/explorer.sqlite"
-python3 -I tools/compiler-explorer/cexplorer.py ingest "$out/explorer.sqlite" examples/compiler-explorer/manifests/*.json > /dev/null
-python3 -I tools/compiler-explorer/cexplorer.py evidence "$out/explorer.sqlite" "$out"/evidence/*.json
-python3 -I tools/compiler-explorer/cexplorer.py status "$out/explorer.sqlite"
-python3 -I tools/compiler-explorer/tests/test_cexplorer.py
+LAKE="$LAKE" "$PYTHON" -I tools/compiler-explorer/cexplorer.py verify "$out/explorer.sqlite" \
+  examples/compiler-explorer/manifests/*.json
+"$PYTHON" -I tools/compiler-explorer/cexplorer.py status "$out/explorer.sqlite" > "$out/status.txt"
+if ! diff -u examples/compiler-explorer/expected-status.txt "$out/status.txt"; then
+  echo "error: the statuses differ from examples/compiler-explorer/expected-status.txt" >&2
+  exit 1
+fi
+"$PYTHON" -I tools/compiler-explorer/tests/test_cexplorer.py
 node --test tools/compiler-explorer/tests/view.test.mjs
+echo "compiler explorer: ok ($(grep -c ' proved ' "$out/status.txt") proved obligations)"

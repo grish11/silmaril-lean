@@ -68,6 +68,10 @@ class Base(unittest.TestCase):
         p.write_text(json.dumps(obj, ensure_ascii=False))
         return p
 
+    def trusted(self, path):
+        """Record an evidence file as if this tool had run the exporter (`verify`)."""
+        return cx.ingest_evidence(self.db, path, origin="exporter-run")
+
     def statuses(self, pid: str) -> dict:
         return {o["id"]: o["status"] for o in cx.problem_view(self.db, pid)["obligations"]}
 
@@ -81,7 +85,7 @@ class Ingest(Base):
         before = self.statuses("compiles-to/straight/O0/add3")
         self.assertEqual(before["translation"], "unchecked")  # a proof is named, nothing checked
         self.assertEqual(before["nonvacuity/universal"], "open")
-        cx.ingest_evidence(self.db, self.write("ev.json", evidence_for(STRAIGHT_O0)))
+        self.trusted(self.write("ev.json", evidence_for(STRAIGHT_O0)))
         after = self.statuses("compiles-to/straight/O0/add3")
         for k in ("translation", "mapping", "refinement", "abi", "edge/0", "edge/4", "point/2", "artifact"):
             self.assertEqual(after[k], "proved", k)
@@ -89,7 +93,7 @@ class Ingest(Base):
 
     def test_open_mapping_with_proved_refinement(self):
         cx.ingest_manifest(self.db, BRANCH_O2)
-        cx.ingest_evidence(self.db, self.write("ev.json", evidence_for(BRANCH_O2)))
+        self.trusted(self.write("ev.json", evidence_for(BRANCH_O2)))
         st = self.statuses("compiles-to/branch/O2/max2")
         for k in ("refinement", "abi", "nonvacuity"):
             self.assertEqual(st[k], "proved", k)
@@ -99,7 +103,7 @@ class Ingest(Base):
     def test_exporter_mismatch_is_rejected_status(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
         ev = evidence_for(STRAIGHT_O0, lambda o: "mismatch" if o["id"] == "edge/1" else "kernel")
-        cx.ingest_evidence(self.db, self.write("ev.json", ev))
+        self.trusted(self.write("ev.json", ev))
         st = self.statuses("compiles-to/straight/O0/add3")
         self.assertEqual(st["edge/1"], "rejected")
         self.assertEqual(st["edge/0"], "proved")
@@ -125,7 +129,7 @@ class Ingest(Base):
         b = cx.ingest_manifest(self.db, STRAIGHT_O0)
         self.assertEqual(a, b)
         cx.migrate(self.db)
-        self.assertEqual([r[0] for r in self.db.execute("SELECT version FROM schema_migrations")], [1])
+        self.assertEqual([r[0] for r in self.db.execute("SELECT version FROM schema_migrations")], [1, 2])
 
     def test_artifacts_are_immutable(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
@@ -297,7 +301,7 @@ class Binding(Base):
         cx.ingest_manifest(self.db, p)
         # the exporter would find every theorem but the artifact one (add3 is not in branch.o)
         ev = evidence_for(p, lambda o: "mismatch" if o["kind"] == "artifact" else "kernel")
-        cx.ingest_evidence(self.db, self.write("ev.json", ev))
+        self.trusted(self.write("ev.json", ev))
         st = self.statuses("compiles-to/branch/O2/max2")
         self.assertEqual(st["artifact"], "rejected")
         self.assertEqual(st["translation"], "unbound")
@@ -305,11 +309,18 @@ class Binding(Base):
 
 
 class Evidence(Base):
+    def test_handed_in_file_is_only_a_claim(self):
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        cx.ingest_evidence(self.db, self.write("ev.json", evidence_for(STRAIGHT_O0)))
+        st = self.statuses("compiles-to/straight/O0/add3")
+        self.assertEqual(st["translation"], "claimed")
+        self.assertNotIn("proved", st.values())
+
     def test_duplicate_obligation(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
         ev = evidence_for(STRAIGHT_O0, edit=lambda e: e["obligations"].append(dict(e["obligations"][0])))
         with self.assertRaises(cx.Rejected):
-            cx.ingest_evidence(self.db, self.write("ev.json", ev))
+            self.trusted(self.write("ev.json", ev))
 
     def test_unknown_manifest(self):
         p = self.write("ev.json", evidence_for(STRAIGHT_O0))
@@ -320,7 +331,7 @@ class Evidence(Base):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
         ev = evidence_for(STRAIGHT_O0, edit=lambda e: e["obligations"][0].update(statement="True"))
         with self.assertRaises(cx.Rejected):
-            cx.ingest_evidence(self.db, self.write("ev.json", ev))
+            self.trusted(self.write("ev.json", ev))
 
     def test_kernel_without_declaration(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
@@ -329,7 +340,7 @@ class Evidence(Base):
             o = next(o for o in e["obligations"] if o["id"] == "nonvacuity/universal")
             o["status"] = "kernel"
         with self.assertRaises(cx.Rejected):
-            cx.ingest_evidence(self.db, self.write("ev.json", evidence_for(STRAIGHT_O0, edit=edit)))
+            self.trusted(self.write("ev.json", evidence_for(STRAIGHT_O0, edit=edit)))
 
     def test_non_standard_axiom(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
@@ -337,17 +348,17 @@ class Evidence(Base):
         def edit(e):
             e["obligations"][0]["axioms"] = ["sorryAx"]
         with self.assertRaises(cx.Rejected):
-            cx.ingest_evidence(self.db, self.write("ev.json", evidence_for(STRAIGHT_O0, edit=edit)))
+            self.trusted(self.write("ev.json", evidence_for(STRAIGHT_O0, edit=edit)))
 
     def test_other_modules(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
         ev = evidence_for(STRAIGHT_O0, edit=lambda e: e.update(modules=["Other"]))
         with self.assertRaises(cx.Rejected):
-            cx.ingest_evidence(self.db, self.write("ev.json", ev))
+            self.trusted(self.write("ev.json", ev))
 
     def test_evidence_does_not_carry_to_a_new_version(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
-        cx.ingest_evidence(self.db, self.write("ev.json", evidence_for(STRAIGHT_O0)))
+        self.trusted(self.write("ev.json", evidence_for(STRAIGHT_O0)))
         m = json.loads(STRAIGHT_O0.read_bytes())
         m["context"]["target_model"]["version"] = "another x86-64 model version"
         p2 = self.write("m2.json", m)
@@ -362,8 +373,8 @@ class Evidence(Base):
             ev = evidence_for(STRAIGHT_O0)
             ev["manifest_sha256"] = cx.sha256(p2.read_bytes())
             ev["obligations"][0]["statement"] += " "
-            cx.ingest_evidence(self.db, self.write("ev2.json", ev))
-        cx.ingest_evidence(self.db, self.write("ev3.json", evidence_for(p2)))
+            self.trusted(self.write("ev2.json", ev))
+        self.trusted(self.write("ev3.json", evidence_for(p2)))
         self.assertEqual(self.statuses("compiles-to/straight/O0/add3")["translation"], "proved")
 
 

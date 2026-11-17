@@ -3,7 +3,7 @@
 
     python3 -I tools/compiler-explorer/fixtures.py build      # Docker: compile the demo programs
     python3 -I tools/compiler-explorer/fixtures.py listings   # Docker: objdump the compiles-to objects
-    python3 -I tools/compiler-explorer/fixtures.py manifests  # no Docker: write the manifests
+    python3 -I tools/compiler-explorer/fixtures.py manifests [--out DIR]  # no Docker: the manifests
 
 `build` and `listings` run the pinned gcc image of tools/c-tv (by digest) with no network
 (`--network none`), the caller's uid and the sources mounted read-only. They write what they
@@ -275,6 +275,8 @@ def program_manifests() -> list[dict]:
                                  "the linked program with glibc")},
                 {"id": "abi", "kind": "abi", "decl": None, "statement": None,
                  "unsupported": "no ABI statement is attempted for this program"},
+                {"id": "nonvacuity", "kind": "nonvacuity", "decl": None, "statement": None,
+                 "unsupported": "no translation is stated, so there is nothing to be vacuous"},
                 {"id": "mapping", "kind": "mapping", "decl": None, "statement": None,
                  "unsupported": "no semantic mapping: only the compiler's debug line table"},
                 {"id": "refinement", "kind": "refinement", "decl": None, "statement": None,
@@ -439,7 +441,7 @@ def compiles_to_manifests() -> list[dict]:
                     }
                 else:
                     reason = unsupported_reason or "c-tv produced no program points for this function"
-                    for k in ["translation", "mapping", "refinement", "abi"]:
+                    for k in ["translation", "mapping", "refinement", "abi", "nonvacuity"]:
                         obligations.append({"id": k, "kind": k, "decl": None, "statement": None,
                                             "unsupported": reason})
                     lean = {"family": None, "modules": []}
@@ -469,17 +471,20 @@ def compiles_to_manifests() -> list[dict]:
     return out
 
 
-def manifests() -> None:
-    MANIFESTS.mkdir(parents=True, exist_ok=True)
-    for old in MANIFESTS.glob("*.json"):
+def manifests(out: pathlib.Path = MANIFESTS) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    for old in out.glob("*.json"):
         old.unlink()
     for m in compiles_to_manifests() + program_manifests():
-        dump(MANIFESTS / (m["id"].replace("/", "--") + ".json"), m)
+        dump(out / (m["id"].replace("/", "--") + ".json"), m)
         print(f"wrote {m['id']}: {len(m['edges'])} edges, {len(m['obligations'])} obligations")
 
 
 def main(argv: list[str]) -> int:
     cmds = {"build": build, "listings": listings, "manifests": manifests}
+    if len(argv) == 4 and argv[1] == "manifests" and argv[2] == "--out":
+        manifests(pathlib.Path(argv[3]))
+        return 0
     if len(argv) != 2 or argv[1] not in cmds:
         print(__doc__, file=sys.stderr)
         return 2

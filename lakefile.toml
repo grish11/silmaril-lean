@@ -722,6 +722,27 @@ name = "csem"
 root = "Csem"
 srcDir = "tools/csem"
 
+# The compiler explorer's evidence exporter (docs/projects/compiler-explorer.md): it imports the
+# modules a manifest names at run time and decides each obligation from the environment.
+[[lean_exe]]
+name = "cexplorer-export"
+root = "CExplorerExport"
+srcDir = "tools/compiler-explorer"
+supportInterpreter = true
+# the manifests and the database it serves are part of its trace, so CI's scope selects the
+# end-to-end check (`make compiler-explorer-check`) when they change
+needs = ["compilerExplorerTools", "compilerExplorerFixtures"]
+
+[[input_dir]]
+name = "compilerExplorerTools"
+path = "tools/compiler-explorer"
+filter = { extension = ["py", "sh", "js", "mjs"] }
+
+[[input_dir]]
+name = "compilerExplorerFixtures"
+path = "examples/compiler-explorer"
+filter = { extension = ["json", "txt", "c", "s"] }
+
 [[lean_exe]]
 name = "decompile"
 root = "Decompile"

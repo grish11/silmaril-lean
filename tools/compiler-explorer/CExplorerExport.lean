@@ -3,7 +3,11 @@ import Lean
 /-!
 # The compiler explorer's evidence exporter
 
-    lake env lean --run tools/compiler-explorer/export.lean MANIFEST.json OUT.json
+    lake build cexplorer-export
+    lake env .lake/build/bin/cexplorer-export MANIFEST.json OUT.json
+
+(`python3 -I tools/compiler-explorer/cexplorer.py verify DB MANIFEST…` runs it and ingests its
+output; that is the only route by which the database records evidence as checked.)
 
 Reads a problem manifest (`silmaril.compiler-explorer.problem/1`), imports the Lean modules it
 names (`lean.modules`, from the build Lake made), and decides the status of each obligation
@@ -116,7 +120,8 @@ unsafe def run (manifestPath outPath : String) : IO UInt32 := do
     | .ok s => s != "kernel" && s != "open"
     | .error _ => true
   IO.println s!"{problemId}: {results.size} obligations, {bad.size} not evidence"
-  return 0
+  -- a named proof that is not evidence fails the run (and CI)
+  return if bad.isEmpty then 0 else 1
 
 end ExplorerExport
 
@@ -124,5 +129,5 @@ unsafe def main (args : List String) : IO UInt32 := do
   match args with
   | [m, o] => ExplorerExport.run m o
   | _ =>
-    IO.eprintln "usage: lake env lean --run tools/compiler-explorer/export.lean MANIFEST OUT"
+    IO.eprintln "usage: lake env .lake/build/bin/cexplorer-export MANIFEST OUT"
     return 2
