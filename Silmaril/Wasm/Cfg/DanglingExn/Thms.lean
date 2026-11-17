@@ -59,7 +59,12 @@ in `hxStore`): `hx_dangling`, `hx_catches_before` (`catch 0 0` does not catch ad
 `hx_core_alloc`, `hx_native_alloc` (both allocate `hxExn v` at address `0`, leaving
 `hxThrown v`), `hx_catches_after` (`catch 0 0` now catches address `0` with payload `v`). A
 dangling reference kept across that allocation names the new exception. Both semantics read
-the store at handler time, so this does not separate them.
+the store at handler time, so this does not separate them. Aliasing also makes **cyclic
+exceptions**: a `throw` whose payload is the reference `ref.exn s.exns.length` (a dangling host
+exception caught by `catch_all_ref`) allocates an exception whose field names itself, in Core
+(`step_throw_self`) and natively (`evalLXPh_throw_self`) alike, and the resulting store is not
+`StoreOk` (`not_storeOk_addExn_self`, the `acyclicExns` clause). A relaxed store invariant for
+dangling exceptions therefore cannot keep `acyclicExns` on the actual store.
 
 **4. Fixture.** `callH_dangling_round`: in the CFG session triple, `callH`
 (`try_table (catch 0 0) (call 0)`) with the host answering `throw 0` and keeping `hxStore` ends
@@ -184,6 +189,30 @@ theorem catches_alloc (e : ExnInst) {x : TagIdx} {l : LabelIdx} {cs : List Catch
     (ht : f.module.tags[x.toNat]? = some e.tag) :
     Catches (s.addExn e) f s.exns.length (.catch_ x l :: cs) (some (e.fields, l)) :=
   .catch_ (by simp [Store.addExn]) ht
+
+/-- **Aliasing makes cyclic exceptions, Core.** A Wasm `throw` whose payload is the next
+allocation address `s.exns.length` (for instance a dangling host exception caught by
+`catch_all_ref`) allocates an exception whose field is a reference to itself. -/
+theorem step_throw_self {x : TagIdx} {ta : Nat} {ti : TagInst} {ts : Ty (.list .val)}
+    (ht : s.tag? f x = some (ta, ti)) (he : Expand ti.type (.func ts .nil)) (hn : ts.length = 1) :
+    Step P host ⟨s, f, [.ref (.exn s.exns.length), .plain (.throw x)]⟩
+      ⟨s.addExn ⟨ta, [.ref (.exn s.exns.length)]⟩, f, throwing s.exns.length⟩ :=
+  Step.throw (vs := [.ref (.exn s.exns.length)]) ht he hn.symm
+
+/-- **Aliasing makes cyclic exceptions, natively**: the same allocation. -/
+theorem evalLXPh_throw_self {x : TagIdx} {ta : Nat} {ti : TagInst} {ts : Ty (.list .val)}
+    (ht : s.tag? f x = some (ta, ti)) (he : Expand ti.type (.func ts .nil)) (hn : ts.length = 1) :
+    Abstract.EvalLXPh s f [.ref (.exn s.exns.length)] [.op (.throw x) []] []
+      (s.addExn ⟨ta, [.ref (.exn s.exns.length)]⟩, f, .flow (.throw s.exns.length)) := by
+  have h := Abstract.EvalLXPh.throw (es := []) (l := []) (stk₁ := [.ref (.exn s.exns.length)])
+    .nil ht he (by simp [hn])
+  rwa [hn] at h
+
+/-- **A self-referencing exception breaks `StoreOk`** (`acyclicExns`), whatever the rest. -/
+theorem not_storeOk_addExn_self (ta : Nat) :
+    ¬ StoreOk (s.addExn ⟨ta, [.ref (.exn s.exns.length)]⟩) := fun h =>
+  h.acyclicExns s.exns.length (by simp [Store.addExn]) (.refExn (i := 0)
+    (e := ⟨ta, [.ref (.exn s.exns.length)]⟩) (by simp [Store.addExn]) rfl)
 
 open Silmaril.Wasm.Cfg.ExampleHostExn
 
