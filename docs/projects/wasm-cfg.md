@@ -1084,15 +1084,40 @@ The plain graph stays an over-approximation, and claims about it say so.
              a dangling reference on the stack, in a local or in a global, no `ConfigOk`
              holds (`not_valOk_exn`).
 
-             The needed replacement is a local relaxed invariant: `ConfigOk` except that
-             exception references `ref.exn a` with `a ≥ s.exns.length` are typed `exnref`,
-             with the store invariant `StoreOk` relaxed the same way for global values. Its
-             preservation must be proved for instance hosts (store-preserving, so tags are
-             fixed and exceptions grow only by Wasm `throw`). Aliasing is harmless here: a
-             dangling address that gets allocated becomes a valid `exnref`. The backward
-             proofs would then be generalized from `ContextTyped`/`HostTyped` to this
-             invariant. For the threaded sessions, `InstDom` must also be relaxed, since a
-             round can leave a non-`StoreOk` store (`not_storeOk_of_global`).
+             **The relaxed invariant, done; the reverse simulation, open**
+             (`Wasm/Cfg/DanglingTyped`, on `cfg/dangling-rev`). Aliasing is not harmless for
+             `StoreOk`: a `throw` whose payload is `ref.exn s.exns.length` (a dangling host
+             exception caught by `catch_all_ref`) allocates an exception whose field names itself,
+             in Core and natively alike (`DanglingExn.step_throw_self`, `evalLXPh_throw_self`),
+             and the store breaks `acyclicExns` (`not_storeOk_addExn_self`). So the invariant does
+             not relax `RefOk`/`StoreOk` on the actual store. It types the actual frame and code on
+             a **typing witness** `gst s T X`: the actual store with tags `T` (a prefix extension)
+             and exceptions `X` (each actual exception at its address with its tag, fields equal up
+             to exception addresses; pads with a fresh tag and no field at dangling addresses).
+             - `ConfigOkD c`: supported profile (`ASupp`: no `ref.test`, `br_on_cast*`, aggregate
+               instructions, `ref.cast` only at a defined type; frames and functions name only
+               tags of the store), `HeapBelow`, and `Sim.ContextTyped` on some witness.
+               `StoreOkD s`: the same for stores (`StoreOk` witness).
+             - Preservation, every numeric profile: `ConfigOkD.step`/`steps` (host-free Core
+               steps), `ConfigOkD.event` (one answer that keeps the store and types its values,
+               any exception address), `ConfigOkD.evRun` (labelled runs against `HostTypedD`
+               hosts), `hostTypedD_instHostU`. A step that keeps the exceptions is matched on the
+               witness with the same code (`catchMatches_gst_iff`, `refOk_gst_iff`: every
+               decision agrees), typed there by Core preservation; caught payloads differ only in
+               exception addresses. A Wasm `throw` allocates at `s.exns.length` but at `X.length`
+               on the witness; the next witness moves the exception to its actual address and
+               redirects every exception field to the last pad, which excludes the cycles.
+             - Entry and exit: `storeOkD_of_storeOk`, `configOkD_invoke`,
+               `storeOkD_of_configOkD` (the end store of a round satisfies `StoreOkD`).
+
+             Remaining, not claimed: carrying the backward simulation
+             (`HostClosingXP.back_all`, `HostClosingInfXPBack`, `HostEval`, and the native
+             progress lemmas of `Interp` they use) from `ContextTyped`/`HostTyped` to
+             `ConfigOkD`/`HostTypedD`; hence `instTripleS ⊆ cfgInstTripleU`, the equality with
+             #988's direction, the sessions on a `StoreOkD`-based domain, and the `core3SemD`
+             corollary. Only one direction (native/CFG ⊆ Core) is proved for dangling throws.
+             Also open: that checker-accepted stores satisfy `FuncsSupp` (needed to enter
+             `ConfigOkD` from `InstDom`).
 
              **The legal typed canonical object** (`Games/Abstract/SessionLegal`,
              `Wasm/Abstract/NodeLegal`, `Wasm/Cfg/CfgLegal`). The legal domain is stated on
