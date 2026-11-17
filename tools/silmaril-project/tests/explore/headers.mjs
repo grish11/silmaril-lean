@@ -115,8 +115,11 @@ try {
         if (L.refused != null ? !tx.includes("refused") : tx !== `${L.ok.size} / ${L.ok.align}`) lok = false;
       }
       check(lok, `${h.id}: ${(h.aggregates || []).length} aggregates, size / align per data model as the data says`);
-      const padText = (L) => !L || L.refused != null ? "" : L.ok.padding.length === 0 ? "none" :
-        `${L.ok.paddingBytes} B: ` + L.ok.padding.map(([lo, hi]) => `[${lo}, ${hi})`).join(" ");
+      const padText = (L) => !L || L.refused != null ? "" : (L.ok.padding.length === 0 ? "none" :
+        `${L.ok.paddingBytes} B: ` + L.ok.padding.map(([lo, hi]) => `[${lo}, ${hi})`).join(" ")) + ` (${L.ok.paddingBits} padding bits)`;
+      check((h.aggregates || []).every((a) => d.dataModels.every((dm) => { const L = a.layouts[dm];
+        return !L || L.refused != null || L.ok.padding.reduce((n, [lo, hi]) => n + hi - lo, 0) === L.ok.paddingBytes; })),
+        `${h.id}: the padding ranges add up to the library's paddingBytes`);
       check((h.aggregates || []).every((a) => d.dataModels.every((dm) => (pg.pads[a.tag]?.[dm] ?? "") === padText(a.layouts[dm]))),
         `${h.id}: each aggregate's padding per data model as the data says`);
     }
@@ -171,7 +174,7 @@ try {
     if (h.id === "layout-demo") {
       check(/xmm0/.test(pg.fns.scale?.sysvScalar || "") && /refused/.test(pg.fns.scale?.sysvInt || ""), "layout-demo: double scale(double, float, int) uses xmm registers under sysvScalar, refused by sysvInt");
       check(pg.aggs.pt?.sysvX86_64 === "24 / 8" && pg.aggs.pt?.msX64 === "12 / 4", "layout-demo: struct pt is 24/8 under System V, 12/4 under Microsoft x64");
-      check(pg.pads.pt?.sysvX86_64 === "13 B: [1, 8) [18, 24)" && pg.pads.pt?.msX64 === "5 B: [1, 4) [10, 12)",
+      check(pg.pads.pt?.sysvX86_64 === "13 B: [1, 8) [18, 24) (104 padding bits)" && pg.pads.pt?.msX64 === "5 B: [1, 4) [10, 12) (40 padding bits)",
         `layout-demo: struct pt's padding: System V [1,8) [18,24), Microsoft x64 [1,4) [10,12) (${JSON.stringify(pg.pads.pt)})`);
       check(/args: rcx\[0\.\.8\)/.test(pg.fns.rec_size?.win64Int || "") && /result: rax\[0\.\.4\)/.test(pg.fns.rec_size?.win64Int || "") &&
         /outgoing stack: 32 B/.test(pg.fns.rec_size?.win64Int || "") && /shadow space/.test(pg.fns.rec_size?.win64Int || ""),

@@ -209,7 +209,11 @@ def layoutJson (pol : BitPolicy) (dm : DataModel) (env : Env) (d : Decl) : Json 
     Json.mkObj [("size", jn sh.size), ("align", jn sh.align),
       ("members", Json.arr (slots.toArray.map slotJson)),
       ("padding", Json.arr (pad.toArray.map fun (lo, hi) => Json.arr #[jn lo, jn hi])),
-      ("paddingBytes", jn (pad.foldl (fun n (lo, hi) => n + (hi - lo)) 0))]) (bitLayout pol dm env d)
+      -- the library's counts (`Data.Layout.paddingBytes`/`paddingBits`, the definitions the
+      -- layout theorems state, e.g. `Header.rec_layout_sysv`); the ranges above are this tool's
+      -- rendering of the same byte predicate, checked against `paddingBytes` by headers.mjs
+      ("paddingBytes", jn (paddingBytes slots sh)),
+      ("paddingBits", jn (paddingBits slots sh))]) (bitLayout pol dm env d)
 
 def declJson (env : Env) (d : Decl) : Json :=
   Json.mkObj [("kind", js (match d.kind with | .struct => "struct" | .union => "union")),
