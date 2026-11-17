@@ -5,10 +5,14 @@ public import Silmaril.Cerberus.TV.Explore.Defs
 /-!
 # A whole-program refinement validator for closed Core programs
 
-`validate impl src tgt bounds` decides `Refines impl src tgt` (`TV.Behaviour`) for programs whose
-executions are finite and fit the bounds, and says `unknown` otherwise. It explores both programs
-(`Closed.explore`) and checks that every ending of the target is **covered** by an ending of the
-source: each observation the target ending admits, the source ending admits too (`covers`).
+`validate impl src tgt bounds` is a **sound semi-decision** of `Refines impl src tgt`
+(`TV.Behaviour`): `validated` and `refuted` are proved, and `unknown` may hide a true refinement.
+It explores both programs (`Closed.explore`) and checks that every ending of the target is
+**covered** by one ending of the source: each observation the target ending admits, that source
+ending admits too (`covers`). Coverage is ending by ending, so it is incomplete even when both
+explorations are exhaustive: a target ending with an unspecified exit value is covered only by a
+source ending with an unspecified exit value (or undefined behaviour), never by several source
+endings that together give every exit status, and the verdict is then `unknown`.
 
 | verdict | meaning | theorem (`Thms`) |
 |---|---|---|
@@ -37,7 +41,9 @@ open Silmaril.Cerberus.Spec
 /-- **Coverage of one ending by another** (`s` covers `e`): every observation `e` admits, `s`
 admits (`covers_sound` in `Thms`). Undefined behaviour covers everything; equal stdout with the
 same exit status (or an unspecified exit value on the source side) covers an exit; an abort covers
-an abort with the same stdout. Nothing else covers. -/
+an abort whose stdout is a prefix of its own when `abort` does not flush (`impl.abortFlushes =
+false`: every observation is then a prefix), and one with the same stdout otherwise. Nothing else
+covers. -/
 def covers (impl : Impl) (s e : Outcome × String) : Bool :=
   match s.1, e.1 with
   | .ub _ _, _ => true
@@ -47,7 +53,8 @@ def covers (impl : Impl) (s e : Outcome × String) : Bool :=
         | .unspecified, .int _ => true
         | .unspecified, .unspecified => true
         | _, _ => false
-  | .aborted, .aborted => decide (s.2 = e.2)
+  | .aborted, .aborted =>
+      if impl.abortFlushes then decide (s.2 = e.2) else decide (bytes e.2 <+: bytes s.2)
   | _, _ => false
 
 /-- An observation an ending admits (`witness_admits`), when one is readily named. For undefined
@@ -105,6 +112,13 @@ def validate (impl : Impl) (src tgt : Closed) (bounds : Bounds := {}) : Report :
     else if !S.limited && !S.stuck && !S.gap && uncovered.any (refutes impl S.ends) then .refuted
     else .unknown
   { verdict, source := S, target := T, uncovered, coveredOnlyByUB := onlyUB }
+
+/-- **Validated without source undefined behaviour**: `validated`, and the source exploration was
+exhaustive and reached no undefined behaviour, so no target ending was covered by UB
+(`validateUBFree_sound`). -/
+def validateUBFree (impl : Impl) (src tgt : Closed) (bounds : Bounds := {}) : Bool :=
+  let r := validate impl src tgt bounds
+  r.verdict == .validated && !r.source.limited && !r.source.ub
 
 /-- **The equivalence validator**: `validated` both ways. -/
 def validateEquivalent (impl : Impl) (P Q : Closed) (bounds : Bounds := {}) : Bool :=

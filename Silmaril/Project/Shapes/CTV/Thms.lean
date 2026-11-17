@@ -6,7 +6,8 @@ public import Silmaril.Cerberus.TV.Validate.Thms
 /-!
 # Standard problem shapes: whole-program C translation validation (theorems)
 
-* `CRefines.of_validate`, `CNotRefines.of_validate`, `CEquivalent.of_validate`: a verdict of the
+* `CRefines.of_validate`, `CRefinesUBFree.of_validate`, `CNotRefines.of_validate`,
+  `CEquivalent.of_validate`: a verdict of the
   validator (`Silmaril.Cerberus.TV.Validate`) gives a row of the corresponding shape. Computing the
   verdict in the kernel (`by cbv` or `by decide`) makes the row a kernel fact.
 * The coherence table of the profiles of `Defs`: `linuxX86_64` agrees with the Core semantics at
@@ -27,6 +28,10 @@ open Silmaril.Cerberus.TV
 theorem CRefines.of_validate {impl : Spec.Impl} {src tgt : Closed} (bounds : Bounds)
     (h : (validate impl src tgt bounds).verdict = .validated) : CRefines impl src tgt :=
   validate_sound impl src tgt bounds h
+
+theorem CRefinesUBFree.of_validate {impl : Spec.Impl} {src tgt : Closed} (bounds : Bounds)
+    (h : validateUBFree impl src tgt bounds = true) : CRefinesUBFree impl src tgt :=
+  validateUBFree_sound impl src tgt bounds h
 
 theorem CNotRefines.of_validate {impl : Spec.Impl} {src tgt : Closed} (bounds : Bounds)
     (h : (validate impl src tgt bounds).verdict = .refuted) : CNotRefines impl src tgt :=

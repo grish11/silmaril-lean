@@ -44,6 +44,16 @@ theorem validate_refuted (impl : Impl) (src tgt : Closed) (bounds : Bounds)
     (h : (validate impl src tgt bounds).verdict = .refuted) : ¬ Refines impl src tgt :=
   Proofs.Cerberus.TV.validate_refuted impl src tgt bounds h
 
+/-- An exhaustive exploration without undefined behaviour proves the program UB-free. -/
+theorem Closed.ubFree_of_explore (P : Closed) (bounds : Bounds)
+    (hl : (P.explore bounds).limited = false) (hu : (P.explore bounds).ub = false) : P.UBFree :=
+  Proofs.Cerberus.TV.Closed.ubFree_of_explore P bounds hl hu
+
+/-- **`validateUBFree` is sound**: refinement of a UB-free source. -/
+theorem validateUBFree_sound (impl : Impl) (src tgt : Closed) (bounds : Bounds)
+    (h : validateUBFree impl src tgt bounds = true) : RefinesUBFree impl src tgt :=
+  Proofs.Cerberus.TV.validateUBFree_sound impl src tgt bounds h
+
 /-- **The equivalence validator is sound.** -/
 theorem validateEquivalent_sound (impl : Impl) (P Q : Closed) (bounds : Bounds)
     (h : validateEquivalent impl P Q bounds = true) : Equivalent impl P Q :=

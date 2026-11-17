@@ -11,6 +11,7 @@ open Silmaril.Cerberus Silmaril.Cerberus.TV Silmaril.Project.CTV.Examples
 #print axioms Silmaril.Cerberus.TV.validate_sound
 #print axioms Silmaril.Cerberus.TV.validate_refuted
 #print axioms Silmaril.Cerberus.TV.validateEquivalent_sound
+#print axioms Silmaril.Cerberus.TV.validateUBFree_sound
 #print axioms Silmaril.Cerberus.TV.Closed.explore_complete
 #print axioms Silmaril.Cerberus.TV.Closed.explore_terminates
 #print axioms Tests.CTV.fold_refines
@@ -29,3 +30,9 @@ open Silmaril.Cerberus Silmaril.Cerberus.TV Silmaril.Project.CTV.Examples
 #guard !(validate Spec.Impl.lp64 (add 1 2) (add 1 2)).coveredOnlyByUB
 -- Undefined behaviour in the source is reported when it is all the coverage rests on.
 #guard (validate Spec.Impl.lp64 overflow (add 1 2)).coveredOnlyByUB
+
+-- Abort coverage is prefix-aware when `abort` does not flush, and exact when it does.
+example : covers Spec.Impl.lp64 (.aborted, "abc") (.aborted, "ab") = true := by decide +kernel
+example : covers { Spec.Impl.lp64 with abortFlushes := true } (.aborted, "abc") (.aborted, "ab") = false := by
+  decide +kernel
+example : covers Spec.Impl.lp64 (.aborted, "ab") (.aborted, "abc") = false := by decide +kernel

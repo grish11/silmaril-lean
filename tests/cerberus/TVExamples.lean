@@ -14,6 +14,8 @@ within minutes, while here each verdict takes seconds (docs/projects/c-tv.md, op
 | theorem | statement |
 |---|---|
 | `fold_refines` | `return 3 + 0;` refines `return 1 + 2;` |
+| `fold_refines_ub_free` | and the source has no undefined behaviour (`refines_ub_free`) |
+| `overflow_not_ub_free` | the `INT_MAX + 1` row is not UB-free |
 | `fold_equivalent` | and the two are equivalent |
 | `wrong_fold_not_refines` | `return 2 + 2;` does not refine `return 1 + 2;` |
 | `overflow_refined_by_anything` | a terminating supported target refines `INT_MAX + 1` (undefined behaviour); the report flags that coverage used only undefined behaviour |
@@ -38,6 +40,13 @@ theorem fold_validated : (validate Spec.Impl.lp64 (add 1 2) (add 3 0)).verdict =
 
 theorem fold_refines : CRefines Spec.Impl.lp64 (add 1 2) (add 3 0) :=
   CRefines.of_validate {} fold_validated
+
+theorem fold_refines_ub_free : CRefinesUBFree Spec.Impl.lp64 (add 1 2) (add 3 0) :=
+  CRefinesUBFree.of_validate {} (by cbv)
+
+/-- The overflow row is validated only through source UB: it is not a `refines_ub_free` row. -/
+theorem overflow_not_ub_free : validateUBFree Spec.Impl.lp64 overflow (add 2 2) = false := by
+  cbv
 
 theorem fold_equivalent : CEquivalent Spec.Impl.lp64 (add 1 2) (add 3 0) :=
   CEquivalent.of_validate {} (by cbv)

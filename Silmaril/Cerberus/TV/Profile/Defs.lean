@@ -45,6 +45,14 @@ conversion Core special-cases, is not compared), endianness and numeric format.
 fact for a concrete profile. A validation result transfers to the target only for programs whose
 object types are coherent; for every other type the result is about the legacy LP64 model of the
 port, not the target. Nothing here silently replaces the port's 8-byte floats.
+
+Coherence is **necessary, not sufficient**. `Profile.issues` compares scalar storage, alignment,
+signedness, value range, endianness and floating format, and nothing else. Fixed inside the port
+and not compared: conversion of out-of-range values to signed types, right shifts of negative
+values and the other implementation-defined integer operations of the runtime (`impl` maps of
+Cerberus's `gcc_4.9.0_x86_64-apple-darwin10.8.0` implementation), aggregate layout and padding,
+bit-fields, pointer representation, and the allocator's addresses. `language` and the
+`float128` entry of `floatFormat` are labels: nothing compares them yet.
 -/
 
 @[expose] public section

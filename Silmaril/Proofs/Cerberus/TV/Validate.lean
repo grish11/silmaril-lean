@@ -49,9 +49,16 @@ theorem covers_sound (impl : Impl) (s e : Outcome × String) (h : covers impl s 
   | aborted =>
       cases o with
       | aborted =>
-          simp only [covers, decide_eq_true_eq] at h
-          subst h
-          exact hx
+          simp only [covers] at h
+          split at h
+          · rename_i hf
+            simp only [decide_eq_true_eq] at h
+            subst h
+            exact hx
+          · rename_i hf
+            simp only [decide_eq_true_eq] at h
+            obtain ⟨h1, h2, _⟩ := hx
+            exact ⟨h1, h2.trans h, fun hf' => absurd hf' hf⟩
       | _ => simp [covers] at h
   | error _ => simp [covers] at h
   | unsupported _ => simp [covers] at h
@@ -133,6 +140,26 @@ theorem validate_refuted (impl : Impl) (src tgt : Closed) (bounds : Bounds)
     simp only [Bool.not_eq_true', decide_eq_false_iff_not] at this
     exact this hadm
   · cases hre
+
+/-- An exhaustive exploration without undefined behaviour proves the program UB-free. -/
+theorem Closed.ubFree_of_explore (P : Closed) (bounds : Bounds)
+    (hl : (P.explore bounds).limited = false) (hu : (P.explore bounds).ub = false) : P.UBFree := by
+  intro o out hend
+  have hmem := TV.Closed.explore_complete P bounds hl o out hend
+  unfold Leaves.ub at hu
+  by_contra hub
+  have : (P.explore bounds).ends.any (fun e => Outcome.isUB e.1) = true :=
+    List.any_eq_true.mpr ⟨(o, out), hmem, by simpa using hub⟩
+  rw [hu] at this
+  cases this
+
+/-- **Soundness of `validateUBFree`.** -/
+theorem validateUBFree_sound (impl : Impl) (src tgt : Closed) (bounds : Bounds)
+    (h : validateUBFree impl src tgt bounds = true) : RefinesUBFree impl src tgt := by
+  simp only [validateUBFree, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true'] at h
+  obtain ⟨⟨hv, hl⟩, hu⟩ := h
+  exact ⟨validate_sound impl src tgt bounds hv,
+    Closed.ubFree_of_explore src bounds (by simpa [validate] using hl) (by simpa [validate] using hu)⟩
 
 /-- **Soundness of the equivalence validator.** -/
 theorem validateEquivalent_sound (impl : Impl) (P Q : Closed) (bounds : Bounds)

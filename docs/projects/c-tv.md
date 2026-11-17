@@ -22,8 +22,8 @@ Related pages: [Cerberus C semantics](cerberus.md) (the Lean port this builds on
 | Refinement validator `validate` (verdicts `validated`, `refuted`, `unsupported`, `unknown`) | `Silmaril/Cerberus/TV/Validate/{Defs,Thms}.lean` | `validate_sound`, `validate_refuted`, `validateEquivalent_sound` **proved** |
 | Target profiles and their coherence with the Core semantics, per scalar type | `Silmaril/Cerberus/TV/Profile/Defs.lean` | decidable; table for x86-64 System V **computed in the kernel** |
 | Stages, artifacts, edges and evidence kinds | `Silmaril/Cerberus/TV/Provenance/Defs.lean` | vocabulary |
-| Shapes `silmaril.shapes.c.tv.{refines,not_refines,equivalent,profile_coherent_at}` | `Silmaril/Project/Shapes/CTV/{Defs,Thms}.lean` | shapes, bridges from verdicts |
-| Examples over elaborated Core | programs in `Silmaril/Project/CTV/Examples/Defs.lean`, verdicts in `tests/cerberus/TVExamples.lean` | 12 kernel-checked verdicts, positive and negative; interpreted negative checks in `tests/cerberus/TVValidate.lean` |
+| Shapes `silmaril.shapes.c.tv.{refines,refines_ub_free,not_refines,equivalent,profile_coherent_at}` | `Silmaril/Project/Shapes/CTV/{Defs,Thms}.lean` | shapes, bridges from verdicts |
+| Examples over elaborated Core | programs in `Silmaril/Project/CTV/Examples/Defs.lean`, verdicts in `tests/cerberus/TVExamples.lean` | 14 kernel-checked verdicts, positive and negative; interpreted negative checks in `tests/cerberus/TVValidate.lean` |
 
 All theorems depend only on `propext`, `Classical.choice` and `Quot.sound`. Verdicts in the
 examples are computed in the kernel (`by cbv`); none uses `native_decide`.
@@ -47,8 +47,8 @@ The behaviours are kept apart, not merged:
 | --- | --- |
 | undefined behaviour | a source run reaching UB admits every observation (C11 §4p2); a target UB ending allows every observation, so only a source that may reach UB covers it |
 | unspecified values | an unspecified exit value admits every exit status, with the same stdout |
-| unspecified order / nondeterminism | every interleaving of `unseq` and every `nd` choice of the LTS is explored |
-| implementation-defined choices | `impl` (exit status, `abort` flushing) and the target profile (below) are explicit parameters |
+| unspecified order / nondeterminism | every interleaving of `unseq` and every `nd` choice the port's LTS keeps is explored; the concrete memory's allocator is deterministic, so behaviours ISO C allows through other allocation addresses are not |
+| implementation-defined choices | only the exit status and `abort` flushing are parameters (`impl`); the scalar choices of the target profile are compared, not parameterized (below); the rest (integer conversions and shifts in the runtime, aggregate layout, bit-fields, pointer representation) are fixed by the port |
 | divergence | not an observation; the target must terminate (stronger than divergence-preserving refinement) |
 | stuck / unsupported | never accepted on the target side (2); on the source side a gap admits nothing, so it can only make `validated` harder and it blocks `refuted` |
 
@@ -57,8 +57,11 @@ end in `unsupported` would refine every source.
 
 ### The validator and what a verdict means
 
-`validate impl src tgt bounds` explores both programs and checks that each target ending is
-covered by a source ending.
+`validate impl src tgt bounds` is a **sound semi-decision**: it explores both programs and checks
+that each target ending is covered by one source ending. `validated` and `refuted` are proved;
+`unknown` may hide a true refinement, even with exhaustive explorations, because coverage is ending
+by ending (a target with an unspecified exit value is covered only by an unspecified source exit
+value, not by several source endings that together give every status).
 
 | Verdict | Requires | Theorem |
 | --- | --- | --- |
@@ -69,6 +72,8 @@ covered by a source ending.
 
 `Report.coveredOnlyByUB` is set when some target ending is covered only by source undefined
 behaviour; the verdict is then still `validated` (that is C's meaning) and a reader should know.
+`validateUBFree` (proved: `RefinesUBFree`, shape `c.tv.refines_ub_free`) additionally requires an
+exhaustive source exploration without undefined behaviour, so its rows cannot rest on source UB.
 
 **Bounded enumeration is not C behaviour in general.** Exhaustiveness means the execution tree of
 this program on these arguments is finite and fits the bounds: every run has at most
@@ -98,8 +103,11 @@ For `linuxX86_64` (System V psABI data model, `TargetCoherence.linuxLP64` elabor
 
 `legacyPinnedApple` (upstream's pinned `Target.pinnedApple` elaborator configuration) also
 disagrees at the floating types in the elaborator. These legacy assumptions are reported, not
-replaced. A result transfers to x86-64 Linux only for programs whose object types are in the
-coherent set.
+replaced. Coherence is **necessary, not sufficient** for a result to transfer to x86-64 Linux:
+programs whose object types are outside the coherent set are about the port's legacy model, and
+even inside it the comparison leaves out the runtime's implementation-defined integer operations,
+aggregate layout and padding, bit-fields, pointer representation and allocation addresses.
+`Profile.language` and the `float128` format are labels that nothing compares yet.
 
 ### Provenance and evidence
 
@@ -182,6 +190,9 @@ listed with the stage that addresses them.
   allocation model.
 * **Concurrency and atomics.** Not supported (Cerberus's sequential semantics; `memory_order`
   is syntax only).
+* **Validator completeness.** Cover a target ending by a set of source endings (unspecified exit
+  values), and add the profile comparisons above (language, `float128`, implementation-defined
+  integer operations, aggregate layout).
 * **Divergence.** Refinement requires target termination; a divergence-aware relation
   (divergence allowed when the source may diverge, observed output prefixes) and validators for
   it (simulation with a measure, or cut-point invariants) are needed for nonterminating programs.

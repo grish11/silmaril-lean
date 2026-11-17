@@ -15,6 +15,7 @@ profile with that semantics (`Silmaril.Cerberus.TV.Profile`).
 | name | statement |
 |---|---|
 | `silmaril.shapes.c.tv.refines` | `Refines impl src tgt`: every observation of `tgt` is one of `src`, `tgt` reaches no gap or stuck state, and `tgt` has no infinite run |
+| `silmaril.shapes.c.tv.refines_ub_free` | `RefinesUBFree impl src tgt`: `Refines`, and no ending of `src` is undefined behaviour, so no target observation is admitted only through source UB |
 | `silmaril.shapes.c.tv.not_refines` | `¬ Refines impl src tgt` |
 | `silmaril.shapes.c.tv.equivalent` | `Equivalent impl P Q`: refinement both ways |
 | `silmaril.shapes.c.tv.profile_coherent_at` | `p.CoherentAt s`: the Core semantics, the elaborator configuration and the target profile agree on the scalar type `s` (storage, alignment, signedness, endianness, numeric format) |
@@ -64,6 +65,12 @@ def legacyPinnedApple : Profile :=
   (title := "A closed C program's Core refines another's (terminating, supported, observational)")]
 def CRefines (impl : Spec.Impl) (src tgt : Closed) : Prop :=
   Refines impl src tgt
+
+/-- **Refinement of a UB-free source**: the row cannot rest on source undefined behaviour. -/
+@[problem "silmaril.shapes.c.tv.refines_ub_free"
+  (title := "A closed C program's Core refines another's, which has no undefined behaviour")]
+def CRefinesUBFree (impl : Spec.Impl) (src tgt : Closed) : Prop :=
+  RefinesUBFree impl src tgt
 
 /-- **Non-refinement**: negative evidence. -/
 @[problem "silmaril.shapes.c.tv.not_refines"

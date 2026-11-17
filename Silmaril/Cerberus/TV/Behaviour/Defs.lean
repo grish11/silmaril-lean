@@ -128,6 +128,16 @@ structure Refines (impl : Impl) (src tgt : Closed) : Prop where
   supported : tgt.Supported
   terminates : ¬ tgt.Diverges
 
+/-- **No undefined behaviour**: no ending of the program is undefined behaviour. -/
+def Closed.UBFree (P : Closed) : Prop :=
+  ∀ o out, P.Ends o out → Outcome.isUB o = false
+
+/-- **Refinement of a source without undefined behaviour**: the refinement then constrains the
+target on every execution (no observation is admitted only because the source may reach UB). -/
+structure RefinesUBFree (impl : Impl) (src tgt : Closed) : Prop where
+  refines : Refines impl src tgt
+  sourceUBFree : src.UBFree
+
 /-- **Whole-program equivalence**: refinement both ways (so both programs are supported and
 terminate, and they allow the same observations). -/
 def Equivalent (impl : Impl) (P Q : Closed) : Prop :=
