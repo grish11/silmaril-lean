@@ -2,13 +2,14 @@ module
 
 public import Silmaril.Machine.Abi.Conformance.Import.Defs
 public import Silmaril.Machine.Abi.Conformance.LeafArith.Defs
-public import Silmaril.Data.Layout.Header.Import.Thms
+public import Silmaril.Data.Layout.Header.Import.Pinned.Thms
 import Silmaril.Proofs.Machine.Abi.Conformance.Import
 
 /-!
 # Coverage and `Declares` from the clang import: theorems
 
-PROVED (standard axioms; the per-header facts by `decide +kernel` on the pinned artifacts):
+PROVED (standard axioms; the per-header facts rewrite with `Pinned.import_<name>` and run
+`decide +kernel` on the literal entries, never on the JSON):
 
 * `declares_iff_of_header`, `declares_iff_of_all`: when the subset reader's header is the
   import's (or the two agree on a list of names) and the conventions are `sysvInt`'s, the two
@@ -59,7 +60,7 @@ theorem arith_coverage :
     unsupportedFns sysvInt sysvCcs arith = [] ∧ ccsOk sysvCcs arith = true ∧
     checkCoverage sysvInt sysvCcs arith LeafArith.coverage = true ∧
     Coverage.check sysvInt LeafArith.hdr LeafArith.coverage = true := by
-  decide +kernel
+  rw [import_arith]; decide +kernel
 
 theorem arith_declares_iff (f : String) (p : sysvInt.V.Proto) :
     Declares sysvInt LeafArith.hdr f p ↔ DeclaresImport sysvInt sysvCcs arith f p :=
@@ -70,7 +71,7 @@ theorem zlibSolo_declares_iff :
     ∀ f ∈ Silmaril.Data.Layout.Header.Zlib.checksumApi, ∀ p : sysvInt.V.Proto,
       Declares sysvInt Silmaril.Data.Layout.Header.Zlib.solo f p ↔
         DeclaresImport sysvInt sysvCcs zlibSolo f p :=
-  declares_iff_of_all (by decide +kernel)
+  declares_iff_of_all (by rw [import_zlibSolo]; decide +kernel)
 
 set_option maxRecDepth 100000 in
 theorem zlibHosted_declares_iff :
@@ -79,7 +80,7 @@ theorem zlibHosted_declares_iff :
       ∀ p : sysvInt.V.Proto,
       Declares sysvInt Silmaril.Data.Layout.Header.Zlib.hosted f p ↔
         DeclaresImport sysvInt sysvCcs zlibHosted f p :=
-  declares_iff_of_all (by decide +kernel)
+  declares_iff_of_all (by rw [import_zlibHosted]; decide +kernel)
 
 theorem zlibHosted_disagreement_lowers_alike :
     (sysvInt.lower (Silmaril.Data.Layout.Header.Zlib.sizedProto .size)).toOption.map
@@ -97,7 +98,7 @@ theorem zlibSolo_coverage :
       [("inflateBack", "parameter 2: typedef in_func: function or function-pointer type: \
         outside CProto")] ∧
     (interface sysvInt sysvCcs zlibSolo).length = 48 := by
-  decide +kernel
+  rw [import_zlibSolo]; decide +kernel
 
 set_option maxRecDepth 100000 in
 theorem zlibHosted_coverage :
@@ -109,7 +110,7 @@ theorem zlibHosted_coverage :
         outside CProto"),
        ("gzprintf", "variadic: the %al count and va_list are outside the INTEGER fragment")] ∧
     (interface sysvInt sysvCcs zlibHosted).length = 81 := by
-  decide +kernel
+  rw [import_zlibHosted]; decide +kernel
 
 set_option maxRecDepth 100000 in
 theorem probe_coverage :
@@ -129,7 +130,7 @@ theorem probe_coverage :
        ("paint", "enum color: enumerations are outside the INTEGER fragment")] ∧
     (table sysvInt sysvCcs probe).filter (fun x => x.2 matches .internal _) =
       [("inl", .internal "static: internal linkage")] := by
-  decide +kernel
+  rw [import_probe]; decide +kernel
 
 set_option maxRecDepth 100000 in
 theorem glibcString_coverage :
@@ -138,7 +139,7 @@ theorem glibcString_coverage :
       [("strerror_r", "asm label: the symbol is __xpg_strerror_r, and a row binds the C name")] ∧
     ((table sysvInt sysvCcs glibcString).filter (fun x => x.2 matches .internal _)).length =
       26 := by
-  decide +kernel
+  rw [import_glibcString]; decide +kernel
 
 end Silmaril.Machine.Abi.Conformance
 

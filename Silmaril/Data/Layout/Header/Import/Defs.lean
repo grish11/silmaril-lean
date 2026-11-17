@@ -11,8 +11,9 @@ public import Silmaril.Formats.Json.Chars.Defs
 The second route from a C header to the declarations it introduces, alongside the subset
 reader `Header.read`. Here the header is read by **clang**: a pinned artifact is the output of
 `clang -Xclang -ast-dump=json -fsyntax-only` (a pinned clang, in a container pinned by digest,
-with a recorded command) filtered to the top-level declarations of the header's own files
-(`examples/headers/recipe.sh`, which reproduces the bytes with `--check`). This module
+with a recorded command) filtered to the top-level declarations of the header's own files and
+projected to the keys read here (`examples/headers/recipe.sh` and its `clang/filter.py`, which
+reproduce the bytes with `--check`). This module
 **normalizes that tool output**; it does not assume that clang is correct. The JSON is a
 pinned artifact, the decoder (`Compiler.Clang.TotalJson`) is fail-closed, and every step from
 the bytes to an `Entry` is a function the kernel evaluates.

@@ -59,36 +59,66 @@ first prototype of each external function (not implicit, not `static`).
   byte count is not the recorded one.
 
 `recipe.sh --check` regenerates everything in a temporary directory and compares byte for byte.
-That includes the JSON, the provenance and the zlib excerpt below.
+That includes the JSON, the provenance, the zlib excerpt below and the generated Lean literals.
 
-The filter (`examples/headers/clang/filter.py`, run in the same image) does four things:
+The filter (`examples/headers/clang/filter.py`, run in the same image) does five things:
 
 1. It keeps the top-level declarations located in the header's own files.
-2. It makes the first location of each kept declaration explicit, because clang omits a
-   location's file and line when they repeat the previous one.
-3. It renumbers clang's node ids, which are heap addresses, by order of first appearance.
-4. It writes compact ASCII JSON, one declaration per line.
+2. It resolves each kept declaration's location to an explicit file and line. Clang omits a
+   location's file and line when they repeat the previous one, so the filter follows that
+   chain through the whole document.
+3. It projects each declaration to the keys the import reads: `id`, `kind`, `loc`, `name`,
+   `mangledName`, `type` (`qualType`, `desugaredQualType`), `storageClass`, `isImplicit`,
+   `variadic`, `inline`, `tagUsed`, `completeDefinition`. Of the children it keeps only the
+   kinds the import reads: `ParmVarDecl`, the attributes, `CompoundStmt` (that there is a
+   body) and `EnumConstantDecl`. Ranges, columns, type nodes and other children are dropped.
+4. It renumbers clang's node ids, which are heap addresses, by order of first appearance.
+5. It writes compact ASCII JSON, one declaration per line.
 
-Nothing inside a declaration is otherwise changed.
+The values kept are clang's.
 
 | artifact | header | flags | kept files | JSON bytes |
 | --- | --- | --- | --- | --- |
-| `arith` | `examples/elf-ladder/01-leaf-arith/arith.h` | `-ffreestanding -fno-builtin -I../common` (the ladder's) | `arith.h`, `../common/rt.h` | 22085 |
-| `probe` | `examples/headers/probe/probe.h` | `-ffreestanding -fno-builtin` | `probe.h` | 19560 |
-| `zlib-solo` | zlib 1.3.1 `zlib.h` | `-ffreestanding -fno-builtin -DZ_SOLO` (rung 03's) | `zlib.h`, `./zconf.h` | 77102 |
-| `zlib-hosted` | zlib 1.3.1 `zlib.h` | hosted | `zlib.h`, `./zconf.h` | 114761 |
-| `glibc-string` | the image's glibc `string.h` | hosted | `/usr/include/string.h` | 118602 |
+| `arith` | `examples/elf-ladder/01-leaf-arith/arith.h` | `-ffreestanding -fno-builtin -I../common` (the ladder's) | `arith.h`, `../common/rt.h` | 7748 |
+| `probe` | `examples/headers/probe/probe.h` | `-ffreestanding -fno-builtin` | `probe.h` | 7113 |
+| `zlib-solo` | zlib 1.3.1 `zlib.h` | `-ffreestanding -fno-builtin -DZ_SOLO` (rung 03's) | `zlib.h`, `./zconf.h` | 24087 |
+| `zlib-hosted` | zlib 1.3.1 `zlib.h` | hosted | `zlib.h`, `./zconf.h` | 38247 |
+| `glibc-string` | the image's glibc `string.h` | hosted | `/usr/include/string.h` | 33403 |
 
 All five use `-std=gnu11` and target `x86_64-unknown-linux-gnu`. glibc's `math.h` is not
 pinned. Its declarations are in `bits/mathcalls.h`, expanded once per floating type, so
 filtering it to its own files keeps several hundred declarations, all outside the INTEGER
 fragment.
 
+### One kernel parse per artifact
+
 The kernel reads the JSON through `Formats.Json.parseChars?`, which is the standard RFC 8259
 lexer and parser without the UTF-8 decoding step. `Thms.parseDecimal?_eq_parseChars?` proves
 that the byte parser equals it on valid UTF-8. That step takes seconds per kilobyte in the
-kernel. The artifacts are ASCII, and `asciiChars` reads them structurally. Importing the
-largest artifact takes about two minutes of `decide +kernel`.
+kernel. The artifacts are ASCII, and `asciiChars` reads them structurally.
+
+Each artifact has a generated module `Header.Import.Pinned.<Name>.Defs`. It holds the JSON and
+its provenance (`include_str`), their import (`<name>`), and the import's entries as a literal
+(`<Name>.entries`). `examples/headers/emit.lean` writes the module, `recipe.sh` runs it, and
+`--check` compares it byte for byte. The emitter is not trusted. Its own module
+`Pinned.<Name>.Thms` holds the only theorem that parses the JSON, `import_<name> : <name> =
+⟨.parse <name>Prov, <Name>.entries, none⟩`. These five modules check in parallel. Every other
+theorem rewrites with `import_<name>` and computes on the literal.
+
+The generated module also includes the provenance verbatim. Lake does not track the files
+`include_str` reads, so a changed JSON must change a module for it to be rebuilt. For the
+same reason, the modules that read the header texts (`Pinned.Defs`, `Zlib.Defs`) name the
+texts' SHA-256, and `--check` compares those hashes with the files.
+
+| module (local `lake build`, one thread per module) | before | after |
+| --- | --- | --- |
+| `Pinned.Arith.Thms` (`import_arith`) | — | 8 s |
+| `Pinned.Probe.Thms` | — | 9 s |
+| `Pinned.ZlibSolo.Thms` | — | 22 s |
+| `Pinned.GlibcString.Thms` | — | 30 s |
+| `Pinned.ZlibHosted.Thms` | — | 34 s |
+| `Pinned.Thms` (cross-checks; `Header.Import.Thms` before) | 347 s | 13 s |
+| `Machine.Abi.Conformance.Import.Thms` | 554 s | 12 s |
 
 ## What each route covers
 
@@ -99,7 +129,7 @@ largest artifact takes about two minutes of `decide +kernel`.
 | glibc `string.h` | refused | 66 entries: 40 explicit functions and 26 implicit builtin declarations |
 | `probe.h` | refused (struct definitions, attributes) | 31 entries |
 
-## Cross-checks (`Data.Layout.Header.Import.Thms`)
+## Cross-checks (`Data.Layout.Header.Import.Pinned.Thms`)
 
 | theorem | statement |
 | --- | --- |
