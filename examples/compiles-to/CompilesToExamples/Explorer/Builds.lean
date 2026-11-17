@@ -33,16 +33,6 @@ open Silmaril.Cerberus.Core.Dynamics (Frame)
 /-- The x86-64 model of the rows. -/
 abbrev isa : Model := Silmaril.X86.Open.isa
 
-/-- `straight.c`: the C function `add3` elaborates to its Core (`c.elaborates_to`). -/
-theorem straight_elaboration :
-    Silmaril.Project.Shapes.C.ElaboratesTo Straight.ail "add3" Straight.add3Fn :=
-  Straight.elaborates_add3
-
-/-- `branch.c`: the C function `max2` elaborates to its Core (`c.elaborates_to`). -/
-theorem branch_elaboration :
-    Silmaril.Project.Shapes.C.ElaboratesTo Branch.ail "max2" Branch.max2Fn :=
-  Branch.elaborates_max2
-
 /-! ## `straight.c`, `-O0`, `add3` (5 points) -/
 
 namespace StraightO0
@@ -81,8 +71,12 @@ theorem refines_dwarf (k0 : List Frame) :
 /-- Non-vacuity at the canonical entries: `c.compiles_to.canonical_entry` (one entry per argument
 tuple, safe for some tuple). -/
 theorem canonical :
-    Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical isa F.placement F.frame Straight.add3Fn :=
+    Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical isa F.placement F.frame F.cfn :=
   Straight.O0.add3_canonical
+
+/-- The C function elaborates to the Core of `F` (`c.elaborates_to`). -/
+theorem elaboration : Silmaril.Project.Shapes.C.ElaboratesTo Straight.ail "add3" F.cfn :=
+  Straight.elaborates_add3
 
 end StraightO0
 
@@ -112,8 +106,12 @@ theorem refines_dwarf (k0 : List Frame) :
 /-- Non-vacuity at the canonical entries: `c.compiles_to.canonical_entry` (one entry per argument
 tuple, safe for some tuple). -/
 theorem canonical :
-    Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical isa F.placement F.frame Straight.add3Fn :=
+    Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical isa F.placement F.frame F.cfn :=
   Straight.O2.add3_canonical
+
+/-- The C function elaborates to the Core of `F` (`c.elaborates_to`). -/
+theorem elaboration : Silmaril.Project.Shapes.C.ElaboratesTo Straight.ail "add3" F.cfn :=
+  Straight.elaborates_add3
 
 end StraightO2
 
@@ -155,8 +153,12 @@ theorem refines_dwarf (k0 : List Frame) :
 /-- Non-vacuity at the canonical entries: `c.compiles_to.canonical_entry` (one entry per argument
 tuple, safe for some tuple). -/
 theorem canonical :
-    Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical isa F.placement F.frame Branch.max2Fn :=
+    Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical isa F.placement F.frame F.cfn :=
   Branch.O0.max2_canonical
+
+/-- The C function elaborates to the Core of `F` (`c.elaborates_to`). -/
+theorem elaboration : Silmaril.Project.Shapes.C.ElaboratesTo Branch.ail "max2" F.cfn :=
+  Branch.elaborates_max2
 
 end BranchO0
 
@@ -171,6 +173,10 @@ abbrev F : FnData := CompilesToExamples.Branch.O2.max2
 theorem refines_dwarf (k0 : List Frame) :
     (F.mapping isa k0).RefinesComorphism dwarf F.scope (fun _ => True) :=
   F.refines_dwarf isa k0
+
+/-- The C function elaborates to the Core of `F` (`c.elaborates_to`). -/
+theorem elaboration : Silmaril.Project.Shapes.C.ElaboratesTo Branch.ail "max2" F.cfn :=
+  Branch.elaborates_max2
 
 end BranchO2
 

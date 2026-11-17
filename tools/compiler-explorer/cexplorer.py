@@ -33,6 +33,7 @@ import hashlib
 import http.server
 import json
 import pathlib
+import re
 import sqlite3
 import sys
 import tomllib
@@ -68,17 +69,23 @@ TEMPLATES = {
             f"{v['fn']}.sig {v['fn']}.frame"),
         "point": lambda v, k, line: f"Silmaril.Project.Shapes.CompilesTo.PointOf {v['fn']} {k} {line}",
         "elaboration": lambda v, k, line: (
-            f"Silmaril.Project.Shapes.C.ElaboratesTo {v['ail']} \"{v['cname']}\" {v['cfn']}"),
+            f"Silmaril.Project.Shapes.C.ElaboratesTo {v['ail']} \"{v['cname']}\" {v['fn']}.cfn"),
         "nonvacuity_canonical": lambda v, k, line: (
             f"Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical {v['isa']} {v['fn']}.placement "
-            f"{v['fn']}.frame {v['cfn']}"),
-        "nonvacuity_universal": lambda v, k, line: f"{v['cfn']}.meaning.Inhabited",
-        "artifact": lambda v, k, line: v["code_prop"],
+            f"{v['fn']}.frame {v['fn']}.cfn"),
+        "nonvacuity_universal": lambda v, k, line: f"{v['fn']}.cfn.meaning.Inhabited",
+        # the function's bytes are its symbol's code in the registered target object
+        "artifact": lambda v, k, line: (
+            f"Silmaril.Project.Shapes.SysV.ObjectFn {v['target_value']} \"{v['cname']}\" {v['fn']}.code"),
     },
 }
+# The obligation that ties the Lean names to the target artifact, per family: until it is proved,
+# no other obligation of the problem is shown as proved (`unbound`).
+BINDING = {"c-function-x86": "artifact"}
+IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_']*(\.[A-Za-z_][A-Za-z0-9_']*)*$")
 KINDS = ("translation", "mapping", "edge", "refinement", "abi", "point", "elaboration",
          "nonvacuity_canonical", "nonvacuity_universal", "artifact")
-FAMILY_VARS = {"c-function-x86": ("fn", "cfn", "ail", "cname", "isa", "comorphism", "code_prop")}
+FAMILY_VARS = {"c-function-x86": ("fn", "ail", "cname", "isa", "comorphism", "target_value")}
 
 
 class Rejected(Exception):
@@ -249,7 +256,10 @@ def read_artifact(root: pathlib.Path, ref: dict) -> bytes:
     rel = pathlib.PurePosixPath(ref["path"])
     if rel.is_absolute() or ".." in rel.parts:
         raise ValueError(f"artifact path must be relative and inside the repository: {rel}")
-    data = (root / rel).read_bytes()
+    full = (root / rel).resolve()
+    if not full.is_relative_to(root.resolve()):
+        raise ValueError(f"artifact path leaves the repository (a symbolic link?): {rel}")
+    data = full.read_bytes()
     if sha256(data) != ref["sha256"] or len(data) != ref["size"]:
         raise ValueError(f"{rel}: the file's bytes are not the manifest's "
                          f"(sha256 {sha256(data)}, size {len(data)}; manifest {ref['sha256']}, {ref['size']})")
@@ -274,6 +284,19 @@ def registry_sha(root: pathlib.Path, name: str) -> str | None:
     return None
 
 
+def record_value_source(root: pathlib.Path, name: str) -> str | None:
+    """The registry name a records value (`[[value]]` of `silmaril/**/*.toml`) reads."""
+    for f in sorted((root / "silmaril").rglob("*.toml")):
+        try:
+            doc = tomllib.loads(f.read_text())
+        except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+            continue
+        for v in doc.get("value", []):
+            if v.get("name") == name:
+                return v.get("source")
+    return None
+
+
 def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None:
     """Every structural check that does not need the database. Raises ValueError."""
     if m.get("schema") != PROBLEM_SCHEMA:
@@ -285,6 +308,10 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
         if role not in arts:
             raise ValueError(f"no {role} artifact")
     shas = {role: ref["sha256"] for role, ref in arts.items()}
+    view = m.get("view", {})
+    for side in ("source", "target"):
+        if view.get(side) not in arts:
+            raise ValueError(f"the view's {side} is not an artifact of the manifest")
     # the derivation: a compiled target names its compiler and a receipt about these bytes
     d = m.get("derivation")
     if m["direction"] in ("compiled", "decompiled"):
@@ -310,6 +337,8 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
                 raise ValueError(f"fragment {f['id']}: bad range")
             if f["space"] == "bytes" and hi > len(blobs[role]):
                 raise ValueError(f"fragment {f['id']}: range outside the artifact")
+        if f["id"] in frags:
+            raise ValueError(f"fragment {f['id']}: duplicate")
         frags[f["id"]] = f
     # edges
     edge_ids = set()
@@ -336,6 +365,20 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
         missing = [k for k in FAMILY_VARS[family] if not vars_.get(k)]
         if missing:
             raise ValueError(f"family {family} needs the Lean names {missing}")
+        bad = [k for k in FAMILY_VARS[family] if not IDENT.match(str(vars_[k]))]
+        if bad:
+            raise ValueError(f"the Lean names {bad} are not identifiers")
+        ctx = m.get("context") or {}
+        if vars_["isa"] != (ctx.get("target_model") or {}).get("decl"):
+            raise ValueError("the statements' target model is not the context's")
+        if vars_["comorphism"] != (ctx.get("comorphism") or {}).get("decl"):
+            raise ValueError("the statements' comorphism is not the context's")
+        reg = lean.get("registry", {})
+        if not reg.get("target") or record_value_source(root, vars_["target_value"]) != reg["target"]:
+            raise ValueError("the target value does not read the registered target artifact")
+        binding = [o for o in m["obligations"] if o["kind"] == BINDING[family]]
+        if len(binding) != 1:
+            raise ValueError(f"family {family} needs exactly one {BINDING[family]} obligation")
     ids = set()
     for o in m["obligations"]:
         if o["id"] in ids:
@@ -456,6 +499,9 @@ def ingest_evidence(db: sqlite3.Connection, path: pathlib.Path) -> int:
         raise reject(db, what, "it does not record the Lean version and the commit it was computed at")
     obls = {r["id"]: r for r in db.execute("SELECT * FROM obligations WHERE version_id = ?", (ver["id"],))}
     rows = []
+    ids = [r.get("id") for r in ev.get("obligations", [])]
+    if len(ids) != len(set(ids)):
+        raise reject(db, what, "an obligation appears twice")
     for r in ev.get("obligations", []):
         o = obls.get(r.get("id"))
         if o is None:
@@ -490,11 +536,23 @@ STATUS_TEXT = {
     "unchecked": "a proof is claimed but no checked evidence is recorded",
     "rejected": "the claimed proof was checked and does not prove the statement",
     "stale": "proved for another version of this problem only",
+    "unbound": "a theorem proves it, but the Lean function is not shown to be the target's code",
     "unsupported": "not stated: no model covers it",
 }
 
 
 def obligation_status(db, ver, o) -> dict:
+    st = raw_status(db, ver, o)
+    binding = BINDING.get(ver["family"])
+    if st["status"] == "proved" and binding and o["kind"] != binding:
+        b = db.execute("SELECT * FROM obligations WHERE version_id = ? AND kind = ?",
+                       (ver["id"], binding)).fetchone()
+        if b is None or raw_status(db, ver, b)["status"] != "proved":
+            st = dict(st, status="unbound")
+    return st
+
+
+def raw_status(db, ver, o) -> dict:
     if o["unsupported"]:
         return {"status": "unsupported", "reason": o["unsupported"]}
     evs = db.execute("SELECT * FROM evidence WHERE version_id = ? AND obligation_id = ? ORDER BY id DESC",

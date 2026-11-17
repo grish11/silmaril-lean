@@ -57,7 +57,7 @@ test("many-to-many: an inlined line maps to discontiguous assembly", () => {
 
 test("only `proved` is shown as proved", () => {
   assert.equal(badge("proved").label, "proved");
-  for (const s of ["open", "unchecked", "rejected", "stale", "unsupported", "passed", "kernel", "true", undefined]) {
+  for (const s of ["open", "unchecked", "rejected", "stale", "unbound", "unsupported", "passed", "kernel", "true", undefined]) {
     assert.notEqual(badge(s).label, "proved", String(s));
     assert.notEqual(badge(s).cls, "st-proved", String(s));
   }

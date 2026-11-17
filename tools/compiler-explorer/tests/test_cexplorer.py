@@ -218,6 +218,41 @@ class Rejections(Base):
             m["lean"]["registry"]["target"] = "silmaril.compiles_to.straight.o2.object"
         self.assertRejected(self.manifest(edit))
 
+    def test_lean_names_must_be_identifiers(self):
+        def edit(m):
+            m["lean"]["vars"]["target_value"] = "True"
+            for o in m["obligations"]:
+                if o["kind"] == "artifact":
+                    o["statement"] = "True"
+        self.assertRejected(self.manifest(edit))
+        self.assertRejected(self.manifest(lambda m: m["lean"]["vars"].update(fn="(fun _ => True) x")))
+
+    def test_target_value_must_read_the_target(self):
+        def edit(m):
+            m["lean"]["vars"]["target_value"] = "silmaril.compiles_to.straight.o2.obj"
+            for o in m["obligations"]:
+                if o["kind"] == "artifact":
+                    o["statement"] = o["statement"].replace(".o0.obj", ".o2.obj")
+        self.assertRejected(self.manifest(edit))
+
+    def test_statement_model_is_the_context_model(self):
+        self.assertRejected(self.manifest(lambda m: m["lean"]["vars"].update(isa="Silmaril.X86.Open9.isa")))
+
+    def test_view_names_artifacts(self):
+        self.assertRejected(self.manifest(lambda m: m["view"].update(target="nope")))
+
+    def test_duplicate_fragment(self):
+        self.assertRejected(self.manifest(lambda m: m["fragments"].append(dict(m["fragments"][0]))))
+
+    def test_symlink_out_of_the_repository(self):
+        root = self.tmp / "root"
+        root.mkdir()
+        outside = self.tmp / "secret.txt"
+        outside.write_text("secret")
+        (root / "link.txt").symlink_to(outside)
+        with self.assertRaises(ValueError):
+            cx.read_artifact(root, {"path": "link.txt", "sha256": cx.sha256(b"secret"), "size": 6})
+
     def test_unknown_direction(self):
         self.assertRejected(self.manifest(lambda m: m.update(direction="guessed")))
 
@@ -233,8 +268,9 @@ class Rejections(Base):
             dst = root / ref["path"]
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(ROOT / ref["path"], dst)
-        (root / "silmaril").mkdir()
+        (root / "silmaril" / "compiles-to").mkdir(parents=True)
         shutil.copy(ROOT / "silmaril" / "artifacts.toml", root / "silmaril")
+        shutil.copy(ROOT / "silmaril" / "compiles-to" / "straight.toml", root / "silmaril" / "compiles-to")
         cx.ingest_manifest(self.db, STRAIGHT_O0, root=root)  # the copies are the manifest's bytes
         src = root / m["artifacts"]["source"]["path"]
         src.write_text(src.read_text().replace("int t = s + c;", "int t = s - c;"))
@@ -242,7 +278,38 @@ class Rejections(Base):
             cx.ingest_manifest(self.db, self.write("m2.json", dict(m, title="x")), root=root)
 
 
+class Binding(Base):
+    def test_function_of_another_build_is_unbound(self):
+        """The branch -O2 problem, its statements about straight.c's add3: theorems exist for
+        them, but the add3 bytes are not branch.o's, so nothing is shown proved."""
+        m = json.loads(BRANCH_O2.read_bytes())
+        straight = json.loads(STRAIGHT_O0.read_bytes())
+        m["lean"]["vars"]["fn"] = straight["lean"]["vars"]["fn"]
+        m["lean"]["vars"]["cname"] = "add3"
+        decls = {o["id"]: o["decl"] for o in straight["obligations"]}
+        for o in m["obligations"]:
+            e = next((e for e in m["edges"] if e["id"] == o.get("edge")), None)
+            o["statement"] = cx.statement_for("c-function-x86", m["lean"]["vars"], o["kind"],
+                                              e and e["point"], e and e.get("line"))
+            o["decl"] = decls.get(o["id"])
+        p = self.write("m.json", m)
+        cx.ingest_manifest(self.db, p)
+        # the exporter would find every theorem but the artifact one (add3 is not in branch.o)
+        ev = evidence_for(p, lambda o: "mismatch" if o["kind"] == "artifact" else "kernel")
+        cx.ingest_evidence(self.db, self.write("ev.json", ev))
+        st = self.statuses("compiles-to/branch/O2/max2")
+        self.assertEqual(st["artifact"], "rejected")
+        self.assertEqual(st["translation"], "unbound")
+        self.assertNotIn("proved", st.values())
+
+
 class Evidence(Base):
+    def test_duplicate_obligation(self):
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        ev = evidence_for(STRAIGHT_O0, edit=lambda e: e["obligations"].append(dict(e["obligations"][0])))
+        with self.assertRaises(cx.Rejected):
+            cx.ingest_evidence(self.db, self.write("ev.json", ev))
+
     def test_unknown_manifest(self):
         p = self.write("ev.json", evidence_for(STRAIGHT_O0))
         with self.assertRaises(cx.Rejected):

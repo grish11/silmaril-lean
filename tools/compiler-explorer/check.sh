@@ -12,10 +12,14 @@ cd "$(dirname "$0")/../.."
 out="${1:-.lake/compiler-explorer}"
 mkdir -p "$out/evidence"
 lake build --wfail Silmaril.Compiler.Explorer.Thms Silmaril.Project.CompilesTo.Explorer.Thms \
-  CompilesToExamples.Explorer.Builds CompilesToExamples.Straight.Rows CompilesToExamples.Branch.Rows
+  CompilesToExamples.Explorer.Builds CompilesToExamples.Explorer.Code
 python3 -I tools/compiler-explorer/fixtures.py manifests > /dev/null
-git diff --exit-code -- examples/compiler-explorer/manifests
+if [ -n "$(git status --porcelain -- examples/compiler-explorer/manifests)" ]; then
+  git status --short -- examples/compiler-explorer/manifests
+  echo "error: the committed manifests are not what fixtures.py writes" >&2; exit 1
+fi
 commit="$(git rev-parse HEAD)"
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then commit="$commit-dirty"; fi
 for m in examples/compiler-explorer/manifests/*.json; do
   if python3 -I -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["lean"]["modules"] else 1)' "$m"; then
     EXPLORER_MANIFEST_SHA256="$(sha256sum "$m" | cut -d' ' -f1)" EXPLORER_GIT_COMMIT="$commit" \

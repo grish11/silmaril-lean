@@ -344,7 +344,7 @@
     "family": "c-function-x86",
     "modules": [
       "CompilesToExamples.Explorer.Builds",
-      "CompilesToExamples.Branch.Rows"
+      "CompilesToExamples.Explorer.Code"
     ],
     "registry": {
       "source": "silmaril.compiles_to.branch.source",
@@ -352,12 +352,11 @@
     },
     "vars": {
       "ail": "CompilesToExamples.Branch.ail",
-      "cfn": "CompilesToExamples.Branch.max2Fn",
       "cname": "max2",
-      "code_prop": "silmaril.compiles_to.branch.o0.max2.code",
       "comorphism": "Silmaril.Project.CompilesTo.dwarf",
       "fn": "CompilesToExamples.Branch.O0.max2",
-      "isa": "Silmaril.X86.Open.isa"
+      "isa": "Silmaril.X86.Open.isa",
+      "target_value": "silmaril.compiles_to.branch.o0.obj"
     }
   },
   "obligations": [
@@ -456,28 +455,28 @@
       "statement": "Silmaril.Project.Shapes.SysV.Enterable Silmaril.X86.Open.isa CompilesToExamples.Branch.O0.max2.placement CompilesToExamples.Branch.O0.max2.sig CompilesToExamples.Branch.O0.max2.frame"
     },
     {
-      "decl": "CompilesToExamples.Explorer.branch_elaboration",
+      "decl": "CompilesToExamples.Explorer.BranchO0.elaboration",
       "id": "elaboration",
       "kind": "elaboration",
-      "statement": "Silmaril.Project.Shapes.C.ElaboratesTo CompilesToExamples.Branch.ail \"max2\" CompilesToExamples.Branch.max2Fn"
+      "statement": "Silmaril.Project.Shapes.C.ElaboratesTo CompilesToExamples.Branch.ail \"max2\" CompilesToExamples.Branch.O0.max2.cfn"
     },
     {
-      "decl": "CompilesToExamples.Branch.Rows.o0_max2_code",
+      "decl": "CompilesToExamples.Explorer.branch_O0_code",
       "id": "artifact",
       "kind": "artifact",
-      "statement": "silmaril.compiles_to.branch.o0.max2.code"
+      "statement": "Silmaril.Project.Shapes.SysV.ObjectFn silmaril.compiles_to.branch.o0.obj \"max2\" CompilesToExamples.Branch.O0.max2.code"
     },
     {
       "decl": "CompilesToExamples.Explorer.BranchO0.canonical",
       "id": "nonvacuity/canonical",
       "kind": "nonvacuity_canonical",
-      "statement": "Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical Silmaril.X86.Open.isa CompilesToExamples.Branch.O0.max2.placement CompilesToExamples.Branch.O0.max2.frame CompilesToExamples.Branch.max2Fn"
+      "statement": "Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical Silmaril.X86.Open.isa CompilesToExamples.Branch.O0.max2.placement CompilesToExamples.Branch.O0.max2.frame CompilesToExamples.Branch.O0.max2.cfn"
     },
     {
       "decl": null,
       "id": "nonvacuity/universal",
       "kind": "nonvacuity_universal",
-      "statement": "CompilesToExamples.Branch.max2Fn.meaning.Inhabited"
+      "statement": "CompilesToExamples.Branch.O0.max2.cfn.meaning.Inhabited"
     }
   ],
   "schema": "silmaril.compiler-explorer.problem/1",

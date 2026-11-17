@@ -44,8 +44,8 @@ They are independent:
 * `Counterexample.edges_not_valid`: a problem and a mapping that starts at the entry, whose one
   listed edge is valid, whose listed points do not cover it, and whose mapping and translation
   are not valid. A set of individually valid links proves neither.
-* A mapping can refine a comorphism relation without being valid, and conversely:
-  `branch.c -O2` below has its refinement proved and its segment open.
+* Refinement does not depend on the segments: `branch.c -O2` below has its refinement proved
+  while its segment (hence its mapping) is open.
 
 ### Directions
 
@@ -126,10 +126,19 @@ For C functions (`Silmaril.Project.CompilesTo.Explorer`):
 relation `dwarf` generates on the objects with a value at each point. The proof goes through the
 verified Core library's invariant (`StateMem.Inv`): it binds the object's symbol to its allocation
 and puts its definition in the Core slot, and `ObjectsAgree` puts the same definition in the
-DWARF slot. Together with a valid mapping, this is the statement "at every point the run passes,
-a debugger reading the DWARF locations of the defined objects shows a value the C object holds".
-The source logic is not functional (a slot fixes four bytes, not an integer), so it says *a*
-common value, not that every read agrees.
+frame slot. Together with a valid mapping, this is the statement "at every point the run passes,
+reading each defined object at its slot offset shows a value the C object holds".
+
+What this does **not** cover:
+
+* The slot offsets and sizes are the `FnData`'s (`Slot.off`, `Slot.size`), which `tools/c-tv`
+  read from the object's DWARF with `gimli`: no Lean statement yet says that they are the
+  object's `DW_OP_fbreg` locations. The refinement is about the offsets c-tv extracted.
+* The theorem is close to the definition of the relation (`ObjectsAgree` is part of `rel`); its
+  content is the passage from the library invariant to Core's own reading of the object. It holds
+  for every function, including ones whose points are never reached.
+* The source logic is not functional (a slot fixes four bytes, not an integer), so it says *a*
+  common value, not that every read agrees.
 
 The generic construction for the usual case is `Mapping.ofComorphism` (a frame relation and the
 generated relation); `ofComorphism_refines` is its specification. The C instance is not built by
@@ -154,8 +163,17 @@ what connects them.
 Checks on ingest: artifact bytes; a compiled problem's receipt is about its source and target
 bytes and its image is the derivation's; fragment ids are their content addresses; edge ends
 are fragments of the right side; every statement is the template of its obligation kind applied
-to the manifest's Lean names (`TEMPLATES`: a manifest cannot pair an obligation with `True`);
-registered artifacts (`silmaril/artifacts.toml`) are the artifacts the Lean values read. Evidence
+to the manifest's Lean names (`TEMPLATES`), which must be identifiers, whose target model and
+comorphism must be the context's, and whose target value must read the registered target
+artifact (`silmaril/artifacts.toml` and the records' `[[value]]`): a manifest cannot pair an
+obligation with `True`.
+
+**Binding.** The `artifact` obligation (`ObjectFn <target value> "<f>" F.code`, proved from the
+`elf.object_fn` rows by the kernel's decoding of the registered object) ties the Lean function
+`F` to the target bytes. Until it is proved, every other obligation of the problem shows
+**unbound**, not proved: theorems about another function's bytes do not count. The C side is
+tied by `c.elaborates_to` from the quoted typed Ail, which the Lean frontend checks against the C
+text by evaluation (`#guard`), not by the kernel. Evidence
 is accepted only for a manifest the database holds, with the same modules, statements and
 declarations, a recorded Lean version and commit, and the standard axioms for `kernel`.
 
@@ -166,12 +184,15 @@ declarations, a recorded Lean version and commit, and the standard axioms for `k
 | unchecked | a proof is named, no exporter result recorded |
 | rejected | the exporter found the named proof absent, not a theorem, about another statement, or with other axioms |
 | stale | proved for another version of the problem only; evidence never moves between versions |
+| unbound | a theorem proves it, but the artifact obligation (the function is the target's code) is not proved |
 | unsupported | not stated: no model covers it (with the reason) |
 
 Tests have their own statuses (passed, failed, stale) and never make an obligation proved.
 
-**Trust.** The exporter reads theorems from the `.olean` files Lake built; their proofs were
-checked by Lean's kernel then. The database trusts the exporter's output file (it does not run
+**Trust.** The exporter reads theorem types from the `.olean` files Lake built and does not
+replay the kernel. The proofs were checked by Lean's kernel when Lake built the modules, unless
+a module disables kernel checking (`debug.skipKernelTC`; the repository has none). Replaying
+with `leanchecker` is residual work. The database trusts the exporter's output file (it does not run
 Lean); `check.sh` produces both in one run. The server opens the database read-only, answers GET
 only, serves three fixed files and two JSON routes, sets a restrictive Content-Security-Policy,
 and has no endpoint that compiles or runs anything. The page inserts every text with
@@ -200,8 +221,9 @@ at the commit of this page:
 | `loop.c sum_to` (both) | unsupported: the elaborator has no `while` | | | | | |
 | `hello`, `msort`, `fft`, `lisp` (`-O0`, `-O2`) | unsupported | unsupported | debug info only | unsupported | unsupported | executions match the expected output (tests) |
 
-Every proved row also has its C-to-Core points, the elaboration (`c.elaborates_to`) and the
-object's code at the function's symbol (`elf.object_fn`, through the artifact registry) proved.
+Every row with Lean statements also has its C-to-Core points, the elaboration
+(`c.elaborates_to`) and the binding to the object (the function's code at its symbol, through the
+artifact registry) proved.
 
 ## Acceptance
 
@@ -214,7 +236,7 @@ object's code at the function's symbol (`elf.object_fn`, through the artifact re
 | Per-edge vs whole-mapping, coverage, counterexample | done |
 | Navigation vs semantic links, many-to-many, discontiguous, inlining, duplication, elimination | done for display; semantic links exist only where c-tv has points |
 | Content-addressed fragments | done |
-| Database: immutable artifacts, direction, derivation, models, ABI, relation, comorphism, obligations, evidence, versions, stale rejection, tests ≠ proofs | done (`cexplorer.py`, 27 tests) |
+| Database: immutable artifacts, direction, derivation, models, ABI, relation, comorphism, obligations, evidence, versions, stale rejection, tests ≠ proofs | done (`cexplorer.py`, 35 tests) |
 | Page: source/target, build selection, highlighting, distinct question cards, honest states | done; screenshots in the pull request |
 | Interactive compilation | not done by design: no sandboxed compile service exists here |
 | Decompiled direction | data model only: no decompiled fixture (`sil decompile` exists, no C output to pair) |
@@ -223,6 +245,8 @@ object's code at the function's symbol (`elf.object_fn`, through the artifact re
 
 ## Residual work
 
+* A Lean statement that the slot offsets are the object's DWARF locations, and a kernel replay
+  (`leanchecker`) of the evidence.
 * Statement templates per family live in `cexplorer.py`; a Lean-side registry of obligation
   shapes (as `sil project` shapes) would make them data.
 * A backward refinement statement for nondeterministic and multithreaded targets, and the Wasm

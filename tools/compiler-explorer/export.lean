@@ -43,6 +43,8 @@ def parseObligation (j : Json) : Except String Obligation := do
 
 /-- Elaborate the statement and decide the status of one obligation. -/
 def check (o : Obligation) : MetaM Json := do
+  -- each obligation is elaborated with an empty message log: an error of one is not another's
+  modifyThe Core.State fun st => { st with messages := {} }
   let base : List (String × Json) := [("id", Json.str o.id), ("statement", Json.str o.statement)]
   let st (s : String) : List (String × Json) := [("status", Json.str s)]
   let some declStr := o.decl

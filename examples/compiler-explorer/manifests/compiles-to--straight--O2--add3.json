@@ -247,7 +247,7 @@
     "family": "c-function-x86",
     "modules": [
       "CompilesToExamples.Explorer.Builds",
-      "CompilesToExamples.Straight.Rows"
+      "CompilesToExamples.Explorer.Code"
     ],
     "registry": {
       "source": "silmaril.compiles_to.straight.source",
@@ -255,12 +255,11 @@
     },
     "vars": {
       "ail": "CompilesToExamples.Straight.ail",
-      "cfn": "CompilesToExamples.Straight.add3Fn",
       "cname": "add3",
-      "code_prop": "silmaril.compiles_to.straight.o2.add3.code",
       "comorphism": "Silmaril.Project.CompilesTo.dwarf",
       "fn": "CompilesToExamples.Straight.O2.add3",
-      "isa": "Silmaril.X86.Open.isa"
+      "isa": "Silmaril.X86.Open.isa",
+      "target_value": "silmaril.compiles_to.straight.o2.obj"
     }
   },
   "obligations": [
@@ -303,28 +302,28 @@
       "statement": "Silmaril.Project.Shapes.SysV.Enterable Silmaril.X86.Open.isa CompilesToExamples.Straight.O2.add3.placement CompilesToExamples.Straight.O2.add3.sig CompilesToExamples.Straight.O2.add3.frame"
     },
     {
-      "decl": "CompilesToExamples.Explorer.straight_elaboration",
+      "decl": "CompilesToExamples.Explorer.StraightO2.elaboration",
       "id": "elaboration",
       "kind": "elaboration",
-      "statement": "Silmaril.Project.Shapes.C.ElaboratesTo CompilesToExamples.Straight.ail \"add3\" CompilesToExamples.Straight.add3Fn"
+      "statement": "Silmaril.Project.Shapes.C.ElaboratesTo CompilesToExamples.Straight.ail \"add3\" CompilesToExamples.Straight.O2.add3.cfn"
     },
     {
-      "decl": "CompilesToExamples.Straight.Rows.o2_add3_code",
+      "decl": "CompilesToExamples.Explorer.straight_O2_code",
       "id": "artifact",
       "kind": "artifact",
-      "statement": "silmaril.compiles_to.straight.o2.add3.code"
+      "statement": "Silmaril.Project.Shapes.SysV.ObjectFn silmaril.compiles_to.straight.o2.obj \"add3\" CompilesToExamples.Straight.O2.add3.code"
     },
     {
       "decl": "CompilesToExamples.Explorer.StraightO2.canonical",
       "id": "nonvacuity/canonical",
       "kind": "nonvacuity_canonical",
-      "statement": "Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical Silmaril.X86.Open.isa CompilesToExamples.Straight.O2.add3.placement CompilesToExamples.Straight.O2.add3.frame CompilesToExamples.Straight.add3Fn"
+      "statement": "Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical Silmaril.X86.Open.isa CompilesToExamples.Straight.O2.add3.placement CompilesToExamples.Straight.O2.add3.frame CompilesToExamples.Straight.O2.add3.cfn"
     },
     {
       "decl": null,
       "id": "nonvacuity/universal",
       "kind": "nonvacuity_universal",
-      "statement": "CompilesToExamples.Straight.add3Fn.meaning.Inhabited"
+      "statement": "CompilesToExamples.Straight.O2.add3.cfn.meaning.Inhabited"
     }
   ],
   "schema": "silmaril.compiler-explorer.problem/1",

@@ -375,11 +375,10 @@ def compiles_to_manifests() -> list[dict]:
                 unsupported_reason = fn.get("function_unsupported")
                 pts = [] if unsupported_reason or ns is None else fn["points"]
                 F = f"CompilesToExamples.{cname}.{opt}.{fname}"
-                lean_vars = {"fn": F, "cfn": f"CompilesToExamples.{cname}.{fname}Fn",
-                             "ail": f"CompilesToExamples.{cname}.ail", "cname": fname,
+                lean_vars = {"fn": F, "ail": f"CompilesToExamples.{cname}.ail", "cname": fname,
                              "isa": "Silmaril.X86.Open.isa",
                              "comorphism": "Silmaril.Project.CompilesTo.dwarf",
-                             "code_prop": f"silmaril.compiles_to.{name}.{opt.lower()}.{fname}.code"}
+                             "target_value": f"silmaril.compiles_to.{name}.{opt.lower()}.obj"}
                 X = f"CompilesToExamples.Explorer.{ns}"
 
                 def ob(oid, kind, decl, edge=None, point=None, line=None):
@@ -413,13 +412,13 @@ def compiles_to_manifests() -> list[dict]:
                         ob("mapping", "mapping", f"{X}.mapping_valid" if proved else None),
                         ob("refinement", "refinement", f"{X}.refines_dwarf"),
                         ob("abi", "abi", f"CompilesToExamples.{cname}.{opt}.{fname}_enterable" if proved else None),
-                        ob("elaboration", "elaboration", f"CompilesToExamples.Explorer.{name}_elaboration"),
-                        ob("artifact", "artifact", f"CompilesToExamples.{cname}.Rows.{opt.lower()}_{fname}_code"),
+                        ob("elaboration", "elaboration", f"{X}.elaboration"),
+                        ob("artifact", "artifact", f"CompilesToExamples.Explorer.{name}_{opt}_code"),
                         ob("nonvacuity/canonical", "nonvacuity_canonical", f"{X}.canonical" if proved else None),
                         ob("nonvacuity/universal", "nonvacuity_universal", None),
                     ]
                     lean = {"family": "c-function-x86", "vars": lean_vars,
-                            "modules": [LEAN_MODULE, f"CompilesToExamples.{cname}.Rows"],
+                            "modules": [LEAN_MODULE, "CompilesToExamples.Explorer.Code"],
                             "registry": {"source": f"silmaril.compiles_to.{name}.source",
                                          "target": f"silmaril.compiles_to.{name}.{opt.lower()}.object"}}
                     ctx = {

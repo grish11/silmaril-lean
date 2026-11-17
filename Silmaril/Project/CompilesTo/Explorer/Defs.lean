@@ -23,6 +23,9 @@ The theorems (`Thms`) connect them: every segment proved gives the problem
 (`FnData.compilation_valid_of_segments`), and, separately, the mapping's relation refines the
 relation `dwarf` generates at every point (`FnData.refines_dwarf`).
 
+The slot offsets are the `FnData`'s, which `tools/c-tv` reads from the object's DWARF; no
+statement here says that they are the object's `DW_OP_fbreg` locations.
+
 The source logic is not functional (`Locals.Slot` fixes the four bytes of an integer, not the
 integer), so the refinement gives *a* value that both the Core object and its slot hold, not
 equality of every value read.

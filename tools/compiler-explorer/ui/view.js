@@ -75,6 +75,7 @@ export function badge(status) {
     unchecked: ["unchecked", "a proof is named but no checked evidence is recorded"],
     rejected: ["rejected", "the named proof does not prove this statement"],
     stale: ["stale", "proved only for another version of these artifacts"],
+    unbound: ["unbound", "a theorem proves it, but the Lean function is not shown to be the target's code"],
     unsupported: ["unsupported", "not stated: no model covers it"],
     passed: ["test passed", "an execution test, not a proof"],
     failed: ["test failed", "an execution test failed"],
