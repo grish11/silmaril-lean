@@ -830,8 +830,14 @@ The plain graph stays an over-approximation, and claims about it say so.
             a trap. On trapping runs the relations differ: a callee trap is an answered entry
             in `EvalLXPS`, and an over-long value answer (`callCut`) in `EvalLXPh`, by the internal
             `HostClosingS.ToH`.
-          - **Plan.**
-            - Export the trap cases of that conversion in the `HostClosingS` header.
+          - **H3-3a, done.** The trap cases are exported: `HostClosingS.evalLXPS_canonical_cut`
+            (a callee-trap answer reads as a cut answer, for every over-long `ws`) and
+            `evalLXPh_session_cut` (a cut run is a session run with the trap answer). The machine
+            module is `CfgSession.cfgHOpenXP`, which reads machine logs canonically by
+            `CanonRead`. Theorems: `cfgHOpenX_eq : cfgHOpenXP = wasmHOpenXP` and
+            `cfgEvFunX_eq : cfgEvFunXP = wasmEvFunXP`.
+          - **Plan for the rest.**
+            - (Done above.) Export the trap cases of that conversion in the `HostClosingS` header.
             - Define `cfgHOpenXP` from the machine with them, and prove
               `cfgHOpenXP = wasmHOpenXP` as for H3-1.
             - The productive part then follows by `prodL_iff`, since `InfLwXP` is `InfLXP` at
