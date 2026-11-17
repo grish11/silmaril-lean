@@ -28,7 +28,7 @@ open Silmaril.Wasm.Abstract.XRecursionP Silmaril.Wasm.Abstract.XDivergeP
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 open Silmaril.Wasm.Binaryen (BExpr liftInstrs Flow)
 
-variable {H : Type}
+variable {H : Type} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-- **A body ending in a pending tail call is a descent to the tail callee**, with no import
 call. -/
@@ -99,12 +99,12 @@ theorem evRun_nil_diverges {P : Numerics.Profile} {host : HostSemantics H} {c c'
 /-- **A Core run with no host event, then host-free divergence, is `([], div)`** (deterministic
 profile, typed invocations, stores that may hold host functions). -/
 theorem evRun_nil_div {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
-    {s : Store H} {a : Nat} {vs : List Val} {c' : Config H} (hs : StoreOk s)
+    {s : Store H} {a : Nat} {vs : List Val} {c' : Config H} (hct₀ : J.CT (invoke s a vs))
     (hok : InvokeOk s a vs) (hS : Interp.StoreChkE (Interp.ehExt tags) s.funcs)
     (hts : Interp.TagsOk tags s) (hrun : EvRun (profile o) host (invoke s a vs) [] c')
     (hd : Diverges (profile o) (fun _ _ _ _ => False) c') :
     ([], .div) ∈ wasmEvFunDXP s (a, vs) := by
-  have hf := funDivXP_of_invoke_diverges hs hok hS hts (evRun_nil_diverges hrun hd)
+  have hf := funDivXP_of_invoke_diverges hct₀ hok hS hts (evRun_nil_diverges hrun hd)
   obtain ⟨fi, ps, rs, hfi, he, -⟩ := id hok
   have hty : Validation.DefType.funcType? fi.type = some (ps.toList, rs.toList) := by
     unfold Validation.DefType.funcType?; rw [Validation.Expand.iff.mp he]

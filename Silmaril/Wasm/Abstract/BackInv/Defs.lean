@@ -22,6 +22,11 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Interp
 
 variable {H : Type}
 
+/-- **The principal types of a store's references are closed-valid** (what the interpreter's
+exactness reads of `StoreOk`). -/
+def StoreTy (s : Store H) : Prop :=
+  ∀ (r : Ref) (rt₀ : Validation.CRefType), Ref.type? s r = some rt₀ → Validation.TyOk {} rt₀
+
 /-- **The typed instance**: `Sim.ContextTyped` against hosts with typed answers. -/
 def backTyped : BackInv H where
   toCtxInv := ctxTyped

@@ -6,21 +6,21 @@ public import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.DivBase
 # Divergence after a nonempty log: the statements and calls (proofs)
 
 In the deterministic profile `SingleThreaded.profile o`, for a host with typed answers in the
-host slices (`HostTyped`, `HostSliceT`, `HostSliceE tags`):
+host slices (`J.HostOk`, `HostSliceT`, `HostSliceE tags`):
 
 * `DivOut s f stk es cs`: the trees perform logged calls resolving to exactly `cs` and then
   diverge host-free (`LogDivXP`), or reach a call after a resolved prefix `q` whose callee
   diverges after the rest `q'` in `wasmEvFunDXP`;
-* `DivG n es`: a typed problem whose Core run makes the host events `cs` and then diverges
+* `DivG J n es`: a typed problem whose Core run makes the host events `cs` and then diverges
   host-free, cut at its last event within `n` steps (`EvDiv`), is `DivOut`;
-* `CallDivG n`: the same for a typed call in any `call_ref` form under values, with nothing
+* `CallDivG J n`: the same for a typed call in any `call_ref` form under values, with nothing
   after it: the call diverges after `cs` in `wasmEvFunDXP`.
 
-`callDiv_step`: `CallDivG n` from `DivG m` and `CallDivG m` for `m < n`. With no event, the call
+`callDiv_step`: `CallDivG J n` from `DivG J m` and `CallDivG J m` for `m < n`. With no event, the call
 diverges host-free, so `FunDivXP` (`funDivXP_of_call_diverges`, `div_of_funDivXP`). A host callee
 answers its event and stops. A Wasm callee's only step enters its frame, strictly shorter with
-events; its body diverges (a descent, `DivG`), or ends: a pending tail call leaves the frame at the
-tail callee's call (`frame_tail_exit`, `CallDivG` on the rest, a descent), and every other end is
+events; its body diverges (a descent, `DivG J`), or ends: a pending tail call leaves the frame at the
+tail callee's call (`frame_tail_exit`, `CallDivG J` on the rest, a descent), and every other end is
 a finished closed behaviour of the call (`wasmEvFunXP_evRun_call`), a Core run to a final form,
 which does not diverge (`noDiv_of_evRun`).
 -/
@@ -37,7 +37,7 @@ open Silmaril.Wasm.SingleThreaded
 open Silmaril.Wasm.Abstract.CallXP (POut)
 open Silmaril.Wasm.Binaryen (BExpr liftInstrs)
 
-variable {H : Type}
+variable {H : Type} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-! ## The statements -/
 
@@ -51,17 +51,17 @@ def DivOut (s : Store H) (f : Frame) (stk : List Val) (es : List BExpr)
       (q', .div) ∈ wasmEvFunDXP z.2.2 (z.1, z.2.1) ∧ cs = q ++ q'
 
 /-- **The divergent backward simulation of trees**, for divergences cut within `n` steps. -/
-def DivG (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (n : Nat)
+def DivG (J : Silmaril.Wasm.Interp.BackInv H) (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (n : Nat)
     (es : List BExpr) : Prop :=
   ∀ (s : Store H) (f : Frame) (stk : List Val) (cs : List (Call (wasmHostSig H))),
-    TypedP tags s f stk es → EvDiv (profile o) host n ⟨s, f, xcode stk es⟩ cs →
+    J.TypedP tags s f stk es → EvDiv (profile o) host n ⟨s, f, xcode stk es⟩ cs →
     DivOut s f stk es cs
 
 /-- **The divergent backward simulation of calls**, for divergences cut within `n` steps. -/
-def CallDivG (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (n : Nat) : Prop :=
+def CallDivG (J : Silmaril.Wasm.Interp.BackInv H) (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (n : Nat) : Prop :=
   ∀ (s : Store H) (f : Frame) (pre us : List Val) (a : Nat) (cr : Admin)
     (cs : List (Call (wasmHostSig H))), cr.IsCallRef → CallChkP tags s a us →
-    Sim.ContextTyped ⟨s, f, Interp.callCode pre us a cr []⟩ →
+    J.CT ⟨s, f, Interp.callCode pre us a cr []⟩ →
     EvDiv (profile o) host n ⟨s, f, Interp.callCode pre us a cr []⟩ cs →
     (cs, .div) ∈ wasmEvFunDXP s (a, us)
 
@@ -90,7 +90,7 @@ variable {tags : List TagInst} {o : GrowOracle} {host : HostSemantics H}
 
 /-- **With no event**, host-free divergence: logged divergence with the empty log. -/
 theorem divOut_nil {n : Nat} {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
-    (ht : TypedP tags s f stk es) (h : EvDiv (profile o) host n ⟨s, f, xcode stk es⟩ []) :
+    (ht : J.TypedP tags s f stk es) (h : EvDiv (profile o) host n ⟨s, f, xcode stk es⟩ []) :
     DivOut s f stk es [] :=
   .inl ⟨[], .div (evalDivXP_of_diverges ht (evDiv_nil h)), .nil⟩
 
@@ -147,9 +147,9 @@ theorem callRef_wasm_unique {P : Numerics.Profile} {s : Store H} {f : Frame} {pr
 
 /-- **The divergent backward simulation of a call**, from the statements for strictly shorter
 divergences. -/
-theorem callDiv_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
-    {n : Nat} (ihB : ∀ m < n, ∀ es, DivG tags o host m es) (ihC : ∀ m < n, CallDivG tags o host m) :
-    CallDivG tags o host n := by
+theorem callDiv_step (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+    {n : Nat} (ihB : ∀ m < n, ∀ es, DivG J tags o host m es) (ihC : ∀ m < n, CallDivG J tags o host m) :
+    CallDivG J tags o host n := by
   intro s f pre us a cr cs hcr hcc hct hdv
   obtain ⟨hS, hts, fi, ps, rs, hfi, hty, hn⟩ := id hcc
   by_cases hcs : cs = []
@@ -190,10 +190,10 @@ theorem callDiv_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSlic
       Silmaril.Wasm.Logic.Core.Step.ctx pre [] (Step.callRefFunc hcr hfi hex hn' hcode)
     obtain ⟨m, hm, hd₁⟩ := evDiv_unique (fun c₁ h => callRef_wasm_unique hcr hfi hcode hex hn' h)
       hstep hcs hdv
-    have htK := hct.steps (.single hstep)
+    have htK := J.steps hct (.single hstep)
     rw [hrl] at hd₁ htK
-    have hctB : TypedP tags s F [] (liftInstrs fn.body) :=
-      callee_typedP ⟨hcc, f, cr, pre, [], hcr, hct⟩ hfi hcode
+    have hctB : J.TypedP tags s F [] (liftInstrs fn.body) :=
+      J.callee_typedP ⟨hcc, f, cr, pre, [], hcr, hct⟩ hfi hcode
     have hcodeB : xcode [] (liftInstrs fn.body) = expression fn.body := by
       simp [xcode, Binaryen.lowerList_liftInstrs, vals]
     rcases evDiv_frame_seq_split hd₁ with hdb |
@@ -203,7 +203,7 @@ theorem callDiv_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSlic
     -- the body ends
     have hb' : EvRunN (profile o) host N₁ ⟨s, F, xcode [] (liftInstrs fn.body)⟩ cs₁ cb := by
       rw [hcodeB]; exact hb
-    obtain ⟨l, ⟨s', f₂, ob⟩, hd, hres, hok⟩ := evRunN_back hT hH hE hctB hb' hsb hdc
+    obtain ⟨l, ⟨s', f₂, ob⟩, hd, hres, hok⟩ := J.evRunN_back hT hH hE hctB hb' hsb hdc
     have hcons₁ := (consistent_append hcons).1
     obtain ⟨ob₀, hbc⟩ := body_chkP (tags := tags) hS hfi hcode hty hn
     have hstB : Steps (profile o) host ⟨s, f, Interp.callCode pre us a cr []⟩
@@ -212,7 +212,7 @@ theorem callDiv_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSlic
       refine (Relation.ReflTransGen.single (Step.of_noHost host hstep)).trans ?_
       rw [hrl]
       exact Steps.ctx pre [] (Steps.frame rs.length (Steps.label rs.length [] (evRunN_steps hb)))
-    have hctX := ContextTyped.steps_typed hT hct hstB
+    have hctX := J.steps_host hT hct hstB
     -- a finished closed behaviour of the call rules the divergence out
     have hfin : ∀ e : End (Store H) (List Val ⊕ Nat), (cs₁, e) ∈ wasmEvFunXP s (a, us) → False := by
       intro e he
@@ -269,12 +269,12 @@ theorem callDiv_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSlic
         (hargs.trans hpl₂.symm)
       rw [← hcb] at hex'
       have hst := Steps.ctx pre [] hex'
-      have hd₅ := evDiv_through_steps hst hctX hd₄
+      have hd₅ := J.evDiv_through_steps hst hctX hd₄
       have hcc₂ : CallChkP tags s' a' args :=
         ⟨storeChk_inv hinv hS, t₁, fi₂, ps₂, rs₂, hfi₂, hty₂, hargs⟩
-      have hct₂ : Sim.ContextTyped ⟨s', f,
+      have hct₂ : J.CT ⟨s', f,
           Interp.callCode pre args a' (c₀.retToCallIn cb.frame.module) []⟩ := by
-        have := ContextTyped.steps_typed hT hctX (steps_host hst)
+        have := J.steps_host hT hctX (steps_host hst)
         rw [hs'] at this
         simpa [Interp.callCode] using this
       have hd₆ : EvDiv (profile o) host mm ⟨s', f,
