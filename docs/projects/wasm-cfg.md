@@ -590,9 +590,13 @@ The plain graph stays an over-approximation, and claims about it say so.
              - Control agreement, done (`MachineLProj`): `popN_eq_popL`/`gotoN_eq_goto` under
                `PopFit`, `branchN_block`/`branchN_loop`, `armSel_condArm`, `labelArity_eq`.
                At exits the stacks differ by the left frames' outer values (`brVals_junk`).
-             - Next: a checker-level frame invariant, giving the stack-fit facts from
-               `ExposePTyped.evalOXP_goodO`; then the segment bridge with Core typing; then
-               the stepwise theorem with composition. It needs a typed state and frame invariant, from the existing checker and
+             - Checker invariant, done (`MachineLProj`): `CInv`/`ChkF`, from the function's own
+               `chkE (ehExt tags)` check (`cinv_initial`), preserved along logged runs answered by
+               an arity-respecting oracle (`cinv_step`, `cinv_run`, via `evalOXP_goodO`), on
+               bodies without `try_table` (`NoTry`). The fallthrough, branch and arm-entry
+               targets are the native ones with fitting stacks.
+             - Next: the segment bridge with Core typing (`TypedT`/`TypedP` to `RunC`), then the
+               stepwise theorem with composition. It needs a typed state and frame invariant, from the existing checker and
              typing APIs, covering stack orientation, parameter and result arities, normal arm
              exits, branch unwinding and tail-frame replacement. The relation is at block
              granularity (zero or more `MStepC` steps per `MStepL` step), with composition.

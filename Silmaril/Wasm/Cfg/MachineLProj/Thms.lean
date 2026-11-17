@@ -7,6 +7,9 @@ public import Silmaril.Wasm.Abstract.CallXE.Thms
 public import Silmaril.Wasm.Cfg.MachineLProj.Defs
 import Silmaril.Proofs.Wasm.Cfg.MachineLProj
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjC
+import Silmaril.Proofs.Wasm.Cfg.MachineLProjI
+public import Silmaril.Wasm.Abstract.ExposePTyped.Thms
+public import Silmaril.Wasm.Interp.EHExt.Thms
 
 @[expose] public section
 
@@ -50,6 +53,25 @@ which typed code ensures:
 At a function exit they differ: `MStepC` keeps the outer values of every frame left under the
 branch-site stack (`brVals_junk`), `MStepL` only the branch-site stack. A stepwise projection
 therefore relates exit states up to that prefix.
+
+**The checker invariant** (`CInv`, `MachineLProj.Defs`) discharges these stack-fit hypotheses
+along logged runs:
+
+* `cinv_initial`: it holds at the CFG entry when the body passes the function's own check (as
+  `StoreChkE` checks it);
+* `cinv_step`, `cinv_run`: it is preserved by logged steps and runs, together with the context's
+  store invariant (`Ctx.Good`: the functions and tag invariants) and the frame's local count.
+
+Its hypotheses are stated:
+* every logged call is an answer of the oracle `C`, which respects arities (`ExposePTyped.ArityResp`:
+  from a store agreeing with the context, its answers keep agreeing and return at least the
+  callee's results). The arity-fitted closed oracle is one: `TypedCat.arityResp_fitClosed` (for
+  `fitP closedCallXP`);
+* the body has no `try_table` (`NoTry`).
+
+Each step reads its straight-line code's checked outcome with `ExposePTyped.evalOXP_goodO`: a
+fallthrough at the checked height, a branch with at least its label's arity, a return with at least
+the result arity.
 
 On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
 projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
@@ -131,5 +153,37 @@ theorem labelArity_eq {f : Frame} {bt : BlockType} {t₁ t₂ : List Validation.
     (har : Binaryen.arity f bt = some (np, nr)) :
     labelArity loop t₁ t₂ = if loop then np else nr :=
   Proofs.MachineLProjC.labelArity_eq loop hbt har
+
+/-! ## The checker invariant -/
+
+open Silmaril.Wasm.Interp Silmaril.Wasm.Abstract.ExposePTyped Silmaril.Wasm.Abstract.ExposePStruct
+
+/-- **The checker invariant at the CFG entry**, from the function's own check. -/
+theorem cinv_initial {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat}
+    {body : Expr} {s : Store H} {f : Frame} (hf : f.module = mi)
+    (hchk : endsAt (chkE ext F mi nl ret [ret] (some 0) (liftInstrs body)) ret = true) :
+    CInv ext F mi nl ret body (initial body s f) :=
+  Proofs.MachineLProjI.cinv_initial hf hchk
+
+/-- **The checker invariant is preserved by logged steps** whose calls are answers of an
+arity-respecting oracle, on bodies without `try_table`. -/
+theorem cinv_step {Γ : Ctx H} {C : Abstract.CallRel H} (hC : ArityResp Γ C) {mi : ModuleInst}
+    {nl ret : Nat} {body : Expr} (hNT : NoTry body) {st st' : MState H}
+    {l : List (Abstract.SCall H)} (hs : MStepL body st l st') (hl : ∀ e ∈ l, CloseOk C e)
+    (hok : MInv body st) (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    Γ.Good st'.store ∧ st'.frame.locals.length = nl ∧
+      CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st' :=
+  Proofs.MachineLProjI.cinv_step hC hNT hs hl hok hg hn hI
+
+/-- **The checker invariant along logged runs.** -/
+theorem cinv_run {Γ : Ctx H} {C : Abstract.CallRel H} (hC : ArityResp Γ C) {mi : ModuleInst}
+    {nl ret : Nat} {body : Expr} (hNT : NoTry body) {st st' : MState H}
+    {l : List (Abstract.SCall H)} (h : MRunL body st l st') (hl : ∀ e ∈ l, CloseOk C e)
+    (hok : MInv body st) (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    Γ.Good st'.store ∧ st'.frame.locals.length = nl ∧
+      CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st' :=
+  Proofs.MachineLProjI.cinv_run hC hNT h hl hok hg hn hI
 
 end Silmaril.Wasm.Cfg.MachineL
