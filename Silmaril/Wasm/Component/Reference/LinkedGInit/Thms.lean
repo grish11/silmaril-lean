@@ -58,8 +58,8 @@ code of the exporter's core store. The proof-internal theorems take `InitSX`; `I
   `LinkedG.toExp_refAdeq` and `LinkedN.sessAdequacy_full`.
 * **A bridge from `Linked2`'s `ReadyL`** (its `Rel4` under `gL`) to `LReadyG`: not needed for
   `Linked2.sess_specToRef_viaG`, which starts `LinkedG`'s sessions from its own instantiation.
-* **Nested linked exporters** on the reference side: `StatB` now admits them (above), but a
-  linked component as an exporter (`Task.linkedG.toExpRefAdeqUX` of `LinkedGChain`) is open.
+* **Nested linked exporters** on the reference side: `StatB` now admits them (above); a linked
+  component as an exporter is `LinkedG.toExp_refAdeqUX` of `LinkedGChain`.
 -/
 
 public section

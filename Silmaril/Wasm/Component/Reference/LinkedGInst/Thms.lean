@@ -73,9 +73,9 @@ from them. `StatB` (`ImpStatG.tramp`) asks only that the trampoline map invert t
 renaming on every host function of the shared store; `statB_init` meets it with `trX`/`gX`
 (`LinkedGInit`), which send the exporter's host code above the importer's imports.
 
-**Not claimed.** A linked component as an exporter on the reference side
-(`Task.linkedG.toExpRefAdeqUX` of `LinkedGChain`, open) and so `LinkedN.sessAdequacy_full` only
-conditionally (`LinkedGChain`); divergence and infinite plays; ill-typed calls.
+**Not claimed here.** A linked component as an exporter on the reference side and
+`LinkedN.sessAdequacy_full` (proved in `LinkedGChain`: `LinkedG.toExp_refAdeqUX`); divergence
+and infinite plays; ill-typed calls.
 -/
 
 public section

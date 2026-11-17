@@ -23,7 +23,9 @@ are packaged as `FrameG` and kept:
   returning step (`R = some (vals us)`, the results checking against the result types) is
   `call_ret` with `FrameG` again and the results checked; a trapping step (`R = none`) is a
   `TrapEnd` with `TrapAtG` at the trapped core store and the exporter's state after the step;
-  a step answering a flat payload has no `Ends`, so does not occur.
+  a step answering a flat payload has no `Ends`, so does not occur; `call_stepB'` states it with
+  the exporter's end (its relation, `Within`, `Grows`) in place of `LInvG`/`TrapAtG`, for the
+  tracked rounds of `LinkedGChain`.
 -/
 
 @[expose] public noncomputable section
@@ -198,11 +200,12 @@ variable {b : SimpleI} {Ii : SInst} {u₀ s₀ : Store Nat} {F₀ : List (FuncIn
   {g : CanonHost (E3 P) → Nat} {tr : Nat → CanonHost (E3 P)} {Oc₀ : Own} {fq : Ii.F.Op}
   {e : ExpSpec} {d : e.RefData P} {pl : d.Pl} {ii : Nat}
 
-/-- **One import call answered by the exporter**, for any step on the lifted arguments: a
-returning step resumes the importer as `call_ret` (with its frame again and the results
-checked), a trapping step is a trapped end with the parts at the trapped core store. -/
-theorem call_stepB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : d.Fwd)
-    (hB : d.Bounded) {s s' : e.St} {M : Machine.Config (E3 P) σ} {F : CoreFoot}
+/-- **One import call answered by the exporter, with the exporter's end**: `call_stepB` whose
+returning case gives the exporter's relation at the returned store and its footprint discipline
+(`CoreFoot.Within`, `CoreFoot.Grows`) instead of `LInvG`, and whose trapping case gives them at
+a store with the trapped core store instead of `TrapAtG`. -/
+theorem call_stepB' (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : d.Fwd)
+    {s s' : e.St} {M : Machine.Config (E3 P) σ} {F : CoreFoot}
     {y : CoreSt (E3 P)} {x : Store Nat × STh}
     (hI : LInvG d pl Ii s₀ u₀ F₀ g Oc₀ fq s M.store F y x) (th : Option ThreadId)
     (hFG : FrameG d pl ii th M.store)
@@ -227,14 +230,14 @@ theorem call_stepB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : 
           (coreCfg { M with conts := C', store := S'' } th K segs rest
             (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))) ∧
         (∀ ev, Label.host ev ∉ trc) ∧ (∀ msg, Label.trap (.internal msg) ∉ trc) ∧
-        LInvG d pl Ii s₀ u₀ F₀ g Oc₀ fq s' S'' F'
-          (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))
-          (x.1, Silmaril.Wasm.SingleThreaded.resumeResult x.1 x.2
-            (.values ((lowerArgs p.results us).map Silmaril.Wasm.SingleThreaded.ofFlat))) ∧
+        d.Hold pl s' S'' F' ∧ F.Within (M.store.core : Store (CanonHost (E3 P))) S''.core ∧
+        F.Grows F' (M.store.core : Store (CanonHost (E3 P))) ∧
         FrameG d pl ii th S'' ∧ CallExt d pl M.store S'') ∨
     (R = none ∧ ∃ c, TrapEnd prof P impl (coreCfg M th K segs rest y) c ∧
-      TrapAtG d pl Ii s₀ u₀ F₀ g Oc₀ fq M.store s' c x.1) := by
-  obtain ⟨nm', p', ys', E, a', hk', hdx, hys', hst, hyty⟩ := hI.callout_fwd SI hc he
+      ∃ (S' : CStore (E3 P)) (F' : CoreFoot), S'.core = c ∧ S'.funcs = M.store.funcs ∧
+        d.Hold pl s' S' F' ∧ F.Within (M.store.core : Store (CanonHost (E3 P))) c ∧
+        F.Grows F' (M.store.core : Store (CanonHost (E3 P)))) := by
+  obtain ⟨nm', p', ys', -, -, hk', -, hys', hst, hyty⟩ := hI.callout_fwd SI hc he
   rw [hk] at hk'
   have hnp := Prod.mk.inj (Option.some.inj hk')
   obtain ⟨hn, hp⟩ := hnp
@@ -302,7 +305,7 @@ theorem call_stepB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : 
       refine .inr ⟨rfl, S'.core, ⟨tr₁ ++ tr₂ ++ (tr₃ ++ [.trap r]), StepDefs.trapCfg mT,
         Adequacy.steps_append (Adequacy.steps_append h₁.steps h₂)
           (Adequacy.steps_append h₃.steps (.cons hu.1 (.refl _))), ?_, ?_, rfl, hcT⟩,
-        trapAt_of_within hI hH' hfS' hwi' hgr' (hB pl _ S' F' hH')⟩
+        S', F', rfl, hfS', hH', hwi', hgr'⟩
       · intro ev hm
         rcases List.mem_append.mp hm with hm | hm
         · rcases List.mem_append.mp hm with hm | hm
@@ -332,7 +335,6 @@ theorem call_stepB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : 
       have hie' : S'.insts[ie]? = some (enterInst ιe t) := hcal.inst
       have hH'' : d.Hold pl _ S'' F' :=
         hold_threads hFr hH' hie' _ rfl rfl rfl
-      have hI' := LInvG.resume_fwd SI hI hk hdx he hck hH'' hwi' hgr' (hB pl _ S'' F' hH'')
       have hl'' : S''.lockdown = false := hlS'
       have hlive₃ : Live (coreCfg { M with conts := C', store := S'' } th K segs rest
           (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))) :=
@@ -387,8 +389,8 @@ theorem call_stepB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : 
         · rw [List.getElem?_set_ne hw', hext.insts_exp w', hS₁]
           exact ⟨ι, (List.getElem?_set_ne hw').trans hι, hιt⟩
       refine .inl ⟨us, rfl, hck, tr₁ ++ tr₂ ++ tr₃, C', S'', F',
-        Adequacy.steps_append (Adequacy.steps_append h₁.steps h₂) h₃.steps, ?_, ?_, hI',
-        hFG.of_callExt hX hexp, hX⟩
+        Adequacy.steps_append (Adequacy.steps_append h₁.steps h₂) h₃.steps, ?_, ?_, hH'', hwi',
+        hgr', hFG.of_callExt hX hexp, hX⟩
       · intro ev hm
         rcases List.mem_append.mp hm with hm | hm
         · rcases List.mem_append.mp hm with hm | hm
@@ -419,9 +421,55 @@ theorem call_stepB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : 
       have hgr'' : F.Grows F' (M.store.core : Store (CanonHost (E3 P))) := by
         rw [← hc₁']
         exact hgr
-      have h := trapAt_of_within hI hH' (hfun.trans hfun₁) hwi'' hgr'' (hB pl _ S' F' hH')
-      rw [hcore] at h
-      exact h
+      exact ⟨S', F', hcore, hfun.trans hfun₁, hH', hcore ▸ hwi'', hgr''⟩
+
+/-- **One import call answered by the exporter**, for any step on the lifted arguments: a
+returning step resumes the importer as `call_ret` (with its frame again and the results
+checked), a trapping step is a trapped end with the parts at the trapped core store. -/
+theorem call_stepB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hFw : d.Fwd)
+    (hB : d.Bounded) {s s' : e.St} {M : Machine.Config (E3 P) σ} {F : CoreFoot}
+    {y : CoreSt (E3 P)} {x : Store Nat × STh}
+    (hI : LInvG d pl Ii s₀ u₀ F₀ g Oc₀ fq s M.store F y x) (th : Option ThreadId)
+    (hFG : FrameG d pl ii th M.store)
+    {k : Nat} {args : List Silmaril.Wasm.Execution.Core.Val}
+    (hc : Silmaril.Wasm.Game.CalloutAt x.1 x.2 k args) {q : Ii.E.Op}
+    (he : Ii.importOp? k args = some q) {nm : String} {p : FuncTy}
+    (hk : b.imports[k]? = some (nm, p)) {w : Nat} {xe : Export}
+    (hw : e.comp.exports[w]? = some xe) (hty : xe.ty = p)
+    (htr : tr k = .lowered ⟨d.fid pl w⟩ (witFt p) {} ⟨ii⟩)
+    (K : List Flat → Canon.P (E3 P) σ (Ret (E3 P)))
+    (segs : List (Seg (E3 P) σ)) (rest : List (Activation (E3 P) σ))
+    (hpf : floatFreeList p.params = true) (hmaxp : (ValTy.flatList p.params).length ≤ 16)
+    (hres : p.results.length ≤ 1) (hrf : floatFreeList p.results = true)
+    (hmaxr : (ValTy.flatList p.results).length ≤ 1)
+    {ys : List Flat} (hys : args.mapM Silmaril.Wasm.SingleThreaded.toFlat? = some ys)
+    {ws : List IVal} (hws : liftArgs p.params ys = some ws) {R : Option Payload}
+    (hstep : e.Step P s ⟨(w, .vals ws), R⟩ s') :
+    (∃ us : List IVal, R = some (.vals us) ∧ ValTy.checkList p.results us = true ∧
+      ∃ (trc : List (Label (E3 P) σ)) (C' : List (Option (Activation (E3 P) σ)))
+        (S'' : CStore (E3 P)) (F' : CoreFoot),
+        Machine.Steps prof (fun _ _ => false) (DI P impl) (coreCfg M th K segs rest y) trc
+          (coreCfg { M with conts := C', store := S'' } th K segs rest
+            (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))) ∧
+        (∀ ev, Label.host ev ∉ trc) ∧ (∀ msg, Label.trap (.internal msg) ∉ trc) ∧
+        LInvG d pl Ii s₀ u₀ F₀ g Oc₀ fq s' S'' F'
+          (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))
+          (x.1, Silmaril.Wasm.SingleThreaded.resumeResult x.1 x.2
+            (.values ((lowerArgs p.results us).map Silmaril.Wasm.SingleThreaded.ofFlat))) ∧
+        FrameG d pl ii th S'' ∧ CallExt d pl M.store S'') ∨
+    (R = none ∧ ∃ c, TrapEnd prof P impl (coreCfg M th K segs rest y) c ∧
+      TrapAtG d pl Ii s₀ u₀ F₀ g Oc₀ fq M.store s' c x.1) := by
+  obtain ⟨nm', p', ys', E, a', hk', hdx, -, -, -⟩ := hI.callout_fwd SI hc he
+  rw [hk] at hk'
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hk')
+  rcases call_stepB' (prof := prof) (impl := impl) SI hFr hFw hI th hFG hc he hk hw hty htr
+      K segs rest hpf hmaxp hres hrf hmaxr hys hws hstep with
+    ⟨us, hR, hck, trc, C', S'', F', hrun, hnh, hni, hH, hwi, hgr, hFG', hX⟩ |
+    ⟨hR, c, hT, S', F', hc', hf, hH, hwi, hgr⟩
+  · exact .inl ⟨us, hR, hck, trc, C', S'', F', hrun, hnh, hni,
+      LInvG.resume_fwd SI hI hk hdx he hck hH hwi hgr (hB pl _ S'' F' hH), hFG', hX⟩
+  · subst hc'
+    exact .inr ⟨hR, S'.core, hT, trapAt_of_within hI hH hf hwi hgr (hB pl _ S' F' hH)⟩
 
 end Call
 

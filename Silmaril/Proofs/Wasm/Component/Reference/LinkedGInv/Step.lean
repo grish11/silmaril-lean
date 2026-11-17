@@ -21,6 +21,9 @@ is not live is read back (`call_backB`):
   footprint discipline of `BwdF`;
 * in the trapped ends, `E` is locked down with an empty control chain and the parts are related
   at its core store (`TrapAtG`), for a trapped step of the exporter.
+
+`call_backB'` states the same read-back with the exporter's end (its relation, `Within`, `Grows`)
+in place of `LInvG`/`TrapAtG`, for the tracked read-back of `LinkedGChain`.
 -/
 
 @[expose] public noncomputable section
@@ -53,12 +56,13 @@ variable {b : SimpleI} {Ii : SInst} {u₀ s₀ : Store Nat} {F₀ : List (FuncIn
   {g : CanonHost (E3 P) → Nat} {tr : Nat → CanonHost (E3 P)} {Oc₀ : Own} {fq : Ii.F.Op}
   {e : ExpSpec} {d : e.RefData P} {pl : d.Pl} {ii : Nat}
 
-/-- **One import call read back**: a host-free run from the importer's callout to a configuration
-that is not live passes through the importer's resumed activation after a returning exporter
-step (with `LInvG`, the frame and `CallExt` there), or ends locked down at a trapped exporter
-step with the parts related at its core store. -/
-theorem call_backB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hBw : d.BwdF)
-    (hB : d.Bounded) {s : e.St} {M : Machine.Config (E3 P) σ} {F : CoreFoot}
+/-- **One import call read back, with the exporter's end** (`call_backB` below is derived from
+it): as `call_backB`, but the returning case gives the run up to the importer's resumed activation
+and the exporter's relation and footprint discipline (`Within`, `Grows`) at the returned store
+instead of `LInvG`, and the trapping case gives them at a store with the trapped core store
+instead of `TrapAtG`. -/
+theorem call_backB' (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hBw : d.BwdF)
+    {s : e.St} {M : Machine.Config (E3 P) σ} {F : CoreFoot}
     {y : CoreSt (E3 P)} {x : Store Nat × STh}
     (hI : LInvG d pl Ii s₀ u₀ F₀ g Oc₀ fq s M.store F y x) (th : Option ThreadId)
     (hFG : FrameG d pl ii th M.store)
@@ -83,17 +87,20 @@ theorem call_backB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hBw : 
         (C' : List (Option (Activation (E3 P) σ))) (S'' : CStore (E3 P)) (F' : CoreFoot),
         e.Step P s ⟨(w, .vals ws), some (.vals us)⟩ s' ∧ ValTy.checkList p.results us = true ∧
         trr = trc ++ tr₂ ∧ trc ≠ [] ∧
+        Machine.Steps prof (fun _ _ => false) (DI P impl) (coreCfg M th K segs rest y) trc
+          (coreCfg { M with conts := C', store := S'' } th K segs rest
+            (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))) ∧
         Machine.Steps prof (fun _ _ => false) (DI P impl)
           (coreCfg { M with conts := C', store := S'' } th K segs rest
             (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))) tr₂ E ∧
-        LInvG d pl Ii s₀ u₀ F₀ g Oc₀ fq s' S'' F'
-          (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))
-          (x.1, Silmaril.Wasm.SingleThreaded.resumeResult x.1 x.2
-            (.values ((lowerArgs p.results us).map Silmaril.Wasm.SingleThreaded.ofFlat))) ∧
+        d.Hold pl s' S'' F' ∧ F.Within (M.store.core : Store (CanonHost (E3 P))) S''.core ∧
+        F.Grows F' (M.store.core : Store (CanonHost (E3 P))) ∧
         FrameG d pl ii th S'' ∧ CallExt d pl M.store S'') ∨
     (∃ s' : e.St, e.Step P s ⟨(w, .vals ws), none⟩ s' ∧ E.store.lockdown = true ∧ E.ctl = [] ∧
-      TrapAtG d pl Ii s₀ u₀ F₀ g Oc₀ fq M.store s' E.store.core x.1) := by
-  obtain ⟨nm', p', ys', E', a', hk', hdx, hys', hst, hyty⟩ := hI.callout_fwd SI hc he
+      ∃ (S' : CStore (E3 P)) (F' : CoreFoot), S'.core = E.store.core ∧ S'.funcs = M.store.funcs ∧
+        d.Hold pl s' S' F' ∧ F.Within (M.store.core : Store (CanonHost (E3 P))) E.store.core ∧
+        F.Grows F' (M.store.core : Store (CanonHost (E3 P)))) := by
+  obtain ⟨nm', p', ys', -, -, hk', -, hys', hst, hyty⟩ := hI.callout_fwd SI hc he
   rw [hk] at hk'
   have hnp := Prod.mk.inj (Option.some.inj hk')
   obtain ⟨hn, hp⟩ := hnp
@@ -174,10 +181,7 @@ theorem call_backB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hBw : 
       rcases trapsAtSH_back (htrap S' C' zs hcal hzty' hn).2 ra₂ with hl' |
         ⟨mT, rr, -, rfl, hcT, -⟩
       · exact absurd hl' hE
-      refine .inr ⟨s', hstep, rfl, rfl, ?_⟩
-      show TrapAtG d pl Ii s₀ u₀ F₀ g Oc₀ fq M.store s' mT.store.core x.1
-      rw [hcT]
-      exact trapAt_of_within hI hH' hfS' hwi' hgr' (hB pl _ S' F' hH')
+      exact .inr ⟨s', hstep, rfl, rfl, S', F', hcT.symm, hfS', hH', hcT ▸ hwi', hgr'⟩
     · exact hlift.elim
     · -- the results lift: the importer resumes
       have hlift' : liftArgs p.results zs = some us := by rw [← hty]; exact hlift
@@ -192,7 +196,6 @@ theorem call_backB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hBw : 
       have hie' : S'.insts[ie]? = some (enterInst ιe t) := hcal.inst
       have hH'' : d.Hold pl _ S'' F' :=
         hold_threads hFr hH' hie' _ rfl rfl rfl
-      have hI' := LInvG.resume_fwd SI hI hk hdx he hck' hH'' hwi' hgr' (hB pl _ S'' F' hH'')
       have hX : CallExt d pl M.store S'' := by
         have hpre : ∀ {α : Type} {l : List α} {a : α} {l' : List α}, l ++ [a] <+: l' →
             l <+: l' :=
@@ -241,8 +244,10 @@ theorem call_backB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hBw : 
           exact ⟨_, List.getElem?_set_self (lt_of_getElem? hie'), threadsOk_after ιe t⟩
         · rw [List.getElem?_set_ne hw', hext.insts_exp w', hS₁]
           exact ⟨ι, (List.getElem?_set_ne hw').trans hι, hιt⟩
-      refine .inl ⟨us, s', tr₁ ++ (tra₁ ++ tr₃), tr₄, C', S'', F', hstep, hck', ?_, ?_, r₄, hI',
-        hFG.of_callExt hX hexp, hX⟩
+      rw [hstart] at ra₁
+      refine .inl ⟨us, s', tr₁ ++ (tra₁ ++ tr₃), tr₄, C', S'', F', hstep, hck', ?_, ?_,
+        Adequacy.steps_append h₁.steps (Adequacy.steps_append ra₁ h₃.steps), r₄, hH'', hwi',
+        hgr', hFG.of_callExt hX hexp, hX⟩
       · rw [etr, etra, etr₄]
         simp only [List.append_assoc]
       · intro h
@@ -258,9 +263,60 @@ theorem call_backB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hBw : 
     have hgr'' : F.Grows F' (M.store.core : Store (CanonHost (E3 P))) := by
       rw [← hc₁']
       exact hgr
-    have h := trapAt_of_within hI hH' (hfun.trans hfun₁) hwi'' hgr'' (hB pl _ S' F' hH')
-    rw [hcore] at h
-    exact h
+    exact ⟨S', F', hcore, hfun.trans hfun₁, hH', hcore ▸ hwi'', hgr''⟩
+
+/-- **One import call read back**: a host-free run from the importer's callout to a configuration
+that is not live passes through the importer's resumed activation after a returning exporter
+step (with `LInvG`, the frame and `CallExt` there), or ends locked down at a trapped exporter
+step with the parts related at its core store. -/
+theorem call_backB (SI : ImpStatG P b Ii u₀ F₀ g tr) (hFr : d.Frame) (hBw : d.BwdF)
+    (hB : d.Bounded) {s : e.St} {M : Machine.Config (E3 P) σ} {F : CoreFoot}
+    {y : CoreSt (E3 P)} {x : Store Nat × STh}
+    (hI : LInvG d pl Ii s₀ u₀ F₀ g Oc₀ fq s M.store F y x) (th : Option ThreadId)
+    (hFG : FrameG d pl ii th M.store)
+    {k : Nat} {args : List Silmaril.Wasm.Execution.Core.Val}
+    (hc : Silmaril.Wasm.Game.CalloutAt x.1 x.2 k args) {q : Ii.E.Op}
+    (he : Ii.importOp? k args = some q) {nm : String} {p : FuncTy}
+    (hk : b.imports[k]? = some (nm, p)) {w : Nat} {xe : Export}
+    (hw : e.comp.exports[w]? = some xe) (hty : xe.ty = p)
+    (htr : tr k = .lowered ⟨d.fid pl w⟩ (witFt p) {} ⟨ii⟩)
+    (K : List Flat → Canon.P (E3 P) σ (Ret (E3 P)))
+    (segs : List (Seg (E3 P) σ)) (rest : List (Activation (E3 P) σ))
+    (hpf : floatFreeList p.params = true) (hmaxp : (ValTy.flatList p.params).length ≤ 16)
+    (hres : p.results.length ≤ 1) (hrf : floatFreeList p.results = true)
+    (hmaxr : (ValTy.flatList p.results).length ≤ 1)
+    {ys : List Flat} (hys : args.mapM Silmaril.Wasm.SingleThreaded.toFlat? = some ys)
+    {ws : List IVal} (hws : liftArgs p.params ys = some ws)
+    {trr : List (Label (E3 P) σ)} {E : Machine.Config (E3 P) σ}
+    (r : Machine.Steps prof (fun _ _ => false) (DI P impl) (coreCfg M th K segs rest y) trr E)
+    (hh : ∀ ev, Label.host ev ∉ trr) (hE : ¬ Live E)
+    (hni : E.store.lockdown = true → E.ctl = [] → ∀ msg, Label.trap (.internal msg) ∉ trr) :
+    (∃ (us : List IVal) (s' : e.St) (trc tr₂ : List (Label (E3 P) σ))
+        (C' : List (Option (Activation (E3 P) σ))) (S'' : CStore (E3 P)) (F' : CoreFoot),
+        e.Step P s ⟨(w, .vals ws), some (.vals us)⟩ s' ∧ ValTy.checkList p.results us = true ∧
+        trr = trc ++ tr₂ ∧ trc ≠ [] ∧
+        Machine.Steps prof (fun _ _ => false) (DI P impl)
+          (coreCfg { M with conts := C', store := S'' } th K segs rest
+            (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))) tr₂ E ∧
+        LInvG d pl Ii s₀ u₀ F₀ g Oc₀ fq s' S'' F'
+          (S''.core, (E3 P).resume S''.core y.2 (.values (lowerArgs p.results us)))
+          (x.1, Silmaril.Wasm.SingleThreaded.resumeResult x.1 x.2
+            (.values ((lowerArgs p.results us).map Silmaril.Wasm.SingleThreaded.ofFlat))) ∧
+        FrameG d pl ii th S'' ∧ CallExt d pl M.store S'') ∨
+    (∃ s' : e.St, e.Step P s ⟨(w, .vals ws), none⟩ s' ∧ E.store.lockdown = true ∧ E.ctl = [] ∧
+      TrapAtG d pl Ii s₀ u₀ F₀ g Oc₀ fq M.store s' E.store.core x.1) := by
+  obtain ⟨nm', p', ys', E', a', hk', hdx, -, -, -⟩ := hI.callout_fwd SI hc he
+  rw [hk] at hk'
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hk')
+  rcases call_backB' (prof := prof) (impl := impl) SI hFr hBw hI th hFG hc he hk hw hty htr K
+      segs rest hpf hmaxp hres hrf hmaxr hys hws r hh hE hni with
+    ⟨us, s', trc, tr₂, C', S'', F', hstep, hck, etr, hne, -, r₂, hH, hwi, hgr, hFG', hX⟩ |
+    ⟨s', hstep, hlock, hctl, S', F', hc', hf, hH, hwi, hgr⟩
+  · exact .inl ⟨us, s', trc, tr₂, C', S'', F', hstep, hck, etr, hne, r₂,
+      LInvG.resume_fwd SI hI hk hdx he hck hH hwi hgr (hB pl _ S'' F' hH), hFG', hX⟩
+  · refine .inr ⟨s', hstep, hlock, hctl, ?_⟩
+    rw [← hc']
+    exact trapAt_of_within hI hH hf (hc' ▸ hwi) hgr (hB pl _ S' F' hH)
 
 end Call
 

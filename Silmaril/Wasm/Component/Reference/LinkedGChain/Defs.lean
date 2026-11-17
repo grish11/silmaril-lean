@@ -5,18 +5,16 @@ public import Silmaril.Wasm.Component.Reference.LinkedGInst.Defs
 /-!
 # Chains of linked components on the reference side: definitions
 
-**Scope.** The reference side of chains (`LinkedN`, `chainExp` of `LinkedG`), reduced to one
-open goal: a linked component, as an exporter (`LinkedG.toExp`), meets the reference interface
-`ExpSpec.RefAdeqUX` of `LinkedGInst` (R1, R2, R3 as `BwdF`, R4 as `InitUX`, R5, R6).
+**Scope.** The reference side of chains (`LinkedN`, `chainExp` of `LinkedG`): a linked
+component, as an exporter (`LinkedG.toExp`), meets the reference interface `ExpSpec.RefAdeqUX`
+of `LinkedGInst` (R1, R2, R3 as `BwdF`, R4 as `InitUX`, R5, R6); `Thms` proves it
+(`LinkedG.toExp_refAdeqUX`) and derives chain adequacy.
 
 * `LinkedG.LinkOk`: the hypotheses of `LinkedG.sessAdequacy_fullUX` on the importer and its
   wiring (`WireTy`, an injective wiring, `Good`, `Inst`, within the flat arities, float-free, in
   the split fragment, export names that are not generated type names);
 * `ChainOkR e bs Is`: `LinkOk` for each link of the chain built on `e`, with the importer's core
-  instance (the reference counterpart of `ChainOk`);
-* `Task.linkedG.toExpRefAdeqUX`: **the open goal**: for an exporter meeting `RefAdeqUX`, the
-  linked component at the importer's core instance `Ii` meets `RefAdeqUX`. The theorems of
-  `Thms` that use it take it as a hypothesis.
+  instance (the reference counterpart of `ChainOk`).
 
 Why `RefAdeqUX` and not `RefAdeqU`: a linked exporter's core store holds its importer's
 trampolines (host functions), which `RefAdeqU`'s R4 excludes (`InitAt.hostFree`).
@@ -48,12 +46,5 @@ def ChainOkR : ExpSpec → List (SimpleI × List Nat) → List ScalarInstance �
   | e, (b, w) :: bs, I :: Is =>
     (LinkedG.mk e b w).LinkOk ∧ b.mod.IsInst I ∧ ChainOkR (LinkedG.toExp ⟨e, b, w⟩ I) bs Is
   | _, _, _ => False
-
-/-- **Open goal: a linked component is a reference exporter.** For an exporter meeting
-`RefAdeqUX` and a link meeting `LinkOk`, the linked component at an instance `Ii` of its
-importer's core module meets `RefAdeqUX`. -/
-def Task.linkedG.toExpRefAdeqUX : Prop :=
-  ∀ (P : Profile) (lg : LinkedG) (Ii : ScalarInstance), lg.exp.RefAdeqUX P → lg.LinkOk →
-    lg.imp.mod.IsInst Ii → (lg.toExp Ii).RefAdeqUX P
 
 end Silmaril.Wasm.Component.Reference
