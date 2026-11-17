@@ -10,6 +10,7 @@ import Silmaril.Proofs.Wasm.Cfg.MachineLProjC
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjI
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjS
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjT
+import Silmaril.Proofs.Wasm.Cfg.MachineLProjX
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjE
 public import Silmaril.Wasm.Abstract.CallXT.Thms
 public import Silmaril.Wasm.Abstract.ExposePTyped.Thms
@@ -135,6 +136,18 @@ callee's parameters, and `n` the callee's result count. Hypotheses, all stated:
   the store's functions and returns at least the callee's result count. No soundness of `C`
   (`Interp.OracleSoundT`) and no `StoreChkE` is assumed: the region run answers the same calls
   by the same `C`.
+
+**The stepwise projection over the pending, exception-aware semantics** (`proj_stepE`,
+`proj_runLE`, `proj_initialE`). The same statement as `proj_step`, with the segment bridge
+`flat_runP` (`EvalOXP`, `ehExt`). The hypotheses are only:
+* bodies without `try_table` (`NoTry`);
+* an arity-respecting oracle (`ArityResp Γ C`), with `CloseOk C` logs and `Ctx.Good` stores.
+
+No restriction on call forms (`call_indirect`, `call_ref`), on terminators (`throw`,
+`throw_ref`, tail calls) or on the store's checker. A `throw`/`throw_ref` terminator is
+`MStepC.raise`, and a tail call of null is `MStepC.tailNull`. An answered tail call is an end of
+the logged run (`TailL`), not a step. Its correspondence with `MStepC.tail`, and the handler case
+(`try_table`), are separate (`docs/projects/wasm-cfg.md`).
 
 On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
 projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
@@ -350,5 +363,41 @@ theorem flat_runP {P : Numerics.Profile} {host : HostSemantics H} {Γ : Ctx H}
       (liftInstrs is) = some out) :
     ∃ s' f' o, Region.RunC P host C s f N.reverse (expression is) s' f' o ∧ ResOutP s' f' o r :=
   Proofs.MachineLProjE.flat_runP hA hflat d hg hchk
+
+/-! ## The stepwise projection, exceptions on -/
+
+/-- **A logged step projects to one `MStepC` step** (exceptions on, every call form, bodies
+without `try_table`, an arity-respecting oracle). -/
+theorem proj_stepE {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst} {nl ret : Nat} {body : Expr}
+    (hNT : NoTry body) {st st' : MState H} {l : List (Abstract.SCall H)}
+    (hs : MStepL body st l st') (hl : ∀ e ∈ l, CloseOk C e) (hok : MInv body st)
+    (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    ∃ stC, MStepC P host C body st stC ∧ ProjRel st' stC :=
+  Proofs.MachineLProjX.proj_stepE hA hNT hs hl hok hg hn hI
+
+/-- **A logged run projects to an `MStepC` run**, step by step (exceptions on). -/
+theorem proj_runLE {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst} {nl ret : Nat} {body : Expr}
+    (hNT : NoTry body) {st st' : MState H} {l : List (Abstract.SCall H)}
+    (h : MRunL body st l st') (hl : ∀ e ∈ l, CloseOk C e) (hok : MInv body st)
+    (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    ∃ stC, Relation.ReflTransGen (MStepC P host C body) st stC ∧ ProjRel st' stC :=
+  Proofs.MachineLProjX.proj_runLE hA hNT h hl hok hg hn hI
+
+/-- **A logged run from the CFG entry projects to an `MStepC` run from the CFG entry**
+(exceptions on), for a body passing the function's own check. -/
+theorem proj_initialE {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {ret : Nat} {body : Expr} (hNT : NoTry body)
+    {s : Store H} {f : Frame} (hg : Γ.Good s)
+    (hchk : endsAt (chkE (ehExt Γ.tags) Γ.funcs f.module f.locals.length ret [ret] (some 0)
+      (liftInstrs body)) ret = true)
+    {l : List (Abstract.SCall H)} {st' : MState H} (h : MRunL body (initial body s f) l st')
+    (hl : ∀ e ∈ l, CloseOk C e) :
+    ∃ stC, Relation.ReflTransGen (MStepC P host C body) (initial body s f) stC ∧
+      ProjRel st' stC :=
+  Proofs.MachineLProjX.proj_initialE hA hNT hg hchk h hl
 
 end Silmaril.Wasm.Cfg.MachineL

@@ -632,8 +632,17 @@ The plain graph stays an over-approximation, and claims about it say so.
                - Outcomes: a flow goes to the same store and frame under `FlowRel` (throws
                  included). A pending tail call goes to `Region.Out.tail W a c`, whose top
                  `ps.length` values are the arguments, with `n` the callee's result count.
-               - Next: use it in the stepwise projection, lifting `DirectCalls`/`PlainTerms` and
-                 adding the catch and tail cases. It must keep
+             - Stepwise projection over `EvalOXP`, done (`proj_stepE`, `proj_runLE`,
+               `proj_initialE`). Hypotheses: `NoTry`, `ArityResp Γ C`, `CloseOk C` logs and
+               `Ctx.Good`. `DirectCalls`, `PlainTerms`, `StoreChkE tExt` and `OracleSoundT` are
+               dropped. `throw`/`throw_ref` terminators are `MStepC.raise`, tail calls of null are
+               `MStepC.tailNull`, and indirect and reference calls go through the bridge.
+             - Next:
+               - answered tail calls: the logged end `TailL` with its answered `SCall` against
+                 `MStepC.tail` (frame replacement);
+               - `try_table`: the catch dispatch against `MStepC.catch_`/`bodyCatch`/`catchOut`.
+                 The checker invariant's catch case needs `catchOk` and the payload arity of
+                 `Catches` under `TagsOk`. It must keep
              the exception outcomes, tag matching, trap stores, and tail calls bypassing the
              caller's handlers. Then the stepwise projection extends to EH.
           3. Validated typed nested fixtures (block, loop, if, catch) on which it holds.
@@ -805,11 +814,25 @@ The plain graph stays an over-approximation, and claims about it say so.
         - **H3-2, pending host calls, done**: `CfgPendLXPS`, `cfgPend_iff`, and
           `cfgEvPend_eq : cfgEvPendXPS = wasmEvPendXPS`. They go via `pending_iff`,
           `forward_tail`/`backward` and `cfgHOpen_eq`.
-        - Then H3-3: the divergent part (`closeDLog` over the trap-erasing module, with the CFG's
-          logged divergence `MLogDivL`, whose converse adds `closedCallXP`-answered entries that
-          the closure resolves with empty host logs) and the productive part (`closeInfL` with
-          `ProdL`, via `prodL_iff`). Together they give the CFG session triple equal to
-          `sessionTripleXP`.
+        - Then H3-3: the divergent part (`closeDLog wasmHOpenXP LDLwXP`) and the productive part
+          (`closeInfL wasmHOpenXP InfLwXP`). Together with H3-1 and H3-2 they give the CFG
+          session triple equal to `sessionTripleXP`. Both parts use the **trap-erasing** canonical
+          module `wasmHOpenXP` (`EvalLXPh` logs, `OCall`), through `DescPath`/`Descends`, through
+          `close`, and through the per-function sets.
+          - **Obstacle.** `evalLXPh_session`/`evalLXPS_canonical` convert only runs not ending in
+            a trap. On trapping runs the relations differ: a callee trap is an answered entry
+            in `EvalLXPS`, and an over-long value answer (`callCut`) in `EvalLXPh`, by the internal
+            `HostClosingS.ToH`.
+          - **Plan.**
+            - Export the trap cases of that conversion in the `HostClosingS` header.
+            - Define `cfgHOpenXP` from the machine with them, and prove
+              `cfgHOpenXP = wasmHOpenXP` as for H3-1.
+            - The productive part then follows by `prodL_iff`, since `InfLwXP` is `InfLXP` at
+              `Frame.forCall`.
+            - The divergent part: `logDiv_machine` gives the inclusion. The converse
+              `machine_logDiv` adds `closedCallXP`-answered entries, and those resolve to empty
+              host logs in `close wasmHOpenXP` (`HostClosingInfXPBack.evalLXPh_of_evalOXP_closed`,
+              per call). So the equality holds at the level of `closeDLog`, not per function.
         - Equality with the store-retaining session closure `wasmEvFunXPS`/`sessionTripleXP`
           (not the trap-store-erasing `wasmEvFunXP`).
         - Then the instance session with imports and exceptions, via the existing Core adequacy
