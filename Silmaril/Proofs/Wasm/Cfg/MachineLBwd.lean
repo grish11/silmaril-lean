@@ -343,6 +343,58 @@ theorem at_boundary {body : Expr} {Fin : Store H × Frame × POut → Prop} {p :
     obtain ⟨st, hg, hE⟩ := hx
     exact ⟨st, by simpa [cont] using hg, by simpa using hE⟩
 
+/-! ## Positions -/
+
+theorem isStruct_terminator {t : Instr} (h : Instr.IsStruct t) : isTerminator t = true := by
+  obtain ⟨_, _, _, _, hk⟩ := h; cases hk <;> rfl
+
+theorem seg_wf {c : List Instr} {i : Nat} {sg : Segment} (hsg : (segment c)[i]? = some sg) :
+    sg.WellFormed := (segment_isSegmentation c).2.1 sg (List.mem_of_getElem? hsg)
+
+/-- A terminator in `post` is the segment's terminator, `post` ending there. -/
+theorem pos_term {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {sg : Segment}
+    {pre post' : List Instr} {e : Instr} (hp : Pos body p c i sg pre (e :: post'))
+    (he : isTerminator e = true) : sg.term = some e ∧ post' = [] ∧ pre = sg.body := by
+  have hwf := seg_wf hp.hsg
+  have hi := hp.hinstrs
+  simp only [Segment.instrs] at hi
+  have hlen : sg.body.length ≤ pre.length := by
+    by_contra hlt
+    push Not at hlt
+    have h1 : (sg.body ++ sg.term.toList)[pre.length]? = some e := by rw [hi]; simp
+    rw [List.getElem?_append_left hlt] at h1
+    have := hwf.1 e (List.mem_of_getElem? h1)
+    rw [he] at this; cases this
+  obtain ⟨X, hX⟩ : ∃ X, pre = sg.body ++ X := by
+    refine ⟨pre.drop sg.body.length, ?_⟩
+    have := congrArg (List.take sg.body.length) hi
+    simp [List.take_append_of_le_length hlen] at this
+    conv_lhs => rw [← List.take_append_drop sg.body.length pre]
+    rw [← this]
+  subst hX
+  simp only [List.append_assoc, List.append_cancel_left_eq] at hi
+  rcases ht : sg.term with _ | t
+  · rw [ht] at hi; simp at hi
+  · rw [ht] at hi
+    rcases X with _ | ⟨x, X⟩
+    · simp only [Option.toList_some, List.nil_append, List.cons.injEq] at hi
+      exact ⟨by rw [hi.1], hi.2.symm, by simp⟩
+    · simp at hi
+
+/-- The last instruction of a segment, not structured: the segment's terminator is not
+structured. -/
+theorem pos_last_nonstruct {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat}
+    {sg : Segment} {pre : List Instr} {e : Instr} (hp : Pos body p c i sg pre [e])
+    (he : ¬ Instr.IsStruct e) : ∀ t, sg.term = some t → ¬ Instr.IsStruct t := by
+  intro t ht hs
+  have hi := hp.hinstrs
+  simp only [Segment.instrs, ht, Option.toList_some] at hi
+  have := congrArg List.getLast? hi
+  simp only [List.getLast?_append, List.getLast?_singleton, Option.some_or,
+    Option.some.injEq] at this
+  subst this
+  exact he hs
+
 /-- **The main induction**: every native run satisfies the motive. -/
 theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
     {N : List Val} {es : List BExpr} {l : List (SCall H)} {r : Store H × Frame × POut}
