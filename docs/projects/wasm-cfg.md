@@ -657,17 +657,25 @@ The plain graph stays an over-approximation, and claims about it say so.
             - the logged run from the CFG entry to it is a `LogDivXP` prefix (`prefix_logDiv`, a
               finite-horizon version of the coinduction, with arms left read by `arm_fwd`);
             - a diverging callee goes through the pending-call correspondence (`reach_logDiv`).
-        - **Productive streams, P1 done (native to machine).** `ProdL body st ω`: an infinite
+        - **Productive streams, P1 and P2 done (both directions).** `ProdL body st ω`: an infinite
           logged machine run whose step logs concatenate to `ω`, with infinitely many calls.
           - `infL_machine`: `InfLXP s f [] (liftInstrs body) ω` gives
             `ProdL body (initial body s f) (fun n => (ω n).toS)`, the same stream. The proof is an
             induction on `InfLXP`, as for divergence after a log. A loop iterating forever is the
             chain of its iterations on the machine (`prod_of_chain`, each iteration a nonempty run
             from the arm's entry back to it).
-          - Open, machine to native (P2). The plan: an analysis of the infinite run by the size of
-            the remaining code; an arm the run never leaves is a descent; an arm left forward is a
-            finished instruction; a loop re-entered infinitely often is `loopInf`, its iterations
-            read by `arm_fwd`.
+          - `machine_infL` (P2, machine to native, exact stream): `ProdL body (initial body s f) ν`
+            gives `InfLXP s f [] (liftInstrs body) ω` with `ν = fun n => (ω n).toS`. `prodL_iff`
+            states both directions together.
+          - Proof of P2 (`Proofs/Wasm/Cfg/MachineLProdB`): a strong induction on the size of the
+            remaining code, at positions of the run that never leave their sequence (`claims`:
+            the block claim `PBC` and the arm-entry claim `PAC`).
+            - An arm the run never leaves is a descent.
+            - An arm left forward is a finished instruction, read natively by `arm_fwd`
+              (`first_leave`).
+            - A loop re-entered finitely often ends in `loopBack` iterations.
+            - A loop re-entered infinitely often is `loopInf`. Its stream is the iterations'
+              concatenation, the same stream as the run's tail (`streamConcat_unique`).
         - The closed oracle `closedCallXP` used here is the native one. These results do not
           discharge H3, which still needs the recursive logged CFG closure.
         - Still open as fixtures: nested-loop `continue` and a tail call inside a handler.
