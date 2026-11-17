@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Interp.PDivCore
 public import Silmaril.Proofs.Wasm.Interp.XNoOutcome
+public import Silmaril.Proofs.Wasm.Interp.CtxInv
 public import Silmaril.Wasm.Execution.Core.Soundness.ProgressAux
 public import Silmaril.Wasm.Abstract.XRecursion.Thms
 
@@ -124,13 +125,13 @@ theorem calleeP_flow {tags : List TagInst} {s s₂ : Store H} {a : Nat} {us : Li
   · exact .inr trivial
   · exact .inr trivial
 
-/-! ## Typed problems -/
+/-! ## Typed problems, for every invariant -/
 
-/-- The function types of a store whose configuration is typed in context. -/
-theorem tyFuncs_of_ctx {s : Store H} {f : Frame} {c : List Admin}
-    (h : Sim.ContextTyped ⟨s, f, c⟩) : TyFuncs s := by
-  obtain ⟨-, -, -, hsok, -, -, -⟩ := Sim.ContextTyped.fragment_types h
-  exact fun a fi hfi => PC.StoreOk.func_tyOk hsok hfi
+namespace CtxInv
+
+variable (K : CtxInv H)
+
+/-! ## Typed problems -/
 
 /-- **A typed problem**: checked by `ehExt tags` in a checked store, its Core code typed in
 context, with valid instance types, in a store with the tag invariants. -/
@@ -139,7 +140,7 @@ def TypedP (tags : List TagInst) (s : Store H) (f : Frame) (stk : List Val)
   ∃ (rest : List Admin) (labels : List Nat) (ret : Nat) (out : Option Nat),
     StoreChkE (ehExt tags) s.funcs ∧
     chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some stk.length) es = some out ∧
-    Sim.ContextTyped ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es) ++ rest⟩ ∧
+    K.CT ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es) ++ rest⟩ ∧
     TyTypes f.module ∧ TagsOk tags s
 
 section Typed
@@ -147,7 +148,7 @@ section Typed
 variable {tags : List TagInst}
 
 theorem TypedP.checked {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
-    (ht : TypedP tags s f stk es) : CheckedP tags s f stk es := by
+    (ht : K.TypedP tags s f stk es) : CheckedP tags s f stk es := by
   obtain ⟨-, labels, ret, out, hS, hc, -, -, hts⟩ := ht
   exact ⟨labels, ret, out, hS, hc, hts⟩
 
@@ -157,31 +158,31 @@ theorem prefix_typedP {s s' : Store H} {f f' : Frame} {stk stk' : List Val}
     (d : EvalOXP closedCallXP s f stk es (s', f', .flow (.normal stk')))
     (hS : StoreChkE (ehExt tags) s.funcs)
     (hc : chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some stk.length) es = some o)
-    (ht : Sim.ContextTyped ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es) ++ rest⟩)
+    (ht : K.CT ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es) ++ rest⟩)
     (hts : TagsOk tags s) :
-    Sim.ContextTyped ⟨s', f', vals stk'.reverse ++ rest⟩ ∧ o = some stk'.length ∧
+    K.CT ⟨s', f', vals stk'.reverse ++ rest⟩ ∧ o = some stk'.length ∧
       EvalInvE (ehExt tags) s f (s', f', .trap) ∧ TagsOk tags s' := by
   obtain ⟨hrun, ho, hinv, hts'⟩ := prefix_runP (P := Pd) (host := noHostX) d hS hc hts
-  exact ⟨Sim.ContextTyped.steps ht (Steps.append rest hrun), ho, hinv, hts'⟩
+  exact ⟨K.steps ht (Steps.append rest hrun), ho, hinv, hts'⟩
 
 /-- **The continuation after a typed head is typed.** -/
 theorem cont_typedP {e : Binaryen.BExpr} {es : List Binaryen.BExpr} {s s₂ : Store H}
     {f f₂ : Frame} {stk stk₂ : List Val}
     (d : EvalOXP closedCallXP s f stk [e] (s₂, f₂, .flow (.normal stk₂)))
-    (ht : TypedP tags s f stk (e :: es)) : TypedP tags s₂ f₂ stk₂ es := by
+    (ht : K.TypedP tags s f stk (e :: es)) : K.TypedP tags s₂ f₂ stk₂ es := by
   obtain ⟨rest, labels, ret, out, hS, hc, hct, hTM, hts⟩ := ht
   obtain ⟨o, h1, h2⟩ := chk_consE.mp hc
   have h1' : chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some stk.length) [e] =
       some o := chk_consE.mpr ⟨o, h1, chkE_nil_selfP o⟩
   rw [code_consX] at hct
-  obtain ⟨ht₂, ho, inv, hts₂⟩ := prefix_typedP d hS h1' hct hts
+  obtain ⟨ht₂, ho, inv, hts₂⟩ := K.prefix_typedP d hS h1' hct hts
   subst ho
   exact ⟨rest, labels, ret, out, storeChk_inv inv hS, chk_inv inv h2,
     by simpa only [List.append_assoc] using ht₂, by rw [inv.2.1]; exact hTM, hts₂⟩
 
 /-- The arguments of a typed operator are typed. -/
 theorem args_typedP {i : Instr} {args es : List Binaryen.BExpr} {s : Store H} {f : Frame}
-    {stk : List Val} (ht : TypedP tags s f stk (.op i args :: es)) : TypedP tags s f stk args := by
+    {stk : List Val} (ht : K.TypedP tags s f stk (.op i args :: es)) : K.TypedP tags s f stk args := by
   obtain ⟨rest, labels, ret, out, hS, hc, hct, hTM, hts⟩ := ht
   obtain ⟨o, h1, -⟩ := chk_consE.mp hc
   obtain ⟨oa, ha, -⟩ := chk1_opE h1
@@ -193,58 +194,58 @@ theorem args_typedP {i : Instr} {args es : List Binaryen.BExpr} {s : Store H} {f
 /-- **The site of an operator, after its typed arguments.** -/
 theorem site_typedP {i : Instr} {args es : List Binaryen.BExpr} {s s₁ : Store H} {f f₁ : Frame}
     {stk stk₁ : List Val} (d : EvalOXP closedCallXP s f stk args (s₁, f₁, .flow (.normal stk₁)))
-    (ht : TypedP tags s f stk (.op i args :: es)) :
-    ∃ rest, Sim.ContextTyped ⟨s₁, f₁, vals stk₁.reverse ++ .plain i :: rest⟩ ∧ TyFuncs s₁ ∧
+    (ht : K.TypedP tags s f stk (.op i args :: es)) :
+    ∃ rest, K.CT ⟨s₁, f₁, vals stk₁.reverse ++ .plain i :: rest⟩ ∧ TyFuncs s₁ ∧
       TyTypes f₁.module ∧ StoreChkE (ehExt tags) s₁.funcs ∧ TagsOk tags s₁ ∧ ∃ labels ret o,
         flatChkE (ehExt tags) s₁.funcs f₁.module f₁.locals.length ret labels stk₁.length i = some o := by
   obtain ⟨rest, labels, ret, out, hS, hc, hct, hTM, hts⟩ := ht
   obtain ⟨o, h1, -⟩ := chk_consE.mp hc
   obtain ⟨oa, ha, hf⟩ := chk1_opE h1
   rw [code_op] at hct
-  have hct' : Sim.ContextTyped ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList args) ++
+  have hct' : K.CT ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList args) ++
       (.plain i :: expression (Binaryen.BExpr.lowerList es) ++ rest)⟩ := by
     simpa only [List.append_assoc, List.cons_append] using hct
-  obtain ⟨ht₁, ho, inv, hts₁⟩ := prefix_typedP d hS ha hct' hts
+  obtain ⟨ht₁, ho, inv, hts₁⟩ := K.prefix_typedP d hS ha hct' hts
   subst ho
-  have ht₁' : Sim.ContextTyped ⟨s₁, f₁, vals stk₁.reverse ++
+  have ht₁' : K.CT ⟨s₁, f₁, vals stk₁.reverse ++
       .plain i :: (expression (Binaryen.BExpr.lowerList es) ++ rest)⟩ := by
     simpa only [List.cons_append] using ht₁
-  exact ⟨_, ht₁', tyFuncs_of_ctx ht₁', by rw [inv.2.1]; exact hTM, storeChk_inv inv hS, hts₁,
+  exact ⟨_, ht₁', K.tyFuncs ht₁', by rw [inv.2.1]; exact hTM, storeChk_inv inv hS, hts₁,
     labels, ret, o, flatChk_inv inv (hf _ rfl)⟩
 
 /-- A block body of a typed problem is typed. -/
 theorem block_body_typedP {bt : BlockType} {body es : List Binaryen.BExpr} {s : Store H}
     {f : Frame} {stk : List Val} {np nr : Nat} (har : Binaryen.arity f bt = some (np, nr))
-    (ht : TypedP tags s f stk (.block bt body :: es)) : TypedP tags s f (stk.take np) body := by
+    (ht : K.TypedP tags s f stk (.block bt body :: es)) : K.TypedP tags s f (stk.take np) body := by
   obtain ⟨rest, labels, ret, out, hS, hc, hct, hTM, hts⟩ := ht
   obtain ⟨hp, hb, -⟩ := arity_block_pre har hc
   obtain ⟨ob, hb', -⟩ := endsAt_eq hb
   rw [code_block] at hct
-  have hct' : Sim.ContextTyped ⟨s, f, vals stk.reverse ++
+  have hct' : K.CT ⟨s, f, vals stk.reverse ++
       .plain (.block bt (Binaryen.BExpr.lowerList body)) ::
         (expression (Binaryen.BExpr.lowerList es) ++ rest)⟩ := by
     simpa only [List.append_assoc, List.cons_append] using hct
   have hst := steps_enter (P := Pd) (host := noHostX) (s := s) (f := f) hp
     (step_block (B := Binaryen.BExpr.lowerList body) har) (expression (Binaryen.BExpr.lowerList es) ++ rest)
-  have hin := Sim.ContextTyped.label (Sim.ContextTyped.steps hct' hst)
+  have hin := K.label (K.steps hct' hst)
   refine ⟨[], nr :: labels, ret, ob, hS, by rw [take_length_of_le hp]; exact hb', ?_, hTM, hts⟩
   simpa only [List.append_nil] using hin
 
 /-- A loop body of a typed problem is typed. -/
 theorem loop_body_typedP {bt : BlockType} {body es : List Binaryen.BExpr} {s : Store H}
     {f : Frame} {stk : List Val} {np nr : Nat} (har : Binaryen.arity f bt = some (np, nr))
-    (ht : TypedP tags s f stk (.loop bt body :: es)) : TypedP tags s f (stk.take np) body := by
+    (ht : K.TypedP tags s f stk (.loop bt body :: es)) : K.TypedP tags s f (stk.take np) body := by
   obtain ⟨rest, labels, ret, out, hS, hc, hct, hTM, hts⟩ := ht
   obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
   obtain ⟨ob, hb', -⟩ := endsAt_eq hb
   rw [code_loop] at hct
-  have hct' : Sim.ContextTyped ⟨s, f, vals stk.reverse ++
+  have hct' : K.CT ⟨s, f, vals stk.reverse ++
       .plain (.loop bt (Binaryen.BExpr.lowerList body)) ::
         (expression (Binaryen.BExpr.lowerList es) ++ rest)⟩ := by
     simpa only [List.append_assoc, List.cons_append] using hct
   have hst := steps_enter (P := Pd) (host := noHostX) (s := s) (f := f) hp
     (step_loop (B := Binaryen.BExpr.lowerList body) har) (expression (Binaryen.BExpr.lowerList es) ++ rest)
-  have hin := Sim.ContextTyped.label (Sim.ContextTyped.steps hct' hst)
+  have hin := K.label (K.steps hct' hst)
   refine ⟨[], np :: labels, ret, ob, hS, by rw [take_length_of_le hp]; exact hb', ?_, hTM, hts⟩
   simpa only [List.append_nil] using hin
 
@@ -252,21 +253,21 @@ theorem loop_body_typedP {bt : BlockType} {body es : List Binaryen.BExpr} {s : S
 theorem try_body_typedP {bt : BlockType} {cs : List Catch} {body es : List Binaryen.BExpr}
     {s : Store H} {f : Frame} {stk : List Val} {np nr : Nat}
     (har : Binaryen.arity f bt = some (np, nr))
-    (ht : TypedP tags s f stk (.tryTable bt cs body :: es)) : TypedP tags s f (stk.take np) body := by
+    (ht : K.TypedP tags s f stk (.tryTable bt cs body :: es)) : K.TypedP tags s f (stk.take np) body := by
   obtain ⟨rest, labels, ret, out, hS, hc, hct, hTM, hts⟩ := ht
   obtain ⟨-, -, -, hp, hb, -⟩ := arity_try_pre har hc
   obtain ⟨ob, hb', -⟩ := endsAt_eq hb
   rw [code_tryTable] at hct
-  have hct' : Sim.ContextTyped ⟨s, f, vals stk.reverse ++
+  have hct' : K.CT ⟨s, f, vals stk.reverse ++
       .plain (.tryTable bt cs (Binaryen.BExpr.lowerList body)) ::
         (expression (Binaryen.BExpr.lowerList es) ++ rest)⟩ := by
     simpa only [List.append_assoc, List.cons_append] using hct
   have hst := steps_try_enter (P := Pd) (host := noHostX) (s := s) (f := f) (cs := cs)
     (B := Binaryen.BExpr.lowerList body) har hp (expression (Binaryen.BExpr.lowerList es) ++ rest)
-  have hin := Sim.ContextTyped.handler (Sim.ContextTyped.steps hct' hst)
-  have hin' : Sim.ContextTyped ⟨s, f, vals (stk.take np).reverse ++
+  have hin := K.handler (K.steps hct' hst)
+  have hin' : K.CT ⟨s, f, vals (stk.take np).reverse ++
       expression (Binaryen.BExpr.lowerList body)⟩ :=
-    Sim.ContextTyped.label (n := nr) (cont := []) (vs := []) (rest := []) (by simpa [vals] using hin)
+    K.label (n := nr) (cont := []) (vs := []) (rest := []) (by simpa [vals] using hin)
   refine ⟨[], nr :: labels, ret, ob, hS, by rw [take_length_of_le hp]; exact hb', ?_, hTM, hts⟩
   simpa only [List.append_nil] using hin'
 
@@ -274,8 +275,8 @@ theorem try_body_typedP {bt : BlockType} {cs : List Catch} {body es : List Binar
 theorem loop_back_typedP {bt : BlockType} {body es : List Binaryen.BExpr} {s s₁ : Store H}
     {f f₁ : Frame} {stk vs : List Val} {np nr : Nat} (har : Binaryen.arity f bt = some (np, nr))
     (d : EvalOXP closedCallXP s f (stk.take np) body (s₁, f₁, .flow (.brk 0 vs)))
-    (ht : TypedP tags s f stk (.loop bt body :: es)) :
-    TypedP tags s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) := by
+    (ht : K.TypedP tags s f stk (.loop bt body :: es)) :
+    K.TypedP tags s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) := by
   obtain ⟨rest, labels, ret, out, hS, hc, hct, hTM, hts⟩ := ht
   obtain ⟨hp, hb, -⟩ := arity_loop_pre har hc
   obtain ⟨ob, hb', -⟩ := endsAt_eq hb
@@ -290,13 +291,13 @@ theorem loop_back_typedP {bt : BlockType} {body es : List Binaryen.BExpr} {s s�
     hG hS hb''
   obtain ⟨c', o, hrun, he, hm⟩ := run_of_wp (wp_of_wpP (fun h => by cases h) hw₀)
   rw [code_loop] at hct
-  have hct' : Sim.ContextTyped ⟨s, f, vals stk.reverse ++
+  have hct' : K.CT ⟨s, f, vals stk.reverse ++
       .plain (.loop bt (Binaryen.BExpr.lowerList body)) ::
         (expression (Binaryen.BExpr.lowerList es) ++ rest)⟩ := by
     simpa only [List.append_assoc, List.cons_append] using hct
   have hst := tg_loop_back (P := Pd) (host := noHostX)
     (rest := expression (Binaryen.BExpr.lowerList es) ++ rest) har hp hrun he hm hnv
-  have hnew := Sim.ContextTyped.steps hct' hst.to_reflTransGen
+  have hnew := K.steps hct' hst.to_reflTransGen
   have hlen : (vs.take np ++ stk.drop np).length = stk.length := by
     simp only [List.length_append, List.length_take, List.length_drop]; omega
   refine ⟨rest, labels, ret, out, storeChk_inv inv hS, by rw [hlen]; exact chk_inv inv hc, ?_,
@@ -306,7 +307,7 @@ theorem loop_back_typedP {bt : BlockType} {body es : List Binaryen.BExpr} {s s�
 
 /-- The condition of a typed `if` is typed. -/
 theorem cond_typedP {bt : BlockType} {c t el es : List Binaryen.BExpr} {s : Store H} {f : Frame}
-    {stk : List Val} (ht : TypedP tags s f stk (.if_ bt c t el :: es)) : TypedP tags s f stk c := by
+    {stk : List Val} (ht : K.TypedP tags s f stk (.if_ bt c t el :: es)) : K.TypedP tags s f stk c := by
   obtain ⟨rest, labels, ret, out, hS, hc, hct, hTM, hts⟩ := ht
   obtain ⟨o, h1, -⟩ := chk_consE.mp hc
   obtain ⟨oc, hco, -⟩ := chk1_ifE h1
@@ -320,8 +321,8 @@ theorem arm_typedP {bt : BlockType} {c t el es : List Binaryen.BExpr} {s s₁ : 
     {f f₁ : Frame} {stk stk₁ : List Val} {cv : Val} {b : Bool} {np nr : Nat}
     (d : EvalOXP closedCallXP s f stk c (s₁, f₁, .flow (.normal (cv :: stk₁))))
     (hbv : Binaryen.truthy cv = some b) (har : Binaryen.arity f₁ bt = some (np, nr))
-    (ht : TypedP tags s f stk (.if_ bt c t el :: es)) :
-    TypedP tags s₁ f₁ (stk₁.take np) (if b then t else el) := by
+    (ht : K.TypedP tags s f stk (.if_ bt c t el :: es)) :
+    K.TypedP tags s₁ f₁ (stk₁.take np) (if b then t else el) := by
   obtain ⟨rest, labels, ret, out, hS, hc, hct, hTM, hts⟩ := ht
   obtain ⟨-, hA, -⟩ := evalOXP_closed_good (P := Pd) (host := noHostX) d hts
   obtain ⟨inv1, hp, hb, -⟩ := arity_if_pre (b := b) hS
@@ -330,11 +331,11 @@ theorem arm_typedP {bt : BlockType} {c t el es : List Binaryen.BExpr} {s s₁ : 
   obtain ⟨o, h1, -⟩ := chk_consE.mp hc
   obtain ⟨oc, hco, -⟩ := chk1_ifE h1
   rw [code_if] at hct
-  have hct' : Sim.ContextTyped ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList c) ++
+  have hct' : K.CT ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList c) ++
       (.plain (.if_ bt (Binaryen.BExpr.lowerList t) (Binaryen.BExpr.lowerList el)) ::
         expression (Binaryen.BExpr.lowerList es) ++ rest)⟩ := by
     simpa only [List.append_assoc, List.cons_append] using hct
-  obtain ⟨htc, -, -, hts₁⟩ := prefix_typedP d hS hco hct' hts
+  obtain ⟨htc, -, -, hts₁⟩ := K.prefix_typedP d hS hco hct' hts
   obtain ⟨c₀, rfl, rfl⟩ := truthy_eq hbv
   let R := expression (Binaryen.BExpr.lowerList es) ++ rest
   have hif : Steps Pd noHostX ⟨s₁, f₁, vals (Val.i32 c₀ :: stk₁).reverse ++
@@ -359,10 +360,214 @@ theorem arm_typedP {bt : BlockType} {c t el es : List Binaryen.BExpr} {s s₁ : 
           (b₂ := Binaryen.BExpr.lowerList el) h0))
   have hst := steps_enter (P := Pd) (host := noHostX) (s := s₁) (f := f₁) hp
     (step_block (B := Binaryen.BExpr.lowerList (if (c₀ != 0) then t else el)) har) R
-  have hin := Sim.ContextTyped.label (Sim.ContextTyped.steps (Sim.ContextTyped.steps htc hif) hst)
+  have hin := K.label (K.steps (K.steps htc hif) hst)
   refine ⟨[], nr :: labels, ret, ob, storeChk_inv inv1 hS,
     by rw [take_length_of_le hp]; exact hb', ?_, by rw [inv1.2.1]; exact hTM, hts₁⟩
   simpa only [List.append_nil, apply_ite Binaryen.BExpr.lowerList] using hin
+
+end Typed
+
+/-! ## Typed calls -/
+
+/-- **A typed call**: a checked call whose `call_ref` form is typed in context. -/
+def CallTypedP (tags : List TagInst) (s : Store H) (a : Nat) (args : List Val) : Prop :=
+  CallChkP tags s a args ∧ ∃ (f : Frame) (c : Admin) (pre : List Val) (rest : List Admin),
+    c.IsCallRef ∧ K.CT ⟨s, f, callCode pre args a c rest⟩
+
+section Calls
+
+variable {tags : List TagInst}
+
+/-- **A typed call's body is a typed problem.** -/
+theorem callee_typedP {s : Store H} {a : Nat} {args : List Val} {fi : FuncInst H} {fn : Func}
+    (hct : K.CallTypedP tags s a args) (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn) :
+    K.TypedP tags s (Frame.forCall fi.module args fn.locals) [] (Binaryen.liftInstrs fn.body) := by
+  obtain ⟨⟨hS, hts, fi', ps, rs, hfi', hty, hn⟩, f, c, pre, rest, hcr, hctx⟩ := hct
+  rw [hfi] at hfi'; cases hfi'
+  have e : callCode pre args a c rest =
+      vals (pre ++ args).reverse.reverse ++ [.ref (.func a), c] ++ rest := by
+    simp [callCode]
+  rw [e] at hctx
+  have hE := K.entry_of_ref_site (P := Pd) hctx hcr hfi hty (by simp; omega)
+  have htk : ((pre ++ args).reverse.take ps.length).reverse = args := by
+    rw [List.reverse_append, List.take_left' (by simp; omega), List.reverse_reverse]
+  rw [htk] at hE
+  have hct := hE fi fn hfi hcode
+  obtain ⟨ob, hb⟩ := body_chkP hS hfi hcode hty hn
+  exact ⟨[], [rs.length], rs.length, ob, hS, hb,
+    by simpa [vals, Binaryen.lowerList_liftInstrs] using hct, K.tyTypes_callee hct hfi hcode, hts⟩
+
+/-- **The tail callee of a typed call's body is a typed call**: Core makes it from the typed call,
+past the body's pending tail call. -/
+theorem callTyped_tail {s s₁ : Store H} {f₂ : Frame} {a a' n : Nat} {args args' : List Val}
+    {fi : FuncInst H} {fn : Func} (hct : K.CallTypedP tags s a args) (hfi : s.funcs[a]? = some fi)
+    (hcode : fi.code = .wasm fn)
+    (hbody : EvalOXP closedCallXP s (Frame.forCall fi.module args fn.locals) []
+      (Binaryen.liftInstrs fn.body) (s₁, f₂, .tail a' args' n)) :
+    K.CallTypedP tags s₁ a' args' := by
+  obtain ⟨⟨hS, hts, fi', ps, rs, hfi', hty, hn⟩, f, c, pre, rest, hcr, hctx⟩ := hct
+  rw [hfi] at hfi'; cases hfi'
+  obtain ⟨c', hc', htg, hcc'⟩ := call_tail_stepsP (P := Pd) (host := noHostX) hS hts hfi hcode hty
+    hn hbody f hcr pre rest
+  exact ⟨hcc', f, c', pre, rest, hc', K.steps hctx htg.to_reflTransGen⟩
+
+/-- A typed `call x` site makes a typed call. -/
+theorem callTyped_call {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {x : FuncIdx} {a : Nat}
+    {rest : List Admin} {fi : FuncInst H} {ps rs : List Validation.CValType}
+    (hsite : K.CT ⟨s₁, f₁, vals stk₁.reverse ++ .plain (.call x) :: rest⟩)
+    (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hp : ps.length ≤ stk₁.length) (hS₁ : StoreChkE (ehExt tags) s₁.funcs) (hts₁ : TagsOk tags s₁) :
+    K.CallTypedP tags s₁ a (stk₁.take ps.length).reverse := by
+  obtain ⟨hx, hf'⟩ := func?_inv hfi
+  have hst := Step.ctx (P := Pd) (host := noHostX) stk₁.reverse rest (Step.call (s := s₁) (f := f₁) hx hf')
+  have e : vals stk₁.reverse ++ .plain (.call x) :: rest =
+      vals stk₁.reverse ++ [.plain (.call x)] ++ rest := by simp
+  rw [e] at hsite
+  have h2 := K.step hsite hst
+  rw [callCode_split stk₁ ps.length] at h2
+  have hlen : (stk₁.take ps.length).reverse.length = ps.length := by
+    simp only [List.length_reverse, List.length_take]; omega
+  exact ⟨⟨hS₁, hts₁, fi, ps, rs, hf', hty, hlen⟩, f₁, .callRefType fi.type, _, rest, trivial, h2⟩
+
+/-- A typed, resolved `call_indirect` site makes a typed call. -/
+theorem callTyped_ind {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {x : TableIdx} {y : TypeIdx}
+    {ad : AddrType} {j : BitVec ad.intType.width} {fa : Nat} {rest : List Admin} {fi : FuncInst H}
+    {ps rs : List Validation.CValType}
+    (hsite : K.CT ⟨s₁, f₁, vals (.num ⟨.int ad.intType, j⟩ :: stk₁).reverse ++
+      .plain (.callIndirect x y) :: rest⟩)
+    (hres : Abstract.CallRes.IndRes s₁ f₁ x y ad j (some fa)) (hfi : s₁.funcs[fa]? = some fi)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hp : ps.length ≤ stk₁.length)
+    (hS₁ : StoreChkE (ehExt tags) s₁.funcs) (hts₁ : TagsOk tags s₁) :
+    K.CallTypedP tags s₁ fa (stk₁.take ps.length).reverse := by
+  have hst := Steps.ctx (P := Pd) (host := noHostX) stk₁.reverse rest
+    (Abstract.CallRes.steps_callIndirect_func hres)
+  have e : vals (.num ⟨.int ad.intType, j⟩ :: stk₁).reverse ++ .plain (.callIndirect x y) :: rest =
+      vals stk₁.reverse ++ [aconst ad j, .plain (.callIndirect x y)] ++ rest := by
+    rw [List.reverse_cons, vals_append, Abstract.CallRes.aconst_eq]; simp
+  rw [e] at hsite
+  have h2 := K.steps hsite hst
+  rw [callCode_split stk₁ ps.length] at h2
+  have hlen : (stk₁.take ps.length).reverse.length = ps.length := by
+    simp only [List.length_reverse, List.length_take]; omega
+  exact ⟨⟨hS₁, hts₁, fi, ps, rs, hfi, hty, hlen⟩, f₁, .plain (.callRef y), _, rest, trivial, h2⟩
+
+/-- A typed `call_ref` site on a function reference makes a typed call. -/
+theorem callTyped_ref {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {y : TypeIdx} {fa : Nat}
+    {rest : List Admin} {fi : FuncInst H} {ps rs : List Validation.CValType}
+    (hsite : K.CT ⟨s₁, f₁, vals (.ref (.func fa) :: stk₁).reverse ++
+      .plain (.callRef y) :: rest⟩)
+    (hfi : s₁.funcs[fa]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
+    (hp : ps.length ≤ stk₁.length) (hS₁ : StoreChkE (ehExt tags) s₁.funcs) (hts₁ : TagsOk tags s₁) :
+    K.CallTypedP tags s₁ fa (stk₁.take ps.length).reverse := by
+  have e : vals (.ref (.func fa) :: stk₁).reverse ++ .plain (.callRef y) :: rest =
+      vals stk₁.reverse ++ [.ref (.func fa), .plain (.callRef y)] ++ rest := by simp [vals]; rfl
+  rw [e, callCode_split stk₁ ps.length] at hsite
+  have hlen : (stk₁.take ps.length).reverse.length = ps.length := by
+    simp only [List.length_reverse, List.length_take]; omega
+  exact ⟨⟨hS₁, hts₁, fi, ps, rs, hfi, hty, hlen⟩, f₁, .plain (.callRef y), _, rest, trivial, hsite⟩
+
+end Calls
+
+end CtxInv
+
+/-! ## Typed problems -/
+
+/-- The function types of a store whose configuration is typed in context. -/
+theorem tyFuncs_of_ctx {s : Store H} {f : Frame} {c : List Admin}
+    (h : Sim.ContextTyped ⟨s, f, c⟩) : TyFuncs s :=
+  ctxTyped.tyFuncs h
+
+/-- **A typed problem**: checked by `ehExt tags` in a checked store, its Core code typed in
+context, with valid instance types, in a store with the tag invariants. -/
+def TypedP (tags : List TagInst) (s : Store H) (f : Frame) (stk : List Val)
+    (es : List Binaryen.BExpr) : Prop :=
+  ∃ (rest : List Admin) (labels : List Nat) (ret : Nat) (out : Option Nat),
+    StoreChkE (ehExt tags) s.funcs ∧
+    chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some stk.length) es = some out ∧
+    Sim.ContextTyped ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es) ++ rest⟩ ∧
+    TyTypes f.module ∧ TagsOk tags s
+
+section Typed
+
+variable {tags : List TagInst}
+
+theorem TypedP.checked {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
+    (ht : TypedP tags s f stk es) : CheckedP tags s f stk es :=
+  CtxInv.TypedP.checked ctxTyped ht
+
+/-- **A typed terminating prefix keeps the rest typed.** -/
+theorem prefix_typedP {s s' : Store H} {f f' : Frame} {stk stk' : List Val}
+    {es : List Binaryen.BExpr} {rest : List Admin} {labels : List Nat} {ret : Nat} {o : Option Nat}
+    (d : EvalOXP closedCallXP s f stk es (s', f', .flow (.normal stk')))
+    (hS : StoreChkE (ehExt tags) s.funcs)
+    (hc : chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some stk.length) es = some o)
+    (ht : Sim.ContextTyped ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es) ++ rest⟩)
+    (hts : TagsOk tags s) :
+    Sim.ContextTyped ⟨s', f', vals stk'.reverse ++ rest⟩ ∧ o = some stk'.length ∧
+      EvalInvE (ehExt tags) s f (s', f', .trap) ∧ TagsOk tags s' :=
+  ctxTyped.prefix_typedP d hS hc ht hts
+
+/-- **The continuation after a typed head is typed.** -/
+theorem cont_typedP {e : Binaryen.BExpr} {es : List Binaryen.BExpr} {s s₂ : Store H}
+    {f f₂ : Frame} {stk stk₂ : List Val}
+    (d : EvalOXP closedCallXP s f stk [e] (s₂, f₂, .flow (.normal stk₂)))
+    (ht : TypedP tags s f stk (e :: es)) : TypedP tags s₂ f₂ stk₂ es :=
+  ctxTyped.cont_typedP d ht
+
+/-- The arguments of a typed operator are typed. -/
+theorem args_typedP {i : Instr} {args es : List Binaryen.BExpr} {s : Store H} {f : Frame}
+    {stk : List Val} (ht : TypedP tags s f stk (.op i args :: es)) : TypedP tags s f stk args :=
+  ctxTyped.args_typedP ht
+
+/-- **The site of an operator, after its typed arguments.** -/
+theorem site_typedP {i : Instr} {args es : List Binaryen.BExpr} {s s₁ : Store H} {f f₁ : Frame}
+    {stk stk₁ : List Val} (d : EvalOXP closedCallXP s f stk args (s₁, f₁, .flow (.normal stk₁)))
+    (ht : TypedP tags s f stk (.op i args :: es)) :
+    ∃ rest, Sim.ContextTyped ⟨s₁, f₁, vals stk₁.reverse ++ .plain i :: rest⟩ ∧ TyFuncs s₁ ∧
+      TyTypes f₁.module ∧ StoreChkE (ehExt tags) s₁.funcs ∧ TagsOk tags s₁ ∧ ∃ labels ret o,
+        flatChkE (ehExt tags) s₁.funcs f₁.module f₁.locals.length ret labels stk₁.length i = some o :=
+  ctxTyped.site_typedP d ht
+
+/-- A block body of a typed problem is typed. -/
+theorem block_body_typedP {bt : BlockType} {body es : List Binaryen.BExpr} {s : Store H}
+    {f : Frame} {stk : List Val} {np nr : Nat} (har : Binaryen.arity f bt = some (np, nr))
+    (ht : TypedP tags s f stk (.block bt body :: es)) : TypedP tags s f (stk.take np) body :=
+  ctxTyped.block_body_typedP har ht
+
+/-- A loop body of a typed problem is typed. -/
+theorem loop_body_typedP {bt : BlockType} {body es : List Binaryen.BExpr} {s : Store H}
+    {f : Frame} {stk : List Val} {np nr : Nat} (har : Binaryen.arity f bt = some (np, nr))
+    (ht : TypedP tags s f stk (.loop bt body :: es)) : TypedP tags s f (stk.take np) body :=
+  ctxTyped.loop_body_typedP har ht
+
+/-- A `try_table` body of a typed problem is typed, inside its handler and label. -/
+theorem try_body_typedP {bt : BlockType} {cs : List Catch} {body es : List Binaryen.BExpr}
+    {s : Store H} {f : Frame} {stk : List Val} {np nr : Nat}
+    (har : Binaryen.arity f bt = some (np, nr))
+    (ht : TypedP tags s f stk (.tryTable bt cs body :: es)) : TypedP tags s f (stk.take np) body :=
+  ctxTyped.try_body_typedP har ht
+
+/-- **The next iteration of a typed loop whose body branched back is typed.** -/
+theorem loop_back_typedP {bt : BlockType} {body es : List Binaryen.BExpr} {s s₁ : Store H}
+    {f f₁ : Frame} {stk vs : List Val} {np nr : Nat} (har : Binaryen.arity f bt = some (np, nr))
+    (d : EvalOXP closedCallXP s f (stk.take np) body (s₁, f₁, .flow (.brk 0 vs)))
+    (ht : TypedP tags s f stk (.loop bt body :: es)) :
+    TypedP tags s₁ f₁ (vs.take np ++ stk.drop np) (.loop bt body :: es) :=
+  ctxTyped.loop_back_typedP har d ht
+
+/-- The condition of a typed `if` is typed. -/
+theorem cond_typedP {bt : BlockType} {c t el es : List Binaryen.BExpr} {s : Store H} {f : Frame}
+    {stk : List Val} (ht : TypedP tags s f stk (.if_ bt c t el :: es)) : TypedP tags s f stk c :=
+  ctxTyped.cond_typedP ht
+
+/-- **The chosen arm of a typed `if`, after its typed condition, is typed.** -/
+theorem arm_typedP {bt : BlockType} {c t el es : List Binaryen.BExpr} {s s₁ : Store H}
+    {f f₁ : Frame} {stk stk₁ : List Val} {cv : Val} {b : Bool} {np nr : Nat}
+    (d : EvalOXP closedCallXP s f stk c (s₁, f₁, .flow (.normal (cv :: stk₁))))
+    (hbv : Binaryen.truthy cv = some b) (har : Binaryen.arity f₁ bt = some (np, nr))
+    (ht : TypedP tags s f stk (.if_ bt c t el :: es)) :
+    TypedP tags s₁ f₁ (stk₁.take np) (if b then t else el) :=
+  ctxTyped.arm_typedP d hbv har ht
 
 end Typed
 
@@ -380,22 +585,8 @@ variable {tags : List TagInst}
 /-- **A typed call's body is a typed problem.** -/
 theorem callee_typedP {s : Store H} {a : Nat} {args : List Val} {fi : FuncInst H} {fn : Func}
     (hct : CallTypedP tags s a args) (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn) :
-    TypedP tags s (Frame.forCall fi.module args fn.locals) [] (Binaryen.liftInstrs fn.body) := by
-  obtain ⟨⟨hS, hts, fi', ps, rs, hfi', hty, hn⟩, f, c, pre, rest, hcr, hctx⟩ := hct
-  rw [hfi] at hfi'; cases hfi'
-  have e : callCode pre args a c rest =
-      vals (pre ++ args).reverse.reverse ++ [.ref (.func a), c] ++ rest := by
-    simp [callCode]
-  rw [e] at hctx
-  have hE := entry_of_ref_site (P := Pd) hctx hcr hfi hty (by simp; omega)
-  have htk : ((pre ++ args).reverse.take ps.length).reverse = args := by
-    rw [List.reverse_append, List.take_left' (by simp; omega), List.reverse_reverse]
-  rw [htk] at hE
-  have hct := hE fi fn hfi hcode
-  obtain ⟨-, -, -, hsok, -, -, -⟩ := Sim.ContextTyped.fragment_types hct
-  obtain ⟨ob, hb⟩ := body_chkP hS hfi hcode hty hn
-  exact ⟨[], [rs.length], rs.length, ob, hS, hb,
-    by simpa [vals, Binaryen.lowerList_liftInstrs] using hct, tyTypes_of_storeOkX hsok hfi hcode, hts⟩
+    TypedP tags s (Frame.forCall fi.module args fn.locals) [] (Binaryen.liftInstrs fn.body) :=
+  ctxTyped.callee_typedP hct hfi hcode
 
 /-- **The tail callee of a typed call's body is a typed call**: Core makes it from the typed call,
 past the body's pending tail call. -/
@@ -404,12 +595,8 @@ theorem callTyped_tail {s s₁ : Store H} {f₂ : Frame} {a a' n : Nat} {args ar
     (hcode : fi.code = .wasm fn)
     (hbody : EvalOXP closedCallXP s (Frame.forCall fi.module args fn.locals) []
       (Binaryen.liftInstrs fn.body) (s₁, f₂, .tail a' args' n)) :
-    CallTypedP tags s₁ a' args' := by
-  obtain ⟨⟨hS, hts, fi', ps, rs, hfi', hty, hn⟩, f, c, pre, rest, hcr, hctx⟩ := hct
-  rw [hfi] at hfi'; cases hfi'
-  obtain ⟨c', hc', htg, hcc'⟩ := call_tail_stepsP (P := Pd) (host := noHostX) hS hts hfi hcode hty
-    hn hbody f hcr pre rest
-  exact ⟨hcc', f, c', pre, rest, hc', Sim.ContextTyped.steps hctx htg.to_reflTransGen⟩
+    CallTypedP tags s₁ a' args' :=
+  ctxTyped.callTyped_tail hct hfi hcode hbody
 
 /-- A typed `call x` site makes a typed call. -/
 theorem callTyped_call {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {x : FuncIdx} {a : Nat}
@@ -417,17 +604,8 @@ theorem callTyped_call {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {x : 
     (hsite : Sim.ContextTyped ⟨s₁, f₁, vals stk₁.reverse ++ .plain (.call x) :: rest⟩)
     (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hp : ps.length ≤ stk₁.length) (hS₁ : StoreChkE (ehExt tags) s₁.funcs) (hts₁ : TagsOk tags s₁) :
-    CallTypedP tags s₁ a (stk₁.take ps.length).reverse := by
-  obtain ⟨hx, hf'⟩ := func?_inv hfi
-  have hst := Step.ctx (P := Pd) (host := noHostX) stk₁.reverse rest (Step.call (s := s₁) (f := f₁) hx hf')
-  have e : vals stk₁.reverse ++ .plain (.call x) :: rest =
-      vals stk₁.reverse ++ [.plain (.call x)] ++ rest := by simp
-  rw [e] at hsite
-  have h2 := Sim.ContextTyped.step hsite hst
-  rw [callCode_split stk₁ ps.length] at h2
-  have hlen : (stk₁.take ps.length).reverse.length = ps.length := by
-    simp only [List.length_reverse, List.length_take]; omega
-  exact ⟨⟨hS₁, hts₁, fi, ps, rs, hf', hty, hlen⟩, f₁, .callRefType fi.type, _, rest, trivial, h2⟩
+    CallTypedP tags s₁ a (stk₁.take ps.length).reverse :=
+  ctxTyped.callTyped_call hsite hfi hty hp hS₁ hts₁
 
 /-- A typed, resolved `call_indirect` site makes a typed call. -/
 theorem callTyped_ind {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {x : TableIdx} {y : TypeIdx}
@@ -438,18 +616,8 @@ theorem callTyped_ind {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {x : T
     (hres : Abstract.CallRes.IndRes s₁ f₁ x y ad j (some fa)) (hfi : s₁.funcs[fa]? = some fi)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hp : ps.length ≤ stk₁.length)
     (hS₁ : StoreChkE (ehExt tags) s₁.funcs) (hts₁ : TagsOk tags s₁) :
-    CallTypedP tags s₁ fa (stk₁.take ps.length).reverse := by
-  have hst := Steps.ctx (P := Pd) (host := noHostX) stk₁.reverse rest
-    (Abstract.CallRes.steps_callIndirect_func hres)
-  have e : vals (.num ⟨.int ad.intType, j⟩ :: stk₁).reverse ++ .plain (.callIndirect x y) :: rest =
-      vals stk₁.reverse ++ [aconst ad j, .plain (.callIndirect x y)] ++ rest := by
-    rw [List.reverse_cons, vals_append, Abstract.CallRes.aconst_eq]; simp
-  rw [e] at hsite
-  have h2 := Sim.ContextTyped.steps hsite hst
-  rw [callCode_split stk₁ ps.length] at h2
-  have hlen : (stk₁.take ps.length).reverse.length = ps.length := by
-    simp only [List.length_reverse, List.length_take]; omega
-  exact ⟨⟨hS₁, hts₁, fi, ps, rs, hfi, hty, hlen⟩, f₁, .plain (.callRef y), _, rest, trivial, h2⟩
+    CallTypedP tags s₁ fa (stk₁.take ps.length).reverse :=
+  ctxTyped.callTyped_ind hsite hres hfi hty hp hS₁ hts₁
 
 /-- A typed `call_ref` site on a function reference makes a typed call. -/
 theorem callTyped_ref {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {y : TypeIdx} {fa : Nat}
@@ -458,13 +626,8 @@ theorem callTyped_ref {s₁ : Store H} {f₁ : Frame} {stk₁ : List Val} {y : T
       .plain (.callRef y) :: rest⟩)
     (hfi : s₁.funcs[fa]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hp : ps.length ≤ stk₁.length) (hS₁ : StoreChkE (ehExt tags) s₁.funcs) (hts₁ : TagsOk tags s₁) :
-    CallTypedP tags s₁ fa (stk₁.take ps.length).reverse := by
-  have e : vals (.ref (.func fa) :: stk₁).reverse ++ .plain (.callRef y) :: rest =
-      vals stk₁.reverse ++ [.ref (.func fa), .plain (.callRef y)] ++ rest := by simp [vals]; rfl
-  rw [e, callCode_split stk₁ ps.length] at hsite
-  have hlen : (stk₁.take ps.length).reverse.length = ps.length := by
-    simp only [List.length_reverse, List.length_take]; omega
-  exact ⟨⟨hS₁, hts₁, fi, ps, rs, hfi, hty, hlen⟩, f₁, .plain (.callRef y), _, rest, trivial, hsite⟩
+    CallTypedP tags s₁ fa (stk₁.take ps.length).reverse :=
+  ctxTyped.callTyped_ref hsite hfi hty hp hS₁ hts₁
 
 end Calls
 
@@ -564,5 +727,14 @@ theorem tag_of_tagFields {tags : List TagInst} {s : Store H} {f : Frame} {x : Ta
       simp [Store.tag?, hta, hT, hti]
     · cases hft
   · cases h
+
+/-- **The operand of a `throw_ref` in an invariant**: null or an exception reference (read off
+the witness). -/
+theorem CtxInv.throwRef_top (K : CtxInv H) {s : Store H} {f : Frame} {stk : List Val}
+    {rest : List Admin} (ht : K.CT ⟨s, f, vals stk.reverse ++ .plain .throwRef :: rest⟩) :
+    ∃ (r : Ref) (stk' : List Val), stk = .ref r :: stk' ∧ (r = .null ∨ ∃ a, r = .exn a) := by
+  obtain ⟨T, X, -, -, hw⟩ := K.wit' ht
+  have h := Interp.throwRef_top hw
+  exact h
 
 end Silmaril.Wasm.Interp

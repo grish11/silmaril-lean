@@ -53,6 +53,17 @@ theorem invoke_callTyped (hs : StoreOk s) (hok : InvokeOk s a vs)
   exact ⟨⟨hS, hts, fi, _, _, hfi, hty, hvs.length_eq⟩, {}, .callRefType fi.type, [], [], trivial,
     by simpa [callCode, vals] using hct⟩
 
+/-- **An invocation in an invariant is a call in it.** -/
+theorem CtxInv.invoke_callTyped (K : CtxInv H) (hct : K.CT (invoke s a vs))
+    (hok : InvokeOk s a vs) (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) :
+    K.CallTypedP tags s a vs := by
+  obtain ⟨fi, ps, rs, hfi, he, hvs⟩ := id hok
+  have hty : Validation.DefType.funcType? fi.type = some (ps.toList, rs.toList) := by
+    unfold Validation.DefType.funcType?; rw [Validation.Expand.iff.mp he]
+  rw [invoke_eqP hfi] at hct
+  exact ⟨⟨hS, hts, fi, _, _, hfi, hty, hvs.length_eq⟩, {}, .callRefType fi.type, [], [], trivial,
+    by simpa [callCode, vals] using hct⟩
+
 /-- **The Core runs of an invocation's closed answer**: values, a trap, or an uncaught
 exception. -/
 theorem invoke_answer_steps {P : Numerics.Profile} {host : HostSemantics H} {fi : FuncInst H}
