@@ -85,7 +85,9 @@ by `RefOk.exn (h : s.exns[a]? = some e)`. After a dangling host throw the Core c
 a later Wasm `throw` allocates at `s.exns.length`, so a dangling address can come to name a fresh
 exception, and padding would change which one. Closing the gap needs a bridge whose invariant
 types exception references without existence; it is not attempted here, and `core3SemD` is not
-claimed equal to a CFG semantics for instances with imports.
+claimed equal to a CFG semantics for instances with imports. `Cfg.DanglingExn` classifies the
+dangling case on both sides (native and Core agree) and proves the forward inclusion
+`cfgInstTripleU_sub` of the CFG triple at `instHostU I` in `instTripleS`; the converse is open.
 -/
 
 namespace Silmaril.Wasm.Cfg.CfgInst

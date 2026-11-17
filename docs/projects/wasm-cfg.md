@@ -1026,25 +1026,69 @@ The plain graph stays an over-approximation, and claims about it say so.
              no `StoreOk`/`InvokeOk` for `InvOkXP`. Without checker acceptance there is no
              `StoreChkE (ehExt s.tags)`.
 
-             **Remaining: dangling host exceptions.** For instances with imports, `core3SemD`
-             uses `instSession`, which also contains logs where an import answers
-             `Answer.throw a` with `a ≥ s.exns.length`. These are outside `instTripleL`, so no
-             CFG equality is claimed for `core3SemD` on such instances. Native and Core read
-             the exception in the same way: Core `CatchMatches` and native
-             `Cfg.Region.Catches` both use `s.exns[a]?`. So a dangling address fails tagged
-             clauses, and `catch_all(_ref)` catches it.
+             **Dangling host exceptions: classified, forward direction done, converse open**
+             (`Wasm/Cfg/DanglingExn`). For instances with imports, `core3SemD` uses
+             `instSession`, which also contains logs where an import answers `Answer.throw a`
+             with `a ≥ s.exns.length` (`Dangling s a`). These are outside `instTripleL`. No
+             equality of `core3SemD` with a CFG family is claimed on such instances.
 
-             The bridge's backward simulation is the obstacle. `HostClosingXP.back_all`
-             carries `Sim.ContextTyped` (a `ConfigOk`) across Core steps through
-             `ContextTyped.steps_typed hT : HostTyped host → …`, and `ConfigOk` types
-             `ref.exn a` only through `RefOk.exn (s.exns[a]? = some e)`. In Lean the failing
-             hypothesis is `HostTyped (instHostU I)`: `not_hostTyped_instHostU` refutes it at
-             every typed callout of a `StoreOk` store.
+             - **Native and Core agree on the operational behaviour.** Both read `s.exns[a]?`
+               through the same `CatchMatches`. A tagged clause never matches a dangling
+               exception, and a catch-all clause always does (`catchMatches_iff`).
+               `catches_iff` (native `Catches`) gives the resolution `danglingCatch a cs`:
+               tagged clauses are skipped, `catch_all l` catches with no payload,
+               `catch_all_ref l` pushes `ref.exn a` itself, and otherwise the exception is
+               rethrown.
 
-             Padding the store with dummy exceptions does not help. A later Wasm `throw`
-             allocates at `s.exns.length`, so a dangling address can come to name a fresh
-             exception. Closing this needs a bridge invariant that types exception references
-             without requiring them to exist.
+               Core matches this step for step. `step_handler_iff`/`step_handler_nil_iff`
+               give the only step of a handler around `throwing a`. `steps_handler`/
+               `handler_final`: every Core handler run that stops ends at
+               `handlerOut a (danglingCatch a cs)`. `evalLXPh_try` is the native `try_table`.
+             - **Uses of the reference.** `steps_throwRef`: `throw_ref` rethrows the
+               reference, and the rethrow is resolved by `catches_iff` again.
+               `not_refOk_exn`/`not_valOk_exn`: no type types the reference. So Core's
+               `ref.test` answers `0` and `ref.cast` traps for every target type
+               (`step_refTest`, `step_refCast`). These are outside the checker profile, which
+               has no native counterpart. `not_resultTyped_throw` is the `HostTyped` failure.
+               `not_storeOk_of_global`: code in the profile can store the reference in an
+               `exnref` global (`catch_all_ref`, then `global.set`). The round then leaves a
+               store that is not `StoreOk`, outside `InvOkXP`/`InstDom`.
+             - **Aliasing.** Wasm `throw` allocates at `s.exns.length`, the least dangling
+               address, in both semantics. `catches_alloc`: after that allocation, a tagged
+               clause catches the formerly dangling address. Concretely on `hxMod`:
+               `hx_catches_before`, `hx_core_alloc`/`hx_native_alloc` (both leave
+               `hxThrown v`), `hx_catches_after`. A reference kept across the allocation then
+               names the new exception. Both semantics read the store at handler time, so
+               this does not separate them. It does rule out padding the store: padding moves
+               the allocation address, which is observable.
+             - **Fixture.** `callH_dangling_round`: on the CFG closure, `callH` with
+               `h() ↦ throw 0` at `hxStore` ends with the uncaught exception `0`. The same
+               answer from `hxThrown v` is caught (`callH_caught_existing`).
+               `callH_dangling_core_U` is the same round as a Core run at `instHostU hxI`.
+             - **Forward direction, without `HostTyped`.** `fin_sub`, `pend_sub`, `inf_sub`
+               hold for any host in `HostSliceT`/`HostSliceE` on `InvOkXP`: every finished
+               behaviour, pending call and productive stream of the native session triple is
+               one of the open Core triple. `cfgInstTripleU_sub`: on `InstDom`, the CFG
+               instance triple at `instHostU I` (`cfgInstTripleU`) is contained in
+               `instTripleS I P`, componentwise.
+
+             **Remaining: the converse inclusion** (`instTripleS ⊆ cfgInstTripleU` on
+             `InstDom`), and the threaded sessions. The obstacle is in the proof; no
+             semantic difference was found. `HostClosingXP.back_all` (and the divergence and
+             productive backward simulations, `HostClosingInfXPBack`, `HostEval`) carries
+             `Sim.ContextTyped` across Core steps through `ContextTyped.steps_typed hT`. With
+             a dangling reference on the stack, in a local or in a global, no `ConfigOk`
+             holds (`not_valOk_exn`).
+
+             The needed replacement is a local relaxed invariant: `ConfigOk` except that
+             exception references `ref.exn a` with `a ≥ s.exns.length` are typed `exnref`,
+             with the store invariant `StoreOk` relaxed the same way for global values. Its
+             preservation must be proved for instance hosts (store-preserving, so tags are
+             fixed and exceptions grow only by Wasm `throw`). Aliasing is harmless here: a
+             dangling address that gets allocated becomes a valid `exnref`. The backward
+             proofs would then be generalized from `ContextTyped`/`HostTyped` to this
+             invariant. For the threaded sessions, `InstDom` must also be relaxed, since a
+             round can leave a non-`StoreOk` store (`not_storeOk_of_global`).
           3. **Regressions, done** (`Wasm/Cfg/ExampleRegress`). One validated store (`rgMod`,
              one host import `h : [i32] → []`, a spec instance, `StoreOk`, `StoreChkE (ehExt
              tags)` by `storeChkEB`). Each fixture is proved on the CFG closure directly, by
