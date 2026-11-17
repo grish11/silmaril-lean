@@ -169,4 +169,107 @@ theorem exit_esc {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : Li
         · exact hpass' k L' (by omega) (by simpa using hL'') hTL
   · exact hx
 
+/-- **A caught exception**: the frame's `try_table` catches it (`tryCatch`), a branch from
+outside it with the caught values over its outer values. -/
+theorem exit_catch {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {x : SeqStep} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {a : Nat}
+    {us : List Val} {lb : LabelIdx} {l' : List (SCall H)} (hT : L.tryT = true)
+    (hc : Catches s f a L.catches (some (us, lb)))
+    (hx : ExitE body Fin p ls (s, f, .flow (.brk lb.toNat (us.reverse ++ L.outer.reverse))) l') :
+    ExitE body Fin (p ++ [x]) (L :: ls) (s, f, .flow (.throw a)) l' := by
+  obtain ⟨st, hd, hE⟩ := hx
+  refine ⟨st, ?_, hE⟩
+  cases hd with
+  | br hL hg =>
+    have h01 : 0 + 1 + lb.toNat = lb.toNat + 1 := by omega
+    exact .catch_ (j := 0) (fun _ _ h => absurd h (Nat.not_lt_zero _)) rfl hT hc
+      (by rw [h01]; simpa using hL) (by rw [h01, branchN_succ]; exact hg)
+  | brOut hk =>
+    have := DispL.catchOut (body := body) (b := ⟨p ++ [x], 0⟩) (ls := L :: ls) (j := 0)
+      (fun _ _ h => absurd h (Nat.not_lt_zero _)) rfl hT hc (by simp [hk]; omega)
+    simpa using this
+
+theorem gotoN_pop {t : Target} {d : Nat} {L : LFrame} {ls : List LFrame} {W : List Val}
+    {s : Store H} {f : Frame} (hd : depthT t ≤ d) :
+    gotoN t (d + 1) (L :: ls) W s f =
+      (arity f L.bt).bind fun a => gotoN t d ls (L.outer ++ topVals a.2 W) s f := by
+  unfold gotoN
+  rw [show d + 1 - depthT t = (d - depthT t) + 1 by omega]
+  simp only [popN]
+  cases arity f L.bt <;> simp
+
+theorem contRev_cons_entry (body : Expr) (p : List SeqStep) (i a : Nat) :
+    contRev body ((i, a) :: p.reverse) = entry body p (i + 1) := by
+  simp [contRev, entry, cont]
+
+theorem topVals_rev (n : Nat) (ws : List Val) : topVals n ws.reverse = (ws.take n).reverse := by
+  rw [← List.reverse_reverse (topVals n ws.reverse), topVals_reverse, List.reverse_reverse]
+
+/-- **Falling out of the arm**: the frame continues after its instruction with the top `nr`
+values over its outer values. -/
+theorem exit_fall {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {i a : Nat} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {ws : List Val}
+    {np nr : Nat} {l' : List (SCall H)} (har : arity f L.bt = some (np, nr))
+    (hx : ∃ st, gotoN (entry body p (i + 1)) p.length ls (L.outer ++ (ws.take nr).reverse) s f =
+      some st ∧ MEnds body Fin st l') :
+    ExitE body Fin (p ++ [(i, a)]) (L :: ls) (s, f, .flow (.normal ws)) l' := by
+  obtain ⟨st, hg, hE⟩ := hx
+  refine ⟨st, ?_, hE⟩
+  simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+    List.singleton_append, List.length_append, List.length_singleton]
+  have hdep : depthT (entry body p (i + 1)) ≤ p.length := by
+    rw [← contRev_cons_entry body p i a]
+    simpa using Proofs.Machine.depth_contRev_cons body i a p.reverse
+  rw [contRev_cons_entry, gotoN_pop hdep, har]
+  simp only [Option.bind_some]
+  rw [topVals_rev]; exact hg
+
+/-- **A branch to the frame's own label, not a loop**: as falling out of the arm. -/
+theorem exit_brk0 {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {i a : Nat} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {ws : List Val}
+    {np nr : Nat} {l' : List (SCall H)}
+    (hok : FramesOk body ((i, a) :: p.reverse) (L :: ls)) (hloop : L.loop = false)
+    (har : arity f L.bt = some (np, nr))
+    (hx : ∃ st, gotoN (entry body p (i + 1)) p.length ls (L.outer ++ (ws.take nr).reverse) s f =
+      some st ∧ MEnds body Fin st l') :
+    ExitE body Fin (p ++ [(i, a)]) (L :: ls) (s, f, .flow (.brk 0 ws)) l' := by
+  obtain ⟨st, hg, hE⟩ := hx
+  have hlev := Proofs.Machine.levelLoop_of_framesOk 0 _ _ hok rfl
+  simp only [levelLoop, List.drop_zero, List.reverse_reverse] at hlev
+  refine ⟨st, .br rfl ?_, hE⟩
+  rw [branchN_eq]
+  simp only [branchR, har, Option.bind_some, hloop, Bool.false_eq_true, ↓reduceIte,
+    List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+    List.singleton_append, List.length_cons, Nat.add_sub_cancel, List.length_reverse]
+  rw [Proofs.Machine.labelsRev_getD 0 ((i, a) :: p.reverse) rfl]
+  simp only [List.reverse_reverse] at hlev ⊢
+  rw [hlev, hloop]
+  simpa [contRev_cons_entry] using hg
+
+/-- **A branch to the frame's own label, a loop**: the loop is re-entered as `loopBack` re-runs
+it. -/
+theorem exit_loopBack {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {i a : Nat} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {ws : List Val}
+    {np nr : Nat} {l' : List (SCall H)}
+    (hok : FramesOk body ((i, a) :: p.reverse) (L :: ls)) (hloop : L.loop = true)
+    (har : arity f L.bt = some (np, nr))
+    (hx : ∃ st, gotoN (entry body (p ++ [(i, a)]) 0) (p.length + 1)
+      (⟨np, ((ws.take np ++ L.outer.reverse).drop np).reverse, true, L.tryT, L.catches, L.bt⟩ :: ls)
+      ((ws.take np ++ L.outer.reverse).take np).reverse s f = some st ∧ MEnds body Fin st l') :
+    ExitE body Fin (p ++ [(i, a)]) (L :: ls) (s, f, .flow (.brk 0 ws)) l' := by
+  obtain ⟨st, hg, hE⟩ := hx
+  have hlev := Proofs.Machine.levelLoop_of_framesOk 0 _ _ hok rfl
+  simp only [levelLoop, List.drop_zero, List.reverse_reverse] at hlev
+  refine ⟨st, .br rfl ?_, hE⟩
+  rw [branchN_eq]
+  simp only [branchR, har, Option.bind_some, hloop, ↓reduceIte, List.reverse_append,
+    List.reverse_cons, List.reverse_nil, List.nil_append, List.singleton_append,
+    List.length_cons, Nat.sub_zero, List.length_reverse]
+  rw [Proofs.Machine.labelsRev_getD 0 ((i, a) :: p.reverse) rfl]
+  simp only [List.reverse_reverse] at hlev ⊢
+  rw [hlev, hloop]
+  obtain ⟨ar, ou, lp, tt, cs, bt⟩ := L
+  simp only at hloop; subst hloop
+  simpa using hg
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLBwd
