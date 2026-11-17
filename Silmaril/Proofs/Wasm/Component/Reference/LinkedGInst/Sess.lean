@@ -36,12 +36,17 @@ open Silmaril.Wasm.Numerics (Profile)
 
 local notation "IVal" => Silmaril.Wasm.Component.Val
 
+/-- **`RefAdeqU` implies `RefAdeqUX`.** -/
+theorem refAdeqU_refAdeqUX {P : Profile} {e : ExpSpec} (h : e.RefAdeqU P) : e.RefAdeqUX P :=
+  let ⟨d, h₁, h₂, h₃, h₄, h₅, h₆⟩ := h
+  ⟨d, h₁, h₂, h₃, initU_initUX h₄, h₅, h₆⟩
+
 variable {lg : LinkedG}
 
 /-- **Reference sessions of a linked component with an abstract exporter are specification
-sessions**, for an exporter meeting R1, R3 as `BwdF`, R4 as `InitU`, R5 and R6. -/
+sessions**, for an exporter meeting R1, R3 as `BwdF`, R4 as `InitUX`, R5 and R6. -/
 theorem sess_refToSpecU (P : Profile) (prof : ProfileKind) {d : lg.exp.RefData P}
-    (hInit : d.InitU) (hFr : d.Frame) (hBw : d.BwdF) (hRes : d.Resume) (hB : d.Bounded)
+    (hInit : d.InitUX) (hFr : d.Frame) (hBw : d.BwdF) (hRes : d.Resume) (hB : d.Bounded)
     (hW : lg.WireTy) (hn : lg.wire.Nodup) (hIg : lg.imp.Good) (hIi : lg.imp.Inst)
     (hIa : lg.imp.Arity) (hff : lg.imp.FloatFree) (hS : Linked2.ModSplitOk lg.imp.mod.mod)
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n) {σ : Type}
@@ -60,13 +65,13 @@ theorem sess_refToSpecU (P : Profile) (prof : ProfileKind) {d : lg.exp.RefData P
     Option.some.inj (hfs.symm.trans (mapM_lookupG hIg _ calls))
   subst hfs'
   rw [zip_callArgsG] at hSq
-  have ST := statB_init hW hn hIg hIa hff hI hA.toInitAt hh
-  have R := readyB_init hFr hB hW hn hI hS hA.toInitAt rfl rfl rfl hrs hh
+  have ST := statB_init hW hn hIg hIa hff hI hA.toInitAtX hh
+  have R := readyB_init hFr hB hW hn hI hS hA.toInitAtX rfl rfl rfl hrs hh
   exact sessL_invB ST hFr hBw hRes hB calls _ _ _ 0 o R (afterG_waiting hA) ht hSq
 
 /-- **The session observations of a linked component with an abstract exporter are the
 specification sessions'.** -/
-theorem sessObs_eqU (P : Profile) (prof : ProfileKind) (he : lg.exp.RefAdeqU P)
+theorem sessObs_eqU (P : Profile) (prof : ProfileKind) (he : lg.exp.RefAdeqUX P)
     (hW : lg.WireTy) (hn : lg.wire.Nodup) (hIg : lg.imp.Good) (hIi : lg.imp.Inst)
     (hIa : lg.imp.Arity) (hff : lg.imp.FloatFree) (hS : Linked2.ModSplitOk lg.imp.mod.mod)
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n) {σ : Type}
@@ -81,13 +86,13 @@ theorem sessObs_eqU (P : Profile) (prof : ProfileKind) (he : lg.exp.RefAdeqU P)
   constructor
   · exact sess_refToSpecU P prof hInit hFr hBw hRes hB hW hn hIg hIi hIa hff hS hNI impl h₀ ht hI
   · rintro ⟨outs, u', s', hspec, rfl⟩
-    exact sess_specToRefB P prof (initU_initS hInit) hFr hFw hRes hB hW hn hIg hIi hIa hff hS hNI
+    exact sess_specToRefB P prof (initUX_initSX hInit) hFr hFw hRes hB hW hn hIg hIi hIa hff hS hNI
       impl h₀ hI hspec
 
 /-- **Finite session adequacy of a linked component with an abstract exporter**: the session
 observations of typed calls are the reference images of the outcome lists whose session play is
 a play of `lg.toComp.den (impSem P)`. -/
-theorem sessAdequacy_fullU (P : Profile) (prof : ProfileKind) (he : lg.exp.RefAdeqU P)
+theorem sessAdequacy_fullU (P : Profile) (prof : ProfileKind) (he : lg.exp.RefAdeqUX P)
     (hA : lg.exp.Adeq P) (hW : lg.WireTy) (hn : lg.wire.Nodup) (hIg : lg.imp.Good)
     (hIi : lg.imp.Inst) (hIa : lg.imp.Arity) (hff : lg.imp.FloatFree)
     (hS : Linked2.ModSplitOk lg.imp.mod.mod) (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)

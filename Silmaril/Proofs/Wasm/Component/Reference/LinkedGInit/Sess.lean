@@ -59,7 +59,7 @@ arities, float-free, export names not generated type names, an injective well-ty
 reference images of the outcomes of every `LinkedG.SessSpec` session from the importer's instance
 store and the exporter's initial state are session behaviours of `lg.toRef`. -/
 theorem sess_specToRefB (P : Profile) (prof : ProfileKind) {d : lg.exp.RefData P}
-    (hInit : d.InitS) (hFr : d.Frame) (hFw : d.Fwd) (hRes : d.Resume) (hB : d.Bounded)
+    (hInit : d.InitSX) (hFr : d.Frame) (hFw : d.Fwd) (hRes : d.Resume) (hB : d.Bounded)
     (hW : lg.WireTy) (hn : lg.wire.Nodup) (hIg : lg.imp.Good) (hIi : lg.imp.Inst)
     (hIa : lg.imp.Arity) (hff : lg.imp.FloatFree) (hS : Linked2.ModSplitOk lg.imp.mod.mod)
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n) {σ : Type}

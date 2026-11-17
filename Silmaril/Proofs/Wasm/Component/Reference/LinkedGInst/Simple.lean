@@ -144,7 +144,8 @@ theorem linked2_sessObs_eqU (P : Profile) (prof : ProfileKind) (l : Linked2) (hl
       {o | ∃ (outs : List (Option (List IVal))) (u' π' : Store Nat),
         Linked2.SessSpec P l Ie Ii Ii.store Ie.store calls outs u' π' ∧ o = refOuts outs} := by
   have h := sessObs_eqU (lg := l.toG Ie) P prof
-    (simple_refAdeqU P hl.expGood hl.expInst hIe hl.splitOk.exp hl.namesOk.exp)
+    (refAdeqU_refAdeqUX (simple_refAdeqU P hl.expGood hl.expInst hIe hl.splitOk.exp
+      hl.namesOk.exp))
     (Linked2.toG_wireTy hl.wireTy Ie) hl.wireNodup hl.impGood hl.impInst hl.impArity
     hl.impFloatFree hl.splitOk.imp hl.namesOk.imp impl h₀ calls ht hIi
   rw [linked2_sessObs_toG] at h
@@ -162,7 +163,8 @@ theorem linked2_sessAdequacy_fullU (P : Profile) (prof : ProfileKind) (l : Linke
         Linked2.sessMoves l calls outs ∈ l.toComp.den (impSem P)} := by
   obtain ⟨Ie, cs, ci, hF⟩ := coreFacts (Pf := P) hl.expGood hl.expInst
   have h := sessAdequacy_fullU (lg := l.toG Ie) P prof
-    (simple_refAdeqU P hl.expGood hl.expInst hF.isInst hl.splitOk.exp hl.namesOk.exp)
+    (refAdeqU_refAdeqUX (simple_refAdeqU P hl.expGood hl.expInst hF.isInst hl.splitOk.exp
+      hl.namesOk.exp))
     (Linked2.toG_adeq P hl hF.isInst)
     (Linked2.toG_wireTy hl.wireTy Ie) hl.wireNodup hl.impGood hl.impInst hl.impArity
     hl.impFloatFree hl.splitOk.imp hl.namesOk.imp impl h₀ calls ht

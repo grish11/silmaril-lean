@@ -141,7 +141,7 @@ theorem linked2_sess_specToRefG (P : Profile) (prof : ProfileKind) (l : Linked2)
   have hspec' : (l.toG Ie).SessSpec P Ii Ii.store Ie.store calls outs u' π' :=
     Linked2.sessSpec_toG_iff.2 hspec
   have h := sess_specToRefB (lg := l.toG Ie) P prof (d := simpleData P l.exp Ie)
-    (simple_initS hl.expGood hl.expInst hIe hl.splitOk.exp hl.namesOk.exp)
+    (initS_initSX (simple_initS hl.expGood hl.expInst hIe hl.splitOk.exp hl.namesOk.exp))
     (simple_frame l.exp Ie) (simple_fwd hl.expGood hIe) (simple_resume l.exp Ie)
     (simple_bounded l.exp Ie) (Linked2.toG_wireTy hl.wireTy Ie) hl.wireNodup hl.impGood
     hl.impInst hl.impArity hl.impFloatFree hl.splitOk.imp hl.namesOk.imp impl h₀ hIi hspec'
@@ -173,6 +173,6 @@ theorem sess_specToRefS (P : Profile) (prof : ProfileKind) {lg : LinkedG}
     {s' : lg.exp.St} (hspec : LinkedG.SessSpec P lg Ii Ii.store lg.exp.init calls outs u' s') :
     refOuts outs ∈ LinkedG.sessObs prof lg impl h₀ calls := by
   obtain ⟨d, hFr, hFw, -, hInit, hRes, hB⟩ := he
-  exact sess_specToRefB P prof hInit hFr hFw hRes hB hW hn hIg hIi hIa hff hS hNI impl h₀ hI hspec
+  exact sess_specToRefB P prof (initS_initSX hInit) hFr hFw hRes hB hW hn hIg hIi hIa hff hS hNI impl h₀ hI hspec
 
 end Silmaril.Proofs.Wasm.Component.Reference.LinkedGInit

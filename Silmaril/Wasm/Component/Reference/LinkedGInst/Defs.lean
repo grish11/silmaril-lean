@@ -68,11 +68,32 @@ def InitU : Prop :=
       m.ctl = ⟨th, .prog (k (.items es)), segs⟩ :: rest ∧ d.InitAt pl F es M m ∧
       m.store.waiting = M.store.waiting
 
+/-- **`InitU` with any host code in the exporter's core store** (`InitAtX` for `InitAt`). -/
+def InitUX : Prop :=
+  ∀ {σ : Type} (prof : ProfileKind) (impl : HostImpl (core3P P) σ)
+    (M : Machine.Config (core3P P) σ) (th : Option ThreadId)
+    (outer : List (Instantiate.Frame (core3P P)))
+    (k : Ret (core3P P) → Canon.P (core3P P) σ (Ret (core3P P)))
+    (segs : List (Seg (core3P P) σ)) (rest : List (Activation (core3P P) σ)),
+    M.store.core = (core3P P).empty (CanonHost (core3P P)) → M.store.lockdown = false →
+    ∃ (tr : List (Label (core3P P) σ)) (m : Machine.Config (core3P P) σ) (pl : d.Pl)
+      (F : CoreFoot) (es : List (String × Instantiate.ItemVal (core3P P))),
+      LiveDet prof (linkHost impl).hr (linkHost impl).dispatch
+        { M with ctl := ⟨th, .prog (callRet (.instantiate ⟨e.ref, outer⟩ []) >>= k), segs⟩ ::
+          rest } tr m ∧
+      (∀ ev, Label.host ev ∉ tr) ∧ (∀ r, Label.trap r ∉ tr) ∧ traceObs tr = [] ∧
+      m.ctl = ⟨th, .prog (k (.items es)), segs⟩ :: rest ∧ d.InitAtX pl F es M m ∧
+      m.store.waiting = M.store.waiting
+
 end ExpSpec.RefData
 
 /-- **The reference interface of an exporter, for the read-back from instantiation** (R1, R2,
 R3 as `BwdF`, R4 as `InitU`, R5, R6). -/
 def ExpSpec.RefAdeqU (P : Profile) (e : ExpSpec) : Prop :=
   ∃ d : e.RefData P, d.Frame ∧ d.Fwd ∧ d.BwdF ∧ d.InitU ∧ d.Resume ∧ d.Bounded
+
+/-- **`RefAdeqU` with any host code in the exporter's core store** (R4 as `InitUX`). -/
+def ExpSpec.RefAdeqUX (P : Profile) (e : ExpSpec) : Prop :=
+  ∃ d : e.RefData P, d.Frame ∧ d.Fwd ∧ d.BwdF ∧ d.InitUX ∧ d.Resume ∧ d.Bounded
 
 end Silmaril.Wasm.Component.Reference

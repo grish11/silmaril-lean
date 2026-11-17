@@ -33,7 +33,8 @@ meeting `ExpSpec.RefAdeqS` (`Defs`) and an importer as in `Linked2.Adequate`.
   R4's instances, functions and core store, the aliases of its exports and the exports) to
   `afterG`, observing the root instance `0` and the export map `exportMapG`;
 * `statB_init`, `readyB_init`: `StatB` and `ReadyB` of `LinkedGRound` at `afterG`, call id `0`
-  (the importer's trampolines `trG` and the host-code renaming `gG`; the exporter's `Hold`
+  (the importer's trampolines `trG` and the host-code renaming `gG`, extended to the host code of
+  the exporter's core store as `trX`/`gX`; the exporter's `Hold`
   moved by R1 along the importer's instantiation; the importer's `Rel4` half from `rel4_init`,
   disjoint from the exporter's footprint).
 
@@ -45,9 +46,11 @@ needed for any `RefAdeqT` exporter: from data meeting R1–R6, the data whose fo
 `d`'s with every global added meets R1–R6 too (the argument of `ExpSpec.refAdeq_allStructs`;
 R6 bounds only structs and arrays, and `Within`/`Grows` only weaken or keep the globals), and its
 footprints are disjoint (`FootDisj`) from no importer ownership that owns a global, such as
-`rel4_init`'s. The host code is needed by `StatB` as defined (`ImpStatG.tramp`: every host
-function of the shared core store is an importer trampoline), which a linked exporter with its own
-trampolines does not meet.
+`rel4_init`'s. The host code is no longer needed (`InitSX`, `InitAtX`: `InitAt` without
+`hostFree`): `ImpStatG.tramp` asks only that the trampoline map `tr` invert the host-code
+renaming `g` on every host function of the shared core store, and `trX`/`gX` do so for any host
+code of the exporter's core store. The proof-internal theorems take `InitSX`; `InitS` implies it
+(`ExpSpec.RefData.InitS.initSX`).
 
 **Not claimed** (what remains):
 
@@ -55,8 +58,8 @@ trampolines does not meet.
   `LinkedG.toExp_refAdeq` and `LinkedN.sessAdequacy_full`.
 * **A bridge from `Linked2`'s `ReadyL`** (its `Rel4` under `gL`) to `LReadyG`: not needed for
   `Linked2.sess_specToRef_viaG`, which starts `LinkedG`'s sessions from its own instantiation.
-* **Nested linked exporters**: `StatB` reads every host function of the shared core store as an
-  importer trampoline; a chain needs `ImpStatG.tramp` restricted to the importer's functions.
+* **Nested linked exporters** on the reference side: `StatB` now admits them (above), but a
+  linked component as an exporter (`Task.linkedG.toExpRefAdeqUX` of `LinkedGChain`) is open.
 -/
 
 public section
@@ -68,6 +71,11 @@ open Silmaril.Wasm.Component Silmaril.Wasm.Component.Runtime Silmaril.Wasm.Compo
 open Silmaril.Wasm.Numerics (Profile)
 
 local notation "IVal" => Silmaril.Wasm.Component.Val
+
+/-- **`InitS` implies `InitSX`** (proved): `InitAt` without its host-code fact. -/
+theorem ExpSpec.RefData.InitS.initSX {P : Profile} {e : ExpSpec} {d : e.RefData P}
+    (h : d.InitS) : d.InitSX :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInit.initS_initSX h
 
 /-- **`InitS` implies R4** (proved). -/
 theorem ExpSpec.RefData.InitS.init {P : Profile} {e : ExpSpec} {d : e.RefData P} (h : d.InitS) :

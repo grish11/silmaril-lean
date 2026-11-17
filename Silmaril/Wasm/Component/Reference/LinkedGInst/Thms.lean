@@ -65,9 +65,17 @@ typed calls.
 * `sessAdequacy_fullU` takes the IR interface `ExpSpec.Adeq` separately: `RefAdeqU` speaks of the
   reference machine only.
 
+**Any host code in the exporter's store (proved, public, below).** `InitUX`/`RefAdeqUX`
+(`Defs`) are `InitU`/`RefAdeqU` without `InitAt.hostFree`; `InitU.initUX`, `InitUX.initSX`,
+`RefAdeqU.refAdeqUX`; `LinkedG.instBehaviours_eqUX`, `sess_refToSpecUX`, `sessObs_eqUX`,
+`sessAdequacy_fullUX` are the theorems above for `RefAdeqUX`, and the `RefAdeqU` ones are derived
+from them. `StatB` (`ImpStatG.tramp`) asks only that the trampoline map invert the host-code
+renaming on every host function of the shared store; `statB_init` meets it with `trX`/`gX`
+(`LinkedGInit`), which send the exporter's host code above the importer's imports.
+
 **Not claimed.** A linked component as an exporter on the reference side
-(`LinkedG.toExp_refAdeq`, needed for nested linked exporters, which `StatB`'s trampoline facts
-also exclude) and `LinkedN.sessAdequacy_full`; divergence and infinite plays; ill-typed calls.
+(`Task.linkedG.toExpRefAdeqUX` of `LinkedGChain`, open) and so `LinkedN.sessAdequacy_full` only
+conditionally (`LinkedGChain`); divergence and infinite plays; ill-typed calls.
 -/
 
 public section
@@ -100,7 +108,89 @@ theorem Simple.expSpec_refAdeqU (P : Profile) {c : Simple} (hc : c.Good) (hi : c
     (hN : ∀ x ∈ c.exports, ∀ n, x.name ≠ tag "t" n) : (Simple.expSpec c I).RefAdeqU P :=
   Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.simple_refAdeqU P hc hi hI hS hN
 
+/-! ## Any host code in the exporter's core store
+
+`InitUX`/`RefAdeqUX` (`Defs`) drop `InitAt.hostFree`: the importer's static facts read the host
+code of the shared store through a renaming inverted on every host function present, so the
+theorems below hold for exporters whose core store has host functions of their own (a linked
+exporter's trampolines). The `RefAdeqU` theorems are their instances. -/
+
+/-- **`InitU` implies `InitUX`** (proved). -/
+theorem ExpSpec.RefData.InitU.initUX {P : Profile} {e : ExpSpec} {d : e.RefData P}
+    (h : d.InitU) : d.InitUX :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.initU_initUX h
+
+/-- **`InitUX` implies `InitSX`** (proved). -/
+theorem ExpSpec.RefData.InitUX.initSX {P : Profile} {e : ExpSpec} {d : e.RefData P}
+    (h : d.InitUX) : d.InitSX :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.initUX_initSX h
+
+/-- **`RefAdeqU` implies `RefAdeqUX`** (proved). -/
+theorem ExpSpec.RefAdeqU.refAdeqUX {P : Profile} {e : ExpSpec} (h : e.RefAdeqU P) :
+    e.RefAdeqUX P :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.refAdeqU_refAdeqUX h
+
 namespace LinkedG
+
+/-- **`instBehaviours_eqU` for `RefAdeqUX`** (proved, every profile, component choice profile
+and host functions). -/
+theorem instBehaviours_eqUX (P : Profile) (prof : ProfileKind) {lg : LinkedG}
+    (he : lg.exp.RefAdeqUX P) (hW : lg.WireTy) (hIg : lg.imp.Good) (hIi : lg.imp.Inst)
+    (hIa : lg.imp.Arity) (hS : Linked2.ModSplitOk lg.imp.mod.mod)
+    (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n) {σ : Type}
+    (impl : HostImpl (core3P P) σ) (h₀ : σ) :
+    ∃ (m : Machine.Config (core3P P) σ) (fb : Nat), m.ctl = [] ∧ m.store.lockdown = false ∧
+      m.store.waiting = [] ∧
+      instBehaviours prof (linkHost impl) (initConfig h₀) lg.toRef [] =
+        {.instance m ⟨0⟩ (lg.imp.exports.mapIdx fun i x => (x.name, (⟨fb + i⟩ : FuncId)))} :=
+  let ⟨_, hFr, _, _, hInit, _, _⟩ := he
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.instBehavioursG_eq hInit hFr hW hIg hIi
+    hIa ⟨hS.data, hS.elems⟩ hNI prof impl h₀
+
+/-- **`sess_refToSpecU` for `RefAdeqUX`** (proved, every profile and component choice
+profile). -/
+theorem sess_refToSpecUX (P : Profile) (prof : ProfileKind) {lg : LinkedG}
+    (he : lg.exp.RefAdeqUX P) (hW : lg.WireTy) (hn : lg.wire.Nodup) (hIg : lg.imp.Good)
+    (hIi : lg.imp.Inst) (hIa : lg.imp.Arity) (hff : lg.imp.FloatFree)
+    (hS : Linked2.ModSplitOk lg.imp.mod.mod) (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
+    {σ : Type} (impl : HostImpl (core3P P) σ) (h₀ : σ)
+    {calls : List (Fin lg.imp.exports.length × List IVal)} (ht : SimpleI.TypedCalls lg.imp calls)
+    {Ii : ScalarInstance} (hI : lg.imp.mod.IsInst Ii)
+    {o : List (Option (List Silmaril.Wasm.Component.Reference.Val))}
+    (ho : o ∈ LinkedG.sessObs prof lg impl h₀ calls) :
+    ∃ (outs : List (Option (List IVal))) (u' : Store Nat) (s' : lg.exp.St),
+      LinkedG.SessSpec P lg Ii Ii.store lg.exp.init calls outs u' s' ∧ o = refOuts outs :=
+  let ⟨_, hFr, _, hBw, hInit, hRes, hB⟩ := he
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.sess_refToSpecU P prof hInit hFr hBw hRes
+    hB hW hn hIg hIi hIa hff hS hNI impl h₀ ht hI ho
+
+/-- **`sessObs_eqU` for `RefAdeqUX`** (proved, every profile and component choice profile,
+typed calls). -/
+theorem sessObs_eqUX (P : Profile) (prof : ProfileKind) {lg : LinkedG} (he : lg.exp.RefAdeqUX P)
+    (hW : lg.WireTy) (hn : lg.wire.Nodup) (hIg : lg.imp.Good) (hIi : lg.imp.Inst)
+    (hIa : lg.imp.Arity) (hff : lg.imp.FloatFree) (hS : Linked2.ModSplitOk lg.imp.mod.mod)
+    (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n) {σ : Type}
+    (impl : HostImpl (core3P P) σ) (h₀ : σ) (calls : List (Fin lg.imp.exports.length × List IVal))
+    (ht : SimpleI.TypedCalls lg.imp calls) {Ii : ScalarInstance} (hI : lg.imp.mod.IsInst Ii) :
+    LinkedG.sessObs prof lg impl h₀ calls =
+      {o | ∃ (outs : List (Option (List IVal))) (u' : Store Nat) (s' : lg.exp.St),
+        LinkedG.SessSpec P lg Ii Ii.store lg.exp.init calls outs u' s' ∧ o = refOuts outs} :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.sessObs_eqU P prof he hW hn hIg hIi hIa
+    hff hS hNI impl h₀ calls ht hI
+
+/-- **`sessAdequacy_fullU` for `RefAdeqUX`** (proved, every profile and component choice
+profile, typed calls). -/
+theorem sessAdequacy_fullUX (P : Profile) (prof : ProfileKind) {lg : LinkedG}
+    (he : lg.exp.RefAdeqUX P) (hA : lg.exp.Adeq P) (hW : lg.WireTy) (hn : lg.wire.Nodup)
+    (hIg : lg.imp.Good) (hIi : lg.imp.Inst) (hIa : lg.imp.Arity) (hff : lg.imp.FloatFree)
+    (hS : Linked2.ModSplitOk lg.imp.mod.mod) (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
+    {σ : Type} (impl : HostImpl (core3P P) σ) (h₀ : σ)
+    (calls : List (Fin lg.imp.exports.length × List IVal)) (ht : SimpleI.TypedCalls lg.imp calls) :
+    LinkedG.sessObs prof lg impl h₀ calls =
+      {o | ∃ outs, o = refOuts outs ∧ calls.length = outs.length ∧
+        lg.sessMoves calls outs ∈ lg.toComp.den (impSem P)} :=
+  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.sessAdequacy_fullU P prof he hA hW hn hIg
+    hIi hIa hff hS hNI impl h₀ calls ht
 
 /-- **The instantiation results of a linked component are exactly one instance** (proved, every
 profile, component choice profile and host functions): at a configuration with the host in
@@ -115,9 +205,7 @@ theorem instBehaviours_eqU (P : Profile) (prof : ProfileKind) {lg : LinkedG}
       m.store.waiting = [] ∧
       instBehaviours prof (linkHost impl) (initConfig h₀) lg.toRef [] =
         {.instance m ⟨0⟩ (lg.imp.exports.mapIdx fun i x => (x.name, (⟨fb + i⟩ : FuncId)))} :=
-  let ⟨_, hFr, _, _, hInit, _, _⟩ := he
-  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.instBehavioursG_eq hInit hFr hW hIg hIi
-    hIa ⟨hS.data, hS.elems⟩ hNI prof impl h₀
+  instBehaviours_eqUX P prof he.refAdeqUX hW hIg hIi hIa hS hNI impl h₀
 
 /-- **Reference sessions of a linked component with an abstract exporter are specification
 sessions** (proved, every profile and component choice profile): every session behaviour of
@@ -134,9 +222,7 @@ theorem sess_refToSpecU (P : Profile) (prof : ProfileKind) {lg : LinkedG}
     (ho : o ∈ LinkedG.sessObs prof lg impl h₀ calls) :
     ∃ (outs : List (Option (List IVal))) (u' : Store Nat) (s' : lg.exp.St),
       LinkedG.SessSpec P lg Ii Ii.store lg.exp.init calls outs u' s' ∧ o = refOuts outs :=
-  let ⟨_, hFr, _, hBw, hInit, hRes, hB⟩ := he
-  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.sess_refToSpecU P prof hInit hFr hBw hRes
-    hB hW hn hIg hIi hIa hff hS hNI impl h₀ ht hI ho
+  sess_refToSpecUX P prof he.refAdeqUX hW hn hIg hIi hIa hff hS hNI impl h₀ ht hI ho
 
 /-- **The session observations of a linked component with an abstract exporter are exactly the
 specification sessions'** (proved, every profile and component choice profile, typed calls). -/
@@ -149,8 +235,7 @@ theorem sessObs_eqU (P : Profile) (prof : ProfileKind) {lg : LinkedG} (he : lg.e
     LinkedG.sessObs prof lg impl h₀ calls =
       {o | ∃ (outs : List (Option (List IVal))) (u' : Store Nat) (s' : lg.exp.St),
         LinkedG.SessSpec P lg Ii Ii.store lg.exp.init calls outs u' s' ∧ o = refOuts outs} :=
-  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.sessObs_eqU P prof he hW hn hIg hIi hIa
-    hff hS hNI impl h₀ calls ht hI
+  sessObs_eqUX P prof he.refAdeqUX hW hn hIg hIi hIa hff hS hNI impl h₀ calls ht hI
 
 /-- **Finite session adequacy of a linked component with an abstract exporter** (proved, every
 profile and component choice profile, typed calls): for an exporter meeting the reference
@@ -166,8 +251,7 @@ theorem sessAdequacy_fullU (P : Profile) (prof : ProfileKind) {lg : LinkedG}
     LinkedG.sessObs prof lg impl h₀ calls =
       {o | ∃ outs, o = refOuts outs ∧ calls.length = outs.length ∧
         lg.sessMoves calls outs ∈ lg.toComp.den (impSem P)} :=
-  Silmaril.Proofs.Wasm.Component.Reference.LinkedGInst.sessAdequacy_fullU P prof he hA hW hn hIg
-    hIi hIa hff hS hNI impl h₀ calls ht
+  sessAdequacy_fullUX P prof he.refAdeqUX hA hW hn hIg hIi hIa hff hS hNI impl h₀ calls ht
 
 end LinkedG
 

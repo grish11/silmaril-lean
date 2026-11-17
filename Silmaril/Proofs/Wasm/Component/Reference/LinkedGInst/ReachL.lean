@@ -211,14 +211,29 @@ theorem initU_initS {e : ExpSpec} {d : e.RefData P} (h : d.InitU) : d.InitS := b
     h prof impl M th outer k segs rest hcore hlock
   exact ⟨tr, m, pl, F, es, (liveDet_lrun hs).steps, hh, ht, ho, hc, hA⟩
 
-/-- **What R4 with the read-back shows of its end**: `InitAt`, and the waiting threads kept. -/
+/-- **`InitU` implies `InitUX`.** -/
+theorem initU_initUX {e : ExpSpec} {d : e.RefData P} (h : d.InitU) : d.InitUX := by
+  intro σ prof impl M th outer k segs rest hcore hlock
+  obtain ⟨tr, m, pl, F, es, hs, hh, ht, ho, hc, hA, hw⟩ :=
+    h prof impl M th outer k segs rest hcore hlock
+  exact ⟨tr, m, pl, F, es, hs, hh, ht, ho, hc, ⟨hA.lock, hA.ext, hA.hold, hA.block, hA.exports,
+    hA.pending, hA.results, hA.nest, hA.globals, hA.fidInj⟩, hw⟩
+
+/-- **`InitUX` implies `InitSX`.** -/
+theorem initUX_initSX {e : ExpSpec} {d : e.RefData P} (h : d.InitUX) : d.InitSX := by
+  intro σ prof impl M th outer k segs rest hcore hlock
+  obtain ⟨tr, m, pl, F, es, hs, hh, ht, ho, hc, hA, -⟩ :=
+    h prof impl M th outer k segs rest hcore hlock
+  exact ⟨tr, m, pl, F, es, (liveDet_lrun hs).steps, hh, ht, ho, hc, hA⟩
+
+/-- **What R4 with the read-back shows of its end**: `InitAtX`, and the waiting threads kept. -/
 structure InitW {e : ExpSpec} (d : e.RefData P) (pl : d.Pl) (F : CoreFoot)
     (es : List (String × Instantiate.ItemVal (core3P P))) (M m : Machine.Config (core3P P) σ) : Prop
-    extends d.InitAt pl F es M m where
+    extends d.InitAtX pl F es M m where
   waiting : m.store.waiting = M.store.waiting
 
 /-- **R4 with the read-back reaches the exporter's exports by a live run**, in any context. -/
-theorem reach_initU {e : ExpSpec} {d : e.RefData P} (hI : d.InitU) (th : Option ThreadId)
+theorem reach_initU {e : ExpSpec} {d : e.RefData P} (hI : d.InitUX) (th : Option ThreadId)
     (outer : List (Instantiate.Frame (core3P P))) (M : Machine.Config (core3P P) σ)
     (hcore : M.store.core = (core3P P).empty _) :
     ReachL prof (linkHost impl).hr (linkHost impl).dispatch th

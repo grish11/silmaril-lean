@@ -87,7 +87,7 @@ theorem instBehaviours_of_lrun {prof : ProfileKind} {impl : HostImpl (core3P P) 
     rw [ho, List.findSome?_cons, decodeInstantiated?_instantiatedObs]
 
 /-- **The instantiation results of `lg.toRef`** are exactly the instance at `afterG`. -/
-theorem instBehavioursG_toRef (hInit : d.InitU) (hFr : d.Frame) (hW : lg.WireTy)
+theorem instBehavioursG_toRef (hInit : d.InitUX) (hFr : d.Frame) (hW : lg.WireTy)
     (hIg : lg.imp.Good) (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
@@ -115,7 +115,7 @@ theorem afterG_waiting {Ii : Silmaril.Wasm.Game.ScalarInstance} {h₀ : σ}
 /-- **The instantiation of `lg.toRef`, publicly**: its results are exactly one instance, at a
 configuration with the host in control and no waiting thread, with the root instance `0` and the
 importer's exports at consecutive functions. -/
-theorem instBehavioursG_eq (hInit : d.InitU) (hFr : d.Frame) (hW : lg.WireTy)
+theorem instBehavioursG_eq (hInit : d.InitUX) (hFr : d.Frame) (hW : lg.WireTy)
     (hIg : lg.imp.Good) (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n) (prof : ProfileKind)

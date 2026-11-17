@@ -166,8 +166,10 @@ theorem linvG_callout_back (SI : ImpStatG P b Ii u₀ F₀ g tr) {s : e.St} {M :
   obtain ⟨E', A, args', hd, -⟩ := status_callout_redex hst
   obtain ⟨fi, -, -, -, hf, hcode, -⟩ := Silmaril.Wasm.SingleThreaded.decompose?_sound hd
   rw [hI.funcs] at hf
-  obtain ⟨k, hk, rfl⟩ := SI.tramp A fi h hf hcode
-  have hg : g (tr k) = k := SI.inv k hk
+  have htr : tr (g h) = h := SI.tramp A fi h hf hcode
+  generalize hk : g h = k at htr
+  subst htr
+  have hg : g (tr k) = k := hk
   have hdm : Silmaril.Wasm.SingleThreaded.decompose? (Store.mapH g y.1)
       (y.2.config (Store.mapH g y.1)).code = some (E', A, k, args') := by
     refine (decompose?_config_mapH g y.1 y.2).trans ?_

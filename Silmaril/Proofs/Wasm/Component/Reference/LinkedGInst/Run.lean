@@ -48,7 +48,7 @@ def FoldEndU {lg : LinkedG} (d : lg.exp.RefData P) (Ii : Silmaril.Wasm.Game.Scal
 variable {lg : LinkedG} {d : lg.exp.RefData P}
 
 /-- The closures and the exporter's nested instantiation (R4). -/
-theorem stageAU (hInit : d.InitU) (cfg : Machine.Config (core3P P) σ)
+theorem stageAU (hInit : d.InitUX) (cfg : Machine.Config (core3P P) σ)
     (hcore : cfg.store.core = (core3P P).empty _) :
     ReachL prof (linkHost impl).hr (linkHost impl).dispatch none
       (List.foldlM (instantiateDef (callRecurse : Recurse (core3P P) σ) ⟨0⟩ [] []) {}
@@ -214,7 +214,7 @@ theorem stageXU {m : Machine.Config (core3P P) σ} {fb : Nat} (sc : Scope (core3
 
 /-- **The definitions of `lg.toRef` run** from a configuration with an empty core store, to the
 importer's nested instantiation after R4's configuration. -/
-theorem toRefG_reachU (hInit : d.InitU) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
+theorem toRefG_reachU (hInit : d.InitUX) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
     (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
@@ -277,7 +277,7 @@ theorem toRefG_reachU (hInit : d.InitU) (hFr : d.Frame) (hW : lg.WireTy) (hIg : 
 
 /-- **Root instantiation of `lg.toRef`** from a configuration with the empty core store and no
 component instance: the root instance `0`, then the definitions (`toRefG_reachU`). -/
-theorem rootG_reachU (hInit : d.InitU) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
+theorem rootG_reachU (hInit : d.InitUX) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
     (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
@@ -318,7 +318,7 @@ theorem rootG_reachU (hInit : d.InitU) (hFr : d.Frame) (hW : lg.WireTy) (hIg : l
 /-- **The instantiation program of `lg.toRef` reaches** the importer's nested instantiation after
 R4's configuration, the nesting depth decremented, observing the root instance and the export
 map. -/
-theorem instProgG_reachU (hInit : d.InitU) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
+theorem instProgG_reachU (hInit : d.InitUX) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
     (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
@@ -359,7 +359,7 @@ def instStartG (lg : LinkedG) (h₀ : σ) : Machine.Config (core3P P) σ :=
 
 /-- **The instantiation of `lg.toRef` after its host event is one live run** to `afterG`,
 observing the root instance `0` and the export map. -/
-theorem instG_lrun (hInit : d.InitU) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
+theorem instG_lrun (hInit : d.InitUX) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
     (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)

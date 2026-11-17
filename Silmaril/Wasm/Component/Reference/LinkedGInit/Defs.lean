@@ -23,9 +23,12 @@ parent's run, and the importer's invariant between calls (`LReadyG`, `StatB` of
 * **the top-level call records and the nesting depth**: between calls there is no pending call
   or result with an id at or above the next call id, and the nesting depth is `0`; R4 says
   nothing of `m.pending`, `m.results` or `m.store.nestingDepth`;
-* **the host code of the exporter's core store**: the importer's static facts (`ImpStatG`) read
-  every host function of the shared core store as one of the importer's trampolines, so the
-  exporter's core store after instantiation must have none;
+* **the host code of the exporter's core store**: the importer's static facts (`ImpStatG`) were
+  first stated reading every host function of the shared core store as one of the importer's
+  trampolines, so the exporter's core store after instantiation had to have none
+  (`InitAt.hostFree`). They now read host code through a renaming inverted on every host
+  function present, and `InitAtX`/`InitSX` drop `hostFree`; `InitAt`/`InitS` are kept as
+  stated, and imply them;
 * **the exporter's globals**: the importer's image must be disjoint from the exporter's
   footprint (`FootDisj`); its globals are allocated after the exporter's, and R1–R6 leave the
   footprint's globals unconstrained (R6 bounds structs and arrays only), so the footprint must
@@ -100,6 +103,43 @@ def InitS : Prop :=
           rest } tr m ∧
       (∀ ev, Label.host ev ∉ tr) ∧ (∀ r, Label.trap r ∉ tr) ∧ traceObs tr = [] ∧
       m.ctl = ⟨th, .prog (k (.items es)), segs⟩ :: rest ∧ d.InitAt pl F es M m
+
+/-- **`InitAt` with any host code in the exporter's core store**: `InitAt` without `hostFree`.
+The importer's static facts read the host code of the shared store through a renaming that is
+inverted on every host function present (`trX`/`gX` of the proofs), so the exporter's own host
+functions (a linked exporter's trampolines) need not be excluded. -/
+structure InitAtX {σ : Type} (pl : d.Pl) (F : CoreFoot)
+    (es : List (String × Instantiate.ItemVal (core3P P))) (M m : Machine.Config (core3P P) σ) :
+    Prop where
+  lock : m.store.lockdown = false
+  ext : Instantiate.ArenasExtend M.store m.store
+  hold : d.Hold pl e.init m.store F
+  block : ∀ i, d.block pl i → M.store.insts.length ≤ i ∧ i < m.store.insts.length
+  exports : ∀ (w : Nat) (x : Export), e.comp.exports[w]? = some x →
+    es.lookup x.name = some (.func ⟨d.fid pl w⟩) ∧
+    ∃ ι : InstState, m.store.insts[d.inst pl w]? = some ι ∧ ι.threads = ⟨#[none], []⟩
+  pending : m.pending = M.pending
+  results : m.results = M.results
+  nest : m.store.nestingDepth = M.store.nestingDepth
+  globals : ∀ a, F.gl a → a < (m.store.core : Store (CanonHost (core3P P))).globals.length
+  fidInj : ∀ (w w' : Nat) (x x' : Export), e.comp.exports[w]? = some x →
+    e.comp.exports[w']? = some x' → d.fid pl w = d.fid pl w' → w = w'
+
+/-- **`InitS` with any host code in the exporter's core store** (`InitAtX` for `InitAt`). -/
+def InitSX : Prop :=
+  ∀ {σ : Type} (prof : ProfileKind) (impl : HostImpl (core3P P) σ)
+    (M : Machine.Config (core3P P) σ) (th : Option ThreadId)
+    (outer : List (Instantiate.Frame (core3P P)))
+    (k : Ret (core3P P) → Canon.P (core3P P) σ (Ret (core3P P)))
+    (segs : List (Seg (core3P P) σ)) (rest : List (Activation (core3P P) σ)),
+    M.store.core = (core3P P).empty (CanonHost (core3P P)) → M.store.lockdown = false →
+    ∃ (tr : List (Label (core3P P) σ)) (m : Machine.Config (core3P P) σ) (pl : d.Pl)
+      (F : CoreFoot) (es : List (String × Instantiate.ItemVal (core3P P))),
+      Machine.Steps prof (linkHost impl).hr (linkHost impl).dispatch
+        { M with ctl := ⟨th, .prog (callRet (.instantiate ⟨e.ref, outer⟩ []) >>= k), segs⟩ ::
+          rest } tr m ∧
+      (∀ ev, Label.host ev ∉ tr) ∧ (∀ r, Label.trap r ∉ tr) ∧ traceObs tr = [] ∧
+      m.ctl = ⟨th, .prog (k (.items es)), segs⟩ :: rest ∧ d.InitAtX pl F es M m
 
 end ExpSpec.RefData
 

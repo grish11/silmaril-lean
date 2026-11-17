@@ -38,13 +38,26 @@ variable {P : Profile} {σ : Type} {prof : ProfileKind} {impl : HostImpl (core3P
 
 /-! ## R4 as a reach -/
 
+/-- `InitAt` without its host-code fact. -/
+theorem InitAt.toX {e : ExpSpec} {d : e.RefData P} {pl : d.Pl} {F : CoreFoot}
+    {es : List (String × ItemVal (core3P P))} {M m : Machine.Config (core3P P) σ}
+    (h : d.InitAt pl F es M m) : d.InitAtX pl F es M m :=
+  ⟨h.lock, h.ext, h.hold, h.block, h.exports, h.pending, h.results, h.nest, h.globals, h.fidInj⟩
+
+/-- **`InitS` implies `InitSX`.** -/
+theorem initS_initSX {e : ExpSpec} {d : e.RefData P} (h : d.InitS) : d.InitSX := by
+  intro σ prof impl M th outer k segs rest hcore hlock
+  obtain ⟨tr, m, pl, F, es, hs, hh, ht, ho, hc, hA⟩ :=
+    h prof impl M th outer k segs rest hcore hlock
+  exact ⟨tr, m, pl, F, es, hs, hh, ht, ho, hc, InitAt.toX hA⟩
+
 /-- **R4 reaches the exporter's exports**, in any context. -/
-theorem reach_initS {e : ExpSpec} {d : e.RefData P} (hI : d.InitS) (th : Option ThreadId)
+theorem reach_initS {e : ExpSpec} {d : e.RefData P} (hI : d.InitSX) (th : Option ThreadId)
     (outer : List (Frame (core3P P))) (M : Machine.Config (core3P P) σ)
     (hcore : M.store.core = (core3P P).empty _) :
     Reach prof (linkHost impl).hr (linkHost impl).dispatch th
       (callRet (.instantiate ⟨e.ref, outer⟩ []) : Canon.P (core3P P) σ (Ret (core3P P))) M
-      (fun os r m => os = [] ∧ ∃ pl F es, r = .items es ∧ d.InitAt pl F es M m) := by
+      (fun os r m => os = [] ∧ ∃ pl F es, r = .items es ∧ d.InitAtX pl F es M m) := by
   intro hl f segs rest
   obtain ⟨tr, m, pl, F, es, hs, hh, ht, ho, hc, hA⟩ := hI prof impl M th outer f segs rest hcore hl
   have hm : { m with ctl := ⟨th, .prog (f (.items es)), segs⟩ :: rest } = m := by rw [← hc]
@@ -104,7 +117,7 @@ def FoldEnd {lg : LinkedG} (d : lg.exp.RefData P) (Ii : Silmaril.Wasm.Game.Scala
     Prop :=
   ∃ (m₁ : Machine.Config (core3P P) σ) (pl : d.Pl) (F : CoreFoot)
     (es : List (String × ItemVal (core3P P))) (r : Store (CanonHost (core3P P) × Nat)),
-    d.InitAt pl F es cfg m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
+    d.InitAtX pl F es cfg m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
     TrampsOf lg (fidG d pl) (nextInst m₁.store) r ∧
     funcExports xs = exportMapG lg m₁.store.funcs.length ∧
     m = { m₁ with store := impStore lg Ii m₁.store r }
@@ -171,13 +184,13 @@ def scI {lg : LinkedG} (d : lg.exp.RefData P) (pl : d.Pl)
 variable {lg : LinkedG} {d : lg.exp.RefData P}
 
 /-- The closures and the exporter's nested instantiation (R4). -/
-theorem stageA (hInit : d.InitS) (cfg : Machine.Config (core3P P) σ)
+theorem stageA (hInit : d.InitSX) (cfg : Machine.Config (core3P P) σ)
     (hcore : cfg.store.core = (core3P P).empty _) :
     Reach prof (linkHost impl).hr (linkHost impl).dispatch none
       (List.foldlM (instantiateDef (callRecurse : Recurse (core3P P) σ) ⟨0⟩ [] []) {}
         ([.component lg.exp.ref, .component lg.imp.toRef, .instance_ (.instantiate 0 [])] :
           Core3Component))
-      cfg (fun os sc m => os = [] ∧ ∃ pl F es, d.InitAt pl F es cfg m ∧ sc = scA P lg es) := by
+      cfg (fun os sc m => os = [] ∧ ∃ pl F es, d.InitAtX pl F es cfg m ∧ sc = scA P lg es) := by
   let sc₁ : Scope (core3P P) := { frame := { Frame.empty with components := [clEG P lg] } }
   let sc₂ : Scope (core3P P) :=
     { frame := { Frame.empty with components := [clEG P lg, clIG P lg] } }
@@ -193,11 +206,11 @@ theorem stageA (hInit : d.InitS) (cfg : Machine.Config (core3P P) σ)
   refine Reach.foldlM_cons (Reach.of_eq r₂ (Reach.pure sc₂ _)) fun os s m' h => ?_
   obtain ⟨rfl, rfl, e⟩ := h
   subst m'
-  refine Reach.foldlM_cons (Q := fun os sc m => os = [] ∧ ∃ pl F es, d.InitAt pl F es cfg m ∧
+  refine Reach.foldlM_cons (Q := fun os sc m => os = [] ∧ ∃ pl F es, d.InitAtX pl F es cfg m ∧
     sc = scA P lg es) ?_ fun os s m' h => Reach.foldlM_nil ?_
   · refine Reach.of_eq r₃ ?_
     refine Reach.bind (Reach.callItems (R := fun os es m => os = [] ∧ ∃ pl F,
-        d.InitAt pl F es cfg m) (reach_initS hInit none [Frame.empty] cfg hcore)
+        d.InitAtX pl F es cfg m) (reach_initS hInit none [Frame.empty] cfg hcore)
         fun os r m ⟨ho, pl, F, es, hr, hA⟩ => ⟨es, hr, ho, pl, F, hA⟩)
       fun os es m ⟨ho, pl, F, hA⟩ => Reach.pure_of ?_
     subst ho
@@ -208,7 +221,7 @@ theorem stageA (hInit : d.InitS) (cfg : Machine.Config (core3P P) σ)
 
 /-- The aliases of the wired exports. -/
 theorem stageW (hW : lg.WireTy) {cfg m : Machine.Config (core3P P) σ} {pl : d.Pl} {F : CoreFoot}
-    {es : List (String × ItemVal (core3P P))} (hA : d.InitAt pl F es cfg m) :
+    {es : List (String × ItemVal (core3P P))} (hA : d.InitAtX pl F es cfg m) :
     Reach prof (linkHost impl).hr (linkHost impl).dispatch none
       (List.foldlM (instantiateDef (callRecurse : Recurse (core3P P) σ) ⟨0⟩ [] []) (scA P lg es)
         (lg.wire.map fun w => (.alias (.export_ 0 (lg.expName w) .func) :
@@ -234,7 +247,7 @@ theorem stageI (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good) (hIi : lg.im
     (hIa : lg.imp.Arity) (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     {Ii : Silmaril.Wasm.Game.ScalarInstance} (hI : lg.imp.mod.IsInst Ii)
     {cfg m : Machine.Config (core3P P) σ} {pl : d.Pl} {F : CoreFoot}
-    {es : List (String × ItemVal (core3P P))} (hA : d.InitAt pl F es cfg m) :
+    {es : List (String × ItemVal (core3P P))} (hA : d.InitAtX pl F es cfg m) :
     Reach prof (linkHost impl).hr (linkHost impl).dispatch none
       (List.foldlM (instantiateDef (callRecurse : Recurse (core3P P) σ) ⟨0⟩ [] []) (scW d pl es)
         ([.instance_ (.instantiate 1 (lg.imp.imports.mapIdx fun k p => (p.1, ⟨.func, k⟩)))] :
@@ -337,7 +350,7 @@ theorem stageX {m : Machine.Config (core3P P) σ} {fb : Nat} (sc : Scope (core3P
 
 /-- **The definitions of `lg.toRef` run** from a configuration with an empty core store, to the
 importer's nested instantiation after R4's configuration. -/
-theorem toRefG_reach (hInit : d.InitS) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
+theorem toRefG_reach (hInit : d.InitSX) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
     (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
@@ -349,7 +362,7 @@ theorem toRefG_reach (hInit : d.InitS) (hFr : d.Frame) (hW : lg.WireTy) (hIg : l
   refine Reach.foldlM_append (Q := fun os sc m => os = [] ∧ ∃ (m₁ : Machine.Config (core3P P) σ)
       (pl : d.Pl) (F : CoreFoot) (es : List (String × ItemVal (core3P P)))
       (r : Store (CanonHost (core3P P) × Nat)),
-      d.InitAt pl F es cfg m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
+      d.InitAtX pl F es cfg m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
       TrampsOf lg (fidG d pl) (nextInst m₁.store) r ∧
       (∀ j < lg.imp.exports.length,
         sc.frame.funcs[lg.wire.length + j]? = some ⟨m₁.store.funcs.length + j⟩) ∧
@@ -357,14 +370,14 @@ theorem toRefG_reach (hInit : d.InitS) (hFr : d.Frame) (hW : lg.WireTy) (hIg : l
   · refine Reach.foldlM_append (Q := fun os sc m => os = [] ∧ ∃ (m₁ : Machine.Config (core3P P) σ)
         (pl : d.Pl) (F : CoreFoot) (es esI : List (String × ItemVal (core3P P)))
         (r : Store (CanonHost (core3P P) × Nat)),
-        d.InitAt pl F es cfg m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
+        d.InitAtX pl F es cfg m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
         TrampsOf lg (fidG d pl) (nextInst m₁.store) r ∧
         funcExports esI =
           lg.imp.exports.mapIdx (fun i x => (x.name, ⟨m₁.store.funcs.length + i⟩)) ∧
         TagOrFunc esI ∧ sc = scI d pl es esI ∧
         m = { m₁ with store := impStore lg Ii m₁.store r }) ?_ ?_
     · refine Reach.foldlM_append (Q := fun os sc m => os = [] ∧ ∃ (pl : d.Pl) (F : CoreFoot)
-          (es : List (String × ItemVal (core3P P))), d.InitAt pl F es cfg m ∧ sc = scW d pl es)
+          (es : List (String × ItemVal (core3P P))), d.InitAtX pl F es cfg m ∧ sc = scW d pl es)
         ?_ ?_
       · refine Reach.foldlM_append (stageA hInit cfg hcore) fun os sc m h => ?_
         obtain ⟨rfl, pl, F, es, hA, rfl⟩ := h
@@ -407,7 +420,7 @@ theorem noImport_toRefG (lg : LinkedG) : NoImport lg.toRef := by
 
 /-- **Root instantiation of `lg.toRef`** from a configuration with the empty core store and no
 component instance: the root instance `0`, then the definitions (`toRefG_reach`). -/
-theorem rootG_reach (hInit : d.InitS) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
+theorem rootG_reach (hInit : d.InitSX) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
     (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
@@ -453,7 +466,7 @@ def startG (h₀ : σ) : Machine.Config (core3P P) σ :=
 /-- **The instantiation program of `lg.toRef` reaches** the importer's nested instantiation after
 R4's configuration, the nesting depth decremented, observing the root instance and the export
 map. -/
-theorem instProgG_reach (hInit : d.InitS) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
+theorem instProgG_reach (hInit : d.InitSX) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
     (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
@@ -463,7 +476,7 @@ theorem instProgG_reach (hInit : d.InitS) (hFr : d.Frame) (hW : lg.WireTy) (hIg 
       (initConfig h₀)
       (fun os _ m => ∃ (m₁ : Machine.Config (core3P P) σ) (pl : d.Pl) (F : CoreFoot)
         (es : List (String × ItemVal (core3P P))) (r : Store (CanonHost (core3P P) × Nat)),
-        d.InitAt pl F es (startG h₀) m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
+        d.InitAtX pl F es (startG h₀) m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
         TrampsOf lg (fidG d pl) (nextInst m₁.store) r ∧
         os = [instantiatedObs ⟨0⟩ (exportMapG lg m₁.store.funcs.length)] ∧
         m = { m₁ with store := DispatchSt.decNestingSt (impStore lg Ii m₁.store r) }) := by
@@ -494,7 +507,7 @@ def afterG (lg : LinkedG) (Ii : Silmaril.Wasm.Game.ScalarInstance) (m₁ : Machi
 
 /-- **The instantiation of `lg.toRef` as a host event** from the initial configuration: a run
 without host events to `afterG`, observing the root instance `0` and the export map. -/
-theorem instG_run (hInit : d.InitS) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
+theorem instG_run (hInit : d.InitSX) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.imp.Good)
     (hIi : lg.imp.Inst) (hIa : lg.imp.Arity)
     (hseg : lg.imp.mod.mod.data = [] ∧ lg.imp.mod.mod.elems = [])
     (hNI : ∀ x ∈ lg.imp.exports, ∀ n, x.name ≠ tag "t" n)
@@ -502,7 +515,7 @@ theorem instG_run (hInit : d.InitS) (hFr : d.Frame) (hW : lg.WireTy) (hIg : lg.i
     ∃ (tr : List (Label (core3P P) σ)) (m₁ : Machine.Config (core3P P) σ) (pl : d.Pl)
       (F : CoreFoot) (es : List (String × ItemVal (core3P P)))
       (r : Store (CanonHost (core3P P) × Nat)),
-      d.InitAt pl F es (startG h₀) m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
+      d.InitAtX pl F es (startG h₀) m₁ ∧ Store.mapH Prod.snd r = Ii.store ∧
       TrampsOf lg (fidG d pl) (nextInst m₁.store) r ∧
       Machine.Steps prof (linkHost impl).hr (linkHost impl).dispatch (initConfig h₀)
         (.host (instantiateTop lg.toRef []) :: tr) (afterG lg Ii m₁ r) ∧
