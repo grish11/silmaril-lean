@@ -272,4 +272,113 @@ theorem exit_loopBack {body : Expr} {Fin : Store H × Frame × POut → Prop} {p
   simp only at hloop; subst hloop
   simpa using hg
 
+/-! ## The induction on native derivations -/
+
+/-- **A position in a block**: block `i` of the sequence `c` at path `p`, its instructions split
+as `pre ++ post`, `post` nonempty, and a structured terminator never in `pre`. -/
+structure Pos (body : Expr) (p : List SeqStep) (c : List Instr) (i : Nat) (sg : Segment)
+    (pre post : List Instr) : Prop where
+  hc : seqAt body p = some c
+  hsg : (segment c)[i]? = some sg
+  hinstrs : sg.instrs = pre ++ post
+  hpost : post ≠ []
+  hstruct : ∀ t, sg.term = some t → Instr.IsStruct t → pre.length ≤ sg.body.length
+
+/-- **The motive**: a native run of the code at a position, followed by what the machine does
+when the sequence ends (`ExitE`), is a finishing machine run: from the block, once the prefix has
+run (the block clause), and, for a structured instruction, from the entry of its arm (the arm
+clause, which a loop's re-entry also reaches). -/
+def Mot (body : Expr) (Fin : Store H × Frame × POut → Prop) (s : Store H) (f : Frame)
+    (N : List Val) (es : List BExpr) (l : List (SCall H)) (r : Store H × Frame × POut) : Prop :=
+  ∀ (p : List SeqStep) (c : List Instr) (i : Nat) (sg : Segment) (pre post : List Instr)
+    (ls : List LFrame) (l' : List (SCall H)), Pos body p c i sg pre post →
+    es = liftInstrs post ++ liftInstrs (restAt c (i + 1)) → FramesOk body p.reverse ls →
+    ExitE body Fin p ls r l' →
+    (∀ (s₀ : Store H) (f₀ : Frame) (N₀ : List Val) (l₀ : List (SCall H)),
+      EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N)) →
+      MEnds body Fin ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ l ++ l')) ∧
+    (∀ (t : Instr) (a : Nat) (c' : List Instr) (V' : List Val) (np nr : Nat) (bt : BlockType)
+      (loop tryT : Bool) (cs : List Catch), post = [t] → StructKind t bt loop tryT cs →
+      ArmSel t N a V' → armOf t a = some c' → arity f bt = some (np, nr) →
+      ∃ st₁, gotoN (entry body (p ++ [(i, a)]) 0) (p.length + 1)
+        (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls)
+        (V'.take np).reverse s f = some st₁ ∧ MEnds body Fin st₁ (l ++ l'))
+
+theorem nil_inv {s s' : Store H} {f f' : Frame} {N : List Val} {l : List (SCall H)} {o : POut}
+    (h : EvalLXPS s f N [] l (s', f', o)) : s' = s ∧ f' = f ∧ o = .flow (.normal N) ∧ l = [] := by
+  generalize he : ([] : List BExpr) = es at h
+  cases h <;> first | (exact ⟨rfl, rfl, rfl, rfl⟩) | cases he
+
+/-- **Reaching a sequence position natively** (`gotoN (entry …)`), given the motive for the
+native run of the rest of the sequence from there. -/
+theorem at_boundary {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {c : List Instr} {j : Nat} {ls : List LFrame} {s : Store H} {f : Frame} {N : List Val}
+    {l l' : List (SCall H)} {r : Store H × Frame × POut}
+    (hD : EvalLXPS s f N (liftInstrs (restAt c j)) l r)
+    (hM : Mot body Fin s f N (liftInstrs (restAt c j)) l r)
+    (hc : seqAt body p = some c) (hok : FramesOk body p.reverse ls)
+    (hx : ExitE body Fin p ls r l') :
+    ∃ st, gotoN (entry body p j) p.length ls N.reverse s f = some st ∧
+      MEnds body Fin st (l ++ l') := by
+  unfold entry
+  split
+  · next hsome =>
+    obtain ⟨sg, hsg⟩ := Option.isSome_iff_exists.mp hsome
+    rw [lookup_eq] at hsg
+    simp only [hc, Option.bind_some] at hsg
+    have hne : sg.instrs ≠ [] :=
+      (segment_isSegmentation c).2.2.2 sg (List.mem_of_getElem? hsg)
+    refine ⟨⟨.block ⟨p, j⟩, N.reverse, ls, s, f⟩, by simp [gotoN, depthT, popN], ?_⟩
+    have hpos : Pos body p c j sg [] sg.instrs :=
+      ⟨hc, hsg, rfl, hne, fun _ _ _ => Nat.zero_le _⟩
+    have := (hM p c j sg [] sg.instrs ls l' hpos
+      (by rw [restAt_cons hsg, MachineLSeq.liftInstrs_append]) hok hx).1 s f N [] .nil
+    simpa using this
+  · next hnone =>
+    have hend : (segment c)[j]? = none := by
+      rw [lookup_eq] at hnone; simpa [hc] using hnone
+    rw [restAt_end hend] at hD
+    obtain ⟨s', f', o⟩ := r
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv hD
+    obtain ⟨st, hg, hE⟩ := hx
+    exact ⟨st, by simpa [cont] using hg, by simpa using hE⟩
+
+/-- **The main induction**: every native run satisfies the motive. -/
+theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
+    {N : List Val} {es : List BExpr} {l : List (SCall H)} {r : Store H × Frame × POut}
+    (h : EvalLXPS s f N es l r) : Mot body Fin s f N es l r := by
+  sorry
+
+/-- **The converse, finished outcomes**: a native run of the body from the empty stack, to an
+outcome other than a branch past the function label, is a logged machine run from the CFG entry
+to an end standing for it (a sink, or a pending tail call), with exactly the native log. -/
+theorem backward {body : Expr} {s : Store H} {f : Frame} {l : List (SCall H)}
+    {r : Store H × Frame × POut} (h : EvalLXPS s f [] (liftInstrs body) l r)
+    (hr : ∀ k ws, r.2.2 ≠ .flow (.brk (k + 1) ws)) :
+    ∃ (st : MState H) (l₁ l₂ : List (SCall H)), MRunL body (initial body s f) l₁ st ∧
+      l = l₁ ++ l₂ ∧ ((st.node.IsSink ∧ l₂ = [] ∧ EndRel st r) ∨ TailL body st l₂ r) := by
+  have hx : ExitE body (· = r) [] [] r [] := by
+    obtain ⟨s', f', o⟩ := r
+    rcases o with fl | ⟨fa, args, n⟩
+    · cases fl with
+      | normal ws =>
+        exact ⟨_, rfl, mEnds_sink (st := ⟨.exit, ws.reverse, [], s', f'⟩) trivial
+          ⟨_, rfl, by simp [Flow.retVals]⟩ rfl⟩
+      | brk k ws =>
+        rcases k with _ | k
+        · exact ⟨_, .brOut rfl, mEnds_sink trivial ⟨_, rfl, by simp [Flow.retVals]⟩ rfl⟩
+        · exact absurd rfl (hr k ws)
+      | ret ws => exact ⟨_, .ret, mEnds_sink trivial ⟨_, rfl, by simp [Flow.retVals]⟩ rfl⟩
+      | trap => exact ⟨_, .trap, mEnds_sink trivial rfl rfl⟩
+      | throw a =>
+        exact ⟨_, .raise (fun _ _ h => by simp at h), mEnds_sink trivial ⟨a, rfl, rfl⟩ rfl⟩
+    · exact ⟨rfl, rfl⟩
+  have hD : EvalLXPS s f [] (liftInstrs (restAt body 0)) l r := by rwa [restAt_zero]
+  obtain ⟨st, hg, hE⟩ := at_boundary (p := []) (ls := []) hD (mot hD) rfl (by simp [FramesOk]) hx
+  have hst : st = initial body s f := by
+    rw [List.reverse_nil, initial_eq] at hg; exact (Option.some.inj hg).symm
+  subst hst
+  obtain ⟨st', r', l₁, l₂, hrun, hl, rfl, hend⟩ := hE
+  exact ⟨st', l₁, l₂, hrun, by simpa using hl, hend⟩
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLBwd
