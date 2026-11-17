@@ -591,9 +591,14 @@ The plain graph stays an over-approximation, and claims about it say so.
             structured instruction is entered", which covers both the fresh entry (`enter`) and
             the re-entry (`branchN`).
       - **H2 status: the converse for finished outcomes is done** (`MachineL.backward`).
-        - Statement: a native run of the body to anything but a branch past the function label
-          is a logged run from the CFG entry to an end standing for it (a sink, or the block
-          making the pending tail call), with exactly the native log.
+        - Hypotheses: a native run of the body to `r`, where `r` is not `brk (k + 1) _`. So `r`
+          is a fall-through, `return`, `brk 0`, a trap, an uncaught exception, or a pending tail
+          call.
+        - Conclusion: a logged run from the CFG entry to an end standing for `r` (a sink, or the
+          block making the pending tail call), with exactly the native log.
+        - The excluded class: a native body outcome `brk (k + 1)` (a branch past the function
+          label) can exist on invalid code. It has no machine end (no `DispL` rule) and no framed
+          finished counterpart (`exitFlow` gives `none`, so no `wasmHOpenXPS` behaviour).
         - Proof: continuation passing on the native derivation (`MachineLBwd`). The motive
           covers mid-segment positions and arm entries, so `loopBack`'s re-run of the loop
           starts where the machine re-enters it.

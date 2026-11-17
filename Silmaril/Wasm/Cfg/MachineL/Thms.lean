@@ -29,18 +29,27 @@ runs natively, and the native rule of every enclosing structured instruction (`b
 `loopBack`, `ifOk`, `tryCatch`, `tryRethrow`, the escape rules, …) carries the outcome out of its
 frame to the body's result.
 
-* **`backward`** (H2, the converse, finished outcomes): an `EvalLXPS` run of the body from the
-  empty stack, to any outcome but a branch past the function label, is a logged run from the CFG
-  entry to an end standing for it, with **exactly** the native log split between the run and the
+* **`backward`** (H2, the converse, finished outcomes). Hypotheses: an `EvalLXPS` run of the
+  body from the empty stack to `r`, where `r` is not `brk (k + 1) ws` for any `k`, `ws`. So `r` is
+  a fall-through, a `return`, `brk 0` (a branch to the function label), a trap, an uncaught
+  exception, or a pending tail call. Conclusion: a logged run from the CFG entry to an end
+  standing for `r`, with **exactly** the native log split between the run and the
   end: a sink (`EndRel`), or a block whose straight-line code makes the pending tail call
   (`TailL`). The proof is a continuation-passing induction on the native derivation. Each
   derivation's motive takes, as a hypothesis, what the machine does once its sequence ends
   (`ExitE`), and a loop's re-run by `loopBack` starts from the entry of its arm, where re-entering
   the loop lands.
 
-A branch past the function label (`brk (k + 1)` at the body's top level) has no machine end: the
-machine does not step there, and no behaviour of the open module (`wasmHOpenXPS`, through
-`exitFlow`) comes from it.
+**The excluded outcome class.** The native relation may end a body in `brk (k + 1) ws` (a branch
+past the function label; invalid code can produce one). `backward` makes no claim for it:
+
+* the logged machine has no end for it, since `DispL` has no rule for such a branch and the
+  machine does not step;
+* it has no *framed finished* counterpart either, since `exitFlow` gives `none` on it, so
+  `wasmHOpenXPS` (and so the function closure) has no finished behaviour of the function from it.
+
+The native body-level outcome itself does exist; only the framed function-level behaviour is
+absent.
 
 Not yet here: pending calls (`ReachLXPS`), divergence (quiescent: infinite local steps, or a
 finite run into a diverging callee) and coherent productive streams, each against the machine;
@@ -76,8 +85,10 @@ theorem forward_tail {body : Expr} {s : Store H} {f : Frame} {l l' : List (SCall
     (ht : TailL body st l' r) : EvalLXPS s f [] (liftInstrs body) (l ++ l') r :=
   Proofs.MachineLFwd.forward_tail h ht
 
-/-- **Native runs of the body are logged machine runs** (finished outcomes): from the CFG entry to
-an end standing for the native result, with exactly the native log. -/
+/-- **Native runs of the body are logged machine runs** (finished outcomes): a native run to any
+outcome other than `brk (k + 1) ws` (a branch past the function label, which has no framed finished
+counterpart) is a logged run from the CFG entry to an end standing for the native result, with
+exactly the native log. -/
 theorem backward {body : Expr} {s : Store H} {f : Frame} {l : List (SCall H)}
     {r : Store H × Frame × POut} (h : EvalLXPS s f [] (liftInstrs body) l r)
     (hr : ∀ k ws, r.2.2 ≠ .flow (.brk (k + 1) ws)) :
