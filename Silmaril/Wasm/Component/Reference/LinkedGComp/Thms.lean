@@ -66,8 +66,9 @@ Not needed: `Adeq`, `Good`, `AFun.Det` of the exporter (only `RetDet`, which `Ex
 
 **Not claimed.**
 
-* `AFun.Det` of the exporter's triple from `ExpSpec.Det` (false, item 2); `ExpSpec.DivExcl` is not
-  proved for `Simple.expSpec` or `LinkedG.toExp`.
+* `AFun.Det` of the exporter's triple from `ExpSpec.Det` (false, item 2). `ExpSpec.DivExcl` for
+  `Simple.expSpec`, `LinkedG.toExp` and chains, hence `AFun.Det` of their triples, is proved in
+  `LinkedGDet`, not here.
 * `AFun.Det` of linked triples (`linkS`), which the generic API notes is not preserved by linking.
 * Host imports (`HLinked2`, `hostLinkS`); the relation of the importer's session to the IR or the
   reference machine beyond what `LinkedGSession` states for the linked component.
