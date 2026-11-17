@@ -3,7 +3,9 @@ module
 public import Silmaril.Wasm.Cfg.DanglingTyped.Defs
 public import Silmaril.Wasm.Abstract.HostCall.Defs
 public import Silmaril.Wasm.Cfg.CfgInst.Defs
+public import Silmaril.Wasm.Cfg.CfgInst.Thms
 import Silmaril.Proofs.Wasm.Cfg.DanglingTyped.Init
+import Silmaril.Proofs.Wasm.Cfg.DanglingTyped.Chk
 
 @[expose] public section
 
@@ -31,6 +33,16 @@ values, whatever exception address they throw:
 `StoreOkD`. `configOkD_invoke`: an invocation typed on a witness satisfies `ConfigOkD`.
 `storeOkD_of_configOkD`: the store of every reached configuration satisfies `StoreOkD`; so the end
 store of a round does, though it need not be `StoreOk`.
+
+**The checker's profile is supported.** `funcsSupp_of_storeSupported`: a `StoreOk` store whose
+Wasm functions are in the checker's instruction profile (`CheckComplete.StoreSupported`, decided
+by `storeSupportedB`) has supported functions (`FuncsSupp`): `XProfile.xInstr` has no
+`ref.test`, `ref.cast`, `br_on_cast*` or aggregate instruction. `configOkD_invoke_of_storeOk`,
+`configOkD_of_supported`: every export question of a well-formed instance store in that profile
+(hence in `CfgInst.InstDom`, `CfgInst.instDom_of_supported`) enters `ConfigOkD`. Checker
+acceptance alone (`StoreChkE`, so `InstDom`) does **not** give `FuncsSupp`: the checker skips
+code after an instruction that never falls through, which may hold an unsupported instruction
+(`ExampleAlias.dc_instDom`, `dc_not_funcsSupp`).
 
 **Not claimed here.** No theorem here relates Core and the native/CFG semantics. The backward
 simulation (`Abstract.HostClosingXP`, `HostClosingInfXPBack`, `HostEval`) is still stated for
@@ -117,5 +129,27 @@ theorem configOkD_invoke {s : Store H} {T : List TagInst} {X : List ExnInst} (hF
     (hheap : HeapBelow s) (hg : GhostOk s T X) (hS : StoreOk (gst s T X)) {a : Nat}
     {vs : List Val} (hok : InvokeOk (gst s T X) a vs) : ConfigOkD (invoke s a vs) :=
   Proofs.DanglingTyped.configOkD_invoke hF hheap hg hS hok
+
+/-! ## The checker's profile -/
+
+/-- **A typed store whose Wasm functions are in the checker's instruction profile has supported
+functions.** -/
+theorem funcsSupp_of_storeSupported {s : Store H} (hs : StoreOk s)
+    (hsup : Interp.CheckComplete.StoreSupported s.funcs) : FuncsSupp s :=
+  Proofs.DanglingTyped.funcsSupp_of_storeSupported hs hsup
+
+/-- **A typed invocation in a typed store with supported functions enters the relaxed
+invariant.** -/
+theorem configOkD_invoke_of_storeOk {s : Store H} (hs : StoreOk s) (hF : FuncsSupp s) {a : Nat}
+    {vs : List Val} (hok : InvokeOk s a vs) : ConfigOkD (invoke s a vs) :=
+  Proofs.DanglingTyped.configOkD_invoke_of_storeOk hs hF hok
+
+/-- **Every export question of a well-formed instance store in the checker's profile enters the
+relaxed invariant.** -/
+theorem configOkD_of_supported {I : Game.ScalarInstance} {s : Store Nat} (hw : I.WellFormed s)
+    (hsup : Interp.CheckComplete.StoreSupported s.funcs) (a : I.F.Op) :
+    ConfigOkD (invoke s (Abstract.NodeBridge.qOf I a).1 (Abstract.NodeBridge.qOf I a).2) :=
+  configOkD_invoke_of_storeOk hw.storeOk (funcsSupp_of_storeSupported hw.storeOk hsup)
+    (CfgInst.invOkXP_of_dom (CfgInst.instDom_of_supported hw hsup) a).2.2.2
 
 end Silmaril.Wasm.Cfg.DanglingTyped

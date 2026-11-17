@@ -106,10 +106,11 @@ inductive ASupp (k : Nat) : Admin → Prop where
       (hb : ∀ a ∈ body, ASupp k a) : ASupp k (.frame n fr body)
   | trap : ASupp k .trap
 
-/-- **Supported functions**: Wasm bodies are supported, modules name tags below the store's. -/
+/-- **Supported functions**: every Wasm function has a supported body and a module naming only
+tags below the store's (host functions run no frame and are unconstrained). -/
 def FuncsSupp (s : Store H) : Prop :=
-  ∀ fi ∈ s.funcs, FrameBelow s.tags.length ⟨[], fi.module⟩ ∧
-    ∀ code, fi.code = .wasm code → ∀ i ∈ code.body, ISupp i
+  ∀ fi ∈ s.funcs, ∀ code, fi.code = .wasm code →
+    FrameBelow s.tags.length ⟨[], fi.module⟩ ∧ ∀ i ∈ code.body, ISupp i
 
 /-- **Struct and array fields name exceptions of the store** (also under `extern`). -/
 def HeapBelow (s : Store H) : Prop :=
