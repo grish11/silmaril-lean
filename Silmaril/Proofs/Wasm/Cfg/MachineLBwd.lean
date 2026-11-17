@@ -7,7 +7,7 @@ public import Silmaril.Proofs.Wasm.Cfg.MachineLFwd
 /-!
 # The logged machine against the logged relation: the converse (H2, proofs)
 
-Continuation passing over the native derivation. `MEnds body Fin st l`: the machine runs from
+Continuation passing over the native derivation. `MEnds body Fin Z st l`: the machine runs from
 `st` with the log `l` to an end (a sink, or a pending tail call) standing for a native result
 satisfying `Fin`. `ExitE`: what the machine must do once a sequence ends with a native outcome.
 -/
@@ -25,44 +25,57 @@ open Silmaril.Wasm.Cfg.Proofs.MachineLFwd
 variable {H : Type}
 
 /-- **The machine finishes**: from `st`, with the log `l`, it runs to a sink, or to a block whose
-straight-line code ends in a pending tail call, standing for a native result satisfying `Fin`. -/
-def MEnds (body : Expr) (Fin : Store H × Frame × POut → Prop) (st : MState H)
-    (l : List (SCall H)) : Prop :=
-  ∃ (st' : MState H) (r : Store H × Frame × POut) (l₁ l₂ : List (SCall H)),
-    MRunL body st l₁ st' ∧ l = l₁ ++ l₂ ∧ Fin r ∧
-      ((st'.node.IsSink ∧ l₂ = [] ∧ EndRel st' r) ∨ TailL body st' l₂ r)
+straight-line code ends in a pending tail call, standing for a native result satisfying `Fin`; or
+it runs, by at least one step, to a stop state (`Z`). -/
+def MEnds (body : Expr) (Fin : Store H × Frame × POut → Prop) (Z : MState H → Prop)
+    (st : MState H) (l : List (SCall H)) : Prop :=
+  ∃ (st' : MState H) (l₁ l₂ : List (SCall H)), MRunL body st l₁ st' ∧ l = l₁ ++ l₂ ∧
+    ((∃ st'', MStepL body st' l₂ st'' ∧ Z st'') ∨ ∃ r, Fin r ∧
+      ((st'.node.IsSink ∧ l₂ = [] ∧ EndRel st' r) ∨ TailL body st' l₂ r))
 
-theorem mEnds_congr {body : Expr} {Fin : Store H × Frame × POut → Prop} {st : MState H}
-    {l l' : List (SCall H)} (h : l = l') (hE : MEnds body Fin st l) : MEnds body Fin st l' :=
+/-- **An exit obligation**: the machine finishes (`MEnds`), or it already is at a stop state. -/
+def MEndsZ (body : Expr) (Fin : Store H × Frame × POut → Prop) (Z : MState H → Prop)
+    (st : MState H) (l : List (SCall H)) : Prop :=
+  MEnds body Fin Z st l ∨ (Z st ∧ l = [])
+
+theorem mEnds_congr {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {st : MState H}
+    {l l' : List (SCall H)} (h : l = l') (hE : MEnds body Fin Z st l) : MEnds body Fin Z st l' :=
   h ▸ hE
 
-theorem mEnds_congr' {body : Expr} {Fin : Store H × Frame × POut → Prop} {l l' : List (SCall H)}
+theorem mEnds_congr' {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {l l' : List (SCall H)}
     (h : l' = l) {P : MState H → Prop}
-    (hE : ∃ st, P st ∧ MEnds body Fin st l') : ∃ st, P st ∧ MEnds body Fin st l := h ▸ hE
+    (hE : ∃ st, P st ∧ MEndsZ body Fin Z st l') : ∃ st, P st ∧ MEndsZ body Fin Z st l := h ▸ hE
 
-theorem mEnds_step {body : Expr} {Fin : Store H × Frame × POut → Prop} {st st' : MState H}
-    {l₀ l : List (SCall H)} (hs : MStepL body st l₀ st') (h : MEnds body Fin st' l) :
-    MEnds body Fin st (l₀ ++ l) := by
-  obtain ⟨st'', r, l₁, l₂, hr, rfl, hF, hend⟩ := h
-  exact ⟨st'', r, l₀ ++ l₁, l₂, .step hs hr, by simp, hF, hend⟩
+theorem mEnds_step {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {st st' : MState H}
+    {l₀ l : List (SCall H)} (hs : MStepL body st l₀ st') (h : MEnds body Fin Z st' l) :
+    MEnds body Fin Z st (l₀ ++ l) := by
+  obtain ⟨st'', l₁, l₂, hr, rfl, hend⟩ := h
+  exact ⟨st'', l₀ ++ l₁, l₂, .step hs hr, by simp, hend⟩
+
+theorem mEnds_stepZ {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop}
+    {st st' : MState H} {l₀ l : List (SCall H)} (hs : MStepL body st l₀ st')
+    (h : MEndsZ body Fin Z st' l) : MEnds body Fin Z st (l₀ ++ l) := by
+  rcases h with h | ⟨hZ, rfl⟩
+  · exact mEnds_step hs h
+  · exact ⟨st, [], l₀, .refl _, by simp, .inl ⟨st', hs, hZ⟩⟩
 
 /-- A sink standing for a native result satisfying `Fin` finishes. -/
-theorem mEnds_sink {body : Expr} {Fin : Store H × Frame × POut → Prop} {st : MState H}
+theorem mEnds_sink {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {st : MState H}
     {r : Store H × Frame × POut} (hs : st.node.IsSink) (hE : EndRel st r) (hF : Fin r) :
-    MEnds body Fin st [] :=
-  ⟨st, r, [], [], .refl _, rfl, hF, .inl ⟨hs, rfl, hE⟩⟩
+    MEnds body Fin Z st [] :=
+  ⟨st, [], [], .refl _, rfl, .inr ⟨r, hF, .inl ⟨hs, rfl, hE⟩⟩⟩
 
 /-- **What the machine must do once the sequence at `p` ends with the native outcome `r`**, under
 the frames `ls`, the rest of the log being `l'`: falling through, finish from the sequence's
 continuation; a pending tail call, nothing (`l' = []`, `Fin r`); any other outcome, finish from
 from a target `DispL` gives it. -/
-def ExitE (body : Expr) (Fin : Store H × Frame × POut → Prop) (p : List SeqStep)
+def ExitE (body : Expr) (Fin : Store H × Frame × POut → Prop) (Z : MState H → Prop) (p : List SeqStep)
     (ls : List LFrame) (r : Store H × Frame × POut) (l' : List (SCall H)) : Prop :=
   match r.2.2 with
   | .flow (.normal ws) => ∃ st, gotoN (contRev body p.reverse) p.length ls ws.reverse r.1 r.2.1 =
-      some st ∧ MEnds body Fin st l'
+      some st ∧ MEndsZ body Fin Z st l'
   | .tail .. => l' = [] ∧ Fin r
-  | _ => ∃ st, DispL body ⟨p, 0⟩ ls r st ∧ MEnds body Fin st l'
+  | _ => ∃ st, DispL body ⟨p, 0⟩ ls r st ∧ MEndsZ body Fin Z st l'
 
 /-- `DispL` on an abrupt outcome does not depend on the block's position. -/
 theorem dispL_idx {body : Expr} {b : BlockId} {ls : List LFrame} {r : Store H × Frame × POut}
@@ -93,13 +106,13 @@ theorem dispL_idx' {body : Expr} {b : BlockId} {ls : List LFrame} {r : Store H �
 
 /-- **A block's straight-line code ran, ending abruptly or in a pending tail call**: the machine
 finishes from the block. -/
-theorem block_abrupt {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : BlockId}
+theorem block_abrupt {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {b : BlockId}
     {sg : Segment} {stk : List Val} {ls : List LFrame} {s : Store H} {f : Frame}
     {l l' : List (SCall H)} {r : Store H × Frame × POut} (hb : lookup body b = some sg)
     (ht : ∀ i, sg.term = some i → ¬ Instr.IsStruct i)
     (hr : EvalLXPS s f stk.reverse (liftInstrs (MachineL.codeOf sg)) l r)
-    (hn : ¬ r.2.2.IsNormal) (hx : ExitE body Fin b.seq ls r l') :
-    MEnds body Fin ⟨.block b, stk, ls, s, f⟩ (l ++ l') := by
+    (hn : ¬ r.2.2.IsNormal) (hx : ExitE body Fin Z b.seq ls r l') :
+    MEnds body Fin Z ⟨.block b, stk, ls, s, f⟩ (l ++ l') := by
   obtain ⟨s₁, f₁, o⟩ := r
   unfold ExitE at hx
   rcases o with fl | ⟨fa, args, n⟩
@@ -107,9 +120,9 @@ theorem block_abrupt {body : Expr} {Fin : Store H × Frame × POut → Prop} {b 
     | normal => exact absurd trivial hn
     | _ =>
       obtain ⟨st, hd, hE⟩ := hx
-      exact mEnds_step (.run hb ht hr (dispL_idx' hn hd)) hE
+      exact mEnds_stepZ (.run hb ht hr (dispL_idx' hn hd)) hE
   · obtain ⟨rfl, hF⟩ := hx
-    exact ⟨_, _, [], l, .refl _, by simp, hF, .inr (.tail hb ht hr)⟩
+    exact ⟨_, [], l, .refl _, by simp, .inr ⟨_, hF, .inr (.tail hb ht hr)⟩⟩
 
 /-! ## Exit obligations across a frame -/
 
@@ -120,11 +133,11 @@ theorem branchN_succ (body : Expr) (p : List SeqStep) (x : SeqStep) (L₀ : LFra
   simpa using branchR_succ body x p.reverse L₀ ls k L N s f
 
 /-- **A branch passing the frame**: `brk (k + 1)` inside is `brk k` outside. -/
-theorem exit_brk_succ {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem exit_brk_succ {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {x : SeqStep} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {k : Nat}
     {ws : List Val} {l' : List (SCall H)}
-    (hx : ExitE body Fin p ls (s, f, .flow (.brk k ws)) l') :
-    ExitE body Fin (p ++ [x]) (L :: ls) (s, f, .flow (.brk (k + 1) ws)) l' := by
+    (hx : ExitE body Fin Z p ls (s, f, .flow (.brk k ws)) l') :
+    ExitE body Fin Z (p ++ [x]) (L :: ls) (s, f, .flow (.brk (k + 1) ws)) l' := by
   obtain ⟨st, hd, hE⟩ := hx
   refine ⟨st, ?_, hE⟩
   cases hd with
@@ -133,11 +146,11 @@ theorem exit_brk_succ {body : Expr} {Fin : Store H × Frame × POut → Prop} {p
 
 /-- **An escaping outcome passing the frame** (a return, a trap, a pending tail call, or an
 exception the frame does not catch). -/
-theorem exit_esc {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem exit_esc {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {x : SeqStep} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {o : POut}
     {l' : List (SCall H)} (ho : o.Escapes)
     (hpass : ∀ a, o = .flow (.throw a) → L.tryT = true → Catches s f a L.catches none)
-    (hx : ExitE body Fin p ls (s, f, o) l') : ExitE body Fin (p ++ [x]) (L :: ls) (s, f, o) l' := by
+    (hx : ExitE body Fin Z p ls (s, f, o) l') : ExitE body Fin Z (p ++ [x]) (L :: ls) (s, f, o) l' := by
   rcases o with fl | ⟨fa, args, n⟩
   · cases fl with
     | normal => exact absurd ho id
@@ -179,12 +192,12 @@ theorem exit_esc {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : Li
 
 /-- **A caught exception**: the frame's `try_table` catches it (`tryCatch`), a branch from
 outside it with the caught values over its outer values. -/
-theorem exit_catch {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem exit_catch {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {x : SeqStep} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {a : Nat}
     {us : List Val} {lb : LabelIdx} {l' : List (SCall H)} (hT : L.tryT = true)
     (hc : Catches s f a L.catches (some (us, lb)))
-    (hx : ExitE body Fin p ls (s, f, .flow (.brk lb.toNat (us.reverse ++ L.outer.reverse))) l') :
-    ExitE body Fin (p ++ [x]) (L :: ls) (s, f, .flow (.throw a)) l' := by
+    (hx : ExitE body Fin Z p ls (s, f, .flow (.brk lb.toNat (us.reverse ++ L.outer.reverse))) l') :
+    ExitE body Fin Z (p ++ [x]) (L :: ls) (s, f, .flow (.throw a)) l' := by
   obtain ⟨st, hd, hE⟩ := hx
   refine ⟨st, ?_, hE⟩
   cases hd with
@@ -215,12 +228,12 @@ theorem topVals_rev (n : Nat) (ws : List Val) : topVals n ws.reverse = (ws.take 
 
 /-- **Falling out of the arm**: the frame continues after its instruction with the top `nr`
 values over its outer values. -/
-theorem exit_fall {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem exit_fall {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {i a : Nat} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {ws : List Val}
     {np nr : Nat} {l' : List (SCall H)} (har : arity f L.bt = some (np, nr))
     (hx : ∃ st, gotoN (entry body p (i + 1)) p.length ls (L.outer ++ (ws.take nr).reverse) s f =
-      some st ∧ MEnds body Fin st l') :
-    ExitE body Fin (p ++ [(i, a)]) (L :: ls) (s, f, .flow (.normal ws)) l' := by
+      some st ∧ MEndsZ body Fin Z st l') :
+    ExitE body Fin Z (p ++ [(i, a)]) (L :: ls) (s, f, .flow (.normal ws)) l' := by
   obtain ⟨st, hg, hE⟩ := hx
   refine ⟨st, ?_, hE⟩
   simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
@@ -233,14 +246,14 @@ theorem exit_fall {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : L
   rw [topVals_rev]; exact hg
 
 /-- **A branch to the frame's own label, not a loop**: as falling out of the arm. -/
-theorem exit_brk0 {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem exit_brk0 {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {i a : Nat} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {ws : List Val}
     {np nr : Nat} {l' : List (SCall H)}
     (hok : FramesOk body ((i, a) :: p.reverse) (L :: ls)) (hloop : L.loop = false)
     (har : arity f L.bt = some (np, nr))
     (hx : ∃ st, gotoN (entry body p (i + 1)) p.length ls (L.outer ++ (ws.take nr).reverse) s f =
-      some st ∧ MEnds body Fin st l') :
-    ExitE body Fin (p ++ [(i, a)]) (L :: ls) (s, f, .flow (.brk 0 ws)) l' := by
+      some st ∧ MEndsZ body Fin Z st l') :
+    ExitE body Fin Z (p ++ [(i, a)]) (L :: ls) (s, f, .flow (.brk 0 ws)) l' := by
   obtain ⟨st, hg, hE⟩ := hx
   have hlev := Proofs.Machine.levelLoop_of_framesOk 0 _ _ hok rfl
   simp only [levelLoop, List.drop_zero, List.reverse_reverse] at hlev
@@ -256,15 +269,15 @@ theorem exit_brk0 {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : L
 
 /-- **A branch to the frame's own label, a loop**: the loop is re-entered as `loopBack` re-runs
 it. -/
-theorem exit_loopBack {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem exit_loopBack {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {i a : Nat} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {ws : List Val}
     {np nr : Nat} {l' : List (SCall H)}
     (hok : FramesOk body ((i, a) :: p.reverse) (L :: ls)) (hloop : L.loop = true)
     (har : arity f L.bt = some (np, nr))
     (hx : ∃ st, gotoN (entry body (p ++ [(i, a)]) 0) (p.length + 1)
       (⟨np, ((ws.take np ++ L.outer.reverse).drop np).reverse, true, L.tryT, L.catches, L.bt⟩ :: ls)
-      ((ws.take np ++ L.outer.reverse).take np).reverse s f = some st ∧ MEnds body Fin st l') :
-    ExitE body Fin (p ++ [(i, a)]) (L :: ls) (s, f, .flow (.brk 0 ws)) l' := by
+      ((ws.take np ++ L.outer.reverse).take np).reverse s f = some st ∧ MEndsZ body Fin Z st l') :
+    ExitE body Fin Z (p ++ [(i, a)]) (L :: ls) (s, f, .flow (.brk 0 ws)) l' := by
   obtain ⟨st, hg, hE⟩ := hx
   have hlev := Proofs.Machine.levelLoop_of_framesOk 0 _ _ hok rfl
   simp only [levelLoop, List.drop_zero, List.reverse_reverse] at hlev
@@ -296,21 +309,21 @@ structure Pos (body : Expr) (p : List SeqStep) (c : List Instr) (i : Nat) (sg : 
 when the sequence ends (`ExitE`), is a finishing machine run: from the block, once the prefix has
 run (the block clause), and, for a structured instruction, from the entry of its arm (the arm
 clause, which a loop's re-entry also reaches). -/
-def Mot (body : Expr) (Fin : Store H × Frame × POut → Prop) (s : Store H) (f : Frame)
+def Mot (body : Expr) (Fin : Store H × Frame × POut → Prop) (Z : MState H → Prop) (s : Store H) (f : Frame)
     (N : List Val) (es : List BExpr) (l : List (SCall H)) (r : Store H × Frame × POut) : Prop :=
   ∀ (p : List SeqStep) (c : List Instr) (i : Nat) (sg : Segment) (pre post : List Instr)
     (ls : List LFrame) (l' : List (SCall H)), Pos body p c i sg pre post →
     es = liftInstrs post ++ liftInstrs (restAt c (i + 1)) → FramesOk body p.reverse ls →
-    ExitE body Fin p ls r l' →
+    ExitE body Fin Z p ls r l' →
     (∀ (s₀ : Store H) (f₀ : Frame) (N₀ : List Val) (l₀ : List (SCall H)),
       EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N)) →
-      MEnds body Fin ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ l ++ l')) ∧
+      MEnds body Fin Z ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ l ++ l')) ∧
     (∀ (t : Instr) (a : Nat) (c' : List Instr) (V' : List Val) (np nr : Nat) (bt : BlockType)
       (loop tryT : Bool) (cs : List Catch), post = [t] → StructKind t bt loop tryT cs →
       ArmSel t N a V' → armOf t a = some c' → arity f bt = some (np, nr) →
       ∃ st₁, gotoN (entry body (p ++ [(i, a)]) 0) (p.length + 1)
         (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls)
-        (V'.take np).reverse s f = some st₁ ∧ MEnds body Fin st₁ (l ++ l'))
+        (V'.take np).reverse s f = some st₁ ∧ MEndsZ body Fin Z st₁ (l ++ l'))
 
 theorem nil_inv {s s' : Store H} {f f' : Frame} {N : List Val} {l : List (SCall H)} {o : POut}
     (h : EvalLXPS s f N [] l (s', f', o)) : s' = s ∧ f' = f ∧ o = .flow (.normal N) ∧ l = [] := by
@@ -319,15 +332,15 @@ theorem nil_inv {s s' : Store H} {f f' : Frame} {N : List Val} {l : List (SCall 
 
 /-- **Reaching a sequence position natively** (`gotoN (entry …)`), given the motive for the
 native run of the rest of the sequence from there. -/
-theorem at_boundary {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem at_boundary {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {c : List Instr} {j : Nat} {ls : List LFrame} {s : Store H} {f : Frame} {N : List Val}
     {l l' : List (SCall H)} {r : Store H × Frame × POut}
     (hD : EvalLXPS s f N (liftInstrs (restAt c j)) l r)
-    (hM : Mot body Fin s f N (liftInstrs (restAt c j)) l r)
+    (hM : Mot body Fin Z s f N (liftInstrs (restAt c j)) l r)
     (hc : seqAt body p = some c) (hok : FramesOk body p.reverse ls)
-    (hx : ExitE body Fin p ls r l') :
+    (hx : ExitE body Fin Z p ls r l') :
     ∃ st, gotoN (entry body p j) p.length ls N.reverse s f = some st ∧
-      MEnds body Fin st (l ++ l') := by
+      MEndsZ body Fin Z st (l ++ l') := by
   unfold entry
   split
   · next hsome =>
@@ -341,7 +354,7 @@ theorem at_boundary {body : Expr} {Fin : Store H × Frame × POut → Prop} {p :
       ⟨hc, hsg, rfl, hne, fun _ _ _ => Nat.zero_le _⟩
     have := (hM p c j sg [] sg.instrs ls l' hpos
       (by rw [restAt_cons hsg, MachineLSeq.liftInstrs_append]) hok hx).1 s f N [] .nil
-    simpa using this
+    exact .inl (by simpa using this)
   · next hnone =>
     have hend : (segment c)[j]? = none := by
       rw [lookup_eq] at hnone; simpa [hc] using hnone
@@ -445,18 +458,18 @@ theorem pos_next {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {sg
 
 /-- **The block clause, continuing**: a non-structured instruction ran normally, and the
 motive holds for the rest. -/
-theorem blk_cont {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem blk_cont {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {c : List Instr} {i : Nat} {sg : Segment} {pre post' : List Instr} {e : Instr}
     {ls : List LFrame} {l' : List (SCall H)} {s s₂ : Store H} {f f₂ : Frame} {N N₂ : List Val}
     {l_e l_k : List (SCall H)} {r : Store H × Frame × POut}
     (hp : Pos body p c i sg pre (e :: post')) (hok : FramesOk body p.reverse ls)
-    (hx : ExitE body Fin p ls r l') (he : ¬ Instr.IsStruct e)
+    (hx : ExitE body Fin Z p ls r l') (he : ¬ Instr.IsStruct e)
     (hstep : EvalLXPS s f N [liftInstr e] l_e (s₂, f₂, .flow (.normal N₂)))
     (hk : EvalLXPS s₂ f₂ N₂ (liftInstrs post' ++ liftInstrs (restAt c (i + 1))) l_k r)
-    (ihk : Mot body Fin s₂ f₂ N₂ (liftInstrs post' ++ liftInstrs (restAt c (i + 1))) l_k r)
+    (ihk : Mot body Fin Z s₂ f₂ N₂ (liftInstrs post' ++ liftInstrs (restAt c (i + 1))) l_k r)
     (s₀ : Store H) (f₀ : Frame) (N₀ : List Val) (l₀ : List (SCall H))
     (hpre : EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N))) :
-    MEnds body Fin ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ (l_e ++ l_k) ++ l') := by
+    MEnds body Fin Z ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ (l_e ++ l_k) ++ l') := by
   have hpre' : EvalLXPS s₀ f₀ N₀ (liftInstrs (pre ++ [e])) (l₀ ++ l_e)
       (s₂, f₂, .flow (.normal N₂)) := by
     rw [MachineLSeq.liftInstrs_append]
@@ -469,24 +482,24 @@ theorem blk_cont {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : Li
     have hr : EvalLXPS s₀ f₀ (N₀.reverse).reverse (liftInstrs (MachineL.codeOf sg)) (l₀ ++ l_e)
         (s₂, f₂, .flow (.normal N₂)) := by
       rw [List.reverse_reverse, codeOf_eq, hp.hinstrs]; exact hpre'
-    have := mEnds_step (MStepL.run hb ht hr (.next (by simpa using hg))) hE
+    have := mEnds_stepZ (MStepL.run hb ht hr (.next (by simpa using hg))) hE
     simpa [List.append_assoc] using this
   · have := (ihk p c i sg (pre ++ [e]) (e' :: post'') ls l' (pos_next hp he) rfl hok hx).1
       s₀ f₀ N₀ (l₀ ++ l_e) hpre'
     simpa [List.append_assoc] using this
 
 /-- **The block clause, abrupt**: a non-structured instruction of `post` ended the code. -/
-theorem blk_abrupt {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem blk_abrupt {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {c : List Instr} {i : Nat} {sg : Segment} {pre post' : List Instr} {e : Instr}
     {ls : List LFrame} {l' : List (SCall H)} {s : Store H} {f : Frame} {N : List Val}
     {l_e : List (SCall H)} {r : Store H × Frame × POut}
-    (hp : Pos body p c i sg pre (e :: post')) (hx : ExitE body Fin p ls r l')
+    (hp : Pos body p c i sg pre (e :: post')) (hx : ExitE body Fin Z p ls r l')
     (he : ¬ Instr.IsStruct e) (hstep : EvalLXPS s f N [liftInstr e] l_e r)
     (hn : ¬ r.2.2.IsNormal)
     (htail : ∀ fa args n, r.2.2 = .tail fa args n → isTerminator e = true)
     (s₀ : Store H) (f₀ : Frame) (N₀ : List Val) (l₀ : List (SCall H))
     (hpre : EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N))) :
-    MEnds body Fin ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ l_e ++ l') := by
+    MEnds body Fin Z ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ l_e ++ l') := by
   have hrun : EvalLXPS s₀ f₀ N₀ (liftInstrs (pre ++ [e])) (l₀ ++ l_e) r := by
     rw [MachineLSeq.liftInstrs_append]
     exact (MachineLSeq.append hpre _).2 _ _ _ rfl _ _ (by simpa [liftInstrs] using hstep)
@@ -505,7 +518,7 @@ theorem blk_abrupt {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : 
       | normal => exact absurd trivial hn
       | _ =>
         obtain ⟨st, hd, hE⟩ := hx
-        exact mEnds_step (MStepL.abort hb hr hn (dispL_idx' hn hd)) hE
+        exact mEnds_stepZ (MStepL.abort hb hr hn (dispL_idx' hn hd)) hE
     · have := htail fa args n rfl
       have hwf := (seg_wf hp.hsg).1 e (by rw [hX]; simp)
       rw [this] at hwf; cases hwf
@@ -518,7 +531,7 @@ theorem blk_abrupt {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : 
 
 /-- **The block clause, a structured terminator**, from the arm clause: the machine enters the
 arm. -/
-theorem blk_enter {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem blk_enter {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {c : List Instr} {i : Nat} {sg : Segment} {pre : List Instr} {t : Instr}
     {ls : List LFrame} {l l' : List (SCall H)} {s : Store H} {f : Frame} {N V' : List Val}
     {a : Nat} {c' : List Instr} {np nr : Nat} {bt : BlockType} {loop tryT : Bool}
@@ -526,15 +539,15 @@ theorem blk_enter {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : L
     (hsel : ArmSel t N a V') (harm : armOf t a = some c') (har : arity f bt = some (np, nr))
     (hA : ∃ st₁, gotoN (entry body (p ++ [(i, a)]) 0) (p.length + 1)
       (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls)
-      (V'.take np).reverse s f = some st₁ ∧ MEnds body Fin st₁ (l ++ l'))
+      (V'.take np).reverse s f = some st₁ ∧ MEndsZ body Fin Z st₁ (l ++ l'))
     (s₀ : Store H) (f₀ : Frame) (N₀ : List Val) (l₀ : List (SCall H))
     (hpre : EvalLXPS s₀ f₀ N₀ (liftInstrs pre) l₀ (s, f, .flow (.normal N))) :
-    MEnds body Fin ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ l ++ l') := by
+    MEnds body Fin Z ⟨.block ⟨p, i⟩, N₀.reverse, ls, s₀, f₀⟩ (l₀ ++ l ++ l') := by
   obtain ⟨ht, -, hpb⟩ := pos_term hp (isStruct_terminator ⟨_, _, _, _, hk⟩)
   subst hpb
   have hb : lookup body ⟨p, i⟩ = some sg := by rw [lookup_eq]; simp [hp.hc, hp.hsg]
   obtain ⟨st₁, hg, hE⟩ := hA
-  have := mEnds_step (MStepL.enter hb ht harm hk (by rw [List.reverse_reverse]; exact hpre) hsel
+  have := mEnds_stepZ (MStepL.enter hb ht harm hk (by rw [List.reverse_reverse]; exact hpre) hsel
     har hg) hE
   simpa [List.append_assoc] using this
 
@@ -577,7 +590,7 @@ theorem lift_if {e : Instr} {bt : BlockType} {cc t el : List BExpr}
 
 /-- **The arm clause from the arm's native run**: entering arm `a` natively, the arm's run and
 its exit obligation give a finishing machine run from the arm's entry. -/
-theorem arm_entry {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem arm_entry {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {c : List Instr} {i : Nat} {sg : Segment} {pre : List Instr} {t : Instr} {ls : List LFrame}
     {s : Store H} {f : Frame} {V' : List Val} {a : Nat} {c' : List Instr} {np nr : Nat}
     {bt : BlockType} {loop tryT : Bool} {cs : List Catch} {l₁ l₂ : List (SCall H)}
@@ -585,12 +598,12 @@ theorem arm_entry {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : L
     (hk : StructKind t bt loop tryT cs) (harm : armOf t a = some c')
     (hok : FramesOk body p.reverse ls)
     (hrun : EvalLXPS s f (V'.take np) (liftInstrs c') l₁ r₀)
-    (ihrun : Mot body Fin s f (V'.take np) (liftInstrs c') l₁ r₀)
-    (hx : ExitE body Fin (p ++ [(i, a)])
+    (ihrun : Mot body Fin Z s f (V'.take np) (liftInstrs c') l₁ r₀)
+    (hx : ExitE body Fin Z (p ++ [(i, a)])
       (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls) r₀ l₂) :
     ∃ st₁, gotoN (entry body (p ++ [(i, a)]) 0) (p.length + 1)
       (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls)
-      (V'.take np).reverse s f = some st₁ ∧ MEnds body Fin st₁ (l₁ ++ l₂) := by
+      (V'.take np).reverse s f = some st₁ ∧ MEndsZ body Fin Z st₁ (l₁ ++ l₂) := by
   obtain ⟨ht, -, -⟩ := pos_term hp (isStruct_terminator ⟨_, _, _, _, hk⟩)
   have hcA : seqAt body (p ++ [(i, a)]) = some c' := by
     rw [Proofs.Machine.seqAt_append]; simp [hp.hc, hp.hsg, ht, harm]
@@ -619,14 +632,14 @@ theorem arm_ok {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {sg :
 
 /-- **The exit of a block-like frame** (`block`, `if`, `try_table`): falling out of the arm, or a
 branch to its label, continues after the instruction. -/
-theorem exit_ok_like {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+theorem exit_ok_like {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {p : List SeqStep}
     {i a : Nat} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {fl : Flow}
     {vs : List Val} {np nr : Nat} {l' : List (SCall H)}
     (hokA : FramesOk body ((i, a) :: p.reverse) (L :: ls)) (hloop : L.loop = false)
     (har : arity f L.bt = some (np, nr)) (hvs : fl.blockVals = some vs)
     (hx : ∃ st, gotoN (entry body p (i + 1)) p.length ls (L.outer ++ (vs.take nr).reverse) s f =
-      some st ∧ MEnds body Fin st l') :
-    ExitE body Fin (p ++ [(i, a)]) (L :: ls) (s, f, .flow fl) l' := by
+      some st ∧ MEndsZ body Fin Z st l') :
+    ExitE body Fin Z (p ++ [(i, a)]) (L :: ls) (s, f, .flow fl) l' := by
   cases fl with
   | normal ws => simp [Flow.blockVals] at hvs; subst hvs; exact exit_fall har hx
   | brk k ws =>
@@ -648,9 +661,9 @@ theorem liftInstrs_ite (b : Bool) (t e : List Instr) :
   cases b <;> rfl
 
 /-- **The main induction**: every native run satisfies the motive. -/
-theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
+theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {Z : MState H → Prop} {s : Store H} {f : Frame}
     {N : List Val} {es : List BExpr} {l : List (SCall H)} {r : Store H × Frame × POut}
-    (h : EvalLXPS s f N es l r) : Mot body Fin s f N es l r := by
+    (h : EvalLXPS s f N es l r) : Mot body Fin Z s f N es l r := by
   induction h with
   | nil =>
     intro p c i sg pre post ls l' hp hes
@@ -1275,28 +1288,30 @@ theorem backward {body : Expr} {s : Store H} {f : Frame} {l : List (SCall H)}
     (hr : ∀ k ws, r.2.2 ≠ .flow (.brk (k + 1) ws)) :
     ∃ (st : MState H) (l₁ l₂ : List (SCall H)), MRunL body (initial body s f) l₁ st ∧
       l = l₁ ++ l₂ ∧ ((st.node.IsSink ∧ l₂ = [] ∧ EndRel st r) ∨ TailL body st l₂ r) := by
-  have hx : ExitE body (· = r) [] [] r [] := by
+  have hx : ExitE body (· = r) (fun _ => False) [] [] r [] := by
     obtain ⟨s', f', o⟩ := r
     rcases o with fl | ⟨fa, args, n⟩
     · cases fl with
       | normal ws =>
-        exact ⟨_, rfl, mEnds_sink (st := ⟨.exit, ws.reverse, [], s', f'⟩) trivial
-          ⟨_, rfl, by simp [Flow.retVals]⟩ rfl⟩
+        exact ⟨_, rfl, (.inl <| mEnds_sink (st := ⟨.exit, ws.reverse, [], s', f'⟩) trivial
+          ⟨_, rfl, by simp [Flow.retVals]⟩ rfl)⟩
       | brk k ws =>
         rcases k with _ | k
-        · exact ⟨_, .brOut rfl, mEnds_sink trivial ⟨_, rfl, by simp [Flow.retVals]⟩ rfl⟩
+        · exact ⟨_, .brOut rfl, (.inl <| mEnds_sink trivial ⟨_, rfl, by simp [Flow.retVals]⟩ rfl)⟩
         · exact absurd rfl (hr k ws)
-      | ret ws => exact ⟨_, .ret, mEnds_sink trivial ⟨_, rfl, by simp [Flow.retVals]⟩ rfl⟩
-      | trap => exact ⟨_, .trap, mEnds_sink trivial rfl rfl⟩
+      | ret ws => exact ⟨_, .ret, (.inl <| mEnds_sink trivial ⟨_, rfl, by simp [Flow.retVals]⟩ rfl)⟩
+      | trap => exact ⟨_, .trap, (.inl <| mEnds_sink trivial rfl rfl)⟩
       | throw a =>
-        exact ⟨_, .raise (fun _ _ h => by simp at h), mEnds_sink trivial ⟨a, rfl, rfl⟩ rfl⟩
+        exact ⟨_, .raise (fun _ _ h => by simp at h), (.inl <| mEnds_sink trivial ⟨a, rfl, rfl⟩ rfl)⟩
     · exact ⟨rfl, rfl⟩
   have hD : EvalLXPS s f [] (liftInstrs (restAt body 0)) l r := by rwa [restAt_zero]
   obtain ⟨st, hg, hE⟩ := at_boundary (p := []) (ls := []) hD (mot hD) rfl (by simp [FramesOk]) hx
   have hst : st = initial body s f := by
     rw [List.reverse_nil, initial_eq] at hg; exact (Option.some.inj hg).symm
   subst hst
-  obtain ⟨st', r', l₁, l₂, hrun, hl, rfl, hend⟩ := hE
-  exact ⟨st', l₁, l₂, hrun, by simpa using hl, hend⟩
+  obtain ⟨st', l₁, l₂, hrun, hl, ⟨_, _, hZ⟩ | ⟨r', rfl, hend⟩⟩ | ⟨hZ, -⟩ := hE
+  · exact hZ.elim
+  · exact ⟨st', l₁, l₂, hrun, by simpa using hl, hend⟩
+  · exact hZ.elim
 
 end Silmaril.Wasm.Cfg.Proofs.MachineLBwd

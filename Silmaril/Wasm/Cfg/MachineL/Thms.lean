@@ -78,9 +78,8 @@ absent.
   * Host calls are never `C`-answers.
   Used with `C = closedCallXP` for the host-free part of divergence.
 
-Not yet here: divergence (quiescent: infinite local steps, or a
-finite run into a diverging callee) and coherent productive streams, each against the machine;
-the typed projection to `MStepC`; the recursive closure (H3).
+Divergence is in `Silmaril.Wasm.Cfg.MachineLDiv`. Not yet here: coherent productive streams; the
+typed projection to `MStepC`; the recursive closure (H3).
 
 **Conventions.** `MStepL` uses `EvalLXPS`'s native stack conventions at frame boundaries (see
 `Silmaril.Wasm.Cfg.MachineL`), so these statements are exact without typing. They say nothing

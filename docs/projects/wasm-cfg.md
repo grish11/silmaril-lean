@@ -621,18 +621,28 @@ The plain graph stays an over-approximation, and claims about it say so.
             entries are all `C`-answers (`CloseOk`).
           - Answers are exact: callee values trimmed to the callee's result arity; exceptions and
             traps with the stores `C` leaves.
-        - **Divergence, D2/D3 open.** The machine's quiescent divergence is `MDivL`, a greatest
-          fixed point over machine states with two distinct cases:
-          - a step whose logged calls are all `closedCallXP`-answers, then divergence again
-            (infinite local steps);
-          - a reached call (`ReachL`) whose callee diverges (`FunDivXP`): finite callee
-            divergence.
-          A diverging tail callee is the third, function-level case (`CallStepXP.frameTail`).
-          Both directions are to be proved against `EvalDivXP`, then `LogDivXP` after a logged
-          prefix:
-          - forward: coinduction on `EvalDivXP`, with a "never leaves its sequence"
-            decomposition of the machine run, and finite exit segments by `forward_sink`;
-          - backward: the infinite machine run built from the native unfolding.
+        - **Divergence, D2 in progress** (`Silmaril.Wasm.Cfg.MachineLDiv`). The machine's host-free
+          divergence has three distinct forms, every logged call answered by `closedCallXP`
+          (`StepK`):
+          - `InfK`: an infinite run of local steps;
+          - `CalleeDivK`: a finite run to a reached call (`ReachL`) whose callee diverges at the
+            frame (`FunDivXP`);
+          - `TailDivK`: a finite run to a pending tail call (`TailL`) whose callee diverges. This
+            one is function-level only.
+          `MDivL := InfK ∨ CalleeDivK`; `FunDivL` adds `TailDivK` at the frame, as `funDivXP_iff`
+          does.
+          - Done, native to machine: `div_machine` (`EvalDivXP` of a body gives `MDivL` from the
+            CFG entry) and `funDiv_machine` (`FunDivXP` gives `FunDivL`). The infinite run is
+            built from the native unfolding. Finite parts of structured instructions (a loop
+            iteration, an arm ending normally) are the converse's arm clause, with a strict stop
+            state so that every unfolding makes at least one machine step.
+          - Done, machine to native, finite forms: `calleeDiv_div`, `funDiv_of_calleeDiv`,
+            `funDiv_of_tailDiv`.
+          - Open, machine to native for `InfK`. The plan: coinduction on `EvalDivXP` over
+            positions of the run, splitting at the first step that leaves an arm (classified by
+            its dispatch, so re-entering a loop counts as leaving its arm). The finite inside
+            part is read natively by a forward invariant relative to the arm's frame.
+          - Then: `LogDivXP` after a logged prefix (D3).
         - Still open after that: coherent productive streams (`InfLXP`).
         - The closed oracle `closedCallXP` used here is the native one. These results do not
           discharge H3, which still needs the recursive logged CFG closure.
