@@ -492,7 +492,8 @@ def branchR (body : Expr) (rp : List SeqStep) (ls : List LFrame) (k : Nat) (L : 
   (arity f L.bt).bind fun a =>
     if L.loop then
       gotoN ((labelsRev body rp).getD k .invalid) (rp.length - k)
-        ({ L with outer := ((N.take a.1 ++ L.outer.reverse).drop a.1).reverse } :: ls.drop (k + 1))
+        ({ L with arity := a.1, outer := ((N.take a.1 ++ L.outer.reverse).drop a.1).reverse } ::
+          ls.drop (k + 1))
         ((N.take a.1 ++ L.outer.reverse).take a.1).reverse s f
     else
       gotoN ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1)) (ls.drop (k + 1))
@@ -550,7 +551,7 @@ theorem br_kl {body : Expr} {Fin : Store H × Frame × POut → Prop} :
     · simp only [hloop, ↓reduceIte, Nat.sub_zero, List.length_cons, zero_add, List.drop_one,
         List.tail_cons] at hg
       set R := ws.take np ++ L₀.outer.reverse with hR
-      set L' : LFrame := ⟨L₀.arity, (R.drop np).reverse, true, L₀.tryT, L₀.catches, L₀.bt⟩ with hL'
+      set L' : LFrame := ⟨np, (R.drop np).reverse, true, L₀.tryT, L₀.catches, L₀.bt⟩ with hL'
       have hcarm : seqAt body (rp.reverse ++ [(m, a)]) = some c := by
         rw [Proofs.Machine.seqAt_append]; simp [hpc, hsg, ht, harm]
       have hkind' : StructKind t L'.bt L'.loop L'.tryT L'.catches := by

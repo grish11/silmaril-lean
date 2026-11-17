@@ -101,7 +101,8 @@ def branchN (body : Expr) (b : BlockId) (ls : List LFrame) (k : Nat) (L : LFrame
     if L.loop then
       let R := N.take a.1 ++ L.outer.reverse
       gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - k)
-        ({ L with outer := (R.drop a.1).reverse } :: ls.drop (k + 1)) (R.take a.1).reverse s f
+        ({ L with arity := a.1, outer := (R.drop a.1).reverse } :: ls.drop (k + 1))
+        (R.take a.1).reverse s f
     else
       gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - (k + 1)) (ls.drop (k + 1))
         (L.outer ++ (N.take a.2).reverse) s f
