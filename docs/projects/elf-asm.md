@@ -71,7 +71,13 @@ ELF-only adapters a statement about a function of a file needs next to `CodeAt`:
 | `ImageLoaded F A base mem`, `readWith_of_segBytes` | a memory holding the image at `base` wherever no relocation writes; then an untouched segment range reads back as the file's bytes at `base + v` |
 
 `ImageLoaded` is a property of a memory: nothing here runs a loader, and `Placement F base` only
-says which bases a statement covers. A process statement takes `ImageLoaded` as a hypothesis or
+says which bases a statement covers. Its satisfiability is not proved; on a file whose overlapping
+segments disagree it is unsatisfiable, so check `Image.Unambiguous` on the load ranges (done for
+the leaf-arith sample). `ReadOnlyAt` takes the first read-only segment and alone does not exclude a
+writable segment over the same addresses; `Unambiguous` does. `Untouched` is relative to the
+relocation records and their widths (`COPY`: the destination `st_size`, an upper bound on what
+ld.so copies); it does not cover code that runs during loading (`IRELATIVE` resolvers,
+constructors) or permission changes, which a real-load statement takes as assumptions. A process statement takes `ImageLoaded` as a hypothesis or
 derives it from a loading model (`ElfBind.RoLoaded`, `Dyn.Loader.ExeLoaded`).
 
 Versioned lookup is the existing `Sel.dyn ⟨name, weak, ver⟩` (`Silmaril.Elf.Lookup`: ld.so's

@@ -27,6 +27,25 @@ hypothesis, or derives it from a loading model (`Silmaril.Elf.Link.ElfBind.RoLoa
 `Dyn.Loader.ExeLoaded`). Bytes a relocation writes are left unconstrained, so a relocated image
 (any relocation values) satisfies it.
 
+**What the relocation widths cover.** `Image.Untouched` is relative to the relocation *records*
+(`File.relocs .dynamic`, `RELR` expanded) and the bytes each record's type writes. For
+`R_X86_64_COPY` the width is the destination symbol's `st_size` in this file: ld.so copies
+`min(st_size of the definition, st_size here)` bytes, so this is an upper bound whatever the
+definition resolves to. It says nothing about other writes during loading or start-up:
+`IRELATIVE` resolvers and constructors run code (which may write anything), `PT_GNU_RELRO` and
+`mprotect` change permissions, and a lazy `JUMP_SLOT` is written later (at its own offset, which
+the width covers). A statement that memory equals the file bytes after a real load takes these as
+assumptions (`ImageLoaded`); nothing here proves loader non-interference.
+
+**Overlapping segments.** The parse does not reject overlapping `PT_LOAD`s. `ReadOnlyAt` takes the
+*first* read-only segment mapping the range; it does not show that no writable segment maps the
+same addresses. `Image.Unambiguous A v n` (decidable) says every byte of the range has exactly one
+origin; combine the two to exclude overlap. `ImageLoaded` asks every origin of a byte to hold, so
+on a file whose overlapping segments disagree it is unsatisfiable and a statement conditional on
+it is vacuous there. Its satisfiability (that a memory loading the image exists) is not proved
+here; for a file whose load ranges are all `Unambiguous` (checked for the leaf-arith sample,
+`Asm.Example.LeafArith.image_unambiguous`) the origins cannot disagree.
+
 **Versioned lookup.** `Silmaril.Elf.Lookup` (`Sel.dyn ⟨name, weak, ver⟩`) is ld.so's
 `do_lookup_x`: GNU hash, `check_match` with the requested version (a hidden or non-default
 version is matched only when requested), weak and undefined definitions. Two cases glibc handles

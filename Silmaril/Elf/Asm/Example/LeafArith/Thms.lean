@@ -82,6 +82,10 @@ theorem rodata_fail : ReadOnlyAt F 0x402000 [0x46, 0x41, 0x49, 0x4c] :=
 theorem image : LoadRangesAre F [(0x400000, 344), (0x401000, 2038), (0x402000, 204), (0x4030cc, 4)] :=
   ⟨ast, parses, by decide +kernel⟩
 
+/-- Every byte of every load range has exactly one origin: no overlapping segments, so
+`ReadOnlyAt` and `ImageLoaded` are not first-match conventions here. -/
+theorem image_unambiguous : ∀ r ∈ ast.loadRanges, Unambiguous ast r.1 r.2 := by decide +kernel
+
 /-- The fourth `PT_LOAD` (`p_offset = 204`, `p_filesz = 0`) is zero fill. -/
 theorem bss_zeroFill : ast.resolve 0x4030cc = .unique 3 .zeroFill := by decide +kernel
 
