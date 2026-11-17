@@ -405,7 +405,27 @@ The plain graph stays an over-approximation, and claims about it say so.
       frame. The tail call replaces the frame (`return_call_ref-frame-addr`, `frame_tail_div`), so
       the body's pending code and handlers are bypassed. Fixture `Wasm/Cfg/ExampleTail`:
       `block (return_call x); unreachable` in the frame of `recMod`'s self-call (`tail_machine_div`).
-      **Open:** the converse (Core frame divergence is `MDivT`).
+      **Converse (Core route, step 2):** `frame_div_complete`: a diverging Core frame either
+      diverges inside, which is body divergence through the function label (`MDivC` by
+      `core_div_initialC`; a label exit stops outside any frame), or is left; every frame exit stops
+      except a tail call of a function (`return_call_ref-frame-addr`), whose call diverges: the body
+      runs to the pending tail call (`run_completeC`), the machine reaches its block without an
+      oracle answer (`run_complete_tail_block`, via `Reach`'s tail clause, now the block itself:
+      `TailAt`), and `D` names the callee (`DivCallComplete`, guard by `Region.TailGuarded`).
+      `mdivT_iff_frame` combines both directions. 
+    - **Function-level divergence, both directions (Core route, step 3):**
+      `Function.invoke_diverges_iff_mdivT`: on the fragment (typed invocation, `WasmFuncsT`,
+      `StoreChkE tExt`, deterministic profile, no host), Core divergence of `invoke s a vs` is
+      exactly `MDivT` with `CX closedCallX` and `calleeDivX o` on the body in the call frame.
+      `Function.funDivX_iff_mdivT`: with `invoke_diverges_iff_funDivX`, so is native `FunDivX`.
+      No hypothesis beyond the fragment: every instruction is in `FragC` (`fragIB_all`); the
+      oracle is complete on the fragment (`callCompleteG_cx`, from `invoke_closedX_adequacy` and
+      call transport), `calleeDivX` is (`divCallComplete_cx`), and the guards at calls and pending
+      tail calls and the placement of pending tails come from typing of the entered frame
+      (`guardedCalls_cx`, `tailGuarded_cx`, `tailsOk_of_typed`). Not claimed: hosts, exceptions
+      (`tExt` rejects `throw`/`try_table`; no host alone does not exclude them), the
+      store-retaining session view. **Open:** function-level regression fixtures (recursive
+      indirect/ref/tail, trap ≠ divergence).
     - **Host-free function-list preservation** (`Wasm/Cfg/Restrict`): without a host, a region or
       machine run keeps the store's whole function list `F` (instances with types, modules and
       code), so every call and every `F`-only check (`StoreChkE`) sees `F`. Oracles agreeing on

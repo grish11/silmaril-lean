@@ -1,0 +1,10 @@
+[package]
+name = "wasm-spec-fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "Property tests (fuzzing) of Wasm specification library entries with the wasmi interpreter."
+
+[dependencies]
+wasmi = { version = "0.40", default-features = false, features = ["std"] }

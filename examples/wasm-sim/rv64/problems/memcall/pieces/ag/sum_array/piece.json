@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/memcall/ag/sum_array",
+  "kind": "assume-guarantee",
+  "function": "sum_array",
+  "address": "0x112c4",
+  "words": "0000061300b05e630035959300b505b3000536830085051300c68633feb51ae30006051300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/sum_array.wat", "representation": "P-locals", "imports": {"callees": [], "memory": true}, "params": ["a0", "a1"], "results": ["a0"]},
+  "spec": {"requires": "(arr (reg a0) (reg a1))", "ensures": "(= (reg a0) (sumarr (old (reg a0)) (old (reg a1))))", "reads": "[(\"(reg a0)\", \"(bvmul (reg a1) #x0000000000000008)\")]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `sum_array` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

@@ -1,0 +1,100 @@
+# Reduction manifest (tools/wasm-sim rv64 reduce): RV64 problems -> Wasm problems.
+schema = 2
+plan = "wasm-sim/rv64/memcall"
+elf = "memcall"
+elf_fnv1a64 = "6e8e23f7d42fb424"
+order = ["sq", "tri", "f", "sum_array", "sum_sq", "fill", "scale"]
+
+[[function]]
+name = "sq"
+entry = 0x11240
+module = "modules/sq.wat"
+words = [0x02a50533, 0x00008067]
+params = ["a0"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"ctrl", "mul"}
+
+[[function]]
+name = "tri"
+entry = 0x11248
+module = "modules/tri.wat"
+words = [0x02a05863, 0xfff50593, 0xffe50613, 0x02c586b3, 0x02c5b633, 0x02b585b3, 0x03f61613, 0x0016d693, 0x00b50533, 0x00c6e633, 0x40c50533, 0x00008067, 0x00000513, 0x00008067]
+params = ["a0"]
+results = ["a0", "a1", "a2", "a3"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl", "mul"}
+
+[[function]]
+name = "f"
+entry = 0x11280
+module = "modules/f.wat"
+words = [0xfe010113, 0x00113c23, 0x00813823, 0x00913423, 0x00058413, 0x00000097, 0xfb4080e7, 0x00050493, 0x00040513, 0x00000097, 0xf9c080e7, 0x00950533, 0x01813083, 0x01013403, 0x00813483, 0x02010113, 0x00008067]
+params = ["a0", "a1", "ra", "sp", "s0", "s1"]
+results = ["a0"]
+callees = {"sq", "tri"}
+abi_checked = ["ra", "sp", "s0", "s1"]
+simulator_groups = {"base", "ctrl", "mem"}
+
+[[function]]
+name = "sum_array"
+entry = 0x112c4
+module = "modules/sum_array.wat"
+words = [0x00000613, 0x00b05e63, 0x00359593, 0x00b505b3, 0x00053683, 0x00850513, 0x00c68633, 0xfeb51ae3, 0x00060513, 0x00008067]
+params = ["a0", "a1"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl", "mem"}
+
+[[function]]
+name = "sum_sq"
+entry = 0x112ec
+module = "modules/sum_sq.wat"
+words = [0xfe010113, 0x00113c23, 0x00813823, 0x00913423, 0x01213023, 0x02b05863, 0x00050413, 0x00000493, 0x00359593, 0x00b50933, 0x00043503, 0x00000097, 0xf28080e7, 0x00840413, 0x009504b3, 0xff2416e3, 0x0080006f, 0x00000493, 0x00048513, 0x01813083, 0x01013403, 0x00813483, 0x00013903, 0x02010113, 0x00008067]
+params = ["a0", "a1", "ra", "sp", "s0", "s1", "s2"]
+results = ["a0"]
+callees = {"sq"}
+abi_checked = ["ra", "sp", "s0", "s1", "s2"]
+simulator_groups = {"base", "ctrl", "mem"}
+
+[[function]]
+name = "fill"
+entry = 0x11350
+module = "modules/fill.wat"
+words = [0x00b05c63, 0x00359593, 0x00b505b3, 0x00c53023, 0x00850513, 0xfeb51ce3, 0x00008067]
+params = ["a0", "a1", "a2"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl", "mem"}
+
+[[function]]
+name = "scale"
+entry = 0x1136c
+module = "modules/scale.wat"
+words = [0x02b05063, 0x00359593, 0x00b505b3, 0x00053683, 0x02c686b3, 0x00d53023, 0x00850513, 0xfeb518e3, 0x00008067]
+params = ["a0", "a1", "a2"]
+results = ["a0"]
+callees = {}
+abi_checked = []
+simulator_groups = {"base", "ctrl", "mem", "mul"}
+
+transfer = """
+For each function f: if the Wasm function `f` (modules/f.wat, linked with the
+modules of its callees and a memory) meets its contract for all arguments, i.e.
+from params satisfying @requires it returns normally with results satisfying
+@ensures, then for every RV64 state s with pc = entry(f), the words of f (and
+its callees) fetchable at their entries, memory below 2^32 equal to the Wasm
+memory, the param registers holding the Wasm arguments and ra = any four-byte-
+aligned return address r outside the code, Ext.MState.step retires finitely many
+instructions reaching pc = r with the result registers equal to the Wasm results,
+ra and the callee-saved registers restored, and memory equal to the final Wasm
+memory. Traps of the Wasm function (misaligned/out-of-memory access, ABI check
+failure, misaligned target) correspond to RV faults or ABI violations, which the
+total-correctness contract excludes. Composition: assume-guarantee over the
+acyclic call graph (dag.json); per-function translation validity (tv/f) is the
+per-instruction method soundness plus CFG structuring."""
+

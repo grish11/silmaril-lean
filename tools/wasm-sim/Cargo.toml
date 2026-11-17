@@ -1,6 +1,7 @@
 # wasm-sim: runtime harness, translators, difftests and benchmarks for the ISA simulators
 # in Wasm (docs/wasm-sim-abi.md). Standalone crate:
-# library `src/lib.rs` (harness, x86, proc/sysv, reduce); binary `wasm-sim` (src/main.rs).
+# library `src/lib.rs` (harness, x86, proc/sysv, rv64, reduce); binaries `wasm-sim` (src/main.rs)
+# and `wasm-sim-rv` (src/bin/wasm-sim-rv.rs, RV64 tools).
 [package]
 name = "wasm-sim"
 version = "0.1.0"
@@ -25,6 +26,10 @@ serde_json = "1"
 [[bin]]
 name = "wasm-sim"
 path = "src/main.rs"
+
+[[bin]]
+name = "wasm-sim-rv"
+path = "src/bin/wasm-sim-rv.rs"
 
 [profile.release]
 debug = false
