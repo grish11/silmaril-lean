@@ -203,4 +203,148 @@ theorem reach_back {u w : FieldVal} (h : ImmutReachable g' u w) :
 
 end Paths
 
+theorem forall₂_map_right {α β γ : Type} {R : α → β → Prop} {S : α → γ → Prop} {g : β → γ}
+    (hg : ∀ a b, R a b → S a (g b)) : ∀ {l₁ : List α} {l₂ : List β}, List.Forall₂ R l₁ l₂ →
+      List.Forall₂ S l₁ (l₂.map g)
+  | _, _, .nil => .nil
+  | _, _, .cons h hs => .cons (hg _ _ h) (forall₂_map_right hg hs)
+
+theorem forall₂_map_left {α β γ : Type} {R : α → β → Prop} {S : γ → β → Prop} {g : α → γ}
+    (hg : ∀ a b, R a b → S (g a) b) : ∀ {l₁ : List α} {l₂ : List β}, List.Forall₂ R l₁ l₂ →
+      List.Forall₂ S (l₁.map g) l₂
+  | _, _, .nil => .nil
+  | _, _, .cons h hs => .cons (hg _ _ h) (forall₂_map_left hg hs)
+
+theorem forall₂_map_right_mem {α β γ : Type} {R : α → β → Prop} {S : α → γ → Prop}
+    {g : β → γ} : ∀ {l₁ : List α} {l₂ : List β}, (∀ a b, b ∈ l₂ → R a b → S a (g b)) →
+      List.Forall₂ R l₁ l₂ → List.Forall₂ S l₁ (l₂.map g)
+  | _, _, _, .nil => .nil
+  | _, _, hg, .cons h hs => .cons (hg _ _ (List.mem_cons_self ..) h)
+      (forall₂_map_right_mem (fun a b hb => hg a b (List.mem_cons_of_mem _ hb)) hs)
+
+theorem forall₂_map_self {α β : Type} {S : α → β → Prop} {g : α → β} :
+    ∀ {l : List α}, (∀ a ∈ l, S a (g a)) → List.Forall₂ S l (l.map g)
+  | [], _ => .nil
+  | a :: _, h => .cons (h a (List.mem_cons_self ..))
+      (forall₂_map_self fun b hb => h b (List.mem_cons_of_mem _ hb))
+
+theorem forall₂_mem_left {α β : Type} {R : α → β → Prop} :
+    ∀ {l₁ : List α} {l₂ : List β}, List.Forall₂ R l₁ l₂ → ∀ a ∈ l₁, ∃ b, R a b
+  | _, _, .nil, _, h => nomatch h
+  | _, _, .cons h hs, a, ha => by
+    rcases List.mem_cons.1 ha with rfl | ha
+    · exact ⟨_, h⟩
+    · exact forall₂_mem_left hs a ha
+
+theorem leaves_of_valOk {s : Store H} {v : Val} {t : CValType} (h : ValOk s v t) :
+    ∀ r, v = .ref r → RefLeaves (· < s.exns.length) r := by
+  intro r hr
+  subst hr
+  cases h with
+  | ref h => exact refLeaves_of_refOk h
+
+theorem exnInstOk_scrub {s t : Store H} (hw : Widen s t) {N : Nat} {z : ExnInst}
+    (hN : t.exns[N]? = some z) {y : ExnInst} (h : ExnInstOk s y) : ExnInstOk t (scrubE N y) := by
+  obtain ⟨ti, ts, htag, hexp, hfs⟩ := h
+  exact ⟨ti, ts, hw.tag? htag, hexp,
+    forall₂_map_left (fun v t' hv => valOk_scrub hN (hw.valOk hv)) hfs⟩
+
+/-- **The witness after an allocation.** -/
+theorem alloc_ghost {s : Store H} {T : List TagInst} {X : List ExnInst} {f : Frame}
+    {es : List Admin} {e : ExnInst} (hg : GhostOk s T X) (hheap : HeapBelow s)
+    (ht : ContextTyped ⟨gst (s.addExn e) T (X ++ [e]), f, es⟩) :
+    ∃ X', X'.length = X.length + 1 ∧ GhostOk (s.addExn e) T X' ∧
+      ContextTyped ⟨gst (s.addExn e) T X', f, es⟩ := by
+  obtain ⟨p, hp⟩ : ∃ p, X[s.exns.length]? = some p :=
+    ⟨_, List.getElem?_eq_getElem hg.lt⟩
+  have hpad := hg.pad _ p (Nat.le_refl _) hp
+  have hn := hg.lt
+  have hS₁ : StoreOk (gst (s.addExn e) T (X ++ [e])) := storeOk_of_contextTyped ht
+  have hlen : (allocX X s.exns.length e p).length = X.length + 1 := allocX_length _
+  have hw : Widen (gst (s.addExn e) T (X ++ [e]))
+      (gst (s.addExn e) T (allocX X s.exns.length e p)) := by
+    refine ⟨rfl, List.prefix_refl _, fun a y hy => ?_⟩
+    have ha : a < (X ++ [e]).length := (List.getElem?_eq_some_iff.1 hy).1
+    exact ⟨_, List.getElem?_eq_getElem (l := allocX X s.exns.length e p)
+      (by rw [hlen]; simpa using ha)⟩
+  have hN : (gst (s.addExn e) T (allocX X s.exns.length e p)).exns[X.length]? =
+      some (scrubE X.length p) := allocX_get_N _
+  have hmem : ∀ x ∈ allocX X s.exns.length e p, ∃ y ∈ X ++ [e], x = scrubE X.length y := by
+    intro x hx
+    simp only [allocX, List.mem_map] at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    refine ⟨y, ?_, rfl⟩
+    rcases List.mem_append.1 hy with hy | hy
+    · rcases List.mem_or_eq_of_mem_set hy with hy | rfl
+      · exact List.mem_append_left _ hy
+      · exact List.mem_append_right _ (List.mem_singleton_self _)
+    · rw [List.mem_singleton.1 hy]
+      exact List.mem_append_left _ (List.mem_of_getElem? hp)
+  have hS' : StoreOk (gst (s.addExn e) T (allocX X s.exns.length e p)) := by
+    refine ⟨hS₁.tags, fun gi h => hw.globalInstOk (hS₁.globals gi h), hS₁.mems,
+      fun ti h => hw.tableInstOk (hS₁.tables ti h), fun fi h => hw.funcInstOk (hS₁.funcs fi h),
+      fun ei h => hw.elemInstOk (hS₁.elems ei h), fun si h => hw.structInstOk (hS₁.structs si h),
+      fun ai h => hw.arrayInstOk (hS₁.arrays ai h), ?_, ?_, ?_, ?_, hS₁.structsClosed,
+      hS₁.arraysClosed⟩
+    · intro x hx
+      obtain ⟨y, hy, rfl⟩ := hmem x hx
+      exact exnInstOk_scrub hw hN (hS₁.exns y hy)
+    · intro a ha hr
+      refine hS₁.acyclicStructs a ha (reach_back hn hpad.2 hheap hr ?_ ?_)
+      · rintro ⟨r, he, hc⟩; cases he; exact hc
+      · rintro ⟨r, he, hc⟩; cases he; exact hc
+    · intro a ha hr
+      refine hS₁.acyclicArrays a ha (reach_back hn hpad.2 hheap hr ?_ ?_)
+      · rintro ⟨r, he, hc⟩; cases he; exact hc
+      · rintro ⟨r, he, hc⟩; cases he; exact hc
+    · intro a ha hr
+      by_cases han : a = s.exns.length
+      · subst han
+        obtain ⟨r, he, -⟩ := reach_chain_n hn hpad.2 hheap hr ⟨_, rfl, rfl⟩
+        cases he
+      · by_cases haN : a = X.length
+        · subst haN; exact reach_from_N hn hpad.2 hr rfl
+        · refine hS₁.acyclicExns a (by simpa [hlen] using ha)
+            (reach_back hn hpad.2 hheap hr ?_ ?_)
+          · rintro ⟨r, he, hc⟩; cases he; exact han hc
+          · rintro ⟨r, he, hc⟩; cases he; exact haN hc
+  have hleaves : ∀ y ∈ X ++ [e], ∀ v ∈ y.fields, ∀ r, v = .ref r →
+      RefLeaves (· < X.length + 1) r := by
+    intro y hy v hv r hr
+    obtain ⟨ti, ts, -, -, hfs⟩ := hS₁.exns y hy
+    obtain ⟨t, hvt⟩ := forall₂_mem_left hfs v hv
+    simpa using leaves_of_valOk hvt r hr
+  refine ⟨_, hlen, ⟨hg.tags, by simpa [Store.addExn, hlen] using hn, ?_, ?_⟩,
+    contextTyped_widen hw hS' ht⟩
+  · rw [hlen]
+    intro a x hx
+    by_cases hlt : a < s.exns.length
+    · have hx' : s.exns[a]? = some x := by
+        simpa [Store.addExn, List.getElem?_append_left hlt] using hx
+      obtain ⟨y, hy, htag, hfs⟩ := hg.real a x hx'
+      refine ⟨scrubE X.length y, ?_, htag, ?_⟩
+      · rw [allocX_get_ne (Nat.ne_of_lt hlt) (Nat.lt_trans hlt hn), hy]; rfl
+      · exact forall₂_map_right_mem (fun v w hw' h => valApprox_scrub (h.mono (by omega))
+          (hleaves y (List.mem_append_left _ (List.mem_of_getElem? hy)) w hw')) hfs
+    · have ha : a = s.exns.length := by
+        have := (List.getElem?_eq_some_iff.1 hx).1
+        simp [Store.addExn] at this; omega
+      subst ha
+      have hx' : x = e := by simp [Store.addExn] at hx; exact hx.symm
+      subst hx'
+      refine ⟨scrubE X.length x, allocX_get_n hn, rfl, forall₂_map_self fun v hv =>
+        valApprox_scrub (.inl rfl) (hleaves x (List.mem_append_right _ (List.mem_singleton_self _))
+          v hv)⟩
+  · intro a x ha hx
+    simp only [Store.addExn, List.length_append, List.length_singleton] at ha
+    rcases Nat.lt_trichotomy a X.length with hlt | rfl | hgt
+    · rw [allocX_get_ne (by omega) hlt, Option.map_eq_some_iff] at hx
+      obtain ⟨y, hy, rfl⟩ := hx
+      have := hg.pad a y (by omega) hy
+      exact ⟨this.1, by simp [scrubE, this.2]⟩
+    · rw [allocX_get_N] at hx
+      cases hx
+      exact ⟨hpad.1, by simp [scrubE, hpad.2]⟩
+    · rw [allocX_get_gt hgt] at hx; cases hx
+
 end Silmaril.Wasm.Cfg.Proofs.DanglingTyped
