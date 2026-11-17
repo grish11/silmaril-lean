@@ -42,10 +42,9 @@ whose importer has no instance traps on every question.
 from the initial states. `ExpSpec.DivEq P e e'`: the same divergences of typed questions after
 typed sessions.
 
-**Not covered here.** The relation of the session object to the IR denotation on ill-typed
-questions (the exporter interface says nothing about them). They trap at once in the IR of a
-linked component too (`LinkedG.den_filter_iff`, `LinkedGFilter`), so the finite IR plays are the
-in-range plays of `LinkedG.compSession` (`LinkedG.pubPlays_compSession`, `LinkedGFilter`).
+**Not covered.** The relation of the session object to the IR denotation on ill-typed
+questions (the exporter interface says nothing about them; for `Linked2` they trap at once,
+`Linked2.den_filter_iff`, not proved for `LinkedG`).
 -/
 
 @[expose] public section

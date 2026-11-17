@@ -47,11 +47,9 @@ mirrors #746's `Linked2.compTripleS`, `storeDet_compTripleS`, `compSession_inj_f
 
 **Ill-typed questions.** The session object traps every ill-typed question at once, the state
 unchanged, on the canonical side, as `Linked2.compFin` does; the injection is on typed
-observations, as `RefSessEquivFull` is. The IR traps ill-typed calls at once as well
-(`LinkedG.den_filter_iff`, in `LinkedGFilter`), and the finite IR plays are the in-range plays of
-the session object (`LinkedG.pubPlays_compSession`, `LinkedGFilter`); the session object is not
-claimed to agree with the divergences and infinite plays of `g.toComp.denUD` on ill-typed
-calls.
+observations, as `RefSessEquivFull` is. No `LinkedG` counterpart of `Linked2.den_filter_iff` (the
+IR traps ill-typed calls at once) is proved; so the session object is not claimed to agree with
+`g.toComp.denUD` on ill-typed calls.
 
 **Deviations from #746.**
 
@@ -63,8 +61,8 @@ calls.
 
 **Not claimed.**
 
-* The finite agreement with the whole IR strategy (`Linked2.pubPlays_compSession`) is not proved
-  in this topic; it is `LinkedG.pubPlays_compSession`, in `LinkedGFilter`.
+* The finite agreement with the whole IR strategy (`Linked2.pubPlays_compSession`): it needs
+  the ill-typed calls of the IR.
 * Nondeterministic profiles; the relation to the H2 owner's `linkS`; host observations of
   parents passing host imports to the importer; the parser from bytes; F6.
 

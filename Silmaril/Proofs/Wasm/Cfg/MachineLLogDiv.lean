@@ -243,10 +243,11 @@ theorem loopBack_target_arm {body : Expr} {p : List SeqStep} {c : List Instr} {i
     (hp : Pos body p c i sg pre [.loop bt b₀]) (hok : FramesOk body p.reverse ls)
     (har : arity f bt = some (np, nr)) (hsg₀ : (segment b₀)[0]? = some sg₀)
     (hlb : EvalLXPS s f (N.take np) (liftInstrs b₀) l_b (s₁, f₁, .flow (.brk 0 vs))) :
-    MRunL body ⟨.block ⟨p ++ [(i, 0)], 0⟩, (N.take np).reverse,
-        ⟨np, (N.drop np).reverse, true, false, [], bt⟩ :: ls, s, f⟩ l_b
-      ⟨.block ⟨p ++ [(i, 0)], 0⟩, ((vs.take np ++ N.drop np).take np).reverse,
-        ⟨np, ((vs.take np ++ N.drop np).drop np).reverse, true, false, [], bt⟩ :: ls, s₁, f₁⟩ := by
+    ∃ l₁ st₁ l₂, MStepL body ⟨.block ⟨p ++ [(i, 0)], 0⟩, (N.take np).reverse,
+        ⟨np, (N.drop np).reverse, true, false, [], bt⟩ :: ls, s, f⟩ l₁ st₁ ∧
+      MRunL body st₁ l₂ ⟨.block ⟨p ++ [(i, 0)], 0⟩, ((vs.take np ++ N.drop np).take np).reverse,
+        ⟨np, ((vs.take np ++ N.drop np).drop np).reverse, true, false, [], bt⟩ :: ls, s₁, f₁⟩ ∧
+      l_b = l₁ ++ l₂ := by
   obtain ⟨ht, -, -⟩ := pos_term hp rfl
   have hcA : seqAt body (p ++ [(i, 0)]) = some b₀ := by
     rw [Proofs.Machine.seqAt_append]; simp [hp.hc, hp.hsg, ht, armOf]
@@ -266,8 +267,7 @@ theorem loopBack_target_arm {body : Expr} {p : List SeqStep} {c : List Instr} {i
     (by rw [← MachineLSeq.liftInstrs_append, ← restAt_cons hsg₀, restAt_zero])
     (by simpa using hokA np (N.drop np).reverse) hx).1 s f (N.take np) [] .nil
   obtain ⟨l₁, st₁, l₂, hs, hr, heq⟩ := mEnds_run hE
-  rw [show l_b = l₁ ++ l₂ by rw [← heq]; simp]
-  exact .step hs hr
+  exact ⟨l₁, st₁, l₂, hs, hr, by rw [← heq]; simp⟩
 
 /-! ## The motive -/
 
@@ -502,7 +502,9 @@ theorem logDiv_mot {body : Expr} {s : Store H} {f : Frame} {N : List Val} {es : 
       obtain ⟨⟨rfl, rfl⟩, htl⟩ := hes
       rw [har] at har'; simp only [Option.some.injEq, Prod.mk.injEq] at har'
       obtain ⟨rfl, rfl⟩ := har'
-      have hrunM := loopBack_target_arm hp hok har hsg₀ hlb
+      obtain ⟨lb₁, stb, lb₂, hsb, hrb, hlbe⟩ := loopBack_target_arm hp hok har hsg₀ hlb
+      have hrunM := MRunL.step hsb hrb
+      rw [← hlbe] at hrunM
       have := ih.2 p c i sg pre bt b₀ sg₀ ls np nr hp hsg₀ hok har₁ (by simp [liftInstr, htl])
       simpa using mlog_run hrunM this
   | cond hk _ =>

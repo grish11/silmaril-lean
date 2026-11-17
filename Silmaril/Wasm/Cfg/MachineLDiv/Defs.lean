@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Cfg.MachineL.Defs
 public import Silmaril.Wasm.Abstract.XDivergeP.Defs
+public import Silmaril.Games.Abstract.ModuleInf.Defs
 
 /-!
 # Quiescent divergence of the logged block-CFG machine (H2, definitions)
@@ -32,6 +33,9 @@ diverging tail callee (`TailDivK`).
 inside a step, host-free divergence (`MDivL`, or a reached call whose callee diverges). The log is
 the calls before the boundary. The logged calls of the canonical semantics (`Abstract.OCall`, as
 `Abstract.LogDivXP` records them) are read as session calls by `Abstract.OCall.toS`.
+
+**Productive runs** (`ProdL body st ω`): an infinite logged run whose logs concatenate to the
+stream `ω` with infinitely many calls, each with an arbitrary answer.
 
 The diverging callees are named by native frame divergence (`FunDivXP`), as the closed answers are
 the native oracle's: this is the machine's divergence over the native closed semantics, not a
@@ -98,5 +102,12 @@ def MLogDivL (body : Expr) (st : MState H) (l : List (SCall H)) : Prop :=
     (∀ e ∈ l₃, CloseOk closedCallXP e) ∧
     ((∃ st₂, MStepL body st₁ (l₂ ++ l₃) st₂ ∧ MDivL body st₂) ∨
       (∃ z, ReachL body st₁ (l₂ ++ l₃) z ∧ FunDivXP z.2.2 z.1 z.2.1))
+
+/-- **A productive run of the machine**: an infinite logged run from `st` (every answer
+arbitrary) whose step logs concatenate to the stream `ω`, of unbounded length: infinitely many
+calls. -/
+def ProdL (body : Expr) (st : MState H) (ω : ℕ → SCall H) : Prop :=
+  ∃ (g : ℕ → MState H) (lg : ℕ → List (SCall H)), g 0 = st ∧
+    (∀ n, MStepL body (g n) (lg n) (g (n + 1))) ∧ Games.Abstract.Shape.StreamConcat lg ω
 
 end Silmaril.Wasm.Cfg.MachineL

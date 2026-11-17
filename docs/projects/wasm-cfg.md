@@ -657,7 +657,17 @@ The plain graph stays an over-approximation, and claims about it say so.
             - the logged run from the CFG entry to it is a `LogDivXP` prefix (`prefix_logDiv`, a
               finite-horizon version of the coinduction, with arms left read by `arm_fwd`);
             - a diverging callee goes through the pending-call correspondence (`reach_logDiv`).
-        - Still open after that: coherent productive streams (`InfLXP`).
+        - **Productive streams, P1 done (native to machine).** `ProdL body st ω`: an infinite
+          logged machine run whose step logs concatenate to `ω`, with infinitely many calls.
+          - `infL_machine`: `InfLXP s f [] (liftInstrs body) ω` gives
+            `ProdL body (initial body s f) (fun n => (ω n).toS)`, the same stream. The proof is an
+            induction on `InfLXP`, as for divergence after a log. A loop iterating forever is the
+            chain of its iterations on the machine (`prod_of_chain`, each iteration a nonempty run
+            from the arm's entry back to it).
+          - Open, machine to native (P2). The plan: an analysis of the infinite run by the size of
+            the remaining code; an arm the run never leaves is a descent; an arm left forward is a
+            finished instruction; a loop re-entered infinitely often is `loopInf`, its iterations
+            read by `arm_fwd`.
         - The closed oracle `closedCallXP` used here is the native one. These results do not
           discharge H3, which still needs the recursive logged CFG closure.
         - Still open as fixtures: nested-loop `continue` and a tail call inside a handler.

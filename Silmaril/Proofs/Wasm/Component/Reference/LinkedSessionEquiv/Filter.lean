@@ -13,13 +13,11 @@ importer's own export handler answers an ill-typed question by a trap at once, w
 calls (`xb_bad`), and passes a typed one to its core instance (`xb_good`). So the ill-typed rounds
 can be removed from a play, and inserted into one, without touching the rest:
 
-* `nodeI_inv`, `nodeI_of`: in the node of any importer `b` (a `SimpleI`), whatever answers its
-  imports (`implsH n wa`), the ill-typed rounds are exactly trap-answered rounds without lower
-  calls, and removing or inserting them keeps a play (`LinkedGFilter` uses them for `LinkedG`);
 * `den_top`, `den_of_top`: the complete rounds of the linked denotation are the rounds `cl` of
   the importer's node whose lower calls, all together and in order, are complete rounds of the
   exporter's environment;
-* `impNode_inv`, `impNode_of`: the instances for the importer's node of `Linked2`;
+* `impNode_inv`, `impNode_of`: in the importer's node, the ill-typed rounds are exactly
+  trap-answered rounds without lower calls, and removing or inserting them keeps a play;
 * `den_inv`, `den_of`: the same for the linked denotation.
 -/
 
@@ -226,160 +224,15 @@ theorem hbr_q {h : Handler E F} {u : CRound F G} {d : CRound E G} (hr : HBR h u 
 
 end Below
 
-/-! ## An importer's export handler and node -/
-
-section ExportI
-
-variable (b : SimpleI)
-
-/-- The export handler of an importer. -/
-abbrev XBI : Handler sigU sigU :=
-  exportsH (b.imports.length + b.mod.exports.length) b.toComp.exports
-
-/-- A typed question of an importer: an export in range, on values of its parameter types. -/
-def TypedI (q : Nat × Payload) : Prop :=
-  ∃ (j : Fin b.exports.length) (vs : List IVal), q = (j.val, .vals vs) ∧
-    ValTy.checkList b.exports[j].ty.params vs = true
-
-/-- The node of an importer, its imports answered by `implsH n wa` (the exporter's `n` exports
-come first). -/
-abbrev nodeI (C : CoreSem ImpModule) (n : Nat) (wa : List Impl) : Strategy sigU sigU :=
-  (Strategy.ofHandler (implsH n wa)).comp (b.toComp.denU C)
-
-variable {b}
-
-theorem xbI_flat (j : Nat) (xs : List Flat) : XBI b (j, .flat xs) = .pure none := by
-  simp only [XBI, exportsH, implsH, SimpleI.toComp, Comp.exports_mk, List.getElem?_map]
-  cases b.exports[j]? <;> rfl
-
-/-- **An ill-typed question is answered by a trap at once.** -/
-theorem xbI_bad (hc : b.Good) {q : Nat × Payload} (h : ¬ TypedI b q) : XBI b q = .pure none := by
-  obtain ⟨j, p⟩ := q
-  cases p with
-  | flat xs => exact xbI_flat j xs
-  | vals vs =>
-    by_cases hj : j < b.exports.length
-    · have hck : ValTy.checkList b.exports[j].ty.params vs = false := by
-        cases e : ValTy.checkList b.exports[j].ty.params vs with
-        | false => rfl
-        | true => exact (h ⟨⟨j, hj⟩, vs, rfl, e⟩).elim
-      rw [XBI, exportsH_toCompI b hj vs (core_lt hc ⟨j, hj⟩),
-        SessionAdequacy.checkLower_none_of hck]
-    · simp only [XBI, exportsH, implsH, SimpleI.toComp, Comp.exports_mk, List.getElem?_map,
-        List.getElem?_eq_none (Nat.le_of_not_lt hj)]
-      rfl
-
-theorem up_lift_form (ft : FuncTy) :
-    ∀ a : Option Payload, a.bind (Adapter.up (.lift ft)) = none ∨
-      ∃ ws, a.bind (Adapter.up (.lift ft)) = some (.vals ws)
-  | none => .inl rfl
-  | some (.vals _) => .inl rfl
-  | some (.flat ys) => by
-    cases h : liftArgs ft.results ys with
-    | none => exact .inl (by simp [Adapter.up, h])
-    | some ws => exact .inr ⟨ws, by simp [Adapter.up, h]⟩
-
-variable {P : Profile} {n : Nat} {wa : List Impl}
-
-/-- **Rounds of an importer's node**, for a Boolean test `t` of typed questions: the ill-typed
-rounds are trap-answered rounds without lower calls, the typed ones are answered by a trap or
-values, and the typed rounds alone are a play. -/
-theorem nodeI_inv (hc : b.Good) (t : Nat × Payload → Bool) (ht : ∀ q, t q = true ↔ TypedI b q)
-    {cl : List (CRound sigU sigU)} (h : cplay cl ∈ nodeI b (impSem P) n wa) :
-    (∀ r ∈ cl, t r.q = false → r.cs = [] ∧ r.a = none) ∧
-    (∀ r ∈ cl, t r.q = true → r.a = none ∨ ∃ ws, r.a = some (.vals ws)) ∧
-    cplay (cl.filter fun r => t r.q) ∈ nodeI b (impSem P) n wa := by
-  have hbadq : ∀ q, t q = false → XBI b q = .pure none := fun q hq =>
-    xbI_bad hc fun h' => by rw [(ht q).mpr h'] at hq; cases hq
-  obtain ⟨up, HBu, hup⟩ := hb_inv (oneShot_implsH _ _) h
-  have F := hb_forall₂ HBu
-  rw [denU_toCompI] at hup
-  obtain ⟨low, HC₁, hlow⟩ := hc_inv (oneShot_implsH _ _) hup
-  have hbad : ∀ u ∈ up, t u.q = false → u.cs = [] ∧ u.a = none := fun u hu hb =>
-    hc_pure_mem HC₁ u hu none (hbadq _ hb)
-  have hgood : ∀ u ∈ up, t u.q = true → u.a = none ∨ ∃ ws, u.a = some (.vals ws) := by
-    intro u hu hg
-    obtain ⟨j, vs, e, hck⟩ := (ht _).mp hg
-    obtain ⟨a', ha'⟩ := hc_call_mem HC₁ u hu _ _ (by rw [e]; exact exportsH_typed hc hck)
-    rw [← Prog.pure.inj ha']
-    exact up_lift_form _ a'
-  refine ⟨?_, ?_, ?_⟩
-  · intro r hr hb
-    obtain ⟨u, hu, hur⟩ := forall₂_mem_right' F r hr
-    have hq := hbr_q hur
-    obtain ⟨hcs, ha⟩ := hbad u hu (by rw [hq]; exact hb)
-    obtain ⟨q, a, cs, cs', rfl, rfl, Hc⟩ := hur
-    have hcs' : cs = [] := hcs
-    subst hcs'
-    cases Hc
-    exact ⟨rfl, ha⟩
-  · intro r hr hg
-    obtain ⟨u, hu, hur⟩ := forall₂_mem_right' F r hr
-    have hq := hbr_q hur
-    have hu' := hgood u hu (by rw [hq]; exact hg)
-    obtain ⟨q, a, cs, cs', rfl, rfl, -⟩ := hur
-    exact hu'
-  · have HC₂ := hc_filter t HC₁
-      (fun r _ hg a e => by
-        obtain ⟨j, vs, e', hck⟩ := (ht _).mp hg
-        rw [e'] at e
-        have e₂ := (exportsH_typed hc hck).symm.trans e
-        cases e₂)
-      (fun r _ hb => ⟨none, hbadq _ hb⟩)
-    have hU : cplay (up.filter fun r => t r.q) ∈ b.toComp.denU (impSem P) := by
-      rw [denU_toCompI]
-      exact cplay_comp_ofHandler HC₂ hlow
-    exact cplay_ofHandler_comp
-      (hb_of_forall₂ (forall₂_filter (fun _ _ hr => congrArg t (hbr_q hr)) F)) hU
-
-/-- **Inserting ill-typed rounds into a play of an importer's node**: trap-answered rounds
-without lower calls. -/
-theorem nodeI_of (hc : b.Good) (t : Nat × Payload → Bool) (ht : ∀ q, t q = true ↔ TypedI b q)
-    {cl : List (CRound sigU sigU)}
-    (hbad : ∀ r ∈ cl, t r.q = false → r.cs = [] ∧ r.a = none)
-    (h : cplay (cl.filter fun r => t r.q) ∈ nodeI b (impSem P) n wa) :
-    cplay cl ∈ nodeI b (impSem P) n wa := by
-  have hbadq : ∀ q, t q = false → XBI b q = .pure none := fun q hq =>
-    xbI_bad hc fun h' => by rw [(ht q).mpr h'] at hq; cases hq
-  obtain ⟨up', HBu, hup'⟩ := hb_inv (oneShot_implsH _ _) h
-  obtain ⟨up, F, e, hm⟩ := forall₂_unfilter (R := HBR (implsH n wa))
-    (p := fun u => t u.q) (p' := fun r => t r.q) (fun r => r)
-    (fun _ _ hr => congrArg t (hbr_q hr)) cl up'
-    (by
-      intro r hr hb
-      obtain ⟨hcs, -⟩ := hbad r hr hb
-      obtain ⟨q, cs, a⟩ := r
-      have hcs' : cs = [] := hcs
-      subst hcs'
-      exact ⟨q, a, [], [], rfl, rfl, .nil⟩)
-    (hb_forall₂ HBu)
-  rw [denU_toCompI] at hup'
-  obtain ⟨low, HC₁, hlow⟩ := hc_inv (oneShot_implsH _ _) hup'
-  rw [← e] at HC₁
-  have HC₂ := hc_unfilter t up HC₁ (by
-    intro u hu hb
-    obtain ⟨r, hr, e'⟩ := hm u hu hb
-    have e'' : u = r := e'
-    rw [e''] at hb ⊢
-    obtain ⟨hcs, ha⟩ := hbad r hr hb
-    refine ⟨hcs, ?_⟩
-    rw [ha]
-    exact hbadq _ hb)
-  have hU : cplay up ∈ b.toComp.denU (impSem P) := by
-    rw [denU_toCompI]
-    exact cplay_comp_ofHandler HC₂ hlow
-  exact cplay_ofHandler_comp (hb_of_forall₂ F) hU
-
-end ExportI
-
-/-! ## The importer's export handler in `Linked2` -/
+/-! ## The importer's export handler -/
 
 section Export
 
 variable (l : Linked2)
 
 /-- The importer's export handler. -/
-abbrev XB : Handler sigU sigU := XBI l.imp
+abbrev XB : Handler sigU sigU :=
+  exportsH (l.imp.imports.length + l.imp.mod.exports.length) l.imp.toComp.exports
 
 /-- Whether a question is a typed call. -/
 def good (q : Nat × Payload) : Bool := (l.typedQ q).isSome
@@ -409,12 +262,27 @@ theorem typedQ_typed {j : Fin l.imp.exports.length} {vs : List IVal}
   have h' : ValTy.checkList l.imp.exports[j.val].ty.params vs = true := h
   simp [Linked2.typedQ, j.isLt, h']
 
-theorem xb_flat (j : Nat) (xs : List Flat) : XB l (j, .flat xs) = .pure none := xbI_flat j xs
+theorem xb_flat (j : Nat) (xs : List Flat) : XB l (j, .flat xs) = .pure none := by
+  simp only [XB, exportsH, implsH, SimpleI.toComp, Comp.exports_mk, List.getElem?_map]
+  cases l.imp.exports[j]? <;> rfl
 
-/-- **An ill-typed question is answered by a trap at once** (`xbI_bad`). -/
+/-- **An ill-typed question is answered by a trap at once.** -/
 theorem xb_bad (hc : l.imp.Good) {q : Nat × Payload} (h : l.typedQ q = none) :
-    XB l q = .pure none :=
-  xbI_bad hc fun ⟨_, _, e, hck⟩ => by rw [e, typedQ_typed hck] at h; cases h
+    XB l q = .pure none := by
+  obtain ⟨j, p⟩ := q
+  cases p with
+  | flat xs => exact xb_flat j xs
+  | vals vs =>
+    by_cases hj : j < l.imp.exports.length
+    · have hck : ValTy.checkList l.imp.exports[j].ty.params vs = false := by
+        cases e : ValTy.checkList l.imp.exports[j].ty.params vs with
+        | false => rfl
+        | true => simp [Linked2.typedQ, hj, e] at h
+      rw [XB, exportsH_toCompI l.imp hj vs (core_lt hc ⟨j, hj⟩),
+        SessionAdequacy.checkLower_none_of hck]
+    · simp only [XB, exportsH, implsH, SimpleI.toComp, Comp.exports_mk, List.getElem?_map,
+        List.getElem?_eq_none (Nat.le_of_not_lt hj)]
+      rfl
 
 /-- **A typed question is passed to the core instance**, its answer lifted. -/
 theorem xb_good (hc : l.imp.Good) {q : Nat × Payload} {j : Fin l.imp.exports.length}
@@ -424,6 +292,16 @@ theorem xb_good (hc : l.imp.Good) {q : Nat × Payload} {j : Fin l.imp.exports.le
       fun n => .pure (n.bind (Adapter.up (.lift l.imp.exports[j].ty))) := by
   obtain ⟨rfl, hck⟩ := typedQ_some h
   exact exportsH_typed hc hck
+
+theorem up_lift_form (ft : FuncTy) :
+    ∀ a : Option Payload, a.bind (Adapter.up (.lift ft)) = none ∨
+      ∃ ws, a.bind (Adapter.up (.lift ft)) = some (.vals ws)
+  | none => .inl rfl
+  | some (.vals _) => .inl rfl
+  | some (.flat ys) => by
+    cases h : liftArgs ft.results ys with
+    | none => exact .inl (by simp [Adapter.up, h])
+    | some ws => exact .inr ⟨ws, by simp [Adapter.up, h]⟩
 
 theorem good_false {q : Nat × Payload} (h : good l q = false) : l.typedQ q = none := by
   unfold good at h
@@ -438,16 +316,6 @@ theorem good_true {q : Nat × Payload} (h : good l q = true) :
   | none => rw [e] at h; cases h
   | some jv => exact ⟨jv, rfl⟩
 
-/-- `good` tests the importer's typed questions. -/
-theorem good_iff (q : Nat × Payload) : good l q = true ↔ TypedI l.imp q := by
-  constructor
-  · intro h
-    obtain ⟨⟨j, vs⟩, e⟩ := good_true h
-    obtain ⟨rfl, hck⟩ := typedQ_some e
-    exact ⟨j, vs, rfl, hck⟩
-  · rintro ⟨j, vs, rfl, hck⟩
-    simp [good, typedQ_typed hck]
-
 end Export
 
 /-! ## The importer's node -/
@@ -458,23 +326,88 @@ variable {P : Profile} {l : Linked2}
 
 /-- **Rounds of the importer's node**: the ill-typed rounds are trap-answered rounds without
 lower calls, the typed ones are answered by a trap or values, and the typed rounds alone are a
-play (`nodeI_inv`). -/
+play. -/
 theorem impNode_inv (hc : l.imp.Good) {cl : List (CRound sigU sigU)}
     (h : cplay cl ∈ impNode (impSem P) l) :
     (∀ r ∈ cl, good l r.q = false → r.cs = [] ∧ r.a = none) ∧
     (∀ r ∈ cl, good l r.q = true → r.a = none ∨ ∃ ws, r.a = some (.vals ws)) ∧
-    cplay (cl.filter fun r => good l r.q) ∈ impNode (impSem P) l :=
-  nodeI_inv hc (good l) good_iff h
+    cplay (cl.filter fun r => good l r.q) ∈ impNode (impSem P) l := by
+  obtain ⟨up, HBu, hup⟩ := hb_inv (oneShot_implsH _ _) h
+  have F := hb_forall₂ HBu
+  rw [denU_toCompI] at hup
+  obtain ⟨low, HC₁, hlow⟩ := hc_inv (oneShot_implsH _ _) hup
+  have hbad : ∀ u ∈ up, good l u.q = false → u.cs = [] ∧ u.a = none := fun u hu hb =>
+    hc_pure_mem HC₁ u hu none (xb_bad hc (good_false hb))
+  have hgood : ∀ u ∈ up, good l u.q = true → u.a = none ∨ ∃ ws, u.a = some (.vals ws) := by
+    intro u hu hg
+    obtain ⟨⟨j, vs⟩, e⟩ := good_true hg
+    obtain ⟨a', ha'⟩ := hc_call_mem HC₁ u hu _ _ (xb_good hc e)
+    rw [← Prog.pure.inj ha']
+    exact up_lift_form _ a'
+  refine ⟨?_, ?_, ?_⟩
+  · intro r hr hb
+    obtain ⟨u, hu, hur⟩ := forall₂_mem_right' F r hr
+    have hq := hbr_q hur
+    obtain ⟨hcs, ha⟩ := hbad u hu (by rw [hq]; exact hb)
+    obtain ⟨q, a, cs, cs', rfl, rfl, Hc⟩ := hur
+    have hcs' : cs = [] := hcs
+    subst hcs'
+    cases Hc
+    exact ⟨rfl, ha⟩
+  · intro r hr hg
+    obtain ⟨u, hu, hur⟩ := forall₂_mem_right' F r hr
+    have hq := hbr_q hur
+    have hu' := hgood u hu (by rw [hq]; exact hg)
+    obtain ⟨q, a, cs, cs', rfl, rfl, -⟩ := hur
+    exact hu'
+  · have HC₂ := hc_filter (good l) HC₁
+      (fun r _ hg a e => by
+        obtain ⟨⟨j, vs⟩, e'⟩ := good_true hg
+        have e₂ := (xb_good hc e').symm.trans e
+        cases e₂)
+      (fun r _ hb => ⟨none, xb_bad hc (good_false hb)⟩)
+    have hU : cplay (up.filter fun r => good l r.q) ∈ l.imp.toComp.denU (impSem P) := by
+      rw [denU_toCompI]
+      exact cplay_comp_ofHandler HC₂ hlow
+    exact cplay_ofHandler_comp
+      (hb_of_forall₂ (forall₂_filter (fun _ _ hr => congrArg (good l) (hbr_q hr)) F)) hU
 
-/-- **Inserting ill-typed rounds into a play of the importer's node** (`nodeI_of`). -/
+/-- **Inserting ill-typed rounds into a play of the importer's node**: trap-answered rounds
+without lower calls. -/
 theorem impNode_of (hc : l.imp.Good) {cl : List (CRound sigU sigU)}
     (hbad : ∀ r ∈ cl, good l r.q = false → r.cs = [] ∧ r.a = none)
     (h : cplay (cl.filter fun r => good l r.q) ∈ impNode (impSem P) l) :
-    cplay cl ∈ impNode (impSem P) l :=
-  nodeI_of hc (good l) good_iff hbad h
+    cplay cl ∈ impNode (impSem P) l := by
+  obtain ⟨up', HBu, hup'⟩ := hb_inv (oneShot_implsH _ _) h
+  obtain ⟨up, F, e, hm⟩ := forall₂_unfilter (R := HBR (implsH l.exp.exports.length (wireArgs l)))
+    (p := fun u => good l u.q) (p' := fun r => good l r.q) (fun r => r)
+    (fun _ _ hr => congrArg (good l) (hbr_q hr)) cl up'
+    (by
+      intro r hr hb
+      obtain ⟨hcs, -⟩ := hbad r hr hb
+      obtain ⟨q, cs, a⟩ := r
+      have hcs' : cs = [] := hcs
+      subst hcs'
+      exact ⟨q, a, [], [], rfl, rfl, .nil⟩)
+    (hb_forall₂ HBu)
+  rw [denU_toCompI] at hup'
+  obtain ⟨low, HC₁, hlow⟩ := hc_inv (oneShot_implsH _ _) hup'
+  rw [← e] at HC₁
+  have HC₂ := hc_unfilter (good l) up HC₁ (by
+    intro u hu hb
+    obtain ⟨r, hr, e'⟩ := hm u hu hb
+    have e'' : u = r := e'
+    rw [e''] at hb ⊢
+    obtain ⟨hcs, ha⟩ := hbad r hr hb
+    refine ⟨hcs, ?_⟩
+    rw [ha]
+    exact xb_bad hc (good_false hb))
+  have hU : cplay up ∈ l.imp.toComp.denU (impSem P) := by
+    rw [denU_toCompI]
+    exact cplay_comp_ofHandler HC₂ hlow
+  exact cplay_ofHandler_comp (hb_of_forall₂ F) hU
 
 end Node
-
 
 /-! ## The top layers -/
 
