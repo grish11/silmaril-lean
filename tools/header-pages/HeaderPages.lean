@@ -420,6 +420,17 @@ def demoGate (env : Env) (disk : String) : Except String Unit := do
     throw "examples/headers/layout/demo.h differs from the compiled-in Header.Demo.demoH; no theorem is linked"
   unless env == demoEnv do throw "the header's definitions are not Header.Demo.demoEnv; no theorem is linked"
 
+/-- Whether the loaded `Header.Demo.Defs` holds the same text as the binary: in the environment the
+theorems are read from (`loadEnv`), `demoH` is a definition whose value is exactly the string
+literal `text` (the compiled-in `demoH`). Lake does not track `include_str`, so after a partial
+or stale build the binary and the loaded oleans could disagree; this refuses every link then. -/
+def loadedGate (lenv : Lean.Environment) (text : String) : Except String Unit :=
+  match lenv.find? ``demoH with
+  | some (.defnInfo d) =>
+    if d.value.consumeMData == .lit (.strVal text) then .ok ()
+    else .error "the loaded Header.Demo.demoH is not the text compiled into header-pages (stale build?); no theorem is linked"
+  | _ => .error "Header.Demo.demoH is not a definition in the loaded environment; no theorem is linked"
+
 /-- The link context of a header page: the loaded environment and the gate. -/
 abbrev LinkCtx := Option (Lean.Environment × Except String Unit)
 
@@ -588,7 +599,7 @@ def headerJson (lenv : Lean.Environment) (s : Src) : IO Json := do
   | .error e => pure (Json.mkObj (base ++ [("read", Json.mkObj [("refused", js e)])]))
   | .ok h =>
     let ctx : LinkCtx := if s.demo then
-      some (lenv, demoGate h.env (((disk.find? (·.1 == "demo.h")).map (·.2)).getD "")) else none
+      some (lenv, loadedGate lenv demoH *> demoGate h.env (((disk.find? (·.1 == "demo.h")).map (·.2)).getD "")) else none
     let aggs ← h.env.toArray.mapM (declJson ctx h.env)
     pure (Json.mkObj (base ++ [("read", Json.mkObj [("ok", Json.bool true)]),
       ("typedefs", Json.arr (h.typedefs.toArray.map fun (n, t) => Json.mkObj [("name", js n), ("type", js (t.declare ""))])),
@@ -699,11 +710,14 @@ def selfTest : IO UInt32 := do
     | .error e => refused := refused + 1; IO.println s!"header-pages --self-test: refused '{d.what}': {e}"
   -- the gate: a file on disk that is not `demoH`, and definitions that are not `demoEnv`
   let gates := [("demo.h on disk differs from demoH", demoGate demoEnv (demoH ++ " ")),
-    ("definitions other than demoEnv", demoGate demoEnv.reverse demoH)]
+    ("definitions other than demoEnv", demoGate demoEnv.reverse demoH),
+    ("loaded demoH differs from the compiled text (stale build)", loadedGate env (demoH ++ " "))]
   for (what, g) in gates do
     match g with
     | .ok _ => IO.eprintln s!"header-pages --self-test: the gate accepted '{what}'"; failed := failed + 1
     | .error e => refused := refused + 1; IO.println s!"header-pages --self-test: refused '{what}': {e}"
+  unless loadedGate env demoH matches .ok _ do
+    IO.eprintln "header-pages --self-test: the loaded-text gate refuses the loaded demoH"; failed := failed + 1
   unless demoGate demoEnv demoH matches .ok _ do
     IO.eprintln "header-pages --self-test: the gate refuses demoH itself"; failed := failed + 1
   let total := decoys.length + gates.length
