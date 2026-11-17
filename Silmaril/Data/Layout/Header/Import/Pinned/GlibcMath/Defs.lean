@@ -42,8 +42,10 @@ def glibcMathJson : String :=
 /-- `examples/headers/clang/glibc-math.prov`. -/
 def glibcMathProv : String :=
   include_str "../../../../../../../examples/headers/clang/glibc-math.prov"
-/-- glibc's `math.h` (libm), hosted, as clang reads it: the import of `glibcMathJson`. -/
-def glibcMath : Imported := .ofJson (.parse glibcMathProv) glibcMathJson
+/-- glibc's `math.h` (libm), hosted, as clang reads it: the import of `glibcMathJson`. Noncomputable: the kernel computes it (in
+`import_glibcMath`), and compiled code uses the literal `GlibcMath.entries`. Compiling it would parse the
+JSON when a program that imports this module starts, with recursion as deep as the JSON is long. -/
+noncomputable def glibcMath : Imported := .ofJson (.parse glibcMathProv) glibcMathJson
 
 /-- The entries of `glibcMath`, as a literal. -/
 def GlibcMath.entries : List Entry := [
