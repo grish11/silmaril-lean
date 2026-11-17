@@ -28,12 +28,12 @@ library:
 # Everything `make check` builds; a recorded build publishes exactly these. A pull
 # request narrows it to what its diff can change (`make scope`).
 # The Cerberus tests and executables (docs/projects/cerberus.md).
-CERBERUS_TARGETS := CerberusTests cerb-lean ail-lean core-lean core-elab cfront \
+CERBERUS_TARGETS := CerberusTests cerb-lean ail-lean core-lean core-elab cfront ctv-pipeline c-pages \
 	ci_cerberus_genuine_oracle ci_cerberus_elaboration_oracle ci_cerberus_integer_cast \
 	ci_cerberus_parameter_call
 # The C compiler's executables (docs/projects/ccomp.md).
 CCOMP_TARGETS := ccomp ccomp-legacy ccomp-verified csem decompile
-CHECK_TARGETS ?= Silmaril SilmarilSpecTec SilmarilSpecTecMeta SilmarilWasiWit SilmarilWasmProject SilmarilLogicGraphData ProjectSelfTest wasm-pages elf-pages elf-asm header-pages $(WASM_TOOLS) wasm-shell-lean $(CERBERUS_TARGETS) SysVTvExample CompilesToExamples cexplorer-export $(CCOMP_TARGETS)
+CHECK_TARGETS ?= Silmaril SilmarilSpecTec SilmarilSpecTecMeta SilmarilWasiWit SilmarilWasmProject SilmarilLogicGraphData ProjectSelfTest wasm-pages elf-pages elf-asm header-pages $(WASM_TOOLS) wasm-shell-lean $(CERBERUS_TARGETS) SysVTvExample CompilesToExamples cexplorer-export CTvRows $(CCOMP_TARGETS)
 
 # Files Lake never reads; only the source gates in `make check` read them.
 SCOPE_EXCLUDE := 'docs/**' '**/*.md' 'scripts/**' 'apps/**' 'problems/**' 'specs/wasm/**' \
@@ -80,6 +80,7 @@ check:
 	$(MAKE) process-gates
 	examples/layout/gen-lean.sh --check
 	$(if $(filter ci_cerberus_genuine_oracle,$(CHECK_TARGETS)),$(MAKE) cerberus-oracle)
+	$(if $(filter ctv-pipeline,$(CHECK_TARGETS)),$(MAKE) c-tv-check)
 	$(if $(filter wasm-opt,$(CHECK_TARGETS)),$(LAKE) build --wfail $(RELEASE_BINARIES) && $(MAKE) release-check)
 	$(if $(filter elf-pages elf-asm,$(CHECK_TARGETS)),$(MAKE) elf-check)
 	$(if $(filter header-pages,$(CHECK_TARGETS)),$(MAKE) header-check)
@@ -205,6 +206,9 @@ pages: project-tool
 	# The Headers tab: header reading, ABI lowering and layouts (tools/header-pages).
 	lake build --wfail header-pages
 	lake env .lake/build/bin/header-pages _site
+	# The C programs tab reads the C TV theorems (by their statements) and the corpus (tools/c-pages).
+	lake build --wfail c-pages CTvRows
+	lake env .lake/build/bin/c-pages _site
 
 # The committed runtime report of the acceptor components (tools/wasm-acceptor-harness/report.json):
 # every suite under Wasmtime, by this fixed command (the report records it and has no timestamps,
@@ -248,6 +252,13 @@ help:
 
 # The Cerberus oracle replays over benchmarks/cerberus-elaboration/oracle (docs/projects/cerberus.md).
 CERBERUS_ORACLE := benchmarks/cerberus-elaboration/oracle
+# The C translation-validation corpus (docs/projects/c-tv.md): the stored reports and Core
+# documents agree with a fresh run of ctv-pipeline on the stored typed Ail.
+.PHONY: c-tv-check
+c-tv-check:
+	$(PYTHON) -I scripts/c-tv/corpus.py --check
+	$(PYTHON) -I scripts/c-tv/check-torture.py
+
 .PHONY: cerberus-oracle
 cerberus-oracle:
 	.lake/build/bin/ci_cerberus_genuine_oracle $(CERBERUS_ORACLE)

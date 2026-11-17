@@ -10,9 +10,10 @@ modules = ["ProjectSelfTest", "Silmaril.Project.Formats.Thms", "Silmaril.Project
   "Silmaril.Project.Shapes.SysV.Rtl.Defs", "SysVTvExample", "SysVTvRtl",
   "Silmaril.Project.Shapes.CompilesTo.Thms", "CompilesToExamples",
   "Silmaril.Project.Shapes.CompilesTo.Explorer.Thms", "CompilesToExamples.Explorer.Rows",
+  "Silmaril.Project.Shapes.CTV.Thms", "CTvRows",
   "Silmaril.Automata.Shapes.Thms", "Silmaril.LogicGraph.Audit.Defs", "Silmaril.LogicGraph.Catalogue.Defs",
   "Silmaril.LogicGraph.Consequence.Defs", "Silmaril.LogicGraph.Consequence.Containers.Defs", "Silmaril.LogicGraph.Consequence.Coverage.Defs",
   "Silmaril.Project.WasmComponents.Thms", "Silmaril.Project.WasmComponents.Relations.Thms",
   "Silmaril.Project.WasmComponents.Toy.Thms", "Silmaril.Project.WasmComponents.Versions.Thms",
   "Silmaril.Project.WasmComponents.Wac.Thms", "Silmaril.Project.WasmComponents.Wac.Verdicts.Thms"]
-roots = ["Silmaril.Project", "Silmaril.Elf.CliExe", "Silmaril.Elf.Abi", "Silmaril.Automata", "Silmaril.Containers", "Silmaril.LogicGraph", "ProjectSelfTest", "SysVTvExample", "SysVTvRtl", "CompilesToExamples"]
+roots = ["Silmaril.Project", "Silmaril.Elf.CliExe", "Silmaril.Elf.Abi", "Silmaril.Automata", "Silmaril.Containers", "Silmaril.LogicGraph", "ProjectSelfTest", "SysVTvExample", "SysVTvRtl", "CompilesToExamples", "CTvRows"]
