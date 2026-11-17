@@ -25,7 +25,9 @@ macros, struct/union/enum *definitions* (`struct s *` as an incomplete pointee i
 bit-fields, function pointers, K&R declarations, function definitions, `static`/`inline`
 functions. Qualifiers (`const`, `volatile`, `restrict`) are not part of `CTy` (they do not change
 how a value is passed) and are kept beside it, by pointer level (`Header.quals?`,
-`ProtoQuals`); a redeclaration must agree on them up to parameters' top-level qualifiers. The reader is the bridge to a full C front end, not one: its
+`ProtoQuals`); a redeclaration must agree on them up to parameters' top-level qualifiers. Qualifiers inside a typedef
+(`typedef const T *P;`) are not recorded (`CTy.typedef` carries none), so a redeclaration that
+spells the same type once through such a typedef and once directly is refused: conservative. The reader is the bridge to a full C front end, not one: its
 output type `Header` is what the full parser will also produce.
 
 Types are `Silmaril.Data.Layout.CTy`; typedef names are kept (`CTy.typedef name ty`) so that

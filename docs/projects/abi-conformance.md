@@ -30,7 +30,8 @@ The statement is `Silmaril.Machine.Abi.Conformance.Conforms`. The standard probl
 >    vector registers) therefore hold by the model's definition. That concrete x86 preserves
 >    them is the assumption `Faithful R M` of `Conforms.onRef`, which is **not proved here**.
 > 3. **The precondition is part of the claim.** A row holds for the calls its `S.pre`
->    admits, and `enterable` makes every one of them an admitted call. The rows of this page
+>    admits, and `enterable` makes every one of them an admitted call, with the caller's bytes on
+>    the call's objects (when they avoid the code and its data). The rows of this page
 >    have `pre = True` (every argument tuple).
 
 ## What a row binds
@@ -41,7 +42,10 @@ structure Conforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : 
   declared : Declares A hdr f p
   extent : c.off + c.len ≤ c.bytes.length
   nonvacuous : ∃ a s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory
-  enterable : ∀ a mem, S.pre a mem → ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory
+  enterable : ∀ a mem, S.pre a mem → (∀ x, S.objects a mem x → c.Outside x) →
+    ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory ∧
+      (∀ x, S.objects a s.machine.memory x ↔ S.objects a mem x) ∧
+      ∀ x, S.objects a mem x → s.machine.memory.bytes[x]? = mem.bytes[x]?
   safe : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory → NoStuck M s
   progress : mode = .total → ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory →
     (callModelOf M s).Nonempty
@@ -61,7 +65,7 @@ structure Conforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : 
 | result | `Good.result` | some `r` with `A.conv.ResultAt` (excess register bits unspecified) and `S.post a s r t` |
 | memory | `Good.frame` | written only inside `S.writes` (caller-visible effects) or `Owned`, which is bounded and admitted: `[rsp − frame, rsp)` for the row's stated `frame` (the red zone is the first 128 of these bytes when `frame ≥ 128`; `frame = 0` owns none), the incoming argument area `[rsp + 8, rsp + 8 + argArea)`, and `A.owned` (sret; empty for `sysvInt`). `Stack` makes all of it mapped, readable, writable and apart from the code, data, image and objects. Memory further below `rsp` is not owned |
 | thread pointer | `Good.fsBase` | the machine's FS base (what `%fs:` reads) is unchanged; on `Open` and `Open9` no step writes it (`Open.step_fsBase`, `Open9.step_fsBase`) |
-| non-vacuity | `nonvacuous`, `enterable` | some admitted call exists, and **every** argument tuple and memory the precondition admits has an admitted call meeting it. A row cannot be non-vacuous through one hand-picked call while its precondition admits others. The memory of that call is some memory meeting `pre`: the code, stack and placement are the ABI's |
+| non-vacuity | `nonvacuous`, `enterable` | some admitted call exists; and for **every** argument tuple and caller memory the precondition admits, whose caller-visible objects avoid the code and its read-only data (`Code.Outside`), an admitted call with those arguments, the same objects and the same bytes on them (every buffer content). The rest of that call's memory (code, stack, permissions) is the ABI's, not the caller's: a row says nothing about caller states whose objects overlap the code or its data. A row cannot be non-vacuous through one hand-picked call while its precondition admits others |
 | mode | `mode` | `.total`: every admitted call returns. `.safe`: partial correctness, divergence allowed, stuck states not |
 
 An admitted call (`Admit`) requires:
@@ -137,7 +141,13 @@ conformance of a *pure* function. A function with effects (`memset`) gives its `
      rejected.
    - A read-only executable `PT_LOAD` maps the code bytes, and read-only segments map the data.
    - The code's image is the file's `PT_LOAD` ranges.
-2. **`Untouched F c`.** No dynamic relocation writes the code or its data.
+2. **`Untouched F c`.** The file is x86-64, and every dynamic relocation has a known width
+   (`relocWidth`, from the psABI's relocation table: 4, 8, or 16 for `TLSDESC`) and writes outside
+   the code and its data. `COPY` (it writes the symbol's `st_size`), link-time-only and unknown
+   types are refused wherever they are (`not_untouched_copy`, `not_untouched_unknown`), as is a
+   file of another machine. A `TLSDESC` 12 bytes below the code is refused
+   (`not_untouched_tlsdesc`); the former check, which took every relocation as 8 bytes, accepted
+   it (`misses8_tlsdesc`).
 3. **Rebased conformance.** The file admits at least one load base, and at **every load base
    the file admits** (`Placement`: `0` for `ET_EXEC`, page-aligned for `ET_DYN`), the rebased
    code (`Code.rebase`) conforms. Without the first part, a file that admits no base would make
@@ -305,6 +315,8 @@ All rows are on `Open`.
 | `wrong_signedness` | `unsigned clamp_i32(int, int, int)` (wrong result signedness) |
 | `wrong_header_not` | a header declaring an `unsigned` result: the code conforms to the `int` prototype on no machine, mode or spec |
 | `not_available` (two forms) | the partial `arith.h` coverage as available (or complete) header satisfaction |
+| `not_headerSatPartial_nil`, `HeaderSatAvailable.total` | header satisfaction with nothing claimed; a `.safe` claim in available (or complete) satisfaction |
+| `Elf.Abi.Present.not_absent` | an `absent` exclusion of a function some table of the file defines (any table, any version: `Absent` takes no claimant-chosen selector) |
 | `Elf.Abi.LeafArith.not_codeOf_symbol` | `clamp_i32`'s code as the file's `sat_add_u32` (wrong symbol) |
 | `Elf.Abi.LeafArith.not_codeOf_bytes` | the code with its entry byte changed (wrong bytes), as any function of the file (`Elf.Abi.not_codeOf_of_bytes`) |
 | `Data.Layout.Header.qualifier_redeclaration` | `int f(const char *); int f(char *);` and other redeclarations with differing pointee qualifiers |
