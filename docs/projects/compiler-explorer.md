@@ -243,7 +243,7 @@ with `textContent`.
 
 The explorer's obligations of the compiles-to builds are rows of the project
 (`silmaril/compiler-explorer.toml`, group `silmaril.compiler_explorer.all`, a child of
-`silmaril.all`). They are instances of five shapes, `silmaril.shapes.compiler_explorer.c.*`, and
+`silmaril.all`). They are instances of six shapes, `silmaril.shapes.compiler_explorer.c.*` (including `code`, the binding of the function to its object), and
 are solved in `CompilesToExamples.Explorer.Rows`. `sil project dump`, `sqlite` and `explore`
 therefore record their statuses and show them on the published explorer like every other row.
 
