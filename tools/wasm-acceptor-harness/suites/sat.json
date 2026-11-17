@@ -1,9 +1,31 @@
 {
+  "$schema": "../../../docs/schemas/wasm-acceptor-suite.v1.schema.json",
   "suite": "sat-accept",
   "description": "The SAT model-witness acceptor component: check-stream(problem: list<s32>, model: list<s32>) and check-nested(problem: list<list<s32>>, model: list<s32>). Expected outcomes follow Silmaril.Logic.SAT.Carrier.satStream / satNested.",
   "artifacts": {
     "sat": {
       "path": "../../../examples/wasm-acceptors/sat_accept.wasm",
+      "claims": [
+        {
+          "kind": "component-level soundness (kernel-checked)",
+          "level": "component",
+          "registry_name": "silmaril.wasm.examples.sat_accept.component",
+          "value": "Silmaril.Wasm.Examples.SatAccept.bytes",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.SatAccept.bytes, regenerated as examples/wasm-acceptors/sat_accept.wasm): an accepting call implies the SAT check and language membership. Soundness only: nothing is stated about rejections, traps or completeness.",
+          "theorems": [
+            {
+              "decl": "Silmaril.Project.WasmComponents.SatAccept.checkStream_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.SatAccept.Thms",
+              "states": "check-stream returns true on xs, ms ⇒ satStream xs ms = true ∧ xs ∈ SatStream"
+            },
+            {
+              "decl": "Silmaril.Project.WasmComponents.SatAccept.checkNested_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.SatAccept.Thms",
+              "states": "check-nested returns true on p, ms ⇒ satNested p ms = true ∧ p ∈ SatNested"
+            }
+          ]
+        }
+      ],
       "source": "Silmaril.Wasm.Examples.SatAccept: prog, wrapped as a component (memory 0, realloc cabi_realloc)",
       "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2"
     }

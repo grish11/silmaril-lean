@@ -1,9 +1,26 @@
 {
+  "$schema": "../../../docs/schemas/wasm-acceptor-suite.v1.schema.json",
   "suite": "farkas-accept",
   "description": "The Farkas acceptor component: check(system: list<ineq>, y: list<s64>) -> bool with record ineq { coeffs: list<tuple<u32, s64>>, bound: s64 }. Expected outcomes follow Silmaril.Logic.LinArith.Carrier.farkasCheck within the module's bounds (|y|, |b|, |a| <= 2^30, y >= 0, variables < 8192, accumulators within 2^62); outside them the module rejects valid certificates (sound but incomplete), noted per case.",
   "artifacts": {
     "farkas": {
       "path": "../../../examples/wasm-acceptors/farkas_accept.wasm",
+      "claims": [
+        {
+          "kind": "component-level soundness (kernel-checked)",
+          "level": "component",
+          "registry_name": "silmaril.wasm.examples.farkas_accept.component",
+          "value": "Silmaril.Wasm.Examples.FarkasAccept.bytes",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.FarkasAccept.bytes, regenerated as examples/wasm-acceptors/farkas_accept.wasm): an accepting call implies that the system is infeasible. Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
+          "theorems": [
+            {
+              "decl": "Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.FarkasAccept.Thms",
+              "states": "check returns true on S, y ⇒ S ∈ Infeasible"
+            }
+          ]
+        }
+      ],
       "source": "Silmaril.Wasm.Examples.FarkasAccept: prog, wrapped as a component (memory 0 = core memory 1, realloc cabi_realloc)",
       "sha256": "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996"
     }

@@ -1,9 +1,31 @@
 {
+  "$schema": "../../../docs/schemas/wasm-acceptor-suite.v1.schema.json",
   "suite": "lrat-accept",
   "description": "The LRAT UNSAT acceptor component: check-stream(problem: list<s32>, cert: list<s32>) and check-nested(problem: list<list<s32>>, cert: list<s32>). The certificate is the flat LRAT stream format v1 (Silmaril.Logic.SAT.Carrier.LratStream). Expected outcomes agree with Silmaril.Logic.SAT.Carrier.lratStream / lratNested on every case except *-empty-clause-empty-cert (see its note); malformed problems and certificates are rejected.",
   "artifacts": {
     "lrat": {
       "path": "../../../examples/wasm-acceptors/lrat_accept.wasm",
+      "claims": [
+        {
+          "kind": "component-level soundness (kernel-checked)",
+          "level": "component",
+          "registry_name": "silmaril.wasm.examples.lrat_accept.component",
+          "value": "Silmaril.Wasm.Examples.LratAccept.bytes",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.LratAccept.bytes, regenerated as examples/wasm-acceptors/lrat_accept.wasm): an accepting call implies that the problem is unsatisfiable. Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
+          "theorems": [
+            {
+              "decl": "Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.LratAccept.Thms",
+              "states": "check-stream returns true on xs, cert ⇒ xs ∈ UnsatStream"
+            },
+            {
+              "decl": "Silmaril.Project.WasmComponents.LratAccept.checkNested_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.LratAccept.Thms",
+              "states": "check-nested returns true on p, cert ⇒ p ∈ UnsatNested"
+            }
+          ]
+        }
+      ],
       "source": "Silmaril.Wasm.Examples.LratAccept: prog, wrapped as a component (memory 0 = core memory 1, realloc cabi_realloc)",
       "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784"
     }

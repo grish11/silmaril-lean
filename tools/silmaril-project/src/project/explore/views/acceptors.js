@@ -2,51 +2,23 @@
 // A section on the pages of a Wasm component and of a registry artifact whose SHA-256 is that of a
 // certificate-checking acceptor component. Two kinds of evidence, kept apart on the page:
 // * runtime observations: `acceptor-runs.json` next to the page, the report of
-//   tools/wasm-acceptor-harness (kind `silmaril.wasm-acceptor-harness.report/v1`), copied by
-//   `make pages`. Each case is one call of one export under one engine on concrete arguments.
-//   An observation is a test, never a proof: it gets neutral badges only, a met expectation reads
-//   "matches expectation (test)", a missing one is neutral. The verdict is recomputed here from
-//   the expected and observed outcomes; a report whose own verdict disagrees is flagged.
-// * Lean theorems: `CLAIMS`, a static map by SHA-256 from the bytes a theorem is about to the
-//   theorem names and the kind of claim. Nothing here checks them: the names are what the library
+//   tools/wasm-acceptor-harness (kind `silmaril.wasm-acceptor-harness.report/v2`, or v1, which
+//   has no claims), copied by `make pages`. Each case is one call of one export under one engine
+//   on concrete arguments. An observation is a test, never a proof: it gets neutral badges only,
+//   a met expectation reads "matches expectation (test)", a missing one is neutral. The verdict
+//   is recomputed here from the expected outcome (and expected detail substring) and the
+//   observation; a report whose own verdict disagrees is flagged.
+// * Lean theorems: the `claims` of the report's artifacts (v2), which the harness copies from the
+//   suite files (tools/wasm-acceptor-harness/suites/*.json) only when the file has the pinned
+//   SHA-256, each with the SHA-256 it was made for. A claim shows only on a page whose SHA-256 is
+//   both the artifact's and the claim's. Nothing here checks them: the names are what the library
 //   states (CI builds it with --wfail), linked to their source when the page has sources.
-// Missing report: a neutral notice. A malformed report: an error in this section's block.
+// Missing report: a neutral notice on component pages (and so no claims). A malformed report: an
+// error in this section's block. Adding a checker is adding a suite file: there is no per-checker code here.
 (() => {
   const { esc, href } = Explorer.ui;
   const REPORT = "acceptor-runs.json";
-  const KIND = "silmaril.wasm-acceptor-harness.report/v1";
-  // By the SHA-256 of the bytes the theorems are about (the file the harness pins). A changed
-  // file no longer matches, so a claim never shows on bytes it was not made for.
-  const CLAIMS = [
-    { sha256: "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2", name: "silmaril.wasm.examples.sat_accept.component",
-      kind: "component-level soundness (kernel-checked)", level: "component",
-      scope: "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.SatAccept.bytes, " +
-        "regenerated as examples/wasm-acceptors/sat_accept.wasm): an accepting call implies the SAT check and language " +
-        "membership. Soundness only: nothing is stated about rejections, traps or completeness.",
-      theorems: [
-        { decl: "Silmaril.Project.WasmComponents.SatAccept.checkStream_sound_of_bytes", module: "Silmaril.Project.WasmComponents.SatAccept.Thms",
-          states: "check-stream returns true on xs, ms ⇒ satStream xs ms = true ∧ xs ∈ SatStream" },
-        { decl: "Silmaril.Project.WasmComponents.SatAccept.checkNested_sound_of_bytes", module: "Silmaril.Project.WasmComponents.SatAccept.Thms",
-          states: "check-nested returns true on p, ms ⇒ satNested p ms = true ∧ p ∈ SatNested" }] },
-    { sha256: "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784", name: "silmaril.wasm.examples.lrat_accept.component",
-      kind: "component-level soundness (kernel-checked)", level: "component",
-      scope: "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.LratAccept.bytes, " +
-        "regenerated as examples/wasm-acceptors/lrat_accept.wasm): an accepting call implies that the problem is unsatisfiable. " +
-        "Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
-      theorems: [
-        { decl: "Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes", module: "Silmaril.Project.WasmComponents.LratAccept.Thms",
-          states: "check-stream returns true on xs, cert ⇒ xs ∈ UnsatStream" },
-        { decl: "Silmaril.Project.WasmComponents.LratAccept.checkNested_sound_of_bytes", module: "Silmaril.Project.WasmComponents.LratAccept.Thms",
-          states: "check-nested returns true on p, cert ⇒ p ∈ UnsatNested" }] },
-    { sha256: "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996", name: "silmaril.wasm.examples.farkas_accept.component",
-      kind: "component-level soundness (kernel-checked)", level: "component",
-      scope: "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.FarkasAccept.bytes, " +
-        "regenerated as examples/wasm-acceptors/farkas_accept.wasm): an accepting call implies that the system is infeasible. " +
-        "Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
-      theorems: [
-        { decl: "Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes", module: "Silmaril.Project.WasmComponents.FarkasAccept.Thms",
-          states: "check returns true on S, y ⇒ S ∈ Infeasible" }] }];
-
+  const KINDS = ["silmaril.wasm-acceptor-harness.report/v2", "silmaril.wasm-acceptor-harness.report/v1"];
   let reportP = null;
   // The report, or { missing: reason } when there is none next to the page. Anything else that
   // goes wrong (not JSON, another kind) is an error.
@@ -59,7 +31,7 @@
       if (!r.ok) throw new Error(`${REPORT}: HTTP ${r.status}`);
       let j;
       try { j = await r.json(); } catch (e) { throw new Error(`${REPORT} is not JSON (${e.message || e})`); }
-      if (!j || j.kind !== KIND) throw new Error(`${REPORT}: kind ${JSON.stringify(j && j.kind)}, expected ${KIND}`);
+      if (!j || !KINDS.includes(j.kind)) throw new Error(`${REPORT}: kind ${JSON.stringify(j && j.kind)}, expected one of ${KINDS.join(", ")}`);
       if (!j.engine || !Array.isArray(j.artifacts) || !Array.isArray(j.cases)) throw new Error(`${REPORT}: no engine, artifacts or cases`);
       return j;
     })();
@@ -79,11 +51,16 @@
     const t = full.length > 2000 ? full.slice(0, 2000) + "…" : full;
     return `<code title="${esc(t)}">${esc((c.args || []).map(brief).join(", "))}</code>`;
   }
-  // The verdict from the expectation and the observation (the report's own is only compared).
+  // The verdict from the expectation and the observation (the report's own is only compared):
+  // the outcome must be the expected one and, when an expected detail is given, the observed
+  // detail must contain it.
   function verdict(c) {
-    const obs = c.observed && c.observed.outcome;
-    const mine = c.expected == null ? "unchecked" : c.expected === obs ? "pass" : "fail";
+    const obs = c.observed && c.observed.outcome, detail = (c.observed && c.observed.detail) || "";
+    const want = c.expected_detail;
+    const detailOk = want == null || detail.includes(want);
+    const mine = c.expected == null ? "unchecked" : c.expected === obs && detailOk ? "pass" : "fail";
     let h = mine === "pass" ? obsTag("match", "matches expectation (test)", `this run's outcome ${obs} is the expected one; a test, not a proof`)
+      : mine === "fail" && c.expected === obs ? obsTag("mismatch", `mismatch: detail lacks ${JSON.stringify(want)}`, `expected a detail containing ${JSON.stringify(want)}, observed ${JSON.stringify(detail)}`)
       : mine === "fail" ? obsTag("mismatch", `mismatch: expected ${c.expected}`, `expected ${c.expected}, observed ${obs}`)
       : obsTag("", "no expectation", "the case states no expected outcome: nothing is checked");
     if (c.verdict !== mine) h += ` <span class="st-x st-x-bad" title="the report's verdict is not what its expected and observed outcomes give">report says ${esc(c.verdict)}</span>`;
@@ -114,40 +91,69 @@
       ["export", (c) => code(`${c.export}(${(c.params || []).join(", ")})`)],
       ["class", (c) => esc(c.class || "")],
       ["args", argsCell],
-      ["expected", (c) => c.expected == null ? '<span class="muted">none</span>' : code(c.expected)],
+      ["expected", (c) => c.expected == null ? '<span class="muted">none</span>' : code(c.expected) +
+        (c.expected_detail != null ? `<div class="muted">detail contains ${code(c.expected_detail)}</div>` : "")],
       ["observed", (c) => code(c.observed.outcome) + (c.observed.detail ? `<div class="muted">${esc(c.observed.detail)}</div>` : "")],
       ["verdict", (c, i) => vs[i].html]];
     return h + '<div class="tablebox"><table class="obs-cases"><thead><tr>' + cols.map(([t]) => `<th>${esc(t)}</th>`).join("") +
       "</tr></thead><tbody>" + cases.map((c, i) => `<tr data-case="${esc(c.name)}" data-verdict="${vs[i].mine}">` +
         cols.map(([, f]) => `<td>${f(c, i)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>";
   }
-  function claimsBlock(cl) {
-    const cls = cl.level === "component" ? "prov prov-lean" : "prov prov-browser";
-    let h = `<h3>Lean theorems about this component</h3><p><span class="${cls}" data-claim="${esc(cl.level)}">${esc(cl.kind)}</span> ` +
-      `<span class="muted">${esc(cl.scope)}</span></p>`;
-    h += '<p class="muted">Named by a static map in the explorer (by SHA-256 of the bytes they are about), not read from the database; ' +
-      "separate from the runtime observations, which they neither use nor confirm.</p>";
+  // The claims of the report about exactly these bytes: those of an artifact with this SHA-256
+  // whose own SHA-256 (the pin it was made for) is this one too. Duplicates (one artifact in two
+  // suites) are shown once.
+  function claimsFor(rep, sha) {
+    const seen = new Set(), out = [];
+    for (const a of rep.artifacts) {
+      if (a.sha256 !== sha || a.pinned_sha256_ok === false) continue;
+      for (const cl of Array.isArray(a.claims) ? a.claims : []) {
+        if (!cl || cl.sha256 !== sha) continue;
+        const key = JSON.stringify(cl);
+        if (!seen.has(key)) { seen.add(key); out.push(Object.assign({ artifact: a.id }, cl)); }
+      }
+    }
+    return out;
+  }
+  const LEVEL_CLASS = { component: "prov prov-lean", "core-module": "prov prov-browser" };
+  function claimBlock(cl) {
+    const cls = LEVEL_CLASS[cl.level] || "prov";
+    let h = `<p><span class="${cls}" data-claim="${esc(cl.level || "")}">${esc(cl.kind || "claim")}</span> ` +
+      `<span class="muted">${esc(cl.scope || "")}</span></p>`;
+    const rows = [["about", code(cl.value || "?") + (cl.registry_name ? ` <span class="muted">registered as</span> ${code(cl.registry_name)}` : "")],
+      ["for SHA-256", code(cl.sha256) + ' <span class="muted">= this page\'s</span>'],
+      ["stated in", `the suite of ${code(cl.artifact)} (<code>tools/wasm-acceptor-harness/suites/</code>), copied into the report`]];
+    h += '<dl class="obs-meta">' + rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("") + "</dl>";
+    const ths = Array.isArray(cl.theorems) ? cl.theorems : [];
     h += '<div class="tablebox"><table class="claims"><thead><tr><th>theorem</th><th>states</th><th>source</th></tr></thead><tbody>' +
-      cl.theorems.map((t) => `<tr><td><a href="${esc(href("source", t.decl))}">${code(t.decl)}</a><div class="muted">${esc(t.module)}</div></td>` +
+      ths.map((t) => `<tr><td><a href="${esc(href("source", t.decl))}">${code(t.decl)}</a><div class="muted">${esc(t.module)}</div></td>` +
         `<td>${esc(t.states)}</td><td>${sourceLink(t.module, t.decl) || '<span class="muted">—</span>'}</td></tr>`).join("") +
       "</tbody></table></div>";
     return h;
   }
+  function claimsBlock(rep, sha) {
+    const withheld = rep.artifacts.filter((a) => a.sha256 === sha && a.claims_withheld).map((a) => a.claims_withheld);
+    const note = withheld.map((w) => `<p class="muted"><span class="st-x st-x-bad">${esc(w)}</span></p>`).join("");
+    if (!String(rep.kind).endsWith("/v2"))
+      return note + `<p class="muted claims-none">No Lean theorem about these bytes is named: this report (${esc(rep.kind)}) carries no claims.</p>`;
+    const cls = claimsFor(rep, sha);
+    if (!cls.length) return note + '<p class="muted claims-none">No Lean theorem about these bytes is named in the report.</p>';
+    let h = "<h3>Lean theorems about this component</h3>";
+    h += '<p class="muted">Read from the harness report, which copies them from the suite file for exactly these bytes (the pinned SHA-256); ' +
+      "not read from the database and not checked by the harness or here. Separate from the runtime observations, which they neither use nor confirm.</p>";
+    return h + note + cls.map(claimBlock).join("");
+  }
   async function render(subject) {
     const sha = (subject.sha256 || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(sha)) return "";
-    const cl = CLAIMS.find((c) => c.sha256 === sha);
     const rep = await loadReport();
-    const art = rep.missing ? null : rep.artifacts.find((a) => a.sha256 === sha);
-    if (!cl && !art) return "";
-    let h = "";
-    if (rep.missing) h += `<p class="muted obs-none">No runtime observations: ${esc(rep.missing)}. They are written by ` +
+    // Without a report nothing here names these bytes: a neutral notice on component pages (any
+    // component may be an acceptor), nothing on artifact pages.
+    if (rep.missing) return subject.kind !== "wasm-component" ? "" :
+      `<p class="muted obs-none">No runtime observations or claims: ${esc(rep.missing)}. Both come from the report of ` +
       "<code>tools/wasm-acceptor-harness</code> (<code>report.json</code>, copied by <code>make pages</code>).</p>";
-    else if (art) h += observationsBlock(rep, art, subject);
-    else h += '<p class="muted obs-none">No runtime observations: the harness report next to this page runs no artifact with this SHA-256.</p>';
-    if (cl) h += claimsBlock(cl);
-    else h += '<p class="muted">No Lean theorem about these bytes is named here.</p>';
-    return h;
+    const art = rep.artifacts.find((a) => a.sha256 === sha);
+    if (!art) return "";
+    return observationsBlock(rep, art, subject) + claimsBlock(rep, sha);
   }
   Explorer.registerSection({ id: "acceptor-evidence", title: "Acceptor component: runtime observations and theorems",
     on: ["wasm-component", "artifact"], order: 40, render });

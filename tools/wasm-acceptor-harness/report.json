@@ -1,5 +1,5 @@
 {
-  "kind": "silmaril.wasm-acceptor-harness.report/v1",
+  "kind": "silmaril.wasm-acceptor-harness.report/v2",
   "evidence": "runtime observations of one engine on concrete inputs; not a proof",
   "command": [
     "target/release/wasm-acceptor-harness",
@@ -21,6 +21,20 @@
       "nan_canonicalization": false
     }
   },
+  "suites": [
+    {
+      "suite": "farkas-accept",
+      "description": "The Farkas acceptor component: check(system: list<ineq>, y: list<s64>) -> bool with record ineq { coeffs: list<tuple<u32, s64>>, bound: s64 }. Expected outcomes follow Silmaril.Logic.LinArith.Carrier.farkasCheck within the module's bounds (|y|, |b|, |a| <= 2^30, y >= 0, variables < 8192, accumulators within 2^62); outside them the module rejects valid certificates (sound but incomplete), noted per case."
+    },
+    {
+      "suite": "lrat-accept",
+      "description": "The LRAT UNSAT acceptor component: check-stream(problem: list<s32>, cert: list<s32>) and check-nested(problem: list<list<s32>>, cert: list<s32>). The certificate is the flat LRAT stream format v1 (Silmaril.Logic.SAT.Carrier.LratStream). Expected outcomes agree with Silmaril.Logic.SAT.Carrier.lratStream / lratNested on every case except *-empty-clause-empty-cert (see its note); malformed problems and certificates are rejected."
+    },
+    {
+      "suite": "sat-accept",
+      "description": "The SAT model-witness acceptor component: check-stream(problem: list<s32>, model: list<s32>) and check-nested(problem: list<list<s32>>, model: list<s32>). Expected outcomes follow Silmaril.Logic.SAT.Carrier.satStream / satNested."
+    }
+  ],
   "artifacts": [
     {
       "id": "farkas-accept/farkas",
@@ -30,7 +44,24 @@
       "sha256": "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996",
       "blake3": "c3eb790c5a48ed9b971936aae63d88f28a5c0f519c20fc20f5ddaa0dfda73350",
       "cid": "bafkr4igd5n4qywsi5wnzogjwvltd3chsrjoa6um4ed6cb5o5vig73jztka",
-      "pinned_sha256_ok": true
+      "pinned_sha256_ok": true,
+      "claims": [
+        {
+          "sha256": "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996",
+          "kind": "component-level soundness (kernel-checked)",
+          "level": "component",
+          "registry_name": "silmaril.wasm.examples.farkas_accept.component",
+          "value": "Silmaril.Wasm.Examples.FarkasAccept.bytes",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.FarkasAccept.bytes, regenerated as examples/wasm-acceptors/farkas_accept.wasm): an accepting call implies that the system is infeasible. Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
+          "theorems": [
+            {
+              "decl": "Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.FarkasAccept.Thms",
+              "states": "check returns true on S, y ⇒ S ∈ Infeasible"
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "lrat-accept/lrat",
@@ -40,7 +71,29 @@
       "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
       "blake3": "e2dae4ae144fd3d7247d968503be1fe41a7c8f2a52c40e4c8c07454534a33f53",
       "cid": "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km",
-      "pinned_sha256_ok": true
+      "pinned_sha256_ok": true,
+      "claims": [
+        {
+          "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784",
+          "kind": "component-level soundness (kernel-checked)",
+          "level": "component",
+          "registry_name": "silmaril.wasm.examples.lrat_accept.component",
+          "value": "Silmaril.Wasm.Examples.LratAccept.bytes",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.LratAccept.bytes, regenerated as examples/wasm-acceptors/lrat_accept.wasm): an accepting call implies that the problem is unsatisfiable. Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
+          "theorems": [
+            {
+              "decl": "Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.LratAccept.Thms",
+              "states": "check-stream returns true on xs, cert ⇒ xs ∈ UnsatStream"
+            },
+            {
+              "decl": "Silmaril.Project.WasmComponents.LratAccept.checkNested_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.LratAccept.Thms",
+              "states": "check-nested returns true on p, cert ⇒ p ∈ UnsatNested"
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "sat-accept/sat",
@@ -50,7 +103,29 @@
       "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
       "blake3": "993f6f121c666d9be3e503bf1196f361be6ce6b7afda30855ccd66e5925e79b5",
       "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
-      "pinned_sha256_ok": true
+      "pinned_sha256_ok": true,
+      "claims": [
+        {
+          "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+          "kind": "component-level soundness (kernel-checked)",
+          "level": "component",
+          "registry_name": "silmaril.wasm.examples.sat_accept.component",
+          "value": "Silmaril.Wasm.Examples.SatAccept.bytes",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.SatAccept.bytes, regenerated as examples/wasm-acceptors/sat_accept.wasm): an accepting call implies the SAT check and language membership. Soundness only: nothing is stated about rejections, traps or completeness.",
+          "theorems": [
+            {
+              "decl": "Silmaril.Project.WasmComponents.SatAccept.checkStream_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.SatAccept.Thms",
+              "states": "check-stream returns true on xs, ms ⇒ satStream xs ms = true ∧ xs ∈ SatStream"
+            },
+            {
+              "decl": "Silmaril.Project.WasmComponents.SatAccept.checkNested_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.SatAccept.Thms",
+              "states": "check-nested returns true on p, ms ⇒ satNested p ms = true ∧ p ∈ SatNested"
+            }
+          ]
+        }
+      ]
     }
   ],
   "cases": [

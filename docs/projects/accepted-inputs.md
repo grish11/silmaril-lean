@@ -272,17 +272,25 @@ in a fresh store and instance, and its outcome is `accepted`, `rejected`, `trap`
 - `make acceptor-report` writes the committed report `tools/wasm-acceptor-harness/report.json`
   by one fixed command, run from that directory:
   `LC_ALL=C target/release/wasm-acceptor-harness suites/*.json --out report.json`.
-- The report records that command, the engine and its configuration, and each artifact's size,
-  SHA-256, BLAKE3 and CID (the registry's CIDv1). It records every case with its typed
-  signature, arguments, expected and observed outcomes and verdict.
+- The report (kind `silmaril.wasm-acceptor-harness.report/v2`) records:
+  - that command;
+  - the engine and its configuration;
+  - the suites;
+  - each artifact's size, SHA-256, BLAKE3 and CID (the registry's CIDv1), with the suite's
+    claims about it;
+  - every case with its typed signature, arguments, expected outcome (and optional expected
+    detail), observed outcome and verdict.
+- `cargo test` (also run in CI) covers the conversion of JSON to component values by WIT type,
+  through a generated component that has a parameter of every supported type. It also covers
+  the CID and the verdicts.
 - It has no timestamps, so a rerun on the same files writes the same bytes.
 - The `wasm-acceptor-harness` job of `.github/workflows/ci-rust.yml` reruns the command and
   fails if the result differs from the committed file.
 
 **The explorer.** `make pages` copies the report to `_site/acceptor-runs.json`. The section
 "Acceptor component: runtime observations and theorems" (`explore/views/acceptors.js`) shows on
-a component page and on an artifact page whose SHA-256 is that of a reported artifact or of a
-known acceptor. It has two parts, kept apart:
+a component page and on an artifact page whose SHA-256 is that of an artifact in the report. It
+has two parts, kept apart:
 
 - **Runtime observations (Wasmtime 50.0.0) — tested, not proved.** This part shows the engine
   and configuration, the exact CID and SHA-256, and one row per case of those bytes. A row gives
@@ -291,18 +299,47 @@ known acceptor. It has two parts, kept apart:
   - All badges are neutral: an observation never gets the green proof style.
   - A met expectation reads "matches expectation (test)", a failed one "mismatch". A case
     without an expectation is neutral and never counts as a pass.
-  - The page computes the verdict from the expected and observed outcomes, and flags a report
-    whose verdict disagrees.
-  - Without `acceptor-runs.json` the section shows a neutral notice. A malformed report is an
-    error inside the section only.
-- **Lean theorems.** A static map, keyed by the SHA-256 of the bytes a theorem is about, gives
-  the theorem names and the kind of claim. For SAT, LRAT and Farkas the claim is
-  "component-level soundness (kernel-checked)". The names link to their source pages.
-  - A changed file no longer matches the map, so a claim never shows on other bytes.
+  - The page computes the verdict from the expected and observed outcomes (and the expected
+    detail substring), and flags a report whose verdict disagrees.
+  - Without `acceptor-runs.json`, a component page shows a neutral notice and an artifact page
+    shows nothing. A malformed report is an error inside the section only.
+- **Lean theorems.** These are read from the report's `claims`.
+  - The harness copies them from the suite file only when the file has the pinned SHA-256, and
+    records the SHA-256 each claim was made for. If the pin does not match, the report notes the
+    claims as withheld.
+  - The page shows a claim only when both the artifact's SHA-256 and the claim's are the page's.
+    So a changed file never shows the claims made for other bytes.
+  - Each claim shows its kind, scope, the Lean value the bytes are and its theorems. For SAT, LRAT
+    and Farkas the kind is "component-level soundness (kernel-checked)". The `level` sets the
+    style: `component` gets the Lean style, `core-module` a weaker one. The names link to their
+    source pages.
+  - A v1 report, which has no claims, still shows its observations.
 
 `tools/silmaril-project/tests/explore/acceptor_runs.mjs` checks the section in Chromium on a
-`make pages` output and on fixtures built from it. The fixtures cover a match, a mismatch, a
-missing expectation, a missing report and a malformed report.
+`make pages` output and on fixtures built from it. The fixtures cover:
+- a match, a mismatch and a missing expectation;
+- an expected detail that is met and one that is missed;
+- a report with claims, without claims, in v1, with a claim made for other bytes, and with a
+  withheld claim;
+- a missing report and a malformed report.
+
+The test also checks that the committed report's claims carry their artifacts' registered
+SHA-256s and name theorems that their headers state.
+
+**Adding a checker** means adding data, not code:
+
+1. Write the component and its Lean theorems, and register the bytes in `silmaril/artifacts.toml`.
+2. Add `tools/wasm-acceptor-harness/suites/<name>.json`. It follows
+   `docs/schemas/wasm-acceptor-suite.v1.schema.json`; the harness README gives the JSON shape of
+   each WIT type. In it, set:
+   - the artifact's `path` and its `sha256` pin;
+   - `claims`, with `kind`, `level`, `registry_name`, `value`, `scope` and
+     `theorems: [{decl, module, states}]`;
+   - the cases, with `expect`, plus `expect_detail` where a trap or error message matters.
+3. Run `make acceptor-report` and commit `report.json`. `make pages` publishes it, and the
+   explorer shows the observations and claims on the component's pages.
+4. When the bytes change, update the pin (and the claims, if the theorems change) and rerun
+   step 3. Until then, the claims are withheld and every case is an `error`.
 
 ## Checking
 
@@ -317,6 +354,7 @@ The acceptor components' report, registry and explorer section:
 
 ```
 lake build --wfail Silmaril.Project.WasmComponents.SatAccept.Thms
+(cd tools/wasm-acceptor-harness && cargo test --release --locked)
 make acceptor-report && git diff --exit-code tools/wasm-acceptor-harness/report.json
 make project-registry
 make pages && node tools/silmaril-project/tests/explore/acceptor_runs.mjs _site

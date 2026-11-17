@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hiloop.ai/schemas/silmaril.wasm-acceptor-suite.v1.json",
+  "title": "wasm-acceptor-harness suite",
+  "description": "A suite of tools/wasm-acceptor-harness: component artifacts (pinned by SHA-256, with the Lean claims made about exactly those bytes) and the cases run on them under Wasmtime. Arguments are converted by the export's actual parameter types; see tools/wasm-acceptor-harness/README.md for the JSON shape of each WIT type.",
+  "type": "object",
+  "required": ["suite", "artifacts", "cases"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "suite": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The suite's name; artifact ids in the report are `<suite>/<artifact>`"
+    },
+    "description": { "type": "string" },
+    "artifacts": {
+      "type": "object",
+      "description": "Artifact id -> artifact",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/artifact" }
+    },
+    "cases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/case" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "artifact": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "description": "The component file, relative to the suite file" },
+        "sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "The pinned SHA-256: a different file is an `error` for every case and gets no claims"
+        },
+        "source": { "type": "string", "description": "What the artifact is (for example the Lean value it is generated from)" },
+        "claims": {
+          "type": "array",
+          "description": "What the Lean library states about exactly the pinned bytes; needs `sha256`. Copied into the report, not checked by the harness.",
+          "items": { "$ref": "#/$defs/claim" }
+        }
+      },
+      "dependentRequired": { "claims": ["sha256"] }
+    },
+    "claim": {
+      "type": "object",
+      "required": ["kind", "level", "value", "scope", "theorems"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "The kind of claim as shown, e.g. `component-level soundness (kernel-checked)` or `core-module soundness only`"
+        },
+        "level": {
+          "enum": ["component", "core-module"],
+          "description": "`component`: about every reference Component Model reading of the bytes; `core-module`: about the core module inside only"
+        },
+        "registry_name": { "type": "string", "description": "The name the bytes are registered under in silmaril/artifacts.toml" },
+        "value": { "type": "string", "description": "The Lean value the bytes are regenerated from, e.g. `Silmaril.Wasm.Examples.SatAccept.bytes`" },
+        "scope": { "type": "string", "description": "What the theorems cover and what they leave out" },
+        "theorems": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["decl", "module", "states"],
+            "additionalProperties": false,
+            "properties": {
+              "decl": { "type": "string", "description": "The fully qualified theorem name" },
+              "module": { "type": "string", "description": "The module (header) that states it" },
+              "states": { "type": "string", "description": "One line: what it states" }
+            }
+          }
+        }
+      }
+    },
+    "outcome": { "enum": ["accepted", "rejected", "trap", "error", "unsupported"] },
+    "case": {
+      "type": "object",
+      "required": ["name", "artifact", "export", "args"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "artifact": { "type": "string", "description": "An artifact id of this suite" },
+        "export": { "type": "string", "description": "The exported function; it must return one `bool`" },
+        "class": { "type": "string", "description": "Free text, by convention `positive`, `negative`, `malformed`, `abi-failure` or `trap`" },
+        "args": {
+          "type": "array",
+          "description": "Positional arguments, one JSON value per parameter, converted by the parameter's type"
+        },
+        "expect": { "$ref": "#/$defs/outcome" },
+        "expect_detail": {
+          "type": "string",
+          "description": "A substring the observed detail (trap or error message) must contain; needs `expect`"
+        },
+        "note": { "type": "string" }
+      },
+      "dependentRequired": { "expect_detail": ["expect"] }
+    }
+  }
+}
