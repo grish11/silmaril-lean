@@ -5,6 +5,7 @@ public import Silmaril.Machine.Abi.Conformance.Thms
 public import Silmaril.Machine.Abi.Conformance.Sse.Thms
 public import Silmaril.Machine.Abi.SystemV.Scalar.Thms
 public import Silmaril.Proofs.Machine.Abi.Conformance.Basic
+public import Silmaril.Proofs.Machine.Abi.Conformance.Sse.Add
 public import Silmaril.X86.Spec.Ensures
 public import Silmaril.X86.Float.Semantics
 
@@ -13,7 +14,7 @@ public import Silmaril.X86.Float.Semantics
 
 * the witness: the code at `base` (below `2^47`), `rsp = 2^47 + 0x8ff8` with the return address
   `2^47 + 0x2000` (above every byte of the image), one region mapping every address, the
-  argument in the low half of vector register 0, MXCSR `0x1F80` (`st`);
+  argument in the low half of vector register 0, MXCSR `0x1F80` (`st`; the ABI admits any status flags with the default control bits);
 * the run: from every completion of every admitted call, `cvtsd2si` (the `floatExt` lane:
   `Str9L.step_of_listed_float`) then `ret`, the second state the first return (`firstReturn`);
 * the row (`conforms`).
@@ -174,7 +175,8 @@ theorem admit_st {M : Mach} (hl : ∀ x, M.isa.live x) {base : Word} {image : Li
     (hb : base.toNat + 6 ≤ 2 ^ 47) (hi : ∀ r ∈ image, r.1.toNat + r.2 ≤ 2 ^ 47)
     (S : CallSpec abi.V proto) (hS : S.objects = fun _ _ _ => False) (a : BitVec 64) :
     Admit abi M proto (code base image) 0 S (args a) (st base a) := by
-  refine ⟨fun x _ => hl x, entry_st hb a, ⟨trivial, rfl⟩, placed image hb a, ?_, rfl⟩
+  refine ⟨fun x _ => hl x, entry_st hb a,
+    ⟨trivial, show (0x1F80 : BitVec 32) &&& 0xffc0 = 0x1F80 by decide⟩, placed image hb a, ?_, rfl⟩
   rw [hS]
   exact stack hb hi a
 
@@ -186,7 +188,7 @@ theorem entry_facts {M : Mach} {c : Code} {S : CallSpec abi.V proto} {a : abi.V.
         some (Silmaril.Machine.LittleEndian.encodeWords [exit]) ∧
       s.direction = false ∧ s.x87Mode = true ∧
       Ffi.ChunksAt s (Ffi.bytesOfNat a.1.toNat 0 8) [⟨0, 8, .vector 0 0⟩] ∧
-      s.mxcsr = 0x1F80 := by
+      s.mxcsr &&& 0xffc0 = 0x1F80 := by
   obtain ⟨exit, e⟩ := ad.entry
   have hargs := e.argumentsAt
   change Ffi.ArgumentsAt s (proto.args.map Silmaril.Machine.Abi.SystemV.Scalar.Arg.spec) a
@@ -239,6 +241,8 @@ theorem step_cvt {base : Word} {image : List (Word × Nat)} (x : SState)
     (hl : Silmaril.X86.Ext.Loaded x.l.memory (code base image).base bytes)
     (hrip : x.l.core.rip = (code base image).base) (hm : x.l.mxcsr.AllMasked) :
     mach.isa.step x = some (x1 x) := by
+  rw [Sse.str9L_step x (Silmaril.X86.Str9L.towerMissing_of_listed_lane (o := 0) (l := 5) hl
+    (by rw [hrip]; simp) (by decide) (by decide) (by decide) laneBad_cvt.1)]
   show (Silmaril.X86.Str9L.step _ (Silmaril.X86.Features.floatExt :: _) x.l).map _ = _
   rw [Silmaril.X86.Str9L.step_of_listed_float (o := 0) (l := 5) hl
     (by rw [hrip]; simp) (by decide) (by decide) laneBad_cvt.1 laneBad_cvt.2 (by decide)
@@ -296,8 +300,8 @@ theorem fills_mem (hx : mach.Fills s x) : x.l.memory = s.machine.memory := by
 theorem masked (ad : Admit abi mach proto (code base image) 0 S a s) (hx : mach.Fills s x) :
     x.l.mxcsr.AllMasked := by
   obtain ⟨_, _, _, _, _, hm⟩ := entry_facts ad
-  rw [Sse.fills_mxcsr hx, hm]
-  exact Silmaril.X86.Float.MXCSR.reset_allMasked
+  rw [Sse.fills_mxcsr hx]
+  exact Silmaril.Proofs.Machine.Abi.Conformance.Sse.Add.allMasked_of_control hm
 
 theorem not_returned_of_rip {y : SState} (hy : y.l.core.rip = base + BitVec.ofNat 64 5 ∨
       y.l.core.rip = base + BitVec.ofNat 64 0)
@@ -415,6 +419,25 @@ theorem good (ad : Admit abi mach proto (code base image) 0 S a s) (hx : mach.Fi
     rw [← hcore]; rfl
 
 end Completion
+
+/-- **`toLong` reads only the MXCSR control bits** (DAZ, FTZ with UM, RC). -/
+theorem toLong_mask (m : BitVec 32) (a : BitVec 64) : toLong m a = toLong (m &&& 0xffc0) a := by
+  have keep : ∀ k, (0xffc0 : BitVec 32).getLsbD k = true → (m &&& 0xffc0).getLsbD k = m.getLsbD k :=
+    fun k hk => by rw [BitVec.getLsbD_and, hk, Bool.and_true]
+  have h6 := keep 6 (by decide)
+  have h11 := keep 11 (by decide)
+  have h15 := keep 15 (by decide)
+  have hrc : (m &&& 0xffc0).extractLsb' 13 2 = m.extractLsb' 13 2 := by
+    apply BitVec.eq_of_getLsbD_eq; intro j hj
+    rw [BitVec.getLsbD_extractLsb', BitVec.getLsbD_extractLsb']
+    rcases (by omega : j = 0 ∨ j = 1) with rfl | rfl
+    · rw [keep 13 (by decide)]
+    · rw [keep 14 (by decide)]
+  simp only [toLong, Silmaril.X86.Float.Scalar.toInt, Silmaril.X86.Float.MXCSR.profile,
+    Silmaril.X86.Float.MXCSR.control, Silmaril.X86.Float.MXCSR.rounding,
+    Silmaril.X86.Float.MXCSR.daz, Silmaril.X86.Float.MXCSR.fz, Silmaril.X86.Float.MXCSR.um,
+    Silmaril.X86.Float.MXCSR.rc, h6, h11, h15, hrc]
+  rfl
 
 /-! ## The row -/
 

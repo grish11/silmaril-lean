@@ -75,11 +75,15 @@ calling or tail-calling other code (PLT or internal), or using x87 are out of th
 
 **Limits.** The rows are on a machine **model** (`Mach.str9L FeatureSet.baseline64
 Features.sseExts`); `Faithful` of a reference machine to it is not proved, so nothing here is a
-claim about hardware. The ABI is the **default-environment subset** `sysvScalar.defaultEnv`
-(named, not unfolded: a change of its entry environment is inherited). The row code has no
-VEX/EVEX or BMI form (so the machine's present acceptance of VEX forms on `baseline64` does not
-enter), no `%fs` access (no thread-pointer assumption is needed), no `rdssp`, and `ret` is
-modelled without a shadow stack: the rows are about processes without user shadow stacks.
+claim about hardware, and the rows cover the functions listed, not the library: the other
+plain functions are unaudited on this machine. The ABI is the **default-environment subset**
+`sysvScalar.defaultEnv` (named, not unfolded: entry MXCSR control bits `0x1F80`, status flags
+free); the value specs (`Lrint.toLong`, `toLongF`, `roundAway`) read the entry MXCSR only through
+`MXCSR.profile` and `MXCSR.rounding`, i.e. its control bits (`Lrint.toLong_mask`). The row code
+has no VEX/EVEX or BMI form (the sweep; `Mach.str9L` on `baseline64` has no step at such a form
+anyway), no `%fs` access (no thread-pointer assumption is needed), no call through the PLT, no
+`rdssp`, and `ret` is modelled without a shadow stack: the rows are about processes without user
+shadow stacks.
 -/
 
 @[expose] public section

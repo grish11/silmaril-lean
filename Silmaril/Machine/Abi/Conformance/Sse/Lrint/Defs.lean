@@ -28,9 +28,10 @@ integer indefinite `0x8000000000000000`, for NaN, infinite and out-of-range oper
 the out-of-range result unspecified (C17 7.12.9.5); the row states the one this code gives.
 
 **The machine**: `Mach.str9L FeatureSet.baseline64 Features.sseExts`. The code has no VEX,
-EVEX or BMI form (so the machine's present acceptance of VEX forms on `baseline64` does not
-enter), no `%fs` access, no memory access but the return address, and no `rdssp`; `ret` is
-modelled without a shadow stack, so the row is about processes without user shadow stacks.
+EVEX or BMI form (its first instruction is a `floatExt` lane form, and the run shows no tower form
+needs a missing feature: `Str9L.towerMissing_of_listed_lane`), no `%fs` access (no thread-pointer
+assumption), no memory access but the return address, and no `rdssp`; `ret` is modelled without
+a shadow stack, so the row is about processes without user shadow stacks.
 -/
 
 @[expose] public section
