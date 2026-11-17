@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Cfg.Machine.Defs
 public import Silmaril.Wasm.Abstract.HostClosingS.Defs
+public import Silmaril.Wasm.Abstract.CallXP.Defs
 
 /-!
 # The logged block-CFG machine (H1, definitions)
@@ -42,9 +43,12 @@ untyped code they differ, as native and Core semantics do, and no untyped corres
 
 No block evaluates nested structured code natively: every block step runs straight-line code.
 
-Not yet here (H1 proofs, H2, H3; `docs/projects/wasm-cfg.md`): the forward theorem against
-`EvalLXPS` on bodies, the projection to `MStepC`, the converse, pending calls, divergence and
-productive streams, and the recursive closure.
+* `CloseOk C e`: the logged call `e` is an answer of the call relation `C` (the callee's top
+  results, trimmed to its result arity, or `C`'s exception or trap, with the store `C` leaves);
+  host calls never are. Used to read closed runs as logged ones (`MachineL.closed_iff_logged`).
+
+Theorems in `Silmaril.Wasm.Cfg.MachineL.Thms`. Not yet here (`docs/projects/wasm-cfg.md`): the
+projection to `MStepC`, divergence and productive streams, and the recursive closure.
 -/
 
 @[expose] public section
@@ -231,5 +235,17 @@ inductive ReachL (body : Expr) : MState H → List (SCall H) → (wasmOShape H).
       {f : Frame} {l : List (SCall H)} {z : (wasmOShape H).self.Op}
       (hb : lookup body b = some sg) (hr : ReachLXPS s f stk.reverse (liftInstrs sg.body) l z) :
       ReachL body ⟨.block b, stk, ls, s, f⟩ l z
+
+/-- **A logged internal call answered by `C`**: values are the callee's top results (in the
+caller's order), exceptions and traps are `C`'s, each with the store `C` leaves. Host calls are
+never `C`-answers. -/
+def CloseOk (C : Abstract.CallRel H) : SCall H → Prop
+  | ⟨.inr ⟨a, (args, s₁)⟩, (.inl (.inl ws), s₂)⟩ =>
+      ∃ (fi : FuncInst H) (ps rs : List Validation.CValType) (fl : Flow) (vs : List Val),
+        s₁.funcs[a]? = some fi ∧ Validation.DefType.funcType? fi.type = some (ps, rs) ∧
+        C s₁ a args (s₂, fl) ∧ fl.retVals = some vs ∧ ws = (vs.take rs.length).reverse
+  | ⟨.inr ⟨a, (args, s₁)⟩, (.inl (.inr t), s₂)⟩ => C s₁ a args (s₂, .throw t)
+  | ⟨.inr ⟨a, (args, s₁)⟩, (.inr _, s₂)⟩ => C s₁ a args (s₂, .trap)
+  | ⟨.inl _, _⟩ => False
 
 end Silmaril.Wasm.Cfg.MachineL

@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Cfg.MachineL.Defs
 import Silmaril.Proofs.Wasm.Cfg.MachineLFwd
 import Silmaril.Proofs.Wasm.Cfg.MachineLBwd
 import Silmaril.Proofs.Wasm.Cfg.MachineLPend
+import Silmaril.Proofs.Wasm.Cfg.MachineLClosed
 
 @[expose] public section
 
@@ -68,6 +69,15 @@ absent.
   theorem states only the pending question and prefix. Pending *tail* calls are not pending
   internal calls: they are ends of the body (`TailL`, `forward_tail`), made at the frame.
 
+* **`closed_iff_logged`** (H2 divergence support): a run of the closed canonical semantics
+  `EvalOXP C` is exactly an `EvalLXPS` run whose every logged call is a `C`-answer
+  (`CloseOk C`).
+  * Values: the callee's top `rs` results, `rs` its result types, as `EvalOXP`'s `callOk` keeps
+    them.
+  * Exceptions and traps: `C`'s, each with the store `C` leaves.
+  * Host calls are never `C`-answers.
+  Used with `C = closedCallXP` for the host-free part of divergence.
+
 Not yet here: divergence (quiescent: infinite local steps, or a
 finite run into a diverging callee) and coherent productive streams, each against the machine;
 the typed projection to `MStepC`; the recursive closure (H3).
@@ -121,5 +131,13 @@ theorem pending_iff {body : Expr} {s : Store H} {f : Frame} {l : List (SCall H)}
       ∃ (st : MState H) (l₁ l₂ : List (SCall H)), MRunL body (initial body s f) l₁ st ∧
         ReachL body st l₂ z ∧ l = l₁ ++ l₂ :=
   Proofs.MachineLPend.pending_iff
+
+/-- **Closed runs are the logged runs answered by the call relation.** -/
+theorem closed_iff_logged {C : Abstract.CallRel H} {s : Store H} {f : Frame} {stk : List Val}
+    {es : List BExpr} {r : Store H × Frame × POut} :
+    Abstract.CallXP.EvalOXP C s f stk es r ↔
+      ∃ l, EvalLXPS s f stk es l r ∧ ∀ e ∈ l, CloseOk C e :=
+  ⟨Proofs.MachineLClosed.closed_logged,
+    fun ⟨_, h, hl⟩ => Proofs.MachineLClosed.logged_closed h hl⟩
 
 end Silmaril.Wasm.Cfg.MachineL

@@ -616,8 +616,26 @@ The plain graph stays an over-approximation, and claims about it say so.
           - Fixture `Wasm/Cfg/ExamplePending`: a call in a handler that is pending, answered by an
             exception (caught: exit) or by a callee trap (uncaught: trap); a tail call in a
             handler (`TailL`).
-        - Still open in H2: quiescent divergence (infinite local steps vs a finite run into a
-          diverging callee, kept distinct) and coherent productive streams.
+        - **Divergence, step D1 done**: `MachineL.closed_iff_logged`.
+          - A closed run `EvalOXP C` is exactly a store-retaining logged run (`EvalLXPS`) whose
+            entries are all `C`-answers (`CloseOk`).
+          - Answers are exact: callee values trimmed to the callee's result arity; exceptions and
+            traps with the stores `C` leaves.
+        - **Divergence, D2/D3 open.** The machine's quiescent divergence is `MDivL`, a greatest
+          fixed point over machine states with two distinct cases:
+          - a step whose logged calls are all `closedCallXP`-answers, then divergence again
+            (infinite local steps);
+          - a reached call (`ReachL`) whose callee diverges (`FunDivXP`): finite callee
+            divergence.
+          A diverging tail callee is the third, function-level case (`CallStepXP.frameTail`).
+          Both directions are to be proved against `EvalDivXP`, then `LogDivXP` after a logged
+          prefix:
+          - forward: coinduction on `EvalDivXP`, with a "never leaves its sequence"
+            decomposition of the machine run, and finite exit segments by `forward_sink`;
+          - backward: the infinite machine run built from the native unfolding.
+        - Still open after that: coherent productive streams (`InfLXP`).
+        - The closed oracle `closedCallXP` used here is the native one. These results do not
+          discharge H3, which still needs the recursive logged CFG closure.
         - Still open as fixtures: nested-loop `continue` and a tail call inside a handler.
       - **H2, both directions on bodies.**
         - Finished ends: done, throw and trap, with exact final store and log.
