@@ -48,31 +48,38 @@ structure Conforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : 
       ∀ x, S.objects a mem x → s.machine.memory.bytes[x]? = mem.bytes[x]?
   safe : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory → NoStuck M s
   progress : mode = .total → ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory →
-    (callModelOf M s).Nonempty
+    ∀ x, M.Fills s x → (callFrom M s x).Nonempty
   sound : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory →
     ∀ t ∈ callModelOf M s, Good A p frame S a s t
 ```
 
 | ingredient | definition | content |
 | --- | --- | --- |
-| ABI and its version | `AbiDef` | `id` and `source` (the versioned document); the data model; `lower` from a C prototype to the ABI's prototype, or an explicit refusal, given the tag definitions of the header (`Header.env`) for by-value structs and unions; a `Convention` (`Entry`, `Return`, `ResultAt`); `argArea` and `owned` (memory the callee gets) |
+| ABI and its version | `AbiDef` | `id` and `source` (the versioned document); the data model; `lower` from a C prototype to the ABI's prototype, or an explicit refusal, given the tag definitions of the header (`Header.env`) for by-value structs and unions; a `Convention` (`Entry`, `Return`, `ResultAt`); `argArea` and `owned` (memory the callee gets); `EntryEnv`, the entry environment (below) |
 | prototype | `Declares A hdr f p` | the header files parse to a header declaring `f`, and `A.lower` maps its prototype to `p` with the tag definitions of the same header (`hdr.env`): a by-value `struct T` is laid out as that header defines `T` (`sysvScalar_tag_mismatch`). The parsed prototype is a function of the header (`hdr.proto? f`), so it is the exact one: result and parameter types with their signedness and widths. Qualifiers are kept beside it (`hdr.quals? f`, by pointer level); they do not change the lowering. The reader (`Data.Layout.Header.read`) refuses incompatible redeclarations, including differing pointee qualifiers. The check runs by `decide`, so no signature is attached by hand |
 | code identity | `Code`, `Placed` | the bytes, the load address, the entry offset, the function's extent, the read-only data, and the image's address ranges. An admitted state has the code and data loaded, `rip` at the entry, and the return address outside the code |
 | admissible calls | `Admit` | listed below this table |
-| execution | `callModelOf M` | the **first return** of `M`; the result is read at the function's own return |
-| no stuck state | `safe`, `NoStuck` | every state before the return takes a step on `M` |
-| call/return | `Good.ret` = `A.conv.Return` | `rip` = the return address, `rsp + 8`, the callee-saved registers, DF clear, x87 mode, MXCSR and x87 control, the FFI thread pointer |
+| machine | `M : Mach` | a segment machine `M.isa` on its own state `M.σ`; the FFI fields it models (`M.models`, always `.machine`); what a machine state says about them (`M.view`); and its admissible completions (`M.Fills s x`: `x` agrees with `s` on the modelled fields, so its core and memory are `s.machine`'s, and holds anything else hardware may present; every FFI state has one). `M.store s y = overwrite M.models s (M.view y)` writes `y` back: modelled fields from `y`, the others from `s`. An integer machine `I` on `MState` is `Mach.ofInt I`: it models `.machine` only and its one completion of `s` is `s.machine` |
+| execution | `callModelOf M` | the **first returns** of `M.isa` from **every** completion of `s`, stored back into `s`; the result is read at the function's own return |
+| no stuck state | `safe`, `NoStuck` | from every completion, every state before the return takes a step on `M` |
+| call/return | `Good.ret` = `A.conv.Return` | `rip` = the return address, `rsp + 8`, the callee-saved registers, DF clear, x87 mode, the MXCSR control bits (6–15) and x87 control word preserved (MXCSR status flags 0–5 free), the FFI thread pointer |
 | result | `Good.result` | some `r` with `A.conv.ResultAt` (excess register bits unspecified) and `S.post a s r t` |
 | memory | `Good.frame` | written only inside `S.writes` (caller-visible effects) or `Owned`, which is bounded and admitted: `[rsp − frame, rsp)` for the row's stated `frame` (the red zone is the first 128 of these bytes when `frame ≥ 128`; `frame = 0` owns none), the incoming argument area `[rsp + 8, rsp + 8 + argArea)`, and `A.owned` (the storage of a MEMORY result at RDI under `sysvScalar`; empty for `sysvInt` and `win64Int`). `Stack` makes all of it mapped, readable, writable and apart from the code, data, image and objects. Memory further below `rsp` is not owned |
 | thread pointer | `Good.fsBase` | the machine's FS base (what `%fs:` reads) is unchanged; on `Open` and `Open9` no step writes it (`Open.step_fsBase`, `Open9.step_fsBase`) |
 | non-vacuity | `nonvacuous`, `enterable` | some admitted call exists; and for **every** argument tuple and caller memory the precondition admits, whose caller-visible objects avoid the code and its read-only data (`Code.Outside`), an admitted call with those arguments, the same objects and the same bytes on them (every buffer content). The rest of that call's memory (code, stack, permissions) is the ABI's, not the caller's: a row says nothing about caller states whose objects overlap the code or its data. A row cannot be non-vacuous through one hand-picked call while its precondition admits others |
-| mode | `mode` | `.total`: every admitted call returns. `.safe`: partial correctness, divergence allowed, stuck states not |
+| mode | `mode` | `.total`: every admitted call returns, from every completion. `.safe`: partial correctness, divergence allowed, stuck states not |
 
 An admitted call (`Admit`) requires:
 
-- a live state;
+- every completion of the entry state live;
 - `A.conv.Entry p a s`: the arguments in their registers and stack slots,
   `rsp + 8 ≡ 0 (mod 16)`, the return address, DF clear, x87 mode, `%al` for varargs, and sret;
+- the entry environment `A.EntryEnv s.mxcsr s.x87Control`: a predicate on the MXCSR and the
+  x87 control word only (its type is its scope). `True` for `sysvInt`, `sysvScalar` and
+  `win64Int`: their conventions let a caller enter with any control bits. An ABI requiring the
+  default MXCSR control bits (`MXCSR &&& 0xffc0 = 0x1F80`; the sticky status flags are free) is
+  a **default-environment subset**, not the full convention, and
+  says so in its identity (`AbiDef.defaultEnv`). The environment is never part of a machine;
 - the code placed;
 - the stack the ABI gives the callee (`Stack`):
   - `frame` bytes below `rsp`, the return address and the argument area;
@@ -94,24 +101,45 @@ conformance of a *pure* function. A function with effects (`memset`) gives its `
   instruction. Such an instruction is undecodable on them, so code that uses one is stuck.
   Because `safe` excludes stuck states, that code has **no row in either mode**: the row is
   unprovable, not vacuously true.
-- **State the integer machine lacks: preserved by construction.** `callModelOf` carries the
-  vector, x87, DF, MXCSR and x87-control state unchanged (`callModelOf_carried`). The `Return`
+- **State the integer machine lacks: preserved by construction.** On an integer machine
+  (`Mach.ofInt`), `callModelOf` carries the vector, x87, DF, MXCSR and x87-control state
+  unchanged (`callModelOf_carried`). The `Return`
   obligations about it hold *by the model*, so a row proves nothing about them for real x86;
   that is `Faithful`'s content.
-- **Faithfulness.** `Faithful R M`: wherever `M` steps, the reference machine `R` (on the whole
-  FFI state) takes the same step and leaves that extra state unchanged. `Conforms.onRef`
-  transfers a row to `R`: every first return of `R` is a conforming return, and in total mode
-  there is one. For real x86 this is an **assumption** about the model (each decoded instruction
+- **No laundering by the write-back.** `Mach.store` is a definition: a field outside
+  `M.models` is carried (`Mach.store_carried`), a modelled field is a function of the machine
+  state alone, and `store` is the merge of a very well-behaved lens (`Mach.store_store`,
+  `Mach.store_fills`). The laundering lens of the #994 review (clear DF and set x87 mode
+  whenever the machine state changed) is the store of no `Mach` (`Lens.launder_not_store`), and
+  a machine whose state is fixed by its core and memory models nothing but `.machine`
+  (`Lens.models_eq_machine`).
+- **Every admissible completion.** State the FFI state does not determine (a time-stamp
+  oracle, a hidden profile) is not fixed by the machine: `Admit.live`, `NoStuck`, `callModelOf`
+  and `progress` range over every `x` with `M.Fills s x`. On `Mach.ofInt` the only completion is
+  `s.machine`, and the definitions are the stage-1 ones (`mem_callModelOf_ofInt`,
+  `progress_ofInt_iff`, `noStuck_ofInt_iff`, `live_ofInt_iff`).
+- **Faithfulness.** `Faithful R M`, for a reference relation `R` on the whole FFI state, at the
+  states `M` reaches from a completion `x` of `s`: where `M` steps from `y` to `y'`, `R` can step
+  from `M.store s y` to `M.store s y'` (`fwd`); and where `M` steps from `y`, every step of `R`
+  from `M.store s y` is a step `M` takes from a state with the same FFI state, reached from some
+  completion of `s` (`bwd`). On `Mach.ofInt` this is the stage-1 statement
+  (`faithful_ofInt_iff` for a deterministic `Ref.ofFun r`, `faithful_ofInt_iff_rel`). A step that
+  reads hidden state does not make it unsatisfiable: `Lens.tsc`, a machine whose `rdtsc`-like step
+  reads a hidden value, is faithful to a reference that may return any value
+  (`Lens.tsc_faithful`), while no deterministic reference is (`Lens.tsc_not_faithful_ofFun`).
+  `Conforms.onRef` transfers a row to `R`: every first return of `R` is a conforming return,
+  and in total mode there is one. For real x86 this is an **assumption** about the model (each decoded instruction
   is executed as `M` says and touches no vector, x87 or control state). It is not proved here;
   the open-machine trust base is described in [x86](../x86.md).
 - **External calls.** Behaviour comes only from `M`. On the open machines a call to code that is
   not loaded is stuck. A row about code that calls a library is stated on a machine whose steps
   include the callee contracts (`Silmaril.Elf.Link.Dyn.Proc`), and those contracts are then the
   row's assumptions.
-- **Faithfulness is unguarded.** `Faithful R M` quantifies over every FFI state. A hardware
-  reference would need it restricted to the states the ABI admits: for example, `Str9`'s string
-  forms assume DF = 0, which `Entry` guarantees but which does not hold for arbitrary states. That
-  guarded form is future work. The standard instances `Open` and `Open9` have no string forms.
+- **Faithfulness is not guarded by the ABI.** `Faithful R M` is restricted to states reached
+  from a completion, but quantifies over every FFI state `s`. A hardware reference would need
+  it restricted to the states the ABI admits: for example, `Str9`'s string forms assume DF = 0,
+  which `Entry` guarantees but which does not hold for arbitrary states. That guarded form is
+  future work. The standard instances `Open` and `Open9` have no string forms.
 - **Recursive callers.** `Placed.retOutside` admits only callers whose return address lies
   outside the function's bytes.
 
@@ -448,10 +476,13 @@ the state's (as here), in `Machine.SystemV.Abi.Ffi`, and derive the `OpenMachine
 | --- | --- |
 | `Silmaril.Data.Layout.Header` | the header subset reader (`read`), `CProto`, `Header`; tagged struct, union and enum definitions are read into `Header.decls`/`Header.enums` (`Header.env` for layouts). Header satisfaction concerns the prototypes only |
 | `Silmaril.Data.Layout.Header.Import`, `Silmaril.Machine.Abi.Conformance.Import` | the clang route: a provenance-tagged import of a pinned clang JSON AST, its cross-check with the subset reader, and coverage and `Declares` from it ([C headers](c-headers.md)) |
-| `Silmaril.Machine.Abi.Conformance` | `AbiDef`, `sysvInt`, `Code`, `CallSpec`, `Admit`, `NoStuck`, `Good`, `Conforms`, `Faithful`, `Coverage`, `HeaderSatPartial`, `HeaderSatAvailable`, `HeaderSatComplete`; `conforms_of_strict`, `Conforms.steps`, `Conforms.onRef` |
+| `Silmaril.Machine.Abi.Conformance` | `AbiDef` (with `EntryEnv`, `AbiDef.defaultEnv`), `sysvInt`, `Code`, `FfiField`, `overwrite`, `Mach`, `Mach.store`, `Mach.ofInt`, `callFrom`, `callModelOf`, `CallSpec`, `Admit`, `NoStuck`, `Good`, `Conforms`, `Ref`, `Faithful`, `Coverage`, `HeaderSatPartial`, `HeaderSatAvailable`, `HeaderSatComplete`; `conforms_of_strict`, `Conforms.steps`, `Conforms.onRef`, the lens laws and the `Mach.ofInt` reductions |
+| `Silmaril.Machine.Abi.Conformance.Lens` | `launder` (the #994 review's laundering store) and `launder_not_store`; `models_eq_machine`; `tsc`, a machine with hidden state a step reads, and `tsc_faithful`, `tsc_not_faithful_ofFun` |
 | `Silmaril.Machine.Abi.Conformance.Win64`, `….SysvScalar` | `win64Int`, `lowerWin64Int` and `sysvScalar`, `kindOf`, `objectOf`, `argOf`, `lowerScalar`, with their lowering examples |
 | `Silmaril.Machine.Abi.SystemV.Scalar` | the scalar-and-aggregate vocabulary and convention: `Kind`, `Agg`, `Eights`, `Arg`, `Proto`, `scalarPlan`, `plan_scalarPlan`, `entry_inhabited`, `sysv`, `resultAt_some`, `resultAt_direct`, `resultAt_indirect` |
 | `Silmaril.Data.Layout` (`msX64`) | the Microsoft x64 LLP64 data model |
+| `Silmaril.Machine.Abi.Conformance.Sse` | `Mach.str9L F exts`: `Str9L.isa F exts` on `SState` (the tower state and the hidden parts of the FFI vector and x87 fields); it models the machine, the whole vector and x87 fields, DF, MXCSR and the x87 control word, and carries x87 mode and the FFI thread pointer (`str9L_models`, `str9L_carried`); every fitting state completes (`str9L_fillsAll`: any per-read time-stamp stream, CET flag and hidden part); no step at a tower VEX/BMI/`movbe` form whose features `F` lacks (`Str9L.towerMissing`; `str9L_vpcmpeqb_none` on `baseline64`); rows hold for processes without user shadow stacks; completions allow any x87 TOP and tags (an x87 row needs an empty-stack entry assumption); the SSE argument and `double` result bridges (`entry_xmm`, `resultAt_store_double`, `fills_tower` through `Sep.Plan.ffiXState`) |
+| `Silmaril.Machine.Abi.Conformance.Sse.Add` | the first floating-point row: `addsd %xmm1, %xmm0; ret` as `double add(double, double)` under `sysvScalar.defaultEnv` (default-environment subset: control bits `0x1F80`, any status flags; `admitted_pe` with `0x1FA0`) on `Mach.str9L FeatureSet.baseline64 Features.sseExts`, total, result binary64 addition by `Numeric.Float`'s x86 SSE profile of the entry MXCSR, which reads only its control bits (`conforms`, `sum_control`); the same bytes do not conform on `Open` (`open_not`) |
 | `Silmaril.Machine.Abi.Conformance.LeafArith` | the example: its header, code, specs, coverage, witness state, test machines, open tasks, proofs and negative tests |
 | `Silmaril.X86.Open.FsBase` | `Open.step_fsBase`, `Open9.step_fsBase`: no step writes the FS base (proving `FsBase.Task.openStepKeepsFs`) |
 | `Silmaril.Project.Shapes.Abi` | `silmaril.shapes.abi.conforms`, `header_sat_partial`, `header_sat_available`, `header_sat_complete` and their `sysv_int` instances |
@@ -474,4 +505,7 @@ the state's (as here), in `Machine.SystemV.Abi.Ffi`, and derive the `OpenMachine
 - `sysvScalar` and `win64Int` instances of the registry shapes, and rows for them (a
   `sysvScalar` row about floating computation needs a machine with SSE steps).
 - A reference machine for `Faithful`.
+- Rows on `Mach.str9L` beyond `Sse.Add`: an entry environment "every exception masked" (any
+  rounding mode, DAZ, FTZ) wider than the default-environment subset; libm declarations as open
+  ABI problems.
 - The explorer's prototype and ABI views.

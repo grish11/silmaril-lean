@@ -48,7 +48,8 @@ IEEE binary32, an 8-byte type binary64. `lowerScalar` refuses, with a reason:
 **What a row does not cover.** The standard machines (`Open`, `Open9`) model no SSE
 instruction, so code that reads an XMM argument or writes XMM0 is stuck on them and has no
 `sysvScalar` row there. A row on such a machine is for code that receives floating arguments
-and does not touch them (they are carried by `callModelOf`, unchanged); a row about floating
+and does not touch them (on an integer machine, `Mach.ofInt`, they are carried by
+`callModelOf`, unchanged); a row about floating
 computation needs a machine with SSE steps.
 
 **Result storage.** The hidden pointer of a MEMORY result points at memory the callee owns
@@ -250,7 +251,8 @@ def sretBytes (p : Silmaril.Machine.Abi.SystemV.Scalar.Proto) : Nat :=
 their layout, planned by the psABI planner (`scalarPlan`), with the full `Ffi.Entry`/`Ffi.Return`
 discipline. Arguments without registers for all their eightbytes are 8-byte stack slots above
 the return address; the callee owns that area, and the storage of a MEMORY result (at RDI on
-entry). -/
+entry). Every entry environment is admitted (`EntryEnv` is `True`): the psABI lets a caller
+enter with any MXCSR and x87 control bits. -/
 def sysvScalar : AbiDef where
   id := "x86_64-sysv-psabi@e1ce0983/lp64/scalar-aggregates"
   source := "System V Application Binary Interface, AMD64 Architecture Processor Supplement, \
@@ -267,6 +269,7 @@ def sysvScalar : AbiDef where
   argArea p := p.stackBytes
   owned p s x := (s.machine.core.read .rdi).toNat ≤ x ∧
     x < (s.machine.core.read .rdi).toNat + sretBytes p
+  EntryEnv _ _ := True
 
 /-! ## Examples: one struct tag, two headers -/
 
