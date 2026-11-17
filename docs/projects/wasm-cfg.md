@@ -575,9 +575,27 @@ The plain graph stays an over-approximation, and claims about it say so.
           instruction's native rule carries the outcome out.
         - Fixture `Wasm/Cfg/ExampleLogged`: on an invalid body the logged machine exits with `3`
           (native) and `MStepC` with `1, 2, 3` (Core).
-        - Still open in H1: the typed projection `MStepL` → `MStepC`, proved with the existing
-          typing APIs, plus validated typed nested fixtures (block, loop, if, catch) on which it
-          holds.
+        - Run-level projection, done (`Wasm/Cfg/MachineLProj`, `project_sink_closedX`). A logged
+          run from the CFG entry to a sink is an `MStepC` run to a sink with the same native
+          result (`EndRel`, `ResOut`, `EndsC`). It composes `forward_sink`, `closed_iff_logged`
+          and `native_machine_closedX`. Its fragment is stated:
+          - every logged entry is answered by `closedXOk`, the typed closed extended oracle;
+            host entries never are, so a log with a host call does not project;
+          - direct calls only (`xFreeL`), no exceptions (`ehFreeL`), `TypedT` for `tExt`.
+          It does not count as the stepwise projection. These restrictions are not its final
+          coverage.
+        - Still open in H1, in order:
+          1. The stepwise typed stuttering projection `MStepL` → `MStepC` on the shared no-EH
+             fragment. It needs a typed state and frame invariant, from the existing checker and
+             typing APIs, covering stack orientation, parameter and result arities, normal arm
+             exits, branch unwinding and tail-frame replacement. The relation is at block
+             granularity (zero or more `MStepC` steps per `MStepL` step), with composition.
+          2. An `EvalOXP`/`EvalOXE` → Core bridge for exception outcomes (`ehExt`). It must keep
+             the exception outcomes, tag matching, trap stores, and tail calls bypassing the
+             caller's handlers. Then the stepwise projection extends to EH.
+          3. Validated typed nested fixtures (block, loop, if, catch) on which it holds.
+          The `CloseOk` hypothesis is discharged in the session/host result by the canonical
+          store-retaining closing correspondence, not kept as an assumption that all logs are good.
         - Converse support: `MachineLSeq.split` (a run of `es₁ ++ es₂` falls through `es₁` then runs
           `es₂`, or ends abruptly in `es₁`), the converse of `append`.
         - Converse design (next PR): induction on the native derivation, level by level.

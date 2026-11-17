@@ -47,8 +47,10 @@ No block evaluates nested structured code natively: every block step runs straig
   results, trimmed to its result arity, or `C`'s exception or trap, with the store `C` leaves);
   host calls never are. Used to read closed runs as logged ones (`MachineL.closed_iff_logged`).
 
-Theorems in `Silmaril.Wasm.Cfg.MachineL.Thms`. Not yet here (`docs/projects/wasm-cfg.md`): the
-projection to `MStepC`, divergence and productive streams, and the recursive closure.
+Theorems in `Silmaril.Wasm.Cfg.MachineL.Thms`; divergence and productive streams in
+`Silmaril.Wasm.Cfg.MachineLDiv`; the run-level projection to `MStepC` in
+`Silmaril.Wasm.Cfg.MachineLProj`. Not yet here (`docs/projects/wasm-cfg.md`): the stepwise typed
+projection to `MStepC` and the recursive closure.
 -/
 
 @[expose] public section

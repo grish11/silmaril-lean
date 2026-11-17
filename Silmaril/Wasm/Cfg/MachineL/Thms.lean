@@ -78,15 +78,14 @@ absent.
   * Host calls are never `C`-answers.
   Used with `C = closedCallXP` for the host-free part of divergence.
 
-Divergence is in `Silmaril.Wasm.Cfg.MachineLDiv`. Not yet here: coherent productive streams; the
-typed projection to `MStepC`; the recursive closure (H3).
+Divergence and productive streams are in `Silmaril.Wasm.Cfg.MachineLDiv`. The run-level
+projection to `MStepC` is `Silmaril.Wasm.Cfg.MachineLProj`. Not yet here: the stepwise typed
+projection to `MStepC` and the recursive closure (H3).
 
 **Conventions.** `MStepL` uses `EvalLXPS`'s native stack conventions at frame boundaries (see
 `Silmaril.Wasm.Cfg.MachineL`), so these statements are exact without typing. They say nothing
-about `Cfg.Machine.MStepC`, which uses Core's conventions: the projection to `MStepC` on typed
-code is separate work, as are the converse (H2: every native run is a logged machine run), pending
-calls, divergence and productive streams, and the recursive closure (H3); see
-`docs/projects/wasm-cfg.md`.
+about `Cfg.Machine.MStepC`, which uses Core's conventions. The two agree only on typed code (see
+`docs/projects/wasm-cfg.md`).
 -/
 
 namespace Silmaril.Wasm.Cfg.MachineL
