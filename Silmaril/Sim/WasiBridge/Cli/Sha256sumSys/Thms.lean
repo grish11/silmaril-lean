@@ -5,6 +5,7 @@ module
 public import Silmaril.Sim.WasiBridge.Cli.Sha256sumSys.Defs
 public import Silmaril.Sim.WasiBridge.Sys.Thms
 public import Silmaril.Sim.WasiBridge.Cli.Sha256sum.Thms
+import Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys
 
 /-!
 # sha256sum: WASI, simulator and native x86 builds, related (level `L1`)
@@ -55,164 +56,76 @@ open Silmaril.Cli.Institution.Std (sha256Stdin)
 
 /-! ## The reference program -/
 
-theorem stdinWorld_dom (s : Bytes) : StdinDom (stdinWorld s) := ⟨rfl, ⟨s, rfl⟩, rfl⟩
+theorem stdinWorld_dom (s : Bytes) : StdinDom (stdinWorld s) :=
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.stdinWorld_dom s
 
 theorem sha256sum_stdinWorld (s : Bytes) :
     sha256sum (stdinWorld s) = { stdout := stdinRecord s, stderr := [], status := 0 } :=
-  Silmaril.Apps.Sha256sum.Sys.sha256sum_stdin (lit "sha256sum") false _ s
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.sha256sum_stdinWorld s
 
 theorem ref_satisfiesRel :
-    Silmaril.Apps.Sha256sum.Sys.SatisfiesRel refMachine WorldStep refInit StdinDom := by
-  intro w hw st hst evs n hx
-  subst hst
-  exact Silmaril.Apps.Sha256sum.Sys.ref_satisfies w hw evs n hx
+    Silmaril.Apps.Sha256sum.Sys.SatisfiesRel refMachine WorldStep refInit StdinDom :=
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.ref_satisfiesRel
 
 /-- **The reference program's observable traces meet the standard sentence.** -/
-theorem refObs_sat : (traceModel refObs).Sat sha256Stdin := by
-  intro s o ho
-  obtain ⟨h1, h2⟩ := machModel_sat ref_satisfiesRel stdinWorld_dom s o ho
-  rw [sha256sum_stdinWorld] at h1 h2
-  exact ⟨h1, h2⟩
+theorem refObs_sat : (traceModel refObs).Sat sha256Stdin :=
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.refObs_sat
 
 /-- **The WASI reference program meets the standard sentence.** -/
 theorem wasiSha256_ref : Task.wasiSha256 refP1 S1 :=
-  refObs_sat.anti (traceModel_mono fun s => machP1_refines S1 s)
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.wasiSha256_ref
 
 /-- No exiting run starts from `failed`. -/
 theorem not_exec_failed {E : Silmaril.Apps.Sha256sum.Sys.Env} {k : Silmaril.Apps.Sha256sum.Sys.KState}
-    {evs : List SEvent} {n : Nat} : ¬ Exec refMachine E .failed k evs n := by
-  intro h
-  rcases h with ⟨hs⟩ | ⟨hs, _⟩ | ⟨hs, _, _⟩ <;> simp [refMachine, refStep] at hs
-
-/-- The pending output of the reference program is at most a record long. -/
-def RInv : RefState → Prop
-  | .writing p => p.length ≤ 68
-  | _ => True
+    {evs : List SEvent} {n : Nat} : ¬ Exec refMachine E .failed k evs n :=
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.not_exec_failed
 
 theorem ref_repr {w : World} {st : refMachine.State} {k : Silmaril.Apps.Sha256sum.Sys.KState}
     {evs : List SEvent} {n : Nat} (h : Exec refMachine (WorldStep w) st k evs n)
-    (hi : RInv st) : ∀ e ∈ evs, SEvent.Repr e := by
-  induction h with
-  | exit => simp
-  | @tau s s' k evs n hs _ ih =>
-    apply ih
-    cases s with
-    | writing p =>
-      cases p with
-      | nil =>
-        simp only [refMachine, refStep] at hs
-        cases hs; trivial
-      | cons x xs => simp [refMachine, refStep] at hs
-    | closing m =>
-      simp only [refMachine, refStep] at hs
-      split at hs <;> simp at hs
-    | _ => simp [refMachine, refStep] at hs
-  | @call s c f k r k' evs n hs he hx ih =>
-    cases s with
-    | reading acc =>
-      simp only [refMachine, refStep] at hs
-      cases hs
-      cases r with
-      | data b =>
-        intro e he'
-        rcases List.mem_cons.1 he' with rfl | he'
-        · exact ⟨by decide, by decide⟩
-        · refine ih ?_ e he'
-          cases b with
-          | nil => exact (Silmaril.Apps.Sha256sum.Sys.stdinRecord_length acc).le
-          | cons _ _ => trivial
-      | ok _ => exact (not_exec_failed hx).elim
-      | err _ => exact (not_exec_failed hx).elim
-    | writing p =>
-      cases p with
-      | nil => simp [refMachine, refStep] at hs
-      | cons x xs =>
-        simp only [refMachine, refStep] at hs
-        cases hs
-        cases r with
-        | ok m =>
-          have hm : m ≤ (x :: xs).length := by
-            cases he with
-            | writeOut _ _ ha => exact ha.1
-            | writeErr _ ha => exact ha.1
-          have hl : (x :: xs).length ≤ 68 := hi
-          intro e he'
-          rcases List.mem_cons.1 he' with rfl | he'
-          · exact ⟨by decide, by omega⟩
-          · refine ih ?_ e he'
-            show ((x :: xs).drop m).length ≤ 68
-            simp only [List.length_drop]
-            omega
-        | data _ => exact (not_exec_failed hx).elim
-        | err _ => exact (not_exec_failed hx).elim
-    | closing m =>
-      simp only [refMachine, refStep] at hs
-      split at hs
-      · cases hs
-        cases r with
-        | ok _ =>
-          intro e he'
-          rcases List.mem_cons.1 he' with rfl | he'
-          · show m < 2 ^ 32
-            omega
-          · exact ih trivial e he'
-        | data _ => exact (not_exec_failed hx).elim
-        | err _ => exact (not_exec_failed hx).elim
-      · simp at hs
-    | failed => simp [refMachine, refStep] at hs
+    (hi : RInv st) : ∀ e ∈ evs, SEvent.Repr e :=
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.ref_repr h hi
 
 /-- **The adapter represents every exiting run of the reference program.** -/
-theorem ref_allRepr : AllRepr refMachine WorldStep refInit stdinWorld := by
-  intro s st evs n hi hx
-  subst hi
-  exact ref_repr hx trivial
+theorem ref_allRepr : AllRepr refMachine WorldStep refInit stdinWorld :=
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.ref_allRepr
 
 /-- **The reference program is `ElfWasiEquiv` to its WASI reading.** -/
 theorem ref_equiv (s : Bytes) : ElfWasiEquiv (refObs s) (refP1 s) S1 :=
-  machP1_equiv ref_allRepr s
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.ref_equiv s
 
 /-! ## A WASI module -/
 
 /-- **A WASI sha256sum that refines the reference program meets the standard sentence.** -/
 theorem wasiSha256sum_sat {W : Bytes → P1Sem} (h : Task.wasiRefinesRef W) :
     Task.wasiSha256 W S1 :=
-  wasiSha256_ref.anti (traceModel_mono h)
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.wasiSha256sum_sat h
 
 /-! ## x86 builds in the simulator -/
 
 /-- An x86 build whose traces are among the WASI reference program's meets the sentence. -/
 theorem sim_sat_of_refines {P : Bytes → List Obs → Prop}
     (h : ∀ s, Refines (P s) ((refP1 s).obs S1)) : (traceModel P).Sat sha256Stdin :=
-  wasiSha256_ref.anti (traceModel_mono h)
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.sim_sat_of_refines h
 
 /-- **An x86 build `ElfWasiEquiv` to the WASI sha256sum meets the standard sentence.** -/
 theorem simSha256sum_sat {P : Bytes → List Obs → Prop} (h : Task.simSha256sumEquiv P) :
     (traceModel P).Sat sha256Stdin :=
-  sim_sat_of_refines fun s => (h s).1
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.simSha256sum_sat h
 
 /-- A layer stack gives the equivalence. -/
 theorem simSha256sum_equiv_of_stack {P : Bytes → List Obs → Prop} (h : Task.sha256Stack P) :
-    Task.simSha256sumEquiv P := fun s =>
-  let ⟨K, hP, hW⟩ := h s
-  ElfWasiEquiv.of_stack K hP hW
+    Task.simSha256sumEquiv P :=
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.simSha256sum_equiv_of_stack h
 
 /-- Every layer of a stack is equivalent to its WASI layer. -/
-theorem Stack.equiv_wasi (K : Stack) : ∀ l, Equiv (K.obs l) (K.obs .wasi)
-  | .elf => K.equiv
-  | .bytesSim => (((K.edge 1 (by decide)).trans (K.edge 2 (by decide))).trans
-      (K.edge 3 (by decide))).trans (K.edge 4 (by decide))
-  | .pcalls => ((K.edge 2 (by decide)).trans (K.edge 3 (by decide))).trans (K.edge 4 (by decide))
-  | .lform => (K.edge 3 (by decide)).trans (K.edge 4 (by decide))
-  | .adapted => K.edge 4 (by decide)
-  | .wasi => Equiv.refl _
+theorem Stack.equiv_wasi (K : Stack) : ∀ l, Equiv (K.obs l) (K.obs .wasi) :=
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.Stack.equiv_wasi K
 
 /-- **Every layer of a sha256sum stack meets the standard sentence**: the ELF, the ELF run in
 the WASM simulator (`.bytesSim`), the P-calls and L forms, the adapted module. -/
 theorem stack_sat (K : Bytes → Stack) (hW : ∀ s, (K s).obs .wasi = (refP1 s).obs S1)
     (l : Layer) : (stackModel K l).Sat sha256Stdin :=
-  sim_sat_of_refines (P := fun s => (K s).obs l) fun s => by
-    rw [← hW s]
-    exact (Stack.equiv_wasi (K s) l).1
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.stack_sat K hW l
 
 /-! ## Native binaries -/
 
@@ -221,7 +134,7 @@ WASI sha256sum. -/
 theorem native_sat_of_refines {M : Model Level.full.sig} {P : Bytes → List Obs → Prop}
     (h : ∀ s, Refines (P s) ((refP1 s).obs S1)) (hT : Task.nativeInTraces M P) :
     M.Sat (Level.lift sha256Stdin) :=
-  (Level.sat_lift_iff M sha256Stdin).mpr ((sim_sat_of_refines h).anti hT)
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.native_sat_of_refines h hT
 
 /-- **From the simulator to the native binary**: an x86 build `ElfWasiEquiv` to the WASI
 sha256sum in the simulator, with the native process model's runs among its traces (simulator
@@ -230,51 +143,50 @@ musl build: a full CLI model `M`) meet the lifted standard sentence. -/
 theorem native_sat_of_sim {M : Model Level.full.sig} {P : Bytes → List Obs → Prop}
     (hE : Task.simSha256sumEquiv P) (hT : Task.nativeInTraces M P) :
     M.Sat (Level.lift sha256Stdin) :=
-  native_sat_of_refines (fun s => (hE s).1) hT
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.native_sat_of_sim hE hT
 
 /-- The same at level `L1`. -/
 theorem native_reduct_sat_of_sim {M : Model Level.full.sig} {P : Bytes → List Obs → Prop}
     (hE : Task.simSha256sumEquiv P) (hT : Task.nativeInTraces M P) :
     (Level.stream.reduct M).Sat sha256Stdin :=
-  (simSha256sum_sat hE).anti hT
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.native_reduct_sat_of_sim hE hT
 
 /-- **A simulator build agrees with GNU `sha256sum` on glibc**, run by run. -/
 theorem sim_agrees_glibc {P : Bytes → List Obs → Prop} (hE : Task.simSha256sumEquiv P)
     {s : Bytes} {o o' : Out1} (h : (traceModel P).Run s o)
     (h' : Silmaril.Elf.Link.Dyn.Sha256sum.stdinModel.Run s o') : o = o' :=
-  sha256_agrees_glibc wasiSha256_ref hE h h'
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.sim_agrees_glibc hE h h'
 
 /-! ## `sha256sum-min` -/
 
 theorem min_refines_ref (h : Silmaril.Apps.Sha256sum.Plan.S1Refines)
     (r11Of : Silmaril.X86.State → Silmaril.X86.Word) (s : Bytes) :
     Refines (minObs r11Of s) (refObs s) :=
-  machObs_mono (h r11Of) stdinWorld_dom s
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.min_refines_ref h r11Of s
 
 /-- **`sha256sum-min` meets the standard sentence**, given silmaril's S1 refinement target. -/
 theorem min_sat (h : Silmaril.Apps.Sha256sum.Plan.S1Refines)
     (r11Of : Silmaril.X86.State → Silmaril.X86.Word) :
     (traceModel (minObs r11Of)).Sat sha256Stdin :=
-  refObs_sat.anti (traceModel_mono (min_refines_ref h r11Of))
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.min_sat h r11Of
 
 /-- Its traces are among the WASI reference program's. -/
 theorem min_refines_wasi (h : Silmaril.Apps.Sha256sum.Plan.S1Refines)
     (r11Of : Silmaril.X86.State → Silmaril.X86.Word) (s : Bytes) :
     Refines (minObs r11Of s) ((refP1 s).obs S1) :=
-  (min_refines_ref h r11Of s).trans (ref_equiv s).1
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.min_refines_wasi h r11Of s
 
 /-- **`sha256sum-min` ≡ the WASI sha256sum**, given S1 refinement and completeness. -/
 theorem min_equiv (h : Silmaril.Apps.Sha256sum.Plan.S1Refines)
     (r11Of : Silmaril.X86.State → Silmaril.X86.Word) (hc : Task.minComplete r11Of) :
-    Task.simSha256sumEquiv (minObs r11Of) := fun s =>
-  ⟨min_refines_wasi h r11Of s, hc s⟩
+    Task.simSha256sumEquiv (minObs r11Of) :=
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.min_equiv h r11Of hc
 
 /-- `sha256sum-min` agrees with GNU `sha256sum` on glibc, run by run. -/
 theorem min_agrees_glibc (h : Silmaril.Apps.Sha256sum.Plan.S1Refines)
     (r11Of : Silmaril.X86.State → Silmaril.X86.Word) {s : Bytes} {o o' : Out1}
     (hr : (traceModel (minObs r11Of)).Run s o)
     (h' : Silmaril.Elf.Link.Dyn.Sha256sum.stdinModel.Run s o') : o = o' :=
-  Silmaril.Cli.Institution.Std.sha256Stdin_agree (min_sat h r11Of)
-    Silmaril.Elf.Link.Dyn.Sha256sum.stdinModel_std hr h'
+  Silmaril.Proofs.Sim.WasiBridge.Cli.Sha256sumSys.min_agrees_glibc h r11Of hr h'
 
 end Silmaril.Sim.WasiBridge.Sha256sumSys

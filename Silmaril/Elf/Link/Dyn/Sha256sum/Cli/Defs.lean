@@ -52,4 +52,7 @@ def StdinRun (d : Silmaril.Cli.Bytes) (o : Out1) : Prop :=
 /-- **The `L1` CLI model of GNU `sha256sum` on glibc.** -/
 def stdinModel : Model Level.stream.sig := ⟨StdinRun⟩
 
+/-- The digest line of the stdin tier: `hex(SHA-256(d))`, two spaces, `-`, newline. -/
+abbrev stdinRecord : Silmaril.Cli.Bytes → Silmaril.Cli.Bytes := Silmaril.Apps.Sha256sum.Sys.stdinRecord
+
 end Silmaril.Elf.Link.Dyn.Sha256sum

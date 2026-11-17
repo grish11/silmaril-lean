@@ -6,6 +6,7 @@ public import Silmaril.Cli.Institution.Std.Thms
 public import Silmaril.Elf.Link.Dyn.Sha256sum.Cli.Thms
 public import Silmaril.Process.LPS.Problems.GnuSha256sum.Close
 public import Silmaril.Process.LPS.Problems.Sha256Cli.Registry
+import Silmaril.Proofs.Elf.LpsCli.Sha256sum
 
 /-!
 # The static sha256 executables satisfy their CLI sentences
@@ -53,45 +54,22 @@ open Silmaril.Process.LPS.Problems
 open Silmaril.Cli.Institution (Level Model Sen Out1)
 
 /-- **`sha256sum-min` under LPS satisfies the standard sentence of `sha256sum` on stdin.** -/
-theorem staticModel_sat : staticModel.Sat Silmaril.Cli.Institution.Std.sha256Stdin := by
-  refine sat_filter_of_prefix fun s oracle refusals limit en inp records tr hl ht => ?_
-  obtain ⟨hp, hs, ha, hv, he⟩ := hl
-  rw [GnuSha256sum.parsed, Option.some.injEq] at hp
-  subst hp
-  have hP := GnuSha256sum.Close.lpsPartial_close oracle refusals limit en inp (lpsBytes s)
-    ⟨hs, ha, hv, he⟩
-  have hpre := hP.safe tr ht
-  have e : GnuSha256sum.idealTrace (lpsBytes s) inp.fs =
-      filterTrace (lpsBytes s) (lpsBytes (Silmaril.Apps.Sha256sum.Sys.stdinRecord s)) inp.fs := by
-    have hs' : GnuSha256sum.toSpec (lpsBytes s) = s := cliBytes_lpsBytes s
-    rw [GnuSha256sum.idealTrace, GnuSha256sum.expected_eq_record, hs']
-    rfl
-  rwa [e] at hpre
+theorem staticModel_sat : staticModel.Sat Silmaril.Cli.Institution.Std.sha256Stdin :=
+  Silmaril.Proofs.Elf.LpsCli.Sha256sum.staticModel_sat
 
 /-- **`sha256sum-min` (static, LPS) and GNU `sha256sum` (glibc) agree run by run.** -/
 theorem static_agrees_glibc {s : Silmaril.Cli.Bytes} {o o' : Out1} (h : staticModel.Run s o)
     (h' : Silmaril.Elf.Link.Dyn.Sha256sum.stdinModel.Run s o') : o = o' :=
-  Silmaril.Cli.Institution.Std.sha256Stdin_agree staticModel_sat
-    Silmaril.Elf.Link.Dyn.Sha256sum.stdinModel_std h h'
+  Silmaril.Proofs.Elf.LpsCli.Sha256sum.static_agrees_glibc h h'
 
 /-- **The `sha256` filter under LPS satisfies its sentence.** -/
-theorem filterModel_sat : filterModel.Sat (Sen.filter hexLine) := by
-  refine sat_filter_of_prefix fun s oracle refusals limit en inp records tr hl ht => ?_
-  obtain ⟨hp, hs, -, hv, he⟩ := hl
-  rw [Sha256Cli.parsed, Option.some.injEq] at hp
-  subst hp
-  have hP := Sha256Cli.Registry.lpsPartial_solution oracle refusals limit en inp (lpsBytes s)
-    ⟨hs, hv, he⟩
-  have hpre := hP.safe tr ht
-  simpa [hexLine, Sha256Cli.idealTrace, filterTrace] using hpre
+theorem filterModel_sat : filterModel.Sat (Sen.filter hexLine) :=
+  Silmaril.Proofs.Elf.LpsCli.Sha256sum.filterModel_sat
 
 /-- The GNU line is the filter's line with `"\n"` replaced by `"  -\n"`. -/
 theorem sha256Stdin_eq_hexLine (s : Silmaril.Cli.Bytes) :
     Silmaril.Apps.Sha256sum.Sys.stdinRecord s =
-      (hexLine s).dropLast ++ Silmaril.Apps.Sha256sum.lit "  -\n" := by
-  have h := Sha256Cli.gnu_stdout (lpsBytes s)
-  have h2 := congrArg cliBytes h
-  simp only [cliBytes, List.map_map, List.map_append, List.map_dropLast] at h2
-  simpa [hexLine, cliBytes, lpsBytes, Function.comp_def, Silmaril.Apps.Sha256sum.lit] using h2
+      (hexLine s).dropLast ++ Silmaril.Apps.Sha256sum.lit "  -\n" :=
+  Silmaril.Proofs.Elf.LpsCli.Sha256sum.sha256Stdin_eq_hexLine s
 
 end Silmaril.Elf.LpsCli.Sha256sum

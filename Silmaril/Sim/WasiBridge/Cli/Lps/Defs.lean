@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Sim.WasiBridge.Cli.Defs
 public import Silmaril.Elf.LpsCli.Defs
+public import Silmaril.Process.LPS.Problems.GnuSha256sum.Elf
 
 /-!
 # Static executables under LPS as trace semantics of the ELF ≡ WASI bridge
@@ -26,5 +27,16 @@ open Silmaril.Elf.LpsCli (Isa ext8 StdinTrace)
 def lpsTraces (file : Silmaril.Formats.ELF.Bytes) (isa : Isa := ext8) (s : Silmaril.Cli.Bytes)
     (t : List Obs) : Prop :=
   ∃ tr, StdinTrace isa file s tr ∧ t = obsTrace tr
+
+/-- One observable per visible event. -/
+def obs1 : Silmaril.Process.LPS.Event → Obs
+  | .readEv ch b => .rd ch.toNat b
+  | .writeEv ch b => .wr ch.toNat b
+  | .exitEv c _ => .exit c.toNat
+  | .killEv .. => .rd 0 0
+
+/-- The traces of `sha256sum-min` under LPS. -/
+abbrev staticTraces : Silmaril.Cli.Bytes → List Obs → Prop :=
+  lpsTraces Silmaril.Process.LPS.Problems.GnuSha256sum.file ext8
 
 end Silmaril.Sim.WasiBridge.Lps
