@@ -594,11 +594,76 @@ theorem arm_entry {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : L
   rw [← restAt_zero c'] at hrun ihrun
   simpa using at_boundary hrun ihrun hcA hokA hx
 
+theorem nil_inv_normal {s s' : Store H} {f f' : Frame} {N N' : List Val} {l : List (SCall H)}
+    (h : EvalLXPS s f N [] l (s', f', .flow (.normal N'))) : s' = s ∧ f' = f ∧ N' = N ∧ l = [] := by
+  obtain ⟨h1, h2, h3, h4⟩ := nil_inv h
+  simp only [POut.flow.injEq, Flow.normal.injEq] at h3
+  exact ⟨h1, h2, h3, h4⟩
+
+theorem arm_ok {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {sg : Segment}
+    {pre : List Instr} {t : Instr} {ls : List LFrame} {a : Nat} {c' : List Instr}
+    {bt : BlockType} {loop tryT : Bool} {cs : List Catch} (hp : Pos body p c i sg pre [t])
+    (hk : StructKind t bt loop tryT cs) (harm : armOf t a = some c')
+    (hok : FramesOk body p.reverse ls) (n : Nat) (ou : List Val) :
+    FramesOk body ((i, a) :: p.reverse) (⟨n, ou, loop, tryT, cs, bt⟩ :: ls) := by
+  obtain ⟨ht, -, -⟩ := pos_term hp (isStruct_terminator ⟨_, _, _, _, hk⟩)
+  exact ⟨⟨c, sg, t, c', by simpa using hp.hc, hp.hsg, ht, harm, hk⟩, hok⟩
+
+/-- **The exit of a block-like frame** (`block`, `if`, `try_table`): falling out of the arm, or a
+branch to its label, continues after the instruction. -/
+theorem exit_ok_like {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {i a : Nat} {L : LFrame} {ls : List LFrame} {s : Store H} {f : Frame} {fl : Flow}
+    {vs : List Val} {np nr : Nat} {l' : List (SCall H)}
+    (hokA : FramesOk body ((i, a) :: p.reverse) (L :: ls)) (hloop : L.loop = false)
+    (har : arity f L.bt = some (np, nr)) (hvs : fl.blockVals = some vs)
+    (hx : ∃ st, gotoN (entry body p (i + 1)) p.length ls (L.outer ++ (vs.take nr).reverse) s f =
+      some st ∧ MEnds body Fin st l') :
+    ExitE body Fin (p ++ [(i, a)]) (L :: ls) (s, f, .flow fl) l' := by
+  cases fl with
+  | normal ws => simp [Flow.blockVals] at hvs; subst hvs; exact exit_fall har hx
+  | brk k ws =>
+    rcases k with _ | k
+    · simp [Flow.blockVals] at hvs; subst hvs; exact exit_brk0 hokA hloop har hx
+    · simp [Flow.blockVals] at hvs
+  | _ => simp [Flow.blockVals] at hvs
+
 /-- **The main induction**: every native run satisfies the motive. -/
 theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
     {N : List Val} {es : List BExpr} {l : List (SCall H)} {r : Store H × Frame × POut}
     (h : EvalLXPS s f N es l r) : Mot body Fin s f N es l r := by
-  sorry
+  induction h with
+  | nil =>
+    intro p c i sg pre post ls l' hp hes
+    rcases post with _ | ⟨e, post'⟩
+    · exact absurd rfl hp.hpost
+    · simp [liftInstrs] at hes
+  | argsAbort hargs ho =>
+    intro p c i sg pre post ls l' hp hes
+    obtain ⟨e, post', rfl, hhd, -⟩ := pos_head hp hes
+    obtain ⟨rfl, rfl, -⟩ := lift_op hhd.symm
+    obtain ⟨-, -, rfl, -⟩ := nil_inv hargs
+    exact absurd trivial ho
+  | callRet hargs hfi hty hk _ ihk =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    subst htl
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · simpa using blk_cont hp hok hx hns (EvalLXPS.callRet .nil hfi hty .nil) hk ihk s₀ f₀ N₀ l₀ hpre
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | callThrow hargs hfi hty =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · simpa using blk_abrupt hp hx hns (EvalLXPS.callThrow (es := []) .nil hfi hty)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | _ => sorry
 
 /-- **The converse, finished outcomes**: a native run of the body from the empty stack, to an
 outcome other than a branch past the function label, is a logged machine run from the CFG entry
