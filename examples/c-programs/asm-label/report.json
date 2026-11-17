@@ -28,6 +28,15 @@
  "profile": "linuxX86_64",
  "routes": {
   "cerberus": {
+   "applicability": {
+    "applies": true,
+    "blockers": [],
+    "mentions": [
+     "pointer",
+     "int"
+    ],
+    "profile": "linuxX86_64"
+   },
    "core": "cerberus.core.sexp.gz",
    "coreSha256": "481295c7026a4e556e53d0b2146f191c29faac00099a152b6a2adea80bec212e",
    "explore": {

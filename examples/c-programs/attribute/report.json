@@ -28,6 +28,15 @@
  "profile": "linuxX86_64",
  "routes": {
   "clang": {
+   "applicability": {
+    "applies": true,
+    "blockers": [],
+    "mentions": [
+     "pointer",
+     "int"
+    ],
+    "profile": "linuxX86_64"
+   },
    "core": "clang.core.sexp.gz",
    "coreSha256": "ebe1e3b63b0de278fa80c65cdeb3c7992f8898f990e629183f3860a4a86b680c",
    "explore": {

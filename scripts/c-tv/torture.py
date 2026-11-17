@@ -17,7 +17,11 @@ The denominator is every case of benchmarks/gcc-torture/manifest.json (3,852 C f
   gap                  some Core exploration reached a gap (`error`/`unsupported`) or a stuck state
   unknown              every elaborated route's exploration hit its bounds
   explored             one route elaborated and was explored exhaustively (no cross-validation)
-  cross-validated      two routes elaborated, explored exhaustively, and validated both ways
+  cross-validated      two routes elaborated, explored exhaustively, and validated both ways, each
+                       source exploration exhaustive without undefined behaviour (`validateUBFree`):
+                       a frontend agreement (Core to Core), not a compiler-origin result
+  cross-validated-ub   validated both ways, but some direction rests on source undefined behaviour:
+                       counted separately, never as a cross-validation of defined behaviour
   refuted              the two routes' Cores were found not to refine each other (a frontend disagreement)
   timeout / tool-error the pipeline did not finish / a tool failed unexpectedly
 
@@ -146,8 +150,11 @@ def one(case, root, binary, sums, timeouts):
         else:
             verdicts = [p["verdict"] for p in rep["pairs"]]
             row["pairs"] = {f'{p["source"]}->{p["target"]}': p["verdict"] for p in rep["pairs"]}
-            if len(el) == 2 and verdicts and all(v == "validated" for v in verdicts):
+            ubfree = [p["validatedUBFree"] for p in rep["pairs"]]
+            if len(el) == 2 and verdicts and all(v == "validated" for v in verdicts) and all(ubfree):
                 row["status"] = "cross-validated"
+            elif len(el) == 2 and verdicts and all(v == "validated" for v in verdicts):
+                row["status"] = "cross-validated-ub"
             elif "refuted" in verdicts:
                 row["status"] = "refuted"
             elif any(not x["limited"] for x in ex.values()):
@@ -197,7 +204,7 @@ def main():
                 print(f"{i}/{len(chosen)} {time.time() - start:.0f}s", file=sys.stderr, flush=True)
     ordered = [rows[c] for c in cases]
     statuses = ["not-attempted", "harness-needed", "frontend-rejected", "elaborator-rejected", "no-main", "gap", "unknown",
-                "explored", "cross-validated", "refuted", "timeout", "tool-error"]
+                "explored", "cross-validated", "cross-validated-ub", "refuted", "timeout", "tool-error"]
     summary = {s: sum(1 for r in ordered if r["status"] == s) for s in statuses}
     assert sum(summary.values()) == len(cases)
     for part in ["compile/", "execute/"]:

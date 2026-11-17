@@ -10,7 +10,7 @@
     "args": [],
     "target": "x86_64-linux-gnu",
     "tool": "ctv-pipeline run",
-    "version": "4c61d70cb6a5e315a0357b5f984f293af3718904"
+    "version": "55e0e81aa7c03eee9711024f3049e0ba37e0ae76-dirty"
    },
    "sha256": "d42891c7f5efe66c66c4227e825c008ccfca176ca97310a9e05eb3e9d5874c62",
    "sha256Of": "uncompressed",
@@ -28,7 +28,7 @@
     ],
     "target": "x86_64-linux-gnu",
     "tool": "cerb-lean parse --level tail",
-    "version": "4c61d70cb6a5e315a0357b5f984f293af3718904"
+    "version": "55e0e81aa7c03eee9711024f3049e0ba37e0ae76-dirty"
    },
    "sha256": "7444abdcb6673873e742b971778877f8a846cdc0ec7d167fcc1dd955a9d57964",
    "stage": "typedAil"
@@ -55,7 +55,7 @@
     "tool": "clang -ast-dump=json",
     "version": "Debian clang version 19.1.7 (3+b1)"
    },
-   "sha256": "0f75afe71d766e34364ae651db1bfc709a56840a5d2573431e6d1613f89947fc",
+   "sha256": "ff2a09aba0703ba02242b67dafbc6e8afd992e7f9a4e6325e2add8928df2ef70",
    "sha256Of": "uncompressed",
    "stage": "clangAst"
   },
@@ -69,7 +69,7 @@
     "args": [],
     "target": "x86_64-linux-gnu",
     "tool": "ctv-pipeline run",
-    "version": "4c61d70cb6a5e315a0357b5f984f293af3718904"
+    "version": "55e0e81aa7c03eee9711024f3049e0ba37e0ae76-dirty"
    },
    "sha256": "2ad10c7e4b3bd6917c3cef2cb66aa315df348d0307cfe8a9493a829ee2d314fd",
    "sha256Of": "uncompressed",
@@ -79,7 +79,7 @@
    "bytes": 1272,
    "file": "clang.tail.sexp",
    "inputs": [
-    "0f75afe71d766e34364ae651db1bfc709a56840a5d2573431e6d1613f89947fc"
+    "ff2a09aba0703ba02242b67dafbc6e8afd992e7f9a4e6325e2add8928df2ef70"
    ],
    "producer": {
     "args": [
@@ -87,7 +87,7 @@
     ],
     "target": "x86_64-linux-gnu",
     "tool": "cfront ail",
-    "version": "4c61d70cb6a5e315a0357b5f984f293af3718904"
+    "version": "55e0e81aa7c03eee9711024f3049e0ba37e0ae76-dirty"
    },
    "sha256": "c135ab91c320b1b36bb67ca9503f5147ffc944f6d12bc803a59c359fcae9891b",
    "stage": "typedAil"
@@ -176,14 +176,14 @@
    },
    "relation": "produces",
    "source": "7fbc7c908f797d1f300a709612039356f21f0a219e50286fefc599af2103cc77",
-   "target": "0f75afe71d766e34364ae651db1bfc709a56840a5d2573431e6d1613f89947fc"
+   "target": "ff2a09aba0703ba02242b67dafbc6e8afd992e7f9a4e6325e2add8928df2ef70"
   },
   {
    "evidence": {
     "compiled": "Silmaril.Clang.ToAil (cfront)"
    },
    "relation": "elaborates",
-   "source": "0f75afe71d766e34364ae651db1bfc709a56840a5d2573431e6d1613f89947fc",
+   "source": "ff2a09aba0703ba02242b67dafbc6e8afd992e7f9a4e6325e2add8928df2ef70",
    "target": "c135ab91c320b1b36bb67ca9503f5147ffc944f6d12bc803a59c359fcae9891b"
   },
   {
@@ -208,9 +208,10 @@
     "compiled": "Silmaril.Cerberus.TV.validate"
    },
    "profile": "linuxX86_64",
-   "relation": "refines",
+   "relation": "frontendAgreement",
    "source": "d42891c7f5efe66c66c4227e825c008ccfca176ca97310a9e05eb3e9d5874c62",
    "target": "2ad10c7e4b3bd6917c3cef2cb66aa315df348d0307cfe8a9493a829ee2d314fd",
+   "validatedUBFree": true,
    "verdict": "validated"
   },
   {
@@ -219,9 +220,10 @@
     "compiled": "Silmaril.Cerberus.TV.validate"
    },
    "profile": "linuxX86_64",
-   "relation": "refines",
+   "relation": "frontendAgreement",
    "source": "2ad10c7e4b3bd6917c3cef2cb66aa315df348d0307cfe8a9493a829ee2d314fd",
    "target": "d42891c7f5efe66c66c4227e825c008ccfca176ca97310a9e05eb3e9d5874c62",
+   "validatedUBFree": true,
    "verdict": "validated"
   }
  ],
@@ -230,14 +232,14 @@
  "losses": [],
  "name": "return-constant",
  "profile": "linuxX86_64",
- "repositoryRevision": "4c61d70cb6a5e315a0357b5f984f293af3718904",
+ "repositoryRevision": "55e0e81aa7c03eee9711024f3049e0ba37e0ae76-dirty",
  "schema": "silmaril.c-tv.provenance.v1",
  "target": "x86_64-linux-gnu",
  "tools": {
   "cerb-lean": "7388fce668288274cff2f963061052343a183f1f59e2d41a2c62f2bc3e1f60e7",
   "cfront": "3c1fa73fd49ec347703964e29b2d79b7b65c2164f2a7a5ef822f6e8c2df9032a",
   "clang": "Debian clang version 19.1.7 (3+b1)",
-  "ctv-pipeline": "d38081850351ca603e0ba3bc8195d230ade4a1e44db24b6e9cbc8de796991720",
+  "ctv-pipeline": "f2d8b3fe7eb6e0bb47a006d1c5957634ea67b9847247ad85e9c213aa0672480d",
   "gcc": "gcc (Debian 14.2.0-19) 14.2.0"
  },
  "warnings": [
