@@ -136,8 +136,10 @@ def {v}Json : String :=
 /-- `examples/headers/clang/{file}.prov`. -/
 def {v}Prov : String :=
   include_str \"{up}{file}.prov\"
-/-- {what}, as clang reads it: the import of `{v}Json`. -/
-def {v} : Imported := .ofJson (.parse {v}Prov) {v}Json
+/-- {what}, as clang reads it: the import of `{v}Json`. Noncomputable: the kernel computes it (in
+`import_{v}`), and compiled code uses the literal `{name}.entries`. Compiling it would parse the
+JSON when a program that imports this module starts, with recursion as deep as the JSON is long. -/
+noncomputable def {v} : Imported := .ofJson (.parse {v}Prov) {v}Json
 
 /-- The entries of `{v}`, as a literal. -/
 def {name}.entries : List Entry := [

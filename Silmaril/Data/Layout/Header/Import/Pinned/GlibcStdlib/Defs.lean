@@ -40,8 +40,10 @@ def glibcStdlibJson : String :=
 /-- `examples/headers/clang/glibc-stdlib.prov`. -/
 def glibcStdlibProv : String :=
   include_str "../../../../../../../examples/headers/clang/glibc-stdlib.prov"
-/-- glibc's `stdlib.h` (with `alloca.h`), hosted, as clang reads it: the import of `glibcStdlibJson`. -/
-def glibcStdlib : Imported := .ofJson (.parse glibcStdlibProv) glibcStdlibJson
+/-- glibc's `stdlib.h` (with `alloca.h`), hosted, as clang reads it: the import of `glibcStdlibJson`. Noncomputable: the kernel computes it (in
+`import_glibcStdlib`), and compiled code uses the literal `GlibcStdlib.entries`. Compiling it would parse the
+JSON when a program that imports this module starts, with recursion as deep as the JSON is long. -/
+noncomputable def glibcStdlib : Imported := .ofJson (.parse glibcStdlibProv) glibcStdlibJson
 
 /-- The entries of `glibcStdlib`, as a literal. -/
 def GlibcStdlib.entries : List Entry := [
