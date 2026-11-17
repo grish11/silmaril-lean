@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.FirstK
 public import Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.Nodes
+public import Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.LaterCore
 
 /-!
 # The first node, with the frame related to the symbolic reading
@@ -463,5 +464,93 @@ theorem root_firstK2 {r pre post : Core3Component} {mi : Nat} {cargs : List (Str
         decodeInstantiated?_instantiatedObs]
 
 end RootRun
+
+/-! ## The frame at the first core instantiation and the symbolic reading -/
+
+section Rel
+
+/-- **The symbolic reading of the definitions before the first core instantiation relates to the
+root's frame.** -/
+theorem frameRel_root {pre : RefComponent} {k : Nat} {R : RSt} {sc : Scope (core3 neverFail)}
+    (hshape : rootShape pre = true) (hpre : preOk 0 0 pre = true)
+    (hR : pre.foldlM refStep ({ env := k } : RSt) = some R)
+    (hty : sc.frame.types.length = nTypes pre) (htf : ∀ x ∈ sc.frame.types, ∃ t, x = .func t)
+    (hfn : sc.frame.funcs.length = 1) (hcf : sc.frame.coreFuncs = List.range (preLowers pre))
+    (hci : sc.frame.coreInstances = instsVal (preInsts pre)) :
+    FrameRel (coreMods pre) R sc := by
+  obtain ⟨pre', rfl, hni⟩ := rootShape_inv hshape
+  have hpre' : preOk 1 0 pre' = true := by
+    simp only [preOk, Bool.and_eq_true] at hpre
+    exact hpre.2
+  simp only [List.foldlM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff] at hR
+  obtain ⟨R₁, h₁, R₂, h₂, hR⟩ := hR
+  simp only [refStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq] at h₁
+  obtain ⟨ft, -, rfl⟩ := h₁
+  simp only [refStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq] at h₂
+  obtain ⟨ft', -, rfl⟩ := h₂
+  obtain ⟨h1, h2, h3, h4, X, h5, h6⟩ := refFold_pre (coreMods
+    (.type (.func fFuncType) :: .import_ { name := "f" } (.func 0) :: pre')) pre' 1 0 _ R hpre'
+    hni hR
+  refine ⟨by simp [h1, coreMods], ?_, htf, ?_, ?_, ?_⟩
+  · rw [hty, h2]
+    simp only [nTypes, List.nil_append, List.length_singleton]
+    omega
+  · rw [hfn, h3]
+    rfl
+  · rw [hcf, h4]
+    show (List.range _).length = _
+    simp [preLowers]
+  · rw [hci, h5]
+    simp only [List.nil_append, preInsts, instsVal]
+    exact List.forall₂_map_right_iff.mpr h6
+
+/-- Segment initialisation keeps the frame. -/
+theorem initSegments?_frame {H : Type} {s s' : Silmaril.Wasm.Execution.Core.Store H}
+    {f f' : Silmaril.Wasm.Execution.Core.Frame} {m : Silmaril.Wasm.Module}
+    (h : Silmaril.Wasm.Execution.Core.initSegments? Silmaril.Wasm.Execution.Core.evalConst? s f m =
+      some (s', f')) : f' = f := by
+  unfold Silmaril.Wasm.Execution.Core.initSegments? at h
+  split at h
+  · cases h
+  rename_i s₁ f₁ he
+  unfold Silmaril.Wasm.Execution.Core.initElem? at he
+  unfold Silmaril.Wasm.Execution.Core.initData? at h
+  simp only [Option.map_eq_some_iff, Prod.mk.injEq] at he h
+  obtain ⟨-, -, -, rfl⟩ := he
+  obtain ⟨-, -, -, rfl⟩ := h
+  rfl
+
+/-- **The exports of a prepared instance**, with or without segments. -/
+theorem prepareE?_exportsS {H : Type} {s s' : Silmaril.Wasm.Execution.Core.Store H}
+    {m : Silmaril.Wasm.Module} {xas : List Silmaril.Wasm.Execution.Core.ExternAddr}
+    {i : Silmaril.Wasm.Execution.Core.ModuleInst} {st : Option Nat}
+    (h : Silmaril.Wasm.Component.Engine.Core3.prepareE? s m xas = some (s', i, st)) :
+    List.Forall₂ (fun (e : Silmaril.Wasm.Export) (x : String × (core3 neverFail).ExternVal) =>
+        x.1 = e.name ∧ ∀ k, e.index = .func k →
+          ∃ a : Nat, x.2 = Silmaril.Wasm.Execution.Core.ExternAddr.func a)
+      m.exports ((core3 neverFail).exports i) := by
+  obtain ⟨mt, f', st₀, -, -, hi, rfl, -⟩ :=
+    Silmaril.Wasm.Component.Engine.Core3.Typed.prepareE?_inv h
+  have hE : List.Forall₂ ExpShape m.exports f'.module.exports := by
+    unfold Silmaril.Wasm.Execution.Core.instantiateOnce? at hi
+    split at hi
+    · cases hi
+    unfold Silmaril.Wasm.Execution.Core.instantiateDirect?
+      Silmaril.Wasm.Execution.Core.prepareDirect? at hi
+    split at hi
+    · cases hi
+    rename_i c st' hc
+    split at hi
+    · cases hi
+    rename_i s₂ f₂ hseg
+    simp only [Option.some.injEq, Prod.mk.injEq] at hi
+    obtain ⟨-, rfl, -⟩ := hi
+    rw [initSegments?_frame hseg]
+    exact prepare?_exports (m := m.globalResidue) hc
+  show List.Forall₂ _ m.exports (f'.module.exports.map fun x => (x.name, x.addr))
+  refine List.forall₂_map_right_iff.mpr (hE.imp fun e x hx => ⟨hx.1, fun k hk => ?_⟩)
+  exact hx.2 k hk
+
+end Rel
 
 end Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi
