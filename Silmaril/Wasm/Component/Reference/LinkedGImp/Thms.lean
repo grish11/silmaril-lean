@@ -57,9 +57,9 @@ and function ids of the `canon lower` trampolines are allowed.
   each arena. A `Simple` exporter ends with `C' = M.conts` and `S' = { S with core := … }`,
   so `Linked2` is not affected. For a nested linked exporter, `linkCall_fwd` needs (i) the
   return half of `nest_atG` from a `StoreExt` of `M₁.store` with records looked up by index,
-  and (ii) `Ends` strengthened to keep the existing continuation slots (`Simple` meets it with
-  `C' = M.conts`); `nest_atG` must also expose the callee's thread and its instance
-  (`instOfThread?`), which R2 takes as a hypothesis.
+  and `nest_atG` exposing the callee's thread and its instance (`instOfThread?`). Both are
+  done in `LinkedGCall` (`nest_atX`); strengthening `Ends` to keep the continuation slots
+  turned out unnecessary, since nothing on this path reads the slots it does not itself write.
 -/
 
 public section

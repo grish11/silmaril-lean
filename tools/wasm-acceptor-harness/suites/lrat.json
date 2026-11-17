@@ -1,0 +1,1397 @@
+{
+  "$schema": "../../../docs/schemas/wasm-acceptor-suite.v1.schema.json",
+  "suite": "lrat-accept",
+  "description": "The LRAT UNSAT acceptor component: check-stream(problem: list<s32>, cert: list<s32>) and check-nested(problem: list<list<s32>>, cert: list<s32>). The certificate is the flat LRAT stream format v1 (Silmaril.Logic.SAT.Carrier.LratStream). Expected outcomes agree with Silmaril.Logic.SAT.Carrier.lratStream / lratNested on every case except *-empty-clause-empty-cert (see its note); malformed problems and certificates are rejected.",
+  "artifacts": {
+    "lrat": {
+      "path": "../../../examples/wasm-acceptors/lrat_accept.wasm",
+      "claims": [
+        {
+          "kind": "component-level soundness (kernel-checked)",
+          "level": "component",
+          "registry_name": "silmaril.wasm.examples.lrat_accept.component",
+          "value": "Silmaril.Wasm.Examples.LratAccept.bytes",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.LratAccept.bytes, regenerated as examples/wasm-acceptors/lrat_accept.wasm): an accepting call implies that the problem is unsatisfiable. Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
+          "theorems": [
+            {
+              "decl": "Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.LratAccept.Thms",
+              "states": "check-stream returns true on xs, cert ⇒ xs ∈ UnsatStream"
+            },
+            {
+              "decl": "Silmaril.Project.WasmComponents.LratAccept.checkNested_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.LratAccept.Thms",
+              "states": "check-nested returns true on p, cert ⇒ p ∈ UnsatNested"
+            }
+          ]
+        }
+      ],
+      "source": "Silmaril.Wasm.Examples.LratAccept: prog, wrapped as a component (memory 0 = core memory 1, realloc cabi_realloc)",
+      "sha256": "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784"
+    }
+  },
+  "cases": [
+    {
+      "name": "stream-four-rup",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          2,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "the four clauses over two variables; RUP steps 5:[2] (hints 1,2) and 6:[] (hints 5,3,4)"
+    },
+    {
+      "name": "nested-four-rup",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "positive",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          2,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "the four clauses over two variables; RUP steps 5:[2] (hints 1,2) and 6:[] (hints 5,3,4)"
+    },
+    {
+      "name": "stream-four-rat",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          3,
+          5,
+          1,
+          0,
+          2,
+          1,
+          0,
+          4,
+          3,
+          0,
+          0,
+          1,
+          6,
+          0,
+          5,
+          2,
+          4,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "RAT step 5:[1] with groups (2: hint 1) and (4: hint 3), then 6:[] (hints 5,2,4)"
+    },
+    {
+      "name": "nested-four-rat",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "positive",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          3,
+          5,
+          1,
+          0,
+          2,
+          1,
+          0,
+          4,
+          3,
+          0,
+          0,
+          1,
+          6,
+          0,
+          5,
+          2,
+          4,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "RAT step 5:[1] with groups (2: hint 1) and (4: hint 3), then 6:[] (hints 5,2,4)"
+    },
+    {
+      "name": "stream-four-delete",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          2,
+          0,
+          2,
+          1,
+          2,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "RUP 5:[2], delete 1 and 2, then 6:[] (hints 5,3,4)"
+    },
+    {
+      "name": "nested-four-delete",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "positive",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          2,
+          0,
+          2,
+          1,
+          2,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "RUP 5:[2], delete 1 and 2, then 6:[] (hints 5,3,4)"
+    },
+    {
+      "name": "stream-unit-pair",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "[[1],[-1]]; RUP 3:[] (hints 1,2)"
+    },
+    {
+      "name": "nested-unit-pair",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "positive",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "[[1],[-1]]; RUP 3:[] (hints 1,2)"
+    },
+    {
+      "name": "stream-unit-pair-rat-fresh",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          3,
+          3,
+          7,
+          0,
+          0,
+          1,
+          4,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "[[1],[-1]]; RAT 3:[7] on a fresh variable (no candidates), then RUP 4:[] (hints 1,2)"
+    },
+    {
+      "name": "nested-unit-pair-rat-fresh",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "positive",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          3,
+          3,
+          7,
+          0,
+          0,
+          1,
+          4,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "[[1],[-1]]; RAT 3:[7] on a fresh variable (no candidates), then RUP 4:[] (hints 1,2)"
+    },
+    {
+      "name": "stream-empty-clause",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [
+          0
+        ],
+        [
+          1,
+          2,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "[[]] (stream [0]): the formula with one empty clause; RUP 2:[] (hint 1)"
+    },
+    {
+      "name": "nested-empty-clause",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "positive",
+      "args": [
+        [
+          []
+        ],
+        [
+          1,
+          2,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "[[]] (stream [0]): the formula with one empty clause; RUP 2:[] (hint 1)"
+    },
+    {
+      "name": "stream-empty-clause-empty-cert",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [
+          0
+        ],
+        []
+      ],
+      "expect": "accepted",
+      "note": "[[]] with the empty certificate: the LRAT core reads the empty input clause and answers unsat. The reference lratStream/lratNested rejects (LRAT.run [] = false: it wants an explicit empty-clause step); the acceptor is sound but accepts more here"
+    },
+    {
+      "name": "nested-empty-clause-empty-cert",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "positive",
+      "args": [
+        [
+          []
+        ],
+        []
+      ],
+      "expect": "accepted",
+      "note": "[[]] with the empty certificate: the LRAT core reads the empty input clause and answers unsat. The reference lratStream/lratNested rejects (LRAT.run [] = false: it wants an explicit empty-clause step); the acceptor is sound but accepts more here"
+    },
+    {
+      "name": "stream-empty-formula",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [],
+        []
+      ],
+      "expect": "rejected",
+      "note": "[] (both encodings): the empty formula is satisfiable, not malformed"
+    },
+    {
+      "name": "nested-empty-formula",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "negative",
+      "args": [
+        [],
+        []
+      ],
+      "expect": "rejected",
+      "note": "[] (both encodings): the empty formula is satisfiable, not malformed"
+    },
+    {
+      "name": "stream-sat-bogus",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0
+        ],
+        [
+          1,
+          2,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "satisfiable [[1,2]] with a bogus RUP step 2:[] (hint 1)"
+    },
+    {
+      "name": "nested-sat-bogus",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "negative",
+      "args": [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          1,
+          2,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "satisfiable [[1,2]] with a bogus RUP step 2:[] (hint 1)"
+    },
+    {
+      "name": "stream-sat-bogus-rat",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0
+        ],
+        [
+          3,
+          2,
+          -1,
+          0,
+          0,
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "satisfiable [[1,2]]: RAT 2:[-1] is not RAT (candidate 1 not covered), so 3:[] fails"
+    },
+    {
+      "name": "nested-sat-bogus-rat",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "negative",
+      "args": [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          3,
+          2,
+          -1,
+          0,
+          0,
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "satisfiable [[1,2]]: RAT 2:[-1] is not RAT (candidate 1 not covered), so 3:[] fails"
+    },
+    {
+      "name": "stream-four-wrong-hints",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "the first RUP step has hint 1 only: no conflict, clause 5 never stored"
+    },
+    {
+      "name": "nested-four-wrong-hints",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "negative",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          1,
+          5,
+          2,
+          0,
+          1,
+          0,
+          1,
+          6,
+          0,
+          5,
+          3,
+          4,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "the first RUP step has hint 1 only: no conflict, clause 5 never stored"
+    },
+    {
+      "name": "stream-unit-pair-no-cert",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        []
+      ],
+      "expect": "rejected",
+      "note": "[[1],[-1]] with the empty certificate: nothing derived"
+    },
+    {
+      "name": "nested-unit-pair-no-cert",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "negative",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        []
+      ],
+      "expect": "rejected",
+      "note": "[[1],[-1]] with the empty certificate: nothing derived"
+    },
+    {
+      "name": "stream-empty-formula-empty-step",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [],
+        [
+          1,
+          1,
+          0,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "the empty formula with a hint-free empty-clause step"
+    },
+    {
+      "name": "nested-empty-formula-empty-step",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "negative",
+      "args": [
+        [],
+        [
+          1,
+          1,
+          0,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "the empty formula with a hint-free empty-clause step"
+    },
+    {
+      "name": "stream-unit-pair-missing-hint",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "the empty clause with hint 1 only: a unit, no conflict"
+    },
+    {
+      "name": "nested-unit-pair-missing-hint",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "negative",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "the empty clause with hint 1 only: a unit, no conflict"
+    },
+    {
+      "name": "stream-unterminated",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "unterminated last clause: malformed (decodeStream = none), certificate otherwise valid"
+    },
+    {
+      "name": "stream-unterminated-after-empty",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          0,
+          1
+        ],
+        []
+      ],
+      "expect": "rejected",
+      "note": "[0, 1]: the LRAT core reads the empty clause, but the stream is unterminated: malformed"
+    },
+    {
+      "name": "stream-intmin",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          -2147483648,
+          0
+        ],
+        []
+      ],
+      "expect": "rejected",
+      "note": "Int32.MIN in a stream"
+    },
+    {
+      "name": "stream-intmin-after-empty",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          0,
+          -2147483648,
+          0
+        ],
+        []
+      ],
+      "expect": "rejected",
+      "note": "[0, Int32.MIN, 0]: an empty clause, then Int32.MIN: malformed"
+    },
+    {
+      "name": "nested-inner-zero",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            0
+          ]
+        ],
+        []
+      ],
+      "expect": "rejected",
+      "note": "[[0]]: a 0 inside a clause is malformed (the LRAT core would read an empty clause)"
+    },
+    {
+      "name": "nested-inner-zero-pair",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1,
+            0
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "[[1,0],[-1]]: a 0 inside a clause"
+    },
+    {
+      "name": "nested-intmin",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1,
+            -2147483648
+          ]
+        ],
+        []
+      ],
+      "expect": "rejected",
+      "note": "Int32.MIN inside a clause"
+    },
+    {
+      "name": "nested-intmin-with-empty",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [],
+          [
+            -2147483648
+          ]
+        ],
+        []
+      ],
+      "expect": "rejected",
+      "note": "[[],[Int32.MIN]]: the empty clause, then Int32.MIN"
+    },
+    {
+      "name": "stream-cert-unterminated",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2
+        ]
+      ],
+      "expect": "rejected",
+      "note": "the hints of the step are not terminated"
+    },
+    {
+      "name": "nested-cert-unterminated",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2
+        ]
+      ],
+      "expect": "rejected",
+      "note": "the hints of the step are not terminated"
+    },
+    {
+      "name": "stream-cert-bad-tag",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          0
+        ],
+        [
+          7
+        ]
+      ],
+      "expect": "rejected",
+      "note": "[[]] is unsatisfiable, but tag 7 is malformed"
+    },
+    {
+      "name": "nested-cert-bad-tag",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          []
+        ],
+        [
+          7
+        ]
+      ],
+      "expect": "rejected",
+      "note": "[[]] is unsatisfiable, but tag 7 is malformed"
+    },
+    {
+      "name": "stream-cert-truncated-step",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a step ending after its tag"
+    },
+    {
+      "name": "nested-cert-truncated-step",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          []
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a step ending after its tag"
+    },
+    {
+      "name": "stream-cert-zero-id",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "id 0 is not a positive word"
+    },
+    {
+      "name": "nested-cert-zero-id",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          []
+        ],
+        [
+          1,
+          0,
+          0,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "id 0 is not a positive word"
+    },
+    {
+      "name": "stream-cert-trailing-garbage",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0,
+          5
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a valid refutation followed by the tag 5"
+    },
+    {
+      "name": "nested-cert-trailing-garbage",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0,
+          5
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a valid refutation followed by the tag 5"
+    },
+    {
+      "name": "stream-cert-intmin-literal",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          -2147483648,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "Int32.MIN as a literal"
+    },
+    {
+      "name": "nested-cert-intmin-literal",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          -2147483648,
+          0,
+          1,
+          2,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "Int32.MIN as a literal"
+    },
+    {
+      "name": "stream-cert-negative-hint",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          -2,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a negative hint"
+    },
+    {
+      "name": "nested-cert-negative-hint",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            -1
+          ]
+        ],
+        [
+          1,
+          3,
+          0,
+          1,
+          -2,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a negative hint"
+    },
+    {
+      "name": "stream-cert-rat-unterminated-groups",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0,
+          1,
+          -2,
+          0,
+          -1,
+          -2,
+          0
+        ],
+        [
+          3,
+          5,
+          1,
+          0,
+          2,
+          1,
+          0,
+          4,
+          3,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a RAT step whose group list lacks the final 0"
+    },
+    {
+      "name": "nested-cert-rat-unterminated-groups",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ],
+          [
+            1,
+            -2
+          ],
+          [
+            -1,
+            -2
+          ]
+        ],
+        [
+          3,
+          5,
+          1,
+          0,
+          2,
+          1,
+          0,
+          4,
+          3,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a RAT step whose group list lacks the final 0"
+    },
+    {
+      "name": "stream-cert-zero-tag",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          0
+        ],
+        [
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "0 in tag position"
+    },
+    {
+      "name": "nested-cert-zero-tag",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          []
+        ],
+        [
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "0 in tag position"
+    },
+    {
+      "name": "stream-too-large",
+      "artifact": "lrat",
+      "export": "check-stream",
+      "class": "abi-failure",
+      "args": [
+        {
+          "$repeat": 1,
+          "count": 300000
+        },
+        []
+      ],
+      "expect": "error",
+      "note": "1.2 MB of problem words exceed the 1 MiB memory: cabi_realloc answers memBytes and the canonical ABI bounds check fails (Wasmtime reports a host error)"
+    },
+    {
+      "name": "nested-too-large",
+      "artifact": "lrat",
+      "export": "check-nested",
+      "class": "abi-failure",
+      "args": [
+        [
+          {
+            "$repeat": 1,
+            "count": 300000
+          }
+        ],
+        []
+      ],
+      "expect": "error",
+      "note": "one clause of 1.2 MB of words exceeds the 1 MiB memory"
+    }
+  ]
+}

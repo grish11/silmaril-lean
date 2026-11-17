@@ -1,0 +1,5153 @@
+{
+  "$schema": "../../../docs/schemas/wasm-acceptor-suite.v1.schema.json",
+  "suite": "farkas-accept",
+  "description": "The Farkas acceptor component: check(system: list<ineq>, y: list<s64>) -> bool with record ineq { coeffs: list<tuple<u32, s64>>, bound: s64 }. Expected outcomes follow Silmaril.Logic.LinArith.Carrier.farkasCheck within the module's bounds (|y|, |b|, |a| <= 2^30, y >= 0, variables < 8192, accumulators within 2^62); outside them the module rejects valid certificates (sound but incomplete), noted per case.",
+  "artifacts": {
+    "farkas": {
+      "path": "../../../examples/wasm-acceptors/farkas_accept.wasm",
+      "claims": [
+        {
+          "kind": "component-level soundness (kernel-checked)",
+          "level": "component",
+          "registry_name": "silmaril.wasm.examples.farkas_accept.component",
+          "value": "Silmaril.Wasm.Examples.FarkasAccept.bytes",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.FarkasAccept.bytes, regenerated as examples/wasm-acceptors/farkas_accept.wasm): an accepting call implies that the system is infeasible. Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
+          "theorems": [
+            {
+              "decl": "Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.FarkasAccept.Thms",
+              "states": "check returns true on S, y ⇒ S ∈ Infeasible"
+            }
+          ]
+        }
+      ],
+      "source": "Silmaril.Wasm.Examples.FarkasAccept: prog, wrapped as a component (memory 0 = core memory 1, realloc cabi_realloc)",
+      "sha256": "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996"
+    }
+  },
+  "cases": [
+    {
+      "name": "two-row",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "x0 <= 1, -x0 <= -2 with y = [1, 1]; LinArith.sys₁_infeasible_rat"
+    },
+    {
+      "name": "three-row",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ],
+              [
+                1,
+                1
+              ]
+            ],
+            "bound": 2
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -1
+          },
+          {
+            "coeffs": [
+              [
+                1,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1,
+          1,
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "x0 + x1 <= 2, -x0 <= -1, -x1 <= -2 with y = [1, 1, 1]; LinArith.sys₂_infeasible"
+    },
+    {
+      "name": "scaled-multipliers",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                2
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -1
+          }
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "expect": "accepted",
+      "note": "2 x0 <= 1, -x0 <= -1 with y = [1, 2]: 0 <= -1"
+    },
+    {
+      "name": "empty-row",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [],
+            "bound": -1
+          }
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "0 <= -1 alone"
+    },
+    {
+      "name": "zero-multiplier-extra-row",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -2
+          },
+          {
+            "coeffs": [
+              [
+                5,
+                7
+              ]
+            ],
+            "bound": 3
+          }
+        ],
+        [
+          1,
+          1,
+          0
+        ]
+      ],
+      "expect": "accepted",
+      "note": "two-row plus a row with multiplier 0"
+    },
+    {
+      "name": "repeated-variable",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -2
+              ]
+            ],
+            "bound": -3
+          }
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "x0 + x0 <= 1, -2 x0 <= -3: repeated variables add up"
+    },
+    {
+      "name": "repeated-variable-cancel",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                3,
+                1
+              ],
+              [
+                3,
+                -1
+              ]
+            ],
+            "bound": -1
+          }
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "x3 - x3 <= -1 in one row"
+    },
+    {
+      "name": "order-of-coefficients",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                1,
+                1
+              ],
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 2
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -1
+          },
+          {
+            "coeffs": [
+              [
+                1,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1,
+          1,
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "three-row with the first row's pairs swapped"
+    },
+    {
+      "name": "chain-301",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ],
+              [
+                1,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                1,
+                1
+              ],
+              [
+                2,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                2,
+                1
+              ],
+              [
+                3,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                3,
+                1
+              ],
+              [
+                4,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                4,
+                1
+              ],
+              [
+                5,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                5,
+                1
+              ],
+              [
+                6,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                6,
+                1
+              ],
+              [
+                7,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                7,
+                1
+              ],
+              [
+                8,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                8,
+                1
+              ],
+              [
+                9,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                9,
+                1
+              ],
+              [
+                10,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                10,
+                1
+              ],
+              [
+                11,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                11,
+                1
+              ],
+              [
+                12,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                12,
+                1
+              ],
+              [
+                13,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                13,
+                1
+              ],
+              [
+                14,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                14,
+                1
+              ],
+              [
+                15,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                15,
+                1
+              ],
+              [
+                16,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                16,
+                1
+              ],
+              [
+                17,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                17,
+                1
+              ],
+              [
+                18,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                18,
+                1
+              ],
+              [
+                19,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                19,
+                1
+              ],
+              [
+                20,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                20,
+                1
+              ],
+              [
+                21,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                21,
+                1
+              ],
+              [
+                22,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                22,
+                1
+              ],
+              [
+                23,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                23,
+                1
+              ],
+              [
+                24,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                24,
+                1
+              ],
+              [
+                25,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                25,
+                1
+              ],
+              [
+                26,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                26,
+                1
+              ],
+              [
+                27,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                27,
+                1
+              ],
+              [
+                28,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                28,
+                1
+              ],
+              [
+                29,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                29,
+                1
+              ],
+              [
+                30,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                30,
+                1
+              ],
+              [
+                31,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                31,
+                1
+              ],
+              [
+                32,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                32,
+                1
+              ],
+              [
+                33,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                33,
+                1
+              ],
+              [
+                34,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                34,
+                1
+              ],
+              [
+                35,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                35,
+                1
+              ],
+              [
+                36,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                36,
+                1
+              ],
+              [
+                37,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                37,
+                1
+              ],
+              [
+                38,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                38,
+                1
+              ],
+              [
+                39,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                39,
+                1
+              ],
+              [
+                40,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                40,
+                1
+              ],
+              [
+                41,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                41,
+                1
+              ],
+              [
+                42,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                42,
+                1
+              ],
+              [
+                43,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                43,
+                1
+              ],
+              [
+                44,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                44,
+                1
+              ],
+              [
+                45,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                45,
+                1
+              ],
+              [
+                46,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                46,
+                1
+              ],
+              [
+                47,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                47,
+                1
+              ],
+              [
+                48,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                48,
+                1
+              ],
+              [
+                49,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                49,
+                1
+              ],
+              [
+                50,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                50,
+                1
+              ],
+              [
+                51,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                51,
+                1
+              ],
+              [
+                52,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                52,
+                1
+              ],
+              [
+                53,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                53,
+                1
+              ],
+              [
+                54,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                54,
+                1
+              ],
+              [
+                55,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                55,
+                1
+              ],
+              [
+                56,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                56,
+                1
+              ],
+              [
+                57,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                57,
+                1
+              ],
+              [
+                58,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                58,
+                1
+              ],
+              [
+                59,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                59,
+                1
+              ],
+              [
+                60,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                60,
+                1
+              ],
+              [
+                61,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                61,
+                1
+              ],
+              [
+                62,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                62,
+                1
+              ],
+              [
+                63,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                63,
+                1
+              ],
+              [
+                64,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                64,
+                1
+              ],
+              [
+                65,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                65,
+                1
+              ],
+              [
+                66,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                66,
+                1
+              ],
+              [
+                67,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                67,
+                1
+              ],
+              [
+                68,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                68,
+                1
+              ],
+              [
+                69,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                69,
+                1
+              ],
+              [
+                70,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                70,
+                1
+              ],
+              [
+                71,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                71,
+                1
+              ],
+              [
+                72,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                72,
+                1
+              ],
+              [
+                73,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                73,
+                1
+              ],
+              [
+                74,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                74,
+                1
+              ],
+              [
+                75,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                75,
+                1
+              ],
+              [
+                76,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                76,
+                1
+              ],
+              [
+                77,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                77,
+                1
+              ],
+              [
+                78,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                78,
+                1
+              ],
+              [
+                79,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                79,
+                1
+              ],
+              [
+                80,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                80,
+                1
+              ],
+              [
+                81,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                81,
+                1
+              ],
+              [
+                82,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                82,
+                1
+              ],
+              [
+                83,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                83,
+                1
+              ],
+              [
+                84,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                84,
+                1
+              ],
+              [
+                85,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                85,
+                1
+              ],
+              [
+                86,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                86,
+                1
+              ],
+              [
+                87,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                87,
+                1
+              ],
+              [
+                88,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                88,
+                1
+              ],
+              [
+                89,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                89,
+                1
+              ],
+              [
+                90,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                90,
+                1
+              ],
+              [
+                91,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                91,
+                1
+              ],
+              [
+                92,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                92,
+                1
+              ],
+              [
+                93,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                93,
+                1
+              ],
+              [
+                94,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                94,
+                1
+              ],
+              [
+                95,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                95,
+                1
+              ],
+              [
+                96,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                96,
+                1
+              ],
+              [
+                97,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                97,
+                1
+              ],
+              [
+                98,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                98,
+                1
+              ],
+              [
+                99,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                99,
+                1
+              ],
+              [
+                100,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                100,
+                1
+              ],
+              [
+                101,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                101,
+                1
+              ],
+              [
+                102,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                102,
+                1
+              ],
+              [
+                103,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                103,
+                1
+              ],
+              [
+                104,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                104,
+                1
+              ],
+              [
+                105,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                105,
+                1
+              ],
+              [
+                106,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                106,
+                1
+              ],
+              [
+                107,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                107,
+                1
+              ],
+              [
+                108,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                108,
+                1
+              ],
+              [
+                109,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                109,
+                1
+              ],
+              [
+                110,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                110,
+                1
+              ],
+              [
+                111,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                111,
+                1
+              ],
+              [
+                112,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                112,
+                1
+              ],
+              [
+                113,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                113,
+                1
+              ],
+              [
+                114,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                114,
+                1
+              ],
+              [
+                115,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                115,
+                1
+              ],
+              [
+                116,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                116,
+                1
+              ],
+              [
+                117,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                117,
+                1
+              ],
+              [
+                118,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                118,
+                1
+              ],
+              [
+                119,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                119,
+                1
+              ],
+              [
+                120,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                120,
+                1
+              ],
+              [
+                121,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                121,
+                1
+              ],
+              [
+                122,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                122,
+                1
+              ],
+              [
+                123,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                123,
+                1
+              ],
+              [
+                124,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                124,
+                1
+              ],
+              [
+                125,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                125,
+                1
+              ],
+              [
+                126,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                126,
+                1
+              ],
+              [
+                127,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                127,
+                1
+              ],
+              [
+                128,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                128,
+                1
+              ],
+              [
+                129,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                129,
+                1
+              ],
+              [
+                130,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                130,
+                1
+              ],
+              [
+                131,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                131,
+                1
+              ],
+              [
+                132,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                132,
+                1
+              ],
+              [
+                133,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                133,
+                1
+              ],
+              [
+                134,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                134,
+                1
+              ],
+              [
+                135,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                135,
+                1
+              ],
+              [
+                136,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                136,
+                1
+              ],
+              [
+                137,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                137,
+                1
+              ],
+              [
+                138,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                138,
+                1
+              ],
+              [
+                139,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                139,
+                1
+              ],
+              [
+                140,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                140,
+                1
+              ],
+              [
+                141,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                141,
+                1
+              ],
+              [
+                142,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                142,
+                1
+              ],
+              [
+                143,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                143,
+                1
+              ],
+              [
+                144,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                144,
+                1
+              ],
+              [
+                145,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                145,
+                1
+              ],
+              [
+                146,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                146,
+                1
+              ],
+              [
+                147,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                147,
+                1
+              ],
+              [
+                148,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                148,
+                1
+              ],
+              [
+                149,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                149,
+                1
+              ],
+              [
+                150,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                150,
+                1
+              ],
+              [
+                151,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                151,
+                1
+              ],
+              [
+                152,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                152,
+                1
+              ],
+              [
+                153,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                153,
+                1
+              ],
+              [
+                154,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                154,
+                1
+              ],
+              [
+                155,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                155,
+                1
+              ],
+              [
+                156,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                156,
+                1
+              ],
+              [
+                157,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                157,
+                1
+              ],
+              [
+                158,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                158,
+                1
+              ],
+              [
+                159,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                159,
+                1
+              ],
+              [
+                160,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                160,
+                1
+              ],
+              [
+                161,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                161,
+                1
+              ],
+              [
+                162,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                162,
+                1
+              ],
+              [
+                163,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                163,
+                1
+              ],
+              [
+                164,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                164,
+                1
+              ],
+              [
+                165,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                165,
+                1
+              ],
+              [
+                166,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                166,
+                1
+              ],
+              [
+                167,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                167,
+                1
+              ],
+              [
+                168,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                168,
+                1
+              ],
+              [
+                169,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                169,
+                1
+              ],
+              [
+                170,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                170,
+                1
+              ],
+              [
+                171,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                171,
+                1
+              ],
+              [
+                172,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                172,
+                1
+              ],
+              [
+                173,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                173,
+                1
+              ],
+              [
+                174,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                174,
+                1
+              ],
+              [
+                175,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                175,
+                1
+              ],
+              [
+                176,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                176,
+                1
+              ],
+              [
+                177,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                177,
+                1
+              ],
+              [
+                178,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                178,
+                1
+              ],
+              [
+                179,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                179,
+                1
+              ],
+              [
+                180,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                180,
+                1
+              ],
+              [
+                181,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                181,
+                1
+              ],
+              [
+                182,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                182,
+                1
+              ],
+              [
+                183,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                183,
+                1
+              ],
+              [
+                184,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                184,
+                1
+              ],
+              [
+                185,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                185,
+                1
+              ],
+              [
+                186,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                186,
+                1
+              ],
+              [
+                187,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                187,
+                1
+              ],
+              [
+                188,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                188,
+                1
+              ],
+              [
+                189,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                189,
+                1
+              ],
+              [
+                190,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                190,
+                1
+              ],
+              [
+                191,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                191,
+                1
+              ],
+              [
+                192,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                192,
+                1
+              ],
+              [
+                193,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                193,
+                1
+              ],
+              [
+                194,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                194,
+                1
+              ],
+              [
+                195,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                195,
+                1
+              ],
+              [
+                196,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                196,
+                1
+              ],
+              [
+                197,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                197,
+                1
+              ],
+              [
+                198,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                198,
+                1
+              ],
+              [
+                199,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                199,
+                1
+              ],
+              [
+                200,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                200,
+                1
+              ],
+              [
+                201,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                201,
+                1
+              ],
+              [
+                202,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                202,
+                1
+              ],
+              [
+                203,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                203,
+                1
+              ],
+              [
+                204,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                204,
+                1
+              ],
+              [
+                205,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                205,
+                1
+              ],
+              [
+                206,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                206,
+                1
+              ],
+              [
+                207,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                207,
+                1
+              ],
+              [
+                208,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                208,
+                1
+              ],
+              [
+                209,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                209,
+                1
+              ],
+              [
+                210,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                210,
+                1
+              ],
+              [
+                211,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                211,
+                1
+              ],
+              [
+                212,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                212,
+                1
+              ],
+              [
+                213,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                213,
+                1
+              ],
+              [
+                214,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                214,
+                1
+              ],
+              [
+                215,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                215,
+                1
+              ],
+              [
+                216,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                216,
+                1
+              ],
+              [
+                217,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                217,
+                1
+              ],
+              [
+                218,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                218,
+                1
+              ],
+              [
+                219,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                219,
+                1
+              ],
+              [
+                220,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                220,
+                1
+              ],
+              [
+                221,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                221,
+                1
+              ],
+              [
+                222,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                222,
+                1
+              ],
+              [
+                223,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                223,
+                1
+              ],
+              [
+                224,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                224,
+                1
+              ],
+              [
+                225,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                225,
+                1
+              ],
+              [
+                226,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                226,
+                1
+              ],
+              [
+                227,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                227,
+                1
+              ],
+              [
+                228,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                228,
+                1
+              ],
+              [
+                229,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                229,
+                1
+              ],
+              [
+                230,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                230,
+                1
+              ],
+              [
+                231,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                231,
+                1
+              ],
+              [
+                232,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                232,
+                1
+              ],
+              [
+                233,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                233,
+                1
+              ],
+              [
+                234,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                234,
+                1
+              ],
+              [
+                235,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                235,
+                1
+              ],
+              [
+                236,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                236,
+                1
+              ],
+              [
+                237,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                237,
+                1
+              ],
+              [
+                238,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                238,
+                1
+              ],
+              [
+                239,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                239,
+                1
+              ],
+              [
+                240,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                240,
+                1
+              ],
+              [
+                241,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                241,
+                1
+              ],
+              [
+                242,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                242,
+                1
+              ],
+              [
+                243,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                243,
+                1
+              ],
+              [
+                244,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                244,
+                1
+              ],
+              [
+                245,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                245,
+                1
+              ],
+              [
+                246,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                246,
+                1
+              ],
+              [
+                247,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                247,
+                1
+              ],
+              [
+                248,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                248,
+                1
+              ],
+              [
+                249,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                249,
+                1
+              ],
+              [
+                250,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                250,
+                1
+              ],
+              [
+                251,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                251,
+                1
+              ],
+              [
+                252,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                252,
+                1
+              ],
+              [
+                253,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                253,
+                1
+              ],
+              [
+                254,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                254,
+                1
+              ],
+              [
+                255,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                255,
+                1
+              ],
+              [
+                256,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                256,
+                1
+              ],
+              [
+                257,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                257,
+                1
+              ],
+              [
+                258,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                258,
+                1
+              ],
+              [
+                259,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                259,
+                1
+              ],
+              [
+                260,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                260,
+                1
+              ],
+              [
+                261,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                261,
+                1
+              ],
+              [
+                262,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                262,
+                1
+              ],
+              [
+                263,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                263,
+                1
+              ],
+              [
+                264,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                264,
+                1
+              ],
+              [
+                265,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                265,
+                1
+              ],
+              [
+                266,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                266,
+                1
+              ],
+              [
+                267,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                267,
+                1
+              ],
+              [
+                268,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                268,
+                1
+              ],
+              [
+                269,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                269,
+                1
+              ],
+              [
+                270,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                270,
+                1
+              ],
+              [
+                271,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                271,
+                1
+              ],
+              [
+                272,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                272,
+                1
+              ],
+              [
+                273,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                273,
+                1
+              ],
+              [
+                274,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                274,
+                1
+              ],
+              [
+                275,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                275,
+                1
+              ],
+              [
+                276,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                276,
+                1
+              ],
+              [
+                277,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                277,
+                1
+              ],
+              [
+                278,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                278,
+                1
+              ],
+              [
+                279,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                279,
+                1
+              ],
+              [
+                280,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                280,
+                1
+              ],
+              [
+                281,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                281,
+                1
+              ],
+              [
+                282,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                282,
+                1
+              ],
+              [
+                283,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                283,
+                1
+              ],
+              [
+                284,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                284,
+                1
+              ],
+              [
+                285,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                285,
+                1
+              ],
+              [
+                286,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                286,
+                1
+              ],
+              [
+                287,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                287,
+                1
+              ],
+              [
+                288,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                288,
+                1
+              ],
+              [
+                289,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                289,
+                1
+              ],
+              [
+                290,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                290,
+                1
+              ],
+              [
+                291,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                291,
+                1
+              ],
+              [
+                292,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                292,
+                1
+              ],
+              [
+                293,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                293,
+                1
+              ],
+              [
+                294,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                294,
+                1
+              ],
+              [
+                295,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                295,
+                1
+              ],
+              [
+                296,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                296,
+                1
+              ],
+              [
+                297,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                297,
+                1
+              ],
+              [
+                298,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                298,
+                1
+              ],
+              [
+                299,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                299,
+                1
+              ],
+              [
+                300,
+                -1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                300,
+                1
+              ],
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -1
+          }
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "x_i - x_{i+1} <= 0 (i < 300), x_300 - x_0 <= -1, all multipliers 1"
+    },
+    {
+      "name": "variable-8191",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                8191,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                8191,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "the largest variable index within the module's bound (j < 8192)"
+    },
+    {
+      "name": "coefficient-2^30",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1073741824
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1073741824
+              ]
+            ],
+            "bound": -1
+          }
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "coefficients +-2^30, at the module's bound"
+    },
+    {
+      "name": "multiplier-2^30",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -1
+          }
+        ],
+        [
+          1073741824,
+          1073741824
+        ]
+      ],
+      "expect": "accepted",
+      "note": "multipliers 2^30, at the module's bound"
+    },
+    {
+      "name": "bound-minus-2^30",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "positive",
+      "args": [
+        [
+          {
+            "coeffs": [],
+            "bound": -1073741824
+          }
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "accepted",
+      "note": "bound -2^30, at the module's bound"
+    },
+    {
+      "name": "feasible",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": 0
+          }
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "x0 <= 1, -x0 <= 0 is feasible; the weighted bounds add up to 1"
+    },
+    {
+      "name": "feasible-zero-multipliers",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "all multipliers 0: the bound sum 0 is not negative"
+    },
+    {
+      "name": "negative-multiplier",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [],
+            "bound": 1
+          }
+        ],
+        [
+          -1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "0 <= 1 (feasible) with y = [-1]: the bound sum would be -1"
+    },
+    {
+      "name": "negative-multiplier-two",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 2
+          }
+        ],
+        [
+          -1,
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "x0 <= 1, x0 <= 2 (feasible) with y = [-1, 1]"
+    },
+    {
+      "name": "wrong-multipliers",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "expect": "rejected",
+      "note": "y = [1, 2]: the left-hand sides do not cancel"
+    },
+    {
+      "name": "too-few-multipliers",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "one multiplier for two inequalities (yl != sl)"
+    },
+    {
+      "name": "too-many-multipliers",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1,
+          1,
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "three multipliers for two inequalities (yl != sl)"
+    },
+    {
+      "name": "empty-system",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [],
+        []
+      ],
+      "expect": "rejected",
+      "note": "no inequality: the bound sum 0 is not negative"
+    },
+    {
+      "name": "empty-system-extra-multiplier",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "yl != sl"
+    },
+    {
+      "name": "coefficient-2^30+1",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1073741825
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1073741825
+              ]
+            ],
+            "bound": -1
+          }
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a valid certificate, rejected: |a| > 2^30 is outside the module's bound (sound but incomplete)"
+    },
+    {
+      "name": "multiplier-2^30+1",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 0
+          },
+          {
+            "coeffs": [
+              [
+                0,
+                -1
+              ]
+            ],
+            "bound": -1
+          }
+        ],
+        [
+          1073741825,
+          1073741825
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a valid certificate, rejected: y > 2^30 is outside the module's bound (sound but incomplete)"
+    },
+    {
+      "name": "bound-minus-2^30-1",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [],
+            "bound": -1073741825
+          }
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a valid certificate, rejected: |b| > 2^30 is outside the module's bound (sound but incomplete)"
+    },
+    {
+      "name": "bound-s64-min",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [],
+            "bound": -9223372036854775808
+          }
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a valid certificate, rejected: bound -2^63 is outside the module's bound"
+    },
+    {
+      "name": "variable-8192",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                8192,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                8192,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a valid certificate, rejected: variable index j >= 8192 is outside the module's bound (sound but incomplete)"
+    },
+    {
+      "name": "variable-u32-max",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                4294967295,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                4294967295,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a valid certificate, rejected: j = 2^32 - 1 >= 8192"
+    },
+    {
+      "name": "variable-alias-8192",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "bound": 1
+          },
+          {
+            "coeffs": [
+              [
+                8192,
+                -1
+              ]
+            ],
+            "bound": -2
+          }
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "x0 <= 1, -x8192 <= -2 is feasible; slot 8192 mod 8192 = 0 would cancel x0, but j >= 8192 sets the flag"
+    },
+    {
+      "name": "overflow-wrap",
+      "artifact": "farkas",
+      "export": "check",
+      "class": "negative",
+      "args": [
+        [
+          {
+            "coeffs": [
+              [
+                0,
+                4294967296
+              ]
+            ],
+            "bound": -1
+          }
+        ],
+        [
+          4294967296
+        ]
+      ],
+      "expect": "rejected",
+      "note": "y a = 2^64 wraps to 0 in i64 and 2^32 x0 <= -1 is feasible; out of the bounds, rejected"
+    }
+  ]
+}

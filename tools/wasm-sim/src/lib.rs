@@ -1,5 +1,6 @@
 //! Harness for the Wasm ISA simulators (`docs/projects/wasm-sim-abi.md`).
 
+pub mod component;
 pub mod harness;
 pub mod proc;
 pub mod reduce;

@@ -1,0 +1,406 @@
+{
+  "$schema": "../../../docs/schemas/wasm-acceptor-suite.v1.schema.json",
+  "suite": "sat-accept",
+  "description": "The SAT model-witness acceptor component: check-stream(problem: list<s32>, model: list<s32>) and check-nested(problem: list<list<s32>>, model: list<s32>). Expected outcomes follow Silmaril.Logic.SAT.Carrier.satStream / satNested.",
+  "artifacts": {
+    "sat": {
+      "path": "../../../examples/wasm-acceptors/sat_accept.wasm",
+      "claims": [
+        {
+          "kind": "component-level soundness (kernel-checked)",
+          "level": "component",
+          "registry_name": "silmaril.wasm.examples.sat_accept.component",
+          "value": "Silmaril.Wasm.Examples.SatAccept.bytes",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.SatAccept.bytes, regenerated as examples/wasm-acceptors/sat_accept.wasm): an accepting call implies the SAT check and language membership. Soundness only: nothing is stated about rejections, traps or completeness.",
+          "theorems": [
+            {
+              "decl": "Silmaril.Project.WasmComponents.SatAccept.checkStream_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.SatAccept.Thms",
+              "states": "check-stream returns true on xs, ms ⇒ satStream xs ms = true ∧ xs ∈ SatStream"
+            },
+            {
+              "decl": "Silmaril.Project.WasmComponents.SatAccept.checkNested_sound_of_bytes",
+              "module": "Silmaril.Project.WasmComponents.SatAccept.Thms",
+              "states": "check-nested returns true on p, ms ⇒ satNested p ms = true ∧ p ∈ SatNested"
+            }
+          ]
+        }
+      ],
+      "source": "Silmaril.Wasm.Examples.SatAccept: prog, wrapped as a component (memory 0, realloc cabi_realloc)",
+      "sha256": "78b2a97ed369c0117e63491b2b7bf9a2eb0d4bef5d951201852e307551eef499"
+    }
+  },
+  "cases": [
+    {
+      "name": "stream-sattwo-model",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          2
+        ]
+      ],
+      "expect": "accepted",
+      "note": "[[1,2],[-1,2]] with model {2}; Carrier.Examples.satTwo_stream_accepted"
+    },
+    {
+      "name": "stream-empty-formula",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [],
+        []
+      ],
+      "expect": "accepted",
+      "note": "the empty stream is the empty formula (satisfiable), not malformed; empty_stream_sat"
+    },
+    {
+      "name": "stream-extreme-literals",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "positive",
+      "args": [
+        [
+          2147483647,
+          -2147483647,
+          0
+        ],
+        [
+          2147483647
+        ]
+      ],
+      "expect": "accepted",
+      "note": "the largest literals ±(2^31-1)"
+    },
+    {
+      "name": "stream-incomplete-model",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "clause [-1,2] has no model literal"
+    },
+    {
+      "name": "stream-inconsistent-model",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          2,
+          -2
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a literal and its negation"
+    },
+    {
+      "name": "stream-model-zero",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "expect": "rejected",
+      "note": "0 is not a literal word"
+    },
+    {
+      "name": "stream-model-intmin",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          2,
+          -2147483648
+        ]
+      ],
+      "expect": "rejected",
+      "note": "Int32.MIN is not a literal word"
+    },
+    {
+      "name": "stream-empty-clause",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "negative",
+      "args": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "[0] is the formula [[]] (unsatisfiable), distinct from the empty stream"
+    },
+    {
+      "name": "stream-unterminated",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          1
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "an unterminated last clause is malformed, not dropped"
+    },
+    {
+      "name": "stream-unterminated-tail",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "expect": "rejected",
+      "note": "malformed even though the model hits every literal"
+    },
+    {
+      "name": "stream-intmin-literal",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "malformed",
+      "args": [
+        [
+          -2147483648,
+          1,
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "Int32.MIN in the problem is malformed"
+    },
+    {
+      "name": "stream-too-large",
+      "artifact": "sat",
+      "export": "check-stream",
+      "class": "abi-failure",
+      "args": [
+        {
+          "$repeat": 1,
+          "count": 300000
+        },
+        []
+      ],
+      "expect": "error",
+      "note": "1.2 MB of words exceed the 1 MiB memory: cabi_realloc answers memBytes and the canonical ABI's bounds check fails. The canonical ABI specifies a trap (trap_if in definitions.py); Wasmtime 50 reports it as a host error ('realloc return: beyond end of memory'), not a wasmtime::Trap, so the harness records `error`. Either way the call is not accepted."
+    },
+    {
+      "name": "nested-sattwo-model",
+      "artifact": "sat",
+      "export": "check-nested",
+      "class": "positive",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ]
+        ],
+        [
+          2
+        ]
+      ],
+      "expect": "accepted",
+      "note": "satTwo; Carrier.Examples.satTwo_accepted"
+    },
+    {
+      "name": "nested-empty-formula",
+      "artifact": "sat",
+      "export": "check-nested",
+      "class": "positive",
+      "args": [
+        [],
+        []
+      ],
+      "expect": "accepted",
+      "note": "[] is the empty formula; empty_nested_sat"
+    },
+    {
+      "name": "nested-empty-clause",
+      "artifact": "sat",
+      "export": "check-nested",
+      "class": "negative",
+      "args": [
+        [
+          []
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "[[]] has the empty clause: unsatisfiable"
+    },
+    {
+      "name": "nested-incomplete-model",
+      "artifact": "sat",
+      "export": "check-nested",
+      "class": "negative",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            2
+          ]
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "clause [2] not hit"
+    },
+    {
+      "name": "nested-inner-zero",
+      "artifact": "sat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1,
+            0,
+            2
+          ]
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "expect": "rejected",
+      "note": "a 0 inside a clause is malformed (never a separator); malformed_nested_inner_zero"
+    },
+    {
+      "name": "nested-zero",
+      "artifact": "sat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            0
+          ]
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "[[0]] is malformed"
+    },
+    {
+      "name": "nested-intmin",
+      "artifact": "sat",
+      "export": "check-nested",
+      "class": "malformed",
+      "args": [
+        [
+          [
+            -2147483648
+          ],
+          [
+            1
+          ]
+        ],
+        [
+          1
+        ]
+      ],
+      "expect": "rejected",
+      "note": "Int32.MIN in a clause is malformed"
+    },
+    {
+      "name": "nested-too-large",
+      "artifact": "sat",
+      "export": "check-nested",
+      "class": "abi-failure",
+      "args": [
+        [
+          {
+            "$repeat": 1,
+            "count": 300000
+          }
+        ],
+        []
+      ],
+      "expect": "error",
+      "note": "an inner list beyond memory: the canonical ABI's bounds check fails. The canonical ABI specifies a trap (trap_if in definitions.py); Wasmtime 50 reports it as a host error ('realloc return: beyond end of memory'), not a wasmtime::Trap, so the harness records `error`. Either way the call is not accepted."
+    }
+  ]
+}

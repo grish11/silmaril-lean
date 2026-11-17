@@ -53,6 +53,44 @@ checks the sha256 of the committed files and `--build` rebuilds them.
   standard executables.
 * `Dyn.LibMod.Hello`: hello world through the library-module machine.
 
+## GNU `sha256sum`
+
+`Dyn.Sha256sum` verifies GNU coreutils 9.4 `sha256sum` (Ubuntu `coreutils` 9.4-3ubuntu6.3,
+the pinned `examples/elf/pinned/gnu-sha256sum`, read through `Dyn.PinBytes.sha256sum`), a PIE
+with `DF_BIND_NOW` and `DT_NEEDED = [libcrypto.so.3, libc.so.6]`. `libcrypto.so.3`, `libc.so.6`
+and `ld.so` enter only through byte ranges (`Sha256sum.Scope`); the theorems hold for every file
+agreeing with them. Licences: [`NOTICES/effects-examples`](../../NOTICES/effects-examples/README.md)
+(coreutils), [`NOTICES/glibc`](../../NOTICES/glibc/README.md),
+[`NOTICES/openssl`](../../NOTICES/openssl/README.md).
+
+* `Sha256sum.sha_slots` (`Sha256sum.Thms`): the eager slot table of all 84 relocations.
+* `Sha256sum.sha256sum_stdin` (stdin): for every `libcrypto.so.3`, `libc.so.6` and `ld.so`
+  agreeing with the pinned chunks, every base, ifunc choice and binding mode, a process started
+  by the kernel on the loaded image, in a world with the imports' contracts (`MainImps`,
+  `TailImps`, `ExitOk`) whose library enters `main` with `argv = [a0]` and standard input `data`
+  (`MainLib` at `World.atMain`), ends with the exit status and standard output of
+  `Silmaril.Apps.Sha256sum.sha256sum` on that world, and nothing on stderr.
+  `sha256sum_stdinK` asks `MainLib` only at the entries the start-up can produce.
+* `Sha256sum.sha256sum_files` (`sha256sum F1 … Fn`, success tier): the same for readable files
+  whose names are printed verbatim (`FilesSpec.Verbatim`); `sha256sum_filesK` likewise.
+* `Sha256sum.sha256sum_mixed_loaded` (file-error tier, on the extended process `procG XG`):
+  each operand is readable and printed verbatim, or refused at `open` and gnulib-safe (`MOp`);
+  every run halts with the specification's status, standard output and standard error. The
+  loader relation is `ExeLoadedP` (with the trusted loader fact `PageBase`).
+* Resource preconditions: `sha256sum_stdin(K)` take `1 ≤ maxAllocs ∧ 0x8048 ≤ maxHeap`,
+  `sha256sum_files(K)` on `n` operands take `n ≤ maxAllocs ∧ 0x8048 * n ≤ maxHeap ∧ n ≤ maxOpen`.
+* Non-vacuity (`Sha256sum.Wit`): `Wit.sha256sum_stdin_runs` and `Wit.sha256sum_files_runs` are
+  concrete runs meeting every hypothesis. Model limit: the stream representation `slotRep` holds
+  a stream's unread bytes in one 1 MiB slot, so the input fits `64 + |data| ≤ S0`.
+* Trusted beyond the rest of `Dyn`: the import contracts of `Streams.Defs`, `Imports.Defs` and
+  `Proc.Defs`, the stream representation `slotRep`, the concrete `Env`/`World` of `WitWorld` and
+  the specification `Silmaril.Apps.Sha256sum`.
+* CLI institution: `Sha256sum.stdinModel_sat`/`stdinModel_std` (`Sha256sum.Cli.Thms`): the `L1`
+  model of the binary, whose runs carry exactly the hypotheses of `sha256sum_stdin`, meets
+  `Std.sha256Stdin`. `Silmaril.Elf.LpsCli` reads static executables under LPS as CLI models;
+  `LpsCli.Sha256sum.static_agrees_glibc`: `sha256sum-min` (static, LPS) and GNU `sha256sum`
+  (glibc) agree run by run.
+
 ## Trust
 
 A theorem here rests on:
@@ -79,7 +117,7 @@ namespace, because the `Libc` region depends on `Elf`; merging the two is left f
 ## Build
 
     lake build Silmaril.Elf.Link.Dyn.Thms Silmaril.Elf.Link.Dyn.Program.StdExe.Examples \
-      Silmaril.Elf.Link.Dyn.LibMod.Hello.Thms Silmaril.X86.BinInstitution.Cli.Thms
+      Silmaril.Elf.Link.Dyn.LibMod.Hello.Thms Silmaril.X86.BinInstitution.Cli.Thms \
+      Silmaril.Elf.Link.Dyn.Sha256sum.Cli.Thms Silmaril.Elf.LpsCli.Sha256sum.Thms
 
-Not included yet: the `sha256sum` executable (coreutils), the LeetCode solutions and the
-allocator library module.
+Not included yet: the LeetCode solutions and the allocator library module.

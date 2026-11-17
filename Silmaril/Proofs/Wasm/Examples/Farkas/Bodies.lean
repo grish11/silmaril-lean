@@ -15,6 +15,10 @@ At every profile and for every host relation (`HWP`, partial correctness):
   holding `checkEnd B`, for some `B` and `nz` with `ScanDone m.mem B nz` (the scan loop by
   `HWP.loop` with the invariant `LoopInv`, inside `HWP.block`).
 
+The `…X` forms (`row_hwpX`, `entry_hwpX`, `check_hwpX`) are the same in every fixture `X`
+(`withMachX X s₀ m`, frames of `X.mi`, `Fix.Ok`); the forms above are their instances at
+`Fix.base`.
+
 No body traps, throws or branches out.
 -/
 
@@ -27,22 +31,37 @@ open Silmaril.Wasm.Examples.Common (Wp.exec_eq)
 
 variable {P : Profile} {host : HostSemantics Nat} {s₀ : Store Nat} {m : Mach}
 
+variable {X : Fix}
+
+theorem row_hwpX (hX : X.Ok) (y b : BitVec 64) {Q : Post Nat}
+    (hQ : ∀ f', Q (withMachX X s₀ (rowM m y b)) f' (.normal [])) :
+    HWP P host (withMachX X s₀ m) (Frame.forCall X.mi [.i64 y, .i64 b] [.i64]) (expression rowBody) Q := by
+  show HWP P host _ ⟨[some (.i64 y), some (.i64 b), some (.i64 0)], X.mi⟩ _ _
+  have h := Wp.exec_eq (m := .part) (P := P) (host := host) (vs := []) (rest := []) (Q := Q)
+    (exec_rowX (s₀ := s₀) (m := m) hX y b) (by simpa using Wp.of_vals (m := .part) (hQ _))
+  simpa using h
+
 theorem row_hwp (y b : BitVec 64) {Q : Post Nat}
     (hQ : ∀ f', Q (withMach s₀ (rowM m y b)) f' (.normal [])) :
     HWP P host (withMach s₀ m) (Frame.forCall farkasMI [.i64 y, .i64 b] [.i64]) (expression rowBody) Q := by
-  rw [frame_row]
+  rw [← withMachX_base]
+  exact row_hwpX Fix.base_ok y b fun f' => by rw [withMachX_base]; exact hQ f'
+
+theorem entry_hwpX (hX : X.Ok) (hB : m.mem.size = 65536) (j : BitVec 32) (a : BitVec 64)
+    {Q : Post Nat} (hQ : ∀ f', Q (withMachX X s₀ (entryM m j a)) f' (.normal [])) :
+    HWP P host (withMachX X s₀ m) (Frame.forCall X.mi [.i32 j, .i64 a] [.i32, .i64])
+      (expression entryBody) Q := by
+  show HWP P host _ ⟨[some (.i32 j), some (.i64 a), some (.i32 0), some (.i64 0)], X.mi⟩ _ _
   have h := Wp.exec_eq (m := .part) (P := P) (host := host) (vs := []) (rest := []) (Q := Q)
-    (exec_row (s₀ := s₀) (m := m) y b) (by simpa using Wp.of_vals (m := .part) (hQ _))
+    (exec_entryX (s₀ := s₀) hX hB j a) (by simpa using Wp.of_vals (m := .part) (hQ _))
   simpa using h
 
 theorem entry_hwp (hB : m.mem.size = 65536) (j : BitVec 32) (a : BitVec 64) {Q : Post Nat}
     (hQ : ∀ f', Q (withMach s₀ (entryM m j a)) f' (.normal [])) :
     HWP P host (withMach s₀ m) (Frame.forCall farkasMI [.i32 j, .i64 a] [.i32, .i64])
       (expression entryBody) Q := by
-  rw [frame_entry]
-  have h := Wp.exec_eq (m := .part) (P := P) (host := host) (vs := []) (rest := []) (Q := Q)
-    (exec_entry (s₀ := s₀) hB j a) (by simpa using Wp.of_vals (m := .part) (hQ _))
-  simpa using h
+  rw [← withMachX_base]
+  exact entry_hwpX Fix.base_ok hB j a fun f' => by rw [withMachX_base]; exact hQ f'
 
 /-! ## The scan loop of `check` -/
 
@@ -100,12 +119,68 @@ theorem LoopInv.exit {B₀ B : ByteArray} {i nz : BitVec 32} (h : LoopInv B₀ i
   exact ⟨h.size, fun k hk => h.done k (hiN ▸ hk), fun hnz k hk => h.nz_zero hnz k (hiN ▸ hk),
     fun hall => h.nz_of fun k hk => hall k (hiN ▸ hk)⟩
 
+/-- The loop invariant as a predicate on configurations, in a fixture. -/
+def LInvX (X : Fix) (s₀ : Store Nat) (m : Mach) (s : Store Nat) (f : Frame) (vs : List Val) : Prop :=
+  vs = [] ∧ ∃ i nz B, s = withMachX X s₀ { m with mem := B } ∧ f = scanFrameX X.mi i nz ∧
+    LoopInv m.mem i nz B
+
 /-- The loop invariant as a predicate on configurations. -/
 def LInv (s₀ : Store Nat) (m : Mach) (s : Store Nat) (f : Frame) (vs : List Val) : Prop :=
   vs = [] ∧ ∃ i nz B, s = withMach s₀ { m with mem := B } ∧ f = scanFrame i nz ∧ LoopInv m.mem i nz B
 
 theorem geU_ne_zero {i : BitVec 32} (h : intRelOp .i32 (.ge .unsigned) i (BitVec.ofNat 32 nVars) ≠ 0) :
     ¬ i.toNat < nVars := fun hi => h (geU_eq_zero.2 hi)
+
+/-- After the loop: the tail of `check`, in a fixture. -/
+theorem tail_hwpX (hX : X.Ok) {Q : Post Nat} {i nz : BitVec 32} {B : ByteArray}
+    (hQ : ∀ f', Q (withMachX X s₀ (checkEnd B)) f' (.normal [Val.i32 (checkRes m nz)])) :
+    HWP P host (withMachX X s₀ { m with mem := B }) (scanFrameX X.mi i nz)
+      (vals [] ++ expression checkTail) Q := by
+  have h := Wp.exec_eq (m := .part) (P := P) (host := host) (vs := []) (rest := []) (Q := Q)
+    (exec_tailX (s₀ := s₀) (m := { m with mem := B }) hX i nz)
+    (by simpa using Wp.of_vals (m := .part) (hQ _))
+  simpa using h
+
+/-- One round of the scan loop, in a fixture. -/
+theorem loop_hwpX (hX : X.Ok) {Q : Post Nat}
+    (hQ : ∀ B nz f', ScanDone m.mem B nz →
+      Q (withMachX X s₀ (checkEnd B)) f' (.normal [Val.i32 (checkRes m nz)]))
+    (s : Store Nat) (f : Frame) (vs : List Val) (hI : LInvX X s₀ m s f vs) :
+    HWP P host s f (vals vs ++ expression loopBody)
+      (loopPost 0 [] (LInvX X s₀ m)
+        (labelPost P host 0 [] [] (seqPost P host (expression checkTail) Q))) := by
+  obtain ⟨rfl, i, nz, B, rfl, rfl, hL⟩ := hI
+  rw [loopBody_eq, expression, List.map_append, List.map_cons, ← expression, ← expression,
+    ← List.append_assoc]
+  refine Wp.exec_eq (m := .part) (vs := []) (exec_testX X.mi _ i nz) ?_
+  refine Silmaril.Wasm.Logic.Hoare.HWP.brIf (us := []) (fun hc => ?_) (fun hc => ?_)
+  · -- `i ≥ nVars`: leave the block and run the tail
+    have hd : ScanDone m.mem B nz := hL.exit (geU_ne_zero hc)
+    refine Silmaril.Wasm.Logic.Hoare.Wp.br (m := .part) ⟨[], [], rfl, rfl, ?_⟩
+    exact Silmaril.Wasm.Logic.Hoare.HWP.of_vals (vs := []) (tail_hwpX hX (hQ B nz · hd))
+  · -- `i < nVars`: scan slot `i` and go round
+    have hi : i.toNat < nVars := geU_eq_zero.1 hc
+    rw [expression, List.map_append, ← expression, ← List.append_assoc]
+    refine Wp.exec_eq (m := .part) (vs := []) (exec_scanX (m := { m with mem := B }) hX hL.size hi) ?_
+    exact Silmaril.Wasm.Logic.Hoare.Wp.br (m := .part)
+      ⟨[], [], rfl, rfl, rfl, i + 1, scanNz B i nz, setSlot B i.toNat 0, rfl, rfl, hL.step hi⟩
+
+/-- **The body of `check`**, in a fixture. -/
+theorem check_hwpX (hX : X.Ok) (hB : m.mem.size = 65536) {Q : Post Nat}
+    (hQ : ∀ B nz f', ScanDone m.mem B nz →
+      Q (withMachX X s₀ (checkEnd B)) f' (.normal [Val.i32 (checkRes m nz)])) :
+    HWP P host (withMachX X s₀ m) (Frame.forCall X.mi [] [.i32, .i32]) (expression checkBody) Q := by
+  rw [frame_checkX, checkBody_eq]
+  have hloop := Silmaril.Wasm.Logic.Hoare.HWP.loop (P := P) (host := host) (us := [])
+    (Inv := LInvX X s₀ m) (bt := .empty) (body := loopBody) (t₁ := []) (t₂ := [])
+    (Q := labelPost P host 0 [] [] (seqPost P host (expression checkTail) Q))
+    (fun _ _ _ _ => rfl) (fun _ _ _ h => h.1 ▸ rfl) (loop_hwpX hX hQ)
+    (s := withMachX X s₀ m) (f := scanFrameX X.mi 0 0) (vs := [])
+    ⟨rfl, 0, 0, m.mem, rfl, rfl, LoopInv.init hB⟩
+  have hblock := Silmaril.Wasm.Logic.Hoare.HWP.block (P := P) (host := host) (us := []) (vs := [])
+    (bt := .empty) (body := [.loop .empty loopBody]) (rest := expression checkTail) (Q := Q)
+    (t₁ := []) (t₂ := []) rfl rfl (by simpa [expression] using hloop)
+  simpa [expression] using hblock
 
 /-- After the loop: the tail of `check`. -/
 theorem tail_hwp {Q : Post Nat} {i nz : BitVec 32} {B : ByteArray}

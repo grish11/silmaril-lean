@@ -231,33 +231,40 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
       MStepC P host C body ⟨.block b, stk, ls, s, f⟩
         (goto (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
           (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁)
-  /-- `return` leaves the function. -/
+  /-- `return` leaves the function, with the whole frame stack: the block's values under the
+  outer values of every label frame it leaves (`brVals`, innermost nearest), as Core's
+  `return-label` unwinds them. -/
   | ret {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .return_)
       (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁)) :
-      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
+        ⟨.exit, brVals ls.length ls stk₁, [], s₁, f₁⟩
   /-- `br l` to the function label (`l` is the number of label frames, the function boundary):
-  leave the function with the block's values, as `return` does. Deeper labels stay invalid. -/
+  leave the function with the whole frame stack (`brVals`, as `return` does). Deeper labels stay
+  invalid. -/
   | brOut {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} {l : LabelIdx} (hb : lookup body b = some sg)
       (ht : sg.term = some (.br l))
       (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
       (hL : l.toNat = ls.length) :
-      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
+        ⟨.exit, brVals ls.length ls stk₁, [], s₁, f₁⟩
   /-- `br_if l` with a nonzero condition, to the function label. -/
   | brIfOut {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {l : LabelIdx} {k : BitVec 32}
       (hb : lookup body b = some sg) (ht : sg.term = some (.brIf l))
       (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (stk₁ ++ [.i32 k])))
       (hk : k ≠ 0) (hL : l.toNat = ls.length) :
-      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, stk₁, [], s₁, f₁⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
+        ⟨.exit, brVals ls.length ls stk₁, [], s₁, f₁⟩
   /-- A data-dependent branch (`br_table`, `br_on_*`) that branches to the function label. -/
   | brDataOut {b : BlockId} {sg : Segment} {stk ws us us' : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {l : LabelIdx}
       (hb : lookup body b = some sg) (ht : sg.term = some i)
       (hr : RunC P host C s f stk (expression sg.body) s₁ f₁ (.normal (ws ++ us)))
       (hbs : BrStep s₁ f₁ us i us' [.plain (.br l)]) (hL : l.toNat = ls.length) :
-      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, ws ++ us', [], s₁, f₁⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
+        ⟨.exit, brVals ls.length ls (ws ++ us'), [], s₁, f₁⟩
   /-- `unreachable`, or a trap in the block's body. -/
   | trap {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame} {s s₁ : Store H}
       {f f₁ : Frame} (hb : lookup body b = some sg) (ht : sg.term = some .unreachable)
@@ -346,8 +353,9 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
             (L'.outer ++ topVals L'.arity (brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us))) s₁ f₁)
 
   /-- A thrown exception caught by the `try_table` frame `j` whose clause branches to the
-  function label (`j + 1 + l` is the number of frames): leave the function with the handler's
-  outer values under the caught ones. -/
+  function label (`j + 1 + l` is the number of frames): leave the function with the whole frame
+  stack: the caught values over the handler's outer values, under the outer values of the `l`
+  frames the clause's branch leaves (`brVals`, as `catch_` collects them). -/
   | catchOut {b : BlockId} {sg : Segment} {stk stk₁ us : List Val} {ls : List LFrame}
       {s s₁ s₂ : Store H} {f f₁ f₂ : Frame} {i : Instr} {a j : Nat} {L : LFrame}
       {l : LabelIdx} (hb : lookup body b = some sg) (ht : sg.term = some i) (hi : i.IsThrow)
@@ -357,7 +365,8 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
         Catches s₂ f₂ a L.catches none)
       (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₂ f₂ a L.catches (some (us, l)))
       (hout : j + 1 + l.toNat = ls.length) :
-      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, L.outer ++ us, [], s₂, f₂⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
+        ⟨.exit, brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us), [], s₂, f₂⟩
   /-- An exception thrown in the block's straight-line body, caught by frame `j` with a clause
   branching to the function label (`catchOut`). -/
   | bodyCatchOut {b : BlockId} {sg : Segment} {stk us : List Val} {ls : List LFrame}
@@ -368,7 +377,8 @@ inductive MStepC (P : Profile) (host : HostSemantics H) (C : Abstract.CallRel H)
         Catches s₁ f₁ a L.catches none)
       (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s₁ f₁ a L.catches (some (us, l)))
       (hout : j + 1 + l.toNat = ls.length) :
-      MStepC P host C body ⟨.block b, stk, ls, s, f⟩ ⟨.exit, L.outer ++ us, [], s₁, f₁⟩
+      MStepC P host C body ⟨.block b, stk, ls, s, f⟩
+        ⟨.exit, brVals l.toNat (ls.drop (j + 1)) (L.outer ++ us), [], s₁, f₁⟩
 
   /-- A tail call of a null reference (`return_call_ref` or `return_call_indirect` on null):
   the terminator ends in a pending tail call of null (`Region.Out.tailNull`), which traps when
@@ -519,14 +529,14 @@ def _root_.Silmaril.Wasm.Cfg.Target.IsSink : Target → Prop
   | _ => False
 
 /-- **What a run ending in a sink state means**, as a region outcome: at `exit`, the final
-values, reached by falling off the end (`normal`), by `return` (`ret`, the values under the
-returned ones are the label frames' outer values Core keeps), or by a branch to the function
-label (`br 0` out of the body, with the same outer values under the branch's); at `trap`, a trap or a pending
+values, reached by falling off the end (`normal`), by `return` (`ret`), or by a branch to the
+function label (`br 0` out of the body), the stack being the whole frame stack (the label frames'
+outer values under the block's, as Core unwinds them); at `trap`, a trap or a pending
 tail call of null (which traps at the function's frame); at `raise`, the thrown exception whose
 address is the stack. -/
 def Ends {H : Type} (st : MState H) (o : Region.Out) : Prop :=
   match st.node with
-  | .exit => o = .normal st.stk ∨ (∃ W, o = .ret (W ++ st.stk)) ∨ ∃ W, o = .br 0 (W ++ st.stk)
+  | .exit => o = .normal st.stk ∨ o = .ret st.stk ∨ o = .br 0 st.stk
   | .trap => o = .trap ∨ ∃ W c, o = .tailNull W c
   | .raise => ∃ a, st.stk = [.ref (.exn a)] ∧ o = .throw a
   | _ => False

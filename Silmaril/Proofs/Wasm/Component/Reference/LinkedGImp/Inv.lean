@@ -145,8 +145,9 @@ end Foot
 /-! ## The static facts and the invariant -/
 
 /-- **The importer's static facts**: `Good`, its core instance `Ii` at the store `u₀`, and the
-host code of the shared functions `F₀`: every host function is the trampoline `tr k` of an
-import `k`, which `g` renames to `k`. -/
+host code of the shared functions `F₀`: `tr` inverts the renaming `g` on every host function
+(the importer's trampolines and any host code of the exporter's part), and `g` renames the
+trampoline `tr k` of import `k` to `k`. -/
 structure ImpStatG (P : Profile) (b : SimpleI) (Ii : SInst) (u₀ : Store Nat)
     (F₀ : List (FuncInst (CanonHost (E3 P)))) (g : CanonHost (E3 P) → Nat)
     (tr : Nat → CanonHost (E3 P)) : Prop where
@@ -154,7 +155,7 @@ structure ImpStatG (P : Profile) (b : SimpleI) (Ii : SInst) (u₀ : Store Nat)
   inst : b.mod.IsInst Ii
   wf : Ii.WellFormed u₀
   tramp : ∀ (A : Nat) (fi : FuncInst (CanonHost (E3 P))) (h : CanonHost (E3 P)),
-    F₀[A]? = some fi → fi.code = .host h → ∃ k, k < b.imports.length ∧ h = tr k
+    F₀[A]? = some fi → fi.code = .host h → tr (g h) = h
   inv : ∀ k, k < b.imports.length → g (tr k) = k
 
 /-- **The importer's invariant against the exporter's data `d` at placement `pl`**, at the
@@ -182,8 +183,7 @@ variable {b : SimpleI} {Ii : SInst} {u₀ s₀ : Store Nat} {F₀ : List (FuncIn
 theorem ImpStatG.hostsSat (S : ImpStatG P b Ii u₀ F₀ g tr) {σ : Store (CanonHost (E3 P))}
     (hs : σ.funcs = F₀) : HostsSat (fun h => tr (g h) = h) σ := by
   intro A fi h hA hc
-  obtain ⟨k, hk, rfl⟩ := S.tramp A fi h (hs ▸ hA) hc
-  rw [S.inv k hk]
+  exact S.tramp A fi h (hs ▸ hA) hc
 
 /-- **A run of the importer's part is a core run of the shared thread**, `LInvG` holding at its
 end with the same exporter state and footprint (R1). -/
@@ -227,16 +227,19 @@ theorem LInvG.callout_fwd (S : ImpStatG P b Ii u₀ F₀ g tr) {s : e.St} {M : C
   obtain ⟨-, -, hgh, hargs⟩ := hq
   obtain ⟨fi, -, -, -, hf, hcode, -⟩ := Silmaril.Wasm.SingleThreaded.decompose?_sound hd
   rw [hI.funcs] at hf
-  obtain ⟨k', hk', rfl⟩ := S.tramp A fi _ hf hcode
-  have hkk : k' = k := by
-    rw [← hgh]
-    exact (S.inv k' hk').symm
-  subst hkk
-  obtain ⟨⟨nm, p⟩, hk⟩ : ∃ r, b.imports[k']? = some r := ⟨_, List.getElem?_eq_getElem hk'⟩
+  have htr := S.tramp A fi _ hf hcode
+  rw [hgh] at htr
+  subst htr
   have hek := ifaceOp?_some he
+  have hk' : k < b.imports.length := by
+    have hl : Ii.imports.length = b.imports.length := by
+      rw [S.inst.2.1, S.good.imports, List.length_map, List.length_map]
+    rw [← hl, ← hek.1]
+    exact q.1.isLt
+  obtain ⟨⟨nm, p⟩, hk⟩ : ∃ r, b.imports[k]? = some r := ⟨_, List.getElem?_eq_getElem hk'⟩
   have h2 : List.Forall₂ Silmaril.Wasm.Game.ScalarType.HasVal (Ii.imports.get q.1).params args :=
     hek.2 ▸ q.2.2
-  rw [imports_get S.good S.inst q k' hk' hek.1, (List.getElem?_eq_some_iff.mp hk).2] at h2
+  rw [imports_get S.good S.inst q k hk' hek.1, (List.getElem?_eq_some_iff.mp hk).2] at h2
   obtain ⟨ys, hys⟩ := Silmaril.Proofs.Wasm.Component.Core3G.toFlat?_isSome h2
   have hargs' : args' = args := by
     rw [hargs]

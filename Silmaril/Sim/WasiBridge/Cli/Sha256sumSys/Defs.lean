@@ -118,4 +118,9 @@ def Task.componentSha256 {W : Silmaril.Wasi.World} {St : Type} (σ : W.Model)
     (V : Silmaril.Wasi.Cli.View) : Prop :=
   (Silmaril.Wasi.Cli.wasiModel σ T V).Sat (Level.lift Silmaril.Cli.Institution.Std.sha256Stdin)
 
+/-- The pending output of the reference program is at most a record long. -/
+def RInv : Silmaril.Apps.Sha256sum.Sys.RefState → Prop
+  | .writing p => p.length ≤ 68
+  | _ => True
+
 end Silmaril.Sim.WasiBridge.Sha256sumSys

@@ -76,7 +76,7 @@ transfer                    Simulation.{sem, angelic, reaches}, Institution.tran
 | x86 System V wrapper | `Silmaril.Sim.SysV` (`reduce`, `wrapper_sound`, `xgoal_of_body`) | the G simulator called through the System V descriptor | `FnContract.Spec.Total` on `Open9.isa` | proved for the G fragment |
 | RV64 memory-state simulator | `Silmaril.Sim.RV64.Mem` (`step_sound`), `Silmaril.Sim.RV64.Reduce` (`reduce`), `Silmaril.Sim.RV64.Cert` (`simCert`, `sim_sound`) | `simM`, export `step`, state in memory | `Silmaril.RiscV` `decode`/`step` (21 register-only instructions; no memory access, branches or traps) | proved (`ExportSim.Cert`, `Sound`) for programs of at most 15360 words at `0x1000` |
 | RV64 leaf functions | `Silmaril.Sim.RV64.Transfer` (`fnISA_of_wasm`; `Absdiff`, `Max3`, `Clamp`, `Sq`, `SumTo`, `Gcdu`: `isa_solved`) | the P-locals Wasm module of each function (`Silmaril.WasmSpec.Rv64*`) | `Silmaril.RiscV.Ext.MState.step` on the function's words, leaf ABI | proved for the six functions listed; the other functions of the plans are stated only |
-| WASI trace layer | `Silmaril.Sim.WasiBridge` | syscall ↔ WASI adapters (`examples/wasm-sim/wasi-bridge`) | Linux process events | definitions and trace lemmas, and `G.hello_equiv`: for the bytes of `progs/hello-g.S`, process ≡ simulator runs ≡ WASI hello; not yet a `Cert` |
+| WASI trace layer | `Silmaril.Sim.WasiBridge` | syscall ↔ WASI adapters (`examples/wasm-sim/wasi-bridge`) | Linux process events | definitions and trace lemmas, and `G.hello_equiv`: for the bytes of `progs/hello-g.S`, process ≡ simulator runs ≡ WASI hello; not yet a `Cert`. `sha256sum` through the bridge (level `L1`, sentence `Std.sha256Stdin`): `Cli.Sha256sumSys.wasiSha256_ref` (the WASI image `refP1` of the reference program meets it, proved), `simSha256sum_sat`/`stack_sat` (an x86 build `ElfWasiEquiv` to `refP1` meets it), `sim_agrees_glibc` (such a build agrees run by run with GNU `sha256sum` on glibc); `Cli.Sha256sum.sha256_of_wasi`/`sha256_agrees_glibc` and `Tv.Sha256sum.sha256_of_cert` (conditional on `Task.wasiSha256`); `Cli.Lps.wasiSha256_of_static` (a WASI program `ElfWasiEquiv` to `sha256sum-min` under LPS discharges `Task.wasiSha256`) |
 | glibc bridge | `Silmaril.Sim.GlibcBridge` | a dynamically linked x86-64 program with glibc imports bound to a Wasm subset (`examples/wasm-sim/glibc-bridge`) | the pinned `hello-glibc` ELF and the loader model | proved for the main of the pinned `hello-glibc` (byte-reproducible, `pinned/pin.sh`): linked with any `puts` meeting its contract (`Silmaril.Libc.putsGlibc` on bytes), it ≡ the WASI hello (`ghello_equiv`), and so does the Wasm `puts` of `glibc.wat` (`ghello_equiv_impl`) |
 
 ## Proved vs tested
@@ -164,4 +164,30 @@ cases for each of G and M, and `difftest-fn` passed every function (14 assembly 
 functions, 300 random inputs each) with 0 failures. The problem modules of the assembly
 functions regenerate byte for byte. The six from `cfuncs.c` depend on the C compiler version,
 so another gcc may regenerate different code; `problems --check` additionally needs `z3`.
+These are tests, not proofs.
+
+## The process stack (runtime, tested)
+
+`examples/wasm-sim/proc` runs x86-64 ELF processes on an all-Wasm stack under plain
+`wasmtime run`. The stack has a memory model, Linux syscalls over WASI, a simulator, foreign calls
+and an ELF loader (`run-wasi.sh`; `check-wasi.sh` checks it). Three variants need the
+`wsim-proc` binary of `tools/wasm-sim`:
+
+- `components.sh` wraps every core module as a component (`examples/wasm-sim/wit/sim.wit`) and
+  composes one WASI command component per simulator with `wac`
+  (`examples/wasm-sim/wit/process.wac`). It uses the preview1 adapters of
+  `examples/wasm-components/adapter`.
+- `bench.sh` times and sizes the linking variants: Rust host, preloaded core modules,
+  `wasm-merge` with and without `-O3`, and the composed component.
+- `glibc-bridge/route-b.sh` runs glibc's own `puts` (a `libc.so.6` given by `LIBC`, mapped
+  into the simulated address space) on the simulators. It prints where execution stops: a
+  probe of the simulators' frontier, not a pass/fail check.
+
+Checked with wasmtime 50.0.1, wasm-tools 1.263.0, wac-cli 0.12.0 and Binaryen version_123:
+- the composed components run `hello` on G and M;
+- every `bench.sh` variant ran;
+- `route-b.sh` with the pinned Ubuntu glibc 2.39 `libc.so.6` stops at the first instruction
+  outside the simulators (e.g. an SSE `movq` into `xmm0`), and its host-function control prints
+  `Hello, world!`.
+
 These are tests, not proofs.
