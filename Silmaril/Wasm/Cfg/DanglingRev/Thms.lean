@@ -23,17 +23,10 @@ inclusion (`instTripleS I P ⊆ cfgInstTripleU I`) is proved here **only on the 
 * `instTripleS_agree_cfgInstTripleU_of_nil`: without imports the ends coincide, and
   `cfgInstTripleU I` **is** the instance triple (`AgreeAt`, every observation) on `InstDom`.
 
-**Not proved: the reverse inclusion for Core behaviours with a dangling host throw** (outside
-`instTripleL`). The backward simulation (`Abstract.HostClosingXP.back_all`,
-`HostClosingInfXPBack`, `HostEval`) carries `Interp.TypedP`, whose `Sim.ContextTyped` holds on the
-actual store; after a dangling throw it fails (`DanglingExn.not_valOk_exn`). Its relaxation
-`DanglingTyped.ConfigOkD` types the same frame and code on a witness store and is preserved along
-`instHostU` runs (`DanglingTyped.ConfigOkD.evRun`), but the backward simulation, the typed-problem
-lemmas of `Interp` (`TypedP`, `progressH`, `block_body_typedP`, …) and its progress lemmas are not
-restated for it. No counterexample is known: in the checker's profile the only instructions
-reading an exception instance are the handler rules, on which both semantics agree
-(`DanglingExn.catches_iff`, `steps_handler`). #988 together with this module is **not** an
-equivalence except without imports.
+The reverse inclusion for Core behaviours with a dangling host throw (outside `instTripleL`)
+is `DanglingBack.instTripleS_sub_cfgInstTripleU`, on well-formed stores in the checker's
+instruction profile; with #988 it gives the per-question equality
+`DanglingBack.instTripleS_agree_cfgInstTripleU`.
 -/
 
 namespace Silmaril.Wasm.Cfg.DanglingRev

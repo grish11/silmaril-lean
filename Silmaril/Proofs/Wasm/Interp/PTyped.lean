@@ -9,6 +9,10 @@ public import Silmaril.Wasm.Abstract.XRecursion.Thms
 /-!
 # Typed problems with exceptions and pending tail calls (F5, proofs)
 
+Every lemma on typed problems and typed calls is proved once, for every invariant `K : CtxInv`
+(`CtxInv.TypedP`, `CtxInv.CallTypedP`, `CtxInv.args_typedP`, …); `TypedP`, `CallTypedP` and the
+lemmas below on them are the typed instance `ctxTyped` (`Sim.ContextTyped`).
+
 `TypedP tags`: `TypedT` for the exception checker `ehExt tags`, with the tag invariants
 (`TagsOk tags`): checked by `ehExt tags` in a checked store, the Core code typed in context, the
 instance's types valid. The function types of the store come from the typing (`tyFuncs_of_ctx`).

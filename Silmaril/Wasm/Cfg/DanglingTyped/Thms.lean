@@ -47,12 +47,13 @@ acceptance alone (`StoreChkE`, so `InstDom`) does **not** give `FuncsSupp`: the 
 code after an instruction that never falls through, which may hold an unsupported instruction
 (`ExampleAlias.dc_instDom`, `dc_not_funcsSupp`).
 
-**Not claimed here.** No theorem here relates Core and the native/CFG semantics. The backward
-simulation (`Abstract.HostClosingXP`, `HostClosingInfXPBack`, `HostEval`) is still stated for
-`Sim.ContextTyped` configurations and `HostTyped` hosts; carrying it over `ConfigOkD` is open.
-The supported profile excludes `ref.test`, `br_on_cast*`, aggregates and abstract-heap
-`ref.cast`, where Core's decision on a dangling reference (`DanglingExn.step_refTest`,
-`step_refCast`) differs from the witness's.
+**The backward simulations' operations.** `ConfigOkD` against `HostTypedD` hosts has every
+operation of `Interp.BackInv` (`ConfigOkD.suffix`, `.label`, `.handler`, `.frameHole`, `.wit`,
+`.steps_host`, `hostTypedD_trapAt`, `.through`); the instance is `DanglingBack.backD`, and the
+reverse inclusion built on it is `DanglingBack.instTripleS_sub_cfgInstTripleU`. The supported
+profile excludes `ref.test`, `br_on_cast*`, aggregates and abstract-heap `ref.cast`, where Core's
+decision on a dangling reference (`DanglingExn.step_refTest`, `step_refCast`) differs from the
+witness's.
 -/
 
 namespace Silmaril.Wasm.Cfg.DanglingTyped

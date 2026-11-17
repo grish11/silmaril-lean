@@ -1076,9 +1076,9 @@ The plain graph stays an over-approximation, and claims about it say so.
                instance triple at `instHostU I` (`cfgInstTripleU`) is contained in
                `instTripleS I P`, componentwise.
 
-             **Remaining: the converse inclusion** (`instTripleS ⊆ cfgInstTripleU` on
-             `InstDom`; its legal part is proved in stage 2 below), and the threaded sessions. The obstacle is in the proof; no
-             semantic difference was found. `HostClosingXP.back_all` (and the divergence and
+             **The converse inclusion** (`instTripleS ⊆ cfgInstTripleU`): its legal part is stage 2
+             below; the full inclusion, on well-formed stores in the checker's profile, is stage 3a
+             below. The threaded sessions remain (stage 3b). The original obstacle, in the proof: `HostClosingXP.back_all` (and the divergence and
              productive backward simulations, `HostClosingInfXPBack`, `HostEval`) carries
              `Sim.ContextTyped` across Core steps through `ContextTyped.steps_typed hT`. With
              a dangling reference on the stack, in a local or in a global, no `ConfigOk`
@@ -1137,22 +1137,67 @@ The plain graph stays an over-approximation, and claims about it say so.
                imports the ends coincide (`instTripleS_agree_cfgInstTripleU_of_nil`, trivially:
                there is no host call).
 
-             Remaining, not claimed: the reverse inclusion for Core behaviours with a dangling host
-             throw (`instTripleS \ instTripleL`), for every observation; hence no per-question
-             equality with #988's direction when there are imports, no sessions on a
-             `StoreOkD`-based domain (stage 3), and no `core3SemD` corollary (by #995 `core3SemD`
-             never feeds throws to instances anyway). The obstacle is the size of the backward
-             simulation, not a known semantic difference: `HostClosingXP.back_all`,
-             `HostClosingInfXPBack` and `HostEval` carry `Interp.TypedP`, whose
-             `Sim.ContextTyped` is on the actual store. Their uses are `ContextTyped.steps_typed`
-             (68), `.label`/`.frame`/`.suffix`/`.steps`/`.of_configOk`, `Interp` typed-problem
-             lemmas (`typedP_ctx`, `typedP_head`, `block_body_typedP`, `callee_typedP`, …) and
-             native progress (`progressH`, `progressP`, `evalFlat_progressH`). A generalization
-             would restate `TypedP` with `ConfigOkD` (same frame and code, witness store), derive
-             the context lemmas from the witness, and transfer native progress from the witness:
-             in the checker profile `evalFlat` reads no tag or exception, and catch decisions agree
-             (`catchMatches_gst_iff`). Only one direction (native/CFG ⊆ Core) is proved for
-             dangling throws.
+             **Stage 3a: the backward simulations factored through an interface; the dangling reverse
+             inclusion and the per-question equality** (`cfg/dangling-rev-3`).
+             - Interface (`Interp.CtxInv`, `Interp.BackInv`, `Wasm/Interp/CtxInv`). `CtxInv H`: an
+               invariant `CT` of configurations with the context decompositions `suffix`, `label`,
+               `handler`, `frame`, preservation under host-free steps at every profile (`step`), and a
+               typing witness (`wit`): the same frame and code `Sim.ContextTyped` on the store with tags
+               `T` extending the store's and exceptions `X`, with every defined-type cast
+               (`m.instRef ⟨b, .typeIdx y⟩`, what `call_indirect` performs) deciding as on the actual
+               store. `BackInv H` adds a host class `HostOk` with preservation along Core runs
+               (`steps_host`), closure under answering one call by a trap in its store (`hostOk_trap`),
+               and divergence through host-free steps (`through`, on the actual store).
+             - Facts read off the witness, proved once (`Proofs/Wasm/Interp/CtxInv`): `tyFuncs`,
+               `tyTypes_callee`, `evalFlat_progress` (`evalFlat_gst`: `evalFlat` reads no tag and no
+               exception), `truthy_progress`, `callRef_top`, `returnCallRef_top`, `throwRef_top`,
+               `indirect_res` (`indRes_wst`), `typeArity_of_callRef_site`, `tailAnn_typed`
+               (`tailRes_wst`), `entry_of_ref_site` (from `step`, `frame`, `label`).
+             - The typed problems (`CtxInv.TypedP`, `CallTypedP` and their lemmas, `PTyped`;
+               `invoke_callTyped`, `PDivIff`), the logged backward simulation (`HostClosingXP` `Back*`,
+               `PendRun`) and the divergent/productive backward simulations (all of
+               `HostClosingInfXPBack`) are proved once for every `BackInv`. `diverges_through_steps`,
+               `evDiv_through_steps`, `coreInf_not_diverges` are derived from `through`.
+             - Typed instance: `Interp.ctxTyped`, `Abstract.backTyped` (`Sim.ContextTyped`, `HostTyped`).
+               Every existing public theorem of `HostClosingXP.Thms` and `HostClosingInfXPBack.Thms` is
+               re-derived at `backTyped` with an unchanged statement (an invocation enters through
+               `ctxTyped_invoke`); the old `Interp.TypedP` lemmas are the instance `ctxTyped`. Generic
+               statements: `BackInv.evRun_wasmEvFunXP_vals`/`throw`/`trap`, `evRunN_back`,
+               `evRunN_back_vals`, `funcType_of_callRef_cfg`, `funcType_of_returnCallRef_site`,
+               `evRun_pendXP`, `evRun_wasmEvFunDXP_div`, `coreInf_wasmEvInfNXP`, and
+               (`Abstract/BackInv`) `coreBehSXP_mem`, `coreCallout_mem`, `coreInf_mem` (Core behaviours,
+               callouts and productive runs are session behaviours).
+             - `through` for invariants whose store is not `StoreOk`: `BackInv.diverges_through_of`
+               (invariant kept by host-free steps, stores with closed-valid principal types `StoreTy`, code
+               with the interpreter's cast side conditions); the interpreter's exactness reads `StoreOk`
+               only through `Ref.type?_tyOk` (`interpHead_exact'`, `refOk?_complete'`,
+               `referenceStep?_complete'` in `Proofs/Wasm/Abstract/BackInv/Through`).
+             - Relaxed instance `DanglingBack.backD`: `ConfigOkD` against `HostTypedD` hosts. Fields:
+               `ConfigOkD.suffix`/`label`/`handler`/`frameHole` (the hole of a supported context is
+               supported), `ConfigOkD.step`, `ConfigOkD.wit` (`refOk_gst_iff`: defined-type casts are
+               supported), `ConfigOkD.steps_host`, `hostTypedD_trapAt`, `ConfigOkD.through`
+               (`storeTy_of_ghost`: an existing exception's principal type is `exnref`, every other
+               reference has its witness type). The witness is used only for typing facts that read no tag
+               and no exception instance; no operational step is taken on it.
+             - **Reverse inclusion** (`DanglingBack.instTripleS_sub_cfgInstTripleU`): on `I.WellFormed s`
+               with `CheckComplete.StoreSupported s.funcs`, at `profile o`, every finished behaviour
+               (values, uncaught exception, trap in its store, divergence after a log), pending call and
+               productive stream of `instTripleS I (profile o)` (host `instHost I`, dangling throws
+               included) is one of `cfgInstTripleU I` (host `instHostU I`). With #988
+               (`cfgInstTripleU_sub`): **`instTripleS_agree_cfgInstTripleU`, per question `AgreeAt` on all
+               four observations.** The supported profile is the stated hypothesis `StoreSupported` (it
+               excludes the instructions where Core's decision on a dangling reference differs from the
+               witness's).
+
+             Remaining, not claimed: the threaded sessions on a relaxed domain (stage 3b). The per-question
+             equality needs `I.WellFormed s` (so `StoreOk s`), which is not preserved
+             (`ExampleAlias.alEnd_not_storeOk`). A `StoreOkD`-based domain needs (i) the forward direction
+             without `StoreOk` (#988's `fin_sub`/`pend_sub`/`inf_sub` take `InvOkXP` but use only its
+             checker, tag and invocation parts), (ii) the entry `configOkD_invoke` from the domain, and
+             (iii) preservation of `TagsOk`/`ExnsOk` along `instHostU` rounds on the actual store: the
+             witness gives `ExnsOk` at `T` only, and that every actual exception's tag is a tag of the
+             store is not yet part of `GhostOk`. No `core3SemD` corollary. `HostEval` and `FullObsNative`
+             (not on the path of the instance triples) still carry `Sim.ContextTyped`/`HostTyped`.
 
              **The legal typed canonical object** (`Games/Abstract/SessionLegal`,
              `Wasm/Abstract/NodeLegal`, `Wasm/Cfg/CfgLegal`). The legal domain is stated on
