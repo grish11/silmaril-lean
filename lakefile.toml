@@ -754,8 +754,26 @@ name = "elf-staged"
 root = "ElfStaged"
 srcDir = "tools/elf-staged"
 
+# The explorer's Headers tab data (tools/header-pages): header reading, ABI lowering and layouts.
+[[lean_exe]]
+name = "header-pages"
+root = "HeaderPages"
+srcDir = "tools/header-pages"
+
 # The explorer's ELF tab data (tools/elf-pages, docs/projects/elf-reader.md).
 [[lean_exe]]
 name = "elf-pages"
 root = "ElfPages"
 srcDir = "tools/elf-pages"
+
+# Assembly functions as JSON, evidence read from theorem statements (tools/elf-asm, docs/projects/elf-asm.md).
+# Its self-test decoys (imported by the root, and read back by it at run time).
+[[lean_lib]]
+name = "ElfAsmDecoys"
+srcDir = "tools/elf-asm"
+roots = ["ElfAsmDecoys"]
+
+[[lean_exe]]
+name = "elf-asm"
+root = "ElfAsm"
+srcDir = "tools/elf-asm"

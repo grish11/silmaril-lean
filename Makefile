@@ -7,7 +7,7 @@ CARGO ?= cargo
 PROJECT_TARGET = $(or $(CARGO_TARGET_DIR),tools/silmaril-project/target)
 WASM_TOOLS := wasm-as wasm-dis wasm-opt wasm-merge wasm-shell wasm-ctor-eval wasm-metadce
 
-.PHONY: compiler-explorer-check logic-graph-check tools stage library cache scope check release-check process-check process-gates project-lean project-tool project-registry project-check acceptor-report pages elf-check demo demo-process demo-sha256 help
+.PHONY: compiler-explorer-check logic-graph-check tools stage library cache scope check release-check process-check process-gates project-lean project-tool project-registry project-check acceptor-report pages elf-check header-check demo demo-process demo-sha256 help
 
 tools:
 	$(LAKE) build --wfail $(WASM_TOOLS)
@@ -33,7 +33,7 @@ CERBERUS_TARGETS := CerberusTests cerb-lean ail-lean core-lean core-elab cfront 
 	ci_cerberus_parameter_call
 # The C compiler's executables (docs/projects/ccomp.md).
 CCOMP_TARGETS := ccomp ccomp-legacy ccomp-verified csem decompile
-CHECK_TARGETS ?= Silmaril SilmarilSpecTec SilmarilSpecTecMeta SilmarilWasiWit SilmarilWasmProject SilmarilLogicGraphData ProjectSelfTest wasm-pages elf-pages $(WASM_TOOLS) wasm-shell-lean $(CERBERUS_TARGETS) SysVTvExample CompilesToExamples cexplorer-export $(CCOMP_TARGETS)
+CHECK_TARGETS ?= Silmaril SilmarilSpecTec SilmarilSpecTecMeta SilmarilWasiWit SilmarilWasmProject SilmarilLogicGraphData ProjectSelfTest wasm-pages elf-pages elf-asm header-pages $(WASM_TOOLS) wasm-shell-lean $(CERBERUS_TARGETS) SysVTvExample CompilesToExamples cexplorer-export $(CCOMP_TARGETS)
 
 # Files Lake never reads; only the source gates in `make check` read them.
 SCOPE_EXCLUDE := 'docs/**' '**/*.md' 'scripts/**' 'apps/**' 'problems/**' 'specs/wasm/**' \
@@ -78,9 +78,11 @@ check:
 		$(LAKE) build --wfail $(CHECK_TARGETS); \
 	fi
 	$(MAKE) process-gates
+	examples/layout/gen-lean.sh --check
 	$(if $(filter ci_cerberus_genuine_oracle,$(CHECK_TARGETS)),$(MAKE) cerberus-oracle)
 	$(if $(filter wasm-opt,$(CHECK_TARGETS)),$(LAKE) build --wfail $(RELEASE_BINARIES) && $(MAKE) release-check)
-	$(if $(filter elf-pages,$(CHECK_TARGETS)),$(MAKE) elf-check)
+	$(if $(filter elf-pages elf-asm,$(CHECK_TARGETS)),$(MAKE) elf-check)
+	$(if $(filter header-pages,$(CHECK_TARGETS)),$(MAKE) header-check)
 	$(if $(filter SilmarilLogicGraphData,$(CHECK_TARGETS)),$(MAKE) logic-graph-check)
 	$(if $(filter cexplorer-export CompilesToExamples,$(CHECK_TARGETS)),$(MAKE) compiler-explorer-check)
 
@@ -96,14 +98,21 @@ logic-graph-check:
 	LAKE="$(LAKE)" scripts/logic-graph/test-incremental.sh
 
 # The ELF reader's pinned files, generated modules and explorer data (docs/projects/elf-reader.md).
-ELF_PINNED := $(foreach n,HelloGcc HelloClang Sha256sum ZlibChecksums ZlibLibz GlibcLibm GlibcLibc,\
+ELF_PINNED := $(foreach n,HelloGcc HelloClang Sha256sum ZlibChecksums ZlibLibz GlibcLibm GlibcLibc \
+	LeafArith ZlibLibz1211 ZlibLibz131Gcc ZlibLibz131Clang,\
 	Silmaril.Elf.Staged.Pinned.$(n).Thms Silmaril.Elf.Staged.Pinned.$(n).Functions)
 elf-check:
 	examples/elf/pin.sh --check
-	$(LAKE) build --wfail elf-staged elf-pages Silmaril.Elf.Staged.Reader.Examples \
+	$(LAKE) build --wfail elf-staged elf-pages elf-asm Silmaril.Elf.Staged.Reader.Examples \
 		$(ELF_PINNED) Silmaril.Elf.Staged.Pinned.ZlibChecksums.Contracts
 	scripts/elf-reader/gen.sh --check
 	scripts/elf-reader/test-pages.sh
+	$(LAKE) env .lake/build/bin/elf-asm --check examples/elf-asm/samples.json
+
+# The Headers tab's layout links (tools/header-pages): every true link accepted, every decoy refused.
+header-check:
+	$(LAKE) build --wfail header-pages
+	$(LAKE) env .lake/build/bin/header-pages --self-test
 
 release-check:
 	$(PYTHON) tools/binaryen-lean/check-release.py --jobs $$(nproc) --report build/wasm-checks.json
@@ -193,6 +202,9 @@ pages: project-tool
 	# The ELF pages read the checked theorem modules of the pinned files (tools/elf-pages).
 	lake build --wfail elf-pages $(ELF_PINNED) Silmaril.Elf.Staged.Pinned.ZlibChecksums.Contracts
 	lake env .lake/build/bin/elf-pages _site
+	# The Headers tab: header reading, ABI lowering and layouts (tools/header-pages).
+	lake build --wfail header-pages
+	lake env .lake/build/bin/header-pages _site
 
 # The committed runtime report of the acceptor components (tools/wasm-acceptor-harness/report.json):
 # every suite under Wasmtime, by this fixed command (the report records it and has no timestamps,
