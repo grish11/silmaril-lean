@@ -10,7 +10,8 @@ meta import Lean.Elab.Command
 Not a proof: an elaboration-time check that fails the build. From each definition of the
 self-contained CFG closure (finished `cfgEvFunXPS`, pending `cfgEvPendXPS`, productive
 `cfgEvInfNXP`, divergent `cfgEvFunDXPSC`, `LDLcfgC`, `cfgAns`, `cfgFunDiv`, the triple
-`cfgSessionTripleC`, and the instance triple `CfgInst.cfgInstTriple` built from it) it walks every
+`cfgSessionTripleC`, and the instance triples `CfgInst.cfgInstTriple`, `CfgInst.cfgInstTripleL`
+and the session family `CfgInst.cfgInstSessionsL` built from it) it walks every
 constant used by the types and bodies of definitions, inductive types, constructors and
 recursors, transitively (theorem proofs are not followed: a proof does not change what a
 definition denotes). It checks:
@@ -20,7 +21,9 @@ definition denotes). It checks:
   `wasmHOpenXP`, `wasmEvFunXPS`, `wasmEvFunXP`, `wasmEvFunDXP`, `wasmEvFunDXPS`,
   `wasmEvPendXPS`, `wasmEvInfNXP`, `sessionTripleXP`, `LogDivXP`, `InfLXP`, `LDLwXP`, `InfLwXP`;
 * the walk is complete: no reached `Silmaril` constant is an axiom, an opaque constant or
-  missing from the environment, except auxiliary proofs (`_proof_i`), which are proofs;
+  missing from the environment, except proofs: auxiliary proofs (`_proof_i`) and constants whose
+  type is a proposition (an imported theorem appears as an axiom in a module, its proof not
+  exported; `scripts/check-layout.sh` forbids `axiom` declarations in `Silmaril`);
 * the check is effective: from the scoped native instance `CfgSession.cfgSessionTriple` the same
   walk reaches `XRecursionP.closedCallXP` and `XDivergeP.FunDivXP`.
 
@@ -88,13 +91,17 @@ run_cmd do
       ``Silmaril.Wasm.Cfg.CfgSession.cfgEvInfNXP, ``Silmaril.Wasm.Cfg.CfgClosure.cfgEvFunDXPSC,
       ``Silmaril.Wasm.Cfg.CfgClosure.LDLcfgC, ``Silmaril.Wasm.Cfg.CfgClosure.cfgAns,
       ``Silmaril.Wasm.Cfg.CfgClosure.cfgFunDiv, ``Silmaril.Wasm.Cfg.CfgClosure.cfgSessionTripleC,
-      ``Silmaril.Wasm.Cfg.CfgInst.cfgInstTriple]
+      ``Silmaril.Wasm.Cfg.CfgInst.cfgInstTriple, ``Silmaril.Wasm.Cfg.CfgInst.cfgInstTripleL,
+      ``Silmaril.Wasm.Cfg.CfgInst.cfgInstSessionsL]
   for r in roots do
     let (seen, unseen) := reach env [r]
     let bad := seen.toList.filter isNative
     unless bad.isEmpty do
       throwError m!"{r} reaches native closed or divergent objects: {bad}"
     let hid := unseen.toList.filter fun n => (`Silmaril).isPrefixOf n && !isProofAux n
+    let hid ← hid.filterM fun n => do
+      let some ci := env.find? n | return true
+      return !(← liftTermElabM (Meta.isProp ci.type))
     unless hid.isEmpty do
       throwError m!"{r}: the walk does not see the bodies of {hid}"
   let (seen, _) := reach env [``Silmaril.Wasm.Cfg.CfgSession.cfgSessionTriple]

@@ -71,27 +71,42 @@ theorem results_of_importTyped {s : Store Nat} {hh : Nat} {fi : FuncInst Nat}
   simp only [FnType.toComp, Ty.func.injEq] at heq
   rw [heq.2, Ty.toList_ofList]
 
+theorem instHostQ_returned {Q : Store Nat → Result → Prop} {hh : Nat} {s s' : Store Nat}
+    {us : List Val} {r : Result} (h : instHostQ I Q hh s us (.returned s' r)) :
+    s' = s ∧ ImportTyped I s hh ∧ Q s r ∧
+      ∃ e, I.importOp? hh us = some e ∧ ∃ v : Answer (I.imports.get e.1), r = v.toResult := by
+  obtain ⟨⟨e, he, v, hv⟩, hIT, hQ⟩ := h
+  cases hv
+  exact ⟨rfl, hIT, hQ _ _ rfl, e, he, v, rfl⟩
+
 theorem instHostNT_returned {hh : Nat} {s s' : Store Nat} {us : List Val} {r : Result}
     (h : instHostNT I hh s us (.returned s' r)) :
     s' = s ∧ ImportTyped I s hh ∧ NoThrow r ∧
-      ∃ e, I.importOp? hh us = some e ∧ ∃ v : Answer (I.imports.get e.1), r = v.toResult := by
-  obtain ⟨⟨e, he, v, hv⟩, hIT, hNT⟩ := h
-  cases hv
-  exact ⟨rfl, hIT, hNT _ _ rfl, e, he, v, rfl⟩
+      ∃ e, I.importOp? hh us = some e ∧ ∃ v : Answer (I.imports.get e.1), r = v.toResult :=
+  instHostQ_returned (Q := fun _ r => NoThrow r) h
 
-theorem not_instHostNT_diverged {hh : Nat} {s : Store Nat} {us : List Val} :
-    ¬ instHostNT I hh s us .diverged :=
+theorem not_instHostQ_diverged {Q : Store Nat → Result → Prop} {hh : Nat} {s : Store Nat}
+    {us : List Val} : ¬ instHostQ I Q hh s us .diverged :=
   fun h => Abstract.NodeBridge.not_instHost_diverged h.1
 
-theorem storePreserving_instHostNT : Abstract.NodeBridge.StorePreserving (instHostNT I) :=
-  fun _ _ _ _ _ h => (instHostNT_returned h).1
+theorem storePreserving_instHostQ {Q : Store Nat → Result → Prop} :
+    Abstract.NodeBridge.StorePreserving (instHostQ I Q) :=
+  fun _ _ _ _ _ h => (instHostQ_returned h).1
 
-theorem hostTyped_instHostNT : HostTyped (instHostNT I) := by
+theorem storePreserving_instHostNT : Abstract.NodeBridge.StorePreserving (instHostNT I) :=
+  storePreserving_instHostQ
+
+theorem storePreserving_instHostL : Abstract.NodeBridge.StorePreserving (instHostL I) :=
+  storePreserving_instHostQ
+
+/-- **A restricted universal host is typed when the exceptions it answers exist.** -/
+theorem hostTyped_instHostQ {Q : Store Nat → Result → Prop}
+    (hQ : ∀ s a, Q s (.throw a) → ∃ e, s.exns[a]? = some e) : HostTyped (instHostQ I Q) := by
   intro s fi hh vs ps rs hs hfi hcode hexp _ out hout
   cases out with
   | diverged => trivial
   | returned s' r =>
-    obtain ⟨rfl, hIT, hNT, e, he, v, rfl⟩ := instHostNT_returned hout
+    obtain ⟨rfl, hIT, hq, e, he, v, rfl⟩ := instHostQ_returned hout
     refine ⟨hs, Extend.refl hs, ?_⟩
     have hrs := results_of_importTyped hIT hfi hcode (importOp?_fst he) hexp
     cases v with
@@ -100,34 +115,81 @@ theorem hostTyped_instHostNT : HostTyped (instHostNT I) := by
       rw [hrs]
       exact Proofs.Session.forall₂_valOk_of_hasVal _ ws.2
     | trap => trivial
-    | throw t => exact (hNT t rfl).elim
+    | throw t => exact hQ _ t hq
+
+theorem hostTyped_instHostNT : HostTyped (instHostNT I) :=
+  hostTyped_instHostQ fun _ a h => (h a rfl).elim
+
+theorem hostTyped_instHostL : HostTyped (instHostL I) :=
+  hostTyped_instHostQ fun _ a h => ⟨_, List.getElem?_eq_getElem (h a rfl)⟩
+
+theorem arity_instHostQ {Q : Store Nat → Result → Prop} (s : Store Nat) (a : Nat)
+    (fi : FuncInst Nat) (hh : Nat) (ps rs : List CValType) (vs ws : List Val) (s' : Store Nat)
+    (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .host hh)
+    (hty : DefType.funcType? fi.type = some (ps, rs))
+    (h : instHostQ I Q hh s vs (.returned s' (.values ws))) : ws.length = rs.length := by
+  obtain ⟨rfl, hIT, -, e, he, v, hv⟩ := instHostQ_returned h
+  have hrs := results_of_importTyped hIT (List.mem_of_getElem? hfi) hcode (importOp?_fst he)
+    (Proofs.Session.expand_of_funcType hty)
+  rw [Ty.toList_ofList] at hrs
+  cases v with
+  | values w =>
+    simp only [Answer.toResult, Result.values.injEq] at hv
+    subst hv
+    rw [hrs, List.length_map]
+    exact w.2.length_eq.symm
+  | trap => cases hv
+  | throw t => cases hv
+
+/-- **Every restricted universal host is in the typed host slice**, whatever it throws. -/
+theorem hostSliceT_instHostQ {Q : Store Nat → Result → Prop} : HostSliceT (instHostQ I Q) :=
+  HostSliceT.of_funcs_eq (fun _ _ _ _ _ h => by rw [(instHostQ_returned h).1]) arity_instHostQ
+
+theorem hostSliceT_instHostL : HostSliceT (instHostL I) := hostSliceT_instHostQ
 
 theorem nativeHostSlice_instHostNT : NativeHostSlice (instHostNT I) where
   funcs _ _ _ _ _ h := by
     obtain ⟨rfl, -⟩ := instHostNT_returned h
     exact Interp.FuncsGood.refl _
-  arity s a fi hh ps rs vs ws s' hfi hcode hty h := by
-    obtain ⟨rfl, hIT, -, e, he, v, hv⟩ := instHostNT_returned h
-    have hrs := results_of_importTyped hIT (List.mem_of_getElem? hfi) hcode (importOp?_fst he)
-      (Proofs.Session.expand_of_funcType hty)
-    rw [Ty.toList_ofList] at hrs
-    cases v with
-    | values w =>
-      simp only [Answer.toResult, Result.values.injEq] at hv
-      subst hv
-      rw [hrs, List.length_map]
-      exact w.2.length_eq.symm
-    | trap => cases hv
-    | throw t => cases hv
+  arity := arity_instHostQ
   noThrow _ _ _ _ t h := (instHostNT_returned h).2.2.1 t rfl
 
-theorem hostSliceE_instHostNT (tags : List TagInst) : HostSliceE tags (instHostNT I) where
+theorem hostSliceE_instHostQ {Q : Store Nat → Result → Prop} (tags : List TagInst) :
+    HostSliceE tags (instHostQ I Q) where
   chk _ _ _ _ _ h := by
-    obtain ⟨rfl, -⟩ := instHostNT_returned h
+    obtain ⟨rfl, -⟩ := instHostQ_returned h
     exact id
   tags _ _ _ _ _ h := by
-    obtain ⟨rfl, -⟩ := instHostNT_returned h
+    obtain ⟨rfl, -⟩ := instHostQ_returned h
     exact id
+
+theorem hostSliceE_instHostNT (tags : List TagInst) : HostSliceE tags (instHostNT I) :=
+  hostSliceE_instHostQ tags
+
+theorem hostSliceE_instHostL (tags : List TagInst) : HostSliceE tags (instHostL I) :=
+  hostSliceE_instHostQ tags
+
+/-- On import answers, legality is `Answer.ThrowsBelow` at the store's exception count. -/
+theorem legalRes_toResult_iff {s : Store Nat} {ft : FnType} (v : Answer ft) :
+    LegalRes s v.toResult ↔ v.ThrowsBelow s.exns.length := by
+  cases v <;> simp [LegalRes, Answer.toResult, Answer.ThrowsBelow]
+
+/-- **The unrestricted typed host is not typed**: at a typed callout of a store with
+`StoreOk`, it answers the dangling exception `s.exns.length`, and `ResultTyped` asks that it
+exist. -/
+theorem not_hostTyped_instHostU {s : Store Nat} (hs : StoreOk s) (e : I.E.Op)
+    {fi : FuncInst Nat} (hfi : fi ∈ s.funcs) (hcode : fi.code = .host e.1.1)
+    (hIT : ImportTyped I s e.1.1) : ¬ HostTyped (instHostU I) := by
+  intro hT
+  obtain ⟨hlt, hx⟩ := hIT fi hfi hcode
+  have h := hT s fi e.1.1 e.2.1 _ _ hs hfi hcode hx ?_ (.returned s (.throw s.exns.length))
+    ⟨⟨e, importOp?_self e, .throw s.exns.length, rfl⟩, hIT, fun _ _ _ => trivial⟩
+  · obtain ⟨-, -, ex, hex⟩ := h
+    simp at hex
+  · have hfe : e.1 = ⟨e.1.1, hlt⟩ := rfl
+    rw [← hfe]
+    simp only [Ty.toList_ofList]
+    exact Proofs.Session.forall₂_valOk_of_hasVal _ e.2.2
 
 /-- **The obstruction**: as soon as the import signature has an operation, the universal host
 answers it by an exception, so it is not in the native host slice. -/
@@ -151,37 +213,37 @@ end Host
 
 section Transfer
 
-variable {I : ScalarInstance} {P : Numerics.Profile}
+variable {I : ScalarInstance} {P : Numerics.Profile} {Q : Store Nat → Result → Prop}
 
 theorem hEvStep_none_iff {c c' : Config Nat} :
-    HEvStep P (instHostNT I) c none c' ↔ HEvStep P (instHost I) c none c' := by
+    HEvStep P (instHostQ I Q) c none c' ↔ HEvStep P (instHost I) c none c' := by
   constructor
   · rintro (h | ⟨-, E, a, hh, us, -, hd⟩)
     · exact .inl h
-    · exact (not_instHostNT_diverged hd).elim
+    · exact (not_instHostQ_diverged hd).elim
   · rintro (h | ⟨-, E, a, hh, us, -, hd⟩)
     · exact .inl h
     · exact (Abstract.NodeBridge.not_instHost_diverged hd).elim
 
 theorem hEvStep_some_iff {c c' : Config Nat} {e : Call (wasmHostSig Nat)} :
-    HEvStep P (instHostNT I) c (some e) c' ↔
-      HEvStep P (instHost I) c (some e) c' ∧ ImportTyped I c.store e.1.1 ∧ NoThrow e.2.2 := by
+    HEvStep P (instHostQ I Q) c (some e) c' ↔
+      HEvStep P (instHost I) c (some e) c' ∧ ImportTyped I c.store e.1.1 ∧ Q e.1.2.1 e.2.2 := by
   constructor
-  · rintro ⟨E, a, hd, hs, ⟨h, hIT, hNT⟩, hc⟩
-    exact ⟨⟨E, a, hd, hs, h, hc⟩, hIT, hNT _ _ rfl⟩
-  · rintro ⟨⟨E, a, hd, hs, h, hc⟩, hIT, hNT⟩
-    exact ⟨E, a, hd, hs, ⟨h, hIT, fun s' r heq => by cases heq; exact hNT⟩, hc⟩
+  · rintro ⟨E, a, hd, hs, ⟨h, hIT, hQ⟩, hc⟩
+    exact ⟨⟨E, a, hd, hs, h, hc⟩, hIT, hs ▸ hQ _ _ rfl⟩
+  · rintro ⟨⟨E, a, hd, hs, h, hc⟩, hIT, hQ⟩
+    exact ⟨E, a, hd, hs, ⟨h, hIT, fun s' r heq => by cases heq; exact hs ▸ hQ⟩, hc⟩
 
-theorem rtg_of_NT {c c' : Config Nat}
-    (h : Relation.ReflTransGen (fun a b => HEvStep P (instHostNT I) a none b) c c') :
+theorem rtg_of_Q {c c' : Config Nat}
+    (h : Relation.ReflTransGen (fun a b => HEvStep P (instHostQ I Q) a none b) c c') :
     Relation.ReflTransGen (fun a b => HEvStep P (instHost I) a none b) c c' := by
   induction h with
   | refl => exact .refl
   | tail _ hs ih => exact ih.tail (hEvStep_none_iff.1 hs)
 
-theorem rtg_to_NT {c c' : Config Nat}
+theorem rtg_to_Q {c c' : Config Nat}
     (h : Relation.ReflTransGen (fun a b => HEvStep P (instHost I) a none b) c c') :
-    Relation.ReflTransGen (fun a b => HEvStep P (instHostNT I) a none b) c c' := by
+    Relation.ReflTransGen (fun a b => HEvStep P (instHostQ I Q) a none b) c c' := by
   induction h with
   | refl => exact .refl
   | tail _ hs ih => exact ih.tail (hEvStep_none_iff.2 hs)
@@ -212,9 +274,9 @@ theorem evRun_funcs {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
   | silent hs _ ih => exact ih.trans (hEvStep_funcs hs)
   | event hs _ ih => exact ih.trans (hEvStep_funcs hs)
 
-theorem evRun_of_NT {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
-    (h : EvRun P (instHostNT I) c cs c') :
-    EvRun P (instHost I) c cs c' ∧ ∀ e ∈ cs, NoThrow e.2.2 := by
+theorem evRun_of_Q {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
+    (h : EvRun P (instHostQ I Q) c cs c') :
+    EvRun P (instHost I) c cs c' ∧ ∀ e ∈ cs, Q e.1.2.1 e.2.2 := by
   induction h with
   | refl => exact ⟨.refl _, fun _ h => nomatch h⟩
   | silent hs _ ih => exact ⟨.silent (hEvStep_none_iff.1 hs) ih.1, ih.2⟩
@@ -225,9 +287,9 @@ theorem evRun_of_NT {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
     · exact hN
     · exact ih.2 e he
 
-theorem evRun_to_NT {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
+theorem evRun_to_Q {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
     (h : EvRun P (instHost I) c cs c') :
-    ImportsTyped I c.store → (∀ e ∈ cs, NoThrow e.2.2) → EvRun P (instHostNT I) c cs c' := by
+    ImportsTyped I c.store → (∀ e ∈ cs, Q e.1.2.1 e.2.2) → EvRun P (instHostQ I Q) c cs c' := by
   induction h with
   | refl => exact fun _ _ => .refl _
   | silent hs _ ih =>
@@ -240,20 +302,23 @@ theorem evRun_to_NT {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
     obtain ⟨E, a, -, hs', -, -⟩ := hs
     exact hI _
 
-/-- **Labelled runs at the non-throwing host are the throw-free runs at the universal host.** -/
-theorem evRun_NT_iff {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
+/-- **Labelled runs at a restricted host are the runs at the universal host whose events `Q`
+allows.** -/
+theorem evRun_Q_iff {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
     (hI : ImportsTyped I c.store) :
-    EvRun P (instHostNT I) c cs c' ↔ EvRun P (instHost I) c cs c' ∧ ∀ e ∈ cs, NoThrow e.2.2 :=
-  ⟨evRun_of_NT, fun h => evRun_to_NT h.1 hI h.2⟩
+    EvRun P (instHostQ I Q) c cs c' ↔
+      EvRun P (instHost I) c cs c' ∧ ∀ e ∈ cs, Q e.1.2.1 e.2.2 :=
+  ⟨evRun_of_Q, fun h => evRun_to_Q h.1 hI h.2⟩
 
-theorem coreInf_NT_iff {c : Config Nat} {ω : Nat → Call (wasmHostSig Nat)}
+theorem coreInf_Q_iff {c : Config Nat} {ω : Nat → Call (wasmHostSig Nat)}
     (hI : ImportsTyped I c.store) :
-    CoreInf P (instHostNT I) c ω ↔ CoreInf P (instHost I) c ω ∧ ∀ k, NoThrow (ω k).2.2 := by
+    CoreInf P (instHostQ I Q) c ω ↔
+      CoreInf P (instHost I) c ω ∧ ∀ k, Q (ω k).1.2.1 (ω k).2.2 := by
   constructor
   · rintro ⟨g, hg0, hg⟩
     refine ⟨⟨g, hg0, fun n => ?_⟩, fun k => ?_⟩
     · obtain ⟨c₁, hr, hs⟩ := hg n
-      exact ⟨c₁, rtg_of_NT hr, (hEvStep_some_iff.1 hs).1⟩
+      exact ⟨c₁, rtg_of_Q hr, (hEvStep_some_iff.1 hs).1⟩
     · obtain ⟨c₁, -, hs⟩ := hg k
       exact (hEvStep_some_iff.1 hs).2.2
   · rintro ⟨⟨g, hg0, hg⟩, hN⟩
@@ -266,27 +331,27 @@ theorem coreInf_NT_iff {c : Config Nat} {ω : Nat → Call (wasmHostSig Nat)}
         rw [hEvStep_funcs hs, rtg_none_funcs hr, ih]
     refine ⟨g, hg0, fun n => ?_⟩
     obtain ⟨c₁, hr, hs⟩ := hg n
-    refine ⟨c₁, rtg_to_NT hr, hEvStep_some_iff.2 ⟨hs, ?_, hN n⟩⟩
+    refine ⟨c₁, rtg_to_Q hr, hEvStep_some_iff.2 ⟨hs, ?_, hN n⟩⟩
     exact importsTyped_congr ((rtg_none_funcs hr).trans (hf n)) hI _
 
-theorem coreCallout_NT_iff {s : Store Nat} {q : Nat × List Val}
+theorem coreCallout_Q_iff {s : Store Nat} {q : Nat × List Val}
     {x : List (Call (wasmHostSig Nat)) × (wasmHostSig Nat).Op} (hI : ImportsTyped I s) :
-    CoreCallout P (instHostNT I) s q x ↔
-      CoreCallout P (instHost I) s q x ∧ ∀ e ∈ x.1, NoThrow e.2.2 := by
+    CoreCallout P (instHostQ I Q) s q x ↔
+      CoreCallout P (instHost I) s q x ∧ ∀ e ∈ x.1, Q e.1.2.1 e.2.2 := by
   constructor
   · rintro ⟨c, E, a', hr, hd, hs⟩
-    obtain ⟨hr', hN⟩ := (evRun_NT_iff (c := invoke s q.1 q.2) hI).1 hr
+    obtain ⟨hr', hN⟩ := (evRun_Q_iff (c := invoke s q.1 q.2) hI).1 hr
     exact ⟨⟨c, E, a', hr', hd, hs⟩, hN⟩
   · rintro ⟨⟨c, E, a', hr, hd, hs⟩, hN⟩
-    exact ⟨c, E, a', (evRun_NT_iff (c := invoke s q.1 q.2) hI).2 ⟨hr, hN⟩, hd, hs⟩
+    exact ⟨c, E, a', (evRun_Q_iff (c := invoke s q.1 q.2) hI).2 ⟨hr, hN⟩, hd, hs⟩
 
-theorem coreBehSXP_NT_iff {s : Store Nat} {q : Nat × List Val}
+theorem coreBehSXP_Q_iff {s : Store Nat} {q : Nat × List Val}
     {y : CallBeh (wasmHostSig Nat) (Store Nat) ((List Val ⊕ Nat) ⊕ PUnit)}
     (hI : ImportsTyped I s) :
-    CoreBehSXP P (instHostNT I) s q y ↔
-      CoreBehSXP P (instHost I) s q y ∧ ∀ e ∈ y.1, NoThrow e.2.2 := by
+    CoreBehSXP P (instHostQ I Q) s q y ↔
+      CoreBehSXP P (instHost I) s q y ∧ ∀ e ∈ y.1, Q e.1.2.1 e.2.2 := by
   have key := fun {c' : Config Nat} {cs : List (Call (wasmHostSig Nat))} =>
-    evRun_NT_iff (P := P) (I := I) (c := invoke s q.1 q.2) (c' := c') (cs := cs) hI
+    evRun_Q_iff (P := P) (I := I) (Q := Q) (c := invoke s q.1 q.2) (c' := c') (cs := cs) hI
   obtain ⟨cs, e⟩ := y
   cases e with
   | ret b s₂ =>
@@ -302,6 +367,52 @@ theorem coreBehSXP_NT_iff {s : Store Nat} {q : Nat × List Val}
       exact ⟨⟨c', hr', hd⟩, hN⟩
     · rintro ⟨⟨c', hr, hd⟩, hN⟩
       exact ⟨c', key.2 ⟨hr, hN⟩, hd⟩
+
+/-- **Labelled runs at the non-throwing host are the throw-free runs at the universal host.** -/
+theorem evRun_NT_iff {c c' : Config Nat} {cs : List (Call (wasmHostSig Nat))}
+    (hI : ImportsTyped I c.store) :
+    EvRun P (instHostNT I) c cs c' ↔ EvRun P (instHost I) c cs c' ∧ ∀ e ∈ cs, NoThrow e.2.2 :=
+  evRun_Q_iff (Q := fun _ r => NoThrow r) hI
+
+theorem coreInf_NT_iff {c : Config Nat} {ω : Nat → Call (wasmHostSig Nat)}
+    (hI : ImportsTyped I c.store) :
+    CoreInf P (instHostNT I) c ω ↔ CoreInf P (instHost I) c ω ∧ ∀ k, NoThrow (ω k).2.2 :=
+  coreInf_Q_iff (Q := fun _ r => NoThrow r) hI
+
+theorem coreCallout_NT_iff {s : Store Nat} {q : Nat × List Val}
+    {x : List (Call (wasmHostSig Nat)) × (wasmHostSig Nat).Op} (hI : ImportsTyped I s) :
+    CoreCallout P (instHostNT I) s q x ↔
+      CoreCallout P (instHost I) s q x ∧ ∀ e ∈ x.1, NoThrow e.2.2 :=
+  coreCallout_Q_iff (Q := fun _ r => NoThrow r) hI
+
+theorem coreBehSXP_NT_iff {s : Store Nat} {q : Nat × List Val}
+    {y : CallBeh (wasmHostSig Nat) (Store Nat) ((List Val ⊕ Nat) ⊕ PUnit)}
+    (hI : ImportsTyped I s) :
+    CoreBehSXP P (instHostNT I) s q y ↔
+      CoreBehSXP P (instHost I) s q y ∧ ∀ e ∈ y.1, NoThrow e.2.2 :=
+  coreBehSXP_Q_iff (Q := fun _ r => NoThrow r) hI
+
+/-- **The legal restriction of the open Core triple of the universal host is the open Core triple
+of the legal host**, at a store whose host functions are typed imports (every profile). -/
+theorem legalT_coreTripleSO_agree {s : Store Nat} (hI : ImportsTyped I s) (q : Nat × List Val) :
+    AgreeAt (legalT (coreTripleSO P (instHost I))) (coreTripleSO P (instHostL I)) s q := by
+  refine ⟨?_, ?_, ?_⟩
+  · ext y
+    constructor
+    · rintro ⟨⟨-, hy⟩, hN⟩
+      exact ⟨trivial, (coreBehSXP_Q_iff hI).2 ⟨hy, hN⟩⟩
+    · rintro ⟨-, hy⟩
+      obtain ⟨hy', hN⟩ := (coreBehSXP_Q_iff hI).1 hy
+      exact ⟨⟨trivial, hy'⟩, hN⟩
+  · ext x
+    exact (coreCallout_Q_iff hI).symm
+  · ext ω
+    constructor
+    · rintro ⟨⟨-, hω⟩, hN⟩
+      exact ⟨trivial, (coreInf_Q_iff hI).2 ⟨hω, hN⟩⟩
+    · rintro ⟨-, hω⟩
+      obtain ⟨hω', hN⟩ := (coreInf_Q_iff hI).1 hω
+      exact ⟨⟨trivial, hω'⟩, hN⟩
 
 end Transfer
 
@@ -440,14 +551,74 @@ theorem agreeAt_trans {E : Sig.{0}} {S A B : Type} {t₁ t₂ t₃ : ObsTriple E
     (h₁ : AgreeAt t₁ t₂ s a) (h₂ : AgreeAt t₂ t₃ s a) : AgreeAt t₁ t₃ s a :=
   ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, h₁.2.2.trans h₂.2.2⟩
 
-/-- **The main per-question theorem**: on the domain, the throw-free instance triple and the CFG
-instance triple agree. -/
+/-- **The throw-free per-question theorem**: on the domain, the throw-free instance triple and the
+CFG instance triple agree. -/
 theorem noThrowT_instTripleS_agree {s : Store Nat} (hd : InstDom I s) (a : I.F.Op) :
     AgreeAt (noThrowT I (instTripleS I (profile o))) (cfgInstTriple I) s a := by
   rw [Abstract.NodeBridge.instTripleS_eq_viewTriple]
   exact agreeAt_trans (noThrowT_view_agree (importsTyped_of_wf hd.wf) a)
     (viewTriple_agree (coreTripleSO_agree_cfg (o := o) hostTyped_instHostNT
       nativeHostSlice_instHostNT.toT (hostSliceE_instHostNT _) (invOkXP_of_dom hd a)))
+
+/-- **The main per-question theorem**: on the domain, the instance triple with legal host
+exceptions and the CFG instance triple with legal host exceptions agree. -/
+theorem instTripleL_agree {s : Store Nat} (hd : InstDom I s) (a : I.F.Op) :
+    AgreeAt (instTripleL I (profile o)) (cfgInstTripleL I) s a :=
+  agreeAt_trans (viewTriple_agree (legalT_coreTripleSO_agree (importsTyped_of_wf hd.wf) (qOf I a)))
+    (viewTriple_agree (coreTripleSO_agree_cfg (o := o) hostTyped_instHostL hostSliceT_instHostL
+      (hostSliceE_instHostL _) (invOkXP_of_dom hd a)))
+
+/-! ## The legal triple is a restriction of the instance triple -/
+
+/-- The legal instance triple is contained in the instance triple, componentwise. -/
+theorem instTripleL_sub {P : Numerics.Profile} (s : Store Nat) (a : I.F.Op) :
+    (instTripleL I P).1 s a ⊆ (instTripleS I P).1 s a ∧
+      (instTripleL I P).2.1 s a ⊆ (instTripleS I P).2.1 s a ∧
+      (instTripleL I P).2.2 s a ⊆ (instTripleS I P).2.2 s a := by
+  rw [Abstract.NodeBridge.instTripleS_eq_viewTriple]
+  refine ⟨?_, ?_, ?_⟩
+  · rintro x ⟨y, ⟨hy, -⟩, hF, hv⟩
+    exact ⟨y, hy, hF, hv⟩
+  · rintro x ⟨y, ⟨hy, -⟩, hF, hv⟩
+    exact ⟨y, hy, hF, hv⟩
+  · rintro ω ⟨ω', ⟨hω, -⟩, hv⟩
+    exact ⟨ω', hω, hv⟩
+
+theorem legalRes_of_noThrow {s : Store Nat} {r : Result} (h : NoThrow r) : LegalRes s r :=
+  fun a ha => (h a ha).elim
+
+/-- The throw-free instance triple is contained in the legal one, componentwise. -/
+theorem noThrowT_sub_instTripleL {P : Numerics.Profile} (s : Store Nat) (a : I.F.Op) :
+    (noThrowT I (instTripleS I P)).1 s a ⊆ (instTripleL I P).1 s a ∧
+      (noThrowT I (instTripleS I P)).2.1 s a ⊆ (instTripleL I P).2.1 s a ∧
+      (noThrowT I (instTripleS I P)).2.2 s a ⊆ (instTripleL I P).2.2 s a := by
+  rw [Abstract.NodeBridge.instTripleS_eq_viewTriple]
+  refine ⟨?_, ?_, ?_⟩
+  · rintro x ⟨⟨y, hy, hF, hv⟩, hN⟩
+    exact ⟨y, ⟨hy, fun ev hev => legalRes_of_noThrow ((forall₂_noThrow hF).1 hN ev hev)⟩, hF, hv⟩
+  · rintro x ⟨⟨y, hy, hF, hv⟩, hN⟩
+    exact ⟨y, ⟨hy, fun ev hev => legalRes_of_noThrow ((forall₂_noThrow hF).1 hN ev hev)⟩, hF, hv⟩
+  · rintro ω ⟨⟨ω', hω, hv⟩, hN⟩
+    exact ⟨ω', ⟨hω, fun k => legalRes_of_noThrow ((callView_noThrow (hv k)).1 (hN k))⟩, hv⟩
+
+/-- Without imports the legal restriction is the identity: the legal instance triple is the
+instance triple. -/
+theorem instTripleL_eq_of_nil (h : I.imports = []) (P : Numerics.Profile) :
+    instTripleL I P = instTripleS I P := by
+  have hc := Proofs.Session.call_isEmpty h
+  have hL : ∀ {x : List (Call I.E)} {y : List (Call (wasmHostSig Nat))},
+      List.Forall₂ (CallView I) x y → ∀ ev ∈ y, LegalRes ev.1.2.1 ev.2.2 := by
+    intro x y hF
+    cases hF with
+    | nil => simp
+    | @cons x₀ _ _ _ _ _ => exact (hc.false x₀).elim
+  rw [Abstract.NodeBridge.instTripleS_eq_viewTriple]
+  refine Prod.ext ?_ (Prod.ext ?_ ?_) <;> funext s a <;> ext x
+  · exact ⟨fun ⟨y, ⟨hy, _⟩, hF, hv⟩ => ⟨y, hy, hF, hv⟩,
+      fun ⟨y, hy, hF, hv⟩ => ⟨y, ⟨hy, hL hF⟩, hF, hv⟩⟩
+  · exact ⟨fun ⟨y, ⟨hy, _⟩, hF, hv⟩ => ⟨y, hy, hF, hv⟩,
+      fun ⟨y, hy, hF, hv⟩ => ⟨y, ⟨hy, hL hF⟩, hF, hv⟩⟩
+  · exact ⟨fun ⟨ω', ⟨hω, _⟩, hv⟩ => ⟨ω', hω, hv⟩, fun _ => (hc.false (x 0)).elim⟩
 
 /-! ## The domain persists -/
 
@@ -466,8 +637,8 @@ theorem step_tags_eq {H : Type} {P : Numerics.Profile} {c c' : Config H}
   | callRefHost _ _ _ _ _ hhost => exact hhost.elim
   | _ => rfl
 
-theorem evRun_NT_store {P : Numerics.Profile} {c c' : Config Nat}
-    {cs : List (Call (wasmHostSig Nat))} (h : EvRun P (instHostNT I) c cs c') :
+theorem evRun_Q_store {Q : Store Nat → Result → Prop} {P : Numerics.Profile} {c c' : Config Nat}
+    {cs : List (Call (wasmHostSig Nat))} (h : EvRun P (instHostQ I Q) c cs c') :
     c'.store.funcs = c.store.funcs ∧ c'.store.tags = c.store.tags := by
   induction h with
   | refl => exact ⟨rfl, rfl⟩
@@ -477,23 +648,27 @@ theorem evRun_NT_store {P : Numerics.Profile} {c c' : Config Nat}
     · exact ih
   | event hs _ ih =>
     obtain ⟨E, a, -, hs', h, rfl⟩ := hs
-    rw [(instHostNT_returned h).1] at ih
+    rw [(instHostQ_returned h).1] at ih
     exact ih
 
-theorem steps_configOk {P : Numerics.Profile} {c c' : Config Nat} {ts : List CValType}
-    (h : Steps P (instHostNT I) c c') (hc : ConfigOk c ts) : ConfigOk c' ts := by
+theorem steps_configOk {Q : Store Nat → Result → Prop} (hT : HostTyped (instHostQ I Q))
+    {P : Numerics.Profile} {c c' : Config Nat} {ts : List CValType}
+    (h : Steps P (instHostQ I Q) c c') (hc : ConfigOk c ts) : ConfigOk c' ts := by
   induction h with
   | refl => exact hc
-  | tail _ hs ih => exact (Abstract.Step.preservation_typed hostTyped_instHostNT ih hs).1
+  | tail _ hs ih => exact (Abstract.Step.preservation_typed hT ih hs).1
 
-/-- **A throw-free run of a typed invocation from the domain stays in the domain.** -/
-theorem instDom_of_evRun {P : Numerics.Profile} {s : Store Nat} {q : Nat × List Val}
+/-- **A run of a typed invocation from the domain at a typed restricted host stays in the
+domain.** The store may gain exception instances (a `throw` in Wasm code); its functions and tags
+are kept, and typing is preserved since the host is typed. -/
+theorem instDom_of_evRun {Q : Store Nat → Result → Prop} (hT : HostTyped (instHostQ I Q))
+    {P : Numerics.Profile} {s : Store Nat} {q : Nat × List Val}
     {cs : List (Call (wasmHostSig Nat))} {c : Config Nat} (hd : InstDom I s)
-    (hok : InvokeOk s q.1 q.2) (h : EvRun P (instHostNT I) (invoke s q.1 q.2) cs c) :
+    (hok : InvokeOk s q.1 q.2) (h : EvRun P (instHostQ I Q) (invoke s q.1 q.2) cs c) :
     InstDom I c.store := by
-  obtain ⟨hf, ht⟩ := evRun_NT_store h
+  obtain ⟨hf, ht⟩ := evRun_Q_store h
   obtain ⟨fi, ps, rs, -, -, hcfg⟩ := invoke_ok hd.wf.storeOk hok
-  obtain ⟨C, ⟨hs, -⟩, -⟩ := steps_configOk (Abstract.evRun_steps h) hcfg
+  obtain ⟨C, ⟨hs, -⟩, -⟩ := steps_configOk hT (Abstract.evRun_steps h) hcfg
   change c.store.funcs = s.funcs at hf
   change c.store.tags = s.tags at ht
   refine ⟨⟨hs, hd.wf.addrs_length, fun j => ?_, fun a fi hh hfi hc => ?_⟩, ?_⟩
@@ -512,45 +687,65 @@ theorem viewEnd_ret {a : I.F.Op} {e : End (Store Nat) ((List Val ⊕ Nat) ⊕ PU
   | trap => simp [viewEnd] at h
   | div => simp [viewEnd] at h
 
-/-- **A finished throw-free round from the domain ends in the domain.** -/
-theorem instDom_of_round {P : Numerics.Profile} {s s₁ : Store Nat} (hd : InstDom I s)
-    {a : I.F.Op} {c : List (Call I.E)} {b : Res I.exports ⊕ PUnit}
-    (hm : (c, .ret b s₁) ∈ (noThrowT I (instTripleS I P)).1 s a) : InstDom I s₁ := by
-  rw [Abstract.NodeBridge.instTripleS_eq_viewTriple] at hm
-  rw [(noThrowT_view_agree (P := P) (importsTyped_of_wf hd.wf) a).1] at hm
+/-- **A finished round of the view of a typed restricted host, from the domain, ends in the
+domain with the same functions.** -/
+theorem instDom_of_viewRound {Q : Store Nat → Result → Prop} (hT : HostTyped (instHostQ I Q))
+    {P : Numerics.Profile} {s s₁ : Store Nat} (hd : InstDom I s) {a : I.F.Op}
+    {c : List (Call I.E)} {b : Res I.exports ⊕ PUnit}
+    (hm : (c, .ret b s₁) ∈ (viewTriple I (coreTripleSO P (instHostQ I Q))).1 s a) :
+    InstDom I s₁ ∧ s₁.funcs = s.funcs := by
   obtain ⟨⟨cs, e⟩, ⟨-, hy⟩, -, hv⟩ := hm
   obtain ⟨b', rfl⟩ := viewEnd_ret hv
   have hok := invokeOk_of_wf hd.wf a
   rcases b' with (ws | t) | u
-  · exact instDom_of_evRun hd hok hy
-  · exact instDom_of_evRun hd hok hy
-  · exact instDom_of_evRun hd hok hy
+  · exact ⟨instDom_of_evRun hT hd hok hy, (evRun_Q_store hy).1⟩
+  · exact ⟨instDom_of_evRun hT hd hok hy, (evRun_Q_store hy).1⟩
+  · exact ⟨instDom_of_evRun hT hd hok hy, (evRun_Q_store hy).1⟩
+
+/-- **A finished throw-free round from the domain ends in the domain, with the same
+functions.** -/
+theorem instDom_of_round {P : Numerics.Profile} {s s₁ : Store Nat} (hd : InstDom I s)
+    {a : I.F.Op} {c : List (Call I.E)} {b : Res I.exports ⊕ PUnit}
+    (hm : (c, .ret b s₁) ∈ (noThrowT I (instTripleS I P)).1 s a) :
+    InstDom I s₁ ∧ s₁.funcs = s.funcs := by
+  rw [Abstract.NodeBridge.instTripleS_eq_viewTriple] at hm
+  rw [(noThrowT_view_agree (P := P) (importsTyped_of_wf hd.wf) a).1] at hm
+  exact instDom_of_viewRound hostTyped_instHostNT hd hm
+
+/-- **A finished legal round from the domain ends in the domain, with the same functions.** -/
+theorem instDom_of_roundL {P : Numerics.Profile} {s s₁ : Store Nat} (hd : InstDom I s)
+    {a : I.F.Op} {c : List (Call I.E)} {b : Res I.exports ⊕ PUnit}
+    (hm : (c, .ret b s₁) ∈ (instTripleL I P).1 s a) : InstDom I s₁ ∧ s₁.funcs = s.funcs := by
+  unfold instTripleL at hm
+  rw [(viewTriple_agree (legalT_coreTripleSO_agree (P := P) (importsTyped_of_wf hd.wf)
+    (qOf I a))).1] at hm
+  exact instDom_of_viewRound hostTyped_instHostL hd hm
 
 theorem instDom_of_reach {P : Numerics.Profile} {s₀ s : Store Nat} (hd : InstDom I s₀)
     (hr : Reach (noThrowT I (instTripleS I P)) s₀ s) : InstDom I s := by
   induction hr with
   | refl => exact hd
-  | step hm _ ih => exact ih (instDom_of_round hd hm)
-
-/-- **A finished throw-free round from the domain keeps the store's functions.** -/
-theorem funcs_of_round {P : Numerics.Profile} {s s₁ : Store Nat} (hd : InstDom I s)
-    {a : I.F.Op} {c : List (Call I.E)} {b : Res I.exports ⊕ PUnit}
-    (hm : (c, .ret b s₁) ∈ (noThrowT I (instTripleS I P)).1 s a) : s₁.funcs = s.funcs := by
-  rw [Abstract.NodeBridge.instTripleS_eq_viewTriple] at hm
-  rw [(noThrowT_view_agree (P := P) (importsTyped_of_wf hd.wf) a).1] at hm
-  obtain ⟨⟨cs, e⟩, ⟨-, hy⟩, -, hv⟩ := hm
-  obtain ⟨b', rfl⟩ := viewEnd_ret hv
-  rcases b' with (ws | t) | u
-  · exact (evRun_NT_store hy).1
-  · exact (evRun_NT_store hy).1
-  · exact (evRun_NT_store hy).1
+  | step hm _ ih => exact ih (instDom_of_round hd hm).1
 
 /-- **The throw-free session keeps the store's functions**, from a store of the domain. -/
 theorem funcs_of_reach {P : Numerics.Profile} {s₀ s : Store Nat} (hd : InstDom I s₀)
     (hr : Reach (noThrowT I (instTripleS I P)) s₀ s) : s.funcs = s₀.funcs := by
   induction hr with
   | refl => rfl
-  | step hm _ ih => exact (ih (instDom_of_round hd hm)).trans (funcs_of_round hd hm)
+  | step hm _ ih => exact (ih (instDom_of_round hd hm).1).trans (instDom_of_round hd hm).2
+
+theorem instDom_of_reachL {P : Numerics.Profile} {s₀ s : Store Nat} (hd : InstDom I s₀)
+    (hr : Reach (instTripleL I P) s₀ s) : InstDom I s := by
+  induction hr with
+  | refl => exact hd
+  | step hm _ ih => exact ih (instDom_of_roundL hd hm).1
+
+/-- **The legal session keeps the store's functions**, from a store of the domain. -/
+theorem funcs_of_reachL {P : Numerics.Profile} {s₀ s : Store Nat} (hd : InstDom I s₀)
+    (hr : Reach (instTripleL I P) s₀ s) : s.funcs = s₀.funcs := by
+  induction hr with
+  | refl => rfl
+  | step hm _ ih => exact (ih (instDom_of_roundL hd hm).1).trans (instDom_of_roundL hd hm).2
 
 /-! ## The session -/
 
@@ -560,21 +755,31 @@ theorem satP_congr {E : Sig.{0}} {S A B : Type} {t t' : ObsTriple E S A B} {s : 
   funext a
   simp only [satP, h₁, h₂, h₃]
 
+/-- Triples agreeing at every question of every store reachable in the first one have the same
+session. -/
+theorem threadS_eq_of_agree {E : Sig.{0}} {S A B : Type} {t t' : ObsTriple E S A (B ⊕ PUnit)}
+    {s₀ : S}
+    (h : ∀ s, Reach t s₀ s → ∀ a, AgreeAt t t' s a) :
+    StratSession.threadS t s₀ = StratSession.threadS t' s₀ := by
+  refine StratSession.threadS_congr fun s hr => ?_
+  have h₁ : t.1 s = t'.1 s := funext fun a => (h s hr a).1
+  have h₂ : t.2.1 s = t'.2.1 s := funext fun a => (h s hr a).2.1
+  have h₃ : t.2.2 s = t'.2.2 s := funext fun a => (h s hr a).2.2
+  exact ⟨h₁, satP_congr h₁ h₂ h₃, h₃⟩
+
 /-- **The throw-free instance session is the session of the CFG instance triple**, from a store
 of the domain. -/
 theorem threadS_noThrowT_eq {s₀ : Store Nat} (hd : InstDom I s₀) :
     StratSession.threadS (noThrowT I (instTripleS I (profile o))) s₀ =
-      StratSession.threadS (cfgInstTriple I) s₀ := by
-  refine StratSession.threadS_congr fun s hr => ?_
-  have hd' := instDom_of_reach hd hr
-  have h := fun a => noThrowT_instTripleS_agree (o := o) hd' a
-  have h₁ : (noThrowT I (instTripleS I (profile o))).1 s = (cfgInstTriple I).1 s :=
-    funext fun a => (h a).1
-  have h₂ : (noThrowT I (instTripleS I (profile o))).2.1 s = (cfgInstTriple I).2.1 s :=
-    funext fun a => (h a).2.1
-  have h₃ : (noThrowT I (instTripleS I (profile o))).2.2 s = (cfgInstTriple I).2.2 s :=
-    funext fun a => (h a).2.2
-  exact ⟨h₁, satP_congr h₁ h₂ h₃, h₃⟩
+      StratSession.threadS (cfgInstTriple I) s₀ :=
+  threadS_eq_of_agree fun _ hr a => noThrowT_instTripleS_agree (instDom_of_reach hd hr) a
+
+/-- **The legal instance session is the session of the legal CFG instance triple**, from a store
+of the domain. -/
+theorem threadS_instTripleL_eq {s₀ : Store Nat} (hd : InstDom I s₀) :
+    StratSession.threadS (instTripleL I (profile o)) s₀ =
+      StratSession.threadS (cfgInstTripleL I) s₀ :=
+  threadS_eq_of_agree fun _ hr a => instTripleL_agree (instDom_of_reachL hd hr) a
 
 /-- Without imports, no log or stream has a thrown answer: the restriction is the identity. -/
 theorem noThrowT_eq_of_nil (h : I.imports = []) {S A B : Type} (t : ObsTriple I.E S A B) :
@@ -592,18 +797,14 @@ theorem instSession_eq_cfg (h : I.imports = []) {s : Store Nat} (hd : InstDom I 
   rw [← noThrowT_eq_of_nil h (instTripleS I (profile o))]
   exact threadS_noThrowT_eq hd
 
-end Inst
+/-- **Without imports, the instance session is the session of the legal CFG instance triple**,
+from a store of the domain. -/
+theorem instSession_eq_cfgL (h : I.imports = []) {s : Store Nat} (hd : InstDom I s) :
+    instSession I (profile o) s = StratSession.threadS (cfgInstTripleL I) s := by
+  unfold instSession
+  rw [← instTripleL_eq_of_nil h]
+  exact threadS_instTripleL_eq hd
 
-/-- **`core3SemD` through CFG instance sessions** where they apply. -/
-theorem core3SemD_eq_cfgInstSessions {o : GrowOracle} :
-    Abstract.InstSession.core3SemD (profile o) =
-      Abstract.InstSession.threadSemSD (cfgInstSessions o) := by
-  unfold Abstract.InstSession.core3SemD
-  congr 1
-  funext m
-  unfold cfgInstSessions
-  split
-  · next h => exact instSession_eq_cfg h.1 h.2
-  · rfl
+end Inst
 
 end Silmaril.Wasm.Cfg.Proofs.CfgInst

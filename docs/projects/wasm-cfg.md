@@ -973,34 +973,75 @@ The plain graph stays an over-approximation, and claims about it say so.
              (`floatBody_rejected`), and `not_storeChkE_floatBody`. Host hypotheses are about
              the host, not the module.
           2. Instance sessions through the CFG closure (`Wasm/Cfg/CfgInst`). Nothing is
-             redefined.
+             redefined, and there is no fallback to Core sessions.
 
              Domain (`InstDom`, or `I.WellFormed` with `StoreSupported`): a well-formed
-             instance, import answers without exceptions, and the store's functions in the
-             checker profile.
-             - `noThrowT_instTripleS_agree`: the instance triple restricted to throw-free import
-               answers equals `cfgInstTriple I`. That triple is the view of `cfgSessionTripleC`,
-               openly restricted to the non-throwing instance host `instHostNT`. The equality
-               covers finished behaviours, divergence, pending calls and productive streams.
-             - `threadS_noThrowT_eq`: the same for the threaded sessions. The domain persists
-               along reachable stores (`instDom_of_reach`, `supported_of_reach`).
-             - Without imports: `instSession_eq_cfg`, `core3SemD_eq_cfgInstSessions` and
-               `denUD_core3SemD_eq_cfgInstSessions`.
-             - Host facts with no hypothesis: `hostTyped_instHostNT`,
-               `nativeHostSlice_instHostNT`, `hostSliceE_instHostNT`.
-             - Obstruction: `not_nativeHostSlice_instHost`.
+             instance, the store's functions in the checker profile, and **legal** host
+             exceptions. An import answer `Answer.throw a` at a call with store `s` must have
+             `a < s.exns.length` (`LegalRes`, `Answer.ThrowsBelow s.exns.length`, the legality
+             in `IsInstance.adequacy`). Instances can raise, catch and leak exceptions in Wasm
+             code, and can catch or leak legal host exceptions.
+             - Hosts: `instHostQ I Q` is `instHost I` at typed callouts, keeping the answers that
+               `Q` allows. Three cases: `instHostL` (`Q = LegalRes`), `instHostNT` (no
+               exception) and `instHostU` (every answer). Without hypotheses:
+               `hostTyped_instHostL`, `hostSliceT_instHostL`/`hostSliceT_instHostQ` (through
+               `HostSliceT.of_funcs_eq`) and `hostSliceE_instHostL`. The `instHostNT` facts
+               still hold as special cases.
+             - `legalT` restricts a Core triple to host events whose thrown answer is legal at
+               the event's call store. `instTripleL I P := viewTriple I (legalT (coreTripleSO P
+               (instHost I)))` is `instTripleS I P` restricted that way. Import calls do not
+               record their store, so the restriction is stated on Core events. Facts:
+               `instTripleL_sub`, `noThrowT_sub_instTripleL`, and `instTripleL_eq_of_nil`
+               (without imports it is `instTripleS`). `legalT_coreTripleSO_agree` shows that
+               `legalT (coreTripleSO P (instHost I))` is `coreTripleSO P (instHostL I)`.
+             - `instTripleL_agree`: on `InstDom I s`, `instTripleL I (profile o)` equals
+               `cfgInstTripleL I := viewTriple I (openRestrict (coreHostRel (instHostL I))
+               cfgSessionTripleC)`. The equality covers finished behaviours (values,
+               exceptions, traps with their store), divergence, pending calls and productive
+               streams.
+             - `threadS_instTripleL_eq`: the same for the threaded sessions, from a start store
+               in the domain. The domain persists (`instDom_of_reachL`, `funcs_of_reachL`,
+               `supported_of_reachL`): a legal round is a Core run at the typed host
+               `instHostL`, so `Abstract.Step.preservation_typed` keeps the configuration typed
+               through caught host exceptions. Wasm `throw` only appends exception instances,
+               and functions and tags are kept.
+             - Families without fallback: `cfgInstSessionsL m` is the session of
+               `cfgInstTripleL m.inst` at `m.inst.store`, defined for every instance.
+               `legalSemD P` interprets each instance by its legal session.
+               `legalSemD_sem_eq` and `denUD_legalSemD_eq_cfgInstSessionsL` hold on
+               `CompIn (fun m => InstDom m.inst m.inst.store) c`.
+               `core3SemD_sem_eq_cfgInstSessionsL` and `denUD_core3SemD_eq_cfgInstSessionsL`
+               hold for instances without imports in the domain (`instSession_eq_cfgL`). The
+               earlier `cfgInstSessions`, which fell back to Core, is removed.
+             - Throw-free results are kept: `noThrowT_instTripleS_agree`, `threadS_noThrowT_eq`
+               and `instSession_eq_cfg` against `cfgInstTriple`.
+             - Audit: `CfgClosureAudit` also walks `cfgInstTripleL` and `cfgInstSessionsL`. It
+               now exempts Prop-typed constants, since a module shows an imported theorem as
+               an axiom. Example: `Strategy.nil_mem`, reached via `threadS`.
 
-             Host exceptions in the bridge are done. The XP native↔Core bridge (`HostClosingXP`,
-             `HostClosingS`, `HostClosingInfXP(Back)`, `HostSquareXP`, `HostStratXP`,
-             `HostSessionXP`) now takes `Interp.HostSliceT`, which is `NativeHostSlice` without
-             `noThrow`. Old callers pass `NativeHostSlice.toT`. Caller handlers catch a host
-             throw, tail host throws bypass them, and the callee store is kept. Existence of
-             the thrown exception is needed only by the backward sites, which get it from
-             `HostTyped`. Remaining at the instance layer: `instHost` may answer
-             `Answer.throw a` with a dangling `a`. That violates `HostTyped`, which the
-             native↔Core bridge needs (the old obstruction was `NativeHostSlice.noThrow`). So for instances with
-             imports, `core3SemD` keeps its Core session (`cfgInstSessions` falls back), and
-             only the throw-free session is CFG-equal.
+             Outside the domain the bridge's hypotheses fail. Without `I.WellFormed s` there is
+             no `StoreOk`/`InvokeOk` for `InvOkXP`. Without checker acceptance there is no
+             `StoreChkE (ehExt s.tags)`.
+
+             **Remaining: dangling host exceptions.** For instances with imports, `core3SemD`
+             uses `instSession`, which also contains logs where an import answers
+             `Answer.throw a` with `a ≥ s.exns.length`. These are outside `instTripleL`, so no
+             CFG equality is claimed for `core3SemD` on such instances. Native and Core read
+             the exception in the same way: Core `CatchMatches` and native
+             `Cfg.Region.Catches` both use `s.exns[a]?`. So a dangling address fails tagged
+             clauses, and `catch_all(_ref)` catches it.
+
+             The bridge's backward simulation is the obstacle. `HostClosingXP.back_all`
+             carries `Sim.ContextTyped` (a `ConfigOk`) across Core steps through
+             `ContextTyped.steps_typed hT : HostTyped host → …`, and `ConfigOk` types
+             `ref.exn a` only through `RefOk.exn (s.exns[a]? = some e)`. In Lean the failing
+             hypothesis is `HostTyped (instHostU I)`: `not_hostTyped_instHostU` refutes it at
+             every typed callout of a `StoreOk` store.
+
+             Padding the store with dummy exceptions does not help. A later Wasm `throw`
+             allocates at `s.exns.length`, so a dangling address can come to name a fresh
+             exception. Closing this needs a bridge invariant that types exception references
+             without requiring them to exist.
           3. **Regressions, done** (`Wasm/Cfg/ExampleRegress`). One validated store (`rgMod`,
              one host import `h : [i32] → []`, a spec instance, `StoreOk`, `StoreChkE (ehExt
              tags)` by `storeChkEB`). Each fixture is proved on the CFG closure directly, by
