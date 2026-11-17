@@ -30,7 +30,7 @@ predicate, and no signature is attached to a symbol by hand:
 | execution | `callModelOf M`: the **first return** of `M` (`FnContract.FirstReturn`) |
 | no stuck state | `safe`: from every admitted call, every state before the return takes a step on `M` (`NoStuck`). Code using an instruction `M` does not model is stuck, so it does not conform in either mode (`Proofs….Negative`) |
 | return | `Good`: `Return`; a result with `ResultAt` and `S.post`; memory written only inside `S.writes` or `Owned`: bounded memory that `Stack` admits (the row's `frame` bytes `[rsp − frame, rsp)`, which contain the red zone when `frame ≥ 128`; the argument area; `A.owned`). Nothing else below `rsp` is owned; the machine's FS base unchanged |
-| non-vacuity | `nonvacuous`: some admitted call exists; `enterable`: every argument tuple and memory the precondition admits has an admitted call (the precondition, shown with every row, is what restricts the claim) |
+| non-vacuity | `nonvacuous`: some admitted call exists; `enterable`: for every argument tuple and caller memory the precondition admits (objects outside the code and its data), an admitted call with those arguments, the same objects and the same bytes on them; the rest of its memory is the ABI's. The precondition, shown with every row, is what restricts the claim |
 | mode | `.total`: every admitted call returns. `.safe`: partial correctness, divergence allowed, stuck states not |
 
 **The machine is a restricted model, and `sysvInt` a restricted fragment.** `M : Mach` is any
@@ -303,6 +303,12 @@ def HeaderSrc.proto? (hdr : HeaderSrc) (f : String) : Option CProto :=
 def HeaderSrc.quals? (hdr : HeaderSrc) (f : String) : Option Silmaril.Data.Layout.Header.ProtoQuals :=
   (Silmaril.Data.Layout.Header.read hdr.files hdr.root).toOption.bind (·.quals? f)
 
+/-- `x` is outside the code's bytes and its read-only data: the addresses where an admitted
+state's memory is fixed by the placement (`Placed`). -/
+def Code.Outside (c : Code) (x : Nat) : Prop :=
+  ¬ (c.base.toNat ≤ x ∧ x < c.base.toNat + c.bytes.length) ∧
+    ∀ d ∈ c.data, ¬ (d.1.toNat ≤ x ∧ x < d.1.toNat + d.2.length)
+
 /-- **The header declares `f` with a C prototype that `A` lowers to `p`.** The prototype `cp` is
 the one `hdr.proto? f` gives (a function of the header), so it is unique. -/
 def Declares (A : AbiDef) (hdr : HeaderSrc) (f : String) (p : A.V.Proto) : Prop :=
@@ -317,10 +323,17 @@ structure Conforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : 
   declared : Declares A hdr f p
   extent : c.off + c.len ≤ c.bytes.length
   nonvacuous : ∃ a s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory
-  /-- **Every precondition class is callable**: for every argument tuple and memory the C
-  precondition admits, some admitted call has those arguments and meets the precondition. A row
-  cannot be non-vacuous through one hand-picked call while its precondition admits others. -/
-  enterable : ∀ a mem, S.pre a mem → ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory
+  /-- **Every caller state the precondition admits is callable**: for every argument tuple `a`
+  and caller memory `mem` meeting the precondition, whose caller-visible objects avoid the code
+  and its read-only data (`Code.Outside`: there an admitted state's bytes are the code's), some
+  admitted call has the arguments `a`, meets the precondition, has the same objects, and has
+  `mem`'s bytes on them (for example, every buffer content). The rest of its memory (code,
+  stack, permissions) is the ABI's. A row cannot be non-vacuous through one hand-picked call
+  while its precondition admits others. -/
+  enterable : ∀ a mem, S.pre a mem → (∀ x, S.objects a mem x → c.Outside x) →
+    ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory ∧
+      (∀ x, S.objects a s.machine.memory x ↔ S.objects a mem x) ∧
+      ∀ x, S.objects a mem x → s.machine.memory.bytes[x]? = mem.bytes[x]?
   safe : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory → NoStuck M s
   progress : mode = .total → ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory →
     (callModelOf M s).Nonempty

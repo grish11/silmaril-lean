@@ -44,7 +44,10 @@ variable {A : AbiDef} {M : Mach} {mode : Mode} {hdr : HeaderSrc} {f : String} {p
 theorem conforms_of_strict {S' : Spec MState} (hs : S'.Strict M)
     (hdecl : Declares A hdr f p) (hext : c.off + c.len ≤ c.bytes.length)
     (hnv : ∃ a s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory)
-    (hen : ∀ a mem, S.pre a mem → ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory)
+    (hen : ∀ a mem, S.pre a mem → (∀ x, S.objects a mem x → c.Outside x) →
+      ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory ∧
+        (∀ x, S.objects a s.machine.memory x ↔ S.objects a mem x) ∧
+        ∀ x, S.objects a mem x → s.machine.memory.bytes[x]? = mem.bytes[x]?)
     (habi : ∀ a s, Admit A M p c frame S a s → AbiEntry (M.core s.machine) (M.mem s.machine))
     (hentry : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory → S'.entry s.machine)
     (hgood : ∀ a s t, Admit A M p c frame S a s → S.pre a s.machine.memory →
