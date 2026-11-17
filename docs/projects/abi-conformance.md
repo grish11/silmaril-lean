@@ -90,6 +90,10 @@ conformance of a *pure* function. A function with effects (`memset`) gives its `
   not loaded is stuck. A row about code that calls a library is stated on a machine whose steps
   include the callee contracts (`Silmaril.Elf.Link.Dyn.Proc`), and those contracts are then the
   row's assumptions.
+- **Faithfulness is unguarded.** `Faithful R M` quantifies over every FFI state. A hardware
+  reference would need it restricted to the states the ABI admits: for example, `Str9`'s string
+  forms assume DF = 0, which `Entry` guarantees but which does not hold for arbitrary states. That
+  guarded form is future work. The standard instances `Open` and `Open9` have no string forms.
 - **Recursive callers.** `Placed.retOutside` admits only callers whose return address lies
   outside the function's bytes.
 
@@ -120,8 +124,10 @@ conformance of a *pure* function. A function with effects (`memset`) gives its `
    - A read-only executable `PT_LOAD` maps the code bytes, and read-only segments map the data.
    - The code's image is the file's `PT_LOAD` ranges.
 2. **`Untouched F c`.** No dynamic relocation writes the code or its data.
-3. **Rebased conformance.** At **every load base the file admits** (`Placement`: `0` for
-   `ET_EXEC`, page-aligned for `ET_DYN`), the rebased code (`Code.rebase`) conforms.
+3. **Rebased conformance.** The file admits at least one load base, and at **every load base
+   the file admits** (`Placement`: `0` for `ET_EXEC`, page-aligned for `ET_DYN`), the rebased
+   code (`Code.rebase`) conforms. Without the first part, a file that admits no base would make
+   this conjunct vacuous.
    No row claims conformance at the link-time address of a shared object.
 
 ## Header satisfaction
@@ -184,6 +190,7 @@ All rows are on `Open`.
 | `scribble_not` | a write at `rsp − 8` with `frame = 0` (schema test) |
 | `wrong_prototype` | `long clamp_i32(long, long, long)`, which is not what `arith.h` declares |
 | `Elf.Abi.LeafArith.not_codeOf_offset` | an entry that is not the symbol's `st_value` |
+| `Elf.Abi.not_abiConforms_of_noPlacement` | any claim, for any spec and machine, on a file that admits no load base |
 | header reader (`Data.Layout.Header.Thms`) | conflicting redeclarations, `#if`, definitions, function pointers, K&R declarations, and the other constructs outside the subset |
 
 The schema tests run on small machines given by a step function (`Witness.toy`). They test the

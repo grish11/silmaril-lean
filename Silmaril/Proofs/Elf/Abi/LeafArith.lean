@@ -96,6 +96,10 @@ theorem placement_zero {b : Nat} (h : Placement F b) : b = 0 := by
   · exact h0
   · exact absurd ht (by decide +kernel)
 
+/-- `leaf-arith` admits load base `0`. -/
+theorem placement_zero_ok : Placement F 0 :=
+  ⟨_, parses, .inl ⟨by decide +kernel, rfl⟩, fun ph h => by revert ph; decide +kernel⟩
+
 theorem rebase_zero (c : Code) : c.rebase 0 = c := by
   cases c; simp [Code.rebase]
 
@@ -105,7 +109,7 @@ theorem row (f : String) (i v n off : Nat) (hl : A0.select (Binding.symtab.sel f
     {p : Silmaril.Machine.Abi.SystemV.Proto} {S : CallSpec sysvInt.V p}
     (h : Conforms sysvInt Silmaril.X86.Open.isa .total hdr f p (region off n) 0 S) :
     AbiConforms sysvInt Silmaril.X86.Open.isa .total hdr f p F .symtab (region off n) 0 S :=
-  ⟨codeOf f i v n off hl hv hs, untouched off n, fun b hb => by
+  ⟨codeOf f i v n off hl hv hs, untouched off n, ⟨0, placement_zero_ok⟩, fun b hb => by
     rw [placement_zero hb, rebase_zero]; exact h⟩
 
 theorem clamp_row : silmaril.elf.abi.leaf_arith.clamp_i32 :=

@@ -21,8 +21,8 @@ Two more facts complete the binding:
 
 - **No relocation touches the code** (`Untouched`): no dynamic relocation writes the code or
   its data.
-- **Every load base** the file admits (`Placement`): the rebased code (`Code.rebase`)
-  conforms. For `ET_EXEC` that base is `0`. For `ET_DYN` no row claims conformance at
+- **Every load base** the file admits (`Placement`, of which there must be at least one): the
+  rebased code (`Code.rebase`) conforms. For `ET_EXEC` that base is `0`. For `ET_DYN` no row claims conformance at
   link-time addresses.
 
 Every one of these facts reads the file through the ELF specification (`Silmaril.Elf.Facts`).
@@ -120,13 +120,14 @@ def Present (F : Blob) (f : String) : Prop :=
 
 /-- **The function `f` of the ELF file `F` conforms to the ABI `A` on the machine `M`**, as the
 header `hdr` declares it: the code is the file's (`CodeOf`, at link-time addresses), no dynamic
-relocation patches it (`Untouched`), and at **every load base the file admits**
-(`Placement`: `0` for `ET_EXEC`, page-aligned for `ET_DYN`) the rebased code conforms. -/
+relocation patches it (`Untouched`), the file admits some load base (so the next conjunct is not
+vacuous), and at **every load base the file admits** (`Placement`: `0` for `ET_EXEC`,
+page-aligned for `ET_DYN`) the rebased code conforms. -/
 @[problem "silmaril.shapes.elf.abi_conforms"
   (title := "A function of an ELF file conforms to a versioned ABI on a restricted x86-64 machine model, as its C header declares it")]
 def AbiConforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : String)
     (p : A.V.Proto) (F : Blob) (b : Binding) (c : Code) (frame : Nat) (S : CallSpec A.V p) : Prop :=
-  CodeOf F b f c ∧ Untouched F c ∧
+  CodeOf F b f c ∧ Untouched F c ∧ (∃ base, Placement F base) ∧
     ∀ base, Placement F base → Conforms A M mode hdr f p (c.rebase base) frame S
 
 /-- **The ELF file `F` satisfies a part of the header `hdr`** (partial): at least one function is

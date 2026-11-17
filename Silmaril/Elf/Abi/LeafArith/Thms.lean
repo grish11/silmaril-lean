@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Elf.Abi.LeafArith.Defs
+public import Silmaril.Elf.Abi.Thms
 public import Silmaril.Machine.Abi.Conformance.LeafArith.Thms
 import Silmaril.Proofs.Elf.Abi.LeafArith
 
