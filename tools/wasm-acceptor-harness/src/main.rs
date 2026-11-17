@@ -100,6 +100,7 @@ struct ArtifactRecord {
     bytes: usize,
     sha256: String,
     blake3: String,
+    cid: String,
     pinned_sha256_ok: Option<bool>,
 }
 
@@ -109,6 +110,7 @@ struct CaseRecord {
     name: String,
     artifact: String,
     sha256: String,
+    cid: String,
     export: String,
     params: Vec<String>,
     class: String,
@@ -150,6 +152,29 @@ fn engine_config() -> (Config, BTreeMap<&'static str, Json>) {
     record.insert("linker", Json::from("empty (no imports provided)"));
     record.insert("instance", Json::from("fresh store and instance per case"));
     (config, record)
+}
+
+/// The CIDv1 of `bytes` as the artifact registry writes it (`sil project lock`): multibase
+/// base32 (`b`, RFC 4648 lowercase, no padding) of `0x01` (CIDv1), `0x55` (raw), `0x1e 0x20`
+/// (BLAKE3-256 multihash) and the digest.
+fn cid(bytes: &[u8]) -> String {
+    const ALPHA: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
+    let mut data = vec![0x01, 0x55, 0x1e, 0x20];
+    data.extend_from_slice(blake3::hash(bytes).as_bytes());
+    let mut out = String::from("b");
+    let (mut acc, mut bits) = (0u32, 0u32);
+    for b in data {
+        acc = (acc << 8) | u32::from(b);
+        bits += 8;
+        while bits >= 5 {
+            bits -= 5;
+            out.push(ALPHA[((acc >> bits) & 31) as usize] as char);
+        }
+    }
+    if bits > 0 {
+        out.push(ALPHA[((acc << (5 - bits)) & 31) as usize] as char);
+    }
+    out
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -365,7 +390,8 @@ fn main() -> Result<()> {
     for suite_path in &cli.suites {
         let suite = load_suite(suite_path)?;
         let base = suite_path.parent().unwrap_or(Path::new("."));
-        let mut loaded: BTreeMap<String, (String, Result<Component, String>)> = BTreeMap::new();
+        let mut loaded: BTreeMap<String, (String, String, Result<Component, String>)> =
+            BTreeMap::new();
         for (id, spec) in &suite.artifacts {
             let path = base.join(&spec.path);
             let bytes = std::fs::read(&path)
@@ -388,12 +414,13 @@ fn main() -> Result<()> {
                 bytes: bytes.len(),
                 sha256: sha.clone(),
                 blake3: blake3::hash(&bytes).to_hex().to_string(),
+                cid: cid(&bytes),
                 pinned_sha256_ok: pinned_ok,
             });
-            loaded.insert(id.clone(), (sha, component));
+            loaded.insert(id.clone(), (sha, cid(&bytes), component));
         }
         for case in &suite.cases {
-            let Some((sha, component)) = loaded.get(&case.artifact) else {
+            let Some((sha, cid, component)) = loaded.get(&case.artifact) else {
                 bail!(
                     "{}: case {} names unknown artifact {}",
                     suite.suite,
@@ -434,6 +461,7 @@ fn main() -> Result<()> {
                 name: case.name.clone(),
                 artifact: case.artifact.clone(),
                 sha256: sha.clone(),
+                cid: cid.clone(),
                 export: case.export.clone(),
                 params,
                 class: case.class.clone(),
