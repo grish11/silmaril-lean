@@ -530,6 +530,70 @@ theorem blk_enter {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : L
     har hg) hE
   simpa [List.append_assoc] using this
 
+/-! ## Inversions -/
+
+theorem pos_head {body : Expr} {p : List SeqStep} {c : List Instr} {i : Nat} {sg : Segment}
+    {pre post : List Instr} {hd : BExpr} {tl R : List BExpr} (hp : Pos body p c i sg pre post)
+    (hes : hd :: tl = liftInstrs post ++ R) :
+    ∃ e post', post = e :: post' ∧ hd = liftInstr e ∧ tl = liftInstrs post' ++ R := by
+  rcases post with _ | ⟨e, post'⟩
+  · exact absurd rfl hp.hpost
+  · simp only [liftInstrs, List.cons_append, List.cons.injEq] at hes
+    exact ⟨e, post', rfl, hes.1, hes.2⟩
+
+theorem lift_op {e i : Instr} {args : List BExpr} (h : liftInstr e = .op i args) :
+    e = i ∧ args = [] ∧ ¬ Instr.IsStruct e := by
+  cases e <;> simp [liftInstr] at h <;> (try obtain ⟨rfl, rfl⟩ := h) <;>
+    exact ⟨rfl, rfl, fun ⟨_, _, _, _, hk⟩ => nomatch hk⟩
+
+theorem lift_block {e : Instr} {bt : BlockType} {b : List BExpr} (h : liftInstr e = .block bt b) :
+    ∃ b₀, e = .block bt b₀ ∧ b = liftInstrs b₀ := by
+  cases e <;> simp [liftInstr] at h
+  obtain ⟨rfl, rfl⟩ := h; exact ⟨_, rfl, rfl⟩
+
+theorem lift_loop {e : Instr} {bt : BlockType} {b : List BExpr} (h : liftInstr e = .loop bt b) :
+    ∃ b₀, e = .loop bt b₀ ∧ b = liftInstrs b₀ := by
+  cases e <;> simp [liftInstr] at h
+  obtain ⟨rfl, rfl⟩ := h; exact ⟨_, rfl, rfl⟩
+
+theorem lift_try {e : Instr} {bt : BlockType} {cs : List Catch} {b : List BExpr}
+    (h : liftInstr e = .tryTable bt cs b) : ∃ b₀, e = .tryTable bt cs b₀ ∧ b = liftInstrs b₀ := by
+  cases e <;> simp [liftInstr] at h
+  obtain ⟨rfl, rfl, rfl⟩ := h; exact ⟨_, rfl, rfl⟩
+
+theorem lift_if {e : Instr} {bt : BlockType} {cc t el : List BExpr}
+    (h : liftInstr e = .if_ bt cc t el) :
+    ∃ t₀ e₀, e = .if_ bt t₀ e₀ ∧ cc = [] ∧ t = liftInstrs t₀ ∧ el = liftInstrs e₀ := by
+  cases e <;> simp [liftInstr] at h
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := h; exact ⟨_, _, rfl, rfl, rfl, rfl⟩
+
+/-- **The arm clause from the arm's native run**: entering arm `a` natively, the arm's run and
+its exit obligation give a finishing machine run from the arm's entry. -/
+theorem arm_entry {body : Expr} {Fin : Store H × Frame × POut → Prop} {p : List SeqStep}
+    {c : List Instr} {i : Nat} {sg : Segment} {pre : List Instr} {t : Instr} {ls : List LFrame}
+    {s : Store H} {f : Frame} {V' : List Val} {a : Nat} {c' : List Instr} {np nr : Nat}
+    {bt : BlockType} {loop tryT : Bool} {cs : List Catch} {l₁ l₂ : List (SCall H)}
+    {r₀ : Store H × Frame × POut} (hp : Pos body p c i sg pre [t])
+    (hk : StructKind t bt loop tryT cs) (harm : armOf t a = some c')
+    (hok : FramesOk body p.reverse ls)
+    (hrun : EvalLXPS s f (V'.take np) (liftInstrs c') l₁ r₀)
+    (ihrun : Mot body Fin s f (V'.take np) (liftInstrs c') l₁ r₀)
+    (hx : ExitE body Fin (p ++ [(i, a)])
+      (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls) r₀ l₂) :
+    ∃ st₁, gotoN (entry body (p ++ [(i, a)]) 0) (p.length + 1)
+      (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls)
+      (V'.take np).reverse s f = some st₁ ∧ MEnds body Fin st₁ (l₁ ++ l₂) := by
+  obtain ⟨ht, -, -⟩ := pos_term hp (isStruct_terminator ⟨_, _, _, _, hk⟩)
+  have hcA : seqAt body (p ++ [(i, a)]) = some c' := by
+    rw [Proofs.Machine.seqAt_append]; simp [hp.hc, hp.hsg, ht, harm]
+  have hokA : FramesOk body (p ++ [(i, a)]).reverse
+      (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls) := by
+    simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+      List.singleton_append, FramesOk]
+    exact ⟨⟨c, sg, t, c', by simpa using hp.hc, hp.hsg, ht, harm, hk⟩, hok⟩
+  rw [← restAt_zero c'] at hrun ihrun
+  simpa using at_boundary hrun ihrun hcA hokA hx
+
 /-- **The main induction**: every native run satisfies the motive. -/
 theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
     {N : List Val} {es : List BExpr} {l : List (SCall H)} {r : Store H × Frame × POut}
