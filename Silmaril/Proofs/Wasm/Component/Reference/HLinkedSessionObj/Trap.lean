@@ -218,4 +218,149 @@ theorem refuse_last {P : Profile} {u π u' π' : Store Nat} {j : Fin l.imp.expor
       | none => rfl
       | some _ => cases hans
 
+/-! ## Diverging rounds and host chatter -/
+
+/-- In the import calls of a round still running, a refused host call is the last host call and
+leaves the thread trapped. -/
+theorem calls_refuse_trapped {P : Profile} {f : Ii.F.Op} :
+    ∀ (cs : List (Σ e : Ii.E.Op, Ii.E.Ar e))
+      (dss : List (List (Call (sigN l.imp.imports.length)))) (s : Store Nat) (t : Thread)
+      (s' : Store Nat) (t' : Thread) (H₁ H₂ : List (Call (sigN l.host.length)))
+      (m : (sigN l.host.length).Op),
+      List.Forall₂ (Silmaril.Wasm.Component.Reference.ImpRel l.imp Ii) cs dss →
+      Ii.Path P (.running f s t) (Silmaril.Wasm.Component.Reference.callMoves cs)
+        (.running f s' t') →
+      l.hostCalls dss.flatten = H₁ ++ ⟨m, none⟩ :: H₂ → H₂ = [] ∧ Trapped t'
+  | [], dss, _, _, _, _, H₁, H₂, m, hr, _, hH => by
+    cases hr
+    simp [HLinked2.hostCalls] at hH
+  | c :: cs, dss, s, t, s', t', H₁, H₂, m, hr, hp, hH => by
+    obtain ⟨ds, dss', hd, hr', rfl⟩ := List.forall₂_cons_left_iff.mp hr
+    rw [List.flatten_cons, hostCalls_append] at hH
+    have hsh := impRel_hostCalls hd
+    obtain ⟨e, n⟩ := c
+    simp only [Silmaril.Wasm.Component.Reference.callMoves] at hp
+    cases hp with
+    | cons h₁ hp =>
+      cases h₁ with
+      | ucall run callout op =>
+        cases hp with
+        | cons h₂ hp =>
+          cases h₂ with
+          | uret _ =>
+            rcases hsh with hn | ⟨y, hy, htr⟩
+            · rw [hn, List.nil_append] at hH
+              exact calls_refuse_trapped cs dss' _ _ s' t' H₁ H₂ m hr' hp hH
+            · rw [hy, List.singleton_append] at hH
+              rcases H₁ with _ | ⟨y', H₁'⟩
+              · simp only [List.nil_append, List.cons.injEq] at hH
+                obtain ⟨rfl, hrest⟩ := hH
+                have hn : n = .trap := htr rfl
+                subst hn
+                have ht := trapped_resume callout
+                rcases cs with _ | ⟨c', cs'⟩
+                · cases hr'
+                  cases hp
+                  exact ⟨by simpa [HLinked2.hostCalls] using hrest.symm, ht⟩
+                · obtain ⟨e', n'⟩ := c'
+                  simp only [Silmaril.Wasm.Component.Reference.callMoves] at hp
+                  have := path_trapped ht hp
+                  cases this
+              · simp only [List.cons_append, List.cons.injEq] at hH
+                exact calls_refuse_trapped cs dss' _ _ s' t' H₁' H₂ m hr' hp hH.2
+
+/-- **A trapped thread does not diverge host-free.** -/
+theorem not_divB_trapped {P : Profile} {s : Store Nat} {t : Thread} (ht : Trapped t) :
+    ¬ Linked2.DivB P s t := by
+  rintro ⟨g, hg0, hg⟩
+  obtain ⟨fr₀, E₀, he₀⟩ := ht
+  have key : ∀ k, ∃ (fr : Silmaril.Wasm.Execution.Core.Frame) (E : Ctx),
+      (g k).2 = .active fr (E.fill [.trap]) ∧ sizeOf (E.fill [.trap]) + k ≤ sizeOf (E₀.fill [.trap]) := by
+    intro k
+    induction k with
+    | zero => exact ⟨fr₀, E₀, by rw [hg0]; exact he₀, by simp⟩
+    | succ k ih =>
+      obtain ⟨fr, E, he, hle⟩ := ih
+      obtain ⟨f', code', hy, hs⟩ := hg k
+      rw [he] at hs
+      obtain ⟨-, -, E', hc⟩ := Silmaril.Wasm.Game.trapped_step hs
+      have hlt := Silmaril.Wasm.Game.trapped_step_lt hs
+      simp only at hc hlt
+      refine ⟨f', E', by rw [hy, ← hc], ?_⟩
+      rw [← hc]
+      omega
+  obtain ⟨_, _, _, hle⟩ := key (sizeOf (E₀.fill [.trap]) + 1)
+  omega
+
+/-- **A diverging round makes no refused host call.** -/
+theorem roundDivC_no_refuse {P : Profile} {u π : Store Nat} {j : Fin l.imp.exports.length}
+    {vs : List IVal} {c : List (Call (sigN l.host.length))}
+    (h : HLinked2.RoundDivC P l Ie Ii u π j vs c) {H₁ H₂ : List (Call (sigN l.host.length))}
+    {m : (sigN l.host.length).Op} (hc : c = H₁ ++ ⟨m, none⟩ :: H₂) : False := by
+  obtain ⟨⟨j₁, vs₁, f, cs, dss⟩, s, t, π₁, -, -, ⟨xs, -, -, -, hrel⟩, hp, -, hH, hdiv⟩ := h
+  simp only [Linked2.DivRound.instMoves] at hp hrel hH hdiv
+  subst hc
+  cases hp with
+  | cons h₁ hp =>
+    cases h₁ with
+    | call =>
+      obtain ⟨-, ht⟩ := calls_refuse_trapped cs dss _ _ s t H₁ H₂ m hrel hp hH
+      rcases hdiv with hd | ⟨e, _, _, _, _, _, _, hpe, _⟩ | ⟨q, c₀, _, _, hq0, _, hk⟩
+      · exact not_divB_trapped ht hd
+      · cases path_trapped ht hpe
+      · have hp0 := (hk 0).1
+        rw [hq0] at hp0
+        obtain ⟨e, n⟩ := c₀ 0
+        simp only [Silmaril.Wasm.Component.Reference.callMoves] at hp0
+        cases path_trapped ht hp0
+
+/-- **Every host call of host chatter is answered.** -/
+theorem roundInfC_no_refuse {P : Profile} {u π : Store Nat} {j : Fin l.imp.exports.length}
+    {vs : List IVal} {ω : ℕ → Call (sigN l.host.length)}
+    (h : HLinked2.RoundInfC P l Ie Ii u π j vs ω) (i : ℕ) : (ω i).2 ≠ none := by
+  obtain ⟨f, xs, q, c, ds, πs, N, -, -, -, -, -, hN0, hk, hunb⟩ := h
+  have seg : ∀ k, ∀ x ∈ l.hostCalls (ds k), x.2 ≠ none := by
+    intro k x hx hxn
+    obtain ⟨hp, hd, -, -⟩ := hk k
+    rcases impRel_hostCalls hd with hn | ⟨y, hy, htr⟩
+    · rw [hn] at hx; cases hx
+    · rw [hy, List.mem_singleton] at hx
+      subst hx
+      have htrap := htr hxn
+      have hp' := (hk (k + 1)).1
+      generalize c k = ck at hp htrap
+      generalize c (k + 1) = ck' at hp'
+      generalize q (k + 1 + 1) = q2 at hp'
+      generalize q (k + 1) = q1 at hp hp'
+      generalize q k = q0 at hp
+      obtain ⟨e, n⟩ := ck
+      simp only at htrap
+      subst htrap
+      simp only [Silmaril.Wasm.Component.Reference.callMoves] at hp
+      cases hp with
+      | cons h₁ hp =>
+        cases h₁ with
+        | ucall run callout op =>
+          cases hp with
+          | cons h₂ hp =>
+            cases h₂ with
+            | uret _ =>
+              cases hp
+              have ht := trapped_resume callout
+              obtain ⟨e', n'⟩ := ck'
+              simp only [Silmaril.Wasm.Component.Reference.callMoves] at hp'
+              cases path_trapped ht hp'
+  have pre : ∀ k, ∀ x ∈ streamTake ω (N k), x.2 ≠ none := by
+    intro k
+    induction k with
+    | zero => rw [hN0]; simp [streamTake]
+    | succ k ih =>
+      rw [(hk k).2.2.2]
+      intro x hx
+      rcases List.mem_append.1 hx with hx | hx
+      · exact ih x hx
+      · exact seg k x hx
+  obtain ⟨k, hk'⟩ := hunb (i + 1)
+  exact pre k (ω i) (List.mem_ofFn.2 ⟨⟨i, by omega⟩, rfl⟩)
+
 end Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj

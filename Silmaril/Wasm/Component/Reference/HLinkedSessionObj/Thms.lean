@@ -48,7 +48,9 @@ reference composition needs `HLinked2.Adequate` and typed calls, as `HLinked2.se
   is answered by a trap, the importer's thread resumes trapped, host-free steps keep it trapped
   (`trapped_step`), a trapped code has no callout and is a result only as a trap. So a refused
   host call is the last host call of its round and the outcome is a trap: hiding a forced refusal
-  (`compFin`) loses no host call.
+  (`compFin`) loses no host call. A diverging round makes no refused host call
+  (`HLinked2.roundDivC_no_refuse`: a trapped thread terminates and calls nothing), and every host
+  call of host chatter is answered (`HLinked2.roundInfC_no_refuse`).
 
 ## Not claimed (what remains)
 
@@ -63,9 +65,6 @@ reference composition needs `HLinked2.Adequate` and typed calls, as `HLinked2.se
   an answer of the same call (`not_hostRun_refuse_answer`). The concrete pair of components
   separating them (an importer that answers differently when its previous call trapped in a host
   call it then repeats) is **not proved** here.
-* The analogue of `refuse_last` for diverging rounds and host chatter (a refused host call
-  leaves B trapped, so it cannot be followed by a divergence or by more import calls): the same
-  core argument (`path_trapped`), not yet stated for `RoundDivC` and `RoundInfC`.
 * Nondeterministic profiles; the relation to the generic `SessionLink.linkS` of the host calls,
   the exporter and the importer.
 -/
@@ -179,6 +178,21 @@ theorem refuse_last {u π u' π' : Silmaril.Wasm.Execution.Core.Store Nat}
     {H₁ H₂ : List (Call (sigN l.host.length))} {m : (sigN l.host.length).Op}
     (hH : H = H₁ ++ ⟨m, none⟩ :: H₂) : H₂ = [] ∧ o = none :=
   Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.refuse_last h hH
+
+/-- **A diverging round makes no refused host call** (proved, every profile): a refusal leaves
+the importer trapped, and a trapped thread neither diverges host-free (`trapped_step_lt`) nor
+calls an import. -/
+theorem roundDivC_no_refuse {u π : Silmaril.Wasm.Execution.Core.Store Nat}
+    {j : Fin l.imp.exports.length} {vs : List IVal} {c : List (Call (sigN l.host.length))}
+    (h : RoundDivC P l Ie Ii u π j vs c) {H₁ H₂ : List (Call (sigN l.host.length))}
+    {m : (sigN l.host.length).Op} (hc : c = H₁ ++ ⟨m, none⟩ :: H₂) : False :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.roundDivC_no_refuse h hc
+
+/-- **Every host call of host chatter is answered** (proved, every profile). -/
+theorem roundInfC_no_refuse {u π : Silmaril.Wasm.Execution.Core.Store Nat}
+    {j : Fin l.imp.exports.length} {vs : List IVal} {ω : ℕ → Call (sigN l.host.length)}
+    (h : RoundInfC P l Ie Ii u π j vs ω) (i : ℕ) : (ω i).2 ≠ none :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.roundInfC_no_refuse h i
 
 end HLinked2
 
