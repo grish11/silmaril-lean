@@ -26,7 +26,8 @@ type by type, instead of assuming a fixed data model.
   integer ranges and `sizeof` constants it folds);
 * `impl`: the implementation-defined choices observations depend on (`Spec.Impl`: exit status,
   `abort` flushing);
-* `language`: the source language and dialect.
+* `language`: the source language and dialect — **unchecked metadata**: nothing compares it, and
+  it implies no support for that language revision.
 
 ABI argument passing (classification of parameters into registers) is **not** part of a profile:
 it is the ABI conformance shapes' business, and a numeric format says nothing about passing class.
@@ -82,8 +83,10 @@ structure Language where
 /-- **A target profile** (module docstring). -/
 structure Profile where
   name : String
+  /-- Unchecked metadata (module docstring): compared with nothing. -/
   language : Language
   dataModel : DataModel
+  /-- Numeric formats. The `float128` entry is unchecked metadata: no `Scalar` covers it. -/
   floatFormat : FloatKind → Option FloatFormat
   elaborator : Target.Config
   impl : Spec.Impl := {}
