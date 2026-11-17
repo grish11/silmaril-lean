@@ -79,7 +79,8 @@ theorem adler32_code : CodeOf F .symtab "adler32" adler32Code :=
 
 theorem relocs_empty : A0.relocs .dynamic = [] := by decide +kernel
 
-theorem untouched (c : Code) : Untouched F c := ⟨_, parses, by rw [relocs_empty]; simp⟩
+theorem untouched (c : Code) : Untouched F c :=
+  ⟨_, parses, by decide +kernel, by rw [relocs_empty]; simp⟩
 
 /-- `zlib-checksums` is `ET_EXEC`: it admits base `0` and no other. -/
 theorem placement_zero_ok : Placement F 0 :=
