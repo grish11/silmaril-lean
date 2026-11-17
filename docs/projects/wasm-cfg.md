@@ -956,11 +956,22 @@ The plain graph stays an over-approximation, and claims about it say so.
              Corollaries: `logged_of_valid`, `proj_of_valid`, `cfgFunDiv_iff_diverges_valid` and
              `cfgAns_{trap,vals,throw}_iff_valid`.
 
-             Still assumed: the checker's acceptance `StoreChkE (ehExt s.tags) s.funcs`. It is a
-             fragment restriction, because `chkE` accepts only `xInstr` (`xInstr_of_flatChkE`)
-             plus EH, while validated code may lie outside that set. Its completeness on
-             validated code inside the fragment is not proved. Host hypotheses are about the
-             host, not the module.
+             The checker's acceptance `StoreChkE (ehExt s.tags) s.funcs` is a fragment
+             restriction, because `chkE` accepts only `xInstr` (`xInstr_of_flatChkE`) plus EH.
+             It is now **discharged relative to validation and an explicit computable profile**
+             (`Wasm/Interp/CheckComplete`):
+             - `supported`/`storeSupportedB`: every flat instruction is in `xInstr`, and
+               structured control recurses;
+             - `chkE_complete`: every `InstrsOk` derivation in the profile is accepted, with the
+               validated arity;
+             - `storeChkE_of_storeOk (hs : StoreOk s) (hsup : StoreSupported s.funcs)`;
+             - the decision `storeChkE_of_storeSupportedB`;
+             - `typed_invocation_supported`.
+
+             Validated code outside the profile is rejected: `floatBody` (`f32.const 0; drop`)
+             validates in every context (`floatBody_ok`), the checker rejects it
+             (`floatBody_rejected`), and `not_storeChkE_floatBody`. Host hypotheses are about
+             the host, not the module.
           2. The instance session with imports through the CFG closure (NodeBridge, typed
              fragment with `ehExt tags`). Also replace `core3SemD`/`Comp.denUD` uses by the CFG
              closure, coordinated with the component owner.
