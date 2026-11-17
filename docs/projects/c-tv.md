@@ -57,7 +57,7 @@ end in `unsupported` would refine every source.
 
 ### The validator and what a verdict means
 
-`validate impl src tgt bounds` is a **sound semi-decision**: it explores both programs and checks
+`validate impl src tgt bounds` is a **sound partial validator** (a sound semi-decision, not a decision procedure): it explores both programs and checks
 that each target ending is covered by one source ending. `validated` and `refuted` are proved;
 `unknown` may hide a true refinement, even with exhaustive explorations, because coverage is ending
 by ending (a target with an unspecified exit value is covered only by an unspecified source exit
