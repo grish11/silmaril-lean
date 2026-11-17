@@ -27,12 +27,14 @@ PROVED (standard axioms; the per-header facts rewrite with `Pinned.import_<name>
   checked coverage of the import;
 * `zlibSolo_coverage`, `zlibHosted_coverage`, `probe_coverage`, `glibcString_coverage`: each
   header's claimable functions and its unsupported ones with the reasons;
-* `glibcMath_coverage`: glibc's `math.h` (libm) under the INTEGER fragment `sysvInt`: nothing is
-  claimable; all 438 non-builtin functions are refused because a parameter or the result is a
-  floating type (SSE/x87 classes), and the other 177 are clang's implicit builtins. This is
-  `sysvInt`'s scope, not a statement about libm: the `double`/`float` declarations are for
-  `sysvScalar` (#964/#983) and an SSE-capable machine (#994, stage 2), and `long double` is
-  X87 class, outside both.
+* `glibcMath_coverage`: glibc's `math.h` (libm) as pinned (`-std=gnu11`, default feature set;
+  `Pinned.glibcMath_reads`) under the INTEGER fragment `sysvInt`: nothing is claimable; all 438
+  explicit functions are refused because a parameter or the result is a floating type (SSE/x87
+  classes). The 177 `internal` entries are clang's implicit builtin declarations, each the
+  duplicate of one of those 438 (`Pinned.glibcMath_implicit_duplicates`), so no public name is
+  classified internal. This is `sysvInt`'s scope, not a statement about libm or the whole
+  `math.h` API: the `double`/`float` declarations are for `sysvScalar` with an SSE-capable
+  machine, `long double` is X87 class, outside both.
 -/
 
 @[expose] public section
