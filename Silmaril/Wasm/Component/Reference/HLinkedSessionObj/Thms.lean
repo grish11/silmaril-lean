@@ -6,6 +6,7 @@ public import Silmaril.Games.Abstract.StratLegal.Thms
 public import Silmaril.Games.Abstract.StratSession.Thms
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.Triple
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.Det
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.Trap
 
 /-!
 # Session objects of linked components with host imports: theorems
@@ -43,6 +44,11 @@ reference composition needs `HLinked2.Adequate` and typed calls, as `HLinked2.se
   and end in the same outcome and stores (B's moves by `strategy_deterministic`, A's answers by
   `retAt_det`/`trapAt_det`); hence the triples are store-deterministic, the hypothesis of
   `StratSession.threadS_eq_iff` together with `NoPlainTrap`.
+* **A refused host call ends the round in a trap** (`HLinked2.refuse_last`): the core import call
+  is answered by a trap, the importer's thread resumes trapped, host-free steps keep it trapped
+  (`trapped_step`), a trapped code has no callout and is a result only as a trap. So a refused
+  host call is the last host call of its round and the outcome is a trap: hiding a forced refusal
+  (`compFin`) loses no host call.
 
 ## Not claimed (what remains)
 
@@ -57,8 +63,9 @@ reference composition needs `HLinked2.Adequate` and typed calls, as `HLinked2.se
   an answer of the same call (`not_hostRun_refuse_answer`). The concrete pair of components
   separating them (an importer that answers differently when its previous call trapped in a host
   call it then repeats) is **not proved** here.
-* That a forced refusal always ends the round in a trap (B's core traps on a refused import), so
-  that hiding it loses nothing, is used by the definition and not yet proved.
+* The analogue of `refuse_last` for diverging rounds and host chatter (a refused host call
+  leaves B trapped, so it cannot be followed by a divergence or by more import calls): the same
+  core argument (`path_trapped`), not yet stated for `RoundDivC` and `RoundInfC`.
 * Nondeterministic profiles; the relation to the generic `SessionLink.linkS` of the host calls,
   the exporter and the importer.
 -/
@@ -163,6 +170,15 @@ theorem storeDet_compTripleS {o : GrowOracle} :
 theorem storeDet_compTripleO {o : GrowOracle} :
     StratThread.StoreDet (compTripleO (profile o) l Ie Ii) :=
   Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.storeDet_compTripleO
+
+/-- **A refused host call ends the round in a trap** (proved, every profile): in a one-round
+`SessSpec`, a host call answered by a refusal is the last host call, and the outcome is a trap. -/
+theorem refuse_last {u π u' π' : Silmaril.Wasm.Execution.Core.Store Nat}
+    {j : Fin l.imp.exports.length} {vs : List IVal} {o : Option (List IVal)}
+    {H : List (Call (sigN l.host.length))} (h : SessSpec P l Ie Ii u π [(j, vs)] [o] [H] u' π')
+    {H₁ H₂ : List (Call (sigN l.host.length))} {m : (sigN l.host.length).Op}
+    (hH : H = H₁ ++ ⟨m, none⟩ :: H₂) : H₂ = [] ∧ o = none :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.refuse_last h hH
 
 end HLinked2
 
