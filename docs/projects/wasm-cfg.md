@@ -531,7 +531,8 @@ The plain graph stays an over-approximation, and claims about it say so.
          tail calls bypassing handlers, uncaught exceptions as `Answer.throw`), trap stores
          preserved. Covered by the same route: `EvalLXPS` has the exception rules.
       3. **Discharging the oracle**: callees run by the CFG machine through a recursive closure
-         (H3), callee divergence included. Until H3 lands every CFG statement is oracle-backed.
+         (H3), callee divergence included. Done at closure level by `CfgClosure` (H3-4):
+         `cfgSessionTripleC` is CFG-defined and equals `sessionTripleXP`.
       4. Untyped stores and instructions outside the checked fragments: unsupported, excluded by
          hypotheses.
     - **Route for hosts, XP/EH and the oracle (H1–H3, coordinator-approved).** The CFG machine
@@ -890,7 +891,61 @@ The plain graph stays an over-approximation, and claims about it say so.
               closure's callees, including diverging and productive ones, now run on the CFG
               machine. Inside one body, the closed answers of `MLogDivL`/`CloseOk` and the
               diverging callees (`FunDivXP`) are still named by the native oracle. The closure
-              equality covers them, but they are not yet defined from the machine.
+              equality covers them, but they are not defined from the machine. `cfgSessionTriple`
+              and its theorems are kept with this scope; H3-4 removes the dependency.
+        - **H3-4, done: the self-contained CFG closure** (`Wasm/Cfg/CfgClosure`).
+          - Generic divergence over a call-answer predicate `A` and a callee divergence `D`:
+            `StepKG`, `InfKG`, `CalleeDivKG`, `TailDivKG`, `MDivLG`, `FunDivLG`, `MLogDivLG`.
+            `MachineLDiv`'s definitions are the instance at `CloseOk closedCallXP` and `FunDivXP`,
+            by `rfl` (`stepK_eq` … `mLogDivL_eq`).
+          - CFG instances. `cfgAns`: an internal call is answered when `([], ret b s₂)` is a
+            behaviour of `cfgEvFunXPS`. `cfgFunDiv`: the greatest fixpoint of
+            `D ↦ FunDivLG cfgAns D`, which gives mutual, coinductive callee divergence on the
+            machine. `LDLcfgC`, `cfgEvFunDXPC`, `cfgEvFunDXPSC` and `cfgSessionTripleC` are
+            defined over `MLogDivLG cfgAns cfgFunDiv`.
+          - Theorems, with no hypothesis:
+            - `cfgAns_eq : cfgAns = CloseOk closedCallXP`. The new direction is
+              `session_of_closeOk`: every `closedCallXP` answer (values, exception, or trap with
+              its store) is a session behaviour with the empty log, by least-fixpoint induction.
+            - `funDivXP_of_post`: every post-fixpoint of `FunDivLG (CloseOk closedCallXP)` lies
+              below `FunDivXP`, by native coinduction.
+            - `cfgFunDiv_eq : cfgFunDiv = FunDivXP`, and the fixpoint law `cfgFunDiv_iff`.
+            - `ldlcfgC_eq`, `cfgEvFunDC_eq`, and `cfgSessionTripleC_eq : cfgSessionTripleC =
+              sessionTripleXP`.
+          - Core, deterministic profile, under assumed typed-invocation hypotheses (`StoreOk`,
+            `InvokeOk`, `StoreChkE (ehExt tags)`, `TagsOk`; for answers also `HostTyped`,
+            `NativeHostSlice`, `HostSliceE`): `cfgFunDiv_iff_diverges`, and
+            `cfgAns_trap_iff`/`_vals_iff`/`_throw_iff` (host-free Core runs, exact store).
+        - **Definition dependency audit (H3).** These definitions name no native closed or
+          divergent object (`closedCallXP`, `FunDivXP`, `EvalDivXP`, `LogDivXP`, `InfLXP`,
+          `wasmEvFunXPS`, `sessionTripleXP`):
+          - `cfgHOpenXPS`, `cfgEvFunXPS`, `CfgPendLXPS`/`cfgEvPendXPS`, `CanonRead`,
+            `cfgHOpenXP`, `cfgEvFunXP`, `ProdL`, `InfLcfg`, `cfgEvInfNXP`;
+          - `cfgAns`, `cfgFunDiv`, `LDLcfgC`, `cfgEvFunDXPC`, `cfgEvFunDXPSC`,
+            `cfgSessionTripleC`;
+          - the generic `Shape.close`, `closeDLog`, `closeInfL`, `SubstPre`, `Descends` and
+            `DescPath`.
+
+          These do name native objects: `MachineL.StepK`, `InfK`, `CalleeDivK`, `TailDivK`,
+          `MDivL`, `FunDivL` and `MLogDivL` (`CloseOk closedCallXP`, `FunDivXP`), and through
+          `MLogDivL` also `LDLcfg`, `cfgEvFunDXP`, `cfgEvFunDXPS` and `cfgSessionTriple`. They
+          remain the scoped native instance.
+
+          Every machine step (`MStepL`) runs a straight-line segment by the open logged relation
+          `Abstract.EvalLXPS`. Its calls are open entries with arbitrary answers, and no oracle
+          answers them.
+        - **Remaining before all generic gaps can be called closed:**
+          1. Derive the typed-invocation hypotheses from module validation and instantiation,
+             instead of assuming them. These are `StoreOk`, `InvokeOk`, `StoreChkE (ehExt tags)`
+             and `TagsOk` in the Core corollaries, and `Ctx.Good`, `vs.length = ps.length` in
+             `MachineLClose.logged_of_session`/`proj_of_session`. Candidates are
+             `TypedCatValid` (`storeCtx_good`, `tagsOk_of_storeOk`, `arityResp_storeCtx`,
+             `bodyOk_counts`).
+          2. The instance session with imports through the CFG closure (NodeBridge, typed
+             fragment with `ehExt tags`). Also replace `core3SemD`/`Comp.denUD` uses by the CFG
+             closure, coordinated with the component owner.
+          3. Regressions: recursion through a host, trap-then-resume, and productive host
+             interaction.
         - Equality with the store-retaining session closure `wasmEvFunXPS`/`sessionTripleXP`
           (not the trap-store-erasing `wasmEvFunXP`): done (`cfgEvFun_eq`,
           `cfgSessionTriple_eq`).
