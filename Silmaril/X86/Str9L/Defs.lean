@@ -136,4 +136,19 @@ def step (F : FeatureSet) (exts : List Extension) (s : LState) : Option LState :
 abbrev stepOf (p : Silmaril.X86.Features.Profile) (s : LState) : Option LState :=
   step p.features (lanesWith p) s
 
+/-! ## Listed lane forms -/
+
+/-- The x87 decoder (`Fpu.decode`) rejects every byte string with `w`'s first byte: it is not
+`fwait` (`9B`), an FS override (`64`), a REX prefix or an escape opcode (`D8`–`DF`). -/
+def fpuNo : List Byte → Bool
+  | [] => false
+  | b :: _ => b != 0x9B#8 && b != 0x64#8 && !Silmaril.X86.Ext.isRex b &&
+    b.extractLsb' 3 5 != 0b11011#5
+
+/-- **No decoder of `Str9X` claims a fetch window that starts with `w`**, whatever follows:
+no layer of `Str9V` reads it (`Str9D.lowerBad`), it is not `std`/`cld` and shows a non-string
+opcode, and the x87 decoder rejects it (`fpuNo`). Checked by `decide` on the bytes of a form. -/
+def laneBad (w : List Byte) : Bool :=
+  Str9D.lowerBad w && (Str9D.decodeFlag w).isNone && !Str9D.strClaims w && fpuNo w
+
 end Silmaril.X86.Str9L
