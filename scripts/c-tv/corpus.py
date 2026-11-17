@@ -44,12 +44,13 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def run(cmd, cwd, stdin=None, timeout=600):
-    try:
-        p = subprocess.run(cmd, cwd=cwd, input=stdin, capture_output=True, timeout=timeout)
-        return p.returncode, p.stdout, p.stderr
-    except subprocess.TimeoutExpired:
-        return "timeout", b"", b""
+# Tool runs share the torture runner's launcher: a deadline over the whole lifecycle, the process
+# group killed at the end, outputs capped, no stdin.
+_tool_run = _torture().run
+
+
+def run(cmd, cwd, timeout=600):
+    return _tool_run(cmd, cwd, timeout)
 
 
 def version(cmd):

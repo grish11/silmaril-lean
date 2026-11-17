@@ -58,59 +58,164 @@ RUNTIME = os.path.join(ROOT, "benchmarks", "cerberus-elaboration", "oracle", "co
 TARGET = "x86_64-linux-gnu"
 
 
+# Caps of a tool run (gcc, clang, cerb-lean, cfront, ctv-pipeline): output is buffered up to these
+# sizes; beyond them the run stops and is reported as "output-limit".
+TOOL_STDOUT_BYTES, TOOL_STDERR_BYTES = 512 << 20, 4 << 20
+
+
 def run(cmd, cwd, timeout):
-    try:
-        p = subprocess.run(cmd, cwd=cwd, capture_output=True, timeout=timeout)
-        return p.returncode, p.stdout, p.stderr
-    except subprocess.TimeoutExpired:
+    """A tool run under `launch` (wall-clock deadline over the whole lifecycle, the process group
+    killed at the end, outputs capped). Returns (returncode | "timeout" | "output-limit", stdout, stderr)."""
+    res, out, err = launch(cmd, cwd, timeout, TOOL_STDOUT_BYTES, TOOL_STDERR_BYTES, limits=None)
+    if res["ended"] == "timeout":
         return "timeout", b"", b""
+    if res["ended"] in ("stdout-limit", "stderr-limit"):
+        return "output-limit", b"", b""
+    return (res["code"] if res["ended"] == "exit" else -res["code"]), out, err
 
 
 # Caps of a native test run (torture programs may loop, allocate or print without bound).
 NATIVE = {"timeoutSeconds": 10, "cpuSeconds": 10, "addressSpaceBytes": 1 << 30, "fileSizeBytes": 16 << 20,
-          "stdoutBytes": 1 << 20}
+          "stdoutBytes": 1 << 20, "stderrBytes": 64 << 10}
+
+# The resource limits are applied by an exec wrapper, not by `preexec_fn` (which is unsafe from the
+# runner's worker threads): a fresh interpreter sets them and replaces itself with the program.
+# The interpreter ignores SIGPIPE and SIGXFSZ, and an exec keeps ignored signals ignored, so the
+# wrapper restores their default actions first. The CPU limit's hard value is one second above the
+# soft one, so that the soft limit's SIGXCPU arrives first.
+_LIMIT_WRAPPER = (
+    "import os, resource, signal, sys\n"
+    "for s in (signal.SIGPIPE, signal.SIGXFSZ, signal.SIGXCPU):\n"
+    "    signal.signal(s, signal.SIG_DFL)\n"
+    "cpu, asz, fsz = (int(x) for x in sys.argv[1:4])\n"
+    "resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu + 1))\n"
+    "for r, v in ((resource.RLIMIT_AS, asz), (resource.RLIMIT_FSIZE, fsz), (resource.RLIMIT_CORE, 0)):\n"
+    "    resource.setrlimit(r, (v, v))\n"
+    "os.execv(sys.argv[4], sys.argv[4:])\n")
+
+
+def launch(cmd, cwd, timeout, out_cap, err_cap, limits=None):
+    """Run `cmd` in a new session and process group (`start_new_session`, no `preexec_fn`), with
+    stdin from /dev/null, reading stdout and stderr with `select` up to `out_cap`/`err_cap` bytes,
+    under one wall-clock deadline covering the whole lifecycle (output, end of file, and the wait for
+    the process). On a deadline or a cap the whole group is killed; after a normal end the group is
+    killed too, so no child of the program outlives it (a descendant that starts its own session
+    escapes; nothing here detects it). `limits` = (cpu seconds, address-space bytes, file-size bytes)
+    are applied by the exec wrapper.
+
+    Returns ({"ended": "exit" | "signal" | "cpu-limit" | "fsize-limit" | "timeout" | "stdout-limit"
+              | "stderr-limit", "code" (exit status, or the signal number, also for a limit),
+              "cpuSeconds", "groupKilledAfterEnd" (members of the group were still alive after the
+              program ended), "groupGone" (no member left after the kill)}, stdout, stderr).
+    A limit is recognised by its signal: SIGXCPU (or SIGKILL with the CPU time at the limit) is
+    "cpu-limit", SIGXFSZ is "fsize-limit"; the signal stays in "code" as the evidence."""
+    import select, signal
+    argv = [sys.executable, "-I", "-c", _LIMIT_WRAPPER, *(str(x) for x in limits), *cmd] if limits else cmd
+    p = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, start_new_session=True)
+    deadline = time.monotonic() + timeout
+    fo, fe = p.stdout.fileno(), p.stderr.fileno()
+    bufs = {fo: bytearray(), fe: bytearray()}
+    caps = {fo: (out_cap, "stdout-limit"), fe: (err_cap, "stderr-limit")}
+    open_fds, ended, status, usage = set(bufs), None, None, None
+    while open_fds and ended is None:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            ended = "timeout"; break
+        ready, _, _ = select.select(list(open_fds), [], [], min(left, 0.1))
+        for fd in ready:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                open_fds.discard(fd); continue
+            bufs[fd] += chunk
+            if len(bufs[fd]) > caps[fd][0]:
+                ended = caps[fd][1]; break
+        if not ready and status is None:
+            # The program may have ended while a descendant keeps its outputs open: once it has
+            # ended, drain what is already in the pipes (it may have written just before ending)
+            # and stop reading.
+            pid, st, ru = os.wait4(p.pid, os.WNOHANG)
+            if pid:
+                status, usage = st, ru
+                while open_fds and ended is None:
+                    ready, _, _ = select.select(list(open_fds), [], [], 0)
+                    if not ready:
+                        break
+                    for fd in ready:
+                        chunk = os.read(fd, 65536)
+                        if not chunk:
+                            open_fds.discard(fd); continue
+                        bufs[fd] += chunk
+                        if len(bufs[fd]) > caps[fd][0]:
+                            ended = caps[fd][1]; break
+                break
+    # The process itself (its outputs closed or not) must also end before the deadline.
+    while ended is None and status is None:
+        pid, st, ru = os.wait4(p.pid, os.WNOHANG)
+        if pid:
+            status, usage = st, ru; break
+        if time.monotonic() >= deadline:
+            ended = "timeout"; break
+        time.sleep(0.02)
+    killed_after_end = False
+    try:
+        os.killpg(p.pid, signal.SIGKILL)
+        killed_after_end = status is not None
+    except (ProcessLookupError, PermissionError):
+        pass
+    if status is None:
+        _, status, usage = os.wait4(p.pid, 0)
+    p.returncode = os.waitstatus_to_exitcode(status)
+    p.stdout.close(); p.stderr.close()
+    # Wait (briefly) until the killed group is gone, so that nothing of the run outlives it.
+    group_gone = False
+    for _ in range(100):
+        try:
+            os.killpg(p.pid, 0)
+        except ProcessLookupError:
+            group_gone = True; break
+        time.sleep(0.02)
+    cpu = round(usage.ru_utime + usage.ru_stime, 3)
+    code = None
+    if ended is None:
+        if os.WIFSIGNALED(status):
+            sig = os.WTERMSIG(status)
+            code = sig
+            # A limit shows as a signal: SIGXCPU at the soft CPU limit, SIGKILL at the hard one (equal
+            # here), SIGXFSZ at the file-size limit. They are reported as the limit, with the signal.
+            if limits and (sig == signal.SIGXCPU or (sig == signal.SIGKILL and cpu >= limits[0])):
+                ended = "cpu-limit"
+            elif limits and sig == signal.SIGXFSZ:
+                ended = "fsize-limit"
+            else:
+                ended = "signal"
+        else:
+            ended, code = "exit", os.WEXITSTATUS(status)
+    return ({"ended": ended, "code": code, "cpuSeconds": cpu, "groupKilledAfterEnd": killed_after_end,
+             "groupGone": group_gone},
+            bytes(bufs[fo]), bytes(bufs[fe]))
 
 
 def run_native(exe, cwd):
-    """Run a test binary under NATIVE's caps. Returns how it ended and what it printed, by size and
-    SHA-256 only (stdout is never parsed): {"ended": "exit"|"signal"|"timeout"|"stdout-limit",
-    "code": exit status or signal number, "stdoutBytes", "stdoutSha256"}."""
-    import resource, signal
+    """Run a test binary under NATIVE's caps (`launch`). Returns how it ended, by size and SHA-256 of
+    what it printed (stdout is never parsed), and the stdout itself (capped):
+    ({"ended", "code", "cpuSeconds", "groupKilledAfterEnd", "stdoutBytes", "stdoutSha256"}, stdout).
+    An address-space limit has no signal of its own: a program whose allocation fails does whatever
+    it does then, and is reported by that ending."""
+    res, out, _ = launch([exe], cwd, NATIVE["timeoutSeconds"], NATIVE["stdoutBytes"], NATIVE["stderrBytes"],
+                         limits=(NATIVE["cpuSeconds"], NATIVE["addressSpaceBytes"], NATIVE["fileSizeBytes"]))
+    out = out[:NATIVE["stdoutBytes"]]
+    res.update(stdoutBytes=len(out), stdoutSha256=hashlib.sha256(out).hexdigest())
+    return res, out
 
-    def limits():
-        resource.setrlimit(resource.RLIMIT_CPU, (NATIVE["cpuSeconds"], NATIVE["cpuSeconds"]))
-        resource.setrlimit(resource.RLIMIT_AS, (NATIVE["addressSpaceBytes"], NATIVE["addressSpaceBytes"]))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (NATIVE["fileSizeBytes"], NATIVE["fileSizeBytes"]))
-        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-        os.setsid()
-    p = subprocess.Popen([exe], cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                         stderr=subprocess.DEVNULL, preexec_fn=limits)
-    out, ended, deadline = bytearray(), None, time.time() + NATIVE["timeoutSeconds"]
-    import select
-    while True:
-        left = deadline - time.time()
-        if left <= 0:
-            ended = "timeout"; break
-        r, _, _ = select.select([p.stdout], [], [], min(left, 0.5))
-        if r:
-            chunk = os.read(p.stdout.fileno(), 65536)
-            if not chunk:
-                break
-            out += chunk
-            if len(out) > NATIVE["stdoutBytes"]:
-                ended = "stdout-limit"; break
-    if ended:
-        try:
-            os.killpg(p.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    rc = p.wait()
-    out = bytes(out[:NATIVE["stdoutBytes"]])
-    if ended is None:
-        ended, code = ("signal", -rc) if rc < 0 else ("exit", rc)
-    else:
-        code = None
-    return {"ended": ended, "code": code, "stdoutBytes": len(out), "stdoutSha256": hashlib.sha256(out).hexdigest()}, out
+
+def failure(rc, so, se):
+    """Why a tool run failed: its timeout or output cap, or its reject message."""
+    if rc == "timeout":
+        return f"timeout ({OPTIONS['toolTimeoutSeconds']} s)"
+    if rc == "output-limit":
+        return f"output beyond the tool output cap ({TOOL_STDOUT_BYTES >> 20} MiB stdout, {TOOL_STDERR_BYTES >> 20} MiB stderr)"
+    return reason(so + se)
 
 
 def reason(out):
@@ -141,20 +246,26 @@ def max_symbol(texts):
     return best + 1
 
 
-def one(case, root, binary, sums, timeouts):
+def head(case, root, sums):
+    """A row's facts about the source itself: the SHA-256 of the bytes actually run, checked against
+    the manifest during the run, and the compileOnly / targetConditional flags."""
     row = {"case": case}
-    src = os.path.join(root, case)
-    data = open(src, "rb").read()
-    # The bytes actually run are checked against the manifest, case by case, during the run.
+    data = open(os.path.join(root, case), "rb").read()
     row["sha256"] = hashlib.sha256(data).hexdigest()
     row["sourceVerified"] = row["sha256"] == sums[case]
-    if not row["sourceVerified"]:
-        row["status"] = "not-attempted"; row["why"] = "SHA-256 differs from the manifest"; return row
     text = data.decode(errors="replace")
     if case.startswith("compile/"):
         row["compileOnly"] = True
     if re.search(r"^\s*#\s*(if|ifdef|ifndef|elif)\b.*\b__(ia64|hppa|hpux|i386|x86_64|aarch64|arm|mips|powerpc|sparc|s390|riscv|alpha|sh|vax|m68k|avr|msp430)\w*__", text, re.M):
         row["targetConditional"] = True
+    return row
+
+
+def one(case, root, binary, sums, timeouts):
+    row = head(case, root, sums)
+    src = os.path.join(root, case)
+    if not row["sourceVerified"]:
+        row["status"] = "not-attempted"; row["why"] = "SHA-256 differs from the manifest"; return row
     stem = os.path.splitext(src)[0]
     if os.path.exists(stem + ".x") or case.startswith("execute/builtins/"):
         row["status"] = "harness-needed"
@@ -171,7 +282,7 @@ def one(case, root, binary, sums, timeouts):
         if rc == 0:
             open(os.path.join(tmp, "cerberus.tail.sexp"), "wb").write(so); routes.append("cerberus")
         else:
-            why["cerberus"] = "timeout" if rc == "timeout" else reason(so + se)
+            why["cerberus"] = failure(rc, so, se)
         rc, so, se = run(["clang", "-x", "c", "-std=gnu11", "-target", TARGET, "-w", "-Xclang", "-ast-dump=json", "-fsyntax-only", "t.i"], tmp, timeouts)
         if rc == 0:
             open(os.path.join(tmp, "ast.json"), "wb").write(so)
@@ -179,9 +290,9 @@ def one(case, root, binary, sums, timeouts):
             if rc == 0:
                 open(os.path.join(tmp, "clang.tail.sexp"), "wb").write(so); routes.append("clang")
             else:
-                why["clang"] = "timeout" if rc == "timeout" else reason(so + se)
+                why["clang"] = failure(rc, so, se)
         else:
-            why["clang"] = "clang: " + ("timeout" if rc == "timeout" else se.decode(errors="replace").strip().splitlines()[0][:300] if se.strip() else str(rc))
+            why["clang"] = "clang: " + (failure(rc, so, se) if isinstance(rc, str) else se.decode(errors="replace").strip().splitlines()[0][:300] if se.strip() else str(rc))
         row["routes"] = why
         if not routes:
             row["status"] = "frontend-rejected"; return row
@@ -277,6 +388,8 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "benchmarks", "gcc-torture", "tv-report.json"))
     # (the stored report is gzip -n -9 of this file: benchmarks/gcc-torture/tv-report.json.gz)
     a = ap.parse_args()
+    OPTIONS["toolTimeoutSeconds"] = a.timeout
+    OPTIONS["toolStdoutBytes"], OPTIONS["toolStderrBytes"] = TOOL_STDOUT_BYTES, TOOL_STDERR_BYTES
     man = json.load(open(MANIFEST))
     sums = {i["path"]: i["sha256"] for i in man["inputs"]}
     cases = man["cases"]
@@ -292,7 +405,7 @@ def main():
             try:
                 rows[c] = f.result()
             except Exception as e:
-                rows[c] = {"case": c, "status": "tool-error", "why": repr(e)[:300]}
+                rows[c] = {**head(c, a.root, sums), "status": "tool-error", "why": repr(e)[:300]}
             if i % 200 == 0:
                 print(f"{i}/{len(chosen)} {time.time() - start:.0f}s", file=sys.stderr, flush=True)
     ordered = [rows[c] for c in cases]
@@ -306,7 +419,6 @@ def main():
     summary["profileIncoherent"] = sum(1 for r in ordered if r.get("profileIncoherent"))
     summary["ubReached"] = sum(1 for r in ordered if r.get("ubReached"))
     summary["coreAllowsPass"] = {v: sum(1 for r in ordered if v in (r.get("coreAllowsPass") or {}).values()) for v in ["admitted", "rejected", "unknown"]}
-    OPTIONS["toolTimeoutSeconds"] = a.timeout
     rep = {"schema": "silmaril.c-tv.gcc-torture.v1",
            "manifest": {"path": "benchmarks/gcc-torture/manifest.json",
                         "sha256": hashlib.sha256(open(MANIFEST, "rb").read()).hexdigest(),

@@ -11,10 +11,16 @@ benchmarks/gcc-torture/manifest.json and tv-report.json.gz and checks that
   manifest case, in manifest order;
 * every row was verified against the manifest during the run (`sourceVerified`, the same
   SHA-256), unless it is `not-attempted`;
-* every status is a known one and agrees with the row's facts (a `cross-validated` row has two
-  validated, UB-free pairs and no blocked route; a `cross-validated-ub` one is not UB-free; a
-  `no-main` one is a compile/ case; ...), only known flags occur, and the summary is the count of
-  the rows (summing to the denominator).
+* every status is a known one and agrees with the row's facts (a `cross-validated` row has both
+  route pairs validated, both routes' endings, no blocked route and no UB; a `cross-validated-ub`
+  one has `ubReached`; a `no-main` one is a compile/ case; ...), flags have their types, only
+  known fields occur, and the summary (statuses and flag counts) is the count of the rows.
+
+**What it cannot do.** It checks invariants of a stored report; it re-runs nothing and does not
+authenticate the report. A forged report that is structurally valid passes it. The evidence for a
+verdict is the recorded run (`scripts/c-tv/torture.py`, its pinned tools and options), which
+anyone with the pinned GCC checkout can repeat; this check only keeps the stored report
+self-consistent and tied to the manifest.
 """
 import gzip, hashlib, json, os, sys
 
@@ -28,7 +34,10 @@ STATUSES = ["not-attempted", "harness-needed", "frontend-rejected", "elaborator-
             "timeout", "tool-error"]
 FIELDS = {"case", "status", "why", "routes", "sha256", "sourceVerified", "compileOnly", "targetConditional",
           "blocked", "native", "endings", "profileIncoherent", "ubReached", "coreAllowsPass", "pairs"}
-ENDED = {"exit", "signal", "timeout", "stdout-limit", "build-failed"}
+ENDED = {"exit", "signal", "cpu-limit", "fsize-limit", "timeout", "stdout-limit", "stderr-limit", "build-failed"}
+PAIRS = {"cerberus->clang", "clang->cerberus"}
+ROUTES = {"cerberus", "clang"}
+BOOLS = ("sourceVerified", "compileOnly", "targetConditional", "ubReached")
 
 errors = []
 
@@ -83,19 +92,32 @@ def main():
         else:
             need("why" in r, f"{c}: not-attempted without a reason")
         need(r.get("compileOnly", False) == c.startswith("compile/") or st == "not-attempted", f"{c}: compileOnly flag")
+        for b in BOOLS:
+            need(b not in r or isinstance(r[b], bool), f"{c}: {b} is not a boolean")
+        need("blocked" not in r or (isinstance(r["blocked"], list) and r["blocked"] and all(isinstance(x, str) for x in r["blocked"])),
+             f"{c}: blocked is not a nonempty list of reasons")
+        need("profileIncoherent" not in r or (isinstance(r["profileIncoherent"], list) and r["profileIncoherent"]), f"{c}: profileIncoherent")
         if "native" in r:
             need(c.startswith("execute/"), f"{c}: native run of a compile/ case")
             need(r["native"].get("ended") in ENDED, f"{c}: native ending {r['native']}")
-            need(r["native"].get("ended") not in ("exit", "signal") or isinstance(r["native"].get("code"), int), f"{c}: native code")
+            need(r["native"].get("ended") not in ("exit", "signal", "cpu-limit", "fsize-limit") or isinstance(r["native"].get("code"), int), f"{c}: native code")
         pairs = r.get("pairs", {})
+        endings = r.get("endings")
+        need(endings is None or (isinstance(endings, dict) and set(endings) <= ROUTES and endings), f"{c}: endings are not per route")
+        need("pairs" not in r or set(pairs) <= PAIRS, f"{c}: unknown pair keys {sorted(pairs)}")
+        if st in ("explored", "gap", "unknown", "no-main", "refuted", "cross-validated", "cross-validated-ub", "cross-validated-blocked"):
+            need(isinstance(endings, dict) and endings, f"{c}: {st} without the explored routes' endings")
         if st == "harness-needed":
             need("why" in r, f"{c}: harness-needed without a reason")
         if st == "no-main":
             need(c.startswith("compile/"), f"{c}: no-main outside compile/")
         if st in ("cross-validated", "cross-validated-ub", "cross-validated-blocked"):
-            need(len(pairs) == 2 and all(v == "validated" for v in pairs.values()), f"{c}: {st} without two validated pairs")
+            need(set(pairs) == PAIRS and all(v == "validated" for v in pairs.values()), f"{c}: {st} without both validated route pairs")
+            need(isinstance(endings, dict) and set(endings) == ROUTES, f"{c}: {st} without both routes' endings")
         if st == "cross-validated":
             need(not r.get("blocked") and not r.get("ubReached"), f"{c}: cross-validated with a blocked route or UB")
+        if st == "cross-validated-ub":
+            need(r.get("ubReached") is True, f"{c}: cross-validated-ub without ubReached")
         if st == "cross-validated-blocked":
             need(bool(r.get("blocked")), f"{c}: cross-validated-blocked without a blocked route")
         if st == "refuted":
@@ -105,6 +127,12 @@ def main():
     counts = {s: sum(1 for r in rows if r["status"] == s) for s in STATUSES}
     need(all(summary.get(s, 0) == counts[s] for s in STATUSES), "summary is not the count of the rows")
     need(sum(counts.values()) == DENOMINATOR, "statuses do not sum to the denominator")
+    flag = lambda k: sum(1 for r in rows if r.get(k))
+    for k in ("blocked", "profileIncoherent", "ubReached"):
+        need(summary.get(k) == flag(k), f"summary.{k} is not the count of the rows")
+    for v in ("admitted", "rejected", "unknown"):
+        need(summary.get("coreAllowsPass", {}).get(v) == sum(1 for r in rows if v in (r.get("coreAllowsPass") or {}).values()),
+             f"summary.coreAllowsPass.{v} is not the count of the rows")
     for part in ("compile/", "execute/"):
         need(all(summary[part].get(s, 0) == sum(1 for r in rows if r["status"] == s and r["case"].startswith(part)) for s in STATUSES),
              f"summary {part} is not the count of the rows")
