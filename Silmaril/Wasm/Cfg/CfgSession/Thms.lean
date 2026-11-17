@@ -34,6 +34,14 @@ Core 3.0 adequacy with hosts and exceptions (`wasmEvFunXPS_trap_iff`, `wasmEvFun
   `MachineL.pending_iff`, `forward_tail` and `backward`, and `cfgHOpen_eq` for the closure that
   resolves the logs.
 
+* **`cfgHOpenX_eq`**, **`cfgEvFunX_eq`** (the canonical, trap-erasing module): the open module
+  `cfgHOpenXP`, run on the logged machine with its session logs read as canonical logs
+  (`CanonRead`: the reading `OCall.toS`, or a final callee-trap answer read as a cut call, for
+  every answer longer than the callee's result arity), is `Abstract.wasmHOpenXP`, so
+  `cfgEvFunXP = Shape.close cfgHOpenXP` is `Abstract.wasmEvFunXP`. The proof uses the machine
+  theorems as for `cfgHOpen_eq`, and the exact correspondence of session and canonical runs
+  (`Abstract.evalLXPS_canonical_cut`, `Abstract.evalLXPh_session_cut`).
+
 Not yet here: the CFG versions of the session triple's divergent and productive parts
 (`sessionTripleXP`), via `MachineL.div_iff`/`logDiv_machine`/`machine_logDiv` and
 `MachineL.prodL_iff` (`docs/projects/wasm-cfg.md`).
@@ -67,5 +75,22 @@ theorem cfgEvPend_eq :
     (cfgEvPendXPS : Silmaril.Games.Abstract.Pending (Abstract.wasmHostSig H)
       (Execution.Core.Store H) (Nat × List Execution.Core.Val)) = Abstract.wasmEvPendXPS :=
   Proofs.CfgSession.cfgEvPend_eq
+
+/-- **The canonical CFG open module is the canonical open module.** For every function, store
+and arguments, the trap-erasing module run on the logged machine (`cfgHOpenXP`, machine logs read
+by `CanonRead`) has the behaviours of `Abstract.wasmHOpenXP`: finished Wasm bodies (their logs,
+including a final callee-trap answer read as a cut call with every answer longer than the
+callee's result arity, and their ends, a trap's store erased), pending tail calls with their
+answers, and host calls. -/
+theorem cfgHOpenX_eq :
+    (cfgHOpenXP : (Abstract.wasmHShape H).OpenMod) = Abstract.wasmHOpenXP :=
+  Proofs.CfgSession.cfgHOpenX_eq
+
+/-- **The canonical CFG closure is the canonical closure**: `cfgEvFunXP`, which is
+`Shape.close cfgHOpenXP`, is `Abstract.wasmEvFunXP`. -/
+theorem cfgEvFunX_eq :
+    (cfgEvFunXP : Silmaril.Games.Abstract.AFun (Abstract.wasmHostSig H) (Execution.Core.Store H)
+      (Nat × List Execution.Core.Val) (List Execution.Core.Val ⊕ Nat)) = Abstract.wasmEvFunXP :=
+  Proofs.CfgSession.cfgEvFunX_eq
 
 end Silmaril.Wasm.Cfg.CfgSession
