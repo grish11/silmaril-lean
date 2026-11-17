@@ -22,6 +22,9 @@ PROVED (standard axioms), proofs in `Silmaril.Proofs.Machine.Abi.Conformance.Bas
 * `callModelOf_carried`: the call relation carries the state the integer machine lacks (vectors,
   x87, direction flag, MXCSR, x87 control word, the FFI copy of the thread pointer). The return
   obligations about that state hold by the model; `Faithful` is what makes them true of real x86;
+* `not_headerSatPartial_nil`, `HeaderSatAvailable.total`: **coverage cannot be hidden**: nothing
+  claimed is not partial header satisfaction, and a claimed function in `.safe` mode rules out
+  available (hence complete) satisfaction;
 * `HeaderSatPartial.conforms`: partial header satisfaction gives each claimed function's row;
 * `sysvInt_lower_examples`: what the INTEGER fragment lowers and refuses, and that a coverage's
   `unsupported` exclusions are checked against the lowering.
@@ -41,7 +44,10 @@ variable {A : AbiDef} {M : Mach} {mode : Mode} {hdr : HeaderSrc} {f : String} {p
 theorem conforms_of_strict {S' : Spec MState} (hs : S'.Strict M)
     (hdecl : Declares A hdr f p) (hext : c.off + c.len ≤ c.bytes.length)
     (hnv : ∃ a s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory)
-    (hen : ∀ a mem, S.pre a mem → ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory)
+    (hen : ∀ a mem, S.pre a mem → (∀ x, S.objects a mem x → c.Outside x) →
+      ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory ∧
+        (∀ x, S.objects a s.machine.memory x ↔ S.objects a mem x) ∧
+        ∀ x, S.objects a mem x → s.machine.memory.bytes[x]? = mem.bytes[x]?)
     (habi : ∀ a s, Admit A M p c frame S a s → AbiEntry (M.core s.machine) (M.mem s.machine))
     (hentry : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory → S'.entry s.machine)
     (hgood : ∀ a s t, Admit A M p c frame S a s → S.pre a s.machine.memory →
@@ -62,6 +68,15 @@ theorem Conforms.onRef {R : Ref} (hf : Faithful R M) (h : Conforms A M mode hdr 
     (∀ t ∈ R.callModel M s, Good A p frame S a s t) ∧
       (mode = .total → (R.callModel M s).Nonempty) :=
   Silmaril.Proofs.Machine.Abi.Conformance.Conforms.onRef hf h ad pre
+
+theorem not_headerSatPartial_nil {hdr : HeaderSrc} {cov : Coverage}
+    {impl : String → Option (Impl A)} (h : cov.claimed = []) : ¬ HeaderSatPartial A M hdr cov impl :=
+  fun hs => hs.1 h
+
+theorem HeaderSatAvailable.total {hdr : HeaderSrc} {cov : Coverage}
+    {impl : String → Option (Impl A)} (h : HeaderSatAvailable A M hdr cov impl) {f : String}
+    (hf : f ∈ cov.claimed) {i : Impl A} (hi : impl f = some i) : i.mode = .total :=
+  let ⟨_, hj, hm⟩ := h.2.2 f hf; Option.some.inj (hi.symm.trans hj) ▸ hm
 
 theorem Conforms.exists_good (h : Conforms A M .total hdr f p c frame S) :
     ∃ a s t, Admit A M p c frame S a s ∧ t ∈ callModelOf M s ∧ Good A p frame S a s t :=
