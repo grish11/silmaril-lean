@@ -24,20 +24,24 @@ predicate, and no signature is attached to a symbol by hand:
 | ingredient | what fixes it |
 | --- | --- |
 | the ABI | `A : AbiDef`: a versioned identity and source, a data model, the C → ABI lowering (`lower`, which refuses what it does not support), and a `Convention`. The convention gives `Entry` (argument placement, stack alignment, return address, direction flag, x87 mode, `%al` for varargs), `Return` (return address, `rsp + 8`, callee-saved registers, control state, FFI thread pointer) and `ResultAt` (result read-back) |
-| the prototype | `declared`: the header files parse (`Data.Layout.Header.read`, which refuses incompatible redeclarations) to a header declaring `f` with a C prototype that `A.lower` maps to `p` |
+| the prototype | `declared`: the header files parse (`Data.Layout.Header.read`, which refuses incompatible redeclarations) to a header declaring `f` with a C prototype that `A.lower` maps to `p`. The prototype is a function of the header (`HeaderSrc.proto?`): the exact parsed one, with signedness and widths; its qualifiers are `HeaderSrc.quals?` (they do not change the lowering) |
 | the code | `code : Code`: the bytes, where they are loaded, the entry offset, the function's extent, the read-only data it reads and the image's address ranges |
 | admissible calls | `Admit`: a live machine state; `A.conv.Entry p a s`; the code and data placed, with the return address outside the code; the stack `A` gives the callee (`frame` bytes below `rsp`, the return address, the argument area); the FFI thread pointer equal to the machine's (`fsCoherent`). The stack must be readable, writable, and apart from the code, the data, the image and the call's caller-visible objects (`S.objects`). Also `S.pre a mem`: the C precondition, on the arguments and memory only |
 | execution | `callModelOf M`: the **first return** of `M` (`FnContract.FirstReturn`) |
 | no stuck state | `safe`: from every admitted call, every state before the return takes a step on `M` (`NoStuck`). Code using an instruction `M` does not model is stuck, so it does not conform in either mode (`Proofs….Negative`) |
-| return | `Good`: `Return`; a result with `ResultAt` and `S.post`; memory written only inside `S.writes` or `Owned` (the `frame` bytes below the entry `rsp`, which contain the red zone; the argument area; `A.owned`); the machine's FS base unchanged |
-| non-vacuity | `nonvacuous`: some admitted call exists |
+| return | `Good`: `Return`; a result with `ResultAt` and `S.post`; memory written only inside `S.writes` or `Owned`: bounded memory that `Stack` admits (the row's `frame` bytes `[rsp − frame, rsp)`, which contain the red zone when `frame ≥ 128`; the argument area; `A.owned`). Nothing else below `rsp` is owned; the machine's FS base unchanged |
+| non-vacuity | `nonvacuous`: some admitted call exists; `enterable`: every argument tuple and memory the precondition admits has an admitted call (the precondition, shown with every row, is what restricts the claim) |
 | mode | `.total`: every admitted call returns. `.safe`: partial correctness, divergence allowed, stuck states not |
 
-**The machine is a restricted model.** `M : Mach` is any x86-64 segment machine on the integer
-state, and the standard ones (`Open`, `Open9`) decode an integer subset of x86-64. A row is a
-statement about `M`. `Ffi.State`'s vector, x87, direction-flag, MXCSR and x87-control state is
-carried unchanged by `callModelOf` (`Thms.callModelOf_carried`), so `Return`'s obligations about
-it hold *by the model*. Those obligations are about real x86 only through `Faithful R M`: on a
+**The machine is a restricted model, and `sysvInt` a restricted fragment.** `M : Mach` is any
+x86-64 segment machine on the integer state, and the standard ones (`Open`, `Open9`) decode an
+integer subset of x86-64. A row is a statement about `M`. `sysvInt` is the INTEGER fragment of
+the System V psABI (fixed-arity 4- and 8-byte integers and pointers), not the whole psABI.
+
+**FP, vector and control state are preserved by construction, not proved.** `Ffi.State`'s
+vector, x87, direction-flag, MXCSR and x87-control state is carried unchanged by `callModelOf`
+(`Thms.callModelOf_carried`), so `Return`'s obligations about it hold *by the model*: a row
+proves nothing about them for real x86. Those obligations are about real x86 only through `Faithful R M`: on a
 reference machine `R`, each step `M` takes is the same step and leaves that state unchanged.
 `Thms.Conforms.onRef` transfers a row to `R` under that assumption; nothing here proves it of
 hardware. Because stuck states are excluded, an instruction outside `M` (SSE, x87, `std`,
@@ -52,7 +56,9 @@ contracts the explicit assumptions of every row stated on it.
 - `HeaderSatPartial`: a nonempty claimed part, every other declaration excluded for a checked
   reason (`unsupported`: the lowering refuses it; `absent`/`unclaimed`: checked against the
   file by the ELF form).
-- `HeaderSatFull`: no `unclaimed` declaration, and every claimed function total.
+- `HeaderSatAvailable`: no `unclaimed` declaration, every claimed function total; `absent`
+  declarations (compatible version gaps) allowed.
+- `HeaderSatComplete`: available, with nothing absent: the whole header.
 
 See `docs/projects/abi-conformance.md`.
 -/
@@ -293,7 +299,12 @@ structure HeaderSrc where
 def HeaderSrc.proto? (hdr : HeaderSrc) (f : String) : Option CProto :=
   (Silmaril.Data.Layout.Header.read hdr.files hdr.root).toOption.bind (·.proto? f)
 
-/-- **The header declares `f` with a C prototype that `A` lowers to `p`.** -/
+/-- The qualifiers the header writes in its prototype for `f`, if the header reads. -/
+def HeaderSrc.quals? (hdr : HeaderSrc) (f : String) : Option Silmaril.Data.Layout.Header.ProtoQuals :=
+  (Silmaril.Data.Layout.Header.read hdr.files hdr.root).toOption.bind (·.quals? f)
+
+/-- **The header declares `f` with a C prototype that `A` lowers to `p`.** The prototype `cp` is
+the one `hdr.proto? f` gives (a function of the header), so it is unique. -/
 def Declares (A : AbiDef) (hdr : HeaderSrc) (f : String) (p : A.V.Proto) : Prop :=
   ∃ cp, hdr.proto? f = some cp ∧ A.lower cp = .ok p
 
@@ -306,6 +317,10 @@ structure Conforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : 
   declared : Declares A hdr f p
   extent : c.off + c.len ≤ c.bytes.length
   nonvacuous : ∃ a s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory
+  /-- **Every precondition class is callable**: for every argument tuple and memory the C
+  precondition admits, some admitted call has those arguments and meets the precondition. A row
+  cannot be non-vacuous through one hand-picked call while its precondition admits others. -/
+  enterable : ∀ a mem, S.pre a mem → ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory
   safe : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory → NoStuck M s
   progress : mode = .total → ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory →
     (callModelOf M s).Nonempty
@@ -383,9 +398,15 @@ def Coverage.check (A : AbiDef) (hdr : HeaderSrc) (cov : Coverage) : Bool :=
   | .ok H => decide (cov.Complete H) && cov.refusalsOk A H
   | .error _ => false
 
-/-- No declaration is left `unclaimed`: every one is claimed, refused by the ABI, or absent. -/
-def Coverage.full (cov : Coverage) : Bool :=
+/-- No declaration is left `unclaimed`: every one is claimed, refused by the ABI, or absent (a
+compatible version gap). -/
+def Coverage.available (cov : Coverage) : Bool :=
   cov.excluded.all fun (_, e) => match e with | .unclaimed _ => false | _ => true
+
+/-- Every declaration is claimed or refused by the ABI: none is absent, none unclaimed (the whole
+API surface the ABI can express is provided and claimed). -/
+def Coverage.complete (cov : Coverage) : Bool :=
+  cov.excluded.all fun (_, e) => match e with | .unsupported _ => true | _ => false
 
 /-- **A binary's functions for a header**: for each claimed name, its code, frame, spec and
 mode (the prototype is the header's). -/
@@ -406,12 +427,21 @@ def HeaderSatPartial (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage)
   ∀ f ∈ cov.claimed, ∃ i, impl f = some i ∧
     Conforms A M i.mode hdr f i.proto i.code i.frame i.spec
 
-/-- **The binary satisfies the header** (full header satisfaction): partial satisfaction with
-no `unclaimed` exclusion, every claimed function in `.total` mode. -/
-def HeaderSatFull (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage)
+/-- **The binary satisfies every function of the header it provides** (available header
+satisfaction): partial satisfaction with no `unclaimed` declaration and every claimed function
+total. Declarations the binary does not define (`absent`: a compatible version gap, checked
+against the file by the ELF form) are allowed and are part of the statement. -/
+def HeaderSatAvailable (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage)
     (impl : String → Option (Impl A)) : Prop :=
-  HeaderSatPartial A M hdr cov impl ∧ cov.full = true ∧
+  HeaderSatPartial A M hdr cov impl ∧ cov.available = true ∧
   ∀ f ∈ cov.claimed, ∃ i, impl f = some i ∧ i.mode = .total
+
+/-- **The binary satisfies the whole header** (complete header satisfaction): available header
+satisfaction with nothing absent: every declaration is claimed (total) or refused by the ABI's
+lowering. -/
+def HeaderSatComplete (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage)
+    (impl : String → Option (Impl A)) : Prop :=
+  HeaderSatAvailable A M hdr cov impl ∧ cov.complete = true
 
 end Silmaril.Machine.Abi.Conformance
 

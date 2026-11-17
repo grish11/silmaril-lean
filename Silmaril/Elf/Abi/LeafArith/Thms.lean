@@ -26,7 +26,11 @@ machine model `Open`, not real x86 (`Conforms.onRef` reads a row on a reference 
   - every `unclaimed` declaration is a function present in the file;
   - the two claimed functions are the rows above;
 * `not_codeOf_offset`: **negative**: code entered one byte into `clamp_i32` is not the file's
-  `clamp_i32` (the symbol's `st_value` is the entry).
+  `clamp_i32` (the symbol's `st_value` is the entry);
+* `not_codeOf_symbol`: **negative**: `clamp_i32`'s code is not the file's `sat_add_u32`;
+* `not_codeOf_bytes`: **negative**: the code with one byte changed is no function of the file;
+* `not_available`: **negative**: the `arith.h` row is partial: it is not available (nor
+  complete) header satisfaction.
 
 OPEN: `silmaril.elf.abi.leaf_arith.gcd_u32` and `….bswap32_manual`, from
 `Task.gcd_conforms` and `Task.bswap_conforms` (`gcd_row_of`, `bswap_row_of`: the file facts are
@@ -39,17 +43,17 @@ namespace Silmaril.Elf.Abi.LeafArith
 
 open Silmaril.Machine.Abi.Conformance.LeafArith (Task.gcd_conforms Task.bswap_conforms)
 
-/-- **`clamp_i32` of the pinned `leaf-arith` conforms to the System V AMD64 psABI.** -/
+/-- **`clamp_i32` of the pinned `leaf-arith` conforms to the System V AMD64 psABI INTEGER fragment on `Open`.** -/
 @[solves "silmaril.elf.abi.leaf_arith.clamp_i32"]
 theorem clamp_row : silmaril.elf.abi.leaf_arith.clamp_i32 :=
   Silmaril.Proofs.Elf.Abi.LeafArith.clamp_row
 
-/-- **`sat_add_u32` of the pinned `leaf-arith` conforms to the System V AMD64 psABI.** -/
+/-- **`sat_add_u32` of the pinned `leaf-arith` conforms to the System V AMD64 psABI INTEGER fragment on `Open`.** -/
 @[solves "silmaril.elf.abi.leaf_arith.sat_add_u32"]
 theorem sat_row : silmaril.elf.abi.leaf_arith.sat_add_u32 :=
   Silmaril.Proofs.Elf.Abi.LeafArith.sat_row
 
-/-- **`leaf-arith` satisfies the claimed part of `arith.h`.** -/
+/-- **`leaf-arith` satisfies the claimed part of `arith.h`** (partial: not header satisfaction). -/
 @[solves "silmaril.elf.abi.leaf_arith.arith_h"]
 theorem header_row : silmaril.elf.abi.leaf_arith.arith_h :=
   Silmaril.Proofs.Elf.Abi.LeafArith.header_row
@@ -66,6 +70,29 @@ theorem not_codeOf_offset {n : Nat} :
       (Silmaril.Machine.Abi.Conformance.LeafArith.region 0x31 n) :=
   Silmaril.Proofs.Elf.Abi.LeafArith.not_codeOf_offset
 
+/-- **Negative**: `clamp_i32`'s code is not the file's `sat_add_u32` (wrong symbol). -/
+theorem not_codeOf_symbol :
+    ¬ Silmaril.Elf.Abi.CodeOf Silmaril.Elf.Staged.Pinned.LeafArith.F .symtab "sat_add_u32"
+      Silmaril.Machine.Abi.Conformance.LeafArith.clampCode :=
+  Silmaril.Proofs.Elf.Abi.LeafArith.not_codeOf_symbol
+
+/-- **Negative**: `clamp_i32`'s code with its entry byte changed is no function of the file
+(wrong code bytes). -/
+theorem not_codeOf_bytes {b : Silmaril.Elf.Abi.Binding} {f : String} :
+    ¬ Silmaril.Elf.Abi.CodeOf Silmaril.Elf.Staged.Pinned.LeafArith.F b f
+      Silmaril.Elf.Abi.LeafArith.patched :=
+  Silmaril.Proofs.Elf.Abi.LeafArith.not_codeOf_bytes
+
+/-- **Negative**: the partial `arith.h` row is not available (hence not complete) header
+satisfaction: functions of the file are left unclaimed. -/
+theorem not_available {A : Silmaril.Machine.Abi.Conformance.AbiDef}
+    {M : Silmaril.Machine.Abi.Conformance.Mach} {bind : String → Silmaril.Elf.Abi.Binding}
+    {impl : String → Option (Silmaril.Machine.Abi.Conformance.Impl A)} :
+    ¬ Silmaril.Elf.Abi.AbiHeaderSatAvailable A M Silmaril.Machine.Abi.Conformance.LeafArith.hdr
+      Silmaril.Machine.Abi.Conformance.LeafArith.coverage
+      Silmaril.Elf.Staged.Pinned.LeafArith.F bind impl :=
+  Silmaril.Proofs.Elf.Abi.LeafArith.not_available
+
 end Silmaril.Elf.Abi.LeafArith
 
 end
@@ -74,10 +101,13 @@ silmaril group silmaril.abi
   (title := "ABI conformance: the shapes and the leaf-arith rows")
   (children := [silmaril.shapes.abi.conforms, silmaril.shapes.abi.conforms.sysv_int_open,
     silmaril.shapes.abi.conforms.sysv_int_open9, silmaril.shapes.abi.header_sat_partial,
-    silmaril.shapes.abi.header_sat_full, silmaril.shapes.elf.abi_conforms,
+    silmaril.shapes.abi.header_sat_available, silmaril.shapes.abi.header_sat_complete,
+    silmaril.shapes.elf.abi_conforms,
     silmaril.shapes.elf.abi_conforms.sysv_int_open, silmaril.shapes.elf.abi_conforms.sysv_int_open9,
     silmaril.shapes.elf.abi_header_sat_partial, silmaril.shapes.elf.abi_header_sat_partial.sysv_int_open,
-    silmaril.shapes.elf.abi_header_sat_full, silmaril.shapes.elf.abi_header_sat_full.sysv_int_open,
+    silmaril.shapes.elf.abi_header_sat_available,
+    silmaril.shapes.elf.abi_header_sat_available.sysv_int_open, silmaril.shapes.elf.abi_header_sat_complete,
+    silmaril.shapes.elf.abi_header_sat_complete.sysv_int_open,
     silmaril.elf.abi.leaf_arith.clamp_i32, silmaril.elf.abi.leaf_arith.sat_add_u32,
     silmaril.elf.abi.leaf_arith.gcd_u32, silmaril.elf.abi.leaf_arith.bswap32_manual,
     silmaril.elf.abi.leaf_arith.arith_h])

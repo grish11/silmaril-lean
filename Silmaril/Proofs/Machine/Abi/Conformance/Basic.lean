@@ -52,13 +52,14 @@ and each of its results is a conforming return. -/
 theorem conforms_of_strict {S' : Spec MState} (hs : S'.Strict M)
     (hdecl : Declares A hdr f p) (hext : c.off + c.len ≤ c.bytes.length)
     (hnv : ∃ a s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory)
+    (hen : ∀ a mem, S.pre a mem → ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory)
     (habi : ∀ a s, Admit A M p c frame S a s → AbiEntry (M.core s.machine) (M.mem s.machine))
     (hentry : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory → S'.entry s.machine)
     (hgood : ∀ a s t, Admit A M p c frame S a s → S.pre a s.machine.memory →
       FirstReturn M s.machine t → S'.Result M s.machine t →
       Good A p frame S a s { s with machine := t }) :
     Conforms A M mode hdr f p c frame S := by
-  refine ⟨hdecl, hext, hnv, fun a s ad pre => ?_, fun _ a s ad pre => ?_,
+  refine ⟨hdecl, hext, hnv, hen, fun a s ad pre => ?_, fun _ a s ad pre => ?_,
     fun a s ad pre t ht => ?_⟩
   · obtain ⟨t, fr, -⟩ := hs.firstReturn ad.live (habi a s ad) (hentry a s ad pre)
     exact noStuck_of_firstReturn fr
@@ -97,7 +98,7 @@ theorem Conforms.exists_good (h : Conforms A M .total hdr f p c frame S) :
 /-- A total row is a safe row. -/
 theorem Conforms.toSafe (h : Conforms A M .total hdr f p c frame S) :
     Conforms A M .safe hdr f p c frame S :=
-  ⟨h.declared, h.extent, h.nonvacuous, h.safe, (fun h => nomatch h), h.sound⟩
+  ⟨h.declared, h.extent, h.nonvacuous, h.enterable, h.safe, (fun h => nomatch h), h.sound⟩
 
 /-! ## Faithfulness: rows on `M` read on a reference machine -/
 

@@ -41,13 +41,14 @@ variable {A : AbiDef} {M : Mach} {mode : Mode} {hdr : HeaderSrc} {f : String} {p
 theorem conforms_of_strict {S' : Spec MState} (hs : S'.Strict M)
     (hdecl : Declares A hdr f p) (hext : c.off + c.len ≤ c.bytes.length)
     (hnv : ∃ a s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory)
+    (hen : ∀ a mem, S.pre a mem → ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory)
     (habi : ∀ a s, Admit A M p c frame S a s → AbiEntry (M.core s.machine) (M.mem s.machine))
     (hentry : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory → S'.entry s.machine)
     (hgood : ∀ a s t, Admit A M p c frame S a s → S.pre a s.machine.memory →
       FirstReturn M s.machine t → S'.Result M s.machine t →
       Good A p frame S a s { s with machine := t }) :
     Conforms A M mode hdr f p c frame S :=
-  Silmaril.Proofs.Machine.Abi.Conformance.conforms_of_strict hs hdecl hext hnv habi hentry hgood
+  Silmaril.Proofs.Machine.Abi.Conformance.conforms_of_strict hs hdecl hext hnv hen habi hentry hgood
 
 theorem Conforms.steps (h : Conforms A M mode hdr f p c frame S) (hc : ∀ m, M.core m = m.core)
     (hm : ∀ m, M.mem m = m.memory) (hlen : 0 < c.len) {a : A.V.Args p} {s : Ffi.State}

@@ -4,6 +4,7 @@ public import Silmaril.Elf.Abi.LeafArith.Defs
 public import Silmaril.Elf.Staged.Pinned.LeafArith.Thms
 public import Silmaril.Elf.Staged.Reader.Thms
 public import Silmaril.Machine.Abi.Conformance.LeafArith.Thms
+public import Silmaril.Elf.Abi.Thms
 
 /-! # ABI conformance rows of `leaf-arith`: proofs
 
@@ -155,6 +156,33 @@ theorem not_codeOf_offset {n : Nat} : ¬ CodeOf F .symtab "clamp_i32" (region 0x
   cases hl
   change (4199328 : Nat) = (0x401370 : Silmaril.X86.Word).toNat + 0x31 at hv
   exact absurd hv (by decide)
+
+
+/-- **A wrong symbol is rejected**: `clamp_i32`'s code is not the file's `sat_add_u32` (that
+symbol's `st_value` is `0x401400`). -/
+theorem not_codeOf_symbol : ¬ CodeOf F .symtab "sat_add_u32" clampCode := by
+  rintro ⟨⟨d, ⟨A, hA, hl⟩, hv, -⟩, -⟩
+  have : A = A0 := Option.some.inj (hA.symm.trans parses)
+  subst this
+  have hd : A0.select (Binding.symtab.sel "sat_add_u32") = some (some ⟨10, 4199424, 29, false, false⟩) := by
+    decide +kernel
+  rw [hd] at hl
+  cases hl
+  change (4199424 : Nat) = (0x401370 : Silmaril.X86.Word).toNat + 0x30 at hv
+  exact absurd hv (by decide)
+
+/-- **Wrong code bytes are rejected**: code differing from the file's bytes in one byte is the
+function of no binding and no name of the file. -/
+theorem not_codeOf_bytes {b : Binding} {f : String} : ¬ CodeOf F b f patched :=
+  not_codeOf_of_bytes (codeOf "clamp_i32" 19 4199328 19 0x30 (by decide +kernel) (by decide)
+    (by decide +kernel)) rfl (by simp [patched, region]) (by decide +kernel)
+
+/-- **The `arith.h` row is partial**: it leaves functions of the file unclaimed, so it is
+neither available nor complete header satisfaction, whatever the implementations. -/
+theorem not_available {A : AbiDef} {M : Mach} {bind : String → Binding}
+    {impl : String → Option (Impl A)} :
+    ¬ AbiHeaderSatAvailable A M hdr coverage F bind impl :=
+  fun h => absurd h.2.1 (by decide +kernel)
 
 end Silmaril.Proofs.Elf.Abi.LeafArith
 

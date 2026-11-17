@@ -90,7 +90,7 @@ def pinned : List Pinned := [
     provenance := [
       ("source", "examples/elf-ladder/01-leaf-arith/arith.c, arith.h and main.c, with examples/elf-ladder/common (written for this repository)"),
       ("build", "examples/elf-ladder/01-leaf-arith/build.sh: GCC 13.3.0, GNU ld 2.42, -O2 (examples/elf-ladder/common/flags.sh), static, not stripped (.symtab present)"),
-      ("abi conformance", "clamp_i32 and sat_add_u32 conform to the System V AMD64 psABI as arith.h declares them: Silmaril.Elf.Abi.LeafArith (rows silmaril.elf.abi.leaf_arith.*, docs/projects/abi-conformance.md)"),
+      ("abi conformance", "clamp_i32 and sat_add_u32 conform, as arith.h declares them, to the INTEGER fragment of the System V AMD64 psABI on the restricted open machine model Open (FP, vector and control state carried by the model, not proved for real x86); arith.h is satisfied only PARTIALLY (2 functions claimed, not header satisfaction): Silmaril.Elf.Abi.LeafArith (rows silmaril.elf.abi.leaf_arith.*, docs/projects/abi-conformance.md)"),
       ("licence", "this repository's MIT licence")] },
   { slug := "zlib-checksums", ns := `Silmaril.Elf.Staged.Pinned.ZlibChecksums
     title := "zlib 1.3.1 adler32.c + crc32.c (-DZ_SOLO -O2, static, not stripped)"
