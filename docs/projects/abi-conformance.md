@@ -14,12 +14,24 @@ The statement is `Silmaril.Machine.Abi.Conformance.Conforms`. The standard probl
 
 - `silmaril.shapes.abi.conforms` (code);
 - `silmaril.shapes.elf.abi_conforms` (the function of an ELF file, at every load base);
-- the header problems `….header_sat_partial` and `….header_sat_full`.
+- the header problems `….header_sat_partial`, `….header_sat_available` and
+  `….header_sat_complete` (three distinct coverage levels; only the last is whole-header
+  satisfaction).
 
-**A row is a statement about the machine model, not about real x86.** The standard models
-`Open` and `Open9` decode an integer subset of x86-64. Reading a row about real x86 is
-`Conforms.onRef`, which assumes `Faithful R M` for a reference machine `R`. That assumption is
-not proved here (see below).
+> **Read every row with these three limits.**
+>
+> 1. **A row is about a restricted machine model, not real x86.** The standard models `Open`
+>    and `Open9` decode an integer subset of x86-64. `sysvInt` is the **INTEGER fragment** of
+>    the System V psABI (4- and 8-byte integers and pointers, fixed arity), not the whole
+>    psABI: it refuses floating types, aggregates, small integers and varargs.
+> 2. **FP, vector and control state are preserved by construction, not proved.** The machine
+>    has no SSE, x87, MXCSR or direction-flag instruction; `callModelOf` *copies* that state
+>    from entry to return. The return obligations about it (MXCSR, x87 control word, DF, the
+>    vector registers) therefore hold by the model's definition. That concrete x86 preserves
+>    them is the assumption `Faithful R M` of `Conforms.onRef`, which is **not proved here**.
+> 3. **The precondition is part of the claim.** A row holds for the calls its `S.pre`
+>    admits, and `enterable` makes every one of them an admitted call. The rows of this page
+>    have `pre = True` (every argument tuple).
 
 ## What a row binds
 
@@ -29,6 +41,7 @@ structure Conforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : 
   declared : Declares A hdr f p
   extent : c.off + c.len ≤ c.bytes.length
   nonvacuous : ∃ a s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory
+  enterable : ∀ a mem, S.pre a mem → ∃ s, Admit A M p c frame S a s ∧ S.pre a s.machine.memory
   safe : ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory → NoStuck M s
   progress : mode = .total → ∀ a s, Admit A M p c frame S a s → S.pre a s.machine.memory →
     (callModelOf M s).Nonempty
@@ -39,16 +52,16 @@ structure Conforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : 
 | ingredient | definition | content |
 | --- | --- | --- |
 | ABI and its version | `AbiDef` | `id` and `source` (the versioned document); the data model; `lower` from a C prototype to the ABI's prototype, or an explicit refusal; a `Convention` (`Entry`, `Return`, `ResultAt`); `argArea` and `owned` (memory the callee gets) |
-| prototype | `Declares A hdr f p` | the header files parse to a header declaring `f`, and `A.lower` maps its prototype to `p`. The reader (`Data.Layout.Header.read`) refuses incompatible redeclarations. The check runs by `decide`, so no signature is attached by hand |
+| prototype | `Declares A hdr f p` | the header files parse to a header declaring `f`, and `A.lower` maps its prototype to `p`. The parsed prototype is a function of the header (`hdr.proto? f`), so it is the exact one: result and parameter types with their signedness and widths. Qualifiers are kept beside it (`hdr.quals? f`, by pointer level); they do not change the lowering. The reader (`Data.Layout.Header.read`) refuses incompatible redeclarations, including differing pointee qualifiers. The check runs by `decide`, so no signature is attached by hand |
 | code identity | `Code`, `Placed` | the bytes, the load address, the entry offset, the function's extent, the read-only data, and the image's address ranges. An admitted state has the code and data loaded, `rip` at the entry, and the return address outside the code |
 | admissible calls | `Admit` | listed below this table |
 | execution | `callModelOf M` | the **first return** of `M`; the result is read at the function's own return |
 | no stuck state | `safe`, `NoStuck` | every state before the return takes a step on `M` |
 | call/return | `Good.ret` = `A.conv.Return` | `rip` = the return address, `rsp + 8`, the callee-saved registers, DF clear, x87 mode, MXCSR and x87 control, the FFI thread pointer |
 | result | `Good.result` | some `r` with `A.conv.ResultAt` (excess register bits unspecified) and `S.post a s r t` |
-| memory | `Good.frame` | written only inside `S.writes` (caller-visible effects) or `Owned`: the `frame` bytes below the entry `rsp` (they contain the red zone), the argument area, and `A.owned` (sret) |
+| memory | `Good.frame` | written only inside `S.writes` (caller-visible effects) or `Owned`, which is bounded and admitted: `[rsp − frame, rsp)` for the row's stated `frame` (the red zone is the first 128 of these bytes when `frame ≥ 128`; `frame = 0` owns none), the incoming argument area `[rsp + 8, rsp + 8 + argArea)`, and `A.owned` (sret; empty for `sysvInt`). `Stack` makes all of it mapped, readable, writable and apart from the code, data, image and objects. Memory further below `rsp` is not owned |
 | thread pointer | `Good.fsBase` | the machine's FS base (what `%fs:` reads) is unchanged; on `Open` and `Open9` no step writes it (`Open.step_fsBase`, `Open9.step_fsBase`) |
-| non-vacuity | `nonvacuous` | some admitted call exists |
+| non-vacuity | `nonvacuous`, `enterable` | some admitted call exists, and **every** argument tuple and memory the precondition admits has an admitted call meeting it. A row cannot be non-vacuous through one hand-picked call while its precondition admits others. The memory of that call is some memory meeting `pre`: the code, stack and placement are the ABI's |
 | mode | `mode` | `.total`: every admitted call returns. `.safe`: partial correctness, divergence allowed, stuck states not |
 
 An admitted call (`Admit`) requires:
@@ -77,9 +90,10 @@ conformance of a *pure* function. A function with effects (`memset`) gives its `
   instruction. Such an instruction is undecodable on them, so code that uses one is stuck.
   Because `safe` excludes stuck states, that code has **no row in either mode**: the row is
   unprovable, not vacuously true.
-- **State the integer machine lacks.** `callModelOf` carries the vector, x87, DF, MXCSR and
-  x87-control state unchanged (`callModelOf_carried`). The `Return` obligations about it hold
-  *by the model*.
+- **State the integer machine lacks: preserved by construction.** `callModelOf` carries the
+  vector, x87, DF, MXCSR and x87-control state unchanged (`callModelOf_carried`). The `Return`
+  obligations about it hold *by the model*, so a row proves nothing about them for real x86;
+  that is `Faithful`'s content.
 - **Faithfulness.** `Faithful R M`: wherever `M` steps, the reference machine `R` (on the whole
   FFI state) takes the same step and leaves that extra state unchanged. `Conforms.onRef`
   transfers a row to `R`: every first return of `R` is a conforming return, and in total mode
@@ -147,8 +161,16 @@ for a reason. Each reason is checked:
   - every claimed function conforms.
   It says nothing about the excluded functions, and the claimed and excluded lists are part of
   the statement.
-- **`HeaderSatFull`** / `abi_header_sat_full` is partial satisfaction with no `unclaimed`
-  declaration and every claimed function in `.total` mode.
+- **`HeaderSatAvailable`** / `abi_header_sat_available` is partial satisfaction with no
+  `unclaimed` declaration and every claimed function in `.total` mode: every function of the
+  header **the binary provides** conforms. `absent` declarations (checked absent from the file:
+  a version gap such as zlib 1.2.11 lacking `crc32_z`) are allowed and listed with the row.
+- **`HeaderSatComplete`** / `abi_header_sat_complete` is available satisfaction with nothing
+  `absent`: every declaration is claimed or refused by the ABI's lowering. This is the only
+  level that is satisfaction of the whole header (for the surface the ABI expresses).
+
+A partial row is never shown as header satisfaction. `arith_h` is partial, and
+`not_available` proves it is not available satisfaction for any implementations.
 
 A header shared by several binaries gives **separate rows per binary**. The header and the
 specs are shared values; the file, the binding (with its version) and the code differ.
@@ -217,7 +239,13 @@ All rows are on `Open`.
 | `clobber_not` | a return with `rbx` changed (schema test) |
 | `unbalanced_not` | a "return" with `rsp` 16 above the entry, which never returns and gets stuck (schema test) |
 | `scribble_not` | a write at `rsp − 8` with `frame = 0` (schema test) |
-| `wrong_prototype` | `long clamp_i32(long, long, long)`, which is not what `arith.h` declares |
+| `wrong_prototype` | `long clamp_i32(long, long, long)` (wrong widths), which is not what `arith.h` declares |
+| `wrong_signedness` | `unsigned clamp_i32(int, int, int)` (wrong result signedness) |
+| `wrong_header_not` | a header declaring an `unsigned` result: the code conforms to the `int` prototype on no machine, mode or spec |
+| `not_available` (two forms) | the partial `arith.h` coverage as available (or complete) header satisfaction |
+| `Elf.Abi.LeafArith.not_codeOf_symbol` | `clamp_i32`'s code as the file's `sat_add_u32` (wrong symbol) |
+| `Elf.Abi.LeafArith.not_codeOf_bytes` | the code with its entry byte changed (wrong bytes), as any function of the file (`Elf.Abi.not_codeOf_of_bytes`) |
+| `Data.Layout.Header.qualifier_redeclaration` | `int f(const char *); int f(char *);` and other redeclarations with differing pointee qualifiers |
 | `Elf.Abi.LeafArith.not_codeOf_offset` | an entry that is not the symbol's `st_value` |
 | `Elf.Abi.not_abiConforms_of_noPlacement` | any claim, for any spec and machine, on a file that admits no load base |
 | header reader (`Data.Layout.Header.Thms`) | conflicting redeclarations, `#if`, definitions, function pointers, K&R declarations, and the other constructs outside the subset |
@@ -232,7 +260,11 @@ certificates give through `BlockCert.FunCert.strict`) into a row. A first return
 stuck states (`noStuck_of_firstReturn`, since the machine is deterministic).
 
 `Proofs.Machine.Abi.Conformance.SysvInt` has the `sysvInt` lemmas: the entry obligations, a
-contract result as a System V return, and the 32-bit read-back.
+contract result as a System V return, and the 32-bit read-back. The read-back
+(`Ffi.bytes4_inj`, `Ffi.chunk32_iff`) has one copy, in `Machine.SystemV.Abi.Ffi`. The entry and
+return lemmas are still restated beside `Machine.Abi.OpenMachine`'s, whose closure cannot be
+loaded with the registry's. Follow-up: state them once on any machine whose core and memory are
+the state's (as here), in `Machine.SystemV.Abi.Ffi`, and derive the `OpenMachine` forms from it.
 
 ## Modules
 
@@ -240,11 +272,11 @@ contract result as a System V return, and the 32-bit read-back.
 | --- | --- |
 | `Silmaril.Data.Layout.Header` | the header subset reader (`read`), `CProto`, `Header` |
 | `Silmaril.Data.Layout.Header.Import`, `Silmaril.Machine.Abi.Conformance.Import` | the clang route: a provenance-tagged import of a pinned clang JSON AST, its cross-check with the subset reader, and coverage and `Declares` from it ([C headers](c-headers.md)) |
-| `Silmaril.Machine.Abi.Conformance` | `AbiDef`, `sysvInt`, `Code`, `CallSpec`, `Admit`, `NoStuck`, `Good`, `Conforms`, `Faithful`, `Coverage`, `HeaderSatPartial`, `HeaderSatFull`; `conforms_of_strict`, `Conforms.steps`, `Conforms.onRef` |
+| `Silmaril.Machine.Abi.Conformance` | `AbiDef`, `sysvInt`, `Code`, `CallSpec`, `Admit`, `NoStuck`, `Good`, `Conforms`, `Faithful`, `Coverage`, `HeaderSatPartial`, `HeaderSatAvailable`, `HeaderSatComplete`; `conforms_of_strict`, `Conforms.steps`, `Conforms.onRef` |
 | `Silmaril.Machine.Abi.Conformance.LeafArith` | the example: its header, code, specs, coverage, witness state, test machines, open tasks, proofs and negative tests |
 | `Silmaril.X86.Open.FsBase` | `Open.step_fsBase`, `Open9.step_fsBase`: no step writes the FS base (proving `FsBase.Task.openStepKeepsFs`) |
-| `Silmaril.Project.Shapes.Abi` | `silmaril.shapes.abi.conforms`, `header_sat_partial`, `header_sat_full` and their `sysv_int` instances |
-| `Silmaril.Elf.Abi`, `Silmaril.Elf.Abi.LeafArith` | `silmaril.shapes.elf.abi_conforms`, `abi_header_sat_partial`, `abi_header_sat_full`, the rows and the group `silmaril.abi` |
+| `Silmaril.Project.Shapes.Abi` | `silmaril.shapes.abi.conforms`, `header_sat_partial`, `header_sat_available`, `header_sat_complete` and their `sysv_int` instances |
+| `Silmaril.Elf.Abi`, `Silmaril.Elf.Abi.LeafArith` | `silmaril.shapes.elf.abi_conforms`, `abi_header_sat_partial`, `abi_header_sat_available`, `abi_header_sat_complete`, the rows and the group `silmaril.abi` |
 | `Silmaril.X86.Ladder.LeafArith.Realizes` | rung 01's `*_realizes` certificates, split from `LeafArith.Thms` because their proofs import `Silmaril.X86.FnContract.SystemV`, which cannot be loaded together with the `Silmaril.Machine.X86` copies the registry also loads |
 
 ## Next

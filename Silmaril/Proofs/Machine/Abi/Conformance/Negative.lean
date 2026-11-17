@@ -16,7 +16,9 @@ What `Conforms` rejects, on the admitted call `clamp_i32(5, 0, 3)` of the leaf-a
   - `unbalanced`: the callee "returns" with `rsp` 16 above its entry, so it never returns and
     then gets stuck;
   - `scribble`: the callee writes the byte at `rsp − 8` with `frame = 0`.
-* **Prototypes.** `clamp_i32` with a `long` prototype is not what `arith.h` declares.
+* **Prototypes.** `clamp_i32` with a `long` prototype (wrong widths) or an `unsigned` result
+  (wrong signedness) is not what `arith.h` declares; a header declaring an `unsigned` result
+  does not declare the `int` prototype, so no code conforms against it.
 -/
 
 @[expose] public section
@@ -226,6 +228,31 @@ theorem open_mid_not (mode : Mode) (S : CallSpec sysvInt.V clampProto)
   change (Silmaril.X86.Open.step (st 1 5 0 3)).isSome = true at this
   rw [open_stuck_mid] at this
   cases this
+
+/-- `unsigned clamp_i32(int, int, int)` (wrong result signedness) is not what `arith.h`
+declares. -/
+theorem wrong_signedness : ¬ Declares sysvInt hdr "clamp_i32" uRetProto := by
+  rintro ⟨cp, hcp, hl⟩
+  have h : hdr.proto? "clamp_i32" =
+      some ⟨.int .int .signed, [.int .int .signed, .int .int .signed, .int .int .signed], false⟩ := by
+    decide +kernel
+  rw [h] at hcp
+  cases hcp
+  have := congrArg (fun e : Except String Silmaril.Machine.Abi.SystemV.Proto =>
+    e.toOption.map (·.signature)) hl
+  exact absurd this (by decide)
+
+/-- A header declaring `unsigned clamp_i32(int, int, int)` does not declare the `int` one. -/
+theorem wrong_header : ¬ Declares sysvInt hdrU "clamp_i32" clampProto := by
+  rintro ⟨cp, hcp, hl⟩
+  have h : hdrU.proto? "clamp_i32" =
+      some ⟨.int .int .unsigned, [.int .int .signed, .int .int .signed, .int .int .signed], false⟩ := by
+    decide +kernel
+  rw [h] at hcp
+  cases hcp
+  have := congrArg (fun e : Except String Silmaril.Machine.Abi.SystemV.Proto =>
+    e.toOption.map (·.signature)) hl
+  exact absurd this (by decide)
 
 end Silmaril.Proofs.Machine.Abi.Conformance.Negative
 

@@ -135,6 +135,36 @@ theorem sat_entry : sysvInt.conv.Entry satProto satArgs (ffiSt 0x90 0xfffffff0 0
   · change (0x8ff8 : Word).toNat + 8 + alignUp (8 * (2 - 6)) 16 ≤ 2 ^ 64
     decide
 
+/-- The arguments `(x, y, z)` in `rdi`, `rsi`, `rdx`, zero-extended. -/
+abbrev wide (x : BitVec 32) : Word := x.setWidth 64
+
+theorem low32 (x : BitVec 32) : (wide x).setWidth 32 = x := by
+  simp [wide]
+
+/-- **Every** call `clamp_i32(x, lo, hi)` has an admitted entry state. -/
+theorem clamp_entry_of (x lo hi : BitVec 32) :
+    sysvInt.conv.Entry clampProto (.cons x (.cons lo (.cons hi .nil)))
+      (ffiSt 0x30 (wide x) (wide lo) (wide hi)) := by
+  refine ⟨retAt, rfl, ⟨⟨rfl, _, rfl, (chunk32_iff _ .rdi _).2 (low32 x)⟩,
+    ⟨rfl, _, rfl, (chunk32_iff _ .rsi _).2 (low32 lo)⟩,
+    ⟨rfl, _, rfl, (chunk32_iff _ .rdx _).2 (low32 hi)⟩,
+    trivial⟩, ?_, ?_, ret_read, rfl, rfl, rfl, fun _ h => nomatch h⟩
+  · change ((0x8ff8 : Word).toNat + 8) % 16 = 0
+    decide
+  · change (0x8ff8 : Word).toNat + 8 + alignUp (8 * (3 - 6)) 16 ≤ 2 ^ 64
+    decide
+
+/-- **Every** call `sat_add_u32(x, y)` has an admitted entry state. -/
+theorem sat_entry_of (x y : BitVec 32) :
+    sysvInt.conv.Entry satProto (.cons x (.cons y .nil)) (ffiSt 0x90 (wide x) (wide y) 0) := by
+  refine ⟨retAt, rfl, ⟨⟨rfl, _, rfl, (chunk32_iff _ .rdi _).2 (low32 x)⟩,
+    ⟨rfl, _, rfl, (chunk32_iff _ .rsi _).2 (low32 y)⟩, trivial⟩, ?_, ?_, ret_read, rfl, rfl, rfl,
+    fun _ h => nomatch h⟩
+  · change ((0x8ff8 : Word).toNat + 8) % 16 = 0
+    decide
+  · change (0x8ff8 : Word).toNat + 8 + alignUp (8 * (2 - 6)) 16 ≤ 2 ^ 64
+    decide
+
 /-! ## First-return contracts -/
 
 theorem clamp_strict :
@@ -192,6 +222,10 @@ theorem clamp_conforms (mode : Mode) :
   refine conforms_of_strict clamp_strict clamp_declared (by decide +kernel)
     ⟨clampArgs, ffiSt 0x30 5 0 3, ⟨trivial, clamp_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩,
       trivial⟩
+    (fun a _ _ => match a with
+      | .cons x (.cons lo (.cons hi .nil)) => ⟨ffiSt 0x30 (wide x) (wide lo) (wide hi),
+          ⟨trivial, clamp_entry_of x lo hi, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩,
+          trivial⟩)
     (fun _ _ ad => abiEntry_of_entry ad.entry)
     (fun _ _ ad _ => ⟨⟨ad.placed.loaded, ad.placed.pc⟩, ad.placed.retOutside⟩) ?_
   intro a s t ad _ fr res
@@ -210,6 +244,10 @@ theorem sat_conforms (mode : Mode) :
   refine conforms_of_strict sat_strict sat_declared (by decide +kernel)
     ⟨satArgs, ffiSt 0x90 0xfffffff0 0x20 0,
       ⟨trivial, sat_entry, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩, trivial⟩
+    (fun a _ _ => match a with
+      | .cons x (.cons y .nil) => ⟨ffiSt 0x90 (wide x) (wide y) 0,
+          ⟨trivial, sat_entry_of x y, placed _ _ _ _ _, stack _ (by decide) _ _ _ _ _, rfl⟩,
+          trivial⟩)
     (fun _ _ ad => abiEntry_of_entry ad.entry)
     (fun _ _ ad _ => ⟨⟨ad.placed.loaded, ad.placed.pc⟩, ad.placed.retOutside⟩) ?_
   intro a s t ad _ fr res

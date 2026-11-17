@@ -41,8 +41,16 @@ The header shapes are:
   have a row. An `absent` exclusion is absent from every symbol table of the file in any
   version (`Absent`: an API version gap). An `unclaimed` one is a function present in the
   file (`Present`). The coverage is checked against the header.
-- `silmaril.shapes.elf.abi_header_sat_full`. The same with no `unclaimed` declaration and
-  every claimed function total.
+- `silmaril.shapes.elf.abi_header_sat_available`. The same with no `unclaimed` declaration and
+  every claimed function total: every function of the header the file provides. `absent`
+  declarations (version gaps, checked absent from the file) are allowed and are listed with the
+  row: this is **not** satisfaction of the whole header.
+- `silmaril.shapes.elf.abi_header_sat_complete`. Available, with nothing absent: every
+  declaration is claimed or refused by the ABI's lowering (whole-header satisfaction, for the
+  surface the ABI expresses).
+
+A partial row is never displayed as header satisfaction: it says nothing about the excluded
+declarations.
 
 A header shared by several binaries (zlib's `zlib.h` for a static build and for a
 distribution's `libz.so.1`) gives one set of rows **per binary**. The header and the specs are
@@ -124,7 +132,7 @@ relocation patches it (`Untouched`), the file admits some load base (so the next
 vacuous), and at **every load base the file admits** (`Placement`: `0` for `ET_EXEC`,
 page-aligned for `ET_DYN`) the rebased code conforms. -/
 @[problem "silmaril.shapes.elf.abi_conforms"
-  (title := "A function of an ELF file conforms to a versioned ABI on a restricted x86-64 machine model, as its C header declares it")]
+  (title := "A function of an ELF file conforms to a versioned ABI on a restricted x86-64 machine model (FP, vector and control state carried by the model, not proved), as its C header declares it")]
 def AbiConforms (A : AbiDef) (M : Mach) (mode : Mode) (hdr : HeaderSrc) (f : String)
     (p : A.V.Proto) (F : Blob) (b : Binding) (c : Code) (frame : Nat) (S : CallSpec A.V p) : Prop :=
   CodeOf F b f c ∧ Untouched F c ∧ (∃ base, Placement F base) ∧
@@ -135,7 +143,7 @@ claimed; the coverage is checked against the header; every `absent` declaration 
 the file and every `unclaimed` one is present; every claimed function is a conforming function of
 the file. -/
 @[problem "silmaril.shapes.elf.abi_header_sat_partial"
-  (title := "An ELF file satisfies the claimed part of a C header under a versioned ABI, on a restricted x86-64 machine model")]
+  (title := "PARTIAL: an ELF file satisfies the claimed part of a C header under a versioned ABI, on a restricted x86-64 machine model")]
 def AbiHeaderSatPartial (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage) (F : Blob)
     (bind : String → Binding) (impl : String → Option (Impl A)) : Prop :=
   cov.claimed ≠ [] ∧ cov.check A hdr = true ∧
@@ -144,14 +152,23 @@ def AbiHeaderSatPartial (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverag
   ∀ f ∈ cov.claimed, ∃ i, impl f = some i ∧
     AbiConforms A M i.mode hdr f i.proto F (bind f) i.code i.frame i.spec
 
-/-- **The ELF file `F` satisfies the header `hdr`** (full): partial satisfaction with no
-`unclaimed` declaration and every claimed function total. -/
-@[problem "silmaril.shapes.elf.abi_header_sat_full"
-  (title := "An ELF file satisfies a whole C header (every supported, present function, total) under a versioned ABI, on a restricted x86-64 machine model")]
-def AbiHeaderSatFull (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage) (F : Blob)
+/-- **The ELF file `F` satisfies every function of the header it provides** (available):
+partial satisfaction with no `unclaimed` declaration and every claimed function total. Absent
+declarations (checked absent from the file: a version gap) are allowed. -/
+@[problem "silmaril.shapes.elf.abi_header_sat_available"
+  (title := "An ELF file satisfies every function of a C header it provides (absent functions allowed as version gaps), total, under a versioned ABI, on a restricted x86-64 machine model")]
+def AbiHeaderSatAvailable (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage) (F : Blob)
     (bind : String → Binding) (impl : String → Option (Impl A)) : Prop :=
-  AbiHeaderSatPartial A M hdr cov F bind impl ∧ cov.full = true ∧
+  AbiHeaderSatPartial A M hdr cov F bind impl ∧ cov.available = true ∧
     ∀ f ∈ cov.claimed, ∃ i, impl f = some i ∧ i.mode = .total
+
+/-- **The ELF file `F` satisfies the whole header `hdr`** (complete): available satisfaction
+with no `absent` declaration; every declaration is claimed or refused by the ABI. -/
+@[problem "silmaril.shapes.elf.abi_header_sat_complete"
+  (title := "An ELF file satisfies a whole C header (every declaration the ABI lowers is present and conforming, total) under a versioned ABI, on a restricted x86-64 machine model")]
+def AbiHeaderSatComplete (A : AbiDef) (M : Mach) (hdr : HeaderSrc) (cov : Coverage) (F : Blob)
+    (bind : String → Binding) (impl : String → Option (Impl A)) : Prop :=
+  AbiHeaderSatAvailable A M hdr cov F bind impl ∧ cov.complete = true
 
 end Silmaril.Elf.Abi
 
@@ -169,7 +186,11 @@ silmaril instance silmaril.shapes.elf.abi_header_sat_partial.sysv_int_open
     (title := "abi_header_sat_partial, System V AMD64 INTEGER fragment, on the open machine model (Open)") :=
   silmaril.shapes.elf.abi_header_sat_partial (A := Silmaril.Machine.Abi.Conformance.sysvInt)
     (M := Silmaril.X86.Open.isa)
-silmaril instance silmaril.shapes.elf.abi_header_sat_full.sysv_int_open
-    (title := "abi_header_sat_full, System V AMD64 INTEGER fragment, on the open machine model (Open)") :=
-  silmaril.shapes.elf.abi_header_sat_full (A := Silmaril.Machine.Abi.Conformance.sysvInt)
+silmaril instance silmaril.shapes.elf.abi_header_sat_available.sysv_int_open
+    (title := "abi_header_sat_available, System V AMD64 INTEGER fragment, on the open machine model (Open)") :=
+  silmaril.shapes.elf.abi_header_sat_available (A := Silmaril.Machine.Abi.Conformance.sysvInt)
+    (M := Silmaril.X86.Open.isa)
+silmaril instance silmaril.shapes.elf.abi_header_sat_complete.sysv_int_open
+    (title := "abi_header_sat_complete, System V AMD64 INTEGER fragment, on the open machine model (Open)") :=
+  silmaril.shapes.elf.abi_header_sat_complete (A := Silmaril.Machine.Abi.Conformance.sysvInt)
     (M := Silmaril.X86.Open.isa)
