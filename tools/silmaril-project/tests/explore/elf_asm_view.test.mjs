@@ -42,7 +42,9 @@ const r = { decl: "Ex.r", file: "Ex.R", name: "r", arch, abiRef: "sysv64", symbo
   lines: [{ off: 0, len: 1, addr: "0x0", text: "ret", label: "r" }],
   refs: [{ off: 0, target: null, symbol: "s", kind: 4, addend: "-4", origin: { kind: "reloc", selector: "section 1", index: 0 } }],
   decodings: [], evidence: [ev("sectionBytes", "Ex.r_sec", { axioms: ["propext", "Ex.myAxiom"] })],
-  abi: [{ problemId: "abi/r", decl: "Ex.r_abi", abiId: "sysv64", mode: "call", frame: 0, status: "open" }] };
+  abi: [{ problemId: "abi/r", decl: "Ex.r_abi", abiId: "sysv64", mode: "call", frame: 0, status: "open",
+    data: [{ vaddr: "0x2000", size: 2, bytesHex: "abcd", mapped: "Ex.r_data_mapped", untouched: "Ex.r_data_untouched" },
+      { vaddr: "0x3000", size: 4, readOnly: true }, { vaddr: "0x4000", size: 2, bytesHex: "abcd", mapped: "Ex.r_m" }] }] };
 const asm = { schema: "silmaril.elf.asm/1",
   files: [{ decl: "Ex.F", path: "x.so", sha256: "00" }, { decl: "Ex.R", path: "dir/r.o", sha256: "11" }],
   functions: [f, g, r] };
@@ -159,6 +161,39 @@ test("unknown extent fields show unknown; extra axioms are flagged; ABI rows com
   assert.equal(statusOf(h, "abi"), "rows");
   assert.match(tbody(h, "abi"), /abi\/r/);
   assert.match(h, /<tr data-origin="reloc">[\s\S]*?not grounded<\/span> <span class="muted">\(no RefsGrounded evidence\)/);
+});
+
+// The text a page shows, without tags or attributes (titles are not visible text).
+const visible = (h) => h.replace(/<[^>]*>/g, " ");
+
+test("decode rows: rejection is not classified; a model without a theorem is unknown", async () => {
+  const v = load(FIX).get("asm");
+  const h = await html(v, "x/f/Ex.f");
+  const rej = visible(tbody(h, "decode", MB));
+  assert.match(rej, /rejected \(¬ DecodesAs proved; no cause classified\)/);
+  for (const d of [MA, MB]) assert.doesNotMatch(visible(tbody(h, "decode", d)), /\b(invalid|incomplete|unsupported)\b/);
+  // the decoding's text is printer output; its evidence is the DecodesAs theorem named
+  assert.match(h, /text: printer output, not evidence/);
+  assert.match(h, /a line's source \(lean-decode or objdump\) is not itself evidence/);
+  const g = await html(v, "x/f/Ex.g");
+  assert.match(visible(tbody(g, "decode")), /none: unknown \(no DecodesAs theorem\)/);
+});
+
+test("extent fields name the dimension that grounds them, with its own status", async () => {
+  const h = await html(load(FIX).get("asm"), "x/f/Ex.f");
+  assert.match(h, /record field; grounded by <code>BytesAt<\/code>: <span class="prov prov-lean"[^>]*>holds/);
+  // f has no SymbolOf theorem: its symbol field is a record field, grounded by nothing
+  assert.match(h, /record field; grounded by <code>SymbolOf<\/code>: <span class="muted">none<\/span>/);
+  assert.match(h, /segment flags are the file's program header/);
+});
+
+test("Code.data ranges count only with exact bytes, MappedAt and Untouched", async () => {
+  const h = await html(load(FIX).get("asm"), "r.o/r");
+  const abi = tbody(h, "abi");
+  assert.equal((abi.match(/data-grounded="yes"/g) || []).length, 1);
+  assert.equal((abi.match(/data-grounded="no"/g) || []).length, 2);
+  assert.match(abi, /Ex\.r_data_mapped[\s\S]*?MappedAt[\s\S]*?Ex\.r_data_untouched[\s\S]*?Untouched/);
+  assert.match(abi, /not grounded: not counted<\/span> <code>0x3000<\/code>, 4 B <span class="muted">\(read-only flag: metadata\)/);
 });
 
 test("without the data the view says where it comes from", async () => {

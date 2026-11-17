@@ -143,7 +143,14 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
     if (!r.pos.length) return "none";
     return r.pos.some((e) => !(e.hypotheses || []).length) ? "holds" : "holds under premises";
   }
-  function statusPill(s) {
+  // A decoder that is a partial function (`decode : bytes → Option insn`) proves acceptance or
+  // rejection, never why it rejected: invalid, incomplete and unsupported bytes all give `none`.
+  // So a decode row says "rejected" (¬ DecodesAs proved) or "unknown" (no theorem), never a cause.
+  function statusPill(s, D) {
+    if (D && D.id === "decode") {
+      if (s === "does not hold") return '<span class="st st-bad" title="a theorem states ¬ DecodesAs: this model\'s decoder rejects the bytes. A rejection does not say why (invalid, incomplete or unsupported are not distinguished)">rejected (¬ DecodesAs proved; no cause classified)</span>';
+      if (s === "none") return '<span class="muted" title="no DecodesAs theorem either way for this model">none: unknown (no DecodesAs theorem)</span>';
+    }
     return s === "holds" ? '<span class="prov prov-lean" title="a theorem states it, with no premise">holds</span>'
       : s === "holds under premises" ? '<span class="st st-open" title="every theorem stating it has premises (listed)">holds under premises</span>'
       : s === "does not hold" ? '<span class="st st-bad" title="a theorem states its negation">does not hold (negation proved)</span>'
@@ -151,6 +158,21 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
       : '<span class="muted">none</span>';
   }
   const abiRows = (fn) => Array.isArray(fn.abi) ? fn.abi : [];
+  // The read-only data a conformance row's code carries (`Code.data`). A range counts only with a
+  // finite extent, its exact bytes, a theorem grounding them in the file's read-only mapping
+  // (`MappedAt`) and one that no relocation writes them (`Untouched`); a read-only flag or a
+  // target name alone is metadata.
+  function dataGrounded(r) {
+    return r && Number.isFinite(Number(r.vaddr)) && Number.isFinite(Number(r.size)) && Number(r.size) > 0 &&
+      typeof r.bytesHex === "string" && r.bytesHex.length === 2 * Number(r.size) && !!r.mapped && !!r.untouched;
+  }
+  function dataCell(a, decls) {
+    const ds = Array.isArray(a.data) ? a.data : [];
+    if (!ds.length) return "";
+    return '<ul class="asm-data">' + ds.map((r) => dataGrounded(r)
+      ? `<li data-grounded="yes">data <code>${esc(r.vaddr)}</code>, ${esc(r.size)} B: bytes ${declCell(decls, r.mapped)} (MappedAt), not relocated ${declCell(decls, r.untouched)} (Untouched)</li>`
+      : `<li data-grounded="no"><span class="st st-bad" title="a Code.data range needs a finite extent, its exact bytes, MappedAt and Untouched">not grounded: not counted</span> <code>${esc(r.vaddr ?? "?")}</code>${r.size != null ? ", " + esc(r.size) + " B" : ""}${r.readOnly ? ' <span class="muted">(read-only flag: metadata)</span>' : ""}</li>`).join("") + "</ul>";
+  }
 
   function evidencePanel(fn, decls) {
     const { rows, other } = evidenceRows(fn);
@@ -161,7 +183,7 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
       const ents = r.pos.map((e) => [e, false]).concat(r.neg.map((e) => [e, true]));
       const span = Math.max(1, ents.length);
       const head = `<td class="dim" rowspan="${span}" title="${esc(r.D.what)}">${esc(label)}</td><td rowspan="${span}"><code>${esc((r.neg.length && !r.pos.length ? "¬ " : "") + r.D.prop)}</code>` +
-        `${r.model != null ? `<br><span class="muted" title="${esc(r.model)}">isa: ${esc(r.model)}</span>` : ""}</td><td rowspan="${span}">${statusPill(st)}</td>`;
+        `${r.model != null ? `<br><span class="muted" title="${esc(r.model)}">isa: ${esc(r.model)}</span>` : ""}</td><td rowspan="${span}">${statusPill(st, r.D)}</td>`;
       h += `<tbody data-dim="${esc(r.D.id)}"${r.model != null ? ` data-model="${esc(r.model)}"` : ""} data-status="${esc(st)}">`;
       if (!ents.length) h += `<tr>${head}<td colspan="4">${none}</td></tr>`;
       ents.forEach(([e, neg], i) => {
@@ -178,7 +200,7 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
       '<td colspan="4"><span class="muted">no conformance row</span> <span class="muted">(this data has no ABI conformance evidence; <code>abiRef</code> above is metadata, not evidence)</span></td></tr>';
     abi.forEach((a, i) => {
       h += `<tr data-kind="abi">${i === 0 ? `<td class="dim" rowspan="${abi.length}">ABI conformance</td>` : ""}<td>problem <code>${esc(a.problemId ?? "")}</code><br><span class="muted">ABI ${esc(a.abiId ?? "")}, ${esc(a.mode ?? "")}${a.frame != null ? ", frame " + esc(a.frame) : ""}</span></td>` +
-        `<td><span class="st" title="as given by the conformance row">${esc(a.status ?? "")}</span></td><td>${a.decl ? declCell(decls, a.decl) : none}</td><td colspan="3"><span class="muted">as given by the conformance row</span></td></tr>`;
+        `<td><span class="st" title="as given by the conformance row">${esc(a.status ?? "")}</span></td><td>${a.decl ? declCell(decls, a.decl) : none}</td><td colspan="3"><span class="muted">as given by the conformance row</span>${dataCell(a, decls)}</td></tr>`;
     });
     h += "</tbody>";
     if (other.length) {
@@ -208,13 +230,16 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
     const offs = [...new Set(cols.flatMap((c) => c.items.map((i) => i.off)))].sort((a, b) => a - b);
     const starts = cols.map((c) => new Map(c.items.map((i) => [i.off, i])));
     const evFor = (m) => (fn.evidence || []).filter((e) => e.kind === "decode" && e.model === m);
+    const negFor = (m) => (fn.evidence || []).filter((e) => e.kind === "noDecode" && e.model === m);
     let h = '<div class="tablebox"><table class="asm-side"><thead><tr><th>offset</th><th>address</th><th>bytes</th>' +
       '<th class="disp">display line (objdump)<br><span class="st" title="external text, kept for reading; no theorem reads it">display only, not checked</span></th>' +
       decs.map((d) => {
         const ev = evFor(d.model);
         return `<th class="model" data-model="${esc(d.model)}">model <code title="${esc(d.model)}">${esc(d.model)}</code><br><span class="muted">decoding</span> ${declCell(decls, d.decl)}<br>` +
           (ev.length ? `<span class="prov prov-lean" title="DecodesAs: the decoder accepted these bytes">decoder accepted</span> ${ev.map((e) => declCell(decls, e.decl)).join(", ")}`
-            : '<span class="st st-bad" title="no DecodesAs theorem for this model in the evidence">no DecodesAs evidence</span>') + "</th>";
+            : negFor(d.model).length ? `<span class="st st-bad" title="a theorem states ¬ DecodesAs for this model; no cause is classified">rejected (¬ DecodesAs; no DecodesAs evidence)</span> ${negFor(d.model).map((e) => declCell(decls, e.decl)).join(", ")}`
+            : '<span class="st st-bad" title="no DecodesAs theorem for this model in the evidence">unknown: no DecodesAs evidence</span>') +
+          '<br><span class="asm-meta" title="the text is the decoding\'s printer output; what is proved is the DecodesAs theorem named here, about the decoded instructions, not about this text">text: printer output, not evidence</span>' + "</th>";
       }).join("") + "</tr></thead><tbody>";
     const open = cols.map(() => null);
     offs.forEach((o, k) => {
@@ -271,9 +296,18 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
       `<p>${backLinks(fn)}</p>` +
       '<p class="note">Each row of the evidence panel is a separate proposition about this record; no row is inferred from another, and there is no overall status. ' +
       "A dimension with no theorem shows <b>none</b>.</p>";
-    h += '<div class="grid"><div><h3>Extent</h3>' + dl([["virtual address", val(x.vaddr)], ["size", val(x.size, (n) => n + " B")], ["file offset", val(x.fileOff)],
-      ["segment", val(x.segment)], ["section", val(x.shndx, (n) => "#" + n)],
-      ["symbol", fn.symbol ? `${esc(fn.symbol.table)} #${esc(fn.symbol.index)}` : unknown]]) + "</div>" +
+    // Each extent field is a record field; it is grounded in the file only by the dimension named
+    // beside it, with that dimension's own status.
+    const { rows: evRows } = evidenceRows(fn);
+    const ground = (id, prop) => {
+      const r = evRows.find((q) => q.D.id === id);
+      return ` <span class="asm-origin" title="a field of the record; grounded in the file only by ${esc(prop)}">record field; grounded by <code>${esc(prop)}</code>: ${statusPill(r ? rowStatus(r) : "none", r && r.D)}</span>`;
+    };
+    h += '<div class="grid"><div><h3>Extent</h3>' + dl([["virtual address", val(x.vaddr) + ground("bytes", "BytesAt")], ["size", val(x.size, (n) => n + " B")], ["file offset", val(x.fileOff)],
+      ["segment", val(x.segment) + (x.segment != null ? ground("bytes", "BytesAt") + ' <span class="muted">(the segment flags are the file\'s program header, read by the ELF tab; BytesAt uses its mapping, not a record flag)</span>' : "")],
+      ["section", val(x.shndx, (n) => "#" + n)],
+      ["symbol", (fn.symbol ? `${esc(fn.symbol.table)} #${esc(fn.symbol.index)}` + ground("symbol", "SymbolOf") : unknown) +
+        (fn.symbol && fn.symbol.version != null ? ` <span class="asm-origin">version <code>${esc(fn.symbol.version)}</code>: record field; a binding's version is checked only by a conformance row's <code>CodeOf</code> (ld.so's versioned lookup)</span>` : "")]]) + "</div>" +
       '<div><h3>Architecture</h3>' + dl([["id", val(a.id)], ["e_machine", val(a.machine)], ["class", val(a.class)], ["data", val(a.data)], ["OS ABI", val(a.osabi)],
         ["abiRef", `${fn.abiRef == null ? unknown : `<code>${esc(fn.abiRef)}</code>`} <span class="asm-meta" title="an identifier carried by the record; no proposition reads it">metadata (not evidence)</span>`]]) + "</div></div>";
     h += "<h3>Evidence</h3>" + evidencePanel(fn, decls);
@@ -281,7 +315,8 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
     h += "<h3>Display lines and decodings</h3>" +
       '<p class="asm-warn" role="note"><b>Display lines are display only, not checked.</b> They are objdump\'s text, kept for reading: no proposition reads their text ' +
       "(LinesTile only says their byte ranges tile the bytes). Each instruction model's decoding is a separate column, a value checked by its decoder; " +
-      "a column's evidence is the DecodesAs theorem named in its header.</p>" +
+      "a column's evidence is the DecodesAs theorem named in its header; its text is that decoding's printer output, and a line's source (lean-decode or objdump) is not itself evidence. " +
+      "A model with ¬ DecodesAs proved is <b>rejected</b>; the view does not say why (an <code>Option</code> decoder does not distinguish invalid, incomplete or unsupported bytes).</p>" +
       (fn.decodings && fn.decodings.length ? "" : '<p class="muted">No decoding by any instruction model in this record.</p>') + sideBySide(fn, decls);
     h += "<h3>References</h3>" + refsTable(fn, decls);
     return h;
@@ -294,9 +329,9 @@ table.asm-ev td ul { margin:0; padding-left:16px; }
     if (id === "decode") {
       const shown = rs.filter((r) => r.model != null);
       if (!shown.length) return none;
-      return shown.map((r) => `<span title="${esc(r.model)}">${esc(shortModel(r.model))}</span>: ${statusPill(rowStatus(r))}`).join("<br>");
+      return shown.map((r) => `<span title="${esc(r.model)}">${esc(shortModel(r.model))}</span>: ${statusPill(rowStatus(r), r.D)}`).join("<br>");
     }
-    return rs.map((r) => statusPill(rowStatus(r))).join(" ");
+    return rs.map((r) => statusPill(rowStatus(r), r.D)).join(" ");
   }
   const INDEX_DIMS = [["arch", "arch"], ["bytes", "bytes (segment)"], ["sectionBytes", "bytes (section)"], ["code", "CodeAt"], ["symbol", "symbol"],
     ["decode", "decodes (per model)"], ["lines", "lines tile"], ["refs", "refs grounded"], ["contract", "contract"], ["abi", "ABI conformance"]];
