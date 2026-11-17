@@ -1129,6 +1129,20 @@ The plain graph stays an over-approximation, and claims about it say so.
              - Components: `denUD_legalSemD_le` gives `c.denUD (legalSemD _) ≤ c.denUD
                (core3SemD _)` for every `c`. `denUD_cfgSemD_eq` and `denUD_cfgSemD_le` hold on
                `CompIn (fun m => InstDom m.inst m.inst.store) c`.
+             - Injectivity (`CfgLegal.legalSession_eq_iff`, `cfgSession_eq_iff`; generic
+               `SessionLegal.threadS_restrictLog_eq_iff`): legal sessions of `I` are equal
+               iff their start stores are `StratThread.ObsEq` for the legal parts
+               `restrictLog (RoundLegal …) (instTripleS …)`. This is the legal counterpart of
+               `InstSession.instSession_eq_iff`. It is not compared with Core 3.0 session
+               equality, because legality reads hidden call stores.
+             - Left to the concrete owner (`docs/projects/component-semantics.md`, 0e76ca84):
+               legal counterparts of `Linked2`/`LinkedG` `compSession_inj_full` and
+               `refSessEquivFull_iff_denD`. They need (1) a reference equivalence
+               `RefSessEquivFull` restricted to legal environments (host throws below the
+               call store's exception count), and (2) a statement of which import answers of
+               internally linked components are legal: whether an exporter's escaping exception
+               names an exception of the importer's call store. Nothing in the owner's modules
+               is changed.
              - **Not claimed.** No theorem about `legalSemD` says that `core3SemD` with
                imports equals the CFG semantics. `core3SemD` also has the non-`LegalPlay`
                plays (dangling host throws), and these are not read on the CFG. Equality with

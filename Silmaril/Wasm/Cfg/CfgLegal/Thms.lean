@@ -47,6 +47,16 @@ observation of the session strategy (`StratSession.threadS`; finite plays, plays
   domain, its CFG-built denotation is its `legalSemD` denotation, which refines its `core3SemD`
   denotation.
 
+**(e) Injectivity of the legal object.** `legalSession_eq_iff`: two legal sessions of `I` (at
+deterministic profiles `profile o`, `profile o'`) are equal iff their start stores are
+observationally equivalent (`StratThread.ObsEq`, a bisimulation of round stores) for the legal
+parts `restrictLog (RoundLegal …) (instTripleS …)`. So the legal session determines, and is
+determined by, the legal restriction of the instance triple up to bisimilarity of stores;
+`cfgSession_eq_iff` is the same for the CFG-built sessions, from stores of the domain. This is
+the legal counterpart of `InstSession.instSession_eq_iff`. The two equivalences are not compared
+here: legality reads the hidden call stores, so equal Core 3.0 sessions are not shown to have
+equal legal sessions, nor conversely.
+
 ## What is not claimed
 
 * **No raw `core3SemD` equality for instances with imports.** `core3SemD` also has the plays in
@@ -62,6 +72,13 @@ observation of the session strategy (`StratSession.threadS`; finite plays, plays
   through each hidden interface; at the node level the hidden instance play is already the place
   where legality is stated (`mem_legalSemD_sem`). Infinite plays at the node level (through
   `DStrategy.InfInteraction`) are covered only by the refinement.
+* **No reference-equivalence injection for the legal object.** The concrete injections
+  (`Linked2`/`LinkedG` `compSession_inj_full`, `refSessEquivFull_iff_denD`) relate the reference
+  machine's `RefSessEquivFull` to the unrestricted component session objects. Their legal
+  counterparts are left to the owner of those modules: a reference equivalence restricted to
+  legal environments, and a statement of which import answers of internally linked components are
+  legal at the importer's call store. Without those, `legalSession_eq_iff` is the injection proved
+  here.
 -/
 
 public section
@@ -231,5 +248,33 @@ theorem denUD_cfgSemD_le (c : Comp NumInstance)
     (hc : CompIn (fun m : NumInstance => InstDom m.inst m.inst.store) c) :
     c.denUD cfgSemD ≤ c.denUD (core3SemD (profile o)) := by
   rw [denUD_cfgSemD_eq (o := o) c hc]; exact denUD_legalSemD_le c
+
+/-! ## (e) Injectivity of the legal object -/
+
+/-- **Legal sessions identify exactly the bisimilar stores of the legal parts.** -/
+theorem legalSession_eq_iff {o' : GrowOracle} {s s' : Store Nat} :
+    threadS (instTripleL I (profile o)) s = threadS (instTripleL I (profile o')) s' ↔
+      StratThread.ObsEq
+        (SessionLegal.restrictLog (Abstract.NodeLegal.RoundLegal I (profile o) LegalRes)
+          (Abstract.InstSession.instTripleS I (profile o)))
+        (SessionLegal.restrictLog (Abstract.NodeLegal.RoundLegal I (profile o') LegalRes)
+          (Abstract.InstSession.instTripleS I (profile o'))) s s' := by
+  rw [instTripleL_eq, instTripleL_eq, Abstract.NodeLegal.threadS_instTripleQ_eq,
+    Abstract.NodeLegal.threadS_instTripleQ_eq]
+  exact SessionLegal.threadS_restrictLog_eq_iff (Abstract.InstSession.storeDet_instTripleS o)
+    (Abstract.InstSession.storeDet_instTripleS o') Abstract.InstSession.noPlainTrap_instTripleS
+    Abstract.InstSession.noPlainTrap_instTripleS
+
+/-- **CFG-built sessions from stores of the domain identify exactly the bisimilar stores of the
+legal parts.** -/
+theorem cfgSession_eq_iff {s s' : Store Nat} (hd : InstDom I s) (hd' : InstDom I s') :
+    threadS (cfgInstTripleL I) s = threadS (cfgInstTripleL I) s' ↔
+      StratThread.ObsEq
+        (SessionLegal.restrictLog (Abstract.NodeLegal.RoundLegal I (profile o) LegalRes)
+          (Abstract.InstSession.instTripleS I (profile o)))
+        (SessionLegal.restrictLog (Abstract.NodeLegal.RoundLegal I (profile o) LegalRes)
+          (Abstract.InstSession.instTripleS I (profile o))) s s' := by
+  rw [← CfgInst.threadS_instTripleL_eq (o := o) hd, ← CfgInst.threadS_instTripleL_eq (o := o) hd']
+  exact legalSession_eq_iff
 
 end Silmaril.Wasm.Cfg.CfgLegal

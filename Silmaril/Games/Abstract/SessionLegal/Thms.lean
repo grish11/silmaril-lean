@@ -28,6 +28,10 @@ all three observations of a `DStrategy`:
 Store determinism is used once: the automaton state after a play, hence the store at which the
 round was asked, is unique (`StratThread.TRun.det_of_storeDet`), so a legal run of the legal
 part makes **every** run of `t` legal. The backward directions need no hypothesis on `t`.
+
+**Injectivity** (`threadS_restrictLog_eq_iff`): the legal part keeps store determinism and the
+absence of plain traps, so legal sessions identify exactly the observationally equivalent stores
+of the legal parts (`StratThread.ObsEq`), by `StratSession.threadS_eq_iff`.
 -/
 
 public section
@@ -102,5 +106,25 @@ theorem mem_pending_restrictLog (hL : PrefixClosed Lg)
   rw [StratSession.mem_pending]
   simp only [satP_restrictLog hL]
   rfl
+
+/-! ## Injectivity of the legal session -/
+
+/-- The legal part of a store-deterministic triple is store-deterministic. -/
+theorem storeDet_restrictLog (hd : StoreDet t) : StoreDet (restrictLog Lg t) :=
+  fun s a c b _ _ h₁ h₂ => hd s a c b _ _ h₁.1 h₂.1
+
+/-- The legal part of a triple without plain traps has none. -/
+theorem noPlainTrap_restrictLog (hn : NoPlainTrap t) : NoPlainTrap (restrictLog Lg t) :=
+  fun s a c h => hn s a c h.1
+
+/-- **Legal sessions identify exactly the observationally equivalent stores of the legal parts**
+(store-deterministic triples without plain traps). -/
+theorem threadS_restrictLog_eq_iff {S' : Type u} {t' : ObsTriple E S' A (B ⊕ PUnit.{u + 1})}
+    {Lg' : S' → A → List (Call E) → Prop} (hd : StoreDet t) (hd' : StoreDet t')
+    (hn : NoPlainTrap t) (hn' : NoPlainTrap t') {s : S} {s' : S'} :
+    threadS (restrictLog Lg t) s = threadS (restrictLog Lg' t') s' ↔
+      ObsEq (restrictLog Lg t) (restrictLog Lg' t') s s' :=
+  StratSession.threadS_eq_iff (storeDet_restrictLog hd) (storeDet_restrictLog hd')
+    (noPlainTrap_restrictLog hn) (noPlainTrap_restrictLog hn')
 
 end Silmaril.Games.Abstract.SessionLegal
