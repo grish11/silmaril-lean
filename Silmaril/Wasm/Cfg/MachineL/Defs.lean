@@ -82,25 +82,37 @@ def gotoN (t : Target) (d : Nat) (ls : List LFrame) (stk : List Val) (s : Store 
     Option (MState H) :=
   (popN f (d - depthT t) ls stk).map fun p => ⟨t, p.2, p.1, s, f⟩
 
-/-- **Branch to label `k` of the frames `ls` from block `b`, native conventions**: with the
-arities `(np, nr)` of the label's block type (`Binaryen.arity`), a `loop` is re-entered on the
-top `np` values of the branch-site stack `V`; any other label leaves its sequence (`gotoN`) with
-the top `nr` values over its outer values. No values of the frames in between are collected
-(`EvalLXPS`'s `blockBrk` passes a branch's values unchanged; `MStepC`'s `brVals` collects them,
-as Core does; they agree on typed code). Re-entering a loop needs at least its parameters on
-`V`: with fewer, `EvalLXPS`'s `loopBack` would take values of the frame outside as parameters,
-which the machine does not model (no step). -/
-def branchN (body : Expr) (b : BlockId) (ls : List LFrame) (k : Nat) (L : LFrame) (V : List Val)
+/-- **Branch to label `k` of the frames `ls` from block `b`, native conventions**, with the
+branch-site stack `N` **top first** (as `EvalLXPS` carries it) and the arities `(np, nr)` of the
+label's block type (`Binaryen.arity`):
+
+* a `loop` is re-entered as `EvalLXPS`'s `loopBack` re-runs it: on `R = N.take np ++ outer` (top
+  first), its parameters are the top `np` values of `R` and its frame's outer values the rest
+  (when `N` holds at least `np` values, the parameters are the top `np` of `N` and the outer values
+  are unchanged);
+* any other label leaves its sequence (`gotoN`) with the top `nr` values of `N` over its outer
+  values (`blockOk`'s `vs.take nr ++ outer`).
+
+No values of the frames in between are collected (`EvalLXPS`'s `blockBrk` passes a branch's values
+unchanged; `MStepC`'s `brVals` collects them, as Core does; they agree on typed code). -/
+def branchN (body : Expr) (b : BlockId) (ls : List LFrame) (k : Nat) (L : LFrame) (N : List Val)
     (s : Store H) (f : Frame) : Option (MState H) :=
   (Binaryen.arity f L.bt).bind fun a =>
     if L.loop then
-      if a.1 ≤ V.length then
-        gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - k) (L :: ls.drop (k + 1))
-          (topVals a.1 V) s f
-      else none
+      let R := N.take a.1 ++ L.outer.reverse
+      gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - k)
+        ({ L with outer := (R.drop a.1).reverse } :: ls.drop (k + 1)) (R.take a.1).reverse s f
     else
       gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - (k + 1)) (ls.drop (k + 1))
-        (L.outer ++ topVals a.2 V) s f
+        (L.outer ++ (N.take a.2).reverse) s f
+
+/-- **Which arm of a structured instruction runs, natively**, on the native stack `V` (top first)
+after its segment: an `if` pops its condition `cv` (`truthy`) and runs arm `0` when it is
+nonzero, `1` otherwise; the others run arm `0`. `V'` is the stack left. -/
+inductive ArmSel : Instr → List Val → Nat → List Val → Prop where
+  | plain {i : Instr} {V : List Val} (hi : ∀ bt t e, i ≠ .if_ bt t e) : ArmSel i V 0 V
+  | cond {bt : BlockType} {t e : List Instr} {cv : Val} {V : List Val} {b : Bool}
+      (hb : truthy cv = some b) : ArmSel (.if_ bt t e) (cv :: V) (if b then 0 else 1) V
 
 /-- **Where a block's straight-line code leads**, from its native outcome `r` (store, frame,
 outcome; native stacks top first), under the label frames `ls`: the CFG targets of `MStepC`, with
@@ -114,7 +126,7 @@ inductive DispL (body : Expr) (b : BlockId) (ls : List LFrame) :
       DispL body b ls (s, f, .flow (.normal ws)) st'
   /-- A branch to an enclosing label `k` (`branchN`). -/
   | br {s : Store H} {f : Frame} {ws : List Val} {k : Nat} {L : LFrame} {st' : MState H}
-      (hL : ls[k]? = some L) (hg : branchN body b ls k L ws.reverse s f = some st') :
+      (hL : ls[k]? = some L) (hg : branchN body b ls k L ws s f = some st') :
       DispL body b ls (s, f, .flow (.brk k ws)) st'
   /-- A branch to the function label: `exit` with the branch-site stack. -/
   | brOut {s : Store H} {f : Frame} {ws : List Val} {k : Nat} (hk : k = ls.length) :
@@ -139,7 +151,7 @@ inductive DispL (body : Expr) (b : BlockId) (ls : List LFrame) :
         Catches s f a L.catches none)
       (hL : ls[j]? = some L) (hT : L.tryT = true) (hc : Catches s f a L.catches (some (us, l)))
       (hL' : ls[j + 1 + l.toNat]? = some L')
-      (hg : branchN body b ls (j + 1 + l.toNat) L' (L.outer ++ us) s f = some st') :
+      (hg : branchN body b ls (j + 1 + l.toNat) L' (us.reverse ++ L.outer.reverse) s f = some st') :
       DispL body b ls (s, f, .flow (.throw a)) st'
   /-- An exception caught with a clause branching to the function label: `exit` with the caught
   values over the `try_table`'s outer values. -/
@@ -164,19 +176,20 @@ inductive MStepL (body : Expr) : MState H → List (SCall H) → MState H → Pr
       (hb : lookup body b = some sg) (hr : EvalLXPS s f stk.reverse (liftInstrs sg.body) l r)
       (hn : ¬ r.2.2.IsNormal) (hd : DispL body b ls r st') :
       MStepL body ⟨.block b, stk, ls, s, f⟩ l st'
-  /-- Entering arm `a` of a structured terminator after the segment, as `MStepC.enter` (an empty
-  arm continues at once, leaving its sequence natively). -/
-  | enter {b : BlockId} {sg : Segment} {stk stk₁ ws us : List Val} {ls : List LFrame}
+  /-- Entering arm `a` of a structured terminator after the segment, natively: the arm runs on
+  the top `np` values of the stack left (`ArmSel`), the frame keeping the rest as its outer values
+  (`EvalLXPS`'s `stk.take np`, `stk.drop np`); an empty arm continues at once, leaving its sequence
+  natively. -/
+  | enter {b : BlockId} {sg : Segment} {stk : List Val} {V V' : List Val} {ls : List LFrame}
       {s s₁ : Store H} {f f₁ : Frame} {i : Instr} {a : Nat} {c : List Instr} {bt : BlockType}
-      {t₁ t₂ : List Validation.CValType} {loop tryT : Bool} {cs : List Catch} {l : List (SCall H)}
+      {np nr : Nat} {loop tryT : Bool} {cs : List Catch} {l : List (SCall H)} {st' : MState H}
       (hb : lookup body b = some sg) (ht : sg.term = some i) (harm : armOf i a = some c)
       (hkind : StructKind i bt loop tryT cs)
-      (hr : EvalLXPS s f stk.reverse (liftInstrs sg.body) l (s₁, f₁, .flow (.normal stk₁)))
-      (hcond : CondArm i stk₁.reverse a ws us)
-      (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
-      {st' : MState H}
+      (hr : EvalLXPS s f stk.reverse (liftInstrs sg.body) l (s₁, f₁, .flow (.normal V)))
+      (hsel : ArmSel i V a V') (har : Binaryen.arity f₁ bt = some (np, nr))
       (hg : gotoN (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
-          (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁ = some st') :
+          (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls)
+          (V'.take np).reverse s₁ f₁ = some st') :
       MStepL body ⟨.block b, stk, ls, s, f⟩ l st'
 
 /-- **A pending tail call ends the body**: a block's straight-line code ends in a pending tail

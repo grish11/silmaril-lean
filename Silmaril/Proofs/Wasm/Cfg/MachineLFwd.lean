@@ -306,14 +306,12 @@ to `r₀`, and its frame carried `r₀` on (`WrapL`), so the instruction runs fr
 frame's outer values. -/
 theorem wrap_sound {L : LFrame} {t : Instr} {rest c : List Instr} {a : Nat}
     (hk : StructKind t L.bt L.loop L.tryT L.catches) (harm : armOf t a = some c)
-    (hnif : ∀ bt' tt ee, t ≠ .if_ bt' tt ee) {s : Store H} {f : Frame} {us : List Val}
-    {np nr : Nat} (har : arity f L.bt = some (np, nr)) (hus : us.length = np)
+    (hnif : ∀ bt' tt ee, t ≠ .if_ bt' tt ee) {s : Store H} {f : Frame} {stk : List Val}
+    {np nr : Nat} (har : arity f L.bt = some (np, nr)) (hdr : stk.drop np = L.outer.reverse)
     {l₀ l₁ : List (SCall H)} {r₀ r₁ : Store H × Frame × POut}
-    (hrun : EvalLXPS s f us (liftInstrs c) l₀ r₀) (hw : WrapL L t rest r₀ l₁ r₁) :
-    EvalLXPS s f (us ++ L.outer.reverse) (liftInstr t :: liftInstrs rest) (l₀ ++ l₁) r₁ := by
+    (hrun : EvalLXPS s f (stk.take np) (liftInstrs c) l₀ r₀) (hw : WrapL L t rest r₀ l₁ r₁) :
+    EvalLXPS s f stk (liftInstr t :: liftInstrs rest) (l₀ ++ l₁) r₁ := by
   have hmod := MachineLSeq.module_eq hrun
-  obtain ⟨htk, hdr⟩ := take_append_len (W := L.outer.reverse) hus
-  rw [← htk] at hrun
   obtain ⟨ar, ou, lp, tt, cs, bt⟩ := L
   simp only at hk har hw hrun hdr ⊢
   cases hk with
@@ -366,25 +364,21 @@ theorem wrap_sound {L : LFrame} {t : Instr} {rest c : List Instr} {a : Nat}
 /-- **`if`, natively**: the condition `k` on top chose the arm `a`, which ran from `us`. -/
 theorem wrap_sound_if {L : LFrame} {bt : BlockType} {tt ee rest c : List Instr} {a : Nat}
     (hk : StructKind (.if_ bt tt ee) L.bt L.loop L.tryT L.catches)
-    (harm : armOf (.if_ bt tt ee) a = some c) {k : BitVec 32} (hka : (k != 0) = (a == 0))
-    {s : Store H} {f : Frame} {us : List Val} {np nr : Nat} (har : arity f L.bt = some (np, nr))
-    (hus : us.length = np) {l₀ l₁ : List (SCall H)} {r₀ r₁ : Store H × Frame × POut}
-    (hrun : EvalLXPS s f us (liftInstrs c) l₀ r₀) (hw : WrapL L (.if_ bt tt ee) rest r₀ l₁ r₁) :
-    EvalLXPS s f (.i32 k :: (us ++ L.outer.reverse)) (liftInstr (.if_ bt tt ee) :: liftInstrs rest)
-      (l₀ ++ l₁) r₁ := by
+    (harm : armOf (.if_ bt tt ee) a = some c) {cv : Val} {b : Bool} (htr : truthy cv = some b)
+    (hab : a = if b then 0 else 1) {s : Store H} {f : Frame} {stk : List Val} {np nr : Nat}
+    (har : arity f L.bt = some (np, nr)) (hdr : stk.drop np = L.outer.reverse)
+    {l₀ l₁ : List (SCall H)} {r₀ r₁ : Store H × Frame × POut}
+    (hrun : EvalLXPS s f (stk.take np) (liftInstrs c) l₀ r₀)
+    (hw : WrapL L (.if_ bt tt ee) rest r₀ l₁ r₁) :
+    EvalLXPS s f (cv :: stk) (liftInstr (.if_ bt tt ee) :: liftInstrs rest) (l₀ ++ l₁) r₁ := by
   have hmod := MachineLSeq.module_eq hrun
-  obtain ⟨htk, hdr⟩ := take_append_len (W := L.outer.reverse) hus
   obtain ⟨ar, ou, lp, tt', cs, bt'⟩ := L
   simp only at hk har hw hdr ⊢
   cases hk
-  have hc : EvalLXPS s f (.i32 k :: (us ++ ou.reverse)) [] [] (s, f, .flow (.normal (.i32 k :: (us ++ ou.reverse)))) :=
-    .nil
-  have htr : truthy (.i32 k) = some (a == 0) := by
-    simp [truthy, Val.i32, asInt, ← hka]
-    exact ⟨k, rfl, rfl⟩
-  have harm' : (if (a == 0) then liftInstrs tt else liftInstrs ee) = liftInstrs c := by
-    rcases a with _ | _ | a <;> simp [armOf] at harm <;> subst harm <;> rfl
-  rw [← harm', ← htk] at hrun
+  have hc : EvalLXPS s f (cv :: stk) [] [] (s, f, .flow (.normal (cv :: stk))) := .nil
+  have harm' : (if b then liftInstrs tt else liftInstrs ee) = liftInstrs c := by
+    subst hab; cases b <;> simp [armOf] at harm <;> subst harm <;> rfl
+  rw [← harm'] at hrun
   cases hw with
   | ok hloop har' hvs hk' =>
     rw [arity_congr hmod, har] at har'; cases har'
@@ -418,29 +412,29 @@ theorem arity_of_blockType {f : Frame} {bt : BlockType} {t₁ t₂ : List Valida
 
 /-- **Entering a structured terminator** (`MStepL.enter`). -/
 theorem enter_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : BlockId}
-    {sg : Segment} {stk stk₁ ws us : List Val} {ls : List LFrame} {s s₁ : Store H}
-    {f f₁ : Frame} {i : Instr} {a : Nat} {c : List Instr} {bt : BlockType}
-    {t₁ t₂ : List Validation.CValType} {loop tryT : Bool} {cs : List Catch} {l l' : List (SCall H)}
+    {sg : Segment} {stk V V' : List Val} {ls : List LFrame} {s s₁ : Store H}
+    {f f₁ : Frame} {i : Instr} {a : Nat} {c : List Instr} {bt : BlockType} {np nr : Nat}
+    {loop tryT : Bool} {cs : List Catch} {l l' : List (SCall H)}
     {st' : MState H} (hok : FramesOk body b.seq.reverse ls)
     (hb : lookup body b = some sg) (ht : sg.term = some i) (harm : armOf i a = some c)
     (hkind : StructKind i bt loop tryT cs)
-    (hr : EvalLXPS s f stk.reverse (liftInstrs sg.body) l (s₁, f₁, .flow (.normal stk₁)))
-    (hcond : CondArm i stk₁.reverse a ws us)
-    (hbt : f₁.module.blockType? bt = some (t₁, t₂)) (hm : us.length = t₁.length)
+    (hr : EvalLXPS s f stk.reverse (liftInstrs sg.body) l (s₁, f₁, .flow (.normal V)))
+    (hsel : ArmSel i V a V') (har : arity f₁ bt = some (np, nr))
     (hg : gotoN (entry body (b.seq ++ [(b.idx, a)]) 0) (b.seq.length + 1)
-      (⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ :: ls) us s₁ f₁ = some st')
+      (⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ :: ls)
+      (V'.take np).reverse s₁ f₁ = some st')
     (hG : Good body Fin st' l') : Good body Fin ⟨.block b, stk, ls, s, f⟩ (l ++ l') := by
   obtain ⟨pc, hpc, hsg⟩ := seg_of_lookup hb
   have hcarm : seqAt body (b.seq ++ [(b.idx, a)]) = some c := by
     rw [Proofs.Machine.seqAt_append]; simp [hpc, hsg, ht, harm]
-  set L : LFrame := ⟨labelArity loop t₁ t₂, ws, loop, tryT, cs, bt⟩ with hLdef
+  set L : LFrame := ⟨if loop then np else nr, (V'.drop np).reverse, loop, tryT, cs, bt⟩ with hLdef
   have hokA : FramesOk body (b.seq ++ [(b.idx, a)]).reverse (L :: ls) := by
     simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
       List.singleton_append, FramesOk]
     exact ⟨⟨pc, sg, i, c, by simpa using hpc, hsg, ht, harm, hkind⟩, hok⟩
   obtain ⟨l₀, l₁, r₀, hrun, hkl, rfl⟩ :=
     entry_good hokA hcarm (by simpa using hg) hG
-  rw [restAt_zero] at hrun
+  rw [restAt_zero, List.reverse_reverse] at hrun
   simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
     List.singleton_append] at hkl
   obtain ⟨pc', sg', t', c', r₁, l₁₁, l₁₂, hpc', hsg', ht', harm', hw, hrest, rfl⟩ :=
@@ -448,24 +442,12 @@ theorem enter_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : 
   rw [List.reverse_reverse, hpc] at hpc'; cases hpc'
   rw [hsg] at hsg'; cases hsg'
   rw [ht] at ht'; cases ht'
-  have har := arity_of_blockType (f := f₁) hbt
-  have hus : us.reverse.length = t₁.length := by simpa using hm
-  have hnat : EvalLXPS s₁ f₁ stk₁ (liftInstr i :: liftInstrs (restAt pc (b.idx + 1)))
+  have hdr : V'.drop np = L.outer.reverse := by simp [hLdef]
+  have hnat : EvalLXPS s₁ f₁ V (liftInstr i :: liftInstrs (restAt pc (b.idx + 1)))
       (l₀ ++ l₁₁) r₁ := by
-    generalize hV : stk₁.reverse = V at hcond
-    have hstk : stk₁ = V.reverse := by rw [← hV, List.reverse_reverse]
-    subst hstk
-    cases hcond with
-    | plain hi =>
-      simpa [List.reverse_append] using wrap_sound hkind harm hi har hus hrun hw
-    | @ifTrue bt' tt ee _ _ k hk =>
-      have hka : (k != 0) = (0 == 0) := by simpa using hk
-      simpa [List.reverse_append, Val.i32] using
-        wrap_sound_if hkind harm hka har hus hrun hw
-    | @ifFalse bt' tt ee =>
-      have hka : ((0 : BitVec 32) != 0) = (1 == 0) := by decide
-      simpa [List.reverse_append, Val.i32] using
-        wrap_sound_if hkind harm hka har hus hrun hw
+    cases hsel with
+    | plain hi => exact wrap_sound hkind harm hi har hdr hrun hw
+    | cond hb' => exact wrap_sound_if hkind harm hb' rfl har hdr hrun hw
   refine ⟨pc, l ++ (l₀ ++ l₁₁), l₁₂, r₁, hpc, ?_, hrest, by simp⟩
   have hsplit : liftInstrs (restAt pc b.idx) =
       liftInstrs sg.body ++ (liftInstr i :: liftInstrs (restAt pc (b.idx + 1))) := by
@@ -506,16 +488,15 @@ theorem after_frame {body : Expr} {Fin : Store H × Frame × POut → Prop} {m a
 
 /-- `branchN` relative to the reversed path. -/
 def branchR (body : Expr) (rp : List SeqStep) (ls : List LFrame) (k : Nat) (L : LFrame)
-    (V : List Val) (s : Store H) (f : Frame) : Option (MState H) :=
+    (N : List Val) (s : Store H) (f : Frame) : Option (MState H) :=
   (arity f L.bt).bind fun a =>
     if L.loop then
-      if a.1 ≤ V.length then
-        gotoN ((labelsRev body rp).getD k .invalid) (rp.length - k) (L :: ls.drop (k + 1))
-          (topVals a.1 V) s f
-      else none
+      gotoN ((labelsRev body rp).getD k .invalid) (rp.length - k)
+        ({ L with outer := ((N.take a.1 ++ L.outer.reverse).drop a.1).reverse } :: ls.drop (k + 1))
+        ((N.take a.1 ++ L.outer.reverse).take a.1).reverse s f
     else
       gotoN ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1)) (ls.drop (k + 1))
-        (L.outer ++ topVals a.2 V) s f
+        (L.outer ++ (N.take a.2).reverse) s f
 
 theorem branchN_eq (body : Expr) (b : BlockId) (ls : List LFrame) (k : Nat) (L : LFrame)
     (V : List Val) (s : Store H) (f : Frame) :
@@ -538,7 +519,7 @@ theorem structKind_loop {t : Instr} {bt : BlockType} {tryT : Bool} {cs : List Ca
 theorem br_kl {body : Expr} {Fin : Store H × Frame × POut → Prop} :
     ∀ (k : Nat) (rp : List SeqStep) (ls : List LFrame) (L : LFrame) (ws : List Val)
       (s : Store H) (f : Frame) (st' : MState H) (l : List (SCall H)), FramesOk body rp ls →
-      ls[k]? = some L → branchR body rp ls k L ws.reverse s f = some st' →
+      ls[k]? = some L → branchR body rp ls k L ws s f = some st' →
       Good body Fin st' l → KL body Fin rp ls (s, f, .flow (.brk k ws)) l
   | _, [], [], _, _, _, _, _, _, _, hL, _, _ => by simp at hL
   | _, [], _ :: _, _, _, _, _, _, _, h, _, _, _ => by simp [FramesOk] at h
@@ -564,35 +545,35 @@ theorem br_kl {body : Expr} {Fin : Store H × Frame × POut → Prop} :
     · simp only [hloop, Bool.false_eq_true, ↓reduceIte, List.length_cons,
         Nat.add_sub_cancel] at hg
       obtain ⟨l₁, l₂, r₁, hrun, hkl, rfl⟩ := after_frame hok' hpc hg hG
-      rw [List.reverse_append, topVals_reverse, List.reverse_reverse] at hrun
+      rw [List.reverse_append, List.reverse_reverse] at hrun
       exact .frame hpc hsg ht harm hkind (.ok hloop har rfl hrun) hkl
-    · simp only [hloop, ↓reduceIte] at hg
-      split at hg
-      · next hle =>
-        have hcarm : seqAt body (rp.reverse ++ [(m, a)]) = some c := by
-          rw [Proofs.Machine.seqAt_append]; simp [hpc, hsg, ht, harm]
-        have hokA : FramesOk body (rp.reverse ++ [(m, a)]).reverse (L₀ :: ls) := by
-          simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
-            List.singleton_append, List.reverse_reverse, FramesOk]
-          exact ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩
-        obtain ⟨l₀, l₁, r₀, hrun, hkl0, rfl⟩ :=
-          entry_good hokA hcarm (by simpa using hg) hG
-        rw [restAt_zero] at hrun
+    · simp only [hloop, ↓reduceIte, Nat.sub_zero, List.length_cons, zero_add, List.drop_one,
+        List.tail_cons] at hg
+      set R := ws.take np ++ L₀.outer.reverse with hR
+      set L' : LFrame := ⟨L₀.arity, (R.drop np).reverse, true, L₀.tryT, L₀.catches, L₀.bt⟩ with hL'
+      have hcarm : seqAt body (rp.reverse ++ [(m, a)]) = some c := by
+        rw [Proofs.Machine.seqAt_append]; simp [hpc, hsg, ht, harm]
+      have hkind' : StructKind t L'.bt L'.loop L'.tryT L'.catches := by
+        simpa [hL', ← hloop] using hkind
+      have hokA : FramesOk body (rp.reverse ++ [(m, a)]).reverse (L' :: ls) := by
         simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
-          List.singleton_append, List.reverse_reverse] at hkl0
-        obtain ⟨pc', sg', t', c', r₁, l₁₁, l₁₂, hpc', hsg', ht', harm', hw, hrest, rfl⟩ :=
-          kl_frame_inv hkl0
-        rw [hpc] at hpc'; cases hpc'
-        rw [hsg] at hsg'; cases hsg'
-        rw [ht] at ht'; cases ht'
-        have hnif := structKind_loop (hloop ▸ hkind)
-        rw [topVals_reverse, List.reverse_reverse] at hrun
-        have hlen : (ws.take np).length = np := by
-          simp only [List.length_take, List.length_reverse] at hle ⊢; omega
-        have hnat := wrap_sound hkind harm hnif har hlen hrun hw
-        simpa [List.append_assoc] using
-          KL.frame hpc hsg ht harm hkind (.loopBack hloop har hnat) (by simpa using hrest)
-      · cases hg
+          List.singleton_append, List.reverse_reverse, FramesOk]
+        exact ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind'⟩, hok'⟩
+      obtain ⟨l₀, l₁, r₀, hrun, hkl0, rfl⟩ :=
+        entry_good hokA hcarm (by simpa using hg) hG
+      rw [restAt_zero, List.reverse_reverse] at hrun
+      simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+        List.singleton_append, List.reverse_reverse] at hkl0
+      obtain ⟨pc', sg', t', c', r₁, l₁₁, l₁₂, hpc', hsg', ht', harm', hw, hrest, rfl⟩ :=
+        kl_frame_inv hkl0
+      rw [hpc] at hpc'; cases hpc'
+      rw [hsg] at hsg'; cases hsg'
+      rw [ht] at ht'; cases ht'
+      have hnif := structKind_loop (hloop ▸ hkind)
+      have hdr : R.drop np = L'.outer.reverse := by simp [hL']
+      have hnat := wrap_sound hkind' harm hnif har hdr hrun hw
+      simpa [List.append_assoc] using
+        KL.frame hpc hsg ht harm hkind (.loopBack hloop har hnat) (by simpa using hrest)
 
 /-- **A branch to the function label**: `brk` passes every frame, ending the body in `brk 0`. -/
 theorem kl_brOut {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
@@ -718,19 +699,65 @@ theorem labelsRev_ne_raise (body : Expr) :
     simp only [labelsRev, List.getD_cons_succ]
     exact labelsRev_ne_raise body rp k
 
+/-- Frames of the same kind (block type, `loop` and `try_table` flags, clauses). -/
+def SameKind (L L' : LFrame) : Prop :=
+  L'.bt = L.bt ∧ L'.loop = L.loop ∧ L'.tryT = L.tryT ∧ L'.catches = L.catches
+
+theorem framesOk_congr {body : Expr} :
+    ∀ (rp : List SeqStep) (ls ls' : List LFrame), List.Forall₂ SameKind ls ls' →
+      FramesOk body rp ls → FramesOk body rp ls'
+  | [], [], [], _, h => h
+  | [], _ :: _, _, _, h => by simp [FramesOk] at h
+  | _ :: _, [], _, _, h => by simp [FramesOk] at h
+  | _ :: _, _ :: _, [], hk, _ => by cases hk
+  | [], [], _ :: _, hk, _ => by cases hk
+  | (m, a) :: rp, L :: ls, L' :: ls', hk, h => by
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩ := h
+    cases hk with
+    | cons hL hk' =>
+      obtain ⟨h1, h2, h3, h4⟩ := hL
+      exact ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, by rw [h1, h2, h3, h4]; exact hkind⟩,
+        framesOk_congr rp ls ls' hk' hok'⟩
+
+theorem sameKind_refl (L : LFrame) : SameKind L L := ⟨rfl, rfl, rfl, rfl⟩
+
+/-- `gotoN` with frames of the same kind as `goto`'s keeps the state invariant. -/
+theorem gotoN_ok' {body : Expr} {t : Target} {d : Nat} {ls ls' : List LFrame} {W W' : List Val}
+    {s : Store H} {f : Frame} {st' : MState H} (h : gotoN t d ls' W' s f = some st')
+    (ht : t ≠ .raise) (hk : List.Forall₂ SameKind ls ls')
+    (hok : MInv body (goto t d ls W s f)) : MInv body st' := by
+  simp only [gotoN, Option.map_eq_some_iff] at h
+  obtain ⟨p, hp, rfl⟩ := h
+  have h1 := popN_fst _ _ _ hp
+  have h2 := Proofs.Machine.popL_fst (d - depthT t) ls W
+  have hk' : List.Forall₂ SameKind (ls.drop (d - depthT t)) (ls'.drop (d - depthT t)) :=
+    List.forall₂_drop _ hk
+  unfold MInv at hok ⊢
+  simp only [goto] at hok
+  cases t with
+  | block b =>
+    simp only at hok ⊢; rw [h1]; rw [h2] at hok
+    exact framesOk_congr _ _ _ hk' hok
+  | exit =>
+    simp only at hok ⊢; rw [h1]; rw [h2] at hok
+    rw [hok] at hk'; exact List.forall₂_nil_left_iff.mp hk'
+  | trap => trivial
+  | raise => exact absurd rfl ht
+  | invalid => simp at hok
+
 /-- A branch keeps the state invariant. -/
 theorem branchR_ok {body : Expr} {rp : List SeqStep} {ls : List LFrame} {k : Nat} {L : LFrame}
-    {V : List Val} {s : Store H} {f : Frame} {st' : MState H} (hok : FramesOk body rp ls)
-    (hL : ls[k]? = some L) (hg : branchR body rp ls k L V s f = some st') : MInv body st' := by
+    {N : List Val} {s : Store H} {f : Frame} {st' : MState H} (hok : FramesOk body rp ls)
+    (hL : ls[k]? = some L) (hg : branchR body rp ls k L N s f = some st') : MInv body st' := by
   simp only [branchR, Option.bind_eq_some_iff] at hg
   obtain ⟨⟨np, nr⟩, -, hg⟩ := hg
   cases hloop : L.loop
   · simp only [hloop, Bool.false_eq_true, ↓reduceIte] at hg
     exact gotoN_ok hg (labelsRev_ne_raise body rp k) (Proofs.Machine.br_ok hok hL hloop)
   · simp only [hloop, ↓reduceIte] at hg
-    split at hg
-    · exact gotoN_ok hg (labelsRev_ne_raise body rp k) (Proofs.Machine.br_loop_ok hok hL hloop)
-    · cases hg
+    exact gotoN_ok' (ls := L :: ls.drop (k + 1)) (W := []) hg (labelsRev_ne_raise body rp k)
+      (.cons ⟨rfl, by simp [hloop], rfl, rfl⟩ (List.forall₂_same.mpr fun L _ => sameKind_refl L))
+      (Proofs.Machine.br_loop_ok (W := []) (L := L) hok hL hloop)
 
 /-- **A step keeps the state invariant.** -/
 theorem mstep_ok {body : Expr} {st st' : MState H} {l : List (SCall H)}
@@ -753,7 +780,7 @@ theorem mstep_ok {body : Expr} {st st' : MState H} {l : List (SCall H)}
   cases h with
   | run _ _ _ hd => exact hdisp hok hd
   | abort _ _ _ hd => exact hdisp hok hd
-  | enter hb ht harm hkind _ _ _ _ hg =>
+  | enter hb ht harm hkind _ _ _ hg =>
     exact gotoN_ok hg (entry_ne_raise _ _ _) (Proofs.Machine.enter_ok hok hb ht harm hkind)
 
 /-- **A step keeps the invariant backwards**: a state stands for what its successor stands
@@ -773,7 +800,7 @@ theorem mstep_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {st s
       rw [MachineL.codeOf, MachineLSeq.liftInstrs_append]
       exact (MachineLSeq.append hr _).1 hn
     exact abrupt_good hb (.inl rfl) hr' hn (disp_kl hok hd hn hG)
-  | enter hb ht harm hkind hr hcond hbt hm hg => exact enter_good hok hb ht harm hkind hr hcond hbt hm hg hG
+  | enter hb ht harm hkind hr hsel har hg => exact enter_good hok hb ht harm hkind hr hsel har hg hG
 
 /-- **Runs keep the invariant backwards.** -/
 theorem run_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {st st' : MState H}

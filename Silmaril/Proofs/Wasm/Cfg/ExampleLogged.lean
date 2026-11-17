@@ -37,9 +37,9 @@ theorem logged_run (s : Store H) (f : Frame) :
   have h₁ : MStepL bodyExtra (initial bodyExtra s f) []
       ⟨.block ⟨[(0, 0)], 0⟩, [], [frameE], s, f⟩ :=
     MStepL.enter (b := ⟨[], 0⟩) (sg := ⟨[], some (.block .empty innerExtra)⟩) (stk := [])
-      (stk₁ := []) (ws := []) (us := []) (ls := []) (a := 0) (c := innerExtra) (bt := .empty)
-      (t₁ := []) (t₂ := []) (loop := false) (tryT := false) (cs := []) rfl rfl rfl .block .nil
-      cond_block rfl rfl rfl
+      (V := []) (V' := []) (ls := []) (a := 0) (c := innerExtra) (bt := .empty) (np := 0) (nr := 0)
+      (loop := false) (tryT := false) (cs := []) rfl rfl rfl .block .nil (.plain (fun _ _ _ => nofun))
+      rfl rfl
   have h₂ : MStepL bodyExtra ⟨.block ⟨[(0, 0)], 0⟩, [], [frameE], s, f⟩ []
       ⟨.block ⟨[], 1⟩, [], [], s, f⟩ := by
     refine MStepL.run (sg := ⟨innerExtra, none⟩) (r := (s, f, .flow (.normal [.i32 2, .i32 1])))

@@ -562,7 +562,8 @@ The plain graph stays an over-approximation, and claims about it say so.
           - A branch keeps the label's arity of the branch-site stack (`branchN`).
           - `return` and a branch out of the function exit with the branch-site stack.
           - Arities come from the block type (`Binaryen.arity`), with no run-time checks.
-          - A loop is re-entered only on at least its parameters.
+          - Entering an arm and re-entering a loop split the stack as `EvalLXPS` does
+            (`stk.take np`, `vs.take np ++ outer`), so no step is missing on short stacks.
           - `MStepC` keeps Core's conventions. The two agree on typed code; no untyped
             correspondence is claimed.
         - `forward_sink`, `forward_tail`: for **all code**, a logged run from the CFG entry to a
@@ -577,6 +578,18 @@ The plain graph stays an over-approximation, and claims about it say so.
         - Still open in H1: the typed projection `MStepL` → `MStepC`, proved with the existing
           typing APIs, plus validated typed nested fixtures (block, loop, if, catch) on which it
           holds.
+        - Converse support: `MachineLSeq.split` (a run of `es₁ ++ es₂` falls through `es₁` then runs
+          `es₂`, or ends abruptly in `es₁`), the converse of `append`.
+        - Converse design (next PR): induction on the native derivation, level by level.
+          - At sequence level `p`, a native run of the rest of the sequence from block `i` gives
+            a machine run to the state that `DispL` (or the fall-through to `contRev`) assigns to
+            its outcome.
+          - Structured terminators recurse on the arm's derivation, then on the parent's
+            continuation derivation (both sub-derivations).
+          - `loopBack`'s re-run of `.loop :: rest` is a sub-derivation started from the arm
+            entry, not from the segment. So the induction's start states are "the point where a
+            structured instruction is entered", which covers both the fresh entry (`enter`) and
+            the re-entry (`branchN`).
       - **H2, both directions on bodies.**
         - Finished ends: done, throw and trap, with exact final store and log.
         - Pending calls (`ReachLXPS`), quiescent divergence, and coherent productive streams.
