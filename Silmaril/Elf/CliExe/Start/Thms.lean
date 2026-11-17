@@ -14,9 +14,12 @@ PROVED (standard axioms):
 * `cli_of_main`: **a checked description and a proof of `main` give the file's CLI
   specification** in `glibcPin`, from the executable's entry (`Program.verified`: the loader,
   `Crt.crt_run'`, `exit`; `Program.Cli.x86Model_sat`);
-* `hello_start`: the row `silmaril.elf.start.hello.gcc_o2` (`helloGcc_ok`, `libc_ok`, `ld_ok`);
-* `hello_via_start`: hello's L3 specification in `glibcPin`, through `cli_of_main` from
-  `GlibcStart` and the proof of `main` alone (`Program.Examples.helloGcc_main`).
+* `hello_start`: the row `silmaril.elf.start.hello.gcc_o2`, the **checked description** only
+  (`helloGcc_ok`, `libc_ok`, `ld_ok`); it says nothing about runs by itself;
+* `hello_via_start`: **the execution consequence for hello**: its L3 specification in `glibcPin`,
+  through `cli_of_main` from the checked description and the proof of `main` alone
+  (`Program.Examples.helloGcc_main`). It is a theorem, not a row: `glibc_start` rows are the
+  check, this is what the check is for.
 -/
 
 @[expose] public section
@@ -33,7 +36,8 @@ theorem cli_of_main {V : Type} {exe : Silmaril.Project.Value V} {pc pl : LibPin}
     (glibcPin pc pl (fun _ => True) conv exe.bytes).Sat (toCli conv spec tier) :=
   glibcPin_sat hf hok (x86Model_sat conv (verified hok hc hl hrel hmain))
 
-/-- **`hello-gcc` runs `main` after the standard start-up on the pinned glibc 2.39.** -/
+/-- **`hello-gcc` has a checked standard start-up description on the pinned glibc 2.39.** The run
+it gives is `hello_via_start`. -/
 @[solves "silmaril.elf.start.hello.gcc_o2"]
 theorem hello_start : silmaril.elf.start.hello.gcc_o2 :=
   ⟨libc_ok, ld_ok, Examples.helloGcc, Silmaril.Proofs.Elf.CliExe.Hello.hello_file,
@@ -50,6 +54,6 @@ theorem hello_via_start :
 end Silmaril.Elf.CliExe
 
 silmaril group silmaril.elf.start
-  (title := "glibc executables: the standard start-up to main (process model) and the open real-runtime obligation")
+  (title := "glibc executables: the checked standard start-up description (process model; execution via cli_of_main) and the real-runtime shape (no instance yet)")
   (children := [silmaril.shapes.elf.glibc_start, silmaril.shapes.elf.glibc_start.glibc239,
     silmaril.shapes.elf.glibc_runtime, silmaril.elf.start.hello.gcc_o2])
