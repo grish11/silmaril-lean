@@ -8,6 +8,7 @@ public import Silmaril.Wasm.Abstract.OpenStrat.Defs
 import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Close
 import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Core
 import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Pend
+import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Runs
 import Silmaril.Proofs.Wasm.Abstract.HostClosingS.Triple
 
 /-!
@@ -35,6 +36,11 @@ The session closure `wasmEvFunXPS` keeps the store of every trap, and erasing th
   `wasmEvFunXPS_throw_iff`).
 * `evalLXPh_session`, `evalLXPS_canonical`: a canonical logged run not ending in a trap is a
   session run, its calls answered as `inl` (`OCall.toS`), and conversely.
+* `evalLXPS_canonical_cut`, `evalLXPh_session_cut`: the exact correspondence, traps included. A
+  session run whose log ends in a callee-trap answer reads as a canonical run ending in the cut
+  call, for **every** answer longer than the callee's result arity; a canonical run ending in a
+  cut call reads as the session run ending in that call answered by a trap leaving the same
+  store.
 * `wasmEvPendXPS_eq`: the session pending calls are the canonical ones.
 * `wasmEvFunDXPS_erase`, `eraseTrap_sessionTripleXP`, `sessionTripleXP_noPlainTrap`: the session
   triple erases to `openTripleXP` and keeps every trap's store.
@@ -218,6 +224,38 @@ theorem evalLXPS_canonical {s : Store H} {f : Frame} {stk : List Val} {es : List
   have : (OCall.toS : OCall H → SCall H) = Silmaril.Proofs.Wasm.Abstract.HostClosingS.oToS := by
     funext z; rcases z with ⟨⟨⟨⟩⟩ | y, b, s'⟩; rfl
   rw [this]; exact (Silmaril.Proofs.Wasm.Abstract.HostClosingS.evalLXPS_toH h).ok ho
+
+/-- **A session run is a canonical run, a callee-trap answer read as every cut call.** An
+`EvalLXPS` run either has the session reading (`OCall.toS`) of a canonical log, or ends in a trap
+whose last log entry is a callee-trap answer `SCall.mk g args s₁ (.inr ()) s₂` (the run's store is
+`s₂`). In that case the callee `g` of the store `s₁` has a type `(ps, rs)`, and **for every** answer
+`ws` longer than the result arity `rs.length`, the canonical log before it, then the cut call
+`OCall.mk g args s₁ (.inl ws) s₂`, is a canonical run of the same result. -/
+theorem evalLXPS_canonical_cut {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (SCall H)} {r : Store H × Frame × CallXP.POut} (h : EvalLXPS s f stk es l r) :
+    (∃ l', l = l'.map OCall.toS ∧ EvalLXPh s f stk es l' r) ∨
+    (r.2.2 = .flow .trap ∧ ∃ (u : List (OCall H)) (g : Nat) (args : List Val) (s₁ s₂ : Store H),
+      r.1 = s₂ ∧ l = u.map OCall.toS ++ [SCall.mk g args s₁ (.inr ()) s₂] ∧
+      ∃ (fi : FuncInst H) (ps rs : List Validation.CValType), s₁.funcs[g]? = some fi ∧
+        Validation.DefType.funcType? fi.type = some (ps, rs) ∧
+        ∀ ws : List Val, rs.length < ws.length →
+          EvalLXPh s f stk es (u ++ [OCall.mk g args s₁ (.inl ws) s₂]) r) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingS.evalLXPS_canonical_cut h
+
+/-- **A canonical run is a session run, a cut call read as a callee-trap answer.** An `EvalLXPh`
+run either is, read through `OCall.toS`, a session run of the same result, or ends in a trap
+after a cut call `OCall.mk g args s₁ (.inl ws) s₂` (more values `ws` than the result arity of the
+callee `g` of `s₁`); then the session reading of the log before it, followed by the call answered
+by a trap leaving `s₂`, `SCall.mk g args s₁ (.inr ()) s₂`, is a session run of the same result. -/
+theorem evalLXPh_session_cut {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (OCall H)} {r : Store H × Frame × CallXP.POut} (h : EvalLXPh s f stk es l r) :
+    EvalLXPS s f stk es (l.map OCall.toS) r ∨
+    (r.2.2 = .flow .trap ∧ ∃ (u : List (OCall H)) (g : Nat) (args : List Val) (s₁ s₂ : Store H)
+      (ws : List Val) (fi : FuncInst H) (ps rs : List Validation.CValType),
+      l = u ++ [OCall.mk g args s₁ (.inl ws) s₂] ∧ s₁.funcs[g]? = some fi ∧
+      Validation.DefType.funcType? fi.type = some (ps, rs) ∧ rs.length < ws.length ∧
+      EvalLXPS s f stk es (u.map OCall.toS ++ [SCall.mk g args s₁ (.inr ()) s₂]) r) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingS.evalLXPh_session_cut h
 
 /-! ## Pending calls -/
 

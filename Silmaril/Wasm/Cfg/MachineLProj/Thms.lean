@@ -10,6 +10,9 @@ import Silmaril.Proofs.Wasm.Cfg.MachineLProjC
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjI
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjS
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjT
+import Silmaril.Proofs.Wasm.Cfg.MachineLProjX
+import Silmaril.Proofs.Wasm.Cfg.MachineLProjK
+public import Silmaril.Wasm.Interp.EHSim.Thms
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjE
 public import Silmaril.Wasm.Abstract.CallXT.Thms
 public import Silmaril.Wasm.Abstract.ExposePTyped.Thms
@@ -135,6 +138,35 @@ callee's parameters, and `n` the callee's result count. Hypotheses, all stated:
   the store's functions and returns at least the callee's result count. No soundness of `C`
   (`Interp.OracleSoundT`) and no `StoreChkE` is assumed: the region run answers the same calls
   by the same `C`.
+
+**The stepwise projection over the pending, exception-aware semantics** (`proj_stepE`,
+`proj_runLE`, `proj_initialE`). The same statement as `proj_step`, with the segment bridge
+`flat_runP` (`EvalOXP`, `ehExt`). The hypotheses are only:
+* bodies without `try_table` (`NoTry`);
+* an arity-respecting oracle (`ArityResp Γ C`), with `CloseOk C` logs and `Ctx.Good` stores.
+
+No restriction on call forms (`call_indirect`, `call_ref`), on terminators (`throw`,
+`throw_ref`, tail calls) or on the store's checker. A `throw`/`throw_ref` terminator is
+`MStepC.raise`, and a tail call of null is `MStepC.tailNull`. An answered tail call is an end of
+the logged run (`TailL`), not a step. **`proj_tailE`**, **`proj_tail_initialE`**: a run ending in a
+pending tail call whose answer is a `CloseOk C` entry is an `MStepC` run whose last step is
+`MStepC.tail`, which makes the call through `C` and replaces the function's frame. The run ends at
+the sink the answer stands for (`tailSink`: the returned values at `exit`, the exception at
+`raise`, or `trap`). The handler case (`try_table`) is separate (`docs/projects/wasm-cfg.md`).
+
+**Handlers** (`cinv_stepE`, `cinv_runE`, `proj_stepK`, `proj_runLK`, `proj_initialK`,
+`proj_tail_initialK`). The same theorems **without `NoTry`**: `try_table` frames are entered,
+left, branched across, and catch.
+* The checker invariant records each `try_table` frame's clause check (`ChkF`).
+* A caught exception branches to the clause's label with at least its arity (`catch_arity`, from
+  `Interp.catches_count` under the tag invariants of `Ctx.Good`).
+* Catches map to `MStepC.catch_`/`bodyCatch` (block targets equal) and to
+  `MStepC.catchOut`/`bodyCatchOut` (exits, related by `ProjRel`'s junk); uncaught exceptions
+  pass every handler as in `MStepC.raise`/`bodyRaise`.
+
+The hypotheses are now only an arity-respecting oracle (`ArityResp Γ C`) with `CloseOk C` logs,
+`Ctx.Good` stores, and the body's own `chkE (ehExt tags)` check. That is every call form and every
+structured instruction, exceptions on.
 
 On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
 projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
@@ -350,5 +382,136 @@ theorem flat_runP {P : Numerics.Profile} {host : HostSemantics H} {Γ : Ctx H}
       (liftInstrs is) = some out) :
     ∃ s' f' o, Region.RunC P host C s f N.reverse (expression is) s' f' o ∧ ResOutP s' f' o r :=
   Proofs.MachineLProjE.flat_runP hA hflat d hg hchk
+
+/-! ## The stepwise projection, exceptions on -/
+
+/-- **A logged step projects to one `MStepC` step** (exceptions on, every call form, bodies
+without `try_table`, an arity-respecting oracle). -/
+theorem proj_stepE {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst} {nl ret : Nat} {body : Expr}
+    (hNT : NoTry body) {st st' : MState H} {l : List (Abstract.SCall H)}
+    (hs : MStepL body st l st') (hl : ∀ e ∈ l, CloseOk C e) (hok : MInv body st)
+    (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    ∃ stC, MStepC P host C body st stC ∧ ProjRel st' stC :=
+  Proofs.MachineLProjX.proj_stepE hA hNT hs hl hok hg hn hI
+
+/-- **A logged run projects to an `MStepC` run**, step by step (exceptions on). -/
+theorem proj_runLE {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst} {nl ret : Nat} {body : Expr}
+    (hNT : NoTry body) {st st' : MState H} {l : List (Abstract.SCall H)}
+    (h : MRunL body st l st') (hl : ∀ e ∈ l, CloseOk C e) (hok : MInv body st)
+    (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    ∃ stC, Relation.ReflTransGen (MStepC P host C body) st stC ∧ ProjRel st' stC :=
+  Proofs.MachineLProjX.proj_runLE hA hNT h hl hok hg hn hI
+
+/-- **A logged run from the CFG entry projects to an `MStepC` run from the CFG entry**
+(exceptions on), for a body passing the function's own check. -/
+theorem proj_initialE {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {ret : Nat} {body : Expr} (hNT : NoTry body)
+    {s : Store H} {f : Frame} (hg : Γ.Good s)
+    (hchk : endsAt (chkE (ehExt Γ.tags) Γ.funcs f.module f.locals.length ret [ret] (some 0)
+      (liftInstrs body)) ret = true)
+    {l : List (Abstract.SCall H)} {st' : MState H} (h : MRunL body (initial body s f) l st')
+    (hl : ∀ e ∈ l, CloseOk C e) :
+    ∃ stC, Relation.ReflTransGen (MStepC P host C body) (initial body s f) stC ∧
+      ProjRel st' stC :=
+  Proofs.MachineLProjX.proj_initialE hA hNT hg hchk h hl
+
+/-- **An answered tail call projects to `MStepC.tail`** (frame replacement), to the sink the
+answer stands for. -/
+theorem proj_tailE {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst} {nl ret : Nat} {body : Expr}
+    {st : MState H} {l : List (Abstract.SCall H)} {s₁ s₂ : Store H} {f₁ : Frame} {a n : Nat}
+    {args : List Val} {b : (List Val ⊕ Nat) ⊕ PUnit.{1}}
+    (ht : TailL body st l (s₁, f₁, .tail a args n)) (hl : ∀ e ∈ l, CloseOk C e)
+    (he : CloseOk C (Abstract.SCall.mk a args s₁ b s₂)) (hg : Γ.Good st.store)
+    (hn : st.frame.locals.length = nl) (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    MStepC P host C body st (tailSink b s₂ f₁) :=
+  Proofs.MachineLProjX.proj_tailE hA ht hl he hg hn hI
+
+/-- **A logged run from the CFG entry ending in an answered tail call** is an `MStepC` run from
+the CFG entry to the sink the answer stands for. -/
+theorem proj_tail_initialE {P : Numerics.Profile} {host : HostSemantics H}
+    {C : Abstract.CallRel H} {Γ : Ctx H} (hA : ArityResp Γ C) {ret : Nat} {body : Expr}
+    (hNT : NoTry body) {s : Store H} {f : Frame} (hg : Γ.Good s)
+    (hchk : endsAt (chkE (ehExt Γ.tags) Γ.funcs f.module f.locals.length ret [ret] (some 0)
+      (liftInstrs body)) ret = true)
+    {l l' : List (Abstract.SCall H)} {st : MState H} {s₁ s₂ : Store H} {f₁ : Frame} {a n : Nat}
+    {args : List Val} {b : (List Val ⊕ Nat) ⊕ PUnit.{1}}
+    (h : MRunL body (initial body s f) l st) (ht : TailL body st l' (s₁, f₁, .tail a args n))
+    (hl : ∀ e ∈ l ++ l', CloseOk C e) (he : CloseOk C (Abstract.SCall.mk a args s₁ b s₂)) :
+    Relation.ReflTransGen (MStepC P host C body) (initial body s f) (tailSink b s₂ f₁) :=
+  Proofs.MachineLProjX.proj_tail_initialE hA hNT hg hchk h ht hl he
+
+/-! ## Handlers -/
+
+/-- **The checker invariant is preserved by logged steps**, `try_table` included. -/
+theorem cinv_stepE {C : Abstract.CallRel H} {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst}
+    {nl ret : Nat} {body : Expr} {st st' : MState H} {l : List (Abstract.SCall H)}
+    (hs : MStepL body st l st') (hl : ∀ e ∈ l, CloseOk C e) (hok : MInv body st)
+    (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    Γ.Good st'.store ∧ st'.frame.locals.length = nl ∧
+      CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st' :=
+  Proofs.MachineLProjK.cinv_stepE hA hs hl hok hg hn hI
+
+/-- **The checker invariant along logged runs**, `try_table` included. -/
+theorem cinv_runE {C : Abstract.CallRel H} {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst}
+    {nl ret : Nat} {body : Expr} {st st' : MState H} {l : List (Abstract.SCall H)}
+    (h : MRunL body st l st') (hl : ∀ e ∈ l, CloseOk C e) (hok : MInv body st)
+    (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    Γ.Good st'.store ∧ st'.frame.locals.length = nl ∧
+      CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st' :=
+  Proofs.MachineLProjK.cinv_runE hA h hl hok hg hn hI
+
+/-- **A logged step projects to one `MStepC` step**: every call form and structured instruction,
+exceptions on. -/
+theorem proj_stepK {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst} {nl ret : Nat} {body : Expr}
+    {st st' : MState H} {l : List (Abstract.SCall H)} (hs : MStepL body st l st')
+    (hl : ∀ e ∈ l, CloseOk C e) (hok : MInv body st) (hg : Γ.Good st.store)
+    (hn : st.frame.locals.length = nl) (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    ∃ stC, MStepC P host C body st stC ∧ ProjRel st' stC :=
+  Proofs.MachineLProjK.proj_stepK hA hs hl hok hg hn hI
+
+/-- **A logged run projects to an `MStepC` run**, step by step: every call form and structured
+instruction, exceptions on. -/
+theorem proj_runLK {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst} {nl ret : Nat} {body : Expr}
+    {st st' : MState H} {l : List (Abstract.SCall H)} (h : MRunL body st l st')
+    (hl : ∀ e ∈ l, CloseOk C e) (hok : MInv body st) (hg : Γ.Good st.store)
+    (hn : st.frame.locals.length = nl) (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    ∃ stC, Relation.ReflTransGen (MStepC P host C body) st stC ∧ ProjRel st' stC :=
+  Proofs.MachineLProjK.proj_runLK hA h hl hok hg hn hI
+
+/-- **A logged run from the CFG entry projects to an `MStepC` run from the CFG entry**: every
+call form and structured instruction, exceptions on. -/
+theorem proj_initialK {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {ret : Nat} {body : Expr} {s : Store H} {f : Frame}
+    (hg : Γ.Good s)
+    (hchk : endsAt (chkE (ehExt Γ.tags) Γ.funcs f.module f.locals.length ret [ret] (some 0)
+      (liftInstrs body)) ret = true)
+    {l : List (Abstract.SCall H)} {st' : MState H} (h : MRunL body (initial body s f) l st')
+    (hl : ∀ e ∈ l, CloseOk C e) :
+    ∃ stC, Relation.ReflTransGen (MStepC P host C body) (initial body s f) stC ∧
+      ProjRel st' stC :=
+  Proofs.MachineLProjK.proj_initialK hA hg hchk h hl
+
+/-- **A logged run from the CFG entry ending in an answered tail call** is an `MStepC` run to the
+sink the answer stands for: every call form and structured instruction, exceptions on. -/
+theorem proj_tail_initialK {P : Numerics.Profile} {host : HostSemantics H}
+    {C : Abstract.CallRel H} {Γ : Ctx H} (hA : ArityResp Γ C) {ret : Nat} {body : Expr}
+    {s : Store H} {f : Frame} (hg : Γ.Good s)
+    (hchk : endsAt (chkE (ehExt Γ.tags) Γ.funcs f.module f.locals.length ret [ret] (some 0)
+      (liftInstrs body)) ret = true)
+    {l l' : List (Abstract.SCall H)} {st : MState H} {s₁ s₂ : Store H} {f₁ : Frame} {a n : Nat}
+    {args : List Val} {b : (List Val ⊕ Nat) ⊕ PUnit.{1}}
+    (h : MRunL body (initial body s f) l st) (ht : TailL body st l' (s₁, f₁, .tail a args n))
+    (hl : ∀ e ∈ l ++ l', CloseOk C e) (he : CloseOk C (Abstract.SCall.mk a args s₁ b s₂)) :
+    Relation.ReflTransGen (MStepC P host C body) (initial body s f) (tailSink b s₂ f₁) :=
+  Proofs.MachineLProjK.proj_tail_initialK hA hg hchk h ht hl he
 
 end Silmaril.Wasm.Cfg.MachineL

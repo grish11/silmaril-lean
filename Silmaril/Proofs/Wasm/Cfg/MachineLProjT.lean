@@ -486,7 +486,8 @@ theorem cinv_stepG {ext : Interp.ExtArity H} {F : List (FuncInst H)} {I : Store 
     have hFa : ChkF ext F mi nl ret body (b.seq ++ [(b.idx, a)]).reverse
         (L :: ls) oa := by
       simp only [List.reverse_append, List.reverse_singleton, List.singleton_append]
-      refine ⟨c, sg, i, c', np', nr', by simpa using hc, hsg, ht, harm, hkind, hba, rfl, hoaE,
+      refine ⟨c, sg, i, c', np', nr', by simpa using hc, hsg, ht, harm, hkind, hba, rfl,
+      fun h => absurd h (by simp [hLdef, hnt]), hoaE,
         ⟨oa, hoa, hoaE⟩, out, ?_, hF⟩
       have : (L.outer.length + nr') = V'.length - np' + nr' := by simp [hLdef]
       rw [this]; exact hrest
@@ -722,7 +723,8 @@ theorem proj_enter {P₀ : Numerics.Profile} {host₀ : HostSemantics H}
   have hFa : ChkF ext F mi nl ret body (b.seq ++ [(b.idx, a)]).reverse
       (L :: ls) oa := by
     simp only [List.reverse_append, List.reverse_singleton, List.singleton_append]
-    refine ⟨c, sg, i, c', np', nr', by simpa using hc, hsg, ht, harm, hkind, hba, rfl, hoaE,
+    refine ⟨c, sg, i, c', np', nr', by simpa using hc, hsg, ht, harm, hkind, hba, rfl,
+      fun h => absurd h (by simp [hLdef, hnt]), hoaE,
       ⟨oa, hoa, hoaE⟩, out, ?_, hF⟩
     have : (L.outer.length + nr') = V'.length - np' + nr' := by simp [hLdef]
     rw [this]; exact hrest

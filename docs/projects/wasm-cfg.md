@@ -632,8 +632,24 @@ The plain graph stays an over-approximation, and claims about it say so.
                - Outcomes: a flow goes to the same store and frame under `FlowRel` (throws
                  included). A pending tail call goes to `Region.Out.tail W a c`, whose top
                  `ps.length` values are the arguments, with `n` the callee's result count.
-               - Next: use it in the stepwise projection, lifting `DirectCalls`/`PlainTerms` and
-                 adding the catch and tail cases. It must keep
+             - Stepwise projection over `EvalOXP`, done (`proj_stepE`, `proj_runLE`,
+               `proj_initialE`). Hypotheses: `NoTry`, `ArityResp Γ C`, `CloseOk C` logs and
+               `Ctx.Good`. `DirectCalls`, `PlainTerms`, `StoreChkE tExt` and `OracleSoundT` are
+               dropped. `throw`/`throw_ref` terminators are `MStepC.raise`, tail calls of null are
+               `MStepC.tailNull`, and indirect and reference calls go through the bridge.
+             - Next:
+               - answered tail calls, done (`proj_tailE`, `proj_tail_initialE`). A logged run ending
+                 in `TailL`, with its tail answer a `CloseOk C` entry, is an `MStepC` run whose
+                 last step is `MStepC.tail` (frame replacement), to `tailSink`;
+               - `try_table`, done (`cinv_stepE`, `cinv_runE`, `proj_stepK`, `proj_runLK`,
+                 `proj_initialK`, `proj_tail_initialK`). `ChkF` records each `try_table` frame's
+                 clause check. `catch_arity` (`Interp.catches_count` under `TagsOk`) gives the
+                 caught values' arity. Catches map to `MStepC.catch_`/`bodyCatch`/`catchOut`/
+                 `bodyCatchOut`. The stepwise projection now holds for **every call form and
+                 structured instruction, exceptions on**. Its hypotheses: `ArityResp Γ C` with
+                 `CloseOk C` logs, `Ctx.Good`, and the body's own `chkE (ehExt tags)` check.
+             - Remaining for the stepwise projection: none. For the session result, `CloseOk`
+               is discharged by the canonical closing correspondence (next). It must keep
              the exception outcomes, tag matching, trap stores, and tail calls bypassing the
              caller's handlers. Then the stepwise projection extends to EH.
           3. Validated typed nested fixtures (block, loop, if, catch) on which it holds.
@@ -805,13 +821,49 @@ The plain graph stays an over-approximation, and claims about it say so.
         - **H3-2, pending host calls, done**: `CfgPendLXPS`, `cfgPend_iff`, and
           `cfgEvPend_eq : cfgEvPendXPS = wasmEvPendXPS`. They go via `pending_iff`,
           `forward_tail`/`backward` and `cfgHOpen_eq`.
-        - Then H3-3: the divergent part (`closeDLog` over the trap-erasing module, with the CFG's
-          logged divergence `MLogDivL`, whose converse adds `closedCallXP`-answered entries that
-          the closure resolves with empty host logs) and the productive part (`closeInfL` with
-          `ProdL`, via `prodL_iff`). Together they give the CFG session triple equal to
-          `sessionTripleXP`.
+        - Then H3-3: the divergent part (`closeDLog wasmHOpenXP LDLwXP`) and the productive part
+          (`closeInfL wasmHOpenXP InfLwXP`). Together with H3-1 and H3-2 they give the CFG
+          session triple equal to `sessionTripleXP`. Both parts use the **trap-erasing** canonical
+          module `wasmHOpenXP` (`EvalLXPh` logs, `OCall`), through `DescPath`/`Descends`, through
+          `close`, and through the per-function sets.
+          - **Obstacle.** `evalLXPh_session`/`evalLXPS_canonical` convert only runs not ending in
+            a trap. On trapping runs the relations differ: a callee trap is an answered entry
+            in `EvalLXPS`, and an over-long value answer (`callCut`) in `EvalLXPh`, by the internal
+            `HostClosingS.ToH`.
+          - **H3-3a, done.** The trap cases are exported: `HostClosingS.evalLXPS_canonical_cut`
+            (a callee-trap answer reads as a cut answer, for every over-long `ws`) and
+            `evalLXPh_session_cut` (a cut run is a session run with the trap answer). The machine
+            module is `CfgSession.cfgHOpenXP`, which reads machine logs canonically by
+            `CanonRead`. Theorems: `cfgHOpenX_eq : cfgHOpenXP = wasmHOpenXP` and
+            `cfgEvFunX_eq : cfgEvFunXP = wasmEvFunXP`.
+          - **H3-3b, done: the session triple.** `CfgSession` defines the per-function sets
+            from the machine: `LDLcfg` (the body diverges after a log by `MLogDivL`, the log the
+            session reading of a canonical log) and `InfLcfg` (the body runs productively by
+            `ProdL`, the stream the session reading of a canonical stream). From them it defines
+            `cfgEvFunDXP := closeDLog cfgHOpenXP LDLcfg`, `cfgEvInfNXP := closeInfL cfgHOpenXP
+            InfLcfg`, `cfgEvFunDXPS` and `cfgSessionTriple := (cfgEvFunDXPS, cfgEvPendXPS,
+            cfgEvInfNXP)`.
+            - `cfgEvInfN_eq : cfgEvInfNXP = wasmEvInfNXP`. By `cfgHOpenX_eq`, it suffices that
+              `InfLcfg = InfLwXP`, which follows from `prodL_iff` because `OCall.toS` is
+              injective.
+            - `cfgEvFunD_eq : cfgEvFunDXP = wasmEvFunDXP`. This holds at the level of `closeDLog`,
+              not per function. `logDiv_machine` gives `LDLwXP ⊆ LDLcfg`. For the converse,
+              `machine_logDiv` extends the log by canonical entries answered by `closedCallXP`.
+              These are value or exception answers, since a session reading has no trap answer.
+              Each entry resolves to the empty host log in `close wasmHOpenXP`, by the new
+              per-call header theorems `HostClosingInfXPBack.close_of_closedCallXP_vals` and
+              `_throw`, which export `closed_good`. So the host log `qs ++ q` does not change.
+            - `cfgEvFunDS_eq : cfgEvFunDXPS = wasmEvFunDXPS`, and
+              `cfgSessionTriple_eq : cfgSessionTriple = sessionTripleXP`, which uses
+              `cfgEvFun_eq` and `cfgEvPend_eq`.
+            - With this, H3's equality with the store-retaining session triple is done. The
+              closure's callees, including diverging and productive ones, now run on the CFG
+              machine. Inside one body, the closed answers of `MLogDivL`/`CloseOk` and the
+              diverging callees (`FunDivXP`) are still named by the native oracle. The closure
+              equality covers them, but they are not yet defined from the machine.
         - Equality with the store-retaining session closure `wasmEvFunXPS`/`sessionTripleXP`
-          (not the trap-store-erasing `wasmEvFunXP`).
+          (not the trap-store-erasing `wasmEvFunXP`): done (`cfgEvFun_eq`,
+          `cfgSessionTriple_eq`).
         - Then the instance session with imports and exceptions, via the existing Core adequacy
           (`wasmEvFunXPS_*_iff`, `wasmEvPendXPS_eq`, productive streams) and NodeBridge, on a
           typed fragment with the exception checker (`ehExt tags`).

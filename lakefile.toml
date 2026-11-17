@@ -80,7 +80,7 @@ roots = ["Silmaril.Prelude"]
 globs = [
   "Silmaril", "Silmaril.Apps.+", "Silmaril.Automata.+", "Silmaril.Proofs.Automata.+",
   "Silmaril.Calculi.*", "Silmaril.Cli.*", "Silmaril.Compile.+",
-  "Silmaril.Courses.+", "Silmaril.Crypto.+", "Silmaril.Data.+", "Silmaril.Elf.+", "Silmaril.Encoding.*",
+  "Silmaril.Containers.+", "Silmaril.Courses.+", "Silmaril.Crypto.+", "Silmaril.Data.+", "Silmaril.Elf.+", "Silmaril.Encoding.*",
   "Silmaril.Formats.+", "Silmaril.Foundations.+", "Silmaril.Games.+", "Silmaril.Sim.+", "Silmaril.Libc.+", "Silmaril.Logic.*", "Silmaril.LogicGraph.Nodes.+", "Silmaril.LogicGraph.Edges.+", "Silmaril.LogicGraph.Audit.+", "Silmaril.LogicGraph.Consequence.+",
   "Silmaril.Machine.+", "Silmaril.Numeric.+", "Silmaril.Parse.+", "Silmaril.Prelude.+",
   "Silmaril.Raw.Libc.+",
@@ -92,7 +92,7 @@ globs = [
   "Silmaril.Project.Registry.+",
   "Silmaril.Project.Room.+", "Silmaril.Project.Shapes.+",
   "Silmaril.Proofs.Calculi.+",
-  "Silmaril.Proofs.Cli.+", "Silmaril.Proofs.Compile.+", "Silmaril.Proofs.Data.+", "Silmaril.Proofs.Prelude.+", "Silmaril.Proofs.Elf.+",
+  "Silmaril.Proofs.Cli.+", "Silmaril.Proofs.Containers.+", "Silmaril.Proofs.Compile.+", "Silmaril.Proofs.Data.+", "Silmaril.Proofs.Prelude.+", "Silmaril.Proofs.Elf.+",
   "Silmaril.Proofs.Formats.+", "Silmaril.Proofs.Libc.+", "Silmaril.Proofs.Numeric.+",
   "Silmaril.Proofs.Games.+", "Silmaril.Proofs.Sim.+", "Silmaril.Proofs.Logic.+", "Silmaril.Raw.Logic.+", "Silmaril.Proofs.Problems.+",
   "Silmaril.Proofs.Process.+", "Silmaril.Proofs.Project.+", "Silmaril.Proofs.SSA.+",

@@ -240,13 +240,16 @@ theorem open_toH {a : Nat} {s : Store H} {vs : List Val}
   rcases hx with ⟨fi, fn, ps, rs, s', f₂, bfl, fl, l, hf, hc, hty, hrun, hex, rfl⟩ |
     ⟨fi, fn, ps, rs, s₁, s₂, f₂, a', n, args, b, l, hf, hc, hty, hrun, rfl⟩ |
     ⟨fi, hh, ps, rs, s', r, fl, hf, hc, hty, hex, rfl⟩
-  · rcases evalLXPS_toH hrun with ⟨l', rfl, h'⟩ | ⟨ht, u, g, args, s₁, s₂, ws, -, rfl, h'⟩
+  · rcases evalLXPS_toH hrun with ⟨l', rfl, h'⟩ |
+      ⟨ht, u, g, args, s₁, s₂, -, rfl, fi', ps', rs', -, -, hall⟩
     · refine ⟨(l'.map OCall.lift, endOfFlow fl s'),
         .inl ⟨fi, fn, ps, rs, s', f₂, bfl, fl, l', hf, hc, hty, h', hex, rfl⟩, ?_⟩
       simpa using logE_map (endOfFlowS fl s') l'
     · cases ht
       cases hex
-      refine ⟨((u ++ [OCall.mk g args s₁ (.inl ws) s₂]).map OCall.lift, endOfFlow .trap s'),
+      have h' := hall (List.replicate (rs'.length + 1) (Val.ref .null)) (by simp)
+      refine ⟨((u ++ [OCall.mk g args s₁ (.inl (List.replicate (rs'.length + 1) (Val.ref .null)))
+          s₂]).map OCall.lift, endOfFlow .trap s'),
         .inl ⟨fi, fn, ps, rs, s', f₂, .trap, .trap, _, hf, hc, hty, h', rfl, rfl⟩, ?_⟩
       rw [List.map_append]
       exact logE_trap rfl u
@@ -311,11 +314,12 @@ theorem open_full {a : Nat} {s : Store H} {vs : List Val}
   rcases hx with ⟨fi, fn, ps, rs, s', f₂, bfl, fl, l, hf, hc, hty, hrun, hex, rfl⟩ |
     ⟨fi, fn, ps, rs, s₁, s₂, f₂, a', n, args, b, l, hf, hc, hty, hrun, rfl⟩ |
     ⟨fi, hh, ps, rs, s', r, fl, hf, hc, hty, hex, rfl⟩
-  · rcases evalLXPh_toS hrun with h' | ⟨-, u, g, args, s₁, s₂, ws, fi', ps', rs', rfl, hc'⟩
+  · rcases evalLXPh_toS hrun with h' |
+      ⟨-, u, g, args, s₁, s₂, ws, fi', ps', rs', rfl, hc₁, hc₂, hc₃, -⟩
     · refine .inl ⟨endOfFlowS fl s', ?_, by simp⟩
       rw [map_lift_hToS]
       exact .inl ⟨fi, fn, ps, rs, s', f₂, bfl, fl, _, hf, hc, hty, h', hex, rfl⟩
-    · exact .inr ⟨u.map OCall.lift, g, args, s₁, s₂, ws, fi', ps', rs', by simp; rfl, hc'⟩
+    · exact .inr ⟨u.map OCall.lift, g, args, s₁, s₂, ws, fi', ps', rs', by simp; rfl, hc₁, hc₂, hc₃⟩
   · have h' := evalLXPh_toS_ok hrun (by simp)
     refine .inl ⟨tailAnsS rs.length n (.inl b) s₂, ?_, by simp⟩
     simp only [List.map_append, map_lift_hToS]

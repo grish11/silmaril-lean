@@ -45,6 +45,9 @@ so neither exists for a problem whose Core run diverges host-free (`diverges_thr
   resolves to the empty log. Every closed answer (values, an uncaught exception) is a closure
   behaviour with the empty log, by least-fixpoint induction on `closedCallXP` (`Conv`); a trapping
   answer only ends a run in a trap;
+* `close_of_closedCallXP_vals`, `close_of_closedCallXP_throw`: per call, a closed answer by
+  values (read at the callee's result arity) or by an uncaught exception is a behaviour of
+  `Shape.close wasmHOpenXP` with the empty log;
 * `wasmEvFunDXP_of_funDivXP`: a call of a function with a function type that diverges at the
   frame (`FunDivXP`) has the behaviour `([], div)` in `wasmEvFunDXP`: a body ending in a pending
   tail call is a descent with no import call to the tail callee, and the chain of such descents
@@ -142,6 +145,27 @@ theorem evalLXPh_of_evalOXP_closed {s : Store H} {f : Frame} {stk : List Val}
       Silmaril.Games.Abstract.Shape.SubstPre (Silmaril.Games.Abstract.Shape.close wasmHOpenXP)
         (l.map OCall.lift) [] :=
   Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.closed_conv h hn
+
+/-- **A closed answer by values is a closure behaviour with the empty log**: the returned values
+as the caller reads them (`retVals`, the callee's result arity taken), in the answer's store. -/
+theorem close_of_closedCallXP_vals {s s' : Store H} {a : Nat} {us vs : List Val}
+    {fl : Binaryen.Flow} {fi : FuncInst H} {ps rs : List Validation.CValType}
+    (h : XRecursionP.closedCallXP s a us (s', fl)) (hv : fl.retVals = some vs)
+    (hfi : s.funcs[a]? = some fi) (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) :
+    (([] : List (Silmaril.Games.Abstract.Call (wasmHostSig H))),
+      Silmaril.Games.Abstract.End.ret (.inl (vs.take rs.length).reverse) s') ∈
+      Silmaril.Games.Abstract.Shape.close wasmHOpenXP a s us :=
+  (Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.closed_good _ _ _ _ h).1 vs hv fi ps rs hfi
+    hty
+
+/-- **A closed answer by an uncaught exception is a closure behaviour with the empty log**, in
+the answer's store. -/
+theorem close_of_closedCallXP_throw {s s' : Store H} {a : Nat} {us : List Val} {t : Nat}
+    (h : XRecursionP.closedCallXP s a us (s', .throw t)) :
+    (([] : List (Silmaril.Games.Abstract.Call (wasmHostSig H))),
+      Silmaril.Games.Abstract.End.ret (.inr t) s') ∈
+      Silmaril.Games.Abstract.Shape.close wasmHOpenXP a s us :=
+  (Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.closed_good _ _ _ _ h).2 t rfl
 
 /-- **A call diverging at the frame has the behaviour `([], div)`**, for a function with a
 function type. -/

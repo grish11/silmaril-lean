@@ -147,6 +147,7 @@ project-lean:
 		Silmaril.Project.Shapes.C.Thms \
 		Silmaril.Project.Shapes.SysV.Rtl.Defs \
 		Silmaril.Project.Shapes.CompilesTo.Thms \
+		Silmaril.LogicGraph.Consequence.Containers.Defs \
 		Silmaril.LogicGraph.Audit.Defs \
 		Silmaril.LogicGraph.Catalogue.Defs \
 		ProjectSelfTest \

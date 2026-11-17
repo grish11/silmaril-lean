@@ -151,12 +151,14 @@ theorem closeS_le_trapS {tags : List TagInst} (hH : NativeHostSlice host)
     have hbfl : bfl = .trap := by
       rcases bfl with _ | ⟨_ | _, _⟩ | _ | _ | _ <;> simp_all [exitFlow]
     subst hbfl
-    rcases evalLXPS_toH hrun with ⟨l', rfl, h'⟩ | ⟨-, u, g, args, s₁, s₃, ws, hs, rfl, h'⟩
+    rcases evalLXPS_toH hrun with ⟨l', rfl, h'⟩ |
+      ⟨-, u, g, args, s₁, s₃, hs, rfl, fi', ps', rs', -, -, hall⟩
     · -- trapping itself
       exact evalLXPh_trap_exact hH hE hfi hcode hty hn hts hSt h' (substPre_toOld hle l' hp) hq f c
         hcr
     · -- its last call answered by a trap, in the store the call's callee traps in
       obtain rfl : s' = s₃ := hs
+      have h' := hall (List.replicate (rs'.length + 1) (Val.ref .null)) (by simp)
       obtain ⟨qa, qb, hqy, ha, hb⟩ := substPre_split hp
       have hm := substPre_single hb
       rw [hqy] at hq ⊢

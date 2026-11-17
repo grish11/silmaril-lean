@@ -48,7 +48,7 @@ theorem leave {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} {nl r
   | [], _ :: _, _, h => h.elim
   | _ :: _, [], _, h => h.elim
   | (m, a) :: rp, L :: ls, W, h => by
-    obtain ⟨pc, sg, t, c, np, nr, hpc, hsg, ht, harm, hk, har, hLa, hend, -, out', hrest, hF⟩ := h
+    obtain ⟨pc, sg, t, c, np, nr, hpc, hsg, ht, harm, hk, har, hLa, -, hend, -, out', hrest, hF⟩ := h
     have hW := endsAt_some hend
     have har' : Binaryen.arity f L.bt = some (np, nr) := by rw [arity_eq_blockArity hf]; exact har
     unfold contRev
@@ -129,7 +129,7 @@ theorem chkF_drop {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} {
   | _ + 1, _, [], _, hk, _ => by simp at hk
   | _ + 1, [], _ :: _, _, _, h => h.elim
   | k + 1, (m, a) :: rp, L :: ls, out, hk, h => by
-    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, out', -, hF⟩ := h
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, out', -, hF⟩ := h
     simpa using chkF_drop k rp ls out' (by simp at hk; omega) hF
 
 /-- A frame's clause depends on the current sequence's end only through `endsAt` at the frame's
@@ -140,8 +140,8 @@ theorem chkF_retarget {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleIns
     (h : ChkF ext F mi nl ret body ((m, a) :: rp) (L :: ls) out)
     (he : ∀ np nr, blockArity mi L.bt = some (np, nr) → endsAt (some out') nr = true) :
     ChkF ext F mi nl ret body ((m, a) :: rp) (L :: ls) out' := by
-  obtain ⟨pc, sg, t, c, np, nr, h1, h2, h3, h4, h5, h6, h7, -, h9⟩ := h
-  exact ⟨pc, sg, t, c, np, nr, h1, h2, h3, h4, h5, h6, h7, he _ _ h6, h9⟩
+  obtain ⟨pc, sg, t, c, np, nr, h1, h2, h3, h4, h5, h6, h7, h8, -, h10⟩ := h
+  exact ⟨pc, sg, t, c, np, nr, h1, h2, h3, h4, h5, h6, h7, h8, he _ _ h6, h10⟩
 
 /-- **A branch to label `k`**, the branch site holding the label's arity: the native target is
 `MStepC`'s (re-entering a loop's arm, or continuing after the labelled instruction), with the
@@ -173,7 +173,7 @@ theorem branch_inv {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} 
   obtain ⟨outk, hFk⟩ := chkF_drop k _ _ out (by omega) hF
   rw [hdr, hdl] at hFk
   have hFk' := hFk
-  obtain ⟨pc, sg, t, c, np, nr, hpc, hsg, ht, harm, hkind, har, hLa, -, ⟨oa, hoa, hoaE⟩, out', hrest,
+  obtain ⟨pc, sg, t, c, np, nr, hpc, hsg, ht, harm, hkind, har, hLa, -, -, ⟨oa, hoa, hoaE⟩, out', hrest,
     hFr⟩ := hFk'
   have har' : Binaryen.arity f L.bt = some (np, nr) := by rw [arity_eq_blockArity hf]; exact har
   have hlev := Proofs.Machine.levelLoop_of_framesOk k _ _ hok hL
@@ -345,6 +345,83 @@ theorem chk_struct {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} 
     · simp at h
   | tryTable => exact absurd hnt (by simp)
 
+theorem chk_structE {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat}
+    {labels : List Nat} {t : Instr} {bt : BlockType} {loop tryT : Bool} {cs : List Catch}
+    {V V' : List Val} {a : Nat} {c' : List Instr} {o : Option Nat}
+    (hk : StructKind t bt loop tryT cs) (hsel : ArmSel t V a V')
+    (harm : armOf t a = some c')
+    (h : chk1E ext F mi nl ret labels V.length (liftInstr t) = some o) :
+    ∃ np nr, blockArity mi bt = some (np, nr) ∧ np ≤ V'.length ∧
+      o = some (V'.length - np + nr) ∧ (∃ oa,
+        chkE ext F mi nl ret ((if loop then np else nr) :: labels) (some np) (liftInstrs c') =
+          some oa ∧ endsAt (some oa) nr = true) ∧
+      (tryT = true → ∃ ns, ext F mi (.tryTable bt cs []) = some (.catches ns) ∧
+        catchOk labels cs ns = true) := by
+  cases hk with
+  | block =>
+    cases hsel
+    simp only [armOf, Option.some.injEq] at harm; subst harm
+    simp only [liftInstr, chk1E] at h
+    split at h
+    · next np nr hba =>
+      split at h
+      · next hc =>
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
+        obtain ⟨oa, hoa, hoaE⟩ := endsAt_some_iff hc.2
+        exact ⟨np, nr, hba, hc.1, (Option.some.inj h).symm, ⟨oa, by simpa using hoa, hoaE⟩, nofun⟩
+      · simp at h
+    · simp at h
+  | loop =>
+    cases hsel
+    simp only [armOf, Option.some.injEq] at harm; subst harm
+    simp only [liftInstr, chk1E] at h
+    split at h
+    · next np nr hba =>
+      split at h
+      · next hc =>
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
+        obtain ⟨oa, hoa, hoaE⟩ := endsAt_some_iff hc.2
+        exact ⟨np, nr, hba, hc.1, (Option.some.inj h).symm, ⟨oa, by simpa using hoa, hoaE⟩, nofun⟩
+      · simp at h
+    · simp at h
+  | if_ =>
+    cases hsel with
+    | plain hi => exact absurd rfl (hi _ _ _)
+    | @cond _ tt ee cv V₀ bv hb =>
+    simp only [liftInstr, chk1E, chkE, Option.bind_some] at h
+    split at h
+    · next np nr hba =>
+      split at h
+      · next hc =>
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
+        obtain ⟨⟨hle, h1⟩, h2⟩ := hc
+        refine ⟨np, nr, hba, by simp at hle; omega, ?_, ?_, nofun⟩
+        · rw [← Option.some.inj h]; simp
+        · have hc' := MachineLBwd.armOf_if harm
+          subst hc'
+          cases bv
+          · obtain ⟨oa, hoa, hoaE⟩ := endsAt_some_iff h2
+            exact ⟨oa, by simpa using hoa, hoaE⟩
+          · obtain ⟨oa, hoa, hoaE⟩ := endsAt_some_iff h1
+            exact ⟨oa, by simpa using hoa, hoaE⟩
+      · simp at h
+    · simp at h
+  | tryTable =>
+    cases hsel
+    simp only [armOf, Option.some.injEq] at harm; subst harm
+    simp only [liftInstr, chk1E] at h
+    split at h
+    · next ns np nr hext hba =>
+      split at h
+      · next hc =>
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
+        obtain ⟨⟨hle, hcok⟩, hend⟩ := hc
+        obtain ⟨oa, hoa, hoaE⟩ := endsAt_some_iff hend
+        exact ⟨np, nr, hba, hle, (Option.some.inj h).symm, ⟨oa, by simpa using hoa, hoaE⟩,
+          fun _ => ⟨ns, hext, hcok⟩⟩
+      · simp at h
+    · simp at h
+
 theorem gotoN_sf {t : Target} {d : Nat} {ls : List LFrame} {W : List Val} {s : Store H}
     {f : Frame} {st' : MState H} (h : gotoN t d ls W s f = some st') :
     st'.store = s ∧ st'.frame = f := by
@@ -383,7 +460,7 @@ theorem chkF_noTry {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} 
   | _, [], _, _ => by simp
   | [], _ :: _, _, h => h.elim
   | (m, a) :: rp, L :: ls, out, h => by
-    obtain ⟨pc, sg, t, c, np, nr, hpc, hsg, ht, -, hk, -, -, -, -, out', -, hF⟩ := h
+    obtain ⟨pc, sg, t, c, np, nr, hpc, hsg, ht, -, hk, -, -, -, -, -, out', -, hF⟩ := h
     intro L' hL'
     rcases List.mem_cons.mp hL' with rfl | hL'
     · exact tryT_of_noTry hNT hpc hsg ht hk
@@ -475,7 +552,8 @@ theorem cinv_step {Γ : Ctx H} {C : Abstract.CallRel H} (hC : ArityResp Γ C) {m
     have hFa : ChkF (ehExt Γ.tags) Γ.funcs mi nl ret body (b.seq ++ [(b.idx, a)]).reverse
         (L :: ls) oa := by
       simp only [List.reverse_append, List.reverse_singleton, List.singleton_append]
-      refine ⟨c, sg, i, c', np', nr', by simpa using hc, hsg, ht, harm, hkind, hba, rfl, hoaE,
+      refine ⟨c, sg, i, c', np', nr', by simpa using hc, hsg, ht, harm, hkind, hba, rfl,
+      fun h => absurd h (by simp [hLdef, hnt]), hoaE,
         ⟨oa, hoa, hoaE⟩, out, ?_, hF⟩
       have : (L.outer.length + nr') = V'.length - np' + nr' := by simp [hLdef]
       rw [this]; exact hrest

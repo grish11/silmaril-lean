@@ -24,6 +24,8 @@ under the label arities the frames record (`labs`: innermost first, then the fun
 Each frame (`ChkF`) records:
 * its structured instruction, and the block type's arities (`blockArity`);
 * its label arity (parameters for a `loop`, results otherwise);
+* for a `try_table`, its clauses' check (`ext`'s `.catches ns`, accepted by `catchOk` at the
+  labels outside it);
 * that the current sequence ends at the frame's result arity (`endsAt`);
 * the check of its arm from its parameters;
 * the check of the parent's rest after it, at the height its outer values and results make.
@@ -72,6 +74,8 @@ def ChkF : List SeqStep → List LFrame → Option Nat → Prop
       (np nr : Nat), seqAt body rp.reverse = some pc ∧ (segment pc)[m]? = some sg ∧
       sg.term = some t ∧ armOf t a = some c ∧ StructKind t L.bt L.loop L.tryT L.catches ∧
       blockArity mi L.bt = some (np, nr) ∧ L.arity = (if L.loop then np else nr) ∧
+      (L.tryT = true → ∃ ns, ext F mi (.tryTable L.bt L.catches []) = some (.catches ns) ∧
+        catchOk (labs ret ls) L.catches ns = true) ∧
       endsAt (some out) nr = true ∧
       (∃ oa, chkE ext F mi nl ret (labs ret (L :: ls)) (some np) (liftInstrs c) = some oa ∧
         endsAt (some oa) nr = true) ∧
@@ -142,5 +146,15 @@ def ResOutP (s' : Store H) (f' : Frame) (o : Region.Out) :
       ∃ (fi : FuncInst H) (ps rs : List Validation.CValType) (W₀ : List Val),
         s'.funcs[a]? = some fi ∧ Validation.DefType.funcType? fi.type = some (ps, rs) ∧
         W = W₀ ++ args ∧ args.length = ps.length ∧ n = rs.length
+
+
+/-- **The sink a tail call's answer stands for**, in the store `s` the answer leaves and the
+caller's frame `f`: the returned values at `exit`, the exception at `raise`, or `trap`, with no
+label frame left (the function's frame was replaced). -/
+def tailSink (b : (List Val ⊕ Nat) ⊕ PUnit.{1}) (s : Store H) (f : Frame) : MState H :=
+  match b with
+  | .inl (.inl ws) => ⟨.exit, ws, [], s, f⟩
+  | .inl (.inr t) => ⟨.raise, [.ref (.exn t)], [], s, f⟩
+  | .inr _ => ⟨.trap, [], [], s, f⟩
 
 end Silmaril.Wasm.Cfg.MachineL
