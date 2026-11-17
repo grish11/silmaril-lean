@@ -595,8 +595,17 @@ The plain graph stays an over-approximation, and claims about it say so.
                an arity-respecting oracle (`cinv_step`, `cinv_run`, via `evalOXP_goodO`), on
                bodies without `try_table` (`NoTry`). The fallthrough, branch and arm-entry
                targets are the native ones with fitting stacks.
-             - Next: the segment bridge with Core typing (`TypedT`/`TypedP` to `RunC`), then the
-               stepwise theorem with composition. It needs a typed state and frame invariant, from the existing checker and
+             - Segment bridge, done (`MachineLProj`, `seg_runC`). Logged `Flat` straight-line
+               code with `CloseOk C` calls of a sound oracle (`OracleSoundT`, e.g. `closedXOk`)
+               is a `Region.RunC` run with `ResOut`. It needs checker facts only: the segment's
+               `chkE (ehExt tags)`, which is `tExt`'s off the EH forms (`chkE_flat_tExt`), and
+               `StoreChkE tExt`. There is no Core typing of states, because `EvalOXT` is `EvalOX`
+               without indirect or reference calls. Fragment hypothesis: `DirectCalls body`
+               (`seg_flat`).
+             - Next: the stepwise theorem. It splits a block's native run into its segment and
+               its terminator (`MachineLSeq.split`) and matches each terminator to an `MStepC`
+               rule, with targets from `CInv`. Block states are equal; exits agree up to
+               `brVals_junk`. Then composition along runs. It needs a typed state and frame invariant, from the existing checker and
              typing APIs, covering stack orientation, parameter and result arities, normal arm
              exits, branch unwinding and tail-frame replacement. The relation is at block
              granularity (zero or more `MStepC` steps per `MStepL` step), with composition.

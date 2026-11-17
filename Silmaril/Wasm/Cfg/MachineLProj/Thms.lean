@@ -8,6 +8,8 @@ public import Silmaril.Wasm.Cfg.MachineLProj.Defs
 import Silmaril.Proofs.Wasm.Cfg.MachineLProj
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjC
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjI
+import Silmaril.Proofs.Wasm.Cfg.MachineLProjS
+public import Silmaril.Wasm.Abstract.CallXT.Thms
 public import Silmaril.Wasm.Abstract.ExposePTyped.Thms
 public import Silmaril.Wasm.Interp.EHExt.Thms
 
@@ -72,6 +74,17 @@ Its hypotheses are stated:
 Each step reads its straight-line code's checked outcome with `ExposePTyped.evalOXP_goodO`: a
 fallthrough at the checked height, a branch with at least its label's arity, a return with at least
 the result arity.
+
+**Straight-line code** (`seg_runC`). A logged run of `Flat` code whose calls are `CloseOk C`
+answers of a sound oracle (`Interp.OracleSoundT`; `Proofs.Bridge.oracleSoundT_closedXOk` gives one
+for `closedXOk`) is a region run (`Region.RunC`) with the same oracle, ending as `Bridge.ResOut`
+says. The premises are checker facts only, with no Core typing of states:
+* the code passes `chkE (ehExt tags)`, which is `tExt`'s check on code without exception forms
+  (`chkE_flat_tExt`);
+* the store passes `StoreChkE tExt`.
+
+It composes `closed_iff_logged`, `evalOXP_iff_evalOXE`, `evalOXE_iff_evalOX`, `evalOXT_iff_evalOX`
+and `Bridge.bridge_fwd`. Under `DirectCalls body` every segment body is `Flat` (`seg_flat`).
 
 On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
 projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
@@ -185,5 +198,36 @@ theorem cinv_run {Γ : Ctx H} {C : Abstract.CallRel H} (hC : ArityResp Γ C) {mi
     Γ.Good st'.store ∧ st'.frame.locals.length = nl ∧
       CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st' :=
   Proofs.MachineLProjI.cinv_run hC hNT h hl hok hg hn hI
+
+/-! ## Straight-line code -/
+
+/-- **Off the exception forms the check is `tExt`'s.** -/
+theorem chkE_flat_tExt {tags : List TagInst} {F : List (FuncInst H)} {mi : ModuleInst}
+    {nl ret : Nat} {labels : List Nat} {is : List Instr} (oh : Option Nat)
+    (h : ∀ i ∈ is, Cfg.isTerminator i = false) :
+    chkE (ehExt tags) F mi nl ret labels oh (liftInstrs is) =
+      chkE tExt F mi nl ret labels oh (liftInstrs is) :=
+  Proofs.MachineLProjS.chkE_flat_tExt oh h
+
+/-- **Segment bodies are straight-line code** when the body makes direct calls only. -/
+theorem seg_flat {body : Expr} (hD : DirectCalls body) {p : List SeqStep} {c : List Instr}
+    {i : Nat} {sg : Segment} (hc : seqAt body p = some c) (hsg : (segment c)[i]? = some sg) :
+    Flat sg.body :=
+  Proofs.MachineLProjS.seg_flat hD hc hsg
+
+/-- **Logged straight-line code is a region run** with the same oracle, ending as `ResOut`
+says. -/
+theorem seg_runC {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H}
+    {C : Abstract.CallRel H} (hC : OracleSoundT P₀ host₀ C) {tags : List TagInst}
+    {is : List Instr} (hflat : Flat is) {s : Store H} {f : Frame} {N : List Val}
+    {l : List (Abstract.SCall H)} {r : Store H × Frame × Abstract.CallXP.POut}
+    (hr : Abstract.EvalLXPS s f N (liftInstrs is) l r) (hl : ∀ e ∈ l, CloseOk C e)
+    (hS : StoreChkE tExt s.funcs) {labels : List Nat} {ret : Nat} {out : Option Nat}
+    (hchk : chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some N.length)
+      (liftInstrs is) = some out) :
+    ∃ (s₂ : Store H) (f₂ : Frame) (fl : Flow), r = (s₂, f₂, .flow fl) ∧
+      ∃ s' f' o, Region.RunC P host C s f N.reverse (expression is) s' f' o ∧
+        Bridge.ResOut C s' f' o (s₂, f₂, fl) :=
+  Proofs.MachineLProjS.seg_runC hC hflat hr hl hS hchk
 
 end Silmaril.Wasm.Cfg.MachineL

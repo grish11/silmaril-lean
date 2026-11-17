@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Cfg.MachineL.Defs
 public import Silmaril.Wasm.Interp.Defs
+public import Silmaril.Wasm.Abstract.CallX.Defs
 
 @[expose] public section
 
@@ -26,6 +27,9 @@ Each frame (`ChkF`) records:
 
 The function's level ends at its result arity. `NoTry body`: no segment ends in a `try_table`. This
 is the fragment without handlers; catching belongs to the exception bridge.
+
+**Straight-line code** (`Flat`): no terminator, and no indirect or reference call. Segment bodies
+have no terminators; under `DirectCalls body` they are `Flat`.
 
 Theorems in `Silmaril.Wasm.Cfg.MachineLProj.Thms`.
 -/
@@ -84,5 +88,17 @@ def NoTry (body : Expr) : Prop :=
   ∀ (p : List SeqStep) (c : List Instr) (i : Nat) (sg : Segment) (bt : BlockType)
     (cs : List Catch) (b : List Instr), seqAt body p = some c → (segment c)[i]? = some sg →
     sg.term ≠ some (.tryTable bt cs b)
+
+/-- Straight-line code: no terminator (so no structured instruction and no exception form), and
+no indirect or reference call. -/
+def Flat (is : List Instr) : Prop :=
+  ∀ i ∈ is, isTerminator i = false ∧ Abstract.CallX.isXCall i = false
+
+/-- **Direct calls only**: no segment body makes an indirect or reference call (`call_indirect`,
+`call_ref`). On such bodies the logged and the legacy native semantics agree on straight-line code
+(`CallXP.evalOXP_iff_evalOXE`); the general case belongs to the pending-call bridge. -/
+def DirectCalls (body : Expr) : Prop :=
+  ∀ (p : List SeqStep) (c : List Instr) (i : Nat) (sg : Segment), seqAt body p = some c →
+    (segment c)[i]? = some sg → ∀ x ∈ sg.body, Abstract.CallX.isXCall x = false
 
 end Silmaril.Wasm.Cfg.MachineL
