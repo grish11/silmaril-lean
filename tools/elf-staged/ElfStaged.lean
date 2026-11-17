@@ -25,7 +25,7 @@ emitted module, checked by the kernel.
 open Silmaril.Elf
 open Silmaril.Elf.Staged
 open Silmaril.Elf.Link.DynElf (Rd Chunk pageRead pagesFrom)
-open Silmaril.Formats.ELF (Header ProgramHeader SectionHeader NameBytes Rela)
+open Silmaril.Formats.ELF (Header ProgramHeader SectionHeader NameBytes Rela ObjectSymbol)
 
 namespace ElfStaged
 
@@ -562,17 +562,181 @@ def gaps (L : Layout) (len : Nat) (read : List Span) : List Span :=
 def allZero (a : ByteArray) (s : Span) : Bool :=
   (List.range s.len).all fun i => a.get! (s.off + i) == 0
 
+/-! ## Function decompositions (`Decomp.lean`) -/
+
+/-- Consecutive chunks of at most `n` elements. -/
+def listChunks {α : Type} (n : Nat) (xs : List α) : List (List α) :=
+  if h : xs = [] ∨ n = 0 then (if xs = [] then [] else [xs]) else
+    have : (xs.drop n).length < xs.length := by
+      cases xs with
+      | nil => simp at h
+      | cons x xs => simp only [List.length_drop, List.length_cons]; omega
+    xs.take n :: listChunks n (xs.drop n)
+termination_by xs.length
+
+/-- A candidate function piece: symbol-table section, entry index, symbol. -/
+structure Cand where
+  k : Nat
+  i : Nat
+  s : ObjectSymbol
+
+/-- Preference among symbols with the same extent: `STB_GLOBAL`, then `STB_WEAK`, then local; then
+the lower entry index. -/
+def Cand.rank (c : Cand) : Nat × Nat :=
+  (match c.s.binding with | 1 => 0 | 2 => 1 | _ => 2, c.i)
+
+/-- What the decomposition of one section is, and what it leaves out. -/
+structure SecDecomp where
+  x : Nat
+  name : String
+  sh : SectionHeader
+  pieces : Array (Option Cand × Nat)   -- `(some c, size)` a function, `(none, n)` a gap
+  aliases : Nat
+  overlaps : Array Cand
+  zeroSize : Nat
+
+/-- Decompose section `x` along the function symbols of one symbol table `(k, es)`. -/
+def decompSection (x : Nat) (sec : Sec) (k : Nat) (es : List ObjectSymbol) : SecDecomp := Id.run do
+  let sh := sec.header
+  let lo := sh.address
+  let hi := sh.address + sh.size
+  let fnKind (s : ObjectSymbol) : Bool := s.kind == 2 || s.kind == 10
+  let mine := (es.zipIdx.filter fun (s, _) => fnKind s && s.raw.sectionIndex == x).map fun (s, i) => Cand.mk k i s
+  let zeroSize := (mine.filter (·.s.raw.size == 0)).length
+  let cs := (mine.filter (0 < ·.s.raw.size)).toArray.qsort fun a b =>
+    a.s.raw.value < b.s.raw.value ||
+      (a.s.raw.value == b.s.raw.value && (a.s.raw.size > b.s.raw.size ||
+        (a.s.raw.size == b.s.raw.size && (a.rank.1 < b.rank.1 || (a.rank.1 == b.rank.1 && a.rank.2 < b.rank.2)))))
+  let mut out : Array (Option Cand × Nat) := #[]
+  let mut cur := lo
+  let mut aliases := 0
+  let mut overlaps : Array Cand := #[]
+  let mut last : Option (Nat × Nat) := none
+  for c in cs do
+    let v := c.s.raw.value
+    let z := c.s.raw.size
+    if last == some (v, z) then aliases := aliases + 1
+    else if cur ≤ v && v + z ≤ hi then
+      if cur < v then out := out.push (none, v - cur)
+      out := out.push (some c, z)
+      cur := v + z
+      last := some (v, z)
+    else overlaps := overlaps.push c
+  if cur < hi then out := out.push (none, hi - cur)
+  pure { x, name := nameStr sec.name, sh, pieces := out, aliases, overlaps, zeroSize }
+
+/-- The `Decomp.lean` module of a file: one `Decomposes` theorem per executable `SHT_PROGBITS`
+section with at least one function symbol, along `.symtab` when the file has one and `.dynsym`
+otherwise; and a report of what each leaves out. -/
+def emitDecomp (ns title gen : String) (L : Layout) (bodies : Array Body) : String × String := Id.run do
+  let tabs : List (Nat × Table × List ObjectSymbol) := (bodies.toList.zipIdx).filterMap fun
+    | (.symbols t es, k) => some (k, t, es)
+    | _ => none
+  let tab? := (tabs.find? fun (_, t, _) => t == .symtab).orElse fun _ => tabs.head?
+  let tabName := match tab? with | some (_, .symtab, _) => ".symtab" | some _ => ".dynsym" | none => "(none)"
+  let execs := L.sections.zipIdx.filter fun (s, _) =>
+    s.header.kind == SHT_PROGBITS && s.header.flags / SHF_EXECINSTR % 2 == 1
+  let ds : List SecDecomp := match tab? with
+    | none => []
+    | some (k, _, es) => (execs.map fun (s, x) => decompSection x s k es).filter fun d =>
+        d.pieces.any (·.1.isSome)
+  let undec := execs.filter fun (_, x) => !(ds.any (·.x == x))
+  let mut rep := s!"decomposition along {tabName}:"
+  let mut tbl := "| section | bytes | functions | covered | gaps (bytes) | aliases | left out: overlapping | zero-size symbols |\n|---|---|---|---|---|---|---|---|\n"
+  for d in ds do
+    let nf := (d.pieces.filter (·.1.isSome)).size
+    let cov := (d.pieces.filter (·.1.isSome)).foldl (· + ·.2) 0
+    let gaps := d.pieces.filter (·.1.isNone)
+    let gb := gaps.foldl (· + ·.2) 0
+    let pct := if d.sh.size == 0 then 100 else cov * 1000 / d.sh.size
+    tbl := tbl ++ s!"| `{d.name}` ({d.x}) | {d.sh.size} | {nf} | {cov} ({pct / 10}.{pct % 10}%) | {gaps.size} ({gb}) | {d.aliases} | {d.overlaps.size} | {d.zeroSize} |\n"
+    rep := rep ++ s!" {d.name}: {nf} functions, {cov}/{d.sh.size} bytes, {gaps.size} gaps, {d.aliases} aliases, {d.overlaps.size} overlapping, {d.zeroSize} zero-size;"
+  let undecS := if undec.isEmpty then "none" else ", ".intercalate (undec.map fun (s, x) => s!"`{nameStr s.name}` ({x})")
+  let mut t := s!"module
+
+public import {ns}.Functions
+public import Silmaril.Elf.Staged.Decomp.Thms
+
+/-! # {title}: its executable sections, decomposed into functions
+
+{gen}
+
+`Silmaril.Elf.Staged.Decomp.Decomposes F L x pieces_x`: section `x` is an executable
+`SHT_PROGBITS` section, and `pieces_x` (functions of the symbol table, by entry, and explicit gaps)
+tiles its address range exactly; every function piece is a defined `STT_FUNC`/`STT_GNU_IFUNC`
+symbol of the section with nonzero size, read from the file by the checked symbol theorem of
+`{ns}.Functions`. Closed by one `decide +kernel` run of the tiling check per section; no native
+evaluation. Along {tabName}.
+
+{tbl}
+A **gap** is a byte range that no chosen function symbol covers: alignment padding, code with no
+symbol (a stripped file has only exported symbols), or the extent of a symbol left out because it
+overlaps a chosen one (an **alias** has the same extent as a chosen symbol and is not listed
+again). Nothing here says that a function's bytes are instructions, or anything about what the
+function does. Executable sections not decomposed (no function symbol): {undecS}. -/
+
+@[expose] public section
+
+namespace {ns}
+
+open Silmaril.Elf Silmaril.Elf.Staged Silmaril.Elf.Staged.Decomp
+
+"
+  match tab? with
+  | none => pure ()
+  | some (k, _, _) =>
+    let link := match L.shs[k]? with | some sh => sh.link | none => 0
+    t := t ++ s!"theorem decomp_tab : L.shs[{k}]? = some sh{k} := rfl
+
+theorem decomp_strs : L.shs[sh{k}.link]? = some sh{link} := rfl
+
+"
+  for d in ds do
+    let chunks := (listChunks 128 d.pieces.toList).zipIdx
+    for (ch, j) in chunks do
+      let lits := ch.map fun
+        | (some c, _) => s!".fn {c.k} {c.i} s{c.k}_{c.i}"
+        | (none, n) => s!".gap {n}"
+      t := t ++ s!"/-- Pieces {j * 128} to {j * 128 + ch.length - 1} of section {d.x} (`{d.name}`). -/
+def pieces_{d.x}_{j} : List Piece :=
+  [{",\n   ".intercalate lits}]
+
+"
+      let rd := ch.foldr (fun p acc => match p with
+        | (some c, _) => s!"read_cons (symbolIs_of_partIs' decomp_tab (by decide) decomp_strs (by decide) (by decide) sym_{c.k}_{c.i})\n  ({acc})"
+        | (none, _) => s!"read_cons trivial ({acc})") "read_nil"
+      t := t ++ s!"theorem read_{d.x}_{j} : ∀ p ∈ pieces_{d.x}_{j}, p.Read F L :=\n  {rd}\n\n"
+    let n := chunks.length
+    let names := (List.range n).map (s!"pieces_{d.x}_{·}")
+    -- `++` associates to the left; the reads below are nested to the right, so is the list
+    let all := names.foldr (fun nm acc => if acc == "" then nm else s!"{nm} ++ ({acc})") ""
+    let all := if n == 0 then "[]" else all
+    let rdAll := (List.range n).foldr (fun j acc => if j + 1 == n then s!"read_{d.x}_{j}" else s!"(read_append read_{d.x}_{j} {acc})") "read_nil"
+    let rdAll := if n == 0 then "read_nil" else rdAll
+    t := t ++ s!"/-- The pieces of section {d.x} (`{d.name}`), in address order. -/
+def pieces_{d.x} : List Piece := {all}
+
+/-- **Section {d.x} (`{d.name}`) decomposes into the functions and gaps `pieces_{d.x}`.** -/
+theorem decomp_{d.x} : Decomposes F L {d.x} pieces_{d.x} :=
+  decomposes_of (sh := sh{d.x}) layout rfl ⟨by decide, by decide⟩ (by decide +kernel)
+    {rdAll}
+
+"
+  t := t ++ s!"end {ns}\n"
+  pure (t, rep)
+
 /-- `emit-reader FILE NAME SHA256 DIR`: the modules `Silmaril.Elf.Staged.Pinned.NAME.{Bytes,Defs,Thms}`
 (module docs there). -/
-def emitReader (path name sha title dir : String) : IO Unit := do
+def emitReader (path name sha title dir : String) (nsOpt relOpt genOpt : Option String := none) :
+    IO Unit := do
   let a ← readFile path
   let src := fastRead a
   let L ← layoutOrFail src
   let some ld := (readLoader L.phdrs).run src | throw (IO.userError "loader view failed")
   let some A := Silmaril.Elf.read.run src | throw (IO.userError "the specification rejects the file")
-  let ns := s!"Silmaril.Elf.Staged.Pinned.{name}"
-  let rel := "../../../../../" ++ path
-  let gen := s!"GENERATED by `elf-staged emit-reader {path} {name} …` (`scripts/elf-reader/gen.sh`); do not edit."
+  let ns := nsOpt.getD s!"Silmaril.Elf.Staged.Pinned.{name}"
+  let rel := relOpt.getD ("../../../../../" ++ path)
+  let gen := s!"GENERATED by `elf-staged emit-reader {path} {name} …` (`{genOpt.getD "scripts/elf-reader/gen.sh"}`); do not edit."
   let bytesMod := s!"module
 
 public import Silmaril.Data.IncludeBytes.Kernel
@@ -721,8 +885,10 @@ namespace {ns}
 open Silmaril.Elf Silmaril.Elf.Staged Silmaril.Elf.Staged.Reader
 
 "
+  let mut bodyArr : Array Body := #[]
   for (sec, k) in L.sections.zipIdx do
     let some b := (Parse.body shs sec.header).run src | throw (IO.userError s!"body {k} failed")
+    bodyArr := bodyArr.push b
     bnames := bnames.push s!"body_{k}.bodyIs"
     match b with
     | .symbols tab es =>
@@ -785,10 +951,13 @@ theorem pad_{k} : ZerosAt F {g.off} {g.len} :=
   IO.FS.writeFile s!"{base}/Defs.lean" d
   IO.FS.writeFile s!"{base}/Thms.lean" t
   IO.FS.writeFile s!"{base}/Functions.lean" (fns ++ s!"end {ns}\n")
-  IO.println s!"wrote {base}/(Bytes,Defs,Thms).lean; non-zero gaps (no theorem): {nz.toList.map fun g => (hex g.off, g.len)}"
+  let (dec, report) := emitDecomp ns title gen L bodyArr
+  IO.FS.writeFile s!"{base}/Decomp.lean" dec
+  IO.println s!"wrote {base}/(Bytes,Defs,Thms,Functions,Decomp).lean; non-zero gaps (no theorem): {nz.toList.map fun g => (hex g.off, g.len)}"
+  IO.println report
 
 def usage : String :=
-  "usage: elf-staged layout FILE | emit-reader FILE NAME SHA256 TITLE DIR | bench FILE [TILES] | emit-example FILE DEFS_MODULE DEFS.lean THMS.lean --bytes-const NAME [--import M] [--namespace NS] [--tiles TILES --function F] | emit FILE OUT.lean [--rela-windows N] [--rela-window N] [--tiles TILES] [--tile-count N] [--tile-from OFFSET] [--whole] [--bodies] [--bytes-const NAME] [--import MODULE] [--namespace NS]"
+  "usage: elf-staged layout FILE | emit-reader FILE NAME SHA256 TITLE DIR [--namespace NS --include-path REL --generator SCRIPT] | bench FILE [TILES] | emit-example FILE DEFS_MODULE DEFS.lean THMS.lean --bytes-const NAME [--import M] [--namespace NS] [--tiles TILES --function F] | emit FILE OUT.lean [--rela-windows N] [--rela-window N] [--tiles TILES] [--tile-count N] [--tile-from OFFSET] [--whole] [--bodies] [--bytes-const NAME] [--import MODULE] [--namespace NS]"
 
 partial def parseOpts : List String → EmitOpts → EmitOpts
   | "--rela-windows" :: n :: rest, o => parseOpts rest { o with relaWindows := n.toNat! }
@@ -823,4 +992,6 @@ def main (args : List String) : IO UInt32 := do
     emitExample path defsMod defsOut thmsOut (parseOpts (rest.filter (· != "--function")) {}) fn
     pure 0
   | ["emit-reader", path, name, sha, title, dir] => emitReader path name sha title dir; pure 0
+  | ["emit-reader", path, name, sha, title, dir, "--namespace", ns, "--include-path", rel, "--generator", g] =>
+    emitReader path name sha title dir (some ns) (some rel) (some g); pure 0
   | _ => IO.eprintln usage; pure 2

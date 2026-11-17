@@ -33,7 +33,7 @@ listing() {  # listing FILE SLUG
 emit() {  # emit FILE NAME TITLE SLUG
   .lake/build/bin/elf-staged emit-reader "$1" "$2" "$(sha "$1")" "$3" "$dir" >/dev/null
   if [ "$check" = --check ]; then
-    for m in Bytes Defs Thms Functions; do
+    for m in Bytes Defs Thms Functions Decomp; do
       cmp -s "$dir/$2/$m.lean" "$out/$2/$m.lean" || { echo "gen.sh: $out/$2/$m.lean differs" >&2; exit 1; }
     done
   fi
