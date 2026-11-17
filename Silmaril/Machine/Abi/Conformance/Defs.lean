@@ -199,7 +199,28 @@ memory to `s.machine`, and storing what was loaded changes nothing. `load (store
 These are **restricted models**: the standard ones (`Mach.ofInt Open.isa`, `Mach.ofInt
 Open9.isa`, `Mach.ofInt Str9.isa`) decode an integer subset of x86-64 and have no SSE, x87,
 MXCSR or direction-flag instruction. A row on `M` is a statement about `M`; reading it about
-real x86 needs `Faithful` (below). -/
+real x86 needs `Faithful` (below).
+
+**Only `Mach.ofInt` machines are sound to state rows on today.** For a general lens the laws
+leave three gaps (review of #994), which a richer machine (stage 2: SSE, `Str9L`) must close
+before any row uses it:
+1. *`store` may supply what the machine never computed.* The laws constrain `store s x` only
+   on `.machine` and at `x = load s`; a lawful `store` may set `direction`, `x87Mode`, MXCSR or
+   vectors on its own, making `Return`'s obligations hold by the lens. Fix: split the FFI state
+   into what the machine models and what it carries (`store s x = merge s (view x)`, with
+   `store (store s x) y = store s y`), or a per-machine theorem listing exactly which FFI fields
+   come from `σ`, shown with every row.
+2. *Hidden state is fixed by `load`.* State the FFI state does not determine (a time-stamp
+   oracle, entry MXCSR modes) is whatever `load` picks, so a row covers one completion, not
+   every one hardware may present. Fix: quantify `callModelOf`, `NoStuck` and `Admit` over every
+   completion (`Fills : Ffi.State → σ → Prop`), or require `load (store s x) = x` for the state
+   the rows are about.
+3. *`Faithful` quantifies over every `y` through `store s y`.* If `store` drops state a step
+   reads, no reference machine is faithful and `Conforms.onRef` never applies (vacuous, not
+   unsound). Fix: restrict `Faithful` to states reached from `load s`, or require dropped state
+   not to influence `step`.
+Within a call, runs stay in `σ` and `store` is applied once; composing two calls
+(`load (store s y)`) restarts the hidden state, which a theorem chaining calls must say. -/
 structure Mach where
   /-- The machine's state. -/
   σ : Type
