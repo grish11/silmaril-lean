@@ -14,7 +14,8 @@ import Silmaril.Proofs.Elf.Abi.Basic
     4 bytes and is refused; the former 8-byte check accepted it (`misses8_tlsdesc`);
   - `not_untouched_copy`: a `COPY` relocation (it writes the symbol's `st_size`) is refused
     wherever it is;
-  - `not_untouched_unknown`: so is a relocation of any type `relocWidth` does not know;
+  - `not_untouched_unknown`: so is a relocation of any type `relocWidth` does not know,
+    including `IRELATIVE` (ld.so runs its IFUNC resolver);
   - `not_untouched_machine`: and every relocation of a file that is not x86-64;
 * `Present.not_absent`: **`absent` cannot be faked**: a function some symbol table of the file
   defines (in any table and version) is not absent, so an `absent` exclusion of it is refused;
@@ -67,7 +68,7 @@ theorem not_untouched_machine {A : File} (hA : Parses F A) (hm : A.header.machin
 theorem relocWidth_examples :
     relocWidth 8 = some 8 ∧ relocWidth 6 = some 8 ∧ relocWidth 7 = some 8 ∧
     relocWidth 36 = some 16 ∧ relocWidth 10 = some 4 ∧ relocWidth 5 = none ∧
-    relocWidth 39 = none ∧ relocWidth 1000 = none := by decide
+    relocWidth 37 = none ∧ relocWidth 39 = none ∧ relocWidth 1000 = none := by decide
 
 theorem Present.not_absent (h : Present F f) : ¬ Absent F f := by
   rintro ⟨B, hB, hall⟩
