@@ -1,0 +1,52 @@
+# {"arch": "x86_64", "decomposition_module": "Silmaril.Elf.Staged.Corpus.Darkhttpd.X8664.DarkhttpdExe.Decomp", "function_map": "corpus/darkhttpd/funcmap/x86_64/darkhttpd.json", "object": "darkhttpd", "package": "darkhttpd", "twin_code_identical": true, "twin_symbols_identical": true, "twin_text_bytes_differing": 0}
+# symbol	value	size	decomposition (theorem, role)	c_name	tu	int_profile	blockers
+xrealloc.part.0	0x25c0	23	decomp_14 piece	xrealloc	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+xstr_to_num.cold	0x25d7	22	decomp_14 piece	xstr_to_num	-	no	compiler-clone,globals
+xclose.part.0	0x25ed	20	decomp_14 piece	xclose	(indirect line string, offset: 0): darkhttpd.c	no	frontend,callee-contracts,globals
+xclose.cold	0x2601	5	decomp_14 piece	xclose	-	no	compiler-clone,globals
+pidfile_remove.cold	0x2606	19	decomp_14 piece	pidfile_remove	-	no	compiler-clone,globals
+appendl.cold	0x2619	8	decomp_14 piece	appendl	-	no	compiler-clone,globals
+xasprintf.cold	0x2621	19	decomp_14 piece	xasprintf	-	no	compiler-clone,globals
+appendf.constprop.0.cold	0x2634	19	decomp_14 piece	appendf	-	no	compiler-clone,globals
+xstrdup.cold	0x2647	22	decomp_14 piece	xstrdup	-	no	compiler-clone,globals
+redirect.cold	0x265d	19	decomp_14 piece	redirect	-	no	compiler-clone,globals
+default_reply.cold	0x2670	19	decomp_14 piece	default_reply	-	no	compiler-clone,globals
+parse_field.cold	0x2683	22	decomp_14 piece	parse_field	-	no	compiler-clone,globals
+urldecode.cold	0x2699	22	decomp_14 piece	urldecode	-	no	compiler-clone,globals
+parse_mimetype_line.cold	0x26af	109	decomp_14 piece	parse_mimetype_line	-	no	compiler-clone,globals
+free_connection.cold	0x271c	97	decomp_14 piece	free_connection	-	no	compiler-clone,globals
+process_get.cold	0x277d	172	decomp_14 piece	process_get	-	no	compiler-clone,globals
+process_request.cold	0x2829	74	decomp_14 piece	process_request	-	no	compiler-clone,globals
+poll_recv_request.cold	0x2873	8	decomp_14 piece	poll_recv_request	-	no	compiler-clone,globals
+main.cold	0x287b	1407	decomp_14 piece	main	-	no	compiler-clone,globals
+main	0x2e00	7033	decomp_14 piece	main	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+_start	0x4980	34	decomp_14 piece	-	-	no	no-source-binding
+make_safe_url	0x4a80	347	decomp_14 piece	make_safe_url	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,globals
+logencode	0x4be0	141	decomp_14 piece	logencode	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,globals
+stop_running	0x4c70	11	decomp_14 piece	stop_running	(indirect line string, offset: 0): darkhttpd.c	yes	frontend,globals
+mime_mapping_cmp	0x4c80	11	decomp_14 piece	mime_mapping_cmp	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+dlent_cmp	0x4c90	17	decomp_14 piece	dlent_cmp	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+url_content_type	0x4cb0	213	decomp_14 piece	url_content_type	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+str_to_num	0x4d90	118	decomp_14 piece	str_to_num	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+normalize_path	0x4e10	151	decomp_14 piece	normalize_path	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+poll_send_reply	0x4eb0	282	decomp_14 piece	poll_send_reply	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+poll_send_header	0x4fd0	176	decomp_14 piece	poll_send_header	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+xstr_to_num	0x5080	37	decomp_14 piece	xstr_to_num	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+get_address_text	0x50b0	101	decomp_14 piece	get_address_text	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+xclose	0x5120	23	decomp_14 piece	-	-	no	no-source-binding
+pidfile_remove	0x5140	51	decomp_14 piece	pidfile_remove	(indirect line string, offset: 0): darkhttpd.c	no	frontend,callee-contracts,globals
+appendl	0x5180	166	decomp_14 piece	appendl	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+append_escaped	0x5230	281	decomp_14 piece	append_escaped	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+xasprintf	0x5350	152	decomp_14 piece	xasprintf	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,variadic,callee-contracts,globals
+appendf.constprop.0	0x53f0	190	decomp_14 piece	appendf	-	no	compiler-clone,globals
+xstrdup	0x54b0	56	decomp_14 piece	xstrdup	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+redirect	0x54f0	444	decomp_14 piece	redirect	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,variadic,callee-contracts,globals
+default_reply	0x56b0	564	decomp_14 piece	default_reply	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,variadic,callee-contracts,globals
+parse_field	0x58f0	167	decomp_14 piece	parse_field	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+urldecode	0x59a0	341	decomp_14 piece	urldecode	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+parse_mimetype_line	0x5b00	783	decomp_14 piece	parse_mimetype_line	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+free_connection	0x5e10	1216	decomp_14 piece	free_connection	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+process_get	0x62d0	4158	decomp_14 piece	process_get	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+process_request	0x7310	1813	decomp_14 piece	process_request	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+poll_recv_request	0x7a30	326	decomp_14 piece	poll_recv_request	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,callee-contracts,globals
+password_equal	0x7b80	132	decomp_14 piece	password_equal	(indirect line string, offset: 0): darkhttpd.c	no	frontend,memory-correspondence,globals

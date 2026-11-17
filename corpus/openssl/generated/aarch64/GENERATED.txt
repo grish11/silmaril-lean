@@ -1,0 +1,4 @@
+GENERATED FILES -- not upstream sources, not hand-written.
+Produced in /build/openssl by the aarch64 build (build.sh aarch64): configure/build-generated sources and
+headers that the compiler read (from the depfiles) and that are absent from, or differ from, the
+pinned upstream archive. Refresh with: corpus/build-all.sh --collect openssl

@@ -1,0 +1,70 @@
+{
+  "package": "mimalloc",
+  "version": "2.1.9",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:42e6f05098b3fd5e3439f33b0ce83fa8601b0af0829d59f22b754b98fed690c2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+  "ldflags": "-shared -Wl,-soname,libmimalloc.so.2 -lpthread -lrt",
+  "configure_args": "(none: CMake defaults written out as gcc commands)",
+  "build_commands": [
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/alloc.c -o obj/alloc.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/alloc-aligned.c -o obj/alloc-aligned.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/alloc-posix.c -o obj/alloc-posix.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/arena.c -o obj/arena.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/bitmap.c -o obj/bitmap.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/heap.c -o obj/heap.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/init.c -o obj/init.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/libc.c -o obj/libc.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/options.c -o obj/options.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/os.c -o obj/os.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/page.c -o obj/page.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/random.c -o obj/random.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/segment.c -o obj/segment.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/segment-map.c -o obj/segment-map.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/stats.c -o obj/stats.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/prim/prim.c -o obj/prim_prim.o",
+    "gcc -O2 -shared -Wl,-soname,libmimalloc.so.2 -o libmimalloc.so.2.1 obj/alloc.o obj/alloc-aligned.o obj/alloc-posix.o obj/arena.o obj/bitmap.o obj/heap.o obj/init.o obj/libc.o obj/options.o obj/os.o obj/page.o obj/random.o obj/segment.o obj/segment-map.o obj/stats.o obj/prim_prim.o -lpthread -lrt"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/mimalloc",
+  "inputs": [
+    {
+      "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+      "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libmimalloc.so.2.1",
+      "path": "corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1",
+      "size": 165000,
+      "sha256": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 459,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean builds (fresh containers, fresh /build) compared by sha256",
+  "tests": [
+    {
+      "command": "mi_smoke (local/mi_smoke.c linked against libmimalloc.so.2.1): exit status",
+      "result": "pass: 0"
+    },
+    {
+      "command": "mi_smoke output",
+      "result": "mi_version 219 malloc served by mimalloc: 1 ok bad=0"
+    },
+    {
+      "command": "LD_PRELOAD=libmimalloc.so.2.1 MIMALLOC_VERBOSE=1 /bin/ls / (mimalloc banner seen)",
+      "result": "pass: mimalloc: process init"
+    }
+  ]
+}

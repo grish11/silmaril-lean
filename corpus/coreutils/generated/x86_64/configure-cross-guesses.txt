@@ -1,0 +1,27 @@
+checking whether we are cross compiling... no
+checking whether mbrtowc handles incomplete characters... guessing yes
+checking whether mbrtowc works as well as mbtowc... guessing yes
+checking whether mbrtoc32 works as well as mbrtowc... guessing yes
+checking whether c32rtomb works as well as wcrtomb... guessing yes
+checking whether <stddef.h> is idempotent... guessing no
+checking whether mbrtowc handles a NULL pwc argument... guessing yes
+checking whether mbrtowc has a correct return value... guessing yes
+checking whether mbrtowc returns 0 when parsing a NUL character... guessing yes
+checking whether mbrtowc stores incomplete characters... guessing no
+checking whether mbrtowc recognizes invalid UTF-8... guessing yes
+checking whether printf supports grouping on integers with a precision... guessing yes
+checking whether printf supports grouping with a multibyte separator... guessing yes
+checking whether MB_CUR_MAX is correct... guessing yes
+checking whether iswdigit is ISO C compliant... guessing yes
+checking whether iswxdigit is ISO C compliant... guessing yes
+checking whether mbrtoc32 is regular... guessing no
+checking whether mbrtowc handles a NULL pwc argument... (cached) guessing yes
+checking whether mbrtowc has a correct return value... (cached) guessing yes
+checking whether mbrtowc returns 0 when parsing a NUL character... (cached) guessing yes
+checking whether mbrtowc stores incomplete characters... (cached) guessing no
+checking whether mbrtowc recognizes invalid UTF-8... (cached) guessing yes
+checking whether mbsrtowcs works... guessing yes
+checking whether time() works... guessing no
+checking whether unlink of a parent directory fails as it should... guessing yes
+checking whether wcrtomb return value is correct... guessing yes
+checking whether wctob works... guessing yes

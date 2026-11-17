@@ -1,0 +1,6 @@
+# {"arch": "x86_64", "decomposition_module": "Silmaril.Elf.Staged.Corpus.Refcrypto.X8664.LibrefAesSo.Decomp", "function_map": "corpus/refcrypto/funcmap/x86_64/libref_aes.so.json", "object": "libref_aes.so", "package": "refcrypto", "twin_code_identical": true, "twin_symbols_identical": true, "twin_text_bytes_differing": 0}
+# symbol	value	size	decomposition (theorem, role)	c_name	tu	int_profile	blockers
+rijndaelKeySetupEnc	0x1110	711	decomp_10 piece	rijndaelKeySetupEnc	rijndael-fst-3.0/rijndael-alg-fst.c	no	frontend,memory-correspondence,globals
+rijndaelKeySetupDec	0x13e0	510	decomp_10 piece	rijndaelKeySetupDec	rijndael-fst-3.0/rijndael-alg-fst.c	no	frontend,memory-correspondence,callee-contracts,globals
+rijndaelEncrypt	0x15e0	944	decomp_10 piece	rijndaelEncrypt	rijndael-fst-3.0/rijndael-alg-fst.c	no	frontend,memory-correspondence,globals
+rijndaelDecrypt	0x1990	947	decomp_10 piece	rijndaelDecrypt	rijndael-fst-3.0/rijndael-alg-fst.c	no	frontend,memory-correspondence,globals

@@ -1,0 +1,27 @@
+name = "tcp-pingpong"
+version = "bgnet-34fb9d78"
+category = "TCP client; TCP server"
+summary = "TCP ping/pong client and server: Beej's Guide to Network Programming stream examples server.c/client.c (verbatim, bgnet commit 34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9) plus our local/pingpong.patch (adapted from Beej's Guide: ping -> pong for N rounds)."
+license = "LicenseRef-Beej-PublicDomain"
+license_files = ["local/LICENSE-NOTE.txt"]
+homepage = "https://beej.us/guide/bgnet/"
+
+[[archive]]
+url = "https://github.com/beejjorgensen/bgnet/archive/34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9.tar.gz"
+sha256 = "13df988f5f202b550c078a81d9b94c294ef7946d684a6013aaae8f638c5982ce"
+root = "bgnet-34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9"
+retrieved = "2026-11-17"
+
+[[object]]
+name = "pingpong-server"
+kind = "exe"
+sources = ["upstream/bgnet-34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9/source/examples/server.c", "local/pingpong.patch"]
+cflags = "-O2 -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall"
+notes = "server.c after `patch -p1 < local/pingpong.patch` (run in source/examples). Usage: pingpong-server [port] (default 3490); fork per connection."
+
+[[object]]
+name = "pingpong-client"
+kind = "exe"
+sources = ["upstream/bgnet-34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9/source/examples/client.c", "local/pingpong.patch"]
+cflags = "-O2 -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall"
+notes = "client.c after the same patch. Usage: pingpong-client host [port [rounds]] (defaults 3490, 5)."

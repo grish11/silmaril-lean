@@ -727,8 +727,8 @@ theorem decomp_{d.x} : Decomposes F L {d.x} pieces_{d.x} :=
 
 /-- `emit-reader FILE NAME SHA256 DIR`: the modules `Silmaril.Elf.Staged.Pinned.NAME.{Bytes,Defs,Thms}`
 (module docs there). -/
-def emitReader (path name sha title dir : String) (nsOpt relOpt genOpt : Option String := none) :
-    IO Unit := do
+def emitReader (path name sha title dir : String) (nsOpt relOpt genOpt : Option String := none)
+    (maxEntries : Option Nat := none) : IO Unit := do
   let a ← readFile path
   let src := fastRead a
   let L ← layoutOrFail src
@@ -864,6 +864,7 @@ theorem layout : LayoutIs F L := layoutPart.layoutIs
 
 "
   let mut bnames : Array String := #[]
+  let mut fnThms : Array String := #[]
   let mut fns := s!"module
 
 public import {ns}.Thms
@@ -886,6 +887,7 @@ open Silmaril.Elf Silmaril.Elf.Staged Silmaril.Elf.Staged.Reader
 
 "
   let mut bodyArr : Array Body := #[]
+  let mut skipped : Array Nat := #[]
   for (sec, k) in L.sections.zipIdx do
     let some b := (Parse.body shs sec.header).run src | throw (IO.userError s!"body {k} failed")
     bodyArr := bodyArr.push b
@@ -898,16 +900,33 @@ open Silmaril.Elf Silmaril.Elf.Staged Silmaril.Elf.Staged.Reader
         let ty := e.raw.info % 16
         if ty == 2 || ty == 10 then
           let o := sec.header.offset + 24 * i
-          fns := fns ++ s!"/-- `{nameStr e.name}` (section {k}, entry {i}). -/
+          fnThms := fnThms.push s!"/-- `{nameStr e.name}` (section {k}, entry {i}). -/
 theorem sym_{k}_{i} : PartIs F {litSpans (footprint src (Parse.symbol strs o))} (Parse.symbol sh{sec.header.link} {o}) s{k}_{i} :=
   partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
 
 "
       let t' := if tab == .symtab then "symtab" else "dynsym"
       d := d ++ s!"\n/-- The body of section {k} (`{nameStr sec.name}`): {es.length} symbols. -/\ndef b{k} : Body :=\n  .symbols .{t'} [{", ".intercalate ((List.range es.length).map (s!"s{k}_{·}"))}]\n\n"
+    | .relas es =>
+      if maxEntries.isNone || es.length ≤ 4096 then
+        d := d ++ s!"/-- The body of section {k} (`{nameStr sec.name}`). -/\ndef b{k} : Body :=\n  {(reprStr b).replace "\n" " "}\n\n"
+      else
+        -- a long table as consecutive chunks, so that no single literal nests too deeply
+        let cs := listChunks 512 es
+        let mut names : Array String := #[]
+        for (c, j) in cs.zipIdx do
+          d := d ++ s!"/-- Entries {j * 512} to {j * 512 + c.length - 1} of section {k} (`{nameStr sec.name}`). -/\ndef b{k}_{j} : List Silmaril.Formats.ELF.Rela :=\n  {(reprStr c).replace "\n" " "}\n\n"
+          names := names.push s!"b{k}_{j}"
+        let all := names.toList.foldr (fun nm acc => if acc == "" then nm else s!"{nm} ++ ({acc})") ""
+        d := d ++ s!"/-- The body of section {k} (`{nameStr sec.name}`): {es.length} entries. -/\ndef b{k} : Body :=\n  .relas ({if all == "" then "[]" else all})\n\n"
     | _ =>
       d := d ++ s!"/-- The body of section {k} (`{nameStr sec.name}`). -/\ndef b{k} : Body :=\n  {(reprStr b).replace "\n" " "}\n\n"
-    t := t ++ s!"/-- **The body of section {k}** (`{nameStr sec.name}`). -/
+    let big := match b, maxEntries with
+      | .symbols _ es, some m => decide (m < es.length)
+      | .relas es, some m => decide (4 * m < es.length)
+      | _, _ => false
+    if big then skipped := skipped.push k
+    unless big do t := t ++ s!"/-- **The body of section {k}** (`{nameStr sec.name}`). -/
 theorem body_{k} : PartIs F {litSpans (footprint src (Parse.body shs sec.header))} (Parse.body L.shs sh{k}) b{k} :=
   partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
 
@@ -925,13 +944,18 @@ end {ns}
 theorem loader : PartIs F {litSpans (footprint src (readLoader L.phdrs))} (readLoader L.phdrs) ld :=
   partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
 
-/-- **The parse of the whole file** (`Silmaril.Elf.Parses`), assembled from the parts. -/
+" ++ (if skipped.isEmpty then s!"/-- **The parse of the whole file** (`Silmaril.Elf.Parses`), assembled from the parts. -/
 theorem parses : Parses F (L.assemble bodies ld) :=
   parses_assemble layout
     {forall2}
     loader.loaderIs
 
-"
+" else s!"/-! No whole-file `parses` theorem: the tables of sections {skipped.toList} (symbol tables of more than
+{maxEntries.getD 0} entries, relocation tables of more than {4 * maxEntries.getD 0}) have no whole-table body theorem, since one kernel run over such a table
+exceeds the budget of a module. Their function entries are checked one by one (`Functions`), and the
+layout, the loader view and every other body are checked here. -/
+
+")
   let mut nz : Array Span := #[]
   for (g, k) in (gaps L a.size (footprint src readLayout)).zipIdx do
     if allZero a g then
@@ -950,14 +974,26 @@ theorem pad_{k} : ZerosAt F {g.off} {g.len} :=
   IO.FS.writeFile s!"{base}/Bytes.lean" bytesMod
   IO.FS.writeFile s!"{base}/Defs.lean" d
   IO.FS.writeFile s!"{base}/Thms.lean" t
-  IO.FS.writeFile s!"{base}/Functions.lean" (fns ++ s!"end {ns}\n")
+  if maxEntries.isSome && fnThms.size > 1500 then
+    -- many function symbols: one module per 1500 theorems, so that they are checked in parallel
+    let parts := listChunks 1500 fnThms.toList
+    IO.FS.createDirAll s!"{base}/Functions"
+    let hdr := fns.splitOn "\n" |>.drop 3 |> "\n".intercalate
+    for (c, j) in parts.zipIdx do
+      IO.FS.writeFile s!"{base}/Functions/Part{j}.lean"
+        (s!"module\n\npublic import {ns}.Thms\n" ++ hdr ++ String.join c ++ s!"end {ns}\n")
+    IO.FS.writeFile s!"{base}/Functions.lean"
+      (s!"module\n\n" ++ String.join ((List.range parts.length).map (s!"public import {ns}.Functions.Part{·}\n")) ++
+        s!"\n/-! # {title}: its function symbols, one theorem each, in {parts.length} parts\n\n{gen} -/\n")
+  else
+    IO.FS.writeFile s!"{base}/Functions.lean" (fns ++ String.join fnThms.toList ++ s!"end {ns}\n")
   let (dec, report) := emitDecomp ns title gen L bodyArr
   IO.FS.writeFile s!"{base}/Decomp.lean" dec
   IO.println s!"wrote {base}/(Bytes,Defs,Thms,Functions,Decomp).lean; non-zero gaps (no theorem): {nz.toList.map fun g => (hex g.off, g.len)}"
   IO.println report
 
 def usage : String :=
-  "usage: elf-staged layout FILE | emit-reader FILE NAME SHA256 TITLE DIR [--namespace NS --include-path REL --generator SCRIPT] | bench FILE [TILES] | emit-example FILE DEFS_MODULE DEFS.lean THMS.lean --bytes-const NAME [--import M] [--namespace NS] [--tiles TILES --function F] | emit FILE OUT.lean [--rela-windows N] [--rela-window N] [--tiles TILES] [--tile-count N] [--tile-from OFFSET] [--whole] [--bodies] [--bytes-const NAME] [--import MODULE] [--namespace NS]"
+  "usage: elf-staged layout FILE | emit-reader FILE NAME SHA256 TITLE DIR [--namespace NS --include-path REL --generator SCRIPT [--max-table-entries N]] | bench FILE [TILES] | emit-example FILE DEFS_MODULE DEFS.lean THMS.lean --bytes-const NAME [--import M] [--namespace NS] [--tiles TILES --function F] | emit FILE OUT.lean [--rela-windows N] [--rela-window N] [--tiles TILES] [--tile-count N] [--tile-from OFFSET] [--whole] [--bodies] [--bytes-const NAME] [--import MODULE] [--namespace NS]"
 
 partial def parseOpts : List String → EmitOpts → EmitOpts
   | "--rela-windows" :: n :: rest, o => parseOpts rest { o with relaWindows := n.toNat! }
@@ -994,4 +1030,6 @@ def main (args : List String) : IO UInt32 := do
   | ["emit-reader", path, name, sha, title, dir] => emitReader path name sha title dir; pure 0
   | ["emit-reader", path, name, sha, title, dir, "--namespace", ns, "--include-path", rel, "--generator", g] =>
     emitReader path name sha title dir (some ns) (some rel) (some g); pure 0
+  | ["emit-reader", path, name, sha, title, dir, "--namespace", ns, "--include-path", rel, "--generator", g, "--max-table-entries", n] =>
+    emitReader path name sha title dir (some ns) (some rel) (some g) n.toNat?; pure 0
   | _ => IO.eprintln usage; pure 2

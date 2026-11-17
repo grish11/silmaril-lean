@@ -1,0 +1,36 @@
+# {"arch": "aarch64", "decomposition_module": "Silmaril.Elf.Staged.Corpus.Darkhttpd.Aarch64.DarkhttpdExe.Decomp", "function_map": "corpus/darkhttpd/funcmap/aarch64/darkhttpd.json", "object": "darkhttpd", "package": "darkhttpd", "twin_code_identical": true, "twin_symbols_identical": true, "twin_text_bytes_differing": 0}
+# symbol	value	size	decomposition (theorem, role)	c_name	tu	int_profile	blockers
+xrealloc.part.0	0x22c0	28	decomp_12 piece	xrealloc	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+xclose.part.0	0x22dc	24	decomp_12 piece	xclose	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,callee-contracts,globals
+main	0x2300	7292	decomp_12 piece	main	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+_start	0x3f80	52	decomp_12 piece	-	-	no	isa-semantics,no-source-binding
+call_weak_fn	0x3fb4	20	decomp_12 piece	-	-	no	isa-semantics,no-source-binding
+make_safe_url	0x40c0	392	decomp_12 piece	make_safe_url	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,globals
+logencode	0x4248	136	decomp_12 piece	logencode	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,globals
+stop_running	0x42d0	12	decomp_12 piece	stop_running	(indirect line string, offset: 0): darkhttpd.c	yes	isa-semantics,frontend,globals
+mime_mapping_cmp	0x42e0	12	decomp_12 piece	mime_mapping_cmp	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+dlent_cmp	0x42ec	20	decomp_12 piece	dlent_cmp	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+url_content_type	0x4300	284	decomp_12 piece	url_content_type	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+str_to_num	0x4420	156	decomp_12 piece	str_to_num	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+normalize_path	0x44c0	172	decomp_12 piece	normalize_path	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+poll_send_reply	0x456c	296	decomp_12 piece	poll_send_reply	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+poll_send_header	0x46a0	228	decomp_12 piece	poll_send_header	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+xstr_to_num	0x4784	64	decomp_12 piece	xstr_to_num	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+get_address_text	0x47c4	128	decomp_12 piece	get_address_text	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+xclose	0x4844	32	decomp_12 piece	xclose	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,callee-contracts,globals
+pidfile_remove	0x4864	80	decomp_12 piece	pidfile_remove	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,callee-contracts,globals
+appendl	0x48c0	144	decomp_12 piece	appendl	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+append_escaped	0x4950	256	decomp_12 piece	append_escaped	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+xasprintf	0x4a50	124	decomp_12 piece	xasprintf	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,variadic,callee-contracts,globals
+appendf.constprop.0	0x4acc	172	decomp_12 piece	appendf	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,variadic,callee-contracts,globals
+xstrdup	0x4b80	96	decomp_12 piece	xstrdup	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+redirect	0x4be0	424	decomp_12 piece	redirect	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,variadic,callee-contracts,globals
+default_reply	0x4d88	536	decomp_12 piece	default_reply	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,variadic,callee-contracts,globals
+parse_field	0x4fa0	204	decomp_12 piece	parse_field	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+urldecode	0x506c	428	decomp_12 piece	urldecode	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+parse_mimetype_line	0x5220	752	decomp_12 piece	parse_mimetype_line	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+free_connection	0x5510	936	decomp_12 piece	free_connection	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+process_get	0x58c0	3960	decomp_12 piece	process_get	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+process_request	0x6840	1704	decomp_12 piece	process_request	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+poll_recv_request	0x6ee8	412	decomp_12 piece	poll_recv_request	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,callee-contracts,globals
+password_equal	0x7084	128	decomp_12 piece	password_equal	(indirect line string, offset: 0): darkhttpd.c	no	isa-semantics,frontend,memory-correspondence,globals

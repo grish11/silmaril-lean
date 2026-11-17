@@ -1,0 +1,27 @@
+name = "sqlite"
+version = "3.54.1"
+category = "SQLite library; SQLite shell"
+summary = "SQLite 3.54.1 amalgamation (the latest release, 2026; SHA3-256 of the archive 92281c86e2957f9b9305890f9ac04204caa7b677cc868dc326d942689df28e30 as published on sqlite.org/download.html): the library as libsqlite3.so (soname libsqlite3.so.0) and the sqlite3 command-line shell (shell.c) as a separate ELF linked against it."
+license = "blessing"
+license_files = ["upstream/sqlite-amalgamation-3540100/sqlite3.c", "local/COPYRIGHT-sqlite.txt"]
+homepage = "https://sqlite.org/"
+
+[[archive]]
+url = "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip"
+sha256 = "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"
+root = "sqlite-amalgamation-3540100"
+retrieved = "2026-11-17"
+
+[[object]]
+name = "libsqlite3.so"
+kind = "shared"
+sources = ["upstream/sqlite-amalgamation-3540100/sqlite3.c"]
+cflags = "-O2 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD -fPIC"
+notes = "linked with -shared -Wl,-soname,libsqlite3.so.0 -lm; default compile options otherwise. -MMD only writes a depfile (no effect on code)."
+
+[[object]]
+name = "sqlite3"
+kind = "exe"
+sources = ["upstream/sqlite-amalgamation-3540100/shell.c"]
+cflags = "-O2 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD"
+notes = "PIE (Debian gcc default); linked -L. -lsqlite3 -lm, so DT_NEEDED is libsqlite3.so.0 (tests run it with LD_LIBRARY_PATH pointing at a copy named libsqlite3.so.0). No readline."
