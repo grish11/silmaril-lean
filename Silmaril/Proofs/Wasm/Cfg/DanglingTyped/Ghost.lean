@@ -17,7 +17,7 @@ unchanged. `GhostOk s T X` says that it witnesses `s`:
 * each exception of `s` is in `X` at the same address with the same tag and fields equal up to
   exception references (`ValApprox`);
 * each further exception of `X` (a **pad**, at a dangling address of `s`) has a tag that is not a
-  tag of `s`.
+  tag of `s`, and no fields.
 
 The witness only types: no claim is made that it runs like `s`. The step lemma
 `step_ghost` relates one host-free Core step of `s` to one of the witness, for configurations in
@@ -95,7 +95,8 @@ structure GhostOk (s : Store H) (T : List TagInst) (X : List ExnInst) : Prop whe
   lt : s.exns.length < X.length
   real : ∀ (a : Nat) (e : ExnInst), s.exns[a]? = some e → ∃ e', X[a]? = some e' ∧
     e'.tag = e.tag ∧ List.Forall₂ (ValApprox X.length) e.fields e'.fields
-  pad : ∀ (a : Nat) (e' : ExnInst), s.exns.length ≤ a → X[a]? = some e' → s.tags.length ≤ e'.tag
+  pad : ∀ (a : Nat) (e' : ExnInst), s.exns.length ≤ a → X[a]? = some e' →
+    s.tags.length ≤ e'.tag ∧ e'.fields = []
 
 theorem GhostOk.widen {s : Store H} {T : List TagInst} {X : List ExnInst} (h : GhostOk s T X) :
     Widen s (gst s T X) :=
@@ -173,7 +174,7 @@ theorem catchMatches_gst_iff {s : Store H} {T : List TagInst} {X : List ExnInst}
         rw [he'] at h'
         cases h'
         exact ⟨_, _, List.getElem?_eq_getElem ha, hta, ht.symm⟩
-      · have := hg.pad a e' (Nat.le_of_not_lt ha) he'
+      · have := (hg.pad a e' (Nat.le_of_not_lt ha) he').1
         have := hf _ (List.mem_of_getElem? hta)
         omega
     · rintro ⟨e, ta, he, hta, rfl⟩
@@ -188,7 +189,7 @@ theorem catchMatches_gst_iff {s : Store H} {T : List TagInst} {X : List ExnInst}
         rw [he'] at h'
         cases h'
         exact ⟨_, _, List.getElem?_eq_getElem ha, hta, ht.symm⟩
-      · have := hg.pad a e' (Nat.le_of_not_lt ha) he'
+      · have := (hg.pad a e' (Nat.le_of_not_lt ha) he').1
         have := hf _ (List.mem_of_getElem? hta)
         omega
     · rintro ⟨e, ta, he, hta, rfl⟩
