@@ -552,6 +552,31 @@ The plain graph stays an over-approximation, and claims about it say so.
         - the forward theorem (the first bounded PR): a logged run from the CFG entry to an end
           (`exit`, `trap` with its store, an uncaught exception, a pending tail call) with log
           `l` is an `EvalLXPS` run of the body with exactly `l` and the store.
+      - **H1 status (done here): the logged machine and the forward theorem**
+        (`Wasm/Cfg/MachineL`).
+        - `MStepL`: each block's straight-line code runs by `EvalLXPS`, then the native outcome
+          is dispatched (`DispL`) to `MStepC`'s CFG targets, with **native stack conventions** at
+          frame boundaries (coordinator-approved option B).
+          - Leaving an arm keeps the top `nr` values over the frame's outer values (`popN`,
+            `gotoN`).
+          - A branch keeps the label's arity of the branch-site stack (`branchN`).
+          - `return` and a branch out of the function exit with the branch-site stack.
+          - Arities come from the block type (`Binaryen.arity`), with no run-time checks.
+          - A loop is re-entered only on at least its parameters.
+          - `MStepC` keeps Core's conventions. The two agree on typed code; no untyped
+            correspondence is claimed.
+        - `forward_sink`, `forward_tail`: for **all code**, a logged run from the CFG entry to a
+          sink (or to a pending tail call) is an `EvalLXPS` run of the body. The log, final store
+          and frame are exactly the run's, and the result is one the sink stands for (`EndRel`).
+          This covers stores kept by traps, and tail calls bypassing handlers.
+        - The proof is an invariant (`Good`, `KL`, `WrapL`) carried backwards along the run: at
+          each block the rest of the sequence runs natively, and each enclosing structured
+          instruction's native rule carries the outcome out.
+        - Fixture `Wasm/Cfg/ExampleLogged`: on an invalid body the logged machine exits with `3`
+          (native) and `MStepC` with `1, 2, 3` (Core).
+        - Still open in H1: the typed projection `MStepL` → `MStepC`, proved with the existing
+          typing APIs, plus validated typed nested fixtures (block, loop, if, catch) on which it
+          holds.
       - **H2, both directions on bodies.**
         - Finished ends: done, throw and trap, with exact final store and log.
         - Pending calls (`ReachLXPS`), quiescent divergence, and coherent productive streams.

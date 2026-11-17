@@ -194,4 +194,13 @@ inductive MRunL (body : Expr) : MState H → List (SCall H) → MState H → Pro
   | step {st st₁ st₂ : MState H} {l₁ l₂ : List (SCall H)} (h : MStepL body st l₁ st₁)
       (hr : MRunL body st₁ l₂ st₂) : MRunL body st (l₁ ++ l₂) st₂
 
+/-- **What a sink state stands for natively**: `exit` a flow returning its stack (top first),
+`trap` a trap, `raise` the exception on its stack, all in its store and frame. -/
+def EndRel (st : MState H) (r : Store H × Frame × POut) : Prop :=
+  match st.node with
+  | .exit => ∃ fl, r = (st.store, st.frame, .flow fl) ∧ fl.retVals = some st.stk.reverse
+  | .trap => r = (st.store, st.frame, .flow .trap)
+  | .raise => ∃ a, st.stk = [.ref (.exn a)] ∧ r = (st.store, st.frame, .flow (.throw a))
+  | _ => False
+
 end Silmaril.Wasm.Cfg.MachineL

@@ -70,15 +70,6 @@ inductive KL (body : Expr) (Fin : Store H × Frame × POut → Prop) :
       (hw : WrapL L t (restAt pc (m + 1)) r₀ l₁ r₁) (hrest : KL body Fin rp ls r₁ l₂) :
       KL body Fin ((m, a) :: rp) (L :: ls) r₀ (l₁ ++ l₂)
 
-/-- **What a sink state stands for natively**: `exit` a flow returning its stack (top first),
-`trap` a trap, `raise` the exception on its stack, all in its store and frame. -/
-def EndRel (st : MState H) (r : Store H × Frame × POut) : Prop :=
-  match st.node with
-  | .exit => ∃ fl, r = (st.store, st.frame, .flow fl) ∧ fl.retVals = some st.stk.reverse
-  | .trap => r = (st.store, st.frame, .flow .trap)
-  | .raise => ∃ a, st.stk = [.ref (.exn a)] ∧ r = (st.store, st.frame, .flow (.throw a))
-  | _ => False
-
 /-- **The forward invariant**: at a block, the rest of its sequence runs natively and `KL` carries
 the outcome out of the frames to a result satisfying `Fin`; at a sink, every result it stands for
 satisfies `Fin`. The log is the native runs' logs in order. -/
