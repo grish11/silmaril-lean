@@ -34,7 +34,8 @@ holds an unsupported instruction in dead code:
 ```
 
 * `alMod`, `alMT`, `alPrep`, `alStore` (the host function at address `0`, `run` at `1`, `grab` at
-  `2`, the tag at `0`, no exceptions), `alMI`, `alI`, `alC₀`, as in `ExampleHostExn`;
+  `2`, the tag at `0`, no exceptions), `alMI`, `alI`, `alC₀`, as in `ExampleHostExn`; `alFr`, the
+  frame of a call to `run` or `grab`;
 * `alCyc`: the exception `⟨0, [ref.exn 0]⟩`; `alEnd`: `alStore` with it allocated at address `0`;
 * `alAns`: the host call `h()` in `alStore` answered by `throw 0`, the store unchanged;
 * `dcMod`, `dcMT`, `dcPrep`, `dcStore`, `dcI`, `dcC₀`.
@@ -91,6 +92,9 @@ def alI : ScalarInstance where
 
 /-- The module instance of the functions. -/
 def alMI : ModuleInst := alPrep.1.frame.module
+
+/-- The frame of a call to `run` or `grab` (no arguments, no locals). -/
+abbrev alFr : Frame := Frame.forCall alMI [] []
 
 /-- The self-referencing exception of the tag at address `0`. -/
 def alCyc : ExnInst := ⟨0, [.ref (.exn 0)]⟩
