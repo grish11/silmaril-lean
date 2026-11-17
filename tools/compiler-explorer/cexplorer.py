@@ -4,6 +4,7 @@
     python3 -I tools/compiler-explorer/cexplorer.py ingest DB MANIFEST...   # problems (with their artifacts)
     python3 -I tools/compiler-explorer/cexplorer.py verify DB MANIFEST...   # run the exporter, record its result
     python3 -I tools/compiler-explorer/cexplorer.py evidence DB EVIDENCE... # an exporter file (recorded as a claim)
+    python3 -I tools/compiler-explorer/cexplorer.py project DB PROJECT.sqlite # statuses of `sil project` rows
     python3 -I tools/compiler-explorer/cexplorer.py status DB [PROBLEM]     # a text report
     python3 -I tools/compiler-explorer/cexplorer.py serve DB [--host 127.0.0.1] [--port 8765]
 
@@ -88,6 +89,19 @@ TEMPLATES = {
             f"Silmaril.Project.Shapes.SysV.ObjectFn {v['target_value']} \"{v['cname']}\" {v['fn']}.code"),
     },
 }
+# The `sil project` shape of each obligation kind that has one, and its arguments (by position):
+# a row is evidence for an obligation only when it is an instance of this shape with these
+# arguments (`ingest_project`).
+ROW_SHAPES = {
+    "c-function-x86": {
+        "translation": ("silmaril.shapes.compiler_explorer.c.translation.open", lambda v, k: [v["fn"]]),
+        "nonvacuity": ("silmaril.shapes.compiler_explorer.c.nonvacuous.open", lambda v, k: [v["fn"]]),
+        "mapping": ("silmaril.shapes.compiler_explorer.c.mapping.open", lambda v, k: [v["fn"]]),
+        "refinement": ("silmaril.shapes.compiler_explorer.c.refines_location.open", lambda v, k: [v["fn"]]),
+        "edge": ("silmaril.shapes.compiler_explorer.c.edge.open", lambda v, k: [v["fn"], str(k)]),
+    },
+}
+
 # The obligation that ties the Lean names to the target artifact, per family: until it is proved,
 # no other obligation of the problem is shown as proved (`unbound`).
 BINDING = {"c-function-x86": "artifact"}
@@ -199,7 +213,7 @@ MIGRATIONS = [
       id INTEGER PRIMARY KEY,
       version_id INTEGER NOT NULL REFERENCES problem_versions(id),
       obligation_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('lean-export')),
+      kind TEXT NOT NULL CHECK (kind IN ('lean-export', 'sil-project')),
       status TEXT NOT NULL,
       manifest_sha256 TEXT NOT NULL,
       context_hash TEXT NOT NULL,
@@ -231,7 +245,12 @@ MIGRATIONS = [
     # checked evidence; a file handed in (`evidence`) is recorded as a claim.
     """
     ALTER TABLE evidence ADD COLUMN origin TEXT NOT NULL DEFAULT 'file'
-      CHECK (origin IN ('file', 'exporter-run'));
+      CHECK (origin IN ('file', 'exporter-run', 'sil-project'));
+    """,
+    # 3: the `sil project` row of an obligation, and of the evidence read from a project database
+    """
+    ALTER TABLE obligations ADD COLUMN row TEXT;
+    ALTER TABLE evidence ADD COLUMN row TEXT;
     """,
 ]
 
@@ -327,11 +346,14 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
     for side in ("source", "target"):
         if view.get(side) not in arts:
             raise ValueError(f"the view's {side} is not an artifact of the manifest")
-    # the derivation: a compiled target names its compiler and a receipt about these bytes
+    # the derivation, by direction. compiled: the receipt of a compiler run (in a pinned image)
+    # read the source and wrote the target. decompiled: the receipt of a decompiler run read the
+    # target and wrote the source. imported: no derivation is claimed as checked; whatever the
+    # artifacts say about their origin is shown as a claim.
     d = m.get("derivation")
-    if m["direction"] in ("compiled", "decompiled"):
-        if not d or not all(d.get(k) for k in ("compiler", "version", "image", "command")):
-            raise ValueError("a compiled or decompiled problem records its tool, version, image and command")
+    if m["direction"] == "compiled":
+        if not d or not all(d.get(k) for k in ("compiler", "version", "image", "command", "receipt")):
+            raise ValueError("a compiled problem records its compiler, version, image, command and receipt")
         rec = json.loads(blobs[d["receipt"]])
         about = {rec.get("source", {}).get("sha256")}
         made = {rec.get(k, {}).get("sha256") for k in ("object", "assembly", "output")} - {None}
@@ -339,6 +361,15 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
             raise ValueError("the receipt is about other bytes than the source and target artifacts")
         if rec.get("image") != d["image"]:
             raise ValueError("the receipt's image is not the derivation's")
+    elif m["direction"] == "decompiled":
+        if not d or not all(d.get(k) for k in ("tool", "version", "receipt")):
+            raise ValueError("a decompiled problem records its decompiler, version and receipt")
+        rec = json.loads(blobs[d["receipt"]])
+        if rec.get("input", {}).get("sha256") != shas["target"] or \
+                rec.get("output", {}).get("sha256") != shas["source"]:
+            raise ValueError("the decompiler's receipt did not read the target and write the source")
+    elif d is not None and d.get("kind") not in ("claimed", None):
+        raise ValueError("an imported problem has no checked derivation; record its origin as a claim")
     # fragments: content addresses
     frags = {}
     for f in m["fragments"]:
@@ -412,6 +443,8 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
         e = edges.get(o.get("edge")) if o.get("edge") else None
         if o["kind"] in ("edge", "point") and (e is None or e["kind"] != "semantic"):
             raise ValueError(f"obligation {o['id']}: an {o['kind']} obligation is about a semantic edge")
+        if o.get("row") is not None and (not IDENT.match(o["row"]) or o["kind"] not in ROW_SHAPES.get(family, {})):
+            raise ValueError(f"obligation {o['id']}: no row of kind {o['kind']}")
         expected = statement_for(family, vars_, o["kind"], e and e["point"], e and e.get("line"))
         if expected is None or o["statement"] != expected:
             raise ValueError(f"obligation {o['id']}: the statement is not the {o['kind']} statement "
@@ -465,9 +498,10 @@ def ingest_manifest(db: sqlite3.Connection, path: pathlib.Path, root: pathlib.Pa
                 for fid in e[side]:
                     db.execute("INSERT INTO edge_ends VALUES (?,?,?,?)", (vid, e["id"], side, fid))
         for o in m["obligations"]:
-            db.execute("INSERT INTO obligations VALUES (?,?,?,?,?,?,?)",
+            db.execute("INSERT INTO obligations (version_id, id, kind, statement, decl, edge_id, unsupported,"
+                       " row) VALUES (?,?,?,?,?,?,?,?)",
                        (vid, o["id"], o["kind"], o.get("statement"), o.get("decl"), o.get("edge"),
-                        o.get("unsupported")))
+                        o.get("unsupported"), o.get("row")))
         for t in m.get("tests", []):
             rec_bytes = blobs[t["artifact"]]
             rec = json.loads(rec_bytes)
@@ -575,11 +609,12 @@ def raw_status(db, ver, o) -> dict:
                      (ver["id"], o["id"])).fetchall()
     evs = [e for e in evs if e["context_hash"] == ver["context_hash"]
            and e["manifest_sha256"] == ver["manifest_sha256"] and e["statement"] == o["statement"]
-           and e["decl"] == o["decl"]]
+           and ((e["kind"] == "lean-export" and e["decl"] == o["decl"])
+                or (e["kind"] == "sil-project" and o["row"] is not None and e["row"] == o["row"]))]
     if evs:
         e = evs[0]
         if e["status"] == "kernel":
-            status = "proved" if e["origin"] == "exporter-run" else "claimed"
+            status = "proved" if e["origin"] in ("exporter-run", "sil-project") else "claimed"
         elif e["status"] == "open":
             status = "open"
         else:
@@ -588,7 +623,7 @@ def raw_status(db, ver, o) -> dict:
             "kind": e["kind"], "export_status": e["status"], "decl": e["decl"],
             "axioms": json.loads(e["axioms"] or "[]"), "lean_version": e["lean_version"],
             "git_commit": e["git_commit"], "evidence_sha256": e["evidence_sha256"],
-            "detail": e["detail"], "origin": e["origin"]}}
+            "detail": e["detail"], "origin": e["origin"], "row": e["row"]}}
     older = db.execute(
         "SELECT pv.manifest_sha256 FROM evidence ev JOIN problem_versions pv ON pv.id = ev.version_id "
         "WHERE pv.problem_id = ? AND ev.obligation_id = ? AND ev.status = 'kernel' AND pv.id != ?",
@@ -647,7 +682,7 @@ def problem_view(db, pid: str) -> dict | None:
     for o in db.execute("SELECT * FROM obligations WHERE version_id = ? ORDER BY rowid", (ver["id"],)):
         st = obligation_status(db, ver, o)
         obligations.append({"id": o["id"], "kind": o["kind"], "statement": o["statement"],
-                            "decl": o["decl"], "edge": o["edge_id"], **st,
+                            "decl": o["decl"], "edge": o["edge_id"], "row": o["row"], **st,
                             "status_text": STATUS_TEXT[st["status"]]})
     tests = [{"id": t["id"], "kind": t["kind"], "about_sha256": t["about_sha256"], "status": t["status"],
               "record": json.loads(t["record"])}
@@ -743,6 +778,65 @@ def serve(db_path: str, host: str, port: int) -> None:
     srv.serve_forever()
 
 
+def ingest_project(db: sqlite3.Connection, project: pathlib.Path) -> int:
+    """Read the statuses of the obligations' rows from a `sil project` database (`sil project
+    sqlite`, the database the Pages explorer publishes). A row counts only when it is an instance
+    of the obligation kind's shape (`ROW_SHAPES`) with the manifest's arguments, its status is
+    THM at tier `kernel`, and its solving theorem's axioms are the standard ones."""
+    uri = project.resolve().as_uri() + "?mode=ro"
+    pdb = sqlite3.connect(uri, uri=True)
+    pdb.row_factory = sqlite3.Row
+    meta = {r["key"]: r["value"] for r in pdb.execute("SELECT key, value FROM meta")}
+    if meta.get("schema") != "silmaril.project-db.v0.1":
+        pdb.close()
+        raise reject(db, f"project {project}", f"unsupported project database schema {meta.get('schema')!r}")
+    what = f"project {project}"
+    psha = sha256(project.read_bytes())
+    n = 0
+    rows = []
+    for ver in db.execute("SELECT pv.* FROM problems p JOIN problem_versions pv ON pv.id = p.current_version"):
+        family = ver["family"]
+        vars_ = json.loads(ver["lean"]).get("vars", {})
+        for o in db.execute("SELECT o.*, e.point FROM obligations o LEFT JOIN edges e ON "
+                            "e.version_id = o.version_id AND e.id = o.edge_id "
+                            "WHERE o.version_id = ? AND o.row IS NOT NULL", (ver["id"],)):
+            shape, args = ROW_SHAPES[family][o["kind"]]
+            prob = pdb.execute("SELECT * FROM problems WHERE name = ?", (o["row"],)).fetchone()
+            status, detail, decl, axioms = "missing", "no such row in the project database", None, []
+            if prob is not None:
+                parent = pdb.execute("SELECT parent FROM edges WHERE kind = 'instance' AND child = ?",
+                                     (o["row"],)).fetchone()
+                terms = [r["term"] for r in pdb.execute(
+                    "SELECT term FROM instance_args WHERE problem = ? ORDER BY pos", (o["row"],))]
+                if parent is None or parent["parent"] != shape or terms != args(vars_, o["point"]):
+                    status, detail = "mismatch", (f"the row is not {shape} of {args(vars_, o['point'])} "
+                                                  f"(it is {parent and parent['parent']} of {terms})")
+                else:
+                    thm = pdb.execute("SELECT * FROM statuses WHERE problem = ? AND status = 'THM' "
+                                      "AND tier = 'kernel'", (o["row"],)).fetchone()
+                    if thm is None:
+                        status, detail = "open", "the row has no THM status at tier kernel"
+                    else:
+                        decl = thm["via"]
+                        axioms = [r["axiom"] for r in pdb.execute(
+                            "SELECT axiom FROM answer_axioms WHERE decl = ?", (decl,))]
+                        status = "kernel" if set(axioms) <= ALLOWED_AXIOMS else "bad_axioms"
+                        detail = f"row {o['row']} THM via {decl}"
+            rows.append((ver["id"], o["id"], "sil-project", status, ver["manifest_sha256"],
+                         ver["context_hash"], o["statement"], decl, json.dumps(axioms),
+                         meta.get("toolchain", "?"), meta.get("rev", "project database " + psha[:12]),
+                         psha, detail, "sil-project", o["row"]))
+            n += 1
+    pdb.close()
+    with db:
+        db.executemany("INSERT INTO evidence (version_id, obligation_id, kind, status, manifest_sha256,"
+                       " context_hash, statement, decl, axioms, lean_version, git_commit, evidence_sha256,"
+                       " detail, origin, row) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+    if not n:
+        raise reject(db, what, "no obligation names a row")
+    return n
+
+
 def git_commit() -> str:
     try:
         head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True,
@@ -811,6 +905,12 @@ def main(argv: list[str]) -> int:
             except Rejected as exc:
                 print(f"rejected: {exc}", file=sys.stderr)
                 status = 1
+    elif cmd == "project":
+        try:
+            print(f"{rest[0]}: {ingest_project(db, pathlib.Path(rest[0]))} rows read")
+        except Rejected as exc:
+            print(f"rejected: {exc}", file=sys.stderr)
+            status = 1
     elif cmd in ("ingest", "evidence"):
         for f in rest:
             try:

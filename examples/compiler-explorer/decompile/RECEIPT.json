@@ -1,0 +1,20 @@
+{
+  "command": "gcc -O2 -c -fno-asynchronous-unwind-tables -fcf-protection=none -fno-ident scale.c -o scale.o",
+  "gcc": "gcc (GCC) 13.3.0",
+  "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+  "listing": {
+    "path": "listing.txt",
+    "sha256": "21471f35d3be8437748baad39871498adb9a7c9f2ad41983c8e812209d2870a0"
+  },
+  "network": "none",
+  "object": {
+    "path": "scale.o",
+    "sha256": "ccd4989d86cecaa4fb9b209acf4605e1e74a7c13d2b26896219667444d22c26d",
+    "size": 736
+  },
+  "source": {
+    "path": "scale.c",
+    "sha256": "0d72138159d1ddc0750812df0f711b117478499e7227f7526f6ae89721735029"
+  },
+  "workdir": "/src"
+}

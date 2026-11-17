@@ -129,7 +129,20 @@ class Ingest(Base):
         b = cx.ingest_manifest(self.db, STRAIGHT_O0)
         self.assertEqual(a, b)
         cx.migrate(self.db)
-        self.assertEqual([r[0] for r in self.db.execute("SELECT version FROM schema_migrations")], [1, 2])
+        self.assertEqual([r[0] for r in self.db.execute("SELECT version FROM schema_migrations")], [1, 2, 3])
+
+    def test_migration_keeps_existing_data(self):
+        path = str(self.tmp / "old.sqlite")
+        old = sqlite3.connect(path)
+        old.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)")
+        old.executescript("BEGIN;" + cx.MIGRATIONS[0] + "INSERT INTO schema_migrations VALUES (1); COMMIT;")
+        old.close()
+        db = cx.connect(path)  # migrates 2 and 3
+        vid = cx.ingest_manifest(db, STRAIGHT_O0)
+        self.assertEqual([r[0] for r in db.execute("SELECT version FROM schema_migrations")], [1, 2, 3])
+        self.assertTrue(db.execute("SELECT row FROM obligations WHERE version_id = ? AND id = 'translation'",
+                                   (vid,)).fetchone()[0])
+        db.close()
 
     def test_artifacts_are_immutable(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
@@ -281,6 +294,112 @@ class Rejections(Base):
         src.write_text(src.read_text().replace("int t = s + c;", "int t = s - c;"))
         with self.assertRaises(cx.Rejected):
             cx.ingest_manifest(self.db, self.write("m2.json", dict(m, title="x")), root=root)
+
+
+class Project(Base):
+    """The adapter to a `sil project` database, on the real schema: the golden database of
+    tools/silmaril-project/tests/project/ok, plus the rows of one build."""
+
+    def project_db(self, edit=None) -> pathlib.Path:
+        path = self.tmp / "project.sqlite"
+        pdb = sqlite3.connect(path)
+        pdb.executescript((ROOT / "tools" / "silmaril-project" / "tests" / "project" / "ok" /
+                           "project.sql").read_text())
+        m = json.loads(STRAIGHT_O0.read_bytes())
+        fn = m["lean"]["vars"]["fn"]
+        edges = {e["id"]: e for e in m["edges"]}
+        shapes = {k: v[0] for k, v in cx.ROW_SHAPES["c-function-x86"].items()}
+        for o in m["obligations"]:
+            if not o.get("row"):
+                continue
+            row = o["row"]
+            pdb.execute("INSERT INTO problems (sid, name, kind, decl, module, origin, detached) "
+                        "VALUES (?, ?, 'prop', ?, 'CompilesToExamples.Explorer.Rows', 'local', 0)",
+                        (cx.sha256(row.encode()), row, row))
+            pdb.execute("INSERT INTO edges VALUES ('instance', ?, 0, ?, ?, 'instance', ?)",
+                        (row, shapes[o["kind"]], row, row))
+            args = [fn] + ([str(edges[o["edge"]]["point"])] if o["kind"] == "edge" else [])
+            for i, a in enumerate(args):
+                pdb.execute("INSERT INTO instance_args VALUES (?, ?, ?, NULL, NULL)", (row, i, a))
+            decl = row.replace("silmaril.", "Rows.")
+            pdb.execute("INSERT INTO statuses VALUES (?, 'THM', 'solves', ?, 'kernel')", (row, decl))
+            for ax in ("propext", "Classical.choice", "Quot.sound"):
+                pdb.execute("INSERT INTO answer_axioms VALUES (?, ?)", (decl, ax))
+        if edit:
+            edit(pdb)
+        pdb.commit()
+        pdb.close()
+        return path
+
+    def test_rows_prove_with_artifact_binding(self):
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        cx.ingest_project(self.db, self.project_db())
+        st = self.statuses("compiles-to/straight/O0/add3")
+        # the rows prove their obligations, but the artifact binding has no row: unbound
+        self.assertEqual(st["translation"], "unbound")
+        ev = evidence_for(STRAIGHT_O0, lambda o: "kernel" if o["kind"] == "artifact" else "missing")
+        ev["obligations"] = [o for o in ev["obligations"] if o["id"] == "artifact"]
+        self.trusted(self.write("ev.json", ev))
+        st = self.statuses("compiles-to/straight/O0/add3")
+        for k in ("translation", "mapping", "refinement", "nonvacuity", "edge/3"):
+            self.assertEqual(st[k], "proved", k)
+        self.assertEqual(st["abi"], "unchecked")  # no row, no exporter result
+
+    def test_row_of_another_function_is_a_mismatch(self):
+        def edit(pdb):
+            pdb.execute("UPDATE instance_args SET term = 'CompilesToExamples.Branch.O0.max2' WHERE pos = 0")
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        cx.ingest_project(self.db, self.project_db(edit))
+        st = self.statuses("compiles-to/straight/O0/add3")
+        self.assertEqual(st["translation"], "rejected")
+
+    def test_open_row_and_other_axioms(self):
+        def edit(pdb):
+            pdb.execute("DELETE FROM statuses WHERE problem LIKE '%.mapping'")
+            pdb.execute("INSERT INTO answer_axioms SELECT via, 'sorryAx' FROM statuses WHERE problem LIKE '%.translation'")
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        cx.ingest_project(self.db, self.project_db(edit))
+        st = self.statuses("compiles-to/straight/O0/add3")
+        self.assertEqual(st["mapping"], "open")
+        self.assertEqual(st["translation"], "rejected")
+
+    def test_other_schema_is_refused(self):
+        def edit(pdb):
+            pdb.execute("UPDATE meta SET value = 'silmaril.project-db.v9' WHERE key = 'schema'")
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        with self.assertRaises(cx.Rejected):
+            cx.ingest_project(self.db, self.project_db(edit))
+
+
+class Directions(Base):
+    DECOMPILED = MANIFESTS / "decompiled--scale.json"
+    IMPORTED = MANIFESTS / "imported--sha256-compress.json"
+
+    def test_decompiled_and_imported_are_ingested_without_claims(self):
+        cx.ingest_manifest(self.db, self.DECOMPILED)
+        cx.ingest_manifest(self.db, self.IMPORTED)
+        for pid, direction in (("decompiled/scale", "decompiled"), ("imported/sha256-compress", "imported")):
+            v = cx.problem_view(self.db, pid)
+            self.assertEqual(v["direction"], direction)
+            self.assertEqual({o["status"] for o in v["obligations"]}, {"unsupported"})
+
+    def test_decompiler_receipt_must_read_the_target(self):
+        m = json.loads(self.DECOMPILED.read_bytes())
+        m["artifacts"]["receipt"] = m["artifacts"]["compile_receipt"]
+        with self.assertRaises(cx.Rejected):
+            cx.ingest_manifest(self.db, self.write("m.json", m))
+
+    def test_imported_cannot_claim_a_checked_derivation(self):
+        m = json.loads(self.IMPORTED.read_bytes())
+        m["derivation"] = {"kind": "compiler", "compiler": "clang", "version": "18.1.3"}
+        with self.assertRaises(cx.Rejected):
+            cx.ingest_manifest(self.db, self.write("m.json", m))
+
+    def test_compiled_needs_a_receipt(self):
+        m = json.loads(MSORT_O2.read_bytes())
+        del m["derivation"]["receipt"]
+        with self.assertRaises(cx.Rejected):
+            cx.ingest_manifest(self.db, self.write("m.json", m))
 
 
 class Binding(Base):

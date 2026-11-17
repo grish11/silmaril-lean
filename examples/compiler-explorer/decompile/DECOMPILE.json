@@ -1,0 +1,20 @@
+{
+  "checked_by_SemLift_check": true,
+  "command": "lake env lean --run tools/compiler-explorer/decompile_block.lean scale '48 8d 44 fe fb' 1 a=rdi,b=rsi OUT",
+  "commit": "ba4531a0b6d96b7d54d0a0ee74969a030592cc3e",
+  "input": {
+    "bytes": "48 8d 44 fe fb",
+    "path": "scale.o",
+    "sha256": "ccd4989d86cecaa4fb9b209acf4605e1e74a7c13d2b26896219667444d22c26d",
+    "text_range": [
+      0,
+      5
+    ]
+  },
+  "lean_version": "4.37.0-nightly-2026-11-05",
+  "output": {
+    "path": "scale.dec.c",
+    "sha256": "e4e8230dab57b49bacd3fd22bb05ae438d0a2d5d4a2524bf3bd59a99b0ef6bd3"
+  },
+  "tool": "Silmaril.X86.Decompile.SemLift.propose, SemLift.check, Silmaril.Compiler.Decompile.WordC.regenerate"
+}

@@ -3,6 +3,7 @@
 
     python3 -I tools/compiler-explorer/fixtures.py build      # Docker: compile the demo programs
     python3 -I tools/compiler-explorer/fixtures.py listings   # Docker: objdump the compiles-to objects
+    python3 -I tools/compiler-explorer/fixtures.py decompile  # Docker and Lean: the decompiled fixture
     python3 -I tools/compiler-explorer/fixtures.py manifests [--out DIR]  # no Docker: the manifests
 
 `build` and `listings` run the pinned gcc image of tools/c-tv (by digest) with no network
@@ -383,11 +384,17 @@ def compiles_to_manifests() -> list[dict]:
                              "target_value": f"silmaril.compiles_to.{name}.{opt.lower()}.obj"}
                 X = f"CompilesToExamples.Explorer.{ns}"
 
+                row_kind = {"translation": "translation", "nonvacuity": "nonvacuous", "mapping": "mapping",
+                            "refinement": "location"}
+
                 def ob(oid, kind, decl, edge=None, point=None, line=None):
                     o = {"id": oid, "kind": kind, "decl": decl,
                          "statement": cx.statement_for("c-function-x86", lean_vars, kind, point, line)}
                     if edge:
                         o["edge"] = edge
+                    rk = f"edge_{point}" if kind == "edge" else row_kind.get(kind)
+                    if rk:
+                        o["row"] = row_name(name, opt, fname, rk)
                     return o
 
                 obligations = []
@@ -471,17 +478,200 @@ def compiles_to_manifests() -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------------------------------------
+# The decompiled direction: one block of a compiled object, decompiled to C by the repository's
+# decompiler (SemLift + WordC). The manifest claims no theorem about the result.
+
+DECOMPILE = EX / "decompile"
+
+
+def decompile() -> None:
+    """Compile scale.c (Docker), list it, and decompile its block before `ret` (Lean)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cmd = ("gcc -O2 -c -fno-asynchronous-unwind-tables -fcf-protection=none -fno-ident "
+               "scale.c -o /out/scale.o")
+        docker([(DECOMPILE, "/src", True), (pathlib.Path(tmp), "/out", False)],
+               f"{cmd}; objdump -d -w /out/scale.o > /out/listing.txt; {TOOLS}")
+        t = pathlib.Path(tmp)
+        obj = (t / "scale.o").read_bytes()
+        (DECOMPILE / "scale.o").write_bytes(obj)
+        listing = (t / "listing.txt").read_bytes().replace(b"/out/", b"")
+        (DECOMPILE / "listing.txt").write_bytes(listing)
+        dump(DECOMPILE / "RECEIPT.json", {
+            "image": IMAGE, "workdir": "/src", "network": "none", "command": cmd.replace("/out/", ""),
+            "gcc": (t / "gcc.txt").read_text().strip(),
+            "source": {"path": "scale.c", "sha256": sha256((DECOMPILE / "scale.c").read_bytes())},
+            "object": {"path": "scale.o", "sha256": sha256(obj), "size": len(obj)},
+            "listing": {"path": "listing.txt", "sha256": sha256(listing)},
+        })
+    rows = listing_rows(listing)
+    block = [r for r in rows if r[0] < rows[-1][0]]  # every instruction before the final ret
+    hexbytes = []
+    for line in listing.decode().splitlines():
+        if (m := OBJDUMP.match(line)) and int(m.group(1), 16) < rows[-1][0]:
+            hexbytes += m.group(2).split()
+    with tempfile.TemporaryDirectory() as tmp:
+        out = pathlib.Path(tmp) / "dec.json"
+        subprocess.run([os.environ.get("LAKE", "lake"), "env", "lean", "--run",
+                        "tools/compiler-explorer/decompile_block.lean", "scale", " ".join(hexbytes),
+                        str(len(block)), "a=rdi,b=rsi", str(out)], cwd=ROOT, check=True)
+        dec = json.loads(out.read_text())
+    src = dec["source"].encode()
+    (DECOMPILE / "scale.dec.c").write_bytes(src)
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    dump(DECOMPILE / "DECOMPILE.json", {
+        "tool": dec["tool"], "lean_version": dec["lean_version"], "commit": commit,
+        "command": ("lake env lean --run tools/compiler-explorer/decompile_block.lean scale "
+                    f"'{' '.join(hexbytes)}' {len(block)} a=rdi,b=rsi OUT"),
+        "input": {"path": "scale.o", "sha256": sha256(obj), "text_range": [0, rows[-1][0]],
+                  "bytes": " ".join(hexbytes)},
+        "checked_by_SemLift_check": dec["checked"],
+        "output": {"path": "scale.dec.c", "sha256": sha256(src)},
+    })
+    print(f"decompiled scale: {dec['source']!r}")
+
+
+def decompiled_manifests() -> list[dict]:
+    d = DECOMPILE
+    rec = json.loads((d / "DECOMPILE.json").read_text())
+    src_ref = file_ref(d / "scale.dec.c", "text/x-c")
+    obj_ref = file_ref(d / "scale.o", "application/x-elf-relocatable")
+    lst = d / "listing.txt"
+    rows = listing_rows(lst.read_bytes())
+    b = Builder((d / "scale.dec.c").read_bytes(), src_ref["sha256"], obj_ref["sha256"], "text-offset")
+    lo, hi = rec["input"]["text_range"]
+    nlines = len(line_ranges((d / "scale.dec.c").read_bytes()))
+    s = b.src_lines(list(range(1, nlines + 1)))
+    t = b.tgt([[lo, hi]], f"[{lo:#x}, {hi:#x}): the decompiled block (the final ret is outside it)")
+    b.edges.append({"id": "nav/scale/block", "kind": "navigation", "origin": "decompiler",
+                    "function": "scale", "source": [s], "target": [t],
+                    "note": "the decompiler's input block and its output function; not a semantic link"})
+    reason = ("no obligation is stated: the decompiler has a block theorem "
+              "(Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state "
+              "whose rax is the generated expression's C0 value), but this explorer does not yet "
+              "state it for this fixture, and the final ret is outside the block")
+    return [{
+        "schema": SCHEMA, "id": "decompiled/scale", "direction": "decompiled",
+        "title": "scale.o (gcc 13.3.0 -O2) decompiled to C by SemLift + WordC",
+        "artifacts": {"source": src_ref, "target": obj_ref, "listing": file_ref(lst, "text/x-objdump"),
+                      "receipt": file_ref(d / "DECOMPILE.json", "application/json"),
+                      "original_source": file_ref(d / "scale.c", "text/x-c"),
+                      "compile_receipt": file_ref(d / "RECEIPT.json", "application/json")},
+        "view": {"source": "source", "target": "listing",
+                 "target_map": [[o, o + n, s0, e0] for (o, n, s0, e0) in rows]},
+        "derivation": {"kind": "decompiler", "tool": rec["tool"], "version": rec["lean_version"],
+                       "commit": rec["commit"], "command": rec["command"], "receipt": "receipt",
+                       "checked_by_SemLift_check": rec["checked_by_SemLift_check"]},
+        "context": {"source_model": None, "target_model": None, "abi": None,
+                    "mapping_relation": None, "comorphism": None},
+        "fragments": sorted(b.fragments.values(), key=lambda f: f["id"]),
+        "edges": b.edges,
+        "obligations": [{"id": k, "kind": k, "decl": None, "statement": None, "unsupported": reason}
+                        for k in ("translation", "nonvacuity", "abi", "mapping", "refinement")],
+        "tests": [], "lean": {"family": None, "modules": []},
+    }]
+
+
+def imported_manifests() -> list[dict]:
+    """sha256 compression: a C source and assembly that were both supplied (no build here)."""
+    src = ROOT / "apps" / "sha256sum-min" / "inputs" / "xc_sha256.c"
+    asm = ROOT / "apps" / "sha256-cli" / "src" / "sha256_compress_clang_o2.S"
+    src_ref, asm_ref = file_ref(src, "text/x-c"), file_ref(asm, "text/x-asm")
+    reason = ("no translation from this C source is stated: the assembly's bytes have a functional "
+              "contract against a SHA-256 specification (Sha256O2.sha256_compress_O2, "
+              "docs/projects/sha256sum.md), which is not a statement about this C source")
+    return [{
+        "schema": SCHEMA, "id": "imported/sha256-compress", "direction": "imported",
+        "title": "sha256 compression: C source and clang -O2 assembly, both supplied",
+        "artifacts": {"source": src_ref, "target": asm_ref},
+        "view": {"source": "source", "target": "target"},
+        "derivation": {"kind": "claimed",
+                       "claim": ("the assembly's header says: clang 18.1.3 -O2 of xc_sha256.c, byte for "
+                                 "byte, generated from Silmaril/Crypto/X86/Sha256O2/Image.lean; no "
+                                 "compiler run is recorded here")},
+        "context": {"source_model": None, "target_model": None, "abi": None,
+                    "mapping_relation": None, "comorphism": None},
+        "fragments": [], "edges": [],
+        "obligations": [{"id": k, "kind": k, "decl": None, "statement": None, "unsupported": reason}
+                        for k in ("translation", "nonvacuity", "abi", "mapping", "refinement")],
+        "tests": [], "lean": {"family": None, "modules": []},
+    }]
+
+
+# ---------------------------------------------------------------------------------------------
+# Rows of `sil project`: the explorer's obligations of the compiles-to builds as problem rows, so
+# the project database (and its explorer page) records their statuses.
+
+RECORDS = ROOT / "silmaril" / "compiler-explorer.toml"
+ROWS = ROOT / "examples" / "compiles-to" / "CompilesToExamples" / "Explorer" / "Rows.lean"
+# (file, build, function, points, namespace, segments proved)
+ROW_BUILDS = [("straight", "O0", "add3", 5, "StraightO0", True), ("straight", "O2", "add3", 1, "StraightO2", True),
+              ("branch", "O0", "max2", 5, "BranchO0", True), ("branch", "O2", "max2", 1, "BranchO2", False)]
+# kind -> (shape, solving theorem in the build's namespace or None when it needs the segments)
+ROW_KINDS = [("translation", "translation", "translation", True), ("nonvacuous", "nonvacuous", "inhabited", False),
+             ("mapping", "mapping", "mapping_valid", True), ("location", "refines_location", "refines_dwarf", False)]
+
+
+def row_name(name: str, opt: str, fn: str, kind: str) -> str:
+    return f"silmaril.compiler_explorer.{name}.{opt.lower()}.{fn}.{kind}"
+
+
+def rows(check: bool = False) -> None:
+    toml = ["# GENERATED by tools/compiler-explorer/fixtures.py rows. Do not edit by hand.",
+            "# The compiler explorer's obligations of the compiles-to builds as rows",
+            "# (docs/projects/compiler-explorer.md), a child of the root group in silmaril/selftest.toml.",
+            'schema = "silmaril.records.v0.2"', ""]
+    lean = ["module", "", "-- GENERATED by tools/compiler-explorer/fixtures.py rows. Do not edit by hand.", "",
+            "public import CompilesToExamples.Explorer.Builds", "",
+            "/-! The compiler explorer's rows (`silmaril/compiler-explorer.toml`), solved by the",
+            "restatements of `CompilesToExamples.Explorer.Builds`. -/", "",
+            'silmaril load "silmaril/compiler-explorer.toml"', "",
+            "namespace CompilesToExamples.Explorer.Rows", ""]
+    children = []
+    for name, opt, fn, n, ns, proved in ROW_BUILDS:
+        F = f"CompilesToExamples.{name.capitalize()}.{opt}.{fn}"
+        items = [(kind, shape, thm, None, needs) for kind, shape, thm, needs in ROW_KINDS]
+        items += [(f"edge_{k}", "edge", f"edge_{k}", k, True) for k in range(n)]
+        for kind, shape, thm, k, needs in items:
+            row = row_name(name, opt, fn, kind)
+            ok = proved or not needs
+            args = f'{{ F = "{F}"' + (f", k = {k}" if k is not None else "") + " }"
+            toml += ["[[instance]]", f'name = "{row}"', f'of = "silmaril.shapes.compiler_explorer.c.{shape}.open"',
+                     f"args = {args}", f'expect = "{"THM" if ok else "OPN"}"',
+                     f'title = "{fn} at {opt}: {kind.replace("_", " ")}"', ""]
+            children.append(row)
+            if ok:
+                lean += [f'@[solves "{row}"] public theorem {name}_{opt.lower()}_{kind} : {row} :=',
+                         f"  CompilesToExamples.Explorer.{ns}.{thm}" + (" _" if False else ""), ""]
+    toml += ["[[group]]", 'name = "silmaril.compiler_explorer.all"',
+             'title = "Compiler explorer: the compiles-to builds as compilation problems"', "children = ["]
+    toml += [f'  "{c}",' for c in children] + ["]", ""]
+    lean += ["end CompilesToExamples.Explorer.Rows", ""]
+    if check:
+        if RECORDS.read_text() != "\n".join(toml) or ROWS.read_text() != "\n".join(lean):
+            raise SystemExit("error: silmaril/compiler-explorer.toml or its Rows module is not what "
+                             "fixtures.py rows writes")
+        return
+    RECORDS.write_text("\n".join(toml))
+    ROWS.write_text("\n".join(lean))
+    print(f"wrote {len(children)} rows")
+
+
 def manifests(out: pathlib.Path = MANIFESTS) -> None:
     out.mkdir(parents=True, exist_ok=True)
     for old in out.glob("*.json"):
         old.unlink()
-    for m in compiles_to_manifests() + program_manifests():
+    for m in compiles_to_manifests() + program_manifests() + decompiled_manifests() + imported_manifests():
         dump(out / (m["id"].replace("/", "--") + ".json"), m)
         print(f"wrote {m['id']}: {len(m['edges'])} edges, {len(m['obligations'])} obligations")
 
 
 def main(argv: list[str]) -> int:
-    cmds = {"build": build, "listings": listings, "manifests": manifests}
+    cmds = {"build": build, "listings": listings, "decompile": decompile, "manifests": manifests,
+            "rows": rows}
+    if argv[1:] == ["rows", "--check"]:
+        rows(check=True)
+        return 0
     if len(argv) == 4 and argv[1] == "manifests" and argv[2] == "--out":
         manifests(pathlib.Path(argv[3]))
         return 0

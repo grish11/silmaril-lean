@@ -1,0 +1,79 @@
+{
+  "artifacts": {
+    "source": {
+      "media": "text/x-c",
+      "path": "apps/sha256sum-min/inputs/xc_sha256.c",
+      "sha256": "9dc8c350ca73a3d7d4898daf42106f6c21a68d75b882854f1bd5e5af47dd2f07",
+      "size": 2521
+    },
+    "target": {
+      "media": "text/x-asm",
+      "path": "apps/sha256-cli/src/sha256_compress_clang_o2.S",
+      "sha256": "b46d250869a19c4baf55b1ca451783b57bafb2a625380491a344f831269cfdfb",
+      "size": 4650
+    }
+  },
+  "context": {
+    "abi": null,
+    "comorphism": null,
+    "mapping_relation": null,
+    "source_model": null,
+    "target_model": null
+  },
+  "derivation": {
+    "claim": "the assembly's header says: clang 18.1.3 -O2 of xc_sha256.c, byte for byte, generated from Silmaril/Crypto/X86/Sha256O2/Image.lean; no compiler run is recorded here",
+    "kind": "claimed"
+  },
+  "direction": "imported",
+  "edges": [],
+  "fragments": [],
+  "id": "imported/sha256-compress",
+  "lean": {
+    "family": null,
+    "modules": []
+  },
+  "obligations": [
+    {
+      "decl": null,
+      "id": "translation",
+      "kind": "translation",
+      "statement": null,
+      "unsupported": "no translation from this C source is stated: the assembly's bytes have a functional contract against a SHA-256 specification (Sha256O2.sha256_compress_O2, docs/projects/sha256sum.md), which is not a statement about this C source"
+    },
+    {
+      "decl": null,
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "statement": null,
+      "unsupported": "no translation from this C source is stated: the assembly's bytes have a functional contract against a SHA-256 specification (Sha256O2.sha256_compress_O2, docs/projects/sha256sum.md), which is not a statement about this C source"
+    },
+    {
+      "decl": null,
+      "id": "abi",
+      "kind": "abi",
+      "statement": null,
+      "unsupported": "no translation from this C source is stated: the assembly's bytes have a functional contract against a SHA-256 specification (Sha256O2.sha256_compress_O2, docs/projects/sha256sum.md), which is not a statement about this C source"
+    },
+    {
+      "decl": null,
+      "id": "mapping",
+      "kind": "mapping",
+      "statement": null,
+      "unsupported": "no translation from this C source is stated: the assembly's bytes have a functional contract against a SHA-256 specification (Sha256O2.sha256_compress_O2, docs/projects/sha256sum.md), which is not a statement about this C source"
+    },
+    {
+      "decl": null,
+      "id": "refinement",
+      "kind": "refinement",
+      "statement": null,
+      "unsupported": "no translation from this C source is stated: the assembly's bytes have a functional contract against a SHA-256 specification (Sha256O2.sha256_compress_O2, docs/projects/sha256sum.md), which is not a statement about this C source"
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [],
+  "title": "sha256 compression: C source and clang -O2 assembly, both supplied",
+  "view": {
+    "source": "source",
+    "target": "target"
+  }
+}

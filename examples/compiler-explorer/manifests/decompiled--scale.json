@@ -1,0 +1,169 @@
+{
+  "artifacts": {
+    "compile_receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/decompile/RECEIPT.json",
+      "sha256": "7ca22ee2567a5c2b43081f77cbf4136746690d8d9c3d6982801ffc148a38c20d",
+      "size": 672
+    },
+    "listing": {
+      "media": "text/x-objdump",
+      "path": "examples/compiler-explorer/decompile/listing.txt",
+      "sha256": "21471f35d3be8437748baad39871498adb9a7c9f2ad41983c8e812209d2870a0",
+      "size": 188
+    },
+    "original_source": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/decompile/scale.c",
+      "sha256": "0d72138159d1ddc0750812df0f711b117478499e7227f7526f6ae89721735029",
+      "size": 176
+    },
+    "receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/decompile/DECOMPILE.json",
+      "sha256": "d41ae0c60044bca3c81cb45671392a31949daed51b5f183610f2cf75d7ca1610",
+      "size": 701
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/decompile/scale.dec.c",
+      "sha256": "e4e8230dab57b49bacd3fd22bb05ae438d0a2d5d4a2524bf3bd59a99b0ef6bd3",
+      "size": 143
+    },
+    "target": {
+      "media": "application/x-elf-relocatable",
+      "path": "examples/compiler-explorer/decompile/scale.o",
+      "sha256": "ccd4989d86cecaa4fb9b209acf4605e1e74a7c13d2b26896219667444d22c26d",
+      "size": 736
+    }
+  },
+  "context": {
+    "abi": null,
+    "comorphism": null,
+    "mapping_relation": null,
+    "source_model": null,
+    "target_model": null
+  },
+  "derivation": {
+    "checked_by_SemLift_check": true,
+    "command": "lake env lean --run tools/compiler-explorer/decompile_block.lean scale '48 8d 44 fe fb' 1 a=rdi,b=rsi OUT",
+    "commit": "ba4531a0b6d96b7d54d0a0ee74969a030592cc3e",
+    "kind": "decompiler",
+    "receipt": "receipt",
+    "tool": "Silmaril.X86.Decompile.SemLift.propose, SemLift.check, Silmaril.Compiler.Decompile.WordC.regenerate",
+    "version": "4.37.0-nightly-2026-11-05"
+  },
+  "direction": "decompiled",
+  "edges": [
+    {
+      "function": "scale",
+      "id": "nav/scale/block",
+      "kind": "navigation",
+      "note": "the decompiler's input block and its output function; not a semantic link",
+      "origin": "decompiler",
+      "source": [
+        "9224c629fa3eaa1b5cad"
+      ],
+      "target": [
+        "ddcbf0f85edfd45ebb54"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "source",
+      "id": "9224c629fa3eaa1b5cad",
+      "label": "lines 1-3",
+      "ranges": [
+        [
+          0,
+          79
+        ],
+        [
+          80,
+          140
+        ],
+        [
+          141,
+          142
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "ddcbf0f85edfd45ebb54",
+      "label": "[0x0, 0x5): the decompiled block (the final ret is outside it)",
+      "ranges": [
+        [
+          0,
+          5
+        ]
+      ],
+      "space": "text-offset"
+    }
+  ],
+  "id": "decompiled/scale",
+  "lean": {
+    "family": null,
+    "modules": []
+  },
+  "obligations": [
+    {
+      "decl": null,
+      "id": "translation",
+      "kind": "translation",
+      "statement": null,
+      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+    },
+    {
+      "decl": null,
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "statement": null,
+      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+    },
+    {
+      "decl": null,
+      "id": "abi",
+      "kind": "abi",
+      "statement": null,
+      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+    },
+    {
+      "decl": null,
+      "id": "mapping",
+      "kind": "mapping",
+      "statement": null,
+      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+    },
+    {
+      "decl": null,
+      "id": "refinement",
+      "kind": "refinement",
+      "statement": null,
+      "unsupported": "no obligation is stated: the decompiler has a block theorem (Silmaril.Compiler.Decompile.WordC.checked_output_c0: the checked block reaches a state whose rax is the generated expression's C0 value), but this explorer does not yet state it for this fixture, and the final ret is outside the block"
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [],
+  "title": "scale.o (gcc 13.3.0 -O2) decompiled to C by SemLift + WordC",
+  "view": {
+    "source": "source",
+    "target": "listing",
+    "target_map": [
+      [
+        0,
+        5,
+        98,
+        155
+      ],
+      [
+        5,
+        6,
+        156,
+        187
+      ]
+    ]
+  }
+}

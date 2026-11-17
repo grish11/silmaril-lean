@@ -70,7 +70,8 @@ export function edgeObligations(problem, edgeId) {
 /** What a status badge says. Only the server's `proved` is ever shown as proved. */
 export function badge(status) {
   const known = {
-    proved: ["proved", "checked by Lean's kernel"],
+    proved: ["proved", "a theorem of exactly this statement, checked when Lean built it; read back by the exporter this database ran"],
+    claimed: ["claimed", "an exporter result handed in as a file, not run by this database"],
     open: ["open", "stated in Lean, not proved"],
     unchecked: ["unchecked", "a proof is named but no checked evidence is recorded"],
     rejected: ["rejected", "the named proof does not prove this statement"],

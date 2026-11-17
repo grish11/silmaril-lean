@@ -17,10 +17,11 @@ out="${1:-.lake/compiler-explorer}"
 mkdir -p "$out"
 "$LAKE" build --wfail cexplorer-export Silmaril.Compiler.Explorer.Det.Thms \
   Silmaril.Project.Shapes.CompilesTo.Explorer.Thms CompilesToExamples.Explorer.Builds \
-  CompilesToExamples.Explorer.Code
+  CompilesToExamples.Explorer.Code CompilesToExamples.Explorer.Rows
 regen="$(mktemp -d)"
 trap 'rm -rf "$regen"' EXIT
 "$PYTHON" -I tools/compiler-explorer/fixtures.py manifests --out "$regen" > /dev/null
+"$PYTHON" -I tools/compiler-explorer/fixtures.py rows --check
 if ! diff -r "$regen" examples/compiler-explorer/manifests > /dev/null; then
   diff -r "$regen" examples/compiler-explorer/manifests | head -20 >&2
   echo "error: the committed manifests are not what fixtures.py writes" >&2

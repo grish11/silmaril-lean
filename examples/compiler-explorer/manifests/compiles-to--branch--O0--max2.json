@@ -365,6 +365,7 @@
       "edge": "seg/max2/0",
       "id": "edge/0",
       "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_0",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 0"
     },
     {
@@ -379,6 +380,7 @@
       "edge": "seg/max2/1",
       "id": "edge/1",
       "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_1",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 1"
     },
     {
@@ -393,6 +395,7 @@
       "edge": "seg/max2/2",
       "id": "edge/2",
       "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_2",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 2"
     },
     {
@@ -407,6 +410,7 @@
       "edge": "seg/max2/3",
       "id": "edge/3",
       "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_3",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 3"
     },
     {
@@ -421,6 +425,7 @@
       "edge": "seg/max2/4",
       "id": "edge/4",
       "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_4",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 4"
     },
     {
@@ -434,18 +439,21 @@
       "decl": "CompilesToExamples.Explorer.BranchO0.translation",
       "id": "translation",
       "kind": "translation",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.translation",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.compilation Silmaril.X86.Open.isa k0).toProblem.Refines"
     },
     {
       "decl": "CompilesToExamples.Explorer.BranchO0.mapping_valid",
       "id": "mapping",
       "kind": "mapping",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.mapping",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).Valid"
     },
     {
       "decl": "CompilesToExamples.Explorer.BranchO0.refines_dwarf",
       "id": "refinement",
       "kind": "refinement",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.location",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).toMapping.RefinesAt (fun k => Silmaril.Compiler.Explorer.Gen.Witnessed Silmaril.Project.CompilesTo.dwarf Silmaril.Compiler.Explorer.obsSig Silmaril.Project.CompilesTo.readCore Silmaril.Project.CompilesTo.readFrame Silmaril.Compiler.Explorer.obsFam (CompilesToExamples.Branch.O0.max2.scope k)) (fun _ => True)"
     },
     {
@@ -458,6 +466,7 @@
       "decl": "CompilesToExamples.Explorer.BranchO0.inhabited",
       "id": "nonvacuity",
       "kind": "nonvacuity",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.nonvacuous",
       "statement": "(CompilesToExamples.Branch.O0.max2.compilation Silmaril.X86.Open.isa []).toProblem.Inhabited"
     },
     {

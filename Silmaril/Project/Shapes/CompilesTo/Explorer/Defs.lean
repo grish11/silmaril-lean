@@ -92,6 +92,59 @@ abbrev dwarfRel (k : Nat) (s : State) (p : MState × MState) : Prop :=
 
 end FnData
 
+/-! ## Problem shapes (rows of `sil project`)
+
+The explorer's obligations as shapes, so that `sil project` records them with their statuses
+in the project database (`silmaril/compiler-explorer.toml`). A row fixes the model (`.open`:
+`Silmaril.X86.Open.isa`) and the function `F`. -/
+
+/-- The translation: the machine, stopped at its first return, refines the Core run, from every
+System V call with a safe Core run, in every caller continuation. -/
+@[problem "silmaril.shapes.compiler_explorer.c.translation"
+  (title := "Compiler explorer: the machine code refines the C function's Core run")]
+def ExplorerTranslation (I : Model) (F : FnData) : Prop :=
+  ∀ k0, (F.compilation I k0).toProblem.Refines
+
+/-- The translation is not vacuous: a related entry with a safe Core run exists. -/
+@[problem "silmaril.shapes.compiler_explorer.c.nonvacuous"
+  (title := "Compiler explorer: some System V entry and safe Core entry are related")]
+def ExplorerNonvacuous (I : Model) (F : FnData) : Prop :=
+  (F.compilation I []).toProblem.Inhabited
+
+/-- One edge of the mapping: the segment from point `k` is simulated. -/
+@[problem "silmaril.shapes.compiler_explorer.c.edge"
+  (title := "Compiler explorer: one segment of the mapping is simulated")]
+def ExplorerEdge (I : Model) (F : FnData) (k : Nat) : Prop :=
+  ∀ k0, (F.mapping I k0).EdgeValid k
+
+/-- The whole mapping: every segment, at every point number. -/
+@[problem "silmaril.shapes.compiler_explorer.c.mapping"
+  (title := "Compiler explorer: every segment of the mapping is simulated")]
+def ExplorerMapping (I : Model) (F : FnData) : Prop :=
+  ∀ k0, (F.mapping I k0).Valid
+
+/-- The mapping refines the relation the location semi-comorphism generates. -/
+@[problem "silmaril.shapes.compiler_explorer.c.refines_location"
+  (title := "Compiler explorer: the mapping refines the C-object-to-frame-slot relation")]
+def ExplorerLocation (I : Model) (F : FnData) : Prop :=
+  ∀ k0, (F.mapping I k0).toMapping.RefinesAt F.dwarfRel (fun _ => True)
+
 end Silmaril.Project.CompilesTo
 
 end
+
+silmaril instance silmaril.shapes.compiler_explorer.c.translation.open
+    (title := "compiler_explorer.c.translation, on the open machine (Open)") :=
+  silmaril.shapes.compiler_explorer.c.translation (I := Silmaril.X86.Open.isa)
+silmaril instance silmaril.shapes.compiler_explorer.c.nonvacuous.open
+    (title := "compiler_explorer.c.nonvacuous, on the open machine (Open)") :=
+  silmaril.shapes.compiler_explorer.c.nonvacuous (I := Silmaril.X86.Open.isa)
+silmaril instance silmaril.shapes.compiler_explorer.c.edge.open
+    (title := "compiler_explorer.c.edge, on the open machine (Open)") :=
+  silmaril.shapes.compiler_explorer.c.edge (I := Silmaril.X86.Open.isa)
+silmaril instance silmaril.shapes.compiler_explorer.c.mapping.open
+    (title := "compiler_explorer.c.mapping, on the open machine (Open)") :=
+  silmaril.shapes.compiler_explorer.c.mapping (I := Silmaril.X86.Open.isa)
+silmaril instance silmaril.shapes.compiler_explorer.c.refines_location.open
+    (title := "compiler_explorer.c.refines_location, on the open machine (Open)") :=
+  silmaril.shapes.compiler_explorer.c.refines_location (I := Silmaril.X86.Open.isa)

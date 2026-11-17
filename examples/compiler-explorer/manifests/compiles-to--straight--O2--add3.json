@@ -268,6 +268,7 @@
       "edge": "seg/add3/0",
       "id": "edge/0",
       "kind": "edge",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.edge_0",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O2.add3.mapping Silmaril.X86.Open.isa k0).EdgeValid 0"
     },
     {
@@ -281,18 +282,21 @@
       "decl": "CompilesToExamples.Explorer.StraightO2.translation",
       "id": "translation",
       "kind": "translation",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.translation",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O2.add3.compilation Silmaril.X86.Open.isa k0).toProblem.Refines"
     },
     {
       "decl": "CompilesToExamples.Explorer.StraightO2.mapping_valid",
       "id": "mapping",
       "kind": "mapping",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.mapping",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O2.add3.mapping Silmaril.X86.Open.isa k0).Valid"
     },
     {
       "decl": "CompilesToExamples.Explorer.StraightO2.refines_dwarf",
       "id": "refinement",
       "kind": "refinement",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.location",
       "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O2.add3.mapping Silmaril.X86.Open.isa k0).toMapping.RefinesAt (fun k => Silmaril.Compiler.Explorer.Gen.Witnessed Silmaril.Project.CompilesTo.dwarf Silmaril.Compiler.Explorer.obsSig Silmaril.Project.CompilesTo.readCore Silmaril.Project.CompilesTo.readFrame Silmaril.Compiler.Explorer.obsFam (CompilesToExamples.Straight.O2.add3.scope k)) (fun _ => True)"
     },
     {
@@ -305,6 +309,7 @@
       "decl": "CompilesToExamples.Explorer.StraightO2.inhabited",
       "id": "nonvacuity",
       "kind": "nonvacuity",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.nonvacuous",
       "statement": "(CompilesToExamples.Straight.O2.add3.compilation Silmaril.X86.Open.isa []).toProblem.Inhabited"
     },
     {
