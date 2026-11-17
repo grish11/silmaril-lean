@@ -101,11 +101,20 @@ Hypotheses, all stated:
 * the fragment: no `try_table` (`NoTry`), direct calls only in segment bodies (`DirectCalls`), no
   `throw`/`throw_ref` or extended-call terminators, so no tail calls (`PlainTerms`); a store
   passing `StoreChkE tExt`;
-* the oracle `C`: every logged call is `CloseOk C` (host calls never are); `C` is sound for the
-  bridge (`Interp.OracleSoundT`) and respects arities (`ExposePTyped.ArityResp`). **No single
-  oracle is yet shown to satisfy both**: `closedXOk` is sound (`Proofs.Bridge.oracleSoundT_closedXOk`)
-  and `fitP closedCallXP` respects arities (`TypedCat.arityResp_fitClosed`). Discharging both for
-  one oracle is the next step (`docs/projects/wasm-cfg.md`).
+* the oracle `C`: every logged call is `CloseOk C` (host calls never are), and `C` is sound for the
+  bridge (`Interp.OracleSoundT`).
+
+The checker invariant needs each segment's checked outcome. `proj_step`, `proj_runL` and
+`proj_initial` read it with exceptions on (`ehExt`), from an arity-respecting oracle
+(`ExposePTyped.ArityResp`).
+
+**`proj_initial_closedX`** has **no oracle hypothesis**. It reads the checked outcome with `tExt`,
+through `Interp.OracleX.evalOXT_goodT`, and the store's functions are kept by the closure
+(`XRecursion.closedCallX_funcs`). So for the typed closed extended oracle `closedXOk`:
+* a logged run from the CFG entry whose calls are `closedXOk`-answers is an `MStepC closedXOk` run
+  from the CFG entry, its end related by `ProjRel`;
+* this holds on the shared fragment, for a body passing the function's own `tExt` check, in a
+  store whose functions pass `StoreChkE tExt`.
 
 On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
 projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
@@ -289,5 +298,21 @@ theorem proj_initial {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H
     ∃ stC, Relation.ReflTransGen (MStepC P host C body) (initial body s f) stC ∧
       ProjRel st' stC :=
   Proofs.MachineLProjT.proj_initial hC hA hNT hD hPT hS hg hchk h hl
+
+/-- **The closed instance, no oracle hypothesis**: a logged run from the CFG entry whose calls
+are answers of the typed closed extended oracle `closedXOk` is an `MStepC` run with `closedXOk`
+from the CFG entry, its end related by `ProjRel`, on the shared fragment, for a body passing the
+function's own `tExt` check in a store whose functions pass it. -/
+theorem proj_initial_closedX {P : Numerics.Profile} {host : HostSemantics H}
+    {F : List (FuncInst H)} (hS : StoreChkE tExt F) {ret : Nat} {body : Expr}
+    (hNT : NoTry body) (hD : DirectCalls body) (hPT : PlainTerms body) {s : Store H} {f : Frame}
+    (hs : s.funcs = F)
+    (hchk : endsAt (chkE tExt F f.module f.locals.length ret [ret] (some 0) (liftInstrs body)) ret =
+      true)
+    {l : List (Abstract.SCall H)} {st' : MState H} (h : MRunL body (initial body s f) l st')
+    (hl : ∀ e ∈ l, CloseOk closedXOk e) :
+    ∃ stC, Relation.ReflTransGen (MStepC P host closedXOk body) (initial body s f) stC ∧
+      ProjRel st' stC :=
+  Proofs.MachineLProjT.proj_initial_closedX hS hNT hD hPT hs hchk h hl
 
 end Silmaril.Wasm.Cfg.MachineL

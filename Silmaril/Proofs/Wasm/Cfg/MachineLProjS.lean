@@ -115,14 +115,15 @@ theorem chkE_flat_tExt {tags : List TagInst} {F : List (FuncInst H)} {mi : Modul
   chkE_plain_tExt oh fun i hi => ⟨liftInstr_flat (h i hi), by
     have := h i hi; cases i <;> first | rfl | simp [isTerminator] at this⟩
 
-/-- **Logged plain code is a region run** with the same oracle, ending as `ResOut` says. -/
-theorem plain_runC {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H} {C : CallRel H}
-    (hC : OracleSoundT P₀ host₀ C) {tags : List TagInst} {is : List Instr} (hp : Plain is)
+/-- **Logged plain code is a region run** with the same oracle, ending as `ResOut` says (the
+check with `tExt`). -/
+theorem plain_runC_t {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H} {C : CallRel H}
+    (hC : OracleSoundT P₀ host₀ C) {is : List Instr} (hp : Plain is)
     {s : Store H} {f : Frame} {N : List Val} {l : List (SCall H)}
     {r : Store H × Frame × Abstract.CallXP.POut} (hr : Abstract.EvalLXPS s f N (liftInstrs is) l r)
     (hl : ∀ e ∈ l, CloseOk C e) (hS : StoreChkE tExt s.funcs) {labels : List Nat} {ret : Nat}
     {out : Option Nat}
-    (hchk : chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some N.length)
+    (hchk : chkE tExt s.funcs f.module f.locals.length ret labels (some N.length)
       (liftInstrs is) = some out) :
     ∃ (s₂ : Store H) (f₂ : Frame) (fl : Flow), r = (s₂, f₂, .flow fl) ∧
       ∃ s' f' o, Region.RunC P host C s f N.reverse (expression is) s' f' o ∧
@@ -137,10 +138,24 @@ theorem plain_runC {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H} 
     have hox := (Abstract.CallXE.evalOXE_iff_evalOX (ehFreeL_plain hp)).1
       ((Abstract.CallXP.evalOXP_iff_evalOXE hx).1 d)
     have hot := (Abstract.CallXT.evalOXT_iff_evalOX (irFreeL_plain hp)).2 hox
-    have hchk' := (chkE_plain_tExt _ (fun i hi => ⟨(hp i hi).1, (hp i hi).2.1⟩)).symm.trans hchk
-    obtain ⟨s', f', o, hrun, hres⟩ := Bridge.bridge_fwd (P := P) (host := host) hC hot hS hchk'
+    obtain ⟨s', f', o, hrun, hres⟩ := Bridge.bridge_fwd (P := P) (host := host) hC hot hS hchk
     rw [lowerList_liftInstrs] at hrun
     exact ⟨s', f', o, hrun, hres⟩
+
+/-- **Logged plain code is a region run** with the same oracle, ending as `ResOut` says. -/
+theorem plain_runC {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H} {C : CallRel H}
+    (hC : OracleSoundT P₀ host₀ C) {tags : List TagInst} {is : List Instr} (hp : Plain is)
+    {s : Store H} {f : Frame} {N : List Val} {l : List (SCall H)}
+    {r : Store H × Frame × Abstract.CallXP.POut} (hr : Abstract.EvalLXPS s f N (liftInstrs is) l r)
+    (hl : ∀ e ∈ l, CloseOk C e) (hS : StoreChkE tExt s.funcs) {labels : List Nat} {ret : Nat}
+    {out : Option Nat}
+    (hchk : chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some N.length)
+      (liftInstrs is) = some out) :
+    ∃ (s₂ : Store H) (f₂ : Frame) (fl : Flow), r = (s₂, f₂, .flow fl) ∧
+      ∃ s' f' o, Region.RunC P host C s f N.reverse (expression is) s' f' o ∧
+        Bridge.ResOut C s' f' o (s₂, f₂, fl) :=
+  plain_runC_t (P := P) (host := host) hC hp hr hl hS
+    ((chkE_plain_tExt _ (fun i hi => ⟨(hp i hi).1, (hp i hi).2.1⟩)).symm.trans hchk)
 
 /-- **Logged straight-line code is a region run** with the same oracle, ending as `ResOut`
 says, when its calls are answers of a sound oracle and it passes the check with exceptions on. -/

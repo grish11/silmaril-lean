@@ -613,11 +613,11 @@ The plain graph stays an over-approximation, and claims about it say so.
                - Fragment hypotheses: `NoTry`, `DirectCalls`, `PlainTerms` (no `throw` or
                  extended-call terminators, so no tail calls), and `StoreChkE tExt`.
                - Oracle hypotheses: `CloseOk C` logs, `OracleSoundT` and `ArityResp`.
-             - **Open, next: one oracle with both.** `closedXOk` is `OracleSoundT`
-               (`Proofs.Bridge.oracleSoundT_closedXOk`). `fitP closedCallXP` is `ArityResp`
-               (`TypedCat.arityResp_fitClosed`). For `closedXOk` this needs the closure's tag and
-               exception invariants and its result arities. Until then the stepwise theorem is
-               conditional on that pair of hypotheses.
+             - Closed instance, done: `proj_initial_closedX` has no oracle hypothesis. It reads
+               the checker invariant with `tExt` (`OracleX.evalOXT_goodT`, `SegGood`). For
+               `closedXOk` (sound, and keeps the store's functions), a logged run from the CFG
+               entry with `closedXOk`-answered calls is an `MStepC closedXOk` run, its end related
+               by `ProjRel`.
              - Then: lift the fragment with the `EvalOXP`/EH bridge (`try_table`, `throw`,
                indirect and reference calls, tail calls and frame replacement). It needs a typed state and frame invariant, from the existing checker and
              typing APIs, covering stack orientation, parameter and result arities, normal arm
