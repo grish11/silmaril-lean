@@ -112,9 +112,13 @@ jobs:
         uses: ./.github/actions/lake-cache-tool
       - name: Choose the Lake targets
         # A pull request checks what its diff can change (HEAD^1 is the base of the
-        # merge commit); main, a manual or a nightly check covers everything.
+        # merge commit); main, a manual or a nightly check covers everything. The prove client
+        # takes `CHECK_TARGETS=…` as one argv element of at most 4096 characters (#752): a
+        # longer narrowed list falls back to the full list, which covers it
+        # (scripts/ci-targets.py; it fails rather than drop a target).
         run: |
-          targets=$(make -s scope BASE=${{ github.event_name == 'pull_request' && 'HEAD^1' || '' }})
+          scoped=$(make -s scope BASE=${{ github.event_name == 'pull_request' && 'HEAD^1' || '' }})
+          targets=$(python3 scripts/ci-targets.py --scoped "$scoped" --full "$(make -s scope)")
           echo "CHECK_TARGETS=$targets" >> "$GITHUB_ENV"
           echo "Lake targets: ${targets:-none, so only the source gates run}"
       - name: Run the source gates
