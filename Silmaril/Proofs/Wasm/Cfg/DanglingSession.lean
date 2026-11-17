@@ -310,6 +310,39 @@ theorem instSession_eq {s₀ : Store Nat} (hd : InstDomD I s₀) :
     instSession I (profile o) s₀ = cfgInstSessionU I s₀ :=
   threadS_eq hd
 
+/-- Every store of a coherent infinite sequence of rounds is reachable. -/
+theorem reach_of_infRounds {E : Sig.{0}} {S A B : Type} {t : ObsTriple E S A B} {s₀ : S}
+    {a : ℕ → A} {r : ℕ → List (Call E) × B} {s : ℕ → S} (h : StratThread.InfRounds t s₀ a r s) :
+    ∀ k, Reach t s₀ (s k)
+  | 0 => h.zero ▸ .refl _
+  | k + 1 => (reach_of_infRounds h k).tail (h.step k)
+
+/-- **Coherent infinite sequences of rounds agree**, from the relaxed domain: round `k` runs from
+the store `s k`, reachable by the first `k` rounds, hence in the domain, where the two triples
+have the same finished rounds. -/
+theorem infRounds_iff {s₀ : Store Nat} (hd : InstDomD I s₀) {a : ℕ → I.F.Op}
+    {r : ℕ → List (Call I.E) × (Abstract.InstSession.Res I.exports ⊕ PUnit)}
+    {s : ℕ → Store Nat} :
+    StratThread.InfRounds (instTripleS I (profile o)) s₀ a r s ↔
+      StratThread.InfRounds (cfgInstTripleU I) s₀ a r s := by
+  constructor
+  · intro h
+    refine ⟨h.zero, fun k => ?_⟩
+    rw [← (agree (o := o) (domD_of_reach hd (reach_of_infRounds h k)) (a k)).1]
+    exact h.step k
+  · intro h
+    have hr : ∀ k, Reach (instTripleS I (profile o)) s₀ (s k) := by
+      intro k
+      induction k with
+      | zero => exact h.zero ▸ .refl _
+      | succ k ih =>
+        refine ih.tail (c := (r k).1) (b := (r k).2) (a := a k) ?_
+        rw [(agree (o := o) (domD_of_reach hd ih) (a k)).1]
+        exact h.step k
+    refine ⟨h.zero, fun k => ?_⟩
+    rw [(agree (o := o) (domD_of_reach hd (hr k)) (a k)).1]
+    exact h.step k
+
 end Session
 
 /-! ## 5. The raw domain is not kept: `ExampleAlias` -/
@@ -318,13 +351,7 @@ section Alias
 
 open Silmaril.Wasm.Cfg.ExampleAlias
 
-/-- The export question `run()` of `alI`. -/
-abbrev alQ : alI.F.Op := ⟨⟨0, by decide⟩, ⟨[], .nil⟩⟩
-
-/-- The import call `h()` of `alI` answered by the dangling exception `0`. -/
-abbrev alCall : Call alI.E := ⟨⟨⟨0, by decide⟩, ⟨[], .nil⟩⟩, Answer.throw 0⟩
-
-theorem qOf_alQ : qOf alI alQ = (1, []) := by
+theorem qOf_alQ : qOf alI ⟨⟨0, by decide⟩, ⟨[], .nil⟩⟩ = (1, []) := by
   show (alI.addrs.getD 0 0, []) = (1, [])
   rw [show alI.addrs = [1] from Proofs.ExampleAlias.al_addrs]
   rfl
@@ -332,7 +359,9 @@ theorem qOf_alQ : qOf alI alQ = (1, []) := by
 /-- **`run()` of `alI`, with `h()` answered by the dangling exception `0`, is a finished round of
 the instance triple from `alStore` ending in `alEnd`** (every profile). -/
 theorem al_round {P : Numerics.Profile} :
-    ([alCall], .ret (.inl ⟨alQ, .inr 0⟩) alEnd) ∈ (instTripleS alI P).1 alStore alQ := by
+    ([⟨⟨⟨0, by decide⟩, ⟨[], .nil⟩⟩, Answer.throw 0⟩],
+      .ret (.inl ⟨⟨⟨0, by decide⟩, ⟨[], .nil⟩⟩, .inr 0⟩) alEnd) ∈
+      (instTripleS alI P).1 alStore ⟨⟨0, by decide⟩, ⟨[], .nil⟩⟩ := by
   rw [Abstract.NodeBridge.instTripleS_eq_viewTriple]
   refine ⟨([alAns], .ret (.inl (.inr 0)) alEnd), ⟨trivial, ?_⟩, .cons ⟨?_, rfl, rfl⟩ .nil, rfl⟩
   · rw [qOf_alQ]
