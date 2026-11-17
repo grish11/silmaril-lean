@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Cfg.CfgClosure.Defs
 public import Silmaril.Wasm.Cfg.CfgInst.Defs
+public import Silmaril.Wasm.Cfg.DanglingExn.Defs
 public import Silmaril.Wasm.Abstract.XRecursionP.Defs
 meta import Lean.Elab.Command
 meta import Lean.Util.CollectAxioms
@@ -15,7 +16,8 @@ self-contained CFG closure and the objects built from it:
 - divergent `cfgEvFunDXPSC`, `LDLcfgC`, `cfgAns`, `cfgFunDiv`;
 - the triple `cfgSessionTripleC`;
 - the instance triples `CfgInst.cfgInstTriple`, `CfgInst.cfgInstTripleL`;
-- the session family `CfgInst.cfgInstSessionsL`.
+- the session family `CfgInst.cfgInstSessionsL`;
+- the unrestricted-host instance triple `DanglingExn.cfgInstTripleU`.
 
 ## Scope of the dependency property
 
@@ -158,7 +160,7 @@ run_cmd do
       ``Silmaril.Wasm.Cfg.CfgClosure.LDLcfgC, ``Silmaril.Wasm.Cfg.CfgClosure.cfgAns,
       ``Silmaril.Wasm.Cfg.CfgClosure.cfgFunDiv, ``Silmaril.Wasm.Cfg.CfgClosure.cfgSessionTripleC,
       ``Silmaril.Wasm.Cfg.CfgInst.cfgInstTriple, ``Silmaril.Wasm.Cfg.CfgInst.cfgInstTripleL,
-      ``Silmaril.Wasm.Cfg.CfgInst.cfgInstSessionsL]
+      ``Silmaril.Wasm.Cfg.CfgInst.cfgInstSessionsL, ``Silmaril.Wasm.Cfg.DanglingExn.cfgInstTripleU]
   for r in roots do
     let v ← violations r
     unless v.isEmpty do throwError m!"audit failed: {v}"
