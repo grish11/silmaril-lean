@@ -93,8 +93,10 @@ reference composition needs `HLinked2.Adequate` and typed calls, as `HLinked2.se
   an answer of the same call (`not_hostRun_refuse_answer`). The concrete pair of components
   separating them (an importer that answers differently when its previous call trapped in a host
   call it then repeats) is **not proved** here.
-* Nondeterministic profiles; the relation to the generic `SessionLink.linkS` of the host calls,
-  the exporter and the importer.
+* Nondeterministic profiles. The relation to the generic `SessionLink.linkS` is in
+  `HLinkedLink`: the open triple is exactly the link of the host passthrough beside the exporter
+  serving the importer (legally restricted), and the host-realizable triple is its realizable
+  restriction `HLinked2.realize` (not a plain passthrough: forced refusals are hidden).
 -/
 
 public section
