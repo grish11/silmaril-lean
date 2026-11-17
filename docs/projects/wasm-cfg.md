@@ -1006,6 +1006,25 @@ The plain graph stays an over-approximation, and claims about it say so.
              - productive host interaction: `pump_prod`, `pump_stream`, `pump_session`, a loop
                with the exact stream `h(0), h(1), …`; `regress_play` chains `trap`, `get`
                and the infinite `pump` play from the trap's store in one session.
+          4. **Host exceptions and traps under `try_table`, done** (`Wasm/Cfg/ExampleHostExn`).
+             One validated store (`hxMod`: tag `$e : [i32]`, host import `h : [] → [i32]`, a
+             spec instance, `StoreOk`, `StoreChkE (ehExt tags)` by `storeChkEB`), proved on the
+             CFG closure by explicit logged-machine runs:
+             - pending calls: `callH_pending` and `tailH_pending` give the same
+               `cfgEvPendXPS` observation (empty log, `h()`). The machine shows the
+               difference: `callH` reaches the call under the `try_table` handler frame
+               (`ReachL`), while `tailH` ends in a pending tail call (`TailL`). `pend_session`
+               shows the pending call after a completed round.
+             - caught host throw: `callH_caught`, where the host allocates and throws an
+               exception of `$e` and `catch 0 0` returns its payload, in the host's store.
+             - tail host throw bypasses the handler: `tailH_uncaught`, where the same answer
+               through `return_call` ends `.ret (.inl (.inr 0)) s'`. `exn_session` puts the
+               caught and the uncaught round in one session.
+             - host trap is not caught: `trapH_trap`, where `catch_all` lets a host trap
+               through and the function ends `.ret (.inr ()) s'`. `trapH_caught` shows the
+               same `catch_all` catching a throw. `trap_session` resumes after the trap.
+
+             Not covered: the validity of the host-answered stores (`hxThrown v`).
         - Equality with the store-retaining session closure `wasmEvFunXPS`/`sessionTripleXP`
           (not the trap-store-erasing `wasmEvFunXP`): done (`cfgEvFun_eq`,
           `cfgSessionTriple_eq`).
@@ -1013,7 +1032,9 @@ The plain graph stays an over-approximation, and claims about it say so.
           (`wasmEvFunXPS_*_iff`, `wasmEvPendXPS_eq`, productive streams) and NodeBridge, on a
           typed fragment with the exception checker (`ehExt tags`).
         - Regressions: recursion through a host, trap-then-resume, productive host interaction:
-          done (`Wasm/Cfg/ExampleRegress`, item 3 above).
+          done (`Wasm/Cfg/ExampleRegress`, item 3 above). Host exceptions and traps under
+          handlers, pending calls versus pending tail calls: done (`Wasm/Cfg/ExampleHostExn`,
+          item 4).
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
