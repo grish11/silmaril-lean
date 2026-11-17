@@ -40,6 +40,7 @@ import Silmaril.Wasm.Binaryen.DriverSpec.Thms
 import Silmaril.Elf.Asm.Example.Thms
 import Silmaril.Elf.Asm.Example.Reloc.Thms
 import Silmaril.Elf.Asm.Example.LeafArith.Thms
+import Silmaril.Elf.Abi.Asm.LeafArith.Thms
 
 /-!
 # `elf-pages`: the explorer's ELF tab data
@@ -121,7 +122,7 @@ def pinned : List Pinned := [
       ("licence", "toolchain start-up objects: glibc crt (LGPL-2.1-or-later with the linking exception), GCC crtbeginS/crtendS (GPL-3.0-or-later with the GCC Runtime Library Exception); examples/dyn/README.md")] },
   { slug := "leaf-arith", ns := `Silmaril.Elf.Staged.Pinned.LeafArith
     title := "elf-ladder rung 01 leaf-arith (arith.c leaf functions, -O2, static, not stripped)"
-    path := Pinned.LeafArith.path, sha256 := Pinned.LeafArith.sha256, size := Pinned.LeafArith.size
+    path := Pinned.LeafArith.path, «sha256» := Pinned.LeafArith.sha256, size := Pinned.LeafArith.size
     L := Pinned.LeafArith.L, bodies := Pinned.LeafArith.bodies, ld := Pinned.LeafArith.ld
     provenance := [
       ("source", "examples/elf-ladder/01-leaf-arith/arith.c, arith.h and main.c, with examples/elf-ladder/common (written for this repository)"),
@@ -151,7 +152,7 @@ def pinned : List Pinned := [
       ("url:source", "https://launchpad.net/ubuntu/+source/zlib/1:1.3.dfsg-3.1ubuntu2.3")] },
   { slug := "zlib-libz-1.2.11", ns := `Silmaril.Elf.Staged.Pinned.ZlibLibz1211
     title := "zlib 1.2.11 libz.so.1.2.11 (Ubuntu zlib1g 1:1.2.11.dfsg-2ubuntu9.2, amd64)"
-    path := Pinned.ZlibLibz1211.path, sha256 := Pinned.ZlibLibz1211.sha256, size := Pinned.ZlibLibz1211.size
+    path := Pinned.ZlibLibz1211.path, «sha256» := Pinned.ZlibLibz1211.sha256, size := Pinned.ZlibLibz1211.size
     L := Pinned.ZlibLibz1211.L, bodies := Pinned.ZlibLibz1211.bodies, ld := Pinned.ZlibLibz1211.ld
     provenance := [
       ("package", "Ubuntu 22.04 zlib1g 1:1.2.11.dfsg-2ubuntu9.2 (amd64), /lib/x86_64-linux-gnu/libz.so.1.2.11, unmodified"),
@@ -163,7 +164,7 @@ def pinned : List Pinned := [
       ("url:source", "https://launchpad.net/ubuntu/+source/zlib/1:1.2.11.dfsg-2ubuntu9.2")] },
   { slug := "zlib-libz-1.3.1-gcc", ns := `Silmaril.Elf.Staged.Pinned.ZlibLibz131Gcc
     title := "zlib 1.3.1 libz.so.1.3.1 (GCC 13.3 -O2, release tarball)"
-    path := Pinned.ZlibLibz131Gcc.path, sha256 := Pinned.ZlibLibz131Gcc.sha256, size := Pinned.ZlibLibz131Gcc.size
+    path := Pinned.ZlibLibz131Gcc.path, «sha256» := Pinned.ZlibLibz131Gcc.sha256, size := Pinned.ZlibLibz131Gcc.size
     L := Pinned.ZlibLibz131Gcc.L, bodies := Pinned.ZlibLibz131Gcc.bodies, ld := Pinned.ZlibLibz131Gcc.ld
     provenance := [
       ("compiler", "GCC 13.3.0 (Ubuntu 13.3.0-6ubuntu2~24.04.1), GNU ld 2.42"),
@@ -174,7 +175,7 @@ def pinned : List Pinned := [
       ("licence", "zlib licence (NOTICES/zlib)")] },
   { slug := "zlib-libz-1.3.1-clang", ns := `Silmaril.Elf.Staged.Pinned.ZlibLibz131Clang
     title := "zlib 1.3.1 libz.so.1.3.1 (Clang 18.1 -O2, release tarball)"
-    path := Pinned.ZlibLibz131Clang.path, sha256 := Pinned.ZlibLibz131Clang.sha256, size := Pinned.ZlibLibz131Clang.size
+    path := Pinned.ZlibLibz131Clang.path, «sha256» := Pinned.ZlibLibz131Clang.sha256, size := Pinned.ZlibLibz131Clang.size
     L := Pinned.ZlibLibz131Clang.L, bodies := Pinned.ZlibLibz131Clang.bodies, ld := Pinned.ZlibLibz131Clang.ld
     provenance := [
       ("compiler", "Ubuntu clang 18.1.3 (1ubuntu1), GNU ld 2.42"),
@@ -1244,7 +1245,7 @@ def cliIndex (env : Environment) : IO Json := do
 def asmPath : String := "examples/elf-asm/samples.json"
 def asmSchema : String := "silmaril.elf.asm/1"
 def asmModules : Array Name := #[`Silmaril.Elf.Asm.Example.Thms, `Silmaril.Elf.Asm.Example.Reloc.Thms,
-  `Silmaril.Elf.Asm.Example.LeafArith.Thms]
+  `Silmaril.Elf.Asm.Example.LeafArith.Thms, `Silmaril.Elf.Abi.Asm.LeafArith.Thms]
 
 /-- The declaration names an assembly JSON mentions: its files, its functions and their files,
 decodings, evidence and (when present) ABI conformance rows. -/
@@ -1254,11 +1255,64 @@ def asmDeclNames (j : Json) : Array String := Id.run do
   let mut out : Array String := (arr j "files").filterMap (str · "decl")
   for f in arr j "functions" do
     out := out ++ ([str f "decl", str f "file"].filterMap id).toArray
-    for k in ["decodings", "evidence", "abi"] do
+    for k in ["decodings", "evidence", "abi", "abiRows"] do
       out := out ++ (arr f k).filterMap (str · "decl")
+    out := out ++ (arr f "abiRows").filterMap (str · "bridge")
   pure (out.foldl (fun acc n => if acc.contains n then acc else acc.push n) #[])
 
-/-- `elf/asm.json` (the committed file, unchanged) and `elf/asm-decls.json` (where each named
+
+/-- **A conformance row of an assembly record** (curated, checked): the record, the theorem that
+the row's code is the record's function (`bridge`, whose statement must mention both the record
+and the row's code), the registered problem, the theorem solving it (its type must be exactly the
+problem), and what the row is about (ABI, machine, mode, frame, the model's limits). -/
+structure AbiLink where
+  record : Name
+  bridge : Name
+  problemId : String
+  problemConst : Name
+  solution : Name
+  code : Name
+  abiId : String
+  machine : String
+  mode : String
+  frame : Nat
+  limits : String
+
+def abiLinks : List AbiLink := [
+  { record := `Silmaril.Elf.Asm.Example.LeafArith.clamp, bridge := `Silmaril.Elf.Abi.Asm.LeafArith.clamp_record_code
+    problemId := "silmaril.elf.abi.leaf_arith.clamp_i32", problemConst := `silmaril.elf.abi.leaf_arith.clamp_i32
+    solution := `Silmaril.Elf.Abi.LeafArith.clamp_row, code := `Silmaril.Machine.Abi.Conformance.LeafArith.clampCode
+    abiId := "x86_64-sysv-psabi@e1ce0983/lp64/integer", machine := "Open (restricted integer model)", mode := "total", frame := 0
+    limits := "INTEGER fragment of the psABI; FP, vector and control state carried by the model, not proved; real x86 only under Faithful" },
+  { record := `Silmaril.Elf.Asm.Example.LeafArith.sat, bridge := `Silmaril.Elf.Abi.Asm.LeafArith.sat_record_code
+    problemId := "silmaril.elf.abi.leaf_arith.sat_add_u32", problemConst := `silmaril.elf.abi.leaf_arith.sat_add_u32
+    solution := `Silmaril.Elf.Abi.LeafArith.sat_row, code := `Silmaril.Machine.Abi.Conformance.LeafArith.satCode
+    abiId := "x86_64-sysv-psabi@e1ce0983/lp64/integer", machine := "Open (restricted integer model)", mode := "total", frame := 0
+    limits := "INTEGER fragment of the psABI; FP, vector and control state carried by the model, not proved; real x86 only under Faithful" }]
+
+/-- Check a link and give its row: the bridge mentions the record and the row's code, the
+solution's type is the problem, and its status is read from its axioms. -/
+def abiLinkJson (env : Environment) (l : AbiLink) : IO Json := do
+  let some bstmt := statementOf env l.bridge | throw (IO.userError s!"abi link: {l.bridge} missing")
+  let cl := stmtClosure env bstmt
+  unless cl.contains l.record && cl.contains l.code do
+    throw (IO.userError s!"abi link: {l.bridge} does not mention both {l.record} and {l.code}")
+  let some (.thmInfo ti) := env.find? l.solution | throw (IO.userError s!"abi link: {l.solution} is not a theorem")
+  unless ti.type.consumeMData == .const l.problemConst [] do
+    throw (IO.userError s!"abi link: {l.solution} does not state exactly {l.problemConst}")
+  let some (.thmInfo _) := env.find? l.bridge | throw (IO.userError s!"abi link: {l.bridge} is not a theorem")
+  let ((axs, _), _) := (axiomsOf env l.solution).run ({}, {})
+  let ((baxs, _), _) := (axiomsOf env l.bridge).run ({}, {})
+  let std (xs : NameSet) := xs.toArray.all (standardAxioms.contains ·)
+  let status := if axs.contains ``sorryAx || baxs.contains ``sorryAx then "sorry"
+    else if std axs && std baxs then "proved" else "proved with other axioms"
+  pure (Json.mkObj [("problemId", js l.problemId), ("decl", js l.solution.toString),
+    ("bridge", js l.bridge.toString), ("abiId", js l.abiId), ("machine", js l.machine),
+    ("mode", js l.mode), ("frame", jn l.frame), ("status", js status), ("limits", js l.limits),
+    ("association", js "checked")])
+
+/-- `elf/asm.json` (the committed file, with each record's checked conformance rows added as
+`abiRows`) and `elf/asm-decls.json` (where each named
 declaration is: module, file, line, read from the environment). -/
 def asmPages (env : Environment) : IO (Json × Json) := do
   let j ← match Json.parse (← IO.FS.readFile asmPath) with
@@ -1266,6 +1320,15 @@ def asmPages (env : Environment) : IO (Json × Json) := do
     | .error e => throw (IO.userError s!"{asmPath}: {e}")
   unless j.getObjValD "schema" == js asmSchema do
     throw (IO.userError s!"{asmPath}: schema is not {asmSchema}")
+  -- the conformance rows of each record (`abiRows`; `abi` stays the record's metadata object)
+  let mut fns : Array Json := #[]
+  for f in ((j.getObjValD "functions").getArr?.toOption.getD #[]) do
+    let d := ((f.getObjValD "decl").getStr?.toOption.getD "").toName
+    let mut rows : Array Json := #[]
+    for l in abiLinks do
+      if l.record == d then rows := rows.push (← abiLinkJson env l)
+    fns := fns.push (if rows.isEmpty then f else f.setObjVal! "abiRows" (Json.arr rows))
+  let j := j.setObjVal! "functions" (Json.arr fns)
   let mut decls : Array (String × Json) := #[]
   for s in asmDeclNames j do
     let d := s.toName
