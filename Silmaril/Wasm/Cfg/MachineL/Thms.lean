@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Cfg.MachineL.Defs
 import Silmaril.Proofs.Wasm.Cfg.MachineLFwd
 import Silmaril.Proofs.Wasm.Cfg.MachineLBwd
+import Silmaril.Proofs.Wasm.Cfg.MachineLPend
 
 @[expose] public section
 
@@ -51,7 +52,23 @@ past the function label; invalid code can produce one). `backward` makes no clai
 The native body-level outcome itself does exist; only the framed function-level behaviour is
 absent.
 
-Not yet here: pending calls (`ReachLXPS`), divergence (quiescent: infinite local steps, or a
+* **`pending_iff`** (H2, pending calls, both directions): the body reaches the internal call `z`
+  (callee, arguments, store at the call) after the native log `l` (`ReachLXPS`) exactly when the
+  logged machine runs from the CFG entry with a prefix `l₁` of `l` to a block whose straight-line
+  code (or segment body) reaches `z` after the rest `l₂` (`ReachL`). The question, its pre-call
+  store and the exact prefix log are those of the native reach.
+
+  **Encoding (internal witness only).** The proof answers the pending call with a callee trap,
+  which `EvalLXPS`'s `callTrap`/`indTrap`/`refTrap` record and which ends the caller at once,
+  outside every handler. It then uses the finished correspondence:
+  * `reach_trap`: for every trap store `s₂`, some frame;
+  * `trap_reach`: the converse;
+  * `trap_last`: a trap-answered entry is always last, and the run then traps in its store.
+  The synthetic answer is not a claim about a real trapped session or a legal host answer; the
+  theorem states only the pending question and prefix. Pending *tail* calls are not pending
+  internal calls: they are ends of the body (`TailL`, `forward_tail`), made at the frame.
+
+Not yet here: divergence (quiescent: infinite local steps, or a
 finite run into a diverging callee) and coherent productive streams, each against the machine;
 the typed projection to `MStepC`; the recursive closure (H3).
 
@@ -95,5 +112,14 @@ theorem backward {body : Expr} {s : Store H} {f : Frame} {l : List (SCall H)}
     ∃ (st : MState H) (l₁ l₂ : List (SCall H)), MRunL body (initial body s f) l₁ st ∧
       l = l₁ ++ l₂ ∧ ((st.node.IsSink ∧ l₂ = [] ∧ EndRel st r) ∨ TailL body st l₂ r) :=
   Proofs.MachineLBwd.backward h hr
+
+/-- **Pending calls correspond**: the body reaches the internal call `z` after `l` exactly when the
+logged machine runs to a block reaching `z`, the logs splitting `l`. -/
+theorem pending_iff {body : Expr} {s : Store H} {f : Frame} {l : List (SCall H)}
+    {z : (Abstract.wasmOShape H).self.Op} :
+    Abstract.ReachLXPS s f [] (liftInstrs body) l z ↔
+      ∃ (st : MState H) (l₁ l₂ : List (SCall H)), MRunL body (initial body s f) l₁ st ∧
+        ReachL body st l₂ z ∧ l = l₁ ++ l₂ :=
+  Proofs.MachineLPend.pending_iff
 
 end Silmaril.Wasm.Cfg.MachineL

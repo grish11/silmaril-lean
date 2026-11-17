@@ -604,9 +604,20 @@ The plain graph stays an over-approximation, and claims about it say so.
           starts where the machine re-enters it.
         - The re-entered loop frame's arity is now the block type's parameter count, the same as
           a fresh entry.
-        - Still open in H2: pending calls (`ReachLXPS`), quiescent divergence (infinite local
-          steps vs a finite run into a diverging callee, kept distinct) and coherent productive
-          streams.
+        - **Pending calls, done** (`MachineL.pending_iff`, both directions): the body reaches the
+          internal call `z` after the native log `l` exactly when the logged machine runs from
+          the CFG entry to a block reaching `z` (`ReachL`), the logs splitting `l`.
+          - Encoding, coordinator-approved, as an internal witness only: answering the call with
+            a callee trap (`reach_trap` for every trap store, `trap_reach` the converse,
+            `trap_last`), then the finished correspondence.
+          - The pending question, its pre-call store and the prefix log are the statement's; the
+            synthetic trap store is not.
+          - Pending tail calls are ends of the body (`TailL`), not pending internal calls.
+          - Fixture `Wasm/Cfg/ExamplePending`: a call in a handler that is pending, answered by an
+            exception (caught: exit) or by a callee trap (uncaught: trap); a tail call in a
+            handler (`TailL`).
+        - Still open in H2: quiescent divergence (infinite local steps vs a finite run into a
+          diverging callee, kept distinct) and coherent productive streams.
         - Still open as fixtures: nested-loop `continue` and a tail call inside a handler.
       - **H2, both directions on bodies.**
         - Finished ends: done, throw and trap, with exact final store and log.
