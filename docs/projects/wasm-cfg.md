@@ -934,6 +934,19 @@ The plain graph stays an over-approximation, and claims about it say so.
           Every machine step (`MStepL`) runs a straight-line segment by the open logged relation
           `Abstract.EvalLXPS`. Its calls are open entries with arbitrary answers, and no oracle
           answers them.
+
+          The audit is checked at build time by `Proofs/Wasm/Cfg/CfgClosureAudit`. It walks the
+          types and bodies of every definition, inductive, constructor and recursor reachable
+          from `cfgEvFunXPS`, `cfgEvPendXPS`, `cfgEvInfNXP`, `cfgEvFunDXPSC`, `LDLcfgC`,
+          `cfgAns`, `cfgFunDiv` and `cfgSessionTripleC`. The build fails if any of the following
+          is reachable:
+          - a constant of `XRecursionP`, `XDivergeP`, `XRecursion`, `XDiverge` or `Recursion`;
+          - `CallXP.EvalOXP`;
+          - the native open modules, closures and triples;
+          - a `Silmaril` axiom, opaque or missing body, other than auxiliary proofs.
+
+          As a positive control, it checks that the scoped native instance `cfgSessionTriple`
+          reaches `closedCallXP` and `FunDivXP`.
         - **Remaining before all generic gaps can be called closed:**
           1. Typed-invocation hypotheses (`Wasm/Cfg/CfgValid`). These are now derived from
              `StoreOk` and `InvokeOk`, at the store's own tags:
