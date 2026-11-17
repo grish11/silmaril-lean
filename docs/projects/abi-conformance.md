@@ -153,6 +153,35 @@ for a reason. Each reason is checked:
 A header shared by several binaries gives **separate rows per binary**. The header and the
 specs are shared values; the file, the binding (with its version) and the code differ.
 
+## Library rows: zlib's checksum API in `zlib-checksums`
+
+These rows use the shared zlib 1.3.1 header excerpt
+(`examples/headers/zlib-1.3.1/zlib.h`, `Z_SOLO` configuration, the same file the clang import
+reads) and the pinned static `zlib-checksums`. The prototypes, C specs and code are
+`Silmaril.Machine.Abi.Conformance.Zlib`; the rows are `Silmaril.Elf.Abi.Zlib` (group
+`silmaril.abi.zlib`).
+
+| row | machine, mode, frame | status |
+| --- | --- | --- |
+| `silmaril.elf.abi.zlib_checksums.crc32_z` | `Open9`, total, 0 | open (`Task.crc32z`) |
+| `….crc32` (region spans its tail call into `crc32_z`) | `Open9`, total, 0 | open |
+| `….adler32_z` | `Open9`, total, 96 | open |
+| `….adler32` (region spans its tail call into `adler32_z`) | `Open9`, total, 96 | open |
+| `….zlib_h` (partial: the four claimed) | `Open9` | open, from the four |
+
+**Proved:**
+- the code binding (`CodeOf`): symbol, bytes, `crc_table` as read-only data, image;
+- no dynamic relocation, and the only load base is 0;
+- the header declares each prototype;
+- the coverage check, with absent functions absent (`crc32_combine_gen`, `crc32_combine_op`,
+  `zlibVersion`, `zlibCompileFlags`) and unclaimed ones present (`adler32_combine`,
+  `crc32_combine`, `get_crc_table`);
+- each row from its task (`crc32z_of`, …, `header_of`).
+
+The existing contracts in `Silmaril.X86.Ladder.ZlibChecksums` are total (`Spec.Total`), not
+first-return, and assume more than a row admits (for example, `AdlerOk` is stated on registers),
+so they do not close the rows.
+
 ## Distinct from the shapes that state less
 
 | shape | says | does not say |
