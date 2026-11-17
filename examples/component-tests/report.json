@@ -159,6 +159,7 @@
       "size": 256,
       "lean": "Silmaril.Wasm.Component.DecoderBridge.paramNameBytes",
       "what": "starts with the import declared f: func(y: u32) instead of f: func(x: u32); the binary differs from starts.wasm in that one byte",
+      "disproof": "Silmaril.Wasm.Component.DecoderBridge.not_startAdequacy",
       "facts": [
         {
           "theorem": "Silmaril.Wasm.Component.DecoderBridge.parse_paramName",

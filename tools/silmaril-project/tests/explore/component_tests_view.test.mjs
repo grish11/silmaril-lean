@@ -30,9 +30,13 @@ test("the report, the oracle and the committed binaries name the same bytes", ()
   }
 });
 
-test("the decoder bridge regressions name their bytes and do not claim a disproof", () => {
+test("the decoder bridge regressions name their bytes; only a proved disproof claims one", () => {
   const regs = report.regressions || [];
-  assert.deepEqual(regs.map((g) => g.name), ["instexport"]);
+  assert.deepEqual(regs.map((g) => g.name), ["instexport", "paramname"]);
+  // instexport demonstrates a mismatch only; paramname carries the proved `not_startAdequacy`.
+  assert.equal(regs.find((g) => g.name === "instexport").disproof, undefined);
+  assert.equal(regs.find((g) => g.name === "paramname").disproof,
+    "Silmaril.Wasm.Component.DecoderBridge.not_startAdequacy");
   const h = CT.render(report, oracle, {});
   for (const g of regs) {
     assert.equal(g.sha256, sha(g.wasm), g.wasm);
@@ -41,7 +45,14 @@ test("the decoder bridge regressions name their bytes and do not claim a disproo
     assert.ok(!(g.name in oracle.binaries), g.name);
     assert.ok(h.includes(g.wasm) && h.includes(g.sha256), g.name);
     for (const f of g.facts) assert.ok(h.includes(f.theorem), f.theorem);
-    assert.ok(g.status.includes("not a disproof"), g.name);
+    if (g.disproof) {
+      // A claimed disproof names a theorem listed among the facts, shown on the page.
+      assert.ok(g.facts.some((f) => f.theorem === g.disproof), g.name);
+      assert.ok(h.includes(g.disproof), g.name);
+      assert.ok(g.status.includes("counterexample proved"), g.name);
+    } else {
+      assert.ok(g.status.includes("not a disproof"), g.name);
+    }
   }
   assert.ok(h.includes("Decoder bridge regressions"));
 });
