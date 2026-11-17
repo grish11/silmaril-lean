@@ -143,4 +143,14 @@ def ResOutP (s' : Store H) (f' : Frame) (o : Region.Out) :
         s'.funcs[a]? = some fi ∧ Validation.DefType.funcType? fi.type = some (ps, rs) ∧
         W = W₀ ++ args ∧ args.length = ps.length ∧ n = rs.length
 
+
+/-- **The sink a tail call's answer stands for**, in the store `s` the answer leaves and the
+caller's frame `f`: the returned values at `exit`, the exception at `raise`, or `trap`, with no
+label frame left (the function's frame was replaced). -/
+def tailSink (b : (List Val ⊕ Nat) ⊕ PUnit.{1}) (s : Store H) (f : Frame) : MState H :=
+  match b with
+  | .inl (.inl ws) => ⟨.exit, ws, [], s, f⟩
+  | .inl (.inr t) => ⟨.raise, [.ref (.exn t)], [], s, f⟩
+  | .inr _ => ⟨.trap, [], [], s, f⟩
+
 end Silmaril.Wasm.Cfg.MachineL

@@ -438,4 +438,108 @@ theorem proj_initialE {Γ : Abstract.ExposePStruct.Ctx H} (hA : ArityResp Γ C) 
   proj_runLE hA hNT h hl (MachineLFwd.initial_ok body s f) hg rfl
     (MachineLProjI.cinv_initial (s := s) (f := f) rfl hchk)
 
+open Silmaril.Wasm.Cfg.Proofs.MachineLProjI (chkE_append) in
+open Silmaril.Wasm.Cfg.Proofs.Machine (restAt_cons) in
+open Silmaril.Wasm.Abstract.ExposePTyped (ArityResp) in
+/-- **An answered tail call projects to `MStepC.tail`**: a block whose straight-line code ends in
+a pending tail call (`TailL`), answered by a `CloseOk C` entry, steps on `MStepC` (frame
+replacement) to the sink the answer stands for (`tailSink`). -/
+theorem proj_tailE {Γ : Abstract.ExposePStruct.Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst}
+    {nl ret : Nat} {body : Expr} {st : MState H} {l : List (Abstract.SCall H)} {s₁ s₂ : Store H}
+    {f₁ : Frame} {a n : Nat} {args : List Val} {b : (List Val ⊕ Nat) ⊕ PUnit.{1}}
+    (ht : TailL body st l (s₁, f₁, .tail a args n)) (hl : ∀ e ∈ l, CloseOk C e)
+    (he : CloseOk C (Abstract.SCall.mk a args s₁ b s₂)) (hg : Γ.Good st.store)
+    (hn : st.frame.locals.length = nl) (hI : CInv (Interp.ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    MStepC P host C body st (tailSink b s₂ f₁) := by
+  cases ht with
+  | @tail bb sg stk ls s _ f _ _ _ _ _ hb hns hr =>
+  obtain ⟨hf, c, out, hc, hchk, hF⟩ := hI
+  obtain ⟨c₀, hc₀, hsg⟩ := Proofs.Machine.seg_of_lookup hb
+  simp only at hc hchk hf hg hn
+  rw [hc] at hc₀; cases hc₀
+  rw [restAt_cons hsg, Binaryen.liftInstrs_append, chkE_append] at hchk
+  obtain ⟨oc, hoc, -⟩ := Option.bind_eq_some_iff.mp hchk
+  have hoc' : Interp.chkE (Interp.ehExt Γ.tags) s.funcs f.module f.locals.length ret (labs ret ls)
+      (some stk.reverse.length) (liftInstrs (codeOf sg)) = some oc := by
+    rw [hg.1, hf, hn, List.length_reverse]; exact hoc
+  have hbodyNT : ∀ i ∈ sg.body, isTerminator i = false := (MachineLBwd.seg_wf hsg).1
+  have hflat : ∀ i ∈ codeOf sg, liftInstr i = .op i [] := by
+    intro i hi
+    simp only [MachineL.codeOf, List.mem_append] at hi
+    rcases hi with hi | hi
+    · exact MachineLProjS.liftInstr_flat (hbodyNT i hi)
+    · cases htt : sg.term with
+      | none => simp [htt] at hi
+      | some t => simp [htt] at hi; subst hi; exact liftInstr_of_not_struct (hns _ htt)
+  obtain ⟨s', f', o, hrun, W, c', rfl, hc', rfl, rfl, fi, ps, rs, W₀, hfi, hty, rfl, hlen, rfl⟩ :=
+    MachineLProjE.flat_runP (P := P) (host := host) hA hflat
+      (Proofs.MachineLClosed.logged_closed hr hl) hg hoc'
+  rw [List.reverse_reverse] at hrun
+  rw [show expression (codeOf sg) = expression sg.body ++ expression sg.term.toList by
+    simp [MachineL.codeOf, expression]] at hrun
+  obtain ⟨s₃, f₃, o₁, hbody, hthen⟩ := Proofs.Region.run_split hrun rfl
+  have hbo := runC_body_out hbodyNT hbody
+  cases hterm : sg.term with
+  | none =>
+    simp only [hterm, Option.toList_none, expression, List.map_nil] at hthen
+    obtain ⟨h1, -, -⟩ := thenC_nil hthen
+    cases o₁ <;> simp_all [OutFlat]
+  | some t =>
+    simp only [hterm, Option.toList_some, expression, List.map_cons, List.map_nil] at hthen
+    cases o₁ with
+    | normal stk₁ =>
+      change RunC P host C s₃ f₃ stk₁ [.plain t] s₁ f₁ (.tail (W₀ ++ args) a c') at hthen
+      have htc : t.IsTailCall := by
+        rcases term_runE hsg hterm (hns t hterm) hthen with
+          h | ⟨-, _, h⟩ | ⟨htc, -⟩ | ⟨-, h, -⟩ | ⟨_, -, h, -⟩ | ⟨_, k, _, -, -, hk, -⟩ |
+          ⟨_, _, _, _, -, -, hX, -⟩
+        · cases h
+        · cases h
+        · exact htc
+        · cases h
+        · cases h
+        · rcases hk with ⟨-, h⟩ | ⟨-, h⟩ <;> cases h
+        · rcases hX with ⟨-, h⟩ | ⟨_, -, h⟩ <;> cases h
+      obtain ⟨j, hj⟩ := MachineLProjC.brVals_junk ls.length ls (W₀ ++ args)
+      have hargs : brVals ls.length ls (W₀ ++ args) = (j ++ W₀) ++ args := by
+        rw [hj, List.append_assoc]
+      rcases b with (ws | t') | u
+      · obtain ⟨fi', ps', rs', fl, vs, hfi', hty', hcall, hvs, rfl⟩ := he
+        rw [hfi] at hfi'; cases hfi'; rw [hty] at hty'; cases hty'
+        have hend : tailEnd rs.length s₂ f₁ fl = some ⟨.exit, (vs.take rs.length).reverse, [], s₂, f₁⟩ := by
+          cases fl <;> simp_all [tailEnd, Flow.retVals]
+        exact .tail hb hterm htc hbody hthen hfi hty hargs hlen hcall hend
+      · exact .tail hb hterm htc hbody hthen hfi hty hargs hlen he rfl
+      · exact .tail hb hterm htc hbody hthen hfi hty hargs hlen he rfl
+    | _ => first | exact hbo.elim | (obtain ⟨h1, -, -⟩ := hthen; cases h1)
+
+theorem tailL_block {body : Expr} {st : MState H} {l : List (Abstract.SCall H)}
+    {r : Store H × Frame × Abstract.CallXP.POut} (h : TailL body st l r) :
+    ∃ b, st.node = .block b := by
+  cases h; exact ⟨_, rfl⟩
+
+open Silmaril.Wasm.Abstract.ExposePTyped (ArityResp) in
+/-- **A logged run from the CFG entry ending in an answered tail call** is an `MStepC` run from
+the CFG entry to the sink the answer stands for (exceptions on, every call form, bodies without
+`try_table`), for a body passing the function's own check. -/
+theorem proj_tail_initialE {Γ : Abstract.ExposePStruct.Ctx H} (hA : ArityResp Γ C) {ret : Nat}
+    {body : Expr} (hNT : NoTry body) {s : Store H} {f : Frame} (hg : Γ.Good s)
+    (hchk : Interp.endsAt (Interp.chkE (Interp.ehExt Γ.tags) Γ.funcs f.module f.locals.length ret
+      [ret] (some 0) (liftInstrs body)) ret = true)
+    {l l' : List (Abstract.SCall H)} {st : MState H} {s₁ s₂ : Store H} {f₁ : Frame} {a n : Nat}
+    {args : List Val} {b : (List Val ⊕ Nat) ⊕ PUnit.{1}}
+    (h : MRunL body (initial body s f) l st) (ht : TailL body st l' (s₁, f₁, .tail a args n))
+    (hl : ∀ e ∈ l ++ l', CloseOk C e) (he : CloseOk C (Abstract.SCall.mk a args s₁ b s₂)) :
+    Relation.ReflTransGen (MStepC P host C body) (initial body s f) (tailSink b s₂ f₁) := by
+  have hl₁ : ∀ e ∈ l, CloseOk C e := fun e he => hl e (List.mem_append_left _ he)
+  have hl₂ : ∀ e ∈ l', CloseOk C e := fun e he => hl e (List.mem_append_right _ he)
+  have hok := MachineLFwd.initial_ok body s f
+  have hI₀ := MachineLProjI.cinv_initial (s := s) (f := f) rfl hchk
+  obtain ⟨stC, hC, hR⟩ := proj_runLE (P := P) (host := host) hA hNT h hl₁ hok hg rfl hI₀
+  obtain ⟨hg', hn', hI'⟩ := MachineLProjI.cinv_run hA hNT h hl₁ hok hg rfl hI₀
+  obtain ⟨bb, hbb⟩ := tailL_block ht
+  rcases hR with rfl | hR
+  · exact hC.tail (proj_tailE hA ht hl₂ he hg' hn' hI')
+  · rw [hbb] at hR; cases hR.1
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLProjX

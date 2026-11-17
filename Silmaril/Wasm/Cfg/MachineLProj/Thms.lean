@@ -146,8 +146,11 @@ callee's parameters, and `n` the callee's result count. Hypotheses, all stated:
 No restriction on call forms (`call_indirect`, `call_ref`), on terminators (`throw`,
 `throw_ref`, tail calls) or on the store's checker. A `throw`/`throw_ref` terminator is
 `MStepC.raise`, and a tail call of null is `MStepC.tailNull`. An answered tail call is an end of
-the logged run (`TailL`), not a step. Its correspondence with `MStepC.tail`, and the handler case
-(`try_table`), are separate (`docs/projects/wasm-cfg.md`).
+the logged run (`TailL`), not a step. **`proj_tailE`**, **`proj_tail_initialE`**: a run ending in a
+pending tail call whose answer is a `CloseOk C` entry is an `MStepC` run whose last step is
+`MStepC.tail`, which makes the call through `C` and replaces the function's frame. The run ends at
+the sink the answer stands for (`tailSink`: the returned values at `exit`, the exception at
+`raise`, or `trap`). The handler case (`try_table`) is separate (`docs/projects/wasm-cfg.md`).
 
 On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
 projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
@@ -399,5 +402,31 @@ theorem proj_initialE {P : Numerics.Profile} {host : HostSemantics H} {C : Abstr
     ∃ stC, Relation.ReflTransGen (MStepC P host C body) (initial body s f) stC ∧
       ProjRel st' stC :=
   Proofs.MachineLProjX.proj_initialE hA hNT hg hchk h hl
+
+/-- **An answered tail call projects to `MStepC.tail`** (frame replacement), to the sink the
+answer stands for. -/
+theorem proj_tailE {P : Numerics.Profile} {host : HostSemantics H} {C : Abstract.CallRel H}
+    {Γ : Ctx H} (hA : ArityResp Γ C) {mi : ModuleInst} {nl ret : Nat} {body : Expr}
+    {st : MState H} {l : List (Abstract.SCall H)} {s₁ s₂ : Store H} {f₁ : Frame} {a n : Nat}
+    {args : List Val} {b : (List Val ⊕ Nat) ⊕ PUnit.{1}}
+    (ht : TailL body st l (s₁, f₁, .tail a args n)) (hl : ∀ e ∈ l, CloseOk C e)
+    (he : CloseOk C (Abstract.SCall.mk a args s₁ b s₂)) (hg : Γ.Good st.store)
+    (hn : st.frame.locals.length = nl) (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    MStepC P host C body st (tailSink b s₂ f₁) :=
+  Proofs.MachineLProjX.proj_tailE hA ht hl he hg hn hI
+
+/-- **A logged run from the CFG entry ending in an answered tail call** is an `MStepC` run from
+the CFG entry to the sink the answer stands for. -/
+theorem proj_tail_initialE {P : Numerics.Profile} {host : HostSemantics H}
+    {C : Abstract.CallRel H} {Γ : Ctx H} (hA : ArityResp Γ C) {ret : Nat} {body : Expr}
+    (hNT : NoTry body) {s : Store H} {f : Frame} (hg : Γ.Good s)
+    (hchk : endsAt (chkE (ehExt Γ.tags) Γ.funcs f.module f.locals.length ret [ret] (some 0)
+      (liftInstrs body)) ret = true)
+    {l l' : List (Abstract.SCall H)} {st : MState H} {s₁ s₂ : Store H} {f₁ : Frame} {a n : Nat}
+    {args : List Val} {b : (List Val ⊕ Nat) ⊕ PUnit.{1}}
+    (h : MRunL body (initial body s f) l st) (ht : TailL body st l' (s₁, f₁, .tail a args n))
+    (hl : ∀ e ∈ l ++ l', CloseOk C e) (he : CloseOk C (Abstract.SCall.mk a args s₁ b s₂)) :
+    Relation.ReflTransGen (MStepC P host C body) (initial body s f) (tailSink b s₂ f₁) :=
+  Proofs.MachineLProjX.proj_tail_initialE hA hNT hg hchk h ht hl he
 
 end Silmaril.Wasm.Cfg.MachineL

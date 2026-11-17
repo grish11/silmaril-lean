@@ -638,8 +638,9 @@ The plain graph stays an over-approximation, and claims about it say so.
                dropped. `throw`/`throw_ref` terminators are `MStepC.raise`, tail calls of null are
                `MStepC.tailNull`, and indirect and reference calls go through the bridge.
              - Next:
-               - answered tail calls: the logged end `TailL` with its answered `SCall` against
-                 `MStepC.tail` (frame replacement);
+               - answered tail calls, done (`proj_tailE`, `proj_tail_initialE`). A logged run ending
+                 in `TailL`, with its tail answer a `CloseOk C` entry, is an `MStepC` run whose
+                 last step is `MStepC.tail` (frame replacement), to `tailSink`;
                - `try_table`: the catch dispatch against `MStepC.catch_`/`bodyCatch`/`catchOut`.
                  The checker invariant's catch case needs `catchOk` and the payload arity of
                  `Catches` under `TagsOk`. It must keep
