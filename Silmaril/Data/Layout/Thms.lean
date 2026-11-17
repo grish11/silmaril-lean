@@ -13,12 +13,12 @@ public import Silmaril.Data.Layout.Defs
   well-formed (power-of-two alignment dividing the size).
 * `declLayout_wf`: every computed struct or union layout is `DeclLayout.WF`: members in bounds,
   aligned, disjoint (structs), at offset zero (unions).
-* The six data models are well-formed (`sysvX86_64_wf`, `msX64_wf`, ...).
+* The six data models are well-formed (`sysvX86_64_wf`, ...; `msX64_wf` is in `Bitfield.Thms`).
 
-Open goals:
-* `Task.bitfieldLayout`: bit-fields (`Field.bits`) are rejected by `layoutTy`; their psABI
-  allocation (storage units of the declared type, no straddling, unnamed bit-fields do not
-  affect alignment) and its well-formedness at bit granularity are pending.
+Discharged elsewhere:
+* `Task.bitfieldLayout`: bit-fields (`Field.bits`) are rejected by `layoutTy`; their bit-level
+  placement (System V and Microsoft x64) and its well-formedness are
+  `Silmaril.Data.Layout.Bitfield`, and `Silmaril.Data.Layout.bitfieldLayout` proves the task.
 -/
 
 @[expose] public section
@@ -431,20 +431,6 @@ theorem sysvX86_64_wf : sysvX86_64.WF where
       first
       | exact wf_of 4 2 _ rfl (by decide) | exact wf_of 8 3 _ rfl (by decide)
       | exact wf_of 16 4 _ rfl (by decide)
-  ptr := wf_of 8 3 _ rfl (by decide)
-  bool := wf_of 1 0 _ rfl (by decide)
-
-theorem msX64_wf : msX64.WF where
-  int k s h := by
-    cases k <;> simp only [msX64, Option.some.injEq, reduceCtorEq] at h <;> (try subst h) <;>
-      first
-      | exact exactShape_wf h
-      | exact wf_of 1 0 _ rfl (by decide) | exact wf_of 2 1 _ rfl (by decide)
-      | exact wf_of 4 2 _ rfl (by decide) | exact wf_of 8 3 _ rfl (by decide)
-  float k s h := by
-    cases k <;> simp only [msX64, Option.some.injEq, reduceCtorEq] at h <;> subst h <;>
-      first
-      | exact wf_of 4 2 _ rfl (by decide) | exact wf_of 8 3 _ rfl (by decide)
   ptr := wf_of 8 3 _ rfl (by decide)
   bool := wf_of 1 0 _ rfl (by decide)
 
