@@ -153,12 +153,24 @@ Three different relations are kept apart, in the shapes, the provenance edges
 | frontend agreement (`frontendAgreement`) | the Cores two frontends (Clang route, Cerberus route) give one source: a Core-to-Core relation between their outputs | corpus reports, torture `cross-validated` |
 | compiler origin (`compiles`) | a compiler's machine code and a C function's Core | `c.compiles_to*` ([compiles-to](compiles-to.md)); whole-program object code is open |
 
-No Core-to-Core row implies anything about a compiler's output. A Core row describes a real
-target only through a **per-type** applicability row (`c.tv.profile_applies`, `c.tv.refines_on`):
-every type the program mentions (`TV.mentions`, over-approximated from its Core) must be in the
-coherence table and coherent. The x86-64 profile never applies to a program that mentions
-`float`, `long double`, `wchar_t`, or a type outside the table (aggregates, enums, exact-width
-integers), and applicability is necessary, not sufficient.
+No Core-to-Core row implies anything about a compiler's output. The **per-type profile check**
+(`c.tv.profile_applies`, and `c.tv.refines_on`, which is Core refinement plus that check on both
+programs) is a necessary filter, not a statement about the target. It requires every type named
+by the executed Core to be in the coherence table and coherent: `TV.mentions` scans the program
+part (its own functions, globals, tags and function information), the runtime functions and the
+implementation constants it reaches (transitively, by symbol and by `PEimpl`/`Impl` name), and
+over-approximates within them (a floating object or value without its kind counts as all three).
+The x86-64 check fails for any program whose executed Core names `float`, `long double`,
+`wchar_t`, or a type outside the table (aggregates, enums, exact-width integers). It cannot see
+operations rather than types (conversions, shifts, division in the runtime and `impl`),
+allocator addresses, byte-level punning, or the enum registry (run empty).
+
+The check is conservative to the point of failing on every corpus program: Cerberus's runtime
+conversion functions that the corpus Cores reach (`conv_int` and its callees) dispatch on the
+type and name `is_representable_floating`, `loaded_ivfromfloat` and the floating kinds, even on
+integer-only paths. Only the constructed `return a + b;` files (whose runtime is three integer
+functions) pass. A check over the types of the executed path, proved to cover them, is on the
+roadmap (milestone 7).
 
 ## Undefined behaviour in the accounting
 
@@ -179,9 +191,9 @@ child of the root group), and [`examples/c-tv/CTvRows.lean`](../../examples/c-tv
 solves or refutes each one with a theorem whose statement is the row. `sil project check` audits
 the statements and axioms; the explorer's C tab and its problem pages read them from the
 database. Rows: the fold refines / refines UB-free / is equivalent (THM); the wrong fold does not
-refine (UNS); `INT_MAX + 1` is refined by anything (THM) but not UB-free (UNS); the x86-64 profile
-applies to the fold (THM), the fold refines on that profile (THM), and it does not apply to a
-synthetic file mentioning `float` (UNS); and one `profile_coherent_at` row per scalar type of the
+refine (UNS); `INT_MAX + 1` is refined by anything (THM) but not UB-free (UNS); the x86-64 per-type
+check passes on the fold (THM), the fold refines with the check on both programs (THM), and the
+check fails on a synthetic file whose Core names `float` (UNS); and one `profile_coherent_at` row per scalar type of the
 table, 18 THM and 3 UNS (`wchar_t`, `float`, `long double`).
 
 `CTvRows` is not a `module`. Under the module system the same `cbv` runs of the Core dynamics are
@@ -222,7 +234,9 @@ rejected/unknown toward validated against the fixed denominator of 3,852.
 6. **Frontend coverage.** The Clang route's block locations, `asm` statements, `va_list`; the
    Cerberus route's implicit `int`, K&R definitions and GNU extensions, each preserved or
    rejected explicitly.
-7. **Profile-parametric memory.** `Mem.Concrete` layouts and floating values from the profile
+7. **A precise per-type check and profile-parametric memory.** A per-type check over the types
+   the executed paths touch, proved to cover them (the current scan of reachable runtime code
+   fails on every corpus program). Then profile-parametric memory: `Mem.Concrete` layouts and floating values from the profile
    (binary32, x87, binary128), the `wchar_t` range, aggregate layout through the shared ABI layout
    (main task's `Data.Layout`), endianness; then the profile applies to floating programs.
 8. **Validators beyond enumeration.** Symbolic or simulation-based Core-to-Core validators with

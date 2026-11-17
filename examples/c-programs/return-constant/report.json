@@ -50,9 +50,28 @@
  "routes": {
   "cerberus": {
    "applicability": {
-    "applies": true,
-    "blockers": [],
+    "applies": false,
+    "blockers": [
+     {
+      "issues": [
+       "differs: core memory 8/8 vs data model 4/4",
+       "differs: core computes in Silmaril.Cerberus.NativeTypes.Floating.binary64, target format Silmaril.Cerberus.NativeTypes.Floating.binary32"
+      ],
+      "type": "float"
+     },
+     {
+      "issues": [
+       "differs: core memory 8/8 vs data model 16/16",
+       "differs: core computes in Silmaril.Cerberus.NativeTypes.Floating.binary64, target format Silmaril.Cerberus.NativeTypes.Floating.x87"
+      ],
+      "type": "longDouble"
+     }
+    ],
     "mentions": [
+     "float",
+     "double",
+     "longDouble",
+     "bool",
      "int"
     ],
     "profile": "linuxX86_64"
@@ -80,9 +99,28 @@
   },
   "clang": {
    "applicability": {
-    "applies": true,
-    "blockers": [],
+    "applies": false,
+    "blockers": [
+     {
+      "issues": [
+       "differs: core memory 8/8 vs data model 4/4",
+       "differs: core computes in Silmaril.Cerberus.NativeTypes.Floating.binary64, target format Silmaril.Cerberus.NativeTypes.Floating.binary32"
+      ],
+      "type": "float"
+     },
+     {
+      "issues": [
+       "differs: core memory 8/8 vs data model 16/16",
+       "differs: core computes in Silmaril.Cerberus.NativeTypes.Floating.binary64, target format Silmaril.Cerberus.NativeTypes.Floating.x87"
+      ],
+      "type": "longDouble"
+     }
+    ],
     "mentions": [
+     "float",
+     "double",
+     "longDouble",
+     "bool",
      "int"
     ],
     "profile": "linuxX86_64"

@@ -182,7 +182,7 @@
     h += "<h3>Validation</h3>";
     if (!rep) h += `<p>${tag("missing")} No route elaborated; nothing was explored or validated.</p>`;
     else {
-      h += '<table id="cexplore"><thead><tr><th>route</th><th>status</th><th>endings</th><th>exhaustive</th><th>gap / stuck / UB</th><th>transitions</th><th>x86-64 profile (per type)</th></tr></thead><tbody>';
+      h += '<table id="cexplore"><thead><tr><th>route</th><th>status</th><th>endings</th><th>exhaustive</th><th>gap / stuck / UB</th><th>transitions</th><th>x86-64 per-type check (necessary filter)</th></tr></thead><tbody>';
       for (const [r, v] of Object.entries(rep.routes)) {
         if (v.status !== "elaborated") { h += `<tr><td>${esc(r)}</td><td class="err">${esc(v.status)}</td><td colspan="4">${esc(v.why || "")}</td></tr>`; continue; }
         const x = v.explore;
@@ -192,8 +192,8 @@
         const shown = [...groups].map(([k, n]) => esc(k) + (n > 1 ? ` <span class="muted">×${n}</span>` : "")).join("<br>");
         h += `<tr><td>${esc(r)}</td><td>elaborated</td><td>${shown}<br><span class="muted">${x.endings} endings${x.endings > x.sample.length ? `, first ${x.sample.length} shown` : ""}</span></td>` +
           `<td>${x.limited ? '<span class="err">no (bounded)</span>' : "yes"}</td><td>${x.gap ? "gap " : ""}${x.stuck ? "stuck " : ""}${x.ub ? "UB" : ""}${!x.gap && !x.stuck && !x.ub ? "none" : ""}</td><td>${x.steps}</td>` +
-          `<td class="capplies" data-applies="${v.applicability ? v.applicability.applies : ""}">${v.applicability ? (v.applicability.applies ? "applies" : '<span class="err">does not apply</span>') +
-            ` <span class="muted">(mentions ${esc(v.applicability.mentions.join(", ") || "nothing")})</span>` +
+          `<td class="capplies" data-applies="${v.applicability ? v.applicability.applies : ""}">${v.applicability ? (v.applicability.applies ? "passes" : '<span class="err">fails</span>') +
+            ` <span class="muted">(executed Core names ${esc(v.applicability.mentions.join(", ") || "nothing")})</span>` +
             v.applicability.blockers.map((b) => `<br><span class="err">${esc(b.type)}: ${esc(b.issues.join("; "))}</span>`).join("") : "—"}</td></tr>`;
       }
       h += "</tbody></table>";

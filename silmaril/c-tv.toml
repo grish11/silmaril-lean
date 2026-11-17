@@ -63,21 +63,21 @@ name = "silmaril.c_tv.examples.fold.applies"
 of = "silmaril.shapes.c.tv.profile_applies"
 args = { p = "Silmaril.Project.Shapes.CTV.linuxX86_64", b = "Silmaril.Project.CTV.Examples.foldSourceBindings" }
 expect = "THM"
-title = "the x86-64 profile applies to return 1 + 2; (it mentions int only)"
+title = "the x86-64 per-type check passes on return 1 + 2; (its executed Core names _Bool and int only)"
 
 [[instance]]
 name = "silmaril.c_tv.examples.fold.refines_on"
 of = "silmaril.shapes.c.tv.refines_on"
 args = { p = "Silmaril.Project.Shapes.CTV.linuxX86_64", src = "Silmaril.Project.CTV.Examples.foldSourceBindings", tgt = "Silmaril.Project.CTV.Examples.foldTargetBindings" }
 expect = "THM"
-title = "the fold refines on the x86-64 profile (applicability necessary, not sufficient)"
+title = "the fold refines (Core), and the x86-64 per-type check passes on both (a necessary filter, not a target statement)"
 
 [[instance]]
 name = "silmaril.c_tv.examples.float_signature.applies"
 of = "silmaril.shapes.c.tv.profile_applies"
 args = { p = "Silmaril.Project.Shapes.CTV.linuxX86_64", b = "Silmaril.Project.CTV.Examples.floatSignatureBindings" }
 expect = "UNS"
-title = "the x86-64 profile does not apply to a (synthetic) file mentioning float"
+title = "the x86-64 per-type check fails on a (synthetic) file whose Core names float"
 
 [[group]]
 name = "silmaril.c_tv.profile.linux_x86_64"

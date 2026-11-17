@@ -50,9 +50,38 @@
  "routes": {
   "cerberus": {
    "applicability": {
-    "applies": true,
-    "blockers": [],
+    "applies": false,
+    "blockers": [
+     {
+      "issues": [
+       "differs: core memory 8/8 vs data model 4/4",
+       "differs: core computes in Silmaril.Cerberus.NativeTypes.Floating.binary64, target format Silmaril.Cerberus.NativeTypes.Floating.binary32"
+      ],
+      "type": "float"
+     },
+     {
+      "issues": [
+       "differs: core memory 8/8 vs data model 16/16",
+       "differs: core computes in Silmaril.Cerberus.NativeTypes.Floating.binary64, target format Silmaril.Cerberus.NativeTypes.Floating.x87"
+      ],
+      "type": "longDouble"
+     },
+     {
+      "issues": [
+       "unknown: Struct: outside the coherence table"
+      ],
+      "type": "outside:Struct"
+     }
+    ],
     "mentions": [
+     "bool",
+     "float",
+     "double",
+     "longDouble",
+     "size",
+     "ushort",
+     "outside:Struct",
+     "char",
      "pointer",
      "int"
     ],
@@ -298,9 +327,38 @@
   },
   "clang": {
    "applicability": {
-    "applies": true,
-    "blockers": [],
+    "applies": false,
+    "blockers": [
+     {
+      "issues": [
+       "differs: core memory 8/8 vs data model 4/4",
+       "differs: core computes in Silmaril.Cerberus.NativeTypes.Floating.binary64, target format Silmaril.Cerberus.NativeTypes.Floating.binary32"
+      ],
+      "type": "float"
+     },
+     {
+      "issues": [
+       "differs: core memory 8/8 vs data model 16/16",
+       "differs: core computes in Silmaril.Cerberus.NativeTypes.Floating.binary64, target format Silmaril.Cerberus.NativeTypes.Floating.x87"
+      ],
+      "type": "longDouble"
+     },
+     {
+      "issues": [
+       "unknown: Struct: outside the coherence table"
+      ],
+      "type": "outside:Struct"
+     }
+    ],
     "mentions": [
+     "bool",
+     "float",
+     "double",
+     "longDouble",
+     "size",
+     "ushort",
+     "outside:Struct",
+     "char",
      "pointer",
      "int"
     ],

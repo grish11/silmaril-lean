@@ -25,6 +25,10 @@ accepts while dropping them are listed under `losses`. They are never hidden:
 * `cfront` drops the attributes it classes as neutral (`used`, `unused`, `deprecated`,
   `noinline`, `always_inline`) and rejects the others, `asm` labels among them.
 
+Clang's JSON AST names nodes by their in-memory addresses (`"id": "0x…"`), so it differs between
+runs: its SHA-256 identifies this run's dump, not a reproducible output. Everything downstream of
+it is checked against the stored dump (`make c-tv-check`).
+
 `cfront` writes `cfront-clang 23.1.0 …` into its documents whatever clang produced the AST. The
 pipeline records the clang that actually ran (here Debian clang 19.1.7) in `tools.clang`.
 
@@ -51,35 +55,39 @@ sufficient. None of the elaborated programs has `float`, `long double` or `wchar
 the same elaborator), checked with `TV.validate` both ways; "UB-free" means each source
 exploration was exhaustive without undefined behaviour (`validateUBFree`). A verdict that rests
 on source undefined behaviour is labelled so and never counted as a validation of defined
-behaviour. "Profile does not apply" means the Core mentions a type at which the x86-64 profile is
-not coherent (per type, `TV.Profile.AppliesTo`; `report.json` lists the mentions and blockers).
+behaviour. "Per-type check fails" means the executed Core (program part, reachable runtime
+functions and implementation constants) names a type at which the x86-64 profile is not
+coherent (`TV.Profile.AppliesTo`; `report.json` lists the types and blockers). It fails on every
+elaborated program here, because Cerberus's runtime conversion functions they reach name the
+floating types even on integer-only paths: the check is conservative, and no row here describes
+x86-64 Linux C.
 
 | Program | Cerberus route | Clang route | Frontend agreement | Native runs | Dropped |
 | --- | --- | --- | --- | --- | --- |
-| `arithmetic` | Core: defined 37 | Core: defined 37 | agree both ways (UB-free) | gcc-O0 exit 37: admitted by both Cores; gcc-O2 exit 37: admitted by both Cores |  |
-| `asm-label` | Core: defined 7 | frontend rejects | — | gcc-O0 exit 7: cerberus admitted; gcc-O2 exit 7: cerberus admitted | cerberus drops asm label or register |
-| `attribute` | frontend rejects | Core: defined 42 | — | gcc-O0 exit 42: clang admitted; gcc-O2 exit 42: clang admitted | clang drops attribute |
-| `calls` | Core: defined 5 | Core: defined 5 | agree both ways (UB-free) | gcc-O0 exit 5: admitted by both Cores; gcc-O2 exit 5: admitted by both Cores |  |
-| `compare` | Core: defined 2 | Core: defined 2 | agree both ways (UB-free) | gcc-O0 exit 2: admitted by both Cores; gcc-O2 exit 2: admitted by both Cores |  |
+| `arithmetic` | Core: defined 37 (per-type check fails) | Core: defined 37 (per-type check fails) | agree both ways (UB-free) | gcc-O0 exit 37: admitted by both Cores; gcc-O2 exit 37: admitted by both Cores |  |
+| `asm-label` | Core: defined 7 (per-type check fails) | frontend rejects | — | gcc-O0 exit 7: cerberus admitted; gcc-O2 exit 7: cerberus admitted | cerberus drops asm label or register |
+| `attribute` | frontend rejects | Core: defined 42 (per-type check fails) | — | gcc-O0 exit 42: clang admitted; gcc-O2 exit 42: clang admitted | clang drops attribute |
+| `calls` | Core: defined 5 (per-type check fails) | Core: defined 5 (per-type check fails) | agree both ways (UB-free) | gcc-O0 exit 5: admitted by both Cores; gcc-O2 exit 5: admitted by both Cores |  |
+| `compare` | Core: defined 2 (per-type check fails) | Core: defined 2 (per-type check fails) | agree both ways (UB-free) | gcc-O0 exit 2: admitted by both Cores; gcc-O2 exit 2: admitted by both Cores |  |
 | `control-flow` | elaborator rejects | elaborator rejects | — | gcc -O0 exit 6 (no Core to check) |  |
 | `division-by-zero` | elaborator rejects | elaborator rejects | — | gcc -O0 signal 8 (no Core to check) |  |
 | `float` | elaborator rejects | elaborator rejects | — | gcc -O0 exit 3 (no Core to check) |  |
 | `globals` | elaborator rejects | elaborator rejects | — | gcc -O0 exit 5 (no Core to check) |  |
-| `local-if` | Core: defined 12 | elaborator rejects | — | gcc-O0 exit 12: cerberus admitted; gcc-O2 exit 12: cerberus admitted |  |
+| `local-if` | Core: defined 12 (per-type check fails) | elaborator rejects | — | gcc-O0 exit 12: cerberus admitted; gcc-O2 exit 12: cerberus admitted |  |
 | `locals` | elaborator rejects | elaborator rejects | — | gcc -O0 exit 17 (no Core to check) |  |
-| `nested-calls` | Core: defined 42 | Core: defined 42 | agree both ways (UB-free) | gcc-O0 exit 42: admitted by both Cores; gcc-O2 exit 42: admitted by both Cores |  |
-| `overflow-return` | Core: ub | Core: ub | agree only through source UB | gcc-O0 exit 0: admitted by both Cores; gcc-O2 exit 0: admitted by both Cores |  |
+| `nested-calls` | Core: defined 42 (per-type check fails) | Core: defined 42 (per-type check fails) | agree both ways (UB-free) | gcc-O0 exit 42: admitted by both Cores; gcc-O2 exit 42: admitted by both Cores |  |
+| `overflow-return` | Core: ub (per-type check fails) | Core: ub (per-type check fails) | agree only through source UB | gcc-O0 exit 0: admitted by both Cores; gcc-O2 exit 0: admitted by both Cores |  |
 | `pointer` | elaborator rejects | elaborator rejects | — | gcc -O0 exit 3 (no Core to check) |  |
 | `recursion` | elaborator rejects | elaborator rejects | — | gcc -O0 exit 20 (no Core to check) |  |
-| `return-constant` | Core: defined 42 | Core: defined 42 | agree both ways (UB-free) | gcc-O0 exit 42: admitted by both Cores; gcc-O2 exit 42: admitted by both Cores |  |
-| `sign-extend` | Core: defined -1 | Core: defined -1 | agree both ways (UB-free) | gcc-O0 exit 255: admitted by both Cores; gcc-O2 exit 255: admitted by both Cores |  |
-| `signed-narrow` | Core: defined -56 | Core: defined -56 | agree both ways (UB-free) | gcc-O0 exit 200: admitted by both Cores; gcc-O2 exit 200: admitted by both Cores |  |
+| `return-constant` | Core: defined 42 (per-type check fails) | Core: defined 42 (per-type check fails) | agree both ways (UB-free) | gcc-O0 exit 42: admitted by both Cores; gcc-O2 exit 42: admitted by both Cores |  |
+| `sign-extend` | Core: defined -1 (per-type check fails) | Core: defined -1 (per-type check fails) | agree both ways (UB-free) | gcc-O0 exit 255: admitted by both Cores; gcc-O2 exit 255: admitted by both Cores |  |
+| `signed-narrow` | Core: defined -56 (per-type check fails) | Core: defined -56 (per-type check fails) | agree both ways (UB-free) | gcc-O0 exit 200: admitted by both Cores; gcc-O2 exit 200: admitted by both Cores |  |
 | `signed-overflow` | elaborator rejects | elaborator rejects | — | gcc -O0 exit 0 (no Core to check) |  |
 | `statement-expression` | frontend rejects | elaborator rejects | — | gcc -O0 exit 6 (no Core to check) |  |
 | `unsequenced-calls` | elaborator rejects | elaborator rejects | — | gcc -O0 exit 12 (no Core to check) |  |
 | `unsequenced-ub` | elaborator rejects | elaborator rejects | — | gcc -O0 exit 3 (no Core to check) |  |
-| `unsigned-parameter` | Core: defined 1 | Core: defined 1 | agree both ways (UB-free) | gcc-O0 exit 1: admitted by both Cores; gcc-O2 exit 1: admitted by both Cores |  |
-| `unsigned-wrap` | Core: defined 2 | Core: defined 2 | agree both ways (UB-free) | gcc-O0 exit 2: admitted by both Cores; gcc-O2 exit 2: admitted by both Cores |  |
+| `unsigned-parameter` | Core: defined 1 (per-type check fails) | Core: defined 1 (per-type check fails) | agree both ways (UB-free) | gcc-O0 exit 1: admitted by both Cores; gcc-O2 exit 1: admitted by both Cores |  |
+| `unsigned-wrap` | Core: defined 2 (per-type check fails) | Core: defined 2 (per-type check fails) | agree both ways (UB-free) | gcc-O0 exit 2: admitted by both Cores; gcc-O2 exit 2: admitted by both Cores |  |
 
 Most rejected programs stop at the elaborator, which covers selected cases of upstream's
 `translation.lem` only: non-`return` statements, loops, division and remainder, floating constants
