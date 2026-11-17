@@ -23,15 +23,15 @@ lake build --wfail cerb-lean cfront ctv-pipeline
 scripts/c-tv/torture.py --root /tmp/gcc/gcc/testsuite/gcc.c-torture --jobs 8
 ```
 
-## Statuses (second run of 2026-11-17)
+## Statuses (third run of 2026-11-17)
 
 [`tv-report.json.gz`](tv-report.json.gz) has one row per case, the tool versions and the manifest's
 SHA-256. Tools: gcc 14.2.0 (Debian), clang 19.1.7 (Debian), and `cerb-lean`, `cfront` and
 `ctv-pipeline` built from this repository (their SHA-256s are in the report). Elapsed time:
-478 s on 8 workers. Every case has exactly one status (`scripts/c-tv/torture.py`
+343 s on 8 workers. Every case has exactly one status (`scripts/c-tv/torture.py`
 defines them). `cross-validated` is a frontend agreement (Core to Core) with UB-free sources both
 ways; one that rests on source undefined behaviour is `cross-validated-ub`, counted separately
-(none in this run). Between runs, a case near the 60-second timeout can move between statuses
+(none in this run). An agreement with a route that accepted a construct it drops (an `asm` label, an attribute it does not show it keeps) is `cross-validated-blocked`: that route's Core does not correspond to the source (0 in this run; 239 cases have a blocked route in all). Between runs, a case near the 60-second timeout can move between statuses
 (the previous run had 1,131 frontend- and 2,512 elaborator-rejected).
 
 | Status | compile/ | execute/ | total |
@@ -45,6 +45,7 @@ ways; one that rests on source undefined behaviour is `cross-validated-ub`, coun
 | `explored` | 0 | 0 | 0 |
 | `cross-validated` | 2 | 2 | 4 |
 | `cross-validated-ub` | 0 | 0 | 0 |
+| `cross-validated-blocked` | 0 | 0 | 0 |
 | `refuted` | 0 | 0 | 0 |
 | `timeout` | 1 | 0 | 1 |
 | `tool-error` | 0 | 0 | 0 |
