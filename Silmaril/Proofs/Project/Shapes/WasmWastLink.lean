@@ -7,18 +7,21 @@ public import Silmaril.Wasm.SingleThreaded.Exec.InvokeRun
 public import Silmaril.Wasm.SingleThreaded.Soundness
 public import Silmaril.Wasm.Verify.Kernel.Thms
 public import Silmaril.Wasm.Execution.MemRep.Inst.Thms
+public import Silmaril.Wasm.Execution.InstantiateTrap.Thms
+public import Silmaril.Wasm.Execution.Core.Exec.InstantiateIff
 
 /-!
 # Proofs: linked WAST scripts from one kernel evaluation
 
 * `scriptG_toBytes`: the checker on `KMem` stores (`scriptLK`) agrees with the checker on
-  `ByteArray` stores (`instantiateOnce?_toBytes`, `runI_toBytes`);
-* `runG_sound`, `instG_sound`, `actG_sound`, `unlinkableG_sound`: a stopped run of a typed
-  configuration is a host-free normal form and stays typed; instantiation keeps the store typed
-  (`Game.instantiateOnce?_configOk`);
+  `ByteArray` stores (`instantiateOnce?_toBytes`, `instantiateOnceT?_toBytes`, `runI_toBytes`);
+* `runG_sound`, `instG_sound`, `instOutG_sound`, `actG_sound`, `unlinkableG_sound`: a stopped run
+  of a typed configuration is a host-free normal form and stays typed; instantiation keeps the
+  store typed (`Game.instantiateOnce?_configOk`), also the residual store of a segment trap
+  (`Game.instantiateOnceT?_trap_storeOk`);
 * `nf_unique`, `nf_always`: uniqueness and termination for the host-free normal forms of any
   configuration (from `Silmaril.Proofs.Project.Shapes.WasmWast`, same topic);
-* `actNF_unique`, `instNF_unique`, `cmdRun_unique`, `scriptAt_unique`: at `profile o` a script
+* `actNF_unique`, `instNF_unique`, `instOut_unique`, `cmdRun_unique`, `scriptAt_unique`: at `profile o` a script
   prefix reaches at most one context (`nf_unique`);
 * `scriptHolds_of_kernel`: `scriptLK … = true` gives `ScriptHolds`;
 * `reaches_always`: one run of an action to a result excludes infinite runs (`nf_always`);
@@ -99,6 +102,28 @@ theorem instG_toBytes (o : GrowOracle) (fuel : Nat) (ctx : CtxR R) (m : Module) 
           obtain ⟨s, f, st⟩ := p
           simp only [Option.map_some, runG_mk_toBytes]
           cases runG o fuel ⟨s, f, startCode st⟩ <;> rfl
+
+theorem instOutG_toBytes (o : GrowOracle) (fuel : Nat) (ctx : CtxR R) (m : Module) :
+    (instOutG o fuel ctx m).map (fun p => (p.1, p.2.toBytes)) = instOutG o fuel ctx.toBytes m := by
+  simp only [instOutG, CtxR.toBytes]
+  cases validate? m with
+  | none => rfl
+  | some mt =>
+    simp only
+    cases resolve? ctx.regs m.imports with
+    | none => rfl
+    | some xas =>
+      simp only [externAddrsOk?_toBytes]
+      cases externAddrsOk? ctx.store xas mt.imports with
+      | false => rfl
+      | true =>
+        simp only [ite_true, instantiateOnceT?_toBytes]
+        cases instantiateOnceT? ctx.store m xas with
+        | ok s f st =>
+          simp only [InstOutcome.map, runG_mk_toBytes]
+          cases runG o fuel ⟨s, f, startCode st⟩ <;> rfl
+        | trap s => rfl
+        | fail => rfl
 
 omit [LawfulMemRep R] in
 theorem inst?_toBytes (ctx : CtxR R) (t : Target) : ctx.toBytes.inst? t = ctx.inst? t := by
@@ -196,20 +221,15 @@ theorem cmdsG_toBytes (o : GrowOracle) (fuel : Nat) :
     rw [unlinkableG_toBytes, cmdsG_toBytes o fuel ctx cmds]
   | ctx, .uninstantiable m claim :: cmds => by
     simp only [cmdsG]
-    rw [← instG_toBytes]
-    cases instG o fuel ctx m with
+    rw [← instOutG_toBytes]
+    cases instOutG o fuel ctx m with
     | none => rfl
     | some p =>
-      obtain ⟨c, mi⟩ := p
-      simp only [Option.map_some]
-      change _ = match c.outcome? with
-        | some r => (!claim || decide (r = Result.trap)) &&
-            cmdsG o fuel { ctx.toBytes with store := c.store.toBytes } cmds
-        | none => false
-      cases c.outcome? with
+      obtain ⟨ro, s⟩ := p
+      cases ro with
       | none => rfl
       | some r =>
-        simp only
+        simp only [Option.map_some]
         rw [cmdsG_toBytes o fuel _ cmds]
         rfl
 
@@ -263,6 +283,41 @@ theorem nf_always {o : GrowOracle} {c₀ c : Config Nat} (h : Steps (profile o) 
 
 end NF
 
+/-! ## Segment traps at `profile o` -/
+
+/-- **A segment trap of `instantiateT?` is the one normal form of the specification's
+instantiation** at `profile o`: the `Instantiate` configuration exists, runs to `⟨s', f, [trap]⟩`
+(a normal form), and every normal form of every `Instantiate` configuration is that one. -/
+theorem instantiateT?_trap_nf {o : GrowOracle} {s s' : Store Nat} {m : Module}
+    {xas : List ExternAddr}
+    (hvalid : ∃ xtE xtI, ModuleOk m ⟨xtI, xtE⟩ ∧ List.Forall₂ (ExternAddrOk s) xas xtI)
+    (h : instantiateT? s m xas = .trap s') :
+    ∃ c₀ f, Instantiate (profile o) Det.noHost s m xas c₀ ∧ NF o c₀ ⟨s', f, [.trap]⟩ ∧
+      ∀ c₀' c, Instantiate (profile o) Det.noHost s m xas c₀' → NF o c₀' c →
+        c = ⟨s', f, [.trap]⟩ := by
+  obtain ⟨c, st, -, -, hI, hS⟩ :=
+    instantiateT?_trap_sound (P := profile o) (host := Det.noHost) hvalid h
+  have hnf : NF o (c.withStart st) ⟨s', c.frame, [.trap]⟩ :=
+    ⟨hS, fun x hx => Det.not_step_trap hx⟩
+  refine ⟨c.withStart st, c.frame, hI, hnf, fun c₀' c' hI' hc' => ?_⟩
+  have e : c₀' = c.withStart st := Option.some.inj
+    (((instantiate?_iff hvalid).2 hI').symm.trans ((instantiate?_iff hvalid).2 hI))
+  subst e
+  exact nf_unique hc'.1 hc'.2 hnf.1 hnf.2
+
+/-- **The segment-trap outcome of a script row, against the specification**: for a module without
+globals, the residual store of `InstOut.segTrap` is the store of the one normal form of the
+specification's instantiation (`Instantiate`) at `profile o`, a trap. -/
+theorem segTrap_nf {o : GrowOracle} {ctx : CtxR ByteArray} {m : Module} {mt : CModuleType}
+    {xas : List ExternAddr} {s : Store Nat} (hm : ModuleOk m mt)
+    (hx : List.Forall₂ (ExternAddrOk ctx.store) xas mt.imports)
+    (hi : instantiateOnceT? ctx.store m xas = .trap s) (hg : m.globals = []) :
+    ∃ c₀ f, Instantiate (profile o) Det.noHost ctx.store m xas c₀ ∧ NF o c₀ ⟨s, f, [.trap]⟩ ∧
+      ∀ c₀' c, Instantiate (profile o) Det.noHost ctx.store m xas c₀' → NF o c₀' c →
+        c = ⟨s, f, [.trap]⟩ :=
+  instantiateT?_trap_nf ⟨mt.exports, mt.imports, hm, hx⟩
+    (by rw [← instantiateOnceT?_of_nil (R := ByteArray) hg]; exact hi)
+
 /-! ## Soundness on `ByteArray` stores -/
 
 theorem runG_sound {o : GrowOracle} {fuel : Nat} {c c' : Config Nat} {ts : List CValType}
@@ -302,6 +357,39 @@ theorem instG_sound {o : GrowOracle} {fuel : Nat} {ctx : CtxR ByteArray} {m : Mo
             obtain ⟨rfl, rfl⟩ := h
             obtain ⟨hnf, hok⟩ := runG_sound hc hrun
             exact ⟨.mk hm hr hx' hi hnf, ConfigOk.storeOk hok⟩
+        · cases h
+      · cases h
+
+theorem instOutG_sound {o : GrowOracle} {fuel : Nat} {ctx : CtxR ByteArray} {m : Module}
+    {ro : Option Result} {s : Store Nat} (hs : StoreOk ctx.store)
+    (h : instOutG o fuel ctx m = some (ro, s)) : InstOut o ctx m ro s ∧ StoreOk s := by
+  unfold instOutG at h
+  split at h
+  · cases h
+  · rename_i mt hv
+    split at h
+    · cases h
+    · rename_i xas hr
+      split at h
+      · rename_i hx
+        have hm := validate?_sound hv
+        have hx' := externAddrsOk?_sound hx
+        split at h
+        · rename_i s₁ f st hi
+          have hi' := instantiateOnceT?_ok_iff.1 hi
+          have hc := Game.instantiateOnce?_configOk hs hm hx' hi'
+          cases hrun : runG o fuel ⟨s₁, f, startCode st⟩ with
+          | none => rw [hrun] at h; cases h
+          | some c' =>
+            rw [hrun] at h
+            simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at h
+            obtain ⟨rfl, rfl⟩ := h
+            obtain ⟨hnf, hok⟩ := runG_sound hc hrun
+            exact ⟨.start (.mk hm hr hx' hi' hnf), ConfigOk.storeOk hok⟩
+        · rename_i s₁ hi
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          exact ⟨.segTrap hm hr hx' hi, Game.instantiateOnceT?_trap_storeOk hs hm hx' hi⟩
         · cases h
       · cases h
 
@@ -410,6 +498,38 @@ theorem instNF_unique {o : GrowOracle} {ctx : CtxR ByteArray} {m : Module} {ro r
       obtain rfl := nf_unique hc.1 hc.2 hc'.1 hc'.2
       exact ⟨rfl, rfl, rfl⟩
 
+theorem instOut_unique {o : GrowOracle} {ctx : CtxR ByteArray} {m : Module} {ro ro' : Option Result}
+    {s s' : Store Nat} (h : InstOut o ctx m ro s) (h' : InstOut o ctx m ro' s') :
+    ro = ro' ∧ s = s' := by
+  cases h with
+  | start h =>
+    cases h' with
+    | start h' =>
+      obtain ⟨rfl, rfl, -⟩ := instNF_unique h h'
+      exact ⟨rfl, rfl⟩
+    | segTrap hm' hr' hx' hi' =>
+      cases h with
+      | mk hm hr hx hi hc =>
+        rw [hr] at hr'
+        cases hr'
+        rw [instantiateOnceT?_ok_iff.2 hi] at hi'
+        cases hi'
+  | segTrap hm hr hx hi =>
+    cases h' with
+    | start h' =>
+      cases h' with
+      | mk hm' hr' hx' hi' hc' =>
+        rw [hr] at hr'
+        cases hr'
+        rw [instantiateOnceT?_ok_iff.2 hi'] at hi
+        cases hi
+    | segTrap hm' hr' hx' hi' =>
+      rw [hr] at hr'
+      cases hr'
+      rw [hi] at hi'
+      cases hi'
+      exact ⟨rfl, rfl⟩
+
 theorem cmdRun_unique {o : GrowOracle} {ctx ctx₁ ctx₂ : CtxR ByteArray} {cmd : Cmd}
     (h₁ : CmdRun o ctx cmd ctx₁) (h₂ : CmdRun o ctx cmd ctx₂) : ctx₁ = ctx₂ := by
   cases h₁ with
@@ -433,7 +553,7 @@ theorem cmdRun_unique {o : GrowOracle} {ctx ctx₁ ctx₂ : CtxR ByteArray} {cmd
   | uninstantiable h =>
     cases h₂ with
     | uninstantiable h' =>
-      obtain ⟨-, rfl, -⟩ := instNF_unique h h'
+      obtain ⟨-, rfl⟩ := instOut_unique h h'
       rfl
 
 theorem run_unique {o : GrowOracle} {ctx ctx₁ ctx₂ : CtxR ByteArray} {cmds : List Cmd}
@@ -536,23 +656,19 @@ theorem cmdsG_holds {o : GrowOracle} {fuel : Nat} :
       | uninstantiable m claim =>
         simp only [cmdsG] at h
         split at h
-        · rename_i c mi hc
-          obtain ⟨hI, hs'⟩ := instG_sound hs hc
-          split at h
-          · rename_i r hr
-            simp only [Bool.and_eq_true] at h
-            obtain ⟨ht, h⟩ := h
-            rw [hr] at hI
-            refine ⟨_, hs', .uninstantiable hI, h, ?_⟩
-            cases claim with
-            | false => trivial
-            | true =>
-              simp only [Bool.not_true, Bool.false_or, decide_eq_true_eq] at ht
-              subst ht
-              refine ⟨⟨ctx, _, _, hS, hI⟩, fun ctx' ro s' mi' hS' h' => ?_⟩
-              obtain rfl := scriptAt_unique hS hS'
-              exact (instNF_unique hI h').1.symm
-          · cases h
+        · rename_i r s hc
+          obtain ⟨hI, hs'⟩ := instOutG_sound hs hc
+          simp only [Bool.and_eq_true] at h
+          obtain ⟨ht, h⟩ := h
+          refine ⟨_, hs', .uninstantiable hI, h, ?_⟩
+          cases claim with
+          | false => trivial
+          | true =>
+            simp only [Bool.not_true, Bool.false_or, decide_eq_true_eq] at ht
+            subst ht
+            refine ⟨⟨ctx, _, hS, hI⟩, fun ctx' ro s' hS' h' => ?_⟩
+            obtain rfl := scriptAt_unique hS hS'
+            exact (instOut_unique hI h').1.symm
         · cases h
     obtain ⟨ctx', hs', hrun, h', hholds⟩ := step
     cases k with

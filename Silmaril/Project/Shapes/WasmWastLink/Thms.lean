@@ -14,8 +14,15 @@ import Silmaril.Proofs.Project.Shapes.WasmWastLink
   Core reduction, through `instantiateOnce?_toBytes`, `runI_toBytes`, the interpreter's soundness
   and stopping theorems, `Game.instantiateOnce?_configOk` (instantiation keeps the store typed)
   and determinism at `profile o`.
+  A segment trap of an `assert_trap (module …)` continues the script with the residual store
+  (`instantiateOnceT?_toBytes`, `Game.instantiateOnceT?_trap_storeOk`: it is typed).
 * `ScriptHolds.returnsOnly`, `….trapsOnly`, `….unlinkable`, `….uninstantiable`: the row of
   command `k`.
+* `instantiateT?_trap_nf`: at `profile o`, a segment trap of `instantiateT?` (a valid module,
+  imports of the import types) is the **one** host-free normal form of the specification's
+  instantiation: some `Instantiate` configuration runs to `⟨s', f, [trap]⟩`, and every normal
+  form of every `Instantiate` configuration is that one. `InstOut.segTrap_nf`: for a module
+  without globals, the residual store of a script's segment trap is that store.
 * `ScriptAt.unique`: at `profile o`, a script prefix reaches at most one context.
 * `Only.unique`, `ReturnsOnly.not_traps`, `TrapsOnly.not_returns`.
 * `Reaches.always`, `ReturnsOnly.always`, `TrapsOnly.always`: a row also excludes divergence.
@@ -65,6 +72,28 @@ theorem ScriptHolds.uninstantiable {o : GrowOracle} {cmds : List Cmd} (h : Scrip
     (k : Nat) {m : Module} (hk : cmds[k]? = some (.uninstantiable m true)) :
     Uninstantiable o (pre cmds k) m :=
   h k _ hk
+
+/-- **A segment trap is the one normal form of the specification's instantiation** at
+`profile o`, with the residual store `s'`. -/
+theorem instantiateT?_trap_nf {o : GrowOracle} {s s' : Store Nat} {m : Module}
+    {xas : List ExternAddr}
+    (hvalid : ∃ xtE xtI, ModuleOk m ⟨xtI, xtE⟩ ∧ List.Forall₂ (ExternAddrOk s) xas xtI)
+    (h : instantiateT? s m xas = .trap s') :
+    ∃ c₀ f, Instantiate (profile o) Det.noHost s m xas c₀ ∧ NF o c₀ ⟨s', f, [.trap]⟩ ∧
+      ∀ c₀' c, Instantiate (profile o) Det.noHost s m xas c₀' → NF o c₀' c →
+        c = ⟨s', f, [.trap]⟩ :=
+  Silmaril.Proofs.Project.Shapes.WasmWastLink.instantiateT?_trap_nf hvalid h
+
+/-- **The residual store of a script's segment trap** (module without globals) is the store of
+the one normal form of the specification's instantiation at `profile o`. -/
+theorem InstOut.segTrap_nf {o : GrowOracle} {ctx : Ctx} {m : Module} {mt : CModuleType}
+    {xas : List ExternAddr} {s : Store Nat} (hm : ModuleOk m mt)
+    (hx : List.Forall₂ (ExternAddrOk ctx.store) xas mt.imports)
+    (hi : instantiateOnceT? ctx.store m xas = .trap s) (hg : m.globals = []) :
+    ∃ c₀ f, Instantiate (profile o) Det.noHost ctx.store m xas c₀ ∧ NF o c₀ ⟨s, f, [.trap]⟩ ∧
+      ∀ c₀' c, Instantiate (profile o) Det.noHost ctx.store m xas c₀' → NF o c₀' c →
+        c = ⟨s, f, [.trap]⟩ :=
+  Silmaril.Proofs.Project.Shapes.WasmWastLink.segTrap_nf hm hx hi hg
 
 /-- At `profile o`, a script prefix reaches at most one context. -/
 theorem ScriptAt.unique {o : GrowOracle} {pre : List Cmd} {ctx ctx' : Ctx}

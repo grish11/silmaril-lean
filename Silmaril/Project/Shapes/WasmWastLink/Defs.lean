@@ -3,6 +3,7 @@ module
 public import Silmaril.Project.Shapes.WasmWast.Defs
 public import Silmaril.Wasm.Execution.Core.Exec.ExternAddrCheck
 public import Silmaril.Wasm.Execution.MemRep.Sim.Defs
+public import Silmaril.Wasm.Execution.InstantiateTrap.Defs
 
 /-!
 # Standard problem shapes: linked WAST scripts with the closed `spectest` environment
@@ -15,7 +16,7 @@ of the specification test suite, stated over the Core semantics `Step (profile o
 | `silmaril.shapes.wasm.wast.link.returns_only` | `ReturnsOnly o pre act vs`: after the script prefix `pre`, some host-free normal form of the action `act` returns `vs`, and every one does |
 | `silmaril.shapes.wasm.wast.link.traps_only` | `TrapsOnly o pre act`: the same with a trap |
 | `silmaril.shapes.wasm.wast.link.unlinkable` | `Unlinkable o pre m`: after `pre`, `m` is valid and its imports cannot be linked: some import names no export of a registered instance, or the resolved external addresses do not have the import types (`ExternAddrOk`) |
-| `silmaril.shapes.wasm.wast.link.uninstantiable` | `Uninstantiable o pre m`: after `pre`, `m` links and `instantiateOnce?` allocates it, and its start function traps, at every host-free normal form |
+| `silmaril.shapes.wasm.wast.link.uninstantiable` | `Uninstantiable o pre m`: after `pre`, `m` links and its instantiation traps: its segment initialisation traps (`instantiateOnceT?`), or it is allocated and its start function traps at every host-free normal form |
 
 **The environment is a closed Wasm module, not a host.** The reference interpreter's `spectest`
 (`interpreter/host/spectest.ml` of WebAssembly/spec) is modelled by the instance of the fixed
@@ -47,8 +48,13 @@ the reference interpreter does when its assertion holds (`CmdRun`):
   persist across modules, also after a trap, and also through imported memories, tables and
   globals;
 * `assert_unlinkable`: no change;
-* `assert_uninstantiable`: the store after the start call's normal form (the instance itself is
-  unreachable; what the start function wrote into imported state persists).
+* `assert_uninstantiable` (`InstOut`): the module links, and either its segment initialisation
+  traps, and the context gets the **residual store** of `instantiateOnceT?` (the store at the
+  trapping `table.init`/`memory.init`: the module's allocation and the writes of the earlier
+  segments, also into imported tables and memories, persist), or it is allocated and the store
+  after the start call's normal form is the next one (what the start function wrote into
+  imported state persists). In both cases the instance is neither current, named nor registered,
+  as in the reference interpreter (`assert_trap (module …)` binds no instance).
 
 `ScriptAt o pre ctx` relates the prefix to every context it can reach; at `profile o` there is at
 most one (`ScriptAt.unique`, `….Thms`). As in `Silmaril.Project.Shapes.WasmWast`, a claim is
@@ -59,8 +65,11 @@ every finite run extends to the outcome) follows by `ReturnsOnly.always` (`….T
 `Unlinkable` is relative to the script-level name resolution `resolve?` (that of the reference
 interpreter's registry) and to silmaril-lean's transcription `ExternAddrOk`; with `ModuleOk.unique`
 it gives `Unlinkable.not_instantiate`: no `Instantiate` derivation exists for the resolved
-addresses, under any profile and host. `Uninstantiable` covers start functions that trap; a
-segment initialisation that traps makes `instantiateOnce?` fail, and has no shape here.
+addresses, under any profile and host. `Uninstantiable` covers segment initialisations that trap
+and start functions that trap. A segment trap is stated through `instantiateOnceT?`, whose residual
+store is the store of the specification's reduction of the segment code at the trap
+(`instantiateT?_trap_sound`, `instantiateOnceT?_trap_steps`, `….Execution.InstantiateTrap.Thms`;
+`instantiateT?_trap_nf`, `….Thms`, at `profile o`).
 
 `Silmaril.Project.Shapes.WasmWastLink.Thms` proves every claim of a script from one kernel
 evaluation of `scriptLK` on `KMem` stores (`ScriptHolds.of_kernel`).
@@ -203,7 +212,8 @@ inductive Cmd where
   | action (act : Action) (expect : Option Expect)
   /-- `(assert_unlinkable …)`. -/
   | unlinkable (m : Module) (claim : Bool)
-  /-- `(assert_uninstantiable …)` of a module whose start function traps. -/
+  /-- `(assert_trap (module …))` (`assert_uninstantiable`): a module whose segment
+  initialisation or start function traps. -/
   | uninstantiable (m : Module) (claim : Bool)
 
 /-! ## Runs -/
@@ -237,6 +247,18 @@ inductive InstNF (o : GrowOracle) (ctx : Ctx) (m : Module) :
       (hi : instantiateOnce? ctx.store m xas = some (s, f, st))
       (hc : NF o ⟨s, f, startCode st⟩ c) : InstNF o ctx m c.outcome? c.store f.module
 
+/-- **The outcomes of instantiating `m` in `ctx`**, with the next store: `m` is valid and its
+imports resolve to addresses of the import types, and either the trap-aware single allocation
+`instantiateOnceT?` traps in its segment initialisation, with the residual store `s` (the outcome
+is a trap), or `m` is allocated and its start code runs to a host-free normal form (`InstNF`). -/
+inductive InstOut (o : GrowOracle) (ctx : Ctx) (m : Module) : Option Result → Store Nat → Prop
+  | start {ro : Option Result} {s : Store Nat} {mi : ModuleInst} (h : InstNF o ctx m ro s mi) :
+      InstOut o ctx m ro s
+  | segTrap {mt : CModuleType} {xas : List ExternAddr} {s : Store Nat} (hm : ModuleOk m mt)
+      (hr : resolve? ctx.regs m.imports = some xas)
+      (hx : List.Forall₂ (ExternAddrOk ctx.store) xas mt.imports)
+      (hi : instantiateOnceT? ctx.store m xas = .trap s) : InstOut o ctx m (some .trap) s
+
 /-- One command changes the context (see the module docstring). -/
 inductive CmdRun (o : GrowOracle) : Ctx → Cmd → Ctx → Prop
   | module {ctx : Ctx} {name : Option String} {m : Module} {s : Store Nat} {mi : ModuleInst}
@@ -250,7 +272,7 @@ inductive CmdRun (o : GrowOracle) : Ctx → Cmd → Ctx → Prop
       (h : ActNF o ctx act (some r) s) : CmdRun o ctx (.action act e) { ctx with store := s }
   | unlinkable {ctx : Ctx} {m : Module} {claim : Bool} : CmdRun o ctx (.unlinkable m claim) ctx
   | uninstantiable {ctx : Ctx} {m : Module} {claim : Bool} {r : Result} {s : Store Nat}
-      {mi : ModuleInst} (h : InstNF o ctx m (some r) s mi) :
+      (h : InstOut o ctx m (some r) s) :
       CmdRun o ctx (.uninstantiable m claim) { ctx with store := s }
 
 /-- The commands run in order. -/
@@ -307,14 +329,16 @@ def Unlinkable (o : GrowOracle) (pre : List Cmd) (m : Module) : Prop :=
       ∀ mt xas, ModuleOk m mt → resolve? ctx.regs m.imports = some xas →
         ¬ List.Forall₂ (ExternAddrOk ctx.store) xas mt.imports
 
-/-- **`assert_uninstantiable`, start trap**: after `pre`, `m` links and is allocated by
-`instantiateOnce?`, and some host-free run of its start code traps; every host-free normal form
-of the start code is a trap. -/
+/-- **`assert_trap (module …)`** (`assert_uninstantiable`): after `pre`, `m` links and its
+instantiation traps (`InstOut`): its segment initialisation traps (`instantiateOnceT?`), or it is
+allocated and some host-free run of its start code traps; and every outcome of its instantiation
+is a trap (no host-free normal form of the start code is a result other than a trap, and no
+stuck state). -/
 @[problem "silmaril.shapes.wasm.wast.link.uninstantiable"
-  (title := "After a linked WAST script prefix (closed spectest module), a module links and its start function traps, at every host-free normal form")]
+  (title := "After a linked WAST script prefix (closed spectest module), a module links and its instantiation traps (segment initialisation or start function), at every outcome")]
 def Uninstantiable (o : GrowOracle) (pre : List Cmd) (m : Module) : Prop :=
-  (∃ ctx s mi, ScriptAt o pre ctx ∧ InstNF o ctx m (some .trap) s mi) ∧
-    ∀ ctx ro s mi, ScriptAt o pre ctx → InstNF o ctx m ro s mi → ro = some .trap
+  (∃ ctx s, ScriptAt o pre ctx ∧ InstOut o ctx m (some .trap) s) ∧
+    ∀ ctx ro s, ScriptAt o pre ctx → InstOut o ctx m ro s → ro = some .trap
 
 /-- The claim of a command after the commands `pre`. -/
 def Cmd.Holds (o : GrowOracle) (pre : List Cmd) : Cmd → Prop
@@ -374,6 +398,23 @@ noncomputable def instG (o : GrowOracle) (fuel : Nat) (ctx : CtxR R) (m : Module
         | none => none
       else none
 
+/-- Link and instantiate `m` with the trap-aware `instantiateOnceT?`: on a segment trap, a trap
+and the residual store; otherwise the outcome of the start code and its store. -/
+noncomputable def instOutG (o : GrowOracle) (fuel : Nat) (ctx : CtxR R) (m : Module) :
+    Option (Option Result × Store Nat R) :=
+  match validate? m with
+  | none => none
+  | some mt =>
+    match resolve? ctx.regs m.imports with
+    | none => none
+    | some xas =>
+      if externAddrsOk? ctx.store xas mt.imports then
+        match instantiateOnceT? ctx.store m xas with
+        | .ok s f st => (runG o fuel ⟨s, f, startCode st⟩).map fun c => (c.outcome?, c.store)
+        | .trap s => some (some .trap, s)
+        | .fail => none
+      else none
+
 /-- `m` is valid and its imports do not resolve to addresses of its import types. -/
 def unlinkableG (ctx : CtxR R) (m : Module) : Bool :=
   match validate? m with
@@ -427,12 +468,9 @@ noncomputable def cmdsG (o : GrowOracle) (fuel : Nat) : CtxR R → List Cmd → 
     | none => false
   | ctx, .unlinkable m claim :: cmds => (!claim || unlinkableG ctx m) && cmdsG o fuel ctx cmds
   | ctx, .uninstantiable m claim :: cmds =>
-    match instG o fuel ctx m with
-    | some (c, _) =>
-      match c.outcome? with
-      | some r => (!claim || decide (r = .trap)) && cmdsG o fuel { ctx with store := c.store } cmds
-      | none => false
-    | none => false
+    match instOutG o fuel ctx m with
+    | some (some r, s) => (!claim || decide (r = .trap)) && cmdsG o fuel { ctx with store := s } cmds
+    | _ => false
 
 /-- Validate `Spectest.module` (no imports), instantiate it in the empty store `s₀`, register it,
 and run the commands. -/
