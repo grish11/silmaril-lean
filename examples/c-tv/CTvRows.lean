@@ -60,6 +60,7 @@ theorem overflow_validated : (validate Spec.Impl.lp64 overflow overflowTarget).v
 @[solves "silmaril.c_tv.examples.fold.applies"] theorem fold_applies : silmaril.c_tv.examples.fold.applies := by
   unfold silmaril.c_tv.examples.fold.applies ProfileApplies; cbv
 
+set_option maxHeartbeats 4000000 in
 @[solves "silmaril.c_tv.examples.fold.refines_on"] theorem fold_refines_on : silmaril.c_tv.examples.fold.refines_on :=
   CRefinesOn.of_validate {} (by cbv) (by cbv) (by cbv)
 
