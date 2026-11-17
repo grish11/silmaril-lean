@@ -12,6 +12,7 @@ import Silmaril.Proofs.Wasm.Cfg.MachineLProjS
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjT
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjX
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjK
+import Silmaril.Proofs.Wasm.Cfg.MachineLProjF
 public import Silmaril.Wasm.Interp.EHSim.Thms
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjE
 public import Silmaril.Wasm.Abstract.CallXT.Thms
@@ -168,9 +169,15 @@ The hypotheses are now only an arity-respecting oracle (`ArityResp Γ C`) with `
 `Ctx.Good` stores, and the body's own `chkE (ehExt tags)` check. That is every call form and every
 structured instruction, exceptions on.
 
-On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
-projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
-correspondence remain open (`docs/projects/wasm-cfg.md`).
+**`tail_fit_initialK`**: under the same hypotheses, the pending tail call at the end of a logged run
+from the CFG entry (`TailL`) passes exactly its callee's parameter count, and its result count is
+the callee's (from `flat_runP`'s `ResOutP`). So its answer by a closure restricted to fitting calls
+(`TypedCat.fitP`) is an answer of that restriction (`MachineLClose`).
+
+On untyped code the two machines' stack conventions differ (`ExampleLogged`). For host-free
+behaviours of the session closure, `CloseOk (fitP closedCallXP)` is discharged in
+`Silmaril.Wasm.Cfg.MachineLClose`; logs with host events remain open
+(`docs/projects/wasm-cfg.md`).
 -/
 
 namespace Silmaril.Wasm.Cfg.MachineL
@@ -513,5 +520,20 @@ theorem proj_tail_initialK {P : Numerics.Profile} {host : HostSemantics H}
     (hl : ∀ e ∈ l ++ l', CloseOk C e) (he : CloseOk C (Abstract.SCall.mk a args s₁ b s₂)) :
     Relation.ReflTransGen (MStepC P host C body) (initial body s f) (tailSink b s₂ f₁) :=
   Proofs.MachineLProjK.proj_tail_initialK hA hg hchk h ht hl he
+
+/-- **A pending tail call at the end of a checked logged run fits its callee**: the callee of the
+store the call leaves has a function type `(ps, rs)`, the call passes exactly `ps.length`
+arguments, and its result count is `rs.length`. -/
+theorem tail_fit_initialK {C : Abstract.CallRel H} {Γ : Ctx H} (hA : ArityResp Γ C) {ret : Nat}
+    {body : Expr} {s : Store H} {f : Frame} (hg : Γ.Good s)
+    (hchk : endsAt (chkE (ehExt Γ.tags) Γ.funcs f.module f.locals.length ret [ret] (some 0)
+      (liftInstrs body)) ret = true)
+    {l l' : List (Abstract.SCall H)} {st : MState H} {s₁ : Store H} {f₁ : Frame} {a n : Nat}
+    {args : List Val} (h : MRunL body (initial body s f) l st)
+    (ht : TailL body st l' (s₁, f₁, .tail a args n)) (hl : ∀ e ∈ l ++ l', CloseOk C e) :
+    ∃ (fi : FuncInst H) (ps rs : List Validation.CValType), s₁.funcs[a]? = some fi ∧
+      Validation.DefType.funcType? fi.type = some (ps, rs) ∧ args.length = ps.length ∧
+      n = rs.length :=
+  Proofs.MachineLProjF.tail_fit_initialK hA hg hchk h ht hl
 
 end Silmaril.Wasm.Cfg.MachineL

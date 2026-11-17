@@ -649,7 +649,8 @@ The plain graph stays an over-approximation, and claims about it say so.
                  structured instruction, exceptions on**. Its hypotheses: `ArityResp Γ C` with
                  `CloseOk C` logs, `Ctx.Good`, and the body's own `chkE (ehExt tags)` check.
              - Remaining for the stepwise projection: none. For the session result, `CloseOk`
-               is discharged by the canonical closing correspondence (next). It must keep
+               is discharged by the canonical closing correspondence (host-free: done,
+               `MachineLClose`, below). It must keep
              the exception outcomes, tag matching, trap stores, and tail calls bypassing the
              caller's handlers. Then the stepwise projection extends to EH.
           3. Validated typed nested fixtures (block, loop, if, catch) on which it holds.
@@ -671,6 +672,35 @@ The plain graph stays an over-approximation, and claims about it say so.
                (`try_table`, `throw`).
           The `CloseOk` hypothesis is discharged in the session/host result by the canonical
           store-retaining closing correspondence, not kept as an assumption that all logs are good.
+          - **Host-free discharge, done** (`Wasm/Cfg/MachineLClose`). No assumption on the logs.
+            - `closeOk_of_session` (no typing): a behaviour `([], .ret b s₂)` of
+              `wasmEvFunXPS s (g, args)` is `CloseOk closedCallXP (SCall.mk g args s b s₂)`:
+              values (trimmed to the result count), exceptions and callee traps
+              (`.inr ()`), each in the store the closure leaves. Least-fixpoint induction on
+              `Shape.close wasmHOpenXPS`: with the empty log every call is internal and resolved
+              with the empty log, so the body run is `EvalOXP closedCallXP` (`closed_iff_logged`),
+              and `closedCallXP_fixpoint` with `FrameP` gives the answer. A pending tail call is
+              answered at the frame (`FrameP.tail`); its `n` is the callee's result count
+              (`evalLXPS_tail_wf`), so the closure's `tailAnsS` trimming is `closedCallXP`'s.
+              `session_ret`: every session behaviour ends in `.ret`.
+            - `logged_of_session`: for a Wasm function `a` (`s.funcs[a]? = some fi`,
+              `fi.code = .wasm fn`, type `(ps, rs)`), called with `vs.length = ps.length`, from a
+              store with `Γ.Good s`, a behaviour `([], e)` is an `MRunL` run of `fn.body` from the
+              CFG entry (frame `Frame.forCall fi.module vs fn.locals`) with every entry
+              `CloseOk (fitP closedCallXP)`: to a sink (`EndRel`) whose exit flow gives `e`
+              (`endOfFlowS`), or to a `TailL` block whose tail answer is also such an entry and
+              `e = tailAnsS rs.length n b s₂`.
+            - `proj_of_session`: then `proj_initialK`/`proj_tail_initialK` with
+              `arityResp_fitClosed` give an `MStepC P host (fitP closedCallXP)` run from the CFG
+              entry to a state `ProjRel`-related to that sink, or to `tailSink b s₂ f₁`.
+            - Fitting (`ArgsFit`): the body's calls fit by its `StoreChkE` check
+              (`TypedCatFit.evalOXP_closed_iff_fit`); the pending tail call fits by the new
+              `MachineLProj.tail_fit_initialK` (from `flat_runP`'s `ResOutP`). The invocation
+              must fit (`vs.length = ps.length`): `StoreChkE` checks the body with `ps.length`
+              parameter locals, and the frame has `vs.length`. This is the hypothesis every
+              `fitP` answer carries for its own call.
+            - Next: the host case (logs with host events, through `CfgSession`'s session
+              correspondence), and stating the result over `CfgSession.cfgEvFunXPS`.
         - Converse support: `MachineLSeq.split` (a run of `es₁ ++ es₂` falls through `es₁` then runs
           `es₂`, or ends abruptly in `es₁`), the converse of `append`.
         - Converse design (next PR): induction on the native derivation, level by level.
