@@ -479,9 +479,10 @@ theorem laterFail_ref (h1 : FirstK') {b : ByteArray} {c : Comp Binary.CoreMod} {
         exact this)
       ⟨ps'[k']'(by simp at hk; omega), by simp, by simpa using hfl⟩
       (hFR _ (by rw [foldlM_option_append, hR₁]; simp [hci])) hL hc hh
-  have hsteps := Adequacy.steps_append (Adequacy.steps_append hs₀ d.steps) (.cons hstep (.refl _))
-  simp only [List.cons_append] at hsteps
-  refine ⟨m', tr₀ ++ tr₁ ++ [Label.trap rT], by exact hsteps, ?_, ?_, Adequacy.step_trap_lockdown hstep⟩
+  have hready : HostReadyCfg hostConfigX := ⟨rfl, rfl, rfl⟩
+  have hsteps := Adequacy.steps_append (hs₀.trans d).steps (.cons hstep (.refl _))
+  refine ⟨m', tr₀ ++ tr₁ ++ [Label.trap rT], .cons (.hostRun hready) hsteps, ?_, ?_,
+    Adequacy.step_trap_lockdown hstep⟩
   · intro ev hev
     simp only [List.mem_append, List.mem_singleton] at hev
     rcases hev with (h | h) | h

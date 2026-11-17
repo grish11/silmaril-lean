@@ -16,6 +16,10 @@ and the end of the instantiation (`Nodes.nodesRef_of'`).
 
 namespace Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi
 
+/-- **The instantiation on the fragment, by unique steps.** -/
+theorem nodesRefL : NodesRefL :=
+  nodesRefL_of' firstK' laterCoreStep'
+
 /-- **The instantiation on the fragment.** -/
 theorem nodesRef : Silmaril.Wasm.Component.DecoderBridge.Task.nodesRef :=
   nodesRef_of' firstK' laterCoreStep'

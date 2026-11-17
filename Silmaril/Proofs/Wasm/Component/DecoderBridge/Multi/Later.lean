@@ -48,25 +48,31 @@ local notation "Σh" => Unit × List HLinked2.HostEvent
 /-! ## The continuation of the definitions -/
 
 /-- **The continuation finishes the instantiation**: from a configuration running `K sc`, the
-machine runs without host events to a configuration with the host in control and the store not
-locked down, the same host state and core store, observing the instance `0` with the function
-exports of `sc`. -/
+machine runs by unique steps (`LRun`), without host events, to a configuration with the host in
+control and the store not locked down, the same host state and core store, observing the instance
+`0` with the function exports of `sc`. -/
 def KFin (K : Scope (core3 neverFail) → Canon.P (core3 neverFail) Σh (Ret (core3 neverFail))) :
     Prop :=
   ∀ (sc : Scope (core3 neverFail)) (M : Machine.Config (core3 neverFail) Σh),
     M.store.lockdown = false → M.ctl = [.ofProg none (K sc)] →
-    ∃ tr M', Steps first.prof embL.hr (Host.ofEmbedder embL).dispatch M tr M' ∧
+    ∃ tr M', LRun first.prof embL.hr (DG embL.host) M tr M' ∧
       (∀ ev, Label.host ev ∉ tr) ∧ M'.ctl = [] ∧ M'.store.lockdown = false ∧
       M'.host = M.host ∧ M'.store.core = M.store.core ∧
       (traceObs tr).findSome? decodeInstantiated? = some (⟨0⟩, funcExports sc.exports)
 
+/-- The configuration after the instantiation host event: the host frame runs the instantiation
+program. -/
+abbrev instCfg (r : RefComponent) : Machine.Config (core3 neverFail) Σh :=
+  { hostConfigX with ctl := ⟨none, .prog (instantiateProg r (importArgs hostI) >>=
+      fun _ => pure .unit), []⟩ :: [] }
+
 /-- **The reference machine at the definitions `post`, with a finishing continuation**: reached
-from the instantiation host event without host events or internal faults; the continuation `K` of the definitions finishes the instantiation (`KFin`); the
-store is not locked down and the host log is `L`. -/
+from the instantiation host event by unique steps (`LRun` from `instCfg r`), without host events
+or internal faults; the continuation `K` of the definitions finishes the instantiation (`KFin`);
+the store is not locked down and the host log is `L`. -/
 def RefAtDefsK (r post : RefComponent) (sc : Scope (core3 neverFail))
     (L : List HLinked2.HostEvent) (M : Machine.Config (core3 neverFail) Σh) : Prop :=
-  (∃ tr, Steps first.prof embL.hr (Host.ofEmbedder embL).dispatch hostConfigX
-      (.host (instantiateTop r (importArgs hostI)) :: tr) M ∧
+  (∃ tr, LRun first.prof embL.hr (DG embL.host) (instCfg r) tr M ∧
     (∀ ev, Label.host ev ∉ tr) ∧ (∀ msg, Label.trap (.internal msg) ∉ tr)) ∧
   (∃ K, KFin K ∧
     M.ctl = [.ofProg none (post.foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc

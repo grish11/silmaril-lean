@@ -172,7 +172,7 @@ theorem firstK : FirstK := by
       M.store.lockdown = false → M.host = ((), logOfCalls t₀) → LaterInv pre sc M →
       ∃ sc M, RefAtDefsK r post sc (logOfCalls t₀) M ∧ LaterInv pre sc M := by
     intro tr M sc d hl hh hinv
-    refine ⟨sc, _, ⟨⟨tr, .cons (.hostRun hready) d.steps, Adequacy.LRun.no_host d,
+    refine ⟨sc, _, ⟨⟨tr, d, Adequacy.LRun.no_host d,
       fun msg => Adequacy.LRun.no_trap d ⟨List.cons_ne_nil _ _, hl⟩ _⟩, ⟨K, hKF', rfl⟩, hl, hh⟩,
       ?_⟩
     exact ⟨hinv.mods, hinv.insts, hinv.lock, hinv.func0, hinv.inst, hinv.tramp, hinv.ok,

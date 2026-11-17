@@ -455,7 +455,7 @@ theorem root_firstK2 {r pre post : Core3Component} {mi : Nat} {cargs : List (Str
           ctl := [⟨none, .prog (pure (Ret.unit : Ret (core3 neverFail))), []⟩] } .tau
         { M with store := DispatchSt.decNestingSt M.store, ctl := [] } :=
       .of_prog rfl (fun _ _ e => by cases e) (.hostDone (r := .unit) (rest := []) rfl)
-    refine ⟨_, _, (d.trans (.cons ⟨List.cons_ne_nil _ _, hl⟩ s (.refl _))).steps, ?_, rfl, hl,
+    refine ⟨_, _, d.trans (.cons ⟨List.cons_ne_nil _ _, hl⟩ s (.refl _)), ?_, rfl, hl,
       rfl, rfl, ?_⟩
     · intro ev hev
       simp at hev
@@ -689,7 +689,7 @@ theorem firstK' : FirstK' := by
           ({ env := (r.filter isFuncImport).length } : RSt) = some R₀ →
           FrameRel (coreMods pre) R₀ sc := by
     intro tr M sc d hl hh hinv hfr
-    refine ⟨sc, _, ⟨⟨tr, .cons (.hostRun hready) d.steps, Adequacy.LRun.no_host d,
+    refine ⟨sc, _, ⟨⟨tr, d, Adequacy.LRun.no_host d,
       fun msg => Adequacy.LRun.no_trap d ⟨List.cons_ne_nil _ _, hl⟩ _⟩, ⟨K, hKF', rfl⟩, hl, hh⟩,
       ?_⟩
     exact ⟨⟨hinv.mods, hinv.insts, hinv.lock, hinv.func0, hinv.inst, hinv.tramp, hinv.ok,

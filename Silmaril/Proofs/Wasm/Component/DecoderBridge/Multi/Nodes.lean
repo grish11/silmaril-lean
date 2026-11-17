@@ -442,7 +442,7 @@ theorem later_run (h2 : LaterCoreStep') {pre : RefComponent} :
       M.ctl = [.ofProg none
         (ds.foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc >>= K)] →
       M.host = ((), L) →
-      ∃ tr M', Steps first.prof embL.hr (Host.ofEmbedder embL).dispatch M tr M' ∧
+      ∃ tr M', LRun first.prof embL.hr (DG embL.host) M tr M' ∧
         (∀ ev, Label.host ev ∉ tr) ∧ M'.ctl = [] ∧ M'.store.lockdown = false ∧
         M'.host = ((), L ++ logOfCalls ts.flatten) ∧
         ∃ x, (traceObs tr).findSome? decodeInstantiated? = some x
@@ -512,7 +512,7 @@ theorem later_run (h2 : LaterCoreStep') {pre : RefComponent} :
         later_run h2 ds _ Rf sc₁ M₁ K (L ++ logOfCalls t) ps' ts' hfold hpost ⟨Y, hY, hW'⟩
           (fun q hq => hok q (List.mem_cons_of_mem _ hq)) hNC' (fun x hx => hu x (.inr hx))
           hF₁ hL₁ hK hc₁ hh₁
-      refine ⟨tr₁ ++ tr₂, M₂, Adequacy.steps_append d₁.steps d₂, ?_, hctl, hlock, ?_, ?_⟩
+      refine ⟨tr₁ ++ tr₂, M₂, d₁.trans d₂, ?_, hctl, hlock, ?_, ?_⟩
       · intro ev hev
         rcases List.mem_append.mp hev with h | h
         · exact hn₁ ev h
@@ -532,7 +532,7 @@ theorem later_run (h2 : LaterCoreStep') {pre : RefComponent} :
         later_run h2 ds R₁ Rf sc₁ { M₁ with ctl := _ } K L ps ts hfold hpost
           ⟨X, by rw [hX, hY₁, List.append_nil], hW⟩ hok hNC hu hF₁
           (hL₁.congr rfl rfl (fs := []) (by simp)) hK rfl (by rw [← hh, ← hh₁])
-      refine ⟨tr₁ ++ tr₂, M₂, Adequacy.steps_append d₁.steps d₂, ?_, hctl, hlock, hhost, ?_⟩
+      refine ⟨tr₁ ++ tr₂, M₂, d₁.trans d₂, ?_, hctl, hlock, hhost, ?_⟩
       · intro ev hev
         rcases List.mem_append.mp hev with h | h
         · exact absurd (htau _ h) (by simp)
@@ -555,8 +555,24 @@ theorem foldlM_option_append {α β : Type} (f : β → α → Option β) :
     | none => rfl
     | some b' => exact foldlM_option_append f l₁ l₂ b'
 
-/-- **The instantiation, from the first node and the later core instantiations.** -/
-theorem nodesRef_of' (h1 : FirstK') (h2 : LaterCoreStep') : Task.nodesRef := by
+/-- **The instantiation by unique steps**: `Task.nodesRef`, with the run from the instantiation
+host event a live run of unique steps (`LRun` from `instCfg r`) to a configuration with the host
+in control, observing the instance `inst` with the exports `es`. -/
+def NodesRefL : Prop :=
+  ∀ (b : ByteArray) (c : Comp Binary.CoreMod) (r : RefComponent)
+    (ps : List (Binary.CoreMod × List Impl)) (ts : List (List (Σ _ : sigU.Op, Option Payload))),
+    Binary.parseComponent b = .ok c → decodeRef b = .ok r → MultiImpFrag r →
+    c.imports = hostI → c.nodes = coreNodes ps →
+    (∀ x ∈ ts.flatten, x.2 = InstTests.unitV) →
+    List.Forall₂ (fun q tj => NodeCalls hostI.length .ready q.1 q.2 tj) ps ts →
+    ∃ tr M' inst es, LRun first.prof embL.hr (DG embL.host) (instCfg r) tr M' ∧
+      (∀ ev, Label.host ev ∉ tr) ∧ M'.ctl = [] ∧ M'.store.lockdown = false ∧
+      (traceObs tr).findSome? decodeInstantiated? = some (inst, es) ∧
+      M'.host = ((), logOfCalls ts.flatten)
+
+/-- **The instantiation by unique steps, from the first node and the later core
+instantiations.** -/
+theorem nodesRefL_of' (h1 : FirstK') (h2 : LaterCoreStep') : NodesRefL := by
   intro b c r ps ts hpc hr hf himp hnodes hu hNC
   obtain ⟨-, hw, -, pre, mi, cargs, post, hs, -, hpostOk⟩ := multiImpFrag_inv hf
   obtain ⟨p, ps', rfl⟩ := nodes_ne_nil hpc hr hf hnodes
@@ -609,11 +625,19 @@ theorem nodesRef_of' (h1 : FirstK') (h2 : LaterCoreStep') : Task.nodesRef := by
       (fun q hq => hok q (List.mem_cons_of_mem _ hq)) hNC' (fun x hx => hu x (.inr hx))
       (hFR _ (by rw [foldlM_option_append, hR₁]; simp [hci])) hL hK hc hh
   obtain ⟨y, hy⟩ := findSome_append_some (tr₁ := tr₀) ⟨_, hobs⟩
-  refine ⟨M', y.1, y.2, ⟨tr₀ ++ tr₁, Adequacy.steps_append hs₀ d, ?_, hctl, hlock, hy⟩, ?_⟩
+  refine ⟨tr₀ ++ tr₁, M', y.1, y.2, hs₀.trans d, ?_, hctl, hlock, hy, ?_⟩
   · intro ev hev
     rcases List.mem_append.mp hev with h | h
     · exact hn₀ ev h
     · exact hn₁ ev h
   · rw [hhost, List.flatten_cons, logOfCalls_append]
+
+/-- **The instantiation, from the first node and the later core instantiations.** -/
+theorem nodesRef_of' (h1 : FirstK') (h2 : LaterCoreStep') : Task.nodesRef := by
+  intro b c r ps ts hpc hr hf himp hnodes hu hNC
+  obtain ⟨tr, M', inst, es, d, hn, hctl, hlock, hobs, hhost⟩ :=
+    nodesRefL_of' h1 h2 b c r ps ts hpc hr hf himp hnodes hu hNC
+  have hready : HostReadyCfg hostConfigX := ⟨rfl, rfl, rfl⟩
+  exact ⟨M', inst, es, ⟨tr, .cons (.hostRun hready) d.steps, hn, hctl, hlock, hobs⟩, hhost⟩
 
 end Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi
