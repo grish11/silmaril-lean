@@ -29,7 +29,7 @@ namespace Silmaril.Proofs.Wasm.Abstract.HostClosingS
 
 open Silmaril.Games Silmaril.Games.Abstract
 open Silmaril.Wasm Silmaril.Wasm.Binaryen Silmaril.Wasm.Execution.Core Silmaril.Wasm.Abstract
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE TagsOk StoreChkE ehExt)
 open Silmaril.Games.Abstract.StratSession (eraseEnd)
 
 /-! ## Resolved prefixes -/
@@ -125,7 +125,7 @@ def TrapS (tags : List TagInst) (P : Silmaril.Wasm.Numerics.Profile) (host : Hos
         EvRun P host ⟨s, f, vals us ++ [.ref (.func a), c]⟩ y.1 ⟨s₂, f, [.trap]⟩}
 
 /-- **Every session behaviour is in `TrapS`**: least-fixpoint induction. -/
-theorem closeS_le_trapS {tags : List TagInst} (hH : NativeHostSlice host)
+theorem closeS_le_trapS {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) : Shape.close (wasmHOpenXPS (H := H)) ≤ TrapS tags P host := by
   refine OrderHom.lfp_le _ ?_
   rintro a s us y ⟨x, hx, hS⟩
@@ -151,12 +151,14 @@ theorem closeS_le_trapS {tags : List TagInst} (hH : NativeHostSlice host)
     have hbfl : bfl = .trap := by
       rcases bfl with _ | ⟨_ | _, _⟩ | _ | _ | _ <;> simp_all [exitFlow]
     subst hbfl
-    rcases evalLXPS_toH hrun with ⟨l', rfl, h'⟩ | ⟨-, u, g, args, s₁, s₃, ws, hs, rfl, h'⟩
+    rcases evalLXPS_toH hrun with ⟨l', rfl, h'⟩ |
+      ⟨-, u, g, args, s₁, s₃, hs, rfl, fi', ps', rs', -, -, hall⟩
     · -- trapping itself
       exact evalLXPh_trap_exact hH hE hfi hcode hty hn hts hSt h' (substPre_toOld hle l' hp) hq f c
         hcr
     · -- its last call answered by a trap, in the store the call's callee traps in
       obtain rfl : s' = s₃ := hs
+      have h' := hall (List.replicate (rs'.length + 1) (Val.ref .null)) (by simp)
       obtain ⟨qa, qb, hqy, ha, hb⟩ := substPre_split hp
       have hm := substPre_single hb
       rw [hqy] at hq ⊢
@@ -191,7 +193,7 @@ theorem closeS_le_trapS {tags : List TagInst} (hH : NativeHostSlice host)
 
 /-- **A store-keeping trap of an invocation, with a consistent log, is a Core run of the
 invocation to a trap in exactly its store**, every profile. -/
-theorem wasmEvFunXPS_trap_evRun {tags : List TagInst} (hH : NativeHostSlice host)
+theorem wasmEvFunXPS_trap_evRun {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs : List Val}
     (hts : TagsOk tags s) (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {cs : List (Call (wasmHostSig H))} (h : (cs, .ret (.inr ()) s₂) ∈ wasmEvFunXPS s (a, vs))
@@ -215,7 +217,7 @@ variable {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
 
 /-- **A Core run of a typed invocation to a trap in `s₂` is the session trap in `s₂`**, with
 exactly the run's log (deterministic profile). -/
-theorem evRun_wasmEvFunXPS_trap (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem evRun_wasmEvFunXPS_trap (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs : List Val}
     {cs : List (Call (wasmHostSig H))} (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs)

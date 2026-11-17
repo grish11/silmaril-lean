@@ -34,7 +34,7 @@ variable {H : Type} {tags : List TagInst} {o : GrowOracle} {host : HostSemantics
 /-! ## Operators -/
 
 /-- **An operator diverging alone**: in its arguments, or in the callee of a call. -/
-theorem headDiv_op (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headDiv_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {i : Instr} {args es : List BExpr} (ihA : DivG tags o host n args)
     (ihC : ∀ m ≤ n, CallDivG tags o host m) (ht : TypedP tags s f stk (.op i args :: es))
     (hdv : EvDiv (profile o) host n ⟨s, f, xcode stk [.op i args]⟩ cs) :
@@ -196,7 +196,7 @@ theorem headDiv_op (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostS
 /-! ## Blocks and loops -/
 
 /-- **A block diverging alone**: in its body. -/
-theorem headDiv_block (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headDiv_block (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {body es : List BExpr} (ihB : DivG tags o host n body)
     (ht : TypedP tags s f stk (.block bt body :: es))
     (hdv : EvDiv (profile o) host n ⟨s, f, xcode stk [.block bt body]⟩ cs) :
@@ -228,7 +228,7 @@ theorem headDiv_block (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Ho
     · exact head_contra hT hH hE ht1 (.blockEsc har hd hesc) hw hdv
 
 /-- **A loop diverging alone**: in its body, or again after an iteration branching back. -/
-theorem headDiv_loop (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headDiv_loop (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {body es : List BExpr} (ihB : ∀ m ≤ n, DivG tags o host m body)
     (ihlt : ∀ m < n, DivG tags o host m (.loop bt body :: es))
     (ht : TypedP tags s f stk (.loop bt body :: es)) (hcs : cs ≠ [])

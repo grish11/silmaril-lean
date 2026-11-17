@@ -102,7 +102,7 @@ theorem vals_split (stk₁ : List Val) (n : Nat) :
   simp [vals]
 
 /-- **The arguments of `call x`, then its `call_ref` form on the callee**: a checked call. -/
-theorem call_glue (hH : NativeHostSlice host) (hE : HostSliceE tags host) {x : FuncIdx}
+theorem call_glue (hH : HostSliceT host) (hE : HostSliceE tags host) {x : FuncIdx}
     (h : EvalLXPh s f stk args l (s₁, f₁, .flow (.normal stk₁)))
     (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
     (hq : SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) q) (hc : Cons host q)
@@ -138,7 +138,7 @@ theorem call_glue (hH : NativeHostSlice host) (hE : HostSliceE tags host) {x : F
 
 /-- **The arguments of a resolved `call_indirect` or of `call_ref` on a function reference, then
 the `call_ref` form on the callee**: a checked call. -/
-theorem ir_glue (hH : NativeHostSlice host) (hE : HostSliceE tags host) {top : Val} {i : Instr}
+theorem ir_glue (hH : HostSliceT host) (hE : HostSliceE tags host) {top : Val} {i : Instr}
     {y : TypeIdx} (hi : (∃ x, i = .callIndirect x y) ∨ i = .callRef y)
     (h : EvalLXPh s f stk args l (s₁, f₁, .flow (.normal (top :: stk₁))))
     (hpre : Steps P NH ⟨s₁, f₁, vals [top] ++ [.plain i]⟩
@@ -259,7 +259,7 @@ theorem ctxRun_pre {c₀ c₁ : Config H}
   obtain ⟨E, c, run', hT⟩ := h
   exact ⟨E, c, evRun_trans run run', hT⟩
 
-theorem ctxRun_head (hH : NativeHostSlice host) (hE : HostSliceE tags host) {e : Binaryen.BExpr}
+theorem ctxRun_head (hH : HostSliceT host) (hE : HostSliceE tags host) {e : Binaryen.BExpr}
     (h : EvalLXPh s f stk [e] l (s', f', .flow (.normal stk')))
     (hq : SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) q₁) (hc : Cons host q₁)
     (ih : CtxRun tags P host T s' f' stk' es q₂) :
@@ -268,7 +268,7 @@ theorem ctxRun_head (hH : NativeHostSlice host) (hE : HostSliceE tags host) {e :
   obtain ⟨run, t', hS', hchk'⟩ := head_glue (P := P) hH hE h hq hc hts hS hchk
   exact ctxRun_pre run (ih _ _ _ t' hS' hchk')
 
-theorem ctxRun_loopBack (hH : NativeHostSlice host) (hE : HostSliceE tags host) {vs : List Val}
+theorem ctxRun_loopBack (hH : HostSliceT host) (hE : HostSliceE tags host) {vs : List Val}
     (har : Binaryen.arity f bt = some (np, nr))
     (h : EvalLXPh s f (stk.take np) body l (s₁, f₁, .flow (.brk 0 vs)))
     (hq : SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) q₁) (hc : Cons host q₁)
@@ -278,7 +278,7 @@ theorem ctxRun_loopBack (hH : NativeHostSlice host) (hE : HostSliceE tags host) 
   obtain ⟨⟨c₁, st, run⟩, t', hS', hchk'⟩ := loopBack_glue (P := P) hH hE har h hq hc hts hS hchk
   exact ctxRun_pre (.silent (.inl st) run) (ih _ _ _ t' hS' hchk')
 
-theorem ctxRun_arm (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem ctxRun_arm (hH : HostSliceT host) (hE : HostSliceE tags host)
     {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool}
     (h : EvalLXPh s f stk c l (s₁, f₁, .flow (.normal (cv :: stk₁))))
     (hb : Binaryen.truthy cv = some b) (har : Binaryen.arity f₁ bt = some (np, nr))
@@ -309,7 +309,7 @@ def DivHole (tags : List TagInst) (c : Config H) : Prop :=
 
 section Fwd
 
-variable {tags : List TagInst} (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+variable {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
 include hH hE
 
 /-- **A logged reach is a Core run to the reached call**, with exactly the events of its

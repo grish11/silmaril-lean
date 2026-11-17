@@ -74,7 +74,7 @@ theorem typedP_head {s : Store H} {f : Frame} {stk : List Val} {e : BExpr} {es :
   simpa only [List.append_assoc] using hct
 
 /-- **A head tree with a resolved logged run does not diverge alone after its log.** -/
-theorem head_contra (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem head_contra (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {n : Nat} {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs₁ cs₂ : List (Call (wasmHostSig H))}
     (ht : TypedP tags s f stk es) (hd : EvalLXPh s f stk es l r) (hres : ResW l cs₁)
@@ -152,7 +152,7 @@ theorem head_cons {s s₂ : Store H} {f f₂ : Frame} {stk stk₂ : List Val} {e
   | _ => cases hr
 
 /-- **The trees after a head tree run normally are typed.** -/
-theorem cont_typedH (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem cont_typedH (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s s₂ : Store H} {f f₂ : Frame} {stk stk₂ : List Val} {e : BExpr} {es : List BExpr}
     {l : List (OCall H)} {q : List (Call (wasmHostSig H))}
     (ht : TypedP tags s f stk (e :: es))
@@ -175,7 +175,7 @@ theorem cont_typedH (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Host
   exact ContextTyped.steps_typed hT hct (Steps.append rest hst)
 
 /-- **The facts at an operator's site**, after its arguments ran normally. -/
-theorem site_factsH (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem site_factsH (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ : List Val} {i : Instr} {args es : List BExpr}
     {l : List (OCall H)} {q : List (Call (wasmHostSig H))}
     (ht : TypedP tags s f stk (.op i args :: es))

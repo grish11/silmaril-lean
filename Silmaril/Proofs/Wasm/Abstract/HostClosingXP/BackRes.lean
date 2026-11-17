@@ -30,7 +30,7 @@ variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H
   {tags : List TagInst}
 
 /-- **A resolved logged run is a Core run with exactly its resolved log to a final form.** -/
-theorem res_evRun (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s : Store H}
+theorem res_evRun (hH : HostSliceT host) (hE : HostSliceE tags host) {s : Store H}
     {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs : List (Call (wasmHostSig H))}
     {labels : List Nat} {ret : Nat} {out : Option Nat}
@@ -57,7 +57,7 @@ theorem res_evRun (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s : S
 
 /-- **A closed behaviour of a call is a Core run of the call to a final form**, with exactly its
 log, in any frame and any `call_ref` form. -/
-theorem close_evRun_call (hH : NativeHostSlice host) (hE : HostSliceE tags host) {a : Nat}
+theorem close_evRun_call (hH : HostSliceT host) (hE : HostSliceE tags host) {a : Nat}
     {s : Store H} {us : List Val} {c₁ : List (Call (wasmHostSig H))}
     {e : End (Store H) (List Val ⊕ Nat)} {fi : FuncInst H} {ps rs : List Validation.CValType}
     (hm : (c₁, e) ∈ Shape.close wasmHOpenXP a s us) (hc : Cons host c₁)

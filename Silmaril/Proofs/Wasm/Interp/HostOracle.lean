@@ -43,6 +43,33 @@ structure NativeHostSlice (host : HostSemantics H) : Prop where
     host h s vs (.returned s' (.values ws)) → ws.length = rs.length
   noThrow : ∀ h s vs s' t, ¬ host h s vs (.returned s' (.throw t))
 
+/-- **The typed host slice**, for the exception-aware semantics: hosts whose answers extend the
+store's functions (`FuncsGood`) and answer values at the declared result arity. A host may throw:
+a thrown address needs no condition here (Core and the native semantics both read it through the
+store's exception instances; typing, `HostTyped`, asks that it names one). The native host slice
+is its non-throwing special case (`NativeHostSlice.toT`). -/
+structure HostSliceT (host : HostSemantics H) : Prop where
+  funcs : ∀ h s vs s' r, host h s vs (.returned s' r) → FuncsGood s.funcs s'.funcs
+  arity : ∀ (s : Store H) (a : Nat) (fi : FuncInst H) (h : H) (ps rs : List Validation.CValType)
+    (vs ws : List Val) (s' : Store H), s.funcs[a]? = some fi → fi.code = .host h →
+    Validation.DefType.funcType? fi.type = some (ps, rs) →
+    host h s vs (.returned s' (.values ws)) → ws.length = rs.length
+
+/-- The native host slice is in the typed host slice. -/
+theorem NativeHostSlice.toT (hH : NativeHostSlice host) : HostSliceT host :=
+  ⟨hH.funcs, hH.arity⟩
+
+/-- A host keeping the store's functions, answering values at the declared result arity, is in
+the typed host slice, whatever it throws. -/
+theorem HostSliceT.of_funcs_eq
+    (hF : ∀ h s vs s' r, host h s vs (.returned s' r) → s'.funcs = s.funcs)
+    (hA : ∀ (s : Store H) (a : Nat) (fi : FuncInst H) (h : H) (ps rs : List Validation.CValType)
+      (vs ws : List Val) (s' : Store H), s.funcs[a]? = some fi → fi.code = .host h →
+      Validation.DefType.funcType? fi.type = some (ps, rs) →
+      host h s vs (.returned s' (.values ws)) → ws.length = rs.length) :
+    HostSliceT host :=
+  ⟨fun h s vs s' r hr => FuncsGood.of_eq (hF h s vs s' r hr), hA⟩
+
 /-- The oracle facts, as a call relation to close under. -/
 def SoundAt (P : Numerics.Profile) (host : HostSemantics H) : CallRel H := fun s a us out =>
   ∀ (f : Frame) (fi : FuncInst H) (ps rs : List Validation.CValType),

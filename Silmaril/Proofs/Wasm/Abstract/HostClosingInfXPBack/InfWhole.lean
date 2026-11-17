@@ -40,7 +40,7 @@ variable {H : Type} {tags : List TagInst} {o : GrowOracle} {host : HostSemantics
 /-! ## Trees -/
 
 /-- **The productive backward simulation of trees**, by induction on their size. -/
-theorem inf_trees (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host) :
+theorem inf_trees (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host) :
     ∀ es, InfG tags o host es := by
   intro es
   induction hsz : sizeOf es using Nat.strong_induction_on generalizing es with
@@ -104,7 +104,7 @@ def CallStepOut (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H)
     (q = [] → ∃ W, Lifts o W ∧ Relation.TransGen (Det.DStep o) K (W K'))
 
 /-- **The productive run of a typed call, one step.** -/
-theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem callInf_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {z : (wasmOShape H).self.Op} {K : Config H} {ω : Nat → Call (wasmHostSig H)}
     (h : CallInfX tags o host z K ω) : CallStepOut tags o host z K ω := by
   obtain ⟨a, us, s⟩ := z
@@ -132,7 +132,8 @@ theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Hos
       have h' : Step (profile o) host ⟨s', f, vals (pre ++ ws)⟩ c' := by
         simpa [Ctx.fill, Result.toAdmin, vals] using h
       exact Sim.Step.not_vals h'
-    · exact hH.noThrow _ _ _ _ _ hans
+    · exact coreInf_throw_head (ws := pre) (x := t) (r := [])
+        (by simpa [Ctx.fill, Result.toAdmin] using hd₁)
     · exact coreInf_trap_head (ws := pre) (r := []) (by simpa [Ctx.fill, Result.toAdmin] using hd₁)
   | wasm fn =>
     let F := Frame.forCall fi.module us fn.locals
@@ -250,7 +251,7 @@ theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Hos
 /-! ## The closure -/
 
 /-- **The productive runs of a typed call are in `wasmEvInfNXP`**, by choice of the descents. -/
-theorem callInf_closure (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem callInf_closure (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (z : (wasmOShape H).self.Op) (K : Config H)
     (ω : Nat → Call (wasmHostSig H)) (hz : CallInfX tags o host z K ω) :
     ω ∈ wasmEvInfNXP z.2.2 (z.1, z.2.1) := by
@@ -304,7 +305,7 @@ theorem callInf_closure (hT : HostTyped host) (hH : NativeHostSlice host)
 
 /-- **A productive Core run of a typed invocation is in `wasmEvInfNXP`** (deterministic
 profile). -/
-theorem coreInf_wasmEvInfNXP' (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem coreInf_wasmEvInfNXP' (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
     {ω : Nat → Call (wasmHostSig H)} (h : CoreInf (profile o) host (invoke s a vs) ω) :

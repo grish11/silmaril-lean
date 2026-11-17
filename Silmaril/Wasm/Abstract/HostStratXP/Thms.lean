@@ -24,7 +24,7 @@ public import Silmaril.Wasm.Abstract.HostSquareXP.Thms
 namespace Silmaril.Wasm.Abstract
 
 open Silmaril.Games Silmaril.Games.Abstract Silmaril.Wasm.Execution.Core
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE TagsOk StoreChkE ehExt)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 variable {H : Type} {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
@@ -42,7 +42,7 @@ def BackInfXP (o : GrowOracle) (host : HostSemantics H) (tags : List TagInst) : 
 
 /-- The native and Core triples with exceptions agree on `InvOkXP`, given the backward
 directions. -/
-theorem obsTriple_eq_of_square (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem obsTriple_eq_of_square (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (hdiv : BackDivXP o host tags) (hinf : BackInfXP o host tags) :
     obsTriple (InvOkXP tags) (fun s q => CoreObsLXP (profile o) host s q.1 q.2) =
       obsTriple (InvOkXP tags) (fun s q => NatObsXP host s q.1 q.2) :=
@@ -51,13 +51,13 @@ theorem obsTriple_eq_of_square (hT : HostTyped host) (hH : NativeHostSlice host)
 
 /-- **The Core strategy with exceptions is the native one** (deterministic profile), given the
 backward directions. -/
-theorem coreStratXP_eq_natStratXP_of (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem coreStratXP_eq_natStratXP_of (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (hdiv : BackDivXP o host tags) (hinf : BackInfXP o host tags) :
     coreStratXP (profile o) host (InvOkXP tags) = natStratXP host (InvOkXP tags) :=
   congrArg StratObs.toDStrat (obsTriple_eq_of_square hT hH hE hdiv hinf)
 
 /-- **Per function**, final store hidden, given the backward directions. -/
-theorem coreStratAtXP_eq_natStratAtXP_of (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem coreStratAtXP_eq_natStratAtXP_of (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (hdiv : BackDivXP o host tags) (hinf : BackInfXP o host tags)
     (s : Store H) (a : Nat) :
     coreStratAtXP (profile o) host (InvOkXP tags) s a = natStratAtXP host (InvOkXP tags) s a :=

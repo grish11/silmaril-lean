@@ -27,7 +27,7 @@ variable {s : Store H} {f : Frame} {stk : List Val} {c : Config H}
   {cs : List (Call (wasmHostSig H))} {n : Nat}
 
 /-- **Blocks.** -/
-theorem case_block (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem case_block (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {body es : List Binaryen.BExpr}
     (ihB : ∀ m ≤ n, BackG tags o host m body) (ihk : ∀ m ≤ n, BackG tags o host m es) :
     BackG tags o host n (.block bt body :: es) := by
@@ -92,7 +92,7 @@ theorem case_block (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostS
     · exact mkOut'' hH hE ht hrun hend (.blockEsc har hd₁ hesc) hres₁
 
 /-- **Loops.** -/
-theorem case_loop (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem case_loop (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {body es : List Binaryen.BExpr}
     (ihB : ∀ m ≤ n, BackG tags o host m body) (ihk : ∀ m ≤ n, BackG tags o host m es)
     (ihlt : ∀ m < n, BackG tags o host m (.loop bt body :: es)) :

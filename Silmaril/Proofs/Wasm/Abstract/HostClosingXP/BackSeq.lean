@@ -116,7 +116,7 @@ variable {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ : List Val} {i : Instr}
   {c : Config H} {n : Nat}
 
 /-- **The facts at an operator's site**, after its arguments completed normally. -/
-theorem site_facts (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem site_facts (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     (ht : TypedP tags s f stk (.op i args :: es))
     (hrun : EvRunN (profile o) host n ⟨s, f, tcode stk (.op i args :: es)⟩ (cs₁ ++ cs₂) c)
     (hd : EvalLXPh s f stk args l (s₁, f₁, .flow (.normal stk₁)))
@@ -153,7 +153,7 @@ end Site
 
 /-- **A returning answer of the closure at a checked call**: the callee's result arity, the tag
 invariants and the store check after it, and its logged Core run. -/
-theorem call_ret_facts (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s₁ s₃ : Store H}
+theorem call_ret_facts (hH : HostSliceT host) (hE : HostSliceE tags host) {s₁ s₃ : Store H}
     {a : Nat} {us ws : List Val} {q : List (Call (wasmHostSig H))} {fi : FuncInst H}
     {ps rs : List Validation.CValType}
     (hz : (q, .ret (.inl ws) s₃) ∈ Cl a s₁ us) (hc : Cons host q) (hts : TagsOk tags s₁)

@@ -99,4 +99,26 @@ Details: [wasm-sim.md](wasm-sim.md), [wasm-sim-abi.md](wasm-sim-abi.md),
 * **Wasm ↔ x86-64:** `Silmaril.Sim` (simulators in Wasm, section 3).
 * **Wasm ↔ logic:** acceptors as consequence systems (`coreInterp`), and the LRAT and Farkas
   checkers as certificate checkers for SAT and linear arithmetic (section 2).
-* **Wasm ↔ WASI and processes:** [wasm-wasi.md](wasm-wasi.md).
+* **Wasm ↔ WASI and processes:** [wasm-wasi.md](wasm-wasi.md). The `sha256sum` instances of
+  the WASI bridge (`Silmaril.Sim.WasiBridge.{Cli.Sha256sum,Cli.Sha256sumSys,Cli.Lps,Tv.Sha256sum}`)
+  relate WASI, simulated and static builds of `sha256sum` to the dynamically linked GNU
+  `sha256sum` on glibc ([dyn.md](dyn.md)) through the sentence `Std.sha256Stdin`.
+
+## 6. Not yet in this repository
+
+What related work is still outside this repository, and why. Each item names the missing
+dependency or the open problem.
+
+| Item | Status |
+| --- | --- |
+| Further simulator programs (litmus emulators for SC/TSO/PSO, problem shapes for emulated vs compiled functions, `sha256sum` running in the x86 simulator) | still in development elsewhere |
+| VC-generation benchmarks (`VCGenBench`, `VCGen2Bench`, `VCGenAdler`) and the `wasm-vc reflect` tests | their specifications come from a benchmark suite that is not public |
+| SMT-backed loop benchmarks | need projects that are not public |
+| Difftest of the `Ext9`/SSE models against the CPU | needs an SSE floating-point model that is not here |
+| Difftest of the glibc allocator model (`Silmaril.Libc.Ptmalloc`) against the host | needs a host whose `libc.so.6` is exactly the pinned Ubuntu glibc 2.39-0ubuntu8.9; allocator work, outside this catalogue |
+| A proof that the WASI `sha256sum` module (`examples/wasi-sha256sum`) refines the reference program | stated as `Task.wasiRefinesRef` (`Silmaril.Sim.WasiBridge.Cli.Sha256sumSys`): the module's preview1 trace semantics is a parameter until the semantics of a core module against a preview1 host is a definition |
+| A direct translation between the core-module and component institutions | open: both meet in `GInst` (`Silmaril.Wasm.Institution.CoreComp`), but relating them needs a game morphism between their signatures and an adequacy argument |
+| Component adequacy beyond `Simple` components | open ([component-caveats.md](component-caveats.md)) |
+| Two copies of the x86 function-contract layer (`Silmaril.X86` and `Silmaril.Machine.X86`) | the simulators use `Silmaril.X86`; merging the copies is a separate cleanup |
+| Byte-for-byte regeneration of the C-derived x86 problems and the RV64 problems | depends on the C compiler and linker version; the committed files are the reference |
+

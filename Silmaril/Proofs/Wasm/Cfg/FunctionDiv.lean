@@ -8,6 +8,8 @@ public import Silmaril.Proofs.Wasm.Cfg.CallTransport
 public import Silmaril.Proofs.Wasm.Cfg.CallClosedX
 public import Silmaril.Wasm.Abstract.XRecursion.Thms
 public import Silmaril.Proofs.Wasm.Cfg.FunctionCfg
+public import Silmaril.Proofs.Wasm.Cfg.CallClosedXC
+public import Silmaril.Proofs.Wasm.Cfg.MachineFrameDiv
 
 @[expose] public section
 
@@ -79,5 +81,39 @@ theorem invoke_diverges_of_mdivT {o : SingleThreaded.GrowOracle} {s : Store H} {
       (c := .callRefType fi.type) trivial hfi he hn hcode
     simpa [invoke, hfi] using this
   exact InfiniteTrace.fold hstep hdiv
+
+/-- **Completeness of function-level divergence**: on the stated fragment, a diverging Core 3.0
+invocation is machine frame divergence `MDivT` with `CX closedCallX` and `calleeDivX o` on the
+body, in the call frame, from the CFG entry. The invocation's only step enters the function's
+frame; that frame diverges, which is `MDivT` (`frame_div_complete`), the guards and the
+placement of pending tail calls coming from typing. -/
+theorem mdivT_of_invoke_diverges {o : SingleThreaded.GrowOracle} {s : Store H} {a : Nat}
+    {vs : List Val} {fi : FuncInst H} {fn : Func} {ps rs : List CValType} (hs : StoreOk s)
+    (hok : InvokeOk s a vs) (hS : StoreChkE tExt s.funcs) (hW : WasmFuncsT s)
+    (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+    (hty : DefType.funcType? fi.type = some (ps, rs))
+    (hd : Diverges (SingleThreaded.profile o) noHostX (invoke s a vs)) :
+    MDivT (SingleThreaded.profile o) noHostX (CX (closedCallX : Abstract.CallRel H))
+      (calleeDivX o) fn.body (initial fn.body s (Frame.forCall fi.module vs fn.locals)) := by
+  have he := Proofs.Region.expand_of_funcType hty
+  have hn : vs.length = (Ty.ofList ps).length := by
+    rw [Ty.length_ofList]; exact Proofs.FunctionCfg.args_length hok hfi hty
+  have hinv : invoke s a vs = ⟨s, {}, vals vs ++ [.ref (.func a), .callRefType fi.type]⟩ := by
+    simp [invoke, hfi]
+  obtain ⟨c₁, hs₁, hd₁⟩ := hd.unfold
+  have hs₁' : Step (SingleThreaded.profile o) noHostX
+      ⟨s, {}, vals vs ++ [.ref (.func a), .callRefType fi.type]⟩ c₁ := by rw [← hinv]; exact hs₁
+  have hc₁ := Step.callRef_wasm_inv_exact (r := .callRefType fi.type) (c := c₁) trivial hfi hcode he hn hs₁'
+  subst hc₁
+  obtain ⟨fi', ps', rs', -, -, hcfg⟩ := invoke_ok hs hok
+  have hT₀ : Sim.ContextTyped (invoke s a vs) := Sim.ContextTyped.of_configOk hcfg
+  have hT₁ := hT₀.step hs₁
+  have hTin : Sim.ContextTyped ⟨s, Frame.forCall fi.module vs fn.locals,
+      [.label (Ty.ofList rs).length [] (expression fn.body)]⟩ :=
+    Sim.ContextTyped.frame (vs := []) (rest := []) (by simpa using hT₁)
+  exact Proofs.MachineFrameDiv.frame_div_complete (Proofs.Region.callCompleteG_cx o)
+    (Proofs.Region.divCallComplete_cx o) (Proofs.Region.fragC_expression _)
+    (Proofs.Region.guardedCalls_cx hTin hW hS) (Proofs.Region.tailsOk_of_typed hTin)
+    (Proofs.Region.tailGuarded_cx hTin hW hS) hd₁
 
 end Silmaril.Wasm.Cfg.Proofs.FunctionDiv

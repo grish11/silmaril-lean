@@ -6,7 +6,7 @@ public import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.DivBase
 # Divergence after a nonempty log: the statements and calls (proofs)
 
 In the deterministic profile `SingleThreaded.profile o`, for a host with typed answers in the
-host slices (`HostTyped`, `NativeHostSlice`, `HostSliceE tags`):
+host slices (`HostTyped`, `HostSliceT`, `HostSliceE tags`):
 
 * `DivOut s f stk es cs`: the trees perform logged calls resolving to exactly `cs` and then
   diverge host-free (`LogDivXP`), or reach a call after a resolved prefix `q` whose callee
@@ -147,7 +147,7 @@ theorem callRef_wasm_unique {P : Numerics.Profile} {s : Store H} {f : Frame} {pr
 
 /-- **The divergent backward simulation of a call**, from the statements for strictly shorter
 divergences. -/
-theorem callDiv_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem callDiv_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {n : Nat} (ihB : ∀ m < n, ∀ es, DivG tags o host m es) (ihC : ∀ m < n, CallDivG tags o host m) :
     CallDivG tags o host n := by
   intro s f pre us a cr cs hcr hcc hct hdv
@@ -179,7 +179,8 @@ theorem callDiv_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Hos
       have h' : Step (profile o) host ⟨s', f, vals (pre ++ ws)⟩ c' := by
         simpa [Ctx.fill, Result.toAdmin, vals] using h
       exact Sim.Step.not_vals h'
-    · exact hH.noThrow _ _ _ _ _ hans
+    · exact evDiv_throw (ws := pre) (x := t) (r := [])
+        (by simpa [Ctx.fill, Result.toAdmin] using hd₁)
     · exact evDiv_trap (ws := pre) (r := []) (by simpa [Ctx.fill, Result.toAdmin] using hd₁)
   | wasm fn =>
     let F := Frame.forCall fi.module us fn.locals

@@ -41,7 +41,7 @@ theorem link_cons_rtg {s s' : Store H} {f f' : Frame} {stk stk' : List Val} {e :
   simpa only [pcfg, xcode_cons_eq] using this
 
 /-- **One iteration of a loop running productively alone.** -/
-theorem loop_stepI (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem loop_stepI (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {body : List BExpr} (es : List BExpr) (ihB : InfG tags o host body)
     {s : Store H} {f : Frame} {stk : List Val} {ω : Nat → Call (wasmHostSig H)}
     (ht1 : TypedP tags s f stk [.loop bt body])
@@ -145,7 +145,7 @@ theorem substPre_nil_eq {q : List (Call (wasmHostSig H))}
   rfl
 
 /-- **A loop running productively alone**, by choice of the iterations. -/
-theorem headInf_loop (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headInf_loop (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {body es : List BExpr} (ihB : InfG tags o host body)
     {s : Store H} {f : Frame} {stk : List Val} {ω : Nat → Call (wasmHostSig H)}
     (ht : TypedP tags s f stk (.loop bt body :: es))

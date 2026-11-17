@@ -35,10 +35,10 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem expectErrCtx (e : HandleEntry) :
-    P.Inv I (Builtins.expectErrCtx e : P E σ ErrCtxId) := by
+    P.InvW I W (Builtins.expectErrCtx e : P E σ ErrCtxId) := by
   cases e <;> first | exact Canon.P.Inv.pure _ | exact Canon.P.Inv.trap _
 
 /-- `error-context.new` preserves `I` when allocating an error context and adding a handle
@@ -47,7 +47,7 @@ theorem errorContextNew (lim : Limits) (q : Quirks) (opts : CanonOpts E) (ptr un
     (halloc : ∀ ec s, I s → I (ArenaOps.allocSt ArenaField.errCtxs ec s))
     (hadd : ∀ inst x s, I s →
       I (ArenaField.insts.modify s inst (InstState.addHandle (.errCtx x)))) :
-    P.Inv I (Builtins.errorContextNew lim q opts ptr units : P E σ _) := by
+    P.InvW I W (Builtins.errorContextNew lim q opts ptr units : P E σ _) := by
   unfold Builtins.errorContextNew
   refine Canon.P.Inv.bind Canon.P.Inv.currentInst fun inst => ?_
   refine Canon.P.Inv.bind (Canon.P.Inv.getInst _) fun _ =>
@@ -64,7 +64,7 @@ theorem errorContextNew (lim : Limits) (q : Quirks) (opts : CanonOpts E) (ptr un
 /-- `error-context.debug-message` preserves `I` when memory writes do. -/
 theorem errorContextDebugMessage (lim : Limits) (q : Quirks) (opts : CanonOpts E) (i ptr : Nat)
     (hw : ∀ m p bs s, I s → I (writeMemSt m p bs s)) :
-    P.Inv I (Builtins.errorContextDebugMessage lim q opts i ptr : P E σ _) := by
+    P.InvW I W (Builtins.errorContextDebugMessage lim q opts i ptr : P E σ _) := by
   unfold Builtins.errorContextDebugMessage
   refine Canon.P.Inv.bind Canon.P.Inv.currentInst fun inst => ?_
   refine Canon.P.Inv.bind (Canon.P.Inv.getInst _) fun _ =>
@@ -80,7 +80,7 @@ theorem errorContextDebugMessage (lim : Limits) (q : Quirks) (opts : CanonOpts E
 /-- `error-context.drop` preserves `I` when removing a handle from an instance does. -/
 theorem errorContextDrop (i : Nat)
     (hrm : ∀ inst s, I s → I (ArenaField.insts.modify s inst (InstState.removeHandle i))) :
-    P.Inv I (Builtins.errorContextDrop i : P E σ _) := by
+    P.InvW I W (Builtins.errorContextDrop i : P E σ _) := by
   unfold Builtins.errorContextDrop
   refine Canon.P.Inv.bind Canon.P.Inv.currentInst fun inst => ?_
   refine Canon.P.Inv.bind (Canon.P.Inv.getInst _) fun _ =>

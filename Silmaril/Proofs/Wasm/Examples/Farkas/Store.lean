@@ -10,7 +10,14 @@ public import Silmaril.Wasm.Game.Signature.Defs
 
 `Mach`: the values the checker keeps (four globals and the memory bytes); `Holds s m`: the
 store `s` holds them, in the layout of the instance (`farkasStore`'s functions, globals at
-addresses `0‥3`, memory at address `0`). The facts about the instance are computed:
+addresses `0‥3`, memory at address `0`).
+
+The bodies are proved over a **fixture** `X : Fix` (`withMachX X s m`): the module instance
+`X.mi` of the frames (resolving globals `0‥3` and memory `0` to the same addresses, `Fix.Ok`)
+and further globals `X.grest` and memories `X.mrest` after the checker's, which its code never
+touches. So the checker's functions keep their specifications inside a bigger module
+(`Silmaril.Wasm.Examples.FarkasAccept`); for `farkasMod` itself (`Fix.base`) both are empty and
+`withMachX Fix.base = withMach`. The facts about the instance are computed:
 `farkasMI_globals`, `farkasStore_globals`, `farkasStore_mems`, `farkasStore_funcs` by `rfl`,
 the export types and validation by `decide +kernel`.
 -/
@@ -65,6 +72,53 @@ theorem Holds.funcs {s : Store Nat} {m : Mach} (h : Holds s m) : s.funcs = farka
 theorem holds_withMach {s : Store Nat} (h : s.funcs = farkasStore.funcs) (m' : Mach) :
     Holds (withMach s m') m' := ⟨s, h, rfl⟩
 
+/-! ## The fixture -/
+
+/-- Where the checker's state sits: the module instance of the frames, and further globals and
+memories of the store after the checker's four globals and its memory. -/
+structure Fix where
+  /-- The module instance of the frames. -/
+  mi : ModuleInst
+  /-- Further globals, after the checker's four. -/
+  grest : List GlobalInst := []
+  /-- Further memories, after the checker's. -/
+  mrest : List MemInst := []
+
+/-- The module instance resolves globals `0‥3` and memory `0` to the same addresses. -/
+structure Fix.Ok (X : Fix) : Prop where
+  globals : ∃ gs, X.mi.globals = 0 :: 1 :: 2 :: 3 :: gs
+  mems : ∃ ms, X.mi.mems = 0 :: ms
+
+/-- The store `s` with the machine state `m` in the first four globals and the first memory,
+followed by the fixture's further globals and memories. -/
+def withMachX (X : Fix) (s : Store Nat) (m : Mach) : Store Nat :=
+  { s with globals := m.globals ++ X.grest, mems := ⟨memTy, m.mem⟩ :: X.mrest }
+
+/-- The fixture's store holds the machine state (and the functions `fs`). -/
+def HoldsX (X : Fix) (fs : List (FuncInst Nat)) (s : Store Nat) (m : Mach) : Prop :=
+  ∃ s₀ : Store Nat, s₀.funcs = fs ∧ s = withMachX X s₀ m
+
+theorem withMachX_withMachX (X : Fix) (s : Store Nat) (m m' : Mach) :
+    withMachX X (withMachX X s m) m' = withMachX X s m' := rfl
+
+theorem funcs_withMachX (X : Fix) (s : Store Nat) (m : Mach) : (withMachX X s m).funcs = s.funcs :=
+  rfl
+
+theorem holdsX_withMachX {X : Fix} {fs : List (FuncInst Nat)} {s : Store Nat} (h : s.funcs = fs)
+    (m' : Mach) : HoldsX X fs (withMachX X s m') m' := ⟨s, h, rfl⟩
+
+theorem Fix.Ok.eta {X : Fix} (h : X.Ok) :
+    ∃ gs ms, X.mi = { X.mi with globals := 0 :: 1 :: 2 :: 3 :: gs, mems := 0 :: ms } := by
+  obtain ⟨gs, hg⟩ := h.globals
+  obtain ⟨ms, hm⟩ := h.mems
+  exact ⟨gs, ms, by rw [← hg, ← hm]⟩
+
+/-- The fixture of `farkasMod` itself: its module instance, nothing further. -/
+def Fix.base : Fix := ⟨farkasMI, [], []⟩
+
+theorem withMachX_base (s : Store Nat) (m : Mach) : withMachX Fix.base s m = withMach s m := by
+  simp [withMachX, withMach, Fix.base, Mach.globals]
+
 /-- The initial machine state. -/
 def Mach.init : Mach := ⟨0, 0, 0, 0, zeroBytes⟩
 
@@ -72,6 +126,8 @@ theorem farkasMI_globals : farkasMI.globals = [0, 1, 2, 3] := rfl
 theorem farkasMI_mems : farkasMI.mems = [0] := rfl
 theorem farkasRun_eq : farkasRun = some (farkasStore, (match farkasRun with
     | some (_, f, _) => f | none => {}), none) := rfl
+
+theorem Fix.base_ok : Fix.Ok Fix.base := ⟨⟨[], rfl⟩, ⟨[], rfl⟩⟩
 
 theorem farkasStore_holds : Holds farkasStore Mach.init := ⟨farkasStore, rfl, rfl⟩
 

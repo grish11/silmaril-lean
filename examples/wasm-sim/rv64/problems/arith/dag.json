@@ -1,0 +1,25 @@
+{
+  "schema": "silmaril.wasm-sim.dag.v0",
+  "id": "wasm-sim/rv64/arith",
+  "title": "RV64 hand-written gcd (remu loop) and factorial (mul loop)",
+  "root": "isa/gcd",
+  "artifact": {"elf": "arith", "source": "../tests/arith.S", "fnv1a64": "d228f4e1411986c6"},
+  "isa": {"machine": "Silmaril.RiscV.Ext.MState.step"},
+  "sim": {"representation": "P-locals", "methods": "examples/wasm-sim/rv64/parts"},
+  "nodes": [
+    {"id": "isa/gcd", "kind": "isa-problem", "status": "open", "statement": "Silmaril.RiscV.Ext.MState.step from the entry of `gcd` with the plan contract (+ ABI) reaches the return address"},
+    {"id": "wasm/gcd", "kind": "wasm-problem", "status": "open", "statement": "the linked Wasm modules of `gcd` and its callees meet the contract of `gcd`"},
+    {"id": "ag/gcd", "kind": "wasm-piece", "status": "open", "lean": "Silmaril.WasmSpec.Rv64Gcd.Spec", "files": ["modules/gcd.wat", "pieces/ag/gcd/piece.json"]},
+    {"id": "tv/gcd", "kind": "translation-validation", "status": "open", "statement": "modules/gcd.wat simulates the words of `gcd`: per-instruction method soundness (P-locals snippets = Ext.Instr.exec), structuring of the CFG, calls = ABI calls of the imported callees"},
+    {"id": "isa/fact", "kind": "isa-problem", "status": "open", "statement": "Silmaril.RiscV.Ext.MState.step from the entry of `fact` with the plan contract (+ ABI) reaches the return address"},
+    {"id": "wasm/fact", "kind": "wasm-problem", "status": "open", "statement": "the linked Wasm modules of `fact` and its callees meet the contract of `fact`"},
+    {"id": "ag/fact", "kind": "wasm-piece", "status": "open", "lean": "Silmaril.WasmSpec.Rv64Fact.Spec", "files": ["modules/fact.wat", "pieces/ag/fact/piece.json"]},
+    {"id": "tv/fact", "kind": "translation-validation", "status": "open", "statement": "modules/fact.wat simulates the words of `fact`: per-instruction method soundness (P-locals snippets = Ext.Instr.exec), structuring of the CFG, calls = ABI calls of the imported callees"}
+  ],
+  "edges": [
+    {"goal": "isa/gcd", "pieces": ["wasm/gcd", "tv/gcd"], "status": "task", "note": "transfer (reduction.toml)"},
+    {"goal": "wasm/gcd", "pieces": ["ag/gcd"], "status": "task", "note": "assume-guarantee over the acyclic call graph (Silmaril.Sim.Reduce.ag_compose)"},
+    {"goal": "isa/fact", "pieces": ["wasm/fact", "tv/fact"], "status": "task", "note": "transfer (reduction.toml)"},
+    {"goal": "wasm/fact", "pieces": ["ag/fact"], "status": "task", "note": "assume-guarantee over the acyclic call graph (Silmaril.Sim.Reduce.ag_compose)"}
+  ]
+}

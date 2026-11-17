@@ -53,7 +53,7 @@ theorem ends_vals' {o : Outcome} {ws : List Val} (h : o.Ends (vals ws)) : o = .n
     exact (not_mem_vals' (Admin.val?_of_isReturnCallRef hr) this).elim
 
 /-- **A labelled run to values is a normal logged run with exactly its log.** -/
-theorem back_vals (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem back_vals (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {n : Nat} {s s₁ : Store H} {f f₁ : Frame} {stk ws : List Val} {es : List Binaryen.BExpr}
     {cs : List (Call (wasmHostSig H))} (ht : TypedP tags s f stk es)
     (hrun : EvRunN (profile o) host n ⟨s, f, tcode stk es⟩ cs ⟨s₁, f₁, vals ws⟩) :
@@ -80,7 +80,7 @@ theorem back_vals (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSl
     · cases h
 
 /-- **A labelled run to an end is a logged run with exactly its log** (`back_all`, unfolded). -/
-theorem back_end (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem back_end (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {n : Nat} {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
     {cs : List (Call (wasmHostSig H))} {c : Config H} (ht : TypedP tags s f stk es)
     (hrun : EvRunN (profile o) host n ⟨s, f, tcode stk es⟩ cs c)

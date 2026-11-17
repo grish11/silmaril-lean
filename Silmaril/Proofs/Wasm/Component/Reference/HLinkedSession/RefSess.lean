@@ -13,7 +13,7 @@ public import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSession.RefRound
   call with `LReady` at the trapped core store and the host state of the trap (`BackOutH`). It is
   the backward counterpart of `linkCall_fwdG`, from `rounds_invH`;
 * `sessH_inv`: resumable sessions (`SessRun`, `resumeCfg` after a trap) from a configuration
-  between calls are specification sessions (`HLinked2.SessSpec`) whose host calls form a
+  between calls end between calls (`ReadyL`) and are specification sessions (`HLinked2.SessSpec`) whose host calls form a
   `HostRun g` to the final host state;
 * `hlinked2_sess_refToSpec`: the session observations of `l.toRef` under the logging host
   `answerHostS P (logG g)` (`HLinked2.sessObs`) for typed calls are specification sessions from
@@ -247,10 +247,13 @@ theorem sessH_inv {impl : HostImpl (E3 P) σ} (hHd : HandlesB prof P impl g l)
       ∃ (outs' : List (Option (List IVal)))
         (hs : List (List (Σ _ : (sigN l.host.length).Op, Option Payload))) (u' π' : Store Nat),
         HLinked2.SessSpec P l Ie Ii u π calls outs' hs u' π' ∧ HostRun g h₀ hs.flatten mE.host ∧
-        outs = refOuts outs'
-  | [], cs, ιe, ιi, G, ST, h₀, u, π, k, outs, mE, _, _, hS => by
+        outs = refOuts outs' ∧
+        ∃ (cs' : (core3P P).Store (CanonHost (core3P P))) (ιe' ιi' : InstState) (G' : Garb P σ)
+          (ST' : List Subtask), mE = readyCfgL cs' ιe' ιi' fs G' ST' mE.host ∧
+          ReadyL P l.toW Ie Ii s₀ u₀ F₀ cs' ιe' ιi' G' u' π' (k + calls.length)
+  | [], cs, ιe, ιi, G, ST, h₀, u, π, k, outs, mE, R, _, hS => by
     cases hS
-    exact ⟨[], [], u, π, .nil u π, .nil _, rfl⟩
+    exact ⟨[], [], u, π, .nil u π, .nil _, rfl, cs, ιe, ιi, G, ST, rfl, R⟩
   | (j, vs) :: calls, cs, ιe, ιi, G, ST, h₀, u, π, k, outs, mE, R, ht, hS => by
     have hvs : ValTy.checkList l.imp.exports[j].ty.params vs = true := ht _ List.mem_cons_self
     have ht' : SimpleI.TypedCalls l.imp calls := fun q hq => ht q (List.mem_cons_of_mem _ hq)
@@ -259,10 +262,12 @@ theorem sessH_inv {impl : HostImpl (E3 P) σ} (hHd : HandlesB prof P impl g l)
       obtain ⟨d, u₁, π₁, s', o, rfl, rfl, hok, hpath, hexp, hhr, hans, hout⟩ :=
         linkCall_invH hHd hT S₀ hB₀ hfs R j hvs hcall
       obtain ⟨ws, rfl, rfl, cs₁, ιe₁, ιi₁, G₁, ST₁, rfl, R₁⟩ := hout
-      obtain ⟨outs', hs, u', π', hspec, hhr', rfl⟩ :=
+      obtain ⟨outs', hs, u', π', hspec, hhr', rfl, cs', ιe', ιi', G', ST', hmE, R'⟩ :=
         sessH_inv hHd hT S₀ hB₀ hfs calls cs₁ ιe₁ ιi₁ G₁ ST₁ s' u₁ π₁ (k + 1) _ mE R₁ ht' hS'
-      exact ⟨some ws :: outs', l.hostCalls d.dss.flatten :: hs, u', π',
-        .round d hok hpath hexp hans hspec, hostRun_append hhr hhr', rfl⟩
+      refine ⟨some ws :: outs', l.hostCalls d.dss.flatten :: hs, u', π',
+        .round d hok hpath hexp hans hspec, hostRun_append hhr hhr', rfl, cs', ιe', ιi', G', ST',
+        hmE, ?_⟩
+      simpa only [List.length_cons, Nat.add_assoc, Nat.add_comm 1] using R'
     | trap hcall hS' =>
       obtain ⟨d, u₁, π₁, s', o, rfl, rfl, hok, hpath, hexp, hhr, hans, hout⟩ :=
         linkCall_invH hHd hT S₀ hB₀ hfs R j hvs hcall
@@ -270,10 +275,12 @@ theorem sessH_inv {impl : HostImpl (E3 P) σ} (hHd : HandlesB prof P impl g l)
       have R₁ : ReadyL P l.toW Ie Ii s₀ u₀ F₀ _ ιe ιi G u₁ π₁ (k + 1) :=
         ⟨hR', R.thE, R.thI, R.leave, fresh_succL R.fresh⟩
       rw [resumeCfg_readyL, hhost] at hS'
-      obtain ⟨outs', hs, u', π', hspec, hhr', rfl⟩ :=
+      obtain ⟨outs', hs, u', π', hspec, hhr', rfl, cs', ιe', ιi', G', ST', hmE, R'⟩ :=
         sessH_inv hHd hT S₀ hB₀ hfs calls _ ιe ιi G ST s' u₁ π₁ (k + 1) _ mE R₁ ht' hS'
-      exact ⟨none :: outs', l.hostCalls d.dss.flatten :: hs, u', π',
-        .round d hok hpath hexp hans hspec, hostRun_append hhr hhr', rfl⟩
+      refine ⟨none :: outs', l.hostCalls d.dss.flatten :: hs, u', π',
+        .round d hok hpath hexp hans hspec, hostRun_append hhr hhr', rfl, cs', ιe', ιi', G', ST',
+        hmE, ?_⟩
+      simpa only [List.length_cons, Nat.add_assoc, Nat.add_comm 1] using R'
 
 end Sess
 
@@ -310,7 +317,7 @@ theorem hlinked2_sess_refToSpec (P : Profile) (prof : ProfileKind) {l : HLinked2
     Option.some.inj (hfs'.symm.trans (mapM_lookupH hl.impGood calls))
   subst hfs''
   rw [zip_callArgsH] at hSq
-  obtain ⟨outs, hs, u', π', hspec, hhr, ho'⟩ := sessH_inv (prof := prof)
+  obtain ⟨outs, hs, u', π', hspec, hhr, ho', -⟩ := sessH_inv (prof := prof)
     (impl := answerImplS (HLinked2.logG g))
     (handlesB_answer hl.impArity hl.impFloatFree hl.wireTy) (HostTyped.logG hT) S₀
     rfl hfs calls _ _ _ _ _ (s₀, []) _ _ 0 _ mE R₀ ht hSq
@@ -443,7 +450,7 @@ theorem hlinked2_silent_refToSpec (P : Profile) (prof : ProfileKind) {l : HLinke
     Option.some.inj (hfs'.symm.trans (mapM_lookupH hl.impGood calls))
   subst hfs''
   rw [zip_callArgsH] at hSq
-  obtain ⟨outs, hs, u', π', hspec, hhr, ho'⟩ := sessH_inv (prof := prof)
+  obtain ⟨outs, hs, u', π', hspec, hhr, ho', -⟩ := sessH_inv (prof := prof)
     (impl := HLinked2.silentImpl) (handlesB_silent hl.impArity hl.impFloatFree hl.wireTy)
     (HostTyped.silentG l) S₀ rfl hfs calls _ _ _ _ _ h₀ _ _ 0 _ mE R₀ ht hSq
   have hs₀ : mE.host = h₀ := hostRun_silentG_eq hhr

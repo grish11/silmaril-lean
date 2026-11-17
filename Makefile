@@ -7,7 +7,7 @@ CARGO ?= cargo
 PROJECT_TARGET = $(or $(CARGO_TARGET_DIR),tools/silmaril-project/target)
 WASM_TOOLS := wasm-as wasm-dis wasm-opt wasm-merge wasm-shell wasm-ctor-eval wasm-metadce
 
-.PHONY: logic-graph-check tools stage library cache scope check release-check process-check process-gates project-lean project-tool project-registry project-check pages elf-check demo demo-process demo-sha256 help
+.PHONY: logic-graph-check tools stage library cache scope check release-check process-check process-gates project-lean project-tool project-registry project-check acceptor-report pages elf-check demo demo-process demo-sha256 help
 
 tools:
 	$(LAKE) build --wfail $(WASM_TOOLS)
@@ -147,6 +147,7 @@ project-lean:
 		Silmaril.Project.Shapes.C.Thms \
 		Silmaril.Project.Shapes.SysV.Rtl.Defs \
 		Silmaril.Project.Shapes.CompilesTo.Thms \
+		Silmaril.LogicGraph.Consequence.Containers.Defs \
 		Silmaril.LogicGraph.Audit.Defs \
 		Silmaril.LogicGraph.Catalogue.Defs \
 		ProjectSelfTest \
@@ -181,9 +182,18 @@ pages: project-tool
 	# The Wasm component, module and function pages read static files next to the page.
 	lake build wasm-pages
 	.lake/build/bin/wasm-pages silmaril/artifacts.toml _site
+	# The acceptor section reads the committed Wasmtime harness report (make acceptor-report).
+	cp tools/wasm-acceptor-harness/report.json _site/acceptor-runs.json
 	# The ELF pages read the checked theorem modules of the pinned files (tools/elf-pages).
 	lake build --wfail elf-pages $(ELF_PINNED) Silmaril.Elf.Staged.Pinned.ZlibChecksums.Contracts
 	lake env .lake/build/bin/elf-pages _site
+
+# The committed runtime report of the acceptor components (tools/wasm-acceptor-harness/report.json):
+# every suite under Wasmtime, by this fixed command (the report records it and has no timestamps,
+# so a rerun on the same files writes the same bytes). CI reruns it and fails on any difference.
+acceptor-report:
+	cd tools/wasm-acceptor-harness && CARGO_TARGET_DIR=target $(CARGO) build --release --locked
+	cd tools/wasm-acceptor-harness && LC_ALL=C target/release/wasm-acceptor-harness suites/*.json --out report.json
 
 # The registry and records checks, without Lean (what CI runs when their inputs change).
 project-registry: project-tool
@@ -210,6 +220,7 @@ help:
 	@echo 'make project-tool   Build sil project (Cargo) and stage it in build/bin'
 	@echo 'make project-registry  Run the sil project checks that need no Lean: init, lock, lint'
 	@echo 'make project-check  Run the sil project self-test: init, lock, lint, dump, check, explore'
+	@echo 'make acceptor-report  Run the Wasm acceptor suites under Wasmtime and write tools/wasm-acceptor-harness/report.json'
 	@echo 'make pages    Write the explorer page and its database to _site (needs the project libraries built)'
 	@echo 'make demo     Build tools; run the assemble/optimize/link/execute example'
 	@echo 'make demo-process  Build the public process headers and theorem slice'

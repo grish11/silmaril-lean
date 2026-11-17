@@ -110,9 +110,9 @@ theorem coreTripleSXP_satP_callout {s : Store H} {q : Nat × List Val}
 
 /-- **The call prefixes of the store-retaining Core triple with exceptions are the reached
 callouts** (deterministic profile, `InvOkXP tags`, a host with typed answers in the host
-slices). -/
+slices `HostSliceT`, `HostSliceE`, possibly throwing). -/
 theorem coreTripleSXP_satP_iff {o : SingleThreaded.GrowOracle} {tags : List TagInst}
-    (hT : HostTyped host) (hH : Interp.NativeHostSlice host) (hE : Interp.HostSliceE tags host)
+    (hT : HostTyped host) (hH : Interp.HostSliceT host) (hE : Interp.HostSliceE tags host)
     (hOk : ∀ s q, Ok s q → InvOkXP tags s q) {s : Store H} {q : Nat × List Val}
     {c : List (Call (wasmHostSig H))} {m : (wasmHostSig H).Op} :
     (c, m) ∈ StratObs.satP (coreTripleSXP (SingleThreaded.profile o) host Ok) s q ↔
@@ -137,7 +137,7 @@ theorem coreSessionXP_pending_callout {s₀ : Store H}
 ending at `s`, a play ending in the call `m` after the host calls `c` is in the session iff a
 Core run of `q` from `s`, at exactly the log `c`, reaches the callout `m`. -/
 theorem coreSessionXP_mem_pending_iff {o : SingleThreaded.GrowOracle} {tags : List TagInst}
-    (hT : HostTyped host) (hH : Interp.NativeHostSlice host) (hE : Interp.HostSliceE tags host)
+    (hT : HostTyped host) (hH : Interp.HostSliceT host) (hE : Interp.HostSliceE tags host)
     (hOk : ∀ s q, Ok s q → InvOkXP tags s q) {s₀ : Store H}
     {rs : List ((Nat × List Val) × List (Call (wasmHostSig H)) × ((List Val ⊕ Nat) ⊕ PUnit))}
     {q : Nat × List Val} {c : List (Call (wasmHostSig H))} {m : (wasmHostSig H).Op} :

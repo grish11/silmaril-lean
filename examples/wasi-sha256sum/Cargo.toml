@@ -1,0 +1,21 @@
+[package]
+name = "wasi-sha256sum"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+# A standalone crate: not a member of any workspace.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
+debug = false
+strip = true

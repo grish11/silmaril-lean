@@ -41,6 +41,11 @@ Completeness under the bounds (`Silmaril.Proofs.Wasm.Examples.Farkas.{Complete,T
 * positive tests: `cert_accepted` (every session loading `x₀ ≤ 1, -x₀ ≤ -2` with multipliers
   `1, 1` answers `1` to the following `check`) and `cert_session` (such a session exists).
 
+The body specifications also hold in every **fixture** (`Fix`, `withMachX`: further globals and
+memories after the checker's, frames of any module instance resolving its globals and memory,
+`Fix.Ok`): `row_hwpX`, `entry_hwpX`, `check_hwpX`; the statements above are their instances at
+`Fix.base`. `Silmaril.Wasm.Examples.FarkasAccept` uses them inside a bigger module.
+
 The instance `farkasI` is computed from `farkasMod` by silmaril-lean's `instantiateOnce?`; its
 store, globals, memory and function types are checked by `rfl` and `decide +kernel`
 (`farkasStore_funcs`, `farkasStore_holds`).

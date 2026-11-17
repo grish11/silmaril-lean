@@ -10,6 +10,7 @@ import Silmaril.Proofs.Wasm.Cfg.MachineDivC
 import Silmaril.Proofs.Wasm.Cfg.RegionDivC
 import Silmaril.Proofs.Wasm.Cfg.MachineTail
 import Silmaril.Proofs.Wasm.Cfg.MachineTailDiv
+import Silmaril.Proofs.Wasm.Cfg.MachineFrameDiv
 public import Silmaril.Wasm.Cfg.Region.Thms
 public import Silmaril.Foundations.InfiniteTrace
 
@@ -96,7 +97,10 @@ public import Silmaril.Foundations.InfiniteTrace
   a diverging tail callee is divergence of the frame, not of the body. `MDivT` is `MDivC` or a
   finite run to a block ending in a tail call of a callee `D` names (`TailCallDiv`).
   `mdivT_frame_initial`: under `CallSoundA` and `DivCallSound`, `MDivT` from the CFG entry is
-  Core 3.0 divergence of `FRAME_n{fi} (LABEL_n{} body)` (soundness only).
+  Core 3.0 divergence of `FRAME_n{fi} (LABEL_n{} body)`. Conversely `frame_div_complete`: a
+  diverging Core frame is `MDivT`, under complete `C`, `D` with their guard at calls and pending
+  tail calls (`Region.TailGuarded`) and well-placed pending tails (`Region.TailsOk`);
+  `mdivT_iff_frame` combines both.
 
 * **Tail calls of null** (`MStepC.tailNull`): a `return_call_ref`/`return_call_indirect` of a
   null reference goes to `trap`, whose `Ends` admits the region's pending tail call of null
@@ -375,14 +379,14 @@ theorem bodyTrap_sound {b : BlockId} {sg : Segment} {stk : List Val} {ls : List 
     (hX : codeAt body b stk ls = some X) : Region.Run P host s f [] X s₁ f₁ .trap :=
   Proofs.Machine.bodyTrap_sound hb hr hX
 
-/-- **A `return` is sound**: the code returns the block's values, over the label frames' outer
-values (Core keeps the top values a function returns). -/
+/-- **A `return` is sound**: the code returns the whole frame stack, the block's values under
+the label frames' outer values (`brVals`, as Core's `return-label` unwinds them). -/
 theorem ret_sound {b : BlockId} {sg : Segment} {stk stk₁ : List Val} {ls : List LFrame}
     {s s₁ : Store H} {f f₁ : Frame} {X : List Admin}
     (hb : lookup body b = some sg) (ht : sg.term = some .return_)
     (hr : Region.Run P host s f stk (expression sg.body) s₁ f₁ (.normal stk₁))
     (hX : codeAt body b stk ls = some X) :
-    ∃ W, Region.Run P host s f [] X s₁ f₁ (.ret (W ++ stk₁)) :=
+    Region.Run P host s f [] X s₁ f₁ (.ret (brVals ls.length ls stk₁)) :=
   Proofs.Machine.ret_sound hb ht hr hX
 
 /-- **Whole-run soundness**: a machine run from a state satisfying the invariant to a sink
@@ -696,6 +700,36 @@ theorem mdivT_frame_initial {D : Store H → Nat → List Val → Prop} (hC : Re
     (h : MDivT P host C D body (initial body s fi)) (n : Nat) (f : Frame) :
     Diverges P host ⟨s, f, [.frame n fi [.label n [] (expression body)]]⟩ :=
   Proofs.MachineTailDiv.mdivT_frame_initial hC hD h n f
+
+/-- **Completeness of frame divergence, through tail callees, from the CFG entry**: under a
+complete oracle and divergence predicate (`Region.CallCompleteG`, `Region.DivCallComplete`), their
+guard holding at every call and every pending tail call the run reaches (`Region.GuardedCalls`,
+`Region.TailGuarded`) and pending tail calls well placed (`Region.TailsOk`), a diverging Core 3.0
+run of the function's frame `FRAME_n{F} (LABEL_n{} body)` (any outer frame `g`) of a body of the
+fragment with calls is `MDivT` from the CFG entry: the body diverges inside the frame (`MDivC`),
+or the frame is left by a tail call of a callee `D` names (`TailCallDiv`). -/
+theorem frame_div_complete {G D : Store H → Nat → List Val → Prop}
+    (hC : Region.CallCompleteG P host G C) (hD : Region.DivCallComplete P host G D)
+    {s : Store H} {g F : Frame} {n : Nat} (hF : Region.FragC (expression body))
+    (hG : Region.GuardedCalls P host G ⟨s, F, [.label n [] (expression body)]⟩)
+    (hW : Region.TailsOk P host ⟨s, F, [.label n [] (expression body)]⟩)
+    (hGt : Region.TailGuarded P host G ⟨s, F, [.label n [] (expression body)]⟩)
+    (h : Diverges P host ⟨s, g, [.frame n F [.label n [] (expression body)]]⟩) :
+    MDivT P host C D body (initial body s F) :=
+  Proofs.MachineFrameDiv.frame_div_complete hC hD hF hG hW hGt h
+
+/-- **Machine frame divergence is Core 3.0 frame divergence**, under a Core-sound and complete
+oracle and divergence predicate and the guards of `frame_div_complete`. -/
+theorem mdivT_iff_frame {G D : Store H → Nat → List Val → Prop}
+    (hCs : Region.CallSoundA P host C) (hDs : Region.DivCallSound P host D)
+    (hC : Region.CallCompleteG P host G C) (hD : Region.DivCallComplete P host G D)
+    {s : Store H} {g F : Frame} {n : Nat} (hF : Region.FragC (expression body))
+    (hG : Region.GuardedCalls P host G ⟨s, F, [.label n [] (expression body)]⟩)
+    (hW : Region.TailsOk P host ⟨s, F, [.label n [] (expression body)]⟩)
+    (hGt : Region.TailGuarded P host G ⟨s, F, [.label n [] (expression body)]⟩) :
+    MDivT P host C D body (initial body s F) ↔
+      Diverges P host ⟨s, g, [.frame n F [.label n [] (expression body)]]⟩ :=
+  ⟨fun h => mdivT_frame_initial hCs hDs h n g, frame_div_complete hC hD hF hG hW hGt⟩
 
 /-- **A diverging region run with calls is machine divergence from the CFG entry**: a
 `RunDivC` run of the body is `MDivC` from the initial state (an infinite `MStepC` run, or a

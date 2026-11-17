@@ -30,33 +30,33 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem loadInt (cx : LiftLowerContext E) (ptr nbytes : Nat) (signed : Bool) :
-    P.Inv I (Canon.loadInt cx ptr nbytes signed : P E σ Int) :=
+    P.InvW I W (Canon.loadInt cx ptr nbytes signed : P E σ Int) :=
   bind (readMem cx ptr nbytes) fun _ => pure _
 
 theorem storeInt (cx : LiftLowerContext E) (v : Int) (ptr nbytes : Nat) (signed : Bool)
     (h : ∀ m s, I s → I (writeMemSt m ptr (intToLE nbytes v) s)) :
-    P.Inv I (Canon.storeInt cx v ptr nbytes signed : P E σ Unit) :=
+    P.InvW I W (Canon.storeInt cx v ptr nbytes signed : P E σ Unit) :=
   writeMem cx ptr _ h
 
 theorem convertI32ToChar (i : BitVec 32) :
-    P.Inv I (Canon.convertI32ToChar i : P E σ Char) := orTrap _ _
+    P.InvW I W (Canon.convertI32ToChar i : P E σ Char) := orTrap _ _
 
 theorem lowerFloat (t : FloatType) (x : BitVec t.width) :
-    P.Inv I (Canon.lowerFloat t x : P E σ _) := by
+    P.InvW I W (Canon.lowerFloat t x : P E σ _) := by
   unfold Canon.lowerFloat
   split
   · exact choose _
   · exact pure _
 
 theorem encodeFloat (t : FloatType) (x : BitVec t.width) :
-    P.Inv I (Canon.encodeFloat t x : P E σ _) :=
+    P.InvW I W (Canon.encodeFloat t x : P E σ _) :=
   bind (lowerFloat t x) fun _ => pure _
 
 theorem coerceLower (have_ want : NumType) (v : FlatValue) :
-    P.Inv I (Canon.coerceLower have_ want v : P E σ FlatValue) := by
+    P.InvW I W (Canon.coerceLower have_ want v : P E σ FlatValue) := by
   unfold Canon.coerceLower
   split
   · exact bind (encodeFloat _ _) fun _ => pure _

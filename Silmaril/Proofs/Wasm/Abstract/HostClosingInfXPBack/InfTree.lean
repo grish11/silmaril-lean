@@ -45,7 +45,7 @@ theorem consistent_of_coreInf {P : Numerics.Profile} {K : Config H}
 /-! ## Operators -/
 
 /-- **An operator running productively alone**: in its arguments, or in the callee of a call. -/
-theorem headInf_op (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headInf_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {i : Instr} {args es : List BExpr} (ihA : InfG tags o host args)
     (ht : TypedP tags s f stk (.op i args :: es))
     (hdv : CoreInf (profile o) host (pcfg s f stk [.op i args]) ω) :

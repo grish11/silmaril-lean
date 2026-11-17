@@ -28,7 +28,7 @@ open Silmaril.Wasm.Abstract.HostEvalP (hostCallXP hostCallXP_fixpoint)
 variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H}
 
 /-- **Every closed behaviour is in `GoodCX`**: least-fixpoint induction. -/
-theorem close_le_goodCX {tags : List TagInst} (hH : NativeHostSlice host)
+theorem close_le_goodCX {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) : Shape.close (wasmHOpenXP (H := H)) ≤ GoodCX tags P host := by
   refine OrderHom.lfp_le _ ?_
   rintro a s us y ⟨x, hx, hS⟩ b s'' hy hq
@@ -112,7 +112,11 @@ theorem close_le_goodCX {tags : List TagInst} (hH : NativeHostSlice host)
             simp
           rw [ansCode, hwr]
           exact .event hstep (.refl _)
-        · exact absurd hm (hH.noThrow _ _ _ _ _)
+        · simp only [resFlow, exitFlow, Option.some.injEq] at hxf
+          subst hxf
+          simp only [endOfFlow, End.ret.injEq] at hy
+          obtain ⟨rfl, -⟩ := hy
+          exact .event hstep (.refl _)
         · simp only [resFlow, exitFlow, Option.some.injEq] at hxf
           subst hxf
           cases hy
@@ -120,7 +124,7 @@ theorem close_le_goodCX {tags : List TagInst} (hH : NativeHostSlice host)
 /-- **A returning closed behaviour with a consistent log is a Core run of the call** with
 exactly that log, in any frame and any `call_ref` form, to its values or its thrown exception,
 every profile. -/
-theorem close_ret_evRun {tags : List TagInst} (hH : NativeHostSlice host)
+theorem close_ret_evRun {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {a : Nat} {s s₂ : Store H} {us : List Val}
     {b : List Val ⊕ Nat} {c₁ : List (Call (wasmHostSig H))} {fi : FuncInst H}
     {ps rs : List Validation.CValType}
@@ -135,7 +139,7 @@ theorem close_ret_evRun {tags : List TagInst} (hH : NativeHostSlice host)
   exact hrun hts hS hn
 
 /-- The invoked function's type, from a returning behaviour. -/
-theorem close_ret_fn {tags : List TagInst} (hH : NativeHostSlice host)
+theorem close_ret_fn {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {a : Nat} {s s₂ : Store H} {us : List Val}
     {b : List Val ⊕ Nat} {c₁ : List (Call (wasmHostSig H))}
     (hm : (c₁, .ret b s₂) ∈ Shape.close wasmHOpenXP a s us) (hc : Cons host c₁) :
@@ -157,7 +161,7 @@ theorem invokeOk_length {s : Store H} {a : Nat} {vs : List Val} {fi : FuncInst H
 
 /-- **A returning behaviour of an invocation with a consistent log is a Core run of the
 invocation with exactly that log**, to its values or its thrown exception, every profile. -/
-theorem wasmEvFunXP_ret_evRun {tags : List TagInst} (hH : NativeHostSlice host)
+theorem wasmEvFunXP_ret_evRun {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs : List Val} {b : List Val ⊕ Nat}
     (hts : TagsOk tags s) (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {cs : List (Call (wasmHostSig H))} (h : (cs, .ret b s₂) ∈ wasmEvFunXP s (a, vs))

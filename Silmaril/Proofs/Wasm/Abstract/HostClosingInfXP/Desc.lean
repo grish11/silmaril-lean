@@ -160,7 +160,7 @@ end Enter
 
 section Fwd
 
-variable {tags : List TagInst} (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+variable {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
 include hH hE
 
 /-- **A descent is a Core run from the caller's call into the callee's**, with exactly the
@@ -228,10 +228,9 @@ end Fwd
 
 /-! ## Host-free descents are closed divergence -/
 
-theorem nativeHostSlice_closed : NativeHostSlice (Binaryen.closedHost : HostSemantics H) where
+theorem hostSliceT_closed : HostSliceT (Binaryen.closedHost : HostSemantics H) where
   funcs _ _ _ _ _ hr := hr.elim
   arity _ _ _ _ _ _ _ _ _ _ _ _ hr := hr.elim
-  noThrow _ _ _ _ _ hr := hr.elim
 
 theorem hostSliceE_closed (tags : List TagInst) :
     HostSliceE tags (Binaryen.closedHost : HostSemantics H) where
@@ -244,7 +243,7 @@ theorem quiet_evalOXP {s : Store H} {f : Frame} {stk : List Val} {es : List Bina
     (hq : SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) []) :
     EvalOXP closedCallXP s f stk es r := by
   have := (evalLXPh_evRun (P := Silmaril.Wasm.Numerics.Profile.spec) (tags := [])
-    nativeHostSlice_closed (hostSliceE_closed []) h hq (fun _ h => nomatch h)).1
+    hostSliceT_closed (hostSliceE_closed []) h hq (fun _ h => nomatch h)).1
   rwa [HostEvalP.hostCallXP_closedHost] at this
 
 theorem substPre_nil_split {la lb : List (OCall H)}
@@ -375,7 +374,7 @@ theorem invoke_callChk {tags : List TagInst} {s : Store H} {a : Nat} {vs : List 
   exact ⟨fi, hfi, hS, hts, fi, _, _, hfi, hty, hvs.length_eq⟩
 
 /-- **Divergence after a log is a Core run with exactly that log, then host-free divergence.** -/
-theorem wasmEvFunDXP_div_evRun {tags : List TagInst} (hH : NativeHostSlice host)
+theorem wasmEvFunDXP_div_evRun {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hts : TagsOk tags s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {cs : List (Call (wasmHostSig H))} (h : (cs, .div) ∈ wasmEvFunDXP s (a, vs))

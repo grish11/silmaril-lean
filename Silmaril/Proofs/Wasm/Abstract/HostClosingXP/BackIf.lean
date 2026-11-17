@@ -63,7 +63,7 @@ variable {s : Store H} {f : Frame} {stk : List Val} {c : Config H}
   {cs : List (Call (wasmHostSig H))} {n : Nat}
 
 /-- **Conditionals**: the condition, then the block of the chosen arm. -/
-theorem case_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem case_if (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {cnd t el es : List Binaryen.BExpr}
     (ihc : ∀ m ≤ n, BackG tags o host m cnd)
     (ihblk : ∀ b : Bool, ∀ m ≤ n, BackG tags o host m (.block bt (if b then t else el) :: es)) :
@@ -129,7 +129,7 @@ theorem case_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSlic
 
 /-- **`try_table`**: the body in its handler and label; a thrown exception caught or rethrown by
 the clauses. -/
-theorem case_try (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem case_try (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {cl : List Catch} {body es : List Binaryen.BExpr}
     (ihB : ∀ m ≤ n, BackG tags o host m body) (ihk : ∀ m ≤ n, BackG tags o host m es) :
     BackG tags o host n (.tryTable bt cl body :: es) := by

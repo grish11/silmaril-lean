@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/loops/ag/sum_to",
+  "kind": "assume-guarantee",
+  "function": "sum_to",
+  "address": "0x11240",
+  "words": "000002930005086300a282b3fff50513ff5ff06f0002851300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/sum_to.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0"], "results": ["a0"]},
+  "spec": {"requires": "(bvult (reg a0) #x0000000100000000)", "ensures": "(= (reg a0) (tri (old (reg a0))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `sum_to` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}
