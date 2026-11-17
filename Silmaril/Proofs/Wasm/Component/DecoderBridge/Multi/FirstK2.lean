@@ -229,4 +229,239 @@ theorem prefix_runZ (hty : ∀ at_, (CanonHost.lowered g0 fx.ft {} inst : CanonH
 
 end Fold
 
+/-! ## The symbolic reading before the first core instantiation -/
+
+section Read
+
+/-- An inline core instance of the reading and the frame's. -/
+theorem inline_rel (M : List Silmaril.Wasm.Module) {cf : List Impl} :
+    ∀ {items : List (String × Syntax.SortIdx Syntax.CoreSort)} {es : List (String × Impl)},
+      items.mapM (fun (p : String × Syntax.SortIdx Syntax.CoreSort) =>
+        if p.2.sort = .func then (cf[p.2.idx]?).map ((p.1, ·)) else none) = some es →
+      CIRel M (.inline es) ((items.map fun p => (p.1, p.2.idx)).map
+        fun p => (p.1, Silmaril.Wasm.Execution.Core.ExternAddr.func p.2))
+  | [], es, h => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h
+    intro n hn
+    simp at hn
+  | p :: items, es, h => by
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at h
+    obtain ⟨x, hx, es', hes', rfl⟩ := h
+    have ih := inline_rel M hes'
+    have hx1 : x.1 = p.1 := by
+      split at hx
+      · obtain ⟨y, -, rfl⟩ := Option.map_eq_some_iff.mp hx
+        rfl
+      · cases hx
+    intro n hn
+    obtain ⟨x1, x2⟩ := x
+    simp only at hx1
+    subst hx1
+    simp only [List.map_cons, List.lookup_cons] at hn ⊢
+    cases hb : n == p.1
+    · rw [hb] at hn
+      exact ih n hn
+    · exact ⟨_, rfl⟩
+
+/-- **The symbolic reading of the definitions before the first core instantiation** (without
+imports): the modules, the function types and the core functions are appended, the component
+functions kept, and the inline core instances appended, related to the frame's. -/
+theorem refFold_pre (M : List Silmaril.Wasm.Module) :
+    ∀ (pre : List (Syntax.Definition Silmaril.Wasm.Module)) (nf ncf : Nat) (R R' : RSt),
+      preOk nf ncf pre = true → noImport pre = true → pre.foldlM refStep R = some R' →
+      R'.mods = R.mods ++ coreMods pre ∧ R'.types.length = R.types.length + nTypes pre ∧
+      R'.funcs.length = R.funcs.length ∧
+      R'.coreFuncs.length = R.coreFuncs.length + preLowers pre ∧
+      ∃ X, R'.coreInsts = R.coreInsts ++ X ∧
+        List.Forall₂ (fun ci its => CIRel M ci (its.map
+          fun p => (p.1, Silmaril.Wasm.Execution.Core.ExternAddr.func p.2))) X (preInsts pre)
+  | [], _, _, R, R', _, _, h => by
+    simp only [List.foldlM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h
+    exact ⟨by simp [coreMods], by simp [nTypes], rfl, by simp [preLowers], [], by simp,
+      by simp [preInsts]⟩
+  | d :: ds, nf, ncf, R, R', hp, hni, h => by
+    have hni' : noImport ds = true := by
+      simp only [noImport, List.all_cons, Bool.and_eq_true] at hni
+      exact hni.2
+    simp only [List.foldlM_cons] at h
+    cases hR : refStep R d with
+    | none => rw [hR] at h; cases h
+    | some R₁ =>
+    rw [hR] at h
+    match d, hp, hR with
+    | .coreModule mo, hp, hR =>
+      simp only [refStep, Option.some.injEq] at hR
+      subst hR
+      obtain ⟨h1, h2, h3, h4, X, h5, h6⟩ := refFold_pre M ds nf ncf _ R' hp hni' h
+      exact ⟨by simp [h1, coreMods], by simp [h2, nTypes], h3, by simp [h4, preLowers], X,
+        by simpa using h5, by simpa [preInsts] using h6⟩
+    | .type (.func ft), hp, hR =>
+      simp only [preOk, Bool.and_eq_true] at hp
+      simp only [refStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq] at hR
+      obtain ⟨ft', -, rfl⟩ := hR
+      obtain ⟨h1, h2, h3, h4, X, h5, h6⟩ := refFold_pre M ds nf ncf _ R' hp.2 hni' h
+      exact ⟨by simp [h1, coreMods], by simp [h2, nTypes]; omega, h3,
+        by simp [h4, preLowers], X, by simpa using h5, by simpa [preInsts] using h6⟩
+    | .canon (.lower g []), hp, hR =>
+      simp only [preOk, Bool.and_eq_true, decide_eq_true_eq] at hp
+      simp only [refStep, Option.bind_eq_bind, Option.bind_eq_some_iff] at hR
+      obtain ⟨⟨im, ft⟩, -, hR⟩ := hR
+      split at hR
+      · cases hR
+      · simp only [Option.some.injEq] at hR
+        subst hR
+        obtain ⟨h1, h2, h3, h4, X, h5, h6⟩ := refFold_pre M ds nf (ncf + 1) _ R' hp.2 hni' h
+        exact ⟨by simp [h1, coreMods], by simp [h2, nTypes], h3,
+          by simp [h4, preLowers]; omega, X, by simpa using h5, by simpa [preInsts] using h6⟩
+    | .coreInstance (.exports items), hp, hR =>
+      simp only [preOk, Bool.and_eq_true] at hp
+      simp only [refStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq] at hR
+      obtain ⟨es, hes, rfl⟩ := hR
+      obtain ⟨h1, h2, h3, h4, X, h5, h6⟩ := refFold_pre M ds nf ncf _ R' hp.2 hni' h
+      refine ⟨by simp [h1, coreMods], by simp [h2, nTypes], h3, by simp [h4, preLowers],
+        .inline es :: X, by simp [h5], ?_⟩
+      simp only [preInsts]
+      exact .cons (inline_rel M hes) h6
+    | .import_ n (.func t), _, _ => simp [noImport] at hni
+
+end Read
+
+/-! ## The root, with the frame -/
+
+section RootRun
+
+/-- **Root instantiation up to the first core instantiation, with its continuation**: as
+`root_firstY`, the continuation `Kr` of the definitions kept, which finishes the instantiation
+(`KFin`) once the host's instantiation program ends. -/
+theorem root_firstK2 {r pre post : Core3Component} {mi : Nat} {cargs : List (String × Nat)}
+    (hs : firstCore? r = some (pre, mi, cargs, post)) (hpre : preOk 0 0 pre = true)
+    (hshape : rootShape pre = true) (hpost : noImport post = true) :
+    ∃ (sc' : Scope (core3 neverFail))
+      (Kr : Scope (core3 neverFail) → Canon.P (core3 neverFail) (Unit × List HLinked2.HostEvent)
+        (Ret (core3 neverFail))),
+      FocusAtK first.prof embL.hr (DG embL.host) none
+        ((Syntax.Definition.coreInstance (.instantiate mi cargs) :: post).foldlM
+          (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc')
+        (instantiateProg r (importArgs hostI)) hostConfigX
+        (lowCfg hostConfigX (preLowers pre) lowH) Kr ∧
+      KFin (fun sc => Kr sc >>= fun _ => pure .unit) ∧
+      sc'.frame.coreModules = coreMods pre ∧ sc'.frame.coreFuncs = List.range (preLowers pre) ∧
+      sc'.frame.coreInstances = instsVal (preInsts pre) ∧
+      sc'.frame.types.length = nTypes pre ∧ (∀ x ∈ sc'.frame.types, ∃ t, x = .func t) ∧
+      sc'.frame.funcs.length = 1 := by
+  have hrr := firstCore?_eq r hs
+  obtain ⟨pre', rfl, hni⟩ := rootShape_inv hshape
+  have hrest : NoImport (pre' ++ Syntax.Definition.coreInstance (.instantiate mi cargs) :: post) :=
+    (noImport_prop hni).append (noImport_cons_inst hpost)
+  have hpre' : preOk 1 0 pre' = true := by
+    simp only [preOk, Bool.and_eq_true] at hpre
+    exact hpre.2
+  have hr' : r = .type (.func fFuncType) :: .import_ { name := "f" } (.func 0) ::
+      (pre' ++ Syntax.Definition.coreInstance (.instantiate mi cargs) :: post) := by
+    rw [hrr]
+    rfl
+  have hpi : PreInv ({ frame := { frameT with funcs := [⟨0⟩] } } : Scope (core3 neverFail))
+      rootCfg 1 0 [] :=
+    ⟨rfl, fun g hg => by
+      simp only [List.mem_singleton] at hg
+      subst hg
+      exact ⟨_, rfl⟩, rfl, rfl, rfl⟩
+  have hpx : PreInvX (⟨0⟩ : FuncId) (.host fWit ⟨0⟩) ⟨0⟩
+      ({ frame := { frameT with funcs := [⟨0⟩] } } : Scope (core3 neverFail)) rootCfg 0 [] :=
+    ⟨fun g hg => by simpa using hg, rfl, rfl, rfl, rfl⟩
+  obtain ⟨sc', m', hrun, ⟨c', nf', ncf', rfl, hinv, hinvx⟩, ⟨⟨ts, hts, htl, htf⟩, hfn⟩⟩ :=
+    prefix_runZ (R := callRecurse) (outer := []) (args := importArgs hostI) coreType_lowH pre' 1 0
+      _ rootCfg [] [] hpre' hni hpi hpx
+  have hc : c' = lowStore (preLowers (.type (.func fFuncType) ::
+      .import_ { name := "f" } (.func 0) :: pre')) lowH := by
+    have := hinvx.core
+    rw [Nat.zero_add] at this
+    exact this
+  subst hc
+  refine ⟨sc', ?_⟩
+  apply Exists.intro
+  refine ⟨?focus, ?fin, hinv.mods.trans rfl,
+    by rw [hinvx.coreFuncs, Nat.zero_add]; rfl, hinvx.coreInsts.trans rfl, ?_, ?_, ?_⟩
+  case focus =>
+    unfold instantiateProg
+    apply FocusAtK.silent (TRuns.modifyStore (f := DispatchSt.incNestingSt) (fun _ => rfl) _)
+    apply FocusAtK.left
+    unfold instantiateRootCall instantiateRoot
+    rw [hr']
+    erw [argsComplete_root hrest]
+    apply FocusAtK.silent (TRuns.pure () _)
+    apply FocusAtK.silent (TRuns.getStore _)
+    rw [show ({ hostConfigX with store := DispatchSt.incNestingSt hostConfigX.store } :
+        Machine.Config (core3 neverFail) (Unit × List HLinked2.HostEvent)).store = preStore from rfl]
+    erw [precheck_root hrest]
+    apply FocusAtK.silent (TRuns.pure () _)
+    apply FocusAtK.silent (TRuns.allocObj ArenaField.insts (fun _ _ => rfl) {} _)
+    apply FocusAtK.left
+    unfold instantiateComponent
+    apply FocusAtK.left
+    dsimp only
+    show FocusAtK first.prof embL.hr (DG embL.host) none _
+      (List.foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI))
+        ({} : Scope (core3 neverFail))
+        (((.type (.func fFuncType) :: .import_ { name := "f" } (.func 0) ::
+          (pre' ++ Syntax.Definition.coreInstance (.instantiate mi cargs) :: post))) :
+          List (Syntax.Definition (core3 neverFail).Module))) _ _ _
+    have ht : TRuns (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)
+        ({} : Scope (core3 neverFail)) (.type (.func fFuncType))) rootCfg
+        ({ frame := frameT } : Scope (core3 neverFail)) rootCfg := by
+      rw [instDef_funcTypeG _ resolve_fFuncType]
+      exact TRuns.pure _ _
+    rw [List.foldlM_cons]
+    apply FocusAtK.silent ht
+    erw [List.foldlM_cons]
+    apply FocusAtK.silent import_runs
+    erw [List.foldlM_append]
+    apply FocusAtK.silent hrun
+    exact FocusAtK.self _ _
+  case refine_1 =>
+    rw [hts, List.length_append, htl]
+    show 1 + _ = _
+    rw [Nat.add_comm]
+    rfl
+  case refine_2 =>
+    intro x hx
+    rw [hts] at hx
+    rcases List.mem_append.mp hx with hx | hx
+    · simp [frameT] at hx
+      exact ⟨_, hx⟩
+    · exact htf x hx
+  case refine_3 =>
+    rw [hfn]
+    rfl
+  case fin =>
+    intro sc M hl hc
+    have hr1 : RunsQ (DG embL.host) none
+        (modifyStore DispatchSt.decNestingSt >>= fun _ =>
+          emit (instantiatedObs ⟨0⟩ (funcExports sc.exports)) >>= fun _ =>
+            pure (Ret.unit : Ret (core3 neverFail)))
+        M [.tau, .obs (instantiatedObs ⟨0⟩ (funcExports sc.exports))] Ret.unit
+        { M with store := DispatchSt.decNestingSt M.store } :=
+      RunsQ.bind (tr₁ := [.tau]) (.modify rfl (.pure _ _))
+        (RunsQ.bind (tr₁ := [.obs _]) (.emit (.pure _ _)) (.pure _ _))
+    have d := RunsQ.lrun_at (prof := first.prof) (hr := embL.hr) hr1 hl (fun _ => pure Ret.unit)
+      (segs := []) (rest := []) (by rw [hc]; rfl)
+    have s : UniqueStep first.prof embL.hr (DG embL.host)
+        { ({ M with store := DispatchSt.decNestingSt M.store } :
+            Machine.Config (core3 neverFail) (Unit × List HLinked2.HostEvent)) with
+          ctl := [⟨none, .prog (pure (Ret.unit : Ret (core3 neverFail))), []⟩] } .tau
+        { M with store := DispatchSt.decNestingSt M.store, ctl := [] } :=
+      .of_prog rfl (fun _ _ e => by cases e) (.hostDone (r := .unit) (rest := []) rfl)
+    refine ⟨_, _, (d.trans (.cons ⟨List.cons_ne_nil _ _, hl⟩ s (.refl _))).steps, ?_, rfl, hl,
+      rfl, rfl, ?_⟩
+    · intro ev hev
+      simp at hev
+    · simp only [traceObs, List.filterMap_append, List.filterMap_cons, Label.obs?,
+        List.filterMap_nil, List.append_nil, List.findSome?_cons,
+        decodeInstantiated?_instantiatedObs]
+
+end RootRun
+
 end Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi
