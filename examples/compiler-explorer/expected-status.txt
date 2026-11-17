@@ -74,6 +74,18 @@ compiles-to/straight/O2/add3  [compiled]  straight.c, gcc 13.3.0 -O2, add3 (obje
   artifact               proved       CompilesToExamples.Explorer.straight_O2_code
   nonvacuity/canonical   proved       CompilesToExamples.Explorer.StraightO2.canonical
   nonvacuity/universal   open         
+decompiled/scale  [decompiled]  scale.o (gcc 13.3.0 -O2) decompiled to C by SemLift + WordC
+  translation            unsupported  
+  nonvacuity             unsupported  
+  abi                    unsupported  
+  mapping                unsupported  
+  refinement             unsupported  
+imported/sha256-compress  [imported]  sha256 compression: C source and clang -O2 assembly, both supplied
+  translation            unsupported  
+  nonvacuity             unsupported  
+  abi                    unsupported  
+  mapping                unsupported  
+  refinement             unsupported  
 programs/fft/O0  [compiled]  fft.c, gcc 13.3.0 -O0 (assembly)
   translation            unsupported  
   abi                    unsupported  
