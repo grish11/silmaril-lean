@@ -5,7 +5,7 @@
     "sat": {
       "path": "../../../examples/wasm-acceptors/sat_accept.wasm",
       "source": "Silmaril.Wasm.Examples.SatAccept: prog, wrapped as a component (memory 0, realloc cabi_realloc)",
-      "sha256": "5edf32dedc7d16a224ec7e0b50f0246bb2a47d93f25720e0de5a490ae6e07922"
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2"
     }
   },
   "cases": [
