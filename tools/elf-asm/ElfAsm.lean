@@ -229,7 +229,7 @@ def generate : IO Json := do
       let axs := (axs.qsort Name.lt).toList
       ev := ev ++ es.map fun (f, e) => (f, { e with axioms := axs })
   pure <| Json.mkObj [
-    ("schema", Json.str schema),
+    ("schema", Json.str schema), ("schemaVersion", Json.str schemaVersion),
     ("files", Json.arr (files.toArray.map fun fi => Json.mkObj [
       ("decl", Json.str fi.decl.toString), ("path", Json.str fi.path), ("sha256", Json.str fi.digest)])),
     ("functions", Json.arr (samples.toArray.map fun s =>

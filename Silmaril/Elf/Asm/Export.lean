@@ -32,6 +32,16 @@ contract or a misleading name gives no evidence).
       "evidence": [ { "kind", "decl", "model", "axioms", "hypotheses" } ] } ] }
 ```
 
+**Version 1.1** adds optional fields only: `schemaVersion`; `abi {id, source}`; `extent.addrKind`
+(`"link"`: link-time addresses) and `extent.loadBase` (`null`); `listing {tool, verified: false}`;
+per line `source` (`"objdump"`) and `unverified: true`; per decoding `source: "lean-decode"`; per
+ref `version` and `targetIn {segment, section, readOnly, provenance, note}` (metadata); per
+evidence `axis`, `status` (`proved`, `open`: proved under the listed `assumptions`, `refuted`: a
+negation), `problemId` (`null`: evidence comes from theorems, not registered rows),
+`assumptions`, `note`; per function `axes` (each axis's status, per model where models differ;
+`none` when no theorem speaks to it). A `noDecode` refutation says only that the model's decoder
+(an `Option`) returns nothing: invalid, unsupported and incomplete bytes are not told apart.
+
 Addresses and file offsets are hexadecimal strings (they exceed JavaScript's exact integers);
 counts and in-function offsets are numbers. Unknown values are `null`, never `0`.
 
@@ -54,6 +64,11 @@ namespace Silmaril.Elf.Asm.Export
 open Lean (Json Name ToJson toJson)
 
 def schema : String := "silmaril.elf.asm/1"
+
+/-- The minor version: `1.1` adds optional fields only (`abi`, `extent.addrKind`/`loadBase`,
+`listing`, line `source`/`unverified`, decoding `source`, ref `version`/`targetIn`, evidence
+`axis`/`status`/`problemId`/`assumptions`/`note`, function `axes`). -/
+def schemaVersion : String := "1.1"
 
 /-- `0x…`, lowercase. -/
 def hex (n : Nat) : String := "0x" ++ String.ofList (Nat.toDigits 16 n)
@@ -108,21 +123,65 @@ def originJson : RefOrigin → Json
 
 def refJson (r : CodeRef) : Json := Json.mkObj [
   ("off", toJson r.off), ("target", optHex r.target), ("symbol", optStr r.symbol),
+  ("version", optStr r.version),
   ("kind", toJson r.kind), ("addend", Json.str (toString r.addend)), ("origin", originJson r.origin)]
 
-def lineJson (base : Nat) (l : Line) : Json := Json.mkObj [
+/-- A listing line. Its `source` is the tool that printed it; it is always `unverified`: no
+proposition reads a line's text. -/
+def lineJson (base : Nat) (src : Option String) (l : Line) : Json := Json.mkObj [
   ("off", toJson l.off), ("len", toJson l.len), ("addr", Json.str (hex (base + l.off))),
-  ("text", Json.str l.text), ("label", optStr l.label)]
+  ("text", Json.str l.text), ("label", optStr l.label),
+  ("source", Json.str (src.getD "unknown")), ("unverified", Json.bool true)]
 
 def decodingJson (base : Nat) (d : Decoding) : Json := Json.mkObj [
-  ("model", Json.str d.model), ("decl", name d.decl),
+  ("model", Json.str d.model), ("decl", name d.decl), ("source", Json.str "lean-decode"),
+  ("note", Json.str "the instructions are this model's decoder output; that they decode the bytes is the `decode` evidence of this model, the renderings are display"),
   ("insns", Json.arr (d.insns.toArray.map fun (o, n, s) => Json.mkObj [
     ("off", toJson o), ("len", toJson n), ("addr", Json.str (hex (base + o))), ("render", Json.str s)]))]
 
+/-- The axis an evidence kind is about, and whether it refutes it. -/
+def axisOf : String → String × Bool
+  | "notArch" => ("arch", true)
+  | "notBytes" => ("bytes", true)
+  | "noDecode" => ("decode", true)
+  | k => (k, false)
+
+/-- The axes every function is reported on (`none` when no theorem speaks to one). -/
+def axes : List String :=
+  ["arch", "bytes", "sectionBytes", "code", "symbol", "lineTiles", "decode", "refs", "unrelocated",
+    "present", "contract"]
+
+/-- The status of one piece of evidence: `refuted` (a negation), `proved` (no premise), `open`
+(proved under the premises listed in `assumptions`, which are not discharged). -/
+def statusOf (e : Evidence) : String :=
+  if (axisOf e.kind).2 then "refuted" else if e.hypotheses.isEmpty then "proved" else "open"
+
 def evidenceJson (e : Evidence) : Json := Json.mkObj [
-  ("kind", Json.str e.kind), ("decl", name e.decl), ("model", optStr e.model),
+  ("kind", Json.str e.kind), ("axis", Json.str (axisOf e.kind).1), ("status", Json.str (statusOf e)),
+  ("decl", name e.decl), ("problemId", Json.null), ("model", optStr e.model),
   ("axioms", Json.arr (e.axioms.toArray.map name)),
-  ("hypotheses", Json.arr (e.hypotheses.toArray.map Json.str))]
+  ("hypotheses", Json.arr (e.hypotheses.toArray.map Json.str)),
+  ("assumptions", Json.arr (e.hypotheses.toArray.map Json.str)),
+  ("note", if e.kind == "noDecode" then
+      Json.str "the model's decoder returns none at some instruction: these bytes are not decodable by this model; invalid, unsupported and incomplete are not distinguished (the decoder is an Option)"
+    else Json.null)]
+
+/-- **The status of each axis** (and, for `decode`, `refs` and `contract`, each model): `proved`
+over `open` over `refuted`, `conflict` if a statement and its negation are both present, `none`
+when no theorem speaks to the axis. -/
+def axesJson (ev : List Evidence) : Json :=
+  let keys := (ev.map fun e => ((axisOf e.kind).1, e.model)).eraseDups
+  let st (k : String × Option String) : String :=
+    let es := ev.filter fun e => ((axisOf e.kind).1, e.model) == k
+    let ss := es.map statusOf
+    if ss.contains "refuted" && (ss.contains "proved" || ss.contains "open") then "conflict"
+    else if ss.contains "proved" then "proved" else if ss.contains "open" then "open"
+    else if ss.contains "refuted" then "refuted" else "none"
+  let present := keys.map fun k => Json.mkObj [("axis", Json.str k.1), ("model", optStr k.2),
+    ("status", Json.str (st k))]
+  let absent := (axes.filter fun a => !(keys.any (·.1 == a))).map fun a =>
+    Json.mkObj [("axis", Json.str a), ("model", Json.null), ("status", Json.str "none")]
+  Json.arr (present ++ absent).toArray
 
 /-- The name of a section, as text (display). -/
 def nameText (n : Silmaril.Formats.ELF.NameBytes) : String := String.ofList (n.map fun b => Char.ofNat b.toNat)
@@ -139,7 +198,8 @@ def targetJson (A : File) (t : Nat) : Json :=
     ("segment", match seg with | some (_, i) => toJson i | none => Json.null),
     ("section", match sec with | some (s, _) => Json.str (nameText s.name) | none => Json.null),
     ("readOnly", match seg with | some (ph, _) => Json.bool (ph.flags / 2 % 2 == 0) | none => Json.null),
-    ("provenance", Json.str "metadata: computed from the parse, not a theorem")]
+    ("provenance", Json.str "metadata: computed from the parse, not a theorem"),
+    ("note", Json.str "readOnly is the flag of the first segment containing the target address; it does not authorize the address as the code's data and says nothing about a range (the theorems are Asm.RefTargetIn, Asm.RefTargetReadOnly)")]
 
 /-- **A function as JSON**, with its decodings and evidence. With the file's parse `A`, each
 reference with a target also gets its target's segment, section and read-only flag
@@ -160,11 +220,13 @@ def functionJson (decl : Name) (f : AsmFunction) (ds : List Decoding) (ev : List
       | j => j),
     ("bytesHex", Json.str (bytesHex f.bytes)),
     ("listing", Json.mkObj [("tool", optStr f.listingTool), ("verified", Json.bool false)]),
-    ("lines", Json.arr (f.lines.toArray.map (lineJson f.extent.vaddr))),
+    ("lines", Json.arr (f.lines.toArray.map (lineJson f.extent.vaddr
+      (f.listingTool.map fun t => if (t.splitOn "objdump").length > 1 then "objdump" else t)))),
     ("refs", Json.arr (f.refs.toArray.map fun r => match refJson r, A, r.target with
       | .obj kvs, some A, some t => .obj (kvs.insert "targetIn" (targetJson A t))
       | j, _, _ => j)),
     ("decodings", Json.arr (ds.toArray.map (decodingJson f.extent.vaddr))),
-    ("evidence", Json.arr (ev.toArray.map evidenceJson))]
+    ("evidence", Json.arr (ev.toArray.map evidenceJson)),
+    ("axes", axesJson ev)]
 
 end Silmaril.Elf.Asm.Export

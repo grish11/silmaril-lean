@@ -111,6 +111,8 @@ structure CodeRef where
   target : Option Nat := none
   /-- The target symbol's name, when known. -/
   symbol : Option String := none
+  /-- The target symbol's version (`GLIBC_2.2.5`), when known. Metadata. -/
+  version : Option String := none
   /-- The relocation type (`r_type`), `0` when not a relocation. -/
   kind : Nat := 0
   addend : Int := 0
