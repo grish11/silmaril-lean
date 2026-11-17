@@ -71,6 +71,8 @@ def run(cmd, cwd, timeout):
         return "timeout", b"", b""
     if res["ended"] in ("stdout-limit", "stderr-limit"):
         return "output-limit", b"", b""
+    if res["ended"] == "launch-failed":
+        return "launch-failed", b"", res["launchError"].encode()
     return (res["code"] if res["ended"] == "exit" else -res["code"]), out, err
 
 
@@ -85,13 +87,28 @@ NATIVE = {"timeoutSeconds": 10, "cpuSeconds": 10, "addressSpaceBytes": 1 << 30, 
 # soft one, so that the soft limit's SIGXCPU arrives first.
 _LIMIT_WRAPPER = (
     "import os, resource, signal, sys\n"
-    "for s in (signal.SIGPIPE, signal.SIGXFSZ, signal.SIGXCPU):\n"
-    "    signal.signal(s, signal.SIG_DFL)\n"
-    "cpu, asz, fsz = (int(x) for x in sys.argv[1:4])\n"
-    "resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu + 1))\n"
-    "for r, v in ((resource.RLIMIT_AS, asz), (resource.RLIMIT_FSIZE, fsz), (resource.RLIMIT_CORE, 0)):\n"
-    "    resource.setrlimit(r, (v, v))\n"
-    "os.execv(sys.argv[4], sys.argv[4:])\n")
+    "fd = int(sys.argv[1])\n"
+    "os.set_inheritable(fd, False)\n"
+    "try:\n"
+    "    for s in (signal.SIGPIPE, signal.SIGXFSZ, signal.SIGXCPU):\n"
+    "        signal.signal(s, signal.SIG_DFL)\n"
+    "    cpu, asz, fsz = (int(x) for x in sys.argv[2:5])\n"
+    "    resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu + 1))\n"
+    "    for r, v in ((resource.RLIMIT_AS, asz), (resource.RLIMIT_FSIZE, fsz), (resource.RLIMIT_CORE, 0)):\n"
+    "        resource.setrlimit(r, (v, v))\n"
+    "    os.execv(sys.argv[5], sys.argv[5:])\n"
+    "except BaseException as e:\n"
+    "    os.write(fd, repr(e).encode()[:1000])\n"
+    "    os._exit(127)\n")
+# The wrapper reports a failure before the program starts (a limit it cannot set, an executable it
+# cannot run) on a close-on-exec status pipe, which a successful exec closes empty: such a run is
+# "launch-failed", never the program's own exit status.
+
+
+def exited(pid):
+    """Whether the process has ended, without reaping it (its pid stays reserved)."""
+    info = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    return info is not None and info.si_pid == pid
 
 
 def launch(cmd, cwd, timeout, out_cap, err_cap, limits=None):
@@ -104,20 +121,28 @@ def launch(cmd, cwd, timeout, out_cap, err_cap, limits=None):
     are applied by the exec wrapper.
 
     Returns ({"ended": "exit" | "signal" | "cpu-limit" | "fsize-limit" | "timeout" | "stdout-limit"
-              | "stderr-limit", "code" (exit status, or the signal number, also for a limit),
+              | "stderr-limit" | "launch-failed" (the program never started: "launchError"), "code" (exit status, or the signal number, also for a limit),
               "cpuSeconds", "groupKilledAfterEnd" (members of the group were still alive after the
               program ended), "groupGone" (no member left after the kill)}, stdout, stderr).
     A limit is recognised by its signal: SIGXCPU (or SIGKILL with the CPU time at the limit) is
     "cpu-limit", SIGXFSZ is "fsize-limit"; the signal stays in "code" as the evidence."""
     import select, signal
-    argv = [sys.executable, "-I", "-c", _LIMIT_WRAPPER, *(str(x) for x in limits), *cmd] if limits else cmd
-    p = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE, start_new_session=True)
+    status_r, status_w = os.pipe()
+    argv = ([sys.executable, "-I", "-c", _LIMIT_WRAPPER, str(status_w), *(str(x) for x in limits), *cmd]
+            if limits else cmd)
+    try:
+        p = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, start_new_session=True, pass_fds=(status_w,) if limits else ())
+    except OSError as e:
+        os.close(status_r); os.close(status_w)
+        return ({"ended": "launch-failed", "code": None, "launchError": repr(e)[:1000], "cpuSeconds": 0.0,
+                 "groupKilledAfterEnd": False, "groupGone": True}, b"", b"")
+    os.close(status_w)
     deadline = time.monotonic() + timeout
     fo, fe = p.stdout.fileno(), p.stderr.fileno()
     bufs = {fo: bytearray(), fe: bytearray()}
     caps = {fo: (out_cap, "stdout-limit"), fe: (err_cap, "stderr-limit")}
-    open_fds, ended, status, usage = set(bufs), None, None, None
+    open_fds, ended, ended_seen = set(bufs), None, False
     while open_fds and ended is None:
         left = deadline - time.monotonic()
         if left <= 0:
@@ -130,13 +155,13 @@ def launch(cmd, cwd, timeout, out_cap, err_cap, limits=None):
             bufs[fd] += chunk
             if len(bufs[fd]) > caps[fd][0]:
                 ended = caps[fd][1]; break
-        if not ready and status is None:
+        if not ready and not ended_seen:
             # The program may have ended while a descendant keeps its outputs open: once it has
             # ended, drain what is already in the pipes (it may have written just before ending)
-            # and stop reading.
-            pid, st, ru = os.wait4(p.pid, os.WNOHANG)
-            if pid:
-                status, usage = st, ru
+            # and stop reading. It is not reaped yet (WNOWAIT), so its pid, which is the group's id,
+            # cannot be reused before the group is killed below.
+            if exited(p.pid):
+                ended_seen = True
                 while open_fds and ended is None:
                     ready, _, _ = select.select(list(open_fds), [], [], 0)
                     if not ready:
@@ -150,21 +175,20 @@ def launch(cmd, cwd, timeout, out_cap, err_cap, limits=None):
                             ended = caps[fd][1]; break
                 break
     # The process itself (its outputs closed or not) must also end before the deadline.
-    while ended is None and status is None:
-        pid, st, ru = os.wait4(p.pid, os.WNOHANG)
-        if pid:
-            status, usage = st, ru; break
+    while ended is None and not ended_seen:
+        if exited(p.pid):
+            ended_seen = True; break
         if time.monotonic() >= deadline:
             ended = "timeout"; break
         time.sleep(0.02)
+    # Kill the group before reaping its leader, so that its id cannot have been reused.
     killed_after_end = False
     try:
         os.killpg(p.pid, signal.SIGKILL)
-        killed_after_end = status is not None
+        killed_after_end = ended_seen
     except (ProcessLookupError, PermissionError):
         pass
-    if status is None:
-        _, status, usage = os.wait4(p.pid, 0)
+    _, status, usage = os.wait4(p.pid, 0)
     p.returncode = os.waitstatus_to_exitcode(status)
     p.stdout.close(); p.stderr.close()
     # Wait (briefly) until the killed group is gone, so that nothing of the run outlives it.
@@ -178,6 +202,8 @@ def launch(cmd, cwd, timeout, out_cap, err_cap, limits=None):
     cpu = round(usage.ru_utime + usage.ru_stime, 3)
     code = None
     if ended is None:
+        # killed_after_end: the group was signalled after the leader had ended, so the leader's
+        # own status is its own ending, not our kill.
         if os.WIFSIGNALED(status):
             sig = os.WTERMSIG(status)
             code = sig
@@ -191,8 +217,18 @@ def launch(cmd, cwd, timeout, out_cap, err_cap, limits=None):
                 ended = "signal"
         else:
             ended, code = "exit", os.WEXITSTATUS(status)
+    launch_error = b""
+    while True:
+        chunk = os.read(status_r, 4096)
+        if not chunk:
+            break
+        launch_error += chunk
+    os.close(status_r)
+    extra = {}
+    if launch_error:
+        ended, code, extra = "launch-failed", None, {"launchError": launch_error.decode(errors="replace")[:1000]}
     return ({"ended": ended, "code": code, "cpuSeconds": cpu, "groupKilledAfterEnd": killed_after_end,
-             "groupGone": group_gone},
+             "groupGone": group_gone, **extra},
             bytes(bufs[fo]), bytes(bufs[fe]))
 
 
@@ -213,6 +249,8 @@ def failure(rc, so, se):
     """Why a tool run failed: its timeout or output cap, or its reject message."""
     if rc == "timeout":
         return f"timeout ({OPTIONS['toolTimeoutSeconds']} s)"
+    if rc == "launch-failed":
+        return "the tool could not be started: " + se.decode(errors="replace")[:300]
     if rc == "output-limit":
         return f"output beyond the tool output cap ({TOOL_STDOUT_BYTES >> 20} MiB stdout, {TOOL_STDERR_BYTES >> 20} MiB stderr)"
     return reason(so + se)

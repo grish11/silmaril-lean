@@ -71,6 +71,21 @@ class NativeRunner(unittest.TestCase):
         self.assertTrue(res["groupKilledAfterEnd"], res)
         self.assertTrue(res["groupGone"], res)
 
+    def test_launch_failures_are_not_exits(self):
+        # Missing, non-executable, not an executable format: the program never ran.
+        open(os.path.join(self.dir, "notexec"), "w").write("x")
+        open(os.path.join(self.dir, "badelf"), "wb").write(b"\x7fELFgarbage")
+        os.chmod(os.path.join(self.dir, "badelf"), 0o755)
+        for name in ("missing", "notexec", "badelf"):
+            res, _ = T.run_native(os.path.join(self.dir, name), self.dir)
+            self.assertEqual(res["ended"], "launch-failed", (name, res))
+            self.assertIn("Error", res["launchError"], (name, res))
+        # A limit the wrapper cannot set (as when a hard limit is below the requested one and the
+        # runner is unprivileged; simulated with a value setrlimit cannot take).
+        res, _, _ = T.launch([os.path.join(self.dir, "hello")], self.dir, 5, 1 << 20, 1 << 20, limits=(1, "not-a-number", 1 << 20))
+        self.assertEqual(res["ended"], "launch-failed", res)
+        self.assertEqual(T.run(["/nonexistent/tool"], self.dir, 5)[0], "launch-failed")
+
     def test_tool_runs_are_bounded(self):
         t = time.monotonic()
         rc, _, _ = T.run(["sh", "-c", "sleep 30 & sleep 30"], self.dir, 1)

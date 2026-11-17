@@ -34,7 +34,7 @@ STATUSES = ["not-attempted", "harness-needed", "frontend-rejected", "elaborator-
             "timeout", "tool-error"]
 FIELDS = {"case", "status", "why", "routes", "sha256", "sourceVerified", "compileOnly", "targetConditional",
           "blocked", "native", "endings", "profileIncoherent", "ubReached", "coreAllowsPass", "pairs"}
-ENDED = {"exit", "signal", "cpu-limit", "fsize-limit", "timeout", "stdout-limit", "stderr-limit", "build-failed"}
+ENDED = {"exit", "signal", "cpu-limit", "fsize-limit", "timeout", "stdout-limit", "stderr-limit", "launch-failed", "build-failed"}
 PAIRS = {"cerberus->clang", "clang->cerberus"}
 ROUTES = {"cerberus", "clang"}
 BOOLS = ("sourceVerified", "compileOnly", "targetConditional", "ubReached")
