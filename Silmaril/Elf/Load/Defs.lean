@@ -1,0 +1,103 @@
+module
+
+public import Silmaril.Elf.Image.Defs
+public import Silmaril.Process.Memory
+
+/-! # ELF adapters for loaded code and data (`Silmaril.Elf.Load`)
+
+ELF-only facts that a statement about a function of a file needs next to `CodeAt`, each read
+from the file through the parse specification:
+
+| name | statement |
+|---|---|
+| `ReadOnlyAt F v bytes` | the first readable, non-writable `PT_LOAD` mapping `[v, v + n)` holds `bytes` from the file (as `CodeAt` for code; constant tables, strings) |
+| `File.loadRanges A`, `LoadRangesAre F rs` | the image: every `PT_LOAD` as `(p_vaddr, p_memsz)` |
+| `baseName`, `File.definesFn`, `File.definesName` | presence by name in `.symtab` and `.dynsym`, every version (`name@VER` and `name@@VER` in `.symtab` count as `name`) |
+| `PresentFn F n`, `AbsentName F n` | some table defines a function (`STT_FUNC`, `STT_GNU_IFUNC`) named `n`; no table defines any symbol named `n` |
+| `ImageLoaded F A base mem` | `mem` holds the image of `F` at load base `base` wherever no dynamic relocation writes: file bytes for file-backed bytes, zeros for zero fill |
+
+`Image.Untouched` (no dynamic relocation writes a range, by the width each relocation type
+writes) is the relocation side, and `Thms.loaded_of_segBytes` the bridge: in a memory with the
+image loaded, an untouched range of a segment holds the file's bytes at `base + v`.
+
+**What `ImageLoaded` is not.** It is a property of a memory, and nothing here says a loader
+produced it: neither `Placement F base` (which only says which bases a statement covers) nor
+anything else in this module runs ld.so. A statement about a process takes `ImageLoaded` as a
+hypothesis, or derives it from a loading model (`Silmaril.Elf.Link.ElfBind.RoLoaded`,
+`Dyn.Loader.ExeLoaded`). Bytes a relocation writes are left unconstrained, so a relocated image
+(any relocation values) satisfies it.
+
+**Versioned lookup.** `Silmaril.Elf.Lookup` (`Sel.dyn ⟨name, weak, ver⟩`) is ld.so's
+`do_lookup_x`: GNU hash, `check_match` with the requested version (a hidden or non-default
+version is matched only when requested), weak and undefined definitions. Two cases glibc handles
+are refused (`Rd.fail`, so no fact is ever stated): an unversioned reference that meets only a
+non-default versioned definition (glibc's `num_versions` fallback), and an object without
+`DT_GNU_HASH`. Presence by name (`definesFn`, `definesName`) ignores versions entirely.
+-/
+
+@[expose] public section
+
+namespace Silmaril.Elf.Load
+
+open Silmaril.Formats.ELF (ProgramHeader NameBytes)
+open Silmaril.Elf.Link.DynElf (blobRead)
+open Silmaril.Elf.Image
+open Silmaril.X86.Link (Blob)
+
+/-! ## Read-only data -/
+
+/-- `ph` is a readable (`PF_R`), non-writable `PT_LOAD` mapping `[v, v + len)` from the file. -/
+def roSeg (v len : Nat) (ph : ProgramHeader) : Bool :=
+  ph.kind == PT_LOAD && ph.flags / 2 % 2 == 0 && ph.flags / 4 % 2 == 1 &&
+    decide (ph.virtualAddress ≤ v) && decide (v + len ≤ ph.virtualAddress + ph.fileSize)
+
+/-- **`F` holds `bytes` read-only at `v`**: the first readable, non-writable `PT_LOAD` mapping the
+range maps them from the file (as `CodeAt`, which asks for an executable segment). -/
+def ReadOnlyAt (F : Blob) (v : Nat) (bytes : List (BitVec 8)) : Prop :=
+  ∃ A, Parses F A ∧ ∃ ph, A.phdrs.find? (roSeg v bytes.length) = some ph ∧
+    blobRead F (ph.offset + (v - ph.virtualAddress)) bytes.length = some (Blob.valueLE bytes)
+
+/-! ## The image -/
+
+/-- **The image of `A`**: every `PT_LOAD` as `(p_vaddr, p_memsz)`, in program-header order. -/
+def _root_.Silmaril.Elf.File.loadRanges (A : File) : List (Nat × Nat) :=
+  A.loads.map fun ph => (ph.virtualAddress, ph.memorySize)
+
+/-- **The image of `F` is `rs`.** -/
+def LoadRangesAre (F : Blob) (rs : List (Nat × Nat)) : Prop :=
+  ∃ A, Parses F A ∧ A.loadRanges = rs
+
+/-! ## Presence by name -/
+
+/-- A symbol name without its version suffix (`name@VER`, `name@@VER` as `.symtab` spells
+versioned definitions). -/
+def baseName (n : NameBytes) : NameBytes := n.takeWhile (· != 0x40)
+
+/-- Some table (`.symtab`, `.dynsym`) **defines a function** named `n` (any version):
+`st_shndx ≠ SHN_UNDEF`, `STT_FUNC` or `STT_GNU_IFUNC`. -/
+def _root_.Silmaril.Elf.File.definesFn (A : File) (n : NameBytes) : Bool :=
+  [Table.symtab, Table.dynsym].any fun t => (A.symbols t).any fun s =>
+    baseName s.name == n && s.raw.sectionIndex != 0 && (s.kind == 2 || s.kind == 10)
+
+/-- Some table **defines any symbol** named `n` (any version, any type). -/
+def _root_.Silmaril.Elf.File.definesName (A : File) (n : NameBytes) : Bool :=
+  [Table.symtab, Table.dynsym].any fun t => (A.symbols t).any fun s =>
+    baseName s.name == n && s.raw.sectionIndex != 0
+
+/-- **`F` defines a function named `n`** in some symbol table, in some version. -/
+def PresentFn (F : Blob) (n : NameBytes) : Prop := ∃ A, Parses F A ∧ A.definesFn n = true
+
+/-- **`F` defines no symbol named `n`**, in no table and no version (an API version gap). -/
+def AbsentName (F : Blob) (n : NameBytes) : Prop := ∃ A, Parses F A ∧ A.definesName n = false
+
+/-! ## A memory holding the loaded image -/
+
+/-- **`mem` holds the image of `F` (parse `A`) loaded at `base`**, wherever no dynamic relocation
+writes: at `base + u`, the file byte for every file-backed byte `u` of a `PT_LOAD`, and zero for
+every zero-filled one (module doc: a property of a memory, not a loader run). -/
+def ImageLoaded (F : Blob) (A : File) (base : Nat) (mem : Silmaril.Process.Memory) : Prop :=
+  ∀ u i o, Untouched A u 1 →
+    ((i, Origin.file o) ∈ A.origins u → mem.bytes.get? (base + u) = some (Blob.byteAt F.n o)) ∧
+    ((i, Origin.zeroFill) ∈ A.origins u → mem.bytes.get? (base + u) = some 0)
+
+end Silmaril.Elf.Load

@@ -19,11 +19,15 @@ contract or a misleading name gives no evidence).
       "decl", "file", "name",                      -- "file": the decl of the function's file
       "arch": { "id": "elf64-le/em62", "machine", "class", "data", "osabi" },
       "abiRef": "sysv64" | null,                   -- metadata, never evidence
+      "abi": { "id", "source", "note" },           -- the same metadata, with its cited document
       "symbol": { "table": "symtab" | "dynsym", "index" } | null,
-      "extent": { "vaddr": "0x…", "size", "fileOff": "0x…" | null, "segment": n | null, "shndx": n | null },
+      "extent": { "vaddr": "0x…", "size", "fileOff": "0x…" | null, "segment": n | null, "shndx": n | null,
+                  "addrKind": "link", "loadBase": null },  -- link-time addresses; no load base
+      "listing": { "tool", "verified": false },     -- who printed the lines; never verified
       "bytesHex": "89d2…",
       "lines": [ { "off", "len", "addr": "0x…", "text", "label" } ],   -- display only
-      "refs": [ { "off", "target": "0x…" | null, "symbol", "kind", "addend", "origin" } ],
+      "refs": [ { "off", "target": "0x…" | null, "symbol", "kind", "addend", "origin",
+                  "targetIn": { "segment", "section", "readOnly", "provenance" } } ],  -- metadata
       "decodings": [ { "model", "decl", "insns": [ { "off", "len", "addr", "render" } ] } ],
       "evidence": [ { "kind", "decl", "model", "axioms", "hypotheses" } ] } ] }
 ```
@@ -36,6 +40,7 @@ Evidence kinds (one per proposition of `Silmaril.Elf.Asm`, plus the two neighbou
 address and bytes), `symbol` (`SymbolOf`), `lineTiles` (`LinesTile`), `decode` (`DecodesAs`;
 `model` is the `Isa`), `noDecode` (`¬ DecodesAs` for every decoding), `notArch` (`¬ ArchOf`), `notBytes` (`¬ BytesAt`),
 `refs` (`RefsGrounded`),
+`unrelocated` (`Unrelocated`), `present` (`Load.PresentFn` of the function's name),
 `contract` (a machine contract `FnContract.Spec.Total`, counted only when stated in the same
 theorem as the function's `bytes` or `code` fact; `model` is the machine). `hypotheses` lists
 the theorem's premises (empty for an unconditional fact); `axioms` its axioms. There is no single
@@ -119,18 +124,46 @@ def evidenceJson (e : Evidence) : Json := Json.mkObj [
   ("axioms", Json.arr (e.axioms.toArray.map name)),
   ("hypotheses", Json.arr (e.hypotheses.toArray.map Json.str))]
 
-/-- **A function as JSON**, with its decodings and evidence. -/
-def functionJson (decl : Name) (f : AsmFunction) (ds : List Decoding) (ev : List Evidence) : Json :=
+/-- The name of a section, as text (display). -/
+def nameText (n : Silmaril.Formats.ELF.NameBytes) : String := String.ofList (n.map fun b => Char.ofNat b.toNat)
+
+/-- **Where a reference's target lies in the file** (provenance metadata for views, computed from
+the parse; not a theorem): the first `PT_LOAD` and the first allocated section containing the
+target address, and whether that segment is read-only. -/
+def targetJson (A : File) (t : Nat) : Json :=
+  let seg := (A.phdrs.zipIdx.find? fun (ph, _) => ph.kind == PT_LOAD &&
+    decide (ph.virtualAddress ≤ t) && decide (t < ph.virtualAddress + ph.memorySize))
+  let sec := (A.sections.zipIdx.find? fun (s, _) => s.header.flags / 2 % 2 == 1 &&
+    decide (s.header.address ≤ t) && decide (t < s.header.address + s.header.size))
+  Json.mkObj [
+    ("segment", match seg with | some (_, i) => toJson i | none => Json.null),
+    ("section", match sec with | some (s, _) => Json.str (nameText s.name) | none => Json.null),
+    ("readOnly", match seg with | some (ph, _) => Json.bool (ph.flags / 2 % 2 == 0) | none => Json.null),
+    ("provenance", Json.str "metadata: computed from the parse, not a theorem")]
+
+/-- **A function as JSON**, with its decodings and evidence. With the file's parse `A`, each
+reference with a target also gets its target's segment, section and read-only flag
+(`targetJson`, metadata). -/
+def functionJson (decl : Name) (f : AsmFunction) (ds : List Decoding) (ev : List Evidence)
+    (A : Option File := none) : Json :=
   Json.mkObj [
     ("decl", name decl), ("name", Json.str f.name), ("arch", archJson f.arch),
     ("abiRef", optStr f.abiRef),
+    ("abi", Json.mkObj [("id", optStr f.abiRef), ("source", optStr f.abiSource),
+      ("note", Json.str "metadata: no proposition reads it")]),
     ("symbol", match f.symbol with
       | some r => Json.mkObj [("table", Json.str (match r.table with
           | .symtab => "symtab" | .dynsym => "dynsym")), ("index", toJson r.index)]
       | none => Json.null),
-    ("extent", extentJson f.extent), ("bytesHex", Json.str (bytesHex f.bytes)),
+    ("extent", match extentJson f.extent with
+      | .obj kvs => .obj ((kvs.insert "addrKind" (Json.str "link")).insert "loadBase" Json.null)
+      | j => j),
+    ("bytesHex", Json.str (bytesHex f.bytes)),
+    ("listing", Json.mkObj [("tool", optStr f.listingTool), ("verified", Json.bool false)]),
     ("lines", Json.arr (f.lines.toArray.map (lineJson f.extent.vaddr))),
-    ("refs", Json.arr (f.refs.toArray.map refJson)),
+    ("refs", Json.arr (f.refs.toArray.map fun r => match refJson r, A, r.target with
+      | .obj kvs, some A, some t => .obj (kvs.insert "targetIn" (targetJson A t))
+      | j, _, _ => j)),
     ("decodings", Json.arr (ds.toArray.map (decodingJson f.extent.vaddr))),
     ("evidence", Json.arr (ev.toArray.map evidenceJson))]
 

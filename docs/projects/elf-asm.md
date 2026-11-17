@@ -58,6 +58,35 @@ origins), `offsetOf_of_unique` (they give *the* origin when it is unique), and
 segment). `Untouched A v len` says no dynamic relocation writes into a range (each by the width its type writes; unknown widths touch everything); memory after loading
 equals file bytes only there (or under a loading model, `Silmaril.Elf.Link.ElfBind`).
 
+## Loaded code and data (`Silmaril.Elf.Load`)
+
+ELF-only adapters a statement about a function of a file needs next to `CodeAt`:
+
+| name | statement |
+|---|---|
+| `ReadOnlyAt F v bytes` | the first readable, non-writable `PT_LOAD` mapping `[v, v + n)` holds `bytes` (constant tables, strings); `readOnlyAt_of_kbytes` from one kernel read of an `include_bytes` file |
+| `Image.Untouched A v n` | no dynamic relocation writes the range, each by the width its type writes (`File.relocWidth`: the x86-64 psABI widths, 16 for `TLSDESC`, the symbol's size for `COPY`); an unknown width touches every range |
+| `File.loadRanges`, `LoadRangesAre F rs` | the image: every `PT_LOAD` as `(p_vaddr, p_memsz)` |
+| `PresentFn F n`, `AbsentName F n` | some table (`.symtab`, `.dynsym`) defines a function named `n`; no table defines any symbol named `n`. Versions are ignored, and `.symtab`'s `name@VER`/`name@@VER` count as `name` (`baseName`) |
+| `ImageLoaded F A base mem`, `readWith_of_segBytes` | a memory holding the image at `base` wherever no relocation writes; then an untouched segment range reads back as the file's bytes at `base + v` |
+
+`ImageLoaded` is a property of a memory: nothing here runs a loader, and `Placement F base` only
+says which bases a statement covers. A process statement takes `ImageLoaded` as a hypothesis or
+derives it from a loading model (`ElfBind.RoLoaded`, `Dyn.Loader.ExeLoaded`).
+
+Versioned lookup is the existing `Sel.dyn ⟨name, weak, ver⟩` (`Silmaril.Elf.Lookup`: ld.so's
+`do_lookup_x` with `check_match` and the requested version). It refuses (`Rd.fail`, so no fact is
+stated) an unversioned reference that meets only a non-default versioned definition, and an
+object without `DT_GNU_HASH`. Presence by name ignores versions.
+
+`Asm.Unrelocated F f` is `Image.Untouched` for a function's extent. The sample
+`Silmaril.Elf.Asm.Example.LeafArith` grounds `clamp_i32` (`0x4013a0`, 19 bytes) and `sat_add_u32`
+(`0x401400`, 29 bytes) of the pinned `leaf-arith` (the existing `Ladder.Pinned.LeafArith.exe`
+literal) in every dimension, with `PresentFn`, `AbsentName` (`rt_write`), `ReadOnlyAt` (`"FAIL"`
+in `.rodata`), the image and its zero-fill segment, and `clamp_loaded`: in any memory holding the
+image at base 0 with execute permission, the function's bytes are fetchable at its address. It
+imports no ABI module.
+
 ## Assembly functions (`Silmaril.Elf.Asm`)
 
 An `AsmFunction` is data: name, architecture (`e_machine`, class, data, OS ABI), an ABI
