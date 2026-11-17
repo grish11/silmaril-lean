@@ -7,7 +7,8 @@ public import Silmaril.Wasm.Component.DecoderBridge.Sim.Defs
 /-!
 # Several core instantiations with lowered imports: the start goal, decomposed
 
-`Task.startAdequacy` (`Sem.Defs`) is open. This module states it on a decidable fragment of
+`Task.startAdequacy` (`Sem.Defs`) is false outside the root checks (`DecoderBridge.ParamName`); its
+corrected form `Task.startAdequacyChecked` is open. This module states it on a decidable fragment of
 binaries with several core instantiations (`MultiImpFrag`, which `starts.wasm` is in), and splits
 it into pieces, each a `Prop`; `Multi.Thms.startAdequacyFrag_of_nodes` derives the goal on the
 fragment from them, so the decomposition is checked.
@@ -65,7 +66,9 @@ store is not locked down, and the host log is `L`.
   answers, through a session call that leaves the host state unchanged.
 
 The reference side of (b), (c) and (d) is stated at the first scheduling oracle (`first.prof`), as
-in `Task.startAdequacy`.
+in `Task.startAdequacy`. Every component of the fragment passes the root checks
+(`Multi.Thms.rootChecked_of_multiImpFrag`), so `Task.startAdequacyFrag` is an instance of
+`Task.startAdequacyChecked` (`Multi.Thms.startAdequacyFrag_of_checked`).
 
 **Status** (`Multi.Thms`): (a), (b) and (b)+(c) are proved (`nodeCallsIR`, `firstNodeRef`,
 `nodesRef`); (d) is open, and `startAdequacyFrag_of_d` derives `Task.startAdequacyFrag` from it.
@@ -250,7 +253,7 @@ def Task.nodesRef : Prop :=
         (importArgs hostI) M' inst es ∧
       M'.host = ((), logOfCalls ts.flatten)
 
-/-- **`Task.startAdequacy` on the fragment `MultiImpFrag`.** -/
+/-- **`Task.startAdequacy` on the fragment `MultiImpFrag`** (where it is `Task.startAdequacyChecked`). -/
 def Task.startAdequacyFrag : Prop :=
   ∀ (b : ByteArray) (c : Comp Binary.CoreMod) (r : RefComponent)
     (t : List (Σ _ : sigU.Op, Option Payload)) (n : String) (ws : List Silmaril.Wasm.Component.Val),

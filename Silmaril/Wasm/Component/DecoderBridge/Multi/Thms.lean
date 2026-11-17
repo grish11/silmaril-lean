@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Component.DecoderBridge.Multi.Defs
 public import Silmaril.Wasm.Component.DecoderBridge.Sim.Thms
 import Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.Compose
+import Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.Checked
 import Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.IR
 import Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.First
 import Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.Inst
@@ -18,6 +19,9 @@ Proofs in `Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi`.
   `Task.exportRef` (d);
 * `nodeCallsIR`, `firstNodeRef`, **`nodesRef`**: (a), (b) and the instantiation, proved;
 * `startAdequacyFrag_of_d`: the goal on the fragment from (d) alone;
+* `rootChecked_of_multiImpFrag`: every component of the fragment passes the reference machine's
+  root checks (`RootChecked`, `Sem.Defs`), so `startAdequacyFrag_of_checked`: the goal on the
+  fragment is an instance of the corrected start goal `Task.startAdequacyChecked`;
 * `starts_multiImpFrag` (kernel, `decide +kernel`): `starts.wasm` is in the fragment;
 * `starts_of_frag`, `starts_of_d`: the reference half of `InstTestsRef.starts_agree`, derived
   from the IR's run of `starts.wasm` (`starts_inst`) through the start goal on the fragment,
@@ -68,6 +72,15 @@ theorem failRefWiredRest'_of_rest'' (h : Task.failRefWiredRest'') : Task.failRef
 /-- **The start goal on the fragment from the export call (d).** -/
 theorem startAdequacyFrag_of_d (hd : Task.exportRef) : Task.startAdequacyFrag :=
   startAdequacyFrag_of_nodes nodeCallsIR nodesRef hd
+
+/-- **The fragment passes the root checks** (the root import is `f: func(x: u32)`, parameter name
+included). -/
+theorem rootChecked_of_multiImpFrag {r : RefComponent} (h : MultiImpFrag r) : RootChecked r :=
+  Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.rootChecked_of_multiImpFrag h
+
+/-- **The start goal on the fragment from the corrected start goal.** -/
+theorem startAdequacyFrag_of_checked (h : Task.startAdequacyChecked) : Task.startAdequacyFrag :=
+  Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.startAdequacyFrag_of_checked h
 
 /-- `starts.wasm` is in the fragment. -/
 theorem starts_multiImpFrag : MultiImpFrag startsRef := by decide +kernel

@@ -10,16 +10,19 @@ public import Silmaril.Proofs.Wasm.Component.DecoderBridge.FirstCore.Main
 /-!
 # A parameter name the host does not have (proofs)
 
-* `precheck_traps`: a root instantiation whose import pre-check fails traps with a
-  specification trap (`TrapsQS`), over any engine;
+* `root_traps`: a root instantiation with an import not supplied or whose import pre-check fails
+  traps with a specification trap (`TrapsQS`), over any engine;
 * `not_instantiates_of_trapsQS`: **a root instantiation program that traps with a specification
   trap has no finishing run**: every run from the instantiation host event either stops inside
   the live run to the trap, or passes the trap, after which the store is locked down;
 * `parse_paramName`, `decodeRef_paramName` (`kernel_rfl`), `paramName_valid` (`decide +kernel`
-  on `check?`), `paramName_precheck` (`decide +kernel`): the two readings of `paramname.wasm`,
-  the validity of the REF reading and the failing pre-check;
-* `paramName_traps`, `paramName_not_instantiates`: under the logging host from `hostConfigX`,
-  the reference machine's instantiation of `paramNameRef` traps, and no run finishes it;
+  on `check?`): the two readings of `paramname.wasm` and the validity of the REF reading;
+  `not_rootChecked_paramName`, `rootChecked_starts` (`decide +kernel`): the certificate
+  `RootChecked` rejects it and accepts `starts.wasm`;
+* `traps_of_not_rootChecked`, `not_instantiates_of_not_rootChecked`,
+  `sessRunFrom_empty_of_not_rootChecked`: outside the certificate, under the logging host from
+  `hostConfigX`, the reference machine's instantiation traps, no run finishes it and there is no
+  session run; `paramName_traps`, `paramName_not_instantiates`: for `paramNameRef`;
 * `not_startAdequacy`: hence `Task.startAdequacy` is false.
 -/
 
@@ -48,12 +51,12 @@ section Generic
 variable {E : CoreEngine} {σ : Type} {prof : ProfileKind} {hr : HostReady σ}
   {dispatch : Call E → Canon.P E σ (Ret E)} [∀ a b, Decidable (E.ExternSub a b)]
 
-/-- **A failing import pre-check traps**: the root instantiation of `r` traps with a
-specification trap (`import type mismatch`, or `missing import` if an import is not supplied)
-before any side effect. -/
-theorem precheck_traps {m : Machine.Config E σ} {r : Syntax.Component E.Module}
-    {args : Exports E} {e : String}
-    (he : precheckImports (DispatchSt.incNestingSt m.store) args Frame.empty r = .error e) :
+/-- **Failing root checks trap**: if an import of `r` is not supplied, or the import pre-check
+fails, the root instantiation of `r` traps with a specification trap (`missing import`, resp.
+`import type mismatch`) before any side effect. -/
+theorem root_traps {m : Machine.Config E σ} {r : Syntax.Component E.Module} {args : Exports E}
+    (h : argsComplete r args = false ∨
+      ∃ e, precheckImports (DispatchSt.incNestingSt m.store) args Frame.empty r = .error e) :
     ∃ tr mT, TrapsQS dispatch none (instantiateProg r args) m tr mT := by
   have h : TOrT dispatch (instantiateProg r args) m (fun _ _ => False) := by
     unfold instantiateProg
@@ -62,6 +65,10 @@ theorem precheck_traps {m : Machine.Config E σ} {r : Syntax.Component E.Module}
     rintro _ m₁ rfl
     refine TOrT.bind (Q := fun _ _ => False) ?_ (fun _ _ h => h.elim)
     unfold instantiateRootCall instantiateRoot
+    rcases h with hc | ⟨e, he⟩
+    · refine TOrT.bind (Q := fun _ _ => False) ?_ (fun _ _ h => h.elim)
+      rw [hc]
+      exact TOrT.trap (isSpecTrap_trap (r := .hostTrap _) fun _ h => by cases h)
     refine TOrT.bind (tOrT_trapIf (fun _ h => by cases h) _) ?_
     rintro _ m₂ rfl
     refine TOrT.bind (TOrT.runs (TRuns.getStore _)
@@ -112,52 +119,76 @@ theorem paramName_valid : ∃ ct, Valid Features.p2 paramNameRef ct := by
   | error _ => rw [e] at h; cases h
   | ok ct => exact ⟨ct, check?_sound e⟩
 
-theorem paramName_precheck_toBool :
-    (precheckImports (DispatchSt.incNestingSt hostConfigX.store)
-      (importArgs (E := core3 neverFail) hostI) Frame.empty paramNameRef).toBool = false := by
-  decide +kernel
+theorem not_rootChecked_paramName : ¬ RootChecked paramNameRef := by decide +kernel
 
-/-- **The reference machine's pre-check rejects the root import** (`f: func(y: u32)` against the
-host function `f: func(x: u32)`). -/
-theorem paramName_precheck : ∃ e,
-    precheckImports (DispatchSt.incNestingSt hostConfigX.store)
-      (importArgs (E := core3 neverFail) hostI) Frame.empty paramNameRef = .error e := by
-  have h := paramName_precheck_toBool
-  cases e : precheckImports (DispatchSt.incNestingSt hostConfigX.store)
-      (importArgs (E := core3 neverFail) hostI) Frame.empty paramNameRef with
-  | error e' => exact ⟨e', rfl⟩
-  | ok _ => rw [e] at h; cases h
+theorem rootChecked_starts : RootChecked startsRef := by decide +kernel
 
-theorem paramName_trapsQS : ∃ tr mT,
-    TrapsQS (DG embL.host) none (instantiateProg paramNameRef (importArgs hostI)) hostConfigX tr mT :=
-  let ⟨_, he⟩ := paramName_precheck
-  precheck_traps he
+/-! ## Outside the certificate -/
 
-/-- **The reference instantiation of `paramNameRef` traps.** -/
-theorem paramName_traps :
+/-- Failing root checks, unpacked. -/
+theorem rootFails_of_not {r : RefComponent} (h : ¬ RootChecked r) :
+    argsComplete r (importArgs (E := core3 neverFail) hostI) = false ∨
+      ∃ e, precheckImports (DispatchSt.incNestingSt hostConfigX.store)
+        (importArgs (E := core3 neverFail) hostI) Frame.empty r = .error e := by
+  unfold RootChecked rootChecked at h
+  cases hc : argsComplete r (importArgs (E := core3 neverFail) hostI) with
+  | false => exact .inl rfl
+  | true =>
+    refine .inr ?_
+    rw [hc, Bool.true_and] at h
+    cases e : precheckImports (DispatchSt.incNestingSt hostConfigX.store)
+        (importArgs (E := core3 neverFail) hostI) Frame.empty r with
+    | error e' => exact ⟨e', rfl⟩
+    | ok _ => rw [e] at h; exact absurd rfl h
+
+theorem trapsQS_of_not_rootChecked {r : RefComponent} (h : ¬ RootChecked r) : ∃ tr mT,
+    TrapsQS (DG embL.host) none (instantiateProg r (importArgs hostI)) hostConfigX tr mT :=
+  root_traps (rootFails_of_not h)
+
+/-- **Outside the certificate the reference instantiation traps.** -/
+theorem traps_of_not_rootChecked {r : RefComponent} (h : ¬ RootChecked r) :
     InstResult.traps ∈
-      instBehaviours first.prof (Host.ofEmbedder embL) hostConfigX paramNameRef (importArgs hostI) := by
+      instBehaviours first.prof (Host.ofEmbedder embL) hostConfigX r (importArgs hostI) := by
   have hready : HostReadyCfg hostConfigX := ⟨rfl, rfl, rfl⟩
-  obtain ⟨tr, mT, ht⟩ := paramName_trapsQS
+  obtain ⟨tr, mT, ht⟩ := trapsQS_of_not_rootChecked h
   exact instTraps_of_trapsQS (prof := first.prof) (hr := embL.hr) hready ht
 
-/-- **No run finishes the reference instantiation of `paramNameRef`.** -/
+/-- **Outside the certificate no run finishes the reference instantiation.** -/
+theorem not_instantiates_of_not_rootChecked {r : RefComponent} (h : ¬ RootChecked r)
+    (M : Machine.Config (core3 neverFail) (Unit × List HLinked2.HostEvent))
+    (inst : InstId) (es : List (String × FuncId)) :
+    ¬ Instantiates first.prof embL.hr (Host.ofEmbedder embL).dispatch hostConfigX r
+      (importArgs hostI) M inst es := by
+  have hready : HostReadyCfg hostConfigX := ⟨rfl, rfl, rfl⟩
+  obtain ⟨tr, mT, ht⟩ := trapsQS_of_not_rootChecked h
+  exact not_instantiates_of_trapsQS hready ht M inst es
+
+/-- **Outside the certificate the reference has no session run.** -/
+theorem sessRunFrom_empty_of_not_rootChecked {r : RefComponent} (h : ¬ RootChecked r)
+    (calls : List (String × List Value.Val))
+    (p : List (Option (List Value.Val)) × (Unit × List HLinked2.HostEvent)) :
+    p ∉ sessRunFrom first.prof (Host.ofEmbedder embL) hostConfigX r (importArgs hostI) calls := by
+  rintro ⟨m₀, inst, es, -, -, hI, -⟩
+  exact not_instantiates_of_not_rootChecked h m₀ inst es hI
+
+theorem paramName_traps :
+    InstResult.traps ∈
+      instBehaviours first.prof (Host.ofEmbedder embL) hostConfigX paramNameRef (importArgs hostI) :=
+  traps_of_not_rootChecked not_rootChecked_paramName
+
 theorem paramName_not_instantiates (M : Machine.Config (core3 neverFail) (Unit × List HLinked2.HostEvent))
     (inst : InstId) (es : List (String × FuncId)) :
     ¬ Instantiates first.prof embL.hr (Host.ofEmbedder embL).dispatch hostConfigX paramNameRef
-      (importArgs hostI) M inst es := by
-  have hready : HostReadyCfg hostConfigX := ⟨rfl, rfl, rfl⟩
-  obtain ⟨tr, mT, ht⟩ := paramName_trapsQS
-  exact not_instantiates_of_trapsQS hready ht M inst es
+      (importArgs hostI) M inst es :=
+  not_instantiates_of_not_rootChecked not_rootChecked_paramName M inst es
 
 /-- **`Task.startAdequacy` is false**: `paramname.wasm` satisfies its hypotheses (with the IR run
 of `starts.wasm`), and the reference machine has no session run of it. -/
-theorem not_startAdequacy : ¬ Task.startAdequacy := by
-  intro h
-  obtain ⟨m₀, inst, es, fs, m', hI, -, -, -⟩ :=
-    h paramNameBytes startsComp paramNameRef startsTrace "get" [.u32 42] parse_paramName
+theorem not_startAdequacy : ¬ Task.startAdequacy := fun h =>
+  sessRunFrom_empty_of_not_rootChecked not_rootChecked_paramName _ _
+    (h paramNameBytes startsComp paramNameRef startsTrace "get" [.u32 42] parse_paramName
       decodeRef_paramName paramName_valid (by decide +kernel) rfl rfl (by simp [startsTrace])
-      (starts_inst _)
-  exact paramName_not_instantiates m₀ inst es hI
+      (starts_inst _))
+
 
 end Silmaril.Proofs.Wasm.Component.DecoderBridge.ParamName
