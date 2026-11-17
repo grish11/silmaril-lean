@@ -52,7 +52,8 @@ def ContextRefines (impl : Spec.Impl) (ctxs : List Codec.FileBindings) (f : Sym)
 
 /-- **A substitution witness**: `f` is defined in the context's own functions and not in its
 runtime library (`functionBody`/`procedureBody` look `stdlib` up first), so `setFunction b f`
-actually replaces what a call of `f` runs. -/
+actually replaces what a call of `f` runs. It says that `f` is replaced, not that the context calls
+it: in a context that never reaches `f`, every replacement refines. -/
 def Substitutes (b : Codec.FileBindings) (f : Sym) : Prop :=
   b.funs.any (fun e => e.1.key == f.key) = true ∧ b.stdlib.any (fun e => e.1.key == f.key) = false
 
