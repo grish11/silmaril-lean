@@ -40,11 +40,11 @@ theorem reduct_laws {A B : Signature} (f : A ⟶ B) (M : Model B) (h : SegmentRe
   · intro i a s e xs hb
     exact h.bb_seg _ _ _ _ _ hb
   · intro i a s e xs hb
-    simpa [reduct] using h.bb_reg _ _ _ _ _ hb
+    simpa [reduct, finiteBoundaryOps] using h.bb_reg _ _ _ _ _ hb
   · intro i a ss e x
-    simpa [reduct] using h.sr_iff (f.image i) (f.iface a) (ss.image f.segment) (f.label e) (f.label x)
+    simpa [reduct, finiteBoundaryOps] using h.sr_iff (f.image i) (f.iface a) (ss.image f.segment) (f.label e) (f.label x)
   · intro i a ss e x
     have opt : (optionExits x).image f.label = optionExits (x.map f.label) := by
       cases x <;> simp [optionExits]
-    simpa [reduct, opt] using h.optional_iff (f.image i) (f.iface a) (ss.image f.segment) (f.label e) (x.map f.label)
+    simpa [reduct, finiteBoundaryOps, opt] using h.optional_iff (f.image i) (f.iface a) (ss.image f.segment) (f.label e) (x.map f.label)
 end Silmaril.Logic.Region.Proofs

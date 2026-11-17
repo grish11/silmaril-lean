@@ -1,6 +1,7 @@
 module
 
 public import Mathlib.Data.Finset.Basic
+public import Silmaril.Semantics.Region.Abstract.Named.Defs
 
 /-! # Raw region judgments
 
@@ -16,43 +17,39 @@ namespace Silmaril.Semantics.Region
 
 universe u v w z
 
-abbrev SegBBPred (Img : Type u) (Assum : Type v) (Seg : Type w) :=
-  Img → Assum → Seg → Prop
+/-! This module is the finite-set profile of the totally abstract named API.
+Import `Abstract.Named.Thms` for arbitrary support and exit carriers. -/
+
+abbrev SegBBPred (Img : Type u) (Assum : Type v) (Seg : Type w) := Abstract.SegBBPred Img Assum Seg
 abbrev BBPred (Img : Type u) (Assum : Type v) (Seg : Type w) (Lab : Type z) :=
-  Img → Assum → Seg → Lab → Finset Lab → Prop
+  Abstract.BBPred Img Assum Seg Lab (Finset Lab)
 abbrev SRPred (Img : Type u) (Assum : Type v) (Seg : Type w) (Lab : Type z) :=
-  Img → Assum → Finset Seg → Lab → Lab → Prop
+  Abstract.SRPred Img Assum (Finset Seg) Lab
 abbrev OptionalSRPred (Img : Type u) (Assum : Type v) (Seg : Type w) (Lab : Type z) :=
-  Img → Assum → Finset Seg → Lab → Option Lab → Prop
+  Abstract.OptionalSRPred Img Assum (Finset Seg) Lab
 abbrev SegmentRegPred (Img : Type u) (Assum : Type v) (Seg : Type w) (Lab : Type z) :=
-  Img → Assum → Finset Seg → Lab → Finset Lab → Prop
+  Abstract.SegmentRegPred Img Assum (Finset Seg) Lab (Finset Lab)
 abbrev RegPred (Img : Type u) (Assum : Type v) (Lab : Type z) :=
-  Img → Assum → Lab → Finset Lab → Prop
+  Abstract.RegPred Img Assum Lab (Finset Lab)
 
-/-- Raw signatures impose no laws. -/
-structure SegmentRegionModel (Img : Type u) (Assum : Type v) (Seg : Type w) (Lab : Type z) where
-  SegBB : SegBBPred Img Assum Seg
-  BB : BBPred Img Assum Seg Lab
-  SR : SRPred Img Assum Seg Lab
-  SR' : OptionalSRPred Img Assum Seg Lab
-  Reg : SegmentRegPred Img Assum Seg Lab
-
-structure RegionModel (Img : Type u) (Assum : Type v) (Lab : Type z) where
-  Reg : RegPred Img Assum Lab
+abbrev SegmentRegionModel (Img : Type u) (Assum : Type v) (Seg : Type w) (Lab : Type z) :=
+  Abstract.SegmentRegionModel Img Assum Seg (Finset Seg) Lab (Finset Lab)
+abbrev RegionModel (Img : Type u) (Assum : Type v) (Lab : Type z) :=
+  Abstract.RegionModel Img Assum Lab (Finset Lab)
 
 /-- The optional exit has zero or one declared normal labels. -/
 def optionExits {Lab : Type z} : Option Lab → Finset Lab
   | none => ∅
   | some l => {l}
 
-/-- Lawful SR variants are exactly restrictions of Reg, rather than independent
-semantic assertions. This does not require exact/reachable exit sets. -/
-structure SegmentRegionLaws {Img : Type u} {Assum : Type v} {Seg : Type w} {Lab : Type z}
-    (M : SegmentRegionModel Img Assum Seg Lab) : Prop where
-  bb_seg : ∀ i a s e x, M.BB i a s e x → M.SegBB i a s
-  bb_reg : ∀ i a s e x, M.BB i a s e x → M.Reg i a {s} e x
-  sr_iff : ∀ i a ss e x, M.SR i a ss e x ↔ M.Reg i a ss e {x}
-  optional_iff : ∀ i a ss e x, M.SR' i a ss e x ↔ M.Reg i a ss e (optionExits x)
+/-- Operations belong to this profile, not to the abstract signature. -/
+def finiteBoundaryOps {Seg : Type w} {Lab : Type z} :
+    Abstract.BoundaryOps Seg (Finset Seg) Lab (Finset Lab) :=
+  ⟨fun s => {s}, fun l => {l}, optionExits⟩
+
+/-- These field laws are exactly the fixed positive coherence schema. -/
+abbrev SegmentRegionLaws {Img : Type u} {Assum : Type v} {Seg : Type w} {Lab : Type z}
+    (M : SegmentRegionModel Img Assum Seg Lab) : Prop := Abstract.SegmentRegionLaws finiteBoundaryOps M
 
 structure LawfulSegmentRegionModel (Img : Type u) (Assum : Type v) (Seg : Type w)
     (Lab : Type z) extends SegmentRegionModel Img Assum Seg Lab where

@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Semantics.Region.Defs
+public import Silmaril.Semantics.Region.Lattice.Thms
 import Silmaril.Proofs.Semantics.Region.Core
 
 @[expose] public section

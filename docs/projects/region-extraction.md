@@ -1,8 +1,10 @@
 # Region extraction: relations, first exits and candidates
 
-This framework adds semantic region judgments independently of function
-extraction. A region can be certified through a state invariant even when an
-unrestricted constituent block cannot. It does not infer a unique partition,
+This framework adds abstract region judgments and semantic interpretations
+independently of function extraction. Fixed-signature raw and positive-rule
+lawful models form complete lattices; see the
+[abstract lattice API and proofs](region-lattices.md). A region can be certified
+through a state invariant even when an unrestricted constituent block cannot. It does not infer a unique partition,
 prove an arbitrary parent region, or manufacture call resumptions.
 
 ## Reading and building
@@ -11,6 +13,7 @@ The public entry points are:
 
 | Layer | Definitions and theorem header | Main result |
 | --- | --- | --- |
+| Abstract lattice | `Silmaril.Semantics.Region.Abstract.{Defs,Thms}`, `Abstract.Named.Thms` | Arbitrary typed atoms, fixed positive rules, raw/lawful complete lattices and fixed ceilings |
 | Raw relations | `Silmaril.Semantics.Region.{Defs,Thms}` | Independent signatures, lawful coherence, erasure and context equivalences |
 | Semantics | `Silmaril.Semantics.Region.Semantic.{Defs,Thms}` | First exits, greatest sound judgments, gluing, queries and WP |
 | Counterexamples | `Silmaril.Semantics.Region.Examples.Thms` | Invariant-restricted indirect transfer, divergence, incompatible erasure witnesses |
@@ -26,6 +29,7 @@ Run with the repository's pinned toolchain and dependency manifest:
 
 ```sh
 lake build --wfail \
+  Silmaril.Semantics.Region.Abstract.Examples.Thms \
   Silmaril.Semantics.Region.Examples.Thms \
   Silmaril.Machine.Region.Examples.Thms \
   Silmaril.Wasm.Region.Thms Silmaril.Elf.Region.Defs \
@@ -38,6 +42,10 @@ source/regression gates along with the targeted Lean build. Unscoped
 must not be reported as a full native release check.
 
 ## The raw vocabulary and its laws
+
+The totally abstract named API additionally takes independent `Support` and
+`Exits` carriers, with no collection operations. The signatures below are the
+existing finite-set profile, now aliases of that API.
 
 The carriers are `Img`, `Assum` (the specification's interface carrier `Int`,
 not Lean's integer type), `Seg`, and `Lab`. The individual predicate aliases
@@ -60,8 +68,8 @@ SR/SR' predicates instead of duplicating certification obligations.
 `SR` means exactly one *declared* normal exit. It does not assert that the
 exit is reached, or that there is only one possible abnormal outcome.
 `Exact` supplies the separate, stronger reachable-exit interpretation.
-Collections and exits are finite sets, with no order dependency. Individual
-segments can retain ordered byte/instruction ranges. `ListRow` is an ordered
+In this profile, collections and exits are finite sets, with no order dependency.
+Individual segments can retain ordered byte/instruction ranges. `ListRow` is an ordered
 serialization adapter whose certification uses `toFinset`, so duplicate or
 reordered presentation labels cannot change validity. `CertifiedSegmentRow`,
 `CertifiedRow`, and `CertifiedListRow` fix the image and interface and keep
