@@ -37,6 +37,9 @@ environments:
 
 rust:
   - 'tools/silmaril-project/**'
+  # the Wasmtime acceptor harness, its suites and the component bytes they run
+  - 'tools/wasm-acceptor-harness/**'
+  - 'examples/wasm-acceptors/**'
   # read by the crate's tests (include_str!): the Lean load order and the records JSON Schema
   - 'Silmaril/Project/Registry/Load/Defs.lean'
   - 'docs/schemas/**'
