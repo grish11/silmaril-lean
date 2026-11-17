@@ -74,10 +74,10 @@ theorem nestOk_succ {B : ByteArray} {pp i : Nat} :
 
 theorem nestedAt_succ {B : ByteArray} {pp n : Nat} :
     nestedAt B pp (n + 1) = nestedAt B pp n ++ [wordsAt B (cpOf B pp n) (lenOf B pp n)] := by
-  simp [nestedAt, cpOf, lenOf, List.range_succ]
+  simp [nestedAt, Silmaril.Wasm.Acceptor.nestedAt, cpOf, lenOf, List.range_succ]
 
 theorem nestedAt_zero {B : ByteArray} {pp : Nat} : nestedAt B pp 0 = [] := by
-  simp [nestedAt]
+  simp [nestedAt, Silmaril.Wasm.Acceptor.nestedAt]
 
 theorem flatten_append (p q : Nested) : flatten (p ++ q) = flatten p ++ flatten q := by
   simp [flatten]
@@ -89,7 +89,7 @@ theorem allLit_of_nestOk {B : ByteArray} {pp n : Nat} (h : NestOk B pp n) :
     (nestedAt B pp n).all (·.all LitWord) = true := by
   simp only [List.all_eq_true]
   intro c hc w hw
-  simp only [nestedAt, List.mem_map, List.mem_range] at hc
+  simp only [nestedAt, Silmaril.Wasm.Acceptor.nestedAt, List.mem_map, List.mem_range] at hc
   obtain ⟨i, hi, rfl⟩ := hc
   obtain ⟨m, hm, rfl⟩ := mem_wordsAt.1 hw
   have := h i hi m hm

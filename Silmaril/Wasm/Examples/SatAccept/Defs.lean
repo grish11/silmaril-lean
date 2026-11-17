@@ -5,6 +5,8 @@ public import Silmaril.Wasm.Logic.Words.Defs
 public import Silmaril.Logic.SAT.Carrier.Defs
 public import Silmaril.Wasm.Verify.FnSpec.Defs
 public import Silmaril.Wasm.Logic.VC.Defs
+public import Silmaril.Wasm.Acceptor.Alloc.Defs
+public import Silmaril.Wasm.Acceptor.Abi.Defs
 
 /-!
 # The SAT model-witness acceptor as a core Wasm module: definitions
@@ -19,14 +21,15 @@ through the canonical ABI (`(canon lift … (memory 0) (realloc …))`):
 | `check-stream(pp, pl, mp, ml) -> i32` | `[i32 i32 i32 i32] → [i32]` | `satStream` of the words `[pp, pp + 4 pl)` with the model words `[mp, mp + 4 ml)` |
 | `check-nested(pp, pl, mp, ml) -> i32` | `[i32 i32 i32 i32] → [i32]` | `satNested` of the `pl` pairs `(ptr, len)` at `pp`, with the model words `[mp, mp + 4 ml)` |
 
-**The allocator** keeps a heap pointer `top` (global `0`, initially `heapBase = 16`) below
-`memBytes = 2²⁰`. `cabi_realloc` ignores the old block (the canonical ABI only allocates fresh
-lists) and returns `p = align_up(top, align)`; when `top ≤ p ≤ memBytes` and `new_size ≤
-memBytes - p` it sets `top := p + new_size`, otherwise it sets `top := memBytes` and returns
-`memBytes`, so a nonempty list then fails the canonical ABI's bounds check (a trap) and an
-empty one sits at the end of memory. It never traps and never lowers `top`, so the blocks it
-returns within memory are disjoint and lie above every earlier block. Both checks reset `top`
-to `heapBase` before returning: the arguments of a call are dead after it.
+**The allocator** is the acceptor kit's `Silmaril.Wasm.Acceptor.reallocFunc` (shared with
+`LratAccept` and `FarkasAccept`). It keeps a heap pointer `top` (global `0`, initially
+`heapBase = 16`) below `memBytes = 2²⁰`. `cabi_realloc` ignores the old block (the canonical ABI
+only allocates fresh lists) and returns `p = align_up(top, align)`; when `top ≤ p ≤ memBytes` and
+`new_size ≤ memBytes - p` it sets `top := p + new_size`, otherwise it sets `top := memBytes` and returns
+`memBytes`, so a nonempty list then fails the canonical ABI's bounds check (a trap) and an empty one
+sits at the end of memory. It never traps and never lowers `top`, so the blocks it returns within
+memory are disjoint and lie above every earlier block. Both checks reset `top` to `heapBase` before
+returning: the arguments of a call are dead after it.
 
 **The checks** decide `satStream` and `satNested` (`Silmaril.Logic.SAT.Carrier`) of the words
 in memory: literal words are those other than `0` and `Int32.MIN`; the model must consist of
@@ -59,24 +62,12 @@ abbrev memBytes : Nat := 1048576
 /-- The initial (and reset) value of the heap pointer. -/
 abbrev heapBase : Nat := 16
 
-/-- **The SAT acceptor module.** -/
-def prog : Module := wat3! r#"
+/-- The two checks, with the memory and the heap pointer (global `0`), as text; the allocator
+is added by `prog`. -/
+def checks : Module := wat3! r#"
 (module
   (memory (export "memory") 16 16)
   (global $top (mut i32) (i32.const 16))
-  (func $realloc (export "cabi_realloc")
-    (param $old i32) (param $osz i32) (param $al i32) (param $nsz i32) (result i32)
-    (local $p i32)
-    (local.set $p
-      (i32.and (i32.add (global.get $top) (i32.sub (local.get $al) (i32.const 1)))
-               (i32.sub (i32.const 0) (local.get $al))))
-    (if (i32.and (i32.and (i32.ge_u (local.get $p) (global.get $top))
-                          (i32.le_u (local.get $p) (i32.const 1048576)))
-                 (i32.le_u (local.get $nsz) (i32.sub (i32.const 1048576) (local.get $p))))
-      (then (global.set $top (i32.add (local.get $p) (local.get $nsz))))
-      (else (global.set $top (i32.const 1048576))
-            (local.set $p (i32.const 1048576))))
-    (local.get $p))
   (func $checkStream (export "check-stream")
     (param $pp i32) (param $pl i32) (param $mp i32) (param $ml i32) (result i32)
     (local $i i32) (local $j i32) (local $r i32) (local $hit i32) (local $x i32) (local $y i32)
@@ -187,6 +178,17 @@ def prog : Module := wat3! r#"
     (local.get $r)))
 "#
 
+/-- **The SAT acceptor module**: the acceptor kit's allocator
+(`Silmaril.Wasm.Acceptor.reallocFunc`, on global `0` for `memBytes` bytes) as function `0`,
+then the two checks of `checks` as functions `1` and `2`. -/
+def prog : Module where
+  types := checks.types
+  globals := checks.globals
+  memories := checks.memories
+  funcs := Silmaril.Wasm.Acceptor.reallocFunc ⟨0⟩ 0 memBytes :: checks.funcs
+  exports := [⟨"memory", .memory ⟨0⟩⟩, ⟨"cabi_realloc", .func ⟨0⟩⟩, ⟨"check-stream", .func ⟨1⟩⟩,
+    ⟨"check-nested", .func ⟨2⟩⟩]
+
 /-! ## What the checks compute -/
 
 open Silmaril.Logic.SAT.Carrier
@@ -194,14 +196,12 @@ open Silmaril.Logic.SAT.Carrier
 /-- The `n` words at byte `p` (`Silmaril.Wasm.Logic.Words.words`). -/
 abbrev wordsAt (B : ByteArray) (p n : Nat) : List (BitVec 32) := words B p n
 
-/-- The nested input of `n` pairs `(ptr, len)` at byte `p`: the words of each pair's block. -/
-def nestedAt (B : ByteArray) (p n : Nat) : Nested :=
-  (List.range n).map fun i => wordsAt B (wd B (p + 8 * i)).toNat (wd B (p + 8 * i + 4)).toNat
+/-- The nested input of `n` pairs `(ptr, len)` at byte `p`: the words of each pair's block (the
+acceptor kit's `list<list<s32>>` reader `Silmaril.Wasm.Acceptor.nestedAt`). -/
+abbrev nestedAt (B : ByteArray) (p n : Nat) : Nested := Silmaril.Wasm.Acceptor.nestedAt B p n
 
-/-- Every block of the nested input lies in memory. -/
-def NestedIn (B : ByteArray) (p n : Nat) : Prop :=
-  p + 8 * n ≤ B.size ∧ ∀ i < n,
-    (wd B (p + 8 * i)).toNat + 4 * (wd B (p + 8 * i + 4)).toNat ≤ B.size
+/-- Every block of the nested input lies in memory (`Silmaril.Wasm.Acceptor.NestedIn`). -/
+abbrev NestedIn (B : ByteArray) (p n : Nat) : Prop := Silmaril.Wasm.Acceptor.NestedIn B p n
 
 /-! ## The loops' running values
 

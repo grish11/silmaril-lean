@@ -36,7 +36,8 @@ theorem wd_eq_words {B : ByteArray} {p n k : Nat} (h : k < n) :
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 20000 in
 theorem stream_vc : streamSpec.vc prog.funcs[1] := by
-  simp only [Silmaril.Wasm.Verify.FnSpec.vc, streamSpec, prog, checkPre]
+  simp only [Silmaril.Wasm.Verify.FnSpec.vc, streamSpec, prog, checks, List.getElem_cons_succ,
+    List.getElem_cons_zero, checkPre]
   rintro ⟨pp, pl, mp, ml⟩ mi s ⟨⟨ma, mt, B, ⟨hm0, hm⟩, hsz, hP, hM⟩, hg⟩
   obtain ⟨g, hg⟩ := Option.isSome_iff_exists.1 hg
   simp only at hP hM

@@ -5,6 +5,8 @@ public import Silmaril.Wasm.Examples.LRAT.Defs
 public import Silmaril.Wasm.Logic.Words.Defs
 public import Silmaril.Logic.LinArith.Carrier.Defs
 public import Silmaril.Wasm.Verify.Checker.Defs
+public import Silmaril.Wasm.Acceptor.Alloc.Defs
+public import Silmaril.Wasm.Acceptor.Code.Defs
 
 /-!
 # The Farkas acceptor as a core Wasm module: definitions
@@ -37,11 +39,11 @@ exported. Added are the global `4` (the heap pointer `top`), the memory `1` (the
 memory) and the functions `3` (`cabi_realloc`) and `4` (`check`). The checker's functions only
 use memory `0` and globals `0 … 3`; the new code only reads memory `1` and writes global `4`.
 
-**The allocator** is the one of `Silmaril.Wasm.Examples.SatAccept` (and `LratAccept`), on global
-`4`: it returns `p = align_up(top, align)` and sets `top := p + new_size` when
-`top ≤ p ≤ memBytes` and `new_size ≤ memBytes - p`; otherwise it sets `top := memBytes` and
-returns `memBytes`. It never traps and never lowers `top`. The check resets `top` to
-`heapBase` before returning.
+**The allocator** is the acceptor kit's `Silmaril.Wasm.Acceptor.reallocFunc` (shared with
+`SatAccept` and `LratAccept`), on global `4` and the `memBytes` of memory `1`: it returns
+`p = align_up(top, align)` and sets `top := p + new_size` when `top ≤ p ≤ memBytes` and
+`new_size ≤ memBytes - p`; otherwise it sets `top := memBytes` and returns `memBytes`. It never
+traps and never lowers `top`. The check resets `top` to `heapBase` before returning.
 
 **The check** first **resets** the checker by calling its `check()` and dropping the answer:
 that scan zeroes every accumulator slot and resets the four globals, so every call starts from
@@ -84,21 +86,14 @@ abbrev ld1 : Instr := .intLoad .i32 none ⟨1⟩ ⟨2, 0⟩
 /-- `i64.load` from memory `1` (the ABI memory) at offset `0`. -/
 abbrev ld64 : Instr := .intLoad .i64 none ⟨1⟩ ⟨3, 0⟩
 
-/-- `call j`. -/
-abbrev callf (j : Nat) : Instr := .call ⟨⟨j % 2 ^ 32, Nat.mod_lt _ (by decide)⟩⟩
+/-- `call j` (`Silmaril.Wasm.Acceptor.callf`). -/
+abbrev callf (j : Nat) : Instr := Silmaril.Wasm.Acceptor.callf j
 
 /-! ## The allocator -/
 
-/-- `cabi_realloc(old, osz, al, nsz)`. Locals: `4` `p`; `5` "fits". -/
-def reallocBody : List Instr :=
-  -- p := (top + al - 1) & -al
-  [gget gHeap, lget 2, c32 1, isub, iadd, c32 0, lget 2, isub, iand, lset 4,
-    -- fits := top ≤ p ∧ p ≤ memBytes ∧ nsz ≤ memBytes - p
-    lget 4, gget gHeap, igeu, c32 memBytes, lget 4, igeu, iand,
-      c32 memBytes, lget 4, isub, lget 3, igeu, iand, lset 5,
-    lget 5, ifThen [lget 4, lget 3, iadd, gset gHeap],
-    lget 5, ieqz, ifThen [c32 memBytes, gset gHeap, c32 memBytes, lset 4],
-    lget 4]
+/-- `cabi_realloc(old, osz, al, nsz)`: the kit's allocator on global `gHeap` for `memBytes`
+bytes. -/
+abbrev reallocFunc : Func := Silmaril.Wasm.Acceptor.reallocFunc ⟨3⟩ gHeap memBytes
 
 /-! ## The check
 
@@ -155,7 +150,7 @@ def prog : Module where
   globals := farkasMod.globals ++ [⟨⟨.var, .i32⟩, [c32 heapBase]⟩]
   memories := farkasMod.memories ++ [accMt]
   funcs := farkasMod.funcs ++ [
-    ⟨⟨3⟩, [.i32, .i32], reallocBody⟩,
+    reallocFunc,
     ⟨⟨3⟩, checkLocals, checkBody⟩]
   exports := [⟨"memory", .memory ⟨1⟩⟩, ⟨"cabi_realloc", .func ⟨3⟩⟩, ⟨"check", .func ⟨4⟩⟩]
 
@@ -231,17 +226,11 @@ end Inst
 
 /-! ## The allocator's contract -/
 
-/-- The aligned candidate `align_up(top, al)`, computed in `i32`. -/
-def alignUp (top al : BitVec 32) : BitVec 32 :=
-  (top + (al - BitVec.ofNat 32 1)) &&& (BitVec.ofNat 32 0 - al)
-
-/-- What a call of `cabi_realloc(old, osz, al, nsz)` does when the heap pointer is `top`: it
-answers `r` and sets the heap pointer to `t'`, never lower and within memory; either the block
-`[r, r + nsz)` is fresh (`r = align_up(top, al) ≥ top`, `t' = r + nsz`) or the allocation failed
-(`r = t' = memBytes`). -/
-def ReallocOk (top al nsz r t' : BitVec 32) : Prop :=
-  top.toNat ≤ t'.toNat ∧ t'.toNat ≤ memBytes ∧
-    ((r = alignUp top al ∧ top.toNat ≤ r.toNat ∧ r.toNat + nsz.toNat = t'.toNat) ∨
-      (r.toNat = memBytes ∧ t'.toNat = memBytes))
+/-- What a call of `cabi_realloc(old, osz, al, nsz)` does when the heap pointer is `top`
+(`Silmaril.Wasm.Acceptor.ReallocOk` at `memBytes`): it answers `r` and sets the heap pointer to
+`t'`, never lower and within memory; either the block `[r, r + nsz)` is fresh
+(`r = align_up(top, al) ≥ top`, `t' = r + nsz`) or the allocation failed (`r = t' = memBytes`). -/
+abbrev ReallocOk (top al nsz r t' : BitVec 32) : Prop :=
+  Silmaril.Wasm.Acceptor.ReallocOk memBytes top al nsz r t'
 
 end Silmaril.Wasm.Examples.FarkasAccept

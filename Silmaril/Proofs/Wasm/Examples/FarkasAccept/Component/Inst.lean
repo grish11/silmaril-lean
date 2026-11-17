@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Examples.FarkasAccept.Thms
 public import Silmaril.Wasm.Component.Reference.ListLift.Bump.Defs
 public import Silmaril.Wasm.Verify.Check.Thms
 public import Silmaril.Wasm.Component.Reference.Engine.Core3.Store.Defs
+public import Silmaril.Wasm.Acceptor.Alloc.Thms
 
 /-!
 # The Farkas acceptor component: the instance and the allocator
@@ -18,11 +19,11 @@ pointer at `heapBase`.
 * `farkasComp_good`, `farkasComp_inst`: `farkasComp` is in the fragment of `acceptSound`;
 * `farkasBump`: `cabi_realloc` (address `3`) is a bump allocator (`BumpAlloc`) for memory
   address `1` and the invariant `FInv`: a store of the acceptor with heap pointer
-  `t ≤ memBytes`. From `realloc_sound`: at every alignment the allocator only sets the heap
-  pointer, the block lies above the old heap pointer and ends below the new one, or it is
-  `memBytes` (then only an empty block passes the bounds check). Writes to memory `1` keep
-  `AccStore` (with the new ABI memory); the checker state (memory `0`, globals `0 … 3`) is
-  untouched by the lowering.
+  `t ≤ memBytes`. It is the acceptor kit's `BumpSpec.bumpAlloc` of `farkasBumpSpec` (from
+  `realloc_sound`: the allocator only sets global `4`, and setting it keeps `AccStore`) with
+  the two memory facts: memory `1` has `memBytes` bytes, and writes to it keep `AccStore` (with
+  the new ABI memory); the checker state (memory `0`, globals `0 … 3`) is untouched by the
+  lowering.
 -/
 
 @[expose] public section
@@ -33,6 +34,7 @@ open Silmaril.Wasm Silmaril.Wasm.Execution Silmaril.Wasm.Execution.Core
 open Silmaril.Wasm.Validation Silmaril.Wasm.Game Silmaril.Wasm.Verify
 open Silmaril.Wasm.Examples.FarkasAccept
 open Silmaril.Wasm.Component.Reference.ListLift
+open Silmaril.Wasm.Acceptor (BumpSpec)
 open Silmaril.Wasm.Numerics (Profile)
 
 set_option maxRecDepth 100000
@@ -113,50 +115,45 @@ theorem fInv_init : FInv accI.store heapBase := by
   rw [e]
   exact ⟨⟨B₁, ⟨rfl, ⟨0, 0, 0, 0, t_accS_globals⟩, ⟨B₀, h₀, hm⟩, h₁⟩⟩, by decide⟩
 
-/-- **`cabi_realloc` is a bump allocator** (function address `3`, memory address `1`). -/
-theorem farkasBump (P : Profile) : BumpAlloc P 3 1 memBytes FInv where
+/-- `cabi_realloc` bumps global `4` within `memBytes` (the acceptor kit's `BumpSpec`, from
+`realloc_sound`); setting the heap pointer keeps `AccStore`. -/
+theorem farkasBumpSpec (P : Profile) : BumpSpec P 3 4 memBytes FInv where
   small := by decide
-  size := by
-    rintro s t ⟨⟨B₁, h⟩, -⟩
-    obtain ⟨B₀, -, hm⟩ := h.mems
-    simp [memBytesOf, hm, h.size₁]
-  write := by
-    rintro s t p bs s' ⟨⟨B₁, h⟩, ht⟩ hw
-    obtain ⟨B₀, h₀, hm⟩ := h.mems
-    obtain ⟨mi, b, hm', hwb, rfl⟩ := Silmaril.Wasm.Component.Engine.Core3.memWrite?_eq_some hw
-    rw [hm] at hm'
-    simp only [List.getElem?_cons_succ, List.getElem?_cons_zero, Option.some.injEq] at hm'
-    subst hm'
-    refine ⟨⟨b, ⟨h.funcs, h.globals, ⟨B₀, h₀, ?_⟩, ?_⟩⟩, ht⟩
-    · show s.mems.set 1 _ = _
-      rw [hm]
-      rfl
-    · rw [Memory.writeBytes_size _ _ _ _ hwb, h.size₁]
-  realloc := by
-    rintro s t al n q s' ⟨⟨B₁, h⟩, ht⟩ ⟨f', hs, hq⟩
+  le := fun h => h.2
+  run := by
+    rintro s t old osz al nsz s' f' res ⟨⟨B₁, h⟩, ht⟩ hs
     have hmb : memBytes = 1048576 := rfl
-    have htn : (BitVec.ofNat 32 t).toNat = t := toNat_ofNat (by omega)
     obtain ⟨bad, hr₀, y, vb, hgl⟩ := h.globals
     have hg : s.globals[4]? = some ⟨accG32, Val.i32 (BitVec.ofNat 32 t)⟩ := by
       rw [hgl]
       rfl
-    obtain ⟨r, t', hres, rfl, hok⟩ := realloc_sound h.funcs hg (by rw [htn]; exact ht) hs
-    simp only [List.cons.injEq, and_true] at hres
-    have hr : BitVec.ofNat 32 q = r := by
-      injection hres with h₁
-      injection h₁
-    have hqr : q = r.toNat := by rw [← hr, toNat_ofNat hq]
-    obtain ⟨hlo, hhi, hcase⟩ := hok
-    rw [htn] at hlo hcase
-    refine ⟨t'.toNat, ⟨⟨B₁, ⟨h.funcs, ⟨bad, hr₀, y, vb, ?_⟩, h.mems, h.size₁⟩⟩, hhi⟩, ?_, ?_, ?_⟩
-    · show s.globals.modify 4 _ = _
-      rw [hgl, BitVec.ofNat_toNat, BitVec.setWidth_eq]
-      rfl
-    · rfl
-    · rcases hcase with ⟨-, h₁, -⟩ | ⟨h₁, -⟩ <;> omega
-    · intro hb
-      have hn : (BitVec.ofNat 32 n).toNat = n := toNat_ofNat (by omega)
-      rw [hn] at hcase
-      rcases hcase with ⟨-, -, h₁⟩ | ⟨h₁, h₂⟩ <;> omega
+    exact realloc_sound h.funcs hg (by rw [toNat_ofNat (by omega)]; exact ht) hs
+  set := by
+    rintro s t t' ⟨⟨B₁, h⟩, -⟩ - hle
+    obtain ⟨bad, hr₀, y, vb, hgl⟩ := h.globals
+    refine ⟨⟨B₁, ⟨h.funcs, ⟨bad, hr₀, y, vb, ?_⟩, h.mems, h.size₁⟩⟩, hle⟩
+    show s.globals.modify 4 _ = _
+    rw [hgl, BitVec.ofNat_toNat, BitVec.setWidth_eq]
+    rfl
+
+/-- **`cabi_realloc` is a bump allocator** (function address `3`, memory address `1`). -/
+theorem farkasBump (P : Profile) : BumpAlloc P 3 1 memBytes FInv :=
+  (farkasBumpSpec P).bumpAlloc
+    (by
+      rintro s t ⟨⟨B₁, h⟩, -⟩
+      obtain ⟨B₀, -, hm⟩ := h.mems
+      simp [memBytesOf, hm, h.size₁])
+    (by
+      rintro s t p bs s' ⟨⟨B₁, h⟩, ht⟩ hw
+      obtain ⟨B₀, h₀, hm⟩ := h.mems
+      obtain ⟨mi, b, hm', hwb, rfl⟩ := Silmaril.Wasm.Component.Engine.Core3.memWrite?_eq_some hw
+      rw [hm] at hm'
+      simp only [List.getElem?_cons_succ, List.getElem?_cons_zero, Option.some.injEq] at hm'
+      subst hm'
+      refine ⟨⟨b, ⟨h.funcs, h.globals, ⟨B₀, h₀, ?_⟩, ?_⟩⟩, ht⟩
+      · show s.mems.set 1 _ = _
+        rw [hm]
+        rfl
+      · rw [Memory.writeBytes_size _ _ _ _ hwb, h.size₁])
 
 end Silmaril.Proofs.Wasm.Examples.FarkasAccept.Component

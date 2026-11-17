@@ -27,7 +27,7 @@
         }
       ],
       "source": "Silmaril.Wasm.Examples.SatAccept: prog, wrapped as a component (memory 0, realloc cabi_realloc)",
-      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2"
+      "sha256": "78b2a97ed369c0117e63491b2b7bf9a2eb0d4bef5d951201852e307551eef499"
     }
   },
   "cases": [

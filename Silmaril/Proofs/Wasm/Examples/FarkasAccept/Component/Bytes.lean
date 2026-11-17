@@ -1,17 +1,15 @@
 module
 
 public import Silmaril.Wasm.Examples.FarkasAccept.Component.Defs
-public import Silmaril.Wasm.Binaryen.Exe.EncodeSound
-public import Silmaril.Wasm.Binary.Core.DecodeSound
-public import Silmaril.Wasm.Component.Binary.Thms
+public import Silmaril.Wasm.Acceptor.Emit.Thms
 
 /-!
 # The Farkas acceptor component: the bytes
 
-`decode_coreBytes`: the core module bytes decode to `prog` (one kernel evaluation of the
-decoder, `decode?_sound`, `encodeModule?_sound` and the functionality of the binary grammar).
-`bytes_parse`: the component bytes parse to `farkasComp.toAst coreBytes` (one kernel evaluation
-of the encoder and `parse_encode`).
+`decode_coreBytes`: the core module bytes decode to `prog`; `bytes_parse`: the component bytes
+parse to `farkasComp.toAst coreBytes`. Each is the acceptor kit's combinator
+(`Silmaril.Wasm.Acceptor.decode_coreBytesOf`, `parse_compBytes`) on kernel evaluations of the
+encoders and the decoder.
 -/
 
 @[expose] public section
@@ -33,25 +31,12 @@ theorem t_encodeComp :
   decide +kernel
 
 /-- **The core module bytes decode to `prog`.** -/
-theorem decode_coreBytes : Binary.Core.decode? coreBytes = some prog := by
-  obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp t_decodes
-  have hd := Binary.Core.decode?_sound hm
-  cases he : Binaryen.Exe.encodeModule? prog with
-  | error e =>
-    have h := t_encodes
-    simp [he, Except.toOption] at h
-  | ok bs =>
-    have hc : coreBytes = ⟨bs.toArray⟩ := by unfold coreBytes; rw [he]
-    have hr := Binaryen.Exe.encodeModule?_sound he
-    rw [hc] at hd
-    rw [hm, Binary.Core.functional hd hr]
+theorem decode_coreBytes : Binary.Core.decode? coreBytes = some prog :=
+  Silmaril.Wasm.Acceptor.decode_coreBytesOf t_encodes t_decodes
 
 /-- **The component bytes parse to the emitted component.** -/
 theorem bytes_parse :
-    Silmaril.Wasm.Component.Binary.parse bytes = .ok (farkasComp.toAst coreBytes) := by
-  obtain ⟨b, hb⟩ := Option.isSome_iff_exists.mp t_encodeComp
-  have hbytes : bytes = b := by unfold bytes; rw [hb]; rfl
-  rw [hbytes]
-  exact Silmaril.Wasm.Component.Binary.parse_encode hb
+    Silmaril.Wasm.Component.Binary.parse bytes = .ok (farkasComp.toAst coreBytes) :=
+  Silmaril.Wasm.Acceptor.parse_compBytes t_encodeComp
 
 end Silmaril.Proofs.Wasm.Examples.FarkasAccept.Component

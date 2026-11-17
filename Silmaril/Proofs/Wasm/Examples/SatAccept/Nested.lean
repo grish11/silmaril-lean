@@ -45,7 +45,8 @@ theorem addr8' {p i : BitVec 32} {n : Nat} (hi : i.toNat < n) (hb : p.toNat + 8 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 20000 in
 theorem nested_vc : nestedSpec.vc prog.funcs[2] := by
-  simp only [Silmaril.Wasm.Verify.FnSpec.vc, nestedSpec, prog, checkPre]
+  simp only [Silmaril.Wasm.Verify.FnSpec.vc, nestedSpec, prog, checks, List.getElem_cons_succ,
+    List.getElem_cons_zero, checkPre]
   rintro ⟨pp, pl, mp, ml⟩ mi s ⟨⟨ma, mt, B, ⟨hm0, hm⟩, hsz, ⟨hN, hNi⟩, hM⟩, hg⟩
   obtain ⟨g, hg⟩ := Option.isSome_iff_exists.1 hg
   simp only at hN hNi hM

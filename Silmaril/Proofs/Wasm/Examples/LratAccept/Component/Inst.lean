@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Examples.LratAccept.Thms
 public import Silmaril.Wasm.Component.Reference.ListLift.Bump.Defs
 public import Silmaril.Wasm.Verify.Check.Thms
 public import Silmaril.Wasm.Component.Reference.Engine.Core3.Store.Defs
+public import Silmaril.Wasm.Acceptor.Alloc.Thms
 
 /-!
 # The LRAT acceptor component: the instance and the allocator
@@ -18,10 +19,11 @@ store of the acceptor (`AccStore`) with the heap pointer at `heapBase`.
 * `lratComp_good`, `lratComp_inst`: `lratComp` is in the fragment of `acceptSound`;
 * `lratBump`: `cabi_realloc` (address `10`) is a bump allocator (`BumpAlloc`) for memory
   address `1` and the invariant `LInvL`: a store of the acceptor with heap pointer
-  `t ≤ memBytes`. From `realloc_sound`: the allocator only sets the heap pointer, the block lies
-  above the old heap pointer and ends below the new one, or it is `memBytes` (then only an empty
-  block passes the bounds check). Writes to memory `1` keep `AccStore` (with the new ABI
-  memory); the LRAT state (memory `0`, globals `0 … 7`) is untouched by the lowering.
+  `t ≤ memBytes`. It is the acceptor kit's `BumpSpec.bumpAlloc` of `lratBumpSpec` (from
+  `realloc_sound`: the allocator only sets global `8`, and setting it keeps `AccStore`) with
+  the two memory facts: memory `1` has `memBytes` bytes, and writes to it keep `AccStore`
+  (with the new ABI memory); the LRAT state (memory `0`, globals `0 … 7`) is untouched by the
+  lowering.
 -/
 
 @[expose] public section
@@ -32,6 +34,7 @@ open Silmaril.Wasm Silmaril.Wasm.Execution Silmaril.Wasm.Execution.Core
 open Silmaril.Wasm.Validation Silmaril.Wasm.Game Silmaril.Wasm.Verify
 open Silmaril.Wasm.Examples.LratAccept
 open Silmaril.Wasm.Component.Reference.ListLift
+open Silmaril.Wasm.Acceptor (BumpSpec)
 open Silmaril.Wasm.Numerics (Profile)
 
 set_option maxRecDepth 100000
@@ -156,48 +159,40 @@ theorem globals_set8 {G : List (BitVec 32)} (hG : G.length = 8) (top v : BitVec 
   have hl : (G.map fun v => (⟨accGt, Val.i32 v⟩ : GlobalInst)).length = 8 := by simp [hG]
   rw [← hl, modify_append_singleton]
 
-/-- **`cabi_realloc` is a bump allocator** (function address `10`, memory address `1`). -/
-theorem lratBump (P : Profile) : BumpAlloc P 10 1 memBytes LInvL where
+/-- `cabi_realloc` bumps global `8` within `memBytes` (the acceptor kit's `BumpSpec`, from
+`realloc_sound`); setting the heap pointer keeps `AccStore`. -/
+theorem lratBumpSpec (P : Profile) : BumpSpec P 10 8 memBytes LInvL where
   small := by decide
-  size := by
-    rintro s t ⟨⟨G, B₀, B₁, h⟩, -⟩
-    simp [memBytesOf, h.mems, h.size₁]
-  write := by
-    rintro s t p bs s' ⟨⟨G, B₀, B₁, h⟩, ht⟩ hw
-    obtain ⟨mi, b, hm', hwb, rfl⟩ := Silmaril.Wasm.Component.Engine.Core3.memWrite?_eq_some hw
-    rw [h.mems] at hm'
-    simp only [List.getElem?_cons_succ, List.getElem?_cons_zero, Option.some.injEq] at hm'
-    subst hm'
-    refine ⟨⟨G, B₀, b, ⟨h.funcs, h.globals, h.len, ?_, h.size₀, ?_⟩⟩, ht⟩
-    · show s.mems.set 1 _ = _
-      rw [h.mems]
-      rfl
-    · rw [Memory.writeBytes_size _ _ _ _ hwb, h.size₁]
-  realloc := by
-    rintro s t al n q s' ⟨⟨G, B₀, B₁, h⟩, ht⟩ ⟨f', hs, hq⟩
+  le := fun h => h.2
+  run := by
+    rintro s t old osz al nsz s' f' res ⟨⟨G, B₀, B₁, h⟩, ht⟩ hs
     have hmb : memBytes = 1048576 := rfl
-    have htn : (BitVec.ofNat 32 t).toNat = t := toNat_ofNat (by omega)
     have hg : s.globals[8]? = some ⟨accGt, Val.i32 (BitVec.ofNat 32 t)⟩ := by
       rw [h.globals]
       exact globals_8 h.len _
-    obtain ⟨r, t', hres, rfl, hok⟩ :=
-      realloc_sound h.funcs hg (by rw [htn]; exact ht) hs
-    simp only [List.cons.injEq, and_true] at hres
-    have hr : BitVec.ofNat 32 q = r := by
-      injection hres with h₁
-      injection h₁
-    have hqr : q = r.toNat := by rw [← hr, toNat_ofNat hq]
-    obtain ⟨hlo, hhi, hcase⟩ := hok
-    rw [htn] at hlo hcase
-    refine ⟨t'.toNat, ⟨⟨G, B₀, B₁, ⟨h.funcs, ?_, h.len, h.mems, h.size₀, h.size₁⟩⟩, hhi⟩, ?_,
-      ?_, ?_⟩
-    · show s.globals.modify 8 _ = _
-      rw [h.globals, globals_set8 h.len, BitVec.ofNat_toNat, BitVec.setWidth_eq]
-    · rfl
-    · rcases hcase with ⟨-, h₁, -⟩ | ⟨h₁, -⟩ <;> omega
-    · intro hb
-      have hn : (BitVec.ofNat 32 n).toNat = n := toNat_ofNat (by omega)
-      rw [hn] at hcase
-      rcases hcase with ⟨-, -, h₁⟩ | ⟨h₁, h₂⟩ <;> omega
+    exact realloc_sound h.funcs hg (by rw [toNat_ofNat (by omega)]; exact ht) hs
+  set := by
+    rintro s t t' ⟨⟨G, B₀, B₁, h⟩, -⟩ - hle
+    refine ⟨⟨G, B₀, B₁, ⟨h.funcs, ?_, h.len, h.mems, h.size₀, h.size₁⟩⟩, hle⟩
+    show s.globals.modify 8 _ = _
+    rw [h.globals, globals_set8 h.len, BitVec.ofNat_toNat, BitVec.setWidth_eq]
+
+/-- **`cabi_realloc` is a bump allocator** (function address `10`, memory address `1`). -/
+theorem lratBump (P : Profile) : BumpAlloc P 10 1 memBytes LInvL :=
+  (lratBumpSpec P).bumpAlloc
+    (by
+      rintro s t ⟨⟨G, B₀, B₁, h⟩, -⟩
+      simp [memBytesOf, h.mems, h.size₁])
+    (by
+      rintro s t p bs s' ⟨⟨G, B₀, B₁, h⟩, ht⟩ hw
+      obtain ⟨mi, b, hm', hwb, rfl⟩ := Silmaril.Wasm.Component.Engine.Core3.memWrite?_eq_some hw
+      rw [h.mems] at hm'
+      simp only [List.getElem?_cons_succ, List.getElem?_cons_zero, Option.some.injEq] at hm'
+      subst hm'
+      refine ⟨⟨G, B₀, b, ⟨h.funcs, h.globals, h.len, ?_, h.size₀, ?_⟩⟩, ht⟩
+      · show s.mems.set 1 _ = _
+        rw [h.mems]
+        rfl
+      · rw [Memory.writeBytes_size _ _ _ _ hwb, h.size₁])
 
 end Silmaril.Proofs.Wasm.Examples.LratAccept.Component

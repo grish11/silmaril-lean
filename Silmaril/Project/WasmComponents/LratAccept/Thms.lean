@@ -2,7 +2,7 @@ module
 
 public import Silmaril.Project.WasmComponents.Ref.Defs
 public import Silmaril.Wasm.Examples.LratAccept.Component.Thms
-import Silmaril.Proofs.Project.WasmComponents.LratAccept
+public import Silmaril.Project.WasmComponents.Acceptor.Thms
 
 /-!
 # The LRAT acceptor component read from its bytes
@@ -11,7 +11,9 @@ import Silmaril.Proofs.Project.WasmComponents.LratAccept
 `examples/wasm-acceptors/lrat_accept.wasm`, regenerated from it) parse to
 `lratComp.toAst coreBytes` (`bytes_parse`), whose reading by the reference semantics
 (`Silmaril.Project.WasmComponents.Ref.toRef?`, core modules decoded by `Binary.Core.decode?`)
-is `lratComp.toRef` (`toRef_toAst`, by kernel evaluation). So the soundness of accepting calls
+is `lratComp.toRef` (`toRef_toAst`: the acceptor kit's generic
+`Silmaril.Project.WasmComponents.Acceptor.toRef_toAst`, for every list component, with
+`decode_coreBytes`). So the soundness of accepting calls
 (`Silmaril.Wasm.Examples.LratAccept.Component.checkStream_sound`, `checkNested_sound`) holds
 for **every** reference component read from the bytes (`checkStream_sound_of_bytes`,
 `checkNested_sound_of_bytes`): a call of `check-stream` returning `true` on `xs` and any
@@ -20,8 +22,6 @@ any certificate `cs` means `p ∈ UnsatNested`.
 
 The file itself is tied to `bytes` by regeneration and the SHA-256 pinned in
 `tools/wasm-acceptor-harness/suites/lrat.json`, not by a theorem here.
-
-Proofs in `Silmaril.Proofs.Project.WasmComponents.LratAccept`.
 -/
 
 @[expose] public section
@@ -37,13 +37,16 @@ open Silmaril.Logic.SAT.Carrier (UnsatStream UnsatNested)
 
 /-- **The reference reading of the emitted component is `lratComp.toRef`.** -/
 theorem toRef_toAst : toRef? (lratComp.toAst coreBytes) = some lratComp.toRef :=
-  Silmaril.Proofs.Project.WasmComponents.LratAccept.toRef_toAst
+  Silmaril.Project.WasmComponents.Acceptor.toRef_toAst lratComp
+    Silmaril.Wasm.Examples.LratAccept.Component.decode_coreBytes
 
 /-- Every reference reading of what the bytes parse to is `lratComp.toRef`. -/
 theorem toRef_of_parse {ast : Silmaril.Wasm.Component.Binary.Ast}
     (hp : Silmaril.Wasm.Component.Binary.parse bytes = .ok ast) {r : Core3Component}
     (hr : toRef? ast = some r) : r = lratComp.toRef :=
-  Silmaril.Proofs.Project.WasmComponents.LratAccept.toRef_of_parse hp hr
+  Silmaril.Project.WasmComponents.Acceptor.toRef_of_parse lratComp
+    Silmaril.Wasm.Examples.LratAccept.Component.decode_coreBytes
+    Silmaril.Wasm.Examples.LratAccept.Component.bytes_parse hp hr
 
 /-- **Accepting `check-stream` calls of the component read from the bytes are sound.** -/
 theorem checkStream_sound_of_bytes {ast : Silmaril.Wasm.Component.Binary.Ast}

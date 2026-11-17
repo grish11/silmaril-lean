@@ -24,26 +24,30 @@ and `checkNested_sound`):
 The certificate is not constrained. Only accepting behaviours are: traps, divergence and `false`
 answers are not (no completeness is claimed).
 
-The proof (`Silmaril.Proofs.Wasm.Examples.LratAccept.Component`) combines
+The proof (`Silmaril.Proofs.Wasm.Examples.LratAccept.Component`) is an instance of the acceptor
+kit (`Silmaril.Wasm.Acceptor`, `docs/projects/acceptor-kit.md`): the kit's
+`CheckerExport.sound` applied to the kit of `lratComp` and the Core obligation of each export.
+It combines
 
 * `acceptSound lratComp` (`Silmaril.Wasm.Component.Reference.ListLift`), whose hypotheses are
   `lratComp_good` and `lratComp_inst` (the instance `accI` of `prog`, by kernel evaluation; the
   ABI memory is the module's memory `1`, `lratComp.memIdx`);
-* the **memory lemma** `lowered`: the lowering of the two arguments into memory address `1`
-  ends with the flat arguments `(q₁, len₁, q₂, len₂)` in a store of the acceptor (`AccStore`:
-  the instance's functions, some LRAT state, the 1 MiB ABI memory `B₁`), the blocks in bounds
-  and the arguments in `B₁`: the certificate is `words B₁ q₂ len₂`, the problem is held at
-  `q₁` (`HoldsL`), read back as `words B₁ q₁ len₁` (`holdsL_words`) or `nestedAt B₁ q₁ len₁`
-  with `NestedIn` (`holdsL_nested`). It is the generic `params_holds` (`…ListLift.Bump`) for
-  the bump allocator `cabi_realloc` (`lratBump`, from `realloc_sound`); the lowering writes
-  only memory `1` and the allocator only the heap pointer, so the store stays a store of the
-  acceptor;
+* the **memory lemma** `lowered`: the lowering of the two arguments into memory address `1` ends
+  with the flat arguments `(q₁, len₁, q₂, len₂)` in a store of the acceptor (`AccStore`: the
+  instance's functions, some LRAT state, the 1 MiB ABI memory `B₁`), the blocks in bounds and the
+  arguments in `B₁`: the certificate is `words B₁ q₂ len₂`, the problem is held at `q₁` (`HoldsL`),
+  read back as `words B₁ q₁ len₁` (`holdsL_words`) or `nestedAt B₁ q₁ len₁` with `NestedIn`
+  (`holdsL_nested`). It is the generic `params_holds` (`…ListLift.Bump`) for the bump allocator
+  `cabi_realloc` (`lratBump`: the kit's `BumpSpec.bumpAlloc`, from the kit's `realloc_sound`); the
+  lowering writes only memory `1` and the allocator only the heap pointer, so the store stays a
+  store of the acceptor;
 * the core soundness theorems `Silmaril.Wasm.Examples.LratAccept.checkStream_sound` and
   `checkNested_sound`, which hold from any LRAT state.
 
-**The bytes** (by kernel evaluation): `coreBytes` decode to `prog` (`decode_coreBytes`) and
-`bytes` parse to `lratComp.toAst coreBytes` (`bytes_parse`). That the reference reading of the
-parsed component (`Silmaril.Project.WasmComponents.Ref.toRef?`) is `lratComp.toRef` is in
+**The bytes** (the kit's `decode_coreBytesOf`, `parse_compBytes` on kernel evaluations): `coreBytes`
+decode to `prog` (`decode_coreBytes`) and `bytes` parse to `lratComp.toAst coreBytes`
+(`bytes_parse`). That the reference reading of the parsed component
+(`Silmaril.Project.WasmComponents.Ref.toRef?`) is `lratComp.toRef` is in
 `Silmaril.Project.WasmComponents.LratAccept.Thms`.
 -/
 

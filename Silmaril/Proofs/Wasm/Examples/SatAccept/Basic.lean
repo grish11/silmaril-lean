@@ -129,18 +129,24 @@ theorem alignUp_eq (t al : BitVec 32) : (t + (al - 1#32) &&& -al) = alignUp t al
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 20000 in
 theorem realloc_vc : reallocSpec.vc prog.funcs[0] := by
-  simp only [Silmaril.Wasm.Verify.FnSpec.vc, reallocSpec, prog]
+  simp only [Silmaril.Wasm.Verify.FnSpec.vc, reallocSpec, prog, List.getElem_cons_zero,
+    Silmaril.Wasm.Acceptor.reallocFunc, Silmaril.Wasm.Acceptor.reallocBody,
+    Silmaril.Wasm.Acceptor.reallocLocals]
   intro x mi s hpre
   obtain ⟨o, os, al, n, t⟩ := x
   sat_simp [hpre, alignUp_eq, BitVec.toNat_add]
-  have hp := (alignUp t al).isLt
-  constructor
-  · intro h1 h2 h3
-    have h4 : (alignUp t al).toNat + n.toNat ≤ memBytes := by simp only [memBytes]; omega
-    simp [reallocRes, h1, h4]
-  · intro h
-    have h4 : ¬ (t.toNat ≤ (alignUp t al).toNat ∧ (alignUp t al).toNat + n.toNat ≤ memBytes) := by
-      simp only [memBytes]; omega
+  have hmb : memBytes = 1048576 := rfl
+  refine ⟨fun h1 h2 h3 => ⟨fun hn => absurd (hn h1 h2) (Nat.not_lt.2 h3), fun _ _ _ => ?_⟩,
+    fun hn => ⟨fun _ => ?_, fun h1 h2 h3 => absurd (hn h1 h2) (Nat.not_lt.2 h3)⟩⟩
+  · have h4 : t.toNat ≤ (alignUp t al).toNat ∧ (alignUp t al).toNat + n.toNat ≤ memBytes := by
+      rw [hmb] at h2 h3 ⊢
+      omega
+    simp [reallocRes, h4]
+  · have h4 : ¬ (t.toNat ≤ (alignUp t al).toNat ∧ (alignUp t al).toNat + n.toNat ≤ memBytes) := by
+      rintro ⟨ha, hb⟩
+      rw [hmb] at hn hb
+      have := hn ha (by omega)
+      omega
     simp [reallocRes, h4]
 
 /-- **The non-overlap property** of `reallocRes`. -/

@@ -23,23 +23,27 @@ every component choice profile `prof`:
 Only accepting behaviours are constrained: traps, divergence and `false` answers are not (no
 completeness is claimed).
 
-The proof (`Silmaril.Proofs.Wasm.Examples.SatAccept.Component`) combines
+The proof (`Silmaril.Proofs.Wasm.Examples.SatAccept.Component`) is an instance of the acceptor
+kit (`Silmaril.Wasm.Acceptor`, `docs/projects/acceptor-kit.md`): the kit's
+`CheckerExport.sound` applied to the kit of `satComp` and the Core obligation of each export.
+It combines
 
 * `acceptSound satComp` (`Silmaril.Wasm.Component.Reference.ListLift`), whose hypotheses are
   `satComp_good` and `satComp_inst` (the instance `satI` of `prog`, by kernel evaluation);
-* the **memory lemma** `lowered`: the lowering of the two arguments ends with the flat
-  arguments `(q₁, len₁, q₂, len₂)`, memory `0` of `memBytes` bytes `B`, the heap pointer
-  present, the blocks in bounds, and the arguments in memory: the model is `words B q₂ len₂`,
-  and the problem is held at `q₁` (`HoldsL`), read back as `words B q₁ len₁` (`holdsL_words`)
-  or `nestedAt B q₁ len₁` with `NestedIn` (`holdsL_nested`). It is the generic
-  `params_holds` (`…ListLift.Bump`) for the bump allocator `cabi_realloc` (`satBump`, from
-  `realloc_returns`);
+* the **memory lemma** `lowered`: the lowering of the two arguments ends with the flat arguments
+  `(q₁, len₁, q₂, len₂)`, memory `0` of `memBytes` bytes `B`, the heap pointer present, the blocks
+  in bounds, and the arguments in memory: the model is `words B q₂ len₂`, and the problem is held at
+  `q₁` (`HoldsL`), read back as `words B q₁ len₁` (`holdsL_words`) or `nestedAt B q₁ len₁` with
+  `NestedIn` (`holdsL_nested`). It is the generic `params_holds` (`…ListLift.Bump`) for the bump
+  allocator `cabi_realloc` (`satBump`: the kit's `BumpSpec.bumpAlloc`, from the kit's
+  `realloc_sound`);
 * the core specifications `stream_returns`, `nested_returns` and the carrier soundness
   `satStream_sound`, `satNested_sound`.
 
-**The bytes** (by kernel evaluation): `coreBytes` decode to `prog` (`decode_coreBytes`) and
-`bytes` parse to `satComp.toAst coreBytes` (`bytes_parse`). That the reference reading of the
-parsed component (`Silmaril.Project.WasmComponents.Ref.toRef?`) is `satComp.toRef` is in
+**The bytes** (the kit's `decode_coreBytesOf`, `parse_compBytes` on kernel evaluations): `coreBytes`
+decode to `prog` (`decode_coreBytes`) and `bytes` parse to `satComp.toAst coreBytes`
+(`bytes_parse`). That the reference reading of the parsed component
+(`Silmaril.Project.WasmComponents.Ref.toRef?`) is `satComp.toRef` is in
 `Silmaril.Project.WasmComponents.SatAccept.Thms`.
 -/
 

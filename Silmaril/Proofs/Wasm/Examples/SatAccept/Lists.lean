@@ -185,11 +185,11 @@ theorem stream_answer (B : ByteArray) (pp pl mp ml : Nat) :
   rw [satStream_eq, getLast?_words, length_words, List.take_of_length_le (by simp)]
 
 @[simp] theorem length_nestedAt (B : ByteArray) (p n : Nat) : (nestedAt B p n).length = n := by
-  simp [nestedAt]
+  simp [nestedAt, Silmaril.Wasm.Acceptor.nestedAt]
 
 theorem getD_nestedAt {B : ByteArray} {p n i : Nat} (h : i < n) :
     (nestedAt B p n)[i]?.getD [] =
       wordsAt B (wd B (p + 8 * i)).toNat (wd B (p + 8 * i + 4)).toNat := by
-  simp [nestedAt, h]
+  simp [nestedAt, Silmaril.Wasm.Acceptor.nestedAt, h]
 
 end Silmaril.Proofs.Wasm.Examples.SatAccept

@@ -2,8 +2,7 @@ module
 
 public import Silmaril.Wasm.Examples.LratAccept.Defs
 public import Silmaril.Wasm.Component.Reference.ListLift.Defs
-public import Silmaril.Wasm.Component.Binary.Encode.Defs
-public import Silmaril.Wasm.Binaryen.Exe.Encode
+public import Silmaril.Wasm.Acceptor.Emit.Defs
 
 /-!
 # The LRAT UNSAT acceptor as a component: the component and its binary
@@ -49,15 +48,15 @@ the acceptor (`AccStore`: the instance's functions, any LRAT state, the 1 MiB AB
 heap pointer is `t ≤ memBytes`.
 
 `coreBytes` is silmaril-lean's encoding of `prog` (`Binaryen.Exe.encodeModule?`) and `bytes` the
-component's (`Binary.encode`); `examples/wasm-acceptors/lrat_accept.wasm` holds them. What the
-exports compute is stated in `Silmaril.Wasm.Examples.LratAccept.Component.Thms`.
+component's (`Binary.encode`), through the acceptor kit (`Silmaril.Wasm.Acceptor.Emit`);
+`examples/wasm-acceptors/lrat_accept.wasm` holds them. What the exports compute is stated in
+`Silmaril.Wasm.Examples.LratAccept.Component.Thms`.
 -/
 
 @[expose] public section
 
 namespace Silmaril.Wasm.Examples.LratAccept
 
-open Silmaril.Wasm.Component.Binary
 open Silmaril.Wasm.Component.Reference.ListLift
 
 /-- **The LRAT acceptor component.** -/
@@ -77,13 +76,10 @@ state, any ABI memory of `memBytes` bytes) with the heap pointer `t ≤ memBytes
 def LInvL (s : Silmaril.Wasm.Execution.Core.Store Nat) (t : Nat) : Prop :=
   (∃ G B₀ B₁, AccStore s G B₀ (BitVec.ofNat 32 t) B₁) ∧ t ≤ memBytes
 
-/-- The core module bytes: silmaril-lean's encoding of `prog`. -/
-def coreBytes : ByteArray :=
-  match Silmaril.Wasm.Binaryen.Exe.encodeModule? prog with
-  | .ok bs => ⟨bs.toArray⟩
-  | .error _ => .empty
+/-- The core module bytes: silmaril-lean's encoding of `prog` (`Acceptor.coreBytesOf`). -/
+def coreBytes : ByteArray := Silmaril.Wasm.Acceptor.coreBytesOf prog
 
-/-- The component bytes. -/
-def bytes : ByteArray := (encode (lratComp.toAst coreBytes)).getD .empty
+/-- The component bytes (`Acceptor.compBytes`: `Binary.encode` of `lratComp.toAst coreBytes`). -/
+def bytes : ByteArray := Silmaril.Wasm.Acceptor.compBytes lratComp coreBytes
 
 end Silmaril.Wasm.Examples.LratAccept

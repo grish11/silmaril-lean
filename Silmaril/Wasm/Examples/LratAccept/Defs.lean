@@ -4,6 +4,9 @@ public import Silmaril.Wasm.Examples.LRAT.Defs
 public import Silmaril.Wasm.Logic.Words.Defs
 public import Silmaril.Logic.SAT.Carrier.Defs
 public import Silmaril.Wasm.Verify.Checker.Defs
+public import Silmaril.Wasm.Acceptor.Alloc.Defs
+public import Silmaril.Wasm.Acceptor.Code.Defs
+public import Silmaril.Wasm.Acceptor.Abi.Defs
 
 /-!
 # The LRAT UNSAT acceptor as a core Wasm module: definitions
@@ -26,7 +29,8 @@ its ten functions keep the indices `0 … 9` and their bodies, its eight globals
 (`cabi_realloc`), `11` (`check-stream`) and `12` (`check-nested`). The LRAT functions only use
 memory `0` and globals `0 … 7`; the new code only reads memory `1` and writes global `8`.
 
-**The allocator** is the one of `Silmaril.Wasm.Examples.SatAccept`, on global `8`: it returns
+**The allocator** is the acceptor kit's `Silmaril.Wasm.Acceptor.reallocFunc` (shared with
+`SatAccept` and `FarkasAccept`), on global `8` and the `memBytes` of memory `1`: it returns
 `p = align_up(top, align)` and sets `top := p + new_size` when `top ≤ p ≤ memBytes` and
 `new_size ≤ memBytes - p`; otherwise it sets `top := memBytes` and returns `memBytes`. It never
 traps and never lowers `top`. Both checks reset `top` to `heapBase` before returning.
@@ -73,24 +77,17 @@ abbrev gHeap : Nat := 8
 /-- `i32.load` from memory `1` (the ABI memory) at offset `0`. -/
 abbrev ld1 : Instr := .intLoad .i32 none ⟨1⟩ ⟨2, 0⟩
 
-/-- `call j`. -/
-abbrev callf (j : Nat) : Instr := .call ⟨⟨j % 2 ^ 32, Nat.mod_lt _ (by decide)⟩⟩
+/-- `call j` (`Silmaril.Wasm.Acceptor.callf`). -/
+abbrev callf (j : Nat) : Instr := Silmaril.Wasm.Acceptor.callf j
 
 /-- `i32.const` of `Int32.MIN = 0x80000000`. -/
 abbrev cMin : Instr := c32 2147483648
 
 /-! ## The allocator -/
 
-/-- `cabi_realloc(old, osz, al, nsz)`. Locals: `4` `p`; `5` "fits". -/
-def reallocBody : List Instr :=
-  -- p := (top + al - 1) & -al
-  [gget gHeap, lget 2, c32 1, isub, iadd, c32 0, lget 2, isub, iand, lset 4,
-    -- fits := top ≤ p ∧ p ≤ memBytes ∧ nsz ≤ memBytes - p
-    lget 4, gget gHeap, igeu, c32 memBytes, lget 4, igeu, iand,
-      c32 memBytes, lget 4, isub, lget 3, igeu, iand, lset 5,
-    lget 5, ifThen [lget 4, lget 3, iadd, gset gHeap],
-    lget 5, ieqz, ifThen [c32 memBytes, gset gHeap, c32 memBytes, lset 4],
-    lget 4]
+/-- `cabi_realloc(old, osz, al, nsz)`: the kit's allocator on global `gHeap` for `memBytes`
+bytes. -/
+abbrev reallocFunc : Func := Silmaril.Wasm.Acceptor.reallocFunc ⟨3⟩ gHeap memBytes
 
 /-! ## Resetting the LRAT state -/
 
@@ -243,7 +240,7 @@ def prog : Module where
   globals := lratModule.globals ++ [gvar heapBase]
   memories := lratModule.memories ++ [⟨.i32, ⟨16, some 16⟩⟩]
   funcs := lratModule.funcs ++ [
-    ⟨⟨3⟩, [.i32, .i32], reallocBody⟩,
+    reallocFunc,
     ⟨⟨3⟩, checkLocals, checkStreamBody⟩,
     ⟨⟨3⟩, checkLocals, checkNestedBody⟩]
   exports := [⟨"memory", .memory ⟨1⟩⟩, ⟨"cabi_realloc", .func ⟨10⟩⟩,
@@ -257,17 +254,12 @@ open Silmaril.Logic.SAT.Carrier
 abbrev wordsAt (B : ByteArray) (p n : Nat) : List (BitVec 32) :=
   Silmaril.Wasm.Logic.Words.words B p n
 
-/-- The nested input of `n` pairs `(ptr, len)` at byte `p`: the words of each pair's block. -/
-def nestedAt (B : ByteArray) (p n : Nat) : Nested :=
-  (List.range n).map fun i =>
-    wordsAt B (Silmaril.Wasm.Logic.Words.wd B (p + 8 * i)).toNat
-      (Silmaril.Wasm.Logic.Words.wd B (p + 8 * i + 4)).toNat
+/-- The nested input of `n` pairs `(ptr, len)` at byte `p`: the words of each pair's block (the
+acceptor kit's `list<list<s32>>` reader `Silmaril.Wasm.Acceptor.nestedAt`). -/
+abbrev nestedAt (B : ByteArray) (p n : Nat) : Nested := Silmaril.Wasm.Acceptor.nestedAt B p n
 
-/-- Every block of the nested input lies in memory. -/
-def NestedIn (B : ByteArray) (p n : Nat) : Prop :=
-  p + 8 * n ≤ B.size ∧ ∀ i < n,
-    (Silmaril.Wasm.Logic.Words.wd B (p + 8 * i)).toNat +
-      4 * (Silmaril.Wasm.Logic.Words.wd B (p + 8 * i + 4)).toNat ≤ B.size
+/-- Every block of the nested input lies in memory (`Silmaril.Wasm.Acceptor.NestedIn`). -/
+abbrev NestedIn (B : ByteArray) (p n : Nat) : Prop := Silmaril.Wasm.Acceptor.NestedIn B p n
 
 /-! ## The instance, and the stores the theorems are about -/
 
@@ -312,17 +304,11 @@ end Inst
 
 /-! ## The allocator's contract -/
 
-/-- The aligned candidate `align_up(top, al)`, computed in `i32`. -/
-def alignUp (top al : BitVec 32) : BitVec 32 :=
-  (top + (al - BitVec.ofNat 32 1)) &&& (BitVec.ofNat 32 0 - al)
-
-/-- What a call of `cabi_realloc(old, osz, al, nsz)` does when the heap pointer is `top`: it
-answers `r` and sets the heap pointer to `t'`, never lower and within memory; either the block
-`[r, r + nsz)` is fresh (`r = align_up(top, al) ≥ top`, `t' = r + nsz`) or the allocation failed
-(`r = t' = memBytes`). -/
-def ReallocOk (top al nsz r t' : BitVec 32) : Prop :=
-  top.toNat ≤ t'.toNat ∧ t'.toNat ≤ memBytes ∧
-    ((r = alignUp top al ∧ top.toNat ≤ r.toNat ∧ r.toNat + nsz.toNat = t'.toNat) ∨
-      (r.toNat = memBytes ∧ t'.toNat = memBytes))
+/-- What a call of `cabi_realloc(old, osz, al, nsz)` does when the heap pointer is `top`
+(`Silmaril.Wasm.Acceptor.ReallocOk` at `memBytes`): it answers `r` and sets the heap pointer to
+`t'`, never lower and within memory; either the block `[r, r + nsz)` is fresh
+(`r = align_up(top, al) ≥ top`, `t' = r + nsz`) or the allocation failed (`r = t' = memBytes`). -/
+abbrev ReallocOk (top al nsz r t' : BitVec 32) : Prop :=
+  Silmaril.Wasm.Acceptor.ReallocOk memBytes top al nsz r t'
 
 end Silmaril.Wasm.Examples.LratAccept

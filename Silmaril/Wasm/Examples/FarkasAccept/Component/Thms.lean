@@ -23,27 +23,31 @@ The multipliers are not constrained. Only accepting behaviours are: traps, diver
 `false` answers are not (no completeness is claimed; outside the checker's bounds valid
 certificates are rejected).
 
-The proof (`Silmaril.Proofs.Wasm.Examples.FarkasAccept.Component`) combines
+The proof (`Silmaril.Proofs.Wasm.Examples.FarkasAccept.Component`) is an instance of the acceptor
+kit (`Silmaril.Wasm.Acceptor`, `docs/projects/acceptor-kit.md`): the kit's
+`CheckerExport.sound` applied to the kit of `farkasComp` and the Core obligation of each export.
+It combines
 
 * `acceptSound farkasComp` (`Silmaril.Wasm.Component.Reference.ListLift`), whose hypotheses are
   `farkasComp_good` and `farkasComp_inst` (the instance `accI` of `prog`, by kernel evaluation;
   the ABI memory is the module's memory `1`, `farkasComp.memIdx`);
-* the **memory lemma** `lowered`: the lowering of the two arguments into memory address `1`
-  ends with the flat arguments `(q₁, len₁, q₂, len₂)` in a store of the acceptor (`AccStore`:
-  the instance's functions, some checker state, some heap pointer, the 1 MiB ABI memory `B₁`),
-  with the records of the system in memory (`IneqsIn B₁ q₁ len₁`), the system read back from
-  them (`systemAt B₁ q₁ len₁ = S`: each `ineq` at `q₁ + 16 i`, its `coeffs` pair at `+0`, its
-  `bound` at `+8`; each `tuple<u32, s64>` at `+0` and `+8` of its 16 bytes), and the multipliers
-  `wordsAt64 B₁ q₂ len₂ = y`. It is the generic `params_holds` (`…ListLift.Bump`) for the bump
-  allocator `cabi_realloc` (`farkasBump`, from `realloc_sound`, at every alignment); the
-  lowering writes only memory `1` and the allocator only the heap pointer, so the store stays a
-  store of the acceptor;
+* the **memory lemma** `lowered`: the lowering of the two arguments into memory address `1` ends
+  with the flat arguments `(q₁, len₁, q₂, len₂)` in a store of the acceptor (`AccStore`: the
+  instance's functions, some checker state, some heap pointer, the 1 MiB ABI memory `B₁`), with the
+  records of the system in memory (`IneqsIn B₁ q₁ len₁`), the system read back from them (`systemAt
+  B₁ q₁ len₁ = S`: each `ineq` at `q₁ + 16 i`, its `coeffs` pair at `+0`, its `bound` at `+8`; each
+  `tuple<u32, s64>` at `+0` and `+8` of its 16 bytes), and the multipliers `wordsAt64 B₁ q₂ len₂ =
+  y`. It is the generic `params_holds` (`…ListLift.Bump`) for the bump allocator `cabi_realloc`
+  (`farkasBump`: the kit's `BumpSpec.bumpAlloc`, from the kit's `realloc_sound`, at every
+  alignment); the lowering writes only memory `1` and the allocator only the heap pointer, so the
+  store stays a store of the acceptor;
 * the core soundness theorem `Silmaril.Wasm.Examples.FarkasAccept.check_sound`, which holds from
   any checker state.
 
-**The bytes** (by kernel evaluation): `coreBytes` decode to `prog` (`decode_coreBytes`) and
-`bytes` parse to `farkasComp.toAst coreBytes` (`bytes_parse`). That the reference reading of the
-parsed component (`Silmaril.Project.WasmComponents.Ref.toRef?`) is `farkasComp.toRef` is in
+**The bytes** (the kit's `decode_coreBytesOf`, `parse_compBytes` on kernel evaluations): `coreBytes`
+decode to `prog` (`decode_coreBytes`) and `bytes` parse to `farkasComp.toAst coreBytes`
+(`bytes_parse`). That the reference reading of the parsed component
+(`Silmaril.Project.WasmComponents.Ref.toRef?`) is `farkasComp.toRef` is in
 `Silmaril.Project.WasmComponents.FarkasAccept.Thms`.
 -/
 

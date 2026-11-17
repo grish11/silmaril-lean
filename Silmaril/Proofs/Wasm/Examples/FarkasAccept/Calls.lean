@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Examples.FarkasAccept.Inst
+public import Silmaril.Wasm.Acceptor.Code.Thms
 
 @[expose] public section
 
@@ -20,7 +21,7 @@ invariant `Inv` for the weighted rows `rs`):
   valid certificate (`WRows.IsCert`).
 
 The **call rules** `w_row`, `w_entry`, `w_check` use them for `call j` in the symbolic execution
-of the acceptor's `check`. Every profile and host relation. A Silmaril addition.
+of the acceptor's `check` (the acceptor kit's `w_callVoid`, `w_callI32`). Every profile and host relation. A Silmaril addition.
 -/
 
 namespace Silmaril.Proofs.Wasm.Examples.FarkasAccept
@@ -34,6 +35,7 @@ open Silmaril.Wasm.Examples.LRAT (fr vals_rev_cons vals_rev_cons₂)
 open Silmaril.Wasm.Examples.Common (bodyPost FSpecValid.of_body_hwp)
 open Silmaril.Wasm.Examples.FarkasAccept (callf accS)
 open Silmaril.Logic.LinArith (WRows Cmd)
+open Silmaril.Wasm.Acceptor (w_callVoid w_callI32)
 
 variable {P : Profile} {host : HostSemantics Nat} {top : BitVec 32} {B₁ : ByteArray}
 
@@ -154,23 +156,6 @@ theorem check_spec : FSpecValid P host 2 (checkSpec top B₁) := by
 variable {s : Store Nat} {L : List (BitVec 32)} {vs : List Val} {rest : List Admin}
   {Q : Post Nat} {rs : WRows}
 
-theorem callf_toNat {j : Nat} (hj : j < 16) :
-    (⟨⟨j % 2 ^ 32, Nat.mod_lt _ (by decide)⟩⟩ : FuncIdx).toNat = j := by
-  simp [Idx.toNat]; omega
-
-/-- **`call j`** of a function with a valid specification, as a rule of the every-run logic. -/
-theorem w_call {f : Frame} {j a : Nat} {fi : FuncInst Nat} {S : FSpec Nat} {vs₀ args : List Val}
-    (hj : j < 16) (hx : f.module.funcs[j]? = some a) (hf : s.funcs[a]? = some fi)
-    (hS : FSpecValid P host a S) (hpre : S.pre s args)
-    (hpost : ∀ s' o, callPost f vs₀ (S.post s args) s' f o → seqPost P host rest Q s' f o) :
-    HWP P host s f (vals (vs₀ ++ args) ++ .plain (callf j) :: rest) Q := by
-  intro n
-  cases n with
-  | zero => trivial
-  | succ n =>
-    exact Safe.callIdx (by rw [callf_toNat hj]; exact hx) hf (hS n) hpre
-      fun s' o h => (hpost s' o h).toK n
-
 theorem accMi_funcs {j : Nat} (hj : j < 5) : accMi.funcs[j]? = some j := by
   rw [acc_mi.2.2, List.getElem?_range hj]
 
@@ -187,13 +172,8 @@ theorem w_row (hR : RepA top B₁ rs s) {y b : BitVec 64}
       .plain (callf 0) :: rest) Q := by
   rw [vals_rev_cons₂]
   obtain ⟨fi, hf⟩ := acc_fi (j := 0) (by decide) hR.funcs
-  refine w_call (vs₀ := vs.reverse) (args := [Val.i64 y, Val.i64 b]) (by decide)
-    (accMi_funcs (by decide)) hf (row_spec y b) ⟨rfl, rs, hR⟩ fun s' o h => ?_
-  obtain ⟨-, ⟨res, rfl, hp, hq⟩ | ⟨rfl, hp, -⟩ | ⟨a, rfl, hp, -⟩⟩ := h
-  · cases hp
-    simpa [seqPost] using k s' (hq rs hR)
-  · cases hp
-  · cases hp
+  exact w_callVoid (by decide) (accMi_funcs (by decide)) hf (row_spec y b) ⟨rfl, rs, hR⟩
+    (fun _ _ h => ⟨h.1, h.2 rs hR⟩) k
 
 /-- `entry(j, a)`. -/
 theorem w_entry (hR : RepA top B₁ rs s) {j : BitVec 32} {a : BitVec 64}
@@ -203,13 +183,8 @@ theorem w_entry (hR : RepA top B₁ rs s) {j : BitVec 32} {a : BitVec 64}
       .plain (callf 1) :: rest) Q := by
   rw [vals_rev_cons₂]
   obtain ⟨fi, hf⟩ := acc_fi (j := 1) (by decide) hR.funcs
-  refine w_call (vs₀ := vs.reverse) (args := [Val.i32 j, Val.i64 a]) (by decide)
-    (accMi_funcs (by decide)) hf (entry_spec j a) ⟨rfl, rs, hR⟩ fun s' o h => ?_
-  obtain ⟨-, ⟨res, rfl, hp, hq⟩ | ⟨rfl, hp, -⟩ | ⟨a, rfl, hp, -⟩⟩ := h
-  · cases hp
-    simpa [seqPost] using k s' (hq rs hR)
-  · cases hp
-  · cases hp
+  exact w_callVoid (by decide) (accMi_funcs (by decide)) hf (entry_spec j a) ⟨rfl, rs, hR⟩
+    (fun _ _ h => ⟨h.1, h.2 rs hR⟩) k
 
 /-- `check()`, from any checker state. -/
 theorem w_check (hS : SizedA top B₁ s)
@@ -217,14 +192,12 @@ theorem w_check (hS : SizedA top B₁ s)
       HWP P host s' (fr accMi L) (vals (Val.i32 v :: vs).reverse ++ rest) Q) :
     HWP P host s (fr accMi L) (vals vs.reverse ++ .plain (callf 2) :: rest) Q := by
   obtain ⟨fi, hf⟩ := acc_fi (j := 2) (by decide) hS.funcs
-  have := w_call (P := P) (host := host) (f := fr accMi L) (vs₀ := vs.reverse) (args := [])
-    (rest := rest) (Q := Q) (by decide) (accMi_funcs (by decide)) hf check_spec ⟨rfl, hS⟩
-    fun s' o h => ?_
-  · simpa using this
-  · obtain ⟨-, ⟨res, rfl, v, hv, hR, hc⟩ | ⟨rfl, v, hv, -⟩ | ⟨a, rfl, v, hv, -⟩⟩ := h
-    · cases hv
-      simpa [seqPost] using k s' v hR hc
-    · cases hv
-    · cases hv
+  have := w_callI32 (P := P) (host := host) (f := fr accMi L) (vs₀ := vs.reverse) (args := [])
+    (rest := rest) (Q := Q)
+    (R := fun s' v => RepA top B₁ [] s' ∧ ∀ rs, RepA top B₁ rs s → v ≠ 0#32 → WRows.IsCert rs)
+    (by decide) (accMi_funcs (by decide)) hf check_spec ⟨rfl, hS⟩
+    (fun _ _ ⟨v, hv, hR, hc⟩ => ⟨v, hv, hR, hc⟩) fun s' v ⟨hR, hc⟩ => by
+      simpa using k s' v hR hc
+  simpa using this
 
 end Silmaril.Proofs.Wasm.Examples.FarkasAccept

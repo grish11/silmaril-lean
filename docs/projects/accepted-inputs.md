@@ -234,7 +234,9 @@ Limitations:
 ## Acceptor components: runtime observations and theorems
 
 The certificate-checking acceptor components are Wasm components in
-`examples/wasm-acceptors/`. Each export returns a `bool`.
+`examples/wasm-acceptors/`. Each export returns a `bool`. Their shared allocator, ABI read
+contracts, call rules, bridge from Core soundness to component soundness and byte linkage are
+the [acceptor kit](acceptor-kit.md), which also lists the steps for adding a checker.
 
 - **SAT** (`sat_accept.wasm`): registered in `silmaril/artifacts.toml` as
   `silmaril.wasm.examples.sat_accept.component`. Its exports are

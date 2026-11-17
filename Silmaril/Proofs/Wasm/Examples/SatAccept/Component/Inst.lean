@@ -6,6 +6,7 @@ public import Silmaril.Wasm.Component.Reference.ListLift.Bump.Defs
 public import Silmaril.Wasm.Verify.Check.Thms
 public import Silmaril.Wasm.Logic.VC.Thms
 public import Silmaril.Wasm.Component.Reference.Engine.Core3.Store.Defs
+public import Silmaril.Wasm.Acceptor.Alloc.Thms
 
 /-!
 # The SAT acceptor component: the instance and the allocator
@@ -17,9 +18,10 @@ kernel evaluations (`t_*`): three functions with the code of `prog`, of type
 
 * `satComp_good`, `satComp_inst`: `satComp` is in the fragment of `acceptSound`;
 * `satBump`: `cabi_realloc` is a bump allocator (`BumpAlloc`) for the invariant `SInv`: the
-  functions of `satI`, one memory of `memBytes` bytes and the heap pointer `t ≤ memBytes`. From
-  `realloc_returns`: the block lies above the heap pointer and ends below the new one, or it is
-  `memBytes` (then only an empty block passes the bounds check).
+  functions of `satI`, one memory of `memBytes` bytes and the heap pointer `t ≤ memBytes`. It is
+  the acceptor kit's `BumpSpec.bumpAlloc` of `satBumpSpec` (function `0` is the kit's allocator,
+  `Silmaril.Wasm.Acceptor.realloc_sound`: it only sets global `0`, and setting it keeps
+  `SInv`) with the size and write facts of memory `0`.
 -/
 
 @[expose] public section
@@ -32,6 +34,7 @@ open Silmaril.Wasm.Examples.SatAccept
 open Silmaril.Wasm.Component.Reference.ListLift
 open Silmaril.Wasm.Logic.VC (globalVal setGlobalIdx)
 open Silmaril.Wasm.Numerics (Profile)
+open Silmaril.Wasm.Acceptor (BumpSpec)
 
 /-- The type of the three functions. -/
 abbrev ty4 : CCompType := fnType4.toComp
@@ -143,49 +146,56 @@ theorem i32_inj {a b : BitVec 32} (h : Val.i32 a = Val.i32 b) : a = b := by
   injection h with h₁
   injection h₁
 
-/-- **`cabi_realloc` is a bump allocator.** -/
-theorem satBump (P : Profile) : BumpAlloc P 0 0 memBytes SInv where
+theorem satM_globals : satM.globals = [0] := by
+  obtain ⟨f₀, f₁, f₂, hF, -, -, -, -, -, -, -, -, -, hg₀, -, -⟩ := funcs_eq
+  rw [satM_eq hF, hg₀]
+
+theorem setGlobal_eq (s : Store Nat) (v : Val) : s.setGlobal 0 v = setGlobalIdx s satM 0 v := by
+  simp [setGlobalIdx, satM_globals]
+
+/-- `cabi_realloc` bumps global `0` within `memBytes` (the acceptor kit's `BumpSpec`, from its
+`realloc_sound`: function `0` is the kit's allocator); setting the heap pointer keeps `SInv`. -/
+theorem satBumpSpec (P : Profile) : BumpSpec P 0 0 memBytes SInv where
   small := by decide
-  size := by
-    rintro s t ⟨_, ⟨mt, B, hm, hB⟩, _⟩
-    simp [memBytesOf, hm, hB]
-  write := by
-    rintro s t p bs s' ⟨hf, ⟨mt, B, hm, hB⟩, hg, ht⟩ hw
-    obtain ⟨mi, b, hm', hwb, rfl⟩ := Silmaril.Wasm.Component.Engine.Core3.memWrite?_eq_some hw
-    rw [hm] at hm'
-    cases hm'
-    have hlt : 0 < s.mems.length := (List.getElem?_eq_some_iff.mp hm).1
-    refine ⟨hf, ⟨mt, b, ?_, ?_⟩, hg, ht⟩
-    · simp [Store.setMem, List.getElem?_set_self hlt]
-    · rw [Memory.writeBytes_size _ _ _ _ hwb, hB]
-  realloc := by
-    rintro s t al n q s' ⟨hf, hmem, hg, ht⟩ ⟨f', hs, hq⟩
-    obtain ⟨f₀, f₁, f₂, hF, hc₀, -, -, he₀, -, -, -, -, -, -, -, -⟩ := funcs_eq
-    have hfi : s.funcs[0]? = some f₀ := by rw [hf, hF]; rfl
-    have hg' : globalVal s f₀.module 0 = some (.i32 (BitVec.ofNat 32 t)) := satM_eq hF ▸ hg
-    obtain ⟨hres, rfl, hok⟩ := realloc_returns hfi hc₀ he₀ ty4_params ty4_results hg' hs
-    simp only [List.cons.injEq, and_true] at hres
-    have hr := i32_inj hres
-    set r := reallocRes (BitVec.ofNat 32 t) (BitVec.ofNat 32 al) (BitVec.ofNat 32 n)
-    have hqr : q = r.1.toNat := by
-      rw [← hr, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hq]
+  le := fun h => h.2.2.2
+  run := by
+    rintro s t old osz al nsz s' f' res ⟨hf, -, hg, ht⟩ hs
     have hmb : memBytes = 1048576 := rfl
-    have htn : (BitVec.ofNat 32 t).toNat = t := by
-      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
-    refine ⟨r.2.toNat, ⟨by simp [Silmaril.Wasm.Logic.VC.setGlobalIdx_funcs, hf], ?_, ?_, ?_⟩,
-      ?_, ?_, ?_⟩
-    · simpa [Silmaril.Wasm.Logic.VC.setGlobalIdx_mems] using hmem
-    · rw [globalVal_congr (congrArg ModuleInst.globals (satM_eq hF)) 0, Silmaril.Wasm.Logic.VC.globalVal_setGlobalIdx_self, hg']
-      simp
-    · unfold ReallocOk at hok
-      omega
-    · simp [memBytesOf, Silmaril.Wasm.Logic.VC.setGlobalIdx_mems]
-    · unfold ReallocOk at hok
-      omega
-    · intro hb
-      have hn : (BitVec.ofNat 32 n).toNat = n := by
-        rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
-      unfold ReallocOk at hok
-      omega
+    obtain ⟨f₀, f₁, f₂, hF, hc₀, -, -, he₀, -, -, -, -, -, hg₀, -, -⟩ := funcs_eq
+    have hfi : s.funcs[0]? = some f₀ := by rw [hf, hF]; rfl
+    have hgl : ∃ gt, s.globals[0]? = some ⟨gt, Val.i32 (BitVec.ofNat 32 t)⟩ := by
+      simp only [globalVal, satM_globals, List.getElem?_cons_zero, Option.bind_some] at hg
+      cases e : s.globals[0]? with
+      | none => rw [e] at hg; cases hg
+      | some gi =>
+        rw [e] at hg
+        cases gi
+        simp only [Option.map_some, Option.some.injEq] at hg
+        exact ⟨_, by rw [hg]⟩
+    obtain ⟨gt, hgl⟩ := hgl
+    exact Silmaril.Wasm.Acceptor.realloc_sound (by decide) (by decide) hfi hc₀ he₀ ty4_params
+      ty4_results (by rw [hg₀]; rfl) hgl
+      (by rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]; exact ht) hs
+  set := by
+    rintro s t t' ⟨hf, hmem, hg, -⟩ - hle
+    refine ⟨hf, hmem, ?_, hle⟩
+    rw [setGlobal_eq, Silmaril.Wasm.Logic.VC.globalVal_setGlobalIdx_self, hg]
+    simp
+
+/-- **`cabi_realloc` is a bump allocator.** -/
+theorem satBump (P : Profile) : BumpAlloc P 0 0 memBytes SInv :=
+  (satBumpSpec P).bumpAlloc
+    (by
+      rintro s t ⟨_, ⟨mt, B, hm, hB⟩, _⟩
+      simp [memBytesOf, hm, hB])
+    (by
+      rintro s t p bs s' ⟨hf, ⟨mt, B, hm, hB⟩, hg, ht⟩ hw
+      obtain ⟨mi, b, hm', hwb, rfl⟩ := Silmaril.Wasm.Component.Engine.Core3.memWrite?_eq_some hw
+      rw [hm] at hm'
+      cases hm'
+      have hlt : 0 < s.mems.length := (List.getElem?_eq_some_iff.mp hm).1
+      refine ⟨hf, ⟨mt, b, ?_, ?_⟩, hg, ht⟩
+      · simp [Store.setMem, List.getElem?_set_self hlt]
+      · rw [Memory.writeBytes_size _ _ _ _ hwb, hB])
 
 end Silmaril.Proofs.Wasm.Examples.SatAccept.Component

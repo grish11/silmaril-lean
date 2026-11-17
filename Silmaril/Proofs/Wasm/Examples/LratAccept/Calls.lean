@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Examples.LRAT.Thms
 public import Silmaril.Wasm.Examples.LratAccept.Defs
+public import Silmaril.Wasm.Acceptor.Code.Thms
 
 @[expose] public section
 
@@ -15,7 +16,8 @@ functions `0 … 9` are the module's (`CodeOk`): from a store whose view satisfi
 some stream `xs` (`InvX X xs s`), `add_lit(x)` reaches `InvX X (xs ++ [x.toInt])`,
 `end_clause()` reaches `InvX X (xs ++ [0])`, the other void functions keep `InvX X xs`, and
 `unsat()` answers `v` with `v ≠ 0 → (Dimacs.cnf xs).Unsat` (`callsOk`). The **call rules**
-`w_call…` use them for `call j` in the symbolic execution of a caller in the same module.
+`w_call…` use them for `call j` in the symbolic execution of a caller in the same module (from
+the acceptor kit's `Silmaril.Wasm.Acceptor.w_call`).
 
 Every profile and host relation. A Silmaril addition.
 -/
@@ -29,6 +31,7 @@ open Silmaril.Wasm.Logic.Core (Outcome Post)
 open Silmaril.Wasm.Examples.LRAT Silmaril.Wasm.Examples.Common
 open Silmaril.Wasm.Examples.LratAccept (callf)
 open Silmaril.Logic.SAT
+open Silmaril.Wasm.Acceptor (w_call)
 
 variable {H : Type} {P : Profile} {host : HostSemantics H} {X : Fix H}
 
@@ -194,23 +197,6 @@ theorem callsOk (hX : MiOk X) (hc : CodeOk X) : CallsOk P host X := by
 
 variable {s : Store H} {L : List (BitVec 32)} {rs : List Val} {rest : List Admin} {Q : Post H}
   {xs : List Int}
-
-theorem callf_toNat {j : Nat} (hj : j < 16) :
-    (⟨⟨j % 2 ^ 32, Nat.mod_lt _ (by decide)⟩⟩ : FuncIdx).toNat = j := by
-  simp [Idx.toNat]; omega
-
-/-- **`call j`** of a function with a valid specification, as a rule of the every-run logic. -/
-theorem w_call {f : Frame} {j a : Nat} {fi : FuncInst H} {S : FSpec H} {vs₀ args : List Val}
-    (hj : j < 16) (hx : f.module.funcs[j]? = some a) (hf : s.funcs[a]? = some fi)
-    (hS : FSpecValid P host a S) (hpre : S.pre s args)
-    (hpost : ∀ s' o, callPost f vs₀ (S.post s args) s' f o → seqPost P host rest Q s' f o) :
-    HWP P host s f (vals (vs₀ ++ args) ++ .plain (callf j) :: rest) Q := by
-  intro n
-  cases n with
-  | zero => trivial
-  | succ n =>
-    exact Safe.callIdx (by rw [callf_toNat hj]; exact hx) hf (hS n) hpre
-      fun s' o h => (hpost s' o h).toK n
 
 theorem fs_of_inv (hc : CodeOk X) (hI : InvX X xs s) {j : Nat} (hj : j < 10) :
     ∃ fi, s.funcs[j]? = some fi := by

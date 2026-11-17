@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Examples.FarkasAccept.Check
-public import Silmaril.Proofs.Wasm.Examples.FarkasAccept.Realloc
+public import Silmaril.Wasm.Acceptor.Alloc.Thms
 
 @[expose] public section
 
@@ -16,7 +16,7 @@ body proofs (`FSpecValid.of_body_hwp`), and their reading for every run of `$inv
   checker state, any heap pointer and a 1 MiB ABI memory `B₁`) holding the arguments in bounds,
   a run of `check` returning `[r]` with `r ≠ 0` puts the system read from `B₁` in `Infeasible`;
 * `realloc_sound`: a returning run of `cabi_realloc` only sets the heap pointer, as `ReallocOk`
-  says.
+  says (the acceptor kit's `Silmaril.Wasm.Acceptor.realloc_sound`).
 
 Every profile and host relation. A Silmaril addition.
 -/
@@ -29,7 +29,7 @@ open Silmaril.Wasm.Logic.Hoare
 open Silmaril.Wasm.Logic.Core (Outcome Post)
 open Silmaril.Wasm.Examples.Common
 open Silmaril.Wasm.Examples.FarkasAccept (prog accS AccStore systemAt IneqsIn memBytes accG32
-  checkLocals checkBody reallocBody ReallocOk)
+  checkLocals checkBody reallocFunc ReallocOk)
 open Silmaril.Logic.LinArith.Carrier (Infeasible)
 
 variable {P : Profile} {host : HostSemantics Nat}
@@ -41,7 +41,6 @@ def acceptSpec (args₀ : List Val) (top : BitVec 32) (B₁ : ByteArray) (Goal :
   post _ _ s' o := checkPost Goal s' o
 
 theorem prog_f4 : prog.funcs[4]? = some ⟨⟨3⟩, checkLocals, checkBody⟩ := rfl
-theorem prog_f3 : prog.funcs[3]? = some ⟨⟨3⟩, [.i32, .i32], reallocBody⟩ := rfl
 
 set_option maxHeartbeats 1000000 in
 /-- `check` meets its specification. -/
@@ -73,29 +72,8 @@ theorem check_sound {s : Store Nat} {top : BitVec 32} {B₁ : ByteArray} (hs : A
 
 /-! ## `cabi_realloc` -/
 
-/-- The specification of `cabi_realloc`. -/
-def reallocSpec (old osz al nsz top : BitVec 32) : FSpec Nat where
-  pre s args := args = [Val.i32 old, Val.i32 osz, Val.i32 al, Val.i32 nsz] ∧
-    s.funcs = accS.funcs ∧ s.globals[4]? = some ⟨accG32, Val.i32 top⟩
-  post s _ s' o := reallocPost s top al nsz s' o
-
-set_option maxHeartbeats 1000000 in
-theorem realloc_spec {old osz al nsz top : BitVec 32} (htop : top.toNat ≤ memBytes) :
-    FSpecValid P host 3 (reallocSpec old osz al nsz top) := by
-  obtain ⟨fi, f, ty, hfi, hf, hty, hcode, hmod, hexp⟩ := acc_fn 3 (by decide)
-  rw [prog_f3] at hf
-  cases hf
-  cases (show ty = ty4c from Option.some.inj (hty.symm.trans rfl))
-  refine FSpecValid.of_body_hwp (fun s _ hpre => ?_) hcode hexp
-    (fun _ _ hpre => by rw [hpre.1]; rfl) fun s args hpre => ?_
-  · obtain ⟨-, h, -⟩ := hpre
-    rw [h]; exact hfi
-  · obtain ⟨rfl, -, hg⟩ := hpre
-    rw [hmod, ← Silmaril.Wasm.Examples.LRAT.code_eq]
-    exact realloc_hwp (by rw [acc_mi.1]; rfl) hg htop old osz al nsz
-
-/-- **`cabi_realloc`, every returning run**: it answers one value `r` and only sets the heap
-pointer, to `t'`, as `ReallocOk` says. -/
+/-- **`cabi_realloc`, every returning run** (the acceptor kit's `realloc_sound`): it answers one
+value `r` and only sets the heap pointer, to `t'`, as `ReallocOk` says. -/
 theorem realloc_sound {s : Store Nat} (hf : s.funcs = accS.funcs) {top : BitVec 32}
     (hg : s.globals[4]? = some ⟨accG32, Val.i32 top⟩) (htop : top.toNat ≤ memBytes)
     {old osz al nsz : BitVec 32} {s' : Store Nat} {f' : Frame} {res : List Val}
@@ -103,9 +81,10 @@ theorem realloc_sound {s : Store Nat} (hf : s.funcs = accS.funcs) {top : BitVec 
       ⟨s', f', vals res⟩) :
     ∃ r t' : BitVec 32, res = [Val.i32 r] ∧ s' = s.setGlobal 4 (Val.i32 t') ∧
       ReallocOk top al nsz r t' := by
-  obtain ⟨r, t', ho, hs', hok⟩ := (realloc_spec (P := P) (host := host) (old := old) (osz := osz)
-    (al := al) (nsz := nsz) htop).invoke_vals ⟨rfl, hf, hg⟩ hrun
-  cases ho
-  exact ⟨r, t', rfl, hs', hok⟩
+  obtain ⟨fi, f, ty, hfi, hf₃, hty, hcode, hmod, hexp⟩ := acc_fn 3 (by decide)
+  cases (show f = reallocFunc from Option.some.inj hf₃.symm)
+  cases (show ty = ty4c from Option.some.inj (hty.symm.trans rfl))
+  exact Silmaril.Wasm.Acceptor.realloc_sound (by decide) (by decide) (by rw [hf]; exact hfi) hcode
+    hexp rfl rfl (by rw [hmod, acc_mi.1]; rfl) hg htop hrun
 
 end Silmaril.Proofs.Wasm.Examples.FarkasAccept
