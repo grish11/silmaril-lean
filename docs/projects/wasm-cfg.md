@@ -623,7 +623,17 @@ The plain graph stays an over-approximation, and claims about it say so.
              typing APIs, covering stack orientation, parameter and result arities, normal arm
              exits, branch unwinding and tail-frame replacement. The relation is at block
              granularity (zero or more `MStepC` steps per `MStepL` step), with composition.
-          2. An `EvalOXP`/`EvalOXE` → Core bridge for exception outcomes (`ehExt`). It must keep
+          2. An `EvalOXP`/`EvalOXE` → Core bridge for exception outcomes (`ehExt`).
+             - Flat bridge, done (`MachineLProj.flat_runP`, `ResOutP`): an `EvalOXP C` run of
+               flat code is a `Region.RunC` run with the same oracle. It needs a `chkE (ehExt
+               tags)` check, `ArityResp Γ C` and `Γ.Good`. Flat code covers direct, indirect and
+               reference calls, `throw`, `throw_ref`, the tail calls, branches, `return` and
+               `unreachable`.
+               - Outcomes: a flow goes to the same store and frame under `FlowRel` (throws
+                 included). A pending tail call goes to `Region.Out.tail W a c`, whose top
+                 `ps.length` values are the arguments, with `n` the callee's result count.
+               - Next: use it in the stepwise projection, lifting `DirectCalls`/`PlainTerms` and
+                 adding the catch and tail cases. It must keep
              the exception outcomes, tag matching, trap stores, and tail calls bypassing the
              caller's handlers. Then the stepwise projection extends to EH.
           3. Validated typed nested fixtures (block, loop, if, catch) on which it holds.
