@@ -64,11 +64,11 @@ variable {E : CoreEngine} {σ : Type}
 
 section Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem deliverPendingCancel_inv (task : TaskId)
     (h : ∀ s, I s → I (s.setTaskState task .cancelDelivered)) :
-    P.Inv I (deliverPendingCancel task : P E σ Bool) := by
+    P.InvW I W (deliverPendingCancel task : P E σ Bool) := by
   unfold deliverPendingCancel
   refine P.Inv.bind (P.Inv.getTask task) fun tk => ?_
   split
@@ -76,26 +76,26 @@ theorem deliverPendingCancel_inv (task : TaskId)
   · exact P.Inv.pure _
 
 theorem start_inv (task : TaskId) (h : ∀ s, I s → I (s.setTaskState task .started)) :
-    P.Inv I (start task : P E σ (List Val)) :=
+    P.InvW I W (start task : P E σ (List Val)) :=
   P.Inv.bind (P.Inv.getTask task) fun _ =>
     P.Inv.bind (P.Inv.modifyStore h) fun _ => P.Inv.callVals _
 
 theorem return_inv (task : TaskId) (vs : List Val)
     (h : ∀ s, I s → I (s.setTaskState task .resolved)) :
-    P.Inv I (return_ task vs : P E σ Unit) :=
+    P.InvW I W (return_ task vs : P E σ Unit) :=
   P.Inv.bind (P.Inv.getTask task) fun _ =>
     P.Inv.bind (P.Inv.trapIf _ _) fun _ => P.Inv.bind (P.Inv.trapIf _ _) fun _ =>
       P.Inv.bind (P.Inv.callUnit _) fun _ => P.Inv.modifyStore h
 
 theorem cancel_inv (task : TaskId) (h : ∀ s, I s → I (s.setTaskState task .resolved)) :
-    P.Inv I (cancel task : P E σ Unit) :=
+    P.InvW I W (cancel task : P E σ Unit) :=
   P.Inv.bind (P.Inv.getTask task) fun _ =>
     P.Inv.bind (P.Inv.trapIf _ _) fun _ => P.Inv.bind (P.Inv.trapIf _ _) fun _ =>
       P.Inv.bind (P.Inv.callUnit _) fun _ => P.Inv.modifyStore h
 
 theorem registerThread_inv (task : TaskId) (t : ThreadId)
     (h : ∀ s, I s → I (s.registerThreadSt task t)) :
-    P.Inv I (registerThread task t : P E σ Nat) := by
+    P.InvW I W (registerThread task t : P E σ Nat) := by
   unfold registerThread
   refine P.Inv.bind (P.Inv.getTask task) fun tk => ?_
   refine P.Inv.bind (P.Inv.getInst _) fun st => ?_
@@ -105,7 +105,7 @@ theorem registerThread_inv (task : TaskId) (t : ThreadId)
 
 theorem unregisterThread_inv (task : TaskId) (t : ThreadId)
     (h : ∀ i s, I s → I (s.unregisterThreadSt task t i)) :
-    P.Inv I (unregisterThread task t : P E σ Unit) := by
+    P.InvW I W (unregisterThread task t : P E σ Unit) := by
   unfold unregisterThread
   refine P.Inv.bind (P.Inv.getTask task) fun tk => ?_
   refine P.Inv.bind (P.Inv.trapIf _ _) fun _ => ?_
@@ -117,7 +117,7 @@ theorem unregisterThread_inv (task : TaskId) (t : ThreadId)
   · exact P.Inv.modifyStore (h i)
 
 theorem backpressureWait_inv (task : TaskId) (inst : InstId) (ne : Bool) (H : InvHyps I) :
-    P.Inv I (backpressureWait task inst ne : P E σ Bool) := by
+    P.InvW I W (backpressureWait task inst ne : P E σ Bool) := by
   unfold backpressureWait
   refine P.Inv.bind (P.Inv.modifyInst inst (H.incWaitingToEnter inst)) fun _ => ?_
   refine P.Inv.bind (Thread.waitUntil_inv _ _ _ fun t => H.startWaiting t inst ne) fun _ => ?_
@@ -128,7 +128,7 @@ theorem backpressureWait_inv (task : TaskId) (inst : InstId) (ne : Bool) (H : In
   · exact P.Inv.bind (cancel_inv task (H.setTaskState task _)) fun _ => P.Inv.pure _
 
 theorem asyncGate_inv (q : Quirks) (task : TaskId) (t : ThreadId) (tk : Task E)
-    (H : InvHyps I) : P.Inv I (asyncGate q task t tk : P E σ Bool) := by
+    (H : InvHyps I) : P.InvW I W (asyncGate q task t tk : P E σ Bool) := by
   unfold asyncGate
   refine P.Inv.bind (P.Inv.getInst _) fun st => ?_
   refine P.Inv.bind ?_ fun b => ?_
@@ -143,7 +143,7 @@ theorem asyncGate_inv (q : Quirks) (task : TaskId) (t : ThreadId) (tk : Task E)
       · exact P.Inv.pure _
 
 theorem enterImplicitThread_inv (q : Quirks) (task : TaskId) (H : InvHyps I) :
-    P.Inv I (enterImplicitThread q task : P E σ Bool) := by
+    P.InvW I W (enterImplicitThread q task : P E σ Bool) := by
   unfold enterImplicitThread
   refine P.Inv.bind P.Inv.currentThreadId fun t => ?_
   refine P.Inv.bind (P.Inv.modifyStore (H.setImplicitThread task t)) fun _ => ?_
@@ -158,7 +158,7 @@ theorem enterImplicitThread_inv (q : Quirks) (task : TaskId) (H : InvHyps I) :
         P.Inv.pure _
 
 theorem exitImplicitThread_inv (task : TaskId) (H : InvHyps I) :
-    P.Inv I (exitImplicitThread task : P E σ Unit) := by
+    P.InvW I W (exitImplicitThread task : P E σ Unit) := by
   unfold exitImplicitThread
   refine P.Inv.bind (P.Inv.getTask task) fun tk => ?_
   refine P.Inv.bind (P.Inv.orTrap _ _) fun t => ?_
@@ -168,7 +168,7 @@ theorem exitImplicitThread_inv (task : TaskId) (H : InvHyps I) :
   · exact P.Inv.pure _
 
 theorem requestCancellation_inv (hr : HostReady σ) (task : TaskId) (H : InvHyps I) :
-    P.Inv I (requestCancellation hr task : P E σ Unit) := by
+    P.InvW I W (requestCancellation hr task : P E σ Unit) := by
   unfold requestCancellation
   refine P.Inv.bind (P.Inv.getTask task) fun tk => ?_
   split

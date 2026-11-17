@@ -28,51 +28,51 @@ variable {E : CoreEngine} {σ : Type} {α : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
-theorem ptrType (cx : LiftLowerContext E) : P.Inv I (Canon.ptrType cx : P E σ _) := gets _
+theorem ptrType (cx : LiftLowerContext E) : P.InvW I W (Canon.ptrType cx : P E σ _) := gets _
 
-theorem ptrSize (cx : LiftLowerContext E) : P.Inv I (Canon.ptrSize cx : P E σ _) :=
+theorem ptrSize (cx : LiftLowerContext E) : P.InvW I W (Canon.ptrSize cx : P E σ _) :=
   bind (ptrType cx) fun _ => pure _
 
-theorem memAddr (cx : LiftLowerContext E) : P.Inv I (Canon.memAddr cx : P E σ _) :=
+theorem memAddr (cx : LiftLowerContext E) : P.InvW I W (Canon.memAddr cx : P E σ _) :=
   orTrap _ _
 
-theorem memLen (cx : LiftLowerContext E) : P.Inv I (Canon.memLen cx : P E σ _) :=
+theorem memLen (cx : LiftLowerContext E) : P.InvW I W (Canon.memLen cx : P E σ _) :=
   bind (memAddr cx) fun _ => bind getStore fun _ => orTrap _ _
 
 theorem readMem (cx : LiftLowerContext E) (ptr len : Nat) :
-    P.Inv I (Canon.readMem cx ptr len : P E σ _) :=
+    P.InvW I W (Canon.readMem cx ptr len : P E σ _) :=
   bind (memAddr cx) fun _ => bind getStore fun _ => orTrap _ _
 
 /-- `writeMem` preserves `I` when every memory write does. -/
 theorem writeMem (cx : LiftLowerContext E) (ptr : Nat) (bytes : ByteArray)
     (h : ∀ m s, I s → I (writeMemSt m ptr bytes s)) :
-    P.Inv I (Canon.writeMem cx ptr bytes : P E σ Unit) :=
+    P.InvW I W (Canon.writeMem cx ptr bytes : P E σ Unit) :=
   bind (memAddr cx) fun m => bind getStore fun s => by
     cases E.memWrite? s.core m ptr bytes with
     | none => exact trap _
     | some _ => exact modifyStore (h m)
 
-theorem checkAligned (ptr align : Nat) : P.Inv I (Canon.checkAligned ptr align : P E σ _) :=
+theorem checkAligned (ptr align : Nat) : P.InvW I W (Canon.checkAligned ptr align : P E σ _) :=
   trapIf _ _
 
 theorem checkInBounds (cx : LiftLowerContext E) (ptr size : Nat) :
-    P.Inv I (Canon.checkInBounds cx ptr size : P E σ _) :=
+    P.InvW I W (Canon.checkInBounds cx ptr size : P E σ _) :=
   bind (memLen cx) fun _ => trapIf _ _
 
 theorem unpackEvent (cx : LiftLowerContext E) (ptr : Nat) (e : AsyncRef.EventTuple)
     (h : ∀ m p v s, I s → I (writeMemSt m p (u32Bytes v) s)) :
-    P.Inv I (Canon.unpackEvent cx ptr e : P E σ Nat) :=
+    P.InvW I W (Canon.unpackEvent cx ptr e : P E σ Nat) :=
   bind (checkAligned _ _) fun _ => bind (checkInBounds _ _ _) fun _ =>
     bind (writeMem _ _ _ (h · _ _)) fun _ =>
       bind (writeMem _ _ _ (h · _ _)) fun _ => pure _
 
 theorem reallocate (cx : LiftLowerContext E) (old oldLen align newLen : Nat) :
-    P.Inv I (Canon.reallocate cx old oldLen align newLen : P E σ Nat) := callNat _
+    P.InvW I W (Canon.reallocate cx old oldLen align newLen : P E σ Nat) := callNat _
 
 theorem allocate (cx : LiftLowerContext E) (align size : Nat) :
-    P.Inv I (Canon.allocate cx align size : P E σ Nat) := reallocate _ _ _ _ _
+    P.InvW I W (Canon.allocate cx align size : P E σ Nat) := reallocate _ _ _ _ _
 
 end P.Inv
 

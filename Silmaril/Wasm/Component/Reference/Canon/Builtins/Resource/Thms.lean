@@ -35,23 +35,23 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
-theorem resourceEnter : P.Inv I (Builtins.resourceEnter : P E σ InstId) :=
+theorem resourceEnter : P.InvW I W (Builtins.resourceEnter : P E σ InstId) :=
   P.Inv.bind P.Inv.currentInst fun _ => P.Inv.bind (P.Inv.getInst _) fun _ =>
     P.Inv.bind (P.Inv.trapIf _ _) fun _ => P.Inv.pure _
 
 theorem resourceNew (hA : P.Inv.AllocResHandlePres I) (hH : P.Inv.AddHandlePres I)
     (lim : Limits) (rt : RtId) (rep : Nat) :
-    P.Inv I (Builtins.resourceNew lim rt rep : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.resourceNew lim rt rep : P E σ (List FlatValue)) :=
   P.Inv.bind resourceEnter fun _ =>
     P.Inv.bind (P.Inv.resourceNewCore hA hH _ _ _ _) fun _ => P.Inv.pure _
 
 theorem resourceDrop (hR : P.Inv.RemoveHandlePres I)
     (hB : ∀ t st, I st → I (HandleSt.decBorrows (E := E) t st)) (lim : Limits) (q : Quirks)
     {dtorCall : InstId → DtorRequest E → P E σ Unit}
-    (hD : ∀ inst req, P.Inv I (dtorCall inst req)) (rt : RtId) (i : Nat) :
-    P.Inv I (Builtins.resourceDrop lim q dtorCall rt i : P E σ (List FlatValue)) := by
+    (hD : ∀ inst req, P.InvW I W (dtorCall inst req)) (rt : RtId) (i : Nat) :
+    P.InvW I W (Builtins.resourceDrop lim q dtorCall rt i : P E σ (List FlatValue)) := by
   unfold Builtins.resourceDrop
   refine P.Inv.bind resourceEnter fun inst =>
     P.Inv.bind (P.Inv.resourceDropCore hR hB _ _ _ _) fun r => ?_
@@ -60,7 +60,7 @@ theorem resourceDrop (hR : P.Inv.RemoveHandlePres I)
   · exact P.Inv.bind (hD _ _) fun _ => P.Inv.pure _
 
 theorem resourceRep (lim : Limits) (rt : RtId) (i : Nat) :
-    P.Inv I (Builtins.resourceRep lim rt i : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.resourceRep lim rt i : P E σ (List FlatValue)) :=
   P.Inv.bind P.Inv.currentInst fun _ =>
     P.Inv.bind (P.Inv.resourceRepCore _ _ _ _) fun _ =>
       P.Inv.bind (P.Inv.getResourceType _) fun _ => P.Inv.pure _

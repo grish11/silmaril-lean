@@ -38,23 +38,23 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem handlesAddSubtask {inst : InstId} {sub : SubtaskId}
     (h : ∀ i s, I s → I (LowerSt.addSubtaskSt inst sub i s)) :
-    P.Inv I (Canon.handlesAddSubtask inst sub : P E σ Nat) :=
+    P.InvW I W (Canon.handlesAddSubtask inst sub : P E σ Nat) :=
   bind (getInst inst) fun st => by
     cases st.addHandle? (.waitable (.subtask sub)) with
     | none => exact trap _
     | some r => exact bind (modifyStore (h _)) fun _ => pure _
 
 theorem maybeOnProgress (h : LowerPres I) (s : SubtaskId) :
-    P.Inv I (Canon.maybeOnProgress s : P E σ Unit) :=
+    P.InvW I W (Canon.maybeOnProgress s : P E σ Unit) :=
   bind (getObj _ _) fun _ =>
     ite (Waitable.setPendingEvent_inv (h.setPending _ _)) (pure _)
 
 theorem lowerOnStart (h : LowerPres I) (lim : Limits) (q : Quirks) (c : CallerId) :
-    P.Inv I (Canon.lowerOnStart lim q c : P E σ (List Val)) := by
+    P.InvW I W (Canon.lowerOnStart lim q c : P E σ (List Val)) := by
   unfold Canon.lowerOnStart
   refine bind (getObj _ _) fun x => ?_
   cases x with
@@ -68,7 +68,7 @@ theorem lowerOnStart (h : LowerPres I) (lim : Limits) (q : Quirks) (c : CallerId
 theorem canonLower (h : LowerPres I) (lim : Limits) (q : Quirks) (callee : FuncId)
     (ft : WIT.FuncType Empty RtId) (opts : CanonOpts E) (inst : InstId)
     (flatArgs : List FlatValue) :
-    P.Inv I (Canon.canonLower lim q callee ft opts inst flatArgs : P E σ (List FlatValue)) := by
+    P.InvW I W (Canon.canonLower lim q callee ft opts inst flatArgs : P E σ (List FlatValue)) := by
   unfold Canon.canonLower
   refine bind (getInst _) fun _ => bind (trapIf _ _) fun _ => ?_
   refine bind (allocObj _ _ (h.allocSubtask _)) fun s => ?_
@@ -95,11 +95,11 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem lowerOnResolve (h : LowerPres I) (lim : Limits) (q : Quirks) (c : CallerId)
     (r : Option (List Val)) :
-    P.Inv I (Canon.lowerOnResolve lim q c r : P E σ Unit) := by
+    P.InvW I W (Canon.lowerOnResolve lim q c r : P E σ Unit) := by
   unfold Canon.lowerOnResolve
   refine bind (getObj _ _) fun x => ?_
   cases x with

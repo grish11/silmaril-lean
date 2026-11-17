@@ -45,7 +45,7 @@ theorem tabHost_answerImplS (g : σ → HostFuncId → List Silmaril.Wasm.Compon
       P.Inv.bind P.Inv.hostGet fun s =>
         match g s fn args with
         | some (_, s') =>
-          P.Inv.bind (P.Inv.hostSet s') fun _ =>
+          P.Inv.bind (P.Inv.hostSet s' trivial) fun _ =>
             P.Inv.bind (P.Inv.callUnit _) fun _ => P.Inv.pure _
         | none => P.Inv.trap _
 

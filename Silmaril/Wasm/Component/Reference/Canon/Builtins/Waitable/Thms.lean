@@ -39,38 +39,38 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
-theorem enterWaitableBuiltin : P.Inv I (Builtins.enterWaitableBuiltin : P E σ InstId) :=
+theorem enterWaitableBuiltin : P.InvW I W (Builtins.enterWaitableBuiltin : P E σ InstId) :=
   P.Inv.bind P.Inv.currentInst fun _ =>
     P.Inv.bind (P.Inv.getInst _) fun _ => P.Inv.bind (P.Inv.trapIf _ _) fun _ => P.Inv.pure _
 
-theorem expectWset (e : HandleEntry) : P.Inv I (Builtins.expectWset e : P E σ WsetId) := by
+theorem expectWset (e : HandleEntry) : P.InvW I W (Builtins.expectWset e : P E σ WsetId) := by
   cases e <;> first | exact P.Inv.pure _ | exact P.Inv.trap _
 
 theorem expectWaitable (e : HandleEntry) :
-    P.Inv I (Builtins.expectWaitable e : P E σ Runtime.Waitable) := by
+    P.InvW I W (Builtins.expectWaitable e : P E σ Runtime.Waitable) := by
   cases e <;> first | exact P.Inv.pure _ | exact P.Inv.trap _
 
 theorem expectSubtask (e : HandleEntry) :
-    P.Inv I (Builtins.expectSubtask e : P E σ SubtaskId) := by
+    P.InvW I W (Builtins.expectSubtask e : P E σ SubtaskId) := by
   unfold Builtins.expectSubtask
   split
   · exact P.Inv.pure _
   · exact P.Inv.trap _
 
 theorem subtaskResolvedNow (st : SubtaskId) :
-    P.Inv I (Builtins.subtaskResolvedNow st : P E σ Bool) := P.Inv.gets _
+    P.InvW I W (Builtins.subtaskResolvedNow st : P E σ Bool) := P.Inv.gets _
 
 theorem waitableHasSyncWaiter (w : Runtime.Waitable) :
-    P.Inv I (Builtins.waitableHasSyncWaiter w : P E σ Bool) :=
+    P.InvW I W (Builtins.waitableHasSyncWaiter w : P E σ Bool) :=
   P.Inv.bind P.Inv.getStore fun s => by
     cases s.waitableCommon? w <;> first | exact P.Inv.pure _ | exact P.Inv.internal _
 
 theorem waitableSetNew (lim : Limits)
     (hA : ∀ s, I s → I (ArenaOps.allocSt ArenaField.wsets ({} : WaitableSet) s))
     (hH : ∀ inst ws s, I s → I (ArenaField.insts.modify s inst (InstState.addHandle (.wset ws)))) :
-    P.Inv I (Builtins.waitableSetNew lim : P E σ _) :=
+    P.InvW I W (Builtins.waitableSetNew lim : P E σ _) :=
   P.Inv.bind enterWaitableBuiltin fun inst =>
     P.Inv.bind (P.Inv.allocObj _ _ hA) fun _ =>
       P.Inv.bind (P.Inv.handlesAdd inst _ (hH inst _)) fun _ => P.Inv.pure _
@@ -81,7 +81,7 @@ theorem waitableSetWait (lim : Limits) (mem : E.MemAddr) (si ptr : Nat)
     (hw : ∀ ws t s, I s → I (s.startWaitingSt t (.wsetHasEvent ws)))
     (he : ∀ ws l s, I s → I (s.wsetSetElemsSt ws l))
     (ht : ∀ w s, I s → I (s.takeWaitableEventSt w)) (hm : MemWritePres I) :
-    P.Inv I (Builtins.waitableSetWait lim mem si ptr : P E σ _) :=
+    P.InvW I W (Builtins.waitableSetWait lim mem si ptr : P E σ _) :=
   P.Inv.bind enterWaitableBuiltin fun inst =>
     P.Inv.bind (P.Inv.handlesGet inst si) fun e => P.Inv.bind (expectWset e) fun ws =>
       P.Inv.bind (wsetWait_inv (hi ws) (hd ws) (hw ws) (he ws) ht) fun _ =>
@@ -90,7 +90,7 @@ theorem waitableSetWait (lim : Limits) (mem : E.MemAddr) (si ptr : Nat)
 theorem waitableSetPoll (lim : Limits) (mem : E.MemAddr) (si ptr : Nat)
     (he : ∀ ws l s, I s → I (s.wsetSetElemsSt ws l))
     (ht : ∀ w s, I s → I (s.takeWaitableEventSt w)) (hm : MemWritePres I) :
-    P.Inv I (Builtins.waitableSetPoll lim mem si ptr : P E σ _) :=
+    P.InvW I W (Builtins.waitableSetPoll lim mem si ptr : P E σ _) :=
   P.Inv.bind enterWaitableBuiltin fun inst =>
     P.Inv.bind (P.Inv.handlesGet inst si) fun e => P.Inv.bind (expectWset e) fun ws =>
       P.Inv.bind (wsetPoll_inv (he ws) ht) fun _ =>
@@ -98,7 +98,7 @@ theorem waitableSetPoll (lim : Limits) (mem : E.MemAddr) (si ptr : Nat)
 
 theorem waitableSetDrop (lim : Limits) (i : Nat)
     (hR : ∀ inst s, I s → I (ArenaField.insts.modify s inst (InstState.removeHandle i))) :
-    P.Inv I (Builtins.waitableSetDrop lim i : P E σ _) :=
+    P.InvW I W (Builtins.waitableSetDrop lim i : P E σ _) :=
   P.Inv.bind enterWaitableBuiltin fun inst =>
     P.Inv.bind (P.Inv.handlesRemove inst i (hR inst)) fun e =>
       P.Inv.bind (expectWset e) fun ws =>
@@ -106,7 +106,7 @@ theorem waitableSetDrop (lim : Limits) (i : Nat)
 
 theorem waitableJoin (lim : Limits) (wi si : Nat)
     (hj : ∀ w ws s, I s → I (s.joinSt w ws)) :
-    P.Inv I (Builtins.waitableJoin lim wi si : P E σ _) := by
+    P.InvW I W (Builtins.waitableJoin lim wi si : P E σ _) := by
   unfold Builtins.waitableJoin
   refine P.Inv.bind enterWaitableBuiltin fun inst => ?_
   refine P.Inv.bind (P.Inv.handlesGet inst wi) fun e => P.Inv.bind (expectWaitable e) fun w => ?_
@@ -118,7 +118,7 @@ theorem waitableJoin (lim : Limits) (wi si : Nat)
 
 theorem subtaskCancelDeliver (st : SubtaskId)
     (ht : ∀ w s, I s → I (s.takeWaitableEventSt w)) :
-    P.Inv I (Builtins.subtaskCancelDeliver st : P E σ _) :=
+    P.InvW I W (Builtins.subtaskCancelDeliver st : P E σ _) :=
   P.Inv.bind (Runtime.Waitable.getPendingEvent_inv (ht _)) fun _ =>
     P.Inv.bind (P.Inv.getObj _ _) fun _ => P.Inv.pure _
 
@@ -126,7 +126,7 @@ theorem subtaskCancelRequest (async_ : Bool) (st : SubtaskId) (r : CancelRef)
     (hc : ∀ t s, I s → I (WaitableSt.requestCancel st t s))
     (hw : ∀ t s, I s → I (s.startWaitingSt t (.subtaskResolved st)))
     (hs : ∀ s, I s → I (s.setSyncWaiterSt (.subtask st) none)) :
-    P.Inv I (Builtins.subtaskCancelRequest async_ st r : P E σ Bool) := by
+    P.InvW I W (Builtins.subtaskCancelRequest async_ st r : P E σ Bool) := by
   unfold Builtins.subtaskCancelRequest
   refine P.Inv.bind P.Inv.currentThreadId fun t => P.Inv.bind (P.Inv.modifyStore (hc t)) fun _ => ?_
   refine P.Inv.bind (P.Inv.callUnit _) fun _ => ?_
@@ -143,7 +143,7 @@ theorem subtaskCancel (lim : Limits) (async_ : Bool) (i : Nat)
     (hw : ∀ st t s, I s → I (s.startWaitingSt t (.subtaskResolved st)))
     (hs : ∀ st s, I s → I (s.setSyncWaiterSt (.subtask st) none))
     (ht : ∀ w s, I s → I (s.takeWaitableEventSt w)) :
-    P.Inv I (Builtins.subtaskCancel lim async_ i : P E σ _) := by
+    P.InvW I W (Builtins.subtaskCancel lim async_ i : P E σ _) := by
   unfold Builtins.subtaskCancel
   refine P.Inv.bind enterWaitableBuiltin fun inst => ?_
   refine P.Inv.bind (P.Inv.handlesGet inst i) fun e => P.Inv.bind (expectSubtask e) fun st => ?_
@@ -163,7 +163,7 @@ theorem subtaskCancel (lim : Limits) (async_ : Bool) (i : Nat)
 theorem subtaskDrop (lim : Limits) (i : Nat)
     (hR : ∀ inst s, I s → I (ArenaField.insts.modify s inst (InstState.removeHandle i)))
     (hj : ∀ st s, I s → I (s.joinSt (.subtask st) none)) :
-    P.Inv I (Builtins.subtaskDrop lim i : P E σ _) :=
+    P.InvW I W (Builtins.subtaskDrop lim i : P E σ _) :=
   P.Inv.bind enterWaitableBuiltin fun inst =>
     P.Inv.bind (P.Inv.handlesRemove inst i (hR inst)) fun e =>
       P.Inv.bind (expectSubtask e) fun st =>

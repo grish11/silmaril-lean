@@ -37,16 +37,16 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem contextGet (t : AddrType) (i : Nat) :
-    P.Inv I (Builtins.contextGet t i : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.contextGet t i : P E σ (List FlatValue)) :=
   Canon.P.Inv.bind Canon.P.Inv.currentThreadId fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.getThread _) fun _ =>
       Canon.P.Inv.bind (Canon.P.Inv.orTrap _ _) fun _ => Canon.P.Inv.pure _
 
 theorem contextSet (t : AddrType) (i v : Nat) (h : ∀ th s, I s → I (setContextSt th i v s)) :
-    P.Inv I (Builtins.contextSet t i v : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.contextSet t i v : P E σ (List FlatValue)) :=
   Canon.P.Inv.bind Canon.P.Inv.currentThreadId fun th =>
     Canon.P.Inv.bind (Canon.P.Inv.getThread _) fun _ =>
       Canon.P.Inv.bind (Canon.P.Inv.trapIf _ _) fun _ =>
@@ -54,7 +54,7 @@ theorem contextSet (t : AddrType) (i v : Nat) (h : ∀ th s, I s → I (setConte
 
 theorem backpressureInc
     (h : ∀ inst s, I s → I (ArenaField.insts.modify s inst incBackpressureSt)) :
-    P.Inv I (Builtins.backpressureInc : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.backpressureInc : P E σ (List FlatValue)) :=
   Canon.P.Inv.bind Canon.P.Inv.currentInst fun inst =>
     Canon.P.Inv.bind (Canon.P.Inv.getInst _) fun _ =>
       Canon.P.Inv.bind (Canon.P.Inv.trapIf _ _) fun _ =>
@@ -62,7 +62,7 @@ theorem backpressureInc
 
 theorem backpressureDec
     (h : ∀ inst s, I s → I (ArenaField.insts.modify s inst decBackpressureSt)) :
-    P.Inv I (Builtins.backpressureDec : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.backpressureDec : P E σ (List FlatValue)) :=
   Canon.P.Inv.bind Canon.P.Inv.currentInst fun inst =>
     Canon.P.Inv.bind (Canon.P.Inv.getInst _) fun _ =>
       Canon.P.Inv.bind (Canon.P.Inv.trapIf _ _) fun _ =>
@@ -73,7 +73,7 @@ theorem backpressureDec
 theorem taskReturn (hl : Canon.P.Inv.LoadPres I)
     (hs : ∀ task s, I s → I (s.setTaskState task .resolved)) (lim : Limits) (q : Quirks)
     (result : Option (WIT.ClosedType RtId)) (opts : CanonOpts E) (flatArgs : List FlatValue) :
-    P.Inv I (Builtins.taskReturn lim q result opts flatArgs : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.taskReturn lim q result opts flatArgs : P E σ (List FlatValue)) :=
   Canon.P.Inv.bind Canon.P.Inv.currentTask fun task =>
     Canon.P.Inv.bind (Canon.P.Inv.getTask _) fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.getInst _) fun _ =>
@@ -86,7 +86,7 @@ theorem taskReturn (hl : Canon.P.Inv.LoadPres I)
 
 /-- `task.cancel` preserves `I` when setting a task state to `resolved` does. -/
 theorem taskCancel (hs : ∀ task s, I s → I (s.setTaskState task .resolved)) :
-    P.Inv I (Builtins.taskCancel : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.taskCancel : P E σ (List FlatValue)) :=
   Canon.P.Inv.bind Canon.P.Inv.currentTask fun task =>
     Canon.P.Inv.bind (Canon.P.Inv.getTask _) fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.getInst _) fun _ =>
