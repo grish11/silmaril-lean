@@ -159,7 +159,8 @@ theorem calls_outcome_of_status_trap {m m' : Config E σ} {tr : List (Label E σ
     | resolved r => simp [CallOutcome.Holds] at hout
     | deadlock => simp [CallOutcome.Holds, Deadlocked] at hout
 
-theorem sessStep_trap_of_status_trap [∀ a b, Decidable (E.ExternSub a b)] {h : Host E σ} {m₀ m : Config E σ} {n : Nat} {f : FuncId}
+theorem sessStep_trap_of_status_trap [∀ a b, Decidable (E.ExternSub a b)]
+    {h : Host E σ} {m₀ m : Config E σ} {n : Nat} {f : FuncId}
     {args : List Value.Val} {tr : List (Label E σ)} {th ct k segs rest}
     (h₁ : Steps prof h.hr h.dispatch m₀ (.host (invokeTop ⟨n⟩ f args) :: tr) m)
     (hev : ∀ ev, Label.host ev ∈ tr → CallHostEvent ⟨n⟩ ev)
@@ -171,7 +172,8 @@ theorem sessStep_trap_of_status_trap [∀ a b, Decidable (E.ExternSub a b)] {h :
       (resumeCfg m₀ (trapCfg m)).host = m.host :=
   ⟨.trap (calls_trap_of_status_trap h₁ hev hint hc hs), rfl, rfl⟩
 
-theorem sessCalls_trap_of_status_trap [∀ a b, Decidable (E.ExternSub a b)] {h : Host E σ} {m₀ m : Config E σ} {n : Nat} {f : FuncId}
+theorem sessCalls_trap_of_status_trap [∀ a b, Decidable (E.ExternSub a b)]
+    {h : Host E σ} {m₀ m : Config E σ} {n : Nat} {f : FuncId}
     {args : List Value.Val} {tr : List (Label E σ)} {th ct k segs rest}
     {cs : List (FuncId × List Value.Val)} {outs : List (Option (List Value.Val))}
     (h₁ : Steps prof h.hr h.dispatch m₀ (.host (invokeTop ⟨n⟩ f args) :: tr) m)

@@ -56,7 +56,8 @@ open Silmaril.Wasm.Component Silmaril.Wasm.Component.Engine Silmaril.Wasm.Compon
 
 /-- **REF `call_and_trap_on_throw`** on a raw Core result: values stay values, a trap stays a
 trap, and an uncaught exception becomes a trap. -/
-def callAndTrapOnThrow : Silmaril.Wasm.Execution.Core.Result → Silmaril.Wasm.SingleThreaded.CallResult
+def callAndTrapOnThrow :
+    Silmaril.Wasm.Execution.Core.Result → Silmaril.Wasm.SingleThreaded.CallResult
   | .values vs => .values vs
   | .trap => .trap
   | .throw _ => .trap

@@ -21,7 +21,7 @@ open Silmaril.Wasm.Component.Reference.LegalBoundary
 
 variable {H : Type}
 
-private theorem throwing_ne_vals (a : Nat) : ¬ ∃ vs, throwing a = vals vs := by
+theorem throwing_ne_vals (a : Nat) : ¬ ∃ vs, throwing a = vals vs := by
   rintro ⟨vs, h⟩
   have := congrArg splitVals h
   rw [splitVals_vals] at this
