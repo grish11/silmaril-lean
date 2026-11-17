@@ -637,9 +637,10 @@ The plain graph stays an over-approximation, and claims about it say so.
                  `block`, exit `4`, under stated tag hypotheses that hold at the instance
                  (`nest_tag`).
                Native `EvalLXPS` runs follow by `forward_sink`.
-             - Limits: no fixture exits from frames with outer values, so `brVals_junk` is not
-               exercised. These are concrete agreement facts on these bodies, proved by
-               running both machines. They are not derived from the stepwise projection
+             - Limits: no `ExampleNested` fixture exits from frames with outer values. The
+               `brVals_junk` boundary is exercised by `Wasm/Cfg/ExampleRetJunk` instead.
+             - These are concrete agreement facts on these bodies, proved by running both
+               machines. They are not derived from the stepwise projection
                (`proj_step`, `proj_initial_closedX`). `bodyTry` lies outside its fragment
                (`try_table`, `throw`).
           The `CloseOk` hypothesis is discharged in the session/host result by the canonical
@@ -744,16 +745,41 @@ The plain graph stays an over-approximation, and claims about it say so.
               concatenation, the same stream as the run's tail (`streamConcat_unique`).
         - The closed oracle `closedCallXP` used here is the native one. These results do not
           discharge H3, which still needs the recursive logged CFG closure.
-        - Still open as fixtures: nested-loop `continue` and a tail call inside a handler.
-      - **H2, both directions on bodies.**
-        - Finished ends: done, throw and trap, with exact final store and log.
-        - Pending calls (`ReachLXPS`), quiescent divergence, and coherent productive streams.
-          These are proved for the machine, not inferred from finite equivalence.
-        - EH: handler matching (`Catches`), and pending tail calls bypassing handlers.
+        - Fixtures: nested-loop `continue` (`ExampleNested.loops_*_via`) and a tail call inside
+          a handler (`ExamplePending.tail_handler`, `tail_handler_machine`).
+      - **H2 ledger (exact).** Every theorem is stated for **all code**, with no typing. The
+        domain is a body run from the CFG entry `initial body s f`, natively from the empty
+        stack on `liftInstrs body`. Logs are store-retaining session calls (`SCall`, each with
+        its answer).
+
+        | Notion | Theorem(s) | Directions | Domain and limits |
+        |---|---|---|---|
+        | Finished ends (exit, trap with its store, uncaught exception) | `MachineL.forward_sink`, `MachineL.backward` | both | `backward` excludes a native `brk (k + 1)` outcome. It occurs only on invalid code and has no framed counterpart. Logs are exact. |
+        | Pending tail call (an end) | `MachineL.forward_tail`, `MachineL.backward` (`TailL`) | both | Bypasses handlers. Log exact. |
+        | Pending internal call | `MachineL.pending_iff` (`ReachLXPS` ↔ `MRunL` then `ReachL`) | both, one iff | Log exact, split at the machine step. |
+        | Closed runs | `MachineL.closed_iff_logged` (`EvalOXP C` ↔ `EvalLXPS` with `CloseOk C` logs) | both | Any oracle `C`. Host calls are never `CloseOk`. |
+        | Host-free divergence | `MachineL.div_iff` (`EvalDivXP` ↔ `MDivL`); parts `div_machine`, `infK_div`, `calleeDiv_div` | both | Calls answered by `closedCallXP` (`StepK`). |
+        | Frame divergence | `MachineL.funDiv_iff` (`FunDivXP` ↔ `FunDivL`); parts `funDiv_machine`, `funDiv_of_infK`, `funDiv_of_calleeDiv`, `funDiv_of_tailDiv` | both | At a call's frame, including a diverging tail callee (`TailDivK`). |
+        | Divergence after a log | `MachineL.logDiv_machine` (exact log); `MachineL.machine_logDiv` (log extended by `closedCallXP`-answers) | both, the converse up to closed entries | The extension is necessary: the machine's boundary may come earlier. |
+        | Productive streams | `MachineL.infL_machine`, `MachineL.machine_infL`, `MachineL.prodL_iff` (`InfLXP` ↔ `ProdL`) | both, one iff | Exact stream, each call with its answer. |
+
+        - The session's productive part (`HostClosingInfXP.InfLwXP`) is exactly `InfLXP` at
+          `Frame.forCall` from the empty stack. Its pending calls are `ReachLXPS`, and tail-call
+          productivity and recursion enter through the closure's descent (`Shape.closeInfL`)
+          over the open module's logs. So the body-level theorems above are the H2 obligations.
+          Composing them at the function frame and through recursion is H3's equality, not a
+          further H2 item.
+        - **Not claimed in H2:** coherence of answers with a closure. Every H2 statement takes the
+          calls' answers as given, by `SCall`/`OCall`; resolving them by CFG-run callees is H3.
+        - EH: handler matching (`Catches`), and pending tail calls bypassing handlers. Both are
+          covered by the theorems above, for all code.
         - Stack caveat: a native `return`/branch flow carries only the innermost stack, while
-          the machine keeps the whole frame stack, so an exact equality of result values needs
-          typing, as in `ExampleExitStack.machine_loss`. The typing hypotheses are stated, not
-          hidden.
+          `MStepC` keeps the whole frame stack. The projection relates them by `ProjRel` (junk
+          prefix). Fixture `Wasm/Cfg/ExampleRetJunk` reaches the junk case on valid code
+          (`ret_ne`, `ret_projRel`, `ret_top`).
+        - Fixtures: `ExamplePending` (pending call answered by an exception or a trap; a tail call
+          in a handler); `ExampleNested` (nested control, nested-loop continue, caught throw);
+          `ExampleRetJunk` (exit across a frame with outer values).
       - **H3, the recursive CFG closure.** `cfgHOpenXPS`, the open module whose Wasm bodies run
         on the logged machine. It is defined from the machine, not as an alias of `wasmHOpenXPS`.
         Its closure `Shape.close cfgHOpenXPS` resolves callees through CFG-run bodies, which
