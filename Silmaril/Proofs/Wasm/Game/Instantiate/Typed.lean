@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Game.Instantiate.Basic
+public import Silmaril.Wasm.Execution.InstantiateTrap.Thms
 
 /-!
 # Instantiation against typed imports is typed: proofs
@@ -10,6 +11,8 @@ public import Silmaril.Proofs.Wasm.Game.Instantiate.Basic
 segment initialisation (`instantiateOnce?_steps`, `Steps.withStart`, `steps_configOk`), for any
 well-typed store, any imports of the right types and any start function.
 `importStore_nil_ok`: the empty store is typed.
+`instantiateOnceT?_trap_configOk`: the same preparation typing carried along the run of the
+segment code to a trap (`instantiateOnceT?_trap_steps`): the residual store is typed.
 -/
 
 @[expose] public section
@@ -38,6 +41,19 @@ theorem instantiateOnce?_configOk {s : Store Nat} {m : Module} {xas : List Exter
   have hS₂ := Steps.withStart (st := st) hS
   rw [Config.withStart_nil] at hS₂
   exact steps_configOk SingleThreaded.divHost_ok hc hS₂
+
+/-- **A segment trap of single allocation leaves a typed configuration**: the trapping
+configuration, so the residual store, is typed. -/
+theorem instantiateOnceT?_trap_configOk {s : Store Nat} {m : Module} {xas : List ExternAddr}
+    {mt : CModuleType} {s' : Store Nat} (hs : StoreOk s)
+    (hm : ModuleOk m mt) (hx : List.Forall₂ (ExternAddrOk s) xas mt.imports)
+    (h : instantiateOnceT? s m xas = .trap s') :
+    ∃ f, ConfigOk ⟨s', f, [.trap]⟩ [] := by
+  obtain ⟨s₁, f₁, vs, c, st, hg, hp, -, hS⟩ := instantiateOnceT?_trap_steps
+    (P := SingleThreaded.profile SingleThreaded.neverFail) (host := SingleThreaded.divHost) h
+  obtain ⟨hc, -⟩ := prepare?_globalResidue_ok (P := SingleThreaded.profile SingleThreaded.neverFail)
+    SingleThreaded.divHost_ok hs ⟨mt.exports, mt.imports, hm, hx⟩ hg hp
+  exact ⟨c.frame, steps_configOk SingleThreaded.divHost_ok hc hS⟩
 
 end Silmaril.Proofs.Wasm.Game
 
