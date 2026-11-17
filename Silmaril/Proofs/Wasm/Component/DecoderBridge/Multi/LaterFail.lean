@@ -10,7 +10,13 @@ public import Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi.LaterCore
 * `laterFailStep`: from `LaterInv` at a later core instantiation whose IR node fails quietly (its
   preparation fails, or its start function traps without an import call), the machine runs live to
   a specification trap: the preparation in the shared store fails (`prepareE_gap`), or the start
-  run, in the shared store (`run_gap`), traps (`coreTrap`).
+  run, in the shared store (`run_gap`), traps (`coreTrap`);
+* `later_fail`: the later definitions up to a failing node (quiet ready nodes before it, run by
+  `laterCoreStep'` with no calls) run live to a specification trap;
+* `laterFail_ref`: a quiet failure of node `k ≥ 1` of a binary of `MultiImpFrag` makes the
+  reference machine's instantiation trap, given the first node (`FirstK'`);
+* `failRefWiredRest'_of_rest''_of_firstK'`: `Task.failRefWiredRest'` from
+  `Task.failRefWiredRest''` (its rest) and `FirstK'`.
 -/
 
 @[expose] public noncomputable section
@@ -299,5 +305,204 @@ theorem laterFailStep : LaterFailStep := by
           (core3 neverFail).status (g.rel (Store.mapH FirstImp.gL c.1)) tR' ≠ _
         rw [hst3]; exact ⟨nofun, nofun⟩)
         (.coreTrap rfl hst3)).1, fun _ h => by cases h⟩
+
+/-! ## The later definitions, to the failing node -/
+
+/-- **The later definitions, up to a failing node**: the IR's nodes `ps` of the definitions `ds`
+are quiet and ready before `ps[j]`, which fails quietly; the machine runs live to a specification
+trap. -/
+theorem later_fail {pre : RefComponent} :
+    ∀ (ds : RefComponent) (R Rf : RSt) (sc : Scope (core3 neverFail))
+      (M : Machine.Config (core3 neverFail) Σh)
+      (K : Scope (core3 neverFail) → Canon.P (core3 neverFail) Σh (Ret (core3 neverFail)))
+      (L : List HLinked2.HostEvent) (ps : List (Binary.CoreMod × List Impl)) (j : Nat),
+      ds.foldlM refStep R = some Rf →
+      ds.all (postDefOk (preLowers pre) (preInsts pre) (coreMods pre)) = true →
+      (∃ X, Rf.nodes = R.nodes ++ X ∧ List.Forall₂ NodeW (coreNodes ps) X) →
+      (∀ p ∈ ps, NodeOk p) →
+      (∀ i q, i < j → ps[i]? = some q → NodeQuiet hostI.length .ready q.1 q.2) →
+      (∃ q, ps[j]? = some q ∧ NodeQuiet hostI.length (.fail ()) q.1 q.2) →
+      FrameRel (coreMods pre) R sc → LaterInv pre sc M →
+      M.ctl = [.ofProg none
+        (ds.foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc >>= K)] →
+      M.host = ((), L) →
+      ∃ (tr : List (Label (core3 neverFail) Σh)) (mT m' : Machine.Config (core3 neverFail) Σh)
+        (r : TrapReason),
+        LRun first.prof embL.hr (DG embL.host) M tr mT ∧ Live mT ∧
+        Step first.prof embL.hr (DG embL.host) mT (.trap r) m' ∧ ∀ msg, r ≠ .internal msg
+  | [], R, Rf, sc, M, K, L, ps, j, hfold, _, hX, _, _, hfail, _, _, _, _ => by
+    simp only [List.foldlM_nil] at hfold
+    cases hfold
+    obtain ⟨X, hX, hW⟩ := hX
+    have hX0 : X = [] := by simpa using hX.symm
+    subst hX0
+    have hps : ps = [] := by
+      cases ps with
+      | nil => rfl
+      | cons _ _ => cases hW
+    subst hps
+    obtain ⟨q, hq, -⟩ := hfail
+    cases hq
+  | d :: ds, R, Rf, sc, M, K, L, ps, j, hfold, hpost, hX, hok, hready, hfail, hF, hL, hc, hh => by
+    simp only [List.foldlM_cons] at hfold
+    cases hR : refStep R d with
+    | none => rw [hR] at hfold; cases hfold
+    | some R₁ =>
+    rw [hR] at hfold
+    simp only [List.all_cons, Bool.and_eq_true] at hpost
+    obtain ⟨hd, hpost⟩ := hpost
+    obtain ⟨X, hX, hW⟩ := hX
+    obtain ⟨Y, hY, -⟩ := foldlM_refStep_nodes hfold
+    by_cases hi : IsInst d
+    · obtain ⟨mi, cargs, rfl⟩ : ∃ mi cargs, d = .coreInstance (.instantiate mi cargs) := by
+        cases d with
+        | coreInstance ci => cases ci with
+          | instantiate mi cargs => exact ⟨mi, cargs, rfl⟩
+          | exports => exact hi.elim
+        | _ => exact hi.elim
+      obtain ⟨m, nm, imps, exps, w, hm, hci, hRn, -⟩ := refStep_inst hR
+      have hm' : (coreMods pre)[mi]? = some m := by rw [← hF.rmods]; exact hm
+      have hXY : X = (m, w) :: Y := by
+        rw [hY, hRn] at hX
+        simpa using hX.symm
+      subst hXY
+      obtain ⟨p, ps', rfl, hpW, hW'⟩ : ∃ p ps', ps = p :: ps' ∧ NodeW (.core p.1 p.2) (m, w) ∧
+          List.Forall₂ NodeW (coreNodes ps') Y := by
+        cases ps with
+        | nil => cases hW
+        | cons p ps' => cases hW with | cons h1 h2 => exact ⟨p, ps', rfl, h1, h2⟩
+      obtain ⟨cm, he, hdec, hcif⟩ := hpW
+      injection he with he₁ he₂
+      subst he₁
+      have hmod : Binary.coreModule p.1 = m := by
+        unfold Binary.coreModule
+        rw [hdec]
+        rfl
+      have hilen : (CoreModule.imports p.1).length = m.imports.length :=
+        (FirstImp.coreIface_imports_length hcif).symm ▸ rfl
+      rcases j with _ | j
+      · obtain ⟨q, hq, hqf⟩ := hfail
+        simp only [List.getElem?_cons_zero, Option.some.injEq] at hq
+        subst hq
+        exact laterFailStep pre mi cargs ds sc M m p K hm' hd hmod hilen
+          (hok p List.mem_cons_self) hqf hL hc
+      · have hq0 := hready 0 p (Nat.zero_lt_succ _) rfl
+        have hnc := nodeQuiet_ready_calls (hok p List.mem_cons_self) hq0
+        obtain ⟨tr₁, M₁, sc₁, es, d₁, -, -, hc₁, hL₁, hh₁, -, hci₁, hcf₁, -, hE, hty₁, hfn₁⟩ :=
+          laterCoreStep' pre mi cargs ds sc M m p [] L K hm' hd hmod hilen
+            (hok p List.mem_cons_self) hnc (fun _ h => by cases h) hL hc hh
+        have hF₁ := frameRel_inst hF hR hm' hci₁ hcf₁ hty₁ hfn₁ hE
+        obtain ⟨tr₂, mT, m', r, d₂, hlive, hs, hr⟩ :=
+          later_fail ds _ Rf sc₁ M₁ K (L ++ logOfCalls []) ps' j hfold hpost ⟨Y, hY, hW'⟩
+            (fun q hq => hok q (List.mem_cons_of_mem _ hq))
+            (fun i q hij hq => hready (i + 1) q (by omega) (by simpa using hq))
+            (by simpa using hfail) hF₁ hL₁ hc₁ hh₁
+        exact ⟨tr₁ ++ tr₂, mT, m', r, d₁.trans d₂, hlive, hs, hr⟩
+    · obtain ⟨sc₁, M₁, hT, hF₁, hL₁, hh₁⟩ := nonCore_step hd hi hR hF hL
+      obtain ⟨tr₁, hq, -⟩ := sruns_tau (dispatch := DG embL.host) hT none rfl
+      have d₁ := RunsQ.lrun_at (prof := first.prof) (hr := embL.hr) hq hL.lock
+        (fun sc' => ds.foldlM (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI)) sc' >>= K)
+        (segs := []) (rest := []) (by rw [hc, ctl_cons]; rfl)
+      obtain ⟨Y₁, hY₁, hY₁'⟩ := refStep_nodes hR
+      have hY0 := hY₁' hi
+      subst hY0
+      obtain ⟨tr₂, mT, m', r, d₂, hlive, hs, hr⟩ :=
+        later_fail ds R₁ Rf sc₁ { M₁ with ctl := _ } K L ps j hfold hpost
+          ⟨X, by rw [hX, hY₁, List.append_nil], hW⟩ hok hready hfail hF₁
+          (hL₁.congr rfl rfl (fs := []) (by simp)) rfl (by rw [← hh, ← hh₁])
+      exact ⟨tr₁ ++ tr₂, mT, m', r, d₁.trans d₂, hlive, hs, hr⟩
+
+/-! ## A later node fails -/
+
+/-- **A failure of node `k ≥ 1` of a binary of the fragment**, after quiet ready nodes, makes the
+reference machine's instantiation trap (given the first node, `FirstK'`). -/
+theorem laterFail_ref (h1 : FirstK') {b : ByteArray} {c : Comp Binary.CoreMod} {r : RefComponent}
+    {ps : List (Binary.CoreMod × List Impl)} {k : Nat} (hk : k < ps.length) (hk0 : 0 < k)
+    (hpc : Binary.parseComponent b = .ok c) (hr : decodeRef b = .ok r) (hf : MultiImpFrag r)
+    (himp : c.imports = hostI) (hnodes : c.nodes = coreNodes ps)
+    (hq : ∀ j (hj : j < k), NodeQuiet hostI.length .ready (ps[j]'(by omega)).1 (ps[j]'(by omega)).2)
+    (hfl : NodeQuiet hostI.length (.fail ()) ps[k].1 ps[k].2) :
+    InstResult.traps ∈
+      instBehaviours first.prof (Host.ofEmbedder embL) hostConfigX r (importArgs hostI) := by
+  obtain ⟨-, hw, -, pre, mi, cargs, post, hs, -, hpostOk⟩ := multiImpFrag_inv hf
+  obtain ⟨p, ps', rfl⟩ := nodes_ne_nil hpc hr hf hnodes
+  obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
+  have hok := nodeOk_frag hpc hr hf hnodes
+  have h₀ : NodeCalls hostI.length .ready p.1 p.2 [] :=
+    nodeQuiet_ready_calls (hok p List.mem_cons_self) (hq 0 hk0)
+  obtain ⟨sc, M, ⟨⟨tr₀, hs₀, hn₀, ht₀⟩, ⟨K, -, hc⟩, -, hh⟩, hL, hFR⟩ :=
+    h1 b c r p ps' [] pre mi cargs post hpc hr hf himp hnodes (fun _ h => by cases h) h₀ hs
+  obtain ⟨R, hR, -, -, hN⟩ := relW_of_decode hpc hr (inFrag_of_hostWired hw)
+  rw [hnodes] at hN
+  have hrr := firstCore?_eq r hs
+  unfold refRead at hR
+  have hsplit : r = (pre ++ [Syntax.Definition.coreInstance (.instantiate mi cargs)]) ++ post := by
+    rw [hrr]; simp
+  rw [hsplit, foldlM_option_append] at hR
+  cases hR₀ : (pre ++ [Syntax.Definition.coreInstance (.instantiate mi cargs)]).foldlM refStep
+      ({ env := (r.filter isFuncImport).length } : RSt) with
+  | none =>
+    rw [← hsplit, hR₀] at hR
+    cases hR
+  | some R₀ =>
+  rw [← hsplit, hR₀] at hR
+  simp only [Option.bind_some] at hR
+  rw [foldlM_option_append] at hR₀
+  cases hR₁ : pre.foldlM refStep ({ env := (r.filter isFuncImport).length } : RSt) with
+  | none => rw [hR₁] at hR₀; cases hR₀
+  | some R₁ =>
+  rw [hR₁] at hR₀
+  simp only [Option.bind_some, List.foldlM_cons, List.foldlM_nil] at hR₀
+  obtain ⟨Y₁, hY₁, hY₁'⟩ := foldlM_refStep_nodes hR₁
+  have hY₁0 := hY₁' (firstCore?_noInst r hs)
+  subst hY₁0
+  cases hci : refStep R₁ (.coreInstance (.instantiate mi cargs)) with
+  | none => rw [hci] at hR₀; cases hR₀
+  | some R₂ =>
+  rw [hci] at hR₀
+  have hR₀' : R₂ = R₀ := by simpa using hR₀
+  subst hR₀'
+  obtain ⟨m0, -, -, -, w0, -, -, hn2, -⟩ := refStep_inst hci
+  obtain ⟨X, hX, -⟩ := foldlM_refStep_nodes hR
+  rw [hX, hn2, hY₁] at hN
+  simp only [List.append_nil] at hN
+  have hN' : List.Forall₂ NodeW (coreNodes ps') X := by
+    simp only [List.nil_append, List.singleton_append] at hN
+    cases hN with | cons _ h => exact h
+  obtain ⟨tr₁, mT, m', rT, d, hlive, hstep, hrT⟩ :=
+    later_fail post _ R sc M K (logOfCalls []) ps' k' hR hpostOk ⟨X, hX, hN'⟩
+      (fun q hq => hok q (List.mem_cons_of_mem _ hq))
+      (fun i q hi hiq => by
+        obtain ⟨hlt, e⟩ := List.getElem?_eq_some_iff.mp hiq
+        have := hq (i + 1) (by omega)
+        simp only [List.getElem_cons_succ, e] at this
+        exact this)
+      ⟨ps'[k']'(by simp at hk; omega), by simp, by simpa using hfl⟩
+      (hFR _ (by rw [foldlM_option_append, hR₁]; simp [hci])) hL hc hh
+  have hsteps := Adequacy.steps_append (Adequacy.steps_append hs₀ d.steps) (.cons hstep (.refl _))
+  simp only [List.cons_append] at hsteps
+  refine ⟨m', tr₀ ++ tr₁ ++ [Label.trap rT], by exact hsteps, ?_, ?_, Adequacy.step_trap_lockdown hstep⟩
+  · intro ev hev
+    simp only [List.mem_append, List.mem_singleton] at hev
+    rcases hev with (h | h) | h
+    · exact hn₀ ev h
+    · exact Adequacy.LRun.no_host d ev h
+    · cases h
+  · intro msg hev
+    simp only [List.mem_append, List.mem_singleton] at hev
+    rcases hev with (h | h) | h
+    · exact ht₀ msg h
+    · exact Adequacy.LRun.no_trap d hlive _ h
+    · simp only [Label.trap.injEq] at h
+      exact hrT msg h.symm
+
+/-- **`Task.failRefWiredRest'` from its rest outside the fragment's later failures**, given the
+first node (`FirstK'`): the case `MultiImpFrag r ∧ 0 < k` is `laterFail_ref`. -/
+theorem failRefWiredRest'_of_rest''_of_firstK' (h1 : FirstK') (h : Task.failRefWiredRest'') :
+    Task.failRefWiredRest' := by
+  intro b c r ps k hk hor hpc hr hv hw himp hn hq hfl
+  by_cases hm : MultiImpFrag r ∧ 0 < k
+  · exact laterFail_ref h1 hk hm.2 hpc hr hm.1 himp hn hq hfl
+  · exact h b c r ps k hk hm hor hpc hr hv hw himp hn hq hfl
 
 end Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi
