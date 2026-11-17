@@ -36,10 +36,16 @@ contract or a misleading name gives no evidence).
 (`"link"`: link-time addresses) and `extent.loadBase` (`null`); `listing {tool, verified: false}`;
 per line `source` (`"objdump"`) and `unverified: true`; per decoding `source: "lean-decode"`; per
 ref `version` and `targetIn {segment, section, readOnly, provenance, note}` (metadata); per
-evidence `axis`, `status` (`proved`, `open`: proved under the listed `assumptions`, `refuted`: a
-negation), `problemId` (`null`: evidence comes from theorems, not registered rows),
-`assumptions`, `note`; per function `axes` (each axis's status, per model where models differ;
-`none` when no theorem speaks to it). A `noDecode` refutation says only that the model's decoder
+evidence `axis`, `status`, `problemId` (`null`: evidence comes from theorems, not registered
+rows), `assumptions`, `note`; per function `axes` (each axis's status, per model where models
+differ; `none` when no theorem speaks to it).
+
+**Version 1.2** makes evidence status a theorem status, never a problem status: `statusKind` is
+`"theorem"`, `status` is `proved` or `refuted` (every piece of evidence is a proved theorem), and
+`applicability` is `unconditional` (no `Prop` premise in the statement) or `conditional`
+(premises in `assumptions`, not discharged). Universally quantified data is not a premise, and
+`unconditional` concerns the statement only: each claim stays relative to its `model`, the file
+and its definitions. 1.1's `open` is no longer emitted; it never meant an open standard problem. A `noDecode` refutation says only that the model's decoder
 (an `Option`) returns nothing: invalid, unsupported and incomplete bytes are not told apart.
 
 Addresses and file offsets are hexadecimal strings (they exceed JavaScript's exact integers);
@@ -65,10 +71,11 @@ open Lean (Json Name ToJson toJson)
 
 def schema : String := "silmaril.elf.asm/1"
 
-/-- The minor version: `1.1` adds optional fields only (`abi`, `extent.addrKind`/`loadBase`,
+/-- The minor version: `1.2` replaces 1.1's evidence status `open` by `status: proved` with
+`applicability: conditional` (and adds `statusKind: "theorem"`); `1.1` added optional fields only (`abi`, `extent.addrKind`/`loadBase`,
 `listing`, line `source`/`unverified`, decoding `source`, ref `version`/`targetIn`, evidence
 `axis`/`status`/`problemId`/`assumptions`/`note`, function `axes`). -/
-def schemaVersion : String := "1.1"
+def schemaVersion : String := "1.2"
 
 /-- `0x…`, lowercase. -/
 def hex (n : Nat) : String := "0x" ++ String.ofList (Nat.toDigits 16 n)
@@ -151,13 +158,23 @@ def axes : List String :=
   ["arch", "bytes", "sectionBytes", "code", "symbol", "lineTiles", "decode", "refs", "unrelocated",
     "present", "contract"]
 
-/-- The status of one piece of evidence: `refuted` (a negation), `proved` (no premise), `open`
-(proved under the premises listed in `assumptions`, which are not discharged). -/
-def statusOf (e : Evidence) : String :=
-  if (axisOf e.kind).2 then "refuted" else if e.hypotheses.isEmpty then "proved" else "open"
+/-- The proof status of one piece of evidence: `refuted` (a negation is proved) or `proved`.
+Every piece of evidence is a proved theorem; there is no `open` status here, which would mean an
+unsolved standard problem. -/
+def statusOf (e : Evidence) : String := if (axisOf e.kind).2 then "refuted" else "proved"
+
+/-- Whether the theorem holds outright or under premises: `conditional` when its statement has
+`Prop`-typed premises (listed in `assumptions`, not discharged), `unconditional` otherwise.
+Universally quantified data (an entry address, a decoding) is not a premise. `unconditional` is
+about the theorem statement only: every claim stays relative to its model, the file, and the
+definitions it is stated with. -/
+def applicabilityOf (e : Evidence) : String :=
+  if e.hypotheses.isEmpty then "unconditional" else "conditional"
 
 def evidenceJson (e : Evidence) : Json := Json.mkObj [
-  ("kind", Json.str e.kind), ("axis", Json.str (axisOf e.kind).1), ("status", Json.str (statusOf e)),
+  ("kind", Json.str e.kind), ("axis", Json.str (axisOf e.kind).1),
+  ("statusKind", Json.str "theorem"), ("status", Json.str (statusOf e)),
+  ("applicability", Json.str (applicabilityOf e)),
   ("decl", name e.decl), ("problemId", Json.null), ("model", optStr e.model),
   ("axioms", Json.arr (e.axioms.toArray.map name)),
   ("hypotheses", Json.arr (e.hypotheses.toArray.map Json.str)),
@@ -166,21 +183,27 @@ def evidenceJson (e : Evidence) : Json := Json.mkObj [
       Json.str "the model's decoder returns none at some instruction: these bytes are not decodable by this model; invalid, unsupported and incomplete are not distinguished (the decoder is an Option)"
     else Json.null)]
 
-/-- **The status of each axis** (and, for `decode`, `refs` and `contract`, each model): `proved`
-over `open` over `refuted`, `conflict` if a statement and its negation are both present, `none`
-when no theorem speaks to the axis. -/
+/-- **The status of each axis** (and, for `decode`, `refs` and `contract`, each model):
+`proved` or `refuted` with `applicability` (`unconditional` if some proof of it has no premise,
+else `conditional`), `conflict` if a statement and its negation are both proved, `none` when no
+theorem speaks to the axis. -/
 def axesJson (ev : List Evidence) : Json :=
   let keys := (ev.map fun e => ((axisOf e.kind).1, e.model)).eraseDups
-  let st (k : String × Option String) : String :=
+  let st (k : String × Option String) : String × Option String :=
     let es := ev.filter fun e => ((axisOf e.kind).1, e.model) == k
-    let ss := es.map statusOf
-    if ss.contains "refuted" && (ss.contains "proved" || ss.contains "open") then "conflict"
-    else if ss.contains "proved" then "proved" else if ss.contains "open" then "open"
-    else if ss.contains "refuted" then "refuted" else "none"
-  let present := keys.map fun k => Json.mkObj [("axis", Json.str k.1), ("model", optStr k.2),
-    ("status", Json.str (st k))]
+    let pr := es.filter (statusOf · == "proved")
+    let rf := es.filter (statusOf · == "refuted")
+    let app (xs : List Evidence) : Option String :=
+      some (if xs.any (applicabilityOf · == "unconditional") then "unconditional" else "conditional")
+    if !pr.isEmpty && !rf.isEmpty then ("conflict", none)
+    else if !pr.isEmpty then ("proved", app pr)
+    else if !rf.isEmpty then ("refuted", app rf) else ("none", none)
+  let present := keys.map fun k => let (a, b) := st k
+    Json.mkObj [("axis", Json.str k.1), ("model", optStr k.2), ("status", Json.str a),
+      ("applicability", optStr b)]
   let absent := (axes.filter fun a => !(keys.any (·.1 == a))).map fun a =>
-    Json.mkObj [("axis", Json.str a), ("model", Json.null), ("status", Json.str "none")]
+    Json.mkObj [("axis", Json.str a), ("model", Json.null), ("status", Json.str "none"),
+      ("applicability", Json.null)]
   Json.arr (present ++ absent).toArray
 
 /-- The name of a section, as text (display). -/
