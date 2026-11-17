@@ -97,8 +97,8 @@ set_option maxRecDepth 100000 in
 /-- glibc's `math.h` (libm), **as pinned**: clang 18.1.8, `x86_64-unknown-linux-gnu`,
 `-std=gnu11` with no feature macro (glibc's default feature set). The artifact keeps the
 top-level declarations of `math.h`, `bits/mathcalls.h`, `bits/mathcalls-helper-functions.h` and
-`bits/floatn-common.h`; **every retained entry is imported**, none refused by the import, no
-asm renames: 623 entries, 615 functions (177 of them clang's implicit builtin declarations, see
+`bits/floatn-common.h`; **every retained entry is imported**: no entry whose body the import
+cannot read, and no function whose prototype it cannot represent; no asm renames: 623 entries, 615 functions (177 of them clang's implicit builtin declarations, see
 `glibcMath_implicit_duplicates`). `sin` is `double (double)`, `sinf` `float (float)` and `sinl`
 `long double (long double)`.
 
@@ -114,6 +114,8 @@ theorem glibcMath_reads :
     (glibcMath.entries.filter (·.implicit)).length = 177 ∧
     (glibcMath.entries.filter (fun e => match e.body with
       | .unsupported _ => true | _ => false)).length = 0 ∧
+    (glibcMath.entries.filter (fun e => match e.body with
+      | .function f => f.proto matches .unsupported _ | _ => false)).length = 0 ∧
     (glibcMath.entries.filter (fun e => match e.body with
       | .function f => f.asmLabel.isSome | _ => false)).length = 0 ∧
     (glibcMath.fn? "sin").map (fun (_, f) => f.proto) =
