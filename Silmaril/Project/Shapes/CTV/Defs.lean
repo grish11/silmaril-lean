@@ -22,7 +22,7 @@ profile with that semantics (`Silmaril.Cerberus.TV.Profile`).
 | `silmaril.shapes.c.tv.equivalent` | `Equivalent impl P Q`: refinement both ways |
 | `silmaril.shapes.c.tv.profile_coherent_at` | `p.CoherentAt s`: the Core semantics, the elaborator configuration and the target profile agree on the scalar type `s` (storage, alignment, signedness, value range, endianness, numeric format) |
 | `silmaril.shapes.c.tv.profile_applies` | `p.AppliesTo b`: the per-type check passes: every type named by the program part of `b`, the runtime functions and the implementation constants it reaches (by name, a superset of what runs) is in the coherence table and coherent (`TV.Applicability`); a necessary filter |
-| `silmaril.shapes.c.tv.context_refines` | `FunctionRefines impl ctxs f before after`: the listed contexts are not empty, each defines `f` in its own functions and not in its runtime (`Substitutes`), and in each the program with `f := after` refines the one with `f := before` (function level, over the listed contexts only: not contextual refinement; `TV.Compose`) |
+| `silmaril.shapes.c.tv.context_refines` | `FunctionRefines impl ctxs f before after`: the listed contexts are not empty, each defines `f` in its own functions and not in its runtime (`Substitutes`: `f` is replaced, not necessarily called), and in each the program with `f := after` refines the one with `f := before` (function level, over the listed contexts only: not contextual refinement; `TV.Compose`) |
 | `silmaril.shapes.c.tv.refines_on` | `RefinesOn p src tgt`: Core refinement with `p`'s `Spec.Impl` choices, and the per-type check passes on both programs; not a statement about the target |
 
 **Every one of these relates Cores, or a Core and a profile.** They are about closed programs (no
