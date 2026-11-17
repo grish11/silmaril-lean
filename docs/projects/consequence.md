@@ -349,6 +349,16 @@ certificate-checking acceptors into the existing `SAT.CNF` (no new CNF formalism
 
 These are the Lean specifications; they are not compiled components.
 
+### Farkas certificates over WIT words
+
+`Silmaril/Logic/LinArith/Carrier/{Defs,Thms,Examples}` reads the typed Farkas interface
+`check(system: list<record { coeffs: list<tuple<u32, s64>>, bound: s64 }>, y: list<s64>)` into
+the existing `LinArith.System` (variables as unsigned `u32`, coefficients, bounds and multipliers
+as two's-complement `s64`; total and injective, lossless in range: `decodeSystem_encode`).
+`Infeasible` is the set of systems with no solution over any ordered field, and `farkasCheck` (the
+existing `checkCert`) is sound for it by existential projection (`farkasCheck_sound`). No
+completeness is claimed.
+
 ## Institutions, logics and their propositions
 
 `roomSys` (`Set Sen ⊢ Sen`) and `roomMulti` (`Sen* ⊢ Sen*`) already read a room as a system.
@@ -597,6 +607,7 @@ Gentzen sequents.
 | `Silmaril/Logic/Consequence/Shape/{Defs,Thms}.lean` | acceptor/rejector shapes, slices, checker predicates | core |
 | `Silmaril/Logic/Consequence/Gentzen/Clausal/{Defs,Thms,Examples}.lean`, `…/Clausal/Dimacs/…` | UNSAT, TAUTO, CNF and Gentzen acceptors, closure laws, equivalences; DIMACS image and LRAT bridge | structural derivations |
 | `Silmaril/Logic/SAT/Carrier/{Defs,Thms,Examples}.lean` | `s32` word carriers of CNF (nested, zero-terminated), their UNSAT/SAT languages, LRAT and model certificate checkers | core |
+| `Silmaril/Logic/LinArith/Carrier/{Defs,Thms,Examples}.lean` | Farkas systems and multipliers over WIT `u32`/`s64` words, `Infeasible`, the sound `farkasCheck` acceptor | core |
 | `Silmaril/Logic/Consequence/Examples.lean` | worked examples | core |
 | `Silmaril/Logic/Consequence/Structural/…` | structural rules and derivation closures | structural derivations |
 | Wasm acceptor and SZS protocol modules | Wasm evidence for the lifts | Wasm/SZS protocols |
