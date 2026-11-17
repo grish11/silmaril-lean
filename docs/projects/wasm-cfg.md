@@ -935,18 +935,21 @@ The plain graph stays an over-approximation, and claims about it say so.
           `Abstract.EvalLXPS`. Its calls are open entries with arbitrary answers, and no oracle
           answers them.
 
-          The audit is checked at build time by `Proofs/Wasm/Cfg/CfgClosureAudit`. It walks the
-          types and bodies of every definition, inductive, constructor and recursor reachable
-          from `cfgEvFunXPS`, `cfgEvPendXPS`, `cfgEvInfNXP`, `cfgEvFunDXPSC`, `LDLcfgC`,
-          `cfgAns`, `cfgFunDiv` and `cfgSessionTripleC`. The build fails if any of the following
-          is reachable:
-          - a constant of `XRecursionP`, `XDivergeP`, `XRecursion`, `XDiverge` or `Recursion`;
-          - `CallXP.EvalOXP`;
-          - the native open modules, closures and triples;
-          - a `Silmaril` axiom, opaque or missing body, other than auxiliary proofs.
-
-          As a positive control, it checks that the scoped native instance `cfgSessionTriple`
-          reaches `closedCallXP` and `FunDivXP`.
+          The audit is checked at build time by `Proofs/Wasm/Cfg/CfgClosureAudit`. Its scope:
+          - **Definitional dependencies.** It walks the types and bodies of definitions, and the
+            types of inductives, constructors and recursors, transitively. It does not follow
+            theorem proofs. The build fails if a native closed or divergent object is reachable
+            from any closure or instance-triple root.
+          - **Fail closed.** A reached constant whose body cannot be inspected fails the audit. This
+            covers opaque constants, axioms, missing names and unexposed imported bodies. The
+            exceptions are kernel proofs (type is a `Prop`) and constants from external
+            dependency modules, which cannot import Silmaril. Opaque data declared in Silmaril
+            always fails.
+          - **Axiom closure, proofs included.** For each root, `Lean.collectAxioms` must give only
+            `propext`, `Classical.choice` and `Quot.sound`.
+          - **Positive controls.** The native instance `cfgSessionTriple` reaches `closedCallXP`
+            and `FunDivXP`. An adversarial `opaque` alias of `closedCallXP` must be rejected, and
+            `sorryAx` must fail the axiom check.
         - **Remaining before all generic gaps can be called closed:**
           1. Typed-invocation hypotheses (`Wasm/Cfg/CfgValid`). These are now derived from
              `StoreOk` and `InvokeOk`, at the store's own tags:
