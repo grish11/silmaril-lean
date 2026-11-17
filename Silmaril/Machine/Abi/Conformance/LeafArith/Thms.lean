@@ -26,7 +26,12 @@ Negative (the statement rejects):
 * `stuck_not`, `clobber_not`, `unbalanced_not`, `scribble_not` (schema tests on small
   machines): a machine that cannot step; a return with `rbx` changed; a "return" with `rsp`
   16 above the entry, which never returns and gets stuck; a write at `rsp − 8` with no frame;
-* `wrong_prototype`: `long clamp_i32(long, long, long)` is not what `arith.h` declares.
+* `wrong_prototype`, `wrong_signedness`: `long clamp_i32(long, long, long)` (widths) and
+  `unsigned clamp_i32(int, int, int)` (result signedness) are not what `arith.h` declares;
+* `wrong_header_not`: against a header declaring an `unsigned` result, `clamp_i32`'s code
+  conforms to the `int` prototype on no machine, in no mode, for no spec;
+* `not_available`: the `arith.h` coverage leaves functions unclaimed, so no implementation
+  map makes it available (or complete) header satisfaction.
 
 OPEN (`Task`): the first-return rows of `gcd_u32` and `bswap32_manual`, whose block
 certificates are proved (`Silmaril.X86.Ladder.LeafArith`) but not in first-return form.
@@ -97,6 +102,18 @@ theorem scribble_not (mode : Mode) :
 
 theorem wrong_prototype : ¬ Declares sysvInt hdr "clamp_i32" longProto :=
   Silmaril.Proofs.Machine.Abi.Conformance.Negative.wrong_prototype
+
+theorem wrong_signedness : ¬ Declares sysvInt hdr "clamp_i32" uRetProto :=
+  Silmaril.Proofs.Machine.Abi.Conformance.Negative.wrong_signedness
+
+theorem wrong_header_not {M : Mach} {mode : Mode} {c : Code} {frame : Nat}
+    {S : CallSpec sysvInt.V clampProto} :
+    ¬ Conforms sysvInt M mode hdrU "clamp_i32" clampProto c frame S :=
+  fun h => Silmaril.Proofs.Machine.Abi.Conformance.Negative.wrong_header h.declared
+
+theorem not_available {M : Mach} {impl : String → Option (Impl sysvInt)} :
+    ¬ HeaderSatAvailable sysvInt M hdr coverage impl :=
+  fun h => absurd h.2.1 (by decide +kernel)
 
 end Negative
 

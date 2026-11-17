@@ -97,6 +97,13 @@ def unbalancedStep : MState → Option MState :=
 /-- `long clamp_i32(long, long, long)`. -/
 def longProto : Silmaril.Machine.Abi.SystemV.Proto := ⟨⟨[.int64, .int64, .int64], some .int64⟩, by decide⟩
 
+/-- `unsigned clamp_i32(int, int, int)`: `clamp_i32` with an unsigned result. -/
+def uRetProto : Silmaril.Machine.Abi.SystemV.Proto :=
+  ⟨⟨[.int32, .int32, .int32], some .uint32⟩, by decide⟩
+
+/-- A header that declares `clamp_i32` with an unsigned result. -/
+def hdrU : HeaderSrc := ⟨[("arith.h", "unsigned clamp_i32(int x, int lo, int hi);")], "arith.h"⟩
+
 end Silmaril.Machine.Abi.Conformance.LeafArith.Witness
 
 end

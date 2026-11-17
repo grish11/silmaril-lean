@@ -133,7 +133,7 @@ texts' SHA-256, and `--check` compares those hashes with the files.
 
 | theorem | statement |
 | --- | --- |
-| `arith_routes_agree` | `read arithFiles "arith.h" = some arith.header`: the same typedefs and the same 20 prototypes, in order |
+| `arith_routes_agree` | `read arithFiles "arith.h" = some arith.header`: the same typedefs, the same 20 prototypes in order, and the same qualifiers by pointer level (`Header.quals`; the import reads them from clang's `qualType`, `Fn.quals`) |
 | `zlibSolo_routes_agree` | under `-DZ_SOLO`, the 11 checksum functions have the same `CProto` |
 | `zlibHosted_routes` | hosted, 9 agree. **`adler32_z` and `crc32_z` disagree**: the reader's built-in `size_t` is `.int .size .unsigned`, while clang's `size_t` (from stddef.h) is `unsigned long`. Both lower to `uint64 (uint64, pointer, uint64)` (`zlibHosted_disagreement_lowers_alike`) |
 | `probe_reads` | kinds, tag definitions, conventions (`ms_abi`, `sysv_abi`, `regcall`), attributes and the asm label of the probe |

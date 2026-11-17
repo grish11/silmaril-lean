@@ -1,13 +1,17 @@
 module
 
 public import Silmaril.Elf.Abi.Defs
+import Silmaril.Proofs.Elf.Abi.Basic
 
 /-! # ABI conformance of an ELF function: theorems
 
 * `AbiConforms.placement`: a row names a file that admits a load base;
 * `not_abiConforms_of_noPlacement`: **regression**: on a file that admits no load base (an
   `ET_EXEC` whose `PT_LOAD` has `p_filesz > p_memsz` or reaches past `2^47`, …) no function
-  conforms, for any spec and any machine: the rebased-conformance conjunct cannot be vacuous.
+  conforms, for any spec and any machine: the rebased-conformance conjunct cannot be vacuous;
+* `CodeOf.bytes_unique`, `not_codeOf_of_bytes`: **the bytes are the file's**: two codes of one
+  binding at one address with bytes of one length have the same bytes, so a code whose bytes
+  differ from the file's (one byte changed) is the function of no binding.
 -/
 
 @[expose] public section
@@ -28,6 +32,16 @@ theorem AbiConforms.placement (h : AbiConforms A M mode hdr f p F b c frame S) :
 theorem not_abiConforms_of_noPlacement (hno : ∀ base, ¬ Placement F base) :
     ¬ AbiConforms A M mode hdr f p F b c frame S :=
   fun h => let ⟨base, hb⟩ := h.placement; hno base hb
+
+theorem CodeOf.bytes_unique {c' : Code} {b' : Binding} {f' : String} (h : CodeOf F b f c)
+    (h' : CodeOf F b' f' c') (hb : c.base = c'.base) (hl : c.bytes.length = c'.bytes.length) :
+    c.bytes = c'.bytes :=
+  Silmaril.Proofs.Elf.Abi.codeAt_unique h.2.1 (hb ▸ h'.2.1) hl
+
+theorem not_codeOf_of_bytes {c' : Code} {b' : Binding} {f' : String} (h : CodeOf F b f c)
+    (hb : c.base = c'.base) (hl : c.bytes.length = c'.bytes.length) (hne : c.bytes ≠ c'.bytes) :
+    ¬ CodeOf F b' f' c' :=
+  fun h' => hne (h.bytes_unique h' hb hl)
 
 end Silmaril.Elf.Abi
 

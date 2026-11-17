@@ -66,87 +66,87 @@ def Probe.entries : List Entry := [
     (.variable (.unsupported "incomplete array type") (some "extern"))⟩,
   ⟨"plain", .function, (some ⟨"probe.h", 15⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed), (.typedef "u32" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed), (.typedef "u32" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "plain", none, none, false, false⟩)⟩,
   ⟨"knr", .function, (some ⟨"probe.h", 16⟩), false,
     (.function
-      ⟨(.unsupported "no prototype (K&R f()): outside CProto"),
+      ⟨(.unsupported "no prototype (K&R f()): outside CProto"), none,
        false, .c, [], "knr", none, none, false, false⟩)⟩,
   ⟨"vf", .function, (some ⟨"probe.h", 17⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.ptr (.int .char .plain))], true⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.ptr (.int .char .plain))], true⟩), (some ⟨[[]], [[["const"], []]]⟩),
        true, .c, [.format], "vf", none, none, false, false⟩)⟩,
   ⟨"die", .function, (some ⟨"probe.h", 18⟩), false,
     (.function
-      ⟨(.ok ⟨.void, [(.ptr (.int .char .plain))], false⟩),
+      ⟨(.ok ⟨.void, [(.ptr (.int .char .plain))], false⟩), (some ⟨[[]], [[["const"], []]]⟩),
        false, .c, [.noreturn], "die", none, none, false, false⟩)⟩,
   ⟨"die2", .function, (some ⟨"probe.h", 19⟩), false,
     (.function
-      ⟨(.ok ⟨.void, [], false⟩),
+      ⟨(.ok ⟨.void, [], false⟩), (some ⟨[[]], []⟩),
        false, .c, [.noreturn], "die2", none, none, false, false⟩)⟩,
   ⟨"nn", .function, (some ⟨"probe.h", 20⟩), false,
     (.function
-      ⟨(.ok ⟨(.ptr .void), [(.ptr .void), (.ptr .void)], false⟩),
+      ⟨(.ok ⟨(.ptr .void), [(.ptr .void), (.ptr .void)], false⟩), (some ⟨[[], []], [[[], []], [[], []]]⟩),
        false, .c, [.nonnull], "nn", none, none, false, false⟩)⟩,
   ⟨"old", .function, (some ⟨"probe.h", 21⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [.deprecated], "old", none, none, false, false⟩)⟩,
   ⟨"hidden", .function, (some ⟨"probe.h", 22⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [(.visibility "hidden")], "hidden", none, none, false, false⟩)⟩,
   ⟨"renamed", .function, (some ⟨"probe.h", 23⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [.asmLabel], "renamed_v2", (some "renamed_v2"), none, false, false⟩)⟩,
   ⟨"win", .function, (some ⟨"probe.h", 24⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .msAbi, [], "win", none, none, false, false⟩)⟩,
   ⟨"sysv", .function, (some ⟨"probe.h", 25⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .sysvAbi, [], "sysv", none, none, false, false⟩)⟩,
   ⟨"rc", .function, (some ⟨"probe.h", 26⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .regcall, [], "rc", none, none, false, false⟩)⟩,
   ⟨"by_value", .function, (some ⟨"probe.h", 27⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "pair_t" (.struct "pair")), [(.typedef "pair_t" (.struct "pair"))], false⟩),
+      ⟨(.ok ⟨(.typedef "pair_t" (.struct "pair")), [(.typedef "pair_t" (.struct "pair"))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "by_value", none, none, false, false⟩)⟩,
   ⟨"fp", .function, (some ⟨"probe.h", 28⟩), false,
     (.function
-      ⟨(.ok ⟨(.float .double), [(.float .float), (.float .longDouble)], false⟩),
+      ⟨(.ok ⟨(.float .double), [(.float .float), (.float .longDouble)], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "fp", none, none, false, false⟩)⟩,
   ⟨"flag", .function, (some ⟨"probe.h", 29⟩), false,
     (.function
-      ⟨(.ok ⟨.bool, [], false⟩),
+      ⟨(.ok ⟨.bool, [], false⟩), (some ⟨[[]], []⟩),
        false, .c, [], "flag", none, none, false, false⟩)⟩,
   ⟨"sort", .function, (some ⟨"probe.h", 30⟩), false,
     (.function
-      ⟨(.unsupported "parameter 3: typedef cmp_fn: function or function-pointer type: outside CProto"),
+      ⟨(.unsupported "parameter 3: typedef cmp_fn: function or function-pointer type: outside CProto"), (some ⟨[[]], [[[], []], [[]], [[]]]⟩),
        false, .c, [], "sort", none, none, false, false⟩)⟩,
   ⟨"arr", .function, (some ⟨"probe.h", 31⟩), false,
     (.function
-      ⟨(.ok ⟨.void, [(.ptr (.int .int .signed)), (.ptr (.int .int .signed))], false⟩),
+      ⟨(.ok ⟨.void, [(.ptr (.int .int .signed)), (.ptr (.int .int .signed))], false⟩), (some ⟨[[]], [[[], []], [[], []]]⟩),
        false, .c, [], "arr", none, none, false, false⟩)⟩,
   ⟨"mk", .function, (some ⟨"probe.h", 32⟩), false,
     (.function
-      ⟨(.ok ⟨(.ptr (.struct "fwd")), [], false⟩),
+      ⟨(.ok ⟨(.ptr (.struct "fwd")), [], false⟩), (some ⟨[[], []], []⟩),
        false, .c, [], "mk", none, none, false, false⟩)⟩,
   ⟨"paint", .function, (some ⟨"probe.h", 33⟩), false,
     (.function
-      ⟨(.ok ⟨(.enum "color" none), [(.enum "color" none)], false⟩),
+      ⟨(.ok ⟨(.enum "color" none), [(.enum "color" none)], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "paint", none, none, false, false⟩)⟩,
   ⟨"inl", .function, (some ⟨"probe.h", 34⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed)], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "inl", none, (some "static"), true, true⟩)⟩,
   ⟨"plain", .function, (some ⟨"probe.h", 35⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed), (.typedef "u32" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.int .int .signed), (.typedef "u32" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "plain", none, none, false, false⟩)⟩]
 
 end Silmaril.Data.Layout.Header.Import.Pinned

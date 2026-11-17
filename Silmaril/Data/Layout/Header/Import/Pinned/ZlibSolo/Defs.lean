@@ -93,99 +93,99 @@ def ZlibSolo.entries : List Entry := [
     (.typedef (.ok (.ptr (.typedef "gz_header" (.struct "gz_header_s")))))⟩,
   ⟨"zlibVersion", .function, (some ⟨"zlib.h", 220⟩), false,
     (.function
-      ⟨(.ok ⟨(.ptr (.int .char .plain)), [], false⟩),
+      ⟨(.ok ⟨(.ptr (.int .char .plain)), [], false⟩), (some ⟨[["const"], []], []⟩),
        false, .c, [], "zlibVersion", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflate", .function, (some ⟨"zlib.h", 250⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "deflate", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateEnd", .function, (some ⟨"zlib.h", 363⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "deflateEnd", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflate", .function, (some ⟨"zlib.h", 401⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "inflate", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateEnd", .function, (some ⟨"zlib.h", 521⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "inflateEnd", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateSetDictionary", .function, (some ⟨"zlib.h", 611⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "uInt" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "uInt" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]], [["const"], []], [[]]]⟩),
        false, .c, [], "deflateSetDictionary", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateGetDictionary", .function, (some ⟨"zlib.h", 655⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.ptr (.typedef "uInt" (.int .int .unsigned)))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.ptr (.typedef "uInt" (.int .int .unsigned)))], false⟩), (some ⟨[[]], [[[]], [[], []], [[], []]]⟩),
        false, .c, [], "deflateGetDictionary", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateCopy", .function, (some ⟨"zlib.h", 677⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "deflateCopy", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateReset", .function, (some ⟨"zlib.h", 695⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "deflateReset", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateParams", .function, (some ⟨"zlib.h", 706⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[]]]⟩),
        false, .c, [], "deflateParams", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateTune", .function, (some ⟨"zlib.h", 744⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed), (.int .int .signed), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed), (.int .int .signed), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[]], [[]], [[]]]⟩),
        false, .c, [], "deflateTune", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateBound", .function, (some ⟨"zlib.h", 761⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "uLong" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "uLong" (.int .long .unsigned))], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "deflateBound", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflatePending", .function, (some ⟨"zlib.h", 776⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.int .int .unsigned)), (.ptr (.int .int .signed))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.int .int .unsigned)), (.ptr (.int .int .signed))], false⟩), (some ⟨[[]], [[[]], [[], []], [[], []]]⟩),
        false, .c, [], "deflatePending", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflatePrime", .function, (some ⟨"zlib.h", 791⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[]]]⟩),
        false, .c, [], "deflatePrime", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateSetHeader", .function, (some ⟨"zlib.h", 808⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "gz_headerp" (.ptr (.typedef "gz_header" (.struct "gz_header_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "gz_headerp" (.ptr (.typedef "gz_header" (.struct "gz_header_s"))))], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "deflateSetHeader", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateSetDictionary", .function, (some ⟨"zlib.h", 888⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "uInt" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "uInt" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]], [["const"], []], [[]]]⟩),
        false, .c, [], "inflateSetDictionary", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateGetDictionary", .function, (some ⟨"zlib.h", 911⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.ptr (.typedef "uInt" (.int .int .unsigned)))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.ptr (.typedef "uInt" (.int .int .unsigned)))], false⟩), (some ⟨[[]], [[[]], [[], []], [[], []]]⟩),
        false, .c, [], "inflateGetDictionary", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateSync", .function, (some ⟨"zlib.h", 926⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "inflateSync", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateCopy", .function, (some ⟨"zlib.h", 945⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "inflateCopy", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateReset", .function, (some ⟨"zlib.h", 961⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "inflateReset", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateReset2", .function, (some ⟨"zlib.h", 972⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "inflateReset2", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflatePrime", .function, (some ⟨"zlib.h", 986⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[]]]⟩),
        false, .c, [], "inflatePrime", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateMark", .function, (some ⟨"zlib.h", 1007⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .long .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .long .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "inflateMark", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateGetHeader", .function, (some ⟨"zlib.h", 1035⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "gz_headerp" (.ptr (.typedef "gz_header" (.struct "gz_header_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.typedef "gz_headerp" (.ptr (.typedef "gz_header" (.struct "gz_header_s"))))], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "inflateGetHeader", none, (some "extern"), false, false⟩)⟩,
   ⟨"in_func", .typedef, (some ⟨"zlib.h", 1097⟩), false,
     (.typedef (.unsupported "function or function-pointer type: outside CProto"))⟩,
@@ -193,99 +193,99 @@ def ZlibSolo.entries : List Entry := [
     (.typedef (.unsupported "function or function-pointer type: outside CProto"))⟩,
   ⟨"inflateBack", .function, (some ⟨"zlib.h", 1101⟩), false,
     (.function
-      ⟨(.unsupported "parameter 2: typedef in_func: function or function-pointer type: outside CProto"),
+      ⟨(.unsupported "parameter 2: typedef in_func: function or function-pointer type: outside CProto"), (some ⟨[[]], [[[]], [[]], [[], []], [[]], [[], []]]⟩),
        false, .c, [], "inflateBack", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateBackEnd", .function, (some ⟨"zlib.h", 1171⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "inflateBackEnd", none, (some "extern"), false, false⟩)⟩,
   ⟨"zlibCompileFlags", .function, (some ⟨"zlib.h", 1179⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [], false⟩), (some ⟨[[]], []⟩),
        false, .c, [], "zlibCompileFlags", none, (some "extern"), false, false⟩)⟩,
   ⟨"adler32", .function, (some ⟨"zlib.h", 1692⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "uInt" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "uInt" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]], [["const"], []], [[]]]⟩),
        false, .c, [], "adler32", none, (some "extern"), false, false⟩)⟩,
   ⟨"adler32_z", .function, (some ⟨"zlib.h", 1712⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "z_size_t" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "z_size_t" (.int .long .unsigned))], false⟩), (some ⟨[[]], [[[]], [["const"], []], [[]]]⟩),
        false, .c, [], "adler32_z", none, (some "extern"), false, false⟩)⟩,
   ⟨"crc32", .function, (some ⟨"zlib.h", 1730⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "uInt" (.int .int .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "uInt" (.int .int .unsigned))], false⟩), (some ⟨[[]], [[[]], [["const"], []], [[]]]⟩),
        false, .c, [], "crc32", none, (some "extern"), false, false⟩)⟩,
   ⟨"crc32_z", .function, (some ⟨"zlib.h", 1748⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "z_size_t" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.ptr (.typedef "Bytef" (.typedef "Byte" (.int .char .unsigned)))), (.typedef "z_size_t" (.int .long .unsigned))], false⟩), (some ⟨[[]], [[[]], [["const"], []], [[]]]⟩),
        false, .c, [], "crc32_z", none, (some "extern"), false, false⟩)⟩,
   ⟨"crc32_combine_op", .function, (some ⟨"zlib.h", 1771⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.typedef "uLong" (.int .long .unsigned)), (.typedef "uLong" (.int .long .unsigned))], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.typedef "uLong" (.int .long .unsigned)), (.typedef "uLong" (.int .long .unsigned))], false⟩), (some ⟨[[]], [[[]], [[]], [[]]]⟩),
        false, .c, [], "crc32_combine_op", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateInit_", .function, (some ⟨"zlib.h", 1784⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [["const"], []], [[]]]⟩),
        false, .c, [], "deflateInit_", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateInit_", .function, (some ⟨"zlib.h", 1786⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [["const"], []], [[]]]⟩),
        false, .c, [], "inflateInit_", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateInit2_", .function, (some ⟨"zlib.h", 1788⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed), (.int .int .signed), (.int .int .signed), (.int .int .signed), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.int .int .signed), (.int .int .signed), (.int .int .signed), (.int .int .signed), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[]], [[]], [[]], [[]], [["const"], []], [[]]]⟩),
        false, .c, [], "deflateInit2_", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateInit2_", .function, (some ⟨"zlib.h", 1792⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [["const"], []], [[]]]⟩),
        false, .c, [], "inflateInit2_", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateBackInit_", .function, (some ⟨"zlib.h", 1794⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.ptr (.int .char .unsigned)), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed), (.ptr (.int .char .unsigned)), (.ptr (.int .char .plain)), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[], []], [["const"], []], [[]]]⟩),
        false, .c, [], "inflateBackInit_", none, (some "extern"), false, false⟩)⟩,
   ⟨"adler32_combine", .function, (some ⟨"zlib.h", 1907⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.typedef "uLong" (.int .long .unsigned)), (.int .long .signed)], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.typedef "uLong" (.int .long .unsigned)), (.int .long .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[]]]⟩),
        false, .c, [], "adler32_combine", none, (some "extern"), false, false⟩)⟩,
   ⟨"crc32_combine", .function, (some ⟨"zlib.h", 1908⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.typedef "uLong" (.int .long .unsigned)), (.int .long .signed)], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.typedef "uLong" (.int .long .unsigned)), (.typedef "uLong" (.int .long .unsigned)), (.int .long .signed)], false⟩), (some ⟨[[]], [[[]], [[]], [[]]]⟩),
        false, .c, [], "crc32_combine", none, (some "extern"), false, false⟩)⟩,
   ⟨"crc32_combine_gen", .function, (some ⟨"zlib.h", 1909⟩), false,
     (.function
-      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.int .long .signed)], false⟩),
+      ⟨(.ok ⟨(.typedef "uLong" (.int .long .unsigned)), [(.int .long .signed)], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "crc32_combine_gen", none, (some "extern"), false, false⟩)⟩,
   ⟨"zError", .function, (some ⟨"zlib.h", 1914⟩), false,
     (.function
-      ⟨(.ok ⟨(.ptr (.int .char .plain)), [(.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.ptr (.int .char .plain)), [(.int .int .signed)], false⟩), (some ⟨[["const"], []], [[[]]]⟩),
        false, .c, [], "zError", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateSyncPoint", .function, (some ⟨"zlib.h", 1915⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "inflateSyncPoint", none, (some "extern"), false, false⟩)⟩,
   ⟨"get_crc_table", .function, (some ⟨"zlib.h", 1916⟩), false,
     (.function
-      ⟨(.ok ⟨(.ptr (.typedef "z_crc_t" (.int .long .unsigned))), [], false⟩),
+      ⟨(.ok ⟨(.ptr (.typedef "z_crc_t" (.int .long .unsigned))), [], false⟩), (some ⟨[["const"], []], []⟩),
        false, .c, [], "get_crc_table", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateUndermine", .function, (some ⟨"zlib.h", 1917⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "inflateUndermine", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateValidate", .function, (some ⟨"zlib.h", 1918⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s")))), (.int .int .signed)], false⟩), (some ⟨[[]], [[[]], [[]]]⟩),
        false, .c, [], "inflateValidate", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateCodesUsed", .function, (some ⟨"zlib.h", 1919⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .long .unsigned), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .long .unsigned), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "inflateCodesUsed", none, (some "extern"), false, false⟩)⟩,
   ⟨"inflateResetKeep", .function, (some ⟨"zlib.h", 1920⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "inflateResetKeep", none, (some "extern"), false, false⟩)⟩,
   ⟨"deflateResetKeep", .function, (some ⟨"zlib.h", 1921⟩), false,
     (.function
-      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩),
+      ⟨(.ok ⟨(.int .int .signed), [(.typedef "z_streamp" (.ptr (.typedef "z_stream" (.struct "z_stream_s"))))], false⟩), (some ⟨[[]], [[[]]]⟩),
        false, .c, [], "deflateResetKeep", none, (some "extern"), false, false⟩)⟩]
 
 end Silmaril.Data.Layout.Header.Import.Pinned

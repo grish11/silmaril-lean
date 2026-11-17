@@ -21,6 +21,8 @@ otherwise; both are 8-byte unsigned under LP64, so the INTEGER-fragment prototyp
 **C specs** (`CallSpec`), the functions' documented behaviour over the bytes they are given:
 * the caller-visible object is the buffer `[buf, buf + len)` (`objects`), which the stack the ABI
   gives the callee must avoid; nothing caller-visible is written;
+* a non-null buffer lies in user space (`userBuf`: `buf + len ≤ 2^47`), so that every call the
+  precondition admits has room for the ABI's stack (`Conforms.enterable`);
 * `crc32_z`/`crc32`: a null `buf` returns 0 (zlib's "required initial value"); otherwise the
   buffer is readable and the result is the reflected CRC-32 (`ZlibChecksums.crc32`) of its bytes from the
   incoming value's low 32 bits, zero-extended;
@@ -68,11 +70,17 @@ def wIn : sysvInt.V.Args wProto → Word
 /-- The bytes `[a, a + n)` of a memory (`TableFold.bytesAt`). -/
 abbrev bytes := Silmaril.X86.Stencils.TableFold.bytesAt
 
+/-- The buffer `(b, n)` lies in the lower canonical half of the address space (x86-64 Linux user
+space, `b + n ≤ 2^47`). Without a bound the buffer could cover all memory but the stack's room, and
+no call would be admitted (`Conforms.enterable`); the bound is stated, not hidden in `Admit`. -/
+def userBuf (bn : Nat × Nat) : Prop := bn.1 + bn.2 ≤ 2 ^ 47
+
 /-- A CRC spec over the buffer `(b, n)` and incoming value `c`. -/
 def crcSpec {p : Silmaril.Machine.Abi.SystemV.Proto} (bufOf : sysvInt.V.Args p → Nat × Nat)
     (inOf : sysvInt.V.Args p → Word) (hr : sysvInt.V.Ret p = Word) : CallSpec sysvInt.V p where
   objects a _ x := (bufOf a).1 ≠ 0 ∧ (bufOf a).1 ≤ x ∧ x < (bufOf a).1 + (bufOf a).2
-  pre a mem := (bufOf a).1 ≠ 0 → Silmaril.X86.Stencils.ByteLoop.Readable mem (bufOf a).1 (bufOf a).2
+  pre a mem := (bufOf a).1 ≠ 0 → userBuf (bufOf a) ∧
+    Silmaril.X86.Stencils.ByteLoop.Readable mem (bufOf a).1 (bufOf a).2
   post a s r _ := cast hr r = if (bufOf a).1 = 0 then 0
     else (Silmaril.X86.Ladder.ZlibChecksums.crc32 ((inOf a).setWidth 32) (bytes s.machine.memory (bufOf a).1 (bufOf a).2)).setWidth 64
 
@@ -82,7 +90,8 @@ def adlerSpec {p : Silmaril.Machine.Abi.SystemV.Proto} (bufOf : sysvInt.V.Args p
   objects a _ x := (bufOf a).1 ≠ 0 ∧ (bufOf a).1 ≤ x ∧ x < (bufOf a).1 + (bufOf a).2
   pre a mem := (inOf a).toNat % 65536 < Silmaril.X86.Ladder.ZlibChecksums.BASE ∧ (inOf a).toNat / 65536 % 65536 < Silmaril.X86.Ladder.ZlibChecksums.BASE ∧
     ((bufOf a).1 = 0 → (bufOf a).2 ≠ 1) ∧
-    ((bufOf a).1 ≠ 0 → Silmaril.X86.Stencils.ByteLoop.Readable mem (bufOf a).1 (bufOf a).2)
+    ((bufOf a).1 ≠ 0 → userBuf (bufOf a) ∧
+      Silmaril.X86.Stencils.ByteLoop.Readable mem (bufOf a).1 (bufOf a).2)
   post a s r _ := cast hr r = if (bufOf a).1 = 0 then 1
     else BitVec.ofNat 64 (Silmaril.X86.Ladder.ZlibChecksums.adler32 (inOf a).toNat (bytes s.machine.memory (bufOf a).1 (bufOf a).2))
 

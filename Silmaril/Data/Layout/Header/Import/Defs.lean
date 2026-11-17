@@ -127,6 +127,9 @@ inductive DeclKind where
 /-- What the import reads of a function declaration. -/
 structure Fn where
   proto : Got CProto
+  /-- The qualifiers of the result and parameters as clang prints them, if the function type
+  reads. -/
+  quals : Option ProtoQuals
   variadic : Bool
   cc : CallConv
   attrs : List Attr
@@ -225,8 +228,9 @@ def tlex : List Char → List Char → List TTok
 
 def toks (s : String) : List TTok := tlex s.toList []
 
-/-- The type qualifiers clang prints. They do not change how a value is passed and are
-dropped, as the subset reader drops them. -/
+/-- The type qualifiers clang prints. They are not part of `CTy` (they do not change how a value
+is passed); a prototype's are kept beside it by pointer level (`qualLevelsT`, `Fn.quals`), as the
+subset reader keeps them. -/
 def qualWords : List String := ["const", "volatile", "restrict", "__restrict"]
 
 /-- The type named by clang's canonical spelling of a builtin type. -/
@@ -297,6 +301,19 @@ where
   | t, [] => .ok t
   | t, .punct '[' :: .num n :: .punct ']' :: ts => (fun e => CTy.array e n) <$> arrayOf t ts
   | _, _ => .error "array declarator"
+
+/-- The qualifier levels of a printed type (`Header.Quals`), by the subset reader's rule
+(`Header.qualLevels`): a qualifier joins the current level, `*` starts the next one. Clang
+prints a parameter declared `T a[]` as the pointer it is adjusted to. -/
+def qualLevelsT (ts : List TTok) : Quals :=
+  let canon (l : List String) := ["const", "volatile", "restrict"].filter fun q =>
+    l.contains q || (q == "restrict" && l.contains "__restrict")
+  let rec go : List TTok → List String → Quals → Quals
+    | [], cur, done => done ++ [canon cur]
+    | .punct '*' :: r, cur, done => go r [] (done ++ [canon cur])
+    | .ident q :: r, cur, done => go r (if qualWords.contains q then q :: cur else cur) done
+    | _ :: r, cur, done => go r cur done
+  go ts [] []
 
 /-- A type from its printed tokens. -/
 def tyOfToks (env : TyEnv) (ts : List TTok) : Except String CTy := do
@@ -510,7 +527,12 @@ def fnOf (env : TyEnv) (h : Silmaril.Clang.Header) (kids : List Silmaril.Clang.N
       | .unsupported w, _ => .unsupported w
       | _, .unsupported w => .unsupported w
       | .ok r, .ok ps => .ok ⟨r, ps, f.dots⟩
+  let quals : Option ProtoQuals := match ft with
+    | .error _ => none
+    | .ok f => some ⟨qualLevelsT f.ret,
+        parms.map fun p => qualLevelsT (toks ((p.type.map (·.qualType)).getD ""))⟩
   { proto
+    quals
     variadic := h.variadic.getD false
     cc := convention tattrs
     attrs := typeAttrList tattrs ++ nodeAttrs
@@ -694,6 +716,11 @@ def Imported.header (imp : Imported) : Header where
     if e.external f then match f.proto with
       | .ok p => some (e.name, p)
       | .unsupported _ => none
+    else none) []
+  quals := firstOfEach (imp.functions.filterMap fun (e, f) =>
+    if e.external f then match f.proto, f.quals with
+      | .ok _, some q => some (e.name, q)
+      | _, _ => none
     else none) []
 
 /-- The prototype the import gives `f`. -/
