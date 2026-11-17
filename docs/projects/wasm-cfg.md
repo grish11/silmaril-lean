@@ -1077,7 +1077,7 @@ The plain graph stays an over-approximation, and claims about it say so.
                `instTripleS I P`, componentwise.
 
              **Remaining: the converse inclusion** (`instTripleS ⊆ cfgInstTripleU` on
-             `InstDom`), and the threaded sessions. The obstacle is in the proof; no
+             `InstDom`; its legal part is proved in stage 2 below), and the threaded sessions. The obstacle is in the proof; no
              semantic difference was found. `HostClosingXP.back_all` (and the divergence and
              productive backward simulations, `HostClosingInfXPBack`, `HostEval`) carries
              `Sim.ContextTyped` across Core steps through `ContextTyped.steps_typed hT`. With
@@ -1109,15 +1109,50 @@ The plain graph stays an over-approximation, and claims about it say so.
                redirects every exception field to the last pad, which excludes the cycles.
              - Entry and exit: `storeOkD_of_storeOk`, `configOkD_invoke`,
                `storeOkD_of_configOkD` (the end store of a round satisfies `StoreOkD`).
+             - `FuncsSupp` constrains Wasm functions only (host functions push no frame).
 
-             Remaining, not claimed: carrying the backward simulation
-             (`HostClosingXP.back_all`, `HostClosingInfXPBack`, `HostEval`, and the native
-             progress lemmas of `Interp` they use) from `ContextTyped`/`HostTyped` to
-             `ConfigOkD`/`HostTypedD`; hence `instTripleS ⊆ cfgInstTripleU`, the equality with
-             #988's direction, the sessions on a `StoreOkD`-based domain, and the `core3SemD`
-             corollary. Only one direction (native/CFG ⊆ Core) is proved for dangling throws.
-             Also open: that checker-accepted stores satisfy `FuncsSupp` (needed to enter
-             `ConfigOkD` from `InstDom`).
+             **Stage 2: entry domain, fixture, legal reverse inclusion; the dangling reverse
+             simulation, open** (`cfg/dangling-rev-2`).
+             - Entry domain. `DanglingTyped.funcsSupp_of_storeSupported`: a `StoreOk` store in the
+               checker's instruction profile (`CheckComplete.StoreSupported`, `storeSupportedB`)
+               has `FuncsSupp`. `configOkD_invoke_of_storeOk` (padded witness),
+               `configOkD_of_supported`: on `I.WellFormed s ∧ StoreSupported s.funcs` (hence
+               `InstDom`), every export question enters `ConfigOkD`. Checker acceptance alone
+               does **not** suffice: `ExampleAlias.dc_instDom`, `dc_not_funcsSupp` (a validated
+               spec instance, accepted by `storeChkEB`, whose function holds `ref.test` in dead
+               code after `unreachable`, which the checker skips). So the relaxed domain is
+               `StoreSupported`, not `InstDom`.
+             - Validated aliasing fixture (`Wasm/Cfg/ExampleAlias`, `alMod`: a host import
+               `h : [] → []`, a tag `$t : [exnref]`, `grab` = `try_table (catch_all_ref 0)
+               (call h; unreachable)`, `run` = `call grab; throw $t`). Spec instance, `StoreOk`,
+               `storeChkEB`, `storeSupportedB`, `InstDom`, `StoreOkD`. With `h()` answered by the
+               dangling `throw 0` (an `instHostU` answer): natively on the CFG session triple
+               (`run_round`, explicit logged-machine runs) and in Core at every profile
+               (`run_core_U`, by `fin_sub`) the round ends with the uncaught exception `0` in
+               `alEnd = alStore.addExn ⟨0, [ref.exn 0]⟩`; the allocation itself is
+               `run_throw_core`/`run_throw_native`. `alEnd_not_storeOk`, `alEnd_storeOkD`.
+             - Reverse inclusion, legal part only (`Wasm/Cfg/DanglingRev`). On `InstDom`, at
+               `profile o`: `instTripleL I ⊆ cfgInstTripleU I ⊆ instTripleS I` per question and
+               componentwise (`instTripleL_sub_cfgInstTripleU` with `cfgInstTripleU_sub`). Without
+               imports the ends coincide (`instTripleS_agree_cfgInstTripleU_of_nil`, trivially:
+               there is no host call).
+
+             Remaining, not claimed: the reverse inclusion for Core behaviours with a dangling host
+             throw (`instTripleS \ instTripleL`), for every observation; hence no per-question
+             equality with #988's direction when there are imports, no sessions on a
+             `StoreOkD`-based domain (stage 3), and no `core3SemD` corollary (by #995 `core3SemD`
+             never feeds throws to instances anyway). The obstacle is the size of the backward
+             simulation, not a known semantic difference: `HostClosingXP.back_all`,
+             `HostClosingInfXPBack` and `HostEval` carry `Interp.TypedP`, whose
+             `Sim.ContextTyped` is on the actual store. Their uses are `ContextTyped.steps_typed`
+             (68), `.label`/`.frame`/`.suffix`/`.steps`/`.of_configOk`, `Interp` typed-problem
+             lemmas (`typedP_ctx`, `typedP_head`, `block_body_typedP`, `callee_typedP`, …) and
+             native progress (`progressH`, `progressP`, `evalFlat_progressH`). A generalization
+             would restate `TypedP` with `ConfigOkD` (same frame and code, witness store), derive
+             the context lemmas from the witness, and transfer native progress from the witness:
+             in the checker profile `evalFlat` reads no tag or exception, and catch decisions agree
+             (`catchMatches_gst_iff`). Only one direction (native/CFG ⊆ Core) is proved for
+             dangling throws.
 
              **The legal typed canonical object** (`Games/Abstract/SessionLegal`,
              `Wasm/Abstract/NodeLegal`, `Wasm/Cfg/CfgLegal`). The legal domain is stated on
