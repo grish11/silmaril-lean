@@ -11,6 +11,9 @@ public import Silmaril.X86.Str9X.Thms
 * `step_of_fetch_lane`: a lane form decoded at the fetch window.
 * `lowerClaims_of_laneBad`, `step_of_fetch_lane_head`, `step_of_listed_lane_head`: a form of the
   first lane at a listed offset, whatever bytes follow it (`laneBad`).
+* `towerMissing_of_lowerClaims`, `towerMissing_of_listed_lane`, `towerMissing_of_listed`,
+  `towerMissing_of_listed_v`: the feature gate `towerMissing` is `none` at a lane form and at a
+  listed integer instruction, and is `vRequires`'s missing feature at a listed `Str9V` form.
 * `view_toFloat`, `back_withFloat`, `step_of_listed_float`: a committed scalar SSE form
   (`floatExt`) on the tower: the core, the XMM file and MXCSR from the `X86.Float` result, the
   upper YMM halves, DF, the x87 state and the ghost state kept.
@@ -184,5 +187,95 @@ theorem step_of_listed_float {F : FeatureSet} {rest : List Extension} {s : LStat
   refine step_of_listed_lane_head (m := ⟨(view s).withFloat t, after⟩) hl hrip hfit h15 hw hd ?_
   simp only [Silmaril.X86.Features.extStep, Silmaril.X86.Features.floatExt_requires, hF,
     Silmaril.X86.Features.floatExt_exec, view_toFloat, hx, Silmaril.X86.Features.floatResult]
+
+/-! ## The feature gate of the tower's forms -/
+
+/-- Where the lane forms run, no tower form needs a feature. -/
+theorem towerMissing_of_lowerClaims {F : FeatureSet} {s : LState} (h : lowerClaims s.x = false) :
+    towerMissing F s = none := by
+  simp only [lowerClaims, Str9X.lowerClaims, Bool.or_eq_false_iff] at h
+  have hv : Str9V.fetchNew s.memory s.core.rip.toNat = none :=
+    Option.isSome_eq_false_iff.mp h.1.1.2 |> Option.isNone_iff_eq_none.mp
+  unfold towerMissing
+  split
+  · rfl
+  · rw [hv]
+
+/-- At a listed lane form (`laneBad`), no tower form needs a feature. -/
+theorem towerMissing_of_listed_lane {F : FeatureSet} {s : LState} {base : Word}
+    {code : List Byte} {o l : Nat} (hl : Silmaril.X86.Ext.Loaded s.memory base code)
+    (hrip : s.core.rip = base + BitVec.ofNat 64 o) (h1 : 0 < l) (hfit : o + l ≤ code.length)
+    (h15 : l ≤ maxInstrLength) (hw : laneBad ((code.drop o).take l) = true) :
+    towerMissing F s = none :=
+  towerMissing_of_lowerClaims
+    (lowerClaims_of_laneBad (Str9D.fetched_of_listed (d := s.x.d) hl hrip h1 hfit) h15 hw)
+
+/-- **At a listed integer instruction no tower form needs a feature**: a layer below `Str9V`
+claims the bytes. -/
+theorem towerMissing_of_listed {F : FeatureSet} {s : LState} {base : Word} {code : List Byte}
+    {o l : Nat} {i : Silmaril.X86.Str9FsX.Instr} {c : State} {mem : Memory}
+    (hl : Silmaril.X86.Ext.Loaded s.memory base code) (hrip : s.core.rip = base + BitVec.ofNat 64 o)
+    (hfit : o + l ≤ code.length) (hdec : Str9D.decode ((code.drop o).take l) = some (i, l))
+    (hx : Silmaril.X86.Str9FsX.exec i s.core s.memory l = .ok c mem) :
+    towerMissing F s = none := by
+  unfold Str9D.decode at hdec
+  split at hdec
+  · rename_i j n hj
+    split at hdec
+    · simp only [Option.some.injEq, Prod.mk.injEq] at hdec
+      obtain ⟨rfl, rfl⟩ := hdec
+      have hG := Silmaril.X86.Str9G.isa.step_of (s := s.x.d.v.g) trivial hl hrip hfit hj hx
+        trivial
+      have hc : Str9V.lowerClaims s.x.d.v.g = true := by
+        cases h : Str9V.lowerClaims s.x.d.v.g
+        · rw [Silmaril.X86.Str9G.isa_step, Str9V.lower_none h] at hG; cases hG
+        · rfl
+      simp only [towerMissing, hc, ite_true]
+    · cases hdec
+  · cases hdec
+
+/-- **A listed `Str9V` form needs `vRequires`**: at a form of `Str9V.decodeL`, the gate is the
+first feature of `vRequires` missing from `F`. -/
+theorem towerMissing_of_listed_v {F : FeatureSet} {s : LState} {base : Word} {code : List Byte}
+    {o l : Nat} {i : Str9V.Instr} (hl : Silmaril.X86.Ext.Loaded s.memory base code)
+    (hrip : s.core.rip = base + BitVec.ofNat 64 o) (hfit : o + l ≤ code.length)
+    (hdec : Str9V.decodeL ((code.drop o).take l) = some (i, l)) :
+    towerMissing F s = F.missing (vRequires i) := by
+  obtain ⟨hnone, hbad, hne, hbad9, hstr, ha, hf, hs, hst, hgb, hdn, h2, h15⟩ :=
+    Str9V.decodeL_spec hdec
+  have fetched := Str9D.fetched_of_listed (d := s.x.d) hl hrip (by omega) hfit
+  obtain ⟨more, hmore, hf8⟩ :=
+    Silmaril.X86.Open9.fetch8_undecodable_of fetched h15 hnone hbad hne
+  have hfn9 : Silmaril.X86.Ext9.fetchNew s.memory s.core.rip.toNat = none := by
+    unfold Silmaril.X86.Ext9.fetchNew
+    rw [hmore, Silmaril.X86.Str9.decodeNew_none_of_bad hbad9 more]
+    rfl
+  have hfs : Silmaril.X86.Str9.fetchStr s.memory s.core.rip.toNat = none := by
+    unfold Silmaril.X86.Str9.fetchStr
+    rw [hmore, Silmaril.X86.Str9Fs.decodeStr_none_of_strBad hstr more]
+    rfl
+  have hfn : Silmaril.X86.Str9Fs.fetchNew s.memory s.core.rip.toNat = none := by
+    unfold Silmaril.X86.Str9Fs.fetchNew
+    rw [hmore, Silmaril.X86.Str9FsX.str9fsNew_none ha hf more]
+    rfl
+  have hss : Silmaril.X86.Sse9.fetchSse s.memory s.core.rip.toNat = none := by
+    unfold Silmaril.X86.Sse9.fetchSse
+    rw [hmore, Silmaril.X86.Str9FsX.sse_none hs more]
+    rfl
+  have hsd : Silmaril.X86.Str9FsX.fetchStosd s.memory s.core.rip.toNat = none := by
+    unfold Silmaril.X86.Str9FsX.fetchStosd
+    rw [hmore, Silmaril.X86.Str9G.stosd_none hst more]
+    rfl
+  have hgn : Silmaril.X86.Str9G.fetchNew s.memory s.core.rip.toNat = none := by
+    unfold Silmaril.X86.Str9G.fetchNew
+    rw [hmore, Str9V.gNew_none hgb more]
+    rfl
+  have hc : Str9V.lowerClaims s.x.d.v.g = false := by
+    unfold Str9V.lowerClaims; simp only; rw [hf8]; simp [hfn9, hfs, hfn, hss, hsd, hgn]
+  have hv : Str9V.fetchNew s.memory s.core.rip.toNat = some (some (i, l)) := by
+    unfold Str9V.fetchNew
+    rw [hmore, Str9V.decodeNew_append hdn more]
+    simp [Silmaril.Process.Memory.readWith_permitted fetched]
+  simp only [towerMissing, hc, Bool.false_eq_true, ite_false, hv]
 
 end Silmaril.X86.Str9L

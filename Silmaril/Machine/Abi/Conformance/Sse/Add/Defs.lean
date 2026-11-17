@@ -14,7 +14,10 @@ lowered by `sysvScalar` (`proto`: two SSE-class `double`s in XMM0 and XMM1, the 
 
 **The ABI**: `sysvScalar.defaultEnv`, the **default-environment subset** of the System V scalar
 fragment (identity `…/scalar-aggregates/default-env-subset`): a call is admitted only when it
-enters with MXCSR `0x1F80`. Why not the full `sysvScalar`:
+enters with the default MXCSR **control bits** (`mxcsr &&& 0xffc0 = 0x1F80`: round to nearest,
+every exception masked, DAZ and FTZ off), with **any status flags** (they are sticky: a caller
+that has done an inexact operation enters with `0x1FA0`, `Thms.admitted_pe`). Why not the full
+`sysvScalar`:
 * with an exception unmasked in MXCSR, `addsd` raises `#XM` on some operands (overflow,
   inexact, invalid, denormal), which the machine models as a fault (no step). The code then
   does not return, and on hardware the caller gets `SIGFPE`. The full row is **false**, not
@@ -31,10 +34,21 @@ MXCSR** (`s.mxcsr`) on binary64 `add`: `Numeric.Float`'s x86 SSE profile
 inputs read as zero) and FTZ (tiny results flushed to zero while underflow is masked) as MXCSR
 sets them, and the profile's NaN rules (a NaN operand is propagated quieted, the first source
 operand's NaN taking precedence; an invalid operation without NaN operands gives the QNaN
-indefinite `FFF8000000000000`), with tininess detected after rounding. Under this ABI the entry
-MXCSR is `0x1F80`: round to nearest even, DAZ and FTZ off, all exceptions masked. The status
-flags the addition raises are ORed into MXCSR (`Return` leaves them free and requires the
-control bits kept).
+indefinite `FFF8000000000000`), with tininess detected after rounding. `sum` reads **only the
+control bits** of the MXCSR it is given (`Thms.sum_control`): the entry status flags do not
+change the result, so the post states `sum` of the entry MXCSR as it is. Under this ABI the
+control bits are `0x1F80`: round to nearest even, DAZ and FTZ off, all exceptions masked, so
+`addsd` never faults, for every operand pair and every status flag. The status flags the
+addition raises are ORed into MXCSR (`Return` leaves them free and requires the control bits
+kept).
+
+**Model scope.** The row is on a machine model, not real x86 (that needs `Faithful`). It holds
+for every completion: any time-stamp stream, either CET flag (so it is about processes **without
+user shadow stacks**; `ret` checks no shadow stack, and code reaching `rdssp` would have no row),
+and any x87 TOP and tag word (more than the psABI's empty x87 stack at entry, harmless here: the
+code does not touch x87). The FFI thread pointer is carried: `Admit.fsCoherent` ties it to the
+core's FS base at entry, code that accesses TLS reads the core's, and `Good.fsBase` is proved on
+the core's (the code does not touch it).
 
 **The machine**: `Mach.str9L FeatureSet.baseline64 Features.sseExts`: the tower with the
 legacy SSE/SSE2 lanes on the x86-64 baseline processor.

@@ -104,6 +104,25 @@ theorem entry_xmm {i : Nat} (hi : i < 16) {v : BitVec 64}
   apply BitVec.eq_of_getLsbD_eq; intro j hj
   simp [hj]
 
+/-- On `baseline64`, `vpcmpeqb (%rdi), %ymm0, %ymm1` (AVX2) has no step. -/
+theorem vpcmpeqb_none (exts : List Silmaril.X86.Features.Extension) {x : SState}
+    {base : Silmaril.X86.Word}
+    (hl : Silmaril.X86.Ext.Loaded x.l.memory base [0xC5, 0xFD, 0x74, 0x0F])
+    (hrip : x.l.core.rip = base) :
+    (Mach.str9L Silmaril.X86.Features.FeatureSet.baseline64 exts).isa.step x = none := by
+  have hd := Silmaril.X86.Str9L.decodeL_vpcmpeqb
+  rcases hdl : Silmaril.X86.Str9V.decodeL [0xC5, 0xFD, 0x74, 0x0F] with _ | ⟨i, n⟩
+  · rw [hdl] at hd; cases hd
+  rw [hdl] at hd
+  simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hd
+  obtain ⟨hr, rfl⟩ := hd
+  have hm := Silmaril.X86.Str9L.towerMissing_of_listed_v
+    (F := Silmaril.X86.Features.FeatureSet.baseline64) (s := x.l) (o := 0) (l := 4) hl
+    (by rw [hrip]; simp) (by decide) hdl
+  rw [hr, show Silmaril.X86.Features.FeatureSet.baseline64.missing [.avx2] = some .avx2 by decide]
+    at hm
+  simp only [Mach.str9L, isa, hm]
+
 end Silmaril.Proofs.Machine.Abi.Conformance.Sse
 
 end

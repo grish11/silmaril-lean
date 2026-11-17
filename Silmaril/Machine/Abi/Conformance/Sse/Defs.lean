@@ -23,21 +23,36 @@ fields the tower does not hold:
   registers.
 Every step of `Mach.str9L` is a step of `Str9L.isa F exts` on `l` with `vup` and `x87up`
 unchanged (`isa`, `Thms.str9L_step`). So bits 511:256 and registers 16–31 are **kept by every
-step**, as legacy SSE encodings keep them on hardware. A VEX-encoded form (`Str9V`'s, or the
-`Avx.ext` lane's if `exts` lists it) zeroes bits 255:128 in `l` but keeps `vup`: on a processor
-with AVX-512 state, where VEX forms zero bits 511:256 too, such a step is not the hardware's.
-The row's code has none; a row with VEX code should use a processor without AVX-512 (`F` with
-no AVX-512 feature), where those bits do not exist.
+step**, as legacy SSE encodings keep them on hardware.
+
+**Features of the tower's forms.** `Str9L.step` runs `Str9X`'s chain first, and its `Str9V`
+layer has hand-listed VEX (AVX, AVX2), BMI1/BMI2 and `movbe` forms that it does not check
+against `F`. `Mach.str9L F exts` has **no step** at such a form when `F` lacks a feature it needs
+(`Str9L.towerMissing`, from `Str9L.vRequires`), as the hardware raises `#UD`; the lanes check
+their own forms (`Features.extStep`). On `baseline64` the VEX `vpcmpeqb (%rdi), %ymm0, %ymm1`
+has no step (`Thms.str9L_vpcmpeqb_none`). A VEX form zeroes bits 255:128 in `l` but keeps
+`vup`. With the gate it runs only when `F` has AVX (AVX2 for the 256-bit integer forms), and
+keeping bits 511:256 is the hardware's behaviour only when `F` also has no AVX-512 feature, so
+that those bits do not exist (with AVX-512 state, VEX forms zero them). The integer layers' `popcnt`, `lzcnt` and
+`tzcnt` (`Features.baseRequirement`) are **not** gated here: a row whose code uses them should
+take `F ⊇ Features.baseFeatures`.
+
+**CET.** A completion may have either CET flag (`cetOff`), and with `cetOff = false` `rdsspq`
+has no step. So rows hold for processes **without user shadow stacks**, and code that reaches
+`rdssp` (glibc's `setjmp`/`longjmp` paths) has no row on `Mach.str9L`. `ret` checks no shadow
+stack whatever `cetOff` is: `cetOff = false` does not model a shadow-stack-enabled process.
 
 **Modelled and carried** (`models`): `.machine` (core and memory), `.vectors` (the **whole**
 field: all indices, all 512 bits; `vecOf`), `.x87` (the whole field: ST(i) for `i < 8`, by the
 tower's TOP; `x87up` above), `.direction` (the tower's DF), `.mxcsr` (the tower's MXCSR) and
 `.x87Control` (the tower's x87 control word). **Carried**: `.x87Mode` (the tower has no
 MMX/x87 mode bit: a form that switches the mode on hardware, an MMX form or `emms`, would be
-unfaithful for this field; the row's code has none) and `.fsBase` (the FFI copy of
-the thread pointer: modelling it as the core's FS base would leave FFI states where the two
-differ without a completion, `Admit.fsCoherent` relates them at entry, and `Good.fsBase` reads
-the core's).
+unfaithful for this field; the row's code has none) and `.fsBase`, the FFI copy of the thread
+pointer. Modelling it as the core's FS base would leave FFI states where the two differ without
+a completion. **The fsBase assumption**: `Admit.fsCoherent` ties the FFI copy to the core's FS
+base at entry; code that accesses thread-local storage (`%fs:`) reads the **core's** FS base,
+which the machine models; `Good.fsBase` is proved on the core's, so only `Return.threadPointer`
+on the FFI copy holds by carry.
 
 **Completions** (`Fills`): every `SState` that agrees with the FFI state on the modelled fields
 (`Mach.FillsAll`, `Thms.str9L_fillsAll`). Whatever the modelled fields do not fix is
@@ -45,7 +60,10 @@ the core's).
 returns `tsc 0` and keeps `fun k => tsc (k + 1)`, so two reads in one run may differ; it is not
 one constant per run), the CET assumption `cetOff`, the x87 status word beyond the TOP that
 places ST(i), the x87 tag word, and the ignored parts of `vup` and `x87up`. No fixed oracle or
-profile is assumed. `fill s tsc cetOff` is the completion with a given oracle and CET flag
+profile is assumed. **x87 at entry**: completions allow any TOP and tag word, more than the
+psABI requires (the x87 stack is empty at entry). That is harmless for SSE rows, which do not
+read the x87 stack; a `long double` or x87 row needs an empty-stack entry assumption (a future
+`EntryEnv` or `Fills` restriction). `fill s tsc cetOff` is the completion with a given oracle and CET flag
 (`Sep.Plan.ffiXState s` for the integer state and the XMM file, TOP = 0).
 -/
 
@@ -122,7 +140,9 @@ theorem fill_fills (s : Ffi.State) (tsc : Nat → Word) (cetOff : Bool) :
   all_goals rfl
 
 /-- **The machine on `SState`**: `Str9L.isa F exts` on the tower state, the hidden parts
-unchanged. -/
+unchanged, and **no step at a tower form that needs a feature `F` lacks** (`Str9L.towerMissing`:
+`Str9V`'s VEX AVX/AVX2 forms, BMI1/BMI2 forms and `movbe`; the hardware raises `#UD`). The lanes
+check their own forms against `F` (`Features.extStep`). -/
 @[reducible] def isa (F : Silmaril.X86.Features.FeatureSet)
     (exts : List Silmaril.X86.Features.Extension) : Silmaril.X86.SegVC.Isa SState where
   Instr := Silmaril.X86.Str9FsX.Instr
@@ -137,12 +157,15 @@ unchanged. -/
   upd_self _ := rfl
   ok _ _ := True
   live _ := True
-  step x := (Silmaril.X86.Str9L.step F exts x.l).map fun l => { x with l }
+  step x := match Silmaril.X86.Str9L.towerMissing F x.l with
+    | some _ => none
+    | none => (Silmaril.X86.Str9L.step F exts x.l).map fun l => { x with l }
   live_step _ _ := trivial
   step_of hlive hl hrip hfit hdec hx hok := by
     have h : Silmaril.X86.Str9L.step F exts _ = some _ :=
       (Silmaril.X86.Str9L.isa F exts).step_of trivial hl hrip hfit hdec hx trivial
-    simp only [h, Option.map_some]
+    simp only [Silmaril.X86.Str9L.towerMissing_of_listed (F := F) hl hrip hfit hdec hx, h,
+      Option.map_some]
 
 end Silmaril.Machine.Abi.Conformance.Sse
 

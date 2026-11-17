@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Machine.Abi.Conformance.Sse.Add.Defs
 public import Silmaril.Machine.Abi.Conformance.Thms
+public import Silmaril.Machine.Abi.Conformance.Sse.Thms
 public import Silmaril.Proofs.Machine.Abi.Conformance.Sse
 public import Silmaril.Proofs.Machine.Abi.Conformance.Basic
 public import Silmaril.Proofs.Machine.Abi.Conformance.Negative
@@ -13,7 +14,7 @@ public import Silmaril.X86.Float.Semantics
 
 * the witness: the code (padded with ten `int3` in memory, outside the code) at `0x401000`,
   `rsp = 0x8ff8` with the return address `0x402000`, one region mapping every address, the
-  arguments in the low halves of vector registers 0 and 1, MXCSR `0x1F80` (`st`);
+  arguments in the low halves of vector registers 0 and 1, MXCSR `m` (`st`);
 * the run: from every completion of every admitted call, `addsd` (the `floatExt` lane:
   `Str9L.step_of_listed_float`) then `ret` (`Str9D`'s chain: the machine's listing law), the
   second state the first return (`firstReturn`);
@@ -68,8 +69,8 @@ def vecs (a b : BitVec 64) (i : Nat) : BitVec 512 :=
   if i = 0 then a.setWidth 512 else if i = 1 then b.setWidth 512 else 0
 
 /-- **The witness call** `add(a, b)`. -/
-def st (a b : BitVec 64) : Ffi.State :=
-  ⟨⟨core0, mem⟩, vecs a b, fun _ => 0, false, true, 0x1F80, 0x037F, 0⟩
+def st (a b : BitVec 64) (m : BitVec 32) : Ffi.State :=
+  ⟨⟨core0, mem⟩, vecs a b, fun _ => 0, false, true, m, 0x037F, 0⟩
 
 theorem permits_all (acc) (a : Nat) (ha : a < 2 ^ 64) : mem.permits acc a = true := by
   have : a < 18446744073709551616 := ha
@@ -102,8 +103,8 @@ theorem ret_read : mem.readBytes 0x8ff8 8 = some retEnc := by
   rw [Memory.install_outside _ _ _ _ (by rw [padded_length]; omega)]
   exact Memory.install_get _ _ _ _ (by simp [retEnc]; omega)
 
-theorem retOf_st (a b : BitVec 64) :
-    Silmaril.X86.FnContract.retOf (st a b).machine.core (st a b).machine.memory = retAt :=
+theorem retOf_st (a b : BitVec 64) (m : BitVec 32) :
+    Silmaril.X86.FnContract.retOf (st a b m).machine.core (st a b m).machine.memory = retAt :=
   Silmaril.X86.FnContract.retOf_of_readBytes ret_read
 
 /-- `sysvScalar`'s plan for `proto`: XMM0 and XMM1 in, XMM0 out, no stack. -/
@@ -122,9 +123,9 @@ theorem low_vecs (v : BitVec 64) : (v.setWidth 512).setWidth 64 = v := by
 def args (a b : BitVec 64) : abi.V.Args proto := (a, (b, PUnit.unit))
 
 /-- **Every call `add(a, b)` has an admitted entry state.** -/
-theorem entry_st (a b : BitVec 64) : abi.conv.Entry proto (args a b) (st a b) := by
+theorem entry_st (a b : BitVec 64) (m : BitVec 32) : abi.conv.Entry proto (args a b) (st a b m) := by
   refine ⟨retAt, rfl, ?_, ?_, ?_, ret_read, ?_, rfl, rfl, ?_⟩
-  · show Ffi.ArgumentsAt (st a b) (proto.args.map Silmaril.Machine.Abi.SystemV.Scalar.Arg.spec)
+  · show Ffi.ArgumentsAt (st a b m) (proto.args.map Silmaril.Machine.Abi.SystemV.Scalar.Arg.spec)
       (args a b) (Silmaril.Machine.Abi.SystemV.Scalar.scalarPlan proto.args proto.result).arguments
     rw [plan_eq]
     exact ⟨⟨rfl, _, rfl, (vector_chunk_iff _ (by decide) _).2 (low_vecs a)⟩,
@@ -141,7 +142,7 @@ theorem entry_st (a b : BitVec 64) : abi.conv.Entry proto (args a b) (st a b) :=
     rw [plan_eq]
     exact fun _ h => nomatch h
 
-theorem placed (a b : BitVec 64) : Placed code (st a b) := by
+theorem placed (a b : BitVec 64) (m : BitVec 32) : Placed code (st a b m) := by
   refine ⟨loaded, rfl, (fun _ h => nomatch h), fun o ho => ?_⟩
   change o < 5 at ho
   rw [retOf_st]
@@ -151,9 +152,9 @@ theorem placed (a b : BitVec 64) : Placed code (st a b) := by
     show code.base.toNat = 0x401000 from rfl] at this
   omega
 
-theorem stack (a b : BitVec 64) : Stack abi proto code 0 (fun _ => False) (st a b) := by
-  have hsp : sp (st a b) = 0x8ff8 := rfl
-  have hown : ∀ x, ¬ abi.owned proto (st a b) x := by
+theorem stack (a b : BitVec 64) (m : BitVec 32) : Stack abi proto code 0 (fun _ => False) (st a b m) := by
+  have hsp : sp (st a b m) = 0x8ff8 := rfl
+  have hown : ∀ x, ¬ abi.owned proto (st a b m) x := by
     intro x h
     have h0 : sretBytes proto = 0 := by decide
     simp only [abi, AbiDef.defaultEnv, sysvScalar, h0, Nat.add_zero] at h
@@ -171,23 +172,24 @@ theorem stack (a b : BitVec 64) : Stack abi proto code 0 (fun _ => False) (st a 
 
 /-- **The admitted call `add(a, b)`** on every machine whose states are all live. -/
 theorem admit_st {M : Mach} (hl : ∀ x, M.isa.live x) (S : CallSpec abi.V proto)
-    (hS : S.objects = fun _ _ _ => False) (a b : BitVec 64) :
-    Admit abi M proto code 0 S (args a b) (st a b) := by
-  refine ⟨fun x _ => hl x, entry_st a b, ⟨trivial, rfl⟩, placed a b, ?_, rfl⟩
+    (hS : S.objects = fun _ _ _ => False) (a b : BitVec 64) (m : BitVec 32)
+    (hm : m &&& 0xffc0 = 0x1F80) :
+    Admit abi M proto code 0 S (args a b) (st a b m) := by
+  refine ⟨fun x _ => hl x, entry_st a b m, ⟨trivial, hm⟩, placed a b m, ?_, rfl⟩
   rw [hS]
-  exact stack a b
+  exact stack a b m
 
 /-! ## What an admitted call fixes -/
 
 /-- An admitted call: its return address, DF clear, x87 mode, the arguments in the low halves of
-vector registers 0 and 1, and MXCSR `0x1F80`. -/
+vector registers 0 and 1, and the default MXCSR control bits. -/
 theorem entry_facts {M : Mach} {S : CallSpec abi.V proto} {a : abi.V.Args proto} {s : Ffi.State}
     (ad : Admit abi M proto code 0 S a s) :
     ∃ exit, s.machine.memory.readBytes (s.machine.core.read .rsp).toNat 8 =
         some (Silmaril.Machine.LittleEndian.encodeWords [exit]) ∧
       s.direction = false ∧ s.x87Mode = true ∧
       (s.vectors 0).setWidth 64 = a.1 ∧ (s.vectors 1).setWidth 64 = a.2.1 ∧
-      s.mxcsr = 0x1F80 := by
+      s.mxcsr &&& 0xffc0 = 0x1F80 := by
   obtain ⟨exit, e⟩ := ad.entry
   have hargs := e.argumentsAt
   change Ffi.ArgumentsAt s (proto.args.map Silmaril.Machine.Abi.SystemV.Scalar.Arg.spec) a
@@ -239,6 +241,8 @@ def x1 (x : SState) : SState :=
 theorem step_addsd (x : SState) (hl : Silmaril.X86.Ext.Loaded x.l.memory code.base bytes)
     (hrip : x.l.core.rip = code.base) (hm : x.l.mxcsr.AllMasked) :
     mach.isa.step x = some (x1 x) := by
+  rw [Sse.str9L_step x (Silmaril.X86.Str9L.towerMissing_of_listed_lane (o := 0) (l := 4) hl
+    (by rw [hrip]; rfl) (by decide) (by decide) (by decide) Silmaril.X86.Str9L.laneBad_addsd.1)]
   show (Silmaril.X86.Str9L.step _ (Silmaril.X86.Features.floatExt :: _) x.l).map _ = _
   rw [Silmaril.X86.Str9L.step_of_listed_float (o := 0) (l := 4) hl
     (by rw [hrip]; rfl) (by decide) (by decide) Silmaril.X86.Str9L.laneBad_addsd.1
@@ -287,11 +291,50 @@ theorem fills_core (hx : mach.Fills s x) : x.l.core = s.machine.core := by
 theorem fills_mem (hx : mach.Fills s x) : x.l.memory = s.machine.memory := by
   show x.l.x.d.v.g.x.m.memory = _; rw [fills_m hx]
 
+/-- **The default control bits mask every exception**, whatever the status flags. -/
+theorem allMasked_of_control {m : BitVec 32} (h : m &&& 0xffc0 = 0x1F80) :
+    (⟨m⟩ : Silmaril.X86.Float.MXCSR).AllMasked := by
+  have bit : ∀ k, 7 ≤ k → k ≤ 12 → m.getLsbD k = true := by
+    intro k h1 h2
+    have e := congrArg (fun v : BitVec 32 => v.getLsbD k) h
+    simp only [BitVec.getLsbD_and] at e
+    rcases (by omega : k = 7 ∨ k = 8 ∨ k = 9 ∨ k = 10 ∨ k = 11 ∨ k = 12) with
+      rfl | rfl | rfl | rfl | rfl | rfl <;>
+    · revert e; generalize m.getLsbD _ = b; cases b <;> decide
+  simp only [Silmaril.X86.Float.MXCSR.AllMasked, Silmaril.X86.Float.MXCSR.im,
+    Silmaril.X86.Float.MXCSR.dm, Silmaril.X86.Float.MXCSR.zm, Silmaril.X86.Float.MXCSR.om,
+    Silmaril.X86.Float.MXCSR.um, Silmaril.X86.Float.MXCSR.pm, bit 7 (by omega) (by omega),
+    bit 8 (by omega) (by omega), bit 9 (by omega) (by omega), bit 10 (by omega) (by omega),
+    bit 11 (by omega) (by omega), bit 12 (by omega) (by omega), Bool.and_self]
+
+/-- **`sum` reads only the MXCSR control bits** (DAZ, FTZ with UM, RC). -/
+theorem sum_mask (m : BitVec 32) (a b : BitVec 64) : sum m a b = sum (m &&& 0xffc0) a b := by
+  have keep : ∀ k, (0xffc0 : BitVec 32).getLsbD k = true → (m &&& 0xffc0).getLsbD k = m.getLsbD k :=
+    fun k hk => by rw [BitVec.getLsbD_and, hk, Bool.and_true]
+  have h6 := keep 6 (by decide)
+  have h11 := keep 11 (by decide)
+  have h15 := keep 15 (by decide)
+  have hrc : (m &&& 0xffc0).extractLsb' 13 2 = m.extractLsb' 13 2 := by
+    apply BitVec.eq_of_getLsbD_eq; intro j hj
+    rw [BitVec.getLsbD_extractLsb', BitVec.getLsbD_extractLsb']
+    rcases (by omega : j = 0 ∨ j = 1) with rfl | rfl
+    · rw [keep 13 (by decide)]
+    · rw [keep 14 (by decide)]
+  simp only [sum, Silmaril.X86.Float.Scalar.binary, Silmaril.X86.Float.MXCSR.profile,
+    Silmaril.X86.Float.MXCSR.control, Silmaril.X86.Float.MXCSR.rounding,
+    Silmaril.X86.Float.MXCSR.daz, Silmaril.X86.Float.MXCSR.fz, Silmaril.X86.Float.MXCSR.um,
+    Silmaril.X86.Float.MXCSR.rc, h6, h11, h15, hrc]
+  rfl
+
+theorem sum_control {m m' : BitVec 32} (h : m &&& 0xffc0 = m' &&& 0xffc0) (a b : BitVec 64) :
+    sum m a b = sum m' a b := by
+  rw [sum_mask m, sum_mask m', h]
+
 theorem masked (ad : Admit abi mach proto code 0 S a s) (hx : mach.Fills s x) :
     x.l.mxcsr.AllMasked := by
   obtain ⟨_, _, _, _, _, _, hm⟩ := entry_facts ad
-  rw [Sse.fills_mxcsr hx, hm]
-  exact Silmaril.X86.Float.MXCSR.reset_allMasked
+  rw [Sse.fills_mxcsr hx]
+  exact allMasked_of_control hm
 
 theorem not_returned_of_rip {y : SState} (hy : y.l.core.rip = code.base + BitVec.ofNat 64 4 ∨
       y.l.core.rip = code.base + BitVec.ofNat 64 0)
@@ -415,10 +458,11 @@ end Completion
 /-- **`addsd %xmm1, %xmm0; ret` conforms to the default-environment subset of `sysvScalar` as
 `double add(double, double)` on `Mach.str9L`**, in total mode, with the result `sum`. -/
 theorem conforms : Conforms abi mach .total hdr "add" proto code 0 spec := by
-  refine ⟨declared, by decide, ⟨args 0 0, st 0 0, admit_st (fun _ => trivial) spec rfl 0 0, trivial⟩,
+  refine ⟨declared, by decide,
+    ⟨args 0 0, st 0 0 0x1F80, admit_st (fun _ => trivial) spec rfl 0 0 _ (by decide), trivial⟩,
     fun a _ _ _ => ?_, fun a s ad _ x hx => ?_, fun _ a s ad _ x hx => ?_, fun a s ad _ t ht => ?_⟩
   · obtain ⟨a0, a1, ⟨⟩⟩ := a
-    exact ⟨st a0 a1, admit_st (fun _ => trivial) spec rfl a0 a1, trivial, fun _ => Iff.rfl,
+    exact ⟨st a0 a1 0x1F80, admit_st (fun _ => trivial) spec rfl a0 a1 _ (by decide), trivial, fun _ => Iff.rfl,
       fun _ h => h.elim⟩
   · obtain ⟨exit, hra, -⟩ := entry_facts ad
     exact Silmaril.Proofs.Machine.Abi.Conformance.noStuck_of_firstReturn (firstReturn ad hx hra)
@@ -431,7 +475,8 @@ theorem conforms : Conforms abi mach .total hdr "add" proto code 0 spec := by
 
 /-! ## The negative: `Open` has no `addsd` -/
 
-theorem open_stuck (a b : BitVec 64) : Silmaril.X86.Open.step (st a b).machine = none := by
+theorem open_stuck (a b : BitVec 64) (m : BitVec 32) :
+    Silmaril.X86.Open.step (st a b m).machine = none := by
   have hw : Silmaril.X86.fetchWindow mem Silmaril.X86.maxInstrLength 0x401000 =
       (padded.drop 0).take 15 :=
     Silmaril.Proofs.Machine.Abi.Conformance.Negative.window_of_loaded loaded_padded 15 0
@@ -454,18 +499,18 @@ theorem open_stuck (a b : BitVec 64) : Silmaril.X86.Open.step (st a b).machine =
     have h3 : Silmaril.X86.Ext8.decodeNew ((padded.drop 0).take 15) = none := by decide +kernel
     rw [h3]
   unfold Silmaril.X86.Open.step
-  rw [show (st a b).machine.memory = mem from rfl,
-    show (st a b).machine.core.rip.toNat = 0x401000 from rfl, h8]
+  rw [show (st a b m).machine.memory = mem from rfl,
+    show (st a b m).machine.core.rip.toNat = 0x401000 from rfl, h8]
 
 /-- **The same bytes do not conform on `Open`**, in either mode, for the same spec: the
 admitted call `add(0, 0)` is stuck at `addsd`. -/
 theorem open_not (mode : Mode) :
     ¬ Conforms abi (Mach.ofInt Silmaril.X86.Open.isa) mode hdr "add" proto code 0 spec := by
   intro h
-  have ad := admit_st (M := Mach.ofInt Silmaril.X86.Open.isa) (fun _ => trivial) spec rfl 0 0
+  have ad := admit_st (M := Mach.ofInt Silmaril.X86.Open.isa) (fun _ => trivial) spec rfl 0 0 0x1F80 (by decide)
   have := Silmaril.Machine.Abi.Conformance.Conforms.steps h (by decide) ad trivial
-    (x := (st 0 0).machine) rfl
-  change (Silmaril.X86.Open.step (st 0 0).machine).isSome = true at this
+    (x := (st 0 0 0x1F80).machine) rfl
+  change (Silmaril.X86.Open.step (st 0 0 0x1F80).machine).isSome = true at this
   rw [open_stuck] at this
   cases this
 
