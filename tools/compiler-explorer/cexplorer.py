@@ -183,7 +183,7 @@ MIGRATIONS = [
       id INTEGER PRIMARY KEY,
       version_id INTEGER NOT NULL REFERENCES problem_versions(id),
       obligation_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('lean-kernel')),
+      kind TEXT NOT NULL CHECK (kind IN ('lean-export')),
       status TEXT NOT NULL,
       manifest_sha256 TEXT NOT NULL,
       context_hash TEXT NOT NULL,
@@ -470,7 +470,7 @@ def ingest_evidence(db: sqlite3.Connection, path: pathlib.Path) -> int:
             raise reject(db, what, f"obligation {o['id']}: a kernel status needs a declaration and the standard axioms")
         if status == "open" and o["decl"] is not None:
             raise reject(db, what, f"obligation {o['id']}: open, yet the manifest names a declaration")
-        rows.append((ver["id"], o["id"], "lean-kernel", status, ver["manifest_sha256"], ver["context_hash"],
+        rows.append((ver["id"], o["id"], "lean-export", status, ver["manifest_sha256"], ver["context_hash"],
                      o["statement"], o["decl"], json.dumps(axioms), ev["lean_version"], ev["git_commit"],
                      esha, r.get("detail")))
     with db:

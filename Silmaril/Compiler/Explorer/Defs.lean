@@ -35,9 +35,11 @@ introduce a second semantics. A concrete instance (C functions, Cerberus Core an
 
 * **Refinement of programs.** `Problem.Valid` is a forward simulation from a safe source state.
   The target here is a *deterministic* machine (`τ → Option τ`), so its run from an entry is
-  unique and the statement says that this run returns with a result some source run produces:
-  the target *refines* the source (its one behaviour is among the source's). A nondeterministic
-  or multithreaded target needs a backward statement over all its runs; that is not provided here
+  unique and the statement says that this run reaches a return state whose result some source
+  run produces: the target *refines* the source. It does not say that this is the run's *first*
+  return; the C instance's `c.compiles_to` row adds that reading
+  (`Silmaril.Project.CompilesTo.FnData.compilesTo_of_segments`). A nondeterministic or
+  multithreaded target needs a backward statement over all its runs; that is not provided here
   (see the guide).
 * **Refinement of relations.** `M.RefinesAt G K` reads "the mapping's relation is at least as
   strong as `G` at the points `K`" (`M.rel k ⊆ G k`). Strengthening the entry relation and

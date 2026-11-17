@@ -51,8 +51,9 @@ They are independent:
 
 * **Program refinement.** `Problem.Valid` is a forward simulation from a safe source state. The
   target is a deterministic machine (`τ → Option τ`), so its run from an entry is unique and the
-  statement says that this run returns with a result some source run produces: the target's
-  behaviour is among the source's. A nondeterministic or multithreaded target needs a backward
+  statement says that this run reaches a return state whose result some source run produces. It
+  does not say that this is the first return; the C rows' `c.compiles_to` statement adds that
+  (`FnData.compilesTo_of_segments`, through `wholeFirst_of_segments`). A nondeterministic or multithreaded target needs a backward
   statement over all its runs; the API does not provide one yet (below).
 * **Relation refinement.** `M.RefinesAt G K` says that the mapping's relation is at least as
   strong as `G` on `K` (`M.rel k ⊆ G k`). `Problem.Valid.mono`: a stronger entry convention and
