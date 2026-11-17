@@ -115,7 +115,8 @@ theorem glibcMath_reads :
     (glibcMath.entries.filter (fun e => match e.body with
       | .unsupported _ => true | _ => false)).length = 0 ∧
     (glibcMath.entries.filter (fun e => match e.body with
-      | .function f => f.proto matches .unsupported _ | _ => false)).length = 0 ∧
+      | .function f => (match f.proto with | .unsupported _ => true | _ => false)
+      | _ => false)).length = 0 ∧
     (glibcMath.entries.filter (fun e => match e.body with
       | .function f => f.asmLabel.isSome | _ => false)).length = 0 ∧
     (glibcMath.fn? "sin").map (fun (_, f) => f.proto) =
