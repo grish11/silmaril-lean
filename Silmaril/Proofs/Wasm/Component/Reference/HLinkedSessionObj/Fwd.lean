@@ -112,4 +112,16 @@ theorem compSession_eq_of_full {o : GrowOracle} {prof : ProfileKind} {e' : Simpl
     rw [hObs_eq hIe hIi, hObs_eq (l := ⟨e', i', w', l.host⟩) hIe' hIi']
     exact (hdiv calls j vs ht hvs _ hS 0).2
 
+/-- **The reference equivalence gives the same types and equal session objects** (`profile o`),
+the session objects compared over the equal host interfaces. -/
+theorem compSession_heq_of_full {o : GrowOracle} {prof : ProfileKind} {l' : HLinked2}
+    (hl : l.Adequate) (hl' : l'.Adequate) (h : HLinked2.RefSessEquivFull (profile o) prof l l') :
+    HLinked2.SameTypes l l' ∧
+      HEq (HLinked2.compSession (profile o) l) (HLinked2.compSession (profile o) l') := by
+  refine ⟨⟨h.len, h.ty, h.host⟩, ?_⟩
+  obtain ⟨e', i', w', h'⟩ := l'
+  have hh : h' = l.host := h.host
+  subst hh
+  exact heq_of_eq (compSession_eq_of_full hl hl' h)
+
 end Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj

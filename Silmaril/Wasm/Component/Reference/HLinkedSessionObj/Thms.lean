@@ -4,7 +4,9 @@ public import Silmaril.Wasm.Component.Reference.HLinkedSessionObj.Defs
 public import Silmaril.Wasm.Component.Reference.HLinkedSession.Thms
 public import Silmaril.Games.Abstract.StratLegal.Thms
 public import Silmaril.Games.Abstract.StratSession.Thms
+public import Silmaril.Wasm.Component.Reference.HLinkedSessionInf.Thms
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.Triple
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.Fwd
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.Det
 import Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.Trap
 
@@ -51,15 +53,36 @@ reference composition needs `HLinked2.Adequate` and typed calls, as `HLinked2.se
   (`compFin`) loses no host call. A diverging round makes no refused host call
   (`HLinked2.roundDivC_no_refuse`: a trapped thread terminates and calls nothing), and every host
   call of host chatter is answered (`HLinked2.roundInfC_no_refuse`).
+* **The reference equivalence gives equal session objects**
+  (`HLinked2.compSession_heq_of_refSessEquivFull`, `profile o`, both components `Adequate`):
+
+  `RefSessEquivFull (profile o) prof l l' → SameTypes l l' ∧ HEq (compSession (profile o) l) (compSession (profile o) l')`
+
+  (`HEq`: the host interfaces are equal by `SameTypes.host`). Through
+  `HLinked2.RefSessEquivFull.iff_spec` and `HLinked2.sessObs_eq`, the finite, divergence and
+  host-chatter observations at the instances agree under every scripted host (`scriptG` for
+  finite histories, the stream script `scriptGS` for host chatter). The relation of states reached
+  by specification sessions of the same calls and outcomes whose host calls are realizable
+  histories with the same answered calls is a bisimulation of the host-realizable triples: a
+  round of one component under the script of its history is the unique session of the other
+  (`sess_unique`, at `profile o`); refusals are invisible in the log and are matched by a probe,
+  the script with the refused call answered (`probe`: the other component, not asking that call,
+  keeps its session and log, while the first logs one more call, `round_same`); divergences and
+  host chatter answer every host call, so their logs determine them.
 
 ## Not claimed (what remains)
 
-* **The injection.** `HLinked2.RefSessEquivFull (profile o) prof l l' ↔ ∃ h : SameTypes l l',
-  compSession` equality after transport along `h.host` is the target and is **open**. Store
-  determinism is proved; it still needs the bisimulation from scripted
-  hosts (`scriptG` realizes every visible history; a probe answering one more call reveals each
-  refused call), and the divergence, host-chatter and productive-stream clauses through
-  `HLinked2.RefSessEquivFull.iff_spec`.
+* **The converse of the injection.** That equal session objects (`SameTypes` and
+  `HEq (compSession (profile o) l) (compSession (profile o) l')`) give
+  `HLinked2.RefSessEquivFull (profile o) prof l l'` is **open**: it needs the session object's
+  rounds read back as specification sessions under an arbitrary typed host (the refusals since the
+  last answer are refused by that host, by `HostAnswersS`), the divergences and host chatter read
+  back likewise (host chatter as one stream of answered host calls, flattened from the rounds of
+  `RoundInf`), and the productive executions through `StratThread.InfRounds` (the transfer along
+  the bisimulation is `InfRounds.transfer`, `HLinkedSessionObj` proofs), then
+  `HLinked2.RefSessEquivFull.iff_spec`; `storeDet_compTripleS` and `noPlainTrap_compTripleS` give
+  the bisimulation from equal objects (`StratSession.threadS_eq_iff`). So `compSession_inj_full`
+  is proved in the direction reference equivalence ⇒ equal objects only.
 * **The open object** `compSessionO`: equality of open objects should imply `RefSessEquivFull`
   (soundness); it does not follow from it, since the open interface admits a refusal followed by
   an answer of the same call (`not_hostRun_refuse_answer`). The concrete pair of components
@@ -193,6 +216,17 @@ theorem roundInfC_no_refuse {u π : Silmaril.Wasm.Execution.Core.Store Nat}
     {j : Fin l.imp.exports.length} {vs : List IVal} {ω : ℕ → Call (sigN l.host.length)}
     (h : RoundInfC P l Ie Ii u π j vs ω) (i : ℕ) : (ω i).2 ≠ none :=
   Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.roundInfC_no_refuse h i
+
+/-- **The reference equivalence gives the same types and equal session objects** (proved,
+`profile o`, every component choice profile, both components `Adequate`): the full
+resumable-session equivalence on the reference machine (`RefSessEquivFull`: terminating outcomes
+with the host log, quiet divergences, productive executions and host chatter, under every typed
+deterministic host) implies equal host-realizable session objects, compared over the equal host
+interfaces. -/
+theorem compSession_heq_of_refSessEquivFull {o : GrowOracle} {prof : ProfileKind} {l' : HLinked2}
+    (hl : l.Adequate) (hl' : l'.Adequate) (h : RefSessEquivFull (profile o) prof l l') :
+    SameTypes l l' ∧ HEq (compSession (profile o) l) (compSession (profile o) l') :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj.compSession_heq_of_full hl hl' h
 
 end HLinked2
 
