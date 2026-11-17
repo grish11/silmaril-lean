@@ -2,7 +2,9 @@ module
 
 public import Silmaril.Games.Abstract.SessionLegal.Defs
 public import Silmaril.Games.Abstract.StratSession.Thms
+public import Silmaril.Games.DivCompAns.Defs
 import Silmaril.Proofs.Games.Abstract.SessionLegal.Basic
+import Silmaril.Proofs.Games.Abstract.SessionLegal.Ans
 
 /-!
 # Store-dependent legality of import answers in a session: theorems
@@ -28,6 +30,11 @@ all three observations of a `DStrategy`:
 Store determinism is used once: the automaton state after a play, hence the store at which the
 round was asked, is unique (`StratThread.TRun.det_of_storeDet`), so a legal run of the legal
 part makes **every** run of `t` legal. The backward directions need no hypothesis on `t`.
+
+**Answers legal at every store** (`sLegal_of_lAnsIn`, `pLegal_of_lAnsIn`): if every log whose
+answers satisfy a store-independent `R` is legal (at every store), then a play all of whose import
+answers (`LAnsIn R`) satisfy `R` is legal, its end included. No hypothesis on `t`: the log of every
+state the threading automaton reaches consists of answers of the play.
 
 **Injectivity** (`threadS_restrictLog_eq_iff`): the legal part keeps store determinism and the
 absence of plain traps, so legal sessions identify exactly the observationally equivalent stores
@@ -106,6 +113,20 @@ theorem mem_pending_restrictLog (hL : PrefixClosed Lg)
   rw [StratSession.mem_pending]
   simp only [satP_restrictLog hL]
   rfl
+
+/-! ## Answers legal at every store -/
+
+/-- **A play whose import answers are legal at every store is legal, its end included.** -/
+theorem sLegal_of_lAnsIn {R : (m : E.Op) → E.Ar m → Prop}
+    (hR : ∀ s a c, (∀ x ∈ c, R x.1 x.2) → Lg s a c) {q : List (Move E (sig1 A B))}
+    (hq : LAnsIn R q) : SLegal Lg t s₀ q :=
+  Silmaril.Proofs.Games.Abstract.SessionLegal.sLegal_of_lAnsIn hR hq
+
+/-- **A play whose import answers are legal at every store is Proponent-legal.** -/
+theorem pLegal_of_lAnsIn {R : (m : E.Op) → E.Ar m → Prop}
+    (hR : ∀ s a c, (∀ x ∈ c, R x.1 x.2) → Lg s a c) {q : List (Move E (sig1 A B))}
+    (hq : LAnsIn R q) : PLegal Lg t s₀ q :=
+  (sLegal_of_lAnsIn hR hq).1
 
 /-! ## Injectivity of the legal session -/
 
