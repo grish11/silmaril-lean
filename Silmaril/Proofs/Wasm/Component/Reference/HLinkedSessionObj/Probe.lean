@@ -193,4 +193,117 @@ theorem length_evs_le {n : Nat} {A : List (Call (sigN n))} {m : (sigN n).Op} :
     (evs (A ++ [⟨m, none⟩])).length = (evs A).length := by
   simp [evs, answered_append, HLinked2.answered]
 
+
+theorem evs_length_of_answered {n : Nat} {H K : List (Call (sigN n))}
+    (h : HLinked2.answered H = HLinked2.answered K) : (evs H).length = (evs K).length := by
+  simp [evs, h]
+
+/-- **The probe**: if the round of `X` refuses `m`, not a forced refusal, after the visible calls
+`A`, and the round of `Y` from a state reached by the same visible history does not ask `m`
+after `A`, then some scripted host separates their finite observations. -/
+theorem probe {X : HLinked2} {IeX IiX : SInst} {eY : Simple} {iY : SimpleI} {wY : List Nat}
+    {IeY IiY : SInst} {o : GrowOracle}
+    {callsX : List (Fin X.imp.exports.length × List IVal)}
+    {callsY : List (Fin iY.exports.length × List IVal)}
+    {outsX outsY : List (Option (List IVal))}
+    {hsX hsY : List (List (Call (sigN X.host.length)))} {uX πX uY πY : Store Nat}
+    {R RA : List (sigN X.host.length).Op}
+    (hX : HLinked2.SessSpec (profile o) X IeX IiX IiX.store IeX.store callsX outsX hsX uX πX)
+    (hY : HLinked2.SessSpec (profile o) ⟨eY, iY, wY, X.host⟩ IeY IiY IiY.store IeY.store callsY
+      outsY hsY uY πY)
+    (hRX : HLinked2.RealRun X.host [] hsX.flatten R) (hRY : HLinked2.RealRun X.host [] hsY.flatten R)
+    (hvX : HLinked2.ValsCalls hsX.flatten) (hvY : HLinked2.ValsCalls hsY.flatten)
+    (hans : HLinked2.answered hsX.flatten = HLinked2.answered hsY.flatten)
+    {qX : Fin X.imp.exports.length × List IVal} {qY : Fin iY.exports.length × List IVal}
+    {oX oY : Option (List IVal)} {A T : List (Call (sigN X.host.length))}
+    {m : (sigN X.host.length).Op} {uX' πX' uY' πY' : Store Nat}
+    (rX : HLinked2.SessSpec (profile o) X IeX IiX uX πX [qX] [oX] [A ++ [⟨m, none⟩]] uX' πX')
+    (rY : HLinked2.SessSpec (profile o) ⟨eY, iY, wY, X.host⟩ IeY IiY uY πY [qY] [oY] [A ++ T]
+      uY' πY')
+    (hRA : HLinked2.RealRun X.host R A RA) (hm : ¬ HLinked2.Forced X.host RA m)
+    (hT : T = [] ∨ ∃ mY, T = [⟨mY, none⟩] ∧ mY ≠ m)
+    (hobs : ∀ S : List (Fin X.host.length × List IVal × List IVal),
+      X.HostTyped (HLinked2.scriptG S) →
+      SObs (profile o) ⟨eY, iY, wY, X.host⟩ IeY IiY (callsY ++ [qY]) (HLinked2.scriptG S) 0 ⊆
+        SObs (profile o) X IeX IiX (callsX ++ [qX]) (HLinked2.scriptG S) 0) : False := by
+  obtain ⟨us, hus⟩ : HLinked2.Answerable X.host m := by
+    by_contra hc; exact hm (.inr hc)
+  have hmR : m ∉ RA := fun h => hm (.inl h)
+  have hvA : HLinked2.ValsCalls (A ++ [⟨m, none⟩]) := valsCalls_round rX
+  have hvT : HLinked2.ValsCalls (A ++ T) := valsCalls_round (l := ⟨eY, iY, wY, X.host⟩) rY
+  have hvy : HLinked2.ValsCalls [(⟨m, some (.vals us)⟩ : Call (sigN X.host.length))] := by
+    intro x hx
+    simp only [List.mem_singleton] at hx
+    subst hx
+    obtain ⟨k, ws, hk⟩ := hvA ⟨m, none⟩ (by simp)
+    exact ⟨k, ws, hk⟩
+  have hyR : ∀ R', m ∉ R' →
+      HLinked2.RealRun X.host R' [(⟨m, some (.vals us)⟩ : Call (sigN X.host.length))] [] :=
+    fun R' h => .answer h hus (.nil _)
+  -- the two realizable histories, and their script
+  have hRXy : HLinked2.RealRun X.host [] (hsX.flatten ++ (A ++ [⟨m, some (.vals us)⟩])) [] :=
+    realRun_append hRX (realRun_append hRA (hyR RA hmR))
+  have hTans : HLinked2.answered T = [] := by
+    rcases hT with rfl | ⟨mY, rfl, -⟩
+    · rfl
+    · exact answered_cons_none _ _
+  have hRYy : HLinked2.RealRun X.host [] ((hsY.flatten ++ (A ++ T)) ++ [⟨m, some (.vals us)⟩]) [] := by
+    rw [List.append_assoc, List.append_assoc]
+    refine realRun_append hRY (realRun_append hRA ?_)
+    rcases hT with rfl | ⟨mY, rfl, hne⟩
+    · exact hyR RA hmR
+    · by_cases hF : HLinked2.Forced X.host RA mY
+      · exact .forced hF (hyR RA hmR)
+      · refine .refuse hF (hyR (mY :: RA) ?_)
+        intro hin
+        rcases List.mem_cons.1 hin with h | h
+        · exact hne h.symm
+        · exact hmR h
+  have hvXy : HLinked2.ValsCalls (hsX.flatten ++ (A ++ [⟨m, some (.vals us)⟩])) :=
+    valsCalls_append hvX (valsCalls_append (valsCalls_of_append_left hvA) hvy)
+  have hvYy : HLinked2.ValsCalls ((hsY.flatten ++ (A ++ T)) ++ [⟨m, some (.vals us)⟩]) :=
+    valsCalls_append (valsCalls_append hvY hvT) hvy
+  have hS : HLinked2.answered (hsX.flatten ++ (A ++ [⟨m, some (.vals us)⟩])) =
+      HLinked2.answered ((hsY.flatten ++ (A ++ T)) ++ [⟨m, some (.vals us)⟩]) := by
+    simp only [answered_append, hans, hTans, List.nil_append, List.append_assoc]
+  set S := HLinked2.answered ((hsY.flatten ++ (A ++ T)) ++ [⟨m, some (.vals us)⟩]) with hSdef
+  -- the observation of `Y` under the probe
+  obtain ⟨hT', hRunY⟩ := hostRun_scriptG_prefix hRYy hvYy
+  have hYs := sessSpecH_append hY rY
+  have hflY : (hsY ++ [A ++ T]).flatten = hsY.flatten ++ (A ++ T) := by simp
+  have hobsY : (outsY ++ [oY], ((HLinked2.answered (hsY.flatten ++ (A ++ T))).length,
+      [] ++ evs (hsY.flatten ++ (A ++ T)))) ∈
+      SObs (profile o) ⟨eY, iY, wY, X.host⟩ IeY IiY (callsY ++ [qY]) (HLinked2.scriptG S) 0 :=
+    ⟨hsY ++ [A ++ T], uY', πY', hYs, by rw [hflY]; exact hostRun_logG hRunY []⟩
+  obtain ⟨hs', u', π', hXs, hRX'⟩ := hobs S hT' hobsY
+  -- the session of `X` under the probe
+  obtain ⟨outs₁, o', hs₁, H', ub, πb, -, rfl, hpre, hlast⟩ := sessSpecH_append_inv hXs
+  obtain ⟨hRun', hlog⟩ := hostRun_of_logG hRX'
+  simp only [List.flatten_append, List.flatten_cons, List.flatten_nil,
+    List.append_nil] at hRun' hlog
+  obtain ⟨n₂, hR₁, hR₂⟩ := hostRun_append.1 hRun'
+  obtain ⟨-, hRunX⟩ := hostRun_scriptG hRXy hvXy
+  rw [hS] at hRunX
+  obtain ⟨n₁, hX₁, hX₂⟩ := hostRun_append.1 hRunX
+  obtain ⟨-, rfl, rfl, rfl, rfl⟩ := sess_unique _ callsX hX hX₁ hpre hR₁
+  have hsame := round_same rX hlast
+  obtain ⟨rest, rfl⟩ := hostSame_extend A hsame hR₂ hX₂ rfl
+  have hlen : (evs hsY.flatten).length + ((evs A).length + (evs T).length) =
+      (evs (hsX.flatten ++ (A ++ ⟨m, some (.vals us)⟩ :: rest))).length := by
+    have := congrArg List.length hlog
+    simp only [List.nil_append, evs_append, List.length_append] at this
+    exact this
+  have h1 := evs_length_of_answered hans
+  have h2 : (evs T).length = 0 := by
+    simp [evs, hTans]
+  have h4 : (evs (hsX.flatten ++ (A ++ ⟨m, some (.vals us)⟩ :: rest))).length =
+      (evs hsX.flatten).length + (evs (A ++ ⟨m, some (.vals us)⟩ :: rest)).length := by
+    rw [evs_append, List.length_append]
+  have h3 := length_evs_lt (A := A) (rest := rest) (k := (hvA ⟨m, none⟩ (by simp)).choose)
+    (ws := (hvA ⟨m, none⟩ (by simp)).choose_spec.choose) (us := us)
+  have hmk : m = ((hvA ⟨m, none⟩ (by simp)).choose, .vals (hvA ⟨m, none⟩ (by simp)).choose_spec.choose) :=
+    (hvA ⟨m, none⟩ (by simp)).choose_spec.choose_spec
+  rw [← hmk] at h3
+  omega
+
 end Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionObj
