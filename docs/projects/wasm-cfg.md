@@ -602,10 +602,24 @@ The plain graph stays an over-approximation, and claims about it say so.
                `StoreChkE tExt`. There is no Core typing of states, because `EvalOXT` is `EvalOX`
                without indirect or reference calls. Fragment hypothesis: `DirectCalls body`
                (`seg_flat`).
-             - Next: the stepwise theorem. It splits a block's native run into its segment and
-               its terminator (`MachineLSeq.split`) and matches each terminator to an `MStepC`
-               rule, with targets from `CInv`. Block states are equal; exits agree up to
-               `brVals_junk`. Then composition along runs. It needs a typed state and frame invariant, from the existing checker and
+             - Stepwise projection, done on the shared no-EH fragment (`MachineLProj`:
+               `proj_step`, `proj_runL`, `proj_initial`). On checked states each logged step is
+               **one** `MStepC` step. Targets are related by `ProjRel`: equal, or both `exit` with
+               the `MStepC` stack the logged one under further values (`brVals`). Composition
+               along runs, from the CFG entry.
+               - Proof: the block's whole plain straight-line code goes to a region run
+                 (`plain_runC`) and is split. The terminator's region run is classified
+                 (`term_run`). Targets come from `CInv` and the control-agreement lemmas.
+               - Fragment hypotheses: `NoTry`, `DirectCalls`, `PlainTerms` (no `throw` or
+                 extended-call terminators, so no tail calls), and `StoreChkE tExt`.
+               - Oracle hypotheses: `CloseOk C` logs, `OracleSoundT` and `ArityResp`.
+             - **Open, next: one oracle with both.** `closedXOk` is `OracleSoundT`
+               (`Proofs.Bridge.oracleSoundT_closedXOk`). `fitP closedCallXP` is `ArityResp`
+               (`TypedCat.arityResp_fitClosed`). For `closedXOk` this needs the closure's tag and
+               exception invariants and its result arities. Until then the stepwise theorem is
+               conditional on that pair of hypotheses.
+             - Then: lift the fragment with the `EvalOXP`/EH bridge (`try_table`, `throw`,
+               indirect and reference calls, tail calls and frame replacement). It needs a typed state and frame invariant, from the existing checker and
              typing APIs, covering stack orientation, parameter and result arities, normal arm
              exits, branch unwinding and tail-frame replacement. The relation is at block
              granularity (zero or more `MStepC` steps per `MStepL` step), with composition.

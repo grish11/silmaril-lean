@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Cfg.MachineL.Defs
 public import Silmaril.Wasm.Interp.Defs
 public import Silmaril.Wasm.Abstract.CallX.Defs
+public import Silmaril.Wasm.Abstract.CallXE.Defs
 
 @[expose] public section
 
@@ -100,5 +101,21 @@ def Flat (is : List Instr) : Prop :=
 def DirectCalls (body : Expr) : Prop :=
   ∀ (p : List SeqStep) (c : List Instr) (i : Nat) (sg : Segment), seqAt body p = some c →
     (segment c)[i]? = some sg → ∀ x ∈ sg.body, Abstract.CallX.isXCall x = false
+
+/-- **Plain terminators**: no segment ends in an exception form (`throw`, `throw_ref`) or an
+extended call form (`call_indirect`, `call_ref`, the tail calls). With `NoTry`, the remaining
+terminators are the structured ones, the branches, `return` and `unreachable`. -/
+def PlainTerms (body : Expr) : Prop :=
+  ∀ (p : List SeqStep) (c : List Instr) (i : Nat) (sg : Segment) (t : Instr),
+    seqAt body p = some c → (segment c)[i]? = some sg → sg.term = some t →
+      Abstract.CallXE.ehInstr t = false ∧ Abstract.CallX.isXCall t = false
+
+/-- **The stepwise projection relation** between a logged machine state and an `MStepC` state:
+equal, or both `exit` with no frames, the same store and frame, and the `MStepC` stack the
+logged one under further values (`MStepC` keeps the outer values of the frames a `return` or a
+branch to the function label leaves, `brVals`; `MStepL` keeps the branch-site stack only). -/
+def ProjRel (stL stC : MState H) : Prop :=
+  stC = stL ∨ (stL.node = .exit ∧ stC.node = .exit ∧ stL.lbls = [] ∧ stC.lbls = [] ∧
+    stC.store = stL.store ∧ stC.frame = stL.frame ∧ ∃ junk, stC.stk = junk ++ stL.stk)
 
 end Silmaril.Wasm.Cfg.MachineL

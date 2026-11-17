@@ -9,6 +9,7 @@ import Silmaril.Proofs.Wasm.Cfg.MachineLProj
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjC
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjI
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjS
+import Silmaril.Proofs.Wasm.Cfg.MachineLProjT
 public import Silmaril.Wasm.Abstract.CallXT.Thms
 public import Silmaril.Wasm.Abstract.ExposePTyped.Thms
 public import Silmaril.Wasm.Interp.EHExt.Thms
@@ -85,6 +86,26 @@ says. The premises are checker facts only, with no Core typing of states:
 
 It composes `closed_iff_logged`, `evalOXP_iff_evalOXE`, `evalOXE_iff_evalOX`, `evalOXT_iff_evalOX`
 and `Bridge.bridge_fwd`. Under `DirectCalls body` every segment body is `Flat` (`seg_flat`).
+
+**The stepwise projection** (`proj_step`, `proj_runL`, `proj_initial`). On checked states (`CInv`,
+`MInv`, `Ctx.Good`), **each logged step is one `MStepC` step**, and the targets are related by
+`ProjRel`: equal, or both `exit` with the same store and frame and the `MStepC` stack the logged
+one under further values (`brVals`). Runs compose: a logged run from the CFG entry is an `MStepC`
+run from the CFG entry, its end related by `ProjRel`. The proof takes the block's whole
+straight-line code (segment and plain terminator) to a region run (`plain_runC`, generalizing
+`seg_runC`), splits it (`Region.run_split`), and matches the terminator's region run
+(`term_run`: a trap, `return`, `br`, `br_if`, a data branch) to the `MStepC` rule; the targets
+agree by the invariant (`entry_inv`, `branch_inv`) and the control-agreement lemmas.
+
+Hypotheses, all stated:
+* the fragment: no `try_table` (`NoTry`), direct calls only in segment bodies (`DirectCalls`), no
+  `throw`/`throw_ref` or extended-call terminators, so no tail calls (`PlainTerms`); a store
+  passing `StoreChkE tExt`;
+* the oracle `C`: every logged call is `CloseOk C` (host calls never are); `C` is sound for the
+  bridge (`Interp.OracleSoundT`) and respects arities (`ExposePTyped.ArityResp`). **No single
+  oracle is yet shown to satisfy both**: `closedXOk` is sound (`Proofs.Bridge.oracleSoundT_closedXOk`)
+  and `fitP closedCallXP` respects arities (`TypedCat.arityResp_fitClosed`). Discharging both for
+  one oracle is the next step (`docs/projects/wasm-cfg.md`).
 
 On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
 projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
@@ -229,5 +250,44 @@ theorem seg_runC {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H}
       ∃ s' f' o, Region.RunC P host C s f N.reverse (expression is) s' f' o ∧
         Bridge.ResOut C s' f' o (s₂, f₂, fl) :=
   Proofs.MachineLProjS.seg_runC hC hflat hr hl hS hchk
+
+/-! ## The stepwise projection -/
+
+/-- **A logged step projects to one `MStepC` step** (checked states, the shared fragment). -/
+theorem proj_step {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H}
+    {C : Abstract.CallRel H} (hC : OracleSoundT P₀ host₀ C) {Γ : Ctx H} (hA : ArityResp Γ C)
+    {mi : ModuleInst} {nl ret : Nat} {body : Expr} (hNT : NoTry body) (hD : DirectCalls body)
+    (hPT : PlainTerms body) (hS : StoreChkE tExt Γ.funcs) {st st' : MState H}
+    {l : List (Abstract.SCall H)} (hs : MStepL body st l st') (hl : ∀ e ∈ l, CloseOk C e)
+    (hok : MInv body st) (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    ∃ stC, MStepC P host C body st stC ∧ ProjRel st' stC :=
+  Proofs.MachineLProjT.proj_step hC hA hNT hD hPT hS hs hl hok hg hn hI
+
+/-- **A logged run projects to an `MStepC` run**, step by step (checked states, the shared
+fragment). -/
+theorem proj_runL {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H}
+    {C : Abstract.CallRel H} (hC : OracleSoundT P₀ host₀ C) {Γ : Ctx H} (hA : ArityResp Γ C)
+    {mi : ModuleInst} {nl ret : Nat} {body : Expr} (hNT : NoTry body) (hD : DirectCalls body)
+    (hPT : PlainTerms body) (hS : StoreChkE tExt Γ.funcs) {st st' : MState H}
+    {l : List (Abstract.SCall H)} (h : MRunL body st l st') (hl : ∀ e ∈ l, CloseOk C e)
+    (hok : MInv body st) (hg : Γ.Good st.store) (hn : st.frame.locals.length = nl)
+    (hI : CInv (ehExt Γ.tags) Γ.funcs mi nl ret body st) :
+    ∃ stC, Relation.ReflTransGen (MStepC P host C body) st stC ∧ ProjRel st' stC :=
+  Proofs.MachineLProjT.proj_runL hC hA hNT hD hPT hS h hl hok hg hn hI
+
+/-- **A logged run from the CFG entry projects to an `MStepC` run from the CFG entry**, for a body
+passing the function's own check. -/
+theorem proj_initial {P P₀ : Numerics.Profile} {host host₀ : HostSemantics H}
+    {C : Abstract.CallRel H} (hC : OracleSoundT P₀ host₀ C) {Γ : Ctx H} (hA : ArityResp Γ C)
+    {ret : Nat} {body : Expr} (hNT : NoTry body) (hD : DirectCalls body) (hPT : PlainTerms body)
+    (hS : StoreChkE tExt Γ.funcs) {s : Store H} {f : Frame} (hg : Γ.Good s)
+    (hchk : endsAt (chkE (ehExt Γ.tags) Γ.funcs f.module f.locals.length ret [ret] (some 0)
+      (liftInstrs body)) ret = true)
+    {l : List (Abstract.SCall H)} {st' : MState H} (h : MRunL body (initial body s f) l st')
+    (hl : ∀ e ∈ l, CloseOk C e) :
+    ∃ stC, Relation.ReflTransGen (MStepC P host C body) (initial body s f) stC ∧
+      ProjRel st' stC :=
+  Proofs.MachineLProjT.proj_initial hC hA hNT hD hPT hS hg hchk h hl
 
 end Silmaril.Wasm.Cfg.MachineL
