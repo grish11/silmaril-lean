@@ -543,4 +543,77 @@ theorem later_run (h2 : LaterCoreStep') {pre : RefComponent} :
         rw [this, List.nil_append]
         exact hobs
 
+/-! ## The instantiation -/
+
+theorem foldlM_option_append {α β : Type} (f : β → α → Option β) :
+    ∀ (l₁ l₂ : List α) (b : β),
+      (l₁ ++ l₂).foldlM f b = (l₁.foldlM f b).bind fun b' => l₂.foldlM f b'
+  | [], l₂, b => rfl
+  | a :: l₁, l₂, b => by
+    simp only [List.cons_append, List.foldlM_cons]
+    cases f b a with
+    | none => rfl
+    | some b' => exact foldlM_option_append f l₁ l₂ b'
+
+/-- **The instantiation, from the first node and the later core instantiations.** -/
+theorem nodesRef_of' (h1 : FirstK') (h2 : LaterCoreStep') : Task.nodesRef := by
+  intro b c r ps ts hpc hr hf himp hnodes hu hNC
+  obtain ⟨-, hw, -, pre, mi, cargs, post, hs, -, hpostOk⟩ := multiImpFrag_inv hf
+  obtain ⟨p, ps', rfl⟩ := nodes_ne_nil hpc hr hf hnodes
+  have hok := nodeOk_frag hpc hr hf hnodes
+  cases hNC with
+  | @cons _ t₀ _ ts' h₀ hNC' =>
+  simp only [List.flatten_cons, List.mem_append] at hu
+  obtain ⟨sc, M, ⟨⟨tr₀, hs₀, hn₀, -⟩, ⟨K, hK, hc⟩, -, hh⟩, hL, hFR⟩ :=
+    h1 b c r p ps' t₀ pre mi cargs post hpc hr hf himp hnodes (fun x hx => hu x (.inl hx)) h₀ hs
+  obtain ⟨R, hR, -, -, hN⟩ := relW_of_decode hpc hr (inFrag_of_hostWired hw)
+  rw [hnodes] at hN
+  have hrr := firstCore?_eq r hs
+  unfold refRead at hR
+  have hsplit : r = (pre ++ [Syntax.Definition.coreInstance (.instantiate mi cargs)]) ++ post := by
+    rw [hrr]; simp
+  rw [hsplit, foldlM_option_append] at hR
+  cases hR₀ : (pre ++ [Syntax.Definition.coreInstance (.instantiate mi cargs)]).foldlM refStep
+      ({ env := (r.filter isFuncImport).length } : RSt) with
+  | none =>
+    rw [← hsplit, hR₀] at hR
+    cases hR
+  | some R₀ =>
+  rw [← hsplit, hR₀] at hR
+  simp only [Option.bind_some] at hR
+  -- the nodes of the reading before `post`: the first core instantiation's
+  rw [foldlM_option_append] at hR₀
+  cases hR₁ : pre.foldlM refStep ({ env := (r.filter isFuncImport).length } : RSt) with
+  | none => rw [hR₁] at hR₀; cases hR₀
+  | some R₁ =>
+  rw [hR₁] at hR₀
+  simp only [Option.bind_some, List.foldlM_cons, List.foldlM_nil] at hR₀
+  obtain ⟨Y₁, hY₁, hY₁'⟩ := foldlM_refStep_nodes hR₁
+  have hY₁0 := hY₁' (firstCore?_noInst r hs)
+  subst hY₁0
+  cases hci : refStep R₁ (.coreInstance (.instantiate mi cargs)) with
+  | none => rw [hci] at hR₀; cases hR₀
+  | some R₂ =>
+  rw [hci] at hR₀
+  have hR₀' : R₂ = R₀ := by simpa using hR₀
+  subst hR₀'
+  obtain ⟨m0, -, -, -, w0, -, -, hn2, -⟩ := refStep_inst hci
+  obtain ⟨X, hX, -⟩ := foldlM_refStep_nodes hR
+  rw [hX, hn2, hY₁] at hN
+  simp only [List.append_nil] at hN
+  have hN' : List.Forall₂ NodeW (coreNodes ps') X := by
+    simp only [List.nil_append, List.singleton_append] at hN
+    cases hN with | cons _ h => exact h
+  obtain ⟨tr₁, M', d, hn₁, hctl, hlock, hhost, ⟨⟨inst, es⟩, hobs⟩⟩ :=
+    later_run h2 post _ R sc M K (logOfCalls t₀) ps' ts' hR hpostOk ⟨X, hX, hN'⟩
+      (fun q hq => hok q (List.mem_cons_of_mem _ hq)) hNC' (fun x hx => hu x (.inr hx))
+      (hFR _ (by rw [foldlM_option_append, hR₁]; simp [hci])) hL hK hc hh
+  obtain ⟨y, hy⟩ := findSome_append_some (tr₁ := tr₀) ⟨_, hobs⟩
+  refine ⟨M', y.1, y.2, ⟨tr₀ ++ tr₁, Adequacy.steps_append hs₀ d, ?_, hctl, hlock, hy⟩, ?_⟩
+  · intro ev hev
+    rcases List.mem_append.mp hev with h | h
+    · exact hn₀ ev h
+    · exact hn₁ ev h
+  · rw [hhost, List.flatten_cons, logOfCalls_append]
+
 end Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi
