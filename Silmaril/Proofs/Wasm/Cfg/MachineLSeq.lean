@@ -125,4 +125,31 @@ theorem append {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr} {l :
   | tryRethrow har hbody hc =>
     exact ⟨fun _ => .tryRethrow har hbody hc, fun _ _ _ heq => by simp at heq⟩
 
+/-- Flat instructions keep the frame's instance. -/
+theorem evalFlat_module {s s' : Store H} {f f' : Frame} {stk : List Val} {i : Instr} {fl : Flow}
+    (h : evalFlat s f stk i = some (s', f', fl)) : f'.module = f.module := by
+  unfold evalFlat at h
+  repeat' (first | split at h | (simp only [Option.map_eq_some_iff, Option.bind_eq_bind,
+    Option.bind_eq_some_iff] at h))
+  all_goals first
+    | (simp only [Option.some.injEq, Prod.mk.injEq, reduceCtorEq] at h; obtain ⟨-, rfl, -⟩ := h; rfl)
+    | (obtain ⟨_, -, h⟩ := h; simp only [Option.some.injEq, Prod.mk.injEq] at h
+       obtain ⟨-, rfl, -⟩ := h; rfl)
+    | (simp at h; done)
+    | (obtain ⟨_, -, _, -, -, rfl, -⟩ := h; rfl)
+    | (obtain ⟨a, -, b, -, h⟩ := h
+       split at h <;> (simp only [Option.some.injEq, Prod.mk.injEq] at h; obtain ⟨-, rfl, -⟩ := h; rfl))
+
+/-- **The logged relation keeps the frame's instance.** -/
+theorem module_eq {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (SCall H)} {r : Store H × Frame × POut} (h : EvalLXPS s f stk es l r) :
+    r.2.1.module = f.module := by
+  induction h <;> (try have := evalFlat_module ‹evalFlat _ _ _ _ = _›) <;> simp_all
+
+theorem liftInstrs_append (is js : List Instr) :
+    liftInstrs (is ++ js) = liftInstrs is ++ liftInstrs js := by
+  induction is with
+  | nil => rfl
+  | cons i is ih => simp [liftInstrs, ih]
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLSeq
