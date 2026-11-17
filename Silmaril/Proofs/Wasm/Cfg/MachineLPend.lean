@@ -402,4 +402,85 @@ theorem trap_reach {s : Store H} {f : Frame} {N : List Val} {es : List BExpr}
     intro l' z s₂ h
     subst h; simpa using (trap_last hbody _ _ _ [] rfl).2.2
 
+/-! ## The machine -/
+
+theorem mrun_snoc {body : Expr} {st st₁ st₂ : MState H} {l l' : List (SCall H)}
+    (h : MRunL body st l st₁) (hs : MStepL body st₁ l' st₂) : MRunL body st (l ++ l') st₂ := by
+  induction h with
+  | refl => simpa using MRunL.step hs (.refl _)
+  | step h₁ _ ih => simpa [List.append_assoc] using MRunL.step h₁ (ih hs)
+
+/-- **A pending call at a block is a step to `trap` with the trap-answered entry last.** -/
+theorem reachL_step {body : Expr} {st : MState H} {l : List (SCall H)}
+    {z : (wasmOShape H).self.Op} (h : ReachL body st l z) (s₂ : Store H) :
+    ∃ f', MStepL body st (l ++ [trapEntry z s₂]) ⟨.trap, [], [], s₂, f'⟩ := by
+  cases h with
+  | run hb ht hr =>
+    obtain ⟨f', hr'⟩ := reach_trap hr s₂
+    exact ⟨f', .run hb ht hr' .trap⟩
+  | body hb hr =>
+    obtain ⟨f', hr'⟩ := reach_trap hr s₂
+    exact ⟨f', .abort hb hr' (by simp [POut.IsNormal, Flow.IsNormal]) .trap⟩
+
+/-- **A step whose log ends with a trap-answered entry** reached that call at its block. -/
+theorem step_reachL {body : Expr} {st st' : MState H} {A : List (SCall H)}
+    {z : (wasmOShape H).self.Op} {s₂ : Store H} (h : MStepL body st (A ++ [trapEntry z s₂]) st') :
+    ReachL body st A z := by
+  cases h with
+  | run hb ht hr _ => exact .run hb ht (trap_reach hr A z s₂ rfl)
+  | abort hb hr _ _ => exact .body hb (trap_reach hr A z s₂ rfl)
+  | enter _ _ _ _ hr => exact (trap_not_normal (B := []) hr).elim
+
+/-- A step whose log holds a trap-answered entry has it last. -/
+theorem step_trap_last {body : Expr} {st st' : MState H} {l : List (SCall H)}
+    (h : MStepL body st l st') : ∀ A z s₂ B, l = A ++ trapEntry z s₂ :: B → B = [] := by
+  intro A z s₂ B hl
+  cases h with
+  | run _ _ hr _ => exact (trap_last hr A z s₂ B hl).1
+  | abort _ hr _ _ => exact (trap_last hr A z s₂ B hl).1
+  | enter _ _ _ _ hr => subst hl; exact (trap_not_normal hr).elim
+
+/-- **A run whose log ends with a trap-answered entry** reached that call at the block of its
+last step, after exactly the prefix log. -/
+theorem run_reachL {body : Expr} {st₀ st : MState H} {L : List (SCall H)}
+    (h : MRunL body st₀ L st) :
+    ∀ A z s₂, L = A ++ [trapEntry z s₂] →
+      ∃ st₁ A₁ A₂, MRunL body st₀ A₁ st₁ ∧ ReachL body st₁ A₂ z ∧ A = A₁ ++ A₂ := by
+  induction h with
+  | refl => intro A z s₂ h; simp at h
+  | @step st st₁ st₂ l₁ l₂ hs hr ih =>
+    intro A z s₂ h
+    rcases loc2 h with ⟨B', h1, h2⟩ | ⟨A', h1, h2⟩
+    · have hB := step_trap_last hs _ _ _ _ h1
+      subst hB
+      simp at h2
+      subst h2
+      rw [h1] at hs
+      exact ⟨st, [], A, .refl _, step_reachL hs, by simp⟩
+    · obtain ⟨st₃, A₁, A₂, hr', hR, rfl⟩ := ih A' z s₂ h1
+      exact ⟨st₃, l₁ ++ A₁, A₂, .step hs hr', hR, by simp [h2]⟩
+
+/-- **Pending calls of the logged machine are the native pending calls** of the body. -/
+theorem pending_iff {body : Expr} {s : Store H} {f : Frame} {l : List (SCall H)}
+    {z : (wasmOShape H).self.Op} :
+    ReachLXPS s f [] (liftInstrs body) l z ↔
+      ∃ (st : MState H) (l₁ l₂ : List (SCall H)), MRunL body (initial body s f) l₁ st ∧
+        ReachL body st l₂ z ∧ l = l₁ ++ l₂ := by
+  constructor
+  · intro h
+    obtain ⟨f', hr⟩ := reach_trap h z.2.2
+    obtain ⟨st, L₁, L₂, hrun, hL, hend⟩ := MachineLBwd.backward hr (by simp)
+    rcases hend with ⟨-, rfl, -⟩ | ht
+    · simp at hL
+      obtain ⟨st₁, A₁, A₂, hr₁, hR, rfl⟩ := run_reachL hrun l z z.2.2 hL.symm
+      exact ⟨st₁, A₁, A₂, hr₁, hR, rfl⟩
+    · cases ht
+  · rintro ⟨st, l₁, l₂, hrun, hR, rfl⟩
+    obtain ⟨f', hs⟩ := reachL_step hR z.2.2
+    have hrun' := mrun_snoc hrun hs
+    obtain ⟨r, hr, hE⟩ := MachineLFwd.forward_sink hrun' trivial
+    simp only [EndRel] at hE
+    subst hE
+    exact trap_reach hr (l₁ ++ l₂) z z.2.2 (by simp)
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLPend

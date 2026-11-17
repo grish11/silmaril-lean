@@ -53,7 +53,7 @@ namespace Silmaril.Wasm.Cfg.MachineL
 
 open Silmaril.Wasm Silmaril.Wasm.Cfg Silmaril.Wasm.Cfg.Machine Silmaril.Wasm.Execution.Core
   Silmaril.Wasm.Binaryen
-open Silmaril.Wasm.Abstract (EvalLXPS SCall)
+open Silmaril.Wasm.Abstract (EvalLXPS SCall ReachLXPS wasmOShape)
 open Silmaril.Wasm.Abstract.CallXP (POut)
 open Silmaril.Wasm.Cfg.Region (Catches)
 
@@ -216,5 +216,20 @@ def EndRel (st : MState H) (r : Store H × Frame × POut) : Prop :=
   | .trap => r = (st.store, st.frame, .flow .trap)
   | .raise => ∃ a, st.stk = [.ref (.exn a)] ∧ r = (st.store, st.frame, .flow (.throw a))
   | _ => False
+
+/-- **A pending internal call at a block**: the block's straight-line code (`run`, the terminator
+not structured) or its segment body (`body`) reaches the call `z` (callee, arguments, store at the
+call) after the log `l` (`EvalLXPS`'s `ReachLXPS`). A pending *tail* call is not one of these: it is
+an end of the body (`TailL`), made at the function's frame. -/
+inductive ReachL (body : Expr) : MState H → List (SCall H) → (wasmOShape H).self.Op → Prop where
+  | run {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame} {s : Store H}
+      {f : Frame} {l : List (SCall H)} {z : (wasmOShape H).self.Op}
+      (hb : lookup body b = some sg) (ht : ∀ i, sg.term = some i → ¬ Instr.IsStruct i)
+      (hr : ReachLXPS s f stk.reverse (liftInstrs (codeOf sg)) l z) :
+      ReachL body ⟨.block b, stk, ls, s, f⟩ l z
+  | body {b : BlockId} {sg : Segment} {stk : List Val} {ls : List LFrame} {s : Store H}
+      {f : Frame} {l : List (SCall H)} {z : (wasmOShape H).self.Op}
+      (hb : lookup body b = some sg) (hr : ReachLXPS s f stk.reverse (liftInstrs sg.body) l z) :
+      ReachL body ⟨.block b, stk, ls, s, f⟩ l z
 
 end Silmaril.Wasm.Cfg.MachineL
