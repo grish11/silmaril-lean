@@ -14,10 +14,14 @@ most 127 parameters:
 * aggregates (`Agg`): a struct, union or array object already classified by the psABI
   (§3.2.3, "Classification") into eightbytes (`Eights`): MEMORY, or one or two eightbytes each
   INTEGER or SSE. Its value is its object representation (`Agg.Value`: its `size` bytes,
-  padding included). Its alignment is at most 8 and its size at most `maxAggBytes`. The
-  classification of a C struct or union comes from its member layout, in
-  `Machine.Abi.Conformance.SysvScalar` (`objectOf`), through the ABI model's
-  `SystemV.Abi.aggregate`.
+  padding included). The bytes of padding are **unspecified** in C (C17 6.2.6.1p6) and the
+  psABI says nothing of them in registers: the convention carries whatever bytes the caller
+  placed, so a spec (`S.pre`, `S.post`) that constrains padding bytes constrains something the
+  ABI does not fix, and a spec meant to be about the C value should read only member bytes.
+  Its alignment is at most 8 and its size at most `maxAggBytes`. The classification of a C
+  struct or union comes from its member layout, in `Machine.Abi.Conformance.SysvScalar`
+  (`leavesOf`: nested members flattened to their leaves at absolute offsets), through the ABI
+  model's `SystemV.Abi.aggregate`.
 
 The convention reuses the ABI model throughout, as the INTEGER fragment does
 (`Machine.Abi.SystemV`):
@@ -355,8 +359,10 @@ def Proto.call (p : Proto) (s : Ffi.State) (exit : BitVec 64) : Ffi.Call :=
     if p.indirect then some (s.machine.core.read .rdi).toNat else none⟩
 
 /-- Argument placement: `Ffi.Entry` for the planned signature, for some return address. The
-hidden pointer of a MEMORY result is aligned and inside the address space (`Ffi.SretAt`); that
-it does not alias the caller's other objects is not constrained here (`unaliased` is `True`). -/
+hidden pointer of a MEMORY result is aligned and inside the address space (`Ffi.SretAt`). That
+the storage is writable and does not alias the stack, the code or the caller's other objects
+is not a register-placement fact (`unaliased` is `True` here); the conformance statement
+requires it of admitted calls (`Machine.Abi.Conformance.Stack`, on `AbiDef.owned`). -/
 def Proto.Entry (profile : Profile) (planned : Planned profile) (p : Proto)
     (a : vocab.Args p) (s : Ffi.State) : Prop :=
   ∃ exit, Ffi.Entry (p.ffi profile planned) a (p.call s exit) (fun _ _ => True)
