@@ -191,4 +191,121 @@ theorem cirel_lookup {mods : List Silmaril.Wasm.Module}
       exact lookup_of_forall₂ hF (by simpa using List.all_eq_true.mp hnd m hm) e he rfl i hix
     · cases hfe
 
+/-! ## Silent runs -/
+
+theorem sruns_tau {E : CoreEngine} {σ : Type} {dispatch : Call E → P E σ (Ret E)} {α : Type}
+    {p : P E σ α} {m m' : Machine.Config E σ} {os : List HostObs} {a : α}
+    (h : SRuns p m os a m') (th : Option ThreadId) :
+    os = [] → ∃ tr, RunsQ dispatch th p m tr a m' ∧ ∀ l ∈ tr, l = .tau := by
+  induction h with
+  | pure a m => exact fun _ => ⟨[], .pure a m, fun _ h => nomatch h⟩
+  | get _ ih =>
+    intro he
+    obtain ⟨tr, hr, hq⟩ := ih he
+    exact ⟨_, .get hr, fun l hl => by
+      rcases List.mem_cons.mp hl with rfl | hl
+      · rfl
+      · exact hq l hl⟩
+  | modify hf _ ih =>
+    intro he
+    obtain ⟨tr, hr, hq⟩ := ih he
+    exact ⟨_, .modify (hf _) hr, fun l hl => by
+      rcases List.mem_cons.mp hl with rfl | hl
+      · rfl
+      · exact hq l hl⟩
+  | emit _ _ => intro he; cases he
+
+/-! ## The definitions other than core instantiations -/
+
+theorem LaterInv.frame {pre : RefComponent} {sc sc' : Scope (core3 neverFail)}
+    {M : Machine.Config (core3 neverFail) Σh} (h : LaterInv pre sc M)
+    (hm : sc'.frame.coreModules = sc.frame.coreModules)
+    (hi : sc'.frame.coreInstances = sc.frame.coreInstances) : LaterInv pre sc' M :=
+  h.congr hm hi (fs := []) (by simp)
+
+theorem getElem?_some_of_len {α β : Type} {l : List α} {l' : List β} (hl : l.length = l'.length)
+    {i : Nat} {b : β} (h : l'[i]? = some b) : ∃ a, l[i]? = some a :=
+  ⟨l[i]'(by rw [hl]; exact (List.getElem?_eq_some_iff.mp h).1), List.getElem?_eq_getElem _⟩
+
+/-- **A definition after the first core instantiation other than a core instantiation runs
+silently**, keeping the frame related to the symbolic state and the machine invariant. -/
+theorem nonCore_step {pre : RefComponent} {R R' : RSt}
+    {d : Syntax.Definition Silmaril.Wasm.Module} {sc : Scope (core3 neverFail)}
+    {M : Machine.Config (core3 neverFail) Σh}
+    (hpost : postDefOk (preLowers pre) (preInsts pre) (coreMods pre) d = true) (hni : ¬ IsInst d)
+    (hR : refStep R d = some R') (hF : FrameRel (coreMods pre) R sc) (hL : LaterInv pre sc M) :
+    ∃ sc' M', TRuns (instantiateDef callRecurse ⟨0⟩ [] (importArgs hostI) sc d) M sc' M' ∧
+      FrameRel (coreMods pre) R' sc' ∧ LaterInv pre sc' M' ∧ M'.host = M.host := by
+  cases d with
+  | coreInstance ci =>
+    cases ci with
+    | instantiate => exact (hni trivial).elim
+    | exports => simp [postDefOk] at hpost
+  | type t =>
+    cases t with
+    | func ft =>
+      have hft : funcTypePrim ft = true := by simpa [postDefOk] using hpost
+      obtain ⟨ty, hty⟩ := resolveFuncType_prim sc.frame hft
+      simp only [refStep, Option.bind_eq_some_iff, Option.some.injEq, bind] at hR
+      obtain ⟨w, -, rfl⟩ := hR
+      erw [instDef_funcTypeG sc hty]
+      refine ⟨_, M, TRuns.pure _ M, ⟨hF.rmods, ?_, ?_, hF.funcs_len, hF.cf_len, hF.ci⟩,
+        hL.frame rfl rfl, rfl⟩
+      · simp [hF.types_len]
+      · intro x hx
+        rcases List.mem_append.mp hx with hx | hx
+        · exact hF.types_func x hx
+        · simp at hx; exact ⟨_, hx⟩
+    | _ => simp [postDefOk] at hpost
+  | «alias» a =>
+    cases a with
+    | coreExport i n s =>
+      cases s with
+      | func =>
+        have hnd : (coreMods pre).all (fun m => (m.exports.map (·.name)).Nodup) = true := by
+          simpa [postDefOk] using hpost
+        simp only [refStep, Option.bind_eq_some_iff, Option.some.injEq, bind] at hR
+        obtain ⟨ci, hci, im, him, rfl⟩ := hR
+        obtain ⟨es, hes, hrel⟩ := forall₂_get hF.ci hci
+        obtain ⟨a, ha⟩ := cirel_lookup hnd hrel him
+        erw [instDef_alias sc (es := es) hes ha rfl]
+        refine ⟨_, M, TRuns.pure _ M, ⟨hF.rmods, hF.types_len, hF.types_func, hF.funcs_len,
+          by rw [List.length_append, List.length_append, hF.cf_len]; rfl, hF.ci⟩,
+          hL.frame rfl rfl, rfl⟩
+      | _ => simp [postDefOk] at hpost
+    | _ => simp [postDefOk] at hpost
+  | canon c =>
+    cases c with
+    | lift f opts t =>
+      have hopts : opts = [] := by
+        cases opts with
+        | nil => rfl
+        | cons _ _ => simp [postDefOk] at hpost
+      subst hopts
+      simp only [refStep, Option.bind_eq_some_iff, Option.some.injEq, bind] at hR
+      obtain ⟨im, him, ft, hft, rfl⟩ := hR
+      obtain ⟨a, ha⟩ := getElem?_some_of_len hF.cf_len him
+      obtain ⟨x, hx⟩ := getElem?_some_of_len hF.types_len hft
+      obtain ⟨ty, rfl⟩ := hF.types_func x (List.mem_of_getElem? hx)
+      erw [instDef_lift sc ha hx]
+      refine ⟨_, _, (TRuns.allocObj ArenaField.funcs (fun _ _ => rfl) _ M).bind (TRuns.pure _ _),
+        ⟨hF.rmods, hF.types_len, hF.types_func, by simp [hF.funcs_len], hF.cf_len, hF.ci⟩,
+        hL.congr rfl rfl (fs := [_]) rfl, rfl⟩
+    | _ => simp [postDefOk] at hpost
+  | export_ nm si ty =>
+    obtain ⟨srt, k⟩ := si
+    cases srt with
+    | func =>
+      cases ty with
+      | none =>
+        simp only [refStep, Option.bind_eq_some_iff, Option.some.injEq, bind] at hR
+        obtain ⟨⟨im, ft⟩, hk, rfl⟩ := hR
+        obtain ⟨fid, hfid⟩ := getElem?_some_of_len hF.funcs_len hk
+        erw [instDef_funcExport sc hfid]
+        refine ⟨_, M, TRuns.pure _ M, ⟨hF.rmods, hF.types_len, hF.types_func,
+          by simp [hF.funcs_len], hF.cf_len, hF.ci⟩, hL.frame rfl rfl, rfl⟩
+      | some _ => simp [postDefOk] at hpost
+    | _ => simp [postDefOk] at hpost
+  | _ => simp [postDefOk] at hpost
+
 end Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi
