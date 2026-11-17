@@ -59,14 +59,11 @@ determinism.
 
 **Not claimed.**
 
-* Full determinism `AFun.Det` of the importer's triple (a divergent and a returning round
-  agreeing up to their first differing answer); only `RetDet` is proved. The generic
-  `threadS_linkS_assoc`/`comp_threadS`, which also need determinism of the server, are not
-  instantiated.
+* Here only `RetDet` of the importer's triple is proved. Full determinism
+  (`SimpleI.det_impTripleS`), the composition form `LinkedG.compSession_eq_comp` (through
+  `comp_threadS`) and the closed `n`-fold chain statements are in `LinkedGComp`.
 * Host imports (`HLinked2`, `hostLinkS`); the relation of `impTripleS` to the IR denotation
   `g.imp.toComp.den` or to the reference machine; contextual full abstraction; bytes to `Comp`.
-* A closed `n`-fold chain statement for `LinkedN.spec` (only one link on top of a linked
-  component, item 4).
 
 Proofs: `Silmaril.Proofs.Wasm.Component.Reference.LinkedGLink.{Basic, Link, Thread, Det}`.
 -/
