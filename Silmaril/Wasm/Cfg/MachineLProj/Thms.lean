@@ -10,6 +10,7 @@ import Silmaril.Proofs.Wasm.Cfg.MachineLProjC
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjI
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjS
 import Silmaril.Proofs.Wasm.Cfg.MachineLProjT
+import Silmaril.Proofs.Wasm.Cfg.MachineLProjE
 public import Silmaril.Wasm.Abstract.CallXT.Thms
 public import Silmaril.Wasm.Abstract.ExposePTyped.Thms
 public import Silmaril.Wasm.Interp.EHExt.Thms
@@ -115,6 +116,25 @@ through `Interp.OracleX.evalOXT_goodT`, and the store's functions are kept by th
   from the CFG entry, its end related by `ProjRel`;
 * this holds on the shared fragment, for a body passing the function's own `tExt` check, in a
   store whose functions pass `StoreChkE tExt`.
+
+**Straight-line code with pending tail calls** (`flat_runP`). A native run with pending tail
+calls (`CallXP.EvalOXP C`) of code whose every instruction lifts to a single tree
+(`liftInstr i = .op i []`: no `block`, `loop`, `if` or `try_table`; direct, indirect and
+reference calls, the tail calls, `throw`, `throw_ref`, branches, `return`, `unreachable` and
+every other flat instruction are allowed) is a region run (`Region.RunC`) of the code with the
+same oracle, ending as `ResOutP` (`MachineLProj.Defs`) says: a flow in the same store and frame,
+related by `Bridge.FlowRel` (including `throw`, and a native trap from an unresolved tail call
+as a region pending tail call of null); a pending tail call `tail a args n` as the region's
+pending tail call `.tail W a c` (`c` a `return_call_ref` form, not answered), in the same store
+and frame, with `W` the whole Core stack below the callee, `args` its top values as many as the
+callee's parameters, and `n` the callee's result count. Hypotheses, all stated:
+* the code passes the check with exceptions on, `chkE (ehExt Γ.tags)`, at the stack's height;
+* the oracle respects arities (`ExposePTyped.ArityResp Γ C`) and the initial store agrees with
+  `Γ` (`Γ.Good s`). They are used to check each instruction's continuation at the height the
+  instruction leaves (`ExposePTyped.evalOXP_goodO` on the instruction): a call's answer keeps
+  the store's functions and returns at least the callee's result count. No soundness of `C`
+  (`Interp.OracleSoundT`) and no `StoreChkE` is assumed: the region run answers the same calls
+  by the same `C`.
 
 On untyped code the two machines' stack conventions differ (`ExampleLogged`). The stepwise typed
 projection, its exception bridge, and the discharge of `CloseOk` by the canonical host-closing
@@ -314,5 +334,21 @@ theorem proj_initial_closedX {P : Numerics.Profile} {host : HostSemantics H}
     ∃ stC, Relation.ReflTransGen (MStepC P host closedXOk body) (initial body s f) stC ∧
       ProjRel st' stC :=
   Proofs.MachineLProjT.proj_initial_closedX hS hNT hD hPT hs hchk h hl
+
+/-! ## Straight-line code with pending tail calls -/
+
+/-- **Straight-line code with pending tail calls is a region run** with the same oracle, ending
+as `ResOutP` says, for an arity-respecting oracle from a store agreeing with `Γ`, on code passing
+the check with exceptions on. -/
+theorem flat_runP {P : Numerics.Profile} {host : HostSemantics H} {Γ : Ctx H}
+    {C : Abstract.CallRel H} (hA : ArityResp Γ C) {is : List Instr}
+    (hflat : ∀ i ∈ is, liftInstr i = .op i []) {s : Store H} {f : Frame} {N : List Val}
+    {r : Store H × Frame × Abstract.CallXP.POut}
+    (d : Abstract.CallXP.EvalOXP C s f N (liftInstrs is) r) (hg : Γ.Good s)
+    {labels : List Nat} {ret : Nat} {out : Option Nat}
+    (hchk : chkE (ehExt Γ.tags) s.funcs f.module f.locals.length ret labels (some N.length)
+      (liftInstrs is) = some out) :
+    ∃ s' f' o, Region.RunC P host C s f N.reverse (expression is) s' f' o ∧ ResOutP s' f' o r :=
+  Proofs.MachineLProjE.flat_runP hA hflat d hg hchk
 
 end Silmaril.Wasm.Cfg.MachineL

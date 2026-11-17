@@ -4,6 +4,8 @@ public import Silmaril.Wasm.Cfg.MachineL.Defs
 public import Silmaril.Wasm.Interp.Defs
 public import Silmaril.Wasm.Abstract.CallX.Defs
 public import Silmaril.Wasm.Abstract.CallXE.Defs
+public import Silmaril.Wasm.Abstract.CallXP.Defs
+public import Silmaril.Wasm.Cfg.Bridge.Defs
 
 @[expose] public section
 
@@ -31,6 +33,12 @@ is the fragment without handlers; catching belongs to the exception bridge.
 
 **Straight-line code** (`Flat`): no terminator, and no indirect or reference call. Segment bodies
 have no terminators; under `DirectCalls body` they are `Flat`.
+
+**Pending tail calls on straight-line code** (`ResOutP`): how a native body result with pending
+tail calls (`CallXP.POut`) and a region outcome end alike. A flow ends as `Bridge.FlowRel` says,
+in the same store and frame. A pending tail call `tail a args n` is the region's pending tail
+call of `a` over `W`, not answered: in the same store and frame, `args` are the top values of
+`W` (bottom first), as many as the callee's parameters, and `n` is the callee's result count.
 
 Theorems in `Silmaril.Wasm.Cfg.MachineLProj.Thms`.
 -/
@@ -117,5 +125,22 @@ branch to the function label leaves, `brVals`; `MStepL` keeps the branch-site st
 def ProjRel (stL stC : MState H) : Prop :=
   stC = stL ∨ (stL.node = .exit ∧ stC.node = .exit ∧ stL.lbls = [] ∧ stC.lbls = [] ∧
     stC.store = stL.store ∧ stC.frame = stL.frame ∧ ∃ junk, stC.stk = junk ++ stL.stk)
+
+/-- **A native body result with pending tail calls and a region outcome that end alike.**
+* A flow `fl`: the same store and frame, and `Bridge.FlowRel fl o` (so `o` is not a pending
+  tail call; a native trap may be a region pending tail call of null).
+* A pending tail call of `a` on `args` with result count `n`: the region ends in a pending tail
+  call `.tail W a c` of the same callee, `c` a `return_call_ref` form, in the same store and
+  frame; the callee `fi` at `a` in that store has parameters `ps` and results `rs`, `W` is
+  `W₀ ++ args` with `args.length = ps.length` (the top `ps.length` values of `W`, bottom first),
+  and `n = rs.length`. -/
+def ResOutP (s' : Store H) (f' : Frame) (o : Region.Out) :
+    Store H × Frame × Abstract.CallXP.POut → Prop
+  | (s₂, f₂, .flow fl) => s₂ = s' ∧ f₂ = f' ∧ Bridge.FlowRel fl o
+  | (s₂, f₂, .tail a args n) => ∃ (W : List Val) (c : Admin), o = .tail W a c ∧
+      c.IsReturnCallRef ∧ s₂ = s' ∧ f₂ = f' ∧
+      ∃ (fi : FuncInst H) (ps rs : List Validation.CValType) (W₀ : List Val),
+        s'.funcs[a]? = some fi ∧ Validation.DefType.funcType? fi.type = some (ps, rs) ∧
+        W = W₀ ++ args ∧ args.length = ps.length ∧ n = rs.length
 
 end Silmaril.Wasm.Cfg.MachineL
