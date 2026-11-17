@@ -79,7 +79,7 @@
         "theorem": "Silmaril.Wasm.Component.DecoderBridge.starts_relW",
         "strength": "wiring and types, proved for every binary whose REF reading is in the decidable fragment DecoderBridge.InFrag (DecoderBridge.relW_of_decode): the IR's imports, exports (names, types, lift/lower chains) and each node's module interface and wiring are those the reference component's definitions name, resolved as the reference machine resolves names (DecoderBridge.refRead); this binary is in the fragment (starts_inFrag, decide +kernel). Syntax only: that the reference machine's run follows refRead is not proved"
       },
-      "bridge_semantic": "open: behavioural adequacy of Comp.denI against the reference machine is the open goal DecoderBridge.Task.startAdequacy (this binary is an instance of it: DecoderBridge.starts_of); this binary is import-wired (DecoderBridge.starts_hostWired), so the instantiation part of every such IR play is node by node (DecoderBridge.nodesInst_of_startPlay, proved); its first core node is in the decidable fragment FirstImpFrag (DecoderBridge.starts_firstImpFrag: the module call1 imports exactly the canon lower of f), on which the reference half of a first node that is ready after host calls t is proved up to the return of its start function (DecoderBridge.firstImp_ready_ref); it is in the decidable fragment MultiImpFrag (DecoderBridge.starts_multiImpFrag), on which Task.startAdequacy is reduced to the export call (DecoderBridge.startAdequacyFrag_of_nodes): the IR's node calls (DecoderBridge.nodeCallsIR) and the whole reference instantiation (DecoderBridge.nodesRef: the first node with its start epilogue, the two later nodes call2 and glob in the shared core store, each node's IR store mapped into it with its imports kept at the trampoline, then the remaining definitions and the end of the instantiation) are proved, the export call (Task.exportRef) is open; DecoderBridge.starts_of_d derives the reference half of this binary from its IR run given Task.exportRef, and the agreement on this binary rests on executing both machines only"
+      "bridge_semantic": "open: behavioural adequacy of Comp.denI against the reference machine is the open goal DecoderBridge.Task.startAdequacyChecked (this binary is an instance of it: DecoderBridge.starts_of, with DecoderBridge.starts_rootChecked; the unrestricted DecoderBridge.Task.startAdequacy is false, see the regression paramname); this binary is import-wired (DecoderBridge.starts_hostWired), so the instantiation part of every such IR play is node by node (DecoderBridge.nodesInst_of_startPlay, proved); its first core node is in the decidable fragment FirstImpFrag (DecoderBridge.starts_firstImpFrag: the module call1 imports exactly the canon lower of f), on which the reference half of a first node that is ready after host calls t is proved up to the return of its start function (DecoderBridge.firstImp_ready_ref); it is in the decidable fragment MultiImpFrag (DecoderBridge.starts_multiImpFrag), on which Task.startAdequacy is reduced to the export call (DecoderBridge.startAdequacyFrag_of_nodes): the IR's node calls (DecoderBridge.nodeCallsIR) and the whole reference instantiation (DecoderBridge.nodesRef: the first node with its start epilogue, the two later nodes call2 and glob in the shared core store, each node's IR store mapped into it with its imports kept at the trampoline, then the remaining definitions and the end of the instantiation) are proved, the export call (Task.exportRef) is open; DecoderBridge.starts_of_d derives the reference half of this binary from its IR run given Task.exportRef, and the agreement on this binary rests on executing both machines only"
     },
     {
       "name": "trap",
@@ -150,6 +150,38 @@
         }
       ],
       "status": "demonstrated mismatch of the two readings' export names (kernel runs), not a disproof of the first statement of Task.startAdequacy (the IR's answer to i#get and the absence of i#get from every reference run are not proved); excluded by the fragment hypothesis InFrag now in Task.startAdequacy; comparing instance-exported functions needs a reference export-path lookup, which is open"
+    },
+    {
+      "name": "paramname",
+      "wasm": "paramname.wasm",
+      "wat": "paramname.wat",
+      "sha256": "347583e4905a48fa04934184282b78d208ab5d430b01de4d6b797dadc3113da2",
+      "size": 256,
+      "lean": "Silmaril.Wasm.Component.DecoderBridge.paramNameBytes",
+      "what": "starts with the import declared f: func(y: u32) instead of f: func(x: u32); the binary differs from starts.wasm in that one byte",
+      "facts": [
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.parse_paramName",
+          "statement": "the IR reading (Binary.parseComponent) is startsComp: parameter names are dropped, so the IR plays are those of starts.wasm"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.decodeRef_paramName",
+          "statement": "the REF reading (Conformance.decodeRef) is paramNameRef, valid (paramName_valid) and in InFrag (paramName_inFrag)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.not_rootChecked_paramName",
+          "statement": "the root certificate RootChecked (the reference machine's own root checks against the host f: func(x: u32)) rejects it; starts.wasm passes it (starts_rootChecked)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.paramName_not_instantiates",
+          "statement": "no reference run (logging host, hostConfigX, first.prof) finishes the instantiation; it traps (paramName_traps)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.not_startAdequacy",
+          "statement": "Task.startAdequacy is false"
+        }
+      ],
+      "status": "counterexample proved: Task.startAdequacy is false; corrected goal Task.startAdequacyChecked (hypothesis RootChecked, open); outside RootChecked the reference instantiation traps and has no run (traps_of_not_rootChecked, not_instantiates_of_not_rootChecked); MultiImpFrag passes RootChecked (rootChecked_of_multiImpFrag)"
     }
   ]
 }
