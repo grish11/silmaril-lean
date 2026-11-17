@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Silmaril compiler explorer</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header>
+  <h1>Compiler explorer <span class="sub">source ↔ target, with what is proved about each link</span></h1>
+  <div class="pickers">
+    <label>Program <select id="program"></select></label>
+    <label>Build <select id="build"></select></label>
+    <label>Links <select id="mode">
+      <option value="navigation">debug info (line table)</option>
+      <option value="semantic">semantic (program points)</option>
+    </select></label>
+  </div>
+  <p class="note">Builds are precompiled by pinned compilers (see Provenance); this page cannot compile.
+    Statuses come from the database, which accepts only Lean exporter output for these exact artifacts.</p>
+</header>
+<main>
+  <section class="pane" aria-label="source"><h2 id="src-title">Source</h2><div id="src" class="code"></div></section>
+  <section class="pane" aria-label="target"><h2 id="tgt-title">Target</h2><div id="tgt" class="code"></div></section>
+  <aside id="side">
+    <section id="selection"><h2>Selection</h2><p class="muted">Hover or click a line.</p></section>
+    <section id="questions"></section>
+    <section id="provenance"></section>
+    <section id="assumptions"></section>
+  </aside>
+</main>
+<footer id="status" class="muted"></footer>
+</body>
+</html>

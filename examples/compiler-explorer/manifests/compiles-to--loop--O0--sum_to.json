@@ -1,0 +1,511 @@
+{
+  "artifacts": {
+    "listing": {
+      "media": "text/x-objdump",
+      "path": "examples/compiler-explorer/compiles-to/loop/O0/listing.txt",
+      "sha256": "d0593ffbe5d024c35935c5265ac283d644c2455a43f3ca23a71fc39340a1fe9a",
+      "size": 820
+    },
+    "listing_receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/compiles-to/loop/O0/RECEIPT.json",
+      "sha256": "9430f2384fd3655b24228add275d10f64c832a2181e8983f0f382fe22e443e08",
+      "size": 543
+    },
+    "receipt": {
+      "media": "application/json",
+      "path": "examples/compiles-to/loop/O0/RECEIPT.json",
+      "sha256": "2a2ee19e07818e0b5787809ab1003d23fcdb78104b8fddeda70c6e8e302c4d43",
+      "size": 959
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiles-to/loop/loop.c",
+      "sha256": "27290d697dff6003ea20638190f5f40a69cda2dc5368f9a1b96cc862c6dc34ee",
+      "size": 138
+    },
+    "target": {
+      "media": "application/x-elf-relocatable",
+      "path": "examples/compiles-to/loop/O0/loop.o",
+      "sha256": "701a977ad6528cf0d0913ebe6fa223ae755b5702ea151a810366ecacd4ca3ecd",
+      "size": 2824
+    }
+  },
+  "context": {
+    "abi": null,
+    "comorphism": null,
+    "mapping_relation": null,
+    "source_model": null,
+    "target_model": null
+  },
+  "derivation": {
+    "command": "gcc -O0 -g -c -fdebug-prefix-map=/src=. -std=c11 -ffreestanding -fno-builtin -fno-stack-protector -fcf-protection=none -mgeneral-regs-only -fno-pic -fno-pie -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-ident loop.c -o O0/loop.o",
+    "compiler": "gcc",
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "kind": "compiler",
+    "opt": "O0",
+    "receipt": "receipt",
+    "target": "x86_64-linux-gnu",
+    "version": "gcc (GCC) 13.3.0"
+  },
+  "direction": "compiled",
+  "edges": [
+    {
+      "function": "sum_to",
+      "id": "nav/sum_to/3/0",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\"",
+      "origin": "dwarf-line-table",
+      "source": [
+        "0a98bdfa9cddd510cf3e"
+      ],
+      "target": [
+        "9cf32222268648873a6c"
+      ]
+    },
+    {
+      "function": "sum_to",
+      "id": "nav/sum_to/4/7",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\"",
+      "origin": "dwarf-line-table",
+      "source": [
+        "d4f889ba7d8d240ba5f9"
+      ],
+      "target": [
+        "94f8dd4efa3f2c5c8881"
+      ]
+    },
+    {
+      "function": "sum_to",
+      "id": "nav/sum_to/5/14",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\"",
+      "origin": "dwarf-line-table",
+      "source": [
+        "339a4e9b352ab7b59089"
+      ],
+      "target": [
+        "b6c8b121eacc040cc2d1"
+      ]
+    },
+    {
+      "function": "sum_to",
+      "id": "nav/sum_to/6/21",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\"",
+      "origin": "dwarf-line-table",
+      "source": [
+        "cba2c5b0459e90857195"
+      ],
+      "target": [
+        "f0c2b3b8f579d19d01ba"
+      ]
+    },
+    {
+      "function": "sum_to",
+      "id": "nav/sum_to/7/23",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\"",
+      "origin": "dwarf-line-table",
+      "source": [
+        "4cf650902f5cd72c558f"
+      ],
+      "target": [
+        "164fa3257a976b021a68"
+      ]
+    },
+    {
+      "function": "sum_to",
+      "id": "nav/sum_to/8/27",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\"",
+      "origin": "dwarf-line-table",
+      "source": [
+        "38515987c5f512f01afa"
+      ],
+      "target": [
+        "8f7ddde6a15e4866e79a"
+      ]
+    },
+    {
+      "function": "sum_to",
+      "id": "nav/sum_to/6/33",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\"",
+      "origin": "dwarf-line-table",
+      "source": [
+        "cba2c5b0459e90857195"
+      ],
+      "target": [
+        "a5b88b37029dee5fc6f0"
+      ]
+    },
+    {
+      "function": "sum_to",
+      "id": "nav/sum_to/10/41",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\"",
+      "origin": "dwarf-line-table",
+      "source": [
+        "4c83aba7c794b3d86cd0"
+      ],
+      "target": [
+        "f626c50bae20adaf3458"
+      ]
+    },
+    {
+      "function": "sum_to",
+      "id": "nav/sum_to/11/44",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\"",
+      "origin": "dwarf-line-table",
+      "source": [
+        "cab1e870f490edc03e0d"
+      ],
+      "target": [
+        "c11d483543eb20f1c64f"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "source",
+      "id": "0a98bdfa9cddd510cf3e",
+      "label": "line 3",
+      "ranges": [
+        [
+          44,
+          45
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "164fa3257a976b021a68",
+      "label": "[0x17, 0x1b)",
+      "ranges": [
+        [
+          23,
+          27
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "source",
+      "id": "339a4e9b352ab7b59089",
+      "label": "line 5",
+      "ranges": [
+        [
+          59,
+          71
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "38515987c5f512f01afa",
+      "label": "line 8",
+      "ranges": [
+        [
+          105,
+          119
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "4c83aba7c794b3d86cd0",
+      "label": "line 10",
+      "ranges": [
+        [
+          124,
+          135
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "4cf650902f5cd72c558f",
+      "label": "line 7",
+      "ranges": [
+        [
+          90,
+          104
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "8f7ddde6a15e4866e79a",
+      "label": "[0x1b, 0x21)",
+      "ranges": [
+        [
+          27,
+          33
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "94f8dd4efa3f2c5c8881",
+      "label": "[0x7, 0xe)",
+      "ranges": [
+        [
+          7,
+          14
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "9cf32222268648873a6c",
+      "label": "[0x0, 0x7)",
+      "ranges": [
+        [
+          0,
+          7
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "a5b88b37029dee5fc6f0",
+      "label": "[0x21, 0x29)",
+      "ranges": [
+        [
+          33,
+          41
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "b6c8b121eacc040cc2d1",
+      "label": "[0xe, 0x15)",
+      "ranges": [
+        [
+          14,
+          21
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "c11d483543eb20f1c64f",
+      "label": "[0x2c, 0x2e)",
+      "ranges": [
+        [
+          44,
+          46
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "source",
+      "id": "cab1e870f490edc03e0d",
+      "label": "line 11",
+      "ranges": [
+        [
+          136,
+          137
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "cba2c5b0459e90857195",
+      "label": "line 6",
+      "ranges": [
+        [
+          72,
+          89
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "d4f889ba7d8d240ba5f9",
+      "label": "line 4",
+      "ranges": [
+        [
+          46,
+          58
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "f0c2b3b8f579d19d01ba",
+      "label": "[0x15, 0x17)",
+      "ranges": [
+        [
+          21,
+          23
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "f626c50bae20adaf3458",
+      "label": "[0x29, 0x2c)",
+      "ranges": [
+        [
+          41,
+          44
+        ]
+      ],
+      "space": "text-offset"
+    }
+  ],
+  "id": "compiles-to/loop/O0/sum_to",
+  "lean": {
+    "family": null,
+    "modules": []
+  },
+  "obligations": [
+    {
+      "decl": null,
+      "id": "translation",
+      "kind": "translation",
+      "statement": null,
+      "unsupported": "C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\""
+    },
+    {
+      "decl": null,
+      "id": "mapping",
+      "kind": "mapping",
+      "statement": null,
+      "unsupported": "C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\""
+    },
+    {
+      "decl": null,
+      "id": "refinement",
+      "kind": "refinement",
+      "statement": null,
+      "unsupported": "C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\""
+    },
+    {
+      "decl": null,
+      "id": "abi",
+      "kind": "abi",
+      "statement": null,
+      "unsupported": "C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\""
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [],
+  "title": "loop.c, gcc 13.3.0 -O0, sum_to (object code)",
+  "view": {
+    "source": "source",
+    "target": "listing",
+    "target_map": [
+      [
+        0,
+        1,
+        98,
+        137
+      ],
+      [
+        1,
+        4,
+        138,
+        182
+      ],
+      [
+        4,
+        7,
+        183,
+        234
+      ],
+      [
+        7,
+        14,
+        235,
+        285
+      ],
+      [
+        14,
+        21,
+        286,
+        336
+      ],
+      [
+        21,
+        23,
+        337,
+        388
+      ],
+      [
+        23,
+        27,
+        389,
+        439
+      ],
+      [
+        27,
+        30,
+        440,
+        490
+      ],
+      [
+        30,
+        33,
+        491,
+        541
+      ],
+      [
+        33,
+        36,
+        542,
+        592
+      ],
+      [
+        36,
+        39,
+        593,
+        644
+      ],
+      [
+        39,
+        41,
+        645,
+        696
+      ],
+      [
+        41,
+        44,
+        697,
+        747
+      ],
+      [
+        44,
+        45,
+        748,
+        787
+      ],
+      [
+        45,
+        46,
+        788,
+        819
+      ]
+    ]
+  }
+}

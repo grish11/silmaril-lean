@@ -1,0 +1,28 @@
+
+loop.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 <sum_to>:
+   0:	85 ff                	test   %edi,%edi
+   2:	7e 2c                	jle    30 <sum_to+0x30>
+   4:	31 c0                	xor    %eax,%eax
+   6:	31 d2                	xor    %edx,%edx
+   8:	40 f6 c7 01          	test   $0x1,%dil
+   c:	74 12                	je     20 <sum_to+0x20>
+   e:	b8 01 00 00 00       	mov    $0x1,%eax
+  13:	ba 01 00 00 00       	mov    $0x1,%edx
+  18:	83 ff 01             	cmp    $0x1,%edi
+  1b:	74 10                	je     2d <sum_to+0x2d>
+  1d:	0f 1f 00             	nopl   (%rax)
+  20:	8d 54 10 01          	lea    0x1(%rax,%rdx,1),%edx
+  24:	83 c0 02             	add    $0x2,%eax
+  27:	01 c2                	add    %eax,%edx
+  29:	39 c7                	cmp    %eax,%edi
+  2b:	75 f3                	jne    20 <sum_to+0x20>
+  2d:	89 d0                	mov    %edx,%eax
+  2f:	c3                   	ret
+  30:	31 d2                	xor    %edx,%edx
+  32:	89 d0                	mov    %edx,%eax
+  34:	c3                   	ret

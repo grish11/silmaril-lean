@@ -1,0 +1,19 @@
+
+branch.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 <max2>:
+   0:	55                   	push   %rbp
+   1:	48 89 e5             	mov    %rsp,%rbp
+   4:	89 7d fc             	mov    %edi,-0x4(%rbp)
+   7:	89 75 f8             	mov    %esi,-0x8(%rbp)
+   a:	8b 45 f8             	mov    -0x8(%rbp),%eax
+   d:	3b 45 fc             	cmp    -0x4(%rbp),%eax
+  10:	7e 05                	jle    17 <max2+0x17>
+  12:	8b 45 f8             	mov    -0x8(%rbp),%eax
+  15:	eb 03                	jmp    1a <max2+0x1a>
+  17:	8b 45 fc             	mov    -0x4(%rbp),%eax
+  1a:	5d                   	pop    %rbp
+  1b:	c3                   	ret

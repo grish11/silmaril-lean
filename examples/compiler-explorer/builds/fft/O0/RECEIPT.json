@@ -1,0 +1,22 @@
+{
+  "as": "GNU assembler (GNU Binutils for Debian) 2.40",
+  "assembly": {
+    "path": "O0/fft.s",
+    "sha256": "3fbe7a5e674743a91056b135e2e87f72cd1d66b741ad9dfa529a66e847fba448",
+    "size": 15793
+  },
+  "command": "gcc -O0 -g -S -std=c11 -fno-asynchronous-unwind-tables -fdebug-prefix-map=/src=. fft.c -o fft.s",
+  "gcc": "gcc (GCC) 13.3.0",
+  "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+  "network": "none",
+  "source": {
+    "path": "fft.c",
+    "sha256": "acd6576a6a17429cb80aa7f696727ae98758c9843ca0c04729d09b93eacb0347"
+  },
+  "tools_sha256": [
+    "1bcc6b6b6dcffb1fd541a60ff35c8b29e4c9759c848c271f2b4dff388b9d2c1c  /usr/local/libexec/gcc/x86_64-linux-gnu/13.3.0/cc1",
+    "41fe4f5a03389ea5cf7c92d6753fa1ecc69b45b12534fd8713c53bba0e2d7e17  /usr/bin/as",
+    "f6d71a1bcd45764550a42dfaa179bc43b63ee879ec6f875bfd39fca013515da7  /usr/bin/ld"
+  ],
+  "workdir": "/src"
+}

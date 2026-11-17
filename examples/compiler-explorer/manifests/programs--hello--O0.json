@@ -1,0 +1,260 @@
+{
+  "artifacts": {
+    "receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/builds/hello/O0/RECEIPT.json",
+      "sha256": "5fb8608c189f3e0961dcb398089d2fb9ed3e1e310fef1095455ae2b1bc520a1c",
+      "size": 930
+    },
+    "run": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/builds/hello/O0/run.json",
+      "sha256": "90d241a6ab1e2c60e8602c6344e1e42e6e2a419285116d3767a3d60f5babb4eb",
+      "size": 430
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/programs/hello.c",
+      "sha256": "fa0082bb81c671967198902abe06f2ab917586e769c8ef452a9257921749d1b2",
+      "size": 124
+    },
+    "target": {
+      "media": "text/x-asm",
+      "path": "examples/compiler-explorer/builds/hello/O0/hello.s",
+      "sha256": "85e0693636b89fe9814a6a584d6ccc7ae3d06b45de82d736a33d7a2792f4a5dd",
+      "size": 3992
+    }
+  },
+  "context": {
+    "abi": null,
+    "comorphism": null,
+    "mapping_relation": null,
+    "source_model": null,
+    "target_model": null
+  },
+  "derivation": {
+    "command": "gcc -O0 -g -S -std=c11 -fno-asynchronous-unwind-tables -fdebug-prefix-map=/src=. hello.c -o hello.s",
+    "compiler": "gcc",
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "kind": "compiler",
+    "opt": "O0",
+    "receipt": "receipt",
+    "target": "x86_64-linux-gnu",
+    "version": "gcc (GCC) 13.3.0"
+  },
+  "direction": "compiled",
+  "edges": [
+    {
+      "function": "main",
+      "id": "nav/main/5",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "a40cec2b7a42d76f32d7"
+      ],
+      "target": [
+        "9a57d60fd50505c2e8ac"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/6",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "d40c7e08d512dc85954d"
+      ],
+      "target": [
+        "c369f3f4098259e20066"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/7",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "0988c6b5a585be258f56"
+      ],
+      "target": [
+        "dfdae2037c5c4b248b4e"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/8",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "3a7bf112e935fbe5909b"
+      ],
+      "target": [
+        "1c842eca4b8e14d586f3"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "source",
+      "id": "0988c6b5a585be258f56",
+      "label": "line 7",
+      "ranges": [
+        [
+          110,
+          121
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "1c842eca4b8e14d586f3",
+      "label": "main: 2 instruction(s) of line 8",
+      "ranges": [
+        [
+          414,
+          424
+        ],
+        [
+          444,
+          448
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "3a7bf112e935fbe5909b",
+      "label": "line 8",
+      "ranges": [
+        [
+          122,
+          123
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "9a57d60fd50505c2e8ac",
+      "label": "main: 2 instruction(s) of line 5",
+      "ranges": [
+        [
+          235,
+          246
+        ],
+        [
+          291,
+          307
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "a40cec2b7a42d76f32d7",
+      "label": "line 5",
+      "ranges": [
+        [
+          84,
+          85
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "c369f3f4098259e20066",
+      "label": "main: 2 instruction(s) of line 6",
+      "ranges": [
+        [
+          345,
+          362
+        ],
+        [
+          363,
+          373
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "d40c7e08d512dc85954d",
+      "label": "line 6",
+      "ranges": [
+        [
+          86,
+          109
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "dfdae2037c5c4b248b4e",
+      "label": "main: 1 instruction(s) of line 7",
+      "ranges": [
+        [
+          387,
+          401
+        ]
+      ],
+      "space": "bytes"
+    }
+  ],
+  "id": "programs/hello/O0",
+  "lean": {
+    "family": null,
+    "modules": []
+  },
+  "navigation_stats": {
+    "instructions_from_other_files": {},
+    "unattributed_instructions": 0
+  },
+  "obligations": [
+    {
+      "decl": null,
+      "id": "translation",
+      "kind": "translation",
+      "statement": null,
+      "unsupported": "no source semantics in Lean covers this program: the C elaborator of Silmaril.Project.CompilesTo has no loops, calls, pointers, floating point or I/O, and no x86 model here covers the linked program with glibc"
+    },
+    {
+      "decl": null,
+      "id": "abi",
+      "kind": "abi",
+      "statement": null,
+      "unsupported": "no ABI statement is attempted for this program"
+    },
+    {
+      "decl": null,
+      "id": "mapping",
+      "kind": "mapping",
+      "statement": null,
+      "unsupported": "no semantic mapping: only the compiler's debug line table"
+    },
+    {
+      "decl": null,
+      "id": "refinement",
+      "kind": "refinement",
+      "statement": null,
+      "unsupported": "no comorphism relation is generated for this program"
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [
+    {
+      "about": "target",
+      "artifact": "run",
+      "expected_stdout": "hello, world\n",
+      "id": "run",
+      "kind": "execution"
+    }
+  ],
+  "title": "hello.c, gcc 13.3.0 -O0 (assembly)",
+  "view": {
+    "source": "source",
+    "target": "target"
+  }
+}

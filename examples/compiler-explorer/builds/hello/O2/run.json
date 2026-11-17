@@ -1,0 +1,10 @@
+{
+  "assembly_sha256": "5cb347d02ae081e3fada5e42bdd1bbb3c1ba7897d0ee03f2567881f4454e3833",
+  "exit": 0,
+  "kind": "execution",
+  "link": "gcc hello.s -o hello",
+  "run": "./hello",
+  "stdout": "hello, world\n",
+  "stdout_sha256": "853ff93762a06ddbf722c4ebe9ddd66d8f63ddaea97f521c3ecc20da7c976020",
+  "what": "the assembly above, assembled and linked by the same image against its glibc, run once in the container with no input"
+}

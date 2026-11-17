@@ -1,0 +1,11 @@
+
+branch.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 <max2>:
+   0:	39 fe                	cmp    %edi,%esi
+   2:	89 f8                	mov    %edi,%eax
+   4:	0f 4d c6             	cmovge %esi,%eax
+   7:	c3                   	ret

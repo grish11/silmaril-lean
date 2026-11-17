@@ -1,0 +1,256 @@
+// The compiler explorer's page. Every text from the database is inserted with textContent.
+import { lineOffsets, indexEdges, edgeObligations, badge, uncovered } from "./view.js";
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = String(text);
+  return e;
+};
+const COLORS = 8;
+
+const state = { list: [], problem: null, index: null, locked: null, mode: "navigation" };
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url}: ${r.status}`);
+  return r.json();
+}
+
+function groupOf(id) { return id.split("/").slice(0, 2).join("/"); }
+
+async function init() {
+  state.list = await getJSON("api/problems");
+  const groups = [...new Set(state.list.map((p) => groupOf(p.id)))];
+  const prog = $("program");
+  for (const g of groups) prog.append(new Option(g, g));
+  const want = new URLSearchParams(location.search).get("problem");
+  if (want && state.list.some((p) => p.id === want)) prog.value = groupOf(want);
+  prog.onchange = () => { fillBuilds(); load($("build").value); };
+  $("build").onchange = () => load($("build").value);
+  $("mode").onchange = () => { state.mode = $("mode").value; render(); };
+  const mode = new URLSearchParams(location.search).get("mode");
+  if (mode === "semantic" || mode === "navigation") { state.mode = mode; $("mode").value = mode; }
+  fillBuilds(want);
+  await load($("build").value);
+}
+
+function fillBuilds(want) {
+  const b = $("build");
+  b.replaceChildren();
+  for (const p of state.list.filter((q) => groupOf(q.id) === $("program").value)) {
+    const d = p.derivation || {};
+    b.append(new Option(`${d.compiler || "?"} ${(d.version || "").replace(/^.*\) /, "")} -${d.opt || "?"} — ${p.id.split("/").slice(2).join("/") || p.id}`, p.id));
+  }
+  if (want && [...b.options].some((o) => o.value === want)) b.value = want;
+}
+
+async function load(id) {
+  state.problem = await getJSON("api/problems/" + encodeURIComponent(id));
+  state.locked = null;
+  render();
+}
+
+function render() {
+  const p = state.problem;
+  const srcText = p.texts.source ?? "(the source is not text)";
+  const tgtText = p.texts.target ?? "(the target is not displayable text)";
+  const srcLines = lineOffsets(srcText), tgtLines = lineOffsets(tgtText);
+  state.index = indexEdges(p, state.mode, srcLines, tgtLines);
+  const colorOf = new Map();
+  p.edges.filter((e) => e.kind === state.mode).forEach((e, i) => colorOf.set(e.id, i % COLORS));
+  state.colorOf = colorOf;
+  $("src-title").textContent = `Source · ${p.artifacts[p.view.source].path}`;
+  $("tgt-title").textContent = `Target · ${p.artifacts[p.view.target].path}`;
+  drawCode($("src"), "source", srcText);
+  drawCode($("tgt"), "target", tgtText);
+  drawQuestions(p);
+  drawProvenance(p);
+  drawAssumptions(p);
+  const nEdges = p.edges.filter((e) => e.kind === state.mode).length;
+  const isCode = (n) => /\S/.test(srcText.split("\n")[n - 1] || "") && !/^\s*(\/\*|\*|#|\/\/|[{}]\s*$)/.test(srcText.split("\n")[n - 1]);
+  const none = uncovered(state.index, "source", srcLines.length, isCode);
+  $("status").textContent = `${nEdges} ${state.mode} link(s). Source lines with code but no ${state.mode} link: ${none.length ? none.join(", ") : "none"}. Manifest ${p.manifest_sha256.slice(0, 12)}…, context ${p.context_hash.slice(0, 12)}…`;
+  if (state.mode === "semantic" && nEdges === 0) {
+    $("selection").replaceChildren(el("h2", null, "Selection"), el("p", "warn", "No semantic links: no Lean statement relates this source and target. The debug-info links remain available."));
+  } else {
+    showSelection(null);
+  }
+}
+
+function drawCode(box, side, text) {
+  box.replaceChildren();
+  text.split("\n").forEach((line, i) => {
+    const n = i + 1;
+    const row = el("div", "line");
+    row.dataset.side = side;
+    row.dataset.n = n;
+    const ids = state.index.byLine[side].get(n) || [];
+    if (ids.length) {
+      row.classList.add("linked", `c${state.colorOf.get(ids[0])}`);
+      if (ids.length > 1) row.classList.add("multi");
+    }
+    row.append(el("span", "ln", n), el("span", "tx", line || " "));
+    row.onmouseenter = () => { if (!state.locked) highlight(ids); };
+    row.onclick = () => {
+      state.locked = state.locked && state.locked.join() === ids.join() ? null : ids;
+      highlight(ids);
+    };
+    box.append(row);
+  });
+}
+
+function highlight(ids) {
+  document.querySelectorAll(".line.hl").forEach((r) => r.classList.remove("hl"));
+  for (const id of ids) {
+    const l = state.index.edgeLines.get(id);
+    for (const side of ["source", "target"]) {
+      for (const n of l[side]) {
+        const r = document.querySelector(`.line[data-side="${side}"][data-n="${n}"]`);
+        if (r) r.classList.add("hl");
+      }
+    }
+  }
+  const first = ids.length && state.index.edgeLines.get(ids[0]).target[0];
+  if (first) document.querySelector(`.line[data-side="target"][data-n="${first}"]`)?.scrollIntoView({ block: "nearest" });
+  showSelection(ids);
+}
+
+function statusBadge(status) {
+  const b = badge(status);
+  const s = el("span", `badge ${b.cls}`, b.label);
+  s.title = b.title;
+  return s;
+}
+
+function showSelection(ids) {
+  const box = $("selection");
+  box.replaceChildren(el("h2", null, "Selection"));
+  if (!ids || !ids.length) {
+    box.append(el("p", "muted", state.mode === "navigation"
+      ? "Debug-info links come from the compiler's line table: they say where code came from, not that it is correct."
+      : "Semantic links are program points of a Lean correspondence; each has its own obligations."));
+    return;
+  }
+  const p = state.problem;
+  for (const id of ids) {
+    const e = p.edges.find((x) => x.id === id);
+    const card = el("div", "edge");
+    card.append(el("div", "edge-id", `${e.kind} · ${e.id}`));
+    const frag = (fid) => p.fragments[fid]?.label || fid;
+    card.append(el("div", null, `source: ${e.source.map(frag).join("; ")}`));
+    card.append(el("div", null, `target: ${e.target.map(frag).join("; ")}`));
+    card.append(el("div", "muted", `fragment ids: ${[...e.source, ...e.target].join(", ")} (content addresses)`));
+    if (e.origin) card.append(el("div", "muted", `origin: ${e.origin}`));
+    if (e.note) card.append(el("div", "warn", e.note));
+    if (e.kind === "semantic") {
+      card.append(el("div", "muted", `program point ${e.point} (${e.point_kind}); the target fragment is where the segment starts, laid out up to the next point. The proved statement is about the run, which may jump.`));
+      for (const o of edgeObligations(p, id)) card.append(obligationRow(o));
+    } else {
+      card.append(el("div", "muted", "navigation only: no obligation"));
+    }
+    box.append(card);
+  }
+}
+
+function obligationRow(o) {
+  const row = el("div", "obl");
+  const head = el("div", "obl-head");
+  head.append(statusBadge(o.status), el("span", "obl-id", o.id));
+  row.append(head);
+  if (o.statement) row.append(el("code", "stmt", o.statement));
+  if (o.reason) row.append(el("div", "muted", o.reason));
+  if (o.decl) row.append(el("div", "muted", `proof: ${o.decl}`));
+  if (o.evidence) {
+    const ev = o.evidence;
+    row.append(el("div", "muted", `evidence: ${ev.kind} (${ev.export_status}), axioms ${ev.axioms.join(", ") || "none"}, Lean ${ev.lean_version}, commit ${ev.git_commit.slice(0, 10)}`));
+    if (ev.detail) row.append(el("div", "warn", ev.detail));
+  }
+  if (o.status === "stale") row.append(el("div", "warn", `proved for manifest ${o.older_manifest.slice(0, 12)}…, not for these artifacts`));
+  return row;
+}
+
+const QUESTIONS = [
+  ["translation", "Translation", "Is the whole target a valid compilation of the source, for these execution models and this calling convention? (No mapping involved.)"],
+  ["abi", "ABI", "Can the code be entered by a System V call for every argument tuple? The convention itself is an assumption of the translation statement; its return conditions are part of it."],
+  ["mapping", "Whole mapping", "Is every segment simulated, including points nobody listed? Individually proved links do not imply this."],
+  ["refinement", "Refines the comorphism relation", "Does the mapping's relation imply the relation generated by the DWARF comorphism (each C object with a value is in its frame slot)? Independent of the segments."],
+];
+
+function drawQuestions(p) {
+  const box = $("questions");
+  box.replaceChildren(el("h2", null, "Questions"));
+  for (const [k, title, text] of QUESTIONS) {
+    const o = p.questions[k];
+    const card = el("div", "q");
+    const head = el("div", "q-head");
+    head.append(statusBadge(o ? o.status : "unsupported"), el("strong", null, title));
+    card.append(head, el("div", "muted", text));
+    if (o) card.append(obligationRow(o));
+    box.append(card);
+  }
+  const ed = p.questions.edges;
+  const card = el("div", "q");
+  card.append(el("div", "q-head", `Links with a proved segment: ${ed.proved} of ${ed.listed} listed`), el("div", "muted", ed.note));
+  box.append(card);
+  const rest = p.obligations.filter((o) => !["edge", "point", ...QUESTIONS.map((q) => q[0])].includes(o.kind));
+  if (rest.length) {
+    const more = el("details", "q");
+    more.append(el("summary", null, "Other obligations (elaboration, artifact identity, non-vacuity)"));
+    for (const o of rest) more.append(obligationRow(o));
+    box.append(more);
+  }
+  for (const t of p.tests) {
+    const card = el("div", "q");
+    const head = el("div", "q-head");
+    head.append(statusBadge(t.status), el("strong", null, `Test: ${t.id}`));
+    card.append(head, el("div", "muted", `${t.record.what || t.kind}. A test of the target, not a proof of anything.`));
+    if (t.record.stdout !== undefined) card.append(el("div", "muted", "output:"), el("pre", "out", t.record.stdout));
+    if (t.record.expected_stdout !== undefined && t.record.expected_stdout !== t.record.stdout) {
+      card.append(el("div", "warn", "expected:"), el("pre", "out", t.record.expected_stdout));
+    }
+    box.append(card);
+  }
+}
+
+function drawProvenance(p) {
+  const box = $("provenance");
+  box.replaceChildren(el("h2", null, "Provenance"));
+  const dl = el("dl");
+  const add = (k, v) => { if (v !== null && v !== undefined && v !== "") { dl.append(el("dt", null, k), el("dd", null, v)); } };
+  add("direction", p.direction);
+  const d = p.derivation || {};
+  add("compiler", d.version);
+  add("image", d.image);
+  add("command", d.command);
+  for (const [role, a] of Object.entries(p.artifacts)) add(`artifact: ${role}`, `${a.path} · sha256 ${a.sha256} · ${a.size} bytes`);
+  for (const [k, v] of Object.entries(p.context || {})) add(k.replace("_", " "), v ? `${v.decl} — ${v.version}` : "none");
+  add("Lean modules", (p.lean.modules || []).join(", ") || "none");
+  add("manifest", p.manifest_sha256);
+  add("context hash", p.context_hash);
+  add("versions", `${p.versions.length} (evidence never carries across versions)`);
+  box.append(dl);
+}
+
+function drawAssumptions(p) {
+  const box = $("assumptions");
+  box.replaceChildren(el("h2", null, "Assumptions and limits"));
+  const ul = el("ul");
+  const items = p.family === "c-function-x86" ? [
+    "Source undefined behaviour permits any target behaviour: every statement assumes the Core run is safe.",
+    "Divergence is not covered: safety includes termination of every Core run.",
+    "Nondeterminism of Core (unsequenced operands) is handled by an existential over Core runs.",
+    "No I/O, calls, globals, pointers or floating point: the C elaborator's fragment of integer leaves.",
+    "One deterministic x86-64 thread (Silmaril.X86.Open.isa); no concurrency or memory model.",
+    "C text → typed Ail is checked by evaluation (#guard), not by the kernel; Core is the Lean port's.",
+    "The translation is proved for safe entries; that some entry is safe is a separate obligation (non-vacuity), open for every entry, proved for canonical ones.",
+  ] : [
+    "No Lean statement relates these artifacts: only the compiler's debug information and execution tests are shown.",
+    "Debug-info links describe provenance of code, not its correctness.",
+  ];
+  for (const t of items) ul.append(el("li", null, t));
+  box.append(ul);
+}
+
+init().catch((e) => { $("status").textContent = `error: ${e.message}`; });
