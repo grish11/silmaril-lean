@@ -114,19 +114,20 @@ def EM_X86_64 : Nat := 62
 x86-64 psABI's relocation table, x86-psABIs/x86-64-ABI@e1ce0983 §4.4.1; `TLSDESC` is two words,
 §"Thread-Local Storage Descriptors"). Every other type is `none`, and a relocation of it counts as
 touching everything (`Untouched`): `R_X86_64_COPY` (5, writes the destination symbol's
-`st_size`), the link-time-only types, and unknown numbers.
+`st_size`), `R_X86_64_IRELATIVE` (37: ld.so runs the IFUNC resolver it names, code this check
+says nothing about), the link-time-only types, and unknown numbers.
 
 | width | types |
 | --- | --- |
 | 0 | `NONE` (0) |
 | 4 | `PC32` (2), `32` (10), `32S` (11), `TPOFF32` (23) |
-| 8 | `64` (1), `GLOB_DAT` (6), `JUMP_SLOT` (7), `RELATIVE` (8), `DTPMOD64` (16), `DTPOFF64` (17), `TPOFF64` (18), `PC64` (24), `IRELATIVE` (37), `RELATIVE64` (38) |
+| 8 | `64` (1), `GLOB_DAT` (6), `JUMP_SLOT` (7), `RELATIVE` (8), `DTPMOD64` (16), `DTPOFF64` (17), `TPOFF64` (18), `PC64` (24), `RELATIVE64` (38) |
 | 16 | `TLSDESC` (36) |
 -/
 def relocWidth : Nat → Option Nat
   | 0 => some 0
   | 2 | 10 | 11 | 23 => some 4
-  | 1 | 6 | 7 | 8 | 16 | 17 | 18 | 24 | 37 | 38 => some 8
+  | 1 | 6 | 7 | 8 | 16 | 17 | 18 | 24 | 38 => some 8
   | 36 => some 16
   | _ => none
 
@@ -136,7 +137,9 @@ def Misses (o w v n : Nat) : Prop := o + w ≤ v ∨ v + n ≤ o
 /-- **No dynamic relocation patches the code or its data**: the file is x86-64, and every dynamic
 relocation (what ld.so applies, RELR entries expanded) has a known width (`relocWidth`) and
 writes `[offset, offset + width)` outside the code bytes and outside each data range. A
-relocation of unknown or symbol-dependent width (`COPY`) is refused. -/
+relocation of unknown or symbol-dependent width (`COPY`), or one that makes the loader run code
+(`IRELATIVE`), is refused. It covers relocation writes, not code the loader runs for other
+reasons (constructors, `DT_INIT`, other objects' IFUNC resolvers). -/
 def Untouched (F : Blob) (c : Code) : Prop :=
   ∃ A, Parses F A ∧ A.header.machine = EM_X86_64 ∧ ∀ r ∈ A.relocs .dynamic, ∃ w,
     relocWidth r.kind = some w ∧ Misses r.offset w c.base.toNat c.bytes.length ∧

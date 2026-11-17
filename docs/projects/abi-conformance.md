@@ -142,9 +142,10 @@ conformance of a *pure* function. A function with effects (`memset`) gives its `
    - A read-only executable `PT_LOAD` maps the code bytes, and read-only segments map the data.
    - The code's image is the file's `PT_LOAD` ranges.
 2. **`Untouched F c`.** The file is x86-64, and every dynamic relocation has a known width
-   (`relocWidth`, from the psABI's relocation table: 4, 8, or 16 for `TLSDESC`) and writes outside
-   the code and its data. `COPY` (it writes the symbol's `st_size`), link-time-only and unknown
-   types are refused wherever they are (`not_untouched_copy`, `not_untouched_unknown`), as is a
+   (`relocWidth`, from the psABI's relocation table: 4, 8, or 16 for `TLSDESC`; types the
+   check does not accept, `SIZE64` among them, are refused) and writes outside
+   the code and its data. `COPY` (it writes the symbol's `st_size`), `IRELATIVE` (ld.so runs the
+   IFUNC resolver it names), link-time-only and unknown types are refused wherever they are (`not_untouched_copy`, `not_untouched_unknown`), as is a
    file of another machine. A `TLSDESC` 12 bytes below the code is refused
    (`not_untouched_tlsdesc`); the former check, which took every relocation as 8 bytes, accepted
    it (`misses8_tlsdesc`).
