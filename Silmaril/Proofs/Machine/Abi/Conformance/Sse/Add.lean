@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Machine.Abi.Conformance.Sse.Add.Defs
 public import Silmaril.Machine.Abi.Conformance.Thms
+public import Silmaril.Machine.Abi.Conformance.Sse.Thms
 public import Silmaril.Proofs.Machine.Abi.Conformance.Sse
 public import Silmaril.Proofs.Machine.Abi.Conformance.Basic
 public import Silmaril.Proofs.Machine.Abi.Conformance.Negative
@@ -239,6 +240,8 @@ def x1 (x : SState) : SState :=
 theorem step_addsd (x : SState) (hl : Silmaril.X86.Ext.Loaded x.l.memory code.base bytes)
     (hrip : x.l.core.rip = code.base) (hm : x.l.mxcsr.AllMasked) :
     mach.isa.step x = some (x1 x) := by
+  rw [Sse.str9L_step x (Silmaril.X86.Str9L.towerMissing_of_listed_lane (o := 0) (l := 4) hl
+    (by rw [hrip]; rfl) (by decide) (by decide) (by decide) Silmaril.X86.Str9L.laneBad_addsd.1)]
   show (Silmaril.X86.Str9L.step _ (Silmaril.X86.Features.floatExt :: _) x.l).map _ = _
   rw [Silmaril.X86.Str9L.step_of_listed_float (o := 0) (l := 4) hl
     (by rw [hrip]; rfl) (by decide) (by decide) Silmaril.X86.Str9L.laneBad_addsd.1

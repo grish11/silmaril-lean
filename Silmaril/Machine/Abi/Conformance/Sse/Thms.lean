@@ -17,8 +17,11 @@ PROVED (standard axioms), proofs in `Silmaril.Proofs.Machine.Abi.Conformance.Sse
   modelled fields completes the FFI state, whatever its time-stamp stream, CET flag and the
   hidden parts the modelled fields do not fix; `fill s tsc cetOff` is one for each stream and
   flag;
-* `str9L_step`: a step is a step of `Str9L.isa F exts` on the tower state, the hidden vector
-  and x87 parts unchanged;
+* `str9L_step`: where no tower form needs a missing feature, a step is a step of
+  `Str9L.isa F exts` on the tower state, the hidden vector and x87 parts unchanged;
+  `str9L_step_missing`: elsewhere there is no step;
+* `str9L_vpcmpeqb_none`: **on `baseline64` the VEX form `vpcmpeqb (%rdi), %ymm0, %ymm1`
+  (`C5 FD 74 0F`, AVX2) has no step**, where `Str9L.step` alone would run it;
 * **the SSE argument and result bridges**: `fills_tower` (a completion's integer state and XMM
   file are `Sep.Plan.ffiXState s`), `entry_xmm` (an eight-byte SSE argument that `Ffi.Entry`
   places at `.vector i 0` is the low 64 bits of XMM `i` in every completion),
@@ -58,9 +61,22 @@ theorem str9L_fill (s : Ffi.State) (tsc : Nat → Word) (cetOff : Bool) :
   fill_fills s tsc cetOff
 
 /-- A step is a `Str9L` step of the tower state. -/
-theorem str9L_step (x : SState) :
+theorem str9L_step (x : SState) (h : Silmaril.X86.Str9L.towerMissing F x.l = none) :
     (Mach.str9L F exts).isa.step x =
-      (Silmaril.X86.Str9L.step F exts x.l).map fun l => { x with l } := rfl
+      (Silmaril.X86.Str9L.step F exts x.l).map fun l => { x with l } := by
+  simp only [Mach.str9L, isa, h]
+
+/-- No step at a tower form that needs a feature `F` lacks. -/
+theorem str9L_step_missing (x : SState) {f : Silmaril.X86.Features.Feature}
+    (h : Silmaril.X86.Str9L.towerMissing F x.l = some f) : (Mach.str9L F exts).isa.step x = none := by
+  simp only [Mach.str9L, isa, h]
+
+/-- **On `baseline64` an AVX2 form of the tower has no step.** -/
+theorem str9L_vpcmpeqb_none (exts : List Silmaril.X86.Features.Extension) {x : SState}
+    {base : Word} (hl : Silmaril.X86.Ext.Loaded x.l.memory base [0xC5, 0xFD, 0x74, 0x0F])
+    (hrip : x.l.core.rip = base) :
+    (Mach.str9L Silmaril.X86.Features.FeatureSet.baseline64 exts).isa.step x = none :=
+  Silmaril.Proofs.Machine.Abi.Conformance.Sse.vpcmpeqb_none exts hl hrip
 
 theorem fills_tower (h : Fills s x) : x.l.x.d.v.g.x = ffiXState s :=
   Silmaril.Proofs.Machine.Abi.Conformance.Sse.fills_tower h
