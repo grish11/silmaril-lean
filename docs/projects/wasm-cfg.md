@@ -641,9 +641,15 @@ The plain graph stays an over-approximation, and claims about it say so.
                - answered tail calls, done (`proj_tailE`, `proj_tail_initialE`). A logged run ending
                  in `TailL`, with its tail answer a `CloseOk C` entry, is an `MStepC` run whose
                  last step is `MStepC.tail` (frame replacement), to `tailSink`;
-               - `try_table`: the catch dispatch against `MStepC.catch_`/`bodyCatch`/`catchOut`.
-                 The checker invariant's catch case needs `catchOk` and the payload arity of
-                 `Catches` under `TagsOk`. It must keep
+               - `try_table`, done (`cinv_stepE`, `cinv_runE`, `proj_stepK`, `proj_runLK`,
+                 `proj_initialK`, `proj_tail_initialK`). `ChkF` records each `try_table` frame's
+                 clause check. `catch_arity` (`Interp.catches_count` under `TagsOk`) gives the
+                 caught values' arity. Catches map to `MStepC.catch_`/`bodyCatch`/`catchOut`/
+                 `bodyCatchOut`. The stepwise projection now holds for **every call form and
+                 structured instruction, exceptions on**. Its hypotheses: `ArityResp Γ C` with
+                 `CloseOk C` logs, `Ctx.Good`, and the body's own `chkE (ehExt tags)` check.
+             - Remaining for the stepwise projection: none. For the session result, `CloseOk`
+               is discharged by the canonical closing correspondence (next). It must keep
              the exception outcomes, tag matching, trap stores, and tail calls bypassing the
              caller's handlers. Then the stepwise projection extends to EH.
           3. Validated typed nested fixtures (block, loop, if, catch) on which it holds.

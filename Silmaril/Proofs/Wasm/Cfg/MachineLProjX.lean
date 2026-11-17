@@ -372,7 +372,8 @@ theorem proj_enterE {Γ : Abstract.ExposePStruct.Ctx H} (hA : ArityResp Γ C)
   have hFa : ChkF (Interp.ehExt Γ.tags) Γ.funcs mi nl ret body (b.seq ++ [(b.idx, a)]).reverse
       (L :: ls) oa := by
     simp only [List.reverse_append, List.reverse_singleton, List.singleton_append]
-    refine ⟨c, sg, i, c', np', nr', by simpa using hc, hsg, ht, harm, hkind, hba, rfl, hoaE,
+    refine ⟨c, sg, i, c', np', nr', by simpa using hc, hsg, ht, harm, hkind, hba, rfl,
+      fun h => absurd h (by simp [hLdef, hnt]), hoaE,
       ⟨oa, hoa, hoaE⟩, out, ?_, hF⟩
     have : (L.outer.length + nr') = V'.length - np' + nr' := by simp [hLdef]
     rw [this]; exact hrest
