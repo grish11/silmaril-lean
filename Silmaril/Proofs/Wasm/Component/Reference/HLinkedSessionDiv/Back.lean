@@ -138,7 +138,8 @@ theorem ldiv_roundH (S : HStat P l Ie Ii u F₀ M₀ (ownOf s₀)) (hF : GFrame 
       LInv P l.toW Ie Ii s₀ u F₀ (ownOf s₀) (shOwn (sh s₀) (ownOf u₀)) f y' x' π' ∧
       Ii.Path P (.running f x.1 x.2) (callMoves [c]) (.running f x'.1 x'.2) ∧
       Silmaril.Wasm.Component.Reference.ImpRel l.imp Ii c ds ∧
-      HLinked2.ExpRunH P l Ie π ds π' ∧ HostRun g h (l.hostCalls ds) h' := by
+      HLinked2.ExpRunH P l Ie π ds π' ∧ HostRun g h (l.hostCalls ds) h' ∧
+      ((l.hostCalls ds = [] ∧ h' = h) ∨ ∃ fn args rs, g h fn args = some (rs, h')) := by
   rcases IRun.core ht hp with ⟨hinf, hhost⟩ | ⟨n, hpn, y₁, lb, hn, hy, hx, -, -⟩
   · -- (i) B's core activation runs forever
     left
@@ -255,8 +256,8 @@ theorem ldiv_roundH (S : HStat P l Ie Ii u F₀ M₀ (ownOf s₀)) (hF : GFrame 
             refine ⟨⟨e, .values ⟨_, resAnswerH S hk rfl hcheck⟩⟩, _, _, _, _, _, _, _, _, h, _,
               _, π₂, by omega, hp₂, threadsOk_after _ _, hI₂,
               .cons (.ucall hr₁ hco' he') (.cons (.uret _) (.nil _)), hrel₁,
-              .ret ⟨wi, hwl⟩ hw' (hxw ▸ hRet) (.nil π₂), ?_⟩
-            exact hostRun_wired (by exact hwk) (.nil h)
+              .ret ⟨wi, hwl⟩ hw' (hxw ▸ hRet) (.nil π₂), hostRun_wired (by exact hwk) (.nil h),
+              .inl ⟨hostCalls_cons_wired (by exact hwk), rfl⟩⟩
         · have hdn₂ := ht.diverges (n₂ + 1)
           rw [hm₂] at hdn₂
           exact absurd hdn₂ (not_diverges_trapCfg _)
@@ -304,7 +305,8 @@ theorem ldiv_roundH (S : HStat P l Ie Ii u F₀ M₀ (ownOf s₀)) (hF : GFrame 
         refine ⟨⟨e, .values ⟨_, resAnswerH S hk rfl hck⟩⟩, _, _, _, _, _, _, _, _, s₁, _,
           _, π, by simp only [List.length_cons]; omega, hp₂, hte, hI₂,
           .cons (.ucall hr₁ hco' he') (.cons (.uret _) (.nil _)), hrel₁,
-          .host ⟨e.1.val - l.wire.length, hi⟩ hnn (.nil π), ?_⟩
-        exact hostRun_host hge hi ⟨⟨e.1.val - l.wire.length, hi⟩, ws, rfl, hg⟩ (.nil s₁)
+          .host ⟨e.1.val - l.wire.length, hi⟩ hnn (.nil π),
+          hostRun_host hge hi ⟨⟨e.1.val - l.wire.length, hi⟩, ws, rfl, hg⟩ (.nil s₁),
+          .inr ⟨_, _, _, hg⟩⟩
 
 end Silmaril.Proofs.Wasm.Component.Reference.HLinkedSessionDiv
