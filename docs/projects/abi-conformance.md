@@ -306,6 +306,34 @@ All rows are on `Open9`, total, frame 256, at every load base. The header rows a
 `scripts/abi-bytes/zlib_matrix.py` generates the code bytes and regions and checks each
 claimed symbol's value, size, type and version against the file. The kernel checks them again.
 
+## The whole header: complete satisfaction on Ubuntu's `libz.so.1.3`
+
+`Silmaril.Elf.Abi.ZlibMatrix.Api` claims the excerpt's seven other declarations on Ubuntu's
+`libz.so.1.3`, beside the four checksum rows. With them, all 11 declarations are claimed and
+none excluded. The header row `silmaril.elf.abi.zlib_libz.zlib_h_complete` is therefore stated
+at the **complete** level, as an open problem: `header_complete_of` proves it from the 11
+conformance tasks.
+
+| function | spec (`Machine.Abi.Conformance.Zlib.Api`) | binding |
+| --- | --- | --- |
+| `crc32_combine` | `= crc32(0, A ++ B)` whenever the arguments are `crc32(0,A)`, `crc32(0,B)`, `len(B)` | `ZLIB_1.2.2` |
+| `adler32_combine` | the same for Adler-32 (initial value 1) | `ZLIB_1.2.2` |
+| `crc32_combine_gen` | a 32-bit operator `op` with `multmodp(op, crc32(0,A)) ^ crc32(0,B) = crc32(0, A ++ B)` for `len(B)` the argument | `ZLIB_1.2.12` |
+| `crc32_combine_op` | `multmodp(op, crc1) ^ crc2` on the low 32 bits | `ZLIB_1.2.12` |
+| `get_crc_table` | a pointer to 1024 readable bytes: the table, little-endian | base |
+| `zlibVersion` | a pointer to `"1.3"` and a NUL, readable (the binary's own version) | base |
+| `zlibCompileFlags` | the low byte the data model gives (`0xa9` for LP64; `0x55` for ILP32) | `ZLIB_1.2.0.2` |
+
+- **Specs.** The combine specs characterize the result by what it is for; they say nothing
+  when the arguments are not checksums. `combine_example` checks the `_gen`/`_op` condition on
+  zlib's operator for one-byte strings by kernel computation.
+- **Regions.** `scripts/abi-bytes/zlib_api.py` sweeps each function from its entry and follows
+  direct branch and call targets: `crc32_combine` and `crc32_combine_gen` jump to their `*64`
+  bodies. It refuses indirect branches and PLT calls, and checks that every `%rip`-relative
+  operand points into the read-only segment, which the reading functions carry as data. That
+  the sweep found all reachable code is the generator's claim, not a theorem. A missed callee
+  would make a task false, never a row true.
+
 ## Distinct from the shapes that state less
 
 | shape | says | does not say |
@@ -390,8 +418,8 @@ the state's (as here), in `Machine.SystemV.Abi.Ffi`, and derive the `OpenMachine
     are open;
   - Ubuntu's `libz.so.1.3`, at every load base (its file facts are proved);
   - the library matrix (1.2.11, and GCC and Clang builds of 1.3.1), at every load base.
-- Rows for the remaining declarations (`crc32_combine`, `adler32_combine`, `get_crc_table`,
-  `zlibVersion`, `zlibCompileFlags`), so that a binary can reach `header_sat_available`.
+- The same API rows on the matrix binaries (where the wrappers' PLT calls and 1.2.11's IFUNC
+  keep them partial).
 - `Open9` rows.
 - `sysvInt` extended to aggregates, SSE and varargs.
 - `Win64` as an `AbiDef`.
