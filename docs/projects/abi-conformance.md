@@ -77,7 +77,8 @@ An admitted call (`Admit`) requires:
 - the entry environment `A.EntryEnv s.mxcsr s.x87Control`: a predicate on the MXCSR and the
   x87 control word only (its type is its scope). `True` for `sysvInt`, `sysvScalar` and
   `win64Int`: their conventions let a caller enter with any control bits. An ABI requiring the
-  default `MXCSR = 0x1F80` is a **default-environment subset**, not the full convention, and
+  default MXCSR control bits (`MXCSR &&& 0xffc0 = 0x1F80`; the sticky status flags are free) is
+  a **default-environment subset**, not the full convention, and
   says so in its identity (`AbiDef.defaultEnv`). The environment is never part of a machine;
 - the code placed;
 - the stack the ABI gives the callee (`Stack`):
