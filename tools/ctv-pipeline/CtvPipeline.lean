@@ -10,8 +10,8 @@ import Silmaril.Compiler.Native.TargetCoherence.Defs
 
 ```
 ctv-pipeline elaborate RUNTIME FRESH TAIL OUT     elaborate one typed-Ail document to a Core document
-ctv-pipeline run RUNTIME FRESH OUTDIR [--depth N] [--budget N] [--observe NAME STATUS STDOUT]...
-                 NAME=TAIL...                      elaborate each route, explore, cross-validate
+ctv-pipeline run RUNTIME FRESH OUTDIR [--depth N] [--budget N] [--observe NAME TERM STDOUT]...
+                 NAME=TAIL...                      (TERM: an exit status, `signal:N` or `abort`)                      elaborate each route, explore, cross-validate
 ```
 
 `RUNTIME` is a genuine Cerberus Core document whose runtime maps (`stdlib`, `impl`) and the
@@ -104,7 +104,7 @@ def checkVerdict : Spec.Verdict → String
 structure Opts where
   depth : Nat := 100000
   budget : Nat := 2000000
-  observe : List (String × Nat × String) := []
+  observe : List (String × Spec.Termination × String) := []
   routes : List (String × String) := []
 
 partial def parseOpts : List String → Opts → Except String Opts
@@ -112,7 +112,11 @@ partial def parseOpts : List String → Opts → Except String Opts
   | "--depth" :: n :: rest, o => do parseOpts rest { o with depth := ← (n.toNat?.elim (.error "depth") .ok) }
   | "--budget" :: n :: rest, o => do parseOpts rest { o with budget := ← (n.toNat?.elim (.error "budget") .ok) }
   | "--observe" :: name :: st :: file :: rest, o => do
-      parseOpts rest { o with observe := o.observe ++ [(name, ← (st.toNat?.elim (.error "status") .ok), file)] }
+      let t ← match st.splitOn ":" with
+        | ["signal", n] => n.toNat?.elim (.error "signal") (fun n => .ok (.signal n))
+        | ["abort"] => .ok .abort
+        | _ => st.toNat?.elim (.error "status") (fun n => .ok (.exit n))
+      parseOpts rest { o with observe := o.observe ++ [(name, t, file)] }
   | r :: rest, o => match r.splitOn "=" with
       | [name, path] => parseOpts rest { o with routes := o.routes ++ [(name, path)] }
       | _ => .error s!"unexpected argument {r}"
@@ -148,12 +152,14 @@ def run (runtimePath : String) (fresh : Nat) (outDir : String) (o : Opts) : IO U
   let mut observations : Array Json := #[]
   for (name, status, file) in o.observe do
     let out ← IO.FS.readBinFile file
-    let obs : Spec.Obs := ⟨.exit status, out.toList.map (·.toNat)⟩
+    let obs : Spec.Obs := ⟨status, out.toList.map (·.toNat)⟩
     let mut per : Array (String × Json) := #[]
     for (p, P) in programs do
       let r := Spec.check Spec.Impl.lp64 P.file P.enums P.args [obs] { depth := o.depth, budget := o.budget }
       per := per.push (p, Json.str (checkVerdict (r.verdict obs)))
-    observations := observations.push (Json.mkObj [("name", name), ("status", status),
+    let term := match status with
+      | .exit n => s!"exit {n}" | .abort => "abort" | .signal n => s!"signal {n}"
+    observations := observations.push (Json.mkObj [("name", name), ("termination", term),
       ("stdoutBytes", out.size), ("check", Json.mkObj per.toList)])
   let report := Json.mkObj [("schema", "silmaril.c-tv.pipeline.v1"), ("profile", "linuxX86_64"),
     ("elaborator", "Silmaril.Cerberus.Elaboration.Functions.elaborate, TargetCoherence.linuxLP64"),
