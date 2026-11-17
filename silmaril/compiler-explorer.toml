@@ -67,6 +67,13 @@ expect = "THM"
 title = "add3 at O0: edge 4"
 
 [[instance]]
+name = "silmaril.compiler_explorer.straight.o0.add3.code"
+of = "silmaril.shapes.compiler_explorer.c.code"
+args = { obj = "silmaril.compiles_to.straight.o0.obj", name = { str = "add3" }, F = "CompilesToExamples.Straight.O0.add3" }
+expect = "THM"
+title = "add3 at O0: code"
+
+[[instance]]
 name = "silmaril.compiler_explorer.straight.o2.add3.translation"
 of = "silmaril.shapes.compiler_explorer.c.translation.open"
 args = { F = "CompilesToExamples.Straight.O2.add3" }
@@ -100,6 +107,13 @@ of = "silmaril.shapes.compiler_explorer.c.edge.open"
 args = { F = "CompilesToExamples.Straight.O2.add3", k = 0 }
 expect = "THM"
 title = "add3 at O2: edge 0"
+
+[[instance]]
+name = "silmaril.compiler_explorer.straight.o2.add3.code"
+of = "silmaril.shapes.compiler_explorer.c.code"
+args = { obj = "silmaril.compiles_to.straight.o2.obj", name = { str = "add3" }, F = "CompilesToExamples.Straight.O2.add3" }
+expect = "THM"
+title = "add3 at O2: code"
 
 [[instance]]
 name = "silmaril.compiler_explorer.branch.o0.max2.translation"
@@ -165,6 +179,13 @@ expect = "THM"
 title = "max2 at O0: edge 4"
 
 [[instance]]
+name = "silmaril.compiler_explorer.branch.o0.max2.code"
+of = "silmaril.shapes.compiler_explorer.c.code"
+args = { obj = "silmaril.compiles_to.branch.o0.obj", name = { str = "max2" }, F = "CompilesToExamples.Branch.O0.max2" }
+expect = "THM"
+title = "max2 at O0: code"
+
+[[instance]]
 name = "silmaril.compiler_explorer.branch.o2.max2.translation"
 of = "silmaril.shapes.compiler_explorer.c.translation.open"
 args = { F = "CompilesToExamples.Branch.O2.max2" }
@@ -199,6 +220,13 @@ args = { F = "CompilesToExamples.Branch.O2.max2", k = 0 }
 expect = "OPN"
 title = "max2 at O2: edge 0"
 
+[[instance]]
+name = "silmaril.compiler_explorer.branch.o2.max2.code"
+of = "silmaril.shapes.compiler_explorer.c.code"
+args = { obj = "silmaril.compiles_to.branch.o2.obj", name = { str = "max2" }, F = "CompilesToExamples.Branch.O2.max2" }
+expect = "THM"
+title = "max2 at O2: code"
+
 [[group]]
 name = "silmaril.compiler_explorer.all"
 title = "Compiler explorer: the compiles-to builds as compilation problems"
@@ -212,11 +240,13 @@ children = [
   "silmaril.compiler_explorer.straight.o0.add3.edge_2",
   "silmaril.compiler_explorer.straight.o0.add3.edge_3",
   "silmaril.compiler_explorer.straight.o0.add3.edge_4",
+  "silmaril.compiler_explorer.straight.o0.add3.code",
   "silmaril.compiler_explorer.straight.o2.add3.translation",
   "silmaril.compiler_explorer.straight.o2.add3.nonvacuous",
   "silmaril.compiler_explorer.straight.o2.add3.mapping",
   "silmaril.compiler_explorer.straight.o2.add3.location",
   "silmaril.compiler_explorer.straight.o2.add3.edge_0",
+  "silmaril.compiler_explorer.straight.o2.add3.code",
   "silmaril.compiler_explorer.branch.o0.max2.translation",
   "silmaril.compiler_explorer.branch.o0.max2.nonvacuous",
   "silmaril.compiler_explorer.branch.o0.max2.mapping",
@@ -226,9 +256,11 @@ children = [
   "silmaril.compiler_explorer.branch.o0.max2.edge_2",
   "silmaril.compiler_explorer.branch.o0.max2.edge_3",
   "silmaril.compiler_explorer.branch.o0.max2.edge_4",
+  "silmaril.compiler_explorer.branch.o0.max2.code",
   "silmaril.compiler_explorer.branch.o2.max2.translation",
   "silmaril.compiler_explorer.branch.o2.max2.nonvacuous",
   "silmaril.compiler_explorer.branch.o2.max2.mapping",
   "silmaril.compiler_explorer.branch.o2.max2.location",
   "silmaril.compiler_explorer.branch.o2.max2.edge_0",
+  "silmaril.compiler_explorer.branch.o2.max2.code",
 ]

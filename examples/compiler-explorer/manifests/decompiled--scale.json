@@ -21,7 +21,7 @@
     "receipt": {
       "media": "application/json",
       "path": "examples/compiler-explorer/decompile/DECOMPILE.json",
-      "sha256": "d41ae0c60044bca3c81cb45671392a31949daed51b5f183610f2cf75d7ca1610",
+      "sha256": "8a6bcf44665e8d71d056011fd8dce2cac0558ddee404134a41abc2c85bec57e5",
       "size": 701
     },
     "source": {
@@ -47,7 +47,7 @@
   "derivation": {
     "checked_by_SemLift_check": true,
     "command": "lake env lean --run tools/compiler-explorer/decompile_block.lean scale '48 8d 44 fe fb' 1 a=rdi,b=rsi OUT",
-    "commit": "ba4531a0b6d96b7d54d0a0ee74969a030592cc3e",
+    "commit": "66a76b1cb7fa38f25ea4984ae59406382b72c72d",
     "kind": "decompiler",
     "receipt": "receipt",
     "tool": "Silmaril.X86.Decompile.SemLift.propose, SemLift.check, Silmaril.Compiler.Decompile.WordC.regenerate",

@@ -129,6 +129,13 @@ def ExplorerMapping (I : Model) (F : FnData) : Prop :=
 def ExplorerLocation (I : Model) (F : FnData) : Prop :=
   ∀ k0, (F.mapping I k0).toMapping.RefinesAt F.dwarfRel (fun _ => True)
 
+/-- The function's bytes are the code of its symbol in an object file (the binding of a problem's
+Lean function to its target artifact). -/
+@[problem "silmaril.shapes.compiler_explorer.c.code"
+  (title := "Compiler explorer: the function's bytes are its symbol's code in the object")]
+def ExplorerCode {V : Type} (obj : Silmaril.Project.Value V) (name : String) (F : FnData) : Prop :=
+  Silmaril.Project.Shapes.SysV.ObjectFn obj name F.code
+
 end Silmaril.Project.CompilesTo
 
 end

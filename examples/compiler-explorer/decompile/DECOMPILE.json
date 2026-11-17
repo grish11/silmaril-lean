@@ -1,7 +1,7 @@
 {
   "checked_by_SemLift_check": true,
   "command": "lake env lean --run tools/compiler-explorer/decompile_block.lean scale '48 8d 44 fe fb' 1 a=rdi,b=rsi OUT",
-  "commit": "ba4531a0b6d96b7d54d0a0ee74969a030592cc3e",
+  "commit": "66a76b1cb7fa38f25ea4984ae59406382b72c72d",
   "input": {
     "bytes": "48 8d 44 fe fb",
     "path": "scale.o",

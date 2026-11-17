@@ -322,6 +322,7 @@
       "decl": "CompilesToExamples.Explorer.straight_O2_code",
       "id": "artifact",
       "kind": "artifact",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.code",
       "statement": "Silmaril.Project.Shapes.SysV.ObjectFn silmaril.compiles_to.straight.o2.obj \"add3\" CompilesToExamples.Straight.O2.add3.code"
     },
     {

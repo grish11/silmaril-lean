@@ -201,7 +201,17 @@ const TRUST = {
 function drawQuestions(p) {
   const box = $("questions");
   box.replaceChildren(el("h2", null, "Questions"));
-  for (const [k, title, text] of QUESTIONS) {
+  const generic = {
+    translation: "Does the target refine the source (backward, for safe source runs)?",
+    nonvacuity: "Is some related entry safe on the source side?",
+    abi: "Does an entry state of the calling convention exist?",
+    mapping: "Is every segment of a semantic mapping valid?",
+    refinement: "Does a mapping refine a comorphism-generated relation?",
+  };
+  for (const [k, title0, text0] of QUESTIONS) {
+    const c = p.family === "c-function-x86";
+    const title = c ? title0 : title0.split(":")[0];
+    const text = c ? text0 : generic[k];
     const o = p.questions[k];
     const card = el("div", "q");
     const head = el("div", "q-head");

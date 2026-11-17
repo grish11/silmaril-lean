@@ -318,9 +318,10 @@ class Project(Base):
                         (cx.sha256(row.encode()), row, row))
             pdb.execute("INSERT INTO edges VALUES ('instance', ?, 0, ?, ?, 'instance', ?)",
                         (row, shapes[o["kind"]], row, row))
-            args = [fn] + ([str(edges[o["edge"]]["point"])] if o["kind"] == "edge" else [])
+            point = edges[o["edge"]]["point"] if o.get("edge") else None
+            args = cx.ROW_SHAPES["c-function-x86"][o["kind"]][1](m["lean"]["vars"], point)
             for i, a in enumerate(args):
-                pdb.execute("INSERT INTO instance_args VALUES (?, ?, ?, NULL, NULL)", (row, i, a))
+                    pdb.execute("INSERT INTO instance_args VALUES (?, ?, ?, NULL, NULL)", (row, i, a))
             decl = row.replace("silmaril.", "Rows.")
             pdb.execute("INSERT INTO statuses VALUES (?, 'THM', 'solves', ?, 'kernel')", (row, decl))
             for ax in ("propext", "Classical.choice", "Quot.sound"):
@@ -335,15 +336,18 @@ class Project(Base):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
         cx.ingest_project(self.db, self.project_db())
         st = self.statuses("compiles-to/straight/O0/add3")
-        # the rows prove their obligations, but the artifact binding has no row: unbound
-        self.assertEqual(st["translation"], "unbound")
-        ev = evidence_for(STRAIGHT_O0, lambda o: "kernel" if o["kind"] == "artifact" else "missing")
-        ev["obligations"] = [o for o in ev["obligations"] if o["id"] == "artifact"]
-        self.trusted(self.write("ev.json", ev))
-        st = self.statuses("compiles-to/straight/O0/add3")
-        for k in ("translation", "mapping", "refinement", "nonvacuity", "edge/3"):
+        for k in ("artifact", "translation", "mapping", "refinement", "nonvacuity", "edge/3"):
             self.assertEqual(st[k], "proved", k)
         self.assertEqual(st["abi"], "unchecked")  # no row, no exporter result
+
+    def test_without_the_code_row_everything_is_unbound(self):
+        def edit(pdb):
+            pdb.execute("DELETE FROM statuses WHERE problem LIKE '%.code'")
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        cx.ingest_project(self.db, self.project_db(edit))
+        st = self.statuses("compiles-to/straight/O0/add3")
+        self.assertEqual(st["artifact"], "open")
+        self.assertEqual(st["translation"], "unbound")
 
     def test_row_of_another_function_is_a_mismatch(self):
         def edit(pdb):

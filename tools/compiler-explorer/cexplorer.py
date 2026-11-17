@@ -99,6 +99,8 @@ ROW_SHAPES = {
         "mapping": ("silmaril.shapes.compiler_explorer.c.mapping.open", lambda v, k: [v["fn"]]),
         "refinement": ("silmaril.shapes.compiler_explorer.c.refines_location.open", lambda v, k: [v["fn"]]),
         "edge": ("silmaril.shapes.compiler_explorer.c.edge.open", lambda v, k: [v["fn"], str(k)]),
+        "artifact": ("silmaril.shapes.compiler_explorer.c.code",
+                     lambda v, k: ["Silmaril.Formats.Bytes", v["target_value"], f'"{v["cname"]}"', v["fn"]]),
     },
 }
 
@@ -807,7 +809,8 @@ def ingest_project(db: sqlite3.Connection, project: pathlib.Path) -> int:
                 parent = pdb.execute("SELECT parent FROM edges WHERE kind = 'instance' AND child = ?",
                                      (o["row"],)).fetchone()
                 terms = [r["term"] for r in pdb.execute(
-                    "SELECT term FROM instance_args WHERE problem = ? ORDER BY pos", (o["row"],))]
+                    "SELECT COALESCE(term, value) AS term FROM instance_args WHERE problem = ? ORDER BY pos",
+                    (o["row"],))]
                 if parent is None or parent["parent"] != shape or terms != args(vars_, o["point"]):
                     status, detail = "mismatch", (f"the row is not {shape} of {args(vars_, o['point'])} "
                                                   f"(it is {parent and parent['parent']} of {terms})")

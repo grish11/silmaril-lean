@@ -479,6 +479,7 @@
       "decl": "CompilesToExamples.Explorer.branch_O0_code",
       "id": "artifact",
       "kind": "artifact",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.code",
       "statement": "Silmaril.Project.Shapes.SysV.ObjectFn silmaril.compiles_to.branch.o0.obj \"max2\" CompilesToExamples.Branch.O0.max2.code"
     },
     {
