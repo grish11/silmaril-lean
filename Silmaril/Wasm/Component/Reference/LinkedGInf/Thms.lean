@@ -40,8 +40,9 @@ streams. The iffs are at the deterministic profiles `profile o`, for links meeti
 
 * The finite plays are compared on typed complete sessions (`IRFinEq`), not as whole strategies
   (`pubPlays`): the exporter interface `ExpSpec.Adeq` says nothing about ill-typed calls of a
-  linked component (for `Linked2` they trap at once, `Linked2.den_filter_iff`; that is not
-  proved for `LinkedG`).
+  linked component. (They trap at once in the IR, `LinkedG.den_filter_iff`, and the whole finite
+  plays follow from the full equivalence, `LinkedG.pubPlays_of_refSessEquivFull`; both in
+  `LinkedGFilter`.)
 * The hypotheses are bundled: `LinkedG.ProfOk o g` (the exporter's IR and reference interfaces,
   determinism and `LinkOk`) and `LinkedN.ExtOk n Ib Is b w` (the hypotheses of
   `LinkedN.sessDivs_eq_refDivs`). For a chain the component compared is the link
