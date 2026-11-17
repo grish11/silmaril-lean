@@ -182,7 +182,7 @@ theorem step_ghost {c c' : Config H} (h : Step P NH c c') :
   | @throw s f x vs ta ti ts ht he hn =>
     intro T X hg _ _
     refine .inr ⟨_, rfl, _, Step.throw (s := gst s T X) (tag?_gst hg.tags ht) he hn, ?_⟩
-    exact .cons (.exn (Nat.lt_succ_of_lt hg.lt)) (.cons (.refl _) .nil)
+    exact .cons (.ref (.exn (Nat.lt_succ_of_lt hg.lt))) (.cons (.refl _) .nil)
   | @throwRefHandlerCatch s f n x l cs a e he ht =>
     intro T X hg _ _
     obtain ⟨e', h', htag, hfs⟩ := hg.real a e he

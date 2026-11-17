@@ -9,7 +9,7 @@ public import Silmaril.Wasm.Execution.Core.Typing.Config
 
 `CodeApprox N es es'`: `es` (actual code) and `es'` (witness code) agree except that an exception
 reference `ref.exn a` of `es` with `a < N` may be any exception reference `ref.exn b` in `es'`,
-inside labels, handlers and frames too. `AdminsOk` only checks that an exception reference names
+also under `extern` wrappers (`RefApprox`), inside labels, handlers and frames too. `AdminsOk` only checks that an exception reference names
 an exception, so typing of `es'` in a store with `N` exceptions types `es` (`adminsOk_approx`).
 -/
 
@@ -19,16 +19,22 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 
 variable {H : Type}
 
-/-- Values equal up to exception references (the left one below `N`). -/
+/-- References equal up to exception addresses (the left ones below `N`). -/
+inductive RefApprox (N : Nat) : Ref → Ref → Prop where
+  | refl (r : Ref) : RefApprox N r r
+  | exn {a b : Nat} (h : a < N) : RefApprox N (.exn a) (.exn b)
+  | extern {r r' : Ref} (h : RefApprox N r r') : RefApprox N (.extern r) (.extern r')
+
+/-- Values equal up to exception addresses (the left ones below `N`). -/
 def ValApprox (N : Nat) (v w : Val) : Prop :=
-  v = w ∨ ∃ a b, v = .ref (.exn a) ∧ w = .ref (.exn b) ∧ a < N
+  v = w ∨ ∃ r r', v = .ref r ∧ w = .ref r' ∧ RefApprox N r r'
 
 mutual
 
 /-- Administrative instructions equal up to exception references. -/
 inductive AdminApprox (N : Nat) : Admin → Admin → Prop where
   | refl (a : Admin) : AdminApprox N a a
-  | exn {a b : Nat} (h : a < N) : AdminApprox N (.ref (.exn a)) (.ref (.exn b))
+  | ref {r r' : Ref} (h : RefApprox N r r') : AdminApprox N (.ref r) (.ref r')
   | label (n : Nat) (cont : List Instr) {b b' : List Admin} (h : CodeApprox N b b') :
       AdminApprox N (.label n cont b) (.label n cont b')
   | handler (n : Nat) (cs : List Catch) {b b' : List Admin} (h : CodeApprox N b b') :
@@ -77,27 +83,60 @@ theorem of_vals : ∀ {vs ws : List Val}, List.Forall₂ (ValApprox N) vs ws →
   | _, _, .nil => .nil
   | _, _, .cons h hs => by
     refine .cons ?_ (of_vals hs)
-    rcases h with rfl | ⟨a, b, rfl, rfl, ha⟩
+    rcases h with rfl | ⟨r, r', rfl, rfl, hr⟩
     · exact .refl _
-    · exact .exn ha
+    · exact .ref hr
 
 end CodeApprox
 
-/-- An exception reference of an existing exception has every type another one has. -/
-theorem refOk_exn_retarget {s : Store H} {a b : Nat} {rt : CRefType} {e : ExnInst}
-    (he : s.exns[a]? = some e) (h : RefOk s (.exn b) rt) : RefOk s (.exn a) rt := by
-  generalize hr : Ref.exn b = r at h
+theorem RefApprox.mono {N M : Nat} (h : N ≤ M) {r r' : Ref} (hr : RefApprox N r r') :
+    RefApprox M r r' := by
+  induction hr with
+  | refl r => exact .refl r
+  | exn ha => exact .exn (Nat.lt_of_lt_of_le ha h)
+  | extern _ ih => exact .extern ih
+
+theorem ValApprox.mono {N M : Nat} (h : N ≤ M) {v w : Val} (hv : ValApprox N v w) :
+    ValApprox M v w := by
+  rcases hv with rfl | ⟨r, r', rfl, rfl, hr⟩
+  · exact .inl rfl
+  · exact .inr ⟨r, r', rfl, rfl, hr.mono h⟩
+
+theorem RefApprox.ne_null {N : Nat} {r r' : Ref} (h : RefApprox N r r') (hn : r' ≠ .null) :
+    r ≠ .null := by
+  cases h with
+  | refl => exact hn
+  | exn => exact Ref.noConfusion
+  | extern => exact Ref.noConfusion
+
+/-- **A reference equal up to existing exception addresses has the same types.** -/
+theorem refOk_approx {s : Store H} {r' : Ref} {rt : CRefType} (h : RefOk s r' rt) :
+    ∀ {r : Ref}, RefApprox s.exns.length r r' → RefOk s r rt := by
   induction h with
-  | exn _ => exact .exn he
-  | sub _ hok hs ih => exact .sub (ih hr) hok hs
-  | _ => cases hr
+  | exn _ =>
+    intro r hr
+    cases hr with
+    | refl => exact .exn ‹_›
+    | exn ha => exact .exn (List.getElem?_eq_getElem ha)
+  | extern _ hn ih =>
+    intro r hr
+    cases hr with
+    | refl => exact .extern (ih (.refl _)) hn
+    | extern hr => exact .extern (ih hr) (hr.ne_null hn)
+  | sub _ hok hs ih => intro r hr; exact .sub (ih hr) hok hs
+  | null => intro r hr; cases hr; exact .null
+  | i31 b => intro r hr; cases hr; exact .i31 b
+  | struct h => intro r hr; cases hr; exact .struct h
+  | array h => intro r hr; cases hr; exact .array h
+  | func h => intro r hr; cases hr; exact .func h
+  | host a => intro r hr; cases hr; exact .host a
 
 theorem valOk_approx {s : Store H} {v w : Val} {t : CValType} (hv : ValApprox s.exns.length v w)
     (h : ValOk s w t) : ValOk s v t := by
-  rcases hv with rfl | ⟨a, b, rfl, rfl, ha⟩
+  rcases hv with rfl | ⟨r, r', rfl, rfl, hr⟩
   · exact h
   · cases h with
-    | ref h => exact .ref (refOk_exn_retarget (List.getElem?_eq_getElem ha) h)
+    | ref h => exact .ref (refOk_approx h hr)
 
 mutual
 
@@ -105,7 +144,7 @@ theorem adminOk_approx {s : Store H} :
     ∀ {C : Context} {a a₀ : Admin} {it : InstrType}, AdminOk s C a it →
       AdminApprox s.exns.length a₀ a → AdminOk s C a₀ it
   | _, _, _, _, h, .refl _ => h
-  | _, _, _, _, .ref h, .exn ha => .ref (refOk_exn_retarget (List.getElem?_eq_getElem ha) h)
+  | _, _, _, _, .ref h, .ref hr => .ref (refOk_approx h hr)
   | _, _, _, _, .label hn hc hb, .label _ _ hx => .label hn hc (adminsOk_approx hb hx)
   | _, _, _, _, .frame hf hn hb hok, .frame _ _ hx => .frame hf hn (adminsOk_approx hb hx) hok
   | _, _, _, _, .handler hc hb, .handler _ _ hx => .handler hc (adminsOk_approx hb hx)
