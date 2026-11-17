@@ -483,4 +483,136 @@ theorem enter_good {body : Expr} {Fin : Store H × Frame × POut → Prop} {b : 
   rw [hsplit]
   exact (MachineLSeq.append hr _).2 _ _ _ rfl _ _ hnat
 
+/-! ## Branches -/
+
+/-- **After leaving the frame of `(m, a)`** (its block's continuation `contRev`, reached natively
+at the parent's depth): the parent's rest from `m + 1` runs natively and its outcome is carried
+out. -/
+theorem after_frame {body : Expr} {Fin : Store H × Frame × POut → Prop} {m a : Nat}
+    {rp : List SeqStep} {ls : List LFrame} {pc : List Instr} {W : List Val} {s : Store H}
+    {f : Frame} {st' : MState H} {l : List (SCall H)} (hok : FramesOk body rp ls)
+    (hpc : seqAt body rp.reverse = some pc)
+    (hg : gotoN (contRev body ((m, a) :: rp)) rp.length ls W s f = some st')
+    (hG : Good body Fin st' l) :
+    ∃ (l₁ l₂ : List (SCall H)) (r₁ : Store H × Frame × POut),
+      EvalLXPS s f W.reverse (liftInstrs (restAt pc (m + 1))) l₁ r₁ ∧
+      KL body Fin rp ls r₁ l₂ ∧ l = l₁ ++ l₂ := by
+  unfold contRev at hg
+  split at hg
+  · rw [show rp.length = (⟨rp.reverse, m + 1⟩ : BlockId).seq.length by simp] at hg
+    have := gotoN_block hg
+    subst this
+    obtain ⟨c', l₀, l₁, r₀, hc', hrun, hkl, rfl⟩ := hG
+    simp only at hc' hrun hkl
+    rw [hpc] at hc'; cases hc'
+    exact ⟨l₀, l₁, r₀, hrun, by simpa using hkl, rfl⟩
+  · next hnone =>
+    have hend : (segment pc)[m + 1]? = none := by
+      rw [lookup_eq] at hnone
+      simpa [hpc] using hnone
+    rw [restAt_end hend]
+    exact ⟨[], l, _, .nil, cont_good rp ls W s f st' l hok hg hG, rfl⟩
+
+/-- `branchN` relative to the reversed path. -/
+def branchR (body : Expr) (rp : List SeqStep) (ls : List LFrame) (k : Nat) (L : LFrame)
+    (V : List Val) (s : Store H) (f : Frame) : Option (MState H) :=
+  (arity f L.bt).bind fun a =>
+    if L.loop then
+      if a.1 ≤ V.length then
+        gotoN ((labelsRev body rp).getD k .invalid) (rp.length - k) (L :: ls.drop (k + 1))
+          (topVals a.1 V) s f
+      else none
+    else
+      gotoN ((labelsRev body rp).getD k .invalid) (rp.length - (k + 1)) (ls.drop (k + 1))
+        (L.outer ++ topVals a.2 V) s f
+
+theorem branchN_eq (body : Expr) (b : BlockId) (ls : List LFrame) (k : Nat) (L : LFrame)
+    (V : List Val) (s : Store H) (f : Frame) :
+    branchN body b ls k L V s f = branchR body b.seq.reverse ls k L V s f := by
+  simp [branchN, branchR, labels]
+
+theorem branchR_succ (body : Expr) (x : SeqStep) (rp : List SeqStep) (L₀ : LFrame)
+    (ls : List LFrame) (k : Nat) (L : LFrame) (V : List Val) (s : Store H) (f : Frame) :
+    branchR body (x :: rp) (L₀ :: ls) (k + 1) L V s f = branchR body rp ls k L V s f := by
+  obtain ⟨m, a⟩ := x
+  simp [branchR, labelsRev]
+
+theorem structKind_loop {t : Instr} {bt : BlockType} {tryT : Bool} {cs : List Catch}
+    (h : StructKind t bt true tryT cs) : ∀ bt' tt ee, t ≠ .if_ bt' tt ee := by
+  cases h; intros; exact nofun
+
+/-- **A branch to the enclosing label `k`** (`branchR`), natively: `brk` passes the inner frames
+(`blockBrk`, …), then the label's frame re-enters its loop (`loopBack`) or continues after it
+(`blockOk`, …). -/
+theorem br_kl {body : Expr} {Fin : Store H × Frame × POut → Prop} :
+    ∀ (k : Nat) (rp : List SeqStep) (ls : List LFrame) (L : LFrame) (ws : List Val)
+      (s : Store H) (f : Frame) (st' : MState H) (l : List (SCall H)), FramesOk body rp ls →
+      ls[k]? = some L → branchR body rp ls k L ws.reverse s f = some st' →
+      Good body Fin st' l → KL body Fin rp ls (s, f, .flow (.brk k ws)) l
+  | _, [], [], _, _, _, _, _, _, _, hL, _, _ => by simp at hL
+  | _, [], _ :: _, _, _, _, _, _, _, h, _, _, _ => by simp [FramesOk] at h
+  | _, _ :: _, [], _, _, _, _, _, _, h, _, _, _ => by simp [FramesOk] at h
+  | k + 1, x :: rp, L₀ :: ls, L, ws, s, f, st', l, hok, hL, hg, hG => by
+    obtain ⟨m, a⟩ := x
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩ := hok
+    rw [branchR_succ] at hg
+    have hkl := br_kl k rp ls L ws s f st' l hok' (by simpa using hL) hg hG
+    simpa using KL.frame hpc hsg ht harm hkind (WrapL.brk (s := s) (f := f) (k := k) (vs := ws)) hkl
+  | 0, (m, a) :: rp, L₀ :: ls, L, ws, s, f, st', l, hok, hL, hg, hG => by
+    simp only [List.getElem?_cons_zero, Option.some.injEq] at hL
+    subst hL
+    have hlev := Proofs.Machine.levelLoop_of_framesOk 0 ((m, a) :: rp) (L₀ :: ls) hok rfl
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩ := hok
+    simp only [branchR, Option.bind_eq_some_iff] at hg
+    obtain ⟨⟨np, nr⟩, har, hg⟩ := hg
+    have hd : ((m, a) :: rp).drop 0 = (m, a) :: rp := rfl
+    rw [Proofs.Machine.labelsRev_getD 0 _ hd] at hg
+    simp only [levelLoop, List.drop_zero] at hlev
+    rw [hlev] at hg
+    cases hloop : L₀.loop
+    · simp only [hloop, Bool.false_eq_true, ↓reduceIte, List.length_cons,
+        Nat.add_sub_cancel] at hg
+      obtain ⟨l₁, l₂, r₁, hrun, hkl, rfl⟩ := after_frame hok' hpc hg hG
+      rw [List.reverse_append, topVals_reverse, List.reverse_reverse] at hrun
+      exact .frame hpc hsg ht harm hkind (.ok hloop har rfl hrun) hkl
+    · simp only [hloop, ↓reduceIte] at hg
+      split at hg
+      · next hle =>
+        have hcarm : seqAt body (rp.reverse ++ [(m, a)]) = some c := by
+          rw [Proofs.Machine.seqAt_append]; simp [hpc, hsg, ht, harm]
+        have hokA : FramesOk body (rp.reverse ++ [(m, a)]).reverse (L₀ :: ls) := by
+          simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+            List.singleton_append, List.reverse_reverse, FramesOk]
+          exact ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩
+        obtain ⟨l₀, l₁, r₀, hrun, hkl0, rfl⟩ :=
+          entry_good hokA hcarm (by simpa using hg) hG
+        rw [restAt_zero] at hrun
+        simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+          List.singleton_append, List.reverse_reverse] at hkl0
+        obtain ⟨pc', sg', t', c', r₁, l₁₁, l₁₂, hpc', hsg', ht', harm', hw, hrest, rfl⟩ :=
+          kl_frame_inv hkl0
+        rw [hpc] at hpc'; cases hpc'
+        rw [hsg] at hsg'; cases hsg'
+        rw [ht] at ht'; cases ht'
+        have hnif := structKind_loop (hloop ▸ hkind)
+        rw [topVals_reverse, List.reverse_reverse] at hrun
+        have hlen : (ws.take np).length = np := by
+          simp only [List.length_take, List.length_reverse] at hle ⊢; omega
+        have hnat := wrap_sound hkind harm hnif har hlen hrun hw
+        simpa [List.append_assoc] using
+          KL.frame hpc hsg ht harm hkind (.loopBack hloop har hnat) (by simpa using hrest)
+      · cases hg
+
+/-- **A branch to the function label**: `brk` passes every frame, ending the body in `brk 0`. -/
+theorem kl_brOut {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H} {f : Frame}
+    {ws : List Val} (hF : Fin (s, f, .flow (.brk 0 ws))) :
+    ∀ (rp : List SeqStep) (ls : List LFrame), FramesOk body rp ls →
+      KL body Fin rp ls (s, f, .flow (.brk ls.length ws)) []
+  | [], [], _ => .top hF
+  | [], _ :: _, h => by simp [FramesOk] at h
+  | _ :: _, [], h => by simp [FramesOk] at h
+  | (m, a) :: rp, L :: ls, hok => by
+    obtain ⟨⟨pc, sg, t, c, hpc, hsg, ht, harm, hkind⟩, hok'⟩ := hok
+    simpa using KL.frame hpc hsg ht harm hkind WrapL.brk (kl_brOut hF rp ls hok')
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLFwd
