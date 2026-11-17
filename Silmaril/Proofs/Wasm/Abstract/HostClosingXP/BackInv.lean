@@ -1,44 +1,19 @@
 module
 
 public import Silmaril.Wasm.Interp.CtxInv.Defs
+public import Silmaril.Wasm.Abstract.BackInv.Defs
 public import Silmaril.Wasm.Interp.PProgress.Thms
 public import Silmaril.Wasm.Abstract.HostCall.Thms
 
 /-!
-# The invariant of the backward simulations: the typed instance and divergence facts (proofs)
+# The invariant of the backward simulations: divergence facts (proofs)
 
-* `backTyped`: `Sim.ContextTyped` against hosts with typed answers (`HostTyped`) is a `BackInv`:
-  `ContextTyped.steps_typed`, `HostTyped` of a host also answering one call by a trap in its
-  store, and `diverges_through_steps`;
-* for every `BackInv`: host-free divergence passes through host-free runs
-  (`BackInv.diverges_through_steps`), labelled divergence too (`BackInv.evDiv_through_steps`),
-  and a productive run is not host-free divergence (`BackInv.coreInf_not_diverges`).
+For every `BackInv`: host-free divergence passes through host-free runs
+(`BackInv.diverges_through_steps`), labelled divergence too (`BackInv.evDiv_through_steps`), and a
+productive run is not host-free divergence (`BackInv.coreInf_not_diverges`).
 -/
 
 @[expose] public section
-
-namespace Silmaril.Proofs.Wasm.Abstract.HostClosingXP
-
-open Silmaril.Games Silmaril.Games.Abstract
-open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Abstract
-open Silmaril.Wasm.Interp
-open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
-
-variable {H : Type}
-
-/-- **The typed instance**: `Sim.ContextTyped` against hosts with typed answers. -/
-def backTyped : BackInv H where
-  toCtxInv := ctxTyped
-  HostOk := HostTyped
-  steps_host hT h hs := ContextTyped.steps_typed hT h hs
-  hostOk_trap m hT := by
-    intro s fi h vs ps rs hs hfi hcode he hvs out hout
-    rcases hout with hout | ⟨-, rfl, -, rfl⟩
-    · exact hT s fi h vs ps rs hs hfi hcode he hvs out hout
-    · exact ⟨hs, Extend.refl hs, trivial⟩
-  through h hK hd := diverges_through_steps (.single hd) h hK
-
-end Silmaril.Proofs.Wasm.Abstract.HostClosingXP
 
 namespace Silmaril.Wasm.Interp.BackInv
 

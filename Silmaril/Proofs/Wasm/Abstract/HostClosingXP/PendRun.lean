@@ -32,7 +32,7 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Abstract
 open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
-variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H}
+variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-! ## A host answering one call by a trap -/
 
@@ -63,12 +63,9 @@ theorem hostSliceE_answerAt {tags : List TagInst} (hE : HostSliceE tags host)
     · exact hE.tags h s vs s' r hr
     · cases he; exact id
 
-theorem hostTyped_answerAt (hT : HostTyped host) (m : (wasmHostSig H).Op) :
-    HostTyped (answerAt host m) := by
-  intro s fi h vs ps rs hs hfi hcode he hvs out hout
-  rcases hout with hout | ⟨-, rfl, -, rfl⟩
-  · exact hT s fi h vs ps rs hs hfi hcode he hvs out hout
-  · exact ⟨hs, Extend.refl hs, trivial⟩
+theorem hostTyped_answerAt (hT : J.HostOk host) (m : (wasmHostSig H).Op) :
+    J.HostOk (answerAt host m) :=
+  J.hostOk_trap m hT
 
 theorem cons_answerAt {m : (wasmHostSig H).Op} {q : List (Call (wasmHostSig H))}
     (hc : Cons host q) : Cons (answerAt host m) (q ++ [trapEv m]) := by
@@ -197,10 +194,10 @@ theorem wasmEvPendXP_evRun {tags : List TagInst} (hH : HostSliceT host)
 
 /-- **Core runs to a host call are pending calls at exactly their log** (deterministic
 profile). -/
-theorem evRun_pendXP {o : GrowOracle} {tags : List TagInst} (hT : HostTyped host)
+theorem evRun_pendXP {o : GrowOracle} {tags : List TagInst} (hT : J.HostOk host)
     (hH : HostSliceT host) (hE : HostSliceE tags host) {s : Store H} {a : Nat}
-    {vs : List Val} (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s)
-    (hok : InvokeOk s a vs) {c : Config H} {cs : List (Call (wasmHostSig H))}
+    {vs : List Val} (hct₀ : J.CT (invoke s a vs)) (hS : StoreChkE (ehExt tags) s.funcs)
+    (hts : TagsOk tags s) (hok : InvokeOk s a vs) {c : Config H} {cs : List (Call (wasmHostSig H))}
     {E : SingleThreaded.Ctx} {a' : Nat} {hh : H} {us : List Val}
     (hrun : EvRun (profile o) host (invoke s a vs) cs c)
     (hd : SingleThreaded.decompose? c.store c.code = some (E, a', hh, us)) :
@@ -212,7 +209,7 @@ theorem evRun_pendXP {o : GrowOracle} {tags : List TagInst} (hT : HostTyped host
   obtain ⟨f', ht⟩ := fill_trap_steps' (P := profile o) c.store E c.frame
   have run := evRun_trans (evRun_answerAt (m := m) hrun) (.event st (evRun_of_free ht))
   have hcl := evRun_wasmEvFunXP_trap (hostTyped_answerAt hT m) (hostSliceT_answerAt hH m)
-    (hostSliceE_answerAt hE m) hs hS hts hok run
+    (hostSliceE_answerAt hE m) hct₀ hS hts hok run
   exact close_pend (w := []) hcl
 
 end Silmaril.Proofs.Wasm.Abstract.HostClosingXP

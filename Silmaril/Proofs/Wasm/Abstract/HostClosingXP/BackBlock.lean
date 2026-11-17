@@ -19,7 +19,7 @@ open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded
 open Silmaril.Wasm.Abstract.CallXP (POut)
 
-variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle}
+variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle} {J : Silmaril.Wasm.Interp.BackInv H}
 
 section Cases
 
@@ -27,10 +27,10 @@ variable {s : Store H} {f : Frame} {stk : List Val} {c : Config H}
   {cs : List (Call (wasmHostSig H))} {n : Nat}
 
 /-- **Blocks.** -/
-theorem case_block (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+theorem case_block (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {body es : List Binaryen.BExpr}
-    (ihB : ∀ m ≤ n, BackG tags o host m body) (ihk : ∀ m ≤ n, BackG tags o host m es) :
-    BackG tags o host n (.block bt body :: es) := by
+    (ihB : ∀ m ≤ n, BackG J tags o host m body) (ihk : ∀ m ≤ n, BackG J tags o host m es) :
+    BackG J tags o host n (.block bt body :: es) := by
   intro s f stk c cs ht hrun hend hnd
   have hct := typedP_ctx ht
   obtain ⟨-, labels, ret, out, hS, hc, -, hTM, hts⟩ := id ht
@@ -49,7 +49,7 @@ theorem case_block (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
   obtain ⟨m₀, hm₀, hk₀⟩ := through henter hrun hend
   obtain ⟨cb, N₁, cs₁, cs₂, rfl, hN₁, h₁, hend₁, hk, hx⟩ := evRunN_label_seq_split hk₀ hend
   have hnd₁ := nd_label hx hnd
-  have htb : TypedP tags s f (stk.take np) body := block_body_typedP har ht
+  have htb : J.TypedP tags s f (stk.take np) body := J.block_body_typedP har ht
   obtain ⟨l₁, ⟨s₁, f₁, ob⟩, hd₁, hres₁, hok₁⟩ :=
     ihB N₁ (by omega) s f (stk.take np) cb cs₁ htb h₁ hend₁ hnd₁
   cases ob with
@@ -83,20 +83,20 @@ theorem case_block (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
           ⟨cst, cfr, tcode (vs.take nr ++ stk.drop np) es⟩ :=
         (steps_host henter).trans ((Steps.ctx _ _ (Steps.label nr [] (evRunN_steps h₁))).trans
           (steps_host hex))
-      have htk : TypedP tags cst cfr (vs.take nr ++ stk.drop np) es :=
+      have htk : J.TypedP tags cst cfr (vs.take nr ++ stk.drop np) es :=
         typedP_of (storeChk_inv inv1 hS) (chk_after inv1 hp hnr h2)
-          (ContextTyped.steps_typed hT hct hstT) (by rw [inv1.2.1]; exact hTM) t₁
+          (J.steps_host hT hct hstT) (by rw [inv1.2.1]; exact hTM) t₁
       obtain ⟨l₂, r₂, hd₂, hres₂, -⟩ := ihk m' (by omega) _ _ _ c cs₂ htk hk' hend hnd
       exact mkOut hH hE ht hrun hend (.blockOk har hd₁ hvs hd₂) (resX_prepend hq₁ hres₂)
     · exact mkOut'' hH hE ht hrun hend (.blockBrk har hd₁) (.inl (resX_nontrap hres₁ (by simp)))
     · exact mkOut'' hH hE ht hrun hend (.blockEsc har hd₁ hesc) hres₁
 
 /-- **Loops.** -/
-theorem case_loop (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+theorem case_loop (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {body es : List Binaryen.BExpr}
-    (ihB : ∀ m ≤ n, BackG tags o host m body) (ihk : ∀ m ≤ n, BackG tags o host m es)
-    (ihlt : ∀ m < n, BackG tags o host m (.loop bt body :: es)) :
-    BackG tags o host n (.loop bt body :: es) := by
+    (ihB : ∀ m ≤ n, BackG J tags o host m body) (ihk : ∀ m ≤ n, BackG J tags o host m es)
+    (ihlt : ∀ m < n, BackG J tags o host m (.loop bt body :: es)) :
+    BackG J tags o host n (.loop bt body :: es) := by
   intro s f stk c cs ht hrun hend hnd
   have hct := typedP_ctx ht
   obtain ⟨-, labels, ret, out, hS, hc, -, hTM, hts⟩ := id ht
@@ -115,7 +115,7 @@ theorem case_loop (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE 
     (fun c₁ h => loop_step_unique' har hp (by rw [hcode] at h; exact h)) hstep hrun hend
   obtain ⟨cb, N₁, cs₁, cs₂, rfl, hN₁, h₁, hend₁, hk, hx⟩ := evRunN_label_seq_split hk₀ hend
   have hnd₁ := nd_label hx hnd
-  have htb : TypedP tags s f (stk.take np) body := loop_body_typedP har ht
+  have htb : J.TypedP tags s f (stk.take np) body := J.loop_body_typedP har ht
   obtain ⟨l₁, ⟨s₁, f₁, ob⟩, hd₁, hres₁, hok₁⟩ :=
     ihB N₁ (by omega) s f (stk.take np) cb cs₁ htb h₁ hend₁ hnd₁
   have hcons₁ : Cons host cs₁ := (cons_append.1 (evRun_consistent (evRunN_evRun hrun))).1
@@ -148,9 +148,9 @@ theorem case_loop (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE 
           ⟨cst, cfr, tcode (vs.take nr ++ stk.drop np) es⟩ :=
         (Relation.ReflTransGen.single (Step.of_noHost host hstep)).trans
           ((Steps.ctx _ _ (Steps.label np [.loop bt B] (evRunN_steps h₁))).trans (steps_host hex))
-      have htk : TypedP tags cst cfr (vs.take nr ++ stk.drop np) es :=
+      have htk : J.TypedP tags cst cfr (vs.take nr ++ stk.drop np) es :=
         typedP_of (storeChk_inv inv1 hS) (chk_after inv1 hp hlen.ge h2)
-          (ContextTyped.steps_typed hT hct hstT) (by rw [inv1.2.1]; exact hTM) t₁
+          (J.steps_host hT hct hstT) (by rw [inv1.2.1]; exact hTM) t₁
       obtain ⟨l₂, r₂, hd₂, hres₂, -⟩ := ihk m' (by omega) _ _ _ c cs₂ htk hk' hend hnd
       exact mkOut hH hE ht hrun hend (.loopOk har hd₁ hd₂) (resX_prepend hq₁ hres₂)
     · -- the body branches back to the loop
@@ -185,9 +185,9 @@ theorem case_loop (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE 
           ((Steps.ctx _ _ (Steps.label np [.loop bt B] (evRunN_steps h₁))).trans (steps_host hex))
       have hlen : (vs.take np ++ stk.drop np).length = stk.length := by
         simp only [List.length_append, List.length_take, List.length_drop]; omega
-      have htk : TypedP tags cst cfr (vs.take np ++ stk.drop np) (.loop bt body :: es) := by
+      have htk : J.TypedP tags cst cfr (vs.take np ++ stk.drop np) (.loop bt body :: es) := by
         refine typedP_of (storeChk_inv inv1 hS) (labels := labels) (ret := ret) (out := out) ?_
-          (ContextTyped.steps_typed hT hct hstT) (by rw [inv1.2.1]; exact hTM) t₁
+          (J.steps_host hT hct hstT) (by rw [inv1.2.1]; exact hTM) t₁
         rw [hlen]
         exact chk_inv inv1 hc
       obtain ⟨l₂, r₂, hd₂, hres₂, -⟩ := ihlt m' (by omega) _ _ _ c cs₂ htk hk' hend hnd

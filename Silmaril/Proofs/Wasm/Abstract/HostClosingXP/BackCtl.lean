@@ -7,7 +7,7 @@ public import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackOps
 
 `case_nil`, `case_block`, `case_loop`, `case_if`, `case_try`: the empty list of trees, blocks,
 loops, conditionals and `try_table`s. A body runs in its label (and handler) alone
-(`evRunN_label_seq_split`, `evRunN_try_split`) and is a resolved logged run (`BackG`); if it hands
+(`evRunN_label_seq_split`, `evRunN_try_split`) and is a resolved logged run (`BackG J`); if it hands
 on values the trees after it go on (`exit_blockVals`, `exit_normal`; a loop's branch to its label
 re-enters the loop on a strictly shorter run, its entry being its only step,
 `loop_step_unique`); every other end of the body is the end of the tree, read off the forward
@@ -27,7 +27,7 @@ open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded
 open Silmaril.Wasm.Abstract.CallXP (POut)
 
-variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H}
+variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H} {J : Silmaril.Wasm.Interp.BackInv H}
   {tags : List TagInst} {o : GrowOracle}
 
 /-! ## Runs in contexts -/
@@ -190,7 +190,7 @@ variable {s : Store H} {f : Frame} {stk : List Val} {c : Config H}
 
 /-- **The empty list of trees.** -/
 theorem case_nil (hH : HostSliceT host) (hE : HostSliceE tags host) :
-    BackG tags o host n [] := by
+    BackG J tags o host n [] := by
   intro s f stk c cs ht hrun hend _
   have := mkOut'' (cs := []) hH hE ht (by simpa using hrun) hend .nil (.inl .nil)
   simpa using this

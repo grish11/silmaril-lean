@@ -68,6 +68,17 @@ structure CtxInv (H : Type) where
         RefOk c.store r (m.instRef ⟨b, .typeIdx y⟩)) ∧
     Sim.ContextTyped ⟨{ c.store with tags := T, exns := X }, c.frame, c.code⟩
 
+/-- **The typed instance**: `Sim.ContextTyped` is its own witness (tags and exception instances
+unchanged). -/
+def ctxTyped : CtxInv H where
+  CT := Sim.ContextTyped
+  suffix h := Sim.ContextTyped.suffix h
+  label h := Sim.ContextTyped.label h
+  handler h := Sim.ContextTyped.handler h
+  frame h := Sim.ContextTyped.frame h
+  step h hs := Sim.ContextTyped.step h hs
+  wit {c} h := ⟨c.store.tags, c.store.exns, List.prefix_refl _, fun _ _ _ _ => Iff.rfl, h⟩
+
 /-- `host`, also answering the call `(h, s, vs)` by a trap in its store `s`. -/
 def trapAt (host : HostSemantics H) (m : H × Store H × List Val) : HostSemantics H :=
   fun h s vs o => host h s vs o ∨ (h = m.1 ∧ s = m.2.1 ∧ vs = m.2.2 ∧ o = .returned m.2.1 .trap)

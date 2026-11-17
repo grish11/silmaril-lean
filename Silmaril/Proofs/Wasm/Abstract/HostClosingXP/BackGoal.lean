@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackSplit
+public import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackInv
 public import Silmaril.Wasm.Interp.PProgress.Thms
 public import Silmaril.Wasm.Interp.XProgress.Thms
 
@@ -8,13 +9,13 @@ public import Silmaril.Wasm.Interp.XProgress.Thms
 # The logged backward simulation of the canonical relation: statements and glue (proofs)
 
 In the deterministic profile `SingleThreaded.profile o`, a labelled Core run (`EvRunN`, with its
-exact host-event log `cs`) of a typed problem (`Interp.TypedP tags`) to an end with no host-free
+exact host-event log `cs`) of a typed problem (`J.TypedP tags`) to an end with no host-free
 step that is not at a host call is a resolved logged canonical run (`BackOut`): an `EvalLXPh`
 run whose calls resolve against the closure to exactly `cs` (`ResX`), ending as the Core run
 does (`EndOK`, read off the forward simulation by determinism, `mkOut`).
 
-* `BackG n es`: the statement for runs of at most `n` steps of the trees `es`;
-* `CallG n`: the statement for runs of at most `n` steps from a typed call in any `call_ref` form
+* `BackG J n es`: the statement for runs of at most `n` steps of the trees `es`;
+* `CallG J n`: the statement for runs of at most `n` steps from a typed call in any `call_ref` form
   (`callCode`): the callee returns in the closure, with a prefix of the log, and the run goes on
   strictly shorter from its answer (`ansCode`), or the callee traps in the closure with the
   whole log.
@@ -36,7 +37,7 @@ open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded
 open Silmaril.Wasm.Abstract.CallXP (POut)
 
-variable {H : Type} {host : HostSemantics H}
+variable {H : Type} {host : HostSemantics H} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-! ## The statements -/
 
@@ -52,10 +53,10 @@ def BackOut (s : Store H) (f : Frame) (stk : List Val) (es : List Binaryen.BExpr
     EndOK r c
 
 /-- **The logged backward simulation of trees**, for runs of `n` steps. -/
-def BackG (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (n : Nat)
+def BackG (J : Silmaril.Wasm.Interp.BackInv H) (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (n : Nat)
     (es : List Binaryen.BExpr) : Prop :=
   ∀ (s : Store H) (f : Frame) (stk : List Val) (c : Config H) (cs : List (Call (wasmHostSig H))),
-    TypedP tags s f stk es → EvRunN (profile o) host n ⟨s, f, tcode stk es⟩ cs c →
+    J.TypedP tags s f stk es → EvRunN (profile o) host n ⟨s, f, tcode stk es⟩ cs c →
     (∀ c', ¬ Step (profile o) Det.noHost c c') → decompose? c.store c.code = none →
     BackOut s f stk es cs c
 
@@ -70,10 +71,10 @@ def CallOut (o : GrowOracle) (host : HostSemantics H) (n : Nat) (s₁ : Store H)
     (cs, .trap) ∈ Cl a s₁ us
 
 /-- **The logged backward simulation of calls**, for runs of `n` steps. -/
-def CallG (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (n : Nat) : Prop :=
+def CallG (J : Silmaril.Wasm.Interp.BackInv H) (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (n : Nat) : Prop :=
   ∀ (s₁ : Store H) (f₁ : Frame) (pre us : List Val) (a : Nat) (cr : Admin) (rest : List Admin)
     (c : Config H) (cs : List (Call (wasmHostSig H))), cr.IsCallRef → CallChkP tags s₁ a us →
-    Sim.ContextTyped ⟨s₁, f₁, callCode pre us a cr rest⟩ →
+    J.CT ⟨s₁, f₁, callCode pre us a cr rest⟩ →
     EvRunN (profile o) host n ⟨s₁, f₁, callCode pre us a cr rest⟩ cs c →
     (∀ c', ¬ Step (profile o) Det.noHost c c') → decompose? c.store c.code = none →
     CallOut o host n s₁ f₁ pre a us rest cs c
@@ -113,7 +114,7 @@ theorem through {K T c : Config H} {n : Nat} {cs : List (Call (wasmHostSig H))}
 theorem mkOut {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs : List (Call (wasmHostSig H))} {c : Config H} {n : Nat}
-    (ht : TypedP tags s f stk es)
+    (ht : J.TypedP tags s f stk es)
     (ha : EvRunN (profile o) host n ⟨s, f, tcode stk es⟩ cs c)
     (hend : ∀ c', ¬ Step (profile o) Det.noHost c c')
     (hd : EvalLXPh s f stk es l r) (hres : ResX l r cs) : BackOut s f stk es cs c := by
@@ -124,7 +125,7 @@ theorem mkOut {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags
 theorem mkOut' {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs cs' : List (Call (wasmHostSig H))} {c : Config H} {n : Nat}
-    (ht : TypedP tags s f stk es)
+    (ht : J.TypedP tags s f stk es)
     (ha : EvRunN (profile o) host n ⟨s, f, tcode stk es⟩ (cs ++ cs') c)
     (hend : ∀ c', ¬ Step (profile o) Det.noHost c c')
     (hd : EvalLXPh s f stk es l r) (hres : ResX l r cs) :
@@ -138,7 +139,7 @@ theorem mkOut' {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tag
 theorem mkOut'' {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs cs' : List (Call (wasmHostSig H))} {c : Config H} {n : Nat}
-    (ht : TypedP tags s f stk es)
+    (ht : J.TypedP tags s f stk es)
     (ha : EvRunN (profile o) host n ⟨s, f, tcode stk es⟩ (cs ++ cs') c)
     (hend : ∀ c', ¬ Step (profile o) Det.noHost c c')
     (hd : EvalLXPh s f stk es l r) (hres : ResX l r cs) : BackOut s f stk es (cs ++ cs') c := by

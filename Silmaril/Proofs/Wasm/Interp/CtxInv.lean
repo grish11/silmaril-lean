@@ -6,9 +6,8 @@ public import Silmaril.Proofs.Wasm.Interp.XNoOutcome
 @[expose] public section
 
 /-!
-# Invariants for the backward simulations: the typed instance and the witness facts (proofs)
+# Invariants for the backward simulations: the witness facts (proofs)
 
-* `ctxTyped`: `Sim.ContextTyped` is a `CtxInv`, its own witness (tags and exceptions unchanged);
 * `CtxInv.steps`: host-free runs keep the invariant;
 * **facts read off the witness** (`CtxInv.wit`), each the typed fact on the witness store,
   transferred: the witness changes only tags and exception instances, which none of these facts
@@ -29,18 +28,6 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation Silmari
 open Silmaril.Wasm.Abstract.CallXT (TyFuncs TyTypes)
 
 variable {H : Type}
-
-/-! ## The typed instance -/
-
-/-- **`Sim.ContextTyped` is an invariant of the native progress lemmas**, its own witness. -/
-def ctxTyped : CtxInv H where
-  CT := Sim.ContextTyped
-  suffix h := Sim.ContextTyped.suffix h
-  label h := Sim.ContextTyped.label h
-  handler h := Sim.ContextTyped.handler h
-  frame h := Sim.ContextTyped.frame h
-  step h hs := Sim.ContextTyped.step h hs
-  wit {c} h := ⟨c.store.tags, c.store.exns, List.prefix_refl _, fun _ _ _ _ => Iff.rfl, h⟩
 
 /-! ## Store transfer -/
 
