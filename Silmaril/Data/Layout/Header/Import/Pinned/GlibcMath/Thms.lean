@@ -11,9 +11,11 @@ no document error. This is the only theorem that parses the JSON: every other th
 `glibcMath` rewrites with it and computes on the literal.
 
 **Cost.** The JSON is 294 120 bytes (623 declarations), about nine times `glibc-string.json`;
-the kernel parses it in about four minutes (229 s locally), once, and Lake caches the result.
-The heartbeat limit is raised to 400 000 for this theorem only (deterministic: heartbeats
-count allocations, not time). -/
+the kernel parses it in about four to five minutes (229 s locally, 290 s in CI). That is build
+time on the critical path of every build that rebuilds this module, under the repository's CI
+policy like any other. The heartbeat limit is raised to 400 000 for this theorem only
+(deterministic: heartbeats count allocations, not time).
+-/
 
 @[expose] public section
 
