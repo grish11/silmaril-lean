@@ -1078,7 +1078,7 @@ The plain graph stays an over-approximation, and claims about it say so.
 
              **The converse inclusion** (`instTripleS ⊆ cfgInstTripleU`): its legal part is stage 2
              below; the full inclusion, on well-formed stores in the checker's profile, is stage 3a
-             below. The threaded sessions remain (stage 3b). The original obstacle, in the proof: `HostClosingXP.back_all` (and the divergence and
+             below; the threaded sessions are stage 3b below. The original obstacle, in the proof: `HostClosingXP.back_all` (and the divergence and
              productive backward simulations, `HostClosingInfXPBack`, `HostEval`) carries
              `Sim.ContextTyped` across Core steps through `ContextTyped.steps_typed hT`. With
              a dangling reference on the stack, in a local or in a global, no `ConfigOk`
@@ -1189,15 +1189,47 @@ The plain graph stays an over-approximation, and claims about it say so.
                excludes the instructions where Core's decision on a dangling reference differs from the
                witness's).
 
-             Remaining, not claimed: the threaded sessions on a relaxed domain (stage 3b). The per-question
-             equality needs `I.WellFormed s` (so `StoreOk s`), which is not preserved
-             (`ExampleAlias.alEnd_not_storeOk`). A `StoreOkD`-based domain needs (i) the forward direction
-             without `StoreOk` (#988's `fin_sub`/`pend_sub`/`inf_sub` take `InvOkXP` but use only its
-             checker, tag and invocation parts), (ii) the entry `configOkD_invoke` from the domain, and
-             (iii) preservation of `TagsOk`/`ExnsOk` along `instHostU` rounds on the actual store: the
-             witness gives `ExnsOk` at `T` only, and that every actual exception's tag is a tag of the
-             store is not yet part of `GhostOk`. No `core3SemD` corollary. `HostEval` and `FullObsNative`
-             (not on the path of the instance triples) still carry `Sim.ContextTyped`/`HostTyped`.
+             **Stage 3b: threaded sessions on a relaxed domain** (`Wasm/Cfg/DanglingSession`,
+             `cfg/dangling-rev-4`). Deterministic profile `profile o` for the backward direction; the
+             forward direction and the domain's preservation hold at every profile.
+             - What a round changes in the real store. `instHost I` and every `instHostQ I Q` keep the
+               store (`NodeBridge.storePreserving_instHost`); only Wasm steps change it.
+               `DanglingSession.step_store` (every host-free Core step, every profile): functions and
+               tags kept, exceptions only appended (`throw`), `TagsOk tags` kept; `evRunQ_store`: the
+               same along labelled runs at `instHostQ I Q`. Globals, memories, tables, structs and
+               arrays are not constrained beyond the witness typing of `StoreOkD`.
+             - Counterexample (the raw domain is not kept): `al_round`, `reach_alEnd`: on
+               `ExampleAlias`, `run()` with `h()` answered by the dangling exception `0` is a finished
+               round of `instTripleS alI P` from `alStore` (`InstDom`) to `alEnd`, which is not
+               `StoreOk` (`not_instDom_alEnd`); `instDomD_alEnd`: it is in the relaxed domain.
+             - The domain `InstDomD I s` (strictly weaker than `StoreOk`, no `acyclicExns`): the function
+               clauses of `WellFormed` (`FuncsWF`), `StoreChkE (ehExt s.tags) s.funcs`, **real
+               `Interp.ExnsOk s.tags s`** (every real exception's tag is a tag of the store, with its
+               field count), and `StoreOkD s`. `exn_typed` relates them: a real exception's tag is a real
+               tag of parameter types `ts`, and its fields are, up to exception addresses
+               (`ValApprox`), values of types `ts` on the witness. Entry: `instDomD_of_supported`
+               (`WellFormed` + `StoreSupported`), `instDomD_of_instDom` (`InstDom` + `FuncsSupp`).
+               Preservation: `domD_of_round` (every finished round, store-keeping traps included),
+               `domD_of_reach`, `funcs_of_reach`.
+             - Forward direction without `StoreOk`: `DanglingExn.fin_sub_of`/`pend_sub_of`/`inf_sub_of`
+               (store check, `TagsOk`, typed invocation); #988's `fin_sub`/`pend_sub`/`inf_sub` are
+               their corollaries with unchanged statements. On the domain: `cfgInstTripleU_sub`,
+               `sub_cfgInstTripleU` (via `configOkD_of_domD` and `backD`), **`agree`** (per question,
+               `AgreeAt` on all observations).
+             - **Sessions**: `threadS_eq`, `instSession_eq`, `instSession_eq_of_supported`:
+               `threadS (instTripleS I (profile o)) s₀ = threadS (cfgInstTripleU I) s₀` (`=
+               cfgInstSessionU I s₀`) from `InstDomD I s₀`, by `StratSession.threadS_congr` at every
+               store reachable by the instance session (each in the domain by `domD_of_reach`); this
+               covers finite plays, pending plays, divergences after a log and infinite plays. Infinite
+               plays are either finished rounds followed by a productive stream of the current round
+               (at a reachable store: the third component of `agree`) or coherent infinite sequences of
+               finished rounds: `infRounds_iff` (round `k` starts at a store reachable by the first `k`
+               rounds, `reach_of_infRounds`, so in the domain; induction on `k` in both directions).
+             - What follows: the raw instance session only (`instSession`). `core3SemD` does not feed
+               host throws to instance sessions (#995), so there is no `core3SemD`/`cfgSemD` corollary.
+               `cfgInstSessionU` is a root of `CfgClosureAudit`.
+             - Ledger: `HostEval` and `FullObsNative` still use the old typing
+               (`Sim.ContextTyped`/`HostTyped`) and are not on the instance path.
 
              **The legal typed canonical object** (`Games/Abstract/SessionLegal`,
              `Wasm/Abstract/NodeLegal`, `Wasm/Cfg/CfgLegal`). The legal domain is stated on
