@@ -304,4 +304,105 @@ theorem fin_of_sink {body : Expr} {Fin : Store H × Frame × POut → Prop} {st 
   obtain ⟨node, stk, ls, s, f⟩ := st
   cases node <;> simp only [Target.IsSink] at hs <;> exact ⟨hG.1, hG.2 r hE⟩
 
+/-! ## The native rules of the structured instructions -/
+
+theorem take_append_len {us W : List Val} {n : Nat} (h : us.length = n) :
+    (us ++ W).take n = us ∧ (us ++ W).drop n = W := by
+  subst h; simp
+
+/-- **A structured instruction other than `if`, natively**: its arm ran from the parameters `us`
+to `r₀`, and its frame carried `r₀` on (`WrapL`), so the instruction runs from `us` over the
+frame's outer values. -/
+theorem wrap_sound {L : LFrame} {t : Instr} {rest c : List Instr} {a : Nat}
+    (hk : StructKind t L.bt L.loop L.tryT L.catches) (harm : armOf t a = some c)
+    (hnif : ∀ bt' tt ee, t ≠ .if_ bt' tt ee) {s : Store H} {f : Frame} {us : List Val}
+    {np nr : Nat} (har : arity f L.bt = some (np, nr)) (hus : us.length = np)
+    {l₀ l₁ : List (SCall H)} {r₀ r₁ : Store H × Frame × POut}
+    (hrun : EvalLXPS s f us (liftInstrs c) l₀ r₀) (hw : WrapL L t rest r₀ l₁ r₁) :
+    EvalLXPS s f (us ++ L.outer.reverse) (liftInstr t :: liftInstrs rest) (l₀ ++ l₁) r₁ := by
+  have hmod := MachineLSeq.module_eq hrun
+  obtain ⟨htk, hdr⟩ := take_append_len (W := L.outer.reverse) hus
+  rw [← htk] at hrun
+  obtain ⟨ar, ou, lp, tt, cs, bt⟩ := L
+  simp only at hk har hw hrun hdr ⊢
+  cases hk with
+  | block =>
+    rename_i bb
+    obtain rfl : c = bb := by
+      (rcases a with _ | _ | a <;> simp [armOf] at harm); exact harm.symm
+    cases hw with
+    | ok hloop har' hvs hk' =>
+      rw [arity_congr hmod, har] at har'; cases har'
+      exact .blockOk har hrun hvs (by rwa [hdr])
+    | loopOk hloop => cases hloop
+    | loopBack hloop => cases hloop
+    | brk => simpa [liftInstr] using EvalLXPS.blockBrk har hrun
+    | esc ho _ => simpa [liftInstr] using EvalLXPS.blockEsc har hrun ho
+    | catch_ hT => cases hT
+    | rethrow hT => cases hT
+  | loop =>
+    rename_i bb
+    obtain rfl : c = bb := by
+      (rcases a with _ | _ | a <;> simp [armOf] at harm); exact harm.symm
+    cases hw with
+    | ok hloop => cases hloop
+    | loopOk hloop har' hk' =>
+      rw [arity_congr hmod, har] at har'; cases har'
+      exact .loopOk har hrun (by rwa [hdr])
+    | loopBack hloop har' hk' =>
+      rw [arity_congr hmod, har] at har'; cases har'
+      exact .loopBack har hrun (by rwa [hdr])
+    | brk => simpa [liftInstr] using EvalLXPS.loopBrk har hrun
+    | esc ho _ => simpa [liftInstr] using EvalLXPS.loopEsc har hrun ho
+    | catch_ hT => cases hT
+    | rethrow hT => cases hT
+  | if_ => exact absurd rfl (hnif _ _ _)
+  | tryTable =>
+    rename_i bb
+    obtain rfl : c = bb := by
+      (rcases a with _ | _ | a <;> simp [armOf] at harm); exact harm.symm
+    cases hw with
+    | ok hloop har' hvs hk' =>
+      rw [arity_congr hmod, har] at har'; cases har'
+      exact .tryOk har hrun hvs (by rwa [hdr])
+    | loopOk hloop => cases hloop
+    | loopBack hloop => cases hloop
+    | brk => simpa [liftInstr] using EvalLXPS.tryBrk har hrun
+    | esc ho hnt => simpa [liftInstr] using EvalLXPS.tryEsc har hrun ho (hnt rfl)
+    | catch_ _ hc => simpa [liftInstr, hdr] using EvalLXPS.tryCatch har hrun hc
+    | rethrow _ hc => simpa [liftInstr] using EvalLXPS.tryRethrow har hrun hc
+
+/-- **`if`, natively**: the condition `k` on top chose the arm `a`, which ran from `us`. -/
+theorem wrap_sound_if {L : LFrame} {bt : BlockType} {tt ee rest c : List Instr} {a : Nat}
+    (hk : StructKind (.if_ bt tt ee) L.bt L.loop L.tryT L.catches)
+    (harm : armOf (.if_ bt tt ee) a = some c) {k : BitVec 32} (hka : (k != 0) = (a == 0))
+    {s : Store H} {f : Frame} {us : List Val} {np nr : Nat} (har : arity f L.bt = some (np, nr))
+    (hus : us.length = np) {l₀ l₁ : List (SCall H)} {r₀ r₁ : Store H × Frame × POut}
+    (hrun : EvalLXPS s f us (liftInstrs c) l₀ r₀) (hw : WrapL L (.if_ bt tt ee) rest r₀ l₁ r₁) :
+    EvalLXPS s f (.i32 k :: (us ++ L.outer.reverse)) (liftInstr (.if_ bt tt ee) :: liftInstrs rest)
+      (l₀ ++ l₁) r₁ := by
+  have hmod := MachineLSeq.module_eq hrun
+  obtain ⟨htk, hdr⟩ := take_append_len (W := L.outer.reverse) hus
+  obtain ⟨ar, ou, lp, tt', cs, bt'⟩ := L
+  simp only at hk har hw hdr ⊢
+  cases hk
+  have hc : EvalLXPS s f (.i32 k :: (us ++ ou.reverse)) [] [] (s, f, .flow (.normal (.i32 k :: (us ++ ou.reverse)))) :=
+    .nil
+  have htr : truthy (.i32 k) = some (a == 0) := by
+    simp [truthy, Val.i32, asInt, ← hka]
+    exact ⟨k, rfl, rfl⟩
+  have harm' : (if (a == 0) then liftInstrs tt else liftInstrs ee) = liftInstrs c := by
+    rcases a with _ | _ | a <;> simp [armOf] at harm <;> subst harm <;> rfl
+  rw [← harm', ← htk] at hrun
+  cases hw with
+  | ok hloop har' hvs hk' =>
+    rw [arity_congr hmod, har] at har'; cases har'
+    simpa [liftInstr] using EvalLXPS.ifOk hc htr har hrun hvs (by rwa [hdr])
+  | loopOk hloop => cases hloop
+  | loopBack hloop => cases hloop
+  | brk => simpa [liftInstr] using EvalLXPS.ifBrk hc htr har hrun
+  | esc ho _ => simpa [liftInstr] using EvalLXPS.ifEsc hc htr har hrun ho
+  | catch_ hT => cases hT
+  | rethrow hT => cases hT
+
 end Silmaril.Wasm.Cfg.Proofs.MachineLFwd

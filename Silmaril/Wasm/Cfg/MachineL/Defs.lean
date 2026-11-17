@@ -82,23 +82,25 @@ def gotoN (t : Target) (d : Nat) (ls : List LFrame) (stk : List Val) (s : Store 
     Option (MState H) :=
   (popN f (d - depthT t) ls stk).map fun p => ⟨t, p.2, p.1, s, f⟩
 
-/-- **Branch to label `k` of the frames `ls` from block `b`, native conventions**: the label
-keeps the top `L.arity` values of the branch-site stack `V` over its outer values; a `loop`
-is re-entered on them, any other label leaves its sequence (`gotoN`). No values of the frames in
-between are collected (`EvalLXPS`'s `blockBrk` passes a branch's values unchanged; `MStepC`'s
-`brVals` collects them, as Core does; they agree on typed code). Re-entering a loop needs at
-least its parameters on the branch-site stack: with fewer, `EvalLXPS`'s `loopBack` would take
-values of the frame outside as parameters, which the machine does not model (no step). -/
+/-- **Branch to label `k` of the frames `ls` from block `b`, native conventions**: with the
+arities `(np, nr)` of the label's block type (`Binaryen.arity`), a `loop` is re-entered on the
+top `np` values of the branch-site stack `V`; any other label leaves its sequence (`gotoN`) with
+the top `nr` values over its outer values. No values of the frames in between are collected
+(`EvalLXPS`'s `blockBrk` passes a branch's values unchanged; `MStepC`'s `brVals` collects them,
+as Core does; they agree on typed code). Re-entering a loop needs at least its parameters on
+`V`: with fewer, `EvalLXPS`'s `loopBack` would take values of the frame outside as parameters,
+which the machine does not model (no step). -/
 def branchN (body : Expr) (b : BlockId) (ls : List LFrame) (k : Nat) (L : LFrame) (V : List Val)
     (s : Store H) (f : Frame) : Option (MState H) :=
-  if L.loop then
-    if L.arity ≤ V.length then
-      gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - k) (L :: ls.drop (k + 1))
-        (topVals L.arity V) s f
-    else none
-  else
-    gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - (k + 1)) (ls.drop (k + 1))
-      (L.outer ++ topVals L.arity V) s f
+  (Binaryen.arity f L.bt).bind fun a =>
+    if L.loop then
+      if a.1 ≤ V.length then
+        gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - k) (L :: ls.drop (k + 1))
+          (topVals a.1 V) s f
+      else none
+    else
+      gotoN ((labels body b.seq).getD k .invalid) (b.seq.length - (k + 1)) (ls.drop (k + 1))
+        (L.outer ++ topVals a.2 V) s f
 
 /-- **Where a block's straight-line code leads**, from its native outcome `r` (store, frame,
 outcome; native stacks top first), under the label frames `ls`: the CFG targets of `MStepC`, with
