@@ -68,7 +68,9 @@ ELF-only adapters a statement about a function of a file needs next to `CodeAt`:
 | `Image.Untouched A v n` | no dynamic relocation writes the range, each by the width its type writes (`File.relocWidth`: the x86-64 psABI widths, 16 for `TLSDESC`, the symbol's size for `COPY`); an unknown width touches every range |
 | `File.loadRanges`, `LoadRangesAre F rs` | the image: every `PT_LOAD` as `(p_vaddr, p_memsz)` |
 | `PresentFn F n`, `AbsentName F n` | some table (`.symtab`, `.dynsym`) defines a function named `n`; no table defines any symbol named `n`. Versions are ignored, and `.symtab`'s `name@VER`/`name@@VER` count as `name` (`baseName`) |
-| `ImageLoaded F A base mem`, `readWith_of_segBytes` | a memory holding the image at `base` wherever no relocation writes; then an untouched segment range reads back as the file's bytes at `base + v` |
+| `LookupFn F sel d`, `lookup_sym_entry`, `lookupFn_sym` | the lookup finds `d` and the entry is a function; for `.sym` this follows from the lookup (a defined function entry with that name), for `.dyn` it is a separate check (ld.so also binds `OBJECT`, `NOTYPE`, `COMMON`, `TLS`) |
+| `Asm.RefTargetIn F r i`, `Asm.RefTargetReadOnly F r` | a reference's target lies in segment `i`; every segment mapping it is read-only (from the address alone, no decoder) |
+| `ImageLoaded F A base mem`, `readWith_of_segBytes`, `readWith_of_codeAt`, `readWith_of_readOnlyAt` | a memory holding the image at `base` wherever no relocation writes; then an untouched segment range reads back as the file's bytes at `base + v` |
 
 `ImageLoaded` is a property of a memory: nothing here runs a loader, and `Placement F base` only
 says which bases a statement covers. Its satisfiability is not proved; on a file whose overlapping
@@ -81,9 +83,11 @@ constructors) or permission changes, which a real-load statement takes as assump
 derives it from a loading model (`ElfBind.RoLoaded`, `Dyn.Loader.ExeLoaded`).
 
 Versioned lookup is the existing `Sel.dyn ⟨name, weak, ver⟩` (`Silmaril.Elf.Lookup`: ld.so's
-`do_lookup_x` with `check_match` and the requested version). It refuses (`Rd.fail`, so no fact is
-stated) an unversioned reference that meets only a non-default versioned definition, and an
-object without `DT_GNU_HASH`. Presence by name ignores versions.
+`do_lookup_x` with `check_match`). A versioned reference matches the definition of exactly that
+version, or else an unversioned, non-hidden definition when the reference is not hidden. An
+unversioned reference matches version indices 0–2. A later (`@@` default) version makes the lookup
+refuse (glibc's `num_versions` fallback is not modelled), as does an object without
+`DT_GNU_HASH`: no fact is stated. Presence by name ignores versions.
 
 `Asm.Unrelocated F f` is `Image.Untouched` for a function's extent. The sample
 `Silmaril.Elf.Asm.Example.LeafArith` grounds `clamp_i32` (`0x4013a0`, 19 bytes) and `sat_add_u32`

@@ -47,11 +47,22 @@ here; for a file whose load ranges are all `Unambiguous` (checked for the leaf-a
 `Asm.Example.LeafArith.image_unambiguous`) the origins cannot disagree.
 
 **Versioned lookup.** `Silmaril.Elf.Lookup` (`Sel.dyn ⟨name, weak, ver⟩`) is ld.so's
-`do_lookup_x`: GNU hash, `check_match` with the requested version (a hidden or non-default
-version is matched only when requested), weak and undefined definitions. Two cases glibc handles
-are refused (`Rd.fail`, so no fact is ever stated): an unversioned reference that meets only a
-non-default versioned definition (glibc's `num_versions` fallback), and an object without
-`DT_GNU_HASH`. Presence by name (`definesFn`, `definesName`) ignores versions entirely.
+`do_lookup_x` through the GNU hash table, with glibc's `check_match` (`File.checkMatch`):
+
+* the symbol must be defined (or `STT_TLS`, or `SHN_ABS`), not undefined for a PLT reference, of
+  type `NOTYPE`, `OBJECT`, `FUNC`, `COMMON`, `TLS` or `GNU_IFUNC`, with the reference's name;
+* **a versioned reference** `ver = some v` matches a definition whose version (`versym & 0x7fff`,
+  through `.gnu.version_d`) is `v` (hash and name), and otherwise only a definition that has no
+  version hash, is not hidden (`versym & 0x8000` clear), when `v` itself is not hidden;
+* **an unversioned reference** `ver = none` matches a definition of version index 0, 1 or 2 (local,
+  global, the base version); a definition of a later version makes the lookup **refuse** (`none`:
+  glibc's `num_versions` fallback, which accepts the default `@@` version, is not modelled), so no
+  fact is stated rather than a wrong one;
+* an object without `DT_GNU_HASH` is refused too.
+
+The definition a lookup returns (`Def`) records the index, value, size, `IFUNC` and `SHN_ABS`, not
+the symbol type: `LookupFn` adds that the entry is a function. Presence by name (`definesFn`,
+`definesName`) ignores versions entirely.
 -/
 
 @[expose] public section
@@ -108,6 +119,26 @@ def PresentFn (F : Blob) (n : NameBytes) : Prop := ∃ A, Parses F A ∧ A.defin
 
 /-- **`F` defines no symbol named `n`**, in no table and no version (an API version gap). -/
 def AbsentName (F : Blob) (n : NameBytes) : Prop := ∃ A, Parses F A ∧ A.definesName n = false
+
+/-- `.symtab` entry or `.dynsym` entry `i` is a function (`STT_FUNC` or `STT_GNU_IFUNC`). -/
+def _root_.Silmaril.Elf.File.funcAt (A : File) (t : Table) (i : Nat) : Bool :=
+  match (A.symbols t)[i]? with
+  | some s => s.kind == 2 || s.kind == 10
+  | none => false
+
+/-- The table a selector's definition index refers to (`.fn` falls back to `.symtab` only when
+the dynamic lookup finds nothing; its index is then a `.symtab` index). -/
+def selTable : Sel → Table
+  | .dyn _ => .dynsym
+  | .sym _ => .symtab
+  | .fn _ => .dynsym
+
+/-- **The lookup `sel` finds the function `d`**: it finds `d`, and the symbol entry it found is
+a function (`STT_FUNC`, `STT_GNU_IFUNC`). ld.so's `.dynsym` lookup also accepts `STT_OBJECT`,
+`STT_NOTYPE`, `STT_COMMON` and `STT_TLS` definitions, so for `.dyn` this is a separate fact; for
+`.sym` it follows from the lookup (`Thms.lookupFn_sym`). -/
+def LookupFn (F : Blob) (sel : Sel) (d : Def) : Prop :=
+  Lookup F sel (some d) ∧ ∃ A, Parses F A ∧ A.funcAt (selTable sel) d.index = true
 
 /-! ## A memory holding the loaded image -/
 

@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Elf.Load.Defs
 public import Silmaril.Elf.Staged.Reader.Defs
+public import Silmaril.Elf.Facts.Defs
 import Silmaril.Proofs.Elf.Load
 
 /-! # ELF adapters: theorems
@@ -61,5 +62,37 @@ theorem readWith_of_segBytes {F : Blob} {A : File} {base : Nat} {mem : Silmaril.
 theorem not_present_of_absent {F : Blob} {n : Silmaril.Formats.ELF.NameBytes}
     (ha : AbsentName F n) : ¬ PresentFn F n :=
   Proofs.Elf.Load.not_present_of_absent ha
+
+/-- **A `.symtab` lookup finds a defined function entry** with the name looked up. -/
+theorem lookup_sym_entry {F : Blob} {n : Silmaril.Formats.ELF.NameBytes} {d : Def}
+    (h : Lookup F (.sym n) (some d)) :
+    ∃ A, Parses F A ∧ ∃ s, (A.symbols .symtab)[d.index]? = some s ∧ s.name = n ∧
+      s.raw.sectionIndex ≠ 0 ∧ (s.raw.kind = 2 ∨ s.raw.kind = 10) :=
+  Proofs.Elf.Load.lookup_sym_entry h
+
+/-- For `.sym`, `LookupFn` is the lookup. -/
+theorem lookupFn_sym {F : Blob} {n : Silmaril.Formats.ELF.NameBytes} {d : Def}
+    (h : Lookup F (.sym n) (some d)) : LookupFn F (.sym n) d := by
+  obtain ⟨A, hA, s, hs, -, -, hk⟩ := lookup_sym_entry h
+  have hk' : s.kind = 2 ∨ s.kind = 10 := hk
+  exact ⟨h, A, hA, by simp only [File.funcAt, selTable, hs]; rcases hk' with h' | h' <;> simp [h']⟩
+
+/-- **In a memory holding the image at `base`, untouched code reads back** (`CodeAt` form). For
+`ET_DYN`, `base` ranges over the bases `Placement F base` admits; nothing here says a loader
+produced `mem` (`ImageLoaded` is the loading relation, a hypothesis). -/
+theorem readWith_of_codeAt {F : Blob} {A : File} (hA : Parses F A) {base : Nat}
+    {mem : Silmaril.Process.Memory} (hL : ImageLoaded F A base mem) {v : Nat}
+    {code : List (BitVec 8)} (hc : CodeAt F v code) (hu : Untouched A v code.length)
+    {acc : Silmaril.Process.Access} (hp : mem.Permitted acc (base + v) code.length) :
+    mem.readWith acc (base + v) code.length = some code :=
+  Proofs.Elf.Load.readWith_of_codeAt hA hL hc hu hp
+
+/-- The same for read-only data. -/
+theorem readWith_of_readOnlyAt {F : Blob} {A : File} (hA : Parses F A) {base : Nat}
+    {mem : Silmaril.Process.Memory} (hL : ImageLoaded F A base mem) {v : Nat}
+    {bytes : List (BitVec 8)} (hr : ReadOnlyAt F v bytes) (hu : Untouched A v bytes.length)
+    {acc : Silmaril.Process.Access} (hp : mem.Permitted acc (base + v) bytes.length) :
+    mem.readWith acc (base + v) bytes.length = some bytes :=
+  Proofs.Elf.Load.readWith_of_readOnlyAt hA hL hr hu hp
 
 end Silmaril.Elf.Load

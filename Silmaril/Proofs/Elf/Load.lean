@@ -100,4 +100,48 @@ theorem readOnlyAt_segBytes {F : Blob} {v : Nat} {bytes : List (BitVec 8)}
   refine ⟨A, hA, i, ph, hi, hc, ⟨ph, hi, ?_, ?_, ?_, rfl⟩, hr⟩ <;>
     simp only [roSeg, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hc <;> omega
 
+theorem lookup_sym_entry {F : Blob} {n : Formats.ELF.NameBytes} {d : Def}
+    (h : Lookup F (.sym n) (some d)) :
+    ∃ A, Parses F A ∧ ∃ s, (A.symbols .symtab)[d.index]? = some s ∧ s.name = n ∧
+      s.raw.sectionIndex ≠ 0 ∧ (s.raw.kind = 2 ∨ s.raw.kind = 10) := by
+  obtain ⟨A, hA, hs⟩ := h
+  refine ⟨A, hA, ?_⟩
+  simp only [File.select, File.symtabFind] at hs
+  cases hsec : A.sectionOfType SHT_SYMTAB with
+  | none => rw [hsec] at hs; cases hs
+  | some sec =>
+    rw [hsec] at hs
+    simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq] at hs
+    obtain ⟨⟨s, i⟩, hm, hf⟩ := List.exists_of_findSome?_eq_some hs
+    rw [List.mem_zipIdx_iff_getElem?] at hm
+    simp only at hm hf
+    split at hf
+    · rename_i hn
+      unfold File.funcDef at hf
+      split at hf
+      · rename_i hc
+        simp only [Option.some.injEq] at hf
+        subst hf
+        exact ⟨s, hm, hn, hc.1, hc.2.2⟩
+      · cases hf
+    · cases hf
+
+theorem readWith_of_codeAt {F : Blob} {A : File} (hA : Parses F A) {base : Nat}
+    {mem : Silmaril.Process.Memory} (hL : ImageLoaded F A base mem) {v : Nat}
+    {code : List (BitVec 8)} (hc : CodeAt F v code) (hu : Untouched A v code.length)
+    {acc : Silmaril.Process.Access} (hp : mem.Permitted acc (base + v) code.length) :
+    mem.readWith acc (base + v) code.length = some code := by
+  obtain ⟨B, hB, i, ph, -, -, hs⟩ := codeAt_segBytes hc
+  cases parses_unique hA hB
+  exact readWith_of_segBytes hL hs hu hp
+
+theorem readWith_of_readOnlyAt {F : Blob} {A : File} (hA : Parses F A) {base : Nat}
+    {mem : Silmaril.Process.Memory} (hL : ImageLoaded F A base mem) {v : Nat}
+    {bytes : List (BitVec 8)} (hr : ReadOnlyAt F v bytes) (hu : Untouched A v bytes.length)
+    {acc : Silmaril.Process.Access} (hp : mem.Permitted acc (base + v) bytes.length) :
+    mem.readWith acc (base + v) bytes.length = some bytes := by
+  obtain ⟨B, hB, i, ph, -, -, hs⟩ := readOnlyAt_segBytes hr
+  cases parses_unique hA hB
+  exact readWith_of_segBytes hL hs hu hp
+
 end Silmaril.Proofs.Elf.Load
