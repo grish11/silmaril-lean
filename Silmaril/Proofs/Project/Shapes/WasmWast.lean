@@ -385,20 +385,34 @@ theorem dstep_shrink {o : GrowOracle} {x a b : Config Nat} (ha : Det.DStep o x a
   · exact .inl h
   · exact .inr hl
 
+/-- A host-free normal form of a configuration excludes infinite runs of it, and every finite
+run of it extends to that normal form. -/
+theorem nf_always {o : GrowOracle} {c₀ c : Config Nat} (h : Steps (profile o) Det.noHost c₀ c)
+    (hn : ∀ x, ¬ Step (profile o) Det.noHost c x) :
+    ¬ Diverges (profile o) Det.noHost c₀ ∧
+      ∀ c', Steps (profile o) Det.noHost c₀ c' → Steps (profile o) Det.noHost c' c := by
+  obtain ⟨k, hk⟩ := NSteps.of_rtg (R := Det.DStep o) h
+  refine ⟨nsteps_normal_not_infinite (R := Det.DStep o) (fun c : Config Nat => sizeOf c.code)
+    (fun ha hb => Det.DStep.join' ha hb) (fun ha hb => dstep_shrink ha hb) hn k _ hk,
+    fun c' hc' => ?_⟩
+  obtain ⟨m, hm⟩ := nsteps_of_steps (R := Det.DStep o) (fun ha hb => Det.DStep.join' ha hb)
+    hn hk hc'
+  exact nsteps_to_rtg hm
+
 /-- A host-free normal form of an invocation excludes infinite runs of it, and every finite run
 of it extends to that normal form. -/
 theorem invokeNF_always {o : GrowOracle} {s : Store Nat} {a : Nat} {args : List Val}
     {c : Config Nat} (h : InvokeNF o s a args c) :
     ¬ Diverges (profile o) Det.noHost (invoke s a args) ∧
       ∀ c', Steps (profile o) Det.noHost (invoke s a args) c' →
-        Steps (profile o) Det.noHost c' c := by
-  obtain ⟨k, hk⟩ := NSteps.of_rtg (R := Det.DStep o) h.1
-  refine ⟨nsteps_normal_not_infinite (R := Det.DStep o) (fun c : Config Nat => sizeOf c.code)
-    (fun ha hb => Det.DStep.join' ha hb) (fun ha hb => dstep_shrink ha hb) h.2 k _ hk,
-    fun c' hc' => ?_⟩
-  obtain ⟨m, hm⟩ := nsteps_of_steps (R := Det.DStep o) (fun ha hb => Det.DStep.join' ha hb)
-    h.2 hk hc'
-  exact nsteps_to_rtg hm
+        Steps (profile o) Det.noHost c' c :=
+  nf_always h.1 h.2
+
+/-- Host-free normal forms of a configuration under `profile o` are unique. -/
+theorem nf_unique {o : GrowOracle} {c₀ c c' : Config Nat} (h : Steps (profile o) Det.noHost c₀ c)
+    (hn : ∀ x, ¬ Step (profile o) Det.noHost c x) (h' : Steps (profile o) Det.noHost c₀ c')
+    (hn' : ∀ x, ¬ Step (profile o) Det.noHost c' x) : c = c' :=
+  nf_unique_of_join (R := Det.DStep o) (fun ha hb => Det.DStep.join' ha hb) h h' hn hn'
 
 /-- **At `profile o`, one run to a normal form decides every run.** -/
 theorem reaches_always {o : GrowOracle} {m : Module} {pre : List Action} {act : Action}

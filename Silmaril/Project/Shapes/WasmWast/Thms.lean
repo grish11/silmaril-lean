@@ -24,6 +24,9 @@ import Silmaril.Proofs.Project.Shapes.WasmWast
 * `Reaches.always`, `ReturnsOnly.always`, `TrapsOnly.always`, `ScriptHolds.always`: under
   `profile o`, a row also excludes divergence: no host-free run of the action is infinite, and
   every finite run extends to a normal form with the row's outcome (`Always`).
+* `invokeOk_of_invokeOkB`: the kernel's argument check gives `InvokeOk`.
+* `nf_unique`, `nf_always`: the same two facts for the host-free normal forms of any
+  configuration (used by the linked-script shapes `Silmaril.Project.Shapes.WasmWastLink`).
 * `ValidatorRejects.of_kernel`, `DecoderRejects.of_kernel`: the tool-level rejection shapes from
   one kernel evaluation.
 * `ValidatorRejects.not_valid`: what a validator rejection gives through `validate?_complete`:
@@ -123,6 +126,25 @@ theorem ScriptHolds.always {o : GrowOracle} {m : Module} {cmds : List Cmd}
       Always o m (pre cmds k) act e.result := by
   have := h k _ hk
   cases e <;> exact ⟨this.1, this.2, this.1.always⟩
+
+/-- Typed numeric arguments (`invokeOkB`) give the premise `InvokeOk` of `$invoke`. -/
+theorem invokeOk_of_invokeOkB {s : Store Nat} {a : Nat} {args : List Val}
+    (h : invokeOkB s a args = true) : InvokeOk s a args :=
+  Silmaril.Proofs.Project.Shapes.WasmWast.invokeOk_of_invokeOkB h
+
+/-- **Normal forms of any configuration are unique** at `profile o` (`Det.DStep.join'`). -/
+theorem nf_unique {o : GrowOracle} {c₀ c c' : Config Nat} (h : Steps (profile o) Det.noHost c₀ c)
+    (hn : ∀ x, ¬ Step (profile o) Det.noHost c x) (h' : Steps (profile o) Det.noHost c₀ c')
+    (hn' : ∀ x, ¬ Step (profile o) Det.noHost c' x) : c = c' :=
+  Silmaril.Proofs.Project.Shapes.WasmWast.nf_unique h hn h' hn'
+
+/-- **One run to a normal form decides every run** of any configuration at `profile o`: no
+host-free run is infinite, and every finite one extends to that normal form. -/
+theorem nf_always {o : GrowOracle} {c₀ c : Config Nat} (h : Steps (profile o) Det.noHost c₀ c)
+    (hn : ∀ x, ¬ Step (profile o) Det.noHost c x) :
+    ¬ Diverges (profile o) Det.noHost c₀ ∧
+      ∀ c', Steps (profile o) Det.noHost c₀ c' → Steps (profile o) Det.noHost c' c :=
+  Silmaril.Proofs.Project.Shapes.WasmWast.nf_always h hn
 
 /-! ## Rejections (tool-level) -/
 
