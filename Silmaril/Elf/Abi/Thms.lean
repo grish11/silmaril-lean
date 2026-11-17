@@ -9,6 +9,8 @@ import Silmaril.Proofs.Elf.Abi.Basic
 * `not_abiConforms_of_noPlacement`: **regression**: on a file that admits no load base (an
   `ET_EXEC` whose `PT_LOAD` has `p_filesz > p_memsz` or reaches past `2^47`, …) no function
   conforms, for any spec and any machine: the rebased-conformance conjunct cannot be vacuous;
+* `Present.not_absent`: **`absent` cannot be faked**: a function some symbol table of the file
+  defines (in any table and version) is not absent, so an `absent` exclusion of it is refused;
 * `CodeOf.bytes_unique`, `not_codeOf_of_bytes`: **the bytes are the file's**: two codes of one
   binding at one address with bytes of one length have the same bytes, so a code whose bytes
   differ from the file's (one byte changed) is the function of no binding.
@@ -32,6 +34,12 @@ theorem AbiConforms.placement (h : AbiConforms A M mode hdr f p F b c frame S) :
 theorem not_abiConforms_of_noPlacement (hno : ∀ base, ¬ Placement F base) :
     ¬ AbiConforms A M mode hdr f p F b c frame S :=
   fun h => let ⟨base, hb⟩ := h.placement; hno base hb
+
+theorem Present.not_absent (h : Present F f) : ¬ Absent F f := by
+  rintro ⟨B, hB, hall⟩
+  obtain ⟨A, hA, t, s, hs, hn, hi, -⟩ := h
+  cases (Option.some.inj (hA.symm.trans hB) : A = B)
+  exact hi (hall t s hs hn)
 
 theorem CodeOf.bytes_unique {c' : Code} {b' : Binding} {f' : String} (h : CodeOf F b f c)
     (h' : CodeOf F b' f' c') (hb : c.base = c'.base) (hl : c.bytes.length = c'.bytes.length) :

@@ -214,6 +214,8 @@ All rows are on `Open`.
 | `wrong_signedness` | `unsigned clamp_i32(int, int, int)` (wrong result signedness) |
 | `wrong_header_not` | a header declaring an `unsigned` result: the code conforms to the `int` prototype on no machine, mode or spec |
 | `not_available` (two forms) | the partial `arith.h` coverage as available (or complete) header satisfaction |
+| `not_headerSatPartial_nil`, `HeaderSatAvailable.total` | header satisfaction with nothing claimed; a `.safe` claim in available (or complete) satisfaction |
+| `Elf.Abi.Present.not_absent` | an `absent` exclusion of a function some table of the file defines (any table, any version: `Absent` takes no claimant-chosen selector) |
 | `Elf.Abi.LeafArith.not_codeOf_symbol` | `clamp_i32`'s code as the file's `sat_add_u32` (wrong symbol) |
 | `Elf.Abi.LeafArith.not_codeOf_bytes` | the code with its entry byte changed (wrong bytes), as any function of the file (`Elf.Abi.not_codeOf_of_bytes`) |
 | `Data.Layout.Header.qualifier_redeclaration` | `int f(const char *); int f(char *);` and other redeclarations with differing pointee qualifiers |
