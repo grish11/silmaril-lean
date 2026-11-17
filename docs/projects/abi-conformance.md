@@ -232,6 +232,7 @@ that depends on the file is separate. The code is `Silmaril.Machine.Abi.Conforma
 | load bases | `0` only (`ET_EXEC`): the row reduces to conformance at link-time addresses | every page-aligned base keeping the `PT_LOAD`s below `2^47`; base `0` is the witness |
 | open task | `Conforms … code …` | `∀ base, Placement F base → Conforms … (code.rebase base) …` |
 | frame | 0 (CRC), 96 (Adler-32) | 256 for every function, a declared requirement (the listing uses 64 and 104 bytes below `rsp`) |
+| C specs and preconditions | `Zlib.crc32zS`, …: a non-null buffer readable and in user space (`userBuf`), the Adler-32 domain | the same values |
 
 **Versions.** `crc32_z` and `adler32_z` are `…@@ZLIB_1.2.9` (version index 14), so a program
 linked against the library asks for that version, and an unversioned lookup of them has no
