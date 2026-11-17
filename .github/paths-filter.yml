@@ -40,6 +40,8 @@ rust:
   # the Wasmtime acceptor harness, its suites and the component bytes they run
   - 'tools/wasm-acceptor-harness/**'
   - 'examples/wasm-acceptors/**'
+  # `make acceptor-report`, the fixed command that regenerates the committed report
+  - 'Makefile'
   # read by the crate's tests (include_str!): the Lean load order and the records JSON Schema
   - 'Silmaril/Project/Registry/Load/Defs.lean'
   - 'docs/schemas/**'

@@ -70,13 +70,21 @@ jobs:
         run: cargo fmt --check
       - name: Clippy
         run: cargo clippy --locked --release --all-targets -- -D warnings
+      # The fixed command of `make acceptor-report`; the explorer shows the committed report
+      # (make pages copies it to acceptor-runs.json), so it must be what this run observes.
       - name: Run the suites under Wasmtime (actual component bytes)
+        working-directory: .
+        run: make acceptor-report
+      - name: The committed report is this run's
         run: |
-          cargo run --locked --release -- suites/*.json --out wasm-acceptor-report.json
+          if ! git diff --exit-code -- report.json; then
+            echo "tools/wasm-acceptor-harness/report.json differs from this run: run 'make acceptor-report' and commit it" >&2
+            exit 1
+          fi
       - name: Keep the report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: wasm-acceptor-report
-          path: tools/wasm-acceptor-harness/wasm-acceptor-report.json
+          path: tools/wasm-acceptor-harness/report.json
           if-no-files-found: warn

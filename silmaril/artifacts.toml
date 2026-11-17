@@ -254,6 +254,16 @@ sha256 = "23f2e8e0fe7f97665952687233e5a2465f00b0dd5bc6a8714bf533c1fbd8159e"
 git_sha1 = "207dbf73c7494d2cac2c6e3df2aa6fa94f9d0597"
 
 [[artifact]]
+cid = "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu"
+type = "blob"
+name = "silmaril.wasm.examples.sat_accept.component"
+paths = ["examples/wasm-acceptors/sat_accept.wasm"]
+size = 951
+sha256 = "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2"
+git_sha1 = "3bc434c82d1630495abcae2556392e630d6b06b5"
+meta = { wasm = { custom = [], exports = ["func check-stream", "func check-nested"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
+
+[[artifact]]
 cid = "bafkr4if7lm7jpnq7acg5hqxn7mnkkeuye3wrqc7i7wgfczwqjizhqf2apa"
 type = "blob"
 name = "silmaril.wasm.examples.farkas.farkas_mod"

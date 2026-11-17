@@ -1,0 +1,632 @@
+{
+  "kind": "silmaril.wasm-acceptor-harness.report/v1",
+  "evidence": "runtime observations of one engine on concrete inputs; not a proof",
+  "command": [
+    "target/release/wasm-acceptor-harness",
+    "suites/sat.json",
+    "--out",
+    "report.json"
+  ],
+  "engine": {
+    "name": "wasmtime",
+    "version": "50.0.0",
+    "config": {
+      "compiler": "cranelift",
+      "component_model": true,
+      "fuel": false,
+      "instance": "fresh store and instance per case",
+      "linker": "empty (no imports provided)",
+      "nan_canonicalization": false
+    }
+  },
+  "artifacts": [
+    {
+      "id": "sat-accept/sat",
+      "path": "../../../examples/wasm-acceptors/sat_accept.wasm",
+      "source": "Silmaril.Wasm.Examples.SatAccept: prog, wrapped as a component (memory 0, realloc cabi_realloc)",
+      "bytes": 951,
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "blake3": "993f6f121c666d9be3e503bf1196f361be6ce6b7afda30855ccd66e5925e79b5",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "pinned_sha256_ok": true
+    }
+  ],
+  "cases": [
+    {
+      "suite": "sat-accept",
+      "name": "stream-sattwo-model",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          2
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[[1,2],[-1,2]] with model {2}; Carrier.Examples.satTwo_stream_accepted"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-empty-formula",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [],
+        []
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "the empty stream is the empty formula (satisfiable), not malformed; empty_stream_sat"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-extreme-literals",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          2147483647,
+          -2147483647,
+          0
+        ],
+        [
+          2147483647
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "the largest literals ±(2^31-1)"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-incomplete-model",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "clause [-1,2] has no model literal"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-inconsistent-model",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          2,
+          -2
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a literal and its negation"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-model-zero",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "0 is not a literal word"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-model-intmin",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          1,
+          2,
+          0,
+          -1,
+          2,
+          0
+        ],
+        [
+          2,
+          -2147483648
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "Int32.MIN is not a literal word"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-empty-clause",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[0] is the formula [[]] (unsatisfiable), distinct from the empty stream"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-unterminated",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          1
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "an unterminated last clause is malformed, not dropped"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-unterminated-tail",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          1,
+          0,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "malformed even though the model hits every literal"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-intmin-literal",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          -2147483648,
+          1,
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "Int32.MIN in the problem is malformed"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "stream-too-large",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-stream",
+      "params": [
+        "problem: list<s32>",
+        "model: list<s32>"
+      ],
+      "class": "abi-failure",
+      "args": [
+        {
+          "$repeat": 1,
+          "count": 300000
+        },
+        []
+      ],
+      "expected": "error",
+      "observed": {
+        "outcome": "error",
+        "detail": "realloc return: beyond end of memory"
+      },
+      "verdict": "pass",
+      "note": "1.2 MB of words exceed the 1 MiB memory: cabi_realloc answers memBytes and the canonical ABI's bounds check fails. The canonical ABI specifies a trap (trap_if in definitions.py); Wasmtime 50 reports it as a host error ('realloc return: beyond end of memory'), not a wasmtime::Trap, so the harness records `error`. Either way the call is not accepted."
+    },
+    {
+      "suite": "sat-accept",
+      "name": "nested-sattwo-model",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "model: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            -1,
+            2
+          ]
+        ],
+        [
+          2
+        ]
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "satTwo; Carrier.Examples.satTwo_accepted"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "nested-empty-formula",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "model: list<s32>"
+      ],
+      "class": "positive",
+      "args": [
+        [],
+        []
+      ],
+      "expected": "accepted",
+      "observed": {
+        "outcome": "accepted"
+      },
+      "verdict": "pass",
+      "note": "[] is the empty formula; empty_nested_sat"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "nested-empty-clause",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "model: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          []
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[[]] has the empty clause: unsatisfiable"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "nested-incomplete-model",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "model: list<s32>"
+      ],
+      "class": "negative",
+      "args": [
+        [
+          [
+            1
+          ],
+          [
+            2
+          ]
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "clause [2] not hit"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "nested-inner-zero",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "model: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            1,
+            0,
+            2
+          ]
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "a 0 inside a clause is malformed (never a separator); malformed_nested_inner_zero"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "nested-zero",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "model: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            0
+          ]
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "[[0]] is malformed"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "nested-intmin",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "model: list<s32>"
+      ],
+      "class": "malformed",
+      "args": [
+        [
+          [
+            -2147483648
+          ],
+          [
+            1
+          ]
+        ],
+        [
+          1
+        ]
+      ],
+      "expected": "rejected",
+      "observed": {
+        "outcome": "rejected"
+      },
+      "verdict": "pass",
+      "note": "Int32.MIN in a clause is malformed"
+    },
+    {
+      "suite": "sat-accept",
+      "name": "nested-too-large",
+      "artifact": "sat",
+      "sha256": "a9570103fe3a7074b0d354aebf03538e1f5b78a90fe4c4631980866dc7e2ace2",
+      "cid": "bafkr4iezh5xrehdgnwn6hzidx4izn43bxzwonn5p3iyikxgnm3szextzwu",
+      "export": "check-nested",
+      "params": [
+        "problem: list<list<s32>>",
+        "model: list<s32>"
+      ],
+      "class": "abi-failure",
+      "args": [
+        [
+          {
+            "$repeat": 1,
+            "count": 300000
+          }
+        ],
+        []
+      ],
+      "expected": "error",
+      "observed": {
+        "outcome": "error",
+        "detail": "realloc return: beyond end of memory"
+      },
+      "verdict": "pass",
+      "note": "an inner list beyond memory: the canonical ABI's bounds check fails. The canonical ABI specifies a trap (trap_if in definitions.py); Wasmtime 50 reports it as a host error ('realloc return: beyond end of memory'), not a wasmtime::Trap, so the harness records `error`. Either way the call is not accepted."
+    }
+  ],
+  "summary": {
+    "pass": 20
+  }
+}
