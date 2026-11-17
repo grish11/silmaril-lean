@@ -1367,9 +1367,10 @@ def abiLinkJson (env : Environment) (l : AbiLink) (rf : RecordFile) (recordName 
   let machine := match M.getAppFn with | .const n _ => n.toString | _ => toString M
   let ((axs, _), _) := (axiomsOf env l.solution).run ({}, {})
   let ((baxs, _), _) := (axiomsOf env l.bridge).run ({}, {})
+  let ((faxs, _), _) := (axiomsOf env l.fileEq).run ({}, {})
   let std (xs : NameSet) := xs.toArray.all (standardAxioms.contains ·)
-  let status := if axs.contains ``sorryAx || baxs.contains ``sorryAx then "sorry"
-    else if std axs && std baxs then "proved" else "proved with other axioms"
+  let status := if [axs, baxs, faxs].any (·.contains ``sorryAx) then "sorry"
+    else if std axs && std baxs && std faxs then "proved" else "proved with other axioms"
   pure (.ok (Json.mkObj [("problemId", js l.problemId), ("decl", js l.solution.toString),
     ("bridge", js l.bridge.toString), ("abiId", js abiIdS), ("machine", js machine),
     ("mode", js modeS), ("frame", jn l.frame), ("status", js status),
