@@ -42,9 +42,18 @@ Core 3.0 adequacy with hosts and exceptions (`wasmEvFunXPS_trap_iff`, `wasmEvFun
   theorems as for `cfgHOpen_eq`, and the exact correspondence of session and canonical runs
   (`Abstract.evalLXPS_canonical_cut`, `Abstract.evalLXPh_session_cut`).
 
-Not yet here: the CFG versions of the session triple's divergent and productive parts
-(`sessionTripleXP`), via `MachineL.div_iff`/`logDiv_machine`/`machine_logDiv` and
-`MachineL.prodL_iff` (`docs/projects/wasm-cfg.md`).
+* **`cfgEvInfN_eq`**, **`cfgEvFunD_eq`**, **`cfgEvFunDS_eq`**, **`cfgSessionTriple_eq`** (the
+  session triple): the CFG triple `cfgSessionTriple`, whose divergent and productive parts run
+  Wasm bodies on the logged machine (`LDLcfg` by `MachineL.MLogDivL`, `InfLcfg` by
+  `MachineL.ProdL`), is `Abstract.sessionTripleXP`.
+  * Productive streams: `MachineL.prodL_iff`, the session reading `OCall.toS` being injective,
+    so `InfLcfg = Abstract.InfLwXP`.
+  * Divergence after a log, at the level of `Shape.closeDLog` (not per call): `LDLwXP ⊆ LDLcfg`
+    by `MachineL.logDiv_machine`; conversely `MachineL.machine_logDiv` extends the machine's log
+    by canonical entries answered by the closed oracle (by values or an exception, never a trap),
+    each resolving to the empty host log in `Shape.close wasmHOpenXP`
+    (`Abstract.close_of_closedCallXP_vals`, `close_of_closedCallXP_throw`), so the host log of
+    `closeDLog` is unchanged.
 -/
 
 namespace Silmaril.Wasm.Cfg.CfgSession
@@ -92,5 +101,34 @@ theorem cfgEvFunX_eq :
     (cfgEvFunXP : Silmaril.Games.Abstract.AFun (Abstract.wasmHostSig H) (Execution.Core.Store H)
       (Nat × List Execution.Core.Val) (List Execution.Core.Val ⊕ Nat)) = Abstract.wasmEvFunXP :=
   Proofs.CfgSession.cfgEvFunX_eq
+
+/-- **The productive runs of the CFG closure are the canonical ones**: `cfgEvInfNXP`, the
+productive closure of `cfgHOpenXP` with bodies run productively on the machine, is
+`Abstract.wasmEvInfNXP`. -/
+theorem cfgEvInfN_eq :
+    (cfgEvInfNXP : Silmaril.Games.Abstract.PInf (Abstract.wasmHostSig H) (Execution.Core.Store H)
+      (Nat × List Execution.Core.Val)) = Abstract.wasmEvInfNXP :=
+  Proofs.CfgSession.cfgEvInfN_eq
+
+/-- **The CFG closure with divergence is the canonical one**: `cfgEvFunDXP`, which is
+`Shape.closeDLog cfgHOpenXP LDLcfg`, is `Abstract.wasmEvFunDXP`. -/
+theorem cfgEvFunD_eq :
+    (cfgEvFunDXP : Silmaril.Games.Abstract.AFun (Abstract.wasmHostSig H) (Execution.Core.Store H)
+      (Nat × List Execution.Core.Val) (List Execution.Core.Val ⊕ Nat)) = Abstract.wasmEvFunDXP :=
+  Proofs.CfgSession.cfgEvFunD_eq
+
+/-- **The CFG session closure with divergence is the session's.** -/
+theorem cfgEvFunDS_eq :
+    (cfgEvFunDXPS : Silmaril.Games.Abstract.AFun (Abstract.wasmHostSig H)
+      (Execution.Core.Store H) (Nat × List Execution.Core.Val)
+      ((List Execution.Core.Val ⊕ Nat) ⊕ PUnit.{1})) = Abstract.wasmEvFunDXPS :=
+  Proofs.CfgSession.cfgEvFunDS_eq
+
+/-- **The CFG session triple is the session triple.** -/
+theorem cfgSessionTriple_eq :
+    (cfgSessionTriple : Silmaril.Games.Abstract.ObsTriple (Abstract.wasmHostSig H)
+      (Execution.Core.Store H) (Nat × List Execution.Core.Val)
+      ((List Execution.Core.Val ⊕ Nat) ⊕ PUnit.{1})) = Abstract.sessionTripleXP :=
+  Proofs.CfgSession.cfgSessionTriple_eq
 
 end Silmaril.Wasm.Cfg.CfgSession

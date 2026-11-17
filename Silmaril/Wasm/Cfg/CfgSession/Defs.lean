@@ -3,6 +3,8 @@ module
 public import Silmaril.Wasm.Cfg.MachineL.Defs
 public import Silmaril.Wasm.Abstract.HostClosingXP.Defs
 public import Silmaril.Wasm.Abstract.HostClosingS.Defs
+public import Silmaril.Wasm.Abstract.HostClosingInfXP.Defs
+public import Silmaril.Wasm.Cfg.MachineLDiv.Defs
 
 /-!
 # The recursive CFG closure: definitions (H3)
@@ -37,7 +39,22 @@ every answer `ws` longer than the callee's result arity. The three cases:
   tail call `OCall.mk a' args s₁ b s₂` with its answer (`tailAns`);
 * a host function: one host call, as in `wasmHOpenXP`.
 
-`cfgEvFunXP := Shape.close cfgHOpenXP`. Theorems in `Silmaril.Wasm.Cfg.CfgSession.Thms`.
+`cfgEvFunXP := Shape.close cfgHOpenXP`.
+
+**The CFG session triple** (`cfgSessionTriple`), the divergent and productive parts with bodies
+run on the logged machine:
+
+* `LDLcfg z u`: the body of the Wasm function called by `z` diverges on the machine after a log
+  (`MachineL.MLogDivL`) that is the session reading (`OCall.toS`) of a canonical log `L`, and
+  `u = L.map OCall.lift`;
+* `InfLcfg`: the body runs productively on the machine (`MachineL.ProdL`), its stream the session
+  reading of a canonical stream `ω`, lifted to calls of the module;
+* `cfgEvFunDXP := Shape.closeDLog cfgHOpenXP LDLcfg`, `cfgEvInfNXP := Shape.closeInfL cfgHOpenXP
+  InfLcfg`, and `cfgEvFunDXPS`: `cfgEvFunXPS` with the `div` behaviours of `cfgEvFunDXP`, as
+  `Abstract.wasmEvFunDXPS`;
+* `cfgSessionTriple := (cfgEvFunDXPS, cfgEvPendXPS, cfgEvInfNXP)`.
+
+Theorems in `Silmaril.Wasm.Cfg.CfgSession.Thms`.
 -/
 
 @[expose] public section
@@ -155,5 +172,50 @@ def cfgHOpenXP : (wasmHShape H).OpenMod := fun a s vs =>
 machine, traps erasing their store. -/
 def cfgEvFunXP : AFun (wasmHostSig H) (Store H) (Nat × List Val) (List Val ⊕ Nat) :=
   fun s p => Shape.close cfgHOpenXP p.1 s p.2
+
+/-! ## The CFG session triple -/
+
+open Silmaril.Wasm.Abstract (HCall) in
+/-- **Logged divergence of a call on the machine**: the body of the Wasm function called by `z`,
+run on the logged machine from the CFG entry at the call's frame, diverges after the session
+reading of the canonical log `L` (`MLogDivL`); `u` is `L` as calls of the module. -/
+def LDLcfg (z : (wasmHShape H).self.Op) (u : List (HCall H)) : Prop :=
+  ∃ (fi : FuncInst H) (fn : Func) (L : List (OCall H)), z.2.2.funcs[z.1]? = some fi ∧
+    fi.code = .wasm fn ∧
+    MLogDivL fn.body (initial fn.body z.2.2 (Frame.forCall fi.module z.2.1 fn.locals))
+      (L.map OCall.toS) ∧
+    u = L.map OCall.lift
+
+/-- **Productive runs of a Wasm body on the machine**: the body runs productively on the logged
+machine from the CFG entry at the call's frame (`ProdL`), its stream the session reading of the
+canonical stream `ω`; the stream is `ω` as calls of the module. A host function has none. -/
+def InfLcfg : Shape.OpenInf (wasmHShape H) := fun a s vs =>
+  {ν | ∃ (fi : FuncInst H) (fn : Func) (ω : ℕ → OCall H), s.funcs[a]? = some fi ∧
+    fi.code = .wasm fn ∧
+    ProdL fn.body (initial fn.body s (Frame.forCall fi.module vs fn.locals))
+      (fun n => (ω n).toS) ∧
+    ν = fun i => (ω i).lift}
+
+/-- **The canonical CFG closure with divergence**: `cfgEvFunXP` plus `div` after descent chains
+and after logged divergence of a body on the machine (`Shape.closeDLog`). -/
+def cfgEvFunDXP : AFun (wasmHostSig H) (Store H) (Nat × List Val) (List Val ⊕ Nat) :=
+  fun s p => Shape.closeDLog cfgHOpenXP LDLcfg p.1 s p.2
+
+/-- **The productive runs of the CFG closure**: the closure of `cfgHOpenXP` with productive runs
+through unbounded recursion and inside one body run on the machine (`Shape.closeInfL`). -/
+def cfgEvInfNXP : PInf (wasmHostSig H) (Store H) (Nat × List Val) :=
+  fun s p => Shape.closeInfL cfgHOpenXP InfLcfg p.1 s p.2
+
+/-- **The CFG session closure with divergence**: `cfgEvFunXPS` with the divergent behaviours of
+`cfgEvFunDXP`. -/
+def cfgEvFunDXPS :
+    AFun (wasmHostSig H) (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit.{1}) :=
+  fun s p => cfgEvFunXPS s p ∪ {y | y.2 = .div ∧ (y.1, End.div) ∈ cfgEvFunDXP s p}
+
+/-- **The CFG session triple**: finished and divergent behaviours keeping trap stores, pending
+host calls, and productive streams, every Wasm body run on the logged machine. -/
+def cfgSessionTriple :
+    ObsTriple (wasmHostSig H) (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit.{1}) :=
+  (cfgEvFunDXPS, cfgEvPendXPS, cfgEvInfNXP)
 
 end Silmaril.Wasm.Cfg.CfgSession

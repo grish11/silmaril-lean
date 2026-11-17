@@ -3,6 +3,8 @@ module
 public import Silmaril.Wasm.Cfg.CfgSession.Defs
 public import Silmaril.Wasm.Cfg.MachineL.Thms
 public import Silmaril.Wasm.Abstract.HostClosingS.Thms
+public import Silmaril.Wasm.Cfg.MachineLDiv.Thms
+public import Silmaril.Wasm.Abstract.HostClosingInfXPBack.Thms
 
 @[expose] public section
 
@@ -19,6 +21,17 @@ theorems and the exact session/canonical correspondence (`Abstract.evalLXPS_cano
 (`canonRead_evalLXPh`), and every canonical run has a session run whose log reads as its log
 (`evalLXPh_canonRead`). The reading is unambiguous: `OCall.toS` is injective and never gives a
 trap answer (`toS_injective`, `trap_ne_map`).
+
+`cfgSessionTriple_eq`: the CFG session triple is `Abstract.sessionTripleXP`.
+
+* Productive streams (`infLcfg_eq`): the machine's productive streams from the CFG entry are the
+  session readings of the body's (`MachineL.prodL_iff`), and the reading is injective.
+* Divergence after a log (`closeDLog_cfg_eq`), at the level of `Shape.closeDLog`, not per call:
+  `LDLwXP ⊆ LDLcfg` by `MachineL.logDiv_machine`. Conversely `MachineL.machine_logDiv` extends the
+  machine's log by canonical entries `C` answered by the closed oracle (`CloseOk closedCallXP`;
+  their session readings are value or exception answers, never traps). Each resolves to the empty
+  host log in `Shape.close wasmHOpenXP` (`closeOk_substPre`, by
+  `Abstract.close_of_closedCallXP_vals`/`_throw`), so the host log `qs ++ q` is unchanged.
 -/
 
 namespace Silmaril.Wasm.Cfg.Proofs.CfgSession
@@ -262,5 +275,112 @@ theorem cfgEvFunX_eq : (cfgEvFunXP : Silmaril.Games.Abstract.AFun (Abstract.wasm
   simp only [cfgEvFunXP, Abstract.wasmEvFunXP, cfgHOpenX_eq]
 
 end Canon
+
+/-! ## The CFG session triple -/
+
+section Triple
+
+open Silmaril.Wasm.Abstract (OCall HCall wasmHShape wasmHOpenXP LDLwXP InfLwXP)
+open Silmaril.Wasm.Abstract.XRecursionP (closedCallXP)
+
+/-- The closure of the canonical open module. -/
+abbrev Cl : (wasmHShape H).ClosedMod := Shape.close wasmHOpenXP
+
+theorem substPre_append {c : (wasmHShape H).ClosedMod} {u v : List (HCall H)}
+    {q q' : List (Call (Abstract.wasmHostSig H))} (hu : Shape.SubstPre c u q)
+    (hv : Shape.SubstPre c v q') : Shape.SubstPre c (u ++ v) (q ++ q') := by
+  induction hu with
+  | nil => simpa using hv
+  | ext _ ih => exact .ext ih
+  | int hm _ ih => rw [List.append_assoc]; exact .int hm ih
+
+/-- **A closed-oracle entry resolves to the empty host log.** A canonical call whose session
+reading is answered by `closedCallXP` (by values or an exception) is a closure behaviour with no
+host call. -/
+theorem closeOk_substPre {o : OCall H} (h : CloseOk closedCallXP o.toS) :
+    Shape.SubstPre (Cl (H := H)) [o.lift] [] := by
+  rcases o with ⟨⟨⟨⟩⟩ | ⟨a, args, s₁⟩, b, s₂⟩
+  have hz : (([] : List (Call (Abstract.wasmHostSig H))), End.ret b s₂) ∈ Cl a s₁ args := by
+    rcases b with ws | t
+    · obtain ⟨fi, ps, rs, fl, vs, hfi, hty, hC, hv, rfl⟩ := h
+      exact Abstract.close_of_closedCallXP_vals hC hv hfi hty
+    · exact Abstract.close_of_closedCallXP_throw h
+  have := Shape.SubstPre.int (rest := []) hz (Shape.SubstPre.nil (c := Cl))
+  rw [List.append_nil] at this
+  exact this
+
+theorem closeOk_all {C : List (OCall H)} (h : ∀ e ∈ C.map OCall.toS, CloseOk closedCallXP e) :
+    Shape.SubstPre (Cl (H := H)) (C.map OCall.lift) [] := by
+  induction C with
+  | nil => exact .nil
+  | cons o C ih =>
+    have := substPre_append (closeOk_substPre (h _ (List.mem_cons_self ..)))
+      (ih fun e he => h e (List.mem_cons_of_mem _ he))
+    simpa using this
+
+theorem ldlw_ldlcfg {z : (wasmHShape H).self.Op} {u : List (HCall H)} (h : LDLwXP z u) :
+    LDLcfg z u := by
+  obtain ⟨fi, fn, L, hfi, hcode, hd, rfl⟩ := h
+  exact ⟨fi, fn, L, hfi, hcode, logDiv_machine hd, rfl⟩
+
+/-- **Logged divergence on the machine is native logged divergence after closed entries**, which
+resolve to the empty host log. -/
+theorem ldlcfg_ldlw {z : (wasmHShape H).self.Op} {u : List (HCall H)} (h : LDLcfg z u) :
+    ∃ C : List (OCall H), LDLwXP z (u ++ C.map OCall.lift) ∧
+      Shape.SubstPre (Cl (H := H)) (C.map OCall.lift) [] := by
+  obtain ⟨fi, fn, L, hfi, hcode, hd, rfl⟩ := h
+  obtain ⟨c, L', hc, hL', hd'⟩ := machine_logDiv hd
+  obtain ⟨L₁, C, rfl, h1, rfl⟩ := List.map_eq_append_iff.1 hL'
+  obtain rfl := map_toS_inj h1
+  exact ⟨C, ⟨fi, fn, _, hfi, hcode, hd', by simp⟩, closeOk_all hc⟩
+
+/-- **Logged divergence on the machine closes as native logged divergence.** -/
+theorem closeDLog_cfg_eq :
+    Shape.closeDLog (wasmHOpenXP (H := H)) LDLcfg = Shape.closeDLog wasmHOpenXP LDLwXP := by
+  funext f s a
+  ext y
+  simp only [Shape.closeDLog, Set.mem_union, Set.mem_ofPred_eq]
+  refine or_congr Iff.rfl (and_congr Iff.rfl ⟨?_, ?_⟩)
+  · rintro ⟨z, qs, u, q, hp, hl, hq, he⟩
+    obtain ⟨C, hw, hC⟩ := ldlcfg_ldlw hl
+    exact ⟨z, qs, _, q, hp, hw, by simpa using substPre_append hq hC, he⟩
+  · rintro ⟨z, qs, u, q, hp, hl, hq, he⟩
+    exact ⟨z, qs, u, q, hp, ldlw_ldlcfg hl, hq, he⟩
+
+theorem cfgEvFunD_eq : (cfgEvFunDXP : Silmaril.Games.Abstract.AFun (Abstract.wasmHostSig H)
+    (Store H) (Nat × List Val) (List Val ⊕ Nat)) = Abstract.wasmEvFunDXP := by
+  funext s p
+  simp only [cfgEvFunDXP, Abstract.wasmEvFunDXP, cfgHOpenX_eq, closeDLog_cfg_eq]
+
+/-- **The machine's productive streams of a body are the native ones.** -/
+theorem infLcfg_eq : (InfLcfg : Shape.OpenInf (wasmHShape H)) = InfLwXP := by
+  funext a s vs
+  ext ν
+  simp only [InfLcfg, InfLwXP, Set.mem_ofPred_eq]
+  constructor
+  · rintro ⟨fi, fn, ω, hfi, hcode, hp, rfl⟩
+    obtain ⟨ω', hi, he⟩ := prodL_iff.1 hp
+    obtain rfl : ω = ω' := funext fun n => toS_injective (congrFun he n)
+    exact ⟨fi, fn, ω, hfi, hcode, hi, rfl⟩
+  · rintro ⟨fi, fn, ω, hfi, hcode, hi, rfl⟩
+    exact ⟨fi, fn, ω, hfi, hcode, prodL_iff.2 ⟨ω, hi, rfl⟩, rfl⟩
+
+theorem cfgEvInfN_eq : (cfgEvInfNXP : Silmaril.Games.Abstract.PInf (Abstract.wasmHostSig H)
+    (Store H) (Nat × List Val)) = Abstract.wasmEvInfNXP := by
+  funext s p
+  simp only [cfgEvInfNXP, Abstract.wasmEvInfNXP, cfgHOpenX_eq, infLcfg_eq]
+
+theorem cfgEvFunDS_eq : (cfgEvFunDXPS : Silmaril.Games.Abstract.AFun (Abstract.wasmHostSig H)
+    (Store H) (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit.{1})) = Abstract.wasmEvFunDXPS := by
+  funext s p
+  simp only [cfgEvFunDXPS, Abstract.wasmEvFunDXPS, cfgEvFun_eq, cfgEvFunD_eq]
+
+theorem cfgSessionTriple_eq :
+    (cfgSessionTriple : Silmaril.Games.Abstract.ObsTriple (Abstract.wasmHostSig H) (Store H)
+      (Nat × List Val) ((List Val ⊕ Nat) ⊕ PUnit.{1})) = Abstract.sessionTripleXP := by
+  simp only [cfgSessionTriple, Abstract.sessionTripleXP, cfgEvFunDS_eq, cfgEvPend_eq,
+    cfgEvInfN_eq]
+
+end Triple
 
 end Silmaril.Wasm.Cfg.Proofs.CfgSession

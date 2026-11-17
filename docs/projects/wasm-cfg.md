@@ -836,18 +836,34 @@ The plain graph stays an over-approximation, and claims about it say so.
             module is `CfgSession.cfgHOpenXP`, which reads machine logs canonically by
             `CanonRead`. Theorems: `cfgHOpenX_eq : cfgHOpenXP = wasmHOpenXP` and
             `cfgEvFunX_eq : cfgEvFunXP = wasmEvFunXP`.
-          - **Plan for the rest.**
-            - (Done above.) Export the trap cases of that conversion in the `HostClosingS` header.
-            - Define `cfgHOpenXP` from the machine with them, and prove
-              `cfgHOpenXP = wasmHOpenXP` as for H3-1.
-            - The productive part then follows by `prodL_iff`, since `InfLwXP` is `InfLXP` at
-              `Frame.forCall`.
-            - The divergent part: `logDiv_machine` gives the inclusion. The converse
-              `machine_logDiv` adds `closedCallXP`-answered entries, and those resolve to empty
-              host logs in `close wasmHOpenXP` (`HostClosingInfXPBack.evalLXPh_of_evalOXP_closed`,
-              per call). So the equality holds at the level of `closeDLog`, not per function.
+          - **H3-3b, done: the session triple.** `CfgSession` defines the per-function sets
+            from the machine: `LDLcfg` (the body diverges after a log by `MLogDivL`, the log the
+            session reading of a canonical log) and `InfLcfg` (the body runs productively by
+            `ProdL`, the stream the session reading of a canonical stream). From them it defines
+            `cfgEvFunDXP := closeDLog cfgHOpenXP LDLcfg`, `cfgEvInfNXP := closeInfL cfgHOpenXP
+            InfLcfg`, `cfgEvFunDXPS` and `cfgSessionTriple := (cfgEvFunDXPS, cfgEvPendXPS,
+            cfgEvInfNXP)`.
+            - `cfgEvInfN_eq : cfgEvInfNXP = wasmEvInfNXP`. By `cfgHOpenX_eq`, it suffices that
+              `InfLcfg = InfLwXP`, which follows from `prodL_iff` because `OCall.toS` is
+              injective.
+            - `cfgEvFunD_eq : cfgEvFunDXP = wasmEvFunDXP`. This holds at the level of `closeDLog`,
+              not per function. `logDiv_machine` gives `LDLwXP ⊆ LDLcfg`. For the converse,
+              `machine_logDiv` extends the log by canonical entries answered by `closedCallXP`.
+              These are value or exception answers, since a session reading has no trap answer.
+              Each entry resolves to the empty host log in `close wasmHOpenXP`, by the new
+              per-call header theorems `HostClosingInfXPBack.close_of_closedCallXP_vals` and
+              `_throw`, which export `closed_good`. So the host log `qs ++ q` does not change.
+            - `cfgEvFunDS_eq : cfgEvFunDXPS = wasmEvFunDXPS`, and
+              `cfgSessionTriple_eq : cfgSessionTriple = sessionTripleXP`, which uses
+              `cfgEvFun_eq` and `cfgEvPend_eq`.
+            - With this, H3's equality with the store-retaining session triple is done. The
+              closure's callees, including diverging and productive ones, now run on the CFG
+              machine. Inside one body, the closed answers of `MLogDivL`/`CloseOk` and the
+              diverging callees (`FunDivXP`) are still named by the native oracle. The closure
+              equality covers them, but they are not yet defined from the machine.
         - Equality with the store-retaining session closure `wasmEvFunXPS`/`sessionTripleXP`
-          (not the trap-store-erasing `wasmEvFunXP`).
+          (not the trap-store-erasing `wasmEvFunXP`): done (`cfgEvFun_eq`,
+          `cfgSessionTriple_eq`).
         - Then the instance session with imports and exceptions, via the existing Core adequacy
           (`wasmEvFunXPS_*_iff`, `wasmEvPendXPS_eq`, productive streams) and NodeBridge, on a
           typed fragment with the exception checker (`ehExt tags`).
