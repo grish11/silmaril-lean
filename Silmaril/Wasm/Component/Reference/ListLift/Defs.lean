@@ -315,14 +315,18 @@ structure Good (c : ListComp) : Prop where
   flat : ∀ x ∈ c.exports, 2 * x.params.length ≤ 16
 
 /-- The module is instantiated as the statement assumes: it validates and instantiates without
-imports and without a start function (`I`, as `NumModule.IsInst` reads it), its function exports
-(in order) are `funcNames` with the allocator and the exports' core functions among them, and
-`memName` is its memory export `0` (address `0` of the instance store). -/
+imports and without a start function (`I`, as `NumModule.IsInst` reads it), the allocator and
+the exports' core functions are among its function exports (`funcExportNames`, aliased by name),
+and `memName` is its memory export `0` (address `0` of the instance store). -/
 structure Inst (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) : Prop where
   inst : ∃ mt, Silmaril.Wasm.Game.IsInstance c.mod mt I
   noImports : I.imports = []
   memExport : ∃ x ∈ c.mod.exports, x.name = c.memName ∧ x.index = .memory ⟨0⟩
   memAddr : 0 < I.store.mems.length
+  /-- The allocator is a function export of the module. -/
+  reallocFunc : c.reallocName ∈ Silmaril.Wasm.Component.Reference.funcExportNames c.mod
+  /-- The lifted core functions are function exports of the module. -/
+  coreFuncs : ∀ x ∈ c.exports, x.core ∈ Silmaril.Wasm.Component.Reference.funcExportNames c.mod
 
 /-- The function address of the core export named `n` in the instance (`0` if none). -/
 def coreAddr (c : ListComp) (I : Silmaril.Wasm.Game.ScalarInstance) (n : String) : Nat :=
