@@ -49,8 +49,12 @@ try {
   check(helloEdges.some((e) => e.decl.endsWith("hello_start") && !e.role.startsWith("proves") && /not a statement about runs/.test(e.note)) &&
       helloEdges.some((e) => e.decl.endsWith("cli_of_main")) && helloEdges.some((e) => e.decl.endsWith("hello_via_start")),
     "hello-gcc: the start-up row is a checked description, linked to its execution consequence (cli_of_main, hello_via_start)");
-  check(helloEdges.some((e) => e.decl.endsWith("GlibcRuntime") && /shape only/.test(e.role) && /no instance/.test(e.note)),
-    "hello-gcc: glibc_runtime is shown as a shape with no instance, not as an open glibc 2.39 problem");
+  check(helloEdges.some((e) => e.decl.endsWith("GlibcRuntime") && e.role.startsWith("shape") && e.status === "uninstantiated shape" && /no instance/.test(e.note)) &&
+      helloEdges.filter((e) => e.role.startsWith("open")).every((e) => /assumption of helloGcc_real/.test(e.role)),
+    "hello-gcc: glibc_runtime is an uninstantiated shape, apart from the concrete open assumptions (Task.helloGccCrt, HelloLib)");
+  const counting = d.io.concat(d.specs).flatMap((r) => r.edges).filter((e) => /^(proves|refinement|checks)/.test(e.role));
+  check(counting.length > 0 && counting.every((e) => e.association === "checked" && e.about.length > 0),
+    `every proving or refinement edge is checked to be about its record (${counting.length})`);
 
   await open("/cli");
   check(await p.evaluate(() => document.querySelector("#nav a.on")?.textContent) === "CLI", "the CLI tab is in the navigation and selected");
