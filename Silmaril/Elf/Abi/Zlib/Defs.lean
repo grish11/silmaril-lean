@@ -66,16 +66,16 @@ def bind (_ : String) : Binding := .symtab
 
 /-- **Open**: `crc32_z` conforms on `Open9` (the file part is proved, `Thms.crc32z_of`). -/
 def Task.crc32z : Prop :=
-  Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "crc32_z" zProto crc32zCode 0 crc32zS
+  Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "crc32_z" zProto crc32zCode 0 crc32zS
 
 def Task.crc32 : Prop :=
-  Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "crc32" wProto crc32Code 0 crc32S
+  Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "crc32" wProto crc32Code 0 crc32S
 
 def Task.adler32z : Prop :=
-  Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "adler32_z" zProto adler32zCode 96 adler32zS
+  Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "adler32_z" zProto adler32zCode 96 adler32zS
 
 def Task.adler32 : Prop :=
-  Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "adler32" wProto adler32Code 96 adler32S
+  Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "adler32" wProto adler32Code 96 adler32S
 
 end Silmaril.Elf.Abi.Zlib
 
@@ -112,6 +112,6 @@ silmaril instance silmaril.elf.abi.zlib_checksums.adler32
 silmaril instance silmaril.elf.abi.zlib_checksums.zlib_h
     (title := "zlib-checksums satisfies part of zlib.h (4 checksum functions claimed, total) under System V AMD64 on Open9 (open)") :=
   silmaril.shapes.elf.abi_header_sat_partial (A := Silmaril.Machine.Abi.Conformance.sysvInt)
-    (M := Silmaril.X86.Open9.isa) (hdr := Silmaril.Elf.Abi.Zlib.hdr)
+    (M := (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa)) (hdr := Silmaril.Elf.Abi.Zlib.hdr)
     (cov := Silmaril.Elf.Abi.Zlib.coverage) (F := Silmaril.Elf.Staged.Pinned.ZlibChecksums.F)
     (bind := Silmaril.Elf.Abi.Zlib.bind) (impl := Silmaril.Elf.Abi.Zlib.impl)

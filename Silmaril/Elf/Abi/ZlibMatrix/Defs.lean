@@ -81,12 +81,12 @@ def impl : String → Option (Impl sysvInt)
 /-- **Open**: at every load base the file admits, `adler32_z` conforms on `Open9`. -/
 def Task.adler32z : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "adler32_z" zProto (adler32zCode.rebase base) frame adler32zS
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "adler32_z" zProto (adler32zCode.rebase base) frame adler32zS
 
 /-- **Open**: at every load base the file admits, `adler32` conforms on `Open9`. -/
 def Task.adler32 : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "adler32" wProto (adler32Code.rebase base) frame adler32S
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "adler32" wProto (adler32Code.rebase base) frame adler32S
 
 end Libz1211
 
@@ -118,12 +118,12 @@ def impl : String → Option (Impl sysvInt)
 /-- **Open**: at every load base the file admits, `crc32_z` conforms on `Open9`. -/
 def Task.crc32z : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "crc32_z" zProto (crc32zCode.rebase base) frame crc32zS
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "crc32_z" zProto (crc32zCode.rebase base) frame crc32zS
 
 /-- **Open**: at every load base the file admits, `adler32_z` conforms on `Open9`. -/
 def Task.adler32z : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "adler32_z" zProto (adler32zCode.rebase base) frame adler32zS
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "adler32_z" zProto (adler32zCode.rebase base) frame adler32zS
 
 end Libz131Gcc
 
@@ -155,12 +155,12 @@ def impl : String → Option (Impl sysvInt)
 /-- **Open**: at every load base the file admits, `crc32_z` conforms on `Open9`. -/
 def Task.crc32z : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "crc32_z" zProto (crc32zCode.rebase base) frame crc32zS
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "crc32_z" zProto (crc32zCode.rebase base) frame crc32zS
 
 /-- **Open**: at every load base the file admits, `adler32_z` conforms on `Open9`. -/
 def Task.adler32z : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "adler32_z" zProto (adler32zCode.rebase base) frame adler32zS
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "adler32_z" zProto (adler32zCode.rebase base) frame adler32zS
 
 end Libz131Clang
 
@@ -185,7 +185,7 @@ silmaril instance silmaril.elf.abi.zlib_libz_1_2_11.adler32
 silmaril instance silmaril.elf.abi.zlib_libz_1_2_11.zlib_h
     (title := "libz.so.1.2.11 (Ubuntu zlib1g 1:1.2.11.dfsg-2ubuntu9.2) satisfies part of zlib.h (2 checksum functions claimed, total, at every load base) under System V AMD64 on Open9 (open)") :=
   silmaril.shapes.elf.abi_header_sat_partial (A := Silmaril.Machine.Abi.Conformance.sysvInt)
-    (M := Silmaril.X86.Open9.isa) (hdr := Silmaril.Elf.Abi.ZlibMatrix.hdr)
+    (M := (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa)) (hdr := Silmaril.Elf.Abi.ZlibMatrix.hdr)
     (cov := Silmaril.Elf.Abi.ZlibMatrix.Libz1211.coverage) (F := Silmaril.Elf.Staged.Pinned.ZlibLibz1211.F)
     (bind := Silmaril.Elf.Abi.ZlibMatrix.bind) (impl := Silmaril.Elf.Abi.ZlibMatrix.Libz1211.impl)
 silmaril instance silmaril.elf.abi.zlib_libz_1_3_1_gcc.crc32_z
@@ -205,7 +205,7 @@ silmaril instance silmaril.elf.abi.zlib_libz_1_3_1_gcc.adler32_z
 silmaril instance silmaril.elf.abi.zlib_libz_1_3_1_gcc.zlib_h
     (title := "libz.so.1.3.1 (GCC 13.3 -O2 build of the zlib 1.3.1 tarball) satisfies part of zlib.h (2 checksum functions claimed, total, at every load base) under System V AMD64 on Open9 (open)") :=
   silmaril.shapes.elf.abi_header_sat_partial (A := Silmaril.Machine.Abi.Conformance.sysvInt)
-    (M := Silmaril.X86.Open9.isa) (hdr := Silmaril.Elf.Abi.ZlibMatrix.hdr)
+    (M := (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa)) (hdr := Silmaril.Elf.Abi.ZlibMatrix.hdr)
     (cov := Silmaril.Elf.Abi.ZlibMatrix.Libz131Gcc.coverage) (F := Silmaril.Elf.Staged.Pinned.ZlibLibz131Gcc.F)
     (bind := Silmaril.Elf.Abi.ZlibMatrix.bind) (impl := Silmaril.Elf.Abi.ZlibMatrix.Libz131Gcc.impl)
 silmaril instance silmaril.elf.abi.zlib_libz_1_3_1_clang.crc32_z
@@ -225,6 +225,6 @@ silmaril instance silmaril.elf.abi.zlib_libz_1_3_1_clang.adler32_z
 silmaril instance silmaril.elf.abi.zlib_libz_1_3_1_clang.zlib_h
     (title := "libz.so.1.3.1 (Clang 18.1 -O2 build of the zlib 1.3.1 tarball) satisfies part of zlib.h (2 checksum functions claimed, total, at every load base) under System V AMD64 on Open9 (open)") :=
   silmaril.shapes.elf.abi_header_sat_partial (A := Silmaril.Machine.Abi.Conformance.sysvInt)
-    (M := Silmaril.X86.Open9.isa) (hdr := Silmaril.Elf.Abi.ZlibMatrix.hdr)
+    (M := (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa)) (hdr := Silmaril.Elf.Abi.ZlibMatrix.hdr)
     (cov := Silmaril.Elf.Abi.ZlibMatrix.Libz131Clang.coverage) (F := Silmaril.Elf.Staged.Pinned.ZlibLibz131Clang.F)
     (bind := Silmaril.Elf.Abi.ZlibMatrix.bind) (impl := Silmaril.Elf.Abi.ZlibMatrix.Libz131Clang.impl)

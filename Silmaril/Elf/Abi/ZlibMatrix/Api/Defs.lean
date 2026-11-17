@@ -76,37 +76,37 @@ def impl : String → Option (Impl sysvInt)
 /-- **Open**: at every load base, `crc32_combine` conforms on `Open9`. -/
 def Task.crc32Combine : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "crc32_combine" combineProto (crc32CombineCode.rebase base) frame (crc32CombineS)
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "crc32_combine" combineProto (crc32CombineCode.rebase base) frame (crc32CombineS)
 
 /-- **Open**: at every load base, `adler32_combine` conforms on `Open9`. -/
 def Task.adler32Combine : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "adler32_combine" combineProto (adler32CombineCode.rebase base) frame (adler32CombineS)
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "adler32_combine" combineProto (adler32CombineCode.rebase base) frame (adler32CombineS)
 
 /-- **Open**: at every load base, `crc32_combine_gen` conforms on `Open9`. -/
 def Task.crc32CombineGen : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "crc32_combine_gen" genProto (crc32CombineGenCode.rebase base) frame (crc32CombineGenS)
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "crc32_combine_gen" genProto (crc32CombineGenCode.rebase base) frame (crc32CombineGenS)
 
 /-- **Open**: at every load base, `crc32_combine_op` conforms on `Open9`. -/
 def Task.crc32CombineOp : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "crc32_combine_op" opProto (crc32CombineOpCode.rebase base) frame (crc32CombineOpS)
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "crc32_combine_op" opProto (crc32CombineOpCode.rebase base) frame (crc32CombineOpS)
 
 /-- **Open**: at every load base, `get_crc_table` conforms on `Open9`. -/
 def Task.getCrcTable : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "get_crc_table" ptrProto (getCrcTableCode.rebase base) frame (getCrcTableS)
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "get_crc_table" ptrProto (getCrcTableCode.rebase base) frame (getCrcTableS)
 
 /-- **Open**: at every load base, `zlibVersion` conforms on `Open9`. -/
 def Task.zlibVersion : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "zlibVersion" ptrProto (zlibVersionCode.rebase base) frame (zlibVersionS "1.3")
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "zlibVersion" ptrProto (zlibVersionCode.rebase base) frame (zlibVersionS "1.3")
 
 /-- **Open**: at every load base, `zlibCompileFlags` conforms on `Open9`. -/
 def Task.zlibCompileFlags : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "zlibCompileFlags" flagsProto (zlibCompileFlagsCode.rebase base) frame (zlibCompileFlagsS sysvInt.dm)
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "zlibCompileFlags" flagsProto (zlibCompileFlagsCode.rebase base) frame (zlibCompileFlagsS sysvInt.dm)
 
 end Silmaril.Elf.Abi.ZlibMatrix.Api
 
@@ -163,6 +163,6 @@ silmaril instance silmaril.elf.abi.zlib_libz.zlib_compile_flags
     (S := (Silmaril.Machine.Abi.Conformance.Zlib.Api.zlibCompileFlagsS Silmaril.Machine.Abi.Conformance.sysvInt.dm))
 silmaril instance silmaril.elf.abi.zlib_libz.zlib_h_complete
     (title := "libz.so.1.3 satisfies all 11 declarations of the zlib.h checksum excerpt (none absent; total, at every load base) under System V AMD64 (INTEGER fragment) on Open9 (open)") :=
-  silmaril.shapes.elf.abi_header_sat_complete (A := Silmaril.Machine.Abi.Conformance.sysvInt) (M := Silmaril.X86.Open9.isa) (hdr := Silmaril.Elf.Abi.ZlibLibz.hdr)
+  silmaril.shapes.elf.abi_header_sat_complete (A := Silmaril.Machine.Abi.Conformance.sysvInt) (M := (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa)) (hdr := Silmaril.Elf.Abi.ZlibLibz.hdr)
     (cov := Silmaril.Elf.Abi.ZlibMatrix.Api.coverage) (F := Silmaril.Elf.Staged.Pinned.ZlibLibz.F)
     (bind := Silmaril.Elf.Abi.ZlibMatrix.Api.bind) (impl := Silmaril.Elf.Abi.ZlibMatrix.Api.impl)

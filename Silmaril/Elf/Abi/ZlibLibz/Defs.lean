@@ -95,19 +95,19 @@ def impl : String → Option (Impl sysvInt)
 is proved, `Thms.crc32z_of`). -/
 def Task.crc32z : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "crc32_z" zProto (crc32zCode.rebase base) frame crc32zS
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "crc32_z" zProto (crc32zCode.rebase base) frame crc32zS
 
 def Task.crc32 : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "crc32" wProto (crc32Code.rebase base) frame crc32S
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "crc32" wProto (crc32Code.rebase base) frame crc32S
 
 def Task.adler32z : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "adler32_z" zProto (adler32zCode.rebase base) frame adler32zS
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "adler32_z" zProto (adler32zCode.rebase base) frame adler32zS
 
 def Task.adler32 : Prop :=
   ∀ base, Placement F base →
-    Conforms sysvInt Silmaril.X86.Open9.isa .total hdr "adler32" wProto (adler32Code.rebase base) frame adler32S
+    Conforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) .total hdr "adler32" wProto (adler32Code.rebase base) frame adler32S
 
 end Silmaril.Elf.Abi.ZlibLibz
 
@@ -144,6 +144,6 @@ silmaril instance silmaril.elf.abi.zlib_libz.adler32
 silmaril instance silmaril.elf.abi.zlib_libz.zlib_h
     (title := "libz.so.1.3 satisfies part of zlib.h (4 checksum functions claimed, total, at every load base) under System V AMD64 on Open9 (open)") :=
   silmaril.shapes.elf.abi_header_sat_partial (A := Silmaril.Machine.Abi.Conformance.sysvInt)
-    (M := Silmaril.X86.Open9.isa) (hdr := Silmaril.Elf.Abi.ZlibLibz.hdr)
+    (M := (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa)) (hdr := Silmaril.Elf.Abi.ZlibLibz.hdr)
     (cov := Silmaril.Elf.Abi.ZlibLibz.coverage) (F := Silmaril.Elf.Staged.Pinned.ZlibLibz.F)
     (bind := Silmaril.Elf.Abi.ZlibLibz.bind) (impl := Silmaril.Elf.Abi.ZlibLibz.impl)

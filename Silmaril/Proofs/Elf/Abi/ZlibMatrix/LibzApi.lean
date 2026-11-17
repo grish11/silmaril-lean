@@ -146,7 +146,7 @@ conforming at every load base, nothing excluded. -/
 theorem header_complete_of (h0 : Silmaril.Elf.Abi.ZlibLibz.Task.crc32z) (h1 : Silmaril.Elf.Abi.ZlibLibz.Task.crc32) (h2 : Silmaril.Elf.Abi.ZlibLibz.Task.adler32z) (h3 : Silmaril.Elf.Abi.ZlibLibz.Task.adler32) (g0 : Task.crc32Combine) (g1 : Task.adler32Combine) (g2 : Task.crc32CombineGen) (g3 : Task.crc32CombineOp) (g4 : Task.getCrcTable) (g5 : Task.zlibVersion) (g6 : Task.zlibCompileFlags) :
     silmaril.elf.abi.zlib_libz.zlib_h_complete := by
   have hconf : ∀ f ∈ coverage.claimed, ∃ i, impl f = some i ∧
-      AbiConforms sysvInt Silmaril.X86.Open9.isa i.mode hdr f i.proto F (bind f) i.code i.frame i.spec := by
+      AbiConforms sysvInt (Silmaril.Machine.Abi.Conformance.Mach.ofInt Silmaril.X86.Open9.isa) i.mode hdr f i.proto F (bind f) i.code i.frame i.spec := by
     intro f hf
     simp only [coverage, List.mem_cons, List.not_mem_nil, or_false] at hf
     rcases hf with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
