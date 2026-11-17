@@ -35,9 +35,12 @@ theorem ContextRefines.trans {impl : Spec.Impl} {ctxs : List Codec.FileBindings}
 
 theorem validateContexts_sound (impl : Spec.Impl) (ctxs : List Codec.FileBindings) (f : Sym)
     (d d' : Core.FunDecl Codec.wireModel Unit Unit) (bounds : Bounds)
-    (h : validateContexts impl ctxs f d d' bounds = true) : ContextRefines impl ctxs f d d' := by
+    (h : validateContexts impl ctxs f d d' bounds = true) : FunctionRefines impl ctxs f d d' := by
+  simp only [validateContexts, Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_eq_false_iff] at h
+  obtain ⟨⟨hne, hs⟩, hv⟩ := h
+  refine ⟨hne, fun b hb => of_decide_eq_true (List.all_eq_true.mp hs b hb), ?_⟩
   intro b hb
-  have := List.all_eq_true.mp h b hb
+  have := List.all_eq_true.mp hv b hb
   simp only [beq_iff_eq] at this
   exact validate_sound impl _ _ bounds this
 
