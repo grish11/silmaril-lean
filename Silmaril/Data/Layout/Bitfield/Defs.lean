@@ -9,15 +9,18 @@ public import Silmaril.Data.Layout.Defs
 This module places a struct or union **with** bit-fields, at bit granularity, under a
 **bit-field policy**:
 
-* `BitPolicy.sysv`: the System V psABIs as GCC implements them (x86-64 §3.1.2 "Bit-Fields",
-  i386, AArch64 AAPCS64, RISC-V): a bit-field of declared type `T` (size `s`, alignment `a`) of
+* `BitPolicy.sysv`: the System V AMD64 psABI §3.1.2 "Bit-Fields"
+  (x86-psABIs/x86-64-ABI@e1ce098331da5dbd66e1ffc74162380bcc213236), with GCC 13.3's choices
+  where the psABI leaves the rule to the implementation (only x86-64 is compared with a compiler
+  here; i386, AArch64 and RISC-V are described as using the same rule, unmeasured): a bit-field of declared type `T` (size `s`, alignment `a`) of
   width `w > 0` starts at the current bit unless it would not fit in the `s`-byte storage unit
   aligned to `a` that contains the current bit, in which case it starts at the next `a`-aligned
   bit; a zero-width bit-field moves the current bit to the next `a`-aligned bit; **only named
   bit-fields** contribute `a` to the record's alignment; bit-fields of different types share
   storage units.
-* `BitPolicy.ms`: Microsoft x64, as clang's MSVC-compatible record layout computes it (clang 18.1,
-  `--target=x86_64-pc-windows-msvc`; not checked against `cl.exe` here): bit-fields are packed into
+* `BitPolicy.ms`: Microsoft's allocation **as clang 18.1 emulates it** for
+  `--target=x86_64-pc-windows-msvc` (clang's MSVC-compatible record layout; no layout here comes
+  from `cl.exe`): bit-fields are packed into
   **storage units of their declared type**; a bit-field starts a new unit (aligned to its type)
   when the open unit's type size differs or the field does not fit; a zero-width bit-field closes
   the open unit (and is ignored when none is open); an ordinary member closes the open unit; every
@@ -33,6 +36,14 @@ wider than its type; a named zero-width bit-field; a bit-field of a type other t
 `_Bool` or enum; `_Alignas` on a bit-field; members whose types are aggregates containing
 bit-fields (`layoutTy` refuses them; only the declaration being laid out may have bit-fields);
 `#pragma pack`, `__attribute__((packed))` and GCC's `ms_struct` are not represented.
+
+Queries: `bitShapeOf` (`sizeof`, `_Alignof`); `offsetOf`, **C's `offsetof`**, which refuses
+every bit-field (C17 7.19p3), wherever it lies; `bitOffsetOf`, the physical bit offset and width of
+any named member (a layout query, not a C expression); `paddingBits` and `paddingBytes`, the bits
+and the whole bytes no named member covers (unnamed bit-fields are padding, C17 6.7.2.1p12).
+
+`msX64` (below) is a data model, not a calling convention: Microsoft x64 argument passing is
+`Silmaril.Machine.Abi.Win64`.
 
 The result is a list of `BitSlot`s (name, bit offset, bit width; an ordinary member's width is
 eight times its size) and the record's `Shape`. Well-formedness (slots in increasing order, pairwise
@@ -228,21 +239,52 @@ def bitShapeOf (pol : BitPolicy) (dm : DataModel) (env : Env) (k : Kind) (tag : 
   | none => .error s!"no definition of {tag}"
   | some d => (bitLayout pol dm env d).map (·.2)
 
-/-- `offsetof` of a member, in bytes (`none` for a bit-field not on a byte boundary, whose
-`offsetof` is ill-formed in C). -/
+/-- **C's `offsetof`**: the byte offset of an ordinary member. A bit-field is refused, whatever
+its position (also `unsigned x : 8` at offset 0): `offsetof` of a bit-field is undefined
+(C17 7.19p3). The physical placement of any member, bit-fields included, is `bitOffsetOf`, a
+layout query that is not a C expression. -/
 def offsetOf (pol : BitPolicy) (dm : DataModel) (env : Env) (k : Kind) (tag member : String) :
     Except String Nat :=
   match env.find? k tag with
   | none => .error s!"no definition of {tag}"
+  | some d => match d.fields.find? (·.name == member) with
+    | none => .error s!"{tag} has no member {member}"
+    | some f =>
+      if f.bits.isSome then
+        .error s!"{member} is a bit-field: offsetof is undefined for bit-fields (C17 7.19p3); use bitOffsetOf for its placement"
+      else match bitLayout pol dm env d with
+        | .error e => .error e
+        | .ok (ss, _) => match ss.find? (·.name == member) with
+          | none => .error s!"{tag} has no placed member {member}"
+          | some s => .ok (s.off / 8)
+
+/-- **Physical placement** of a named member under the policy: its bit offset from the start of
+the object and its width in bits (eight times the size for an ordinary member). A layout
+introspection query, defined for bit-fields too; it is not C's `offsetof`. -/
+def bitOffsetOf (pol : BitPolicy) (dm : DataModel) (env : Env) (k : Kind) (tag member : String) :
+    Except String (Nat × Nat) :=
+  match env.find? k tag with
+  | none => .error s!"no definition of {tag}"
   | some d => match bitLayout pol dm env d with
     | .error e => .error e
-    | .ok (ss, _) => match ss.find? (·.name == member) with
+    | .ok (ss, _) => match ss.find? (fun s => s.name == member && member != "") with
       | none => .error s!"{tag} has no member {member}"
-      | some s => if s.off % 8 = 0 then .ok (s.off / 8) else .error s!"{member} is a bit-field not on a byte boundary"
+      | some s => .ok (s.off, s.width)
 
-/-- The padding bits of a layout: bits of the record covered by no slot. -/
+/-- **Padding bits** of a layout: the bits of the object representation (`8 * size` bits) that
+**no named member** covers. They include alignment gaps, tail padding, the unused bits of
+bit-field storage units, the bits of **unnamed** bit-fields (which are not members, C17
+6.7.2.1p12), and, in a union, the bits beyond every member. -/
 def paddingBits (ss : List BitSlot) (sh : Shape) : Nat :=
-  ((List.range (8 * sh.size)).filter fun b => !(ss.any fun s => s.off ≤ b && b < s.off + s.width)).length
+  ((List.range (8 * sh.size)).filter fun b =>
+    !(ss.any fun s => s.name != "" && s.off ≤ b && b < s.off + s.width)).length
+
+/-- **Padding bytes** of a layout: the bytes all eight of whose bits are padding bits. A byte
+holding a few bits of a bit-field and some padding bits is not a padding byte; it contributes
+its padding bits to `paddingBits` only. -/
+def paddingBytes (ss : List BitSlot) (sh : Shape) : Nat :=
+  ((List.range sh.size).filter fun i => (List.range 8).all fun j =>
+    !(ss.any fun s => s.name != "" && s.off ≤ 8 * i + j && 8 * i + j < s.off + s.width)).length
 
 end Silmaril.Data.Layout
 

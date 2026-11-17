@@ -11,8 +11,11 @@ PROVED (standard axioms), proofs in `Silmaril.Proofs.Data.Layout.Bitfield`:
 * `bitStruct_wf`: under either policy, a struct's slots are pairwise disjoint, in increasing
   order, and inside the record;
 * `bitUnion_wf`: a union's slots start at bit 0 and lie inside the record;
-* `bitLayout_wf`: the same for a declaration;
-* `msX64_wf`: the Microsoft x64 data model is well formed;
+* `bitLayout_wf`: the same for a declaration. These are **structural** facts about the placement
+  function; they say nothing about what a compiler does (agreement with gcc and clang's MSVC
+  emulation on 25 measured aggregates is `Examples.cases_agree`, a finite comparison);
+* `msX64_wf`: the Microsoft x64 data model (LLP64) is well formed (a data model, not a calling
+  convention);
 * `bitfieldLayout`: **`Task.bitfieldLayout` holds** (`Silmaril.Data.Layout.Thms`), with
   `bitfieldPlace` and GCC's x86-64 placements of its two examples.
 -/
