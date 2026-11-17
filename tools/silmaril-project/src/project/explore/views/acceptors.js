@@ -124,8 +124,10 @@
   // library roots (lakefile.toml): `Silmaril.*` under the repository root, the self-test library
   // `ProjectSelfTest.*` under examples/project/
   const LIB_ROOTS = [[/^Silmaril(\.[A-Za-z][A-Za-z0-9_]*)+$/, ""], [/^ProjectSelfTest(\.[A-Za-z][A-Za-z0-9_]*)+$/, "examples/project/"]];
-  function claimSource(t) {
-    const known = sourceLink(t.module, t.decl);
+  function claimSource(t, knownDecl) {
+    // the source map knows the module: its file (and, when the database knows the declaration,
+    // the view button and the declaration's own page)
+    const known = sourceLink(t.module, knownDecl ? t.decl : null);
     if (known) return known;
     const root = typeof t.module === "string" ? LIB_ROOTS.find(([re]) => re.test(t.module)) : null;
     if (!root) return '<span class="muted">—</span>';
@@ -133,7 +135,7 @@
     if (!f) return '<span class="muted" data-claim-source="none">no pinned source revision on this page</span>';
     return `<a class="claim-src" href="${esc(f.blob)}" target="_blank" rel="noopener noreferrer" title="${esc(f.path)} at ${esc(SOURCE.rev.slice(0, 12))}">source</a>`;
   }
-  function claimBlock(cl) {
+  function claimBlock(cl, known) {
     const cls = LEVEL_CLASS[cl.level] || "prov";
     let h = `<p><span class="${cls}" data-claim="${esc(cl.level || "")}">${esc(cl.kind || "claim")}</span> ` +
       `<span class="muted">${esc(cl.scope || "")}</span></p>`;
@@ -143,12 +145,26 @@
     h += '<dl class="obs-meta">' + rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("") + "</dl>";
     const ths = Array.isArray(cl.theorems) ? cl.theorems : [];
     h += '<div class="tablebox"><table class="claims"><thead><tr><th>theorem</th><th>states</th><th>source</th></tr></thead><tbody>' +
-      ths.map((t) => `<tr><td>${moduleFile(t.module) ? `<a href="${esc(href("source", t.decl))}">${code(t.decl)}</a>` : code(t.decl)}` +
-        `<div class="muted">${esc(t.module)}</div></td><td>${esc(t.states)}</td><td>${claimSource(t)}</td></tr>`).join("") +
+      ths.map((t) => `<tr><td>${known.has(t.decl) ? `<a href="${esc(href("source", t.decl))}">${code(t.decl)}</a>` : code(t.decl)}` +
+        `<div class="muted">${esc(t.module)}</div></td><td>${esc(t.states)}</td><td>${claimSource(t, known.has(t.decl))}</td></tr>`).join("") +
       "</tbody></table></div>";
     return h;
   }
-  function claimsBlock(rep, sha) {
+  // The claimed declarations the database knows (as #/source does: a location, a problem's or an
+  // answer's declaration); only these get a link to their own page.
+  async function knownDecls(rep, sha, ctx) {
+    const decls = [...new Set(claimsFor(rep, sha).flatMap((c) => (Array.isArray(c.theorems) ? c.theorems : []).map((t) => t.decl)))];
+    const known = new Set();
+    if (!ctx || !decls.length) return known;
+    for (const d of decls) {
+      const hit = (await ctx.tq("decl_locations", "SELECT 1 AS x FROM decl_locations WHERE decl = ?", [d])).length ||
+        (await ctx.q("SELECT 1 AS x FROM problems WHERE decl = ? LIMIT 1", [d])).length ||
+        (await ctx.q("SELECT 1 AS x FROM answers WHERE decl = ? LIMIT 1", [d])).length;
+      if (hit) known.add(d);
+    }
+    return known;
+  }
+  function claimsBlock(rep, sha, known) {
     const withheld = rep.artifacts.filter((a) => a.sha256 === sha && a.claims_withheld).map((a) => a.claims_withheld);
     const note = withheld.map((w) => `<p class="muted"><span class="st-x st-x-bad">${esc(w)}</span></p>`).join("");
     if (!String(rep.kind).endsWith("/v2"))
@@ -158,9 +174,9 @@
     let h = "<h3>Lean theorems about this component</h3>";
     h += '<p class="muted">Read from the harness report, which copies them from the suite file for exactly these bytes (the pinned SHA-256); ' +
       "not read from the database and not checked by the harness or here. Separate from the runtime observations, which they neither use nor confirm.</p>";
-    return h + note + cls.map(claimBlock).join("");
+    return h + note + cls.map((cl) => claimBlock(cl, known)).join("");
   }
-  async function render(subject) {
+  async function render(subject, ctx) {
     const sha = (subject.sha256 || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(sha)) return "";
     const rep = await loadReport();
@@ -171,7 +187,7 @@
       "<code>tools/wasm-acceptor-harness</code> (<code>report.json</code>, copied by <code>make pages</code>).</p>";
     const art = rep.artifacts.find((a) => a.sha256 === sha);
     if (!art) return "";
-    return observationsBlock(rep, art, subject) + claimsBlock(rep, sha);
+    return observationsBlock(rep, art, subject) + claimsBlock(rep, sha, await knownDecls(rep, sha, ctx));
   }
   Explorer.registerSection({ id: "acceptor-evidence", title: "Acceptor component: runtime observations and theorems",
     on: ["wasm-component", "artifact"], order: 40, render });

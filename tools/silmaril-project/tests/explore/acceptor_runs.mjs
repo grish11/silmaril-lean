@@ -223,12 +223,13 @@ try {
       `fixture ${what}: every claim of the report is shown, a core-module claim without the component style`);
     check(f.decls.includes("Fixture.check_sound") && f.text.includes("Fixture.bytes") && f.text.includes(sat.sha256), `fixture ${what}: the claim's theorems, value and SHA-256`);
     // every claimed theorem has exactly one honest source state: the page's source map knows its
-    // module (own-page link and file link), or it is a library module linked at the pinned revision,
+    // module (a file link; an own-page link only when the database knows the declaration, which the
+    // real-site check below follows), or it is a library module linked at the pinned revision,
     // or the page has no pinned revision and says so; never an own-page link without a known module
     const known = (m) => !!(f.sourceMeta && f.sourceMeta.modules && Object.hasOwn(f.sourceMeta.modules, m));
-    check(f.claimRows.length > 0 && f.claimRows.every((r) => known(r.module) ? (r.page && r.blobs.length > 0) :
-        (!r.page && (/^(Silmaril|ProjectSelfTest)\./.test(r.module) ? (f.sourceMeta ? r.blobs.length === 1 : r.noRev) : r.blobs.length === 0))),
-      `fixture ${what}: each claimed theorem links to its source where known, at the pinned revision otherwise, no unresolvable own page`);
+    check(f.claimRows.length > 0 && f.claimRows.every((r) => known(r.module) ? r.blobs.length > 0 :
+        (/^(Silmaril|ProjectSelfTest)\./.test(r.module) ? (f.sourceMeta ? r.blobs.length === 1 : r.noRev) : r.blobs.length === 0)),
+      `fixture ${what}: each claimed theorem links to its source where known, at the pinned revision otherwise (own pages: followed on the real site)`);
     check(!f.err, `fixture ${what}: no error`);
     await shot("acceptor-runs-fixture-" + what);
 
