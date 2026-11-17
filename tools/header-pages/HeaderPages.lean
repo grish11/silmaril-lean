@@ -10,7 +10,9 @@ import Silmaril.Machine.Abi.Conformance.SysvScalar.Defs
 
 For each pinned header: what the subset reader (`Silmaril.Data.Layout.Header.read`) reads or why
 it refuses; each prototype's C spelling and qualifiers; what each versioned ABI definition
-(`sysvInt`, `win64Int`, `sysvScalar`) lowers it to, or the reason it refuses; the call plan of
+(`sysvInt`, `win64Int`, `sysvScalar`) lowers it to, with the header's own tag definitions
+(`Header.env`: `sysvScalar` classifies small aggregates passed by value from their layout), or the
+reason it refuses; the call plan of
 `sysvScalar` (where each argument and the result go); and each aggregate's layout under the
 System V x86-64 and Microsoft x64 data models (`bitLayout`).
 
@@ -82,26 +84,31 @@ def short (s : String) : String := (s.splitOn ".").getLast!
 def sigText (args : List String) (ret : Option String) : String :=
   "(" ++ ", ".intercalate args ++ ") → " ++ ret.getD "void"
 
+/-- A scalar-fragment argument as text: its kind, or an aggregate's size and alignment. -/
+def argText : Silmaril.Machine.Abi.SystemV.Scalar.Arg → String
+  | .scalar k => short (reprStr k)
+  | .agg a _ => s!"{a.name} ({a.size} B, align {a.align}, eightbytes {((reprStr a.eights).replace "Silmaril.Machine.Abi.SystemV.Scalar." "").replace "Silmaril.Machine.SystemV.Abi." ""})"
+
 /-- An integer-fragment lowering: the C API signature, or the refusal. -/
 def intLowering (r : Except String Silmaril.Machine.Abi.SystemV.Proto) : Json :=
   exceptJson (fun p => js (sigText (p.signature.arguments.map (short ∘ reprStr)) (p.signature.result.map (short ∘ reprStr)))) r
 
 /-- Each ABI's view of one prototype. -/
-def lowerings (cp : CProto) : Json := Json.mkObj <| abis.map fun (name, _) =>
+def lowerings (env : Env) (cp : CProto) : Json := Json.mkObj <| abis.map fun (name, _) =>
   (name, match name with
     | "sysvScalar" =>
-      match lowerScalar Silmaril.Data.Layout.sysvX86_64 cp with
+      match lowerScalar Silmaril.Data.Layout.sysvX86_64 env cp with
       | .error e => Json.mkObj [("refused", js e)]
-      | .ok p => Json.mkObj [("ok", js (sigText (p.args.map (short ∘ reprStr)) (p.result.map (short ∘ reprStr)))),
+      | .ok p => Json.mkObj [("ok", js (sigText (p.args.map argText) (p.result.map argText))),
           ("plan", exceptJson planJson (p.plan {}))]
-    | "win64Int" => intLowering (win64Int.lower cp : Except String Silmaril.Machine.Abi.SystemV.Proto)
-    | _ => intLowering (sysvInt.lower cp : Except String Silmaril.Machine.Abi.SystemV.Proto))
+    | "win64Int" => intLowering (win64Int.lower env cp : Except String Silmaril.Machine.Abi.SystemV.Proto)
+    | _ => intLowering (sysvInt.lower env cp : Except String Silmaril.Machine.Abi.SystemV.Proto))
 
 def protoJson (h : Header) (f : String) (cp : CProto) : Json :=
   Json.mkObj [("name", js f), ("c", js (cp.render f)),
     ("quals", match h.quals? f with
       | some q => js (reprStr q) | none => Json.null),
-    ("lowering", lowerings cp)]
+    ("lowering", lowerings h.env cp)]
 
 def slotJson (s : BitSlot) : Json :=
   Json.mkObj [("name", js s.name), ("bitOffset", jn s.off), ("bits", jn s.width)]
