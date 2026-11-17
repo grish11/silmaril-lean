@@ -44,7 +44,9 @@ s` has every coherent infinite sequence of export rounds (`StratThread.InfRounds
 rounds included, as its infinite plays (`Session.mem_inf_cfgSession`).
 
 `cfgSessions o m`: the numeric instance `m` by its CFG session at its instantiation store when it
-is in the fragment there, and by its instance session otherwise.
+is in the fragment there, and by its instance session otherwise. **The fallback is compatibility
+only, not CFG coverage**: outside `HFOk` the instance is still interpreted by Core 3.0, and nothing
+here gives a CFG semantics to modules with imports, hosts, exceptions or unchecked code.
 
 ## The oracle
 
@@ -136,7 +138,8 @@ structure HFOk (s : Store Nat) : Prop where
 
 open Classical in
 /-- **Each numeric instance by its CFG session where the fragment applies**: the CFG session at
-the instantiation store when `HFOk` holds there, the instance session otherwise. -/
+the instantiation store when `HFOk` holds there, the instance session (Core 3.0) otherwise. The
+fallback keeps the component semantics unchanged; it is not CFG coverage outside `HFOk`. -/
 noncomputable def cfgSessions (o : GrowOracle) (m : Component.Reference.NumInstance) :
     DStrategy m.inst.E (Abstract.InstSession.ssig m.inst.exports) :=
   if HFOk m.inst m.inst.store then cfgSession m.inst o m.inst.store

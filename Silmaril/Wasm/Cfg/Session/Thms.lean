@@ -50,8 +50,10 @@ running the callees.
   rounds of the instance triple.
 * **`core3SemD_eq_cfgSessions`**: the divergence-observing Core 3.0 component semantics
   `core3SemD (profile o)` interprets every numeric instance in the fragment at its instantiation
-  store by its CFG session (and the others by their instance sessions, unchanged); hence
-  `denUD_core3SemD_eq_cfgSessions` for the denotation of any component.
+  store by its CFG session; hence `denUD_core3SemD_eq_cfgSessions` for the denotation of any
+  component. The other instances keep their Core 3.0 instance sessions: **that fallback is
+  compatibility, not CFG coverage**. This is no general CFG semantics of modules or components:
+  the CFG reading holds exactly for the instances satisfying `HFOk`.
 
 Not claimed here: hosts and imports (pending calls, logs, productive interaction), exceptions
 (XP/EH), and a self-contained recursive CFG machine discharging the oracle; see
@@ -117,15 +119,15 @@ theorem infRounds_repeat {s₀ : Store Nat} {a : I.F.Op} {b : Res I.exports ⊕ 
 
 /-- **The divergence-observing Core 3.0 component semantics through CFG sessions**:
 `core3SemD (profile o)` interprets every numeric instance that is in the fragment at its
-instantiation store by its CFG session (`cfgSessions`), and the others by their instance
-sessions. -/
+instantiation store by its CFG session (`cfgSessions`). The others keep their Core 3.0 instance
+sessions (compatibility only: no CFG semantics is given to them). -/
 theorem core3SemD_eq_cfgSessions :
     core3SemD (profile o) = threadSemSD (cfgSessions o) :=
   Proofs.Session.core3SemD_eq_cfgSessions
 
 /-- **Component denotations through CFG sessions**: the divergence-observing denotation of any
-component over Core 3.0 instances is the one interpreting its host-free instances by their CFG
-sessions. -/
+component over Core 3.0 instances is the one interpreting its `HFOk` instances by their CFG
+sessions (and its other instances, unchanged, by Core 3.0). -/
 theorem denUD_core3SemD_eq_cfgSessions (c : Comp NumInstance) :
     c.denUD (core3SemD (profile o)) = c.denUD (threadSemSD (cfgSessions o)) := by
   rw [core3SemD_eq_cfgSessions]

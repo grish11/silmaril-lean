@@ -501,8 +501,30 @@ The plain graph stays an over-approximation, and claims about it say so.
          export `0` traps and export `1` answers `7` on the machine; `trap_forever` and
          `alt_forever` (trap, answer, trap, …) are infinite plays of the CFG session and of the
          instance session.
-      5. **Next**: hosts (pending calls and logs, productive interaction), XP and EH coverage, as
-         actual extensions; a catch-exit fixture; a recursive CFG closure discharging the oracle.
+         **`cfgSessions` is compatibility, not coverage**: outside `HFOk` it falls back to the
+         Core 3.0 instance session; no CFG semantics of general modules or components is
+         claimed without the domain hypothesis.
+    - **Catch exits (#866 regression)** (`Wasm/Cfg/ExampleCatchExit`, a validated module with a
+      tag `[i32 i32] → []`): a caught exception branching to the function label exits with the
+      whole frame stack: `machine_catch` (`1, 3, 4`: the `try_table`'s outer value under the
+      payload) and `machine_catchNest` (`1, 2, 3, 4`, through an enclosing block), against Core
+      returning the payload `3, 4` (`core_catch`, `core_catchNest`); the tag hypotheses hold at
+      the module's instance (`catch_tag`). Exit state only: no exception coverage at the function
+      or session level.
+    - **Not implemented (ledger)**, in order:
+      1. **Hosts**: imports in the CFG session: pending import calls and logs (the triple's
+         `instPend`, `CallView` logs), productive within-call host interaction (`instInf`),
+         store-preserving host answers, and the machine running against the instance host instead
+         of `noHostX`.
+      2. **XP/EH**: exceptions in the session fragment (`throw`, `try_table`, uncaught
+         exceptions as `Answer.throw`), trap stores preserved; the `tExt` check replaced by an
+         exception-aware one.
+      3. **Discharging the oracle**: a self-contained recursive CFG closure (callees run by the
+         CFG machine, divergence inside callees included) proved equivalent to the native
+         closed oracle `closedCallX` and to Core; until then every CFG statement is
+         oracle-backed.
+      4. Untyped stores, host functions in the store, instructions outside the checked
+         fragments: unsupported, excluded by hypotheses.
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done
