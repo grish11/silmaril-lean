@@ -11,12 +11,37 @@
           "level": "component",
           "registry_name": "silmaril.wasm.examples.farkas_accept.component",
           "value": "Silmaril.Wasm.Examples.FarkasAccept.bytes",
-          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.FarkasAccept.bytes, regenerated as examples/wasm-acceptors/farkas_accept.wasm): an accepting call implies that the system is infeasible. Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.FarkasAccept.bytes, registered as examples/wasm-acceptors/farkas_accept.wasm): an accepting call implies membership in the language. The registered, CID-pinned file is proved (kernel certificate) to be these bytes. Never accepts = no reference-machine behaviour returns true; termination (a returned false) is not proved. Rejection of well-formed inputs beyond the checker's bounds is tested only.",
           "theorems": [
             {
               "decl": "Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes",
               "module": "Silmaril.Project.WasmComponents.FarkasAccept.Thms",
               "states": "check returns true on S, y ⇒ S ∈ Infeasible"
+            },
+            {
+              "decl": "ProjectSelfTest.WasmAcceptors.farkas_accept_is",
+              "module": "ProjectSelfTest.WasmAcceptors",
+              "states": "the CID-pinned file read as wasm.component.binary is the Lean component AST (kernel: encode = the included file)"
+            },
+            {
+              "decl": "ProjectSelfTest.WasmAcceptors.farkas_accept_bytes",
+              "module": "ProjectSelfTest.WasmAcceptors",
+              "states": "the registered file's bytes are the Lean value {X}Accept.bytes"
+            },
+            {
+              "decl": "ProjectSelfTest.WasmAcceptors.farkas_accept_toRef",
+              "module": "ProjectSelfTest.WasmAcceptors",
+              "states": "its reference reading is the verified component c.toRef"
+            },
+            {
+              "decl": "ProjectSelfTest.WasmAcceptors.farkas_accept_check_sound",
+              "module": "ProjectSelfTest.WasmAcceptors",
+              "states": "the registered value: check true ⇒ S ∈ Infeasible"
+            },
+            {
+              "decl": "Silmaril.Wasm.Examples.FarkasAccept.Component.check_rejects_length",
+              "module": "Silmaril.Wasm.Examples.FarkasAccept.Component.Thms",
+              "states": "never accepts y.length ≠ S.length"
             }
           ]
         }

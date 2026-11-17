@@ -11,7 +11,7 @@
           "level": "component",
           "registry_name": "silmaril.wasm.examples.lrat_accept.component",
           "value": "Silmaril.Wasm.Examples.LratAccept.bytes",
-          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.LratAccept.bytes, regenerated as examples/wasm-acceptors/lrat_accept.wasm): an accepting call implies that the problem is unsatisfiable. Soundness only: nothing is stated about rejections, traps or completeness (the checker is bounded).",
+          "scope": "Every reference Component Model reading of what the bytes parse to (Silmaril.Wasm.Examples.LratAccept.bytes, registered as examples/wasm-acceptors/lrat_accept.wasm): an accepting call implies membership in the language. The registered, CID-pinned file is proved (kernel certificate) to be these bytes. Never accepts = no reference-machine behaviour returns true; termination (a returned false) is not proved. Not faithful to the Lean reference checker on [[]]/[0] with the empty certificate (accepted, sound). Rejection of well-formed inputs beyond the checker's bounds is tested only.",
           "theorems": [
             {
               "decl": "Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes",
@@ -22,6 +22,51 @@
               "decl": "Silmaril.Project.WasmComponents.LratAccept.checkNested_sound_of_bytes",
               "module": "Silmaril.Project.WasmComponents.LratAccept.Thms",
               "states": "check-nested returns true on p, cert ⇒ p ∈ UnsatNested"
+            },
+            {
+              "decl": "ProjectSelfTest.WasmAcceptors.lrat_accept_is",
+              "module": "ProjectSelfTest.WasmAcceptors",
+              "states": "the CID-pinned file read as wasm.component.binary is the Lean component AST (kernel: encode = the included file)"
+            },
+            {
+              "decl": "ProjectSelfTest.WasmAcceptors.lrat_accept_bytes",
+              "module": "ProjectSelfTest.WasmAcceptors",
+              "states": "the registered file's bytes are the Lean value {X}Accept.bytes"
+            },
+            {
+              "decl": "ProjectSelfTest.WasmAcceptors.lrat_accept_toRef",
+              "module": "ProjectSelfTest.WasmAcceptors",
+              "states": "its reference reading is the verified component c.toRef"
+            },
+            {
+              "decl": "ProjectSelfTest.WasmAcceptors.lrat_accept_checkStream_sound",
+              "module": "ProjectSelfTest.WasmAcceptors",
+              "states": "the registered value: check-stream true ⇒ xs ∈ UnsatStream"
+            },
+            {
+              "decl": "ProjectSelfTest.WasmAcceptors.lrat_accept_checkNested_sound",
+              "module": "ProjectSelfTest.WasmAcceptors",
+              "states": "the registered value: check-nested true ⇒ p ∈ UnsatNested"
+            },
+            {
+              "decl": "Silmaril.Wasm.Examples.LratAccept.Component.checkStream_rejects_problem",
+              "module": "Silmaril.Wasm.Examples.LratAccept.Component.Thms",
+              "states": "never accepts a malformed stream problem"
+            },
+            {
+              "decl": "Silmaril.Wasm.Examples.LratAccept.Component.checkNested_rejects_problem",
+              "module": "Silmaril.Wasm.Examples.LratAccept.Component.Thms",
+              "states": "never accepts a malformed nested problem"
+            },
+            {
+              "decl": "Silmaril.Wasm.Examples.LratAccept.Component.checkStream_rejects_cert",
+              "module": "Silmaril.Wasm.Examples.LratAccept.Component.Thms",
+              "states": "never accepts a malformed certificate (LratStream.decode cs = none)"
+            },
+            {
+              "decl": "Silmaril.Wasm.Examples.LratAccept.Component.checkNested_rejects_cert",
+              "module": "Silmaril.Wasm.Examples.LratAccept.Component.Thms",
+              "states": "never accepts a malformed certificate (LratStream.decode cs = none)"
             }
           ]
         }
