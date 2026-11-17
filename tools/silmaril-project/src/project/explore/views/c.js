@@ -87,16 +87,26 @@
       try { rep = await cFetch(`programs/${p.name}/report.json`, "json"); } catch (e) { rep = null; }
       return { p, prov, rep };
     }));
-    h += `<h3>Corpus (${progs.length} programs)</h3><table id="cprograms"><thead><tr><th>program</th><th>Cerberus route</th><th>Clang route</th>` +
-      "<th>cross-validation</th><th>native runs</th><th>dropped / warnings</th><th>evidence</th></tr></thead><tbody>";
+    // One status per program (disjoint), and how many programs have each.
+    const counts = new Map();
+    for (const { p } of progs) counts.set(p.status, (counts.get(p.status) || 0) + 1);
+    h += `<h3>Corpus (${progs.length} programs)</h3><p class="muted" id="cstatuses">One status per program, counts summing to ${progs.length}: ` +
+      [...counts].map(([k, n]) => `<code>${esc(k)}</code> ${n}`).join(", ") +
+      `. A route agreement is compiled evidence: not a kernel proof, and not evidence that either frontend implements C.</p>`;
+    h += `<table id="cprograms"><thead><tr><th>program</th><th>status</th><th>Cerberus route</th><th>Clang route</th>` +
+      "<th>route agreement</th><th>native runs (sanity)</th><th>dropped / warnings</th><th>evidence</th></tr></thead><tbody>";
     for (const { p, prov, rep } of progs) {
       const v = Object.entries(p.verdicts || {});
       const cross = v.length ? v.map(([k, x]) => `${esc(k)}: <b>${esc(x)}</b>`).join("<br>") : "—";
       const obs = rep && rep.observations.length ? rep.observations.map((o) => `${esc(o.name)} ${esc(o.termination)}: ` +
         (Object.keys(o.check).length ? Object.entries(o.check).map(([k, x]) => `${esc(k)} ${esc(x)}`).join(", ") : "no Core")).join("<br>") : "—";
-      const drops = prov.losses.map((l) => `<span class="err">${esc(l.route)} drops ${esc(l.construct)}</span>`).concat(
-        prov.warnings.map((w) => `<span class="err" title="${esc(w)}">producer claim differs</span>`)).join("<br>");
-      h += `<tr data-program="${esc(p.name)}"><td>${plink(p.name)}</td><td>${routeCell(rep, prov, "cerberus")}</td><td>${routeCell(rep, prov, "clang")}</td>` +
+      const drops = prov.losses.map((l) => l.blocking
+          ? `<span class="err closs-blocking"><b>${esc(l.route)} drops ${esc(l.construct)}: blocking</b></span>`
+          : `<span class="muted closs-neutral">${esc(l.route)} drops ${esc(l.construct)} (not blocking)</span>`).concat(
+        prov.warnings.map((w) => `<span class="err" title="${esc(w)}">producer self-report differs from the clang that ran</span>`)).join("<br>");
+      const blocked = new Set(prov.blockedRoutes || []);
+      const rc = (r) => routeCell(rep, prov, r) + (blocked.has(r) ? ' <span class="err cblocked"><b>source correspondence blocked</b></span>' : "");
+      h += `<tr data-program="${esc(p.name)}" data-status="${esc(p.status)}"><td>${plink(p.name)}</td><td><code>${esc(p.status)}</code></td><td>${rc("cerberus")}</td><td>${rc("clang")}</td>` +
         `<td>${cross}</td><td>${obs}</td><td>${drops}</td><td>${v.length ? tag("compiled") + (v.some(([, x]) => /source UB/.test(x)) ? " " + tag("ubonly") : "") : tag("missing")}</td></tr>`;
     }
     h += "</tbody></table>";
@@ -157,7 +167,10 @@
     const kernel = thms.theorems.filter((t) => t.program === name);
     h += `<p class="cnote" id="ckernel">Kernel-checked theorems about this program: <b>${kernel.length}</b>. ` +
       (kernel.length ? "" : "No theorem's statement is about this program's Core; its verdicts below are compiled evidence.") + "</p>";
-    for (const l of prov.losses) h += `<p class="err closs">Dropped by the ${esc(l.route)} route: ${esc(l.construct)} (${esc(l.rule)}).</p>`;
+    for (const l of prov.losses) h += l.blocking
+      ? `<p class="err closs" data-blocking="true"><b>Blocking: the ${esc(l.route)} route dropped ${esc(l.construct)}</b> (${esc(l.rule)}). ${esc(l.why || "")}. ` +
+        `That route's typed Ail, Core and verdicts do not correspond to this source, whatever their evidence says.</p>`
+      : `<p class="muted closs" data-blocking="false">Not blocking: the ${esc(l.route)} route dropped ${esc(l.construct)} (${esc(l.rule)}). ${esc(l.why || "")}.</p>`;
     for (const w of prov.warnings) h += `<p class="err cwarn">Warning: ${esc(w)}</p>`;
     h += "<h3>Stages</h3>";
     for (const [stage, title, file] of STAGES) {
@@ -177,6 +190,7 @@
         `<p class="muted">${esc(file)}: ${a.bytes} bytes, SHA-256${a.sha256Of ? " (" + esc(a.sha256Of) + ")" : ""} ${short(a.sha256)}` +
         (a.producer ? `; produced by <code>${esc(a.producer.tool)}</code> ${esc(a.producer.version)}` : "; input") +
         (e ? `; ${esc(e.relation)} from <code>${esc(src ? src.file : e.source.slice(0, 12))}</code> (${esc(JSON.stringify(e.evidence))})` : "") + "</p>" +
+        (e && e.sourceCorrespondence ? `<p class="err cblocked"><b>Source correspondence ${esc(e.sourceCorrespondence)}</b></p>` : "") +
         `<button type="button" class="cview" data-file="${esc(file)}" data-sha="${esc(a.sha256)}">view</button> <span class="csha muted"></span><pre class="cbody" hidden></pre></div>`;
     }
     h += "<h3>Validation</h3>";
@@ -193,7 +207,7 @@
         h += `<tr><td>${esc(r)}</td><td>elaborated</td><td>${shown}<br><span class="muted">${x.endings} endings${x.endings > x.sample.length ? `, first ${x.sample.length} shown` : ""}</span></td>` +
           `<td>${x.limited ? '<span class="err">no (bounded)</span>' : "yes"}</td><td>${x.gap ? "gap " : ""}${x.stuck ? "stuck " : ""}${x.ub ? "UB" : ""}${!x.gap && !x.stuck && !x.ub ? "none" : ""}</td><td>${x.steps}</td>` +
           `<td class="capplies" data-applies="${v.applicability ? v.applicability.applies : ""}">${v.applicability ? (v.applicability.applies ? "passes" : '<span class="err">fails</span>') +
-            ` <span class="muted">(executed Core names ${esc(v.applicability.mentions.join(", ") || "nothing")})</span>` +
+            ` <span class="muted">(reachable Core names ${esc(v.applicability.mentions.join(", ") || "nothing")})</span>` +
             v.applicability.blockers.map((b) => `<br><span class="err">${esc(b.type)}: ${esc(b.issues.join("; "))}</span>`).join("") : "—"}</td></tr>`;
       }
       h += "</tbody></table>";

@@ -20,7 +20,7 @@ profile with that semantics (`Silmaril.Cerberus.TV.Profile`).
 | `silmaril.shapes.c.tv.not_refines` | `¬ Refines impl src tgt` |
 | `silmaril.shapes.c.tv.equivalent` | `Equivalent impl P Q`: refinement both ways |
 | `silmaril.shapes.c.tv.profile_coherent_at` | `p.CoherentAt s`: the Core semantics, the elaborator configuration and the target profile agree on the scalar type `s` (storage, alignment, signedness, value range, endianness, numeric format) |
-| `silmaril.shapes.c.tv.profile_applies` | `p.AppliesTo b`: the per-type check passes: every type named by the program part of `b`, the runtime functions it reaches and the implementation constants is in the coherence table and coherent (`TV.Applicability`); a necessary filter |
+| `silmaril.shapes.c.tv.profile_applies` | `p.AppliesTo b`: the per-type check passes: every type named by the program part of `b`, the runtime functions and the implementation constants it reaches (by name, a superset of what runs) is in the coherence table and coherent (`TV.Applicability`); a necessary filter |
 | `silmaril.shapes.c.tv.refines_on` | `RefinesOn p src tgt`: Core refinement with `p`'s `Spec.Impl` choices, and the per-type check passes on both programs; not a statement about the target |
 
 **Every one of these relates Cores, or a Core and a profile.** They are about closed programs (no
@@ -101,7 +101,7 @@ def ProfileCoherentAt (p : Profile) (s : Scalar) : Prop :=
 
 /-- **A profile applies to a program** (per type: `TV.Profile.AppliesTo`). -/
 @[problem "silmaril.shapes.c.tv.profile_applies"
-  (title := "The per-type profile check passes: every type the program's executed Core names (program part, reachable runtime functions, implementation constants) is coherent")]
+  (title := "The per-type profile check passes: every type the program's reachable Core names (program part, runtime functions and implementation constants reachable by name) is coherent")]
 def ProfileApplies (p : Profile) (b : Codec.FileBindings) : Prop :=
   p.AppliesTo b
 

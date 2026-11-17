@@ -63,7 +63,7 @@ name = "silmaril.c_tv.examples.fold.applies"
 of = "silmaril.shapes.c.tv.profile_applies"
 args = { p = "Silmaril.Project.Shapes.CTV.linuxX86_64", b = "Silmaril.Project.CTV.Examples.foldSourceBindings" }
 expect = "THM"
-title = "the x86-64 per-type check passes on return 1 + 2; (its executed Core names _Bool and int only)"
+title = "the x86-64 per-type check passes on return 1 + 2; (its reachable Core names _Bool and int only)"
 
 [[instance]]
 name = "silmaril.c_tv.examples.fold.refines_on"

@@ -1,5 +1,6 @@
 import Silmaril.Project.Shapes.CTV.Thms
 import Silmaril.Project.CTV.Examples.Defs
+import Silmaril.Cerberus.Names.Defs
 
 /-! Regression tests for the per-type profile check (`Silmaril.Cerberus.TV.Applicability`), from the
 review of #911: the scan covers the runtime functions the program reaches, so a runtime function
@@ -35,3 +36,33 @@ def unreachableFloatRuntime : Codec.FileBindings :=
       stdlib := foldSourceBindings.stdlib ++ [(⟨⟨[]⟩, 999999, .none⟩, .builtinDecl .unknown (.object .floating) [])] }
 
 example : mentions unreachableFloatRuntime = [.scalar .bool, .scalar .int] := by cbv
+
+/-! From the re-review of #911 (72f6a597): implementation constants, `byte`, and failing closed. -/
+
+/-- A call's `Name.impl c` names exactly `c`'s key in the `impl` map. -/
+example : implsTree (Codec.name.enc (.impl .charactersPlainCharIsSigned)) =
+    (implKey .charactersPlainCharIsSigned).toList := by cbv
+
+/-- A floating-typed implementation constant reached through a reachable runtime function blocks. -/
+def implFloat : Codec.FileBindings :=
+  match foldSourceBindings.funInfo with
+  | (s, _, _) :: _ => { foldSourceBindings with
+      stdlib := foldSourceBindings.stdlib ++
+        [(s, .function (.object .integer) [] ⟨[], (), .call (.impl .charactersPlainCharIsSigned) []⟩)],
+      impl := [(.charactersPlainCharIsSigned, .constant (.object .floating) ⟨[], (), .val (.unit)⟩)] }
+  | [] => foldSourceBindings
+
+set_option maxHeartbeats 4000000 in
+example : (reachableImpl implFloat).length = 1 := by cbv
+set_option maxHeartbeats 4000000 in
+example : (mentions implFloat).contains (.scalar .float) = true := by cbv
+
+/-- Cerberus's `byte` type counts as `unsigned char` (it used to name nothing). -/
+example : mentionsTree (Codec.ctype.enc (Ctype.mk [] .byte)) = [.scalar .uchar] := by cbv
+
+/-- Every constructor tag of the C type vocabulary in `Names` is one `mentionOf` classifies (a
+constructor added to the vocabulary fails here until it is classified). -/
+example : ((Silmaril.Cerberus.Names.types.filter fun t => ["Ctype.ctype_", "Ctype.basicType",
+    "Ctype.floatingType", "Ctype.realFloatingType", "IntegerType.integerType",
+    "IntegerType.integerBaseType"].contains t.cerberus).flatMap fun t => t.renames.map (·.1)).all
+      (ctypeVocabulary.contains ·) = true := by decide +kernel

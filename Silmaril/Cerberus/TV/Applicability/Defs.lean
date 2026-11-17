@@ -5,11 +5,12 @@ public import Silmaril.Cerberus.TV.Behaviour.Defs
 public import Silmaril.Cerberus.Codec.File.Defs
 
 /-!
-# Which types a program's executed Core names, and the per-type profile check
+# Which types a program's reachable Core names, and the per-type profile check
 
 A Core→Core statement (`TV.Refines`) is about the port's semantics. A target profile's per-type
 check (`Profile.CoherentAt`) is a **necessary filter**, not a transfer: this module computes, per
-program, the types named by the Core the dynamics can run, and requires coherence at each.
+program, the types named by the Core **reachable by name** (a superset of what any run executes:
+no execution analysis), and requires coherence at each.
 
 **What is scanned** (`mentions b`): the wire encoding (`Codec.encodeFileBindings`, round trip
 proved in `Silmaril.Cerberus.Codec`) of
@@ -30,15 +31,17 @@ dynamics executes. (Core names runtime functions by symbol and implementation co
 
 * a real floating type names its kind (`RealFloating (Float)` …); a Core floating object type or
   value (`OTy_floating`, `OVfloating`) counts as all three kinds;
-* `Wint_t` counts as `wchar_t`;
+* `Wint_t` counts as `wchar_t`; Cerberus's `byte` type counts as `unsigned char`;
 * exact-width, least, fast and maximum-width integers, enums, `ptraddr_t`, arrays, structs, unions
   and atomics are **outside the coherence table** (`Mention.outside`): the check never passes for
-  a program that names one.
+  a program that names one. Every constructor of the C type vocabulary (`ctypeVocabulary`) is
+  classified explicitly; a test fails when the vocabulary gains one this module does not know.
 
 **What the scan cannot see**, beside what `Profile.issues` does not compare: operations rather
 than types (integer conversions, shifts and division go through runtime functions such as
 `conv_int` and `catch_exceptional_condition` and the `impl` constants, whose behaviour is the
-port's); allocator addresses; byte-level type punning (only the pointee types written in the
+port's; builtin functions run natively in the dynamics, and only the types at their call sites
+are scanned); allocator addresses; byte-level type punning (only the pointee types written in the
 program appear); and the enum registry (`Closed.ofBindings` runs with no enum registrations, which
 is harmless only because enums are `outside`).
 
@@ -56,6 +59,19 @@ inductive Mention where
   | scalar (s : Scalar)
   | outside (tag : String)
   deriving DecidableEq, Repr
+
+/-- The constructor tags of the C type vocabulary that `mentionOf` classifies (as a scalar,
+`outside`, a wrapper whose arguments are scanned, or a base-type tag read through its parent).
+`tests/cerberus/TVApplicability.lean` checks that this is every constructor tag `Names.types`
+lists for `Ctype.ctype_`, `Ctype.basicType`, `Ctype.floatingType`, `Ctype.realFloatingType`,
+`IntegerType.integerType` and `IntegerType.integerBaseType`, so a constructor added to the
+vocabulary fails that test until it is classified (fail closed at review time, not silently). -/
+def ctypeVocabulary : List String :=
+  ["Void", "Basic", "Array", "Function", "FunctionNoParams", "Pointer", "Atomic", "Struct", "Union",
+   "Byte", "Integer", "Floating", "RealFloating", "Float", "Double", "LongDouble",
+   "Char", "Bool", "Signed", "Unsigned", "Enum", "Wchar_t", "Wint_t", "Size_t", "Ptrdiff_t",
+   "Ptraddr_t", "Ichar", "Short", "Int_", "Long", "LongLong", "IntN_t", "Int_leastN_t",
+   "Int_fastN_t", "Intmax_t", "Intptr_t"]
 
 /-- The mentions of one node, from its tag and its first child's tag. -/
 def mentionOf (tag : String) (first : Option String) : List Mention :=
@@ -98,6 +114,10 @@ def mentionOf (tag : String) (first : Option String) : List Mention :=
   | "OTy_array", _ => [.outside "Array"]
   | "OTy_struct", _ => [.outside "Struct"]
   | "OTy_union", _ => [.outside "Union"]
+  -- Cerberus's `byte` type (the runtime's byte-wise copies): one byte, as `unsigned char`.
+  | "Byte", _ => [.scalar .uchar]
+  -- Constructors that only wrap other types, which are scanned where they occur; base-type tags
+  -- (`Int_`, `Float`, …) are read through their `Signed`/`Unsigned`/`RealFloating` parent.
   | _, _ => []
 
 /-- The tag of a tree's root, if it is a node. -/
@@ -210,7 +230,7 @@ def reachableImpl (b : Codec.FileBindings) :
     List (ImplementationConstant × Core.ImplDecl Codec.wireModel Unit) :=
   ((b.impl.zip ((reachedFlags b).drop b.stdlib.length)).filter (·.2)).map (·.1)
 
-/-- **The types a program's executed Core names** (module docstring), without repetitions: the
+/-- **The types a program's reachable Core names** (module docstring), without repetitions: the
 program part, the reachable runtime functions and the reachable implementation constants. -/
 def mentions (b : Codec.FileBindings) : List Mention :=
   let flags := reachedFlags b
@@ -223,7 +243,7 @@ def Profile.coherentAt (p : Profile) : Mention → Bool
   | .scalar s => (p.issues s).isEmpty
   | .outside _ => false
 
-/-- **The per-type check passes**: every scalar type the executed Core names (`mentions`) is
+/-- **The per-type check passes**: every scalar type the reachable Core names (`mentions`) is
 coherent, and it names nothing outside the coherence table. A necessary filter, not a transfer. -/
 def Profile.AppliesTo (p : Profile) (b : Codec.FileBindings) : Prop :=
   (mentions b).all p.coherentAt = true

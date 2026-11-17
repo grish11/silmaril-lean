@@ -198,35 +198,152 @@ def one(name, binary, tools, rev):
     for f in os.listdir(out):
         if f.endswith(".out") and f not in artifacts:
             art("observation", f, producer={"tool": "gcc " + f[7:9] + " && run", "version": tools["gcc"], "args": [], "target": TARGET}, inputs=[s_src])
-    # Constructs a route accepted while dropping them (recorded, not hidden).
+    # Constructs a route accepted while dropping them (recorded, not hidden). A **blocking** loss
+    # means the route's typed Ail (and every Core and verdict downstream of it) no longer
+    # corresponds to the source: the C-to-Core edge of that route is not a translation of this C.
     losses = []
     pre_text = open(os.path.join(out, "preprocessed.i"), errors="replace").read() if s_pre else ""
     if s_ctail and re.search(r"\b(__asm__|__asm|asm)\s*(volatile|__volatile__)?\s*\(", pre_text):
-        losses.append({"route": "cerberus", "construct": "asm label or register",
+        losses.append({"route": "cerberus", "construct": "asm label or register", "blocking": True,
                        "rule": "dropped by the parser, as upstream c_parser.mly does "
-                               "(Silmaril/Raw/Cerberus/Frontend/Declarations.lean, initDeclaratorRest)"})
-    if s_ktail and "__attribute__" in pre_text:
-        losses.append({"route": "clang", "construct": "attribute",
-                       "rule": "used/unused/deprecated/noinline/always_inline are dropped as neutral, other "
-                               "attributes are rejected (Silmaril/Raw/Compiler/Clang/ToAil.lean, neutralAttr)"})
+                               "(Silmaril/Raw/Cerberus/Frontend/Declarations.lean, initDeclaratorRest)",
+                       "why": "the assembler name or register the declaration gives is lost: the route's "
+                              "Core does not represent the source's linkage names"})
+    attrs = sorted({a.strip("_") for a in re.findall(r"__attribute__\s*\(\(\s*([A-Za-z_][A-Za-z0-9_]*)", pre_text)})
+    NEUTRAL = {"used", "unused", "deprecated", "noinline", "always_inline"}
+    HANDLED_BY_CFRONT = {"aligned", "mode"}
+    for route, typed in [("clang", s_ktail), ("cerberus", s_ctail)]:
+        if not typed:
+            continue
+        for a in attrs:
+            if route == "clang" and a in HANDLED_BY_CFRONT:
+                continue
+            neutral = route == "clang" and a in NEUTRAL
+            losses.append({"route": route, "construct": f"attribute {a}", "blocking": not neutral,
+                           "rule": ("dropped as neutral: it requests diagnostics or inlining only "
+                                    "(Silmaril/Raw/Compiler/Clang/ToAil.lean, neutralAttr)") if neutral else
+                                   ("accepted by the route, which does not show that it keeps it "
+                                    "(calling convention, layout, linkage and section attributes change the program)"),
+                           "why": "no observable whole-program behaviour depends on it" if neutral else
+                                  "the route's Core may not represent what the attribute changes"})
     warnings = []
     if s_ktail:
-        head = open(os.path.join(out, "clang.tail.sexp"), errors="replace").read(200)
-        m = re.search(r'\(\$str "(cfront-clang [^"]*)"\)', head)
-        if m and tools["clang"].split("version ")[-1].split()[0] not in m.group(1):
-            warnings.append(f"clang.tail.sexp names its producer '{m.group(1)}' (cfront's pinned clang), "
-                            f"but the AST was produced by '{tools['clang']}'")
+        # The document's header is cfront's self-report; it is compared with the clang that ran, never trusted.
+        head = open(os.path.join(out, "clang.tail.sexp"), errors="replace").read(300)
+        m = re.search(r'^\(\$document_tail 1 \(\$str "([^"]*)"\)', head)
+        actual = tools["clang"]
+        if m and m.group(1) != actual:
+            warnings.append(f"clang.tail.sexp names its producer '{m.group(1)}', but the AST was produced by '{actual}' "
+                            "(the header is cfront's self-report; tools.clang is what ran)")
     prov = {"schema": "silmaril.c-tv.provenance.v1", "name": name, "language": "C11", "target": TARGET,
             "profile": "linuxX86_64", "repositoryRevision": rev, "tools": tools,
             "artifacts": artifacts, "edges": edges, "failures": failures,
-            "losses": losses, "warnings": warnings}
+            "losses": losses, "warnings": warnings,
+            "blockedRoutes": sorted({l["route"] for l in losses if l["blocking"]})}
+    for e in edges:
+        # The typed Ail of a blocked route, and everything downstream, does not correspond to the source.
+        for r in prov["blockedRoutes"]:
+            if artifacts.get(f"{r}.tail.sexp", {}).get("sha256") in (e["source"], e["target"]):
+                e["sourceCorrespondence"] = "blocked: " + "; ".join(l["construct"] for l in losses if l["blocking"] and l["route"] == r)
     json.dump(prov, open(os.path.join(out, "provenance.json"), "w"), indent=1, sort_keys=True)
     open(os.path.join(out, "provenance.json"), "a").write("\n")
     return name, report, failures
 
 
+STATUSES = [
+    ("frontend-rejected", "no route produced typed Ail"),
+    ("elaborator-rejected", "typed Ail from some route, Core from none"),
+    ("single-route", "Core from exactly one route (the other rejected at its frontend or elaborator)"),
+    ("agreement-ub-free", "Core from both routes; each refines the other (TV.validate, compiled) with a UB-free source both ways (validateUBFree)"),
+    ("agreement-ub-only", "Core from both routes; each refines the other, but some exploration reaches undefined behaviour"),
+    ("other", "Core from both routes, any other verdict (refuted, unknown, unsupported)"),
+]
+
+
+def status_of(report, prov):
+    """The program's one corpus status (disjoint; see STATUSES)."""
+    typed = [r for r in ("cerberus", "clang") if f"{r}.tail.sexp" in prov["artifacts"]]
+    if not typed:
+        return "frontend-rejected"
+    el = {k: v for k, v in (report or {}).get("routes", {}).items() if v.get("status") == "elaborated"}
+    if not el:
+        return "elaborator-rejected"
+    if len(el) == 1:
+        return "single-route"
+    pairs = report["pairs"]
+    if pairs and all(p["verdict"] == "validated" for p in pairs):
+        clean = (all(p["validatedUBFree"] for p in pairs) if all("validatedUBFree" in p for p in pairs) else
+                 all(not v["explore"]["ub"] and not v["explore"]["limited"] for v in el.values()))
+        return "agreement-ub-free" if clean else "agreement-ub-only"
+    return "other"
+
+
+def readme_tables():
+    """The generated part of examples/c-programs/README.md (after its `<!-- corpus tables -->` line)."""
+    index = json.load(open(os.path.join(CORPUS, "index.json")))
+    progs = index["programs"]
+    n = len(progs)
+    load = lambda name, f: json.load(open(os.path.join(CORPUS, name, f))) if os.path.exists(os.path.join(CORPUS, name, f)) else None
+    L = [f"## The corpus ({n} programs)", "",
+         "### One status per program", "",
+         f"The statuses are disjoint: every program has exactly one, and the counts sum to {n}.", "",
+         "| Status | Meaning | Count | Programs |", "| --- | --- | ---: | --- |"]
+    for st, meaning in STATUSES:
+        names = [p["name"] for p in progs if p["status"] == st]
+        L.append(f"| `{st}` | {meaning} | {len(names)} | {', '.join(f'`{x}`' for x in names)} |")
+    L.append(f"| **total** | | **{sum(1 for p in progs)}** | |")
+    blocked = [p["name"] for p in progs if p["blockedRoutes"]]
+    L += ["", f"Separately, {len(blocked)} program(s) have a route whose source correspondence is **blocked** by a "
+          f"construct it dropped ({', '.join(f'`{x}`' for x in blocked) or 'none'}): that route's typed Ail, Core and "
+          "verdicts are not about this C program (see `losses` in `provenance.json`).", "",
+          "### Stage reached, per route", "",
+          f"Each column counts every program once, so each sums to {n}.", "",
+          "| Stage reached | Cerberus route | Clang route |", "| --- | ---: | ---: |"]
+    def stage(p, r):
+        prov = load(p["name"], "provenance.json")
+        rep = load(p["name"], "report.json")
+        if f"{r}.tail.sexp" not in prov["artifacts"]:
+            return "rejected by the frontend (no typed Ail)"
+        v = (rep or {}).get("routes", {}).get(r)
+        if not v or v.get("status") != "elaborated":
+            return "typed Ail, rejected by the elaborator"
+        return "Core, source correspondence blocked" if r in p["blockedRoutes"] else "Core"
+    for st in ["rejected by the frontend (no typed Ail)", "typed Ail, rejected by the elaborator", "Core", "Core, source correspondence blocked"]:
+        L.append(f"| {st} | {sum(1 for p in progs if stage(p, 'cerberus') == st)} | {sum(1 for p in progs if stage(p, 'clang') == st)} |")
+    L.append(f"| **total** | **{n}** | **{n}** |")
+    L += ["", "### Programs", "",
+          "| Program | Status | Cerberus route | Clang route | Route agreement (compiled) | Native runs (sanity) | Dropped by a route |",
+          "| --- | --- | --- | --- | --- | --- | --- |"]
+    for p in progs:
+        prov = load(p["name"], "provenance.json")
+        rep = load(p["name"], "report.json")
+        def cell(r):
+            st = stage(p, r)
+            if not st.startswith("Core"):
+                return st
+            v = rep["routes"][r]
+            e = v["explore"]
+            o = (e["sample"][0] if e["sample"] else {}).get("outcome", {})
+            c = f"Core: {o.get('kind', '?')}{(' ' + str(o['exit'])) if 'exit' in o else ''}"
+            a = v.get("applicability")
+            if a is not None and not a["applies"]:
+                c += " (per-type check fails)"
+            if r in p["blockedRoutes"]:
+                c += " — **source correspondence blocked**"
+            return c
+        v = p["verdicts"]
+        agree = "; ".join(f"{k}: {x}" for k, x in v.items()) or "—"
+        obs = "—"
+        if rep and rep["observations"]:
+            obs = "; ".join(f"{o['name']} {o['termination']}" + (": " + ", ".join(f"{k} {w}" for k, w in o["check"].items()) if o["check"] else "")
+                            for o in rep["observations"])
+        loss = "; ".join(f"{l['route']} drops {l['construct']} ({'**blocking**' if l['blocking'] else 'not blocking'})" for l in prov["losses"])
+        L.append(f"| `{p['name']}` | `{p['status']}` | {cell('cerberus')} | {cell('clang')} | {agree} | {obs} | {loss} |")
+    return "\n".join(L) + "\n"
+
+
 def check(binary):
-    bad = 0
+    bad = reproduced = total = 0
     index = json.load(open(os.path.join(CORPUS, "index.json")))
     for row in index["programs"]:
         name = row["name"]
@@ -235,6 +352,7 @@ def check(binary):
         if not os.path.exists(rp):
             continue
         stored = json.load(open(rp))
+        total += 1
         observes = []
         for o in stored["observations"]:
             t = o["termination"]
@@ -255,12 +373,18 @@ def check(binary):
         if fresh != stored:
             print(f"{name}: report differs from the stored one"); bad = 1
         else:
-            print(f"{name}: report and Core documents agree")
+            print(f"{name}: stored report and Core documents reproduced")
+            reproduced += 1
         shutil.rmtree(tmp)
+    print(f"reproduced {reproduced} of {total} stored reports (a reproducibility check of ctv-pipeline on "
+          "the stored typed Ail; it validates nothing new)")
     return bad
 
 
 def main(argv):
+    if argv == ["--readme"]:
+        write_readme()
+        return
     if argv and argv[0] == "--check":
         binary = os.path.join(ROOT, ".lake", "build", "bin")
         if len(argv) > 2 and argv[1] == "--bin":
@@ -285,11 +409,24 @@ def main(argv):
                     " (source UB reached)" if p["verdict"] == "validated" else ""))
                     for p in (report or {}).get("pairs", [])}
         routes = {k: v.get("status") for k, v in (report or {}).get("routes", {}).items()}
-        rows.append({"name": name, "routes": routes, "verdicts": verdicts, "failures": sorted(failures)})
+        prov = json.load(open(os.path.join(CORPUS, name, "provenance.json")))
+        rows.append({"name": name, "routes": routes, "verdicts": verdicts, "failures": sorted(failures),
+                     "status": status_of(report, prov), "blockedRoutes": prov["blockedRoutes"]})
         print(f"{name}: routes={routes} verdicts={verdicts} failures={sorted(failures)}", flush=True)
     json.dump({"schema": "silmaril.c-tv.corpus.v1", "tools": tools, "programs": rows},
               open(os.path.join(CORPUS, "index.json"), "w"), indent=1, sort_keys=True)
     open(os.path.join(CORPUS, "index.json"), "a").write("\n")
+    write_readme()
+
+
+MARK = "<!-- corpus tables: generated by scripts/c-tv/corpus.py; edit above this line -->"
+
+
+def write_readme():
+    path = os.path.join(CORPUS, "README.md")
+    text = open(path).read()
+    head = text.split(MARK)[0]
+    open(path, "w").write(head + MARK + "\n\n" + readme_tables())
 
 
 if __name__ == "__main__":

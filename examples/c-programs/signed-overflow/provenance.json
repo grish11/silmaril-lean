@@ -12,7 +12,7 @@
     ],
     "target": "x86_64-linux-gnu",
     "tool": "cerb-lean parse --level tail",
-    "version": "6d49d2fce565f12b74725d559fe83d36bac53289-dirty"
+    "version": "72f6a597d64ff90a31034ecf8e9d49aed1a0e243-dirty"
    },
    "sha256": "648170c97c0c7239ee7c01d651e46edc22c5d51ce5cf226a7957d52987541c9f",
    "stage": "typedAil"
@@ -39,7 +39,7 @@
     "tool": "clang -ast-dump=json",
     "version": "Debian clang version 19.1.7 (3+b1)"
    },
-   "sha256": "ab4af4e3608346634ab11e0862808e092061342620491aaa8a42def59bbff44b",
+   "sha256": "05a48f411110b2f1f442855031901374d55509d1745156c7490d85c5bdc8514f",
    "sha256Of": "uncompressed",
    "stage": "clangAst"
   },
@@ -47,7 +47,7 @@
    "bytes": 3013,
    "file": "clang.tail.sexp",
    "inputs": [
-    "ab4af4e3608346634ab11e0862808e092061342620491aaa8a42def59bbff44b"
+    "05a48f411110b2f1f442855031901374d55509d1745156c7490d85c5bdc8514f"
    ],
    "producer": {
     "args": [
@@ -55,7 +55,7 @@
     ],
     "target": "x86_64-linux-gnu",
     "tool": "cfront ail",
-    "version": "6d49d2fce565f12b74725d559fe83d36bac53289-dirty"
+    "version": "72f6a597d64ff90a31034ecf8e9d49aed1a0e243-dirty"
    },
    "sha256": "a29c4e326929372b1b5b4d69304e06ec81b5f7704ddf0252a187d0b776fd85fc",
    "stage": "typedAil"
@@ -121,6 +121,7 @@
    "stage": "source"
   }
  },
+ "blockedRoutes": [],
  "edges": [
   {
    "evidence": {
@@ -144,14 +145,14 @@
    },
    "relation": "produces",
    "source": "b02f6dc27b4eb88886043a7e750849a599199dd50c1de3f1c3cf63074ad04026",
-   "target": "ab4af4e3608346634ab11e0862808e092061342620491aaa8a42def59bbff44b"
+   "target": "05a48f411110b2f1f442855031901374d55509d1745156c7490d85c5bdc8514f"
   },
   {
    "evidence": {
     "compiled": "Silmaril.Clang.ToAil (cfront)"
    },
    "relation": "elaborates",
-   "source": "ab4af4e3608346634ab11e0862808e092061342620491aaa8a42def59bbff44b",
+   "source": "05a48f411110b2f1f442855031901374d55509d1745156c7490d85c5bdc8514f",
    "target": "a29c4e326929372b1b5b4d69304e06ec81b5f7704ddf0252a187d0b776fd85fc"
   }
  ],
@@ -160,17 +161,17 @@
  "losses": [],
  "name": "signed-overflow",
  "profile": "linuxX86_64",
- "repositoryRevision": "6d49d2fce565f12b74725d559fe83d36bac53289-dirty",
+ "repositoryRevision": "72f6a597d64ff90a31034ecf8e9d49aed1a0e243-dirty",
  "schema": "silmaril.c-tv.provenance.v1",
  "target": "x86_64-linux-gnu",
  "tools": {
   "cerb-lean": "7388fce668288274cff2f963061052343a183f1f59e2d41a2c62f2bc3e1f60e7",
   "cfront": "3c1fa73fd49ec347703964e29b2d79b7b65c2164f2a7a5ef822f6e8c2df9032a",
   "clang": "Debian clang version 19.1.7 (3+b1)",
-  "ctv-pipeline": "c5232db22ba6cc1f4b6bbbda2e70b22cfa5012a7f81085bb22084df2ec3c257d",
+  "ctv-pipeline": "bf5770e21d848c6ed224e8e938ad48fa0e0305d1dd3dc2b94c7341f39182ce93",
   "gcc": "gcc (Debian 14.2.0-19) 14.2.0"
  },
  "warnings": [
-  "clang.tail.sexp names its producer 'cfront-clang 23.1.0 ea7d852a70e8bdfaf601d6626a760f9771b2c4b4' (cfront's pinned clang), but the AST was produced by 'Debian clang version 19.1.7 (3+b1)'"
+  "clang.tail.sexp names its producer 'cfront-clang 23.1.0 ea7d852a70e8bdfaf601d6626a760f9771b2c4b4', but the AST was produced by 'Debian clang version 19.1.7 (3+b1)' (the header is cfront's self-report; tools.clang is what ran)"
  ]
 }

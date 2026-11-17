@@ -48,6 +48,14 @@ try {
   const rows = await p.evaluate(() => [...document.querySelectorAll("#cprograms tbody tr")].map((r) => ({
     name: r.dataset.program, text: r.textContent, tags: [...r.querySelectorAll(".ctag")].map((t) => t.dataset.tag) })));
   check(rows.length === idx.programs.length, `one corpus row per program (${rows.length})`);
+  const st = await p.evaluate(() => [...document.querySelectorAll("#cprograms tbody tr")].map((r) => r.dataset.status));
+  check(idx.programs.every((pr, i) => st[i] === pr.status), "each row shows the program's one status");
+  const statusText = await p.evaluate(() => document.querySelector("#cstatuses")?.textContent || "");
+  const total = [...statusText.matchAll(/ (\d+)/g)].map((m) => Number(m[1])).slice(1).reduce((a, b) => a + b, 0);
+  check(total === idx.programs.length, `the status counts sum to the number of programs (${total})`);
+  const blockedRows = await p.evaluate(() => [...document.querySelectorAll("#cprograms tbody tr")].filter((r) => r.querySelector(".cblocked")).map((r) => r.dataset.program));
+  check(JSON.stringify(blockedRows) === JSON.stringify(idx.programs.filter((pr) => pr.blockedRoutes.length).map((pr) => pr.name)),
+    `rows with a blocked route are marked (${blockedRows})`);
   for (const pr of idx.programs) {
     const r = rows.find((x) => x.name === pr.name);
     const v = Object.entries(pr.verdicts);
@@ -103,8 +111,12 @@ try {
     }
     const kernel = await p.evaluate(() => document.querySelector("#ckernel b")?.textContent);
     check(kernel === "0", `${pr.name}: no kernel theorem is attached (${kernel})`);
-    const losses = await p.evaluate(() => document.querySelectorAll(".closs").length);
-    check(losses === prov.losses.length, `${pr.name}: ${prov.losses.length} recorded losses shown`);
+    const losses = await p.evaluate(() => [...document.querySelectorAll(".closs")].map((x) => x.dataset.blocking));
+    check(losses.length === prov.losses.length && prov.losses.every((l, i) => losses[i] === String(l.blocking)),
+      `${pr.name}: ${prov.losses.length} recorded losses shown, blocking ones as blocking`);
+    const blockedEdges = await p.evaluate(() => document.querySelectorAll(".cstage .cblocked").length);
+    check(blockedEdges === prov.edges.filter((e) => e.sourceCorrespondence && (e.relation === "produces" || e.relation === "elaborates")).length,
+      `${pr.name}: every edge of a blocked route is marked in its stage`);
     const src = await p.evaluate(() => [...document.querySelectorAll("a.srclink")].map((a) => a.href).find((h) => h.endsWith("/source.c")));
     check(src && /\/blob\/[0-9a-f]{7,40}\/examples\/c-programs\//.test(src), `${pr.name}: the source link is pinned`);
     // View every present artifact: decompressed, hashed in the browser, compared with provenance.json.

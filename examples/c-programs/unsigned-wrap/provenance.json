@@ -10,7 +10,7 @@
     "args": [],
     "target": "x86_64-linux-gnu",
     "tool": "ctv-pipeline run",
-    "version": "6d49d2fce565f12b74725d559fe83d36bac53289-dirty"
+    "version": "72f6a597d64ff90a31034ecf8e9d49aed1a0e243-dirty"
    },
    "sha256": "4e6db352cc9e95837da659e4807c125b44adaaff42b2ed164c31dbdbb8c14c77",
    "sha256Of": "uncompressed",
@@ -28,7 +28,7 @@
     ],
     "target": "x86_64-linux-gnu",
     "tool": "cerb-lean parse --level tail",
-    "version": "6d49d2fce565f12b74725d559fe83d36bac53289-dirty"
+    "version": "72f6a597d64ff90a31034ecf8e9d49aed1a0e243-dirty"
    },
    "sha256": "ee1cc60fff76549bb182ca2cf67a19e0767b86ed19c3844fc143b71f0df23245",
    "stage": "typedAil"
@@ -55,7 +55,7 @@
     "tool": "clang -ast-dump=json",
     "version": "Debian clang version 19.1.7 (3+b1)"
    },
-   "sha256": "f89e9c0d8424368e73f9e4611c81f34f8a5e9c98d768360339040a3279384b2a",
+   "sha256": "a3883b379491cce2aa0479f8a38de169448ced1e8c3f75df1ed900256cea02dc",
    "sha256Of": "uncompressed",
    "stage": "clangAst"
   },
@@ -69,7 +69,7 @@
     "args": [],
     "target": "x86_64-linux-gnu",
     "tool": "ctv-pipeline run",
-    "version": "6d49d2fce565f12b74725d559fe83d36bac53289-dirty"
+    "version": "72f6a597d64ff90a31034ecf8e9d49aed1a0e243-dirty"
    },
    "sha256": "b3bb67f3311cf918d84522e0bcf8f6f072d0d50cee369ca738bfe76a8e1bafbb",
    "sha256Of": "uncompressed",
@@ -79,7 +79,7 @@
    "bytes": 2029,
    "file": "clang.tail.sexp",
    "inputs": [
-    "f89e9c0d8424368e73f9e4611c81f34f8a5e9c98d768360339040a3279384b2a"
+    "a3883b379491cce2aa0479f8a38de169448ced1e8c3f75df1ed900256cea02dc"
    ],
    "producer": {
     "args": [
@@ -87,7 +87,7 @@
     ],
     "target": "x86_64-linux-gnu",
     "tool": "cfront ail",
-    "version": "6d49d2fce565f12b74725d559fe83d36bac53289-dirty"
+    "version": "72f6a597d64ff90a31034ecf8e9d49aed1a0e243-dirty"
    },
    "sha256": "3495c8b973096625569d99b16e45884809950925710d80f657b43ab8cdfee596",
    "stage": "typedAil"
@@ -153,6 +153,7 @@
    "stage": "source"
   }
  },
+ "blockedRoutes": [],
  "edges": [
   {
    "evidence": {
@@ -176,14 +177,14 @@
    },
    "relation": "produces",
    "source": "c70e1c0c264476997868b3641c981df607cec416ed3a248de5ba30173844c53d",
-   "target": "f89e9c0d8424368e73f9e4611c81f34f8a5e9c98d768360339040a3279384b2a"
+   "target": "a3883b379491cce2aa0479f8a38de169448ced1e8c3f75df1ed900256cea02dc"
   },
   {
    "evidence": {
     "compiled": "Silmaril.Clang.ToAil (cfront)"
    },
    "relation": "elaborates",
-   "source": "f89e9c0d8424368e73f9e4611c81f34f8a5e9c98d768360339040a3279384b2a",
+   "source": "a3883b379491cce2aa0479f8a38de169448ced1e8c3f75df1ed900256cea02dc",
    "target": "3495c8b973096625569d99b16e45884809950925710d80f657b43ab8cdfee596"
   },
   {
@@ -232,17 +233,17 @@
  "losses": [],
  "name": "unsigned-wrap",
  "profile": "linuxX86_64",
- "repositoryRevision": "6d49d2fce565f12b74725d559fe83d36bac53289-dirty",
+ "repositoryRevision": "72f6a597d64ff90a31034ecf8e9d49aed1a0e243-dirty",
  "schema": "silmaril.c-tv.provenance.v1",
  "target": "x86_64-linux-gnu",
  "tools": {
   "cerb-lean": "7388fce668288274cff2f963061052343a183f1f59e2d41a2c62f2bc3e1f60e7",
   "cfront": "3c1fa73fd49ec347703964e29b2d79b7b65c2164f2a7a5ef822f6e8c2df9032a",
   "clang": "Debian clang version 19.1.7 (3+b1)",
-  "ctv-pipeline": "c5232db22ba6cc1f4b6bbbda2e70b22cfa5012a7f81085bb22084df2ec3c257d",
+  "ctv-pipeline": "bf5770e21d848c6ed224e8e938ad48fa0e0305d1dd3dc2b94c7341f39182ce93",
   "gcc": "gcc (Debian 14.2.0-19) 14.2.0"
  },
  "warnings": [
-  "clang.tail.sexp names its producer 'cfront-clang 23.1.0 ea7d852a70e8bdfaf601d6626a760f9771b2c4b4' (cfront's pinned clang), but the AST was produced by 'Debian clang version 19.1.7 (3+b1)'"
+  "clang.tail.sexp names its producer 'cfront-clang 23.1.0 ea7d852a70e8bdfaf601d6626a760f9771b2c4b4', but the AST was produced by 'Debian clang version 19.1.7 (3+b1)' (the header is cfront's self-report; tools.clang is what ran)"
  ]
 }

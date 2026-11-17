@@ -156,13 +156,14 @@ Three different relations are kept apart, in the shapes, the provenance edges
 No Core-to-Core row implies anything about a compiler's output. The **per-type profile check**
 (`c.tv.profile_applies`, and `c.tv.refines_on`, which is Core refinement plus that check on both
 programs) is a necessary filter, not a statement about the target. It requires every type named
-by the executed Core to be in the coherence table and coherent: `TV.mentions` scans the program
+by the reachable Core to be in the coherence table and coherent: `TV.mentions` scans the program
 part (its own functions, globals, tags and function information), the runtime functions and the
 implementation constants it reaches (transitively, by symbol and by `PEimpl`/`Impl` name), and
 over-approximates within them (a floating object or value without its kind counts as all three).
-The x86-64 check fails for any program whose executed Core names `float`, `long double`,
+The x86-64 check fails for any program whose reachable Core names `float`, `long double`,
 `wchar_t`, or a type outside the table (aggregates, enums, exact-width integers). It cannot see
-operations rather than types (conversions, shifts, division in the runtime and `impl`),
+operations rather than types (conversions, shifts, division in the runtime and `impl`;
+builtin functions run natively and only their call-site types are scanned),
 allocator addresses, byte-level punning, or the enum registry (run empty).
 
 The check is conservative to the point of failing on every corpus program: Cerberus's runtime
