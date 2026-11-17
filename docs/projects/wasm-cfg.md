@@ -972,9 +972,28 @@ The plain graph stays an over-approximation, and claims about it say so.
              validates in every context (`floatBody_ok`), the checker rejects it
              (`floatBody_rejected`), and `not_storeChkE_floatBody`. Host hypotheses are about
              the host, not the module.
-          2. The instance session with imports through the CFG closure (NodeBridge, typed
-             fragment with `ehExt tags`). Also replace `core3SemD`/`Comp.denUD` uses by the CFG
-             closure, coordinated with the component owner.
+          2. Instance sessions through the CFG closure (`Wasm/Cfg/CfgInst`). Nothing is
+             redefined.
+
+             Domain (`InstDom`, or `I.WellFormed` with `StoreSupported`): a well-formed
+             instance, import answers without exceptions, and the store's functions in the
+             checker profile.
+             - `noThrowT_instTripleS_agree`: the instance triple restricted to throw-free import
+               answers equals `cfgInstTriple I`. That triple is the view of `cfgSessionTripleC`,
+               openly restricted to the non-throwing instance host `instHostNT`. The equality
+               covers finished behaviours, divergence, pending calls and productive streams.
+             - `threadS_noThrowT_eq`: the same for the threaded sessions. The domain persists
+               along reachable stores (`instDom_of_reach`, `supported_of_reach`).
+             - Without imports: `instSession_eq_cfg`, `core3SemD_eq_cfgInstSessions` and
+               `denUD_core3SemD_eq_cfgInstSessions`.
+             - Host facts with no hypothesis: `hostTyped_instHostNT`,
+               `nativeHostSlice_instHostNT`, `hostSliceE_instHostNT`.
+             - Obstruction: `not_nativeHostSlice_instHost`.
+
+             Remaining: host exceptions. `instHost` may answer `Answer.throw a`, which the
+             native↔Core bridge (`NativeHostSlice.noThrow`) excludes. So for instances with
+             imports, `core3SemD` keeps its Core session (`cfgInstSessions` falls back), and
+             only the throw-free session is CFG-equal.
           3. Regressions: recursion through a host, trap-then-resume, and productive host
              interaction.
         - Equality with the store-retaining session closure `wasmEvFunXPS`/`sessionTripleXP`

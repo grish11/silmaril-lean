@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Cfg.CfgClosure.Defs
+public import Silmaril.Wasm.Cfg.CfgInst.Defs
 meta import Lean.Elab.Command
 
 /-!
@@ -9,9 +10,10 @@ meta import Lean.Elab.Command
 Not a proof: an elaboration-time check that fails the build. From each definition of the
 self-contained CFG closure (finished `cfgEvFunXPS`, pending `cfgEvPendXPS`, productive
 `cfgEvInfNXP`, divergent `cfgEvFunDXPSC`, `LDLcfgC`, `cfgAns`, `cfgFunDiv`, the triple
-`cfgSessionTripleC`) it walks every constant used by the types and bodies of definitions,
-inductive types, constructors and recursors, transitively (theorem proofs are not followed: a
-proof does not change what a definition denotes). It checks:
+`cfgSessionTripleC`, and the instance triple `CfgInst.cfgInstTriple` built from it) it walks every
+constant used by the types and bodies of definitions, inductive types, constructors and
+recursors, transitively (theorem proofs are not followed: a proof does not change what a
+definition denotes). It checks:
 
 * no **native closed or divergent object** is reached: nothing in `XRecursionP`, `XDivergeP`,
   `XRecursion`, `XDiverge`, `Recursion`, and none of `CallXP.EvalOXP`, `wasmHOpenXPS`,
@@ -85,7 +87,8 @@ run_cmd do
     [``Silmaril.Wasm.Cfg.CfgSession.cfgEvFunXPS, ``Silmaril.Wasm.Cfg.CfgSession.cfgEvPendXPS,
       ``Silmaril.Wasm.Cfg.CfgSession.cfgEvInfNXP, ``Silmaril.Wasm.Cfg.CfgClosure.cfgEvFunDXPSC,
       ``Silmaril.Wasm.Cfg.CfgClosure.LDLcfgC, ``Silmaril.Wasm.Cfg.CfgClosure.cfgAns,
-      ``Silmaril.Wasm.Cfg.CfgClosure.cfgFunDiv, ``Silmaril.Wasm.Cfg.CfgClosure.cfgSessionTripleC]
+      ``Silmaril.Wasm.Cfg.CfgClosure.cfgFunDiv, ``Silmaril.Wasm.Cfg.CfgClosure.cfgSessionTripleC,
+      ``Silmaril.Wasm.Cfg.CfgInst.cfgInstTriple]
   for r in roots do
     let (seen, unseen) := reach env [r]
     let bad := seen.toList.filter isNative
