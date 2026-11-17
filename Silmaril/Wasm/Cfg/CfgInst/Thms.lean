@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Cfg.CfgClosure.Thms
 public import Silmaril.Wasm.Abstract.NodeBridge.Thms
 public import Silmaril.Wasm.Abstract.HostSessionXP.Thms
 public import Silmaril.Wasm.Abstract.InstSession.Thms
+public import Silmaril.Wasm.Interp.CheckComplete.Thms
 import Silmaril.Proofs.Wasm.Cfg.CfgInst
 
 @[expose] public section
@@ -66,8 +67,11 @@ Instances without imports in the domain may raise, catch and leak exceptions (`e
   the native↔Core bridge needs hosts in the native slice. `cfgInstSessions` therefore falls back to
   the Core 3.0 session for instances with imports; for them the CFG equality is the throw-free
   session equality (e).
-* **Checker acceptance** `StoreChkE (ehExt s.tags) s.funcs` at the start store is assumed, not
-  derived from module validation or a supported-instruction profile.
+* **Checker acceptance** `StoreChkE (ehExt s.tags) s.funcs` is the hypothesis of `InstDom`. The
+  `_of_supported` corollaries replace it by the explicit instruction-profile condition
+  `StoreSupported s.funcs` (`Interp.CheckComplete.storeChkE_of_storeOk`, with `StoreOk` from
+  well-formedness); `StoreSupported` persists along the throw-free session, whose rounds keep the
+  store's functions (`funcs_of_reach`).
 -/
 
 namespace Silmaril.Wasm.Cfg.CfgInst
@@ -79,6 +83,7 @@ open Silmaril.Wasm.Abstract.NodeBridge (instHost StorePreserving viewTriple Core
   coreTripleSO qOf)
 open Silmaril.Wasm.Abstract.InstSession (instTripleS instSession core3SemD threadSemSD)
 open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE)
+open Silmaril.Wasm.Interp.CheckComplete (StoreSupported storeChkE_of_storeOk)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 open Silmaril.Wasm.Component (Comp)
 open Silmaril.Wasm.Component.Reference (NumInstance)
@@ -200,6 +205,38 @@ theorem threadS_noThrowT_eq {s₀ : Store Nat} (hd : InstDom I s₀) :
       StratSession.threadS (cfgInstTriple I) s₀ :=
   Proofs.CfgInst.threadS_noThrowT_eq hd
 
+/-- **The throw-free session keeps the store's functions**, from a store of the domain. -/
+theorem funcs_of_reach {P : Numerics.Profile} {s₀ s : Store Nat} (hd : InstDom I s₀)
+    (hr : Reach (noThrowT I (instTripleS I P)) s₀ s) : s.funcs = s₀.funcs :=
+  Proofs.CfgInst.funcs_of_reach hd hr
+
+/-! ## The domain from the instruction profile -/
+
+/-- **The domain from the instruction profile**: a well-formed store whose functions are in the
+supported instruction profile passes the exception checker. -/
+theorem instDom_of_supported {s : Store Nat} (hw : I.WellFormed s)
+    (hsup : StoreSupported s.funcs) : InstDom I s :=
+  ⟨hw, storeChkE_of_storeOk hw.storeOk hsup⟩
+
+/-- **The instruction profile persists** along the throw-free session. -/
+theorem supported_of_reach {P : Numerics.Profile} {s₀ s : Store Nat} (hw : I.WellFormed s₀)
+    (hsup : StoreSupported s₀.funcs) (hr : Reach (noThrowT I (instTripleS I P)) s₀ s) :
+    StoreSupported s.funcs := by
+  rw [funcs_of_reach (instDom_of_supported hw hsup) hr]; exact hsup
+
+/-- `noThrowT_instTripleS_agree` on well-formed stores in the instruction profile. -/
+theorem noThrowT_instTripleS_agree_of_supported {s : Store Nat} (hw : I.WellFormed s)
+    (hsup : StoreSupported s.funcs) (a : I.F.Op) :
+    AgreeAt (noThrowT I (instTripleS I (profile o))) (cfgInstTriple I) s a :=
+  noThrowT_instTripleS_agree (instDom_of_supported hw hsup) a
+
+/-- `threadS_noThrowT_eq` on well-formed stores in the instruction profile. -/
+theorem threadS_noThrowT_eq_of_supported {s₀ : Store Nat} (hw : I.WellFormed s₀)
+    (hsup : StoreSupported s₀.funcs) :
+    StratSession.threadS (noThrowT I (instTripleS I (profile o))) s₀ =
+      StratSession.threadS (cfgInstTriple I) s₀ :=
+  threadS_noThrowT_eq (instDom_of_supported hw hsup)
+
 /-! ## (f) Without imports: the instance session and the component semantics -/
 
 /-- Without imports the throw-free restriction is the identity. -/
@@ -212,6 +249,19 @@ domain. -/
 theorem instSession_eq_cfg (h : I.imports = []) {s : Store Nat} (hd : InstDom I s) :
     instSession I (profile o) s = StratSession.threadS (cfgInstTriple I) s :=
   Proofs.CfgInst.instSession_eq_cfg h hd
+
+/-- `instSession_eq_cfg` on well-formed stores in the instruction profile. -/
+theorem instSession_eq_cfg_of_supported (h : I.imports = []) {s : Store Nat}
+    (hw : I.WellFormed s) (hsup : StoreSupported s.funcs) :
+    instSession I (profile o) s = StratSession.threadS (cfgInstTriple I) s :=
+  instSession_eq_cfg h (instDom_of_supported hw hsup)
+
+/-- **An instance without imports, well formed at its instantiation store and in the instruction
+profile there, is interpreted by its CFG instance session** in `cfgInstSessions`. -/
+theorem cfgInstSessions_of_supported {m : NumInstance} (h : m.inst.imports = [])
+    (hw : m.inst.WellFormed m.inst.store) (hsup : StoreSupported m.inst.store.funcs) :
+    cfgInstSessions o m = StratSession.threadS (cfgInstTriple m.inst) m.inst.store :=
+  ite_eq_left ⟨h, instDom_of_supported hw hsup⟩
 
 /-- **`core3SemD` through CFG instance sessions**: every numeric instance without imports and in
 the domain at its instantiation store is interpreted by the session of its CFG instance triple;

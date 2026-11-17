@@ -532,6 +532,26 @@ theorem instDom_of_reach {P : Numerics.Profile} {s₀ s : Store Nat} (hd : InstD
   | refl => exact hd
   | step hm _ ih => exact ih (instDom_of_round hd hm)
 
+/-- **A finished throw-free round from the domain keeps the store's functions.** -/
+theorem funcs_of_round {P : Numerics.Profile} {s s₁ : Store Nat} (hd : InstDom I s)
+    {a : I.F.Op} {c : List (Call I.E)} {b : Res I.exports ⊕ PUnit}
+    (hm : (c, .ret b s₁) ∈ (noThrowT I (instTripleS I P)).1 s a) : s₁.funcs = s.funcs := by
+  rw [Abstract.NodeBridge.instTripleS_eq_viewTriple] at hm
+  rw [(noThrowT_view_agree (P := P) (importsTyped_of_wf hd.wf) a).1] at hm
+  obtain ⟨⟨cs, e⟩, ⟨-, hy⟩, -, hv⟩ := hm
+  obtain ⟨b', rfl⟩ := viewEnd_ret hv
+  rcases b' with (ws | t) | u
+  · exact (evRun_NT_store hy).1
+  · exact (evRun_NT_store hy).1
+  · exact (evRun_NT_store hy).1
+
+/-- **The throw-free session keeps the store's functions**, from a store of the domain. -/
+theorem funcs_of_reach {P : Numerics.Profile} {s₀ s : Store Nat} (hd : InstDom I s₀)
+    (hr : Reach (noThrowT I (instTripleS I P)) s₀ s) : s.funcs = s₀.funcs := by
+  induction hr with
+  | refl => rfl
+  | step hm _ ih => exact (ih (instDom_of_round hd hm)).trans (funcs_of_round hd hm)
+
 /-! ## The session -/
 
 theorem satP_congr {E : Sig.{0}} {S A B : Type} {t t' : ObsTriple E S A B} {s : S}
