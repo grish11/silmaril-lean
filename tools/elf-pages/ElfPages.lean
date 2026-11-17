@@ -32,6 +32,7 @@ import Silmaril.Wasm.Binaryen.DriverSpec.Thms
 -- (Silmaril.Data.BinaryImage), so `sha256` is a keyword here: fields of that name are `«sha256»`.
 import Silmaril.Elf.Asm.Example.Thms
 import Silmaril.Elf.Asm.Example.Reloc.Thms
+import Silmaril.Elf.Asm.Example.LeafArith.Thms
 
 /-!
 # `elf-pages`: the explorer's ELF tab data
@@ -1192,7 +1193,8 @@ def cliIndex (env : Environment) : IO Json := do
 /-- The committed output of `tools/elf-asm` (docs/projects/elf-asm.md). -/
 def asmPath : String := "examples/elf-asm/samples.json"
 def asmSchema : String := "silmaril.elf.asm/1"
-def asmModules : Array Name := #[`Silmaril.Elf.Asm.Example.Thms, `Silmaril.Elf.Asm.Example.Reloc.Thms]
+def asmModules : Array Name := #[`Silmaril.Elf.Asm.Example.Thms, `Silmaril.Elf.Asm.Example.Reloc.Thms,
+  `Silmaril.Elf.Asm.Example.LeafArith.Thms]
 
 /-- The declaration names an assembly JSON mentions: its files, its functions and their files,
 decodings, evidence and (when present) ABI conformance rows. -/
