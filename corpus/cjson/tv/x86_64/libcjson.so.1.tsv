@@ -1,93 +1,93 @@
 # {"arch": "x86_64", "decomposition_module": "Silmaril.Elf.Staged.Corpus.Cjson.X8664.LibcjsonSo1.Decomp", "function_map": "corpus/cjson/funcmap/x86_64/libcjson.so.1.json", "object": "libcjson.so.1", "package": "cjson", "twin_code_identical": true, "twin_symbols_identical": true, "twin_text_bytes_differing": 0}
 # symbol	value	size	decomposition (theorem, role)	c_name	tu	int_profile	blockers
-parse_hex4	0x2300	99	decomp_12 piece	parse_hex4	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-parse_string	0x2370	786	decomp_12 piece	parse_string	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-buffer_skip_whitespace	0x2690	100	decomp_12 piece	buffer_skip_whitespace	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-ensure	0x2700	292	decomp_12 piece	ensure	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-print_string_ptr	0x2830	649	decomp_12 piece	print_string_ptr	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-get_object_item	0x2ac0	193	decomp_12 piece	get_object_item	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-print_value	0x2b90	1708	decomp_12 piece	print_value	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-print.constprop.0	0x3240	322	decomp_12 piece	print	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-add_item_to_object.constprop.0	0x3390	251	decomp_12 piece	add_item_to_object	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_GetErrorPtr	0x3490	15	decomp_12 piece	cJSON_GetErrorPtr	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_Version	0x34a0	46	decomp_12 piece	cJSON_Version	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_InitHooks	0x34d0	213	decomp_12 piece	cJSON_InitHooks	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_Delete	0x35b0	153	decomp_12 piece	cJSON_Delete	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_Delete.localalias	0x35b0	153	decomp_12 alias	cJSON_Delete	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-parse_value	0x3650	1511	decomp_12 piece	parse_value	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_SetNumberHelper	0x3c40	61	decomp_12 piece	cJSON_SetNumberHelper	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,float-abi,globals
-cJSON_ParseWithLengthOpts	0x3c80	545	decomp_12 piece	cJSON_ParseWithLengthOpts	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_ParseWithOpts	0x3eb0	51	decomp_12 piece	cJSON_ParseWithOpts	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_Parse	0x3ef0	9	decomp_12 piece	cJSON_Parse	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_ParseWithLength	0x3f00	9	decomp_12 piece	cJSON_ParseWithLength	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_Print	0x3f10	10	decomp_12 piece	cJSON_Print	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_PrintUnformatted	0x3f20	7	decomp_12 piece	cJSON_PrintUnformatted	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_PrintBuffered	0x3f30	202	decomp_12 piece	cJSON_PrintBuffered	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_PrintPreallocated	0x4000	140	decomp_12 piece	cJSON_PrintPreallocated	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_GetArraySize	0x4090	35	decomp_12 piece	cJSON_GetArraySize	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_GetArrayItem	0x40c0	59	decomp_12 piece	cJSON_GetArrayItem	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_GetObjectItem	0x4100	7	decomp_12 piece	cJSON_GetObjectItem	cJSON-1.7.19/./cJSON-1.7.19/cJSON.c	no	frontend,signature-unknown,globals
-cJSON_GetObjectItemCaseSensitive	0x4110	10	decomp_12 piece	cJSON_GetObjectItemCaseSensitive	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_HasObjectItem	0x4120	23	decomp_12 piece	cJSON_HasObjectItem	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_AddItemToArray	0x4140	93	decomp_12 piece	cJSON_AddItemToArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_AddItemToObject	0x41a0	7	decomp_12 piece	cJSON_AddItemToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_AddItemToObjectCS	0x41b0	10	decomp_12 piece	cJSON_AddItemToObjectCS	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_AddItemReferenceToArray	0x41c0	222	decomp_12 piece	cJSON_AddItemReferenceToArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_AddItemReferenceToObject	0x42a0	188	decomp_12 piece	cJSON_AddItemReferenceToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_DetachItemViaPointer	0x4360	131	decomp_12 piece	cJSON_DetachItemViaPointer	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_DetachItemFromArray	0x43f0	87	decomp_12 piece	cJSON_DetachItemFromArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_DeleteItemFromArray	0x4450	21	decomp_12 piece	cJSON_DeleteItemFromArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_DetachItemFromObject	0x4470	21	decomp_12 piece	cJSON_DetachItemFromObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_DetachItemFromObjectCaseSensitive	0x4490	21	decomp_12 piece	cJSON_DetachItemFromObjectCaseSensitive	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_DeleteItemFromObject	0x44b0	21	decomp_12 piece	cJSON_DeleteItemFromObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_DeleteItemFromObjectCaseSensitive	0x44d0	21	decomp_12 piece	cJSON_DeleteItemFromObjectCaseSensitive	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_InsertItemInArray	0x44f0	206	decomp_12 piece	cJSON_InsertItemInArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_ReplaceItemViaPointer	0x45c0	174	decomp_12 piece	cJSON_ReplaceItemViaPointer	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_ReplaceItemInArray	0x4670	87	decomp_12 piece	cJSON_ReplaceItemInArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateNull	0x46d0	51	decomp_12 piece	cJSON_CreateNull	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_AddNullToObject	0x4710	66	decomp_12 piece	cJSON_AddNullToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateTrue	0x4760	51	decomp_12 piece	cJSON_CreateTrue	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_AddTrueToObject	0x47a0	66	decomp_12 piece	cJSON_AddTrueToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateFalse	0x47f0	51	decomp_12 piece	cJSON_CreateFalse	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_AddFalseToObject	0x4830	66	decomp_12 piece	cJSON_AddFalseToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateBool	0x4880	54	decomp_12 piece	cJSON_CreateBool	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_AddBoolToObject	0x48c0	66	decomp_12 piece	cJSON_AddBoolToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateNumber	0x4910	132	decomp_12 piece	cJSON_CreateNumber	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,float-abi,indirect-calls,globals
-cJSON_AddNumberToObject	0x49a0	66	decomp_12 piece	cJSON_AddNumberToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,float-abi,callee-contracts,globals
-cJSON_CreateString	0x49f0	138	decomp_12 piece	cJSON_CreateString	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_AddStringToObject	0x4a80	74	decomp_12 piece	cJSON_AddStringToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateStringReference	0x4ad0	52	decomp_12 piece	cJSON_CreateStringReference	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_CreateObjectReference	0x4b10	52	decomp_12 piece	cJSON_CreateObjectReference	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_CreateArrayReference	0x4b50	52	decomp_12 piece	cJSON_CreateArrayReference	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_CreateRaw	0x4b90	138	decomp_12 piece	cJSON_CreateRaw	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_AddRawToObject	0x4c20	74	decomp_12 piece	cJSON_AddRawToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateArray	0x4c70	51	decomp_12 piece	cJSON_CreateArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_AddArrayToObject	0x4cb0	66	decomp_12 piece	cJSON_AddArrayToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateObject	0x4d00	51	decomp_12 piece	cJSON_CreateObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_AddObjectToObject	0x4d40	66	decomp_12 piece	cJSON_AddObjectToObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateIntArray	0x4d90	188	decomp_12 piece	cJSON_CreateIntArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateFloatArray	0x4e50	188	decomp_12 piece	cJSON_CreateFloatArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateDoubleArray	0x4f10	179	decomp_12 piece	cJSON_CreateDoubleArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_CreateStringArray	0x4fd0	171	decomp_12 piece	cJSON_CreateStringArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_Duplicate_rec	0x5080	442	decomp_12 piece	cJSON_Duplicate_rec	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_Duplicate	0x5240	9	decomp_12 piece	cJSON_Duplicate	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_Minify	0x5250	400	decomp_12 piece	cJSON_Minify	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_IsInvalid	0x53e0	19	decomp_12 piece	cJSON_IsInvalid	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_IsFalse	0x5400	19	decomp_12 piece	cJSON_IsFalse	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_IsTrue	0x5420	19	decomp_12 piece	cJSON_IsTrue	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_IsBool	0x5440	19	decomp_12 piece	cJSON_IsBool	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_IsNull	0x5460	19	decomp_12 piece	cJSON_IsNull	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_IsNumber	0x5480	19	decomp_12 piece	cJSON_IsNumber	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_GetNumberValue	0x54a0	34	decomp_12 piece	cJSON_GetNumberValue	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,float-abi,callee-contracts,globals
-cJSON_IsString	0x54d0	19	decomp_12 piece	cJSON_IsString	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_GetStringValue	0x54f0	28	decomp_12 piece	cJSON_GetStringValue	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,globals
-cJSON_IsArray	0x5510	19	decomp_12 piece	cJSON_IsArray	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_IsObject	0x5530	19	decomp_12 piece	cJSON_IsObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_IsRaw	0x5550	19	decomp_12 piece	cJSON_IsRaw	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,globals
-cJSON_Compare	0x5570	513	decomp_12 piece	cJSON_Compare	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_Compare.localalias	0x5570	513	decomp_12 alias	cJSON_Compare	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_malloc	0x5780	6	decomp_12 piece	cJSON_malloc	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_free	0x5790	6	decomp_12 piece	cJSON_free	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,indirect-calls,globals
-cJSON_SetValuestring	0x57a0	219	decomp_12 piece	cJSON_SetValuestring	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_ReplaceItemInObjectCaseSensitive	0x5880	187	decomp_12 piece	cJSON_ReplaceItemInObjectCaseSensitive	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-cJSON_ReplaceItemInObject	0x5940	171	decomp_12 piece	cJSON_ReplaceItemInObject	(indirect line string, offset: 0): cJSON.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
+parse_hex4	0x2300	99	decomp_12 piece	parse_hex4	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+parse_string	0x2370	786	decomp_12 piece	parse_string	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+buffer_skip_whitespace	0x2690	100	decomp_12 piece	buffer_skip_whitespace	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+ensure	0x2700	292	decomp_12 piece	ensure	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+print_string_ptr	0x2830	649	decomp_12 piece	print_string_ptr	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+get_object_item	0x2ac0	193	decomp_12 piece	get_object_item	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+print_value	0x2b90	1708	decomp_12 piece	print_value	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+print.constprop.0	0x3240	322	decomp_12 piece	print	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+add_item_to_object.constprop.0	0x3390	251	decomp_12 piece	add_item_to_object	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_GetErrorPtr	0x3490	15	decomp_12 piece	cJSON_GetErrorPtr	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_Version	0x34a0	46	decomp_12 piece	cJSON_Version	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_InitHooks	0x34d0	213	decomp_12 piece	cJSON_InitHooks	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_Delete	0x35b0	153	decomp_12 piece	cJSON_Delete	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_Delete.localalias	0x35b0	153	decomp_12 alias	cJSON_Delete	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+parse_value	0x3650	1511	decomp_12 piece	parse_value	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_SetNumberHelper	0x3c40	61	decomp_12 piece	cJSON_SetNumberHelper	cJSON.c	no	frontend-rejected,memory-correspondence,float-abi,globals
+cJSON_ParseWithLengthOpts	0x3c80	545	decomp_12 piece	cJSON_ParseWithLengthOpts	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_ParseWithOpts	0x3eb0	51	decomp_12 piece	cJSON_ParseWithOpts	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_Parse	0x3ef0	9	decomp_12 piece	cJSON_Parse	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_ParseWithLength	0x3f00	9	decomp_12 piece	cJSON_ParseWithLength	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_Print	0x3f10	10	decomp_12 piece	cJSON_Print	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_PrintUnformatted	0x3f20	7	decomp_12 piece	cJSON_PrintUnformatted	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_PrintBuffered	0x3f30	202	decomp_12 piece	cJSON_PrintBuffered	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_PrintPreallocated	0x4000	140	decomp_12 piece	cJSON_PrintPreallocated	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_GetArraySize	0x4090	35	decomp_12 piece	cJSON_GetArraySize	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_GetArrayItem	0x40c0	59	decomp_12 piece	cJSON_GetArrayItem	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_GetObjectItem	0x4100	7	decomp_12 piece	cJSON_GetObjectItem	cJSON-1.7.19/./cJSON-1.7.19/cJSON.c	no	frontend-rejected,signature-unknown,globals
+cJSON_GetObjectItemCaseSensitive	0x4110	10	decomp_12 piece	cJSON_GetObjectItemCaseSensitive	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_HasObjectItem	0x4120	23	decomp_12 piece	cJSON_HasObjectItem	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_AddItemToArray	0x4140	93	decomp_12 piece	cJSON_AddItemToArray	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_AddItemToObject	0x41a0	7	decomp_12 piece	cJSON_AddItemToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_AddItemToObjectCS	0x41b0	10	decomp_12 piece	cJSON_AddItemToObjectCS	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_AddItemReferenceToArray	0x41c0	222	decomp_12 piece	cJSON_AddItemReferenceToArray	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_AddItemReferenceToObject	0x42a0	188	decomp_12 piece	cJSON_AddItemReferenceToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_DetachItemViaPointer	0x4360	131	decomp_12 piece	cJSON_DetachItemViaPointer	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_DetachItemFromArray	0x43f0	87	decomp_12 piece	cJSON_DetachItemFromArray	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_DeleteItemFromArray	0x4450	21	decomp_12 piece	cJSON_DeleteItemFromArray	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_DetachItemFromObject	0x4470	21	decomp_12 piece	cJSON_DetachItemFromObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_DetachItemFromObjectCaseSensitive	0x4490	21	decomp_12 piece	cJSON_DetachItemFromObjectCaseSensitive	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_DeleteItemFromObject	0x44b0	21	decomp_12 piece	cJSON_DeleteItemFromObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_DeleteItemFromObjectCaseSensitive	0x44d0	21	decomp_12 piece	cJSON_DeleteItemFromObjectCaseSensitive	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_InsertItemInArray	0x44f0	206	decomp_12 piece	cJSON_InsertItemInArray	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_ReplaceItemViaPointer	0x45c0	174	decomp_12 piece	cJSON_ReplaceItemViaPointer	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_ReplaceItemInArray	0x4670	87	decomp_12 piece	cJSON_ReplaceItemInArray	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateNull	0x46d0	51	decomp_12 piece	cJSON_CreateNull	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_AddNullToObject	0x4710	66	decomp_12 piece	cJSON_AddNullToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateTrue	0x4760	51	decomp_12 piece	cJSON_CreateTrue	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_AddTrueToObject	0x47a0	66	decomp_12 piece	cJSON_AddTrueToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateFalse	0x47f0	51	decomp_12 piece	cJSON_CreateFalse	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_AddFalseToObject	0x4830	66	decomp_12 piece	cJSON_AddFalseToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateBool	0x4880	54	decomp_12 piece	cJSON_CreateBool	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_AddBoolToObject	0x48c0	66	decomp_12 piece	cJSON_AddBoolToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateNumber	0x4910	132	decomp_12 piece	cJSON_CreateNumber	cJSON.c	no	frontend-rejected,memory-correspondence,float-abi,indirect-calls,globals
+cJSON_AddNumberToObject	0x49a0	66	decomp_12 piece	cJSON_AddNumberToObject	cJSON.c	no	frontend-rejected,memory-correspondence,float-abi,callee-contracts,globals
+cJSON_CreateString	0x49f0	138	decomp_12 piece	cJSON_CreateString	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_AddStringToObject	0x4a80	74	decomp_12 piece	cJSON_AddStringToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateStringReference	0x4ad0	52	decomp_12 piece	cJSON_CreateStringReference	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_CreateObjectReference	0x4b10	52	decomp_12 piece	cJSON_CreateObjectReference	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_CreateArrayReference	0x4b50	52	decomp_12 piece	cJSON_CreateArrayReference	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_CreateRaw	0x4b90	138	decomp_12 piece	cJSON_CreateRaw	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_AddRawToObject	0x4c20	74	decomp_12 piece	cJSON_AddRawToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateArray	0x4c70	51	decomp_12 piece	cJSON_CreateArray	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_AddArrayToObject	0x4cb0	66	decomp_12 piece	cJSON_AddArrayToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateObject	0x4d00	51	decomp_12 piece	cJSON_CreateObject	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_AddObjectToObject	0x4d40	66	decomp_12 piece	cJSON_AddObjectToObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateIntArray	0x4d90	188	decomp_12 piece	cJSON_CreateIntArray	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateFloatArray	0x4e50	188	decomp_12 piece	cJSON_CreateFloatArray	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateDoubleArray	0x4f10	179	decomp_12 piece	cJSON_CreateDoubleArray	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_CreateStringArray	0x4fd0	171	decomp_12 piece	cJSON_CreateStringArray	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_Duplicate_rec	0x5080	442	decomp_12 piece	cJSON_Duplicate_rec	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_Duplicate	0x5240	9	decomp_12 piece	cJSON_Duplicate	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_Minify	0x5250	400	decomp_12 piece	cJSON_Minify	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_IsInvalid	0x53e0	19	decomp_12 piece	cJSON_IsInvalid	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_IsFalse	0x5400	19	decomp_12 piece	cJSON_IsFalse	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_IsTrue	0x5420	19	decomp_12 piece	cJSON_IsTrue	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_IsBool	0x5440	19	decomp_12 piece	cJSON_IsBool	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_IsNull	0x5460	19	decomp_12 piece	cJSON_IsNull	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_IsNumber	0x5480	19	decomp_12 piece	cJSON_IsNumber	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_GetNumberValue	0x54a0	34	decomp_12 piece	cJSON_GetNumberValue	cJSON.c	no	frontend-rejected,memory-correspondence,float-abi,callee-contracts,globals
+cJSON_IsString	0x54d0	19	decomp_12 piece	cJSON_IsString	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_GetStringValue	0x54f0	28	decomp_12 piece	cJSON_GetStringValue	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSON_IsArray	0x5510	19	decomp_12 piece	cJSON_IsArray	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_IsObject	0x5530	19	decomp_12 piece	cJSON_IsObject	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_IsRaw	0x5550	19	decomp_12 piece	cJSON_IsRaw	cJSON.c	no	frontend-rejected,memory-correspondence,globals
+cJSON_Compare	0x5570	513	decomp_12 piece	cJSON_Compare	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_Compare.localalias	0x5570	513	decomp_12 alias	cJSON_Compare	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_malloc	0x5780	6	decomp_12 piece	cJSON_malloc	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_free	0x5790	6	decomp_12 piece	cJSON_free	cJSON.c	no	frontend-rejected,memory-correspondence,indirect-calls,globals
+cJSON_SetValuestring	0x57a0	219	decomp_12 piece	cJSON_SetValuestring	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_ReplaceItemInObjectCaseSensitive	0x5880	187	decomp_12 piece	cJSON_ReplaceItemInObjectCaseSensitive	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSON_ReplaceItemInObject	0x5940	171	decomp_12 piece	cJSON_ReplaceItemInObject	cJSON.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals

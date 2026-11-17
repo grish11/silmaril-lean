@@ -1,5 +1,7 @@
 # corpus -- licensed C sources + reproducible ELF corpus
 
+**Source under test** (`UNDER-TEST.md`): the upstream trees, their generated files and the ELF outputs are third-party software kept verbatim to be checked, not part of silmaril-lean.
+
 Pinned upstream C sources (verbatim, with their licence texts), a reproducible build for **x86_64**
 (native gcc) and **aarch64** (Debian cross gcc) in one pinned toolchain image, and the resulting ELF
 files under `corpus/elf/`. Every ELF is **not stripped** (`.symtab` kept: a later step proves
@@ -184,6 +186,10 @@ Per-package notes:
 * **Mapped (tool-derived, not proved)**: each function symbol to its C function (translation unit,
   name, declaration line, signature classes, direct callees), from the DWARF of a debug twin whose code
   is checked byte-identical to the pinned object (`twin.sh`, `funcmap.py`).
+* **Frontend run (measured)**: `pp.sh` rebuilds each package with `-save-temps` and keeps its preprocessed
+  translation units; `frontend.py` runs the Lean port of the Cerberus frontend (`cerb-lean parse --level tail`)
+  on each, results in `<pkg>/frontend/<arch>.tsv`. Most units are rejected inside glibc/gcc system headers
+  (GNU extensions); the accepted ones are listed there.
 * **Open**: contextual C-to-ELF translation validation. Instantiated statements: 0. Every function has a
   context and its blockers (`TV.md`). No AArch64 ISA semantics exists in silmaril-lean, so no AArch64
   statement can be instantiated.

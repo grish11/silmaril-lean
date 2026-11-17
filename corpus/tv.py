@@ -28,7 +28,9 @@ BLOCKERS = {
     "compiler-clone": "a compiler-generated clone (.part/.isra/.constprop/.cold): no C function of its own; validating it needs the clone's specialised contract",
     "not-in-decomposition": "the symbol is not a piece of the proved structural decomposition (alias of another piece, overlapping extent, or outside .text)",
     "signature-unknown": "bound by the line table only (no subprogram DIE, e.g. macro-generated functions): translation unit known, C signature and callees not derived",
-    "frontend": "the translation unit has not been run through the Lean Cerberus frontend and elaborator, so the function has no Core semantics bound to its actual text (every bound function, until that is done)",
+    "frontend-rejected": "the Lean port of the Cerberus frontend rejects the function's translation unit as the pinned build preprocessed it (corpus/<pkg>/frontend/<arch>.tsv; mostly GNU extensions in glibc and gcc headers), so no Core semantics can be bound to its actual text",
+    "core-binding": "the frontend accepts the translation unit (typed Ail), but its elaboration to Core and the function's CFn are not generated yet, so no statement is instantiated",
+    "frontend-unmatched": "no preprocessed unit of the frontend run could be matched to the function's translation unit",
     "memory-correspondence": "pointer or aggregate parameters/result: needs a C-object to machine-memory correspondence (absent)",
     "float-abi": "floating-point parameters/result: outside the System V INTEGER fragment of the existing ABI shapes",
     "variadic": "variadic function: no va_list ABI model",
@@ -59,15 +61,44 @@ def decomposition(mod_dir):
     return out
 
 
-def blockers(arch, r, piece):
+def clean_tu(t):
+    return re.sub(r"^\(indirect (line )?string, offset: (0x)?[0-9a-f]+\):\s*", "", t or "")
+
+
+def unit_index(units):
+    """stem -> [(unit, status)]: every suffix of a unit's file stem after `-`, `_` or the start."""
+    idx = {}
+    for u, st in units:
+        name = Path(u).with_suffix("").name
+        for m in re.finditer(r"(?:^|[-_])(?=(.+)$)", name):
+            idx.setdefault(m.group(1), []).append((u, st))
+    return idx
+
+
+def frontend_status(units, tu):
+    """The frontend's answer for the unit the build preprocessed from `tu` (a source path)."""
+    if not units: return "frontend-unmatched"
+    tu = clean_tu(tu)
+    stem = Path(tu).stem
+    parts = [x for x in Path(tu).parent.parts if x not in (".", "")]
+    cand = list(dict.fromkeys(units.get(stem, [])))
+    if len(cand) > 1 and parts:
+        cand = [(u, st) for u, st in cand if str(Path(u).parent).endswith(parts[-1])] or cand
+    # several units of one source (OpenSSL compiles libcrypto once for the static and once for the
+    # shared library): one answer when they all agree
+    if not cand or len({st for _, st in cand}) != 1: return "frontend-unmatched"
+    return "core-binding" if cand[0][1] == "accepted" else "frontend-rejected"
+
+
+def blockers(arch, r, piece, fe="frontend-unmatched"):
     b = []
     if arch == "aarch64": b.append("isa-semantics")
     if piece is None: b.append("not-in-decomposition")
     if r["status"] == "clone": b.append("compiler-clone")
-    elif r["status"] == "bound-line": b += ["frontend", "signature-unknown"]
+    elif r["status"] == "bound-line": b += [fe, "signature-unknown"]
     elif r["status"] != "bound": b.append("no-source-binding"); return b
     else:
-        b.append("frontend")
+        b.append(fe)
         kinds = set(r.get("params", [])) | {r.get("result", "void")}
         if kinds & {"ptr", "struct", "other"}: b.append("memory-correspondence")
         if "float" in kinds: b.append("float-abi")
@@ -90,6 +121,8 @@ def main():
         mod = ROOT / "Silmaril/Elf/Staged/Corpus" / camel(pkg) / camel(arch) / on
         mname = "Silmaril.Elf.Staged.Corpus." + ".".join([camel(pkg), camel(arch), on])
         dec = decomposition(mod)
+        fe_file = ROOT / "corpus" / pkg / "frontend" / f"{arch}.tsv"
+        units = unit_index([tuple(l.split("\t")[:2]) for l in fe_file.read_text().splitlines() if l and not l.startswith("#")] if fe_file.exists() else [])
         ctxs, cnt = [], {k: 0 for k in BLOCKERS}
         nbound = nprofile = nalias = 0
         groups = {}
@@ -102,10 +135,10 @@ def main():
             piece = dec.get(r["value"]) if dec.get(r["value"], (0, 0, 0, -1))[3] == r["size"] else None
             role = "piece" if r is g[0] else "alias"
             nalias += role == "alias"
-            bl = blockers(arch, r, piece)
+            bl = blockers(arch, r, piece, frontend_status(units, r.get("tu")) if r["status"] in ("bound", "bound-line") else None)
             for x in bl: cnt[x] += 1
             if r["status"] in ("bound", "bound-line"): nbound += 1
-            profile = r["status"] == "bound" and not (set(bl) - {"isa-semantics", "frontend", "globals"})
+            profile = r["status"] == "bound" and not (set(bl) - {"isa-semantics", "frontend-rejected", "core-binding", "frontend-unmatched", "globals"})
             nprofile += profile
             ctxs.append({
                 "symbol": r["symbol"], "value": r["value"], "size": r["size"], "binding": r["bind"],
@@ -129,7 +162,7 @@ def main():
             src = c["source"] or {}
             lines.append("\t".join([c["symbol"], hex(c["value"]), str(c["size"]),
                                     f"{dd['theorem'].rsplit('.', 1)[-1]} {dd['role']}" if dd else "-",
-                                    str(src.get("c_name") or "-"), str(src.get("tu") or "-"),
+                                    str(src.get("c_name") or "-"), clean_tu(src.get("tu")) or "-",
                                     "yes" if c["int_profile"] else "no", ",".join(c["blockers"])]))
         files[f"corpus/{pkg}/tv/{arch}/{obj}.tsv"] = "\n".join(lines) + "\n"
         twin = "yes" if d["twin_code_identical"] else (f"symbols yes; {d.get('twin_text_bytes_differing')} `.text` bytes differ (RIP-relative data displacements)" if d.get("twin_symbols_identical") else "**NO**")
@@ -166,7 +199,7 @@ why none exists yet. This file counts them. A context is not a statement.
 * *no source*: start-up/runtime code (`_start`, libgcc, crt), assembly, or ambiguous names.
 * *C without code*: C functions of the translation units with no code of their own (inlined
   everywhere or eliminated). They have no ELF function to validate.
-* *int profile*: bound functions whose only blockers are the frontend, the ISA (AArch64) and
+* *int profile*: bound functions whose only blockers are the frontend or Core binding, the ISA (AArch64) and
   globals. That means INTEGER-class parameters and result, not variadic, no calls. These fall in the
   profile of the existing `silmaril.shapes.c.compiles_to.open9` shape, once the frontend binds their
   Core (x86-64 only).

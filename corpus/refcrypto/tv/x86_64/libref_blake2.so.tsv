@@ -1,17 +1,17 @@
 # {"arch": "x86_64", "decomposition_module": "Silmaril.Elf.Staged.Corpus.Refcrypto.X8664.LibrefBlake2So.Decomp", "function_map": "corpus/refcrypto/funcmap/x86_64/libref_blake2.so.json", "object": "libref_blake2.so", "package": "refcrypto", "twin_code_identical": true, "twin_symbols_identical": true, "twin_text_bytes_differing": 0}
 # symbol	value	size	decomposition (theorem, role)	c_name	tu	int_profile	blockers
-blake2b_compress	0x11e0	6122	decomp_12 piece	blake2b_compress	(indirect line string, offset: 0): BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend,memory-correspondence,globals
-blake2b_init_param	0x29d0	143	decomp_12 piece	blake2b_init_param	(indirect line string, offset: 0): BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend,memory-correspondence,globals
-blake2b_init	0x2a60	102	decomp_12 piece	blake2b_init	(indirect line string, offset: 0): BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend,memory-correspondence,callee-contracts,globals
-blake2b_update	0x2ad0	306	decomp_12 piece	blake2b_update	(indirect line string, offset: 0): BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend,memory-correspondence,callee-contracts,globals
-blake2b_init_key	0x2c10	219	decomp_12 piece	blake2b_init_key	(indirect line string, offset: 0): BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-blake2b_final	0x2cf0	233	decomp_12 piece	blake2b_final	(indirect line string, offset: 0): BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-blake2b	0x2de0	199	decomp_12 piece	blake2b	(indirect line string, offset: 0): BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend,memory-correspondence,callee-contracts,globals
-blake2	0x2eb0	5	decomp_12 piece	blake2	(indirect line string, offset: 0): BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend,memory-correspondence,callee-contracts,globals
-blake2s_compress	0x2ec0	4436	decomp_12 piece	blake2s_compress	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend,memory-correspondence,globals
-blake2s_init_param	0x4020	106	decomp_12 piece	blake2s_init_param	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend,memory-correspondence,globals
-blake2s_init	0x4090	94	decomp_12 piece	blake2s_init	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend,memory-correspondence,callee-contracts,globals
-blake2s_update	0x40f0	323	decomp_12 piece	blake2s_update	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend,memory-correspondence,callee-contracts,globals
-blake2s_init_key	0x4240	227	decomp_12 piece	blake2s_init_key	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-blake2s_final	0x4330	611	decomp_12 piece	blake2s_final	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend,memory-correspondence,callee-contracts,indirect-calls,globals
-blake2s	0x45a0	199	decomp_12 piece	blake2s	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend,memory-correspondence,callee-contracts,globals
+blake2b_compress	0x11e0	6122	decomp_12 piece	blake2b_compress	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend-rejected,memory-correspondence,globals
+blake2b_init_param	0x29d0	143	decomp_12 piece	blake2b_init_param	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend-rejected,memory-correspondence,globals
+blake2b_init	0x2a60	102	decomp_12 piece	blake2b_init	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+blake2b_update	0x2ad0	306	decomp_12 piece	blake2b_update	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+blake2b_init_key	0x2c10	219	decomp_12 piece	blake2b_init_key	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+blake2b_final	0x2cf0	233	decomp_12 piece	blake2b_final	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+blake2b	0x2de0	199	decomp_12 piece	blake2b	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+blake2	0x2eb0	5	decomp_12 piece	blake2	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+blake2s_compress	0x2ec0	4436	decomp_12 piece	blake2s_compress	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend-rejected,memory-correspondence,globals
+blake2s_init_param	0x4020	106	decomp_12 piece	blake2s_init_param	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend-rejected,memory-correspondence,globals
+blake2s_init	0x4090	94	decomp_12 piece	blake2s_init	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+blake2s_update	0x40f0	323	decomp_12 piece	blake2s_update	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+blake2s_init_key	0x4240	227	decomp_12 piece	blake2s_init_key	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+blake2s_final	0x4330	611	decomp_12 piece	blake2s_final	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+blake2s	0x45a0	199	decomp_12 piece	blake2s	BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals

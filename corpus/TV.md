@@ -24,7 +24,7 @@ why none exists yet. This file counts them. A context is not a statement.
 * *no source*: start-up/runtime code (`_start`, libgcc, crt), assembly, or ambiguous names.
 * *C without code*: C functions of the translation units with no code of their own (inlined
   everywhere or eliminated). They have no ELF function to validate.
-* *int profile*: bound functions whose only blockers are the frontend, the ISA (AArch64) and
+* *int profile*: bound functions whose only blockers are the frontend or Core binding, the ISA (AArch64) and
   globals. That means INTEGER-class parameters and result, not variadic, no calls. These fall in the
   profile of the existing `silmaril.shapes.c.compiles_to.open9` shape, once the frontend binds their
   Core (x86-64 only).
@@ -38,7 +38,9 @@ why none exists yet. This file counts them. A context is not a statement.
 | `compiler-clone` | a compiler-generated clone (.part/.isra/.constprop/.cold): no C function of its own; validating it needs the clone's specialised contract | 272 |
 | `not-in-decomposition` | the symbol is not a piece of the proved structural decomposition (alias of another piece, overlapping extent, or outside .text) | 0 |
 | `signature-unknown` | bound by the line table only (no subprogram DIE, e.g. macro-generated functions): translation unit known, C signature and callees not derived | 1733 |
-| `frontend` | the translation unit has not been run through the Lean Cerberus frontend and elaborator, so the function has no Core semantics bound to its actual text (every bound function, until that is done) | 42130 |
+| `frontend-rejected` | the Lean port of the Cerberus frontend rejects the function's translation unit as the pinned build preprocessed it (corpus/<pkg>/frontend/<arch>.tsv; mostly GNU extensions in glibc and gcc headers), so no Core semantics can be bound to its actual text | 39641 |
+| `core-binding` | the frontend accepts the translation unit (typed Ail), but its elaboration to Core and the function's CFn are not generated yet, so no statement is instantiated | 206 |
+| `frontend-unmatched` | no preprocessed unit of the frontend run could be matched to the function's translation unit | 2283 |
 | `memory-correspondence` | pointer or aggregate parameters/result: needs a C-object to machine-memory correspondence (absent) | 38878 |
 | `float-abi` | floating-point parameters/result: outside the System V INTEGER fragment of the existing ABI shapes | 65 |
 | `variadic` | variadic function: no va_list ABI model | 219 |

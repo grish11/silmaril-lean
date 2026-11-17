@@ -35,6 +35,12 @@ start_build() {
   # the generated code, and twin.sh checks that: every object's .text and function symbols must be
   # byte-identical to the pinned object's. The twin's DWARF then maps functions to source.
   BASE_CFLAGS="-O2 $([ -n "${CORPUS_DEBUG_TWIN:-}" ] && echo -g || echo -g0) -ffile-prefix-map=$BUILD=."
+  # CORPUS_SAVE_TEMPS=1 (frontend.sh): keep the preprocessed translation units (-save-temps=obj) and
+  # copy every *.i under the build directory to OUTDIR/pp/ when the build ends.
+  if [ -n "${CORPUS_SAVE_TEMPS:-}" ]; then
+    BASE_CFLAGS="$BASE_CFLAGS -save-temps=obj"
+    trap 'mkdir -p "$OUTDIR/pp"; (cd "$BUILD" && find . -name "*.i" -print0 | xargs -0 -r cp --parents -t "$OUTDIR/pp")' EXIT
+  fi
   info arch "$ARCH"
   info build_dir "$BUILD"
 }
