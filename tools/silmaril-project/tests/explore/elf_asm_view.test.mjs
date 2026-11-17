@@ -69,7 +69,8 @@ function load(fixtures, extra = {}) {
 }
 const FIX = { "elf/asm.json": asm, "elf/asm-decls.json": decls, "elf/index.json": index };
 const html = async (v, arg) => { const x = await v.render(arg, {}); return typeof x === "string" ? x : x.html; };
-const tbody = (h, dim, model) => h.match(new RegExp(`<tbody data-dim="${dim}"${model ? ` data-model="${model.replace(/[.]/g, "\\.")}"` : ""}[^>]*>([\\s\\S]*?)</tbody>`))?.[0] || "";
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const tbody = (h, dim, model) => h.match(new RegExp(`<tbody data-dim="${dim}"${model ? ` data-model="${escapeRegex(model)}"` : ""}[^>]*>([\\s\\S]*?)</tbody>`))?.[0] || "";
 const statusOf = (h, dim, model) => tbody(h, dim, model).match(/data-status="([^"]*)"/)?.[1];
 
 test("the assembly view registers one route in the navigation", () => {

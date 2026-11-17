@@ -621,16 +621,6 @@ derivation = "silmaril.wasm_components.gen.linked.world.project"
 meta = { wasm = { layer = "component", version = 13, world_of = "silmaril.wasm_components.gen.linked.blob" } }
 
 [[artifact]]
-cid = "bafkr4igd5n4qywsi5wnzogjwvltd3chsrjoa6um4ed6cb5o5vig73jztka"
-type = "blob"
-name = "silmaril.wasm.examples.farkas_accept.component"
-paths = ["examples/wasm-acceptors/farkas_accept.wasm"]
-size = 794
-sha256 = "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996"
-git_sha1 = "18d4e4e65f3321acfa22fb9c62d8b55d2b31ff94"
-meta = { wasm = { custom = [], exports = ["type ineq", "func check"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
-
-[[artifact]]
 cid = "bafkr4ifxt4umejcgr4yf26j4t434djfyqjd7lok7527mj6vadpyb45rlle"
 type = "blob"
 name = "silmaril.c_tv.corpus.float.provenance"
@@ -674,6 +664,16 @@ paths = ["examples/c-programs/unsequenced-ub/source.c"]
 size = 65
 sha256 = "464a9d6905b7ee2857fc89873178183940c93ccc1582f8a42492634702192fb2"
 git_sha1 = "87e079c3aaeceb977461051ed03cd588bfb10d8f"
+
+[[artifact]]
+cid = "bafkr4igd5n4qywsi5wnzogjwvltd3chsrjoa6um4ed6cb5o5vig73jztka"
+type = "blob"
+name = "silmaril.wasm.examples.farkas_accept.component"
+paths = ["examples/wasm-acceptors/farkas_accept.wasm"]
+size = 794
+sha256 = "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996"
+git_sha1 = "18d4e4e65f3321acfa22fb9c62d8b55d2b31ff94"
+meta = { wasm = { custom = [], exports = ["type ineq", "func check"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
 
 [[artifact]]
 cid = "bafkr4igey43jzn5rh4ji7q2uib4g6bzs3ammrmur7eds3nlp6xjdul6jfi"
@@ -735,16 +735,6 @@ derivation = "silmaril.wasm_components.gen.comp_b.world.project"
 meta = { wasm = { layer = "component", version = 13, world_of = "silmaril.wasm_components.gen.comp_b.blob" } }
 
 [[artifact]]
-cid = "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km"
-type = "blob"
-name = "silmaril.wasm.examples.lrat_accept.component"
-paths = ["examples/wasm-acceptors/lrat_accept.wasm"]
-size = 3198
-sha256 = "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784"
-git_sha1 = "08b04a5c89cff872f23503c52ddf96dcf096ad53"
-meta = { wasm = { custom = [], exports = ["func check-stream", "func check-nested"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
-
-[[artifact]]
 cid = "bafkr4ih3xh2txxzbwg7mrxlxt7otei3qruhx3w7kzz3frlc2mjubhlkw2i"
 type = "blob"
 name = "silmaril.c_tv.corpus.pointer.provenance"
@@ -761,6 +751,16 @@ paths = ["examples/c-programs/recursion/provenance.json"]
 size = 5058
 sha256 = "e1f4a189cccc09317ae946c143901024d624f652624a36df945a254d593dc608"
 git_sha1 = "21cdc1caba1ac9e211ab7ccdaa77e10d52e2d394"
+
+[[artifact]]
+cid = "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km"
+type = "blob"
+name = "silmaril.wasm.examples.lrat_accept.component"
+paths = ["examples/wasm-acceptors/lrat_accept.wasm"]
+size = 3198
+sha256 = "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784"
+git_sha1 = "08b04a5c89cff872f23503c52ddf96dcf096ad53"
+meta = { wasm = { custom = [], exports = ["func check-stream", "func check-nested"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
 
 [[artifact]]
 cid = "bafkr4ihhb2chrlxma56yl4h4zahixr46i6pj3ftbh6bmmism4vd3bbual4"
