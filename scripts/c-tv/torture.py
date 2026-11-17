@@ -38,7 +38,14 @@ and, separately, facts that are not statuses:
                        port's legacy model there)
   ubReached            some exploration reached undefined behaviour (the test depends on UB, or the
                        port's semantics differs from GCC's assumptions)
-  native               gcc -O0 run of execute/ cases: exit status (sanity only, not validation)
+  native               gcc -O0 run of execute/ cases under caps (NATIVE: wall and CPU time, address
+                       space, file size, stdout bytes): how it ended (exit/signal/timeout/
+                       stdout-limit), the code, and the stdout's size and SHA-256 (never parsed);
+                       sanity only, not validation
+  sourceVerified       the SHA-256 of the bytes actually run equals the manifest's (checked per case)
+  compileOnly          a compile/ case: the test is about compiling; whole-program behaviour is incidental
+  targetConditional    the source selects code with #if on a target macro (for example ia64 or HP-UX):
+                       on x86-64 the test may preprocess to something trivial
 
 Every verdict is compiled evidence (`ctv-pipeline`), not a kernel theorem. Execution comparisons
 are sanity checks. The report records the tool versions and the manifest's SHA-256.
@@ -59,10 +66,71 @@ def run(cmd, cwd, timeout):
         return "timeout", b"", b""
 
 
+# Caps of a native test run (torture programs may loop, allocate or print without bound).
+NATIVE = {"timeoutSeconds": 10, "cpuSeconds": 10, "addressSpaceBytes": 1 << 30, "fileSizeBytes": 16 << 20,
+          "stdoutBytes": 1 << 20}
+
+
+def run_native(exe, cwd):
+    """Run a test binary under NATIVE's caps. Returns how it ended and what it printed, by size and
+    SHA-256 only (stdout is never parsed): {"ended": "exit"|"signal"|"timeout"|"stdout-limit",
+    "code": exit status or signal number, "stdoutBytes", "stdoutSha256"}."""
+    import resource, signal
+
+    def limits():
+        resource.setrlimit(resource.RLIMIT_CPU, (NATIVE["cpuSeconds"], NATIVE["cpuSeconds"]))
+        resource.setrlimit(resource.RLIMIT_AS, (NATIVE["addressSpaceBytes"], NATIVE["addressSpaceBytes"]))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (NATIVE["fileSizeBytes"], NATIVE["fileSizeBytes"]))
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        os.setsid()
+    p = subprocess.Popen([exe], cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL, preexec_fn=limits)
+    out, ended, deadline = bytearray(), None, time.time() + NATIVE["timeoutSeconds"]
+    import select
+    while True:
+        left = deadline - time.time()
+        if left <= 0:
+            ended = "timeout"; break
+        r, _, _ = select.select([p.stdout], [], [], min(left, 0.5))
+        if r:
+            chunk = os.read(p.stdout.fileno(), 65536)
+            if not chunk:
+                break
+            out += chunk
+            if len(out) > NATIVE["stdoutBytes"]:
+                ended = "stdout-limit"; break
+    if ended:
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    rc = p.wait()
+    out = bytes(out[:NATIVE["stdoutBytes"]])
+    if ended is None:
+        ended, code = ("signal", -rc) if rc < 0 else ("exit", rc)
+    else:
+        code = None
+    return {"ended": ended, "code": code, "stdoutBytes": len(out), "stdoutSha256": hashlib.sha256(out).hexdigest()}, out
+
+
 def reason(out):
     t = out.decode(errors="replace")
     m = re.search(r'\(\$str "([^"]*)"\)\)?\s*$', t.strip().splitlines()[0] if t.strip() else "")
     return (m.group(1) if m else t.strip()[-300:])[:300]
+
+
+# Everything the statuses depend on, pinned in the report.
+OPTIONS = {
+    "preprocess": ["gcc", "-E", "-P", "-std=gnu11", "-w"],
+    "cerberusRoute": ["cerb-lean", "parse", "--level", "tail"],
+    "clangAst": ["clang", "-x", "c", "-std=gnu11", "-target", "x86_64-linux-gnu", "-w", "-Xclang", "-ast-dump=json", "-fsyntax-only"],
+    "clangRoute": ["cfront", "ail"],
+    "pipeline": {"tool": "ctv-pipeline run", "depth": 200000, "budget": 2000000, "profile": "linuxX86_64",
+                 "elaborator": "TargetCoherence.linuxLP64", "runtime": "benchmarks/cerberus-elaboration/oracle/constant-return/core.sexp.gz"},
+    "native": ["gcc", "-O0", "-std=gnu11", "-w", "-lm"],
+    "toolTimeoutSeconds": 60,
+    "target": "x86_64-linux-gnu",
+}
 
 
 def max_symbol(texts):
@@ -77,8 +145,16 @@ def one(case, root, binary, sums, timeouts):
     row = {"case": case}
     src = os.path.join(root, case)
     data = open(src, "rb").read()
-    if hashlib.sha256(data).hexdigest() != sums[case]:
+    # The bytes actually run are checked against the manifest, case by case, during the run.
+    row["sha256"] = hashlib.sha256(data).hexdigest()
+    row["sourceVerified"] = row["sha256"] == sums[case]
+    if not row["sourceVerified"]:
         row["status"] = "not-attempted"; row["why"] = "SHA-256 differs from the manifest"; return row
+    text = data.decode(errors="replace")
+    if case.startswith("compile/"):
+        row["compileOnly"] = True
+    if re.search(r"^\s*#\s*(if|ifdef|ifndef|elif)\b.*\b__(ia64|hppa|hpux|i386|x86_64|aarch64|arm|mips|powerpc|sparc|s390|riscv|alpha|sh|vax|m68k|avr|msp430)\w*__", text, re.M):
+        row["targetConditional"] = True
     stem = os.path.splitext(src)[0]
     if os.path.exists(stem + ".x") or case.startswith("execute/builtins/"):
         row["status"] = "harness-needed"
@@ -128,10 +204,9 @@ def one(case, root, binary, sums, timeouts):
             observes += ["--observe", "pass", "0", "empty.out"]
             rc, _, _ = run(["gcc", "-O0", "-std=gnu11", "-w", "t.c", "-o", "t.exe", "-lm"], tmp, 60)
             if rc == 0:
-                rc, so, _ = run([os.path.join(tmp, "t.exe")], tmp, 10)
-                row["native"] = "timeout" if rc == "timeout" else (f"signal {-rc}" if rc < 0 else f"exit {rc}")
+                row["native"], _ = run_native(os.path.join(tmp, "t.exe"), tmp)
             else:
-                row["native"] = "build failed"
+                row["native"] = {"ended": "build-failed", "code": None}
         fresh = max_symbol([open(os.path.join(tmp, f"{r}.tail.sexp"), errors="replace").read() for r in routes])
         rc, so, se = run([os.path.join(binary, "ctv-pipeline"), "run", RUNTIME, str(fresh), ".", "--depth", "200000", "--budget", "2000000"]
                          + observes + [f"{r}={r}.tail.sexp" for r in routes], tmp, timeouts * 4)
@@ -231,6 +306,7 @@ def main():
     summary["profileIncoherent"] = sum(1 for r in ordered if r.get("profileIncoherent"))
     summary["ubReached"] = sum(1 for r in ordered if r.get("ubReached"))
     summary["coreAllowsPass"] = {v: sum(1 for r in ordered if v in (r.get("coreAllowsPass") or {}).values()) for v in ["admitted", "rejected", "unknown"]}
+    OPTIONS["toolTimeoutSeconds"] = a.timeout
     rep = {"schema": "silmaril.c-tv.gcc-torture.v1",
            "manifest": {"path": "benchmarks/gcc-torture/manifest.json",
                         "sha256": hashlib.sha256(open(MANIFEST, "rb").read()).hexdigest(),
@@ -240,6 +316,7 @@ def main():
                      "cerb-lean": hashlib.sha256(open(os.path.join(a.bin, "cerb-lean"), "rb").read()).hexdigest(),
                      "cfront": hashlib.sha256(open(os.path.join(a.bin, "cfront"), "rb").read()).hexdigest(),
                      "ctv-pipeline": hashlib.sha256(open(os.path.join(a.bin, "ctv-pipeline"), "rb").read()).hexdigest()},
+           "options": OPTIONS, "native": NATIVE,
            "evidence": "compiled", "seconds": round(time.time() - start), "summary": summary, "cases": ordered}
     with open(a.out, "w") as f:
         json.dump(rep, f, indent=None, separators=(",", ":"), sort_keys=True)

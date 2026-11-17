@@ -23,12 +23,12 @@ lake build --wfail cerb-lean cfront ctv-pipeline
 scripts/c-tv/torture.py --root /tmp/gcc/gcc/testsuite/gcc.c-torture --jobs 8
 ```
 
-## Statuses (third run of 2026-11-17)
+## Statuses (fourth run of 2026-11-17)
 
 [`tv-report.json.gz`](tv-report.json.gz) has one row per case, the tool versions and the manifest's
 SHA-256. Tools: gcc 14.2.0 (Debian), clang 19.1.7 (Debian), and `cerb-lean`, `cfront` and
 `ctv-pipeline` built from this repository (their SHA-256s are in the report). Elapsed time:
-343 s on 8 workers. Every case has exactly one status (`scripts/c-tv/torture.py`
+344 s on 8 workers. Every case has exactly one status (`scripts/c-tv/torture.py`
 defines them). `cross-validated` is a frontend agreement (Core to Core) with UB-free sources both
 ways; one that rests on source undefined behaviour is `cross-validated-ub`, counted separately
 (none in this run). An agreement with a route that accepted a construct it drops (an `asm` label, an attribute it does not show it keeps) is `cross-validated-blocked`: that route's Core does not correspond to the source (0 in this run; 239 cases have a blocked route in all). Between runs, a case near the 60-second timeout can move between statuses
@@ -125,6 +125,39 @@ Reading the table:
   `__builtin_va_list`.
 * **Harness.** 158 execute/ cases need DejaGNU behaviour (`.x` scripts, the builtins directory's
   extra sources) that the runner does not interpret.
+
+## Highlights: the four cross-validated cases are not coverage
+
+| Case | Why it is not coverage |
+| --- | --- |
+| `compile/960218-1.c` | **compile-only**: a compile/ test is about compiling; its evidence must be function-level (`c.compiles_to`, function-level contexts), and none exists for it yet |
+| `compile/ddd.c` | **compile-only**, as above |
+| `execute/ieee/fp-cmp-4e.c` | **architecture-gated**: `#if defined (__ia64__) && defined (__hpux__)` selects the test; on x86-64 it preprocesses to `int main () { return 0; }` |
+| `execute/ieee/fp-cmp-8e.c` | **architecture-gated**, as above |
+
+All four are frontend agreements only (Core to Core, compiled evidence): no per-type check passes
+on them and no compiler-origin edge exists. The report flags `compileOnly` on every compile/ case
+and `targetConditional` on the 35 cases whose source selects code with `#if` on a target macro;
+the explorer's GCC torture page (C programs tab) highlights them. The 46 `no-main` compile/ cases
+are the same function-level gap: they elaborate, but have no whole-program behaviour.
+
+## How a run is pinned and checked
+
+* Every case's source is hashed **during the run** and compared with the manifest
+  (`sourceVerified`, `sha256` per row); a mismatch makes the case `not-attempted`.
+* The report pins the manifest's SHA-256, the tools (gcc and clang versions; SHA-256 of
+  `cerb-lean`, `cfront`, `ctv-pipeline`), every option (preprocessing, both routes, the pipeline's
+  bounds, profile and elaborator, the native build) and the native caps.
+* Native test runs are capped (10 s wall and CPU, 1 GiB address space, 16 MiB files, 1 MiB of
+  stdout, no core dumps, in their own process group); the report records how each run ended
+  (`exit`, `signal`, `timeout`, `stdout-limit`, `build-failed`), its code, and the stdout's size and
+  SHA-256. Stdout is never parsed.
+* `scripts/c-tv/check-torture.py` checks the manifest and report invariants without a GCC
+  checkout: 3,852 unique cases, one row per case in manifest order, statuses summing to the
+  denominator, every attempted row verified, pinned tools/options/profile/caps, statuses agreeing
+  with their rows' facts, only known flags, the summary equal to the rows' counts. It runs in the
+  CI helpers job (`scripts/test_c_tv_torture.py`, with tampered reports that must be rejected) and
+  in `make c-tv-check`.
 
 ## Gap roadmap
 
