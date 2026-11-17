@@ -48,6 +48,14 @@ passing, return values and the register discipline of Microsoft x64 are
 - aggregates nested inside a declaration that themselves contain bit-fields (`layoutTy` refuses them);
 - `#pragma pack`, `packed`, `ms_struct`.
 
+**From a header.** `Silmaril.Data.Layout.Header.read` reads tagged struct, union and enum
+definitions (members with arrays of literal size, bit-fields, `_Alignas(n)`) into `Header.env`;
+`Header.Thms` lays out a parsed struct with `char`, bit-field, `long`, `int` and `double`
+members under `sysv`/`sysvX86_64` (`sizeof` 32, bit-fields at bits 8 and 11, `long` 8 bytes at
+8) and `ms`/`msX64` (`sizeof` 24, bit-fields at bits 32 and 35, `long` 4 bytes at 8), and a
+bit-field-free one with `tagLayout`. What the reader cannot express (untagged definitions,
+flexible arrays, `#pragma pack`, …) is refused, so no layout is computed for it.
+
 **Not claimed:**
 - that clang's MSVC emulation is `cl.exe`'s layout;
 - layouts for other compilers, flags or psABIs than those measured;
