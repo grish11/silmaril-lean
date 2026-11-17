@@ -958,12 +958,15 @@ def probeS (tag : String) (bytes : ByteArray) (cmds : List CmdS) : IO Unit := do
     | none => IO.println s!"M\\t{tag}\\tvalidate\\tthe validator rejects the module"
     | some mt =>
       if !mt.imports.isEmpty then IO.println s!"M\\t{tag}\\timports\\tthe module has imports" else
-      match instantiateOnce? (Game.importStore []) m [] with
-      | some (s, f, none) => do
+      if !(m.elems.isEmpty && m.data.isEmpty && m.start.isNone) then
+        IO.println s!"M\\t{tag}\\tsegments\\tthe module has element or data segments or a start function" else
+      match instantiateCfg? (Game.importStore []) m [] with
+      | some (c, mi) =>
+        if c.code.isEmpty then do
           IO.println s!"M\\t{tag}\\tok\\t{m.data.length}"
-          probeSCmds tag s f.module 0 cmds
-      | some (_, _, some _) => IO.println s!"M\\t{tag}\\tstart\\tthe module has a start function"
-      | none => IO.println s!"M\\t{tag}\\tinstantiate\\tinstantiation fails (or traps)"
+          probeSCmds tag c.store mi 0 cmds
+        else IO.println s!"M\\t{tag}\\tinstantiate\\tthe instantiation code does not end empty"
+      | none => IO.println s!"M\\t{tag}\\tinstantiate\\tinstantiation fails"
 
 def probe (tag : String) (bytes : ByteArray) (cmds : List Cmd) : IO Unit := do
   match Silmaril.Wasm.Binary.Core.decode? bytes with
@@ -973,15 +976,13 @@ def probe (tag : String) (bytes : ByteArray) (cmds : List Cmd) : IO Unit := do
     | none => IO.println s!"M\\t{tag}\\tvalidate\\tthe validator rejects the module"
     | some mt =>
       if !mt.imports.isEmpty then IO.println s!"M\\t{tag}\\timports\\tthe module has imports" else
-      match instantiateOnce? (Game.importStore []) m [] with
-      | some (s, f, none) =>
-        if !exportsScalar s f.module then
-          IO.println s!"M\\t{tag}\\texports\\ta function export has a non-scalar type"
-        else do
+      match instantiateCfg? (Game.importStore []) m [] with
+      | some (c, mi) =>
+        if c.code.isEmpty then do
           IO.println s!"M\\t{tag}\\tok\\t{m.data.length}"
-          probeCmds tag {fuel} f.module 0 s cmds
-      | some (_, _, some _) => IO.println s!"M\\t{tag}\\tstart\\tthe module has a start function"
-      | none => IO.println s!"M\\t{tag}\\tinstantiate\\tinstantiation fails (or traps)"
+          probeCmds tag {fuel} mi 0 c.store cmds
+        else IO.println s!"M\\t{tag}\\tstart\\tthe instantiation code does not end empty (a start function, or a segment trap)"
+      | none => IO.println s!"M\\t{tag}\\tinstantiate\\tinstantiation fails"
 """
 
 
@@ -1123,12 +1124,15 @@ def emit():
               "profile": f"{PROFILE_DET} for the returns_only/traps_only rows and the link.* rows of the linked files "
                          "(" + ", ".join(f"{f}.wast" for f, _ in LINK_FILES) + f"); {PROFILE_SPEC} for the "
                          "returns_allowed_all/traps_all/terminates_all rows of " + ", ".join(f"{f}.wast" for f, _ in FILES if f in SPEC),
-              "assumptions": ["assert_return/assert_trap rows: the module is valid, has no imports and no start function, and its function exports have scalar types",
+              "assumptions": ["assert_return/assert_trap rows: the module is valid and has no imports; its instance and initial store are the specification's "
+                              "instantiation (Instance: the Instantiate configuration of Wasm 3.0 $instantiate in the empty store, every global "
+                              "allocated as $evalglobals and $allocmodule allocate it, run by host-free Core steps under the row's profile to the "
+                              "empty code: segment code and, if any, the start call)",
                               "assert_return/assert_trap rows: no host function (Det.noHost); claims are about Core reduction Step (profile neverFail)",
                               "assert_return/assert_trap rows: the script state: the store threads through the earlier actions of the same module, in order",
                               "assert_return/assert_trap rows: termination is witnessed by the kernel run; other runs reach the same normal form by determinism",
                               "returns_allowed_all/traps_all/terminates_all rows (" + ", ".join(f"{f}.wast" for f, _ in FILES if f in SPEC) + "): the same module "
-                              "conditions; claims are about Core reduction Step (Profile.spec nd r) with no host function, for every $ND and relaxed choice "
+                              "conditions, and no element or data segments and no start function (the Instantiate configuration has no code); claims are about Core reduction Step (Profile.spec nd r) with no host function, for every $ND and relaxed choice "
                               "(rows state nd = true, r = default); every exported function is straight-line numeric (local.get 0 ... local.get (k-1); op), "
                               "so every run is described by Silmaril.Wasm.Execution.Core.StraightLine.{nf, reaches, not_diverges, extends_nf}; "
                               "nan:canonical = canonical NaN of either sign, nan:arithmetic = NaN with the quiet bit set, of either sign, "
@@ -1950,11 +1954,15 @@ def regress():
       first `assert_return` on a module that imports from another registered module, plus one
       (wasmtime must fail on that line); and in the same script, the first `assert_return` after
       an `assert_trap (module …)` whose segment initialisation traps (it observes the residual
-      store), plus one (wasmtime must fail on that line). wasmtime must fail on each, so
+      store), plus one (wasmtime must fail on that line); and in the linked script of global.wast,
+      the first `assert_return` expecting a host reference `(ref.extern n)`, with `n + 1` (wasmtime
+      must fail on that line). wasmtime must fail on each, so
       `oracle`'s scripts can fail. The committed `wrong-linked-state.wast` writes a memory and a
       global through imports from one module and reads them from another;
       `wrong-segment-trap-state.wast` reads, from another module, what the segments of a failed
-      instantiation wrote into an imported table and memory before the trap.
+      instantiation wrote into an imported table and memory before the trap;
+      `wrong-externref.wast` expects `(ref.extern 2)` where the stored host reference is
+      `(ref.extern 1)`.
     Exits 1 if any wrong expectation is accepted or any control fails."""
     if not pathlib.Path(JCO["WASMTIME"]).is_file():
         fetch_wasmtime()
@@ -2038,8 +2046,22 @@ def regress():
                     wrong = line[:m.start()] + f"({m.group(1)}.const {(int(m.group(2)) + 1) % (1 << w)}))"
                     mutants["segtrap"] = (f"{cid} (script line {ln})", "\n".join(lines[:ln - 1] + [wrong]) + "\n", ln)
                     break
+        # A host reference made wrong: in the linked script of global.wast, the first
+        # `assert_return` expecting `(ref.extern n)` (it reads the reference that line 235 stored
+        # in a mutable `externref` global), with `n + 1`. wasmtime must fail on that line.
+        for f, ids, text in oracle_link_scripts(rep):
+            if f != "global" or "externref" in mutants:
+                continue
+            lines = text.rstrip("\n").split("\n")
+            for cid, ln in ids:
+                line = lines[ln - 1]
+                m = re.search(r"\(ref\.extern ([0-9]+)\)\)$", line)
+                if byid[cid]["type"] == "assert_return" and m:
+                    wrong = line[:m.start()] + f"(ref.extern {int(m.group(1)) + 1}))"
+                    mutants["externref"] = (f"{cid} (script line {ln})", "\n".join(lines[:ln - 1] + [wrong]) + "\n", ln)
+                    break
         with tempfile.TemporaryDirectory() as td:
-            for key in ("segtrap",):
+            for key in ("segtrap", "externref"):
                 if key not in mutants:
                     bad.append(f"no {key} linked script to mutate")
                     continue
@@ -2077,7 +2099,7 @@ def regress():
                 if run(path).returncode == 0:
                     bad.append(f"{cid} ({t}) with a wrong expectation: wasmtime ACCEPTS it")
     print(f"regress: {n} scripts run ({len(list(REGRESS.glob('wrong-*.wast')))} committed wrong, "
-          f"{len(list(REGRESS.glob('right-*.wast')))} committed controls, 5 generated wrong)")
+          f"{len(list(REGRESS.glob('right-*.wast')))} committed controls, 6 generated wrong)")
     if bad:
         print("\n".join(f"regress: FAIL {b}" for b in bad), file=sys.stderr)
         sys.exit(1)
