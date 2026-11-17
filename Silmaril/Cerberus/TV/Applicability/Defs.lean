@@ -153,37 +153,70 @@ def implsTree : Tree → List String
 /-- The key of an implementation constant, as `implsTree` reads it. -/
 def implKey (c : ImplementationConstant) : Option String := rootTag (Codec.implementationConstant.enc c)
 
-/-- The symbols and implementation constants reachable from the program part, through the runtime
-functions and implementation constants they name (a closure, iterated once per runtime entry). -/
-def reachable (b : Codec.FileBindings) : List (String × String) × List String :=
-  let seedTree := Codec.encodeFileBindings (programPart b)
-  let step (st : List (String × String) × List String) : List (String × String) × List String :=
-    let (keys, impls) := st
-    let fs := b.stdlib.filter fun e => (symKey e.1).any (keys.contains ·)
-    let is := b.impl.filter fun e => (implKey e.1).any (impls.contains ·)
-    (keys ++ fs.flatMap (fun e => symbolsTree (Codec.funDecl.enc e.2)) ++
-        is.flatMap (fun e => symbolsTree (Codec.implDecl.enc e.2)),
-      impls ++ fs.flatMap (fun e => implsTree (Codec.funDecl.enc e.2)) ++
-        is.flatMap (fun e => implsTree (Codec.implDecl.enc e.2)))
-  (List.range (b.stdlib.length + b.impl.length + 1)).foldl (fun st _ => step st)
-    (symbolsTree seedTree, implsTree seedTree)
+/-- One runtime entry as the closure reads it: its own keys, and the symbols and implementation
+constants its body names (each body encoded once). -/
+structure Entry where
+  own : List (String × String) ⊕ Option String
+  symbols : List (String × String)
+  impls : List String
+
+/-- The closure's state: the names reached so far and which entries are reached. -/
+structure Reach where
+  keys : List (String × String)
+  impls : List String
+  reached : List Bool
+
+/-- Whether an entry is named by the names reached so far. -/
+def Entry.named (e : Entry) (r : Reach) : Bool :=
+  match e.own with
+  | .inl ks => ks.any (r.keys.contains ·)
+  | .inr (some c) => r.impls.contains c
+  | .inr none => false
+
+/-- One round: every entry not yet reached that a reached name names is reached, and adds the
+names its body names. Returns whether anything changed. -/
+def reachStep (es : List Entry) (r : Reach) : Reach × Bool :=
+  let news := (es.zip r.reached).map fun (e, done) => !done && e.named r
+  let added := (es.zip news).filter (·.2) |>.map (·.1)
+  ({ keys := r.keys ++ added.flatMap (·.symbols), impls := r.impls ++ added.flatMap (·.impls),
+     reached := (r.reached.zip news).map fun (x, y) => x || y }, news.any id)
+
+/-- Iterate `reachStep` until nothing changes (at most once per entry, plus one). -/
+def reachLoop (es : List Entry) : Nat → Reach → Reach
+  | 0, r => r
+  | n + 1, r => match reachStep es r with
+    | (r', true) => reachLoop es n r'
+    | (r', false) => r'
+
+/-- The runtime entries of a file: the `stdlib` functions, then the `impl` constants. -/
+def entries (b : Codec.FileBindings) : List Entry :=
+  b.stdlib.map (fun e => let t := Codec.funDecl.enc e.2
+      ⟨.inl (symKey e.1), symbolsTree t, implsTree t⟩) ++
+  b.impl.map (fun e => let t := Codec.implDecl.enc e.2
+      ⟨.inr (implKey e.1), symbolsTree t, implsTree t⟩)
+
+/-- Which runtime entries (`stdlib` then `impl`, in order) the program part reaches. -/
+def reachedFlags (b : Codec.FileBindings) : List Bool :=
+  let es := entries b
+  let seed := Codec.encodeFileBindings (programPart b)
+  (reachLoop es (es.length + 1) ⟨symbolsTree seed, implsTree seed, es.map fun _ => false⟩).reached
 
 /-- **The runtime functions the program can reach** (by symbol, transitively). -/
 def reachableStdlib (b : Codec.FileBindings) : List (Sym × Core.FunDecl Codec.wireModel Unit Unit) :=
-  let keys := (reachable b).1
-  b.stdlib.filter fun e => (symKey e.1).any (keys.contains ·)
+  ((b.stdlib.zip (reachedFlags b)).filter (·.2)).map (·.1)
 
 /-- **The implementation constants the program can reach** (transitively). -/
 def reachableImpl (b : Codec.FileBindings) :
     List (ImplementationConstant × Core.ImplDecl Codec.wireModel Unit) :=
-  let impls := (reachable b).2
-  b.impl.filter fun e => (implKey e.1).any (impls.contains ·)
+  ((b.impl.zip ((reachedFlags b).drop b.stdlib.length)).filter (·.2)).map (·.1)
 
 /-- **The types a program's executed Core names** (module docstring), without repetitions: the
 program part, the reachable runtime functions and the reachable implementation constants. -/
 def mentions (b : Codec.FileBindings) : List Mention :=
-  (mentionsTree (Codec.encodeFileBindings
-    { b with stdlib := reachableStdlib b, impl := reachableImpl b })).dedup
+  let flags := reachedFlags b
+  let stdlib := ((b.stdlib.zip flags).filter (·.2)).map (·.1)
+  let impl := ((b.impl.zip (flags.drop b.stdlib.length)).filter (·.2)).map (·.1)
+  (mentionsTree (Codec.encodeFileBindings { b with stdlib, impl })).dedup
 
 /-- Whether the profile is coherent at a mention (never at one outside the table). -/
 def Profile.coherentAt (p : Profile) : Mention → Bool
