@@ -231,6 +231,70 @@ Limitations:
   observed.
 - Only modules whose imports are all functions (`IsSpecInstance`), as for `Callouts`.
 
+## Acceptor components: runtime observations and theorems
+
+The certificate-checking acceptor components are Wasm components in
+`examples/wasm-acceptors/`. Each export returns a `bool`.
+
+- **SAT** (`sat_accept.wasm`): registered in `silmaril/artifacts.toml` as
+  `silmaril.wasm.examples.sat_accept.component`. Its exports are
+  `check-stream(problem: list<s32>, model: list<s32>)` and
+  `check-nested(problem: list<list<s32>>, model: list<s32>)`.
+  - `Silmaril.Project.WasmComponents.SatAccept.checkStream_sound_of_bytes` and
+    `checkNested_sound_of_bytes` cover every reference Component Model reading of what
+    `Silmaril.Wasm.Examples.SatAccept.bytes` parse to.
+  - An accepting call implies `satStream`/`satNested` and membership in
+    `SatStream`/`SatNested`. This is component-level soundness only: nothing is proved about
+    rejections, traps or completeness.
+  - The file is tied to `bytes` by regeneration and by the SHA-256 that the harness pins. No
+    theorem ties them.
+- **LRAT and Farkas** (`lrat_accept.wasm`, `farkas_accept.wasm`, on their own branches): only
+  core-module theorems exist so far (`Silmaril.Wasm.Examples.LratAccept.checkStream_sound`,
+  `checkNested_sound`, `Silmaril.Wasm.Examples.FarkasAccept.check_sound`). They are about the
+  core module inside the component, not about the canonical ABI lift and lowering.
+  Component-level proofs are in progress.
+
+**The harness.** `tools/wasm-acceptor-harness` runs the suites `suites/*.json` under Wasmtime
+50.0.0 on the actual component bytes (the version is pinned exactly). Each case calls one export
+in a fresh store and instance, and its outcome is `accepted`, `rejected`, `trap`, `error` or
+`unsupported`.
+
+- `make acceptor-report` writes the committed report `tools/wasm-acceptor-harness/report.json`
+  by one fixed command, run from that directory:
+  `LC_ALL=C target/release/wasm-acceptor-harness suites/*.json --out report.json`.
+- The report records that command, the engine and its configuration, and each artifact's size,
+  SHA-256, BLAKE3 and CID (the registry's CIDv1). It records every case with its typed
+  signature, arguments, expected and observed outcomes and verdict.
+- It has no timestamps, so a rerun on the same files writes the same bytes.
+- The `wasm-acceptor-harness` job of `.github/workflows/ci-rust.yml` reruns the command and
+  fails if the result differs from the committed file.
+
+**The explorer.** `make pages` copies the report to `_site/acceptor-runs.json`. The section
+"Acceptor component: runtime observations and theorems" (`explore/views/acceptors.js`) shows on
+a component page and on an artifact page whose SHA-256 is that of a reported artifact or of a
+known acceptor. It has two parts, kept apart:
+
+- **Runtime observations (Wasmtime 50.0.0) — tested, not proved.** This part shows the engine
+  and configuration, the exact CID and SHA-256, and one row per case of those bytes. A row gives
+  the export with its signature, the class, the arguments (abbreviated), and the expected and
+  observed outcomes.
+  - All badges are neutral: an observation never gets the green proof style.
+  - A met expectation reads "matches expectation (test)", a failed one "mismatch". A case
+    without an expectation is neutral and never counts as a pass.
+  - The page computes the verdict from the expected and observed outcomes, and flags a report
+    whose verdict disagrees.
+  - Without `acceptor-runs.json` the section shows a neutral notice. A malformed report is an
+    error inside the section only.
+- **Lean theorems.** A static map, keyed by the SHA-256 of the bytes a theorem is about, gives
+  the theorem names and the kind of claim. For SAT the claim is "component-level soundness
+  (kernel-checked)". For LRAT and Farkas it is "core-module soundness only". The names link to
+  their source pages.
+  - A changed file no longer matches the map, so a claim never shows on other bytes.
+
+`tools/silmaril-project/tests/explore/acceptor_runs.mjs` checks the section in Chromium on a
+`make pages` output and on fixtures built from it. The fixtures cover a match, a mismatch, a
+missing expectation, a missing report and a malformed report.
+
 ## Checking
 
 ```
@@ -238,4 +302,13 @@ lake build --wfail Silmaril.Formats.Accept.Examples Silmaril.Games.Accept.Thms \
   Silmaril.Wasm.Component.Reference.WIT.Interp.Examples Silmaril.Wasm.Game.Accept.Examples \
   Silmaril.Wasi.Component.Accept.Examples Silmaril.Wasi.Component.Accept.Canon.Thms \
   Silmaril.Wasm.Game.IOAccept.Examples
+```
+
+The acceptor components' report, registry and explorer section:
+
+```
+lake build --wfail Silmaril.Project.WasmComponents.SatAccept.Thms
+make acceptor-report && git diff --exit-code tools/wasm-acceptor-harness/report.json
+make project-registry
+make pages && node tools/silmaril-project/tests/explore/acceptor_runs.mjs _site
 ```
