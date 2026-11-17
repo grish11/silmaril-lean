@@ -940,16 +940,20 @@ The plain graph stays an over-approximation, and claims about it say so.
             types of inductives, constructors and recursors, transitively. It does not follow
             theorem proofs. The build fails if a native closed or divergent object is reachable
             from any closure or instance-triple root.
-          - **Fail closed.** A reached constant whose body cannot be inspected fails the audit. This
-            covers opaque constants, axioms, missing names and unexposed imported bodies. The
-            exceptions are kernel proofs (type is a `Prop`) and constants from external
-            dependency modules, which cannot import Silmaril. Opaque data declared in Silmaril
-            always fails.
+          - **Fail closed, whatever the origin.** A reached constant whose body cannot be
+            inspected fails the audit, from any module or topic. This covers opaque constants,
+            axioms, missing names and unexposed imported bodies. The exceptions are kernel proofs
+            (type is a `Prop`) and the explicit allowlist `trustedOpaque`, which is the trust
+            boundary: `Classical.choice` and seven Lean-core definitions with unexposed bodies
+            (`Lean.mkAtom`, `List.all₂`, `Nat.land`, `Nat.lor`, `Nat.repr`, `Nat.xor`,
+            `String.Internal.append`).
           - **Axiom closure, proofs included.** For each root, `Lean.collectAxioms` must give only
             `propext`, `Classical.choice` and `Quot.sound`.
           - **Positive controls.** The native instance `cfgSessionTriple` reaches `closedCallXP`
-            and `FunDivXP`. An adversarial `opaque` alias of `closedCallXP` must be rejected, and
-            `sorryAx` must fail the axiom check.
+            and `FunDivXP`. The audit must reject adversarial aliases of `closedCallXP`: an `opaque`
+            alias in the same module, and, from another topic's module
+            (`Wasm.Abstract.AuditControl`), an `opaque` alias and an alias whose body is not
+            exposed. `sorryAx` must fail the axiom check.
         - **Remaining before all generic gaps can be called closed:**
           1. Typed-invocation hypotheses (`Wasm/Cfg/CfgValid`). These are now derived from
              `StoreOk` and `InvokeOk`, at the store's own tags:

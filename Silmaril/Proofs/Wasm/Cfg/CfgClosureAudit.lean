@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Cfg.CfgClosure.Defs
 public import Silmaril.Wasm.Cfg.CfgInst.Defs
 public import Silmaril.Wasm.Cfg.DanglingExn.Defs
 public import Silmaril.Wasm.Abstract.XRecursionP.Defs
+public import Silmaril.Wasm.Abstract.AuditControl.Defs
 public import Silmaril.Wasm.Cfg.CfgLegal.Defs
 meta import Lean.Elab.Command
 meta import Lean.Util.CollectAxioms
@@ -35,15 +36,19 @@ self-contained CFG closure and the objects built from it:
      `wasmEvFunXP`, `wasmEvFunDXP`, `wasmEvFunDXPS`, `wasmEvPendXPS`, `wasmEvInfNXP`,
      `sessionTripleXP`, `LogDivXP`, `InfLXP`, `LDLwXP`, `InfLwXP`).
 2. **Fail closed on uninspectable constants.** A reached constant whose body the walk cannot
-   inspect (an `opaque` constant, an axiom, a name missing from the environment, or, in a module,
-   an imported definition whose body is not exposed) **fails** the audit, unless one of these holds:
-   - **Its type is a proposition.** It is then a proof, and proofs are irrelevant to what a
+   inspect fails the audit, **whatever module or topic declares it**. This covers an `opaque`
+   constant, an axiom, a name missing from the environment, and, in a module, an imported
+   definition whose body is not exposed. There are two exceptions:
+   - **Its type is a proposition.** It is a kernel proof, and proofs are irrelevant to what a
      definition denotes.
-   - **It is declared in a module of an external dependency** (not `Silmaril.*`, e.g. `Init`,
-     `Std`, `Lean`, `Mathlib`). Such a module cannot import Silmaril, so its constants cannot
-     depend on Silmaril's native objects.
+   - **It is on the explicit allowlist `trustedOpaque`.** This is the trust boundary, kept as
+     narrow as the current roots need:
+     - the standard axiom `Classical.choice`;
+     - Lean-core (`Init`) definitions whose bodies the module system does not expose:
+       `Lean.mkAtom`, `List.all₂`, `Nat.land`, `Nat.lor`, `Nat.repr`, `Nat.xor`,
+       `String.Internal.append`.
 
-   Opaque **data** or closures declared in Silmaril always fail.
+     Any other uninspectable data or closure, imported from any module, fails.
 3. **Axiom closure.** For every root, the axioms its whole closure depends on, proofs included
    (`Lean.collectAxioms`, as `#print axioms`), must be among `propext`, `Classical.choice` and
    `Quot.sound`. This is checked here directly, not inferred from `scripts/check-layout.sh`
@@ -52,8 +57,12 @@ self-contained CFG closure and the objects built from it:
 ## Positive controls (the checks are effective)
 
 - The scoped native instance `CfgSession.cfgSessionTriple` reaches `closedCallXP` and `FunDivXP`.
-- **Adversarial:** `auditOpaqueRoot` uses `auditOpaqueAlias`, an `opaque` alias of the native
-  oracle `closedCallXP`. The walk cannot see through it, and the audit must reject the root.
+- **Adversarial, same module:** `auditOpaqueRoot` uses `auditOpaqueAlias`, an `opaque` alias of the
+  native oracle `closedCallXP`. The audit must reject it.
+- **Adversarial, another module and topic** (`Wasm.Abstract.AuditControl`): the audit must reject
+  `auditCrossOpaqueRoot`, which uses the `opaque` alias `AuditControl.opaqueAlias`, and
+  `auditCrossHiddenRoot`, which uses `AuditControl.hiddenAlias`, whose body is not exposed to this
+  module.
 - The axiom check rejects `sorryAx`, the axiom behind `sorry`.
 
 From the Wasm side, what is reached is the open logged relations `Abstract.EvalLXPS`/`ReachLXPS`
@@ -115,14 +124,13 @@ meta def isProofAux (n : Name) : Bool :=
 meta def isNative (n : Name) : Bool :=
   nativePrefixes.any (·.isPrefixOf n) || nativeNames.contains n
 
-/-- The module declaring `n` belongs to Silmaril (or `n` is missing: fail closed). -/
-meta def inSilmaril (env : Environment) (n : Name) : Bool :=
-  match Environment.getModuleIdxFor? env n with
-  | some i => (`Silmaril).isPrefixOf ((Environment.header env).moduleNames[i.toNat]!)
-  | none => true
+/-- **The trust boundary**: the uninspectable non-proof constants the audit admits, by name. -/
+meta def trustedOpaque : List Name :=
+  [``Classical.choice, ``Lean.mkAtom, ``List.all₂, ``Nat.land, ``Nat.lor, ``Nat.repr, ``Nat.xor,
+    ``String.Internal.append]
 
 /-- The violations of the audit from `r`: native objects reached, and uninspectable computational
-constants declared in Silmaril. -/
+constants outside the allowlist. -/
 meta def violations (r : Name) : CommandElabM (List MessageData) := do
   let env ← getEnv
   let (seen, unseen) := reach env [r]
@@ -136,9 +144,9 @@ meta def violations (r : Name) : CommandElabM (List MessageData) := do
     | none => hid := n :: hid
     | some ci =>
       if (← liftTermElabM (Meta.isProp ci.type)) then continue
-      if inSilmaril env n then hid := n :: hid
+      unless trustedOpaque.contains n do hid := n :: hid
   unless hid.isEmpty do
-    out := m!"{r}: uninspectable computational constants declared in Silmaril: {hid}" :: out
+    out := m!"{r}: uninspectable computational constants outside the allowlist: {hid}" :: out
   return out
 
 /-- The standard axioms. -/
@@ -154,6 +162,13 @@ private opaque auditOpaqueAlias : Abstract.CallRel Nat := Abstract.XRecursionP.c
 
 /-- **Adversarial control**: a definition hiding the native oracle behind the opaque alias. -/
 private def auditOpaqueRoot : Abstract.CallRel Nat := auditOpaqueAlias
+
+/-- **Adversarial control**: the native oracle behind an `opaque` alias of another topic. -/
+private def auditCrossOpaqueRoot : Abstract.CallRel Nat := Abstract.AuditControl.opaqueAlias
+
+/-- **Adversarial control**: the native oracle behind a definition of another topic whose body
+this module does not see. -/
+private def auditCrossHiddenRoot : Abstract.CallRel Nat := Abstract.AuditControl.hiddenAlias
 
 run_cmd do
   let roots : List Name :=
@@ -176,6 +191,10 @@ run_cmd do
     throwError "control failed: the walk no longer sees the native instance's dependency"
   if (← violations ``auditOpaqueRoot).isEmpty then
     throwError "control failed: an opaque alias of the native oracle passed the audit"
+  if (← violations ``auditCrossOpaqueRoot).isEmpty then
+    throwError "control failed: a cross-topic opaque alias of the native oracle passed the audit"
+  if (← violations ``auditCrossHiddenRoot).isEmpty then
+    throwError "control failed: a cross-topic hidden alias of the native oracle passed the audit"
   if (← badAxioms ``sorryAx).isEmpty then
     throwError "control failed: the axiom check accepted sorryAx"
 
