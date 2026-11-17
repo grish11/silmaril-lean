@@ -544,7 +544,8 @@ def entryJson (env : Env) (e : Entry) (stat : List (String × Status)) (dup : Bo
   let decl : Json := match e.body with
     | .function f => gotJson (fun cp => cp.render e.name) f.proto
     | .typedef t => gotJson (fun t => "typedef " ++ t.declare e.name) t
-    | .tag d => Json.mkObj [("ok", js (kindText e.kind ++ " " ++ e.name ++ (if d then " { … }" else "")))]
+    | .tag d => Json.mkObj [("ok", js (kindText e.kind ++ " " ++
+        (if e.name == "" then "(anonymous)" else e.name) ++ (if d then " { … }" else "")))]
     | .variable t st =>
       gotJson (fun t => (match st with | some x => x ++ " " | none => "") ++ t.declare e.name) t
     | .unsupported w => Json.mkObj [("unsupported", js w)]

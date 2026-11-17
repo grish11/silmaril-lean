@@ -66,7 +66,9 @@ fs.writeFileSync(path.join(tdir, "headers", "index.json"), JSON.stringify(t));
 const srv = serve(site, port, "/tmp/headers_requests.jsonl"), tsrv = serve(tdir, tport, "/tmp/headers_tamper_requests.jsonl");
 const b = await pw.chromium.launch({ executablePath: process.env.CHROME ||
   (fs.existsSync("/opt/ms-playwright/chromium-1248/chrome-linux64/chrome") ? "/opt/ms-playwright/chromium-1248/chrome-linux64/chrome" : undefined) });
-const statusText = (s) => !s ? "—" : s.status === "claimable" ? "claimable" : s.status === "notFunction" ? "not a function" : `${s.status}: ${s.why}`;
+const statusText = (s, e) => !s ? "—" : s.status === "claimable" ? "claimable" : s.status === "notFunction" ? "not a function"
+  : s.status === "internal" && e && e.implicit ? (e.duplicateOfExplicit ? "excluded duplicate" : "implicit, excluded")
+  : `${s.status}: ${s.why}`;
 try {
   await new Promise((r) => setTimeout(r, 800));
   const p = await b.newPage({ viewport: { width: 1500, height: 1400 } });
@@ -178,7 +180,7 @@ try {
           (e.asmLabel == null || r.symbol.includes("asm label " + e.asmLabel)) && r.attrs === (e.attrs || []).join(", ") &&
           (!e.loc || r.row.includes(`${e.loc.file}:${e.loc.line}`)) &&
           (e.decl.ok != null ? r.row.includes(e.decl.ok) : r.row.includes("import: " + e.decl.unsupported)) &&
-          d.abis.every((a) => r.st[a.name]?.s === e.status[a.name].status && r.st[a.name].t.startsWith(statusText(e.status[a.name])) &&
+          d.abis.every((a) => r.st[a.name]?.s === e.status[a.name].status && r.st[a.name].t.startsWith(statusText(e.status[a.name], e)) &&
             (e.status[a.name].status !== "claimable" || !e.lowering?.[a.name]?.ok || r.st[a.name].t.includes(e.lowering[a.name].ok)) &&
             (a.name !== "sysvScalar" || e.status[a.name].status !== "claimable" || !e.lowering?.sysvScalar?.plan?.ok || r.st[a.name].t.includes("result: " + e.lowering.sysvScalar.plan.ok.result)));
         if (!ok) { eok = false; bad1 ||= `#${i} ${e.name}`; }
