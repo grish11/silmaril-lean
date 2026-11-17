@@ -377,6 +377,18 @@ theorem coreInf_trap {s : Store H} {f : Frame} {ws : List Val} {r : List Admin}
   rw [show [Admin.trap] = vals [] ++ Admin.trap :: [] by simp [vals], decompose?_trap_head] at hd
   cases hd
 
+/-- **A head exception has no productive run.** -/
+theorem coreInf_throw {s : Store H} {f : Frame} {ws : List Val} {x : Nat} {r : List Admin}
+    {ω : Nat → Call (wasmHostSig H)} :
+    ¬ CoreInf P host ⟨s, f, vals ws ++ throwing x ++ r⟩ ω := by
+  rintro ⟨g, hg0, hg⟩
+  obtain ⟨c₁, hs, he⟩ := hg 0
+  obtain ⟨k, hk⟩ := silent_evRunN (hg0 ▸ hs)
+  obtain ⟨rfl, -⟩ := evRunN_throw_head hk (noFree_of_event he)
+  have hd := decompose_of_event he
+  rw [show throwing x = vals [] ++ throwing x ++ [] by simp [vals], decompose?_throw_head] at hd
+  cases hd
+
 /-- **At a host call** the first event answers it, and the run goes on productively from the
 answer. -/
 theorem coreInf_host_call {s : Store H} {f : Frame} {a : Nat} {fi : FuncInst H} {hh : H}

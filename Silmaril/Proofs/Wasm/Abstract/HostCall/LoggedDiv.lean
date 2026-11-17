@@ -124,6 +124,19 @@ theorem evDiv_trap {n : Nat} {s : Store H} {f : Frame} {ws : List Val} {r : List
     rw [this] at hd
     cases hd
 
+/-- **A head exception does not diverge**, with or without events. -/
+theorem evDiv_throw {n : Nat} {s : Store H} {f : Frame} {ws : List Val} {x : Nat}
+    {r : List Admin} {cs : List (Call (wasmHostSig H))} :
+    ¬ EvDiv P host n ⟨s, f, vals ws ++ throwing x ++ r⟩ cs := by
+  rintro (⟨-, hd⟩ | ⟨k, cs₀, e, c₀, c₁, -, -, hr, he, -⟩)
+  · exact throw_not_diverges hd
+  · obtain ⟨rfl, -⟩ := evRunN_throw_head hr (noFree_of_event he)
+    obtain ⟨E, a, hd, -⟩ := he
+    have : decompose? s (vals [] ++ throwing x ++ []) = none := decompose?_throw_head
+    simp only [vals, List.map_nil, List.nil_append, List.append_nil] at this
+    rw [this] at hd
+    cases hd
+
 /-! ## Sequences -/
 
 /-- **Splitting a sequence**: `es` diverges with the whole log, or runs to values with a
