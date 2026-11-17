@@ -6,7 +6,7 @@ std: gnu11
 cwd: .
 command: clang -target x86_64-unknown-linux-gnu -x c -std=gnu11 /usr/include/string.h -Xclang -ast-dump=json -fsyntax-only
 filter: python3 -I filter.py /usr/include/string.h
-filter-sha256: ce3bb06a49a58ca0c6c77a2128838d40b274b2f362656d90604d32ef8a9bce7c
+filter-sha256: f7234d7a7bbf7792b9482c54edfb2d2a4ee1cb9f1c192a769e8cf0f34613241f
 input: /usr/include/string.h aa84f9ec0e15576219ff099be4ed2bd8ec5e23122a89f1d223bfbc3335f851fa (in the image)
-json-sha256: 2b1b2e1292276e1a6d2f171563eaeec7787b8c303c9bf7697c8bd0020503fba6
-json-bytes: 118602
+json-sha256: ffdce3a8b55ada683a2bdd3ebbf80b4ec273cff034a4f27a741895eafea8622d
+json-bytes: 33403

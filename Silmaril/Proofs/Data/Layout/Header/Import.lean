@@ -27,6 +27,19 @@ theorem mem_names_of_proto {H : Header} {f : String} {cp : CProto} (h : H.proto?
     have he : q.1 = f := by simpa using List.find?_some hf
     exact List.mem_map.mpr ⟨q, hm, he⟩
 
+theorem ofJson_provenance (prov : Provenance) (json : String) :
+    (Imported.ofJson prov json).provenance = prov := by
+  unfold Imported.ofJson
+  split
+  · rfl
+  · split
+    · rfl
+    · split
+      · rfl
+      · rename_i ms _
+        split <;> rfl
+      · rfl
+
 end Silmaril.Proofs.Data.Layout.Header.Import
 
 end

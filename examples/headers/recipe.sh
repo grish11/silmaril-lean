@@ -8,11 +8,16 @@
 #
 # Every artifact is `clang -Xclang -ast-dump=json -fsyntax-only` of one header, run by the clang
 # of the image below (pinned by digest), filtered by clang/filter.py (also run in that image,
-# by its python3) to the top-level declarations located in the header's own files. The
-# provenance of each artifact (image, clang version, exact command, defines, include paths,
-# SHA-256 of every input file, of the filter and of the JSON) is written next to it as
-# `<name>.prov` and read by Silmaril.Data.Layout.Header.Import.Pinned. The JSON is a pinned
-# tool output: the Lean import normalizes it and never assumes that clang is correct.
+# by its python3) to the top-level declarations located in the header's own files, each
+# projected to the keys the Lean import reads. The provenance of each artifact (image, clang
+# version, exact command, defines, include paths, SHA-256 of every input file, of the filter
+# and of the JSON) is written next to it as `<name>.prov` and read by
+# Silmaril.Data.Layout.Header.Import.Pinned. The JSON is a pinned tool output: the Lean import
+# normalizes it and never assumes that clang is correct.
+#
+# Last, emit.lean (compiled Lean, `lake env lean --run`; needs `lake` on PATH) writes the
+# normalized header of each artifact as a literal, Silmaril/Data/Layout/Header/Import/Pinned/
+# <Name>/Defs.lean. The kernel checks that literal against the JSON (Pinned.import_<name>).
 #
 # Inputs: the repository's examples/elf-ladder/01-leaf-arith/arith.h and
 # examples/elf-ladder/common/rt.h; examples/headers/probe/probe.h; zlib 1.3.1's zlib.h and
@@ -124,12 +129,34 @@ EOF
   done
 } > "$out/zlib-1.3.1/zlib.h"
 
+# The normalized headers as Lean literals.
+pinned=Silmaril/Data/Layout/Header/Import/Pinned
+if [ $check = 1 ]; then lean_out=$out/lean; else lean_out=$ROOT/$pinned; fi
+( cd "$ROOT" && lake build -q Silmaril.Data.Layout.Header.Import.Defs > /dev/null &&
+  lake env lean --run examples/headers/emit.lean "$out/clang" "$lean_out" )
+
 if [ $check = 1 ]; then
   status=0
   for f in "$out"/clang/*.json "$out"/clang/*.prov "$out/zlib-1.3.1/zlib.h"; do
     rel=${f#"$out/"}
     if cmp -s "$f" "$HERE/$rel"; then echo "ok $rel ($(wc -c < "$f") bytes)"
     else echo "DIFFERS $rel" >&2; status=1; fi
+  done
+  for f in "$lean_out"/*/Defs.lean; do
+    rel=$pinned/${f#"$lean_out/"}
+    if cmp -s "$f" "$ROOT/$rel"; then echo "ok $rel ($(wc -c < "$f") bytes)"
+    else echo "DIFFERS $rel" >&2; status=1; fi
+  done
+  # Lake does not track files read by `include_str`: the modules that read the header texts
+  # name their SHA-256, so that a change to a text changes (and rebuilds) the module.
+  for pair in "$pinned/Defs.lean examples/elf-ladder/01-leaf-arith/arith.h" \
+      "$pinned/Defs.lean examples/elf-ladder/common/rt.h" \
+      "Silmaril/Data/Layout/Header/Zlib/Defs.lean examples/headers/zlib-1.3.1/zlib.h" \
+      "Silmaril/Data/Layout/Header/Zlib/Defs.lean examples/headers/zlib-1.3.1/zconf-solo.h" \
+      "Silmaril/Data/Layout/Header/Zlib/Defs.lean examples/headers/zlib-1.3.1/zconf-hosted.h"; do
+    set -- $pair
+    if grep -q "$(sha "$ROOT/$2")" "$ROOT/$1"; then echo "ok $1 names the SHA-256 of $2"
+    else echo "STALE $1 does not name the SHA-256 of $2" >&2; status=1; fi
   done
   exit $status
 fi

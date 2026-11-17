@@ -17,7 +17,14 @@ configurations: `zconf-solo.h` (`-DZ_SOLO`: `z_size_t` is `unsigned long`, `z_cr
 Each configuration line cites the `zconf.h` line it resolves.
 
 The clang route reads the real files (`Header.Import.Pinned.zlibSolo`, `zlibHosted`);
-`Header.Import.Thms` compares the two.
+`Header.Import.Pinned.Thms` compares the two.
+
+SHA-256 of the files (which `examples/headers/recipe.sh --check` compares with the files, since
+Lake does not track `include_str`):
+
+* `zlib.h`: `9b1ae0b53463ea322bc7189fbacc1e9665fbee398f4582768390756c4ada1bf6`
+* `zconf-solo.h`: `b3b0082a46b11434dc3dbc62686f495ea34c8508e2ef533697d625f3cd74498f`
+* `zconf-hosted.h`: `4131a1cd7a88cc6d8e90831f9531cea845cc9330431fc13c9526fa812b637a28`
 -/
 
 @[expose] public section

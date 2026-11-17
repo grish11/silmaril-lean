@@ -6,9 +6,9 @@ std: gnu11
 cwd: zlib-1.3.1
 command: clang -target x86_64-unknown-linux-gnu -x c -std=gnu11 zlib.h -Xclang -ast-dump=json -fsyntax-only
 filter: python3 -I filter.py zlib.h ./zconf.h
-filter-sha256: ce3bb06a49a58ca0c6c77a2128838d40b274b2f362656d90604d32ef8a9bce7c
+filter-sha256: f7234d7a7bbf7792b9482c54edfb2d2a4ee1cb9f1c192a769e8cf0f34613241f
 source: zlib-1.3.1.tar.gz 9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23 https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz
 input: zlib.h 8a5579af72ea4f427ff00a4150f0ccb3fc5c1e4379f726e101133b1ab9fc600c
 input: ./zconf.h f5134250a67d57459234b63858f0d9d3ef8dcc48e9e1028d3f4fdcf6eae677ae
-json-sha256: 972085ef3285ec0b6cf8ac3590c5ab6c9191dfb238e01fc3a33cb1cbd277929e
-json-bytes: 114761
+json-sha256: c312a7c3c0ddd5c78b52e6c465f3e49ef5c5c05525016efc5868e8adfefe90b6
+json-bytes: 38247
