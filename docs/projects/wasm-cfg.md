@@ -627,6 +627,21 @@ The plain graph stays an over-approximation, and claims about it say so.
              the exception outcomes, tag matching, trap stores, and tail calls bypassing the
              caller's handlers. Then the stepwise projection extends to EH.
           3. Validated typed nested fixtures (block, loop, if, catch) on which it holds.
+             - Fixtures, done (`Wasm/Cfg/ExampleNested`; the module `nestMod` validates).
+               On each of three bodies, `MRunL` (empty log) and `MStepC` (every profile, host
+               and oracle) reach the same `exit` state, with the same stack, store and frame:
+               - `bodyNest`: `block`/`loop`/`if` with a `br 2` across two labels, exit `9, 42`;
+               - `bodyLoops`: the inner loop's `br_if 1` re-enters the outer loop once, with a
+                 counter local, exit `2` (`loops_logged_via`, `loops_core_via`);
+               - `bodyTry`: a `throw` in a block nested in a `try_table` is caught to an outer
+                 `block`, exit `4`, under stated tag hypotheses that hold at the instance
+                 (`nest_tag`).
+               Native `EvalLXPS` runs follow by `forward_sink`.
+             - Limits: no fixture exits from frames with outer values, so `brVals_junk` is not
+               exercised. These are concrete agreement facts on these bodies, proved by
+               running both machines. They are not derived from the stepwise projection
+               (`proj_step`, `proj_initial_closedX`). `bodyTry` lies outside its fragment
+               (`try_table`, `throw`).
           The `CloseOk` hypothesis is discharged in the session/host result by the canonical
           store-retaining closing correspondence, not kept as an assumption that all logs are good.
         - Converse support: `MachineLSeq.split` (a run of `es₁ ++ es₂` falls through `es₁` then runs
