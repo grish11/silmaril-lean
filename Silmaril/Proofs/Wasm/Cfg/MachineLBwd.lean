@@ -32,6 +32,10 @@ def MEnds (body : Expr) (Fin : Store H × Frame × POut → Prop) (st : MState H
     MRunL body st l₁ st' ∧ l = l₁ ++ l₂ ∧ Fin r ∧
       ((st'.node.IsSink ∧ l₂ = [] ∧ EndRel st' r) ∨ TailL body st' l₂ r)
 
+theorem mEnds_congr {body : Expr} {Fin : Store H × Frame × POut → Prop} {st : MState H}
+    {l l' : List (SCall H)} (h : l = l') (hE : MEnds body Fin st l) : MEnds body Fin st l' :=
+  h ▸ hE
+
 theorem mEnds_step {body : Expr} {Fin : Store H × Frame × POut → Prop} {st st' : MState H}
     {l₀ l : List (SCall H)} (hs : MStepL body st l₀ st') (h : MEnds body Fin st' l) :
     MEnds body Fin st (l₀ ++ l) := by
@@ -646,21 +650,217 @@ theorem mot {body : Expr} {Fin : Store H × Frame × POut → Prop} {s : Store H
   | callRet hargs hfi hty hk _ ihk =>
     intro p c i sg pre post ls l' hp hes hok hx
     obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
     obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
     obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
     subst htl
     refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
-    · simpa using blk_cont hp hok hx hns (EvalLXPS.callRet .nil hfi hty .nil) hk ihk s₀ f₀ N₀ l₀ hpre
+    · refine mEnds_congr ?_ (blk_cont hp hok hx hns (by rw [hl]; exact EvalLXPS.callRet .nil hfi hty .nil) hk ihk s₀ f₀ N₀ l₀ hpre)
+      simp
     · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
       exact absurd ⟨_, _, _, _, hk'⟩ hns
   | callThrow hargs hfi hty =>
     intro p c i sg pre post ls l' hp hes hok hx
     obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
     obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
     obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
     refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
-    · simpa using blk_abrupt hp hx hns (EvalLXPS.callThrow (es := []) .nil hfi hty)
-        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.callThrow (es := []) .nil hfi hty)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | opOk hi hargs hflat hk _ ihk =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    subst htl
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_cont hp hok hx hns (by rw [hl]; exact EvalLXPS.opOk (es := []) hi .nil hflat .nil) hk ihk s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | indRet hargs hres hfi hty hy hk _ ihk =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    subst htl
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_cont hp hok hx hns (by rw [hl]; exact EvalLXPS.indRet (es := []) .nil hres hfi hty hy .nil) hk ihk s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | refRet hargs hfi hty hy hk _ ihk =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    subst htl
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_cont hp hok hx hns (by rw [hl]; exact EvalLXPS.refRet (es := []) .nil hfi hty hy .nil) hk ihk s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | callTrap hargs hfi hty =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.callTrap (es := []) .nil hfi hty)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | opStop hi hargs hflat hfl =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.opStop (es := []) hi .nil hflat hfl)
+        (hfl) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | indThrow hargs hres hfi hty hy =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.indThrow (es := []) .nil hres hfi hty hy)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | indTrap hargs hres hfi hty hy =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.indTrap (es := []) .nil hres hfi hty hy)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | indRes hargs hres =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.indRes (es := []) .nil hres)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | refThrow hargs hfi hty hy =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.refThrow (es := []) .nil hfi hty hy)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | refTrap hargs hfi hty hy =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.refTrap (es := []) .nil hfi hty hy)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | refNull hargs =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.refNull (es := []) .nil)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | tail hargs hres hfi hty hy =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.tail (es := []) .nil hres hfi hty hy)
+        (id) (fun _ _ _ _ => by cases hres <;> rfl) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | tailRes hargs hres =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.tailRes (es := []) .nil hres)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | throw hargs ht he hn =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.throw (es := []) .nil ht he hn)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | throwRefNull hargs =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.throwRefNull (es := []) .nil)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
+    · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
+      exact absurd ⟨_, _, _, _, hk'⟩ hns
+  | throwRefExn hargs =>
+    intro p c i sg pre post ls l' hp hes hok hx
+    obtain ⟨e, post', rfl, hhd, htl⟩ := pos_head hp hes
+    have hl := hhd.symm
+    obtain ⟨rfl, rfl, hns⟩ := lift_op hhd.symm
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := nil_inv_normal hargs
+    refine ⟨fun s₀ f₀ N₀ l₀ hpre => ?_, fun t _ _ _ _ _ _ _ _ _ hpost hk' => ?_⟩
+    · refine mEnds_congr ?_ (blk_abrupt hp hx hns (by rw [hl]; exact EvalLXPS.throwRefExn (es := []) .nil)
+        (by simp [POut.IsNormal, Flow.IsNormal]) (fun _ _ _ h => by cases h) s₀ f₀ N₀ l₀ hpre)
+      simp
     · simp only [List.cons.injEq] at hpost; obtain ⟨rfl, -⟩ := hpost
       exact absurd ⟨_, _, _, _, hk'⟩ hns
   | _ => sorry
