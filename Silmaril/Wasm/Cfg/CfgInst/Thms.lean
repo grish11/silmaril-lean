@@ -82,7 +82,7 @@ open Silmaril.Wasm.Abstract (wasmHostSig coreHostRel HostTyped EvRun CoreInf Cor
 open Silmaril.Wasm.Abstract.NodeBridge (instHost StorePreserving viewTriple CoreCallout
   coreTripleSO qOf)
 open Silmaril.Wasm.Abstract.InstSession (instTripleS instSession core3SemD threadSemSD)
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE)
+open Silmaril.Wasm.Interp (NativeHostSlice HostSliceT HostSliceE)
 open Silmaril.Wasm.Interp.CheckComplete (StoreSupported storeChkE_of_storeOk)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 open Silmaril.Wasm.Component (Comp)
@@ -125,7 +125,7 @@ variable {H : Type} {o : GrowOracle} {host : HostSemantics H} {tags : List TagIn
 
 /-- **The open Core triple is the openly host-restricted self-contained CFG session triple**, at
 each question of `InvOkXP tags`. -/
-theorem coreTripleSO_agree_cfg (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem coreTripleSO_agree_cfg (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {q : Nat × List Val} (hok : InvOkXP tags s q) :
     AgreeAt (coreTripleSO (profile o) host)
       (openRestrict (coreHostRel host) CfgClosure.cfgSessionTripleC) s q :=

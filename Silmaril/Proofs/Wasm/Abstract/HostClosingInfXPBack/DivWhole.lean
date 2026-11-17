@@ -36,7 +36,7 @@ variable {H : Type} {tags : List TagInst} {o : GrowOracle} {host : HostSemantics
 /-! ## Conditionals and handlers -/
 
 /-- **A conditional diverging alone**: in its condition, or in its chosen arm. -/
-theorem headDiv_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headDiv_if (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {c t el es : List BExpr} (ihC : DivG tags o host n c)
     (ihA : ∀ b : Bool, ∀ m ≤ n, DivG tags o host m (if b then t else el))
     (ht : TypedP tags s f stk (.if_ bt c t el :: es))
@@ -100,7 +100,7 @@ theorem headDiv_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostS
     · exact head_contra hT hH hE ht1 (.ifEsc hd hb har hd₂ hesc) hw hdv₁
 
 /-- **A `try_table` diverging alone**: in its body. -/
-theorem headDiv_try (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headDiv_try (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {cl : List Catch} {body es : List BExpr} (ihB : DivG tags o host n body)
     (ht : TypedP tags s f stk (.tryTable bt cl body :: es))
     (hdv : EvDiv (profile o) host n ⟨s, f, xcode stk [.tryTable bt cl body]⟩ cs) :
@@ -169,7 +169,7 @@ theorem headDiv_try (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Host
 
 /-- **The divergent backward simulation**, for divergences cut within every number of steps: by
 strong induction on the measure of `EvDiv`, then the size of the trees. -/
-theorem div_all (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem div_all (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     (n : Nat) : (∀ es, DivG tags o host n es) ∧ CallDivG tags o host n := by
   induction n using Nat.strong_induction_on with
   | _ n ih =>
@@ -222,7 +222,7 @@ theorem div_all (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSlic
 
 /-- **A Core run of a typed invocation with the host events `cs`, then host-free divergence, is
 `(cs, div)` in `wasmEvFunDXP`** (deterministic profile). -/
-theorem evRun_div (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem evRun_div (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {a : Nat} {vs : List Val} {c' : Config H} (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs)
     (hrun : EvRun (profile o) host (invoke s a vs) cs c')

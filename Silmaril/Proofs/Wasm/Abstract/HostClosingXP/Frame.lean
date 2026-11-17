@@ -116,7 +116,7 @@ theorem steps_enter_callee {s : Store H} {f : Frame} {a : Nat} {us : List Val} {
 
 /-- **A Wasm callee whose body ends in a flow**: its logged body run, the frame left with the
 values or the exception. -/
-theorem calleeRun_flow {tags : List TagInst} (hH : NativeHostSlice host)
+theorem calleeRun_flow {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s' : Store H} {a : Nat} {us : List Val} {fi : FuncInst H}
     {fn : Func} {ps rs : List Validation.CValType} {f₂ : Frame} {bfl fl : Binaryen.Flow}
     {q : List (Call (wasmHostSig H))} {b : List Val ⊕ Nat}
@@ -151,7 +151,7 @@ theorem calleeRun_flow {tags : List TagInst} (hH : NativeHostSlice host)
 /-- **A Wasm callee whose body ends in a pending tail call**: its logged body run to Core's
 pending tail call, the frame left (`return_call_ref-label`, `return_call_ref-frame-addr`), then
 the tail callee's logged run in the caller's frame. -/
-theorem calleeRun_tail {tags : List TagInst} (hH : NativeHostSlice host)
+theorem calleeRun_tail {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₁ s₂ s' : Store H} {a a' n : Nat} {us args : List Val}
     {fi : FuncInst H} {fn : Func} {ps rs : List Validation.CValType} {f₂ : Frame}
     {q qc : List (Call (wasmHostSig H))} {b b' : List Val ⊕ Nat}

@@ -22,8 +22,8 @@ Proofs in `Silmaril.Proofs.Wasm.Abstract.HostClosingInfXP`.
   productive run; a resolved productive run of a Wasm body, and the productive runs through
   unbounded recursion, are productive runs of the invocation.
 
-**Canonical to Core, every profile** (a host in the native host slice whose answers keep the
-exception checker's store check and the tag invariants, `Interp.HostSliceE tags`; a store with
+**Canonical to Core, every profile** (a host in the typed host slice, possibly throwing, whose
+answers keep the exception checker's store check and the tag invariants, `Interp.HostSliceE tags`; a store with
 the tag invariants `Interp.TagsOk tags` and the exception checker's store check
 `Interp.StoreChkE (Interp.ehExt tags)`; a typed invocation; the hypotheses of the forward
 theorems of `HostClosingXP`):
@@ -102,14 +102,14 @@ theorem closeInf_le_wasmEvInfNXP {s : Store H} {a : Nat} {vs : List Val} :
 
 section Fwd
 
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE TagsOk StoreChkE ehExt)
 
 variable {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H} {tags : List TagInst}
 
 /-- **Divergence after a log is a Core run with exactly that log, then host-free divergence**
 (every profile): a divergent behaviour `(cs, div)` of `wasmEvFunDXP` whose log the host allows
 is a Core run of the invocation with exactly the host events `cs`, then host-free divergence. -/
-theorem wasmEvFunDXP_div_evRun (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem wasmEvFunDXP_div_evRun (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {a : Nat} {vs : List Val} (hts : TagsOk tags s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {cs : List (Call (wasmHostSig H))} (h : (cs, .div) ∈ wasmEvFunDXP s (a, vs))
@@ -120,7 +120,7 @@ theorem wasmEvFunDXP_div_evRun (hH : NativeHostSlice host) (hE : HostSliceE tags
 /-- **Productive canonical runs are productive Core runs** (every profile): every productive run
 of `wasmEvInfNXP` whose answers the host allows is a productive Core run of the invocation with
 exactly its events. -/
-theorem wasmEvInfNXP_coreInf (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem wasmEvInfNXP_coreInf (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {a : Nat} {vs : List Val} (hts : TagsOk tags s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {ω : Nat → Call (wasmHostSig H)} (h : ω ∈ wasmEvInfNXP s (a, vs))
@@ -130,7 +130,7 @@ theorem wasmEvInfNXP_coreInf (hH : NativeHostSlice host) (hE : HostSliceE tags h
 
 /-- **A productive observation of `wasmEvInfNXP` against a host is a productive Core run** of
 the invocation with exactly its events (every profile). -/
-theorem hostObsInf_wasmEvInfNXP_coreInf (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem hostObsInf_wasmEvInfNXP_coreInf (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {a : Nat} {vs : List Val} (hts : TagsOk tags s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {ω : Nat → Call (wasmHostSig H)}
@@ -141,7 +141,7 @@ theorem hostObsInf_wasmEvInfNXP_coreInf (hH : NativeHostSlice host) (hE : HostSl
 /-- **The productive observations of `wasmEvInfNXP` are Core observations** (every profile):
 against such a host, `wasmEvInfNXP` observes no productive run that the Core witness
 `wasmEvInf P` does not. -/
-theorem hostObsInf_wasmEvInfNXP_le (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem hostObsInf_wasmEvInfNXP_le (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {a : Nat} {vs : List Val} (hts : TagsOk tags s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs) :
     hostObsInf (coreHostRel host) wasmEvInfNXP s (a, vs) ⊆

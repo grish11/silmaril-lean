@@ -110,7 +110,7 @@ theorem through {K T c : Config H} {n : Nat} {cs : List (Call (wasmHostSig H))}
   evRunN_through_steps hs h hend
 
 /-- The end of a resolved logged run, packaged. -/
-theorem mkOut {tags : List TagInst} (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem mkOut {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs : List (Call (wasmHostSig H))} {c : Config H} {n : Nat}
     (ht : TypedP tags s f stk es)
@@ -121,7 +121,7 @@ theorem mkOut {tags : List TagInst} (hH : NativeHostSlice host) (hE : HostSliceE
   exact ⟨l, r, hd, hres, match_end hH hE hd hres (evRun_consistent (evRunN_evRun ha)) hts hS hc ha hend⟩
 
 /-- The end of a resolved logged run whose log the Core run extends: no further event. -/
-theorem mkOut' {tags : List TagInst} (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem mkOut' {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs cs' : List (Call (wasmHostSig H))} {c : Config H} {n : Nat}
     (ht : TypedP tags s f stk es)
@@ -135,7 +135,7 @@ theorem mkOut' {tags : List TagInst} (hH : NativeHostSlice host) (hE : HostSlice
   exact ⟨h₁, l, r, hd, hres, h₂⟩
 
 /-- The end of a resolved logged run whose log the Core run extends, as the whole log. -/
-theorem mkOut'' {tags : List TagInst} (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem mkOut'' {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs cs' : List (Call (wasmHostSig H))} {c : Config H} {n : Nat}
     (ht : TypedP tags s f stk es)

@@ -109,14 +109,14 @@ theorem mem_wasmEvFunXPS_ret_iff {s s₂ : Store H} {p : Nat × List Val}
 
 section Core
 
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE TagsOk StoreChkE ehExt)
 
 variable {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H} {tags : List TagInst}
 
 /-- **A store-keeping trap is a Core run to a trap in exactly its store** (every profile): a
 behaviour `(cs, ret (inr ()) s₂)` of `wasmEvFunXPS` with a log the host allows is a Core run of
 the invocation with exactly the host events `cs` to a trap in the store `s₂`. -/
-theorem wasmEvFunXPS_trap_evRun (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem wasmEvFunXPS_trap_evRun (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s s₂ : Store H} {a : Nat} {vs : List Val} (hts : TagsOk tags s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {cs : List (Call (wasmHostSig H))} (h : (cs, .ret (.inr ()) s₂) ∈ wasmEvFunXPS s (a, vs))
@@ -125,7 +125,7 @@ theorem wasmEvFunXPS_trap_evRun (hH : NativeHostSlice host) (hE : HostSliceE tag
   Silmaril.Proofs.Wasm.Abstract.HostClosingS.wasmEvFunXPS_trap_evRun hH hE hts hS hok h hc
 
 /-- **Returning session behaviours are Core runs to their values** (every profile). -/
-theorem wasmEvFunXPS_vals_evRun (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem wasmEvFunXPS_vals_evRun (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s s₂ : Store H} {a : Nat} {vs ws : List Val} (hts : TagsOk tags s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {cs : List (Call (wasmHostSig H))} (h : (cs, .ret (.inl (.inl ws)) s₂) ∈ wasmEvFunXPS s (a, vs))
@@ -135,7 +135,7 @@ theorem wasmEvFunXPS_vals_evRun (hH : NativeHostSlice host) (hE : HostSliceE tag
 
 /-- **Uncaught exceptions of the session closure are Core runs to the thrown exception** (every
 profile). -/
-theorem wasmEvFunXPS_throw_evRun (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem wasmEvFunXPS_throw_evRun (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s s₂ : Store H} {a : Nat} {vs : List Val} {t : Nat} (hts : TagsOk tags s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {cs : List (Call (wasmHostSig H))} (h : (cs, .ret (.inl (.inr t)) s₂) ∈ wasmEvFunXPS s (a, vs))
@@ -147,14 +147,14 @@ end Core
 
 section CoreIff
 
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE TagsOk StoreChkE ehExt)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 variable {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
 
 /-- **A Core run to a trap in `s₂` is the session trap in exactly `s₂`** (deterministic
 profile), with exactly the run's log. -/
-theorem evRun_wasmEvFunXPS_trap (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem evRun_wasmEvFunXPS_trap (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs : List Val}
     {cs : List (Call (wasmHostSig H))} (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs)
@@ -166,7 +166,7 @@ theorem evRun_wasmEvFunXPS_trap (hT : HostTyped host) (hH : NativeHostSlice host
 profile): `(cs, ret (inr ()) s₂)` is a behaviour of `wasmEvFunXPS` with a log the host allows
 exactly when the invocation has a Core run with the host events `cs` to a trap in the store
 `s₂`. -/
-theorem wasmEvFunXPS_trap_iff (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem wasmEvFunXPS_trap_iff (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs : List Val}
     {cs : List (Call (wasmHostSig H))} (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs) :
@@ -177,7 +177,7 @@ theorem wasmEvFunXPS_trap_iff (hT : HostTyped host) (hH : NativeHostSlice host)
 
 /-- **Returning session behaviours at exactly their log, both directions** (deterministic
 profile). -/
-theorem wasmEvFunXPS_vals_iff (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem wasmEvFunXPS_vals_iff (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs ws : List Val}
     {cs : List (Call (wasmHostSig H))} (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs) :
@@ -189,7 +189,7 @@ theorem wasmEvFunXPS_vals_iff (hT : HostTyped host) (hH : NativeHostSlice host)
 
 /-- **Uncaught exceptions of the session closure at exactly their log, both directions**
 (deterministic profile). -/
-theorem wasmEvFunXPS_throw_iff (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem wasmEvFunXPS_throw_iff (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs : List Val} {t : Nat}
     {cs : List (Call (wasmHostSig H))} (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs) :

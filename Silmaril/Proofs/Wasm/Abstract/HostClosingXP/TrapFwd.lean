@@ -74,7 +74,7 @@ end Split
 
 /-- A full logged run, its resolved log consistent: an oracle run, the tag invariants after
 it, its arity facts and its logged Core run. -/
-theorem full_run {tags : List TagInst} (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem full_run {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {q : List (Call (wasmHostSig H))}
     (hd : EvalLXPh s f stk es l r) (hq : Shape.SubstPre (GoodCX tags P host) (l.map OCall.lift) q)
@@ -99,7 +99,7 @@ theorem split_res {tags : List TagInst} {la m : List (OCall H)} {q c₁ : List (
 
 /-- **The logged forward simulation of a run cut at a trapping callee**, every profile: the run
 traps in the store of the callee's trap (`S`), which no context changes. -/
-theorem evalLXPh_trap {tags : List TagInst} {S : Store H → Prop} (hH : NativeHostSlice host)
+theorem evalLXPh_trap {tags : List TagInst} {S : Store H → Prop} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {f : Frame} {stk : List Val}
     {es : List Binaryen.BExpr} {l : List (OCall H)} {r : Store H × Frame × POut}
     (h : EvalLXPh s f stk es l r) :

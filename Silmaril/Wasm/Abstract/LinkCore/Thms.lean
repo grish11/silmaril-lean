@@ -46,7 +46,8 @@ the equality of triples `linkT_coreTriple`. Clause by clause of `StratHost.linkT
   (`hostRestrict (coreHostRel host) (guardT InvOk openTriple)`, the triple of `natStrat`), linked
   with the host, is the closed Core semantics `closedCore (profile o) host InvOk`. Through
   `coreStrat_eq_hostRestrict`;
-* `comp_hostD_natStratXP` (`InvOkXP tags`, moreover `HostSliceE tags`): with exceptions, through
+* `comp_hostD_natStratXP` (`InvOkXP tags`, the typed host slice `HostSliceT`, possibly throwing,
+  moreover `HostSliceE tags`): with exceptions, through
   `natStratXP_eq_hostRestrict` and `coreStratXP_eq_natStratXP`.
 
 **The open native strategies, unrestricted** (`comp_hostD_openTriple`,
@@ -64,7 +65,7 @@ namespace Silmaril.Wasm.Abstract
 
 open Silmaril.Games Silmaril.Games.Abstract Silmaril.Games.Abstract.StratHost
   Silmaril.Wasm.Execution.Core
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE)
+open Silmaril.Wasm.Interp (NativeHostSlice HostSliceT HostSliceE)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
@@ -125,7 +126,7 @@ theorem comp_hostD_natStrat {o : GrowOracle} (hT : HostTyped host) (hH : NativeH
 closed Core semantics with exceptions** (deterministic profile, `InvOkXP tags`, a host with typed
 answers in the host slices). -/
 theorem comp_hostD_natStratXP {o : GrowOracle} {tags : List TagInst} (hT : HostTyped host)
-    (hH : NativeHostSlice host) (hE : HostSliceE tags host) :
+    (hH : HostSliceT host) (hE : HostSliceE tags host) :
     (hostD (coreHostRel host)).comp
         (StratObs.toDStrat (hostRestrict (coreHostRel host) (guardT (InvOkXP tags) openTripleXP))) =
       StratObs.toDStrat (closedCoreXP (profile o) host (InvOkXP tags)) :=
@@ -146,7 +147,7 @@ theorem comp_hostD_openTriple {o : GrowOracle} (hT : HostTyped host) (hH : Nativ
 with exceptions**, unrestricted (deterministic profile, `InvOkXP tags`, a host with typed answers
 in the host slices). -/
 theorem comp_hostD_openTripleXP {o : GrowOracle} {tags : List TagInst} (hT : HostTyped host)
-    (hH : NativeHostSlice host) (hE : HostSliceE tags host) :
+    (hH : HostSliceT host) (hE : HostSliceE tags host) :
     (hostD (coreHostRel host)).comp (StratObs.toDStrat (guardT (InvOkXP tags) openTripleXP)) =
       StratObs.toDStrat (closedCoreXP (profile o) host (InvOkXP tags)) := by
   rw [comp_hostD_toDStrat, ← linkT_hostRestrict _ (saturated_guardT openTripleXP_admissible),

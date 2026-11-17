@@ -90,7 +90,7 @@ theorem trapCode_nil {o : GrowOracle} {s : Store H} {f F : Frame} {k : Nat} {cod
   exact (wp_end hw h hend).1
 
 /-- The closure behaviour of a call answered by a host function. -/
-theorem host_ans_close (hH : NativeHostSlice host) {s s' : Store H} {a : Nat} {us : List Val}
+theorem host_ans_close (hH : HostSliceT host) {s s' : Store H} {a : Nat} {us : List Val}
     {fi : FuncInst H} {hh : H} {ps rs : List Validation.CValType} {ws : List Val}
     (hf : s.funcs[a]? = some fi) (hcode : fi.code = .host hh)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
@@ -109,7 +109,7 @@ variable {tags : List TagInst} {o : GrowOracle}
 
 /-- **The logged backward simulation of a call**, from the statements for strictly shorter
 runs. -/
-theorem callG_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem callG_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {n : Nat} (ihB : ∀ m < n, ∀ es, BackG tags o host m es) (ihC : ∀ m < n, CallG tags o host m) :
     CallG tags o host n := by
   intro s₁ f₁ pre us a cr rest c cs hcr hcc hct hrun hend hnd
@@ -132,7 +132,9 @@ theorem callG_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostS
     · rcases r with ws | t | _
       · exact .inl ⟨_, .inl ws, s', m, cs', host_ans_close hH hfi hcode hty hans, rfl, hm,
           by simpa [ansCode, Result.toAdmin] using hk⟩
-      · exact (hH.noThrow _ _ _ _ _ hans).elim
+      · -- a host exception: the answer `inr t`, the run going on from `throwing t`
+        exact .inl ⟨_, .inr t, s', m, cs', close_hostX (fl := .throw t) hfi hcode hty rfl, rfl,
+          hm, by simpa [ansCode, Result.toAdmin] using hk⟩
       · have hk' : EvRunN (profile o) host m ⟨s', f₁, vals pre ++ .trap :: rest⟩ cs' c := by
           simpa [Result.toAdmin] using hk
         obtain ⟨-, rfl⟩ := evRunN_trap_head hk' hend

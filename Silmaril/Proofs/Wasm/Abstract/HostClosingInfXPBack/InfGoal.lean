@@ -188,7 +188,7 @@ theorem link_cons {s : Store H} {f : Frame} {stk : List Val} {e : BExpr} {es : L
   exact h2
 
 /-- **A head tree with a resolved logged run does not run productively alone** after its log. -/
-theorem head_contraI (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem head_contraI (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs₁ : List (Call (wasmHostSig H))}
     {ω : Nat → Call (wasmHostSig H)}

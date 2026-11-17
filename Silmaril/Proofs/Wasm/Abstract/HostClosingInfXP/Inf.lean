@@ -188,7 +188,7 @@ theorem coreInf_enter {c₀ c : Config H} {ω : Nat → Call (wasmHostSig H)} (O
 
 section Fwd
 
-variable {tags : List TagInst} (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+variable {tags : List TagInst} (hH : HostSliceT host) (hE : HostSliceE tags host)
 include hH hE
 
 /-- **A productive run of trees within their function is a productive Core run** with the

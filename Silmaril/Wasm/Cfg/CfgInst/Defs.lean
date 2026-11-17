@@ -19,11 +19,12 @@ machine, every closed answer and callee divergence CFG-defined).
 
 `instHost I` answers an import call by **any** answer of the import type, including
 `Answer.throw t` with an arbitrary address `t`. The native↔Core bridge
-(`HostSessionXP.natTripleSXP_eq_coreTripleSXP`) needs hosts in the native host slice
-(`Interp.NativeHostSlice`), whose field `noThrow` excludes thrown answers, and with typed answers
-(`Abstract.HostTyped`, whose `ResultTyped` for a throw needs an existing exception). So
-`instHost I` is not in the slice as soon as `I` has an import (`CfgInst.not_nativeHostSlice_instHost`).
-The explicit domain below therefore **excludes host exceptions**: the instance triple is
+(`HostSessionXP.natTripleSXP_eq_coreTripleSXP`) accepts throwing hosts (the typed host slice
+`Interp.HostSliceT`), but with typed answers (`Abstract.HostTyped`, whose `ResultTyped` for a
+throw needs an existing exception), which `instHost I` does not have for a dangling `t`. This
+module still uses the non-throwing special case: `instHost I` is not in the native host slice
+`Interp.NativeHostSlice` as soon as `I` has an import (`CfgInst.not_nativeHostSlice_instHost`),
+and the explicit domain below **excludes host exceptions**: the instance triple is
 restricted to logs and streams without a thrown import answer (`noThrowT`). Exceptions raised and
 caught or escaping *inside* Wasm code are kept (the checker `ehExt` covers `throw`, `throw_ref`
 and `try_table`).

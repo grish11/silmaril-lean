@@ -21,8 +21,8 @@ to the per-round triples of `HostStratXP`:
 * neither has a plain trap (`noPlainTrap_natTripleSXP`, `noPlainTrap_coreTripleSXP`).
 
 **The session square** (deterministic profile `profile o`, a host with typed answers in the
-native host slice whose answers keep the exception checker's store check and the tag invariants,
-on the questions `InvOkXP tags`):
+typed host slice `Interp.HostSliceT` (possibly throwing) whose answers keep the exception
+checker's store check and the tag invariants, on the questions `InvOkXP tags`):
 
 * `natTripleSXP_eq_coreTripleSXP`: the native session triple is the Core session triple. Off
   traps a behaviour is read back from its erasure (no plain traps on either side), and the
@@ -106,21 +106,21 @@ theorem natTripleSXP_trap_iff {host : HostSemantics H} {Ok : Store H → Nat × 
 
 section Square
 
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 variable {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
 
 /-- **The session square at the triple level** (deterministic profile): the native session
 triple against `host` is the store-retaining Core triple with exceptions, on `InvOkXP tags`. -/
-theorem natTripleSXP_eq_coreTripleSXP (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natTripleSXP_eq_coreTripleSXP (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) :
     natTripleSXP host (InvOkXP tags) = coreTripleSXP (profile o) host (InvOkXP tags) :=
   Silmaril.Proofs.Wasm.Abstract.HostSessionXP.natTripleSXP_eq_coreTripleSXP hT hH hE
 
 /-- **Finished native session behaviours are Core behaviours**, per question: values and
 exceptions at their store, a trap at exactly its store, host-free divergence. -/
-theorem natTripleSXP_mem_iff (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natTripleSXP_mem_iff (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {q : Nat × List Val}
     {x : CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit)} :
     x ∈ (natTripleSXP host (InvOkXP tags)).1 s q ↔
@@ -128,7 +128,7 @@ theorem natTripleSXP_mem_iff (hT : HostTyped host) (hH : NativeHostSlice host)
   rw [natTripleSXP_eq_coreTripleSXP (o := o) hT hH hE]; rfl
 
 /-- **Pending native session calls are pending Core callouts**, per question. -/
-theorem natTripleSXP_pend_iff (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natTripleSXP_pend_iff (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {q : Nat × List Val}
     {x : List (Call (wasmHostSig H)) × (wasmHostSig H).Op} :
     x ∈ (natTripleSXP host (InvOkXP tags)).2.1 s q ↔ InvOkXP tags s q ∧
@@ -137,7 +137,7 @@ theorem natTripleSXP_pend_iff (hT : HostTyped host) (hH : NativeHostSlice host)
   rw [natTripleSXP_eq_coreTripleSXP (o := o) hT hH hE]; rfl
 
 /-- **Productive native session streams are productive Core runs**, per question. -/
-theorem natTripleSXP_inf_iff (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natTripleSXP_inf_iff (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {q : Nat × List Val}
     {ω : Nat → Call (wasmHostSig H)} :
     ω ∈ (natTripleSXP host (InvOkXP tags)).2.2 s q ↔
@@ -146,7 +146,7 @@ theorem natTripleSXP_inf_iff (hT : HostTyped host) (hH : NativeHostSlice host)
 
 /-- **The session square at the strategy level** (deterministic profile): from every store, the
 native session with exceptions against `host` is the Core session. -/
-theorem natSessionXP_eq_coreSessionXP (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natSessionXP_eq_coreSessionXP (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (s₀ : Store H) :
     natSessionXP host (InvOkXP tags) s₀ = coreSessionXP (profile o) host (InvOkXP tags) s₀ :=
   congrArg (StratSession.threadS · s₀) (natTripleSXP_eq_coreTripleSXP hT hH hE)
@@ -154,7 +154,7 @@ theorem natSessionXP_eq_coreSessionXP (hT : HostTyped host) (hH : NativeHostSlic
 /-- **The native session continues after a trap, as Core does**: a round trapping at `q` then a
 round returning `ws` at `q'` is a play from `s₀` iff `q` runs in Core to a trap configuration in
 some store `s₁`, and `q'` runs from `s₁` to `ws`. -/
-theorem natSessionXP_mem_trap_ret (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natSessionXP_mem_trap_ret (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s₀ : Store H} {q q' : Nat × List Val}
     {c₁ c₂ : List (Call (wasmHostSig H))} {ws : List Val} :
     StratSession.sroundMoves (q, c₁, .inr PUnit.unit) ++
@@ -167,7 +167,7 @@ theorem natSessionXP_mem_trap_ret (hT : HostTyped host) (hH : NativeHostSlice ho
 
 /-- **A divergent play of the native session** after completed rounds ending at `s` is a Core
 run of `q` from `s`, at exactly the log `c`, followed by host-free divergence. -/
-theorem natSessionXP_mem_div (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natSessionXP_mem_div (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s₀ : Store H}
     {rs : List ((Nat × List Val) × List (Call (wasmHostSig H)) × ((List Val ⊕ Nat) ⊕ PUnit))}
     {q : Nat × List Val} {c : List (Call (wasmHostSig H))} :
@@ -180,7 +180,7 @@ theorem natSessionXP_mem_div (hT : HostTyped host) (hH : NativeHostSlice host)
 
 /-- **An infinite play of the current round of the native session** after completed rounds
 ending at `s` is a productive Core run of `q` from `s`. -/
-theorem natSessionXP_mem_inf (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natSessionXP_mem_inf (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s₀ : Store H}
     {rs : List ((Nat × List Val) × List (Call (wasmHostSig H)) × ((List Val ⊕ Nat) ⊕ PUnit))}
     {q : Nat × List Val} {ω : Nat → Call (wasmHostSig H)} :
@@ -194,18 +194,18 @@ theorem natSessionXP_mem_inf (hT : HostTyped host) (hH : NativeHostSlice host)
 
 /-- **The native session triple is deterministic given answers**: it does not depend on a
 profile, and it is the Core session triple at any deterministic profile. -/
-theorem natTripleSXP_det (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natTripleSXP_det (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) : AFun.Det (natTripleSXP host (InvOkXP tags)).1 :=
   natTripleSXP_eq_coreTripleSXP (o := SingleThreaded.neverFail) hT hH hE ▸
     CoreDet.coreTripleSXP_det hT fun _ _ h => ⟨h.1, h.2.2.2⟩
 
 /-- **The native session triple is store-deterministic.** -/
-theorem natTripleSXP_storeDet (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natTripleSXP_storeDet (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) : StratThread.StoreDet (natTripleSXP host (InvOkXP tags)) :=
   StratThread.storeDet_of_det (natTripleSXP_det hT hH hE)
 
 /-- **Native sessions identify exactly the observationally equivalent stores.** -/
-theorem natSessionXP_eq_iff (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natSessionXP_eq_iff (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s' : Store H} :
     natSessionXP host (InvOkXP tags) s = natSessionXP host (InvOkXP tags) s' ↔
       StratThread.ObsEq (natTripleSXP host (InvOkXP tags)) (natTripleSXP host (InvOkXP tags))
@@ -217,7 +217,7 @@ theorem natSessionXP_eq_iff (hT : HostTyped host) (hH : NativeHostSlice host)
 /-- **Native sessions have coherent infinite plays** (deterministic profile): a productive stream
 after completed session rounds, or the play of a coherent infinite sequence of session rounds,
 each starting at the store the previous one left. -/
-theorem natSessionXP_mem_inf_iff (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem natSessionXP_mem_inf_iff (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s₀ : Store H}
     {I : Set (List (Move (wasmHostSig H) (sig1 (Nat × List Val) (List Val ⊕ Nat))))} :
     I ∈ (natSessionXP host (InvOkXP tags) s₀).inf ↔

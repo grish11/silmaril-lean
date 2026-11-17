@@ -26,7 +26,7 @@ instruction fragment (the native instructions, annotated `select`, the call form
 fragment restriction, kept as an explicit hypothesis. Completeness of the checker on validated
 bodies inside the fragment is not proved either. On concrete stores it is decided by
 `storeChkEB`. The Core corollaries also keep their host hypotheses (`HostTyped`,
-`NativeHostSlice`, `HostSliceE`), which are about the host, not the module.
+`HostSliceT`, `HostSliceE`), which are about the host, not the module.
 
 * `logged_of_valid`, `proj_of_valid`: `MachineLClose.logged_of_session`/`proj_of_session` from
   `StoreOk`, `InvokeOk` and the checker's acceptance.
@@ -44,7 +44,7 @@ open Silmaril.Wasm.Abstract (SCall wasmEvFunXPS endOfFlowS tailAnsS exitFlow)
 open Silmaril.Wasm.Abstract.XRecursionP (closedCallXP)
 open Silmaril.Wasm.Abstract.TypedCat (fitP)
 open Silmaril.Wasm.Abstract.TypedCatValid (storeCtx)
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE StoreChkE ehExt)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE StoreChkE ehExt)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 variable {H : Type}
@@ -117,7 +117,7 @@ theorem cfgFunDiv_iff_diverges_valid {s : Store H} {a : Nat} {vs : List Val} (hs
   cfgFunDiv_iff_diverges hs hok hchk (Abstract.TypedCatValid.tagsOk_of_storeOk hs)
 
 /-- **A CFG trap answer of a valid invocation is a host-free Core run to a trap.** -/
-theorem cfgAns_trap_iff_valid (hT : Abstract.HostTyped host) (hH : NativeHostSlice host)
+theorem cfgAns_trap_iff_valid (hT : Abstract.HostTyped host) (hH : HostSliceT host)
     {s s₂ : Store H} (hE : HostSliceE s.tags host) {a : Nat} {vs : List Val} (hs : StoreOk s)
     (hchk : StoreChkE (ehExt s.tags) s.funcs) (hok : InvokeOk s a vs) :
     cfgAns (Abstract.SCall.mk a vs s (.inr ()) s₂) ↔
@@ -125,7 +125,7 @@ theorem cfgAns_trap_iff_valid (hT : Abstract.HostTyped host) (hH : NativeHostSli
   cfgAns_trap_iff hT hH hE hs hchk (Abstract.TypedCatValid.tagsOk_of_storeOk hs) hok
 
 /-- **A CFG answer by values of a valid invocation is a host-free Core run to them.** -/
-theorem cfgAns_vals_iff_valid (hT : Abstract.HostTyped host) (hH : NativeHostSlice host)
+theorem cfgAns_vals_iff_valid (hT : Abstract.HostTyped host) (hH : HostSliceT host)
     {s s₂ : Store H} (hE : HostSliceE s.tags host) {a : Nat} {vs ws : List Val} (hs : StoreOk s)
     (hchk : StoreChkE (ehExt s.tags) s.funcs) (hok : InvokeOk s a vs) :
     cfgAns (Abstract.SCall.mk a vs s (.inl (.inl ws)) s₂) ↔
@@ -133,7 +133,7 @@ theorem cfgAns_vals_iff_valid (hT : Abstract.HostTyped host) (hH : NativeHostSli
   cfgAns_vals_iff hT hH hE hs hchk (Abstract.TypedCatValid.tagsOk_of_storeOk hs) hok
 
 /-- **A CFG answer by an exception of a valid invocation is a host-free Core run throwing it.** -/
-theorem cfgAns_throw_iff_valid (hT : Abstract.HostTyped host) (hH : NativeHostSlice host)
+theorem cfgAns_throw_iff_valid (hT : Abstract.HostTyped host) (hH : HostSliceT host)
     {s s₂ : Store H} (hE : HostSliceE s.tags host) {a : Nat} {vs : List Val} {t : Nat}
     (hs : StoreOk s) (hchk : StoreChkE (ehExt s.tags) s.funcs) (hok : InvokeOk s a vs) :
     cfgAns (Abstract.SCall.mk a vs s (.inl (.inr t)) s₂) ↔

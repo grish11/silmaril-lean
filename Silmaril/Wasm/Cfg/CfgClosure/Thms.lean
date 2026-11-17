@@ -121,7 +121,7 @@ theorem cfgSessionTripleC_eq :
 
 section Core
 
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE TagsOk StoreChkE ehExt)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 variable {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
@@ -139,7 +139,7 @@ theorem consistent_nil :
   fun _ h => nomatch h
 
 /-- **A CFG trap answer is a host-free Core run to a trap** in exactly its store. -/
-theorem cfgAns_trap_iff (hT : Abstract.HostTyped host) (hH : NativeHostSlice host)
+theorem cfgAns_trap_iff (hT : Abstract.HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs) :
     cfgAns (Abstract.SCall.mk a vs s (.inr ()) s₂) ↔
@@ -149,7 +149,7 @@ theorem cfgAns_trap_iff (hT : Abstract.HostTyped host) (hH : NativeHostSlice hos
   exact ⟨fun h => ⟨h, consistent_nil⟩, And.left⟩
 
 /-- **A CFG answer by values is a host-free Core run to those values** in exactly its store. -/
-theorem cfgAns_vals_iff (hT : Abstract.HostTyped host) (hH : NativeHostSlice host)
+theorem cfgAns_vals_iff (hT : Abstract.HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs ws : List Val} (hs : StoreOk s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs) :
     cfgAns (Abstract.SCall.mk a vs s (.inl (.inl ws)) s₂) ↔
@@ -159,7 +159,7 @@ theorem cfgAns_vals_iff (hT : Abstract.HostTyped host) (hH : NativeHostSlice hos
   exact ⟨fun h => ⟨h, consistent_nil⟩, And.left⟩
 
 /-- **A CFG answer by an exception is a host-free Core run throwing it** in exactly its store. -/
-theorem cfgAns_throw_iff (hT : Abstract.HostTyped host) (hH : NativeHostSlice host)
+theorem cfgAns_throw_iff (hT : Abstract.HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s₂ : Store H} {a : Nat} {vs : List Val} {t : Nat}
     (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s)
     (hok : InvokeOk s a vs) :

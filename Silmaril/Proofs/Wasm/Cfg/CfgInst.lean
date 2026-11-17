@@ -31,7 +31,7 @@ open Silmaril.Wasm.Abstract (wasmHostSig coreHostRel HostTyped EvRun HEvStep Cor
 open Silmaril.Wasm.Abstract.NodeBridge (instHost CallView qOf viewEnd viewTriple CoreCallout
   coreTripleSO)
 open Silmaril.Wasm.Abstract.InstSession (Res sAns instTripleS instSession)
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE StoreChkE ehExt TagsOk)
+open Silmaril.Wasm.Interp (NativeHostSlice HostSliceT HostSliceE StoreChkE ehExt TagsOk)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 open Silmaril.Games.Abstract.StratThread (Reach)
 
@@ -363,7 +363,7 @@ section Square
 
 variable {H : Type} {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
 
-theorem coreTripleSO_fin_eq (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem coreTripleSO_fin_eq (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {q : Nat × List Val} (hok : InvOkXP tags s q) :
     (coreTripleSO (profile o) host).1 s q =
       (openRestrict (coreHostRel host) sessionTripleXP).1 s q := by
@@ -376,7 +376,7 @@ theorem coreTripleSO_fin_eq (hT : HostTyped host) (hH : NativeHostSlice host)
   · intro hx
     exact ⟨trivial, (h.1 ⟨⟨hok, hx.1⟩, hx.2⟩).2⟩
 
-theorem coreTripleSO_pend_eq (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem coreTripleSO_pend_eq (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {q : Nat × List Val} (hok : InvOkXP tags s q) :
     (coreTripleSO (profile o) host).2.1 s q =
       (openRestrict (coreHostRel host) sessionTripleXP).2.1 s q := by
@@ -387,7 +387,7 @@ theorem coreTripleSO_pend_eq (hT : HostTyped host) (hH : NativeHostSlice host)
   rw [Abstract.wasmEvPendXPS_eq]
   exact (Abstract.wasmEvPendXP_evRun_iff hT hH hE hok.1 hok.2.1 hok.2.2.1 hok.2.2.2).symm
 
-theorem coreTripleSO_inf_eq (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem coreTripleSO_inf_eq (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {q : Nat × List Val} (hok : InvOkXP tags s q) :
     (coreTripleSO (profile o) host).2.2 s q =
       (openRestrict (coreHostRel host) sessionTripleXP).2.2 s q := by
@@ -402,7 +402,7 @@ theorem coreTripleSO_inf_eq (hT : HostTyped host) (hH : NativeHostSlice host)
 
 /-- **Per question, the open Core triple is the self-contained CFG session triple, openly
 restricted by the host.** -/
-theorem coreTripleSO_agree_cfg (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem coreTripleSO_agree_cfg (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {q : Nat × List Val} (hok : InvOkXP tags s q) :
     AgreeAt (coreTripleSO (profile o) host)
       (openRestrict (coreHostRel host) CfgClosure.cfgSessionTripleC) s q := by
@@ -447,7 +447,7 @@ theorem noThrowT_instTripleS_agree {s : Store Nat} (hd : InstDom I s) (a : I.F.O
   rw [Abstract.NodeBridge.instTripleS_eq_viewTriple]
   exact agreeAt_trans (noThrowT_view_agree (importsTyped_of_wf hd.wf) a)
     (viewTriple_agree (coreTripleSO_agree_cfg (o := o) hostTyped_instHostNT
-      nativeHostSlice_instHostNT (hostSliceE_instHostNT _) (invOkXP_of_dom hd a)))
+      nativeHostSlice_instHostNT.toT (hostSliceE_instHostNT _) (invOkXP_of_dom hd a)))
 
 /-! ## The domain persists -/
 

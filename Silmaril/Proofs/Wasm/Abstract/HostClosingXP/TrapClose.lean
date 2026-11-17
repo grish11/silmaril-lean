@@ -131,7 +131,7 @@ theorem CalleeTrap.mono {qc : List (Call (wasmHostSig H))} {S' : Store H → Pro
 /-- **A Wasm body trapping itself**: its logged run to a trap flow in the store `s'`, its calls
 resolved by the closure to a consistent log `q`, is a Core run of the call to a trap in exactly
 `s'` (or Core's pending null tail call, also in `s'`). -/
-theorem body_trap_callee (hH : NativeHostSlice host) (hE : HostSliceE tags host) {fn : Func}
+theorem body_trap_callee (hH : HostSliceT host) (hE : HostSliceE tags host) {fn : Func}
     {s' : Store H} {f₂ : Frame} {l : List (OCall H)} {q : List (Call (wasmHostSig H))}
     (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
@@ -166,7 +166,7 @@ theorem body_trap_callee (hH : NativeHostSlice host) (hE : HostSliceE tags host)
 resolved by the closure to `q`, the callee of `z` trapping with the host events `c₁` in a store
 satisfying `S`, is a Core run of the call to a trap in that store: the trap leaves every context
 and the frame unchanged. -/
-theorem body_cut_callee (hH : NativeHostSlice host) (hE : HostSliceE tags host) {fn : Func}
+theorem body_cut_callee (hH : HostSliceT host) (hE : HostSliceE tags host) {fn : Func}
     {l l₁ l₂ : List (OCall H)} {z : OCall H} {r : Store H × Frame × POut}
     {q c₁ : List (Call (wasmHostSig H))}
     (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
@@ -193,7 +193,7 @@ theorem body_cut_callee (hH : NativeHostSlice host) (hE : HostSliceE tags host) 
 call `(a', args)`, its calls resolved by the closure to `q`, the frame left, and the tail callee's
 trap with the host events `c₁` in a store satisfying `S`, is a Core run of the call to a trap in
 that store. -/
-theorem body_tail_callee (hH : NativeHostSlice host) (hE : HostSliceE tags host) {fn : Func}
+theorem body_tail_callee (hH : HostSliceT host) (hE : HostSliceE tags host) {fn : Func}
     {l : List (OCall H)} {s₁ s₂ : Store H} {f₂ : Frame} {a' n : Nat} {args : List Val}
     {b : List Val ⊕ Nat} {q c₁ : List (Call (wasmHostSig H))}
     (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
@@ -272,7 +272,7 @@ theorem trapAt_of_trapC {tags : List TagInst} {a : Nat} {args : List Val} {s₁ 
   exact hm.2 rfl hc fi ps rs hfi hty hts hS hn
 
 /-- **Every closed behaviour is in `TrapC`**: least-fixpoint induction, case by case. -/
-theorem close_le_trapC {tags : List TagInst} (hH : NativeHostSlice host)
+theorem close_le_trapC {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) : Shape.close (wasmHOpenXP (H := H)) ≤ TrapC tags P host := by
   refine OrderHom.lfp_le _ ?_
   rintro a s us y ⟨x, hx, hS⟩
@@ -322,7 +322,9 @@ theorem close_le_trapC {tags : List TagInst} (hH : NativeHostSlice host)
       · simp only [resFlow, exitFlow, Option.some.injEq] at hxf
         subst hxf
         cases he
-      · exact absurd hm (hH.noThrow _ _ _ _ _)
+      · simp only [resFlow, exitFlow, Option.some.injEq] at hxf
+        subst hxf
+        cases he
       · exact (host_trap_callee hfi hcode hty hn hm).mono fun _ _ => trivial
     · rcases u with _ | ⟨u₀, u⟩
       · cases hsplit
@@ -331,7 +333,7 @@ theorem close_le_trapC {tags : List TagInst} (hH : NativeHostSlice host)
 
 /-- **A trapping closed behaviour with a consistent log is a Core run of the call to a trap**
 with exactly that log, in any frame and any `call_ref` form, every profile, in some store. -/
-theorem close_trap_evRun {tags : List TagInst} (hH : NativeHostSlice host)
+theorem close_trap_evRun {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {a : Nat} {s : Store H} {us : List Val}
     {c₁ : List (Call (wasmHostSig H))} {fi : FuncInst H} {ps rs : List Validation.CValType}
     (hm : (c₁, .trap) ∈ Shape.close wasmHOpenXP a s us) (hc : Cons host c₁)
@@ -342,7 +344,7 @@ theorem close_trap_evRun {tags : List TagInst} (hH : NativeHostSlice host)
 
 /-- **A trapping behaviour of an invocation with a consistent log is a Core run of the
 invocation to a trap with exactly that log**, in some store, every profile. -/
-theorem wasmEvFunXP_trap_evRun {tags : List TagInst} (hH : NativeHostSlice host)
+theorem wasmEvFunXP_trap_evRun {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val}
     (hts : TagsOk tags s) (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {cs : List (Call (wasmHostSig H))} (h : (cs, .trap) ∈ wasmEvFunXP s (a, vs))
