@@ -86,7 +86,7 @@ def lratGt : CGlobalType := ((lratS.globals[0]?).map (·.type)).getD ⟨.const, 
 def lratMt : MemoryType := ⟨.i32, ⟨1, some 1⟩⟩
 
 /-- The view's fixed part for the checker. -/
-def lratX : Fix Nat := ⟨lratS.funcs, lratMi, lratGt, lratMt⟩
+def lratX : Fix Nat := ⟨lratS.funcs, lratMi, lratGt, lratMt, [], []⟩
 
 /-- The initial global values. -/
 def G₀ : List (BitVec 32) := [0, 24576, 24576, 0, 0, 0, 0, 1]

@@ -6,6 +6,10 @@ public import Silmaril.Project.Languages.WasmExport.Thms
 public import Silmaril.Wasm.Game.Examples.Defs
 public import Silmaril.Formats.JsonBytes.Decide.Thms
 public import ProjectSelfTest.Languages
+public import Silmaril.Project.WasmComponents.Thms
+public import Silmaril.Project.WasmComponents.SatAccept.Thms
+public import Silmaril.Project.WasmComponents.LratAccept.Thms
+public import Silmaril.Project.WasmComponents.FarkasAccept.Thms
 
 /-!
 # The `sil project` self-test: the acceptor modules as registered artifacts
@@ -41,6 +45,20 @@ component wraps them.
 
 `ex_start` gets a certificate only. It calls an import `env.f` with no arguments, so no byte
 language is claimed for it.
+
+**The acceptor components.** The three registered component files
+`examples/wasm-acceptors/{sat,lrat,farkas}_accept.wasm`
+(`silmaril.wasm.examples.{sat,lrat,farkas}_accept.component`) are values read under
+`wasm.component.binary`. Their certificates (`….is`, by
+`Silmaril.Project.WasmComponents.is_of_encode`: one kernel evaluation of `Binary.encode` of the
+AST against the included file, then `Binary.parse_encode`) say that each file parses to
+`c.toAst coreBytes`, the component the soundness theorems are about (`satComp`, `lratComp`,
+`farkasComp`). The same evaluation shows that the file *is* the Lean value `bytes`
+(`sat_accept_bytes`, …). `sil project lock` (`registry-check.sh`) checks that each file has its
+registered CID, and `silmaril value` checks its size and includes it. The headline theorems
+(`sat_accept_checkStream_sound`, …) state the soundness of accepting calls for every reference
+reading of whatever the registered value is (`Value.Is X ast`), through
+`Silmaril.Project.WasmComponents.{Sat,Lrat,Farkas}Accept.*_sound_of_bytes`.
 -/
 
 /-- `examples/wasm-acceptors/json_accept.wasm` is `Examples.JsonAccept.prog`. -/
@@ -356,6 +374,207 @@ public theorem member_rejects_ab :
 
 end
 
+/-! ## The acceptor components: certificates of the registered files -/
+
+/-- `examples/wasm-acceptors/sat_accept.wasm` is `SatAccept.satComp.toAst coreBytes`. -/
+@[expose, value "silmaril.selftest.wasm_acceptors.sat_accept" (format := wasm.component.binary)
+  (source := silmaril.wasm.examples.sat_accept.component)
+  (doc := "The verified SAT acceptor component (Silmaril.Wasm.Examples.SatAccept.satComp around coreBytes), its Binary.encode bytes")]
+public def ProjectSelfTest.WasmAcceptors.satAcceptCert : Silmaril.Wasm.Component.Binary.Ast :=
+  Silmaril.Wasm.Examples.SatAccept.satComp.toAst Silmaril.Wasm.Examples.SatAccept.coreBytes
+
+/-- `examples/wasm-acceptors/lrat_accept.wasm` is `LratAccept.lratComp.toAst coreBytes`. -/
+@[expose, value "silmaril.selftest.wasm_acceptors.lrat_accept" (format := wasm.component.binary)
+  (source := silmaril.wasm.examples.lrat_accept.component)
+  (doc := "The verified LRAT acceptor component (Silmaril.Wasm.Examples.LratAccept.lratComp around coreBytes), its Binary.encode bytes")]
+public def ProjectSelfTest.WasmAcceptors.lratAcceptCert : Silmaril.Wasm.Component.Binary.Ast :=
+  Silmaril.Wasm.Examples.LratAccept.lratComp.toAst Silmaril.Wasm.Examples.LratAccept.coreBytes
+
+/-- `examples/wasm-acceptors/farkas_accept.wasm` is `FarkasAccept.farkasComp.toAst coreBytes`. -/
+@[expose, value "silmaril.selftest.wasm_acceptors.farkas_accept" (format := wasm.component.binary)
+  (source := silmaril.wasm.examples.farkas_accept.component)
+  (doc := "The verified Farkas acceptor component (Silmaril.Wasm.Examples.FarkasAccept.farkasComp around coreBytes), its Binary.encode bytes")]
+public def ProjectSelfTest.WasmAcceptors.farkasAcceptCert : Silmaril.Wasm.Component.Binary.Ast :=
+  Silmaril.Wasm.Examples.FarkasAccept.farkasComp.toAst Silmaril.Wasm.Examples.FarkasAccept.coreBytes
+
+namespace ProjectSelfTest.WasmAcceptors
+
+@[expose] public section
+
+open Silmaril.Wasm.Component.Binary (encode)
+
+/-- The encoder of the SAT component AST yields the registered file (kernel evaluation). -/
+theorem sat_accept_encode :
+    encode satAcceptCert = some silmaril.selftest.wasm_acceptors.sat_accept.bytes.data := by
+  decide +kernel
+
+-- the 3 KiB file exceeds the default recursion and heartbeat budgets (as `t_decodes` does)
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 0 in
+/-- The encoder of the LRAT component AST yields the registered file (kernel evaluation). -/
+theorem lrat_accept_encode :
+    encode lratAcceptCert = some silmaril.selftest.wasm_acceptors.lrat_accept.bytes.data := by
+  decide +kernel
+
+/-- The encoder of the Farkas component AST yields the registered file (kernel evaluation). -/
+theorem farkas_accept_encode :
+    encode farkasAcceptCert = some silmaril.selftest.wasm_acceptors.farkas_accept.bytes.data := by
+  decide +kernel
+
+end
+
+end ProjectSelfTest.WasmAcceptors
+
+@[solves "silmaril.selftest.wasm_acceptors.sat_accept.is"]
+public theorem ProjectSelfTest.WasmAcceptors.sat_accept_is :
+    silmaril.selftest.wasm_acceptors.sat_accept.is :=
+  Silmaril.Project.WasmComponents.is_of_encode rfl ProjectSelfTest.WasmAcceptors.sat_accept_encode
+
+@[solves "silmaril.selftest.wasm_acceptors.lrat_accept.is"]
+public theorem ProjectSelfTest.WasmAcceptors.lrat_accept_is :
+    silmaril.selftest.wasm_acceptors.lrat_accept.is :=
+  Silmaril.Project.WasmComponents.is_of_encode rfl ProjectSelfTest.WasmAcceptors.lrat_accept_encode
+
+@[solves "silmaril.selftest.wasm_acceptors.farkas_accept.is"]
+public theorem ProjectSelfTest.WasmAcceptors.farkas_accept_is :
+    silmaril.selftest.wasm_acceptors.farkas_accept.is :=
+  Silmaril.Project.WasmComponents.is_of_encode rfl
+    ProjectSelfTest.WasmAcceptors.farkas_accept_encode
+
+namespace ProjectSelfTest.WasmAcceptors
+
+@[expose] public section
+
+open Silmaril.Wasm.Component Silmaril.Wasm.Component.Reference
+open Silmaril.Wasm.Component.Reference.ListLift (LVal)
+open Silmaril.Project.WasmComponents.Ref (toRef?)
+open Silmaril.Wasm.Numerics (Profile)
+
+/-- **The registered file `sat_accept.wasm` is `SatAccept.bytes`.** -/
+theorem sat_accept_bytes :
+    silmaril.selftest.wasm_acceptors.sat_accept.bytes.data =
+      Silmaril.Wasm.Examples.SatAccept.bytes :=
+  (congrArg (Option.getD · ByteArray.empty) sat_accept_encode).symm
+
+/-- **The registered file `lrat_accept.wasm` is `LratAccept.bytes`.** -/
+theorem lrat_accept_bytes :
+    silmaril.selftest.wasm_acceptors.lrat_accept.bytes.data =
+      Silmaril.Wasm.Examples.LratAccept.bytes :=
+  (congrArg (Option.getD · ByteArray.empty) lrat_accept_encode).symm
+
+/-- **The registered file `farkas_accept.wasm` is `FarkasAccept.bytes`.** -/
+theorem farkas_accept_bytes :
+    silmaril.selftest.wasm_acceptors.farkas_accept.bytes.data =
+      Silmaril.Wasm.Examples.FarkasAccept.bytes :=
+  (congrArg (Option.getD · ByteArray.empty) farkas_accept_encode).symm
+
+/-- The registered SAT file parses to whatever the value is. -/
+theorem sat_accept_parse {ast : Binary.Ast}
+    (hX : silmaril.selftest.wasm_acceptors.sat_accept.Is ast) :
+    Binary.parse Silmaril.Wasm.Examples.SatAccept.bytes = .ok ast :=
+  sat_accept_bytes ▸ Silmaril.Project.WasmComponents.parse_of_is rfl hX
+
+/-- The registered LRAT file parses to whatever the value is. -/
+theorem lrat_accept_parse {ast : Binary.Ast}
+    (hX : silmaril.selftest.wasm_acceptors.lrat_accept.Is ast) :
+    Binary.parse Silmaril.Wasm.Examples.LratAccept.bytes = .ok ast :=
+  lrat_accept_bytes ▸ Silmaril.Project.WasmComponents.parse_of_is rfl hX
+
+/-- The registered Farkas file parses to whatever the value is. -/
+theorem farkas_accept_parse {ast : Binary.Ast}
+    (hX : silmaril.selftest.wasm_acceptors.farkas_accept.Is ast) :
+    Binary.parse Silmaril.Wasm.Examples.FarkasAccept.bytes = .ok ast :=
+  farkas_accept_bytes ▸ Silmaril.Project.WasmComponents.parse_of_is rfl hX
+
+/-- **Accepting `check-stream` calls of the registered SAT component are sound.** The file
+`examples/wasm-acceptors/sat_accept.wasm`, CID
+`bafkr4icjfaoiep3z6hfvly3knk6l3pm67ibllbgadje6vjqyprqknpvgqa`: for whatever AST the registered
+value is and every reference reading `r` of it, a call of `check-stream` returning `true` on the
+formula `xs` and the assignment `ms` means that `ms` satisfies `xs`. -/
+theorem sat_accept_checkStream_sound {ast : Binary.Ast}
+    (hX : silmaril.selftest.wasm_acceptors.sat_accept.Is ast) {r : Core3Component}
+    (hr : toRef? ast = some r) (P : Profile) (prof : ProfileKind) (xs ms : List (BitVec 32))
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () r []
+      "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords ms).toRef]) :
+    Silmaril.Logic.SAT.Carrier.satStream xs ms = true ∧
+      xs ∈ Silmaril.Logic.SAT.Carrier.SatStream :=
+  Silmaril.Project.WasmComponents.SatAccept.checkStream_sound_of_bytes (sat_accept_parse hX) hr
+    P prof xs ms h
+
+/-- **Accepting `check-nested` calls of the registered SAT component are sound** (the file
+`examples/wasm-acceptors/sat_accept.wasm`, CID
+`bafkr4icjfaoiep3z6hfvly3knk6l3pm67ibllbgadje6vjqyprqknpvgqa`). -/
+theorem sat_accept_checkNested_sound {ast : Binary.Ast}
+    (hX : silmaril.selftest.wasm_acceptors.sat_accept.Is ast) {r : Core3Component}
+    (hr : toRef? ast = some r) (P : Profile) (prof : ProfileKind)
+    (p : List (List (BitVec 32))) (ms : List (BitVec 32))
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () r []
+      "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords ms).toRef]) :
+    Silmaril.Logic.SAT.Carrier.satNested p ms = true ∧
+      p ∈ Silmaril.Logic.SAT.Carrier.SatNested :=
+  Silmaril.Project.WasmComponents.SatAccept.checkNested_sound_of_bytes (sat_accept_parse hX) hr
+    P prof p ms h
+
+/-- **Accepting `check-stream` calls of the registered LRAT component are sound.** The file
+`examples/wasm-acceptors/lrat_accept.wasm`, CID
+`bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km`: a call of `check-stream`
+returning `true` on the formula `xs` and the proof `cs` means that `xs` is unsatisfiable. -/
+theorem lrat_accept_checkStream_sound {ast : Binary.Ast}
+    (hX : silmaril.selftest.wasm_acceptors.lrat_accept.Is ast) {r : Core3Component}
+    (hr : toRef? ast = some r) (P : Profile) (prof : ProfileKind) (xs cs : List (BitVec 32))
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () r []
+      "check-stream" [(LVal.ofWords xs).toRef, (LVal.ofWords cs).toRef]) :
+    xs ∈ Silmaril.Logic.SAT.Carrier.UnsatStream :=
+  Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes (lrat_accept_parse hX) hr
+    P prof xs cs h
+
+/-- **Accepting `check-nested` calls of the registered LRAT component are sound** (the file
+`examples/wasm-acceptors/lrat_accept.wasm`, CID
+`bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km`). -/
+theorem lrat_accept_checkNested_sound {ast : Binary.Ast}
+    (hX : silmaril.selftest.wasm_acceptors.lrat_accept.Is ast) {r : Core3Component}
+    (hr : toRef? ast = some r) (P : Profile) (prof : ProfileKind)
+    (p : List (List (BitVec 32))) (cs : List (BitVec 32))
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () r []
+      "check-nested" [(LVal.ofNested p).toRef, (LVal.ofWords cs).toRef]) :
+    p ∈ Silmaril.Logic.SAT.Carrier.UnsatNested :=
+  Silmaril.Project.WasmComponents.LratAccept.checkNested_sound_of_bytes (lrat_accept_parse hX) hr
+    P prof p cs h
+
+/-- **Accepting `check` calls of the registered Farkas component are sound.** The file
+`examples/wasm-acceptors/farkas_accept.wasm`, CID
+`bafkr4igd5n4qywsi5wnzogjwvltd3chsrjoa6um4ed6cb5o5vig73jztka`: a call of `check` returning
+`true` on the system `S` and the multipliers `y` means that `S` is infeasible. -/
+theorem farkas_accept_check_sound {ast : Binary.Ast}
+    (hX : silmaril.selftest.wasm_acceptors.farkas_accept.Is ast) {r : Core3Component}
+    (hr : toRef? ast = some r) (P : Profile) (prof : ProfileKind)
+    (S : Silmaril.Logic.LinArith.Carrier.SystemW) (y : List Silmaril.Logic.LinArith.Carrier.S64)
+    (h : Outcome.returns (some [.bool true]) ∈ exportBehaviours prof (refHost P) () r []
+      "check" [(Silmaril.Wasm.Examples.FarkasAccept.ofSystem S).toRef,
+        (Silmaril.Wasm.Examples.FarkasAccept.ofS64s y).toRef]) :
+    S ∈ Silmaril.Logic.LinArith.Carrier.Infeasible :=
+  Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes (farkas_accept_parse hX) hr
+    P prof S y h
+
+/-- The registered SAT component has a reference reading, `satComp.toRef`. -/
+theorem sat_accept_toRef :
+    toRef? satAcceptCert = some Silmaril.Wasm.Examples.SatAccept.satComp.toRef :=
+  Silmaril.Project.WasmComponents.SatAccept.toRef_toAst
+
+/-- The registered LRAT component has a reference reading, `lratComp.toRef`. -/
+theorem lrat_accept_toRef :
+    toRef? lratAcceptCert = some Silmaril.Wasm.Examples.LratAccept.lratComp.toRef :=
+  Silmaril.Project.WasmComponents.LratAccept.toRef_toAst
+
+/-- The registered Farkas component has a reference reading, `farkasComp.toRef`. -/
+theorem farkas_accept_toRef :
+    toRef? farkasAcceptCert = some Silmaril.Wasm.Examples.FarkasAccept.farkasComp.toRef :=
+  Silmaril.Project.WasmComponents.FarkasAccept.toRef_toAst
+
+end
+
+end ProjectSelfTest.WasmAcceptors
+
 silmaril group silmaril.selftest.wasm_acceptors (title := "Acceptor modules as registered artifacts")
   (children := [silmaril.selftest.wasm_acceptors.json_accept.is,
     silmaril.selftest.wasm_acceptors.json_accept.parses,
@@ -375,4 +594,10 @@ silmaril group silmaril.selftest.wasm_acceptors (title := "Acceptor modules as r
     silmaril.selftest.wasm_acceptors.member_accepted_eq,
     silmaril.selftest.wasm_acceptors.member_accepts_aa,
     silmaril.selftest.wasm_acceptors.member_accepts_ab,
-    silmaril.selftest.wasm_acceptors.member_rejects_ab])
+    silmaril.selftest.wasm_acceptors.member_rejects_ab,
+    silmaril.selftest.wasm_acceptors.sat_accept.is,
+    silmaril.selftest.wasm_acceptors.sat_accept.parses,
+    silmaril.selftest.wasm_acceptors.lrat_accept.is,
+    silmaril.selftest.wasm_acceptors.lrat_accept.parses,
+    silmaril.selftest.wasm_acceptors.farkas_accept.is,
+    silmaril.selftest.wasm_acceptors.farkas_accept.parses])

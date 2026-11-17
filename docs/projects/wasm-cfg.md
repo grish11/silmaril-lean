@@ -424,8 +424,11 @@ The plain graph stays an over-approximation, and claims about it say so.
       tail calls and the placement of pending tails come from typing of the entered frame
       (`guardedCalls_cx`, `tailGuarded_cx`, `tailsOk_of_typed`). Not claimed: hosts, exceptions
       (`tExt` rejects `throw`/`try_table`; no host alone does not exclude them), the
-      store-retaining session view. **Open:** function-level regression fixtures (recursive
-      indirect/ref/tail, trap ≠ divergence).
+      store-retaining session view. Fixtures (`Wasm/Cfg/ExampleFunDiv`, a validated
+      `tExt`-checked module): `fd_recursive`: functions recursing through `call_indirect`,
+      `call_ref` and `return_call` diverge natively (`FunDivX`, by coinduction), in Core 3.0 and as
+      `MDivT`; `fd_trap`: a `return_call_indirect` through a null slot and a `call_ref` on null
+      trap (closed outcomes), so none of the three holds.
     - **Host-free function-list preservation** (`Wasm/Cfg/Restrict`): without a host, a region or
       machine run keeps the store's whole function list `F` (instances with types, modules and
       code), so every call and every `F`-only check (`StoreChkE`) sees `F`. Oracles agreeing on
@@ -449,13 +452,400 @@ The plain graph stays an over-approximation, and claims about it say so.
       `handlerTail`, … through labels and handlers, which do not catch it), and a body never
       diverges at a pending tail call, which is stuck outside a frame. Divergence of the tail
       callee is frame divergence (`MDivT`), not body divergence. No EH coverage changes.
-    - **Open:** divergence (finite-run equivalence does not give it): machine divergence with
-      `CX closedCallX`, including divergence inside a callee (`MDivC`'s callee case), against
-      Core divergence of the invocation (`invoke_diverges_iff_funDivX`); then hosts; then the
-      store-retaining session target (b): the CFG-instance session triple denotes the same
-      `DStrategy` as `instSession`/`core3SemD`, with finite done/pending plays, quiescent
-      divergence and coherent productive infinite interaction. None of these is claimed by the
-      OX results above, which are store-erasing at nested callee boundaries.
+    - **Exit states carry the whole frame stack (semantic correction).** The machine's exits by
+      `return`, a branch to the function label (`br`, taken `br_if`, `br_table`/`br_on_*`) and a
+      caught exception branching to it (`catchOut`, `bodyCatchOut`) kept only the innermost
+      block's stack, dropping the label frames' outer values; `Ends` at `exit` allowed any `W`
+      below it. They now keep the whole stack Core unwinds, `brVals` (outer values under the
+      block's; for a catch, the caught values over the handler's outer values, then the frames its
+      branch leaves), and `Ends` at `exit` is exact (`o = .normal`/`.ret`/`.br 0` of the stack).
+      Fall-through (via `popL`) and answered tail calls (frame replacement) were already exact and
+      are unchanged; branches past the function label stay invalid. Soundness (`ret_sound`,
+      `brOut_sound`, …, exact), completeness (`Reach`'s `br`/`ret`/catch clauses) and every
+      downstream result were updated. Fixtures `Wasm/Cfg/ExampleExitStack`: nested `return`,
+      `br`, `br_if` (taken, not taken) and `br_table` with an outer value, two results, against
+      Core; an invalid body whose `return` reaches below its block (`machine_loss`, `core_loss`),
+      on which the old exit lost a value (no general untyped claim).
+    - **(b), host-free milestone: the CFG session is the instance session** (`Wasm/Cfg/Session`).
+      Target: the canonical `DStrategy` `instSession I P s = StratSession.threadS (instTripleS I
+      P) s` (`Abstract.InstSession`), hence the instance part of `core3SemD`, on an explicit
+      typed fragment. Not "define the CFG object by Core and conclude `rfl`".
+      1. **The CFG triple** `cfgTripleS I o`, operational: `cfgFinS` is machine runs (`MStepC`,
+         oracle `CX closedCallX`) of the export's body in its call frame to a sink, the answer
+         read off the sink state (`sinkResult`: the top `rs.length` values of the exit stack, the
+         whole frame stack since the exit fix; `trap` keeping its store), and machine frame
+         divergence `MDivT` with `calleeDivX o`; empty logs. It is **oracle-backed**: callees
+         are answered by the native closed extended semantics `CX closedCallX`, not by recursive
+         CFG machines. A self-contained recursive CFG closure would discharge the oracle later
+         and is not claimed.
+      2. **The fragment** `HFOk I s`: no imports, `I.WellFormed s`, only Wasm functions with
+         function types (`WasmFuncsT`), `StoreChkE tExt`, at `profile o`. Preserved at every
+         reachable store (`hfOk_of_reach`: the function list never changes host-free,
+         `wellFormed_after_run`). Exceptions are excluded by `tExt`, separately from hosts; the
+         proof derives that a closed outcome of a checked invocation is never a throw.
+      3. **Equality**, both directions per activation (`instFinS_eq`): returning activations by
+         NodeBridge `ret_iff` (empty logs) and `Function.core_machine`/`machine_core`, the sink
+         reading matched against Core's result (`sink_cases`; values are typed, so the exit
+         stack holds the results); divergent ones by `div_iff` and
+         `invoke_diverges_iff_mdivT`. With empty `satP` and productive components (no import
+         operations), `threadS_congr` gives `cfgSession_eq_instSession`; then `spull_cfgSession`
+         (the finite plays are `I.strategy`) and `core3SemD_eq_cfgSessions`: `core3SemD
+         (profile o)` interprets every numeric instance in the fragment at its instantiation
+         store by its CFG session (and the others by their instance sessions).
+      4. **No imports is not no infinite plays**: no imports removes import callouts, call logs
+         and within-call productive host interaction, not infinite session plays.
+         `mem_inf_cfgSession`: the infinite plays are exactly those of the coherent infinite
+         sequences of export rounds (`InfRounds`, via `mem_inf_instSession`/`StoreDet` and
+         `infRounds_iff`), trap-resume rounds included; `infRounds_repeat`. Fixtures
+         (`Wasm/Cfg/ExampleSession`, a validated two-export module, no imports): `ses_hfOk`;
+         export `0` traps and export `1` answers `7` on the machine; `trap_forever` and
+         `alt_forever` (trap, answer, trap, …) are infinite plays of the CFG session and of the
+         instance session.
+         **`cfgSessions` is compatibility, not coverage**: outside `HFOk` it falls back to the
+         Core 3.0 instance session; no CFG semantics of general modules or components is
+         claimed without the domain hypothesis.
+    - **The domain, checked, and components on it** (`Wasm/Cfg/SessionCheck`):
+      - `hfOk_of_check`: for a validated module without imports, instantiated into the empty
+        store, an instance passing the executable check `hfCheck` is in `HFOk`.
+        - `hfCheck` uses existing checkers: `storeChkEB tExt`, a Wasm-function check, and export
+          types via `expand?`.
+        - Store typing comes from validation and instantiation.
+      - `denUD_congrIn`: a denotation depends only on the core instances a component uses
+        (`CompIn`).
+      - `denUD_core3SemD_eq_cfgSession` and `denD_…`: when every core instance of a component
+        is in `HFOk`, its Core 3.0 denotation is the one with CFG sessions. There is no
+        fallback, and nothing is claimed outside the domain.
+      - Regression: `ExampleSession.ses_hfOk_checked`.
+    - **Catch exits (#866 regression)** (`Wasm/Cfg/ExampleCatchExit`, a validated module with a
+      tag `[i32 i32] → []`): a caught exception branching to the function label exits with the
+      whole frame stack: `machine_catch` (`1, 3, 4`: the `try_table`'s outer value under the
+      payload) and `machine_catchNest` (`1, 2, 3, 4`, through an enclosing block), against Core
+      returning the payload `3, 4` (`core_catch`, `core_catchNest`); the tag hypotheses hold at
+      the module's instance (`catch_tag`). Exit state only: no exception coverage at the function
+      or session level.
+    - **Not implemented (ledger)**, in order:
+      1. **Hosts**: imports in the CFG session: pending import calls and logs, productive
+         within-call host interaction, host answers keeping or changing the store, and exceptions
+         raised by host answers. Route H1–H3 below.
+      2. **XP/EH**: exceptions in the session fragment (`throw`, `try_table`, handler matching,
+         tail calls bypassing handlers, uncaught exceptions as `Answer.throw`), trap stores
+         preserved. Covered by the same route: `EvalLXPS` has the exception rules.
+      3. **Discharging the oracle**: callees run by the CFG machine through a recursive closure
+         (H3), callee divergence included. Until H3 lands every CFG statement is oracle-backed.
+      4. Untyped stores and instructions outside the checked fragments: unsupported, excluded by
+         hypotheses.
+    - **Route for hosts, XP/EH and the oracle (H1–H3, coordinator-approved).** The CFG machine
+      `MStepC` is unlabelled: simple steps are Core `Steps P host`, and calls go through a stateless
+      `CallRel` oracle. A run's host-event log cannot be recovered from it, and a stateless host
+      cannot encode one, so the logs need a logged CFG layer. It reuses the CFG graph, extraction
+      and control rules, and the canonical store-retaining logged relation
+      `HostClosingS.EvalLXPS` (open calls with arbitrary answers: values, an exception raised at
+      the call, or a callee trap with its store).
+      - **H1, the logged machine `MStepL`.** A block-CFG execution: each block runs its straight-line
+        segment by `EvalLXPS` on `liftInstrs sg.body` (flat ops by `evalFlat`, calls open and
+        logged), then its terminator with `MStepC`'s rules (label frames, `goto`, `brVals`,
+        `topVals`, loops, the function label, `try_table` frames and `Catches`, pending tail
+        calls). It is never a native evaluation of the whole structured function in one step.
+        Machine stacks are bottom first and native ones top first (`reverse`). Obligations:
+        - a projection to `MStepC` on their shared fragment, with its hypotheses stated where
+          host observations cannot be forgotten;
+        - the forward theorem (the first bounded PR): a logged run from the CFG entry to an end
+          (`exit`, `trap` with its store, an uncaught exception, a pending tail call) with log
+          `l` is an `EvalLXPS` run of the body with exactly `l` and the store.
+      - **H1 status (done here): the logged machine and the forward theorem**
+        (`Wasm/Cfg/MachineL`).
+        - `MStepL`: each block's straight-line code runs by `EvalLXPS`, then the native outcome
+          is dispatched (`DispL`) to `MStepC`'s CFG targets, with **native stack conventions** at
+          frame boundaries (coordinator-approved option B).
+          - Leaving an arm keeps the top `nr` values over the frame's outer values (`popN`,
+            `gotoN`).
+          - A branch keeps the label's arity of the branch-site stack (`branchN`).
+          - `return` and a branch out of the function exit with the branch-site stack.
+          - Arities come from the block type (`Binaryen.arity`), with no run-time checks.
+          - Entering an arm and re-entering a loop split the stack as `EvalLXPS` does
+            (`stk.take np`, `vs.take np ++ outer`), so no step is missing on short stacks.
+          - `MStepC` keeps Core's conventions. The two agree on typed code; no untyped
+            correspondence is claimed.
+        - `forward_sink`, `forward_tail`: for **all code**, a logged run from the CFG entry to a
+          sink (or to a pending tail call) is an `EvalLXPS` run of the body. The log, final store
+          and frame are exactly the run's, and the result is one the sink stands for (`EndRel`).
+          This covers stores kept by traps, and tail calls bypassing handlers.
+        - The proof is an invariant (`Good`, `KL`, `WrapL`) carried backwards along the run: at
+          each block the rest of the sequence runs natively, and each enclosing structured
+          instruction's native rule carries the outcome out.
+        - Fixture `Wasm/Cfg/ExampleLogged`: on an invalid body the logged machine exits with `3`
+          (native) and `MStepC` with `1, 2, 3` (Core).
+        - Run-level projection, done (`Wasm/Cfg/MachineLProj`, `project_sink_closedX`). A logged
+          run from the CFG entry to a sink is an `MStepC` run to a sink with the same native
+          result (`EndRel`, `ResOut`, `EndsC`). It composes `forward_sink`, `closed_iff_logged`
+          and `native_machine_closedX`. Its fragment is stated:
+          - every logged entry is answered by `closedXOk`, the typed closed extended oracle;
+            host entries never are, so a log with a host call does not project;
+          - direct calls only (`xFreeL`), no exceptions (`ehFreeL`), `TypedT` for `tExt`.
+          It does not count as the stepwise projection. These restrictions are not its final
+          coverage.
+        - Still open in H1, in order:
+          1. The stepwise typed stuttering projection `MStepL` → `MStepC` on the shared no-EH
+             fragment.
+             - Control agreement, done (`MachineLProj`): `popN_eq_popL`/`gotoN_eq_goto` under
+               `PopFit`, `branchN_block`/`branchN_loop`, `armSel_condArm`, `labelArity_eq`.
+               At exits the stacks differ by the left frames' outer values (`brVals_junk`).
+             - Checker invariant, done (`MachineLProj`): `CInv`/`ChkF`, from the function's own
+               `chkE (ehExt tags)` check (`cinv_initial`), preserved along logged runs answered by
+               an arity-respecting oracle (`cinv_step`, `cinv_run`, via `evalOXP_goodO`), on
+               bodies without `try_table` (`NoTry`). The fallthrough, branch and arm-entry
+               targets are the native ones with fitting stacks.
+             - Segment bridge, done (`MachineLProj`, `seg_runC`). Logged `Flat` straight-line
+               code with `CloseOk C` calls of a sound oracle (`OracleSoundT`, e.g. `closedXOk`)
+               is a `Region.RunC` run with `ResOut`. It needs checker facts only: the segment's
+               `chkE (ehExt tags)`, which is `tExt`'s off the EH forms (`chkE_flat_tExt`), and
+               `StoreChkE tExt`. There is no Core typing of states, because `EvalOXT` is `EvalOX`
+               without indirect or reference calls. Fragment hypothesis: `DirectCalls body`
+               (`seg_flat`).
+             - Stepwise projection, done on the shared no-EH fragment (`MachineLProj`:
+               `proj_step`, `proj_runL`, `proj_initial`). On checked states each logged step is
+               **one** `MStepC` step. Targets are related by `ProjRel`: equal, or both `exit` with
+               the `MStepC` stack the logged one under further values (`brVals`). Composition
+               along runs, from the CFG entry.
+               - Proof: the block's whole plain straight-line code goes to a region run
+                 (`plain_runC`) and is split. The terminator's region run is classified
+                 (`term_run`). Targets come from `CInv` and the control-agreement lemmas.
+               - Fragment hypotheses: `NoTry`, `DirectCalls`, `PlainTerms` (no `throw` or
+                 extended-call terminators, so no tail calls), and `StoreChkE tExt`.
+               - Oracle hypotheses: `CloseOk C` logs, `OracleSoundT` and `ArityResp`.
+             - Closed instance, done: `proj_initial_closedX` has no oracle hypothesis. It reads
+               the checker invariant with `tExt` (`OracleX.evalOXT_goodT`, `SegGood`). For
+               `closedXOk` (sound, and keeps the store's functions), a logged run from the CFG
+               entry with `closedXOk`-answered calls is an `MStepC closedXOk` run, its end related
+               by `ProjRel`.
+             - Then: lift the fragment with the `EvalOXP`/EH bridge (`try_table`, `throw`,
+               indirect and reference calls, tail calls and frame replacement). It needs a typed state and frame invariant, from the existing checker and
+             typing APIs, covering stack orientation, parameter and result arities, normal arm
+             exits, branch unwinding and tail-frame replacement. The relation is at block
+             granularity (zero or more `MStepC` steps per `MStepL` step), with composition.
+          2. An `EvalOXP`/`EvalOXE` → Core bridge for exception outcomes (`ehExt`).
+             - Flat bridge, done (`MachineLProj.flat_runP`, `ResOutP`): an `EvalOXP C` run of
+               flat code is a `Region.RunC` run with the same oracle. It needs a `chkE (ehExt
+               tags)` check, `ArityResp Γ C` and `Γ.Good`. Flat code covers direct, indirect and
+               reference calls, `throw`, `throw_ref`, the tail calls, branches, `return` and
+               `unreachable`.
+               - Outcomes: a flow goes to the same store and frame under `FlowRel` (throws
+                 included). A pending tail call goes to `Region.Out.tail W a c`, whose top
+                 `ps.length` values are the arguments, with `n` the callee's result count.
+             - Stepwise projection over `EvalOXP`, done (`proj_stepE`, `proj_runLE`,
+               `proj_initialE`). Hypotheses: `NoTry`, `ArityResp Γ C`, `CloseOk C` logs and
+               `Ctx.Good`. `DirectCalls`, `PlainTerms`, `StoreChkE tExt` and `OracleSoundT` are
+               dropped. `throw`/`throw_ref` terminators are `MStepC.raise`, tail calls of null are
+               `MStepC.tailNull`, and indirect and reference calls go through the bridge.
+             - Next:
+               - answered tail calls, done (`proj_tailE`, `proj_tail_initialE`). A logged run ending
+                 in `TailL`, with its tail answer a `CloseOk C` entry, is an `MStepC` run whose
+                 last step is `MStepC.tail` (frame replacement), to `tailSink`;
+               - `try_table`, done (`cinv_stepE`, `cinv_runE`, `proj_stepK`, `proj_runLK`,
+                 `proj_initialK`, `proj_tail_initialK`). `ChkF` records each `try_table` frame's
+                 clause check. `catch_arity` (`Interp.catches_count` under `TagsOk`) gives the
+                 caught values' arity. Catches map to `MStepC.catch_`/`bodyCatch`/`catchOut`/
+                 `bodyCatchOut`. The stepwise projection now holds for **every call form and
+                 structured instruction, exceptions on**. Its hypotheses: `ArityResp Γ C` with
+                 `CloseOk C` logs, `Ctx.Good`, and the body's own `chkE (ehExt tags)` check.
+             - Remaining for the stepwise projection: none. For the session result, `CloseOk`
+               is discharged by the canonical closing correspondence (next). It must keep
+             the exception outcomes, tag matching, trap stores, and tail calls bypassing the
+             caller's handlers. Then the stepwise projection extends to EH.
+          3. Validated typed nested fixtures (block, loop, if, catch) on which it holds.
+             - Fixtures, done (`Wasm/Cfg/ExampleNested`; the module `nestMod` validates).
+               On each of three bodies, `MRunL` (empty log) and `MStepC` (every profile, host
+               and oracle) reach the same `exit` state, with the same stack, store and frame:
+               - `bodyNest`: `block`/`loop`/`if` with a `br 2` across two labels, exit `9, 42`;
+               - `bodyLoops`: the inner loop's `br_if 1` re-enters the outer loop once, with a
+                 counter local, exit `2` (`loops_logged_via`, `loops_core_via`);
+               - `bodyTry`: a `throw` in a block nested in a `try_table` is caught to an outer
+                 `block`, exit `4`, under stated tag hypotheses that hold at the instance
+                 (`nest_tag`).
+               Native `EvalLXPS` runs follow by `forward_sink`.
+             - Limits: no `ExampleNested` fixture exits from frames with outer values. The
+               `brVals_junk` boundary is exercised by `Wasm/Cfg/ExampleRetJunk` instead.
+             - These are concrete agreement facts on these bodies, proved by running both
+               machines. They are not derived from the stepwise projection
+               (`proj_step`, `proj_initial_closedX`). `bodyTry` lies outside its fragment
+               (`try_table`, `throw`).
+          The `CloseOk` hypothesis is discharged in the session/host result by the canonical
+          store-retaining closing correspondence, not kept as an assumption that all logs are good.
+        - Converse support: `MachineLSeq.split` (a run of `es₁ ++ es₂` falls through `es₁` then runs
+          `es₂`, or ends abruptly in `es₁`), the converse of `append`.
+        - Converse design (next PR): induction on the native derivation, level by level.
+          - At sequence level `p`, a native run of the rest of the sequence from block `i` gives
+            a machine run to the state that `DispL` (or the fall-through to `contRev`) assigns to
+            its outcome.
+          - Structured terminators recurse on the arm's derivation, then on the parent's
+            continuation derivation (both sub-derivations).
+          - `loopBack`'s re-run of `.loop :: rest` is a sub-derivation started from the arm
+            entry, not from the segment. So the induction's start states are "the point where a
+            structured instruction is entered", which covers both the fresh entry (`enter`) and
+            the re-entry (`branchN`).
+      - **H2 status: the converse for finished outcomes is done** (`MachineL.backward`).
+        - Hypotheses: a native run of the body to `r`, where `r` is not `brk (k + 1) _`. So `r`
+          is a fall-through, `return`, `brk 0`, a trap, an uncaught exception, or a pending tail
+          call.
+        - Conclusion: a logged run from the CFG entry to an end standing for `r` (a sink, or the
+          block making the pending tail call), with exactly the native log.
+        - The excluded class: a native body outcome `brk (k + 1)` (a branch past the function
+          label) can exist on invalid code. It has no machine end (no `DispL` rule) and no framed
+          finished counterpart (`exitFlow` gives `none`, so no `wasmHOpenXPS` behaviour).
+        - Proof: continuation passing on the native derivation (`MachineLBwd`). The motive
+          covers mid-segment positions and arm entries, so `loopBack`'s re-run of the loop
+          starts where the machine re-enters it.
+        - The re-entered loop frame's arity is now the block type's parameter count, the same as
+          a fresh entry.
+        - **Pending calls, done** (`MachineL.pending_iff`, both directions): the body reaches the
+          internal call `z` after the native log `l` exactly when the logged machine runs from
+          the CFG entry to a block reaching `z` (`ReachL`), the logs splitting `l`.
+          - Encoding, coordinator-approved, as an internal witness only: answering the call with
+            a callee trap (`reach_trap` for every trap store, `trap_reach` the converse,
+            `trap_last`), then the finished correspondence.
+          - The pending question, its pre-call store and the prefix log are the statement's; the
+            synthetic trap store is not.
+          - Pending tail calls are ends of the body (`TailL`), not pending internal calls.
+          - Fixture `Wasm/Cfg/ExamplePending`: a call in a handler that is pending, answered by an
+            exception (caught: exit) or by a callee trap (uncaught: trap); a tail call in a
+            handler (`TailL`).
+        - **Divergence, step D1 done**: `MachineL.closed_iff_logged`.
+          - A closed run `EvalOXP C` is exactly a store-retaining logged run (`EvalLXPS`) whose
+            entries are all `C`-answers (`CloseOk`).
+          - Answers are exact: callee values trimmed to the callee's result arity; exceptions and
+            traps with the stores `C` leaves.
+        - **Divergence, D2 done** (`Silmaril.Wasm.Cfg.MachineLDiv`). The machine's host-free
+          divergence has three distinct forms, every logged call answered by `closedCallXP`
+          (`StepK`):
+          - `InfK`: an infinite run of local steps;
+          - `CalleeDivK`: a finite run to a reached call (`ReachL`) whose callee diverges at the
+            frame (`FunDivXP`);
+          - `TailDivK`: a finite run to a pending tail call (`TailL`) whose callee diverges. This
+            one is function-level only.
+          `MDivL := InfK ∨ CalleeDivK`; `FunDivL` adds `TailDivK` at the frame, as `funDivXP_iff`
+          does.
+          - `div_iff`: `EvalDivXP s f [] (liftInstrs body) ↔ MDivL body (initial body s f)`.
+          - `funDiv_iff`: `FunDivXP s a args ↔ FunDivL s a args`.
+          - Native to machine: the infinite run is built from the native unfolding. Finite parts
+            of structured instructions go through the converse's arm clause, with a strict stop
+            state, so every unfolding makes at least one machine step.
+          - Machine to native for `InfK`: coinduction on `EvalDivXP` over positions of the run.
+            Steps are classified by depth (`MStepS`): re-entering a loop counts as leaving its
+            arm. At the first step leaving an arm, the arm's run is read natively by a forward
+            invariant relative to the arm's frame (`Proofs/Wasm/Cfg/MachineLRel`, `arm_fwd`).
+        - **Divergence after a log, D3 done.** `MLogDivL body st l`: logged steps, then a
+          boundary inside a step, then host-free divergence (`MDivL`, or a reached call whose
+          callee diverges). The log is the calls before the boundary.
+          - Native to machine, exact log: `logDiv_machine`. `LogDivXP s f [] (liftInstrs body) L`
+            gives `MLogDivL body (initial body s f) (L.map OCall.toS)`.
+          - Machine to native, up to oracle-answered calls: `machine_logDiv`. `MLogDivL ... l`
+            gives `LogDivXP ... L` with `L.map OCall.toS = l ++ c`, every entry of `c` a
+            `closedCallXP`-answer. `LogDivXP` places the boundary only where the remaining
+            subproblem diverges; the machine's may come earlier, the run then leaving that
+            sequence through closed calls. The closure resolves such entries with empty host logs.
+          - Proof of the converse:
+            - the run after the boundary eventually never leaves a sequence (`stays_point`: a
+              block, or the arm entry of a loop re-entered forever), so that point diverges
+              natively (`MachineLDivI.qx_div`);
+            - the logged run from the CFG entry to it is a `LogDivXP` prefix (`prefix_logDiv`, a
+              finite-horizon version of the coinduction, with arms left read by `arm_fwd`);
+            - a diverging callee goes through the pending-call correspondence (`reach_logDiv`).
+        - **Productive streams, P1 and P2 done (both directions).** `ProdL body st ω`: an infinite
+          logged machine run whose step logs concatenate to `ω`, with infinitely many calls.
+          - `infL_machine`: `InfLXP s f [] (liftInstrs body) ω` gives
+            `ProdL body (initial body s f) (fun n => (ω n).toS)`, the same stream. The proof is an
+            induction on `InfLXP`, as for divergence after a log. A loop iterating forever is the
+            chain of its iterations on the machine (`prod_of_chain`, each iteration a nonempty run
+            from the arm's entry back to it).
+          - `machine_infL` (P2, machine to native, exact stream): `ProdL body (initial body s f) ν`
+            gives `InfLXP s f [] (liftInstrs body) ω` with `ν = fun n => (ω n).toS`. `prodL_iff`
+            states both directions together.
+          - Proof of P2 (`Proofs/Wasm/Cfg/MachineLProdB`): a strong induction on the size of the
+            remaining code, at positions of the run that never leave their sequence (`claims`:
+            the block claim `PBC` and the arm-entry claim `PAC`).
+            - An arm the run never leaves is a descent.
+            - An arm left forward is a finished instruction, read natively by `arm_fwd`
+              (`first_leave`).
+            - A loop re-entered finitely often ends in `loopBack` iterations.
+            - A loop re-entered infinitely often is `loopInf`. Its stream is the iterations'
+              concatenation, the same stream as the run's tail (`streamConcat_unique`).
+        - The closed oracle `closedCallXP` used here is the native one. These results do not
+          discharge H3, which still needs the recursive logged CFG closure.
+        - Fixtures: nested-loop `continue` (`ExampleNested.loops_*_via`) and a tail call inside
+          a handler (`ExamplePending.tail_handler`, `tail_handler_machine`).
+      - **H2 ledger (exact).** Every theorem is stated for **all code**, with no typing. The
+        domain is a body run from the CFG entry `initial body s f`, natively from the empty
+        stack on `liftInstrs body`. Logs are store-retaining session calls (`SCall`, each with
+        its answer).
+
+        | Notion | Theorem(s) | Directions | Domain and limits |
+        |---|---|---|---|
+        | Finished ends (exit, trap with its store, uncaught exception) | `MachineL.forward_sink`, `MachineL.backward` | both | `backward` excludes a native `brk (k + 1)` outcome. It occurs only on invalid code and has no framed counterpart. Logs are exact. |
+        | Pending tail call (an end) | `MachineL.forward_tail`, `MachineL.backward` (`TailL`) | both | Bypasses handlers. Log exact. |
+        | Pending internal call | `MachineL.pending_iff` (`ReachLXPS` ↔ `MRunL` then `ReachL`) | both, one iff | Log exact, split at the machine step. |
+        | Closed runs | `MachineL.closed_iff_logged` (`EvalOXP C` ↔ `EvalLXPS` with `CloseOk C` logs) | both | Any oracle `C`. Host calls are never `CloseOk`. |
+        | Host-free divergence | `MachineL.div_iff` (`EvalDivXP` ↔ `MDivL`); parts `div_machine`, `infK_div`, `calleeDiv_div` | both | Calls answered by `closedCallXP` (`StepK`). |
+        | Frame divergence | `MachineL.funDiv_iff` (`FunDivXP` ↔ `FunDivL`); parts `funDiv_machine`, `funDiv_of_infK`, `funDiv_of_calleeDiv`, `funDiv_of_tailDiv` | both | At a call's frame, including a diverging tail callee (`TailDivK`). |
+        | Divergence after a log | `MachineL.logDiv_machine` (exact log); `MachineL.machine_logDiv` (log extended by `closedCallXP`-answers) | both, the converse up to closed entries | The extension is necessary: the machine's boundary may come earlier. |
+        | Productive streams | `MachineL.infL_machine`, `MachineL.machine_infL`, `MachineL.prodL_iff` (`InfLXP` ↔ `ProdL`) | both, one iff | Exact stream, each call with its answer. |
+
+        - The session's productive part (`HostClosingInfXP.InfLwXP`) is exactly `InfLXP` at
+          `Frame.forCall` from the empty stack. Its pending calls are `ReachLXPS`, and tail-call
+          productivity and recursion enter through the closure's descent (`Shape.closeInfL`)
+          over the open module's logs. So the body-level theorems above are the H2 obligations.
+          Composing them at the function frame and through recursion is H3's equality, not a
+          further H2 item.
+        - **Not claimed in H2:** coherence of answers with a closure. Every H2 statement takes the
+          calls' answers as given, by `SCall`/`OCall`; resolving them by CFG-run callees is H3.
+        - EH: handler matching (`Catches`), and pending tail calls bypassing handlers. Both are
+          covered by the theorems above, for all code.
+        - Stack caveat: a native `return`/branch flow carries only the innermost stack, while
+          `MStepC` keeps the whole frame stack. The projection relates them by `ProjRel` (junk
+          prefix). Fixture `Wasm/Cfg/ExampleRetJunk` reaches the junk case on valid code
+          (`ret_ne`, `ret_projRel`, `ret_top`).
+        - Fixtures: `ExamplePending` (pending call answered by an exception or a trap; a tail call
+          in a handler); `ExampleNested` (nested control, nested-loop continue, caught throw);
+          `ExampleRetJunk` (exit across a frame with outer values).
+      - **H3, the recursive CFG closure.** `cfgHOpenXPS`, the open module whose Wasm bodies run
+        on the logged machine. It is defined from the machine, not as an alias of `wasmHOpenXPS`.
+        Its closure `Shape.close cfgHOpenXPS` resolves callees through CFG-run bodies, which
+        discharges `CX closedCallX`.
+        - **H3-1, finished behaviours, done** (`Wasm/Cfg/CfgSession`). `cfgHOpenXPS` is
+          defined from `MRunL` to a sink (`EndRel`, `exitFlow`, `endOfFlowS`), from `TailL` with
+          the tail call's answer (`tailAnsS`), and from host calls.
+          - `cfgHOpen_eq : cfgHOpenXPS = wasmHOpenXPS`, for all code, with every call form,
+            exceptions on and traps keeping their store. It follows from `forward_sink`,
+            `forward_tail` and `backward`; `backward`'s excluded `brk (k + 1)` has no framed end.
+          - `cfgEvFun_eq : cfgEvFunXPS = wasmEvFunXPS`. So `wasmEvFunXPS`'s Core adequacy with
+            hosts and exceptions (`wasmEvFunXPS_*_iff`) holds for the CFG closure.
+        - **H3-2, pending host calls, done**: `CfgPendLXPS`, `cfgPend_iff`, and
+          `cfgEvPend_eq : cfgEvPendXPS = wasmEvPendXPS`. They go via `pending_iff`,
+          `forward_tail`/`backward` and `cfgHOpen_eq`.
+        - Then H3-3: the divergent part (`closeDLog wasmHOpenXP LDLwXP`) and the productive part
+          (`closeInfL wasmHOpenXP InfLwXP`). Together with H3-1 and H3-2 they give the CFG
+          session triple equal to `sessionTripleXP`. Both parts use the **trap-erasing** canonical
+          module `wasmHOpenXP` (`EvalLXPh` logs, `OCall`), through `DescPath`/`Descends`, through
+          `close`, and through the per-function sets.
+          - **Obstacle.** `evalLXPh_session`/`evalLXPS_canonical` convert only runs not ending in
+            a trap. On trapping runs the relations differ: a callee trap is an answered entry
+            in `EvalLXPS`, and an over-long value answer (`callCut`) in `EvalLXPh`, by the internal
+            `HostClosingS.ToH`.
+          - **Plan.**
+            - Export the trap cases of that conversion in the `HostClosingS` header.
+            - Define `cfgHOpenXP` from the machine with them, and prove
+              `cfgHOpenXP = wasmHOpenXP` as for H3-1.
+            - The productive part then follows by `prodL_iff`, since `InfLwXP` is `InfLXP` at
+              `Frame.forCall`.
+            - The divergent part: `logDiv_machine` gives the inclusion. The converse
+              `machine_logDiv` adds `closedCallXP`-answered entries, and those resolve to empty
+              host logs in `close wasmHOpenXP` (`HostClosingInfXPBack.evalLXPh_of_evalOXP_closed`,
+              per call). So the equality holds at the level of `closeDLog`, not per function.
+        - Equality with the store-retaining session closure `wasmEvFunXPS`/`sessionTripleXP`
+          (not the trap-store-erasing `wasmEvFunXP`).
+        - Then the instance session with imports and exceptions, via the existing Core adequacy
+          (`wasmEvFunXPS_*_iff`, `wasmEvPendXPS_eq`, productive streams) and NodeBridge, on a
+          typed fragment with the exception checker (`ehExt tags`).
+        - Regressions: recursion through a host, trap-then-resume, productive host interaction.
 
 **Also tracked:** byte occurrence (a function's code entry in its module's bytes, for the valid
 serializer profile) is not started. Typing completeness for validated bodies is done

@@ -1,8 +1,8 @@
 # glibc byte ranges
 
 The modules `Silmaril.Elf.Link.Dyn.Glibc.Defs`, `Silmaril.Elf.Link.Dyn.Small.Libc`,
-`Silmaril.Elf.Link.Dyn.Program.Glibc` and `Silmaril.Elf.Link.Dyn.Program.StdExe.Bins.Glibc`
-contain short byte ranges (a few kilobytes in all: the ELF and program headers, the dynamic
+`Silmaril.Elf.Link.Dyn.Program.Glibc`, `Silmaril.Elf.Link.Dyn.Program.StdExe.Bins.Glibc` and
+`Silmaril.Elf.Link.Dyn.Sha256sum.Scope.Defs` contain short byte ranges (a few kilobytes in all: the ELF and program headers, the dynamic
 section, and the parts of the symbol, string, version and GNU hash tables that symbol lookup reads)
 of two files of the GNU C Library 2.39 as packaged by Ubuntu (`libc6` 2.39-0ubuntu8.9, amd64):
 

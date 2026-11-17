@@ -49,6 +49,22 @@ theorem Holds.unique {s : Store Nat} {m m' : Mach} (h : Holds s m) (h' : Holds s
   subst h₁ h₂ h₃ h₄ h₅
   rfl
 
+/-- The machine state a fixture's store holds is unique. -/
+theorem HoldsX.unique {X : Fix} {fs fs' : List (FuncInst Nat)} {s : Store Nat} {m m' : Mach}
+    (h : HoldsX X fs s m) (h' : HoldsX X fs' s m') : m = m' := by
+  obtain ⟨s₁, -, rfl⟩ := h
+  obtain ⟨s₂, -, he⟩ := h'
+  have hg : m.globals = m'.globals := List.append_cancel_right (congrArg Store.globals he)
+  have hm : (⟨memTy, m.mem⟩ :: X.mrest : List MemInst) = ⟨memTy, m'.mem⟩ :: X.mrest :=
+    congrArg Store.mems he
+  obtain ⟨h₁, h₂, h₃, h₄⟩ := Mach.globals_inj hg
+  have h₅ : m.mem = m'.mem := by simpa using hm
+  cases m
+  cases m'
+  simp only at h₁ h₂ h₃ h₄ h₅
+  subst h₁ h₂ h₃ h₄ h₅
+  rfl
+
 /-! ## Arguments -/
 
 theorem typed_row {vs : List Val}

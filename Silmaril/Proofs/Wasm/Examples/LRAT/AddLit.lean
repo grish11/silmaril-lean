@@ -27,7 +27,9 @@ open Silmaril.Wasm.Logic.Core (Outcome Post)
 def InvX {H : Type} (X : Fix H) (xs : List Int) (s : Store H) : Prop :=
   ∃ G B, Shape X s G B ∧ Good xs G B
 
-theorem lratX_ok : MiOk lratX := ⟨lrat_mi.1, lrat_mi.2⟩
+theorem lratX_ok : MiOk lratX :=
+  ⟨fun k hk => by rw [show lratX.mi = lratMi from rfl, lrat_mi.1]; simp [hk],
+    by rw [show lratX.mi = lratMi from rfl, lrat_mi.2]; rfl⟩
 
 /-- The postcondition of a body without results, from the view `G`, `B`, that extends the DIMACS
 stream by `c`: the final view satisfies `Good (xs ++ c)` whenever `G`, `B` satisfied `Good xs`. -/

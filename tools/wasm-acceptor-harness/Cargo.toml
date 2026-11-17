@@ -1,0 +1,29 @@
+[package]
+name = "wasm-acceptor-harness"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+license = "MIT"
+description = "Run Silmaril's certificate-checking Wasm component acceptors under Wasmtime and record what was observed."
+
+[[bin]]
+name = "wasm-acceptor-harness"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+blake3 = "1.8.7"
+clap = { version = "4.6", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+sha2 = "0.11"
+wasmtime = { version = "=50.0.0", default-features = false, features = ["cranelift", "component-model", "runtime", "std"] }
+
+[dev-dependencies]
+# Builds the test component of `every_supported_type_through_wasmtime` (already in the lock
+# through wasmtime, at the version wasmtime 50 uses).
+wasm-encoder = "=0.261.0"
+
+[lints.rust]
+unsafe_code = "forbid"
