@@ -89,6 +89,8 @@ try {
       counts: Object.fromEntries([...document.querySelectorAll("[data-clang-counts] [data-count]")].map((s) => [s.dataset.count, s.innerText])),
       abiCounts: Object.fromEntries([...document.querySelectorAll("tr[data-abi-count]")].map((r) => [r.dataset.abiCount,
         Object.fromEntries([...r.querySelectorAll("td[data-n]")].map((c) => [c.dataset.n, c.innerText]))])),
+      ccsNotes: Object.fromEntries([...document.querySelectorAll("tr[data-abi-count]")].map((r) => [r.dataset.abiCount,
+        r.querySelector("[data-ccs-note]")?.innerText ?? null])),
       prov: Object.fromEntries([...document.querySelectorAll("tr[data-prov]")].map((r) => [r.dataset.prov, r.querySelector("td").innerText])),
       entries: [...document.querySelectorAll("tr[data-entry]")].map((r) => ({ i: r.dataset.entry, name: r.dataset.name,
         cc: r.querySelector("td[data-cc]").innerText, symbol: r.querySelector("td[data-symbol]").innerText,
@@ -120,6 +122,7 @@ try {
         `${h.id}: clang counts as the data says (${JSON.stringify(c.counts)})`);
       check(d.abis.every((a) => ["interface", "claimable", "unsupported"].every((k) => pg.abiCounts[a.name]?.[k] === String(c.abiCounts[a.name][k]))),
         `${h.id}: per-ABI interface / claimable / unsupported counts as the data says`);
+      check(d.abis.every((a) => pg.ccsNotes[a.name] === a.clangCcsNote) && /default C convention is System V/.test(pg.ccsNotes.win64Int || ""), `${h.id}: each ABI's accepted conventions carry their note (win64Int: the Linux target's default is System V)`);
       check(pg.prov.image === pv.image && pg.prov.clang === pv.clang && pg.prov.target === pv.target && pg.prov.std === pv.std &&
         pv.inputs.every((i) => pg.prov.inputs.includes(i.file) && pg.prov.inputs.includes(i.sha256)) &&
         pg.prov.JSON.includes(pv.jsonSha256) && pv.defines.every((x) => pg.prov.defines.includes(x)),

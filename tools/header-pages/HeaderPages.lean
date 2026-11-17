@@ -119,6 +119,15 @@ def clangCcs : String → List CallConv
   | "win64Int" => [.msAbi]
   | _ => sysvCcs
 
+/-- Why an ABI definition accepts the conventions it does on the imports' target. -/
+def clangCcsNote : String → String
+  | "win64Int" => "every pinned import targets x86_64-unknown-linux-gnu, where the default C \
+      convention is System V: only ms_abi declarations follow Microsoft x64 there, so a \
+      default-convention function is unsupported under win64Int here. A Windows-target import \
+      (where the default is Microsoft x64) is not pinned."
+  | _ => "the default C convention and sysv_abi: System V on the imports' target \
+      x86_64-unknown-linux-gnu"
+
 def exceptJson {α : Type} (f : α → Json) : Except String α → Json
   | .ok a => Json.mkObj [("ok", f a)]
   | .error e => Json.mkObj [("refused", js e)]
@@ -321,7 +330,8 @@ def main (args : List String) : IO UInt32 := do
     ("note", js "computed by the reader, the ABI definitions' lowering and the layout definitions, run on the header files; not theorems"),
     ("clangNote", js "computed by the import's status, interface and lowering definitions, run on the literal entries of each pinned clang import and its .prov; not theorems"),
     ("abis", Json.arr (abis.toArray.map fun (n, A) => Json.mkObj [("name", js n), ("id", js A.id), ("source", js A.source),
-      ("clangCcs", Json.arr ((clangCcs n).toArray.map (js ∘ ccText)))])),
+      ("clangCcs", Json.arr ((clangCcs n).toArray.map (js ∘ ccText))),
+      ("clangCcsNote", js (clangCcsNote n))])),
     ("dataModels", Json.arr #[js "sysvX86_64", js "msX64"]),
     ("headers", Json.arr hs)]
   IO.FS.createDirAll (out ++ "/headers")

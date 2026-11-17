@@ -91,7 +91,7 @@
       `<span data-count="implicit">${esc(n.implicit)}</span> implicit · <span data-count="unsupported">${esc(n.unsupported)}</span> the import does not read (with its reason)</p>` +
       '<table class="hdr"><thead><tr><th>ABI</th><th>conventions</th><th>interface functions</th><th>claimable</th><th>unsupported</th></tr></thead><tbody>' +
       d.abis.map((a) => { const k = (c.abiCounts || {})[a.name] || {};
-        return `<tr data-abi-count="${esc(a.name)}"><td><code>${esc(a.name)}</code></td><td>${(a.clangCcs || []).map((x) => `<code>${esc(x)}</code>`).join(", ")}</td>` +
+        return `<tr data-abi-count="${esc(a.name)}"><td><code>${esc(a.name)}</code></td><td>${(a.clangCcs || []).map((x) => `<code>${esc(x)}</code>`).join(", ")}${a.clangCcsNote ? `<br><span class="muted" data-ccs-note>${esc(a.clangCcsNote)}</span>` : ""}</td>` +
           `<td data-n="interface">${esc(k.interface)}</td><td data-n="claimable">${esc(k.claimable)}</td><td data-n="unsupported">${esc(k.unsupported)}</td></tr>`; }).join("") + "</tbody></table>";
     x += '<h4>Entries</h4><div class="tablebox"><table class="hdr"><thead><tr><th>#</th><th>name</th><th>kind</th><th>location</th><th>C declaration</th><th>convention</th><th>attributes</th><th>symbol</th>' +
       abis.map((a) => `<th>${esc(a)}</th>`).join("") + "</tr></thead><tbody>" +
