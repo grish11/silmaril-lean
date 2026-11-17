@@ -10,7 +10,9 @@ import Silmaril.Proofs.Cerberus.TV.Compose
   `Equivalent.symm`, `Equivalent.trans`.
 * Horizontal: `ContextRefines.trans` (successive replacements of one function),
   `ContextRefines.then` (a replacement of `f`, then one of `g` in the contexts where `f` is
-  already replaced), `validateContexts_sound`.
+  already replaced), `validateContexts_sound` (to `FunctionRefines`: nonempty contexts with a
+  substitution witness each), `ContextRefines.nil` (the weak relation is vacuous for no context)
+  and `FunctionRefines.not_nil`.
 -/
 
 @[expose] public section
@@ -52,7 +54,15 @@ theorem ContextRefines.then {impl : Spec.Impl} {b : Codec.FileBindings} {f g : S
 
 theorem validateContexts_sound (impl : Spec.Impl) (ctxs : List Codec.FileBindings) (f : Sym)
     (d d' : Core.FunDecl Codec.wireModel Unit Unit) (bounds : Bounds)
-    (h : validateContexts impl ctxs f d d' bounds = true) : ContextRefines impl ctxs f d d' :=
+    (h : validateContexts impl ctxs f d d' bounds = true) : FunctionRefines impl ctxs f d d' :=
   Proofs.Cerberus.TV.validateContexts_sound impl ctxs f d d' bounds h
+
+/-- The weak relation is vacuous for no context (why the standard shape is `FunctionRefines`). -/
+theorem ContextRefines.nil (impl : Spec.Impl) (f : Sym) (d d' : Core.FunDecl Codec.wireModel Unit Unit) :
+    ContextRefines impl [] f d d' := fun _ h => nomatch h
+
+/-- `FunctionRefines` never holds for no context. -/
+theorem FunctionRefines.not_nil {impl : Spec.Impl} {f : Sym} {d d' : Core.FunDecl Codec.wireModel Unit Unit} :
+    ¬ FunctionRefines impl [] f d d' := fun h => h.nonempty rfl
 
 end Silmaril.Cerberus.TV
