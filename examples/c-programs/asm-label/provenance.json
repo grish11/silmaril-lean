@@ -10,7 +10,7 @@
     "args": [],
     "target": "x86_64-linux-gnu",
     "tool": "ctv-pipeline run",
-    "version": "4c61d70cb6a5e315a0357b5f984f293af3718904"
+    "version": "6f1c9fc0110757e5daa04959b50b13fb65834eef"
    },
    "sha256": "481295c7026a4e556e53d0b2146f191c29faac00099a152b6a2adea80bec212e",
    "sha256Of": "uncompressed",
@@ -28,7 +28,7 @@
     ],
     "target": "x86_64-linux-gnu",
     "tool": "cerb-lean parse --level tail",
-    "version": "4c61d70cb6a5e315a0357b5f984f293af3718904"
+    "version": "6f1c9fc0110757e5daa04959b50b13fb65834eef"
    },
    "sha256": "0a9f68b1eca513af826d759d6eb7fe192f28ec544b26e6bf951b0443d86c3966",
    "stage": "typedAil"
@@ -55,7 +55,7 @@
     "tool": "clang -ast-dump=json",
     "version": "Debian clang version 19.1.7 (3+b1)"
    },
-   "sha256": "8c6458fd0bae8f82159b6491764ae0a940c74730ee58e14b540f008773cce688",
+   "sha256": "b856ac352699a6d9736c4b1f09582875c5bc56b9bb01c7ca33f50986b38e6232",
    "sha256Of": "uncompressed",
    "stage": "clangAst"
   },
@@ -120,6 +120,9 @@
    "stage": "source"
   }
  },
+ "blockedRoutes": [
+  "cerberus"
+ ],
  "edges": [
   {
    "evidence": {
@@ -135,6 +138,7 @@
    },
    "relation": "elaborates",
    "source": "ad8b54dcd83b0a3f3be10d7ec123d88929d4792e120c0100d21d00d877faa3c0",
+   "sourceCorrespondence": "blocked: asm label or register",
    "target": "0a9f68b1eca513af826d759d6eb7fe192f28ec544b26e6bf951b0443d86c3966"
   },
   {
@@ -143,7 +147,7 @@
    },
    "relation": "produces",
    "source": "ad8b54dcd83b0a3f3be10d7ec123d88929d4792e120c0100d21d00d877faa3c0",
-   "target": "8c6458fd0bae8f82159b6491764ae0a940c74730ee58e14b540f008773cce688"
+   "target": "b856ac352699a6d9736c4b1f09582875c5bc56b9bb01c7ca33f50986b38e6232"
   },
   {
    "evidence": {
@@ -151,6 +155,7 @@
    },
    "relation": "elaborates",
    "source": "0a9f68b1eca513af826d759d6eb7fe192f28ec544b26e6bf951b0443d86c3966",
+   "sourceCorrespondence": "blocked: asm label or register",
    "target": "481295c7026a4e556e53d0b2146f191c29faac00099a152b6a2adea80bec212e"
   }
  ],
@@ -163,14 +168,16 @@
  "language": "C11",
  "losses": [
   {
+   "blocking": true,
    "construct": "asm label or register",
    "route": "cerberus",
-   "rule": "dropped by the parser, as upstream c_parser.mly does (Silmaril/Raw/Cerberus/Frontend/Declarations.lean, initDeclaratorRest)"
+   "rule": "dropped by the parser, as upstream c_parser.mly does (Silmaril/Raw/Cerberus/Frontend/Declarations.lean, initDeclaratorRest)",
+   "why": "the assembler name or register the declaration gives is lost: the route's Core does not represent the source's linkage names"
   }
  ],
  "name": "asm-label",
  "profile": "linuxX86_64",
- "repositoryRevision": "4c61d70cb6a5e315a0357b5f984f293af3718904",
+ "repositoryRevision": "6f1c9fc0110757e5daa04959b50b13fb65834eef",
  "schema": "silmaril.c-tv.provenance.v1",
  "target": "x86_64-linux-gnu",
  "tools": {
