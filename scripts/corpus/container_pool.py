@@ -213,6 +213,9 @@ class ContainerPool:
     def __exit__(self, kind, error, traceback):
         if error is not None:
             self.record['failure'] = {'type': type(error).__name__, 'message': str(error), 'utc': self.now()}
+            if self.record['profiles'] and self.record['profiles'][-1]['status'] == 'running':
+                self.record['profiles'][-1].update(status='failed', finished_utc=self.now(),
+                                                  failure=dict(self.record['failure']))
         results = []
         for container in self.containers:
             result = subprocess.run(['docker', 'rm', '--force', container], capture_output=True, text=True, timeout=45)

@@ -1,0 +1,29 @@
+{
+  "canonical_receipt": "corpus/elf/openssl/x86_64/receipt.json",
+  "canonical_receipt_sha256": "f6175ae44c89ee765cf6f296cd81ca70b2cce001ab03c9dc42e0bb7fbe6ad1bf",
+  "new_receipt": "corpus/variants/openssl/3.5.9/no-asm/x86_64/O2/unstripped/receipt.json",
+  "new_receipt_sha256": "6733d8b9029b9c5f914a0f3dd1369faf4d8d79981509f2d0185f5605e6939cd6",
+  "comparison": [
+    {
+      "object": "libcrypto.so.3",
+      "new_sha256": "516a8f5ce20913ab80d03a1b195458171399a9470f2e93b075f38e634d9c866b",
+      "canonical_sha256": "516a8f5ce20913ab80d03a1b195458171399a9470f2e93b075f38e634d9c866b",
+      "byte_identical": true
+    },
+    {
+      "object": "libssl.so.3",
+      "new_sha256": "cd856f63e645e38ed5698dc3e33b6f7775dbc57dff0ae37db340851787c378b2",
+      "canonical_sha256": "cd856f63e645e38ed5698dc3e33b6f7775dbc57dff0ae37db340851787c378b2",
+      "byte_identical": true
+    },
+    {
+      "object": "openssl",
+      "new_sha256": "0b52eaf61f28b5df742f6e500eaffd66594bb70bcb8784530fe2b5b856110c85",
+      "canonical_sha256": "0b52eaf61f28b5df742f6e500eaffd66594bb70bcb8784530fe2b5b856110c85",
+      "byte_identical": true
+    }
+  ],
+  "limits": [
+    "Exact ELF byte comparison only; no source semantics or formal equivalence claim; canonical files unchanged."
+  ]
+}

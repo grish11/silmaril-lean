@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "project": "openssl",
+  "version": "3.5.9",
+  "configuration": "asm",
+  "arch": "aarch64",
+  "artifact_rows": 6,
+  "profiles": [
+    {
+      "optimization": "O3",
+      "build": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/build.json",
+      "outputs": [
+        {
+          "object": "libcrypto.so.3",
+          "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/unstripped/libcrypto.so.3",
+          "size": 6761064,
+          "sha256": "76b621c5de75f264d3b8c4728fad20096ad4746558be576910fe6764c56fcd06",
+          "elf_machine": "AArch64",
+          "func_symbols": 12675,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/unstripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/aarch64/O3/unstripped/libcrypto.so.3.json"
+        },
+        {
+          "object": "libssl.so.3",
+          "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/unstripped/libssl.so.3",
+          "size": 1257704,
+          "sha256": "3079e520c5bee6bf356a1c57721281e7f494ee291df5b6c60fb478a4223f7962",
+          "elf_machine": "AArch64",
+          "func_symbols": 2431,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/unstripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/aarch64/O3/unstripped/libssl.so.3.json"
+        },
+        {
+          "object": "openssl",
+          "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/unstripped/openssl",
+          "size": 1248496,
+          "sha256": "f13e61b27e141348c5241c0cb34951e90c2b4f1f374cf5493e3f71c4cece670b",
+          "elf_machine": "AArch64",
+          "func_symbols": 564,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/unstripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/aarch64/O3/unstripped/openssl.json"
+        },
+        {
+          "object": "libcrypto.so.3",
+          "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/stripped/libcrypto.so.3",
+          "size": 5845232,
+          "sha256": "ca10665633f044dd7409842d9bb5b75a831c8386b818a9f61861df3097e71bdb",
+          "elf_machine": "AArch64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/stripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/aarch64/O3/stripped/libcrypto.so.3.json"
+        },
+        {
+          "object": "libssl.so.3",
+          "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/stripped/libssl.so.3",
+          "size": 1069368,
+          "sha256": "282967a5faf5e71e5c1acd0645fb9b3e58cb45b85d8b91d114bc44a25d7c79ac",
+          "elf_machine": "AArch64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/stripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/aarch64/O3/stripped/libssl.so.3.json"
+        },
+        {
+          "object": "openssl",
+          "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/stripped/openssl",
+          "size": 1096288,
+          "sha256": "bc5f30b4e9c4cae62ece33fe9a7003a1076806b0e9fb7a70274177a3972bdb8a",
+          "elf_machine": "AArch64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/aarch64/O3/stripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/aarch64/O3/stripped/openssl.json"
+        }
+      ],
+      "independent_build_wall_seconds": {
+        "build-a": 171.48061257300014,
+        "build-b": 146.77183992400023
+      },
+      "source_assembly_inventory": "corpus/measurements/openssl-asm-aarch64-completion/source-assembly-O3.json",
+      "standalone_assembly_files": 30,
+      "c_family_volatile_asm_files": 1,
+      "successful_measured_commands": 18
+    }
+  ],
+  "validation": "exact source/ELF/census/strip-pair hashes, both repeats runtime results and measured command exits checked",
+  "container_lifecycle": "same two independently initialized persistent workers; clean private workspaces per profile; pool reused, not fresh containers",
+  "limits": [
+    "Specific runtime observations, not exhaustive upstream tests.",
+    "Lexical C volatile asm sites may be inactive after preprocessing.",
+    "Static census decoder coverage/unknowns are retained in each report; no semantic or formal claim.",
+    "No shared index or Lean registry updated."
+  ]
+}

@@ -23,6 +23,22 @@ PACKAGES = ['cjson', 'darkhttpd', 'tcp-pingpong', 'mimalloc', 'jemalloc', 'refcr
 TAG = 'silmaril-corpus-toolchain:trixie-20251103'
 BASE = 'debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598'
 
+def parse_profile(value):
+    parts = value.split(':')
+    if (len(parts) != 3 or parts[1] not in ['x86_64', 'aarch64'] or
+            parts[2] not in ['O0', 'Og', 'O1', 'O2', 'O3']):
+        raise argparse.ArgumentTypeError('profile must be CONFIGURATION:ARCH:LEVEL')
+    return tuple(parts)
+
+
+def profile_axes(package, profiles):
+    allowed = {'openssl': {'asm', 'no-asm'}, 'boringssl': {'asm', 'no-asm', 'fips-shared'},
+               'sqlite': {'default', 'fts5-rtree', 'small'}}.get(package, {'default'})
+    if any(config not in allowed for config, arch, level in profiles):
+        raise ValueError('profile configuration is unsupported for this package')
+    return tuple(list(dict.fromkeys(profile[i] for profile in profiles)) for i in [1, 0, 2])
+
+
 def sha(path):
     with path.open('rb') as f:
         return hashlib.file_digest(f, 'sha256').hexdigest()
@@ -39,12 +55,21 @@ def main():
                    help='explicit O2 builds add separately repeated strip pairs; default remains O0/Og/O1/O3')
     p.add_argument('--configuration', choices=['asm', 'no-asm', 'default', 'fts5-rtree', 'small', 'fips-shared'], action='append', help='package-specific build configuration; OpenSSL/BoringSSL default remains no-asm')
     p.add_argument('--version', action='append', help='SQLite only: a pinned genuine upstream release')
+    p.add_argument('--profile', type=parse_profile, action='append',
+                   help='exact CONFIGURATION:ARCH:LEVEL tuple; repeat to share one pool without a Cartesian matrix')
     p.add_argument('--work', type=Path, required=True)
     p.add_argument('--resume-pool', type=Path, help='reconnect to the same idle workers; never create replacements')
     p.add_argument('--recover-work', type=Path, help='unpublished profile with two successfully measured builds')
     p.add_argument('--resume', action='store_true', help='validate and retain already published builds')
     a = p.parse_args()
-    if a.configuration is not None:
+    if a.profile:
+        if len(a.package or []) != 1 or a.arch or a.configuration or a.level:
+            p.error('--profile requires one --package and cannot combine with --arch/--configuration/--level')
+        try:
+            a.arch, a.configuration, a.level = profile_axes(a.package[0], a.profile)
+        except ValueError as error:
+            p.error(str(error))
+    if a.configuration is not None and not a.profile:
         allowed = {'openssl': {'asm', 'no-asm'}, 'boringssl': {'asm', 'no-asm', 'fips-shared'},
                    'sqlite': {'default', 'fts5-rtree', 'small'}}
         if not a.package or len(a.package) != 1 or not set(a.configuration) <= allowed.get(a.package[0], set()):
@@ -104,6 +129,8 @@ def main():
                     names = [obj['name'] for obj in package['object']]
                     for config in (a.configuration or ['no-asm']) if pkg in ['openssl', 'boringssl'] else (a.configuration or ['default']):
                         for level in a.level or ['O0', 'Og', 'O1', 'O3']:
+                            if a.profile and (config, arch, level) not in a.profile:
+                                continue
                             relative = Path('corpus/variants') / pkg / package['version'] / config / arch / level
                             dest = ROOT / relative
                             if dest.exists():

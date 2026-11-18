@@ -1,0 +1,261 @@
+{
+  "package": "sqlite",
+  "version": "3.50.4",
+  "arch": "aarch64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O2 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE -MMD",
+  "ldflags": "",
+  "configure_args": "(none: amalgamation compiled directly)",
+  "build_commands": [
+    "aarch64-linux-gnu-gcc -O2 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE -MMD -fPIC -c sqlite3.c -o sqlite3.o",
+    "aarch64-linux-gnu-gcc -shared -Wl,-soname,libsqlite3.so.0 -o libsqlite3.so sqlite3.o -lm",
+    "aarch64-linux-gnu-gcc -O2 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE -MMD -c shell.c -o shell.o",
+    "aarch64-linux-gnu-gcc -o sqlite3 shell.o -L. -lsqlite3 -lm"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/sqlite",
+  "inputs": [
+    {
+      "url": "https://sqlite.org/2025/sqlite-amalgamation-3500400.zip",
+      "sha256": "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libsqlite3.so",
+      "path": "corpus/variants/sqlite/3.50.4/fts5-rtree/aarch64/O2/unstripped/libsqlite3.so",
+      "size": 1357072,
+      "sha256": "fe8b36daf124d38e19934dc0e504cfb5ea2bc424d400916c2a01ea875bc9df54",
+      "elf_machine": "AArch64",
+      "func_symbols": 1884,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "sqlite3",
+      "path": "corpus/variants/sqlite/3.50.4/fts5-rtree/aarch64/O2/unstripped/sqlite3",
+      "size": 364240,
+      "sha256": "5940d87928a5b7d31bfe50fd991ab590fdda5535f0f88aafb01f1390b9589bbf",
+      "elf_machine": "AArch64",
+      "func_symbols": 376,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean workspaces in independent persistent pool containers; byte-identical outputs",
+  "tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 :memory: 'select sqlite_version()'",
+      "result": "pass: 3.50.4"
+    },
+    {
+      "command": "FTS5 compiled option",
+      "result": "pass: 1"
+    },
+    {
+      "command": "RTree compiled option",
+      "result": "pass: 1"
+    },
+    {
+      "command": "FTS5 actual insert/query",
+      "result": "pass: hello"
+    },
+    {
+      "command": "RTree actual range query",
+      "result": "pass: 7"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 :memory: 'create table t(x); insert into t values(1),(2),(3); select sum(x),group_concat(x) from t'",
+      "result": "pass: 6|1,2,3"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 :memory: \"select hex(sha3('abc',256))\" (shell's built-in sha3 extension)",
+      "result": "pass: 3A985DA74FE225B2045C172D6BD390BD855F086E3E9D525B46BFE24511431532"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 FILE (create table, then reopen and query; json_object)",
+      "result": "pass: {\"k\":\"b\",\"v\":2}"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 FILE 'pragma integrity_check'",
+      "result": "pass: ok"
+    }
+  ],
+  "variant": {
+    "optimization": "O2",
+    "stripping": "unstripped",
+    "configuration": "fts5-rtree",
+    "run_id": "7f90fa9e-d91f-4bc2-a8e9-7a1d263258a3",
+    "target": "aarch64-linux-gnu"
+  },
+  "container_pool": {
+    "toolchain": "corpus/toolchain",
+    "pool_id": "74851a9a-d4ea-4515-8042-e7143a3f35d8",
+    "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "lifecycle": "two independently initialized persistent containers; reused across profiles",
+    "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+    "reset": [
+      "bash",
+      "-eu",
+      "-c",
+      "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+    ],
+    "environment": {
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/root",
+      "LC_ALL": "C",
+      "TZ": "UTC",
+      "SOURCE_DATE_EPOCH": "1762128000",
+      "JOBS": "3"
+    },
+    "resources": {
+      "containers": 2,
+      "cpu_per_container": 3,
+      "memory_bytes_per_container": 12884901888,
+      "execution": "serial builds, strips and tests; no third container"
+    },
+    "started_utc": "2026-11-18T02:04:33.058966+00:00",
+    "workers": [
+      {
+        "slot": 0,
+        "container_id": "4b2576d3788498ffe69f6b4ed394edde93788cd0750188272d8f278a4e562d29",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/sqlite-versions/recipes-ad3cc5a6-ad0d-429a-a7a6-e832f9505ed9/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/sqlite-versions/recipes-ad3cc5a6-ad0d-429a-a7a6-e832f9505ed9/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/sqlite-versions/pool-dfc560d7-f26d-45f5-ade9-c79e50cde3e4/0:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:04:33.215876+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      },
+      {
+        "slot": 1,
+        "container_id": "b15687f87a4ec771330f9f56413c0891e8b54ce74cc8e7f4647549908825fb3f",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/sqlite-versions/recipes-ad3cc5a6-ad0d-429a-a7a6-e832f9505ed9/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/sqlite-versions/recipes-ad3cc5a6-ad0d-429a-a7a6-e832f9505ed9/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/sqlite-versions/pool-dfc560d7-f26d-45f5-ade9-c79e50cde3e4/1:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:04:33.414049+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      }
+    ],
+    "profiles": [
+      {
+        "identity": "corpus/variants/sqlite/3.50.4/fts5-rtree/aarch64/O2",
+        "sequence": 22,
+        "started_utc": "2026-11-18T02:17:58.397869+00:00",
+        "container_reused": true,
+        "workspace_reset_verified": true,
+        "status": "passed",
+        "finished_utc": "2026-11-18T02:19:16.853741+00:00"
+      }
+    ]
+  },
+  "independent_repeat_tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 :memory: 'select sqlite_version()'",
+      "result": "pass: 3.50.4"
+    },
+    {
+      "command": "FTS5 compiled option",
+      "result": "pass: 1"
+    },
+    {
+      "command": "RTree compiled option",
+      "result": "pass: 1"
+    },
+    {
+      "command": "FTS5 actual insert/query",
+      "result": "pass: hello"
+    },
+    {
+      "command": "RTree actual range query",
+      "result": "pass: 7"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 :memory: 'create table t(x); insert into t values(1),(2),(3); select sum(x),group_concat(x) from t'",
+      "result": "pass: 6|1,2,3"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 :memory: \"select hex(sha3('abc',256))\" (shell's built-in sha3 extension)",
+      "result": "pass: 3A985DA74FE225B2045C172D6BD390BD855F086E3E9D525B46BFE24511431532"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 FILE (create table, then reopen and query; json_object)",
+      "result": "pass: {\"k\":\"b\",\"v\":2}"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 FILE 'pragma integrity_check'",
+      "result": "pass: ok"
+    }
+  ]
+}

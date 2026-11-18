@@ -8,7 +8,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -18,7 +18,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -28,7 +28,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -38,7 +38,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -48,7 +48,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -57,40 +57,48 @@
       "function": "OPENSSL_isservice",
       "status": "blocked",
       "blockers": [
-        "canonical libcrypto whole-file parse unavailable",
         "preprocessor configuration branch/source projection not yet bound"
       ],
-      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim",
+      "resolved_structural_prerequisites": [
+        "both canonical libcrypto whole files now have checked parsing and structural decomposition; this does not supply function-specific source/Core bindings"
+      ]
     },
     {
       "project": "openssl",
       "function": "ERR_load_KDF_strings",
       "status": "blocked",
       "blockers": [
-        "canonical libcrypto whole-file parse unavailable",
         "preprocessor configuration branch/source projection not yet bound"
       ],
-      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim",
+      "resolved_structural_prerequisites": [
+        "both canonical libcrypto whole files now have checked parsing and structural decomposition; this does not supply function-specific source/Core bindings"
+      ]
     },
     {
       "project": "openssl",
       "function": "X509V3_add_standard_extensions",
       "status": "blocked",
       "blockers": [
-        "canonical libcrypto whole-file parse unavailable",
         "preprocessor configuration branch/source projection not yet bound"
       ],
-      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim",
+      "resolved_structural_prerequisites": [
+        "both canonical libcrypto whole files now have checked parsing and structural decomposition; this does not supply function-specific source/Core bindings"
+      ]
     },
     {
       "project": "openssl",
       "function": "ossl_prov_is_running",
       "status": "blocked",
       "blockers": [
-        "canonical libcrypto whole-file parse unavailable",
         "preprocessor configuration branch/source projection not yet bound"
       ],
-      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim",
+      "resolved_structural_prerequisites": [
+        "both canonical libcrypto whole files now have checked parsing and structural decomposition; this does not supply function-specific source/Core bindings"
+      ]
     },
     {
       "project": "sqlite",
@@ -102,6 +110,25 @@
         "bitwise macro lowering/config binding required"
       ],
       "evidence": "actual symbol0xff10,size7 and upstream conditional definitions inspected; identity definition deliberately not substituted"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsNull",
+      "status": "blocked; diagnostic adapter only",
+      "blockers": [
+        "Core bitwise AND lowering rejects outside add/sub/mul",
+        "struct member-load lowering not reached by this diagnostic",
+        "actual build preprocessing/configuration and memory/ABI/ELF contextual bindings still required"
+      ],
+      "resolved_frontend_prerequisites": [
+        "typed frontend accepts the actual upstream struct/function with explicit macro substitutions",
+        "null-constant/pointer equality lowering passes before the bitwise rejection"
+      ],
+      "evidence": {
+        "source": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+        "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+        "scope": "diagnostic source adapter; no full translation-unit, kernel binding, function statement or proof claimed"
+      }
     }
   ],
   "promoted": [

@@ -188,13 +188,14 @@ reachable-state-only coverage. No partition into valid BBs is required.
 Calls and abnormal effects contribute only when the supplied transition system
 emits their events; halt-only observations require an explicit policy/encoding.
 
-A powerset vocabulary includes clobbered registers, read/write/touched addresses,
-instructions, function calls, syscalls, uses, definitions, UB, trap and raise.
-The projection helpers are observations, not an ISA effect inference engine.
-`UseDef.sequence` computes upward-exposed uses as
-`uses₁ ∪ (uses₂ \\ definiteDefs₁)`; `selection` intersects definite definitions.
-The checked `sequence_is_not_union` example shows why plain union of summary
-uses is wrong. Possible clobbers are not definite definitions.
+The [indexed effects guide](region-effects.md) explains the open family
+`Atom Payload`, per-category projection and renaming, direct instruction effects
+versus call summaries, and certified terminal control summaries. `UseDef`
+remains a sequential transfer with definite definitions; selection has the
+proved least-upper-allowance property in its mixed precision order.
+`outcomeEnvelope` additionally includes reachable distinguished halts, including
+faults or UB represented as halts without emitted events. The checked examples
+cover heterogeneous payloads, use/def ordering and an otherwise silent fault.
 
 `MustOccur` instead quantifies over a **chosen nonempty family of finite traces**.
 Its witness prevents vacuity, but the family need not include every maximal or
@@ -210,7 +211,7 @@ lake build --wfail \
   Silmaril.Logic.Graph.Examples.Thms \
   Silmaril.Semantics.Region.Certified.Thms \
   Silmaril.Semantics.Region.Queries.Examples.Thms \
-  Silmaril.Semantics.Region.Effects.Thms
+  Silmaril.Semantics.Region.Effects.Examples.Thms
 ```
 
 Pass these same targets as `CHECK_TARGETS` to `make check` for the scoped source

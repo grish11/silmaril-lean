@@ -1,0 +1,230 @@
+{
+  "package": "boringssl",
+  "version": "git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6",
+  "arch": "aarch64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain-boringssl:trixie-20251103-go1.27.4",
+    "id": "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O0 -g0 -ffile-prefix-map=/build/boringssl=.; Release=-g0 -DNDEBUG; upstream adds its own warning/C++/ASM options (see compile_commands.json)",
+  "ldflags": "upstream CMake shared crypto/ssl and bssl target link commands; see ninja-commands.txt",
+  "configure_args": "upstream CMake; configuration=fips-shared; shared libraries; BUILD_TESTING=OFF; research build, no FIPS validation",
+  "build_commands": [
+    "python3 -I /corpus/boringssl/configure.py 'aarch64-linux-gnu-' '-O0 -g0 -ffile-prefix-map=/build/boringssl=.' 'fips-shared'",
+    "cmake --build build --target crypto ssl bssl --parallel 3 --verbose",
+    "upstream FIPS_SHARED: linker -r with fips_shared.lds; Go inject_hash rewrites libcrypto.so (executed commands in build.log)"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/boringssl",
+  "inputs": [
+    {
+      "url": "https://codeload.github.com/google/boringssl/tar.gz/ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6",
+      "sha256": "75ee588268ae3d7552f5be7e0849bdcc8e4159f22547dbfb4aae997784fdd345"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "bssl",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/fips-shared/aarch64/O0/unstripped/bssl",
+      "size": 451016,
+      "sha256": "98e0d325458669af357efe677a6ead5c3e2a71107489d57454ec8d5907b2706d",
+      "elf_machine": "AArch64",
+      "func_symbols": 1371,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libcrypto.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/fips-shared/aarch64/O0/unstripped/libcrypto.so",
+      "size": 4220224,
+      "sha256": "05096773c7d7ba0be659b32d54f5ecfe382595f3a45ccfd3bbb1b01fc51ae949",
+      "elf_machine": "AArch64",
+      "func_symbols": 12326,
+      "has_symtab": true,
+      "has_debug_info": true
+    },
+    {
+      "object": "libssl.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/fips-shared/aarch64/O0/unstripped/libssl.so",
+      "size": 1844424,
+      "sha256": "be32ec434e77730d011e98f16b6d145e377c1181584f285c6cb200abdf01cb3e",
+      "elf_machine": "AArch64",
+      "func_symbols": 6725,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean workspaces in independent persistent pool containers; byte-identical outputs",
+  "tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu libcrypto/libssl known answers, signature acceptance/rejection, TLS1.3 BIO handshake + transfer",
+      "result": "pass: SHA256 known answer passed\nAES128 known answer passed\nEd25519 sign verify and rejection passed\nTLS1.3 certificate signature handshake and application transfer passed\nFIPS research configuration flag: 1"
+    },
+    {
+      "command": "printf abc | qemu-aarch64 -L /usr/aarch64-linux-gnu bssl sha256sum",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu bssl ciphers DEFAULT (ECDHE-RSA AES128-GCM suite available)",
+      "result": "pass: 1"
+    }
+  ],
+  "variant": {
+    "optimization": "O0",
+    "stripping": "unstripped",
+    "configuration": "fips-shared",
+    "run_id": "f22b00ae-c1b9-4ff2-8e03-593f6789e9d8",
+    "target": "aarch64-linux-gnu"
+  },
+  "container_pool": {
+    "toolchain": "corpus/toolchain/boringssl",
+    "pool_id": "0c5b011a-bc25-401f-b461-fdd09a1dff8d",
+    "image_id": "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+    "lifecycle": "two independently initialized persistent containers; reused across profiles",
+    "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+    "reset": [
+      "bash",
+      "-eu",
+      "-c",
+      "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+    ],
+    "environment": {
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/root",
+      "LC_ALL": "C",
+      "TZ": "UTC",
+      "SOURCE_DATE_EPOCH": "1762128000",
+      "JOBS": "3"
+    },
+    "resources": {
+      "containers": 2,
+      "cpu_per_container": 3,
+      "memory_bytes_per_container": 12884901888,
+      "execution": "serial builds, strips and tests; no third container"
+    },
+    "started_utc": "2026-11-18T02:40:27.553321+00:00",
+    "workers": [
+      {
+        "slot": 0,
+        "container_id": "48de2c3061930bb41453cd0d102e53c0a890061559cb1788723c58ad95430888",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/boringssl-aarch64/recipes-e8e9d5b4-ee76-4e74-8223-8a95158df5cb/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/boringssl-aarch64/recipes-e8e9d5b4-ee76-4e74-8223-8a95158df5cb/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/boringssl-aarch64/pool-f6a4aed5-d906-4e45-a0ab-2b2e913bbd5d/0:/out",
+          "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:40:27.670489+00:00",
+        "extended_tool_inventory_sha256": {
+          "tools.json": "c56ae57f2c7f36d3e39c64c2e31d92bf11739a3b063c35119d2222b322ea57d7",
+          "go-tree.sha256": "f285de4a44ea0fb8c894493661305bd819629bac28e63b77b7ecdd844dff1d8e"
+        },
+        "package_lock_sha256": "6993f84960d608655f3c36d682815db8fbc900a0e2f60872d215d876d2f1afce"
+      },
+      {
+        "slot": 1,
+        "container_id": "076d721e3691a8f0865cb47f2f47b9e9bc8a483c0e62a854c15e899d4a9b66f8",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/boringssl-aarch64/recipes-e8e9d5b4-ee76-4e74-8223-8a95158df5cb/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/boringssl-aarch64/recipes-e8e9d5b4-ee76-4e74-8223-8a95158df5cb/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/boringssl-aarch64/pool-f6a4aed5-d906-4e45-a0ab-2b2e913bbd5d/1:/out",
+          "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:40:29.717496+00:00",
+        "extended_tool_inventory_sha256": {
+          "tools.json": "c56ae57f2c7f36d3e39c64c2e31d92bf11739a3b063c35119d2222b322ea57d7",
+          "go-tree.sha256": "f285de4a44ea0fb8c894493661305bd819629bac28e63b77b7ecdd844dff1d8e"
+        },
+        "package_lock_sha256": "6993f84960d608655f3c36d682815db8fbc900a0e2f60872d215d876d2f1afce"
+      }
+    ],
+    "profiles": [
+      {
+        "identity": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/fips-shared/aarch64/O0",
+        "sequence": 5,
+        "started_utc": "2026-11-18T02:49:48.498256+00:00",
+        "container_reused": true,
+        "workspace_reset_verified": true,
+        "status": "passed",
+        "finished_utc": "2026-11-18T02:52:06.152117+00:00"
+      }
+    ]
+  },
+  "independent_repeat_tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu libcrypto/libssl known answers, signature acceptance/rejection, TLS1.3 BIO handshake + transfer",
+      "result": "pass: SHA256 known answer passed\nAES128 known answer passed\nEd25519 sign verify and rejection passed\nTLS1.3 certificate signature handshake and application transfer passed\nFIPS research configuration flag: 1"
+    },
+    {
+      "command": "printf abc | qemu-aarch64 -L /usr/aarch64-linux-gnu bssl sha256sum",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu bssl ciphers DEFAULT (ECDHE-RSA AES128-GCM suite available)",
+      "result": "pass: 1"
+    }
+  ]
+}

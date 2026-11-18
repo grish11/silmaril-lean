@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "project": "openssl",
+  "version": "3.5.9",
+  "configuration": "asm",
+  "arch": "x86_64",
+  "artifact_rows": 6,
+  "profiles": [
+    {
+      "optimization": "O0",
+      "build": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/build.json",
+      "outputs": [
+        {
+          "object": "libcrypto.so.3",
+          "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/unstripped/libcrypto.so.3",
+          "size": 8104544,
+          "sha256": "cdb49bca67ed0aadfec968840bd7528afb8d706178d38517806905f25ca851f2",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 17623,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/unstripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/x86_64/O0/unstripped/libcrypto.so.3.json"
+        },
+        {
+          "object": "libssl.so.3",
+          "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/unstripped/libssl.so.3",
+          "size": 1649984,
+          "sha256": "503176fdedb8020aeff0d56eb9188556f0c9e5888a65d7f42a4f2f2e363413b0",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 4384,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/unstripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/x86_64/O0/unstripped/libssl.so.3.json"
+        },
+        {
+          "object": "openssl",
+          "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/unstripped/openssl",
+          "size": 1431968,
+          "sha256": "aba3c1de0679b95f14193437d52af318f6a1f505811feb9357fa1eeb9f5d2a80",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 1226,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/unstripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/x86_64/O0/unstripped/openssl.json"
+        },
+        {
+          "object": "libcrypto.so.3",
+          "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/stripped/libcrypto.so.3",
+          "size": 7098240,
+          "sha256": "a4ad7125fde439c5f8dc067f285943bae6fbf79ed43e49e6c3daecaffdce10e7",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/stripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/x86_64/O0/stripped/libcrypto.so.3.json"
+        },
+        {
+          "object": "libssl.so.3",
+          "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/stripped/libssl.so.3",
+          "size": 1405272,
+          "sha256": "ecab006b555a223941cae452bf4899e2bbeb4dde85d190434e0cd7feb9508f7d",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/stripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/x86_64/O0/stripped/libssl.so.3.json"
+        },
+        {
+          "object": "openssl",
+          "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/stripped/openssl",
+          "size": 1265456,
+          "sha256": "2ac3dad891af30654115846ba037ed3949711038edacffd4dc0c84baa0081f61",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "receipt": "corpus/variants/openssl/3.5.9/asm/x86_64/O0/stripped/receipt.json",
+          "census": "corpus/census/variants/openssl/3.5.9/asm/x86_64/O0/stripped/openssl.json"
+        }
+      ],
+      "independent_build_wall_seconds": {
+        "build-a": 126.88394723300007,
+        "build-b": 102.84470786899965
+      },
+      "source_assembly_inventory": "corpus/measurements/openssl-asm-x86-initial/source-assembly-O0.json",
+      "standalone_assembly_files": 46,
+      "c_family_volatile_asm_files": 2,
+      "successful_measured_commands": 18
+    }
+  ],
+  "validation": "exact source/ELF/census/strip-pair hashes, both repeats runtime results and measured command exits checked",
+  "container_lifecycle": "same two independently initialized persistent workers; clean private workspaces per profile; pool reused, not fresh containers",
+  "limits": [
+    "Specific runtime observations, not exhaustive upstream tests.",
+    "Lexical C volatile asm sites may be inactive after preprocessing.",
+    "Static census decoder coverage/unknowns are retained in each report; no semantic or formal claim.",
+    "No shared index or Lean registry updated."
+  ]
+}

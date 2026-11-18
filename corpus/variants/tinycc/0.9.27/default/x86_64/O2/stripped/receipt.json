@@ -1,0 +1,210 @@
+{
+  "package": "tinycc",
+  "version": "0.9.27",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD (configure adds -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result)",
+  "ldflags": "",
+  "configure_args": "./configure  --extra-cflags='-O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD'",
+  "build_commands": [
+    "gcc -o tcc.o -c tcc.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o libtcc.o -c libtcc.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccpp.o -c tccpp.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccgen.o -c tccgen.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccelf.o -c tccelf.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccasm.o -c tccasm.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tccrun.o -c tccrun.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o x86_64-gen.o -c x86_64-gen.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o x86_64-link.o -c x86_64-link.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o i386-asm.o -c i386-asm.c -DCONFIG_TRIPLET=\"\\\"x86_64-linux-gnu\\\"\" -DTCC_TARGET_X86_64       -DONE_SOURCE=0 -O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result -I. ",
+    "gcc -o tcc tcc.o libtcc.a -lm -ldl  "
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/tinycc",
+  "inputs": [
+    {
+      "url": "https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2",
+      "sha256": "de23af78fca90ce32dff2dd45b3432b2334740bb9bb7b05bf60fdbfc396ceb9c"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "tcc",
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O2/stripped/tcc",
+      "size": 256904,
+      "sha256": "38dbfd1522f1850d30afba13f1349d27401084eabc5363bd0e58ee711274fe00",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean workspaces in independent persistent pool containers; byte-identical outputs; independently stripped in their respective workers; byte-identical stripped outputs",
+  "tests": [
+    {
+      "command": "tcc -v",
+      "result": "pass: tcc version 0.9.27 (x86_64 Linux)"
+    },
+    {
+      "command": "file hello.o (tcc -c output is an ELF relocatable for x86_64)",
+      "result": "pass: 1"
+    },
+    {
+      "command": "./hello (compiled by tcc, linked by gcc -no-pie)",
+      "result": "pass: hello from tcc 6765"
+    }
+  ],
+  "variant": {
+    "optimization": "O2",
+    "stripping": "stripped",
+    "configuration": "default",
+    "run_id": "d198d308-32da-4ec5-a7d0-83b3e88772ac",
+    "target": "x86_64-linux-gnu"
+  },
+  "container_pool": {
+    "toolchain": "corpus/toolchain",
+    "pool_id": "9efe74fb-b55e-49f1-8e87-9d7898502570",
+    "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "lifecycle": "two independently initialized persistent containers; reused across profiles",
+    "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+    "reset": [
+      "bash",
+      "-eu",
+      "-c",
+      "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+    ],
+    "environment": {
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/root",
+      "LC_ALL": "C",
+      "TZ": "UTC",
+      "SOURCE_DATE_EPOCH": "1762128000",
+      "JOBS": "3"
+    },
+    "resources": {
+      "containers": 2,
+      "cpu_per_container": 3,
+      "memory_bytes_per_container": 12884901888,
+      "execution": "serial builds, strips and tests; no third container"
+    },
+    "started_utc": "2026-11-18T02:28:55.540405+00:00",
+    "workers": [
+      {
+        "slot": 0,
+        "container_id": "126d0c14947d86b41b777a7853b8c21e9dc0739a62fdeaab251c8b53f7fb655c",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/0:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:28:55.667852+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      },
+      {
+        "slot": 1,
+        "container_id": "8a6c2e29fb4922229be80f1529fbad7f09c44cf0e362bf36ad932010679ef0e8",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/1:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:28:55.879578+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      }
+    ],
+    "profiles": [
+      {
+        "identity": "corpus/variants/tinycc/0.9.27/default/x86_64/O2",
+        "sequence": 11,
+        "started_utc": "2026-11-18T02:33:06.391657+00:00",
+        "container_reused": true,
+        "workspace_reset_verified": true,
+        "status": "passed",
+        "finished_utc": "2026-11-18T02:33:12.610416+00:00"
+      }
+    ]
+  },
+  "independent_repeat_tests": [
+    {
+      "command": "tcc -v",
+      "result": "pass: tcc version 0.9.27 (x86_64 Linux)"
+    },
+    {
+      "command": "file hello.o (tcc -c output is an ELF relocatable for x86_64)",
+      "result": "pass: 1"
+    },
+    {
+      "command": "./hello (compiled by tcc, linked by gcc -no-pie)",
+      "result": "pass: hello from tcc 6765"
+    }
+  ]
+}
