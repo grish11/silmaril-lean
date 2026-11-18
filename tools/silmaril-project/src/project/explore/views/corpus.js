@@ -4,9 +4,10 @@ async function corpusPage(arg, ctx) {
   const counts = (await ctx.q("SELECT (SELECT count(*) FROM corpus_artifacts) artifacts,(SELECT count(DISTINCT project) FROM corpus_artifacts) projects,(SELECT count(DISTINCT sha256) FROM corpus_artifacts) hashes"))[0];
   const statementCounts = Object.fromEntries((await ctx.q("SELECT key,value FROM corpus_meta WHERE key LIKE '%_statements'")).map(r=>[r.key,Number(r.value)]));
   const tvCount=statementCounts.contextual_c_to_elf_statements||0, eqCount=statementCounts.functional_equivalence_statements||0;
+  const columns={project:'project',version:'version',configuration:"json_extract(metadata,'$.build.configuration')",target:'target',optimization:'optimization',stripping:'stripping'};
   const choices = {};
-  for (const column of ["project", "version", "target", "optimization", "stripping"])
-    choices[column] = await ctx.q(`SELECT DISTINCT ${column} value FROM corpus_artifacts ORDER BY ${column}`);
+  for (const [column,expression] of Object.entries(columns))
+    choices[column] = await ctx.q(`SELECT DISTINCT ${expression} value FROM corpus_artifacts ORDER BY value`);
   const select = (column) => `<label>${esc(column)} <select data-corpus-filter="${column}" aria-label="${column}"><option value="">All</option>${choices[column].map(r => `<option>${esc(r.value)}</option>`).join("")}</select></label>`;
   return { html: `<section><h2>Software under test</h2><p class="muted">Browse projects, releases, build settings and exact artifacts.</p>
     ${tables.has("projects") ? '<p><a href="#/compiler">Compiler explorer integration and source ↔ target viewer</a></p>' : ""}
@@ -21,14 +22,14 @@ async function corpusPage(arg, ctx) {
         const token = ++request;
         const clauses = [], params = [];
         for (const element of document.querySelectorAll("[data-corpus-filter]")) if (element.value) {
-          clauses.push(element.dataset.corpusFilter + " = ?"); params.push(element.value);
+          clauses.push(columns[element.dataset.corpusFilter] + " = ?"); params.push(element.value);
         }
         const where = clauses.length ? " WHERE " + clauses.join(" AND ") : "";
-        const rows = await ctx.q("SELECT id,project,version,target,optimization,stripping,name,sha256,json_extract(metadata,'$.lean_status') lean_status,json_extract(metadata,'$.functional_equivalence_statements') equivalence_statements,json_extract(metadata,'$.contextual_c_to_elf_statements') tv_statements FROM corpus_artifacts" + where + " ORDER BY project,version,target,optimization,stripping,name LIMIT 1000", params);
+        const rows = await ctx.q("SELECT id,project,version,target,optimization,stripping,name,sha256,json_extract(metadata,'$.build.configuration') configuration,json_extract(metadata,'$.lean_status') lean_status,json_extract(metadata,'$.functional_equivalence_statements') equivalence_statements,json_extract(metadata,'$.contextual_c_to_elf_statements') tv_statements FROM corpus_artifacts" + where + " ORDER BY project,version,target,optimization,stripping,name LIMIT 1000", params);
         if (!ctx.alive() || token !== request) return;
         document.querySelector("#corpus-count").textContent = `${rows.length} matching artifacts${rows.length === 1000 ? ' (first 1,000)' : ''}`;
         document.querySelector("#corpus-results").innerHTML = `<table><thead><tr><th>Project / release</th><th>Build</th><th>Artifact</th><th>Coverage</th></tr></thead><tbody>${rows.map(r => {
-          return `<tr><td><strong>${esc(r.project)}</strong><br>${esc(r.version)}</td><td>${esc(r.target)}<br><code>-${esc(r.optimization)}</code> · ${esc(r.stripping)}</td><td><a href="#/corpus-artifact/${encodeURIComponent(r.id)}">${esc(r.name)}</a><br><small><code>${esc(r.sha256.slice(0, 16))}…</code></small></td><td>${esc(r.lean_status)}<br><span class="muted">TV: ${Number(r.tv_statements)||0} stated · equivalence: ${Number(r.equivalence_statements)||0} stated</span></td></tr>`;
+          return `<tr><td><strong>${esc(r.project)}</strong><br>${esc(r.version)}</td><td>${esc(r.target)}<br>${esc(r.configuration)}<br><code>-${esc(r.optimization)}</code> · ${esc(r.stripping)}</td><td><a href="#/corpus-artifact/${encodeURIComponent(r.id)}">${esc(r.name)}</a><br><small><code>${esc(r.sha256.slice(0, 16))}…</code></small></td><td>${esc(r.lean_status)}<br><span class="muted">TV: ${Number(r.tv_statements)||0} stated · equivalence: ${Number(r.equivalence_statements)||0} stated</span></td></tr>`;
         }).join("")}</tbody></table>`;
       };
       for (const element of document.querySelectorAll("[data-corpus-filter]")) element.addEventListener("change", () => refresh().catch(e => { if (ctx.alive()) document.querySelector("#corpus-count").textContent = e.message; }));

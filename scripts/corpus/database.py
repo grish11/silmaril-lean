@@ -67,7 +67,8 @@ CREATE TABLE corpus_artifacts(
  census TEXT, sources TEXT NOT NULL);
 CREATE INDEX corpus_identity ON corpus_artifacts(project,version,target,optimization,stripping);
 CREATE INDEX corpus_hash ON corpus_artifacts(sha256);
-CREATE INDEX corpus_browser ON corpus_artifacts(project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'));
+CREATE INDEX corpus_browser ON corpus_artifacts(project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'),json_extract(metadata,'$.build.configuration'));
+CREATE INDEX corpus_configuration_browser ON corpus_artifacts(json_extract(metadata,'$.build.configuration'),project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'));
 CREATE TABLE corpus_functions(
  artifact TEXT NOT NULL, ordinal INTEGER NOT NULL, symbol TEXT NOT NULL,
  address INTEGER NOT NULL, size INTEGER NOT NULL, mapping TEXT NOT NULL,

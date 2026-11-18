@@ -35,6 +35,17 @@ try{
     "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print(c.execute(\"SELECT count(*) FROM corpus_artifacts WHERE project='cjson'\").fetchone()[0]); c.close()",
     path.join(site,'project.sqlite')],{encoding:'utf8'}).trim());
   assert.ok(cjsonCount>0,'fixture includes real cJSON artifacts');
+  const configurations=JSON.parse(execFileSync('python3',['-c',
+    "import sqlite3,json,sys; c=sqlite3.connect(sys.argv[1]); print(json.dumps(c.execute(\"SELECT json_extract(metadata,'$.build.configuration'),count(*) FROM corpus_artifacts GROUP BY 1 ORDER BY 1\").fetchall()))",
+    path.join(site,'project.sqlite')],{encoding:'utf8'}));
+  assert.deepEqual(await page.getByLabel('configuration',{exact:true}).locator('option').allTextContents(),['All',...configurations.map(([name])=>name)]);
+  // Exercise every delivered configuration, including populated version profiles.
+  for(const [configuration,count] of configurations){
+    await page.getByLabel('configuration',{exact:true}).selectOption(configuration);
+    await page.waitForFunction(expected=>document.querySelector('#corpus-count').textContent.startsWith(`${expected} matching`),count);
+    assert.ok((await page.locator('#corpus-results tbody tr').first().innerText()).includes(configuration));
+  }
+  await page.getByLabel('configuration',{exact:true}).selectOption('');
   await page.getByLabel('project',{exact:true}).selectOption('cjson');
   await page.waitForFunction(expected=>document.querySelector('#corpus-count').textContent.startsWith(`${expected} matching`),cjsonCount);
   await page.getByLabel('target',{exact:true}).selectOption('aarch64-linux-gnu');

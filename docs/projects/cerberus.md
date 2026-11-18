@@ -251,3 +251,24 @@ remain unsupported. `NullPointerEquality.lean` checks actual frontend/Core
 execution against concrete parameter-object memory for null/non-null inputs,
 plus allocation-order/fallback checks. `make check` runs these finite cases
 when selecting CerberusTests; they are not adequacy or C-to-ELF proofs.
+
+### Selected integer bitwise elaboration
+
+`Elaboration.Bitwise.Defs` ports the non-CHERI AND/XOR/OR equations from pinned
+[`translation.lem:607–658`](https://github.com/rems-project/cerberus/blob/b3e11ea334e95359907d4abf9194f0e7fedc6c6a/frontend/model/translation.lem#L607).
+It allocates four wrappers before translating either child, uses the actual
+runtime arithmetic conversions, preserves the standard annotations and retains
+an unspecified result when an operand is unspecified. It does not use the
+add/sub/mul overflow wrapper for these operations.
+
+`tests/cerberus/ElaborationBitwise.lean` checks allocation order, constructor
+selection, the unspecified fallback and explicit rejection paths in the kernel.
+`BitwiseRuntime.lean` runs seven actual C frontend → typed Ail → Core examples,
+including negative values stored in allocated integer parameter objects. These
+are finite execution observations, not a refinement theorem. The selected
+`CerberusTests` Make targets run this executable regression.
+
+The diagnostic source adapter for upstream `cJSON_IsNull` now passes bitwise
+selection and rejects its pointer-member expression. Member loads, shifts and
+unary minus are outside this port. No new corpus contextual statement or semantic
+proof is established by these compiler regressions.
