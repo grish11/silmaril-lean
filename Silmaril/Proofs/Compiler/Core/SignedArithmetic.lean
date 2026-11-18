@@ -41,7 +41,7 @@ theorem actual_dispatcher (expression : Expression) :
         (.mk (.rvalue (.basic (.integer (.concrete (.signed .int))))) [] .unknown
           (.binary left.ail (.arithmetic operator.ail) right.ail)) = .ok intType := rfl
     rw [typeNode, actual_type left, actual_type right, leftIH, rightIH]
-    rfl
+    cases operator <;> rfl
 
 /-- The explicit recursive output retains the actual modular arithmetic
 builder, including the different conversion syntax and subtraction tag. -/

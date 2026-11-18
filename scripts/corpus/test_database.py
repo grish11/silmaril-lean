@@ -119,6 +119,12 @@ class CorpusDatabase(unittest.TestCase):
             self.assertGreater(clones, 1, 'same-name local clones remain distinct')
             self.assertGreater(db.execute('SELECT count(*) FROM corpus_functions').fetchone()[0], 42000)
             self.assertGreater(db.execute('SELECT count(*) FROM corpus_timings').fetchone()[0], 10)
+            summaries = db.execute('SELECT * FROM corpus_timing_summary ORDER BY run_id').fetchall()
+            receipts = db.execute('SELECT * FROM corpus_timings ORDER BY run_id').fetchall()
+            self.assertEqual(len(summaries), len(receipts))
+            for summary, (run_id, build_id, stage, metadata) in zip(summaries, receipts):
+                run = json.loads(metadata)
+                self.assertEqual(summary, (run_id, build_id, stage, run.get('wall_seconds'), run.get('peak_rss_kib'), run.get('exit_code')))
             self.assertTrue(all(row[2].upper() != 'BLOB' for row in db.execute('PRAGMA table_info(corpus_artifacts)')))
             db.close()
             again = subprocess.run([sys.executable, str(ROOT / 'scripts/corpus/database.py'), '--output', str(output), '--source-rev', '1' * 40], capture_output=True)

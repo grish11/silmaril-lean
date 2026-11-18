@@ -67,7 +67,8 @@ CREATE TABLE corpus_artifacts(
  census TEXT, sources TEXT NOT NULL);
 CREATE INDEX corpus_identity ON corpus_artifacts(project,version,target,optimization,stripping);
 CREATE INDEX corpus_hash ON corpus_artifacts(sha256);
-CREATE INDEX corpus_browser ON corpus_artifacts(project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'));
+CREATE INDEX corpus_browser ON corpus_artifacts(project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'),json_extract(metadata,'$.build.configuration'));
+CREATE INDEX corpus_configuration_browser ON corpus_artifacts(json_extract(metadata,'$.build.configuration'),project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'));
 CREATE TABLE corpus_functions(
  artifact TEXT NOT NULL, ordinal INTEGER NOT NULL, symbol TEXT NOT NULL,
  address INTEGER NOT NULL, size INTEGER NOT NULL, mapping TEXT NOT NULL,
@@ -132,6 +133,15 @@ CREATE TABLE corpus_timings(run_id TEXT PRIMARY KEY, build_id TEXT, stage TEXT N
         baseline_paths += list((ROOT / 'corpus/measurements').glob('*/runs/*.json'))
         for run in measurement_runs(baseline_paths):
             db.execute('INSERT INTO corpus_timings VALUES(?,?,?,?)', (run['run_id'], None, run['stage'], json.dumps(run)))
+    # Keep the navigation working set independent of large input/hash receipts.
+    # Full immutable receipts remain available by run_id on explicit expansion.
+    with db:
+        db.execute("CREATE TABLE corpus_timing_summary(run_id TEXT PRIMARY KEY, build_id TEXT, stage TEXT NOT NULL, wall_seconds REAL, peak_rss_kib INTEGER, exit_code INTEGER)")
+        db.execute("CREATE INDEX corpus_timing_summary_build ON corpus_timing_summary(build_id,stage,run_id)")
+        for run_id, build_id, stage, metadata in db.execute('SELECT * FROM corpus_timings').fetchall():
+            run = json.loads(metadata)
+            db.execute('INSERT INTO corpus_timing_summary VALUES(?,?,?,?,?,?)',
+                       (run_id, build_id, stage, run.get('wall_seconds'), run.get('peak_rss_kib'), run.get('exit_code')))
     assert db.execute('PRAGMA quick_check').fetchall() == [('ok',)]
     print(json.dumps({'artifacts': data['artifact_rows'], 'unique_content_hashes': data['unique_content_hashes'],
                       'function_rows': db.execute('SELECT count(*) FROM corpus_functions').fetchone()[0],

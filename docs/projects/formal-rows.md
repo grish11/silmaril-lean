@@ -45,6 +45,7 @@ A **derivation system** `D : DerivationSystem J` has rule labels `D.Rule` and ru
 | soundness | `LocallySound sat` ⇒ `derives_soundFor : D.derives.SoundFor (listSat M sat)` | every rule preserves truth in each model |
 | consistency | `consistentWrt_of_locallySound` | a model of `Γ` falsifying `ff` |
 | elaboration | `ProofTree.elaborate`, `Line.elaborate`; `derives_of_elaborate`, `derives_of_elaborateLines` | raw labels (a rule name and a few arguments) become rule labels by an *untrusted* function; the result is checked |
+| morphisms | `DerivationSystem.Hom D E` (judgment map, rule map, instances to instances); `Hom.valid`, `Hom.derives`, `Hom.translation` | proof trees translate, preserving validity, so a morphism is a translation of the consequence systems |
 
 **Proof formats** (`Silmaril.Logic.Consequence.Derivation.SExp`), generic in the presentation of
 judgments; the readers invert the encoders, so both are presentations (`SExpCodec`):
@@ -87,6 +88,10 @@ substitution, `shift`, `inst`, decidable equality) are `…FirstOrder.Syntax`, w
 * `orderTheory_tree_consistent`: over `orderSig`, the order theory does not derive `¬⊤` (model ℕ).
 * Concrete syntax: `silmaril.fol.sequent` v1, the tree and lines formats, `elabRule`, and
   `checkTree` / `checkLines` with `checkTree_sound`, as for PA.
+* Along signature morphisms (`mapHom σ`, a morphism of derivation systems; `treeDerives_map`):
+  proofs translate by `Formula.map σ`, which commutes with substitution and shifting
+  (`Formula.map_inst`, `Formula.map_shift`); the example transports the derivation of
+  `∀x ¬ succ x < succ x` into a signature with one more symbol.
 * Kernel-checked proofs (`…Derivation.Examples`): `orderTheory ⊢ ∀x ¬ succ x < succ x` (trees and
   lines), `⊢ ∀x ∀y ¬(x = y ∧ ¬ y = x)`, and three rejections. All are registered on the FOL row.
 
@@ -189,7 +194,7 @@ S-expression in each format (kept in the URL). The browser suite is
 | **FOL** (unsorted; signature `orderSig`) | ◆ `UFOL.Formula` (existing); ✓ renaming, substitution, decidable equality (`…FirstOrder.Syntax`) | ◆ `silmaril.fol.formula` v1 over named signatures (arity-checked; `decodeFormula_eq_some_iff` ✓); ✓ `silmaril.fol.sequent` v1 and the proof formats | ✓ classical natural deduction over any signature with decidable symbols (`FirstOrder.ND.system`), checked trees and lines | ◆ one specified structure (`inStructure natStructure`, ℕ) and all structures (`consequence`) | ✓ `treeDerives_le_consequence` (every structure), `treeDerives_soundFor` (ℕ), by `locallySound` | ✓ model existence `orderTheory_satisfiable`; ✓ nontrivial consequence `orderTheory_nontrivial`; ✓ `orderTheory_tree_consistent` | ✓ `orderTheory_entails_succIrrefl`, `succIrrefl_true`; ✓ `succIrrefl_derives` (a checked proof, trees and lines), `eqSymm_derives` |
 | **PA** (and Q) | ◆ `Arithmetic.Formula` (existing) | ◆ `silmaril.arithmetic.formula` v1 (default), `….words` v1; ✓ bytes round trip for every formula | ◆ `PAProof`, `QProof` (existing natural deduction); ✓ as a derivation system with checked proof trees and lines (`treeDerives_pa`, `treeDerives_q`), S-expression proofs `silmaril.derivation.tree` / `….lines` | ◆ standard model ℕ (`standard`) | ✓ `pa_soundFor`, `q_soundFor` | ✓ `pa_consistent`, `q_consistent`, `paConcrete_consistent` | ✓ `zeroAddZero`, `zeroOrSuccessor` (decoded, derived, true in ℕ) |
 | **Second-order arithmetic**: `RCA0`, `WKL0Sep` (Σ⁰₁ separation), `ACA0`, `Z2`, `Z2Full` | ◆ `SecondOrderArithmetic.Formula` (existing, named) | ◆ `silmaril.soa.formula` v1 | ◆ `Proof` (existing Hilbert), `HProof` with hypotheses | ◆ **full** standard (`full`: ℕ and every subset) and **Henkin** (`henkin S`: structures validating `S`'s axioms) | ✓ `derives_soundFor_full`, `derives_soundFor_henkin` | ✓ `consistent S` for every subsystem, `concrete_consistent` | ✓ `succNeZero` (RCA0), `comprehensionEq` (Z2) |
-| **HOL** (HOL Light kernel, initial signature) | ◆ existing; ✓ type checker `Tm.typeOf?` sound and complete | ◆ `silmaril.hol-light.prop` v1 (decode, type-check, require `bool`; errors exact: `decodeProp_eq_none_iff`), `silmaril.hol-light.term` v1 | ◆ `HOLLight.Derives` (existing), on propositions `kernel`, `kernelFrom … classicalTheory` | ◆ standard models (`points`: model in `Type u`, type valuation, assignment); `denote` of typed terms; `standardPoint` | ✓ `kernel_soundFor` | ✓ `kernel_consistent` (pure), `classical_consistent'` (ETA, SELECT, INFINITY) | ✓ `truthProp`, `reflProp` (derived, true), `emProp` (derived from the classical axioms) |
+| **HOL** (HOL Light kernel, initial signature) | ◆ existing; ✓ type checker `Tm.typeOf?` sound and complete | ◆ `silmaril.hol-light.prop` v1 (decode, type-check, require `bool`; errors exact: `decodeProp_eq_none_iff`), `silmaril.hol-light.term` v1 | ◆ `HOLLight.Derives` (existing), on propositions `kernel`, `kernelFrom … classicalTheory` | ◆ standard models (`points`: model in `Type u`, type valuation, assignment); `denote` of typed terms; `standardPoint` | ✓ `kernel_soundFor`; ✓ `kernelFrom_soundFor` (models of a theory, any signature) | ✓ `kernel_consistent` (pure), `classical_consistent'` (ETA, SELECT, INFINITY); ✓ `cTheory_consistent` (user signature `coinSig`, axiom `c`) | ✓ `truthProp`, `reflProp` (derived, true), `emProp` (derived from the classical axioms); ✓ `cProp`, `cReflProp` over `coinSig` |
 | **MLTT** | ◆ existing | ◆ `silmaril.mltt.judgment` v1 (extensional); ✓ `silmaril.mltt.judgment.bounded` v1 (`boundedCodec`) | ◆ existing (`ECtx.JEqB`, `ECtx.JEqH`, original intensional rules) | ◆ ZFSet towers (extensional), realizability (intensional); ✓ `boundedTowers levels`, the finite-tower interpretation at fixed low universes | ✓ `bounded_soundFor_one/two/three`; ✓ existing (as inclusions) | ✓ nontriviality: extensional with 1, 2, 3 universe levels (`bounded_consistent_one/two/three`), intensional with J at every stage (`intensional_consistent`); ✓ `⊢ 0 : 𝟘` not derivable (`bounded_empty_consistent_one/two/three`) | ✓ `⊢ 0 : ℕ` (`bounded_zero_derived`, `bounded_zero_true`) |
 
 `WKL0Sep` is RCA0 with Σ⁰₁ separation; its equivalence to weak König's lemma is not proved. `Z2`
@@ -244,9 +249,12 @@ indexed derivation format will follow this format rather than invent a JSONL sch
    `∀` over any signature with decidable symbols, sound for every structure). Completeness is not
    claimed; disjunction, implication and `∃` are not primitive in this syntax (they are defined
    connectives), and FOL proofs are not imported from Lean-NDJSON yet.
-2. **HOL**: the standard interpretation is stated for the initial signature; HOL problems over
-   user signatures and constants (with a model interpreting them) are not registered yet. The
-   kernel has no definition rules.
+2. **HOL**: done over a user signature too (`…HOL.UserSig`): `pointsOf S Δ` restricts the standard
+   interpretation to models of a theory, `kernelFrom_soundFor` holds over any signature, and over
+   `coinSig` (one boolean constant `c`) the theory `c` is consistent by the model `c ↦ true`, with
+   two registered problems (`c` from its axiom; `c = c` by REFL). Not done: the kernel has no
+   definition rules (`new_definition`, `new_type_definition`), and HOL is not yet a derivation
+   system with explicit proof objects in the sense of `…Derivation`.
 3. **MLTT**:
    - Done: bounded extensional MLTT (1, 2, 3 universe levels) is sound for its finite ZFSet towers
      at fixed low universes (`bounded_soundFor_*`), does not derive `⊢ 0 : 𝟘`, and has a registered
@@ -258,7 +266,8 @@ indexed derivation format will follow this format rather than invent a JSONL sch
      consistency is not claimed.
 4. **Derivation systems**: the framework, checkers, PA/Q instance, and registry, database and
    explorer pages are done (above). Not yet done: second-order arithmetic, HOL and MLTT as
-   derivation systems; derivation-system morphisms.
+   derivation systems. Morphisms are done (`DerivationSystem.Hom`), with FOL proofs translating
+   along any signature morphism (`FirstOrder.ND.mapHom`, `treeDerives_map`).
 5. **Proof formats**:
    - the S-expression tree and lines formats are done, with PA/Q elaboration;
    - Lean-NDJSON is done for PA and Q (above); other logics' proof objects are not imported yet,

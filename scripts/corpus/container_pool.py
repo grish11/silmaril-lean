@@ -27,16 +27,17 @@ def sha(path):
 
 
 class ContainerPool:
-    def __init__(self, image, recipes, cache, directory):
+    def __init__(self, image, recipes, cache, directory, toolchain="corpus/toolchain"):
         if not image.startswith('sha256:') or len(image) != 71:
             raise ValueError('pool requires an immutable Docker image ID')
+        self.toolchain = toolchain
         self.image, self.recipes, self.cache = image, recipes, cache
         self.directory = directory
         self.directory.mkdir(parents=True, exist_ok=False)
         self.containers = []
         self.recovered = False
         self.profiles = 0
-        self.record = {'pool_id': str(uuid.uuid4()), 'image_id': image,
+        self.record = {'toolchain': toolchain, 'pool_id': str(uuid.uuid4()), 'image_id': image,
                        'lifecycle': 'two independently initialized persistent containers; reused across profiles',
                        'isolation': 'read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts',
                        'reset': RESET, 'environment': ENV,
@@ -55,13 +56,14 @@ class ContainerPool:
         temporary.replace(self.directory / 'lifecycle.json')
 
     @classmethod
-    def reconnect(cls, directory, recipes, cache, image, controller):
+    def reconnect(cls, directory, recipes, cache, image, controller, toolchain="corpus/toolchain"):
         """Attach only to two idle, unchanged workers; never initialize replacements.
 
         A supported recovery reruns all validation of two successfully measured
         builds. An incomplete build needs explicit operator recovery instead.
         """
         obj = cls.__new__(cls)
+        obj.toolchain = toolchain
         obj.directory, obj.recipes, obj.cache, obj.image = directory, recipes, cache, image
         obj.record = json.loads((directory / 'lifecycle.json').read_text())
         if obj.record['image_id'] != image or 'stopped_utc' in obj.record or 'failure' in obj.record:
@@ -71,7 +73,9 @@ class ContainerPool:
             raise ValueError('reconnect requires exactly two independent workers')
         if not obj.record['profiles'] or obj.record['profiles'][-1]['status'] != 'running':
             raise ValueError('reconnect requires an unpublished running profile')
-        expected_lock = (recipes / 'corpus/toolchain/lock.txt').read_bytes()
+        if obj.record.get('toolchain', 'corpus/toolchain') != toolchain:
+            raise ValueError('reconnect toolchain identity differs')
+        expected_lock = (recipes / toolchain / 'lock.txt').read_bytes()
         for slot, container in enumerate(obj.containers):
             actual = json.loads(subprocess.check_output(['docker', 'inspect', container], text=True))[0]
             limits = actual['HostConfig']
@@ -93,6 +97,7 @@ class ContainerPool:
             lock = obj.exec(slot, ['dpkg-query', '-W', '-f=${binary:Package}\t${Version}\n'], capture=True)
             if lock != expected_lock or (directory / f'packages-{slot}.txt').read_bytes() != expected_lock:
                 raise ValueError(f'worker {slot}: whole installed package lock differs on reconnect')
+            obj.verify_tools(slot)
         obj.profiles = len(obj.record['profiles'])
         obj.recovered = True
         obj.record.setdefault('controller_reconnections', []).append({
@@ -129,10 +134,11 @@ class ContainerPool:
                 self.record['workers'].append(worker)
                 self.save()
                 lock = self.exec(slot, ['dpkg-query', '-W', '-f=${binary:Package}\t${Version}\n'], capture=True)
-                expected = (self.recipes / 'corpus/toolchain/lock.txt').read_bytes()
+                expected = (self.recipes / self.toolchain / 'lock.txt').read_bytes()
                 (self.directory / f'packages-{slot}.txt').write_bytes(lock)
                 if lock != expected:
                     raise ValueError(f'worker {slot}: whole installed package lock differs')
+                self.verify_tools(slot)
                 worker['package_lock_sha256'] = hashlib.sha256(lock).hexdigest()
                 self.save()
             return self
@@ -140,10 +146,27 @@ class ContainerPool:
             self.__exit__(type(error), error, error.__traceback__)
             raise
 
+    def verify_tools(self, slot):
+        if self.toolchain == 'corpus/toolchain':
+            return
+        # Recompute the whole non-dpkg Go tree and every tool executable hash;
+        # merely comparing dpkg would miss an altered manually installed Go.
+        self.exec(slot, ['bash', '-eu', '-c',
+            'mkdir -p /tmp/toolchain-verification; python3 -I /' + self.toolchain + '/inventory.py /tmp/toolchain-verification'])
+        verified = {}
+        for name in ['tools.json', 'go-tree.sha256']:
+            actual = self.exec(slot, ['cat', '/tmp/toolchain-verification/' + name], capture=True)
+            if actual != (self.recipes / self.toolchain / name).read_bytes():
+                raise ValueError(f'worker {slot}: extended tool inventory differs: {name}')
+            verified[name] = hashlib.sha256(actual).hexdigest()
+        self.record['workers'][slot]['extended_tool_inventory_sha256'] = verified
+        self.save()
+
     def exec(self, slot, command, env=None, capture=False, log=None):
         # env -i also removes Docker image ENV, proxy/credential/cache/compiler overrides.
         clean = {**ENV, **(env or {})}
-        if set(clean) - set(ENV) - {'CORPUS_OPT_LEVEL', 'CORPUS_OPENSSL_CONFIG', 'CORPUS_COLLECT'}:
+        if set(clean) - set(ENV) - {'CORPUS_OPT_LEVEL', 'CORPUS_OPENSSL_CONFIG', 'CORPUS_COLLECT',
+                                  'CORPUS_SQLITE_VERSION', 'CORPUS_SQLITE_CONFIG', 'CORPUS_BORINGSSL_CONFIG'}:
             raise ValueError('unexpected environment override')
         command = ['docker', 'exec', self.containers[slot], 'env', '-i',
                    *(f'{k}={v}' for k, v in clean.items()), *command]

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "run_id": "21f45ad0-a4c0-4b78-b201-f7ed310011a4",
+  "stage": "bitwise-lowering-affected-formal-replay",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T03:38:15.953076+00:00",
+  "command": [
+    "taskset",
+    "-c",
+    "4,5",
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.TinyccClosed.Digit.Thms",
+    "Silmaril.Elf.Corpus.TinyccClosed.Identifier.Thms",
+    "Silmaril.Elf.Corpus.TinyccClosed.Octal.Thms",
+    "Silmaril.Elf.Corpus.TinyccClosed.Space.Thms",
+    "Silmaril.Elf.Corpus.TinyccClosed.Upper.Thms"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "x86_64-linux-gnu",
+  "repository": {
+    "commit": "1b3a4410c86951a32d48a53b6faf34637495da41",
+    "dirty": false,
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cache": "warm",
+  "concurrency": 2,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Expressions/Defs.lean",
+      "sha256": "02667d55b978b56bf177335f594f84a110d593afe3ca154ed3feede865a1e4ea"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Bitwise/Defs.lean",
+      "sha256": "babec81d4444190aa9d2bf5c144b2e353a8771cd99d1adc928698ef909b9f9fb"
+    }
+  ],
+  "wall_seconds": 23.342436810002255,
+  "exit_code": 0,
+  "user_cpu_seconds": 78.91,
+  "system_cpu_seconds": 44.75,
+  "peak_rss_kib": 4296072,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

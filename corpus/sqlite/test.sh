@@ -5,7 +5,17 @@ start_test sqlite "$1" "$2"
 t=$(mktemp -d); cp "$OBJ/libsqlite3.so" "$t/libsqlite3.so.0"; cp "$OBJ/sqlite3" "$t/"
 q() { "${RUN[@]}" env LD_LIBRARY_PATH="$t" "$t/sqlite3" "$@" 2>&1; }
 if [ "$ARCH" = aarch64 ]; then q() { "${RUN[@]}" -E LD_LIBRARY_PATH="$t" "$t/sqlite3" "$@" 2>&1; }; fi
-check "${RUNS}sqlite3 :memory: 'select sqlite_version()'" "3.54.1" "$(q :memory: 'select sqlite_version()')"
+check "${RUNS}sqlite3 :memory: 'select sqlite_version()'" "${CORPUS_SQLITE_VERSION:-3.54.1}" "$(q :memory: 'select sqlite_version()')"
+case ${CORPUS_SQLITE_CONFIG:-default} in
+  fts5-rtree)
+    check 'FTS5 compiled option' 1 "$(q :memory: "select sqlite_compileoption_used('ENABLE_FTS5')")"
+    check 'RTree compiled option' 1 "$(q :memory: "select sqlite_compileoption_used('ENABLE_RTREE')")"
+    check 'FTS5 actual insert/query' hello "$(q :memory: "create virtual table ft using fts5(t); insert into ft values('hello'); select t from ft where ft match 'hello'")"
+    check 'RTree actual range query' 7 "$(q :memory: 'create virtual table rt using rtree(id,x0,x1); insert into rt values(7,1,2); select id from rt where x0>=0 and x1<=3')" ;;
+  small)
+    check 'single-thread compilation' 1 "$(q :memory: "select sqlite_compileoption_used('THREADSAFE=0')")"
+    check 'load extension omitted' 1 "$(q :memory: "select sqlite_compileoption_used('OMIT_LOAD_EXTENSION')")" ;;
+esac
 check "${RUNS}sqlite3 :memory: 'create table t(x); insert into t values(1),(2),(3); select sum(x),group_concat(x) from t'" "6|1,2,3" \
   "$(q :memory: 'create table t(x); insert into t values(1),(2),(3); select sum(x),group_concat(x) from t')"
 check "${RUNS}sqlite3 :memory: \"select hex(sha3('abc',256))\" (shell's built-in sha3 extension)" \

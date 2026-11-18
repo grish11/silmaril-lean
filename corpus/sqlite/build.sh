@@ -3,11 +3,18 @@
 # sqlite3 shell (shell.c, dynamically linked against that library). Runs inside the toolchain image.
 . "$(dirname "$0")/../common.sh"
 start_build sqlite "$1" "$2"
-ROOT=sqlite-amalgamation-3540100
-A=$(archive $ROOT.zip 0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9 https://sqlite.org/2026/$ROOT.zip)
+. "$(dirname "$0")/release.sh"
+info version "$VERSION"
+A=$(archive "$ROOT.zip" "$SHA256" "$URL")
 extract "$A" "$BUILD"; pristine "$A"
 cd "$BUILD/$ROOT"
 DEFS="-DSQLITE_THREADSAFE=1"
+case ${CORPUS_SQLITE_CONFIG:-default} in
+  default) ;;
+  fts5-rtree) DEFS="$DEFS -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE" ;;
+  small) DEFS="-DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0" ;;
+  *) echo 'unsupported SQLite configuration' >&2; exit 2 ;;
+esac
 CFLAGS="$BASE_CFLAGS $DEFS -MMD"
 LDFLAGS=""
 info cflags "$CFLAGS"; info ldflags "$LDFLAGS"; info configure_args "(none: amalgamation compiled directly)"

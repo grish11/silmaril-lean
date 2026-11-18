@@ -16,5 +16,10 @@ with tempfile.TemporaryDirectory() as tmp:
             except urllib.error.HTTPError as e: assert e.code==404
         (root/'new.json').write_text('new fixture')
         assert urllib.request.urlopen(f'http://127.0.0.1:{port}/new.json').read()==b'new fixture'
+        req=urllib.request.Request(f'http://127.0.0.1:{port}/index.html',headers={'Range':'bytes=1-3'})
+        with urllib.request.urlopen(req) as response:
+            assert response.status==206
+            assert response.headers['Content-Range']=='bytes 1-3/6'
+            assert response.read()==b'ubl'
         print('PASS: public index; sibling-prefix, encoded traversal, symlink directory/file rejected')
     finally: proc.terminate(); proc.wait()
