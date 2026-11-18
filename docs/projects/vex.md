@@ -94,8 +94,8 @@ claim for a loaded executable. No memory, fetch/permission or canonical-address
 checks, other flags, partial registers, helper calls, indirect jumps, or
 instruction-level traps are modeled. Infinite execution would require
 composing blocks and defining traces; a branch to the same address is still
-one boundary result here. Neither LibVEX correctness nor agreement of the
-small byte model with Silmaril's full x86 model has been proved.
+one boundary result here. There is no general LibVEX correctness result;
+the MOV/JMP result below is the only checked bridge to Silmaril's x86 model.
 
 ## Largest sound relation
 
@@ -272,6 +272,38 @@ lake build --wfail Silmaril.Machine.Vex.X86.MovJump.Examples cexplorer-export
 lake env .lake/build/bin/cexplorer-export scripts/vex/cexplorer-mov.json /tmp/vex-mov-evidence.json
 ```
 
+## Observation boundary and containers
+
+[`FirstExit.toTraceRuns`](../../Silmaril/Machine/Region/Trace/Thms.lean) embeds a
+Region first exit in the existing `Machine.Trace.Runs`, keeping both endpoints
+and the whole event list formed by concatenating step batches in order.
+`Realizes.RefinesExits.matchTraceRuns` gives both executions in this interface:
+each admitted full first exit has a simple first exit with the same trace and
+related endpoints. This is not `Machine.Trace.Refines`, whose premise matches
+every implementation transition. A synthetic regression exercises nonempty
+event batches. The real MOV/JMP regression exercises `Runs` at the `Ext.step`
+root alongside VEX's projected return; the adapter has event type `Empty`.
+Neither the state projection nor the empty trace proves OS event agreement.
+
+For process observations, reuse the existing
+[`Containers.Lps.lps` adapter](../../Silmaril/Containers/Lps/Defs.lean), which
+steps `Process.LPS`, **not** `Ext.step`. `mapEvs` projects supported standard
+stream batches, `Step` buffers and emits them, and `Final` accounts for process
+stops separately. A fragment's first exit is not a process `.exited` stop
+or [`Obs.stop`](../../Silmaril/Containers/Check/Defs.lean). The
+[container behaviour API](containers.md) distinguishes `TraceRefines`
+(inclusion of event prefixes) from `Model.Refines` (inclusion of whole
+behaviours, including stops, blocking and silent or reactive infinite runs).
+
+An eventful extension needs a cut simulation against LPS with explicit
+loading, environment and admissibility assumptions, then preservation of
+its event batches through the existing mapper and buffer, including a proof
+that the emitted events are supported. Linking needs the Region wiring
+obligations above. Whole-container refinement would also need to account for
+stops/faults/UB, blocking, silent and reactive divergence, and any admitted
+clone steps. The current theorem discharges none of these process-level
+obligations and is not a container or monitor contract.
+
 ## Replay
 
 The [fixture report](../../examples/vex/lifts.md) has bytes, independent GNU
@@ -285,8 +317,8 @@ SHA-256. No Python dependency is needed for the checked-in Lean regression.
 python3.13 -m venv /tmp/silmaril-vex
 /tmp/silmaril-vex/bin/pip install --only-binary=:all: --require-hashes -r scripts/vex/requirements.txt
 /tmp/silmaril-vex/bin/python scripts/vex/export.py --check
-lake build --wfail Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples Silmaril.Semantics.Region.Simulation.Examples
-make check CHECK_TARGETS='Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples Silmaril.Semantics.Region.Simulation.Examples'
+lake build --wfail Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples Silmaril.Semantics.Region.Simulation.Examples Silmaril.Machine.Region.Trace.Examples
+make check CHECK_TARGETS='Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples Silmaril.Semantics.Region.Simulation.Examples Silmaril.Machine.Region.Trace.Examples'
 ```
 
 MOV/JMP tests check preservation of both incoming ZF values; ADD checks

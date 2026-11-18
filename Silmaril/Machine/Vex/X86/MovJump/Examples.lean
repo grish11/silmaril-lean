@@ -1,5 +1,6 @@
 module
 
+import Silmaril.Machine.Region.Trace.Thms
 public import Silmaril.Machine.Vex.X86.MovJump.Thms
 public meta import Silmaril.Machine.Vex.X86.MovJump.Defs
 public import Silmaril.Machine.Vex.Examples.Defs
@@ -58,9 +59,18 @@ example : ¬ (⟨0x1000, 0xfe⟩ : Fragment).Guard := by
 
 example : Silmaril.X86.Ext.step 0 { fixtureState with memory := ⟨[], ∅⟩ } = .fetchFault := rfl
 
+example (completion : Bool) (ret : Word) :
+    ∃ (initial final : MState) (pair : Pair), validate 0x1000 movBytes movLift = .ok pair ∧
+      Silmaril.Machine.Trace.Runs (system ret).step initial [] final ∧
+      pair.target.run (project completion initial) = .ok (project completion final) := by
+  obtain ⟨initial, final, pair, accepted, _, _, normal, agrees, _⟩ := fixture_agreement completion ret
+  exact ⟨initial, final, pair, accepted, normal.witness.toTraceRuns, agrees⟩
+
 #print axioms Fragment.validated_exit
 #print axioms Fragment.validated_beh
 #print axioms Fragment.transfer_wp
 #print axioms fixture_agreement
+#print axioms FirstExit.toTraceRuns
+#print axioms Realizes.RefinesExits.matchTraceRuns
 
 end Silmaril.Machine.Vex.AMD64Scalar.MovJump
