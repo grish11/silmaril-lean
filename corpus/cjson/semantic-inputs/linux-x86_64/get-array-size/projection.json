@@ -1,0 +1,29 @@
+{
+  "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i",
+  "tu_sha256": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf",
+  "spans": [
+    {
+      "offset": 2067,
+      "length": 33,
+      "sha256": "2c742c60cbc478ebf3fa75441a0ca7e9d0621362d9ecdf95c1406d9c644aa32c"
+    },
+    {
+      "offset": 37470,
+      "length": 211,
+      "sha256": "b1ac4802441d2e23511305424bd2fbcf29056de0c94d9068ce592f2a35374ec2"
+    },
+    {
+      "offset": 119860,
+      "length": 787,
+      "sha256": "8f4291a9aa8dadfa8fb70c99b1cf1bee3397787e29f22055400f57a77d4962f6"
+    }
+  ],
+  "source": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+  "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+  "original_offset": 50522,
+  "original_length": 371,
+  "original_sha256": "1cee806061bff3348c35ca5254d1fa2a2b6d3113063bbd4042b97c4aae4c5023",
+  "closure": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/context.c",
+  "closure_sha256": "e04af85a502ef41b93c99b3622720e0b9a82c47f2514efe85e9f32c89aeabf4d",
+  "limits": "Exact saved preprocessing spans and exact original source span are pinned separately. Macro/header preprocessing correspondence and whole-TU frontend adequacy are not proved."
+}

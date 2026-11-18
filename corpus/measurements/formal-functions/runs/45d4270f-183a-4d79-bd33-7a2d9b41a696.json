@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "run_id": "45d4270f-183a-4d79-bd33-7a2d9b41a696",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T13:00:33.868127+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+  "repository": {
+    "commit": "da5a9606578eaf1e71e8ee01a1ec4556901f1ee0",
+    "dirty": true,
+    "diff_sha256": "d3a5ac4f11895ffceff17d2e149746d9f670a19a343cf6bf55c646134214d4b0"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Expressions/Defs.lean",
+      "sha256": "e8eb0f4374eb1764792646e1da7bf16d753383a80c0caccff3f0334531376b79"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Functions/Defs.lean",
+      "sha256": "b54f327927ae3ddcf5514d78e6186beacc0ae3b7a30061d465ed4ae1f8c67f31"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/GlobalOrder/Defs.lean",
+      "sha256": "6d2dfff1529ed9116ee445d0c13cdd90a10a80f71c5e182a70f077c4e096b69e"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Globals/Defs.lean",
+      "sha256": "bbce586a8624868068a2d515f8ede77ecff2318bb1b06d4ba1ac4f2a74de6418"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Members/Defs.lean",
+      "sha256": "9bd51a67a223cf94d07b21a315867abae9045714321e05541c2186e331f43b82"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/StructInitializers/Defs.lean",
+      "sha256": "c9a8eefcaf5cfb0861423ec46af7942f84010a929cfddd345c8043f2d625f5ac"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Context/Defs.lean",
+      "sha256": "e142b76ef38156a7c09d560f4a509a647681aa3b6992ce6f4d6315683cb8c1b0"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Defs.lean",
+      "sha256": "3cdb12a8502335c5dddbc4e1a20b6e89ea4611ba54485574e2e4813f69ac1429"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Defs.lean",
+      "sha256": "ea7b609c591482a37f88ea51051748cdc588fc8b117f5049216b7bb8e5fcacbb"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Elaboration/Defs.lean",
+      "sha256": "9bdcae260e284ea3a9c5b954fdf45969afa009cf31c017ddb4a58005e9b62d18"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Elaboration/Thms.lean",
+      "sha256": "769d2211e63774ecc808e3cb09838566f3617ee621f683a6f60c8cc2dac073f1"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Projection/Defs.lean",
+      "sha256": "302bc1dfe6dfe3f6ce783072367d01c9a49882a56e9977890892c36d12eaad71"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Projection/Thms.lean",
+      "sha256": "acb52a6866f62e786e885b0b9d80f0f8aab7d672ce01c7eea5a709d2575d8f72"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Thms.lean",
+      "sha256": "e8b32a1833c1ba7f0269af74eabadcb113fe438e3b0ea588f3deb44c0b43db86"
+    },
+    {
+      "path": "Silmaril/Project/Shapes/C/Defs.lean",
+      "sha256": "962e8d86fc170914c5a77e38e48f372638fcb9d18a21bd21e572697ec1432e3f"
+    },
+    {
+      "path": "Silmaril/Project/Shapes/Contextual/Defs.lean",
+      "sha256": "098739d7e52b20f79b5c239612edd55ac25d62d52b073044b1994c2786ad057d"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/MimallocOsGlobals/Bindings.lean",
+      "sha256": "57a20c9c088409fb087bdb0a47384debc5d35c810c00e7acfcf94745f7fd30da"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/MimallocOsGlobals/RunResult.lean",
+      "sha256": "e69f52de081d2bccf8b22a34e46dcabc264263329a7b2981cf6588ae546539d0"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/MimallocOsGlobals/Source.lean",
+      "sha256": "2e8da1f3e5d88a1b9b671aa102dc0243013abb184d27ed7d93ad99556d10ddd1"
+    },
+    {
+      "path": "benchmarks/cerberus-elaboration/oracle/cast-sign-extend/core.sexp.gz",
+      "sha256": "0f110b37ff5a57dfe4d99d4cf22505b7371bedb92c92acea7f9e2c397a972ccf"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/README.md",
+      "sha256": "13962624240a81e16c6afc41fe58213ca58897c33aaa74716db954e7f07d74c8"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/context.c",
+      "sha256": "fd758ed6f378c0485f4a5b4cd7f4f177d1480ab5dca77ebe25ec9e16781d9364"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/manifest.json",
+      "sha256": "e7ff4ccd979682c5aa36366f8f85493d5d0dfda450f7a8b36bd81305a097e2cb"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/program.sexp",
+      "sha256": "7cd269ca50b04f09cae919d75e379a97a491c07d6cd5f9a208b1c843edba492f"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/projection.json",
+      "sha256": "d0621e4d2a2eee5b097823a67d1eae8b698a86301682cd3ebd43ab5b8cab3613"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/runtime.sexp",
+      "sha256": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/source-build.log.gz",
+      "sha256": "379f0f52fb825bd2c3ef5713d3a5675c7f4f4d30d5c2175dcc474b2ee2afc4b3"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/translation-unit.i",
+      "sha256": "4e33d7c4e78fd242acba9caef4964217e3df3ef5f8138bd15a8af33bf40805e7"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/typed-ail.sexp",
+      "sha256": "70dfb7d10ce86ff6b256283d74398082f86e571fb5360f71c5580adad357ecb1"
+    },
+    {
+      "path": "tests/cerberus/MimallocOsContext.lean",
+      "sha256": "179fda2cfd21ffcf17bd6ab06a3c4d34fc035cc1d98db93e4136314bb96258df"
+    },
+    {
+      "path": "tools/corpus/MimallocOsInputs.lean",
+      "sha256": "64a82fbd597a77ff53d1ebf56cc0ff43e1f87064c5d5026663895f5d2b28a52b"
+    },
+    {
+      "path": "tools/corpus/check_mimalloc_os_inputs.py",
+      "sha256": "a581c7df70863311cb956b51cc4baba76dfa38a68522c9c1ca719cd0d1270882"
+    },
+    {
+      "path": "tools/corpus/mimalloc_os_native.py",
+      "sha256": "13fd558b269269714c030b7d9c305d249dc9e9e45bc7abb9df76f07d00997196"
+    }
+  ],
+  "wall_seconds": 66.02612134200172,
+  "exit_code": 0,
+  "user_cpu_seconds": 71.71,
+  "system_cpu_seconds": 34.27,
+  "peak_rss_kib": 4633044,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

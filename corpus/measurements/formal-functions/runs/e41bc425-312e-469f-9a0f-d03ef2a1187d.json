@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "run_id": "e41bc425-312e-469f-9a0f-d03ef2a1187d",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T15:14:00.069337+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.CjsonArrayItem.Context.Defs"
+  ],
+  "cwd": "/work/isolated-array-item",
+  "target": "Silmaril.Elf.Corpus.CjsonArrayItem.Context.Defs",
+  "repository": {
+    "commit": "7b5828cba22b9ce35573f027d69fc5e40e6cad72",
+    "dirty": true,
+    "diff_sha256": "aa42e9ad8d1c4391ee76a34b0970ec216197cae79054bbd89a6b255b89f43d95"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArrayItem/Context/Defs.lean",
+      "sha256": "75af6fac6cb2cf56f38fd0c47370bd56b3dcf771583cec6379e33a301f8c6e84"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArrayItem/Defs.lean",
+      "sha256": "d6077e5cfba72c90e019af9a6d4e92f2a676147f04952e57961539f2524eb4a6"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Defs.lean",
+      "sha256": "0506142cf5dac1942bb648e4aa8fea6cd3d191205cbeddd74a7157ff6ee7c87e"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Elaboration/Defs.lean",
+      "sha256": "1a032dc794d40c6a0dbaff09153c23afe0baf3754f1327af2e53abf2cf1ac731"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Elaboration/Thms.lean",
+      "sha256": "4ca3712f1aab441c86a0de969b2cbfffdcb4be4b997f21faca04100b93db1f87"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Projection/Defs.lean",
+      "sha256": "f29fdd901f0197e29b8feb92bfd85cde56283d9881d70206a6492417b6845e5d"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Projection/Thms.lean",
+      "sha256": "d6e8aeef7c828de4e30167dfb1f8619bd8cb5752e433c47b2e85946797e06233"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArrayItem/Thms.lean",
+      "sha256": "11f2ce8197c203071108443767da7753a508404ae7de559a24510f175e0bf839"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/CjsonArrayItem/Bindings.lean",
+      "sha256": "a044b1f0acf59d7647cf7c1c3e17fc218c7e1aa96e550f29c6f18a7d8176f1b6"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/CjsonArrayItem/Projection.lean",
+      "sha256": "729be651a7dcdee956ac739e43c70b6a92d77f1e37cbb832268bc7edc9fe24bc"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/CjsonArrayItem/Source.lean",
+      "sha256": "caa0fa2cfb102149c0920f786971ccd830a741f6336768b637d4435d5ba818cd"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/README.md",
+      "sha256": "f116b6120e8fe9731d70ba1276e501161c3a6ed066ed18e02a025960180cdf2f"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/context.c",
+      "sha256": "c2de1199e9c8b0b2bc57d49490a269be893b34893e99f8c0a9d564032801a353"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/manifest.json",
+      "sha256": "7d3a75a089d492d8d8f332195a469d74fe068f4042d5e4c14d7476e5b656d782"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/program.sexp",
+      "sha256": "12735aa82853ce768a8b02641594fc70ee57ac18545a338ba621f43cd19314cf"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/projection.json",
+      "sha256": "070e8a71e1c15150179b21a9493c958ad2799b3f8044a4ba4bcacfd72b898774"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/runtime.sexp",
+      "sha256": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/typed-ail.sexp",
+      "sha256": "50000d9148ba5e07dddafd765187604c8b6452599cf7ab155997cfbf9ed750e1"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/CallArguments/Defs.lean",
+      "sha256": "2f963420627a6adeb142acfb08e701eed2f60b8eb7692a2ae6b7346b066b1614"
+    }
+  ],
+  "wall_seconds": 226.4627197719965,
+  "exit_code": 0,
+  "user_cpu_seconds": 221.54,
+  "system_cpu_seconds": 38.79,
+  "peak_rss_kib": 13120640,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

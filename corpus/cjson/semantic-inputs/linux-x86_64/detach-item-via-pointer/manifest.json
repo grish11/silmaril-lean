@@ -1,0 +1,29 @@
+{
+  "files": {
+    "README.md": "c464e91848c3bc6785008930c0c98789c0134bbe8473791cfc106e5d52a1f448",
+    "context.c": "dc3e68189a20294a404f896ac3611eae6a77c44c23bc89991c459bc590dab8a8",
+    "program.sexp": "1e54f1805c02475ea193763bade7a524928b62e87cd99685ac0e6b28696b3e7d",
+    "projection.json": "b1afe72dbe541772e8f7c4b99511e06cc5eae0355c37f821c8b7b4ff2a33dfea",
+    "runtime.sexp": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b",
+    "typed-ail.sexp": "e9d1c6021baf06db021e94446683d9ea0d9c787f5e3153e92b70847d553f9f68"
+  },
+  "immutable_files": {
+    "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf",
+    "corpus/cjson/semantic-inputs/linux-x86_64/predicates/preprocess-receipt.json": "a27feac4379d8f35faa94f0b7c98bf37af170ff384fc3a2e715028ea88bdace5",
+    "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+    "corpus/cjson/upstream/cJSON-1.7.19/cJSON.h": "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee",
+    "benchmarks/cerberus-elaboration/oracle/cast-sign-extend/core.sexp.gz": "0f110b37ff5a57dfe4d99d4cf22505b7371bedb92c92acea7f9e2c397a972ccf",
+    "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson.so.1": "0c7ab3d1ba9aa7808bab6e22695e2fee1702753ad0f4570ce53952120629b456",
+    "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/receipt.json": "0778e34eecd2f85992fa73722d86c84675d816fb072064120ec9bf6a169292ca",
+    "corpus/variants/cjson/1.7.19/default/x86_64/O0/build.json": "339ad3cc14b3fca5defc990a3eaba0f045e3959bd7ecef15d6e32fb84dbc389e"
+  },
+  "external_input_sha256": "9d08c9495e89d336fa40a00c30a57f44fc4c43fb6703495c63e21db45e15012e",
+  "literal_fingerprint": "ordered concatenation with independent per-file hashes",
+  "limits": [
+    "Interior node in a three-element list; five disjoint live objects at arbitrary admissible addresses, arbitrary320 payload bytes except actual initialized list links.",
+    "Actual four-store/post-return complete-memory postcondition demanded, not assumed.",
+    "Equal-address distinct-provenance pointer equality and outside-allocation lifetime mapping remain Unsupported.",
+    "Original O0 TU/build correspondence and whole-TU/frontend adequacy remain unproved.",
+    "Finite native/Core observations are not semantic proofs; all contextual obligations UNPROVED."
+  ]
+}

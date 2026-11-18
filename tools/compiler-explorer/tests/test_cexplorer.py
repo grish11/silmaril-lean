@@ -337,7 +337,9 @@ class Project(Base):
         pages = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(pages)
         output = self.tmp / "site"
-        pages.export(self.project_db(), output)
+        # This isolated fixture adapter DB has no corpus catalog. Production Pages
+        # keeps include_corpus=True; actual corpus coverage has its own tests.
+        pages.export(self.project_db(), output, include_corpus=False)
         listing = json.loads((output / "api/problems.json").read_text())
         self.assertEqual(len(listing), len(list(MANIFESTS.glob("*.json"))))
         views = {}
@@ -357,7 +359,7 @@ class Project(Base):
         project.execute("DELETE FROM statuses WHERE problem LIKE 'silmaril.compiler_explorer.%'")
         project.commit()
         project.close()
-        pages.export(self.tmp / 'project.sqlite', output)
+        pages.export(self.tmp / 'project.sqlite', output, include_corpus=False)
         refreshed = json.loads((output / next(p['static_path'] for p in listing if p['id'] == view['id'])).read_text())
         self.assertNotIn('proved', [o['status'] for o in refreshed['obligations']])
 

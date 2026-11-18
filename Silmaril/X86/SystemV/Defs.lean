@@ -28,8 +28,15 @@ open Silmaril.X86.SystemV.CApi
 /-- The one ABI selected by this adapter. -/
 def abi : String := "x86_64-linux-gnu/sysv-amd64-lp64/integer-state-v1"
 
-/-- Encoding is deliberately relational for 32-bit scalars: upper bits are free. -/
+/-- INTEGER-class encoding. AMD64 psABI §3.2.3 requires a passed or returned
+`_Bool` to have bit 0 equal to its truth value and bits 1–7 zero; upper bits
+are unspecified. Unsigned char uses its full low byte, with bits above it
+unspecified. The same upper-bit freedom applies above bit 31 for 32-bit
+scalars. See https://gitlab.com/x86-psABIs/x86-64-ABI (abi.tex) .
+This models register values, not arbitrary `_Bool` object representations. -/
 def Encodes : (kind : Scalar) → kind.Value → Word → Prop
+  | .boolean, value, word => word.setWidth 8 = BitVec.ofNat 8 (cond value 1 0)
+  | .uint8, value, word => word.setWidth 8 = value
   | .int32, value, word => word.setWidth 32 = value
   | .uint32, value, word => word.setWidth 32 = value
   | .int64, value, word => word = value

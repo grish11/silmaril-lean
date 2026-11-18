@@ -1,0 +1,31 @@
+{
+  "tu": "translation-unit.i",
+  "sha256": "4e33d7c4e78fd242acba9caef4964217e3df3ef5f8138bd15a8af33bf40805e7",
+  "spans": [
+    {
+      "offset": 480,
+      "length": 33,
+      "sha256": "2c742c60cbc478ebf3fa75441a0ca7e9d0621362d9ecdf95c1406d9c644aa32c"
+    },
+    {
+      "offset": 272715,
+      "length": 501,
+      "sha256": "b7c6db78fe91e8fa7214308db55cfdcde0b0997fd039d4c7c2d4aecfed6af8b4"
+    },
+    {
+      "offset": 277639,
+      "length": 258,
+      "sha256": "ebb97e55979e947cac5bb93eeb3d71f3e1888309b56d38327700daf3ade4ddb3"
+    },
+    {
+      "offset": 278157,
+      "length": 70,
+      "sha256": "ebc6fe11bd82fba7de3ca83219f388695c5e4e6e2576fb765a09a4022b647115"
+    },
+    {
+      "offset": 278230,
+      "length": 145,
+      "sha256": "af116accaf65076e7536bfa21d6ed72a71f6a300b0568087f2e5c478a6ae21a2"
+    }
+  ]
+}

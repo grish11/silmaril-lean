@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "run_id": "25403538-b46b-47fa-87fd-08730eab865a",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T08:15:00.269153+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.MimallocOsFlags.Context.Defs"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "mimalloc-boolean-global-getters-checked-abi",
+  "repository": {
+    "commit": "2c0ae80a333725dacf31c5e05efc9aed55811d20",
+    "dirty": true,
+    "diff_sha256": "60df191fec0d15fb64b9173968007f5a43dbc283e090ea4144dfca8505220bf4"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsFlags/Context/Defs.lean",
+      "sha256": "85e02407bb9b1a72930f0a3134c954a819a5e0a19c27c68737e2e14de7e630c8"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsFlags/Source/Elaboration/Defs.lean",
+      "sha256": "6ba31c1dfa4517edfd5529e547a3366893ef046c1f01d8b99bcb0250f2bf01a8"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsFlags/Source/Elaboration/Thms.lean",
+      "sha256": "48eac7bf13d05d2308ab7e4371303b487dba936804898bb0e770ead9f1253c84"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-flags/manifest.json",
+      "sha256": "389e73d5ae295c54c9bfd8db25784d058c53c8ce07b5c44f71c82b589f9a4f68"
+    }
+  ],
+  "wall_seconds": 5.9690318850043695,
+  "exit_code": 0,
+  "user_cpu_seconds": 5.03,
+  "system_cpu_seconds": 20.75,
+  "peak_rss_kib": 3693248,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

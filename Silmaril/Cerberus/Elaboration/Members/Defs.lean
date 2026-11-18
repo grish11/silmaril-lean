@@ -2,11 +2,11 @@ module
 
 public import Silmaril.Cerberus.Elaboration.Constants.Defs
 
-/-! The non-CHERI pointer-member equation from pinned Cerberus
-`translation.lem:2909–2962`, commit
+/-! Non-CHERI direct-member and pointer-member equations from pinned Cerberus
+`translation.lem:2865–2962`, commit
 `b3e11ea334e95359907d4abf9194f0e7fedc6c6a`. Strict pointer arithmetic is an explicit input;
 non-strict mode retains the upstream non-ISO branch instead of asserting
-validity. Four wrappers precede child translation in either mode. -/
+validity. Four pointer-member wrappers precede child translation in either pointer mode. -/
 
 @[expose] public section
 namespace Silmaril.Cerberus.Elaboration.Members
@@ -18,6 +18,36 @@ def aggregateTag : Ctype → Except String Sym
   | .mk _ (.atomic (.mk _ (.struct tag)))
     | .mk _ (.atomic (.mk _ (.union tag))) => .ok tag
   | _ => .error "ill-typed AilEmemberofptr: expected pointer to struct or union"
+
+/-- Direct aggregate-member equation, pinned `translation.lem:2865–2907`.
+The parent category selects address projection versus loaded-value projection.
+The initial wrapper precedes child evaluation, with a loaded-value object wrapper
+allocated afterward; unspecified aggregate values preserve
+upstream UB rather than silently producing a member. CHERI is unsupported. -/
+def directMember (cheri lvalue : Bool) (location : Loc) (aggregateType : Ctype)
+    (member : Identifier) (child : State.ElabM Effect) : State.ElabM Effect := do
+  if cheri then throw (.message "unsupported: CHERI direct-member elaboration")
+  let (tag, objectType) ← Constants.liftResult (match aggregateType with
+    | .mk _ (.struct tag) | .mk _ (.atomic (.mk _ (.struct tag))) =>
+        .ok (tag, ObjectType.struct tag)
+    | .mk _ (.union tag) | .mk _ (.atomic (.mk _ (.union tag))) =>
+        .ok (tag, ObjectType.union tag)
+    | _ => .error "ill-typed AilEmemberof: expected struct or union")
+  let value ← State.wrappedFreshSymbol
+    (if lvalue then .object .pointer else .loaded objectType)
+  let coreChild ← child
+  if lvalue then
+    return addStandard "§6.5.2.3#3, sentence 2"
+      (strongSequence value.pattern coreChild
+        (pureEffect (memberShift value.expression tag member)))
+  else
+    let object ← State.wrappedFreshSymbol (.object objectType)
+    return strongSequence value.pattern coreChild (pureEffect
+      (casePure value.expression
+        [(Construction.unspecifiedPattern (wildcard .ctype),
+          undefined location (.UB_CERB004_unspecified .UB_unspec_rvalue_memberof)),
+         (Construction.specifiedPattern object.pattern,
+          memberOf tag member object.expression)]))
 
 def pointerReferent : Ctype → Except String (Ctype × Sym)
   | .mk _ (.pointer _ type) => do return (type, ← aggregateTag type)

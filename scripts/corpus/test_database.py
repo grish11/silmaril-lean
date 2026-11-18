@@ -29,12 +29,13 @@ class CorpusDatabase(unittest.TestCase):
 
     def test_concrete_function_statement_binding(self):
         data = inventory(ROOT)
-        self.assertEqual(data['formal_statement_counts'], {'contextual_c_to_elf': 19, 'functional_equivalence': 6})
+        self.assertEqual(data['binary_viewer_statement_count'], 9)
+        self.assertEqual(data['formal_statement_counts'], {'contextual_c_to_elf': 30, 'functional_equivalence': 15})
         participants = [a for a in data['artifacts'] if a['functional_equivalence_statements']]
-        self.assertEqual(len(participants), 10)
-        self.assertEqual({a['project'] for a in participants}, {'mimalloc', 'tinycc'})
+        self.assertEqual(len(participants), 18)
+        self.assertEqual({a['project'] for a in participants}, {'mimalloc', 'tinycc', 'sqlite', 'cjson'})
         source_participants = [a for a in data['artifacts'] if a['contextual_c_to_elf_statements']]
-        self.assertEqual([a['path'] for a in source_participants], ['corpus/elf/cjson/x86_64/libcjson.so.1', 'corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1', 'corpus/elf/openssl/x86_64/libssl.so.3', 'corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc'])
+        self.assertEqual([a['path'] for a in source_participants], ['corpus/elf/cjson/x86_64/libcjson.so.1', 'corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1', 'corpus/elf/openssl/x86_64/libssl.so.3', 'corpus/elf/sqlite/x86_64/libsqlite3.so', 'corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson.so.1', 'corpus/variants/darkhttpd/1.17/default/x86_64/O0/unstripped/darkhttpd', 'corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc'])
         statements = json.loads((ROOT / 'corpus/measurements/formal-functions/checks.json').read_text())['statements']
         cjson = [s for s in statements if s['declaration'].startswith('Silmaril.Elf.Corpus.CjsonTypePredicates.')]
         self.assertEqual({s['function_symbol'] for s in cjson}, {
@@ -43,6 +44,10 @@ class CorpusDatabase(unittest.TestCase):
             'cJSON_IsInvalid', 'cJSON_IsFalse', 'cJSON_IsTrue', 'cJSON_IsRaw'})
         self.assertEqual({s['function_address'] for s in cjson}, {21600, 21568, 21632, 21712, 21776, 21808, 21472, 21504, 21536, 21840})
         self.assertTrue(all(set(s['artifact_sha256']) == {'corpus/elf/cjson/x86_64/libcjson.so.1'} for s in cjson))
+        os_getters = [s for s in statements if s['declaration'].startswith('Silmaril.Elf.Corpus.MimallocOsGlobals.')]
+        self.assertEqual({(s['function_symbol'], s['function_address']) for s in os_getters}, {
+            ('_mi_os_page_size', 62000), ('_mi_os_large_page_size', 62016)})
+        self.assertTrue(all(set(s['artifact_sha256']) == {'corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1'} for s in os_getters))
         check = json.loads((ROOT / 'corpus/measurements/formal-functions/checks.json').read_text())['statements'][0]
         source = ROOT / next(iter(check['module_sha256']))
         original = matrix.sha

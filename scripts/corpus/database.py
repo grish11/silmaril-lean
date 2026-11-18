@@ -78,6 +78,7 @@ CREATE TABLE corpus_timings(run_id TEXT PRIMARY KEY, build_id TEXT, stage TEXT N
 ''')
         db.executemany('INSERT INTO corpus_meta VALUES(?,?)', [('schema', 'corpus.catalog.v1'), ('revision', revision),
             ('artifact_rows', str(data['artifact_rows'])), ('unique_content_hashes', str(data['unique_content_hashes'])),
+            ('binary_viewer_statements', str(data['binary_viewer_statement_count'])),
             *[(kind + '_statements', str(count)) for kind, count in data['formal_statement_counts'].items()]])
         for artifact in data['artifacts']:
             key = digest([artifact['build_id'], artifact['stripping'], artifact['path']])
@@ -121,12 +122,12 @@ CREATE TABLE corpus_timings(run_id TEXT PRIMARY KEY, build_id TEXT, stage TEXT N
                             and ('function_addresses' not in s or function['value'] == s['function_addresses'][artifact['path']])
                             and ('function_size' not in s or function['size'] == s['function_size'])]
                 if concrete:
-                    function['formal_statements'] = [{k: s[k] for k in ['kind', 'status', 'declaration', 'root']} for s in concrete]
+                    function['formal_statements'] = [{k: s[k] for k in ['kind', 'status', 'declaration', 'root', 'viewer_kind'] if k in s} for s in concrete]
                 contextual = [s for s in concrete if s['kind'] == 'contextual_c_to_elf']
                 if contextual:
                     function['tv_context'] = {
                         'status': 'concrete contextual C-to-ELF statement; stated-unproved',
-                        'statements': [{k: s[k] for k in ['kind', 'status', 'declaration', 'root']} for s in contextual]}
+                        'statements': [{k: s[k] for k in ['kind', 'status', 'declaration', 'root', 'viewer_kind'] if k in s} for s in contextual]}
                 db.execute('INSERT INTO corpus_functions VALUES(?,?,?,?,?,?)', (key, ordinal,
                     function.get('symbol', function.get('name')), function['value'], function['size'], json.dumps(function)))
         baseline_paths = list((ROOT / 'corpus/census/runs').glob('*.json'))

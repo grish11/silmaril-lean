@@ -1,0 +1,16 @@
+{
+  "tu": "corpus/darkhttpd/semantic-inputs/1.17/default/x86_64/O0/needs-logencoding/translation-unit.i",
+  "tu_sha256": "8b90d8bdc55576387362eef17ecc31fc1c0fde495ef73b2950bf10e1ad19ea82",
+  "spans": [
+    {
+      "offset": 175434,
+      "length": 110,
+      "sha256": "36a3cb857a4fee91bbfc1494950afde02e83acf8c067d9d5360775fb66b00721"
+    }
+  ],
+  "source": "corpus/darkhttpd/upstream/darkhttpd-1.17/darkhttpd.c",
+  "source_sha256": "450280b0010ee689b1984d8258afcc37d3f43a2cd8825661d275f9744e1f3ce8",
+  "original_offset": 42815,
+  "closure": "corpus/darkhttpd/semantic-inputs/1.17/default/x86_64/O0/needs-logencoding/context.c",
+  "closure_sha256": "ce9cbac8610df904f38a98b3db86d3b36cf1c22c286eaafdf2f6f85cf85ad749"
+}

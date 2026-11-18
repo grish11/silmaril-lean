@@ -48,6 +48,9 @@ def main():
                     refreshed["/" + os.path.relpath(candidate, root).replace(os.sep, "/")] = resolved
         files = refreshed
     refresh_files()
+    # Static Pages serves an already encoded representation. Reuse it for HEAD
+    # and GET until the file changes; ctime also detects writes that restore mtime.
+    gzip_bodies = {}
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -99,8 +102,13 @@ def main():
                 self.send_header("Content-Range", "bytes %d-%d/%d" % (a, b, length))
                 validators(tag)
             elif gz:
-                with open(p, "rb") as stream:
-                    body = gzip.compress(stream.read())
+                version = (st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+                cached = gzip_bodies.get(p)
+                if cached is None or cached[0] != version:
+                    with open(p, "rb") as stream:
+                        cached = (version, gzip.compress(stream.read()))
+                    gzip_bodies[p] = cached
+                body = cached[1]
                 self.send_response(200)
                 self.send_header("Content-Encoding", "gzip")
                 validators("W/" + tag)
