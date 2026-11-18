@@ -181,7 +181,7 @@ theorem chkE_nil' {F : List (FuncInst H)} {mi : ModuleInst} {nl : Nat} (o : Opti
 
 /-- The resolved log of a logged run with a consistent resolution: an oracle run, the tag
 invariants and arity facts after it, and its logged Core run to a final form. -/
-theorem full_run (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem full_run (hH : HostSliceT host) (hE : HostSliceE tags host)
     {es : List Binaryen.BExpr} {r : Store H × Frame × POut}
     (h : EvalLXPh s f stk es l r) (hq : SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) q)
     (hc : Cons host q) (hts : TagsOk tags s) :
@@ -197,7 +197,7 @@ theorem full_run (hH : NativeHostSlice host) (hE : HostSliceE tags host)
   exact ⟨t₁, hA, fun hS hchk => cl hts hS hchk⟩
 
 /-- A logged run to a normal flow: its Core run ends at the values. -/
-theorem normal_run (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem normal_run (hH : HostSliceT host) (hE : HostSliceE tags host)
     {es : List Binaryen.BExpr}
     (h : EvalLXPh s f stk es l (s', f', .flow (.normal stk')))
     (hq : SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) q) (hc : Cons host q)
@@ -216,7 +216,7 @@ theorem normal_run (hH : NativeHostSlice host) (hE : HostSliceE tags host)
 
 /-- **A head tree run to completion** is a logged Core run to the code of the remaining trees,
 the invariants and the check carried along. -/
-theorem head_glue (hH : NativeHostSlice host) (hE : HostSliceE tags host) {e : Binaryen.BExpr}
+theorem head_glue (hH : HostSliceT host) (hE : HostSliceE tags host) {e : Binaryen.BExpr}
     (h : EvalLXPh s f stk [e] l (s', f', .flow (.normal stk')))
     (hq : SubstPre (Shape.close wasmHOpenXP) (l.map OCall.lift) q) (hc : Cons host q)
     (hts : TagsOk tags s) (hS : StoreChkE (ehExt tags) s.funcs)
@@ -239,7 +239,7 @@ theorem head_glue (hH : NativeHostSlice host) (hE : HostSliceE tags host) {e : B
 
 /-- **A loop iteration branching back to the loop**, as a logged Core run to the loop again,
 its first step entering the loop host-free. -/
-theorem loopBack_glue (hH : NativeHostSlice host) (hE : HostSliceE tags host) {bt : BlockType}
+theorem loopBack_glue (hH : HostSliceT host) (hE : HostSliceE tags host) {bt : BlockType}
     {body : List Binaryen.BExpr} {np nr : Nat} {vs : List Val}
     (har : Binaryen.arity f bt = some (np, nr))
     (h : EvalLXPh s f (stk.take np) body l (s₁, f₁, .flow (.brk 0 vs)))
@@ -313,7 +313,7 @@ theorem step_if_arm {stk : List Val} {bt : BlockType} {t el : List Binaryen.BExp
         (b₂ := Binaryen.BExpr.lowerList el) h0)
 
 /-- **An `if` condition, then the chosen arm's label**, as a logged Core run. -/
-theorem arm_glue (hH : NativeHostSlice host) (hE : HostSliceE tags host) {bt : BlockType}
+theorem arm_glue (hH : HostSliceT host) (hE : HostSliceE tags host) {bt : BlockType}
     {c t el : List Binaryen.BExpr} {cv : Val} {b : Bool} {np nr : Nat}
     (h : EvalLXPh s f stk c l (s₁, f₁, .flow (.normal (cv :: stk₁))))
     (hb : Binaryen.truthy cv = some b) (har : Binaryen.arity f₁ bt = some (np, nr))

@@ -13,10 +13,16 @@ the answers of the calls:
 * `oToS`, `hToS`: a call of `wasmHShape H` as a call of `wasmHShapeS H`, its answer as `inl`;
 * `evalLXPS_toH`: a session run is a canonical run of the same result, with the same calls and
   answers, except that a trap answer, which is the last call and ends the run in a trap, becomes
-  a cut call;
+  a cut call, with any answer longer than the callee's result arity;
 * `evalLXPh_toS`: a canonical run is a session run of the same result and calls, unless it ends
-  in a cut call (an answer of more values than the callee's result arity), then in a trap;
+  in a cut call (an answer of more values than the callee's result arity), then in a trap; then
+  the call answered by a trap is a session run of the same result;
 * `reachLXP_trapS`: a reached call answered by a trap, leaving any store, ends a session run.
+
+In the trap cases the correspondence is exact: a trap answer becomes a cut call with **every**
+answer longer than the callee's result arity (`ToH`), and a cut call becomes the trap answer
+leaving its store (`ToS`); `evalLXPS_canonical_cut`, `evalLXPh_session_cut` state both through
+`OCall.toS`.
 -/
 
 @[expose] public section
@@ -53,26 +59,32 @@ theorem ne_trap_of_blockVals {fl : Flow} {vs : List Val} (hvs : fl.blockVals = s
 /-! ## Session runs as canonical runs -/
 
 /-- A session log `l` of a run ending in `r`, read back: the image of a canonical log, or a
-canonical log then a trap answer leaving `s₂`, the run ending in a trap in `s₂`. -/
+canonical log `u` then a trap answer of a call to `g` leaving `s₂`, the run ending in a trap in
+`s₂`. In the second case the callee has a type, and the canonical log `u` then the call answered
+by **any** list of more values than the callee's result arity (a cut call) satisfies `P`. -/
 def ToH (l : List (SCall H)) (r : Store H × Frame × POut) (P : List (OCall H) → Prop) : Prop :=
   (∃ l', l = l'.map oToS ∧ P l') ∨
-  (r.2.2 = .flow .trap ∧ ∃ (u : List (OCall H)) (g : Nat) (args : List Val) (s₁ s₂ : Store H)
-    (ws : List Val), r.1 = s₂ ∧ l = u.map oToS ++ [SCall.mk g args s₁ (.inr ()) s₂] ∧
-    P (u ++ [OCall.mk g args s₁ (.inl ws) s₂]))
+  (r.2.2 = .flow .trap ∧ ∃ (u : List (OCall H)) (g : Nat) (args : List Val) (s₁ s₂ : Store H),
+    r.1 = s₂ ∧ l = u.map oToS ++ [SCall.mk g args s₁ (.inr ()) s₂] ∧
+    ∃ (fi : FuncInst H) (ps rs : List Validation.CValType), s₁.funcs[g]? = some fi ∧
+      Validation.DefType.funcType? fi.type = some (ps, rs) ∧
+      ∀ ws : List Val, rs.length < ws.length → P (u ++ [OCall.mk g args s₁ (.inl ws) s₂]))
 
 theorem ToH.mono {l : List (SCall H)} {r r' : Store H × Frame × POut}
     {P Q : List (OCall H) → Prop} (h : ToH l r P) (hP : ∀ l', P l' → Q l')
     (ho : r.2.2 = .flow .trap → r'.2.2 = .flow .trap ∧ r'.1 = r.1) : ToH l r' Q := by
-  rcases h with ⟨l', rfl, hp⟩ | ⟨ht, u, g, args, s₁, s₂, ws, hs, rfl, hp⟩
+  rcases h with ⟨l', rfl, hp⟩ | ⟨ht, u, g, args, s₁, s₂, hs, rfl, fi, ps, rs, hf, hty, hp⟩
   · exact .inl ⟨l', rfl, hP _ hp⟩
-  · exact .inr ⟨(ho ht).1, u, g, args, s₁, s₂, ws, (ho ht).2.trans hs, rfl, hP _ hp⟩
+  · exact .inr ⟨(ho ht).1, u, g, args, s₁, s₂, (ho ht).2.trans hs, rfl, fi, ps, rs, hf, hty,
+      fun ws hws => hP _ (hp ws hws)⟩
 
 theorem ToH.app {l : List (SCall H)} {r : Store H × Frame × POut} {P Q : List (OCall H) → Prop}
     (pre : List (OCall H)) (h : ToH l r P) (hP : ∀ l', P l' → Q (pre ++ l')) :
     ToH (pre.map oToS ++ l) r Q := by
-  rcases h with ⟨l', rfl, hp⟩ | ⟨ht, u, g, args, s₁, s₂, ws, hs, rfl, hp⟩
+  rcases h with ⟨l', rfl, hp⟩ | ⟨ht, u, g, args, s₁, s₂, hs, rfl, fi, ps, rs, hf, hty, hp⟩
   · exact .inl ⟨pre ++ l', by simp, hP _ hp⟩
-  · exact .inr ⟨ht, pre ++ u, g, args, s₁, s₂, ws, hs, by simp, by simpa using hP _ hp⟩
+  · exact .inr ⟨ht, pre ++ u, g, args, s₁, s₂, hs, by simp, fi, ps, rs, hf, hty,
+      fun ws hws => by simpa using hP _ (hp ws hws)⟩
 
 theorem ToH.ok {l : List (SCall H)} {r : Store H × Frame × POut} {P : List (OCall H) → Prop}
     (h : ToH l r P) (ho : r.2.2 ≠ .flow .trap) : ∃ l', l = l'.map oToS ∧ P l' := by
@@ -98,8 +110,8 @@ theorem evalLXPS_toH {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr
     exact .inl ⟨_, by simp, .callThrow h₁ hfi hty⟩
   | @callTrap s s₁ s₂ f f₁ stk stk₁ x args es a fi ps rs l₁ _ hfi hty ih =>
     obtain ⟨l₁', rfl, h₁⟩ := ih.ok (by simp)
-    exact .inr ⟨rfl, l₁', _, _, s₁, s₂, List.replicate (rs.length + 1) (Val.ref .null), rfl, rfl,
-      .callCut h₁ hfi hty (by simp)⟩
+    exact .inr ⟨rfl, l₁', _, _, s₁, s₂, rfl, rfl, fi, ps, rs, funcs_of_func? hfi, hty,
+      fun _ hws => .callCut h₁ hfi hty hws⟩
   | opOk hi _ hflat _ ih₁ ih₂ =>
     obtain ⟨l₁', rfl, h₁⟩ := ih₁.ok (by simp)
     exact ih₂.app l₁' (fun _ h₂ => .opOk hi h₁ hflat h₂)
@@ -144,8 +156,8 @@ theorem evalLXPS_toH {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr
     exact .inl ⟨_, by simp, .indThrow h₁ hres hfi hty hy⟩
   | @indTrap s s₁ s₂ f f₁ stk stk₁ x y args es ad i fa fi ps rs l₁ _ hres hfi hty hy ih =>
     obtain ⟨l₁', rfl, h₁⟩ := ih.ok (by simp)
-    exact .inr ⟨rfl, l₁', _, _, s₁, s₂, List.replicate (rs.length + 1) (Val.ref .null), rfl, rfl,
-      .indCut h₁ hres hfi hty hy (by simp)⟩
+    exact .inr ⟨rfl, l₁', _, _, s₁, s₂, rfl, rfl, fi, ps, rs, hfi, hty,
+      fun _ hws => .indCut h₁ hres hfi hty hy hws⟩
   | indRes _ hres ih =>
     obtain ⟨l₁', rfl, h₁⟩ := ih.ok (by simp)
     exact .inl ⟨l₁', rfl, .indRes h₁ hres⟩
@@ -160,8 +172,8 @@ theorem evalLXPS_toH {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr
     exact .inl ⟨_, by simp, .refThrow h₁ hfi hty hy⟩
   | @refTrap s s₁ s₂ f f₁ stk stk₁ y args es fa fi ps rs l₁ _ hfi hty hy ih =>
     obtain ⟨l₁', rfl, h₁⟩ := ih.ok (by simp)
-    exact .inr ⟨rfl, l₁', _, _, s₁, s₂, List.replicate (rs.length + 1) (Val.ref .null), rfl, rfl,
-      .refCut h₁ hfi hty hy (by simp)⟩
+    exact .inr ⟨rfl, l₁', _, _, s₁, s₂, rfl, rfl, fi, ps, rs, hfi, hty,
+      fun _ hws => .refCut h₁ hfi hty hy hws⟩
   | refNull _ ih =>
     obtain ⟨l₁', rfl, h₁⟩ := ih.ok (by simp)
     exact .inl ⟨l₁', rfl, .refNull h₁⟩
@@ -193,27 +205,31 @@ theorem evalLXPS_toH {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr
 /-! ## Canonical runs as session runs -/
 
 /-- A canonical log `l` of a run ending in `o`: its image is a session log satisfying `P`, or it
-ends in a cut call and the run in a trap. -/
+ends in a cut call (an answer of more values than the callee's result arity) and the run in a
+trap, and the image of the log before the cut call, then the call answered by a trap leaving the
+cut call's store, satisfies `P`. -/
 def ToS (l : List (OCall H)) (o : POut) (P : List (SCall H) → Prop) : Prop :=
   P (l.map oToS) ∨
   (o = .flow .trap ∧ ∃ (u : List (OCall H)) (g : Nat) (args : List Val) (s₁ s₂ : Store H)
     (ws : List Val) (fi : FuncInst H) (ps rs : List Validation.CValType),
     l = u ++ [OCall.mk g args s₁ (.inl ws) s₂] ∧ s₁.funcs[g]? = some fi ∧
-    Validation.DefType.funcType? fi.type = some (ps, rs) ∧ rs.length < ws.length)
+    Validation.DefType.funcType? fi.type = some (ps, rs) ∧ rs.length < ws.length ∧
+    P (u.map oToS ++ [SCall.mk g args s₁ (.inr ()) s₂]))
 
 theorem ToS.mono {l : List (OCall H)} {o o' : POut} {P Q : List (SCall H) → Prop}
-    (h : ToS l o P) (hP : P (l.map oToS) → Q (l.map oToS))
+    (h : ToS l o P) (hP : ∀ l', P l' → Q l')
     (ho : o = .flow .trap → o' = .flow .trap) : ToS l o' Q := by
-  rcases h with hp | ⟨ht, hc⟩
-  · exact .inl (hP hp)
-  · exact .inr ⟨ho ht, hc⟩
+  rcases h with hp | ⟨ht, u, g, args, s₁, s₂, ws, fi, ps, rs, hl, hf, hty, hws, hp⟩
+  · exact .inl (hP _ hp)
+  · exact .inr ⟨ho ht, u, g, args, s₁, s₂, ws, fi, ps, rs, hl, hf, hty, hws, hP _ hp⟩
 
 theorem ToS.app {l : List (OCall H)} {o : POut} {P Q : List (SCall H) → Prop}
-    (pre : List (OCall H)) (h : ToS l o P) (hP : P (l.map oToS) → Q (pre.map oToS ++ l.map oToS)) :
+    (pre : List (OCall H)) (h : ToS l o P) (hP : ∀ l', P l' → Q (pre.map oToS ++ l')) :
     ToS (pre ++ l) o Q := by
-  rcases h with hp | ⟨ht, u, g, args, s₁, s₂, ws, fi, ps, rs, rfl, hc⟩
-  · exact .inl (by simpa using hP hp)
-  · exact .inr ⟨ht, pre ++ u, g, args, s₁, s₂, ws, fi, ps, rs, by simp, hc⟩
+  rcases h with hp | ⟨ht, u, g, args, s₁, s₂, ws, fi, ps, rs, rfl, hf, hty, hws, hp⟩
+  · exact .inl (by simpa using hP _ hp)
+  · exact .inr ⟨ht, pre ++ u, g, args, s₁, s₂, ws, fi, ps, rs, by simp, hf, hty, hws,
+      by simpa using hP _ hp⟩
 
 theorem ToS.ok {l : List (OCall H)} {o : POut} {P : List (SCall H) → Prop} (h : ToS l o P)
     (ho : o ≠ .flow .trap) : P (l.map oToS) := by
@@ -227,59 +243,62 @@ theorem evalLXPh_toS {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr
     ToS l r.2.2 (fun l' => EvalLXPS s f stk es l' r) := by
   induction h with
   | nil => exact .inl .nil
-  | argsAbort _ ho ih => exact ih.mono (fun h => .argsAbort h ho) id
+  | argsAbort _ ho ih => exact ih.mono (fun _ h => .argsAbort h ho) id
   | @callRet s s₁ s₂ f f₁ stk stk₁ ws x args es a fi ps rs l₁ l₂ r _ hfi hty _ ih₁ ih₂ =>
     have h₁ := ih₁.ok (by simp)
     have := ih₂.app (l₁ ++ [OCall.mk a (stk₁.take ps.length).reverse s₁ (.inl ws) s₂])
       (Q := fun l' => EvalLXPS s f stk (.op (.call x) args :: es) l' r)
-      (fun h₂ => by simpa using EvalLXPS.callRet h₁ hfi hty h₂)
+      (fun _ h₂ => by simpa using EvalLXPS.callRet h₁ hfi hty h₂)
     simpa using this
   | callThrow _ hfi hty ih =>
     exact .inl (by simpa using EvalLXPS.callThrow (ih.ok (by simp)) hfi hty)
-  | @callCut s s₁ s₂ f f₁ stk stk₁ ws x args es a fi ps rs l₁ _ hfi hty hws _ =>
-    exact .inr ⟨rfl, l₁, a, _, s₁, s₂, ws, fi, ps, rs, rfl, funcs_of_func? hfi, hty, hws⟩
+  | @callCut s s₁ s₂ f f₁ stk stk₁ ws x args es a fi ps rs l₁ _ hfi hty hws ih =>
+    exact .inr ⟨rfl, l₁, a, _, s₁, s₂, ws, fi, ps, rs, rfl, funcs_of_func? hfi, hty, hws,
+      .callTrap (ih.ok (by simp)) hfi hty⟩
   | opOk hi _ hflat _ ih₁ ih₂ =>
-    exact ih₂.app _ (fun h₂ => .opOk hi (ih₁.ok (by simp)) hflat h₂)
+    exact ih₂.app _ (fun _ h₂ => .opOk hi (ih₁.ok (by simp)) hflat h₂)
   | opStop hi _ hflat hfl ih => exact .inl (.opStop hi (ih.ok (by simp)) hflat hfl)
   | blockOk har _ hvs _ ih₁ ih₂ =>
-    exact ih₂.app _ (fun h₂ => .blockOk har (ih₁.ok (ne_trap_of_blockVals hvs)) hvs h₂)
-  | blockBrk har _ ih => exact ih.mono (fun h => .blockBrk har h) (fun h => absurd h (by simp))
-  | blockEsc har _ ho ih => exact ih.mono (fun h => .blockEsc har h ho) id
-  | loopOk har _ _ ih₁ ih₂ => exact ih₂.app _ (fun h₂ => .loopOk har (ih₁.ok (by simp)) h₂)
-  | loopBack har _ _ ih₁ ih₂ => exact ih₂.app _ (fun h₂ => .loopBack har (ih₁.ok (by simp)) h₂)
-  | loopBrk har _ ih => exact ih.mono (fun h => .loopBrk har h) (fun h => absurd h (by simp))
-  | loopEsc har _ ho ih => exact ih.mono (fun h => .loopEsc har h ho) id
+    exact ih₂.app _ (fun _ h₂ => .blockOk har (ih₁.ok (ne_trap_of_blockVals hvs)) hvs h₂)
+  | blockBrk har _ ih => exact ih.mono (fun _ h => .blockBrk har h) (fun h => absurd h (by simp))
+  | blockEsc har _ ho ih => exact ih.mono (fun _ h => .blockEsc har h ho) id
+  | loopOk har _ _ ih₁ ih₂ => exact ih₂.app _ (fun _ h₂ => .loopOk har (ih₁.ok (by simp)) h₂)
+  | loopBack har _ _ ih₁ ih₂ => exact ih₂.app _ (fun _ h₂ => .loopBack har (ih₁.ok (by simp)) h₂)
+  | loopBrk har _ ih => exact ih.mono (fun _ h => .loopBrk har h) (fun h => absurd h (by simp))
+  | loopEsc har _ ho ih => exact ih.mono (fun _ h => .loopEsc har h ho) id
   | ifOk _ hb har _ hvs _ ih₁ ih₂ ih₃ =>
     have h₁ := ih₁.ok (by simp)
     have h₂ := ih₂.ok (ne_trap_of_blockVals hvs)
-    exact ih₃.app (_ ++ _) (fun h₃ => by simpa using EvalLXPS.ifOk h₁ hb har h₂ hvs h₃)
+    exact ih₃.app (_ ++ _) (fun _ h₃ => by simpa using EvalLXPS.ifOk h₁ hb har h₂ hvs h₃)
   | ifBrk _ hb har _ ih₁ ih₂ =>
     exact .inl (by simpa using EvalLXPS.ifBrk (ih₁.ok (by simp)) hb har (ih₂.ok (by simp)))
   | ifEsc _ hb har _ ho ih₁ ih₂ =>
-    exact ih₂.app _ (fun h₂ => .ifEsc (ih₁.ok (by simp)) hb har h₂ ho)
-  | ifAbort _ ho ih => exact ih.mono (fun h => .ifAbort h ho) id
+    exact ih₂.app _ (fun _ h₂ => .ifEsc (ih₁.ok (by simp)) hb har h₂ ho)
+  | ifAbort _ ho ih => exact ih.mono (fun _ h => .ifAbort h ho) id
   | @indRet s s₁ s₂ f f₁ stk stk₁ ws x y args es ad i fa fi ps rs l₁ l₂ r _ hres hfi hty hy _
       ih₁ ih₂ =>
     have h₁ := ih₁.ok (by simp)
     have := ih₂.app (l₁ ++ [OCall.mk fa (stk₁.take ps.length).reverse s₁ (.inl ws) s₂])
       (Q := fun l' => EvalLXPS s f stk (.op (.callIndirect x y) args :: es) l' r)
-      (fun h₂ => by simpa using EvalLXPS.indRet h₁ hres hfi hty hy h₂)
+      (fun _ h₂ => by simpa using EvalLXPS.indRet h₁ hres hfi hty hy h₂)
     simpa using this
   | indThrow _ hres hfi hty hy ih =>
     exact .inl (by simpa using EvalLXPS.indThrow (ih.ok (by simp)) hres hfi hty hy)
-  | @indCut s s₁ s₂ f f₁ stk stk₁ ws x y args es ad i fa fi ps rs l₁ _ hres hfi hty hy hws _ =>
-    exact .inr ⟨rfl, l₁, fa, _, s₁, s₂, ws, fi, ps, rs, rfl, hfi, hty, hws⟩
+  | @indCut s s₁ s₂ f f₁ stk stk₁ ws x y args es ad i fa fi ps rs l₁ _ hres hfi hty hy hws ih =>
+    exact .inr ⟨rfl, l₁, fa, _, s₁, s₂, ws, fi, ps, rs, rfl, hfi, hty, hws,
+      .indTrap (ih.ok (by simp)) hres hfi hty hy⟩
   | indRes _ hres ih => exact .inl (.indRes (ih.ok (by simp)) hres)
   | @refRet s s₁ s₂ f f₁ stk stk₁ ws y args es fa fi ps rs l₁ l₂ r _ hfi hty hy _ ih₁ ih₂ =>
     have h₁ := ih₁.ok (by simp)
     have := ih₂.app (l₁ ++ [OCall.mk fa (stk₁.take ps.length).reverse s₁ (.inl ws) s₂])
       (Q := fun l' => EvalLXPS s f stk (.op (.callRef y) args :: es) l' r)
-      (fun h₂ => by simpa using EvalLXPS.refRet h₁ hfi hty hy h₂)
+      (fun _ h₂ => by simpa using EvalLXPS.refRet h₁ hfi hty hy h₂)
     simpa using this
   | refThrow _ hfi hty hy ih =>
     exact .inl (by simpa using EvalLXPS.refThrow (ih.ok (by simp)) hfi hty hy)
-  | @refCut s s₁ s₂ f f₁ stk stk₁ ws y args es fa fi ps rs l₁ _ hfi hty hy hws _ =>
-    exact .inr ⟨rfl, l₁, fa, _, s₁, s₂, ws, fi, ps, rs, rfl, hfi, hty, hws⟩
+  | @refCut s s₁ s₂ f f₁ stk stk₁ ws y args es fa fi ps rs l₁ _ hfi hty hy hws ih =>
+    exact .inr ⟨rfl, l₁, fa, _, s₁, s₂, ws, fi, ps, rs, rfl, hfi, hty, hws,
+      .refTrap (ih.ok (by simp)) hfi hty hy⟩
   | refNull _ ih => exact .inl (.refNull (ih.ok (by simp)))
   | tail _ hres hfi hty hy ih => exact .inl (.tail (ih.ok (by simp)) hres hfi hty hy)
   | tailRes _ hres ih => exact .inl (.tailRes (ih.ok (by simp)) hres)
@@ -287,17 +306,45 @@ theorem evalLXPh_toS {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr
   | throwRefNull _ ih => exact .inl (.throwRefNull (ih.ok (by simp)))
   | throwRefExn _ ih => exact .inl (.throwRefExn (ih.ok (by simp)))
   | tryOk har _ hvs _ ih₁ ih₂ =>
-    exact ih₂.app _ (fun h₂ => .tryOk har (ih₁.ok (ne_trap_of_blockVals hvs)) hvs h₂)
-  | tryBrk har _ ih => exact ih.mono (fun h => .tryBrk har h) (fun h => absurd h (by simp))
-  | tryEsc har _ ho hnt ih => exact ih.mono (fun h => .tryEsc har h ho hnt) id
+    exact ih₂.app _ (fun _ h₂ => .tryOk har (ih₁.ok (ne_trap_of_blockVals hvs)) hvs h₂)
+  | tryBrk har _ ih => exact ih.mono (fun _ h => .tryBrk har h) (fun h => absurd h (by simp))
+  | tryEsc har _ ho hnt ih => exact ih.mono (fun _ h => .tryEsc har h ho hnt) id
   | tryCatch har _ hc ih => exact .inl (.tryCatch har (ih.ok (by simp)) hc)
-  | tryRethrow har _ hc ih => exact ih.mono (fun h => .tryRethrow har h hc) id
+  | tryRethrow har _ hc ih => exact ih.mono (fun _ h => .tryRethrow har h hc) id
 
 /-- A canonical run ending in a normal flow (or anything but a trap) is a session run. -/
 theorem evalLXPh_toS_ok {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
     {l : List (OCall H)} {r : Store H × Frame × POut} (h : EvalLXPh s f stk es l r)
     (ho : r.2.2 ≠ .flow .trap) : EvalLXPS s f stk es (l.map oToS) r :=
   (evalLXPh_toS h).ok ho
+
+/-! ## The exact correspondence, through `OCall.toS` -/
+
+theorem oToS_eq : (oToS : OCall H → SCall H) = OCall.toS := by
+  funext z; rcases z with ⟨⟨⟨⟩⟩ | y, b, s'⟩; rfl
+
+/-- **A session run is a canonical run, or ends in a trap answer read as every cut call.** -/
+theorem evalLXPS_canonical_cut {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (SCall H)} {r : Store H × Frame × POut} (h : EvalLXPS s f stk es l r) :
+    (∃ l', l = l'.map OCall.toS ∧ EvalLXPh s f stk es l' r) ∨
+    (r.2.2 = .flow .trap ∧ ∃ (u : List (OCall H)) (g : Nat) (args : List Val) (s₁ s₂ : Store H),
+      r.1 = s₂ ∧ l = u.map OCall.toS ++ [SCall.mk g args s₁ (.inr ()) s₂] ∧
+      ∃ (fi : FuncInst H) (ps rs : List Validation.CValType), s₁.funcs[g]? = some fi ∧
+        Validation.DefType.funcType? fi.type = some (ps, rs) ∧
+        ∀ ws : List Val, rs.length < ws.length →
+          EvalLXPh s f stk es (u ++ [OCall.mk g args s₁ (.inl ws) s₂]) r) := by
+  rw [← oToS_eq]; exact evalLXPS_toH h
+
+/-- **A canonical run is a session run, or ends in a cut call read as a trap answer.** -/
+theorem evalLXPh_session_cut {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr}
+    {l : List (OCall H)} {r : Store H × Frame × POut} (h : EvalLXPh s f stk es l r) :
+    EvalLXPS s f stk es (l.map OCall.toS) r ∨
+    (r.2.2 = .flow .trap ∧ ∃ (u : List (OCall H)) (g : Nat) (args : List Val) (s₁ s₂ : Store H)
+      (ws : List Val) (fi : FuncInst H) (ps rs : List Validation.CValType),
+      l = u ++ [OCall.mk g args s₁ (.inl ws) s₂] ∧ s₁.funcs[g]? = some fi ∧
+      Validation.DefType.funcType? fi.type = some (ps, rs) ∧ rs.length < ws.length ∧
+      EvalLXPS s f stk es (u.map OCall.toS ++ [SCall.mk g args s₁ (.inr ()) s₂]) r) := by
+  rw [← oToS_eq]; exact evalLXPh_toS h
 
 /-! ## Reached calls answered by a trap -/
 

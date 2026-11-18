@@ -80,8 +80,8 @@ roots = ["Silmaril.Prelude"]
 globs = [
   "Silmaril", "Silmaril.Apps.+", "Silmaril.Automata.+", "Silmaril.Proofs.Automata.+",
   "Silmaril.Calculi.*", "Silmaril.Cli.*", "Silmaril.Compile.+",
-  "Silmaril.Courses.+", "Silmaril.Crypto.+", "Silmaril.Data.+", "Silmaril.Elf.+", "Silmaril.Encoding.*",
-  "Silmaril.Formats.+", "Silmaril.Foundations.+", "Silmaril.Games.+", "Silmaril.Libc.+", "Silmaril.Logic.*", "Silmaril.LogicGraph.Nodes.+", "Silmaril.LogicGraph.Edges.+", "Silmaril.LogicGraph.Audit.+",
+  "Silmaril.Containers.+", "Silmaril.Courses.+", "Silmaril.Crypto.+", "Silmaril.Data.+", "Silmaril.Elf.+", "Silmaril.Encoding.*",
+  "Silmaril.Formats.+", "Silmaril.Foundations.+", "Silmaril.Games.+", "Silmaril.Sim.+", "Silmaril.Libc.+", "Silmaril.Logic.*", "Silmaril.LogicGraph.Nodes.+", "Silmaril.LogicGraph.Edges.+", "Silmaril.LogicGraph.Audit.+", "Silmaril.LogicGraph.Consequence.+",
   "Silmaril.Machine.+", "Silmaril.Numeric.+", "Silmaril.Parse.+", "Silmaril.Prelude.+",
   "Silmaril.Raw.Libc.+",
   "Silmaril.Problems.+", "Silmaril.Process.+",
@@ -92,11 +92,11 @@ globs = [
   "Silmaril.Project.Registry.+",
   "Silmaril.Project.Room.+", "Silmaril.Project.Shapes.+",
   "Silmaril.Proofs.Calculi.+",
-  "Silmaril.Proofs.Cli.+", "Silmaril.Proofs.Compile.+", "Silmaril.Proofs.Data.+", "Silmaril.Proofs.Prelude.+", "Silmaril.Proofs.Elf.+",
+  "Silmaril.Proofs.Cli.+", "Silmaril.Proofs.Containers.+", "Silmaril.Proofs.Compile.+", "Silmaril.Proofs.Data.+", "Silmaril.Proofs.Prelude.+", "Silmaril.Proofs.Elf.+",
   "Silmaril.Proofs.Formats.+", "Silmaril.Proofs.Libc.+", "Silmaril.Proofs.Numeric.+",
-  "Silmaril.Proofs.Games.+", "Silmaril.Proofs.Logic.+", "Silmaril.Raw.Logic.+", "Silmaril.Proofs.Problems.+",
+  "Silmaril.Proofs.Games.+", "Silmaril.Proofs.Sim.+", "Silmaril.Proofs.Logic.+", "Silmaril.Raw.Logic.+", "Silmaril.Proofs.Problems.+",
   "Silmaril.Proofs.Process.+", "Silmaril.Proofs.Project.+", "Silmaril.Proofs.SSA.+",
-  "Silmaril.Proofs.Wasm.Abstract.+", "Silmaril.Proofs.Wasm.Auto.+", "Silmaril.Proofs.Wasm.Auto2.+",
+  "Silmaril.Proofs.Wasm.Abstract.+", "Silmaril.Proofs.Wasm.Acceptor.+", "Silmaril.Proofs.Wasm.Auto.+", "Silmaril.Proofs.Wasm.Auto2.+",
   "Silmaril.Proofs.Wasm.Behaviour.+", "Silmaril.Proofs.Wasm.Binaryen.+",
   "Silmaril.Proofs.Wasm.Examples.+", "Silmaril.Proofs.Wasm.Execution.+",
   "Silmaril.Proofs.Wasm.FX.+", "Silmaril.Proofs.Wasm.FnInst.+",
@@ -106,7 +106,7 @@ globs = [
   "Silmaril.Raw.Elf.+", "Silmaril.Raw.Formats.+", "Silmaril.Raw.Process.+", "Silmaril.Raw.Semantics.+",
   "Silmaril.Raw.Wasm.Auto.+", "Silmaril.Raw.Wasm.Auto2.+", "Silmaril.Raw.X86.+",
   "Silmaril.RiscV.+", "Silmaril.SSA.+",
-  "Silmaril.Semantics.+", "Silmaril.Wasm.Abstract.+", "Silmaril.Wasm.Auto.+", "Silmaril.Wasm.Auto2.+",
+  "Silmaril.Semantics.+", "Silmaril.Wasm.Abstract.+", "Silmaril.Wasm.Acceptor.+", "Silmaril.Wasm.Auto.+", "Silmaril.Wasm.Auto2.+",
   "Silmaril.Wasm.Behaviour.+", "Silmaril.Wasm.Binary.+", "Silmaril.Wasm.Binaryen.+",
   "Silmaril.Wasm.Cfg.+", "Silmaril.Proofs.Wasm.Cfg.+",
   "Silmaril.Wasm.Component.+", "Silmaril.Wasm.Declaration", "Silmaril.Wasm.Equiv.+",
@@ -460,7 +460,7 @@ supportInterpreter = true
 
 [[lean_lib]]
 name = "WasmAutoTests"
-globs = ["tests.wasm.auto.+"]
+globs = ["tests.wasm.auto.+", "tests.wasm.auto2.+"]
 
 # The component and generator tools of the Wasm release (docs/projects/wasm-components.md).
 [[lean_exe]]
@@ -721,6 +721,27 @@ srcDir = "tools/ccomp-verified"
 name = "csem"
 root = "Csem"
 srcDir = "tools/csem"
+
+# The compiler explorer's evidence exporter (docs/projects/compiler-explorer.md): it imports the
+# modules a manifest names at run time and decides each obligation from the environment.
+[[lean_exe]]
+name = "cexplorer-export"
+root = "CExplorerExport"
+srcDir = "tools/compiler-explorer"
+supportInterpreter = true
+# the manifests and the database it serves are part of its trace, so CI's scope selects the
+# end-to-end check (`make compiler-explorer-check`) when they change
+needs = ["compilerExplorerTools", "compilerExplorerFixtures"]
+
+[[input_dir]]
+name = "compilerExplorerTools"
+path = "tools/compiler-explorer"
+filter = { extension = ["py", "sh", "js", "mjs"] }
+
+[[input_dir]]
+name = "compilerExplorerFixtures"
+path = "examples/compiler-explorer"
+filter = { extension = ["json", "txt", "c", "s"] }
 
 [[lean_exe]]
 name = "decompile"

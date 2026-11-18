@@ -1,0 +1,37 @@
+# Wasm specification library entry (format: docs/projects/wasm-spec-library.md).
+schema = 1
+name = "Abs"
+version = "1.0.0"
+summary = "Branch-free absolute value (x xor m) - m with m = x >>s 31."
+status = "verified"
+
+[program]
+kind = "annotated-wat"
+source = "abs.wat"
+lean = "Silmaril.WasmSpec.Abs.program"
+module = "Silmaril.WasmSpec.Abs.Defs"
+functions = ["abs"]
+
+[spec]
+module = "Silmaril.WasmSpec.Abs.Defs"
+statements = ["Silmaril.WasmSpec.Abs.Spec"]
+description = """
+`Spec`: for all x : BitVec 32, the body of `$abs` called on [i32 x] can return
+exactly [i32 (absBV x)], absBV x = if x <ₛ 0 then -x else x (wrapping), without
+changing the store (`Computes`)."""
+runs = "some"
+correctness = "total"
+
+[results]
+module = "Silmaril.WasmSpec.Abs.Thms"
+theorems = ["Silmaril.WasmSpec.Abs.spec"]
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.Abs.spec_tactic"
+proves = "Silmaril.WasmSpec.Abs.Spec"
+module = "Silmaril.Proofs.WasmSpec.Abs.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 3.0
+notes = "spec_of_vc (wasm_step with shrS32) + vc_tactic: case on msb, sshiftRight_eq_of_msb_false/true, shr31, xor_allOnes, neg_eq_not_add."

@@ -26,6 +26,17 @@ and **gap** (a verification gap).
 | no proof that a REF component accepts *only* certain bytes | **gap** | `Accepted` is existential; only inclusions are shown | invariants of REF runs (e.g. a component that never calls `accept` accepts nothing) |
 | upstream parity suites (wasm-tools, jco, wac, wasmtime) | **gap** | not run by CI (`docs/projects/wasm-components.md`) | run them in a scheduled job |
 
+## Instantiation and start functions in the component IR
+
+| item | status | evidence | next step |
+|---|---|---|---|
+| start functions run at instantiation, in program order; a start trap aborts the instantiation | **unwired** (IR denotation and Core 3.0 engine instance; the acceptor and consequence APIs still use the start-free `Comp.denU`) | `InstSem`: `CoreSemI` (instantiation question `inst` before export calls), `Comp.denI` (nodes instantiated in order by `extI`; the first failure is the answer and later nodes are never asked; the protocol guard `instGuard`); `denIR_toI`, `denI_toI_iff`: for start-free `C`, `denI C.toI` after `[inst, ready]` is exactly `Comp.denU C`. `InstEngine`: `engineSemI`, `core3SemI P` (start function at `inst`, its import calls as moves, export phase `engineStrategy`). `InstLitmus` (Core 3.0, kernel-computed instances, `Step`-built runs): order of two start calls (`twoC_inst`, every profile; `twoC_order`, deterministic profiles), import call at instantiation (`oneC_inst`), start trap fails the instantiation, no later start runs, no export answers (`trapC_inst_fails`; `trapC_plays` and corollaries at deterministic profiles), never-called instance still started (`hiddenC_inst`) | relate `Comp.denI` over `core3SemI` to REF instantiation (`Reference.Instantiate`, `runStart`); use `Comp.denI` for lowered binaries (`Binary.coreModSem` is start-free) |
+| the export phase of `engineSemI` is `engineStrategy` | **gap** (one inclusion) | `engineStrategyI_after_start`, `engineSemI_after_ready`: every `engineStrategy` play follows the instantiation play | prove the converse inclusion |
+| divergence of a start function | **assumption** | strategies do not observe divergence: a diverging start phase leaves `inst` unanswered (`Silmaril.Wasm.Game.Start` observes it with `DStrategy`) | a divergence-observing `Comp.denI` |
+
+The opt-in *lazy* start semantics proposed separately (start function run at the first export
+call) is not the specification's and is not used here.
+
 ## Assumptions of `Ref.Accepted` and the typed environment
 
 * **Host.** The host's `accept` is synchronous: it records its arguments and returns no result.

@@ -1,0 +1,1153 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 63668,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 5704,
+      "sha256": "c4bc7f3921d22b2aa9da72fa6145159d54ac4b51ae2b68c3040e89382a04c331",
+      "size": 28
+    },
+    ".plt": {
+      "address": 5744,
+      "sha256": "a32d2cf5cd85c349233a2dfea5cc8de80d9131dffecb5bb33332851c87cd28ae",
+      "size": 896
+    },
+    ".text": {
+      "address": 6656,
+      "sha256": "eaa5e3bee1c61b99ae27ae230998a20ac470c96f54ec1f73acbf4ed824c9cdeb",
+      "size": 57012
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "91cecefda2a019143ccbfa099efc6ba5cf2dbb6fb4136c23c929612f4934928c",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "69a0c0280b1ca99d1394f1d5f93033abbd9191886b80e3ef5ad26e278f4a6761",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 6708
+    },
+    {
+      "binding": "LOCAL",
+      "name": "oputs_",
+      "section_index": "12",
+      "size": 1564,
+      "type": "FUNC",
+      "value": 6952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "emit_ancillary_info",
+      "section_index": "12",
+      "size": 372,
+      "type": "FUNC",
+      "value": 8516
+    },
+    {
+      "binding": "LOCAL",
+      "name": "hextobin",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 9408
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_open",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 12932
+    },
+    {
+      "binding": "LOCAL",
+      "name": "flush_stdout",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 12976
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_errno_message",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 13048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "error_tail",
+      "section_index": "12",
+      "size": 208,
+      "type": "FUNC",
+      "value": 13160
+    },
+    {
+      "binding": "LOCAL",
+      "name": "quoting_options_from_style",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 14904
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gettext_quote",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 15020
+    },
+    {
+      "binding": "LOCAL",
+      "name": "quotearg_buffer_restyled",
+      "section_index": "12",
+      "size": 5496,
+      "type": "FUNC",
+      "value": 15236
+    },
+    {
+      "binding": "LOCAL",
+      "name": "quotearg_n_options",
+      "section_index": "12",
+      "size": 740,
+      "type": "FUNC",
+      "value": 21536
+    },
+    {
+      "binding": "LOCAL",
+      "name": "check_nonnull",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 25840
+    },
+    {
+      "binding": "LOCAL",
+      "name": "clear_ungetc_buffer_preserving_position",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 28260
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_locale_utf8",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 28816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_locale_utf8_cached",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 28868
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_locale_utf8",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 30892
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_locale_utf8_cached",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 30944
+    },
+    {
+      "binding": "LOCAL",
+      "name": "atexit",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 63648
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_n_mem",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 22324
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_char",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 22788
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fseterr",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 28588
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_mbrtoc32",
+      "section_index": "12",
+      "size": 1956,
+      "type": "FUNC",
+      "value": 28936
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "version_etc",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 25396
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isxdigit",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 11976
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_alloc_mem",
+      "section_index": "12",
+      "size": 324,
+      "type": "FUNC",
+      "value": 20968
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vfzprintf",
+      "section_index": "12",
+      "size": 300,
+      "type": "FUNC",
+      "value": 33292
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_vfprintf",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 27728
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_quoting_flags",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 14712
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_mbrtowc",
+      "section_index": "12",
+      "size": 1992,
+      "type": "FUNC",
+      "value": 31012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_n_style",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 22448
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isdigit",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 11568
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_buffer",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 20732
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_program_name",
+      "section_index": "12",
+      "size": 240,
+      "type": "FUNC",
+      "value": 13964
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_n_custom",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 23024
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "setlocale_null_unlocked",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 52908
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_n_custom_mem",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 23080
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_style",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 22588
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_islower",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 11656
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "error",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 12580
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "verror_at_line",
+      "section_index": "12",
+      "size": 408,
+      "type": "FUNC",
+      "value": 13540
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_n_style_colon",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 22900
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "error_at_line",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 12752
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "getprogname",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 13948
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xreallocarray",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 26052
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "x2realloc",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 26228
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isalnum",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 11232
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xrealloc",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 25972
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_fflush",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 28320
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xsum",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 53148
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "irealloc",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 28688
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xmalloc",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 25880
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_mem",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 22408
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xstrdup",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 27388
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ximalloc",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 25912
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "imalloc",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 28660
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "streq",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 23468
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "version_etc_ar",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 25044
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_gl_alloc_nomem",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 28628
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "close_stdout",
+      "section_index": "12",
+      "size": 336,
+      "type": "FUNC",
+      "value": 12244
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "setlocale_null_r",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 52836
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xnrealloc",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 25796
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xcharalloc",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 25944
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hard_locale",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 52564
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_custom",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 23200
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_colon_mem",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 22860
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xizalloc",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 27100
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_quoting_style",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 14476
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quote_n_mem",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 23304
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "clone_quoting_options",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 14340
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_free",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 21292
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mbszero",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 33004
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xalloc_die",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 27432
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_nl_langinfo",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 52804
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "close_stdout_set_ignore_EPIPE",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 12208
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xsum3",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 53212
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xirealloc",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 26012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "x2nrealloc",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 26268
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "memeq",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 33032
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isalpha",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 11328
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_fclose",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 28076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_printf",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 27544
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xinmalloc",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 26188
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xmax",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 53320
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quote_mem",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 23356
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_custom_mem",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 23248
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ximemdup",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 27256
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "icalloc",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 28728
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isblank",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 11440
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_start",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 6656
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_tolower",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 12076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_alloc",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 20920
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isupper",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 11932
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vasnprintf",
+      "section_index": "12",
+      "size": 18972,
+      "type": "FUNC",
+      "value": 33592
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isprint",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 11700
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "printf_fetchargs",
+      "section_index": "12",
+      "size": 4700,
+      "type": "FUNC",
+      "value": 53360
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 22376
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "main",
+      "section_index": "12",
+      "size": 1712,
+      "type": "FUNC",
+      "value": 9520
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "usage",
+      "section_index": "12",
+      "size": 520,
+      "type": "FUNC",
+      "value": 8888
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_quoting_style",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 14428
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_toupper",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 12124
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_colon",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 22828
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isspace",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 11864
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_style_mem",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 22628
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_n_style_mem",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 22516
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quote",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 23436
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_iscntrl",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 11500
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_custom_quoting",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 14784
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ireallocarray",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 28764
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_char_mem",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 22676
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xzalloc",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 27068
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_ispunct",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 11744
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isascii",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 11400
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xicalloc",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 27172
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quotearg_n",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 22276
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xireallocarray",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 26100
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "quote_n",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 23396
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c32isprint",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 27860
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_fseeko",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 28396
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_reallocarray",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 33148
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_char_quoting",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 14536
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xpalloc",
+      "section_index": "12",
+      "size": 580,
+      "type": "FUNC",
+      "value": 26488
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "c_isgraph",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 11612
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "emit_bug_reporting_address",
+      "section_index": "12",
+      "size": 224,
+      "type": "FUNC",
+      "value": 25572
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "close_stdout_set_file_name",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 12172
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xmemdup",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 27212
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "locale_charset",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 52720
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "setlocale_null_r_unlocked",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 52948
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "close_stream",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 27888
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "verror",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 13368
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "version_etc_arn",
+      "section_index": "12",
+      "size": 1528,
+      "type": "FUNC",
+      "value": 23516
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "printf_parse",
+      "section_index": "12",
+      "size": 5584,
+      "type": "FUNC",
+      "value": 58060
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "version_etc_va",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 25160
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xcalloc",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 27132
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "proper_name_lite",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 14204
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rpl_realloc",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 33088
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "setlocale_null",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 52880
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xnmalloc",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 26148
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "xsum4",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 53260
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ximemdup0",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 27312
+    }
+  ]
+}

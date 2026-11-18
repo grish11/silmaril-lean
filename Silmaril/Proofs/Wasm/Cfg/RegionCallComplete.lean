@@ -278,7 +278,7 @@ theorem blocked_pending {ws : List Val} {a : Nat} {cr : Admin} {rest : List Admi
 continuation runs in `RunC`; (C) a callee frame in a context likewise. -/
 theorem complete_core {G : Store H → Nat → List Val → Prop} (hC : CallCompleteG P host G C)
     {c' : Config H} {o : Out} (ho : o.Ends c'.code) :
-    ∀ {c₀ : Config H}, Steps P host c₀ c' → GuardedCalls P host G c₀ →
+    ∀ {c₀ : Config H}, Steps P host c₀ c' → GuardedCalls P host G c₀ → TailsOk P host c₀ →
       (FragC c₀.code →
         RunC P host C c₀.store c₀.frame [] c₀.code c'.store c'.frame o) ∧
       (∀ (E : Ctx) (ws : List Val) (a : Nat) (cr : Admin) (rest : List Admin) (fi : FuncInst H),
@@ -299,7 +299,7 @@ theorem complete_core {G : Store H → Nat → List Val → Prop} (hC : CallComp
   intro c₀ h
   induction h using Relation.ReflTransGen.head_induction_on with
   | refl =>
-    intro _
+    intro _ _
     refine ⟨fun _ => run_of_endsC ho, ?_, ?_⟩
     · intro E ws a cr rest fi _ _ hc hcr _
       rw [hc] at ho
@@ -309,9 +309,9 @@ theorem complete_core {G : Store H → Nat → List Val → Prop} (hC : CallComp
       exact (ends_not_blocked ho (blocked_fill E
         ⟨ws, _, rest, rfl, .inr (.inr (.inl ⟨_, _, _, rfl⟩))⟩)).elim
   | @head c₀ c₁ hstep hrest ih =>
-    intro hG
+    intro hG hW
     have ih := ih (fun c₂ E ws us a cr rest fi ps rs h₂ =>
-      hG c₂ E ws us a cr rest fi ps rs (.head hstep h₂))
+      hG c₂ E ws us a cr rest fi ps rs (.head hstep h₂)) (fun c₂ h₂ => hW c₂ (.head hstep h₂))
     obtain ⟨s, f, code⟩ := c₀
     obtain ⟨s₁', f₁', code₁⟩ := c₁
     have hB : ∀ (E : Ctx) (ws : List Val) (a : Nat) (cr : Admin) (rest : List Admin)
@@ -375,7 +375,7 @@ theorem complete_core {G : Store H → Nat → List Val → Prop} (hC : CallComp
             exact run_fill_back E (fun hh => callRef_incl hC hfi he hn
               (hG _ E ws' us a _ rest fi ps rs .refl rfl trivial
                 (fun d hd => by cases hd) hfi he hn) hcall hh) (by simpa using hrun)
-      · obtain ⟨hF₁, hb⟩ := expandB (C := C) hstep hF hca
+      · obtain ⟨hF₁, hb⟩ := expandB (C := C) hstep hF hca (hW _ .refl)
         exact hb (ih.1 hF₁)
     · -- (C)
       intro E ws n F Y rest hE hr hc
@@ -417,9 +417,9 @@ its guard holding everywhere), every Core 3.0 run of fragment code with calls (`
 form of `o` is a `RunC` run. -/
 theorem completeC {G : Store H → Nat → List Val → Prop} (hC : CallCompleteG P host G C)
     {s s' : Store H} {f f' : Frame} {code c' : List Admin} {o : Out}
-    (hG : GuardedCalls P host G ⟨s, f, code⟩)
+    (hG : GuardedCalls P host G ⟨s, f, code⟩) (hW : TailsOk P host ⟨s, f, code⟩)
     (hF : FragC code) (h : Steps P host ⟨s, f, code⟩ ⟨s', f', c'⟩) (he : o.Ends c') :
     RunC P host C s f [] code s' f' o :=
-  (complete_core hC (c' := ⟨s', f', c'⟩) he h hG).1 hF
+  (complete_core hC (c' := ⟨s', f', c'⟩) he h hG hW).1 hF
 
 end Silmaril.Wasm.Cfg.Proofs.Region

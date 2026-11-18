@@ -64,7 +64,7 @@ theorem site_code (stk : List Val) (i : Instr) (E : List Admin) :
 
 /-- **A call in its `call_ref` form, resolved by `CallG`**, for an operator whose arguments
 completed normally: the answer read as the logged canonical rule (`hret`, `hthrow`, `hcut`). -/
-theorem op_callee (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem op_callee (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {pre us : List Val} {a : Nat} {cr : Admin} {fi : FuncInst H}
     {ps rs : List Validation.CValType}
     (ht : TypedP tags s f stk (.op i args :: es))
@@ -153,7 +153,7 @@ variable {s : Store H} {f : Frame} {stk : List Val} {i : Instr} {args es : List 
   {c : Config H} {cs : List (Call (wasmHostSig H))} {n : Nat}
 
 /-- **The operator case** of the logged backward simulation. -/
-theorem case_op (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     (ihA : ∀ m ≤ n, BackG tags o host m args) (ihk : ∀ m ≤ n, BackG tags o host m es)
     (ihC : ∀ m ≤ n, CallG tags o host m) :
     BackG tags o host n (.op i args :: es) := by

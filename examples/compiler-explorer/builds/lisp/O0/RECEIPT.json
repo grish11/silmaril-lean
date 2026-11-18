@@ -1,0 +1,22 @@
+{
+  "as": "GNU assembler (GNU Binutils for Debian) 2.40",
+  "assembly": {
+    "path": "O0/lisp.s",
+    "sha256": "6e2ea41b416df14aad1c0d2075123b2ed393cb4071796d8e8f714223510e4da0",
+    "size": 31388
+  },
+  "command": "gcc -O0 -g -S -std=c11 -fno-asynchronous-unwind-tables -fdebug-prefix-map=/src=. lisp.c -o lisp.s",
+  "gcc": "gcc (GCC) 13.3.0",
+  "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+  "network": "none",
+  "source": {
+    "path": "lisp.c",
+    "sha256": "889fc81545e493ea8598034b68d0f94f4d04e8c7769ba74a881db5d6c511df04"
+  },
+  "tools_sha256": [
+    "1bcc6b6b6dcffb1fd541a60ff35c8b29e4c9759c848c271f2b4dff388b9d2c1c  /usr/local/libexec/gcc/x86_64-linux-gnu/13.3.0/cc1",
+    "41fe4f5a03389ea5cf7c92d6753fa1ecc69b45b12534fd8713c53bba0e2d7e17  /usr/bin/as",
+    "f6d71a1bcd45764550a42dfaa179bc43b63ee879ec6f875bfd39fca013515da7  /usr/bin/ld"
+  ],
+  "workdir": "/src"
+}

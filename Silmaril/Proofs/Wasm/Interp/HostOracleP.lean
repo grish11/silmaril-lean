@@ -9,15 +9,16 @@ public import Silmaril.Wasm.Abstract.HostEvalP.Thms
 
 `Abstract.HostEvalP.hostCallXP host` answers a Wasm callee by running its body in
 `CallXP.EvalOXP` (the frame left by `CallXP.FrameP`, a pending tail call answered by the same
-oracle) and a host callee by the host. For hosts in the native host slice (`NativeHostSlice`)
-that also keep the exception checker's store check and the tag invariants (`HostSliceE tags`),
+oracle) and a host callee by the host. For hosts in the typed host slice (`HostSliceT`, possibly
+throwing) that also keep the exception checker's store check and the tag invariants
+(`HostSliceE tags`),
 its answers on stores with the tag invariants are sound (`SoundAnsE`, every `call_ref` form), by
 least-fixpoint induction as `closedCallXP_sound`:
 
 * a Wasm callee answers soundly by `soundAnsP_of_body`, its calls (and its pending tail call,
   possibly of a host function) answered by the induction hypothesis;
-* a host callee answers by one Core step `call_ref-hostfunc` (`soundAnsE_hostAns`); hosts never
-  throw (`NativeHostSlice.noThrow`).
+* a host callee answers by one Core step `call_ref-hostfunc` (`soundAnsE_hostAns`); a thrown
+  host exception `t` is that step to `throwing t`, the exception's final form at the call site.
 
 Hence `evalOXP_host_good`: runs against the host oracle are Core 3.0 runs with that host.
 -/
@@ -32,7 +33,7 @@ open Silmaril.Wasm.Abstract.CallXP Silmaril.Wasm.Abstract.HostEvalP
 
 variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
 
-/-- **What the exception checker needs of the host**, beyond `NativeHostSlice`: its answers keep
+/-- **What the exception checker needs of the host**, beyond `HostSliceT`: its answers keep
 the store check with `ehExt tags` (so functions it appends pass the exception checker) and the
 tag invariants `TagsOk tags` (tags unchanged, exceptions well formed). -/
 structure HostSliceE (tags : List TagInst) (host : HostSemantics H) : Prop where
@@ -41,7 +42,7 @@ structure HostSliceE (tags : List TagInst) (host : HostSemantics H) : Prop where
   tags : ∀ h s vs s' r, host h s vs (.returned s' r) → TagsOk tags s → TagsOk tags s'
 
 /-- **A host answer is sound**, in every `call_ref` form: one Core step `call_ref-hostfunc`. -/
-theorem soundAnsE_hostAns {tags : List TagInst} (hH : NativeHostSlice host)
+theorem soundAnsE_hostAns {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {a : Nat} {us : List Val}
     {out : Store H × Binaryen.Flow} (hh : hostAns host s a us out) (hts : TagsOk tags s) :
     SoundAnsE tags P host s a us out := by
@@ -67,14 +68,20 @@ theorem soundAnsE_hostAns {tags : List TagInst} (hH : NativeHostSlice host)
       simp
     rw [this]
     exact .single hstep
-  · exact (hH.noThrow _ _ _ _ _ hhost).elim
+  · exact ⟨⟨none, .inl rfl, trivial, hG⟩,
+      fun vs hvs => by simp [resFlow, Binaryen.Flow.retVals] at hvs,
+      fun h' => by simp [resFlow] at h',
+      fun t' h' => by
+        simp only [resFlow, Binaryen.Flow.throw.injEq] at h'
+        subst h'
+        exact .single hstep⟩
   · exact ⟨⟨none, .inl rfl, trivial, hG⟩,
       fun vs hvs => by simp [resFlow, Binaryen.Flow.retVals] at hvs, fun _ => .single hstep,
       fun t h' => by simp [resFlow] at h'⟩
 
 /-- **The host oracle's answers on stores with the tag invariants are sound**, by least-fixpoint
 induction. -/
-theorem hostCallXP_sound {tags : List TagInst} (hH : NativeHostSlice host)
+theorem hostCallXP_sound {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) :
     ∀ (s : Store H) a us out, hostCallXP host s a us out → TagsOk tags s →
       SoundAnsE tags P host s a us out := by
@@ -109,24 +116,24 @@ theorem hostCallXP_sound {tags : List TagInst} (hH : NativeHostSlice host)
 def hostP (tags : List TagInst) (host : HostSemantics H) : Abstract.CallRel H :=
   fun s a us out => TagsOk tags s ∧ hostCallXP host s a us out
 
-theorem oracleSoundTE_hostP {tags : List TagInst} (hH : NativeHostSlice host)
+theorem oracleSoundTE_hostP {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) : OracleSoundTE (ehExt tags) P host (hostP tags host) true :=
   fun _ _ f _ fi ps rs _ _ c hS hfi hty hn hcr ⟨hg, hcl⟩ =>
     let h := (hostCallXP_sound (P := P) hH hE _ _ _ _ hcl hg).2 f fi ps rs c hS hfi hty hn hcr
     ⟨h.1, h.2.1, h.2.2.1⟩
 
-theorem oracleThrowsE_hostP {tags : List TagInst} (hH : NativeHostSlice host)
+theorem oracleThrowsE_hostP {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) : OracleThrowsE (ehExt tags) P host (hostP tags host) :=
   fun _ _ f _ fi ps rs _ t c hS hfi hty hn hcr ⟨hg, hcl⟩ =>
     ((hostCallXP_sound (P := P) hH hE _ _ _ _ hcl hg).2 f fi ps rs c hS hfi hty hn hcr).2.2.2 t rfl
 
-theorem oracleTagsE_hostP {tags : List TagInst} (hH : NativeHostSlice host)
+theorem oracleTagsE_hostP {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) : OracleTagsE tags (hostP tags host) :=
   fun _ _ _ _ _ ⟨hg, hcl⟩ _ =>
     (hostCallXP_sound (P := Numerics.Profile.spec) hH hE _ _ _ _ hcl hg).1
 
 /-- **Runs against the host oracle are Core 3.0 runs with that host.** -/
-theorem evalOXP_host_good {tags : List TagInst} (hH : NativeHostSlice host)
+theorem evalOXP_host_good {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {f : Frame} {stk : List Val}
     {es : List Binaryen.BExpr} {r : Store H × Frame × POut}
     (h : EvalOXP (hostCallXP host) s f stk es r) (hg : TagsOk tags s) :

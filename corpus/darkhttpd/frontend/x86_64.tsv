@@ -1,0 +1,2 @@
+# unit	status	seconds	first error
+darkhttpd-1.17/darkhttpd.i	rejected	0.0	($reject 1 ($str "b3e11ea334e95359907d4abf9194f0e7fedc6c6a") ($str "gcc_4.9.0_x86_64-apple-darwin10.8.0") ($str "parse") ($loc_region ($str "/usr/include/x86_64-linux-gnu/sys/types.h") 164 24 ($str "/usr/include/x86_64-linux-gnu/sys/types.h") 164 37) ($str "expected Silmaril.Cerberus.Frontend.Punct.

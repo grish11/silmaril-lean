@@ -1,0 +1,134 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 5748,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 4096,
+      "sha256": "9bdf96e0741b0d3b119094d79b6656e3ba5d0f89a29b5aa059dfaf224ee783bd",
+      "size": 23
+    },
+    ".plt": {
+      "address": 4128,
+      "sha256": "e62f613f77c3523776489c2238f857401bba358e91fdeae6d8a7f08a87c9dc6a",
+      "size": 80
+    },
+    ".plt.got": {
+      "address": 4208,
+      "sha256": "c7a166ce93a12d5e2574f792dcbb4fd262f39e376ddab5733abed10367a0d5df",
+      "size": 8
+    },
+    ".text": {
+      "address": 4224,
+      "sha256": "c26ecc6fad06d82f220fb141968fb3a20369acf7eb43246978d2f194218579e1",
+      "size": 1524
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "f21e2e79847262cc9ea2c83a740ca8c4bbe7ea50e7d1c1d932ebd8a56e7eca85",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "3e81ff6dddb882ec21545036cb8bb14e3911c97c64a499bd611001367cdb9080",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "load64",
+      "section_index": "12",
+      "size": 54,
+      "type": "FUNC",
+      "value": 4416
+    },
+    {
+      "binding": "LOCAL",
+      "name": "store64",
+      "section_index": "12",
+      "size": 29,
+      "type": "FUNC",
+      "value": 4470
+    },
+    {
+      "binding": "LOCAL",
+      "name": "xor64",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 4499
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "FIPS202_SHA3_256",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 5628
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "FIPS202_SHA3_384",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 5668
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "KeccakF1600_StatePermute",
+      "section_index": "12",
+      "size": 629,
+      "type": "FUNC",
+      "value": 4559
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "FIPS202_SHAKE256",
+      "section_index": "12",
+      "size": 43,
+      "type": "FUNC",
+      "value": 5545
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "LFSR86540",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 4531
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "FIPS202_SHA3_512",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 5708
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "Keccak",
+      "section_index": "12",
+      "size": 314,
+      "type": "FUNC",
+      "value": 5188
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "FIPS202_SHA3_224",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 5588
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "FIPS202_SHAKE128",
+      "section_index": "12",
+      "size": 43,
+      "type": "FUNC",
+      "value": 5502
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+# Wasm specification library entry (format: docs/projects/wasm-spec-library.md).
+schema = 1
+name = "IsSorted"
+version = "1.0.0"
+summary = "Is the i32 array segment [p, p + 4n) of memory 0 sorted (signed order)? One loop over adjacent pairs."
+status = "verified"
+
+[program]
+kind = "wat"
+source = "is_sorted.wat"
+lean = "Silmaril.WasmSpec.IsSorted.program"
+module = "Silmaril.WasmSpec.IsSorted.Defs"
+functions = ["is_sorted"]
+
+[spec]
+module = "Silmaril.WasmSpec.IsSorted.Defs"
+statements = ["Silmaril.WasmSpec.IsSorted.Spec", "Silmaril.WasmSpec.IsSorted.SpecStore"]
+runs = "every"
+correctness = "total"
+description = """
+Every-run total correctness (Silmaril.Wasm.Logic.Hoare.TFSpecAt, every profile, every host relation;
+stronger than the existential `Computes` of the other entries). `Spec`: for every function
+instance fi whose code is `is_sorted` (type [i32 i32] -> [i32]) at any address a, `isSortedSpec a fi`
+holds: if memory 0 of fi's module holds bytes B with p + 4n <= |B| and p + 4n < 2^32, every run of
+a call on [i32 p, i32 n] terminates, returns [i32 (answer (words B p n))] (1 iff the n words at p
+are sorted by signed order, `SortedS`, else 0), never traps, and leaves the store unchanged.
+`SpecStore`: the same for function 0 of the store produced by silmaril-lean's instantiateOnce? of
+the module."""
+
+[results]
+module = "Silmaril.WasmSpec.IsSorted.Thms"
+theorems = ["Silmaril.WasmSpec.IsSorted.spec", "Silmaril.WasmSpec.IsSorted.specStore"]
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.IsSorted.spec_tactic"
+proves = "Silmaril.WasmSpec.IsSorted.Spec"
+module = "Silmaril.Proofs.WasmSpec.IsSorted.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 35
+notes = "Symbolic execution with the Silmaril.Wasm.Logic.Words rules and tactics (wbegin/wrun, t_brIf, t_while); invariant Inv (prefix of length i sorted), variant n + 1 - i; list lemmas sortedS_take_succ, not_sortedS_of_desc. Program shape from hiloopai/silmaril Silmaril/Wasm/Accel/programs/sorted.wat (adjacent comparisons); its proofs (deterministic profile, existential runs) were not reusable."
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.IsSorted.specStore_tactic"
+proves = "Silmaril.WasmSpec.IsSorted.SpecStore"
+module = "Silmaril.Proofs.WasmSpec.IsSorted.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 35
+notes = "From spec_tactic and the instantiated store's function (store₀_funcs, decide +kernel on its type)."

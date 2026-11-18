@@ -8,3 +8,8 @@ __pycache__/
 /tools/silmaril-project/target/
 /tools/syswrap-gen/target/
 /tools/cfg-cert/target/
+/tools/wasm-sim/target/
+/tools/x86-difftest/out/
+/target/
+/tools/wasm-vc/target/
+/tools/wasm-spec-fuzz/target/

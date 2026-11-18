@@ -86,14 +86,15 @@ table.elf-dis tr.hit td { background:#fff1b8; }
   }
   function tabs(slug, on) {
     return '<div class="elf-tabs">' + [["overview", `#/elf-file/${enc(slug)}`], ["bytes", `#/elf-bytes/${enc(slug)}/0x0`],
-      ["disassembly (unverified)", `#/elf-disasm/${enc(slug)}`], ["theorems", `#/elf-file/${enc(slug)}/theorems`]].map(([t, h]) =>
+      ["functions", `#/elf-funcs/${enc(slug)}`], ["disassembly (unverified)", `#/elf-disasm/${enc(slug)}`],
+      ["theorems", `#/elf-file/${enc(slug)}/theorems`]].map(([t, h]) =>
       `<a href="${h}" class="${t.startsWith(on) ? "on" : ""}">${esc(t)}</a>`).join("") + "</div>";
   }
   function head(d, on) {
     const ko = d.theorems.every((t) => t.kernelOnly);
     return `<h2><a href="#/elf">ELF</a> / ${esc(d.title)}</h2>` +
       `<p class="muted"><code>${esc(d.path)}</code> · ${d.size} B · SHA-256 <code>${esc(d.sha256)}</code> · ${esc(d.header.type)} ${esc(d.header.machine)}</p>` +
-      `<p>${d.theorems.length} theorems in <code>${esc(d.module)}.Thms</code>, ` +
+      `<p>${d.theorems.length} theorems in ${[...new Set(d.theorems.map((t) => t.module))].map((m) => `<code>${esc(m)}</code>`).join(", ")}, ` +
       (ko ? '<span class="prov prov-lean">all kernel-only (propext, Classical.choice, Quot.sound)</span>' : '<span class="st st-bad">some use other axioms</span>') +
       ". Each part is the ELF specification's reader run on the pinned file's bytes inside the windows its theorem states.</p>" + tabs(d.slug, on);
   }
@@ -105,9 +106,9 @@ table.elf-dis tr.hit td { background:#fff1b8; }
     let h = "<h2>ELF</h2><p>Pinned ELF files, read by the Lean ELF specification (<code>Silmaril.Elf.read</code>) part by part on kernel bytes. " +
       "Each part (header, program and section headers, section names and bodies, the loader's view, zero padding) is a theorem checked by the kernel " +
       "on the exact bytes of the file (<code>include_bytes</code>); the byte coverage of each file is derived from those theorems' statements.</p>";
-    h += '<div class="tablebox"><table><thead><tr><th>file</th><th>type</th><th>size</th><th>sections</th><th>segments</th><th>theorems</th><th>axioms</th><th>coverage</th><th>SHA-256</th></tr></thead><tbody>' +
+    h += '<div class="tablebox"><table><thead><tr><th>file</th><th>type</th><th>size</th><th>sections</th><th>segments</th><th>functions</th><th>theorems</th><th>axioms</th><th>coverage</th><th>SHA-256</th></tr></thead><tbody>' +
       ix.files.map((f, i) => `<tr><td>${flink(f.slug, f.title)}<br><span class="muted">${esc(f.path)}</span></td><td>${esc(f.type)} ${esc(f.machine)}</td>` +
-        `<td class="num">${f.size}</td><td class="num">${f.sections}</td><td class="num">${f.segments}</td><td class="num">${f.theorems}</td>` +
+        `<td class="num">${f.size}</td><td class="num">${f.sections}</td><td class="num">${f.segments}</td><td class="num"><a href="#/elf-funcs/${enc(f.slug)}">${f.functions ?? ""}</a></td><td class="num">${f.theorems}</td>` +
         `<td>${f.kernelOnly ? '<span class="prov prov-lean">kernel-only</span>' : '<span class="st st-bad">other</span>'}</td>` +
         `<td style="min-width:260px">${covBar(f.slug, f.size, ds[i].coverage)}${covKey(f.coverageSummary)}</td>` +
         `<td><code title="${esc(f.sha256)}">${esc(f.sha256.slice(0, 16))}…</code></td></tr>`).join("") + "</tbody></table></div>";
@@ -302,22 +303,45 @@ table.elf-dis tr.hit td { background:#fff1b8; }
     let h = head(d, "disassembly") + `<div class="elf-warn sticky" role="note">${esc(DIS_WARNING)}</div>`;
     if (!d.disassembly.file) return h + `<p class="muted">${esc(d.disassembly.note || "no disassembly")}</p>`;
     try { x = await elfJson(d.disassembly.file); } catch (e) { return h + elfMissing(e); }
-    const rows = x.rows;
-    let start = 0, hit = -1;
+    // The listing is in chunks of rows ([file, first address, last address, rows]); a page is
+    // DPAGE rows of one chunk, and a row's global index is the chunk's start plus its own.
+    const starts = []; let acc = 0;
+    for (const c of x.chunks) { starts.push(acc); acc += c[3]; }
+    const total = acc;
     const t = target || "";
+    let ci = 0, hitG = -1;
     if (/^(0x)?[0-9a-f]+$/i.test(t)) {
       const v = num(t);
-      hit = rows.findIndex(([a, , b]) => a <= v && v < a + b.length / 2);
-      if (hit < 0) hit = rows.findIndex(([a]) => a >= v);
-    } else if (t.startsWith("@")) { hit = Number(t.slice(1)) | 0; } else if (t) { hit = rows.findIndex((r) => r[4] === t); }
-    if (hit >= 0) start = Math.floor(hit / DPAGE) * DPAGE;
-    h += `<p class="muted">${esc(x.tool)}: <code>${esc(x.command)}</code> (listing <code>${esc(x.listing || "")}</code>); ${rows.length} instructions in ${x.sections.length} sections: ` +
+      ci = Math.max(0, x.chunks.findIndex((c) => c[2] >= v));
+      if (x.chunks.every((c) => c[2] < v)) ci = x.chunks.length - 1;
+    } else if (t.startsWith("@")) {
+      const g = Number(t.slice(1)) | 0;
+      ci = Math.max(0, starts.findLastIndex((st) => st <= g)); hitG = g;
+    }
+    let rows;
+    try { rows = await elfJson(x.chunks[ci][0]); } catch (e) { return h + elfMissing(e); }
+    if (/^(0x)?[0-9a-f]+$/i.test(t)) {
+      const v = num(t);
+      let i = rows.findIndex(([a, , b]) => a <= v && v < a + b.length / 2);
+      if (i < 0) i = rows.findIndex(([a]) => a >= v);
+      if (i >= 0) hitG = starts[ci] + i;
+    } else if (t && !t.startsWith("@")) {
+      // a section name: the first chunk that holds it
+      for (let k = 0; k < x.chunks.length; k++) {
+        const r = k === ci ? rows : await elfJson(x.chunks[k][0]);
+        const i = r.findIndex((row) => row[4] === t);
+        if (i >= 0) { ci = k; rows = r; hitG = starts[k] + i; break; }
+      }
+    }
+    const local = hitG >= 0 ? hitG - starts[ci] : 0;
+    const p0 = Math.floor(local / DPAGE) * DPAGE, start = starts[ci] + p0, hit = hitG;
+    h += `<p class="muted">${esc(x.tool)}: <code>${esc(x.command)}</code> (listing <code>${esc(x.listing || "")}</code>); ${total} instructions in ${x.sections.length} sections: ` +
       x.sections.map((s) => dlink(slug, s, s)).join(" ") + "</p>";
-    h += `<div class="controls">${start > 0 ? dlink(slug, "@" + Math.max(0, start - DPAGE), "◀ previous") : ""}<span>rows ${start + 1}–${Math.min(rows.length, start + DPAGE)} of ${rows.length}</span>` +
-      `${start + DPAGE < rows.length ? dlink(slug, "@" + (start + DPAGE), "next ▶") : ""}<label>address <input type="text" id="elf-dgo" size="12" placeholder="0x…"></label><button type="button" id="elf-dgob">go</button></div>`;
+    h += `<div class="controls">${start > 0 ? dlink(slug, "@" + Math.max(0, start - DPAGE), "◀ previous") : ""}<span>rows ${start + 1}–${Math.min(total, start + DPAGE)} of ${total}</span>` +
+      `${start + DPAGE < total ? dlink(slug, "@" + (start + DPAGE), "next ▶") : ""}<label>address <input type="text" id="elf-dgo" size="12" placeholder="0x…"></label><button type="button" id="elf-dgob">go</button></div>`;
     let body = "", sec = null;
-    for (let i = start; i < Math.min(rows.length, start + DPAGE); i++) {
-      const [a, off, bytes, text, s, label] = rows[i];
+    for (let i = start; i < Math.min(total, start + DPAGE) && i - starts[ci] < rows.length; i++) {
+      const [a, off, bytes, text, s, label] = rows[i - starts[ci]];
       if (s !== sec || label) body += `<tr class="lbl"><td colspan="4">${s !== sec ? esc(s) + " " : ""}${label ? "&lt;" + esc(label) + "&gt;" : ""}</td></tr>`;
       sec = s;
       body += `<tr${i === hit ? ' class="hit" id="elf-hit"' : ""}><td>${off == null ? hx(a) : blink(slug, off, bytes.length / 2, hx(a))}</td>` +
@@ -332,7 +356,69 @@ table.elf-dis tr.hit td { background:#fff1b8; }
     return { html: h, init };
   }
 
+
+  // ---------- functions ----------
+  // One row per STT_FUNC / STT_GNU_IFUNC entry of a symbol table (elf-pages `functions`). The row
+  // is what the symbol table says (its theorem: Pinned.*.Functions.sym_K_I, the entry as
+  // Parse.symbol reads it from its 24 bytes and its name); the extent, file offset, segment,
+  // section, aliases and overlaps follow from the checked layout. A contract is linked only when a
+  // theorem's statement names the function's address (Pinned.*.Contracts).
+  const FN_NOTE = "A row is a symbol-table entry of type FUNC or IFUNC, checked on the file's bytes. It is not a recovered function: " +
+    "its extent is the symbol's st_value and st_size (unknown when st_size is 0), nothing checks that the bytes there are code or one function, " +
+    "an IFUNC entry is a resolver (the implementation is chosen at load time), and an undefined entry is an import. " +
+    "No row asserts the System V ABI: only a linked contract theorem says anything about calls.";
+  const FPAGE = 300;
+  async function elfFuncs(arg) {
+    const [slug] = arg.split("/");
+    let d;
+    try { d = await elfJson(`f/${enc(slug)}.json`); } catch (e) { return elfMissing(e); }
+    const T = thmByDecl(d);
+    const fs = d.functions || [];
+    const counts = { defined: fs.filter((f) => f.defined).length, imports: fs.filter((f) => !f.defined).length,
+      unknown: fs.filter((f) => f.defined && f.size === 0).length, ifunc: fs.filter((f) => f.ifunc).length,
+      contracts: fs.filter((f) => f.contracts.length).length };
+    const tables = [...new Set(fs.map((f) => f.table))];
+    let h = head(d, "functions") + `<p class="note">${esc(FN_NOTE)}</p>`;
+    h += `<p>${fs.length} function symbols (${tables.map(esc).join(", ") || "no symbol table"}): ${counts.defined} defined, ${counts.imports} imports, ` +
+      `${counts.unknown} with unknown extent (size 0), ${counts.ifunc} IFUNC; <b>${counts.contracts}</b> with a contract theorem, the others have <b>no contract statement</b> in this repository.</p>`;
+    h += '<div class="controls"><input type="text" id="elf-fq" placeholder="filter by name or version" size="30">' +
+      '<label><input type="checkbox" id="elf-fdef" checked> defined only</label><label><input type="checkbox" id="elf-fcon"> with contract</label>' +
+      '<span id="elf-fn" class="muted"></span> <span id="elf-fpg"></span></div><div id="elf-ft"></div>';
+    const init = () => {
+      let page = 0;
+      const cell = (f) => {
+        const t = T.get(f.theorem);
+        return t ? thmCell(t) : '<span class="st st-bad">no theorem</span>';
+      };
+      const contract = (f) => f.contracts.length ? f.contracts.map((c) => { const t = T.get(c); return t ? `${thmCell(t)}<details><summary>statement</summary><pre class="code">${esc(t.statement || "")}</pre></details>` : esc(c); }).join("<br>")
+        : '<span class="muted">no contract statement</span>';
+      const show = () => {
+        const q = $("#elf-fq").value.toLowerCase(), def = $("#elf-fdef").checked, con = $("#elf-fcon").checked;
+        const rows = fs.filter((f) => (!def || f.defined) && (!con || f.contracts.length) && (!q || (f.name + (f.version || "")).toLowerCase().includes(q)));
+        const pages = Math.max(1, Math.ceil(rows.length / FPAGE));
+        page = Math.min(page, pages - 1);
+        $("#elf-fn").textContent = `${rows.length} of ${fs.length}`;
+        $("#elf-fpg").innerHTML = pages > 1 ? `<button type="button" id="elf-fprev"${page ? "" : " disabled"}>◀</button> page ${page + 1} of ${pages} <button type="button" id="elf-fnext"${page + 1 < pages ? "" : " disabled"}>▶</button>` : "";
+        $("#elf-ft").innerHTML = '<div class="tablebox"><table class="elf-fns"><thead><tr><th>symbol</th><th>version</th><th>type, bind</th><th>address</th><th>size / extent</th><th>file offset</th><th>segment</th><th>section</th><th>aliases, overlaps</th><th>symbol theorem</th><th>contract</th></tr></thead><tbody>' +
+          rows.slice(page * FPAGE, (page + 1) * FPAGE).map((f) => `<tr data-fn="${esc(f.name)}"><td><code>${esc(f.name)}</code><br><span class="muted">${esc(f.table)} #${f.idx}</span></td>` +
+            `<td>${esc(f.version || "")}</td><td>${esc(f.type)}${f.ifunc ? ' <span class="st" title="a resolver: the implementation is chosen at load time">resolver</span>' : ""}<br><span class="muted">${esc(f.bind)}</span></td>` +
+            `<td>${f.defined && f.value ? (f.offset != null ? dlink(slug, hx(f.value), hx(f.value)) : hx(f.value)) : '<span class="muted">—</span>'}</td>` +
+            `<td>${f.size || ""} <span class="${f.extent.startsWith("known") ? "muted" : "st"}">${esc(f.extent)}</span></td>` +
+            `<td>${f.offset != null ? blink(slug, f.offset, f.size || 1, hx(f.offset)) : '<span class="muted">—</span>'}</td>` +
+            `<td>${f.segment != null ? `${f.segment} <span class="muted">${esc(f.segmentFlags || "")}</span>` : ""}</td><td>${esc(f.section || "")}</td>` +
+            `<td>${f.aliases.length ? "alias of " + f.aliases.map(esc).join(", ") : ""}${f.overlaps.length ? `<br><span class="st" title="ranges intersect but differ">overlaps ${f.overlaps.map(esc).join(", ")}</span>` : ""}</td>` +
+            `<td>${cell(f)}</td><td>${contract(f)}</td></tr>`).join("") + "</tbody></table></div>";
+        $("#elf-fprev")?.addEventListener("click", () => { page--; show(); });
+        $("#elf-fnext")?.addEventListener("click", () => { page++; show(); });
+      };
+      for (const id of ["#elf-fq", "#elf-fdef", "#elf-fcon"]) $(id).addEventListener("input", () => { page = 0; show(); });
+      show();
+    };
+    return { html: h, init };
+  }
+
   registerView({ id: "elf", title: "ELF", nav: 85, render: elfIndex });
+  registerView({ id: "elf-funcs", title: "ELF functions", tab: "elf", render: (arg) => elfFuncs(arg) });
   registerView({ id: "elf-file", title: "ELF file", tab: "elf", render: (arg) => elfFile(arg) });
   registerView({ id: "elf-bytes", title: "ELF bytes", tab: "elf", render: (arg) => elfBytes(arg) });
   registerView({ id: "elf-disasm", title: "ELF disassembly (unverified)", tab: "elf", render: (arg) => elfDisasm(arg) });

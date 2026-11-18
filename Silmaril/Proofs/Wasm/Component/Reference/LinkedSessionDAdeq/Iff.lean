@@ -1,14 +1,14 @@
 module
 
-public import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.BuildA
+public import Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq.BuildC
 
 /-!
 # The right-to-left direction, by source
 
 * `sessDivs_subset_union`: a diverging session call of the specification is one of the three
   sources (`sessDivsB`, `sessDivsA`, `sessDivsC`);
-* `div_denD_of_sessDivs_of`: the right-to-left direction, from `div_denD_of_sessDivsB`,
-  `div_denD_of_sessDivsA` and `Linked2.Task.ChatterBuild` for the third source.
+* `div_denD_of_sessDivs`: the right-to-left direction, from `div_denD_of_sessDivsB`,
+  `div_denD_of_sessDivsA` and `div_denD_of_sessDivsC`.
 -/
 
 @[expose] public noncomputable section
@@ -32,18 +32,16 @@ theorem sessDivs_subset_union (P : Profile) (l : Linked2)
   · exact .inl (.inr ⟨Ie, Ii, u, π, hIe, hIi, hS, d, s, t, π₁, hj, hv, hOk, hp, hr, hA⟩)
   · exact .inr ⟨Ie, Ii, u, π, hIe, hIi, hS, d, s, t, π₁, hj, hv, hOk, hp, hr, hC⟩
 
-/-- **Right to left, given the chatter build.** -/
-theorem div_denD_of_sessDivs_of (P : Profile) {l : Linked2} (hl : l.Adequate)
-    (hC : Linked2.Task.ChatterBuild P l) {calls : List (Fin l.imp.exports.length × List IVal)}
-    {outs : List (Option (List IVal))} (ht : SimpleI.TypedCalls l.imp calls)
-    (hlen : calls.length = outs.length) {j : Fin l.imp.exports.length} {vs : List IVal}
-    (hck : ValTy.checkList l.imp.exports[j].ty.params vs = true)
+/-- **Right to left**, by source. -/
+theorem div_denD_of_sessDivs (P : Profile) {l : Linked2} (hl : l.Adequate)
+    {calls : List (Fin l.imp.exports.length × List IVal)} {outs : List (Option (List IVal))}
+    {j : Fin l.imp.exports.length} {vs : List IVal}
     (h : outs ∈ Linked2.sessDivs P l calls j vs) :
     Linked2.sessMoves l calls outs ++ [.inr (.ask (l.topQ j vs))] ∈
       (l.toComp.denD (impSemD P)).div := by
   rcases sessDivs_subset_union P l calls j vs h with (hB | hA) | hX
   · exact div_denD_of_sessDivsB P hl hB
   · exact div_denD_of_sessDivsA P hl hA
-  · exact hC calls outs ht hlen j vs hck hX
+  · exact div_denD_of_sessDivsC P hl hX
 
 end Silmaril.Proofs.Wasm.Component.Reference.LinkedSessionDAdeq

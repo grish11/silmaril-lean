@@ -1,0 +1,82 @@
+{
+  "package": "sqlite",
+  "version": "3.54.1",
+  "arch": "aarch64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O1 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD",
+  "ldflags": "",
+  "configure_args": "(none: amalgamation compiled directly)",
+  "build_commands": [
+    "aarch64-linux-gnu-gcc -O1 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD -fPIC -c sqlite3.c -o sqlite3.o",
+    "aarch64-linux-gnu-gcc -shared -Wl,-soname,libsqlite3.so.0 -o libsqlite3.so sqlite3.o -lm",
+    "aarch64-linux-gnu-gcc -O1 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD -c shell.c -o shell.o",
+    "aarch64-linux-gnu-gcc -o sqlite3 shell.o -L. -lsqlite3 -lm"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/sqlite",
+  "inputs": [
+    {
+      "url": "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+      "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libsqlite3.so",
+      "path": "corpus/variants/sqlite/3.54.1/default/aarch64/O1/stripped/libsqlite3.so",
+      "size": 934080,
+      "sha256": "8570dbc5608bf3ddf9e8b58f65ae997cd50cb797c7ca9a08a7ab5ffb66073b64",
+      "elf_machine": "AArch64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    },
+    {
+      "object": "sqlite3",
+      "path": "corpus/variants/sqlite/3.54.1/default/aarch64/O1/stripped/sqlite3",
+      "size": 398616,
+      "sha256": "6b52383a1c253e2ac17fa44c8a100308fc6fccfdc740c4030f5e83e707167014",
+      "elf_machine": "AArch64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two byte-identical clean builds, independently stripped with the pinned tool in a separate post-processing container, byte-identical stripped outputs",
+  "tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 :memory: 'select sqlite_version()'",
+      "result": "pass: 3.54.1"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 :memory: 'create table t(x); insert into t values(1),(2),(3); select sum(x),group_concat(x) from t'",
+      "result": "pass: 6|1,2,3"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 :memory: \"select hex(sha3('abc',256))\" (shell's built-in sha3 extension)",
+      "result": "pass: 3A985DA74FE225B2045C172D6BD390BD855F086E3E9D525B46BFE24511431532"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 FILE (create table, then reopen and query; json_object)",
+      "result": "pass: {\"k\":\"b\",\"v\":2}"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sqlite3 FILE 'pragma integrity_check'",
+      "result": "pass: ok"
+    }
+  ],
+  "variant": {
+    "optimization": "O1",
+    "stripping": "stripped",
+    "configuration": "default",
+    "run_id": "b749452e-ded8-4bc2-9856-8faf97723442",
+    "target": "aarch64-linux-gnu"
+  }
+}

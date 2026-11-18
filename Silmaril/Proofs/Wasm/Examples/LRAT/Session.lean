@@ -75,7 +75,8 @@ theorem Shape.unique {H : Type} {X : Fix H} {s : Store H} {G G' : List (BitVec 3
     {B B' : ByteArray} (h : Shape X s G B) (h' : Shape X s G' B') : G = G' ∧ B = B' := by
   constructor
   · have hg : G.map (fun v => (⟨X.gt, Val.i32 v⟩ : GlobalInst)) =
-        G'.map (fun v => (⟨X.gt, Val.i32 v⟩ : GlobalInst)) := h.glob.symm.trans h'.glob
+        G'.map (fun v => (⟨X.gt, Val.i32 v⟩ : GlobalInst)) :=
+      List.append_inj_left (h.glob.symm.trans h'.glob) (by simp [h.len, h'.len])
     refine List.map_injective_iff.2 (fun a b hab => ?_) hg
     have h' : Val.i32 a = Val.i32 b := congrArg GlobalInst.value hab
     exact (Silmaril.Wasm.Logic.Hoare.i32_inj h').symm
@@ -107,7 +108,7 @@ theorem B₀_zero (a : Nat) : wd B₀ a = 0#32 := by
     rfl
 
 theorem lrat_shape₀ : Shape lratX lratS G₀ B₀ := by
-  refine ⟨rfl, lrat_globals, rfl, ?_, lrat_zero.2⟩
+  refine ⟨rfl, by rw [lrat_globals]; exact (List.append_nil _).symm, rfl, ?_, lrat_zero.2⟩
   obtain ⟨hty, hlen⟩ := lrat_mems
   obtain ⟨mi, hmi⟩ := List.length_eq_one_iff.1 hlen
   have ht : mi.type = lratMt := by
@@ -116,7 +117,7 @@ theorem lrat_shape₀ : Shape lratX lratS G₀ B₀ := by
   have hB : B₀ = mi.bytes := by
     rw [show B₀ = ((lratS.mems[0]?).map (·.bytes)).getD .empty from rfl, hmi]
     rfl
-  show lratS.mems = [⟨lratX.mt, B₀⟩]
+  show lratS.mems = ⟨lratX.mt, B₀⟩ :: []
   rw [hmi, hB, show lratX.mt = lratMt from rfl, ← ht]
 
 /-- **The initial invariant**: the instantiated checker represents the empty DIMACS stream. -/

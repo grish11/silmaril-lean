@@ -1,0 +1,13 @@
+// A process: memory model + syscalls + simulator core + foreign-call driver + foreign
+// library + loader, composed into one WASI command component (see proc/components.sh).
+package wsim:process;
+
+let mem = new wsim:mem {};
+let sys = new wsim:sys { mem: mem.mem, ... };
+let nd = new wsim:nd {};
+let core = new wsim:core { mem: mem.mem, sys: sys.sys, nd: nd.nd };
+let ffi = new wsim:ffi { mem: mem.mem, ... };
+let sim = new wsim:extrun { state: core.state, isa: core.isa, ffi: ffi.ffi, mem: mem.mem };
+let loader = new wsim:loader { mem: mem.mem, sys: sys.sys, state: sim.state, isa: sim.isa, ext-range: sim.ext-range, ... };
+
+export loader...;

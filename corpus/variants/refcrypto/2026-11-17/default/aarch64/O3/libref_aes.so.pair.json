@@ -1,0 +1,73 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 6220,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 1232,
+      "sha256": "0b956a0ca35183645274659ab3ad9dbc49499cbd9601286668cba4afab92234c",
+      "size": 28
+    },
+    ".plt": {
+      "address": 1264,
+      "sha256": "dc83f0e7bf22b128b696c9838b9d60d9624df470c5c914abde9af5a370dd8eaf",
+      "size": 80
+    },
+    ".text": {
+      "address": 1344,
+      "sha256": "a21ad7a6b0b3e124896e5c9aaddccefde68df4bb63ed8a9303abc6672c63fb09",
+      "size": 4876
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "3e15d1403c16d8f92d1c581513fb73fac151c3219fc302225278c3d856758dde",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "0ec89bdc66d21f0be2637ea9d0b4d91642eb74053643d67cbbe6249f8a1845f9",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "9",
+      "size": 20,
+      "type": "FUNC",
+      "value": 1344
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelDecrypt",
+      "section_index": "9",
+      "size": 1000,
+      "type": "FUNC",
+      "value": 5220
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelEncrypt",
+      "section_index": "9",
+      "size": 996,
+      "type": "FUNC",
+      "value": 4224
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelKeySetupEnc",
+      "section_index": "9",
+      "size": 2068,
+      "type": "FUNC",
+      "value": 1600
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelKeySetupDec",
+      "section_index": "9",
+      "size": 540,
+      "type": "FUNC",
+      "value": 3680
+    }
+  ]
+}

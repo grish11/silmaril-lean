@@ -1,0 +1,78 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 6104,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 4096,
+      "sha256": "9bdf96e0741b0d3b119094d79b6656e3ba5d0f89a29b5aa059dfaf224ee783bd",
+      "size": 23
+    },
+    ".plt": {
+      "address": 4128,
+      "sha256": "b7ba510281f4d3c5e3e5bfad35bb70ca6da9e45596548400c48ca968ee344c43",
+      "size": 416
+    },
+    ".plt.got": {
+      "address": 4544,
+      "sha256": "2c6617f62b253b4be5ac3c4ded763ce5755cc15df989e6b42f7975d016c9e14e",
+      "size": 8
+    },
+    ".text": {
+      "address": 4560,
+      "sha256": "ea3b284bc58b43d9d876a5eb81d7fb5ce7a4640c6410f284ea0247c7b0be3cd5",
+      "size": 1543
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "c25b0e5bd87a6638581583c873ba81f1d077c6c1057f38c0a9620f753358fe8a",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "e56821a2ababeae30effc38ea947dd3ddc3c2f2aee2d091f48e82763879874a3",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "recv_all",
+      "section_index": "14",
+      "size": 98,
+      "type": "FUNC",
+      "value": 4893
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_in_addr",
+      "section_index": "14",
+      "size": 41,
+      "type": "FUNC",
+      "value": 4852
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sigchld_handler",
+      "section_index": "14",
+      "size": 59,
+      "type": "FUNC",
+      "value": 4793
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_start",
+      "section_index": "14",
+      "size": 34,
+      "type": "FUNC",
+      "value": 4560
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "main",
+      "section_index": "14",
+      "size": 1112,
+      "type": "FUNC",
+      "value": 4991
+    }
+  ]
+}

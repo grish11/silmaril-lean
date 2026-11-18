@@ -1,0 +1,587 @@
+{
+  "artifacts": {
+    "listing": {
+      "media": "text/x-objdump",
+      "path": "examples/compiler-explorer/compiles-to/straight/O0/listing.txt",
+      "sha256": "95a10bf6ee30b18f2d16fe295a223b5e8f8c30e5cb71d914a5c3373f7a732a32",
+      "size": 863
+    },
+    "listing_receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/compiles-to/straight/O0/RECEIPT.json",
+      "sha256": "06f81ebf2d2a4544a174784315401a11e957a62de6a4cd03129421c87b4a4929",
+      "size": 555
+    },
+    "receipt": {
+      "media": "application/json",
+      "path": "examples/compiles-to/straight/O0/RECEIPT.json",
+      "sha256": "0014d60a732bd48300f05c292ad452e14367a519dd4e22c833f8fcd790b27f00",
+      "size": 975
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiles-to/straight/straight.c",
+      "sha256": "8b49538da88e3926f7c457e54fff82234e5ef0efb3c81372537b8f690f38b4b6",
+      "size": 155
+    },
+    "target": {
+      "media": "application/x-elf-relocatable",
+      "path": "examples/compiles-to/straight/O0/straight.o",
+      "sha256": "482026b8561dfbb3b2d13e49aba4d78354d6bee097524a97d5bdf662a48b26f4",
+      "size": 2848
+    }
+  },
+  "context": {
+    "abi": {
+      "decl": "Silmaril.Project.CompilesTo.FnData.Holds (PointKind.entry)",
+      "id": "sysv-amd64-integer",
+      "version": "System V AMD64 psABI: INTEGER-class arguments, LP64"
+    },
+    "comorphism": {
+      "decl": "Silmaril.Project.CompilesTo.dwarf",
+      "family": "observation",
+      "version": "C objects at their DWARF DW_OP_fbreg frame slots"
+    },
+    "mapping_relation": {
+      "decl": "Silmaril.Project.CompilesTo.FnData.mapping",
+      "family": "cut-point",
+      "version": "c-tv program points"
+    },
+    "source_model": {
+      "decl": "Silmaril.Project.CompilesTo.FnData.source",
+      "family": "cerberus-core",
+      "version": "Lean port of Cerberus Core (Project.Shapes.C.ElabAil, LP64)"
+    },
+    "target_model": {
+      "decl": "Silmaril.X86.Open.isa",
+      "family": "x86-64",
+      "version": "silmaril open x86-64 model (SegVC, single thread)"
+    }
+  },
+  "derivation": {
+    "command": "gcc -O0 -g -c -fdebug-prefix-map=/src=. -std=c11 -ffreestanding -fno-builtin -fno-stack-protector -fcf-protection=none -mgeneral-regs-only -fno-pic -fno-pie -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-ident straight.c -o O0/straight.o",
+    "compiler": "gcc",
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "kind": "compiler",
+    "opt": "O0",
+    "receipt": "receipt",
+    "target": "x86_64-linux-gnu",
+    "version": "gcc (GCC) 13.3.0"
+  },
+  "direction": "compiled",
+  "edges": [
+    {
+      "function": "add3",
+      "id": "nav/add3/3/0",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "356bf58366398fb2e336"
+      ],
+      "target": [
+        "54b80c2ab8db0070d5ef"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "nav/add3/4/13",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "16992c492a2086a9aae5"
+      ],
+      "target": [
+        "fe3ff341f3b4ac7a4b8e"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "nav/add3/5/24",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "1482e84628f8964f5a5d"
+      ],
+      "target": [
+        "55cc3d76f6d99bcb8c4e"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "nav/add3/6/35",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "6aab76c9215e9322ea0b"
+      ],
+      "target": [
+        "fd1d4a064865f99bc425"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "nav/add3/7/38",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "673c44ad1f1e586edd05"
+      ],
+      "target": [
+        "e899b5e76b163d476344"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "seg/add3/0",
+      "kind": "semantic",
+      "line": 3,
+      "point": 0,
+      "point_kind": "Entry",
+      "source": [
+        "356bf58366398fb2e336"
+      ],
+      "target": [
+        "54b80c2ab8db0070d5ef"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "seg/add3/1",
+      "kind": "semantic",
+      "line": 4,
+      "point": 1,
+      "point_kind": "Slots",
+      "source": [
+        "16992c492a2086a9aae5"
+      ],
+      "target": [
+        "fe3ff341f3b4ac7a4b8e"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "seg/add3/2",
+      "kind": "semantic",
+      "line": 5,
+      "point": 2,
+      "point_kind": "Slots",
+      "source": [
+        "1482e84628f8964f5a5d"
+      ],
+      "target": [
+        "55cc3d76f6d99bcb8c4e"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "seg/add3/3",
+      "kind": "semantic",
+      "line": 6,
+      "point": 3,
+      "point_kind": "Slots",
+      "source": [
+        "6aab76c9215e9322ea0b"
+      ],
+      "target": [
+        "fd1d4a064865f99bc425"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "seg/add3/4",
+      "kind": "semantic",
+      "line": 7,
+      "point": 4,
+      "point_kind": "Ret",
+      "source": [
+        "673c44ad1f1e586edd05"
+      ],
+      "target": [
+        "e899b5e76b163d476344"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "source",
+      "id": "1482e84628f8964f5a5d",
+      "label": "line 5",
+      "ranges": [
+        [
+          124,
+          140
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "16992c492a2086a9aae5",
+      "label": "line 4",
+      "ranges": [
+        [
+          107,
+          123
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "356bf58366398fb2e336",
+      "label": "line 3",
+      "ranges": [
+        [
+          105,
+          106
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "54b80c2ab8db0070d5ef",
+      "label": "[0x0, 0xd)",
+      "ranges": [
+        [
+          0,
+          13
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "55cc3d76f6d99bcb8c4e",
+      "label": "[0x18, 0x23)",
+      "ranges": [
+        [
+          24,
+          35
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "source",
+      "id": "673c44ad1f1e586edd05",
+      "label": "line 7",
+      "ranges": [
+        [
+          153,
+          154
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "6aab76c9215e9322ea0b",
+      "label": "line 6",
+      "ranges": [
+        [
+          141,
+          152
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "e899b5e76b163d476344",
+      "label": "[0x26, 0x28)",
+      "ranges": [
+        [
+          38,
+          40
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "fd1d4a064865f99bc425",
+      "label": "[0x23, 0x26)",
+      "ranges": [
+        [
+          35,
+          38
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "fe3ff341f3b4ac7a4b8e",
+      "label": "[0xd, 0x18)",
+      "ranges": [
+        [
+          13,
+          24
+        ]
+      ],
+      "space": "text-offset"
+    }
+  ],
+  "id": "compiles-to/straight/O0/add3",
+  "lean": {
+    "family": "c-function-x86",
+    "modules": [
+      "CompilesToExamples.Explorer.Builds",
+      "CompilesToExamples.Explorer.Code"
+    ],
+    "registry": {
+      "source": "silmaril.compiles_to.straight.source",
+      "target": "silmaril.compiles_to.straight.o0.object"
+    },
+    "vars": {
+      "ail": "CompilesToExamples.Straight.ail",
+      "cname": "add3",
+      "comorphism": "Silmaril.Project.CompilesTo.dwarf",
+      "fn": "CompilesToExamples.Straight.O0.add3",
+      "isa": "Silmaril.X86.Open.isa",
+      "target_value": "silmaril.compiles_to.straight.o0.obj"
+    }
+  },
+  "obligations": [
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.edge_0",
+      "edge": "seg/add3/0",
+      "id": "edge/0",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.edge_0",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.mapping Silmaril.X86.Open.isa k0).EdgeValid 0"
+    },
+    {
+      "decl": "CompilesToExamples.Straight.O0.add3_point_0",
+      "edge": "seg/add3/0",
+      "id": "point/0",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Straight.O0.add3 0 3"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.edge_1",
+      "edge": "seg/add3/1",
+      "id": "edge/1",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.edge_1",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.mapping Silmaril.X86.Open.isa k0).EdgeValid 1"
+    },
+    {
+      "decl": "CompilesToExamples.Straight.O0.add3_point_1",
+      "edge": "seg/add3/1",
+      "id": "point/1",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Straight.O0.add3 1 4"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.edge_2",
+      "edge": "seg/add3/2",
+      "id": "edge/2",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.edge_2",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.mapping Silmaril.X86.Open.isa k0).EdgeValid 2"
+    },
+    {
+      "decl": "CompilesToExamples.Straight.O0.add3_point_2",
+      "edge": "seg/add3/2",
+      "id": "point/2",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Straight.O0.add3 2 5"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.edge_3",
+      "edge": "seg/add3/3",
+      "id": "edge/3",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.edge_3",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.mapping Silmaril.X86.Open.isa k0).EdgeValid 3"
+    },
+    {
+      "decl": "CompilesToExamples.Straight.O0.add3_point_3",
+      "edge": "seg/add3/3",
+      "id": "point/3",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Straight.O0.add3 3 6"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.edge_4",
+      "edge": "seg/add3/4",
+      "id": "edge/4",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.edge_4",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.mapping Silmaril.X86.Open.isa k0).EdgeValid 4"
+    },
+    {
+      "decl": "CompilesToExamples.Straight.O0.add3_point_4",
+      "edge": "seg/add3/4",
+      "id": "point/4",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Straight.O0.add3 4 7"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.translation",
+      "id": "translation",
+      "kind": "translation",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.translation",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.compilation Silmaril.X86.Open.isa k0).toProblem.Refines"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.mapping_valid",
+      "id": "mapping",
+      "kind": "mapping",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.mapping",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.mapping Silmaril.X86.Open.isa k0).Valid"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.refines_dwarf",
+      "id": "refinement",
+      "kind": "refinement",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.location",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O0.add3.mapping Silmaril.X86.Open.isa k0).toMapping.RefinesAt (fun k => Silmaril.Compiler.Explorer.Gen.Witnessed Silmaril.Project.CompilesTo.dwarf Silmaril.Compiler.Explorer.obsSig Silmaril.Project.CompilesTo.readCore Silmaril.Project.CompilesTo.readFrame Silmaril.Compiler.Explorer.obsFam (CompilesToExamples.Straight.O0.add3.scope k)) (fun _ => True)"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.abi",
+      "id": "abi",
+      "kind": "abi",
+      "statement": "Silmaril.Project.Shapes.SysV.Enterable Silmaril.X86.Open.isa CompilesToExamples.Straight.O0.add3.placement CompilesToExamples.Straight.O0.add3.sig CompilesToExamples.Straight.O0.add3.frame"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.inhabited",
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.nonvacuous",
+      "statement": "(CompilesToExamples.Straight.O0.add3.compilation Silmaril.X86.Open.isa []).toProblem.Inhabited"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.elaboration",
+      "id": "elaboration",
+      "kind": "elaboration",
+      "statement": "Silmaril.Project.Shapes.C.ElaboratesTo CompilesToExamples.Straight.ail \"add3\" CompilesToExamples.Straight.O0.add3.cfn"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.straight_O0_code",
+      "id": "artifact",
+      "kind": "artifact",
+      "row": "silmaril.compiler_explorer.straight.o0.add3.code",
+      "statement": "Silmaril.Project.Shapes.SysV.ObjectFn silmaril.compiles_to.straight.o0.obj \"add3\" CompilesToExamples.Straight.O0.add3.code"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.canonical",
+      "id": "nonvacuity/canonical",
+      "kind": "nonvacuity_canonical",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical Silmaril.X86.Open.isa CompilesToExamples.Straight.O0.add3.placement CompilesToExamples.Straight.O0.add3.frame CompilesToExamples.Straight.O0.add3.cfn"
+    },
+    {
+      "decl": null,
+      "id": "nonvacuity/universal",
+      "kind": "nonvacuity_universal",
+      "statement": "CompilesToExamples.Straight.O0.add3.cfn.meaning.Inhabited"
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [],
+  "title": "straight.c, gcc 13.3.0 -O0, add3 (object code)",
+  "view": {
+    "source": "source",
+    "target": "listing",
+    "target_map": [
+      [
+        0,
+        1,
+        100,
+        139
+      ],
+      [
+        1,
+        4,
+        140,
+        184
+      ],
+      [
+        4,
+        7,
+        185,
+        236
+      ],
+      [
+        7,
+        10,
+        237,
+        288
+      ],
+      [
+        10,
+        13,
+        289,
+        340
+      ],
+      [
+        13,
+        16,
+        341,
+        392
+      ],
+      [
+        16,
+        19,
+        393,
+        444
+      ],
+      [
+        19,
+        21,
+        445,
+        489
+      ],
+      [
+        21,
+        24,
+        490,
+        540
+      ],
+      [
+        24,
+        27,
+        541,
+        591
+      ],
+      [
+        27,
+        30,
+        592,
+        643
+      ],
+      [
+        30,
+        32,
+        644,
+        688
+      ],
+      [
+        32,
+        35,
+        689,
+        739
+      ],
+      [
+        35,
+        38,
+        740,
+        790
+      ],
+      [
+        38,
+        39,
+        791,
+        830
+      ],
+      [
+        39,
+        40,
+        831,
+        862
+      ]
+    ]
+  }
+}

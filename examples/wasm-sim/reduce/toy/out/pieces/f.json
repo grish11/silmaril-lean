@@ -1,0 +1,53 @@
+{
+  "address": "0x400017",
+  "bytes": "5341544883ec084889f3e8daffffff4989c44889dfe8dfffffff4c01e04883c408415c5bc3",
+  "function": "f",
+  "id": "wasm-sim/toy/ag/f",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [
+        "sum_to",
+        "dbl"
+      ],
+      "sim": [
+        "get",
+        "i_alu_ri",
+        "i_alu_rr",
+        "i_call",
+        "i_mov_rr",
+        "i_next",
+        "i_pop_r",
+        "i_push_r",
+        "i_ret"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../modules/f.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [
+      {
+        "ensures": "(= (reg rax) (tri (old (reg rdi))))",
+        "import": "sum_to",
+        "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+      },
+      {
+        "ensures": "(= (reg rax) (bvadd (old (reg rdi)) (old (reg rdi))))",
+        "import": "dbl",
+        "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+      }
+    ],
+    "ensures": "(= (reg rax) (bvadd (tri (old (reg rdi))) (bvadd (old (reg rsi)) (old (reg rsi)))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+  },
+  "statement": "assuming the callees [\"sum_to\", \"dbl\"] meet their contracts (imports), `f` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

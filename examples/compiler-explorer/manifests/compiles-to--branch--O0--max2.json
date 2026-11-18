@@ -1,0 +1,579 @@
+{
+  "artifacts": {
+    "listing": {
+      "media": "text/x-objdump",
+      "path": "examples/compiler-explorer/compiles-to/branch/O0/listing.txt",
+      "sha256": "eb90c0450d4eead842897605c75eb0cd9d741859cbe6173d904277f81b886a82",
+      "size": 661
+    },
+    "listing_receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/compiles-to/branch/O0/RECEIPT.json",
+      "sha256": "39eef8b4ff98c5da784d56619e33acb41352688c69c97a071f9d72ab92a824b4",
+      "size": 549
+    },
+    "receipt": {
+      "media": "application/json",
+      "path": "examples/compiles-to/branch/O0/RECEIPT.json",
+      "sha256": "c800c7490d9ab46fd840bd1567feda2878e09926116d27b2014c83bf67ec8520",
+      "size": 967
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiles-to/branch/branch.c",
+      "sha256": "6f463ede96e59be1e54fe54abc0b74d9609b7742772b5f7f14f995027fa7bcf6",
+      "size": 103
+    },
+    "target": {
+      "media": "application/x-elf-relocatable",
+      "path": "examples/compiles-to/branch/O0/branch.o",
+      "sha256": "aa197ae40627c1e9b8e406993ac637210d7eb33d5c3d1f7213f5867040c840b6",
+      "size": 2768
+    }
+  },
+  "context": {
+    "abi": {
+      "decl": "Silmaril.Project.CompilesTo.FnData.Holds (PointKind.entry)",
+      "id": "sysv-amd64-integer",
+      "version": "System V AMD64 psABI: INTEGER-class arguments, LP64"
+    },
+    "comorphism": {
+      "decl": "Silmaril.Project.CompilesTo.dwarf",
+      "family": "observation",
+      "version": "C objects at their DWARF DW_OP_fbreg frame slots"
+    },
+    "mapping_relation": {
+      "decl": "Silmaril.Project.CompilesTo.FnData.mapping",
+      "family": "cut-point",
+      "version": "c-tv program points"
+    },
+    "source_model": {
+      "decl": "Silmaril.Project.CompilesTo.FnData.source",
+      "family": "cerberus-core",
+      "version": "Lean port of Cerberus Core (Project.Shapes.C.ElabAil, LP64)"
+    },
+    "target_model": {
+      "decl": "Silmaril.X86.Open.isa",
+      "family": "x86-64",
+      "version": "silmaril open x86-64 model (SegVC, single thread)"
+    }
+  },
+  "derivation": {
+    "command": "gcc -O0 -g -c -fdebug-prefix-map=/src=. -std=c11 -ffreestanding -fno-builtin -fno-stack-protector -fcf-protection=none -mgeneral-regs-only -fno-pic -fno-pie -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-ident branch.c -o O0/branch.o",
+    "compiler": "gcc",
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "kind": "compiler",
+    "opt": "O0",
+    "receipt": "receipt",
+    "target": "x86_64-linux-gnu",
+    "version": "gcc (GCC) 13.3.0"
+  },
+  "direction": "compiled",
+  "edges": [
+    {
+      "function": "max2",
+      "id": "nav/max2/3/0",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "73d3bdff30a9e3c5cc1d"
+      ],
+      "target": [
+        "fa91d80d47aa5638fdfc"
+      ]
+    },
+    {
+      "function": "max2",
+      "id": "nav/max2/4/10",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "b2927452866d412cf4cf"
+      ],
+      "target": [
+        "e6f18a57a5bd544ddd09"
+      ]
+    },
+    {
+      "function": "max2",
+      "id": "nav/max2/5/18",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "c764153230e8441ef722"
+      ],
+      "target": [
+        "66b562116cbc096f8a3e"
+      ]
+    },
+    {
+      "function": "max2",
+      "id": "nav/max2/7/23",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "cfb868dac2ef7c08c97b"
+      ],
+      "target": [
+        "9a3e93ed0fa438923d4e"
+      ]
+    },
+    {
+      "function": "max2",
+      "id": "nav/max2/8/26",
+      "kind": "navigation",
+      "origin": "dwarf-line-table",
+      "source": [
+        "158a397b6b6262128b9d"
+      ],
+      "target": [
+        "a21fe97473f853981878"
+      ]
+    },
+    {
+      "function": "max2",
+      "id": "seg/max2/0",
+      "kind": "semantic",
+      "line": 3,
+      "point": 0,
+      "point_kind": "Entry",
+      "source": [
+        "73d3bdff30a9e3c5cc1d"
+      ],
+      "target": [
+        "fa91d80d47aa5638fdfc"
+      ]
+    },
+    {
+      "function": "max2",
+      "id": "seg/max2/1",
+      "kind": "semantic",
+      "line": 4,
+      "point": 1,
+      "point_kind": "Slots",
+      "source": [
+        "b2927452866d412cf4cf"
+      ],
+      "target": [
+        "e6f18a57a5bd544ddd09"
+      ]
+    },
+    {
+      "function": "max2",
+      "id": "seg/max2/2",
+      "kind": "semantic",
+      "line": 5,
+      "point": 2,
+      "point_kind": "Slots",
+      "source": [
+        "95c565e0daa8676251da"
+      ],
+      "target": [
+        "66b562116cbc096f8a3e"
+      ]
+    },
+    {
+      "function": "max2",
+      "id": "seg/max2/3",
+      "kind": "semantic",
+      "line": 7,
+      "point": 3,
+      "point_kind": "Slots",
+      "source": [
+        "cfb868dac2ef7c08c97b"
+      ],
+      "target": [
+        "9a3e93ed0fa438923d4e"
+      ]
+    },
+    {
+      "function": "max2",
+      "id": "seg/max2/4",
+      "kind": "semantic",
+      "line": 8,
+      "point": 4,
+      "point_kind": "Ret",
+      "source": [
+        "158a397b6b6262128b9d"
+      ],
+      "target": [
+        "a21fe97473f853981878"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "source",
+      "id": "158a397b6b6262128b9d",
+      "label": "line 8",
+      "ranges": [
+        [
+          101,
+          102
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "66b562116cbc096f8a3e",
+      "label": "[0x12, 0x17)",
+      "ranges": [
+        [
+          18,
+          23
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "source",
+      "id": "73d3bdff30a9e3c5cc1d",
+      "label": "line 3",
+      "ranges": [
+        [
+          51,
+          52
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "95c565e0daa8676251da",
+      "label": "lines 5-6",
+      "ranges": [
+        [
+          66,
+          79
+        ],
+        [
+          80,
+          86
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "9a3e93ed0fa438923d4e",
+      "label": "[0x17, 0x1a)",
+      "ranges": [
+        [
+          23,
+          26
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "a21fe97473f853981878",
+      "label": "[0x1a, 0x1c)",
+      "ranges": [
+        [
+          26,
+          28
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "source",
+      "id": "b2927452866d412cf4cf",
+      "label": "line 4",
+      "ranges": [
+        [
+          53,
+          65
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "c764153230e8441ef722",
+      "label": "line 5",
+      "ranges": [
+        [
+          66,
+          79
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "cfb868dac2ef7c08c97b",
+      "label": "line 7",
+      "ranges": [
+        [
+          87,
+          100
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "e6f18a57a5bd544ddd09",
+      "label": "[0xa, 0x12)",
+      "ranges": [
+        [
+          10,
+          18
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "fa91d80d47aa5638fdfc",
+      "label": "[0x0, 0xa)",
+      "ranges": [
+        [
+          0,
+          10
+        ]
+      ],
+      "space": "text-offset"
+    }
+  ],
+  "id": "compiles-to/branch/O0/max2",
+  "lean": {
+    "family": "c-function-x86",
+    "modules": [
+      "CompilesToExamples.Explorer.Builds",
+      "CompilesToExamples.Explorer.Code"
+    ],
+    "registry": {
+      "source": "silmaril.compiles_to.branch.source",
+      "target": "silmaril.compiles_to.branch.o0.object"
+    },
+    "vars": {
+      "ail": "CompilesToExamples.Branch.ail",
+      "cname": "max2",
+      "comorphism": "Silmaril.Project.CompilesTo.dwarf",
+      "fn": "CompilesToExamples.Branch.O0.max2",
+      "isa": "Silmaril.X86.Open.isa",
+      "target_value": "silmaril.compiles_to.branch.o0.obj"
+    }
+  },
+  "obligations": [
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.edge_0",
+      "edge": "seg/max2/0",
+      "id": "edge/0",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_0",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 0"
+    },
+    {
+      "decl": "CompilesToExamples.Branch.O0.max2_point_0",
+      "edge": "seg/max2/0",
+      "id": "point/0",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Branch.O0.max2 0 3"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.edge_1",
+      "edge": "seg/max2/1",
+      "id": "edge/1",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_1",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 1"
+    },
+    {
+      "decl": "CompilesToExamples.Branch.O0.max2_point_1",
+      "edge": "seg/max2/1",
+      "id": "point/1",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Branch.O0.max2 1 4"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.edge_2",
+      "edge": "seg/max2/2",
+      "id": "edge/2",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_2",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 2"
+    },
+    {
+      "decl": "CompilesToExamples.Branch.O0.max2_point_2",
+      "edge": "seg/max2/2",
+      "id": "point/2",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Branch.O0.max2 2 5"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.edge_3",
+      "edge": "seg/max2/3",
+      "id": "edge/3",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_3",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 3"
+    },
+    {
+      "decl": "CompilesToExamples.Branch.O0.max2_point_3",
+      "edge": "seg/max2/3",
+      "id": "point/3",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Branch.O0.max2 3 7"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.edge_4",
+      "edge": "seg/max2/4",
+      "id": "edge/4",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.edge_4",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).EdgeValid 4"
+    },
+    {
+      "decl": "CompilesToExamples.Branch.O0.max2_point_4",
+      "edge": "seg/max2/4",
+      "id": "point/4",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Branch.O0.max2 4 8"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.translation",
+      "id": "translation",
+      "kind": "translation",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.translation",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.compilation Silmaril.X86.Open.isa k0).toProblem.Refines"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.mapping_valid",
+      "id": "mapping",
+      "kind": "mapping",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.mapping",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).Valid"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.refines_dwarf",
+      "id": "refinement",
+      "kind": "refinement",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.location",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Branch.O0.max2.mapping Silmaril.X86.Open.isa k0).toMapping.RefinesAt (fun k => Silmaril.Compiler.Explorer.Gen.Witnessed Silmaril.Project.CompilesTo.dwarf Silmaril.Compiler.Explorer.obsSig Silmaril.Project.CompilesTo.readCore Silmaril.Project.CompilesTo.readFrame Silmaril.Compiler.Explorer.obsFam (CompilesToExamples.Branch.O0.max2.scope k)) (fun _ => True)"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.abi",
+      "id": "abi",
+      "kind": "abi",
+      "statement": "Silmaril.Project.Shapes.SysV.Enterable Silmaril.X86.Open.isa CompilesToExamples.Branch.O0.max2.placement CompilesToExamples.Branch.O0.max2.sig CompilesToExamples.Branch.O0.max2.frame"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.inhabited",
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.nonvacuous",
+      "statement": "(CompilesToExamples.Branch.O0.max2.compilation Silmaril.X86.Open.isa []).toProblem.Inhabited"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.elaboration",
+      "id": "elaboration",
+      "kind": "elaboration",
+      "statement": "Silmaril.Project.Shapes.C.ElaboratesTo CompilesToExamples.Branch.ail \"max2\" CompilesToExamples.Branch.O0.max2.cfn"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.branch_O0_code",
+      "id": "artifact",
+      "kind": "artifact",
+      "row": "silmaril.compiler_explorer.branch.o0.max2.code",
+      "statement": "Silmaril.Project.Shapes.SysV.ObjectFn silmaril.compiles_to.branch.o0.obj \"max2\" CompilesToExamples.Branch.O0.max2.code"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.BranchO0.canonical",
+      "id": "nonvacuity/canonical",
+      "kind": "nonvacuity_canonical",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical Silmaril.X86.Open.isa CompilesToExamples.Branch.O0.max2.placement CompilesToExamples.Branch.O0.max2.frame CompilesToExamples.Branch.O0.max2.cfn"
+    },
+    {
+      "decl": null,
+      "id": "nonvacuity/universal",
+      "kind": "nonvacuity_universal",
+      "statement": "CompilesToExamples.Branch.O0.max2.cfn.meaning.Inhabited"
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [],
+  "title": "branch.c, gcc 13.3.0 -O0, max2 (object code)",
+  "view": {
+    "source": "source",
+    "target": "listing",
+    "target_map": [
+      [
+        0,
+        1,
+        98,
+        137
+      ],
+      [
+        1,
+        4,
+        138,
+        182
+      ],
+      [
+        4,
+        7,
+        183,
+        233
+      ],
+      [
+        7,
+        10,
+        234,
+        284
+      ],
+      [
+        10,
+        13,
+        285,
+        335
+      ],
+      [
+        13,
+        16,
+        336,
+        386
+      ],
+      [
+        16,
+        18,
+        387,
+        436
+      ],
+      [
+        18,
+        21,
+        437,
+        487
+      ],
+      [
+        21,
+        23,
+        488,
+        537
+      ],
+      [
+        23,
+        26,
+        538,
+        588
+      ],
+      [
+        26,
+        27,
+        589,
+        628
+      ],
+      [
+        27,
+        28,
+        629,
+        660
+      ]
+    ]
+  }
+}

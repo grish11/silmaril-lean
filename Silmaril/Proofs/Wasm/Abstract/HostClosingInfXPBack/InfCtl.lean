@@ -28,7 +28,7 @@ variable {H : Type} {tags : List TagInst} {o : GrowOracle} {host : HostSemantics
   {s : Store H} {f : Frame} {stk : List Val} {ω : Nat → Call (wasmHostSig H)}
 
 /-- **A block running productively alone**: in its body. -/
-theorem headInf_block (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headInf_block (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {body es : List BExpr} (ihB : InfG tags o host body)
     (ht : TypedP tags s f stk (.block bt body :: es))
     (hdv : CoreInf (profile o) host (pcfg s f stk [.block bt body]) ω) :
@@ -62,7 +62,7 @@ theorem headInf_block (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Ho
     · exact head_contraI hH hE ht1 (.blockEsc har hd hesc) hw hdv
 
 /-- **A conditional running productively alone**: in its condition, or in its chosen arm. -/
-theorem headInf_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headInf_if (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {c t el es : List BExpr} (ihC : InfG tags o host c)
     (ihA : ∀ b : Bool, InfG tags o host (if b then t else el))
     (ht : TypedP tags s f stk (.if_ bt c t el :: es))
@@ -139,7 +139,7 @@ theorem headInf_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostS
     · exact head_contraI hH hE ht1 (.ifEsc hd hb har hd₂ hesc) hw hdv₁
 
 /-- **A `try_table` running productively alone**: in its body. -/
-theorem headInf_try (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem headInf_try (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {cl : List Catch} {body es : List BExpr} (ihB : InfG tags o host body)
     (ht : TypedP tags s f stk (.tryTable bt cl body :: es))
     (hdv : CoreInf (profile o) host (pcfg s f stk [.tryTable bt cl body]) ω) :

@@ -159,6 +159,28 @@ The checking library is under `Wasm/Auto`:
 
 Its tests and benchmarks are the Lake library `WasmAutoTests` (`tests/wasm/auto`).
 
+The second-generation checker (`Wasm/Auto2`: summaries with loops and memory, kernel-evaluated
+verdicts, verification-condition inference) has its own kernel-checked suites in the same
+library, under `tests/wasm/auto2`:
+
+| Suite | Contents |
+| --- | --- |
+| `SummBench` | the summaries benchmark: the WAT of `benchmarks/wasm-auto-verify/summaries` quoted verbatim, with kernel-checked verdicts |
+| `Summ2Bench` | pass 2 of the summaries track: loops and memory (`memsum4`, `sum` and its Binaryen `-O3` form) |
+| `KernelBench` | verdicts by kernel evaluation of the checker (tuples, elementwise loops, Adler-32 from the front-end benchmark) |
+| `VCInferBench` | invariant inference for verification conditions (`sum`) |
+
+`benchmarks/wasm-auto-verify/summaries{,2,3}/run.sh` run the executable `wasm-check` on the
+pinned binaries of those directories (`check-inputs.sh` checks that the WAT files are the Lean
+quotations and the binaries match `bin/SHA256SUMS`) and compare every verdict with
+`expected.tsv`. All three passed on x86-64 Linux:
+- `summaries`: 16 pairs (11 proved, 5 refuted), and the `pass` runs (-O3 60/60, -O2 31/31,
+  peephole 31/31 proved);
+- `summaries2`: 6 pairs (4 proved, 2 refuted);
+- `summaries3`: 11 pairs (1 proved, 1 refuted, 9 unknown, as expected).
+
+These runs test the compiled checker; the Lean theorems are the suites above.
+
 ## wasm-egraph
 
 `wasm-egraph` (Rust, standard library only) searches for equalities of straight-line integer

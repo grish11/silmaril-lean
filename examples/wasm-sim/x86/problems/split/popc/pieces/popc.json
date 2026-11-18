@@ -1,0 +1,39 @@
+{
+  "address": "0x400000",
+  "bytes": "31d24885ff7415660f1f840000000000488d47ff83c2014821c775f489d0c3",
+  "function": "popc",
+  "id": "wasm-sim/x86/popc/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "ea",
+        "i_alu_ri",
+        "i_alu_rr",
+        "i_jmp",
+        "i_lea",
+        "i_mov_rr",
+        "i_next",
+        "i_ret"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../popc.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= ((_ extract 31 0) (reg rax)) ((_ extract 31 0) (popcount (old (reg rdi)))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `popc` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

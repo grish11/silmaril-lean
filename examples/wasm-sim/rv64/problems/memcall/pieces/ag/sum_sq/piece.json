@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/memcall/ag/sum_sq",
+  "kind": "assume-guarantee",
+  "function": "sum_sq",
+  "address": "0x112ec",
+  "words": "fe01011300113c2300813823009134230121302302b0586300050413000004930035959300b509330004350300000097f28080e700840413009504b3ff2416e30080006f0000049300048513018130830101340300813483000139030201011300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/sum_sq.wat", "representation": "P-locals", "imports": {"callees": ["sq"], "memory": true}, "params": ["a0", "a1", "ra", "sp", "s0", "s1", "s2"], "results": ["a0"]},
+  "spec": {"requires": "(and (stack (reg sp)) (arr (reg a0) (reg a1)) (or (bvule (bvadd (reg a0) (bvmul (reg a1) #x0000000000000008)) (bvsub (reg sp) #x0000000000000020)) (bvule (reg sp) (reg a0))))", "ensures": "(= (reg a0) (sumsq (old (reg a0)) (old (reg a1))))", "reads": "[(\"(reg a0)\", \"(bvmul (reg a1) #x0000000000000008)\")]", "writes": "[(\"(bvsub (reg sp) #x0000000000000020)\", \"#x0000000000000020\")]", "assumes": [{"import": "sq", "requires": "true", "ensures": "(= (reg a0) (bvmul (old (reg a0)) (old (reg a0))))"}]},
+  "statement": "assuming the imports {\"sq\"} meet their contracts, the Wasm function `sum_sq` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

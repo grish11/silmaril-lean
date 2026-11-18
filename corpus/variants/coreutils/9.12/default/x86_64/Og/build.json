@@ -1,0 +1,3001 @@
+{
+  "schema_version": 1,
+  "run_id": "12beac89-e3f6-46c2-b99a-ff4a0bd9f53d",
+  "project": "coreutils",
+  "version": "9.12",
+  "configuration": "default",
+  "target": "x86_64-linux-gnu",
+  "optimization": "Og",
+  "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+  "source_inputs": [
+    {
+      "url": "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz",
+      "sha256": "a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210"
+    }
+  ],
+  "included_source_files": [
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/AUTHORS",
+      "sha256": "86c6ed4176226e35f0b8ec55ee10ee5956f88a96c6617054d28e3e50a4a264a0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/COPYING",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/README",
+      "sha256": "a8b282e3c3cb48d4be3814b684c26c65ae226f1638bd4d96c21de54331fcdea3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/THANKS.in",
+      "sha256": "62be92001dfe3eaa8c6b22d5f5735bf7b44e6d44d27b82892b9c6250b0185168"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/acl-errno-valid.c",
+      "sha256": "a056911def0b999a54ae79778193df6a2603ca52aefcab17571e7929f9ddfa69"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/acl-internal.c",
+      "sha256": "859a0ae753e240d09377f0eee6b166a9d34c51e69d163d14d8518377c7e152ca"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/acl-internal.h",
+      "sha256": "fbbc6719f99537a30f655943128a7eddf13bf06751187c2ee5b42bc5f2f05cc5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/acl.h",
+      "sha256": "1dd56d69cdffa7cbf0596b07becfd652d2109ffe75cb361d892703bbe9948f0c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/alignalloc.c",
+      "sha256": "1d0bb00b1737e01cc92c48c3f74b407664461aaf738bd0aff01a7e9f9bcb9cd3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/alignalloc.h",
+      "sha256": "1635092374b49c3f8c196b77d1d6827b1f861193b7469172784d7bb5ab4d49e3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/allocator.c",
+      "sha256": "6d89bbb2381656da608ddadebc91f228ab1c5dd485aef2207af36305e78faad6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/allocator.h",
+      "sha256": "fb300744ec5f3a63877b1266dd1d70aa8d7f844d3fe73fe905ee49205298ea7d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/anytostr.c",
+      "sha256": "323248bcb6b9694054047d085f4714bbb148a29df4d48296a513a37b38cbc449"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/areadlink-with-size.c",
+      "sha256": "b1c58816ef141f0af9c8a368a73e9ec611ef3c511c8d4c30a7d8d1b9bc56c69f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/areadlink.c",
+      "sha256": "996abec940d4541032109e08c931f1f72bfc36ff3728501b0a03cb8481472da9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/areadlink.h",
+      "sha256": "a762f4a290c46ee6fe949e87c05d9c26512fa3de68812146ec7d888673a6dd03"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/areadlinkat-with-size.c",
+      "sha256": "a9ca95e04fb50b387c33c168c0d86425d640636d84a9da2621e58aecaafdd933"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/areadlinkat.c",
+      "sha256": "63789899d9c745cc0463df9a10b8381794001c9bfc4862504d243c55aaa84a17"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/arg-nonnull.h",
+      "sha256": "ec45471da5ca70273a0a132859a8c5110d440d9c89011688ac9847b4cfaf193c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/argmatch.c",
+      "sha256": "8dec6fb10c0aacc9b6cf84f42b7800a7b2b3260d00debcb7eb1670a9da66591a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/argmatch.h",
+      "sha256": "d48efe640f8768d6286f26d35e9d3e989594385a278483dbe46ac1e54ed39909"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/argv-iter.c",
+      "sha256": "712d909fec21426231ea3c66eb32210aea556443d6b6c4b9e1e0ee664ec77bcd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/argv-iter.h",
+      "sha256": "876a509b06d3abba1451674392e7c72ce541ef12f21cebed1e3d5e1c14a7b91a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/arpa_inet.c",
+      "sha256": "dbe29d2e48b5ba34e287307df5549a46bb30726b3ff0dd67b94125c89aa26d5d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/asnprintf.c",
+      "sha256": "4b076e720e09318521af95a5440964cc9b8cfabd9162bca85f0b292cf434f318"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/assure.h",
+      "sha256": "4542e2012ea19c2cf9dd47701dc2f71c5dbcc924d67c09d1cfa36d104adbb490"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/aszprintf.c",
+      "sha256": "3f05cdae54d8e6dc79ee5172ec8921daebaeafd54a2a1cf47b8ba0c4da51064f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/at-func.c",
+      "sha256": "c3fba8314915abd1ffd3d9eca5d2f8bb12998ad40d0d5a78b93d9ac0c6538a13"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/attribute.h",
+      "sha256": "b4d8ba0fc08aa549ca3c157c5c96b3f8ad1a41a7a255a012dcd2a69b407cb1aa"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/backup-find.c",
+      "sha256": "187a327d0a0c01aecf746de42e6b643813e8524c54cb940ff5d9ca9f30dcd002"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/backup-internal.h",
+      "sha256": "fea62f0f8ca0f94efe8476758b3f4538d10fdc7c9c99966ef80f16ce0990a33a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/backup-rename.c",
+      "sha256": "f0d99d7e1281ddf29ab8e360c618d8dc90297b0cf1597eb323943d8e41f23790"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/backupfile.c",
+      "sha256": "f48e2b901f884951d37fe4496b4250c4b5873e8560f42c174633b6f00ba5a375"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/backupfile.h",
+      "sha256": "c2b51e6162ea2cdc06bee950d4def3c947eb47f4cf728c1e6ecc70ed2922c078"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/base32.c",
+      "sha256": "7317e0f4da84f9f98b6aecf20a3b68ebe47745da4b78928826cb2105d919c9a6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/base32.h",
+      "sha256": "444aa6ca67af4ec07bb89f808693bae3e85e94073ecc5f8fb9e43cfabb766ed9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/base64.c",
+      "sha256": "415242710d7f1b2529b1855fd21aceb61dd166f2055e4e7ef025a9dd69215e42"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/base64.h",
+      "sha256": "7e4b8a9f48a1d2f2a07a208bbbce52427023a9a6730be68d563ad99a597bf564"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/basename-lgpl.c",
+      "sha256": "074674b1b6649507f07bdf9e6fe17a073c30102ffbc80588171ebccb140f3d3f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/basename-lgpl.h",
+      "sha256": "7a9e42d7748eb6e8781b7182924e86c0df38365118db33d74da80abaa4a992fd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/basename.c",
+      "sha256": "fb0e867e5adf9420f85afca0da1f123644f4f17c3a4d2627423463244181356d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/binary-io.c",
+      "sha256": "82da2d404a271c696932e93f722b0daa30e298d0667100f1ae3267c7f20210b1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/binary-io.h",
+      "sha256": "3a26c912613540d6dbc29ae6a10d4d42d75bb468d974bf8d95d85a8387f1005b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/boot-time-aux.h",
+      "sha256": "2efd50537dbdeda6450a014cbfde9ad732f0da572fded1aad6fb95b72302de22"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/btoc32.c",
+      "sha256": "454c2890b14d556240588dbe0beba683be2a6f61ab29602efd1d5f7e8c373357"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/btowc.c",
+      "sha256": "5c9da163b4b17c59b7fe0d623f22dfab936cb21b92ce5eb3cf3390086006151c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/buffer-lcm.c",
+      "sha256": "b35f86c76b7c11b3f04c947994ac1f7cf1b14fb27966509bfaef673b720d6bb4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/buffer-lcm.h",
+      "sha256": "428578f90051829a7153f5efb4052beafc842f37574fc60931bb47e9d8ab33bb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c-ctype.c",
+      "sha256": "fd0968826cb88f837312b21fe9f3a193b3c8ae71e7bc3521c809d05b890b19cd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c-ctype.h",
+      "sha256": "b7e4e4b1b9f51bea3d3c347022dcf31c3633114d93413f5bddb1c04726fe4619"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c-file-type.c",
+      "sha256": "56ad6cddf31249944d721ae904ac992cbd53c83d7f6c6351151a6e915aa85085"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c-strcase.h",
+      "sha256": "e175bf096bb83df292c61c6be833ec4c6b34597e86dbfab15ba54e85db4f8078"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c-strcasecmp.c",
+      "sha256": "e7b30bbc785e7882dab0513c5b7738ae417ee5f07ef7dcf3c69d7b3466337b92"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c-strncasecmp.c",
+      "sha256": "e5d0d1bbff7ae09f31dc1930448c98d01b494a02efb2d8d8bf6aa03156a1e33e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c-strtod.c",
+      "sha256": "11e1aebe5a30c1bdb249248c543eee23e347fe04c9ade19a0150bfc4c046eeca"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c-strtod.h",
+      "sha256": "f0966061d2db8c50c0e9edcf4c2b395b8489d5e8980b065abcae6954ec6748eb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c-strtold.c",
+      "sha256": "067779e673b487e68a250320adf9acd131a0f3b11197a26aa716e63340eecdd1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32_apply_type_test.c",
+      "sha256": "76b53c59763a40bd3b8459578ccdca1274ec72669ed8138636a26ca879ae0c9a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32_get_type_test.c",
+      "sha256": "15c9f8294b0b64c8f9ea2a9840557681a0ce4b466b40f4f7f0f1a908677b369d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32is-impl.h",
+      "sha256": "fee52d51b9f9b5170cd98601780b8e61902a4ace0f53559681086a531a069ab5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32isalnum.c",
+      "sha256": "f97c020e7ca3e912bc2a3d1e1356c6acb1e6b8d89234606eb337309e295ea801"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32isalpha.c",
+      "sha256": "6435dfb78703b36e32b4b035a1ac259e47a295c8c4bb653f9a4616e89ecb4d75"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32isblank.c",
+      "sha256": "8d2e1659ae3860b1f82983ca9dad2188640661793f8c666968c87d322a792d2b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32iscntrl.c",
+      "sha256": "ecbe866a434a008f5eadf713c7cfce4863feb7cd0037bfa18f07002d6d34b1c3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32isdigit.c",
+      "sha256": "fa17757d0fe6efacdf2e50b3d5de2f026baf57a2b0843ca4f7a64f1c9033ddf5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32isgraph.c",
+      "sha256": "4c2cede87fcb725651e6262892eb9b44f03fb529856b71472bd3c70e743c26e7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32islower.c",
+      "sha256": "72493c166e09a47a19b0afb3a33abfe15ac23ba15000613f314b11d9fea1d694"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32isprint.c",
+      "sha256": "79bb495e68579c4347f461730286013ee488ae36cd865a8bfe31532a37a87ed7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32ispunct.c",
+      "sha256": "a15f1567ed532dc949a988ec54f28fdde13526b6fa3621666a93eff7bd0f3836"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32isspace.c",
+      "sha256": "92a7a865dfe4cf60a7cc030f138835e5749236ba49f70c4f2248e14ca1a5ffca"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32isupper.c",
+      "sha256": "e551c7023ff6077fc96f082f300d71609ae3257fa964838a172e20d75e511b10"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32isxdigit.c",
+      "sha256": "3197ddd780a5fb01337ef2c21d2687739c875f5e800caee71f7351f4d6ea051f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32to-impl.h",
+      "sha256": "adcaa71e26417a0053188815935a033dabdaff269670f8545002155ac337e8b8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32tolower.c",
+      "sha256": "f076e610a60768d71526b2a442dc66cb952f41f8ea3da4e0c7bb385d5fcbbf38"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32toupper.c",
+      "sha256": "838e8c45ace378e37c5749f4f38ff6295587a0707df5e3f4618049ad875cdb70"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/c32width.c",
+      "sha256": "22795b153559bb2db94216c129170c442ced95e87d316047672b48acf3472283"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/calendar-ethiopian.h",
+      "sha256": "ac6406fe31d916c5c4aaddb4abc02c9a71d320e8a783f8455227e8bedb447e6c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/calendar-persian.h",
+      "sha256": "fbd8d691492979ff41b775311ca37871c03cfb1c98bf394424cfd2302497f630"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/calendar-thai.h",
+      "sha256": "53dde573da830a2e622d67d1046a8cd3e8ef61e55b935d68d617ac07fefd9dc2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/calendars.h",
+      "sha256": "cd5bf201d9a92c192742fa59579ae21b28e863f554f020fbddcebab6251f71f1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/canon-host.c",
+      "sha256": "614f70c0d922fd11ff9af4d254ad192e95c4c7268c4be3ca2ee49e12ac1684ff"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/canon-host.h",
+      "sha256": "8702c696c39a4a262581d18b83eaf7f2d4617e1e3eb1ceb4a77a0fbdb0275387"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/canonicalize.c",
+      "sha256": "c86a29656e6d6a41ab8f8e675437bc871d8c38c1861d90128fc3204dd063cf2d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/canonicalize.h",
+      "sha256": "a828f59bb20320eeb572587ce6bb587cbe4c5620253a81238b99e41403d0f680"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/careadlinkat.c",
+      "sha256": "394cdbe3181b93ceac1aa6a56cb7f930ab3f0cf1d8223c7f6e87eadc04c59b1d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/careadlinkat.h",
+      "sha256": "d7bda1efd15d269d7ac956017ddb547879099ecf359a795ddec11ee492e26217"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/chdir-long.c",
+      "sha256": "7738a4935a7ce664cc99fe7c4c3d20c191431fed251b270163e08260887e2585"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/chdir-long.h",
+      "sha256": "782e63be073c52a77e3ae8cb39a1334f56f59897c1395b6130fd72e2dccb5db7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/chmodat.c",
+      "sha256": "1e40e2d5f5fe11144bbc1ded5db4a4ee23f6d5b4c7d6eb621627e3e886515012"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/chownat.c",
+      "sha256": "8a7bb28bc43c687490dea2905d7794a6f4450af189b56fccfe710aa180682690"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/cl-strtod.c",
+      "sha256": "f15b00e61960d30da7362bb4b1ea3579f30f3f6e6f5f94db84757d8c87f8514e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/cl-strtod.h",
+      "sha256": "3e9125f207765bc1ea867f9bf7f220f9cddf122dc86dd1ab1e9f3e32811d27fd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/cl-strtold.c",
+      "sha256": "ee41aa028b21b4fbb2dd43e2573d089333d76b978374c0cc12c3284edbe3558f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/cloexec.c",
+      "sha256": "03f33b25bc69560839084fe44d83f4c5cef3bd9b5e04f0617eba575e5cfd88d3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/cloexec.h",
+      "sha256": "ab2c9932160a788d5ce4c1086adae0bf9bb0d92c94dfb52e1f39949d42483263"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/close-stream.c",
+      "sha256": "254e9d2a26aae1816b6d355ff5f17c4cdae69dffdfc14fd7a91baf4ac370549c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/close-stream.h",
+      "sha256": "f5d3a9d2297adefbe509cad8760aa4855e8d10c9b48eb0b86a8736e5efb92340"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/closein.c",
+      "sha256": "cc7fd859dbef7d085fc4964fd39662cdffb08b277261c20d9fdd0ca3a0d664a3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/closein.h",
+      "sha256": "b6dcb80ee1765186c5497fb33c626f364462199a519a8442306ce36afdad7d42"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/closeout.c",
+      "sha256": "1d034ee9f8e07e295090f04ec3e41d0e37a7c9aac71b11cf6e172eb9d6ea65fc"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/closeout.h",
+      "sha256": "edf1e85de19fdc1edc6725d6c08f5085e8afc1f3298f89cf33787df0bd2c00d5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/concat-filename.c",
+      "sha256": "15dac195091d4177a4e3c889ce3f9dbf19c6d85e755386235ce8e8f03616b2f9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/concat-filename.h",
+      "sha256": "dd8953a263a7eae2c9b3bf774d8f9aeba0ff88939dc89ee42330529ae3527791"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/copy-acl.c",
+      "sha256": "fd4ba5bd8d10962a5d5924d63d2383aeb954813ea23c7cb8029d1b23d0b0e58f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/copy-file-range.c",
+      "sha256": "1d5aaa0d9fdebd4aa7714c4f93ebb085d8b93a5e1030647cdb7911a6496407e2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/cpu-supports.c",
+      "sha256": "c06c777df2524be626aa40aeb06e63fcfe3b2e2774bbe484c4ebbfffddf32ef5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/cpu-supports.h",
+      "sha256": "e9fe40e1cd0f538d8d4e1673eaaa3b7706ec2ca68755de65b98c62da63b6e8ee"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/crc-sliceby8.h",
+      "sha256": "e293a4f1a0d3ee5a5ac00352b8238a2308408801fb4a84d4725a853620ea2642"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/crc-x86_64-pclmul.c",
+      "sha256": "caf0bb8dc273cf77a8b9c6745271315e7bc49270bf1f3e911ee3d2936e725a06"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/crc-x86_64.h",
+      "sha256": "b14eb015798e3c35dba2565cd0557bf1fb0a3a9758583537bc1013b6612d86d0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/crc.c",
+      "sha256": "766cd24a7e18ec093d3c70d69b1ef6941b33da7c351ce1db28cf6a98d480ab02"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/crc.h",
+      "sha256": "8f944091908b2d997fef74ffa9ec31e81d3432dd78c77733a4f89c396f54d134"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/creat-safer.c",
+      "sha256": "e143923b5da3394e03b0bea1fb6f805a09a29bf3096d7951cb0c7baef88193e3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/cycle-check.c",
+      "sha256": "1fb86156f882ce8052e9fd4574641dfd0f1ec9a9e7d6932cc95134c765977365"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/cycle-check.h",
+      "sha256": "28502d1a3bacdde1c582804dfbcba7d41b1d1650ae7322e02b45e14e134f4caa"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dev-ino.h",
+      "sha256": "e7dd64faa572eaf8eeda26dc6042701b5c66c6b902d08a12aa746e5ddb030897"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/di-set.c",
+      "sha256": "65a0cfe93c6b32a8a57a2912190d4a984c37b6efef591333374f0ee88ceb1604"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/di-set.h",
+      "sha256": "95947488869ef354300060d7549c28817570e90694a3cf4e0477a80eb72e509a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dirchownmod.c",
+      "sha256": "9c5a116109d2df8992c1c3087e6a05afc9713bf297ad27d76e75cf6e20a2e032"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dirchownmod.h",
+      "sha256": "77d55b64686c21f12b535ebfd70d42bc61d4bbbb90e481ef913d524cbf725b60"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dirname-lgpl.c",
+      "sha256": "f20b6ac3d163f94eefc71436e5e5b8919256cc8fb7f1a30e06678c47a4d98c71"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dirname.c",
+      "sha256": "9920a35eea840f66802bc461393de643f09ea5591e16f77bfaf120956a1da24c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dirname.h",
+      "sha256": "bd7acd6f24b56fbb1e54a57e7ccf3a2dcbedc962407c95a91c72cf56e217b0b7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dtimespec-bound.c",
+      "sha256": "ab5b509e51520a23852130ced6ea180db0ccd24a1a2bd32f82868719651e1f47"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dtimespec-bound.h",
+      "sha256": "58f815e56fcf885e28cd6c7dc101f14add03db921bdf0e1b2e72758cc54f6fa5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dtoastr.c",
+      "sha256": "45560087efb31a8fd3aa42c0c902a3db5ba9dca14498a9675850ab1d99db6bec"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dtotimespec.c",
+      "sha256": "4012510190bbe90f03567e135a56e00c24ee3495ea9ff62400456e9e736e41b6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dup-safer-flag.c",
+      "sha256": "b6f1d6802e366c59d29fe1ac4060d0a2ce8e33d9190cdde78ab52eb341d20ea8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dup-safer.c",
+      "sha256": "bcc16bd8a3bb48f071d20e6d889b0a31077dc35d62031a10c28fba85908499bf"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/dynarray.h",
+      "sha256": "9e6542a6dbd00d3b1b54042bfd39872a028089efe30a7ec0f82c1e2a192429e1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/endian.c",
+      "sha256": "f58b256ed3d0afddcb96cae6dce6c752e5c17eb66ee59f2f64621750a06ef88e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/errno-iter.c",
+      "sha256": "b713978cbea08fc436b27d850d41e9c273f80008041e94ac6c156c7a24215ba7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/errno-iter.h",
+      "sha256": "3426b7339b8f6dfe52318258ecba65fd621bda1e8eb599e76ea24e253653c0f1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/error.c",
+      "sha256": "bcd8ca339fa484ef94eda5223f984f49a981d4a3ed8c1598bb1803566be7d6b5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/exclude.c",
+      "sha256": "90340ac600dcc47716604eee4a64e30e44d7d5785aade481dd24f01f2f55cb08"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/exclude.h",
+      "sha256": "68ad95ec56a5d2e6046677c460eb3255d5ddba066b2dd54bf6b963598a199a73"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/exitfail.c",
+      "sha256": "57a548cafc69700275b3276a658b59c1eb7257dee5653565675d3c09afcdbd94"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/exitfail.h",
+      "sha256": "aa3fac6ba09ad2a106347b3251fbb1096135e841541c57dd64d77883c1438341"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fadvise.c",
+      "sha256": "8168fb24428095b2664b912cca2a07ca2f6ec4ffa2b6383d7b8fc4362f9fc88f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fadvise.h",
+      "sha256": "2614b3723aa9323a176378b374f70f498f4429c0a5f8553697b544624f895e44"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fclose.c",
+      "sha256": "8598db2857fe8ebff2bb3ed940c13e03cd8f54ec6496a1dafebf8b6a0f2f6174"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fcntl--.h",
+      "sha256": "87488ed7e7b5f00c5837546dcfd5a16c83e1f2c958bc0056808fdcec34da4639"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fcntl-safer.h",
+      "sha256": "535e4a4f2f6bb109a2a514a0e6e503f14e9db58e2cb45e021b1c107812d3e9cf"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fcntl.c",
+      "sha256": "1b1326145b6ab35cb7d95c74afb89607bc3f952f3498f4d7c396bb9e9340a6b0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fd-hook.c",
+      "sha256": "9bed11e4f95b951dc1be259df946867b7f48f0b85b82203fe238944642a482b4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fd-hook.h",
+      "sha256": "74ef2f46eb6e01e1cecaa4225ac228ebec8060bd05ec412ad46ac7f608af4e43"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fd-reopen.c",
+      "sha256": "89df6744f1b5650d500c94ee0ffaa4f49fce6801ac6a9d11998bc8324d6b4a4b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fd-reopen.h",
+      "sha256": "a0117e15dfc1d360be520639441039057ac424158da41fec5dc4069bc1cdbd25"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fd-safer-flag.c",
+      "sha256": "24ca884dfd21fbe1b21e5369d5fb436047e7c7e8e78a3fa7fad6aa4a076ce604"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fd-safer.c",
+      "sha256": "48c7d6d090becf581eb6ff5046e44bc197093390594e86b6282a6e1af7ecf1fb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fdutimensat.c",
+      "sha256": "855c6053f2c8ef8713b7051dcc145a40c6560f813e289cc2bd80d255e86c0a3b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fflush.c",
+      "sha256": "2dd2b7fa525c186f40700366d81c98832c996e3d11127a5df884eeb604b72d28"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/file-has-acl.c",
+      "sha256": "10e445b779125ab59d6020cadf45e4689d5c0b42674c272676463ae08d88ebb7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/file-set.c",
+      "sha256": "e663f24deb9dfa208e0431c84c65433da364a37581e77dc64a2edeffa6379998"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/file-set.h",
+      "sha256": "705086c20b9d3e3f6e0e3830bd83a62c637de1394507334f8a34a98d8ee50d6b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/file-type.c",
+      "sha256": "1751eb7b8d9c744d185aa49b51a6445882fb857a02fcd9cf50e69805ca7ce36f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/file-type.h",
+      "sha256": "c0af30ae4b6de5b6e41f1beeff463f48e9afa14c37b407b902a8024e34bdbc01"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filemode.c",
+      "sha256": "2322d33fdac38b443c9affea170004b99f0f5bc7c9aee553d336351a41a92256"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filemode.h",
+      "sha256": "f78f433760d0a1df2829efac3c5e06b492536d61be27b9003c65da686cac759c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filename.h",
+      "sha256": "acf82899507b46f7feb052420791d6a0ebb9dc0a6c7905a7dade7442944739ae"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filenamecat-lgpl.c",
+      "sha256": "2a2e6b4bb3f100bb8ee7115fe7c3a4635b1d3d5f263ec2c438c9a862fb620f01"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filenamecat.c",
+      "sha256": "1c29e32c5168db7fe356f843be23aeb415f0f16fdbef185ef6bfaa26bf42ba4b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filenamecat.h",
+      "sha256": "1e4cb6fc4d1d9d40cec92f974297b929dc314d20e2ff2538462c8b1797121c8b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filesystem-remote.c",
+      "sha256": "5ef6a876be5555d0b8e65af069a114d7c10e7e97f1ec5727c388a4384ad9589c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filesystem-remote.h",
+      "sha256": "718687903b571e8df2d82ffc0b841a18e3358816ce642f37cd753f2900432e02"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filevercmp.c",
+      "sha256": "c1230a5a9eb8ba2aff4862c046c385f732f07cb5596af7ec58fb71c8bcfc8024"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/filevercmp.h",
+      "sha256": "0e9cf02271bbef5d45556fc5f211f9332fa44f23eb77441884dcc32dbca23478"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/findprog-in.c",
+      "sha256": "bb2f6562bda29b125aa5bfb1602186d416b1156db864ff76edff763cd7a15da3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/findprog.h",
+      "sha256": "41569538bb192c03b245be6ac95b197e1f4a60667e6d8dccdfe79a1afbaf7758"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/flexmember.h",
+      "sha256": "7f0e9d337760c2eac125b37fd1971be4fdf222776aadcf6fdec65e920131cc3e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fopen-safer.c",
+      "sha256": "760900c53456d8fe10cd199cfe727eb8b685cf6bef1d63397d8dcd86e0895e78"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fopen.c",
+      "sha256": "4e3babcaddb1e0929982bb0859de2c86bd5a95c053d1842749e39b1f5a5e52a5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fpending.h",
+      "sha256": "fe7dd81cb92406aba6000b7e3464b617b5e5fc5669adb9bd41ebe981ffcf494b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fprintftime.c",
+      "sha256": "98cae024ff0eee647edad2ff2813c91fd20697cc5c7be0e8eabc2768cd27799f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fprintftime.h",
+      "sha256": "53892436aa16e06496959bd83da721bc1fe9462cc4a9dd3ffdecd8130fa606cb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fpucw.h",
+      "sha256": "52c19cd3d08d199fee429607eddf40bf04cfafe3d3e41135f5da62cc18fb2c71"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fpurge.c",
+      "sha256": "0ad9c0c9632470f370b34b453bdff307c1fa22cbc45fa763d082c3cf23eed701"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/freadahead.c",
+      "sha256": "6a161543c83d6f9c55db65e37382339a50310b28a3e47029847178a707ba331b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/freadahead.h",
+      "sha256": "0337d967225b244951c321de24b0d003392c0825f14a7bb1dd901759c65932bf"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/freading.c",
+      "sha256": "b554474cd853e08b27966cc6ecdffd215c8b9fbcf2b1b503e1319269b293c474"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/freading.h",
+      "sha256": "2c5cd62da769f2bd188b45b66c7e082aa04c46dc2bfd47e6685ceed2ff1604f7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/freopen-safer.c",
+      "sha256": "91d0df1f66c3bd0ef9b2dc5494319ad5bf76e09855a63ae7ccb116cfc9bd6e86"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fseek.c",
+      "sha256": "3ef5b6fc63e8f8cf753e91207cb34e32741799414c8e212a2c45d79718b78c57"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fseeko.c",
+      "sha256": "f1af57a65baf9d9119adb5ab18fe861443124dbe1ba81221878ce539c1b2a962"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fseterr.c",
+      "sha256": "f5bfcf73a1aa263710baa1b3ed87608b61456da887169360c74ca5a9b09b7efe"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fseterr.h",
+      "sha256": "5c5de5429fab345389b75844d11643ba17349ad8aca66908b3960784fcd03f75"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fstatat.c",
+      "sha256": "222d98a3c94ae4a660857983b426d19587b7ed7b3aae019d55e9f0cf489d02e4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fsusage.c",
+      "sha256": "ed285b458c9d631dff07f4f57529624c9b871ca70f5ec6c12b9f4758d1ba1f27"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fsusage.h",
+      "sha256": "c28a1f25240a4f81cb2b1629ffd2a50ae4d83184026dc4fc844c6a0c32192643"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/ftoastr.c",
+      "sha256": "a6fe26b010320694847a1c5ff336cc155154167cbc48ccfa3fd0e51da8e48a1a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/ftoastr.h",
+      "sha256": "570092830917c7845c34dfa82ea447e640891bfb736ddf1b3d3e9fa1a43233d4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fts-cycle.c",
+      "sha256": "25b37322f221d2f17024889d67686e04ea79762c9f4c481bf1f8a8524825865c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/fts.c",
+      "sha256": "7779423299349ca55660bd1c477f34b2ce70381fbc173fba59eecf0a71ac19ac"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/full-read.c",
+      "sha256": "d30537da9ef71a54422726ef54e70b2a137ddd5ebb6b4756629028b9ac80534e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/full-read.h",
+      "sha256": "bcd99a2e9d519bcba8b48056c3e5bc1102c1ce2ebfc7d7de4927ac05632d1ebb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/full-write.c",
+      "sha256": "6ac3a83e8322f2a46083f5511712064db676cce7593109326509063dbad32779"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/full-write.h",
+      "sha256": "8638df86f7bbf2a8a91e1f168a8ae69ab701a92c3dfb2fba40ad05b92b146589"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/get-permissions.c",
+      "sha256": "3913ee46e1497eefabdd21879c9d6d26ac0b65c63ee585b46947896e7c2e3084"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/gethrxtime.c",
+      "sha256": "97e6d9a2e54beb32c09826556c059280c2be5d0e69e4529b6eaeaef0c29bd9cd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/gethrxtime.h",
+      "sha256": "fc655347fd002eddfda928e627b2651a55e08665e54926856c2f1663c7d86199"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/getlocalename_l-unsafe.c",
+      "sha256": "d4f2c862b65240bd62900f5eef3af6ebed8cd0b8029865d2add1697d2852753b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/getlocalename_l-unsafe.h",
+      "sha256": "44c33d79befea8e3f9428edf52d7398597989c2b50f255c9d2239d053c21cc9e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/getprogname.c",
+      "sha256": "c109e5104143afc776f08335766cba246a4625472311f4176b0ca5f971c5c907"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/gettext.h",
+      "sha256": "d7b8ab54a7599819dc3200f3671ccc68ee6765ae885acdd4a82b9b997e4bda6f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/gettime-res.c",
+      "sha256": "341664ff2d76b7ca863541b97c4640034d4987a29ef3d220279b7b46ec28f3d9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/gettime.c",
+      "sha256": "bcd6d82b3989d17d6a438ad80f79a57516dd9a4d193fa017105d69a68cfb599a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/getugroups.c",
+      "sha256": "15e675c37292354388ca7a42f91eb611187e33ce0c3d7e5564e79b3fbd681470"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/getugroups.h",
+      "sha256": "9d5183ba09a991f18fc0c56681d304a42bd3afa600c6a95b48092867ef3ce0fb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/glthread/lock.c",
+      "sha256": "5a59ea9f6c81dadc874b05596d11e994f07e7c878d4d5d45e46d90d2e3368237"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/glthread/lock.h",
+      "sha256": "3ae5403322f71141a72dc84d0630f8a7f23e85948fb3347f8839c9dcacb6a57b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/glthread/once.c",
+      "sha256": "011e0954907815a4d12a61bf1b48bd5a7a2dd817bb19e5d4e015815dbf4b5b85"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/glthread/once.h",
+      "sha256": "18b560f5fc30f7129dc6abc817f8dcfbef8976c22e769ce17a3f7dfe551af22a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/glthread/threadlib.c",
+      "sha256": "261b487f0e7a24507b744963e444b6ac630e588341b67a76f97364afb95fa231"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/glthread/tls.c",
+      "sha256": "9356e1a99f6ea3706d872114e7a24030bf816b6c4b27d6f4103f9e10f7402f74"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/glthread/tls.h",
+      "sha256": "43c5d1f8d5deb1863aa0de072d6cce310531d5f7d43ccc1126e1ca254ec2e7a5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hard-locale.c",
+      "sha256": "14d0533a8f967cc1ff1ca161d4e86cc6ac71e8d13388d7e5797326859ab18a39"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hard-locale.h",
+      "sha256": "2a9b2754571500f0a60eb61b590028945370501ee1fe961873acd13741a67938"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hash.c",
+      "sha256": "3bb802d2ff1e78329d8f45fcee61dc1a68fe90549bfcd54ad01472eaa96b9ccb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hash.h",
+      "sha256": "7e3943174245090d3950903491c33d79edb20d7be06c6576f57e8ff1eaede933"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hashcode-file-inode.c",
+      "sha256": "4a3603857d93159d36ed42cf761df6d332eecf2726d5d9350dc9730357754e28"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hashcode-file.h",
+      "sha256": "198cee45a6f6bd15b3e0fd15772bba28675ac668a636d470e21e04edb1f35cb2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hashcode-mem.c",
+      "sha256": "81dc2304aaa6eb5166c83e8eb71bd54d63c1e3c42addd1a99c6e14162978b146"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hashcode-mem.h",
+      "sha256": "30bf3e93c0f1f483375e0a398f20df0774fb261aff55dbf9fc027e5df21d77fd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hashcode-named-file.c",
+      "sha256": "57ede2bedbd7f77830e107796f8708857cf8cd1815019e2aa0b93a59c89e0d66"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hashcode-string1.c",
+      "sha256": "ef3d2d1a730dda12e9f47900d89d405d0ab00c0878808042c04ab626d3dfafc1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hashcode-string1.h",
+      "sha256": "198db1be46aa272ee95e0a3a6b0bfa000d32eff30ac8288568668ee273966948"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hashcode-string2.c",
+      "sha256": "4f47d6f0aeefd4f9dc6abb1597e92d1ac7a75b263ad7899be5e10b7961bbb0f8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/hashcode-string2.h",
+      "sha256": "91dab8435a3f3707b9dcec2dde1acd1d76123d97be885c8468fba595e74fc180"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/heap.c",
+      "sha256": "2d56936a643cb89ff884b24188c21b5298c7b22e74b277a5944ab1cba50d3aae"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/heap.h",
+      "sha256": "775acd5bdd41330dd8402a3f0aee385c4330f0189173335780f8698752b2eae4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/human.c",
+      "sha256": "96bf16e80fd38ef159bec68d56a4ff9a7347905637ed219afd4aaaa94fee2eb4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/human.h",
+      "sha256": "fbd985eec7822250ed67eea368029e7171602a0e28ceb80aeb7baee345638610"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/i-ring.c",
+      "sha256": "a37a3e0e82ad39af2514728538fd20fd04e963c83b53871243ef092e257e7b88"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/i-ring.h",
+      "sha256": "7ff26bda367c244131dac2c573ff31ccf1a1b8463401b4d98f91d3eaa95fec40"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/ialloc.c",
+      "sha256": "9c87a4d1db80b879a785dbf6c351d0e2ff20ec5604dbf6a7a1d0fb625d7e07f3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/ialloc.h",
+      "sha256": "21f9b7c34af6f6f16c828afae689c17c5f7d21636da1e8404800eb6583018c8e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/idcache.c",
+      "sha256": "5bf53a1243c97a6fd9b439572757565a7cbe2ebb51d3018d283c421c5bfee023"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/idcache.h",
+      "sha256": "48f53f450619741b90b941e5ce453bf6babc39e9c3370cdd4d8b3780c6c9e958"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/idx.h",
+      "sha256": "54e9885422dcf95621253fb756081ccda186385e5f4fce97077034be981203d8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/ignore-value.h",
+      "sha256": "c865236c322a25c95abd2ab143326c00525ec964a02fa3e2f05375478434817f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/imaxtostr.c",
+      "sha256": "ff77b18f86b43a9ced71e05770c55e9d7b58737b1523ff9e9a292637b4730ec8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/ino-map.c",
+      "sha256": "30811e6bdd28e4a140e46a4c1a611e37b46d36dc86b497252e79edc6049a0f4b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/ino-map.h",
+      "sha256": "10038e2e465b3e3c28cbf22137bce500fd8109827736e31aad853683e9fbd81b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/intprops-internal.h",
+      "sha256": "5d4cba9f0a3a7996cac4c409b557787c0b34dc30b1a6e74f921f8402f094d1c4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/intprops.h",
+      "sha256": "2722c9eb6a43187d6c4d5b3075accf79112b7c214bc0ebcb27a5ba313aed1ef6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/inttostr.c",
+      "sha256": "470303eabcd674814f7f094cc3c96be89e33566de38cfe75b6e880e1fab4d325"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/inttostr.h",
+      "sha256": "05b6e9fdd11971f6e7f714833f7f9d83aa93895e344f32c2fbe167e913b75f30"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/isapipe.c",
+      "sha256": "76ddc9255148eed9e95cb4768c3801daff6ec5d88e64ff22d9346268011d1333"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/isapipe.h",
+      "sha256": "e7ec1912e8efac4b614fec5c09f39b425877172d9168dc3573646e7c0ddfcfe6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/issymlink.c",
+      "sha256": "3f9d4f33de3341117f3b572578bd6e1cc4273d6b580a6a3f30b372e65c36ab9f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/issymlink.h",
+      "sha256": "c7f13b61f27921a95bc2c53c7cd86212fecd430a96298a735521b32e90f31e03"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/issymlinkat.c",
+      "sha256": "2c26fbe7e3d4659c260c6134f0d5517908880115558774bcf0bd4f33fa387266"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/issymlinkat.h",
+      "sha256": "e1fa92259591221925ca6d8e2dc867c788061362136758c171d5e9a59ad2295d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/ldtoastr.c",
+      "sha256": "63d1cb6c38c001f34a8bdc11a4dcef57e547da4c06dd8204657d0327fef79a22"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/libc-config.h",
+      "sha256": "afded288e17a752f7d2723f042d9def7487d980d40ab1afed3b7b1cb7c92eed7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/linebuffer.c",
+      "sha256": "70dd3b3c035ae9446b4ce867b6e9759eb933da7ea9532d7d1b5a42f11f3c9532"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/linebuffer.h",
+      "sha256": "a10b938d86ca449ba94c0304c5b2ee2f2fd421589a6b6445c4f0d7dd281345ce"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/localcharset.c",
+      "sha256": "21a7983ac9cb358733c99fe3dac1f4649f8d91a03a7f6d6b2de28b6198bc65ba"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/localcharset.h",
+      "sha256": "7de77bbfd975f22ade5535e883672c74a78b279239cf0e661ac049272bfb30c4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/localeinfo.c",
+      "sha256": "12144d49b6cf7202221acdaf4fb87ca51609c5e9be64bf979e1216ca2b22899d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/localeinfo.h",
+      "sha256": "858803739911219022a1ae22a09a48dba123d46e33bc0383b50125b9c0295dbb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/localename-environ.c",
+      "sha256": "1be081408323e7a9977b9b1b85a4b26d5c202cae57416ee35df71dd0d68c10d8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/localename-table.c",
+      "sha256": "d56676897d288f510042f3ebb37f1292c530028c2381b88c30a879639c6f5c59"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/localename-unsafe.c",
+      "sha256": "c72dc12d0f8e0f61014b37b82b407d9cc36b5f2d6a07ec26acc28b4e0b1b32a9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/localename.h",
+      "sha256": "1dd0e84120b1b6d625ae4606bfeb3b0843dd7edb89c7c765d35a64b8e6c28fed"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/long-options.c",
+      "sha256": "7f8ce0d478843e5f8461f34409eebf4a8b6a12c9cdf9fa45dd207aff3256bc8c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/long-options.h",
+      "sha256": "bc272bcac1200084e6960dab86d76cb265d4f91226166a1c5ede016853b8790c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/dynarray-skeleton.c",
+      "sha256": "b8257351f3a4eb46d9c69af125eba1cb6917f0fb31ad83648cc1332d6fcf6b4d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/dynarray.h",
+      "sha256": "395c055e9c682debdc643651d342ef371de4b5461aa0e6ec599962466b247587"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/dynarray_at_failure.c",
+      "sha256": "a6fc69bafbf953a961268f3eb90ea7d9ebd927c80ab7aeef51f70b4a597f8390"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/dynarray_emplace_enlarge.c",
+      "sha256": "4db8d9968fd713e44c7c03e5505b6004d033d503fa3e1ae44cba8150ae0e6d54"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/dynarray_finalize.c",
+      "sha256": "eb724badd2ad871d0af0d38814fdfd8ecb5b055a3a32d0eb4fbebd6a3f5a5318"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/dynarray_resize.c",
+      "sha256": "19ba0bd01fa01dae997e7eb6c82bbb29a6d40e8c5948dce0846292859eaccf84"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/dynarray_resize_clear.c",
+      "sha256": "60620888d1e3917ad45442b35b3d81876e4656158e899aff86171d236fc77182"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/scratch_buffer_grow.c",
+      "sha256": "ce28b5d028e8a96c7191062955d1a98af7ad4a65781bdd7232d6dfd70a7e5686"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/scratch_buffer_grow_preserve.c",
+      "sha256": "da90916a1050b6a7f3282c1f15d2a81d6b29c34f9911325d4f9007ef055f7ced"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloc/scratch_buffer_set_array_size.c",
+      "sha256": "59bd86920814acb9f4d256c9fd71a3e637464da659f6503de9b8a788fdad2b32"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloca.c",
+      "sha256": "c101dc247bb8e2ab40d000ba3fe4cba0b4c56275187f702c75501e75eaf8df04"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/malloca.h",
+      "sha256": "6e17c7c9279ac849fa0d0fa6ee54d5ccbb645bf3d01384f859c168868369cb7f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/math.c",
+      "sha256": "4e1a44df85a4c33ce8d228a7107e2ac08ac626de64dc15ba2316011f6fff3539"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbbuf.c",
+      "sha256": "4c9ca4a41316328cd5302cc98dbccaed2de7d442416517d735d17f7561cb2da1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbbuf.h",
+      "sha256": "712df4b7fa7f7d9a393b5d02c7fd9513e1904e36249f2e8777f5d3eaa7cb72e3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbrlen.c",
+      "sha256": "084a1544708d97fe5a71ed680adbba2df2b968dca79d1c7e29a012b0336a5894"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbrtoc32.c",
+      "sha256": "0809af6b900eaa0c1e4aa0cf4fb04fb7433508f3b3f5ae4477e66fddd8824ef2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbrtowc-impl-utf8.h",
+      "sha256": "bcf698251b9e2b1de9f686fedeba677c24f0934f4ed0dabef284837bc478bca7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbrtowc.c",
+      "sha256": "e0ca014d6f702395b5649c4e038c76f18d87d008caa6eee4da00c6d410338d34"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbs_endswith.c",
+      "sha256": "c596f872042ac5ded68de622a2ccd1544a2e297faaa3ea3a17f03ca025778041"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbscasecmp.c",
+      "sha256": "8c671a68d0050f98921b317a78dc055da2624c0bbabe48856d3495bb70136e13"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbschr.c",
+      "sha256": "ac437c088179b79c39a2b7217b592630122c18506c6116c552773f85181ca3b7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbslen.c",
+      "sha256": "be739bc0187ccd794d7445413826b82ebd1056a2d5fb92fb94010e55c2f42280"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbsnlen.c",
+      "sha256": "15c0ebabacd8c4e01efa1f7d0620f89d0fb7de2e5c454fe4b3674c2b448fe63c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbsrtoc32s-state.c",
+      "sha256": "031784f2914251ccdd8cc8c4655a18ec22f893978c637122eebb32178568f547"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbsrtoc32s.c",
+      "sha256": "cb84668c1b5f6bea915ab0f0be126a3874b460152d2ef0d2e05f1efbd749ebcf"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbsrtowcs-impl.h",
+      "sha256": "da14c05fd305fb67d74cc72672df3e1e2595729c6010dc8e8998bdf818d13da7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbsrtowcs-state.c",
+      "sha256": "f5939ca20605128da51572610b6f8e3ce925d0ddd80958aff6154040d876544f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbsrtowcs.c",
+      "sha256": "f159a52955ab3fb55986b6b98827c05b91fdfc11aaecdc0e1ec281d0f12e2cf9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbsstr.c",
+      "sha256": "e1aac8ebb814e85609084c2d8838fe1199e813030270988fc771a78115542659"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbswidth.c",
+      "sha256": "c0f00004cbce81c3cd263857c3fed9036566f999e51bc5bf30a939c890b32edf"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbswidth.h",
+      "sha256": "7907f6d605384360e42c2d44a85ffe7e55b2db7c659f8d6853780b2546a1772d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mbszero.c",
+      "sha256": "46ae1069f4d754e96fefa01486968efbaf4e11740156b10a623a7e3b8af139ed"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mcel.c",
+      "sha256": "8c55234bc44fd19eebdf47ff96f9f34eef788d03b41348c4467f5a485592d229"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mcel.h",
+      "sha256": "078281945665596bbc3d320b72b12db089abd908c58b7269a9d7d51a4184e185"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/md5-stream.c",
+      "sha256": "f66e821d51f625c22ad261d2b6bf67c27149d1cf020528fe8a7956e6453daba2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/md5.c",
+      "sha256": "8195f3917163169b178a68469622402f133de89a007bc12d0dca06ce7f2dcada"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/md5.h",
+      "sha256": "48df896f25e13d21962bf19aa4642a3071e240810a56d6d24a40e6b316ae98b0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memcasecmp.c",
+      "sha256": "623bc27a74dc161f194f00634ea3bb37cb746e2a7314bae615b8661375ed8396"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memcasecmp.h",
+      "sha256": "a730019ed8bd48a16fd707e8c58c3f83666bd430228a42c45e1cbf9469829ee1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memchr2.c",
+      "sha256": "e25ce4f1c111ad0399a423eae675f6962e760eaeb78b2433a1f8989a654952e1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memchr2.h",
+      "sha256": "b9a93b3617c6d21532b6a82717d8da53fd5d951e5c5460a94f667782bad23195"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memcmp2.c",
+      "sha256": "37a0956bb6567d5b833cd0f4bbee73d102c1fd65a2721ba21fe2fbc03d81bdf4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memcmp2.h",
+      "sha256": "a924ab100c0f7dc8da2362c4c55b248f1ae57226b1d9f611c2d1409b536b24e6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memcoll.c",
+      "sha256": "064b1e5bf9a0146890ba948079ec5f1f53d3bf2bf76a92782dd556a8128ad505"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memcoll.h",
+      "sha256": "0d3fffdfb48375c621061079b43bb01829dbe495a2d996c9e7305e4ca033c0af"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memeq.c",
+      "sha256": "3a702950fcf73b0d515005b52f29eff0775a5a4f75067b4774a487e99b1b21f3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/memset_explicit.c",
+      "sha256": "0623424711502d3ab6ffb4a1211a0eb0fd6ee74786c228d90147c0458b5efc92"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mgetgroups.c",
+      "sha256": "9400d284ed31735a9da1014ba83f5150c612c3910d3d5bb1e6a43d25b28c124f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mgetgroups.h",
+      "sha256": "d8d18ec7a006491f462884df688bd9c1c2d363c0d2c806f1ea72145080f525e6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mini-gmp-gnulib.c",
+      "sha256": "8c8c15b5eb415f8691872c694c3d3f0155fe6c8aa2fbf3963c794ffbe85b4a48"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mini-gmp.c",
+      "sha256": "f5b9a1b69ecce00090b809dbfe9c5e0e40a8ee27f826a2422aff4bae53d91404"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mini-gmp.h",
+      "sha256": "30a20f6cbd7ba0a0a00aaadf120ea3f158d37494beb235d8400787e9a0e82b34"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mini-mpq-gnulib.c",
+      "sha256": "37bd94046d007a0cf08ee843a5b3512b440e233e6004b841f2eede93473480d0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mini-mpq.c",
+      "sha256": "72920eeb90feb62bc8c93e73d6653b7d328381ab8955ea0a35bad4e63680744b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mini-mpq.h",
+      "sha256": "47cfadddb8e1c24c1ab03a4f3bc5931be7833802dee35fc11e978015193609e8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/minmax.h",
+      "sha256": "e933c8de68f04f9dcbce33bbd7301797de77497f20f60e07b890370f254c5dd8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mkancesdirs.c",
+      "sha256": "6b04858cbc0a8d98e360078415f95baaad6ae601f9fb4f6e2bec346f71f1a63b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mkancesdirs.h",
+      "sha256": "852cca422593c5160091934cca58e39626681a5a8276eaa16fc934e6633d3bc8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mkdir-p.c",
+      "sha256": "187ab44deac07c1bf5260da8b9bda24cc646ba4a46a06a16a6f1430e63a7f786"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mkdir-p.h",
+      "sha256": "1e88cbae0c16d7f7c4345a950aad1ae812bb61aa590728074b2063a965b4721e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mknod.c",
+      "sha256": "7528cedcba39d8b14314cb8ffdb4342395a3cd266ecbeccf740004965cc42334"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mkstemp-safer.c",
+      "sha256": "ae56819ead32895d39a1ad5258c35419258d0785b1e6e8e30a09a7fe1c188616"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mktime-internal.h",
+      "sha256": "4b5062a051caf89d45a1abe9f5da474d48b8dfcfe1f4ae10af6bf8fd4a056379"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mktime.c",
+      "sha256": "52e337e80ac461f39ef68d666008da428bdef5b48c4c4b2c03e57b885d9a306c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/modechange.c",
+      "sha256": "015bacdf9e27a3c2d393012dd0ca1530ea73161ffe12394a58ce28e0b27a04fe"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/modechange.h",
+      "sha256": "141400a8578a3706223fc82fb0c8af3de439a9cdd801c1999f2c0b7223984b33"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mountlist.c",
+      "sha256": "e8a8af3b43cfcd6e7b27b0b9512fc292086558efd520a4c3b00dec4278558c05"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mountlist.h",
+      "sha256": "c1bf6c8e259012d056aa19d1d4f44ba27c26af2646d648180b556c13f97c9df6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mpsort.c",
+      "sha256": "87aa81f1f7c6aeec834196af429c6d8ebe4599eba0d7544aa721bca027d3c9b4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/mpsort.h",
+      "sha256": "90a4da7d27556322a102eab0c685880af81381fe65827ce3536681e6deb258e3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/nanosleep.c",
+      "sha256": "3997432d5ce376a60f4b8eb103cdc2f696bf606ea1f92177e09b07542f00b652"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/next-prime.c",
+      "sha256": "86215ef0899af6835ff18ac73bb0208529ac49a0f270677e6eba1f383087037f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/next-prime.h",
+      "sha256": "df3be541b754b9b15269a6457298f333431fab0b23b6ea6a8509b6a5e86bb4de"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/nl_langinfo.c",
+      "sha256": "923015b5ec515ea62674e11919a9812fae98480d58c8c09de8fbd5b595746a87"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/nproc.c",
+      "sha256": "bb85782659919a439a09574f699b18206ef38082e9ce7231f3d2b307fa4e896d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/nproc.h",
+      "sha256": "cd191f700fd5582f773dd1a8c06a1019da331b847bd71052f3c2fca14ca392a1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/nstrftime.c",
+      "sha256": "cf35f14a3852ac26c346db47cb0f5a44647fb0604e7588bc0fdf3a5df121a092"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/obstack.c",
+      "sha256": "027eb046c2c2c4b7c2d896e43561d69eaaa240d6fd974c82eb9bc80ccca3a801"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/offtostr.c",
+      "sha256": "0636c71667a5a3cd06a4e6ddbf103fbfc753f7fd920317522de3d65efe7248fc"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/open-safer.c",
+      "sha256": "6775c7d9933dfc829d64de0b608e21516974382e8f528498a758657d247d4384"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/openat-die.c",
+      "sha256": "38344993769b43fcad146b201d16d806b8f2f66d6b156a5529e520f06828a801"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/openat-priv.h",
+      "sha256": "e1719e1f8a96a3cf77975c4a9b86a5dc57002027c9861fde49780ba902307999"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/openat-proc.c",
+      "sha256": "ba43966b7600a425f7afb5b5e85ea23f886e240d4cdf9a330fa5fdb6d8ba5448"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/openat-safer.c",
+      "sha256": "548498a7eaf38e45cd094af45121912e95b7eda5e9deed462c4a3ae40c07578c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/openat.h",
+      "sha256": "c9b311535b041bc82bc84da13870f198b48a84bdd67b8f0517a40bd9de2ec0d7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/opendirat.c",
+      "sha256": "f7d4cb79b388036b5bd4a570d81883232dc95a0b39e8474a4ad5762ece52d2b6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/opendirat.h",
+      "sha256": "8571d3bc5f1296621ecd0d88935e7311dec06b0811dc2873f8bef221b64449b5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/parse-datetime.c",
+      "sha256": "851cccde23531724942f7aa09ab4ebe8186e62f323b8a4b5e15824270145d699"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/parse-datetime.h",
+      "sha256": "449d4cc7ed290d96b25d431d8611fae6ca653deb4b82c07a615324b78558e5aa"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/pathmax.h",
+      "sha256": "7ab15d85e89551330e5e10c4072c1ea4ec2aeeaa5eee5c07dc2cdb6056ddcaf4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/physmem.c",
+      "sha256": "9554bbbb1016a8168752753466f921c73d25c3b7703ad66808da64e51f148b16"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/physmem.h",
+      "sha256": "605ed9a7fdde4b417f17080a9b366c6c330afb959cb3233aebc03b1d8c238331"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/pipe-safer.c",
+      "sha256": "b47bdd360c5efc79f9c691e1ab4f587b73dde449b8ecebf3499f40bf856c6ed5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/pipe2-safer.c",
+      "sha256": "26883339ef65f69506f6a4375fd4cda06fbe3c6d2691a08d6b8a19f41f3f8d8c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/pipe2.c",
+      "sha256": "c3d998f621da43d06c4bf80765f9b61e2c8af20dfa7a8d3496a1a06b268fbf6f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/posix_memalign.c",
+      "sha256": "3e43b41a4f6898b948f9395f2ae493d24254705bde4dbef5a929ae5e1620dd56"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/posixtm.c",
+      "sha256": "06579d58096023b6ae50179dab796536721a7f1e9459978b943a0980139e2363"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/posixtm.h",
+      "sha256": "6b74a4042c6a5e819fab74946eaec54a6a2a8ebb4fdbe8d8fa457a41f451a9ec"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/posixver.c",
+      "sha256": "cd17eaa4b9fdbea6c6e6f81bf57574384e7060a8ea0ac3e48a10615199d83250"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/posixver.h",
+      "sha256": "642ce0238e3e2426411eadfb1e1179b9412c680bc7813b3a5359dc96e5257ae6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/printf-args.c",
+      "sha256": "77a30273f45e24cf0ea101bb86c7b9d7f8bd66e80ebb1676cc903c11533c3214"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/printf-args.h",
+      "sha256": "a0d7b2e46004ca415e32297bde331ed5423d4ad5eb4d4ea5b7950b9fcd784f11"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/printf-frexp.c",
+      "sha256": "071d8167eda2e2fd642524d14308b51f625b1f64b6e1e5761acb66ea6a73a6d6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/printf-frexp.h",
+      "sha256": "e68e774d0125e0b8942c42fff3a35f8a099e280266f1ed00a5c1839ff980fde9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/printf-frexpl.c",
+      "sha256": "590f6d0e0155d3052e9da179aa7a14003255a2118b4ba4fe7a20aedce5c7cdfe"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/printf-frexpl.h",
+      "sha256": "22ef14839f4bd960d6e8f9f71ad2cd95964bf26f226b6959694a13a846c58224"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/printf-parse.c",
+      "sha256": "a745929b5fd9c891ecb622926847382d5add6aa535fca6bccb99f123b324f419"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/printf-parse.h",
+      "sha256": "ae5bb53071c0a7e2d111bdfd390176eed4a66669c057bfd3a9a3bc01558d690f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/priv-set.c",
+      "sha256": "928db5c703b9826a6654ad3ae8399b591439d61ee0b7f29a95b198a506135c36"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/priv-set.h",
+      "sha256": "de987fd922ca5bb589c7eea7fbbd760110bf4ba25dcefab39845217451212654"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/progname.c",
+      "sha256": "f74c31e9d7c5e3459791ffce85271a0c337925d57902dd8890e3237b8d5f9879"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/progname.h",
+      "sha256": "214fd809240bec96182f5b6679d5a827ea41072db020a24f83b67ca6ad6dc3b1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/propername-lite.c",
+      "sha256": "aeb46579bdbf0c9e61d6b5135e4fd67fa6e2e8aa3c6e21200ff4b699fa4cc8de"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/propername.h",
+      "sha256": "38e02102f994aff679d9c8bf417202c344ffea7bf020d5d09188655d15329941"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/qcopy-acl.c",
+      "sha256": "e805d3a5ea3f9664c810c2f8ab58be2266775f6a6e033ec3cabd81623aa7101d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/qset-acl.c",
+      "sha256": "08ab02b4a7cbaeb5f6fe00c9758500fb8c16468a93da7241442a0d31b45c7aac"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/quote.h",
+      "sha256": "e74b0f84d2ce35591a4907737e9782ffe757fe9fa4a3eb49588569b84314d3f9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/quotearg.c",
+      "sha256": "7587a14c8dc8f701ad12705e722acd099e55644f5b56676304a6db50d119df55"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/quotearg.h",
+      "sha256": "0d9d72bbd3287b320d9a6df498ac15d8113f6866a0cf5383097d530d53e213f4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/rand-isaac.c",
+      "sha256": "52cfd817dd887d25f81d7aef0b82a49b8a9c2f6e87c91af686c1ad472ba0c5c9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/rand-isaac.h",
+      "sha256": "0bc5bf0bff3ad40d7fba828d6486093303384a19e4ee3be8989736f86ef93474"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/randint.c",
+      "sha256": "be235e1781c45378c511e3902b53fc102a7bc624671b7036291e38ed84d3133f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/randint.h",
+      "sha256": "0fdf66d24b09653964da895d3ac211e80552b56a80d87790774c5f1718a696dc"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/randperm.c",
+      "sha256": "ded6c599c3b51697ffefafa5af5ddfabe35e1aa2bc852497a961ad7cf98c5b3b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/randperm.h",
+      "sha256": "a1de66474494ece228ae1dc9037da42658638b8a9bf0dc93e3dcef64a3a26d0f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/randread.c",
+      "sha256": "8d6b2f8f8f501777258db400910ed0d1a2d2af0db834c89aef5dd06822a7a66a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/randread.h",
+      "sha256": "f9037de9f879d02f8c2502dd54261a1dc04f33eb8d59f45d64ce665416fa2e2f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/read-file.c",
+      "sha256": "4cc1dae1ded9f2530b35b309d0e3ef99ac9cc9adb52dfb0eda41bb55cc4a366d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/read-file.h",
+      "sha256": "2cb99edc8effadc48c4003dd72a8f5d69dba45c2bfb510df6ba635ed1b5858f7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/readtokens.c",
+      "sha256": "a116c559d5f285febd0af0e1324a0a5471e408f3ec77516d719a240f373876dc"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/readtokens.h",
+      "sha256": "bbb7a92f1b60ed7006dd1ed9cee70faa9f7f8cfa395be8274875fccdf06b62ae"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/readtokens0.c",
+      "sha256": "9a8327cd20a64f722674324d99202282fc11718d762ba42180afbe8e3b0600a7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/readtokens0.h",
+      "sha256": "070b2f26d6adaf83a512303c304ca51c872d8dad18dbddea9065f0f6d75e736c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/readutmp.c",
+      "sha256": "fb4aaa3be0c33e89ffc5780b7a48903b2c86e557c3b0e1239959942fa72ceaa9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/readutmp.h",
+      "sha256": "ce61d98d9426671d48ad1ebad130340bcd40168dd71e402924ca86e85914a93f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/realloc.c",
+      "sha256": "c3186942f061d14cbc75700fd5d1b092c6fb4fb1948960cc753cd9eb16ee3e20"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/reallocarray.c",
+      "sha256": "712891204f95640c2bb28260714f41aec3c3c1c248d08640b1d2e7a466421840"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/regcomp.c",
+      "sha256": "5ecede1fe82c36a470a7224dcc8601f948b156211921307915bc4ab0d86ac004"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/regex.c",
+      "sha256": "5480f6df554fa3a913f02a1eb952f37858a4649f024ff26532a3c8f6082123b8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/regex.h",
+      "sha256": "becfa1296f71daa47c2bf0ab1bdf579f62cfebae43fe7429f596829dfe9c237b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/regex_internal.c",
+      "sha256": "09636f42e4d43a7dcfef0cd5e5c2607751a6c3a3b1bc8a4b1043b6d11f8d3f28"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/regex_internal.h",
+      "sha256": "79403219994590bc17f99f3c4fdfea814ad08c58b9c689d1c2aedde8add7d0de"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/regexec.c",
+      "sha256": "467a6a3a671bdae2606593bc8219dfbb60995a10a7775efb841eaac616e0f327"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/renameatu.c",
+      "sha256": "9399dde0d560d13828be710c51a57d34ad5db3779f49693ffa9a1df79b1bb9d7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/renameatu.h",
+      "sha256": "a1d5da18c362f868e4daff554df1ee4e8d6825ef09f1e33cc7496b2658e59f61"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/root-dev-ino.c",
+      "sha256": "bfbae01aa8f0f2bf9c5ae34e6c56628ac640fac39dea969036359d9b6b695e39"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/root-dev-ino.h",
+      "sha256": "c9a6c89fe3199346264ae4b3dbf966a57d6b8adb046832dd536cc296056c6a35"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/root-uid.h",
+      "sha256": "8edcf3780d1b58126c83e81e6717339218a567b13c3a9ee0dbf1adbaf6004202"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/safe-read.c",
+      "sha256": "9da7ca4eabf8d78da2f3c4548b21add77bde65b55ed15d0ff5ad124bb4b28478"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/safe-read.h",
+      "sha256": "99bc0652d1624081e50734fc9f58b880a530b61b02cf6652abaa0fe3fb1f34ba"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/safe-write.c",
+      "sha256": "e7e99de546a492a8004aa1106a54438728ecf09a295d3b2050e8b011c103ac9d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/safe-write.h",
+      "sha256": "9cb44daa1dcaa7bbce8d8f4fe1493c6249f8c00d6b3c2005a8fa92b57e8b6f77"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/same-inode.c",
+      "sha256": "d68baa8173658ff3625ed0b14489917b7572bafc14e6934be14c79f88c12ba84"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/same-inode.h",
+      "sha256": "e4c4e69da0de79ace59008af52305ab505e1382beac0fb4aaa0a2c699e04914b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/same.c",
+      "sha256": "e02237c144ff9653f866a058afbb0ed10ba52729942f833d24e6eaca1c6ca4d8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/same.h",
+      "sha256": "48151b9c1d878f02fc007105df9cb355514968a97520768ee22b2d21d73335a4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/save-cwd.c",
+      "sha256": "8d7823dfd164f56001f2dc241b7b47dea2bd3243177552cdbe578435c92435f0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/save-cwd.h",
+      "sha256": "35127449831e8b9250b526b5191140737a7a33327e97f8274c07279659d46885"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/savedir.c",
+      "sha256": "aeb2c760ae8249e44422b22b5bfaa6cd66fa9960f7c5094ec6f940c833984a48"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/savedir.h",
+      "sha256": "2f6afcc91a71eec86c69bc56bfc45fd0f135c400a8b42c0797c59d7ce66c5d23"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/savewd.c",
+      "sha256": "7c940bdfeaca93f06b79141e0a204313be5c18418b87a25f7142117f84428dd4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/savewd.h",
+      "sha256": "1863ca9216b93dc21dd618fb87aa2b2e5e8a8bb6fe13bbb90327352f9087e44b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/scratch_buffer.h",
+      "sha256": "45c10d6deb3af4b5c6e4abdbd54a97bae770d9736c8e0aa9da04140dc2520fdd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/se-context.c",
+      "sha256": "3806a11d14690ae4102b2679b9b49d982a8079e4d466b35f6c75b1df34c1cb19"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/se-label.c",
+      "sha256": "49049396152ec94974c4c98c33c2320f8d99926dce5344788326bf32c15be6c0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/se-selinux.c",
+      "sha256": "9f1139ec79f9311ffafb0d7214ebc2c3fd7239c77cfc8603bf665a2493b13ada"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/selinux-at.c",
+      "sha256": "4b1cc071eba9eb556cf342b3a85be3419a26022af04614d8c49dcae7fd661f77"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/selinux-at.h",
+      "sha256": "7f502fcbb29f11bdf014de24b3c91d02caa401c3334f8a7c6ea4f8d4eb6cbc5d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/set-acl.c",
+      "sha256": "632b85bc744088c2249f3d0cab936c5f7e8c1bba67c156a742ef63ad7aafb137"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/set-permissions.c",
+      "sha256": "79483dbf07717e0c40130457e7aa85651ecb582776f98fea79c56b56ed9925e1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/setlocale_null-unlocked.c",
+      "sha256": "4e562e44837b890a99cd09ec5fd13480dcd3098c52728fac8cdbda54e0eb4218"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/setlocale_null.c",
+      "sha256": "7d3c973bd91e7adccb6caed2d2712fc1f748e8bbcb7ed35a83ef94f8c236b577"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/setlocale_null.h",
+      "sha256": "e814d5653cdef76b9f5a1670e98887237c6de2c2d14ac68859069ec4103764e3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/settime.c",
+      "sha256": "2a3e2124664de8dff0598b52b044a3059fc3959cb8b3af669e7bb65afdba894e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha1-stream.c",
+      "sha256": "b5e475ac795b707fc5b4b217553a05cdce6404a04ff7503473928f4b9bb3c512"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha1.c",
+      "sha256": "cb083c9e81b78ac79010a394a778aab4ab968262884ab9e1b157e15a968b65a2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha1.h",
+      "sha256": "360fcbf8dcc4f3e7a3469f19d078f5c955ccdc5f5446187e4422ce150ba8c03b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha256-stream.c",
+      "sha256": "396db5ea4a0e90650389f1e8d2690e615cd36b9999252783db31f59e8dd3ed5a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha256.c",
+      "sha256": "ea3cc70a0116b7ce70efd26d4630a0240a894de0924868325e875bb540151036"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha256.h",
+      "sha256": "2e5f0e2b646fb41028f6c0e84c07a6adab9f602cf008be7be6af68fa4f84c661"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha3-stream.c",
+      "sha256": "e3562efdad63e0975888c04d3578be8409bdba069fe82480425518ccc501cd82"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha3.c",
+      "sha256": "64d7c846f61f286c99c3cde44908a4d5cb8f5f8bef5e0e20533f3dcf45a5f082"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha3.h",
+      "sha256": "850e7a17fdb3df0852766bf4b407d2291364b81ee2e52d431ed5a2a6e79296cc"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha512-stream.c",
+      "sha256": "7faf355cf54d6e5bf1d896207c0a7ce0bb8e1f14216c5a723af74416d021b1fc"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha512.c",
+      "sha256": "10ab260ed9778963359eaa85444bf11ae221588cb59f1ceefceac37434ea703a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sha512.h",
+      "sha256": "e4b433d191de20dbe6e7b07e3006a77a6f258fad233b46ee7be77071ab804c2e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sig-handler.c",
+      "sha256": "635ceada60313597311c958a22562d18592a5395d3917225d9d0030d6385f485"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sig-handler.h",
+      "sha256": "26e93874e571779f53e6df53e55ad7cd0ce30b6a9de2a87da5e53e98b4f61378"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sig2str.c",
+      "sha256": "a05ac4da3fbfe6a380dbf294a7dcb0a138d0d5f2001ec1bd64326ee08f2e47b7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sig2str.h",
+      "sha256": "27d23b336bda70c60726bbe55838c790a6083e1c9d26423f183d8ea49f04250b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/skipchars.c",
+      "sha256": "e9df82f9165d4f32e70a72c38dd6b651fcc372fd421cf2e22fbdf102ee7441f2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/skipchars.h",
+      "sha256": "a841a0f4d70ab2003ff91504cec1d22b8ee74a6c503e9dda5d00fdc8bf72e2f0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sm3-stream.c",
+      "sha256": "0053eb346b19e5be9f8f7dd740438d15620c3f9a9354500d43265130a184b3ca"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sm3.c",
+      "sha256": "dac890753dfb3d108bfca285dc950daa0140450fb40c266114ffb7fe7fda549e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sm3.h",
+      "sha256": "a9dda2d8693be2aff95c2c22924e9b8fd9126b139527595ad979613cc6b3ba53"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sockets.c",
+      "sha256": "60126fdc68f801235cfb503393828a8e3bdea0d7de2f2c5e8273cbe175a6cfe3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sockets.h",
+      "sha256": "a652f31d5ba3f1ab4b902b2fd18663b56c9ec1579204b00b43c299fefd9d74e8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stat-macros.h",
+      "sha256": "defe27adc676a769b15b579de2ece48394be2c9d272db3e1f6f4efd21ee63926"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stat-size.h",
+      "sha256": "bafc93abc4341ab317d9c3c691b6a6a31a4365f8ebc6462bcf6ee0461e5e68d4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stat-time.c",
+      "sha256": "24c6ba4ed15b1894076363be0e6a5990ecadc8bbfc42625f7e9e3250f63e341c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stat-time.h",
+      "sha256": "68240bde407a5ab347d83b80603a8da9498a769b751f5a258c852fbcace9bdb6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stdc_memreverse8u.c",
+      "sha256": "b53be19c421a957a25c5e563e0541621f4b895e79d5d83feefdc75ce7514f3fa"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stdc_rotate_left.c",
+      "sha256": "4fe919439f5b5f1b9ac84c9750a23a53370f73021cf92f46587f3eaf2e8ae3e3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stdc_rotate_right.c",
+      "sha256": "cdfc3db89b75189a6d20285b48d7e7ae549da069568c97ec07c45fde70c0b258"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stdio--.h",
+      "sha256": "605cd407ebbc8aa139095a193889646017b1c573c5a618c5b3400367b85b5288"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stdio-impl.h",
+      "sha256": "5c5506946d01d869365e1b2fc59b69fb861c36e4f21d63c7f971fbbaa032ea7e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stdio-safer.h",
+      "sha256": "ef924017319b90c83f02c77c20910a7355b7f459a22a9776ebed8ef64f4933fe"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stdlib--.h",
+      "sha256": "8e11be4862850f8f2f8040d9a5c41dd59910c33212873f2159b916561460d986"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stdlib-safer.h",
+      "sha256": "ec58f611a879f125c26e1f65b7c56612ce8234c2d72711761be760e0b0b47473"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stdlib.c",
+      "sha256": "143ac3c9032abda8dc9ee4718fbf594c57f22c3742cdffad7962a3d6451a702a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/str-kmp.h",
+      "sha256": "193aa1dfd138c3a4393422e980a0018c58259dcc8b839fe7b63abbbf0a48bb6d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/str_endswith.c",
+      "sha256": "e4dad3027abb2fbec590d03e680c33dfb8a6c861b2829d87f550e2dcc6d6793d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/streq-opt.h",
+      "sha256": "681b1e1147be9d4dd85c593d1e87307496884aaba8a234a946fa75b9d2037b18"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/streq.c",
+      "sha256": "f7da712ac284aa38098dcd655433d9c62b79005d9848853469d641ce2b7021f8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/strftime.c",
+      "sha256": "507f8b5c710c894f1e798e5e7a33ad3547ff6baf7c77d038089c7e6ab923fa37"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/strftime.h",
+      "sha256": "2dafc2f8664c08e8c8d7eaa0c40e21d20543ad0a3b02b4abf8bd98c552b6f2d5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/strintcmp.c",
+      "sha256": "47ce70e9febba69496a0566ee3f24652ce1e67b4989622f0a755fa79d7eddd62"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/stripslash.c",
+      "sha256": "59df6a5e36b51977068cf930880ecfdff693ca598fa0271b9d893776b4d870d1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/strnlen1.c",
+      "sha256": "692af1fe48b34451b46b9af01b0e4ee9f72bdd3cde9693af573a7def0dd79d90"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/strnlen1.h",
+      "sha256": "d212bd22d5348ae0b595b4376c6451a9955bc8c7bde0bd4c7b4232c2ca9da8fa"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/strnul.c",
+      "sha256": "183ee43e635fa82104fb2d43ae2bca88504af2bd5e281aac94c6589ec131bdc5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/strnumcmp-in.h",
+      "sha256": "4214dc0ee41eed811a242d8e272adbbe011d65eec1ea354450e067052b8400ca"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/strnumcmp.c",
+      "sha256": "048f8d68892cdc9c21239f773f0b3bca16537c00fc9c887adcf1702b5d981f9c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/strnumcmp.h",
+      "sha256": "171129f96f77b007a93441cc924bfb61c579c504954d373280df77d8d42cbd37"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sys-limits.h",
+      "sha256": "05fe061efea645da75d0c1ae85a70cb98e2d9d17d1cde9d5f3179928b663d3bd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/sys_socket.c",
+      "sha256": "c46d4f91001a63d827c3394fe5e5bf8e4086cd9888f9bdc2492f9ea37877a311"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/targetdir.c",
+      "sha256": "abca2dbacca4710c9c4fdb0a2c0505b5bd19c7e8c0ba543054146df73271477b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/targetdir.h",
+      "sha256": "2ed3865570d969e3520a93c62de73b1bef973ae4fda53ff8f4af773fb34983a8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/tempname.c",
+      "sha256": "834f3c12343e4467b2b437be9480705851408ec5cecea20b6dd701e3f322d310"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/tempname.h",
+      "sha256": "818405bad2a4911709bed6cc6cdb6da17714420c862f10effcaf95bb73b41a70"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/thread-optim.c",
+      "sha256": "36fedd8513df4cf641359b9e88cc9ec1fe36950fa2187e3c0b81318763206903"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/thread-optim.h",
+      "sha256": "95fc75108354d68dd26ec97402eebcaa011218354c6182fcd62a49b91eee2d72"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/time-internal.h",
+      "sha256": "07e6925c1cb94ef9e771d58cac97ad9b1cf619c3b21196fd66ce07acf8925f66"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/time.c",
+      "sha256": "28a42492db47778a88c7b34879e33975c368b1a53e0d28d5470c605d66fc7f8b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/time_rz.c",
+      "sha256": "284bd021573a8848cc1495c2784705d765a29a28be69f118f7e50b88de320868"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/timespec.c",
+      "sha256": "e61bcdc73aa46ed31938e3e2d0edcfe34061915b3c4e92a7eed9899568795aa7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/timespec.h",
+      "sha256": "b0f65136e9f8605d65e849670e86650f0c1be0e49ca1d5647d3f079270e48a2b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/tmpdir.c",
+      "sha256": "e9b4411de6daa91b0044e965cf7f07c296e4a2eb41aecefefad70718e5ee1236"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/tmpdir.h",
+      "sha256": "8f398abf85ab06e92f0db0304788767403ecfee10dab6a656834d26371295327"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/u64.c",
+      "sha256": "57be70360ada3bb5b8d51ccfa6a90a012a2d5de8829d59752e9894fadb7380df"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/u64.h",
+      "sha256": "5d2d2928c8084e955a7d8eedc0b96c41ba6dcfceb698dd8c7b8bd2c740d98d2d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/uinttostr.c",
+      "sha256": "a4641d9d4c915b8be26b805e9f5c40d65ccdd9d16ff1b8c01bb3225cf5564a7e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/umaxtostr.c",
+      "sha256": "e132fc789bde882502c1a3ef398f66cbf940c70e7614e4b7eb437e546a22e1bf"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unicase/simple-mapping.h",
+      "sha256": "ab4b1048625db5db59e3341269d8408d5d9632ccba9eb31499661e8533cfcb8a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unicase/tolower.c",
+      "sha256": "8f76c5a14cf0eb0a9d306e24b790aa51d55a8f88487104105ab545e45689fda7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unicase/tolower.h",
+      "sha256": "4482376e6ff3cfde9ef7b94326a64e9e394fae167d2ac00b311cfd4a4f5d7da1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unicase/toupper.c",
+      "sha256": "bd24ebde14fcc9b7ff6f3bc70f1e69d891e03e129d3db3da599f4cf7e704bd25"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unicase/toupper.h",
+      "sha256": "4c7e33a5fa960ca33f68bd4f5e02f79ef5ee73684299fff5ffa8ffef931ab807"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unicodeio.c",
+      "sha256": "7bbb95ee906f6efc3a5b33453931f6ac56c953ab891ec822bc04de0a7dea679a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unicodeio.h",
+      "sha256": "655b3f85ceb889086b8c3b168aee29dbcf7c610b67278018923dfe780dcaf567"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/bitmap.h",
+      "sha256": "74e043cc5acddbb777ef70db94aabc7381298182aa7969febaffb22438cde90a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_alnum.c",
+      "sha256": "b91efaf48c7251235ce3faa0fde1119f6e75f8064d6ac038868604d9b5f7eaeb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_alnum.h",
+      "sha256": "cde0689c9df62c2074413687a2329f8c46b8f31e7ba39b253b2741f3eb870f5c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_alpha.c",
+      "sha256": "f58836ad5ec9c5bf78c94bb32a10e7cd4bdf35c28a0c031d65aff405910376b4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_alpha.h",
+      "sha256": "8e6825c2b5a48b9f47809f9e76c3a528432d18295dfe26000518349a3b44654f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_blank.c",
+      "sha256": "e392334870b5c8d0e5952c6b9d1c9258e7a50737e8f6be8751cd12e125ec875c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_blank.h",
+      "sha256": "51f423514bcb234cf548fdf2ed5220d07491ae38e56f93d46abda05211efff9f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_cntrl.c",
+      "sha256": "5f7d74e6cb5f94d70dd3bcb0af0ef55e59dcd0a3494dc22df7d369a57c61ab52"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_cntrl.h",
+      "sha256": "0c3cc44ae6ce320c20ab21a8f9c0caea25e027010ab24d62081d9bf2846d50a4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_digit.c",
+      "sha256": "eafba46a8cc9a6711b66926fe4100aa571b52a67ef0c6b8894d9466fbc0834fa"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_digit.h",
+      "sha256": "0447d10d1fcd724525ad78169659aa8ef4202162474f244af80dda9d92b53fbd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_graph.c",
+      "sha256": "1715d022947ec67c1477075d58425902b4f71606f5afe493d10e317ebd363f95"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_graph.h",
+      "sha256": "032a9e69e3df1943a3f6db82cbb569770347001ef359a6fca597cce3abf91e61"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_lower.c",
+      "sha256": "030d85a6fc84025206e35abe9e48b634b083ae9063a29b900e9bb78f1e4bb2bc"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_lower.h",
+      "sha256": "3ab0caa3533679d977751bddd9c0636951d7209bc3cf70d0f769be2a01756b1d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_print.c",
+      "sha256": "dc4688a226efcc8be757ca06b9167b065db74c85bcf036052dbdd4030552e822"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_print.h",
+      "sha256": "0627960e4a5d546b177e0e4396b46cbffc4755a96fa0f6ae45cd165be558a0b8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_punct.c",
+      "sha256": "25c3b2b89426af7dc7e4e0c5fff9289ded100308296036a7c4bc6896818f705e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_punct.h",
+      "sha256": "504ac74913bec7c1d03815321155899d4ab7efdc00fcf0c225d70364e7662a6a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_space.c",
+      "sha256": "c009bdcd5ff6ddfeb1f7ab4eee8114d25745e2c78b9686c9436fa1c666609994"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_space.h",
+      "sha256": "2102d4f704b8762446fc1a778333e52bb126449b0eb261b19c29eef7c16f2cf8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_upper.c",
+      "sha256": "0176bc0b4a0b390d31b16086c3d075aecffe426526d83cea9d66d6cc959f5585"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_upper.h",
+      "sha256": "f524efe84d98c6beefedc71b613925a00ee7c7ab965310ce7a0416c51542529b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_xdigit.c",
+      "sha256": "818509a52fb8900b03601adba2acdae247bca4015da227fb8dab2d35575a941e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unictype/ctype_xdigit.h",
+      "sha256": "e2f6d622e1511d81062f936ded6a43a9fcca258fca14134f3466cb8edc139258"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistd--.h",
+      "sha256": "cee00bd2d917b00d353d139cee59f53035312501f8f0104b70cc8a4ad1ba6f2e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistd-safer.h",
+      "sha256": "322fa8c86ac2f543ea7d5a887e1897e7cc7f6970c863d7b38684fba8946bbbe4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistd.c",
+      "sha256": "5b1bce7f351b3ba5dedfe9f83a2e86d295cd7d0d57da21f301cb8b07850adf23"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u-cpy.h",
+      "sha256": "c36b23c2cc21778c37d0c3ee1dd4c591236057d5f7e30ee9816c2767c2c68954"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u-pcpy.h",
+      "sha256": "14e616cd7736bb4a1b71fef0304186091751b3b951befb732f056df448e82500"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u-strcat.h",
+      "sha256": "cfa4bc0bf4f17f372966352e30a2afd9376d1f3594257f8d789eb456e2a30658"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u-strlen.h",
+      "sha256": "d575cea7b5787374240568cf292bb285848e7b24f16a20c048ebc39e3db6f224"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u32-chr.c",
+      "sha256": "a0ea9f9ed6329a7ee56493346f1db82512653214097263f952cc390b2646d89b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u32-cpy.c",
+      "sha256": "c0b6ef11889a3321ad41c50be76cc3a641c8a1dba335d06f72b0e3ab205bf6d6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u32-pcpy.c",
+      "sha256": "d89fc4b9bc57d8290ddd7dc2173e996bf9e40242d3f30d3e062f1d1bcb3af38c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u32-strcat.c",
+      "sha256": "9d41c348e2683f431b9fdd01bc4f239323e4076f8f566f2b31359fc954edac5d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u32-strlen.c",
+      "sha256": "4036e274a5f5456f6ef817021c4b11bfcd4ce7d5b08acd1033b36c0053872568"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u8-mbtoucr.c",
+      "sha256": "edb79128dbf69163e09d44c2219f798366fe16f61dc79fac219001a8a567ab6f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u8-uctomb-aux.c",
+      "sha256": "a080f8e45b51dd122876619ed9cb21e6189fa56361ba7ae788165236a3f385c9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unistr/u8-uctomb.c",
+      "sha256": "e3fb6f6f092495aa22980120be5acd317aa1d5d7e80ccaf6a3c6d5989dd3a08a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/uniwidth/cjk.h",
+      "sha256": "f0f27e229af647546904bcdc4a3077114bb9e391947b697c78c6f1d12c4463b2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/uniwidth/width.c",
+      "sha256": "a4f6a792dcbb5e598ab2a8a1fb8b9807b2c9b8eecac0e33eacf8def7801d3710"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/uniwidth/width0.h",
+      "sha256": "ae8e792de793f5b2b8c288ea3b657d769cbc5d6328521b6d34fba1b6e74d5802"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/uniwidth/width2.h",
+      "sha256": "a7b79e3632bc8c3f7d9579e4e77a5c0a212df31d0babfa77f13034e9136ea286"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unlinkdir.c",
+      "sha256": "7a8b3c4fae544b6bd8d6a03b0b6f8df28e9d8886fecd049d494ea505d9ec0ca7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unlinkdir.h",
+      "sha256": "1f069f36add98375dc4959068c7844b0de2c269d8040db1ff350332d0dc324af"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/unlocked-io.h",
+      "sha256": "4560b8b51b43e440c317fae8e227e06f931e698898add602986ed12058dffd64"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/userspec.c",
+      "sha256": "050f9686f3a8f239f2f1017fd6637108a57ee2dc4590c8aeb1fee05d5dc0d9fb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/userspec.h",
+      "sha256": "0999d8290096e2e2b6bc6cf04d3c048780fcc6033b349d5b53f5d72cef218d18"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/utimecmp.c",
+      "sha256": "92ef5551522a0a5e74395935df91d9dd07fcb0b642363161db3b8eb3429a63cf"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/utimecmp.h",
+      "sha256": "fdadc7af0c617b4e012a838d65a032855656048f9b5090a26762336674624e85"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/utimens.c",
+      "sha256": "e6fd2b2e44adaab2269e17422ec0f1124f841d82f3a180077c814405bb616453"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/utimens.h",
+      "sha256": "99ef88a678f49e4d4589dd354e6386e01398b522ef223012d2e9e9b626b771d8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/vasnprintf.c",
+      "sha256": "fd2669f6433870249329147144e2641592d5d3eb98647ec2b4b3add4b18a1f47"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/vasnprintf.h",
+      "sha256": "15e94814f85b51277401355e440264c839a72c4187f9dff2bc8dc6f19e79ceb8"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/vaszprintf.c",
+      "sha256": "9a5d46c7233a2a094aa740554b9fe8ebc650cec82de30a5f7dfbbfd26cca6231"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/verify.h",
+      "sha256": "edbc355c2a4cea62d0e72c1733935ae501dcd81f467692b9e43813fc294c2dad"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/version-etc-fsf.c",
+      "sha256": "5d45d6f182c38f0a96cc3f8d70f1ad3fccc4ee90e27a64995ccf916b9fb7d190"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/version-etc.c",
+      "sha256": "521a0f005a615a93426b30a843cbe044a470e7c8d0438428c9faa421b96ccdae"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/version-etc.h",
+      "sha256": "10df1f9ce021d922dcc7370411197847df5d09a188af0183aae185fc0f6e75db"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/vfzprintf.c",
+      "sha256": "5229be784b6b4e035a30fccbb6f0fed201d4460ab2f8696050a3ecd30b9be2bd"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/vsnzprintf.c",
+      "sha256": "5930c615e0b972e38834c2931c10e4785161860272518d044e1ed3fad8b6e493"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/vszprintf.c",
+      "sha256": "353f6ef74092f1390466cf8de44f6fc31ee71436e8e3b9b4fdb65c6043c16cbc"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/vzprintf.c",
+      "sha256": "1db68696d047acf99564732d3e20aa2dd5c5203295f0710adcb914d32656d275"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/wctype-h.c",
+      "sha256": "4ef94cd9323251e9435f4b7fc4d5ebd0a5d17fa16d37cfc23a9fe147004c1734"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/write-any-file.c",
+      "sha256": "79afc06718d28b6483ad14470deafed6a01e794c880f2208e047f5a73f5a1e81"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/write-any-file.h",
+      "sha256": "97a523e5cae507892edd60903ca03c5e5c439815a46b6fd49c06d7fee55f96c7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xalignalloc.c",
+      "sha256": "d5829dadfb1fb149605c5984d060d9eac9b1ab1df6015e0eea77e79e5476c5eb"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xalloc-die.c",
+      "sha256": "73ef60868fd1f9eba6c2944f2e71b8761c6a4a13af13566caa3dbfb2f3f6e3a0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xalloc-oversized.h",
+      "sha256": "86f7a2689e0410b451e3479ac105a86c7c8f36a7f49252fcf79053fa4c51aed1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xalloc.h",
+      "sha256": "782ba490aa887d3085a08f5477be14b1fd6761bd8b365076f5ab129cba23d3e6"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xasprintf.c",
+      "sha256": "419f28acfce1a182283333cabb0c39921e6f4998135e9e4d3870c3326070d5f7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xbinary-io.c",
+      "sha256": "d6d8c8871e37b81bb4fff5b0ff57c2aa26dc76e774b87e4a798a2586d8bbf665"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xbinary-io.h",
+      "sha256": "f87048abfbf1d558d3be622e8d9ae1654cf7c4ad9177f52b3fb9b553e38b37c4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xdectoimax.c",
+      "sha256": "b4233f489dde243fa61dd03243b9e46a477c37f2800becf1f379cc116d0ad2cc"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xdectoint.c",
+      "sha256": "d2c08b21f9bb2c20176b90bf1a091e5f7ccf31c138e2b054c40539f8535f09ee"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xdectoint.h",
+      "sha256": "fada717b1b6499fd74608a296c6a599584bd6c72870de0584b6b2471727bd97a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xdectoumax.c",
+      "sha256": "76141faf7b36f75d328d5b1703fe6e690afb5a068f36441a80a891407ba76192"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xfts.c",
+      "sha256": "1febe1c1e529bf5913cb017a93ccde2caa77f085bfb4f6a6c9c4d8db72aef9e2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xfts.h",
+      "sha256": "53cc781f793c68b2490d515233cdcc2b49dd464238757c4ff79be79549b64e5e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xgetaname-impl.h",
+      "sha256": "10de5b7ab3e53433bea8b781aeca54f3b8f01a958b167a04dbb191a86bf730f5"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xgetcwd.c",
+      "sha256": "c682b037d4b834513d70f8147346a0bcc7ff316b29df27b9a3901efb0784e608"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xgetcwd.h",
+      "sha256": "15fc086cb5dc074b85faf8b836659bcbda0bfe29abe979c2a72b2ddc08d46360"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xgetgroups.c",
+      "sha256": "8330f5268786335a9aa769014baaa193bb9cc6839e81cdc8c4554028053a3fd9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xgethostname.c",
+      "sha256": "608617405b4c4fd17f05b283703c9c77e1e7b3319b8c05cf6de52323cc03591e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xgethostname.h",
+      "sha256": "56951a7cf8e9458a9acc0bebf2a5e5ed343b23d1c1a2f2ec1df620e08ccd7b68"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xmalloc.c",
+      "sha256": "a0574d6ac9739d504bce3a2286b32f5e9345d1f070f0515f064c4b1036476359"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xmemcoll.c",
+      "sha256": "63997776f2d194836bb120db1b61510812a232c7be4f5cc485887f48707a6b8e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xmemcoll.h",
+      "sha256": "6cb145d75ef2719b0e936b88df4edd110bdc6647448ee3ae18ac9fabcd51be58"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xmemdup0.c",
+      "sha256": "049bf23ba8fa4f5f8e878696b31ee2a8a8706d2e95ad78d90cf0b3b3163f868d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xmemdup0.h",
+      "sha256": "c85c0bca3ff4a3731d6954b246760c2555d317139295e5ecba53e8a6dd19948e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xnanosleep.c",
+      "sha256": "03f05a2af13afda84db469a19cb90f28c69ef0efc7cf3098e1a965559c7e5704"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xnanosleep.h",
+      "sha256": "b98545e539b26577ff16adc9f9053181c263a9f35f23ac480a53e5ad0235f3e0"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xprintf.c",
+      "sha256": "c2c5a8ef8e6d70c5f1ddb150eeac370465c2c527fddcdb514fe319481754e53b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xprintf.h",
+      "sha256": "cc7a8b17a18e146bb970e3ef7a6ee32ccfcfcfc6152b10fcafd6476cc48e2551"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xreadlink.c",
+      "sha256": "63401e0636af6ac56f627656b7ac8b5f53c3b447c2c450d0961d7c1af3cb7d88"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xreadlink.h",
+      "sha256": "ec72826d4a6666cb4add6808ef2fbeeec22ad5bdeb86eac9222b9829b80bcccf"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xsetenv.c",
+      "sha256": "eba7a305d76d3dbb0c6d0acffc196b1e97cc839f5b7f8ee963c6bb6571317011"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xsetenv.h",
+      "sha256": "58416c9504d7b7ec1af28aebfc5b8a60f028c9518b1fb9a0324a769d2089cee1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xsize.c",
+      "sha256": "719072007bd914a225dec2e45e2562da6477f9aaa8c7af1dae261a3d14242c58"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xsize.h",
+      "sha256": "2f8b7abaa7d152cd9a9e66b4224019a1c47817813fa5c4c7fddc37095d517849"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtod.c",
+      "sha256": "d14ecf89d60fac8c1b57e8d3a521f841e58b36528c74987bd46771f109f9d320"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtod.h",
+      "sha256": "e6e7c42516520a75005a9a295d8dfc8abb4e3a50155fdf956a6c2a3d3dde7f6a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtoimax.c",
+      "sha256": "43103488d2f57b52a3b5a85f0c1688c859de78398f1741448c6fad3ee8484765"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtol-error.c",
+      "sha256": "0b651b67877474539b032a780c47ba85fda1d2bbe1b488103dd61c5d4730174b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtol-error.h",
+      "sha256": "fe434f965191ca89b57e5b376c439420348295143985421bf3349c3aa2b52c08"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtol.c",
+      "sha256": "2ea1f00b4086ed924ad272ba4e78df62110ab08814acf2526c417e05f3e50511"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtol.h",
+      "sha256": "6abc0b03e414c0b5eed64d9cb60ed16c2a23aca49f45f5a985bf26586f481e5d"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtold.c",
+      "sha256": "c7f58ff5950d4c568399f6bdf2e0a744c3748a7dd983d51432f8f2a31740f6a2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtoul.c",
+      "sha256": "3f9be68f53d52827154597fde42ed382879879c166626b622cf8d63639d1c77f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xstrtoumax.c",
+      "sha256": "a3d208d2d4ceff2539d755ca3138bae7d801f7c81767018a338cf557395af306"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xtime.c",
+      "sha256": "70c5a32ab162d15073c44d0735d580e538b9e08f46afae17ba49711e7b97b653"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xtime.h",
+      "sha256": "293b74a935b0484ad24c8e51305031985896b27c0b2acb6ef8a4b6cfe4c150f1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xvasprintf.c",
+      "sha256": "07e9a8f145b9d0810cb11108841c4b109bbad6e39c5ec8337d7d2a550de003b2"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/xvasprintf.h",
+      "sha256": "562a2999cac369bdbb0acfc4c1c23cbb44e15694bdc334229dd3329761d313e3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/yesno.c",
+      "sha256": "85162c8641a2a5ec98ba68291d1b33ac803fb82a42e95aa9a79f9f1fd7102a6e"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/lib/yesno.h",
+      "sha256": "dab00f1677f5338d0af7c10debe42813e925135d75c29b74ccac021e324e678b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/cat.c",
+      "sha256": "84bbbab93db1b5a5ff84f150677aa05234550dd56518125f0c39f91e82276a7b"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/cksum.c",
+      "sha256": "4a06477c4d19acaa10617ba9d986df97ca8a5dcae8efe27850138bf791722749"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/cksum_avx2.c",
+      "sha256": "a012e40af256a6c712030681edcd6cb7a45f7f19d1615da405bc2b67e3c6860a"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/cksum_avx512.c",
+      "sha256": "8b57673ab2dfd44392856a3d0a5cf9aa7dacdd812f2601b0db36e35a3d062f15"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/cksum_crc.h",
+      "sha256": "22d21cf84f505db5ccf68ace0f1d756465c4ef5c0f4ccd016cd89126ded3e386"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/cksum_pclmul.c",
+      "sha256": "e0f6c329e8734a14165513568d32b2ffd7412359790e9e70614efaa8e5262042"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/echo.c",
+      "sha256": "1f631c00caddc3f4a0aabec4a6677aeee151b7692f33d17f762490034d95d71c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/head.c",
+      "sha256": "74b2dd271bf561e0ea81ffb9f7bbac6ce8e8d4253b720fe141f90df41af41b79"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/ioblksize.h",
+      "sha256": "45c9d19067e98aa4faf3d32d930c2c6debfd65da9ae572b337720b3cf536aaa9"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/sort.c",
+      "sha256": "1ba2ba6f0c6c9ba985c8421adfcb44ddcd0e27c31835711820932da1f97b99f1"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/splice.h",
+      "sha256": "e0f5471ace590a7a951a0b1a252485c440b0cca1a07c880c7ec150b597eebf7f"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/system.h",
+      "sha256": "ce678ccbfac92850cef8ffd0c85f3f528f1bc7b359660babce564b4e6b6baee4"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/term-sig.h",
+      "sha256": "885c8010eb190ec92b5372a7a44f7f703daee44f4ff66b5408343e40e619fa64"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/true-true.c",
+      "sha256": "2b9ee22a1a853ddd53841654c8e8a59ecfa25b43718ca5a55a23ff6746708c69"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/true.c",
+      "sha256": "47279fc60648d5525299a3bd4473cc874837485a1d58d6b7beecc9762f6aa0b3"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/true.h",
+      "sha256": "2270684300b6d1bb99b0784dec5f906ff5efe21be444c365c5b552ea7241517c"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/wc.c",
+      "sha256": "222ee6d8a4fceed0c2790ca0520369cbc906ae48fb0d6dba92455e204ecb8fd7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/wc.h",
+      "sha256": "1f7ac11fafe6d3473c8342db8965fee9e98b6bc1f249bd991db4923d793a9c11"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/wc_avx2.c",
+      "sha256": "b6bc9ab4cc811193df596c2dad083ee3f51efb154c4726d67ea9daf1835e64b7"
+    },
+    {
+      "path": "corpus/coreutils/upstream/coreutils-9.12/src/wc_avx512.c",
+      "sha256": "a1dc0d99845762fdff386e0b81315cefc9aa3efe8455be69cd6e0efb40dedd1b"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/configure-cross-guesses.txt",
+      "sha256": "efccf06187089930a7eb2ece063f408e9eb8665bf172c1b7b4678a0438bd6e10"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/alloca.h",
+      "sha256": "1325c8c87659082f16d9f85ba6a9968edf7713e1565da2a84fe0e51bfd9f3e86"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/arpa/inet.h",
+      "sha256": "49eb9f27b7fe0e26d1e51938e54cc928352933d31e44794cd9966e9d081cb3d5"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/config.h",
+      "sha256": "598de0c791406a85b0ea03af181c1fdfc40e119c930f489de2f8355d7edbcb63"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/configmake.h",
+      "sha256": "a1ee1e89014539f2a989da2391af849e14f984963ca4648c5d26d96439ab9fa0"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/ctype.h",
+      "sha256": "d0066b0eaeafab78ddba90f645422417789400f70d2cc711183a4608417242f3"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/dirent.h",
+      "sha256": "4f2ac6758e1a14c6dbf8a24ebdffad91cfb81b0312a742d3daa0df1420155eef"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/endian.h",
+      "sha256": "23bd2af66a468db915e59d8acfb4ae23780d7a57862f2e01a912d0d1706f14cf"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/error.h",
+      "sha256": "b6f7c5154e8fbdcb38a0179f0c6470e0e69b766a748124bf31b144e922ff3ea0"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/fcntl.h",
+      "sha256": "45e66d347d31825542c21e4337aedb1b35d409864c823b9598bf6cb48f2b2ab3"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/fts_.h",
+      "sha256": "a5e402de90b1aadfd77e99febc6d50ac9f700895667b98812f5aac89d2272f29"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/iconv.h",
+      "sha256": "c6dabbc613f3095b444889fd373fb458c39220e235c2eaa3f683d209f402ca45"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/inttypes.h",
+      "sha256": "f5ab205415d28aeb634a9f21a0f0bd9eb095bee793555ef6895e4d17c52489d5"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/langinfo.h",
+      "sha256": "c71d7a8752091491957f65e370ece0eb92973346307455c7d7edb4ea5f6f4310"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/limits.h",
+      "sha256": "57fec4e8970895294a12adf32e214825b91ef6166837b51ef67b2985897f5ba6"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/locale.h",
+      "sha256": "0fe834c35c933eb1ee69602223683e33466c7a50a642e1dff5ebf79454f91779"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/malloc/scratch_buffer.gl.h",
+      "sha256": "3196e1a970d849e0ba36ea35fded8547291d8dabba96b42c878ff475bdef9041"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/math.h",
+      "sha256": "b567fdff3642b581fe1af67327e5ad5cacc04574cf6eeb5ead697309f3ef0521"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/netdb.h",
+      "sha256": "ca3841729ae40344479de17ae4532fb63bf544349fab7ec4c166012e5f85b80b"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/obstack.h",
+      "sha256": "0874d6adaddf4c2b084ab08a36525b203595b483c0fff203eed96cc316f689af"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/pthread.h",
+      "sha256": "1a40af3fc7d3a78d8b158d3cc8b7ce0e7b42d3e39f710564283b4a9b9c8b5930"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sched.h",
+      "sha256": "79a8ee7a39a1fedd2148ac41703242184a87b9cb4ebd0d364ab286e5a484ac10"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/selinux/context.h",
+      "sha256": "8bcf2d1a92e678887be4573ba39f0bae3ddf37e581416b451a44710772911214"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/selinux/label.h",
+      "sha256": "fa9bc8644b125b9aff515ffed43740d950185ef45f468275e6a2d7a0c75afdd9"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/selinux/selinux.h",
+      "sha256": "4f44f652dd6c7e58b36e1f5e9209a4337e2840cf4feaa146bc955ab1968d9164"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/signal.h",
+      "sha256": "cf7c31212612dd00e3d71b4ca3a1b9c4a97aece79ba09d4771ca6f12d82167e2"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/spawn.h",
+      "sha256": "5313130a52515fd926e4df3a48fa786389cbc59ce6ebfc1f5c0d79d63830075e"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/stdbit.h",
+      "sha256": "3a96e6f01c72f7ee7e2e0645f439555363f9cdf83b232e3008cbc68852b58c05"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/stdckdint.h",
+      "sha256": "61b80e85ffa02d48ef7efc244a37d93caa8188318069f0199181869084ca2c13"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/stdcountof.h",
+      "sha256": "3de9b7bf925918963ba60c5a4cff125d26d90f82c41bcef7a4bee131f5373dde"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/stddef.h",
+      "sha256": "f4b20f3ac3431029f383ce8300e2cbb734685ab4e6285f4a4ae294a18d153911"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/stdio.h",
+      "sha256": "75d5ee2083fee67211d33697985f2ac4ab1bcd36663990e2414e25b8c62d7c70"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/stdlib.h",
+      "sha256": "aeacfc4f2a3553f4872746de2f7339ee862e29dcd9a16b7548a75e1e540c8986"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/string.h",
+      "sha256": "92d95a87fb5b30f1701404cd85ddd3d55c3c0e90816076fd497ab0e483ee26e0"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/ioctl.h",
+      "sha256": "18afec57f12b24a14daae163cdd974a5cdffec9dcbaaebfaa62f38e7e228b3d4"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/random.h",
+      "sha256": "75dc1b3408cb8d275513f03c116cd3d39110bbef1111ee9c01cb57d83c4f3c29"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/resource.h",
+      "sha256": "d35f00d9102ddd7c4b5b4c9108aa190d18df33eca4bc3f3e7e10cbcfffe6e939"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/select.h",
+      "sha256": "cc5839c3fdce6c8718d49b06e2e4378fede47b9aa20390e0f02455c5df99b156"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/socket.h",
+      "sha256": "ad6fd2944897996dc8a6e4f13ca13f8c62997edc8059b12a7402be74db139674"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/stat.h",
+      "sha256": "1d7dcafbc326ac2caa901c87aa9f6fe8f74a5219aec69288271e7ff981168de3"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/time.h",
+      "sha256": "4889eb148b698bafdfd675180042eb0dd0871174b25699347ad0d789db193f58"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/types.h",
+      "sha256": "67565ba80231486b5a0f344d6d80ccace2908f083b794f49a800fd060c5d5455"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/utsname.h",
+      "sha256": "3bc599d825840ac1c1aac85dea92d29e8393e0c4074e6892cfb3e9554763b13e"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/sys/wait.h",
+      "sha256": "325b5855eefb1514c1c5dfbf2492e9a59befb18e857949245c6b7decc9cc213a"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/time.h",
+      "sha256": "c1d24cc4454e7e32131395a56acce85f8f8632023daf853b77907c7b029e57eb"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/uchar.h",
+      "sha256": "5281b3e733dc4aa5d5ae4de3916235061b56f3199a657c875e24c277846c7f34"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/unicase.h",
+      "sha256": "77124174bfef5d75b9f5b58f9fa6bacb3722c06e2602dfd72e9eea75583836dd"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/unictype.h",
+      "sha256": "f2ae4beccbf74b68e8f2e56e1263ffc8ad0b6eae1832fb3d33a68f340affcce0"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/uninorm.h",
+      "sha256": "9e7b1f0168b8f73432675b0018d7e66b0d79a178159815a94861aa48a4087696"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/unistd.h",
+      "sha256": "0a093adffa76323d252c71ec69ef2a0145d99759e21a684968bb46f820da12a4"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/unistr.h",
+      "sha256": "6231eed6bc20e3565ec3d98ca88e0e990c68b594241ee25c9416d35a4e00f595"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/unitypes.h",
+      "sha256": "31b8062f86e3a28cf820c414fb92cbcea7381a392904e7512e6eeb75d7c54706"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/uniwidth.h",
+      "sha256": "7195bbf84dda3014cf3f8b7addf91ca7ef057cbb46a8d6f891279aa54d929016"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/utime.h",
+      "sha256": "bb96bf714cc2530e93e46445146fcca0dd7ab9d1dbda32afc0a09ef17341dc24"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/wchar.h",
+      "sha256": "f0bf3de019696a1afc4ee9e40740a1d6e4d26245d6e8bf13d19aaa56281d0138"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/lib/wctype.h",
+      "sha256": "69f9998473719d9f5e3ba34fc07ee6b69de44852bd56d9a1fcc5ad836cf7e55f"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/src/version.c",
+      "sha256": "dc84e2103132e4aed2402283b1ad2f28b57991ab2eb8892a1d03719ac3c0f204"
+    },
+    {
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/generated/src/version.h",
+      "sha256": "32367cdc3ae609c2289ef190f968b0632160a1a19171387f9651eb62ff539edb"
+    }
+  ],
+  "license": "GPL-3.0-or-later",
+  "license_files": [
+    "upstream/coreutils-9.12/COPYING"
+  ],
+  "recipe_revision": "715ad0720318ef3859e5a7a7516c81341b64273b",
+  "recipe_worktree_dirty": true,
+  "recipe_hashes": {
+    "corpus/DECOMP.md": "5e9e6a8e21bac2905e71f2ef92ecf7d3e79e4ac0b9f562892420faf5d875c048",
+    "corpus/README.md": "187972d077253c693e38b93cd51af66cc34bdaf2b2ce6312e1ae01672299ff4a",
+    "corpus/TV.md": "42ab994a6f9dc2e9468a343507cdcfb1be711cf9d23a719b8e0711f2e1de34d1",
+    "corpus/depfiles.py": "57481acc8fbc51a2120dfb9d898cf91a885b4a0694812a61023d7a8f2aa6054c",
+    "corpus/fetch-lib.sh": "96eecea1d694e9709ef9a96947d93071a281baa24a840bcfa0bddb8b6b981eb9",
+    "corpus/frontend.py": "231d1df1ce9dd4005820f706fd73926d2ca65a76cca7256c54a49070bf188367",
+    "corpus/funcmap.py": "5ae94683374c082377f2dd64d7952a584b6fed1bfd0eb96b06ba8cfa0acc6825",
+    "corpus/mktable.py": "f404e461ad9061e01c34007e966b4f422923efcdf7e756a394e25853c332ab5d",
+    "corpus/pp.sh": "54955e19f74e20566aa9526dcada656631f7e297da6bb28d88e8c15226cf4769",
+    "corpus/receipt.py": "a3bdbe553576352795c3d3c614b9ddd0e9a52f4871bade16d349a90e5d6ee8d4",
+    "corpus/tv.py": "e8676bc52a57714a227d6a2c6b6476a1f28cfce0e51ffd2077015777877d4c4a",
+    "corpus/twin.sh": "0919938949b07d8ce57a500801f604db3fb795fa667620a9cc9c0ba3a08ae768",
+    "corpus/UNDER-TEST.md": "b36884570cf49036934df62c616a5d0e497ce163cd67829bd55d0d66399b2070",
+    "corpus/build-all.sh": "3ed5477791caed5ba5829a649713859feab7d8040fb8f91d63154b1711696456",
+    "corpus/common.sh": "b6c9c6335b40e60e8c9f49d7075eb64d302e77421b7644ae144339a42b4adef9",
+    "corpus/matrix.json": "21d6d06f7be2c85708fa0e9598d1ab2c08dd371e4001648f6b37582a07975960",
+    "scripts/corpus/gen.py": "75c0dd99c65106313163821ba2cbc79cccb5f268832e1d10bbc4be5fa9712448",
+    "scripts/corpus/README.md": "5e6d4d5ad92d3860ca78726c64de8ae8cb7a24dbb2e99358cb6d89dcf2b25d04",
+    "scripts/corpus/census.py": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597",
+    "scripts/corpus/database.py": "8c4760b9d8f07eb13e5ab5ede12578e75aa8a2aa50a02888319db5fd9c1c7786",
+    "scripts/corpus/db_benchmark.py": "a725138de18695f9c9916c530589fb14b9ceb947dc2d4297bf62fc7e149ea909",
+    "scripts/corpus/matrix.py": "cc1558d8ae7e12d14d378348049dda01859d16766f9818502a58ba2837aa8bb0",
+    "scripts/corpus/measure.py": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+    "scripts/corpus/test_census.py": "18b10742bf7a2445efcb4654f15f7ceaf4127ce49c6a68929e530c2c87bfcea3",
+    "scripts/corpus/test_database.py": "57f7f7ad4ee7387ffc121da02241136c4b3400a07eec767b63ee15cb49f0d210",
+    "scripts/corpus/test_measure.py": "23d0b853e6451cfa40cc9307e7a44536013b07061ff742437bbba0e7941f2b3e",
+    "scripts/corpus/test_variants.py": "84c375c8b62146bb2d4ecc70e03479d22bc92874d5e9d63e0aaa9fee1b9b16f6",
+    "scripts/corpus/variant_pair.py": "60faed251f82c954503bb86f205fa0e8e2c769df327b9e730b8ccf6df2ab95d0",
+    "scripts/corpus/variants.py": "ba901feb372d55e575950e4bcd2eed26a3929d19af6a2be2aa2be597d1b26d49",
+    "corpus/cjson/build.sh": "5187a841404636b378710f068836d254868709158525668cd058b5ea0eb4beac",
+    "corpus/cjson/fetch.sh": "6d64ccd09504fd67935e69abe629fa427b0628edd7e21d65abc037a51092bb98",
+    "corpus/cjson/package.toml": "13053b416199e780a6137e7180005d1cf9ddf1c545b9f2a9863ab3037f8ab551",
+    "corpus/cjson/test.sh": "907aded71a811b34b43ae75dccad5fe49a0248326f2a57e60cfb7e75730a1b54",
+    "corpus/cjson/upstream.sha256": "5bcf2919cb71516db2e7bf196089c114df28d69e5d1338d566bd91f1a0de780f",
+    "corpus/coreutils/build.sh": "409851a280b88bd24938f9c8aa6af024bc9dc77e3c3b118f535237122d902af9",
+    "corpus/coreutils/fetch.sh": "e658cc612ea5e1273ef7a5a137e70b6edad08a0a859a2d562e86200dd450c83d",
+    "corpus/coreutils/package.toml": "fed162901be3d8362dd419d130d5e41b9bee1d808f180469d6ab9e9eda649c6a",
+    "corpus/coreutils/test.sh": "47c6e4e6335433144ef6478759c352c726919548a32ec5d89146e81da9027a8e",
+    "corpus/coreutils/upstream.sha256": "da91d4ac4901389403a5aa9d5ba33a0baf143a4f0df74bd6cf93e5d3621fda51",
+    "corpus/darkhttpd/build.sh": "3c26da001e15c1146073f850ec30632aa86f4fb111e8b1ddd17cf65afb6db49e",
+    "corpus/darkhttpd/fetch.sh": "f2163975b05ed4be1e762d075497f66e3cd32c57f4377a60ea1378c6090e261c",
+    "corpus/darkhttpd/package.toml": "7a0fa89641f64288329ca4b1356c4996523bd3ab4b6427dad4364d93821803f9",
+    "corpus/darkhttpd/test.sh": "2ba827cf4d9deb430c32080f239738a8478cc2e8c509f95ea3ed56c7bb900185",
+    "corpus/darkhttpd/upstream.sha256": "561f498228d8b3496da2ceb8a78c209a8e35a63847a91a1e9eec647d95ee70f0",
+    "corpus/jemalloc/build.sh": "653c1a58955f3a4b48f298d5ad8b37a4bbb33c0bf34038ae39681e7200f49b62",
+    "corpus/jemalloc/fetch.sh": "9b7d4eec24d02aee3d12d5d0b69b9340d8c7c27495dfc7125fdba3de5a2a6e5b",
+    "corpus/jemalloc/package.toml": "9fee03a3d1605e751a6dfa05fcf06d0a6ec86140ff514bb8dec64268a784734f",
+    "corpus/jemalloc/test.sh": "8ea3e05ecce19cdce9acfc7d08199d1bf802ee18308ac112db680e6d57a3e8c6",
+    "corpus/jemalloc/upstream.sha256": "f55aaa8349964cea8fab5440cb557c50449e09625d95ff18949a636d25439d92",
+    "corpus/mimalloc/build.sh": "e6124ea3973b12c9b149494557c0b344b6ec3814f0a0495b33bd08da1e413e70",
+    "corpus/mimalloc/fetch.sh": "a66940addf9615d761b336b5f4d822735d1b015ee8191d7342bc8c1fbeb3d2e8",
+    "corpus/mimalloc/package.toml": "77e37f75431d9658a91c267235081e866437f4dc25afc316cd3e11996e5e5cee",
+    "corpus/mimalloc/test.sh": "48649dcc7959a7a91d83dec9d0a8f88e0c9b09afdc06a939bbef652757a93a91",
+    "corpus/mimalloc/upstream.sha256": "ed86b2536cd1acb9b38dca1365cbb19b79ed7004dcd3b1440fb7dd7130e5ec3e",
+    "corpus/openssl/fetch.sh": "701994b210d1246737df1b39af759ffccf30bb0bfda47b77c507dcc6f1700a90",
+    "corpus/openssl/package.toml": "f2e69092659f3ac435a7f4d2085cffca8c6b90e9653980825fd637f16e388349",
+    "corpus/openssl/upstream.sha256": "33ecb52ff3260565b6049e1c8ca826561ea33f28b27d1a20eda36fe1d27a436c",
+    "corpus/openssl/build.sh": "0811686b146e338e59560736b3f8eba75e3e093d7986ebc21af3204356f1fc00",
+    "corpus/openssl/test.sh": "7c1fe75103b6e80a18e89b00a9596c6a7eb2dffbd4fdd9609a03f0a8924c2206",
+    "corpus/refcrypto/build.sh": "b39e5024755c4e4329fcd485c68ba871192c6d51406d680085ae75bc7692cf9f",
+    "corpus/refcrypto/fetch.sh": "1edef104266bc2b027a4508af4aa848ccbe969ef96e7e9de1938494cd4f8c895",
+    "corpus/refcrypto/package.toml": "cd7bcc7c6a31c485684e8e86a0248dfa7528816d114e34542165b80dde040c79",
+    "corpus/refcrypto/test.sh": "52e186c34081a85cadfcc5e33e979adaa93c908a3672614233980c38f8133c6a",
+    "corpus/refcrypto/upstream.sha256": "5bd4ff3e8d7302096934166dfaf92d7e0379e557234c42f5062a559838ea55f7",
+    "corpus/sqlite/build.sh": "53d32236ff24c51722c89204f8553c41dc70124bcc878f5ff7611ec257d71cfb",
+    "corpus/sqlite/fetch.sh": "0619a35ea637805a76a550699e9f8dbee782cab9c934c2b8430ae37a5557ae94",
+    "corpus/sqlite/package.toml": "327135bd95d4208ac10ffc1d05db8e70c9769d098c901b63b7e7e08b632d34a6",
+    "corpus/sqlite/test.sh": "59cc0c2e6f583d9e246487176bd46b3fef0c6c946d2e16d4de4815ba7a28b053",
+    "corpus/sqlite/upstream.sha256": "6328416a8a040b33ae0ffe576924b175164f7a9eb97211023a88bf322f6a4a59",
+    "corpus/tcp-pingpong/build.sh": "8c37feccfd425fc9bb25b1d43624fe7b1f30bf9059a4f9d7e9267fed80bad6dc",
+    "corpus/tcp-pingpong/fetch.sh": "d8864e2b5ccaf5cd2d66e40edf93368cd8397cabb9b99263dd12f8d4fee79016",
+    "corpus/tcp-pingpong/package.toml": "93e940967b0a9f058fa15013cd5e2971a0ed9a7a0d0a8db3af593ec4118f8847",
+    "corpus/tcp-pingpong/test.sh": "033e76bbd6a67332d99d48db54ce9b07ea0da99acbeab945d8c953f3e369f331",
+    "corpus/tcp-pingpong/upstream.sha256": "ad154fa3e3bff042a5c237ac5921dab1b37b06bdff8ca2d3bef8b0382cddf50a",
+    "corpus/tinycc/build.sh": "476815da8ee4b9ebea0f7150a1a25af9e13562ab9560f0f63faf25a604aaa2d2",
+    "corpus/tinycc/fetch.sh": "32f2a926599a915b4bfa31d6bc4a2944918f6720f668149bac866da674c88e2a",
+    "corpus/tinycc/package.toml": "cd992497a4c7af7db45e488e71f9755bcc9ee15bd3456b5553c2f161beb79458",
+    "corpus/tinycc/test.sh": "0c4dd0c652aac889244def0646cba175ad2d2ac5612b94e6a683089d01b6500e",
+    "corpus/tinycc/upstream.sha256": "b68d4e3f8d24c8c07738dc57af0aa0ea1f25b699f77b7ea3c00ee54a3f7d3258",
+    "corpus/toolchain/Dockerfile": "0798cfc8a92fcb1995a1d9bfb9377c5e5f390d57ff669f70b3900b69f834defb",
+    "corpus/toolchain/image.sh": "5984e2098fd4665dc953258c2b6ee3431d5c85366057f99f066eddd09da907b1",
+    "corpus/toolchain/lock.txt": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f",
+    "corpus/tinycc/frontend/aarch64.tsv": "dd25f84eec5dc330d2734ddb2c275680b95066f9cbe801a19a3f5418594eadde",
+    "corpus/tinycc/frontend/x86_64.tsv": "fc71501d2320fb9522f65ad5dd62cd0bf040a470da1ea94ffdda4e0519da8b16",
+    "corpus/tcp-pingpong/frontend/aarch64.tsv": "b41834e49b5d9c59a3c25f372a8cb25b24a33c18e442ac080d2e733ce63537f0",
+    "corpus/tcp-pingpong/frontend/x86_64.tsv": "fff3a4372131f9044f2087d3b25e2d072a26684be49f4837b209ce3c507f547a",
+    "corpus/tcp-pingpong/local/LICENSE-NOTE.txt": "06a449afafab230cd92a9a21fdd97aedf00b912107de14e64c24ebf9b4f2a66e",
+    "corpus/tcp-pingpong/local/pingpong.patch": "ab57df0b712f6e63511fd41577d3a5ba3bc9c89f07fd77cb1031940c775640cc",
+    "corpus/sqlite/frontend/aarch64.tsv": "d3a65b6c89303ed7576d83917138edb3bca958712c07d175c836addc8fadf6c1",
+    "corpus/sqlite/frontend/x86_64.tsv": "ca77d02f827df2e2e271623a3905226feb029719c6205b00a9c3e3da3916e366",
+    "corpus/sqlite/local/COPYRIGHT-sqlite.txt": "b462dacbc00dfdf9859a7c626423c980de19e0a25b956ddc48c1ef34819139b7",
+    "corpus/refcrypto/frontend/aarch64.tsv": "5a3c9ce9854c3dd15f545f2394643377ce6f8cd4b272500e176775882b9d5843",
+    "corpus/refcrypto/frontend/x86_64.tsv": "e4bdd65b3d4aaa296723406edc451a108329677f51a83f9c73340d2421c05a52",
+    "corpus/refcrypto/local/extract-rfc6234.py": "aa1385fef62c056c00a213869edacc627e54c7c3236e5bb56a2d2028ef1dd179",
+    "corpus/refcrypto/local/kat.c": "b442562e55cde24556b920510a56c9ddc995f2bdc83e1fc2628f22c1dbe41491",
+    "corpus/refcrypto/local/supercop-shim/chacha20/crypto_stream.h": "a816d42815bbde821e31ce5b26827c982e91bdadbf1f65e725ede2f6a5274e54",
+    "corpus/refcrypto/local/supercop-shim/x25519/crypto_scalarmult.h": "65dc939cb4874f834e457ba00451b95b3d0f95e0e4f53880e6d422cd4f89ffd6",
+    "corpus/openssl/frontend/aarch64.tsv": "a0a719708618da97aa941ca8c506abdb78f1167aa926666aedb6f4f652ca82ab",
+    "corpus/openssl/frontend/x86_64.tsv": "b89c9d47fdf5b576566332972ee7bd292d17e12504c735f0735da14c68604c20",
+    "corpus/mimalloc/frontend/aarch64.tsv": "ff6434c47ab7969bc9e9b5d403332733476b5ea292624555908d6f3e5e1aaa30",
+    "corpus/mimalloc/frontend/x86_64.tsv": "a489f75848f28b25947ee899cc8d7f3e0fddbc6e29d35ce817abbf1a185a68de",
+    "corpus/mimalloc/local/mi_smoke.c": "e33d0b95cf6b4d8b147bf977b8c26cf9dc2cf1b0f78fca0858b3936011378a65",
+    "corpus/jemalloc/frontend/aarch64.tsv": "252477303d39e6e328dba8d8b68f5b819504c5bd454c5c4d1c964d678aa7e7fe",
+    "corpus/jemalloc/frontend/x86_64.tsv": "a3c9af2fd31ec4691b1c11eaa67b0f2f02f2a1b42e092ec0bf8d434cba6cc81c",
+    "corpus/jemalloc/local/je_smoke.c": "080718168300f95aef58d3798399ff914b2946ac3cbc0adfe27bec0b2f0984de",
+    "corpus/darkhttpd/frontend/aarch64.tsv": "efb6d1872f26018ea0f522443fb582ae3020033a1113a3176fdfb7d2f9cd4c54",
+    "corpus/darkhttpd/frontend/x86_64.tsv": "15768dda01572e408c7058eaa8f4b0f9d9f2b681537ea928d759e104b41ffa68",
+    "corpus/coreutils/frontend/aarch64.tsv": "2b80e211f13c7d10eb8d8d6b10e899865d1677606d806eeab54d67e492713617",
+    "corpus/coreutils/frontend/x86_64.tsv": "f6fd54772cd80cb0b2ba0bdf78f01bcb7e370a94b9ee536ba35fd56df21004a7",
+    "corpus/coreutils/local/print-var.mk": "794d7142998d797e9e6029a52040ef5060432ff780e37415cc183aa3563b6b98",
+    "corpus/cjson/frontend/aarch64.tsv": "2e7f6dd31543325b92aadbeccc57f5feed15e9414cc9b6066b20476eb2efb011",
+    "corpus/cjson/frontend/x86_64.tsv": "dd59edf97a24859068bc878ee79d99738cea709de0b0da6aca788034bd713f6f",
+    "corpus/cjson/local/utils_smoke.c": "97e4f7098e2b922544c44e1af61426e50ba76f2ecb6e4ca9d7fcc2b828c5574f"
+  },
+  "environment": {
+    "JOBS": 8,
+    "SOURCE_DATE_EPOCH": 1762128000,
+    "LC_ALL": "C",
+    "TZ": "UTC"
+  },
+  "reproducibility": "two clean containers, byte-identical outputs",
+  "lean_status": "not generated or checked",
+  "source_semantics_status": "not bound",
+  "binary_equivalence_status": "no functional equivalence statement instantiated"
+}

@@ -1,0 +1,3 @@
+# unit	status	seconds	first error
+sqlite-amalgamation-3540100/shell.i	rejected	0.1	($reject 1 ($str "b3e11ea334e95359907d4abf9194f0e7fedc6c6a") ($str "gcc_4.9.0_x86_64-apple-darwin10.8.0") ($str "parse") ($loc_region ($str "/usr/include/stdlib.h") 77 1 ($str "/usr/include/stdlib.h") 77 14) ($str "expected a type specifier"))
+sqlite-amalgamation-3540100/sqlite3.i	rejected	0.2	($reject 1 ($str "b3e11ea334e95359907d4abf9194f0e7fedc6c6a") ($str "gcc_4.9.0_x86_64-apple-darwin10.8.0") ($str "parse") ($loc_region ($str "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h") 40 9 ($str "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h") 40 26) ($str "expected a type specifier"))

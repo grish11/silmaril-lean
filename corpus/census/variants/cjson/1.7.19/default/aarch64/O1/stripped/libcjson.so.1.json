@@ -1,0 +1,249 @@
+{
+  "abi_evidence": {
+    "ifunc_symbols": [],
+    "import_matches": {
+      "futex": [],
+      "signals": [],
+      "threads": [],
+      "vdso": []
+    },
+    "tls_program_header": false
+  },
+  "analysis_image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+  "arch": "aarch64",
+  "dynamic": {
+    "imports": [
+      "1:",
+      "_ITM_deregisterTMCloneTable",
+      "_ITM_registerTMCloneTable",
+      "__ctype_tolower_loc@GLIBC_2.17",
+      "__cxa_finalize@GLIBC_2.17",
+      "__gmon_start__",
+      "__isoc99_sscanf@GLIBC_2.17",
+      "__stack_chk_fail@GLIBC_2.17",
+      "__stack_chk_guard@GLIBC_2.17",
+      "free@GLIBC_2.17",
+      "localeconv@GLIBC_2.17",
+      "malloc@GLIBC_2.17",
+      "memcpy@GLIBC_2.17",
+      "realloc@GLIBC_2.17",
+      "sprintf@GLIBC_2.17",
+      "strcmp@GLIBC_2.17",
+      "strcpy@GLIBC_2.17",
+      "strlen@GLIBC_2.17",
+      "strncmp@GLIBC_2.17",
+      "strtod@GLIBC_2.17"
+    ],
+    "interpreter": [],
+    "needed": [
+      "libc.so.6",
+      "ld-linux-aarch64.so.1"
+    ],
+    "rpath": [],
+    "runpath": [],
+    "soname": [
+      "libcjson.so.1"
+    ],
+    "version_information": "\nVersion symbols section '.gnu.version' contains 100 entries:\n Addr: 0x0000000000001572  Offset: 0x00001572  Link: 3 (.dynsym)\n  000:   0 (*local*)       0 (*local*)       0 (*local*)       2 (GLIBC_2.17) \n  004:   2 (GLIBC_2.17)    1 (*global*)      2 (GLIBC_2.17)    2 (GLIBC_2.17) \n  008:   2 (GLIBC_2.17)    2 (GLIBC_2.17)    2 (GLIBC_2.17)    2 (GLIBC_2.17) \n  00c:   2 (GLIBC_2.17)    2 (GLIBC_2.17)    2 (GLIBC_2.17)    1 (*global*)   \n  010:   3 (GLIBC_2.17)    2 (GLIBC_2.17)    2 (GLIBC_2.17)    2 (GLIBC_2.17) \n  014:   2 (GLIBC_2.17)    1 (*global*)      1 (*global*)      1 (*global*)   \n  018:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  01c:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  020:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  024:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  028:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  02c:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  030:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  034:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  038:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  03c:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  040:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  044:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  048:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  04c:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  050:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  054:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  058:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  05c:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  060:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n\nVersion needs section '.gnu.version_r' contains 2 entries:\n Addr: 0x0000000000001640  Offset: 0x00001640  Link: 4 (.dynstr)\n  000000: Version: 1  File: ld-linux-aarch64.so.1  Cnt: 1\n  0x0010:   Name: GLIBC_2.17  Flags: none  Version: 3\n  0x0020: Version: 1  File: libc.so.6  Cnt: 1\n  0x0030:   Name: GLIBC_2.17  Flags: none  Version: 2\n"
+  },
+  "dynamic_observations": {
+    "status": "not measured",
+    "syscalls": null
+  },
+  "elf_notes": "\nDisplaying notes found in: .note.gnu.build-id\n  Owner                Data size \tDescription\n  GNU                  0x00000014\tNT_GNU_BUILD_ID (unique build ID bitstring)\t    Build ID: 628cafcff8758544481d9c3b5fc9654316e1e537\n",
+  "evidence_kind": "tool-derived static evidence; not a Lean proof",
+  "executable_sections": [
+    {
+      "address": 7008,
+      "decoded_bytes": 28,
+      "mnemonics": {
+        "autiasp": 1,
+        "bl": 1,
+        "ldp": 1,
+        "mov": 1,
+        "paciasp": 1,
+        "ret": 1,
+        "stp": 1
+      },
+      "name": ".init",
+      "size": 28,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 7040,
+      "decoded_bytes": 640,
+      "mnemonics": {
+        "add": 39,
+        "adrp": 39,
+        "br": 39,
+        "ldr": 39,
+        "nop": 3,
+        "stp": 1
+      },
+      "name": ".plt",
+      "size": 640,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 7680,
+      "decoded_bytes": 14596,
+      "mnemonics": {
+        "add": 223,
+        "adrp": 104,
+        "and": 18,
+        "ands": 1,
+        "asr": 1,
+        "autiasp": 1,
+        "b": 240,
+        "b.cc": 4,
+        "b.cs": 16,
+        "b.eq": 77,
+        "b.ge": 3,
+        "b.gt": 3,
+        "b.hi": 25,
+        "b.le": 5,
+        "b.ls": 19,
+        "b.ne": 52,
+        "bl": 201,
+        "blr": 26,
+        "br": 2,
+        "bti": 1,
+        "cbnz": 30,
+        "cbz": 205,
+        "ccmp": 26,
+        "cinc": 1,
+        "cmp": 199,
+        "csel": 2,
+        "cset": 21,
+        "eor": 1,
+        "fabd": 2,
+        "fabs": 4,
+        "fcmp": 3,
+        "fcmpe": 10,
+        "fcsel": 2,
+        "fcvt": 1,
+        "fcvtzs": 3,
+        "fdiv": 1,
+        "fmov": 11,
+        "fmul": 2,
+        "fsub": 1,
+        "ldp": 237,
+        "ldr": 342,
+        "ldrb": 56,
+        "ldrh": 2,
+        "ldurb": 1,
+        "lsl": 3,
+        "lsr": 4,
+        "mov": 797,
+        "movi": 6,
+        "movk": 6,
+        "nop": 4,
+        "orr": 5,
+        "paciasp": 1,
+        "ret": 114,
+        "scvtf": 2,
+        "stp": 176,
+        "str": 201,
+        "strb": 52,
+        "strh": 3,
+        "sub": 56,
+        "subs": 6,
+        "sxtw": 11,
+        "tbnz": 9,
+        "tbz": 4,
+        "tst": 3,
+        "ubfiz": 1
+      },
+      "name": ".text",
+      "size": 14596,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 22276,
+      "decoded_bytes": 24,
+      "mnemonics": {
+        "autiasp": 1,
+        "ldp": 1,
+        "mov": 1,
+        "paciasp": 1,
+        "ret": 1,
+        "stp": 1
+      },
+      "name": ".fini",
+      "size": 24,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    }
+  ],
+  "extension_evidence": {
+    "classifier": {
+      "AES": "aese aesd aesmc aesimc",
+      "CRC32": "crc32b crc32h crc32w crc32x crc32cb crc32ch crc32cw crc32cx",
+      "SHA1": "sha1c sha1p sha1m sha1h sha1su0 sha1su1",
+      "SHA256": "sha256h sha256h2 sha256su0 sha256su1"
+    },
+    "matches": {
+      "AES": {},
+      "CRC32": {},
+      "SHA1": {},
+      "SHA256": {}
+    },
+    "method": "exact mnemonic matches in linear disassembly; bounded allowlist"
+  },
+  "generator_sha256": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597",
+  "identity": {
+    "cflags": "-O1 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+    "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+    "configure_args": "(none: CMake defaults reproduced as gcc commands, ENABLE_CJSON_UTILS=On)",
+    "image": {
+      "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598",
+      "id": "sha256:fa677ba07a2e15e09323f3b00494134c725ca6dfdc255abd4e37d2b79a2b0127",
+      "tag": "silmaril-corpus-toolchain:trixie-20251103"
+    },
+    "inputs": [
+      {
+        "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562",
+        "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz"
+      }
+    ],
+    "project": "cjson",
+    "receipt": "corpus/variants/cjson/1.7.19/default/aarch64/O1/stripped/receipt.json",
+    "receipt_sha256": "2579479107ec4134afa5dff65b89bd7f898c67feed1a6cd8d33974b28c79ec6c",
+    "stripping": "stripped",
+    "variant": {
+      "configuration": "default",
+      "optimization": "O1",
+      "run_id": "c2edca9b-61cd-4778-a656-ef4d2caffa52",
+      "stripping": "stripped",
+      "target": "aarch64-linux-gnu"
+    },
+    "version": "1.7.19"
+  },
+  "limits": [
+    "Linear objdump decoding can interpret embedded data as instructions; not control-flow reachability.",
+    "Mnemonic counts are decoder evidence, not complete ISA-extension classification or semantic support.",
+    "Imports do not demonstrate runtime use; static linking, indirect calls and inline syscalls can hide dependencies.",
+    "Absent import matches or syscall sites do not establish absence of a feature or dependency.",
+    "Syscall numbers, indirect targets, signal behavior, vDSO use and runtime effects remain unknown."
+  ],
+  "path": "corpus/variants/cjson/1.7.19/default/aarch64/O1/stripped/libcjson.so.1",
+  "relocations": {
+    "R_AARCH64_ABS64": 3,
+    "R_AARCH64_GLOB_DAT": 8,
+    "R_AARCH64_JUMP_SLOT": 38,
+    "R_AARCH64_RELATIVE": 3
+  },
+  "schema_version": 1,
+  "sha256": "fe49d86b3df4a2baf812a9caffdcb2480f77357e1c465f5b761b4686c63012b3",
+  "tools": {
+    "objdump": "GNU objdump (GNU Binutils for Debian) 2.44",
+    "readelf": "GNU readelf (GNU Binutils for Debian) 2.44"
+  }
+}

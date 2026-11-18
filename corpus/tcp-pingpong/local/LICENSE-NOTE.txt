@@ -1,0 +1,13 @@
+local/LICENSE-NOTE.txt -- repository-authored licence record (ours).
+Why: the bgnet repository has no LICENSE file for the example code; the grant is in the guide text.
+Source: https://github.com/beejjorgensen/bgnet at commit 34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9,
+file src/bgnet_part_0100_intro.md, lines 433-434 (verbatim):
+
+    The C source code presented in this document is hereby granted to the
+    public domain, and is completely free of any license restriction.
+
+(The guide text itself is CC BY-NC-ND 3.0 and is NOT included here; only the example C files
+source/examples/server.c and source/examples/client.c are, verbatim, under upstream/.)
+The same examples are published at https://beej.us/guide/bgnet/examples/server.c and client.c;
+on 2026-11-17 the website copies differed slightly from this commit (server.c line 20, client.c
+line 61), so the pinned git commit is the source of record.

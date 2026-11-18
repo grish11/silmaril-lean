@@ -1,0 +1,155 @@
+# System V contracts of functions in funcs.S / cfuncs.c, for `wasm-sim problems`.
+# Vocabulary (shared with the reduction plans): (reg r) = location r after the call, (old t) = t
+# at entry; (mem8 a) .. (mem64 a) = little-endian bytes at guest address a (window
+# [0x100000, 0x110000)). Implicit: AbiEntry (rsp = 8 mod 16, return address at [rsp]),
+# rsp in the window with a 4 KiB frame below it; AbiReturn (rip, rsp + 8, rbx rbp r12-r15) and
+# the frame (writes only to [rsp - frame, rsp) and the listed footprint ranges); `frame` defaults
+# to 0x1000 and is smaller for callees (sum_to, add2 are called by twice_sum, whose pushes move
+# rsp by 32 bytes: callee frames must fit in the caller's, and rsp >= window + frame must follow
+# from the caller's precondition).
+schema = "silmaril.wasm-sim.contracts.v0"
+
+[defs]
+tri = "(define-fun tri ((x (_ BitVec 64))) (_ BitVec 64) (bvudiv (bvmul x (bvadd x #x0000000000000001)) #x0000000000000002))"
+gcd = "(define-fun-rec gcd ((a (_ BitVec 64)) (b (_ BitVec 64))) (_ BitVec 64) (ite (= b #x0000000000000000) a (gcd b (bvurem a b))))"
+popcount = "(define-fun-rec popcount ((x (_ BitVec 64))) (_ BitVec 64) (ite (= x #x0000000000000000) #x0000000000000000 (bvadd (bvand x #x0000000000000001) (popcount (bvlshr x #x0000000000000001)))))"
+fact = "(define-fun-rec fact ((n (_ BitVec 64))) (_ BitVec 64) (ite (bvule n #x0000000000000001) #x0000000000000001 (bvmul n (fact (bvsub n #x0000000000000001)))))"
+fib = "(define-fun-rec fib ((n (_ BitVec 64))) (_ BitVec 64) (ite (bvule n #x0000000000000001) n (bvadd (fib (bvsub n #x0000000000000001)) (fib (bvsub n #x0000000000000002)))))"
+sumarr = "(define-fun-rec sumarr ((p (_ BitVec 64)) (n (_ BitVec 64))) (_ BitVec 64) (ite (bvsle n #x0000000000000000) #x0000000000000000 (bvadd (old (mem64 p)) (sumarr (bvadd p #x0000000000000008) (bvsub n #x0000000000000001)))))"
+inbuf = "(define-fun inbuf ((p (_ BitVec 64)) (n (_ BitVec 64)) (sp (_ BitVec 64))) Bool (and (bvuge p #x0000000000100000) (bvule n #x0000000000000400) (bvule (bvadd p n) (bvsub sp #x0000000000001000))))"
+
+[[function]]
+name = "add2"
+source = "funcs.S"
+requires = "true"
+ensures = "(= (reg rax) (bvadd (old (reg rdi)) (old (reg rsi))))"
+frame = 0x100
+
+[[function]]
+name = "max2"
+source = "funcs.S"
+requires = "true"
+ensures = "(= (reg rax) (ite (bvsgt (old (reg rsi)) (old (reg rdi))) (old (reg rsi)) (old (reg rdi))))"
+
+[[function]]
+name = "abs1"
+source = "funcs.S"
+requires = "true"
+ensures = "(= (reg rax) (ite (bvslt (old (reg rdi)) #x0000000000000000) (bvneg (old (reg rdi))) (old (reg rdi))))"
+
+[[function]]
+name = "sum_to"
+source = "funcs.S"
+requires = "(bvule (old (reg rdi)) #x0000000000001000)"
+ensures = "(= (reg rax) (tri (old (reg rdi))))"
+frame = 0x100
+
+[[function]]
+name = "strlen1"
+source = "funcs.S"
+requires = "(and (bvuge (old (reg rdi)) #x0000000000100000) (bvult (old (reg rdi)) #x0000000000108000) (exists ((n (_ BitVec 64))) (and (bvult n #x0000000000001000) (= (old (mem8 (bvadd (old (reg rdi)) n))) #x00))))"
+ensures = "(and (= (old (mem8 (bvadd (old (reg rdi)) (reg rax)))) #x00) (forall ((i (_ BitVec 64))) (=> (bvult i (reg rax)) (distinct (old (mem8 (bvadd (old (reg rdi)) i))) #x00))))"
+
+[[function]]
+name = "memcpy1"
+source = "funcs.S"
+requires = "(and (inbuf (old (reg rdi)) (old (reg rdx)) (old (reg rsp))) (inbuf (old (reg rsi)) (old (reg rdx)) (old (reg rsp))) (or (bvule (bvadd (old (reg rdi)) (old (reg rdx))) (old (reg rsi))) (bvule (bvadd (old (reg rsi)) (old (reg rdx))) (old (reg rdi)))))"
+ensures = "(and (= (reg rax) (old (reg rdi))) (forall ((i (_ BitVec 64))) (=> (bvult i (old (reg rdx))) (= (mem8 (bvadd (old (reg rdi)) i)) (old (mem8 (bvadd (old (reg rsi)) i)))))))"
+footprint = [["(old (reg rdi))", "(bvadd (old (reg rdi)) (old (reg rdx)))"]]
+
+[[function]]
+name = "gcd"
+source = "funcs.S"
+requires = "true"
+ensures = "(= (reg rax) (gcd (old (reg rdi)) (old (reg rsi))))"
+
+[[function]]
+name = "popcount1"
+source = "funcs.S"
+requires = "true"
+ensures = "(= (reg rax) (popcount (old (reg rdi))))"
+
+[[function]]
+name = "popcount2"
+source = "funcs.S"
+requires = "true"
+ensures = "(= (reg rax) (popcount (old (reg rdi))))"
+
+[[function]]
+name = "fact"
+source = "funcs.S"
+requires = "(bvule (old (reg rdi)) #x0000000000000014)"
+ensures = "(= (reg rax) (fact (old (reg rdi))))"
+
+[[function]]
+name = "sw"
+source = "funcs.S"
+requires = "true"
+ensures = "(= (reg rax) (ite (= (old (reg rdi)) #x0000000000000000) #x0000000000000064 (ite (= (old (reg rdi)) #x0000000000000001) #xffffffffffffffff (ite (= (old (reg rdi)) #x0000000000000002) #x00000000000000c8 (ite (= (old (reg rdi)) #x0000000000000003) #x000000000000001f (bvsub (bvashr (old (reg rdi)) #x0000000000000002) ((_ zero_extend 63) ((_ extract 1 1) (old (reg rdi))))))))))"
+
+[[function]]
+name = "divs"
+source = "funcs.S"
+requires = "(and (distinct (old (reg rsi)) #x0000000000000000) (not (and (= (old (reg rdi)) #x8000000000000000) (= (old (reg rsi)) #xffffffffffffffff))))"
+ensures = "(= (reg rax) (bvadd (bvsdiv (old (reg rdi)) (old (reg rsi))) (bvmul (bvsrem (old (reg rdi)) (old (reg rsi))) #x0000000000000002)))"
+
+[[function]]
+name = "twice_sum"
+source = "funcs.S"
+requires = "(bvule (old (reg rdi)) #x0000000000001000)"
+ensures = "(= (reg rax) (bvadd (tri (old (reg rdi))) (bvadd (old (reg rsi)) (old (reg rsi)))))"
+
+[[function]]
+name = "popc"
+source = "cfuncs.c"
+requires = "true"
+ensures = "(= ((_ extract 31 0) (reg rax)) ((_ extract 31 0) (popcount (old (reg rdi)))))"
+
+[[function]]
+name = "fib"
+source = "cfuncs.c"
+requires = "(bvule (old (reg rdi)) #x0000000000000018)"
+ensures = "(= (reg rax) (fib (old (reg rdi))))"
+
+[[function]]
+name = "sum_arr"
+source = "cfuncs.c"
+requires = "(and (bvsle (old (reg rsi)) #x0000000000000080) (inbuf (old (reg rdi)) (bvmul (old (reg rsi)) #x0000000000000008) (old (reg rsp))))"
+ensures = "(= (reg rax) (sumarr (old (reg rdi)) (old (reg rsi))))"
+
+[[function]]
+name = "reverse"
+source = "cfuncs.c"
+requires = "(and (bvsge (old (reg rsi)) #x0000000000000000) (inbuf (old (reg rdi)) (old (reg rsi)) (old (reg rsp))))"
+ensures = "(forall ((i (_ BitVec 64))) (=> (bvult i (old (reg rsi))) (= (mem8 (bvadd (old (reg rdi)) i)) (old (mem8 (bvsub (bvadd (old (reg rdi)) (old (reg rsi))) (bvadd i #x0000000000000001)))))))"
+footprint = [["(old (reg rdi))", "(bvadd (old (reg rdi)) (old (reg rsi)))"]]
+
+[[function]]
+name = "bswap16"
+source = "cfuncs.c"
+requires = "true"
+ensures = "(= ((_ extract 15 0) (reg rax)) (concat ((_ extract 7 0) (old (reg rdi))) ((_ extract 15 8) (old (reg rdi)))))"
+
+[[function]]
+name = "rotl64"
+source = "cfuncs.c"
+requires = "true"
+ensures = "(= (reg rax) (bvor (bvshl (old (reg rdi)) (bvand (old (reg rsi)) #x000000000000003f)) (bvlshr (old (reg rdi)) (bvand (bvneg (old (reg rsi))) #x000000000000003f))))"
+
+[[function]]
+name = "mulhi"
+source = "cfuncs.c"
+requires = "true"
+ensures = "(= (reg rax) ((_ extract 127 64) (bvmul ((_ zero_extend 64) (old (reg rdi))) ((_ zero_extend 64) (old (reg rsi))))))"
+
+[[function]]
+name = "sat_add16"
+source = "cfuncs.c"
+requires = "true"
+ensures = "(= ((_ extract 15 0) (reg rax)) (let ((s (bvadd ((_ sign_extend 16) ((_ extract 15 0) (old (reg rdi)))) ((_ sign_extend 16) ((_ extract 15 0) (old (reg rsi))))))) (ite (bvsgt s #x00007fff) #x7fff (ite (bvslt s #xffff8000) #x8000 ((_ extract 15 0) s)))))"
+
+[[function]]
+name = "isqrt"
+source = "cfuncs.c"
+requires = "true"
+ensures = "(let ((r ((_ zero_extend 64) (reg rax))) (x ((_ zero_extend 64) (old (reg rdi))))) (and (bvule (bvmul r r) x) (bvult x (bvmul (bvadd r #x00000000000000000000000000000001) (bvadd r #x00000000000000000000000000000001)))))"

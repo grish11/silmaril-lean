@@ -1,4 +1,4 @@
--- variant-of: glibc.hello.gcc | style: crt-libmod | see-also: Silmaril.Raw.Elf.Link.Dyn.Program.Examples.Hello, Silmaril.Elf.Link.Dyn.Libc.Examples.Hello
+-- variant-of: glibc.hello.gcc | style: crt-libmod | see-also: Silmaril.Raw.Elf.Link.Dyn.Program.Examples.Hello, Silmaril.Elf.Link.Dyn.Libc.Hello.Thms
 module
 
 public import Silmaril.Elf.Link.Dyn.LibMod.Program.Defs
@@ -27,7 +27,7 @@ ld.so, ends with `hello, world` on stdout and status 0, from
 **Variants.** Against `Silmaril.Raw.Elf.Link.Dyn.Program.Examples.Hello` (`program-api`, the
 process model, glibc's contracts trusted) this variant states what discharges the trust: the
 library's obligations are named Tasks about glibc's code, the composition is proved
-(`LibMod.crt_sound`). Against `Silmaril.Elf.Link.Dyn.Libc.Examples.Hello` (`loosest-libc-spec`,
+(`LibMod.crt_sound`). Against `Silmaril.Elf.Link.Dyn.Libc.Hello.Thms` (`loosest-libc-spec`,
 every libc above `putsSpec`) it keeps the libc fixed (the module `M`) and adds the real machine.
 Cost: the `main` proof must be (re)run on the C-runtime machine (`Task.helloGccCrt`).
 -/

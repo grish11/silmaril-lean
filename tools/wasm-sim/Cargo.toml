@@ -1,0 +1,40 @@
+# wasm-sim: runtime harness, translators, difftests and benchmarks for the ISA simulators
+# in Wasm (docs/wasm-sim-abi.md). Standalone crate:
+# library `src/lib.rs` (harness, x86, proc/sysv/component, rv64, reduce); binaries `wasm-sim`
+# (src/main.rs), `wsim-proc` (src/bin/wsim-proc.rs, process stack and glibc route (b)) and
+# `wasm-sim-rv` (src/bin/wasm-sim-rv.rs, RV64 tools).
+[package]
+name = "wasm-sim"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+description = "wasmtime harness for the Wasm ISA simulators (docs/wasm-sim-abi.md)"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+wasmtime = { version = "50", default-features = false, features = ["cranelift", "runtime", "wat", "std", "cache", "parallel-compilation", "anyhow"] }
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "encoder", "code_asm", "gas", "instr_info"] }
+libc = "0.2"
+wat = "1"
+wasmparser = "0.263"
+wasm-encoder = "0.263"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+serde_json = "1"
+
+[[bin]]
+name = "wasm-sim"
+path = "src/main.rs"
+
+[[bin]]
+name = "wsim-proc"
+path = "src/bin/wsim-proc.rs"
+
+[[bin]]
+name = "wasm-sim-rv"
+path = "src/bin/wasm-sim-rv.rs"
+
+[profile.release]
+debug = false

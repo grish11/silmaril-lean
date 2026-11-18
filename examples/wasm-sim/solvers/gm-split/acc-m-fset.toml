@@ -1,0 +1,15 @@
+kind = "equiv"
+description = "accessor contract: M.fset refines the abstract fset (abs.wat) under the user_regs_struct abstraction"
+expect = "proved"
+observe = ["trap", "result", "map"]
+pre = ["(bvule #x00000011 f)", "(bvule f #x00000017)", "(bvule v #x00000001)"]
+map_from = "gm-map.toml"
+unchanged_b = ["m0:144:8@1", "m0:144:8@3", "m0:144:8@5", "m0:144:8@9-8", "m0:144:8@63-12"]
+frame_b = { mem = "m0", except = ["0:120", "128:8", "144:8", "152:8"] }
+[a]
+modules = [{ name = "acc", wat = "abs.wat" }]
+entry = "fset"
+[b]
+modules = [{ name = "acc", wat = "acc-m.wat" }]
+entry = "fset"
+keep = ["m0:216:8", "m0:256:17", "m0:280:7"]

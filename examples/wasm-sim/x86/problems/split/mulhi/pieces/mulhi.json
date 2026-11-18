@@ -1,0 +1,34 @@
+{
+  "address": "0x400370",
+  "bytes": "4889f848f7e64889d0c3",
+  "function": "mulhi",
+  "id": "wasm-sim/x86/mulhi/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "i_mov_rr",
+        "i_muldiv_r",
+        "i_next",
+        "i_ret"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../mulhi.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= (reg rax) ((_ extract 127 64) (bvmul ((_ zero_extend 64) (old (reg rdi))) ((_ zero_extend 64) (old (reg rsi))))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `mulhi` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

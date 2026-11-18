@@ -1,0 +1,29 @@
+# {"arch": "aarch64", "decomposition_module": "Silmaril.Elf.Staged.Corpus.Cjson.Aarch64.LibcjsonUtilsSo1.Decomp", "function_map": "corpus/cjson/funcmap/aarch64/libcjson_utils.so.1.json", "object": "libcjson_utils.so.1", "package": "cjson", "twin_code_identical": true, "twin_symbols_identical": true, "twin_text_bytes_differing": 0}
+# symbol	value	size	decomposition (theorem, role)	c_name	tu	int_profile	blockers
+call_weak_fn	0x11e0	20	decomp_11 piece	-	-	no	isa-semantics,no-source-binding
+compare_strings	0x12e0	148	decomp_11 piece	compare_strings	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+sort_list	0x1380	420	decomp_11 piece	sort_list	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+merge_patch	0x1524	280	decomp_11 piece	merge_patch	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+decode_array_index_from_pointer.constprop.0	0x1640	136	decomp_11 piece	decode_array_index_from_pointer	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,globals
+get_item_from_pointer	0x16c8	620	decomp_11 piece	get_item_from_pointer	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+compare_json	0x1940	500	decomp_11 piece	compare_json	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+detach_path	0x1b40	528	decomp_11 piece	detach_path	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+compose_patch	0x1d50	460	decomp_11 piece	compose_patch	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+create_patches.part.0	0x1f20	984	decomp_11 piece	create_patches	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+apply_patch	0x2300	1532	decomp_11 piece	apply_patch	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_FindPointerFromObjectTo	0x2900	520	decomp_11 piece	cJSONUtils_FindPointerFromObjectTo	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSONUtils_FindPointerFromObjectTo.localalias	0x2900	520	decomp_11 alias	cJSONUtils_FindPointerFromObjectTo	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,indirect-calls,globals
+cJSONUtils_GetPointer	0x2b08	8	decomp_11 piece	cJSONUtils_GetPointer	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_GetPointerCaseSensitive	0x2b10	8	decomp_11 piece	cJSONUtils_GetPointerCaseSensitive	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_ApplyPatches	0x2b20	104	decomp_11 piece	cJSONUtils_ApplyPatches	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_ApplyPatchesCaseSensitive	0x2b88	116	decomp_11 piece	cJSONUtils_ApplyPatchesCaseSensitive	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_AddPatchToArray	0x2c00	12	decomp_11 piece	cJSONUtils_AddPatchToArray	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_GeneratePatches	0x2c0c	84	decomp_11 piece	cJSONUtils_GeneratePatches	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_GeneratePatchesCaseSensitive	0x2c60	84	decomp_11 piece	cJSONUtils_GeneratePatchesCaseSensitive	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_SortObject	0x2cc0	52	decomp_11 piece	cJSONUtils_SortObject	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_SortObjectCaseSensitive	0x2d00	52	decomp_11 piece	cJSONUtils_SortObjectCaseSensitive	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_MergePatch	0x2d40	8	decomp_11 piece	cJSONUtils_MergePatch	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_MergePatchCaseSensitive	0x2d48	8	decomp_11 piece	cJSONUtils_MergePatchCaseSensitive	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_GenerateMergePatch	0x2d50	8	decomp_11 piece	cJSONUtils_GenerateMergePatch	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+generate_merge_patch	0x2d60	380	decomp_11 piece	generate_merge_patch	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals
+cJSONUtils_GenerateMergePatchCaseSensitive	0x2ee0	8	decomp_11 piece	cJSONUtils_GenerateMergePatchCaseSensitive	cJSON_Utils.c	no	isa-semantics,frontend-rejected,memory-correspondence,callee-contracts,globals

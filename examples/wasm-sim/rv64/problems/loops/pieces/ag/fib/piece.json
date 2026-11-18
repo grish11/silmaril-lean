@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/loops/ag/fib",
+  "kind": "assume-guarantee",
+  "function": "fib",
+  "address": "0x1125c",
+  "words": "000002930010031300050c63006283b30003029300038313fff50513fedff06f0002851300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/fib.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0"], "results": ["a0"]},
+  "spec": {"requires": "true", "ensures": "(= (reg a0) (fib (old (reg a0))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `fib` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

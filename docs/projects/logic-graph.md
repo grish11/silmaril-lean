@@ -92,6 +92,59 @@ Five questions, kept apart (explorer: `#/logic-coverage`):
    (`logic_pending`): families with Lean developments that are being contributed in reviewed
    batches. Nothing in them is registered or claimed until it lands.
 
+## Consequence systems
+
+A logic's consequence systems are `consequence_system` records
+([consequence-systems.md](consequence-systems.md)) placed over a registered room:
+`(room := R) (room_at := "a …")` says which room's sentences the system relates, and
+`(reading := semantic)` or `(reading := derivability)` which kind it is. Lean checks the sentences,
+and that a semantic reading *is* the room's consequence (`roomSeq R`, or `roomTheorySeq R T` over
+the models of a theory `T`). `Silmaril.LogicGraph.Consequence.Defs` registers these:
+
+| logic | derivability | semantic consequence | room |
+|---|---|---|---|
+| PA (`peano.mm`) | `logic.consequence.metamath.pa.derives` | `….pa.entails` | Metamath, at `pa` |
+| ZF, ZFC (set.mm's set-theory fragment) | `….zf.derives`, `….zfc.derives` | `….zf.entails`, `….zfc.entails` | Metamath, at `zf` |
+| Metamath over set.mm's grammar; set.mm's ZFC | `….set_mm.derives`, `….set_mm.zfc.derives` | `….set_mm.entails`, `….set_mm.zfc.entails` | Metamath, at `setMM` |
+| HOL, between sequents | `logic.consequence.hol.sequent.derives` | `….hol.sequent.entails` | HOL, at the initial signature |
+| HOL, on propositions | `logic.consequence.hol.kernel` | `logic.consequence.hol.seq` | none: propositions are not the room's sentences |
+| extensional MLTT | `logic.consequence.mltt.extensional.derives` | `….extensional.entails` | extensional MLTT (sentences lifted by `ULift`) |
+| intensional MLTT (original rules) | `logic.consequence.mltt.intensional.derives` | `….intensional.entails` | intensional MLTT, at `⊤` |
+
+**Over concrete syntax.** `Silmaril.LogicGraph.Consequence.Concrete.Defs` registers HOL and
+extensional MLTT over their S-expression syntaxes ([consequence.md](consequence.md), "Concrete
+syntax"):
+
+| | HOL | extensional MLTT |
+|---|---|---|
+| institution | `logic.consequence.concrete.hol.institution` (a family over signatures) | `logic.consequence.concrete.mltt.institution` |
+| room | `logic.consequence.concrete.hol.room` | `logic.consequence.concrete.mltt.room` |
+| corridor to the abstract room | `logic.consequence.concrete.hol.corridor` | `logic.consequence.concrete.mltt.corridor` |
+| comorphism to the abstract institution | `logic.consequence.concrete.hol.to_abstract` (to `logic.institution.metatheory.hol.institution`) | `logic.consequence.concrete.mltt.to_abstract` (to `logic.type_theory.extensional_mltt.institution.bundled`) |
+| consequence systems | `logic.consequence.concrete.hol.kernel`, `….hol.seq`, `….hol.sequent.entails` | `logic.consequence.concrete.mltt.derives`, `….mltt.entails` |
+
+The corridors and comorphisms carry the proved fact `model_expansive`. The problems
+`translates_at` and `reflects_at` relate each concrete system to its abstract system, through the
+relation to the abstract syntax. The translation is conservative, and for derivability the encoding
+translates back. `sound_at` and `tarski_closed` carry over. The abstract HOL institution
+`⟨HolSig, HOL.inst⟩` is registered as the HOL comorphism's target.
+
+**The coverage matrix** (`Silmaril.LogicGraph.Consequence.Matrix.Defs`, registered as the evidence
+matrix `logic.consequence.coverage`) sets every family (HOL, extensional and intensional MLTT, λΠ,
+Metamath, PA, ZF, ZFC) against every feature. The features are abstract syntax, institution,
+derivability, semantic consequence, soundness, identity/weakening/cut, substitution, completeness,
+concrete syntax, concrete institution, concrete consequence systems, and registration here, in two
+columns of its own: `explorer: abstract` and `explorer: concrete`. A `proved` concrete cell is a formal
+statement; registration is a separate column. Each
+cell names its Lean declarations, and Lean checks that they exist. A cell is `defined`, `proved`,
+`registered`, `absent` or `not claimed`, and every absent cell says why. Completeness is
+`not claimed` for every family. The explorer shows the matrix at the end of `#/logic-consequence/`.
+
+The relations between them are standard consequence problems answered by the library's theorems:
+`sound_at` from each derivability to its semantic consequence (soundness), from ZF to ZFC (an
+inclusion), and `tarski_closed` (identity, weakening and cut). No completeness is claimed. The
+library side is in [consequence.md](consequence.md) (Theories, Metamath, MLTT).
+
 ## Where the records are
 
 The registrations are a view, `Silmaril/LogicGraph/` (one module per region of the library, and
@@ -112,12 +165,18 @@ columns `src`, `dst`), `logic_facts`, `logic_edge_kinds`, `logic_audit`, `hets_l
 `hets_comorphisms`, `logic_pending`; views `logic_edges`, `logic_nodes`, `logic_coverage`,
 `hets_coverage`.
 
-Explorer routes: `#/logic-graph/` (the graph: level, edge-kind, search and isolated-node filters,
-fit, zoom, direction, reset; `#/logic-graph/<kind>:<name>` selects and centres one node or edge,
-and the filters are kept in the URL), `#/logic-table/` (every node and edge, searchable and
-sortable), `#/institutions`, `#/comorphisms`, `#/morphisms`, `#/rooms`, `#/corridors` (the
-registries), `#/<kind>/<name>` (one record, with its source, endpoints, incoming and outgoing
-edges, parallel and opposite edges, facts, fibers and Hets relation), and `#/logic-coverage/`.
+Explorer routes: **Logics** in the navigation opens `#/logics/` (every node and edge as a table,
+searchable and sortable: the default view; `#/logic-table/` is the same view). **Table** and
+**Graph** are tabs over the same data, and the search text goes from one to the other.
+`#/logic-graph/` is the graph (level, edge-kind, search and isolated-node filters, layout, fit,
+zoom, reset); `#/logic-graph/<kind>:<name>` selects and centres one node or edge, and the filters
+are kept in the URL. `#/institutions`, `#/comorphisms`, `#/morphisms`, `#/rooms`, `#/corridors`
+are the registries; `#/<kind>/<name>` is one record (its source, endpoints, incoming and outgoing
+edges, parallel and opposite edges, facts, fibers and Hets relation); `#/logic-coverage/` is the
+coverage. `#/logic-consequence/` lists the consequence systems of the logics, their rooms and
+readings, and the proved relations between them; a room's and an institution's pages list theirs.
+Source views read a declaration from its own module at the range Lean recorded
+(`decl_locations`), whichever module registers it.
 
 ## Checking it
 

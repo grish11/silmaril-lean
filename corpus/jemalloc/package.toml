@@ -1,0 +1,20 @@
+name = "jemalloc"
+version = "5.3.0"
+category = "memory allocator (malloc replacement) shared library"
+summary = "jemalloc 5.3.0 release tarball (same sha256 as artifacts/alloc), built with its shipped configure + make: lib/libjemalloc.so.2, no symbol prefix (exports malloc, free, ...), --disable-cxx."
+license = "BSD-2-Clause"
+license_files = ["upstream/jemalloc-5.3.0/COPYING"]
+homepage = "https://jemalloc.net/"
+
+[[archive]]
+url = "https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2"
+sha256 = "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa"
+root = "jemalloc-5.3.0"
+retrieved = "2026-11-17"
+
+[[object]]
+name = "libjemalloc.so.2"
+kind = "shared"
+sources_list = "objects/libjemalloc.sources"
+cflags = "configure's CONFIGURE_CFLAGS (-std=gnu11 -Wall ... -fvisibility=hidden -O3 -funroll-loops -g3, see receipt.json build_commands) followed by -O2 -g0 -ffile-prefix-map=/build/jemalloc=. (later flags win: effective -O2 -g0 -funroll-loops)"
+notes = "configure --build=x86_64-linux-gnu --host=<triple> --disable-cxx --with-lg-page=12 (x86_64) | 16 (aarch64) --with-lg-hugepage=21; make lib/libjemalloc.so.2. Configure-generated headers are in generated/<arch>/."

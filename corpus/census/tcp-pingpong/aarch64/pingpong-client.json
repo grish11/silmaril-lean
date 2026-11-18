@@ -1,0 +1,216 @@
+{
+  "abi_evidence": {
+    "ifunc_symbols": [],
+    "import_matches": {
+      "futex": [],
+      "signals": [],
+      "threads": [],
+      "vdso": []
+    },
+    "tls_program_header": false
+  },
+  "analysis_image_id": "sha256:fa677ba07a2e15e09323f3b00494134c725ca6dfdc255abd4e37d2b79a2b0127",
+  "arch": "aarch64",
+  "dynamic": {
+    "imports": [
+      "1:",
+      "_ITM_deregisterTMCloneTable",
+      "_ITM_registerTMCloneTable",
+      "__cxa_finalize@GLIBC_2.17",
+      "__gmon_start__",
+      "__libc_start_main@GLIBC_2.34",
+      "abort@GLIBC_2.17",
+      "close@GLIBC_2.17",
+      "connect@GLIBC_2.17",
+      "exit@GLIBC_2.17",
+      "fprintf@GLIBC_2.17",
+      "freeaddrinfo@GLIBC_2.17",
+      "fwrite@GLIBC_2.17",
+      "gai_strerror@GLIBC_2.17",
+      "getaddrinfo@GLIBC_2.17",
+      "inet_ntop@GLIBC_2.17",
+      "perror@GLIBC_2.17",
+      "printf@GLIBC_2.17",
+      "recv@GLIBC_2.17",
+      "send@GLIBC_2.17",
+      "socket@GLIBC_2.17",
+      "stderr@GLIBC_2.17",
+      "strtol@GLIBC_2.17"
+    ],
+    "interpreter": [
+      "/lib/ld-linux-aarch64.so.1"
+    ],
+    "needed": [
+      "libc.so.6"
+    ],
+    "rpath": [],
+    "runpath": [],
+    "soname": [],
+    "version_information": "\nVersion symbols section '.gnu.version' contains 25 entries:\n Addr: 0x000000000000062e  Offset: 0x0000062e  Link: 4 (.dynsym)\n  000:   0 (*local*)       0 (*local*)       0 (*local*)       2 (GLIBC_2.17) \n  004:   2 (GLIBC_2.17)    2 (GLIBC_2.17)    3 (GLIBC_2.34)    2 (GLIBC_2.17) \n  008:   1 (*global*)      2 (GLIBC_2.17)    2 (GLIBC_2.17)    2 (GLIBC_2.17) \n  00c:   2 (GLIBC_2.17)    1 (*global*)      2 (GLIBC_2.17)    2 (GLIBC_2.17) \n  010:   2 (GLIBC_2.17)    2 (GLIBC_2.17)    2 (GLIBC_2.17)    2 (GLIBC_2.17) \n  014:   2 (GLIBC_2.17)    1 (*global*)      2 (GLIBC_2.17)    2 (GLIBC_2.17) \n  018:   2 (GLIBC_2.17) \n\nVersion needs section '.gnu.version_r' contains 1 entry:\n Addr: 0x0000000000000660  Offset: 0x00000660  Link: 5 (.dynstr)\n  000000: Version: 1  File: libc.so.6  Cnt: 2\n  0x0010:   Name: GLIBC_2.34  Flags: none  Version: 3\n  0x0020:   Name: GLIBC_2.17  Flags: none  Version: 2\n"
+  },
+  "dynamic_observations": {
+    "status": "not measured",
+    "syscalls": null
+  },
+  "elf_notes": "\nDisplaying notes found in: .note.gnu.build-id\n  Owner                Data size \tDescription\n  GNU                  0x00000014\tNT_GNU_BUILD_ID (unique build ID bitstring)\t    Build ID: fead7d98e93014d9441eb81b74dfb7d5a7996934\n\nDisplaying notes found in: .note.ABI-tag\n  Owner                Data size \tDescription\n  GNU                  0x00000010\tNT_GNU_ABI_TAG (ABI version tag)\t    OS: Linux, ABI: 3.7.0\n\nDisplaying notes found in: .note.package\n  Owner                Data size \tDescription\n  FDO                  0x00000064\tFDO_PACKAGING_METADATA\t    Packaging Metadata: {\"type\":\"deb\",\"os\":\"debian\",\"name\":\"cross-toolchain-base\",\"version\":\"77\",\"architecture\":\"amd64\"}\n",
+  "evidence_kind": "tool-derived static evidence; not a Lean proof",
+  "executable_sections": [
+    {
+      "address": 2352,
+      "decoded_bytes": 28,
+      "mnemonics": {
+        "autiasp": 1,
+        "bl": 1,
+        "ldp": 1,
+        "mov": 1,
+        "paciasp": 1,
+        "ret": 1,
+        "stp": 1
+      },
+      "name": ".init",
+      "size": 28,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 2384,
+      "decoded_bytes": 336,
+      "mnemonics": {
+        "add": 20,
+        "adrp": 20,
+        "br": 20,
+        "ldr": 20,
+        "nop": 3,
+        "stp": 1
+      },
+      "name": ".plt",
+      "size": 336,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 2752,
+      "decoded_bytes": 1172,
+      "mnemonics": {
+        "add": 29,
+        "adrp": 28,
+        "asr": 1,
+        "autiasp": 1,
+        "b": 7,
+        "b.eq": 7,
+        "b.ge": 1,
+        "b.hi": 1,
+        "b.le": 3,
+        "b.ne": 1,
+        "bl": 31,
+        "br": 2,
+        "bti": 2,
+        "cbnz": 3,
+        "cbz": 6,
+        "cmn": 3,
+        "cmp": 13,
+        "csel": 3,
+        "ldp": 9,
+        "ldr": 30,
+        "ldrb": 2,
+        "ldrh": 3,
+        "lsr": 1,
+        "mov": 59,
+        "movk": 1,
+        "nop": 16,
+        "paciasp": 1,
+        "ret": 6,
+        "stp": 14,
+        "str": 2,
+        "strb": 2,
+        "sub": 3,
+        "sxtw": 1,
+        "tbnz": 1
+      },
+      "name": ".text",
+      "size": 1172,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 3924,
+      "decoded_bytes": 24,
+      "mnemonics": {
+        "autiasp": 1,
+        "ldp": 1,
+        "mov": 1,
+        "paciasp": 1,
+        "ret": 1,
+        "stp": 1
+      },
+      "name": ".fini",
+      "size": 24,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    }
+  ],
+  "extension_evidence": {
+    "classifier": {
+      "AES": "aese aesd aesmc aesimc",
+      "CRC32": "crc32b crc32h crc32w crc32x crc32cb crc32ch crc32cw crc32cx",
+      "SHA1": "sha1c sha1p sha1m sha1h sha1su0 sha1su1",
+      "SHA256": "sha256h sha256h2 sha256su0 sha256su1"
+    },
+    "matches": {
+      "AES": {},
+      "CRC32": {},
+      "SHA1": {},
+      "SHA256": {}
+    },
+    "method": "exact mnemonic matches in linear disassembly; bounded allowlist"
+  },
+  "generator_sha256": "89523f475d2f2714e01c22a2bd29d77108a3906c3c4e655862047aeda158ef5b",
+  "identity": {
+    "cflags": "-O2 -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall",
+    "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+    "configure_args": "(none)",
+    "image": {
+      "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598",
+      "id": "sha256:42e6f05098b3fd5e3439f33b0ce83fa8601b0af0829d59f22b754b98fed690c2",
+      "tag": "silmaril-corpus-toolchain:trixie-20251103"
+    },
+    "inputs": [
+      {
+        "sha256": "13df988f5f202b550c078a81d9b94c294ef7946d684a6013aaae8f638c5982ce",
+        "url": "https://github.com/beejjorgensen/bgnet/archive/34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9.tar.gz"
+      },
+      {
+        "sha256": "ab57df0b712f6e63511fd41577d3a5ba3bc9c89f07fd77cb1031940c775640cc",
+        "url": "local/pingpong.patch"
+      }
+    ],
+    "project": "tcp-pingpong",
+    "receipt": "corpus/elf/tcp-pingpong/aarch64/receipt.json",
+    "receipt_sha256": "0a91567d6f59e8e68da4b89fc3957271f596a7817c7b4babc0386cb9c2eaf584",
+    "stripping": "unstripped",
+    "version": "bgnet-34fb9d78"
+  },
+  "limits": [
+    "Linear objdump decoding can interpret embedded data as instructions; not control-flow reachability.",
+    "Mnemonic counts are decoder evidence, not complete ISA-extension classification or semantic support.",
+    "Imports do not demonstrate runtime use; static linking, indirect calls and inline syscalls can hide dependencies.",
+    "Absent import matches or syscall sites do not establish absence of a feature or dependency.",
+    "Syscall numbers, indirect targets, signal behavior, vDSO use and runtime effects remain unknown."
+  ],
+  "path": "corpus/elf/tcp-pingpong/aarch64/pingpong-client",
+  "relocations": {
+    "R_AARCH64_GLOB_DAT": 5,
+    "R_AARCH64_JUMP_SLOT": 19,
+    "R_AARCH64_RELATIVE": 4
+  },
+  "schema_version": 1,
+  "sha256": "e74f005de9971d7533d6e6c84ba0984b189e8214904d0510661e7bad71b5fb49",
+  "tools": {
+    "objdump": "GNU objdump (GNU Binutils for Debian) 2.44",
+    "readelf": "GNU readelf (GNU Binutils for Debian) 2.44"
+  }
+}

@@ -1,8 +1,8 @@
 # glibc byte ranges
 
 The modules `Silmaril.Elf.Link.Dyn.Glibc.Defs`, `Silmaril.Elf.Link.Dyn.Small.Libc`,
-`Silmaril.Elf.Link.Dyn.Program.Glibc` and `Silmaril.Elf.Link.Dyn.Program.StdExe.Bins.Glibc`
-contain short byte ranges (a few kilobytes in all: the ELF and program headers, the dynamic
+`Silmaril.Elf.Link.Dyn.Program.Glibc`, `Silmaril.Elf.Link.Dyn.Program.StdExe.Bins.Glibc` and
+`Silmaril.Elf.Link.Dyn.Sha256sum.Scope.Defs` contain short byte ranges (a few kilobytes in all: the ELF and program headers, the dynamic
 section, and the parts of the symbol, string, version and GNU hash tables that symbol lookup reads)
 of two files of the GNU C Library 2.39 as packaged by Ubuntu (`libc6` 2.39-0ubuntu8.9, amd64):
 
@@ -20,3 +20,12 @@ Its complete corresponding source is the Ubuntu source package `glibc` 2.39-0ubu
 The executables in `examples/dyn/pinned/` contain glibc's crt start-up objects (LGPL-2.1-or-later
 with the linking exception) and GCC's `crtbeginS.o`/`crtendS.o` (GPL-3.0-or-later with the GCC
 Runtime Library Exception); see `examples/dyn/README.md`.
+
+## Whole files: `examples/elf/pinned/glibc-libc.so.6` and `glibc-libm.so.6`
+
+`libc.so.6` (sha256 above) and `libm.so.6` (952616 bytes, sha256
+`fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0`) of the same package are
+redistributed unmodified, whole, for the ELF reader and the explorer's function tables
+(`Silmaril.Elf.Staged.Pinned.{GlibcLibc,GlibcLibm}`, `examples/elf/README.md`;
+`examples/elf/pin.sh --fetch` downloads and checks them). They are under the licence above; the
+complete corresponding source is the Ubuntu source package and upstream release named above.

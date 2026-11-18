@@ -1,0 +1,20 @@
+name = "mimalloc"
+version = "2.1.9"
+category = "memory allocator (malloc replacement) shared library"
+summary = "mimalloc 2.1.9 (GitHub tag archive v2.1.9, same sha256 as artifacts/alloc): libmimalloc.so.2.1 (soname libmimalloc.so.2), overriding malloc/free (MI_OVERRIDE=ON). Built with the gcc commands upstream's CMake would issue (no CMake in the image)."
+license = "MIT"
+license_files = ["upstream/mimalloc-2.1.9/LICENSE"]
+homepage = "https://github.com/microsoft/mimalloc"
+
+[[archive]]
+url = "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz"
+sha256 = "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+root = "mimalloc-2.1.9"
+retrieved = "2026-11-17"
+
+[[object]]
+name = "libmimalloc.so.2.1"
+kind = "shared"
+sources = ["upstream/mimalloc-2.1.9/src/alloc.c", "upstream/mimalloc-2.1.9/src/alloc-aligned.c", "upstream/mimalloc-2.1.9/src/alloc-posix.c", "upstream/mimalloc-2.1.9/src/arena.c", "upstream/mimalloc-2.1.9/src/bitmap.c", "upstream/mimalloc-2.1.9/src/heap.c", "upstream/mimalloc-2.1.9/src/init.c", "upstream/mimalloc-2.1.9/src/libc.c", "upstream/mimalloc-2.1.9/src/options.c", "upstream/mimalloc-2.1.9/src/os.c", "upstream/mimalloc-2.1.9/src/page.c", "upstream/mimalloc-2.1.9/src/random.c", "upstream/mimalloc-2.1.9/src/segment.c", "upstream/mimalloc-2.1.9/src/segment-map.c", "upstream/mimalloc-2.1.9/src/stats.c", "upstream/mimalloc-2.1.9/src/prim/prim.c"]
+cflags = "-O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc [-march=armv8.1-a on aarch64] -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD"
+notes = "linked: gcc -O2 -shared -Wl,-soname,libmimalloc.so.2 -o libmimalloc.so.2.1 <objs> -lpthread -lrt. src/prim/prim.c includes src/prim/unix/prim.c; src/alloc.c includes alloc-override.c, free.c (see upstream/ subset)."

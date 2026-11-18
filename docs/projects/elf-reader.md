@@ -98,3 +98,94 @@ The ELF tab (`tools/silmaril-project/src/project/explore/views/elf.js`) has thes
 Checks: `make elf-check`, run by `make check` when `elf-pages` is in scope, checks the pins,
 regeneration and the tamper test. `tools/silmaril-project/tests/explore/elf.mjs` runs in the
 Pages workflow's browser tests.
+
+## Function tables
+
+The **functions** tab of a file (`#/elf-funcs/SLUG`) lists every `STT_FUNC` and `STT_GNU_IFUNC`
+entry of its symbol tables: `.symtab` when the file has one, otherwise `.dynsym` (all four library
+files are stripped).
+
+**What each row is backed by**
+- **The symbol theorem.** `Pinned.*.Functions.sym_K_I : PartIs F ws (Parse.symbol strs o) sK_I`
+  is entry `I` of section `K`, as the specification's reader reads it from the 24-byte record and
+  the name bytes. Its windows are exactly those bytes, and it is checked by the kernel on kernel
+  bytes. The symbol constants `sK_I` are the entries of the checked section body `bK`, so
+  elf-pages reads a row's section and index from that definition.
+- **Derived columns.** The version comes from the checked `.gnu.version` and
+  `.gnu.version_d`/`_r` bodies: `@@` is the default version, `@` a non-default one. The segment,
+  file offset and owning section come from the checked layout. Aliases are other function symbols
+  with the same address. Overlaps are function ranges that intersect but differ.
+- **Contract.** A row shows a contract only when a theorem's statement starts with
+  `Silmaril.Elf.CodeAt F v code` at the row's address (`Pinned.ZlibChecksums.Contracts`). Every
+  other row shows **no contract statement**.
+
+**What a row does not say**
+- A row is not a recovered function, and it says nothing about the System V ABI.
+- When `st_size = 0`, the extent is **unknown**; it is not guessed.
+- An IFUNC row is a **resolver**; the implementation is chosen at load time.
+- An undefined row is an **import**.
+- Nothing checks that the bytes in `[st_value, st_value + st_size)` are code, or one function.
+
+**Contracts.** Only the four zlib functions with proofs in this repository have contracts:
+`crc32_z`, `crc32`, `adler32_z` and `adler32` of `zlib-checksums`
+(`Silmaril.X86.Ladder.ZlibChecksums`, System V entry contracts, `FnContract.Spec.Total` on
+`Open`/`Open9`). `Pinned.ZlibChecksums.Contracts` ties each contract's code literal to the pinned
+file itself, `CodeAt F v code`, by one kernel read on kernel bytes. The existing link,
+`Silmaril.X86.Ladder.Pinned`, reads a `Blob` literal instead. Each theorem pairs the `CodeAt`
+fact with the unchanged contract. The other libraries' functions (zlib `libz.so.1.3`, glibc 2.39
+`libc.so.6` and `libm.so.6`) have no per-function contracts here: no new libm, allocator or other
+semantic problems are added.
+
+| file | function symbols | defined | imports | IFUNC | contracts | `Functions` check |
+|---|---|---|---|---|---|---|
+| `zlib-checksums` | 15 (`.symtab`) | 15 | 0 | 0 | 4 | 2.6 s |
+| `zlib-libz` | 106 | 88 | 18 | 0 | 0 | |
+| `glibc-libm` | 1,191 | 1,181 | 10 | 85 | 0 | 35 s |
+| `glibc-libc` | 2,945 | 2,931 | 14 | 63 | 0 | 151 s |
+
+`elf-pages --self-test` runs in `make elf-check`. It generates the pages once, verifies them, and
+checks that `--verify` rejects each of these edits:
+- a moved window;
+- a re-associated theorem;
+- a widened coverage class;
+- hidden axioms;
+- a function row given another row's theorem;
+- a contract linked to another function.
+
+Axioms are collected with one cache for all theorems, and checked against `Lean.collectAxioms` on
+a sample.
+
+## Function decompositions
+
+`Silmaril.Elf.Staged.Decomp` (`Defs`, `Thms`; proof in `Silmaril.Proofs.Elf.Staged.Decomp`):
+**`Decomposes F L x ps`** says that section `x` of the file is an executable `SHT_PROGBITS`
+section and that the pieces `ps`, in address order, tile its address range exactly. A piece is a
+function (`.fn k i s`: entry `i` of the symbol table in section `k` reads as `s`, a defined
+`STT_FUNC`/`STT_GNU_IFUNC` symbol of section `x` with nonzero `st_size`, whose extent is exactly the
+piece) or a gap (`.gap n`, `n > 0` bytes no chosen function symbol covers). `emit-reader` writes
+`Pinned/*/Decomp.lean`: one `decomp_x` theorem per executable section with function symbols, along
+`.symtab` when the file has one and `.dynsym` otherwise, assembled by `decomposes_of` from the
+layout, the checked symbol theorems of `Functions` (`symbolIs_of_partIs'`) and one
+`decide +kernel` run of the tail-recursive `tilesB` (`tilesB_iff`). Standard axioms only.
+
+What a decomposition is **not**: it does not say that a function's bytes decode as instructions,
+that control stays inside the extent, or anything about behaviour; aliases (several symbols with
+one extent) are represented once; symbols whose extent overlaps a chosen one are left out and
+counted; zero-size symbols are counted, not used. It is the same statement for every `e_machine`
+the reader accepts (ELFCLASS64, little-endian): x86-64, AArch64 and RISC-V files alike.
+`emit-reader … --namespace NS --include-path REL --generator SCRIPT` emits the same modules for a
+downstream project's files.
+
+| file | section | bytes | functions | covered | gaps (bytes) | aliases | check |
+|---|---|---|---|---|---|---|---|
+| `zlib-checksums` | `.text` | 3,804 | 15 | 3,697 (97.1%) | 13 (107) | 0 | 2.4 s |
+| `zlib-libz` | `.text` | 72,224 | 88 | 41,190 (57.0%) | 84 (31,034) | 0 | 1.9 s |
+| `glibc-libm` | `.text` | 515,974 | 650 | 314,603 (60.9%) | 622 (201,371) | 531 | 2.8 s |
+| `glibc-libc` | `.text` | 1,603,641 | 2,299 | 533,632 (33.2%) | 2,199 (1,070,009) | 632 | 5.2 s |
+| `hello-gcc` | `.text` | 265 | 2 | 65 (24.5%) | 2 (200) | 0 | 1.8 s |
+| `hello-clang` | `.text` | 257 | 2 | 55 (21.4%) | 1 (202) | 0 | 1.8 s |
+| `gnu-sha256sum` | — | | 0 | | | | (stripped: `.dynsym` holds imports only; nothing to decompose) |
+
+The library files are stripped, so only exported functions have symbols: their gaps are mostly
+code of internal functions, not padding. The coverage is what the symbol table supports, and is
+reported as such.

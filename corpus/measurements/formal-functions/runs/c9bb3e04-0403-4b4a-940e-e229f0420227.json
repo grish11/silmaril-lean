@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "run_id": "c9bb3e04-0403-4b4a-940e-e229f0420227",
+  "stage": "mimalloc-source-core-contextual-tv-symbol-binding",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-17T23:13:20.928940+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.MimallocVersion.Source.Core.Thms"
+  ],
+  "cwd": "/work/source-tv-followup",
+  "target": "x86_64-linux-gnu",
+  "repository": {
+    "commit": "04b8f5425df39c9a81bd59dff5d7af7943e501de",
+    "dirty": true,
+    "diff_sha256": "72753df4b2312334b6060a4217301f2b1ba6a31c4fa35256816ff9b55aec50c0"
+  },
+  "cache": "unspecified",
+  "concurrency": 2,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocVersion/Source/Defs.lean",
+      "sha256": "c167e9f5170a8d4cd055a894977c34e829a6ed319a1ba8c3b8dd47c75b6ed4e1"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocVersion/Source/Core/Defs.lean",
+      "sha256": "36abc353b9f08f66f0603d59e654bf26978b054230026e7c2a809815bf3097c9"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocVersion/Source/Core/Thms.lean",
+      "sha256": "fa3578bb54573e379e796d19c8b840e42ba10e805d6374cb1b51f037d85ae641"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/MimallocVersion/SourceCore.lean",
+      "sha256": "9f63feff1dce803a286cff494c7cce886602fa5d4071ba3b8a1e8df5d9b07267"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/mi_version/options.i",
+      "sha256": "32de013ed832e6f319a9364c4738899d575289a3fe6b744c415b70b1c3f406fe"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/mi_version/definition.c",
+      "sha256": "6502ef2c985a434da8d9a669e5ef3f9abce7f36c6c52c7008d4fa4934b540f37"
+    },
+    {
+      "path": "corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1",
+      "sha256": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31"
+    }
+  ],
+  "wall_seconds": 32.17763871900024,
+  "exit_code": 0,
+  "user_cpu_seconds": 25.01,
+  "system_cpu_seconds": 253.28,
+  "peak_rss_kib": 4514408,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

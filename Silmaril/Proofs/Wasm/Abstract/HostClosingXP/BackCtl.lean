@@ -189,7 +189,7 @@ variable {s : Store H} {f : Frame} {stk : List Val} {c : Config H}
   {cs : List (Call (wasmHostSig H))} {n : Nat}
 
 /-- **The empty list of trees.** -/
-theorem case_nil (hH : NativeHostSlice host) (hE : HostSliceE tags host) :
+theorem case_nil (hH : HostSliceT host) (hE : HostSliceE tags host) :
     BackG tags o host n [] := by
   intro s f stk c cs ht hrun hend _
   have := mkOut'' (cs := []) hH hE ht (by simpa using hrun) hend .nil (.inl .nil)

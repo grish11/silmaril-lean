@@ -1,0 +1,16 @@
+# a	b	export	verdict	stage (wasm-check equiv a b export; a stage or a refutation)
+sum8	sum8.binaryen-O3	sum8	proved	equivu
+sum8	sum8-closed	sum8	proved	equivu
+sum8	sum8-mutant	sum8	refuted	counterexample
+pow4	pow4-straight	pow4	proved	equivu
+divsum4	divsum4.binaryen-O3	divsum4	proved	equivu
+memsum4	memsum4.binaryen-O3	memsum4	proved	equivu
+calls	calls.binaryen-O3	sumsq	proved	equivc
+calls	calls.binaryen-O3	mean	proved	equivc
+calls	calls.binaryen-O3	ratio	proved	equivc
+calls	calls-inlined	sumsq	proved	equivc
+calls	calls-inlined	mean	proved	equivc
+calls	calls-inlined	ratio	proved	equivc
+calls	calls-mutant	sumsq	refuted	counterexample
+calls	calls-mutant	mean	refuted	counterexample
+calls	calls-mutant	ratio	refuted	counterexample

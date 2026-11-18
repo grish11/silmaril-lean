@@ -145,12 +145,12 @@ theorem natTripleSXP_trap_iff {host : HostSemantics H} {Ok : Store H → Nat × 
   · rintro ⟨hq, h, hc⟩
     exact ⟨⟨hq, .inl h⟩, hc⟩
 
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 /-- **The session square** (deterministic profile). -/
 theorem natTripleSXP_eq_coreTripleSXP {o : GrowOracle} {host : HostSemantics H}
-    {tags : List TagInst} (hT : HostTyped host) (hH : NativeHostSlice host)
+    {tags : List TagInst} (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) :
     natTripleSXP host (InvOkXP tags) = coreTripleSXP (profile o) host (InvOkXP tags) := by
   refine eq_of_eraseTrap_eq (noPlainTrap_natTripleSXP _ _) (noPlainTrap_coreTripleSXP _ _ _) ?_

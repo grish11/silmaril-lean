@@ -1,0 +1,49 @@
+# Wasm specification library entry (format: docs/projects/wasm-spec-library.md).
+schema = 1
+name = "BTree"
+version = "1.0.1"
+summary = "The B-tree library of Wasm Logic (Watt et al., ECOOP 2019): ordered bounded arrays (OBAGet, OBAFind, proved), B-tree search (stated, tested), insert and create (stated)."
+status = "partial"
+superseded_by = 2
+
+[program]
+kind = "wat"
+source = "btree.wat"
+lean = "Silmaril.WasmSpec.BTree.program"
+module = "Silmaril.WasmSpec.BTree.Defs"
+functions = ["oba_get", "oba_find", "btree_search"]
+
+[spec]
+module = "Silmaril.WasmSpec.BTree.Defs"
+statements = ["Silmaril.WasmSpec.BTree.OBASpec", "Silmaril.WasmSpec.BTree.SearchSpec", "Silmaril.WasmSpec.BTree.InsertCreateSpec"]
+runs = "every"
+correctness = "total"
+description = """
+The paper's predicates over the i32 view (Silmaril.Wasm.Logic.Words): OBA/BA/OBAnd (length cell,
+contents, ordering, capacity, INT32_MAX bound), node pages (leaf indicator, keys OBAnd at
+65536x + 4, child-page BA at 65536x + 32768), abstract trees with Repr, Ordered, Balanced, and
+IsBTree B t κ (metadata t at 0, root page at 4). `OBASpec` (proved): oba_get returns α!k and
+oba_find the first index whose element is not below e (paper Figures 12, 13), store unchanged,
+every-run total correctness. `SearchSpec` (stated; tested on wasmi): btree_search returns 1 iff
+k ∈ κ, store unchanged, every-run total correctness. As stated it is not provable: btree_search
+reads the child pointers with oba_get, and its hypothesis gives oba_get only `getSpec`, whose
+precondition requires an *ordered* array, which the pointer arrays need not be (an oba_get
+meeting getSpec may trap on them). Version 2 states getSpec on bounded arrays, resolves the
+callees to the module's code, and proves search. `InsertCreateSpec c₁ c₂` (stated for a given
+implementation; none in this entry): BTreeInsert/BTreeCreate of Figure 14 as every-run partial
+correctness (FSpecValid), as in the paper. The correctness fields describe OBASpec and
+SearchSpec; InsertCreateSpec is partial correctness."""
+
+[results]
+module = "Silmaril.WasmSpec.BTree.Thms"
+theorems = ["Silmaril.WasmSpec.BTree.obaSpec"]
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.BTree.obaSpec_tactic"
+proves = "Silmaril.WasmSpec.BTree.OBASpec"
+module = "Silmaril.Proofs.WasmSpec.BTree.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 30
+notes = "Words view and tactics; oba_find with the paper's invariant (FInv: all elements before i are below e) and variant |α| + 1 - i; BA.unique (contents determined by memory)."

@@ -1,0 +1,70 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 5496,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 4096,
+      "sha256": "9bdf96e0741b0d3b119094d79b6656e3ba5d0f89a29b5aa059dfaf224ee783bd",
+      "size": 23
+    },
+    ".plt": {
+      "address": 4128,
+      "sha256": "e0ae35774e02c79d9152d0ab31333c5a4c66d8362e76a80f82c054332c804fab",
+      "size": 256
+    },
+    ".plt.got": {
+      "address": 4384,
+      "sha256": "700660bda2098f3a02da6e34b879025410f9173cf5ff5d0f615973a56ff22565",
+      "size": 8
+    },
+    ".text": {
+      "address": 4400,
+      "sha256": "0714356aa6cbeeb169eed4783a4db1bc437fe819757f6dfa84db0f3a457168d8",
+      "size": 1093
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "a5cc2deb102bb00ec42cc59d777e473087c56e56eb7d1f86e05d1f5b9e60bbaa",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "0bedaf8a4b4e91e5ecca34e54f36c3a69e65ec3d91ce082d8b721182c914fa68",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "main.cold",
+      "section_index": "14",
+      "size": 95,
+      "type": "FUNC",
+      "value": 4400
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_in_addr",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 5472
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_start",
+      "section_index": "14",
+      "size": 34,
+      "type": "FUNC",
+      "value": 5232
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "main",
+      "section_index": "14",
+      "size": 727,
+      "type": "FUNC",
+      "value": 4496
+    }
+  ]
+}

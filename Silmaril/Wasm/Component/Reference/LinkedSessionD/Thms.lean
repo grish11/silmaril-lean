@@ -75,27 +75,18 @@ injection (`Linked2.sessEquiv_iffD`) restated on the finite plays of the diverge
   and `Linked2.inf_spullD_of_chatter` (the importer's side of `Chatter`, after a path to
   `.idle u`, is the infinite play of a productive stream of the round, `NodeDiv.stream`).
 
-**Not proved here** (the remaining targets).
+**Proved downstream** (`Silmaril.Wasm.Component.Reference.LinkedSessionDAdeq.Thms`).
 
-* `sessDivs ⊆` IR divergences and its converse: relating `Linked2.linkDiv (impSemD P) l`, after
-  the session prefix and the pending ask `(j, vs)`, to `Linked2.RoundDiv`. The node-level halves
-  are above; what remains is the read-back of #724 (`LinkedSessionAdeq`) for **pending** rounds
-  (B's instance `.running`) through the remaining wiring (the node's `implsN`/`widenH`, `maskH`
-  and `splitH`, the importer node's `implsH`, `exportsH`, `widenH 0`, `narrowH`), and for
-  chatter, the exporter's finite rounds served inside B's round (`ExpRunT`) against the
-  exporter's node. (The exclusion of `implsN`'s silent chatter below a core node is
-  `div_dcoreNode_impSemD`.)
-* The infinite plays: that the limit of the session prefixes of a productive execution is in
-  `(l.toComp.denD (impSemD P)).inf` (the `inf` of a composite needs runs of each component,
-  `inf_comp_eq`), and conversely that an IR infinite play is such a limit.
-* Hence the combined injection `RefSessEquivFull ↔ SameTypes ∧` equal divergence-aware IR
-  denotations. The equality would be stated over `sigU` (`Comp.denUD`) or by a `pubPlays`-style
-  projection, since `l.toComp.denD` and `l'.toComp.denD` have different types.
-
-No counterexample was found: B's import calls go through `canon lower` (arguments that do not
-lift trap without a call, and a trap answer aborts B's round, `NodeTrap`), A has no imports, and
-the outer `maskH 0` sees no call, so every IR divergence after a typed prefix is expected to be
-one of `DivB`, `DivA`, `Chatter`.
+* The divergences: `sessDivs` against the IR divergences, both directions, by source
+  (`Linked2.div_denD_iff_profile` at `profile o`; at other profiles given
+  `Linked2.Task.ChatterReadBack`).
+* The infinite plays: the infinite play `Linked2.sessInfPlay l a out` of a typed stream is an
+  infinite play of `l.toComp.denD (impSemD (profile o))` iff `Linked2.RefSessProd`
+  (`Linked2.inf_denD_iff_profile`), and no infinite IR play ends inside a round
+  (`Linked2.inf_denD_idle`).
+* The combined injection (`Linked2.refSessEquivFull_iff_denD`), on the projections of the IR
+  (`pubPlays`, `Linked2.IRDivEq`, `Linked2.IRInfEq`), since `l.toComp.denD` and
+  `l'.toComp.denD` have different types.
 -/
 
 public section

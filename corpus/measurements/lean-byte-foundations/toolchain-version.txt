@@ -1,0 +1,1 @@
+Lean (version 4.37.0-nightly-2026-11-05, x86_64-unknown-linux-gnu, commit 67dafde474fbaf278d6d7f822068549bf6e532fa, Release)

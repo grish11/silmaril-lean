@@ -324,6 +324,41 @@ Int`, `CNF := List (List Int)`, `Dimacs.read`, `LRAT.check`):
   (not that it is necessary for every formula). `Examples.src_unsat`: the four clauses over
   `x, y` encode to `LRAT.fourClauses`, whose existing proof is checked by `decide`.
 
+### Word carriers: `list<list<s32>>` and zero-terminated `list<s32>`
+
+`Silmaril/Logic/SAT/Carrier/{Defs,Thms,Examples}` reads the two WIT problem carriers of the
+certificate-checking acceptors into the existing `SAT.CNF` (no new CNF formalism):
+
+* a word is a WIT `s32` (`BitVec 32`, two's complement); a literal word is neither `0` nor
+  `Int32.MIN` (`litWord_iff`: exactly the literals `l ≠ 0`, `|l| < 2³¹`);
+* `decodeNested` (one inner list per clause; a `0` or `Int32.MIN` anywhere is malformed) and
+  `decodeStream` (the existing `Dimacs.cnf` of the signed words; `Int32.MIN` or an unterminated
+  last clause is malformed). Malformed input is `none`, never the empty formula; `[]`, `[[]]`,
+  the empty stream and `[0]` are distinct (`Examples`);
+* lossless on in-range formulas (`decodeNested_encode`, `encodeNested_of_decode`,
+  `decodeStream_encode`, `encodeStream_of_decode`), and related to each other through
+  `flatten` (`decodeStream_flatten`, `unsatNested_iff_stream`, …);
+* languages `UnsatNested`, `SatNested`, `UnsatStream`, `SatStream`, related to `CnfUnsat litSat`
+  and `lratAccepts` above (`unsatNested_iff_cnfUnsat`, `lratNested_lratAccepts`);
+* acceptors `check(problem, certificate) → Bool` with `Accepts chk = {p | ∃ c, chk p c}`, sound
+  by existential projection: `lratNested_sound`, `lratStream_sound` (a flat LRAT certificate
+  stream with RUP, deletion and RAT steps, decoded losslessly on representable steps:
+  `LratStream.decode_encode`, `LratStream.encode_decode`) and `satNested_sound`,
+  `satStream_sound` (an explicit, consistent model witness, `eval_of_modelOk`; never a negated
+  UNSAT answer). No completeness or decision procedure is claimed.
+
+These are the Lean specifications; they are not compiled components.
+
+### Farkas certificates over WIT words
+
+`Silmaril/Logic/LinArith/Carrier/{Defs,Thms,Examples}` reads the typed Farkas interface
+`check(system: list<record { coeffs: list<tuple<u32, s64>>, bound: s64 }>, y: list<s64>)` into
+the existing `LinArith.System` (variables as unsigned `u32`, coefficients, bounds and multipliers
+as two's-complement `s64`; total and injective, lossless in range: `decodeSystem_encode`).
+`Infeasible` is the set of systems with no solution over any ordered field, and `farkasCheck` (the
+existing `checkCert`) is sound for it by existential projection (`farkasCheck_sound`). No
+completeness is claimed.
+
 ## Institutions, logics and their propositions
 
 `roomSys` (`Set Sen ⊢ Sen`) and `roomMulti` (`Sen* ⊢ Sen*`) already read a room as a system.
@@ -347,6 +382,13 @@ reindexing/substitution lemma. Point-wise single conclusion is below model-wise
 incomparable (`Institution/Examples.lean`). **A model-wise succedent is not a disjunctive (LK)
 succedent.**
 
+**The four laws.** Identity, weakening and cut are `Structural.Closed tarskiRules`. Substitution
+(structurality) is `Structural.Substitutive act R`: for an action `act : Sub → C → C` of
+substitutions on formulas, `R Γ c → R (Γ.map (act s)) (act s c)`. The logic chooses `Sub`, and
+with it the substitutions that are allowed (well-formed instantiations in HOL, syntax rewrites in
+Metamath). Derivability and semantic consequence are separate systems, related only by proved
+soundness (`≤`).
+
 ### HOL (`HOL/`)
 
 The HOL institution's sentences are sequents `H ⊢ p`, satisfied valuation by valuation. At the
@@ -361,14 +403,102 @@ level of propositions `HOLProp S` (bool-typed terms):
 Closure, all proved for `seq` and `gentzen`: structural (`seq_closed`, `gentzen_closed`,
 `seq_exchange`, `seq_contraction`), signature extension (`seq_map`, `gentzen_map`), type
 instantiation (`seq_tySubst`, `gentzen_tySubst`) and term instantiation (`seq_freeSubst`,
-`gentzen_freeSubst`). Soundness: `derives_le_seq` (HOL Light kernel, pure logic) and
-`logic_listSys_le_roomSeq` (sequent level). `HOL/Examples.lean` proves, over the initial
+`gentzen_freeSubst`); `seq_substitutive_ty` and `seq_substitutive_free` restate the last two as
+`Structural.Substitutive`. Soundness: `derives_le_seq` (HOL Light kernel, pure logic) and
+`logic_listSys_le_roomSeq` (sequent level).
+
+**Derivability on propositions.** `HOL.kernelFrom S Δ` is the HOL Light kernel as
+`HOLProp* ⊢ HOLProp`: a derivation from the axioms `Δ` whose hypotheses are the members of `Γ`;
+`HOL.kernel S` has no axioms. It satisfies identity, weakening and cut, which are admissible in
+the kernel (`kernelFrom_closed`), and substitution along `INST_TYPE` and `INST`
+(`kernelFrom_substitutive_ty`, `kernelFrom_substitutive_free`). `kernel_le_seq` is soundness. `HOL/Examples.lean` proves, over the initial
 signature, `x ⊢ y` in `globalSeq` but not in `seq`, and `⊢ x, ¬x` in `gentzen` but not in
 `globalGentzen`.
 
+### Theories (`Theory/`)
+
+`theoryOf D T Γ φ := D (T ∪ Γ) φ` reads a relation on sets of premises relative to a theory `T`.
+`ER.theorySys E T` is derivability from `T`, and `roomTheorySeq R T` is semantic consequence
+over the models of `T`. Both are the list reading of the entailment relation `ER.withTheory E T`,
+so both satisfy identity, weakening and cut (`theorySys_closed`, `roomTheorySeq_closed`). A
+derivability relation sound for a room is sound relative to every theory
+(`theoryOf_le_of_sound`, `theorySys_le_roomTheorySeq`). With `T = ∅` they are `ER.listSys` and
+`roomSeq`.
+
+### Metamath, PA, ZF and ZFC (`Metamath/`)
+
+Over a Metamath grammar `X` (`Metatheory.MMSig`), sentences are well-formed tree assertions,
+including their disjoint-variable conditions:
+
+| system | Lean | reading |
+|---|---|---|
+| derivability | `Metamath.derives X` | `A` is tree-derivable with the `Aᵢ` as axioms (`Grammar.TDerivable`) |
+| semantic consequence | `Metamath.entails X` | Carneiro's models (`Metamath.Model.Satisfies`) |
+| from a theory | `Metamath.theory X T`, `Metamath.theoryEntails X T` | `Γ ⊢_T A` |
+| PA | `Metamath.paTheory` | the 30 axioms of `peano.mm` |
+| ZF, ZFC | `Metamath.zfTheory`, `Metamath.zfcTheory` | set.mm's axioms over its set-theory fragment (`ZF0` omits `ax-ac`) |
+| set.mm's ZFC | `Metamath.setMMZFCTheory` | over all of set.mm's grammar |
+
+**Disjoint-variable conditions** are part of the assertions. They are not premises and not side
+conditions of the consequence relation: a derivation applies an assertion only under a
+substitution that is DV-safe for it. **Substitution** is along syntax rewrites (a typecode map, an
+injective variable renaming and a template per syntax rule): `derives_rewrite`,
+`derives_substitutive`. For theories, a rewrite must map each axiom to a theorem
+(`theory_rewrite`, `theory_substitutive`). Soundness: `derives_le_entails`,
+`theory_le_theoryEntails`. Also: `zfTheory_le_zfcTheory`, and `setMMZFCTheory_sound_zfSet` (every
+theorem of set.mm's ZFC holds in the `ZFSet` model). The arithmetic soundness of ZF and ZFC
+(`Peano.ToZF.arithSound_ZFC`) concerns one translation of arithmetic sentences. It does not
+translate PA derivations, so it is not a map between these systems.
+
+### Martin-Löf type theories (`TypeTheory/`)
+
+| theory | derivability | semantic consequence | soundness |
+|---|---|---|---|
+| extensional MLTT | `extensionalDerives` (`ECtx.JEqH`) | `extensionalEntails` (set hierarchies) | `extensionalDerives_le_entails` |
+| intensional MLTT, original rules, at a stage | `intensionalDerives stage` | `intensionalEntails stage` (realizability) | `intensionalDerives_le_entails` |
+| `λΠ` modulo rewriting | `lambdaPiDerives C` | none: the library pairs it with closed theories, which coincide with derivability by construction | — |
+
+Premises are whole judgments used as hypotheses. The context `Γ` of a judgment `Γ ⊢ J` is part
+of the sentence, not a list of premises. Identity, weakening and cut on judgment hypotheses hold
+(`…_closed`); weakening and substitution *of `Γ`* are admissible rules of each type theory, stated
+over judgments, and are not laws of these consequence relations.
+
+### Concrete syntax: S-expressions (`Concrete/`)
+
+HOL and extensional MLTT have a concrete syntax over the S-expressions of `Silmaril.Logic.Smt.SE`,
+whose ASCII reader and writer are proved to round-trip (`read_render`):
+
+| | grammar and codec | round trips |
+|---|---|---|
+| HOL types and terms | `Silmaril.Logic.HOLLight.SExp`: `(-> A B)`, `(tyapp n A*)`, `(bvar n)`, `(fvar n A)`, `(= A)`, `(@ A)`, `(const n A*)`, `(app t u)`, `(lam A t)` | `decodeTm_eq_some_iff` (the decoder accepts exactly the canonical forms), `parseTm_printTm` (bytes, every term) |
+| extensional MLTT terms, contexts, judgments | `Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp`: `(pi A B)`, `(lam A b)`, `(bv n)`, `(fv x)`, …, `(ctx (x A)*)`, `(jdg Γ A a b)` | `decodeJdg_eq_some_iff`, `parseJdg_printJdg` (bytes, exactly the judgments whose names are legal atoms: `legal_encodeJdg_iff`, `legalNames_of_parseJdg`) |
+
+Numerals are canonical decimals (`Silmaril.Logic.Concrete.SExp`). A malformed input decodes to
+`none`: an unknown keyword, a wrong number of arguments, a non-canonical numeral, a de Bruijn index
+out of scope (examples in each `SExp/Examples.lean`). **The relation to the abstract syntax** is
+*denotation*, `e` denotes `t` when `encode t = e`. It is a bijection between the canonical
+S-expressions and the abstract syntax.
+
+`Silmaril.Logic.Consequence.Concrete` defines institutions and consequence systems over the
+concrete syntax:
+
+| | concrete sentences | consequence systems | institution, and its comorphism into the abstract one |
+|---|---|---|---|
+| HOL at a signature `S` | `HOLSen S` (propositions), `HOLSequent S` (`(sequent (h*) c)`) | `holKernel S Δ`, `holSeq S` | `holRoom S`, `holInst S`, `holToAbstract S` |
+| extensional MLTT | `MLTTSen` (judgments) | `mlttDerives`, `mlttEntails` | `mlttRoom`, `mlttInst`, `mlttToAbstract` |
+
+Consequence over concrete syntax holds iff it holds over the abstract syntax it denotes
+(`holKernel_ofProp_iff`, `mlttDerives_ofJdg_iff`, and translations both ways). Identity,
+weakening, cut and soundness carry over (`holKernel_closed`, `holKernel_le_holSeq`,
+`mlttDerives_closed`, `mlttDerives_le_entails`). The comorphisms keep the models, so they are
+model-expansive, and semantic consequence over concrete sentences is semantic consequence over what
+they denote (`holRoom_seq_iff`, `mlttRoom_seq_iff`). A concrete HOL sequent lists its hypotheses,
+which the institution's sentences hold as a finite set, so many concrete sequents denote one
+sentence.
+
 ### Dependent type theory: the lambda cube (`Silmaril/Calculi/LambdaCube/Consequence/`)
 
-There is no Martin-Löf type theory in the library. The dependent corners of the lambda cube
+The dependent corners of the lambda cube
 (`lambdaP` … `cc`) are the existing dependent institutions, and their sentences are judgements
 `Γ ⊢ t : A`, `Γ ⊢ t ≡ u : A` that carry their own dependent context. `Semantics.seq M`
 (`roomSeq`) relates lists of whole judgements. It is Tarski-closed in that outer list
@@ -389,6 +519,7 @@ semantics whose `seq` is admissibility.
 ### Gaps
 
 * HOL: no completeness (standard semantics is incomplete for the kernel).
+* No completeness is claimed for Metamath (Carneiro's models) or for the type theories.
 * Lambda cube: no hypothetical-judgement calculus (judgements as premises of derivations), no
   concrete model of a dependent corner, and no substitution closure for judgements. These would
   be new developments, not adapters.
@@ -465,12 +596,18 @@ Gentzen sequents.
 | `Silmaril/Logic/Consequence/Accept/{Defs,Thms}.lean` | acceptor lifts | core |
 | `Silmaril/Logic/Consequence/Acceptor/{Defs,Thms,Examples}.lean` | CSLib acceptors, interpreters and decoders as systems | core |
 | `Silmaril/Logic/Consequence/Institution/{Defs,Thms,Examples}.lean` | list-premise room systems, logics, point-wise vs model-wise | core |
-| `Silmaril/Logic/Consequence/HOL/{Defs,Thms,Examples}.lean` | HOL propositions: `seq`, `gentzen`, closure | core |
+| `Silmaril/Logic/Consequence/HOL/{Defs,Thms,Examples}.lean` | HOL propositions: `seq`, `gentzen`, the kernel (`kernelFrom`), closure, substitution | core |
+| `Silmaril/Logic/Consequence/Theory/{Defs,Thms}.lean` | consequence relative to a theory, syntactic and semantic | core |
+| `Silmaril/Logic/Consequence/Metamath/{Defs,Thms}.lean` | Metamath derivability and models; PA, ZF, ZFC | core |
+| `Silmaril/Logic/Consequence/TypeTheory/{Defs,Thms}.lean` | extensional and intensional MLTT, `λΠ` | core |
+| `Silmaril/Logic/Consequence/Concrete/{Defs,Thms}.lean` | institutions and consequence systems over S-expression syntax | core |
 | `Silmaril/Logic/Consequence/Signed/{Defs,Thms}.lean` | signed formulas, `negateEach`, carriers | core |
 | `Silmaril/Logic/Consequence/Multi/{Defs,Thms}.lean` | multiple conclusions, `rightExt`, `multiEntails`, rooms | core |
 | `Silmaril/Logic/Consequence/Interp/{Defs,Thms}.lean` | interpretations, projection, evidence | core |
 | `Silmaril/Logic/Consequence/Shape/{Defs,Thms}.lean` | acceptor/rejector shapes, slices, checker predicates | core |
 | `Silmaril/Logic/Consequence/Gentzen/Clausal/{Defs,Thms,Examples}.lean`, `…/Clausal/Dimacs/…` | UNSAT, TAUTO, CNF and Gentzen acceptors, closure laws, equivalences; DIMACS image and LRAT bridge | structural derivations |
+| `Silmaril/Logic/SAT/Carrier/{Defs,Thms,Examples}.lean` | `s32` word carriers of CNF (nested, zero-terminated), their UNSAT/SAT languages, LRAT and model certificate checkers | core |
+| `Silmaril/Logic/LinArith/Carrier/{Defs,Thms,Examples}.lean` | Farkas systems and multipliers over WIT `u32`/`s64` words, `Infeasible`, the sound `farkasCheck` acceptor | core |
 | `Silmaril/Logic/Consequence/Examples.lean` | worked examples | core |
 | `Silmaril/Logic/Consequence/Structural/…` | structural rules and derivation closures | structural derivations |
 | Wasm acceptor and SZS protocol modules | Wasm evidence for the lifts | Wasm/SZS protocols |

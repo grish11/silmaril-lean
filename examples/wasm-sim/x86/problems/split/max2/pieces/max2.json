@@ -1,0 +1,35 @@
+{
+  "address": "0x400005",
+  "bytes": "4889f84839f7480f4cc6c3",
+  "function": "max2",
+  "id": "wasm-sim/x86/max2/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "i_alu_rr",
+        "i_cmov_rr",
+        "i_mov_rr",
+        "i_next",
+        "i_ret"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../max2.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= (reg rax) (ite (bvsgt (old (reg rsi)) (old (reg rdi))) (old (reg rsi)) (old (reg rdi))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) true)"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `max2` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

@@ -1,0 +1,10 @@
+
+straight.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 <add3>:
+   0:	01 f7                	add    %esi,%edi
+   2:	8d 04 17             	lea    (%rdi,%rdx,1),%eax
+   5:	c3                   	ret

@@ -1,0 +1,505 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 26080,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 4376,
+      "sha256": "b42569a97a40549829a7c1e56581f0315fd3b0bcb357f970c8a127a11be82728",
+      "size": 28
+    },
+    ".plt": {
+      "address": 4416,
+      "sha256": "fa066141b3d0aa15b976f27a5b090713255a085a77f7754e94492b1b668666f1",
+      "size": 768
+    },
+    ".text": {
+      "address": 5184,
+      "sha256": "b7ffb4a6154ce77e789af4d1389df7a6de85b93c462b5352adf8325954b23018",
+      "size": 20896
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "a9dd4c3a2078b9a6731eca9eb8a073f7ac4011f4b1608a0e03e19a51b1ff61ef",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "d75699bdc2c0c3643de3a4eb63c67469fdc5f18790188caf54a4b9ae378ae751",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 5184
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_3",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 5788
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_4",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 5812
+    },
+    {
+      "binding": "LOCAL",
+      "name": "slide",
+      "section_index": "11",
+      "size": 216,
+      "type": "FUNC",
+      "value": 12732
+    },
+    {
+      "binding": "LOCAL",
+      "name": "equal",
+      "section_index": "11",
+      "size": 28,
+      "type": "FUNC",
+      "value": 12948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "negative",
+      "section_index": "11",
+      "size": 8,
+      "type": "FUNC",
+      "value": 12976
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cmov",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 12984
+    },
+    {
+      "binding": "LOCAL",
+      "name": "select",
+      "section_index": "11",
+      "size": 516,
+      "type": "FUNC",
+      "value": 13068
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_3",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 18064
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_4",
+      "section_index": "11",
+      "size": 32,
+      "type": "FUNC",
+      "value": 18088
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sha512_compress",
+      "section_index": "11",
+      "size": 1148,
+      "type": "FUNC",
+      "value": 22928
+    },
+    {
+      "binding": "LOCAL",
+      "name": "consttime_equal",
+      "section_index": "11",
+      "size": 520,
+      "type": "FUNC",
+      "value": 25292
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ed25519_verify",
+      "section_index": "11",
+      "size": 268,
+      "type": "FUNC",
+      "value": 25812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_add",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 13584
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_cswap",
+      "section_index": "11",
+      "size": 392,
+      "type": "FUNC",
+      "value": 6396
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_frombytes_negate_vartime",
+      "section_index": "11",
+      "size": 444,
+      "type": "FUNC",
+      "value": 13828
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ed25519_key_exchange",
+      "section_index": "11",
+      "size": 716,
+      "type": "FUNC",
+      "value": 17236
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ed25519_create_seed",
+      "section_index": "11",
+      "size": 96,
+      "type": "FUNC",
+      "value": 22832
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_p3_to_p2",
+      "section_index": "11",
+      "size": 60,
+      "type": "FUNC",
+      "value": 15332
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_sq",
+      "section_index": "11",
+      "size": 760,
+      "type": "FUNC",
+      "value": 8836
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_0",
+      "section_index": "11",
+      "size": 44,
+      "type": "FUNC",
+      "value": 5844
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_sq2",
+      "section_index": "11",
+      "size": 800,
+      "type": "FUNC",
+      "value": 10960
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ed25519_create_keypair",
+      "section_index": "11",
+      "size": 112,
+      "type": "FUNC",
+      "value": 17952
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_isnonzero",
+      "section_index": "11",
+      "size": 288,
+      "type": "FUNC",
+      "value": 12444
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_p3_dbl",
+      "section_index": "11",
+      "size": 52,
+      "type": "FUNC",
+      "value": 15392
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_p2_dbl",
+      "section_index": "11",
+      "size": 188,
+      "type": "FUNC",
+      "value": 14980
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_pow22523",
+      "section_index": "11",
+      "size": 680,
+      "type": "FUNC",
+      "value": 10280
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_cmov",
+      "section_index": "11",
+      "size": 276,
+      "type": "FUNC",
+      "value": 6120
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_isnegative",
+      "section_index": "11",
+      "size": 36,
+      "type": "FUNC",
+      "value": 12408
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_p2_0",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 14932
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sc_reduce",
+      "section_index": "11",
+      "size": 1676,
+      "type": "FUNC",
+      "value": 18120
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_p1p1_to_p2",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 14728
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_frombytes",
+      "section_index": "11",
+      "size": 408,
+      "type": "FUNC",
+      "value": 6872
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sha512_final",
+      "section_index": "11",
+      "size": 400,
+      "type": "FUNC",
+      "value": 24528
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_p3_to_cached",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 15224
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_neg",
+      "section_index": "11",
+      "size": 124,
+      "type": "FUNC",
+      "value": 8712
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_tobytes",
+      "section_index": "11",
+      "size": 464,
+      "type": "FUNC",
+      "value": 11944
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_p3_0",
+      "section_index": "11",
+      "size": 56,
+      "type": "FUNC",
+      "value": 15168
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_add",
+      "section_index": "11",
+      "size": 184,
+      "type": "FUNC",
+      "value": 5936
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_mul",
+      "section_index": "11",
+      "size": 1124,
+      "type": "FUNC",
+      "value": 7280
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_invert",
+      "section_index": "11",
+      "size": 684,
+      "type": "FUNC",
+      "value": 9596
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_madd",
+      "section_index": "11",
+      "size": 228,
+      "type": "FUNC",
+      "value": 14272
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sha512",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 24928
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ed25519_sign",
+      "section_index": "11",
+      "size": 272,
+      "type": "FUNC",
+      "value": 25020
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_tobytes",
+      "section_index": "11",
+      "size": 132,
+      "type": "FUNC",
+      "value": 17104
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_double_scalarmult_vartime",
+      "section_index": "11",
+      "size": 840,
+      "type": "FUNC",
+      "value": 16264
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_p3_tobytes",
+      "section_index": "11",
+      "size": 132,
+      "type": "FUNC",
+      "value": 15444
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ed25519_add_scalar",
+      "section_index": "11",
+      "size": 372,
+      "type": "FUNC",
+      "value": 5416
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sha512_init",
+      "section_index": "11",
+      "size": 188,
+      "type": "FUNC",
+      "value": 24076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_1",
+      "section_index": "11",
+      "size": 48,
+      "type": "FUNC",
+      "value": 5888
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_sub",
+      "section_index": "11",
+      "size": 184,
+      "type": "FUNC",
+      "value": 11760
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_mul121666",
+      "section_index": "11",
+      "size": 308,
+      "type": "FUNC",
+      "value": 8404
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sha512_update",
+      "section_index": "11",
+      "size": 264,
+      "type": "FUNC",
+      "value": 24264
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_msub",
+      "section_index": "11",
+      "size": 228,
+      "type": "FUNC",
+      "value": 14500
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fe_copy",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 6788
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_p1p1_to_p3",
+      "section_index": "11",
+      "size": 116,
+      "type": "FUNC",
+      "value": 14816
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sc_muladd",
+      "section_index": "11",
+      "size": 3036,
+      "type": "FUNC",
+      "value": 19796
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_sub",
+      "section_index": "11",
+      "size": 244,
+      "type": "FUNC",
+      "value": 16020
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ge_scalarmult_base",
+      "section_index": "11",
+      "size": 444,
+      "type": "FUNC",
+      "value": 15576
+    }
+  ]
+}

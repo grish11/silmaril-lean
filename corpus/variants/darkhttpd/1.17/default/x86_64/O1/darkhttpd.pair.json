@@ -1,0 +1,334 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 29584,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 8192,
+      "sha256": "df0902431f707d6bbd04455a8cd7c58ef6189b32205718f89aff4acd7975cad9",
+      "size": 23
+    },
+    ".plt": {
+      "address": 8224,
+      "sha256": "c1e9fff399838ace6f673f873f7bddcf3237035948e0d5b0d4e47c62509c366e",
+      "size": 1424
+    },
+    ".plt.got": {
+      "address": 9648,
+      "sha256": "dc85cf8aa010918a47f99b63074c020a52edb9b3f17861bde70ee0a130d4dc03",
+      "size": 8
+    },
+    ".text": {
+      "address": 9664,
+      "sha256": "5b7d00568bfc2893d4526f437ec3de0ac06a27ec3ff941eb6c6555e0523a6edb",
+      "size": 19920
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "5e593fe0ffe95e1e2a1b2c5d93c5d9b15f6a91fd783003a19a848c484147ad2a",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "baf2a3c755acd9fcb2c6ba873d19fe1e970926e91898f3dda4028908a7114944",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "make_safe_url",
+      "section_index": "14",
+      "size": 267,
+      "type": "FUNC",
+      "value": 9920
+    },
+    {
+      "binding": "LOCAL",
+      "name": "logencode",
+      "section_index": "14",
+      "size": 128,
+      "type": "FUNC",
+      "value": 10187
+    },
+    {
+      "binding": "LOCAL",
+      "name": "stop_running",
+      "section_index": "14",
+      "size": 11,
+      "type": "FUNC",
+      "value": 10315
+    },
+    {
+      "binding": "LOCAL",
+      "name": "xmalloc",
+      "section_index": "14",
+      "size": 36,
+      "type": "FUNC",
+      "value": 10326
+    },
+    {
+      "binding": "LOCAL",
+      "name": "split_string",
+      "section_index": "14",
+      "size": 64,
+      "type": "FUNC",
+      "value": 10362
+    },
+    {
+      "binding": "LOCAL",
+      "name": "xstrdup",
+      "section_index": "14",
+      "size": 43,
+      "type": "FUNC",
+      "value": 10426
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mime_mapping_cmp",
+      "section_index": "14",
+      "size": 20,
+      "type": "FUNC",
+      "value": 10469
+    },
+    {
+      "binding": "LOCAL",
+      "name": "dlent_cmp",
+      "section_index": "14",
+      "size": 26,
+      "type": "FUNC",
+      "value": 10489
+    },
+    {
+      "binding": "LOCAL",
+      "name": "url_content_type",
+      "section_index": "14",
+      "size": 167,
+      "type": "FUNC",
+      "value": 10515
+    },
+    {
+      "binding": "LOCAL",
+      "name": "xrealloc",
+      "section_index": "14",
+      "size": 36,
+      "type": "FUNC",
+      "value": 10682
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_mimetype_line",
+      "section_index": "14",
+      "size": 514,
+      "type": "FUNC",
+      "value": 10718
+    },
+    {
+      "binding": "LOCAL",
+      "name": "appendl",
+      "section_index": "14",
+      "size": 87,
+      "type": "FUNC",
+      "value": 11232
+    },
+    {
+      "binding": "LOCAL",
+      "name": "append_escaped",
+      "section_index": "14",
+      "size": 221,
+      "type": "FUNC",
+      "value": 11319
+    },
+    {
+      "binding": "LOCAL",
+      "name": "str_to_num",
+      "section_index": "14",
+      "size": 140,
+      "type": "FUNC",
+      "value": 11540
+    },
+    {
+      "binding": "LOCAL",
+      "name": "xstr_to_num",
+      "section_index": "14",
+      "size": 53,
+      "type": "FUNC",
+      "value": 11680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "xvasprintf",
+      "section_index": "14",
+      "size": 43,
+      "type": "FUNC",
+      "value": 11733
+    },
+    {
+      "binding": "LOCAL",
+      "name": "xasprintf",
+      "section_index": "14",
+      "size": 143,
+      "type": "FUNC",
+      "value": 11776
+    },
+    {
+      "binding": "LOCAL",
+      "name": "appendf",
+      "section_index": "14",
+      "size": 175,
+      "type": "FUNC",
+      "value": 11919
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_address_text",
+      "section_index": "14",
+      "size": 84,
+      "type": "FUNC",
+      "value": 12094
+    },
+    {
+      "binding": "LOCAL",
+      "name": "xclose",
+      "section_index": "14",
+      "size": 41,
+      "type": "FUNC",
+      "value": 12178
+    },
+    {
+      "binding": "LOCAL",
+      "name": "generated_on",
+      "section_index": "14",
+      "size": 65,
+      "type": "FUNC",
+      "value": 12219
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_field",
+      "section_index": "14",
+      "size": 114,
+      "type": "FUNC",
+      "value": 12284
+    },
+    {
+      "binding": "LOCAL",
+      "name": "urldecode",
+      "section_index": "14",
+      "size": 266,
+      "type": "FUNC",
+      "value": 12398
+    },
+    {
+      "binding": "LOCAL",
+      "name": "normalize_path",
+      "section_index": "14",
+      "size": 142,
+      "type": "FUNC",
+      "value": 12664
+    },
+    {
+      "binding": "LOCAL",
+      "name": "rfc1123_date",
+      "section_index": "14",
+      "size": 63,
+      "type": "FUNC",
+      "value": 12806
+    },
+    {
+      "binding": "LOCAL",
+      "name": "redirect",
+      "section_index": "14",
+      "size": 350,
+      "type": "FUNC",
+      "value": 12869
+    },
+    {
+      "binding": "LOCAL",
+      "name": "poll_send_reply",
+      "section_index": "14",
+      "size": 241,
+      "type": "FUNC",
+      "value": 13219
+    },
+    {
+      "binding": "LOCAL",
+      "name": "poll_send_header",
+      "section_index": "14",
+      "size": 169,
+      "type": "FUNC",
+      "value": 13460
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pidfile_remove",
+      "section_index": "14",
+      "size": 69,
+      "type": "FUNC",
+      "value": 13629
+    },
+    {
+      "binding": "LOCAL",
+      "name": "default_reply",
+      "section_index": "14",
+      "size": 521,
+      "type": "FUNC",
+      "value": 13698
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_get",
+      "section_index": "14",
+      "size": 3858,
+      "type": "FUNC",
+      "value": 14219
+    },
+    {
+      "binding": "LOCAL",
+      "name": "free_connection",
+      "section_index": "14",
+      "size": 1116,
+      "type": "FUNC",
+      "value": 18077
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_request",
+      "section_index": "14",
+      "size": 1575,
+      "type": "FUNC",
+      "value": 19332
+    },
+    {
+      "binding": "LOCAL",
+      "name": "poll_recv_request",
+      "section_index": "14",
+      "size": 335,
+      "type": "FUNC",
+      "value": 20907
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "password_equal",
+      "section_index": "14",
+      "size": 139,
+      "type": "FUNC",
+      "value": 19193
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_start",
+      "section_index": "14",
+      "size": 34,
+      "type": "FUNC",
+      "value": 9664
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "main",
+      "section_index": "14",
+      "size": 8342,
+      "type": "FUNC",
+      "value": 21242
+    }
+  ]
+}

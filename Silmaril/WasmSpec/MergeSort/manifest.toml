@@ -1,0 +1,65 @@
+# Wasm specification library entry (format: docs/projects/wasm-spec-library.md).
+schema = 1
+name = "MergeSort"
+version = "1.0.0"
+summary = "Recursive merge sort of the i32 array segment [p, p + 4n) of memory 0 with a scratch buffer [t, t + 4n) (signed order); merge and merge_sort both specified."
+status = "verified"
+
+[program]
+kind = "wat"
+source = "merge_sort.wat"
+lean = "Silmaril.WasmSpec.MergeSort.program"
+module = "Silmaril.WasmSpec.MergeSort.Defs"
+functions = ["merge", "merge_sort"]
+
+[spec]
+module = "Silmaril.WasmSpec.MergeSort.Defs"
+statements = ["Silmaril.WasmSpec.MergeSort.MergeSpec", "Silmaril.WasmSpec.MergeSort.Spec", "Silmaril.WasmSpec.MergeSort.SpecStore"]
+runs = "every"
+correctness = "total"
+description = """
+Every-run total correctness (Silmaril.Wasm.Logic.Hoare.TFSpecAt, every profile, every host
+relation). Both functions require (`Layout`) that memory 0 of the instance's module is the
+store's memory ma, of type mt, with bytes B, that the array [p, p + 4n) and the buffer
+[t, t + 4n) lie in B, are disjoint and do not wrap; every run of a call terminates, never traps,
+returns no values and leaves the store s.setMem ma {mt, B'} with `Sorts B B' p n t`: B' has B's
+size and bytes outside the array and the buffer, and `words B' p n` is sorted in signed order
+(`SortedS`) and a permutation of `words B p n`. `MergeSpec` (`merge(p, m, n, t)`, function 0):
+additionally m <= n and both halves words B p m and words B (p + 4m) (n - m) sorted. `Spec`
+(`merge_sort(p, n, t)`, function 1): for an instance whose function indices 0 and 1 resolve to a
+`merge` of the same module instance and to itself (`Linked`). `SpecStore`: the instantiated
+module (instantiateOnce?)."""
+
+[results]
+module = "Silmaril.WasmSpec.MergeSort.Thms"
+theorems = ["Silmaril.WasmSpec.MergeSort.merge_spec", "Silmaril.WasmSpec.MergeSort.spec", "Silmaril.WasmSpec.MergeSort.specStore"]
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.MergeSort.mergeSpec_tactic"
+proves = "Silmaril.WasmSpec.MergeSort.MergeSpec"
+module = "Silmaril.Proofs.WasmSpec.MergeSort.Merge"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 60
+notes = "Words view and tactics; merge-loop invariant MInv (sorted merged prefix, permutation of the taken elements, Cross with the rest; variant n - k) with list lemmas merge_left/merge_right (Lists.lean); the flag-setting nested ifs via t_if and a continuation (choose_twp); copy-loop invariant CInv."
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.MergeSort.spec_tactic"
+proves = "Silmaril.WasmSpec.MergeSort.Spec"
+module = "Silmaril.Proofs.WasmSpec.MergeSort.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 40
+notes = "Induction on a bound N of the length (sort_below, FSpec.below; the recursive calls have lengths n / 2 and n - n / 2 < n); Words.t_call for the calls; sorts_compose for the three Sorts facts; merge_valid for the merge call."
+
+[[solution]]
+mode = "tactic"
+theorem = "Silmaril.WasmSpec.MergeSort.specStore_tactic"
+proves = "Silmaril.WasmSpec.MergeSort.SpecStore"
+module = "Silmaril.Proofs.WasmSpec.MergeSort.Tactic"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+tools = { lean = "v4.35.0-rc4" }
+check_seconds = 40
+notes = "From sort_valid and the instantiated store (store₀_funcs: codes, types and function indices by rfl and decide +kernel)."

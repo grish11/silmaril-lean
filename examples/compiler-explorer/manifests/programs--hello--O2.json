@@ -1,0 +1,231 @@
+{
+  "artifacts": {
+    "receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/builds/hello/O2/RECEIPT.json",
+      "sha256": "e6162b5ac7489f3a03cd596195e34750039a9919bf4ca11d3f727f88468b8255",
+      "size": 930
+    },
+    "run": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/builds/hello/O2/run.json",
+      "sha256": "2fd49078482015774dad131e692b9d961355e039d68ab9e4ed9c5f22f5754269",
+      "size": 430
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/programs/hello.c",
+      "sha256": "fa0082bb81c671967198902abe06f2ab917586e769c8ef452a9257921749d1b2",
+      "size": 124
+    },
+    "target": {
+      "media": "text/x-asm",
+      "path": "examples/compiler-explorer/builds/hello/O2/hello.s",
+      "sha256": "5cb347d02ae081e3fada5e42bdd1bbb3c1ba7897d0ee03f2567881f4454e3833",
+      "size": 4721
+    }
+  },
+  "context": {
+    "abi": null,
+    "comorphism": null,
+    "mapping_relation": null,
+    "source_model": null,
+    "target_model": null
+  },
+  "derivation": {
+    "command": "gcc -O2 -g -S -std=c11 -fno-asynchronous-unwind-tables -fdebug-prefix-map=/src=. hello.c -o hello.s",
+    "compiler": "gcc",
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "kind": "compiler",
+    "opt": "O2",
+    "receipt": "receipt",
+    "target": "x86_64-linux-gnu",
+    "version": "gcc (GCC) 13.3.0"
+  },
+  "direction": "compiled",
+  "edges": [
+    {
+      "function": "main",
+      "id": "nav/main/5",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "a40cec2b7a42d76f32d7"
+      ],
+      "target": [
+        "05bfc799584f9c05429d"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/6",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "d40c7e08d512dc85954d"
+      ],
+      "target": [
+        "542c61c4e0568291ab5f"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/8",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "3a7bf112e935fbe5909b"
+      ],
+      "target": [
+        "aed1e5878b7f0cada496"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "target",
+      "id": "05bfc799584f9c05429d",
+      "label": "main: 1 instruction(s) of line 5",
+      "ranges": [
+        [
+          368,
+          382
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "3a7bf112e935fbe5909b",
+      "label": "line 8",
+      "ranges": [
+        [
+          122,
+          123
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "542c61c4e0568291ab5f",
+      "label": "main: 2 instruction(s) of line 6",
+      "ranges": [
+        [
+          430,
+          447
+        ],
+        [
+          448,
+          458
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "a40cec2b7a42d76f32d7",
+      "label": "line 5",
+      "ranges": [
+        [
+          84,
+          85
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "aed1e5878b7f0cada496",
+      "label": "main: 3 instruction(s) of line 8",
+      "ranges": [
+        [
+          532,
+          548
+        ],
+        [
+          549,
+          563
+        ],
+        [
+          587,
+          591
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "d40c7e08d512dc85954d",
+      "label": "line 6",
+      "ranges": [
+        [
+          86,
+          109
+        ]
+      ],
+      "space": "bytes"
+    }
+  ],
+  "id": "programs/hello/O2",
+  "lean": {
+    "family": null,
+    "modules": []
+  },
+  "navigation_stats": {
+    "instructions_from_other_files": {},
+    "unattributed_instructions": 0
+  },
+  "obligations": [
+    {
+      "decl": null,
+      "id": "translation",
+      "kind": "translation",
+      "statement": null,
+      "unsupported": "no source semantics in Lean covers this program: the C elaborator of Silmaril.Project.CompilesTo has no loops, calls, pointers, floating point or I/O, and no x86 model here covers the linked program with glibc"
+    },
+    {
+      "decl": null,
+      "id": "abi",
+      "kind": "abi",
+      "statement": null,
+      "unsupported": "no ABI statement is attempted for this program"
+    },
+    {
+      "decl": null,
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "statement": null,
+      "unsupported": "no translation is stated, so there is nothing to be vacuous"
+    },
+    {
+      "decl": null,
+      "id": "mapping",
+      "kind": "mapping",
+      "statement": null,
+      "unsupported": "no semantic mapping: only the compiler's debug line table"
+    },
+    {
+      "decl": null,
+      "id": "refinement",
+      "kind": "refinement",
+      "statement": null,
+      "unsupported": "no comorphism relation is generated for this program"
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [
+    {
+      "about": "target",
+      "artifact": "run",
+      "expected_stdout": "hello, world\n",
+      "id": "run",
+      "kind": "execution"
+    }
+  ],
+  "title": "hello.c, gcc 13.3.0 -O2 (assembly)",
+  "view": {
+    "source": "source",
+    "target": "target"
+  }
+}

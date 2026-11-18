@@ -94,6 +94,15 @@ theorem bodyIs_relas_iff {L : Layout} {sh : SectionHeader} {es : List Rela}
       sh.entrySize = 24 ∧ es.length = sh.size / 24 ∧ EntriesAt F Parse.rela sh.offset 24 0 es :=
   Proofs.Elf.Staged.bodyIs_relas_iff hk
 
+/-- A symbol body is assembled from a covering of entry windows and the linked strings. -/
+theorem bodyIs_symbols_iff {L : Layout} {sh strs : SectionHeader}
+    {es : List Silmaril.Formats.ELF.ObjectSymbol}
+    (hk : sh.kind = SHT_SYMTAB ∨ sh.kind = SHT_DYNSYM) (hl : L.shs[sh.link]? = some strs) :
+    BodyIs F L sh (.symbols (if sh.kind = SHT_SYMTAB then .symtab else .dynsym) es) ↔
+      sh.entrySize = 24 ∧ es.length = sh.size / 24 ∧
+        EntriesAt F (Parse.symbol strs) sh.offset 24 0 es :=
+  Proofs.Elf.Staged.bodyIs_symbols_iff hk hl
+
 theorem tilesAt_of_ok (hs : Sub r F) {ok : Nat → Nat → Bool} {o : Nat} {lens : List Nat}
     (h : tilesOk r ok o lens = true) : TilesAt F ok o lens :=
   Proofs.Elf.Staged.tilesAt_of_ok hs o lens h

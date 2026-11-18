@@ -1,0 +1,10 @@
+{
+  "assembly_sha256": "3fbe7a5e674743a91056b135e2e87f72cd1d66b741ad9dfa529a66e847fba448",
+  "exit": 0,
+  "kind": "execution",
+  "link": "gcc fft.s -o fft -lm",
+  "run": "./fft",
+  "stdout": "0: +4.000 +0.000i\n1: +1.000 -2.414i\n2: +0.000 +0.000i\n3: +1.000 -0.414i\n4: +0.000 +0.000i\n5: +1.000 +0.414i\n6: +0.000 +0.000i\n7: +1.000 +2.414i\n",
+  "stdout_sha256": "ba7328bc0bbef3b1889c2176a4027ebb373cf926cb882c8687e8819aaf56a3ed",
+  "what": "the assembly above, assembled and linked by the same image against its glibc, run once in the container with no input"
+}

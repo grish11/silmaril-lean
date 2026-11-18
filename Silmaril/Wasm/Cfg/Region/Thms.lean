@@ -108,14 +108,15 @@ theorem run_expand {c c₁ : Config H} (h : Step P host c c₁) (hF : Frag c.cod
   Proofs.Region.expand h hF
 
 /-- **Expansion in the fragment with calls** (`FragB cf`, `cf = true` allowing calls),
-for any call oracle: a Core step whose redex is not a call (`¬ CallAt`)
-stays in the fragment, and region runs of the successor are region runs of the predecessor. -/
+for any call oracle: a Core step whose redex is not a call (`¬ CallAt`), from code whose pending
+tail calls are well placed (`TailWF`), stays in the fragment, and region runs of the successor
+are region runs of the predecessor. -/
 theorem run_expandB {cf : Bool} {C : Abstract.CallRel H} {c c₁ : Config H}
-    (h : Step P host c c₁) (hF : FragB cf c.code) (hnc : ¬ CallAt c.code) :
+    (h : Step P host c c₁) (hF : FragB cf c.code) (hnc : ¬ CallAt c.code) (hW : TailWF c.code) :
     FragB cf c₁.code ∧ ∀ {vs : List Val} {s' : Store H} {f' : Frame} {o : Out},
       RunC P host C c₁.store c₁.frame vs c₁.code s' f' o →
         RunC P host C c.store c.frame vs c.code s' f' o :=
-  Proofs.Region.expandB h hF hnc
+  Proofs.Region.expandB h hF hnc hW
 
 /-- **Adequacy** of the region semantics for Core 3.0 on the fragment. -/
 theorem run_adequate {vs : List Val} {code : List Admin} {o : Out} (hF : Frag code) :
@@ -204,14 +205,15 @@ theorem div_soundC {C : Abstract.CallRel H} {D : Store H → Nat → List Val �
   Proofs.Region.div_soundC hC hD h
 
 /-- **Divergence completeness with calls**: under a complete oracle `C` and a complete
-divergence predicate `D`, their guard `G` holding at every call the run reaches, every infinite
+divergence predicate `D`, their guard `G` holding at every call the run reaches and pending tail
+calls well placed along the run (`TailsOk`, from typing: `tailsOk_of_typed`), every infinite
 Core 3.0 run of code of the fragment with calls (`FragC`) is a diverging region run with calls. -/
 theorem div_completeC {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
     {D : Store H → Nat → List Val → Prop} (hC : CallCompleteG P host G C)
     (hD : DivCallComplete P host G D) {vs : List Val} {code : List Admin} (hF : FragC code)
-    (hG : GuardedCalls P host G ⟨s, f, vals vs ++ code⟩)
+    (hG : GuardedCalls P host G ⟨s, f, vals vs ++ code⟩) (hW : TailsOk P host ⟨s, f, vals vs ++ code⟩)
     (hd : Diverges P host ⟨s, f, vals vs ++ code⟩) : RunDivC P host C D s f vs code :=
-  Proofs.Region.div_completeC atomTerm hC hD hF hG hd
+  Proofs.Region.div_completeC atomTerm hC hD hF hG hW hd
 
 /-! ## Basic blocks -/
 
@@ -444,14 +446,15 @@ theorem call_incl {G : Store H → Nat → List Val → Prop} {C : Abstract.Call
 /-! ## Core completeness with calls -/
 
 /-- **Core completeness for code with calls** (every profile and host): under a complete
-oracle (`CallCompleteG`) whose guard holds at every call the run reaches (`GuardedCalls`), every
-Core 3.0 run of code of the fragment with calls (`FragC`: direct, indirect and reference calls anywhere, in blocks,
+oracle (`CallCompleteG`) whose guard holds at every call the run reaches (`GuardedCalls`), with
+pending tail calls well placed along the run (`TailsOk`), every
+Core 3.0 run of code of the fragment with calls (`FragC`: direct, indirect, reference and tail calls anywhere, in blocks,
 loops, `if`s, `try_table`s, labels and handlers) to a final form of `o` is a `RunC` run. -/
 theorem run_completeC {G : Store H → Nat → List Val → Prop} {C : Abstract.CallRel H}
     (hC : CallCompleteG P host G C) {code c' : List Admin} {o : Out}
-    (hG : GuardedCalls P host G ⟨s, f, code⟩) (hF : FragC code)
+    (hG : GuardedCalls P host G ⟨s, f, code⟩) (hW : TailsOk P host ⟨s, f, code⟩) (hF : FragC code)
     (h : Steps P host ⟨s, f, code⟩ ⟨s', f', c'⟩) (he : o.Ends c') :
     RunC P host C s f [] code s' f' o :=
-  Proofs.Region.completeC hC hG hF h he
+  Proofs.Region.completeC hC hG hW hF h he
 
 end Silmaril.Wasm.Cfg.Region

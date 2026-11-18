@@ -1,0 +1,9 @@
+kind = "post"
+description = "core method i_setcc_r relative to the abstract accessor contracts (abs.wat): every accessor call is within its contract (no trap)"
+expect = "proved"
+init = "symbolic"
+no_trap = true
+params = [{ name = "cc", ty = "i32" }, { name = "r", ty = "i32" }]
+pre = ["(bvult cc #x00000010)", "(bvult r #x00000014)"]
+modules = [{ name = "acc", wat = "abs.wat" }, { name = "sim", wat = "core-acc.wat" }]
+calls = [{ func = "i_setcc_r", args = ["cc", "r"] }]

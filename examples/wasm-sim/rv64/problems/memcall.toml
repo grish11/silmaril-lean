@@ -1,0 +1,93 @@
+# Functions with memory and calls (tests/memcall.c, clang -O2 -fno-builtin): one Wasm
+# problem per function, callees as imports with their contracts (assume-guarantee).
+# Memory terms: (mem64 a) = doubleword at a at return, (old (mem64 a)) at entry.
+# sumarr/sumsq: sums over the entry memory (declared; meaning given by the solver side).
+# Memory: the modules import `env.memory` with at least 1024 pages (64 MiB), so `stack`/`arr`
+# keep every access below 2^26; the Lean pre states the same bound and 2^26 <= B.size.
+schema = "silmaril.wasm-sim.reduce.v0"
+id = "wasm-sim/rv64/memcall"
+title = "RV64 with memory and calls: f = tri + sq, sum_sq calls sq in a loop, array fill/scale/sum"
+root = "f"
+
+[defs]
+tri = "(define-fun tri ((x (_ BitVec 64))) (_ BitVec 64) ((_ extract 63 0) (bvudiv (bvmul ((_ zero_extend 64) x) (bvadd ((_ zero_extend 64) x) #x00000000000000000000000000000001)) #x00000000000000000000000000000002)))"
+sumarr = "(declare-fun sumarr ((_ BitVec 64) (_ BitVec 64)) (_ BitVec 64))"
+sumsq = "(declare-fun sumsq ((_ BitVec 64) (_ BitVec 64)) (_ BitVec 64))"
+stack = "(define-fun stack ((sp (_ BitVec 64))) Bool (and (= ((_ extract 3 0) sp) #x0) (bvuge sp #x0000000000000020) (bvule sp #x0000000004000000)))"
+arr = "(define-fun arr ((p (_ BitVec 64)) (n (_ BitVec 64))) Bool (and (bvule n #x0000000000000400) (= ((_ extract 2 0) p) #b000) (bvule p #x0000000004000000) (bvule (bvadd p (bvmul n #x0000000000000008)) #x0000000004000000)))"
+
+[lean]
+prelude = """
+/-- The little-endian doubleword at byte `a` (`0` out of bounds). -/
+def dw (B : ByteArray) (a : Nat) : BitVec 64 := (Memory.load B a 8).getD 0
+
+/-- Triangular numbers modulo 2^64. -/
+def triBV (x : BitVec 64) : BitVec 64 := BitVec.ofNat 64 (x.toNat * (x.toNat + 1) / 2)
+
+/-- `n` doublewords from `p`. -/
+def dws (B : ByteArray) (p n : Nat) : List (BitVec 64) := (List.range n).map fun i => dw B (p + 8 * i)
+"""
+
+[artifact]
+elf = "memcall"
+source = "../tests/memcall.c"
+build = "../tests/build.sh"
+
+[[function]]
+name = "sq"
+lean_spec = { entry = "Rv64Sq", pre = "True", post = "r_a0 = a0 * a0" }
+ensures = "(= (reg a0) (bvmul (old (reg a0)) (old (reg a0))))"
+
+[[function]]
+name = "tri"
+lean_spec = { entry = "Rv64Tri", pre = "a0.toNat < 2 ^ 32", post = "r_a0 = triBV a0" }
+requires = "(and (bvsge (reg a0) #x0000000000000000) (bvult (reg a0) #x0000000100000000))"
+ensures = "(= (reg a0) (tri (old (reg a0))))"
+sample_max = 10000
+
+[[function]]
+name = "f"
+lean_spec = { entry = "Rv64F", pre = "sp.toNat % 16 = 0 ∧ 32 ≤ sp.toNat ∧ sp.toNat ≤ 2 ^ 26 ∧ 2 ^ 26 ≤ B.size ∧ a0.toNat < 2 ^ 32", post = "r_a0 = triBV a0 + a1 * a1 ∧ SameOutside B B' (sp.toNat - 32) 32" }
+requires = "(and (stack (reg sp)) (bvsge (reg a0) #x0000000000000000) (bvult (reg a0) #x0000000100000000))"
+ensures = "(= (reg a0) (bvadd (tri (old (reg a0))) (bvmul (old (reg a1)) (old (reg a1)))))"
+writes = [["(bvsub (reg sp) #x0000000000000020)", "#x0000000000000020"]]
+sample_max = 10000
+
+[[function]]
+name = "sum_array"
+lean_spec = { entry = "Rv64SumArray", pre = "a1.toNat ≤ 1024 ∧ a0.toNat % 8 = 0 ∧ a0.toNat + 8 * a1.toNat ≤ 2 ^ 26 ∧ 2 ^ 26 ≤ B.size", post = "r_a0 = (dws B a0.toNat a1.toNat).foldl (· + ·) 0 ∧ B' = B" }
+requires = "(arr (reg a0) (reg a1))"
+ensures = "(= (reg a0) (sumarr (old (reg a0)) (old (reg a1))))"
+reads = [["(reg a0)", "(bvmul (reg a1) #x0000000000000008)"]]
+pointers = ["a0"]
+sample_max = 1024
+[[function.test]]
+args = ["buf", 16]
+
+[[function]]
+name = "sum_sq"
+lean_spec = { entry = "Rv64SumSq", pre = "sp.toNat % 16 = 0 ∧ 32 ≤ sp.toNat ∧ sp.toNat ≤ 2 ^ 26 ∧ 2 ^ 26 ≤ B.size ∧ a1.toNat ≤ 1024 ∧ a0.toNat % 8 = 0 ∧ a0.toNat + 8 * a1.toNat ≤ 2 ^ 26 ∧ 2 ^ 26 ≤ B.size ∧ (a0.toNat + 8 * a1.toNat ≤ sp.toNat - 32 ∨ sp.toNat ≤ a0.toNat)", post = "r_a0 = ((dws B a0.toNat a1.toNat).map fun x => x * x).foldl (· + ·) 0 ∧ SameOutside B B' (sp.toNat - 32) 32" }
+requires = "(and (stack (reg sp)) (arr (reg a0) (reg a1)) (or (bvule (bvadd (reg a0) (bvmul (reg a1) #x0000000000000008)) (bvsub (reg sp) #x0000000000000020)) (bvule (reg sp) (reg a0))))"
+ensures = "(= (reg a0) (sumsq (old (reg a0)) (old (reg a1))))"
+reads = [["(reg a0)", "(bvmul (reg a1) #x0000000000000008)"]]
+writes = [["(bvsub (reg sp) #x0000000000000020)", "#x0000000000000020"]]
+pointers = ["a0"]
+sample_max = 1024
+
+[[function]]
+name = "fill"
+lean_spec = { entry = "Rv64Fill", pre = "a1.toNat ≤ 1024 ∧ a0.toNat % 8 = 0 ∧ a0.toNat + 8 * a1.toNat ≤ 2 ^ 26 ∧ 2 ^ 26 ≤ B.size", post = "dws B' a0.toNat a1.toNat = List.replicate a1.toNat a2 ∧ SameOutside B B' a0.toNat (8 * a1.toNat)" }
+requires = "(arr (reg a0) (reg a1))"
+ensures = "(forall ((i (_ BitVec 64))) (=> (bvult i (old (reg a1))) (= (mem64 (bvadd (old (reg a0)) (bvmul i #x0000000000000008))) (old (reg a2)))))"
+writes = [["(reg a0)", "(bvmul (reg a1) #x0000000000000008)"]]
+pointers = ["a0"]
+sample_max = 1024
+
+[[function]]
+name = "scale"
+lean_spec = { entry = "Rv64Scale", pre = "a1.toNat ≤ 1024 ∧ a0.toNat % 8 = 0 ∧ a0.toNat + 8 * a1.toNat ≤ 2 ^ 26 ∧ 2 ^ 26 ≤ B.size", post = "dws B' a0.toNat a1.toNat = (dws B a0.toNat a1.toNat).map (· * a2) ∧ SameOutside B B' a0.toNat (8 * a1.toNat)" }
+requires = "(arr (reg a0) (reg a1))"
+ensures = "(forall ((i (_ BitVec 64))) (=> (bvult i (old (reg a1))) (= (mem64 (bvadd (old (reg a0)) (bvmul i #x0000000000000008))) (bvmul (old (mem64 (bvadd (old (reg a0)) (bvmul i #x0000000000000008)))) (old (reg a2))))))"
+writes = [["(reg a0)", "(bvmul (reg a1) #x0000000000000008)"]]
+pointers = ["a0"]
+sample_max = 1024

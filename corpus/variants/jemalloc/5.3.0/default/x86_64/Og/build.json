@@ -1,0 +1,869 @@
+{
+  "schema_version": 1,
+  "run_id": "9af09c9b-225e-4fab-ae0b-5f28227958db",
+  "project": "jemalloc",
+  "version": "5.3.0",
+  "configuration": "default",
+  "target": "x86_64-linux-gnu",
+  "optimization": "Og",
+  "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+  "source_inputs": [
+    {
+      "url": "https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2",
+      "sha256": "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa"
+    }
+  ],
+  "included_source_files": [
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/COPYING",
+      "sha256": "94aa2caa98c25d942f58b956c71dba6a99ff98fc3a31cbc669fe2a4cd0268b53"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/README",
+      "sha256": "3b91b024654892b709624be280047923c593901e663953eb6c85b3809f138b21"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/activity_callback.h",
+      "sha256": "70d9812371e78f9e6220d6b0e4bd4037d938e11f287d0e30068ed44ec20fc61d"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/arena_externs.h",
+      "sha256": "986fe7c3139a2d0ee6a3f4b6ab10824b05b73e7820dbd703495cabce8496df24"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/arena_inlines_a.h",
+      "sha256": "69dfb4f3d4185075733ee371616e5e975ee53ec5a9aaee116db9d20e0990d99a"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/arena_inlines_b.h",
+      "sha256": "64697e6bb4c545cd47fd17cac6c7546a4c4e741403edec71ab7dfcb0ab9abf22"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/arena_stats.h",
+      "sha256": "39da45f493d55e86ed63491ba6956dd06f133cdd0cfcd247fe20e2255aa09cde"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/arena_structs.h",
+      "sha256": "69db9b96c6bbcf87fe299441405a4c90c6c036d3356f2fcccdc340ac67c2e7c2"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/arena_types.h",
+      "sha256": "1f9fe1701af42fcc1f84409b155626e942c4b29cf496acc258d56706c4761eb5"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/assert.h",
+      "sha256": "215cb29df192ca92b55652cab4f03363abe4571460d65ef2879153da04c1f0b3"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/atomic.h",
+      "sha256": "8c10fb705bd6358c9e15c9d2f3f4a0463f1a7b81f8611716e061f4af25034050"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/atomic_gcc_atomic.h",
+      "sha256": "8c4e35a98f3fa443c02ab65407143c72599e96f12f61fa589069376d576012d1"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/background_thread_externs.h",
+      "sha256": "898783858049f13ab1c7174ace7423cd0c7799ed4038f001ebfd8797ee680645"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/background_thread_inlines.h",
+      "sha256": "cdc9317afc9e563c579a01ed04c3944b93f5803db569c83e66b43aaa5c7afd97"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/background_thread_structs.h",
+      "sha256": "70079a436997dd07f284a6e634947fdf70cc4838d5351d8f2cf84c16e8244c10"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/base.h",
+      "sha256": "294751d9bfa619e951fade410d3da4c956942e8fab80ce194917ce513f22c8a8"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/bin.h",
+      "sha256": "c88c3a3353117e956a553e51787d847bb54ca57777d88ef2d0f4c4db9ec6e89d"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/bin_info.h",
+      "sha256": "8b7328fa9988ac1e6cbf552d4ce4cb2059fd4aaea6945ca3ae5012a49098d392"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/bin_stats.h",
+      "sha256": "a4d3fa2780f8570e4329f7bbc4572f8d292debff5fef16fc9f0624e8109324e9"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/bin_types.h",
+      "sha256": "ee774d54217692b3f1e078c67b39370e6de9302d4f0b38ad7631dd22dad5c473"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/bit_util.h",
+      "sha256": "62a3cbf1b663a792ddaaf95446c43527a45e3df1093f99edc56fdaa05f498ceb"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/bitmap.h",
+      "sha256": "55e44c9bb5c2919df0f13ded0c392d5147eaf232204699dd2f5a429b47b6e038"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/buf_writer.h",
+      "sha256": "c962ab35b2e7f69ca52bd309a475fe7d4847bc9c04230ee2be2e0108b06e1366"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/cache_bin.h",
+      "sha256": "1af2166dfeb5726890e144e534d0cf7818614ae0a0791e5971274bd6a6be55e7"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/ckh.h",
+      "sha256": "27ea68e00a2e02a1e883456357bc90e9e01c69ac0aebe9a0f8e8ceb018bd88a9"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/counter.h",
+      "sha256": "2e0a964cd96b9895da8664064f42519a460c44e02e4ed2e8f460c021a5de91f4"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/ctl.h",
+      "sha256": "a9dfedc60e1d6d0952ec293d91857764d31788f71681f185aa4e13abda131ee9"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/decay.h",
+      "sha256": "673f8b8faf513593367a64adb248e2ceb5bbbdbb1d7d53eb2a90115b2d4816ca"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/div.h",
+      "sha256": "861595ab553c78dcea8eb60768e08941ed5863ad2019967f54f112bfe6a1d956"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/ecache.h",
+      "sha256": "8c469f726b1e64066ad526593c631e9f7af3b8315189aa175847a06d22b48eed"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/edata.h",
+      "sha256": "0b5d344c92b325aa8a0387bb985e883330cc2bf050ccb46216cb1a84fecbcc8f"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/edata_cache.h",
+      "sha256": "17e2ff98c1ed8a12fc05c95d49502f7075b02ffb99da66b50b8068b21be08dc8"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/ehooks.h",
+      "sha256": "cba8a84ecb6d5680f5c20112ccce11832be02397889b7c35a496231cc00195cc"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/emap.h",
+      "sha256": "726462141963b0dbeaa105a04cf04b503f6c31c65ee6c72f188fc9cdf02ca639"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/emitter.h",
+      "sha256": "2c91c2eaaaef91112d6e351edc579fb795657eed7f30a9c647b9802bd8103f87"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/eset.h",
+      "sha256": "d6390f04b8ab667fc51cdf2a3ef7bab764a7444d460df3b7c461a2a86384d37e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/exp_grow.h",
+      "sha256": "b92885da5f63847420c88cede4ca2ad04fee970bdba47768721e412b1e97db18"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/extent.h",
+      "sha256": "3b5545c78d9e9cf90076ef3200dc27d7eb420dccbb34f830c5f4bd3647bd6207"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/extent_dss.h",
+      "sha256": "8768c6e0c5196557a877249375023085070ddb74a45a2d7935307abfd71d240a"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/extent_mmap.h",
+      "sha256": "60eb6414094ef1230eade6e39495d0ebf87c3c459f6dd1734a988bbbea4dded2"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/fb.h",
+      "sha256": "d909a0fe4c5e7c8bb691d5f31e11dd80ca71e695cb6e4700a98c480fd000f47b"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/fxp.h",
+      "sha256": "18b467e66e3432167fcbad55c51505549a201bbb7a25448fe3f60aef4d9ec9f1"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/hash.h",
+      "sha256": "58756d4967fd348f62f3a62a2d2c49014801d8dac77a6c5e00870914d46ab98b"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/hook.h",
+      "sha256": "a2199244e4184bfcec3444d2408a444cc29cb4b4f3c9ff39ea13dac2917af610"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/hpa.h",
+      "sha256": "2828841f5e4728b477781949f871d5ebdfd4b8a4e7423973c0c22db0afe9eb6f"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/hpa_hooks.h",
+      "sha256": "28b758cebca66ed13c8b200ff5e90db45a5825f63131094861074f67c95a840e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/hpa_opts.h",
+      "sha256": "20160d5b401e705ffa1618dbf854317551a51bf23938302e653b5526d7a4da0d"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/hpdata.h",
+      "sha256": "561b514154c7eca3e5458972334b7f5187acf7eb6b160a7268d1e9a83cd0a29e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/inspect.h",
+      "sha256": "a74ed5c7a8a674b2cadbcaa32921680914d58d1a2725f50f82d012f9aa98151b"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/jemalloc_internal_decls.h",
+      "sha256": "5c7ede7ae807331bc4455681d462eae5f9166a774d9747e5d2395923ae30b17a"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/jemalloc_internal_externs.h",
+      "sha256": "7bc2141f38f4d5c6d1f0a3c8ab05268a53cb7279ba5ce93277f675bbdbc59643"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/jemalloc_internal_includes.h",
+      "sha256": "598feb612cee519b839a0b3e41aea3f1012cf69fd2911c22e1919e3da1e6a58d"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/jemalloc_internal_inlines_a.h",
+      "sha256": "12f568a337f048341ae2dc437686acac44763dae76ebb9b26c7c8e6c44117fad"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/jemalloc_internal_inlines_b.h",
+      "sha256": "91b33a7bdea8b6bc3985fdbe1aa1d9824d6f77294edebd3c02ee1db947b89336"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/jemalloc_internal_inlines_c.h",
+      "sha256": "30f2fe0696f948fbd68470178d8d006fa3dc15ef09938d5a22bd7799a544da4e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/jemalloc_internal_macros.h",
+      "sha256": "c920d682cde622ed75446780db77bcae97d8377997a6094f1a9dbdc58701c7cf"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/jemalloc_internal_types.h",
+      "sha256": "b65870428707156fa7c28d1650c551281574569892f923e0ee4788d3599b7a8b"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/large_externs.h",
+      "sha256": "84f31c0d46f292bbd0e1d5a785edd1407588baa8df51192a2d204678a536a4a7"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/lockedint.h",
+      "sha256": "2640e7fcd2dbbd0ebf175232b15ffd0c0273440ef19461a1f6e88357f5f18594"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/log.h",
+      "sha256": "c95c94b8652a24f6b6904bc67b5581bc16ebcecc2a724f2517dac85f99b9e0b0"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/malloc_io.h",
+      "sha256": "f55ef3c0c85f4c0fbb88a0e77a78cee77cb01cd4a8137f2b22d13674c1af2619"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/mutex.h",
+      "sha256": "6fbaba5752182b43fd9787c2ec4b348af80da3de565bd25373010e76555b4970"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/mutex_prof.h",
+      "sha256": "7e5b95d034db83dee2550ec939c06e743c9dd39a5af4984b64bd73260180b730"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/nstime.h",
+      "sha256": "12d737c4b62b59c51a2dd4ee1934b5bc45345ad2c83adfa55388efbae29cecac"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/pa.h",
+      "sha256": "1b2122be036071ab12944833976ffa0a5b572b33dba548c9c1cceb6f5affb1bd"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/pac.h",
+      "sha256": "05289d7f9b8dec18fc1caa29ed265a4f2aa56fdf41491a9bfe3d73a3afbd773d"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/pages.h",
+      "sha256": "14566306270e2067ddc8c572b97239fd3ca76ea89166e7d74445260270091c9f"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/pai.h",
+      "sha256": "47fbcf541f332ee14c663f545a2112c76329e71f4d56e178435e533e6141a0e2"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/peak.h",
+      "sha256": "61bb519df9ef77e45aa5ec89ccd4955b62a6e5b68f388a8bd1742d5fb9528016"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/peak_event.h",
+      "sha256": "823fb7af78bb847a1f2b952360b714dc9b103570666f5b3b2ff69fe50c47a435"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/ph.h",
+      "sha256": "2a4ea9602d31d93832b21f620af598aba91b616d95581f1d07ac0adfcbb6f3e5"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prng.h",
+      "sha256": "4ee2667ef57d735a3734ecb3148aebf2aa09205c143609c9f3e03c35895af2ba"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_data.h",
+      "sha256": "e56a57702b82a50696e86a06b9a9d122a60ae727f3dfe081c007af28b0bae761"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_externs.h",
+      "sha256": "0b91dec2289841fd726548c993694894199c94135ac552edd3149db6bb08d159"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_hook.h",
+      "sha256": "4909a16e0d896e801f0551afe3b284342544dc21551dc74be5f2b5fef81efdd3"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_inlines.h",
+      "sha256": "83d889399427418622e3882e53b809d418516e2389a4683671e84a872c4249bc"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_log.h",
+      "sha256": "b6201b39af2082d0670d15519c673cc36c8f372c8c3c9244304336453578deab"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_recent.h",
+      "sha256": "23440091a644dc2dc48ac4e856b14439c77b91522aa5079a63620d9eb3aeb4ad"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_stats.h",
+      "sha256": "84fe63a94701cc95968d2792d4b6276779d2dee4de54c5a2106e17d34a41b3c9"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_structs.h",
+      "sha256": "5c61f92b866027b87799d43d6abfca867c332d1f4ed899313d40643add85151b"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_sys.h",
+      "sha256": "e692785719ac69d7a2e07ffd5ea281c7ed64da76e373f0def27f508a540cedff"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/prof_types.h",
+      "sha256": "3e058619e9a3f9db5ea14b7ed7b48672b69747031ad2c7dac97849049ff39c2e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/psset.h",
+      "sha256": "a780dc4e8b62531a58b181ff18f265c79fe0bbc936837d39daab6afbf4aa40d5"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/ql.h",
+      "sha256": "c4d5a02e63e04bc7f1fe7b23423c316e3f4f5482f922c3ff0cdce7e047f165b8"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/qr.h",
+      "sha256": "782909269ff25444d3ad162b5a3a26c387ea620794f8051fb647c197dca63b0d"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/quantum.h",
+      "sha256": "e70ddb00ed3047a31d5f9873a27308ca771267d19a420257a44e40e98eb136c3"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/rb.h",
+      "sha256": "6f120314ee48be492e9f50c36d56f8f3d5a73f9b3488683f158463e767b47ffd"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/rtree.h",
+      "sha256": "35116a6decea9e15939fc8a43b90f31a96ed91f08bd3167badbea516b48956a5"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/rtree_tsd.h",
+      "sha256": "cb506311663f425d1efed07f1a817cd951b58b228a74d074bbba5917abcc38f3"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/safety_check.h",
+      "sha256": "5a98a01cbd9256c235ea7cce9ea220866aa7967f7c36003fd9e51e496502ec56"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/san.h",
+      "sha256": "1da9ac3881d327d18e0ba963e167f8e07b39dcec814e8e23746fc991e9b7abec"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/san_bump.h",
+      "sha256": "9435f9bc67e7c138a263d36681f24205e88c3c9a0eb317f06b21d37844648c69"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/sc.h",
+      "sha256": "584e73bcd751d8a61f4c103c0e3af890872ecb8eccb35a8a408ef58ae695c65e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/sec.h",
+      "sha256": "dc123d6838c7d0da43250d1dbd66f75d0e8e4c1a7214527eb80c7a84b6016e12"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/sec_opts.h",
+      "sha256": "2fed2e2c2b0a841e29bfb531e02e3f77b5276364ca6032a711e689d5eac74e64"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/seq.h",
+      "sha256": "8756ac731b742401005f9266c4440aef57185f3e074a35efb0add1e8c9af1056"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/slab_data.h",
+      "sha256": "752506a7c4c745cf5b100b492e62f9c4ec36ce2bb36189cc678b974c17ded7df"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/smoothstep.h",
+      "sha256": "55ff1c96cd0b88ab18ea5a78791d087c6125a435917d77ae635dabca522d614e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/spin.h",
+      "sha256": "e720614b76fbc62964f3032fa05db588f54f9084f0a83e5b8b7569127c174932"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/stats.h",
+      "sha256": "473f5a9a98340f87de7f8c7d765f89bb417cc369a54ddb04502b1579277656c8"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/sz.h",
+      "sha256": "cfb10d8ce048e8c72c4594203ed717601ee6917b2e1b185d26b8ca53105455b2"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/tcache_externs.h",
+      "sha256": "ff6dbd714ac6067f9fb488a96400ee5c3dbd0e13de570faefbbb5d4464d82b6d"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/tcache_inlines.h",
+      "sha256": "0b4661f8459e1d19d8d13443ca6d8530de8c3fa0ee86021741582f317e88189a"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/tcache_structs.h",
+      "sha256": "3258b324ac33e2d0efa7a57c8f46f98f7ffdb73ff2dbcc6ce57ce8b06d679f3f"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/tcache_types.h",
+      "sha256": "5f198810affe3801aacf20f47cdf7f202f4d1fe0f123807bdf03081e521c7740"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/test_hooks.h",
+      "sha256": "dac03d7ce92a3bd72d2f021d83ba9836651b5561d0baa1d18f904cbaeb537043"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/thread_event.h",
+      "sha256": "384f4d0270241dfd3cee2e5617d82431d0603006b4bbed3f8a3d9c6e80918d46"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/ticker.h",
+      "sha256": "3a40392429d0d5da474bbc015986cd7694a05db2d8905be524c7ab3b0a3a5f8c"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/tsd.h",
+      "sha256": "ebfb2827676454bdc3fe07de0b6012b5ff4f06c198c1c1b127a56fc9d71b5adf"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/tsd_tls.h",
+      "sha256": "5512fff53b1cbb47191c2bf1a7a6ae66fd5bd2c87de282186f5bf7409cb1ee1e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/tsd_types.h",
+      "sha256": "127c167d3861931fda4b2c5a6e0f0770a3c6633c8d1e1b83cd5ac4d0ac58b673"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/typed_list.h",
+      "sha256": "e750f0c4a779bbab0fe70ba3e0ee6ffbf96398dd5a5f6c9d94ebfe98f1feb759"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/util.h",
+      "sha256": "a750c96b1697e7fb7fe6dc81b840bf126c31d6c251ca479cda6e2bad75ed41b7"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/include/jemalloc/internal/witness.h",
+      "sha256": "19b545b028ee4fc0c244c0d6eeb9dca4ab4d5e58532c79ff48cdcea3130f7468"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/arena.c",
+      "sha256": "f7cf8c7191f446308f26e00ae75b842ce367d44c7385aef1214f3b1ff8efe3c0"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/background_thread.c",
+      "sha256": "5c5170df65349b58bee53e88171a0547da5e9df27b5b659a7c7336a1dda2b17b"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/base.c",
+      "sha256": "c032b738cb70c45cf14f97827f00294720d2c4c4c7fbabf3643436038141bed8"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/bin.c",
+      "sha256": "fa09b9e87fe140422a294798c0a9a5fa994eab6845009b382638d06476047ece"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/bin_info.c",
+      "sha256": "2305e1d3c5f50fc748405cc1b6bf466f54647cbcb263936755780f94a02f338e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/bitmap.c",
+      "sha256": "e3dc51bb33b29eb5d5091269622dd3ced7fa6e93053738fdc77dcbd03efbdc2d"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/buf_writer.c",
+      "sha256": "7f8574a74abd1e03553db76d0e018f859ebbdde9bc8566e6144af97955ae5b08"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/cache_bin.c",
+      "sha256": "4824d8ac15f12f4e34937a328c8c56d30a49f1a394276a258d7eaf67973e007d"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/ckh.c",
+      "sha256": "8b45f3080c57d33634d19c42e087f7ceaac8d896a0a160eb3737b16a35320afb"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/counter.c",
+      "sha256": "de32513a58fcbf59c64aee674511a9ae0672ef44cc755410a6a02934cd1056a8"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/ctl.c",
+      "sha256": "feae29fc9452f3f40b1774d8e123621a407bb164dcc314f5378196918d9a0d31"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/decay.c",
+      "sha256": "ba8e85de12439518d8183e5e3d330295c5eccfb2a29b9b5186ba4790ad39d56f"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/div.c",
+      "sha256": "6d22df8f84db56fde19f29aff9bd230a6e1c18f323c5e95b60fe67d4bdd03612"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/ecache.c",
+      "sha256": "b0ae0685d5017f9f9d6cf3ab6b2f2dc69147ace565ed183058ac5b5c957f5d37"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/edata.c",
+      "sha256": "c64592bb63cafabfe0b67f81cd8e9696f34b81e6fe16e1d08b9e4c5ea4d93b8e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/edata_cache.c",
+      "sha256": "38133ea9baeb2f29a5c63e8fdf93741a5700eff0b5e7ed00b6404fa3cce7f327"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/ehooks.c",
+      "sha256": "e8d0d19fb8657f013392de953182d7c4ed4d7eb0fcefb42fa656e5f558d462c9"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/emap.c",
+      "sha256": "cf578f7cbb7f44531ba917090beec1bf226d3b37b5a7f11a64d17c3ee05aa143"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/eset.c",
+      "sha256": "85cefbeb3f5856761042e7051ccb6ddea0b761ec594e9f70c6a8ea463c1fab1f"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/exp_grow.c",
+      "sha256": "6d06d65400af28556294a8d5d6b44aada3e78934d289629b97ed0aeff61183f8"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/extent.c",
+      "sha256": "1ca4144ad509a0b8d40a6145aa664ce7639ce5433c63cfeb4838cd07ea3520f5"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/extent_dss.c",
+      "sha256": "ac51e5dea9d7d2a5d1dce07d40b1add04d85f970e26de6004e3cd59841a717f0"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/extent_mmap.c",
+      "sha256": "09b5d893e98c3bdcf448cac614227779d558679d47b11e51acd8aeefb8a9a160"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/fxp.c",
+      "sha256": "b6d10b8b52fe362c4401a1063d89e769d22557045e5df2ade214019ee7193aa2"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/hook.c",
+      "sha256": "204e95d078ef4823998ee4777656a7490984ab0b605d60144935bce58653873a"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/hpa.c",
+      "sha256": "3a783e9afc5f66f6f6c9cb06ae4437ac46468af57b3d11e24ae7d0a2e71f9ea5"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/hpa_hooks.c",
+      "sha256": "46a41613938727629aeee45dd3922ce4fdca24f6bc20c80ac331ce2bf4099fd8"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/hpdata.c",
+      "sha256": "ae81ceb72131622e0a6ab6622b74e149ce527849c77dbd6ce3a3671031d2dac2"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/inspect.c",
+      "sha256": "d2d5d378862e055d8aa1cab509ee706394b0a7c9c8d786e59a6f9f82c6b8f08e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/jemalloc.c",
+      "sha256": "13ef7b9d4463b08f154823c898070cb1588fbbf8f828ffec137fcfe6cf105801"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/large.c",
+      "sha256": "6b92026882ba84b1a2952ae69f94fba9d3287e3c2c4566ec51166741cf8680a6"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/log.c",
+      "sha256": "6e4ec581f13a0b491790fea49911c6852db84cc991a360002be6333ca8b9e52b"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/malloc_io.c",
+      "sha256": "17959ea58877b96731ddd9c3102be5c114fb4ee67487fa77560c836fbcfd54f2"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/mutex.c",
+      "sha256": "fe28a4ea0c795c752c99c44e25a4d7452988787d0e802c09b50e2c8fb6123bc9"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/nstime.c",
+      "sha256": "ccdc9b02b7f2749e9ace6b23574921154922ed8b9aff35b8529c3b05c8a77bc2"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/pa.c",
+      "sha256": "8bef58b8c262c43d55af404f897eb5cef251a34b2bac722ba74a320dbd221ce7"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/pa_extra.c",
+      "sha256": "acd6f76c44ed1daa0fe36cbf55e4e25134364f57f631644651342541e9c9cbf5"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/pac.c",
+      "sha256": "623c5a1edaaed71893abdd76ac0ca412c64347412f54f68a64067f70c446d906"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/pages.c",
+      "sha256": "ef77dde4f850304aa40dd78d6c9263cddce0e8a813393961bd6c9464d93dd1ee"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/pai.c",
+      "sha256": "517f37761e349051328cca8d6e4c48e2fcd185dc8f02d46deccead063a0cfcdb"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/peak_event.c",
+      "sha256": "237fd3b9434b2ddad12f0c1f7c653a0bb49f0e479953d96ebf8819f7a87a1761"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/prof.c",
+      "sha256": "7d14a9ea3db59a323296442aa828bd8ff5909f98d5674bc1362599bfc0da6b46"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/prof_data.c",
+      "sha256": "fe17a2c2c1bec7dc526b5956c828ccf5796c45086ef2f6cf6a18439c52e50c05"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/prof_log.c",
+      "sha256": "44e15bbfeeba2725ffd53861fb77f46c2208440ec311b8aa201eb890608b0654"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/prof_recent.c",
+      "sha256": "9f42e8a92c0bc6764581f9b0748730e9335a42e22837aa45761439ea0db27d29"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/prof_stats.c",
+      "sha256": "27ac3323f3b3dcff6cbf83ce924bf9183176b9b9f3b56981410cabd221f19328"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/prof_sys.c",
+      "sha256": "c44a407bac91856882d655ccbe95ce4297db6034323e7d25b0909507999d9f95"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/psset.c",
+      "sha256": "d38bbad08ecae99a02933352410fbd7e4d0e515e6216a37935b2711c1b2244ec"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/rtree.c",
+      "sha256": "d8f2fdc9cc1570663d698f663a34679decd9f1bc5f171f08393e38cdba848bc1"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/safety_check.c",
+      "sha256": "8190fe592f64fea88dbb2ed8251cb25e23598bf65ba28ccfc43bca777ff26a58"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/san.c",
+      "sha256": "bf565e902998c0268c36ef0893915f5130910b5259255aa231d2efe7f2b6d939"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/san_bump.c",
+      "sha256": "4bdf55956d75220e5f52c221b6adbf0fbddaf271c77859fd7669d74d7e5548b9"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/sc.c",
+      "sha256": "2018401cbdaa28a2bc31a61dd9f2b988c94acbe4b8207a6a4020222a24037618"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/sec.c",
+      "sha256": "f75b6adde866e486e8ba374e7b105dbb13e2a59eab3264606e465d1358f7790e"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/stats.c",
+      "sha256": "8d3e16324dccd606580094eaf90f5e964a2de2a98ed5815ff88a1d5e5e0b6407"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/sz.c",
+      "sha256": "de8041a0ecd7b7a26655a424aa12c0756ea7a5fb4188166a77fd977af59ef55c"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/tcache.c",
+      "sha256": "57faba678111a65dca299aaffbe024d90768d4b6e4d200602d9f17593dfecd31"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/test_hooks.c",
+      "sha256": "9302628d7d9bfc6a12ba8a8c3f18ca13e5f3e7cb6c72acd3a10528c9b4848c66"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/thread_event.c",
+      "sha256": "d5a3d2fb66700a0214c0f871da1a7f5f3d6036a714b620962fb0b0e4450e2926"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/ticker.c",
+      "sha256": "066185642017b3b67403303dcebace305e521be9622ac6252225e059613c5530"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/tsd.c",
+      "sha256": "73765fd0491bacdbfb55c983e5af67f8e525f85fd41a4dcc19c3cfabee3a65cf"
+    },
+    {
+      "path": "corpus/jemalloc/upstream/jemalloc-5.3.0/src/witness.c",
+      "sha256": "b063b14fe71d8ff7d2bdd0e22db8a242a8ed17086d5e1bbbccf7885215bdaf43"
+    },
+    {
+      "path": "corpus/variants/jemalloc/5.3.0/default/x86_64/Og/generated/include/jemalloc/internal/jemalloc_internal_defs.h",
+      "sha256": "d7dc5a5624f38b7ddb998f64d69eaf81d57777d77ad43612bf427eb23f274ad8"
+    },
+    {
+      "path": "corpus/variants/jemalloc/5.3.0/default/x86_64/Og/generated/include/jemalloc/internal/jemalloc_preamble.h",
+      "sha256": "0db5b6b78c683b12719cb98b5d7c7d8f29f1806384778df6142c7802137912a3"
+    },
+    {
+      "path": "corpus/variants/jemalloc/5.3.0/default/x86_64/Og/generated/include/jemalloc/internal/private_namespace.h",
+      "sha256": "bf6928d0f3015fbebb69a30c507b255a8c3ce4396a40daf505e7bda5e3b81576"
+    },
+    {
+      "path": "corpus/variants/jemalloc/5.3.0/default/x86_64/Og/generated/include/jemalloc/jemalloc.h",
+      "sha256": "6a1fcebfb4b76896fd1a1a899c2a30352f202b7f4d0003eb5f2419c9a42dd6d8"
+    }
+  ],
+  "license": "BSD-2-Clause",
+  "license_files": [
+    "upstream/jemalloc-5.3.0/COPYING"
+  ],
+  "recipe_revision": "715ad0720318ef3859e5a7a7516c81341b64273b",
+  "recipe_worktree_dirty": false,
+  "recipe_hashes": {
+    "corpus/DECOMP.md": "5e9e6a8e21bac2905e71f2ef92ecf7d3e79e4ac0b9f562892420faf5d875c048",
+    "corpus/README.md": "187972d077253c693e38b93cd51af66cc34bdaf2b2ce6312e1ae01672299ff4a",
+    "corpus/TV.md": "42ab994a6f9dc2e9468a343507cdcfb1be711cf9d23a719b8e0711f2e1de34d1",
+    "corpus/depfiles.py": "57481acc8fbc51a2120dfb9d898cf91a885b4a0694812a61023d7a8f2aa6054c",
+    "corpus/fetch-lib.sh": "96eecea1d694e9709ef9a96947d93071a281baa24a840bcfa0bddb8b6b981eb9",
+    "corpus/frontend.py": "231d1df1ce9dd4005820f706fd73926d2ca65a76cca7256c54a49070bf188367",
+    "corpus/funcmap.py": "5ae94683374c082377f2dd64d7952a584b6fed1bfd0eb96b06ba8cfa0acc6825",
+    "corpus/mktable.py": "f404e461ad9061e01c34007e966b4f422923efcdf7e756a394e25853c332ab5d",
+    "corpus/pp.sh": "54955e19f74e20566aa9526dcada656631f7e297da6bb28d88e8c15226cf4769",
+    "corpus/receipt.py": "a3bdbe553576352795c3d3c614b9ddd0e9a52f4871bade16d349a90e5d6ee8d4",
+    "corpus/tv.py": "e8676bc52a57714a227d6a2c6b6476a1f28cfce0e51ffd2077015777877d4c4a",
+    "corpus/twin.sh": "0919938949b07d8ce57a500801f604db3fb795fa667620a9cc9c0ba3a08ae768",
+    "corpus/UNDER-TEST.md": "b36884570cf49036934df62c616a5d0e497ce163cd67829bd55d0d66399b2070",
+    "corpus/build-all.sh": "3ed5477791caed5ba5829a649713859feab7d8040fb8f91d63154b1711696456",
+    "corpus/common.sh": "b6c9c6335b40e60e8c9f49d7075eb64d302e77421b7644ae144339a42b4adef9",
+    "corpus/matrix.json": "21d6d06f7be2c85708fa0e9598d1ab2c08dd371e4001648f6b37582a07975960",
+    "scripts/corpus/gen.py": "75c0dd99c65106313163821ba2cbc79cccb5f268832e1d10bbc4be5fa9712448",
+    "scripts/corpus/README.md": "5e6d4d5ad92d3860ca78726c64de8ae8cb7a24dbb2e99358cb6d89dcf2b25d04",
+    "scripts/corpus/census.py": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597",
+    "scripts/corpus/database.py": "8c4760b9d8f07eb13e5ab5ede12578e75aa8a2aa50a02888319db5fd9c1c7786",
+    "scripts/corpus/db_benchmark.py": "a725138de18695f9c9916c530589fb14b9ceb947dc2d4297bf62fc7e149ea909",
+    "scripts/corpus/matrix.py": "cc1558d8ae7e12d14d378348049dda01859d16766f9818502a58ba2837aa8bb0",
+    "scripts/corpus/measure.py": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+    "scripts/corpus/test_census.py": "18b10742bf7a2445efcb4654f15f7ceaf4127ce49c6a68929e530c2c87bfcea3",
+    "scripts/corpus/test_database.py": "57f7f7ad4ee7387ffc121da02241136c4b3400a07eec767b63ee15cb49f0d210",
+    "scripts/corpus/test_measure.py": "23d0b853e6451cfa40cc9307e7a44536013b07061ff742437bbba0e7941f2b3e",
+    "scripts/corpus/test_variants.py": "84c375c8b62146bb2d4ecc70e03479d22bc92874d5e9d63e0aaa9fee1b9b16f6",
+    "scripts/corpus/variant_pair.py": "60faed251f82c954503bb86f205fa0e8e2c769df327b9e730b8ccf6df2ab95d0",
+    "scripts/corpus/variants.py": "ba901feb372d55e575950e4bcd2eed26a3929d19af6a2be2aa2be597d1b26d49",
+    "corpus/cjson/build.sh": "5187a841404636b378710f068836d254868709158525668cd058b5ea0eb4beac",
+    "corpus/cjson/fetch.sh": "6d64ccd09504fd67935e69abe629fa427b0628edd7e21d65abc037a51092bb98",
+    "corpus/cjson/package.toml": "13053b416199e780a6137e7180005d1cf9ddf1c545b9f2a9863ab3037f8ab551",
+    "corpus/cjson/test.sh": "907aded71a811b34b43ae75dccad5fe49a0248326f2a57e60cfb7e75730a1b54",
+    "corpus/cjson/upstream.sha256": "5bcf2919cb71516db2e7bf196089c114df28d69e5d1338d566bd91f1a0de780f",
+    "corpus/coreutils/build.sh": "409851a280b88bd24938f9c8aa6af024bc9dc77e3c3b118f535237122d902af9",
+    "corpus/coreutils/fetch.sh": "e658cc612ea5e1273ef7a5a137e70b6edad08a0a859a2d562e86200dd450c83d",
+    "corpus/coreutils/package.toml": "fed162901be3d8362dd419d130d5e41b9bee1d808f180469d6ab9e9eda649c6a",
+    "corpus/coreutils/test.sh": "47c6e4e6335433144ef6478759c352c726919548a32ec5d89146e81da9027a8e",
+    "corpus/coreutils/upstream.sha256": "da91d4ac4901389403a5aa9d5ba33a0baf143a4f0df74bd6cf93e5d3621fda51",
+    "corpus/darkhttpd/build.sh": "3c26da001e15c1146073f850ec30632aa86f4fb111e8b1ddd17cf65afb6db49e",
+    "corpus/darkhttpd/fetch.sh": "f2163975b05ed4be1e762d075497f66e3cd32c57f4377a60ea1378c6090e261c",
+    "corpus/darkhttpd/package.toml": "7a0fa89641f64288329ca4b1356c4996523bd3ab4b6427dad4364d93821803f9",
+    "corpus/darkhttpd/test.sh": "2ba827cf4d9deb430c32080f239738a8478cc2e8c509f95ea3ed56c7bb900185",
+    "corpus/darkhttpd/upstream.sha256": "561f498228d8b3496da2ceb8a78c209a8e35a63847a91a1e9eec647d95ee70f0",
+    "corpus/jemalloc/build.sh": "653c1a58955f3a4b48f298d5ad8b37a4bbb33c0bf34038ae39681e7200f49b62",
+    "corpus/jemalloc/fetch.sh": "9b7d4eec24d02aee3d12d5d0b69b9340d8c7c27495dfc7125fdba3de5a2a6e5b",
+    "corpus/jemalloc/package.toml": "9fee03a3d1605e751a6dfa05fcf06d0a6ec86140ff514bb8dec64268a784734f",
+    "corpus/jemalloc/test.sh": "8ea3e05ecce19cdce9acfc7d08199d1bf802ee18308ac112db680e6d57a3e8c6",
+    "corpus/jemalloc/upstream.sha256": "f55aaa8349964cea8fab5440cb557c50449e09625d95ff18949a636d25439d92",
+    "corpus/mimalloc/build.sh": "e6124ea3973b12c9b149494557c0b344b6ec3814f0a0495b33bd08da1e413e70",
+    "corpus/mimalloc/fetch.sh": "a66940addf9615d761b336b5f4d822735d1b015ee8191d7342bc8c1fbeb3d2e8",
+    "corpus/mimalloc/package.toml": "77e37f75431d9658a91c267235081e866437f4dc25afc316cd3e11996e5e5cee",
+    "corpus/mimalloc/test.sh": "48649dcc7959a7a91d83dec9d0a8f88e0c9b09afdc06a939bbef652757a93a91",
+    "corpus/mimalloc/upstream.sha256": "ed86b2536cd1acb9b38dca1365cbb19b79ed7004dcd3b1440fb7dd7130e5ec3e",
+    "corpus/openssl/fetch.sh": "701994b210d1246737df1b39af759ffccf30bb0bfda47b77c507dcc6f1700a90",
+    "corpus/openssl/package.toml": "f2e69092659f3ac435a7f4d2085cffca8c6b90e9653980825fd637f16e388349",
+    "corpus/openssl/upstream.sha256": "33ecb52ff3260565b6049e1c8ca826561ea33f28b27d1a20eda36fe1d27a436c",
+    "corpus/openssl/build.sh": "0811686b146e338e59560736b3f8eba75e3e093d7986ebc21af3204356f1fc00",
+    "corpus/openssl/test.sh": "7c1fe75103b6e80a18e89b00a9596c6a7eb2dffbd4fdd9609a03f0a8924c2206",
+    "corpus/refcrypto/build.sh": "b39e5024755c4e4329fcd485c68ba871192c6d51406d680085ae75bc7692cf9f",
+    "corpus/refcrypto/fetch.sh": "1edef104266bc2b027a4508af4aa848ccbe969ef96e7e9de1938494cd4f8c895",
+    "corpus/refcrypto/package.toml": "cd7bcc7c6a31c485684e8e86a0248dfa7528816d114e34542165b80dde040c79",
+    "corpus/refcrypto/test.sh": "52e186c34081a85cadfcc5e33e979adaa93c908a3672614233980c38f8133c6a",
+    "corpus/refcrypto/upstream.sha256": "5bd4ff3e8d7302096934166dfaf92d7e0379e557234c42f5062a559838ea55f7",
+    "corpus/sqlite/build.sh": "53d32236ff24c51722c89204f8553c41dc70124bcc878f5ff7611ec257d71cfb",
+    "corpus/sqlite/fetch.sh": "0619a35ea637805a76a550699e9f8dbee782cab9c934c2b8430ae37a5557ae94",
+    "corpus/sqlite/package.toml": "327135bd95d4208ac10ffc1d05db8e70c9769d098c901b63b7e7e08b632d34a6",
+    "corpus/sqlite/test.sh": "59cc0c2e6f583d9e246487176bd46b3fef0c6c946d2e16d4de4815ba7a28b053",
+    "corpus/sqlite/upstream.sha256": "6328416a8a040b33ae0ffe576924b175164f7a9eb97211023a88bf322f6a4a59",
+    "corpus/tcp-pingpong/build.sh": "8c37feccfd425fc9bb25b1d43624fe7b1f30bf9059a4f9d7e9267fed80bad6dc",
+    "corpus/tcp-pingpong/fetch.sh": "d8864e2b5ccaf5cd2d66e40edf93368cd8397cabb9b99263dd12f8d4fee79016",
+    "corpus/tcp-pingpong/package.toml": "93e940967b0a9f058fa15013cd5e2971a0ed9a7a0d0a8db3af593ec4118f8847",
+    "corpus/tcp-pingpong/test.sh": "033e76bbd6a67332d99d48db54ce9b07ea0da99acbeab945d8c953f3e369f331",
+    "corpus/tcp-pingpong/upstream.sha256": "ad154fa3e3bff042a5c237ac5921dab1b37b06bdff8ca2d3bef8b0382cddf50a",
+    "corpus/tinycc/build.sh": "476815da8ee4b9ebea0f7150a1a25af9e13562ab9560f0f63faf25a604aaa2d2",
+    "corpus/tinycc/fetch.sh": "32f2a926599a915b4bfa31d6bc4a2944918f6720f668149bac866da674c88e2a",
+    "corpus/tinycc/package.toml": "cd992497a4c7af7db45e488e71f9755bcc9ee15bd3456b5553c2f161beb79458",
+    "corpus/tinycc/test.sh": "0c4dd0c652aac889244def0646cba175ad2d2ac5612b94e6a683089d01b6500e",
+    "corpus/tinycc/upstream.sha256": "b68d4e3f8d24c8c07738dc57af0aa0ea1f25b699f77b7ea3c00ee54a3f7d3258",
+    "corpus/toolchain/Dockerfile": "0798cfc8a92fcb1995a1d9bfb9377c5e5f390d57ff669f70b3900b69f834defb",
+    "corpus/toolchain/image.sh": "5984e2098fd4665dc953258c2b6ee3431d5c85366057f99f066eddd09da907b1",
+    "corpus/toolchain/lock.txt": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f",
+    "corpus/tinycc/frontend/aarch64.tsv": "dd25f84eec5dc330d2734ddb2c275680b95066f9cbe801a19a3f5418594eadde",
+    "corpus/tinycc/frontend/x86_64.tsv": "fc71501d2320fb9522f65ad5dd62cd0bf040a470da1ea94ffdda4e0519da8b16",
+    "corpus/tcp-pingpong/frontend/aarch64.tsv": "b41834e49b5d9c59a3c25f372a8cb25b24a33c18e442ac080d2e733ce63537f0",
+    "corpus/tcp-pingpong/frontend/x86_64.tsv": "fff3a4372131f9044f2087d3b25e2d072a26684be49f4837b209ce3c507f547a",
+    "corpus/tcp-pingpong/local/LICENSE-NOTE.txt": "06a449afafab230cd92a9a21fdd97aedf00b912107de14e64c24ebf9b4f2a66e",
+    "corpus/tcp-pingpong/local/pingpong.patch": "ab57df0b712f6e63511fd41577d3a5ba3bc9c89f07fd77cb1031940c775640cc",
+    "corpus/sqlite/frontend/aarch64.tsv": "d3a65b6c89303ed7576d83917138edb3bca958712c07d175c836addc8fadf6c1",
+    "corpus/sqlite/frontend/x86_64.tsv": "ca77d02f827df2e2e271623a3905226feb029719c6205b00a9c3e3da3916e366",
+    "corpus/sqlite/local/COPYRIGHT-sqlite.txt": "b462dacbc00dfdf9859a7c626423c980de19e0a25b956ddc48c1ef34819139b7",
+    "corpus/refcrypto/frontend/aarch64.tsv": "5a3c9ce9854c3dd15f545f2394643377ce6f8cd4b272500e176775882b9d5843",
+    "corpus/refcrypto/frontend/x86_64.tsv": "e4bdd65b3d4aaa296723406edc451a108329677f51a83f9c73340d2421c05a52",
+    "corpus/refcrypto/local/extract-rfc6234.py": "aa1385fef62c056c00a213869edacc627e54c7c3236e5bb56a2d2028ef1dd179",
+    "corpus/refcrypto/local/kat.c": "b442562e55cde24556b920510a56c9ddc995f2bdc83e1fc2628f22c1dbe41491",
+    "corpus/refcrypto/local/supercop-shim/chacha20/crypto_stream.h": "a816d42815bbde821e31ce5b26827c982e91bdadbf1f65e725ede2f6a5274e54",
+    "corpus/refcrypto/local/supercop-shim/x25519/crypto_scalarmult.h": "65dc939cb4874f834e457ba00451b95b3d0f95e0e4f53880e6d422cd4f89ffd6",
+    "corpus/openssl/frontend/aarch64.tsv": "a0a719708618da97aa941ca8c506abdb78f1167aa926666aedb6f4f652ca82ab",
+    "corpus/openssl/frontend/x86_64.tsv": "b89c9d47fdf5b576566332972ee7bd292d17e12504c735f0735da14c68604c20",
+    "corpus/mimalloc/frontend/aarch64.tsv": "ff6434c47ab7969bc9e9b5d403332733476b5ea292624555908d6f3e5e1aaa30",
+    "corpus/mimalloc/frontend/x86_64.tsv": "a489f75848f28b25947ee899cc8d7f3e0fddbc6e29d35ce817abbf1a185a68de",
+    "corpus/mimalloc/local/mi_smoke.c": "e33d0b95cf6b4d8b147bf977b8c26cf9dc2cf1b0f78fca0858b3936011378a65",
+    "corpus/jemalloc/frontend/aarch64.tsv": "252477303d39e6e328dba8d8b68f5b819504c5bd454c5c4d1c964d678aa7e7fe",
+    "corpus/jemalloc/frontend/x86_64.tsv": "a3c9af2fd31ec4691b1c11eaa67b0f2f02f2a1b42e092ec0bf8d434cba6cc81c",
+    "corpus/jemalloc/local/je_smoke.c": "080718168300f95aef58d3798399ff914b2946ac3cbc0adfe27bec0b2f0984de",
+    "corpus/darkhttpd/frontend/aarch64.tsv": "efb6d1872f26018ea0f522443fb582ae3020033a1113a3176fdfb7d2f9cd4c54",
+    "corpus/darkhttpd/frontend/x86_64.tsv": "15768dda01572e408c7058eaa8f4b0f9d9f2b681537ea928d759e104b41ffa68",
+    "corpus/coreutils/frontend/aarch64.tsv": "2b80e211f13c7d10eb8d8d6b10e899865d1677606d806eeab54d67e492713617",
+    "corpus/coreutils/frontend/x86_64.tsv": "f6fd54772cd80cb0b2ba0bdf78f01bcb7e370a94b9ee536ba35fd56df21004a7",
+    "corpus/coreutils/local/print-var.mk": "794d7142998d797e9e6029a52040ef5060432ff780e37415cc183aa3563b6b98",
+    "corpus/cjson/frontend/aarch64.tsv": "2e7f6dd31543325b92aadbeccc57f5feed15e9414cc9b6066b20476eb2efb011",
+    "corpus/cjson/frontend/x86_64.tsv": "dd59edf97a24859068bc878ee79d99738cea709de0b0da6aca788034bd713f6f",
+    "corpus/cjson/local/utils_smoke.c": "97e4f7098e2b922544c44e1af61426e50ba76f2ecb6e4ca9d7fcc2b828c5574f"
+  },
+  "environment": {
+    "JOBS": 8,
+    "SOURCE_DATE_EPOCH": 1762128000,
+    "LC_ALL": "C",
+    "TZ": "UTC"
+  },
+  "reproducibility": "two clean containers, byte-identical outputs",
+  "lean_status": "not generated or checked",
+  "source_semantics_status": "not bound",
+  "binary_equivalence_status": "no functional equivalence statement instantiated"
+}

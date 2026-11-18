@@ -1,0 +1,193 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 17908,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 2320,
+      "sha256": "817e76eca95f98e4e4139d3ebfcd446060260bb8851c1ee17917fd1539353537",
+      "size": 28
+    },
+    ".plt": {
+      "address": 2352,
+      "sha256": "6cbf5aa1984176b7475f88bdca1bb686f4c20325bd64313ddef343a9ff1bba78",
+      "size": 272
+    },
+    ".text": {
+      "address": 2624,
+      "sha256": "aa398873e208d6b057271cd691761a1a113110a923ff80154ff314b057c3a153",
+      "size": 15284
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "29b1ab213f4770fea9984a76527699eca618574753ed314758b12a15418b23d2",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "83f5538e2850b8fdb14f3721cf93a01e18b4915a98c68250308f32b50bed9ade",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "9",
+      "size": 20,
+      "type": "FUNC",
+      "value": 2624
+    },
+    {
+      "binding": "LOCAL",
+      "name": "crypto_int8_bottombit_mask",
+      "section_index": "9",
+      "size": 32,
+      "type": "FUNC",
+      "value": 2856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "crypto_int8_shrmod",
+      "section_index": "9",
+      "size": 56,
+      "type": "FUNC",
+      "value": 2888
+    },
+    {
+      "binding": "LOCAL",
+      "name": "crypto_int8_bitmod_mask",
+      "section_index": "9",
+      "size": 52,
+      "type": "FUNC",
+      "value": 2944
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_3",
+      "section_index": "9",
+      "size": 100,
+      "type": "FUNC",
+      "value": 5960
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_4",
+      "section_index": "9",
+      "size": 132,
+      "type": "FUNC",
+      "value": 6060
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_mul",
+      "section_index": "9",
+      "size": 3832,
+      "type": "FUNC",
+      "value": 8028
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_mul121666",
+      "section_index": "9",
+      "size": 1084,
+      "type": "FUNC",
+      "value": 11860
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_copy",
+      "section_index": "9",
+      "size": 300,
+      "type": "FUNC",
+      "value": 4588
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_sq",
+      "section_index": "9",
+      "size": 2516,
+      "type": "FUNC",
+      "value": 12944
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_add",
+      "section_index": "9",
+      "size": 584,
+      "type": "FUNC",
+      "value": 4004
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519",
+      "section_index": "9",
+      "size": 688,
+      "type": "FUNC",
+      "value": 2996
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_1",
+      "section_index": "9",
+      "size": 140,
+      "type": "FUNC",
+      "value": 3864
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_base",
+      "section_index": "9",
+      "size": 44,
+      "type": "FUNC",
+      "value": 3684
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_invert",
+      "section_index": "9",
+      "size": 876,
+      "type": "FUNC",
+      "value": 7152
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_tobytes",
+      "section_index": "9",
+      "size": 1864,
+      "type": "FUNC",
+      "value": 16044
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_frombytes",
+      "section_index": "9",
+      "size": 960,
+      "type": "FUNC",
+      "value": 6192
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_0",
+      "section_index": "9",
+      "size": 136,
+      "type": "FUNC",
+      "value": 3728
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_sub",
+      "section_index": "9",
+      "size": 584,
+      "type": "FUNC",
+      "value": 15460
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_scalarmult_curve25519_ref10_fe_cswap",
+      "section_index": "9",
+      "size": 1072,
+      "type": "FUNC",
+      "value": 4888
+    }
+  ]
+}

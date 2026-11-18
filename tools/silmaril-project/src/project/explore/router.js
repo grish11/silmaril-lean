@@ -23,7 +23,8 @@ function registerView(v) {
   VIEWS.set(v.id, Object.freeze({ id: v.id, title: v.title || v.id, nav: v.nav, tab: v.tab || v.id, render: v.render }));
 }
 function renderNav() {
-  const nav = [...VIEWS.values()].filter((v) => typeof v.nav === "number").sort((a, b) => a.nav - b.nav);
+  const corpusOnly = tables.has("corpus_artifacts") && !tables.has("projects");
+  const nav = [...VIEWS.values()].filter((v) => typeof v.nav === "number" && (!corpusOnly || ["corpus", "sql"].includes(v.id))).sort((a, b) => a.nav - b.nav);
   $("#nav").innerHTML = nav.map((v) => `<a href="#/${esc(v.id)}">${esc(v.title)}</a>`).join("");
 }
 let routeTok = 0, disposers = [];
@@ -53,7 +54,10 @@ async function route() {
   disposeRoute();
   const tok = ++routeTok;
   const parts = location.hash.replace(/^#\/?/, "").split("/");
-  const view = VIEWS.get(parts[0]) || VIEWS.get("summary");
+  const corpusOnly = tables.has("corpus_artifacts") && !tables.has("projects");
+  const requested = VIEWS.get(parts[0]);
+  const view = corpusOnly ? (requested && (requested.id.startsWith("corpus") || requested.id === "sql") ? requested : VIEWS.get("corpus"))
+    : requested || VIEWS.get("summary");
   const arg = decodeURIComponent(parts.slice(1).join("/"));
   for (const a of document.querySelectorAll("#nav a")) a.classList.toggle("on", a.getAttribute("href") === "#/" + view.tab);
   window.explore.busy = true;

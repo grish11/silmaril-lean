@@ -1,0 +1,40 @@
+{
+  "address": "0x4000c0",
+  "bytes": "488d47ff4885ff7e27ba0100000031f64889d14883e8014801f24889ce4883f8ff75ed4889c8c3660f1f84000000000031c94889c8c3",
+  "function": "fib",
+  "id": "wasm-sim/x86/fib/ag",
+  "kind": "assume-guarantee",
+  "program": {
+    "imports": {
+      "callees": [],
+      "sim": [
+        "cond",
+        "ea",
+        "i_alu_ri",
+        "i_alu_rr",
+        "i_jmp",
+        "i_lea",
+        "i_mov_ri",
+        "i_mov_rr",
+        "i_next",
+        "i_ret"
+      ]
+    },
+    "kind": "annotated-wat",
+    "source": "../fib.wat"
+  },
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "solvers": [
+    "wpc/HWP",
+    "wasm-vc (tools/wasm-vc sym)",
+    "agent"
+  ],
+  "spec": {
+    "abi": "AbiEntry assumed; AbiReturn (rip, rsp+8, rbx rbp r12-r15) and frame (footprint + [rsp-0x1000, rsp)) required",
+    "assumes": [],
+    "ensures": "(= (reg rax) (fib (old (reg rdi))))",
+    "requires": "(and (and (= ((_ extract 3 0) (old (reg rsp))) #x8) (bvuge (old (reg rsp)) #x0000000000101000) (bvule (old (reg rsp)) #x000000000010fff8)) (bvule (old (reg rdi)) #x0000000000000018))"
+  },
+  "statement": "assuming the callees [] meet their contracts (imports), `fib` (module linked to the shared simulator) meets its contract",
+  "status": "open"
+}

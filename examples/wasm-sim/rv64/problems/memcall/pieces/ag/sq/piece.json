@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/memcall/ag/sq",
+  "kind": "assume-guarantee",
+  "function": "sq",
+  "address": "0x11240",
+  "words": "02a5053300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/sq.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0"], "results": ["a0"]},
+  "spec": {"requires": "true", "ensures": "(= (reg a0) (bvmul (old (reg a0)) (old (reg a0))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `sq` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

@@ -106,11 +106,46 @@ try {
     check(await p.evaluate(() => [...document.querySelectorAll("#elf-side li code")].some((c) => /\.header$/.test(c.getAttribute("title")))), `${f.slug}: the ELF magic is covered by the header theorem`);
     if (f.slug === "gnu-sha256sum") { await open(`/elf-bytes/${f.slug}/${hx(o)}`); await shot("elf-sha256sum-bytes"); }
 
+    // Function table: rows from the data, each with its checked symbol theorem.
+    const T = new Map(d.theorems.map((t) => [t.decl, t]));
+    const fns = d.functions;
+    check(fns.every((r) => T.get(r.theorem)?.kind === "symbol" && T.get(r.theorem).status === "checked"), `${f.slug}: all ${fns.length} function rows have a kernel-checked symbol theorem`);
+    check(fns.every((r) => r.size !== 0 || !r.defined || r.extent.startsWith("unknown") || r.extent.startsWith("absolute")), `${f.slug}: defined rows with st_size 0 have an unknown extent`);
+    check(fns.every((r) => r.defined || r.extent.startsWith("import")), `${f.slug}: undefined rows are imports`);
+    await open(`/elf-funcs/${f.slug}`);
+    const ft = await p.evaluate(() => ({ n: document.querySelector("#elf-fn").textContent, note: document.querySelector("main .note").textContent,
+      rows: document.querySelectorAll("table.elf-fns tbody tr").length, text: document.querySelector("main").textContent }));
+    const def = fns.filter((r) => r.defined).length;
+    check(ft.n === `${def} of ${fns.length}` && ft.rows === Math.min(def, 300), `${f.slug}: function table shows ${ft.n} (defined only), ${ft.rows} rows on the page`);
+    check(/not a recovered function/.test(ft.note) && /System V ABI/.test(ft.note), `${f.slug}: the table says what a row is and is not`);
+    const withContract = fns.filter((r) => r.contracts.length).length;
+    check(ft.text.includes(`${withContract} with a contract theorem`), `${f.slug}: ${withContract} rows with a contract theorem`);
+    if (f.slug === "zlib-checksums") {
+      check(withContract === 4 && ["crc32_z", "crc32", "adler32_z", "adler32"].every((n) => fns.find((r) => r.name === n)?.contracts.length === 1), "zlib-checksums: crc32_z, crc32, adler32_z, adler32 each link one contract");
+      await p.check("#elf-fcon");
+      const cs = await p.evaluate(() => [...document.querySelectorAll("table.elf-fns tbody tr")].map((r) => [r.dataset.fn, r.cells[10].textContent]));
+      check(cs.length === 4 && cs.every(([, c]) => /kernel ✓/.test(c) && /_contract/.test(c)), `zlib-checksums: the contract filter shows the 4 functions, kernel-checked (${cs.map(([n]) => n).join(", ")})`);
+      const st = d.theorems.find((t) => t.decl.endsWith(".crc32_z_contract"));
+      check(st && /CodeAt \S*\.F 4200848 \S*crc32zCode/.test(st.statement.replace(/\s+/g, " ")) && /crc32zContract/.test(st.statement), "zlib-checksums: crc32_z's contract statement names its address and code");
+      await shot("elf-zlib-checksums-functions");
+    }
+    if (f.slug === "glibc-libc") {
+      check(fns.some((r) => r.ifunc && r.defined) && /resolver/.test(ft.text), "glibc-libc: IFUNC rows are marked as resolvers");
+      check(fns.some((r) => r.aliases.length), "glibc-libc: aliases (one address, several symbols) are listed");
+      check(fns.some((r) => r.version && r.version.includes("GLIBC_")), "glibc-libc: symbol versions are read from .gnu.version / .gnu.version_d");
+      check(withContract === 0 && /no contract statement/.test(ft.text), "glibc-libc: no contract statements, and the table says so");
+      await p.fill("#elf-fq", "memcpy");
+      await p.waitForTimeout(100);
+      await shot("elf-glibc-libc-functions");
+    }
+    if (f.slug === "glibc-libm" || f.slug === "zlib-libz") await shot(`elf-${f.slug}-functions`);
     // Disassembly.
     const dis = json(d.disassembly.file);
-    check(dis.unverified === true && dis.rows.length > 0, `${f.slug}: disassembly data marked unverified, ${dis.rows.length} rows`);
-    check(dis.rows.every(([, off, hex]) => off != null && Buffer.from(hex, "hex").equals(bytes.subarray(off, off + hex.length / 2))), `${f.slug}: every disassembly row's bytes are the file's bytes`);
+    const disRows = dis.chunks.flatMap(([file]) => json(file));
+    check(dis.unverified === true && disRows.length === dis.rows && disRows.length > 0, `${f.slug}: disassembly data marked unverified, ${disRows.length} rows in ${dis.chunks.length} chunks`);
+    check(disRows.every(([, off, hex]) => off != null && Buffer.from(hex, "hex").equals(bytes.subarray(off, off + hex.length / 2))), `${f.slug}: every disassembly row's bytes are the file's bytes`);
     const entry = d.header.entry;
+    if (!disRows.some(([a]) => a === entry)) { check(true, `${f.slug}: entry ${hx(entry)} is not an instruction of the listing (skipped)`); continue; }
     await open(`/elf-disasm/${f.slug}/${hx(entry)}`);
     const dv = await p.evaluate(() => {
       const w = document.querySelector(".elf-warn");

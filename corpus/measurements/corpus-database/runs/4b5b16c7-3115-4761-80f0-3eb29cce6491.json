@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "run_id": "4b5b16c7-3115-4761-80f0-3eb29cce6491",
+  "stage": "corpus-catalog-sqlite-generation",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-17T21:07:40.966803+00:00",
+  "command": [
+    "python3",
+    "scripts/corpus/database.py",
+    "--output",
+    "/work/out/corpus-site/current.sqlite"
+  ],
+  "cwd": "/work/repo",
+  "target": "host-sqlite",
+  "repository": {
+    "commit": "5005cee1f1ca46a75a68bbc72e0c1454e7bc824d",
+    "dirty": true,
+    "diff_sha256": "9ee22597bb7a8d1dc98ac721804bfb3d66e821622c55dfed9daa8fa12ecfe6c3"
+  },
+  "cache": "unspecified",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "corpus/matrix.json",
+      "sha256": "21d6d06f7be2c85708fa0e9598d1ab2c08dd371e4001648f6b37582a07975960"
+    },
+    {
+      "path": "scripts/corpus/database.py",
+      "sha256": "8c4760b9d8f07eb13e5ab5ede12578e75aa8a2aa50a02888319db5fd9c1c7786"
+    },
+    {
+      "path": "scripts/corpus/census.py",
+      "sha256": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597"
+    }
+  ],
+  "wall_seconds": 1.8432647639999686,
+  "exit_code": 0,
+  "user_cpu_seconds": 1.5499999999999998,
+  "system_cpu_seconds": 0.26,
+  "peak_rss_kib": 73780,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

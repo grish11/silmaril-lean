@@ -1,0 +1,4 @@
+# name	input	output	e-graph TV module	exports/proved/refuted/unknown/lifts
+pass-O3	rand60.wasm	rand60.binaryen-O3.wasm	tests/wasm/auto/EGraph/TvRandom.lean	60/60/0/0/0
+pass-O2	opt-in.wasm	opt-in.binaryen-O2.wasm	tests/wasm/auto/EGraph/TvBinaryen.lean	31/31/0/0/0
+pass-peep	opt-in.wasm	opt-in.peep.wasm	tests/wasm/auto/EGraph/TvPeep.lean	31/31/0/0/0

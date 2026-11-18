@@ -1,0 +1,10 @@
+kind = "post"
+description = "core method i_alu_ri relative to the abstract accessor contracts (abs.wat): every accessor call is within its contract (no trap)"
+cases = { op = "0..8", w = [1, 2, 4, 8] }
+expect = "proved"
+init = "symbolic"
+no_trap = true
+params = [{ name = "op", ty = "i32" }, { name = "w", ty = "i32" }, { name = "d", ty = "i32" }, { name = "v", ty = "i64" }]
+pre = ["(bvule op #x00000008)", "(or (= w #x00000001) (= w #x00000002) (= w #x00000004) (= w #x00000008))", "(or (bvult d #x00000010) (and (= w #x00000001) (bvult d #x00000014)))"]
+modules = [{ name = "acc", wat = "abs.wat" }, { name = "sim", wat = "core-acc.wat" }]
+calls = [{ func = "i_alu_ri", args = ["op", "w", "d", "v"] }]

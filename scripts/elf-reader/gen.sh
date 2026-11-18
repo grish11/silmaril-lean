@@ -16,6 +16,9 @@ sha() { sha256sum "$1" | cut -d' ' -f1; }
 # local objdump is the recorded version.
 listing() {  # listing FILE SLUG
   local f=examples/elf/disasm/$2.objdump v
+  # Files over 512 KiB (the glibc libraries): no committed listing; elf-pages disassembles them when
+  # it writes the pages (tools/elf-pages, `objdump` on PATH).
+  if [ "$(stat -c %s "$1")" -gt 524288 ]; then return; fi
   if ! command -v objdump >/dev/null; then echo "gen.sh: no objdump; $f not regenerated or compared" >&2; return; fi
   v="# $(objdump --version | head -1)"
   if [ "$check" = --check ]; then
@@ -30,7 +33,7 @@ listing() {  # listing FILE SLUG
 emit() {  # emit FILE NAME TITLE SLUG
   .lake/build/bin/elf-staged emit-reader "$1" "$2" "$(sha "$1")" "$3" "$dir" >/dev/null
   if [ "$check" = --check ]; then
-    for m in Bytes Defs Thms; do
+    for m in Bytes Defs Thms Functions Decomp; do
       cmp -s "$dir/$2/$m.lean" "$out/$2/$m.lean" || { echo "gen.sh: $out/$2/$m.lean differs" >&2; exit 1; }
     done
   fi
@@ -39,4 +42,8 @@ emit() {  # emit FILE NAME TITLE SLUG
 emit examples/dyn/pinned/hello-gcc HelloGcc '`hello` (gcc 13.3 -O2, dynamically linked against glibc 2.39: `PT_INTERP` ld-linux-x86-64.so.2, `DT_NEEDED` libc.so.6)' hello-gcc
 emit examples/dyn/pinned/hello-clang HelloClang '`hello` (clang 18.1 -O2, dynamically linked against glibc 2.39: `PT_INTERP` ld-linux-x86-64.so.2, `DT_NEEDED` libc.so.6)' hello-clang
 emit examples/elf/pinned/gnu-sha256sum Sha256sum 'GNU coreutils 9.4 (Ubuntu 9.4-3ubuntu6.3) `sha256sum`' gnu-sha256sum
+emit examples/elf-ladder/03-zlib-checksums/pinned/zlib-checksums ZlibChecksums 'zlib 1.3.1 `adler32.c` and `crc32.c` (`-DZ_SOLO -O2`, GCC 13.3; `examples/elf-ladder/03-zlib-checksums`)' zlib-checksums
+emit examples/elf/pinned/zlib-libz.so.1.3 ZlibLibz 'zlib 1.3 `libz.so.1.3` (Ubuntu zlib1g 1:1.3.dfsg-3.1ubuntu2.3)' zlib-libz
+emit examples/elf/pinned/glibc-libm.so.6 GlibcLibm 'glibc 2.39 `libm.so.6` (Ubuntu libc6 2.39-0ubuntu8.9)' glibc-libm
+emit examples/elf/pinned/glibc-libc.so.6 GlibcLibc 'glibc 2.39 `libc.so.6` (Ubuntu libc6 2.39-0ubuntu8.9)' glibc-libc
 echo "gen.sh: ok"

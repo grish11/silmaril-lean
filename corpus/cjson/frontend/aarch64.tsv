@@ -1,0 +1,3 @@
+# unit	status	seconds	first error
+cJSON-1.7.19/cJSON.i	rejected	0.1	($reject 1 ($str "b3e11ea334e95359907d4abf9194f0e7fedc6c6a") ($str "gcc_4.9.0_x86_64-apple-darwin10.8.0") ($str "parse") ($loc_region ($str "/usr/aarch64-linux-gnu/include/string.h") 43 39 ($str "/usr/aarch64-linux-gnu/include/string.h") 43 45) ($str "expected Silmaril.Cerberus.Frontend.Punct.rparen
+cJSON-1.7.19/cJSON_Utils.i	rejected	0.1	($reject 1 ($str "b3e11ea334e95359907d4abf9194f0e7fedc6c6a") ($str "gcc_4.9.0_x86_64-apple-darwin10.8.0") ($str "parse") ($loc_region ($str "/usr/aarch64-linux-gnu/include/ctype.h") 80 6 ($str "/usr/aarch64-linux-gnu/include/ctype.h") 80 19) ($str "expected Silmaril.Cerberus.Frontend.Punct.semicolon

@@ -1,0 +1,368 @@
+{
+  "artifacts": {
+    "listing": {
+      "media": "text/x-objdump",
+      "path": "examples/compiler-explorer/compiles-to/straight/O2/listing.txt",
+      "sha256": "aeaa22ae6be320ac9368ddbac1aadb9109c5b5f033515446749dd5f792a8fbe5",
+      "size": 231
+    },
+    "listing_receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/compiles-to/straight/O2/RECEIPT.json",
+      "sha256": "eae5762f831a8f78a2ba9d7de3db0d72ddd270f3eac856e0f7d96f95e606e556",
+      "size": 555
+    },
+    "receipt": {
+      "media": "application/json",
+      "path": "examples/compiles-to/straight/O2/RECEIPT.json",
+      "sha256": "baad57ac4f35dcde91e0ca93d8e9cf76a3b1245c5a99518428e636c7c69e9454",
+      "size": 975
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiles-to/straight/straight.c",
+      "sha256": "8b49538da88e3926f7c457e54fff82234e5ef0efb3c81372537b8f690f38b4b6",
+      "size": 155
+    },
+    "target": {
+      "media": "application/x-elf-relocatable",
+      "path": "examples/compiles-to/straight/O2/straight.o",
+      "sha256": "d1a77167a5a6957f6f42b5944ff5d28cb36c5b8901b8f564c4e73825cbf038a6",
+      "size": 3176
+    }
+  },
+  "context": {
+    "abi": {
+      "decl": "Silmaril.Project.CompilesTo.FnData.Holds (PointKind.entry)",
+      "id": "sysv-amd64-integer",
+      "version": "System V AMD64 psABI: INTEGER-class arguments, LP64"
+    },
+    "comorphism": {
+      "decl": "Silmaril.Project.CompilesTo.dwarf",
+      "family": "observation",
+      "version": "C objects at their DWARF DW_OP_fbreg frame slots"
+    },
+    "mapping_relation": {
+      "decl": "Silmaril.Project.CompilesTo.FnData.mapping",
+      "family": "cut-point",
+      "version": "c-tv program points"
+    },
+    "source_model": {
+      "decl": "Silmaril.Project.CompilesTo.FnData.source",
+      "family": "cerberus-core",
+      "version": "Lean port of Cerberus Core (Project.Shapes.C.ElabAil, LP64)"
+    },
+    "target_model": {
+      "decl": "Silmaril.X86.Open.isa",
+      "family": "x86-64",
+      "version": "silmaril open x86-64 model (SegVC, single thread)"
+    }
+  },
+  "derivation": {
+    "command": "gcc -O2 -g -c -fdebug-prefix-map=/src=. -std=c11 -ffreestanding -fno-builtin -fno-stack-protector -fcf-protection=none -mgeneral-regs-only -fno-pic -fno-pie -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-ident straight.c -o O2/straight.o",
+    "compiler": "gcc",
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "kind": "compiler",
+    "opt": "O2",
+    "receipt": "receipt",
+    "target": "x86_64-linux-gnu",
+    "version": "gcc (GCC) 13.3.0"
+  },
+  "direction": "compiled",
+  "edges": [
+    {
+      "function": "add3",
+      "id": "nav/add3/4/0",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): the first range is not a frame-pointer prologue (push %rbp; mov %rsp,%rbp)",
+      "origin": "dwarf-line-table",
+      "source": [
+        "16992c492a2086a9aae5"
+      ],
+      "target": [
+        "816200345d30982e1d71"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "nav/add3/5/2",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): the first range is not a frame-pointer prologue (push %rbp; mov %rsp,%rbp)",
+      "origin": "dwarf-line-table",
+      "source": [
+        "1482e84628f8964f5a5d"
+      ],
+      "target": [
+        "65863f46704b3add1cc0"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "nav/add3/7/5",
+      "kind": "navigation",
+      "note": "no statement-level point (c-tv): the first range is not a frame-pointer prologue (push %rbp; mov %rsp,%rbp)",
+      "origin": "dwarf-line-table",
+      "source": [
+        "673c44ad1f1e586edd05"
+      ],
+      "target": [
+        "c3cd3f98dd802cf04828"
+      ]
+    },
+    {
+      "function": "add3",
+      "id": "seg/add3/0",
+      "kind": "semantic",
+      "line": 2,
+      "point": 0,
+      "point_kind": "Entry",
+      "source": [
+        "4d2e68e7e32570a3675e"
+      ],
+      "target": [
+        "54cdc8b5eb1477810ddb"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "source",
+      "id": "1482e84628f8964f5a5d",
+      "label": "line 5",
+      "ranges": [
+        [
+          124,
+          140
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "16992c492a2086a9aae5",
+      "label": "line 4",
+      "ranges": [
+        [
+          107,
+          123
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "4d2e68e7e32570a3675e",
+      "label": "lines 2-7",
+      "ranges": [
+        [
+          75,
+          104
+        ],
+        [
+          105,
+          106
+        ],
+        [
+          107,
+          123
+        ],
+        [
+          124,
+          140
+        ],
+        [
+          141,
+          152
+        ],
+        [
+          153,
+          154
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "54cdc8b5eb1477810ddb",
+      "label": "from 0x0 (point 0)",
+      "ranges": [
+        [
+          0,
+          6
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "65863f46704b3add1cc0",
+      "label": "[0x2, 0x5)",
+      "ranges": [
+        [
+          2,
+          5
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "source",
+      "id": "673c44ad1f1e586edd05",
+      "label": "line 7",
+      "ranges": [
+        [
+          153,
+          154
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "816200345d30982e1d71",
+      "label": "[0x0, 0x2)",
+      "ranges": [
+        [
+          0,
+          2
+        ]
+      ],
+      "space": "text-offset"
+    },
+    {
+      "artifact": "target",
+      "id": "c3cd3f98dd802cf04828",
+      "label": "[0x5, 0x6)",
+      "ranges": [
+        [
+          5,
+          6
+        ]
+      ],
+      "space": "text-offset"
+    }
+  ],
+  "id": "compiles-to/straight/O2/add3",
+  "lean": {
+    "family": "c-function-x86",
+    "modules": [
+      "CompilesToExamples.Explorer.Builds",
+      "CompilesToExamples.Explorer.Code"
+    ],
+    "registry": {
+      "source": "silmaril.compiles_to.straight.source",
+      "target": "silmaril.compiles_to.straight.o2.object"
+    },
+    "vars": {
+      "ail": "CompilesToExamples.Straight.ail",
+      "cname": "add3",
+      "comorphism": "Silmaril.Project.CompilesTo.dwarf",
+      "fn": "CompilesToExamples.Straight.O2.add3",
+      "isa": "Silmaril.X86.Open.isa",
+      "target_value": "silmaril.compiles_to.straight.o2.obj"
+    }
+  },
+  "obligations": [
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO2.edge_0",
+      "edge": "seg/add3/0",
+      "id": "edge/0",
+      "kind": "edge",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.edge_0",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O2.add3.mapping Silmaril.X86.Open.isa k0).EdgeValid 0"
+    },
+    {
+      "decl": "CompilesToExamples.Straight.O2.add3_point_0",
+      "edge": "seg/add3/0",
+      "id": "point/0",
+      "kind": "point",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.PointOf CompilesToExamples.Straight.O2.add3 0 2"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO2.translation",
+      "id": "translation",
+      "kind": "translation",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.translation",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O2.add3.compilation Silmaril.X86.Open.isa k0).toProblem.Refines"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO2.mapping_valid",
+      "id": "mapping",
+      "kind": "mapping",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.mapping",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O2.add3.mapping Silmaril.X86.Open.isa k0).Valid"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO2.refines_dwarf",
+      "id": "refinement",
+      "kind": "refinement",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.location",
+      "statement": "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame, (CompilesToExamples.Straight.O2.add3.mapping Silmaril.X86.Open.isa k0).toMapping.RefinesAt (fun k => Silmaril.Compiler.Explorer.Gen.Witnessed Silmaril.Project.CompilesTo.dwarf Silmaril.Compiler.Explorer.obsSig Silmaril.Project.CompilesTo.readCore Silmaril.Project.CompilesTo.readFrame Silmaril.Compiler.Explorer.obsFam (CompilesToExamples.Straight.O2.add3.scope k)) (fun _ => True)"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO2.abi",
+      "id": "abi",
+      "kind": "abi",
+      "statement": "Silmaril.Project.Shapes.SysV.Enterable Silmaril.X86.Open.isa CompilesToExamples.Straight.O2.add3.placement CompilesToExamples.Straight.O2.add3.sig CompilesToExamples.Straight.O2.add3.frame"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO2.inhabited",
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.nonvacuous",
+      "statement": "(CompilesToExamples.Straight.O2.add3.compilation Silmaril.X86.Open.isa []).toProblem.Inhabited"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO2.elaboration",
+      "id": "elaboration",
+      "kind": "elaboration",
+      "statement": "Silmaril.Project.Shapes.C.ElaboratesTo CompilesToExamples.Straight.ail \"add3\" CompilesToExamples.Straight.O2.add3.cfn"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.straight_O2_code",
+      "id": "artifact",
+      "kind": "artifact",
+      "row": "silmaril.compiler_explorer.straight.o2.add3.code",
+      "statement": "Silmaril.Project.Shapes.SysV.ObjectFn silmaril.compiles_to.straight.o2.obj \"add3\" CompilesToExamples.Straight.O2.add3.code"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO2.canonical",
+      "id": "nonvacuity/canonical",
+      "kind": "nonvacuity_canonical",
+      "statement": "Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical Silmaril.X86.Open.isa CompilesToExamples.Straight.O2.add3.placement CompilesToExamples.Straight.O2.add3.frame CompilesToExamples.Straight.O2.add3.cfn"
+    },
+    {
+      "decl": null,
+      "id": "nonvacuity/universal",
+      "kind": "nonvacuity_universal",
+      "statement": "CompilesToExamples.Straight.O2.add3.cfn.meaning.Inhabited"
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [],
+  "title": "straight.c, gcc 13.3.0 -O2, add3 (object code)",
+  "view": {
+    "source": "source",
+    "target": "listing",
+    "target_map": [
+      [
+        0,
+        2,
+        100,
+        144
+      ],
+      [
+        2,
+        5,
+        145,
+        198
+      ],
+      [
+        5,
+        6,
+        199,
+        230
+      ]
+    ]
+  }
+}

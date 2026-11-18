@@ -762,6 +762,55 @@ theorem callIndirect_vals_inv {c c' : Config H} (h : Step P host c c') {x : Tabl
   | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
   | _ => intro us hc; head_close hc
 
+/-- `return_call x` under values only resolves to `return_call_ref` of the function it names. -/
+theorem returnCall_vals_inv {c c' : Config H} (h : Step P host c c') {x : FuncIdx} :
+    ∀ {us : List Val}, c.code = vals us ++ [.plain (.returnCall x)] →
+      ∃ a fi, c.frame.module.funcs[x.toNat]? = some a ∧ c.store.funcs[a]? = some fi ∧
+        c' = ⟨c.store, c.frame, vals us ++ [.ref (.func a), .returnCallRefType fi.type]⟩ := by
+  induction h with
+  | returnCall hx hf =>
+    intro us hc
+    obtain ⟨rfl, -, hx'⟩ := mid_single (rest := []) (by simpa using hc.symm)
+    simp only [Admin.plain.injEq, Instr.returnCall.injEq] at hx'
+    subst hx'
+    exact ⟨_, _, hx, hf, by simp [vals]⟩
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    obtain ⟨a, fi, hx, hf, hc''⟩ := ih rfl
+    refine ⟨a, fi, hx, hf, ?_⟩
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
+/-- `return_call_indirect` under values only unfolds into `table.get; ref.cast; return_call_ref`. -/
+theorem returnCallIndirect_vals_inv {c c' : Config H} (h : Step P host c c') {x : TableIdx}
+    {y : TypeIdx} : ∀ {us : List Val}, c.code = vals us ++ [.plain (.returnCallIndirect x y)] →
+      c' = ⟨c.store, c.frame, vals us ++ [.plain (.tableGet x),
+        .plain (.refCast ⟨true, .typeIdx y⟩), .plain (.returnCallRef y)]⟩ := by
+  induction h with
+  | returnCallIndirect =>
+    intro us hc
+    obtain ⟨rfl, -, hx'⟩ := mid_single (rest := []) (by simpa using hc.symm)
+    simp only [Admin.plain.injEq, Instr.returnCallIndirect.injEq] at hx'
+    obtain ⟨rfl, rfl⟩ := hx'
+    simp [vals]
+  | @ctxtInstrs s s' f f' vs₀ is is' rest hs hne ih =>
+    intro us hc
+    dsimp only at hc ⊢
+    obtain ⟨w, rfl, rfl, rfl⟩ := ctxt_vals_single rfl hs.not_all_isVal hc
+    have hc'' := ih rfl
+    simp only [Config.mk.injEq] at hc'' ⊢
+    obtain ⟨rfl, rfl, rfl⟩ := hc''
+    simp
+  | trapInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inl hc)).elim
+  | throwRefInstrs => intro us hc; exact (bubble_vals_single rfl (by simp) (.inr ⟨_, hc⟩)).elim
+  | _ => intro us hc; head_close hc
+
 theorem loop_vals_inv {c c' : Config H} (h : Step P host c c') {bt : BlockType} {body : List Instr} :
     ∀ {us : List Val}, c.code = vals us ++ [.plain (.loop bt body)] →
       ∃ ws vs t₁ t₂, us = ws ++ vs ∧ c.frame.module.blockType? bt = some (t₁, t₂) ∧

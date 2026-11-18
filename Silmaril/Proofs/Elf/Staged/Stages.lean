@@ -17,7 +17,7 @@ namespace Silmaril.Proofs.Elf.Staged
 
 open Silmaril.Elf
 open Silmaril.Elf.Staged
-open Silmaril.Formats.ELF (Header ProgramHeader SectionHeader NameBytes Rela)
+open Silmaril.Formats.ELF (Header ProgramHeader SectionHeader NameBytes Rela ObjectSymbol)
 open Silmaril.Elf.Link.DynElf (Rd blobRead)
 open Silmaril.Elf.Check (Src Sub)
 open Silmaril.X86.Link (Blob)
@@ -340,6 +340,31 @@ theorem body_relas_iff {r : Src} {all : List SectionHeader} {sh : SectionHeader}
   · simp only [Rd.guard, he, ite_false, run_bind', false_and, iff_false]
     exact fun h => nomatch h
 
+/-- A symbol table body follows from its entry reads and its linked string table. -/
+theorem body_symbols_iff {r : Src} {all : List SectionHeader} {sh strs : SectionHeader}
+    {es : List ObjectSymbol} (hk : sh.kind = SHT_SYMTAB ∨ sh.kind = SHT_DYNSYM)
+    (hl : all[sh.link]? = some strs) :
+    (Parse.body all sh).run r =
+        some (.symbols (if sh.kind = SHT_SYMTAB then .symtab else .dynsym) es) ↔
+      sh.entrySize = 24 ∧ es.length = sh.size / 24 ∧
+        ∀ j (hj : j < es.length), (Parse.symbol strs (sh.offset + 24 * j)).run r = some es[j] := by
+  rcases hk with hk | hk
+  all_goals
+    simp only [Parse.body, hk, SHT_SYMTAB, SHT_DYNSYM, SHT_NULL, SHT_NOBITS,
+      SHT_PROGBITS, SHT_STRTAB, Nat.reduceEqDiff, ite_false, ite_true,
+      true_or, or_true]
+    by_cases he : sh.entrySize = 24
+    · simp only [Rd.guard, he, ite_true, run_bind', run_pure, Rd.run_pure, hl, Rd.ofOption,
+        Option.bind_some, Option.bind_eq_some_iff, Option.some.injEq, Body.symbols.injEq,
+        true_and]
+      constructor
+      · rintro ⟨xs, hxs, rfl⟩
+        exact (records_iff r _ _ _ _ xs).mp hxs
+      · intro hs
+        exact ⟨es, (records_iff r _ _ _ _ es).mpr hs, rfl⟩
+    · simp only [Rd.guard, he, ite_false, run_bind', false_and, iff_false]
+      exact fun h => nomatch h
+
 /-! ## Tiles -/
 
 theorem tilesAt_of_ok {r : Src} {F : Blob} (hs : Sub r F) {ok : Nat → Nat → Bool} :
@@ -379,6 +404,16 @@ theorem bodyIs_relas_iff {F : Blob} {L : Layout} {sh : SectionHeader} {es : List
       sh.entrySize = 24 ∧ es.length = sh.size / 24 ∧ EntriesAt F Parse.rela sh.offset 24 0 es := by
   unfold BodyIs EntriesAt
   rw [body_relas_iff hk]
+  simp only [Nat.zero_add]
+
+theorem bodyIs_symbols_iff {F : Blob} {L : Layout} {sh strs : SectionHeader}
+    {es : List Silmaril.Formats.ELF.ObjectSymbol}
+    (hk : sh.kind = SHT_SYMTAB ∨ sh.kind = SHT_DYNSYM) (hl : L.shs[sh.link]? = some strs) :
+    BodyIs F L sh (.symbols (if sh.kind = SHT_SYMTAB then .symtab else .dynsym) es) ↔
+      sh.entrySize = 24 ∧ es.length = sh.size / 24 ∧
+        EntriesAt F (Parse.symbol strs) sh.offset 24 0 es := by
+  unfold BodyIs EntriesAt
+  rw [body_symbols_iff hk hl]
   simp only [Nat.zero_add]
 
 end Silmaril.Proofs.Elf.Staged

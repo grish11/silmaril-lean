@@ -1,0 +1,173 @@
+local/pingpong.patch -- repository-authored patch (ours, not upstream). Why: turns Beej's stream
+socket demo (upstream/bgnet-34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9/source/examples/server.c and
+client.c, public domain) into a TCP ping/pong pair: the server takes an optional port argument and
+answers every 4-byte "ping" with "pong" until the client closes; the client takes
+"hostname [port [rounds]]" and checks "pong" for each round. Adapted from Beej's Guide to Network
+Programming. Apply with: patch -p1 (paths a/... b/... are relative to source/examples).
+
+--- a/server.c
++++ b/server.c
+@@ -1,5 +1,9 @@
+ /*
+ ** server.c -- a stream socket server demo
++**
++** pingpong-server: adapted from Beej's Guide to Network Programming (server.c,
++** public domain) for the erebor corpus: optional port argument, and each
++** connection answers every 4-byte "ping" with "pong" until the client closes.
+ */
+ 
+ #include <stdio.h>
+@@ -42,8 +46,21 @@
+ 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
+ }
+ 
+-int main(void)
++// read exactly n bytes (TCP is a byte stream); returns n, 0 on EOF, -1 on error
++static int recv_all(int fd, char *buf, int n)
+ {
++	int got = 0;
++	while (got < n) {
++		int r = recv(fd, buf + got, n - got, 0);
++		if (r <= 0) return r;
++		got += r;
++	}
++	return got;
++}
++
++int main(int argc, char *argv[])
++{
++	const char *port = argc > 1 ? argv[1] : PORT;
+ 	// listen on sock_fd, new connection on new_fd
+ 	int sockfd, new_fd;
+ 	struct addrinfo hints, *servinfo, *p;
+@@ -59,7 +76,7 @@
+ 	hints.ai_socktype = SOCK_STREAM;
+ 	hints.ai_flags = AI_PASSIVE; // use my IP
+ 
+-	if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
++	if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
+ 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+ 		return 1;
+ 	}
+@@ -107,7 +124,8 @@
+ 		exit(1);
+ 	}
+ 
+-	printf("server: waiting for connections...\n");
++	printf("server: waiting for connections on port %s...\n", port);
++	fflush(stdout);
+ 
+ 	while(1) {  // main accept() loop
+ 		sin_size = sizeof their_addr;
+@@ -122,11 +140,25 @@
+ 			get_in_addr((struct sockaddr *)&their_addr),
+ 			s, sizeof s);
+ 		printf("server: got connection from %s\n", s);
++		fflush(stdout);
+ 
+ 		if (!fork()) { // this is the child process
+ 			close(sockfd); // child doesn't need the listener
+-			if (send(new_fd, "Hello, world!", 13, 0) == -1)
+-				perror("send");
++			char msg[5] = {0};
++			int rounds = 0;
++			while (recv_all(new_fd, msg, 4) == 4) {
++				if (strcmp(msg, "ping") != 0) {
++					fprintf(stderr, "server: unexpected message\n");
++					break;
++				}
++				if (send(new_fd, "pong", 4, 0) == -1) {
++					perror("send");
++					break;
++				}
++				rounds++;
++			}
++			printf("server: %s closed after %d ping/pong rounds\n", s, rounds);
++			fflush(stdout);
+ 			close(new_fd);
+ 			exit(0);
+ 		}
+--- a/client.c
++++ b/client.c
+@@ -1,5 +1,9 @@
+ /*
+ ** client.c -- a stream socket client demo
++**
++** pingpong-client: adapted from Beej's Guide to Network Programming (client.c,
++** public domain) for the erebor corpus: usage "client hostname [port [rounds]]";
++** sends "ping" and expects "pong", rounds times (default 5).
+ */
+ 
+ #include <stdio.h>
+@@ -28,6 +32,18 @@
+ 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
+ }
+ 
++// read exactly n bytes (TCP is a byte stream); returns n, 0 on EOF, -1 on error
++static int recv_all(int fd, char *buf, int n)
++{
++	int got = 0;
++	while (got < n) {
++		int r = recv(fd, buf + got, n - got, 0);
++		if (r <= 0) return r;
++		got += r;
++	}
++	return got;
++}
++
+ int main(int argc, char *argv[])
+ {
+ 	int sockfd, numbytes;  
+@@ -36,16 +52,18 @@
+ 	int rv;
+ 	char s[INET6_ADDRSTRLEN];
+ 
+-	if (argc != 2) {
+-	    fprintf(stderr,"usage: client hostname\n");
++	if (argc < 2 || argc > 4) {
++	    fprintf(stderr,"usage: client hostname [port [rounds]]\n");
+ 	    exit(1);
+ 	}
++	const char *port = argc > 2 ? argv[2] : PORT;
++	int rounds = argc > 3 ? atoi(argv[3]) : 5;
+ 
+ 	memset(&hints, 0, sizeof hints);
+ 	hints.ai_family = AF_UNSPEC;
+ 	hints.ai_socktype = SOCK_STREAM;
+ 
+-	if ((rv = getaddrinfo(argv[1], PORT, &hints, &servinfo)) != 0) {
++	if ((rv = getaddrinfo(argv[1], port, &hints, &servinfo)) != 0) {
+ 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+ 		return 1;
+ 	}
+@@ -84,15 +102,23 @@
+ 
+ 	freeaddrinfo(servinfo); // all done with this structure
+ 
+-	if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+-	    perror("recv");
+-	    exit(1);
++	for (int i = 1; i <= rounds; i++) {
++		if (send(sockfd, "ping", 4, 0) == -1) {
++		    perror("send");
++		    exit(1);
++		}
++		if ((numbytes = recv_all(sockfd, buf, 4)) != 4) {
++		    perror("recv");
++		    exit(1);
++		}
++		buf[numbytes] = '\0';
++		printf("client: round %d: sent 'ping', received '%s'\n", i, buf);
++		if (strcmp(buf, "pong") != 0) {
++		    fprintf(stderr, "client: expected 'pong'\n");
++		    exit(3);
++		}
+ 	}
+ 
+-	buf[numbytes] = '\0';
+-
+-	printf("client: received '%s'\n",buf);
+-
+ 	close(sockfd);
+ 
+ 	return 0;

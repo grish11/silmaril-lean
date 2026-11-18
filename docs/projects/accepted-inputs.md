@@ -231,6 +231,151 @@ Limitations:
   observed.
 - Only modules whose imports are all functions (`IsSpecInstance`), as for `Callouts`.
 
+## Acceptor components: runtime observations and theorems
+
+The certificate-checking acceptor components are Wasm components in
+`examples/wasm-acceptors/`. Each export returns a `bool`. Their shared allocator, ABI read
+contracts, call rules, bridge from Core soundness to component soundness and byte linkage are
+the [acceptor kit](acceptor-kit.md), which also lists the steps for adding a checker. The per-export status (artifacts, proofs, tests, what is not proved) is the
+[acceptance checklist](acceptor-checklist.md).
+
+- **SAT** (`sat_accept.wasm`): registered in `silmaril/artifacts.toml` as
+  `silmaril.wasm.examples.sat_accept.component`. Its exports are
+  `check-stream(problem: list<s32>, model: list<s32>)` and
+  `check-nested(problem: list<list<s32>>, model: list<s32>)`.
+  - `Silmaril.Project.WasmComponents.SatAccept.checkStream_sound_of_bytes` and
+    `checkNested_sound_of_bytes` cover every reference Component Model reading of what
+    `Silmaril.Wasm.Examples.SatAccept.bytes` parse to.
+  - An accepting call implies `satStream`/`satNested` and membership in
+    `SatStream`/`SatNested`. Rejection of malformed problems and bad models is proved as a
+    corollary (below); nothing is proved about traps or completeness.
+  - The file is tied to `bytes` by regeneration and by the SHA-256 that the harness pins. No
+    theorem ties them.
+- **LRAT** (`lrat_accept.wasm`): registered as `silmaril.wasm.examples.lrat_accept.component`,
+  with the exports `check-stream(problem: list<s32>, cert: list<s32>)` and
+  `check-nested(problem: list<list<s32>>, cert: list<s32>)`.
+  `Silmaril.Project.WasmComponents.LratAccept.checkStream_sound_of_bytes` and
+  `checkNested_sound_of_bytes`: an accepting call implies that the problem is unsatisfiable.
+  `Silmaril.Wasm.Examples.LratAccept.Component.checkStream_cert`, `checkNested_cert`: it also
+  implies that the certificate words decode (`LratStream.decode cs ≠ none`).
+- **Farkas** (`farkas_accept.wasm`): registered as
+  `silmaril.wasm.examples.farkas_accept.component`, with the export
+  `check(system: list<ineq>, y: list<s64>)` and the exported record type
+  `ineq { coeffs: list<tuple<u32, s64>>, bound: s64 }`.
+  `Silmaril.Project.WasmComponents.FarkasAccept.check_sound_of_bytes`: an accepting call on the
+  `list<ineq>` value of a system `S` implies `S ∈ Infeasible`.
+  `Silmaril.Wasm.Examples.FarkasAccept.Component.check_length`: it also implies
+  `y.length = S.length`.
+- Both are component-level soundness only, for every reference Component Model reading of what
+  the bytes parse to, and both files are tied to their `bytes` by regeneration and the pinned
+  SHA-256, as for SAT.
+
+**Proved rejection.** "Rejected" is stated precisely: **no behaviour of the reference Component
+Model returns `true`** (`Outcome.returns (some [.bool true]) ∉ exportBehaviours prof (refHost P)
+() c.toRef [] name args`), at every numerics profile `P` and choice profile `prof`. That such a
+call returns `false`, rather than trapping or diverging, is **not** proved: the reference
+machine is only characterised on accepting behaviours (`ListLift.acceptSound`). The theorems are
+about the emitted components `c.toRef` (`Silmaril.Wasm.Examples.*.Component.Thms`); the reading
+of the bytes is `c.toRef` by `Silmaril.Project.WasmComponents.*.toRef_toAst`. The generic step is
+`Silmaril.Wasm.Acceptor.CheckerExport.rejects` (and `rejects_none` for decoders): when the
+export's `Goal p q` implies `R p q`, arguments with `¬ R p q` are never accepted.
+
+| Checker | Rejected inputs (theorem) | From |
+|---|---|---|
+| SAT | `decodeStream xs = none` (`SatAccept.checkStream_rejects_problem`), `decodeNested p = none` (`checkNested_rejects_problem`), any model | the functional specification (answer `= satStream`/`satNested`) |
+| SAT | `satStream xs ms = false` / `satNested p ms = false` (`checkStream_rejects`, `checkNested_rejects`) | the same |
+| SAT | a model word that is not a literal word, `0` or `Int32.MIN` (`…_rejects_nonLit`); a model with a literal and its negation (`…_rejects_inconsistent`); a model hitting no literal of a clause of the decoded formula (`…_rejects_clause`) | the same, through `modelOk_iff` |
+| LRAT | `decodeStream xs = none` (`LratAccept.Component.checkStream_rejects_problem`), `decodeNested p = none` (`checkNested_rejects_problem`), any certificate | soundness (`UnsatStream`/`UnsatNested` need a decoded formula) |
+| LRAT | `LratStream.decode cs = none` (`checkStream_rejects_cert`, `checkNested_rejects_cert`), any problem | the strengthened Core soundness: the driver's parse states are the automaton `certRun` (`dispatch_val`), the answer needs state `0`, and `decode_of_certRun` |
+| Farkas | `y.length ≠ S.length` (`FarkasAccept.Component.check_rejects_length`) | the strengthened Core soundness (`check_sound`: `yl = sl`) |
+
+**Not proved (tested only, or not at all).** No rejection is proved for well-formed inputs
+outside a checker's bounds: LRAT ids `≥ 1024`, literals with `|l| ≥ 1024` or a full 40 KiB
+clause arena (the certificate decodes; the answer is only constrained by soundness); Farkas
+values outside `|y|, |b|, |a| ≤ 2³⁰`, negative multipliers, variables `j ≥ 8192` or accumulator
+overflow (the checker's sticky flag makes the answer `0` by design, but only soundness is
+proved). LRAT certificates that decode but do not refute the problem are rejected only in the
+sense of soundness (an accepting call is on an unsatisfiable problem), not because the
+certificate is checked against `LRAT.check`. The Wasmtime suites test such cases; they prove
+nothing.
+
+**The harness.** `tools/wasm-acceptor-harness` runs the suites `suites/*.json` under Wasmtime
+50.0.0 on the actual component bytes (the version is pinned exactly). Each case calls one export
+in a fresh store and instance, and its outcome is `accepted`, `rejected`, `trap`, `error` or
+`unsupported`.
+
+- `make acceptor-report` writes the committed report `tools/wasm-acceptor-harness/report.json`
+  by one fixed command, run from that directory:
+  `LC_ALL=C target/release/wasm-acceptor-harness suites/*.json --out report.json`.
+- The report (kind `silmaril.wasm-acceptor-harness.report/v2`) records:
+  - that command;
+  - the engine and its configuration;
+  - the suites;
+  - each artifact's size, SHA-256, BLAKE3 and CID (the registry's CIDv1), with the suite's
+    claims about it;
+  - every case with its typed signature, arguments, expected outcome (and optional expected
+    detail), observed outcome and verdict.
+- `cargo test` (also run in CI) covers the conversion of JSON to component values by WIT type,
+  through a generated component that has a parameter of every supported type. It also covers
+  the CID and the verdicts.
+- It has no timestamps, so a rerun on the same files writes the same bytes.
+- The `wasm-acceptor-harness` job of `.github/workflows/ci-rust.yml` reruns the command and
+  fails if the result differs from the committed file.
+
+**The explorer.** `make pages` copies the report to `_site/acceptor-runs.json`. The section
+"Acceptor component: runtime observations and theorems" (`explore/views/acceptors.js`) shows on
+a component page and on an artifact page whose SHA-256 is that of an artifact in the report. It
+has two parts, kept apart:
+
+- **Runtime observations (Wasmtime 50.0.0) — tested, not proved.** This part shows the engine
+  and configuration, the exact CID and SHA-256, and one row per case of those bytes. A row gives
+  the export with its signature, the class, the arguments (abbreviated), and the expected and
+  observed outcomes.
+  - All badges are neutral: an observation never gets the green proof style.
+  - A met expectation reads "matches expectation (test)", a failed one "mismatch". A case
+    without an expectation is neutral and never counts as a pass.
+  - The page computes the verdict from the expected and observed outcomes (and the expected
+    detail substring), and flags a report whose verdict disagrees.
+  - Without `acceptor-runs.json`, a component page shows a neutral notice and an artifact page
+    shows nothing. A malformed report is an error inside the section only.
+- **Lean theorems.** These are read from the report's `claims`.
+  - The harness copies them from the suite file only when the file has the pinned SHA-256, and
+    records the SHA-256 each claim was made for. If the pin does not match, the report notes the
+    claims as withheld.
+  - The page shows a claim only when both the artifact's SHA-256 and the claim's are the page's.
+    So a changed file never shows the claims made for other bytes.
+  - Each claim shows its kind, scope, the Lean value the bytes are and its theorems. For SAT, LRAT
+    and Farkas the kind is "component-level soundness (kernel-checked)". The `level` sets the
+    style: `component` gets the Lean style, `core-module` a weaker one. The names link to their
+    source pages.
+  - A v1 report, which has no claims, still shows its observations.
+
+`tools/silmaril-project/tests/explore/acceptor_runs.mjs` checks the section in Chromium on a
+`make pages` output and on fixtures built from it. The fixtures cover:
+- a match, a mismatch and a missing expectation;
+- an expected detail that is met and one that is missed;
+- a report with claims, without claims, in v1, with a claim made for other bytes, and with a
+  withheld claim;
+- a missing report and a malformed report.
+
+The test also checks that the committed report's claims carry their artifacts' registered
+SHA-256s and name theorems that their headers state.
+
+**Adding a checker** means adding data, not code:
+
+1. Write the component and its Lean theorems, and register the bytes in `silmaril/artifacts.toml`.
+2. Add `tools/wasm-acceptor-harness/suites/<name>.json`. It follows
+   `docs/schemas/wasm-acceptor-suite.v1.schema.json`; the harness README gives the JSON shape of
+   each WIT type. In it, set:
+   - the artifact's `path` and its `sha256` pin;
+   - `claims`, with `kind`, `level`, `registry_name`, `value`, `scope` and
+     `theorems: [{decl, module, states}]`;
+   - the cases, with `expect`, plus `expect_detail` where a trap or error message matters.
+3. Run `make acceptor-report` and commit `report.json`. `make pages` publishes it, and the
+   explorer shows the observations and claims on the component's pages.
+4. When the bytes change, update the pin (and the claims, if the theorems change) and rerun
+   step 3. Until then, the claims are withheld and every case is an `error`.
+
 ## Checking
 
 ```
@@ -238,4 +383,14 @@ lake build --wfail Silmaril.Formats.Accept.Examples Silmaril.Games.Accept.Thms \
   Silmaril.Wasm.Component.Reference.WIT.Interp.Examples Silmaril.Wasm.Game.Accept.Examples \
   Silmaril.Wasi.Component.Accept.Examples Silmaril.Wasi.Component.Accept.Canon.Thms \
   Silmaril.Wasm.Game.IOAccept.Examples
+```
+
+The acceptor components' report, registry and explorer section:
+
+```
+lake build --wfail Silmaril.Project.WasmComponents.SatAccept.Thms
+(cd tools/wasm-acceptor-harness && cargo test --release --locked)
+make acceptor-report && git diff --exit-code tools/wasm-acceptor-harness/report.json
+make project-registry
+make pages && node tools/silmaril-project/tests/explore/acceptor_runs.mjs _site
 ```

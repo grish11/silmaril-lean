@@ -1,0 +1,15 @@
+{
+  "env": [
+    "mem.load8..64/store8..64",
+    "sys.syscall",
+    "nd.undef"
+  ],
+  "order": [
+    "add2",
+    "sum_to",
+    "twice_sum"
+  ],
+  "root": "twice_sum",
+  "schema": "silmaril.wasm-sim.link.v0",
+  "sim": "../sim.wat"
+}

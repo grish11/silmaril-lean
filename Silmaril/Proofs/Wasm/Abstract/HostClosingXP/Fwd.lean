@@ -156,7 +156,7 @@ end Good
 /-! ## The simulation -/
 
 /-- The tag invariants after an oracle answer. -/
-theorem tagsOk_hostCallXP {tags : List TagInst} (hH : NativeHostSlice host)
+theorem tagsOk_hostCallXP {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s s' : Store H} {a : Nat} {us : List Val} {fl : Binaryen.Flow}
     (h : hostCallXP host s a us (s', fl)) (hts : TagsOk tags s) : TagsOk tags s' :=
   (hostCallXP_sound (P := Silmaril.Wasm.Numerics.Profile.spec) hH hE _ _ _ _ h hts).1
@@ -164,7 +164,7 @@ theorem tagsOk_hostCallXP {tags : List TagInst} (hH : NativeHostSlice host)
 /-- **The logged forward simulation of `EvalLXPh`**, every profile: a logged run whose calls
 `GoodCX` resolves to a consistent `q` is an `EvalOXP (hostCallXP host)` run and, on a store with
 the tag invariants, a logged Core run with exactly the host events `q`. -/
-theorem evalLXPh_fwd {tags : List TagInst} (hH : NativeHostSlice host)
+theorem evalLXPh_fwd {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {f : Frame} {stk : List Val}
     {es : List Binaryen.BExpr} {l : List (OCall H)} {r : Store H × Frame × POut}
     (h : EvalLXPh s f stk es l r) :

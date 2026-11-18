@@ -166,6 +166,22 @@ theorem Step.callIndirect_vals_inv_seq {vs : List Val} {x : TableIdx} {y : TypeI
       .plain (.callRef y) :: rest⟩ :=
   Proofs.Inversion.callIndirect_vals_inv_seq h
 
+/-- `return_call x` in a sequence only resolves to `return_call_ref` of the function it names. -/
+theorem Step.returnCall_vals_inv_seq {vs : List Val} {x : FuncIdx} {rest : List Admin}
+    (h : Step P host ⟨s, f, vals vs ++ .plain (.returnCall x) :: rest⟩ c) :
+    ∃ a fi, f.module.funcs[x.toNat]? = some a ∧ s.funcs[a]? = some fi ∧
+      c = ⟨s, f, vals vs ++ .ref (.func a) :: .returnCallRefType fi.type :: rest⟩ :=
+  Proofs.Inversion.returnCall_vals_inv_seq h
+
+/-- `return_call_indirect` in a sequence only unfolds into `table.get; ref.cast (ref null y);
+return_call_ref y`. -/
+theorem Step.returnCallIndirect_vals_inv_seq {vs : List Val} {x : TableIdx} {y : TypeIdx}
+    {rest : List Admin}
+    (h : Step P host ⟨s, f, vals vs ++ .plain (.returnCallIndirect x y) :: rest⟩ c) :
+    c = ⟨s, f, vals vs ++ .plain (.tableGet x) :: .plain (.refCast ⟨true, .typeIdx y⟩) ::
+      .plain (.returnCallRef y) :: rest⟩ :=
+  Proofs.Inversion.returnCallIndirect_vals_inv_seq h
+
 theorem Step.loop_vals_inv {us : List Val} {bt : BlockType} {body : List Instr}
     (h : Step P host ⟨s, f, vals us ++ [.plain (.loop bt body)]⟩ c) :
     ∃ ws vs t₁ t₂, us = ws ++ vs ∧ f.module.blockType? bt = some (t₁, t₂) ∧

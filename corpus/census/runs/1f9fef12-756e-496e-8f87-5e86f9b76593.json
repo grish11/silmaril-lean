@@ -1,0 +1,1008 @@
+{
+  "schema_version": 1,
+  "run_id": "1f9fef12-756e-496e-8f87-5e86f9b76593",
+  "stage": "variant-static-census",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-17T21:05:45.464495+00:00",
+  "command": [
+    "python3",
+    "-I",
+    "scripts/corpus/census.py",
+    "--variants-only",
+    "--output",
+    "/out/variant-census"
+  ],
+  "cwd": "/repo",
+  "target": "x86_64+aarch64-linux-gnu",
+  "repository": {
+    "commit": "5005cee1f1ca46a75a68bbc72e0c1454e7bc824d",
+    "dirty": true,
+    "diff_sha256": "4b6c921f679257eea5b337e7594b2a4ddcbed92d33730b6b763f167358a1edcf",
+    "artifact_inputs": [
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O0/stripped/libcjson.so.1",
+        "sha256": "151847d93a1b79ac5c4da044646909c80e3ef733df24781e90778769329a8e0e",
+        "receipt_sha256": "23eab4bd6e253ca045ab724fc799b4753845ebde52dd4d533cdfb87dc9af3140"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O0/stripped/libcjson_utils.so.1",
+        "sha256": "46e45fa666df0075145e0b43681c281f68c7e33774c1a779e13821a9f5ab88d0",
+        "receipt_sha256": "23eab4bd6e253ca045ab724fc799b4753845ebde52dd4d533cdfb87dc9af3140"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O0/unstripped/libcjson.so.1",
+        "sha256": "75f9e73c7cb3c14368d46b833789bbe7aafd3ac0dd6c1c50ab439377239993a6",
+        "receipt_sha256": "8e442bced6fa81da93c4bd41e53cefc758d0d29cc39a66f7a0ef8926ed79c0b2"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O0/unstripped/libcjson_utils.so.1",
+        "sha256": "bd80ab4ceeba34c63a2c7de062c9a6f9563cc6aadea2ff54743db6a42968377b",
+        "receipt_sha256": "8e442bced6fa81da93c4bd41e53cefc758d0d29cc39a66f7a0ef8926ed79c0b2"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O1/stripped/libcjson.so.1",
+        "sha256": "fe49d86b3df4a2baf812a9caffdcb2480f77357e1c465f5b761b4686c63012b3",
+        "receipt_sha256": "2579479107ec4134afa5dff65b89bd7f898c67feed1a6cd8d33974b28c79ec6c"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O1/stripped/libcjson_utils.so.1",
+        "sha256": "06e030dece87de2b3984e36b079786273b940165ba6a39258b3d4bae9fab60ca",
+        "receipt_sha256": "2579479107ec4134afa5dff65b89bd7f898c67feed1a6cd8d33974b28c79ec6c"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O1/unstripped/libcjson.so.1",
+        "sha256": "47ec851baa31c2e02558c201bec263d06856d3387366abc8e14dd6f02cba5b64",
+        "receipt_sha256": "9a2af8303d35ec386d33b352ce60ab8e762d8f38788a4d3e13ef8ca67f3c40e8"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O1/unstripped/libcjson_utils.so.1",
+        "sha256": "40d4b6f4096f77f0d9a250a20bd2afa34f8e9a116e5d1c7d75e5e557796b6813",
+        "receipt_sha256": "9a2af8303d35ec386d33b352ce60ab8e762d8f38788a4d3e13ef8ca67f3c40e8"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O3/stripped/libcjson.so.1",
+        "sha256": "84607eb0dc1f937ff74b8e73e803ac54a045dd08e3191945d3fb064e10ca23a3",
+        "receipt_sha256": "5b7b056637dae741084b1bc107a84924e3329c68c9c29f3490876e7ac81b9668"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O3/stripped/libcjson_utils.so.1",
+        "sha256": "e9afd3735fac25c7c9408bb79ff825d8cd22b1f1aac67a7abec04c27dbe6a533",
+        "receipt_sha256": "5b7b056637dae741084b1bc107a84924e3329c68c9c29f3490876e7ac81b9668"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O3/unstripped/libcjson.so.1",
+        "sha256": "d9c0f4fa219b79b719f5c35b6a12d78ad6092952d35709ccf86a1e543e193e79",
+        "receipt_sha256": "856c2daca51b80b4e1a6a11a13fc2e3eaa1907b8f8e48bba81071fb1f4cd34c3"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/O3/unstripped/libcjson_utils.so.1",
+        "sha256": "fc4ccf6eae74342a9760fb7ca33e7aaadd7aa7389c8a3d161df0d5061a2b6c84",
+        "receipt_sha256": "856c2daca51b80b4e1a6a11a13fc2e3eaa1907b8f8e48bba81071fb1f4cd34c3"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/Og/stripped/libcjson.so.1",
+        "sha256": "7606850ca803b589e6e10672d68288b61e90383b4ed99711c98f57de3e0e070f",
+        "receipt_sha256": "2b57fe70b1c65ea9dc4f7867f8f5095562f4f5b0efe45b9364ddc633b36e0c13"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/Og/stripped/libcjson_utils.so.1",
+        "sha256": "67f61418f73a81aa9ab2094aab92780944ffcf033d26f56c2307ff65fda86ee1",
+        "receipt_sha256": "2b57fe70b1c65ea9dc4f7867f8f5095562f4f5b0efe45b9364ddc633b36e0c13"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/Og/unstripped/libcjson.so.1",
+        "sha256": "9dfae2bca9599cc0bd824067ef4e829e7036453d615bcb4192a1048e9e31ec71",
+        "receipt_sha256": "2dd05ec65759231cf74030a14dbcf13c0e30905a8d5a509c4d0e830e8edc4c01"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/aarch64/Og/unstripped/libcjson_utils.so.1",
+        "sha256": "7fa2b841c67113b9d1079a30da01721159de1f83f781eed16848a5ba426003a1",
+        "receipt_sha256": "2dd05ec65759231cf74030a14dbcf13c0e30905a8d5a509c4d0e830e8edc4c01"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/stripped/libcjson.so.1",
+        "sha256": "844a52748e043e5136c024c17d84359f0535ccb22761c9c5f40648a5e82835b4",
+        "receipt_sha256": "8d92c4592ad2039ba6ad53cb251db9162ccb15e8d708c5e94e695eea9d193ce6"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/stripped/libcjson_utils.so.1",
+        "sha256": "867b377b9833c9d012177e7da90a70dc0d472abcc7d91f539decba5ce27d6c89",
+        "receipt_sha256": "8d92c4592ad2039ba6ad53cb251db9162ccb15e8d708c5e94e695eea9d193ce6"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson.so.1",
+        "sha256": "0c7ab3d1ba9aa7808bab6e22695e2fee1702753ad0f4570ce53952120629b456",
+        "receipt_sha256": "0778e34eecd2f85992fa73722d86c84675d816fb072064120ec9bf6a169292ca"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson_utils.so.1",
+        "sha256": "786730dbfa031654dff5c7a2c4119f64bc87047746852a8c278825cf3619052e",
+        "receipt_sha256": "0778e34eecd2f85992fa73722d86c84675d816fb072064120ec9bf6a169292ca"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O1/stripped/libcjson.so.1",
+        "sha256": "d222c18b484ff3382c0b98601a8dbee5ecfb71b90205178b0cdb4727088430e4",
+        "receipt_sha256": "461cf8495db46d34a80889c4e86f7043dd2c59d8b45d9dd6026c08ee20fd68a6"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O1/stripped/libcjson_utils.so.1",
+        "sha256": "f4fa2f501e2c62d7990c7114bc406856042c6eb1f09f6236867b17cc106081ec",
+        "receipt_sha256": "461cf8495db46d34a80889c4e86f7043dd2c59d8b45d9dd6026c08ee20fd68a6"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O1/unstripped/libcjson.so.1",
+        "sha256": "d7bdacf4a28ad8f437456d44c0cabb9ed16dd2b856b01a3754c51a82715dab3d",
+        "receipt_sha256": "b961ab4d4313de7e968c4f394b8f5d71e5430efb100cba1c33fe24107bc81eb6"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O1/unstripped/libcjson_utils.so.1",
+        "sha256": "fe6478722ea49621d972f1dbc49596bb3ef056f35026caa5551cc35b32ef04ad",
+        "receipt_sha256": "b961ab4d4313de7e968c4f394b8f5d71e5430efb100cba1c33fe24107bc81eb6"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O3/stripped/libcjson.so.1",
+        "sha256": "cf3c073dbeb639937a9d0493dc5d5422faf5885e6a6897bb60f09377e6e375e7",
+        "receipt_sha256": "670ab175909a344d3dc1bde91f907f5af8393ff08c047e9b30275636d77b1f11"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O3/stripped/libcjson_utils.so.1",
+        "sha256": "9cb12ff369b61815a39c6255ba8c2fb3c31b55ce5becaf93867240e3d30e936c",
+        "receipt_sha256": "670ab175909a344d3dc1bde91f907f5af8393ff08c047e9b30275636d77b1f11"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O3/unstripped/libcjson.so.1",
+        "sha256": "5097148dfaccec8cabdbcc7c9c6c6a2f880630d27aa97ea9c46e5032db9c00db",
+        "receipt_sha256": "e53b734302ec3d1ca7629686de87e3c28533ebf21c201be69fc19d0840a1ca3e"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O3/unstripped/libcjson_utils.so.1",
+        "sha256": "accf1b24fdffe9bd7ddf98711ed4abc7244f7125d3ab246ec348ebe001de2588",
+        "receipt_sha256": "e53b734302ec3d1ca7629686de87e3c28533ebf21c201be69fc19d0840a1ca3e"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/Og/stripped/libcjson.so.1",
+        "sha256": "d56b8766c76caa4358fd538c1f0f1bea7769b6a0274e97c5b37c8a574c6df89c",
+        "receipt_sha256": "51dd64b93cbb6725589e882a8d35cd9cd58ce8fce88a1b0de69c7c7fbcab1a17"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/Og/stripped/libcjson_utils.so.1",
+        "sha256": "44c810987d8ed46338ab832c464fe0de0c0cc4ff778584060aa0fab7127c34e4",
+        "receipt_sha256": "51dd64b93cbb6725589e882a8d35cd9cd58ce8fce88a1b0de69c7c7fbcab1a17"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/Og/unstripped/libcjson.so.1",
+        "sha256": "7ebffa69bb36d1f37f625bafc827fec6deb354b5e1f8cc464feeb24e6ffbd960",
+        "receipt_sha256": "e674f1ada6b2ebba2f15365100582aa01ced45765bb9ecab4ce184afd9550a7e"
+      },
+      {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/Og/unstripped/libcjson_utils.so.1",
+        "sha256": "4f7184b950cec85ddbd45bc0c92bf4101792ccc9752dabeef2dbef87ca3b72b3",
+        "receipt_sha256": "e674f1ada6b2ebba2f15365100582aa01ced45765bb9ecab4ce184afd9550a7e"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O0/stripped/darkhttpd",
+        "sha256": "37b94e99b07c29b5996b163634afa0902194ddd5c7c60fe3e158ece3e863b942",
+        "receipt_sha256": "8a772e05f88ce3073793e9f6d13065da4981dc0e9f8f94eb15e137ce299a7229"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O0/unstripped/darkhttpd",
+        "sha256": "c7d1209801f8f6de306e42563eb7fbae16996026075719eabe126ed73335c068",
+        "receipt_sha256": "09b6e769f528654ec1cf33ef1b025f8c7cf2c8d1dfa21725d89d979c21c5199b"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O1/stripped/darkhttpd",
+        "sha256": "221b51fa154bfe156d15864d2ad27413f0f0945aa900d52ed4551481bb155979",
+        "receipt_sha256": "ae8cbaa9dd9ad3222f6a37d6eb9bd662cf6955e7656645c5f27c164f31c7b159"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O1/unstripped/darkhttpd",
+        "sha256": "53e189066d169475194115ff2fc8402dcc625d92cf50072b9a0e167efbd2ab86",
+        "receipt_sha256": "1116f59e7a6abcd6d43f634f9310316f46eed88224885c7aab3839d95638ec38"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O3/stripped/darkhttpd",
+        "sha256": "c63c5d71393396585d37483f2019f528ae997008cbef224997c44e6d8d234b81",
+        "receipt_sha256": "2cccb960370a7b80622abddffcfca867c591495224fc81561d002cf4bfaf1fcb"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O3/unstripped/darkhttpd",
+        "sha256": "1e6e61e1d358d1cb65f182b993cf11d9366e0246fa8be852d9629830d2ce3b8a",
+        "receipt_sha256": "20d59f5c831439c130eec024a23ef6b5b6cf5fac3238a67135fb295b7cb20f23"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/aarch64/Og/stripped/darkhttpd",
+        "sha256": "284c70a15822e10da10ba748f6f933984e45e411f96cda4c1c7164596ad2c729",
+        "receipt_sha256": "58b2a26b290f94cd7dfa1219a8b44c9c3c421dc4cbb36a27957da56157c0809a"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/aarch64/Og/unstripped/darkhttpd",
+        "sha256": "9260c61ebf438bad34ecbbf5a49f2cb46391b1540df84dde5c2f0570ec82d182",
+        "receipt_sha256": "818a95da1a0d694a0f4a1f5b23200255a6ad9a6050f4adbfda054c087976814d"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O0/stripped/darkhttpd",
+        "sha256": "294669ba0a97debbc13e8bf8aa0794aa94c9d019de1463b59df612f85327bb4c",
+        "receipt_sha256": "bd16a325ef5659a2763be0f53668a3e40bbbf8a6574274c78a13eca5ea0c536f"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O0/unstripped/darkhttpd",
+        "sha256": "9e107552b0d523f90b1b0b2eacd475f1172a1040316de9d1fc7060dc4799a698",
+        "receipt_sha256": "1c95d7aa037fa73a31df7559b843c4ac8df9c0b669eb446d7fed48de7e805419"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O1/stripped/darkhttpd",
+        "sha256": "baf2a3c755acd9fcb2c6ba873d19fe1e970926e91898f3dda4028908a7114944",
+        "receipt_sha256": "a1d6973f87ad02f9cc49f0516b1e2c294cec57aed92aa022da3c6b3f016977f3"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O1/unstripped/darkhttpd",
+        "sha256": "5e593fe0ffe95e1e2a1b2c5d93c5d9b15f6a91fd783003a19a848c484147ad2a",
+        "receipt_sha256": "2830b3e7dd5280d56a5971c183ec56cfc3d982d1112e09ebf015ed3efaec9463"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O3/stripped/darkhttpd",
+        "sha256": "02358eff230fd3f78e5a2bc8072254049090af23bff490926e78b63cadc90661",
+        "receipt_sha256": "b75567e89be9b6b228a739304bc1ebedd9ab8d4805485bb228eca8f0499aff0b"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O3/unstripped/darkhttpd",
+        "sha256": "0653b23aa4fb4391f9315ee5f0297b241df2918cd9e73e32ca21f48513bf4333",
+        "receipt_sha256": "372e9ffb79c452ce8a4cafb4a325464af890b909060690ef28c28e2075006cbb"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/x86_64/Og/stripped/darkhttpd",
+        "sha256": "b6380894e85fa98c932bf8439482d2ab2e76fd8b28deaa49fd032d00d287898a",
+        "receipt_sha256": "400f918b4d99f0e6e3a001bf7b8e6cf444b3340356004d8482b5ff31cf67dccc"
+      },
+      {
+        "path": "corpus/variants/darkhttpd/1.17/default/x86_64/Og/unstripped/darkhttpd",
+        "sha256": "1a558f0eca05769307bd2950e91c4c817214b77c30e1a2eedd2376f4afbaaa99",
+        "receipt_sha256": "0307971f561801a3b0c96ef2e552c9588583f1bf3abd9eaf969cbe5f5af599c0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/stripped/libref_aes.so",
+        "sha256": "323e5887aeb6c9c02c496166f52f417bef8569a310f20ab8e07b6b297e4f67f2",
+        "receipt_sha256": "ef60882392f2f6a442d5635ce2ec8540c6bb469191e6432b0b5997de4872b919"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/stripped/libref_blake2.so",
+        "sha256": "dbbc99044f7db3a0a47cc946da5af818018742909e13b8d46faef734a5933ac2",
+        "receipt_sha256": "ef60882392f2f6a442d5635ce2ec8540c6bb469191e6432b0b5997de4872b919"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/stripped/libref_chacha_poly.so",
+        "sha256": "6906be90394eb722760b5a4f2009e7d7c6e35b9750a44414d33b54efc9bae01a",
+        "receipt_sha256": "ef60882392f2f6a442d5635ce2ec8540c6bb469191e6432b0b5997de4872b919"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/stripped/libref_ed25519.so",
+        "sha256": "5cad4fa5f3740db345645f62aeb5265a87a7160590bb04312288e119c55a7854",
+        "receipt_sha256": "ef60882392f2f6a442d5635ce2ec8540c6bb469191e6432b0b5997de4872b919"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/stripped/libref_sha2.so",
+        "sha256": "f37f6f681585cfc2b2125b42f2e2b81dc5f14e1254ef53fe5c33bfb3caec868e",
+        "receipt_sha256": "ef60882392f2f6a442d5635ce2ec8540c6bb469191e6432b0b5997de4872b919"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/stripped/libref_sha3.so",
+        "sha256": "bd13452a0d94a1c909844c3c78a25f977b13b51c9a80e94b8f030668af16461e",
+        "receipt_sha256": "ef60882392f2f6a442d5635ce2ec8540c6bb469191e6432b0b5997de4872b919"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/stripped/libref_x25519.so",
+        "sha256": "83f5538e2850b8fdb14f3721cf93a01e18b4915a98c68250308f32b50bed9ade",
+        "receipt_sha256": "ef60882392f2f6a442d5635ce2ec8540c6bb469191e6432b0b5997de4872b919"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/unstripped/libref_aes.so",
+        "sha256": "d07c08169fd89b56e1d0825b1957e9bcdd2b08e39d39881dac0062c58314dbd9",
+        "receipt_sha256": "7aeb03a6499c7bda740492f6f11716b871c35cd0e5d64eeaa6f74978acb83c2c"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/unstripped/libref_blake2.so",
+        "sha256": "d0deeb4029bcd22d38eb3930828855dece175dbfb1bae51bd57d3b78e4147276",
+        "receipt_sha256": "7aeb03a6499c7bda740492f6f11716b871c35cd0e5d64eeaa6f74978acb83c2c"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/unstripped/libref_chacha_poly.so",
+        "sha256": "81a56dc40e1c093baa17e9540eb799c1531b08d45cea46e0235171dccce704b9",
+        "receipt_sha256": "7aeb03a6499c7bda740492f6f11716b871c35cd0e5d64eeaa6f74978acb83c2c"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/unstripped/libref_ed25519.so",
+        "sha256": "afc30d3eb6be3423b7a24b3a675dbf801115cd31ae5a8af72c346302d07b35f7",
+        "receipt_sha256": "7aeb03a6499c7bda740492f6f11716b871c35cd0e5d64eeaa6f74978acb83c2c"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/unstripped/libref_sha2.so",
+        "sha256": "199eaf0bb8187f45991f51f4b913435e98cc958a62a87fbc3548b08c5b34a63c",
+        "receipt_sha256": "7aeb03a6499c7bda740492f6f11716b871c35cd0e5d64eeaa6f74978acb83c2c"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/unstripped/libref_sha3.so",
+        "sha256": "4f6fd6162c689c43653471864ddb909c89e957db2f0f595b21389f44eb79f58e",
+        "receipt_sha256": "7aeb03a6499c7bda740492f6f11716b871c35cd0e5d64eeaa6f74978acb83c2c"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O0/unstripped/libref_x25519.so",
+        "sha256": "29b1ab213f4770fea9984a76527699eca618574753ed314758b12a15418b23d2",
+        "receipt_sha256": "7aeb03a6499c7bda740492f6f11716b871c35cd0e5d64eeaa6f74978acb83c2c"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/stripped/libref_aes.so",
+        "sha256": "977840cece3063188a10c328f7d91a211eaef3e93662f903ddd38b8ac2f79420",
+        "receipt_sha256": "e8fade8aee3ac1931a13e0d97355b106d9e13729b47a19bcdb04fd11780123e8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/stripped/libref_blake2.so",
+        "sha256": "391c1db27c7b1926640239de919c202bc42290dd0dd722d65da7eae5a8bd4b69",
+        "receipt_sha256": "e8fade8aee3ac1931a13e0d97355b106d9e13729b47a19bcdb04fd11780123e8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/stripped/libref_chacha_poly.so",
+        "sha256": "7e248987320b48c1b67341982b07ca922d1dd6b131eadaf9e8b7ac05e0a055d7",
+        "receipt_sha256": "e8fade8aee3ac1931a13e0d97355b106d9e13729b47a19bcdb04fd11780123e8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/stripped/libref_ed25519.so",
+        "sha256": "70f39ff902679ef805be2dda7e2a6004e81a99eaaa6ff635e8cbf6919e2fd2e0",
+        "receipt_sha256": "e8fade8aee3ac1931a13e0d97355b106d9e13729b47a19bcdb04fd11780123e8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/stripped/libref_sha2.so",
+        "sha256": "8363cca024ac14cc30cb5a7b8876a902d1fcbc3ae9d3eedf6317f21c4f31de28",
+        "receipt_sha256": "e8fade8aee3ac1931a13e0d97355b106d9e13729b47a19bcdb04fd11780123e8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/stripped/libref_sha3.so",
+        "sha256": "5b2efad604575d99a234a85af7f99132f897227627807ebaa25141acab18dbb5",
+        "receipt_sha256": "e8fade8aee3ac1931a13e0d97355b106d9e13729b47a19bcdb04fd11780123e8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/stripped/libref_x25519.so",
+        "sha256": "21bd212d811e4a68b6833ffee9264098da75d3999379c17ca9115742e6fb1728",
+        "receipt_sha256": "e8fade8aee3ac1931a13e0d97355b106d9e13729b47a19bcdb04fd11780123e8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/unstripped/libref_aes.so",
+        "sha256": "dc53a6a003e5450785d94b84fb24b90d762bd0e539b76c09823cd0012879c91b",
+        "receipt_sha256": "39fcb81feb5ff43262a5b925f7d832363fa58cbde7102488194be65c80bdf751"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/unstripped/libref_blake2.so",
+        "sha256": "fe5afe105b55beca66434f20ad796382d7db7725740e2dba4aa7f3ffa2160ffe",
+        "receipt_sha256": "39fcb81feb5ff43262a5b925f7d832363fa58cbde7102488194be65c80bdf751"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/unstripped/libref_chacha_poly.so",
+        "sha256": "568012dff781c8c53edd761e083b8ae6cc6c31e0169aedc904d2f43ce32c04e5",
+        "receipt_sha256": "39fcb81feb5ff43262a5b925f7d832363fa58cbde7102488194be65c80bdf751"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/unstripped/libref_ed25519.so",
+        "sha256": "8aaeaafdc35cf7a0a9d1fa7b7c635962a52ee329e7f78f804b519b3b482570aa",
+        "receipt_sha256": "39fcb81feb5ff43262a5b925f7d832363fa58cbde7102488194be65c80bdf751"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/unstripped/libref_sha2.so",
+        "sha256": "d1e6387b6c3ae31954a463eea5636fdde1ab35411b4ef7f13df4a7e635781d79",
+        "receipt_sha256": "39fcb81feb5ff43262a5b925f7d832363fa58cbde7102488194be65c80bdf751"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/unstripped/libref_sha3.so",
+        "sha256": "3b3a2710bfde919609e5ab711532da09e7750f53808db896c1dd1ea0f49d1bb2",
+        "receipt_sha256": "39fcb81feb5ff43262a5b925f7d832363fa58cbde7102488194be65c80bdf751"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O1/unstripped/libref_x25519.so",
+        "sha256": "998a866544e751daa6625c4aa4024e4673851001f3f581ee4cce540b5fdf3d1b",
+        "receipt_sha256": "39fcb81feb5ff43262a5b925f7d832363fa58cbde7102488194be65c80bdf751"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/stripped/libref_aes.so",
+        "sha256": "0ec89bdc66d21f0be2637ea9d0b4d91642eb74053643d67cbbe6249f8a1845f9",
+        "receipt_sha256": "9323026f8c4975b8f8f49e649bc97a13f5ec3d0046f4201294c25f2f37fcf440"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/stripped/libref_blake2.so",
+        "sha256": "fd1baabcce7c5f96db991ac5e8740a941d632d7c46f3ef51ca8baea9572c6aed",
+        "receipt_sha256": "9323026f8c4975b8f8f49e649bc97a13f5ec3d0046f4201294c25f2f37fcf440"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/stripped/libref_chacha_poly.so",
+        "sha256": "e54f299415cfe78c94c938922b1082aa75fb5d42cfee33db244f6bd537dd2b24",
+        "receipt_sha256": "9323026f8c4975b8f8f49e649bc97a13f5ec3d0046f4201294c25f2f37fcf440"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/stripped/libref_ed25519.so",
+        "sha256": "2190525df38501d36bb648275b7b284b66a3c56fd175fe35c396d609169dc9b7",
+        "receipt_sha256": "9323026f8c4975b8f8f49e649bc97a13f5ec3d0046f4201294c25f2f37fcf440"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/stripped/libref_sha2.so",
+        "sha256": "ae4caa4885dde0b99dca01643c8bb9758e83f619d695ab9aee76766df5a43413",
+        "receipt_sha256": "9323026f8c4975b8f8f49e649bc97a13f5ec3d0046f4201294c25f2f37fcf440"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/stripped/libref_sha3.so",
+        "sha256": "d194ac5deafe47f8e03e7411cad18fa856177c13717229f027c909e1dd1d43f1",
+        "receipt_sha256": "9323026f8c4975b8f8f49e649bc97a13f5ec3d0046f4201294c25f2f37fcf440"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/stripped/libref_x25519.so",
+        "sha256": "cee09a13bcac666c4b3a729a9c90cb0d2fdeb211253fe67b99ad6af011ee60d1",
+        "receipt_sha256": "9323026f8c4975b8f8f49e649bc97a13f5ec3d0046f4201294c25f2f37fcf440"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/unstripped/libref_aes.so",
+        "sha256": "3e15d1403c16d8f92d1c581513fb73fac151c3219fc302225278c3d856758dde",
+        "receipt_sha256": "d22783010c3dfc4ce726a1d0c675bcb99eef59d1941616a0188a91f194f757b0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/unstripped/libref_blake2.so",
+        "sha256": "dbba61d68be871e85345ba798e89fedb331adfd90cf940af060a6fec9953e143",
+        "receipt_sha256": "d22783010c3dfc4ce726a1d0c675bcb99eef59d1941616a0188a91f194f757b0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/unstripped/libref_chacha_poly.so",
+        "sha256": "76dae3ae27f2f64a801b947aa2f54f6bfdd153e620f96198cb280f8162bad323",
+        "receipt_sha256": "d22783010c3dfc4ce726a1d0c675bcb99eef59d1941616a0188a91f194f757b0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/unstripped/libref_ed25519.so",
+        "sha256": "e4f063f8c9d998270840ba9ab2b3ae1dd31cc93752744f55815c597023392596",
+        "receipt_sha256": "d22783010c3dfc4ce726a1d0c675bcb99eef59d1941616a0188a91f194f757b0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/unstripped/libref_sha2.so",
+        "sha256": "a077aa6242a5bd31a4b6a885a08a6948ebd1fa29b53631a1081b6b21a4bbb65e",
+        "receipt_sha256": "d22783010c3dfc4ce726a1d0c675bcb99eef59d1941616a0188a91f194f757b0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/unstripped/libref_sha3.so",
+        "sha256": "caed655e3cc123d7733a4b271c3d2badb42e92b7c3faf635478ff0220f5efe94",
+        "receipt_sha256": "d22783010c3dfc4ce726a1d0c675bcb99eef59d1941616a0188a91f194f757b0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O3/unstripped/libref_x25519.so",
+        "sha256": "6eabe8881f1077ed250e88f60ce68ad3909cfd4a6d288a6c88af6e350438ec88",
+        "receipt_sha256": "d22783010c3dfc4ce726a1d0c675bcb99eef59d1941616a0188a91f194f757b0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/stripped/libref_aes.so",
+        "sha256": "1f0b0a92990355a76913dd3f1a3276be19b194a2416ee45353d90e3f4ba769d5",
+        "receipt_sha256": "c21132d86c5d437d087535bce186078a7b83f26a94653de61820425c8b8b5824"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/stripped/libref_blake2.so",
+        "sha256": "d45d044b14f4868ae5f16ddaea953414bffc8b34e66117e0ae5bbe856df5116b",
+        "receipt_sha256": "c21132d86c5d437d087535bce186078a7b83f26a94653de61820425c8b8b5824"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/stripped/libref_chacha_poly.so",
+        "sha256": "76d99633df06072b4aa6462f349fc4c2798cdc1f13e831f8a6c80eb6cf41e8d8",
+        "receipt_sha256": "c21132d86c5d437d087535bce186078a7b83f26a94653de61820425c8b8b5824"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/stripped/libref_ed25519.so",
+        "sha256": "d75699bdc2c0c3643de3a4eb63c67469fdc5f18790188caf54a4b9ae378ae751",
+        "receipt_sha256": "c21132d86c5d437d087535bce186078a7b83f26a94653de61820425c8b8b5824"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/stripped/libref_sha2.so",
+        "sha256": "6f074a9d04a9e63f6b5e03b32d937f53b96d774d27f4a931bfaf260270308391",
+        "receipt_sha256": "c21132d86c5d437d087535bce186078a7b83f26a94653de61820425c8b8b5824"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/stripped/libref_sha3.so",
+        "sha256": "47a4fe46ec8af14e5c290438bdc293b623313302844073f10b6418dc2f4b2e13",
+        "receipt_sha256": "c21132d86c5d437d087535bce186078a7b83f26a94653de61820425c8b8b5824"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/stripped/libref_x25519.so",
+        "sha256": "68c3d4c3f609a08a44c13cad2c0e981000c745c24e4e1f3c2e7eb62ce2c88cd2",
+        "receipt_sha256": "c21132d86c5d437d087535bce186078a7b83f26a94653de61820425c8b8b5824"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/unstripped/libref_aes.so",
+        "sha256": "3a80a92d16fc9217c4c77307868d2fa56281132505916c5780111c05c30e9b80",
+        "receipt_sha256": "2e2a473f906fff02de604dd3817191877b7c2b70e9418c582fe450c28fe28e78"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/unstripped/libref_blake2.so",
+        "sha256": "551cad96632787eadefd69ce66ab6edadb363b4fc9290c2e2c22447f70f1fce9",
+        "receipt_sha256": "2e2a473f906fff02de604dd3817191877b7c2b70e9418c582fe450c28fe28e78"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/unstripped/libref_chacha_poly.so",
+        "sha256": "9d45c3f19fe7dd51d453e82e2833a6e52efa2028ffb74920982bd6349d496890",
+        "receipt_sha256": "2e2a473f906fff02de604dd3817191877b7c2b70e9418c582fe450c28fe28e78"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/unstripped/libref_ed25519.so",
+        "sha256": "a9dd4c3a2078b9a6731eca9eb8a073f7ac4011f4b1608a0e03e19a51b1ff61ef",
+        "receipt_sha256": "2e2a473f906fff02de604dd3817191877b7c2b70e9418c582fe450c28fe28e78"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/unstripped/libref_sha2.so",
+        "sha256": "15310fbd9a774285f07410ca2dab0c3b11b7fb353c4c164e50049cc243491b77",
+        "receipt_sha256": "2e2a473f906fff02de604dd3817191877b7c2b70e9418c582fe450c28fe28e78"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/unstripped/libref_sha3.so",
+        "sha256": "06ccbd962d7cc11b1de6bae4368d088a8a9a69fe83f66e0173ca9c039748c2a0",
+        "receipt_sha256": "2e2a473f906fff02de604dd3817191877b7c2b70e9418c582fe450c28fe28e78"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/aarch64/Og/unstripped/libref_x25519.so",
+        "sha256": "37f7bec2191518258062e9a742242f71b264b3a74c544cb7ece2dd3c2da8536f",
+        "receipt_sha256": "2e2a473f906fff02de604dd3817191877b7c2b70e9418c582fe450c28fe28e78"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/stripped/libref_aes.so",
+        "sha256": "75c88a023968e4b98bb6ef33e08504a04cfea6a0842d96ac8ecf69d181156bc1",
+        "receipt_sha256": "1e5534b2226325945f3b4e6a453e760d5c1c9a2f217f379ca895b2ea28ee4474"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/stripped/libref_blake2.so",
+        "sha256": "2f6dedfe160dd24f27495fd1c4545312c2353e852d06399a35b74d6441d1937e",
+        "receipt_sha256": "1e5534b2226325945f3b4e6a453e760d5c1c9a2f217f379ca895b2ea28ee4474"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/stripped/libref_chacha_poly.so",
+        "sha256": "40275e921bb016156a0b394446a9187c3f3e779fd2d6aaa6d9227289d491c964",
+        "receipt_sha256": "1e5534b2226325945f3b4e6a453e760d5c1c9a2f217f379ca895b2ea28ee4474"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/stripped/libref_ed25519.so",
+        "sha256": "a298d26ea3447a4bd8823d4e349b949f1452f8803ecb1a05c0f187d1456a1f96",
+        "receipt_sha256": "1e5534b2226325945f3b4e6a453e760d5c1c9a2f217f379ca895b2ea28ee4474"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/stripped/libref_sha2.so",
+        "sha256": "872f10b4333a73f4135d47cdd697c85078692101b3087919ca2496cbf4aa4937",
+        "receipt_sha256": "1e5534b2226325945f3b4e6a453e760d5c1c9a2f217f379ca895b2ea28ee4474"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/stripped/libref_sha3.so",
+        "sha256": "22971721ae265b961692e08e339f86ef3b20188f566e1936d7c473a16552d921",
+        "receipt_sha256": "1e5534b2226325945f3b4e6a453e760d5c1c9a2f217f379ca895b2ea28ee4474"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/stripped/libref_x25519.so",
+        "sha256": "6b806445fb8ad830bdafa2b2bb4bda3e4979742a990f79c5250b82e099399043",
+        "receipt_sha256": "1e5534b2226325945f3b4e6a453e760d5c1c9a2f217f379ca895b2ea28ee4474"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/unstripped/libref_aes.so",
+        "sha256": "69872f34592c6ea6b78266ec10cd728d8503550fd58b35e5213ecf59b1e73552",
+        "receipt_sha256": "be91d23e1836e945538a1ce950d24880c7ab5d6aa7053807acd8b1db239d0d54"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/unstripped/libref_blake2.so",
+        "sha256": "a5bd6ef71e52799e1f3ae33c87dfda123ef3ac268daff295d8e7efa677d1763c",
+        "receipt_sha256": "be91d23e1836e945538a1ce950d24880c7ab5d6aa7053807acd8b1db239d0d54"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/unstripped/libref_chacha_poly.so",
+        "sha256": "8691acb574d8f7d735c0f58595cedaccbc442c947bef473c1ba4596ff6b2ada9",
+        "receipt_sha256": "be91d23e1836e945538a1ce950d24880c7ab5d6aa7053807acd8b1db239d0d54"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/unstripped/libref_ed25519.so",
+        "sha256": "8c7799d66697090f604f39f5c7fe6653ffa416be0f2a18d774f32a784f0aeef9",
+        "receipt_sha256": "be91d23e1836e945538a1ce950d24880c7ab5d6aa7053807acd8b1db239d0d54"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/unstripped/libref_sha2.so",
+        "sha256": "d4fc0ce8fe93905e8d0dc3ac95b3b1d266a2c63e0a8346d283c03c11211d93a7",
+        "receipt_sha256": "be91d23e1836e945538a1ce950d24880c7ab5d6aa7053807acd8b1db239d0d54"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/unstripped/libref_sha3.so",
+        "sha256": "0059990ef1607df8f484aefa8b6b0b32c54b872d3c4aaa38a0eba47d1890195a",
+        "receipt_sha256": "be91d23e1836e945538a1ce950d24880c7ab5d6aa7053807acd8b1db239d0d54"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O0/unstripped/libref_x25519.so",
+        "sha256": "8217ed1c1e8c04835104a8c30e02255bc3fa49f081c7be28d0b27fdae5158330",
+        "receipt_sha256": "be91d23e1836e945538a1ce950d24880c7ab5d6aa7053807acd8b1db239d0d54"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/stripped/libref_aes.so",
+        "sha256": "7fece23f974e3b1a67f48a68afb19ad0eca513f9029c8e2e12ee15e011b43dc6",
+        "receipt_sha256": "885a5847e9203ff1e5340674036a316808740b68ce3449a865ba806f37d23de4"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/stripped/libref_blake2.so",
+        "sha256": "f8ab2d9cad39cb0868de069f622afb4e7893ff9273f6beecfe76af98d5a080bc",
+        "receipt_sha256": "885a5847e9203ff1e5340674036a316808740b68ce3449a865ba806f37d23de4"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/stripped/libref_chacha_poly.so",
+        "sha256": "e6140cfa09de5fe98fed92411cfd809a0541a6a9c11a62bc3dd859fad1332501",
+        "receipt_sha256": "885a5847e9203ff1e5340674036a316808740b68ce3449a865ba806f37d23de4"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/stripped/libref_ed25519.so",
+        "sha256": "68b9d936b814bfa20370faac4322d556f53a2129f74f9fac1a95c33c57b7aed3",
+        "receipt_sha256": "885a5847e9203ff1e5340674036a316808740b68ce3449a865ba806f37d23de4"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/stripped/libref_sha2.so",
+        "sha256": "f7e9a611431ad5d56ce60efe90458fa4c79393b3c560d143d10fed4385e4e818",
+        "receipt_sha256": "885a5847e9203ff1e5340674036a316808740b68ce3449a865ba806f37d23de4"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/stripped/libref_sha3.so",
+        "sha256": "83b08f565bfbf65d8b0122c70924b2d1c3b57365b3ecea9c172e9e7b2650a0cd",
+        "receipt_sha256": "885a5847e9203ff1e5340674036a316808740b68ce3449a865ba806f37d23de4"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/stripped/libref_x25519.so",
+        "sha256": "718ff1c578c2ce66f0e05eb33c1cad8bb9fb5e733aea407fe6205959450322bc",
+        "receipt_sha256": "885a5847e9203ff1e5340674036a316808740b68ce3449a865ba806f37d23de4"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/unstripped/libref_aes.so",
+        "sha256": "9da15d681b422b8fcf8b022ad07af055863319deddf2fdd3a9f43f3ee2ef1976",
+        "receipt_sha256": "bbc00232de035c2a43bfa7e42901e7663483e9af799769da5588e9eace7862b8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/unstripped/libref_blake2.so",
+        "sha256": "ba5d9a73daf7b1cf638d213520d9e10bc242cc9b4f1f3fd1590a146e35fa6570",
+        "receipt_sha256": "bbc00232de035c2a43bfa7e42901e7663483e9af799769da5588e9eace7862b8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/unstripped/libref_chacha_poly.so",
+        "sha256": "20dfd4ed64a3007180aba41b551590d7654044f834308e072160c8199c39b561",
+        "receipt_sha256": "bbc00232de035c2a43bfa7e42901e7663483e9af799769da5588e9eace7862b8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/unstripped/libref_ed25519.so",
+        "sha256": "1948aeef238a3afb7118aee5cf03e7400a082a5161e0ce60d31507ff923a5b6f",
+        "receipt_sha256": "bbc00232de035c2a43bfa7e42901e7663483e9af799769da5588e9eace7862b8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/unstripped/libref_sha2.so",
+        "sha256": "bab12d689029b6acb990f9fece6c12c5068e8e5130d0d1ecdbef59d2854d10fc",
+        "receipt_sha256": "bbc00232de035c2a43bfa7e42901e7663483e9af799769da5588e9eace7862b8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/unstripped/libref_sha3.so",
+        "sha256": "5f2e321b95aab4f523dfd4cbcfc94e1a820ebb57836e4918c88832f0abf09fec",
+        "receipt_sha256": "bbc00232de035c2a43bfa7e42901e7663483e9af799769da5588e9eace7862b8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/unstripped/libref_x25519.so",
+        "sha256": "66b25356682b42446320c7d1a82b86280d945985ffe70e2ac197879e8d3fa3eb",
+        "receipt_sha256": "bbc00232de035c2a43bfa7e42901e7663483e9af799769da5588e9eace7862b8"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/stripped/libref_aes.so",
+        "sha256": "5c23a5983b4e96ffdea82da322eec8dd17c9b86171c63e246d25e60c96b00cfc",
+        "receipt_sha256": "f35d28c4fceb5b19d57355c3129c09cdb451fd5b3c55cf17e0084f47e0dff270"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/stripped/libref_blake2.so",
+        "sha256": "f60ab3da480a8f5c9cb5dc9a5672b2fe5ddb6e318153ae429abffdb13912b1ce",
+        "receipt_sha256": "f35d28c4fceb5b19d57355c3129c09cdb451fd5b3c55cf17e0084f47e0dff270"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/stripped/libref_chacha_poly.so",
+        "sha256": "7c19b277dd0cd7493f12f10e1cc067ea2aeba905d4a8059b99b68c51d835b222",
+        "receipt_sha256": "f35d28c4fceb5b19d57355c3129c09cdb451fd5b3c55cf17e0084f47e0dff270"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/stripped/libref_ed25519.so",
+        "sha256": "dec339079e4c2d823fce3f835b902aec7c2262fd802efc2613f640dd7220b25f",
+        "receipt_sha256": "f35d28c4fceb5b19d57355c3129c09cdb451fd5b3c55cf17e0084f47e0dff270"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/stripped/libref_sha2.so",
+        "sha256": "1150a172df011c8438a520c70bb058d8323aa822606ae63de16ecd1c3e7da4aa",
+        "receipt_sha256": "f35d28c4fceb5b19d57355c3129c09cdb451fd5b3c55cf17e0084f47e0dff270"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/stripped/libref_sha3.so",
+        "sha256": "5c5ca3f984cc74d22ea77a64eb3dcde45e9a8676c28f00ce0a06e4bc15af85b0",
+        "receipt_sha256": "f35d28c4fceb5b19d57355c3129c09cdb451fd5b3c55cf17e0084f47e0dff270"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/stripped/libref_x25519.so",
+        "sha256": "c762af36be4b02e572f6692f3c403464c93c012ddc183c61059fa5d0903583da",
+        "receipt_sha256": "f35d28c4fceb5b19d57355c3129c09cdb451fd5b3c55cf17e0084f47e0dff270"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/unstripped/libref_aes.so",
+        "sha256": "cb1cf4ccda8227ec27dc0f90a2608b7b857ba5c3933cf7ffdd9436bbdb41ee88",
+        "receipt_sha256": "21d1402549a339dc74b30904a9ed71161bfcb0436ce17e7eac72953dfcccf229"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/unstripped/libref_blake2.so",
+        "sha256": "0dd7e128c09d7ba66ee4ec570997f5a6f781c7aefac258a7c96f0b34691b721c",
+        "receipt_sha256": "21d1402549a339dc74b30904a9ed71161bfcb0436ce17e7eac72953dfcccf229"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/unstripped/libref_chacha_poly.so",
+        "sha256": "97c2f46307506abfb83f15a4e10a3a431828304f544252b238f399816c6df868",
+        "receipt_sha256": "21d1402549a339dc74b30904a9ed71161bfcb0436ce17e7eac72953dfcccf229"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/unstripped/libref_ed25519.so",
+        "sha256": "3f582747b3dac9f75e0af4f921841bf130fa42df02c0d759ad69bdc759661b99",
+        "receipt_sha256": "21d1402549a339dc74b30904a9ed71161bfcb0436ce17e7eac72953dfcccf229"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/unstripped/libref_sha2.so",
+        "sha256": "8db0f519cfd30bb3dc7bfa0640f0133e9fb63dc31cdb88b2fc487217043863b0",
+        "receipt_sha256": "21d1402549a339dc74b30904a9ed71161bfcb0436ce17e7eac72953dfcccf229"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/unstripped/libref_sha3.so",
+        "sha256": "2021280d909d5182e2b099362249463e479ffd63fee546c13a901d8c71eee07f",
+        "receipt_sha256": "21d1402549a339dc74b30904a9ed71161bfcb0436ce17e7eac72953dfcccf229"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O3/unstripped/libref_x25519.so",
+        "sha256": "72b465d415c553eda39620e73de1337d8da57da13ece0abec06e860eed02df35",
+        "receipt_sha256": "21d1402549a339dc74b30904a9ed71161bfcb0436ce17e7eac72953dfcccf229"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/stripped/libref_aes.so",
+        "sha256": "e33c0915443932ba1420f67b3219520355d4573850199224129a6fe4f5698c01",
+        "receipt_sha256": "ecfbcc18272f5780d9ab900208f2fb04e93daffc04a5cf39991846928b2733a0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/stripped/libref_blake2.so",
+        "sha256": "1e47a31c31eb451f14a0a3c426f1867af7d112a754825ef43fd27fd4311f8fe9",
+        "receipt_sha256": "ecfbcc18272f5780d9ab900208f2fb04e93daffc04a5cf39991846928b2733a0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/stripped/libref_chacha_poly.so",
+        "sha256": "4df6eeddff98dc21f174675ce344c0700401f623ad88ad5585e5a66e4471017e",
+        "receipt_sha256": "ecfbcc18272f5780d9ab900208f2fb04e93daffc04a5cf39991846928b2733a0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/stripped/libref_ed25519.so",
+        "sha256": "df381136a766aae0ec78731690617a142a4d2c58ce6abd78916049b9fad6bbdd",
+        "receipt_sha256": "ecfbcc18272f5780d9ab900208f2fb04e93daffc04a5cf39991846928b2733a0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/stripped/libref_sha2.so",
+        "sha256": "a5b369fc688ef3e1f2917a743980dc10ebb4df64b515b81f8c5850ac375f914d",
+        "receipt_sha256": "ecfbcc18272f5780d9ab900208f2fb04e93daffc04a5cf39991846928b2733a0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/stripped/libref_sha3.so",
+        "sha256": "3e81ff6dddb882ec21545036cb8bb14e3911c97c64a499bd611001367cdb9080",
+        "receipt_sha256": "ecfbcc18272f5780d9ab900208f2fb04e93daffc04a5cf39991846928b2733a0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/stripped/libref_x25519.so",
+        "sha256": "f17a5b845204a3513b237c5f18f38cfb152f4a91f771cebbb155d20136e06051",
+        "receipt_sha256": "ecfbcc18272f5780d9ab900208f2fb04e93daffc04a5cf39991846928b2733a0"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/unstripped/libref_aes.so",
+        "sha256": "c2c98cf825d8f09c9ce8aba31f36d580164dda560a9f9ca894b400b36f1d5f33",
+        "receipt_sha256": "6517572ff63382fda7077b08c307e97d07db7a5053979b9ed1f92da16657343d"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/unstripped/libref_blake2.so",
+        "sha256": "778e4538ade388f6c366d8b787df59f1a138c6bc6e1a8ff5a0383d737cc5c73d",
+        "receipt_sha256": "6517572ff63382fda7077b08c307e97d07db7a5053979b9ed1f92da16657343d"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/unstripped/libref_chacha_poly.so",
+        "sha256": "df9422824ba7e720e975bf5ac2185ab5c5d26dab97998befd84150f640baa12b",
+        "receipt_sha256": "6517572ff63382fda7077b08c307e97d07db7a5053979b9ed1f92da16657343d"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/unstripped/libref_ed25519.so",
+        "sha256": "d611fc4f8cf6577d8a0b78e2127a1e1fb1a80fdb2fbbfaa3b98248ef45b91320",
+        "receipt_sha256": "6517572ff63382fda7077b08c307e97d07db7a5053979b9ed1f92da16657343d"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/unstripped/libref_sha2.so",
+        "sha256": "b0dfc4dfe2b8b74d62b8a06f51880abc4a04a5a3bd679c4072a55f5df0e1d1ca",
+        "receipt_sha256": "6517572ff63382fda7077b08c307e97d07db7a5053979b9ed1f92da16657343d"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/unstripped/libref_sha3.so",
+        "sha256": "f21e2e79847262cc9ea2c83a740ca8c4bbe7ea50e7d1c1d932ebd8a56e7eca85",
+        "receipt_sha256": "6517572ff63382fda7077b08c307e97d07db7a5053979b9ed1f92da16657343d"
+      },
+      {
+        "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/Og/unstripped/libref_x25519.so",
+        "sha256": "c38c3695993a0fa7dc23b9c4f480d223600dda0dffe51b7b9c1b7e661ad272d6",
+        "receipt_sha256": "6517572ff63382fda7077b08c307e97d07db7a5053979b9ed1f92da16657343d"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O0/stripped/pingpong-client",
+        "sha256": "53eb273d9af84ac56e9cee8bb3c656c8574d5d63adfabbcc34b06c06228ce0cc",
+        "receipt_sha256": "a6f06090a612129f2590eb5c4ee2fb0f720f65fd0df2f4fef94df4db9270e737"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O0/stripped/pingpong-server",
+        "sha256": "c8b083643af4b9a7142e7f1ca4b08cce8a75a8b5a7ab341d14505cf23e5308f3",
+        "receipt_sha256": "a6f06090a612129f2590eb5c4ee2fb0f720f65fd0df2f4fef94df4db9270e737"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O0/unstripped/pingpong-client",
+        "sha256": "2eb0534eee21e42177f5d04c37500217cebc35050434da29611bead0eaffa725",
+        "receipt_sha256": "6566e53755a51fc9b253db3e528bdc6ffab932edcae9d34b71bbc3dd522ce498"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O0/unstripped/pingpong-server",
+        "sha256": "62aa45561cc72008ab60e7caec0598eb0e45b59524222602ba28b44034f6525c",
+        "receipt_sha256": "6566e53755a51fc9b253db3e528bdc6ffab932edcae9d34b71bbc3dd522ce498"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O1/stripped/pingpong-client",
+        "sha256": "73d8358c933eb38411b28f6c70373c7fdc9e848d0a90fdaae66d61f7f7c56d30",
+        "receipt_sha256": "b6290e67c4c9f8334e8e86621eeeb7d93f0c6ae820a4de4d36a4929ddda76461"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O1/stripped/pingpong-server",
+        "sha256": "fad7f2e326f049f2e4511c37a8c75131679ceb4b203e0dbf6b646d63f8e67d4f",
+        "receipt_sha256": "b6290e67c4c9f8334e8e86621eeeb7d93f0c6ae820a4de4d36a4929ddda76461"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O1/unstripped/pingpong-client",
+        "sha256": "64358f8916228851093d00764749737daf4595cdc76229e5f8c441460e5e6355",
+        "receipt_sha256": "9d75c876b526497d8fe63a5de3efdeffb56cbb923831ddc31f2a0f038cdd0446"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O1/unstripped/pingpong-server",
+        "sha256": "fb8d6d5669bb7c3a7c9d87b44f647cdb6b2492f9e9720ceded271857e49e49b6",
+        "receipt_sha256": "9d75c876b526497d8fe63a5de3efdeffb56cbb923831ddc31f2a0f038cdd0446"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O3/stripped/pingpong-client",
+        "sha256": "7c9a07a70418a8f3ed0f7b3bae8f064f10f455557fa5cb13dfabdb62d6097365",
+        "receipt_sha256": "4d8c8c8a0738157e256913baac2b91d9592ed4f4be0e3c0b2994dfc7104823e0"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O3/stripped/pingpong-server",
+        "sha256": "f6836ffabd66f8fccff9929ff9537468833689512cdf3db4e75bd3e0d2610300",
+        "receipt_sha256": "4d8c8c8a0738157e256913baac2b91d9592ed4f4be0e3c0b2994dfc7104823e0"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O3/unstripped/pingpong-client",
+        "sha256": "e74f005de9971d7533d6e6c84ba0984b189e8214904d0510661e7bad71b5fb49",
+        "receipt_sha256": "29a61faa288793a0f25d798e98e1c420155224e7eec57fb2dcdeb2bb2225e07c"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O3/unstripped/pingpong-server",
+        "sha256": "47d2caaf83e4a5b0a86cc403f5f42c66853289c6035cd061fe20d37470c1056b",
+        "receipt_sha256": "29a61faa288793a0f25d798e98e1c420155224e7eec57fb2dcdeb2bb2225e07c"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/stripped/pingpong-client",
+        "sha256": "11f75effa9a290d00a72dcc33cd2c06145200f5b4a3d93cdc5fba9f15aef10c4",
+        "receipt_sha256": "5cdee7cd7b58d008ea83f29220e659a870090de57a400ed23cda7bef26e46cd7"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/stripped/pingpong-server",
+        "sha256": "260e03602fb549f8b7a967a01cb6a407f41662159be11b6d853051958d17d28e",
+        "receipt_sha256": "5cdee7cd7b58d008ea83f29220e659a870090de57a400ed23cda7bef26e46cd7"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/unstripped/pingpong-client",
+        "sha256": "35111b64dc48e3234035d1d0ba3cfa4c0ee137c536aef7b634d49c432a163cef",
+        "receipt_sha256": "22702b5e2b9ae5343aed23b8c236ed991da9a18ed7241102e1402770b270a16d"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/unstripped/pingpong-server",
+        "sha256": "5e1d2b6c0d5df124b4fad502bfb0f8de9f6c31adc26bcfea5a2a42ade498e65e",
+        "receipt_sha256": "22702b5e2b9ae5343aed23b8c236ed991da9a18ed7241102e1402770b270a16d"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/stripped/pingpong-client",
+        "sha256": "6c20dd94d996e0d78817936d52ff77376ded99845d9cc28bb36eec48c26f6e76",
+        "receipt_sha256": "1ae1580e20fa334cfe67e90e872123fec1599ac3291a8857a71a77551a325d83"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/stripped/pingpong-server",
+        "sha256": "e56821a2ababeae30effc38ea947dd3ddc3c2f2aee2d091f48e82763879874a3",
+        "receipt_sha256": "1ae1580e20fa334cfe67e90e872123fec1599ac3291a8857a71a77551a325d83"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/unstripped/pingpong-client",
+        "sha256": "b3cb86d23f1e6c263c2c6b86fac810384bb4b3c337aff2f61c0405997068e931",
+        "receipt_sha256": "847aaa7ca93f0a607dc885413ee3ec6e3a8f36453938d631def93a7517f5dafc"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/unstripped/pingpong-server",
+        "sha256": "c25b0e5bd87a6638581583c873ba81f1d077c6c1057f38c0a9620f753358fe8a",
+        "receipt_sha256": "847aaa7ca93f0a607dc885413ee3ec6e3a8f36453938d631def93a7517f5dafc"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O1/stripped/pingpong-client",
+        "sha256": "665b59d406cbbf7b33998176988ad57bee8cbe94de409087488a2e50856f3895",
+        "receipt_sha256": "b73f2dbb66fde38e8d02f11fd5f2e8e1185e27f0543dc6b94a6bfdf9c46888ed"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O1/stripped/pingpong-server",
+        "sha256": "da2656c820084f6ddf9faf0b3126adc7e95618bb56ced243fca4100d6c7bf294",
+        "receipt_sha256": "b73f2dbb66fde38e8d02f11fd5f2e8e1185e27f0543dc6b94a6bfdf9c46888ed"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O1/unstripped/pingpong-client",
+        "sha256": "f3e13e96b762809d8846a69c816d17d415641fdc639b38e2ea40271015d20b33",
+        "receipt_sha256": "e9c81ca68ee46b8ac899a6e865920cd823d77b2e75fb317da0c432361547c65d"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O1/unstripped/pingpong-server",
+        "sha256": "d9012b7616d7b6ba25697fc3153d841b4a56a706becbb04feadbc22532c503e6",
+        "receipt_sha256": "e9c81ca68ee46b8ac899a6e865920cd823d77b2e75fb317da0c432361547c65d"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O3/stripped/pingpong-client",
+        "sha256": "0bedaf8a4b4e91e5ecca34e54f36c3a69e65ec3d91ce082d8b721182c914fa68",
+        "receipt_sha256": "04d37f72829b91c5a798efd73d1953834cd8b883ae86298c08cdeab9791071ae"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O3/stripped/pingpong-server",
+        "sha256": "09d756c10872df1974d0ff3bd46451d61487f7da6d2b413ca0a74e8149de109d",
+        "receipt_sha256": "04d37f72829b91c5a798efd73d1953834cd8b883ae86298c08cdeab9791071ae"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O3/unstripped/pingpong-client",
+        "sha256": "a5cc2deb102bb00ec42cc59d777e473087c56e56eb7d1f86e05d1f5b9e60bbaa",
+        "receipt_sha256": "a171a1cde32f165d70a0ab9a22f12499d8cc93fe5ebc151f24ccb530836faf45"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O3/unstripped/pingpong-server",
+        "sha256": "6c90b3d796cd61411a063f0e476c62fe5400e8b49b0b5746df2474f021bc1baa",
+        "receipt_sha256": "a171a1cde32f165d70a0ab9a22f12499d8cc93fe5ebc151f24ccb530836faf45"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/Og/stripped/pingpong-client",
+        "sha256": "82f89f13013beab83f215c350c2fee4df56c4aa832c818411efa620a78ca9655",
+        "receipt_sha256": "4a397631063d3cb95afad56da17b3851dd1d8c5d94aec5abe126bf286ba5504c"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/Og/stripped/pingpong-server",
+        "sha256": "a66275df4bf2781491eef7ace790f359d60140f332db647520070fd2311ce411",
+        "receipt_sha256": "4a397631063d3cb95afad56da17b3851dd1d8c5d94aec5abe126bf286ba5504c"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/Og/unstripped/pingpong-client",
+        "sha256": "d00688bc5b9cf077f7ced120fde2bb9771849cddf616327c7dda20d3fa94341c",
+        "receipt_sha256": "8d2f72f3f52e806ecb38382a992eecfef8743d1472de03094e54197f66408c07"
+      },
+      {
+        "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/Og/unstripped/pingpong-server",
+        "sha256": "236af61bce8e7ad173ce7d474d690de4514674379ec967baa65d161a939b2ffc",
+        "receipt_sha256": "8d2f72f3f52e806ecb38382a992eecfef8743d1472de03094e54197f66408c07"
+      }
+    ]
+  },
+  "cache": "unspecified",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "scripts/corpus/census.py",
+      "sha256": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597"
+    }
+  ],
+  "wall_seconds": 8.34306583,
+  "exit_code": 0,
+  "user_cpu_seconds": 4.22,
+  "system_cpu_seconds": 4.2,
+  "peak_rss_kib": 29180,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

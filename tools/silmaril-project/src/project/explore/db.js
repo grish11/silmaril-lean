@@ -271,13 +271,15 @@ function pickHelp(why) {
 // download can never replace the file the reader chose since.
 let openTok = 0;
 const source = { label: null, mode: null, schema: null, problem: null };
+const originalTitle = $("#title").textContent;
+const supportedSchema = schema => schema === SCHEMA || schema === "corpus.catalog.v1";
 function shortMode(mode) {
   return !mode ? "" : /^lazy/.test(mode) ? "lazy" : /^local/.test(mode) ? "local file" : "whole file";
 }
 function renderSource() {
   const el = $("#source");
   const name = source.label ? source.label.replace(/[?#].*$/, "").split("/").pop() || source.label : "no database";
-  const warn = source.problem || (source.schema && source.schema !== SCHEMA);
+  const warn = source.problem || (source.schema && !supportedSchema(source.schema));
   el.innerHTML = `<span class="src-name">${esc(name)}</span>` + (source.mode ? ` <span class="muted">${esc(shortMode(source.mode))}</span>` : "") +
     (warn ? ' <b class="src-warn" aria-hidden="true">!</b>' : "");
   el.setAttribute("aria-label", `Database: ${source.label || "none"}${source.mode ? ", " + source.mode : ""}${warn ? ", needs attention" : ""}. Show details or open another.`);
@@ -289,7 +291,7 @@ async function sourceDialog() {
   const body = (source.problem ? `<p class="err" role="alert">${esc(source.problem)}</p>` : "") +
     "<dl>" + row("source", source.label ? `<code>${esc(source.label)}</code>` : "none") +
     row("read", source.mode && esc(source.mode)) +
-    row("schema", source.schema && `<code>${esc(source.schema)}</code>` + (source.schema === SCHEMA ? "" : ` <span class="err">this page expects ${esc(SCHEMA)}</span>`)) +
+    row("schema", source.schema && `<code>${esc(source.schema)}</code>` + (supportedSchema(source.schema) ? "" : ` <span class="err">this page expects ${esc(SCHEMA)} or corpus.catalog.v1</span>`)) +
     row("transferred", s && (be.mode === "local file" ? `${esc(kB(s.totalBytes))} in memory` :
       `${esc(kB(s.totalFetchedBytes))} of ${esc(kB(s.totalBytes))}${s.totalRequests ? ` in ${s.totalRequests} requests` : ""}`)) + "</dl>" +
     (be && be.changed && be.changed() ? '<p><button type="button" id="reopen">Open the new version</button></p>' : "") +
@@ -408,6 +410,7 @@ async function useDb(b, label) {
     ts = await q("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')");
     ix = await q("SELECT name FROM sqlite_master WHERE type = 'index'");
     if (ts.some((r) => r.name === "meta")) metaRows = await q("SELECT value FROM meta WHERE key = 'schema'");
+    else if (ts.some((r) => r.name === "corpus_meta")) metaRows = await q("SELECT value FROM corpus_meta WHERE key = 'schema'");
   } catch (e) {
     // not readable: no database stays open (the caller says why)
     if (!(e instanceof Superseded) && be === b) {
@@ -418,6 +421,8 @@ async function useDb(b, label) {
     throw e;
   }
   tables = new Set(ts.map((r) => r.name));
+  $("#title").textContent = tables.has("corpus_artifacts") && !tables.has("projects") ? "Silmaril corpus explorer" : originalTitle;
+  renderNav();
   indexes = new Set(ix.map((r) => r.name));
   const schema = (metaRows[0] || {}).value || "?";
   Object.assign(source, { label, mode: b.mode, schema, problem: null });

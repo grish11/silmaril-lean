@@ -39,11 +39,11 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem canonLift (H : LiftHyps I) (lim : Limits) (q : Quirks) (callee : E.FuncAddr)
     (ft : WIT.FuncType Empty RtId) (opts : CanonOpts E) (inst : InstId) (caller : CallerId) :
-    P.Inv I (Canon.canonLift lim q callee ft opts inst caller : P E σ (Ret E)) := by
+    P.InvW I W (Canon.canonLift lim q callee ft opts inst caller : P E σ (Ret E)) := by
   unfold Canon.canonLift
   refine bind (allocObj _ _ (H.allocTask _ _ _ _)) fun task => ?_
   refine bind (newThread _) fun t => ?_
@@ -51,7 +51,7 @@ theorem canonLift (H : LiftHyps I) (lim : Limits) (q : Quirks) (callee : E.FuncA
   refine bind (ite (callUnit _) (pure _)) fun _ => pure _
 
 theorem syncLiftLoopBody (H : LiftHyps I) (hr : HostReady σ) (task : TaskId) :
-    P.Inv I (Canon.syncLiftLoopBody hr task : P E σ (Ret E)) := by
+    P.InvW I W (Canon.syncLiftLoopBody hr task : P E σ (Ret E)) := by
   unfold Canon.syncLiftLoopBody
   refine bind (getTask _) fun tk => ?_
   refine ite (pure _) ?_
@@ -63,7 +63,7 @@ theorem syncLiftLoopBody (H : LiftHyps I) (hr : HostReady σ) (task : TaskId) :
 
 theorem liftSyncTail (H : LiftHyps I) (lim : Limits) (q : Quirks) (task : TaskId)
     (callee : E.FuncAddr) (tk : Task E) (cx : LiftLowerContext E) (flatArgs : List FlatValue) :
-    P.Inv I (Canon.liftSyncTail lim q task callee tk cx flatArgs : P E σ Unit) := by
+    P.InvW I W (Canon.liftSyncTail lim q task callee tk cx flatArgs : P E σ Unit) := by
   unfold Canon.liftSyncTail
   refine bind (callCore _ _) fun fr => ?_
   refine bind (liftFlatValues H.load _ _ _ _ _ _) fun _ => ?_
@@ -77,14 +77,14 @@ theorem liftSyncTail (H : LiftHyps I) (lim : Limits) (q : Quirks) (task : TaskId
 
 theorem canonLiftNoop (H : LiftHyps I) (lim : Limits) (q : Quirks)
     (ft : WIT.FuncType Empty RtId) (opts : CanonOpts E) (inst : InstId) (caller : CallerId) :
-    P.Inv I (Canon.canonLiftNoop lim q ft opts inst caller : P E σ (Ret E)) := by
+    P.InvW I W (Canon.canonLiftNoop lim q ft opts inst caller : P E σ (Ret E)) := by
   unfold Canon.canonLiftNoop
   refine bind (allocObj _ _ (H.allocTask _ _ _ _)) fun task => ?_
   refine bind (newThread _) fun t => ?_
   refine bind (Thread.resume_inv t (H.stopWaiting t)) fun _ => ?_
   refine bind (ite (callUnit _) (pure _)) fun _ => pure _
 
-theorem onStartProg (c : CallerId) : P.Inv I (Canon.onStartProg c : P E σ (Ret E)) := by
+theorem onStartProg (c : CallerId) : P.InvW I W (Canon.onStartProg c : P E σ (Ret E)) := by
   unfold Canon.onStartProg
   refine bind (getObj _ _) fun x => ?_
   split
@@ -94,7 +94,7 @@ theorem onStartProg (c : CallerId) : P.Inv I (Canon.onStartProg c : P E σ (Ret 
   · exact internal _
 
 theorem onResolveProg (H : LiftHyps I) (c : CallerId) (r : Option (List Val)) :
-    P.Inv I (Canon.onResolveProg c r : P E σ (Ret E)) := by
+    P.InvW I W (Canon.onResolveProg c r : P E σ (Ret E)) := by
   unfold Canon.onResolveProg
   refine bind (getObj _ _) fun x => ?_
   split
@@ -107,7 +107,7 @@ theorem onResolveProg (H : LiftHyps I) (c : CallerId) (r : Option (List Val)) :
 
 theorem reallocProg (H : LiftHyps I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
     (old oldLen align newLen : Nat) :
-    P.Inv I (Canon.reallocProg lim q cx old oldLen align newLen : P E σ (Ret E)) := by
+    P.InvW I W (Canon.reallocProg lim q cx old oldLen align newLen : P E σ (Ret E)) := by
   unfold Canon.reallocProg
   refine bind (ptrType _) fun p => bind (orTrap _ _) fun f => ?_
   refine bind (allocObj _ _ (H.allocCaller _)) fun c => ?_
@@ -123,7 +123,7 @@ theorem reallocProg (H : LiftHyps I) (lim : Limits) (q : Quirks) (cx : LiftLower
   · exact internal _
 
 theorem destructorCall (H : LiftHyps I) (lim : Limits) (q : Quirks) (inst : InstId)
-    (req : DtorRequest E) : P.Inv I (Canon.destructorCall lim q inst req : P E σ Unit) := by
+    (req : DtorRequest E) : P.InvW I W (Canon.destructorCall lim q inst req : P E σ Unit) := by
   unfold Canon.destructorCall
   split
   · exact bind (getInst _) fun _ => bind (trapIf _ _) fun _ =>
@@ -146,18 +146,18 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem callbackLoopBody (H : LiftHyps I) (lim : Limits) (task : TaskId) (thread : ThreadId)
     (code si : Nat) :
-    P.Inv I (Canon.callbackLoopBody lim task thread code si : P E σ (Ret E)) := by
+    P.InvW I W (Canon.callbackLoopBody lim task thread code si : P E σ (Ret E)) := by
   unfold Canon.callbackLoopBody
   refine ite (bind (Task.exitImplicitThread_inv task H.task) fun _ => pure _) ?_
   refine bind (getTask _) fun tk => ?_
   have hc : ∀ s, I s → I (s.setTaskState task .cancelDelivered) :=
     fun s => H.task.setTaskState task _ s
   refine bind ?_ fun ev => ?_
-  · show P.Inv I (Task.deliverPendingCancel task >>= fun b =>
+  · show P.InvW I W (Task.deliverPendingCancel task >>= fun b =>
       if b = true then Pure.pure AsyncRef.EventTuple.taskCancelled else _)
     refine bind (Task.deliverPendingCancel_inv task hc) fun b => ?_
     refine ite (pure _) ?_
@@ -179,7 +179,7 @@ theorem callbackLoopBody (H : LiftHyps I) (lim : Limits) (task : TaskId) (thread
 
 theorem liftThreadBody (H : LiftHyps I) (lim : Limits) (q : Quirks) (task : TaskId)
     (callee : E.FuncAddr) :
-    P.Inv I (Canon.liftThreadBody lim q task callee : P E σ (Ret E)) := by
+    P.InvW I W (Canon.liftThreadBody lim q task callee : P E σ (Ret E)) := by
   unfold Canon.liftThreadBody
   refine bind (Task.enterImplicitThread_inv q task H.task) fun b => ?_
   refine ite (pure _) ?_
@@ -196,7 +196,7 @@ theorem liftThreadBody (H : LiftHyps I) (lim : Limits) (q : Quirks) (task : Task
     · exact internal _
 
 theorem liftNoopThreadBody (H : LiftHyps I) (lim : Limits) (q : Quirks) (task : TaskId) :
-    P.Inv I (Canon.liftNoopThreadBody lim q task : P E σ (Ret E)) := by
+    P.InvW I W (Canon.liftNoopThreadBody lim q task : P E σ (Ret E)) := by
   unfold Canon.liftNoopThreadBody
   refine bind (Task.enterImplicitThread_inv q task H.task) fun b => ?_
   refine ite (pure _) ?_
