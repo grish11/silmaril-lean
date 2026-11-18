@@ -122,8 +122,8 @@ def launch(cmd, cwd, timeout, out_cap, err_cap, limits=None):
 
     Returns ({"ended": "exit" | "signal" | "cpu-limit" | "fsize-limit" | "timeout" | "stdout-limit"
               | "stderr-limit" | "launch-failed" (the program never started: "launchError"), "code" (exit status, or the signal number, also for a limit),
-              "cpuSeconds", "groupKilledAfterEnd" (members of the group were still alive after the
-              program ended), "groupGone" (no member left after the kill)}, stdout, stderr).
+              "cpuSeconds", "groupKilledAfterEnd" (the group was signalled after the leader ended;
+              this does not count live descendants), "groupGone" (no member left after the kill)}, stdout, stderr).
     A limit is recognised by its signal: SIGXCPU (or SIGKILL with the CPU time at the limit) is
     "cpu-limit", SIGXFSZ is "fsize-limit"; the signal stays in "code" as the evidence."""
     import select, signal
