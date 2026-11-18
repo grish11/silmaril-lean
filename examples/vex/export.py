@@ -109,7 +109,7 @@ def render(work):
                    "```", "", "```text", lift, "```", ""]
 
     lean += ["end Silmaril.Machine.Vex.Fixtures", ""]
-    return {"tests/vex/Fixtures.lean": "\n".join(lean), "examples/vex/lifts.md": "\n".join(report)}
+    return {"Silmaril/Machine/Vex/Examples/Defs.lean": "\n".join(lean), "examples/vex/lifts.md": "\n".join(report)}
 
 
 def main():

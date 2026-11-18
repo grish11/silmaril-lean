@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Machine.Vex.Validate.Defs
+public import Silmaril.Machine.Vex.Validate.Semantics.Defs
 
 public section
 
@@ -8,25 +8,15 @@ namespace Silmaril.Machine.Vex.Proofs
 
 open AMD64Scalar
 
-theorem boundaryBeh {input output : Type} (run : input → output) (entry : input)
+theorem boundaryBeh {input output : Type} (run : input → Option output) (entry : input)
     (outcome : Behaviour.Outcome output Empty Empty) :
-    (boundarySem run).Beh entry outcome ↔ outcome = .returned (run entry) := by
-  rw [Behaviour.Semantics.beh_of_stop (fun _ h => h)]
-  change (outcome = .returned (run entry) ∧ outcome ≠ .diverges) ↔ _
+    (boundarySem run).Beh entry outcome ↔ ∃ value, run entry = some value ∧ outcome = .returned value := by
+  rw [Behaviour.Semantics.beh_of_stop (fun _ step => step)]
+  change ((∃ value, run entry = some value ∧ outcome = .returned value) ∧ outcome ≠ .diverges) ↔ _
   constructor
   · exact And.left
-  · rintro rfl
-    exact ⟨rfl, by simp⟩
-
-theorem boundaryRefines {srcInit tgtInit observation : Type}
-    (source : srcInit → observation) (target : tgtInit → observation)
-    (initial : srcInit → tgtInit → Prop)
-    (agree : ∀ src tgt, initial src tgt → source src = target tgt) :
-    Behaviour.Refines .strict (boundarySem target) (boundarySem source)
-      (fun tgt src => initial src tgt) (fun _ _ => Behaviour.Obs.id) := by
-  intro tgt src related _ outcome behavior
-  refine ⟨.returned (source src), (boundaryBeh source src _).mpr rfl, ?_⟩
-  rw [Behaviour.Outcome.Rel.strict_id_iff, (boundaryBeh target tgt _).mp behavior, agree src tgt related]
+  · rintro ⟨value, evaluated, rfl⟩
+    exact ⟨⟨value, evaluated, rfl⟩, by simp⟩
 
 private theorem flagBit (value : Bool) : (flagWord value).getLsbD 0 = value := by
   cases value <;> decide
@@ -97,11 +87,9 @@ theorem x86Lower (block : X86.Block) (input : Input) :
   unfold X86.Block.lower X86.Block.run
   rw [evaluatePlan, evaluateBody, evaluateEntry]
 
-theorem artifacts {pc : Word} {bytes : List UInt8} {raw : Raw.Block} {pair : Pair}
+theorem validateCertifies {pc : Word} {bytes : List UInt8} {raw : Raw.Block} {pair : Pair}
     (accepted : validate pc bytes raw = .ok pair) :
-    X86.decode pc bytes = .ok pair.source ∧ check raw = .ok pair.target ∧
-    pair.target.address = pc ∧ pair.target.code.marks = pair.source.marks ∧
-    pair.target.lower = .ok (pair.source.lower pc) := by
+    Certificate pc bytes raw pair := by
   cases hd : X86.decode pc bytes with
   | error => simp [validate, hd] at accepted
   | ok source =>
@@ -116,33 +104,38 @@ theorem artifacts {pc : Word} {bytes : List UInt8} {raw : Raw.Block} {pair : Pai
             by_cases hp : source.lower pc = plan
             · simp [validate, hd, hc, ha, hm, hl, hp] at accepted
               cases accepted
-              exact ⟨rfl, rfl, ha, hm.symm, by simpa only [hp] using hl⟩
+              exact ⟨hd, hc, ⟨ha, hm.symm, by simpa only [hp] using hl⟩⟩
             · simp [validate, hd, hc, ha, hm, hl, hp] at accepted
         · simp [validate, hd, hc, ha, hm] at accepted
       · simp [validate, hd, hc, ha] at accepted
 
-theorem validateSound {pc : Word} {bytes : List UInt8} {raw : Raw.Block} {pair : Pair}
-    (accepted : validate pc bytes raw = .ok pair) (input : Input) (entry : input.rip = pc) :
-    pair.target.run input = .ok (pair.source.run input) := by
-  simp only [Block.run, (artifacts accepted).2.2.2.2, Except.map, ← entry, x86Lower]
+theorem translationRuns {pc : Word} {source : X86.Block} {target : Block}
+    (related : Translates pc source target) (input : Input) (entry : input.rip = pc) :
+    target.run input = .ok (source.run input) := by
+  simp only [Block.run, related.plan, Except.map, ← entry, x86Lower]
 
-theorem validateBoundary {pc : Word} {bytes : List UInt8} {raw : Raw.Block} {pair : Pair}
-    (accepted : validate pc bytes raw = .ok pair) :
-    BoundaryAgreement pair.source.run pair.target.run (Initial pc) Final
-      (fun state => some (observe state)) (fun result => result.toOption.map observe) := by
-  rintro input _ ⟨rfl, entry⟩
-  rw [validateSound accepted input entry]
-  exact ⟨⟨_, rfl, rfl⟩, rfl⟩
+theorem translationBeh {pc : Word} {source : X86.Block} {target : Block}
+    (related : Translates pc source target) {srcInput tgtInput : Input}
+    (initial : Initial pc srcInput tgtInput) (outcome : Behaviour.Outcome Input Empty Empty) :
+    (targetSem target).Beh tgtInput outcome ↔ outcome = .returned (source.run srcInput) := by
+  rcases initial with ⟨rfl, entry⟩
+  unfold targetSem
+  rw [boundaryBeh, translationRuns related srcInput entry]
+  constructor
+  · rintro ⟨value, evaluated, rfl⟩
+    cases evaluated
+    rfl
+  · intro returned
+    exact ⟨_, rfl, returned⟩
 
-theorem validateRefines {pc : Word} {bytes : List UInt8} {raw : Raw.Block} {pair : Pair}
-    (accepted : validate pc bytes raw = .ok pair) :
-    ∃ plan, pair.target.lower = .ok plan ∧
-      Behaviour.Refines .strict (boundarySem (fun input => plan.eval input))
-        (boundarySem pair.source.run) (fun tgt src => Initial pc src tgt)
-        (fun _ _ => Behaviour.Obs.id) := by
-  refine ⟨_, (artifacts accepted).2.2.2.2, boundaryRefines _ _ (Initial pc) ?_⟩
-  rintro input _ ⟨rfl, entry⟩
-  exact (entry ▸ x86Lower pair.source input).symm
+theorem translationSound (pc : Word) :
+    Translation.Sound (Translates pc) .targetRefinesSource .strict sourceSem targetSem
+      (fun _ _ => Initial pc) (fun _ _ _ _ => observations) := by
+  intro source target related tgtInput srcInput initial _ outcome behavior
+  have returned := (translationBeh related initial outcome).mp behavior
+  subst outcome
+  exact ⟨_, (boundaryBeh (fun input => some (source.run input)) srcInput _).mpr ⟨_, rfl, rfl⟩,
+    rfl, rfl⟩
 
 theorem wordErasure {ctx : Scope} (value : Word) :
     checkExpr ctx ((Expr.word (ctx := ctx) value).erase) = .ok ⟨.i64, Expr.word value⟩ := by

@@ -5,6 +5,22 @@
 lifts from locally assembled x86-64 machine bytes pass. This is not an angr
 CFG recovery implementation, a full x86 semantics, or a verified lifter.
 
+## Artifact relation and checker
+
+[`Translation.Relation`](../../Silmaril/Machine/Translation/Defs.lean) is
+`Src → Tgt → Prop`; it mentions neither a checker nor a semantics.
+[`Translates pc`](../../Silmaril/Machine/Vex/Validate/Defs.lean) relates a
+decoded x86 block and a checked VEX block when the target has that entry
+address, the instruction markers agree, and their residual plan syntax
+matches exactly. The plans are a syntactic witness, not assumptions about the
+results of either evaluator. This relation may miss equivalent lifts written
+with different residual plans.
+
+`validate` decodes the bytes and checks the raw VEX, then tests those three
+conditions. `validate_certifies` derives a `Certificate` from success: the
+certificate records the decode and type-check provenance and a proof of
+`Translates`. It is not a semantic soundness theorem.
+
 ```mermaid
 flowchart LR
   B[AMD64 bytes] --> X[Small independent decoder and eager-ZF model]
@@ -15,6 +31,8 @@ flowchart LR
   C --> SV[VEX observation plan]
   SX --> V[Exact plan check]
   SV --> V
+  V --> W[Certificate: provenance and Translates]
+  W --> S[Apply translation_sound to Translates]
   C --> G[Label graph and dominator scopes]
 ```
 
@@ -25,7 +43,6 @@ flowchart LR
 | [`Scalar.Defs`](../../Silmaril/Machine/Vex/Scalar/Defs.lean) | An extensible untyped tree with raw guest offsets and operator names, plus tagged opaque nodes for unsupported extensions. `check` recognizes `IMark`, `WrTmp`, `Get`, `Put`, `I1`/`I64` literals and temporaries, `Add64`, `CmpEQ64`, `1Uto64`, `64to1`, one optional **final** `Exit` and a constant `NEXT`; both edges must be `Ijk_Boring` and commit to the AMD64 RIP slot. |
 | [`Execution.Defs`](../../Silmaril/Machine/Vex/Execution/Defs.lean) | Ordered guest-register writes and lexical temp snapshots; `IMark` is metadata. The shared functional `RegisterFile` stores VEX guest slots. `Block.lower` produces a separate first-order `Plan` over entry values, without VEX offsets, temp IDs, or lazy flags. Running the program instantiates and evaluates that plan; inter-block fetch is not part of the model. |
 | [`X86.Defs`](../../Silmaril/Machine/Vex/X86/Defs.lean) | Exact encodings `48 89 f8` (MOV), `48 01 f0` (ADD), `48 39 f7` (CMP), and `eb`, `74`, `75` followed by a signed byte (JMP, JE, JNE). The decoder rejects trailing bytes after the terminator. The evaluator does concrete modular arithmetic and updates ZF eagerly; it does not use VEX operations, statements, or flag recipes. This decoder does not replace the [general x86 models](x86.md). |
-| [`Validate.Thms`](../../Silmaril/Machine/Vex/Validate/Thms.lean) | Acceptance ties the decoded source and checked VEX artifacts to their inputs, including the entry address and instruction marker addresses and lengths. It proves equality with the independent concrete x86 model for **all** projected inputs at that entry, with both sides returning. |
 
 Checking requires declared temp types, single assignment, and bind-before-use.
 Typed expressions carry a width index and a scoped reference; erasure preserves
@@ -36,32 +53,38 @@ claim. The exporter maps the pinned API fields without optimizing or rewriting
 the lift. It fails on unknown object forms; the raw AST's opaque nodes are an
 explicit extension point, not a semantics for arbitrary VEX.
 
-The entry relation agrees on the projected input state and entry PC. VEX starts
-with a `COPY` thunk (`CC_OP = 0`, input ZF in bit 6 of `CC_DEP1`, other thunk
+VEX starts with a `COPY` thunk (`CC_OP = 0`, input ZF in bit 6 of `CC_DEP1`, other thunk
 words zero). On exit the observer recognizes `COPY`, `ADDQ` (`4`: sum equals
 zero), and `SUBQ` (`8`: operands equal) for ZF only. An unrecognized or
-nonliteral recipe is a static observation rejection. The final relation
-requires a returned target and the same next RIP; the observation compares
-the three registers and ZF. The checker uses exact residual syntax rather
-than an SMT solver. Semantically equivalent but differently written plans can
-be rejected. `Term.selectBit_sound` justifies the small bit-projection
-normalizations; `X86.Block.lower_sound` connects the source residualizer to
-the concrete eager source model.
+nonliteral recipe is a static observation rejection. `Term.selectBit_sound`
+justifies the small bit-projection normalizations; `X86.Block.lower_sound`
+connects the source residualizer to the concrete eager source model.
 
-## Behaviour order and limits
+## Soundness under chosen semantics
 
-`BoundaryAgreement` treats the entry relation, final state relation and
-observable result as separate inputs. `validate_refines` maps successful
-slices into the existing `Behaviour.Refines` in strict mode: on related,
-source-safe inputs, each **target** behaviour must match a **source**
-behaviour. With identical observations this is target-set inclusion in the
-source set. The source-UB law is the existing `Safe` guard: a source state with
-a possible `.undefined` behaviour imposes no obligation; target UB cannot
-match a safe source. Strict mode does not conflate faults, traps, exhaustion,
-or divergence with one another or with returns. For this slice each side has
-exactly one returned result (`boundary_beh`), so there is neither UB vacuity
-nor a target stuck-with-no-behaviours loophole. Parse, unsupported instruction,
-observation and validator errors occur **outside** that behaviour set.
+[`Translation.Sound`](../../Silmaril/Machine/Translation/Soundness/Defs.lean)
+takes an artifact relation, refinement direction and mode, source and target
+semantics, an entry-state relation, and an observation relation on outcomes.
+The returned-payload part can express both a final-state relation and
+agreement on observable values. The theorem [`translation_sound`](../../Silmaril/Machine/Vex/Validate/Thms.lean)
+instantiates it for **any** pair satisfying `Translates pc`, without a checker
+or certificate premise. The entry states must agree at `pc`; returned states
+must agree on successor RIP (the final-state relation) and on RAX, RDI, RSI,
+and ZF (the observation).
+
+The chosen direction is **target refines source** in strict mode: on related
+entries with a safe source, every target behaviour must match a source
+behaviour under the observation relation. With identity observation this is
+target-set inclusion in the source set. The existing `Behaviour.Refines`
+`Safe` guard means a source state with a possible `.undefined` behaviour
+imposes no obligation; target UB cannot match a safe source. Strict mode does
+not conflate faults, traps, exhaustion, or divergence with one another or with
+returns. Decode, type-check and validation errors are not behaviours. An
+unsupported observation also produces no admitted behaviour, not UB. This
+could make inclusion vacuous in general; here `translation_runs` and
+`translation_beh` prove that at **every** related entry the actual VEX
+evaluator returns the same projected state as the source, and the source
+always returns (`boundary_beh`).
 
 This is a model of admitted scalar instruction effects, not an execution
 claim for a loaded executable. No memory, fetch/permission or canonical-address
@@ -105,16 +128,18 @@ SHA-256. No Python dependency is needed for the checked-in Lean regression.
 python3.13 -m venv /tmp/silmaril-vex
 /tmp/silmaril-vex/bin/pip install --only-binary=:all: --require-hashes -r examples/vex/requirements.txt
 /tmp/silmaril-vex/bin/python examples/vex/export.py --check
-lake build --wfail VexTests
-make check CHECK_TARGETS=VexTests
+lake build --wfail Silmaril.Machine.Vex.Examples.Thms
+make check CHECK_TARGETS=Silmaril.Machine.Vex.Examples.Thms
 ```
 
 MOV/JMP tests check preservation of both incoming ZF values; ADD checks
 wraparound and resulting ZF; CMP/JE and CMP/JNE test both edges. Swapped lifts,
 altered successors/markers, trailing bytes and unsupported flag recipes are
-rejected. The malformed VEX and multi-block graph tests are synthetic.
-`VexTests` prints the main theorem axiom sets (only the standard allowed
-axioms) and runs with warnings as errors.
+rejected. The malformed VEX and multi-block graph tests are synthetic. For all
+four real lifts, the [regressions](../../Silmaril/Machine/Vex/Examples/Thms.lean)
+also compose `validate_certifies` with `translation_sound` and check the
+returned-behaviour guarantee. They build under the existing `Silmaril` target
+and print the main theorem axiom sets (only the standard allowed axioms).
 
 Next: give a versioned structured interchange for larger pyvex/angr exports,
 link the byte model to the existing x86 decoder/semantics, validate recovered

@@ -4,8 +4,8 @@ import Silmaril.Machine.Vex.CFG.Defs
 public meta import Silmaril.Machine.Vex.CFG.Defs
 import Silmaril.Machine.Vex.Validate.Thms
 public meta import Silmaril.Machine.Vex.Scalar.Defs
-import tests.vex.Fixtures
-public meta import tests.vex.Fixtures
+import Silmaril.Machine.Vex.Examples.Defs
+public meta import Silmaril.Machine.Vex.Examples.Defs
 
 namespace Silmaril.Machine.Vex.Tests
 
@@ -15,6 +15,30 @@ private def casesFromBytes : List (List UInt8 × Raw.Block) :=
   [(movBytes, movLift), (addBytes, addLift), (jeBytes, jeLift), (jneBytes, jneLift)]
 
 example : casesFromBytes.all (fun (bytes, raw) => (validate 0x1000 bytes raw).isOk) = true := by decide +kernel
+
+private def verified : Except ValidationError Pair → Prop
+  | .error _ => False
+  | .ok pair =>
+    Behaviour.Refines .strict (targetSem pair.target) (sourceSem pair.source)
+      (fun tgt src => Initial 0x1000 src tgt) (fun _ _ => observations.flip) ∧
+    ∀ input, input.rip = 0x1000 → (targetSem pair.target).Beh input (.returned (pair.source.run input))
+
+private theorem verified_pair {bytes : List UInt8} {raw : Raw.Block} {pair : Pair}
+    (accepted : validate 0x1000 bytes raw = .ok pair) : verified (.ok pair) := by
+  have related := (validate_certifies accepted).translates
+  exact ⟨translation_sound 0x1000 _ _ related, fun input entry =>
+    (translation_beh related ⟨rfl, entry⟩ _).mpr rfl⟩
+
+private theorem verified_of_ok {bytes : List UInt8} {raw : Raw.Block}
+    (ok : (validate 0x1000 bytes raw).isOk = true) : verified (validate 0x1000 bytes raw) := by
+  cases accepted : validate 0x1000 bytes raw with
+  | error => rw [accepted] at ok; cases ok
+  | ok => exact verified_pair accepted
+
+example : verified (validate 0x1000 movBytes movLift) := verified_of_ok (by decide +kernel)
+example : verified (validate 0x1000 addBytes addLift) := verified_of_ok (by decide +kernel)
+example : verified (validate 0x1000 jeBytes jeLift) := verified_of_ok (by decide +kernel)
+example : verified (validate 0x1000 jneBytes jneLift) := verified_of_ok (by decide +kernel)
 
 #guard casesFromBytes.all (fun (_, raw) =>
   ((check raw).toOption.map fun block => block.erase == raw) == some true)
@@ -73,10 +97,10 @@ example : errorOf (CFG.mk #[jump 10 20] []).scope = some (.dangling 10 20) := by
 example : errorOf (CFG.mk #[jump 10 30, jump 20 30] [30]).scope = some .unreachable := by decide
 example : errorOf (CFG.mk #[jump 10 20] [10, 20]).scope = some .duplicateLabel := by decide
 
-#print axioms validate_artifacts
-#print axioms validate_sound
-#print axioms validate_boundary
-#print axioms validate_refines
+#print axioms validate_certifies
+#print axioms translation_runs
+#print axioms translation_beh
+#print axioms translation_sound
 #print axioms Term.selectBit_sound
 #print axioms check_word_erase
 
