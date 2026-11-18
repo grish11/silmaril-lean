@@ -31,8 +31,10 @@ by the graph, nor equated with architectural faults.
   horizontally: `A ⊆ A'` and `M ⊆ M'` give `A ○ M ⊆ A' ○ M'`.
   `rebase_interchange` checks that horizontally composing the vertical chains
   gives the same inclusion as vertically composing the horizontal pairs.
-  This equality is proof-irrelevant in the hom-poset; it makes no claim about
-  identity of execution witnesses. For a fixed query context, these laws make graph
+  These are checked concrete Lean laws, not a bundled Mathlib 2-category
+  instance: horizontal composition uses Mathlib's `SetRel.comp_subset_comp`
+  and interchange uses proof irrelevance of inclusions. For a fixed query
+  context, the laws make graph
   transport covariant and observed-machine rebasing contravariant on arrows
   (and both monotone on 2-cells), taking graphs into their inclusion posets. A
   sound map from one decoder to another is the inclusion of the transported
@@ -96,6 +98,27 @@ stream or preservation of failure diagnostics. `stack_byte_observations_refine`
 then composes the adapter inclusion with the listing projection and the toy
 block machine, proving observation inclusion at byte inputs.
 
+## Atomic decoder institution
+
+[`Institution`](../../Silmaril/Machine/DecodeGraph/Institution/Thms.lean)
+checks the atom-only institution separately from forward transport. Fix the
+context type, byte carrier and span carrier. A signature is an instruction
+type, a signature arrow is a function, and a sentence asserts that one exact
+tuple of context, bytes, instruction and span is successful. `translate` maps
+only the instruction. Models are relational success graphs (with only
+identity model morphisms), and `reduct` is inverse image: an exact source
+success holds precisely when its translated target success holds. The
+sentence maps and contravariant reduct satisfy identity and composition, and
+the atomic satisfaction condition is definitional. No functor bundling or
+logical connectives are needed for this fragment.
+
+This is not a construction on deterministic executable decoders. If two
+distinct source instructions map to a successful target instruction, the
+reduct has both as successes at the same input and span, even if the target
+graph was deterministic (`reduct_not_deterministic_of_collision`). Forward
+`map` takes images of successes; reduct admits all preimages. Neither runs a
+decoder or preserves diagnostics.
+
 ## Staged gaps
 
 - No connection to CFG recovery, existing decompilation certificates, or a
@@ -103,17 +126,13 @@ block machine, proving observation inclusion at byte inputs.
   and those certificates continue to serve their own contracts. Fall-through
   at an externally supplied boundary, address wraparound, and diagnostic
   policies can be added as separately justified variants.
-- A candidate institution fixes the query space and uses instruction types and
-  functions as signatures and morphisms. Its atomic sentences assert that a
-  specific success belongs to a graph; sentence translation maps the value and
-  model reduct takes inverse image under that map. This is a candidate only:
-  the sentence functor, contravariant model reduct and satisfaction condition
-  are not formalized here. In particular, determinism and negative or
-  universal properties under arbitrary relations do not follow from the
-  covariant success transport.
+- Logical fragments beyond atoms and signature arrows beyond functions are
+  not part of this institution experiment. In particular, determinism and
+  negative or universal properties under arbitrary relations do not follow
+  from covariant success transport.
 
 Targeted check:
 
 ```sh
-lake build --wfail Silmaril.Machine.DecodeGraph.Thms Silmaril.Proofs.Machine.DecodeGraph.X86Example
+lake build --wfail Silmaril.Machine.DecodeGraph.Institution.Thms Silmaril.Proofs.Machine.DecodeGraph.X86Example
 ```
