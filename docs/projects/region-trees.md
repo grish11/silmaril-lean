@@ -62,8 +62,8 @@ of their underlying label sets is an optional policy, not a raw theorem.
 `RegionPiece Support Lab` carries a node's own entry, support and declared
 exits without asserting semantic validity. `pieceTree` makes such pieces into
 a tree whose present node labels are those entries (`pieceTree_labelAt`).
-Choosing `Support := Set Seg` or `Finset Seg` gives nodes of the requested
-`(Lab, Seg*)` shape, with arbitrary children. No constituent BB certification,
+Choosing `Support := Set Seg` or `Finset Seg` gives nodes with `(Lab, Seg*)`
+payloads and arbitrary children. No constituent BB certification,
 child-to-parent validity, or single-entry property is inferred automatically.
 
 ## Annotation conversion and loss
@@ -119,7 +119,7 @@ and the `CurriedLawfulModel` complete lattice also transport this construction
 to split-context predicates; `curried_lawful_le_iff` exposes the same inclusion
 order. CFG relation variants reuse these constructions with CFG payloads.
 Helpers, dominance certificates and graph interpretations do not enter these
-lawful-model definitions. The earlier fixed-ceiling theorem remains available.
+lawful-model definitions. The fixed-ceiling theorem also applies.
 
 `TreeRow.flattenWith elements` explicitly interprets a generalized payload's
 segment support. `flatten` specializes to singleton segment payloads, producing
@@ -209,7 +209,7 @@ those sets. This is a graph policy, not a machine operational-coverage proof.
 fixes entry/root/exits, requires terminal label leaves, and certifies `DomExact`
 for the proposed parent map. `witness_immediate` identifies immediate children
 with actual `idom` links; `witness_ancestors` identifies all strict ancestors
-with strict dominators. `witness_descendants` relates the new reflexive
+with strict dominators. `witness_descendants` relates the reflexive
 descendant relation to equality or strict domination. Root-parent, live-parent
 closure and label uniqueness are proved separately. `witness_rooted` proves parent-chain closure for each
 reachable vertex. Inactive Nat indices carry no exported labels and are outside
@@ -220,19 +220,21 @@ supplied segment-payload function. `exists_dominator_lift` then gives a genuine
 CFG lifting with both this dominance witness and equality after flattening.
 It applies to the selected reachable finite graph and explicit exit policy,
 not arbitrary graphs, arbitrary label encodings, or every strict tree subtype.
-It selects no canonical region partition and certifies no new machine semantics.
+Region-partition selection and machine operational soundness require separate
+interpretations.
 
 Generic certified contraction into a literal label forest, arbitrary-label
 operational CFG/dominance adapters, and automatic candidate/semantic coverage
-are outside this layer's theorems. Earlier Wasm byte-map/operational bridging,
-ELF placement and wider x86 call/indirect-transfer gates remain unchanged.
+require separate proofs. Wasm byte-map/operational bridging, ELF placement
+and wider x86 call/indirect-transfer soundness are adapter obligations.
 
-Build the new proof/example roots with the pinned toolchain:
+Build the proof/example roots with the pinned toolchain:
 
 ```sh
 lake build --wfail Silmaril.Semantics.Region.Tree.Examples.Thms \
   Silmaril.Automata.Graph.RegionTree.Examples.Thms
 ```
 
-The task report records the scoped `make check`, regression and axiom-audit
-results. No new axiom, proof placeholder or `native_decide` is used.
+Pass these roots as `CHECK_TARGETS` to `make check` to run source and regression
+gates alongside the scoped Lean build. The proofs use only permitted standard
+axioms; no proof placeholder or `native_decide` is used.

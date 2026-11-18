@@ -52,11 +52,10 @@ must not be reported as a full native release check.
 
 The totally abstract named API additionally takes independent `Support` and
 `Exits` carriers, with no collection operations. The signatures below are the
-existing finite-set profile, now aliases of that API.
+finite-set profile, which specializes that API.
 
-The carriers are `Img`, `Assum` (the specification's interface carrier `Int`,
-not Lean's integer type), `Seg`, and `Lab`. The individual predicate aliases
-are usable without a record. `SegmentRegionModel` bundles all five:
+The carriers are `Img`, `Assum` (interface assumptions), `Seg`, and `Lab`.
+The individual predicate aliases are usable without a record. `SegmentRegionModel` bundles all five:
 
 ```
 SegBB : Img → Assum → Seg → Prop
@@ -80,8 +79,8 @@ Individual segments can retain ordered byte/instruction ranges. `ListRow` is an 
 serialization adapter whose certification uses `toFinset`, so duplicate or
 reordered presentation labels cannot change validity. `CertifiedSegmentRow`,
 `CertifiedRow`, and `CertifiedListRow` fix the image and interface and keep
-candidate data distinct from its certificate. This is an API for future
-exporters, not a new viewer or an ELF corpus extraction tool.
+candidate data distinct from its certificate. Exporters can consume these
+proof-carrying rows; candidate extraction and rendering are separate APIs.
 
 ## Semantic validity and observations
 
@@ -202,10 +201,10 @@ categorical. See the existing
 
 ## Concrete adapter boundaries and pending gates
 
-* **ByteArray and kernel memory.** `ByteSource.ofByteArray` and `ofKBytes` use
-  the existing `KBytes` reader; no public carrier named `KMem` was found in
-  this checkout. `ByteSource.read` also accepts arbitrary sparse kernel-memory
-  readers without imposing ELF. Layout translation rejects multiple owners.
+* **Byte-backed and sparse sources.** `ByteSource.ofByteArray` reads a
+  `ByteArray`; `ByteSource.ofKBytes` uses `Silmaril.KBytes.get?`.
+  `ByteSource.read : Nat → Option UInt8` also supports custom sparse-memory
+  readers. Layout translation is independent of ELF and rejects multiple owners.
 * **ELF.** Reuses `Formats.ELF` record types/readers, mapping only executable
   file-backed PT_LOAD bytes or explicit section-relative code. It does not
   infer relocation effects, function boundaries, or resumptions. Existing
