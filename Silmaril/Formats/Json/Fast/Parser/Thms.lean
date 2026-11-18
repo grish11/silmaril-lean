@@ -4,6 +4,8 @@ public import Silmaril.Formats.Json.Fast.Parser.Trace.Defs
 public import Silmaril.Formats.Json.Fast.Wire.Defs
 public import Silmaril.Formats.JsonWire.Grammar.Defs
 import Silmaril.Proofs.Formats.Json.Fast.Parser
+import Silmaril.Prelude.ChunkSeq.Thms
+import Silmaril.Formats.Json.Fast.Thms
 
 /-! Verified components of the production parser, not an independent parser or a
 source certificate. All results concern successful computations. -/
@@ -74,6 +76,13 @@ theorem series_sound {Item : Type} {close : Char} {Accept : List Char → Item �
 end Silmaril.Formats.Json.Fast.Parser
 
 namespace Silmaril.Formats.Json.Fast.Value
+
+/-- A successful indexed lookup selects a real ordered member. This is not a
+first-occurrence or completeness theorem for the hash index. -/
+theorem member?_ofObject_sound {entries : Array (String × Value)} {key : String} {child : Value}
+    (found : (ofObject entries).member? key = some child) : (key, child) ∈ entries.toList := by
+  have member := Value.member?_sound (ChunkSeq.wellSized_ofArray entries) found
+  simpa only [ChunkSeq.toList_ofArray] using member
 
 theorem toWire?_ofArray (depth : Nat) (items : Array Value) :
     (ofArray items).toWire? (depth + 1) = do
