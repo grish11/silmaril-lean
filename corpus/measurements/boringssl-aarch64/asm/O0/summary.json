@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "project": "boringssl",
+  "upstream_commit": "ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6",
+  "configuration": "asm",
+  "target": "aarch64-linux-gnu",
+  "optimization": "O0",
+  "actual_elf_rows": 6,
+  "outputs": [
+    {
+      "object": "bssl",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/unstripped/bssl",
+      "size": 451016,
+      "sha256": "98e0d325458669af357efe677a6ead5c3e2a71107489d57454ec8d5907b2706d",
+      "elf_machine": "AArch64",
+      "func_symbols": 1371,
+      "has_symtab": true,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/unstripped/receipt.json",
+      "receipt_sha256": "e5099890285d15f6df4a086500b1d30096bbcaf21cad1e487d72cb6da74bf506",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/unstripped/bssl.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/bssl.pair.json"
+    },
+    {
+      "object": "libcrypto.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/unstripped/libcrypto.so",
+      "size": 4136176,
+      "sha256": "e3025f85a98bfa57d8c797b83f646cf890bf5c89136c81cf8ecdbc87a3ad4b7e",
+      "elf_machine": "AArch64",
+      "func_symbols": 12253,
+      "has_symtab": true,
+      "has_debug_info": true,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/unstripped/receipt.json",
+      "receipt_sha256": "e5099890285d15f6df4a086500b1d30096bbcaf21cad1e487d72cb6da74bf506",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/unstripped/libcrypto.so.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/libcrypto.so.pair.json"
+    },
+    {
+      "object": "libssl.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/unstripped/libssl.so",
+      "size": 1844424,
+      "sha256": "be32ec434e77730d011e98f16b6d145e377c1181584f285c6cb200abdf01cb3e",
+      "elf_machine": "AArch64",
+      "func_symbols": 6725,
+      "has_symtab": true,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/unstripped/receipt.json",
+      "receipt_sha256": "e5099890285d15f6df4a086500b1d30096bbcaf21cad1e487d72cb6da74bf506",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/unstripped/libssl.so.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/libssl.so.pair.json"
+    },
+    {
+      "object": "bssl",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/stripped/bssl",
+      "size": 266744,
+      "sha256": "d3bc9aeba756799085b638cdc294bd584ddf73ddc37617ad4f9ab22a18ec47fb",
+      "elf_machine": "AArch64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/stripped/receipt.json",
+      "receipt_sha256": "5ef6e2603c56e48ed89f0be2565868d9f45f1437794f786cc57e7c306300e9b4",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/stripped/bssl.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/bssl.pair.json"
+    },
+    {
+      "object": "libcrypto.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/stripped/libcrypto.so",
+      "size": 2833608,
+      "sha256": "f157d300979b91a87589065b57550303e1ebedfa569d7d9620eafe59be7ef70f",
+      "elf_machine": "AArch64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/stripped/receipt.json",
+      "receipt_sha256": "5ef6e2603c56e48ed89f0be2565868d9f45f1437794f786cc57e7c306300e9b4",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/stripped/libcrypto.so.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/libcrypto.so.pair.json"
+    },
+    {
+      "object": "libssl.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/stripped/libssl.so",
+      "size": 1058192,
+      "sha256": "654ac9b8ff3038ced68386ef295ec5b713641a7c43f191b11e94d9c2d4f66d6f",
+      "elf_machine": "AArch64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/stripped/receipt.json",
+      "receipt_sha256": "5ef6e2603c56e48ed89f0be2565868d9f45f1437794f786cc57e7c306300e9b4",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/stripped/libssl.so.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/libssl.so.pair.json"
+    }
+  ],
+  "source_files_hash_checked": 1307,
+  "supplementary_artifacts": [
+    {
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/supplementary/boringcrypto-bcm.o",
+      "sha256": "3fd51575da07ec3302e00b3bf543c80cea9383c0f3a5511b84912225b1be1c9f",
+      "kind": "ET_REL",
+      "stripping": "not stripped; no strip-all linkability claim",
+      "reproducibility": "byte-identical independent workspace repeats"
+    },
+    {
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/supplementary/boringcrypto-bcm.readelf.txt",
+      "sha256": "5143e3210d20a5a44f8720c0204bd30b3e545f3c0ad3fa6571c5e46741809b86",
+      "kind": "module provenance",
+      "stripping": "not stripped; no strip-all linkability claim",
+      "reproducibility": "byte-identical independent workspace repeats"
+    },
+    {
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/supplementary/boringcrypto-bcm.undefined.txt",
+      "sha256": "55fd84dfb791292cdc3ab94cb63ea7eb6f4c5bda848cdf4065588b27dc4676d2",
+      "kind": "module provenance",
+      "stripping": "not stripped; no strip-all linkability claim",
+      "reproducibility": "byte-identical independent workspace repeats"
+    }
+  ],
+  "module_identity": "repository ld-r packaging of actual upstream non-FIPS fipsmodule objects; not FIPS_SHARED bcm.o",
+  "measured_exits_passed": 18,
+  "build_wall_seconds": {
+    "build-a": 69.7248447130005,
+    "build-b": 53.06677021299947
+  },
+  "image_id": "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+  "limits": [
+    "Actual AArch64 ELF/runtime observations via QEMU; not native hardware execution.",
+    "Two independently initialized reused persistent containers; clean independent workspaces and strips, not fresh containers per profile.",
+    "Available/pregenerated assembly, executed inputs and lexical inlineasm remain distinct; no local perlasm regeneration claimed.",
+    "No FIPS validation/certification, semantic equivalence, source-semantic or Lean proof claim.",
+    "Supplementary module is unstripped ET_REL, not counted as another executable/library row.",
+    "No exhaustive upstream tests/full local make check claim."
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "actual_new_elf_rows": 18,
+  "profiles": [
+    {
+      "configuration": "no-asm",
+      "optimization": "O2",
+      "rows": 6,
+      "wall_seconds": {
+        "build-a": 64.72992276900004,
+        "build-b": 49.38721769099993
+      },
+      "summary": "corpus/measurements/boringssl-native-configs/no-asm/O2/summary.json"
+    },
+    {
+      "configuration": "asm",
+      "optimization": "O0",
+      "rows": 6,
+      "wall_seconds": {
+        "build-a": 61.132467206999536,
+        "build-b": 44.80750176299989
+      },
+      "summary": "corpus/measurements/boringssl-native-configs/asm/O0/summary.json"
+    },
+    {
+      "configuration": "asm",
+      "optimization": "O2",
+      "rows": 6,
+      "wall_seconds": {
+        "build-a": 67.4486724060007,
+        "build-b": 51.21746189100031
+      },
+      "summary": "corpus/measurements/boringssl-native-configs/asm/O2/summary.json"
+    }
+  ],
+  "limits": [
+    "Supplementary non-FIPS BCM ld-r objects stay unstripped and are not executable/shared-library rows.",
+    "No FIPS_SHARED artifacts are counted here.",
+    "Original no-asm O0 six rows are a prior tranche, not new work.",
+    "No source-semantic, formal or FIPS validation/certification claim."
+  ]
+}

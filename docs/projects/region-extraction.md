@@ -4,7 +4,8 @@ This framework adds abstract region judgments and semantic interpretations
 independently of function extraction. Fixed-signature raw and positive-rule
 lawful models form complete lattices; see the
 [abstract lattice API and proofs](region-lattices.md) and the
-[tree/CFG variants and dominance bridge](region-trees.md). A region can be certified
+[tree/CFG variants and dominance bridge](region-trees.md). See also the
+[operational adapters and exact remaining gates](region-adapters.md). A region can be certified
 through a state invariant even when an unrestricted constituent block cannot. It does not infer a unique partition,
 prove an arbitrary parent region, or manufacture call resumptions.
 
@@ -25,9 +26,10 @@ The public entry points are:
 | Binary layout | `Silmaril.Machine.Region.{Defs,Thms}` | Typed coordinates, sparse byte sources, unambiguous translation |
 | x86 | `Silmaril.Machine.Region.X86.{Defs,Thms}` | Existing Ext retirement semantics and decoded-listing soundness |
 | Concrete fixtures | `Silmaril.Machine.Region.Examples.Thms` | Nonvacuous loaded direct-branch certificate and classification checks |
-| ELF | `Silmaril.Elf.Region.Defs` | Executable file-backed PT_LOAD and section-relative mapping |
+| ELF | `Silmaril.Elf.Region.{Defs,X86.Thms}` | File/section mappings and checked-image window placement into actual x86 fetch |
 | Loaded images | `Silmaril.Process.Region.Defs` | Existing LPS image and permission-checked sparse memory adapters |
-| Wasm | `Silmaril.Wasm.Region.{Defs,Thms}` | Existing block inventory, conservative candidates, validated byte-map interface |
+| Wasm | `Silmaril.Wasm.Region.{Thms,Operational.Thms,ByteMap.Thms,Examples.Thms}` | Existing CFG operational coverage and decoder-validated root instruction/body-byte maps |
+| Call summaries | `Silmaril.Machine.Region.Calls.Thms` | Existing strict contracts cover every actual first return; no invented Ext resumption edge |
 | Logic | `Silmaril.Logic.Region.{Defs,Thms}` | Raw-relation signature category and institution |
 
 Run with the repository's pinned toolchain and dependency manifest:
@@ -209,8 +211,9 @@ categorical. See the existing
   file-backed PT_LOAD bytes or explicit section-relative code. It does not
   infer relocation effects, function boundaries, or resumptions. Existing
   `Elf.Parses`, `Staged.LayoutIs`, code facts and loader certificates remain
-  the authority relating metadata to bytes/execution; this PR does not prove
-  a new end-to-end ELF-loader-to-region theorem.
+  the authority relating metadata to bytes/execution. `Elf.Region.X86` now
+  proves executable checked-image windows meet the actual listing fetch
+  contract, under the explicit existing `ImageLoaded` premise.
 * **Loaded images.** Uses existing `Process.LPS.Image` segments and
   `Process.Memory.fetchBytes` permission checks. Optional omitted data imposes
   no value constraints, so semantics must quantify over compatible concrete
@@ -224,8 +227,9 @@ categorical. See the existing
   preservation of the code-load and state invariant at internal successors.
   A concrete loaded `EB 00` fixture proves a nonvacuous valid region. Calls
   and returns produce Top for candidate targets; unsupported/truncated bytes
-  fail decoding. General indirect x86 dispatch and call-summary integration
-  need an operational semantics and summary soundness proofs, not guesses.
+  fail decoding. The optional `Machine.Region.Calls` adapter proves results
+  for every first return from an existing strict contract on its explicit
+  machine; it does not insert summary edges into Ext or guess indirect targets.
   `greatestRows` instantiates the greatest semantic relation for fixed Ext
   context; this is not a hardware correspondence theorem.
 * **Wasm.** Reuses `Cfg.blocks`, `lookup`, `succOf`, `effectSucc` and effect
@@ -235,11 +239,13 @@ categorical. See the existing
   Decoded labels contain function index, nested sequence path and instruction
   offset; raw labels contain function index and body byte offset. The
   `ValidatedByteMap` interface requires real decode/encoding correspondence,
-  bounds and uniqueness. Producing a complete map from the binary decoder,
-  proving its coverage, and connecting candidate CFG rows to the existing
-  `Cfg.Region`/`Cfg.Session` operational theorems remain gates. No second
-  Wasm extraction or execution implementation is introduced. See
-  [the existing CFG guide](wasm-cfg.md).
+  bounds and uniqueness. `ByteMap.validate?` now produces root-path maps
+  checked against the existing sound binary decoder and complete source-body
+  encoding. `Operational` adds machine-step and conditional first-exit
+  soundness using the existing CFG machine. Nested byte maps, complete
+  table coverage and the block-segment/instruction-index bridge remain gates.
+  See the [adapter scope matrix](region-adapters.md) and
+  [existing CFG guide](wasm-cfg.md).
 
 ## Fixture coverage
 

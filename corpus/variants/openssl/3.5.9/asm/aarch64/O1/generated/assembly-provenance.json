@@ -1,0 +1,1876 @@
+{
+  "arch": "aarch64",
+  "available_generator_inputs": [
+    {
+      "path": "Configurations/00-base-templates.conf",
+      "sha256": "29362786b6daeeea7c137283158e2c0454c2495b3a329d88b2f2adfc98f17a7b"
+    },
+    {
+      "path": "Configurations/10-main.conf",
+      "sha256": "25d1cb4bfe4f4f7354f35df3640eeebd5d72df35600485a4428e5f8de5f43d36"
+    },
+    {
+      "path": "Configurations/15-android.conf",
+      "sha256": "b4d3aaca9c7b3cb779d37997ca4ea8a081982868bc693482c7caadec70d0e4ad"
+    },
+    {
+      "path": "Configurations/15-ios.conf",
+      "sha256": "5276128a9e3ae665a128ba6e6330b65130ad78f4f6d822ccdf2ebe26b67518b5"
+    },
+    {
+      "path": "Configurations/50-cppbuilder.conf",
+      "sha256": "6208c953f016fcf54f20cbd4a5e5dfda9c9c8f962e9754daaf0a6ac70a18329e"
+    },
+    {
+      "path": "Configurations/50-djgpp.conf",
+      "sha256": "2f39f9582f67578faf28917f1c667ca16aff12d6ba0dba36310e6a85335f15cf"
+    },
+    {
+      "path": "Configurations/50-haiku.conf",
+      "sha256": "d58451d7987f8f81565d1932574c7e45b1b19410c664a8918e710219f66a1a46"
+    },
+    {
+      "path": "Configurations/50-masm.conf",
+      "sha256": "4dbc497901e2ca523531b3c2bed6781962a68646058c3e401e542060d846ff9e"
+    },
+    {
+      "path": "Configurations/50-nonstop.conf",
+      "sha256": "56d48286d5a1522957f3b37e2061904b06b2b21e061ab69b6d7eb891e5018ad6"
+    },
+    {
+      "path": "Configurations/50-os390.conf",
+      "sha256": "a2bef6ee15d0ae05449be96e7b5bdbafe169a0741f9f1064f697555b18eb35ad"
+    },
+    {
+      "path": "Configurations/50-vms-x86_64.conf",
+      "sha256": "e96090a3e13bd7bcea82060f465d117db2e4005540ddda3d5ee507133752694e"
+    },
+    {
+      "path": "Configurations/50-win-clang-cl.conf",
+      "sha256": "0bd4348b007f79f158c32f2ed19396a410cb7daf2133290f86810b418d66b5b9"
+    },
+    {
+      "path": "Configurations/50-win-hybridcrt.conf",
+      "sha256": "cbb47e10d8d965de3af2538b8551126ccc57f8628d29a034bc4ce6a506b5d341"
+    },
+    {
+      "path": "Configurations/50-win-onecore.conf",
+      "sha256": "60715a79c67ceb7cfb23766e737e62c5ad0e3f87fc94d6ed402d82a3438ca140"
+    },
+    {
+      "path": "Configurations/gentemplate.pm",
+      "sha256": "5369476abe699ad62423477ddbd669745d3522b0145dbbc10ca62f68d0dd3f9f"
+    },
+    {
+      "path": "Configurations/platform/AIX.pm",
+      "sha256": "f734a1216bea632c184dae63f4d3cd7dbcb47a5f9216d59d580234c25644aaba"
+    },
+    {
+      "path": "Configurations/platform/BASE.pm",
+      "sha256": "ab8d97b27a3f82817d437f532330f18baf5fb3b8bbaf9e22c49d7ef92c52f0c2"
+    },
+    {
+      "path": "Configurations/platform/Cygwin.pm",
+      "sha256": "fa3c81638414ab8f6f13dbf64d1220b04c7aa432ad8c7dae0f16de4463a2908a"
+    },
+    {
+      "path": "Configurations/platform/Unix.pm",
+      "sha256": "78ef4bd1bac96c4b8e5e76155147195a143f4dea654ae1b924dd10dbd5b38532"
+    },
+    {
+      "path": "Configurations/platform/VMS.pm",
+      "sha256": "743f0074fa6afe56a908db13ebaa820563bf2156ed86615b799fabbd2c997e84"
+    },
+    {
+      "path": "Configurations/platform/Windows/MSVC.pm",
+      "sha256": "d4346092402119e4bdcde734c4894d78a90866d10500f0b2a6b1cf34645cac26"
+    },
+    {
+      "path": "Configurations/platform/Windows/cppbuilder.pm",
+      "sha256": "a7799c3a0a5652bec57cfaebca56086214089f8ecf84d94a958ea668bfc9e952"
+    },
+    {
+      "path": "Configurations/platform/Windows.pm",
+      "sha256": "00034cc5580883e601549eacd08ab8a21a700856a451a585c5fa182d0246c23a"
+    },
+    {
+      "path": "Configurations/platform/mingw.pm",
+      "sha256": "050c7b45903055e2321e95cc6d40e629733d1a6d5286ec7d0c72c7c016953b11"
+    },
+    {
+      "path": "Configurations/platform.pm",
+      "sha256": "4c1a28423e707872bc2faf864e01cf30efb70854ef1d5f16d62b2d84fc522c67"
+    },
+    {
+      "path": "Configurations/shared-info.pl",
+      "sha256": "4dd0ce5fe81b7867d9585c93a5b1296211469adfff11e47a39d4305a4e788028"
+    },
+    {
+      "path": "Configurations/unix-checker.pm",
+      "sha256": "1f1a63e52f40a8fff6fdfae2dd4b7fbfe335a6881da772f1bfdaf5fa2846e181"
+    },
+    {
+      "path": "Configurations/windows-checker.pm",
+      "sha256": "4482231a2685daada6064b7e2dc831121af2f94ddd6cc3d86ad3db892abf5b2e"
+    },
+    {
+      "path": "Configure",
+      "sha256": "3d3ed5a3e4c69a917cee593643c4614a0d6ccc074c0e2b4ecad3293de47aa452"
+    },
+    {
+      "path": "VMS/VMSify-conf.pl",
+      "sha256": "6479f260cd99d1677fedc5030805bbfa2d8e8526f5fc096bc10af803c835f0df"
+    },
+    {
+      "path": "VMS/translatesyms.pl",
+      "sha256": "7cd150f6de0e0e7af39133b52acf103c0ded1b0287690f76f0c5a47539d7d4a6"
+    },
+    {
+      "path": "apps/progs.pl",
+      "sha256": "b5fe5c97370e543d06c7a971110be42c4d1f31c1e65023a3569d1497626b1699"
+    },
+    {
+      "path": "builddata.pm",
+      "sha256": "6d9af22aac493669a46959382c216457433ac5fc9b960e2bf2344dca24f832ae"
+    },
+    {
+      "path": "configdata.pm",
+      "sha256": "2659e4785433f293f30cf125ecc77e2d33630752ebf4f022d2c664ae4c571407"
+    },
+    {
+      "path": "crypto/aes/asm/aes-586.pl",
+      "sha256": "f938b6c954998274747a7da68b7b4b0d491278477ad7c201271007bbfe7de26d"
+    },
+    {
+      "path": "crypto/aes/asm/aes-armv4.pl",
+      "sha256": "443be4e87e0abe4cf3dedecc9a72016d29549a91df018ad7a679bce668a26f8a"
+    },
+    {
+      "path": "crypto/aes/asm/aes-c64xplus.pl",
+      "sha256": "4599a740c53cd05399c71338c8481f225226f9c7d407b405c35397ccae9a7aea"
+    },
+    {
+      "path": "crypto/aes/asm/aes-mips.pl",
+      "sha256": "00a81134f086b77dd1f58bad6dd918ab7cc4cd7aadcd7c4e9813565ae4683c08"
+    },
+    {
+      "path": "crypto/aes/asm/aes-parisc.pl",
+      "sha256": "b7f202b304eaddbb6f32e6429a8e97726cbe92c45833fdbc902afea60a5a7d28"
+    },
+    {
+      "path": "crypto/aes/asm/aes-ppc.pl",
+      "sha256": "8f8b7a6a3643cd5a9f72498e8e977cc2093daeb6da96ec366258353649087a59"
+    },
+    {
+      "path": "crypto/aes/asm/aes-riscv32-zkn.pl",
+      "sha256": "2e52573169f68299596b6f7f0a18f9107f042de8e12d52c00d4dc86939ce1923"
+    },
+    {
+      "path": "crypto/aes/asm/aes-riscv64-zkn.pl",
+      "sha256": "efc0a8a166dfec25cbfa6271d48a39269edb156f3c5eb867204d84b893fd5617"
+    },
+    {
+      "path": "crypto/aes/asm/aes-riscv64-zvbb-zvkg-zvkned.pl",
+      "sha256": "426ae574b9897d05d6d3821384c5876d7f9a58afe0cfc8b3b836c66ffe2ce349"
+    },
+    {
+      "path": "crypto/aes/asm/aes-riscv64-zvkb-zvkned.pl",
+      "sha256": "beb0fad1ee953ede51fb617792e2bd131ab1ce96eec0e91489eb373eaea8d581"
+    },
+    {
+      "path": "crypto/aes/asm/aes-riscv64-zvkned.pl",
+      "sha256": "5ea03a1085506b257121559904dce4f9a1f08bfebec9d855477c77b9392e6d86"
+    },
+    {
+      "path": "crypto/aes/asm/aes-riscv64.pl",
+      "sha256": "f4cc25ef4d7fb1f86c2a6a5c2a9633e89a1d88ed77d1ab905c6453da7824f95c"
+    },
+    {
+      "path": "crypto/aes/asm/aes-s390x.pl",
+      "sha256": "5645de0192f00b42d98ba5359d897d6685e8f35b851a91c1a8f106a22cea43be"
+    },
+    {
+      "path": "crypto/aes/asm/aes-sparcv9.pl",
+      "sha256": "b67d37a6b74eb1185885c2f807e4517f98c33298fed76be6fb68fef5ad493560"
+    },
+    {
+      "path": "crypto/aes/asm/aes-x86_64.pl",
+      "sha256": "5594e1fcad9b19fdfb2720fe5ef3f9a444946716fb27975c2288a8384a75ca85"
+    },
+    {
+      "path": "crypto/aes/asm/aesfx-sparcv9.pl",
+      "sha256": "340c4092eb7518763ba3e6537f211972198de98fd512792c875270e8d43744f4"
+    },
+    {
+      "path": "crypto/aes/asm/aesni-mb-x86_64.pl",
+      "sha256": "84acd0271d3805d727e5ac415fa3c3e13d11f978573f11a8c9a899e15c0dd1ca"
+    },
+    {
+      "path": "crypto/aes/asm/aesni-sha1-x86_64.pl",
+      "sha256": "2ce9fab18a63236ba972c6e15290f26d683711dd5f39013cb0474fed6be7b8d3"
+    },
+    {
+      "path": "crypto/aes/asm/aesni-sha256-x86_64.pl",
+      "sha256": "07d29b359cb16b1faf3537249ed659d56b5228b709245410d97208f83b35d486"
+    },
+    {
+      "path": "crypto/aes/asm/aesni-x86.pl",
+      "sha256": "ebbf24404f3fb936b3d06f07114307d2a9ab6ed3ae560c312a04e53e62b6da2c"
+    },
+    {
+      "path": "crypto/aes/asm/aesni-x86_64.pl",
+      "sha256": "25bd19b826c5c3bc15bf7d4e2bfb55aee46c74f33eb718919779db3d023e6f76"
+    },
+    {
+      "path": "crypto/aes/asm/aesni-xts-avx512.pl",
+      "sha256": "a46751d1b376b7100536178625da50d799f5642adacd821e225d6cad3174d26b"
+    },
+    {
+      "path": "crypto/aes/asm/aesp8-ppc.pl",
+      "sha256": "4c2467c240c4af9ab00d99d534748a92f695a8195c280e328d06e29276f7f5f0"
+    },
+    {
+      "path": "crypto/aes/asm/aest4-sparcv9.pl",
+      "sha256": "2c7390062ab8aca134061b037b74a228085be970d91bd040e731412d20f72e81"
+    },
+    {
+      "path": "crypto/aes/asm/aesv8-armx.pl",
+      "sha256": "33e4b53f391ece2391ac67f1f42611ffb08378ed2db9353f151798f27671ee7c"
+    },
+    {
+      "path": "crypto/aes/asm/bsaes-armv7.pl",
+      "sha256": "2adaae681db3ce8d6ab06e6a0825aadc2e4d26c4c388a8b3f81269ee5a12fbfb"
+    },
+    {
+      "path": "crypto/aes/asm/bsaes-armv8.pl",
+      "sha256": "a18f144b01081bc980c0d5d1319cf7a7d8a73d7fb6c22a199c76645460dfde38"
+    },
+    {
+      "path": "crypto/aes/asm/bsaes-x86_64.pl",
+      "sha256": "aee1847f77a7c50027877bda35cb559fcdcefcdcd89c84736c9e50468d99067b"
+    },
+    {
+      "path": "crypto/aes/asm/vpaes-armv8.pl",
+      "sha256": "ee485c50259ad44302d80acbb7ef53de879a3b240e637bf42fbea9e39f56cf62"
+    },
+    {
+      "path": "crypto/aes/asm/vpaes-loongarch64.pl",
+      "sha256": "27b82b5f40de1424e9d2a35e94d4cc2917bceb57d4c196bd5d706210db8f061a"
+    },
+    {
+      "path": "crypto/aes/asm/vpaes-ppc.pl",
+      "sha256": "df95a1c1995f84a74d2af58a75eff1c04c328572141e9cb042cc290ef29de59d"
+    },
+    {
+      "path": "crypto/aes/asm/vpaes-x86.pl",
+      "sha256": "726d94434875d2a15447202cde7b59ee9d14ac7c44ac7371b76ef42c1ace2c0f"
+    },
+    {
+      "path": "crypto/aes/asm/vpaes-x86_64.pl",
+      "sha256": "ff12f993741652518c42fb16561ea91f82c7ac58d6735288647db01aefaff4db"
+    },
+    {
+      "path": "crypto/alphacpuid.pl",
+      "sha256": "4c934c4c72d2fb699dc63920c52822a8846a8c830ebff77781e7e5abcddb3737"
+    },
+    {
+      "path": "crypto/arm64cpuid.pl",
+      "sha256": "870a625a0b75ee55c3680975c9812caf0cce9e4e4717d7a3b24d2c7f6f551f75"
+    },
+    {
+      "path": "crypto/armv4cpuid.pl",
+      "sha256": "608d5c8c47b7831584e0b254a9a7aea0c967394fc80fd12470b8b582bc8f143b"
+    },
+    {
+      "path": "crypto/asn1/charmap.pl",
+      "sha256": "746a29b5c87ced5d878ccc1bf5826f3714215b70401fd329d1ca52220db3b14d"
+    },
+    {
+      "path": "crypto/bf/asm/bf-586.pl",
+      "sha256": "a74b6874e3a6f4c53ccbce85291fb05d7c45a3f88df9d86f4f83e767e996c57a"
+    },
+    {
+      "path": "crypto/bn/asm/alpha-mont.pl",
+      "sha256": "dde91ee8783d62b8288b14399b20844bef1da42fc1739f4c95f53f1ca89949b2"
+    },
+    {
+      "path": "crypto/bn/asm/armv4-gf2m.pl",
+      "sha256": "c90ffcb9dcb4fd4d1d84c54533e3b93c201f349d94888558c1bf4083cb0b373e"
+    },
+    {
+      "path": "crypto/bn/asm/armv4-mont.pl",
+      "sha256": "5ef4f414386d9fea9ac33edbb00fb0df12fd9053f62766b4f9c476598113f184"
+    },
+    {
+      "path": "crypto/bn/asm/armv8-mont.pl",
+      "sha256": "b7205988f6ad4bbe90e613821ee19b1017ce2fe68475e220db3c04b2bc7dc679"
+    },
+    {
+      "path": "crypto/bn/asm/bn-586.pl",
+      "sha256": "ecf50a616f2e9448b2dfefea9ee2b1a66dee66deedba3b60e0f15f7b2c85d20e"
+    },
+    {
+      "path": "crypto/bn/asm/c64xplus-gf2m.pl",
+      "sha256": "c4542911684bd89ad4471824944a9df81aa6a57fa53d4b504f7c674c603b7371"
+    },
+    {
+      "path": "crypto/bn/asm/co-586.pl",
+      "sha256": "83535e6d6c96d6a249a7a999bbf21ccd61eade801b833d8ab7be791ca64041e5"
+    },
+    {
+      "path": "crypto/bn/asm/ia64-mont.pl",
+      "sha256": "3401ab972b6d79154058ce90f800306f4f249cebb9abd630fbad901fc6659a3b"
+    },
+    {
+      "path": "crypto/bn/asm/mips-mont.pl",
+      "sha256": "4ea19686bcaeb361978e4e13efb893683be525e7ddb54360f29cd99b629ac88f"
+    },
+    {
+      "path": "crypto/bn/asm/mips.pl",
+      "sha256": "17628eb8c14f90d98f4dc45e4807016f84286ae5befc57c84d44b8df72fdd0d0"
+    },
+    {
+      "path": "crypto/bn/asm/parisc-mont.pl",
+      "sha256": "610b5014c871eae0e31bc949a9e71c47997287cf9bc3842fbbd28e32186c650d"
+    },
+    {
+      "path": "crypto/bn/asm/ppc-mont.pl",
+      "sha256": "b77109e25a8ee7080eec357d57f0f371ada472b88b51d7062e57ba651f8355f2"
+    },
+    {
+      "path": "crypto/bn/asm/ppc.pl",
+      "sha256": "d6704d32bf65ac729270149609f4586fbc006ed78d3ab9aff517938a836717cc"
+    },
+    {
+      "path": "crypto/bn/asm/ppc64-mont-fixed.pl",
+      "sha256": "360961301e2518ae72f6f856ceab98e59f9722f09d37d118d5d65db00e87b0e1"
+    },
+    {
+      "path": "crypto/bn/asm/ppc64-mont.pl",
+      "sha256": "898c4fd219c9f42219d81ce66f02db58dbd77ddc707afc316c416c82c3fbcc9b"
+    },
+    {
+      "path": "crypto/bn/asm/rsaz-2k-avx512.pl",
+      "sha256": "c5479f364adc7da0645823a4e64daef8a2e412edd521fd9c53d1019d81847af0"
+    },
+    {
+      "path": "crypto/bn/asm/rsaz-2k-avxifma.pl",
+      "sha256": "dc04e2c41012c5169b367bd0d8746326dd6ba5bbdb0ceade2398bc4b78a0bc59"
+    },
+    {
+      "path": "crypto/bn/asm/rsaz-3k-avx512.pl",
+      "sha256": "7c2e3fb67ebd479e696ad19b8a483ca2c20fa095b6a6a5d245502047454defb7"
+    },
+    {
+      "path": "crypto/bn/asm/rsaz-3k-avxifma.pl",
+      "sha256": "ce4bb8ea41837ce09107b55a4b4e2c0ad867cd929d96080b385e7bf4205a5538"
+    },
+    {
+      "path": "crypto/bn/asm/rsaz-4k-avx512.pl",
+      "sha256": "8e3ab163f5ccb57ef71e08103e7bc1888ee4ec448fe5d32c658b03b8180e6cce"
+    },
+    {
+      "path": "crypto/bn/asm/rsaz-4k-avxifma.pl",
+      "sha256": "5603405f347706175411133d91e2a49a865d4ace2034dee921eb1e8893ad83b3"
+    },
+    {
+      "path": "crypto/bn/asm/rsaz-avx2.pl",
+      "sha256": "4556adc2db56419085d2f068c9ee56667fa6323e2fbba4be5414632586373aef"
+    },
+    {
+      "path": "crypto/bn/asm/rsaz-x86_64.pl",
+      "sha256": "f016d6d74de9141201f5787b10f914b1b144be2ec51f7373140a022edc842422"
+    },
+    {
+      "path": "crypto/bn/asm/s390x-gf2m.pl",
+      "sha256": "e6e2296fd7d823c10d76e580da7378d52e6175c0042e2ee6f332e0eed0bc4e39"
+    },
+    {
+      "path": "crypto/bn/asm/s390x-mont.pl",
+      "sha256": "e6c74987daca93e1e8a7730266598b0796196ad82fe8a05f8a6cdbcc02fd4738"
+    },
+    {
+      "path": "crypto/bn/asm/sparct4-mont.pl",
+      "sha256": "072b4657738d71e82b30c9556c3c9a728ae2827aee00a02c03b2fd1c5a31db01"
+    },
+    {
+      "path": "crypto/bn/asm/sparcv9-gf2m.pl",
+      "sha256": "2b812d1e052c8a10aad6550230d161dd1da3bad07b64594fb70cbb8372269ce7"
+    },
+    {
+      "path": "crypto/bn/asm/sparcv9-mont.pl",
+      "sha256": "c2de24027c7473e70f0b330606e5242c7e47e61e2a38ffc5dfcd0a63ea2981fe"
+    },
+    {
+      "path": "crypto/bn/asm/sparcv9a-mont.pl",
+      "sha256": "c1b76c8926a95df4554fe6d719088c798f65e2c0ee1b6184df6be90315bc99ce"
+    },
+    {
+      "path": "crypto/bn/asm/via-mont.pl",
+      "sha256": "8f52c50213baafca107db32ebd5ed57357a71d0ecc751a02d1f86a376bfe14cf"
+    },
+    {
+      "path": "crypto/bn/asm/vis3-mont.pl",
+      "sha256": "010584cbc1be9928ac014d4b03b5a043fe8dc719e239bacc775d3a78d561b326"
+    },
+    {
+      "path": "crypto/bn/asm/x86-gf2m.pl",
+      "sha256": "457cfbab7588ac0f31448a01f0d3e6c95510718de463a56f940d39aa2385726f"
+    },
+    {
+      "path": "crypto/bn/asm/x86-mont.pl",
+      "sha256": "78884e810252a2906a9a7546d16b7750f2db4e5f6aef8b01eb641efc9b7d4ec4"
+    },
+    {
+      "path": "crypto/bn/asm/x86_64-gf2m.pl",
+      "sha256": "726fd29c48443f081638b08cba4c4dc76062e914bb8515358286fae570ba24e0"
+    },
+    {
+      "path": "crypto/bn/asm/x86_64-mont.pl",
+      "sha256": "d7f8f1aa0f776e8a44f7703a3d261971e55f6f71cd5376b90e03871201df66f0"
+    },
+    {
+      "path": "crypto/bn/asm/x86_64-mont5.pl",
+      "sha256": "0e86cdc09e805a8f27d5c71d3116a663e2506432936057611ceef300fe44039f"
+    },
+    {
+      "path": "crypto/bn/bn_prime.pl",
+      "sha256": "3a2cef8f78e7a8db98c00c7aadaf80007ab87f8fdad5f91c8f42322d4c83d33e"
+    },
+    {
+      "path": "crypto/c64xpluscpuid.pl",
+      "sha256": "2677ffcda333809e8ba32a27a489b7d3d14a0f07c6e7b2d8766750a9bb42591a"
+    },
+    {
+      "path": "crypto/camellia/asm/cmll-x86.pl",
+      "sha256": "68281e92e3e11efc47142115e518f4ba382159feb1d1253c4d5d4e040dd5aa02"
+    },
+    {
+      "path": "crypto/camellia/asm/cmll-x86_64.pl",
+      "sha256": "e4e026d8ad6785bdc8cbaffe5f62d77d692b4f91c12b6f814b4d2420e87ae475"
+    },
+    {
+      "path": "crypto/camellia/asm/cmllt4-sparcv9.pl",
+      "sha256": "b0ee06783fb58624490bf4054d54359bd5a408224357f2e5b72c8da1ca4bd2fa"
+    },
+    {
+      "path": "crypto/cast/asm/cast-586.pl",
+      "sha256": "bafa89d84cac7884d310ada7713eff376333d71cc455734f27eaaae7f2693c84"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-armv4.pl",
+      "sha256": "868fc6b0f3d1aca6e8bd576c876f08143f4b7e7344abb86ac1bf141dd8e8e7b1"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-armv8-sve.pl",
+      "sha256": "7cfd855744ce4853d8e15dabefa6ad95447b1efabad34ec40cb9e72b4c68c2b8"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-armv8.pl",
+      "sha256": "d3a08d9eb6d6cade1f899975cbd1c9ffbae0206208fe58ac5ca4aae15f6b01f0"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-c64xplus.pl",
+      "sha256": "ee35d0a422f68569f9141ab6e84be45bac5692625ffd9af457edfb5b16e42283"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-ia64.pl",
+      "sha256": "d2845c7023b21a112e7d04fba6b1759776c9d76761358db1ad200ba3d4685577"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-loongarch64.pl",
+      "sha256": "093dd52926ac0f3889a7d8b95ad18de08c628494693484bfb9c28feab0f16778"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-ppc.pl",
+      "sha256": "59baa4e31bacf773819a71eb78e7c7c1fc706f01112320726eb4d7f9a4616df2"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-riscv64-v-zbb.pl",
+      "sha256": "a8787ae80e86eb8d672ec6a9c8aa65041463726c1360a1a397f5e52c1a4ddb84"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-s390x.pl",
+      "sha256": "94c25219ab3bd78a5702cd54da3813b7c1590ec78e8205ac984199a21955435b"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-x86.pl",
+      "sha256": "5704b0dc08a52a512db4dcf663e229c107cd1b6ed109fb82783365b2635eba49"
+    },
+    {
+      "path": "crypto/chacha/asm/chacha-x86_64.pl",
+      "sha256": "6ceb5c9dcc064eb8901a3407e8d17e376935fd8448c85d8a7f221b1a7f247449"
+    },
+    {
+      "path": "crypto/chacha/asm/chachap10-ppc.pl",
+      "sha256": "c0d845b9997a95d7b0045808dc4d60c95953f4404229cf465de5ec80d5f8f37b"
+    },
+    {
+      "path": "crypto/conf/keysets.pl",
+      "sha256": "9af5d1788a2fd4e228023db19a4fdd3ad7de16b8c976218db4838079e5674e1b"
+    },
+    {
+      "path": "crypto/des/asm/crypt586.pl",
+      "sha256": "bd666c721f9bf130198f0a820e87251883b6ce9e80817359293f5651fec6328a"
+    },
+    {
+      "path": "crypto/des/asm/des-586.pl",
+      "sha256": "19c2a92c5acc3a57d74281eaf47992103a6de27fd7baf3ae96b523989b5a2bdd"
+    },
+    {
+      "path": "crypto/des/asm/desboth.pl",
+      "sha256": "b9749464aa26015b285df3fc1cb0c4c811b28a36be33625794d3e7a35310bf92"
+    },
+    {
+      "path": "crypto/des/asm/dest4-sparcv9.pl",
+      "sha256": "d493368653f714979f6682d304ff59a898b26f93d2fe5ba69f879c6943bc7505"
+    },
+    {
+      "path": "crypto/ec/asm/ecp_nistp384-ppc64.pl",
+      "sha256": "57d3b83e29a6fbc24cf5ed1fabb6db532d6ba7c13df80fc8a974e58eeddb3a96"
+    },
+    {
+      "path": "crypto/ec/asm/ecp_nistp521-ppc64.pl",
+      "sha256": "18a923ebb22643619a28393fa6e588e0b39aabfc0401adfb792556808dc620b0"
+    },
+    {
+      "path": "crypto/ec/asm/ecp_nistz256-armv4.pl",
+      "sha256": "0ffc71fcbbd44efbe98ec064d48380c97c339491c34efd29fcda3ce3c8e22caa"
+    },
+    {
+      "path": "crypto/ec/asm/ecp_nistz256-armv8.pl",
+      "sha256": "cafca7f2b84b80a521bf399374f61954379c617c80bb2c0a2aa7292640872b96"
+    },
+    {
+      "path": "crypto/ec/asm/ecp_nistz256-ppc64.pl",
+      "sha256": "98408cc8f62b3fd6e6e76577c3204bd419dd94f1415f0baba3b94acae89a19c0"
+    },
+    {
+      "path": "crypto/ec/asm/ecp_nistz256-sparcv9.pl",
+      "sha256": "d1d4f5f8a034966ee8053683d66f6e9696aa43b7d493164790d8ec78fcf33ad9"
+    },
+    {
+      "path": "crypto/ec/asm/ecp_nistz256-x86.pl",
+      "sha256": "2617895920d18026665f13bffe31f413d9d838f3f7d37c37f4fb0feebebdbb43"
+    },
+    {
+      "path": "crypto/ec/asm/ecp_nistz256-x86_64.pl",
+      "sha256": "868d047807e816e96e3f9eb4630342cf376b16bae7f3b0216d4ed645500f6d56"
+    },
+    {
+      "path": "crypto/ec/asm/ecp_sm2p256-armv8.pl",
+      "sha256": "c54895863416435bf94a887a3b812c3778b1173ee0c192d62e9b7ff59b5f8f88"
+    },
+    {
+      "path": "crypto/ec/asm/x25519-ppc64.pl",
+      "sha256": "c063b63dcaa99760115a653ac64af75c916bffc6751becff68b66656914e4a3c"
+    },
+    {
+      "path": "crypto/ec/asm/x25519-x86_64.pl",
+      "sha256": "32599508724cbff11986321b1445621668caca574e2c6cb8f2fb7a0363bf5570"
+    },
+    {
+      "path": "crypto/loongarch64cpuid.pl",
+      "sha256": "e90435e93b0b1b9267e53d2d569b7a835507e56dc399fafca567eb1ca3a3476a"
+    },
+    {
+      "path": "crypto/md5/asm/md5-586.pl",
+      "sha256": "e2e269f15af59eddd6b769bf344757aa03d92b4763439c61c0ad4f0572e1ec7a"
+    },
+    {
+      "path": "crypto/md5/asm/md5-aarch64.pl",
+      "sha256": "85fd36c09af6331b0350aa51087afe05508c500358b3ba0b2486644f5ff9759c"
+    },
+    {
+      "path": "crypto/md5/asm/md5-loongarch64.pl",
+      "sha256": "b5f63600e6d6f2248b48945f9914179308951810a589c5c0b236a7501bf2c751"
+    },
+    {
+      "path": "crypto/md5/asm/md5-sparcv9.pl",
+      "sha256": "d5086954355d111bf1ea1e6cc5e32e91c662d989fa2e334424ea56910ab7ed25"
+    },
+    {
+      "path": "crypto/md5/asm/md5-x86_64.pl",
+      "sha256": "f5990b7868216bbf8ea0e8ed7a2966ef23f19933af4d3de0daacafa0aa572ef4"
+    },
+    {
+      "path": "crypto/modes/asm/aes-gcm-armv8-unroll8_64.pl",
+      "sha256": "eb1ff7dd589c2d9466889305abbfafd7d66525ed3073889d3bcdd46f30a1ecf3"
+    },
+    {
+      "path": "crypto/modes/asm/aes-gcm-armv8_64.pl",
+      "sha256": "3e57ad4882701fa448aaa0f9a6e1753d16901aad8715e6eef9ae876cedefc774"
+    },
+    {
+      "path": "crypto/modes/asm/aes-gcm-avx512.pl",
+      "sha256": "eeee20cdc89db5ac8f6f64f2982f4fd3370f491c2249d244e25b6055fc953cfb"
+    },
+    {
+      "path": "crypto/modes/asm/aes-gcm-ppc.pl",
+      "sha256": "f8d114e995b1247f84722db86ba69f328e61aedbdf293cedcb13146a2c2e6cea"
+    },
+    {
+      "path": "crypto/modes/asm/aes-gcm-riscv64-zvkb-zvkg-zvkned.pl",
+      "sha256": "5bcb7c0b4e9f8d46a335c733f409bf94d8e8f0c9e6f16b6c95eca360f29e1f50"
+    },
+    {
+      "path": "crypto/modes/asm/aesni-gcm-x86_64.pl",
+      "sha256": "1db77816b2904ae48731096e6bce3dbb0e5ac50163e056d6905d5af8af9d2b30"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-alpha.pl",
+      "sha256": "6e585ff5fad7c2eaf5ade77c12eadb5c10f2b9900d9e5ddc09f12b5ff1a4b149"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-armv4.pl",
+      "sha256": "a9c5200965118727642646ad5a501cd693fbce277c604e6013e3751d9a617420"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-c64xplus.pl",
+      "sha256": "b23a8060c41a38897c93ab857af7ab4d869ce330f2a296c8db5ec6cf377dec7b"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-ia64.pl",
+      "sha256": "cf73df028eadfc58589e045db41de160b65d9971553e58cf795149ba9535fd8d"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-parisc.pl",
+      "sha256": "b129133a29d90862f6ad60d275e315581ca40bc7badc770628115208b16c808d"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-riscv64-zvkb-zvbc.pl",
+      "sha256": "a5e76d2fb9b88554b50b18e70f5dcd8720c3dd8421ec088f10acaf41fc83f8cf"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-riscv64-zvkg.pl",
+      "sha256": "83eedf2f5fd7361c007776578fe5ef783ca15fb3e11ded36ebe673b6bec93ec2"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-riscv64.pl",
+      "sha256": "42e794110b14ec0d2a99b044fae6d47766148bbef1ef5073e62e286e2a0ccdc4"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-s390x.pl",
+      "sha256": "7110bbdfe705328124520b967328071cc04fa74985d4a5375b793a9b6eb0695e"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-sparcv9.pl",
+      "sha256": "59c4ee49c783af058a42d30c1e2a3b801f12cc2442d6b93410a2217b32c3316f"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-x86.pl",
+      "sha256": "d439234594692c2096c22f6e3148ca199667fcc7595e1a1caa071bf7bbf4461b"
+    },
+    {
+      "path": "crypto/modes/asm/ghash-x86_64.pl",
+      "sha256": "9e75f16a4a23917526403a88e775fdec2b22a9dfbfc68e458a8ed90e7ee52727"
+    },
+    {
+      "path": "crypto/modes/asm/ghashp8-ppc.pl",
+      "sha256": "9bd2163b7a0a68da54bb822e37685a56aa686fb65b4353a79abacac786379ff6"
+    },
+    {
+      "path": "crypto/modes/asm/ghashv8-armx.pl",
+      "sha256": "73fd4150981e8ff0700d2c7c51098a3447540c1b36d5edf384fcc8c37a40f640"
+    },
+    {
+      "path": "crypto/objects/obj_dat.pl",
+      "sha256": "46d41a3570a543d827e6f7e4f3ff26f7ce7718d64f7d1b23fb2fb7fb161e5988"
+    },
+    {
+      "path": "crypto/objects/objects.pl",
+      "sha256": "ee90b700272321169028fd235e13458df7215e850b4f0555299133ed792a1640"
+    },
+    {
+      "path": "crypto/objects/objxref.pl",
+      "sha256": "68a405c84cd818c16c821cb05f7bcc754725bbd9d2b73e1dc908c6c4714a2c31"
+    },
+    {
+      "path": "crypto/pariscid.pl",
+      "sha256": "33663ca6ec31ff4e82b64e29d3b452f707ebe1cf83ab538b25fd726e1d629d04"
+    },
+    {
+      "path": "crypto/perlasm/arm-xlate.pl",
+      "sha256": "06500f9322bc2906e60733b6eee81b80ef9c05a4674946e6749894c32768ad90"
+    },
+    {
+      "path": "crypto/perlasm/cbc.pl",
+      "sha256": "1b1c85ea1dab24cc18e46fbb5495f72f97d50cc936964b515968a4e0e1ba9c54"
+    },
+    {
+      "path": "crypto/perlasm/ppc-xlate.pl",
+      "sha256": "68088d8a161b0f8f956593d20543f2e120535a88eb5bd68d957ff1af2934445c"
+    },
+    {
+      "path": "crypto/perlasm/riscv.pm",
+      "sha256": "7b104ec0a870a9ff5d88820982e72e550d72eed304e7cfc1da7ad62e4f1136e4"
+    },
+    {
+      "path": "crypto/perlasm/s390x.pm",
+      "sha256": "222118bd0942a67c9360547e6647048af08bddbd51c92fc93083a90b98e2b974"
+    },
+    {
+      "path": "crypto/perlasm/sparcv9_modes.pl",
+      "sha256": "7b3e550cd74c5ecbd7831f26de4696f16e7ceaa0c0a41a5114d7a00432323bc7"
+    },
+    {
+      "path": "crypto/perlasm/x86_64-support.pl",
+      "sha256": "0b0935867f66e7dcd5dee31f4d3b0b7255467caa49f73c155e1f5b6f814de2b1"
+    },
+    {
+      "path": "crypto/perlasm/x86_64-xlate.pl",
+      "sha256": "dbe1387bc0ec54d00c5d90a02097a6fa83182ee38445cb6337a88f12c4e16783"
+    },
+    {
+      "path": "crypto/perlasm/x86asm.pl",
+      "sha256": "da48fe74829ef5b1944e05f73db57183afc9d4f231dc6a36e1a51d009b213d6a"
+    },
+    {
+      "path": "crypto/perlasm/x86gas.pl",
+      "sha256": "8a93fce3799d5e6cb3175870fbe26a6be25ce3dd994be66762ef3d2d37d76105"
+    },
+    {
+      "path": "crypto/perlasm/x86masm.pl",
+      "sha256": "6a4003fb42b62db2a255cd5509a2e31b7e91ce3f4ecb5b0a2d63fdecf7972ed6"
+    },
+    {
+      "path": "crypto/perlasm/x86nasm.pl",
+      "sha256": "634a852a64885856ae50aaa414dda295861c978d6d788f90f727b0b607f85511"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-armv4.pl",
+      "sha256": "ff736f6b38c32e78e2a7f7fa418ada1e4e4448b9c9a6f05233b6956a67affc30"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-armv8.pl",
+      "sha256": "1deee6205a9e71efccf29e1c41b72fcc7721d3310d96b28b5f3a017eb5ae8b52"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-c64xplus.pl",
+      "sha256": "bf9053af2ebb81ee011fe2e56d098d26eaaa65deca09ff5d6eb7d123d6b2a16d"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-mips.pl",
+      "sha256": "62f5fc1a6676837b615b9d896a9e7d0c5732dd42dec71599b0eaec3b86f85ad2"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-ppc.pl",
+      "sha256": "9601c0600ecd1542a6cd27a474d5bb3f6797a46558201f5c08ca1151b991b3fe"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-ppcfp.pl",
+      "sha256": "7bbeef57398183b741f2a46826203bfbe7ba3c4fc8396374a94293492e45737d"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-s390x.pl",
+      "sha256": "81b18b89fa7abe2ca3d700ce96a45fb87737d3b02a248430bde1d5cba948cf5b"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-sparcv9.pl",
+      "sha256": "594a78f73e18b8dc0d7c8cf82e97c52ba5f8b4e53dec867ceb0621c69e5f7624"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-x86.pl",
+      "sha256": "60fae82db8c32aa1e50a7de78e66518be2daa9a66b974c75470d2ce77a48bdb1"
+    },
+    {
+      "path": "crypto/poly1305/asm/poly1305-x86_64.pl",
+      "sha256": "5d5750f6385ac4ff119fb01bf6c5f44e9627405f2214b049be7ad5ada6c0ddfc"
+    },
+    {
+      "path": "crypto/ppccpuid.pl",
+      "sha256": "446f7ef16e5878011fe6077f1a075954d17aced183b5160c6d02e7539b53dac5"
+    },
+    {
+      "path": "crypto/rc4/asm/rc4-586.pl",
+      "sha256": "18a9537a4be9aad13a5437e63ea365e27081f64c57ec074cea1a6a23ed08822c"
+    },
+    {
+      "path": "crypto/rc4/asm/rc4-c64xplus.pl",
+      "sha256": "a9438026f3d31d92479178d4808b796efe7642901729a5ac9b009b042da25169"
+    },
+    {
+      "path": "crypto/rc4/asm/rc4-md5-x86_64.pl",
+      "sha256": "a7061a239832e5e7e461686eaea918634234b4197bf8cf6dabb5c7a24d72385a"
+    },
+    {
+      "path": "crypto/rc4/asm/rc4-parisc.pl",
+      "sha256": "4acd86748c75667b3b495b113bf53b0c0af11765c4a234d59f59fec7f53c2335"
+    },
+    {
+      "path": "crypto/rc4/asm/rc4-s390x.pl",
+      "sha256": "7194c4ed6b85b49ec5ca1219f20cd42820549e1d84365cbefbaf8b92ddd7a959"
+    },
+    {
+      "path": "crypto/rc4/asm/rc4-x86_64.pl",
+      "sha256": "398e9226bc248dc9f28d30ce50b1a5e6af261e07945ea070c73a36ba876fd48e"
+    },
+    {
+      "path": "crypto/rc5/asm/rc5-586.pl",
+      "sha256": "021bfb6eaf43b56df686637de2f62546137469322fb812253cec8ca0dd220091"
+    },
+    {
+      "path": "crypto/ripemd/asm/rmd-586.pl",
+      "sha256": "4e30a49f373c19ead802b2fbe245f0d15f0d8935eeb63e80654803c1b19ae6c6"
+    },
+    {
+      "path": "crypto/riscv32cpuid.pl",
+      "sha256": "8ccd1370d8601a835beca06c63b6e67647c84db46f7125b0ef7dc0863b43d66d"
+    },
+    {
+      "path": "crypto/riscv64cpuid.pl",
+      "sha256": "ac6a3eca7b84c4fda477b69ad088ee7f35734ed928b7c1f19e643a1a93884bdb"
+    },
+    {
+      "path": "crypto/s390xcpuid.pl",
+      "sha256": "75c248a41ab2a0e39d75ff330aa8326786fb1f080ba69521c1cd66ac722f6518"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-armv4.pl",
+      "sha256": "0b0b68d302387a4fff57f27be1c6de1083e5c3b1d6cde0a6561f6fa6f7caa507"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-armv8.pl",
+      "sha256": "0125e7bc919d0e45e826e2ac2c6d9e22deb0c45e41ea5957a5eaec5eea33abea"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-avx2.pl",
+      "sha256": "ca78bb4c0a847f826736cb328e83e4d2e16ee14b1b45cb2babb8ce3fba970653"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-avx512.pl",
+      "sha256": "9eb4f06f8fd4d48d6cc240bd60bad161e7a0a97f1ecbe91fd16abaa179d4576d"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-avx512vl.pl",
+      "sha256": "d3e683ec5971150fd55b325ea6faf5123dba3372d61640af786e8a98e3514429"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-c64x.pl",
+      "sha256": "fa3789570487f823eac0337a0f453c6e686562c567154986dd14fb5cd56d1b9b"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-mmx.pl",
+      "sha256": "b802d589324f0a6db0a9646e2480eaf8c90bde1d2ac736b93025178bc4dabe3e"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-ppc64.pl",
+      "sha256": "79ba0e966b6b349e3d8b524be04b62ba01ad752cb555626904792047f0b49470"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-s390x.pl",
+      "sha256": "8974a60fa6b43bbad2b009fe47771fd776f14becb72e354d547dca0ba6b358e8"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600-x86_64.pl",
+      "sha256": "33768955b6cd1bc677182da3f32a8446d2148a16ee494035eefae41f8328b70c"
+    },
+    {
+      "path": "crypto/sha/asm/keccak1600p8-ppc.pl",
+      "sha256": "85f5c7a3bf6567c7d12d35a053a14815bb84411a30070bd816433a76e92bcfe8"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-586.pl",
+      "sha256": "191c0658f4d11eaa087e47803fd7d467dc71ea431402c3f78f437e50fce64149"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-alpha.pl",
+      "sha256": "42c8869c5beb0f445695e1e5804af8e4b88544ee8c21c1671e01c892672eaca5"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-armv4-large.pl",
+      "sha256": "efdd1a0cff34b4580ee0f6006f7e615df78baf7c49f47bc880e3658022184dd6"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-armv8.pl",
+      "sha256": "e0eb7ca54755d26c126562c5346ffebc3bfbb655cdf64a23f8a5a33edf12c701"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-c64xplus.pl",
+      "sha256": "a5d896587329d275451c6ffdd9d0c552179b78c0f7b0ba18985698af51e3fd5a"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-ia64.pl",
+      "sha256": "8b36d798f101eef3ecfd98a72f3fc87ca9e079e2ddb9979ab19dd2dfdebbff91"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-mb-x86_64.pl",
+      "sha256": "abd942093ab0b919f057c34f6a84bd20beabbfaad0579c2d7f952df7c26d6831"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-mips.pl",
+      "sha256": "e33dea64ac1405bfbe92c1324f63442baa1fc877d4975520669c3c31b2535d44"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-parisc.pl",
+      "sha256": "80410adf0983b52031ae2406ad8d07e438b39138823bc79680c20a8aea44e030"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-ppc.pl",
+      "sha256": "2f7c6f561dacc644cc03ebad31e85807f3ede44e38d2815c08f8b09bac97f8a2"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-s390x.pl",
+      "sha256": "9aa449d6fa8d63357cdbb62a35249e382066bb9b7eadd77dec29ffb759e1ddaa"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-sparcv9.pl",
+      "sha256": "ece69f264c2bcf97bbe2015ba8820dfe6650a06033aa6adbbdfb11d6e091e1dd"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-sparcv9a.pl",
+      "sha256": "5a0f1bdc445f6596dae82743a81205679282f518160337c6521536e05aba250f"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-thumb.pl",
+      "sha256": "639efce9301ae0b0cac1e8962de0b91106e79b179f86131966e89ef6287fffff"
+    },
+    {
+      "path": "crypto/sha/asm/sha1-x86_64.pl",
+      "sha256": "3655cc317355d5a21c3555f0b4416469679d863d902d56c16ff4405b11452fea"
+    },
+    {
+      "path": "crypto/sha/asm/sha256-586.pl",
+      "sha256": "89338fce8c0691dab40eb9772abb5d7227bc2eab0778c6fd95d712842134a915"
+    },
+    {
+      "path": "crypto/sha/asm/sha256-armv4.pl",
+      "sha256": "f6a499c01c9e0bc342e27206c3010824619dee77ad779029eff06917fd9a874d"
+    },
+    {
+      "path": "crypto/sha/asm/sha256-c64xplus.pl",
+      "sha256": "b3eba2b47d81901d32b57df6e0098f16139c75f5f281636eef9c02adb766cb41"
+    },
+    {
+      "path": "crypto/sha/asm/sha256-mb-x86_64.pl",
+      "sha256": "17e91c6c7a05a8071c263c60c0fba9762d4966558e3c5270549cfca4c1fea8e2"
+    },
+    {
+      "path": "crypto/sha/asm/sha256-riscv64-zvkb-zvknha_or_zvknhb.pl",
+      "sha256": "874fed51732eff9b168c9c261bed42617ca5294ebb6942e270f55ebb94aeef75"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-586.pl",
+      "sha256": "3125f3710ba01b91461359ba1911fd8f6d85f480634b8e0a90e414fa32075803"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-armv4.pl",
+      "sha256": "3cac9255f188a0ee03d9fc0f69a31ee34e8c52b7b11ff082bbc8df477c97342a"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-armv8.pl",
+      "sha256": "84fd7f313168c19401699855f517b070f4f37c43cfa0417ead67ae7c18d034da"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-c64xplus.pl",
+      "sha256": "a744b7ca807fc521fc90f6b49ef6096db1dfed537f72cb50f86434604ffcab5b"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-ia64.pl",
+      "sha256": "65b66d5e3fe5e2e7465eeddf06f7c96dc74061940e3fad7842cdb5ff810db5d3"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-mips.pl",
+      "sha256": "d9797c29d659482f5776a3a78160f1b2043e9f0fc1de8b37912afe4825d72512"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-parisc.pl",
+      "sha256": "8fc193bbe90edc5eb6fd2f0b53ec67295e1a88712111e79808ed1b1a07fe0434"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-ppc.pl",
+      "sha256": "3810af8162875df4969f69b148d9fabe025662f5937539ac41eff2fd3eedfd10"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-riscv64-zvkb-zvknhb.pl",
+      "sha256": "d5f626d4b1008f6ddadc1a8e3d02785b71d11032fa360244d26bccdebfed446f"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-s390x.pl",
+      "sha256": "819d2cca884089302ff0be294bd944268cfe8f0089026442dfda73adac7f62a7"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-sparcv9.pl",
+      "sha256": "4af4cff04254e8619b3729a01dbbe5b9385e56fdaceafa72f33101152e06a878"
+    },
+    {
+      "path": "crypto/sha/asm/sha512-x86_64.pl",
+      "sha256": "fa07cd16c7c917a8ae59375ca3efaf344b8ce9b49286206ed2a2d595b512b41c"
+    },
+    {
+      "path": "crypto/sha/asm/sha512p8-ppc.pl",
+      "sha256": "28ac443eb5eede481865d9c4017fd1c4c5255cc0294426c369cd73d0380ef4af"
+    },
+    {
+      "path": "crypto/sm3/asm/sm3-armv8.pl",
+      "sha256": "296dbcfbe05c595ddc4009c8644641b415af899a322a9809cada402d872c094d"
+    },
+    {
+      "path": "crypto/sm3/asm/sm3-riscv64-zvksh.pl",
+      "sha256": "55f1e1ff437d54fc6077d111521ef99d5e83d2cec2bb533619490ec25263a95a"
+    },
+    {
+      "path": "crypto/sm4/asm/sm4-armv8.pl",
+      "sha256": "4f8a54b6a0c494e2a11e3a072c685bb14445ce3ceb139badcf6197494b5bc825"
+    },
+    {
+      "path": "crypto/sm4/asm/sm4-riscv64-zvksed.pl",
+      "sha256": "b29bba2b9dadded128d24aa94a1ce64023b17db5215ec65db825c08c20ccd75a"
+    },
+    {
+      "path": "crypto/sm4/asm/vpsm4-armv8.pl",
+      "sha256": "4b92344ab8f7ef2781f206b958b28c1dcd9c1b144db0f2c0834de728a7250795"
+    },
+    {
+      "path": "crypto/sm4/asm/vpsm4_ex-armv8.pl",
+      "sha256": "650911650df754a95067dbaaf6fd8cf754813f0081228ba4d406718ea80d5dc3"
+    },
+    {
+      "path": "crypto/whrlpool/asm/wp-mmx.pl",
+      "sha256": "b8138efe353544cb225ef06579a8c2a6b73d5ef38950b075e0b8e6b6e331ebb2"
+    },
+    {
+      "path": "crypto/whrlpool/asm/wp-x86_64.pl",
+      "sha256": "a78f73e7ea4d59270161b2bc941a49b80d5259b3de71c3251c1c863f5cdd5c5f"
+    },
+    {
+      "path": "crypto/x86_64cpuid.pl",
+      "sha256": "39bfec42c7a648e0bd74e9f024227082b5f4e788e8196abb465cd965819a270a"
+    },
+    {
+      "path": "crypto/x86cpuid.pl",
+      "sha256": "b78ca00f8632a320db56defef9fa91bd0cdaf1d730a477bb05e1b7e630acc684"
+    },
+    {
+      "path": "demos/http3/gen_nghttp3.pl",
+      "sha256": "9f4e32a8807da8dad748dd126864e560195b6e6f18971b59386f4deaa934021d"
+    },
+    {
+      "path": "doc/perlvars.pm",
+      "sha256": "4d74c9b5809ebe212148f6842cad38fd0771f89f28bff71e2ca0aa4655f37f48"
+    },
+    {
+      "path": "engines/asm/e_padlock-x86.pl",
+      "sha256": "f6170a9d9b103ecca1a79588e3cb2b1c62c7cef52494204bae50c826685df22f"
+    },
+    {
+      "path": "engines/asm/e_padlock-x86_64.pl",
+      "sha256": "a96c079c90e71941a67f44b9452ee335f052b03fc90c1d59cf42a6060e3fe152"
+    },
+    {
+      "path": "external/perl/Text-Template-1.56/lib/Text/Template/Preprocess.pm",
+      "sha256": "e938c2d3c966f02682b767b535a884ee3870c4e9c596e1ae45c90ee463f9ee49"
+    },
+    {
+      "path": "external/perl/Text-Template-1.56/lib/Text/Template.pm",
+      "sha256": "41815a23764f0ec4cb610718c0b2b012d9f0c91db75a6784d409b30a7c1a4b98"
+    },
+    {
+      "path": "fuzz/mkfuzzoids.pl",
+      "sha256": "4d4d40eeac15e9d19b2ddc5d2525418a726261645620be3be8aacaafc9c6b420"
+    },
+    {
+      "path": "installdata.pm",
+      "sha256": "d90865b2f4c91d024d15c4a124cc284c7bb4b7aa2f287268679950dcc1291135"
+    },
+    {
+      "path": "ms/cmp.pl",
+      "sha256": "1d0ac4cd060d540b81cad200290539057e1381446843432a3893b4ba00a20aab"
+    },
+    {
+      "path": "ms/uplink-common.pl",
+      "sha256": "8590c95d85c66f1802e4299579c35e86cc4cb4689f7394452c7104e71629d0c4"
+    },
+    {
+      "path": "ms/uplink-ia64.pl",
+      "sha256": "06919ca5e482aed759cbc391f5c81312f21656cfc3ec0163697c119102829d11"
+    },
+    {
+      "path": "ms/uplink-x86.pl",
+      "sha256": "f08951f6148ea81d5af8dca74cb4f52575c4e0d5a5185a3d35eb4a89b98f9f13"
+    },
+    {
+      "path": "ms/uplink-x86_64.pl",
+      "sha256": "77c7cef4a23fdd9e4e70f18ca0b53261a97e08f6d4aea94e22309b0f0451e5f3"
+    },
+    {
+      "path": "providers/common/der/oids_to_c.pm",
+      "sha256": "151f267ae62c71330878b9aaccd6a3881763104023886aa81487ce682dca32bd"
+    },
+    {
+      "path": "test/bntests.pl",
+      "sha256": "1f8c7fdbb3a16894a78b91d79feba5fac694cc7996abbd4ec3fa6c91771f5c66"
+    },
+    {
+      "path": "test/cms-examples.pl",
+      "sha256": "8bf1ccd58cc3d026874c36fe544e5186fda72a74c9a08f0682af7bee1044a635"
+    },
+    {
+      "path": "test/generate_buildtest.pl",
+      "sha256": "a3584f7f3ad273dbaaf7ab986cacbbfbed2c1c98b7cb667c530a155cf03a8eee"
+    },
+    {
+      "path": "test/generate_ssl_tests.pl",
+      "sha256": "0adce955f648fd4be9ddfe5b8d3fff305bc99e987cdeefb88ca9f0e1fbcc0335"
+    },
+    {
+      "path": "test/pkits-test.pl",
+      "sha256": "53b7d8c52f437ec5c42539a17aba573d493c77b11941a973a1b55a1bfd87d6ec"
+    },
+    {
+      "path": "test/recipes/61-test_bio_prefix_data/args1.pl",
+      "sha256": "50305917744b8aee0e3054783eaf0ef40576c8ddf6b4d6e5caccb81ea3549574"
+    },
+    {
+      "path": "test/recipes/61-test_bio_prefix_data/args2.pl",
+      "sha256": "79c780bb5f1486c9abb30c26f37fde126c0252593d8394e08c412ce0f3ce9627"
+    },
+    {
+      "path": "test/recipes/fuzz.pl",
+      "sha256": "cd1de53643fb6edb1308304befee5c5cc7f5e0a5949a0ceaa94211b0b7e5ffee"
+    },
+    {
+      "path": "test/recipes/tconversion.pl",
+      "sha256": "fbdf17f19f957c3a7e19721a87cb4ffe0dce8995fa3da7ab654280607361852e"
+    },
+    {
+      "path": "test/run_tests.pl",
+      "sha256": "a8e9f54f435780419be643e5b9ac3c1c0f2eac1a26375120d2a87cd27cc41660"
+    },
+    {
+      "path": "test/ssl-tests/protocol_version.pm",
+      "sha256": "c575f4e9a027ae4ef3a45d45a1d5184864a6d390d6190bde3a9e08e0bf95349b"
+    },
+    {
+      "path": "test/ssl-tests/ssltests_base.pm",
+      "sha256": "2627427529ba62cc33b747154f123c2945a9f7d817770bfe83d305cf0dd0d795"
+    },
+    {
+      "path": "util/add-depends.pl",
+      "sha256": "379d6d35db922104c870e0d8d5984d2ea908290a4d853e2ab45a4c57c3dcc990"
+    },
+    {
+      "path": "util/c-compress-test.pl",
+      "sha256": "c3f4d6c7a56d5494d86f1454d25497383e8b6023325e2873e69ead71aff5c04c"
+    },
+    {
+      "path": "util/cavs-to-evptest.pl",
+      "sha256": "fecd65d728fa532e8ef3552f25a838092432be90d52e86346bbc635dba01f414"
+    },
+    {
+      "path": "util/checkplatformsyms.pl",
+      "sha256": "2246101b84945495cf8782ae67e4310243e5a5c6ab34462cb16251b74184738d"
+    },
+    {
+      "path": "util/ck_errf.pl",
+      "sha256": "2fdd62a995295642058b65c6ce1583e7f029db40bc5d86add682fa93c7a75e44"
+    },
+    {
+      "path": "util/copy.pl",
+      "sha256": "50a328ae75bf158cc2dbd9c0ee2526230f8ae76a4debb168d28cd497a013319c"
+    },
+    {
+      "path": "util/dofile.pl",
+      "sha256": "6b7ca9d4cfe6e933984de99effeb55c8c036edadf5f253845c31701a235d644a"
+    },
+    {
+      "path": "util/echo.pl",
+      "sha256": "8a6d843a4d771820d2e0c4e11ab74cb9ebc953d5fc4bf71ddff9b57122bf2513"
+    },
+    {
+      "path": "util/help.pl",
+      "sha256": "cd003d6049cdb522a53376abe35f423f149d82910fd246dbadce9bacfe8fdb81"
+    },
+    {
+      "path": "util/lang-compress.pl",
+      "sha256": "aee16d6ac01995bd23af4635ad216e6dc3fdfd5c5e9e0951d4d836185d6275ae"
+    },
+    {
+      "path": "util/mk-fipsmodule-cnf.pl",
+      "sha256": "bc32506a8fd8301fe93eaad8116bcfe2135466107fac4cb4d6ece0c7dd804926"
+    },
+    {
+      "path": "util/mkbuildinf.pl",
+      "sha256": "71449df12e0bb956cb8785bb370489a5d7fbce4b1b786980585244d6faef51a4"
+    },
+    {
+      "path": "util/mkdef.pl",
+      "sha256": "0e57578fbdf54b6093cd40fee8da2728710d2518fb329e8f1acfda1d98486eaa"
+    },
+    {
+      "path": "util/mkdir-p.pl",
+      "sha256": "bb5e296a87418b2fcd95604d36171dee9dc0c0e15d40039961b999852aba0158"
+    },
+    {
+      "path": "util/mkerr.pl",
+      "sha256": "e9cc0cc32e3b5304ae7fd546b1f3aaa77b0c7836bf42ba9d44b02e11bfe67b82"
+    },
+    {
+      "path": "util/mkinstallvars.pl",
+      "sha256": "388e33989a5ceca451511d3ad7791a1cbc73d756d9ef4562f0fd785c6cbae40c"
+    },
+    {
+      "path": "util/mknum.pl",
+      "sha256": "a0f6fc6ebcac1094304c6c3b54a6f4c919d0491ad8e8be2985d3450f2603d117"
+    },
+    {
+      "path": "util/mkpod2html.pl",
+      "sha256": "12d09a62fa6ca20059974cb73a930f8c306c027f78a08f9ed63ba0cc4992874b"
+    },
+    {
+      "path": "util/mkrc.pl",
+      "sha256": "3314014524fcd4fbaca7a1efdfd0b2eb8e0c72e03478fa8997a144bc2ca7d1bd"
+    },
+    {
+      "path": "util/perl/OpenSSL/Config/Query.pm",
+      "sha256": "f7b71274435f708bb1dac5fbf671601750d94fa7d64e2c87f9cb3c9dfec3ad6f"
+    },
+    {
+      "path": "util/perl/OpenSSL/Glob.pm",
+      "sha256": "4100606067f0b577d3e6d2d2aaca93d826fb66105639eb94ff76c70ae8c526c9"
+    },
+    {
+      "path": "util/perl/OpenSSL/OID.pm",
+      "sha256": "5c88da4ad6e4a0d04666ecd9849c2acf01ab3ab6199307603ad8bfe92a638191"
+    },
+    {
+      "path": "util/perl/OpenSSL/Ordinals.pm",
+      "sha256": "ed019b161b929647774a69c801d610cd7481d4085e91c095ff8eadac53593ec5"
+    },
+    {
+      "path": "util/perl/OpenSSL/ParseC.pm",
+      "sha256": "212568f16cffa1c3fc3b21451f6d56189d4aa2a4e6f57ae404f57d23979b34a8"
+    },
+    {
+      "path": "util/perl/OpenSSL/Template.pm",
+      "sha256": "dd71337bf39f0583e276b70184d925297d37124517c71b88bdc573a030598d57"
+    },
+    {
+      "path": "util/perl/OpenSSL/Test/Simple.pm",
+      "sha256": "dd49f4d4a35f3f9ff718cf2a01e965017b110c866d92fd7a1b40fb4517d2407e"
+    },
+    {
+      "path": "util/perl/OpenSSL/Test/Utils.pm",
+      "sha256": "0befb2005a3897accfeceba55e345318df8807c55b358ba0370cb9400f6710df"
+    },
+    {
+      "path": "util/perl/OpenSSL/Test.pm",
+      "sha256": "2b20afd3a96697dc22a04e7e8b34a874c200c182bac0dd95fd01a7c4fcf4f38b"
+    },
+    {
+      "path": "util/perl/OpenSSL/Util/Pod.pm",
+      "sha256": "644f26855cdca14ed31d492d1ee6a5108c458c98a07f33c19b2c47cb29321cd6"
+    },
+    {
+      "path": "util/perl/OpenSSL/Util.pm",
+      "sha256": "cfaec5708d262ad92c64db1b53178023d6cef70b92b7aceba90883d696b92ffd"
+    },
+    {
+      "path": "util/perl/OpenSSL/config.pm",
+      "sha256": "e1eae61c06f739fc371785f419fbe0d6fa6213a076be4dc752ba2b04272ce0fb"
+    },
+    {
+      "path": "util/perl/OpenSSL/copyright.pm",
+      "sha256": "04213b69dbebc8ba0dd8a6216af1d9422f9b63619c1cf2f1d8aa107b83bbb608"
+    },
+    {
+      "path": "util/perl/OpenSSL/fallback.pm",
+      "sha256": "9c457d583bd46e3d18c87a4a29a2fde7db1a16d007b1769429a53b865d22380a"
+    },
+    {
+      "path": "util/perl/OpenSSL/paramnames.pm",
+      "sha256": "4f40416f9e4fe4a649ccff8a75b0339fe2b87758de80377e82bd08b65db50d36"
+    },
+    {
+      "path": "util/perl/OpenSSL/stackhash.pm",
+      "sha256": "71a1eca45362bac862fd39388f08fb1e63c8d0ad0f04bde1a9d783294beaca8a"
+    },
+    {
+      "path": "util/perl/TLSProxy/Alert.pm",
+      "sha256": "1fe6b39adef582ebb01505d0cc33d3bc4a6641714a14810a7f05a16a05b568c3"
+    },
+    {
+      "path": "util/perl/TLSProxy/Certificate.pm",
+      "sha256": "f4be1104cd43921de151992c421e9d40a19a337e0c6c846b52f015823381537e"
+    },
+    {
+      "path": "util/perl/TLSProxy/CertificateRequest.pm",
+      "sha256": "7cc03a9ddb7687d0e1a61ab6d88f49ed3d4a7fb386fd98ec2b8f6065adb078cd"
+    },
+    {
+      "path": "util/perl/TLSProxy/CertificateVerify.pm",
+      "sha256": "79fdb5112eb77f5d2f56920b13aa0501b8fd8f7eda2e01cffe334d1a266cf64d"
+    },
+    {
+      "path": "util/perl/TLSProxy/ClientHello.pm",
+      "sha256": "9679f3759b571f922ec2357ff811196e894a5d3772fe6997972cce21b028aa8d"
+    },
+    {
+      "path": "util/perl/TLSProxy/EncryptedExtensions.pm",
+      "sha256": "ab8f31150b836689e58191c7ba24eaa524d33be80a9293ee38dbebbdeb5db3cc"
+    },
+    {
+      "path": "util/perl/TLSProxy/HelloVerifyRequest.pm",
+      "sha256": "c78f86e5b6c4f965c3cb09b364fdc24f6d6da3753b07b603e63260af5b848cc7"
+    },
+    {
+      "path": "util/perl/TLSProxy/Message.pm",
+      "sha256": "7a6791acb8655574857c9dbf27ada344b031fa571b803e494d6d9a0a4464f609"
+    },
+    {
+      "path": "util/perl/TLSProxy/NewSessionTicket.pm",
+      "sha256": "ea5dc35ec98d22132f40b31e3c15d9374fde9ea7b5aa76bff03df7291c32280c"
+    },
+    {
+      "path": "util/perl/TLSProxy/NextProto.pm",
+      "sha256": "eb05a81326f3c7ed000ba538f99992c0ac86ea2e16bae388407514fb9fb2b5f3"
+    },
+    {
+      "path": "util/perl/TLSProxy/Proxy.pm",
+      "sha256": "ac4baa7a4417190b0f47938adc7af505d84d040b6b02793da5da3b0ee1c6d400"
+    },
+    {
+      "path": "util/perl/TLSProxy/Record.pm",
+      "sha256": "ca836580bba8989f7f85099926dc553d936c5fbb63625c115d20a2dc517f05ef"
+    },
+    {
+      "path": "util/perl/TLSProxy/ServerHello.pm",
+      "sha256": "df006d351c2bcb68ddc9aae2e89b3448cb0c5d856e3d7180cef1a6563d722103"
+    },
+    {
+      "path": "util/perl/TLSProxy/ServerKeyExchange.pm",
+      "sha256": "998d7b7980930f1878bf5e6699f27fcba3fb543dc72c93df3c4b33024b0a2fd2"
+    },
+    {
+      "path": "util/perl/checkhandshake.pm",
+      "sha256": "fc44ba2da9c75e224502c76d670b838dea15698b7d66e34f2e93519b99a271c4"
+    },
+    {
+      "path": "util/su-filter.pl",
+      "sha256": "1bd2fbe3dcfb1e2a5815f6e55ac93c688b6a124dd2c7158dc3a0b460994554f8"
+    },
+    {
+      "path": "util/withlibctx.pl",
+      "sha256": "5dacb877ca32933e58642efe8fb850995cf06804f1c3e74d8b8cb287d2760e0f"
+    }
+  ],
+  "available_standalone_assembly": [
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/aes/aesv8-armx.S",
+      "sha256": "c27ead0622d0561af5d4528dedfa5cae53627bd18eeadf978b3349d36848ae35"
+    },
+    {
+      "origin": "upstream",
+      "path": "crypto/aes/asm/aes-ia64.S",
+      "sha256": "506d700c10738a33f83d26c80d99e95dceafaadba01081b69f1c8312cdbfdc9f"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/aes/bsaes-armv8.S",
+      "sha256": "384cd9c4fe767b4be59491c1ba28dbe6e2794068e0156db6f6fe7f434f1b0857"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/aes/vpaes-armv8.S",
+      "sha256": "f81067745b7900b813a964a80c954c5afc7ce00ace91438c69fa0ee1cac7630c"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/arm64cpuid.S",
+      "sha256": "1b948966063669c684fac3234674729c34752c90643a79df89977d2a1cb61f85"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/bn/armv8-mont.S",
+      "sha256": "74687d78d1dcd8f2925ea11128ce801164125ac5f17670661c4ce158ea08f7e4"
+    },
+    {
+      "origin": "upstream",
+      "path": "crypto/bn/asm/ia64.S",
+      "sha256": "a717390029880696c77d08da5bd4e24339c7ca4191b22187616c7dc50ce23f41"
+    },
+    {
+      "origin": "upstream",
+      "path": "crypto/bn/asm/s390x.S",
+      "sha256": "2827857167383f2bb692cd55809cee5d150aaee78136d1ecf06db4cab48e64aa"
+    },
+    {
+      "origin": "upstream",
+      "path": "crypto/bn/asm/sparcv8.S",
+      "sha256": "3ab94379452f822633ec2c4281ee7f64bb4cd9e06e347e184850f2b144eaf9a5"
+    },
+    {
+      "origin": "upstream",
+      "path": "crypto/bn/asm/sparcv8plus.S",
+      "sha256": "4483ddfbef56b7e4a53aea6597fbe6b32739b0c511423179faafeeaf9f81083e"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/chacha/chacha-armv8-sve.S",
+      "sha256": "34ed108df466a88ab32899b99ffbe5d10b14f651540ad7f2589ed5bf0431607e"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/chacha/chacha-armv8.S",
+      "sha256": "05e4e2206c4c6de1b70b9e1e7b3061a95b61b89c946534ce5f52ebd3ab1f13b2"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/ec/ecp_nistz256-armv8.S",
+      "sha256": "9605550fa8647f53be497e6b21881d39113215236385267a04491d4bab4e9c90"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/ec/ecp_sm2p256-armv8.S",
+      "sha256": "bb943e87606461836c2c5b8d125b4a4c3938b7d8a5044d2227d2ae9ec4f0dcd9"
+    },
+    {
+      "origin": "upstream",
+      "path": "crypto/ia64cpuid.S",
+      "sha256": "53460227fe444197b86ceacc9163f70f3c11b7b863ed01ae62fff9c6f8985ad3"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/md5/md5-aarch64.S",
+      "sha256": "be7d9ad0d252d253858be043646b5d09716b4ab0e0ad123d87674271d09297f7"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/modes/aes-gcm-armv8-unroll8_64.S",
+      "sha256": "a7f9c5d71799470a8d57ad381a478f55443f3079e816bfeacdec6ed5fdaff636"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/modes/aes-gcm-armv8_64.S",
+      "sha256": "5fef4e6420c44e019c713b90cb7e45f65f39f8cf33d283ac0ec0245c0c5f12c2"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/modes/ghashv8-armx.S",
+      "sha256": "a7df5903ff6d0606e2115a16e2c5db73f883f30659945bfb92e350b5681c11bb"
+    },
+    {
+      "origin": "upstream",
+      "path": "crypto/poly1305/asm/poly1305-ia64.S",
+      "sha256": "f3bb6d63d85a685230768a356d66e40f175486733beaa076abf3103259be0e63"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/poly1305/poly1305-armv8.S",
+      "sha256": "8e2671f54298f4698e305fa1fc4c894f434f996c55128cef53aef54698a9ad2a"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/sha/keccak1600-armv8.S",
+      "sha256": "4a66027536d35d30b3ad886d68f549e0e8eb13bb33581eb063238246fcc0a567"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/sha/sha1-armv8.S",
+      "sha256": "e56b65dd191e975655b7d2eb91819d5380772639b8a5c2c3aa66420f463bce33"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/sha/sha256-armv8.S",
+      "sha256": "3b477079e3138a0009d9ee08e3e1c478361ff12f13d56f9942976d6f529f972a"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/sha/sha512-armv8.S",
+      "sha256": "31613e7bfae01d963e141e4c8317038f3ef7a0e32788592f4d9ec5fd872ee5a4"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/sm3/sm3-armv8.S",
+      "sha256": "07ff373fa6f1f60e5a69d207198067a4a2864c8df09150a520baf6c27eb71c90"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/sm4/sm4-armv8.S",
+      "sha256": "74f519d4c51a6deb890b459525274d04cc413a935c1a8552ca4b1b2b4a6a7435"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/sm4/vpsm4-armv8.S",
+      "sha256": "bf8d4d61502e78a9f2f71d780bf7c1a7bdeeb5f925af483f30944f1264ac2bb2"
+    },
+    {
+      "origin": "generated-or-modified",
+      "path": "crypto/sm4/vpsm4_ex-armv8.S",
+      "sha256": "be2a401eacbfc321294326d2e88bb2037fb09107902dfc723f96f159f10fc737"
+    },
+    {
+      "origin": "upstream",
+      "path": "crypto/sparccpuid.S",
+      "sha256": "fafcbf2fe95dfd47fb27faf75c3982b24801074d11fdd19bb05dfa3f5c587514"
+    }
+  ],
+  "configuration": "asm",
+  "limits": [
+    "Available generator inputs are preserved conservatively, not all claimed invoked.",
+    "Available assembly is not all claimed assembled or linked; use exact build logs for that evidence.",
+    "Generated standalone assembly is not C inline assembly.",
+    "C inline assembly and compiler builtins are not classified by this inventory.",
+    "This is tool provenance, not Lean parsing or semantic validation."
+  ],
+  "recorded_generator_commands": [
+    {
+      "command": "/usr/bin/perl apps/progs.pl \"-C\" \"apps/openssl\" > apps/progs.c",
+      "log": "make-apps.log"
+    },
+    {
+      "command": "/usr/bin/perl apps/progs.pl \"-H\" \"apps/openssl\" > apps/progs.h",
+      "log": "make-apps.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/der/der_digests_gen.c.in > providers/common/der/der_digests_gen.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/der/der_rsa_gen.c.in > providers/common/der/der_rsa_gen.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/include/prov/der_digests.h.in > providers/common/include/prov/der_digests.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/include/prov/der_rsa.h.in > providers/common/include/prov/der_rsa.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/der/der_dsa_gen.c.in > providers/common/der/der_dsa_gen.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/der/der_ec_gen.c.in > providers/common/der/der_ec_gen.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/der/der_ecx_gen.c.in > providers/common/der/der_ecx_gen.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/der/der_ml_dsa_gen.c.in > providers/common/der/der_ml_dsa_gen.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/der/der_slh_dsa_gen.c.in > providers/common/der/der_slh_dsa_gen.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/der/der_sm2_gen.c.in > providers/common/der/der_sm2_gen.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/include/prov/der_dsa.h.in > providers/common/include/prov/der_dsa.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/include/prov/der_ec.h.in > providers/common/include/prov/der_ec.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/include/prov/der_ecx.h.in > providers/common/include/prov/der_ecx.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/include/prov/der_ml_dsa.h.in > providers/common/include/prov/der_ml_dsa.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/include/prov/der_slh_dsa.h.in > providers/common/include/prov/der_slh_dsa.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/include/prov/der_sm2.h.in > providers/common/include/prov/der_sm2.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Moids_to_c\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/der/der_wrap_gen.c.in > providers/common/der/der_wrap_gen.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iproviders/common/der\" \"-Mconfigdata\" \"-Moids_to_c\" \"-Moids_to_c\" \"util/dofile.pl\" \"-oMakefile\" providers/common/include/prov/der_wrap.h.in > providers/common/include/prov/der_wrap.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iutil/perl\" \"-Mconfigdata\" \"-MOpenSSL::paramnames\" \"util/dofile.pl\" \"-oMakefile\" crypto/params_idx.c.in > crypto/params_idx.c",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iutil/perl\" \"-Mconfigdata\" \"-MOpenSSL::paramnames\" \"util/dofile.pl\" \"-oMakefile\" include/internal/param_names.h.in > include/internal/param_names.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Iutil/perl\" \"-Mconfigdata\" \"-MOpenSSL::paramnames\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/core_names.h.in > include/openssl/core_names.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Mbuilddata\" \"-Mbuilddata\" \"-Mbuilddata\" \"util/dofile.pl\" \"-oMakefile\" exporters/pkg-config/openssl.pc.in > openssl.pc",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Mbuilddata\" \"util/dofile.pl\" \"-oMakefile\" exporters/cmake/OpenSSLConfig.cmake.in > OpenSSLConfig.cmake",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Mbuilddata\" \"util/dofile.pl\" \"-oMakefile\" exporters/pkg-config/libcrypto.pc.in > libcrypto.pc",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Mbuilddata\" \"util/dofile.pl\" \"-oMakefile\" exporters/pkg-config/libssl.pc.in > libssl.pc",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Mbuilddata\" \"util/dofile.pl\" \"-oMakefile\" exporters/cmake/OpenSSLConfigVersion.cmake.in > OpenSSLConfigVersion.cmake",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Minstalldata\" \"util/dofile.pl\" \"-oMakefile\" exporters/pkg-config/openssl.pc.in > exporters/openssl.pc",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Mconfigdata\" \"-Minstalldata\" \"util/dofile.pl\" \"-oMakefile\" exporters/cmake/OpenSSLConfigVersion.cmake.in > exporters/OpenSSLConfigVersion.cmake",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Minstalldata\" \"util/dofile.pl\" \"-oMakefile\" exporters/cmake/OpenSSLConfig.cmake.in > exporters/OpenSSLConfig.cmake",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Minstalldata\" \"util/dofile.pl\" \"-oMakefile\" exporters/pkg-config/libcrypto.pc.in > exporters/libcrypto.pc",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"-Minstalldata\" \"util/dofile.pl\" \"-oMakefile\" exporters/pkg-config/libssl.pc.in > exporters/libssl.pc",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/crypto/bn_conf.h.in > include/crypto/bn_conf.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/crypto/dso_conf.h.in > include/crypto/dso_conf.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/asn1.h.in > include/openssl/asn1.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/asn1t.h.in > include/openssl/asn1t.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/bio.h.in > include/openssl/bio.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/cmp.h.in > include/openssl/cmp.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/cms.h.in > include/openssl/cms.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/comp.h.in > include/openssl/comp.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/conf.h.in > include/openssl/conf.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/crmf.h.in > include/openssl/crmf.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/crypto.h.in > include/openssl/crypto.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/ct.h.in > include/openssl/ct.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/err.h.in > include/openssl/err.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/ess.h.in > include/openssl/ess.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/fipskey.h.in > include/openssl/fipskey.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/lhash.h.in > include/openssl/lhash.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/ocsp.h.in > include/openssl/ocsp.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/opensslv.h.in > include/openssl/opensslv.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/pkcs12.h.in > include/openssl/pkcs12.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/pkcs7.h.in > include/openssl/pkcs7.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/safestack.h.in > include/openssl/safestack.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/srp.h.in > include/openssl/srp.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/ssl.h.in > include/openssl/ssl.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/ui.h.in > include/openssl/ui.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/x509.h.in > include/openssl/x509.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/x509_acert.h.in > include/openssl/x509_acert.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/x509_vfy.h.in > include/openssl/x509_vfy.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl \"-I.\" \"-Mconfigdata\" \"util/dofile.pl\" \"-oMakefile\" include/openssl/x509v3.h.in > include/openssl/x509v3.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl ./util/mkdef.pl --version 3.5.9 --type lib --ordinals util/libcrypto.num  --name libcrypto --OS linux > libcrypto.ld",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl ./util/mkdef.pl --version 3.5.9 --type lib --ordinals util/libssl.num  --name libssl --OS linux > libssl.ld",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl util/mkbuildinf.pl \"aarch64-linux-gnu-gcc -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_BUILDING_OPENSSL -DNDEBUG\" \"linux-aarch64\" > crypto/buildinf.h",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl util/mkinstallvars.pl \"PREFIX=/usr/local\" BINDIR=bin \"LIBDIR=lib\" \"libdir=/usr/local/lib\" INCLUDEDIR=include APPLINKDIR=include/openssl \"ENGINESDIR=/usr/local/lib/engines-3\" \"MODULESDIR=/usr/local/lib/ossl-modules\" \"PKGCONFIGDIR=/usr/local/lib/pkgconfig\" \"CMAKECONFIGDIR=/usr/local/lib/cmake/OpenSSL\" \"LDLIBS=-ldl -pthread \" \"VERSION=3.5.9\" > installdata.pm",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "/usr/bin/perl util/mkinstallvars.pl COMMENT=\"This file should be used when building against this OpenSSL build, and should never be installed\" PREFIX=. BINDIR=apps APPLINKDIR=ms LIBDIR= INCLUDEDIR=include \"INCLUDEDIR=./include\" ENGINESDIR=engines MODULESDIR=providers \"VERSION=3.5.9\" \"LDLIBS=-ldl -pthread \" > builddata.pm",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/aes/asm/aesv8-armx.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/aes/aesv8-armx.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/aes/asm/bsaes-armv8.pl \"linux64\" -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/aes/bsaes-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/aes/asm/vpaes-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/aes/vpaes-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/arm64cpuid.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/arm64cpuid.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/bn/asm/armv8-mont.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/bn/armv8-mont.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/chacha/asm/chacha-armv8-sve.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/chacha/chacha-armv8-sve.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/chacha/asm/chacha-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/chacha/chacha-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/ec/asm/ecp_nistz256-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/ec/ecp_nistz256-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/ec/asm/ecp_sm2p256-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/ec/ecp_sm2p256-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/md5/asm/md5-aarch64.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/md5/md5-aarch64.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/modes/asm/aes-gcm-armv8-unroll8_64.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/modes/aes-gcm-armv8-unroll8_64.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/modes/asm/aes-gcm-armv8_64.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/modes/aes-gcm-armv8_64.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/modes/asm/ghashv8-armx.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/modes/ghashv8-armx.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/poly1305/asm/poly1305-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/poly1305/poly1305-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/sha/asm/keccak1600-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/sha/keccak1600-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/sha/asm/sha1-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/sha/sha1-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/sha/asm/sha512-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/sha/sha256-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/sha/asm/sha512-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/sha/sha512-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/sm3/asm/sm3-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/sm3/sm3-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/sm4/asm/sm4-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/sm4/sm4-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/sm4/asm/vpsm4-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/sm4/vpsm4-armv8.S",
+      "log": "make-libs.log"
+    },
+    {
+      "command": "CC=\"aarch64-linux-gnu-gcc\" /usr/bin/perl crypto/sm4/asm/vpsm4_ex-armv8.pl \"linux64\" -Icrypto -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include -fPIC -pthread -Wa,--noexecstack -O1 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -DBSAES_ASM -DECP_NISTZ256_ASM -DECP_SM2P256_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_MONT -DOPENSSL_CPUID_OBJ -DOPENSSL_SM3_ASM -DPOLY1305_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DSM4_ASM -DVPAES_ASM -DVPSM4_ASM  crypto/sm4/vpsm4_ex-armv8.S",
+      "log": "make-libs.log"
+    }
+  ],
+  "tools": {
+    "assembler": "GNU assembler (GNU Binutils for Debian) 2.44",
+    "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+    "perl": "v5.40.1"
+  }
+}

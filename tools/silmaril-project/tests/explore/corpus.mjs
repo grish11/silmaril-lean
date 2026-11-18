@@ -20,7 +20,7 @@ try{
   assert.match(await page.locator('#main').innerText(),/Software under test/);
   const initialReads=fs.readFileSync(requestLog,'utf8').trim().split('\n').map(JSON.parse).filter(r=>r.path==='/project.sqlite');
   assert.ok(initialReads.reduce((n,r)=>n+(r.method==='GET'?r.bytes:0),0)<2*1024*1024,'landing page reads compact indexes rather than artifact evidence payloads');
-  assert.match(await page.locator('#main').innerText(),/9 contextual C → ELF statements/);
+  assert.match(await page.locator('#main').innerText(),/19 contextual C → ELF statements/);
   assert.match(await page.locator('#main').innerText(),/6 function-equivalence statements/);
   const combined=Number(execFileSync('python3',['-c',
     "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print(c.execute(\"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='projects'\").fetchone()[0]); c.close()",

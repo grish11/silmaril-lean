@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "project": "tinycc",
+  "version": "0.9.27",
+  "configuration": "default",
+  "optimization": "O2",
+  "actual_new_elf_rows": 4,
+  "retained_rows_no_new_execution_claimed": 0,
+  "profiles": [
+    {
+      "target": "x86_64-linux-gnu",
+      "build": "corpus/variants/tinycc/0.9.27/default/x86_64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2",
+          "sha256": "de23af78fca90ce32dff2dd45b3432b2334740bb9bb7b05bf60fdbfc396ceb9c"
+        }
+      ],
+      "included_sources_hash_checked": 23,
+      "measured_exits_passed": 12,
+      "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD (configure adds -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result)",
+      "build_wall_seconds": {
+        "build-a": 2.3923682189997635,
+        "build-b": 2.0068640839999716
+      },
+      "outputs": [
+        {
+          "object": "tcc",
+          "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O2/unstripped/tcc",
+          "size": 279104,
+          "sha256": "65bed72dff15b74fac97f93a0655c6526038ac13cd79b32bbe9130b37b6c7df4",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 367,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/tinycc/0.9.27/default/x86_64/O2/unstripped/receipt.json",
+          "receipt_sha256": "7541a722ba359bd1d257a15f9f6ffb76b9d2c8c0472acf7719b3a92fefe37acd",
+          "census": "corpus/census/variants/tinycc/0.9.27/default/x86_64/O2/unstripped/tcc.json",
+          "strip_pair": "corpus/variants/tinycc/0.9.27/default/x86_64/O2/tcc.pair.json",
+          "canonical_sha256": "65bed72dff15b74fac97f93a0655c6526038ac13cd79b32bbe9130b37b6c7df4",
+          "matches_canonical": true
+        },
+        {
+          "object": "tcc",
+          "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O2/stripped/tcc",
+          "size": 256904,
+          "sha256": "38dbfd1522f1850d30afba13f1349d27401084eabc5363bd0e58ee711274fe00",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/tinycc/0.9.27/default/x86_64/O2/stripped/receipt.json",
+          "receipt_sha256": "a2ba036ba0622bcc56d07b8286e37f70c47fe5bb2bd84c40e41b79f32a18fcae",
+          "census": "corpus/census/variants/tinycc/0.9.27/default/x86_64/O2/stripped/tcc.json",
+          "strip_pair": "corpus/variants/tinycc/0.9.27/default/x86_64/O2/tcc.pair.json",
+          "canonical_sha256": "65bed72dff15b74fac97f93a0655c6526038ac13cd79b32bbe9130b37b6c7df4",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": true
+    },
+    {
+      "target": "aarch64-linux-gnu",
+      "build": "corpus/variants/tinycc/0.9.27/default/aarch64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2",
+          "sha256": "de23af78fca90ce32dff2dd45b3432b2334740bb9bb7b05bf60fdbfc396ceb9c"
+        }
+      ],
+      "included_sources_hash_checked": 20,
+      "measured_exits_passed": 12,
+      "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD (configure adds -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result)",
+      "build_wall_seconds": {
+        "build-a": 2.650424209999983,
+        "build-b": 2.311881091000032
+      },
+      "outputs": [
+        {
+          "object": "tcc",
+          "path": "corpus/variants/tinycc/0.9.27/default/aarch64/O2/unstripped/tcc",
+          "size": 290152,
+          "sha256": "6e7d96d1b59c7c4720d21b0e9b539ab748443f186cfca0bad5125ee1cf5f6479",
+          "elf_machine": "AArch64",
+          "func_symbols": 348,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/tinycc/0.9.27/default/aarch64/O2/unstripped/receipt.json",
+          "receipt_sha256": "cf554f5d248e4adf33769c922731f676622c9b6fd948a0c0ed16b4690cd169c0",
+          "census": "corpus/census/variants/tinycc/0.9.27/default/aarch64/O2/unstripped/tcc.json",
+          "strip_pair": "corpus/variants/tinycc/0.9.27/default/aarch64/O2/tcc.pair.json",
+          "canonical_sha256": "6e7d96d1b59c7c4720d21b0e9b539ab748443f186cfca0bad5125ee1cf5f6479",
+          "matches_canonical": true
+        },
+        {
+          "object": "tcc",
+          "path": "corpus/variants/tinycc/0.9.27/default/aarch64/O2/stripped/tcc",
+          "size": 265032,
+          "sha256": "c52dc0c18eb8b0f93d157e39b1ee001fe55db2728efe4768a552b8654b7de53c",
+          "elf_machine": "AArch64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/tinycc/0.9.27/default/aarch64/O2/stripped/receipt.json",
+          "receipt_sha256": "10e5fa4822e4a50f4d8d91a0cfb4ae47ce80f68314f177a7b709b731a988ec3a",
+          "census": "corpus/census/variants/tinycc/0.9.27/default/aarch64/O2/stripped/tcc.json",
+          "strip_pair": "corpus/variants/tinycc/0.9.27/default/aarch64/O2/tcc.pair.json",
+          "canonical_sha256": "6e7d96d1b59c7c4720d21b0e9b539ab748443f186cfca0bad5125ee1cf5f6479",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": true
+    }
+  ],
+  "retained_profiles": [],
+  "limits": [
+    "Only completed actual outputs counted; original paths/hashes preserved.",
+    "Two independently initialized reused pinned containers; independent workspace/build/strip/runtime repeats.",
+    "Static census and runtime observations are not semantic equivalence or Lean proofs.",
+    "No exhaustive upstream test or full local make check claim."
+  ]
+}

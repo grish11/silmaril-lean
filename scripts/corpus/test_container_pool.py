@@ -141,6 +141,27 @@ class PoolContract(unittest.TestCase):
 
     @patch('container_pool.subprocess.run')
     @patch('container_pool.subprocess.check_output')
+    def test_failed_build_finalizes_profile_and_removes_both_workers(self, output, run):
+        output.side_effect = self.outputs
+        run.return_value = subprocess.CompletedProcess([], 0, '', '')
+        with self.assertRaisesRegex(RuntimeError, 'upstream build guard'):
+            with self.pool as pool:
+                pool.prepare('successful', self.hashes, {})
+                pool.complete()
+                pool.prepare('unsupported', self.hashes, {})
+                raise RuntimeError('upstream build guard')
+        record = json.loads((self.pool.directory / 'lifecycle.json').read_text())
+        self.assertEqual([p['status'] for p in record['profiles']], ['passed', 'failed'])
+        failed = record['profiles'][-1]
+        self.assertEqual(failed['failure'], record['failure'])
+        self.assertIn('finished_utc', failed)
+        self.assertIn('stopped_utc', record)
+        self.assertEqual([r['container_id'] for r in record['removal']], ['worker-0', 'worker-1'])
+        self.assertTrue(all(r['exit_code'] == 0 for r in record['removal']))
+        self.assertEqual(sum(c.args[0][:2] == ['docker', 'run'] for c in output.call_args_list), 2)
+
+    @patch('container_pool.subprocess.run')
+    @patch('container_pool.subprocess.check_output')
     def test_lock_mismatch_fails_and_removes_initialized_worker(self, output, run):
         output.side_effect = ['worker-0\n', b'pkg\twrong\n']
         run.return_value = subprocess.CompletedProcess([], 0, '', '')

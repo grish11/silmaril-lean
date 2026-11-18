@@ -7,6 +7,10 @@ import subprocess
 import tempfile
 import tomllib
 import unittest
+from variants import parse_profile, profile_axes
+import argparse
+from unittest.mock import patch
+import variants
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('boringssl_configure', ROOT / 'corpus/boringssl/configure.py')
@@ -15,6 +19,61 @@ spec.loader.exec_module(embed)
 
 
 class Profiles(unittest.TestCase):
+    def test_explicit_profile_identity_and_axes(self):
+        profiles = [parse_profile(p) for p in ['asm:aarch64:O2', 'fips-shared:aarch64:O0']]
+        self.assertEqual(profiles, [('asm', 'aarch64', 'O2'), ('fips-shared', 'aarch64', 'O0')])
+        self.assertEqual(profile_axes('boringssl', profiles), (['aarch64'], ['asm', 'fips-shared'], ['O2', 'O0']))
+        with self.assertRaisesRegex(ValueError, 'unsupported'):
+            profile_axes('sqlite', profiles)
+        for value in ['asm:aarch64:Ofast', 'asm:other:O2', 'asm:aarch64', 'asm:aarch64:O2:extra']:
+            with self.assertRaises(argparse.ArgumentTypeError):
+                parse_profile(value)
+
+    def test_invalid_profile_combinations_rejected_before_docker(self):
+        for args in [['--package', 'boringssl', '--profile', 'asm:aarch64:O2', '--level', 'O0'],
+                     ['--package', 'sqlite', '--profile', 'asm:aarch64:O2'],
+                     ['--profile', 'default:x86_64:O0'],
+                     ['--package', 'boringssl', '--profile', 'asm:aarch64:O9']]:
+            result = subprocess.run(['python3', 'scripts/corpus/variants.py', *args, '--work', '/unused'],
+                                    cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertNotIn('Traceback', result.stderr)
+
+    def test_exact_profiles_do_not_execute_cartesian_cross_terms(self):
+        # All four destinations exist. Only the two requested tuples may even be
+        # retained; an accidental Cartesian expansion would print four rows.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package = root / 'corpus/boringssl'
+            package.mkdir(parents=True)
+            (package / 'package.toml').write_text('version = "pin"\nobject = []\n')
+            (root / 'scripts/corpus').mkdir(parents=True)
+            for config in ['asm', 'fips-shared']:
+                for level in ['O0', 'O2']:
+                    dest = root / 'corpus/variants/boringssl/pin' / config / 'aarch64' / level
+                    dest.mkdir(parents=True)
+                    (dest / 'build.json').write_text(json.dumps({'project': 'boringssl', 'version': 'pin',
+                        'optimization': level, 'target': 'aarch64-linux-gnu', 'configuration': config,
+                        'included_source_files': []}))
+                    for form in ['unstripped', 'stripped']:
+                        (dest / form).mkdir()
+                        (dest / form / 'receipt.json').write_text('{"reproducible": true, "outputs": []}')
+            args = ['variants.py', '--package', 'boringssl', '--profile', 'asm:aarch64:O2',
+                    '--profile', 'fips-shared:aarch64:O0', '--resume', '--work', str(root / 'work')]
+            with patch.object(variants, 'ROOT', root), patch('sys.argv', args), \
+                 patch.dict(os.environ, {'CORPUS_CACHE': str(root / 'cache')}), \
+                 patch.object(variants.os, 'chdir'), patch.object(variants.signal, 'signal'), \
+                 patch.object(variants.subprocess, 'check_output', return_value=''), \
+                 patch.object(variants.subprocess, 'run') as fetch, \
+                 patch.object(variants, 'ContainerPool') as pool, patch('builtins.print') as output:
+                variants.main()
+                pool.assert_called_once()
+                pool.return_value.__enter__.return_value.prepare.assert_not_called()
+                fetch.assert_called_once()
+                retained = [call.args[0].split(': existing')[0] for call in output.call_args_list]
+                self.assertEqual(retained, ['retained corpus/variants/boringssl/pin/asm/aarch64/O2',
+                                            'retained corpus/variants/boringssl/pin/fips-shared/aarch64/O0'])
+
     def test_profile_recipes_are_valid_shell(self):
         for package in ['sqlite', 'boringssl']:
             for name in ['build.sh', 'test.sh', 'fetch.sh']:

@@ -194,6 +194,27 @@ The pool does not change `corpus/build-all.sh`, historical canonical artifacts,
 formal coverage or catalog ownership. Runtime smoke tests are observations of
 their recorded commands, not functional-equivalence or source-semantics proofs.
 
+### Explicit profile subsets in one pool
+
+Repeated `--profile CONFIGURATION:ARCH:LEVEL` selects exact tuples for one package,
+without building Cartesian cross terms. It cannot combine with `--arch`,
+`--configuration` or `--level`. Package configuration, architecture and optimization
+are checked before Docker inspection. Defaults and ordinary matrix selectors stay
+unchanged; selecting a tuple does not claim that it builds successfully.
+
+```sh
+python3 scripts/corpus/variants.py --package boringssl \
+  --profile no-asm:aarch64:O0 --profile no-asm:aarch64:O2 \
+  --profile asm:aarch64:O0 --profile asm:aarch64:O2 \
+  --profile fips-shared:aarch64:O0 --work /work/out/boringssl-aarch64
+```
+
+This example omits optimized FIPS_SHARED, a separately unsupported/failed pinned
+GCC14 native configuration. It does not retry it or substitute another compiler.
+All selected profiles share exactly two workers; clean repeats, stripping, runtime
+tests and publication guards remain identical. A failure ends the invocation,
+records the active profile as failed, and removes both workers without retry.
+
 ### Detached controllers and recovery
 
 For a long build that must outlive its launching terminal/session, use

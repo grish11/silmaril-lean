@@ -1,0 +1,230 @@
+{
+  "actual_elf_rows": 60,
+  "unique_hashes": 36,
+  "profiles": 10,
+  "measured_exits_passed": 180,
+  "profile_slices": [
+    {
+      "configuration": "no-asm",
+      "target": "x86_64-linux-gnu",
+      "optimization": "O0",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/no-asm/x86_64/O0/build.json",
+      "row_hashes": [
+        "a9894e066f31e4a6afb214eb42f6cebc4826d9cfc85216d3c8f2fceeed593d90",
+        "8eeb5ceb30fd9d98c8e6abebeb4ae6c66c40ef6ca265313aee8768085b5476b7",
+        "8e901cd31fce1c885cbad5a1100e79e11b5b5814ca2cf38045106ae5b392001e",
+        "098805641123774c743744a05e7b62a81965fa2afba5e5ff5519a0d6671ef182",
+        "794458e819b171580013c89280b3492eea17d6f321d57636da0f41887921a4ed",
+        "7d2137fa08225991a0c3c91d0e2f7e4d40b251bdb6456a1b66218cae265088ae"
+      ],
+      "source_files_hash_checked": 1181,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-a": 58.52171146099954,
+        "build-b": 42.70222909199947
+      }
+    },
+    {
+      "configuration": "no-asm",
+      "target": "x86_64-linux-gnu",
+      "optimization": "O2",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/no-asm/x86_64/O2/build.json",
+      "row_hashes": [
+        "91c225cd22cc627111d6e6a183a134cf6b56336a213b5312fd40a12cc8a8fc09",
+        "6d8bc114c1519d6d1a848a7ec7737f2332923ac70c949ca7a4e052a64632d68f",
+        "9cc2616230f85c4b38265ca177a97574b843e66f5468fd1e948e32f4a1f143ce",
+        "b5d389ca179c310173552790d82053c1a2c3e1fcd4050553216d5273972b962d",
+        "be4be64986a823d9cf8788e18e7d14c253cdee9a1b0b650d0817772edbeaaba8",
+        "5eaf3db19581165e367078efc875beb3270765b6445dbac9feae158d6a2218e6"
+      ],
+      "source_files_hash_checked": 1181,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-b": 49.38721769099993,
+        "build-a": 64.72992276900004
+      }
+    },
+    {
+      "configuration": "no-asm",
+      "target": "aarch64-linux-gnu",
+      "optimization": "O0",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/no-asm/aarch64/O0/build.json",
+      "row_hashes": [
+        "98e0d325458669af357efe677a6ead5c3e2a71107489d57454ec8d5907b2706d",
+        "7d7d9b79f14eaac05a8022b9b600d4badd40eadfba9a5c6f538310539c4855b2",
+        "be32ec434e77730d011e98f16b6d145e377c1181584f285c6cb200abdf01cb3e",
+        "d3bc9aeba756799085b638cdc294bd584ddf73ddc37617ad4f9ab22a18ec47fb",
+        "afcd15c9e7d7049a4ac066ed742a6ee98a9278cc3f9a6329f19b2c0ff97a06d3",
+        "654ac9b8ff3038ced68386ef295ec5b713641a7c43f191b11e94d9c2d4f66d6f"
+      ],
+      "source_files_hash_checked": 1181,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-a": 67.15183692900064,
+        "build-b": 52.06619650900029
+      }
+    },
+    {
+      "configuration": "no-asm",
+      "target": "aarch64-linux-gnu",
+      "optimization": "O2",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/no-asm/aarch64/O2/build.json",
+      "row_hashes": [
+        "9ccefcf800bfd98eb5466cd65dae727eb8681019eeb0b3be6715a754195766ea",
+        "837bf5c47aa5a917c21ec28671d9fb9d07f8c94c1f12784897a0f60d35e8b721",
+        "dd9f8175562eba204de79db3c903a33c11b13d6bd3b1360c272990b0486054ea",
+        "4b8c96becb8f050e1df17caa223f2c611c7f97baa35c94479426059437c64b04",
+        "affc36e0988de715a0cc8d1108c3797f194ba121cf8a198fdf11fd11afce30e6",
+        "839aafd991461a7e388f0c1c49b0d9554ef6088e767906c86ef5d1123e0c5311"
+      ],
+      "source_files_hash_checked": 1181,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-a": 74.8955299850004,
+        "build-b": 59.90096016100142
+      }
+    },
+    {
+      "configuration": "asm",
+      "target": "x86_64-linux-gnu",
+      "optimization": "O0",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/build.json",
+      "row_hashes": [
+        "a9894e066f31e4a6afb214eb42f6cebc4826d9cfc85216d3c8f2fceeed593d90",
+        "7cef67aeb7e046e24c0d5eb3fe227f8bbc4d283c5b6d61835cefc900122ce7fb",
+        "8e901cd31fce1c885cbad5a1100e79e11b5b5814ca2cf38045106ae5b392001e",
+        "098805641123774c743744a05e7b62a81965fa2afba5e5ff5519a0d6671ef182",
+        "e03b310d1c3ae5bdce51a1d952a26bbc7a431fe26246013b9c93400a629f17e5",
+        "7d2137fa08225991a0c3c91d0e2f7e4d40b251bdb6456a1b66218cae265088ae"
+      ],
+      "source_files_hash_checked": 1307,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-b": 44.80750176299989,
+        "build-a": 61.132467206999536
+      }
+    },
+    {
+      "configuration": "asm",
+      "target": "x86_64-linux-gnu",
+      "optimization": "O2",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O2/build.json",
+      "row_hashes": [
+        "91c225cd22cc627111d6e6a183a134cf6b56336a213b5312fd40a12cc8a8fc09",
+        "a27047034e7caf8cb0bc775de08d1bb3e8f5cd8e01c8d1264edc12f05c7b2aaa",
+        "9cc2616230f85c4b38265ca177a97574b843e66f5468fd1e948e32f4a1f143ce",
+        "b5d389ca179c310173552790d82053c1a2c3e1fcd4050553216d5273972b962d",
+        "1576a5f801367fb4159630c08dd5c5abfcec9eba7e8084093d6d01b4ca4ddccd",
+        "5eaf3db19581165e367078efc875beb3270765b6445dbac9feae158d6a2218e6"
+      ],
+      "source_files_hash_checked": 1307,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-a": 67.4486724060007,
+        "build-b": 51.21746189100031
+      }
+    },
+    {
+      "configuration": "asm",
+      "target": "aarch64-linux-gnu",
+      "optimization": "O0",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0/build.json",
+      "row_hashes": [
+        "98e0d325458669af357efe677a6ead5c3e2a71107489d57454ec8d5907b2706d",
+        "e3025f85a98bfa57d8c797b83f646cf890bf5c89136c81cf8ecdbc87a3ad4b7e",
+        "be32ec434e77730d011e98f16b6d145e377c1181584f285c6cb200abdf01cb3e",
+        "d3bc9aeba756799085b638cdc294bd584ddf73ddc37617ad4f9ab22a18ec47fb",
+        "f157d300979b91a87589065b57550303e1ebedfa569d7d9620eafe59be7ef70f",
+        "654ac9b8ff3038ced68386ef295ec5b713641a7c43f191b11e94d9c2d4f66d6f"
+      ],
+      "source_files_hash_checked": 1307,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-a": 69.7248447130005,
+        "build-b": 53.06677021299947
+      }
+    },
+    {
+      "configuration": "asm",
+      "target": "aarch64-linux-gnu",
+      "optimization": "O2",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O2/build.json",
+      "row_hashes": [
+        "9ccefcf800bfd98eb5466cd65dae727eb8681019eeb0b3be6715a754195766ea",
+        "62669f66546295d7c980dccb60c99b286a7dcaf254374d361f2efeb74d38be15",
+        "dd9f8175562eba204de79db3c903a33c11b13d6bd3b1360c272990b0486054ea",
+        "4b8c96becb8f050e1df17caa223f2c611c7f97baa35c94479426059437c64b04",
+        "995cf7ea94da6cf8973565122e5f81c5be36d94d3a75cec4ed0b373e47aa3105",
+        "839aafd991461a7e388f0c1c49b0d9554ef6088e767906c86ef5d1123e0c5311"
+      ],
+      "source_files_hash_checked": 1307,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-a": 77.23614074699981,
+        "build-b": 60.93336247500156
+      }
+    },
+    {
+      "configuration": "fips-shared",
+      "target": "x86_64-linux-gnu",
+      "optimization": "O0",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/fips-shared/x86_64/O0/build.json",
+      "row_hashes": [
+        "a9894e066f31e4a6afb214eb42f6cebc4826d9cfc85216d3c8f2fceeed593d90",
+        "6036535e331dca2bf53e0988bac2f946066f71de716704c9bfc557eaa4a6f3b1",
+        "8e901cd31fce1c885cbad5a1100e79e11b5b5814ca2cf38045106ae5b392001e",
+        "098805641123774c743744a05e7b62a81965fa2afba5e5ff5519a0d6671ef182",
+        "424ecfcba7cfbeca2f9326c02d090c965ee9cec851468e3fd3ceb23f3266f859",
+        "7d2137fa08225991a0c3c91d0e2f7e4d40b251bdb6456a1b66218cae265088ae"
+      ],
+      "source_files_hash_checked": 1208,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-a": 65.7177948589997,
+        "build-b": 50.10240746999989
+      }
+    },
+    {
+      "configuration": "fips-shared",
+      "target": "aarch64-linux-gnu",
+      "optimization": "O0",
+      "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/fips-shared/aarch64/O0/build.json",
+      "row_hashes": [
+        "98e0d325458669af357efe677a6ead5c3e2a71107489d57454ec8d5907b2706d",
+        "05096773c7d7ba0be659b32d54f5ecfe382595f3a45ccfd3bbb1b01fc51ae949",
+        "be32ec434e77730d011e98f16b6d145e377c1181584f285c6cb200abdf01cb3e",
+        "d3bc9aeba756799085b638cdc294bd584ddf73ddc37617ad4f9ab22a18ec47fb",
+        "43f90038564aee4c14ef71b82bbea563faacde8ec63db9d39df17ac79ea33c13",
+        "654ac9b8ff3038ced68386ef295ec5b713641a7c43f191b11e94d9c2d4f66d6f"
+      ],
+      "source_files_hash_checked": 1208,
+      "measured_exits_passed": 18,
+      "build_wall_seconds": {
+        "build-a": 74.15611131500009,
+        "build-b": 58.15688110499832
+      }
+    }
+  ],
+  "failed_not_built": [
+    {
+      "configuration": "fips-shared",
+      "target": "x86_64-linux-gnu",
+      "optimization": "O2",
+      "evidence": "../boringssl-fips-o2-failure/README.md"
+    }
+  ],
+  "deliberately_not_selected": [
+    {
+      "configuration": "fips-shared",
+      "target": "aarch64-linux-gnu",
+      "optimization": "O2",
+      "status": "not built; no failed AArch64 attempt claimed"
+    }
+  ],
+  "limits": [
+    "Representative O0/O2 standard and O0 FIPS_SHARED configurations, not all optimization levels or upstream versions.",
+    "Supplementary ET_REL/archive objects are separate from executable/library stripping rows.",
+    "FIPS_mode identifies compiled configuration only; no FIPS validation/certification claim.",
+    "Runtime/census are not semantic equivalence/source semantics/Lean proofs; AArch64 runs through QEMU."
+  ]
+}

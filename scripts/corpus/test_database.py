@@ -29,12 +29,20 @@ class CorpusDatabase(unittest.TestCase):
 
     def test_concrete_function_statement_binding(self):
         data = inventory(ROOT)
-        self.assertEqual(data['formal_statement_counts'], {'contextual_c_to_elf': 9, 'functional_equivalence': 6})
+        self.assertEqual(data['formal_statement_counts'], {'contextual_c_to_elf': 19, 'functional_equivalence': 6})
         participants = [a for a in data['artifacts'] if a['functional_equivalence_statements']]
         self.assertEqual(len(participants), 10)
         self.assertEqual({a['project'] for a in participants}, {'mimalloc', 'tinycc'})
         source_participants = [a for a in data['artifacts'] if a['contextual_c_to_elf_statements']]
-        self.assertEqual([a['path'] for a in source_participants], ['corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1', 'corpus/elf/openssl/x86_64/libssl.so.3', 'corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc'])
+        self.assertEqual([a['path'] for a in source_participants], ['corpus/elf/cjson/x86_64/libcjson.so.1', 'corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1', 'corpus/elf/openssl/x86_64/libssl.so.3', 'corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc'])
+        statements = json.loads((ROOT / 'corpus/measurements/formal-functions/checks.json').read_text())['statements']
+        cjson = [s for s in statements if s['declaration'].startswith('Silmaril.Elf.Corpus.CjsonTypePredicates.')]
+        self.assertEqual({s['function_symbol'] for s in cjson}, {
+            'cJSON_IsNull', 'cJSON_IsBool', 'cJSON_IsNumber',
+            'cJSON_IsString', 'cJSON_IsArray', 'cJSON_IsObject',
+            'cJSON_IsInvalid', 'cJSON_IsFalse', 'cJSON_IsTrue', 'cJSON_IsRaw'})
+        self.assertEqual({s['function_address'] for s in cjson}, {21600, 21568, 21632, 21712, 21776, 21808, 21472, 21504, 21536, 21840})
+        self.assertTrue(all(set(s['artifact_sha256']) == {'corpus/elf/cjson/x86_64/libcjson.so.1'} for s in cjson))
         check = json.loads((ROOT / 'corpus/measurements/formal-functions/checks.json').read_text())['statements'][0]
         source = ROOT / next(iter(check['module_sha256']))
         original = matrix.sha

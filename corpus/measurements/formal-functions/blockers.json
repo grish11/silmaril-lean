@@ -8,7 +8,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -18,7 +18,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -28,7 +28,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -38,7 +38,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -48,7 +48,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -102,6 +102,116 @@
         "bitwise macro lowering/config binding required"
       ],
       "evidence": "actual symbol0xff10,size7 and upstream conditional definitions inspected; identity definition deliberately not substituted"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsNull",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsBool",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsNumber",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsString",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsArray",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsObject",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsInvalid",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsFalse",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsTrue",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsRaw",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
     }
   ],
   "promoted": [
