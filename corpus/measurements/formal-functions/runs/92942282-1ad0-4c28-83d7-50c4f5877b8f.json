@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "run_id": "92942282-1ad0-4c28-83d7-50c4f5877b8f",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T10:35:49.575510+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.DarkhttpdLogEncoding.Context.Defs"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "darkhttpd-semantic-memory-observation-after-loop-merge",
+  "repository": {
+    "commit": "8d6d8944b8effe66e5184616511aac3607f21fc1",
+    "dirty": true,
+    "diff_sha256": "e193b9d67c5d4e25539d7d1ab49b928e467d728f6b5cd720b6a1e92f509d909e"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/DarkhttpdLogEncoding/Context/Defs.lean",
+      "sha256": "9e1f88809962468227205e1b08ddf6d2151ee6842f3a5aabc053e31898a71eb3"
+    }
+  ],
+  "wall_seconds": 6.070227664997219,
+  "exit_code": 0,
+  "user_cpu_seconds": 5.05,
+  "system_cpu_seconds": 21.47,
+  "peak_rss_kib": 3690720,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

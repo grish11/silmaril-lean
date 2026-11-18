@@ -13,7 +13,8 @@ state changes, callback protocols and ownership belong in the contract and its
 machine representation, not in the scalar signature.
 
 This first profile covers fixed-arity INTEGER-class calls under LP64. Floating
-point, aggregates passed by value and varargs require another profile. Signed
+point, aggregates passed by value and varargs require another profile. C `_Bool`
+uses logical Boolean values and the canonical low-byte ABI encoding. Signed
 values are two's-complement bit patterns; `Scalar.signed` exposes their integer
 meaning. 
 -/
@@ -26,15 +27,19 @@ namespace Silmaril.X86.SystemV.CApi
 
 /-- The scalar classes supported by the initial LP64 ABI adapter. -/
 inductive Scalar where
-  | int32 | uint32 | int64 | uint64 | pointer
+  | boolean | uint8 | int32 | uint32 | int64 | uint64 | pointer
   deriving DecidableEq, Repr
 
 def Scalar.Value : Scalar → Type
+  | .boolean => Bool
+  | .uint8 => BitVec 8
   | .int32 | .uint32 => BitVec 32
   | .int64 | .uint64 | .pointer => BitVec 64
 
 /-- Mathematical interpretation of signed scalar bit patterns. -/
 def Scalar.signed : (kind : Scalar) → kind.Value → Int
+  | .boolean, value => cond value 1 0
+  | .uint8, value => value.toNat
   | .int32, value => value.toInt
   | .int64, value => value.toInt
   | .uint32, value => value.toNat

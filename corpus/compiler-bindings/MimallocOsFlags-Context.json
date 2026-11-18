@@ -1,0 +1,33 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.MimallocOsFlags.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/MimallocOsFlags/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/MimallocOsFlags/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/MimallocOsFlags/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/MimallocOsFlags/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/MimallocOsFlags/Thms.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean"
+  ],
+  "limits": [
+    "All corpus refinement obligations are stated-unproved. No semantic proof or exporter run is inferred from this display.",
+    "Exact source/Core/ELF evidence does not establish compiler correctness or full translation-unit frontend adequacy. No interactive compilation or source-to-instruction segment mapping is supplied.",
+    "Actual initialized global:48 bytes/align8, eight fields; canonical Boolean fields at offsets40/42. Post-startup typed allocation, lifetime, read permission and preserved bytes/allocation/stdout effects are obligations.",
+    "Actual _Bool procedures and computed Core have no source callees. The SysV result uses canonical low byte0/1 with bits1\u20137 zero; upper register bits are unspecified.",
+    "The frontend retains actual zero-parameter metadata variadic=false, prototype=false for lexical (void). Global-startup and allocator correctness remain unproved.",
+    "Only canonical initialized Boolean object representations are admitted by entry. Noncanonical _Bool bytes are outside this contextual problem; the raw memory adapter does not establish their ISO C UB classification. Missing/dead allocation rejection can remain labelled unsupported by the pinned memory adapter, not a proved UB mapping."
+  ],
+  "source": {
+    "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-flags/context.c"
+  },
+  "projection": {
+    "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-flags/projection.json",
+    "tu": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-flags/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-flags/runtime.sexp"
+  }
+}

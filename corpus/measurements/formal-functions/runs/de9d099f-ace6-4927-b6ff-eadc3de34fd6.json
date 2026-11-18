@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "run_id": "de9d099f-ace6-4927-b6ff-eadc3de34fd6",
+  "stage": "native-runtime-regression",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T12:02:22.621930+00:00",
+  "command": [
+    "python3",
+    "tools/corpus/check_cjson_suffix_native.py"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "actual-cjson-suffix-four-disjoint-cases",
+  "repository": {
+    "commit": "9746b4ed441f1d449f95613c255cba684705f547",
+    "dirty": true,
+    "diff_sha256": "2d56bb9d34dd303bb9123c73a13bb8c08c07f455ab0fa55f3a8bd96583225e74"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "tools/corpus/check_cjson_suffix_native.py",
+      "sha256": "93ec89e3db0e74567d91e02ff7315036700f8f843f0f083483eb3c737a65d20f"
+    },
+    {
+      "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson.so.1",
+      "sha256": "0c7ab3d1ba9aa7808bab6e22695e2fee1702753ad0f4570ce53952120629b456"
+    }
+  ],
+  "wall_seconds": 0.07457877100387122,
+  "exit_code": 0,
+  "user_cpu_seconds": 0.049999999999999996,
+  "system_cpu_seconds": 0.02,
+  "peak_rss_kib": 30692,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

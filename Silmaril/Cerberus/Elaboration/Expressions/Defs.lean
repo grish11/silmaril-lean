@@ -3,6 +3,8 @@ module
 public import Silmaril.Cerberus.Elaboration.Arithmetic.Defs
 public import Silmaril.Cerberus.Elaboration.Bitwise.Defs
 public import Silmaril.Cerberus.Elaboration.Members.Defs
+public import Silmaril.Cerberus.Elaboration.Shifts.Defs
+public import Silmaril.Cerberus.Elaboration.StructInitializers.Defs
 public import Silmaril.Cerberus.Elaboration.ObjectExpressions.Defs
 public import Silmaril.Cerberus.Elaboration.Comparisons.Defs
 public import Silmaril.Cerberus.Elaboration.Designators.Defs
@@ -11,9 +13,11 @@ public import Silmaril.Cerberus.Elaboration.CallArguments.Defs
 public import Silmaril.Cerberus.Elaboration.NullPointers.Defs
 public import Silmaril.Cerberus.Elaboration.IntegerCasts.Defs
 public import Silmaril.Cerberus.Elaboration.Conditionals.Defs
+public import Silmaril.Cerberus.Elaboration.Assignments.Defs
+public import Silmaril.Cerberus.Elaboration.Postfix.Defs
 
 /-! Actual typed-Ail expression dispatcher for constants, object
-identifiers/rvalues, scalar add/sub/mul and AND/XOR/OR, pointer-member addresses, scalar lt/le/gt/ge/eq/ne, integer conditionals and short-circuit operators, direct integer casts, integer-zero pointer casts and normal fixed-integer direct calls.
+identifiers/rvalues, scalar add/sub/mul and AND/XOR/OR, direct aggregate members and pointer-member addresses, scalar lt/le/gt/ge/eq/ne, integer conditionals and short-circuit operators, direct integer casts, integer-zero pointer casts and normal fixed-integer direct calls.
 The frozen constant port remains independently usable. Recursive effects,
 marker freshness, full-expression bounds and annotation order are retained.
 Other expression forms and expression-result lifetimes outside the call helper
@@ -96,7 +100,8 @@ def logical (conjunction : Bool) (config : Target.Config) (env : Target.Environm
   return addStandards standards (annotate ControlTests.signedIntCategory location resultType core)
 
 def expression (config : Target.Config) (env : Target.Environment) (bindings : List Runtime.Binding)
-    (input : Ail.TypedExpression) (aliases : Designators.Aliases := []) : State.ElabM Effect :=
+    (input : Ail.TypedExpression) (aliases : Designators.Aliases := [])
+    (tags : StructInitializers.Tags := []) : State.ElabM Effect :=
   match input with
   | .mk _ _ _ (.const _) => Constants.expression config env input
   | .mk category annotations location node => do
@@ -109,11 +114,42 @@ def expression (config : Target.Config) (env : Target.Environment) (bindings : L
             pure (.markerObjectTypes marker :: annotations)
         | none => pure annotations
       let core ← match _hnode : node with
+        | .struct tag fields => do
+            let inputs ← fields.attach.mapM fun field => do
+              let input ← match _hinput : field.val.2 with
+                | none => pure none
+                | some child => do
+                    let childType ← Constants.liftResult
+                      (Constants.targetResult (GeneralizedTypes.expressionType config env child))
+                    pure (some (childType, expression config env bindings child aliases tags))
+              pure (field.val.1, input)
+            StructInitializers.translate bindings tags tag inputs
+        | .memberof aggregate member => do
+            let aggregateType ← Constants.liftResult
+              (Constants.targetResult (GeneralizedTypes.expressionType config env aggregate))
+            let lvalue := match category with
+              | .lvalue .. => true
+              | _ => false
+            Members.directMember config.cheri lvalue location aggregateType member
+              (expression config env bindings aggregate aliases tags)
         | .memberofptr pointer member => do
             let pointerType ← Constants.liftResult
               (Constants.targetResult (GeneralizedTypes.expressionType config env pointer))
             Members.pointerMember config.cheri config.strictPointerArithmetic location pointerType member
-              (expression config env bindings pointer aliases)
+              (expression config env bindings pointer aliases tags)
+        | .unary operator operand => do
+            let operandType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env operand))
+            let decrement ← match operator with
+              | .postfixIncr => pure false
+              | .postfixDecr => pure true
+              | _ => throw (.message "unsupported: unary operator outside integer postfix increment/decrement")
+            Postfix.translate config env bindings location type operandType decrement
+              (expression config env bindings operand aliases tags)
+        | .assign left right => do
+            let leftType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env left))
+            let rightType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env right))
+            Assignments.translate config bindings location leftType rightType right
+              (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
         | .binary left operator right => do
             let leftType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env left))
             let rightType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env right))
@@ -121,76 +157,85 @@ def expression (config : Target.Config) (env : Target.Environment) (bindings : L
             | .arithmetic arithmetic =>
                 if arithmetic == .band || arithmetic == .bxor || arithmetic == .bor then
                   Bitwise.translate config env bindings type leftType rightType arithmetic
-                    (expression config env bindings left aliases) (expression config env bindings right aliases)
+                    (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
+                else if arithmetic == .shl then
+                  Shifts.left config env bindings location type leftType rightType
+                    (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
                 else
                   Arithmetic.translate config env bindings location type leftType rightType arithmetic
-                    (expression config env bindings left aliases) (expression config env bindings right aliases)
+                    (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
             | .gt =>
                 Comparisons.greater config env bindings type leftType rightType
-                  (expression config env bindings left aliases) (expression config env bindings right aliases)
+                  (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
             | .lt =>
                 Comparisons.relational .less config env bindings type leftType rightType
-                  (expression config env bindings left aliases) (expression config env bindings right aliases)
+                  (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
             | .le =>
                 Comparisons.relational .lessEqual config env bindings type leftType rightType
-                  (expression config env bindings left aliases) (expression config env bindings right aliases)
+                  (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
             | .ge =>
                 Comparisons.relational .greaterEqual config env bindings type leftType rightType
-                  (expression config env bindings left aliases) (expression config env bindings right aliases)
+                  (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
             | .eq =>
                 if NullPointers.isNullPointerConstant left && Constants.isPointer rightType then
                   NullPointers.compareNull config false location rightType
-                    (expression config env bindings right aliases)
+                    (expression config env bindings right aliases tags)
                 else if Constants.isPointer leftType && NullPointers.isNullPointerConstant right then
                   NullPointers.compareNull config false location leftType
-                    (expression config env bindings left aliases)
+                    (expression config env bindings left aliases tags)
+                else if Constants.isPointer leftType && Constants.isPointer rightType then
+                  Comparisons.pointers config false location
+                    (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
                 else
                   Comparisons.equal config env bindings type leftType rightType
-                    (expression config env bindings left aliases) (expression config env bindings right aliases)
+                    (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
             | .ne =>
                 if NullPointers.isNullPointerConstant left && Constants.isPointer rightType then
                   NullPointers.compareNull config true location rightType
-                    (expression config env bindings right aliases)
+                    (expression config env bindings right aliases tags)
                 else if Constants.isPointer leftType && NullPointers.isNullPointerConstant right then
                   NullPointers.compareNull config true location leftType
-                    (expression config env bindings left aliases)
+                    (expression config env bindings left aliases tags)
+                else if Constants.isPointer leftType && Constants.isPointer rightType then
+                  Comparisons.pointers config true location
+                    (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
                 else
                   Comparisons.notEqual config env bindings type leftType rightType
-                    (expression config env bindings left aliases) (expression config env bindings right aliases)
+                    (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
             | .and =>
                 logical true config env bindings location left right
-                  (expression config env bindings left aliases) (expression config env bindings right aliases)
+                  (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
             | .or =>
                 logical false config env bindings location left right
-                  (expression config env bindings left aliases) (expression config env bindings right aliases)
+                  (expression config env bindings left aliases tags) (expression config env bindings right aliases tags)
             | _ => throw (.message "unsupported: binary operator outside scalar add/sub/mul/lt/le/gt/ge/eq/ne/and/or")
         | .cond condition (some yes) no => do
             let yesType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env yes))
             let noType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env no))
             Conditionals.translate false bindings location type yesType noType
-              (integerTest true config env bindings condition (expression config env bindings condition aliases))
-              (expression config env bindings yes aliases) (expression config env bindings no aliases)
+              (integerTest true config env bindings condition (expression config env bindings condition aliases tags))
+              (expression config env bindings yes aliases tags) (expression config env bindings no aliases tags)
         | .cast _ destination operand => do
             let source ← Constants.liftResult
               (Constants.targetResult (GeneralizedTypes.expressionType config env operand))
             match destination with
             | .mk _ (.basic (.integer _)) =>
                 IntegerCasts.translate config bindings source destination
-                  (expression config env bindings operand aliases)
+                  (expression config env bindings operand aliases tags)
             | _ =>
                 NullPointers.castInteger config source destination operand
-                  (expression config env bindings operand aliases)
+                  (expression config env bindings operand aliases tags)
         | .ident symbol => ObjectExpressions.identifier config symbol
         | .rvalue child => do
             let childType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env child))
-            ObjectExpressions.rvalue config location childType (expression config env bindings child aliases)
+            ObjectExpressions.rvalue config location childType (expression config env bindings child aliases tags)
         | .functionDecay child => do
             let childType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env child))
             Designators.direct config aliases childType child
         | .call designator [] => do
             let designatorType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env designator))
             Calls.zeroArguments bindings location standardAnnotations designatorType
-              (expression config env bindings designator aliases)
+              (expression config env bindings designator aliases tags)
         | .call designator arguments => do
             let designatorType ← Constants.liftResult
               (Constants.targetResult (GeneralizedTypes.expressionType config env designator))
@@ -199,9 +244,9 @@ def expression (config : Target.Config) (env : Target.Environment) (bindings : L
                 (Constants.targetResult (GeneralizedTypes.expressionType config env argument.val))
               let .mk _ _ location _ := argument.val
               pure (CallArguments.Argument.mk location type
-                (expression config env bindings argument.val aliases))
+                (expression config env bindings argument.val aliases tags))
             CallArguments.translate config bindings location standardAnnotations designatorType
-              (expression config env bindings designator aliases) actuals
+              (expression config env bindings designator aliases tags) actuals
         | _ => throw (.message "unsupported: actual expression form is outside supported scalar/object operations, integer conditionals and normal fixed-integer direct calls")
       return annotate category location type core
 termination_by sizeOf input
@@ -212,11 +257,19 @@ decreasing_by
     | omega
     | have memberBound := List.sizeOf_lt_of_mem argument.property
       omega
+    | have memberBound := List.sizeOf_lt_of_mem field.property
+      have optionBound : sizeOf child < sizeOf field.val.2 := by
+        rw [_hinput]
+        simp
+      have pairBound : sizeOf field.val.2 < sizeOf field.val := by
+        cases field.val
+        simp
+      omega
 
 def wrappedExpression (config : Target.Config) (env : Target.Environment)
     (bindings : List Runtime.Binding) (input : Ail.TypedExpression)
-    (aliases : Designators.Aliases := []) : State.ElabM Effect := do
-  let (temporaries, core) ← State.trackTemporaryObjects (expression config env bindings input aliases)
+    (aliases : Designators.Aliases := []) (tags : StructInitializers.Tags := []) : State.ElabM Effect := do
+  let (temporaries, core) ← State.trackTemporaryObjects (expression config env bindings input aliases tags)
   match temporaries with
   | [] => return .mk [.std "§6.5#2"] (.bound core)
   | _ => throw (.message "unsupported: expression temporary-object lifetimes are not ported")

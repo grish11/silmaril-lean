@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "run_id": "a1fd13ca-6bed-45a4-a5a8-5260d5a7a5e2",
+  "stage": "c-preprocessing",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T10:03:36.280017+00:00",
+  "command": [
+    "gcc",
+    "-E",
+    "-P",
+    "-O0",
+    "-g0",
+    "-ffile-prefix-map=/build/darkhttpd=.",
+    "corpus/darkhttpd/upstream/darkhttpd-1.17/darkhttpd.c",
+    "-o",
+    "/work/out/darkhttpd-logencoding-binding/translation-unit.i"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "darkhttpd-logencoding-current-host-tu",
+  "repository": {
+    "commit": "6748b7b830c83287c3d62b0adf4ae4a037284527",
+    "dirty": true,
+    "diff_sha256": "f225b87fa49553d13b9bda927cc89b63544ca19ba7e5d0256b912b4022ea45a7"
+  },
+  "cache": "unspecified",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "corpus/darkhttpd/upstream/darkhttpd-1.17/darkhttpd.c",
+      "sha256": "450280b0010ee689b1984d8258afcc37d3f43a2cd8825661d275f9744e1f3ce8"
+    },
+    {
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O0/unstripped/receipt.json",
+      "sha256": "1c95d7aa037fa73a31df7559b843c4ac8df9c0b669eb446d7fed48de7e805419"
+    }
+  ],
+  "wall_seconds": 0.1094695599967963,
+  "exit_code": 0,
+  "user_cpu_seconds": 0.04,
+  "system_cpu_seconds": 0.06,
+  "peak_rss_kib": 51112,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

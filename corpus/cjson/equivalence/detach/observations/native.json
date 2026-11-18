@@ -1,0 +1,117 @@
+{
+  "artifacts": [
+    {
+      "artifact": "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson.so.1",
+      "sha256": "0c7ab3d1ba9aa7808bab6e22695e2fee1702753ad0f4570ce53952120629b456",
+      "address": 23724,
+      "size": 218,
+      "code_sha256": "e708a615c21f79c2fdc18dcb0024da9906e295784446680058696ebe87fcad09"
+    },
+    {
+      "artifact": "corpus/elf/cjson/x86_64/libcjson.so.1",
+      "sha256": "2cfb516d75b79b4ee7ba9e9645fc5f53daa4f428daf349d445d3bbd43e4576c2",
+      "address": 17248,
+      "size": 131,
+      "code_sha256": "2793acca0f0a6c59c9cfc6271c5b7123720c41310c6f5e28af23f5ba51ea77bb"
+    }
+  ],
+  "native_pairs": [
+    {
+      "seed": 0,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 1,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 2,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 3,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 4,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 5,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 6,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 7,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 8,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 9,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 10,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 11,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 12,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 13,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 14,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    },
+    {
+      "seed": 15,
+      "pointer_return": true,
+      "exact_four_writes_and_all320_bytes_checked": true,
+      "missing_each_write_and_unrelated_mutation_rejected": true
+    }
+  ],
+  "scope": "Finite existing-ELF native pair observations only; identical caller bytes/addresses on each side, exact final four pointer words/all320 bytes; no equivalence proof, formal ABI/frame proof or artifact rebuild"
+}

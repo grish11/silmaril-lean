@@ -160,6 +160,9 @@ theorem argumentWord_unique {m : MState} {i : Nat} {w w' : Silmaril.X86.Word}
 
 theorem encodes_unique : ∀ {kind : Scalar} {v v' : kind.Value} {w : Silmaril.X86.Word},
     Silmaril.X86.SystemV.Encodes kind v w → Silmaril.X86.SystemV.Encodes kind v' w → v = v'
+  | .boolean, v, v', _, h, h' => by
+      cases v <;> cases v' <;> first | rfl | simp_all [Silmaril.X86.SystemV.Encodes]
+  | .uint8, _, _, _, h, h' => h.symm.trans h'
   | .int32, _, _, _, h, h' => h.symm.trans h'
   | .uint32, _, _, _, h, h' => h.symm.trans h'
   | .int64, _, _, _, h, h' => h.symm.trans h'

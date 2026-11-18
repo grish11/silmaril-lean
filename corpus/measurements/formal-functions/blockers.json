@@ -8,7 +8,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -17,30 +17,33 @@
       "function": "_mi_os_has_overcommit",
       "status": "blocked",
       "blockers": [
-        "actual global/array/struct memory context required",
-        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
+        "this Boolean getter still needs its own exact closure, computed Core/ELF binding and Boolean ABI context"
       ],
-      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics",
+      "resolved_prerequisites": [
+        "actual eight-field global layout/initializer and saved os.i recovered; page-size contexts are instantiated"
+      ]
     },
     {
       "project": "mimalloc",
       "function": "_mi_os_has_virtual_reserve",
       "status": "blocked",
       "blockers": [
-        "actual global/array/struct memory context required",
-        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
+        "this Boolean getter still needs its own exact closure, computed Core/ELF binding and Boolean ABI context"
       ],
-      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics",
+      "resolved_prerequisites": [
+        "actual eight-field global layout/initializer and saved os.i recovered; page-size contexts are instantiated"
+      ]
     },
     {
       "project": "mimalloc",
       "function": "_mi_os_page_size",
-      "status": "blocked",
-      "blockers": [
-        "actual global/array/struct memory context required",
-        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
-      ],
-      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+      "status": "stated-unproved",
+      "blockers": [],
+      "evidence": "actual saved-TU closure, computed Core/global layout, ELF CodeAt, finite source/native checks; not semantic proof",
+      "root": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+      "function_address": 62000
     },
     {
       "project": "mimalloc",
@@ -48,7 +51,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "experimental contextual memory/global framework exists, but this function has no instantiated allocator memory/ABI bindings"
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -57,48 +60,40 @@
       "function": "OPENSSL_isservice",
       "status": "blocked",
       "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
         "preprocessor configuration branch/source projection not yet bound"
       ],
-      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim",
-      "resolved_structural_prerequisites": [
-        "both canonical libcrypto whole files now have checked parsing and structural decomposition; this does not supply function-specific source/Core bindings"
-      ]
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
     },
     {
       "project": "openssl",
       "function": "ERR_load_KDF_strings",
       "status": "blocked",
       "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
         "preprocessor configuration branch/source projection not yet bound"
       ],
-      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim",
-      "resolved_structural_prerequisites": [
-        "both canonical libcrypto whole files now have checked parsing and structural decomposition; this does not supply function-specific source/Core bindings"
-      ]
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
     },
     {
       "project": "openssl",
       "function": "X509V3_add_standard_extensions",
       "status": "blocked",
       "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
         "preprocessor configuration branch/source projection not yet bound"
       ],
-      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim",
-      "resolved_structural_prerequisites": [
-        "both canonical libcrypto whole files now have checked parsing and structural decomposition; this does not supply function-specific source/Core bindings"
-      ]
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
     },
     {
       "project": "openssl",
       "function": "ossl_prov_is_running",
       "status": "blocked",
       "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
         "preprocessor configuration branch/source projection not yet bound"
       ],
-      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim",
-      "resolved_structural_prerequisites": [
-        "both canonical libcrypto whole files now have checked parsing and structural decomposition; this does not supply function-specific source/Core bindings"
-      ]
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
     },
     {
       "project": "sqlite",
@@ -114,21 +109,120 @@
     {
       "project": "cjson",
       "function": "cJSON_IsNull",
-      "status": "blocked; diagnostic adapter only",
+      "status": "contextual-statement-unproved",
       "blockers": [
-        "Core bitwise AND lowering rejects outside add/sub/mul",
-        "struct member-load lowering not reached by this diagnostic",
-        "actual build preprocessing/configuration and memory/ABI/ELF contextual bindings still required"
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
       ],
-      "resolved_frontend_prerequisites": [
-        "typed frontend accepts the actual upstream struct/function with explicit macro substitutions",
-        "null-constant/pointer equality lowering passes before the bitwise rejection"
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsBool",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
       ],
-      "evidence": {
-        "source": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
-        "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
-        "scope": "diagnostic source adapter; no full translation-unit, kernel binding, function statement or proof claimed"
-      }
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsNumber",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsString",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsArray",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsObject",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsInvalid",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsFalse",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsTrue",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsRaw",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_os_large_page_size",
+      "status": "stated-unproved",
+      "root": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+      "function_address": 62016,
+      "evidence": "actual conditional Core executes actual source callee; canonical O2 inlines it; nonvacuous global-memory problem, not proof"
     }
   ],
   "promoted": [

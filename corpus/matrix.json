@@ -157,10 +157,91 @@
         "target": "x86_64-linux-gnu"
       },
       "build_id": "84a64c04a67458ca32a81918c4141838bad445c823f0e5c51e492bfe65788927",
-      "contextual_c_to_elf_statements": 0,
+      "contextual_c_to_elf_statements": 11,
       "defined_nonzero_function_symbol_entries": 91,
-      "formal_statements": [],
-      "functional_equivalence_statements": 0,
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isNull",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isBool",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isNumber",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isString",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isArray",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isObject",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isInvalid",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isFalse",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isTrue",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Task.isRaw",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonArraySize.Context.Task.compilesTo",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonArraySize.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonArraySize.Equivalence.Task.optimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.CjsonArraySize.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonDetach.Equivalence.Task.optimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.CjsonDetach.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        }
+      ],
+      "functional_equivalence_statements": 2,
       "has_symtab": true,
       "lean_status": "canonical: whole-file parse and structural decomposition",
       "license": "MIT",
@@ -2258,7 +2339,7 @@
         "target": "x86_64-linux-gnu"
       },
       "build_id": "537240cf9d45ddd31f8179c75333df8bbcc15f39f1cba1ffc770bce722fe9db5",
-      "contextual_c_to_elf_statements": 3,
+      "contextual_c_to_elf_statements": 7,
       "defined_nonzero_function_symbol_entries": 459,
       "formal_statements": [
         {
@@ -2277,6 +2358,30 @@
           "declaration": "Silmaril.Elf.Corpus.MimallocClosed.AllocatorDone.Task.compiles_to",
           "kind": "contextual_c_to_elf",
           "root": "Silmaril.Elf.Corpus.MimallocClosed.AllocatorDone.Thms",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Task.pageSize",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Task.largePageSize",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.MimallocOsFlags.Context.Task.overcommit",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.MimallocOsFlags.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.MimallocOsFlags.Context.Task.virtualReserve",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.MimallocOsFlags.Context.Defs",
           "status": "stated-unproved"
         }
       ],
@@ -4717,9 +4822,22 @@
         "target": "x86_64-linux-gnu"
       },
       "build_id": "d61a78d59ce34226278f02170ab23bb1d644351d7096fac0cb47e16e171a93a2",
-      "contextual_c_to_elf_statements": 0,
+      "contextual_c_to_elf_statements": 2,
       "defined_nonzero_function_symbol_entries": 1620,
-      "formal_statements": [],
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Context.Task.versionNumber",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Context.Task.threadsafe",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Context.Defs",
+          "status": "stated-unproved"
+        }
+      ],
       "functional_equivalence_statements": 0,
       "has_symtab": true,
       "lean_status": "canonical: whole-file parse and structural decomposition",
@@ -10641,10 +10759,43 @@
         "target": "x86_64-linux-gnu"
       },
       "build_id": "6e1e72a2763f3cf494d70cca1033cfa71edcfe554a59415633cc0770a9390bfd",
-      "contextual_c_to_elf_statements": 0,
+      "contextual_c_to_elf_statements": 3,
       "defined_nonzero_function_symbol_entries": 115,
-      "formal_statements": [],
-      "functional_equivalence_statements": 0,
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonSuffix.Context.Task.compilesTo",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonSuffix.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonDetach.Context.Task.compilesTo",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonDetach.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonArraySize.Equivalence.Task.optimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.CjsonArraySize.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonArrayItem.Context.Task.compilesTo",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.CjsonArrayItem.Context.Defs",
+          "status": "stated-unproved"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.CjsonDetach.Equivalence.Task.optimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.CjsonDetach.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        }
+      ],
+      "functional_equivalence_statements": 2,
       "has_symtab": true,
       "lean_status": "variant: whole-file parse and structural decomposition; measured check receipt",
       "license": "MIT",
@@ -28959,9 +29110,16 @@
         "target": "x86_64-linux-gnu"
       },
       "build_id": "1ade3b3941d5143ce1e32b27d75ce7017886566826887c9c64cabbfb5fe71ece",
-      "contextual_c_to_elf_statements": 0,
+      "contextual_c_to_elf_statements": 1,
       "defined_nonzero_function_symbol_entries": 76,
-      "formal_statements": [],
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.DarkhttpdLogEncoding.Context.Task.compilesTo",
+          "kind": "contextual_c_to_elf",
+          "root": "Silmaril.Elf.Corpus.DarkhttpdLogEncoding.Context.Defs",
+          "status": "stated-unproved"
+        }
+      ],
       "functional_equivalence_statements": 0,
       "has_symtab": true,
       "lean_status": "variant: whole-file parse and structural decomposition; measured check receipt",
@@ -64929,8 +65087,16 @@
       "build_id": "96cbc96a571b24c94eee1cb93237a7eeef950b6a5d20d676f47d56ef6c4d5327",
       "contextual_c_to_elf_statements": 0,
       "defined_nonzero_function_symbol_entries": 2547,
-      "formal_statements": [],
-      "functional_equivalence_statements": 0,
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.threadsafeRelease",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        }
+      ],
+      "functional_equivalence_statements": 1,
       "has_symtab": true,
       "lean_status": "not generated or checked",
       "license": "blessing",
@@ -69753,8 +69919,23 @@
       "build_id": "5555adde72c50101a1b124504946b9976f45457b6810f7ffd136211143776d11",
       "contextual_c_to_elf_statements": 0,
       "defined_nonzero_function_symbol_entries": 2629,
-      "formal_statements": [],
-      "functional_equivalence_statements": 0,
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.versionOptimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.threadsafeOptimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        }
+      ],
+      "functional_equivalence_statements": 2,
       "has_symtab": true,
       "lean_status": "not generated or checked",
       "license": "blessing",
@@ -70197,8 +70378,23 @@
       "build_id": "e5951500ef641432838bcb339f558609a90e47ec9a65f2f9dd85e523567ccfc4",
       "contextual_c_to_elf_statements": 0,
       "defined_nonzero_function_symbol_entries": 0,
-      "formal_statements": [],
-      "functional_equivalence_statements": 0,
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.versionStripping",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.threadsafeStripping",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        }
+      ],
+      "functional_equivalence_statements": 2,
       "has_symtab": false,
       "lean_status": "not generated or checked",
       "license": "blessing",
@@ -70345,8 +70541,51 @@
       "build_id": "e5951500ef641432838bcb339f558609a90e47ec9a65f2f9dd85e523567ccfc4",
       "contextual_c_to_elf_statements": 0,
       "defined_nonzero_function_symbol_entries": 1620,
-      "formal_statements": [],
-      "functional_equivalence_statements": 0,
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.versionOptimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.threadsafeOptimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.versionStripping",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.threadsafeStripping",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.versionConfiguration",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.threadsafeRelease",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        }
+      ],
+      "functional_equivalence_statements": 6,
       "has_symtab": true,
       "lean_status": "not generated or checked",
       "license": "blessing",
@@ -73345,8 +73584,16 @@
       "build_id": "3c840d8b60424e214769abc3eb63be41fc9de8ba6131f4174d10acc97b1a3ec8",
       "contextual_c_to_elf_statements": 0,
       "defined_nonzero_function_symbol_entries": 2571,
-      "formal_statements": [],
-      "functional_equivalence_statements": 0,
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.smallThreadsafeOptimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        }
+      ],
+      "functional_equivalence_statements": 1,
       "has_symtab": true,
       "lean_status": "not generated or checked",
       "license": "blessing",
@@ -73673,8 +73920,23 @@
       "build_id": "2bc31a506fa187b32877ca0f3e438ae0c892154c51bbcda86b9f900b3b0acc1f",
       "contextual_c_to_elf_statements": 0,
       "defined_nonzero_function_symbol_entries": 1572,
-      "formal_statements": [],
-      "functional_equivalence_statements": 0,
+      "formal_statements": [
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.versionConfiguration",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        },
+        {
+          "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.smallThreadsafeOptimization",
+          "kind": "functional_equivalence",
+          "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+          "status": "stated-unproved",
+          "viewer_kind": "binary_equivalence"
+        }
+      ],
+      "functional_equivalence_statements": 2,
       "has_symtab": true,
       "lean_status": "not generated or checked",
       "license": "blessing",
@@ -78042,9 +78304,10 @@
       ]
     }
   ],
+  "binary_viewer_statement_count": 9,
   "formal_statement_counts": {
-    "contextual_c_to_elf": 9,
-    "functional_equivalence": 6
+    "contextual_c_to_elf": 30,
+    "functional_equivalence": 15
   },
   "hierarchy": [
     "project",

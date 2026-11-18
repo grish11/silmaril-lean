@@ -7,7 +7,8 @@ public import Silmaril.Cerberus.Elaboration.Arithmetic.Defs
 retain the distinct relational/equality allocation and case constructors.
 Outer expression annotations/markers and eager construction scheduling belong
 to the caller; this slice certifies neither arbitrary source callback staging
-nor pointer-comparison branches. -/
+nor arbitrary pointer-comparison semantics. The selected non-CHERI pointer
+equality branch retains its actual effectful memory operation and UB fallback. -/
 
 @[expose] public section
 namespace Silmaril.Cerberus.Elaboration.Comparisons
@@ -75,6 +76,27 @@ def finishEqual (config : Target.Config) (env : Target.Environment) (bindings : 
   return weakSequence pattern (unseq [left, right]) (pureEffect (casePure values
     [(specified, standardPure "§6.5.9#3" (booleanInteger condition)),
      (wildcard (.tuple [.loaded objectLeft, .loaded objectRight]), unspecified resultType)]))
+
+/-- Pinned translation.lem:546–554,581–607: allocate all five wrappers
+before translating either child; pointer equality is a memory operation. The
+unspecified case retains UB, rather than becoming a Boolean answer. -/
+def pointers (config : Target.Config) (notEqual : Bool) (location : Loc)
+    (left right : State.ElabM Effect) : State.ElabM Effect := do
+  if config.cheri then throw (.message "unsupported: CHERI equality comparison")
+  let operands ← freshOperands .pointer .pointer
+  let coreLeft ← left
+  let coreRight ← right
+  let (pattern, values) ← Constants.liftResult (loadedPair operands)
+  let specified ← Constants.liftResult (specifiedPair operands)
+  let operation := memoryOperation (if notEqual then .ptrNe else .ptrEq)
+    [operands.leftObject.expression, operands.rightObject.expression]
+  let yes := weakSequence operands.comparison.pattern operation
+    (pureEffect (standardPure "§6.5.9#3" (booleanInteger operands.comparison.expression)))
+  return weakSequence pattern (unseq [coreLeft, coreRight])
+    (caseEffect values [(specified, yes),
+      (wildcard (.tuple [.loaded .pointer, .loaded .pointer]),
+        pureEffect (undefined location
+          (.UB_CERB004_unspecified .UB_unspec_equality_both_arith_or_ptr)))])
 
 /-- Scalar Gt translates both children before allocating all five wrappers. -/
 def greater (config : Target.Config) (env : Target.Environment) (bindings : List Runtime.Binding)

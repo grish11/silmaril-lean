@@ -148,9 +148,32 @@ def attributeSpecifier : P (List Attribute) := do
   let _ ← expectPunct .rbrack
   return xs.toList
 
-/-- `attribute_specifier_sequence?`: the groups in source order (none when absent). -/
+/-- Narrow GNU spelling required by the delivered cJSON default-visibility
+build. This is an extension to the pinned C2X grammar, not an upstream equation.
+The annotation is retained under `gnu`; other GNU attributes reject. -/
+def gnuDefaultVisibility : P (List Attribute) := do
+  let introducer ← advance
+  let _ ← expectPunct .lparen
+  let _ ← expectPunct .lparen
+  let attr ← attribute_
+  unless attr.ns.isNone && attr.id.name == "visibility" &&
+      (attr.args.map fun (_, text, _) => text) == ["default"] do
+    fail "unsupported GNU attribute: only visibility(default) is supported"
+  let _ ← expectPunct .rparen
+  let _ ← expectPunct .rparen
+  return [{attr with ns := some ⟨introducer.start.region introducer.stop, "gnu"⟩}]
+
+def atAttributeSpecifier : P Bool := do
+  if ← atPunct .lbrackLbrack then return true
+  return match (← peek).kind with
+    | .name "__attribute__" => true
+    | _ => false
+
+/-- Attribute groups in source order, including the explicit narrow GNU
+extension. No annotation is erased or rewritten in the input source. -/
 def attributeSpecifierSequence : P (List (List Attribute)) := do
-  return (← manyWhile (atPunct .lbrackLbrack) attributeSpecifier).toList
+  return (← manyWhile atAttributeSpecifier (do
+    if ← atPunct .lbrackLbrack then attributeSpecifier else gnuDefaultVisibility)).toList
 
 /-- `to_attrs`: the groups flattened in source order. -/
 def toAttrs (groups : List (List Attribute)) : Attributes := .mk groups.flatten

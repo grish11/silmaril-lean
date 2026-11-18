@@ -52,3 +52,31 @@ example : branch true 1 = some
       (pureEffect (ifPure (symbolPure testSymbol)
         (memberShift (symbolPure objectSymbol) tag member)
         (standardUndefined .unknown "§6.5.2.3#4, sentence 4" .UB043_indirection_invalid_value)))) := by cbv
+
+private def direct (lvalue : Bool) := State.run
+  (Members.directMember false lvalue .unknown aggregate member child) context
+
+-- Address projection allocates one wrapper before the child. Loaded projection
+-- allocates its second wrapper after the child, as in the pinned equation.
+example : (direct true).2.freshness.next = 102 := by cbv
+example : (direct false).2.freshness.next = 103 := by cbv
+example : (direct true).1 = .ok
+    (addStandard "§6.5.2.3#3, sentence 2"
+      (strongSequence (symbolPattern ⟨⟨[]⟩, 100, .none⟩ (.object .pointer))
+        (pureEffect (specified (integer 1)))
+        (pureEffect (memberShift (symbolPure ⟨⟨[]⟩, 100, .none⟩) tag member)))) := by cbv
+private def directBranch (index : Nat) : Option Pure :=
+  match (direct false).1 with
+  | .ok (.mk _ (.sseq _ _ (.mk _ (.pure (.mk _ _ (.case_ _ branches)))))) =>
+      (branches[index]?).map Prod.snd
+  | _ => none
+example : directBranch 0 = some
+    (undefined .unknown (.UB_CERB004_unspecified .UB_unspec_rvalue_memberof)) := by cbv
+example : directBranch 1 = some
+    (memberOf tag member (symbolPure ⟨⟨[]⟩, 102, .none⟩)) := by cbv
+example : (State.run (Members.directMember true true .unknown aggregate member child)
+    context).1.isOk = false := by cbv
+example : (State.run (Members.directMember false true .unknown pointer member child)
+    context).1.isOk = false := by cbv
+example : (State.run (Members.directMember false true .unknown (.mk [] (.atomic aggregate))
+    member child) context).1.isOk = true := by cbv

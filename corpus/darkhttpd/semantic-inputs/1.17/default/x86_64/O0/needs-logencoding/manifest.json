@@ -1,0 +1,25 @@
+{
+  "files": {
+    "context.c": "ce9cbac8610df904f38a98b3db86d3b36cf1c22c286eaafdf2f6f85cf85ad749",
+    "preprocessing-context.json": "bf29d39d36d9b5fec1c7aa68ca865551df8e95a15ef00ac5c769e1223c0876f5",
+    "preprocessing.json": "a4ab5e877409c34ff1ddb1e7ff3bac98aff438718f528c33821e20e7ab57e80b",
+    "program.sexp": "8afeef037d7c66a599f4630f3fadceb726bf862ed47d4dd727a02d57b9a45bb7",
+    "projection.json": "778f40e600dfdb1b99a9e7aa3061ac0bdd03db9a0d74bc91430488ff3127dfb9",
+    "runtime.sexp": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b",
+    "translation-unit.i": "8b90d8bdc55576387362eef17ecc31fc1c0fde495ef73b2950bf10e1ad19ea82",
+    "typed-ail.sexp": "934a6fbb9b7e25eb414b937e9b1640532529bfdf85198e2112d9a36a4e762698"
+  },
+  "immutable_files": {
+    "corpus/variants/darkhttpd/1.17/default/x86_64/O0/unstripped/receipt.json": "1c95d7aa037fa73a31df7559b843c4ac8df9c0b669eb446d7fed48de7e805419",
+    "corpus/variants/darkhttpd/1.17/default/x86_64/O0/build.json": "607e843d8885ca948819c3cceb707d307acb0b107a995bca5a11dfb3296d3e9c",
+    "corpus/variants/darkhttpd/1.17/default/x86_64/O0/unstripped/darkhttpd": "9e107552b0d523f90b1b0b2eacd475f1172a1040316de9d1fc7060dc4799a698",
+    "corpus/darkhttpd/upstream/darkhttpd-1.17/darkhttpd.c": "450280b0010ee689b1984d8258afcc37d3f43a2cd8825661d275f9744e1f3ce8",
+    "benchmarks/cerberus-elaboration/oracle/cast-sign-extend/core.sexp.gz": "0f110b37ff5a57dfe4d99d4cf22505b7371bedb92c92acea7f9e2c397a972ccf"
+  },
+  "external_input_sha256": "876d0793d7a9a99898fd6efa4f232101231fb4f03b3851d742f3e4583f2b01d0",
+  "limits": [
+    "Exact source/TU closure, current-host preprocessing with matching recorded GCC/flags; no historical image/header identity or compile replay.",
+    "Saved Core is actual successful pinned elaboration, without fixRet, substitute callee or default procedure.",
+    "No semantic proof or whole-TU frontend adequacy is claimed."
+  ]
+}

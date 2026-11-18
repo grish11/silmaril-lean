@@ -102,6 +102,7 @@ def declaration (config : Target.Config) (types : Target.Environment)
   | .object _ alignment qualifiers type => do
       let global ← Globals.declaration config types runtime.stdlib program.2.objectDefinitions
         symbol location attributes alignment qualifiers type
+        (program.2.tagDefinitions.map fun (tag, _, _, definition) => (tag, definition))
       return { accumulator with globals := (symbol, global) :: accumulator.globals }
   | .function prototype (_, returnType) parameters variadic _ noreturn => do
     let baseType ← liftError (resultType returnType)
@@ -115,8 +116,9 @@ def declaration (config : Target.Config) (types : Target.Environment)
           info := insertSymbol (metadataSymbol runtime symbol) info accumulator.info }
     | some (_, definition) =>
         unless !variadic && !noreturn &&
-            (integerType returnType || voidType returnType) do
-          throw (.message "defined-function variadics, noreturn or noninteger/nonvoid returns are not ported")
+            (integerType returnType || voidType returnType ||
+              (!config.cheri && Constants.isPointer returnType)) do
+          throw (.message "defined-function variadics, noreturn or unsupported return types are not ported")
         -- Explicitly restricted successful-equation domain: upstream relies on
         -- frontend typing and zips these lists without a local mismatch check.
         unless parameters.length == definition.params.length do
@@ -126,7 +128,10 @@ def declaration (config : Target.Config) (types : Target.Environment)
           (definition.params.zip parameters).map (fun (symbol, parameter) => (some symbol, parameter.2.1)),
           variadic, prototype)
         let label ← freshReturnLabel
-        let body ← Statements.translate config types runtime.stdlib ⟨returnType, label, noreturn⟩ definition.body (some symbol) runtime.aliases
+        let statement ← LoopControl.erase definition.body
+        let labelVisibles := LoopControl.collect statement
+        let body ← Statements.translate config types runtime.stdlib ⟨returnType, label, noreturn⟩ statement
+          (some symbol) runtime.aliases labelVisibles
         let temporary ← State.freshDescription .none
         let ending := returnSave program.1 symbol label temporary definition.loc returnType baseType
         return { accumulator with

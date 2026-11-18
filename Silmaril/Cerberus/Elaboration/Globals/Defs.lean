@@ -8,7 +8,7 @@ public import Silmaril.Cerberus.Elaboration.LocalObjects.Defs
 attributes are supported. External object
 allocation still consumes the source's otherwise-unused fresh symbol.
 Global-expression context differs only at identifiers upstream, which this
-constant and integer-null cast domain excludes. Compound literals reject explicitly. -/
+closed constant/struct and integer-null cast domain excludes. Compound literals reject explicitly. -/
 
 @[expose] public section
 namespace Silmaril.Cerberus.Elaboration.Globals
@@ -24,6 +24,23 @@ def constantExpression : Ail.TypedExpression → Bool
   | .mk _ _ _ (.const _) => true
   | _ => false
 
+/-- Closed scalar initializer fragment: no identifier can depend on the global
+expression-context substitution. Nested aggregate/array expressions remain out. -/
+def closedScalarInitializer : Ail.TypedExpression → Bool
+  | .mk _ _ _ (.const _) => true
+  | .mk _ _ _ (.binary left (.arithmetic _) right) =>
+      closedScalarInitializer left && closedScalarInitializer right
+  | _ => false
+
+def closedStructInitializer : Ail.TypedExpression → Bool
+  | .mk _ _ _ (.struct _ fields) =>
+      fields.all (fun field => field.2.all closedScalarInitializer)
+  | _ => false
+
+def aggregateType : Ctype → Bool
+  | .mk _ (.struct _) => true
+  | _ => false
+
 /-- Actual object branch. The source allocates the object binder before looking
 up the initializer, then the result binder after wrapped initializer translation.
 The wrapper's only outer annotation is `Astd`, hence its source `locOf` is unknown.
@@ -33,11 +50,12 @@ integer types coincide. No C typing, runtime or memory-backend correctness follo
 def declaration (config : Target.Config) (types : Target.Environment)
     (runtime : List Runtime.Binding) (objects : List (Sym × Ail.TypedExpression))
     (symbol : Sym) (location : Loc) (attributes : Attributes)
-    (alignment : Option Alignment) (qualifiers : Qualifiers) (type : Ctype) :
+    (alignment : Option Alignment) (qualifiers : Qualifiers) (type : Ctype)
+    (tags : StructInitializers.Tags := []) :
     State.ElabM (Global Codec.wireModel Unit Unit) := do
   if config.cheri then throw (.message "unsupported: CHERI global-object elaboration")
-  unless integerType type || Constants.isPointer type do
-    throw (.message "unsupported: global object is not a direct integer or pointer")
+  unless integerType type || Constants.isPointer type || aggregateType type do
+    throw (.message "unsupported: global object is not a direct integer, pointer or struct")
   let .mk [] := attributes
     | throw (.message "unsupported: global object attributes are not ported")
   let coreType := ailCtype type
@@ -52,12 +70,13 @@ def declaration (config : Target.Config) (types : Target.Environment)
           pure (.loaded .pointer, pureEffect (specified (nullptr type)))
         else do
           unless constantExpression input ||
+              (aggregateType type && closedStructInitializer input) ||
               (Constants.isPointer type && NullPointers.integerNullCast input) do
             throw (.message (if integerType type then
               "unsupported: global initializer is not a constant expression"
               else "unsupported: global initializer is outside constants and integer-null pointer casts"))
           let (_, compounds, core) ← State.withBlockObjects []
-            (Expressions.wrappedExpression config types runtime input)
+            (Expressions.wrappedExpression config types runtime input [] tags)
           unless compounds.isEmpty do
             throw (.message "unsupported: global compound literals are not ported")
           let sourceType ← Constants.liftResult
@@ -65,10 +84,14 @@ def declaration (config : Target.Config) (types : Target.Environment)
           let objectType ← match sourceType with
             | .mk _ (.basic (.integer _)) => pure ObjectType.integer
             | .mk _ (.pointer _ _) => pure ObjectType.pointer
+            | .mk _ (.struct tag) => pure (ObjectType.struct tag)
             | _ => throw (.message "unsupported: global initializer is not a direct integer or pointer")
           if integerType type then
             unless integerType sourceType do
               throw (.message "unsupported: global constant initializer is not a direct integer")
+          else if aggregateType type then
+            unless aggregateType sourceType do
+              throw (.message "unsupported: global struct initializer is not a struct")
           else
             unless Constants.isPointer sourceType do
               throw (.message "unsupported: global pointer initializer is not a pointer")

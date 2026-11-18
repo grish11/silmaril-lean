@@ -1,0 +1,45 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.CjsonArraySize.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/CjsonArraySize/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonArraySize/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonArraySize/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonArraySize/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonArraySize/Source/Projection/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonArraySize/Source/Projection/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonArraySize/Thms.lean",
+    "Silmaril/Cerberus/Elaboration/Assignments/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Postfix/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/LocalObjects/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Loops/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/LoopControl/Defs.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean",
+    "Silmaril/X86/SystemV/Defs.lean",
+    "Silmaril/X86/SystemV/CApi/Defs.lean"
+  ],
+  "source": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/context.c"
+  },
+  "projection": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/projection.json",
+    "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/runtime.sexp"
+  },
+  "limits": [
+    "All corpus refinements remain UNPROVED;0 corpus semantic proofs; no interactive compilation.",
+    "Exact unchanged function, size_t and struct spans from an already-saved public TU, with separately pinned original upstream function. No new preprocessing/artifact build; historical image/header identity and whole-TU adequacy remain unproved.",
+    "Actual pinned assignment, pointer initialization, postfix unsigned increment and lifetime-aware loop lowering; actual source/Core/procedure/ABI metadata, no default body/callee or refinement-equivalent premise.",
+    "Restricted nonvacuous domain: null or valid acyclic lists of length0..64, distinct aligned64-byte cJSON objects, child offset16 and next offset0, initialized real-provenance pointers and readonly caller heap. Bound64 is a finite demonstration below size_t/narrowing-to-int overflow, not full-input coverage.",
+    "One SysV pointer argument in RDI and signed-int return in EAX low32. Actual canonical ELF is35 bytes at0x4090. Private machine stack footprint0; all target memory/mapping state is preserved.",
+    "Caller allocation/byte/pointer-provenance/lifetime state, enum/function registrations and stdout are observed. Automatic parameter/local allocations are private; actual two local creations/kills are retained. Private allocation bookkeeping and diagnostic locations are not caller observations.",
+    "Entry assumes no result/count/refinement/termination law. The obligation demands joint entry existence, Core safety, machine first return and matching finite source execution; universal source termination/divergence equivalence, cyclic/oversized/invalid lists are not stated.",
+    "All66 finite Core executions (null and every length0..64) preserve readonly caller heap/provenance and allocate/kill both actual locals; these are regression checks, not contextual or termination proofs. Outside-allocation lifetime UB mapping remains explicitly unsupported outside the chosen valid domain.",
+    "Existing upstream-security, unsupported FIPS, cJSON historical runtime/provenance and distinct jemalloc limits remain; whole-corpus function/compiler/equivalence coverage is unfinished."
+  ]
+}
