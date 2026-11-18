@@ -136,3 +136,11 @@ python3 scripts/corpus/gen_variants.py \
 The low threshold forces the window path on the small checked pair. Exact artifact
 paths are required; the generator validates the completed inventory and refuses
 module-name collisions or overwriting files owned by another generator.
+
+### Canonical optimization stripping pairs
+
+`variants.py --level O2` explicitly builds two clean O2 outputs and their independent stripping pairs under `corpus/variants/<project>/<version>/<configuration>/<architecture>/O2/`. It follows the same pinned-image, clean-repeat, runtime-test and hash publication path as other levels. Defaults remain O0/Og/O1/O3; existing `corpus/elf` canonical bytes are unchanged. This option is a recipe capability, not a delivered O2 stripped artifact claim. Configuration `asm` still requires exactly OpenSSL and distinct configuration paths. Example (when container initialization is available):
+
+```sh
+python3 scripts/corpus/variants.py --package openssl --configuration asm --level O2 --arch aarch64 --work /work/out/openssl-asm-o2
+```

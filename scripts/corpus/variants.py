@@ -41,7 +41,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--package', choices=PACKAGES, action='append')
     p.add_argument('--arch', choices=['x86_64', 'aarch64'], action='append')
-    p.add_argument('--level', choices=['O0', 'Og', 'O1', 'O3'], action='append')
+    p.add_argument('--level', choices=['O0', 'Og', 'O1', 'O2', 'O3'], action='append',
+                   help='explicit O2 builds add separately repeated strip pairs; default remains O0/Og/O1/O3')
     p.add_argument('--configuration', choices=['asm', 'no-asm'], help='OpenSSL only; default remains no-asm')
     p.add_argument('--work', type=Path, required=True)
     p.add_argument('--resume', action='store_true', help='validate and retain already published builds')

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class CorpusDatabase(unittest.TestCase):
     def test_checked_variant_modules_are_bound(self):
         artifacts = inventory(ROOT)['artifacts']
-        self.assertEqual(sum(a['lean_status'].startswith('variant: whole-file') for a in artifacts), 34)
+        self.assertEqual(sum(a['lean_status'].startswith('variant: whole-file') for a in artifacts), 64)
         check = json.loads((ROOT / 'corpus/measurements/variant-lean/checks.json').read_text())['artifacts'][0]
         source = ROOT / next(iter(check['module_sha256']))
         original = matrix.sha
@@ -29,7 +29,7 @@ class CorpusDatabase(unittest.TestCase):
 
     def test_concrete_function_statement_binding(self):
         data = inventory(ROOT)
-        self.assertEqual(data['formal_statement_counts'], {'contextual_c_to_elf': 1, 'functional_equivalence': 1})
+        self.assertEqual(data['formal_statement_counts'], {'contextual_c_to_elf': 3, 'functional_equivalence': 1})
         participants = [a for a in data['artifacts'] if a['functional_equivalence_statements']]
         self.assertEqual(len(participants), 2)
         self.assertEqual({a['project'] for a in participants}, {'mimalloc'})
@@ -88,6 +88,9 @@ class CorpusDatabase(unittest.TestCase):
                 self.assertEqual(report['path'], artifact['path'])
             bound = db.execute("SELECT mapping FROM corpus_functions WHERE symbol='mi_version'").fetchall()
             self.assertEqual(sum('concrete contextual C-to-ELF statement' in row[0] for row in bound), 1)
+            for name in ['_mi_arena_id_none', '_mi_allocator_done']:
+                rows = db.execute('SELECT mapping FROM corpus_functions WHERE symbol=?', (name,)).fetchall()
+                self.assertEqual(sum('concrete contextual C-to-ELF statement' in row[0] for row in rows), 1)
             self.assertGreater(db.execute('SELECT count(*) FROM corpus_functions').fetchone()[0], 42000)
             self.assertGreater(db.execute('SELECT count(*) FROM corpus_timings').fetchone()[0], 10)
             self.assertTrue(all(row[2].upper() != 'BLOB' for row in db.execute('PRAGMA table_info(corpus_artifacts)')))

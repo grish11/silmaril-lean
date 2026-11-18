@@ -5,7 +5,7 @@ public import Silmaril.Cerberus.Elaboration.GlobalOrder.Defs
 public import Silmaril.Cerberus.Codec.WellFormed.Defs
 
 /-! Initial actual function/file assembly from `translation.lem:4201–4544`.
-Defined functions are limited to integer returns, normal pointer parameters and
+Defined functions are limited to integer returns or void fallthrough, normal pointer parameters and
 matching declared/defined formal counts; the separate
 statement and expression stages reject other forms. Independent direct integer
 and selected null-pointer globals are supported by the separate Globals and
@@ -53,6 +53,10 @@ def liftError {α : Type} : Except String α → State.ElabM α
   | .ok value => pure value
   | .error why => throw (.message why)
 
+def voidType : Ctype → Bool
+  | .mk _ .void => true
+  | _ => false
+
 def integerType : Ctype → Bool
   | .mk _ (.basic (.integer _)) => true
   | _ => false
@@ -67,13 +71,16 @@ def metadataSymbol (runtime : RuntimeInputs) (symbol : Sym) : Sym :=
   Designators.resolveAlias runtime.aliases symbol
 
 /-- Actual return `save`: main defaults to specified zero; a nonvoid ordinary
-function falling through raises the pinned upstream undefined behavior. -/
+function falling through raises the pinned upstream undefined behavior. Ordinary void
+fallthrough returns unit, as in pinned `translation.lem:4424–4434`. Explicit void
+return statements remain outside the statement dispatcher. -/
 def returnSave (startup : Option Sym) (symbol label temporary : Sym)
     (location : Loc) (type : Ctype) (baseType : BaseType) : Effect :=
   let isMain := match startup with
     | some main => decide (main.key = symbol.key)
     | none => false
   let defaultValue := if isMain then specified (integer 0)
+    else if voidType type then Construction.unit
     else standardPure "§6.9.1#12" (undefined location .UB088_reached_end_of_function)
   saveWith [.label .return_, .loc location] (label, baseType)
     [(temporary, ((baseType, some (type, .value)), defaultValue))]
@@ -107,8 +114,9 @@ def declaration (config : Target.Config) (types : Target.Environment)
           functions := insertSymbol symbol (.procedureDecl location baseType parameterTypes) accumulator.functions
           info := insertSymbol (metadataSymbol runtime symbol) info accumulator.info }
     | some (_, definition) =>
-        unless !variadic && !noreturn && integerType returnType do
-          throw (.message "defined-function variadics, noreturn or noninteger returns are not ported")
+        unless !variadic && !noreturn &&
+            (integerType returnType || voidType returnType) do
+          throw (.message "defined-function variadics, noreturn or noninteger/nonvoid returns are not ported")
         -- Explicitly restricted successful-equation domain: upstream relies on
         -- frontend typing and zips these lists without a local mismatch check.
         unless parameters.length == definition.params.length do

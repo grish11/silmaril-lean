@@ -9,3 +9,5 @@ The explicit contract is System V AMD64, no arguments, int32 return, Open/Ext8 e
 Verification: targeted --wfail root passed, measured 12.605s wall; source projection has no axioms, elaboration/code binding use only propext/Classical.choice/Quot.sound. Receipt and exact input hashes are in corpus/measurements/formal-functions. No new axiom, sorry, native_decide or CI threshold change.
 
 Coverage remains narrow: one closed literal-return C function and one separate binary-equivalence problem. The full corpus request still requires memory/call semantics, more functions/configurations and checked variant decompositions.
+
+The closed-leaf extension adds `_mi_arena_id_none` (int result) and `_mi_allocator_done` (void fallthrough) from actual saved preprocessing, with checked source span(s), actual frontend/Core elaboration, ELF bytes and local symbol identities. Their contextual machine obligations remain unproved. Total: three distinct C functions, three C-to-ELF statements and one binary-equivalence statement; zero semantic proofs. `blockers.json` records inspected unsupported candidates without counting them as statements.

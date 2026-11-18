@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "status": "inspected blockers; not formal statements or proofs",
+  "candidates": [
+    {
+      "project": "tinycc",
+      "function": "is_space",
+      "artifact": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc",
+      "source": "corpus/tinycc/upstream/tcc-0.9.27/tcc.h",
+      "status": "blocked",
+      "blockers": [
+        "Core elaboration lacks short-circuit/conditional and required comparison/character operations",
+        "O0 duplicate local symbols require address/TU-specific mapping; canonical O2 helpers eliminated/inlined"
+      ],
+      "probe": "not individually run; syntax/framework blockers inspected"
+    },
+    {
+      "project": "tinycc",
+      "function": "isid",
+      "artifact": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc",
+      "source": "corpus/tinycc/upstream/tcc-0.9.27/tcc.h",
+      "status": "blocked",
+      "blockers": [
+        "Core elaboration lacks short-circuit/conditional and required comparison/character operations",
+        "O0 duplicate local symbols require address/TU-specific mapping; canonical O2 helpers eliminated/inlined"
+      ],
+      "probe": "not individually run; syntax/framework blockers inspected"
+    },
+    {
+      "project": "tinycc",
+      "function": "isnum",
+      "artifact": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc",
+      "source": "corpus/tinycc/upstream/tcc-0.9.27/tcc.h",
+      "status": "blocked",
+      "blockers": [
+        "Core elaboration lacks short-circuit/conditional and required comparison/character operations",
+        "O0 duplicate local symbols require address/TU-specific mapping; canonical O2 helpers eliminated/inlined"
+      ],
+      "probe": "isnum exact closed source passed typed frontend; actual Core error: unsupported binary operator outside scalar add/sub/mul/gt/eq"
+    },
+    {
+      "project": "tinycc",
+      "function": "isoct",
+      "artifact": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc",
+      "source": "corpus/tinycc/upstream/tcc-0.9.27/tcc.h",
+      "status": "blocked",
+      "blockers": [
+        "Core elaboration lacks short-circuit/conditional and required comparison/character operations",
+        "O0 duplicate local symbols require address/TU-specific mapping; canonical O2 helpers eliminated/inlined"
+      ],
+      "probe": "not individually run; syntax/framework blockers inspected"
+    },
+    {
+      "project": "tinycc",
+      "function": "toup",
+      "artifact": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc",
+      "source": "corpus/tinycc/upstream/tcc-0.9.27/tcc.h",
+      "status": "blocked",
+      "blockers": [
+        "Core elaboration lacks short-circuit/conditional and required comparison/character operations",
+        "O0 duplicate local symbols require address/TU-specific mapping; canonical O2 helpers eliminated/inlined"
+      ],
+      "probe": "not individually run; syntax/framework blockers inspected"
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_option_get_fast",
+      "status": "blocked",
+      "blockers": [
+        "actual global/array/struct memory context required",
+        "current CFn entry model covers integer parameter objects, not allocator global memory"
+      ],
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_os_has_overcommit",
+      "status": "blocked",
+      "blockers": [
+        "actual global/array/struct memory context required",
+        "current CFn entry model covers integer parameter objects, not allocator global memory"
+      ],
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_os_has_virtual_reserve",
+      "status": "blocked",
+      "blockers": [
+        "actual global/array/struct memory context required",
+        "current CFn entry model covers integer parameter objects, not allocator global memory"
+      ],
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_os_page_size",
+      "status": "blocked",
+      "blockers": [
+        "actual global/array/struct memory context required",
+        "current CFn entry model covers integer parameter objects, not allocator global memory"
+      ],
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_bin_size",
+      "status": "blocked",
+      "blockers": [
+        "actual global/array/struct memory context required",
+        "current CFn entry model covers integer parameter objects, not allocator global memory"
+      ],
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+    },
+    {
+      "project": "openssl",
+      "function": "OPENSSL_isservice",
+      "status": "blocked",
+      "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
+        "preprocessor configuration branch/source projection not yet bound"
+      ],
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+    },
+    {
+      "project": "openssl",
+      "function": "ERR_load_KDF_strings",
+      "status": "blocked",
+      "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
+        "preprocessor configuration branch/source projection not yet bound"
+      ],
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+    },
+    {
+      "project": "openssl",
+      "function": "X509V3_add_standard_extensions",
+      "status": "blocked",
+      "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
+        "preprocessor configuration branch/source projection not yet bound"
+      ],
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+    },
+    {
+      "project": "openssl",
+      "function": "ossl_prov_is_running",
+      "status": "blocked",
+      "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
+        "preprocessor configuration branch/source projection not yet bound"
+      ],
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+    },
+    {
+      "project": "sqlite",
+      "function": "sqlite3MemRoundup",
+      "status": "blocked",
+      "blockers": [
+        "same source name has several mutually exclusive definitions",
+        "delivered build uses ROUND8 macro, not identity variant",
+        "bitwise macro lowering/config binding required"
+      ],
+      "evidence": "actual symbol0xff10,size7 and upstream conditional definitions inspected; identity definition deliberately not substituted"
+    }
+  ]
+}
