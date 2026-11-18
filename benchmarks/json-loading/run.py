@@ -8,10 +8,12 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
 HARNESS = Path(__file__).with_name("Harness.lean")
+RUNTIME = HARNESS.with_name("Runtime.lean")
 HEADER = "module\nimport {module}\nopen Silmaril.Formats\n"
 LIMITS = "set_option maxRecDepth 8192\nset_option maxHeartbeats 0\n"
 
@@ -56,6 +58,17 @@ def fixtures(output):
         yield name, ROOT / relative, None
 
 
+def build_native():
+    with tempfile.NamedTemporaryFile(mode="w", prefix=".json-loading-", suffix=".toml", dir=ROOT) as config:
+        config.write((ROOT / "lakefile.toml").read_text(encoding="utf-8"))
+        config.write('\n[[lean_exe]]\nname = "json-loading-bench"\nroot = "Runtime"\n'
+                     'srcDir = "benchmarks/json-loading"\n')
+        config.flush()
+        subprocess.run(["lake", "-f", config.name, "build", "--wfail", "json-loading-bench"],
+                       cwd=ROOT, check=True)
+    return ROOT / ".lake/build/bin/json-loading-bench"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
@@ -63,30 +76,35 @@ def main():
     parser.add_argument("--runs", type=int, default=1)
     parser.add_argument("--seconds", type=int, default=20)
     parser.add_argument("--memory", type=int, default=4096, help="Lean memory limit in MiB")
+    parser.add_argument("--native-only", action="store_true", help="benchmark all parsers in one native executable")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["lake", "build", "--wfail", "Silmaril.Formats.Json.Fast.Elab"], cwd=ROOT, check=True)
     env = os.environ.copy()
-    env["LEAN_PATH"] = str(output) + ":" + subprocess.check_output(
-        ["lake", "env", "printenv", "LEAN_PATH"], cwd=ROOT, text=True
-    ).strip()
-    harness = output / HARNESS.name
-    harness.write_bytes(HARNESS.read_bytes())
     lean = ["lean", "-j1", "-M", str(args.memory), "-s", "32768", "-E", "warning"]
-    subprocess.run(lean + ["-o", "Harness.olean", harness.name], cwd=output, env=env, check=True)
+    if args.native_only:
+        runtime = [str(build_native())]
+    else:
+        subprocess.run(["lake", "build", "--wfail", "Silmaril.Formats.Json.Fast.Elab"], cwd=ROOT, check=True)
+        env["LEAN_PATH"] = str(output) + ":" + subprocess.check_output(
+            ["lake", "env", "printenv", "LEAN_PATH"], cwd=ROOT, text=True
+        ).strip()
+        (output / HARNESS.name).write_bytes(HARNESS.read_bytes())
+        (output / RUNTIME.name).write_bytes(RUNTIME.read_bytes())
+        subprocess.run(lean + ["-o", "Harness.olean", HARNESS.name], cwd=output, env=env, check=True)
+        runtime = [*lean, "--run", RUNTIME.name]
 
     with (output / "results.csv").open("w", newline="") as csv_file:
         rows = csv.writer(csv_file)
         rows.writerow(["case", "bytes", "run", "phase", "variant", "status", "wall_s", "max_rss_kib", "olean_bytes", "parse_ms"])
 
-        def run(case, size, repeat, phase, variant, arguments, artifact=None):
+        def run(case, size, repeat, phase, variant, arguments, artifact=None, command=lean):
             log = output / f"{case}.{repeat}.{phase}.{variant}.log"
             timing = log.with_suffix(".time")
             with log.open("w") as stream:
                 proc = subprocess.run([
                     "/usr/bin/time", "-o", str(timing), "-f", "%e %M",
-                    "timeout", "--kill-after=2", str(args.seconds), *lean, *arguments,
+                    "timeout", "--kill-after=2", str(args.seconds), *command, *arguments,
                 ], cwd=output, env=env, stdout=stream, stderr=subprocess.STDOUT, check=False)
             elapsed, rss = timing.read_text().splitlines()[-1].split()
             parse_time = re.search(r"parse_ns=(\d+)", log.read_text(errors="replace"))
@@ -103,8 +121,9 @@ def main():
             size = fixture.stat().st_size
             for repeat in range(1, args.runs + 1):
                 for variant in ("wire", "lean", "fast"):
-                    run(case, size, repeat, "runtime", variant, ["--run", harness.name, variant, str(fixture)])
-                if path is None:
+                    run(case, size, repeat, "native" if args.native_only else "runtime", variant,
+                        [variant, str(fixture)], command=runtime)
+                if args.native_only or path is None:
                     continue
                 steps = "[" + ", ".join(f".key {dump(s)}" if isinstance(s, str) else f".index {s}" for s in path) + "]"
                 for variant, statement, goals in (

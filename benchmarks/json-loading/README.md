@@ -80,3 +80,80 @@ In the wide precomputed build, median parser/emitter/kernel-type-check/serializa
 variance. The peak precomputed build RSS on large cases was about 2.4 GiB. Kernel-only full
 `SourceMatches` verification took 0.66 s on the small input and exceeded the memory limit on the
 medium input. The large selective proof times do **not** include that full certification.
+
+## Follow-up: checked object fragments
+
+`Certificate.lean` and `certificate.py` are a benchmark, not a new import mode. The generator
+splits a nonempty top-level object ending in LF on top-level commas. For each fragment the kernel
+checks (1) its exact packed UTF-8 spelling and (2) `parseText ("{" ++ fragment ++ "}") = .ok
+(Value.ofObject entries)` for the emitted entries. A balanced proof tree joins the fragments with
+literal commas and joins the ordered entries with checked lengths. `spells_of_check` uses the
+proved `KBytes` comparison to link the rendering, including braces and final LF, byte-for-byte to
+an independent embedding of the original. `Spells original result` relates those bytes to the
+same unindexed `Value` used by the field proof. The splitter and precomputed values are proposals,
+not trusted parser results. The theorem concerns embedded bytes, not the filesystem.
+
+This proves a lossless **compositional object spelling relation**, not `SourceMatches`, and not
+equivalence to a monolithic parser run or its hash index. The checked fragments reuse Fast's
+existing Unicode and decimal semantics; joins retain every entry in source order. The semantic
+test checks a literal/escaped duplicate key across fragments, a surrogate pair, exact decimals,
+a nested field, and rejection of an equal-length spelling change (`e` to `E`). The audited
+agreement theorem uses only `propext`, `Classical.choice`, and `Quot.sound`.
+
+```sh
+python3 benchmarks/json-loading/certificate.py /tmp/json-cst-test --case semantics
+python3 benchmarks/json-loading/certificate.py /tmp/json-cst-small --case small --width 4
+python3 benchmarks/json-loading/certificate.py /tmp/json-cst-medium --case medium --width 1
+python3 benchmarks/json-loading/certificate.py /tmp/json-cst-medium-4 --case medium --width 4
+python3 benchmarks/json-loading/certificate.py /tmp/json-cst-wide --case wide --width 4 --seconds 75
+```
+
+Measurements on the pinned Lean nightly (`-j1 -M 4096 -s 32768`, separate processes, one run per
+row) exclude Lake setup and fixture generation. Splitting/emitting the driver took 0.014 s at
+35,686 bytes (width 1) and about 0.35 s at 2,772,046 bytes (width 4). Fragment wall is a proxy
+including import, local parsing/emission, kernel validation, assembly and serialization. Link
+wall includes import, independent byte embedding, and the kernel comparison. Peak RSS is the
+maximum over the measured Lean phases, not their sum.
+
+| Fixture / proof | Fragments (s) | Byte link (s) | Import / linked query (s) | Peak RSS (GiB) |
+| --- | ---: | ---: | ---: | ---: |
+| 442 B, width 4 | 0.71 | 0.60 | 0.57 / 0.58 | 2.19 |
+| 35,686 B, width 1 | 12.49 | 0.89 | 0.59 / 0.73 | 2.20 |
+| 35,686 B, width 4 | 13.44 | 0.65 | 0.60 / 0.60 | 2.19 |
+| 35,686 B, monolithic `SourceMatches` | — | 9.85, memory limit | — | 4.00 |
+| 2,772,046 B, width 4 | timed out at 75 s | not reached | not reached | 2.25 |
+
+The monolithic baseline is the `agreement` row of `run.py --case medium --seconds 20`.
+The 35 KiB linked query selects the final entry by ordinal (not by hash index) after import. The
+certificate succeeds below the memory cap but is not a faster implementation of `SourceMatches`.
+The wide run did not get as far as byte linking: even small independent fragments still pay to
+reduce the text parser and check their decoded values. The next architecture to test is a
+lexical-event checker over packed spans, proving token decoding and ordered AST assembly
+separately, with reusable block proofs. This experiment does not justify a production CST API
+or a change to the default/precomputed trust boundary.
+
+## Follow-up: one native executable
+
+```sh
+python3 benchmarks/json-loading/run.py /tmp/json-native --native-only --runs 3 --seconds 15
+```
+
+The harness builds one optional Lake executable from `Runtime.lean` using a temporary copy of
+the Lake config. All three branches are compiled in the same executable; no Lean elaborator
+is running in the timed process. The inner timer excludes file I/O/startup; wall and RSS include
+both. Values below are medians of three fresh processes. Native timeouts have no measured parse
+completion time. Core accepts these fixtures but has a different contract, including object
+representation; the numbers do not establish semantic equivalence.
+
+| Fixture | Wire parse / wall / RSS | Core parse / wall / RSS | Fast parse / wall / RSS |
+| --- | ---: | ---: | ---: |
+| Small | 0.19 ms / 0.03 s / 66 MiB | 0.15 ms / 0.03 s / 66 MiB | 0.17 ms / 0.03 s / 68 MiB |
+| Medium | 92.94 ms / 0.13 s / 68 MiB | 0.32 ms / 0.03 s / 66 MiB | 1.50 ms / 0.03 s / 66 MiB |
+| Wide | 15 s timeout / 129 MiB | 28.22 ms / 0.06 s / 78 MiB | 114.15 ms / 0.15 s / 130 MiB |
+| List | 15 s timeout / 144 MiB | 17.29 ms / 0.05 s / 78 MiB | 117.90 ms / 0.15 s / 146 MiB |
+| Nested | 15 s timeout / 133 MiB | 33.93 ms / 0.07 s / 92 MiB | 126.68 ms / 0.16 s / 136 MiB |
+
+Wire also hit 15 s on the 232,566-byte litmus metadata and took 5.38 s on the 116,688-byte
+litmus corpus; Fast took 9.81 ms and 5.58 ms respectively. With native runtime already under
+0.13 s on the three multi-MiB cases, this follow-up targets the source-linked proof bottleneck,
+not further runtime tuning.
