@@ -25,10 +25,14 @@ by the graph, nor equated with architectural faults.
   equal-length or append assumption. If independent chunks do not agree on an
   intermediate segmentation, a chunk-wise composition rule cannot be inferred
   from ordinary relational composition.
-- For a fixed query context, types and relations have identities and
-  associative composition, with inclusion as the hom-set order (equivalently,
-  the 2-cells of a locally posetal structure). Composition is monotone in both
-  arguments. The checked identity, composition and monotonicity laws make graph
+- Types and relations have identities and associative composition. A directed
+  comparison `R ⊆ R'` is a 2-cell between parallel relations with the same
+  input and output types. `rebase_mono` composes two such comparisons
+  horizontally: `A ⊆ A'` and `M ⊆ M'` give `A ○ M ⊆ A' ○ M'`.
+  `rebase_interchange` checks that horizontally composing the vertical chains
+  gives the same inclusion as vertically composing the horizontal pairs.
+  This equality is proof-irrelevant in the hom-poset; it makes no claim about
+  identity of execution witnesses. For a fixed query context, these laws make graph
   transport covariant and observed-machine rebasing contravariant on arrows
   (and both monotone on 2-cells), taking graphs into their inclusion posets. A
   sound map from one decoder to another is the inclusion of the transported
@@ -73,6 +77,24 @@ block. The toy semantics counts ordinary instructions and observes a return
 tag; it does not execute a real push, access the stack, or compute a return
 address. Its two-instruction listing relates to a singleton abstract block;
 the checked rebases admit the observation at both list and byte inputs.
+
+## Directed comparison with the executable decoder
+
+`blocks_subset_sequentialPrefixes` proves a comparison for **all** contexts,
+bytes, fuel and successful results of the factored block decoder built from a
+`Machine.Decoder`. On the prefix of the claimed length, the unchanged
+`Decoder.decodeBlock` returns a listing with the same instructions after
+erasing its offsets. The proof uses prefix locality and the executable's
+recursive decode, not equality by wrapping the same implementation.
+
+The x86 example checks the direction is strict: the legacy decoder also accepts
+the two-byte `push r8` prefix with no terminator, which the factored decoder
+rejects. On the three-byte prefix the legacy decoder computes the listing at
+offsets 16 and 18; on the full sample with extra fuel it fails at `cc`. Thus the
+claim compares successful consumed prefixes, not equal behavior on the full
+stream or preservation of failure diagnostics. `stack_byte_observations_refine`
+then composes the adapter inclusion with the listing projection and the toy
+block machine, proving observation inclusion at byte inputs.
 
 ## Staged gaps
 

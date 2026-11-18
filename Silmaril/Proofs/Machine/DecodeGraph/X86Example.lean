@@ -24,6 +24,7 @@ private def ends (_ : Unit) (_ : Nat) (instr : Insn) : Prop := (transfer instr).
 
 private def decoder : Graph (Unit × Nat) Insn := ofDecoder Insn.byteDecoder
 private def blockDecoder : Graph (Unit × Nat) (List Insn) := blocks decoder ends 2
+private def sequential : Graph (Unit × Nat) (List Insn) := sequentialPrefixes Insn.byteDecoder 2
 
 private def input : (Unit × Nat) × Bytes := (((), 16), [0x41, 0x50, 0xC3, 0xCC])
 private def code : List Insn := [.push .r8, .ret]
@@ -39,6 +40,25 @@ theorem pushRet_outcome {result : List Insn × Nat} :
     (input, result) ∈ blockDecoder ↔ result = (code, 3) :=
   ⟨fun h => blocks_deterministic (ofDecoder_deterministic Insn.byteDecoder) ends 2 h pushRet_decodes,
     fun h => h.symm ▸ pushRet_decodes⟩
+
+/-- All factored successes refine the executable sequential decoder after
+restricting it to the claimed prefix and erasing its listing offsets. -/
+theorem stack_blocks_refine_sequential : blockDecoder ⊆ sequential :=
+  blocks_subset_sequentialPrefixes Insn.byteDecoder ends 2
+
+/-- The existing executable lists both instructions and their exact offsets. -/
+theorem legacy_pushRet : Insn.byteDecoder.decodeBlock 2 16 (input.2.take 3) =
+    some [(16, .push .r8), (18, .ret)] := rfl
+
+theorem legacy_with_suffix : Insn.byteDecoder.decodeBlock 3 16 input.2 = none := rfl
+
+theorem sequential_accepts_unterminated_prefix : (input, ([.push .r8], 2)) ∈ sequential :=
+  ⟨by decide, rfl⟩
+
+theorem sequential_not_refine_stack_blocks : ¬ sequential ⊆ blockDecoder := by
+  intro converse
+  have conflict := pushRet_outcome.mp (converse sequential_accepts_unterminated_prefix)
+  cases conflict
 
 /-- A truncated REX prefix is not a fault outcome or an empty decoded block. -/
 theorem truncated_no_block : (((), 16), [0x41]) ∉ blockDecoder.dom := by
@@ -86,5 +106,9 @@ theorem pushRet_byte_observation : (input, (1, .ret)) ∈ rebase byteToList list
 
 theorem pushRet_staged_rebase :
     rebase (byteToList ○ listing) machine = rebase byteToList listMachine := rebase_comp ..
+
+theorem stack_byte_observations_refine : rebase byteToList listMachine ⊆
+    rebase (sequential ○ Function.graph Prod.fst) listMachine :=
+  rebase_mono (SetRel.comp_subset_comp_left stack_blocks_refine_sequential) (fun _ observed => observed)
 
 end Silmaril.Machine.DecodeGraph.X86Example

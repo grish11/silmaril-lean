@@ -95,6 +95,13 @@ def blocks (fuel : Nat) : Graph (Context × Nat) (List Source) :=
 
 end Blocks
 
+/-- The existing sequential decoder, queried on a candidate prefix. The prefix
+length is part of the result, not a length the executable chooses. This relation
+forgets listing offsets and does not require a terminator. -/
+def sequentialPrefixes (decoder : Decoder Source) (fuel : Nat) : Graph (Context × Nat) (List Source) :=
+  {(input, result) | result.2 ≤ input.2.length ∧
+    (decoder.decodeBlock fuel input.1.2 (input.2.take result.2)).map (List.map Prod.snd) = some result.1}
+
 /-- A machine described by its observable executions at each input. Input may
 include an initial state; an observation is opaque to rebasing. -/
 abbrev Observed (Input Observation : Type*) := SetRel Input Observation

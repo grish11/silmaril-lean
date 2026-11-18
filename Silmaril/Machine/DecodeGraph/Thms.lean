@@ -93,6 +93,12 @@ theorem blocks_deterministic {decoder : Graph (Context × Nat) Source} (unique :
     (ends : Context → Nat → Source → Prop) (fuel : Nat) : Deterministic (blocks decoder ends fuel) :=
   Proofs.blocks_deterministic unique ends fuel
 
+/-- Each factored block is a successful legacy sequential decode on exactly the
+claimed byte prefix. The converse is not required: a prefix can lack an exit. -/
+theorem blocks_subset_sequentialPrefixes (decoder : Decoder Source) (ends : Context → Nat → Source → Prop)
+    (fuel : Nat) : blocks (ofDecoder decoder) ends fuel ⊆ sequentialPrefixes decoder fuel :=
+  Proofs.blocks_subset_sequentialPrefixes decoder ends fuel
+
 @[simp] theorem rebase_id {Base Observation : Type*} (machine : Observed Base Observation) :
     rebase SetRel.id machine = machine := SetRel.id_comp _
 
@@ -105,6 +111,17 @@ new inputs. This statement alone does not imply availability of observations. -/
 theorem rebase_mono {Input Base Observation : Type*} {first second : SetRel Input Base}
     {lower upper : Observed Base Observation} (adapters : first ⊆ second) (refines : lower ⊆ upper) :
     rebase first lower ⊆ rebase second upper := SetRel.comp_subset_comp adapters refines
+
+/-- Horizontal composition of comparisons commutes with their vertical
+composition. The two composites are equal as proofs of inclusion in the same
+relation hom-poset, not as executable witnesses or traces. -/
+theorem rebase_interchange {Input Base Observation : Type*} {first middle last : SetRel Input Base}
+    {lower mid upper : Observed Base Observation}
+    (firstAdapter : first ⊆ middle) (secondAdapter : middle ⊆ last)
+    (firstModel : lower ⊆ mid) (secondModel : mid ⊆ upper) :
+    (rebase_mono firstAdapter firstModel).trans (rebase_mono secondAdapter secondModel) =
+      rebase_mono (firstAdapter.trans secondAdapter) (firstModel.trans secondModel) :=
+  Subsingleton.elim _ _
 
 /-- If every possible decoded input has an observation, the rebased machine
 has an observation exactly on the domain of the adapter. -/

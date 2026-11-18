@@ -95,6 +95,42 @@ theorem blocks_deterministic {decoder : Graph (Context × Nat) Source} (unique :
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (ih _ _ tail)
       rfl
 
+private theorem sequential_step (decoder : Decoder Source) {fuel addr : Nat} {bytes : Bytes}
+    {instr : Source} {width : Nat} (decoded : decoder.decode bytes = some (instr, width)) :
+    decoder.decodeBlock (fuel + 1) addr bytes =
+      (decoder.decodeBlock fuel (addr + width) (bytes.drop width)).map ((addr, instr) :: ·) := by
+  cases bytes with
+  | nil =>
+    have positive := decoder.decode_length_pos decoded
+    have fits := decoder.decode_length_le decoded
+    simp only [List.length_nil] at fits
+    omega
+  | cons byte rest => simp [Decoder.decodeBlock, decoded]
+
+private theorem sequential_prefix (decoder : Decoder Source) {ends : Context → Nat → Source → Prop}
+    {fuel ctx addr bytes code span} (path : Path (ofDecoder decoder) ends fuel ctx addr bytes code span) :
+    ∃ entries, decoder.decodeBlock fuel addr (bytes.take span) = some entries ∧ entries.map Prod.snd = code := by
+  induction path with
+  | @last fuel _ addr bytes instr width decoded _ _ _ =>
+    refine ⟨[(addr, instr)], ?_, rfl⟩
+    rw [sequential_step decoder (decoder.decode_take decoded), List.drop_take_self, Decoder.decodeBlock_nil]
+    rfl
+  | @next fuel _ addr bytes instr width rest span decoded _ fits _ _ ih =>
+    obtain ⟨entries, scanned, listing⟩ := ih
+    have within : width ≤ width + span := Nat.le_add_right ..
+    have head : decoder.decode (bytes.take (width + span)) = some (instr, width) :=
+      decoder.decode_eq_some_iff_take.mpr ⟨by simp [List.length_take, within, fits],
+        by simpa only [List.take_take, Nat.min_eq_left within] using decoder.decode_take decoded⟩
+    refine ⟨(addr, instr) :: entries, ?_, congrArg (instr :: ·) listing⟩
+    rw [sequential_step decoder head, ← List.take_drop, scanned]
+    rfl
+
+theorem blocks_subset_sequentialPrefixes (decoder : Decoder Source) (ends : Context → Nat → Source → Prop)
+    (fuel : Nat) : blocks (ofDecoder decoder) ends fuel ⊆ sequentialPrefixes decoder fuel := by
+  rintro ⟨⟨⟨ctx, addr⟩, bytes⟩, code, span⟩ (path : Path (ofDecoder decoder) ends fuel ctx addr bytes code span)
+  obtain ⟨entries, scanned, listing⟩ := sequential_prefix decoder path
+  exact ⟨(path_bounds path).2.2.2, by rw [scanned]; exact congrArg some listing⟩
+
 theorem dom_rebase_of_covered {Input Base Observation : Type*} (adapter : SetRel Input Base)
     (machine : Observed Base Observation) (available : adapter.cod ⊆ machine.dom) :
     (rebase adapter machine).dom = adapter.dom := by
