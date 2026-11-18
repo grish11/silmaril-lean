@@ -1,14 +1,50 @@
 # Decoder graphs and machine rebasing
 
-[`DecodeGraph`](../../Silmaril/Machine/DecodeGraph/Defs.lean) is a success-only
-interface for instruction and block decoders. A query is `(context, bytes)`;
-an outcome is `(value, count)`. The count identifies the exact consumed prefix
-and the remaining suffix. Put mode, address or other query parameters in the
-context rather than mixing outcomes from different modes. The existing
-[`Machine.Decoder`](../../Silmaril/Machine/Decoder.lean) remains the executable
-codec interface; `ofDecoder` does not change any decoder, and `successes` can
-also forget errors from an `Except`-valued decoder. Those errors are not merged
-by the graph, nor equated with architectural faults.
+[`Parse.DecodeGraph`](../../Silmaril/Parse/DecodeGraph/Defs.lean) is a
+success-only interface parameterized by the byte representation. A query
+contains a semantic `context`, a `bytes` buffer, and a window `[pos, stop)`.
+An outcome `(value, endPos)` identifies the consumed segment `[pos, endPos)`
+and the remainder of the window. Cursors index the buffer; mode, architectural
+PC and other semantic inputs belong in the context. `successes` projects the
+successful outcomes of the existing `ByteParse.Res`; diagnostic failures aren't
+merged, nor equated with architectural faults.
+
+## Byte representations and parser contracts
+
+The Wasm-free [`ByteParse.Core`](../../Silmaril/Parse/ByteParse/Core.lean)
+factors the existing parser, diagnostic result, `List UInt8` grammar carrier,
+`seg`, basic bind/map and contracts out of `ByteParse.Defs`. Existing Wasm
+callers still import the same API. `ofGrammar` interprets the grammar at a
+reference cursor. `overView` compares other representations against that view
+without computing the reference list on the executable path. `SoundFor` and
+`CompleteFor` are directed comparisons at valid windows; a deterministic
+implementation can cover all specified successes only if they agree there.
+For `ByteArray`, these contracts are equivalent to `ByteParse.Sound` and
+`ByteParse.Complete` on a context-free parser. `Unit` is the canonical
+context-free case; ignoring an inhabited context preserves and reflects graph
+inclusion.
+
+[`kbyte`](../../Silmaril/Parse/DecodeGraph/KBytes/Defs.lean) uses
+`KBytes.get?` directly. Under `wf`, it agrees with `ByteParse.byte` at the
+same cursor and stop, including EOF. The
+[checked examples](../../Silmaril/Proofs/Parse/DecodeGraph/Examples.lean)
+also establish exact agreement with the singleton-byte grammar at valid
+windows and read `c3` across a rope node at nonzero position, then stop before
+`cc`. This uses the existing `KBytes.get?_eq` representation law. `readLE`
+and `slice` already have their own `toList` laws; the ELF staged reader uses
+`readLE` with a directed `sub_kbytes` proof. `ChunkView` exposes whole chunks
+as lists for incremental acceptance; it is not a cursor accessor. No new
+byte helpers or throughput claims are needed for this check.
+
+Plain parsers may succeed with zero consumption (`pure_zero_success`). A
+`ByteParse.NonEmpty` grammar gives strictly positive reference successes;
+the block builder requires progress at each step. A positive-only graph
+could instead store a `PNat` width (`Nat.succPNat` and `PNat.natPred` in
+Mathlib are inverses), or index its end by `pos < endPos`. At a fixed entry these
+encode the same positive spans by adding the width and subtracting the
+entry. They would complicate the shared zero-capable outcome space and
+cross-graph transport. An interop lemma is deferred until a client needs
+positive widths as values.
 
 ## Order and composition
 
@@ -43,19 +79,23 @@ by the graph, nor equated with architectural faults.
 
 ## Entry, exit and observations
 
-`blocks` is a bounded witness, not an executable parser or CFG. The caller
-supplies entry (a natural byte address), the bytes starting there, and a
-terminator predicate independent of semantic execution. `Path` requires
-positive, in-bounds consumption at every instruction, advances the address and
-suffix together, and closes only at the first terminator on that path. The exit
-*byte boundary* is entry plus total count, not the successor PC. No synthetic
+[`Machine.DecodeGraph.blocks`](../../Silmaril/Machine/DecodeGraph/Defs.lean)
+is a bounded witness, not an executable parser or CFG. The caller supplies an
+entry cursor, window and terminator predicate independent of semantic
+execution. `Path` requires positive, in-window consumption at every instruction,
+advances only the cursor, and closes at the first terminator on that path.
+The exit *byte boundary* is not the successor PC. No synthetic
 terminator, resynchronization, partial block, or empty block is emitted for a
 truncated, undecodable, or fuel-exhausted path. End-of-input is not itself a
 terminator, unlike the straight-line `Decoder.decodeAll` policy. A valid block
 may leave a nonempty suffix. `path_bounds` checks nonemptiness, fuel and byte
 bounds; `blocks_deterministic` lifts determinism through a fixed boundary
-policy. The caller is responsible for any architectural address arithmetic,
-memory assumptions, or semantic significance of the end predicate.
+policy. `IsBasicBlock Context Source Block` independently checks or assembles
+the listing into an actual block type, possibly with a contextual typing
+side condition. Its context-free form ignores the context. The example also
+translates to `Source ⊕ Terminator` tokens and assembles a `TerminatedBlock`
+record, giving the final transfer its own field and excluding earlier exit
+tokens. No typing or semantic execution theorem follows just from this shape.
 
 `rebase adapter model` pulls back an observed execution relation on a common
 base. Comparing two models by observation inclusion on that base implies
@@ -79,19 +119,24 @@ block. The toy semantics counts ordinary instructions and observes a return
 tag; it does not execute a real push, access the stack, or compute a return
 address. Its two-instruction listing relates to a singleton abstract block;
 the checked rebases admit the observation at both list and byte inputs.
+Rebasing the typed block machine also gives that observation directly from the
+assembled block record.
 
 ## Directed comparison with the executable decoder
 
-`blocks_subset_sequentialPrefixes` proves a comparison for **all** contexts,
-bytes, fuel and successful results of the factored block decoder built from a
-`Machine.Decoder`. On the prefix of the claimed length, the unchanged
+The [`Machine.Decoder` adapter](../../Silmaril/Machine/DecodeGraph/Decoder/Thms.lean)
+converts only the queried reference window from `UInt8` to `BitVec 8`.
+`ofDecoder_exact` identifies the single-instruction graph with the grammar of
+segments the existing decoder consumes exactly. `blocks_subset_sequentialPrefixes`
+proves a directed comparison for **all** contexts, reference buffers, fuel and
+successful factored block results. On the exact consumed window prefix, the unchanged
 `Decoder.decodeBlock` returns a listing with the same instructions after
 erasing its offsets. The proof uses prefix locality and the executable's
 recursive decode, not equality by wrapping the same implementation.
 
-The x86 example checks the direction is strict: the legacy decoder also accepts
+The x86 example checks the direction is strict: the sequential decoder also accepts
 the two-byte `push r8` prefix with no terminator, which the factored decoder
-rejects. On the three-byte prefix the legacy decoder computes the listing at
+rejects. On the three-byte prefix the sequential decoder computes the listing at
 offsets 16 and 18; on the full sample with extra fuel it fails at `cc`. Thus the
 claim compares successful consumed prefixes, not equal behavior on the full
 stream or preservation of failure diagnostics. `stack_byte_observations_refine`
@@ -100,11 +145,11 @@ block machine, proving observation inclusion at byte inputs.
 
 ## Atomic decoder institution
 
-[`Institution`](../../Silmaril/Machine/DecodeGraph/Institution/Thms.lean)
+[`Institution`](../../Silmaril/Parse/DecodeGraph/Institution/Thms.lean)
 checks the atom-only institution separately from forward transport. Fix the
-context type, byte carrier and span carrier. A signature is an instruction
+context type, byte representation and cursor carriers. A signature is an instruction
 type, a signature arrow is a function, and a sentence asserts that one exact
-tuple of context, bytes, instruction and span is successful. `translate` maps
+query, instruction and end cursor is successful. `translate` maps
 only the instruction. Models are relational success graphs (with only
 identity model morphisms), and `reduct` is inverse image: an exact source
 success holds precisely when its translated target success holds. The
@@ -121,11 +166,15 @@ decoder or preserves diagnostics.
 
 ## Staged gaps
 
-- No connection to CFG recovery, existing decompilation certificates, or a
-  platform fetch/step equivalence. `Decoder.decodeBlock`, x86 listing checks,
-  and those certificates continue to serve their own contracts. Fall-through
-  at an externally supplied boundary, address wraparound, and diagnostic
-  policies can be added as separately justified variants.
+- No production CFG or fetch bridge in this layer. A consumed-prefix listing
+  can later connect to `Region.decode?_fetch` when that prefix is loaded at a
+  chosen architectural address with execute permission. Whole-region listings
+  can scan past a transfer; `Decoded.edges` and `listing_sound` need address,
+  state coverage and invariant hypotheses that a cursor proof does not supply.
+- No parser/representation benchmark, direct rope-backed x86 decode, or
+  comparison of allocation or throughput. The rope check is for one byte;
+  broader measurements should compare equivalent window workloads and exclude
+  reference conversion from the measured parser path.
 - Logical fragments beyond atoms and signature arrows beyond functions are
   not part of this institution experiment. In particular, determinism and
   negative or universal properties under arbitrary relations do not follow
@@ -134,5 +183,6 @@ decoder or preserves diagnostics.
 Targeted check:
 
 ```sh
-lake build --wfail Silmaril.Machine.DecodeGraph.Institution.Thms Silmaril.Proofs.Machine.DecodeGraph.X86Example
+lake build --wfail Silmaril.Parse.DecodeGraph.Institution.Thms \
+  Silmaril.Proofs.Parse.DecodeGraph.Examples Silmaril.Proofs.Machine.DecodeGraph.X86Example
 ```
