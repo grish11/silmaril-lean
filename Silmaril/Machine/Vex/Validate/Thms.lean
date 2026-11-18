@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Machine.Vex.Validate.Semantics.Defs
+public import Silmaril.Machine.Translation.Soundness.Thms
 import Silmaril.Proofs.Machine.Vex.Validate.Sound
 
 public section
@@ -40,6 +41,13 @@ theorem translation_beh {pc : Word} {source : X86.Block} {target : Block}
 theorem translation_sound (pc : Word) :
     Translation.Sound (Translates pc) .targetRefinesSource .strict sourceSem targetSem
       (fun _ _ => Initial pc) (fun _ _ _ _ => observations) := Proofs.translationSound pc
+
+theorem translates_le_largestSoundAt (pc : Word) : Translates pc ≤ largestSoundAt pc :=
+  Translation.sound_iff_le_largestSound.mp (translation_sound pc)
+
+theorem validate_in_largestSoundAt {pc : Word} {bytes : List UInt8} {raw : Raw.Block} {pair : Pair}
+    (accepted : validate pc bytes raw = .ok pair) : largestSoundAt pc pair.source pair.target :=
+  translates_le_largestSoundAt pc pair.source pair.target (validate_certifies accepted).translates
 
 theorem check_word_erase {ctx : Scope} (value : Word) :
     checkExpr ctx ((Expr.word (ctx := ctx) value).erase) = .ok ⟨.i64, Expr.word value⟩ :=

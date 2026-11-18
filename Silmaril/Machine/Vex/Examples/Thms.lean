@@ -19,14 +19,13 @@ example : casesFromBytes.all (fun (bytes, raw) => (validate 0x1000 bytes raw).is
 private def verified : Except ValidationError Pair → Prop
   | .error _ => False
   | .ok pair =>
-    Behaviour.Refines .strict (targetSem pair.target) (sourceSem pair.source)
-      (fun tgt src => Initial 0x1000 src tgt) (fun _ _ => observations.flip) ∧
+    largestSoundAt 0x1000 pair.source pair.target ∧
     ∀ input, input.rip = 0x1000 → (targetSem pair.target).Beh input (.returned (pair.source.run input))
 
 private theorem verified_pair {bytes : List UInt8} {raw : Raw.Block} {pair : Pair}
     (accepted : validate 0x1000 bytes raw = .ok pair) : verified (.ok pair) := by
   have related := (validate_certifies accepted).translates
-  exact ⟨translation_sound 0x1000 _ _ related, fun input entry =>
+  exact ⟨validate_in_largestSoundAt accepted, fun input entry =>
     (translation_beh related ⟨rfl, entry⟩ _).mpr rfl⟩
 
 private theorem verified_of_ok {bytes : List UInt8} {raw : Raw.Block}
@@ -101,6 +100,10 @@ example : errorOf (CFG.mk #[jump 10 20] [10, 20]).scope = some .duplicateLabel :
 #print axioms translation_runs
 #print axioms translation_beh
 #print axioms translation_sound
+#print axioms Translation.sound_iff_le_largestSound
+#print axioms Translation.largestSound_sound
+#print axioms Translation.sound_sSup
+#print axioms validate_in_largestSoundAt
 #print axioms Term.selectBit_sound
 #print axioms check_word_erase
 

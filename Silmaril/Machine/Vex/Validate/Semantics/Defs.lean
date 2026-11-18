@@ -34,4 +34,10 @@ def observations : Behaviour.Obs Input Input Empty Empty Empty Empty where
   trap := fun source _ => nomatch source
   fault := fun source _ => nomatch source
 
+/-- The semantic upper bound at this entry, without syntactic restrictions
+such as marker agreement or exact residual plans. -/
+def largestSoundAt (pc : Word) : Translation.Relation X86.Block Block :=
+  Translation.largestSound .targetRefinesSource .strict sourceSem targetSem
+    (fun _ _ => Initial pc) (fun _ _ _ _ => observations)
+
 end Silmaril.Machine.Vex.AMD64Scalar

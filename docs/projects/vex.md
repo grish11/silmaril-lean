@@ -9,6 +9,9 @@ CFG recovery implementation, a full x86 semantics, or a verified lifter.
 
 [`Translation.Relation`](../../Silmaril/Machine/Translation/Defs.lean) is
 `Src → Tgt → Prop`; it mentions neither a checker nor a semantics.
+It inherits Mathlib's pointwise complete lattice: `R ≤ S` means every pair
+in `R` is in `S`, joins are unions, and meets are intersections. This orders
+sets of **artifact pairs**, not possible behaviours of a fixed program.
 [`Translates pc`](../../Silmaril/Machine/Vex/Validate/Defs.lean) relates a
 decoded x86 block and a checked VEX block when the target has that entry
 address, the instruction markers agree, and their residual plan syntax
@@ -94,6 +97,25 @@ composing blocks and defining traces; a branch to the same address is still
 one boundary result here. Neither LibVEX correctness nor agreement of the
 small byte model with Silmaril's full x86 model has been proved.
 
+## Largest sound relation
+
+Fix the semantics, direction, mode, and state and observation relations.
+`Translation.largestSound` contains exactly the artifact pairs that satisfy
+the resulting pairwise refinement obligation.
+[`sound_iff_le_largestSound`](../../Silmaril/Machine/Translation/Soundness/Thms.lean)
+characterizes sound relations as the lower interval below that bound. The
+bound itself is sound, and arbitrary joins of sound relations are sound.
+These joins combine artifact pairs; they do not change behaviour sets, the
+direction of refinement, or the UB policy.
+
+For AMD64Scalar, `translates_le_largestSoundAt` puts the syntactic relation
+below the semantic bound at the common entry PC. `validate_in_largestSoundAt`
+composes this inclusion with the checker certificate. The bound is a
+specification, not a decision procedure or a guarantee of progress. It need
+not check markers or exact plans; it can also admit a stuck target because the
+refinement obligation only constrains existing target behaviours. Checked
+pairs get the stronger return guarantee from `translation_beh`.
+
 ## Flat CFG and lexical scoping
 
 [`CFG.Defs`](../../Silmaril/Machine/Vex/CFG/Defs.lean) indexes labeled checked
@@ -137,9 +159,10 @@ wraparound and resulting ZF; CMP/JE and CMP/JNE test both edges. Swapped lifts,
 altered successors/markers, trailing bytes and unsupported flag recipes are
 rejected. The malformed VEX and multi-block graph tests are synthetic. For all
 four real lifts, the [regressions](../../Silmaril/Machine/Vex/Examples/Thms.lean)
-also compose `validate_certifies` with `translation_sound` and check the
-returned-behaviour guarantee. They build under the existing `Silmaril` target
-and print the main theorem axiom sets (only the standard allowed axioms).
+also check membership in `largestSoundAt` via certification and soundness,
+as well as the returned-behaviour guarantee. They build under the existing
+`Silmaril` target and print the main theorem axiom sets (only the standard
+allowed axioms).
 
 Next: give a versioned structured interchange for larger pyvex/angr exports,
 link the byte model to the existing x86 decoder/semantics, validate recovered
