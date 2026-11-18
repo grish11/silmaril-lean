@@ -137,6 +137,45 @@ scoping. This treats reducible loops, irreducible graphs, and even unsorted
 DAGs uniformly as outside this converter; it is not a reducibility test. No
 whole-CFG semantic preservation theorem is claimed.
 
+### Abstract call edges and Region/BB overlap
+
+The scalar `CFG.scope` above still handles only `Ijk_Boring` blocks. The
+independent [call-edge CFG](../../Silmaril/Machine/Vex/CFG/CallEdges/Defs.lean)
+extends the existing [`FlatCFG`](region-trees.md#cfg-adjacency-and-precise-converse-bounds)
+with a direct call site and optional caller-local continuation per block.
+It distinguishes ordinary intraprocedural/boundary flow, caller-to-callee
+edges, and caller-to-continuation *fake returns*. A fake return records a
+candidate continuation, not a dynamic return, as in the distinction made by
+[angr CFG recovery](https://docs.angr.io/en/latest/analyses/cfg.html).
+
+The partition assigns each block at most one owner. A call is internal if
+its target is owned anywhere in the program (including recursion), and
+well-formed internal calls target the owner's declared entry. External calls
+must target an explicitly declared, unowned label. Well-formedness also
+checks ownership of the caller and continuation, closure of ordinary flow
+to function blocks or declared unowned exits, and that a call terminator has
+no competing ordinary edges.
+
+[`flatFilling` and `callFilling`](../../Silmaril/Machine/Vex/CFG/Rows/Defs.lean)
+instantiate the same `Semantics.Region.Abstract.SegmentRegionModel` shape.
+Segments are block labels, supports are sets of labels, and boundaries are
+tagged edge destinations. `BB` uses singleton support; `Reg` accepts a
+declared support. Both record structural boundaries, not dynamically
+reachable exits. A call is always a region departure (even for recursion);
+ordinary and fake-return edges appear at the boundary only if they leave
+the support. Call sites and edge origins remain in the CFG image.
+
+[`commonReg_iff` and `commonBB_iff`](../../Silmaril/Machine/Vex/CFG/Rows/Thms.lean)
+prove exact overlap for well-formed graphs without external calls: a call
+row has an ordinary witness whose embedding reconstructs the **entire** graph
+if and only if the call row holds and the function has no internal calls.
+The ordinary projection alone is lossy and cannot establish this result.
+The [synthetic examples](../../Silmaril/Machine/Vex/CFG/Examples/Thms.lean)
+check a common row, an internal call and its fake return with no ordinary
+preimage, and a declared external call showing why the restriction matters.
+External-call summaries, actual return edges, indirect and tail calls,
+angr graph import, and concrete x86 call semantics are not included.
+
 ## Replay
 
 The [fixture report](../../examples/vex/lifts.md) has bytes, independent GNU
@@ -148,10 +187,10 @@ SHA-256. No Python dependency is needed for the checked-in Lean regression.
 
 ```sh
 python3.13 -m venv /tmp/silmaril-vex
-/tmp/silmaril-vex/bin/pip install --only-binary=:all: --require-hashes -r examples/vex/requirements.txt
-/tmp/silmaril-vex/bin/python examples/vex/export.py --check
-lake build --wfail Silmaril.Machine.Vex.Examples.Thms
-make check CHECK_TARGETS=Silmaril.Machine.Vex.Examples.Thms
+/tmp/silmaril-vex/bin/pip install --only-binary=:all: --require-hashes -r scripts/vex/requirements.txt
+/tmp/silmaril-vex/bin/python scripts/vex/export.py --check
+lake build --wfail Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms
+make check CHECK_TARGETS='Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms'
 ```
 
 MOV/JMP tests check preservation of both incoming ZF values; ADD checks

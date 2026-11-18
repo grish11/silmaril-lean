@@ -54,6 +54,7 @@ public import Silmaril.Calculi
 public import Silmaril.Calculi.Dataflow.Thms
 public import Silmaril.Machine.LambdaRTLLir.Thms
 public import Silmaril.Machine.Vex.CFG.Defs
+public import Silmaril.Machine.Vex.CFG.Rows.Thms
 public import Silmaril.Machine.Vex.Validate.Thms
 public import Silmaril.Machine.OfLambdaSSA.Thms
 public import Silmaril.Machine.RTL.Thms
