@@ -149,6 +149,93 @@ theorem infRounds_iff_P {s₀ : Store Nat} (hd : InstDomD I s₀) (hF : FuncsFre
     rw [(agree_P (domD_of_reach hd (hr k)) (funcsFree_of_reach hF (hr k)) (a k)).1]
     exact h.step k
 
+/-! ## Store determinism and infinite plays on profile-free stores -/
+
+section Rounds
+
+variable {E : Sig.{0}} {S A B : Type} {t t' : ObsTriple E S A B}
+
+/-- Finite round sequences of two triples agreeing at every store the first reaches. -/
+theorem rounds_iff_of_agree {s₀ s : S} {rs : List (A × List (Call E) × B)}
+    (h : ∀ s, Reach t s₀ s → ∀ a, t.1 s a = t'.1 s a) :
+    StratThread.Rounds t s₀ rs s ↔ StratThread.Rounds t' s₀ rs s := by
+  induction rs generalizing s₀ with
+  | nil => exact ⟨fun h => by cases h; exact .nil _, fun h => by cases h; exact .nil _⟩
+  | cons r rs ih =>
+    constructor
+    · intro hr
+      cases hr with
+      | cons hm hr =>
+        exact .cons (h _ (.refl _) _ ▸ hm) ((ih fun s hs => h s (.step hm hs)).1 hr)
+    · intro hr
+      cases hr with
+      | cons hm hr =>
+        have hm' := (h _ (.refl _) _).symm ▸ hm
+        exact .cons hm' ((ih fun s hs => h s (.step hm' hs)).2 hr)
+
+theorem reach_of_rounds {s₀ s : S} {rs : List (A × List (Call E) × B)}
+    (h : StratThread.Rounds t s₀ rs s) : Reach t s₀ s := by
+  induction h with
+  | nil => exact .refl _
+  | cons hm _ ih => exact .step hm ih
+
+/-- Coherent infinite round sequences of two triples agreeing at every store the first
+reaches. -/
+theorem infRounds_iff_of_agree {s₀ : S} {a : ℕ → A} {r : ℕ → List (Call E) × B} {s : ℕ → S}
+    (h : ∀ s, Reach t s₀ s → ∀ a, t.1 s a = t'.1 s a) :
+    InfRounds t s₀ a r s ↔ InfRounds t' s₀ a r s := by
+  constructor
+  · intro hi
+    exact ⟨hi.zero, fun k => h _ (reach_of_infRounds hi k) _ ▸ hi.step k⟩
+  · intro hi
+    have hr : ∀ k, Reach t s₀ (s k) := by
+      intro k
+      induction k with
+      | zero => exact hi.zero ▸ .refl _
+      | succ k ih =>
+        exact ih.tail (c := (r k).1) (b := (r k).2) (a := a k) ((h _ ih _).symm ▸ hi.step k)
+    exact ⟨hi.zero, fun k => (h _ (hr k) _).symm ▸ hi.step k⟩
+
+end Rounds
+
+/-- **Store determinism at a store with profile-free functions, every profile**: the final store
+of a finished round is determined by the store, the question, the log and the answer. -/
+theorem storeDet_at {s s₁ s₂ : Store Nat} (hF : FuncsFree s.funcs) {a : I.F.Op}
+    {c : List (Call I.E)} {b : Abstract.InstSession.Res I.exports ⊕ PUnit}
+    (h₁ : (c, .ret b s₁) ∈ (instTripleS I P).1 s a) (h₂ : (c, .ret b s₂) ∈ (instTripleS I P).1 s a) :
+    s₁ = s₂ := by
+  rw [(instTripleS_profile (P' := profile neverFail) hF a).1] at h₁ h₂
+  exact Abstract.InstSession.storeDet_instTripleS neverFail s a c b s₁ s₂ h₁ h₂
+
+/-- **The infinite plays of the session, every profile**, from a store with profile-free
+functions: a productive stream after completed rounds, or the play of a coherent infinite
+sequence of rounds. -/
+theorem mem_inf_instSession_P {s₀ : Store Nat} (hF : FuncsFree s₀.funcs)
+    {J : Set (List (Move I.E (Abstract.InstSession.ssig I.exports)))} :
+    J ∈ (instSession I P s₀).inf ↔
+      (∃ rs s a ω, StratThread.Rounds (instTripleS I P) s₀ rs s ∧
+        ω ∈ (instTripleS I P).2.2 s a ∧
+          J = StratThread.streamPlay (StratSession.sroundsMoves rs) a ω) ∨
+      ∃ a r s, InfRounds (instTripleS I P) s₀ a r s ∧ J = StratSession.sroundsPlay a r := by
+  have hag : ∀ s, Reach (instTripleS I (profile neverFail)) s₀ s → ∀ a,
+      (instTripleS I (profile neverFail)).1 s a = (instTripleS I P).1 s a :=
+    fun s hr a => (instTripleS_profile (funcsFree_of_reach hF hr) a).1
+  rw [instSession_profile (P' := profile neverFail) hF,
+    Abstract.InstSession.mem_inf_instSession neverFail]
+  refine or_congr ?_ ?_
+  · refine exists_congr fun rs => exists_congr fun s => exists_congr fun a =>
+      exists_congr fun ω => ?_
+    constructor
+    · rintro ⟨hr, hω, rfl⟩
+      exact ⟨(rounds_iff_of_agree hag).1 hr,
+        (instTripleS_profile (funcsFree_of_reach hF (reach_of_rounds hr)) a).2.2 ▸ hω, rfl⟩
+    · rintro ⟨hr, hω, rfl⟩
+      have hr' := (rounds_iff_of_agree hag).2 hr
+      exact ⟨hr',
+        (instTripleS_profile (funcsFree_of_reach hF (reach_of_rounds hr')) a).2.2.symm ▸ hω, rfl⟩
+  · exact exists_congr fun a => exists_congr fun r => exists_congr fun s =>
+      and_congr_left fun _ => infRounds_iff_of_agree hag
+
 /-! ## The backward simulations, every invariant, every profile -/
 
 section Back

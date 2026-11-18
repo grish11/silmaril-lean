@@ -36,6 +36,9 @@ no new finite-branching or compactness argument is used.
   `instSession_profile`, `threadS_instTripleL_profile`, `threadS_noThrowT_profile` (finite
   plays, pending plays, divergence after a log, productive streams, coherent infinite sequences
   of rounds);
+* store determinism and infinite plays: `storeDet_at` (at stores with profile-free functions;
+  the session results above use no store determinism), `mem_inf_instSession_P`
+  (`InstSession.mem_inf_instSession`, which relies on `StoreDet`, at every profile);
 * dangling host exceptions, every profile: `instTripleS_agree_cfgInstTripleU_P`, `agree_P`,
   `threadS_eq_P`, `instSession_eq_P`, `instSession_eq_of_supported_P`, `infRounds_iff_P`;
 * legal and throw-free, every profile: `instTripleL_agree_P`, `noThrowT_instTripleS_agree_P`,
@@ -142,6 +145,29 @@ theorem infRounds_iff_P {s₀ : Store Nat} (hd : InstDomD I s₀) (hF : FuncsFre
     {s : ℕ → Store Nat} :
     InfRounds (instTripleS I P) s₀ a r s ↔ InfRounds (cfgInstTripleU I) s₀ a r s :=
   Proofs.DanglingProfile.infRounds_iff_P hd hF
+
+/-! ## Store determinism and infinite plays, every profile -/
+
+/-- **Store determinism at a store with profile-free functions, every profile.** (Global
+`StoreDet (instTripleS I P)` is not claimed: it quantifies over every store, including stores
+whose functions read the profile.) -/
+theorem storeDet_at {s s₁ s₂ : Store Nat} (hF : FuncsFree s.funcs) {a : I.F.Op}
+    {c : List (Call I.E)} {b : Abstract.InstSession.Res I.exports ⊕ PUnit}
+    (h₁ : (c, .ret b s₁) ∈ (instTripleS I P).1 s a) (h₂ : (c, .ret b s₂) ∈ (instTripleS I P).1 s a) :
+    s₁ = s₂ :=
+  Proofs.DanglingProfile.storeDet_at hF h₁ h₂
+
+/-- **The infinite plays of the session, every profile**, from a store with profile-free
+functions: a productive stream after completed rounds, or the play of a coherent infinite
+sequence of rounds (`InstSession.mem_inf_instSession` at every profile). -/
+theorem mem_inf_instSession_P {s₀ : Store Nat} (hF : FuncsFree s₀.funcs)
+    {J : Set (List (Move I.E (Abstract.InstSession.ssig I.exports)))} :
+    J ∈ (instSession I P s₀).inf ↔
+      (∃ rs s a ω, StratThread.Rounds (instTripleS I P) s₀ rs s ∧
+        ω ∈ (instTripleS I P).2.2 s a ∧
+          J = StratThread.streamPlay (StratSession.sroundsMoves rs) a ω) ∨
+      ∃ a r s, InfRounds (instTripleS I P) s₀ a r s ∧ J = StratSession.sroundsPlay a r :=
+  Proofs.DanglingProfile.mem_inf_instSession_P hF
 
 /-! ## Legal and throw-free host answers, every profile -/
 
