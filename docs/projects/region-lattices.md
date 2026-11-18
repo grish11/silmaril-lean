@@ -4,7 +4,9 @@ The abstract core depends only on typed judgment carriers and fixed positive
 inference rules. Execution, memory, graphs, decidability, finite enumeration,
 and operations on supports/exits are absent. Semantic models and binary/CFG
 adapters are separate interpretations. The [region extraction guide](region-extraction.md)
-describes those layers and their remaining gates.
+describes those layers and their remaining gates. The
+[tree/CFG layer](region-trees.md) instantiates the same lattices at tree and CFG
+judgment carriers, without requiring a graph for primitive tree regions.
 
 ## Public API and specialization
 

@@ -3,7 +3,8 @@
 This framework adds abstract region judgments and semantic interpretations
 independently of function extraction. Fixed-signature raw and positive-rule
 lawful models form complete lattices; see the
-[abstract lattice API and proofs](region-lattices.md). A region can be certified
+[abstract lattice API and proofs](region-lattices.md) and the
+[tree/CFG variants and dominance bridge](region-trees.md). A region can be certified
 through a state invariant even when an unrestricted constituent block cannot. It does not infer a unique partition,
 prove an arbitrary parent region, or manufacture call resumptions.
 
@@ -14,6 +15,7 @@ The public entry points are:
 | Layer | Definitions and theorem header | Main result |
 | --- | --- | --- |
 | Abstract lattice | `Silmaril.Semantics.Region.Abstract.{Defs,Thms}`, `Abstract.Named.Thms` | Arbitrary typed atoms, fixed positive rules, raw/lawful complete lattices and fixed ceilings |
+| Tree/CFG variants | `Silmaril.Semantics.Region.Tree.{Thms,CFG.Thms,Finite.Thms}`, `Silmaril.Automata.Graph.RegionTree.Thms` | Primitive tree relations, annotation/flat projections, separate successor adjacency, conditional and witnessed lifting |
 | Raw relations | `Silmaril.Semantics.Region.{Defs,Thms}` | Independent signatures, lawful coherence, erasure and context equivalences |
 | Semantics | `Silmaril.Semantics.Region.Semantic.{Defs,Thms}` | First exits, greatest sound judgments, gluing, queries and WP |
 | Counterexamples | `Silmaril.Semantics.Region.Examples.Thms` | Invariant-restricted indirect transfer, divergence, incompatible erasure witnesses |
@@ -29,6 +31,8 @@ Run with the repository's pinned toolchain and dependency manifest:
 
 ```sh
 lake build --wfail \
+  Silmaril.Semantics.Region.Tree.Examples.Thms \
+  Silmaril.Automata.Graph.RegionTree.Examples.Thms \
   Silmaril.Semantics.Region.Abstract.Examples.Thms \
   Silmaril.Semantics.Region.Examples.Thms \
   Silmaril.Machine.Region.Examples.Thms \
