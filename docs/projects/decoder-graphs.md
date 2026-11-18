@@ -11,12 +11,14 @@ merged, nor equated with architectural faults.
 
 ## Byte representations and parser contracts
 
-The Wasm-free [`ByteParse.Core`](../../Silmaril/Parse/ByteParse/Core.lean)
-factors the existing parser, diagnostic result, `List UInt8` grammar carrier,
-`seg`, basic bind/map and contracts out of `ByteParse.Defs`. Existing Wasm
-callers still import the same API. `ofGrammar` interprets the grammar at a
-reference cursor. `overView` compares other representations against that view
-without computing the reference list on the executable path. `SoundFor` and
+The generic graph uses `List UInt8` as its reference carrier and does not
+import `ByteParse` or Wasm. The optional
+[`ByteParse` bridge](../../Silmaril/Parse/DecodeGraph/ByteParse/Thms.lean)
+uses the existing cursor parser, diagnostics, byte-list grammar carrier,
+segment and contracts without changing `ByteParse.Defs` or its callers.
+`ofGrammar` interprets the grammar at a reference cursor. `overView` compares
+other representations against that view without computing the reference list
+on the executable path. `SoundFor` and
 `CompleteFor` are directed comparisons at valid windows; a deterministic
 implementation can cover all specified successes only if they agree there.
 For `ByteArray`, these contracts are equivalent to `ByteParse.Sound` and
@@ -175,6 +177,9 @@ decoder or preserves diagnostics.
   comparison of allocation or throughput. The rope check is for one byte;
   broader measurements should compare equivalent window workloads and exclude
   reference conversion from the measured parser path.
+- Factoring a stand-alone executable parser core out of the widely imported
+  `ByteParse.Defs` is separate work. The graph and machine adapters do not
+  depend on that extraction.
 - Logical fragments beyond atoms and signature arrows beyond functions are
   not part of this institution experiment. In particular, determinism and
   negative or universal properties under arbitrary relations do not follow

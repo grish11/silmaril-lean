@@ -7,21 +7,20 @@ public section
 
 namespace Silmaril.Machine.DecodeGraph.Proofs
 
-open Silmaril.Parse
 open Silmaril.Parse.DecodeGraph
 
 variable {Context Source : Type*}
 
-private theorem window_length (bytes : ByteParse.Bytes) (pos stop : Nat) :
+private theorem window_length (bytes : List UInt8) (pos stop : Nat) :
     (decoderWindow bytes pos stop).length = min (stop - pos) (bytes.length - pos) := by
   simp only [decoderWindow, List.extract_eq_take_drop, List.length_map, List.length_take, List.length_drop]
 
-private theorem window_shorten (bytes : ByteParse.Bytes) {pos stop endPos : Nat} (inside : endPos ≤ stop) :
+private theorem window_shorten (bytes : List UInt8) {pos stop endPos : Nat} (inside : endPos ≤ stop) :
     decoderWindow bytes pos endPos = (decoderWindow bytes pos stop).take (endPos - pos) := by
   simp only [decoderWindow, List.extract_eq_take_drop, List.map_take, List.take_take]
   rw [Nat.min_eq_left (by omega : endPos - pos ≤ stop - pos)]
 
-private theorem window_after (bytes : ByteParse.Bytes) {pos nextPos endPos : Nat} (advance : pos ≤ nextPos) :
+private theorem window_after (bytes : List UInt8) {pos nextPos endPos : Nat} (advance : pos ≤ nextPos) :
     (decoderWindow bytes pos endPos).drop (nextPos - pos) = decoderWindow bytes nextPos endPos := by
   simp only [decoderWindow, List.extract_eq_take_drop, List.map_take, List.drop_take, ← List.map_drop, List.drop_drop]
   rw [show pos + (nextPos - pos) = nextPos by omega, show endPos - pos - (nextPos - pos) = endPos - nextPos by omega]

@@ -1,8 +1,8 @@
 module
 
+public import Init.Data.ByteArray
 public import Mathlib.Basic.Rel
 public import Mathlib.Data.List.Forall2
-public import Silmaril.Parse.ByteParse.Core
 
 /-! # Cursor success graphs
 
@@ -33,16 +33,7 @@ def Input.atPos (input : Input Context Buffer) (pos : Nat) : Input Context Buffe
 is `[input.pos, endPos)`; bounds and progress are separate contracts. -/
 abbrev Graph (Context Buffer Value : Type*) := SetRel (Input Context Buffer) (Value × Nat)
 
-abbrev Reference (Context Value : Type*) := Graph Context ByteParse.Bytes Value
-
-/-- Forget diagnostics, preserving exactly the successes of a cursor parser. -/
-def successes {Value : Type} (run : Context → Buffer → Nat → Nat → ByteParse.Res Value) :
-    Graph Context Buffer Value :=
-  {(input, result) | run input.context input.bytes input.stop input.pos = .ok result.1 result.2}
-
-/-- Interpret a canonical context-free parser at `Unit`. -/
-def ofParser {Value : Type} (parser : ByteParse.Parser Value) : Graph Unit ByteArray Value :=
-  successes fun _ => parser
+abbrev Reference (Context Value : Type*) := Graph Context (List UInt8) Value
 
 /-- A semantic context can be added without changing a context-free graph. -/
 def ignoreContext (graph : Graph Unit Buffer Source) : Graph Context Buffer Source :=
@@ -56,7 +47,7 @@ def Positive (graph : Graph Context Buffer Source) : Prop :=
 
 /-- A specification view, not a requirement to materialize a list at runtime. -/
 structure ByteView (Buffer : Type*) where
-  toList : Buffer → ByteParse.Bytes
+  toList : Buffer → List UInt8
   Valid : Buffer → Prop
 
 def ByteView.byteArray : ByteView ByteArray where
@@ -71,8 +62,8 @@ def overView (view : ByteView Buffer) (reference : Reference Context Source) : G
   {(input, result) | view.Valid input.bytes ∧
     (⟨input.context, view.toList input.bytes, input.stop, input.pos⟩, result) ∈ reference}
 
-/-- The cursor interpretation of an exact-consumption `ByteParse` grammar. -/
-def ofGrammar (grammar : Context → ByteParse.Bytes → Source → Prop) :
+/-- Interpret an exact-consumption byte-list grammar at a cursor. -/
+def ofGrammar (grammar : Context → List UInt8 → Source → Prop) :
     Reference Context Source :=
   Set.ofPred fun (input, result) =>
     input.pos ≤ result.2 ∧ result.2 ≤ input.stop ∧ input.stop ≤ input.bytes.length ∧

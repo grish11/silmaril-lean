@@ -1,7 +1,10 @@
 module
 
+public import Silmaril.Parse.ByteParse.Defs
 public import Silmaril.Parse.DecodeGraph.Defs
 public import Silmaril.Prelude.Bytes.Defs
+
+/-! # Optional ByteParse adapter for cursor reads on KBytes -/
 
 @[expose] public section
 

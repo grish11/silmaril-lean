@@ -1,8 +1,8 @@
 module
 
 import Silmaril.Parse.ByteParse.Thms
+import Silmaril.Parse.DecodeGraph.ByteParse.Thms
 import Silmaril.Parse.DecodeGraph.KBytes.Thms
-import Silmaril.Parse.DecodeGraph.Thms
 
 namespace Silmaril.Parse.DecodeGraph.Examples
 

@@ -9,13 +9,12 @@ public import Silmaril.Machine.Decoder
 
 namespace Silmaril.Machine.DecodeGraph
 
-open Silmaril.Parse
 open Silmaril.Parse.DecodeGraph
 
 variable {Context Source : Type*}
 
 /-- This is the only representation boundary to `Machine.Decoder`. -/
-def decoderWindow (bytes : ByteParse.Bytes) (pos stop : Nat) : List (BitVec 8) :=
+def decoderWindow (bytes : List UInt8) (pos stop : Nat) : List (BitVec 8) :=
   (bytes.extract pos stop).map UInt8.toBitVec
 
 /-- Lift a context-free machine codec to reference cursor queries. The codec

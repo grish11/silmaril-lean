@@ -11,19 +11,6 @@ open scoped SetRel
 
 variable {Context Buffer Source Middle Target : Type*}
 
-theorem soundFor_ofParser {Value : Type} {grammar : ByteParse.Bytes → Value → Prop}
-    {parser : ByteParse.Parser Value} :
-    SoundFor .byteArray (ofParser parser) (ofGrammar fun _ => grammar) ↔ ByteParse.Sound grammar parser :=
-  Proofs.soundFor_ofParser
-
-theorem completeFor_ofParser {Value : Type} {grammar : ByteParse.Bytes → Value → Prop}
-    {parser : ByteParse.Parser Value} :
-    CompleteFor .byteArray (ofParser parser) (ofGrammar fun _ => grammar) ↔ ByteParse.Complete grammar parser :=
-  Proofs.completeFor_ofParser
-
-theorem successes_deterministic {Value : Type} (run : Context → Buffer → Nat → Nat → ByteParse.Res Value) :
-    Deterministic (successes run) := Proofs.successes_deterministic run
-
 theorem completeFor_unique {view : ByteView Buffer} {graph : Graph Context Buffer Source} {reference}
     (complete : CompleteFor view graph reference) (unique : Deterministic graph)
     {input left right} (valid : ValidWindow view input) (hl : (input, left) ∈ overView view reference)
@@ -41,13 +28,6 @@ theorem ignoreContext_subset_iff (ctx : Context) {first second : Graph Unit Buff
   ⟨fun included ⟨⟨⟨⟩, bytes, stop, pos⟩, result⟩ success =>
       included (a := (⟨ctx, bytes, stop, pos⟩, result)) success,
     ignoreContext_mono⟩
-
-theorem pure_zero_success {Value : Type} (value : Value) (input : Input Unit ByteArray) :
-    (input, (value, input.pos)) ∈ ofParser (pure value) := rfl
-
-theorem positive_ofGrammar {Value : Type} {grammar : Context → ByteParse.Bytes → Value → Prop}
-    (nonempty : ∀ ctx, ByteParse.NonEmpty (grammar ctx)) : Positive (ofGrammar grammar) :=
-  Proofs.positive_ofGrammar nonempty
 
 /-- Inclusion does not resolve a conflict: the join retains both successes. -/
 theorem not_deterministic_sup {first second : Graph Context Buffer Source} {input left right}
