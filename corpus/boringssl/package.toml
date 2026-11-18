@@ -1,0 +1,29 @@
+name = "boringssl"
+version = "git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6"
+category = "TLS and cryptography; BoringCrypto module"
+summary = "Upstream CMake/Ninja shared-library research builds (no-asm, asm, fips-shared). BCM is a module of this same upstream revision, not a separate project or validated build."
+license = "Apache-2.0"
+license_files = ["LICENSE"]
+homepage = "https://boringssl.googlesource.com/boringssl/"
+upstream_commit = "ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6"
+
+[[archive]]
+url = "https://codeload.github.com/google/boringssl/tar.gz/ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6"
+sha256 = "75ee588268ae3d7552f5be7e0849bdcc8e4159f22547dbfb4aae997784fdd345"
+root = "boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6"
+retrieved = "2026-11-18"
+
+[[object]]
+name = "libcrypto.so"
+kind = "shared"
+notes = "Upstream crypto target with the same-checkout BCM module; FIPS_SHARED research configuration uses upstream Go integrity tooling, without validation/certification."
+
+[[object]]
+name = "libssl.so"
+kind = "shared"
+notes = "Upstream ssl target linked against this build's libcrypto."
+
+[[object]]
+name = "bssl"
+kind = "exe"
+notes = "Upstream bssl target linked against this build's libssl/libcrypto. Supplementary BCM ET_REL is recorded separately, not counted as an executable or a stripped functioning module."

@@ -31,6 +31,27 @@ class PoolContract(unittest.TestCase):
 
     @patch('container_pool.subprocess.run')
     @patch('container_pool.subprocess.check_output')
+    def test_extended_lock_and_non_dpkg_go_tree_are_required(self, output, run):
+        extension = self.recipes / 'corpus/toolchain/boringssl'
+        extension.mkdir()
+        (extension / 'lock.txt').write_bytes(b'pkg\t1\n')
+        (extension / 'tools.json').write_bytes(b'tools')
+        (extension / 'go-tree.sha256').write_bytes(b'go tree')
+        self.pool.toolchain = 'corpus/toolchain/boringssl'
+        def checked(command, **kwargs):
+            if '/tmp/toolchain-verification/tools.json' in command:
+                return b'tools'
+            if '/tmp/toolchain-verification/go-tree.sha256' in command:
+                return b'TAMPERED GO TREE'
+            return self.outputs(command, **kwargs)
+        output.side_effect = checked
+        run.return_value = subprocess.CompletedProcess([], 0, '', '')
+        with self.assertRaisesRegex(ValueError, 'extended tool inventory differs: go-tree'):
+            self.pool.__enter__()
+        self.assertEqual(run.call_args.args[0], ['docker', 'rm', '--force', 'worker-0'])
+
+    @patch('container_pool.subprocess.run')
+    @patch('container_pool.subprocess.check_output')
     def test_reconnect_reuses_only_verified_idle_workers_without_reset(self, output, run):
         output.side_effect = self.outputs
         run.return_value = subprocess.CompletedProcess([], 0, '', '')

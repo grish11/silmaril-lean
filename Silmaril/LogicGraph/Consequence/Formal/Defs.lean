@@ -8,11 +8,16 @@ public import Silmaril.Logic.Consequence.FirstOrder.Thms
 public import Silmaril.Logic.HOLLight.SExp.Thms
 public import Silmaril.Logic.Consequence.HOL.Standard.Thms
 public meta import Silmaril.Logic.Consequence.HOL.Standard.Thms
+public import Silmaril.Logic.Consequence.HOL.UserSig.Thms
+public meta import Silmaril.Logic.Consequence.HOL.UserSig.Thms
 public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp.Thms
 public meta import Silmaril.Logic.Consequence.Arithmetic.Thms
 public meta import Silmaril.Logic.Consequence.SecondOrder.Thms
 public meta import Silmaril.Logic.Consequence.FirstOrder.Thms
+public meta import Silmaril.Logic.Consequence.TypeTheory.Thms
 public import Silmaril.Logic.Consequence.Arithmetic.Derivation.Examples
+public import Silmaril.Logic.Consequence.FirstOrder.Derivation.Examples
+public meta import Silmaril.Logic.Consequence.FirstOrder.Derivation.Examples
 public meta import Silmaril.Logic.Consequence.Arithmetic.Derivation.Examples
 
 /-!
@@ -46,8 +51,18 @@ noncomputable def z2DerivesSExp := (SecondOrder.derives .Z2).viaCodec Logic.Seco
 def paWords := Logic.Arithmetic.SExp.wordsCodec 0
 /-- HOL propositions over the initial signature, as S-expressions (decode and type-check). -/
 def holPropCodec := HOL.propCodec HOL.initialSig
+/-- HOL propositions over the user signature `coinSig` (one boolean constant `c`). -/
+def holCoinCodec := HOL.propCodec HOL.coinSig
+/-- Pure HOL over `coinSig`. -/
+def holCoinKernel := HOL.kernel HOL.coinSig
+/-- HOL over `coinSig` with the axiom `c`. -/
+def holCoinTheory := HOL.kernelFrom HOL.coinSig HOL.cTheory
 /-- HOL with HOL Light's classical axioms (ETA, SELECT, INFINITY), on propositions. -/
 def holClassical := HOL.kernelFrom HOL.initialSig Logic.HOLLight.classicalTheory
+/-- `⊢ 0 : ℕ`, with one universe level. -/
+def mlttZero := Logic.TypeTheory.ExtensionalMLTT.Finite.zeroSentence 1
+/-- Bounded MLTT judgments (one universe level) as S-expressions. -/
+def mlttBounded1Codec := TypeTheory.boundedCodec 1
 /-- Extensional MLTT with one universe level (bounded rules). -/
 def mlttBounded1 := TypeTheory.boundedDerives.{1} 1
 /-- Two universe levels. -/
@@ -58,6 +73,14 @@ def mlttBounded3 := TypeTheory.boundedDerives.{3} 3
 def paTreeDerives := Arithmetic.ND.treeDerives .pa
 /-- Q derivability by checked proof trees. -/
 def qTreeDerives := Arithmetic.ND.treeDerives .q
+/-- First-order derivability over `orderSig` by checked proof trees. -/
+def folTreeDerives := FirstOrder.ND.treeDerives FirstOrder.orderSig
+/-- First-order judgments over `orderSig` as S-expressions. -/
+def folSeqCodec := FirstOrder.ND.seqCodec FirstOrder.orderOps FirstOrder.orderRels
+/-- First-order proofs over `orderSig` as S-expression trees. -/
+def folTreeCodec := FirstOrder.ND.treeCodec FirstOrder.orderOps FirstOrder.orderRels
+/-- First-order proofs over `orderSig` as indexed S-expression lines. -/
+def folLinesCodec := FirstOrder.ND.linesCodec FirstOrder.orderOps FirstOrder.orderRels
 /-- First-order semantic consequence over `orderSig`. -/
 def folConsequence := FirstOrder.consequence FirstOrder.orderSig
 /-- Truth in ℕ over `orderSig`. -/
@@ -91,6 +114,10 @@ silmaril consequence_system logic.formal.z2.derives.sexp :=
   (reading := "derivability") (title := "Z₂ over S-expressions (silmaril.soa.formula)")
 silmaril consequence_system logic.formal.hol.classical := Silmaril.LogicGraph.Consequence.Formal.holClassical
   (reading := "derivability") (title := "HOL with ETA, SELECT and INFINITY: the kernel on propositions")
+silmaril consequence_system logic.formal.hol.coin.kernel := Silmaril.LogicGraph.Consequence.Formal.holCoinKernel
+  (reading := "derivability") (title := "Pure HOL over the user signature coinSig (one boolean constant c)")
+silmaril consequence_system logic.formal.hol.coin.theory := Silmaril.LogicGraph.Consequence.Formal.holCoinTheory
+  (reading := "derivability") (title := "HOL over coinSig with the axiom c")
 silmaril consequence_system logic.formal.mltt.bounded1.derives := Silmaril.LogicGraph.Consequence.Formal.mlttBounded1
   (reading := "derivability") (title := "Extensional MLTT with 1 universe level: derivability")
 silmaril consequence_system logic.formal.mltt.bounded2.derives := Silmaril.LogicGraph.Consequence.Formal.mlttBounded2
@@ -100,6 +127,9 @@ silmaril consequence_system logic.formal.mltt.bounded3.derives := Silmaril.Logic
 silmaril consequence_system logic.formal.fol.consequence :=
     Silmaril.LogicGraph.Consequence.Formal.folConsequence
   (title := "FOL over orderSig: truth in every structure")
+silmaril consequence_system logic.formal.fol.tree.derives :=
+    Silmaril.LogicGraph.Consequence.Formal.folTreeDerives
+  (reading := "derivability") (title := "FOL over orderSig: checked natural-deduction proof trees")
 silmaril consequence_system logic.formal.fol.truth_nat := Silmaril.LogicGraph.Consequence.Formal.folTruthNat
   (title := "FOL over orderSig: truth in ℕ")
 
@@ -284,6 +314,99 @@ silmaril derivation logic.formal.pa.proof.missing_hyp := Silmaril.Consequence.Ar
   (verdicts := [Silmaril.Consequence.Arithmetic.ND.Examples.missingHyp_rejected])
   (title := "Rejected: a hypothesis that is not in the context")
 
+silmaril presentation logic.formal.fol.sequent := Silmaril.LogicGraph.Consequence.Formal.folSeqCodec
+  (title := "FOL judgments over orderSig: (seq k (hypotheses) conclusion)")
+silmaril presentation logic.formal.fol.proof_tree := Silmaril.LogicGraph.Consequence.Formal.folTreeCodec
+  (title := "FOL proofs over orderSig as S-expression trees")
+silmaril presentation logic.formal.fol.proof_lines := Silmaril.LogicGraph.Consequence.Formal.folLinesCodec
+  (title := "FOL proofs over orderSig as indexed S-expression lines")
+
+silmaril logic_property logic.formal.fol.tree.soundness :=
+    Silmaril.Consequence.FirstOrder.ND.treeDerives_le_consequence
+  (arg := "(Sg := Silmaril.Consequence.FirstOrder.orderSig)")
+  (role := "inclusion") (system := "logic.formal.fol.tree.derives")
+  (target := "logic.formal.fol.consequence")
+  (title := "Checked FOL proof trees derive only semantic consequences (soundness)")
+silmaril logic_property logic.formal.fol.tree.soundness_nat := Silmaril.Consequence.FirstOrder.ND.treeDerives_soundFor
+  (arg := "Silmaril.Consequence.FirstOrder.natStructure")
+  (role := "soundness") (system := "logic.formal.fol.tree.derives")
+  (title := "Checked FOL proof trees are sound for the structure ℕ")
+silmaril logic_property logic.formal.fol.tree.consistency :=
+    Silmaril.Consequence.FirstOrder.ND.orderTheory_tree_consistent
+  (role := "consistency") (system := "logic.formal.fol.tree.derives")
+  (title := "The order theory does not derive ¬⊤ by checked proof trees")
+
+silmaril derivation_system logic.formal.fol.nd := Silmaril.Consequence.FirstOrder.ND.system
+  (arg := "Silmaril.Consequence.FirstOrder.orderSig")
+  (judgments := "logic.formal.fol.sequent")
+  (formats := [logic.formal.fol.proof_tree, logic.formal.fol.proof_lines])
+  (locally_sound := "Silmaril.Consequence.FirstOrder.ND.locallySound (Sg := Silmaril.Consequence.FirstOrder.orderSig)")
+  (title := "FOL natural deduction over orderSig: rule instances checked step by step")
+
+silmaril derivation logic.formal.fol.proof.succ_irrefl :=
+    Silmaril.Consequence.FirstOrder.ND.Examples.succIrreflProof
+  (presentation := "logic.formal.fol.proof_tree") (system := "logic.formal.fol.nd")
+  (verdicts := [Silmaril.Consequence.FirstOrder.ND.Examples.succIrreflProof_checks,
+    Silmaril.Consequence.FirstOrder.ND.Examples.succIrreflProof_lines_checks])
+  (derives := Silmaril.Consequence.FirstOrder.ND.Examples.succIrrefl_derives)
+  (derives_system := "logic.formal.fol.tree.derives")
+  (title := "∀x ¬ succ x < succ x from the order theory, by ∀-elimination (trees and lines)")
+silmaril derivation logic.formal.fol.proof.eq_symm := Silmaril.Consequence.FirstOrder.ND.Examples.eqSymmProof
+  (presentation := "logic.formal.fol.proof_tree") (system := "logic.formal.fol.nd")
+  (verdicts := [Silmaril.Consequence.FirstOrder.ND.Examples.eqSymmProof_checks])
+  (derives := Silmaril.Consequence.FirstOrder.ND.Examples.eqSymm_derives)
+  (derives_system := "logic.formal.fol.tree.derives")
+  (title := "∀x ∀y ¬(x = y ∧ ¬ y = x), by equality elimination")
+silmaril derivation logic.formal.fol.proof.not_a_hyp := Silmaril.Consequence.FirstOrder.ND.Examples.notAHyp
+  (presentation := "logic.formal.fol.proof_tree") (system := "logic.formal.fol.nd")
+  (verdicts := [Silmaril.Consequence.FirstOrder.ND.Examples.notAHyp_rejected])
+  (title := "Rejected: ∀x ¬ succ x < succ x is not a hypothesis of the order theory")
+silmaril derivation logic.formal.fol.proof.wrong_instance :=
+    Silmaril.Consequence.FirstOrder.ND.Examples.wrongInstance
+  (presentation := "logic.formal.fol.proof_tree") (system := "logic.formal.fol.nd")
+  (verdicts := [Silmaril.Consequence.FirstOrder.ND.Examples.wrongInstance_rejected])
+  (title := "Rejected: ∀-elimination at x claimed as the instance at succ x")
+silmaril derivation logic.formal.fol.proof.unknown_rule := Silmaril.Consequence.FirstOrder.ND.Examples.unknownRule
+  (presentation := "logic.formal.fol.proof_tree") (system := "logic.formal.fol.nd")
+  (verdicts := [Silmaril.Consequence.FirstOrder.ND.Examples.unknownRule_rejected])
+  (title := "Rejected: an unknown rule")
+
+silmaril presentation logic.formal.mltt.bounded1.sexp := Silmaril.LogicGraph.Consequence.Formal.mlttBounded1Codec
+  (title := "Bounded MLTT judgments (one universe level) as S-expressions")
+
+silmaril logic_property logic.formal.mltt.bounded1.soundness := Silmaril.Consequence.TypeTheory.bounded_soundFor_one
+  (role := "soundness") (system := "logic.formal.mltt.bounded1.derives")
+  (title := "Extensional MLTT with 1 universe level is sound for its finite ZFSet towers (Lean universe 1)")
+silmaril logic_property logic.formal.mltt.bounded2.soundness := Silmaril.Consequence.TypeTheory.bounded_soundFor_two
+  (role := "soundness") (system := "logic.formal.mltt.bounded2.derives")
+  (title := "Extensional MLTT with 2 universe levels is sound for its finite ZFSet towers (Lean universe 2)")
+silmaril logic_property logic.formal.mltt.bounded3.soundness := Silmaril.Consequence.TypeTheory.bounded_soundFor_three
+  (role := "soundness") (system := "logic.formal.mltt.bounded3.derives")
+  (title := "Extensional MLTT with 3 universe levels is sound for its finite ZFSet towers (Lean universe 3)")
+silmaril logic_property logic.formal.mltt.bounded1.no_empty :=
+    Silmaril.Consequence.TypeTheory.bounded_empty_consistent_one
+  (role := "consistency") (system := "logic.formal.mltt.bounded1.derives")
+  (title := "⊢ 0 : 𝟘 is not derivable with 1 universe level")
+silmaril logic_property logic.formal.mltt.bounded2.no_empty :=
+    Silmaril.Consequence.TypeTheory.bounded_empty_consistent_two
+  (role := "consistency") (system := "logic.formal.mltt.bounded2.derives")
+  (title := "⊢ 0 : 𝟘 is not derivable with 2 universe levels")
+silmaril logic_property logic.formal.mltt.bounded3.no_empty :=
+    Silmaril.Consequence.TypeTheory.bounded_empty_consistent_three
+  (role := "consistency") (system := "logic.formal.mltt.bounded3.derives")
+  (title := "⊢ 0 : 𝟘 is not derivable with 3 universe levels")
+
+silmaril presentation logic.formal.hol.coin.sexp := Silmaril.LogicGraph.Consequence.Formal.holCoinCodec
+  (title := "HOL propositions over coinSig as S-expressions")
+
+silmaril logic_property logic.formal.hol.coin.soundness := Silmaril.Consequence.HOL.kernelFrom_soundFor
+  (arg := "Silmaril.Consequence.HOL.coinSig Silmaril.Consequence.HOL.cTheory")
+  (role := "soundness") (system := "logic.formal.hol.coin.theory")
+  (title := "HOL with the axiom c is sound for the models of c")
+silmaril logic_property logic.formal.hol.coin.consistency := Silmaril.Consequence.HOL.cTheory_consistent
+  (role := "consistency") (system := "logic.formal.hol.coin.theory")
+  (title := "The theory c over coinSig does not derive ⊥ (its model interprets c as true)")
+
 /-! ## Concrete problems -/
 
 silmaril logic_problem logic.formal.pa.zero_add_zero := Silmaril.Consequence.Arithmetic.zeroAddZero
@@ -328,23 +451,51 @@ silmaril logic_problem logic.formal.hol.excluded_middle := Silmaril.Consequence.
   (title := "⊤ ∨ ¬⊤, by excluded middle from the classical axioms")
 silmaril logic_problem logic.formal.fol.succ_irrefl := Silmaril.Consequence.FirstOrder.succIrrefl
   (presentation := "logic.formal.fol.sexp")
+  (derived := Silmaril.Consequence.FirstOrder.ND.Examples.succIrrefl_derives)
+  (system := "logic.formal.fol.tree.derives")
   (entailed := Silmaril.Consequence.FirstOrder.orderTheory_entails_succIrrefl)
   (entailed_by := "logic.formal.fol.consequence")
   (truth := Silmaril.Consequence.FirstOrder.succIrrefl_true)
   (interpretation := "Silmaril.Consequence.FirstOrder.inStructure Silmaril.Consequence.FirstOrder.natStructure")
   (title := "∀x ¬ succ x < succ x, from the order theory in every structure")
 
+silmaril logic_problem logic.formal.mltt.zero := Silmaril.LogicGraph.Consequence.Formal.mlttZero
+  (presentation := "logic.formal.mltt.bounded1.sexp")
+  (derived := Silmaril.Consequence.TypeTheory.bounded_zero_derived)
+  (system := "logic.formal.mltt.bounded1.derives")
+  (truth := Silmaril.Consequence.TypeTheory.bounded_zero_true)
+  (interpretation := "Silmaril.Consequence.TypeTheory.boundedTowers.{1} 1")
+  (title := "⊢ 0 : ℕ with one universe level: derived, and true in every tower")
+
+silmaril logic_problem logic.formal.hol.coin.c := Silmaril.Consequence.HOL.cProp
+  (presentation := "logic.formal.hol.coin.sexp")
+  (derived := Silmaril.Consequence.HOL.cProp_derived) (system := "logic.formal.hol.coin.theory")
+  (truth := Silmaril.Consequence.HOL.cProp_true)
+  (interpretation := "Silmaril.Consequence.HOL.pointsOf.{0} Silmaril.Consequence.HOL.coinSig Silmaril.Consequence.HOL.cTheory")
+  (title := "c, over the user signature coinSig, from its axiom: true in the model c ↦ true")
+silmaril logic_problem logic.formal.hol.coin.refl := Silmaril.Consequence.HOL.cReflProp
+  (presentation := "logic.formal.hol.coin.sexp")
+  (derived := Silmaril.Consequence.HOL.cReflProp_derived) (system := "logic.formal.hol.coin.kernel")
+  (truth := Silmaril.Consequence.HOL.cReflProp_true)
+  (interpretation := "Silmaril.Consequence.HOL.points.{0} Silmaril.Consequence.HOL.coinSig")
+  (title := "c = c over coinSig, by REFL: true at every point of every model")
+
 /-! ## Rows -/
 
 silmaril logic_row logic.formal.row.fol
   (title := "First-order logic (unsorted), over orderSig")
-  (variant := "Unsorted first-order logic with equality; signature orderSig (zero, succ, <); structures with nonempty carriers. No derivation system yet: consistency is model existence.")
+  (variant := "Unsorted first-order logic with equality (=, relations, ⊤, ¬, ∧, ∀); signature orderSig (zero, succ, <); structures with nonempty carriers. Classical natural deduction over any signature with decidable symbols, sound for every structure; consistency of the order theory by the model ℕ.")
   (institution := "logic.institution.examples.ufol.inst")
-  (systems := [logic.formal.fol.consequence, logic.formal.fol.truth_nat])
+  (systems := [logic.formal.fol.consequence, logic.formal.fol.truth_nat, logic.formal.fol.tree.derives])
   (interpretations := [Silmaril.Consequence.FirstOrder.inStructure])
-  (presentations := [logic.formal.fol.sexp])
-  (properties := [logic.formal.fol.satisfiable, logic.formal.fol.nontrivial])
+  (presentations := [logic.formal.fol.sexp, logic.formal.fol.sequent, logic.formal.fol.proof_tree,
+    logic.formal.fol.proof_lines])
+  (properties := [logic.formal.fol.satisfiable, logic.formal.fol.nontrivial, logic.formal.fol.tree.soundness,
+    logic.formal.fol.tree.soundness_nat, logic.formal.fol.tree.consistency])
   (problems := [logic.formal.fol.succ_irrefl])
+  (derivation_systems := [logic.formal.fol.nd])
+  (derivations := [logic.formal.fol.proof.succ_irrefl, logic.formal.fol.proof.eq_symm,
+    logic.formal.fol.proof.not_a_hyp, logic.formal.fol.proof.wrong_instance, logic.formal.fol.proof.unknown_rule])
   (order := 1)
 silmaril logic_row logic.formal.row.pa
   (title := "Peano arithmetic (and Robinson's Q)")
@@ -382,23 +533,29 @@ silmaril logic_row logic.formal.row.second_order
   (order := 3)
 silmaril logic_row logic.formal.row.hol
   (title := "HOL (HOL Light kernel)")
-  (variant := "HOL Light's kernel over its initial signature (bool, ind, =, @), on propositions; pure and with HOL Light's classical axioms ETA, SELECT and INFINITY. Standard semantics: models in Type u with bool as ULift Bool, ind as ULift ℕ, full function spaces, = as equality and @ as Hilbert choice; consistency is relative to the standard model at universe 0. No definition rules (new_definition, new_type_definition).")
-  (systems := [logic.consequence.hol.kernel, logic.formal.hol.classical, logic.consequence.hol.seq])
-  (interpretations := [Silmaril.Consequence.HOL.points])
-  (presentations := [logic.formal.hol.prop.sexp, logic.formal.hol.sexp])
+  (variant := "HOL Light's kernel over its initial signature (bool, ind, =, @), on propositions; pure and with HOL Light's classical axioms ETA, SELECT and INFINITY. Standard semantics: models in Type u with bool as ULift Bool, ind as ULift ℕ, full function spaces, = as equality and @ as Hilbert choice; consistency is relative to the standard model at universe 0. Also over a user signature (coinSig, one boolean constant c) with the axiom c: sound for the models of its axioms, consistent by the model c ↦ true. No definition rules (new_definition, new_type_definition).")
+  (systems := [logic.consequence.hol.kernel, logic.formal.hol.classical, logic.consequence.hol.seq,
+    logic.formal.hol.coin.kernel, logic.formal.hol.coin.theory])
+  (interpretations := [Silmaril.Consequence.HOL.points, Silmaril.Consequence.HOL.pointsOf])
+  (presentations := [logic.formal.hol.prop.sexp, logic.formal.hol.sexp, logic.formal.hol.coin.sexp])
   (properties := [logic.formal.hol.soundness, logic.formal.hol.consistency,
-    logic.formal.hol.classical.consistency, logic.formal.hol.nontriviality, logic.formal.hol.kernel.soundness])
-  (problems := [logic.formal.hol.truth, logic.formal.hol.refl, logic.formal.hol.excluded_middle])
+    logic.formal.hol.classical.consistency, logic.formal.hol.nontriviality, logic.formal.hol.kernel.soundness,
+    logic.formal.hol.coin.soundness, logic.formal.hol.coin.consistency])
+  (problems := [logic.formal.hol.truth, logic.formal.hol.refl, logic.formal.hol.excluded_middle,
+    logic.formal.hol.coin.c, logic.formal.hol.coin.refl])
   (order := 4)
 silmaril logic_row logic.formal.row.mltt
   (title := "Martin-Löf type theory: extensional (bounded universes) and intensional (original rules)")
-  (variant := "Extensional MLTT (Π, Σ, ℕ, 𝟎, 𝟏, identity with reflection, cumulative universes): consistent with 1, 2 or 3 universe levels, relative to Lean and ZFSet towers at Lean universes 1–3 (no inaccessibles assumed); the unbounded system is sound for assumed set hierarchies, whose existence is not proved, so its consistency is not claimed. Intensional MLTT (Martin-Löf's original rules with J, unbounded cumulative universes): consistent at every stage, by term realizability (a syntactic model, not a Lean-type model). Consistency here is nontriviality: some judgment is not derivable. A standard interpretation in Lean types at fixed low universes is not done yet.")
+  (variant := "Extensional MLTT (Π, Σ, ℕ, 𝟎, 𝟏, identity with reflection, cumulative universes): consistent with 1, 2 or 3 universe levels, relative to Lean and ZFSet towers at Lean universes 1–3 (no inaccessibles assumed); the unbounded system is sound for assumed set hierarchies, whose existence is not proved, so its consistency is not claimed. Intensional MLTT (Martin-Löf's original rules with J, unbounded cumulative universes): consistent at every stage, by term realizability (a syntactic model, not a Lean-type model). Consistency here is nontriviality: some judgment is not derivable. The bounded systems are sound for their standard set-theoretic interpretation, finite ZFSet towers at fixed low universes, and do not derive ⊢ 0 : 𝟘. A standard interpretation in Lean types (rather than ZFSets) is not done: it needs a dependent interpretation of typing derivations.")
   (systems := [logic.formal.mltt.bounded1.derives, logic.formal.mltt.bounded2.derives,
     logic.formal.mltt.bounded3.derives, logic.consequence.mltt.extensional.derives,
     logic.consequence.mltt.extensional.entails, logic.consequence.mltt.intensional.derives,
     logic.consequence.mltt.intensional.entails])
-  (presentations := [logic.formal.mltt.sexp])
+  (presentations := [logic.formal.mltt.sexp, logic.formal.mltt.bounded1.sexp])
   (properties := [logic.formal.mltt.bounded1.consistency, logic.formal.mltt.bounded2.consistency,
     logic.formal.mltt.bounded3.consistency, logic.formal.mltt.intensional.consistency,
-    logic.formal.mltt.extensional.soundness, logic.formal.mltt.intensional.soundness])
+    logic.formal.mltt.extensional.soundness, logic.formal.mltt.intensional.soundness,
+    logic.formal.mltt.bounded1.soundness, logic.formal.mltt.bounded2.soundness, logic.formal.mltt.bounded3.soundness,
+    logic.formal.mltt.bounded1.no_empty, logic.formal.mltt.bounded2.no_empty, logic.formal.mltt.bounded3.no_empty])
+  (problems := [logic.formal.mltt.zero])
   (order := 5)

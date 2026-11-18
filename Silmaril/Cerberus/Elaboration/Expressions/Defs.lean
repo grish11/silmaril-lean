@@ -127,11 +127,25 @@ def expression (config : Target.Config) (env : Target.Environment) (bindings : L
                 Comparisons.relational .greaterEqual config env bindings type leftType rightType
                   (expression config env bindings left aliases) (expression config env bindings right aliases)
             | .eq =>
-                Comparisons.equal config env bindings type leftType rightType
-                  (expression config env bindings left aliases) (expression config env bindings right aliases)
+                if NullPointers.isNullPointerConstant left && Constants.isPointer rightType then
+                  NullPointers.compareNull config false location rightType
+                    (expression config env bindings right aliases)
+                else if Constants.isPointer leftType && NullPointers.isNullPointerConstant right then
+                  NullPointers.compareNull config false location leftType
+                    (expression config env bindings left aliases)
+                else
+                  Comparisons.equal config env bindings type leftType rightType
+                    (expression config env bindings left aliases) (expression config env bindings right aliases)
             | .ne =>
-                Comparisons.notEqual config env bindings type leftType rightType
-                  (expression config env bindings left aliases) (expression config env bindings right aliases)
+                if NullPointers.isNullPointerConstant left && Constants.isPointer rightType then
+                  NullPointers.compareNull config true location rightType
+                    (expression config env bindings right aliases)
+                else if Constants.isPointer leftType && NullPointers.isNullPointerConstant right then
+                  NullPointers.compareNull config true location leftType
+                    (expression config env bindings left aliases)
+                else
+                  Comparisons.notEqual config env bindings type leftType rightType
+                    (expression config env bindings left aliases) (expression config env bindings right aliases)
             | .and =>
                 logical true config env bindings location left right
                   (expression config env bindings left aliases) (expression config env bindings right aliases)

@@ -61,9 +61,36 @@ async function corpusArtifact(id, ctx) {
     <h3>Runtime tests</h3>${pretty(m.runtime_tests)}`;
 }
 async function corpusTimings(build, ctx) {
-  const runs=await ctx.tq('corpus_timings','SELECT * FROM corpus_timings'+(build?' WHERE build_id=?':'')+' ORDER BY stage,run_id',build?[build]:[]);
-  return `<p><a href="#/corpus">← Corpus</a></p><h2>Measured pipeline stages</h2><p>${runs.length} actual run receipts. Cache state, concurrency and runner identity are recorded per run. Times cover each command's measured scope; overlapping stages must not be summed as end-to-end cost.</p><table><thead><tr><th>Stage</th><th>Wall seconds</th><th>Peak RSS KiB</th><th>Exit</th><th>Receipt</th></tr></thead><tbody>${runs.map(r=>{const m=JSON.parse(r.metadata);return `<tr><td>${esc(r.stage)}</td><td>${Number(m.wall_seconds).toFixed(3)}</td><td>${esc(m.peak_rss_kib)}</td><td>${esc(m.exit_code)}</td><td><details><summary>${esc(r.run_id.slice(0,8))}</summary><pre>${esc(JSON.stringify(m,null,2))}</pre></details></td></tr>`;}).join('')}</tbody></table>`;
+  let runs=await ctx.tq('corpus_timing_summary','SELECT * FROM corpus_timing_summary'+(build?' WHERE build_id=?':'')+' ORDER BY stage,run_id',build?[build]:[]);
+  // Older catalog files predate the compact index. Preserve their readability.
+  if(!runs.length) runs=(await ctx.tq('corpus_timings',`SELECT run_id,build_id,stage,json_extract(metadata,'$.wall_seconds') wall_seconds,json_extract(metadata,'$.peak_rss_kib') peak_rss_kib,json_extract(metadata,'$.exit_code') exit_code FROM corpus_timings`+(build?' WHERE build_id=?':'')+' ORDER BY stage,run_id',build?[build]:[]));
+  return {html:`<p><a href="#/corpus">← Corpus</a></p><h2>Measured pipeline stages</h2><p>${runs.length} actual run receipts. Cache state, concurrency and runner identity are recorded per run. Times cover each command's measured scope; overlapping stages must not be summed as end-to-end cost.</p>
+    <p><label>Stage <select id="timing-stage" aria-label="Stage"><option value="">All stages</option>${[...new Set(runs.map(r=>r.stage))].map(stage=>`<option>${esc(stage)}</option>`).join('')}</select></label></p><p>Full receipts load when opened. <button id="timing-prev">Previous</button> <span id="timing-page"></span> <button id="timing-next">Next</button></p>
+    <table><thead><tr><th>Stage</th><th>Wall seconds</th><th>Peak RSS KiB</th><th>Exit</th><th>Receipt</th></tr></thead><tbody id="timing-rows"></tbody></table>`,
+    init:async()=>{
+      let start=0; const size=100; let filtered=runs;
+      const render=()=>{
+        document.querySelector('#timing-rows').innerHTML=filtered.slice(start,start+size).map(r=>`<tr><td>${esc(r.stage)}</td><td>${Number(r.wall_seconds).toFixed(3)}</td><td>${esc(r.peak_rss_kib)}</td><td>${esc(r.exit_code)}</td><td><details data-timing-run="${esc(r.run_id)}"><summary>${esc(r.run_id.slice(0,8))}</summary><pre>Open to load receipt</pre></details></td></tr>`).join('');
+        document.querySelector('#timing-page').textContent=`${filtered.length?start+1:0}–${Math.min(start+size,filtered.length)} of ${filtered.length}`;
+        document.querySelector('#timing-prev').disabled=start===0;
+        document.querySelector('#timing-next').disabled=start+size>=filtered.length;
+      };
+      document.querySelector('#timing-stage').onchange=event=>{filtered=runs.filter(r=>!event.target.value||r.stage===event.target.value);start=0;render();};
+      document.querySelector('#timing-prev').onclick=()=>{start=Math.max(0,start-size);render();};
+      document.querySelector('#timing-next').onclick=()=>{start+=size;render();};
+      document.querySelector('#timing-rows').addEventListener('toggle',async event=>{
+        const detail=event.target;
+        if(!detail.matches('details[data-timing-run]')||!detail.open||detail.dataset.loaded)return;
+        detail.dataset.loaded='true'; const pre=detail.querySelector('pre');pre.textContent='Loading receipt…';
+        try{
+          const [row]=await ctx.q('SELECT metadata FROM corpus_timings WHERE run_id=?',[detail.dataset.timingRun]);
+          if(ctx.alive()&&detail.isConnected)pre.textContent=row?JSON.stringify(JSON.parse(row.metadata),null,2):'Receipt not found';
+        }catch(error){if(ctx.alive()&&detail.isConnected)pre.textContent=error.message;}
+      },true);
+      render();
+    }};
 }
+
 async function corpusFunctions(id, ctx) {
   const [artifact] = await ctx.tq("corpus_artifacts", "SELECT name,metadata FROM corpus_artifacts WHERE id=?", [id]);
   if (!artifact) return '<p>Artifact not found.</p>';

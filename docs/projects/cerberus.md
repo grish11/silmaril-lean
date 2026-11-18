@@ -239,3 +239,15 @@ captured loaded-integer conversions (`ci_cerberus_integer_cast`); a parameter ca
   vendored RISC-V package that is not in this release.
 - The System V / x86 translation-validation machinery and the native C compiler.
   These are planned for later releases.
+
+### Selected null-pointer equality lowering
+
+The native typed-Ail dispatcher supports a pointer compared with a null
+pointer constant, for Eq and Ne in either operand order. This follows
+[pinned `translation.lem`514–546](https://github.com/rems-project/cerberus/blob/b3e11ea334e95359907d4abf9194f0e7fedc6c6a/frontend/model/translation.lem#L514):
+the pointer child runs before three fresh wrappers, and the unspecified loaded
+value retains its UB fallback. General pointer/pointer comparison and CHERI
+remain unsupported. `NullPointerEquality.lean` checks actual frontend/Core
+execution against concrete parameter-object memory for null/non-null inputs,
+plus allocation-order/fallback checks. `make check` runs these finite cases
+when selecting CerberusTests; they are not adequacy or C-to-ELF proofs.

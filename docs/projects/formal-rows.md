@@ -45,6 +45,7 @@ A **derivation system** `D : DerivationSystem J` has rule labels `D.Rule` and ru
 | soundness | `LocallySound sat` ⇒ `derives_soundFor : D.derives.SoundFor (listSat M sat)` | every rule preserves truth in each model |
 | consistency | `consistentWrt_of_locallySound` | a model of `Γ` falsifying `ff` |
 | elaboration | `ProofTree.elaborate`, `Line.elaborate`; `derives_of_elaborate`, `derives_of_elaborateLines` | raw labels (a rule name and a few arguments) become rule labels by an *untrusted* function; the result is checked |
+| morphisms | `DerivationSystem.Hom D E` (judgment map, rule map, instances to instances); `Hom.valid`, `Hom.derives`, `Hom.translation` | proof trees translate, preserving validity, so a morphism is a translation of the consequence systems |
 
 **Proof formats** (`Silmaril.Logic.Consequence.Derivation.SExp`), generic in the presentation of
 judgments; the readers invert the encoders, so both are presentations (`SExpCodec`):
@@ -71,6 +72,28 @@ conditions for `hyp`, `weaken` and the theory's axioms).
   lines); `⊢ ∀x ∀y. x = y → y = x`; `⊢ ∀x. 0 + x = x` **by induction** (PA accepts; Q rejects);
   six rejections (wrong axiom conclusion, unknown rule, missing hypothesis, forward citation, empty
   lines, not a proof) and byte-level syntax errors.
+
+## First-order natural deduction (`Silmaril.Logic.Consequence.FirstOrder.Derivation`)
+
+Over any unsorted signature whose symbols of each arity have decidable equality (named signatures
+do), with judgments `Γ ⊢ φ` at `k` variables and rule instances carrying their data
+(`FirstOrder.ND.Rule`): hypothesis, weakening along `⊆`, `⊤`-introduction, `¬`-introduction (from
+`ψ` and `¬ψ`), `¬`-elimination (explosion), double negation, the `∧` rules, `∀`-introduction and
+elimination, equality reflexivity and elimination. The syntax operations it needs (renaming,
+substitution, `shift`, `inst`, decidable equality) are `…FirstOrder.Syntax`, with
+`holds_subst`, `holds_shift`, `holds_inst`.
+
+* `locallySound`: every rule instance preserves validity in every structure; hence
+  `treeDerives_le_consequence` and `treeDerives_soundFor M`.
+* `orderTheory_tree_consistent`: over `orderSig`, the order theory does not derive `¬⊤` (model ℕ).
+* Concrete syntax: `silmaril.fol.sequent` v1, the tree and lines formats, `elabRule`, and
+  `checkTree` / `checkLines` with `checkTree_sound`, as for PA.
+* Along signature morphisms (`mapHom σ`, a morphism of derivation systems; `treeDerives_map`):
+  proofs translate by `Formula.map σ`, which commutes with substitution and shifting
+  (`Formula.map_inst`, `Formula.map_shift`); the example transports the derivation of
+  `∀x ¬ succ x < succ x` into a signature with one more symbol.
+* Kernel-checked proofs (`…Derivation.Examples`): `orderTheory ⊢ ∀x ¬ succ x < succ x` (trees and
+  lines), `⊢ ∀x ∀y ¬(x = y ∧ ¬ y = x)`, and three rejections. All are registered on the FOL row.
 
 ## Lean-NDJSON: lean4export files of proof declarations (`Silmaril.ProofFormats.LeanNDJSON`)
 
@@ -110,6 +133,34 @@ declared type (no effect) and a replaced value (a different conclusion), and sev
 of the real file (a duplicated record, a forward reference, a self-reference, an unknown field,
 `mdata`, a wrong format version, an empty line), each refused with its reason.
 
+## Alethe: a propositional fragment, with real cvc5 proofs (`Silmaril.ProofFormats.Alethe`)
+
+**The clause system** (`Silmaril.Logic.Consequence.Resolution`): judgments are clauses of SMT terms;
+a valuation interprets atoms, and `true`, `false`, `not`, `or`, `and` are interpreted (every other
+term is an atom, so only **propositional** reasoning is claimed). Rules: `resolution` with explicit
+pivots, `orElim`, `andElim`, `notOrElim`, `orPos`, `orNeg`, `andPos`, `andNeg`, `contraction`,
+`trueTaut`, `falseTaut`; a step is an instance when its computed conclusion is a subset of the
+stated one. `locallySound`, and `refutes_units`: the empty clause derived from asserted formulas
+shows that no valuation satisfies them.
+
+**The adapter**: `checkRefutation problem proof` reads an SMT-LIB problem (assertions; `define-fun`
+and other meaning-changing commands are refused) and an Alethe proof (`assume`, and `step` with
+`:rule`, `:premises`, `:args`), expands `(! t :named @n)` sharing, maps premise names to earlier
+lines, elaborates each supported rule (untrusted), and checks the lines against the assertions;
+the proof must end with `(cl)`. Unsupported rules (theory rules, `trust`, …), subproofs (`anchor`,
+`:discharge`), resolution without pivots, unknown or later premises, and assumptions that are not
+assertions are refused by name. `checkRefutation_sound`: an accepted proof refutes the problem's
+assertions.
+
+**Fixtures** (`tests/alethe/cvc5-1.4.2/`): five problems and the proofs the official cvc5 1.4.2
+static release printed for them, plus one printed without `--proof-alethe-res-pivots`;
+`receipt.json` records the release archive and executable hashes, the exact arguments and limits,
+and every file's hash. `scripts/alethe/check-fixtures.sh` verifies the hashes and, given the
+executable (`CVC5=…`), regenerates every proof and compares. At build time
+(`…Alethe.Examples`): four refutations accepted (`or_pos`, `or`, `and`, resolution chains, `:named`
+sharing); the theory proof (`not_symm`) and the pivot-less proof refused; six mutations of the
+real files refused with their reasons.
+
 ## Registry and explorer
 
 Six record kinds (`Silmaril.Project.Registry.Formal.Defs`). In each, Lean checks the claim from
@@ -140,11 +191,11 @@ S-expression in each format (kept in the URL). The browser suite is
 
 | row | abstract syntax | presentations | derivation (proof objects) | interpretation | soundness | consistency | concrete problems |
 |---|---|---|---|---|---|---|---|
-| **FOL** (unsorted; signature `orderSig`) | ◆ `UFOL.Formula` (existing) | ◆ `silmaril.fol.formula` v1 over named signatures (arity-checked; `decodeFormula_eq_some_iff` ✓) | — none yet | ◆ one specified structure (`inStructure natStructure`, ℕ) and all structures (`consequence`) | — (no derivations) | ✓ model existence `orderTheory_satisfiable`; ✓ nontrivial consequence `orderTheory_nontrivial` | ✓ `orderTheory_entails_succIrrefl` (every structure), `succIrrefl_true` (ℕ) |
+| **FOL** (unsorted; signature `orderSig`) | ◆ `UFOL.Formula` (existing); ✓ renaming, substitution, decidable equality (`…FirstOrder.Syntax`) | ◆ `silmaril.fol.formula` v1 over named signatures (arity-checked; `decodeFormula_eq_some_iff` ✓); ✓ `silmaril.fol.sequent` v1 and the proof formats | ✓ classical natural deduction over any signature with decidable symbols (`FirstOrder.ND.system`), checked trees and lines | ◆ one specified structure (`inStructure natStructure`, ℕ) and all structures (`consequence`) | ✓ `treeDerives_le_consequence` (every structure), `treeDerives_soundFor` (ℕ), by `locallySound` | ✓ model existence `orderTheory_satisfiable`; ✓ nontrivial consequence `orderTheory_nontrivial`; ✓ `orderTheory_tree_consistent` | ✓ `orderTheory_entails_succIrrefl`, `succIrrefl_true`; ✓ `succIrrefl_derives` (a checked proof, trees and lines), `eqSymm_derives` |
 | **PA** (and Q) | ◆ `Arithmetic.Formula` (existing) | ◆ `silmaril.arithmetic.formula` v1 (default), `….words` v1; ✓ bytes round trip for every formula | ◆ `PAProof`, `QProof` (existing natural deduction); ✓ as a derivation system with checked proof trees and lines (`treeDerives_pa`, `treeDerives_q`), S-expression proofs `silmaril.derivation.tree` / `….lines` | ◆ standard model ℕ (`standard`) | ✓ `pa_soundFor`, `q_soundFor` | ✓ `pa_consistent`, `q_consistent`, `paConcrete_consistent` | ✓ `zeroAddZero`, `zeroOrSuccessor` (decoded, derived, true in ℕ) |
 | **Second-order arithmetic**: `RCA0`, `WKL0Sep` (Σ⁰₁ separation), `ACA0`, `Z2`, `Z2Full` | ◆ `SecondOrderArithmetic.Formula` (existing, named) | ◆ `silmaril.soa.formula` v1 | ◆ `Proof` (existing Hilbert), `HProof` with hypotheses | ◆ **full** standard (`full`: ℕ and every subset) and **Henkin** (`henkin S`: structures validating `S`'s axioms) | ✓ `derives_soundFor_full`, `derives_soundFor_henkin` | ✓ `consistent S` for every subsystem, `concrete_consistent` | ✓ `succNeZero` (RCA0), `comprehensionEq` (Z2) |
-| **HOL** (HOL Light kernel, initial signature) | ◆ existing; ✓ type checker `Tm.typeOf?` sound and complete | ◆ `silmaril.hol-light.prop` v1 (decode, type-check, require `bool`; errors exact: `decodeProp_eq_none_iff`), `silmaril.hol-light.term` v1 | ◆ `HOLLight.Derives` (existing), on propositions `kernel`, `kernelFrom … classicalTheory` | ◆ standard models (`points`: model in `Type u`, type valuation, assignment); `denote` of typed terms; `standardPoint` | ✓ `kernel_soundFor` | ✓ `kernel_consistent` (pure), `classical_consistent'` (ETA, SELECT, INFINITY) | ✓ `truthProp`, `reflProp` (derived, true), `emProp` (derived from the classical axioms) |
-| **MLTT** | ◆ existing | ◆ `silmaril.mltt.judgment` v1 (extensional) | ◆ existing (`ECtx.JEqB`, `ECtx.JEqH`, original intensional rules) | ◆ ZFSet towers (extensional), realizability (intensional) | ✓ existing (as inclusions) | ✓ nontriviality: extensional with 1, 2, 3 universe levels (`bounded_consistent_one/two/three`), intensional with J at every stage (`intensional_consistent`) | — |
+| **HOL** (HOL Light kernel, initial signature) | ◆ existing; ✓ type checker `Tm.typeOf?` sound and complete | ◆ `silmaril.hol-light.prop` v1 (decode, type-check, require `bool`; errors exact: `decodeProp_eq_none_iff`), `silmaril.hol-light.term` v1 | ◆ `HOLLight.Derives` (existing), on propositions `kernel`, `kernelFrom … classicalTheory` | ◆ standard models (`points`: model in `Type u`, type valuation, assignment); `denote` of typed terms; `standardPoint` | ✓ `kernel_soundFor`; ✓ `kernelFrom_soundFor` (models of a theory, any signature) | ✓ `kernel_consistent` (pure), `classical_consistent'` (ETA, SELECT, INFINITY); ✓ `cTheory_consistent` (user signature `coinSig`, axiom `c`) | ✓ `truthProp`, `reflProp` (derived, true), `emProp` (derived from the classical axioms); ✓ `cProp`, `cReflProp` over `coinSig` |
+| **MLTT** | ◆ existing | ◆ `silmaril.mltt.judgment` v1 (extensional); ✓ `silmaril.mltt.judgment.bounded` v1 (`boundedCodec`) | ◆ existing (`ECtx.JEqB`, `ECtx.JEqH`, original intensional rules) | ◆ ZFSet towers (extensional), realizability (intensional); ✓ `boundedTowers levels`, the finite-tower interpretation at fixed low universes | ✓ `bounded_soundFor_one/two/three`; ✓ existing (as inclusions) | ✓ nontriviality: extensional with 1, 2, 3 universe levels (`bounded_consistent_one/two/three`), intensional with J at every stage (`intensional_consistent`); ✓ `⊢ 0 : 𝟘` not derivable (`bounded_empty_consistent_one/two/three`) | ✓ `⊢ 0 : ℕ` (`bounded_zero_derived`, `bounded_zero_true`) |
 
 `WKL0Sep` is RCA0 with Σ⁰₁ separation; its equivalence to weak König's lemma is not proved. `Z2`
 and `Z2Full` prove the same formulas (`z2_full_provable_iff`, existing). Full second-order
@@ -194,24 +245,34 @@ indexed derivation format will follow this format rather than invent a JSONL sch
 
 ## Not done yet (exact obligations)
 
-1. **A FOL derivation system** with proof objects and soundness (generalize `Arithmetic.Derivation`
-   to an arbitrary signature); FOL's row has semantics and model existence only.
-2. **HOL**: the standard interpretation is stated for the initial signature; HOL problems over
-   user signatures and constants (with a model interpreting them) are not registered yet. The
-   kernel has no definition rules.
+1. **FOL**: the derivation system is done (natural deduction for `=`, relations, `⊤`, `¬`, `∧`,
+   `∀` over any signature with decidable symbols, sound for every structure). Completeness is not
+   claimed; disjunction, implication and `∃` are not primitive in this syntax (they are defined
+   connectives), and FOL proofs are not imported from Lean-NDJSON yet.
+2. **HOL**: done over a user signature too (`…HOL.UserSig`): `pointsOf S Δ` restricts the standard
+   interpretation to models of a theory, `kernelFrom_soundFor` holds over any signature, and over
+   `coinSig` (one boolean constant `c`) the theory `c` is consistent by the model `c ↦ true`, with
+   two registered problems (`c` from its axiom; `c = c` by REFL). Not done: the kernel has no
+   definition rules (`new_definition`, `new_type_definition`), and HOL is not yet a derivation
+   system with explicit proof objects in the sense of `…Derivation`.
 3. **MLTT**:
-   - The standard interpretation in Lean types at fixed low universes is not done; the existing
-     models are ZFSet towers (extensional) and realizability (intensional).
-   - MLTT problems are not registered.
+   - Done: bounded extensional MLTT (1, 2, 3 universe levels) is sound for its finite ZFSet towers
+     at fixed low universes (`bounded_soundFor_*`), does not derive `⊢ 0 : 𝟘`, and has a registered
+     problem (`⊢ 0 : ℕ`, derived and true in every tower).
+   - Not done: an interpretation in Lean *types* (rather than ZFSets). The syntax is untyped and
+     derivability is a `Prop`-valued relation, so a type-valued interpretation would recurse into
+     typing derivations as data; that is a separate development, deliberately not started here.
    - Unbounded extensional MLTT is sound only relative to an assumed `SetHierarchy`, so its
      consistency is not claimed.
 4. **Derivation systems**: the framework, checkers, PA/Q instance, and registry, database and
    explorer pages are done (above). Not yet done: second-order arithmetic, HOL and MLTT as
-   derivation systems; derivation-system morphisms.
+   derivation systems. Morphisms are done (`DerivationSystem.Hom`), with FOL proofs translating
+   along any signature morphism (`FirstOrder.ND.mapHom`, `treeDerives_map`).
 5. **Proof formats**:
    - the S-expression tree and lines formats are done, with PA/Q elaboration;
    - Lean-NDJSON is done for PA and Q (above); other logics' proof objects are not imported yet,
      and kernel-level checking of the exported environment (typing of declarations) is out of
      scope;
-   - a documented Alethe fragment with an adapter that rejects unsupported rules is not done.
+   - the Alethe fragment is done for propositional reasoning (above); theory rules (equality,
+     arithmetic, quantifiers) and subproofs are refused, not checked.
 6. Standard JSON and DASL syntaxes are future plans, outside this scope.

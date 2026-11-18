@@ -78,6 +78,7 @@ check:
 		$(LAKE) build --wfail $(CHECK_TARGETS); \
 	fi
 	$(MAKE) process-gates
+	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/NullPointerEquality.lean)
 	$(if $(filter ci_cerberus_genuine_oracle,$(CHECK_TARGETS)),$(MAKE) cerberus-oracle)
 	$(if $(filter wasm-opt,$(CHECK_TARGETS)),$(LAKE) build --wfail $(RELEASE_BINARIES) && $(MAKE) release-check)
 	$(if $(filter elf-pages,$(CHECK_TARGETS)),$(MAKE) elf-check)
@@ -129,6 +130,7 @@ process-check:
 		Silmaril.Process.Sha256.Thms \
 		Silmaril.Process.LPS.Problems.GnuSha256sum.Close
 	$(MAKE) process-gates
+	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/NullPointerEquality.lean)
 
 # Source-only process gates; they read no build output.
 process-gates:
@@ -181,6 +183,13 @@ project-tool:
 # local or build-service HEAD may be a commit GitHub does not have, and its links would be broken.
 PAGES_SOURCE_URL ?= https://github.com/hiloopai/silmaril-lean
 PAGES_SOURCE_REV ?=
+# Compress only the worker-to-runner transport; Pages still serves the original
+# SQLite bytes after extraction. This keeps large public catalogs below the
+# prove service's per-output-file transfer limit without changing that limit.
+.PHONY: pages-archive
+pages-archive: pages
+	tar -czf pages-site.tar.gz _site
+
 pages: project-tool
 	build/bin/silmaril-project dump --lake lake
 	build/bin/silmaril-project check
@@ -188,7 +197,7 @@ pages: project-tool
 	mkdir -p _site
 	# Add the public corpus to the same DB the published Corpus tab opens.
 	rm -f _site/project.sqlite
-	$(PYTHON) scripts/corpus/database.py --base .lake/silmaril/project.sqlite --output _site/project.sqlite \
+	PYTHONPATH="$(CURDIR)/scripts/corpus" $(PYTHON) scripts/corpus/database.py --base .lake/silmaril/project.sqlite --output _site/project.sqlite \
 	  $(if $(PAGES_SOURCE_REV),--source-rev $(PAGES_SOURCE_REV))
 	build/bin/silmaril-project explore --db _site/project.sqlite --out _site/index.html \
 	  $(if $(PAGES_SOURCE_REV),--source-url $(PAGES_SOURCE_URL) --source-rev $(PAGES_SOURCE_REV))
