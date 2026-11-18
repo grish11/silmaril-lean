@@ -36,7 +36,7 @@ the five judgment shapes; `LabelAtom` holds the four label-judgment arguments.
 The `toAtoms`/`ofAtoms` equivalences have proved inverse equations and order
 isomorphisms. Thus neither encoding loses judgments or identifies predicates.
 
-The previous `Silmaril.Semantics.Region` API is now an alias of this named
+The finite-set `Silmaril.Semantics.Region` API is an alias of this named
 API at `Support := Finset Seg` and `Exits := Finset Lab`. Its row serializers,
 helpers and semantic theorems retain their interfaces. Its original lawful
 record is equivalent to a positive-rule closed model and inherits a complete
@@ -110,7 +110,8 @@ The checked example uses a label-only signature and one rule `{0,1} ⇒ 2`.
 `left = {0}` and `right = {1}` each satisfy the rule because a premise is
 missing. Their union omits 2 and is not closed (`union_not_closed`). Their
 lawful join contains 2 (`composed_in_join`). Hence replacing lawful joins by
-union would violate the requested laws even for a finite two-premise schema.
+union would violate closure under fixed positive rules even for a finite
+two-premise schema.
 
 ## Fixed ceilings and separate strata
 
@@ -185,8 +186,9 @@ lake build --wfail Silmaril.Semantics.Region.Abstract.Examples.Thms \
   Silmaril.Semantics.Region.Examples.Thms
 ```
 
-The second root exercises the finite-profile compatibility layer. The PR's
-verification report records the full set of adapter targets and the scoped
-`make check` invocation. These are kernel proofs, including the examples;
+The second root exercises the finite-profile compatibility layer. Pass these
+roots as `CHECK_TARGETS` to `make check` to run source and regression gates
+alongside the scoped Lean build. These are kernel proofs, including the
+examples;
 there is no finite model enumeration or external solver hidden in the lattice
 construction. No `sorry`, new axiom or `native_decide` is used.
