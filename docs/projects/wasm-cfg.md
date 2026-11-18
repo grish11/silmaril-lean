@@ -1229,6 +1229,18 @@ The plain graph stays an over-approximation, and claims about it say so.
                host throws to instance sessions (#995), so there is no `core3SemD`/`cfgSemD` corollary.
                `cfgInstSessionU` is a root of `CfgClosureAudit`.
              - Ledger: `HostEval` and `FullObsNative` still use the old typing
+          Open technical debt, not accepted duplication: `Proofs/Wasm/Abstract/BackInv/Through.lean` still copies
+          about 100 lines of `interpHead_exact`, `refOk?_complete` and `referenceStep?_complete`, at closed-valid
+          types. Their in-place generalization (#1074, Part A) is blocked by `CI time budget`. Editing the widely
+          imported `SingleThreaded/Exec` and `Execution/Core/Exec/ValCheck` headers puts the compiler-explorer
+          closure in scope. Its selected post-build checks then exceed the 240 s non-compile limit, measured at
+          370.5 s:
+          - 9 `leanchecker` replays, about 148 s;
+          - process gates and the Cerberus oracle, about 82 s.
+
+          Parallel replay was measured and rejected. Over the same 9 targets, sequential takes 448/450 s,
+          4-way 400 s and 2-way 503 s, with peak RSS of 1.5 to 7.9 GiB per replay. The work is bound by I/O, not
+          CPU. No budget exception has been granted.
                (`Sim.ContextTyped`/`HostTyped`) and are not on the instance path.
 
              **The legal typed canonical object** (`Games/Abstract/SessionLegal`,
