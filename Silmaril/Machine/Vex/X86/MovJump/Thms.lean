@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Machine.Vex.X86.MovJump.Defs
-public import Silmaril.Machine.Vex.Validate.Defs
+public import Silmaril.Machine.Vex.Validate.Semantics.Defs
 import Silmaril.Proofs.Machine.Vex.X86.MovJump
 
 public section
@@ -92,5 +92,16 @@ theorem Fragment.validated_exit (fragment : Fragment) (guard : fragment.Guard) (
     ∃ final, ExitsNormally (system ret) fragment.support initial [] final ∧
       pair.target.run (project completion initial) = .ok (project completion final) :=
   Proofs.validatedExit fragment guard completion ret accepted entry loaded
+
+/-- Agreement at these two named roots: every first exit of the existing x86
+system has the projected state returned by every VEX boundary behavior, and
+both roots have an execution. This is not an intersection of reference models. -/
+theorem Fragment.validated_beh (fragment : Fragment) (guard : fragment.Guard) (completion : Bool) (ret : Word)
+    {raw : Raw.Block} {pair : Pair} (accepted : validate fragment.base fragment.bytes raw = .ok pair)
+    {initial : MState} (entry : initial.core.rip = fragment.base) (loaded : fragment.code.LoadedIn initial.memory) :
+    ∃ final, ExitsNormally (system ret) fragment.support initial [] final ∧
+      ∀ outcome, (targetSem pair.target).Beh (project completion initial) outcome ↔
+        outcome = .returned (project completion final) :=
+  Proofs.validatedBeh fragment guard completion ret accepted entry loaded
 
 end Silmaril.Machine.Vex.AMD64Scalar.MovJump

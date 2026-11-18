@@ -12,6 +12,11 @@
       "id": "mov-jump-region-exit",
       "decl": "Silmaril.Machine.Vex.AMD64Scalar.MovJump.Fragment.region_sound",
       "statement": "open Silmaril.Machine.Vex.AMD64Scalar Silmaril.Machine.Vex.AMD64Scalar.MovJump in ∀ (fragment : Fragment), fragment.Guard → ∀ (ret : Silmaril.X86.Word), Silmaril.Semantics.Region.Sound (Silmaril.Machine.Region.X86.system ret) (fun initial => initial.core.rip = fragment.base ∧ fragment.code.LoadedIn initial.memory) fragment.support (· = fragment.target.toNat)"
+    },
+    {
+      "id": "mov-jump-named-root-agreement",
+      "decl": "Silmaril.Machine.Vex.AMD64Scalar.MovJump.Fragment.validated_beh",
+      "statement": "open Silmaril.Machine.Vex.AMD64Scalar Silmaril.Machine.Vex.AMD64Scalar.MovJump in ∀ (fragment : Fragment), fragment.Guard → ∀ (completion : Bool) (ret : Silmaril.X86.Word) {raw : Silmaril.Machine.Vex.Raw.Block} {pair : Pair}, validate fragment.base fragment.bytes raw = .ok pair → ∀ {initial : Silmaril.X86.MState}, initial.core.rip = fragment.base → fragment.code.LoadedIn initial.memory → ∃ final, Silmaril.Semantics.Region.ExitsNormally (Silmaril.Machine.Region.X86.system ret) fragment.support initial [] final ∧ ∀ outcome, (targetSem pair.target).Beh (project completion initial) outcome ↔ outcome = .returned (project completion final)"
     }
   ]
 }

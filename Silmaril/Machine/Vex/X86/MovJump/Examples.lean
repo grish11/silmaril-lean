@@ -59,6 +59,7 @@ example : ¬ (⟨0x1000, 0xfe⟩ : Fragment).Guard := by
 example : Silmaril.X86.Ext.step 0 { fixtureState with memory := ⟨[], ∅⟩ } = .fetchFault := rfl
 
 #print axioms Fragment.validated_exit
+#print axioms Fragment.validated_beh
 #print axioms Fragment.transfer_wp
 #print axioms fixture_agreement
 

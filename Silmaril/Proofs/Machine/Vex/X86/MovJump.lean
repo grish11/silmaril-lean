@@ -185,4 +185,15 @@ theorem validatedExit (fragment : Fragment) (guard : fragment.Guard) (completion
   refine ⟨final, normal, ?_⟩
   rw [translation_runs cert.translates _ entry, source, output.1]
 
+theorem validatedBeh (fragment : Fragment) (guard : fragment.Guard) (completion : Bool) (ret : Word)
+    {raw : Raw.Block} {pair : Pair} (accepted : validate fragment.base fragment.bytes raw = .ok pair)
+    {initial : MState} (entry : initial.core.rip = fragment.base) (loaded : fragment.code.LoadedIn initial.memory) :
+    ∃ final, ExitsNormally (system ret) fragment.support initial [] final ∧
+      ∀ outcome, (targetSem pair.target).Beh (project completion initial) outcome ↔
+        outcome = .returned (project completion final) := by
+  obtain ⟨final, normal, runs⟩ := validatedExit fragment guard completion ret accepted entry loaded
+  refine ⟨final, normal, fun outcome => ?_⟩
+  rw [targetSem, boundary_beh]
+  simp [runs, Except.toOption]
+
 end Silmaril.Machine.Vex.AMD64Scalar.MovJump.Proofs

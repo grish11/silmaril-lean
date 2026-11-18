@@ -242,6 +242,17 @@ This model-morphism structure is distinct from both artifact relation inclusion
 and the behavior/refinement lattice with its UB policy. No joins or meets of
 models are claimed.
 
+The proofs name their roots. `translation_sound` relates scalar `sourceSem`
+to VEX `targetSem` for one artifact pair. The ISA-independent WP/contract
+transfer is instantiated from `Fragment.simple` to `Machine.Region.X86.system
+ret`, the existing `Ext.step` adapter. For accepted MOV/JMP bytes,
+`validated_beh` combines the two bridges at a fixed admitted initial state:
+the x86 root has a unique normal first exit and the VEX root has exactly the
+corresponding projected return. Both guarantees quantify over the executions
+of the named root, not an intersection of possible behaviors from different
+reference models. A property of such an intersection would not, by itself,
+prove that property for every execution of either root.
+
 To link regions, use `Wiring`/`FamilyWiring` in the existing Region API:
 prove destination entry and admitted state (including loading and any
 invariants) for each actual cross-edge, route remaining departures to the
@@ -251,9 +262,9 @@ obligations. The structural call-edge model still uses `FlatCFG` and
 `Machine.Graph.Digraph`; no `GraphLike` API was found in this checkout.
 Linked calls/returns, syscall or OS contracts, and multithreading are deferred.
 
-The existing Compiler Explorer kernel evidence exporter can audit the
-fixture and its Region theorem without changing the tool or UI. This manifest
-is for the exporter only; no dashboard obligation template or Godbolt
+The existing Compiler Explorer kernel evidence exporter can audit the fixture,
+Region theorem and named-root agreement without changing the tool or UI.
+This manifest is for the exporter only; no dashboard obligation template or Godbolt
 decompiler path was added (the existing block path does not accept jumps).
 
 ```sh
