@@ -61,6 +61,11 @@ def Fragment.simple (fragment : Fragment) : TransitionSystem Input Nat Empty Emp
   step := fun state es next => es = [] ∧ fragment.step? state = some next
   halt := fun _ stop => nomatch stop
 
+/-- A scalar entry and its demonic partial WP. The guard and the totality
+proof are separate: non-UB and a partial WP alone do not rule out a loop. -/
+def Fragment.entryWP (fragment : Fragment) (Q : Nat → List Empty → Input → Prop) (input : Input) : Prop :=
+  input.rip = fragment.base ∧ wp fragment.simple fragment.support Q (fun _ _ _ => False) input
+
 /-- MOV and JMP do not read flags, so either completion of an undefined ZF is
 admitted. For defined ZF, this projection reads its actual Boolean value. -/
 def project (undefinedZF : Bool) (state : MState) : Input :=

@@ -24,6 +24,15 @@ private def fixtureState : MState :=
   ⟨⟨fun r => if r = .rdi then 42 else 0, 0x1000, ⟨none, none, none, none, none, none⟩, 0⟩,
     movFixture.code.load⟩
 
+private def fixturePost (_ : Nat) (_ : List Empty) (out : Input) : Prop := out.rax = 42 ∧ out.rip = 0x1005
+
+private theorem fixture_contract (completion : Bool) (ret : Word)
+    (loaded : movFixture.code.LoadedIn fixtureState.memory) :
+    TotalHoare (system ret) (· = fixtureState) movFixture.support
+      (fun label es full => fixturePost label es (project completion full)) (fun _ _ _ => False) :=
+  (movFixture.transfer_wp fixtureGuard completion ret fixturePost (admit := (· = fixtureState))
+    (fun _ eq => eq ▸ ⟨loaded, (movFixture.entryWP_iff fixtureGuard fixturePost _).mpr ⟨rfl, rfl, rfl⟩⟩)).2
+
 /-- The report's actual MOV/JMP pyvex lift, related to all full first exits
 of an inhabited process-memory instance (including either completion of ZF). -/
 public theorem fixture_agreement (completion : Bool) (ret : Word) :
@@ -40,9 +49,8 @@ public theorem fixture_agreement (completion : Bool) (ret : Word) :
   | error => cases ok
   | ok pair =>
     obtain ⟨final, normal, agrees⟩ := movFixture.validated_exit fixtureGuard completion ret accepted rfl loaded
-    have post := movFixture.lift_postcondition fixtureGuard completion ret (initial := fixtureState)
-      rfl ⟨rfl, loaded⟩ (fun _ out => out.rax = 42 ∧ out.rip = 0x1005) ⟨rfl, rfl⟩
-    exact ⟨fixtureState, final, pair, accepted, rfl, loaded, normal, agrees, post.2 [] final normal.witness⟩
+    have post := (fixture_contract completion ret loaded).1.1 _ [] final rfl normal.witness
+    exact ⟨fixtureState, final, pair, accepted, rfl, loaded, normal, agrees, post⟩
 
 example : ¬ (⟨0x1000, 0xfe⟩ : Fragment).Guard := by
   intro guard
@@ -51,7 +59,7 @@ example : ¬ (⟨0x1000, 0xfe⟩ : Fragment).Guard := by
 example : Silmaril.X86.Ext.step 0 { fixtureState with memory := ⟨[], ∅⟩ } = .fetchFault := rfl
 
 #print axioms Fragment.validated_exit
-#print axioms Fragment.lift_postcondition
+#print axioms Fragment.transfer_wp
 #print axioms fixture_agreement
 
 end Silmaril.Machine.Vex.AMD64Scalar.MovJump

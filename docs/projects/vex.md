@@ -212,14 +212,35 @@ the other three still have only scalar-to-VEX validation.
 state relation from step realization, using literal label and event
 agreement. Relation composition (`Realizes.comp`) composes state/projection
 and step obligations; the existing `X86.Model.Sem.Hom.comp` instead composes
-functional maps. `Realizes.liftProperty` transfers along a **witnessed**
-normal simple exit (stronger than merely being non-UB) with a determinate
-full machine. Determinacy and the witness give coverage of all full first
-exits and their internal prefixes. This lets proofs restrict themselves to a
-small model's established domain. An unmodeled step contributes no witness;
-the theorem does not use UB to hide that gap. This model-morphism structure
-is distinct from both artifact relation inclusion and the behavior/refinement
-lattice with its UB policy. No joins or meets of models are claimed.
+functional maps. The stackable interface has three separate premises and
+conclusions:
+
+1. Prove `NoUB` for **all** admitted simple executions: no classified UB event
+   on any reachable edge (including the first exit edge), and no classified UB
+   halt at any reachable in-cut state. This covers prefixes of infinite runs.
+   Region's partial `wp` can discharge the halt obligation; the event obligation
+   is separate. Non-UB alone does not exclude stuckness, a non-UB fault, or divergence.
+2. Prove a simple `TotalHoare` contract: normal exits meet the postcondition,
+   only UB halts are allowed, and `Finishes` establishes progress and internal
+   termination. Together with non-UB and admission inside support, this forces
+   a normal exit. It does not assume a successful test run.
+3. `Realizes.transferContract` gives the full system its own non-UB proof and
+   total contract for the next layer. Under a determinate full system and related
+   entries, every full first exit refines a simple first exit with the same trace
+   and labels and related endpoints (`RefinesExits`, which composes). No full halt
+   or stuck state is reached and no infinite in-cut execution is possible.
+
+For MOV/JMP, `entryWP_iff` reduces the guarded entry WP to the scalar block
+postcondition, `wp_noUB` and `wp_contract` supply the distinct premises, and
+`transfer_wp` proves the projected contract on the existing `Ext` model.
+The full admission predicate is arbitrary: it supplies the projection's WP
+and proves `LoadedIn` through the memory API; the theorem does not require
+memory constructed by `Region.load` or any particular image representation.
+The real pyvex fixture uses this transfer for its output assertion. An unmodeled
+step contributes no witness; the theorem does not use UB to hide that gap.
+This model-morphism structure is distinct from both artifact relation inclusion
+and the behavior/refinement lattice with its UB policy. No joins or meets of
+models are claimed.
 
 To link regions, use `Wiring`/`FamilyWiring` in the existing Region API:
 prove destination entry and admitted state (including loading and any
@@ -253,8 +274,8 @@ SHA-256. No Python dependency is needed for the checked-in Lean regression.
 python3.13 -m venv /tmp/silmaril-vex
 /tmp/silmaril-vex/bin/pip install --only-binary=:all: --require-hashes -r scripts/vex/requirements.txt
 /tmp/silmaril-vex/bin/python scripts/vex/export.py --check
-lake build --wfail Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples
-make check CHECK_TARGETS='Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples'
+lake build --wfail Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples Silmaril.Semantics.Region.Simulation.Examples
+make check CHECK_TARGETS='Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples Silmaril.Semantics.Region.Simulation.Examples'
 ```
 
 MOV/JMP tests check preservation of both incoming ZF values; ADD checks

@@ -32,6 +32,34 @@ theorem Fragment.simple_exit (fragment : Fragment) (guard : fragment.Guard) {inp
     ExitsNormally fragment.simple fragment.support input [] (fragment.block.run input) :=
   Proofs.smallGuard fragment guard entry
 
+/-- Compute the Region WP at the supported scalar entry using the block evaluator. -/
+theorem Fragment.entryWP_iff (fragment : Fragment) (guard : fragment.Guard) (Q : Nat → List Empty → Input → Prop)
+    (input : Input) : fragment.entryWP Q input ↔
+    input.rip = fragment.base ∧ Q fragment.target.toNat [] (fragment.block.run input) :=
+  Proofs.entryWP fragment guard Q input
+
+/-- All admitted scalar executions are non-UB. The scalar adapter has no
+events or halt codes; this safety theorem does not require the exit guard. -/
+theorem Fragment.wp_noUB (fragment : Fragment) (Q : Nat → List Empty → Input → Prop) :
+    NoUB fragment.simple (fragment.entryWP Q) fragment.support (fun _ => False) (fun _ => False) :=
+  Proofs.wpNoUB fragment Q
+
+/-- The guard upgrades the partial WP to a total scalar contract. -/
+theorem Fragment.wp_contract (fragment : Fragment) (guard : fragment.Guard) (Q : Nat → List Empty → Input → Prop) :
+    TotalHoare fragment.simple (fragment.entryWP Q) fragment.support Q (fun _ _ _ => False) :=
+  Proofs.wpContract fragment guard Q
+
+/-- Transfer the proved scalar WP contract through the model morphism.
+The full admitted domain is abstract: it need only supply executable loaded
+bytes via the current memory API and a projected scalar entry satisfying WP. -/
+theorem Fragment.transfer_wp (fragment : Fragment) (guard : fragment.Guard) (completion : Bool) (ret : Word)
+    (Q : Nat → List Empty → Input → Prop) {admit : MState → Prop}
+    {ubStop : Silmaril.X86.Ext.Outcome → Prop}
+    (initial : ∀ full, admit full → fragment.code.LoadedIn full.memory ∧ fragment.entryWP Q (project completion full)) :
+    NoUB (system ret) admit fragment.support (fun _ => False) ubStop ∧
+    TotalHoare (system ret) admit fragment.support (fun label es full => Q label es (project completion full))
+      (fun stop _ _ => ubStop stop) := Proofs.transferWP fragment guard completion ret Q initial
+
 /-- The full machine retires through the cut to a unique normal exit. The
 output relation is a projection and a loading invariant, not a state frame. -/
 theorem Fragment.full_exit (fragment : Fragment) (guard : fragment.Guard) (completion : Bool) (ret : Word)

@@ -103,6 +103,46 @@ theorem smallGuard (fragment : Fragment) (guard : fragment.Guard) {input : Input
       fun {_ _ _ stop} _ => nomatch stop⟩
   exact (simpleExit fragment guard entry).completes det
 
+theorem entryWP (fragment : Fragment) (guard : fragment.Guard) (Q : Nat → List Empty → Input → Prop)
+    (input : Input) : fragment.entryWP Q input ↔
+    input.rip = fragment.base ∧ Q fragment.target.toNat [] (fragment.block.run input) := by
+  constructor
+  · rintro ⟨entry, safe⟩
+    exact ⟨entry, safe.1 input [] _ rfl (simpleExit fragment guard entry)⟩
+  · rintro ⟨entry, post⟩
+    refine ⟨entry, ⟨?_, ?_⟩⟩
+    · intro s es out equal run
+      subst s
+      obtain ⟨rfl, rfl⟩ := (smallGuard fragment guard entry).unique es out run
+      exact post
+    · intro _ _ _ stop _ _ _
+      exact nomatch stop
+
+theorem wpNoUB (fragment : Fragment) (Q : Nat → List Empty → Input → Prop) :
+    NoUB fragment.simple (fragment.entryWP Q) fragment.support (fun _ => False) (fun _ => False) :=
+  noUB_of_wp (fun _ ub => ub.elim) (fun _ admits => ⟨admits.2.1, fun _ _ _ stop _ _ _ => nomatch stop⟩)
+
+theorem wpContract (fragment : Fragment) (guard : fragment.Guard) (Q : Nat → List Empty → Input → Prop) :
+    TotalHoare fragment.simple (fragment.entryWP Q) fragment.support Q (fun _ _ _ => False) :=
+  ⟨(wp_iff Q (fun _ _ _ => False)).mpr (fun _ admits => admits.2),
+    fun _ admits => (smallGuard fragment guard admits.1).finishes⟩
+
+theorem transferWP (fragment : Fragment) (guard : fragment.Guard) (completion : Bool) (ret : Word)
+    (Q : Nat → List Empty → Input → Prop) {admit : MState → Prop}
+    {ubStop : Silmaril.X86.Ext.Outcome → Prop}
+    (initial : ∀ full, admit full → fragment.code.LoadedIn full.memory ∧ fragment.entryWP Q (project completion full)) :
+    NoUB (system ret) admit fragment.support (fun _ => False) ubStop ∧
+    TotalHoare (system ret) admit fragment.support (fun label es full => Q label es (project completion full))
+      (fun stop _ _ => ubStop stop) := by
+  have transfer := (realizes fragment guard completion ret).transferContract (system_determinate ret)
+    (wpNoUB fragment Q) (wpContract fragment guard Q)
+    (fun _ admits => .inl (congrArg BitVec.toNat admits.1))
+    (fun full admits => let ⟨load, pre⟩ := initial full admits; ⟨_, pre, rfl, load⟩) (ubFullStop := ubStop)
+  refine ⟨transfer.1, ⟨⟨?_, transfer.2.1.1.2⟩, transfer.2.1.2⟩⟩
+  intro state es out admits run
+  obtain ⟨_, ⟨rfl, _⟩, post⟩ := transfer.2.1.1.1 state es out admits run
+  exact post
+
 theorem scalarDecode (fragment : Fragment) :
     X86.decode fragment.base fragment.bytes = .ok fragment.block := by
   have imm : BitVec.ofNat 8 (UInt8.ofNat fragment.displacement.toNat).toNat = fragment.displacement := by
