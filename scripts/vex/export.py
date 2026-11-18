@@ -14,6 +14,7 @@ import pyvex
 
 
 ROOT = Path(__file__).resolve().parents[2]
+HERE = Path(__file__).resolve().parent
 BASE = 0x1000
 FIXTURES = ("mov", "add", "je", "jne")
 
@@ -68,13 +69,13 @@ def digest(data):
 
 
 def render(work):
-    for line in (ROOT / "examples/vex/requirements.txt").read_text().splitlines():
+    for line in (HERE / "requirements.txt").read_text().splitlines():
         requirement = line.split()[0]
         package, version = requirement.split("==")
         if importlib.metadata.version(package) != version:
             raise ValueError(f"expected {requirement}")
 
-    tool("as", "--64", "-o", "blocks.o", str(ROOT / "examples/vex/blocks.s"), cwd=work)
+    tool("as", "--64", "-o", "blocks.o", str(HERE / "blocks.s"), cwd=work)
     arch = archinfo.ArchAMD64()
     lean = ["module", "", "public import Silmaril.Machine.Vex.Scalar.Defs", "",
             "@[expose] public section", "", "namespace Silmaril.Machine.Vex.Fixtures", ""]
