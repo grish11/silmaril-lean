@@ -628,6 +628,10 @@ srcDir = "tools/cli-core-trace"
 name = "CerberusTests"
 globs = ["tests.cerberus.+"]
 
+[[lean_lib]]
+name = "VexTests"
+globs = ["tests.vex.+"]
+
 [[lean_exe]]
 name = "cerb-lean"
 root = "CerbLean"
