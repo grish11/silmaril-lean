@@ -1191,7 +1191,8 @@ The plain graph stays an over-approximation, and claims about it say so.
 
              **Stage 3b: threaded sessions on a relaxed domain** (`Wasm/Cfg/DanglingSession`,
              `cfg/dangling-rev-4`). Deterministic profile `profile o` for the backward direction; the
-             forward direction and the domain's preservation hold at every profile.
+             forward direction and the domain's preservation hold at every profile. Every profile,
+             with profile-free functions: stage 3c below.
              - What a round changes in the real store. `instHost I` and every `instHostQ I Q` keep the
                store (`NodeBridge.storePreserving_instHost`); only Wasm steps change it.
                `DanglingSession.step_store` (every host-free Core step, every profile): functions and
@@ -1242,6 +1243,61 @@ The plain graph stays an over-approximation, and claims about it say so.
           4-way 400 s and 2-way 503 s, with peak RSS of 1.5 to 7.9 GiB per replay. The work is bound by I/O, not
           CPU. No budget exception has been granted.
                (`Sim.ContextTyped`/`HostTyped`) and are not on the instance path.
+
+             **Stage 3c: every numeric profile** (`Wasm/Cfg/ProfileFree`, `Wasm/Cfg/DanglingProfile`,
+             `cfg/profile-indep`). The backward results of `CfgInst`, `CfgLegal`, `CfgLegalComp`,
+             `DanglingBack` and `DanglingSession` now also hold at **every** `Numerics.Profile` `P`
+             (`nd`, `relaxed`, `nan`, `grow` arbitrary), on start stores whose functions are
+             profile-free.
+             - Where determinism was used, and why it was inessential. The deterministic profile
+               enters the backward proofs only through Core steps of supported code: same-log runs end
+               alike (`HostClosingXP.BackDet` `evRunN_event_det`, `evRun_det_end`, `TrapExact`
+               `evRun_trap_det`); a stuck or host-call end excludes divergence on the same log
+               (`DivBase.noDiv_of_evRun`, `InfSplit.noInf_of_evRun`, `HostClosingInfXPBack.Reach`); the
+               native divergent and productive witnesses follow the Core run by `Det.DStep` chains
+               (`InfGoal` `Lifts`, `InfLoop`, `InfWhole`, `trace_of_tgChain`); `BackInv.through`
+               (`diverges_through_of`, `HostCall.diverges_through`); and, for sessions, `StoreDet`
+               (`storeDet_instTripleS`, used by `mem_inf_instSession`, `instSession_eq_iff` and the
+               `restrictLog` pullbacks of `CfgLegal`; the `DanglingSession` equalities use none). All of
+               these are facts about Core steps of the code that runs. No use needs determinism of
+               a profile beyond that.
+             - The step lemma (`ProfileFree.step_profile`, any host). `PSens`: the instructions whose
+               Core rules read the profile (float unary and binary operations, conversions, vector
+               operations other than `v128.const`, `memory.grow`, `table.grow`). On code without them
+               (`IFree`/`AFree`; `select`, every call form including `call_indirect`, `call_ref` and
+               tail calls, references, type tests, aggregates, `throw`/`throw_ref`/`try_table`,
+               labels, handlers and frames are allowed), a step at `P` is a step at every `P'`. The
+               invariant `ConfigFree` (code and `FuncsFree` functions) is kept by every step against
+               a `HostFree` host (`step_free`; store-preserving hosts such as `instHost I`), and
+               `StoreSupported` gives `FuncsFree` (`funcsFree_of_storeSupported`).
+             - Lifts with the same witnesses (no choice, no compactness): `hEvStep_profile`,
+               `evRun_profile_iff`, `diverges_profile_iff` (the same trace), `coreInf_profile_iff` (the
+               same segmented run), `coreObsLXP_profile_iff` (every `FullObs`),
+               `coreBehSXP_profile_iff`, `coreCallout_profile_iff`, `coreTripleSO_profile`.
+             - Instance level: `instTripleS_profile`, `instTripleL_profile` (`AgreeAt`, at a store with
+               `FuncsFree`); every finished round keeps `FuncsFree` (`funcsFree_of_round`), so
+               `instSession_profile`, `threadS_instTripleL_profile`, `threadS_noThrowT_profile`;
+               `storeDet_at`; `mem_inf_instSession_P`.
+             - Derived at every `P`: `instTripleS_agree_cfgInstTripleU_P` (`WellFormed`,
+               `StoreSupported`), `agree_P`, `threadS_eq_P`, `instSession_eq_P`, `infRounds_iff_P`
+               (`InstDomD` and `FuncsFree`), `instSession_eq_of_supported_P` (`WellFormed`,
+               `StoreSupported`); legal and throw-free: `instTripleL_agree_P`,
+               `noThrowT_instTripleS_agree_P`, `threadS_instTripleL_eq_P`, `threadS_noThrowT_eq_P`
+               (`InstDom` and `FuncsFree`); components: `core3SemD_sem_profile`,
+               `legalSemD_sem_profile`, `denUD_core3SemD_profile`, `denUD_legalSemD_profile`,
+               `denUD_cfgSemD_eq_core3_P`, `denD_cfgSemD_eq_core3_P` (`CompIn InstDom` and
+               `CompIn FuncsFree`); for every `BackInv`: `coreBehSXP_mem_P`, `coreCallout_mem_P`,
+               `coreInf_mem_P` (with `FuncsFree` and a `HostFree` host).
+             - Restriction. The hypothesis is syntactic. `InstDom` and `InstDomD` do not give
+               `FuncsFree`: the checker skips code after an instruction that never falls through, so
+               a profile-sensitive instruction may sit in dead code. The statements there take
+               `FuncsFree` (or `StoreSupported`) explicitly. A global `StoreDet (instTripleS I P)` is
+               not claimed, since it quantifies over stores whose functions read the profile; only
+               `storeDet_at` is proved. On profile-free stores no backward statement needs a
+               deterministic profile, so there is no counterexample to give there.
+               Characterizations stated through `LegalPlay`/`restrictLog` (`mem_legalSession` and its
+               variants, `legalSession_eq_iff`, `instSession_eq_iff`) were not restated at every
+               profile.
 
              **The legal typed canonical object** (`Games/Abstract/SessionLegal`,
              `Wasm/Abstract/NodeLegal`, `Wasm/Cfg/CfgLegal`). The legal domain is stated on
