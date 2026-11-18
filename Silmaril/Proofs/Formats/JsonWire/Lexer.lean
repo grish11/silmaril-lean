@@ -743,10 +743,10 @@ theorem span_word {w X : List Char} (hw : ∀ x ∈ w, delimiter .rfc8259 x = fa
     (w ++ X).span (fun c => !delimiter .rfc8259 c) = (w, X) :=
   span_append_stop (fun x hx => by simp [hw x hx]) (fun y hy => by simp [hX y hy])
 
-theorem tokensOf_number_exact {w : List Char} {number : Number}
-    (hd : decimal? .rfc8259 w = some number) {X : List Char} (hX : Follow X) :
+theorem tokensOf_number_exact {w X : List Char} {number : Number}
+    (parsed : decimal? .rfc8259 w = some number) (hX : Follow X) :
     tokensOf (w ++ X) = (tokensOf X).map (.number number :: ·) := by
-  have hw := (decimal?_sound hd).1
+  have hw := (decimal?_sound parsed).1
   obtain ⟨c, w', rfl, hc⟩ := numberChars_head hw
   have hnd := not_delimiter_of_number hw
   have hcw : white .rfc8259 c = false := by
@@ -768,7 +768,7 @@ theorem tokensOf_number_exact {w : List Char} {number : Number}
     simp only [hstart, ite_true]
     have := span_word hnd hX
     simp only [List.cons_append] at this
-    simp [this, hd]
+    simp [this, parsed]
   simpa using tokensOf_step hs (by simp; omega)
 
 theorem tokensOf_number {w : List Char} (hw : NumberChars w) {X : List Char} (hX : Follow X) :

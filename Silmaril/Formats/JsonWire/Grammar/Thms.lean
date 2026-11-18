@@ -81,12 +81,12 @@ theorem tokensOf_number {w : List Char} (hw : NumberChars w) {X : List Char}
     ∃ n, tokensOf (w ++ X) = (tokensOf X).map (.number n :: ·) :=
   Silmaril.Proofs.Formats.JsonWire.Lexer.tokensOf_number hw hX
 
-/-- A number lexeme yields the independently decoded payload, not merely its token kind. -/
-theorem tokensOf_number_exact {w : List Char} {number : Number}
-    (parsed : decimal? .rfc8259 w = some number) {rest : List Char}
-    (follows : ∀ c ∈ rest.head?, delimiter .rfc8259 c = true) :
-    tokensOf (w ++ rest) = (tokensOf rest).map (.number number :: ·) :=
-  Silmaril.Proofs.Formats.JsonWire.Lexer.tokensOf_number_exact parsed follows
+/-- The lexer preserves the exact number payload read by `decimal?`. -/
+theorem tokensOf_number_exact {w X : List Char} {number : Number}
+    (parsed : decimal? .rfc8259 w = some number)
+    (follow : ∀ char ∈ X.head?, delimiter .rfc8259 char = true) :
+    tokensOf (w ++ X) = (tokensOf X).map (.number number :: ·) :=
+  Silmaril.Proofs.Formats.JsonWire.Lexer.tokensOf_number_exact parsed follow
 
 theorem tokensOf_literal {w : List Char} {tok : Token} (word : w = "true".toList ∧ tok = .bool true ∨
     w = "false".toList ∧ tok = .bool false ∨ w = "null".toList ∧ tok = .null) {rest : List Char}

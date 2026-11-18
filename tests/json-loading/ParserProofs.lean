@@ -34,5 +34,6 @@ example : JsonWire.parse? ⟨sample.toUTF8⟩ = expected.toWire? Json.Fast.defau
 #print axioms more_sound
 #print axioms series_sound
 #print axioms Json.Fast.Value.toWire?_ofObject
+#print axioms Json.Fast.Value.member?_ofObject_sound
 #print axioms Json.Fast.parseBytes_sound
 #print axioms Json.Fast.parseBytes_isJson
