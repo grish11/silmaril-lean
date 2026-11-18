@@ -176,6 +176,70 @@ preimage, and a declared external call showing why the restriction matters.
 External-call summaries, actual return edges, indirect and tail calls,
 angr graph import, and concrete x86 call semantics are not included.
 
+## Bridge to the existing x86 machine
+
+[`MovJump.Thms`](../../Silmaril/Machine/Vex/X86/MovJump/Thms.lean) covers
+`MOV rax,rdi; JMP rel8` at a parameterized base and signed displacement.
+It checks the same bytes with both decoders. The real side is the existing
+`Machine.Region.X86.system`, running `X86.Ext.step` over `MState` with actual
+`Process.Memory`. `Region.decode?_fetch` uses execute permission and backing
+bytes; `system_retire` connects a decoded non-RET instruction and its actual
+`Ext.exec` result to retirement. The scalar side has separate executable
+steps. Its entry is the MOV address; the cut ends at the first jump out of
+the two instruction starts. Assumptions are a nonwrapping five-byte code
+interval, loaded executable bytes and a target outside the cut. A jump back
+into the cut fails the guard; unmapped bytes can produce a real fetch fault
+and do not satisfy the loading relation. Neither case is treated as UB.
+
+`Fragment.full_exit` guarantees a unique normal full-machine exit for every
+related initial state. It rules out stuck states, non-retirement outcomes
+(including fetch/data faults and traps), and divergence **inside the cut**.
+This adapter has no events, so the exiting trace is empty. It does not check
+the target's next fetch, denote an ABI return, or prove process termination.
+`Fragment.lift_postcondition` transfers a scalar postcondition to every full
+first exit after projection: RAX, RDI, RSI, RIP and ZF (either Boolean
+completion if undefined; neither instruction reads it). Code loading also
+holds at the exit; the observation statement is not a frame for memory or
+other registers and flags. `Fragment.region_sound` proves the exit label
+in the existing Region judgment. `Fragment.validated_exit` composes the
+already-checked artifact certificate and scalar translation theorem with
+the real-model bridge. The [fixture theorem](../../Silmaril/Machine/Vex/X86/MovJump/Examples.lean)
+constructs executable backing via `Region.load`, and checks the real lift
+for `$RDI = 42` and undefined ZF. This is one of the four pyvex fixtures;
+the other three still have only scalar-to-VEX validation.
+
+[`Realizes`](../../Silmaril/Semantics/Region/Simulation/Defs.lean) separates a
+state relation from step realization, using literal label and event
+agreement. Relation composition (`Realizes.comp`) composes state/projection
+and step obligations; the existing `X86.Model.Sem.Hom.comp` instead composes
+functional maps. `Realizes.liftProperty` transfers along a **witnessed**
+normal simple exit (stronger than merely being non-UB) with a determinate
+full machine. Determinacy and the witness give coverage of all full first
+exits and their internal prefixes. This lets proofs restrict themselves to a
+small model's established domain. An unmodeled step contributes no witness;
+the theorem does not use UB to hide that gap. This model-morphism structure
+is distinct from both artifact relation inclusion and the behavior/refinement
+lattice with its UB policy. No joins or meets of models are claimed.
+
+To link regions, use `Wiring`/`FamilyWiring` in the existing Region API:
+prove destination entry and admitted state (including loading and any
+invariants) for each actual cross-edge, route remaining departures to the
+outward allowance, and establish support compatibility and common execution,
+environment and call interfaces. This theorem does not discharge those
+obligations. The structural call-edge model still uses `FlatCFG` and
+`Machine.Graph.Digraph`; no `GraphLike` API was found in this checkout.
+Linked calls/returns, syscall or OS contracts, and multithreading are deferred.
+
+The existing Compiler Explorer kernel evidence exporter can audit the
+fixture and its Region theorem without changing the tool or UI. This manifest
+is for the exporter only; no dashboard obligation template or Godbolt
+decompiler path was added (the existing block path does not accept jumps).
+
+```sh
+lake build --wfail Silmaril.Machine.Vex.X86.MovJump.Examples cexplorer-export
+lake env .lake/build/bin/cexplorer-export scripts/vex/cexplorer-mov.json /tmp/vex-mov-evidence.json
+```
+
 ## Replay
 
 The [fixture report](../../examples/vex/lifts.md) has bytes, independent GNU
@@ -189,8 +253,8 @@ SHA-256. No Python dependency is needed for the checked-in Lean regression.
 python3.13 -m venv /tmp/silmaril-vex
 /tmp/silmaril-vex/bin/pip install --only-binary=:all: --require-hashes -r scripts/vex/requirements.txt
 /tmp/silmaril-vex/bin/python scripts/vex/export.py --check
-lake build --wfail Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms
-make check CHECK_TARGETS='Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms'
+lake build --wfail Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples
+make check CHECK_TARGETS='Silmaril.Machine.Vex.Examples.Thms Silmaril.Machine.Vex.CFG.Examples.Thms Silmaril.Machine.Vex.X86.MovJump.Examples'
 ```
 
 MOV/JMP tests check preservation of both incoming ZF values; ADD checks
@@ -204,9 +268,10 @@ as well as the returned-behaviour guarantee. They build under the existing
 allowed axioms).
 
 Next: give a versioned structured interchange for larger pyvex/angr exports,
-link the byte model to the existing x86 decoder/semantics, validate recovered
-edges against executable image layouts, then add memory and faults, more flag
-recipes, and a loop-aware scoping validator with a preservation theorem.
+extend real-model agreement to ADD/CMP and conditional exits, and validate
+recovered edges against executable image layouts. Add data memory and fault
+observations, more flag recipes, and a loop-aware scoping validator with a
+preservation theorem.
 
 ## Upstream references
 

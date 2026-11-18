@@ -1,0 +1,57 @@
+module
+
+public import Silmaril.Machine.Vex.X86.MovJump.Thms
+public meta import Silmaril.Machine.Vex.X86.MovJump.Defs
+public import Silmaril.Machine.Vex.Examples.Defs
+public meta import Silmaril.Machine.Vex.Examples.Defs
+
+namespace Silmaril.Machine.Vex.AMD64Scalar.MovJump
+
+open Silmaril.Semantics.Region
+open Silmaril.X86 (MState)
+open Silmaril.Machine.Region.X86 (system)
+open Silmaril.Machine.Vex.Fixtures
+
+@[expose] public def movFixture : Fragment := ⟨0x1000, 0⟩
+
+private theorem fixtureGuard : movFixture.Guard := by
+  constructor
+  · decide
+  · unfold Fragment.support
+    decide
+
+private def fixtureState : MState :=
+  ⟨⟨fun r => if r = .rdi then 42 else 0, 0x1000, ⟨none, none, none, none, none, none⟩, 0⟩,
+    movFixture.code.load⟩
+
+/-- The report's actual MOV/JMP pyvex lift, related to all full first exits
+of an inhabited process-memory instance (including either completion of ZF). -/
+public theorem fixture_agreement (completion : Bool) (ret : Word) :
+    ∃ (initial final : MState) (pair : Pair), validate 0x1000 movBytes movLift = .ok pair ∧
+      initial.core.rip = 0x1000 ∧ movFixture.code.LoadedIn initial.memory ∧
+      ExitsNormally (system ret) movFixture.support initial [] final ∧
+      pair.target.run (project completion initial) = .ok (project completion final) ∧
+      final.core.read .rax = 42 ∧ final.core.rip = 0x1005 := by
+  have loaded : movFixture.code.LoadedIn fixtureState.memory :=
+    movFixture.code.loadedIn_load (by decide)
+  have ok : (validate movFixture.base movFixture.bytes movLift).isOk = true := by decide +kernel
+  generalize accepted : validate movFixture.base movFixture.bytes movLift = verdict at ok
+  cases verdict with
+  | error => cases ok
+  | ok pair =>
+    obtain ⟨final, normal, agrees⟩ := movFixture.validated_exit fixtureGuard completion ret accepted rfl loaded
+    have post := movFixture.lift_postcondition fixtureGuard completion ret (initial := fixtureState)
+      rfl ⟨rfl, loaded⟩ (fun _ out => out.rax = 42 ∧ out.rip = 0x1005) ⟨rfl, rfl⟩
+    exact ⟨fixtureState, final, pair, accepted, rfl, loaded, normal, agrees, post.2 [] final normal.witness⟩
+
+example : ¬ (⟨0x1000, 0xfe⟩ : Fragment).Guard := by
+  intro guard
+  exact guard.leaves (.inr rfl)
+
+example : Silmaril.X86.Ext.step 0 { fixtureState with memory := ⟨[], ∅⟩ } = .fetchFault := rfl
+
+#print axioms Fragment.validated_exit
+#print axioms Fragment.lift_postcondition
+#print axioms fixture_agreement
+
+end Silmaril.Machine.Vex.AMD64Scalar.MovJump
