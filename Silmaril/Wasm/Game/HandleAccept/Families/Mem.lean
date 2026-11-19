@@ -29,11 +29,12 @@ rewrite memory and return the import's result shape; the upper bounds are Hoare-
 the lower bounds concrete traced sessions (`Silmaril.Wasm.Game.HandleAccept.MemSound.Live`,
 `Silmaril.Wasm.Game.HandleAccept.MemSound.Atoms`).
 
-Still not instantiable through memory: word trees (their decoders are the `i64` instance-play
-ones of `Families`), hinted Rivest trees, the cons writer and cons reader at every memory
-family, and the AST APIs. Canonical Rivest and byte trees are instantiated through `blob` atoms
-in `Silmaril.Wasm.Game.HandleAccept.MemSound.Rivest` (`rivest_bpairMod`, `bytes_bpairMod`).
-Strings have a memory reader (`MemSound.Text`); keywords have a writer decoder only.
+These examples go through the embeddings into `MemAtom`/`KwAtom`. Every family × API pair also
+has a module over the family's own atom type, with soundness and a positive run, in
+`Silmaril.Wasm.Game.HandleAccept.Families.Matrix` (generic writers over atom tables,
+`MemSound.Tab`; generic reader probes, `MemSound.Probe`). Canonical Rivest and byte trees are
+also instantiated through `blob` atoms in `Silmaril.Wasm.Game.HandleAccept.MemSound.Rivest`
+(`rivest_bpairMod`, `bytes_bpairMod`).
 
 New definitions (no source); the theorems restate `Live` and `Atoms` through the embeddings.
 -/

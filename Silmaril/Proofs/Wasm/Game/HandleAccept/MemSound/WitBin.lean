@@ -92,7 +92,7 @@ theorem blob_node {o : Callout} {B B₀ B₁ : ByteArray}
         (BitVec.setWidth (8 * (IntType.i64.width / 8)) strRef).toNat).data.toList.take
           (PTy.width .bytes)) = some (24, 1, []) := strRef_pair
     refine (readVals_single o.segment .bytes _).trans ?_
-    rw [readVal_bytes hp hseg]
+    rw [readVal_bytes hp hseg rfl]
     rfl
   exact witNode_eq ha rfl hpay hv (segment_nil ho 0 (Nat.zero_le _)) rfl rfl
 

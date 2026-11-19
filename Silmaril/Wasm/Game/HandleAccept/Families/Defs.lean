@@ -31,77 +31,96 @@ AST writer (`Fam.naryW_hom`, `Fam.naryLang_eq_astLang`), writer languages are do
 (`Fam.naryLang_downClosed`, `Fam.consLang_downClosed`), readers are monotone, and certified
 cons-list readers are sound (`Fam.consListReader_sound`).
 
-**Wasm module languages.** Only two atom types have decoders from instance plays:
+**Wasm module languages.** Every row has a core Wasm module proved sound (a Hoare-logic upper
+bound on its language) with a positive run (a traced session accepting a tree), stated in
+`Silmaril.Wasm.Game.HandleAccept.Families.Matrix` as `<family>_<api>_sound` and
+`<family>_<api>_live` (the AST row: `_astW_` for the writer, `_astR_` for the reader). They are
+instances of generic modules proved once for every atom type:
 
-* `i64` words (word trees): all five APIs, `wordsNaryWLang` (`Writers.moduleSxWLang`),
-  `wordsConsWLang` (`Writers.moduleConsWLang`), `wordsNaryRLang` (`Nary.moduleSExpLang`),
-  `wordsConsRLang` (`moduleConsLang`), and the AST languages `wordsAstWLang`/`wordsAstRLang`
-  (`Ast.moduleAstWLang`/`moduleAstLang`) at `wordsWitSig`. The AST decoders take a `WitSig`, so
-  `wordsWitSig` is the S-expression signature with a `u64` leaf payload: its trees are
-  `AST wordsWitSig.toAstSig`, whose leaf payload is `UInt64 × Unit`, not `WordSExp`; no
-  equivalence with `sexpSig (BitVec 64)` is proved in the repository.
-* symbols, strings and byte strings (`MemAtom = Atom [.symbol, .string, .bytes]`): the n-ary
-  writer only, through memory-carrying imports, `symStrBytesNaryWLang` (`Memory.memWriterLang`).
+* writers over an atom table (`Silmaril.Wasm.Game.HandleAccept.MemSound.Tab`) naming every atom
+  import of the family, one decoder per import name: `pairAtomMod` (n-ary and AST writer:
+  exactly the two-element list `(a b)`, resp. its `sexpSig` tree), `consAtomMod` (cons writer:
+  exactly `(a)`); word trees use `word(ptr)` (`MemSound.WordAtom`, exactly `42`) and the
+  instance-play cons writer `twoWords`;
+* readers through `next(h, 0)` and a memory-returning `leaf(c, retptr)`
+  (`Silmaril.Wasm.Game.HandleAccept.MemSound.Probe`): n-ary (`firstAtoms`), cons (`carAtoms`),
+  AST (`firstLeaves`), with a payload decoding every atom kind of the family: a `list<u8>`
+  (one-kind families), a kind-tagged `list<u8>` (`kindPay`, mixed families), octets with an
+  optional hint (`hintPay`, hinted) or a `u64` (words).
 
-Every other combination has no Wasm decoder: the decoders are fixed to `i64` atoms or to
-`MemAtom`, there is no keyword import, no memory-carrying reader or cons writer, and a
-symbols-only or byte-tree family is not `MemAtom` (its atoms are `String` / `List UInt8`, not
-tagged atoms). These rows say "not instantiable"; the API-level laws still hold.
+**Coverage per family** (writer tables / reader payloads; one positive run per pair):
+
+* symbols-only `symbol` / UTF-8; byte trees `blob` / bytes; Rivest canonical `blob` / octets;
+  word trees `word(ptr)` / `u64`: the family has one atom kind, all covered;
+* symbols+strings `symbol`, `string`; symbols+bytes `symbol`, `blob`; symbols+strings+bytes
+  `symbol`, `string`, `blob`; symbols+strings+keywords `symbol`, `string`, `keyword`;
+  symbols+strings+keywords+bytes all four: the tables decode every kind and the readers'
+  `kindPay kindD` reads every kind; the writer runs use one kind (`string`, `blob` or
+  `keyword`), the reader runs one kind (string, bytes or keyword);
+* Rivest hinted: `blob` (no hint) and `hinted(hptr, hlen, ptr, len)` (with a hint, `.seg2`),
+  the reader `hintPay` reads the hint; the writer runs are hint-free (the example modules do not
+  call `hinted`), the reader runs read a hint.
+
+The older instance-play modules for word trees (`i64` atoms, below) and the memory examples of
+`Families.Mem` remain; the table names the matrix theorems first. The `i64` AST decoders take a
+`WitSig`, so `wordsWitSig` is the S-expression signature with a `u64` leaf payload: its trees
+are `AST wordsWitSig.toAstSig`, whose leaf payload is `UInt64 × Unit`, not `WordSExp`; the matrix
+uses `sexpSig (BitVec 64)` instead.
 
 ## The audit
 
 | family | API | Lean name(s) | proved theorem(s) (`Thms`) | status (Wasm-module level) |
 | --- | --- | --- | --- | --- |
-| symbols-only | n-ary writer | `symbolsNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols-only | cons writer | `symbolsConsW` | `Fam.consLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols-only | n-ary reader | `symbolsNaryR` | `Fam.naryR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols-only | cons reader | `symbolsConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols-only | AST | `symbolsAstW`, `symbolsAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| byte trees | n-ary writer | `bytesNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| byte trees | cons writer | `bytesConsW` | `Fam.consLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| byte trees | n-ary reader | `bytesNaryR` | `Fam.naryR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| byte trees | cons reader | `bytesConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| byte trees | AST | `bytesAstW`, `bytesAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| word trees | n-ary writer | `wordsNaryW`, `wordsNaryWLang` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed`; `wordsNaryWLang_subset_arities`, `wordsNaryWLang_subset_atoms`, `wordsNaryWLang_sxPair_binary` | structural bound only (the module `sxPair` is a proved example of the arity bound) |
-| word trees | cons writer | `wordsConsW`, `wordsConsWLang` | `Fam.consLang_downClosed`; `wordsConsWLang_subset_atoms2`, `wordsConsWLang_twoWords`, `wordsConsWLang_twoWordsZ`, `wordsConsWLang_twoWordsM` | proved examples (`twoWords` without sentinel; `twoWordsZ`/`twoWordsM` with sentinel `0`/`-1`: accept only `(x x+1)`) |
-| word trees | n-ary reader | `wordsNaryR`, `wordsNaryRLang` | `Fam.naryR_mono`; `wordsNaryRLang_pairCheck`, `wordsNaryRLang_sortedNCheck` | proved example (`pairCheck`, `sortedNCheck`) |
-| word trees | cons reader | `wordsConsR`, `wordsConsRLang` | `Fam.consR_mono`, `Fam.consListReader_sound`; `wordsConsRLang_sortedCheck`, `wordsConsRLang_wordsCheck`, `wordsConsRLang_recProperCheck` | proved examples (`wordsCheck`, `sortedCheck`, `recProperCheck`) |
-| word trees | AST | `wordsAstW`, `wordsAstR`, `wordsAstWLang`, `wordsAstRLang` (at `wordsWitSig`) | `Fam.naryLang_eq_astLang`, `Fam.astR_mono`; `wordsAstWLang_wellArity` | writer: structural bound only; reader: no theorem beyond the AG rule `Ast.astLang_sound_of_gameSat` |
-| symbols+strings | n-ary writer | `symStrNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings | cons writer | `symStrConsW` | `Fam.consLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings | n-ary reader | `symStrNaryR` | `Fam.naryR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings | cons reader | `symStrConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings | AST | `symStrAstW`, `symStrAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+bytes | n-ary writer | `symBytesNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+bytes | cons writer | `symBytesConsW` | `Fam.consLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+bytes | n-ary reader | `symBytesNaryR` | `Fam.naryR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+bytes | cons reader | `symBytesConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+bytes | AST | `symBytesAstW`, `symBytesAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+bytes | n-ary writer | `symStrBytesNaryW`, `symStrBytesNaryWLang` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed`; `symStrBytesNaryWLang_subset_atoms` | structural bound only (memory-carrying imports) |
-| symbols+strings+bytes | cons writer | `symStrBytesConsW` | `Fam.consLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+bytes | n-ary reader | `symStrBytesNaryR` | `Fam.naryR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+bytes | cons reader | `symStrBytesConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+bytes | AST | `symStrBytesAstW`, `symStrBytesAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords | n-ary writer | `symStrKwNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords | cons writer | `symStrKwConsW` | `Fam.consLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords | n-ary reader | `symStrKwNaryR` | `Fam.naryR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords | cons reader | `symStrKwConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords | AST | `symStrKwAstW`, `symStrKwAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords+bytes | n-ary writer | `symStrKwBytesNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords+bytes | cons writer | `symStrKwBytesConsW` | `Fam.consLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords+bytes | n-ary reader | `symStrKwBytesNaryR` | `Fam.naryR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords+bytes | cons reader | `symStrKwBytesConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| symbols+strings+keywords+bytes | AST | `symStrKwBytesAstW`, `symStrKwBytesAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest canonical | n-ary writer | `rivestNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest canonical | cons writer | `rivestConsW` | `Fam.consLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest canonical | n-ary reader | `rivestNaryR` | `Fam.naryR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest canonical | cons reader | `rivestConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest canonical | AST | `rivestAstW`, `rivestAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest hinted | n-ary writer | `hintedNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest hinted | cons writer | `hintedConsW` | `Fam.consLang_downClosed` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest hinted | n-ary reader | `hintedNaryR` | `Fam.naryR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest hinted | cons reader | `hintedConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
-| Rivest hinted | AST | `hintedAstW`, `hintedAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | API laws only; Wasm: not instantiable (decoders fixed to `i64` atoms or `MemAtom`) |
+| symbols-only | n-ary writer | `symbolsNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | Wasm (`Families.Matrix`): `symbols_naryW_sound`, `symbols_naryW_live` |
+| symbols-only | cons writer | `symbolsConsW` | `Fam.consLang_downClosed` | Wasm (`Families.Matrix`): `symbols_consW_sound`, `symbols_consW_live` |
+| symbols-only | n-ary reader | `symbolsNaryR` | `Fam.naryR_mono` | Wasm (`Families.Matrix`): `symbols_naryR_sound`, `symbols_naryR_live` |
+| symbols-only | cons reader | `symbolsConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | Wasm (`Families.Matrix`): `symbols_consR_sound`, `symbols_consR_live` |
+| symbols-only | AST | `symbolsAstW`, `symbolsAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | Wasm (`Families.Matrix`): `symbols_astW_sound`, `symbols_astW_live`, `symbols_astR_sound`, `symbols_astR_live` |
+| byte trees | n-ary writer | `bytesNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | Wasm (`Families.Matrix`): `bytes_naryW_sound`, `bytes_naryW_live` |
+| byte trees | cons writer | `bytesConsW` | `Fam.consLang_downClosed` | Wasm (`Families.Matrix`): `bytes_consW_sound`, `bytes_consW_live` |
+| byte trees | n-ary reader | `bytesNaryR` | `Fam.naryR_mono` | Wasm (`Families.Matrix`): `bytes_naryR_sound`, `bytes_naryR_live` |
+| byte trees | cons reader | `bytesConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | Wasm (`Families.Matrix`): `bytes_consR_sound`, `bytes_consR_live` |
+| byte trees | AST | `bytesAstW`, `bytesAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | Wasm (`Families.Matrix`): `bytes_astW_sound`, `bytes_astW_live`, `bytes_astR_sound`, `bytes_astR_live` |
+| word trees | n-ary writer | `wordsNaryW`, `wordsNaryWLang` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed`; `wordsNaryWLang_subset_arities`, `wordsNaryWLang_subset_atoms`, `wordsNaryWLang_sxPair_binary` | Wasm (`Families.Matrix`): `words_naryW_sound`, `words_naryW_live`; instance-play: structural bound (the module `sxPair` is a proved example of the arity bound) |
+| word trees | cons writer | `wordsConsW`, `wordsConsWLang` | `Fam.consLang_downClosed`; `wordsConsWLang_subset_atoms2`, `wordsConsWLang_twoWords`, `wordsConsWLang_twoWordsZ`, `wordsConsWLang_twoWordsM` | Wasm (`Families.Matrix`): `words_consW_sound`, `words_consW_live`; instance-play: proved examples (`twoWords` without sentinel; `twoWordsZ`/`twoWordsM` with sentinel `0`/`-1`: accept only `(x x+1)`) |
+| word trees | n-ary reader | `wordsNaryR`, `wordsNaryRLang` | `Fam.naryR_mono`; `wordsNaryRLang_pairCheck`, `wordsNaryRLang_sortedNCheck` | Wasm (`Families.Matrix`): `words_naryR_sound`, `words_naryR_live`; instance-play: proved example (`pairCheck`, `sortedNCheck`) |
+| word trees | cons reader | `wordsConsR`, `wordsConsRLang` | `Fam.consR_mono`, `Fam.consListReader_sound`; `wordsConsRLang_sortedCheck`, `wordsConsRLang_wordsCheck`, `wordsConsRLang_recProperCheck` | Wasm (`Families.Matrix`): `words_consR_sound`, `words_consR_live`; instance-play: proved examples (`wordsCheck`, `sortedCheck`, `recProperCheck`) |
+| word trees | AST | `wordsAstW`, `wordsAstR`, `wordsAstWLang`, `wordsAstRLang` (at `wordsWitSig`) | `Fam.naryLang_eq_astLang`, `Fam.astR_mono`; `wordsAstWLang_wellArity` | Wasm (`Families.Matrix`): `words_astW_sound`, `words_astW_live`, `words_astR_sound`, `words_astR_live`; instance-play at `wordsWitSig`: writer structural bound only, reader only the AG rule `Ast.astLang_sound_of_gameSat` |
+| symbols+strings | n-ary writer | `symStrNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | Wasm (`Families.Matrix`): `symStr_naryW_sound`, `symStr_naryW_live` |
+| symbols+strings | cons writer | `symStrConsW` | `Fam.consLang_downClosed` | Wasm (`Families.Matrix`): `symStr_consW_sound`, `symStr_consW_live` |
+| symbols+strings | n-ary reader | `symStrNaryR` | `Fam.naryR_mono` | Wasm (`Families.Matrix`): `symStr_naryR_sound`, `symStr_naryR_live` |
+| symbols+strings | cons reader | `symStrConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | Wasm (`Families.Matrix`): `symStr_consR_sound`, `symStr_consR_live` |
+| symbols+strings | AST | `symStrAstW`, `symStrAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | Wasm (`Families.Matrix`): `symStr_astW_sound`, `symStr_astW_live`, `symStr_astR_sound`, `symStr_astR_live` |
+| symbols+bytes | n-ary writer | `symBytesNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | Wasm (`Families.Matrix`): `symBytes_naryW_sound`, `symBytes_naryW_live` |
+| symbols+bytes | cons writer | `symBytesConsW` | `Fam.consLang_downClosed` | Wasm (`Families.Matrix`): `symBytes_consW_sound`, `symBytes_consW_live` |
+| symbols+bytes | n-ary reader | `symBytesNaryR` | `Fam.naryR_mono` | Wasm (`Families.Matrix`): `symBytes_naryR_sound`, `symBytes_naryR_live` |
+| symbols+bytes | cons reader | `symBytesConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | Wasm (`Families.Matrix`): `symBytes_consR_sound`, `symBytes_consR_live` |
+| symbols+bytes | AST | `symBytesAstW`, `symBytesAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | Wasm (`Families.Matrix`): `symBytes_astW_sound`, `symBytes_astW_live`, `symBytes_astR_sound`, `symBytes_astR_live` |
+| symbols+strings+bytes | n-ary writer | `symStrBytesNaryW`, `symStrBytesNaryWLang` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed`; `symStrBytesNaryWLang_subset_atoms` | Wasm (`Families.Matrix`): `symStrBytes_naryW_sound`, `symStrBytes_naryW_live`; `Memory.memWriterLang`: structural bound (memory-carrying imports) |
+| symbols+strings+bytes | cons writer | `symStrBytesConsW` | `Fam.consLang_downClosed` | Wasm (`Families.Matrix`): `symStrBytes_consW_sound`, `symStrBytes_consW_live` |
+| symbols+strings+bytes | n-ary reader | `symStrBytesNaryR` | `Fam.naryR_mono` | Wasm (`Families.Matrix`): `symStrBytes_naryR_sound`, `symStrBytes_naryR_live` |
+| symbols+strings+bytes | cons reader | `symStrBytesConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | Wasm (`Families.Matrix`): `symStrBytes_consR_sound`, `symStrBytes_consR_live` |
+| symbols+strings+bytes | AST | `symStrBytesAstW`, `symStrBytesAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | Wasm (`Families.Matrix`): `symStrBytes_astW_sound`, `symStrBytes_astW_live`, `symStrBytes_astR_sound`, `symStrBytes_astR_live` |
+| symbols+strings+keywords | n-ary writer | `symStrKwNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | Wasm (`Families.Matrix`): `symStrKw_naryW_sound`, `symStrKw_naryW_live` |
+| symbols+strings+keywords | cons writer | `symStrKwConsW` | `Fam.consLang_downClosed` | Wasm (`Families.Matrix`): `symStrKw_consW_sound`, `symStrKw_consW_live` |
+| symbols+strings+keywords | n-ary reader | `symStrKwNaryR` | `Fam.naryR_mono` | Wasm (`Families.Matrix`): `symStrKw_naryR_sound`, `symStrKw_naryR_live` |
+| symbols+strings+keywords | cons reader | `symStrKwConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | Wasm (`Families.Matrix`): `symStrKw_consR_sound`, `symStrKw_consR_live` |
+| symbols+strings+keywords | AST | `symStrKwAstW`, `symStrKwAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | Wasm (`Families.Matrix`): `symStrKw_astW_sound`, `symStrKw_astW_live`, `symStrKw_astR_sound`, `symStrKw_astR_live` |
+| symbols+strings+keywords+bytes | n-ary writer | `symStrKwBytesNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | Wasm (`Families.Matrix`): `symStrKwBytes_naryW_sound`, `symStrKwBytes_naryW_live` |
+| symbols+strings+keywords+bytes | cons writer | `symStrKwBytesConsW` | `Fam.consLang_downClosed` | Wasm (`Families.Matrix`): `symStrKwBytes_consW_sound`, `symStrKwBytes_consW_live` |
+| symbols+strings+keywords+bytes | n-ary reader | `symStrKwBytesNaryR` | `Fam.naryR_mono` | Wasm (`Families.Matrix`): `symStrKwBytes_naryR_sound`, `symStrKwBytes_naryR_live` |
+| symbols+strings+keywords+bytes | cons reader | `symStrKwBytesConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | Wasm (`Families.Matrix`): `symStrKwBytes_consR_sound`, `symStrKwBytes_consR_live` |
+| symbols+strings+keywords+bytes | AST | `symStrKwBytesAstW`, `symStrKwBytesAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | Wasm (`Families.Matrix`): `symStrKwBytes_astW_sound`, `symStrKwBytes_astW_live`, `symStrKwBytes_astR_sound`, `symStrKwBytes_astR_live` |
+| Rivest canonical | n-ary writer | `rivestNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | Wasm (`Families.Matrix`): `rivest_naryW_sound`, `rivest_naryW_live` |
+| Rivest canonical | cons writer | `rivestConsW` | `Fam.consLang_downClosed` | Wasm (`Families.Matrix`): `rivest_consW_sound`, `rivest_consW_live` |
+| Rivest canonical | n-ary reader | `rivestNaryR` | `Fam.naryR_mono` | Wasm (`Families.Matrix`): `rivest_naryR_sound`, `rivest_naryR_live` |
+| Rivest canonical | cons reader | `rivestConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | Wasm (`Families.Matrix`): `rivest_consR_sound`, `rivest_consR_live` |
+| Rivest canonical | AST | `rivestAstW`, `rivestAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | Wasm (`Families.Matrix`): `rivest_astW_sound`, `rivest_astW_live`, `rivest_astR_sound`, `rivest_astR_live` |
+| Rivest hinted | n-ary writer | `hintedNaryW` | `Fam.naryW_hom`, `Fam.naryLang_eq_astLang`, `Fam.naryLang_downClosed` | Wasm (`Families.Matrix`): `hinted_naryW_sound`, `hinted_naryW_live` |
+| Rivest hinted | cons writer | `hintedConsW` | `Fam.consLang_downClosed` | Wasm (`Families.Matrix`): `hinted_consW_sound`, `hinted_consW_live` |
+| Rivest hinted | n-ary reader | `hintedNaryR` | `Fam.naryR_mono` | Wasm (`Families.Matrix`): `hinted_naryR_sound`, `hinted_naryR_live` |
+| Rivest hinted | cons reader | `hintedConsR` | `Fam.consR_mono`, `Fam.consListReader_sound` | Wasm (`Families.Matrix`): `hinted_consR_sound`, `hinted_consR_live` |
+| Rivest hinted | AST | `hintedAstW`, `hintedAstR` | `Fam.naryLang_eq_astLang`, `Fam.astR_mono` | Wasm (`Families.Matrix`): `hinted_astW_sound`, `hinted_astW_live`, `hinted_astR_sound`, `hinted_astR_live` |
 
 Family-level codec facts (not API facts): `hinted_toSpki_injective` (hinted trees embed in the
 RFC 9804 model), `rivest_printCanonical?_sound` (checked canonical printing parses back).

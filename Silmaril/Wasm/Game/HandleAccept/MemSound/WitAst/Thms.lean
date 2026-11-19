@@ -7,6 +7,7 @@ public import Silmaril.Wasm.Game.HandleAccept.Wit.Defs
 import Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAstLive
 import Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAppLive
 import Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitBinLive
+import Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitGlyphLive
 
 /-!
 # Typed payloads and fixed arities through linear memory: soundness and non-vacuity
@@ -14,7 +15,10 @@ import Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitBinLive
 **The canonical ABI layout** (`layout_toWit`, `width_toWit`, `align_toWit`, `valsLayout_toWit`,
 `valsWidth_toWit`, `valsAlign_toWit`): the layout of a payload type is `ABI.layout .i32` of its
 WIT type `Wit.toWit t` (REF `elem_size`, `alignment`), and the layout of a payload vector is that
-of the WIT tuple of its types; kernel-checked sizes with padding `ex_width_*`.
+of the WIT tuple of its types, for the whole payload domain (records, tuples, variants,
+options, results, enums, flags, fixed-length lists, narrow integers, floats, chars); kernel-checked
+sizes with padding `ex_width_*` (`ex_width_glyph`, `ex_width_option_u64`, `ex_width_result`,
+`ex_width_variant`, `ex_width_enum257`, `ex_width_flags`, `ex_width_fixed`, …).
 
 **Payloads** (`readPtrLen_encode`, `readVal_rest`, `readVal_string`, `readVal_bytes`,
 `readVal_list`, `readVal_list_misaligned`, `readVals_single`): a `(ptr, len)` pair written as
@@ -24,11 +28,19 @@ only at an aligned pointer. Kernel-checked examples over the memory `exMem` (`li
 `ex_string`, `ex_string_utf8` (two-byte UTF-8), `ex_bytes`, `ex_bytes_not_utf8`, `ex_list_u32`,
 `ex_list_string` (two levels of indirection), `ex_list_list` (`list<list<u32>>`), `ex_vals`
 (`u32` then `string`), `ex_vals_padded` (`bool` then `u32`: three padding bytes, not read),
-`ex_vals_padded64` (`u32` then `s64`).
+`ex_vals_padded64` (`u32` then `s64`); the rest of the domain: `ex_s8`, `ex_u16`, `ex_s16`,
+`ex_bool_two` (any nonzero byte is `true`), `ex_f32`, `ex_f64`, `ex_f32_nan`, `ex_f64_nan`
+(**NaNs are canonicalised**), `ex_char`, `ex_char_astral`, `ex_fixed`, `ex_tuple`, `ex_record`,
+`ex_option_none`, `ex_option_string`, `ex_variant`, `ex_variant_a`, `ex_enum`, `ex_result_ok`,
+`ex_result_err`, `ex_flags`, `ex_flags_high` (**bits above the label count are ignored**),
+`ex_list_tuple`, `ex_vals_glyph`. `readVal_bytes`: `bytes` is `list<u8>`, read byte for byte.
 
 **Malformed inputs decode to no value** (`ex_bad_utf8`, `ex_out_of_bounds`, `ex_list_oob`,
 `ex_list_misaligned`, `ex_list_string_bad_utf8`, `ex_list_string_oob`,
-`ex_list_list_misaligned`, `ex_short`), and **malformed calls to no event** (`ex_node_*` over
+`ex_list_list_misaligned`, `ex_short`; **invalid chars** `ex_char_surrogate`, `ex_char_too_big`,
+`ex_record_bad_char`; **invalid discriminants** `ex_option_bad_disc`, `ex_record_bad_disc`,
+`ex_variant_bad_disc`, `ex_enum_bad_disc`, `ex_result_bad_disc`; `ex_option_string_bad_utf8`,
+`ex_fixed_short`, `ex_list_tuple_misaligned`), and **malformed calls to no event** (`ex_node_*` over
 `exCall`: misaligned payload or child pointers, a payload area out of bounds, a string payload
 out of bounds or invalid UTF-8, a wrong child count for a fixed arity; with the well-formed
 controls `ex_node_num`, `ex_node_add`, `ex_node_var`). `witWrite_none`: a call the decoder
@@ -67,6 +79,13 @@ the pair `(24, 2)` right before `node(1, 16, 0, 0)`; both handles at `[0, 8)`,
 `node(2, 0, 0, 2)`, `accept`): `binMod_fixed_sound`, `binMod_sound` (Hoare proof `bin_sat`),
 `binMod_live` (traced session), `binMod_lang`: **its writer language is exactly
 `{pair(blob [0xFF], seq [7, 9])}`** (no sentinel, no undefined behaviour).
+
+**The example `glyphMod`** (a record with a `char` and an `option<u8>`: the record
+`{ ch: 'a', size: some(7) }` as one `i64` at `[16, 24)` right before `node(0, 16, 0, 0)`, the
+same with `{ ch: 'λ', size: none }`, both handles at `[0, 8)`, `node(1, 0, 0, 2)`, `accept`):
+`glyphMod_fixed_sound`, `glyphMod_sound` (Hoare proof `glyph_sat`), `glyphMod_live` (traced
+session), `glyphMod_lang`: **its writer language is exactly
+`{pair(glyph { 'a', some(7) }, glyph { 'λ', none })}`** (no sentinel, no undefined behaviour).
 -/
 
 @[expose] public section
@@ -85,36 +104,32 @@ open Silmaril.Wasm.Game.HandleAccept.Wit (toWit toWitList)
 
 section Layout
 
-universe u
-
-variable {Resource : Type u}
-
 /-- **The layout of a payload type is its canonical ABI layout** (memory32). -/
 theorem layout_toWit (t : PTy) :
-    ABI.layout .i32 (toWit t : WIT.ClosedType Resource) = PTy.layout t :=
+    ABI.layout .i32 (toWit t : WIT.ClosedType Nat) = PTy.layout t :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.layout_toWit t
 
 /-- The size of a payload value is REF `elem_size` of its WIT type. -/
 theorem width_toWit (t : PTy) :
-    (ABI.layout .i32 (toWit t : WIT.ClosedType Resource)).size = PTy.width t := by
+    (ABI.layout .i32 (toWit t : WIT.ClosedType Nat)).size = PTy.width t := by
   rw [layout_toWit]; rfl
 
 /-- The alignment of a payload value is REF `alignment` of its WIT type. -/
 theorem align_toWit (t : PTy) :
-    (ABI.layout .i32 (toWit t : WIT.ClosedType Resource)).alignment.bytes = PTy.align t := by
+    (ABI.layout .i32 (toWit t : WIT.ClosedType Nat)).alignment.bytes = PTy.align t := by
   rw [layout_toWit]; rfl
 
 /-- **The layout of a payload vector is the canonical ABI layout of its WIT tuple.** -/
 theorem valsLayout_toWit (ps : List PTy) :
-    ABI.layout .i32 (.tuple (toWitList ps) : WIT.ClosedType Resource) = valsLayout ps :=
+    ABI.layout .i32 (.tuple (toWitList ps) : WIT.ClosedType Nat) = valsLayout ps :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.valsLayout_toWit ps
 
 theorem valsWidth_toWit (ps : List PTy) :
-    (ABI.layout .i32 (.tuple (toWitList ps) : WIT.ClosedType Resource)).size = valsWidth ps := by
+    (ABI.layout .i32 (.tuple (toWitList ps) : WIT.ClosedType Nat)).size = valsWidth ps := by
   rw [valsLayout_toWit]; rfl
 
 theorem valsAlign_toWit (ps : List PTy) :
-    (ABI.layout .i32 (.tuple (toWitList ps) : WIT.ClosedType Resource)).alignment.bytes =
+    (ABI.layout .i32 (.tuple (toWitList ps) : WIT.ClosedType Nat)).alignment.bytes =
       valsAlign ps := by
   rw [valsLayout_toWit]; rfl
 
@@ -139,6 +154,38 @@ theorem ex_width_bool_string :
 /-- No payload: no bytes, alignment `1`. -/
 theorem ex_width_nil : valsWidth [] = 0 ∧ valsAlign [] = 1 := by decide
 
+/-- `(u8, s16)`: the `s16` at offset `2`. -/
+theorem ex_width_u8_s16 : valsWidth [.u8, .s16] = 4 ∧ valsAlign [.u8, .s16] = 2 := by decide
+
+/-- `record { ch: char, size: option<u8> }`: the option at offset `4` (discriminant at `4`,
+payload at `5`), two bytes of tail padding. -/
+theorem ex_width_glyph : PTy.width glyphTy = 8 ∧ PTy.align glyphTy = 4 := by decide
+
+/-- `option<u64>`: a one-byte discriminant, the payload at offset `8`. -/
+theorem ex_width_option_u64 : PTy.width (.option .u64) = 16 ∧
+    caseOffset [none, some (PTy.layout .u64)] = 8 := by decide
+
+/-- `result<u32>` (no error payload): the payload at offset `4`. -/
+theorem ex_width_result : PTy.width (.result (some .u32) none) = 8 := by decide
+
+/-- `variant { a, b(f64), c(char) }`: the largest payload (`f64`) at offset `8`. -/
+theorem ex_width_variant :
+    PTy.width (.variant [("a", none), ("b", some .f64), ("c", some .char)]) = 16 := by decide
+
+/-- An `enum` of 257 cases has a two-byte discriminant (REF `discriminant_type`). -/
+theorem ex_width_enum257 :
+    PTy.width (.enum (List.replicate 257 "c")) = 2 ∧ discBytes 257 = 2 ∧ discBytes 256 = 1 := by
+  decide +kernel
+
+/-- `flags` of nine labels are two bytes; of seventeen, four. -/
+theorem ex_width_flags : PTy.width (.flags (List.replicate 9 "f")) = 2 ∧
+    PTy.width (.flags (List.replicate 17 "f")) = 4 := by decide
+
+/-- `list<u16, 3>`: six bytes in place, aligned to two. -/
+theorem ex_width_fixed :
+    PTy.width (.fixedList .u16 3) = 6 ∧ PTy.align (.fixedList .u16 3) = 2 := by
+  decide
+
 /-! ## Payloads -/
 
 /-- **A `(ptr, len)` pair is read back.** -/
@@ -160,11 +207,11 @@ theorem readVal_string {seg : Nat → Nat → Option (List UInt8)} {bs rest cs :
     readVal seg .string bs = some (str, rest) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.readVal_string hp hc hu
 
-/-- **A byte-string payload**: its pair and the segment it names. -/
+/-- **A byte-string payload** (`list<u8>`): its pair and the `len` bytes it names. -/
 theorem readVal_bytes {seg : Nat → Nat → Option (List UInt8)} {bs rest cs : List UInt8}
-    {p n : Nat} (hp : readPtrLen bs = some (p, n, rest)) (hc : seg p n = some cs) :
-    readVal seg .bytes bs = some (cs, rest) :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.readVal_bytes hp hc
+    {p n : Nat} (hp : readPtrLen bs = some (p, n, rest)) (hc : seg p n = some cs)
+    (hl : cs.length = n) : readVal seg .bytes bs = some (cs, rest) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.readVal_bytes hp hc hl
 
 /-- **A list payload**: its pair, an aligned pointer, the segment of `len` elements, the
 elements. -/
@@ -228,6 +275,161 @@ theorem ex_vals_padded : readVals (listSeg exMem) [.bool, .u32]
 theorem ex_vals_padded64 : readVals (listSeg exMem) [.u32, .s64]
     [5, 0, 0, 0, 0xAA, 0xAA, 0xAA, 0xAA, 3, 0, 0, 0, 0, 0, 0, 0] =
     some ((5 : UInt32), (3 : Int64), ()) := by kernel_rfl
+
+/-! ## Narrow integers, floats, chars and composite payloads -/
+
+/-- An `s8`: `FF` is `-1`. -/
+theorem ex_s8 : readVal (listSeg exMem) .s8 [0xFF] = some ((-1 : Int8), []) := by kernel_rfl
+
+/-- A `u16`, little-endian. -/
+theorem ex_u16 : readVal (listSeg exMem) .u16 [0x34, 0x12] = some ((0x1234 : UInt16), []) := by
+  kernel_rfl
+
+/-- An `s16`: `FE FF` is `-2`. -/
+theorem ex_s16 : readVal (listSeg exMem) .s16 [0xFE, 0xFF] = some ((-2 : Int16), []) := by
+  kernel_rfl
+
+/-- `bool`: every nonzero byte is `true` (REF `convert_int_to_bool`). -/
+theorem ex_bool_two : readVal (listSeg exMem) .bool [2] = some (true, []) := by kernel_rfl
+
+/-- An `f32`: the bits of `1.0`. -/
+theorem ex_f32 : readVal (listSeg exMem) .f32 [0, 0, 0x80, 0x3F] =
+    some ((0x3F800000 : BitVec 32), []) := by kernel_rfl
+
+/-- **A NaN `f32` is canonicalised**: the NaN `7FC00001` is read as `7FC00000` (REF
+`canonicalize_nan32`). -/
+theorem ex_f32_nan : readVal (listSeg exMem) .f32 [1, 0, 0xC0, 0x7F] =
+    some ((0x7FC00000 : BitVec 32), []) := by kernel_rfl
+
+/-- An `f64`: the bits of `-2.0`. -/
+theorem ex_f64 : readVal (listSeg exMem) .f64 [0, 0, 0, 0, 0, 0, 0, 0xC0] =
+    some ((0xC000000000000000 : BitVec 64), []) := by kernel_rfl
+
+/-- **A NaN `f64` is canonicalised** (REF `canonicalize_nan64`). -/
+theorem ex_f64_nan : readVal (listSeg exMem) .f64 [5, 0, 0, 0, 0, 0, 0xF8, 0xFF] =
+    some ((0x7FF8000000000000 : BitVec 64), []) := by kernel_rfl
+
+/-- A `char`: `U+0061`. -/
+theorem ex_char : readVal (listSeg exMem) .char [0x61, 0, 0, 0] = some ('a', []) := by
+  kernel_rfl
+
+/-- A `char` outside the basic plane: `U+1F600`. -/
+theorem ex_char_astral : readVal (listSeg exMem) .char [0x00, 0xF6, 0x01, 0] =
+    some (Char.ofNat 0x1F600, []) := by kernel_rfl
+
+/-- `list<u16, 3>`, in place. -/
+theorem ex_fixed : readVal (listSeg exMem) (.fixedList .u16 3) [1, 0, 2, 0, 3, 0] =
+    some ((#v[1, 2, 3] : Vector UInt16 3), []) := by kernel_rfl
+
+/-- `tuple<u8, u32>`: the `u32` at offset `4`, the padding not read. -/
+theorem ex_tuple : readVal (listSeg exMem) (.tuple [.u8, .u32]) [1, 0xAA, 0xAA, 0xAA, 5, 0, 0, 0] =
+    some (((1 : UInt8), (5 : UInt32), ()), []) := by kernel_rfl
+
+/-- **A record** `{ ch: 'a', size: some(7) }` (`glyphTy`). -/
+theorem ex_record : readVal (listSeg exMem) glyphTy [0x61, 0, 0, 0, 1, 7, 0xAA, 0xAA] =
+    some ((('a', (some 7 : Option UInt8), ()) : Char × Option UInt8 × Unit), []) := by kernel_rfl
+
+/-- `option<u8>` `none`: the payload byte is not read. -/
+theorem ex_option_none : readVal (listSeg exMem) (.option .u8) [0, 0xAA] =
+    some ((none : Option UInt8), []) := by kernel_rfl
+
+/-- `variant { a, b(u32) }`: the case `b(5)`, the payload at offset `4`. -/
+theorem ex_variant :
+    readVal (listSeg exMem) (.variant [("a", none), ("b", some .u32)]) [1, 0, 0, 0, 5, 0, 0, 0] =
+      some ((Sum.inr (Sum.inl 5) : Unit ⊕ (UInt32 ⊕ Empty)), []) := by kernel_rfl
+
+/-- `variant { a, b(u32) }`: the payload-free case `a`. -/
+theorem ex_variant_a :
+    readVal (listSeg exMem) (.variant [("a", none), ("b", some .u32)]) [0, 0, 0, 0, 5, 0, 0, 0] =
+      some ((Sum.inl () : Unit ⊕ (UInt32 ⊕ Empty)), []) := by kernel_rfl
+
+/-- `enum { r, g, b }`: the case `b`. -/
+theorem ex_enum : readVal (listSeg exMem) (.enum ["r", "g", "b"]) [2] =
+    some ((2 : Fin 3), []) := by kernel_rfl
+
+/-- `result<u32>`: `ok(9)`. -/
+theorem ex_result_ok : readVal (listSeg exMem) (.result (some .u32) none) [0, 0, 0, 0, 9, 0, 0, 0] =
+    some ((Sum.inl 9 : UInt32 ⊕ Unit), []) := by kernel_rfl
+
+/-- `result<u32>`: `err` (no payload). -/
+theorem ex_result_err :
+    readVal (listSeg exMem) (.result (some .u32) none) [1, 0, 0, 0, 9, 0, 0, 0] =
+      some ((Sum.inr () : UInt32 ⊕ Unit), []) := by kernel_rfl
+
+/-- `flags { a, b, c }`: the bits `a` and `c`. -/
+theorem ex_flags : readVal (listSeg exMem) (.flags ["a", "b", "c"]) [0b101] =
+    some ((0b101 : BitVec 3), []) := by kernel_rfl
+
+/-- **`flags` ignore the bits above the label count** (REF `unpack_flags_from_int`): `FD` is
+the same `{ a, c }`. -/
+theorem ex_flags_high : readVal (listSeg exMem) (.flags ["a", "b", "c"]) [0xFD] =
+    some ((0b101 : BitVec 3), []) := by kernel_rfl
+
+/-- A `list<tuple<u16, u16>>` through the pair `(12, 2)`: `(7, 0)` and `(9, 0)`. -/
+theorem ex_list_tuple :
+    readVal (listSeg exMem) (.list (.tuple [.u16, .u16])) [12, 0, 0, 0, 2, 0, 0, 0] =
+      some (([(7, 0, ()), (9, 0, ())] : List (UInt16 × UInt16 × Unit)), []) := by kernel_rfl
+
+/-- `option<string>`: `some("hi")` through the pair `(8, 2)` at offset `4`. -/
+theorem ex_option_string :
+    readVal (listSeg exMem) (.option .string) [1, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0] =
+      some ((some "hi" : Option String), []) := by kernel_rfl
+
+/-- A payload vector `(glyph, f32)`: the `f32` at offset `8`. -/
+theorem ex_vals_glyph : readVals (listSeg exMem) [glyphTy, .f32]
+    [0xBB, 0x03, 0, 0, 0, 0xAA, 0, 0, 0, 0, 0x80, 0x3F] =
+      some ((('λ', (none : Option UInt8), ()) : Char × Option UInt8 × Unit),
+        (0x3F800000 : BitVec 32), ()) := by kernel_rfl
+
+/-! ## Malformed payloads of the full domain -/
+
+/-- **A surrogate is no `char`** (REF `trap_if(0xD800 <= i <= 0xDFFF)`). -/
+theorem ex_char_surrogate : readVal (listSeg exMem) .char [0x00, 0xD8, 0, 0] = none := by
+  kernel_rfl
+
+/-- **A value `≥ 0x110000` is no `char`** (REF `trap_if(i >= 0x110000)`). -/
+theorem ex_char_too_big : readVal (listSeg exMem) .char [0x00, 0x00, 0x11, 0] = none := by
+  kernel_rfl
+
+/-- A record whose `char` field is a surrogate is no value. -/
+theorem ex_record_bad_char : readVal (listSeg exMem) glyphTy [0x00, 0xDC, 0, 0, 0, 0, 0, 0] =
+    none := by kernel_rfl
+
+/-- **An `option` discriminant other than `0`, `1` is no value** (REF
+`trap_if(case_index >= len(cases))`). -/
+theorem ex_option_bad_disc : readVal (listSeg exMem) (.option .u8) [2, 7] = none := by kernel_rfl
+
+/-- A record whose `option` discriminant is invalid is no value. -/
+theorem ex_record_bad_disc : readVal (listSeg exMem) glyphTy [0x61, 0, 0, 0, 2, 7, 0, 0] =
+    none := by kernel_rfl
+
+/-- **A variant discriminant past the last case is no value.** -/
+theorem ex_variant_bad_disc :
+    readVal (listSeg exMem) (.variant [("a", none), ("b", some .u32)]) [2, 0, 0, 0, 5, 0, 0, 0] =
+      none := by kernel_rfl
+
+/-- **An `enum` discriminant past the last case is no value.** -/
+theorem ex_enum_bad_disc : readVal (listSeg exMem) (.enum ["r", "g", "b"]) [3] = none := by
+  kernel_rfl
+
+/-- **A `result` discriminant other than `0`, `1` is no value.** -/
+theorem ex_result_bad_disc :
+    readVal (listSeg exMem) (.result (some .u32) none) [5, 0, 0, 0, 9, 0, 0, 0] = none := by
+  kernel_rfl
+
+/-- An `option<string>` whose string is invalid UTF-8 (the pair `(36, 1)`) is no value. -/
+theorem ex_option_string_bad_utf8 :
+    readVal (listSeg exMem) (.option .string) [1, 0, 0, 0, 36, 0, 0, 0, 1, 0, 0, 0] = none := by
+  kernel_rfl
+
+/-- A `list<u16, 3>` with too few bytes is no value. -/
+theorem ex_fixed_short : readVal (listSeg exMem) (.fixedList .u16 3) [1, 0, 2, 0, 3] = none := by
+  kernel_rfl
+
+/-- A `list<tuple<u16, u16>>` at an odd pointer (`13`) is no value. -/
+theorem ex_list_tuple_misaligned :
+    readVal (listSeg exMem) (.list (.tuple [.u16, .u16])) [13, 0, 0, 0, 1, 0, 0, 0] = none := by
+  kernel_rfl
 
 /-! ## Malformed payloads -/
 
@@ -476,5 +678,40 @@ theorem binMod_lang (P : Profile) {pol : Policy (BitVec 32)} (hs : pol.sentinel 
     witWriterLang binSig binTagOf P (ReplyEnvs hiReply) 0 binMod {} pol = {binTree} :=
   Set.Subset.antisymm (binMod_sound P hs hw ha)
     (Set.singleton_subset_iff.2 (binMod_live P pol))
+
+/-! ## Record, option and char payloads: `glyphMod` -/
+
+/-- **In a fixed environment, `glyphMod` accepts only
+`pair(glyph { 'a', some(7) }, glyph { 'λ', none })`.** -/
+theorem glyphMod_fixed_sound (P : Profile) {pol : Policy (BitVec 32)} (hs : pol.sentinel = none)
+    (ρ : Silmaril.Accept.Handle.Env (BitVec 32) (AST glyphSig.toAstSig)) :
+    fixedLang (astW glyphSig.toAstSig) pol {ρ}
+      (witTraces glyphSig glyphTagOf P (ReplyEnvs hiReply) 0 glyphMod {}) ⊆ {glyphPairTree} :=
+  witFixedLang_subset
+    (by rw [hs]; exact Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitGlyph.glyph_sat P ρ)
+    (fun _ _ h => h)
+
+/-- **`glyphMod` accepts only `pair(glyph { 'a', some(7) }, glyph { 'λ', none })`.** -/
+theorem glyphMod_sound (P : Profile) {pol : Policy (BitVec 32)} (hs : pol.sentinel = none)
+    (hw : pol.onWrite ≠ .ub) (ha : pol.onAccept ≠ .ub) :
+    witWriterLang glyphSig glyphTagOf P (ReplyEnvs hiReply) 0 glyphMod {} pol ⊆ {glyphPairTree} :=
+  witWriterLang_subset
+    (fun ρ => by
+      rw [hs]; exact Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitGlyph.glyph_sat P ρ)
+    (fun _ _ h => h) hw ha
+
+/-- **`glyphMod` accepts `pair(glyph { 'a', some(7) }, glyph { 'λ', none })`**, for every
+policy. -/
+theorem glyphMod_live (P : Profile) (pol : Policy (BitVec 32)) :
+    glyphPairTree ∈ witWriterLang glyphSig glyphTagOf P (ReplyEnvs hiReply) 0 glyphMod {} pol :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.Live.WitGlyph.glyphMod_live P pol
+
+/-- **The writer language of `glyphMod` is exactly
+`{pair(glyph { 'a', some(7) }, glyph { 'λ', none })}`.** -/
+theorem glyphMod_lang (P : Profile) {pol : Policy (BitVec 32)} (hs : pol.sentinel = none)
+    (hw : pol.onWrite ≠ .ub) (ha : pol.onAccept ≠ .ub) :
+    witWriterLang glyphSig glyphTagOf P (ReplyEnvs hiReply) 0 glyphMod {} pol = {glyphPairTree} :=
+  Set.Subset.antisymm (glyphMod_sound P hs hw ha)
+    (Set.singleton_subset_iff.2 (glyphMod_live P pol))
 
 end Silmaril.Wasm.Game.HandleAccept.MemSound.WitAst

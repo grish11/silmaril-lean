@@ -13,6 +13,10 @@ public import Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitPayload
 * `alignTo_add`, `le_alignTo`, `le_recordEnd`, `dvd_recordAlignment`: record layout arithmetic;
 * `readFields_loadFields`, `loadVals_loadRecord`: **scalar payload vectors are
   `ABI.loadRecord`**, failures included;
+* `loadVal_scalar`: a single scalar value (`bool` and all eight integer types) is
+  `ABI.Scalar.load`; `loadVal_f32`, `loadVal_f64`: a float is `ABI.loadFloat` (NaNs
+  canonicalised); `loadVal_char`: a `char` is `ABI.loadChar` (surrogates and values
+  `≥ 0x110000` fail in both);
 * `readPtrLen_load`: a `(ptr, len)` pair is the two reference `u32` loads;
 * `readVal_string_loadStringFromRange`: **a string payload is `ABI.loadStringFromRange?`**
   (UTF-8, memory32) below `ABI.maxStringByteLength`, and the reference fails above it.
@@ -158,6 +162,44 @@ theorem readVal_scalar (seg : Nat → Nat → Option (List UInt8)) (q : SPTy) (l
       apply BitVec.eq_of_toNat_eq
       simp [BitVec.toNat_ofNat, ABI.Scalar.width, ABI.Scalar.byteCount]
 
+  · simp only [SPTy.scalar, ABI.Scalar.byteCount] at hl
+    refine ⟨Int8.ofBitVec (BitVec.ofNat 8 (leNat l)), ?_, ?_⟩
+    · simp only [SPTy.pty, readVal, leN, hl, Nat.le_refl, ↓reduceIte,
+        List.take_of_length_le (Nat.le_of_eq hl), Option.map_some,
+        List.drop_eq_nil_of_le (Nat.le_of_eq hl)]
+    · apply scalarValue_congr
+      simp only [SPTy.scalar, Int8.toBitVec_ofBitVec, ABI.Scalar.liftBits,
+        reduceCtorEq, ↓reduceIte]
+      apply BitVec.eq_of_toNat_eq
+      simp [BitVec.toNat_ofNat, ABI.Scalar.width, ABI.Scalar.byteCount]
+  · match l, hl with
+    | [b], _ =>
+      refine ⟨b, rfl, ?_⟩
+      apply scalarValue_congr
+      simp only [SPTy.scalar, ABI.Scalar.liftBits, reduceCtorEq, ↓reduceIte]
+      apply BitVec.eq_of_toNat_eq
+      simp [ABI.Scalar.width, ABI.Scalar.byteCount, leNat]
+  · simp only [SPTy.scalar, ABI.Scalar.byteCount] at hl
+    refine ⟨Int16.ofBitVec (BitVec.ofNat 16 (leNat l)), ?_, ?_⟩
+    · simp only [SPTy.pty, readVal, leN, hl, Nat.le_refl, ↓reduceIte,
+        List.take_of_length_le (Nat.le_of_eq hl), Option.map_some,
+        List.drop_eq_nil_of_le (Nat.le_of_eq hl)]
+    · apply scalarValue_congr
+      simp only [SPTy.scalar, Int16.toBitVec_ofBitVec, ABI.Scalar.liftBits,
+        reduceCtorEq, ↓reduceIte]
+      apply BitVec.eq_of_toNat_eq
+      simp [BitVec.toNat_ofNat, ABI.Scalar.width, ABI.Scalar.byteCount]
+  · simp only [SPTy.scalar, ABI.Scalar.byteCount] at hl
+    refine ⟨UInt16.ofBitVec (BitVec.ofNat 16 (leNat l)), ?_, ?_⟩
+    · simp only [SPTy.pty, readVal, leN, hl, Nat.le_refl, ↓reduceIte,
+        List.take_of_length_le (Nat.le_of_eq hl), Option.map_some,
+        List.drop_eq_nil_of_le (Nat.le_of_eq hl)]
+    · apply scalarValue_congr
+      simp only [SPTy.scalar, ABI.Scalar.liftBits,
+        reduceCtorEq, ↓reduceIte]
+      apply BitVec.eq_of_toNat_eq
+      simp [BitVec.toNat_ofNat, ABI.Scalar.width, ABI.Scalar.byteCount]
+
 /-! ## Record layout arithmetic -/
 
 theorem alignTo_add {a : ABI.Alignment} {s : Nat} (h : s % a.bytes = 0) (c : Nat) :
@@ -295,6 +337,22 @@ theorem toScalarValue_injective : ∀ q : SPTy, Function.Injective q.toScalarVal
     have h := congrArg (fun x : ABI.ScalarValue => x.bits.toNat) h
     simp only [SPTy.toScalarValue] at h
     exact UInt64.toBitVec_inj.mp (BitVec.eq_of_toNat_eq h)
+  | .s8, a, b, h => by
+    have h := congrArg (fun x : ABI.ScalarValue => x.bits.toNat) h
+    simp only [SPTy.toScalarValue] at h
+    exact Int8.toBitVec_inj.mp (BitVec.eq_of_toNat_eq h)
+  | .u8, a, b, h => by
+    have h := congrArg (fun x : ABI.ScalarValue => x.bits.toNat) h
+    simp only [SPTy.toScalarValue] at h
+    exact UInt8.toBitVec_inj.mp (BitVec.eq_of_toNat_eq h)
+  | .s16, a, b, h => by
+    have h := congrArg (fun x : ABI.ScalarValue => x.bits.toNat) h
+    simp only [SPTy.toScalarValue] at h
+    exact Int16.toBitVec_inj.mp (BitVec.eq_of_toNat_eq h)
+  | .u16, a, b, h => by
+    have h := congrArg (fun x : ABI.ScalarValue => x.bits.toNat) h
+    simp only [SPTy.toScalarValue] at h
+    exact UInt16.toBitVec_inj.mp (BitVec.eq_of_toNat_eq h)
 
 theorem toScalarValues_injective : ∀ qs : List SPTy, Function.Injective (SPTy.toScalarValues qs)
   | [], _, _, _ => rfl
@@ -349,6 +407,74 @@ theorem readVal_string_loadStringFromRange (mem : ByteArray) {bs rest : List UIn
     · simp only [show mem.size < p + n by omega, ↓reduceIte, segOf_of_lt (Nat.lt_of_not_le hb),
         Option.bind_none, Option.map_none]
   · simp only [show ABI.maxStringByteLength < n by omega, ↓reduceIte, hn, Option.map_none]
+
+/-! ## Single values, floats and chars -/
+
+theorem loadVal_of_le {mem : ByteArray} {a : Nat} (t : PTy) (h : a + PTy.width t ≤ mem.size) :
+    loadVal mem t a = (readVal (segOf mem) t (bytesAt mem ⟨a, PTy.width t⟩)).map Prod.fst := by
+  simp only [loadVal, segOf_of_le h, Option.bind_some]
+
+theorem loadVal_of_lt {mem : ByteArray} {a : Nat} (t : PTy) (h : mem.size < a + PTy.width t) :
+    loadVal mem t a = none := by
+  simp only [loadVal, segOf_of_lt h, Option.bind_none]
+
+/-- **A scalar payload value is `ABI.Scalar.load`** (or the same failure). -/
+theorem loadVal_scalar (mem : ByteArray) (q : SPTy) (a : Nat) :
+    (loadVal mem q.pty a).map q.toScalarValue = ABI.Scalar.load q.scalar mem a := by
+  simp only [ABI.Scalar.load, load_eq]
+  by_cases hb : a + q.scalar.byteCount ≤ mem.size
+  · have hb' : a + PTy.width q.pty ≤ mem.size := by rw [width_pty]; exact hb
+    obtain ⟨v, hv, hsv⟩ := readVal_scalar (segOf mem) q (bytesAt mem ⟨a, q.scalar.byteCount⟩)
+      (length_bytesAt hb)
+    rw [loadVal_of_le _ hb', width_pty, hv, segOf_of_le hb]
+    simp only [Option.map_some, hsv]
+  · have hb' : mem.size < a + PTy.width q.pty := by rw [width_pty]; omega
+    rw [loadVal_of_lt _ hb', segOf_of_lt (by omega)]
+    rfl
+
+/-- **An `f32` payload is `ABI.loadFloat .f32`**: the little-endian bits with NaNs
+canonicalised (REF `decode_i32_as_float`), or the same failure. -/
+theorem loadVal_f32 (mem : ByteArray) (a : Nat) : loadVal mem .f32 a = ABI.loadFloat .f32 mem a := by
+  simp only [ABI.loadFloat, ABI.loadFloatBits, load_eq, ABI.floatByteCount]
+  by_cases hb : a + 4 ≤ mem.size
+  · have hl := length_bytesAt hb
+    rw [loadVal_of_le _ hb, segOf_of_le hb]
+    simp only [show PTy.width .f32 = 4 from rfl, readVal, List.take_of_length_le (Nat.le_of_eq hl),
+      le32_eq _ hl, Option.map_some]
+    rfl
+  · rw [loadVal_of_lt _ (show mem.size < a + PTy.width .f32 by
+      simp only [PTy.width, PTy.layout, ABI.Layout.size, ABI.Alignment.bytes]; omega),
+      segOf_of_lt (by omega)]
+    rfl
+
+/-- **An `f64` payload is `ABI.loadFloat .f64`** (REF `decode_i64_as_float`). -/
+theorem loadVal_f64 (mem : ByteArray) (a : Nat) : loadVal mem .f64 a = ABI.loadFloat .f64 mem a := by
+  simp only [ABI.loadFloat, ABI.loadFloatBits, load_eq, ABI.floatByteCount]
+  by_cases hb : a + 8 ≤ mem.size
+  · have hl := length_bytesAt hb
+    rw [loadVal_of_le _ hb, segOf_of_le hb]
+    simp only [show PTy.width .f64 = 8 from rfl, readVal, List.take_of_length_le (Nat.le_of_eq hl),
+      le64_eq _ hl, Option.map_some]
+    rfl
+  · rw [loadVal_of_lt _ (show mem.size < a + PTy.width .f64 by
+      simp only [PTy.width, PTy.layout, ABI.Layout.size, ABI.Alignment.bytes]; omega),
+      segOf_of_lt (by omega)]
+    rfl
+
+/-- **A `char` payload is `ABI.loadChar`**: a Unicode scalar value, or no value (out of bounds,
+a surrogate, `≥ 0x110000`: REF `convert_i32_to_char`). -/
+theorem loadVal_char (mem : ByteArray) (a : Nat) : loadVal mem .char a = ABI.loadChar mem a := by
+  simp only [ABI.loadChar, load_eq]
+  by_cases hb : a + 4 ≤ mem.size
+  · have hl := length_bytesAt hb
+    rw [loadVal_of_le _ hb, segOf_of_le hb]
+    simp only [show PTy.width .char = 4 from rfl, readVal, List.take_of_length_le (Nat.le_of_eq hl),
+      le32_eq _ hl, Option.bind_some, Option.map_some]
+    cases ABI.convertI32ToChar? (BitVec.ofNat 32 (leNat (bytesAt mem ⟨a, 4⟩))) <;> rfl
+  · rw [loadVal_of_lt _ (show mem.size < a + PTy.width .char by
+      simp only [PTy.width, PTy.layout, ABI.Layout.size, ABI.Alignment.bytes]; omega),
+      segOf_of_lt (by omega)]
+    rfl
 
 /-! ## The decoder of `node` -/
 

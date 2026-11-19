@@ -7,8 +7,10 @@ public import Silmaril.Wasm.Game.HandleAccept.Writer.Defs
 
 Fixed-arity AST imports for a signature with WIT-typed payloads (`Silmaril.Formats.WitSig`)
 whose payloads are **scalars**: `bool` (an `i32`, nonzero is true, as the canonical ABI lifts
-it), `s32`/`u32` (an `i32`) and `s64`/`u64` (an `i64`). `string`, `list<u8>` and `list<T>`
-payloads live in memory and are not decoded here (`ofVal?` is `none` for them).
+it), `s32`/`u32` (an `i32`) and `s64`/`u64` (an `i64`). Every other payload type (`string`,
+`list<T>`, the narrow integers, floats, `char` and the composite types of `PTy`) is not decoded
+from core arguments here (`ofVal?` is `none` for it); the memory decoder
+`Silmaril.Wasm.Game.HandleAccept.MemSound.WitAst` reads the whole payload domain.
 
 ## Writer
 

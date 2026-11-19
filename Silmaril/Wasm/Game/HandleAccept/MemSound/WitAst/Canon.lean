@@ -10,12 +10,18 @@ The decoder of `Callout.witNode` (`readVal`, `readFields`, `readVals`, at the ca
 `loadVals`, `witNode_loadVals`) compared with the **pure** (non-monadic) loaders of the
 canonical ABI reference in `Silmaril.Wasm.Component.Reference.ABI`, memory32, UTF-8:
 
-* **Scalar payload vectors** (`bool`, `s32`, `u32`, `s64`, `u64` only: `SPTy`):
+* **Scalar payload vectors** (`bool` and the eight integer types: `SPTy`):
   `loadVals_loadRecord`: the payload vector at `ptr` is `ABI.loadRecord` (REF `load_record` for
   integer and boolean fields: record alignment and full bounds, tail padding included, each field
   at `alignTo cursor (alignment t)`, little-endian, `bool` any nonzero byte), **as an equation
   of options**: the same values (`SPTy.toScalarValues`, injective by `toScalarValues_injective`)
   or the same failure (misaligned `ptr`, bytes out of bounds).
+* **Single values** (`loadVal mem t a`: `readVal` of the `t.width` bytes at `a`):
+  `loadVal_scalar`: a scalar is `ABI.Scalar.load`; `loadVal_f32`, `loadVal_f64`: a float is
+  `ABI.loadFloat` (REF `decode_i32_as_float`/`decode_i64_as_float`: little-endian bits, NaNs
+  canonicalised to `ABI.canonicalNaN`); `loadVal_char`: a `char` is `ABI.loadChar` (REF
+  `convert_i32_to_char`: out of bounds, surrogates and values `≥ 0x110000` fail in both). All are
+  equations of options.
 * **Strings**: `readPtrLen_load`: the `(ptr, len)` pair at `a` is the two reference loads
   `ABI.Scalar.load .u32` at `a` and `a + 4` (or the same failure);
   `readVal_string_loadStringFromRange`: given that pair, the string payload is
@@ -34,6 +40,13 @@ canonical ABI reference in `Silmaril.Wasm.Component.Reference.ABI`, memory32, UT
   monadic `Canon.Load.loadList`/`loadListFromRange`/`loadListFromValidRange` programs over a
   component store (`Silmaril.Wasm.Component.Reference.Canon.Load`), which are not compared here.
   In particular the decoder does not check REF `MAX_LIST_BYTE_LENGTH` (`listTooLong`).
+* Records, tuples, variants, `enum`, `option`, `result`, `flags` and fixed-length lists: the
+  repository's pure loaders stop at scalar records (`ABI.loadRecord`), floats and chars; REF
+  `load_record` with non-scalar fields, `load_variant`, `load_flags` and
+  `load_list_from_valid_range` exist only as the monadic `Canon.Load` programs
+  (`loadFieldsAt`, `loadVariantWith`, `loadFlags`, `loadListFromValidRangeWith`), which are
+  not compared here. The decoder follows their layout (`layout_toWit`), discriminant traps and
+  flag unpacking; kernel-checked examples are in `WitAst.Thms`.
 * Mixed vectors (a scalar beside a string or list) are not stated as one record equation:
   `loadRecord` has only scalar fields. Each field of such a vector is read at its canonical
   offset (`readFields`), so the per-field theorems above apply to its bytes.
@@ -90,6 +103,26 @@ theorem toScalarValue_injective (q : SPTy) : Function.Injective q.toScalarValue 
 theorem toScalarValues_injective (qs : List SPTy) :
     Function.Injective (SPTy.toScalarValues qs) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.toScalarValues_injective qs
+
+/-! ## Single values: scalars, floats and chars -/
+
+/-- **A scalar payload value is `ABI.Scalar.load`** (or the same failure). -/
+theorem loadVal_scalar (mem : ByteArray) (q : SPTy) (a : Nat) :
+    (loadVal mem q.pty a).map q.toScalarValue = ABI.Scalar.load q.scalar mem a :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.loadVal_scalar mem q a
+
+/-- **An `f32` payload is `ABI.loadFloat .f32`** (NaNs canonicalised), or the same failure. -/
+theorem loadVal_f32 (mem : ByteArray) (a : Nat) : loadVal mem .f32 a = ABI.loadFloat .f32 mem a :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.loadVal_f32 mem a
+
+/-- **An `f64` payload is `ABI.loadFloat .f64`** (NaNs canonicalised), or the same failure. -/
+theorem loadVal_f64 (mem : ByteArray) (a : Nat) : loadVal mem .f64 a = ABI.loadFloat .f64 mem a :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.loadVal_f64 mem a
+
+/-- **A `char` payload is `ABI.loadChar`**: the same Unicode scalar value, or the same failure
+(bounds, surrogates, values `≥ 0x110000`). -/
+theorem loadVal_char (mem : ByteArray) (a : Nat) : loadVal mem .char a = ABI.loadChar mem a :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.MemSound.WitAst.loadVal_char mem a
 
 /-! ## Strings -/
 
