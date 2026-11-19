@@ -1,6 +1,7 @@
 """Native entry ABI, Lake dependency invalidation and process cleanup regressions."""
 import os
 import io
+import json
 import shlex
 from pathlib import Path
 import shutil
@@ -161,7 +162,10 @@ name = "planner"
 path = "Planner.py"
 text = false
 ''')
-            env=dict(os.environ,LEAN_NUM_THREADS='2')
+            # A fresh fixture-owned cache exercises both compilation and real
+            # cached restoration, without depending on any host cache contents.
+            env=dict(os.environ,LEAN_NUM_THREADS='2',LAKE_ARTIFACT_CACHE='true',
+                     LAKE_RESTORE_ARTIFACTS='true',LAKE_CACHE_DIR=str(root/'artifact-cache'))
             def build():
                 p=subprocess.run([lake,'build','--wfail','driver'],cwd=root,env=env,
                                  capture_output=True,text=True,timeout=90)
@@ -173,26 +177,51 @@ text = false
             inspect_initializer(generated.read_text(),'initialize_fixture_Driver')
             def run():return subprocess.check_output([str(executable)],cwd=root,text=True,timeout=10)
             self.assertEqual(run(),'driver:one\n')
-            # The identical build is truly incremental; no relink.
+            self.trace_evidence=[]
+            def trace(label):
+                module=json.loads((root/'.lake/build/lib/lean/Driver.trace').read_text())
+                link=json.loads((root/'.lake/build/bin/driver.trace').read_text())
+                entry={'phase':label,'module_depHash':module['depHash'],
+                       'module_restored':module['synthetic'],'link_depHash':link['depHash']}
+                self.trace_evidence.append(entry)
+                return entry
+            initial=trace('initial')
+            # The identical build retains its actual keys and executable.
             previous=executable.stat().st_mtime_ns
-            build();self.assertEqual(executable.stat().st_mtime_ns,previous)
-            # Validator edits invalidate Lake's root trace. Identical generated
-            # objects may be reused; the validator itself is always executed
-            # afresh before any IO replay, never a cached verdict.
-            (root/'Planner.py').write_text('# validator changed\n')
-            log=build();self.assertIn('Built Driver',log)
-            previous=executable.stat().st_mtime_ns
+            build();noop=trace('unchanged')
+            self.assertEqual(executable.stat().st_mtime_ns,previous)
+            self.assertEqual(noop['module_depHash'],initial['module_depHash'])
+            self.assertEqual(noop['link_depHash'],initial['link_depHash'])
+            planner=root/'Planner.py';original_planner=planner.read_text()
+            changed_planner='# validator changed\n'
+            planner.write_text(changed_planner);build()
+            changed=trace('validator changed')
+            self.assertNotEqual(changed['module_depHash'],initial['module_depHash'])
+            # Revisit both keys with a populated cache. Lake legitimately emits
+            # no "Built" line on restoration; key identity is the invariant.
+            planner.write_text(original_planner);build()
+            restored=trace('validator original restored')
+            self.assertEqual(restored['module_depHash'],initial['module_depHash'])
+            self.assertTrue(restored['module_restored'])
+            planner.write_text(changed_planner);build()
+            restored=trace('validator changed restored')
+            self.assertEqual(restored['module_depHash'],changed['module_depHash'])
+            self.assertTrue(restored['module_restored'])
+            self.assertEqual(run(),'driver:one\n')
+            previous=restored
             for filename,replace,expected in [
                 ('Bootstrap.c',lambda s:s+'\n/* invalidation fixture */\n','driver:one\n'),
                 ('Context.lean',lambda s:s.replace('"one"','"two"'),'driver:two\n'),
                 ('Driver.lean',lambda s:s.replace('"driver:"','"updated:"'),'updated:two\n'),
             ]:
                 with self.subTest(filename=filename):
-                    p=root/filename;p.write_text(replace(p.read_text()))
-                    log=build()
-                    self.assertNotEqual(executable.stat().st_mtime_ns,previous,log)
-                    previous=executable.stat().st_mtime_ns
+                    p=root/filename;p.write_text(replace(p.read_text()));build()
+                    current=trace(filename+' changed')
+                    self.assertNotEqual(current['link_depHash'],previous['link_depHash'])
+                    if filename!='Bootstrap.c':
+                        self.assertNotEqual(current['module_depHash'],previous['module_depHash'])
                     self.assertEqual(run(),expected)
+                    previous=current
             # A changed initializer cannot silently reuse the last passing binary.
             p=root/'Bootstrap.c';p.write_text(p.read_text().replace('REPLAY_INITIALIZE(1)','missing_initializer(1)'))
             bad=subprocess.run([lake,'build','--wfail','driver'],cwd=root,env=env,

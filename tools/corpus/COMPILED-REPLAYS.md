@@ -69,7 +69,9 @@ python3 tools/corpus/run_compiled_replays.py
 
 The tiny dependency fixture executes its own clearly separate test program. It
 checks C/driver/import edits, validator trace invalidation, an unchanged no-op
-build and failed initialization/linking. It is not an added corpus problem or
+build and failed initialization/linking. Its fresh, fixture-owned artifact
+cache exercises both initial compilation and actual cached restoration; it
+asserts dependency-key changes and program output rather than log verbosity. It is not an added corpus problem or
 semantic proof. ABI and runtime-preflight regressions ensure rejection happens
 before any replay binary can execute.
 
