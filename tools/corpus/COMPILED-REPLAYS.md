@@ -79,10 +79,10 @@ The direct optional aliases are experimental: on the exact pinned toolchain,
 the original drivers' `public meta import`/`public meta section` generates a
 native entry that initializes runtime imports only. The Core alias currently
 faults at its first access to a global from a meta import. A successful native
-build is therefore not a successful runtime check. The measurement stops on
-that failure; no native output/digest match or speedup is established. Keep the
-interpreted checks selected until a runtime initialization path and the full
-observation audit have been validated.
+build is therefore not a successful runtime check. Without
+`--full-initialization`, the measurement stops on that failure. A direct
+alias cannot supply a passing runtime comparison; use the separate initialized
+experiment below to obtain native outputs and full observation transcripts.
 
 An isolated full-initialization experiment is available with:
 
@@ -102,5 +102,7 @@ aliases remain intact. Plans record bootstrap/generated-C/link-response hashes.
 
 A successful startup or matching PASS summary is still insufficient: require
 all original assertions, negative cases and complete observed-field transcript
-counts/digests to match interpreted controls. Do not substitute this experiment
-into CI or infer cold/warm net benefit until those measurements establish it.
+counts/digests to match interpreted controls. Assess build-plus-run benefit
+with the recorded cache conditions and setup
+costs. Pipeline integration needs a separate review of dependency tracking,
+runtime selection and resource limits; the measurement aliases do not change it.
