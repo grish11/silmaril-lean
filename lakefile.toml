@@ -628,6 +628,16 @@ srcDir = "tools/cli-core-trace"
 name = "CerberusTests"
 globs = ["tests.cerberus.+"]
 
+# Run the larger finite caller/heap regressions as native programs. Their test
+# definitions and cases are shared with CerberusTests, with no reduced sample.
+[[lean_exe]]
+name = "check-cjson-array-item-context"
+root = "tests.cerberus.CjsonArrayItemContext"
+
+[[lean_exe]]
+name = "check-cjson-array-item-machine"
+root = "tests.cerberus.CjsonArrayItemMachine"
+
 [[lean_exe]]
 name = "cerb-lean"
 root = "CerbLean"

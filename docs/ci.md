@@ -33,6 +33,9 @@ changed. These changes check everything:
 - any other file that is not in the Makefile's `SCOPE_EXCLUDE` list (files that
   Lake never reads), such as `.github/`, the `Makefile` or `tools/binaryen-lean/`.
 With no Lake target, the job restores nothing and runs only the source checks.
+The larger cJSON array-item Core and machine regressions build their existing
+test modules as native executables and run every original case and assertion.
+Their execution stays inside `make check` and the normal timing budget.
 The timing check waits for all selected correctness jobs. It includes their
 setup, cache transfer, tests and publication, plus waits after the attempt
 starts. Time Lake spends compiling modules the run had to build does not count:
