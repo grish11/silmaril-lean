@@ -7,15 +7,20 @@ its checks. Their `main` functions must run explicitly at runtime. These are
 finite observations, never semantic proofs; no `native_decide` is involved.
 The normal `make check` selection and CI accounting are initially unchanged.
 
-Use the repository's exact Lean/dependency pins and an isolated checkout:
+Use the repository's exact Lean/dependency pins and an isolated checkout.
+Restore/build the drivers' imported modules first and record that setup cost;
+the initial interpreted commands need their imported OLeans. Do not prebuild
+the optional executables when measuring their initial build cost:
 
 ```sh
-lake build --wfail ci_corpus_cjson_array_item_core ci_corpus_cjson_array_item_machine
 python3 tools/corpus/benchmark_compiled_replays.py --out build/replay-measurement --audit
 ```
 
 The harness runs both unchanged interpreted drivers, times the native build,
-runs each native driver explicitly twice, and times a no-op build. It compares
+runs each native driver explicitly twice, and times a no-op build. If executable
+or object artifacts were already restored/built, label that build as warm. The
+combined native-build step does not separately identify C generation, C compilation
+and linking: measure those facets separately when those costs are needed. It compares
 complete stdout/stderr bytes and the existing168/420 case-count summaries. These
 summaries alone are not full observation digests.
 
@@ -69,3 +74,12 @@ focused regression with:
 ```sh
 python3 -m unittest discover -s tools/corpus -p test_replay_measure.py
 ```
+
+The direct optional aliases are experimental: on the exact pinned toolchain,
+the original drivers' `public meta import`/`public meta section` generates a
+native entry that initializes runtime imports only. The Core alias currently
+faults at its first access to a global from a meta import. A successful native
+build is therefore not a successful runtime check. The measurement stops on
+that failure; no native output/digest match or speedup is established. Keep the
+interpreted checks selected until a runtime initialization path and the full
+observation audit have been validated.
