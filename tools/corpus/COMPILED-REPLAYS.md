@@ -83,3 +83,24 @@ build is therefore not a successful runtime check. The measurement stops on
 that failure; no native output/digest match or speedup is established. Keep the
 interpreted checks selected until a runtime initialization path and the full
 observation audit have been validated.
+
+An isolated full-initialization experiment is available with:
+
+```sh
+python3 tools/corpus/benchmark_compiled_replays.py --out build/replay-measurement --full-initialization --audit
+```
+
+`replay_native_bootstrap.py` inspects the exact generated C for the real full
+module initializer and `run_main` callback, rejecting a changed ABI. It emits a
+plan; the harness separately times planning, bootstrap C compilation and each
+link. The optional external C entry uses the supported ELF linker
+`--wrap=main` option and the compiler's full initializer before the unchanged
+compiled IO callback. It neither edits generated driver C nor populates any
+Core/global/result by hand. All initialization runs after the measured process
+starts. The initialized binaries have separate output paths; the original
+aliases remain intact. Plans record bootstrap/generated-C/link-response hashes.
+
+A successful startup or matching PASS summary is still insufficient: require
+all original assertions, negative cases and complete observed-field transcript
+counts/digests to match interpreted controls. Do not substitute this experiment
+into CI or infer cold/warm net benefit until those measurements establish it.
