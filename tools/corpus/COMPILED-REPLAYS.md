@@ -1,0 +1,60 @@
+# Compiled corpus replay measurement
+
+The optional `ci_corpus_cjson_array_item_core` and
+`ci_corpus_cjson_array_item_machine` targets compile the existing IO regression
+drivers without editing their source. Building an executable does **not** run
+its checks. Their `main` functions must run explicitly at runtime. These are
+finite observations, never semantic proofs; no `native_decide` is involved.
+The normal `make check` selection and CI accounting are initially unchanged.
+
+Use the repository's exact Lean/dependency pins and an isolated checkout:
+
+```sh
+lake build --wfail ci_corpus_cjson_array_item_core ci_corpus_cjson_array_item_machine
+python3 tools/corpus/benchmark_compiled_replays.py --out build/replay-measurement --audit
+```
+
+The harness runs both unchanged interpreted drivers, times the native build,
+runs each native driver explicitly twice, and times a no-op build. It compares
+complete stdout/stderr bytes and the existing168/420 case-count summaries. These
+summaries alone are not full observation digests.
+
+`--audit` additionally generates separate instrumentation-only copies under
+`build/corpus-replay-audit`. It retains the source assertion bodies and case
+matrices and logs each case's actual observed values. For the one source
+negative-execution expression, its pure result is named and logged before the
+unchanged match, without evaluating it twice. The generator checks that removing
+this instrumentation recovers the original source exactly. Both interpreted
+and native instrumented drivers run at runtime, with no added `#eval` or proof
+work. Their full transcripts must match byte for byte, with168/420 case records
+and3 source missing-allocation negatives. The two forged-provenance projections
+per source case are also recorded. All original assertions/negative checks stay.
+
+The source transcript records actual terminal output, observed caller
+allocation/lifetime/byte/provenance fields, private allocation cleanup,
+registrations/output preservation and rejected projections. It follows the
+existing observation domain: it does not establish arbitrary continuation
+unobservability or full-record source-memory equality. The machine transcript
+records registers/flags/RIP/FS, mappings/key count and every byte checked outside
+the existing72-byte private frame. Instrumentation times are reported separately
+and must not be used as ordinary-driver speed measurements.
+
+Outputs include per-step argv, wall/user/system time, `wait4` peak RSS, faults,
+context switches, complete stdout/stderr files and SHA-256 digests. By default,
+children use eight available CPUs and a32GiB `RLIMIT_AS`; this is a per-process
+virtual-address limit, not an aggregate physical-memory/cgroup limit. The host's
+actual CPU count and memory are recorded. Peak `wait4` RSS is not aggregate
+concurrent process-tree RSS. Do not infer isolation/resource equivalence beyond
+these recorded limits.
+
+Dependencies, native objects, executable pages or filesystem caches may already
+be warm; no cache is flushed. Record toolchain acquisition, dependency restore,
+C generation/compilation/linking, service/client overhead and actual run time
+when assessing end-to-end benefit. A no-op build or warm run is not a cold build.
+Driver hashes are recorded so revisions remain distinguishable. Native binary
+size and repeated build costs matter as well as run time.
+
+These measurements do not certify a CI budget pass. Keep the unchanged timing
+accounting and original acceptance target distinct, retain historical failures,
+and validate net benefit locally before starting expensive full CI. No tests,
+input domains, assertions, security scans or timeouts should be weakened.
