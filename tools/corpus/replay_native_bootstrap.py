@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import re
+import shlex
 import subprocess
 
 TARGETS={
@@ -23,7 +24,19 @@ TARGETS={
 
 
 def sha(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    h=hashlib.sha256()
+    with path.open('rb') as f:
+        for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
+    return h.hexdigest()
+
+
+def inspect_initializer(code, expected=None):
+    """Reject compiler ABI drift before launching the compiled IO callback."""
+    symbols=re.findall(r'^LEAN_EXPORT lean_object\* (initialize_\w+)\(uint8_t builtin\) \{',code,re.M)
+    callbacks=re.findall(r'^lean_object\* run_main\(int argc, char \*\* argv\) \{\s*return _lean_main\(\);\s*\}',code,re.M)
+    if len(symbols)!=1 or len(callbacks)!=1 or (expected is not None and symbols[0]!=expected):
+        raise ValueError('inspect changed compiler-generated initialization/callback ABI')
+    return symbols[0]
 
 
 def main():
@@ -42,11 +55,10 @@ def main():
         if kind.startswith('audit-') != args.audit: continue
         source=Path('.lake/build/ir')/(module+'.c')
         response=Path('.lake/build/bin')/(target+'.rsp')
+        if '-Wl,--wrap=main' in shlex.split(response.read_text()):
+            raise SystemExit('Lake already links full initialization; use run_compiled_replays.py')
         code=source.read_text()
-        symbols=re.findall(r'^LEAN_EXPORT lean_object\* (initialize_\w+)\(uint8_t builtin\) \{',code,re.M)
-        if len(symbols)!=1 or 'lean_object* run_main(int argc, char ** argv)' not in code:
-            raise SystemExit(f'{kind}: inspect changed compiler-generated initialization/callback ABI')
-        initializer=symbols[0]
+        initializer=inspect_initializer(code)
         obj=(args.out/(kind+'.o')).resolve()
         executable=(args.out/kind).resolve()
         compile_command=[str(clang),'-c','-o',str(obj),str(bootstrap),'-Werror',

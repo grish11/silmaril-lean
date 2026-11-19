@@ -30,7 +30,7 @@ def main():
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--lake", default="lake")
     ap.add_argument("--audit", action="store_true", help="also compare separately instrumented per-case observation transcripts")
-    ap.add_argument("--full-initialization", action="store_true", help="experimental external runtime bootstrap for the unchanged meta drivers")
+    ap.add_argument("--full-initialization", action="store_true", help="retained CLI compatibility; Lake targets now include full runtime initialization")
     ap.add_argument("--cpus", type=int, default=8)
     ap.add_argument("--address-space-gib", type=int, default=32)
     args = ap.parse_args()
@@ -41,9 +41,11 @@ def main():
     def limits():
         os.sched_setaffinity(0, allowed)
         cap = args.address_space_gib * 1024**3
+        inherited = resource.getrlimit(resource.RLIMIT_AS)
+        cap = min([cap]+[v for v in inherited if v != resource.RLIM_INFINITY])
         resource.setrlimit(resource.RLIMIT_AS, (cap, cap))
     env = dict(os.environ, LEAN_NUM_THREADS=str(args.cpus))
-    summary = {"native_full_initialization": args.full_initialization, "cpu_affinity": allowed, "address_space_gib": args.address_space_gib,
+    summary = {"native_full_initialization": True, "cpu_affinity": allowed, "address_space_gib": args.address_space_gib,
                "memory_limit_kind": "per-child RLIMIT_AS, not a physical/cgroup memory limit",
                "host_cpu_count": os.cpu_count(),
                "host_meminfo": Path("/proc/meminfo").read_text().splitlines()[:3],
@@ -73,21 +75,13 @@ def main():
         if p.returncode:
             raise SystemExit(f"{name} failed; retained output and partial measurements")
         return row
-    def bootstrap(audit=False):
-        directory=args.out/("audit-full-init" if audit else "full-init")
-        run("audit-bootstrap-plan" if audit else "bootstrap-plan", [sys.executable,
-            "tools/corpus/replay_native_bootstrap.py", "--out",str(directory),"--lake",args.lake,
-            *(["--audit"] if audit else [])])
-        plan=json.loads((directory/"plan.json").read_text())
-        for step in plan["steps"]: run(step["name"],step["argv"])
-        return {k.removeprefix("audit-"):v["executable"] for k,v in plan["targets"].items()}
     save()
     for kind,(source,_,_) in DRIVERS.items():
         run(kind+"-interpreted", [args.lake,"env","lean","-DwarningAsError=true","--run",source])
     # Build cost is timed separately and included in net-cost comparisons.
     run("native-build", [args.lake,"build","--wfail",*[v[1] for v in DRIVERS.values()]])
-    native_paths=bootstrap() if args.full_initialization else {
-        kind:str(Path(".lake/build/bin")/v[1]) for kind,v in DRIVERS.items()}
+    from run_compiled_replays import verify_integrated
+    native_paths={kind:data['path'] for kind,data in verify_integrated().items()}
     for repeat in (1,2):
         for kind,(_,target,n) in DRIVERS.items():
             row = run(f"{kind}-native-{repeat}", [native_paths[kind]])
@@ -104,8 +98,7 @@ def main():
         generate()
         audit_targets = ["ci_corpus_replay_audit_core", "ci_corpus_replay_audit_machine"]
         run("audit-build", [args.lake,"build","--wfail",*audit_targets])
-        audit_paths=bootstrap(audit=True) if args.full_initialization else {
-            kind:str(Path(".lake/build/bin")/target) for kind,target in zip(DRIVERS,audit_targets)}
+        audit_paths={kind:data['path'] for kind,data in verify_integrated(audit=True).items()}
         for kind,target in zip(DRIVERS, audit_targets):
             source = f"build/corpus-replay-audit/ReplayAudit{kind.title()}.lean"
             run(kind+"-audit-interpreted", [args.lake,"env","lean","-DwarningAsError=true","--run",source])

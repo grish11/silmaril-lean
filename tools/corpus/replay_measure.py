@@ -41,7 +41,7 @@ def process_tree_memory(pid, *, proc=Path('/proc'), page_kib=None):
     return rss,virtual,len(groups)
 
 
-def measure(command, *, stdout, stderr, cpus=8, memory_gib=32, env=None):
+def measure(command, *, stdout, stderr, cpus=8, memory_gib=32, env=None, timeout_seconds=None):
     allowed=sorted(os.sched_getaffinity(0))[:cpus]
     if len(allowed)!=cpus: raise ValueError('insufficient CPUs for affinity')
     page_kib=os.sysconf('SC_PAGE_SIZE')//1024
@@ -57,6 +57,11 @@ def measure(command, *, stdout, stderr, cpus=8, memory_gib=32, env=None):
         process=subprocess.Popen(command,stdout=out,stderr=err,env=env,preexec_fn=child_setup)
         def sample():
             while not stop.is_set():
+                if timeout_seconds is not None and time.monotonic()-began >= timeout_seconds:
+                    sampled['timeout_triggered']=True
+                    try: os.killpg(process.pid,signal.SIGKILL)
+                    except ProcessLookupError: pass
+                    return
                 try:
                     rss,virtual,count=process_tree_memory(process.pid,page_kib=page_kib)
                 except Exception as error:
@@ -77,7 +82,17 @@ def measure(command, *, stdout, stderr, cpus=8, memory_gib=32, env=None):
         try:
             _,status,usage=os.wait4(process.pid,0)
             process.returncode=os.waitstatus_to_exitcode(status)
+        except BaseException:
+            try: os.killpg(process.pid,signal.SIGKILL)
+            except ProcessLookupError: pass
+            _,status,usage=os.wait4(process.pid,0)
+            process.returncode=os.waitstatus_to_exitcode(status)
+            raise
         finally:
+            # Normal exit, failure, timeout or parent cancellation cannot leave
+            # a still-running descendant from this measured process group.
+            try: os.killpg(process.pid,signal.SIGKILL)
+            except ProcessLookupError: pass
             stop.set();watcher.join()
         elapsed=time.monotonic()-began
     sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()

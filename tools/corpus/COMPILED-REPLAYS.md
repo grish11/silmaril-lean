@@ -1,108 +1,110 @@
-# Compiled corpus replay measurement
+# Compiled corpus replay execution
 
-The optional `ci_corpus_cjson_array_item_core` and
-`ci_corpus_cjson_array_item_machine` targets compile the existing IO regression
-drivers without editing their source. Building an executable does **not** run
-its checks. Their `main` functions must run explicitly at runtime. These are
-finite observations, never semantic proofs; no `native_decide` is involved.
-The normal `make check` selection and CI accounting are initially unchanged.
+`make check` and `make process-check` explicitly execute the two unchanged
+cJSON caller IO regression drivers through `run_compiled_replays.py`. Building
+an executable does **not** execute its checks. These are finite observations,
+never semantic proofs; no `#eval`, `native_decide` or cached pass is involved.
+The original case matrices, negative tests, assertions and source files remain.
 
-Use the repository's exact Lean/dependency pins and an isolated checkout.
-Restore/build the drivers' imported modules first and record that setup cost;
-the initial interpreted commands need their imported OLeans. Do not prebuild
-the optional executables when measuring their initial build cost:
+The runner always requests a fresh `lake build --wfail` of both targets, validates
+the actual generated initializer/callback ABI and link inputs, then executes
+both programs sequentially. It retains complete stdout/stderr, exit status,
+source/generated-C/executable/link-response hashes and per-step resources under
+`build/compiled-replay-results`. A failure stops the command with a nonzero
+exit. Success still requires the original168/420 count summaries.
+
+The ordinary Lean driver/import/object/toolchain dependencies belong to Lake.
+The bootstrap C file is an actual `input_file` in `moreLinkObjs`, so Lake tracks
+its content as a link input and compiles it during the normal link invocation.
+The planner/validator, runner, sampler and focused tests are additional named
+Lake input dependencies; edits also select these targets through `make scope`.
+Identical generated objects can remain reusable after a validator-only edit:
+validation runs from the current Python source every time, before any replay.
+No handwritten freshness manifest or previously passing executable bypasses
+Lake or runtime validation.
+
+The original drivers use `public meta import`/`public meta section`. Their
+unwrapped generated native entry initializes only runtime imports and faults
+on its first meta-import global access on the pinned toolchain. The external
+bootstrap uses documented ELF `--wrap=main`, the real generated full initializer,
+then unchanged generated `run_main` through Lean IO. No generated C, driver,
+Core, global, result, header or runtime implementation is patched. All full
+initialization occurs **after** the measured runtime starts. The native aliases
+include this bootstrap in their normal Lake link. Compiler ABI drift or missing
+link inputs fail closed; changed initializer symbols also fail linking.
+
+Execution is sequential, with at most eight inherited CPUs and no increase to
+an inherited tighter `LEAN_NUM_THREADS`. Build/replay children each have a
+900-second deadline, preserving stricter outer job deadlines and inherited
+cgroup/rlimit restrictions. Each measured process group has a32GiB sampled
+aggregate descendant-RSS guard; sampler errors fail closed. Timeout, failure,
+parent cancellation and normal exit clean up remaining children in that group.
+Linux `Tgid` deduplication avoids counting sibling threads as separate processes;
+distinct-process shared pages can still be counted more than once. Sampling
+and affinity are **not** hard cgroup/physical-memory isolation.
+
+Run the focused actual-Lake invalidation, ABI, cancellation, cleanup and sampler
+regressions with the repository's pinned toolchain:
+
+```sh
+python3 -m unittest discover -s tools/corpus -p 'test_replay*.py'
+python3 tools/corpus/run_compiled_replays.py
+```
+
+The tiny dependency fixture executes its own clearly separate test program. It
+checks C/driver/import edits, validator trace invalidation, an unchanged no-op
+build and failed initialization/linking. It is not an added corpus problem or
+semantic proof. ABI and runtime-preflight regressions ensure rejection happens
+before any replay binary can execute.
+
+## Full observation comparison
+
+Use an isolated checkout with the exact Lean/dependency pins. Record acquisition,
+restore and imported-module preparation separately; the interpreted controls
+need imported OLeans. The standalone measurement harness runs both interpreted
+originals, builds the native targets, explicitly executes each native driver
+twice, and times a no-op build:
 
 ```sh
 python3 tools/corpus/benchmark_compiled_replays.py --out build/replay-measurement --audit
 ```
 
-The harness runs both unchanged interpreted drivers, times the native build,
-runs each native driver explicitly twice, and times a no-op build. If executable
-or object artifacts were already restored/built, label that build as warm. The
-combined native-build step does not separately identify C generation, C compilation
-and linking: measure those facets separately when those costs are needed. It compares
-complete stdout/stderr bytes and the existing168/420 case-count summaries. These
-summaries alone are not full observation digests.
+Its complete ordinary stdout/stderr and168/420 summary comparisons are not
+full observation digests. `--audit` additionally creates instrumentation-only
+copies under `build/corpus-replay-audit`, retaining every assertion and case.
+Removing the instrumentation reconstructs each original exactly. The one source
+negative-execution expression is named/logged once before its original match.
+Interpreted/native audit programs both execute at runtime; complete transcripts
+must match byte for byte, with168/420 records,3 missing-allocation negatives and
+336 forged-pointer projection values. The optional audit aliases use the same
+tracked bootstrap and ABI validation as ordinary execution. Instrumentation
+costs are separate from ordinary-driver timings.
 
-`--audit` additionally generates separate instrumentation-only copies under
-`build/corpus-replay-audit`. It retains the source assertion bodies and case
-matrices and logs each case's actual observed values. For the one source
-negative-execution expression, its pure result is named and logged before the
-unchanged match, without evaluating it twice. The generator checks that removing
-this instrumentation recovers the original source exactly. Both interpreted
-and native instrumented drivers run at runtime, with no added `#eval` or proof
-work. Their full transcripts must match byte for byte, with168/420 case records
-and3 source missing-allocation negatives. The two forged-provenance projections
-per source case are also recorded. All original assertions/negative checks stay.
+Source transcripts record terminal output; observed caller allocation/lifetime,
+byte/provenance fields; private cleanup; registrations/output preservation; and
+rejected projections. Enum/function preservation logs the original Boolean
+comparisons, not raw table dumps. The machine transcript records registers,
+flags/RIP/FS, mappings/key counts and every byte checked outside the existing
+72-byte private frame. These follow existing diagnostic/currentLocation/private
+observation limits; they do not establish arbitrary-continuation adequacy,
+full-record source-memory equality or semantic refinement.
 
-The source transcript records actual terminal output, observed caller
-allocation/lifetime/byte/provenance fields, private allocation cleanup,
-registrations/output preservation and rejected projections. It follows the
-existing observation domain: it does not establish arbitrary continuation
-unobservability or full-record source-memory equality. The machine transcript
-records registers/flags/RIP/FS, mappings/key count and every byte checked outside
-the existing72-byte private frame. Instrumentation times are reported separately
-and must not be used as ordinary-driver speed measurements.
+## Measurement limits
 
-Outputs include per-step argv, wall/user/system time, `wait4` peak RSS, faults,
-context switches, complete stdout/stderr files and SHA-256 digests. By default,
-children use eight available CPUs and a32GiB `RLIMIT_AS`; this is a per-process
-virtual-address limit, not an aggregate physical-memory/cgroup limit. The host's
-actual CPU count and memory are recorded. Peak `wait4` RSS is not aggregate
-concurrent process-tree RSS. Do not infer isolation/resource equivalence beyond
-these recorded limits.
+Record toolchain acquisition, dependency restore, module preparation, native
+objects, C compilation/linking, full startup and execution. Bootstrap C compilation
+is included in the ordinary Lake link invocation, not a separately timed phase.
+Keep native dependency-object compilation distinct from pure final linking.
+A warm no-op build or runtime is not a cold build. No cache is flushed; label
+restored/built artifacts and filesystem pages honestly. Staged arithmetic is
+not one end-to-end measurement or a CI acceptance result.
 
-Dependencies, native objects, executable pages or filesystem caches may already
-be warm; no cache is flushed. Record toolchain acquisition, dependency restore,
-C generation/compilation/linking, service/client overhead and actual run time
-when assessing end-to-end benefit. A no-op build or warm run is not a cold build.
-Driver hashes are recorded so revisions remain distinguishable. Native binary
-size and repeated build costs matter as well as run time.
+The standalone benchmark uses per-child32GiB `RLIMIT_AS`, unlike the pipeline
+runner's sampled aggregate RSS guard. Neither is a hard aggregate cgroup claim.
+Both preserve stricter inherited host/job restrictions; do not compare their
+resource limits as identical. Complete per-step argv and logs remain available.
 
-These measurements do not certify a CI budget pass. Keep the unchanged timing
-accounting and original acceptance target distinct, retain historical failures,
-and validate net benefit locally before starting expensive full CI. No tests,
-input domains, assertions, security scans or timeouts should be weakened.
-
-`replay_measure.py` provides a separate sampled descendant-RSS diagnostic with
-an unchanged default 32GiB guard. It counts each Linux `Tgid` once, even when a
-proc implementation lists thread IDs as children. Distinct processes may still
-share pages, so their summed RSS is conservative; sampling is not hard aggregate
-memory isolation. A sampler error stops the measured process group. Run its
-focused regression with:
-
-```sh
-python3 -m unittest discover -s tools/corpus -p test_replay_measure.py
-```
-
-The direct optional aliases are experimental: on the exact pinned toolchain,
-the original drivers' `public meta import`/`public meta section` generates a
-native entry that initializes runtime imports only. The Core alias currently
-faults at its first access to a global from a meta import. A successful native
-build is therefore not a successful runtime check. Without
-`--full-initialization`, the measurement stops on that failure. A direct
-alias cannot supply a passing runtime comparison; use the separate initialized
-experiment below to obtain native outputs and full observation transcripts.
-
-An isolated full-initialization experiment is available with:
-
-```sh
-python3 tools/corpus/benchmark_compiled_replays.py --out build/replay-measurement --full-initialization --audit
-```
-
-`replay_native_bootstrap.py` inspects the exact generated C for the real full
-module initializer and `run_main` callback, rejecting a changed ABI. It emits a
-plan; the harness separately times planning, bootstrap C compilation and each
-link. The optional external C entry uses the supported ELF linker
-`--wrap=main` option and the compiler's full initializer before the unchanged
-compiled IO callback. It neither edits generated driver C nor populates any
-Core/global/result by hand. All initialization runs after the measured process
-starts. The initialized binaries have separate output paths; the original
-aliases remain intact. Plans record bootstrap/generated-C/link-response hashes.
-
-A successful startup or matching PASS summary is still insufficient: require
-all original assertions, negative cases and complete observed-field transcript
-counts/digests to match interpreted controls. Assess build-plus-run benefit
-with the recorded cache conditions and setup
-costs. Pipeline integration needs a separate review of dependency tracking,
-runtime selection and resource limits; the measurement aliases do not change it.
+Existing timing accounting, original acceptance target, current CI budget and
+historical failures remain unchanged. Build/link/startup/runtime output and costs
+must remain visible under those rules. Local benefit does not certify a CI
+pass; security analysis success does not certify vulnerability freedom.
